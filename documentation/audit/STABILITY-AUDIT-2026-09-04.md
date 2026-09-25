@@ -168,6 +168,7 @@ Cloud Functions window.
   A homeowner signs remotely. The token is burned inside the transaction (pending -> signed). The next step, saving the signed HTML over `info.htmlPath`, hits a transient Storage 5xx/timeout — caught and logged as a warning. Execution continues and the documents doc is stamped signedAt / signedRemotel
 - **onLeadDeleted reaps only the `documents` subcollection — ai_drafts, tasks and portal_messages survive a hard delete and keep feeding the collectionGroup analytics**
   `functions/lead-artifact-cleanup.js:188` · M · needs deploy · orphaned-children
+  **Fixed 2026-09-25 (branch `fix/lead-subtree-sweep`):** onLeadDeleted now deletes the lead's whole subtree, and it turned out to be a security hole as well as a leak: whoever re-creates the lead id owns the leftovers. See [LEAD-SUBTREE-HIJACK-2026-09-25](LEAD-SUBTREE-HIJACK-2026-09-25.md).
   A rep permanently deletes a prospect (dashboard-actions.js:1858, three confirmations plus a typed DELETE). onLeadDeleted reaps Storage prefixes, /photos and the `documents` subcollection — but Firestore cascades nothing, and leads/{id}/ai_drafts, /tasks and /portal_messages are never touched. Those 
 - **The customer-page photo delete removes only the Firestore doc, orphaning the Storage original, thumb and three variants beyond any future sweep**
   `docs/pro/js/customer-tasks-ui.js:1567` · M · orphaned-storage

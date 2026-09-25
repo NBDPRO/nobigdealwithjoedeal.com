@@ -191,6 +191,105 @@ console.log('\nCONFINEMENT — the security boundary of the whole trigger');
      !isReapablePhotoPath('photos//a.jpg', new Set([''])));
 }
 
+// 2026-09-25 — the whole-subtree sweep (functions/lead-subtree-sweep.js) takes
+// object paths from ANY row under the deleted lead, all client-written. These
+// are the checks that stand between that and an arbitrary-delete primitive.
+console.log('\nSUBTREE CONFINEMENT — which object a row under the deleted lead may make the sweep delete');
+{
+  const {
+    isReapableLeadArtifactPath: may, storagePathFromUrl, storageRefsIn,
+    isoToNanos, timestampToNanos, LEAD_ARTIFACT_PREFIXES,
+  } = require(path.join(ROOT, 'functions', 'lead-artifact-paths.js'));
+
+  ok('directory shape under this lead', may(`documents/${UID}/${LEAD}/d-1.html`, LEAD));
+  ok('directory shape under ANY uid (a manager\'s upload to a teammate\'s lead)',
+     may(`documents/${OTHER_UID}/${LEAD}/d-1.html`, LEAD));
+  ok('legacy flat portal', may(`portals/${UID}/${LEAD}.html`, LEAD));
+  ok('legacy flat photo portal', may(`portals/${UID}/${LEAD}-photos.html`, LEAD));
+  ok('customer-page upload docs/{uid}/{leadId}_{ms}_{name}', may(`docs/${UID}/${LEAD}_1790000000000_signed.pdf`, LEAD));
+  ok('nested photo under this lead', may(`photos/${UID}/${LEAD}/_variants/a_full.webp`, LEAD));
+  ok('audio recording under this lead', may(`audio/${UID}/${LEAD}/rec1.webm`, LEAD));
+
+  console.log('  -- refusals --');
+  // THE HOLE the old documents loop had: `p.includes(leadId)` with a lead id
+  // the attacker chose. A lead named `html` matched every .html in the bucket.
+  ok('a lead named "html" cannot reach another lead\'s .html (the includes() hole)',
+     !may(`documents/${OTHER_UID}/${LEAD}/d-1.html`, 'html'));
+  ok('a lead named after a uid cannot reach that uid\'s objects',
+     !may(`documents/${OTHER_UID}/${LEAD}/d-1.html`, OTHER_UID));
+  ok('a sibling lead whose id STARTS with this one is refused',
+     !may(`documents/${UID}/${LEAD}sib/d.html`, LEAD));
+  ok('a sibling flat portal is refused', !may(`portals/${UID}/${LEAD}x.html`, LEAD));
+  // Cal.com lead ids are `calcom__<booking>`. Without the 13-digit check a lead
+  // named `calcom` would own `docs/{uid}/calcom__123_..._x.pdf`.
+  ok('a lead named "calcom" cannot reach a calcom__ lead\'s upload',
+     !may(`docs/${UID}/calcom__12345_1790000000000_x.pdf`, 'calcom'));
+  ok('a lead named "calcom_" cannot either', !may(`docs/${UID}/calcom__12345_1790000000000_x.pdf`, 'calcom_'));
+  ok('the calcom__ lead itself can', may(`docs/${UID}/calcom__12345_1790000000000_x.pdf`, 'calcom__12345'));
+  ok('flat docs without the 13-digit ms is refused', !may(`docs/${UID}/${LEAD}_123_x.pdf`, LEAD));
+  ok('flat photos are never reaped from a row (a filename is not a leadId)',
+     !may(`photos/${UID}/${LEAD}.jpg`, LEAD));
+  ok('d2d is knock-owned', !may(`audio/${UID}/d2d/${LEAD}/memo.webm`, LEAD));
+  ok('an unknown prefix is refused', !may(`pdf-renders/${UID}/${LEAD}/x.pdf`, LEAD));
+  ok('traversal is refused', !may(`documents/${UID}/${LEAD}/../../x`, LEAD));
+  ok('a leading slash is refused', !may(`/documents/${UID}/${LEAD}/x`, LEAD));
+  ok('two segments is refused', !may(`documents/${LEAD}`, LEAD));
+  ok('an empty leadId authorises nothing', !may(`documents/${UID}//x`, ''));
+
+  console.log('  -- finding paths in a row --');
+  const url = `https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/o/${encodeURIComponent(`docs/${UID}/${LEAD}_1790000000000_a.pdf`)}?alt=media&token=t`;
+  ok('download URL -> object path', storagePathFromUrl(url) === `docs/${UID}/${LEAD}_1790000000000_a.pdf`);
+  ok('emulator download URL -> object path',
+     storagePathFromUrl(`http://127.0.0.1:9199/v0/b/b/o/${encodeURIComponent('documents/u/l/x.html')}?alt=media`) === 'documents/u/l/x.html');
+  ok('storage.googleapis.com URL -> object path',
+     storagePathFromUrl('https://storage.googleapis.com/b/documents/u/l/x.html') === 'documents/u/l/x.html');
+  ok('a non-Storage URL -> null', storagePathFromUrl('https://example.com/o/x') === null);
+  ok('garbage -> null', storagePathFromUrl('not a url') === null);
+  const refs = storageRefsIn({
+    htmlPath: `documents/${UID}/${LEAD}/d.html`,
+    url,
+    png: 'data:image/png;base64,' + 'A'.repeat(5000),
+    text: 'no path here',
+    nested: { list: [{ audioPath: `audio/${UID}/${LEAD}/r.webm` }] },
+    when: new Date(),
+  });
+  ok('finds a path field, a download URL and a nested path (' + refs.length + ')', eq(refs.sort(), [
+    `audio/${UID}/${LEAD}/r.webm`,
+    `docs/${UID}/${LEAD}_1790000000000_a.pdf`,
+    `documents/${UID}/${LEAD}/d.html`,
+  ]));
+  ok('a saved-signature data URL is not a path', !refs.some((r) => r.startsWith('data:')));
+
+  console.log('  -- exact time (the race cutoff) --');
+  ok('nanoseconds survive', isoToNanos('2026-09-25T22:07:31.123456789Z') === 1790374051123456789n);
+  ok('no fraction', isoToNanos('2026-09-25T22:07:31Z') === 1790374051000000000n);
+  ok('an offset is honoured', isoToNanos('2026-09-25T23:07:31.5+01:00') === 1790374051500000000n);
+  ok('one nanosecond apart compares apart',
+     isoToNanos('2026-09-25T22:07:31.000000001Z') > isoToNanos('2026-09-25T22:07:31Z'));
+  ok('garbage -> null (the caller falls back, never guesses)', isoToNanos('yesterday') === null && isoToNanos(undefined) === null);
+  ok('Timestamp -> nanoseconds', timestampToNanos({ seconds: 1790374051, nanoseconds: 123456789 }) === 1790374051123456789n);
+  ok('a non-Timestamp -> null', timestampToNanos({}) === null && timestampToNanos(null) === null);
+
+  console.log('  -- the trigger\'s cutoff --');
+  const { deleteCutoffNs } = require(path.join(ROOT, 'functions', 'lead-artifact-paths.js'));
+  const START_MS = 1790374060000; // ~9 s after the event below
+  const startNs = BigInt(START_MS) * 1000000n;
+  const exact = deleteCutoffNs('2026-09-25T22:07:31.123456789Z', 1790374000000000000n, START_MS);
+  ok('a precise event time IS the cutoff, to the nanosecond',
+     exact.cutoffNs === 1790374051123456789n && exact.source === 'event.time');
+  // The Firestore emulator sends ce-time truncated to the second, which can be
+  // up to 1 s BEFORE the delete; rows written in that second would survive.
+  ok('a whole-second event time (the emulator\'s) falls back to invocation start',
+     deleteCutoffNs('2026-09-25T22:07:31Z', null, START_MS).cutoffNs === startNs);
+  ok('no event time falls back to invocation start', deleteCutoffNs(undefined, null, START_MS).cutoffNs === startNs);
+  ok('an event time before the lead\'s own last write falls back',
+     deleteCutoffNs('2026-09-25T22:07:31.5Z', 1790374052000000000n, START_MS).cutoffNs === startNs);
+
+  console.log('  -- lockstep with the trigger --');
+  ok('LEAD_ARTIFACT_PREFIXES matches the trigger\'s LEAD_KEYED_PREFIXES',
+     eq([...LEAD_ARTIFACT_PREFIXES].sort(), LEAD_KEYED_PREFIXES.map((p) => p.prefix).sort()));
+}
+
 console.log('\nSOURCE — the helpers must stay firebase-free and off the deploy index');
 {
   const pureSrc = fs.readFileSync(
@@ -215,6 +314,15 @@ console.log('\nSOURCE — the helpers must stay firebase-free and off the deploy
      eq(trigExports, ['onLeadDeleted']));
   ok('trigger uses the shared path helpers',
      /require\('\.\/lead-artifact-paths'\)/.test(TRIGGER_SRC));
+  // 2026-09-25: the subtree sweep is run by the trigger, the rules suite and
+  // scripts/audit-orphaned-lead-subtrees.js, each with its own firebase-admin
+  // copy. That only works while it takes db/bucket as arguments.
+  const sweepSrc = fs.readFileSync(
+    path.join(ROOT, 'functions', 'lead-subtree-sweep.js'), 'utf8');
+  const sweepRequires = [...sweepSrc.matchAll(/\brequire\s*\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]);
+  ok('subtree sweep requires only the path helpers (' + sweepRequires.join(',') + ')',
+     eq(sweepRequires, ['./lead-artifact-paths']));
+  ok('trigger runs the subtree sweep', /require\('\.\/lead-subtree-sweep'\)/.test(TRIGGER_SRC));
 }
 
 console.log('\n──────────────────────────────────');

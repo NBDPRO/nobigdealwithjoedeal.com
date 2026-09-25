@@ -545,7 +545,7 @@ jobs:
           cd tests
           npx firebase-tools emulators:exec --only functions,firestore --project demo-nbd-pl 'node lead-bridge.integration.test.js'
 
-      - name: Run lead-artifact-cleanup integration test under functions+firestore emulator
+      - name: Run lead-artifact-cleanup integration test under functions+firestore+storage emulator
         # onLeadDeleted end to end through the real trigger (2026-09-13): a
         # hard-deleted lead's linked Cal.com appointments/{id} docs must be
         # swept too, or a booking outlives the lead it points at forever (no
@@ -554,9 +554,14 @@ jobs:
         # against the pre-fix trigger before this was wired. Reuses this
         # job's JDK + functions deps + dummy-secret env; a fresh
         # emulators:exec session boots for this suite, same as the two above.
+        # 2026-09-25: + storage. The trigger now sweeps the lead's whole
+        # subtree, each row's Storage objects before the row, and the suite
+        # asserts on real objects; it exits 1 if no storage emulator is up.
+        # The test only writes under documents/ and docs/, so neither
+        # Storage-triggered function (photos/, audio/) fires.
         run: |
           cd tests
-          npx firebase-tools emulators:exec --only functions,firestore --project demo-nbd-pl 'node lead-artifact-cleanup.integration.test.js'
+          npx firebase-tools emulators:exec --only functions,firestore,storage --project demo-nbd-pl 'node lead-artifact-cleanup.integration.test.js'
 
       # Public-intake gateway suite (submitPublicLead: honeypot both-keys,
       # field allowlist, contact-kind allowlist, silent-200 semantics). Ran in

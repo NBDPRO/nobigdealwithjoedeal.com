@@ -19,6 +19,18 @@ third case. Fixed on branch `fix/rules-subcollection-delete` (PR #1771).
 > who **owns** the lead can delete these rows, the same as they could already
 > create and update them. The sections below are fixed in place.
 
+> **Update 2026-09-25 (later, branch `fix/lead-subtree-sweep`).** The
+> follow-up in [Left open](#left-open) is done. `onLeadDeleted` now deletes
+> the lead's WHOLE subtree, not two named subcollections: every subcollection
+> found with `listCollections()`, nested ones included, each row's Storage
+> objects before the row, and never a row newer than the delete (a webhook can
+> re-create a lead at the same id). The step 1/1b description below is
+> superseded. The same change tightens the confinement on row-supplied
+> Storage paths: `p.includes(leadId)` let a lead named `html` authorise any
+> tenant's `documents/…/*.html`. Production had 1 orphaned lead id with 7
+> rows (no Storage); the backfill has not been run. See
+> [LEAD-SUBTREE-HIJACK-2026-09-25](LEAD-SUBTREE-HIJACK-2026-09-25.md).
+
 ## The trap
 
 Both blocks had one `allow write` line that ended in a shape validator:
