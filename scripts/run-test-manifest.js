@@ -426,7 +426,10 @@ const RUNNABLE = ['node', 'smoke'];
 //               (Cloud Functions refuse a viewer's writes / sends / mints,
 //               and every exported callable carries a verdict, #1780).
 //               MEASURED via --check.
-const FLOORS = { node: 208, smoke: 69, disk: 300 };
+//   2026-09-27  208/69/300 -> 209/69/301, tests/check-js-syntax.test.js
+//               (node; syntax gate page scan + per-file grammar, #1782).
+//               MEASURED via --check.
+const FLOORS = { node: 209, smoke: 69, disk: 301 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

@@ -217,7 +217,8 @@
     "build-llms-modes.test.js",
     "ky-insurance-contracts.test.js",
     "ky-claims-wording-scan.test.js",
-    "voice-intel-anthropic-key.test.js"
+    "voice-intel-anthropic-key.test.js",
+    "check-js-syntax.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
