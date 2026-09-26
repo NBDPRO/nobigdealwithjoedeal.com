@@ -23,6 +23,14 @@
  *      the SAME input get past the guard (not refused, and the handler body
  *      ran — at least one side effect recorded). Plus the two conditional
  *      guards' open branches (transcript-only voice memo, calendar revokeOnly).
+ *      "Past the guard" is all section B proves for the other roles: most of
+ *      those runs stop at a missing lead / envelope / secret right after it.
+ *   B3. (2026-09-25, #1780 review) so the guard is shown not to cost anyone
+ *      else a workflow: for the Firestore-only handlers, the caller's OWN
+ *      lead / deal / report is seeded and a sales_rep and a solo operator run
+ *      the handler to completion (its result returned, its terminal write
+ *      recorded); a viewer who owns the very same data is still refused with
+ *      zero side effects ("including rows under leads they own").
  *   C. the sweep is enforced: functions/index.js is loaded in a child process
  *      and EVERY exported callable / HTTP function must carry a verdict in
  *      VERDICTS below. A new function fails this suite until someone decides
@@ -295,6 +303,9 @@ async function invoke(c, caller) {
   const handler = load(c.file)[c.fn].__handler;
   if (typeof handler !== 'function') return { kind: 'missing' };
   resetWorld(Object.assign({ uid: who.uid }, who.token));
+  // B3: the caller's own docs (seeding is not a side effect — W.effects only
+  // records what the handler does).
+  if (typeof c.seed === 'function') Object.assign(W.docs, c.seed(who));
   if (c.kind === 'call') {
     const request = {
       auth: { uid: who.uid, token: Object.assign({ uid: who.uid }, who.token) },
@@ -363,14 +374,46 @@ const CASES = [
   { fn: 'createCheckoutSession', file: 'stripe.js', kind: 'http', body: { plan: 'starter' } },
   { fn: 'createCustomerPortalSession', file: 'stripe.js', kind: 'http', body: {} },
   { fn: 'createStripePaymentLink', file: 'stripe.js', kind: 'http', body: { invoiceId: 'inv-1' } },
+  // 2026-09-25 (#1780 review): paid vendor calls whose only client use is a
+  // write flow a viewer cannot finish.
+  { fn: 'previewAiPersona', file: 'handlers/ai-texting-preview.js', kind: 'call', data: { config: {}, sampleMessage: 'How much for a roof?' } },
+  { fn: 'extractReceiptData', file: 'receipt-vision.js', kind: 'call', data: { storagePath: 'receipts/u-rep/r1.jpg' } },
+  { fn: 'resolveAddress', file: 'handlers/geocode.js', kind: 'call', data: { mode: 'forward', address: '123 Main St, Cincinnati OH' } },
+];
+
+// ── Section B3: the whole workflow still runs for everyone but a viewer ──
+// Firestore-only handlers, each with the caller's OWN doc seeded (the same
+// seed for every caller, keyed by that caller's uid). `done` names the
+// terminal write that proves the handler finished; `value` checks its result.
+const ownLead = (who) => ({ 'leads/lead-1': { userId: who.uid, companyId: who.token.companyId || who.uid, name: 'Sam Homeowner' } });
+const COMPLETE_CASES = [
+  { fn: 'createPortalToken', file: 'portal.js', kind: 'call', data: LEAD, seed: ownLead,
+    done: 'write:portal_tokens/', value: (v) => !!v && typeof v.token === 'string' && v.token.length > 10 },
+  { fn: 'replyToPortalMessage', file: 'portal.js', kind: 'call', data: { leadId: 'lead-1', text: 'On our way' }, seed: ownLead,
+    done: 'add:leads/lead-1/portal_messages', value: (v) => !!v && v.success === true && !!v.messageId },
+  { fn: 'revokePortalToken', file: 'portal.js', kind: 'call', data: { leadId: 'lead-1', token: 'tokOwn0123456789' },
+    seed: (who) => Object.assign(ownLead(who), { 'portal_tokens/tokOwn0123456789': { leadId: 'lead-1', ownerUid: who.uid } }),
+    done: 'update:portal_tokens/tokOwn0123456789', value: (v) => !!v && v.success === true && v.revoked === 1 },
+  { fn: 'createDealAcceptToken', file: 'deal-acceptance.js', kind: 'call', data: { dealId: 'deal-123456' },
+    seed: (who) => ({ 'deal_rooms/deal-123456': { userId: who.uid, companyId: who.token.companyId || who.uid, tiers: { good: { price: 9000 } } } }),
+    done: 'write:deal_accept_tokens/', value: (v) => !!v && typeof v.token === 'string' && /deal/.test(String(v.acceptUrl)) },
+  { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' },
+    seed: (who) => ({ 'reports/report-123456': { userId: who.uid, companyId: who.token.companyId || who.uid, html: '<p>Inspection</p>', type: 'inspection report' } }),
+    done: 'write:report_share_tokens/', value: (v) => !!v && typeof v.token === 'string' && !!v.shareUrl },
+  { fn: 'createCalendarFeedToken', file: 'calendar-feed.js', kind: 'call', data: {},
+    done: 'write:calendar_feed_tokens/', value: (v) => !!v && typeof v.token === 'string' },
+  { fn: 'trackUsage', file: 'billing.js', kind: 'call', data: { feature: 'leads' },
+    done: 'write:subscriptions/', value: (v) => !!v && v.feature === 'leads' && v.usage === 1 },
 ];
 
 // ── Section C: the sweep. Every exported callable / HTTP function ───────
 // refused      — calls the shared guard first (section B proves each one)
 // role-gated   — already refuses a viewer through a role allowlist
 // already      — refused a viewer before this change, with its own message
-// read / read-paid — returns data to the caller, writes no tenant data;
-//                read-paid ones bill a vendor per call (per-uid rate-limited)
+// read / read-paid — returns data to the caller and writes nothing the caller
+//                supplies (getConnectStatus refreshes the server-derived Stripe
+//                mirror); read-paid ones bill a vendor per call (per-uid
+//                rate-limited) and each has a read use a viewer is offered
 // self         — the caller's own account: sign-in/boot, own tenant, GDPR
 // public       — no signed-in caller: homeowner token, webhook, public site
 const VERDICTS = {
@@ -383,16 +426,16 @@ const VERDICTS = {
   createDealAcceptToken: 'refused', createEsignEnvelope: 'refused', createPortalToken: 'refused',
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
-  exportMyData: 'self', extractReceiptData: 'read-paid', getAdjusterTacticBoard: 'read',
+  exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid', getSwathReport: 'role-gated', getSwathUsage: 'role-gated',
   integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
-  notifyNewLead: 'public', previewAiPersona: 'read-paid', provisionE2ETestUser: 'role-gated',
+  notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',
-  reserveCompanyPrefix: 'self', resolveAddress: 'read-paid', reverifyCompanyKnocks: 'role-gated',
+  reserveCompanyPrefix: 'self', resolveAddress: 'refused', reverifyCompanyKnocks: 'role-gated',
   revokeMySessions: 'self', revokePortalToken: 'refused', rotateAccessCodes: 'role-gated',
   runMigrations: 'role-gated', saveEsignFields: 'refused', sendEsignEnvelope: 'refused',
   sendEstimateForSignature: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
@@ -483,6 +526,25 @@ const VERDICT_KINDS = new Set(['refused', 'role-gated', 'already', 'read', 'read
     const r2 = await invoke(feedRevoke, 'viewer');
     ok('createCalendarFeedToken revokeOnly: a viewer may still turn off their own feed links',
       !isViewOnly(feedRevoke, r2) && !r2.err && r2.value && r2.value.token === null, describe(r2));
+  }
+
+  // ═══ B3. the whole workflow, with the caller's own data ════════════════
+  console.log('\nB3. with their own lead / deal / report seeded, sales_rep and solo finish the workflow; a viewer who owns it is still refused');
+  for (const c of COMPLETE_CASES) {
+    let rV, rR, rS;
+    try {
+      rV = await invoke(c, 'viewer');
+      rR = await invoke(c, 'salesRep');
+      rS = await invoke(c, 'solo');
+    } catch (e) {
+      ok(c.fn + ' (seeded): loads and runs under the stubs', false, e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : String(e));
+      continue;
+    }
+    const finished = (r) => !r.err && !r.timedOut && c.value(r.value) && r.effects.some((e) => e.indexOf(c.done) === 0);
+    ok(c.fn + ' (seeded): a viewer who owns it → view-only refusal, zero side effects',
+      isViewOnly(c, rV) && rV.effects.length === 0, describe(rV));
+    ok(c.fn + ' (seeded): sales_rep → completes (' + c.done + '…)', finished(rR), describe(rR));
+    ok(c.fn + ' (seeded): solo operator → completes (' + c.done + '…)', finished(rS), describe(rS));
   }
 
   // ═══ C. the sweep ══════════════════════════════════════════════════════

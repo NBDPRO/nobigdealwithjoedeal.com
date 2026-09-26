@@ -29,6 +29,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { CORS_ORIGINS } = require('./_shared');
+const { assertNotViewer } = require('../shared');
 
 const GOOGLE_GEOCODING_API_KEY = defineSecret('GOOGLE_GEOCODING_API_KEY');
 const REGRID_API_TOKEN = defineSecret('REGRID_API_TOKEN');
@@ -176,6 +177,14 @@ exports.resolveAddress = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B, #1780 review): a viewer is refused. Every client
+    // call is door verification inside a knock WRITE — the quick-knock sheet
+    // (openQuickKnock, which NBDRole.guard() refuses a viewer) and the 🔁 /
+    // batch re-verify, which rewrite the knock (rules-refused for a viewer).
+    // So each billed Google + Regrid lookup bought a viewer nothing. The
+    // client bridge (callResolveAddress) already degrades to its free
+    // Nominatim-only path when this call fails.
+    assertNotViewer(request.auth.token);
 
     // Per-uid cap — each uncached call bills Google + Regrid, so an unthrottled
     // rep could enumerate a street. Same limiter family as lookupParcel (60/hr);

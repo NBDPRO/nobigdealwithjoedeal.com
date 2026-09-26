@@ -32,7 +32,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
 const { withSentry } = require('./integrations/sentry');
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
@@ -206,6 +206,12 @@ exports.extractReceiptData = onCall({
 }, withSentry('extractReceiptData', async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+  // 2026-09-25 (decision B, #1780 review): a viewer is refused. Each call
+  // bills a Claude vision read, and its only use is filling in a new expense
+  // — the Log Expense form role-gate.js hides from a viewer, whose expense
+  // writes and receipts/{uid}/ uploads the rules refuse. So the spend buys a
+  // viewer nothing (a pre-demotion receipt could otherwise be re-read).
+  assertNotViewer(request.auth.token);
 
   if (await require('./integrations/killswitch').isAiDisabled()) {
     throw new HttpsError('unavailable', 'AI temporarily disabled');

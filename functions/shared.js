@@ -197,7 +197,10 @@ async function requireAuth(req, { adminOnly = false } = {}) {
 // and HTTP function that creates, updates or deletes tenant data,
 // sends to a homeowner or third party, mints a token or link, or
 // places a paid order now calls one of these at the top of its
-// handler. The full sweep (every exported function, with its verdict)
+// handler — as does a paid vendor call whose only client use is a
+// write flow a viewer cannot finish (previewAiPersona,
+// extractReceiptData, resolveAddress; added from the #1780 review).
+// The full sweep (every exported function, with its verdict)
 // is documentation/audit/VIEWER-CALLABLES-2026-09-25.md and
 // tests/viewer-callables.test.js, which fails on an unclassified one.
 //
