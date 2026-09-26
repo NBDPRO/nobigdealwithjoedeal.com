@@ -80,14 +80,14 @@ console.log('\nTHURSDAY — ids + call normalization');
   const n = T.normalizeCall({
     call_id: 'abc123', from: '+15135550142', to: '+15139405589', inbound: true, call_length: 1.5,
     started_at: '2026-09-26T14:00:00Z', summary: 'Leak', recording_url: 'https://x/rec.mp3',
-    transcripts: [{ user: 'assistant', text: 'Thanks for calling' }, { user: 'user', text: 'Hi this is Michelle' }],
+    transcripts: [{ user: 'assistant', text: 'Thanks for calling' }, { user: 'user', text: 'Hello? Anyone?' }],
   });
   ok('duration minutes → seconds', n.durationSec === 90);
-  ok('transcript assembled from turns when concatenated is absent', /user: Hi this is Michelle/.test(n.transcript));
+  ok('transcript assembled from turns when concatenated is absent', n.transcript.indexOf('user: Hello? Anyone?') !== -1);
   ok('Thursday inbound call accepted', T.isThursdayCall(n));
   ok('call to another number refused', !T.isThursdayCall(Object.assign({}, n, { to: '+15135550000' })));
   ok('outbound call refused', !T.isThursdayCall(Object.assign({}, n, { inbound: false })));
-  ok('caller who said 4 words is silent', T.isEffectivelySilent(n));
+  ok('caller who said 2 words is silent', T.isEffectivelySilent(n));
   const talky = T.normalizeCall({ call_id: 'x12345', transcripts: [{ user: 'user', text: 'Hi my name is Michelle Sherrill and I have a leak over my kitchen at 1912 Russell' }] });
   ok('real caller is not silent', !T.isEffectivelySilent(talky));
 }
@@ -220,6 +220,27 @@ console.log('\nTHURSDAY — routing');
   ok('adjuster, matched job → attach + task', adjM.action === 'attach' && adjM.createTask);
   const sup = T.decideRoute(ex({ caller_type: 'supplier_sub' }), none);
   ok('supplier, no match → inbox', sup.action === 'inbox');
+}
+
+console.log('\nTHURSDAY — real-call tuning (2026-09-26 dry-run)');
+{
+  const talk = (words) => T.normalizeCall({ call_id: 'tune1234', transcripts: [{ user: 'user', text: words }] });
+  ok('"Hello? / Hello?" (2 words) is silent', T.isEffectivelySilent(talk('Hello? Hello?')));
+  ok('"Hey it\'s Mike, call me back" (6 words) is NOT silent', !T.isEffectivelySilent(talk("Hey it's Mike, call me back")));
+  ok('no caller turns at all is silent', T.isEffectivelySilent(T.normalizeCall({ call_id: 'tune1235', transcripts: [] })));
+  const spoke = T.silentExtraction(talk('Hello?'));
+  const mute = T.silentExtraction(T.normalizeCall({ call_id: 'tune1236', transcripts: [] }));
+  const none = { confidence: 'none', possible: [] };
+  const rSpoke = T.decideRoute(spoke, none);
+  ok('caller said "Hello?" and hung up → inbox, no alerts', rSpoke.action === 'inbox' && !rSpoke.notifyEmail && !rSpoke.notifyPush && !rSpoke.notifySms);
+  ok('nobody spoke → log only', T.decideRoute(mute, none).action === 'log_only');
+  const own = T.applyCallOverrides(ex({ caller_type: 'new_lead', caller_name: '' }), call({ from: '+18594207382' }), {});
+  const rOwn = T.decideRoute(own, none);
+  ok('call from Jo\'s own cell → test, log only, no lead', own.caller_type === 'test' && rOwn.action === 'log_only' && !rOwn.createTask);
+  const extra = T.applyCallOverrides(ex({ caller_type: 'new_lead' }), call({ from: '+15135550123' }), { ownerNumbers: ['513-555-0123'] });
+  ok('config ownerNumbers extend the list', extra.caller_type === 'test');
+  const cust = T.applyCallOverrides(ex({ caller_type: 'new_lead' }), call({ from: '+15135550999' }), {});
+  ok('anyone else is untouched', cust.caller_type === 'new_lead' && !cust.owner_call);
 }
 
 console.log('\nTHURSDAY — builders + notifications');

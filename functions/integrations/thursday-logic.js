@@ -55,8 +55,16 @@ const CALLER_TYPES = [
 ];
 const LOG_ONLY_TYPES = ['spam', 'test', 'silent'];
 
-// Calls this short never reach the model — nobody said anything usable.
-const SILENT_WORD_THRESHOLD = 12;
+// Calls where the CALLER said fewer words than this never reach the model.
+// Measured on Thursday's first ten real calls (2026-09-26): every silent call
+// had 0-2 caller words ("Hello?"), while "Hey it's Mike, call me back" is 6 —
+// the original threshold of 12 would have thrown that caller away.
+const SILENT_WORD_THRESHOLD = 4;
+
+// Jo's own phones. A call from one is Jo testing the line, never a lead
+// (the first real call, 2026-09-24, was Jo — it would have become "Caller
+// 7382"). thursday_config.ownerNumbers extends this list without a deploy.
+const OWNER_NUMBERS_DEFAULT = ['+18594207382'];
 
 // ── Small utils ─────────────────────────────────────────────────────────────
 
@@ -423,8 +431,24 @@ function sanitizeExtraction(raw) {
 }
 
 // The extraction for a call nobody spoke on — no model call needed.
-function silentExtraction() {
-  return sanitizeExtraction({ caller_type: 'silent', confidence: 'high', issue: '' });
+// `spoke` records whether the caller said anything at all ("Hello?"): that
+// is a real person who did not connect, worth a call back, not just noise.
+function silentExtraction(call) {
+  const words = call ? transcriptWordCount(call) : 0;
+  return Object.assign(sanitizeExtraction({ caller_type: 'silent', confidence: 'high', issue: '' }), { spoke: words > 0 });
+}
+
+// Facts the model cannot know, applied after sanitizeExtraction():
+//   - a call from one of Jo's own numbers is a test, whatever was said.
+function applyCallOverrides(extraction, call, opts) {
+  const ex = Object.assign({}, extraction || {});
+  const owners = [].concat(OWNER_NUMBERS_DEFAULT, (opts && opts.ownerNumbers) || [])
+    .map((n) => phoneDigits10(n)).filter((d) => d.length === 10);
+  if (call && owners.indexOf(phoneDigits10(call.from)) !== -1) {
+    ex.caller_type = 'test';
+    ex.owner_call = true;
+  }
+  return ex;
 }
 
 // "How did you hear about us?" → one of the twelve canonical sources.
@@ -652,8 +676,13 @@ function decideRoute(extraction, match) {
     label: 'Logged',
   };
 
+  // Someone said "Hello?" and hung up: a real missed caller. Inbox row, no
+  // alerts (these are also pocket-dials and robocalls often enough).
+  if (type === 'silent' && ex.spoke) {
+    return Object.assign(base, { action: 'inbox', label: 'Hung up — call back?' });
+  }
   if (LOG_ONLY_TYPES.indexOf(type) !== -1) {
-    return Object.assign(base, { label: type === 'spam' ? 'Spam' : type === 'test' ? 'Test call' : 'Silent / hang-up' });
+    return Object.assign(base, { label: type === 'spam' ? 'Spam' : type === 'test' ? (ex.owner_call ? 'Test call (your phone)' : 'Test call') : 'Silent / hang-up' });
   }
   if (type === 'job_seeker') {
     return Object.assign(base, { action: 'inbox', notifyEmail: true, label: 'Job seeker' });
@@ -952,7 +981,7 @@ module.exports = {
   verifyBlandSignature, bearerMatches,
   normalizeCall, buildPendingCallDoc, isThursdayCall, isEffectivelySilent, transcriptWordCount,
   buildExtractionRequest, extractionHeaders, parseExtractionResponse, ExtractionError,
-  sanitizeExtraction, silentExtraction, mapHeardAboutToSource,
+  sanitizeExtraction, silentExtraction, applyCallOverrides, OWNER_NUMBERS_DEFAULT, mapHeardAboutToSource,
   isProxyLead, parseStreet, splitCallerName, matchLeads, displayName,
   decideRoute, buildLeadDoc, buildTask, buildActivity,
   buildSmsText, buildPush, buildEmail, fmtDuration,
