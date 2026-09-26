@@ -65,9 +65,33 @@
  * Until 2026-09-25 this script ran exactly that, so wherever detection is on,
  * every module file above went unchecked while the job reported them "parsed
  * cleanly" (reproduced on Node 24.14 and 26.3 by appending `const = ;` to
- * docs/pro/js/nbd-auth.js: "527 files parsed cleanly", exit 0; CI's Node 22
- * line was not reproduced locally). SELF_TEST below re-proves, on every run
- * and on whatever Node runs it, that a broken file is still rejected.
+ * docs/pro/js/nbd-auth.js: "527 files parsed cleanly", exit 0). CI's Node
+ * 22.23.2 takes the same path — read from its source 2026-09-26: `--check`
+ * resolves a typeless .js without its source, so the format comes back null,
+ * and wrapSafe() then compiles with detection on (require-module defaults to
+ * true), which answers an `import` with "can parse as ESM" instead of a throw.
+ * SELF_TEST below re-proves, on every run and on whatever Node runs it, that
+ * a broken file is still rejected.
+ *
+ * Browser files parse under the browser's grammar (added 2026-09-26)
+ * ────────────────────────────────────────────────────────────────────
+ * CommonJS is Node's grammar, not the browser's. It wraps the file in a
+ * function, so it accepts a top-level `return`, which a classic <script>
+ * rejects, killing the whole file. And "CommonJS or module" accepts an
+ * `import` in a file that pages load with a plain <script src>, which the
+ * browser rejects too. Each of those, put into docs/assets/js/ann-bar.js (a
+ * classic script on 234 pages), passed this gate: "530 files parsed cleanly".
+ *
+ * So a docs/ file must parse under the grammar the browser will use:
+ *   - loaded by a docs/ page with `<script src>`: as a classic script;
+ *     with `<script type="module" src>`: as an ES module; both, if pages
+ *     disagree. scriptLoads() reads every <script src> in docs/**.html.
+ *   - loaded by no page directly (imported by a module, run as a worker or
+ *     service worker, injected at runtime): as one of those two.
+ * The classic-script parse is in-process `vm.Script`. Node has no
+ * `--input-type=script`, and compiling a vm.Script is V8 parsing a classic
+ * script, with no wrapper, which is what Chromium does with the file.
+ * functions/ and tests/ run in Node, so they keep "CommonJS or module".
  *
  * Usage
  * ─────
@@ -75,8 +99,8 @@
  *   node scripts/check-js-syntax.js --quiet    # only print failures + the summary
  *   node scripts/check-js-syntax.js --shipped-only   # functions/ + docs/ only (deploy gate)
  *
- * Exit code is 0 (all parse) or 1 (at least one file parses under neither
- * grammar), so it works as a CI step and as a pre-deploy gate.
+ * Exit code is 0 (all parse) or 1 (at least one file fails the grammar it
+ * runs under), so it works as a CI step and as a pre-deploy gate.
  */
 
 'use strict';
@@ -85,6 +109,7 @@ const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const vm = require('vm');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
@@ -109,6 +134,17 @@ const QUIET = process.argv.includes('--quiet');
 const SHIPPED_ONLY = process.argv.includes('--shipped-only');
 const ROOTS = SHIPPED_ONLY ? SHIPPED_ROOTS : [...SHIPPED_ROOTS, ...TEST_ROOTS];
 
+// The root the browser runs; the rest of ROOTS runs in Node. See "Browser
+// files parse under the browser's grammar" above.
+const BROWSER_ROOT = 'docs';
+
+// What a file must parse as. `anyOf`: its goal is not known, so one grammar
+// that parses is enough. `allOf`: pages load it with a known goal, and each
+// of those goals must parse (see requirementFor).
+const NODE_GOALS = { anyOf: ['commonjs', 'module'] };
+const BROWSER_GOALS = { anyOf: ['script', 'module'] };
+const GRAMMAR_NAME = { commonjs: 'CommonJS', module: 'an ES module', script: 'a classic script' };
+
 /**
  * True when a whole path segment (or run of segments) of `rel` is EXCLUDED.
  * Whole segments, not substrings: `test-results` must skip the gitignored
@@ -121,8 +157,8 @@ function isExcluded(rel) {
   return EXCLUDED.some((frag) => padded.includes(`/${frag}/`));
 }
 
-/** Recursively collect .js files under `dir`, honouring EXCLUDED. */
-function collect(dir, out) {
+/** Recursively collect `ext` files (default .js) under `dir`, honouring EXCLUDED. */
+function collect(dir, out, ext = '.js') {
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -133,10 +169,85 @@ function collect(dir, out) {
     const full = path.join(dir, entry.name);
     const rel = path.relative(REPO_ROOT, full).split(path.sep).join('/');
     if (isExcluded(rel)) continue;
-    if (entry.isDirectory()) collect(full, out);
-    else if (entry.isFile() && entry.name.endsWith('.js')) out.push(rel);
+    if (entry.isDirectory()) collect(full, out, ext);
+    else if (entry.isFile() && entry.name.endsWith(ext)) out.push(rel);
   }
   return out;
+}
+
+// ── How docs/ pages load each script ─────────────────────────────────
+
+const SCRIPT_TAG = /<script\b([^>]*)>/gi;
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+// The HTML spec's JavaScript MIME type essences. Any other non-empty type
+// (application/ld+json, importmap, speculationrules, a type with parameters,
+// …) makes the element a data block that the browser never executes.
+const JS_MIME = /^(?:(?:text|application)\/(?:x-)?(?:java|ecma)script|text\/(?:jscript|livescript)|text\/javascript1\.[0-5])$/;
+
+/** The value of attribute `name` in a tag's attribute text, or null. */
+function attr(attrs, name) {
+  const m = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, 'i').exec(attrs);
+  if (!m) return null;
+  return m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3];
+}
+
+/** 'script' | 'module' for a <script> tag's attribute text, or null for a data block. */
+function scriptGoal(attrs) {
+  const type = attr(attrs, 'type');
+  const t = type === null ? '' : type.trim().toLowerCase();
+  if (t === '') return 'script';
+  if (t === 'module') return 'module';
+  return JS_MIME.test(t) ? 'script' : null;
+}
+
+/**
+ * The repo-relative docs/ path a page's `src` points at, or null when it is
+ * external (a scheme or `//`) or leaves docs/. An absolute src is rooted at
+ * docs/, the Hosting root; a relative one resolves against the page's folder.
+ */
+function resolveSrc(page, src) {
+  const url = src.trim().split(/[?#]/)[0];
+  if (!url || url.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(url)) return null;
+  const rel = url.startsWith('/')
+    ? path.posix.join(BROWSER_ROOT, url)
+    : path.posix.join(path.posix.dirname(page), url);
+  return rel.startsWith(`${BROWSER_ROOT}/`) ? rel : null;
+}
+
+/**
+ * How pages load each script: Map of repo-relative .js path → Map of goal
+ * ('script' | 'module') → the pages that load it that way, in input order.
+ * `pages` is [{ page: 'docs/x.html', html }]. HTML comments are dropped first,
+ * so a commented-out tag imposes nothing. Only <script src> counts: an inline
+ * <script> has no file to check (and CSP forbids it here anyway).
+ */
+function scriptLoads(pages) {
+  const loads = new Map();
+  for (const { page, html } of pages) {
+    const text = String(html).replace(HTML_COMMENT, '');
+    for (const [, attrs] of text.matchAll(SCRIPT_TAG)) {
+      const src = attr(attrs, 'src');
+      const goal = src === null ? null : scriptGoal(attrs);
+      const rel = goal && resolveSrc(page, src);
+      if (!rel) continue;
+      if (!loads.has(rel)) loads.set(rel, new Map());
+      const byGoal = loads.get(rel);
+      if (!byGoal.has(goal)) byGoal.set(goal, []);
+      byGoal.get(goal).push(page);
+    }
+  }
+  return loads;
+}
+
+/**
+ * What `rel` must parse as, given `loads` from scriptLoads(): Node's grammars
+ * outside docs/; each goal pages load it with; either browser goal otherwise.
+ */
+function requirementFor(rel, loads) {
+  if (!rel.startsWith(`${BROWSER_ROOT}/`)) return NODE_GOALS;
+  const byGoal = loads.get(rel);
+  if (!byGoal) return BROWSER_GOALS;
+  return { allOf: [...byGoal].map(([grammar, pages]) => ({ grammar, pages })) };
 }
 
 /**
@@ -160,9 +271,39 @@ function parseAs(inputType, source) {
   });
 }
 
-// CommonJS parse errors that only mean "this is module code". When a file
-// fails both grammars and its CommonJS error is one of these, the file's real
-// defect is in the ES-module report, so that is the one printed.
+/**
+ * Parse `source` as a classic script: the grammar a browser applies to a
+ * `<script src>` without type="module". Returns null when it parses, or the
+ * error's stack, which starts `label:LINE`.
+ */
+function parseAsScript(source, label) {
+  try {
+    new vm.Script(String(source), { filename: label });
+    return null;
+  } catch (err) {
+    return String((err && err.stack) || err);
+  }
+}
+
+/** A parse report up to its `…Error: message` line; the stack frames after it are this checker's own. */
+function trimFrames(report) {
+  const m = /\n[A-Za-z]*Error: [^\n]*/.exec(report);
+  return (m ? report.slice(0, m.index + m[0].length) : report).trim();
+}
+
+/**
+ * Parse `source` under `grammar` ('commonjs' | 'module' | 'script'). Resolves
+ * to null when it parses, or to a report that starts `label:LINE`: node
+ * reports stdin as `[stdin]`, and that is swapped for `label`.
+ */
+async function parse(grammar, source, label) {
+  const report = grammar === 'script' ? parseAsScript(source, label) : await parseAs(grammar, source);
+  return report && trimFrames(report.split('[stdin]').join(label));
+}
+
+// CommonJS or classic-script parse errors that only mean "this is module
+// code". When a file fails both grammars and its first error is one of these,
+// the file's real defect is in the ES-module report, so that is the one printed.
 const MODULE_ONLY_ERROR = new RegExp([
   'Cannot use import statement outside a module',
   "Unexpected token 'export'",
@@ -171,27 +312,42 @@ const MODULE_ONLY_ERROR = new RegExp([
 ].join('|'));
 
 /**
- * Parse-check one source text. Resolves to null when it parses as CommonJS
- * or as an ES module, or to the more relevant stderr when it parses as
- * neither. Node reports stdin as `[stdin]`; that is swapped for `label` so a
- * failure reads `path/to/file.js:LINE`.
+ * Parse-check one source text against `need` (NODE_GOALS, BROWSER_GOALS or a
+ * requirementFor() result). Resolves to null when it is met, or to a report:
+ * one line saying which grammar failed, then the parse error, which names
+ * `label:LINE`.
  */
-async function checkSource(source, label) {
-  const cjs = await parseAs('commonjs', source);
-  if (!cjs) return null; // parses as CommonJS — done
+async function checkSource(source, label, need = NODE_GOALS) {
+  if (need.allOf) {
+    const failed = [];
+    for (const { grammar, pages } of need.allOf) {
+      const report = await parse(grammar, source, label);
+      if (!report) continue;
+      const others = pages.length > 1 ? ` and ${pages.length - 1} other page(s)` : '';
+      failed.push(`loaded as ${GRAMMAR_NAME[grammar]} by ${pages[0]}${others}, but does not parse as one:\n${report}`);
+    }
+    return failed.length ? failed.join('\n\n') : null;
+  }
 
-  // Retry under the ES module grammar before calling it a failure.
-  const esm = await parseAs('module', source);
-  if (!esm) return null;
+  const [first, second] = need.anyOf;
+  const a = await parse(first, source, label);
+  if (!a) return null; // parses under the first grammar — done
 
-  const report = MODULE_ONLY_ERROR.test(cjs) ? esm : cjs;
-  return report.split('[stdin]').join(label);
+  // Retry under the second grammar before calling it a failure.
+  const b = await parse(second, source, label);
+  if (!b) return null;
+
+  const report = MODULE_ONLY_ERROR.test(a) ? b : a;
+  return `parses as neither ${GRAMMAR_NAME[first]} nor ${GRAMMAR_NAME[second]}:\n${report}`;
 }
 
-/** Parse-check one repo-relative file (see checkSource). */
-function checkFile(rel) {
-  return checkSource(fs.readFileSync(path.join(REPO_ROOT, rel)), rel);
+/** Parse-check one repo-relative file against `need` (see checkSource). */
+function checkFile(rel, need) {
+  return checkSource(fs.readFileSync(path.join(REPO_ROOT, rel)), rel, need);
 }
+
+/** A requirement as if one page loaded the sample with `grammar`. */
+const loadedAs = (grammar) => ({ allOf: [{ grammar, pages: ['self-test/page.html'] }] });
 
 // Controls run before every scan. A parse gate that cannot fail is worse than
 // none — it printed "parsed cleanly" over 47 files it never parsed (see
@@ -210,11 +366,34 @@ const SELF_TEST = [
   },
   { label: 'self-test/cjs-clean.js', source: 'const { devices } = globalThis;\nmodule.exports = devices;\n' },
   { label: 'self-test/esm-clean.js', source: 'export const a = 1;\nexport default a;\n' },
+  // Browser grammars. Each broken sample below parses under "CommonJS or
+  // module", which is what docs/ was held to before 2026-09-26, so only the
+  // browser goal rejects it (tests/check-js-syntax.test.js pins that).
+  {
+    // CommonJS wraps the file in a function; a classic script and a module do not.
+    label: 'self-test/browser-return.js', line: 2, need: BROWSER_GOALS,
+    source: 'const el = globalThis.document;\nif (!el) return;\n',
+  },
+  {
+    // A module parse accepts this; a page loading it with <script src> does not.
+    label: 'self-test/classic-export.js', line: 2, need: loadedAs('script'),
+    source: 'const a = 1;\nexport default a;\n',
+  },
+  {
+    // A classic script is sloppy mode and accepts a legacy octal; a module is strict.
+    label: 'self-test/module-octal.js', line: 2, need: loadedAs('module'),
+    source: 'const a = 1;\nconst b = 010 + a;\n',
+  },
+  {
+    label: 'self-test/classic-clean.js', need: loadedAs('script'),
+    source: '(function () {\n  if (!globalThis.document) return;\n})();\n',
+  },
+  { label: 'self-test/module-clean.js', need: loadedAs('module'), source: 'export const a = 1;\n' },
 ];
 
 /** Resolves to the list of SELF_TEST entries that did not behave, with why. */
 async function selfTest() {
-  const reports = await Promise.all(SELF_TEST.map((t) => checkSource(t.source, t.label)));
+  const reports = await Promise.all(SELF_TEST.map((t) => checkSource(t.source, t.label, t.need)));
   const wrong = [];
   SELF_TEST.forEach((t, i) => {
     const report = reports[i];
@@ -272,10 +451,30 @@ async function main() {
     process.exit(1);
   }
 
+  // How docs/ pages load each script decides the grammar it must parse under.
+  // Same rule as the roots: a page scan that silently found nothing would
+  // turn every load-goal check off while the summary still read "parsed
+  // cleanly".
+  const pages = collect(path.join(REPO_ROOT, BROWSER_ROOT), [], '.html').sort();
+  const loads = scriptLoads(pages.map((page) => ({
+    page, html: fs.readFileSync(path.join(REPO_ROOT, page), 'utf8'),
+  })));
+  const loaded = files.filter((rel) => loads.has(rel));
+  const loadedAsScript = loaded.filter((rel) => loads.get(rel).has('script')).length;
+  const loadedAsModule = loaded.filter((rel) => loads.get(rel).has('module')).length;
+  if (!loadedAsScript || !loadedAsModule) {
+    console.error(
+      `check-js-syntax: ${pages.length} ${BROWSER_ROOT}/ pages load ${loadedAsScript} checked file(s) as ` +
+        `classic scripts and ${loadedAsModule} as modules; both should be well above zero — did the ` +
+        '<script src> scan break?',
+    );
+    process.exit(1);
+  }
+
   // One process per file is the only way to get node's real parser, so run a
   // CPU-sized pool rather than serially (~4x faster on a CI runner).
   const concurrency = Math.max(2, (os.cpus() || { length: 2 }).length);
-  const results = await pool(files, concurrency, checkFile);
+  const results = await pool(files, concurrency, (rel) => checkFile(rel, requirementFor(rel, loads)));
 
   const failures = [];
   results.forEach((stderr, i) => {
@@ -290,16 +489,25 @@ async function main() {
   if (failures.length) {
     console.error(
       `\ncheck-js-syntax: ${failures.length} of ${files.length} file(s) failed to parse ` +
-        'as CommonJS or as an ES module.',
+        'under the grammar they run with.',
     );
     process.exit(1);
   }
 
-  if (!QUIET) console.log(`check-js-syntax: ${files.length} files parsed cleanly (${perRoot.join(', ')}).`);
+  if (!QUIET) {
+    console.log(
+      `check-js-syntax: ${files.length} files parsed cleanly (${perRoot.join(', ')}); ` +
+        `${BROWSER_ROOT}/ pages load ${loadedAsScript} as classic scripts, ${loadedAsModule} as modules.`,
+    );
+  }
   process.exit(0);
 }
 
-main().catch((err) => {
-  console.error('check-js-syntax: unexpected error —', err && err.stack ? err.stack : err);
-  process.exit(1);
-});
+module.exports = { scriptLoads, requirementFor, checkSource, SELF_TEST, NODE_GOALS, BROWSER_GOALS };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('check-js-syntax: unexpected error —', err && err.stack ? err.stack : err);
+    process.exit(1);
+  });
+}
