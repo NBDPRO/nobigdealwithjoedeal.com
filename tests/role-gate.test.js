@@ -286,6 +286,12 @@ async function partA() {
     'knock, kanban "+ task", phone Task, portal reply, rules self-test, follow-up sends': [F('openD2DOrGo'), '.kc-task-badge.empty',
       '#nbd-quick-action-bar .qab-task', '#repMsgText', '#repMsgSend', F('testFirestoreRules'), '[data-csf-action="sms"]', '[data-csf-action="email"]'],
     'document generation (kept visible, blocked)': [A('docgen'), A('generateCustomerDoc')],
+    // 2026-09-25 (callables follow-up): each reaches a Cloud Function that now
+    // refuses a viewer (functions/shared.js assertNotViewer).
+    'storm proof, portal link share/revoke, enrich data, auto-measure, deal accept link, roof report order, AI photo analysis':
+      [F('verifyStormProofForLead'), F('cdaSharePortalLink'), F('cdaRevokePortalLink'), F('enrichReportData'), '#v2measureBtn',
+        '[data-cb-action="sendSMS"]', '[data-cb-action="sendEmail"]', '[data-cb-action="copyLink"]',
+        '[data-d2d-action="orderRoofReport"]', '.pa-analyze-btn'],
   };
   for (const [what, sels] of Object.entries(MUST)) {
     const missing = sels.filter((s) => !has(s));
@@ -297,7 +303,9 @@ async function partA() {
     F('exportLeadsCSV'), F('crmViewBoard'), A('goTo'), A('signOut'), F('openSettingsTab'),
     // reading an estimate, a receipt, an export; calling the homeowner
     '.est-act-btn[data-act="open"]', '[data-ep-action="edit"]', '[data-ceh-act="edit"]', '[data-ceh-act="toggle"]',
-    '[data-exp-action="export-csv"]', '[data-exp-action="receipt"]', '[data-csf-action="dismiss"]', '#nbd-quick-action-bar .qab-call'];
+    '[data-exp-action="export-csv"]', '[data-exp-action="receipt"]', '[data-csf-action="dismiss"]', '#nbd-quick-action-bar .qab-call',
+    // 2026-09-25: reading a deal room, and opening a lead's photos / docs
+    '[data-cb-action="preview"]', F('openPhotosForLead'), F('openDocsForLead')];
   const wrong = MUST_NOT.filter(has);
   ok('not gated: settings, notification read state, exports, filters, navigation', wrong.length === 0, 'gated by mistake: ' + wrong.join(' '));
 

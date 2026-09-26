@@ -670,10 +670,10 @@ exports.renderPdf = onCall(
     // back a link to it; the flows that call this (contract, invoice,
     // estimate, inspection, photo report, warranty cert) all create a
     // document a viewer may not. The two read-shaped callers — the customer
-    // page's blank-template preview (document-generator.js) and a format
-    // preview in the estimate builder opened to read (estimate-v2-ui.js) —
-    // skip this call for a viewer and use their client render, the same
-    // path they already fall back to when this call fails.
+    // page's blank-template preview (document-generator.js _tryServerRender)
+    // and a format preview in the estimate builder opened to read
+    // (estimate-v2-ui.js finalize) — catch a failed call and show their
+    // client render instead, so a viewer's preview still opens.
     assertNotViewer(request.auth.token);
 
     // Phase-3.2: rate-limit the expensive Puppeteer render (2GiB, now
