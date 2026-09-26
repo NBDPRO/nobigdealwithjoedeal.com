@@ -420,7 +420,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-09-27  205/69/297 -> 206/69/298, tests/voice-intel-anthropic-key.test.js
 //               (node; Voice Intel read an unregistered secret name, #1786).
 //               MEASURED via --check.
-const FLOORS = { node: 206, smoke: 69, disk: 298 };
+//   2026-09-27  206/69/298 -> 207/69/299, tests/lead-task-writer-shape.test.js
+//               (node; voicemail + Quick Add task shape, #1785). MEASURED via --check.
+const FLOORS = { node: 207, smoke: 69, disk: 299 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

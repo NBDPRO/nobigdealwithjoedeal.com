@@ -359,17 +359,31 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const uid = window._user?.uid || null;
     const companyId = window._userClaims?.companyId || uid || null;
     const created = [];
+    // Due TODAY (local date): a customer left a voicemail asking for
+    // something. With no dueDate a task never reaches Today's Tasks or the
+    // bell — both return early on a falsy t.dueDate.
+    const now = new Date();
+    const dueDate = now.getFullYear() + '-'
+      + String(now.getMonth() + 1).padStart(2, '0') + '-'
+      + String(now.getDate()).padStart(2, '0');
     for (const text of actionItems) {
       if (typeof text !== 'string' || !text.trim()) continue;
+      // Task-reader shape {text, title, done, dueDate} (see customer-tasks-ui
+      // saveTask). These rows used to carry only title/body/status, so the
+      // dashboard task list rendered them with a blank label (2026-09-26).
+      const label = text.trim().slice(0, 200);
       try {
         const ref = await window.addDoc(
           window.collection(window._db, 'leads', leadId, 'tasks'),
           {
-            title: text.trim().slice(0, 200),
-            body: 'Auto-created from voicemail action items.',
-            status: 'open',
+            text: label,
+            title: label,
+            notes: 'Auto-created from voicemail action items.',
+            done: false,
+            dueDate,
             priority: 'normal',
-            sourceType: 'voicemail',
+            source: 'voicemail',
+            leadId,
             userId: uid,
             companyId,
             createdAt: window.serverTimestamp()

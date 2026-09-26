@@ -612,16 +612,28 @@ async function _qaCreateEverything(leadId, meta) {
   // up on the rep's Today list without them having to remember.
   try {
     if (window.addDoc && window.collection && window.serverTimestamp) {
+      // LOCAL calendar date: toISOString() is UTC, so an evening Quick Add
+      // landed its "tomorrow" task on the day after.
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      const dueDate = tomorrow.toISOString().slice(0, 10);
+      const dueDate = tomorrow.getFullYear() + '-'
+        + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-'
+        + String(tomorrow.getDate()).padStart(2, '0');
+      // Task-reader shape {text, title, done, dueDate}: tasks.js / notif-bell
+      // render t.text and filter on t.done. This row used to carry only
+      // title/body/status, so it sat in Today's Tasks as a blank line and
+      // its overdue alert read "undefined" (2026-09-26).
+      const label = 'Reach out within 24h';
       await window.addDoc(
         window.collection(db, 'leads', leadId, 'tasks'),
         {
-          title: 'Reach out within 24h',
-          body: 'Auto-created on Quick Add — call, text, or knock back.',
+          text: label,
+          title: label,
+          notes: 'Auto-created on Quick Add — call, text, or knock back.',
+          done: false,
           dueDate,
-          status: 'open',
           priority: 'high',
+          source: 'quick-add',
+          leadId,
           userId: uid,
           companyId,
           createdAt: window.serverTimestamp()
