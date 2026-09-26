@@ -22,6 +22,8 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 |---|---|---|
 | `claudeProxy` | onRequest | Server-side Anthropic relay with daily budget reservation (Bearer ID token); rate-limited per-uid + per-IP via `guardHttp` (rate-limit-policy.js pilot, 2026-08-10) |
 | `signImageUrl` | onRequest | Signed Storage URL for owner/manager-scoped photo reads |
+| `getThursdayRecording` | onCall | Streams a Thursday call recording (Storage `calls/{uid}/`) as base64 — owner, platform admin, or same-company reader (company_admin/manager/viewer, mirroring the `thursday_calls` read rule); no download token is minted |
+| `thursdayCallAction` | onCall | Thursday inbox actions (mark reviewed, confirm possible match, create lead, attach to lead, reprocess) — refuses viewers; owner / platform admin / company_admin / manager of the call's company; re-verifies the target lead's companyId before any write |
 | `imageProxy` | onRequest | **Deprecated 410 stub** (H-01 stored-XSS fix) — fails loudly for stale clients; "safe to delete outright after 7+ days of zero calls in Cloud Logs" |
 | `analyzeRoofPhoto` | onRequest | Vision over a single photo (rep view) |
 | `analyzePhotoVision` | onCall | Per-photo Claude Vision classifier ($10/lead + $50/uid-month caps, sha256 cache) |
@@ -91,6 +93,8 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `calcomWebhook` | onRequest | Cal.com HMAC verification |
 | `swathWebhook` | onRequest | Swath `storm.verified` alerts — Stripe-style HMAC (`t=…,v1=…`, ±300s replay window, fails closed when secret unset), idempotent `storm_events/{id}` ingest + Slack ping |
 | `thumbtackWebhook` | onRequest | Thumbtack shared-token verification (Custom Header; Thumbtack offers no HMAC signing) — fails closed when `THUMBTACK_WEBHOOK_SECRET` is unset, constant-time compare, 256 KB body cap, idempotent via Thumbtack's event id |
+| `thursdayWebhook` | onRequest | Bland post-call webhook for Thursday (AI receptionist) — hex HMAC-SHA256 `X-Webhook-Signature` over the raw body, fails closed (503) when `BLAND_WEBHOOK_SECRET` is unset, 1 MB body cap, only Thursday's own inbound number accepted, idempotent via `.create()` on `thursday_calls/bland_calls__{call_id}` (integrations/thursday.js) |
+| `thursdayCallerLookup` | onRequest | Live caller lookup for Thursday's pathway greeting — bearer `THURSDAY_LOOKUP_TOKEN` (constant-time), per-IP rate limit, NBD-scoped exact `phoneDigits` match; returns only `{known, first_name, job_hint}` (no address/last name/price) |
 | `incomingSMS` | onRequest | Twilio inbound-SMS webhook — X-Twilio-Signature verified (also feeds T-1 AI-texting draft generation) |
 | `submitPublicLead` | onRequest | Turnstile token + per-IP rate limit (IPv6 /64) + honeypot + M-04 field allowlist (NO App Check — onRequest can't enforce it, see posture note) |
 | `publicVisualizerAI` | onRequest | 5/hr/IP, model locked to Haiku, server-owned prompt, 1.5 MB image cap (NO App Check — see posture note) |
@@ -208,7 +212,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 
-## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 36 Firestore + 2 Storage
+## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 37 Firestore + 2 Storage
 | Export | Watches | Purpose |
 |---|---|---|
 | `onPhotoUploaded` | Storage finalize (`nobigdeal-pro.appspot.com`) | 200/600/1600 px WebP variant pipeline; stamps `photo.urls` (or `knock.photoVariants[idx]` for `/d2d/` sources, mirrored to the converted lead) |
@@ -234,6 +238,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `auditUsers` / `auditCompanies` / `auditAccessCodes` / `auditSubscriptions` | (no-ops) | **Retained dead exports** from audit-log.js — superseded by `audit_*` on 2026-06-08. Kept because the name-scoped CI deploy cannot prune orphaned functions; deleting the exports would leave old double-writing revisions live. Remove via `firebase functions:delete ...` when prod access allows. |
 | `onPortalMessageDraft` | `leads/{leadId}/portal_messages/{msgId}` created | T-series — AI reply draft for an inbound homeowner portal message (source:'homeowner' only; safe-dark when secret unset) |
 | `voiceConsumer` | `leads/{leadId}/recordings/{recordingId}` written | Turns a completed call recording's structured summary into lead field updates (voice-consumer.js) |
+| `thursdayCallProcess` | `thursday_calls/{docId}` written (status `pending`/`reprocess`, claimed in a transaction) | Thursday call pipeline: hydrate from Bland, copy recording to Storage, Claude extraction, NBD-scoped lead match, route (create lead / attach / possible match / inbox / log only), task + activity, email/push/Bland-SMS notify — idempotent per step (integrations/thursday.js) |
 | `onEstimateViewedStrike` | `customerAuditEvents/{eventId}` created | Engagement scoring — estimate-view strike counter for the almost-there widget (customer-audit.js) |
 | `onLeadDeleted` | `leads/{leadId}` deleted | Reaps the lead's Storage artifacts (`documents/` `portals/` `galleries/` `audio/` under `{uid}/{leadId}/`), its orphaned `documents` subcollection, and its outstanding `portal_tokens` / `doc_sign_tokens`. Hard-deleting a lead previously removed the Firestore doc and nothing else, leaving customer-facing HTML live under a permanent download token with the only pointer to it destroyed (10 prod orphans, 2026-08-18). Fires on hard delete only — the trash bin is `deleted: true` and must keep its artifacts (lead-artifact-cleanup.js) |
 

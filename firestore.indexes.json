@@ -1,6 +1,22 @@
 {
   "indexes": [
     {
+      "collectionGroup": "thursday_calls",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "startedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "thursday_calls",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "startedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "subscriptions",
       "queryScope": "COLLECTION",
       "fields": [

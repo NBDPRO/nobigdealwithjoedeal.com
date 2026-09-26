@@ -69,6 +69,13 @@ const SECRETS = {
   // auth — Thumbtack offers no HMAC signing, so this is a bearer-style secret
   // and the receiver fails closed without it). See integrations/thumbtack.js.
   THUMBTACK_WEBHOOK_SECRET: defineSecret('THUMBTACK_WEBHOOK_SECRET'),
+  // Bland AI — Thursday, the NBD receptionist (integrations/thursday.js).
+  // API key: fetch calls/recordings, send SMS. Webhook secret: Dev Portal →
+  // Keys, verifies X-Webhook-Signature. Lookup token: a bearer WE mint and
+  // store in Bland Secrets for the pathway's caller-lookup webhook node.
+  BLAND_API_KEY:         defineSecret('BLAND_API_KEY'),
+  BLAND_WEBHOOK_SECRET:  defineSecret('BLAND_WEBHOOK_SECRET'),
+  THURSDAY_LOOKUP_TOKEN: defineSecret('THURSDAY_LOOKUP_TOKEN'),
 
   // Image generation (visualizer) — kie.ai alternate provider
   // (visualizer-image-gen.js; Replicate's token is declared there, not here,

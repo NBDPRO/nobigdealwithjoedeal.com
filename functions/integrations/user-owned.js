@@ -132,6 +132,9 @@ const FLAT_USER_COLLECTIONS = [
   // and phones — to anyone holding the URL. Erasing the account must revoke
   // the feed, or a deleted rep's link keeps answering.
   { name: 'calendar_feed_tokens', ownerField: 'uid' },
+  // Thursday call log (integrations/thursday.js) — callers' names, numbers,
+  // transcripts. Owner-keyed on userId; erase/export with the account.
+  { name: 'thursday_calls', ownerField: 'userId' },
 ];
 
 // ─── COLLECTION-GROUPS WITH userId STAMPS ───────────────────
@@ -218,6 +221,10 @@ const STORAGE_PREFIXES = [
   // 2026-09-08 carry permanent download tokens (19 of 21 in prod), which
   // makes deleting them the only revocation available.
   'pdf-renders',
+  // calls/{uid}/{callId}.{ext} — Thursday call recordings copied from Bland
+  // (integrations/thursday.js saveRecording). Admin-SDK write, streamed to the
+  // CRM by getThursdayRecording; callers' voices erase with the account.
+  'calls',
 ];
 
 // ─── ERASURE RETENTION HOLDS ────────────────────────────────

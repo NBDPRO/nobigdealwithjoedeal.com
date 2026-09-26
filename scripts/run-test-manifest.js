@@ -401,7 +401,11 @@ const RUNNABLE = ['node', 'smoke'];
 //               (node) + tests/invite-claim-path.integration.test.js
 //               (emulator; disk only). MEASURED via --check on dda2597c
 //               (#1776); whoever merges last re-measures.
-const FLOORS = { node: 192, smoke: 68, disk: 282 };
+//   2026-09-26  192/68/282 -> 193/68/284, tests/thursday-logic.test.js
+//               (node; Thursday / Bland call pipeline) + tests/thursday-
+//               pipeline.integration.test.js (emulator; disk only). MEASURED
+//               via --check on a0515d8e (#1781); whoever merges last re-measures.
+const FLOORS = { node: 193, smoke: 68, disk: 284 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
