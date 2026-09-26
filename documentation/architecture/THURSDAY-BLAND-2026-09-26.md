@@ -163,6 +163,12 @@ The verification section below is updated as each step lands.
   - The emulator pipeline suite has **37** checks. 2 mutations were break-tested.
   - The rules suite has **165** checks, including 19 new ones. The rule was break-tested: loosening it reddened 6 checks.
   - Smoke passed 4421/0.
+- **PR B (CRM UI):**
+  - **Customer card:** a Calls section with a nav badge, recordings streamed through the callable and played from a blob URL, and Confirm / Not them for a possible match. Thursday calls also appear in the timeline under "Calls & Texts".
+  - **Home:** a `thursday-calls` inbox widget. It is pinned first for tenants with `thursday_config`; hiding it persists on `userSettings/{uid}.hideThursdayWidget`. The widget offers open, play, confirm, not-them, create lead, attach to any lead (search), reprocess and done.
+  - **Source selects:** `#lSource` / `#qaSource` / `#bulkSourceSelect` now list all twelve canonical sources. `#lSource` was missing Google, Direct and Storm Alert, so saving a Thursday lead would have wiped its source.
+  - **CSP:** `media-src 'self' blob:` added to the default and portal policies. Without it, no page could play audio.
+  - **Tests:** `tests/thursday-ui-wiring.test.js` has 16 checks; 3 mutations were break-tested. A Playwright fixture harness passed 32/32 at 375 and 1280 px: no overflow, no page errors, XSS payloads inert, and the actions send the right callable payloads.
 - **Open items:** see the handoff for this session.
 
 ## 6. Coordination notes
