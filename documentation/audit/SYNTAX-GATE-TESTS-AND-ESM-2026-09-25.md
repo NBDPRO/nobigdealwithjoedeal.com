@@ -93,3 +93,22 @@ The hole hid no real error.
   instead of minutes into an E2E shard.
 - `scripts/**` is still not parsed. That is by design: CI executes those
   scripts, which covers them.
+
+## Update 2026-09-26
+
+- **CI's Node 22.23.2 has the same hole.** This was confirmed from the
+  `v22.23.2` source, not a local run. `--check <file>` resolves a typeless
+  `.js` without its source, so the format comes back `null`. `wrapSafe()`
+  then compiles with detection on, because `require_module` defaults to true.
+  `ShouldRetryAsESM()` answers an `import` with "can parse as ESM" without
+  compiling anything, so the exit code is 0. The file-by-file trace is in
+  [SYNTAX-GATE-BROWSER-GOAL-2026-09-26](SYNTAX-GATE-BROWSER-GOAL-2026-09-26.md).
+- **This branch's fix was re-verified on main fff5a32c** with the break Jo
+  reported: an unescaped apostrophe at `dashboard-bootstrap.module.js:86`.
+  main's checker printed "530 files parsed cleanly" and exited 0; this
+  branch's checker named the file and line and exited 1.
+- **A second hole remains**, closed by a follow-up stacked on this branch.
+  "CommonJS or module" is Node's rule. A top-level `return`, or an `import`,
+  put into `docs/assets/js/ann-bar.js` (a classic script on 234 pages) still
+  passed this gate. The follow-up parses docs/ under the grammar the browser
+  uses; see the note linked above.
