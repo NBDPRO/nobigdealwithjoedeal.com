@@ -417,7 +417,10 @@ const RUNNABLE = ['node', 'smoke'];
 //               insurance-job contracts, #1801). MEASURED via --check.
 //   2026-09-27  204/69/296 -> 205/69/297, tests/lead-alert-thumbtack.test.js
 //               (node; Thumbtack leads page Joe, #1784). MEASURED via --check.
-const FLOORS = { node: 205, smoke: 69, disk: 297 };
+//   2026-09-27  205/69/297 -> 206/69/298, tests/voice-intel-anthropic-key.test.js
+//               (node; Voice Intel read an unregistered secret name, #1786).
+//               MEASURED via --check.
+const FLOORS = { node: 206, smoke: 69, disk: 298 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

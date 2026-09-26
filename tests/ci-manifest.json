@@ -214,7 +214,8 @@
     "indexnow-ping.test.js",
     "build-llms-modes.test.js",
     "ky-insurance-contracts.test.js",
-    "ky-claims-wording-scan.test.js"
+    "ky-claims-wording-scan.test.js",
+    "voice-intel-anthropic-key.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

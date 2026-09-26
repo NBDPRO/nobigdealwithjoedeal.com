@@ -18,6 +18,14 @@
 > series, so every deploy would have paged); and `claude-budget-exceeded` keys
 > on text that is never logged, so it is held. See
 > [ALERT-POLICIES-LIVE-2026-09-13](ALERT-POLICIES-LIVE-2026-09-13.md).
+>
+> **Update 2026-09-26: two Voice Intel findings below are fixed.** Both sat
+> unfixed for three weeks. They are "Anthropic calls can never be configured"
+> (CRITICAL) and "onAudioUploaded … no tenancy check" (HIGH), and they had to
+> ship together: making analysis work would have made the tenancy hole reach
+> another tenant's CRM through `voiceConsumer`. Production had 0 recordings,
+> so nobody was affected. See
+> [VOICE-INTEL-ANTHROPIC-KEY-2026-09-26](VOICE-INTEL-ANTHROPIC-KEY-2026-09-26.md).
 
 ## Read this before using the lists below
 
@@ -93,6 +101,7 @@ Cloud Functions window.
 - **Voice Intelligence's Anthropic calls can never be configured — ANTHROPIC_API_KEY is not in the _shared SECRETS registry, so hasSecret() is hard-coded false**
   `functions/integrations/voice-intelligence.js:276` · S · needs deploy · dead-wiring
   A rep records a call and the audio lands under the voice prefix. onAudioUploaded fires, transcribeGroq succeeds (GROQ_API_KEY *is* in the registry) and the doc moves to status:'analyzing'. analyzeTranscript -> callClaudeJson -> hasSecret('ANTHROPIC_API_KEY') evaluates SECRETS['ANTHROPIC_API_KEY'] wh
+  **Fixed 2026-09-26.** `callClaudeJson` now reads the bound param through `secretValue()`. See [VOICE-INTEL-ANTHROPIC-KEY-2026-09-26](VOICE-INTEL-ANTHROPIC-KEY-2026-09-26.md).
 - **The V2 catalog/Job-Template estimate path never passes the tenant's Overhead %, Profit %, Material Markup %, Round-To or Minimum Job settings to the pricing engine — every such estimate silently prices at the engine's hardcoded 25/10/10**
   `docs/pro/js/estimate-v2-ui.js:1712` · M · silent-mispricing
   Owner sets Settings → Estimates to Material Markup 40%, Overhead 15%, Profit 15% (dashboard.html:3403-3405; saved by dashboard-bootstrap.module.js:4488-4490 into nbd_est_settings_v3 and userSettings). Rep builds a catalog (line-item) estimate — the DEFAULT mode (state.mode:'line-item', estimate-v2-u
@@ -135,6 +144,7 @@ Cloud Functions window.
 - **onAudioUploaded treats a client-chosen Storage path segment as a lead id with no tenancy check, planting a recording inside another tenant's lead and reading that lead's homeowner name back to the uploader**
   `functions/integrations/voice-intelligence.js:450` · S · needs deploy · cross-tenant-write
   storage.rules:168-174 lets any authenticated user write `audio/{theirOwnUid}/{anything}/{anything}.webm` — the second and third path segments are entirely attacker-chosen. parseAudioPath (line 68-77) maps them to {uid, leadId, recordingId} and processRecording uses leadId verbatim with no check that
+  **Fixed 2026-09-26.** `uploaderMayRecordOn()` refuses a lead outside the uploader's tenant, before any write or vendor call. See [VOICE-INTEL-ANTHROPIC-KEY-2026-09-26](VOICE-INTEL-ANTHROPIC-KEY-2026-09-26.md).
 - **/photos never constrains leadId, and the docLeadInMyCompany read clause keys on it — so a photo can be injected into another tenant's customer-page gallery**
   `firestore.rules:666` · M · cross-tenant-write
   The 2026-08-02 audit froze userId+companyId on /photos update specifically to stop 'planting an image in that company's shared gallery', but leadId was left free on BOTH create and update — and the read rule's second clause resolves tenancy through leadId, not companyId. So the same injection still 
