@@ -392,6 +392,7 @@ const SEND_PATHS = Object.freeze({
   'verify-functions.js': 'internal',          // Joe's new-lead alert
   'handlers/invites.js': 'internal',          // team invite (account mail)
   'integrations/email-queue-worker.js': 'internal', // queue: dunning/erasure/health → account holders
+  'integrations/thursday.js': 'internal',   // Thursday call alert → Joe's own inbox
 });
 
 module.exports = {

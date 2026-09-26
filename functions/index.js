@@ -298,6 +298,11 @@ const stormBriefingIntegration = require('./integrations/storm-briefing');
 // Thumbtack pushes, we cannot push back. Lead events land in thumbtack_leads
 // and are mirrored into the CRM pipeline by leadBridgeThumbtack (lead-bridge.js).
 const thumbtackIntegration   = require('./integrations/thumbtack');
+// Thursday — the Bland AI receptionist on (513) 940-5589. Post-call webhook,
+// the call-processing trigger (lead / task / notify), the live caller lookup
+// her pathway calls, and the Thursday-inbox callables. See
+// documentation/architecture/THURSDAY-BLAND-2026-09-26.md.
+const thursdayIntegration    = require('./integrations/thursday');
 Object.assign(exports, slackIntegration);
 Object.assign(exports, measurementIntegration);
 exports.measureNewWebLead = publicMeasureIntegration.measureNewWebLead;
@@ -315,6 +320,7 @@ Object.assign(exports, voiceIntelligenceIntegration);
 Object.assign(exports, dictateIntegration);
 Object.assign(exports, stormBriefingIntegration);
 Object.assign(exports, thumbtackIntegration);
+Object.assign(exports, thursdayIntegration);
 
 // Swath (swathapi.com) — storm-verified property intel: hail-swath +
 // parcel providers (mounted inside hail.js/parcel.js), storm.verified

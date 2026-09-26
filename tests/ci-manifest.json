@@ -120,6 +120,7 @@
     "tenant-legal.test.js",
     "theme-contrast.test.js",
     "thumbtack-webhook.test.js",
+    "thursday-logic.test.js",
     "turnstile-contract.test.js",
     "webhook-signatures.test.js",
     "booking-events-tenancy.test.js",
@@ -710,7 +711,8 @@
     "invite-claim-path.integration.test.js": "test:invitepath",
     "lead-lifecycle.test.js": "test:leadlifecycle",
     "portal-token.test.js": "test:portal",
-    "rate-limit.test.js": "test:ratelimit"
+    "rate-limit.test.js": "test:ratelimit",
+    "thursday-pipeline.integration.test.js": "test:thursday"
   },
   "wired-individually": [
     "communication-log-contract.test.js",

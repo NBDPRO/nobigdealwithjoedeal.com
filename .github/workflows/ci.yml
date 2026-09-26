@@ -394,6 +394,13 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only auth,firestore --project demo-nbd-invite 'node ./invite-claim-path.integration.test.js'
+      # Thursday (Bland AI receptionist) call pipeline, 2026-09-26: the real
+      # webhook / processing trigger / inbox callables run in-process against
+      # the firestore emulator with Bland + Claude stubbed at fetch.
+      - name: Run Thursday call-pipeline tests under firestore emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-thursday 'node ./thursday-pipeline.integration.test.js'
 
   syntax-check:
     name: Node syntax check

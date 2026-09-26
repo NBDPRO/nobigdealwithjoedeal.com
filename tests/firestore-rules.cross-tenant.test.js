@@ -422,6 +422,40 @@ async function run() {
   await check('cross-tenant co_admin: deletes viewer row',    'deny',  deleteDoc(doc(bobCA,'leads/leadVA/documents/docV')));
   await check('same-tenant co_admin: deletes viewer row',     'allow', deleteDoc(doc(aliceCA,'leads/leadVA/documents/docV')));
 
+  // ═══════════════════════════════════════════════════════════
+  // THURSDAY CALL LOG (2026-09-26) — thursday_calls holds callers' names,
+  // numbers and transcripts. Reads mirror /leads (owner, admin, company
+  // readers); sales_rep teammates and other tenants are denied; nobody
+  // writes from a client (the webhook/trigger/callable use the Admin SDK).
+  // ═══════════════════════════════════════════════════════════
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'thursday_calls/bland_calls__callA'), { userId: 'alice', companyId: 'co-a', callerName: 'Caller A', transcript: 'my roof leaks', startedAt: new Date() });
+    await setDoc(doc(db, 'thursday_calls/bland_calls__solo'),  { userId: 'solo1', companyId: 'solo1', callerName: 'Solo Caller', startedAt: new Date() });
+    await setDoc(doc(db, 'thursday_config/co-a'),  { smsEnabled: false, smsTo: '+15555550100' });
+    await setDoc(doc(db, 'thursday_config/solo1'), { smsEnabled: false });
+  });
+  const { collection: tcol, query: tq, where: tw, getDocs: tget } = require('firebase/firestore');
+  await check('thursday_calls: owner reads own call',          'allow', getDoc(doc(alice,  'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: same-tenant manager reads',     'allow', getDoc(doc(eveMgr, 'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: same-tenant viewer reads',      'allow', getDoc(doc(vicA,   'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: same-tenant sales_rep denied',  'deny',  getDoc(doc(dave,   'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: B reads A call',                'deny',  getDoc(doc(bob,    'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: B manager reads A call',        'deny',  getDoc(doc(bobMgr, 'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: no-claim user reads A call',    'deny',  getDoc(doc(noClaim,'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: anon reads A call',             'deny',  getDoc(doc(anon,   'thursday_calls/bland_calls__callA')));
+  await check('thursday_calls: solo owner userId query',       'allow', tget(tq(tcol(solo,   'thursday_calls'), tw('userId', '==', 'solo1'))));
+  await check('thursday_calls: manager companyId query',       'allow', tget(tq(tcol(eveMgr, 'thursday_calls'), tw('companyId', '==', 'co-a'))));
+  await check('thursday_calls: B manager queries co-a',        'deny',  tget(tq(tcol(bobMgr, 'thursday_calls'), tw('companyId', '==', 'co-a'))));
+  await check('thursday_calls: sales_rep queries co-a',        'deny',  tget(tq(tcol(dave,   'thursday_calls'), tw('companyId', '==', 'co-a'))));
+  await check('thursday_calls: owner cannot edit a call',      'deny',  updateDoc(doc(alice,  'thursday_calls/bland_calls__callA'), { reviewed: true }));
+  await check('thursday_calls: co_admin cannot create a call', 'deny',  setDoc(doc(aliceCA,   'thursday_calls/bland_calls__fake'), { userId: 'aliceca', companyId: 'co-a' }));
+  await check('thursday_calls: owner cannot delete a call',    'deny',  deleteDoc(doc(alice,  'thursday_calls/bland_calls__callA')));
+  await check('thursday_config: solo owner reads own',         'allow', getDoc(doc(solo,   'thursday_config/solo1')));
+  await check('thursday_config: same-tenant manager reads',    'allow', getDoc(doc(eveMgr, 'thursday_config/co-a')));
+  await check('thursday_config: B reads co-a',                 'deny',  getDoc(doc(bob,    'thursday_config/co-a')));
+  await check('thursday_config: co_admin cannot write',        'deny',  setDoc(doc(aliceCA,'thursday_config/co-a'), { smsEnabled: true }));
+
   // ── Summary ────────────────────────────────────────────────
   const pass = results.filter(r => r.outcome === 'PASS').length;
   const fail = results.filter(r => r.outcome === 'FAIL').length;

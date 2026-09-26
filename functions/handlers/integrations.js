@@ -107,6 +107,12 @@ exports.integrationStatus = onCall(
         // token (no HMAC offered); receiver fails closed without it
         // (integrations/thumbtack.js).
         thumbtackWebhook:   _hasInt('THUMBTACK_WEBHOOK_SECRET'),
+        // Thursday — the Bland AI receptionist (integrations/thursday.js):
+        // API key (hydrate calls, copy recordings, SMS), the webhook signing
+        // secret, and the bearer the pathway's caller lookup presents.
+        bland:              _hasInt('BLAND_API_KEY'),
+        blandWebhook:       _hasInt('BLAND_WEBHOOK_SECRET'),
+        thursdayLookup:     _hasInt('THURSDAY_LOOKUP_TOKEN'),
         // Voice transcription pair — Phase 1 uses Groq, Phase 2 may
         // add Deepgram for native diarization on Pro+.
         deepgram:           _hasInt('DEEPGRAM_API_KEY'),

@@ -77,6 +77,7 @@
     "test:invitepath": "firebase emulators:exec --only auth,firestore --project demo-nbd-invite 'node ./invite-claim-path.integration.test.js'",
     "test:cgpaths": "node ./collection-group-paths.test.js",
     "test:leadlifecycle": "firebase emulators:exec --only auth,firestore --project nbd-test-leadlifecycle 'node ./lead-lifecycle.test.js'",
+    "test:thursday": "firebase emulators:exec --only firestore --project demo-nbd-thursday 'node ./thursday-pipeline.integration.test.js'",
     "test:portal": "firebase emulators:exec --only functions,firestore --project demo-nbd-portal 'node ./portal-token.test.js'",
     "test:publicintake": "firebase emulators:exec --only functions,firestore --project demo-nbd-pl 'node ./public-intake.test.js'",
     "test:e2e": "playwright test --config=playwright.config.js",

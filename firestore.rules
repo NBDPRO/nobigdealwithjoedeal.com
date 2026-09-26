@@ -2077,6 +2077,31 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Thursday — the Bland AI receptionist's call log (integrations/thursday.js).
+    // One doc per call (id bland_calls__{call_id}): transcript, extraction,
+    // route, notification state. Admin-SDK only for writes — the webhook, the
+    // processing trigger and the thursdayCallAction callable (which enforces
+    // not-viewer + owner/company staff). Reads mirror /leads: the owner, the
+    // platform admin, and the company's pipeline readers (company_admin,
+    // manager, viewer) — sales_rep stays own-leads-only, so a rep never sees
+    // calls about teammates' customers. Recordings live in Storage calls/
+    // (server-only) and are streamed by getThursdayRecording, never linked.
+    match /thursday_calls/{docId} {
+      allow read: if isOwner(resource.data.userId)
+        || isAdmin()
+        || (isCompanyReader() && sameCompanyAsResource());
+      allow write: if false;
+    }
+    // Per-tenant Thursday settings (notification destinations, SMS flag).
+    // Written only by scripts/thursday-config.js; the CRM reads it to decide
+    // whether to show the Thursday inbox widget.
+    match /thursday_config/{companyId} {
+      allow read: if isAuth() && (request.auth.uid == companyId
+        || isAdmin()
+        || (isCompanyReader() && myCompanyId() == companyId));
+      allow write: if false;
+    }
+
     // ── DEFAULT DENY ─────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

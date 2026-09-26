@@ -273,6 +273,16 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Thursday call recordings (functions/integrations/thursday.js). Copied
+    // from Bland by the admin SDK — Bland's own recording_url needs the API
+    // key, so it can never be played in a browser. The CRM plays them through
+    // the getThursdayRecording callable (company-scoped check there); no
+    // download token is ever minted. Same posture as pdf-renders.
+    match /calls/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
     // ── DEFAULT DENY ──────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;
