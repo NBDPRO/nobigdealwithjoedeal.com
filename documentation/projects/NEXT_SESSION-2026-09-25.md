@@ -1,5 +1,7 @@
 # NEXT SESSION — 2026-09-25
 
+> **Update 2026-09-26:** superseded by [NEXT_SESSION-2026-09-26](NEXT_SESSION-2026-09-26.md). Every §0 ask below was answered and built the same day. The Upgrades pricing and warranties were decided and stages 1–2 merged, and the read-only production audit of Classic re-priced logged estimates found 0 affected.
+
 A phone-scale power session (ultracode), plus a product design for Upgrades & Add-ons.
 
 ## §0 — Start here

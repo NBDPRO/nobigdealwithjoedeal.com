@@ -1,6 +1,7 @@
 # Upgrades & Add-ons: design decision (2026-09-25)
 
-**Status:** designed, not built. The first build slice waits on Jo's pricing answers (see *Decisions Jo still owes*).
+**Status (updated 2026-09-26):** stages 1 and 2 are built and merged. That covers #1756 (the core library and pricing helper), #1758 (slice 0, honest paperwork), #1762 (Settings → Upgrade prices) and #1763 (the builder card, Show homeowner, and V2 keeping upgrade rows). Jo answered the pricing questions: Amerimax Lock-In $6/LF, LeafBlaster $12, Reinforced $15, Alu-Rex $18. Warranties are 5 years on systems, 2 on guards, and a repair gets 1 year only when that box is ticked. Still owed by Jo: Loper's name in Settings, Loper's written 5-year backing, and the optional K5/K6 pre-tick call. The original status line follows.
+**Original status:** designed, not built. The first build slice waits on Jo's pricing answers (see *Decisions Jo still owes*).
 **Came from:** Jo's question, "our job templates have Good/Better/Best, but on gutters the tiers don't do anything. Make tiers meaningful, or build an upgrades tool?"
 **Method:** a design workflow with six research lanes (a code map, four trade groups covering all 11 template categories, and a UX study), three competing designs, three judges (Jo / homeowner / engineer lenses), and one synthesis. The headline code claims below were then re-verified by hand.
 
