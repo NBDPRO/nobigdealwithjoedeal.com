@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Parse-check every first-party JavaScript file that SHIPS.
+ * Parse-check every first-party JavaScript file that SHIPS, and every test
+ * file that guards it.
  *
  * Why this exists
  * ───────────────
@@ -20,13 +21,28 @@
  * Scope (see ROOTS / EXCLUDED below)
  * ──────────────────────────────────
  *   INCLUDED: functions/**, docs/** — the code we author and deploy.
+ *             tests/** (added 2026-09-25) — Playwright specs, e2e fixtures,
+ *             unit suites, helpers. A test file ships nothing, but one that
+ *             doesn't parse takes its whole suite down, and only when that
+ *             suite finally runs: a PR whose merge with main left
+ *             `Identifier 'devices' has already been declared` in
+ *             tests/e2e/phone-views.spec.js passed every Node gate, because
+ *             nothing parsed tests/e2e — only the E2E shard would have
+ *             caught it, after landing on main.
  *   EXCLUDED: node_modules (not ours), _archive (intentionally dead),
  *             assets/vendor (third-party bundles — minified, may legitimately
  *             use syntax we neither wrote nor control; a vendor parse failure
- *             would be an upgrade decision, not a build break).
+ *             would be an upgrade decision, not a build break),
+ *             test-results / playwright-report / blob-report (Playwright run
+ *             output — gitignored, and the HTML report bundles vendor JS).
  *   NOT SCANNED: scripts/** — build/maintenance tooling that never reaches a
  *             browser or a function runtime. It is covered by actually being
  *             executed in CI (build-sitemap, check-site-integrity, …).
+ *
+ *   --shipped-only drops tests/ and checks functions/ + docs/ alone. That is
+ *   what firebase-deploy.yml's pre-Hosting gate runs: a broken spec must turn
+ *   CI red, but must not hold back a deploy of code that parses. ci.yml runs
+ *   the full scope.
  *
  * CJS vs ESM
  * ──────────
@@ -57,6 +73,7 @@
  * ─────
  *   node scripts/check-js-syntax.js            # report every failure, exit 1 if any
  *   node scripts/check-js-syntax.js --quiet    # only print failures + the summary
+ *   node scripts/check-js-syntax.js --shipped-only   # functions/ + docs/ only (deploy gate)
  *
  * Exit code is 0 (all parse) or 1 (at least one file parses under neither
  * grammar), so it works as a CI step and as a pre-deploy gate.
@@ -71,18 +88,38 @@ const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-// Roots we author and ship. Anything outside these is not our parse problem.
-const ROOTS = ['functions', 'docs'];
+// Roots we author and ship, then the tests that guard them. Anything outside
+// these is not our parse problem.
+const SHIPPED_ROOTS = ['functions', 'docs'];
+const TEST_ROOTS = ['tests'];
 
 // Path segments that disqualify a file. Matched against the repo-relative
-// path with forward slashes, so these are portable across win32/posix.
+// path with forward slashes, on whole segments (see isExcluded), so these
+// are portable across win32/posix.
 const EXCLUDED = [
-  'node_modules',   // third-party, enormous, not ours
-  '_archive',       // intentionally dead code kept for reference
-  'assets/vendor',  // third-party browser bundles (leaflet, jspdf, chartjs, …)
+  'node_modules',       // third-party, enormous, not ours
+  '_archive',           // intentionally dead code kept for reference
+  'assets/vendor',      // third-party browser bundles (leaflet, jspdf, chartjs, …)
+  'test-results',       // Playwright run output (tests/, tests/visual/)
+  'playwright-report',  // Playwright HTML report — bundles third-party JS
+  'blob-report',        // Playwright sharded-run blobs
 ];
 
 const QUIET = process.argv.includes('--quiet');
+const SHIPPED_ONLY = process.argv.includes('--shipped-only');
+const ROOTS = SHIPPED_ONLY ? SHIPPED_ROOTS : [...SHIPPED_ROOTS, ...TEST_ROOTS];
+
+/**
+ * True when a whole path segment (or run of segments) of `rel` is EXCLUDED.
+ * Whole segments, not substrings: `test-results` must skip the gitignored
+ * tests/test-results/ directory, not a spec that merely has that phrase in
+ * its name. (For the functions/ + docs/ entries this matches the exact same
+ * tracked files the old substring test did.)
+ */
+function isExcluded(rel) {
+  const padded = `/${rel}/`;
+  return EXCLUDED.some((frag) => padded.includes(`/${frag}/`));
+}
 
 /** Recursively collect .js files under `dir`, honouring EXCLUDED. */
 function collect(dir, out) {
@@ -95,7 +132,7 @@ function collect(dir, out) {
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     const rel = path.relative(REPO_ROOT, full).split(path.sep).join('/');
-    if (EXCLUDED.some((frag) => rel.includes(frag))) continue;
+    if (isExcluded(rel)) continue;
     if (entry.isDirectory()) collect(full, out);
     else if (entry.isFile() && entry.name.endsWith('.js')) out.push(rel);
   }
@@ -215,11 +252,23 @@ async function main() {
   }
 
   const files = [];
-  for (const root of ROOTS) collect(path.join(REPO_ROOT, root), files);
+  const counts = ROOTS.map((root) => {
+    const before = files.length;
+    collect(path.join(REPO_ROOT, root), files);
+    return files.length - before;
+  });
+  const perRoot = ROOTS.map((root, i) => `${root}/ ${counts[i]}`);
   files.sort();
 
-  if (!files.length) {
-    console.error('check-js-syntax: found no .js files to check — is the checkout complete?');
+  // Every root must contribute. A root that silently yields nothing (renamed,
+  // moved, excluded by a new EXCLUDED entry) would drop its whole tree from
+  // the gate while the summary still read "parsed cleanly".
+  const emptyRoots = ROOTS.filter((_, i) => counts[i] === 0);
+  if (emptyRoots.length) {
+    console.error(
+      `check-js-syntax: found no .js files under ${emptyRoots.join(', ')} — ` +
+        'is the checkout complete, or did a root move?',
+    );
     process.exit(1);
   }
 
@@ -246,7 +295,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (!QUIET) console.log(`check-js-syntax: ${files.length} files parsed cleanly.`);
+  if (!QUIET) console.log(`check-js-syntax: ${files.length} files parsed cleanly (${perRoot.join(', ')}).`);
   process.exit(0);
 }
 

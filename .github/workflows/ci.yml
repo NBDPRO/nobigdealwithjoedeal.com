@@ -441,8 +441,15 @@ jobs:
       # The script widens coverage to all of docs/ (excluding assets/vendor,
       # _archive, node_modules), and is ~6x faster than the serial loop because
       # it runs a CPU-sized pool instead of one blocking spawn per file. It is
-      # also reused verbatim as the pre-Hosting gate in firebase-deploy.yml.
-      - name: Parse every shipped first-party .js
+      # also the pre-Hosting gate in firebase-deploy.yml, which runs it with
+      # --shipped-only.
+      #
+      # 2026-09-25: it also parses tests/** (specs, e2e fixtures, unit suites,
+      # helpers). A PR whose merge with main left a duplicate `const { devices }`
+      # in tests/e2e/phone-views.spec.js passed every Node gate — nothing parsed
+      # tests/e2e, so only the E2E shard would have caught it. Do NOT add
+      # --shipped-only here; tests/smoke/functions.test.js pins that.
+      - name: Parse every first-party .js (shipped + tests)
         run: node scripts/check-js-syntax.js
 
   firestore-rules:
