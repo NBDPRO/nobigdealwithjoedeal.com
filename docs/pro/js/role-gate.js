@@ -154,6 +154,11 @@
     // Photo lightbox ✨ Analyze damage with AI: analyzeRoofPhoto spends a
     // vision call and stamps the result onto the photo.
     '.pa-analyze-btn',
+    // D2D address-quality panel 🔁 re-verify (one knock, or the batch): each
+    // bills resolveAddress (now refused to a viewer, #1780 review) and then
+    // rewrites the knock, which the rules refuse a viewer. "Load owner & roof
+    // intel" stays: reading.
+    '[data-d2d-action="reverifyKnock"]', '[data-d2d-action="reverifyPending"]',
   ];
   // Stays VISIBLE (it shows state) but a viewer's click does nothing but explain.
   var BLOCK_ONLY = [

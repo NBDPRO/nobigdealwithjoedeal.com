@@ -292,6 +292,10 @@ async function partA() {
       [F('verifyStormProofForLead'), F('cdaSharePortalLink'), F('cdaRevokePortalLink'), F('enrichReportData'), '#v2measureBtn',
         '[data-cb-action="sendSMS"]', '[data-cb-action="sendEmail"]', '[data-cb-action="copyLink"]',
         '[data-d2d-action="orderRoofReport"]', '.pa-analyze-btn'],
+    // 2026-09-25 (#1780 review): resolveAddress now refuses a viewer; these
+    // bill it and then rewrite the knock.
+    'D2D address re-verify, one knock and the batch':
+      ['[data-d2d-action="reverifyKnock"]', '[data-d2d-action="reverifyPending"]'],
   };
   for (const [what, sels] of Object.entries(MUST)) {
     const missing = sels.filter((s) => !has(s));
@@ -305,7 +309,9 @@ async function partA() {
     '.est-act-btn[data-act="open"]', '[data-ep-action="edit"]', '[data-ceh-act="edit"]', '[data-ceh-act="toggle"]',
     '[data-exp-action="export-csv"]', '[data-exp-action="receipt"]', '[data-csf-action="dismiss"]', '#nbd-quick-action-bar .qab-call',
     // 2026-09-25: reading a deal room, and opening a lead's photos / docs
-    '[data-cb-action="preview"]', F('openPhotosForLead'), F('openDocsForLead')];
+    '[data-cb-action="preview"]', F('openPhotosForLead'), F('openDocsForLead'),
+    // 2026-09-25 (#1780 review): the knock detail's owner & roof intel (lookupParcel stays open: reading)
+    '[data-d2d-action="loadPropertyIntel"]'];
   const wrong = MUST_NOT.filter(has);
   ok('not gated: settings, notification read state, exports, filters, navigation', wrong.length === 0, 'gated by mistake: ' + wrong.join(' '));
 

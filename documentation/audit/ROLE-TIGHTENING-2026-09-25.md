@@ -426,7 +426,7 @@ again reddens "Templates rows stay listed for a viewer".
 ## Left open
 
 - **Closed 2026-09-25 by [VIEWER-CALLABLES-2026-09-25](VIEWER-CALLABLES-2026-09-25.md)**
-  (26 functions refuse a viewer; the other 98 carry a verdict).
+  (29 functions refuse a viewer; the other 95 carry a verdict).
   **Callables do not check the role (tracked follow-up; decision B is not
   yet enforced server-side for these).** Admin-SDK Cloud Functions a viewer's
   browser can call write or send on the caller's behalf without a `viewer`
