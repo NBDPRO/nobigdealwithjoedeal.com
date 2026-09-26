@@ -36,6 +36,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { getSecret, hasSecret, SECRETS } = require('./_shared');
+const { assertNotViewer } = require('../shared');
 
 // Platform tenant identity, for the auto-invoice gate below. MUST stay
 // byte-identical to functions/stripe.js NBD_OWNER_UID — that module keeps
@@ -64,6 +65,9 @@ exports.sendEstimateForSignature = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only — no paid BoldSign
+    // envelope sent to a homeowner, even for an estimate the viewer owns.
+    assertNotViewer(request.auth.token);
 
     // D1: BoldSign bills per envelope. 30/hour/uid is plenty for
     // a real rep workflow and kills any runaway loop cheaply.

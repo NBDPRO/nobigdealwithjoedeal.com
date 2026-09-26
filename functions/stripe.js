@@ -102,7 +102,7 @@ function hasLiveSubscription(sub) {
 }
 
 // Shared helpers (B2).
-const { requireAuth } = require('./shared');
+const { requireAuth, viewOnlyRefusal } = require('./shared');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const stageRoles = require('./stage-roles');
 
@@ -263,6 +263,10 @@ exports.createCheckoutSession = onRequest(
     const authResult = await requireAuth(req);
     if (authResult.error) { res.status(authResult.error.status).json(authResult.error.body); return; }
     const { decoded } = authResult;
+    // 2026-09-25 (decision B): a viewer is read-only — no plan purchase for
+    // the company (the subscription is keyed to companyId below).
+    const viewOnly = viewOnlyRefusal(decoded);
+    if (viewOnly) { res.status(viewOnly.status).json(viewOnly.body); return; }
     if (!decoded.email) { res.status(401).json({ error: 'Account has no email' }); return; }
     // Unverified email no longer blocks checkout: the ID token already proves
     // account ownership, Stripe's hosted checkout re-collects the receipt
@@ -978,6 +982,12 @@ exports.createCustomerPortalSession = onRequest(
     const authResult = await requireAuth(req);
     if (authResult.error) { res.status(authResult.error.status).json(authResult.error.body); return; }
     const { decoded } = authResult;
+    // 2026-09-25 (decision B): a viewer is read-only. The Stripe billing
+    // portal can change or cancel the COMPANY's subscription and payment
+    // method — refused for a viewer. (Any other member reaching it is a
+    // pre-existing question, unchanged here.)
+    const viewOnly = viewOnlyRefusal(decoded);
+    if (viewOnly) { res.status(viewOnly.status).json(viewOnly.body); return; }
 
     try {
       const db = getFirestore();
@@ -1109,6 +1119,11 @@ exports.createStripePaymentLink = onRequest(
     const authResult = await requireAuth(req);
     if (authResult.error) { res.status(authResult.error.status).json(authResult.error.body); return; }
     const { decoded } = authResult;
+    // 2026-09-25 (decision B): a viewer is read-only. The tenancy check
+    // below admits ANY member of the invoice's tenant; minting a link (and
+    // deactivating the prior one) is refused for a viewer first.
+    const viewOnly = viewOnlyRefusal(decoded);
+    if (viewOnly) { res.status(viewOnly.status).json(viewOnly.body); return; }
 
     // ── Three-way capability gate (#1123 lift, phase 3) ──────────────────
     //   1. Platform tenant → mint exactly as before: no destination routing,

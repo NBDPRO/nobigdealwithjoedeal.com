@@ -55,7 +55,7 @@ const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
 
 const { httpRateLimit, clientIp } = require('./integrations/upstash-ratelimit');
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 const { stampPdf, readPdfGeometry, validateFields, FIELD_TYPES } = require('./esign-stamp');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
@@ -164,6 +164,10 @@ exports.createEsignEnvelope = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only. The four envelope
+    // writers (create / save fields / send / void) check lead or envelope
+    // OWNERSHIP only, which a viewer can hold — refused first.
+    assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'createEsignEnvelope', 30, 60_000);
 
     const { leadId, envelopeId, sourcePath, title } = request.data || {};
@@ -266,6 +270,7 @@ exports.saveEsignFields = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    assertNotViewer(request.auth.token); // decision B — see createEsignEnvelope
     await callableRateLimit(request, 'saveEsignFields', 120, 60_000);
 
     const { envelopeId, fields, signerName, signerEmail, title } = request.data || {};
@@ -364,6 +369,7 @@ exports.sendEsignEnvelope = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    assertNotViewer(request.auth.token); // decision B — see createEsignEnvelope
     await callableRateLimit(request, 'sendEsignEnvelope', 20, 60_000);
 
     const { envelopeId, signerName, signerEmail, sendEmail } = request.data || {};
@@ -473,6 +479,7 @@ exports.voidEsignEnvelope = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    assertNotViewer(request.auth.token); // decision B — see createEsignEnvelope
     await callableRateLimit(request, 'voidEsignEnvelope', 30, 60_000);
 
     const db = getFirestore();

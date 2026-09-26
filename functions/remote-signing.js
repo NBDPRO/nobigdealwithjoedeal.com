@@ -35,7 +35,7 @@ const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -196,6 +196,10 @@ exports.createSignRequest = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only — no sign link minted
+    // and no email to the signer, even on a lead the viewer owns (the owner
+    // check below).
+    assertNotViewer(request.auth.token);
     // A compromised rep session could otherwise mint tokens / send mail
     // in a loop. 20/min/uid is far above any real workflow.
     await callableRateLimit(request, 'createSignRequest', 20, 60_000);

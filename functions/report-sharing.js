@@ -54,7 +54,7 @@ const { FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestor
 const { getStorage } = require('firebase-admin/storage');
 const { defineSecret } = require('firebase-functions/params');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -276,6 +276,11 @@ exports.createReportShareToken = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only. The subject checks
+    // below already refuse a viewer on someone else's lead, but admit the
+    // OWNER whatever their role — a share link publishes the document, so
+    // the role is refused first.
+    assertNotViewer(request.auth.token);
     // A compromised rep session could otherwise mint tokens in a loop.
     await callableRateLimit(request, 'createReportShareToken', 30, 60_000);
 

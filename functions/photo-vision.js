@@ -49,7 +49,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { withSentry } = require('./integrations/sentry');
 
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
@@ -167,6 +167,10 @@ exports.analyzePhotoVision = onCall({
 }, withSentry('analyzePhotoVision', async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+  // 2026-09-25 (decision B): a viewer is read-only. This spends AI budget
+  // and writes the classification onto the photo doc; the check below is
+  // photo OWNERSHIP only.
+  assertNotViewer(request.auth.token);
 
   // Global AI kill-switch (Audit #4) — emergency halt without a deploy.
   if (await require('./integrations/killswitch').isAiDisabled()) {

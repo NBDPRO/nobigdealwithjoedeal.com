@@ -38,7 +38,7 @@ const { logger } = require('firebase-functions/v2');
 const { FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -78,6 +78,9 @@ exports.createDealAcceptToken = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only — no deal-room accept
+    // link minted, even for a deal the viewer owns (the owner check below).
+    assertNotViewer(request.auth.token);
     // A compromised rep session could otherwise mint tokens in a loop.
     await callableRateLimit(request, 'createDealAcceptToken', 30, 60_000);
 

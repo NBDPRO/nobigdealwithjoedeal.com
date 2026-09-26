@@ -33,6 +33,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 
 const DEEPGRAM_API_KEY = defineSecret('DEEPGRAM_API_KEY');
 const { secretValue } = require('./_shared');
+const { assertNotViewer } = require('../shared');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -56,6 +57,16 @@ exports.transcribeVoiceMemo = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only. WITH a leadId this
+    // writes a voice_memo entry onto the lead's activity (owner check
+    // below), so a viewer is refused. WITHOUT one it only returns a
+    // transcript — nbd-whisper.js's "dictate everywhere" mic, which drops
+    // the text into whatever input is focused (a search box too) or a
+    // copyable tooltip — so that read-shaped path stays open. Same leadId
+    // parse as the handler's own, below.
+    if (typeof request.data?.leadId === 'string' && request.data.leadId) {
+      assertNotViewer(request.auth.token);
+    }
 
     // D1-style per-uid cap. Voice memos are human-paced; 20/hour
     // is fine for the most diligent rep and kills a loop cheaply.

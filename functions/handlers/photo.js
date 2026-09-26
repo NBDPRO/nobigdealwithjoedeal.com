@@ -21,7 +21,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 
 const { enforceRateLimit, httpRateLimit } = require('../integrations/upstash-ratelimit');
-const { requireAuth } = require('../shared');
+const { requireAuth, viewOnlyRefusal } = require('../shared');
 const { CORS_ORIGINS } = require('./_shared');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
@@ -329,6 +329,15 @@ exports.analyzeRoofPhoto = onRequest(
     } catch (e) {
       logger.warn('analyzeRoofPhoto auth failed', { err: e.message });
       res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // 2026-09-25 (decision B): a viewer is read-only. This spends a Sonnet
+    // vision call and stamps aiAnalysis onto the photo doc; the check below
+    // is photo OWNERSHIP only.
+    const viewOnly = viewOnlyRefusal(decoded);
+    if (viewOnly) {
+      res.status(viewOnly.status).json(viewOnly.body);
       return;
     }
 

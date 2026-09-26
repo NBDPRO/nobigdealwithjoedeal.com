@@ -48,7 +48,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 const { withSentry } = require('./integrations/sentry');
 const fs = require('fs');
 const path = require('path');
@@ -665,6 +665,16 @@ exports.renderPdf = onCall(
   withSentry('renderPdf', async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only. Every render saves a
+    // PDF of the payload's tenant data under pdf-renders/{uid}/ and hands
+    // back a link to it; the flows that call this (contract, invoice,
+    // estimate, inspection, photo report, warranty cert) all create a
+    // document a viewer may not. The two read-shaped callers — the customer
+    // page's blank-template preview (document-generator.js) and a format
+    // preview in the estimate builder opened to read (estimate-v2-ui.js) —
+    // skip this call for a viewer and use their client render, the same
+    // path they already fall back to when this call fails.
+    assertNotViewer(request.auth.token);
 
     // Phase-3.2: rate-limit the expensive Puppeteer render (2GiB, now
     // minInstances:0). Auth + App Check gate WHO can call it, but nothing

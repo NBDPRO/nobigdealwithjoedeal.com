@@ -49,7 +49,7 @@ const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 // B2: shared authz helper — callableRateLimit lives in shared.js
 // alongside other cross-module primitives. portal.js was where the
 // duplicated copy was first flagged.
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 const { applyRepReplyEffects } = require('./portal-reply-effects');
 // Customer-safe line items for the shared-estimate view. This is a byte-copy
 // of docs/pro/js/customer-estimate-rows.js (Functions deploys only functions/;
@@ -153,6 +153,10 @@ exports.createPortalToken = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only — minting a homeowner
+    // portal link is refused even on a lead the viewer owns (canManageLead
+    // below admits the owning rep whatever their role).
+    assertNotViewer(request.auth.token);
     // D1: a compromised rep session could otherwise mint millions of
     // tokens. 30/min/uid is way more than a human ever needs.
     await callableRateLimit(request, 'createPortalToken', 30, 60_000);
@@ -209,6 +213,10 @@ exports.revokePortalToken = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only. Revoking flips tenant
+    // token docs (and purges the legacy portal fields on the lead); the
+    // lead's owner or a company_admin revokes.
+    assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'revokePortalToken', 30, 60_000);
     const leadId = typeof request.data?.leadId === 'string' ? request.data.leadId : null;
     const tokenId = typeof request.data?.token === 'string' ? request.data.token : null;
@@ -2228,6 +2236,9 @@ exports.replyToPortalMessage = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only — no message to the
+    // homeowner, even on a lead the viewer owns (the owner check below).
+    assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'replyToPortalMessage', 60, 60_000);
 
     const leadId = typeof request.data?.leadId === 'string' ? request.data.leadId : null;

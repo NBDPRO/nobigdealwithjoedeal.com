@@ -191,7 +191,7 @@ async function verifyAuth(req) {
 // a verified email before they can send SMS. The helper lives in
 // functions/shared.js (B2) so claudeProxy + future billable endpoints
 // can adopt the same gate without inlining another copy.
-const { requirePaidSubscription } = require('./shared');
+const { requirePaidSubscription, viewOnlyRefusal } = require('./shared');
 
 // ── Send-path response codes ─────────────────────────────────────
 // docs/pro/js/nbd-comms.js turns some failures into a device-Messages handoff
@@ -528,6 +528,17 @@ async function handleSendSMS(req, res, queuedEndpoint) {
     const decoded = await verifyAuth(req);
     if (!decoded) {
       res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // 2026-09-25 (decision B): a viewer is read-only — no text to a
+    // homeowner, live or queued. Ahead of the peek too: a peek is part of
+    // the queued-send protocol, and a viewer has no send to ask about.
+    // Before everything else, the TCPA opt-out check included: this answer
+    // does not depend on the recipient.
+    const viewOnly = viewOnlyRefusal(decoded);
+    if (viewOnly) {
+      res.status(viewOnly.status).json(viewOnly.body);
       return;
     }
 
@@ -892,6 +903,14 @@ exports.sendD2DSMS = onRequest(
     const decoded = await verifyAuth(req);
     if (!decoded) {
       res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // 2026-09-25 (decision B): a viewer is read-only — the owner branch of
+    // the knock check below would otherwise let a viewer text the homeowner.
+    const viewOnly = viewOnlyRefusal(decoded);
+    if (viewOnly) {
+      res.status(viewOnly.status).json(viewOnly.body);
       return;
     }
 

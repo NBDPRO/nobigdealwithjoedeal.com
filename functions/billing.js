@@ -25,7 +25,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 // Owner check: claims-based (token.owner === true) with the deprecated
 // email fallback, both inside isOwnerCaller. The email list itself lives
 // ONLY in handlers/_shared.js (single server-side source — it exists to
@@ -71,6 +71,11 @@ exports.trackUsage = onCall({
 }, async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+  // 2026-09-25 (decision B): a viewer is read-only. This increments the
+  // COMPANY's usage meter (subscriptions/{companyId}.usage), and a viewer
+  // has no metered action to record — the client calls it after a lead
+  // create, which the rules already refuse a viewer.
+  assertNotViewer(request.auth.token);
 
   // Rate-limit per uid. 200/min handles bulk imports + busy days.
   await callableRateLimit(request, 'trackUsage', 200, 60_000);

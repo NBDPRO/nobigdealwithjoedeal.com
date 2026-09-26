@@ -67,6 +67,7 @@
     "test:tenantlegal": "node ./tenant-legal.test.js",
     "test:brandguard": "node ./gauntlet-brand-guard.test.js",
     "test:prefixreservation": "node ./prefix-reservation.test.js",
+    "test:viewercallables": "node ./viewer-callables.test.js",
     "test:rules": "firebase emulators:exec --only firestore,storage --project nbd-test 'node ./firestore-rules.test.js'",
     "test:qabcommlog": "node ./qab-comm-log.test.js",
     "test:commlog": "firebase emulators:exec --only firestore --project nbd-commlog-test 'node ./communication-log-contract.test.js'",
