@@ -557,8 +557,12 @@ jobs:
         # 2026-09-25: + storage. The trigger now sweeps the lead's whole
         # subtree, each row's Storage objects before the row, and the suite
         # asserts on real objects; it exits 1 if no storage emulator is up.
-        # The test only writes under documents/ and docs/, so neither
-        # Storage-triggered function (photos/, audio/) fires.
+        # Neither Storage-triggered function does anything with the objects
+        # the test writes: since its review fixes (2026-09-25) it also writes
+        # under photos/ and audio/, but every object is text/html (the image
+        # pipeline returns at its image/* check), and onAudioUploaded is bound
+        # to the production bucket name, not this project's. It also runs
+        # functions/portal.js in-process (section P), which needs no emulator.
         run: |
           cd tests
           npx firebase-tools emulators:exec --only functions,firestore,storage --project demo-nbd-pl 'node lead-artifact-cleanup.integration.test.js'

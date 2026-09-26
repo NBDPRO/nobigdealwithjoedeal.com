@@ -30,6 +30,10 @@ third case. Fixed on branch `fix/rules-subcollection-delete` (PR #1771).
 > tenant's `documents/…/*.html`. Production had 1 orphaned lead id with 7
 > rows (no Storage); the backfill has not been run. See
 > [LEAD-SUBTREE-HIJACK-2026-09-25](LEAD-SUBTREE-HIJACK-2026-09-25.md).
+> *Corrected by that note's review fixes:* counting top-level docs keyed by a
+> deleted lead too, production has 7 orphaned lead ids (7 subtree rows, 12
+> top-level docs), and the fix also covers top-level `/notes`, the portal,
+> reserved lead ids and row-supplied uids.
 
 ## The trap
 

@@ -290,6 +290,100 @@ console.log('\nSUBTREE CONFINEMENT — which object a row under the deleted lead
      eq([...LEAD_ARTIFACT_PREFIXES].sort(), LEAD_KEYED_PREFIXES.map((p) => p.prefix).sort()));
 }
 
+// 2026-09-25, review of PR #1777. Each of these was reproduced on the emulator
+// against the real trigger before it was fixed; see
+// documentation/audit/LEAD-SUBTREE-HIJACK-2026-09-25.md, "Review fixes".
+console.log('\nRESERVED LEAD IDS — a folder many leads share is never one lead\'s');
+{
+  const {
+    isReservedLeadId, isReapableLeadArtifactPath: may,
+  } = require(path.join(ROOT, 'functions', 'lead-artifact-paths.js'));
+  for (const id of ['_variants', '_anything', '.hidden', 'd2d', 'D2D', 'thumbs', 'undefined', 'null', '']) {
+    ok(`"${id}" is reserved`, isReservedLeadId(id) === true);
+  }
+  ok('a non-string is reserved (nothing to trust)', isReservedLeadId(null) === true && isReservedLeadId(7) === true);
+  for (const id of [LEAD, 'calcom__12345', 'web__abc', 'lead_portal_demo', 'd2dx', 'xd2d']) {
+    ok(`"${id}" is an ordinary lead id`, isReservedLeadId(id) === false);
+  }
+  // THE HOLE: a lead named `_variants` passed the segment-exact check for
+  // every uid's shared flat-photo variant folder.
+  ok('a lead named "_variants" cannot reach another uid\'s shared variants',
+     !may(`photos/${OTHER_UID}/_variants/1755_a_thumb.webp`, '_variants'));
+  ok('...nor its own', !may(`photos/${UID}/_variants/1755_a_thumb.webp`, '_variants'));
+  ok('a lead named "d2d" cannot reach D2D memos', !may(`audio/${OTHER_UID}/d2d/k1_1790000000000.webm`, 'd2d'));
+  ok('a lead named "thumbs" cannot reach a thumbs folder', !may(`photos/${OTHER_UID}/thumbs/a_thumb.jpg`, 'thumbs'));
+  ok('a lead named "undefined" cannot reach mis-filed objects', !may(`documents/${OTHER_UID}/undefined/d.html`, 'undefined'));
+  ok('an ordinary lead id still can (vacuity guard)', may(`photos/${UID}/${LEAD}/_variants/a_full.webp`, LEAD));
+}
+
+console.log('\nWHO OWNS A ROW — the race rule, and which re-create may keep old rows');
+{
+  const {
+    belongsToDeletedLead: owns, sameLeadTenant,
+  } = require(path.join(ROOT, 'functions', 'lead-artifact-paths.js'));
+  const CUT = 1000n;
+  const at = (c, u, recreatedNs, strict) => owns({ createNs: c, updateNs: u, cutoffNs: CUT, recreatedNs, strict });
+  for (const strict of [false, true]) {
+    const m = strict ? 'strict' : 'same-tenant';
+    ok(`${m}: created and written before the delete -> the deleted lead's`, at(900n, 950n, null, strict) === true);
+    ok(`${m}: written exactly at the cutoff -> the deleted lead's (at or before)`, at(1000n, 1000n, null, strict) === true);
+    ok(`${m}: created after the delete -> kept`, at(1001n, 1001n, null, strict) === false);
+    ok(`${m}: created at the re-create -> kept`, at(900n, 900n, 900n, strict) === false);
+    ok(`${m}: unknown times -> kept`, at(null, 950n, null, strict) === false && at(900n, null, null, strict) === false);
+  }
+  // The updateTime half. Same-tenant: an old row the re-created lead merged
+  // onto is the new lead's (a redelivered webhook). Strict: it is not, or a
+  // stranger keeps every old row by writing one field onto it (S3).
+  ok('same-tenant: old row written after the delete -> kept', at(900n, 1500n, null, false) === false);
+  ok('same-tenant: old row written after the re-create -> kept', at(900n, 1200n, 1100n, false) === false);
+  ok('strict: old row written after the delete -> still the deleted lead\'s', at(900n, 1500n, null, true) === true);
+  ok('strict: old row written after the re-create -> still the deleted lead\'s', at(900n, 1200n, 1100n, true) === true);
+
+  ok('same company, different rep -> same tenant',
+     sameLeadTenant({ userId: 'a', companyId: 'coA' }, { userId: 'b', companyId: 'coA' }) === true);
+  ok('different company, same uid -> NOT the same tenant',
+     sameLeadTenant({ userId: 'a', companyId: 'coA' }, { userId: 'a', companyId: 'coB' }) === false);
+  ok('no companyIds, same uid -> same tenant', sameLeadTenant({ userId: 'a' }, { userId: 'a' }) === true);
+  ok('no companyIds, different uid -> not', sameLeadTenant({ userId: 'a' }, { userId: 'b' }) === false);
+  ok('an unknown deleted lead -> not (the backfill passes none)', sameLeadTenant(null, { userId: 'a', companyId: 'coA' }) === false);
+  ok('empty on both sides -> not', sameLeadTenant({}, {}) === false);
+}
+
+console.log('\nROW UIDS — only a uid in the deleted lead\'s tenant may widen a Storage sweep');
+{
+  const { uidInLeadTenant: inTenant } = require(path.join(ROOT, 'functions', 'lead-artifact-paths.js'));
+  const lead = { userId: UID, companyId: 'coA' };
+  ok('the lead\'s owner', inTenant(UID, lead, null) === true);
+  ok('the lead\'s companyId (a solo tenant\'s companyId is its uid)', inTenant('coA', lead, null) === true);
+  ok('a teammate whose server-only users doc says coA', inTenant(OTHER_UID, lead, { companyId: 'coA' }) === true);
+  // THE HOLE: a documents row's userId (its create rule checks only `status`)
+  // named a victim, and the trigger swept the victim's folders.
+  ok('another tenant\'s uid named by a row is refused', inTenant(OTHER_UID, lead, { companyId: 'coB' }) === false);
+  ok('a uid with no users doc is refused', inTenant(OTHER_UID, lead, null) === false);
+  ok('a lead without companyId admits only its owner',
+     inTenant(OTHER_UID, { userId: UID }, { companyId: '' }) === false && inTenant(UID, { userId: UID }, null) === true);
+  ok('a users doc with no companyId does not match an empty lead companyId',
+     inTenant(OTHER_UID, { userId: UID, companyId: '' }, {}) === false);
+  ok('a path-like uid is refused', inTenant('a/b', { userId: 'a/b', companyId: 'a/b' }, null) === false);
+}
+
+console.log('\nVOICE PIPELINE — D2D memos are not a lead');
+{
+  // The Storage trigger read `audio/{uid}/d2d/{knock}_{ts}.webm` as lead
+  // `d2d`, so every tenant's D2D memo transcript landed under one phantom
+  // leads/d2d, which anyone can create and hard-delete.
+  if (!process.env.FIREBASE_CONFIG) {
+    process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: 'demo-unit', storageBucket: 'demo-unit.appspot.com' });
+  }
+  if (!process.env.GCLOUD_PROJECT) process.env.GCLOUD_PROJECT = 'demo-unit';
+  const { _parseAudioPath: parse } = require(path.join(ROOT, 'functions', 'integrations', 'voice-intelligence.js'));
+  ok('a D2D memo is not a recording of lead "d2d"', parse(`audio/${UID}/d2d/K1_1790000000000.webm`) === null);
+  ok('nor is any reserved id', parse(`audio/${UID}/_variants/r1.webm`) === null);
+  const real = parse(`audio/${UID}/${LEAD}/rec1.webm`);
+  ok('a real lead\'s recording still parses (vacuity guard)',
+     !!real && real.leadId === LEAD && real.uid === UID && real.recordingId === 'rec1');
+}
+
 console.log('\nSOURCE — the helpers must stay firebase-free and off the deploy index');
 {
   const pureSrc = fs.readFileSync(

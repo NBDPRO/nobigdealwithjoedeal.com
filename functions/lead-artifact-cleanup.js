@@ -116,6 +116,41 @@
  *     Tokens, appointments and /photos (steps 3-5) are unchanged.
  * See documentation/audit/LEAD-SUBTREE-HIJACK-2026-09-25.md.
  *
+ * UPDATE 2026-09-25 (review of PR #1777) — order, perimeter, who owns what.
+ * ─────────────────────────────────────────────────────────────────────
+ * A security review of the whole-subtree change reproduced four more ways
+ * in. Each is fixed here or next door:
+ *
+ *   - TOP-LEVEL /notes. Its read rule reads the lead named by the note's
+ *     leadId, so whoever re-created the id read every stage-change note of
+ *     the old lead, subtree or not. Swept now (the /notes step).
+ *   - Uids off ROWS. Owner uids used to include every `documents` row's
+ *     userId/htmlPath uid (that row's create rule checks only `status`), and
+ *     the Storage-prefix step also took the uid of any object a row named. A
+ *     row naming a victim's uid aimed the prefix listing, and the /photos
+ *     confinement, at that victim. Now the /photos step trusts the LEAD's
+ *     userId only (row uids are a fallback for a lead without one, and only
+ *     same-tenant ones), and a row uid reaches the prefix step only if it is
+ *     in the lead's tenant (uidInLeadTenant).
+ *   - RESERVED ids. A lead called `_variants` or `d2d` made the prefix step
+ *     list `photos/{uid}/_variants/` (every flat photo's variants) or
+ *     `audio/{uid}/d2d/` (D2D memos). Such a lead now revokes tokens and
+ *     nothing else (isReservedLeadId), at error level.
+ *   - RACES. /photos, tokens and appointments were deleted by leadId with no
+ *     time check, so a redelivered Cal.com booking that re-created the lead
+ *     lost its own appointment. Every step now goes through one watch
+ *     (makeLeadWatch in lead-subtree-sweep.js): nothing newer than the
+ *     delete, and only a same-tenant re-create may keep old docs it wrote
+ *     to. Tokens are judged by create time alone.
+ *
+ * And the order changed: tokens, /photos, /notes and appointments run BEFORE
+ * the subtree walk, which may take minutes. Those are the steps that close a
+ * live link or a readable doc, so a re-creator's window is the seconds they
+ * take, not the subtree's 300 s budget. Every loop checks the handler budget
+ * per row, so the summary line is logged before the 540 s kill, and a start
+ * line is logged first so even a killed run shows. The steps below are
+ * named, not numbered; the step numbers in the notes above are the old order.
+ *
  * NOT covered here, deliberately:
  *   - D2D knock photos (`photos/{uid}/d2d/{knockId}/...`). They belong to the
  *     knock, not the lead, and carry no /photos doc at all (image-pipeline.js
@@ -168,15 +203,22 @@ const LEAD_KEYED_PREFIXES = [
 // tests/lead-photo-reaping.test.js.
 const {
   variantPathsFor, isReapablePhotoPath, isoToNanos, timestampToNanos, deleteCutoffNs,
+  isReservedLeadId, uidInLeadTenant,
 } = require('./lead-artifact-paths');
-// The whole-subtree sweep (2026-09-25). Also firebase-free: db and bucket are
-// passed in, so the rules suite and scripts/audit-orphaned-lead-subtrees.js
-// run this same code.
-const { sweepLeadSubtree } = require('./lead-subtree-sweep');
+// The whole-subtree sweep and the top-level lead-keyed sweep (2026-09-25).
+// Also firebase-free: db and bucket are passed in, so the rules suite and
+// scripts/audit-orphaned-lead-subtrees.js run this same code.
+const { sweepLeadSubtree, sweepLeadKeyedDocs, makeLeadWatch } = require('./lead-subtree-sweep');
 
-// Step 1's share of the 540 s budget. What is left covers steps 2-5, which
-// already fit in it before the subtree sweep existed (photos is the long one).
+// The whole run's budget: the platform kills the function at 540 s
+// (retry:false), and the summary must be logged before that. 60 s of margin.
+const HANDLER_BUDGET_MS = 480 * 1000;
+// The subtree walk's share, counted from the invocation start. What is left
+// covers the Storage-prefix step, which fit in it before the walk existed.
 const SUBTREE_BUDGET_MS = 300 * 1000;
+// Row-derived uids checked against the lead's tenant, at most. Each costs a
+// users/{uid} read, and rows are client-written.
+const ROW_UID_CHECK_CAP = 25;
 
 // Token collections that carry a leadId. A live token pointing at a deleted
 // lead is the same leak class as an orphaned object: it grants a no-login
@@ -184,19 +226,14 @@ const SUBTREE_BUDGET_MS = 300 * 1000;
 const LEAD_TOKEN_COLLECTIONS = ['portal_tokens', 'doc_sign_tokens'];
 
 /**
- * Resolve the owning uid(s) for a deleted lead.
- *
- * Normally just `lead.userId`. But a lead doc that was written before the
- * ownership backfill — or corrupted — may lack it, and that is exactly the
- * lead whose artifacts nobody will ever look for again. Fall back to the uids
- * recorded on the documents subcollection, then to the uid embedded in any
- * htmlPath, so a missing userId degrades to a narrower sweep instead of none.
+ * Uids a deleted lead's `documents` rows name (their userId, and segment 1
+ * of an htmlPath). CLIENT-WRITTEN, so a candidate list only: see
+ * tenantUids() and the 2026-09-25 review note at the top.
  *
  * @returns {Set<string>}
  */
-function resolveOwnerUids(lead, docSnaps) {
+function rowOwnerUids(docSnaps) {
   const uids = new Set();
-  if (lead && typeof lead.userId === 'string' && lead.userId) uids.add(lead.userId);
   for (const d of docSnaps) {
     const m = d.data() || {};
     if (typeof m.userId === 'string' && m.userId) uids.add(m.userId);
@@ -207,6 +244,35 @@ function resolveOwnerUids(lead, docSnaps) {
     }
   }
   return uids;
+}
+
+/**
+ * The candidates that are in the deleted lead's tenant (uidInLeadTenant):
+ * the lead's owner, its companyId (a solo tenant), or a user whose
+ * server-only users/{uid}.companyId is the lead's. At most ROW_UID_CHECK_CAP
+ * are looked at.
+ *
+ * @returns {Promise<Set<string>>}
+ */
+async function tenantUids(db, candidates, lead, failures) {
+  const out = new Set();
+  let checked = 0;
+  for (const uid of candidates) {
+    if (uidInLeadTenant(uid, lead, null)) { out.add(uid); continue; }
+    if (typeof uid !== 'string' || !uid || uid.includes('/')) continue;
+    if (typeof lead.companyId !== 'string' || !lead.companyId) continue;
+    if (++checked > ROW_UID_CHECK_CAP) {
+      failures.push(`row uids: more than ${ROW_UID_CHECK_CAP} to check — the rest ignored`);
+      break;
+    }
+    try {
+      const s = await db.collection('users').doc(uid).get();
+      if (uidInLeadTenant(uid, lead, s.exists ? s.data() : null)) out.add(uid);
+    } catch (e) {
+      failures.push(`row uid check: ${e.message}`);
+    }
+  }
+  return out;
 }
 
 exports.onLeadDeleted = onDocumentDeleted(
@@ -236,43 +302,60 @@ exports.onLeadDeleted = onDocumentDeleted(
     const db = getFirestore();
     const bucket = getStorage().bucket();
     const startedAt = Date.now();
+    const deadlineAt = startedAt + HANDLER_BUDGET_MS;
+    const late = () => Date.now() > deadlineAt;
 
     let objectsDeleted = 0;
     let objectsSkippedNewer = 0;
-    let tokensRevoked = 0;
-    let photoDocsDeleted = 0;
     const failures = [];
-    // Every object path already deleted, so the /photos sweep does not re-issue
-    // a delete for something the prefix sweep just removed. Cheap insurance: a
-    // 300-photo job is ~1200 objects and each redundant call is a round trip.
+    // Every object path already handled, so no step re-issues a delete for
+    // something an earlier step removed (or kept as a re-created lead's).
+    // Cheap insurance: a 300-photo job is ~1200 objects, one round trip each.
     const deletedPaths = new Set();
 
-    // ── 0. The race cutoff (2026-09-25) ────────────────────────────
+    // ── The race cutoff (2026-09-25) ────────────────────────────────
     // Anything under this lead id that is NEWER than the delete belongs to a
     // lead re-created at the same id (a redelivered Cal.com or public-lead
     // webhook) and must survive. event.time is the delete's commit time, on
     // the same clock as createTime/updateTime, parsed to the nanosecond.
     // deleteCutoffNs() falls back to this invocation's start when the time is
     // missing, impossible, or a whole second (the emulator truncates it; see
-    // there). That is the wider choice, so the re-read of the lead doc (a
-    // re-created lead's createTime) is what guards a re-create then.
+    // there). That is the wider choice, so the watch's re-reads of the lead
+    // doc (a re-created lead's createTime) are what guard a re-create then.
     const leadUpdatedNs = event.data ? timestampToNanos(event.data.updateTime) : null;
     const { cutoffNs, source: cutoffSource } = deleteCutoffNs(event.time, leadUpdatedNs, startedAt);
+    // First line of every run, so a run the platform kills still shows up.
+    logger.info('[onLeadDeleted] start', { leadId, cutoffSource });
 
-    // ── 1. Owner uids, from the lead and its documents rows ─────────
-    // Read BEFORE deleting anything: a documents row's userId/htmlPath is the
-    // only record of an owner uid when the lead doc lacks userId, and step 2
-    // scopes its prefix deletes by uid.
+    // One view of "has the lead come back, and whose is it?" for every step.
+    const watch = makeLeadWatch({ db, leadId, cutoffNs, deletedLead: lead });
+
+    // A reserved id (`d2d`, `_variants`, ...) names a folder many leads
+    // share, and `leads/d2d/recordings` holds every tenant's D2D memo
+    // transcripts. No product path creates one; whoever did gets their
+    // tokens revoked and nothing else touched.
+    const reserved = isReservedLeadId(leadId);
+    if (reserved) failures.push('reserved lead id — tokens revoked, nothing else swept');
+
+    // ── Owner uids ─────────────────────────────────────────────────
+    // The lead's userId is trustworthy (the create rule pins it to the
+    // creator; server writers set it). Row uids are not; see tenantUids().
+    // Read BEFORE the subtree sweep deletes the documents rows.
     let docSnaps = [];
-    try {
-      const snap = await db.collection(`leads/${leadId}/documents`).limit(500).get();
-      docSnaps = snap.docs;
-    } catch (e) {
-      failures.push(`documents read: ${e.message}`);
+    if (!reserved) {
+      try {
+        const snap = await db.collection(`leads/${leadId}/documents`).limit(500).get();
+        docSnaps = snap.docs;
+      } catch (e) {
+        failures.push(`documents read: ${e.message}`);
+      }
     }
-
-    const ownerUids = resolveOwnerUids(lead, docSnaps);
-    if (!ownerUids.size) {
+    const leadOwner = typeof lead.userId === 'string' && lead.userId ? lead.userId : null;
+    const rowUids = reserved ? new Set() : await tenantUids(db, rowOwnerUids(docSnaps), lead, failures);
+    // /photos confinement: the lead's owner. Only a lead WITHOUT one falls
+    // back to same-tenant row uids, so it degrades to a narrower sweep.
+    const ownerUids = new Set(leadOwner ? [leadOwner] : [...rowUids]);
+    if (!ownerUids.size && !reserved) {
       // Nothing to scope a prefix delete to. Loud, because it means artifacts
       // may have survived and only the bucket-wide sweep script can find them.
       logger.error('[onLeadDeleted] no owner uid resolvable — Storage NOT swept', {
@@ -280,51 +363,177 @@ exports.onLeadDeleted = onDocumentDeleted(
       });
     }
 
-    // ── 1b. The lead's whole Firestore subtree (2026-09-25) ─────────
-    // Replaces the two named sweeps that were here (documents, then
-    // warrantyClaims). Every subcollection, nested ones included, each row's
-    // Storage objects before the row, rows newer than the cutoff kept. See
-    // lead-subtree-sweep.js for the design and the confinement change.
-    const subtree = await sweepLeadSubtree({
-      db, bucket, leadId, cutoffNs,
-      deadlineAt: startedAt + SUBTREE_BUDGET_MS,
-      deletedPaths,
-    });
-    objectsDeleted += subtree.objectsDeleted;
-    for (const f of subtree.failures) failures.push(`subtree ${f}`);
-    if (subtree.deadlineHit) failures.push(`subtree: stopped at the ${SUBTREE_BUDGET_MS / 1000}s budget`);
-    if (subtree.rowsKeptForStorage) {
-      failures.push(`subtree: ${subtree.rowsKeptForStorage} rows kept because their object delete failed`);
+    const counts = {};
+    let skippedNewerAbsent = 0; // docs newer than the delete, lead still gone
+    function takeKeyed(name, r) {
+      counts[name] = r.deleted;
+      for (const f of r.failures) failures.push(f);
+      if (r.deadlineHit) failures.push(`${name}: stopped at the ${HANDLER_BUDGET_MS / 1000}s budget`);
+      if (r.capped) failures.push(`${name}: scan capped — docs may remain`);
+      if (r.kept) failures.push(`${name}: ${r.kept} docs kept because an object delete failed`);
+      if (!watch.recreated) skippedNewerAbsent += r.skippedNewer;
     }
-    // A row newer than the delete while the lead is still absent is not a
+
+    // ── Tokens ─────────────────────────────────────────────────────
+    // First: a live portal or doc-sign link is the most direct leak. By
+    // create time only (alwaysStrict), because every portal open bumps a
+    // token's update time; a token minted after a re-create is the new
+    // lead's and survives.
+    let tokensRevoked = 0;
+    for (const coll of LEAD_TOKEN_COLLECTIONS) {
+      const r = await sweepLeadKeyedDocs({
+        db, collection: coll, leadId, watch, deadlineAt, alwaysStrict: true, cap: 1000,
+      });
+      takeKeyed(coll, r);
+      tokensRevoked += r.deleted;
+    }
+
+    // ── /photos: flat-shape objects + orphaned docs ────────────────
+    // Two jobs the prefix step cannot do:
+    //
+    //   a. The legacy customer-page shape `photos/{uid}/{file}` carries no
+    //      leadId in its path. The only record tying it to this lead is the
+    //      /photos doc, which is also the only thing that can find its
+    //      `_variants/` siblings — those sit in the uid-wide
+    //      `photos/{uid}/_variants/` directory SHARED with every other lead's
+    //      flat photos, so it can never be prefix-deleted. They have to be
+    //      named one by one, derived from the source filename.
+    //   b. /photos is a TOP-LEVEL collection, not a subcollection of the lead,
+    //      so Firestore cascades nothing. Without this, every hard delete
+    //      leaves photo docs pointing at objects that are now gone. Its read
+    //      rule also admits a company reader of the lead the doc names, so
+    //      a re-creator can list them until this step runs: it runs early.
+    //
+    // CONFINEMENT: paths are confined to `photos/{uid}/` for a uid resolved
+    // from the LEAD (never from the photo doc, and since 2026-09-25 never
+    // from a documents row either, unless the lead has no owner and the row
+    // uid is in its tenant). storagePath is client-written, so trusting the
+    // doc's own userId would let anyone plant a photo doc naming a victim's
+    // object, delete their own lead, and have this trigger delete it for them
+    // with admin credentials. A lead with no resolvable uid reaps no photos
+    // and says so, which is the safe direction to fail. A doc whose object
+    // delete fails is kept (2026-09-25): it is the only pointer to the object.
+    let photoDocsDeleted = 0;
+    const photoPathFields = ['storagePath', 'path', 'thumbStoragePath'];
+    if (reserved) {
+      // nothing
+    } else if (ownerUids.size) {
+      const r = await sweepLeadKeyedDocs({
+        db, collection: 'photos', leadId, watch, deadlineAt,
+        // A big reroof is a few hundred photos; 5000 is far past any real job
+        // and exists only so a corrupt leadId cannot spin this forever.
+        cap: 5000,
+        beforeDelete: async (photo) => {
+          const meta = photo.data() || {};
+          const targets = [];
+          for (const field of photoPathFields) {
+            const p = meta[field];
+            if (!p || typeof p !== 'string') continue;
+            targets.push(p);
+            targets.push(...variantPathsFor(p));
+          }
+          let ok = true;
+          for (const p of targets) {
+            if (late()) return false; // keep the doc; the budget is spent
+            if (deletedPaths.has(p)) continue;
+            if (!isReapablePhotoPath(p, ownerUids)) {
+              failures.push(`photo object ${p}: outside this lead's photos/{uid}/ — skipped`);
+              continue;
+            }
+            try {
+              await bucket.file(p).delete({ ignoreNotFound: true });
+              deletedPaths.add(p);
+              objectsDeleted++;
+            } catch (e) {
+              ok = false;
+              failures.push(`photo object ${p}: ${e.message}`);
+            }
+          }
+          return ok;
+        },
+      });
+      takeKeyed('photos', r);
+      photoDocsDeleted = r.deleted;
+      if (r.capped) {
+        // Silent truncation is how the original orphans hid. Say it loudly.
+        logger.error('[onLeadDeleted] photo scan hit its cap — photos may remain', {
+          leadId, scanned: r.scanned,
+        });
+      }
+    } else {
+      failures.push('photos: no owner uid resolvable — /photos NOT swept');
+    }
+
+    // ── Top-level /notes (2026-09-25, review of PR #1777) ───────────
+    // Activity-log notes ({leadId, userId, text}; stage-write.js,
+    // crm-pipeline.js, dashboard-actions.js, ...). The /notes read rule
+    // admits the owner, or a company reader, of the lead the note NAMES, so
+    // they were readable by whoever re-created this id. No Storage.
+    let topNotesDeleted = 0;
+    if (!reserved) {
+      const r = await sweepLeadKeyedDocs({ db, collection: 'notes', leadId, watch, deadlineAt });
+      takeKeyed('notes', r);
+      topNotesDeleted = r.deleted;
+    }
+
+    // ── Linked Cal.com / appointments records ──────────────────────
+    // appointments/{bookingId}.leadId (functions/integrations/calcom.js)
+    // points at whichever lead the booking is linked to — a pre-existing
+    // match or the calcom__<bookingId> lead created for it. It is a
+    // top-level collection Firestore never cascades into, and no client UI
+    // deletes an appointments/{id} doc directly, so without this the doc
+    // outlives the lead forever, `leadId` pointing at nothing. A redelivered
+    // booking that re-creates the lead merges onto the same appointments doc;
+    // the watch keeps it then (same tenant, written after the delete).
+    let appointmentsDeleted = 0;
+    if (!reserved) {
+      const r = await sweepLeadKeyedDocs({ db, collection: 'appointments', leadId, watch, deadlineAt, cap: 1000 });
+      takeKeyed('appointments', r);
+      appointmentsDeleted = r.deleted;
+    }
+
+    // ── The lead's whole Firestore subtree (2026-09-25) ─────────────
+    // Every subcollection, nested ones included, each row's Storage objects
+    // before the row, rows newer than the cutoff kept. See
+    // lead-subtree-sweep.js for the design and the confinement change.
+    let subtree = null;
+    if (!reserved) {
+      subtree = await sweepLeadSubtree({
+        db, bucket, leadId, cutoffNs, watch,
+        deadlineAt: Math.min(startedAt + SUBTREE_BUDGET_MS, deadlineAt),
+        deletedPaths,
+      });
+      objectsDeleted += subtree.objectsDeleted;
+      objectsSkippedNewer += subtree.objectsSkippedNewer;
+      for (const f of subtree.failures) failures.push(`subtree ${f}`);
+      if (subtree.deadlineHit) failures.push(`subtree: stopped at the ${SUBTREE_BUDGET_MS / 1000}s budget`);
+      if (subtree.rowsKeptForStorage) {
+        failures.push(`subtree: ${subtree.rowsKeptForStorage} rows kept because their object delete failed`);
+      }
+      if (!watch.recreated) skippedNewerAbsent += subtree.skippedNewer;
+    }
+    // A doc newer than the delete while the lead is still absent is not a
     // re-created lead's data. It is an orphan that arrived late (a webhook
     // appending to a deleted lead), reachable the same way as the rest.
-    if (subtree.skippedNewer && !subtree.recreated) {
-      failures.push(`subtree: ${subtree.skippedNewer} rows newer than the delete left under an absent lead`);
+    if (skippedNewerAbsent) {
+      failures.push(`${skippedNewerAbsent} docs newer than the delete left under an absent lead`);
     }
 
-    // Uids named by this lead's own confined object paths join the prefix
-    // sweep (a manager's upload to a teammate's lead sits under the manager's
-    // uid). Safe to widen: every prefix delete below is scoped to
-    // {prefix}/{uid}/{leadId}/. NOT passed to the /photos step, whose
-    // flat-shape check trusts the uid alone.
-    const prefixUids = new Set([...ownerUids, ...subtree.uidsSeen]);
-
-    // Re-created since the delete? Then an object at or after the new lead's
-    // createTime is the new lead's upload, whatever the cutoff says. One more
-    // read of the lead; the subtree sweep's last look may be seconds old.
-    let recreatedNs = subtree.recreatedAtNs;
-    try {
-      const now = await db.collection('leads').doc(leadId).get();
-      const n = now.exists ? timestampToNanos(now.createTime) : null;
-      if (n != null && (recreatedNs == null || n < recreatedNs)) recreatedNs = n;
-    } catch (e) {
-      failures.push(`lead re-check before prefixes: ${e.message}`);
+    // ── Deterministic leadId-keyed Storage prefixes ────────────────
+    // Uids: the lead's owner, plus row uids (documents rows, and objects rows
+    // named) that are in the lead's tenant — a manager's upload to a
+    // teammate's lead sits under the manager's uid. A row uid outside the
+    // tenant never gets here: it would aim this listing at a stranger.
+    const prefixUids = new Set([...ownerUids, ...rowUids]);
+    if (subtree && subtree.uidsSeen.size) {
+      for (const u of await tenantUids(db, subtree.uidsSeen, lead, failures)) prefixUids.add(u);
     }
-
-    // ── 2. Deterministic leadId-keyed Storage prefixes ─────────────
-    for (const uid of prefixUids) {
+    // The subtree's last look at the lead may be minutes old.
+    if (!reserved) await watch.refresh();
+    let prefixStopped = false;
+    for (const uid of (reserved ? [] : prefixUids)) {
       for (const { prefix, flat } of LEAD_KEYED_PREFIXES) {
+        if (late()) { prefixStopped = true; break; }
         // Directory shape: {prefix}/{uid}/{leadId}/...
         // The trailing slash matters — without it, leadId 'abc' would also
         // match a sibling lead 'abcdef'.
@@ -338,12 +547,12 @@ exports.onLeadDeleted = onDocumentDeleted(
         try {
           const [files] = await bucket.getFiles({ prefix: `${prefix}/${uid}/${leadId}/` });
           for (const f of files) {
-            // Same race rule as the rows (2026-09-25): an object uploaded
-            // after the delete belongs to a lead re-created at this id.
-            // Missing metadata keeps the old behaviour (delete).
-            const createdNs = isoToNanos(f.metadata && f.metadata.timeCreated);
-            if (createdNs != null
-                && (createdNs > cutoffNs || (recreatedNs != null && createdNs >= recreatedNs))) {
+            if (late()) { prefixStopped = true; break; }
+            if (deletedPaths.has(f.name)) continue;
+            // Same race rule as the rows: an object uploaded after the delete
+            // belongs to a lead re-created at this id. Missing metadata keeps
+            // the old behaviour (delete).
+            if (!watch.ownsObject(isoToNanos(f.metadata && f.metadata.timeCreated))) {
               objectsSkippedNewer++;
               continue;
             }
@@ -358,175 +567,70 @@ exports.onLeadDeleted = onDocumentDeleted(
         } catch (e) {
           failures.push(`prefix ${prefix}/${uid}/${leadId}/: ${e.message}`);
         }
-        // Flat legacy shapes: {prefix}/{uid}/{leadId}.html etc.
+        // Flat legacy shapes: {prefix}/{uid}/{leadId}.html etc. Judged by the
+        // object's own timeCreated too (2026-09-25), and counted only when
+        // there was an object to delete.
         for (const suffix of flat) {
+          if (late()) { prefixStopped = true; break; }
           const p = `${prefix}/${uid}/${leadId}${suffix}`;
+          if (deletedPaths.has(p)) continue;
           try {
+            const [md] = await bucket.file(p).getMetadata();
+            if (!watch.ownsObject(isoToNanos(md && md.timeCreated))) { objectsSkippedNewer++; continue; }
             await bucket.file(p).delete({ ignoreNotFound: true });
+            deletedPaths.add(p);
             objectsDeleted++;
           } catch (e) {
+            if (e && (e.code === 404 || /No such object|Not Found/i.test(String(e.message || '')))) continue;
             failures.push(`object ${p}: ${e.message}`);
           }
         }
+        if (prefixStopped) break;
       }
+      if (prefixStopped) break;
     }
+    if (prefixStopped) failures.push(`storage prefixes: stopped at the ${HANDLER_BUDGET_MS / 1000}s budget`);
+    for (const f of watch.failures) failures.push(f);
 
-    // ── 3. The /photos collection: flat-shape objects + orphaned docs ──
-    // Two jobs the prefix sweep above cannot do:
-    //
-    //   a. The legacy customer-page shape `photos/{uid}/{file}` carries no
-    //      leadId in its path. The only record tying it to this lead is the
-    //      /photos doc, which is also the only thing that can find its
-    //      `_variants/` siblings — those sit in the uid-wide
-    //      `photos/{uid}/_variants/` directory SHARED with every other lead's
-    //      flat photos, so it can never be prefix-deleted. They have to be
-    //      named one by one, derived from the source filename.
-    //   b. /photos is a TOP-LEVEL collection, not a subcollection of the lead,
-    //      so Firestore cascades nothing. Without this, every hard delete
-    //      leaves photo docs pointing at objects that are now gone — which is
-    //      what makes a gallery render broken tiles for a customer who was
-    //      never deleted, if the ids are ever reused.
-    //
-    // CONFINEMENT: paths are confined to `photos/{uid}/` for a uid resolved
-    // from the LEAD (never from the photo doc). storagePath is client-written,
-    // so trusting the doc's own userId would let anyone plant a photo doc
-    // naming a victim's object, delete their own lead, and have this trigger
-    // delete it for them with admin credentials. A lead with no resolvable uid
-    // reaps no photos and says so, which is the safe direction to fail.
-    const photoPathFields = ['storagePath', 'path', 'thumbStoragePath'];
-    if (ownerUids.size) {
-      let cursor = null;
-      let scanned = 0;
-      // A big reroof is a few hundred photos; 5000 is far past any real job and
-      // exists only so a corrupt leadId cannot spin this trigger forever.
-      const PHOTO_SCAN_CAP = 5000;
-      let capped = false;
-
-      while (scanned < PHOTO_SCAN_CAP) {
-        let batch;
-        try {
-          let q = db.collection('photos').where('leadId', '==', leadId).limit(300);
-          if (cursor) q = q.startAfter(cursor);
-          batch = await q.get();
-        } catch (e) {
-          failures.push(`photos query: ${e.message}`);
-          break;
-        }
-        if (batch.empty) break;
-        cursor = batch.docs[batch.docs.length - 1];
-        scanned += batch.docs.length;
-
-        for (const photo of batch.docs) {
-          const meta = photo.data() || {};
-          const targets = [];
-          for (const field of photoPathFields) {
-            const p = meta[field];
-            if (!p || typeof p !== 'string') continue;
-            targets.push(p);
-            targets.push(...variantPathsFor(p));
-          }
-
-          for (const p of targets) {
-            if (deletedPaths.has(p)) continue;
-            if (!isReapablePhotoPath(p, ownerUids)) {
-              failures.push(`photo object ${p}: outside this lead's photos/{uid}/ — skipped`);
-              continue;
-            }
-            try {
-              await bucket.file(p).delete({ ignoreNotFound: true });
-              deletedPaths.add(p);
-              objectsDeleted++;
-            } catch (e) {
-              failures.push(`photo object ${p}: ${e.message}`);
-            }
-          }
-
-          try {
-            await photo.ref.delete();
-            photoDocsDeleted++;
-          } catch (e) {
-            failures.push(`photo doc ${photo.id}: ${e.message}`);
-          }
-        }
-
-        if (batch.docs.length < 300) break;
-        if (scanned >= PHOTO_SCAN_CAP) capped = true;
-      }
-
-      if (capped) {
-        // Silent truncation is how the original orphans hid. Say it loudly.
-        logger.error('[onLeadDeleted] photo scan hit its cap — photos may remain', {
-          leadId, scanned, cap: PHOTO_SCAN_CAP,
-        });
-        failures.push(`photos scan capped at ${PHOTO_SCAN_CAP}`);
-      }
-    } else {
-      failures.push('photos: no owner uid resolvable — /photos NOT swept');
-    }
-
-    // ── 4. Outstanding tokens ──────────────────────────────────────
-    for (const coll of LEAD_TOKEN_COLLECTIONS) {
-      try {
-        const snap = await db.collection(coll).where('leadId', '==', leadId).limit(200).get();
-        for (const t of snap.docs) {
-          await t.ref.delete();
-          tokensRevoked++;
-        }
-      } catch (e) {
-        failures.push(`${coll}: ${e.message}`);
-      }
-    }
-
-    // ── 5. Linked Cal.com / appointments records ────────────────────
-    // appointments/{bookingId}.leadId (functions/integrations/calcom.js)
-    // points at whichever lead the booking is linked to — a pre-existing
-    // match or the calcom__<bookingId> lead created for it. It is a
-    // top-level collection Firestore never cascades into, and no client UI
-    // deletes an appointments/{id} doc directly, so without this the doc
-    // outlives the lead forever, `leadId` pointing at nothing. A lead is
-    // rarely linked to more than a handful of bookings (one per reschedule
-    // chain); 200 is far past any real case and exists only so a corrupt
-    // leadId cannot spin this loop forever.
-    let appointmentsDeleted = 0;
-    try {
-      const snap = await db.collection('appointments').where('leadId', '==', leadId).limit(200).get();
-      for (const a of snap.docs) {
-        try {
-          await a.ref.delete();
-          appointmentsDeleted++;
-        } catch (e) {
-          failures.push(`appointment ${a.id}: ${e.message}`);
-        }
-      }
-    } catch (e) {
-      failures.push(`appointments query: ${e.message}`);
-    }
-
+    const recreatedByOtherTenant = watch.recreated && watch.otherTenant;
     const summary = {
       leadId,
+      reserved,
       ownerUids: [...ownerUids],
       objectsDeleted,
       // docsDeleted/claimsDeleted keep their names so existing log queries
       // still read; they are now the subtree sweep's per-collection counts.
-      docsDeleted: subtree.byCollection.documents || 0,
-      claimsDeleted: subtree.byCollection.warrantyClaims || 0,
+      docsDeleted: subtree ? (subtree.byCollection.documents || 0) : 0,
+      claimsDeleted: subtree ? (subtree.byCollection.warrantyClaims || 0) : 0,
       photoDocsDeleted,
       tokensRevoked,
       appointmentsDeleted,
+      topNotesDeleted,
       // Subtree sweep (2026-09-25): counts only, collection names are code.
-      subtreeRowsDeleted: subtree.rowsDeleted,
-      subtreeByCollection: subtree.byCollection,
-      subtreeCollectionsSeen: subtree.collectionsSeen,
-      subtreeRefusedRefs: subtree.refusedRefs,
-      subtreeSkippedNewer: subtree.skippedNewer,
-      subtreeSkippedChanged: subtree.skippedChanged,
-      subtreeExcluded: subtree.excluded,
+      subtreeRowsDeleted: subtree ? subtree.rowsDeleted : 0,
+      subtreeByCollection: subtree ? subtree.byCollection : {},
+      subtreeCollectionsSeen: subtree ? subtree.collectionsSeen : 0,
+      subtreeRefusedRefs: subtree ? subtree.refusedRefs : 0,
+      subtreeSkippedNewer: subtree ? subtree.skippedNewer : 0,
+      subtreeSkippedChanged: subtree ? subtree.skippedChanged : 0,
+      subtreeExcluded: subtree ? subtree.excluded : [],
+      keyedDocsDeleted: counts,
       objectsSkippedNewer,
-      recreatedDuringSweep: subtree.recreated || recreatedNs != null,
+      recreatedDuringSweep: watch.recreated,
+      recreatedByOtherTenant,
       cutoffSource,
       elapsedMs: Date.now() - startedAt,
       failures: failures.length,
     };
+    if (recreatedByOtherTenant) {
+      // Someone outside the deleted lead's tenant created a lead at this id
+      // while the sweep ran. Everything that existed before it was swept
+      // (strict mode), but this is what an attempt to inherit a deleted
+      // customer's records looks like, so it is never an info line.
+      logger.error('[onLeadDeleted] lead id re-created by another tenant during the sweep', {
+        leadId, cutoffSource,
+      });
+    }
     if (failures.length) {
       // Best-effort by design, but a silent partial sweep is how the original
       // orphans went unnoticed for months — surface every failure.

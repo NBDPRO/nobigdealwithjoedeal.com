@@ -99,6 +99,37 @@ function isReapablePhotoPath(p, ownerUids) {
 // LEAD_KEYED_PREFIXES in lead-artifact-cleanup.js (tests pin the two).
 const LEAD_ARTIFACT_PREFIXES = ['documents', 'portals', 'galleries', 'audio', 'docs', 'photos'];
 
+// Folder names that sit where a leadId sits ({prefix}/{uid}/{HERE}/...) but
+// hold objects of MANY leads, or of none (2026-09-25, review of PR #1777):
+//   photos/{uid}/_variants/     every flat photo's variants, across all leads
+//   photos/{uid}/d2d/{knock}/   D2D knock photos
+//   audio/{uid}/d2d/            D2D voice memos
+//   thumbs                      a folder name the photo engine uses one level
+//                               down; reserved so it never reads as a lead's
+//   undefined / null            what a template literal writes for a missing id
+// A lead's id is the creator's choice (the lead create rule does not constrain
+// it), so a lead called `_variants` passed the segment-exact check below for
+// `photos/{anyUid}/_variants/...`, and step 2's prefix listing of
+// `photos/{uid}/_variants/` would have deleted every flat variant that uid has.
+// No product path creates such an id: auto-ids are 20 alphanumerics, Cal.com
+// ids are `calcom__<n>`, and client test leads start with `d-`.
+const RESERVED_LEAD_ID_NAMES = ['d2d', 'thumbs', 'undefined', 'null'];
+
+/**
+ * Is `id` a name the reaper must never treat as one lead's folder?
+ * Reserved: empty or non-string, anything starting with `_` or `.`, and the
+ * names above in any case. onLeadDeleted sweeps nothing but tokens for such a
+ * lead, and says so at error level.
+ *
+ * @param {string} id
+ * @returns {boolean}
+ */
+function isReservedLeadId(id) {
+  if (typeof id !== 'string' || !id) return true;
+  if (id[0] === '_' || id[0] === '.') return true;
+  return RESERVED_LEAD_ID_NAMES.includes(id.toLowerCase());
+}
+
 /**
  * May the sweep delete object `p` because a row under lead `leadId` names it?
  *
@@ -122,7 +153,9 @@ const LEAD_ARTIFACT_PREFIXES = ['documents', 'portals', 'galleries', 'audio', 'd
  *
  * Refused outright: flat `photos/{uid}/{file}` (a filename, not a leadId;
  * those are reaped through the /photos collection), anything under `d2d/`
- * (knock-owned), and any empty, `.` or `..` segment.
+ * (knock-owned), any empty, `.` or `..` segment, and every path at all when
+ * the leadId is reserved (isReservedLeadId: `_variants`, `d2d`, ...), because
+ * then the "lead folder" is a folder many leads share.
  *
  * The uid segment is NOT checked. A manager's upload to a teammate's lead
  * sits under the manager's uid, and the leadId segment is what scopes it.
@@ -133,6 +166,7 @@ const LEAD_ARTIFACT_PREFIXES = ['documents', 'portals', 'galleries', 'audio', 'd
  */
 function isReapableLeadArtifactPath(p, leadId) {
   if (typeof p !== 'string' || !p || typeof leadId !== 'string' || !leadId) return false;
+  if (isReservedLeadId(leadId)) return false;
   const parts = p.split('/');
   if (parts.length < 3) return false;
   if (parts.some((s) => s === '' || s === '.' || s === '..')) return false;
@@ -289,15 +323,112 @@ function deleteCutoffNs(eventTime, leadUpdatedNs, startedAtMs) {
   return { cutoffNs: t, source: 'event.time' };
 }
 
+/**
+ * Was the lead re-created by the SAME tenant that owned the deleted one?
+ *
+ * WHY (2026-09-25, review of PR #1777). The sweep keeps a row that was
+ * written after the delete, because a lead re-created at the same id by a
+ * redelivered webhook may have merged onto an old row id. A stranger can use
+ * that too: re-create the id, write one field onto each old row, and every
+ * old row (a saved signature, a note) is "newer" and kept forever, content
+ * and all. Reproduced on the emulator. So that allowance is only for the
+ * deleted lead's own tenant; anyone else's re-create keeps nothing that
+ * existed before it.
+ *
+ * companyId decides when both sides carry one (a teammate is the same
+ * tenant); otherwise userId. Unknown on either side is NOT the same tenant.
+ *
+ * @param {object|null} deleted the deleted lead's data (the event's before-image)
+ * @param {object|null} now     the re-created lead's data
+ * @returns {boolean}
+ */
+function sameLeadTenant(deleted, now) {
+  const str = (v) => (typeof v === 'string' ? v : '');
+  const d = deleted || {};
+  const n = now || {};
+  if (str(d.companyId) && str(n.companyId)) return d.companyId === n.companyId;
+  if (str(d.userId) && str(n.userId)) return d.userId === n.userId;
+  return false;
+}
+
+/**
+ * Does a row or doc belong to the DELETED lead, so the sweep may delete it?
+ *
+ * Every time is BigInt nanoseconds (timestampToNanos). Kept, always:
+ *   - unknown create or update time;
+ *   - created after the cutoff (the delete), or at/after a re-create.
+ * With `strict` false, also kept: written (updateTime) after the cutoff or
+ * at/after a re-create — a re-created lead of the same tenant may have merged
+ * onto an old row id, and that row is its data now.
+ * With `strict` true, the update time is ignored: a row that existed before
+ * the delete is the deleted lead's, whoever has written to it since. The
+ * caller uses strict unless the lead was re-created by the same tenant
+ * (sameLeadTenant), and always for tokens, whose update time moves on every
+ * portal open.
+ *
+ * @param {{createNs: bigint|null, updateNs: bigint|null, cutoffNs: bigint,
+ *          recreatedNs: bigint|null, strict: boolean}} o
+ * @returns {boolean}
+ */
+function belongsToDeletedLead(o) {
+  const { createNs, updateNs, cutoffNs, recreatedNs, strict } = o || {};
+  if (typeof createNs !== 'bigint' || typeof updateNs !== 'bigint' || typeof cutoffNs !== 'bigint') return false;
+  if (createNs > cutoffNs) return false;
+  if (typeof recreatedNs === 'bigint' && createNs >= recreatedNs) return false;
+  if (!strict) {
+    if (updateNs > cutoffNs) return false;
+    if (typeof recreatedNs === 'bigint' && updateNs >= recreatedNs) return false;
+  }
+  return true;
+}
+
+/**
+ * May a uid that came off a ROW (not the lead) widen a Storage sweep?
+ *
+ * WHY (2026-09-25, review of PR #1777). Rows are client-written: a
+ * `documents` row's userId (its create rule checks only `status`) or any
+ * string in any row can name another tenant's uid. Step 2 of onLeadDeleted
+ * lists `{prefix}/{uid}/{leadId}/` for every uid it holds, and the /photos
+ * step confines deletes to `photos/{uid}/`, so an unchecked row uid let a
+ * stranger aim the trigger's admin credentials at someone else's objects.
+ * Reproduced on the emulator: a documents row naming the victim's uid plus a
+ * /photos doc naming the victim's flat photo, on the attacker's own lead,
+ * deleted the victim's photo.
+ *
+ * A row uid counts only when it is in the deleted lead's tenant: it IS the
+ * lead's owner, or it is the lead's companyId (a solo tenant's companyId is
+ * its uid), or the uid's own users/{uid} doc carries that companyId (a field
+ * clients cannot write: firestore.rules freezes companyId on /users).
+ *
+ * @param {string} uid
+ * @param {object} lead     the deleted lead's data
+ * @param {object|null} userDoc users/{uid} data, or null when absent
+ * @returns {boolean}
+ */
+function uidInLeadTenant(uid, lead, userDoc) {
+  if (typeof uid !== 'string' || !uid || uid.includes('/')) return false;
+  const l = lead || {};
+  if (typeof l.userId === 'string' && l.userId && uid === l.userId) return true;
+  const cid = typeof l.companyId === 'string' ? l.companyId : '';
+  if (!cid) return false;
+  if (uid === cid) return true;
+  return !!userDoc && typeof userDoc.companyId === 'string' && userDoc.companyId === cid;
+}
+
 module.exports = {
   VARIANT_SUFFIXES,
   variantPathsFor,
   isReapablePhotoPath,
   LEAD_ARTIFACT_PREFIXES,
+  RESERVED_LEAD_ID_NAMES,
+  isReservedLeadId,
   isReapableLeadArtifactPath,
   storagePathFromUrl,
   storageRefsIn,
   isoToNanos,
   timestampToNanos,
   deleteCutoffNs,
+  sameLeadTenant,
+  belongsToDeletedLead,
+  uidInLeadTenant,
 };

@@ -127,6 +127,9 @@ async function run() {
     await setDoc(doc(db, 'leads/leadGone/documents/doc1'),         { name: 'contract', htmlPath: 'documents/alice/leadGone/doc1.html' });
     await setDoc(doc(db, 'leads/leadGone/warrantyClaims/c1'),      { status: 'open', reason: 'workmanship' });
     await setDoc(doc(db, 'leads/leadGone/portal_messages/m1'),     { body: 'is Tuesday ok?', from: 'homeowner' });
+    // Review of PR #1777: a TOP-LEVEL note naming it. The /notes read rule
+    // reads the lead the note names, so a re-creator read these as well.
+    await setDoc(doc(db, 'notes/topGone'),                         { leadId: 'leadGone', userId: 'alice', text: 'Stage moved to Inspected' });
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -480,7 +483,7 @@ async function run() {
   // returns the old lead's row (documentation/audit/LEAD-SUBTREE-HIJACK-2026-09-25.md).
   // ═══════════════════════════════════════════════════════════
   {
-    const { getDocs, collection } = require('firebase/firestore');
+    const { getDocs, collection, query, where } = require('firebase/firestore');
     async function checkEmpty(label, promise) {
       try {
         const snap = await promise;
@@ -495,13 +498,15 @@ async function run() {
 
     await check('Z: owner hard-deletes their lead',                  'allow', deleteDoc(doc(alice, 'leads/leadGone')));
     await check('Z: before a re-create, B cannot read its notes',    'deny',  getDocs(collection(bob, 'leads/leadGone/notes')));
+    await check('Z: before a re-create, B cannot read its top-level notes', 'deny',
+      getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
 
     // onLeadDeleted's sweep, run the way the trigger runs it. The rules env
     // above talks to 127.0.0.1:8080; the admin SDK needs the env var.
     process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
     const { initializeApp: initAdminApp } = require('firebase-admin/app');
     const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
-    const { sweepLeadSubtree } = require(path.resolve(__dirname, '../functions/lead-subtree-sweep.js'));
+    const { sweepLeadSubtree, sweepLeadKeyedDocs, makeLeadWatch } = require(path.resolve(__dirname, '../functions/lead-subtree-sweep.js'));
     const adminDb = getAdminFirestore(initAdminApp({ projectId: PROJECT_ID }, 'xtenant-subtree-sweep'));
     const noStorage = { file: () => ({ delete: async () => {} }) };
     const sweep = await sweepLeadSubtree({
@@ -511,12 +516,21 @@ async function run() {
     results.push(sweep.rowsDeleted === SUBS.length && sweep.failures.length === 0
       ? { label: 'Z: the sweep removed every row', expect: 'swept', outcome: 'PASS', note: `${sweep.rowsDeleted} rows` }
       : { label: 'Z: the sweep removed every row', expect: 'swept', outcome: 'FAIL', note: `>>> ${sweep.rowsDeleted} rows, failures: ${sweep.failures.join('; ')}` });
+    // ...and onLeadDeleted's /notes step, the same module.
+    const watch = makeLeadWatch({ db: adminDb, leadId: 'leadGone', cutoffNs: BigInt(Date.now()) * 1000000n,
+      deletedLead: { userId: 'alice', companyId: 'co-a' } });
+    const notesSweep = await sweepLeadKeyedDocs({ db: adminDb, collection: 'notes', leadId: 'leadGone', watch });
+    results.push(notesSweep.deleted === 1 && notesSweep.failures.length === 0
+      ? { label: 'Z: the /notes step removed the top-level note', expect: 'swept', outcome: 'PASS', note: '1 doc' }
+      : { label: 'Z: the /notes step removed the top-level note', expect: 'swept', outcome: 'FAIL', note: `>>> ${notesSweep.deleted} docs, failures: ${notesSweep.failures.join('; ')}` });
 
     await check('Z: B can still create leads/leadGone as their own', 'allow',
       setDoc(doc(bob, 'leads/leadGone'), { userId: 'bob', companyId: 'co-b', name: 'mine now' }));
     for (const sub of SUBS) {
       await checkEmpty(`Z: B re-created it; reads none of A's ${sub}`, getDocs(collection(bob, `leads/leadGone/${sub}`)));
     }
+    await checkEmpty("Z: B re-created it; reads none of A's top-level notes",
+      getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
   }
 
   // ── Summary ────────────────────────────────────────────────
