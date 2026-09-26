@@ -983,9 +983,10 @@ exports.createCustomerPortalSession = onRequest(
     if (authResult.error) { res.status(authResult.error.status).json(authResult.error.body); return; }
     const { decoded } = authResult;
     // 2026-09-25 (decision B): a viewer is read-only. The Stripe billing
-    // portal can change or cancel the COMPANY's subscription and payment
-    // method — refused for a viewer. (Any other member reaching it is a
-    // pre-existing question, unchanged here.)
+    // portal is where the COMPANY's subscription and payment method are
+    // managed (what it allows is Stripe's portal configuration) — refused
+    // for a viewer. (Any other member reaching it is a pre-existing
+    // question, unchanged here.)
     const viewOnly = viewOnlyRefusal(decoded);
     if (viewOnly) { res.status(viewOnly.status).json(viewOnly.body); return; }
 

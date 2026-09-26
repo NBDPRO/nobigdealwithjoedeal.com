@@ -70,7 +70,7 @@ owner/admin allowlist, and the two existing viewer checks were inline.
 | `sendSMS` / `sendQueuedSMS` (HTTP) | sms-functions.js | texts a homeowner (one shared handler; ahead of the queued-send peek too) |
 | `sendD2DSMS` (HTTP) | sms-functions.js | texts a homeowner |
 | `createCheckoutSession` (HTTP) | stripe.js | buys a plan for the company |
-| `createCustomerPortalSession` (HTTP) | stripe.js | Stripe billing portal: change or cancel the company subscription |
+| `createCustomerPortalSession` (HTTP) | stripe.js | opens the company's Stripe billing portal, where its subscription and payment method are managed |
 | `createStripePaymentLink` (HTTP) | stripe.js | mints a payment link (and deactivates the prior one); admitted any member of the invoice's tenant |
 
 The two conditional guards are deliberate. A transcript-only voice memo
