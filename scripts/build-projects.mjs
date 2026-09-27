@@ -220,13 +220,29 @@ const webpFor = (src) => {
   const w = src.replace(/\.(jpg|jpeg|png)$/, '.webp');
   return w !== src && existsSync(path.join(ROOT, 'docs', w)) ? w : null;
 };
+// Same existence rule for AVIF (generated for photos over ~100 KB; roughly
+// half the JPEG's bytes). A sibling that doesn't exist is simply not offered,
+// and a WebP that came out LARGER than its JPEG was never committed.
+const avifFor = (src) => {
+  const a = src.replace(/\.(jpg|jpeg|png)$/, '.avif');
+  return a !== src && existsSync(path.join(ROOT, 'docs', a)) ? a : null;
+};
+// <picture> with whichever modern siblings exist, AVIF first; the original
+// stays the <img> fallback.
+const pictureFor = (src, img) => {
+  const sources = [[avifFor(src), 'image/avif'], [webpFor(src), 'image/webp']]
+    .filter(([u]) => u).map(([u, t]) => `<source srcset="${esc(u)}" type="${t}">`).join('');
+  return sources ? `<picture>${sources}${img}</picture>` : img;
+};
 
 const heroAlt = (p) => (p.photos.find((ph) => ph.src === p.hero) || p.photos[0]).alt;
 
-const heroImg = (p, cls) => {
-  const webp = webpFor(p.hero);
-  const img = `<img src="${esc(p.hero)}" alt="${esc(heroAlt(p))}" class="${cls}" loading="lazy" decoding="async" width="800" height="600">`;
-  return webp ? `<picture><source srcset="${esc(webp)}" type="image/webp">${img}</picture>` : img;
+// `lcp`: the case-study page's own hero is its largest paint, so it loads
+// eagerly at high priority; every listing/strip card stays lazy.
+const heroImg = (p, cls, lcp = false) => {
+  const load = lcp ? 'fetchpriority="high"' : 'loading="lazy"';
+  const img = `<img src="${esc(p.hero)}" alt="${esc(heroAlt(p))}" class="${cls}" ${load} decoding="async" width="800" height="600">`;
+  return pictureFor(p.hero, img);
 };
 
 const PIN_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>';
@@ -561,10 +577,9 @@ const STRIP_RE = /<!-- OURWORK-STRIP-START service="([a-z-]+)" -->[\s\S]*?<!-- O
 // this site already carries (see documentation/projects/WEEKLY_CADENCE.md
 // backlog item 10).
 const detailPhotoCard = (ph) => {
-  const webp = webpFor(ph.src);
   const img = `<img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;">`;
   return `      <figure style="margin:0;">
-        ${webp ? `<picture><source srcset="${esc(webp)}" type="image/webp">${img}</picture>` : img}
+        ${pictureFor(ph.src, img)}
         <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">${esc(ph.caption || ph.alt)}</figcaption>
       </figure>`;
 };
@@ -757,7 +772,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 <main id="main">
   <div class="pd-wrap">
     <nav class="pd-crumb" aria-label="Breadcrumb"><a href="/our-work">&larr; Back to Our Work</a></nav>
-    ${heroImg(p, 'pd-hero')}
+    ${heroImg(p, 'pd-hero', true)}
     <span class="project-tag">${esc(p.tag)}</span>
     <h1 class="pd-title">${esc(p.title)}</h1>${price ? `
     <div class="pd-price">${esc(price)}</div>` : ''}
