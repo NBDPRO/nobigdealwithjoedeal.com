@@ -99,12 +99,44 @@
       ],
       "tag": "Roof Replacement",
       "city": "Sycamore Township, OH",
-      "description": "Large footprint with multiple roof sections, valleys, and transitions. New underlayment throughout, architectural shingles, all flashing replaced. Same job as the underlayment card — this is the finished side of it.",
+      "description": "A large brick two-story with multiple roof sections, valleys and wall transitions, its old shingles faded and streaked on every plane. The crew tore off every section, dried the whole roof in under synthetic underlayment, then laid new architectural shingles with all flashing replaced: new step and counter flashing at the brick walls, new pipe boots and a new ridge vent. Before, install day and the finished roof are all in the photos.",
       "hero": "/assets/images/projects/completed-multisection.jpg",
       "photos": [
         {
+          "src": "/assets/images/projects/multi-section-complex-roof-4.jpg",
+          "alt": "Wide overhead of the same roof before the work, shingles faded and streaked across every plane"
+        },
+        {
+          "src": "/assets/images/projects/multi-section-complex-roof-5.jpg",
+          "alt": "Low-angle eave detail before the work showing deteriorated decking behind the gutter line"
+        },
+        {
+          "src": "/assets/images/projects/brick-underlayment-install-5.jpg",
+          "alt": "Five crew members mid tear-off across three roof sections as old shingles come off"
+        },
+        {
+          "src": "/assets/images/projects/brick-underlayment-install-2.jpg",
+          "alt": "Tear-off complete on the garage wing with bare decking exposed and underlayment going down"
+        },
+        {
+          "src": "/assets/images/projects/brick-underlayment-install-1.jpg",
+          "alt": "Wide aerial of the job site with the crew spread across the felt-covered roof and trucks staged below"
+        },
+        {
+          "src": "/assets/images/projects/active-brick-underlayment.jpg",
+          "alt": "Crew rolling out synthetic underlayment across the main roof plane with shingle bundles staged along the ridge"
+        },
+        {
+          "src": "/assets/images/projects/brick-underlayment-install-4.jpg",
+          "alt": "Underlayment-covered plane with a roofer detailing the brick chimney and shingle bundles nearby"
+        },
+        {
           "src": "/assets/images/projects/completed-multisection.jpg",
           "alt": "Complex multi-section roof replacement completed"
+        },
+        {
+          "src": "/assets/images/projects/multi-section-complex-roof-6.jpg",
+          "alt": "Tight aerial of the finished work with new architectural shingle across the complex hip roof"
         },
         {
           "src": "/assets/images/projects/multi-section-complex-roof-1.jpg",
@@ -119,16 +151,8 @@
           "alt": "Finished main roof plane with new pipe boots and the rebuilt chimney with its new caps"
         },
         {
-          "src": "/assets/images/projects/multi-section-complex-roof-4.jpg",
-          "alt": "Wide overhead of the same roof before the work, shingles faded and streaked across every plane"
-        },
-        {
-          "src": "/assets/images/projects/multi-section-complex-roof-5.jpg",
-          "alt": "Low-angle eave detail before the work showing deteriorated decking behind the gutter line"
-        },
-        {
-          "src": "/assets/images/projects/multi-section-complex-roof-6.jpg",
-          "alt": "Tight aerial of the finished work with new architectural shingle across the complex hip roof"
+          "src": "/assets/images/projects/brick-underlayment-install-6.jpg",
+          "alt": "Close detail of the finished hip and ridge vent run on the completed roof"
         }
       ],
       "consentOnFile": true,
@@ -247,52 +271,6 @@
       "priceHigh": 22000
     },
     {
-      "slug": "brick-underlayment-install",
-      "title": "Underlayment Install — Premium Brick Home",
-      "category": "active",
-      "services": [
-        "roof-replacement"
-      ],
-      "tag": "Active Jobsite",
-      "city": "Sycamore Township, OH",
-      "description": "Hi-vis crew laying synthetic underlayment on a large brick two-story. Materials staged, safety protocols in place. The decking underneath was clean — no surprises. Same job as the multi-section card — this is install day on it.",
-      "hero": "/assets/images/projects/active-brick-underlayment.jpg",
-      "photos": [
-        {
-          "src": "/assets/images/projects/active-brick-underlayment.jpg",
-          "alt": "Crew installing synthetic underlayment on large brick home"
-        },
-        {
-          "src": "/assets/images/projects/brick-underlayment-install-1.jpg",
-          "alt": "Wide aerial of the job site with the crew spread across the felt-covered roof and trucks staged below"
-        },
-        {
-          "src": "/assets/images/projects/brick-underlayment-install-2.jpg",
-          "alt": "Tear-off complete on the garage wing with bare decking exposed and underlayment going down"
-        },
-        {
-          "src": "/assets/images/projects/brick-underlayment-install-3.jpg",
-          "alt": "The main roof plane fully wrapped in synthetic underlayment with shingle bundles staged along the ridge"
-        },
-        {
-          "src": "/assets/images/projects/brick-underlayment-install-4.jpg",
-          "alt": "Underlayment-covered plane with a roofer detailing the brick chimney and shingle bundles nearby"
-        },
-        {
-          "src": "/assets/images/projects/brick-underlayment-install-5.jpg",
-          "alt": "Five crew members mid tear-off across three roof sections as old shingles come off"
-        },
-        {
-          "src": "/assets/images/projects/brick-underlayment-install-6.jpg",
-          "alt": "Close detail of the finished hip and ridge vent run on the completed roof"
-        }
-      ],
-      "consentOnFile": true,
-      "published": "2026-08-06",
-      "priceLow": 30000,
-      "priceHigh": 35000
-    },
-    {
       "slug": "valley-flashing-detail",
       "title": "Valley Flashing Detail — Precision Install",
       "category": "replacement",
@@ -341,7 +319,7 @@
     },
     {
       "slug": "apartment-complex-tearoff",
-      "title": "Apartment Complex — Multi-Building Tear-Off",
+      "title": "Apartment Complex — Tear-Off & Re-Roof",
       "category": "commercial",
       "services": [
         "commercial-roofing",
@@ -349,7 +327,7 @@
       ],
       "tag": "Commercial",
       "city": "West Liberty, KY",
-      "description": "Full-scale commercial project: multi-building apartment complex, complete tear-off down to decking, new synthetic underlayment going down while crew stages shingle bundles. Multiple buildings, one crew, zero delays. Same project as the completed-buildings card; the range covers the whole complex.",
+      "description": "Every roof on a multi-building apartment complex needed replacing. The crew tore each building off down to the decking and laid new synthetic underlayment, then finished every building in architectural shingles with new ridge vents and all flashing replaced. Drone-documented start to finish for the property management company; the range covers the whole complex.",
       "hero": "/assets/images/projects/commercial-apartment-tearoff.jpg",
       "photos": [
         {
@@ -357,36 +335,13 @@
           "alt": "Aerial drone view of apartment building mid-tearoff with blue underlayment and crew working"
         },
         {
-          "src": "/assets/images/projects/commercial-apartment-underlayment.jpg",
-          "alt": "Drone view of the apartment building mid-install with synthetic underlayment rows going down over the decking"
-        },
-        {
           "src": "/assets/images/projects/apartment-complex-tearoff-1.jpg",
           "alt": "Complex-wide aerial mid tear-off with old shingles stripped and blue underlayment going down"
         },
         {
-          "src": "/assets/images/projects/apartment-complex-tearoff-2.jpg",
-          "alt": "Close aerial of the blue synthetic underlayment slope with shingle bundles staged along the ridge"
-        }
-      ],
-      "consentOnFile": true,
-      "published": "2026-08-06",
-      "priceLow": 100000,
-      "priceHigh": 125000
-    },
-    {
-      "slug": "apartment-complex-complete",
-      "title": "Apartment Complex — All Buildings Complete",
-      "category": "commercial",
-      "services": [
-        "commercial-roofing",
-        "roof-replacement"
-      ],
-      "tag": "Commercial",
-      "city": "West Liberty, KY",
-      "description": "Same complex, job done. Every building re-roofed with architectural shingles, new ridge vents, all flashing replaced. Drone-documented start to finish for the property management company. Same project as the tear-off card; the range covers the whole complex.",
-      "hero": "/assets/images/projects/commercial-apartment-completed.jpg",
-      "photos": [
+          "src": "/assets/images/projects/commercial-apartment-underlayment.jpg",
+          "alt": "Drone view of one building wrapped in blue synthetic underlayment with shingle bundles staged along the slope"
+        },
         {
           "src": "/assets/images/projects/commercial-apartment-completed.jpg",
           "alt": "Aerial drone view of completed multi-building apartment complex with new roofs"
@@ -442,44 +397,6 @@
       "published": "2026-08-06"
     },
     {
-      "slug": "brick-duplex-designer-reroof-2026",
-      "title": "Brick Tudor Duplex — Designer Re-Roof",
-      "services": [
-        "roof-replacement"
-      ],
-      "tag": "Designer Shingles",
-      "city": "Cincinnati, OH",
-      "year": 2026,
-      "description": "Three layers of old shingles came off this brick Tudor duplex before the designer-blend went on — plus the built-in box gutters restored, the low-slope section coated, and new chimney flashing cut in. Old-bones buildings deserve to be done right.",
-      "hero": "/assets/images/projects/brick-duplex-designer-reroof-2026-3.jpg",
-      "photos": [
-        {
-          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-3.jpg",
-          "alt": "Overhead drone view of the finished designer-blend shingle roof on a brick Tudor duplex with relined box gutters and coated porch roof"
-        },
-        {
-          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-1.jpg",
-          "alt": "Top-down view of underlayment day: synthetic underlayment field with staged shingle bundles and safety lines on the duplex roof"
-        },
-        {
-          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-2.jpg",
-          "alt": "Crew member sealing new chimney flashing at the ridge of the freshly shingled designer-blend hip roof"
-        },
-        {
-          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-4.jpg",
-          "alt": "Close-up of the relined built-in box gutter running along the edge of the new designer shingles"
-        },
-        {
-          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-5.jpg",
-          "alt": "New black step and counter-flashing worked into the brick chimney beside the designer-blend shingles"
-        }
-      ],
-      "consentOnFile": true,
-      "published": "2026-08-17",
-      "priceLow": 22000,
-      "priceHigh": 23000
-    },
-    {
       "slug": "cincinnati-oh-gutter-screens-2026",
       "title": "Seamless Gutters + Screens for Tree Cover",
       "services": [
@@ -520,7 +437,7 @@
       "priceLow": 22500,
       "priceHigh": 23500,
       "year": 2026,
-      "description": "Three layers of old three-tab came off this Cincinnati two-story, and both old dormers came off with them. New GAF Timberline system on the slopes, chimneys re-flashed with new crickets, and the flat sections sealed under a fresh aluminum coating. The whole job, documented start to finish.",
+      "description": "Three layers of old three-tab came off this Cincinnati two-story, and both old dormers came off with them. New GAF Timberline system on the slopes, chimneys re-flashed with new crickets, the built-in box gutters relined, and the flat sections sealed under a fresh aluminum coating. The whole job, documented start to finish.",
       "hero": "/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-1.jpg",
       "photos": [
         {
@@ -568,8 +485,16 @@
           "alt": "The whole deck dried in under synthetic underlayment with the chimney prepped and shingle bundles staged"
         },
         {
+          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-1.jpg",
+          "alt": "Straight-down view of the whole deck under synthetic underlayment with shingle bundles staged across it"
+        },
+        {
           "src": "/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-12.jpg",
           "alt": "A roofer nailing off beside the brick chimney as the new shingle courses reach it"
+        },
+        {
+          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-2.jpg",
+          "alt": "A roofer sealing the new flashing at the tall brick chimney on the freshly shingled hip roof"
         },
         {
           "src": "/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-13.jpg",
@@ -580,12 +505,24 @@
           "alt": "The steep-to-low-slope transition with fresh silver reflective coating over the flat section"
         },
         {
+          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-4.jpg",
+          "alt": "The relined built-in box gutter running along the edge of the new shingles"
+        },
+        {
           "src": "/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-15.jpg",
           "alt": "Top-down on the tall brick chimney with its new step and counter flashing complete"
         },
         {
+          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-5.jpg",
+          "alt": "New black step and counter flashing worked into the brick chimney beside the new shingles"
+        },
+        {
           "src": "/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-16.jpg",
           "alt": "Straight-down view of the completed roof, the full hip-and-valley field finished in new shingle"
+        },
+        {
+          "src": "/assets/images/projects/brick-duplex-designer-reroof-2026-3.jpg",
+          "alt": "Overhead of the finished roof: the new shingle field, the relined box gutters and the silver-coated low-slope section at the front"
         }
       ],
       "consentOnFile": true,
@@ -645,41 +582,6 @@
         {
           "src": "/assets/images/projects/blue-ash-oh-roof-vents-thermal-2026-10.jpg",
           "alt": "View down the ridge line showing the new Roofivent units, blacked-out gooseneck and plumbing stacks by the chimney"
-        }
-      ],
-      "consentOnFile": true,
-      "published": "2026-08-28"
-    },
-    {
-      "slug": "cincinnati-oh-siding-repair-2026",
-      "title": "Third-Story Siding — Same-Day Fix",
-      "services": [
-        "siding-repair"
-      ],
-      "tag": "Same-Day Repair",
-      "city": "Cincinnati, OH",
-      "priceLow": 600,
-      "priceHigh": 1000,
-      "year": 2026,
-      "duration": "Same day",
-      "description": "One piece of siding worked loose three stories up — the kind of small job plenty of outfits won't schedule. We set the ladder, re-secured the piece, sealed the J-channel, and resealed the ridge vent while we were up there. Called in and closed out the same day.",
-      "hero": "/assets/images/projects/cincinnati-oh-siding-repair-2026-1.jpg",
-      "photos": [
-        {
-          "src": "/assets/images/projects/cincinnati-oh-siding-repair-2026-1.jpg",
-          "alt": "Extension ladder reaching a third-story gable while a technician re-secures a piece of vinyl siding at the top"
-        },
-        {
-          "src": "/assets/images/projects/cincinnati-oh-siding-repair-2026-2.jpg",
-          "alt": "View up the extension ladder to the tan vinyl siding gable during the same-day repair"
-        },
-        {
-          "src": "/assets/images/projects/cincinnati-oh-siding-repair-2026-3.jpg",
-          "alt": "Technician at the top of the long extension ladder working the loose siding piece back into place"
-        },
-        {
-          "src": "/assets/images/projects/cincinnati-oh-siding-repair-2026-4.jpg",
-          "alt": "Two extension ladders set side by side against the tall tan gable during the repair"
         }
       ],
       "consentOnFile": true,
@@ -856,6 +758,7 @@
       "priceLow": 300,
       "priceHigh": 500,
       "year": 2026,
+      "duration": "Same day",
       "description": "The top course of siding was gone along the whole run at the head of a two-story wall — a straight opening into the wall cavity. Ladder up, piece back in, seated tight under the trim. Same-day, three hundred and fifty dollars, and no one had to climb it twice.",
       "hero": "/assets/images/projects/newport-ky-siding-top-course-2026-1.jpg",
       "photos": [
@@ -870,6 +773,18 @@
         {
           "src": "/assets/images/projects/newport-ky-siding-top-course-2026-3.jpg",
           "alt": "The full ladder run from the ground as the replacement piece goes back into the course"
+        },
+        {
+          "src": "/assets/images/projects/cincinnati-oh-siding-repair-2026-2.jpg",
+          "alt": "Low angle up the red extension ladder to the worker at the top course, a tree beside the wall"
+        },
+        {
+          "src": "/assets/images/projects/cincinnati-oh-siding-repair-2026-1.jpg",
+          "alt": "The worker at the top of the extension ladder, working along the head of the tan vinyl wall"
+        },
+        {
+          "src": "/assets/images/projects/cincinnati-oh-siding-repair-2026-3.jpg",
+          "alt": "From under an overhang, the full height of the wall: the ladder runs from the brick base past the windows to the worker at the top"
         },
         {
           "src": "/assets/images/projects/newport-ky-siding-top-course-2026-4.jpg",
@@ -1928,10 +1843,6 @@
       "photos": [
         {
           "src": "/assets/images/projects/cincinnati-oh-gutter-replacement-screens-2026-1.jpg",
-          "alt": "New seamless gutter with micromesh leaf screen installed along a shingled roofline"
-        },
-        {
-          "src": "/assets/images/projects/cincinnati-oh-gutter-replacement-screens-2026-2.jpg",
           "alt": "Ladder set against a second roofline showing the micromesh screen running the gutter edge, trees in the background"
         },
         {
