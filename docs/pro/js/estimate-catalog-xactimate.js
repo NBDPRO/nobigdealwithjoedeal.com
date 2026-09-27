@@ -952,7 +952,13 @@
   // documentation/audit/CATALOG-UNDER-COST-2026-08-19.md.
   // ═════════════════════════════════════════════════════════
 
-  A({ code:'MAT DEL', name:'Material Delivery & Fuel Surcharge', sub:'delivery', cat:'materials', unit:'JOB', mat:275, lab:0,
+  // fixedRetail (Jo, 2026-09-27): the CUSTOMER price per JOB, O&P included —
+  // $150, the same as the per-SQ delivery add-on. A RETAIL figure, not a cost:
+  // the engine (estimate-logic-engine.js resolveEstimate) prices the line at
+  // it and backs the estimate's O&P out of the row, so the row plus its O&P
+  // share foot to exactly $150. The modelled COST (mat, or a tenant's cost
+  // book) is untouched, so the margin report still books the real trip.
+  A({ code:'MAT DEL', name:'Material Delivery & Fuel Surcharge', sub:'delivery', cat:'materials', unit:'JOB', mat:275, lab:0, fixedRetail:150,
       desc:'Supplier delivery to site plus fuel surcharge. Typical reroof draws from two suppliers (shingles/accessories and metal/vents), each billing a per-trip charge.',
       tier:'any', reason:'Supplier delivery and fuel surcharge to place materials at the job site.',
       tags:['delivery','freight','fuel','materials','logistics'] });

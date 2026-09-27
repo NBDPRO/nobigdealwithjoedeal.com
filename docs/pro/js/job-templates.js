@@ -1027,6 +1027,7 @@
           // Same semantics as the custom-item path above.
           line.materialCost = 0;
           line.laborCost = Number(choice.unitPriceOverride) || 0;
+          line.fixedRetail = null; // the typed price wins over a catalog fixed price
           warnings.push('Priced manually: ' + (line.name || code));
         }
         if (SINGLETON_CODES[code]) {

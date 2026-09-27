@@ -602,6 +602,35 @@ test('delivery: $150 default charge; the booked COST stays pinned to the MAT DEL
      'and still books the 275 baseline, not 150 / 1.5 = 100');
 });
 
+test('delivery: line-item MAT DEL charges the same $150 as per-SQ (Jo, 2026-09-27); cost unchanged', () => {
+  // Load the real catalog + logic engine into a sandbox (browser globals).
+  const vm = require('vm');
+  const fs = require('fs');
+  const path = require('path');
+  const W = { EstimateBuilderV2: EBv2 };
+  W.window = W;
+  const sb = { window: W, console: { log() {}, warn() {}, error() {} }, Math, JSON, Number, String, Object, Array, Date };
+  vm.createContext(sb);
+  for (const f of ['estimate-catalog-xactimate.js', 'estimate-logic-engine.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', f), 'utf8'), sb, { filename: f });
+  }
+  const cat = W.NBD_XACT_CATALOG;
+  const EL = W.EstimateLogic;
+  const md = cat.find('MAT DEL');
+  eq(md.fixedRetail, 150, "catalog 'MAT DEL' carries a $150 fixed customer price");
+  eq(md.materialCost, MATDEL_COST, 'and its modelled cost is unchanged');
+  for (const [oh, pr] of [[0.10, 0.10], [0.15, 0.10], [0, 0]]) {
+    const r = EL.resolveEstimate([Object.assign({}, md, { qtyOverride: 1 })], {},
+      { tier: 'better', mode: 'insurance', overheadPct: oh, profitPct: pr, materialMarkupPct: 0.25, roundTo: 0.01 });
+    eq(Math.round(r.subtotal * 100) / 100, 150, 'O&P ' + oh + '/' + pr + ': the line foots to $150 after O&P');
+    eq(Math.round(r.internal.hardCost * 100) / 100, MATDEL_COST, 'O&P ' + oh + '/' + pr + ': cost booked is still the baseline');
+    eq(Math.round(r.retailBeforeOHP * 100), Math.round(r.lines[0].retailTotal * 100), 'Σ retailTotal == retailBeforeOHP still holds');
+  }
+  const typed = EL.resolveEstimate([Object.assign({}, md, { qtyOverride: 1, fixedRetail: null, materialCost: 0, laborCost: 200 })], {},
+    { tier: 'better', mode: 'insurance', overheadPct: 0.10, profitPct: 0.10, roundTo: 0.01 });
+  eq(Math.round(typed.subtotal * 100) / 100, 240, 'a line without fixedRetail prices cost-plus as before');
+});
+
 console.log('──────────────────────────────────────────────────');
 console.log(passed + ' passed, ' + failed + ' failed');
 process.exit(failed > 0 ? 1 : 0);

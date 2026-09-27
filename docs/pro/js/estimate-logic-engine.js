@@ -886,6 +886,10 @@
       reason:         item.reason || '',
       insuranceDefault: !!item.insuranceDefault,
       requiresPhoto:    !!item.requiresPhoto,
+      // A fixed CUSTOMER price per unit, O&P included (catalog 'MAT DEL',
+      // 2026-09-27). null = the usual cost-plus retail. resolveEstimate reads it.
+      fixedRetail:    (item.fixedRetail != null && item.fixedRetail !== '' && Number.isFinite(Number(item.fixedRetail)) && Number(item.fixedRetail) >= 0)
+        ? Number(item.fixedRetail) : null,
       tags:           item.tags || []
     };
   }
@@ -937,18 +941,35 @@
     // Customer-facing consumers (invoice items, server-rendered quote, saved
     // rows) must read retailTotal/retailPerUnit — lineTotal is the INTERNAL
     // cost and printing it exposes the margin (money-math sweep 2026-07-18).
+    //
+    // A line with a FIXED customer price (fixedRetail — catalog 'MAT DEL',
+    // $150 per job, Jo 2026-09-27) is the one exception to cost-plus: its
+    // row carries fixedRetail / (1 + overhead + profit), so once the O&P rows
+    // are added it foots to exactly fixedRetail, whatever the markup ladder.
+    // Its COST still counts in materialCost / hardCost — the margin report
+    // books what the trip costs, not what is charged. The identity
+    // Σ retailTotal == retailBeforeOHP still holds (materialRetail is derived
+    // from it below).
     let materialCost = 0;
     let laborCost = 0;
+    let retailSum = 0;
+    const ohpFactor = 1 + overheadPct + profitPct;
     resolved.forEach(line => {
       materialCost += line.materialTotal;
       laborCost    += line.laborTotal;
-      line.retailPerUnit = line.materialCostPerUnit * (1 + materialMarkupPct) + line.laborCostPerUnit;
-      line.retailTotal   = line.materialTotal * (1 + materialMarkupPct) + line.laborTotal;
+      if (line.fixedRetail != null && ohpFactor > 0) {
+        line.retailPerUnit = line.fixedRetail / ohpFactor;
+        line.retailTotal   = line.quantity * line.fixedRetail / ohpFactor;
+      } else {
+        line.retailPerUnit = line.materialCostPerUnit * (1 + materialMarkupPct) + line.laborCostPerUnit;
+        line.retailTotal   = line.materialTotal * (1 + materialMarkupPct) + line.laborTotal;
+      }
+      retailSum += line.retailTotal;
     });
 
-    const materialRetail = materialCost * (1 + materialMarkupPct);
     const hardCost       = materialCost + laborCost;
-    const retailBeforeOHP = materialRetail + laborCost;
+    const retailBeforeOHP = retailSum;
+    const materialRetail = retailBeforeOHP - laborCost;
 
     const overhead = retailBeforeOHP * overheadPct;
     const profit   = retailBeforeOHP * profitPct;
