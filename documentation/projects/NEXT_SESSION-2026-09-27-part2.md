@@ -79,7 +79,7 @@ Two things surfaced that are **not SEO** and matter more — read §0 first.
 - Search Console: URL-inspect + Request Indexing on the apex homepage (Google still shows the old blue roofline favicon for the **www** host); add a Domain property. GSC shows brand query 22 clicks / 247 impressions / pos 2.9 (90 d).
 - After deploy: re-test a **fresh Brave bookmark** (Brave picks the largest sized `rel=icon`; #1807 added 192/512 lettered PNGs).
 - Semrush MCP is connected but the account has **no API units**.
-- **Business Profile API allowlist requested 2026-09-27** (Jo live, from jonathandeal459@gmail.com, project  / 717435841570): case **8-9748000042165**, Google quotes 7–10 business days. On approval (Cloud Console quota 0 → 300 QPM) follow  "Business Profile API (all reviews)" — Jo must sign in himself for the OAuth refresh token. Unlocks all reviews, newest first.
+- **Business Profile API allowlist requested 2026-09-27** (Jo live, from the Google account that manages the profile; project `nobigdeal-pro` / 717435841570): case **8-9748000042165**, Google quotes 7–10 business days. On approval (Cloud Console quota 0 → 300 QPM) follow `functions/google-reviews.README.md` "Business Profile API (all reviews)" — Jo must sign in himself for the OAuth refresh token. Unlocks all reviews, newest first.
 - Reviews widget: #1814 sorts newest first + hides the "FDP Python…" reviewer (Jo's ask); a stacked lane adds an honest "N new reviews this month" line from Google's count history.
 
 ## §4 — Follow-ups nobody has claimed
