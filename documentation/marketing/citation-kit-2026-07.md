@@ -3,6 +3,15 @@
 Companion to `local-seo-playbook-2026-07.md`. Every field below is ready to paste.
 Use it EXACTLY as written on every directory — consistency is the whole game.
 
+> **Update 2026-09-27** ([SEO-AEO-GEO-DEEP-DIVE-2026-09-27](../audit/SEO-AEO-GEO-DEEP-DIVE-2026-09-27.md)):
+> James Hardie Alliance is a **membership**, not a certification (Jo, 2026-09-22) —
+> wording fixed below. Service areas now match the 43 `/areas/` pages (Central KY
+> added 2026-08-25, twelve towns added 2026-09-24). Services list gains the pages
+> built since July. **"Located in" is under review:** Jo wants to move off the
+> Goshen framing; whatever city ends up here must match the Google Business
+> Profile's city exactly and the site's `#org` entity — confirm before pasting
+> this block into any new directory.
+
 ---
 
 ## The identity block (paste everywhere)
@@ -16,26 +25,36 @@ Located in    : Goshen, OH (service-area business — hide street address where 
 Hours         : Mon–Sat 7:00 AM – 6:00 PM
 Primary cat.  : Roofing Contractor
 Secondary     : Siding Contractor · Gutter Service · General Contractor
-Service areas : Greater Cincinnati OH + Northern KY — Goshen, Milford, Batavia,
-                Loveland, Mason, Lebanon, Maineville, Blue Ash, Indian Hill, Amelia,
-                Cincinnati, Anderson Township, West Chester, Fairfield, Monroe,
-                Springboro, Middletown, Florence KY, Erlanger KY, Covington KY,
-                Fort Mitchell KY
+Service areas : Greater Cincinnati OH, Northern KY and Central KY —
+                OH: Amelia, Anderson Township, Batavia, Bethel, Blanchester,
+                Blue Ash, Cincinnati, Clarksville, Fairfield, Fayetteville,
+                Franklin, Goshen, Indian Hill, Lebanon, Loveland, Madeira,
+                Maineville, Mason, Miamisburg, Middletown, Milford, Monroe,
+                Montgomery, Mt. Orab, New Richmond, Newtown, Norwood,
+                Sharonville, Springboro, Sycamore Township, West Chester,
+                Wilmington
+                Northern KY: Covington, Erlanger, Florence, Fort Mitchell,
+                Newport, Union
+                Central KY (scheduled trips): Lexington, Georgetown,
+                Nicholasville, Richmond, Versailles, Winchester
+                (Directories that cap service areas — GBP caps at 20 — use the
+                list already on GBP; see POSTING-LOG.)
 ```
 
 ## Short description (~240 chars — Bing, Apple, Yelp, Nextdoor)
 
-> Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati
-> and Northern Kentucky. GAF-certified installer. Insurance claims handled start to
+> Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati,
+> Northern Kentucky and the Lexington area. GAF Certified and TAMKO Pro Gold. Insurance claims handled start to
 > finish. Licensed, insured, locally owned. Call Joe directly — it's no big deal.
 
 ## Long description (~700 chars — BBB, chambers, Houzz)
 
 > No Big Deal Home Solutions is a locally owned roofing and exterior restoration
-> company serving Greater Cincinnati and Northern Kentucky. Owner Joe Deal shows up
-> personally, gets on the roof, and gives a straight answer about what needs to
-> happen — and what doesn't. We're a GAF-certified residential roofing contractor
-> (cert #1162011) and a James Hardie Alliance contractor, installing GAF Timberline
+> company serving Greater Cincinnati, Northern Kentucky and the Lexington area.
+> Owner Joe Deal shows up personally, gets on the roof, and gives a straight answer
+> about what needs to happen — and what doesn't. We're a GAF Certified residential
+> roofing contractor (cert #1162011), a TAMKO Pro Gold certified contractor (ID
+> 181382) and a member of the James Hardie Alliance, installing GAF Timberline
 > shingles as our standard line and the impact-resistant TAMKO Storm Series for hail
 > country. Storm damage insurance claims handled start to finish — documentation,
 > adjuster meeting, and honest scope. Free inspections, no pressure, no games.
@@ -43,10 +62,12 @@ Service areas : Greater Cincinnati OH + Northern KY — Goshen, Milford, Batavia
 
 ## Services list (checkbox-style directories)
 
-Roof Replacement · Roof Repair · Roof Inspection · Storm Damage Restoration ·
+Roof Replacement · Roof Repair · Roof Inspection · Commercial Roofing (EPDM / TPO
+flat and low-slope) · Emergency Roof Tarping · Storm Damage Restoration ·
 Hail Damage Insurance Claims · Siding Replacement (James Hardie / LP SmartSide /
-vinyl) · Siding Repair · Gutter Replacement · Roof Cleaning / Soft Wash ·
-Fire, Water & Smoke Damage Restoration
+vinyl) · Siding Repair · Wood Siding, Fascia & Soffit Repair · Gutter Replacement ·
+Gutter Cleaning · Shed & Outbuilding Roofing · Roof Cleaning / Soft Wash ·
+Interior Drywall & Ceiling Repair · Fire, Water & Smoke Damage Restoration
 
 ## Where to paste it (claim links, in priority order)
 
