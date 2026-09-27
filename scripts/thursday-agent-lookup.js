@@ -45,6 +45,11 @@ const YES = args.includes('--yes');
 const PUBLISH = args.includes('--publish');
 const PROMOTE = args.includes('--promote');
 const ROLLBACK = (args.find((a) => a.startsWith('--rollback=')) || '').slice(11);
+// --memory=off|on: Bland's caller memory greets a returning number by name and
+// repeats its last issue BEFORE the prompt runs ("Hey Greg, how's that leak
+// over the garage doing?" — word for word on two test calls), so no prompt
+// rule can make it confirm first. Jo turned it off on 2026-09-26.
+const MEMORY = (args.find((a) => a.startsWith('--memory=')) || '').slice(9);
 const BACKUP_DIR = path.join(os.tmpdir(), 'thursday-bland-backups');
 
 async function v2(p, opts) {
@@ -98,6 +103,12 @@ If {{caller_known}} is "true": open with "Thanks for calling No Big Deal Home So
 - Still get the name, callback number and address as usual; the lookup is only a friendly greeting, not proof of who they are.
 If {{caller_known}} is anything else (false, empty, or literally "{{caller_known}}"), use the normal OPENING above.
 
+REMEMBERING CALLERS (Jo's rule, 2026-09-26)
+You may remember people from earlier calls. A phone number is not a person: a spouse, a new owner of the number, or someone else entirely can call from it. So:
+- Never open by assuming who it is. If you think you recognize the caller, use the normal OPENING, then ask once: "Is this [name]?"
+- Only after a clear yes may you use their name or bring up anything from an earlier call (their issue, address, job, or what they told you before).
+- If they say no, hesitate, or give another name: say "Oh, sorry about that!", treat them as a brand-new caller, never use the remembered name again, and never mention anything from earlier calls.
+
 RECORDING NOTICE
 On every call, once, right after your opening line and before you ask how you can help, say: "Just so you know, calls are recorded so Joe gets your message right." Keep it light and move on. (Jo's decision, 2026-09-26.)`;
 
@@ -123,12 +134,21 @@ function buildSnapshot(base) {
   const snap = JSON.parse(JSON.stringify(base.snapshot));
   const agentNode = (snap.behavior.nodes || []).find((n) => n.type === 'agent');
   if (!agentNode) throw new Error('no agent node in snapshot');
-  const prompt = agentNode.data.prompt || '';
-  if (prompt.indexOf(MARK) !== -1) throw new Error('base version already has the ' + MARK + ' block');
+  let prompt = agentNode.data.prompt || '';
+  // Our blocks are always appended at the very end, so a base that already
+  // carries them (0.4.0+) is re-based by cutting from our marker onward —
+  // Jo's own prompt above it is never touched.
+  const at = prompt.indexOf('\n\n' + MARK);
+  if (at !== -1) prompt = prompt.slice(0, at);
+  if (prompt.indexOf(MARK) !== -1) throw new Error('unexpected ' + MARK + ' position in the base prompt');
   agentNode.data.prompt = prompt + PROMPT_BLOCK;
   snap.initialization = snap.initialization || {};
   snap.initialization.enabled = true;
   snap.initialization.step = Object.assign({}, snap.initialization.step || {}, { name: 'Caller lookup', code: INIT_CODE });
+  if (MEMORY === 'off' || MEMORY === 'on') {
+    snap.settings = snap.settings || {};
+    snap.settings.enableMemory = MEMORY === 'on';
+  }
   return snap;
 }
 
@@ -172,7 +192,7 @@ async function main() {
   const snap = buildSnapshot(base);
   const changed = diffPaths(base.snapshot, snap, '');
   console.log('changed snapshot paths: ' + JSON.stringify(changed));
-  const allowed = /^(behavior\.nodes\.\d+\.data\.prompt|initialization\.enabled|initialization\.step\.(code|name))$/;
+  const allowed = /^(behavior\.nodes\.\d+\.data\.prompt|initialization\.enabled|initialization\.step\.(code|name)|settings\.enableMemory)$/;
   const stray = changed.filter((p) => !allowed.test(p));
   if (stray.length) { console.error('✗ unexpected changes: ' + stray.join(', ')); process.exit(1); }
   console.log('\n── prompt block appended ──' + PROMPT_BLOCK + '\n── init code ──\n' + INIT_CODE);

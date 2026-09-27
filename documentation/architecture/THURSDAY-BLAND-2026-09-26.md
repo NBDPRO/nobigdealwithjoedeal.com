@@ -220,6 +220,26 @@ Backups of the number, persona, pathway and agent versions are in `%TEMP%/thursd
   - email **sent**, push **sent**, SMS `skipped:flag-off`;
   - extraction cost $0.018.
 
+## 9. Greeting, memory and dead air (2026-09-26, late)
+
+- **Greet-by-name through the CRM did not fire on real calls.**
+  - Agent 0.4.0 enabled the Initialization step, and the compiled pathway (version 10) carried the new prompt blocks.
+  - But it had **no initialization node**, and during a real test call our lookup logs showed **no request**. The only lookups were manual tests.
+  - Bland does not run the v2 Initialization step on phone calls. The next approach is a v2 custom tool (see the handoff).
+- **Bland caller memory (`enableMemory`) greeted before the prompt.**
+  - Two calls from the same number opened with the word-for-word identical line: "Hey, Greg, it's Thursday at No Big Deal. How's that leak over the garage doing?"
+  - A confirm-first prompt rule (0.5.0) changed nothing. The line is produced before the agent node runs.
+  - It also repeats a previous call's details to whoever holds that phone.
+  - **Jo turned memory off (0.6.0).** The persona's production `memory_enabled` followed and read back as `false`.
+- **Dead air (pre-existing since go-live, P1).** Across the calls since 09-24:
+  - Most callers spoke first ("Hello?").
+  - Thursday's first line came 13.9 s, 14.4 s, 7.9 s, 22.5 s and 15.9 s after connect.
+  - The only quick openings (~4–5 s) were memory greetings, plus one 7.1 s generated greeting.
+  - Three calls lasting 12–34 s had no words at all, and the "Hello?" hang-ups fit people giving up on silence.
+  - Agent settings already say to speak first (`voiceCall.waitForGreeting: false`; the start node has `skipUserResponse: true`). The first line is LLM-generated from a ~12k-character prompt.
+  - **Fix needed:** a fixed opening line (Bland UI setting or support), not a prompt tweak.
+  - Meanwhile the CRM treats a silent call of 10 s or more from a non-owner number as a missed caller: an inbox row, no alerts.
+
 ## 6. Coordination notes
 
 - **#1780** (viewer-refusing callables) adds `tests/viewer-callables.test.js`. It requires every exported callable and HTTP function to carry a verdict.
