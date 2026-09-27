@@ -1,5 +1,37 @@
 # Thumbtack Webhook Integration — 2026-08-16
 
+> **Correction — 2026-09-26: Thumbtack leads never paged anyone until this
+> date.** This doc said a bridged lead "inherits the alert triggers" and that
+> the webhook would "fire the existing `leadAlert*` SMS/email". Neither was
+> true. `functions/lead-alert.js` had no trigger on `thumbtack_leads`. Its one
+> `leads/{leadId}` trigger (`leadAlertCalcom`) returned early for everything
+> except Cal.com bookings, and `push-functions.js` needs an `assignedTo` that
+> the bridge never sets. A read-only prod check found **0 `alert_outbox`
+> rows against 74 real Thumbtack leads** (2026-08-16 → 2026-09-26). The 3
+> contact-form leads in the same window had exactly 3 rows. This is the
+> channel whose losses the audit traced to *reply speed*.
+> [WAVE2-IMPLEMENTATION-MAPS-2026-09-05](../audit/WAVE2-IMPLEMENTATION-MAPS-2026-09-05.md)
+> had already flagged this sentence as wrong, but the doc was not corrected.
+>
+> **Fixed 2026-09-26.** `leadAlertCalcom` now also alerts on the bridge's
+> create of `leads/{thumbtack_leads__<rawId>}`: an email to `ALERT_EMAILS`
+> and an SMS to Joe's cell, labelled "Thumbtack", with the service,
+> questionnaire answers and lead cost. It is recorded in `alert_outbox` under
+> collection `leads`, and the homeowner gets no ack. Only the doc whose id
+> is the bridge's own deterministic id pages, and nothing listens on
+> `thumbtack_leads`, so one lead gets one alert. The alert goes live when the
+> functions deploy ships. Leads that arrived before then were never alerted
+> and will not be. Details, the prod evidence and the break-tests:
+> [THUMBTACK-LEAD-ALERT-GAP-2026-09-26](../audit/THUMBTACK-LEAD-ALERT-GAP-2026-09-26.md).
+> The diagram and §Architecture below are corrected to match.
+>
+> **Also stale — the 2026-09-20 "Known live gap" below is resolved.** PR #1681
+> (merged 2026-09-20) made `mapPublicLeadToLead` write the structured
+> `leadCost` from Thumbtack's `leadPrice` at bridge time
+> (`functions/lead-bridge-logic.js`, `isExternal && data.leadPrice`). Leads
+> bridged since then carry it. Only leads bridged between the 09-06 backfill
+> and that deploy can be missing it.
+
 > **Update — 2026-09-20:** This doc's original "not yet connected" status line
 > below was stale — [INDEX.md](../INDEX.md) has carried "LIVE in prod since
 > 2026-08-16, real leads flowing" since the day this was written, and
@@ -39,7 +71,7 @@ Separately, 15 of 38 people were owed something Joe said he would send. The two 
 
 ## What it can and cannot do
 
-**Can:** capture a lead into the CRM pipeline within seconds of Thumbtack creating it, and fire the existing `leadAlert*` SMS/email through `resolveAlertTarget(companyId)`.
+**Can:** capture a lead into the CRM pipeline within seconds of Thumbtack creating it. Since 2026-09-26 (see the correction at the top) it also texts and emails Joe through `leadAlertCalcom` and `resolveAlertTarget(companyId)`. Before that date it did not.
 
 **Cannot — and this is a hard platform limit, not a to-do:**
 
@@ -67,13 +99,15 @@ thumbtackWebhook            functions/integrations/thumbtack.js
               ▼
       leadBridgeThumbtack       functions/lead-bridge.js
         ├─ skips isTest deliveries (stored, never bridged)
-        └─ mapPublicLeadToLead → leads/{id}
+        └─ mapPublicLeadToLead → leads/{thumbtack_leads__<rawId>}  (create())
                 │
                 ▼
-        leadAlert* trigger → SMS + email to the tenant's contacts
+        leadAlertCalcom         functions/lead-alert.js   (since 2026-09-26)
+          ├─ only when doc id == bridgeDocId('thumbtack_leads', publicLeadId)
+          └─ SMS + email to Joe, alert_outbox row, NO homeowner ack
 ```
 
-Deliberately reuses the existing public-lead → CRM bridge rather than inventing a parallel path, so a Thumbtack lead inherits `companyId` stamping, `phoneDigits` (inbound-SMS matching), `stageStartedAt`, and the alert triggers for free.
+Deliberately reuses the existing public-lead → CRM bridge rather than inventing a parallel path, so a Thumbtack lead inherits `companyId` stamping, `phoneDigits` (inbound-SMS matching) and `stageStartedAt` for free. It did **not** inherit the new-lead alert. The web forms alert from their own public collections, and nothing did that for `thumbtack_leads`. The alert was added separately on 2026-09-26. It keys on the bridged `leads/` doc, not `thumbtack_leads`, so a Thumbtack test delivery (never bridged) pages nobody. A future marketplace added to `EXTERNAL_SOURCE_COLLECTIONS` needs its own alert branch too, because being bridged does not mean being alerted.
 
 **Not** a new `kind` on `submitPublicLead`. That endpoint is browser-shaped — CORS origin allowlist, Turnstile verification, per-IP rate limiting. A server-to-server POST from Thumbtack carries no browser origin and no Turnstile token; it would fail every gate.
 
@@ -120,6 +154,8 @@ This makes the *weaker* channel less weak. Yelp returned ~$138 per dollar agains
 - `functions/integrations/thumbtack.js` — receiver
 - `functions/integrations/thumbtack-logic.js` — pure payload logic (firebase-free)
 - `functions/lead-bridge.js` / `lead-bridge-logic.js` — bridge + external-source handling
+- `functions/lead-alert.js` — `leadAlertCalcom` → `onThumbtackLeadAlert` (new-lead alert, since 2026-09-26)
+- `tests/lead-alert-thumbtack.test.js` — the alert fires once for a bridged lead, never for a look-alike, never to the homeowner
 - `functions/integrations/_shared.js` — `THUMBTACK_WEBHOOK_SECRET` registration
 - `firestore.rules` — explicit deny on the four collections
 - `tests/thumbtack-webhook.test.js` — 61 assertions, wired into `npm test` as `test:thumbtack`

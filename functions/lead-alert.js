@@ -19,6 +19,13 @@
  * matches no existing lead straight to leads/{calcom__<id>}, bypassing every
  * public collection above — so nothing paged Joe, not even for a booking with
  * no phone on it. leadAlertCalcom closes that; see onCalcomLeadAlert below.
+ *
+ * Thumbtack leads (2026-09-26): the webhook stores them in thumbtack_leads,
+ * which had no alert trigger, and leadBridgeThumbtack mirrors them to
+ * leads/{thumbtack_leads__<id>}, which the Cal.com filter skipped. So the
+ * busiest lead channel paged nobody: 74 real leads, 0 alert_outbox rows. The
+ * same leads/{leadId} trigger now alerts on the bridge's create as well; see
+ * onThumbtackLeadAlert below.
  */
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
@@ -101,8 +108,8 @@ const KIND_LABEL = {
   inspect_leads: 'Inspection / Storm tool',
   free_roof_entries: 'Free Roof entry',
   storm_alert_subscribers: 'Storm — homeowner reports damage',
-  // Only Cal.com bookings reach alertJoe with 'leads' — onCalcomLeadAlert
-  // returns early for every other lead.
+  // Only CRM-side bookings/leads reach alertJoe with 'leads': Cal.com uses
+  // this label, and the Thumbtack path passes opts.label instead.
   leads: 'Cal.com booking',
 };
 
@@ -134,7 +141,8 @@ function summarize(d) {
 // { email: text, mailto: address or '', sms: first SMS line, subject: tag }.
 function emailHtml(label, source, s, leadId, name, notice) {
   const telDigits = String(s.phone).replace(/[^\d]/g, '');
-  const row = (k, v) => v ? `<tr><td style="padding:6px 12px;color:#6b7280;font-weight:600;white-space:nowrap;vertical-align:top">${esc(k)}</td><td style="padding:6px 12px;color:#111">${esc(v)}</td></tr>` : '';
+  // pre-line: a multi-line Message (a Thumbtack questionnaire) keeps its breaks.
+  const row = (k, v) => v ? `<tr><td style="padding:6px 12px;color:#6b7280;font-weight:600;white-space:nowrap;vertical-align:top">${esc(k)}</td><td style="padding:6px 12px;color:#111;white-space:pre-line">${esc(v)}</td></tr>` : '';
   const noticeRow = notice && notice.email
     ? `<tr><td colspan="2" style="padding:12px;background:#fef3c7;border-left:4px solid #b45309;color:#78350f;font-weight:700">⚠ ${esc(notice.email)}${notice.mailto ? `<div style="margin-top:8px;font-weight:600"><a href="mailto:${esc(notice.mailto)}" style="color:#b45309">Email ${esc(notice.mailto)}</a></div>` : ''}</td></tr>`
     : '';
@@ -293,11 +301,11 @@ async function recordAlertOutbox(collection, leadId, d, target, outcomes) {
   }
 }
 
-// opts (all optional): source — overrides d.source in the header; notice — see
-// emailHtml; ack:false — skip both homeowner acks (the booking tool already
-// confirmed to the homeowner).
+// opts (all optional): label — overrides KIND_LABEL[collection]; source —
+// overrides d.source in the header; notice — see emailHtml; ack:false — skip
+// both homeowner acks (the booking tool already confirmed to the homeowner).
 async function alertJoe(collection, d, leadId, opts = {}) {
-  const label = KIND_LABEL[collection] || collection;
+  const label = opts.label || KIND_LABEL[collection] || collection;
   const source = opts.source != null ? opts.source : (d.source || '');
   const notice = opts.notice || null;
   const s = summarize(d);
@@ -471,10 +479,12 @@ function onStormAlert() {
 
 // Cal.com bookings land in `leads` directly (integrations/calcom.js M-2), so
 // this trigger sees EVERY lead create. It must stay silent for all but a
-// webhook-created booking:
+// webhook-created booking or a bridged Thumbtack lead (onThumbtackLeadAlert):
 //  - a manual CRM lead (no publicLeadKind) is Joe's own entry;
-//  - a bridged public lead (publicLeadKind 'inspect', 'estimate', ...) already
-//    paged him from its public collection — alerting here would double-fire;
+//  - a bridged web-form lead (publicLeadKind 'inspect', 'estimate', ...)
+//    already paged him from its public collection. Alerting here would fire
+//    twice. Thumbtack is the one bridged kind with no public-collection alert;
+//    it alerts here instead;
 //  - a booking re-created by scripts/backfill-calcom-dropped-leads.js is a
 //    PAST booking being repaired, not a new one to act on.
 // No homeowner ack: Cal.com already emails every booker, a third message is
@@ -486,8 +496,12 @@ function onCalcomLeadAlert() {
     const snap = event.data;
     if (!snap) return;
     const data = snap.data() || {};
-    if (data.publicLeadKind !== 'calcom_booking' || data.webLead !== true) return;
     const leadId = event.params && event.params.leadId;
+    if (isBridgedThumbtackLead(data, leadId)) {
+      await onThumbtackLeadAlert(data, leadId);
+      return;
+    }
+    if (data.publicLeadKind !== 'calcom_booking' || data.webLead !== true) return;
     if (data.backfilledBy) {
       logger.info('leadAlertCalcom: backfilled booking — not a new lead, no alert', { leadId });
       return;
@@ -515,6 +529,51 @@ function onCalcomLeadAlert() {
   };
 }
 
+// Thumbtack leads (2026-09-26). The webhook writes thumbtack_leads/{rawId} and
+// leadBridgeThumbtack mirrors it to leads/{thumbtack_leads__<rawId>}. Nothing
+// alerted on either create, so every Thumbtack lead reached the pipeline
+// without paging Joe.
+//
+// Why alert here and not on thumbtack_leads: this trigger is already deployed
+// with the alert secrets, and the bridge has already done the filtering. It
+// drops Thumbtack's "Test this webhook" deliveries (isTest), and its create()
+// makes a re-delivery a no-op. Anything that pages must also be a real card in
+// the pipeline.
+//
+// One alert per lead. Only the BRIDGE's create pages: the doc id must be the
+// bridge's deterministic id for the raw doc it names. That id is written once,
+// by create(). A hand-typed lead with source "Thumbtack", a restore (an
+// update, not a create), or any other doc copying these fields fails the id
+// check. The alert does not fire from thumbtack_leads, so the raw doc and its
+// mirror cannot both page.
+//
+// No homeowner ack: Thumbtack already messaged the customer, and Thumbtack
+// never passes their email. Logs carry the lead id only.
+function isBridgedThumbtackLead(data, leadId) {
+  const coll = 'thumbtack_leads';
+  return data.publicLeadKind === L.BRIDGE_KINDS[coll].kind
+    && data.publicLeadCollection === coll
+    && !!data.publicLeadId
+    && String(leadId || '') === L.bridgeDocId(coll, data.publicLeadId);
+}
+
+async function onThumbtackLeadAlert(data, leadId) {
+  if (data.backfilledBy) {
+    logger.info('leadAlertThumbtack: backfilled lead — not a new lead, no alert', { leadId });
+    return;
+  }
+  logger.info('leadAlertThumbtack: bridged lead created', { leadId });
+  // notes is thumbtack-logic leadNotes(): the service, the description, the
+  // lead cost and the questionnaire answers, which is what Joe needs for the
+  // first call. The label already says Thumbtack, so leave the header's
+  // "from" line empty rather than repeat it.
+  await alertJoe('leads', { ...data, message: String(data.notes || '') }, leadId, {
+    label: L.BRIDGE_KINDS.thumbtack_leads.label,
+    source: '',
+    ack: false,
+  });
+}
+
 // IMPORTANT: each export assigns onDocumentCreated(...) DIRECTLY (not via a
 // makeTrigger() wrapper). The CI auto-deploy builds its --only allowlist by
 // grepping `^exports.<name> = (onRequest|onCall|onDocumentCreated|...)` in
@@ -527,4 +586,8 @@ exports.leadAlertEstimate = onDocumentCreated({ ...TRIGGER_OPTS, document: 'esti
 exports.leadAlertInspect  = onDocumentCreated({ ...TRIGGER_OPTS, document: 'inspect_leads/{leadId}' },     onLeadAlert('inspect_leads'));
 exports.leadAlertFreeRoof = onDocumentCreated({ ...TRIGGER_OPTS, document: 'free_roof_entries/{leadId}' }, onLeadAlert('free_roof_entries'));
 exports.leadAlertStorm    = onDocumentCreated({ ...TRIGGER_OPTS, document: 'storm_alert_subscribers/{leadId}' }, onStormAlert());
+// leadAlertCalcom also alerts on bridged Thumbtack leads (onThumbtackLeadAlert).
+// The name was kept on purpose: a renamed export deploys as a NEW function and
+// leaves the old one live, because the deploy never deletes retired functions.
+// Both would then fire on every lead create and page Joe twice.
 exports.leadAlertCalcom   = onDocumentCreated({ ...TRIGGER_OPTS, document: 'leads/{leadId}' },             onCalcomLeadAlert());
