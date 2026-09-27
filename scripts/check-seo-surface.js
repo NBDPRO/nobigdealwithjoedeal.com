@@ -323,15 +323,14 @@ function faqQuestions(node, out = []) {
   return out;
 }
 
-// TEMPORARY. These two posts are being rewritten in a separate lane
-// (2026-09-27); their FAQ schema still names questions the body does not
-// show. Being rewritten — remove when the rewrite lands. Exact paths, never
-// a glob: a pattern here is the "list where a real finding goes to hide"
-// that isNoIndex() above refuses to be. An entry that no longer fails is
-// reported as a WARN so the list cannot quietly outlive its reason.
+// EMPTY, and meant to stay that way. It held the two insurance posts while
+// they were rewritten (2026-09-27); the rewrite renders every FAQ question,
+// so both entries came out (PR #1796). If a page ever needs a carve-out
+// again: exact paths, never a glob — a pattern here is the "list where a
+// real finding goes to hide" that isNoIndex() above refuses to be. An entry
+// that no longer fails is reported as a WARN so the list cannot quietly
+// outlive its reason.
 const FAQ_VISIBLE_ALLOWLIST = new Set([
-  'docs/blog/can-i-keep-insurance-check-not-fix-roof.html',
-  'docs/blog/what-to-expect-roof-insurance-adjuster-visit.html',
 ]);
 const faqAllowlistHit = new Set();
 
