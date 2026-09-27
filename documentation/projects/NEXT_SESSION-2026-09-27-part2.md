@@ -19,7 +19,7 @@ Two things surfaced that are **not SEO** and matter more — read §0 first.
    advance payment), $200 referral bonus (> $100 cap on insured jobs), and a rep
    playbook called deductible absorption "legal in OH/KY". Full recon:
    [KY-INSURANCE-JOB-CRM-2026-09-27](../audit/KY-INSURANCE-JOB-CRM-2026-09-27.md).
-   **Draft PR #1801** builds only the [SAFE] items (KY detection, verbatim
+   **PR #1801** (now carrying all of Jo's decisions — see §2) started from the [SAFE] items (KY detection, verbatim
    notices, 2× Notice of Cancellation, lien clause, AOB off for KY / off cash
    jobs everywhere, negotiate-language removed, FTC 3-day form actually
    attached, timezone-correct signing dates). **Needs Jo's OK + his [JOE]
@@ -61,15 +61,16 @@ Two things surfaced that are **not SEO** and matter more — read §0 first.
 | #1814 | Review widget: newest first + hides the "FDP Python…" reviewer (Jo's ask), applied to all 5 response paths |
 | #1797 | ONE business entity (`#org`, Campton KY 41301 to match the GBP's verified address) + ONE Joe (`#joe`) + WebSite, stamped from `site-src/partials/schema-entity.html` into every public page; entity gate in check-seo-surface |
 | #1815 | "N new reviews this month" from Google's daily review-count history (seeded 28 on 08-31, 29 on 09-20) |
+| #1796 | The two insurance posts get real articles (were serving the hail post's body); Jo's confirms applied ("usually" at adjuster visits); pending-list + FAQ allowlist entries removed |
+| #1802 | Answer-first 40–60-word leads + question H2s on 25 core service pages, with Jo's prices (inspection report $150, Care Plan $199/yr, soft wash, siding, drywall, shed, commercial, add-ons per unit) |
+| #1803 | The 2026 Greater Cincinnati roof cost guide rebuilt (tables by size + tier, delivery $150, add-ons per unit) |
+| #1816 | Contradictions settled site-wide (storm-first "depends", check-your-policy deadline, 1 day / 2 complex, inspect after any storm, no arch-vs-3-tab %); undated priced jobs "Priced before 2025"; Instant Estimate default $13,300–$18,600 |
 
 ## §2 — Open PRs
 
 | PR | State | Blocker |
 |---|---|---|
-| #1796 | draft | Jo's read-through of the two rewritten insurance posts (5 JOE-CONFIRM items). When it merges, remove their entries from the FAQ-visible allowlist and the entity-gate pending list. |
-| #1802 | draft | Answer-first leads on 25 core service pages. Paused for price validation: 6 `PRICE-PENDING` markers; quotes By Golly's 2023 price without a year. |
-| #1803 | draft | Rebuilt 2026 cost guide (tables, tiers +9/+21). Jo review; 4 `PRICE-PENDING` comments. The live guide is stale ($650–$750/sq, "3-tab") — merge soon after review. |
-| #1801 | draft | CRM KY contracts — see §0.1. |
+| #1801 | ready, CI (Auto-fix on; @stranger onboarding timeout re-run — known provisioning flake) | CRM Kentucky compliance with ALL of Jo's decisions: statutory notices + 2× NOC verbatim, FTC 3-day form attached, $0 at signing on KY insurance jobs (pay links held until carrier decision + 5 business days), $100 referral everywhere, NO AOB and NO direction-to-pay (plain payment clause — Jo declined attorney review), review ask mentions town + job, $150 delivery in both estimate modes. **After deploy:** enter "4813 KY 715 S, Campton, KY 41301" in Settings → Company Profile → Mailing Address (one line) — prints only on KY insurance contracts, the FTC cancellation forms, and the CAN-SPAM email line; never on the letterhead. |
 
 ## §3 — Waiting on Jo (all asked in chat; answers unblock work)
 
@@ -94,7 +95,7 @@ All recorded in the decisions sheet the session applied (prices, contradictions,
   address"). Suggested he confirm Ohio foreign-LLC registration with his accountant/attorney.
 - **CRM:** KY insurance deposit $0 until the insurer's written decision + 5 business days; referral bonus $100
   everywhere; AOB → direction-to-pay in both states (attorney to review wording); review ask mentions town + job;
-  material-delivery add-on $150 (was $412.50 — Jo wants to see the diff first). Being built into #1801 (draft).
+  material-delivery add-on $150 in both estimate modes (was $412.50 — Jo approved the diff). Being built into #1801 (draft).
 - **Prices/copy:** inspection verbal free / written report $150 / complex $250+; gutter cleaning mostly $200–$300;
   soft wash $500–$1,000; siding replacement "$20k–$40k, typical ~$30k"; drywall $1k–$3k per room; outbuildings
   $2k–$4k; commercial bid individually (up to $2k–$3k per square on crane jobs); Roof Care Plan $199/yr or $19/mo;
