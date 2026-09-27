@@ -1825,12 +1825,17 @@ section('Phase C.4 docgen — NBDDocGen.fillAndGenerate via docgen action');
     /window\.NBDDocGen\.fillAndGenerate\(target\)/.test(mainJs),
     'expected NBDDocGen.fillAndGenerate(target) dispatch');
 
-  // 25, not 24: +1 for storm_history_report (2026-09-09) under Insurance
-  // Documents — the free NOAA/NWS 5-year storm history doc.
+  // 24: +1 for storm_history_report (2026-09-09) under Insurance
+  // Documents — the free NOAA/NWS 5-year storm history doc; −1 for the
+  // Assignment of Benefits row, retired 2026-09-27 (no assignment or
+  // co-payee paperwork in any state).
   const docgenCount = (dash.match(/data-action="docgen"\s+data-target="[a-zA-Z_]+"/g) || []).length;
-  assert('docgen conversions: 25 (every Templates view row)',
-    docgenCount === 25,
-    'expected 25 docgen data-actions; got ' + docgenCount);
+  assert('docgen conversions: 24 (every Templates view row)',
+    docgenCount === 24,
+    'expected 24 docgen data-actions; got ' + docgenCount);
+  assert('no Templates row generates an AOB or a Direction to Pay',
+    !/data-target="(assignment_of_benefits|direction_to_pay)"/.test(dash),
+    'a retired document is still offered');
 
   const remaining = (dash.match(/onclick="NBDDocGen\.fillAndGenerate/g) || []).length;
   assert('no inline NBDDocGen.fillAndGenerate onclicks remain',
