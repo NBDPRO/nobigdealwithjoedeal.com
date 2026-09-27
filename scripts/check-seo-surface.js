@@ -298,6 +298,13 @@ function visibleText(html) {
     .replace(/<[^>]+>/g, ' '));
 }
 
+function countFaqPages(node) {
+  if (Array.isArray(node)) return node.reduce((n, x) => n + countFaqPages(x), 0);
+  if (!node || typeof node !== 'object') return 0;
+  const types = [].concat(node['@type'] || []);
+  return (types.includes('FAQPage') ? 1 : 0) + (node['@graph'] ? countFaqPages(node['@graph']) : 0);
+}
+
 function faqQuestions(node, out = []) {
   if (!node || typeof node !== 'object') return out;
   if (Array.isArray(node)) {
@@ -459,13 +466,24 @@ for (const abs of pages) {
     add('WARN', rel, 'structured-data', 'no JSON-LD on the page');
   } else {
     const questions = [];
+    let faqPages = 0;
     blocks.forEach((b, i) => {
       try {
-        faqQuestions(JSON.parse(b), questions);
+        const parsed = JSON.parse(b);
+        faqQuestions(parsed, questions);
+        faqPages += countFaqPages(parsed);
       } catch (e) {
         add('ERROR', rel, 'structured-data', `JSON-LD block ${i + 1} does not parse: ${e.message}`);
       }
     });
+    // One FAQPage per page: Google's Rich Results report flags a second one
+    // as "Duplicate field 'FAQPage'" and can drop both. Found 2026-09-27 on
+    // the Covington + Cincinnati area pages (generated TOWNFAQ block + an
+    // older hand-written one).
+    if (faqPages > 1) {
+      add('ERROR', rel, 'faq-single',
+        `${faqPages} FAQPage nodes on one page — merge them into a single FAQPage`);
+    }
     if (questions.length) {
       const shown = visibleText(html);
       for (const q of questions) {

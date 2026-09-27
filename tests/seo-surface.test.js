@@ -144,6 +144,15 @@ check('F21 a question rendered with entities, curly quotes and inline tags count
   assert.deepStrictEqual(got, [], `faq-visible.html should raise nothing, got [${got.join(', ')}]`);
 });
 
+check('F23 two FAQPage nodes on one page is an ERROR (Google: "Duplicate field FAQPage")', () => {
+  // faq-double.html is faq-visible.html with its FAQPage block repeated —
+  // every question stays visible, so faq-single is the ONLY thing it can fail.
+  const errs = (byFile['faq-double.html'] || []).filter((f) => f.level === 'ERROR');
+  assert.deepStrictEqual(errs.map((f) => f.check), ['faq-single'],
+    `faq-double.html should fail on faq-single alone, got [${errs.map((f) => f.check).join(', ')}]`);
+  assert.ok(/2 FAQPage nodes/.test(errs[0].detail), `detail should count the nodes, got: ${errs[0].detail}`);
+});
+
 check('F22 the faq-visible allowlist stays narrow (two named posts, no globs)', () => {
   const fs = require('fs');
   const src = fs.readFileSync(SCRIPT, 'utf8');
