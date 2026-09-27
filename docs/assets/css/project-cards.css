@@ -28,6 +28,9 @@
 .project-price{font-family:'Bebas Neue',sans-serif;font-size:1.35rem;letter-spacing:.5px;color:#A14A22;margin:2px 0 6px;font-variant-numeric:tabular-nums}
 .project-meta{font-size:.75rem;color:var(--gray,#5d6673);margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .project-dot{opacity:.5}
+/* "Priced in <year>" note under an older job's price (build-projects.mjs) —
+   a footnote to the price, set apart from the write-up that follows */
+.project [data-price-context]{margin:0 0 10px;font-size:.76rem;font-style:italic}
 .project-view{margin-top:12px;background:none;border:1.5px solid var(--light-gray,#e8e5e0);border-radius:8px;padding:8px 14px;font-size:.76rem;font-weight:700;color:var(--navy-dark,#12223d);cursor:pointer;font-family:'Montserrat',sans-serif;transition:all .2s}
 .project-view:hover{border-color:var(--orange,#bd5728);color:#A14A22}
 

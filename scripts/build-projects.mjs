@@ -62,6 +62,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { priceContext, parseAsOf } from './project-price-context.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = path.join(ROOT, 'docs', 'assets', 'data', 'projects.json');
@@ -213,7 +214,21 @@ const live = all.filter((p) => {
 // END of projects.json and still render first.
 live.sort((a, b) => new Date(b.published) - new Date(a.published));
 
-const money = (n) => '$' + n.toLocaleString('en-US');
+// ── Dated-price context (2026-09-27) ────────────────────────────
+// Older job prices keep their year and get one honest line of context
+// (scripts/project-price-context.mjs has the rule). The as-of date is
+// injectable — --as-of=YYYY-MM-DD or NBD_PROJECTS_AS_OF — and otherwise is the
+// newest published date, never the wall clock: every surface below is gated
+// by --check, and a clock-based rule would redden it each New Year's Day.
+const AS_OF_ARG = (process.argv.find((a) => a.startsWith('--as-of=')) || '').slice('--as-of='.length)
+  || process.env.NBD_PROJECTS_AS_OF || '';
+const AS_OF = AS_OF_ARG
+  ? parseAsOf(AS_OF_ARG)
+  : parseAsOf(String(live.map((p) => p.published).sort().at(-1) || '').slice(0, 10));
+if (!AS_OF) { console.error(`FATAL: as-of date ${AS_OF_ARG ? `"${AS_OF_ARG}" ` : ''}is not YYYY-MM-DD`); process.exit(1); }
+const dated = (p) => priceContext(p, AS_OF);
+
+const money =(n) => '$' + n.toLocaleString('en-US');
 const priceLine = (p) => (p.priceLow != null ? `${money(p.priceLow)}–${money(p.priceHigh)}` : null);
 
 const webpFor = (src) => {
@@ -303,6 +318,9 @@ const JOB_NOUN = {
 // the page's local-proof content, not a teaser.
 const caseCard = (p, { withDesc = false } = {}) => {
   const price = priceLine(p);
+  // The whole card is a link, so its dated-price line is text only (a nested
+  // <a> is invalid); the case page it opens carries the link.
+  const ctx = dated(p);
   const meta = [`<span class="project-loc">${PIN_SVG} ${esc(p.city)}</span>`];
   if (p.year) meta.push(`<span>${esc(String(p.year))}</span>`);
   return `    <a class="project project-link" href="/our-work/${esc(p.slug)}">
@@ -310,7 +328,8 @@ const caseCard = (p, { withDesc = false } = {}) => {
       <div class="project-body">
         <span class="project-tag">${esc(p.tag)}</span>
         <h3>${esc(p.title)}</h3>${price ? `
-        <div class="project-price">${esc(price)}</div>` : ''}${withDesc ? `
+        <div class="project-price">${esc(price)}</div>` : ''}${price && ctx ? `
+        <p data-price-context="${ctx.year}">${esc(ctx.short)}</p>` : ''}${withDesc ? `
         <p>${esc(p.description)}</p>` : ''}
         <div class="project-meta">${meta.join(' <span class="project-dot">·</span> ')}</div>
       </div>
@@ -325,14 +344,23 @@ const moreList = (ps, heading) => (ps.length ? `
 ${ps.map((p) => `      <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}</span></li>`).join('\n')}
     </ul>` : '');
 
+// The dated-price line with its "what it runs today" link — gallery cards and
+// case pages (both non-link containers). linkClass reuses an existing
+// link style: .nbd-recent-jobs-all (project-cards.css) / .pd-links a.
+const datedLine = (ctx, tag, cls, linkClass) => `<${tag}${cls ? ` class="${cls}"` : ''} data-price-context="${ctx.year}">${esc(ctx.lead)} <a${linkClass ? ` class="${linkClass}"` : ''} href="${esc(ctx.href)}">${esc(ctx.linkText)}</a></${tag}>`;
+
 const card = (p) => {
   const price = priceLine(p);
+  const ctx = dated(p);
   // Lightbox payload — display fields only, all re-escaped by esc() as one
   // JSON attribute. The client JSON.parses it; it renders via textContent.
   const payload = {
     title: p.title, tag: p.tag, city: p.city, price, year: p.year || null,
     description: p.description, photos: p.photos,
   };
+  // Dated price: the lightbox's headline IS the price, so it carries the same
+  // context line (our-work.js prepends it to the description).
+  if (price && ctx) payload.priceNote = ctx.short;
   const meta = [
     `<span class="project-loc">${PIN_SVG} ${esc(p.city)}</span>`,
     p.year ? `<span>${esc(String(p.year))}</span>` : null,
@@ -346,7 +374,8 @@ const card = (p) => {
         <div class="project-body">
           <span class="project-tag">${esc(p.tag)}</span>
           <h3>${esc(p.title)}</h3>${price ? `
-          <div class="project-price">${esc(price)}</div>` : ''}
+          <div class="project-price">${esc(price)}</div>` : ''}${price && ctx ? `
+          ${datedLine(ctx, 'p', '', 'nbd-recent-jobs-all')}` : ''}
           <p>${esc(p.description)}</p>
           <div class="project-meta">${meta}</div>
           <div class="project-services">
@@ -647,7 +676,8 @@ const factsHtml = (p) => {
   if (p.year) rows.push(['Year', esc(String(p.year))]);
   if (p.duration) rows.push(['Duration', esc(p.duration)]);
   const price = priceLine(p);
-  if (price) rows.push(['Price range', `${esc(price)} (retail)`]);
+  const ctx = dated(p);
+  if (price) rows.push(['Price range', `${esc(price)} (retail${ctx ? `, priced in ${ctx.year}` : ''})`]);
   rows.push(['Photos', String(p.photos.length)]);
   return `    <h2 class="pd-h2">Project Details</h2>
     <dl class="pd-facts">
@@ -775,7 +805,8 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
     ${heroImg(p, 'pd-hero', true)}
     <span class="project-tag">${esc(p.tag)}</span>
     <h1 class="pd-title">${esc(p.title)}</h1>${price ? `
-    <div class="pd-price">${esc(price)}</div>` : ''}
+    <div class="pd-price">${esc(price)}</div>` : ''}${price && dated(p) ? `
+    ${datedLine(dated(p), 'p', 'pd-links', '')}` : ''}
     <div class="pd-meta">${PIN_SVG} ${metaBits.join(' · ')}</div>
     <p class="pd-desc">${esc(p.description)}</p>
 ${narrativeHtml(p) ? `${narrativeHtml(p)}\n` : ''}${factsHtml(p)}
