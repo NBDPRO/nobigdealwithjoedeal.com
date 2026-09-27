@@ -43,9 +43,10 @@ or recon-heavy session **writes its findings back**:
 - New client JS = external file under `docs/assets/js/` (or `docs/pro/js/`),
   loaded with `defer`. Never inline `<script>`, never `on*=` attributes.
 - Marker regions are **generator-owned** — never hand-edit between
-  `<!-- nbd:partial ... -->`, `BLOG-*`, or `OURWORK-*` markers. Edit the
-  source (`site-src/partials/`, the POSTS array,
-  `docs/assets/data/projects.json`) and restamp with the matching script.
+  `<!-- nbd:partial ... -->`, `BLOG-*`, `OURWORK-*`, or `TOWN*:START/END`
+  markers. Edit the source (`site-src/partials/`, the POSTS array,
+  `docs/assets/data/projects.json`, `site-src/data/towns.json`) and restamp
+  with the matching script.
 - Never publish cost/contractor/margin keys or figures anywhere under
   `docs/` — retail prices are fine and deliberate
   (`tests/catalog-cost-privacy.test.js` is the guard).
@@ -85,6 +86,7 @@ node scripts/check-site-integrity.js --quiet
 node scripts/apply-partials.js --check --diff
 node scripts/build-sitemap.js          # dry-run drift check
 node scripts/build-projects.mjs --check
+node scripts/build-town-pages.mjs --check  # area/town pages vs site-src/data/towns.json
 node scripts/build-llms.mjs --check-regions  # llms.txt lists (llms-full.txt regenerates at deploy)
 node scripts/check-inline-html-scripts.js
 node scripts/check-image-privacy.js       # EXIF/GPS strip invariant (images)
