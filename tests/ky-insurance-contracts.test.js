@@ -121,6 +121,26 @@ ok('FTC business days skip Sunday + Labor Day (Fri 2026-09-04 → Wed Sep 9)', d
 ok('FTC business days count Saturday, skip Christmas (Wed 2026-12-23 → Mon Dec 28)', day('2026-12-23') === 'December 28, 2026', day('2026-12-23'));
 ok('"September 26, 2026" parses (Sat → Wed Sep 30)', day('September 26, 2026') === 'September 30, 2026', day('September 26, 2026'));
 
+// The signing DATE is the local calendar date (America/New_York by default,
+// the tenant's zone when its profile carries one) — never the UTC date.
+// 2026-09-28T02:30:00Z is 10:30 pm on Sunday September 27 in Kentucky/Ohio.
+const SIGNED = '2026-09-28T02:30:00Z';
+ok('signing instant 2026-09-28T02:30:00Z → "September 27, 2026" (America/New_York), not the UTC date',
+  J.formatDay(J.toUtcDay(new Date(SIGNED))) === 'September 27, 2026' && J.formatDay(J.toUtcDay(SIGNED)) === 'September 27, 2026',
+  J.formatDay(J.toUtcDay(SIGNED)));
+ok('…and the same instant read as UTC WOULD have been September 28 (the bug this pins)', J.formatDay(J.toUtcDay(SIGNED, 'UTC')) === 'September 28, 2026');
+ok('tenant timezone wins when the profile carries one (06:30Z Sep 28 = Sep 27 in Los Angeles, Sep 28 in New York)',
+  J.formatDay(J.toUtcDay('2026-09-28T06:30:00Z', J.resolveTimeZone({ timezone: 'America/Los_Angeles' }))) === 'September 27, 2026' &&
+  J.formatDay(J.toUtcDay('2026-09-28T06:30:00Z', J.resolveTimeZone({}))) === 'September 28, 2026');
+ok('an unknown timezone falls back to America/New_York', J.resolveTimeZone({ timezone: 'Mars/Base' }) === 'America/New_York');
+ok('a written date is taken as written', J.formatDay(J.toUtcDay('September 27, 2026')) === 'September 27, 2026' &&
+  J.formatDay(J.toUtcDay('2026-09-27')) === 'September 27, 2026');
+const kyForm = text(J.kyCancellationFormsHtml({ transactionDate: new Date(SIGNED), physicalAddress: 'X', email: 'y@z.test' }));
+ok('KY form dates a 10:30 pm Sunday signing September 27', kyForm.includes('September 27, 2026') && !kyForm.includes('September 28, 2026'));
+const ftcForm = text(J.ftcCancellationFormsHtml({ transactionDate: new Date(SIGNED), sellerName: 'S', sellerAddress: 'A' }));
+ok('FTC deadline counts 3 business days from the LOCAL date (Sun Sep 27 → Mon/Tue/Wed → September 30), not from UTC Mon Sep 28 (→ Oct 1)',
+  ftcForm.includes('September 27, 2026') && ftcForm.includes('NOT LATER THAN MIDNIGHT OF September 30, 2026'), (ftcForm.match(/NOT LATER THAN MIDNIGHT OF [^.]*/) || [''])[0]);
+
 ok('notice (3)(a) is the act text verbatim', J.KY_NOTICE_CANCEL === ACT_NOTICE_A);
 ok('notice (3)(b) is the act text verbatim', J.KY_NOTICE_NO_ASSIGNMENT === ACT_NOTICE_B);
 ok('lien clause verbatim', J.KY_LIEN_CLAUSE === LIEN);
@@ -311,6 +331,24 @@ ok('server KY without an address → missingAddress (the callable refuses it)',
   RENDER._buildContractStatutory(sKy.payload, { address: '', email: 'x@y.z' }, COMPANY).missingAddress === true);
 ok('server: a client verdict cannot switch Kentucky OFF',
   RENDER._buildContractStatutory(Object.assign({}, sKy.payload, { jurisdiction: Object.assign({}, sKy.payload.jurisdiction, { kentucky: false, kyInsurance: false }) }), CONTRACTOR, COMPANY).kyInsurance === true);
+
+{
+  const late = RENDER._buildContractStatutory(Object.assign({}, sKy.payload, { transactionDate: SIGNED }), CONTRACTOR, COMPANY);
+  const lateText = text(late.kyFormsHtml + late.ftcFormsHtml);
+  ok('server (UTC clock): a 10:30 pm Kentucky signing is dated September 27 on both forms, FTC deadline September 30',
+    count(lateText, /September 27, 2026/g) === 4 && !lateText.includes('September 28, 2026') &&
+    lateText.includes('NOT LATER THAN MIDNIGHT OF September 30, 2026'), (lateText.match(/NOT LATER THAN MIDNIGHT OF [^.]*/) || [''])[0]);
+  const la = RENDER._buildContractStatutory(Object.assign({}, sKy.payload, { transactionDate: '2026-09-28T06:30:00Z' }),
+    Object.assign({}, CONTRACTOR, { timeZone: 'America/Los_Angeles' }), COMPANY);
+  ok('server: the tenant timezone from its profile decides the date', text(la.kyFormsHtml).includes('September 27, 2026'));
+  const cl = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' },
+    () => DG.renderContract(contractData(KY_ADDR, 'insurance', { contractDate: SIGNED })));
+  ok('client renderContract: the same instant is dated September 27, 2026', text(cl).includes('September 27, 2026') && !text(cl).includes('September 28, 2026'));
+  const pl = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' },
+    () => DG._buildServerPayload('contract', contractData(KY_ADDR, 'insurance', { contractDate: undefined, customer: { name: 'J', address: KY_ADDR } })));
+  ok('client payload stamps the LOCAL signing date as YYYY-MM-DD (America/New_York today)',
+    pl.transactionDate === J.isoDay(J.todayIn('America/New_York')), pl.transactionDate);
+}
 
 const sOhCash = serverContract(OH_ADDR, 'cash', { address: '6563 Manila Rd, Goshen, OH 45122', email: 'info@x.test' });
 const sOhText = text(sOhCash.html);

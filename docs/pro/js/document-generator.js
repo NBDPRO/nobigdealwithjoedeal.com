@@ -160,8 +160,11 @@ window.NBDDocGen = {
     out.css = J.STATUTORY_CSS;
     out.notices = J.kyNoticesHtml();
     out.lien = J.KY_LIEN_CLAUSE;
+    // The signing date in the tenant's timezone (default America/New_York) —
+    // "now" read there, never the UTC date or the rep's browser clock.
     out.forms = J.kyCancellationFormsHtml({
-      transactionDate: data.contractDate || data.date || new Date(),
+      transactionDate: data.contractDate || new Date(),
+      timeZone: J.resolveTimeZone(cp),
       physicalAddress: addr,
       email: co.email || '',
       fax: fax
@@ -1099,7 +1102,14 @@ window.NBDDocGen = {
         // ky-insurance-law.js (never trusting a client verdict to turn a
         // Kentucky signal off) and reads the contractor's address from the
         // tenant's companyProfile server-side.
-        transactionDate: data.contractDate || todayStr,
+        // The LOCAL signing date (tenant timezone, default America/New_York)
+        // as "YYYY-MM-DD", so the server never re-derives it from UTC.
+        transactionDate: data.contractDate || (() => {
+          const J = window.NBDJurisdiction;
+          if (!J) return todayStr;
+          const cp = data.companyProfile || (window._legal ? window._legal() : window._companyProfile) || {};
+          return J.isoDay(J.todayIn(J.resolveTimeZone(cp)));
+        })(),
         jurisdiction: (() => {
           const j = (data.jurisdiction && typeof data.jurisdiction === 'object') ? data.jurisdiction : (this._jurisdiction(data) || {});
           return {

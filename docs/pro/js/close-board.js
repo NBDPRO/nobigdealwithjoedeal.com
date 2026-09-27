@@ -679,7 +679,7 @@
         '<div style="font-size:12px;margin-bottom:8px;color:#333;">' + esc(BRAND.name) + ' · Mailing address: ' + esc(_addr) + '</div>' +
         _KY.kyNoticesHtml() + '</div>';
       kyForms = '<div style="background:#fff;color:#111;border-radius:10px;padding:14px;margin-top:20px;">' +
-        _KY.kyCancellationFormsHtml({ transactionDate: new Date(), physicalAddress: _addr, email: _email, fax: _cp.businessFax || '' }) +
+        _KY.kyCancellationFormsHtml({ transactionDate: new Date(), timeZone: _KY.resolveTimeZone(_cp), physicalAddress: _addr, email: _email, fax: _cp.businessFax || '' }) +
         '</div>';
     }
 

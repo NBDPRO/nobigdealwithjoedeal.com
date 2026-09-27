@@ -566,7 +566,7 @@ async function resolveDocCompany(companyId) {
 // companyProfile, read here — the client payload only carries job facts.
 // Blank beats wrong: an unresolvable tenant gets '' (never NBD's address).
 async function resolveContractorContact(companyId, company) {
-  const out = { address: '', email: (company && company.email) || '', fax: '' };
+  const out = { address: '', email: (company && company.email) || '', fax: '', timeZone: KyLaw.DEFAULT_TIME_ZONE };
   if (!companyId) return out;
   try {
     const snap = await getFirestore().collection('companyProfile').doc(String(companyId)).get();
@@ -576,6 +576,7 @@ async function resolveContractorContact(companyId, company) {
       out.address = String(p.businessAddress || c.address || '').trim();
       out.email = String(p.businessEmail || c.email || out.email || '').trim();
       out.fax = String(p.businessFax || c.fax || '').trim();
+      out.timeZone = KyLaw.resolveTimeZone(p);
     }
   } catch (e) {
     logger.error('[renderPdf] contractor contact resolve failed', { companyId, err: e && e.message });
@@ -598,6 +599,11 @@ function buildContractStatutory(payload, contractor, company) {
   const kyInsurance = j.kyInsurance || facts.kyInsurance === true ||
     ((j.insurance || facts.insurance === true) && (j.kentucky || facts.kentucky === true));
   const c = contractor || {};
+  // The signing date: the client's local-date stamp, else NOW read in the
+  // tenant's timezone (default America/New_York) — this function runs on a
+  // UTC clock, so a bare new Date() would date a 10 pm Kentucky signing
+  // tomorrow and push the FTC deadline a day late.
+  const timeZone = c.timeZone || KyLaw.DEFAULT_TIME_ZONE;
   const txDate = p.transactionDate || (p.contract && p.contract.date) || new Date();
   const out = {
     css: '', kyInsurance, contractorAddress: '', contractorFax: '',
@@ -610,7 +616,7 @@ function buildContractStatutory(payload, contractor, company) {
     out.css = KyLaw.STATUTORY_CSS;
     out.ftcStatementHtml = KyLaw.ftcStatementHtml();
     out.ftcFormsHtml = KyLaw.ftcCancellationFormsHtml({
-      transactionDate: txDate,
+      transactionDate: txDate, timeZone,
       sellerName: (company && company.footerName) || '',
       sellerAddress: c.address || '',
     });
@@ -624,7 +630,7 @@ function buildContractStatutory(payload, contractor, company) {
     out.kyNoticesHtml = KyLaw.kyNoticesHtml();
     out.lienClause = KyLaw.KY_LIEN_CLAUSE;
     out.kyFormsHtml = KyLaw.kyCancellationFormsHtml({
-      transactionDate: txDate, physicalAddress: c.address || '', email: c.email || '', fax: c.fax || '',
+      transactionDate: txDate, timeZone, physicalAddress: c.address || '', email: c.email || '', fax: c.fax || '',
     });
   }
   return out;

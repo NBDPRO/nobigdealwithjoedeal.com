@@ -279,15 +279,60 @@
   }
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  /** Parse "2026-09-27", "September 27, 2026", a Date or a timestamp → UTC-midnight ms, or null. */
-  function toUtcDay(v) {
+  // ── The signing DATE is a local calendar date (2026-09-27 fix) ─────────
+  // A contract signed at 10:30 pm in Kentucky or Ohio is dated that day, not
+  // the next one: the date of the transaction (and the FTC deadline counted
+  // from it) is the calendar date in the tenant's timezone — never the UTC
+  // date of the instant, which is what Cloud Functions' clock (UTC) and a
+  // browser elsewhere would otherwise print. America/New_York is NBD's zone
+  // (Cincinnati + Northern Kentucky) and the default; a tenant profile may
+  // carry its own IANA zone as `timezone` / `timeZone`.
+  var DEFAULT_TIME_ZONE = 'America/New_York';
+  function _validZone(z) {
+    if (!z || typeof z !== 'string') return false;
+    try { new Intl.DateTimeFormat('en-US', { timeZone: z }).format(0); return true; } catch (_) { return false; }
+  }
+  /** The tenant's timezone from a company profile (or brand), else America/New_York. */
+  function resolveTimeZone(profile) {
+    var p = profile || {};
+    var b = p.brand || {};
+    var cands = [p.timezone, p.timeZone, b.timezone, b.timeZone];
+    for (var i = 0; i < cands.length; i++) if (_validZone(cands[i])) return cands[i];
+    return DEFAULT_TIME_ZONE;
+  }
+  /** The calendar date of an instant in a timezone → UTC-midnight ms. */
+  function _dayInZone(ms, tz) {
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: _validZone(tz) ? tz : DEFAULT_TIME_ZONE,
+      year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(new Date(ms));
+    var get = function (type) { for (var i = 0; i < parts.length; i++) if (parts[i].type === type) return +parts[i].value; return NaN; };
+    return Date.UTC(get('year'), get('month') - 1, get('day'));
+  }
+  /**
+   * The calendar day a value names → UTC-midnight ms, or null.
+   *   "2026-09-27" / "September 27, 2026"  a DATE — taken as written
+   *   a Date, a timestamp, "2026-09-28T02:30:00Z"  an INSTANT — its date in
+   *     `tz` (default America/New_York), never its UTC date
+   */
+  function toUtcDay(v, tz) {
     if (v == null || v === '') return null;
-    var iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(_str(v));
-    if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
+    if (typeof v === 'string') {
+      var s = v.trim();
+      var iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+      if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
+      if (!/\d:\d/.test(s)) {           // a written date, no clock time
+        var w = new Date(s);
+        if (isNaN(w.getTime())) return null;
+        return Date.UTC(w.getFullYear(), w.getMonth(), w.getDate());
+      }
+    }
     var d = (v instanceof Date) ? v : new Date(v);
     if (isNaN(d.getTime())) return null;
-    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    return _dayInZone(d.getTime(), tz);
   }
+  /** Today's calendar date in `tz` → UTC-midnight ms. */
+  function todayIn(tz) { return _dayInZone(Date.now(), tz); }
+  /** UTC-midnight ms → "2026-09-27". */
+  function isoDay(t) { return new Date(t).toISOString().slice(0, 10); }
   function formatDay(t) {
     var d = new Date(t);
     return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
@@ -363,11 +408,13 @@
   /**
    * KRS 367.624(4): the NOTICE OF CANCELLATION, fully completed, in duplicate,
    * on its own page after the signatures, each copy detachable.
-   * opts: { transactionDate, physicalAddress, email, fax }
+   * opts: { transactionDate, physicalAddress, email, fax, timeZone }
+   * transactionDate: a written date as-is, or an instant (default: now) read
+   * as its calendar date in timeZone (default America/New_York).
    */
   function kyCancellationFormsHtml(opts) {
     opts = opts || {};
-    var t = toUtcDay(opts.transactionDate);
+    var t = toUtcDay(opts.transactionDate == null || opts.transactionDate === '' ? new Date() : opts.transactionDate, opts.timeZone);
     var dateText = t != null ? formatDay(t) : _str(opts.transactionDate);
     var fax = _str(opts.fax).trim() || NO_FAX_TEXT;
     function one(copyLabel) {
@@ -397,11 +444,12 @@
 
   /**
    * 16 CFR 429.1(b)/(c): the FTC NOTICE OF CANCELLATION, completed, in
-   * duplicate. opts: { transactionDate, sellerName, sellerAddress }
+   * duplicate. opts: { transactionDate, sellerName, sellerAddress, timeZone }
+   * The deadline counts business days from the LOCAL signing date.
    */
   function ftcCancellationFormsHtml(opts) {
     opts = opts || {};
-    var t = toUtcDay(opts.transactionDate);
+    var t = toUtcDay(opts.transactionDate == null || opts.transactionDate === '' ? new Date() : opts.transactionDate, opts.timeZone);
     var dateText = t != null ? formatDay(t) : _str(opts.transactionDate);
     var deadline = t != null ? formatDay(addBusinessDays(t, 3)) : '';
     function one(copyLabel) {
@@ -466,7 +514,11 @@
     isInsurance: isInsurance,
     classify: classify,
     classifyLead: classifyLead,
+    DEFAULT_TIME_ZONE: DEFAULT_TIME_ZONE,
+    resolveTimeZone: resolveTimeZone,
     toUtcDay: toUtcDay,
+    todayIn: todayIn,
+    isoDay: isoDay,
     formatDay: formatDay,
     isBusinessDay: isBusinessDay,
     addBusinessDays: addBusinessDays,
