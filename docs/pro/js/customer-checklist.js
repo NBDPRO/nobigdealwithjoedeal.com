@@ -45,7 +45,9 @@
       { key: 'ins-file-claim',   label: 'File claim with carrier' },
       { key: 'ins-adjuster',     label: 'Meet adjuster on site' },
       { key: 'ins-scope',        label: 'Receive carrier scope / approval' },
-      { key: 'ins-aob',          label: 'Assignment of Benefits filed',   gateField: 'aobFiledAt' },
+      // Key kept (renames orphan saved ticks); the document is now the
+      // Direction to Pay, which stamps the same aobFiledAt field (2026-09-27).
+      { key: 'ins-aob',          label: 'Direction to Pay signed',        gateField: 'aobFiledAt' },
       { key: 'ins-estimate',     label: 'Build & send estimate' },
       { key: 'ins-contract',     label: 'Sign contract',                 gateField: 'contractFiledAt' },
       { key: 'ins-permit',       label: 'Permit filed',                  gateField: 'permitFiledAt', manual: true },
@@ -72,15 +74,7 @@
   };
 
   function itemsFor(lead) {
-    if (!(lead && lead.jobType === 'insurance')) return CHECKLISTS.default;
-    // Kentucky (2026-09-27): no Assignment of Benefits exists to file (KRS
-    // 304.20-105), so the item — read-only, gated on aobFiledAt — is dropped
-    // rather than left unticked forever. ky-insurance-law.js decides.
-    var J = (typeof window !== 'undefined') ? window.NBDJurisdiction : null;
-    if (J && typeof J.classifyLead === 'function' && J.classifyLead(lead).aobBarred) {
-      return CHECKLISTS.insurance.filter(function (i) { return i.key !== 'ins-aob'; });
-    }
-    return CHECKLISTS.insurance;
+    return (lead && lead.jobType === 'insurance') ? CHECKLISTS.insurance : CHECKLISTS.default;
   }
 
   // Checked state for one item — a gateField item reads the REAL lead

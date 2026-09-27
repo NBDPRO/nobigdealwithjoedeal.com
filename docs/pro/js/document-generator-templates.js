@@ -767,16 +767,12 @@
     // so a blank scope still yields a complete authorization.
     const scopeSummary = d.scopeSummary || d.scopeOfWork ||
       'Complete roof replacement including tear-off, installation of new roofing system, and cleanup.';
-    // 2026-09-27 (KY SB 153): the assignment paragraph never prints for a
-    // Kentucky job (an assignment of benefits is void there, KRS 304.20-105),
-    // nor for an insurance job whose state is unknown (fail closed). Where it
-    // still prints it no longer claims any power to negotiate with the insurer
-    // (KRS 367.628(1)(a); Ohio limits claim negotiation for pay to licensed
-    // public adjusters).
-    // TODO(JOE — Ohio AOB policy, pending): whether Ohio keeps this
-    // assignment of proceeds or moves to a direction-to-pay form.
-    const _waJ = (typeof DG._jurisdiction === 'function') ? DG._jurisdiction(d) : null;
-    const showAssignment = !!d.isInsurance && !(_waJ && _waJ.aobBarred);
+    // 2026-09-27: the insurance-proceeds ASSIGNMENT paragraph is gone in
+    // every state (void in Kentucky, KRS 304.20-105; retired in Ohio by Jo).
+    // An insurance job prints the Direction to Pay instead — payee only, no
+    // policy rights assigned, no authority over the claim.
+    const _waJ = window.NBDJurisdiction;
+    const dtpText = (d.isInsurance && _waJ) ? _waJ.directionToPayText(C.name) : '';
 
     return page('Work Authorization', `
       ${letterhead()}
@@ -810,11 +806,9 @@
         <p style="font-size:14px;">${esc(d.accessInstructions)}</p>
       </div>` : ''}
 
-      ${showAssignment ? `<div class="section">
-        <div class="section-title">Insurance Assignment</div>
-        <p style="font-size:14px;">I hereby assign and transfer to <strong>${C.name}</strong> the insurance proceeds
-        relating to claim number <strong>${esc(d.claimNumber)}</strong> with <strong>${esc(d.insuranceCompany)}</strong>
-        to the extent of the contract price for the work authorized herein.</p>
+      ${dtpText ? `<div class="section">
+        <div class="section-title">Direction to Pay</div>
+        <p style="font-size:14px;">${esc(dtpText)}${d.claimNumber ? ' (Claim number ' + esc(d.claimNumber) + (d.insuranceCompany ? ' with ' + esc(d.insuranceCompany) : '') + '.)' : ''}</p>
       </div>` : ''}
 
       <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
@@ -1803,37 +1797,24 @@
   };
 
   // ═══════════════════════════════════════════════════════════════
-  // TEMPLATE 12: ASSIGNMENT OF BENEFITS (AOB)
+  // TEMPLATE 12: DIRECTION TO PAY (replaces the Assignment of Benefits,
+  // 2026-09-27, both states). DRAFT WORDING — for Jo's attorney to review
+  // before first use. Minimal on purpose: it names the contractor as payee
+  // for the contracted work, assigns no policy rights or benefits, gives no
+  // authority over the claim, and leaves the homeowner in control.
   // ═══════════════════════════════════════════════════════════════
-  DG.renderAssignmentOfBenefits = function(data) {
+  DG.renderDirectionToPay = function(data) {
     const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
       claimNumber:'[Claim #]', policyNumber:'[Policy #]', insuranceCompany:'[Insurance Company]',
-      dateOfLoss:'[Date of Loss]', scopeSummary:'Roof replacement and related repairs due to storm damage.' }, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
-    const rescissionWindow = cp.cancellationWindowText || 'three (3) business days';
+      dateOfLoss:'[Date of Loss]' }, data);
+    const J = window.NBDJurisdiction;
+    const notAssignment = (J && J.DTP_NOT_ASSIGNMENT) ||
+      'This is a direction to pay only. It does not assign or transfer any of the homeowner\u2019s rights or benefits under the insurance policy.';
 
-    // 2026-09-27 (KY SB 153): an assignment of insurance benefits is void in
-    // Kentucky (KRS 304.20-105(2)-(3)). NBDDocGen.generate() refuses the
-    // document for a Kentucky job; this is the renderer's own backstop, so a
-    // caller that reaches it directly still never prints one.
-    const _aobJ = (typeof DG._jurisdiction === 'function') ? DG._jurisdiction(d) : null;
-    if (_aobJ && _aobJ.aobBarred && !d._isBlankPreview) {
-      return page('Assignment of Benefits', `
+    return page('Direction to Pay', `
       ${letterhead()}
-      <h1 style="text-align:center;font-size:22px;color:${S};margin:24px 0 8px;">ASSIGNMENT OF BENEFITS — NOT AVAILABLE</h1>
-      <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
-        <p style="font-size:14px;margin:0;">${esc((window.NBDJurisdiction && window.NBDJurisdiction.MSG.aobBarred) || 'Not available for Kentucky jobs.')}</p>
-      </div>
-      ${footer('Assignment of Benefits')}
-    `);
-    }
-    // TODO(JOE — Ohio AOB policy, pending): Ohio insurance jobs keep this
-    // document until the owner decides between it and a direction-to-pay.
-
-    return page('Assignment of Benefits', `
-      ${letterhead()}
-      <h1 style="text-align:center;font-size:24px;color:${S};margin:24px 0 8px;">ASSIGNMENT OF BENEFITS</h1>
-      <p style="text-align:center;color:#666;font-size:13px;margin-bottom:28px;">Insurance Claim Assignment Authorization</p>
+      <h1 style="text-align:center;font-size:24px;color:${S};margin:24px 0 8px;">DIRECTION TO PAY</h1>
+      <p style="text-align:center;color:#666;font-size:13px;margin-bottom:28px;">Payment direction to the insurance company</p>
 
       <div class="section">
         <div class="section-title">Policyholder Information</div>
@@ -1848,52 +1829,17 @@
       </div>
 
       <div class="section" style="background:#f8f8f8;padding:24px;border-radius:8px;border-left:4px solid ${A};">
-        <p style="font-size:14px;line-height:1.8;margin:0;">
-          I, <strong>${esc(d.homeownerName)}</strong>, as the named insured and owner of the property located at
-          <strong>${esc(d.address)}</strong>, do hereby assign and transfer to <strong>${C.name}</strong>
-          all insurance rights, benefits, and proceeds under my insurance policy with <strong>${esc(d.insuranceCompany)}</strong>,
-          Policy Number <strong>${esc(d.policyNumber)}</strong>, for Claim Number <strong>${esc(d.claimNumber)}</strong>,
-          to the extent of the contract price for all work performed at the above property.
+        <p style="font-size:14px;line-height:1.8;margin:0 0 12px;">
+          I, <strong>${esc(d.homeownerName)}</strong>, the insured for the property at <strong>${esc(d.address)}</strong>,
+          direct <strong>${esc(d.insuranceCompany)}</strong> to include <strong>${C.name}</strong> as a payee on, or to pay
+          <strong>${C.name}</strong> directly, any payment under Claim Number <strong>${esc(d.claimNumber)}</strong> for the
+          repair work ${C.name} performs at this property under our contract, up to the contract price.
         </p>
+        <p style="font-size:14px;line-height:1.8;margin:0;">${esc(notAssignment)}</p>
       </div>
 
-      <div class="section">
-        <div class="section-title">Scope of Assignment</div>
-        <p style="font-size:14px;line-height:1.8;">This assignment authorizes ${C.name} to:</p>
-        <ul style="font-size:14px;line-height:2;padding-left:24px;">
-          <li>Communicate directly with ${esc(d.insuranceCompany)} regarding the above-referenced claim</li>
-          <li>Submit supplemental claims for additional damage discovered during the repair process</li>
-          <li>Receive insurance proceeds and endorsements related to the work performed</li>
-        </ul>
-        <p style="font-size:13px;line-height:1.7;color:#444;">This assignment does not authorize ${C.name} to adjust or settle the claim, or to act or appear for the policyholder in any dispute with the insurer. The policyholder manages the claim.</p>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Work to Be Performed</div>
-        <p style="font-size:14px;">${esc(d.scopeSummary)}</p>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Terms and Conditions</div>
-        <ol style="font-size:13px;line-height:2;padding-left:24px;color:#444;">
-          <li>This assignment does not relieve the policyholder of any obligations under the insurance policy, including the timely payment of any deductible or non-covered amounts.</li>
-          <li>The policyholder retains the right to cancel this assignment upon written notice, provided that payment for all completed work has been satisfied in full.</li>
-          <li>${C.name} agrees to perform all work in a professional manner consistent with industry standards and applicable building codes.</li>
-          <li>Any insurance proceeds received in excess of the contract price shall be returned to the policyholder.</li>
-          <li>This assignment is binding upon the heirs, successors, and assigns of the policyholder.</li>
-        </ol>
-      </div>
-
-      <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
-        <p style="font-size:13px;color:#555;margin:0;">
-          <strong>Right to Rescind:</strong> You may cancel this assignment within ${esc(rescissionWindow)} of signing
-          by providing written notice to ${C.name}. After the rescission period, cancellation is subject to
-          payment for all work completed to date.
-        </p>
-      </div>
-
-      ${sigBlock(['Property Owner / Policyholder','Witness','Authorized ' + SEAL + ' Representative'])}
-      ${footer('Assignment of Benefits — Claim #' + d.claimNumber)}
+      ${sigBlock(['Property Owner / Policyholder','Date','Authorized ' + SEAL + ' Representative (acknowledged)'])}
+      ${footer('Direction to Pay — Claim #' + d.claimNumber)}
     `);
   };
 
@@ -2726,7 +2672,6 @@
   // REGISTER ALL DOCUMENT TYPES (extended)
   // ═══════════════════════════════════════════════════════════════
   Object.assign(DG.DOCUMENT_TYPES, {
-    assignment_of_benefits: { name: 'Assignment of Benefits', template: 'renderAssignmentOfBenefits' },
     material_delivery: { name: 'Material Delivery Notice', template: 'renderMaterialDelivery' },
     storm_checklist: { name: 'Storm Damage Checklist', template: 'renderStormChecklist' },
     claim_guide: { name: 'Insurance Claim Process Guide', template: 'renderClaimGuide' },
@@ -2754,7 +2699,7 @@
       before_after_report: ['homeownerName','address','projectType','startDate','completionDate','workDescription'],
       financing_options: ['homeownerName','totalPrice'],
       referral_card: [],
-      assignment_of_benefits: ['homeownerName','address','claimNumber','policyNumber','insuranceCompany','dateOfLoss','scopeSummary'],
+      direction_to_pay: ['homeownerName','address','claimNumber','policyNumber','insuranceCompany','dateOfLoss'],
       material_delivery: ['homeownerName','address','deliveryDate','deliveryTime','startDate'],
       storm_checklist: [],
       claim_guide: [],

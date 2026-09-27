@@ -1738,7 +1738,7 @@ section('Signature integration PR 2 — defaultSigners opt-in across contract-cl
   const docGenSrc = read(path.join(ROOT, 'docs/pro/js/document-generator.js'));
   const TEMPLATES_WITH_SIGNERS = [
     'proposal', 'contract', 'inspectionHomeowner',
-    'certificate_of_completion', 'scope_of_work', 'assignment_of_benefits',
+    'certificate_of_completion', 'scope_of_work', 'direction_to_pay',
     'change_order', 'work_authorization', 'payment_agreement'
   ];
   for (const tpl of TEMPLATES_WITH_SIGNERS) {

@@ -101,11 +101,15 @@
   // ── Rep-facing messages (one copy, shared by every surface) ──────────────
   var MSG = {
     addressRequired:
-      'Kentucky insurance contracts must show your business mailing and physical address — add it in Company Profile.',
-    depositWarning:
-      'Kentucky law (KRS 367.626) bars requiring advance payment on insurance jobs until the cancellation period ends — review the deposit before sending.',
-    aobBarred:
-      'Not available for Kentucky jobs — KRS 304.20-105 voids any assignment of insurance benefits. Use the contract instead.',
+      'Kentucky insurance contracts must show your business mailing and physical address. Add your full street address in ' +
+      'Settings → Company Profile → Letterhead → "Mailing Address (one line)" (street, city, state, ZIP), then Save Company Profile.',
+    depositHold:
+      'Kentucky insurance job: nothing is due at signing (KRS 367.626). The deductible and ACV payment become due after the ' +
+      'insurer\'s written coverage decision and the 5-business-day cancellation window. Bill emergency tarp or repair work ' +
+      '(KRS 367.626(3)) on its own invoice.',
+    aobRetired:
+      'The Assignment of Benefits has been retired. Use the Direction to Pay instead: it has the insurer pay you for the work ' +
+      'without assigning any of the homeowner\'s policy rights.',
     stateUnknown:
       'The property state could not be read from the address, so this insurance job is treated as a Kentucky insurance job (statutory notices + cancellation form added).'
   };
@@ -477,23 +481,35 @@
 
   /**
    * Remove the "Insurance assignment(s) accepted." sentence from a payment
-   * terms boilerplate string (cash jobs everywhere; Kentucky jobs always).
+   * terms string. Applied to every job since the AOB was retired (2026-09-27):
+   * a tenant's saved boilerplate may still carry it.
    */
   function stripAssignmentSentences(text) {
     return _str(text).replace(/\s*Insurance assignments? accepted\.?/gi, '').replace(/\s{2,}/g, ' ').trim();
   }
 
-  /**
-   * Should a contract print the "Insurance Assignment" clause at all?
-   * Never on a cash job (any state); never where the AOB is barred (KY, or an
-   * insurance job whose state is unknown). Ohio insurance jobs keep it.
-   * TODO(JOE — Ohio AOB policy, owner decision pending 2026-09-27): whether
-   * Ohio insurance contracts keep an assignment of proceeds at all, or move to
-   * a direction-to-pay (payment authorization) like Kentucky must. Until Jo
-   * decides, Ohio insurance-job behaviour is deliberately unchanged.
-   */
-  function allowsAssignmentClause(j) {
-    return !!(j && j.insurance && !j.aobBarred);
+  // ── Direction to Pay (Jo, 2026-09-27) ────────────────────────────────────
+  // Replaces the Assignment of Benefits in EVERY state. KRS 304.20-105(4)(b)
+  // leaves "authorizing or directing payment to ... a person for services"
+  // untouched by the anti-assignment rule; Ohio has no equivalent bar but Jo
+  // chose one form for both states. DRAFT WORDING, kept minimal on purpose —
+  // for Jo's attorney to review before first use. It names the contractor as
+  // payee and does nothing else: no assignment of policy rights or benefits,
+  // no authority over the claim, the homeowner keeps control.
+  var DTP_NOT_ASSIGNMENT =
+    'This is a direction to pay only. It does not assign or transfer any of the homeowner\u2019s rights or benefits under the ' +
+    'insurance policy, and it gives the contractor no authority to adjust, settle or bargain over the claim or to act for the ' +
+    'homeowner with the insurer. The homeowner keeps full control of the claim.';
+  /** The contract / work-authorization clause, naming the contractor. */
+  function directionToPayText(contractorName) {
+    var n = _str(contractorName).trim() || 'the contractor';
+    return 'If any of this work is paid from an insurance claim, the homeowner directs the insurance company to include ' + n +
+      ' as a payee on, or to pay ' + n + ' directly, any payment for the work in this contract, up to the contract price. ' +
+      DTP_NOT_ASSIGNMENT;
+  }
+  /** A Direction to Pay clause prints on insurance jobs, in every state. */
+  function showsDirectionToPay(j) {
+    return !!(j && j.insurance);
   }
 
   return {
@@ -528,6 +544,8 @@
     kyCancellationFormsHtml: kyCancellationFormsHtml,
     ftcCancellationFormsHtml: ftcCancellationFormsHtml,
     stripAssignmentSentences: stripAssignmentSentences,
-    allowsAssignmentClause: allowsAssignmentClause
+    DTP_NOT_ASSIGNMENT: DTP_NOT_ASSIGNMENT,
+    directionToPayText: directionToPayText,
+    showsDirectionToPay: showsDirectionToPay
   };
 });

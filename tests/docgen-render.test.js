@@ -126,7 +126,8 @@ const DOC_TYPES = [
   { label: 'before_after_report',       method: 'renderBeforeAfterReport',       data: BASE },
   { label: 'financing_options',         method: 'renderFinancingOptions',        data: Object.assign({ totalPrice: 18500 }, BASE) },
   { label: 'referral_card',             method: 'renderReferralCard',            data: BASE },
-  { label: 'assignment_of_benefits',    method: 'renderAssignmentOfBenefits',    data: BASE },
+  // The Direction to Pay replaced the Assignment of Benefits (2026-09-27).
+  { label: 'direction_to_pay',          method: 'renderDirectionToPay',          data: BASE },
   { label: 'material_delivery',         method: 'renderMaterialDelivery',        data: BASE },
   { label: 'storm_checklist',           method: 'renderStormChecklist',          data: BASE },
   { label: 'claim_guide',               method: 'renderClaimGuide',              data: BASE },

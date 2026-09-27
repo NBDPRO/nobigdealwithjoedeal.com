@@ -456,7 +456,7 @@ function closeBoardPage(price, mode, deductible) {
     const d1 = withRule.win.NBD_COMPANY_PROFILE_DEFAULTS || {}, d2 = noRule.win.NBD_COMPANY_PROFILE_DEFAULTS || {};
     ok('company profile paymentTermsContract default === the rule\'s policyText()', d1.paymentTermsContract === R.policyText(), d1.paymentTermsContract);
     ok('…and its no-rule fallback literal is the same sentence', d2.paymentTermsContract === R.policyText(), d2.paymentTermsContract);
-    ok('proposal terms default is the same statement (+ insurance assignment)', d1.paymentTermsProposal === R.policyText() + ' Insurance assignments accepted.');
+    ok('proposal terms default is the same statement (no "Insurance assignments accepted." since the AOB was retired)', d1.paymentTermsProposal === R.policyText());
     ok('no "Fifty percent" / flat 50% default left in the company profile',
       !/Fifty percent|50% deposit due upon/i.test(String(d1.paymentTermsContract) + String(d1.paymentTermsProposal)));
     ok('policy text never implies a waived / reduced deductible (it says the opposite)',

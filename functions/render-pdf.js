@@ -609,6 +609,10 @@ function buildContractStatutory(payload, contractor, company) {
     css: '', kyInsurance, contractorAddress: '', contractorFax: '',
     kyNoticesHtml: '', kyFormsHtml: '', lienClause: '',
     ftcStatementHtml: '', ftcFormsHtml: '', missingAddress: false,
+    // Direction to Pay (2026-09-27): insurance jobs, every state — replaces
+    // the retired Assignment of Benefits. Draft wording, for counsel.
+    directionToPay: (j.insurance || facts.insurance === true)
+      ? KyLaw.directionToPayText((company && company.footerName) || '') : '',
   };
   // The FTC form is attached wherever the contract's cancel sentence promises
   // "the attached Notice of Cancellation form" (the default text does).

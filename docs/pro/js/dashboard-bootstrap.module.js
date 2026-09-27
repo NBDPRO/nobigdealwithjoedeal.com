@@ -510,49 +510,16 @@
     const stageName = (window.STAGE_META && window.STAGE_META[stage])?.label || stage || 'this stage';
     panel.querySelector('.nap-title').textContent = `Next actions — ${stageName}`;
     const body = panel.querySelector('.nap-body');
-    // Kentucky (2026-09-27): an assignment of insurance benefits is void
-    // (KRS 304.20-105), so "Send AOB" renders disabled with the reason. The
-    // address as typed in the modal counts, not only the saved one.
-    const aobBarred = _leadAobBarred(_findLead(editId), {
-      address: document.getElementById('lAddr')?.value || '',
-      jobType: jt,
-      claimNumber: document.getElementById('lClaimNumber')?.value || '',
-      insuranceCarrier: document.getElementById('lInsCarrier')?.value || ''
-    });
-    const _aobMsg = (window.NBDJurisdiction && window.NBDJurisdiction.MSG.aobBarred) || '';
-    const _attr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    body.innerHTML = actions.map(a => {
-      const barred = a.id === 'send_aob' && aobBarred;
-      return `
+    body.innerHTML = actions.map(a => `
       <button type="button" class="nap-btn" data-action-id="${a.id}" data-kind="${a.kind}"
-        ${barred ? 'disabled aria-disabled="true" style="opacity:.45;cursor:not-allowed;"' : `data-action="call" data-fn="runLeadAction" data-arg="${a.id}" data-arg2="${a.kind}"`}
-        title="${barred ? _attr(_aobMsg) : (a.kind === 'doc' ? 'Generate document' : a.kind === 'stage' ? 'Advance stage' : 'Action')}">
+        data-action="call" data-fn="runLeadAction" data-arg="${a.id}" data-arg2="${a.kind}"
+        title="${a.kind === 'doc' ? 'Generate document' : a.kind === 'stage' ? 'Advance stage' : 'Action'}">
         <span class="nap-ico">${a.icon || ''}</span>
         <span class="nap-lbl">${a.label}</span>
-        <span class="nap-kind nap-kind-${a.kind}">${barred ? 'n/a in KY' : a.kind}</span>
+        <span class="nap-kind nap-kind-${a.kind}">${a.kind}</span>
       </button>
-    `;
-    }).join('');
+    `).join('');
   };
-
-  // Is the Assignment of Benefits barred for this lead? Kentucky (any job),
-  // or an insurance job whose state is unknown (fail closed). ky-insurance-
-  // law.js decides; `live` carries the lead modal's unsaved values.
-  function _leadAobBarred(lead, live) {
-    const J = window.NBDJurisdiction;
-    if (!J) return false;
-    const l = lead || {};
-    const v = live || {};
-    return J.classify({
-      address: v.address || l.address || '',
-      zip: l.zip || '',
-      state: l.state || '',
-      jobType: v.jobType || l.jobType || '',
-      claimNumber: v.claimNumber || l.claimNumber || '',
-      insuranceCarrier: v.insuranceCarrier || l.insuranceCarrier || '',
-      insCarrier: l.insCarrier || ''
-    }).aobBarred;
-  }
 
   // ── Next Actions dispatch ──
   // Routes a chip click to the right handler. Three families:
@@ -587,7 +554,8 @@
   // we're just wiring the chips to them. inspect_report is special-cased
   // below to pick the homeowner vs insurance variant by job type.
   const ACTION_DOC_MAP = {
-    send_aob:        'assignment_of_benefits',
+    // Direction to Pay replaced the Assignment of Benefits (2026-09-27).
+    send_dtp:        'direction_to_pay',
     send_contract:   'contract',
     work_order:      'work_authorization',
     change_order:    'change_order',
@@ -626,7 +594,7 @@
       homeownerEmail:    lead.email || '',
       phone:             lead.phone || '',
       email:             lead.email || '',
-      // Insurance fields (renderAssignmentOfBenefits, renderSupplementRequest, renderClaimGuide, etc.)
+      // Insurance fields (renderDirectionToPay, renderSupplementRequest, renderClaimGuide, etc.)
       insuranceCompany:  lead.insCarrier || lead.insuranceCarrier || '',
       claimNumber:       lead.claimNumber || '',
       policyNumber:      lead.policyNumber || '',
@@ -821,8 +789,7 @@
     change_order:               { needs: ['estimate'],                  label: 'Change Order',        msg: 'Requires an existing estimate to modify.' },
     before_after_report:        { needs: ['beforeAfterPhotos'],         label: 'Before & After Report', msg: 'Need BOTH before and after photos uploaded.' },
     financing_options:          { needs: ['jobValue'],                  label: 'Financing Options',   msg: 'Add a job value or build an estimate.' },
-    // notKentucky (2026-09-27): an AOB is void in Kentucky (KRS 304.20-105).
-    assignment_of_benefits:     { needs: ['notKentucky', 'claim'],      label: 'Assignment of Benefits', msg: 'Requires an insurance claim (carrier + claim #). Not available for Kentucky jobs.' },
+    direction_to_pay:           { needs: ['claim'],                     label: 'Direction to Pay',    msg: 'Requires an insurance claim (carrier + claim #).' },
     payment_agreement:          { needs: ['jobValue', 'contact'],       label: 'Payment Agreement',   msg: 'Add job value and customer contact info.' },
     storm_history_report:       { needs: ['address'],                  label: 'Storm History Report', msg: 'Add a property address first — it\'s used to pull the NOAA storm history.' }
   };
@@ -905,7 +872,6 @@
       _hasPhotos:   photoBag.length > 0,
       _hasBeforeAfterPhotos: before.length > 0 && after.length > 0,
       _hasClaim:    !!(lead.claimNumber && lead.insCarrier),
-      _aobBarred:   !!(window.NBDJurisdiction && window.NBDJurisdiction.classifyLead(lead, est).aobBarred),
       _hasContact:  !!(lead.phone || lead.email),
       _hasAddress:  !!lead.address,
       _hasScope:    !!(lead.scopeOfWork || (est && est.description)),
@@ -929,7 +895,6 @@
         case 'scope':     if (!data._hasScope)     missing.push({ need, text: 'Add scope of work' }); break;
         case 'photos':    if (!data._hasPhotos)    missing.push({ need, text: 'Upload inspection photos' }); break;
         case 'claim':     if (!data._hasClaim)     missing.push({ need, text: 'Add insurance carrier & claim number' }); break;
-        case 'notKentucky': if (data._aobBarred)   missing.push({ need, text: 'Not available in Kentucky — KRS 304.20-105 voids assignments of insurance benefits. Use the contract instead.' }); break;
         case 'jobValue':  if (!data._hasJobValue)  missing.push({ need, text: 'Add job value or build estimate' }); break;
         case 'jobComplete': if (!data._isJobComplete) missing.push({ need, text: 'Mark job as Complete / Closed' }); break;
         case 'beforeAfterPhotos': if (!data._hasBeforeAfterPhotos) missing.push({ need, text: 'Upload both Before AND After photos' }); break;
@@ -1051,7 +1016,7 @@
         <div style="text-align:left;background:var(--s2,#12223D);border-radius:8px;padding:14px;margin-bottom:20px;">
           ${check.missing.map(m => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--orange,#BD5728);padding:4px 0;">'
             + '<span>• ' + escFn(m.text) + '</span>'
-            + (m.need === 'notKentucky' ? '' : '<button type="button" class="nbd-preq-fix" data-need="' + escFn(m.need) + '" style="flex:none;padding:5px 12px;background:rgba(255,255,255,.08);color:var(--t,#fff);border:1px solid var(--br,#333);border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;">Fix &rarr;</button>')
+            + '<button type="button" class="nbd-preq-fix" data-need="' + escFn(m.need) + '" style="flex:none;padding:5px 12px;background:rgba(255,255,255,.08);color:var(--t,#fff);border:1px solid var(--br,#333);border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;">Fix &rarr;</button>'
             + '</div>').join('')}
         </div>
         <button class="nbd-preq-close" style="padding:12px 28px;background:var(--orange,#BD5728);color:var(--accent-fg,#fff);border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Got it</button>
@@ -1144,12 +1109,6 @@
       // Fall through — stage actions without a target shouldn't happen,
       // but if they do we toast honestly rather than silently doing nothing.
       if (typeof showToast === 'function') showToast('Stage target not configured for this action', 'warning');
-      return;
-    }
-
-    // ── Kentucky: no Assignment of Benefits (KRS 304.20-105) ──
-    if (actionId === 'send_aob' && _leadAobBarred(lead)) {
-      if (typeof showToast === 'function') showToast(window.NBDJurisdiction.MSG.aobBarred, 'error');
       return;
     }
 
@@ -5605,7 +5564,7 @@
     'cancellationWindowText','cancellationStatute',
     'cancellationContractClause','cancellationProposalShort',
     'changeOrderClause','changeOrderClauseShort',
-    'disputeResolutionClause','insuranceAssignmentClause','entireAgreementClause',
+    'disputeResolutionClause','entireAgreementClause',
     'paymentTermsContract','paymentTermsProposal','paymentMethodsNoCash',
     'materialsWarrantyDisclaimer','limitationOfLiability','latePaymentChargeText',
     'proposalValidityDays'

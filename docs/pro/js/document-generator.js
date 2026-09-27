@@ -152,7 +152,9 @@ window.NBDDocGen = {
   _statutoryBlocks(data, cp) {
     const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
     const j = this._jurisdiction(data);
-    const out = { j, css: '', notices: '', forms: '', lien: '', partiesExtra: '', allowAssignment: !!(J && j && J.allowsAssignmentClause(j)) };
+    // Direction to Pay clause: insurance jobs, every state (2026-09-27).
+    const out = { j, css: '', notices: '', forms: '', lien: '', partiesExtra: '',
+      directionToPay: (J && j && J.showsDirectionToPay(j)) ? J.directionToPayText(this._resolveCompany().name) : '' };
     if (!J || !j || !j.kyInsurance) return out;
     const co = this._resolveCompany();
     const addr = this._contractorPhysicalAddress(cp);
@@ -375,10 +377,12 @@ window.NBDDocGen = {
                                { role: 'homeowner', label: 'Homeowner',                       required: true },
                                { role: 'rep',       label: 'Authorized NBD Representative',   required: true },
                              ] },
-    assignment_of_benefits:{ name: 'Assignment of Benefits',          template: 'renderAssignmentOfBenefits',
+    // Direction to Pay (2026-09-27) replaces the retired Assignment of
+    // Benefits in both states. Draft wording, for counsel before first use.
+    direction_to_pay:      { name: 'Direction to Pay',                template: 'renderDirectionToPay',
                              defaultSigners: [
                                { role: 'homeowner', label: 'Homeowner / Insured',             required: true },
-                               { role: 'rep',       label: 'Authorized NBD Representative',   required: true },
+                               { role: 'rep',       label: 'Authorized NBD Representative',   required: false },
                              ] },
     change_order:          { name: 'Change Order',                    template: 'renderChangeOrder',
                              defaultSigners: [
@@ -419,7 +423,10 @@ window.NBDDocGen = {
   // alongside the `warranty:{...}` object it already writes.
   FILED_FIELD_BY_DOC_TYPE: {
     contract:                  'contractFiledAt',
-    assignment_of_benefits:    'aobFiledAt',
+    // The Direction to Pay reuses the legacy aobFiledAt field (its rules
+    // validation, lead-modal checkbox and checklist gate already exist);
+    // it is labelled "Direction to Pay signed" everywhere it shows.
+    direction_to_pay:          'aobFiledAt',
     certificate_of_completion: 'cocFiledAt',
   },
 
@@ -474,23 +481,26 @@ window.NBDDocGen = {
       ? _profileSrc
       : (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
 
+    // ─── Retired: Assignment of Benefits (2026-09-27, both states) ───
+    // An AOB is void in Kentucky (KRS 304.20-105); Jo retired it in Ohio too
+    // in favour of the Direction to Pay. A stale caller (an old bookmark, a
+    // cached chip) gets the reason instead of a document.
+    const _say = (m) => { if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m); };
+    if (type === 'assignment_of_benefits') {
+      const _Jr = window.NBDJurisdiction;
+      _say((_Jr && _Jr.MSG.aobRetired) || 'The Assignment of Benefits has been retired — use the Direction to Pay.');
+      return;
+    }
+
     // ─── Kentucky SB 153 gates (2026-09-27) ───
-    // An assignment of insurance benefits is void in Kentucky (KRS
-    // 304.20-105) and voids the contract it sits in, so the AOB is never
-    // generated for a Kentucky job — nor for an insurance job whose state is
-    // unknown (fail closed). A Kentucky insurance contract must print the
-    // contractor's mailing + physical address (KRS 367.624(1), (4)); without
-    // one on the Company Profile it is refused here as well as in pre-flight,
-    // since some surfaces call generate() directly.
+    // A Kentucky insurance contract must print the contractor's mailing +
+    // physical address (KRS 367.624(1), (4)); without one on the Company
+    // Profile it is refused here as well as in pre-flight, since some
+    // surfaces call generate() directly.
     const _J = window.NBDJurisdiction;
     const _jur = this._jurisdiction(data);
     if (_J && _jur) {
       data.jurisdiction = _jur;
-      const _say = (m) => { if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m); };
-      if (type === 'assignment_of_benefits' && _jur.aobBarred && !data._isBlankPreview) {
-        _say(_J.MSG.aobBarred);
-        return;
-      }
       if ((type === 'contract' || type === 'proposal') && _jur.kyInsurance && !data._isBlankPreview
           && !this._contractorPhysicalAddress(data.companyProfile)) {
         _say(_J.MSG.addressRequired);
@@ -2336,12 +2346,11 @@ window.NBDDocGen = {
     // Kentucky insurance jobs (SB 153, 2026-09-27): a signable proposal is a
     // contract entry, so it carries the KRS 367.624 notices, the lien clause
     // and the detachable cancellation forms. "Insurance assignments accepted."
-    // never prints on a cash job, nor where an assignment is void (Kentucky).
+    // never prints (the AOB is retired, 2026-09-27); a saved tenant
+    // boilerplate that still carries it is stripped.
     const stat = this._statutoryBlocks(Object.assign({}, data, merged), cp);
     const _J = window.NBDJurisdiction;
-    const proposalTerms = (stat.allowAssignment || !_J)
-      ? cp.paymentTermsProposal
-      : _J.stripAssignmentSentences(cp.paymentTermsProposal);
+    const proposalTerms = _J ? _J.stripAssignmentSentences(cp.paymentTermsProposal) : cp.paymentTermsProposal;
 
     // Standard terms — all rep-editable via Settings → Company Profile.
     const termsHTML = `
@@ -2521,17 +2530,13 @@ window.NBDDocGen = {
     // (3)(a)/(3)(b) notices in bold >= 10pt before the signatures, the lien
     // undertaking (367.628(2)(g)) and the detachable NOTICE OF CANCELLATION
     // in duplicate on its own page after them (367.624(4)).
-    // The "Insurance Assignment" clause prints ONLY on an insurance job where
-    // an assignment is lawful — never on a cash job (it used to print on every
-    // contract), never in Kentucky, where it would void the contract.
-    // TODO(JOE — Ohio AOB policy, pending): Ohio insurance contracts keep the
-    // clause unchanged until the owner decides (see ky-insurance-law.js
-    // allowsAssignmentClause).
+    // The "Insurance Assignment" clause is gone in every state (Jo,
+    // 2026-09-27): insurance jobs print a Direction to Pay instead — the
+    // insurer pays the contractor for the work, no policy rights assigned.
+    // Cash jobs print neither.
     const stat = this._statutoryBlocks(Object.assign({}, data, merged), cp);
     const _J = window.NBDJurisdiction;
-    const paymentMethodsText = (stat.allowAssignment || !_J)
-      ? cp.paymentMethodsNoCash
-      : _J.stripAssignmentSentences(cp.paymentMethodsNoCash);
+    const paymentMethodsText = _J ? _J.stripAssignmentSentences(cp.paymentMethodsNoCash) : cp.paymentMethodsNoCash;
 
     const contractHTML = `
       <!DOCTYPE html>
@@ -2626,11 +2631,11 @@ window.NBDDocGen = {
               </div>
             </div>
 
-            ${stat.allowAssignment ? `<!-- INSURANCE CLAUSE (insurance jobs where lawful; see above) -->
+            ${stat.directionToPay ? `<!-- DIRECTION TO PAY (insurance jobs; draft wording for counsel) -->
             <div class="section">
-              <div class="section-title">Insurance Assignment</div>
-              <div style="margin: 0.1in 0; font-size: 9px;">
-                ${this._escClause(cp.insuranceAssignmentClause)}
+              <div class="section-title">Direction to Pay</div>
+              <div style="margin: 0.1in 0; font-size: 10px;">
+                ${this._escHtml(stat.directionToPay)}
               </div>
             </div>` : ''}
 
@@ -3605,10 +3610,9 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         { name: 'totalPrice', label: 'Project Total', required: true }
       ],
       referral_card: [],
-      assignment_of_benefits: [
+      direction_to_pay: [
         ...commonFields,
-        ...insuranceFields,
-        { name: 'scopeSummary', label: 'Scope of Work Summary', required: true, type: 'textarea' }
+        ...insuranceFields
       ],
       material_delivery: [
         ...commonFields,

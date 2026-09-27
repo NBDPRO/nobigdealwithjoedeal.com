@@ -779,7 +779,8 @@ export const STAGE_ACTIONS = {
     { id: 'photo_report',    label: 'Photo Report',            icon: '📸',  kind: 'doc' },
     { id: 'inspect_report',  label: 'Inspection Report',       icon: '📄',  kind: 'doc' },
     { id: 'file_claim',      label: 'File Claim',              icon: '📋',  kind: 'action', jobTypes: ['insurance'] },
-    { id: 'send_aob',        label: 'Send AOB',                icon: '✍️', kind: 'doc',    jobTypes: ['insurance'] },
+    // Direction to Pay replaced the Assignment of Benefits (2026-09-27).
+    { id: 'send_dtp',        label: 'Direction to Pay',        icon: '✍️', kind: 'doc',    jobTypes: ['insurance'] },
     { id: 'send_estimate',   label: 'Send Estimate',           icon: '💰',  kind: 'doc',    jobTypes: ['cash'] },
     { id: 'send_prequal',    label: 'Send Pre-Qual Link',      icon: '🏦',  kind: 'doc',    jobTypes: ['finance'] },
     { id: 'send_quote',      label: 'Send Service Quote',      icon: '💰',  kind: 'doc',    jobTypes: ['service'] },
@@ -973,7 +974,11 @@ export function preferredActionFor(stage, jobType) {
 // repair, neither issues a NEW warranty on close (not an oversight).
 export const REQUIRED_FIELDS_BY_TYPE = {
   insurance: {
-    [S.CLAIM_FILED]:        ['insCarrier', 'claimNumber', 'aobFiledAt'],
+    // aobFiledAt dropped 2026-09-27: the homeowner files the claim, and the
+    // Direction to Pay that replaced the AOB is optional paperwork — it must
+    // not gate "Claim Filed" (it used to block every Kentucky lead, where an
+    // AOB is void). The field still records a signed Direction to Pay.
+    [S.CLAIM_FILED]:        ['insCarrier', 'claimNumber'],
     [S.ADJUSTER_SCHEDULED]: ['insCarrier'],
     [S.ESTIMATE_SUBMITTED]: ['estimateAmount', 'deductibleOrOwedByHO'],
     [S.CONTRACT_SIGNED]:    ['estimateAmount'],
@@ -1042,15 +1047,7 @@ export function missingRequiredFields(lead) {
     return anyTypeRequires ? ['jobType'] : [];
   }
   const required = requiredFieldsFor(jobType, lead.stage);
-  // Kentucky (2026-09-27): an Assignment of Benefits is void there (KRS
-  // 304.20-105) and the AOB document is refused for a Kentucky job, so its
-  // "AOB Filed" gate can never be satisfied — it must not block Claim Filed.
-  // ky-insurance-law.js decides (Kentucky, or insurance with no readable
-  // state); without it loaded the gate stands as before.
-  const _J = (typeof globalThis !== 'undefined') ? globalThis.NBDJurisdiction : null;
-  const aobBarred = !!(_J && typeof _J.classifyLead === 'function' && _J.classifyLead(lead).aobBarred);
   return required.filter(f => {
-    if (f === 'aobFiledAt' && aobBarred) return false;
     const v = lead[f];
     return v === undefined || v === null || v === '';
   });

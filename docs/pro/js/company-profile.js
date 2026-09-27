@@ -95,9 +95,6 @@
     disputeResolutionClause:
       'In the event of dispute, both parties agree to attempt resolution through good faith negotiation. If negotiation fails, disputes shall be resolved through mediation or binding arbitration under Kentucky law.',
 
-    insuranceAssignmentClause:
-      'If this project is insurance-related, NBD is authorized to accept assignment of insurance proceeds as partial or full payment for work performed. Homeowner agrees to provide proof of insurance coverage and claim number.',
-
     entireAgreementClause:
       'This contract constitutes the entire agreement between parties and supersedes all prior negotiations, representations, or agreements. Any modifications must be made in writing and signed by both parties.',
 
@@ -111,9 +108,11 @@
     // on both pages; the literal is the same sentence for the (unexpected)
     // case it did not, pinned by tests/deposit-rule.test.js.
     paymentTermsContract: _depositPolicyText(),
-    paymentTermsProposal: _depositPolicyText() + ' Insurance assignments accepted.',
+    // "Insurance assignments accepted." dropped 2026-09-27: the AOB is retired
+    // in both states (Direction to Pay instead).
+    paymentTermsProposal: _depositPolicyText(),
     paymentMethodsNoCash:
-      'All payments must be made by check, ACH transfer, or credit card. No cash payments accepted. Insurance assignment accepted. Material delays may extend timeline.',
+      'All payments must be made by check, ACH transfer, or credit card. No cash payments accepted. Material delays may extend timeline.',
 
     materialsWarrantyDisclaimer:
       'Material warranties are provided by manufacturers and are separate from NBD workmanship warranty. See warranty section below.',
@@ -822,7 +821,7 @@
   // Clauses whose NBD default names the literal "NBD" as the contracting party.
   // For a non-NBD tenant that kept the default, swap "NBD" for their legalName.
   const _PARTY_NAME_CLAUSES = [
-    'changeOrderClause', 'insuranceAssignmentClause',
+    'changeOrderClause',
     'materialsWarrantyDisclaimer', 'limitationOfLiability'
   ];
 
