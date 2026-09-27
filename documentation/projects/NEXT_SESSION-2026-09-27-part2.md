@@ -55,14 +55,17 @@ Two things surfaced that are **not SEO** and matter more — read §0 first.
 | #1807 | Homeowner web manifest + lettered 192/512 icons + `apple-mobile-web-app-title` "No Big Deal"; `data-nosnippet` on all 300 GAF/TAMKO disclaimers (Google was using one as the homepage snippet) |
 | #1808 | Footer says the name once; single GAF badge on Timberline; manufacturer "straight from the source" links + visualizer guidance (use theirs first; ours carries a simulation disclaimer) |
 | #1809 | Town service pages (inspection / siding) de-templated on local data (0.55→0.27, 0.47→0.27, 0.40→0.24); NOAA-checked storm claims on 74 more pages; claim-wording gate learns `advocacy-near-claim` + `public-adjuster-would` |
+| #1810 | "TAMKO Storm Series" → `/services/tamko-impact-resistant-shingles` (5 × 301s + `tamko-page-rename` test); manufacturer-verified color counts (HDZ 23, UHDZ 6); LumaNail Inc.; landing visual re-blessed from CI actuals |
+| #1811 | 155 oversized WebPs re-encoded or dropped (−33%); `hero-format` rule understands `<picture>` |
+| #1813 | One FAQPage per page (Covington + Cincinnati had two) + `faq-single` gate |
+| #1814 | Review widget: newest first + hides the "FDP Python…" reviewer (Jo's ask), applied to all 5 response paths |
 
 ## §2 — Open PRs
 
 | PR | State | Blocker |
 |---|---|---|
 | #1797 | draft, green locally | **Jo: public city.** One `addressLocality` line in `site-src/partials/schema-entity.html` (now "Goshen"). Jo wants off the Goshen framing but the warehouse is there; must match the GBP city. Ask if the warehouse mailing address is Milford 45150. Then `node scripts/apply-partials.js`, un-draft, merge. The single `#org`/`#joe` entity is the biggest AEO/GEO lever. |
-| #1810 | CI (rebased on #1809, tree identical to the CI-tested stack) | "TAMKO Storm Series" → `/services/tamko-impact-resistant-shingles` (5 × 301s + `tamko-page-rename` test); manufacturer-verified color counts (HDZ 23, UHDZ 6); LumaNail Inc.; landing visual re-blessed from CI actuals. Merge when green. Blog URL `gaf-timberline-vs-tamko-storm-series` kept on purpose. |
-| #1811 | CI | 155 oversized WebPs re-encoded or dropped (−33%); `hero-format` rule understands `<picture>`. Rebase after #1810 and re-run `build-projects.mjs` if it conflicts. |
+| #1815 | CI (Auto-fix monitor on) | "N new reviews this month" from Google's daily count history (seeded 28 on 08-31, 29 on 09-20). Merge when green. |
 | #1796 | draft | Jo's read-through of the two rewritten insurance posts (5 JOE-CONFIRM items). When it merges, remove their entries from the FAQ-visible allowlist and the entity-gate pending list. |
 | #1802 | draft | Answer-first leads on 25 core service pages. Paused for price validation: 6 `PRICE-PENDING` markers; quotes By Golly's 2023 price without a year. |
 | #1803 | draft | Rebuilt 2026 cost guide (tables, tiers +9/+21). Jo review; 4 `PRICE-PENDING` comments. The live guide is stale ($650–$750/sq, "3-tab") — merge soon after review. |
