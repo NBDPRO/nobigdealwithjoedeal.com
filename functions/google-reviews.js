@@ -34,6 +34,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const GOOGLE_PLACES_API_KEY = defineSecret('GOOGLE_PLACES_API_KEY');
 const NBD_PLACE_ID = defineSecret('NBD_PLACE_ID');
 const { secretValue } = require('./integrations/_shared');
+const { presentPayload } = require('./google-reviews-display');
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const CACHE_DOC_PATH = 'public_cache/google_reviews';
@@ -74,7 +75,7 @@ function serveFallback(res, { cached, gbp, now, reason }) {
   if (cached && cached.data) {
     res.set('Cache-Control', 'public, max-age=120');
     return res.status(200).json({
-      ...cached.data,
+      ...presentPayload(cached.data),
       cached: true,
       stale: true,
       reason,
@@ -86,7 +87,7 @@ function serveFallback(res, { cached, gbp, now, reason }) {
   if (gbp && gbp.data && Array.isArray(gbp.data.reviews) && gbp.data.reviews.length) {
     res.set('Cache-Control', 'public, max-age=120');
     return res.status(200).json({
-      ...gbp.data,
+      ...presentPayload(gbp.data),
       cached: true,
       stale: true,
       source: 'gbp',
@@ -209,7 +210,7 @@ exports.getGoogleReviews = onRequest(
     ) {
       res.set('Cache-Control', 'public, max-age=600');
       return res.status(200).json({
-        ...gbp.data,
+        ...presentPayload(gbp.data),
         cached: true,
         stale: false,
         source: 'gbp',
@@ -229,7 +230,7 @@ exports.getGoogleReviews = onRequest(
     if (cached && cached.fetchedAt && now - cached.fetchedAt < CACHE_TTL_MS) {
       res.set('Cache-Control', 'public, max-age=600');
       return res.status(200).json({
-        ...cached.data,
+        ...presentPayload(cached.data),
         cached: true,
         stale: false,
         fetchedAt: cached.fetchedAt,
@@ -282,7 +283,7 @@ exports.getGoogleReviews = onRequest(
 
       res.set('Cache-Control', 'public, max-age=600');
       return res.status(200).json({
-        ...fresh,
+        ...presentPayload(fresh),
         cached: false,
         stale: false,
         fetchedAt: now,
