@@ -18,6 +18,8 @@
  * untouched: hiding a card from the carousel must not change the stars.
  */
 
+const { computeRecent } = require('./google-reviews-momentum');
+
 const HIDDEN_REVIEWER_PATTERNS = [
   /fdp\s*python/i,
 ];
@@ -35,9 +37,21 @@ function presentReviews(reviews) {
     .sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0));
 }
 
-function presentPayload(data) {
+/**
+ * opts.totalsHistory / opts.now — when given, attach `recent` (review
+ * momentum, google-reviews-momentum.js) computed from Google's own count
+ * history. Omitted whenever it can't be computed honestly; a `recent` key
+ * already on `data` is never passed through.
+ */
+function presentPayload(data, opts) {
   if (!data || typeof data !== 'object') return data;
-  return { ...data, reviews: presentReviews(data.reviews) };
+  const { recent: _ignored, ...rest } = data;
+  const out = { ...rest, reviews: presentReviews(data.reviews) };
+  if (opts && typeof opts === 'object') {
+    const recent = computeRecent(opts.totalsHistory, data.total, opts.now);
+    if (recent) out.recent = recent;
+  }
+  return out;
 }
 
 module.exports = { presentPayload, presentReviews, isHiddenReviewer, HIDDEN_REVIEWER_PATTERNS };

@@ -74,6 +74,8 @@
     "ga4-landing-coverage.test.js",
     "gauntlet-brand-guard.test.js",
     "google-reviews-display.test.js",
+    "google-reviews-momentum-widget.test.js",
+    "google-reviews-momentum.test.js",
     "google-reviews-not-configured.test.js",
     "google-reviews-static-hooks.test.js",
     "imagery-sources.test.js",

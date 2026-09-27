@@ -42,6 +42,22 @@
     return `<span style="display:inline-flex;gap:2px;vertical-align:middle" role="img" aria-label="${whole} out of 5 stars">${html}</span>`;
   }
 
+  // Review momentum — " · 4 new this month". The server attaches `recent`
+  // only when Google's own review count has honestly grown against a real
+  // baseline (functions/google-reviews-momentum.js); otherwise this returns
+  // '' and nothing on the page changes. `days` is the real span: 28–31 reads
+  // "this month", anything else says the number. Built only from integers,
+  // so it is safe in innerHTML (cards header) and textContent (static hooks).
+  function recentText(data) {
+    const r = data && data.recent;
+    if (!r || typeof r !== 'object') return '';
+    const n = Number(r.newReviews);
+    const days = Number(r.days);
+    if (!Number.isInteger(n) || n < 1 || !Number.isInteger(days) || days < 1) return '';
+    const when = days >= 28 && days <= 31 ? 'this month' : 'in the last ' + days + ' days';
+    return ' · ' + n + ' new ' + when;
+  }
+
   function truncate(text, limit) {
     const t = (text || '').trim();
     if (t.length <= limit) return esc(t);
@@ -113,7 +129,7 @@
             <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:#12223d;line-height:1">${rating.toFixed(1)}</div>
             <div style="display:flex;flex-direction:column;gap:2px">
               <div>${stars(rating)}</div>
-              <div style="font-size:.75rem;color:#5d6673">${total} review${total === 1 ? '' : 's'}</div>
+              <div style="font-size:.75rem;color:#5d6673">${total} review${total === 1 ? '' : 's'}${recentText(data)}</div>
             </div>
           </div>
           ${
@@ -144,11 +160,12 @@
   // payload. The hooks ship with static fallback text, so a failed fetch
   // simply leaves them untouched — last-known-true beats a zero.
   //
-  // Four hooks, because the pages need different shapes of the same numbers:
+  // Five hooks, because the pages need different shapes of the same numbers:
   //   data-nbd-gr-rating  the score alone ("5.0")
   //   data-nbd-gr-total   the count alone ("29") — the page owns the wording
   //   data-nbd-gr-count   a whole ready-made sentence (/review's tap target)
   //   data-nbd-gr-stars   the star row, re-rendered from the live rating
+  //   data-nbd-gr-recent  " · N new this month" — only when `recent` exists
   // The star row matters: a hardcoded ★★★★★ keeps claiming five stars after
   // the profile drops below 4.5, and nothing on the page would correct it.
   // stars() rounds exactly as the review cards do, so both agree.
@@ -173,6 +190,14 @@
     document.querySelectorAll('[data-nbd-gr-stars]').forEach((el) => {
       el.innerHTML = stars(rating);
     });
+    // data-nbd-gr-recent ships EMPTY: no momentum in the payload means the
+    // hook is never touched, so the row renders exactly as before.
+    const recent = recentText(data);
+    if (recent) {
+      document.querySelectorAll('[data-nbd-gr-recent]').forEach((el) => {
+        el.textContent = recent;
+      });
+    }
   }
 
   async function load() {
