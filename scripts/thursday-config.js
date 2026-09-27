@@ -17,6 +17,8 @@
  *   --push-enabled=true|false  push to the installed NBD Pro app
  *   --push-uid=<uid>           whose devices get the push (default: owner)
  *   --enabled=true|false       master switch for the CRM inbox widget
+ *   --owner-numbers=+1...,+1...  Jo's extra phones — calls from them are tests
+ *                              (added to the built-in cell, never replacing it)
  *   --company=<companyId>      default NBD 1phDvAVXHSg82wDLegAbQFq14Ci1
  *
  * Env: NBD_PROJECT (default nobigdeal-pro). ADC credentials
@@ -78,6 +80,11 @@ async function main() {
     patch.emailTo = list;
   }
   if (flag('push-uid') !== undefined) patch.pushUid = flag('push-uid');
+  if (flag('owner-numbers') !== undefined) {
+    const nums = flag('owner-numbers').split(',').map((s) => e164(s.trim())).filter(Boolean);
+    if (!nums.length) { console.error('--owner-numbers must be comma-separated 10-digit US numbers'); process.exit(2); }
+    patch.ownerNumbers = nums;
+  }
   const next = Object.assign({}, DEFAULTS, current || {}, patch);
   if (!current) Object.assign(next, { pushUid: next.pushUid || companyId });
 
