@@ -65,7 +65,7 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 /* Hero */
 .hero{background:linear-gradient(180deg,var(--navy-dark) 0%,var(--navy) 100%);padding:70px 5% 60px;color:#fff;position:relative;overflow:hidden}
 .hero::before{content:'';position:absolute;top:-100px;right:-100px;width:380px;height:380px;background:radial-gradient(circle,rgba(189,87,40,.18),transparent 70%)}
-.hero-grid{display:grid;grid-template-columns:1.3fr .9fr;gap:48px;align-items:center;max-width:1200px;margin:0 auto;position:relative}
+.hero-grid{display:grid;grid-template-columns:1fr;gap:28px;align-items:center;max-width:900px;margin:0 auto;position:relative}
 .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--orange);font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:18px}
 .hero-eyebrow .dot{width:6px;height:6px;background:var(--orange);border-radius:50%;box-shadow:0 0 10px rgba(189,87,40,.6)}
 .hero h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.6rem,5.5vw,4.4rem);line-height:.98;letter-spacing:1px;margin-bottom:18px}
@@ -76,10 +76,6 @@ nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark);border-bottom
 .btn-primary:hover{background:#A14A22;transform:translateY(-1px)}
 .btn-ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);padding:14px 26px;border-radius:8px;font-weight:700;font-size:.86rem;letter-spacing:.04em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;font-family:inherit;transition:all .2s;text-decoration:none}
 .btn-ghost:hover{border-color:var(--orange);background:rgba(189,87,40,.1)}
-.hero-visual{background:#fff;border-radius:14px;padding:32px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
-.hero-visual img{max-width:160px}
-.hero-visual .verify{font-size:.72rem;color:var(--gray);text-align:center}
-.hero-visual .verify a{color:#A14A22;font-weight:700}
 @media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:28px}}
 
 /* Why Certified */
@@ -263,6 +259,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
 <script defer src="/assets/js/inline/2a90205f1b.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
+<link rel="stylesheet" href="/assets/css/mfr-source.css">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -325,12 +322,8 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
       <p class="lead">I install three GAF Timberline lines: <strong>Natural Shadow (NS)</strong>, <strong>HDZ</strong>, and the premium <strong>UHDZ</strong> with Class&nbsp;4 impact rating. This page walks through what each one does, every color it comes in, and the warranty that ships with it. No upsell pressure — just the actual differences so you can pick the one that fits your roof.</p>
       <div class="hero-cta">
         <a href="#hdz" class="btn-primary">Browse the Lineup ↓</a>
-        <a href="/visualizer" class="btn-ghost">See It on Your House →</a>
+        <a href="#see-it" class="btn-ghost">See It on Your House ↓</a>
       </div>
-    </div>
-    <div class="hero-visual">
-      <picture class="nbd-pic"><source type="image/webp" srcset="/assets/gaf/gaf-certified-badge-320-160w.webp 1x, /assets/gaf/gaf-certified-badge-320.webp 2x"><img src="/assets/gaf/gaf-certified-badge-320.png" alt="GAF Certified Residential Roofing Contractor" width="160" height="160" loading="lazy" decoding="async"></picture>
-      <div class="verify">Verify status on <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener">GAF.com</a></div>
     </div>
   </div>
 </section>
@@ -339,7 +332,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 <section class="why-cert">
   <div class="why-cert-inner">
     <div class="badge-block">
-      <picture class="nbd-pic"><source type="image/webp" srcset="/assets/gaf/gaf-certified-badge-320-160w.webp 1x, /assets/gaf/gaf-certified-badge-320.webp 2x"><img src="/assets/gaf/gaf-certified-badge-320.png" alt="GAF Certified Contractor seal" width="140" height="140" loading="lazy" decoding="async"></picture>
+      <picture class="nbd-pic"><source type="image/webp" srcset="/assets/gaf/gaf-certified-badge-320-160w.webp 1x, /assets/gaf/gaf-certified-badge-320.webp 2x"><img src="/assets/gaf/gaf-certified-badge-320.png" alt="GAF Certified Residential Roofing Contractor" width="140" height="140" loading="lazy" decoding="async"></picture>
       <div class="label">GAF Certified™<br>Contractor</div>
       <a class="verify-link" href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener">Verify on GAF.com →</a>
     </div>
@@ -599,12 +592,53 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
   </div>
 </section>
 
+<!-- STRAIGHT FROM THE MANUFACTURER (manufacturer source links, 2026-09-27) -->
+<section class="mfr-src" id="from-gaf" aria-labelledby="from-gaf-h">
+  <div class="mfr-src-inner">
+    <div class="mfr-src-eyebrow">Straight From the Manufacturer</div>
+    <h2 id="from-gaf-h">Don't Take My Word for It. <span>Here's GAF.</span></h2>
+    <p class="mfr-src-lead">Don't just take my word for it — here's what GAF says about each Timberline line I install, and every color it comes in. Manufacturers add and retire colors, some are regional, and specs get updated — so if anything on my page ever disagrees with theirs, theirs is right. I'll confirm what's actually available around here at your estimate.</p>
+    <ul class="mfr-src-grid">
+      <li class="mfr-src-card">
+        <h3>GAF Timberline NS</h3>
+        <ul>
+          <li><a href="https://www.gaf.com/en-us/roofing-materials/residential-roofing-materials/shingles/timberline-ns" target="_blank" rel="noopener">GAF's Timberline NS page — specs and every color</a></li>
+        </ul>
+      </li>
+      <li class="mfr-src-card">
+        <h3>GAF Timberline HDZ</h3>
+        <ul>
+          <li><a href="https://www.gaf.com/en-us/roofing-materials/residential-roofing-materials/shingles/timberline-hdz" target="_blank" rel="noopener">GAF's Timberline HDZ page — specs and every color</a></li>
+        </ul>
+      </li>
+      <li class="mfr-src-card">
+        <h3>GAF Timberline UHDZ</h3>
+        <ul>
+          <li><a href="https://www.gaf.com/en-us/roofing-materials/residential-roofing-materials/shingles/timberline-uhdz-with-ultramat" target="_blank" rel="noopener">GAF's Timberline UHDZ page — specs and every color</a></li>
+        </ul>
+      </li>
+      <li class="mfr-src-card">
+        <h3>Every GAF shingle color</h3>
+        <ul>
+          <li><a href="https://www.gaf.com/en-us/plan-design/design-your-roof/shingle-color-guide" target="_blank" rel="noopener">GAF's shingle color guide</a></li>
+        </ul>
+      </li>
+    </ul>
+    <p class="mfr-src-note">Links open GAF.com in a new tab. I'm an independent GAF Certified™ contractor — GAF doesn't write or review this page.</p>
+  </div>
+</section>
+<!-- /STRAIGHT FROM THE MANUFACTURER -->
+
 <!-- VISUALIZER CTA -->
-<section class="viz-cta">
+<section class="viz-cta" id="see-it">
   <div class="viz-cta-inner">
     <h2>See Any of These on <span>Your House.</span></h2>
-    <p>Upload one photo of your home and our AI tool drops any GAF Timberline color onto the roof, instantly. No signup, no spam — just a preview before you commit.</p>
-    <a href="/visualizer" class="btn-primary">Open the Roof Visualizer →</a>
+    <p>For the most accurate look, use GAF's own visualizer — GAF built it for their own shingles. Try any Timberline color on a sample house or a photo of yours.</p>
+    <div class="viz-guide">
+      <div class="viz-guide-actions"><a href="https://www.gaf.com/en-us/plan-design/design-your-roof" class="btn-primary" target="_blank" rel="noopener">Open GAF's Visualizer →</a></div>
+      <p class="viz-guide-alt">Want a rough idea first? <a href="/visualizer">Our AI roof visualizer</a> works on any photo too.</p>
+      <p class="viz-note"><strong>Every visualizer is a simulation — mine and GAF's.</strong> The colors and textures are generated, so they'll look different with the light, your screen and your actual roof. For the closest match, use the manufacturer's own tool, then look at a real sample or a finished house before you decide.</p>
+    </div>
   </div>
 </section>
 
