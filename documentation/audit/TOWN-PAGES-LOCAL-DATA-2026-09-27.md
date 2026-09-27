@@ -17,6 +17,8 @@ one with a source link, stamped from one data file by one generator:
 | `TOWNFACTS` | every area page, right after the STORM INFO section | Census median build year + what that typically means for a roof, NOAA storm list (up to 4, newest first, each linked), the permit answer with the issuing office linked, historic review, 1–3 local facts as cards |
 | `TOWNFAQ` | every area page, just before `<!-- CTA -->` | 4–5 visible town Q&As + a separate FAQPage JSON-LD block (answers 40–80 words; the generator refuses to stamp one outside that range) |
 | `TOWNLOCAL` | `roof-inspection-`, `siding-replacement-`, `siding-repair-<town>` (15 pages) | one "In <Town>:" paragraph inside the local box: build year, permit office, the strongest NOAA event |
+| `TOWNSCOPE` | same 15 pages, where the shared "Full Scope" section was | the scope checklist, ordered and annotated per the town's housing era and hail record, + NOAA / permit / historic / tree cards, + a link to the core service page (added by the service-page lane, see the update at the end) |
+| `TOWNSVCFAQ` | same 15 pages, where the hand FAQ was | 3 town Q&As (40–80 words) + 2 short generic ones, visible accordion + the page's **only** FAQPage JSON-LD (the hand FAQPage in `<head>` was removed; the generator fails if one reappears outside the region) |
 
 The markers were placed once by a scratch script. A **new area page** needs a
 `towns.json` entry and the empty markers (copy them from any existing page);
@@ -104,9 +106,10 @@ bulk is the "Full Scope" checklist and the FAQ accordion, a separate lane.
 - Covington and Cincinnati already had an EEAT FAQ block with its own FAQPage;
   they now carry two FAQPage blocks with different questions. Merge them when
   the one-entity JSON-LD lane (#1797) lands.
-- Not fixed here, flagged: `hail-damage-maineville-oh` / `-springboro-oh` /
-  `-amelia-oh` repeat the "3–4 hail events per year" / "most concentrated"
-  framing in body and JSON-LD; `siding-replacement-loveland-oh` says Joe will
+- ~~Not fixed here, flagged~~ **Fixed later the same day (service-page lane,
+  update below):** `hail-damage-maineville-oh` / `-springboro-oh` /
+  `-amelia-oh` repeated the "3–4 hail events per year" / "most concentrated"
+  framing in body and JSON-LD; `siding-replacement-loveland-oh` said Joe will
   "identify what the insurance policy will and won't cover".
 
 ## Updating the data
@@ -120,3 +123,64 @@ bulk is the "Full Scope" checklist and the FAQ accordion, a separate lane.
 The NOAA pull stops at June 2026 (NCEI's 2026 file ended there on 2026-09-27).
 To refresh storms, re-run the radius search over a newer bulk file and replace
 each town's `storms` block; everything else is hand-curated.
+
+## Update 2026-09-27 (later): the town service pages
+
+**Lane:** `seo/town-service-pages-unique`. Same measurement (5-gram Jaccard of
+`<main>` text, own town name masked).
+
+| Set (5 pages each) | Before mean / max | After mean / max |
+|---|---|---|
+| `roof-inspection-<town>` | 0.546 / 0.607 | **0.272 / 0.313** |
+| `siding-replacement-<town>` | 0.469 / 0.504 | **0.266 / 0.351** |
+| `siding-repair-<town>` | 0.402 / 0.432 | **0.242 / 0.318** |
+
+(The siding-repair baseline reads 0.402 here vs 0.395 above because main moved
+between the two measurements.)
+
+**What changed.** The shared "Full Scope" checklist and the four-question hand
+FAQ were the bulk of the duplication. Both are now generated (the `TOWNSCOPE`
+and `TOWNSVCFAQ` rows in the table at the top):
+
+- The checklist is one list per service, but its **order and per-item notes
+  come from the town's Census build-year era** (board vs plywood vs OSB decking,
+  box vs ridge venting, flashing generations; for siding: wood /
+  asbestos-cement / aluminum / hardboard / builder vinyl, and sheathing type).
+  Two towns in the same era get different phrasings (assigned by slug order,
+  not hashed). The storm item moves up where NOAA shows hail on 5+ days.
+- Cards: the three strongest NOAA events near town with links, the hail line
+  (never implies hail where `hailReports` is 0), permits (the re-roof permit on
+  inspection pages; a sourced **siding** permit answer on siding pages),
+  historic review, and the tree-canopy fact where the town has one.
+- FAQ: three town questions (storms / permits / era, 40–80 words each via the
+  same `answer()` guard as `TOWNFAQ`) + two short generic ones that link to the
+  core service page. The hand FAQPage in `<head>` was removed; the generated
+  block is the page's only FAQPage, and the generator fails if another appears.
+- New optional `siding` object in `towns.json` (documented in `_about`):
+  Cincinnati ("Do I Need a Permit?" lists siding replacement as exempt; the COA
+  rule still applies in local districts), Clermont County (its permit list names
+  roofing, not siding), Loveland (no siding box on the application; the HPPC
+  reviews rehabilitation inside the district). Mason and West Chester have no
+  entry, so their pages say no written siding rule was found and name the office.
+
+**Claims fixed.** On the 15 pages: "southwest storm corridor … regular hail"
+(West Chester, four places), "Warren County hail events routinely crack…"
+(Mason), "the Little Miami River valley's characteristic wind events", "identify
+what the insurance policy will and won't cover" and "insurance opportunity"
+(Loveland), "claimable", "covered peril under standard homeowners policies" and
+the checklist line "Insurance claim assistance" (gone with the generated
+FAQ/checklist). Across the other town service sets (74 pages: hail-damage 24,
+storm-damage 24, roof-replacement/-repair 19, gutter 5, wood-siding-repair 2)
+every numeric-frequency ("3–4 / 5–7 hail events per year", "35+ thunderstorm
+days"), ranking ("most active hail corridor", "top counties for storm claims")
+and storm-direction ("directly in the path", "hit harder than neighboring
+areas", "valley funnels storms") claim was rewritten to that town's NOAA record
+in `towns.json`, in body, FAQ (both copies) and meta descriptions. Also:
+Blanchester is southwest of Wilmington, not east.
+
+**Left for a claim-wording pass** (the gate passes on them today):
+hail-damage-west-chester FAQ "walk you through the claim process … navigate
+this alone"; hail-damage-wilmington "without professional advocacy";
+storm-damage-lebanon "the same level of detail a public adjuster would
+prepare"; hail-damage-maineville "documented and filed Warren County hail
+claims".
