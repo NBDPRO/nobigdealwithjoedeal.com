@@ -1667,6 +1667,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
     <a href="#photosTab">Photos <span class="nav-count" id="navCountPhotos" style="display:none;background:var(--s3,rgba(255,255,255,.08));color:var(--m,#9ca3af);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
     <a href="#documentsTab">Files <span class="nav-count" id="navCountDocs" style="display:none;background:var(--s3,rgba(255,255,255,.08));color:var(--m,#9ca3af);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
     <a href="#messagesTab">Messages <span id="msgUnreadBadge" style="display:none;background:var(--orange, #A14A22);color:var(--accent-fg);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
+    <a href="#callsTab">Calls <span class="nav-count" id="navCountCalls" title="Thursday calls" style="display:none;background:var(--s3,rgba(255,255,255,.08));color:var(--m,#9ca3af);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
     <a href="#voiceTab">Voice Intel</a>
     <a href="#contactTab">Contact</a>
   </nav>
@@ -2244,6 +2245,19 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
     </div>
   </div>
 
+  <!-- CALLS — Thursday (Bland AI receptionist) calls for this customer.
+       Filled by js/customer-calls.js from thursday_calls; recordings stream
+       through the getThursdayRecording callable (never a URL). -->
+  <div class="tab-content" id="callsTab" data-label="Calls">
+    <div style="max-width:900px;margin:0 auto;padding:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+        <div class="panel-title" style="margin:0;">📞 Calls</div>
+        <div style="font-size:11px;color:var(--m);">Calls Thursday answered for this customer: summary, transcript and recording.</div>
+      </div>
+      <div id="callsList"><div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">Loading calls…</div></div>
+    </div>
+  </div>
+
   <!-- VOICE INTEL TAB (C4) -->
   <div class="tab-content" id="voiceTab" data-label="Voice Intel">
     <div style="max-width:1200px;margin:0 auto;padding:20px;">
@@ -2556,7 +2570,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/deposit-rule.js?v=1"></script>
 <script defer src="js/booking-events.js?v=2"></script>
 <script defer src="js/customer-quick-actions.js?v=1"></script>
-<script type="module" src="js/customer-bootstrap.module.js?v=7"></script>
+<script type="module" src="js/customer-bootstrap.module.js?v=8"></script>
 
 
 <script defer src="js/customer-tasks-ui.js?v=7"></script>
@@ -2627,6 +2641,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Wave 52: last-shared chip in the customer header. Mirrors the
      W44 kanban badge so both surfaces show the same cue. -->
 <script defer src="js/customer-last-shared-chip.js?v=2"></script>
+<script defer src="js/customer-calls.js?v=1"></script>
 <script defer src="js/customer-viewed-chip.js?v=2"></script>
 <script defer src="js/customer-sibling-snooze.js?v=2"></script>
 <script defer src="js/customer-engagement-score.js?v=2"></script>

@@ -74,6 +74,14 @@ function _bucketOf(l) {
 // ── WIDGET REGISTRY ─────────────────────────────────────────────
 const WIDGETS = [
 
+  // ═══ THURSDAY — AI RECEPTIONIST INBOX (2026-09-26) ═══
+  // Calls Thursday (the Bland AI receptionist) answered: new leads, possible
+  // matches to confirm, adjusters, calls that need review. Pinned to the top
+  // of Home for tenants with thursday_config/{companyId}; removable (the
+  // choice persists on userSettings/{uid}, not in wiped nbd_ localStorage).
+  {id:'thursday-calls', name:'Thursday — Calls', icon:'📞', cat:'Pipeline & Sales', size:'lg',
+    render(el){ _thuRender(el); }},
+
   // ═══ PIPELINE & SALES ═══
   {id:'pipeline-value', name:'Pipeline Value', icon:'💰', cat:'Pipeline & Sales', size:'md',
     render(el){
@@ -674,17 +682,245 @@ function _timeAgo(date) {
 }
 
 
+// ── THURSDAY INBOX (functions/integrations/thursday.js) ─────────
+// Reads thursday_calls with the two-scope shape the rules require (own
+// userId always; companyId for company_admin/manager/viewer). Actions go
+// through the thursdayCallAction callable; the recording through
+// getThursdayRecording (base64 → blob:, never a URL).
+let _thuCalls = [];
+let _thuOpenId = null;
+let _thuShowAll = false;
+let _thuBlob = {};
+let _thuSearch = '';
+const _THU_TYPE = { new_lead:'New lead', existing_customer:'Customer', adjuster:'Adjuster', supplier_sub:'Supplier',
+  job_seeker:'Job seeker', spam:'Spam', test:'Test', silent:'Silent', unknown:'Needs review' };
+
+function _thuClaims() { return window._userClaims || {}; }
+function _thuIsViewer() { return _thuClaims().role === 'viewer'; }
+function _thuTenantKey() {
+  const c = _thuClaims();
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  return c.companyId || uid || '';
+}
+
+async function _thuCallable(name, data) {
+  if (!window._functions || !window._httpsCallable) {
+    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    window._functions = window._functions || mod.getFunctions();
+    window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+  }
+  const r = await window._httpsCallable(window._functions, name)(data);
+  return r && r.data;
+}
+
+// Is Thursday connected for this tenant, and has this user hidden the card?
+// Resolved once per page; renderWidgetHome() re-runs when it changes.
+let _thuGateState = null; // null = unknown, then { enabled, hidden }
+async function _thuResolveGate() {
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  if (!uid || !window.db || !window.getDoc || !window.doc) { _thuGateState = null; return; } // retry on the next Home render
+  let enabled = false, hidden = false;
+  try {
+    const cfg = await window.getDoc(window.doc(window.db, 'thursday_config', _thuTenantKey()));
+    enabled = cfg.exists() && cfg.data().enabled !== false;
+  } catch (e) { enabled = false; }
+  try {
+    const us = await window.getDoc(window.doc(window.db, 'userSettings', uid));
+    hidden = us.exists() && us.data().hideThursdayWidget === true;
+  } catch (e) { hidden = false; }
+  const changed = !_thuGateState || _thuGateState.enabled !== enabled || _thuGateState.hidden !== hidden;
+  _thuGateState = { enabled, hidden };
+  if (changed) renderWidgetHome();
+}
+async function _thuSetHidden(hidden) {
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  _thuGateState = Object.assign({ enabled: true }, _thuGateState || {}, { hidden });
+  if (!uid || !window.setDoc) return;
+  try { await window.setDoc(window.doc(window.db, 'userSettings', uid), { hideThursdayWidget: hidden }, { merge: true }); }
+  catch (e) { console.warn('[thursday] could not save widget preference', e && e.code); }
+}
+
+async function _thuFetch() {
+  const db = window.db;
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  if (!db || !uid || !window.query) return [];
+  const c = _thuClaims();
+  const col = window.collection(db, 'thursday_calls');
+  const qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAt', 'desc'), window.limit(25))];
+  if (['company_admin', 'manager', 'viewer'].includes(c.role || '') && c.companyId) {
+    qs.push(window.query(col, window.where('companyId', '==', c.companyId), window.orderBy('startedAt', 'desc'), window.limit(25)));
+  }
+  const byId = {};
+  for (const q of qs) {
+    try {
+      const snap = await window.getDocs(q);
+      snap.docs.forEach(d => { byId[d.id] = Object.assign({ _id: d.id }, d.data()); });
+    } catch (e) { console.warn('[thursday] read failed', e && e.code); }
+  }
+  return Object.values(byId).sort((a, b) => _toMs(b.startedAt || b.createdAt) - _toMs(a.startedAt || a.createdAt)).slice(0, 25);
+}
+
+function _thuBadge(text, bg, fg) {
+  return '<span style="display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:999px;background:' + bg + ';color:' + fg + ';margin-right:3px;">' + esc(text) + '</span>';
+}
+function _thuIdOf(c) { return c.callId || String(c._id || '').replace(/^bland_calls__/, ''); }
+
+function _thuRow(c) {
+  const id = _thuIdOf(c);
+  const ex = c.extraction || {};
+  const action = c.route && c.route.action;
+  let badges = '';
+  if (c.urgent) badges += _thuBadge('Urgent', '#7f1d1d', '#fecaca');
+  if (action === 'create_lead') badges += _thuBadge('New lead', '#14532d', '#bbf7d0');
+  else if (action === 'possible_match') badges += _thuBadge('Possible match', '#78350f', '#fde68a');
+  else if (action === 'attach') badges += _thuBadge('Attached', 'var(--s3,rgba(255,255,255,.08))', 'var(--m)');
+  else if (c.status === 'failed') badges += _thuBadge('Needs review', '#7f1d1d', '#fecaca');
+  else badges += _thuBadge(_THU_TYPE[c.callerType] || 'Call', 'var(--s3,rgba(255,255,255,.08))', 'var(--m)');
+  const who = ex.caller_name || c.callerName || c.from || 'Caller';
+  const town = ex.town || c.town || '';
+  const unread = !c.reviewed;
+  let html = '<div class="w-lead-row" data-w-action="thuToggle" data-w-id="' + esc(id) + '" style="display:block;cursor:pointer;' + (unread ? 'border-left:3px solid var(--orange);padding-left:8px;' : 'opacity:.8;') + '">' +
+    '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">' +
+      '<div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:' + (unread ? '700' : '500') + ';font-size:12px;color:var(--t);">' + esc(who) + (town ? ' <span style="color:var(--m);font-weight:400;">· ' + esc(town) + '</span>' : '') + '</div>' +
+      '<div style="font-size:10px;color:var(--m);white-space:nowrap;">' + esc(_timeAgo(c.startedAt || c.createdAt)) + '</div>' +
+    '</div>' +
+    '<div style="margin-top:2px;">' + badges + '</div>' +
+    '<div style="font-size:11px;color:var(--m);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(c.issue || (c.call && c.call.summary) || '') + '</div>' +
+  '</div>';
+  if (_thuOpenId === id) html += _thuDetail(c, id);
+  return html;
+}
+
+function _thuDetail(c, id) {
+  const ex = c.extraction || {};
+  const action = c.route && c.route.action;
+  const viewer = _thuIsViewer();
+  const btn = (act, label, extra, primary) => '<button type="button" class="' + (primary ? 'btn btn-orange' : 'w-mini-btn') + '" style="font-size:11px;padding:6px 10px;" data-w-action="' + act + '" data-w-id="' + esc(id) + '"' + (extra || '') + '>' + label + '</button>';
+  const facts = [];
+  const phone = ex.callback_number ? ex.callback_number.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : (c.from || '');
+  if (phone) facts.push('📱 <a href="tel:' + esc(String(phone).replace(/[^\d+]/g, '')) + '" data-w-stop="1">' + esc(phone) + '</a>');
+  if (ex.callback_window) facts.push('🕑 ' + esc(ex.callback_window));
+  if (ex.address || ex.town) facts.push('📍 ' + esc([ex.address, ex.town, ex.zip].filter(Boolean).join(', ')));
+  if (ex.insurance && ex.insurance.involved === 'yes') facts.push('🛡 ' + esc(ex.insurance.carrier || 'Insurance') + (ex.insurance.claim_filed === 'yes' ? ' · claim filed' : ''));
+  if (ex.urgent_reason) facts.push('🚨 ' + esc(ex.urgent_reason));
+  const acts = [];
+  if (c.leadId) acts.push(btn('thuOpenLead', 'Open customer →', ' data-lead-id="' + esc(c.leadId) + '"', true));
+  if (c.recordingPath) acts.push(btn('thuPlay', '▶ Play'));
+  if (!viewer) {
+    if (action === 'possible_match') {
+      (c.route.possibleMatches || []).slice(0, 3).forEach(pm => acts.push(btn('thuConfirm', 'Yes — ' + esc(pm.name), ' data-lead-id="' + esc(pm.leadId) + '"')));
+      acts.push(btn('thuCreate', 'Not them — new lead'));
+    } else if (!c.leadId && c.extraction && action !== 'log_only') {
+      acts.push(btn('thuCreate', '＋ Create lead', '', true));
+    }
+    if (c.extraction && (!c.leadId || action === 'possible_match')) acts.push(btn('thuAttachOpen', 'Attach to…'));
+    if (c.status === 'failed') acts.push(btn('thuReprocess', '↻ Reprocess'));
+    acts.push(btn('thuReviewed', c.reviewed ? 'Mark unread' : '✓ Done', ' data-reviewed="' + (c.reviewed ? '1' : '0') + '"'));
+  }
+  let attach = '';
+  if (_thuOpenId === id && _thuSearch !== null && _thuSearch !== undefined && _thuSearch !== '' ) {
+    const q = _thuSearch.trim().toLowerCase();
+    const hits = !q ? [] : (window._leads || []).filter(l => !l.deleted && ((l.firstName || '') + ' ' + (l.lastName || '') + ' ' + (l.name || '') + ' ' + (l.address || '')).toLowerCase().indexOf(q) !== -1).slice(0, 6);
+    attach = hits.map(l => btn('thuAttach', esc(((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.address || 'Lead') + ' <span style="opacity:.6">' + esc((l.address || '').slice(0, 30)) + '</span>', ' data-lead-id="' + esc(l.id) + '"')).join('');
+  }
+  const transcript = (c.call && c.call.transcript) || '';
+  return '<div data-w-stop="1" style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px;margin:4px 0 8px;font-size:12px;cursor:default;">' +
+    (c.call && c.call.summary ? '<div style="margin-bottom:6px;">' + esc(c.call.summary) + '</div>' : '') +
+    (facts.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;color:var(--m);font-size:11px;margin-bottom:8px;">' + facts.join('') + '</div>' : '') +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + acts.join('') + '</div>' +
+    '<div id="thu-attach-' + esc(id) + '" style="display:' + (_thuSearch !== '' && _thuOpenId === id ? 'block' : 'none') + ';margin-top:8px;">' +
+      '<input type="text" placeholder="Search leads by name or address…" data-w-input="thuSearch" data-w-id="' + esc(id) + '" value="' + esc(_thuSearch || '') + '" style="width:100%;background:var(--bg);border:1px solid var(--br);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--t);font-family:inherit;box-sizing:border-box;">' +
+      '<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">' + attach + '</div>' +
+    '</div>' +
+    '<div id="thu-audio-' + esc(id) + '" style="margin-top:6px;"></div>' +
+    '<div id="thu-status-' + esc(id) + '" style="font-size:11px;color:var(--m);margin-top:4px;"></div>' +
+    (transcript ? '<details style="margin-top:6px;"><summary style="cursor:pointer;color:var(--m);font-size:11px;">Transcript</summary><div style="white-space:pre-wrap;max-height:240px;overflow-y:auto;margin-top:4px;line-height:1.45;">' + esc(transcript) + '</div></details>' : '') +
+  '</div>';
+}
+
+function _thuDraw(el) {
+  if (!el) el = document.getElementById('wb-thursday-calls');
+  if (!el) return;
+  const list = _thuShowAll ? _thuCalls : _thuCalls.filter(c => !(c.route && c.route.action === 'log_only'));
+  const unread = _thuCalls.filter(c => !c.reviewed).length;
+  const hiddenCount = _thuCalls.length - list.length;
+  if (!_thuCalls.length) {
+    el.innerHTML = '<div class="w-empty">No calls yet. When Thursday answers (513) 940-5589, each call lands here with a summary, the recording, and a lead or task.</div>';
+    return;
+  }
+  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:10px;color:var(--m);">' +
+      '<span>' + (unread ? '<b style="color:var(--orange);">' + unread + ' new</b> · ' : '') + _thuCalls.length + ' recent</span>' +
+      (hiddenCount || _thuShowAll ? '<button type="button" class="w-mini-btn" style="font-size:10px;" data-w-action="thuShowAll">' + (_thuShowAll ? 'Hide spam/silent' : 'Show ' + hiddenCount + ' spam/silent') + '</button>' : '') +
+    '</div>' + list.map(_thuRow).join('');
+}
+
+function _thuRender(el) {
+  el.innerHTML = '<div class="w-empty">Loading calls…</div>';
+  _thuFetch().then(list => { _thuCalls = list; _thuDraw(el); }).catch(() => { el.innerHTML = '<div class="w-empty">Could not load calls.</div>'; });
+}
+
+function _thuStatus(id, text) {
+  const s = document.getElementById('thu-status-' + id);
+  if (s) s.textContent = text;
+}
+
+async function _thuAct(id, action, extra) {
+  _thuStatus(id, 'Working…');
+  try {
+    const r = await _thuCallable('thursdayCallAction', Object.assign({ callId: id, action }, extra || {}));
+    if ((action === 'create_lead' || action === 'attach_to' || action === 'confirm_match') && r && r.leadId) {
+      if (typeof showToast === 'function') showToast(action === 'create_lead' ? 'Lead created' : 'Call attached', 'ok');
+    }
+    _thuCalls = await _thuFetch();
+    _thuSearch = '';
+    _thuDraw();
+    return r;
+  } catch (e) {
+    _thuStatus(id, (e && e.message) || 'That did not work.');
+    return null;
+  }
+}
+
+async function _thuPlay(id) {
+  const slot = document.getElementById('thu-audio-' + id);
+  if (!slot) return;
+  if (!_thuBlob[id]) {
+    _thuStatus(id, 'Loading recording…');
+    try {
+      const r = await _thuCallable('getThursdayRecording', { callId: id });
+      const bin = atob(r.base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      _thuBlob[id] = URL.createObjectURL(new Blob([bytes], { type: r.contentType || 'audio/mpeg' }));
+      _thuStatus(id, '');
+    } catch (e) { _thuStatus(id, 'Could not load the recording.'); return; }
+  }
+  slot.innerHTML = '';
+  const a = document.createElement('audio');
+  a.controls = true; a.style.width = '100%'; a.src = _thuBlob[id];
+  slot.appendChild(a);
+  a.play().catch(() => {});
+}
+
 // ── WIDGET STATE (localStorage) ─────────────────────────────────
 const STORAGE_KEY = 'nbd_home_widgets';
 const DEFAULT_WIDGETS = ['pipeline-value','hot-leads','win-rate','revenue-month','task-checklist',
   'daily-floors','quick-add-lead','recent-activity','weather-radar','north-star','quote-widget','streak-counter'];
 
 function getActiveWidgets() {
+  let ids = null;
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(saved && saved.length) return saved;
+    if(saved && saved.length) ids = saved;
   } catch(e) {}
-  return [...DEFAULT_WIDGETS];
+  if (!ids) ids = [...DEFAULT_WIDGETS];
+  // Thursday inbox: pinned first for a tenant with Thursday connected, unless
+  // this user removed it (userSettings/{uid}.hideThursdayWidget — survives
+  // the logout wipe of nbd_ localStorage). Never shown to other tenants.
+  const thu = _thuGateState;
+  ids = ids.filter(x => x !== 'thursday-calls' || (thu && thu.enabled && !thu.hidden));
+  if (thu && thu.enabled && !thu.hidden) ids = ['thursday-calls'].concat(ids.filter(x => x !== 'thursday-calls'));
+  return ids;
 }
 
 function saveActiveWidgets(ids) {
@@ -696,6 +932,7 @@ function saveActiveWidgets(ids) {
 function renderWidgetHome() {
   const grid = document.getElementById('widgetGrid');
   if(!grid) return;
+  if (_thuGateState === null) { _thuGateState = { enabled: false, hidden: false, pending: true }; _thuResolveGate(); }
 
   const activeIds = getActiveWidgets();
   grid.innerHTML = '';
@@ -824,6 +1061,7 @@ function closePicker() {
 
 // ── WIDGET MANAGEMENT ───────────────────────────────────────────
 function toggleWidget(id, on) {
+  if (id === 'thursday-calls') _thuSetHidden(!on);
   let active = getActiveWidgets();
   if(on && !active.includes(id)) active.push(id);
   if(!on) active = active.filter(x => x !== id);
@@ -832,6 +1070,7 @@ function toggleWidget(id, on) {
 }
 
 function removeWidget(id) {
+  if (id === 'thursday-calls') _thuSetHidden(true);
   let active = getActiveWidgets().filter(x => x !== id);
   saveActiveWidgets(active);
   renderWidgetHome();
@@ -962,6 +1201,17 @@ const _wActions = {
   closePicker:    () => window.NBDWidgets.closePicker(),
   closePickerIfSelf: (_id, ev, target) => { if (ev && ev.target === target) window.NBDWidgets.closePicker(); },
   resetDefaults:  () => window.NBDWidgets.resetDefaults(),
+  // Thursday inbox (see _thuRender).
+  thuToggle:      (id) => { _thuOpenId = _thuOpenId === id ? null : id; _thuSearch = ''; _thuDraw(); },
+  thuShowAll:     () => { _thuShowAll = !_thuShowAll; _thuDraw(); },
+  thuOpenLead:    (_id, _ev, t) => { const l = t && t.dataset.leadId; if (l) window.location.href = '/pro/customer.html?id=' + encodeURIComponent(l); },
+  thuPlay:        (id) => _thuPlay(id),
+  thuReviewed:    (id, _ev, t) => _thuAct(id, t && t.dataset.reviewed === '1' ? 'mark_unreviewed' : 'mark_reviewed'),
+  thuReprocess:   (id) => _thuAct(id, 'reprocess'),
+  thuCreate:      async (id) => { const r = await _thuAct(id, 'create_lead'); if (r && r.leadId) window.location.href = '/pro/customer.html?id=' + encodeURIComponent(r.leadId); },
+  thuConfirm:     (id, _ev, t) => _thuAct(id, 'confirm_match', { leadId: t && t.dataset.leadId }),
+  thuAttachOpen:  (id) => { _thuOpenId = id; _thuSearch = ' '; _thuDraw(); const i = document.querySelector('[data-w-input="thuSearch"]'); if (i) { i.value = ''; i.focus(); } },
+  thuAttach:      (id, _ev, t) => _thuAct(id, 'attach_to', { leadId: t && t.dataset.leadId }),
 };
 
 // CSP-dead inline on* on rendered inputs/checkboxes have the same
@@ -974,6 +1224,14 @@ const _wChange = {
 };
 const _wInput = {
   quickEst:     () => { if (typeof _wQuickEst === 'function') _wQuickEst(); },
+  // Thursday "Attach to…" lead search: redraw the result list, keep focus.
+  thuSearch:    (_id, _ev, target) => {
+    _thuSearch = target.value || ' ';
+    const pos = target.selectionStart;
+    _thuDraw();
+    const i = document.querySelector('[data-w-input="thuSearch"]');
+    if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (e) {} }
+  },
 };
 const _wKeydown = {
   askJoe:       (_id, ev) => { if (ev && ev.key === 'Enter') { ev.preventDefault(); if (typeof _wAskJoe === 'function') _wAskJoe(); } },

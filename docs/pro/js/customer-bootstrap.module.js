@@ -1322,6 +1322,39 @@ async function loadTimeline(leadId, lead) {
     console.log('No communications found for timeline');
   }
 
+  // Thursday (Bland AI receptionist) calls attached to this lead
+  // (functions/integrations/thursday.js). Same two-scope read as estimates:
+  // own-userId always, companyId added for company readers — the
+  // thursday_calls rule only proves a team read when the query carries the
+  // caller's companyId. Rendered under "Calls & Texts" (data-type
+  // communication); title/desc go through esc() below like every row.
+  try {
+    const claims = window._userClaims || {};
+    const scopes = [[where('leadId', '==', leadId), where('userId', '==', auth.currentUser?.uid)]];
+    if (['company_admin', 'manager', 'viewer'].includes(claims.role || '') && claims.companyId) {
+      scopes.push([where('leadId', '==', leadId), where('companyId', '==', claims.companyId)]);
+    }
+    const seen = new Set();
+    for (const scope of scopes) {
+      const snap = await getDocs(query(collection(db, 'thursday_calls'), ...scope));
+      snap.docs.forEach(d => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
+        const c = d.data();
+        const when = c.startedAt?.toDate ? c.startedAt.toDate() : (c.createdAt?.toDate ? c.createdAt.toDate() : new Date());
+        timeline.push({
+          time: when,
+          icon: '📞',
+          title: 'Thursday took a call' + (c.urgent ? ' — URGENT' : '') + (c.route && c.route.action === 'possible_match' ? ' (possible match)' : ''),
+          desc: c.issue || (c.call && c.call.summary) || '',
+          type: 'communication'
+        });
+      });
+    }
+  } catch (e) {
+    console.log('No Thursday calls for timeline');
+  }
+
   // Load notes. The Notes filter pill matched data-type="note", but this
   // function never queried /notes — clicking Notes emptied the timeline and
   // told the rep the customer had none while the Notes panel beside it was

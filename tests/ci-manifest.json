@@ -121,6 +121,7 @@
     "theme-contrast.test.js",
     "thumbtack-webhook.test.js",
     "thursday-logic.test.js",
+    "thursday-ui-wiring.test.js",
     "turnstile-contract.test.js",
     "webhook-signatures.test.js",
     "booking-events-tenancy.test.js",
