@@ -101,6 +101,29 @@ group('docs/services/the-nbd-build/index.html matches the real pricing engine', 
   assert(`the correct "+${preferredPct}%" appears`, BUILD.includes(`+${preferredPct}%`));
 });
 
+/* 2026-09-27 price-validation lane: two more copies of the old 15%/30%
+ * premiums had survived — the llms.txt "Promise" prose (what AI answer
+ * engines quote) and the LumaNail FAQ, whose visible answer and FAQPage
+ * JSON-LD answer must stay identical. Elite-over-Preferred is computed the
+ * same way: best/better - 1 = 660/595 - 1 = 10.9% -> "~11%". */
+const elitePreferredPct = Math.round((best / better - 1) * 100);
+const LLMS = read('docs/llms.txt');
+const LUMA = read('docs/services/lumanail/index.html');
+
+group('docs/llms.txt matches the real pricing engine', () => {
+  assert('no stale "≈+15%" / "≈+30%" tier premium', !/≈\s*\+\s*(15|30)%/.test(LLMS));
+  assert(`Preferred is "≈+${preferredPct}%" and Elite "≈+${elitePct}%"`,
+    LLMS.includes(`≈+${preferredPct}%`) && LLMS.includes(`≈+${elitePct}%`));
+});
+
+group('docs/services/lumanail/index.html FAQ matches the real pricing engine', () => {
+  const answer = `Roughly ${elitePct}% more than Standard, ~${elitePreferredPct}% more than Preferred.`;
+  assert('no stale "30% more than Standard" / "~13% more than Preferred"',
+    !/30% more than Standard/.test(LUMA) && !/13% more than Preferred/.test(LUMA));
+  assert(`the answer "${answer}" appears in BOTH the visible FAQ and the FAQPage JSON-LD`,
+    countOccurrences(LUMA, answer) === 2, 'found ' + countOccurrences(LUMA, answer));
+});
+
 console.log('\n──────────────────────────────────────────────────');
 console.log(passed + ' passed, ' + failed + ' failed');
 if (failed > 0) process.exit(1);

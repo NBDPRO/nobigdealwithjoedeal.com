@@ -97,7 +97,9 @@
         // Unpriced projects leave it empty; tag/city/year already sit in meta.
         title: project.price || '',
         meta: metaBits,
-        desc: project.description || '',
+        // An older job's price carries its "priced in <year>" note
+        // (build-projects.mjs sets priceNote only on dated prices).
+        desc: [project.priceNote, project.description].filter(Boolean).join(' '),
       };
     });
     if (!items.length) return;
