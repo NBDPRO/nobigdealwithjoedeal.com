@@ -1,5 +1,12 @@
 # getGoogleReviews: 4,017 errors for a feature that never once worked
 
+> **Update 2026-09-27 — resolved.** Live Google reviews have rendered since
+> mid-September: `/api/google-reviews` returned 5.0 / 29 reviews on 09-20
+> ([NEXT_SESSION-2026-09-21](../projects/NEXT_SESSION-2026-09-21.md) §6), and
+> #1545 pinned the visual tests against the now-live data. The note below
+> describes the 09-08 state. Current SEO/reviews picture:
+> [SEO-AEO-GEO-DEEP-DIVE-2026-09-27](SEO-AEO-GEO-DEEP-DIVE-2026-09-27.md).
+
 **2026-09-08** · project `nobigdeal-pro` · log-noise fixed in this session,
 the feature itself still needs Jo
 
