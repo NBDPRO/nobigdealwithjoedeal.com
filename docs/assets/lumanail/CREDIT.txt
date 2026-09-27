@@ -1,9 +1,9 @@
-LumaNail / LumaTuff placeholder imagery
-========================================
+LumaNail placeholder imagery
+============================
 Sources:
-- pack-web-1.jpg, pack-web-2.jpg: extracted from NBD_LumaNail_Web_Page.html (LumaTuff promotional pack supplied to NBD)
+- pack-web-1.jpg, pack-web-2.jpg: extracted from NBD_LumaNail_Web_Page.html (manufacturer promotional pack supplied to NBD, issued under the launch-era "LumaTuff" company name)
 - pack-blog-1.jpg, pack-blog-2.jpg: extracted from NBD_LumaNail_Blog_Post.html (same pack)
 - lumanail-logo.svg, lumanail-logo-black.svg, nail-orange.svg: ripped from https://lumanail.com (2026-04-20)
 
 Status: PLACEHOLDER — Joe's own photos to replace within ~30 days (target: drone shot of orange-on-roof, install-day photo of Joe nailing off a course, UV-blacklight at-dusk yard sweep).
-Brand: LumaTuff, Inc. (manufacturer). NBD is an independent installer.
+Brand: LumaNail. Manufacturer: LumaNail Inc. (lumanail.com/about, checked 2026-09-27). NBD is an independent installer.

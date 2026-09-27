@@ -75,7 +75,7 @@ ZIP-code gate. `virtualremodeler.gaf.com` refused the connection.
 
 Only the Titan XT sub-line and the Pivot impact rows were changed. The rest is reported here for a rewrite.
 
-- **"TAMKO Storm Series" is our name, not TAMKO's.** It doesn't appear on
+- **"TAMKO Storm Series" is our name, not TAMKO's.** *(Fixed: see the update at the end.)* It doesn't appear on
   tamko.com, and `/storm-series` returns 404. The TAMKO block now says so in
   Joe's voice. The page title, nav and URL still use it.
 - **Titan XT:** the site said "14 colors" and TAMKO lists 20. The sub-line
@@ -105,3 +105,36 @@ Only the Titan XT sub-line and the Pivot impact rows were changed. The rest is r
 - **LumaNail:** "LumaTuff, Inc." (used in our schema and partner credit)
   never appears on lumanail.com. Only third-party sources connect the two
   names. Worth confirming with the supplier.
+
+## Update 2026-09-27 (follow-up lane): the disagreements above are fixed
+
+Branch `site/tamko-rename-color-facts`, stacked on this note's branch. Each
+bullet in "Where the site and the manufacturers disagree" was resolved:
+
+- **"TAMKO Storm Series" retired (Jo's call).** The page moved to
+  `/services/tamko-impact-resistant-shingles` (title, meta, H1, breadcrumbs,
+  its own Service/Breadcrumb JSON-LD, nav, every internal link, llms.txt,
+  sitemap `CORE_PAGES` row, blog POSTS, visualizer group label, one CRM job
+  template name). firebase.json 301s all five old forms (extensionless,
+  `.html`, `/`, `/index`, `/index.html`); `tests/tamko-page-rename.test.js`
+  pins the redirects and fails if "Storm Series" reappears anywhere under
+  `docs/`. Heritage stays on the page but is labelled as having no impact
+  rating. The blog post `/blog/gaf-timberline-vs-tamko-storm-series` was
+  retitled but kept its URL.
+- **Timberline HDZ:** "22 stocked colors" was never checked against stock, so
+  it now uses GAF's count: "GAF lists 23 … some regional", with a link to
+  GAF's HDZ page (gaf-timberline page, FAQ + JSON-LD, and the HDZ-vs-FLEX blog).
+- **Timberline UHDZ:** the "12 stocked colors" line now says "the six colors
+  GAF makes it in". The visualizer's UHDZ palette already has those six.
+- **"30+ Timberline colors":** now "Timberline HDZ alone comes in 23 colors
+  on GAF's list (some regional)", linked to GAF's color guide.
+- **Heritage:** the page no longer implies a list. It shows the colors Joe
+  gets asked about and links TAMKO's Heritage page. No count is stated.
+- **StormFighter FLEX / HailGuard:** tamko.com lists 8 colors for each. The
+  page now says "TAMKO lists eight" and links each product page.
+- **LumaNail:** lumanail.com/about names the company **"LUMANAIL INC."**
+  (Labadie, MO) and never uses "LumaTuff". A July 2025 Roofing Magazine launch
+  item credited "LumaTuff" and its founder, so that looks like the company's
+  launch-era name. Schema brand/manufacturer, the co-brand strip, the spec
+  row, the disclaimer, the blog and `assets/lumanail/CREDIT.txt` now say
+  LumaNail / LumaNail Inc.

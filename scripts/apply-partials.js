@@ -87,7 +87,7 @@ const REQUIRED_MARKUP = {
   'nav-tool': ['id="mainNav"',
     'href="/assets/css/nbd-nav.css"', 'src="/assets/js/nbd-nav.js"'],
   // The 7 brand microsites (LumaNail, Roofivent, GAF Pivot Boot, GAF Timberline,
-  // TAMKO Storm Series + the two promise pages) ran 4 divergent link sets before
+  // TAMKO Impact-Resistant Shingles + the two promise pages) ran 4 divergent link sets before
   // 2026-08-19 — two of them dropped Pledge/Guarantee/Build entirely and pointed
   // "Services" at a leaf page. Same contracts as nav-standard minus the dropdown,
   // which this family does not have.

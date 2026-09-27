@@ -94,7 +94,7 @@ const EXEMPT = {
   'services/gaf-timberline/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
   'services/lumanail/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
   'services/roofivent/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
-  'services/tamko-storm-series/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
+  'services/tamko-impact-resistant-shingles/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
   'services/the-nbd-build/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
   'services/the-nbd-guarantee/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
 };
