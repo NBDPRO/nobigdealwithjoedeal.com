@@ -183,6 +183,13 @@ jobs:
       # partial gate below — without this the scheme is advisory.
       - name: Check projects static-block drift (dry-run diff)
         run: node scripts/build-projects.mjs --check
+      # Town-page drift gate: the TOWNWHY / TOWNFACTS / TOWNFAQ regions on
+      # docs/areas/<town>.html and TOWNLOCAL on the town roof-inspection /
+      # siding pages are generated from site-src/data/towns.json (NOAA storms,
+      # permits, Census housing age). A hand-edit inside a region, or a data
+      # edit without a restamp, fails here.
+      - name: Check town-page regions drift (site-src/data/towns.json vs docs/)
+        run: node scripts/build-town-pages.mjs --check
       # Shared-partial drift gate. The chrome inside <!-- nbd:partial --> markers
       # is GENERATED from site-src/partials/. Without this gate the whole scheme
       # is advisory: a page could be hand-edited inside a region, or a partial

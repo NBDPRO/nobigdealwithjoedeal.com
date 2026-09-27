@@ -1,0 +1,870 @@
+{
+ "_about": {
+   "what": "Per-town facts behind the generated TOWNFACTS / TOWNFAQ / TOWNWHY regions on docs/areas/<slug>.html and TOWNLOCAL on the town-specific roof-inspection / siding-replacement / siding-repair pages. Stamped by scripts/build-town-pages.mjs; see documentation/audit/TOWN-PAGES-LOCAL-DATA-2026-09-27.md.",
+   "compiled": "2026-09-27",
+   "housing": "U.S. Census ACS 2020-2024 5-year, tables B25035 (median year structure built) and B25003 (tenure), via Census Reporter. housing.source is the Census Reporter profile.",
+   "storms": "NOAA NCEI Storm Events Database bulk files, Jan 2019 - Jun 2026 (https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/). Events whose begin/end point lies within storms.radiusKm of the town centroid (Census 2024 Gazetteer); hail >= 1 in, thunderstorm wind >= 50 kt or with property damage, tornadoes; one per episode+type, ranked tornado > hail size > wind speed. basis \"report\" = an NWS damage report carrying the default 50 kt estimate. noaa = NOAA event id (https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=<noaa>); county is omitted when it is the town’s own county; top 4 kept here.",
+   "permits": "permit.status is yes | no | unknown | varies, read from the official page at permit.url. \"unknown\" means no official page settles it; permit.ask names who to call. Ohio re-roofs generally need plan approval (OBBS memo 2017-04-04) unless local policy treats them as minor repair; Kentucky leaves single-family permits to local ordinance (815 KAR 7:125).",
+   "rule": "Publish nothing without a source URL. historic.review = true only where an official page confirms exterior/roof design review."
+ },
+ "towns": [
+  {
+   "slug": "amelia-oh",
+   "town": "Amelia",
+   "state": "OH",
+   "county": "Clermont County",
+   "region": "cincy-oh",
+   "zips": ["45102"],
+   "housing": {"medianYearBuilt":1995,"ownerOccupiedPct":61.3,"population":12871,"source":"https://censusreporter.org/profiles/16000US3901742/"},
+   "storms": {"radiusKm": 6.1, "nearbyCount": 14, "hailReports": 1, "hailDays": 1, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2020-05-23","place":"Amelia","noaa":882799}, "lastHail": {"in":1.25,"date":"2020-05-23","place":"Amelia","noaa":882799}, "tornadoes": 0, "events": [
+    {"date":"2020-05-23","kind":"hail","hailIn":1.25,"place":"Amelia","km":0.4,"noaa":882799},
+    {"date":"2019-03-14","kind":"wind","kt":50,"basis":"report","place":"Amelia","km":3.7,"noaa":803029},
+    {"date":"2019-08-22","kind":"wind","kt":50,"basis":"report","place":"Mt. Holly","km":3.8,"noaa":838477},
+    {"date":"2020-05-23","kind":"wind","kt":50,"basis":"report","place":"Withamsville","km":5.8,"noaa":882797}
+   ]},
+   "permit": {"status":"yes","authority":"Clermont County Permit Central","url":"https://permit.clermontcountyohio.gov/frequently-asked-questions/","summary":"Clermont County Permit Central lists roofing among the projects that need a permit, and its residential application has a Roof Replacement box. Since the village dissolved, zoning comes from Pierce or Batavia Township, depending on which side of State Route 125 the house sits."},
+   "facts": [
+    {"cat":"history","text":"Amelia voted to dissolve as a village on November 5, 2019. The land was split between Pierce and Batavia townships along State Route 125, the first Ohio village ever divided between two townships.","url":"https://en.wikipedia.org/wiki/Amelia,_Ohio"},
+    {"cat":"growth","text":"The old village had 1,837 residents in 1990 and 4,801 by 2010, and the Amelia census area counted 12,575 in 2020. Most of the housing came in that one wave, so whole streets hit the end of a roof cycle together.","url":"https://en.wikipedia.org/wiki/Amelia,_Ohio"}
+   ]
+  },
+  {
+   "slug": "anderson-township-oh",
+   "town": "Anderson Township",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45244","45255","45230"],
+   "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":85,"population":43867,"source":"https://censusreporter.org/profiles/06000US3906101980/"},
+   "storms": {"radiusKm": 9, "nearbyCount": 39, "hailReports": 8, "hailDays": 4, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2020-05-23","place":"Mt. Summit","noaa":882792}, "lastHail": {"in":1,"date":"2023-07-24","place":"Lunken Airport","noaa":1116976}, "tornadoes": 0, "events": [
+    {"date":"2020-05-23","kind":"hail","hailIn":1.25,"place":"Mt. Summit","km":3.1,"noaa":882792},
+    {"date":"2023-07-02","kind":"hail","hailIn":1.25,"place":"Cincinnati’s East End","km":8.7,"noaa":1114124},
+    {"date":"2025-04-02","kind":"wind","kt":63,"basis":"measured","place":"Lunken Airport","km":6.2,"noaa":1243042},
+    {"date":"2020-04-08","kind":"hail","hailIn":1,"place":"Bellevue","county":"Campbell","km":8.3,"noaa":878267}
+   ]},
+   "permit": {"status":"yes","authority":"Hamilton County Planning + Development","url":"https://cms2.revize.com/revize/hamiltoncountyoh/Documents/Government/Departments/Planning%20and%20Development/Buildings%20And%20Inspections/FEE_SCHEDULE_2026.pdf","summary":"Hamilton County's Buildings & Inspections fee schedule carries a Re-Roof permit for one- to three-family homes, and the job comes with a Roofing Data Sheet that covers ice barrier and declares the decking. Anderson Township handles zoning, not the building permit."},
+   "facts": [
+    {"cat":"trees","text":"The township covers 31.2 square miles of rolling hills and steep, wooded hillsides between the Ohio and Little Miami rivers, and it was recognized as a Tree City USA in 2009. Wooded lots mean limbs over the roof and gutters that fill fast.","url":"https://en.wikipedia.org/wiki/Anderson_Township,_Hamilton_County,_Ohio"},
+    {"cat":"growth","text":"Anderson added about 1,000 residents a year from the 1950s into the early 1990s, which is why so much of it is post-war suburban housing now on its second or third roof.","url":"https://en.wikipedia.org/wiki/Anderson_Township,_Hamilton_County,_Ohio"}
+   ]
+  },
+  {
+   "slug": "batavia-oh",
+   "town": "Batavia",
+   "state": "OH",
+   "county": "Clermont County",
+   "region": "cincy-oh",
+   "zips": ["45103"],
+   "housing": {"medianYearBuilt":1955,"ownerOccupiedPct":58.4,"population":2794,"source":"https://censusreporter.org/profiles/16000US3904150/"},
+   "storms": {"radiusKm": 5.6, "nearbyCount": 15, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
+    {"date":"2019-05-23","kind":"wind","kt":50,"basis":"report","place":"Stonelick","km":5.2,"damageUsd":10000,"noaa":817189},
+    {"date":"2019-03-14","kind":"wind","kt":50,"basis":"report","place":"Sky Hills airport, Amelia","km":5.1,"noaa":802996},
+    {"date":"2019-08-30","kind":"wind","kt":50,"basis":"report","place":"Stonelick","km":4.1,"noaa":841373},
+    {"date":"2020-06-21","kind":"wind","kt":50,"basis":"report","place":"Batavia","km":0.6,"noaa":888902}
+   ]},
+   "permit": {"status":"yes","authority":"Clermont County Permit Central","url":"https://permit.clermontcountyohio.gov/frequently-asked-questions/","summary":"Roofing is on Clermont County Permit Central's list of projects that need a permit, and the 2026 residential application has a Roof Replacement box. Village or township zoning approval applies on top of that."},
+   "facts": [
+    {"cat":"history","text":"Batavia was platted in 1814 and has been the Clermont County seat since February 1824, when the seat moved from New Richmond. The courthouse still anchors the village center, where the oldest roofs in town are.","url":"https://en.wikipedia.org/wiki/Batavia,_Ohio"}
+   ]
+  },
+  {
+   "slug": "bethel-oh",
+   "town": "Bethel",
+   "state": "OH",
+   "county": "Clermont County",
+   "region": "cincy-oh",
+   "zips": ["45106"],
+   "housing": {"medianYearBuilt":1958,"ownerOccupiedPct":48.3,"population":2658,"source":"https://censusreporter.org/profiles/16000US3906068/"},
+   "storms": {"radiusKm": 5.1, "nearbyCount": 9, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Bethel","noaa":876482}, "lastHail": {"in":1.5,"date":"2020-04-08","place":"Bethel","noaa":876482}, "tornadoes": 1, "events": [
+    {"date":"2023-03-03","kind":"tornado","rating":"EF0","pathMi":1.29,"place":"Nicholsville to Bethel","km":2.7,"damageUsd":100000,"noaa":1074118},
+    {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Bethel","km":0.5,"noaa":876482},
+    {"date":"2019-06-17","kind":"wind","kt":50,"basis":"report","place":"Bethel","km":3,"noaa":825309},
+    {"date":"2020-04-08","kind":"wind","kt":50,"basis":"report","place":"Wiggonsville","km":2.6,"damageUsd":10000,"noaa":876856}
+   ]},
+   "permit": {"status":"yes","authority":"Clermont County Permit Central","url":"https://permit.clermontcountyohio.gov/frequently-asked-questions/","summary":"Bethel follows the county rule: roofing is on Clermont County Permit Central's permit-required list. Village zoning applies as well."},
+   "facts": [
+    {"cat":"history","text":"Bethel was platted in 1798 as Plainfield and renamed in 1802. It is still a small village, 2,620 people on 1.43 square miles of Tate Township as of 2020.","url":"https://en.wikipedia.org/wiki/Bethel,_Ohio"}
+   ]
+  },
+  {
+   "slug": "blanchester-oh",
+   "town": "Blanchester",
+   "state": "OH",
+   "county": "Clinton County",
+   "region": "cincy-oh",
+   "zips": ["45107"],
+   "housing": {"medianYearBuilt":1964,"ownerOccupiedPct":62.7,"population":4538,"source":"https://censusreporter.org/profiles/16000US3906908/"},
+   "storms": {"radiusKm": 5.8, "nearbyCount": 13, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Pansy","noaa":802850}, "lastHail": {"in":1,"date":"2019-03-14","place":"Pansy","noaa":802850}, "tornadoes": 3, "events": [
+    {"date":"2024-07-30","kind":"tornado","rating":"EF1","pathMi":5.27,"place":"Hammel to Middleboro","county":"Warren","km":3.8,"damageUsd":40000,"noaa":1191765},
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":0.78,"place":"Fayetteville airstrip","km":4.5,"noaa":879630},
+    {"date":"2024-05-07","kind":"tornado","rating":"EF0","pathMi":1.34,"place":"Pansy","km":2.5,"damageUsd":10000,"noaa":1179826},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Pansy","km":2.8,"noaa":802850}
+   ]},
+   "permit": {"status":"unknown","authority":"Clinton County Building & Zoning","url":"https://co.clinton.oh.us/FAQ-BuildingZoning","summary":"I have not found a written answer. Clinton County's building FAQ lists work that needs a permit and does not mention roofing, but it says the list is not complete, and I have not confirmed that the county office covers Blanchester.","ask":"Clinton County Building & Zoning, and the village zoning office on East Main Street"},
+   "facts": [
+    {"cat":"landmark","text":"Blanchester straddles two counties, Clinton and Warren, which is one more reason to confirm which office covers your address before work starts.","url":"https://en.wikipedia.org/wiki/Blanchester,_Ohio"},
+    {"cat":"history","text":"The village was established in 1832 by Joseph and John Blancett and named for them.","url":"https://en.wikipedia.org/wiki/Blanchester,_Ohio"}
+   ]
+  },
+  {
+   "slug": "blue-ash-oh",
+   "town": "Blue Ash",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45242","45241","45236"],
+   "housing": {"medianYearBuilt":1981,"ownerOccupiedPct":64.9,"population":13455,"source":"https://censusreporter.org/profiles/16000US3907300/"},
+   "storms": {"radiusKm": 6.5, "nearbyCount": 25, "hailReports": 5, "hailDays": 2, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "tornadoes": 1, "events": [
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":5,"damageUsd":45000,"noaa":876954},
+    {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":0.7,"noaa":876493},
+    {"date":"2019-07-30","kind":"hail","hailIn":1,"place":"Deer Park","km":3.2,"noaa":833913},
+    {"date":"2022-06-13","kind":"wind","kt":60,"basis":"estimated","place":"Brecon","km":5.6,"damageUsd":20000,"noaa":1024031}
+   ]},
+   "permit": {"status":"yes","authority":"City of Blue Ash Community Development","url":"https://www.blueash.com/departments/community_development/permits.php","summary":"The city's permits page publishes residential roofing submittal requirements next to the Ohio Board of Building Standards memo on re-roofing, which says re-roofs need plan approval unless they are minor repairs. Plan on a permit."},
+   "facts": [
+    {"cat":"growth","text":"Blue Ash incorporated as a village in 1955 and a city in 1961, partly to fight Cincinnati's airport expansion plans. Most of its houses went up from that point on.","url":"https://en.wikipedia.org/wiki/Blue_Ash,_Ohio"},
+    {"cat":"landmark","text":"The Cincinnati–Blue Ash Airport ran from 1921 to August 2012. The city bought the land and built Summit Park on it.","url":"https://en.wikipedia.org/wiki/Blue_Ash,_Ohio"}
+   ]
+  },
+  {
+   "slug": "cincinnati-oh",
+   "town": "Cincinnati",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45230","45226","45211","45223","45208","45232","45224","45238","45237","45225","45220","45204","45205","45229","45214","45202","45227"],
+   "housing": {"medianYearBuilt":1951,"ownerOccupiedPct":39.8,"population":311224,"source":"https://censusreporter.org/profiles/16000US3915000/"},
+   "storms": {"radiusKm": 12, "nearbyCount": 75, "hailReports": 9, "hailDays": 7, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2023-07-02","place":"Cincinnati’s East End","noaa":1114124}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 1, "events": [
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":6.2,"place":"Bevis to Hartwell","km":9.2,"damageUsd":100000,"noaa":876910},
+    {"date":"2023-07-02","kind":"hail","hailIn":1.25,"place":"Cincinnati’s East End","km":5.8,"noaa":1114124},
+    {"date":"2025-04-02","kind":"wind","kt":63,"basis":"measured","place":"Lunken Airport","km":8.1,"noaa":1243042},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Cummingsville","km":2.5,"noaa":802801}
+   ]},
+   "permit": {"status":"no","authority":"City of Cincinnati Buildings & Inspections","url":"https://www.cincinnati-oh.gov/buildings/building-permit-forms-applications/permit-guide/do-i-need-a-permit/","summary":"The city's \"Do I Need a Permit?\" page exempts roof coverings on one- to three-family homes, as long as there are no more than two layers. A third layer, or structural work on rafters or framing, needs a permit."},
+   "historic": {"review":true,"url":"https://www.cincinnati-oh.gov/planning/historic-conservation/certificate-of-appropriateness/","text":"In a local historic district or on a local landmark, a roof replacement needs a Certificate of Appropriateness before it starts, even though it needs no building permit. The city's rule: exempt work still requires a COA. The Urban Conservator can approve minor changes; major ones go to the Historic Conservation Board."},
+   "facts": [
+    {"cat":"historic","text":"298 of Hamilton County's 398 National Register properties and districts are inside the city, Over-the-Rhine among them.","url":"https://en.wikipedia.org/wiki/National_Register_of_Historic_Places_listings_in_Hamilton_County,_Ohio"},
+    {"cat":"trees","text":"The city's 2011–2020 canopy assessment put tree cover at 43.1%, ranging from 10% to 70% depending on the neighborhood. On the leafy end of that range, valleys and gutters load up every fall.","url":"https://www.cincinnati-oh.gov/oes/climate/green-infrastructure/tree-canopy-assessment-2011-2020/"}
+   ]
+  },
+  {
+   "slug": "clarksville-oh",
+   "town": "Clarksville",
+   "state": "OH",
+   "county": "Clinton County",
+   "region": "cincy-oh",
+   "zips": ["45113"],
+   "housing": {"medianYearBuilt":1960,"ownerOccupiedPct":49.6,"population":573,"source":"https://censusreporter.org/profiles/16000US3915406/"},
+   "storms": {"radiusKm": 4.6, "nearbyCount": 18, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2023-07-18","place":"Middleboro","noaa":1116258}, "lastHail": {"in":1.5,"date":"2023-07-18","place":"Middleboro","noaa":1116258}, "tornadoes": 2, "events": [
+    {"date":"2022-03-23","kind":"tornado","rating":"EF0","pathMi":1.52,"place":"Middleboro","county":"Warren","km":0.7,"damageUsd":10000,"noaa":1004202},
+    {"date":"2024-05-07","kind":"tornado","rating":"EF0","pathMi":0.51,"place":"Middleboro","county":"Warren","km":2.8,"damageUsd":50000,"noaa":1179825},
+    {"date":"2023-07-18","kind":"hail","hailIn":1.5,"place":"Middleboro","county":"Warren","km":2.8,"noaa":1116258},
+    {"date":"2025-05-16","kind":"wind","kt":55,"basis":"estimated","place":"Sligo","km":3.9,"noaa":1247296}
+   ]},
+   "permit": {"status":"unknown","authority":"Clinton County Building & Zoning","url":"https://co.clinton.oh.us/FAQ-BuildingZoning","summary":"Roofing is not on Clinton County's list of work that needs a permit, and there is no written exemption either. I have not confirmed which office covers Clarksville.","ask":"Clinton County Building & Zoning"},
+   "facts": [
+    {"cat":"history","text":"Clarksville was laid out in 1816 and is still a small village: 534 residents on 0.49 square miles in 2020, with State Route 350 running through as Main Street.","url":"https://en.wikipedia.org/wiki/Clarksville,_Ohio"}
+   ]
+  },
+  {
+   "slug": "fairfield-oh",
+   "town": "Fairfield",
+   "state": "OH",
+   "county": "Butler County",
+   "region": "cincy-oh",
+   "zips": ["45014","45011"],
+   "housing": {"medianYearBuilt":1978,"ownerOccupiedPct":63.2,"population":44828,"source":"https://censusreporter.org/profiles/16000US3925970/"},
+   "storms": {"radiusKm": 8.1, "nearbyCount": 27, "hailReports": 5, "hailDays": 3, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2025-05-16","place":"Hamilton airport","noaa":1247261}, "lastHail": {"in":1.25,"date":"2025-05-16","place":"Hamilton airport","noaa":1247261}, "tornadoes": 0, "events": [
+    {"date":"2025-05-16","kind":"hail","hailIn":1.25,"place":"Hamilton airport","km":4.2,"noaa":1247261},
+    {"date":"2020-04-08","kind":"hail","hailIn":1,"place":"Springdale","county":"Hamilton","km":7.1,"noaa":876492},
+    {"date":"2022-06-22","kind":"wind","kt":60,"basis":"estimated","place":"Pisgah","km":7.5,"damageUsd":40000,"noaa":1024581},
+    {"date":"2024-04-02","kind":"hail","hailIn":1,"place":"Stockton","km":3.7,"noaa":1168683}
+   ]},
+   "permit": {"status":"yes","authority":"City of Fairfield Building & Zoning Division","url":"https://www.fairfield-city.org/1339/FAQs-Building-Zoning-Division","summary":"The city's FAQ is direct: a complete tear-off and re-roof needs a permit, and repairing a section of roof does not."},
+   "facts": [
+    {"cat":"growth","text":"Fairfield became a village in 1955 and a city in 1960, then grew fast from the 1960s through the 1980s as I-275 went in. That boom is most of the housing stock.","url":"https://en.wikipedia.org/wiki/Fairfield,_Ohio"},
+    {"cat":"landmark","text":"The city sits on the east bank of the Great Miami River; Harbin Park, at 230 acres, is its largest park.","url":"https://en.wikipedia.org/wiki/Fairfield,_Ohio"}
+   ]
+  },
+  {
+   "slug": "fayetteville-oh",
+   "town": "Fayetteville",
+   "state": "OH",
+   "county": "Brown County",
+   "region": "cincy-oh",
+   "zips": ["45118"],
+   "housing": {"medianYearBuilt":1958,"ownerOccupiedPct":75.6,"population":324,"source":"https://censusreporter.org/profiles/16000US3926796/"},
+   "storms": {"radiusKm": 4.6, "nearbyCount": 17, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2024-03-14","place":"Vera Cruz","noaa":1158494}, "lastHail": {"in":1,"date":"2024-03-14","place":"Vera Cruz","noaa":1158494}, "tornadoes": 3, "events": [
+    {"date":"2022-07-06","kind":"tornado","rating":"EF1","pathMi":3.34,"place":"Vera Cruz to Fayetteville airstrip","km":2.3,"damageUsd":500000,"noaa":1035507},
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":2.88,"place":"Vera Cruz to Fayetteville airstrip","km":2.1,"damageUsd":15000,"noaa":883800},
+    {"date":"2025-04-03","kind":"tornado","rating":"EF0","pathMi":3.65,"place":"Fayetteville to St. Martin","km":1.5,"damageUsd":15000,"noaa":1243109},
+    {"date":"2023-03-03","kind":"wind","kt":78,"basis":"estimated","place":"St. Martin","km":4.5,"damageUsd":75000,"noaa":1074126}
+   ]},
+   "permit": {"status":"unknown","authority":"Brown County Building Department","url":"https://browncountyohio.gov/index.php/building-department","summary":"The Brown County Building Department's listed scope for homes covers structural remodeling, not roofing by name, so a covering-only re-roof may not need a permit. That is my reading, not a written rule.","ask":"the Brown County Building Department"},
+   "facts": [
+    {"cat":"history","text":"Fayetteville was founded in 1818 by Irish immigrant Cornelius McGroarty and sits on a bend of the East Fork Little Miami River in Perry Township, 317 residents as of 2020.","url":"https://en.wikipedia.org/wiki/Fayetteville,_Ohio"}
+   ]
+  },
+  {
+   "slug": "franklin-oh",
+   "town": "Franklin",
+   "state": "OH",
+   "county": "Warren County",
+   "region": "cincy-oh",
+   "zips": ["45005"],
+   "housing": {"medianYearBuilt":1967,"ownerOccupiedPct":60.7,"population":11712,"source":"https://censusreporter.org/profiles/16000US3928476/"},
+   "storms": {"radiusKm": 6.8, "nearbyCount": 13, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
+    {"date":"2019-04-12","kind":"wind","kt":56,"basis":"estimated","place":"Springboro","km":4.3,"damageUsd":25000,"noaa":807488},
+    {"date":"2023-07-17","kind":"wind","kt":50,"basis":"report","place":"Carlisle Junction","km":4.1,"damageUsd":40000,"noaa":1116228},
+    {"date":"2025-04-29","kind":"wind","kt":50,"basis":"report","place":"Carlisle","county":"Montgomery","km":5,"noaa":1246717},
+    {"date":"2025-04-02","kind":"wind","kt":50,"basis":"report","place":"Carlisle Junction","km":5.1,"noaa":1243040}
+   ]},
+   "permit": {"status":"unknown","authority":"Warren County Building & Zoning","url":"https://www.warrencountyohio.gov/bldginsp/","summary":"The City of Franklin issues permits and Warren County Building & Zoning handles plan review and inspections. Neither has a written re-roof rule that I could find.","ask":"the City of Franklin's permit office or Warren County Building & Zoning"},
+   "historic": {"review":false,"url":"https://en.wikipedia.org/wiki/National_Register_of_Historic_Places_listings_in_Warren_County,_Ohio","text":"Franklin has two National Register districts, Mackinaw (1980) and the Franklin Historic District (2023). National Register listing does not by itself restrict what a private owner does to a roof, and I have not found a local roof review in Franklin."},
+   "facts": [
+    {"cat":"history","text":"Franklin was founded in 1796 on the Great Miami River, and the Miami and Erie Canal (1825–1845) brought mills, coopers and distillers to the old core.","url":"https://en.wikipedia.org/wiki/Franklin,_Ohio"}
+   ]
+  },
+  {
+   "slug": "goshen-oh",
+   "town": "Goshen",
+   "state": "OH",
+   "county": "Clermont County",
+   "region": "cincy-oh",
+   "zips": ["45122","45140","45150","45162"],
+   "housing": {"medianYearBuilt":1983,"ownerOccupiedPct":85,"population":16310,"source":"https://censusreporter.org/profiles/06000US3902531010/"},
+   "storms": {"radiusKm": 9.3, "nearbyCount": 37, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 2, "events": [
+    {"date":"2022-07-06","kind":"tornado","rating":"EF2","pathMi":4.81,"place":"Goshen to Modest","km":2.8,"damageUsd":3000000,"noaa":1035499},
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":5.92,"place":"Newtonsville to Lerado","km":7.3,"damageUsd":25000,"noaa":876956},
+    {"date":"2020-04-08","kind":"wind","kt":78,"basis":"estimated","place":"Day Heights","km":8,"damageUsd":30000,"noaa":880844}
+   ]},
+   "permit": {"status":"yes","authority":"Clermont County Permit Central","url":"https://permit.clermontcountyohio.gov/frequently-asked-questions/","summary":"Goshen Township is under the Clermont County rule: roofing is on Permit Central's permit-required list. The township handles zoning."},
+   "facts": [
+    {"cat":"history","text":"The July 6, 2022 EF2 tornado damaged Goshen Township's fire station, police department, township office and school buildings.","url":"https://en.wikipedia.org/wiki/Goshen_Township,_Clermont_County,_Ohio"}
+   ]
+  },
+  {
+   "slug": "indian-hill-oh",
+   "town": "Indian Hill",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45243","45242"],
+   "housing": {"medianYearBuilt":1974,"ownerOccupiedPct":96.7,"population":6052,"source":"https://censusreporter.org/profiles/16000US3976582/"},
+   "storms": {"radiusKm": 8, "nearbyCount": 39, "hailReports": 7, "hailDays": 4, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1,"date":"2022-07-05","place":"Miamiville","noaa":1034087}, "tornadoes": 2, "events": [
+    {"date":"2022-07-06","kind":"tornado","rating":"EF1","pathMi":2.24,"place":"Branch Hill to Epworth Heights","county":"Clermont","km":7.5,"damageUsd":100000,"noaa":1035485},
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":2.8,"damageUsd":45000,"noaa":876954},
+    {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":7.8,"noaa":876493},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Terrace Park","county":"Clermont","km":4.1,"noaa":802815}
+   ]},
+   "permit": {"status":"yes","authority":"Hamilton County Planning + Development","url":"https://www.hamiltoncountyohio.gov/government/departments/planning_and_development/development_process.php","summary":"Indian Hill is one of Hamilton County's contract jurisdictions, so the county's Re-Roof permit and Roofing Data Sheet apply. The village handles zoning."},
+   "facts": [
+    {"cat":"trees","text":"All of Indian Hill is zoned single-family residential or agricultural, on land that runs from open fields to steep, mature forest.","url":"https://en.wikipedia.org/wiki/Indian_Hill,_Ohio"},
+    {"cat":"trees","text":"About 2,800 acres sit in the Green Areas Trust and about 600 more are under conservation easements, roughly a quarter of the village. Big trees near big roofs mean limb strikes and shaded, slow-drying slopes.","url":"https://indianhill.org/history/historic-subjects/green-areas-program-of-indian-hill/"}
+   ]
+  },
+  {
+   "slug": "lebanon-oh",
+   "town": "Lebanon",
+   "state": "OH",
+   "county": "Warren County",
+   "region": "cincy-oh",
+   "zips": ["45036"],
+   "housing": {"medianYearBuilt":1986,"ownerOccupiedPct":61.1,"population":21501,"source":"https://censusreporter.org/profiles/16000US3942364/"},
+   "storms": {"radiusKm": 7.3, "nearbyCount": 20, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 1, "events": [
+    {"date":"2024-05-07","kind":"tornado","rating":"EF1","pathMi":2.64,"place":"South Lebanon to Stubbs Mills","km":5.6,"damageUsd":200000,"noaa":1179640},
+    {"date":"2025-03-30","kind":"wind","kt":65,"basis":"estimated","place":"Red Lion","km":5.2,"damageUsd":40000,"noaa":1241856},
+    {"date":"2019-05-27","kind":"wind","kt":59,"basis":"measured","place":"Lebanon–Warren County airport","km":4.6,"noaa":818169},
+    {"date":"2025-03-19","kind":"wind","kt":55,"basis":"estimated","place":"Stubbs Mills","km":6.4,"noaa":1239792}
+   ]},
+   "permit": {"status":"unknown","authority":"Warren County Building & Zoning","url":"https://www.lebanonohio.gov/departments/planning___development/permits.php","summary":"Lebanon sends building permits to Warren County, which has no published position on residential re-roofs. Structural work, like replacing decking, falls under \"any structural changes\" and does need a permit.","ask":"Warren County Building & Zoning"},
+   "historic": {"review":true,"url":"https://www.lebanonohio.gov/departments/planning___development/historic_district_building___renovation.php","text":"Inside Lebanon's Architectural Review Overlay district, any visible change to a building's exterior needs a Certificate of Appropriateness under the Historic Preservation Standards. Ordinary repair that does not change the look is exempt."},
+   "facts": [
+    {"cat":"historic","text":"Four National Register districts, East End, Floraville, Lebanon Commercial and North Broadway, were all listed in October 1984.","url":"https://en.wikipedia.org/wiki/National_Register_of_Historic_Places_listings_in_Warren_County,_Ohio"},
+    {"cat":"landmark","text":"The Golden Lamb, established in 1803, is Ohio's oldest hotel; the town was laid out in 1802 and nicknamed \"The Cedar City\" for its red cedars.","url":"https://en.wikipedia.org/wiki/Lebanon,_Ohio"}
+   ]
+  },
+  {
+   "slug": "loveland-oh",
+   "town": "Loveland",
+   "state": "OH",
+   "county": "Warren County / Clermont County / Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45140"],
+   "housing": {"medianYearBuilt":1985,"ownerOccupiedPct":74.6,"population":13197,"source":"https://censusreporter.org/profiles/16000US3945108/"},
+   "storms": {"radiusKm": 6.1, "nearbyCount": 23, "hailReports": 6, "hailDays": 3, "maxHailIn": 2, "maxHail": {"in":2,"date":"2020-04-08","place":"Socialville","noaa":876505}, "lastHail": {"in":1,"date":"2022-07-05","place":"Miamiville","noaa":1034087}, "tornadoes": 1, "events": [
+    {"date":"2022-07-06","kind":"tornado","rating":"EF1","pathMi":2.24,"place":"Branch Hill to Epworth Heights","km":3.3,"damageUsd":100000,"noaa":1035485},
+    {"date":"2020-04-08","kind":"hail","hailIn":2,"place":"Socialville","km":4,"noaa":876505},
+    {"date":"2021-06-29","kind":"hail","hailIn":1,"place":"Loveland Park","km":4.8,"noaa":958170},
+    {"date":"2022-07-05","kind":"hail","hailIn":1,"place":"Miamiville","km":4.6,"noaa":1034087}
+   ]},
+   "permit": {"status":"varies","authority":"City of Loveland Building & Zoning","url":"https://lovelandoh.gov/DocumentCenter/View/965/Residential-Building-Permit-Application","summary":"The city's residential permit application has only a \"Roofing, structural\" box, which points to a permit when decking or framing is replaced. I have not found a written exemption for a covering-only job.","ask":"the City of Loveland's Chief Building Official"},
+   "historic": {"review":true,"url":"https://www.lovelandoh.gov/344/Historic-Preservation-and-Planning-Commi","text":"Inside the Historic Preservation and Planning District, the Historic Preservation and Planning Commission approves construction, restoration and rehabilitation of homes, under residential design guidelines."},
+   "facts": [
+    {"cat":"trees","text":"Loveland has been a Tree City USA for multiple years, and its Tree & Environment Committee runs programs like invasive pear removal.","url":"https://www.lovelandoh.gov/229/Tree-Environment-Committee"},
+    {"cat":"landmark","text":"The city straddles the Little Miami River, and the old railroad corridor is now the Loveland Bike Trail.","url":"https://en.wikipedia.org/wiki/Loveland,_Ohio"}
+   ]
+  },
+  {
+   "slug": "madeira-oh",
+   "town": "Madeira",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45243","45227","45236"],
+   "housing": {"medianYearBuilt":1960,"ownerOccupiedPct":92.2,"population":9484,"source":"https://censusreporter.org/profiles/16000US3946312/"},
+   "storms": {"radiusKm": 5.7, "nearbyCount": 23, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Golf Manor","noaa":802805}, "lastHail": {"in":1,"date":"2019-07-30","place":"Deer Park","noaa":833913}, "tornadoes": 1, "events": [
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":3,"damageUsd":45000,"noaa":876954},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Golf Manor","km":4.9,"noaa":802805},
+    {"date":"2019-07-30","kind":"hail","hailIn":1,"place":"Deer Park","km":3.9,"noaa":833913}
+   ]},
+   "permit": {"status":"yes","authority":"City of Madeira Building & Zoning","url":"https://www.madeiracity.com/government/departments/building___zoning/building_permit_fees.php","summary":"Madeira's fee schedule lists a residential Roof Repair/Replacement permit and a combined Roof & Gutters permit, so a re-roof here is a permitted job."},
+   "facts": [
+    {"cat":"history","text":"An F3 tornado struck Madeira in August 1969, killing four people and causing more than $3 million in damage.","url":"https://en.wikipedia.org/wiki/Madeira,_Ohio"},
+    {"cat":"growth","text":"The city nearly doubled in area with the 1970 annexation of South Kenwood, which is a big part of why the housing reads 1960s.","url":"https://en.wikipedia.org/wiki/Madeira,_Ohio"}
+   ]
+  },
+  {
+   "slug": "maineville-oh",
+   "town": "Maineville",
+   "state": "OH",
+   "county": "Warren County",
+   "region": "cincy-oh",
+   "zips": ["45039","45140","45152"],
+   "housing": {"medianYearBuilt":2004,"ownerOccupiedPct":77,"population":2070,"source":"https://censusreporter.org/profiles/16000US3946872/"},
+   "storms": {"radiusKm": 5.1, "nearbyCount": 6, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 2, "events": [
+    {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":9.73,"place":"Mason to Stubbs Mills","km":4.4,"damageUsd":215000,"noaa":1241789},
+    {"date":"2025-04-03","kind":"tornado","rating":"EF0","pathMi":8.51,"place":"Maineville to Middleboro","km":0.1,"damageUsd":200000,"noaa":1243098},
+    {"date":"2019-07-02","kind":"wind","kt":50,"basis":"report","place":"Comargo","km":2.2,"damageUsd":10000,"noaa":827631},
+    {"date":"2020-06-10","kind":"wind","kt":50,"basis":"report","place":"Maineville","km":1.3,"noaa":886538}
+   ]},
+   "permit": {"status":"unknown","authority":"Warren County Building & Zoning","url":"https://www.warrencountyohio.gov/bldginsp/BuildingElectrical/FAQPermits/Index","summary":"Warren County's permit FAQ lists \"any structural changes\" but not roofing, so a covering-only tear-off probably needs no permit. That is unverified.","ask":"Warren County Building & Zoning"},
+   "facts": [
+    {"cat":"growth","text":"Maineville was settled by families from Phillips, Maine, and incorporated in 1850, but it grew from 359 residents in 2000 to 1,405 in 2020. Most roofs here are the first ones the house ever had.","url":"https://en.wikipedia.org/wiki/Maineville,_Ohio"}
+   ]
+  },
+  {
+   "slug": "mason-oh",
+   "town": "Mason",
+   "state": "OH",
+   "county": "Warren County",
+   "region": "cincy-oh",
+   "zips": ["45040","45036"],
+   "housing": {"medianYearBuilt":1996,"ownerOccupiedPct":80.1,"population":35509,"source":"https://censusreporter.org/profiles/16000US3948188/"},
+   "storms": {"radiusKm": 8, "nearbyCount": 39, "hailReports": 8, "hailDays": 3, "maxHailIn": 2, "maxHail": {"in":2,"date":"2020-04-08","place":"Socialville","noaa":876505}, "lastHail": {"in":1,"date":"2023-07-18","place":"Mason","noaa":1116706}, "tornadoes": 2, "events": [
+    {"date":"2024-05-07","kind":"tornado","rating":"EF1","pathMi":2.64,"place":"South Lebanon to Stubbs Mills","km":7.2,"damageUsd":200000,"noaa":1179640},
+    {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":9.73,"place":"Mason to Stubbs Mills","km":4.5,"damageUsd":215000,"noaa":1241789},
+    {"date":"2020-04-08","kind":"hail","hailIn":2,"place":"Socialville","km":6.8,"noaa":876505},
+    {"date":"2021-06-29","kind":"hail","hailIn":1,"place":"Loveland Park","km":5.8,"noaa":958170}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Mason Engineering & Building","url":"https://www.imaginemason.org/download/PDFs/monthly_permit_reports/2025/MONTHLY-ISSUED-REPORT-OCTOBER-2025.pdf","summary":"I have not found a written rule. The city's October 2025 report of issued permits has a commercial roof-replacement type and no residential one, which suggests a covering-only re-roof does not need a permit. Structural work is a different story.","ask":"the City of Mason Engineering & Building Department"},
+   "facts": [
+    {"cat":"growth","text":"Mason had fewer than 5,700 residents in 1970 and 34,792 by 2020. I-71 and Kings Island drove that growth, so most homes are post-1970.","url":"https://en.wikipedia.org/wiki/Mason,_Ohio"},
+    {"cat":"history","text":"William Mason platted 16 lots in 1815 as the village of Palmyra; it took the name Mason in 1835.","url":"https://en.wikipedia.org/wiki/Mason,_Ohio"}
+   ]
+  },
+  {
+   "slug": "miamisburg-oh",
+   "town": "Miamisburg",
+   "state": "OH",
+   "county": "Montgomery County",
+   "region": "cincy-oh",
+   "zips": ["45342","45449"],
+   "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":72.9,"population":19948,"source":"https://censusreporter.org/profiles/16000US3949434/"},
+   "storms": {"radiusKm": 7.2, "nearbyCount": 18, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2025-02-27","place":"Miamisburg","noaa":1231566}, "lastHail": {"in":1,"date":"2025-04-29","place":"Whitfield","noaa":1246758}, "tornadoes": 0, "events": [
+    {"date":"2025-02-27","kind":"hail","hailIn":1,"place":"Miamisburg","km":1.9,"noaa":1231566},
+    {"date":"2025-04-29","kind":"hail","hailIn":1,"place":"Whitfield","km":5.7,"noaa":1246758},
+    {"date":"2025-04-02","kind":"wind","kt":51,"basis":"measured","place":"Dayton-Wright Brothers Airport","km":5.7,"noaa":1243092}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Miamisburg Building, Permitting & Inspection","url":"https://cityofmiamisburg.com/building-permitting-and-inspection/","summary":"The city's building page gives no roofing rule and says to call. Next door, Montgomery County Building Regulations states in writing that tear-offs and re-roofs without structural repairs need no permit, but that is the county's rule, not the city's.","ask":"the City of Miamisburg's building office"},
+   "facts": [
+    {"cat":"history","text":"Miamisburg was settled around 1797, and the Miami and Erie Canal reached town by 1829 and drove its 1840s–1850s boom.","url":"https://en.wikipedia.org/wiki/Miamisburg,_Ohio"},
+    {"cat":"landmark","text":"The Miamisburg Mound, built by the Adena culture, is one of the largest conical burial mounds in the eastern United States.","url":"https://en.wikipedia.org/wiki/Miamisburg,_Ohio"}
+   ]
+  },
+  {
+   "slug": "milford-oh",
+   "town": "Milford",
+   "state": "OH",
+   "county": "Clermont County",
+   "region": "cincy-oh",
+   "zips": ["45150"],
+   "housing": {"medianYearBuilt":1968,"ownerOccupiedPct":49.6,"population":6497,"source":"https://censusreporter.org/profiles/16000US3950176/"},
+   "storms": {"radiusKm": 5.7, "nearbyCount": 25, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Terrace Park","noaa":802815}, "lastHail": {"in":1,"date":"2019-03-14","place":"Terrace Park","noaa":802815}, "tornadoes": 1, "events": [
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","county":"Hamilton","km":2.4,"damageUsd":45000,"noaa":876954},
+    {"date":"2020-04-08","kind":"wind","kt":78,"basis":"estimated","place":"Day Heights","km":5.2,"damageUsd":30000,"noaa":880844},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Terrace Park","km":1.7,"noaa":802815}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Milford (plan review by National Inspection Corporation)","url":"https://www.milfordohio.org/departments/planning_and_zoning/building_permits.php","summary":"Inside the city, building permits run through the City of Milford and its contract inspector, National Inspection Corporation, and neither says whether a re-roof needs one. Outside the city, in Milford Township, Clermont County Permit Central requires a roofing permit.","ask":"National Inspection Corporation, the city's plan reviewer"},
+   "facts": [
+    {"cat":"history","text":"Settlement began in 1796 where the Little Miami River meets its East Fork, which ties Milford with Williamsburg as Clermont County's oldest settlement. It became a city in 1982.","url":"https://en.wikipedia.org/wiki/Milford,_Ohio"}
+   ]
+  },
+  {
+   "slug": "monroe-oh",
+   "town": "Monroe",
+   "state": "OH",
+   "county": "Warren County / Butler County",
+   "region": "cincy-oh",
+   "zips": ["45050","45044","45036"],
+   "housing": {"medianYearBuilt":2001,"ownerOccupiedPct":80.9,"population":15401,"source":"https://censusreporter.org/profiles/16000US3951310/"},
+   "storms": {"radiusKm": 7.6, "nearbyCount": 22, "hailReports": 6, "hailDays": 2, "maxHailIn": 2, "maxHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "lastHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "tornadoes": 3, "events": [
+    {"date":"2023-08-14","kind":"tornado","rating":"EF0","pathMi":1.33,"place":"Rockdale to LeSourdsville","km":6.3,"noaa":1122752},
+    {"date":"2024-05-07","kind":"tornado","rating":"EF0","pathMi":0.28,"place":"Oakland","km":3.8,"damageUsd":20000,"noaa":1179824},
+    {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":6.89,"place":"North Hamilton airport to LeSourdsville","km":4.1,"damageUsd":250000,"noaa":1241784},
+    {"date":"2025-05-16","kind":"hail","hailIn":2,"place":"Kyles","km":6.1,"noaa":1247257}
+   ]},
+   "permit": {"status":"yes","authority":"City of Monroe Development Department","url":"https://www.monroeohio.org/357/Frequently-Asked-Questions","summary":"The city's FAQ lists residential and commercial roofing projects among the work that needs a permit, and review takes about 7 to 10 business days."},
+   "facts": [
+    {"cat":"growth","text":"Monroe went from 360 residents in 1950 to 2,193 in 1960, 12,442 in 2010 and 15,412 in 2020, so the housing is mostly post-war and recent.","url":"https://en.wikipedia.org/wiki/Monroe,_Ohio"}
+   ]
+  },
+  {
+   "slug": "montgomery-oh",
+   "town": "Montgomery",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45242","45249"],
+   "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":90.1,"population":10855,"source":"https://censusreporter.org/profiles/16000US3951716/"},
+   "storms": {"radiusKm": 6.1, "nearbyCount": 28, "hailReports": 6, "hailDays": 3, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1,"date":"2022-07-05","place":"Miamiville","noaa":1034087}, "tornadoes": 1, "events": [
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":4.8,"damageUsd":45000,"noaa":876954},
+    {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":2.8,"noaa":876493},
+    {"date":"2019-07-30","kind":"hail","hailIn":1,"place":"Deer Park","km":4,"noaa":833913},
+    {"date":"2022-07-05","kind":"hail","hailIn":1,"place":"Miamiville","county":"Clermont","km":5.5,"noaa":1034087}
+   ]},
+   "permit": {"status":"yes","authority":"City of Montgomery Community Development","url":"https://www.montgomeryohio.gov/required-permits/","summary":"Montgomery's required-permits list includes residential roofing replacement (since January 2018) and structural repair of an existing roof. Replacement gutters and downspouts need no permit."},
+   "historic": {"review":false,"url":"https://www.montgomeryohio.gov/landmarks-commission/","text":"The Universalist Church Historic District has been on the National Register since 1970, and a council-appointed Landmarks Commission advises on matters that affect city landmarks. I have not confirmed any roof-specific review."},
+   "facts": [
+    {"cat":"trees","text":"Montgomery has been a Tree City USA every year since 1997 and received its 30-year award in 2025.","url":"https://www.montgomeryohio.gov/2025-public-works-and-recreation-annual-report"},
+    {"cat":"history","text":"Laid out in 1802 as a coach stop on the Cincinnati–Zanesville Road, it stayed small until it became a bedroom community in the 1960s.","url":"https://en.wikipedia.org/wiki/Montgomery,_Ohio"}
+   ]
+  },
+  {
+   "slug": "mt-orab-oh",
+   "town": "Mt. Orab",
+   "state": "OH",
+   "county": "Brown County",
+   "region": "cincy-oh",
+   "zips": ["45154","45176"],
+   "housing": {"medianYearBuilt":1994,"ownerOccupiedPct":59.8,"population":4987,"source":"https://censusreporter.org/profiles/16000US3952906/"},
+   "storms": {"radiusKm": 6.8, "nearbyCount": 11, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.75, "maxHail": {"in":1.75,"date":"2020-04-08","place":"Mt. Orab","noaa":876489}, "lastHail": {"in":1.75,"date":"2020-04-08","place":"Mt. Orab","noaa":876489}, "tornadoes": 0, "events": [
+    {"date":"2020-04-08","kind":"hail","hailIn":1.75,"place":"Mt. Orab","km":0.6,"noaa":876489},
+    {"date":"2019-06-24","kind":"wind","kt":65,"basis":"estimated","place":"Bardwell","km":2.6,"damageUsd":15000,"noaa":829918},
+    {"date":"2020-06-10","kind":"wind","kt":50,"basis":"report","place":"Mt. Orab","km":0.6,"noaa":886508},
+    {"date":"2020-08-28","kind":"wind","kt":50,"basis":"report","place":"Eastwood","km":5.7,"noaa":907712}
+   ]},
+   "permit": {"status":"unknown","authority":"Brown County Building Department","url":"https://browncountyohio.gov/index.php/building-department","summary":"Building permits here go through the Brown County Building Department after village zoning. Its listed scope for homes covers structural remodeling and does not name roofing, so a permit is likely only when decking or rafters are involved. That is unverified.","ask":"the Brown County Building Department"},
+   "facts": [
+    {"cat":"growth","text":"Mt. Orab was laid out in 1850 and spans Green, Pike and Sterling townships. It grew from 242 residents in 1880 to 4,347 in 2020, most of that recently.","url":"https://en.wikipedia.org/wiki/Mount_Orab,_Ohio"}
+   ]
+  },
+  {
+   "slug": "new-richmond-oh",
+   "town": "New Richmond",
+   "state": "OH",
+   "county": "Clermont County",
+   "region": "cincy-oh",
+   "zips": ["45157"],
+   "housing": {"medianYearBuilt":1986,"ownerOccupiedPct":72.2,"population":2766,"source":"https://censusreporter.org/profiles/16000US3955384/"},
+   "storms": {"radiusKm": 5.7, "nearbyCount": 11, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
+    {"date":"2019-05-29","kind":"wind","kt":50,"basis":"report","place":"Mt. Pisgah","km":5.7,"noaa":816347},
+    {"date":"2019-08-22","kind":"wind","kt":50,"basis":"report","place":"Carthage","county":"Campbell","km":4.9,"noaa":838473},
+    {"date":"2019-05-29","kind":"wind","kt":50,"basis":"report","place":"Carthage","county":"Campbell","km":4.9,"noaa":816346},
+    {"date":"2021-07-16","kind":"wind","kt":50,"basis":"report","place":"New Richmond","km":1.7,"noaa":961988}
+   ]},
+   "permit": {"status":"yes","authority":"Clermont County Permit Central","url":"https://permit.clermontcountyohio.gov/frequently-asked-questions/","summary":"Roofing is on Clermont County Permit Central's permit-required list, and I am not aware of the village running a separate building department."},
+   "facts": [
+    {"cat":"history","text":"New Richmond is a floodplain town. In the Great Flood of 1937 the village lost 250 of its 415 homes, so a lot of what stands was rebuilt after.","url":"https://en.wikipedia.org/wiki/New_Richmond,_Ohio"},
+    {"cat":"history","text":"Laid out on the Ohio River in 1814, it was a steamboat-building hub and the county seat until 1824.","url":"https://en.wikipedia.org/wiki/New_Richmond,_Ohio"}
+   ]
+  },
+  {
+   "slug": "newtown-oh",
+   "town": "Newtown",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45244"],
+   "housing": {"medianYearBuilt":1989,"ownerOccupiedPct":67.2,"population":2685,"source":"https://censusreporter.org/profiles/16000US3955678/"},
+   "storms": {"radiusKm": 5.3, "nearbyCount": 11, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
+    {"date":"2020-04-08","kind":"wind","kt":50,"basis":"report","place":"Red Bank","km":5,"noaa":876622},
+    {"date":"2021-08-27","kind":"wind","kt":50,"basis":"report","place":"Mt. Summit","km":3.9,"noaa":969986},
+    {"date":"2022-05-19","kind":"wind","kt":50,"basis":"report","place":"Norwood","km":4.4,"noaa":1016800},
+    {"date":"2022-07-06","kind":"wind","kt":50,"basis":"report","place":"Mt. Summit","km":4.7,"noaa":1035487}
+   ]},
+   "permit": {"status":"yes","authority":"Hamilton County Building Department","url":"https://newtownohio.gov/building-zoning/","summary":"Newtown's own page says building permits are issued by the Hamilton County Building Department after village zoning approval, and the county has a Re-Roof permit for one- to three-family homes."},
+   "facts": [
+    {"cat":"history","text":"Newtown was first settled in 1792 as Mercersburg and incorporated in 1901. It split from Anderson Township in the 1960s but is still surrounded by it.","url":"https://en.wikipedia.org/wiki/Newtown,_Ohio"}
+   ]
+  },
+  {
+   "slug": "norwood-oh",
+   "town": "Norwood",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45212","45209"],
+   "housing": {"medianYearBuilt":1938,"ownerOccupiedPct":47.5,"population":19114,"source":"https://censusreporter.org/profiles/16000US3957386/"},
+   "storms": {"radiusKm": 5.6, "nearbyCount": 13, "hailReports": 2, "hailDays": 2, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2023-07-02","place":"Cincinnati’s East End","noaa":1114124}, "lastHail": {"in":1.25,"date":"2023-07-02","place":"Cincinnati’s East End","noaa":1114124}, "tornadoes": 0, "events": [
+    {"date":"2023-07-02","kind":"hail","hailIn":1.25,"place":"Cincinnati’s East End","km":3.6,"noaa":1114124},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Golf Manor","km":3,"noaa":802805},
+    {"date":"2019-07-30","kind":"wind","kt":50,"basis":"report","place":"Newport","county":"Campbell","km":5.5,"damageUsd":10000,"noaa":833911},
+    {"date":"2020-04-08","kind":"wind","kt":50,"basis":"report","place":"Amberley","km":4.8,"noaa":876563}
+   ]},
+   "permit": {"status":"yes","authority":"City of Norwood Building Department","url":"https://norwoodohio.gov/DocumentCenter/View/123/Roof-Permit-Application-PDF","summary":"Norwood publishes a dedicated Roof Permit Application, so a re-roof here is a permitted job with an inspection."},
+   "facts": [
+    {"cat":"history","text":"Norwood incorporated as a village in 1888 and a city in 1902, an early Cincinnati suburb of older homes on tree-lined streets, now an enclave surrounded by the city.","url":"https://en.wikipedia.org/wiki/Norwood,_Ohio"},
+    {"cat":"history","text":"The Norwood Assembly plant built GM cars from 1923 to 1987, which is the era a lot of the housing comes from.","url":"https://en.wikipedia.org/wiki/Norwood,_Ohio"}
+   ]
+  },
+  {
+   "slug": "sharonville-oh",
+   "town": "Sharonville",
+   "state": "OH",
+   "county": "Butler County / Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45241","45246"],
+   "housing": {"medianYearBuilt":1974,"ownerOccupiedPct":57.1,"population":14030,"source":"https://censusreporter.org/profiles/16000US3971892/"},
+   "storms": {"radiusKm": 6.8, "nearbyCount": 17, "hailReports": 7, "hailDays": 3, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1,"date":"2023-07-02","place":"Glendale","noaa":1114100}, "tornadoes": 0, "events": [
+    {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":4.1,"noaa":876493},
+    {"date":"2021-06-18","kind":"hail","hailIn":1,"place":"West Chester","km":5.5,"noaa":955711},
+    {"date":"2022-06-13","kind":"wind","kt":60,"basis":"estimated","place":"Brecon","km":4.1,"damageUsd":20000,"noaa":1024031},
+    {"date":"2023-07-02","kind":"hail","hailIn":1,"place":"Glendale","km":4.7,"noaa":1114100}
+   ]},
+   "permit": {"status":"yes","authority":"City of Sharonville Community Development","url":"https://www.sharonville.org/Faq.aspx?QID=94","summary":"The city's FAQ lists roof replacement and repair among the projects that need a building or zoning permit."},
+   "facts": [
+    {"cat":"history","text":"Sharonville spans Hamilton and Butler counties; it became a village in 1911 and a city in 1962.","url":"https://en.wikipedia.org/wiki/Sharonville,_Ohio"},
+    {"cat":"landmark","text":"Sharon Woods, a 730-acre park on Lebanon Road, is home to Heritage Village Museum and its relocated 19th-century buildings.","url":"https://www.ohiomagazine.com/ohio-life/best-hometowns/article/best-hometowns-2023-sharonville"}
+   ]
+  },
+  {
+   "slug": "springboro-oh",
+   "town": "Springboro",
+   "state": "OH",
+   "county": "Montgomery County / Warren County",
+   "region": "cincy-oh",
+   "zips": ["45066","45342"],
+   "housing": {"medianYearBuilt":1996,"ownerOccupiedPct":88.9,"population":19980,"source":"https://censusreporter.org/profiles/16000US3974076/"},
+   "storms": {"radiusKm": 6.8, "nearbyCount": 11, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2025-02-27","place":"Springboro","noaa":1231565}, "lastHail": {"in":1,"date":"2025-02-27","place":"Springboro","noaa":1231565}, "tornadoes": 1, "events": [
+    {"date":"2025-04-02","kind":"tornado","rating":"EF0","pathMi":0.8,"place":"Five Points","km":6.3,"damageUsd":40000,"noaa":1243061},
+    {"date":"2022-06-13","kind":"wind","kt":60,"basis":"estimated","place":"Five Points","km":3.4,"damageUsd":20000,"noaa":1023957},
+    {"date":"2025-02-27","kind":"hail","hailIn":1,"place":"Springboro","km":3.2,"noaa":1231565},
+    {"date":"2019-04-12","kind":"wind","kt":56,"basis":"estimated","place":"Springboro","km":2.8,"damageUsd":25000,"noaa":807488}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Springboro Building & Zoning","url":"https://www.cityofspringboro.com/151/Permits-Applications","summary":"Springboro runs its own certified building department, and its permit pages do not mention roofing. Structural roof work needs a permit.","ask":"the City of Springboro Building & Zoning Division"},
+   "historic": {"review":true,"url":"https://www.cityofspringboro.com/241/Historic-Preservation","text":"Inside the historic district, any change that alters a home's exterior materials, color or appearance goes to the Architectural Review Board for a Certificate of Appropriateness under the Historic Design Guidelines."},
+   "facts": [
+    {"cat":"historic","text":"The Springboro Historic District, seven blocks and about 50 acres along South Main Street, has been on the National Register since 1999.","url":"https://en.wikipedia.org/wiki/Springboro_Historic_District"},
+    {"cat":"growth","text":"Founded in 1815 as a Quaker town and Underground Railroad stop, Springboro saw its big growth from the late 1990s, between the Cincinnati and Dayton metros.","url":"https://en.wikipedia.org/wiki/Springboro,_Ohio"}
+   ]
+  },
+  {
+   "slug": "sycamore-township-oh",
+   "town": "Sycamore Township",
+   "state": "OH",
+   "county": "Hamilton County",
+   "region": "cincy-oh",
+   "zips": ["45236","45249","45242","45243","45241"],
+   "housing": {"medianYearBuilt":1967,"ownerOccupiedPct":70.4,"population":19530,"source":"https://censusreporter.org/profiles/06000US3906175973/"},
+   "storms": {"radiusKm": 6.4, "nearbyCount": 26, "hailReports": 4, "hailDays": 2, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "tornadoes": 1, "events": [
+    {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":1.2,"damageUsd":45000,"noaa":876954},
+    {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":4,"noaa":876493},
+    {"date":"2019-07-30","kind":"hail","hailIn":1,"place":"Deer Park","km":0.6,"noaa":833913}
+   ]},
+   "permit": {"status":"yes","authority":"Hamilton County Planning + Development","url":"https://cms2.revize.com/revize/hamiltoncountyoh/Documents/Government/Departments/Planning%20and%20Development/Buildings%20And%20Inspections/FEE_SCHEDULE_2026.pdf","summary":"Unincorporated Sycamore Township is under Hamilton County's Re-Roof permit and Roofing Data Sheet, the same as Anderson Township."},
+   "facts": [
+    {"cat":"history","text":"Annexations have split the township into three separate islands, from Kenwood, Dillonvale and Rossmoyne in the southeast to Highpoint and Brecon in the north.","url":"https://en.wikipedia.org/wiki/Sycamore_Township,_Hamilton_County,_Ohio"},
+    {"cat":"growth","text":"Population rose 94.6% between 1950 and 1960, the decade that set the pattern for most of its streets.","url":"https://en.wikipedia.org/wiki/Sycamore_Township,_Hamilton_County,_Ohio"}
+   ]
+  },
+  {
+   "slug": "west-chester-oh",
+   "town": "West Chester",
+   "state": "OH",
+   "county": "Butler County",
+   "region": "cincy-oh",
+   "zips": ["45069","45241","45246","45011"],
+   "housing": {"medianYearBuilt":1988,"ownerOccupiedPct":76.6,"population":65755,"source":"https://censusreporter.org/profiles/06000US3901783150/"},
+   "storms": {"radiusKm": 9.4, "nearbyCount": 32, "hailReports": 8, "hailDays": 6, "maxHailIn": 2, "maxHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "lastHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "tornadoes": 1, "events": [
+    {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":9.73,"place":"Mason to Stubbs Mills","county":"Warren","km":6.3,"damageUsd":215000,"noaa":1241789},
+    {"date":"2025-05-16","kind":"hail","hailIn":2,"place":"Kyles","km":8,"noaa":1247257},
+    {"date":"2020-04-08","kind":"hail","hailIn":1.25,"place":"Bethany","km":6.2,"noaa":876471},
+    {"date":"2021-06-18","kind":"hail","hailIn":1,"place":"West Chester","km":1.7,"noaa":955711}
+   ]},
+   "permit": {"status":"yes","authority":"Butler County Building & Zoning","url":"https://www.bcohio.gov/Document_Center/Development/Building%20%26%20Zoning/Procedures%20%26%20Applications/BZFORMS_ResRe-roofing_AppForm2026.pdf","summary":"Butler County requires a Residential Roofing Application with a Re-Roofing Addendum: scope, roof plan, replaced decking and ventilation. West Chester Township's own office handles zoning."},
+   "facts": [
+    {"cat":"hoa","text":"Beckett Ridge began in the 1970s as a planned community around the Beckett Ridge Golf Club, with a homeowners association, and was the largest planned unit development in Ohio at the time.","url":"https://en.wikipedia.org/wiki/Beckett_Ridge,_Ohio"},
+    {"cat":"growth","text":"With 65,242 residents in 2020, West Chester is Ohio's most populous township; it was Union Township until voters renamed it in 2000.","url":"https://en.wikipedia.org/wiki/West_Chester_Township,_Butler_County,_Ohio"}
+   ]
+  },
+  {
+   "slug": "wilmington-oh",
+   "town": "Wilmington",
+   "state": "OH",
+   "county": "Clinton County",
+   "region": "cincy-oh",
+   "zips": ["45177"],
+   "housing": {"medianYearBuilt":1977,"ownerOccupiedPct":58.2,"population":12620,"source":"https://censusreporter.org/profiles/16000US3985792/"},
+   "storms": {"radiusKm": 7.3, "nearbyCount": 44, "hailReports": 3, "hailDays": 1, "maxHailIn": 2.5, "maxHail": {"in":2.5,"date":"2025-05-16","place":"Burtonville","noaa":1247267}, "lastHail": {"in":2.5,"date":"2025-05-16","place":"Burtonville","noaa":1247267}, "tornadoes": 0, "events": [
+    {"date":"2025-05-16","kind":"hail","hailIn":2.5,"place":"Burtonville","km":5.8,"noaa":1247267},
+    {"date":"2023-07-20","kind":"wind","kt":62,"basis":"measured","place":"Wilmington Air Park","km":2.6,"noaa":1116809},
+    {"date":"2021-06-18","kind":"wind","kt":61,"basis":"measured","place":"Wilmington Air Park","km":1.1,"noaa":955373},
+    {"date":"2019-03-14","kind":"wind","kt":60,"basis":"estimated","place":"Wilmington","km":1.7,"damageUsd":100000,"noaa":802983}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Wilmington Building & Zoning","url":"https://wilmingtonohio.gov/departments/building-zoning/","summary":"The City of Wilmington issues permits and Warren County Building & Zoning handles plan review and inspections. I have not found a written re-roof rule from either.","ask":"the City of Wilmington Building & Zoning office"},
+   "historic": {"review":false,"url":"https://en.wikipedia.org/wiki/National_Register_of_Historic_Places_listings_in_Clinton_County,_Ohio","text":"The Wilmington Commercial Historic District (1982) and the South South Street Historic District (1993) are on the National Register. That listing does not by itself restrict a private owner's roof, and I have not found a local roof review."},
+   "facts": [
+    {"cat":"history","text":"Wilmington was founded in 1810 as the seat of the new Clinton County, and Wilmington College was founded there in 1870 by the Society of Friends.","url":"https://en.wikipedia.org/wiki/Wilmington,_Ohio"}
+   ]
+  },
+  {
+   "slug": "covington-ky",
+   "town": "Covington",
+   "state": "KY",
+   "county": "Kenton County",
+   "region": "nky",
+   "zips": ["41015","41017","41011","41014"],
+   "housing": {"medianYearBuilt":1947,"ownerOccupiedPct":51.8,"population":41110,"source":"https://censusreporter.org/profiles/16000US2117848/"},
+   "storms": {"radiusKm": 7.3, "nearbyCount": 35, "hailReports": 4, "hailDays": 3, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Erlanger","noaa":802778}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 0, "events": [
+    {"date":"2019-04-12","kind":"wind","kt":61,"basis":"estimated","place":"South Fort Mitchell","km":4.5,"noaa":808048},
+    {"date":"2019-05-23","kind":"hail","hailIn":1,"place":"Highland Heights","county":"Campbell","km":3.8,"noaa":817213},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Erlanger","km":6.7,"noaa":802778},
+    {"date":"2024-04-02","kind":"hail","hailIn":1,"place":"Covington","km":4.2,"noaa":1168930}
+   ]},
+   "permit": {"status":"no","authority":"Planning & Development Services of Kenton County","url":"https://www.pdskc.org/Portals/pdskc/Documents/applications_forms/checklists/Ice%20Barrier.pdf?ver=2025-12-04-160750-877","summary":"PDS of Kenton County's building official states that the Kentucky building and residential codes do not require a permit to replace roof covering. Structural work, like replacing rafters, can still need one."},
+   "historic": {"review":true,"url":"https://linknky.com/news/2025/08/09/covington-updates-roof-replacement-permit-rules/","text":"Inside Covington's Historic Preservation Overlay districts, a roof replacement still needs a Certificate of Appropriateness, even after the city dropped zoning permits for routine like-for-like re-roofs in August 2025. Structural changes such as dormers or a new pitch need building and zoning permits."},
+   "facts": [
+    {"cat":"historic","text":"The Historic Covington Design Guidelines list standing seam metal, slate, wood or metal shingles and clay tile as historic roofing, and ask owners to keep original material and to replace box gutters with box gutters on visible sides.","url":"https://thecovky.gov/wp-content/uploads/2022/12/Cov-Design-guide.pdf"},
+    {"cat":"historic","text":"Licking Riverside has houses built from 1815 to 1920, covered by two National Register districts and, since 1988, the city's preservation overlay.","url":"https://www.planning.org/greatplaces/neighborhoods/2013/lickingriverside.htm"},
+    {"cat":"trees","text":"Covington was named a Tree City USA for 2025, its 22nd year of recognition.","url":"https://linknky.com/culture/2026/04/25/covington-erlanger-named-2025-tree-cities-usa/"}
+   ]
+  },
+  {
+   "slug": "erlanger-ky",
+   "town": "Erlanger",
+   "state": "KY",
+   "county": "Kenton County",
+   "region": "nky",
+   "zips": ["41018","41051","41017"],
+   "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":69.3,"population":19875,"source":"https://censusreporter.org/profiles/16000US2125300/"},
+   "storms": {"radiusKm": 6.6, "nearbyCount": 35, "hailReports": 3, "hailDays": 3, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Erlanger","noaa":802778}, "lastHail": {"in":1,"date":"2025-04-30","place":"Erlanger","noaa":1246711}, "tornadoes": 2, "events": [
+    {"date":"2025-03-19","kind":"tornado","rating":"EF1","pathMi":3.15,"place":"Burlington to CVG airport","county":"Boone","km":4.8,"damageUsd":250000,"noaa":1239802},
+    {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","county":"Boone","km":5.8,"damageUsd":250000,"noaa":1340869},
+    {"date":"2019-06-05","kind":"wind","kt":63,"basis":"measured","place":"CVG airport","county":"Boone","km":5.3,"noaa":824379},
+    {"date":"2019-04-12","kind":"wind","kt":61,"basis":"estimated","place":"South Fort Mitchell","km":4.8,"noaa":808048}
+   ]},
+   "permit": {"status":"no","authority":"PDS of Kenton County","url":"https://erlangerky.gov/building-zoning/","summary":"Erlanger's building and zoning page sends every permit type to PDS of Kenton County, whose building official says the Kentucky codes do not require a permit to replace roof covering. The state's inspector sheet still lists the city, so a quick call to the city to rule out a local ordinance is worth it."},
+   "historic": {"review":false,"url":"https://history.ky.gov/markers/erlanger-depoterlanger-proper-subdivision","text":"The Erlanger Proper historic district has been on the National Register since 2002. I have not found a local roof review attached to it."},
+   "facts": [
+    {"cat":"history","text":"Erlanger started as a planned railroad subdivision: the Erlanger Land Syndicate filed a 220-lot plat in 1887, and the 1877 depot is now a museum.","url":"https://history.ky.gov/markers/erlanger-depoterlanger-proper-subdivision"},
+    {"cat":"trees","text":"Erlanger was named a Tree City USA for 2025, its fourth year.","url":"https://linknky.com/culture/2026/04/25/covington-erlanger-named-2025-tree-cities-usa/"}
+   ]
+  },
+  {
+   "slug": "florence-ky",
+   "town": "Florence",
+   "state": "KY",
+   "county": "Boone County",
+   "region": "nky",
+   "zips": ["41042","41091","41018"],
+   "housing": {"medianYearBuilt":1985,"ownerOccupiedPct":57.5,"population":32803,"source":"https://censusreporter.org/profiles/16000US2127982/"},
+   "storms": {"radiusKm": 7, "nearbyCount": 44, "hailReports": 4, "hailDays": 4, "maxHailIn": 1.75, "maxHail": {"in":1.75,"date":"2021-06-18","place":"Burlington","noaa":954924}, "lastHail": {"in":1,"date":"2025-04-30","place":"Erlanger","noaa":1246711}, "tornadoes": 1, "events": [
+    {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","km":3.1,"damageUsd":250000,"noaa":1340869},
+    {"date":"2021-06-18","kind":"hail","hailIn":1.75,"place":"Burlington","km":6.9,"noaa":954924},
+    {"date":"2025-04-14","kind":"hail","hailIn":1.25,"place":"Union","km":5.2,"noaa":1245795},
+    {"date":"2019-06-05","kind":"wind","kt":63,"basis":"measured","place":"CVG airport","km":6.4,"noaa":824379}
+   ]},
+   "permit": {"status":"unknown","authority":"Boone County Building Department","url":"https://www.boonecountyky.org/services/building_department/building_permits/building_permit_exemptions.php","summary":"Boone County's building-permit exemption list does not include roofing, and its permits page never names it either; permits are required for changes to \"the structure, size or safety\" of a home.","ask":"the Boone County Building Department in Burlington"},
+   "facts": [
+    {"cat":"growth","text":"Florence grew from 1,325 residents in 1950 to 5,837 in 1960 and 11,661 by 1970. Subdivisions went up around the old town, and much of today's housing dates from that boom.","url":"https://cbc.bcplhistory.org/doku.php?id=florence_kentucky_in_the_1960_s"},
+    {"cat":"trees","text":"Florence has been a Tree City USA for 34 consecutive years.","url":"https://linknky.com/press-releases/2026/09/15/press-release-celebrate-arbor-day-with-the-city-of-florence/"}
+   ]
+  },
+  {
+   "slug": "fort-mitchell-ky",
+   "town": "Fort Mitchell",
+   "state": "KY",
+   "county": "Kenton County",
+   "region": "nky",
+   "zips": ["41017","41011"],
+   "housing": {"medianYearBuilt":1971,"ownerOccupiedPct":58.3,"population":8713,"source":"https://censusreporter.org/profiles/16000US2128558/"},
+   "storms": {"radiusKm": 5.6, "nearbyCount": 21, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Erlanger","noaa":802778}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 0, "events": [
+    {"date":"2019-04-12","kind":"wind","kt":61,"basis":"estimated","place":"South Fort Mitchell","km":4,"noaa":808048},
+    {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Erlanger","km":4.9,"noaa":802778},
+    {"date":"2024-04-02","kind":"hail","hailIn":1,"place":"Covington","km":5.6,"noaa":1168930}
+   ]},
+   "permit": {"status":"no","authority":"PDS of Kenton County","url":"https://fortmitchell.com/city-administrator/permits-forms-application/","summary":"The city says it does not issue building or zoning permits; everything goes through PDS of Kenton County, whose building official states that the Kentucky codes do not require a permit to replace roof covering."},
+   "historic": {"review":false,"url":"https://www.hmdb.org/m.asp?m=174598","text":"The Old Fort Mitchell Historic District is on the National Register (1989). That listing does not by itself restrict a private owner's roof, and I have not found a local roof review."},
+   "facts": [
+    {"cat":"historic","text":"Old Fort Mitchell grew up as one of Northern Kentucky's first streetcar suburbs: 141 buildings from about 1900 through the 1930s, Tudor Revival, American Foursquare and Craftsman bungalows among them.","url":"https://www.hmdb.org/m.asp?m=174598"},
+    {"cat":"history","text":"Fort Mitchell was chartered as a city in 1910 on the site of a Civil War fortification built to defend Cincinnati.","url":"https://en.wikipedia.org/wiki/Fort_Mitchell,_Kentucky"}
+   ]
+  },
+  {
+   "slug": "newport-ky",
+   "town": "Newport",
+   "state": "KY",
+   "county": "Campbell County",
+   "region": "nky",
+   "zips": ["41071"],
+   "housing": {"medianYearBuilt":1947,"ownerOccupiedPct":47.7,"population":13967,"source":"https://censusreporter.org/profiles/16000US2155884/"},
+   "storms": {"radiusKm": 5.5, "nearbyCount": 19, "hailReports": 3, "hailDays": 3, "maxHailIn": 1, "maxHail": {"in":1,"date":"2020-04-08","place":"Bellevue","noaa":878267}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 0, "events": [
+    {"date":"2020-04-08","kind":"hail","hailIn":1,"place":"Bellevue","km":3.3,"noaa":878267},
+    {"date":"2023-07-24","kind":"hail","hailIn":1,"place":"Cincinnati’s East End","county":"Hamilton","km":4.8,"noaa":1116977},
+    {"date":"2024-04-02","kind":"hail","hailIn":1,"place":"Covington","county":"Kenton","km":2.1,"noaa":1168930}
+   ]},
+   "permit": {"status":"no","authority":"City of Newport Building Department","url":"https://www.newportky.gov/DocumentCenter/View/536/Building-Permit-FAQs-PDF","summary":"Newport's Building Permit FAQ lists replacing shingles among work that is exempt from a building permit, so a like-for-like shingle re-roof needs none."},
+   "historic": {"review":true,"url":"https://www.newportky.gov/220/Historic-Preservation","text":"In the East Row, York Street and Buena Vista local historic districts, any exterior alteration needs a Certificate of Appropriateness before work starts. Staff approve applications that meet the guidelines, usually within a few working days; others go to the Historic Preservation Commission."},
+   "facts": [
+    {"cat":"historic","text":"East Row guidelines call replacing a slate roof \"not recommended in most cases\": if 25% or less of it is deteriorated, repair is mandatory, and the deterioration has to be documented by a roofer experienced in slate.","url":"https://www.newportky.gov/DocumentCenter/View/261/East-Row-Historic-District-Design-Review-Guidelines-PDF"},
+    {"cat":"historic","text":"The East Row district has about 1,070 homes on 44 acres, mostly Italianate, Second Empire, Queen Anne and Foursquare houses built after the Civil War.","url":"https://en.wikipedia.org/wiki/East_Row_Historic_District"}
+   ]
+  },
+  {
+   "slug": "union-ky",
+   "town": "Union",
+   "state": "KY",
+   "county": "Boone County",
+   "region": "nky",
+   "zips": ["41091","41042"],
+   "housing": {"medianYearBuilt":2007,"ownerOccupiedPct":82.5,"population":7642,"source":"https://censusreporter.org/profiles/16000US2178384/"},
+   "storms": {"radiusKm": 5.8, "nearbyCount": 15, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2025-04-14","place":"Union","noaa":1245795}, "lastHail": {"in":1.25,"date":"2025-04-14","place":"Union","noaa":1245795}, "tornadoes": 1, "events": [
+    {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","km":5.2,"damageUsd":250000,"noaa":1340869},
+    {"date":"2025-04-14","kind":"hail","hailIn":1.25,"place":"Union","km":0.5,"noaa":1245795},
+    {"date":"2019-06-05","kind":"wind","kt":55,"basis":"estimated","place":"Florence","km":5.6,"noaa":824370},
+    {"date":"2025-03-19","kind":"wind","kt":52,"basis":"measured","place":"Hueys Corner","km":4.6,"noaa":1239821}
+   ]},
+   "permit": {"status":"unknown","authority":"Boone County Building Department","url":"https://www.boonecountyky.org/services/building_department/building_permits/building_permit_exemptions.php","summary":"Union is covered by the Boone County Building Department, and roofing appears on neither its exemption list nor its list of work that needs a permit.","ask":"the Boone County Building Department"},
+   "facts": [
+    {"cat":"growth","text":"Union went from 1,001 residents in 1990 to 7,416 in 2020, so most homes are 1990s-or-newer subdivision stock.","url":"https://en.wikipedia.org/wiki/Union,_Kentucky"},
+    {"cat":"hoa","text":"Its subdivisions include Ballyshannon, Cedarwood, Hampshire Estates, Hawks Landing and Hempsteade, among others.","url":"https://en.wikipedia.org/wiki/Union,_Kentucky"}
+   ]
+  },
+  {
+   "slug": "lexington-ky",
+   "town": "Lexington",
+   "state": "KY",
+   "county": "Fayette County",
+   "region": "central-ky",
+   "zips": ["40511","40515","40509","40516","40510","40513","40503"],
+   "housing": {"medianYearBuilt":1984,"ownerOccupiedPct":53.8,"population":323725,"source":"https://censusreporter.org/profiles/16000US2146027/"},
+   "storms": {"radiusKm": 19.3, "nearbyCount": 91, "hailReports": 16, "hailDays": 7, "maxHailIn": 3, "maxHail": {"in":3,"date":"2022-05-19","place":"Chilesburg","noaa":1030762}, "lastHail": {"in":1,"date":"2026-02-19","place":"South Elkhorn","noaa":1317812}, "tornadoes": 1, "events": [
+    {"date":"2024-04-02","kind":"tornado","rating":"EF1","pathMi":1.94,"place":"Becknerville","county":"Clark","km":15.2,"noaa":1176387},
+    {"date":"2022-05-19","kind":"hail","hailIn":3,"place":"Chilesburg","km":9.3,"noaa":1030762},
+    {"date":"2024-04-02","kind":"wind","kt":83,"basis":"estimated","place":"Viley to Centerville","km":9.5,"noaa":1176672},
+    {"date":"2022-11-29","kind":"hail","hailIn":1.25,"place":"Fenwick","km":11.7,"noaa":1059803}
+   ]},
+   "permit": {"status":"unknown","authority":"LFUCG Division of Building Inspection","url":"https://www.lexingtonky.gov/working/building-permits/homeowners-corner","summary":"LFUCG's 2026 residential permit guides cover new construction, additions, remodeling, decks, fences, pools and solar, and none of them covers roofing. I have not found an official page that says a re-roof is required or exempt.","ask":"the LFUCG Division of Building Inspection"},
+   "historic": {"review":true,"url":"https://www.lexingtonky.gov/local-historic-district-permits","text":"Lexington's local historic districts carry the H-1 overlay, where exterior changes need a Certificate of Appropriateness. Staff can issue COAs for minor changes; substantial ones go to the Board of Architectural Review."},
+   "facts": [
+    {"cat":"historic","text":"The city lists 15 H-1 districts, among them Ashland Park, Bell Court, Gratz Park, Seven Parks, South Hill and Woodward Heights.","url":"https://www.lexingtonky.gov/government/departments-programs/planning-preservation/historic-preservation/h-1-overlay-district-landmark-maps"},
+    {"cat":"history","text":"In 1958 Lexington adopted the first urban growth boundary in the US, the Urban Service Area, to protect the horse farms around it.","url":"https://civiclex.org/big-issues/urban-service-boundary"},
+    {"cat":"trees","text":"Urban tree canopy was 23% in 2020, and 74% of it stands on private land.","url":"https://planitgeo.com/library/urban-tree-canopy-assessment-lexington-kentucky-usa/"}
+   ]
+  },
+  {
+   "slug": "georgetown-ky",
+   "town": "Georgetown",
+   "state": "KY",
+   "county": "Scott County",
+   "region": "central-ky",
+   "zips": ["40324"],
+   "housing": {"medianYearBuilt":2001,"ownerOccupiedPct":62.3,"population":39117,"source":"https://censusreporter.org/profiles/16000US2130700/"},
+   "storms": {"radiusKm": 7.8, "nearbyCount": 19, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-08-31","place":"Georgetown","noaa":847211}, "lastHail": {"in":1,"date":"2020-05-23","place":"Georgetown","noaa":898063}, "tornadoes": 0, "events": [
+    {"date":"2019-08-31","kind":"hail","hailIn":1,"place":"Georgetown","km":6.7,"noaa":847211},
+    {"date":"2020-05-23","kind":"hail","hailIn":1,"place":"Georgetown","km":5.7,"noaa":898063},
+    {"date":"2022-07-06","kind":"wind","kt":60,"basis":"estimated","place":"Georgetown","km":6,"noaa":1046090},
+    {"date":"2021-08-30","kind":"wind","kt":55,"basis":"estimated","place":"Boydtown","km":7.7,"noaa":981070}
+   ]},
+   "permit": {"status":"unknown","authority":"Georgetown/Scott County Building Inspection","url":"https://georgetownky.gov/DocumentCenter/View/578/Permit-Fee-Schedule-PDF","summary":"The July 2025 permit fee schedule has no roofing or re-roof line, just alterations and remodels among the residential types, and I have not found an official page that addresses roofing.","ask":"the Georgetown/Scott County Building Inspection Department"},
+   "historic": {"review":false,"url":"https://www.gscplanning.com/planning","text":"Georgetown has five National Register districts, and the planning commission publishes Historic Georgetown Design Guidelines. Whether a re-roof needs design review is not something I have confirmed; the planning office can answer it."},
+   "facts": [
+    {"cat":"growth","text":"Toyota picked Georgetown in 1985 and opened its plant in 1988. The city went from 11,414 residents in 1990 to 37,086 in 2020, so most of the housing is post-1990.","url":"https://en.wikipedia.org/wiki/Georgetown,_Kentucky"}
+   ]
+  },
+  {
+   "slug": "nicholasville-ky",
+   "town": "Nicholasville",
+   "state": "KY",
+   "county": "Jessamine County",
+   "region": "central-ky",
+   "zips": ["40356"],
+   "housing": {"medianYearBuilt":1993,"ownerOccupiedPct":58.2,"population":32197,"source":"https://censusreporter.org/profiles/16000US2156136/"},
+   "storms": {"radiusKm": 7.5, "nearbyCount": 15, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2022-05-19","place":"Ambrose","noaa":1030728}, "lastHail": {"in":1,"date":"2023-07-18","place":"Nicholasville","noaa":1128838}, "tornadoes": 2, "events": [
+    {"date":"2024-04-02","kind":"tornado","rating":"EF1","pathMi":0.42,"place":"Brannon","km":4.9,"noaa":1176619},
+    {"date":"2025-10-19","kind":"tornado","rating":"EF1","pathMi":0.65,"place":"Nicholasville","km":3.6,"noaa":1297628},
+    {"date":"2022-05-19","kind":"hail","hailIn":1,"place":"Ambrose","km":5.9,"noaa":1030728},
+    {"date":"2023-07-18","kind":"hail","hailIn":1,"place":"Nicholasville","km":0.5,"noaa":1128838}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Nicholasville Planning & Zoning","url":"https://dhbc.ky.gov/Documents/Jessamine%20County.pdf","summary":"Kentucky's inspector sheet for Jessamine County points to the City of Nicholasville's Planning & Zoning office, and neither the city's building permit form nor the county's mentions roofing.","ask":"City of Nicholasville Planning & Zoning (Jessamine County Planning & Zoning outside city limits)"},
+   "historic": {"review":false,"url":"https://en.wikipedia.org/wiki/National_Register_of_Historic_Places_listings_in_Jessamine_County,_Kentucky","text":"The Nicholasville Historic District, along Court Row, Maple and Main, has been on the National Register since 1984. I have not found a local roof review attached to it."},
+   "facts": [
+    {"cat":"growth","text":"Nicholasville grew from 5,829 residents in 1970 to about 31,000 in 2020 as a Lexington commuter suburb.","url":"https://en.wikipedia.org/wiki/Nicholasville,_Kentucky"},
+    {"cat":"hoa","text":"Brannon Crossing, on the north end along US-27, grew with a roughly 120-acre annexation reported in 2023, and the homes around it are mostly newer builds.","url":"https://www.lex18.com/news/massive-brannon-crossing-development-to-include-retail-grocery-apartments-and-a-hotel"}
+   ]
+  },
+  {
+   "slug": "richmond-ky",
+   "town": "Richmond",
+   "state": "KY",
+   "county": "Madison County",
+   "region": "central-ky",
+   "zips": ["40475"],
+   "housing": {"medianYearBuilt":1994,"ownerOccupiedPct":38.3,"population":37111,"source":"https://censusreporter.org/profiles/16000US2165226/"},
+   "storms": {"radiusKm": 8.3, "nearbyCount": 18, "hailReports": 4, "hailDays": 1, "maxHailIn": 2.5, "maxHail": {"in":2.5,"date":"2023-06-25","place":"Richmond","noaa":1115523}, "lastHail": {"in":2.5,"date":"2023-06-25","place":"Richmond","noaa":1115523}, "tornadoes": 1, "events": [
+    {"date":"2023-01-12","kind":"tornado","rating":"EF1","pathMi":1.2,"place":"Union City","km":6.7,"noaa":1075507},
+    {"date":"2023-06-25","kind":"hail","hailIn":2.5,"place":"Richmond","km":4.9,"noaa":1115523},
+    {"date":"2023-06-25","kind":"wind","kt":96,"basis":"estimated","place":"Richmond to Bybee","km":5.7,"noaa":1119106},
+    {"date":"2020-01-11","kind":"wind","kt":70,"basis":"estimated","place":"Richmond","km":1.3,"noaa":874014}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Richmond Building Inspection","url":"https://richmondky.gov/departments/building_inspections/frequently_asked_questions.php","summary":"The city's Building Inspection FAQ lists new construction, renovations, additions and trade work as permit triggers but does not mention roofing. Outside city limits, Madison County has its own office.","ask":"the City of Richmond Building Inspection Department"},
+   "historic": {"review":true,"url":"https://richmondky.gov/business_detail_T14_R81.php","text":"Richmond's Architectural Review Board protects designated historic structures and districts, and exterior changes in those districts go through its Certificate of Appropriateness application."},
+   "facts": [
+    {"cat":"historic","text":"The Downtown Richmond Historic District (1976) has 60 contributing late-Victorian and revival buildings, including the 1891 Glyndon Hotel.","url":"https://en.wikipedia.org/wiki/Downtown_Richmond_Historic_District"},
+    {"cat":"growth","text":"Eastern Kentucky University started here in 1906, and Richmond grew from 12,168 residents in 1960 to 34,585 in 2020.","url":"https://en.wikipedia.org/wiki/Richmond,_Kentucky"}
+   ]
+  },
+  {
+   "slug": "versailles-ky",
+   "town": "Versailles",
+   "state": "KY",
+   "county": "Woodford County",
+   "region": "central-ky",
+   "zips": ["40383"],
+   "housing": {"medianYearBuilt":1982,"ownerOccupiedPct":59.9,"population":10492,"source":"https://censusreporter.org/profiles/16000US2179482/"},
+   "storms": {"radiusKm": 6.3, "nearbyCount": 16, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2021-08-10","place":"Versailles","noaa":981048}, "lastHail": {"in":1,"date":"2025-04-30","place":"Bonita","noaa":1259216}, "tornadoes": 0, "events": [
+    {"date":"2021-08-10","kind":"hail","hailIn":1,"place":"Versailles","km":2.4,"noaa":981048},
+    {"date":"2025-04-30","kind":"hail","hailIn":1,"place":"Bonita","km":2.4,"noaa":1259216},
+    {"date":"2019-06-30","kind":"wind","kt":53,"basis":"estimated","place":"Hunterton","km":3.2,"noaa":841606},
+    {"date":"2023-07-02","kind":"wind","kt":53,"basis":"estimated","place":"Bonita","km":2.4,"noaa":1128027}
+   ]},
+   "permit": {"status":"unknown","authority":"Kentucky Department of Housing, Buildings & Construction","url":"https://dhbc.ky.gov/Documents/Woodford%20County.pdf","summary":"The state's inspector sheet for Woodford County lists no local building inspector, and Kentucky's rule (815 KAR 7:125) does not require single-family permits unless a local ordinance does. A zoning permit can still apply to some work.","ask":"Versailles-Woodford County-Midway Planning & Zoning"},
+   "historic": {"review":false,"url":"https://versailles.klc.org/Blog/27/boards-commissions","text":"Versailles has four historic districts and a city Architectural Review Board. I could not read the ordinance itself, so whether a re-roof needs its review is unconfirmed."},
+   "facts": [
+    {"cat":"history","text":"Versailles was established in 1792 and named for Versailles, France, in honor of Lafayette. It is the Woodford County seat, about 13 miles west of Lexington.","url":"https://en.wikipedia.org/wiki/Versailles,_Kentucky"},
+    {"cat":"historic","text":"Its eight-block downtown is a National Register district, and the city was named a Preserve America Community in 2004.","url":"https://www.achp.gov/preserve-america/community/versailles-kentucky"}
+   ]
+  },
+  {
+   "slug": "winchester-ky",
+   "town": "Winchester",
+   "state": "KY",
+   "county": "Clark County",
+   "region": "central-ky",
+   "zips": ["40391"],
+   "housing": {"medianYearBuilt":1972,"ownerOccupiedPct":60.5,"population":19213,"source":"https://censusreporter.org/profiles/16000US2183676/"},
+   "storms": {"radiusKm": 6.8, "nearbyCount": 14, "hailReports": 2, "hailDays": 2, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2022-05-19","place":"Winchester heliport","noaa":1030766}, "lastHail": {"in":1.25,"date":"2024-02-28","place":"Winchester","noaa":1163787}, "tornadoes": 0, "events": [
+    {"date":"2022-05-19","kind":"hail","hailIn":1.5,"place":"Winchester heliport","km":2.6,"noaa":1030766},
+    {"date":"2024-02-28","kind":"hail","hailIn":1.25,"place":"Winchester","km":0.3,"noaa":1163787},
+    {"date":"2024-08-17","kind":"wind","kt":71,"basis":"measured","place":"Winchester heliport","km":3.5,"noaa":1214666},
+    {"date":"2020-06-10","kind":"wind","kt":67,"basis":"measured","place":"Renick","km":4.3,"noaa":906630}
+   ]},
+   "permit": {"status":"unknown","authority":"City of Winchester Building Inspections","url":"https://www.winchesterky.com/111/Permits","summary":"Winchester Building Inspections issues permits for the city and Clark County, and its permit language is broad (construction, repair or removal of any structure) without naming roofing. I have not found a direct statement on re-roofs.","ask":"City of Winchester Building Inspections"},
+   "historic": {"review":false,"url":"https://en.wikipedia.org/wiki/Winchester_Downtown_Commercial_District","text":"The Winchester Downtown Commercial District (1982) has 114 contributing buildings, and the city publishes design guidelines for it. I could not confirm whether a re-roof needs review there."},
+   "facts": [
+    {"cat":"history","text":"The Clark County Court House downtown dates from 1853, and Ale-8-One has been bottled in Winchester since 1926.","url":"https://en.wikipedia.org/wiki/Winchester,_Kentucky"}
+   ]
+  }
+ ]
+}
