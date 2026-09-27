@@ -108,12 +108,16 @@ for (const [id, file, expectedCheck, description] of ENTITY_CASES) {
   });
 }
 
-check('E6 the ENTITY_PENDING carve-out (one exact blog path) is what keeps E1+E3 quiet there', () => {
-  // Same defects as E1 and E3, at a pending path. If this goes red the
-  // carve-out collapsed; if E1/E3 go green, it swallowed too much.
+check('E6 ENTITY_PENDING is empty: the path it once exempted now raises E1+E3 like any page', () => {
+  // Same defects as E1 and E3, at the blog path that WAS pending until the
+  // insurance-post rewrite (#1796) migrated it. With the carve-out gone it
+  // must fail exactly like E1 + E3; if it goes quiet, an exemption is back.
   const PENDING_FIXTURE = 'can-i-keep-insurance-check-not-fix-roof.html';
-  const got = (byFile[PENDING_FIXTURE] || []).map((f) => `${f.level}:${f.check}`);
-  assert.deepStrictEqual(got, [], `blog/${PENDING_FIXTURE} must raise nothing, got [${got.join(', ')}]`);
+  const got = (byFile[PENDING_FIXTURE] || []).filter((f) => f.level === 'ERROR').map((f) => f.check).sort();
+  assert.deepStrictEqual(got, ['entity-business', 'entity-partial'], `blog/${PENDING_FIXTURE} must raise entity-partial + entity-business, got [${got.join(', ')}]`);
+  const src = require('fs').readFileSync(SCRIPT, 'utf8');
+  const m = src.match(/const ENTITY_PENDING = \[([\s\S]*?)\];/);
+  assert.ok(m && !/\//.test(m[1].replace(/\/\/[^\n]*/g, '')), 'ENTITY_PENDING must stay empty');
   const fs = require('fs');
   const html = fs.readFileSync(path.join(FIXTURES, 'blog', PENDING_FIXTURE), 'utf8');
   assert.ok(!/nbd:partial schema-entity/.test(html) && /"provider":\{"@type":"RoofingContractor"/.test(html),

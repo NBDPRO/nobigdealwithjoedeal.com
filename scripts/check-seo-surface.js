@@ -323,15 +323,14 @@ function faqQuestions(node, out = []) {
   return out;
 }
 
-// TEMPORARY. These two posts are being rewritten in a separate lane
-// (2026-09-27); their FAQ schema still names questions the body does not
-// show. Being rewritten — remove when the rewrite lands. Exact paths, never
-// a glob: a pattern here is the "list where a real finding goes to hide"
-// that isNoIndex() above refuses to be. An entry that no longer fails is
-// reported as a WARN so the list cannot quietly outlive its reason.
+// EMPTY, and meant to stay that way. It held the two insurance posts while
+// they were rewritten (2026-09-27); the rewrite renders every FAQ question,
+// so both entries came out (PR #1796). If a page ever needs a carve-out
+// again: exact paths, never a glob — a pattern here is the "list where a
+// real finding goes to hide" that isNoIndex() above refuses to be. An entry
+// that no longer fails is reported as a WARN so the list cannot quietly
+// outlive its reason.
 const FAQ_VISIBLE_ALLOWLIST = new Set([
-  'docs/blog/can-i-keep-insurance-check-not-fix-roof.html',
-  'docs/blog/what-to-expect-roof-insurance-adjuster-visit.html',
 ]);
 const faqAllowlistHit = new Set();
 
@@ -359,16 +358,14 @@ const ENTITY_IDS = { business: `${ENTITY_ORIGIN}/#org`, person: `${ENTITY_ORIGIN
 const ENTITY_BIZ_TYPES = /^(RoofingContractor|LocalBusiness|Organization|HomeAndConstructionBusiness|GeneralContractor|ProfessionalService)$/;
 const ENTITY_REF_KEYS = new Set(['@id', '@context', 'review']);
 const RX_ENTITY_REGION = /<!--\s*nbd:partial\s+schema-entity\b[^>]*-->([\s\S]*?)<!--\s*\/nbd:partial\s+schema-entity\s*-->/;
-// TODO(entity follow-up): pages not yet migrated, matched against the path
-// under docs/. Exact paths only. To finish one, drop it here AND from
-// PENDING in scripts/migrate-schema-entity.mjs, then run that script with
-// --write and `node scripts/apply-partials.js`.
-//   - the two insurance blog posts: being rewritten in a parallel PR (#1796).
+// Pages not yet migrated, matched against the path under docs/. EMPTY, and
+// meant to stay that way. Exact paths only; if a page ever needs it again,
+// add it here AND to PENDING in scripts/migrate-schema-entity.mjs.
 // (/our-work and docs/our-work/** left this list 2026-09-27: build-projects.mjs
-//  now references #org and stamps the schema-entity region on every page.)
+//  now references #org and stamps the schema-entity region on every page.
+//  The two insurance blog posts left it with their rewrite, #1796: migrated
+//  with migrate-schema-entity.mjs --write + apply-partials.)
 const ENTITY_PENDING = [
-  /^blog\/can-i-keep-insurance-check-not-fix-roof\.html$/,
-  /^blog\/what-to-expect-roof-insurance-adjuster-visit\.html$/,
 ];
 
 function entityKind(n) {
