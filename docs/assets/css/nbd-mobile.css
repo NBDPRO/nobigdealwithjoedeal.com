@@ -70,7 +70,7 @@ img, video {
   Measured on WebKit at 320x508 against docs/ (2026-09-08):
     .content-grid  9 service pages, up to 59px (/services/roof-replacement)
     .stat-grid     3 more pages, up to 27px, exposed once .content-grid shrank
-    .footer-grid   /services/gaf-timberline + tamko-storm-series, 33px
+    .footer-grid   /services/gaf-timberline + tamko-impact-resistant-shingles, 33px
     .trust-item    100px at 820px wide — the trust bar's scroller in
                    service-mobile-polish.css stops at 768px, so the desktop
                    `flex:1` rule comes back while the viewport is still far

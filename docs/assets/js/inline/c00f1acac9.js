@@ -74,9 +74,9 @@ const POSTS = [
   {
     url: "/blog/gaf-timberline-vs-tamko-storm-series",
     tag: "Roofing",
-    title: "GAF Timberline vs. TAMKO Storm Series: Which Roof for Hail Country?",
+    title: "GAF Timberline vs. TAMKO Impact-Resistant Shingles: Which Roof for Hail Country?",
     meta: "By Joe Deal · June 2026 · 8 min read",
-    excerpt: "Two shingle lanes, one decision. The classic GAF Timberline lineup (NS/HDZ/UHDZ) vs the hail-tough TAMKO Storm Series (Heritage, Titan XT, StormFighter Flex, HailGuard) — and how I help homeowners pick the right one for their house.",
+    excerpt: "Two shingle lanes, one decision. The classic GAF Timberline lineup (NS/HDZ/UHDZ) vs TAMKO's hail-tough impact-resistant shingles (Titan XT, StormFighter Flex, HailGuard) — and how I help homeowners pick the right one for their house.",
     published: "2026-06-23",
   },
   {

@@ -29,7 +29,7 @@ const VIZ_OPTIONS = {
   // designer palette instead of the architectural lineup.
   // Each line carries `mfr` (brand prefix for the palette header) and `group`
   // (the manufacturer dimension surfaced as a labeled group in the pill picker).
-  // GAF is Joe's default lineup; TAMKO Storm Series is the hail/impact lane.
+  // GAF is Joe's default lineup; TAMKO's impact-resistant shingles are the hail/impact lane.
   roofLines: [
     { id: 'timberline-ns',   label: 'Timberline NS',      desc: 'Natural Shadow · entry architectural',
       mfr: 'GAF', group: 'GAF', colorsRef: 'timberlineNsColors',
@@ -44,21 +44,22 @@ const VIZ_OPTIONS = {
       mfr: 'GAF', group: 'GAF', colorsRef: 'camelot2Colors',
       ai: 'GAF Camelot II designer slate-look dimensional luxury asphalt shingles' },
 
-    // TAMKO Storm Series — the impact/hail lineup Joe installs (a brand he
-    // installs, NOT a certification). Heritage is the value architectural floor;
-    // Titan XT carries TAMKO's full 14-color premium palette; StormFighter Flex
+    // TAMKO lines Joe installs for hail country (a brand he installs, NOT a
+    // certification; TAMKO sells each as its own product — there is no 'series').
+    // Heritage is the value architectural floor;
+    // Titan XT carries 14 of the Titan XT colors TAMKO lists; StormFighter Flex
     // + HailGuard share the same 8-color storm palette (both → tamkoStormColors).
     { id: 'tamko-heritage',     label: 'Heritage',          desc: 'TAMKO · value architectural · 130 mph',
-      mfr: 'TAMKO', group: 'TAMKO Storm Series', colorsRef: 'tamkoHeritageColors',
+      mfr: 'TAMKO', group: 'TAMKO', colorsRef: 'tamkoHeritageColors',
       ai: 'TAMKO Heritage architectural laminated asphalt shingles with TriShield technology' },
     { id: 'tamko-titan-xt',     label: 'Titan XT',          desc: 'TAMKO · Class 3 impact · 160 mph',
-      mfr: 'TAMKO', group: 'TAMKO Storm Series', colorsRef: 'tamkoTitanColors',
+      mfr: 'TAMKO', group: 'TAMKO', colorsRef: 'tamkoTitanColors',
       ai: 'TAMKO Titan XT premium architectural laminated asphalt shingles with Class 3 impact rating (UL 2218)' },
     { id: 'tamko-stormfighter', label: 'StormFighter Flex', desc: 'TAMKO · Class 4 impact · 160 mph',
-      mfr: 'TAMKO', group: 'TAMKO Storm Series', colorsRef: 'tamkoStormColors',
+      mfr: 'TAMKO', group: 'TAMKO', colorsRef: 'tamkoStormColors',
       ai: 'TAMKO StormFighter FLEX polymer-modified architectural asphalt shingles with Class 4 impact rating (UL 2218)' },
     { id: 'tamko-hailguard',    label: 'HailGuard',         desc: 'TAMKO · Class 4 · hail warranty',
-      mfr: 'TAMKO', group: 'TAMKO Storm Series', colorsRef: 'tamkoStormColors',
+      mfr: 'TAMKO', group: 'TAMKO', colorsRef: 'tamkoStormColors',
       ai: 'TAMKO HailGuard impact-resistant architectural asphalt shingles, UL 2218 Class 4 impact rated (tested beyond Class 4)' },
 
     { id: 'metal',           label: 'Standing-Seam Metal', desc: 'Premium metal panels',
@@ -231,7 +232,7 @@ const VIZ_OPTIONS = {
       blend: 'soft stone-white painted metal — gentle off-white with warm undertone; satin finish' },
   ],
 
-  // ── TAMKO STORM SERIES COLOR PALETTES ─────────────────────────
+  // ── TAMKO COLOR PALETTES (Heritage, Titan XT, StormFighter FLEX, HailGuard) ─────────────────────────
   // Color names pulled from Jo's TAMKO sell sheets (Titan XT 14, StormFighter
   // Flex 8). hex = dominant tone (calibrated against TAMKO swatch imagery);
   // blend = the multi-tone granule description fed to the FLUX prompt — same

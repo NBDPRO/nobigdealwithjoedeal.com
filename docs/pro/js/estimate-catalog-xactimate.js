@@ -95,7 +95,7 @@
       reason:'ENERGY STAR rated cool roof reduces cooling loads per OBC energy code.',
       tags:['shingle','gaf','cool','energy-star'] });
 
-  // ── TAMKO Storm Series ──  PRICING TODO: mat/lab MIRRORED from the closest
+  // ── TAMKO impact-resistant lines (Titan XT / StormFighter FLEX / HailGuard) ──  PRICING TODO: mat/lab MIRRORED from the closest
   // GAF catalog line as a placeholder (Heritage←HD, Titan←HDZ, SFFlex/HailGuard
   // ←Armorshield, accessories←their GAF analog). Edit when real TAMKO sell
   // pricing is set. Codes contain "TAMKO" so generated docs detect manufacturer.

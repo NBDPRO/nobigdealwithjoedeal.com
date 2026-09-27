@@ -105,6 +105,7 @@
     "scheduling-logic.test.js",
     "secret-stub-guard.test.js",
     "seo-surface.test.js",
+    "tamko-page-rename.test.js",
     "smart-calendar-forecast.test.js",
     "sms-optout-key.test.js",
     "sms-outbox-client.test.js",

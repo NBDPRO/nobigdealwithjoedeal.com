@@ -2184,7 +2184,7 @@
       ],
       measurements: null
     },
-    // TAMKO Storm Series — HailGuard: Class 4 (tested beyond) + the first
+    // TAMKO HailGuard: Class 4 (tested beyond) + the first
     // asphalt shingle with a hail warranty. Bundles the TAMKO warranty-required
     // accessories — Synthetic Guard + Moisture Guard (HailGuard hail warranty)
     // and TAMKO starter + hip&ridge (160mph wind warranty). Vents/boots stay

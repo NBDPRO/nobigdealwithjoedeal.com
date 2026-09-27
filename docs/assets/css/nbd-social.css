@@ -16,7 +16,7 @@
  *   - 23 blog pages carry the block inside `<style id="nbd-chrome-std">`,
  *     behind ~4.3 KB of other chrome CSS. There is no <style> element to
  *     swap there, only a fragment, so it is a different job.
- *   - 2 pages (services/gaf-timberline, services/tamko-storm-series) add
+ *   - 2 pages (services/gaf-timberline, services/tamko-impact-resistant-shingles) add
  *     `.footer-badges` rules to the same block.
  * Both are left byte-identical to how they were; ensure-social-css.js only
  * ever touches a plain `<style>` whose sole content is the canonical body.
