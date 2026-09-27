@@ -442,6 +442,11 @@ const VERDICTS = {
   setSiteSlug: 'role-gated', trackUsage: 'refused', transcribeVoiceMemo: 'refused',
   updateUserRole: 'role-gated', validateAccessCode: 'public', verifyCode: 'public',
   voidEsignEnvelope: 'refused',
+  // Thursday (Bland receptionist, #1783/#1787, classified when #1780 landed
+  // 2026-09-27): the recording stream reads only; the inbox action refuses
+  // a viewer in its own loadCallForCaller({ write: true }) before any write,
+  // proven by tests/thursday-pipeline.integration.test.js ("viewer refused").
+  getThursdayRecording: 'read', thursdayCallAction: 'already',
   // HTTP functions
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
@@ -459,6 +464,9 @@ const VERDICTS = {
   submitCustomerRating: 'public', submitDealAcceptance: 'public', submitEsignEnvelope: 'public',
   submitPublicLead: 'public', submitReferral: 'public', submitSignature: 'public', swathWebhook: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
+  // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup
+  // (Bland's bearer token, no signed-in user).
+  thursdayCallerLookup: 'public', thursdayWebhook: 'public',
 };
 const VERDICT_KINDS = new Set(['refused', 'role-gated', 'already', 'read', 'read-paid', 'self', 'public']);
 

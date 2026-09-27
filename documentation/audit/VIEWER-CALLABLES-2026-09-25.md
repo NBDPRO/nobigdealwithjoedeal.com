@@ -27,6 +27,19 @@ finish refuse a viewer first, through one shared guard. Branch
 > sales_rep and a solo operator (121 checks, was 91). Details are in the
 > sections below.
 
+> **Update 2026-09-27 (landing #1780 on a moved main).** Thursday (#1783,
+> #1787) added four exports while this PR waited, so the section C sweep went
+> red with them unclassified (128 exports now). Verdicts, read from
+> `functions/integrations/thursday.js`: `thursdayWebhook` and
+> `thursdayCallerLookup` are **public** (Bland's signed webhook; Bland's
+> bearer-token lookup, no signed-in user); `getThursdayRecording` is **read**
+> (streams a saved recording, writes nothing); `thursdayCallAction` is
+> **already** refused: its `loadCallForCaller({ write: true })` throws
+> `permission-denied` 'Your role is view-only.' for a viewer before any write,
+> and `tests/thursday-pipeline.integration.test.js` asserts it. #1801 (KY
+> contracts) changed `createStripePaymentLink`; its view-only refusal still
+> runs before the new Kentucky pay-link hold and before any Stripe call.
+
 Prod today (read-only counts, 2026-09-25): 10 Auth users, **0** with a `viewer`
 role claim (admin 1, company_admin 2, member 1, demo 1, no role 5); 0
 `users/{uid}` docs with `role == 'viewer'`; 0 `companies/*/members` docs. The
