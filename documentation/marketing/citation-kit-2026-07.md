@@ -3,6 +3,8 @@
 Companion to `local-seo-playbook-2026-07.md`. Every field below is ready to paste.
 Use it EXACTLY as written on every directory — consistency is the whole game.
 
+> **Update 2026-09-27:** claim wording changed to what Kentucky law allows (KRS 367.628: a contractor may document damage, estimate and meet the adjuster, but not represent or negotiate the claim or market itself as a claims/insurance specialist) — re-paste the changed blocks anywhere the old 'claims handled start to finish' text is live.
+
 > **Update 2026-09-27** ([SEO-AEO-GEO-DEEP-DIVE-2026-09-27](../audit/SEO-AEO-GEO-DEEP-DIVE-2026-09-27.md)):
 > James Hardie Alliance is a **membership**, not a certification (Jo, 2026-09-22) —
 > wording fixed below. Service areas now match the 43 `/areas/` pages (Central KY
@@ -44,8 +46,8 @@ Service areas : Greater Cincinnati OH, Northern KY and Central KY —
 ## Short description (~240 chars — Bing, Apple, Yelp, Nextdoor)
 
 > Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati,
-> Northern Kentucky and the Lexington area. GAF Certified and TAMKO Pro Gold. Insurance claims handled start to
-> finish. Licensed, insured, locally owned. Call Joe directly — it's no big deal.
+> Northern Kentucky and the Lexington area. GAF Certified and TAMKO Pro Gold. Storm damage documented
+> and your adjuster met on the roof. Licensed, insured, locally owned. Call Joe directly — it's no big deal.
 
 ## Long description (~700 chars — BBB, chambers, Houzz)
 
@@ -56,8 +58,9 @@ Service areas : Greater Cincinnati OH, Northern KY and Central KY —
 > roofing contractor (cert #1162011), a TAMKO Pro Gold certified contractor (ID
 > 181382) and a member of the James Hardie Alliance, installing GAF Timberline
 > shingles as our standard line and the impact-resistant TAMKO Storm Series for hail
-> country. Storm damage insurance claims handled start to finish — documentation,
-> adjuster meeting, and honest scope. Free inspections, no pressure, no games.
+> country. On storm damage, Joe documents every bit of it, writes the line-item
+> estimate and meets your adjuster on the roof — the claim stays yours. Free
+> inspections, no pressure, no games.
 > Because around here, keeping your home safe is No Big Deal.
 
 ## Services list (checkbox-style directories)
@@ -106,8 +109,8 @@ each citation back to one entity. Yelp is already there
 > Just wrapped a full roof replacement in [TOWN], OH — complete tear-off, decking
 > inspection, new GAF Timberline in [COLOR]. [ONE SENTENCE about something real from
 > the job — "found two soft spots in the decking the old roof was hiding" beats any
-> slogan.] Homeowner's insurance covered [what it covered], and we handled the claim
-> paperwork start to finish. 📸 photos below.
+> slogan.] Homeowner's insurance covered [what it covered]; I documented the damage
+> and met the adjuster on the roof. 📸 photos below.
 
 **Week 3 — education**
 > "Do I need a whole new roof or just a repair?" — the question I get most. Honest

@@ -224,7 +224,7 @@
     if (strong) {
       headline = 'You likely have a claimable loss — worth a free inspection.';
       detail = 'A documented storm in your area plus ' + (hasSigns ? 'the signs you described' : 'your roof’s age') +
-        ' is exactly what insurers look for. Joe documents the damage and files + manages the whole claim for you.';
+        ' is exactly what insurers look for. Joe documents the damage, writes the estimate, and meets your adjuster on the roof — the claim stays yours.';
     } else if (hail.length || wind.length || hasSigns) {
       headline = 'It’s worth a free inspection.';
       detail = 'There’s enough here to get a trained eye on it. Joe will get on the roof, document anything claimable, and tell you straight whether it’s worth filing — no pressure.';
@@ -237,11 +237,11 @@
 
   /* ── Joe's take (best-effort AI) ── */
   function joesTake() {
-    var fb = S.firstName + ', I’ll get on your roof, document anything the storm did, and handle the insurance side start to finish. No pressure either way.';
+    var fb = S.firstName + ', I’ll get on your roof, document anything the storm did, and meet your adjuster on the roof if you file. No pressure either way.';
     try {
-      var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions, a Cincinnati roofer who handles storm-damage insurance claims start to finish. Write a 2-sentence, warm, no-BS note to ' +
+      var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions, a Cincinnati roofer who documents storm damage, writes the estimate, and meets the adjuster on the roof — the homeowner owns and decides their own claim. Write a 2-sentence, warm, no-BS note to ' +
         (S.firstName || 'a homeowner') + ' who just used your storm-damage self-check. Roof age: ' + S.roofAge +
-        '. Signs reported: ' + (S.signs.join(', ') || 'none') + '. Do NOT promise the claim will be approved or pay out; say you’ll inspect free and handle the claim. No dollar amounts.';
+        '. Signs reported: ' + (S.signs.join(', ') || 'none') + '. Do NOT promise the claim will be approved or pay out; say you’ll inspect free, document the damage, and meet the adjuster on the roof — the claim stays theirs. No dollar amounts.';
       return fetch(PROXY, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: prompt, maxTokens: 180 })
