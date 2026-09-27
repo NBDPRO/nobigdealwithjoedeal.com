@@ -48,7 +48,16 @@
       { "source": "/sites/oaks/services", "destination": "/sites/oaks/services/roof-replacement", "type": 301 },
       { "_comment": "/pro/privacy was a live 404 (2026-09-13 Grok CRM audit) — the pricing-footer Privacy link and every other Pro page always pointed at the homeowner policy at /privacy.html -> /privacy instead, so nothing was actually broken for a visitor, but the bare URL 404'd if anyone typed or linked it directly. Redirect it to the same policy /pro/terms.html already incorporates by reference as the SaaS Service's privacy policy, now with an NBD Pro software section added (see docs/privacy.html). Not a rewrite: the destination page's own canonical + JSON-LD assume the /privacy URL, and a rewrite would serve that content at a second URL with no canonical pointing back.",
         "source": "/pro/privacy", "destination": "/privacy", "type": 301 },
-      { "source": "/pro/privacy.html", "destination": "/privacy", "type": 301 }
+      { "source": "/pro/privacy.html", "destination": "/privacy", "type": 301 },
+      { "_comment": "Duplicate /our-work case studies merged (2026-09-27, Jo's call): the same job had been published twice under two slugs — the yellow vinyl siding job as both Newport KY and Cincinnati, the brick hip-roof tear-off as both a tear-off and a \"duplex\" card, and the Sycamore Township and West Liberty jobs split into install-day + finished cards that each showed the full price. The retired slug's distinct photos were folded into the kept page and build-projects.mjs deleted the retired page, so these 301s keep old inbound links (GBP posts, the URLs Google already has from the sitemap) landing on the one surviving case study. Each slug gets an extensionless AND a .html entry (the /pro/privacy pattern) rather than a trailing *, so a future slug that merely starts with a retired one can never be swallowed. Guarded by tests/ourwork-retired-slugs.test.js.",
+        "source": "/our-work/cincinnati-oh-siding-repair-2026", "destination": "/our-work/newport-ky-siding-top-course-2026", "type": 301 },
+      { "source": "/our-work/cincinnati-oh-siding-repair-2026.html", "destination": "/our-work/newport-ky-siding-top-course-2026", "type": 301 },
+      { "source": "/our-work/brick-duplex-designer-reroof-2026", "destination": "/our-work/cincinnati-oh-full-tearoff-reroof-2026", "type": 301 },
+      { "source": "/our-work/brick-duplex-designer-reroof-2026.html", "destination": "/our-work/cincinnati-oh-full-tearoff-reroof-2026", "type": 301 },
+      { "source": "/our-work/brick-underlayment-install", "destination": "/our-work/multi-section-complex-roof", "type": 301 },
+      { "source": "/our-work/brick-underlayment-install.html", "destination": "/our-work/multi-section-complex-roof", "type": 301 },
+      { "source": "/our-work/apartment-complex-complete", "destination": "/our-work/apartment-complex-tearoff", "type": 301 },
+      { "source": "/our-work/apartment-complex-complete.html", "destination": "/our-work/apartment-complex-tearoff", "type": 301 }
     ],
     "rewrites": [
       { "_comment": "Pillar 5 phase 1: universal tenant microsite. /sites/t/<companyId-or-slug> serves the one static template (rewrites only fire when no real file matches, so site.js/site.css still serve directly); /api/site-config is the whitelisted server-side companyProfile read behind it.",
