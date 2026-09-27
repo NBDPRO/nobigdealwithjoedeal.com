@@ -70,7 +70,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 <!-- nbd:partial nav-standard cta_href="/#contact" -->
 <nav id="mainNav" class="nav">
   <a href="/" class="nav-logo">
-    <img src="/assets/images/nbd-logo.png" width="600" height="308" alt="No Big Deal Home Solutions" style="height:60px;width:auto;border-radius:6px;">
+    <picture class="nbd-pic"><source type="image/webp" srcset="/assets/images/nbd-logo-150w.webp 1x, /assets/images/nbd-logo-300w.webp 2x, /assets/images/nbd-logo-450w.webp 3x"><img src="/assets/images/nbd-logo.png" width="600" height="308" alt="No Big Deal Home Solutions" style="height:60px;width:auto;border-radius:6px;"></picture>
   </a>
   <ul class="nav-links" id="navLinks">
     <li class="dropdown"><a href="/#services">Services
@@ -165,7 +165,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 <main id="main">
   <div class="pd-wrap">
     <nav class="pd-crumb" aria-label="Breadcrumb"><a href="/our-work">&larr; Back to Our Work</a></nav>
-    <img src="/assets/images/projects/damage-chalk-marked.jpg" alt="Chalk-marked hail damage during roof inspection" class="pd-hero" loading="lazy" decoding="async" width="800" height="600">
+    <picture><source srcset="/assets/images/projects/damage-chalk-marked.avif" type="image/avif"><img src="/assets/images/projects/damage-chalk-marked.jpg" alt="Chalk-marked hail damage during roof inspection" class="pd-hero" fetchpriority="high" decoding="async" width="800" height="600"></picture>
     <span class="project-tag">Hail Damage</span>
     <h1 class="pd-title">Hail Impact — Chalk-Marked Inspection</h1>
     <div class="pd-meta"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Mason, OH</div>
@@ -179,15 +179,15 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
     <h2 class="pd-h2">Photos</h2>
     <div class="pd-photos">
       <figure style="margin:0;">
-        <img src="/assets/images/projects/damage-chalk-marked.jpg" alt="Chalk-marked hail damage during roof inspection" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;">
+        <picture><source srcset="/assets/images/projects/damage-chalk-marked.avif" type="image/avif"><img src="/assets/images/projects/damage-chalk-marked.jpg" alt="Chalk-marked hail damage during roof inspection" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;"></picture>
         <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">Chalk-marked hail damage during roof inspection</figcaption>
       </figure>
       <figure style="margin:0;">
-        <picture><source srcset="/assets/images/projects/hail-impact-chalk-marked-1.webp" type="image/webp"><img src="/assets/images/projects/hail-impact-chalk-marked-1.jpg" alt="Ridge view of the hail-inspected roof showing a box vent, pipe boot and chalk-marked impact" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;"></picture>
+        <picture><source srcset="/assets/images/projects/hail-impact-chalk-marked-1.avif" type="image/avif"><source srcset="/assets/images/projects/hail-impact-chalk-marked-1.webp" type="image/webp"><img src="/assets/images/projects/hail-impact-chalk-marked-1.jpg" alt="Ridge view of the hail-inspected roof showing a box vent, pipe boot and chalk-marked impact" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;"></picture>
         <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">Ridge view of the hail-inspected roof showing a box vent, pipe boot and chalk-marked impact</figcaption>
       </figure>
       <figure style="margin:0;">
-        <picture><source srcset="/assets/images/projects/hail-impact-chalk-marked-2.webp" type="image/webp"><img src="/assets/images/projects/hail-impact-chalk-marked-2.jpg" alt="Straight-down close-up of chalk-circled hail hits across the brown shingle field" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;"></picture>
+        <picture><source srcset="/assets/images/projects/hail-impact-chalk-marked-2.avif" type="image/avif"><source srcset="/assets/images/projects/hail-impact-chalk-marked-2.webp" type="image/webp"><img src="/assets/images/projects/hail-impact-chalk-marked-2.jpg" alt="Straight-down close-up of chalk-circled hail hits across the brown shingle field" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;"></picture>
         <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">Straight-down close-up of chalk-circled hail hits across the brown shingle field</figcaption>
       </figure>
     </div>
@@ -216,7 +216,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
       <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">GAF Certified™ Contractor<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Verify on GAF.com →</span></span>
     </a>
     <a href="https://www.tamko.com/locate-a-contractor" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
-      <img src="/assets/tamko/tamko-pro-gold-badge-120.png" alt="TAMKO Pro Gold™ Certified Roofing Contractor badge" width="36" height="40" loading="lazy" style="display:block;height:40px;width:auto">
+      <picture class="nbd-pic"><source type="image/webp" srcset="/assets/tamko/tamko-pro-gold-badge-120.webp 1x"><img src="/assets/tamko/tamko-pro-gold-badge-120.png" alt="TAMKO Pro Gold™ Certified Roofing Contractor badge" width="36" height="40" loading="lazy" style="display:block;height:40px;width:auto"></picture>
       <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">TAMKO Pro Gold™ Certified<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Verify on TAMKO.com →</span></span>
     </a>
     <a href="https://www.americanoperator.com/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">

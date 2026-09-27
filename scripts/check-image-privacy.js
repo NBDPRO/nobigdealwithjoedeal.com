@@ -15,6 +15,11 @@
  *          metadata (EXIF or XMP): that dir is pipeline-owned, and the
  *          pipeline emits none
  *   FAIL — any WebP under docs/ with an EXIF or XMP chunk
+ *   FAIL — any AVIF under docs/ with an Exif item or an XMP item
+ *          (mime application/rdf+xml) in its meta box. Added 2026-09-27
+ *          when the site began shipping AVIF siblings (perf/modern-images):
+ *          before that, .avif files were not scanned at all. The GPS IFD
+ *          is named in the message when the Exif payload carries one.
  *   PASS — camera EXIF without GPS outside the projects dir (e.g. the
  *          lumanail product-pack shots) — benign, deliberate, listed only
  *          with --verbose
@@ -25,9 +30,14 @@
  *        EXIF orientation tag is absent or 1 (normal); --fix refuses
  *        otherwise so a rotated photo can't silently flip on the site
  *        (run those through prepare-project-images.mjs instead).
+ *        AVIF is never auto-fixed: removing an item means rewriting the
+ *        iloc offsets, so re-encode with sharp (which strips by default).
+ *
+ * --dir <path>  scan <path> instead of docs/ (to prove the gate against
+ *        fixtures; the projects-dir rule still keys on docs/).
  *
  * Zero dependencies. Usage:
- *   node scripts/check-image-privacy.js [--fix] [--verbose]
+ *   node scripts/check-image-privacy.js [--fix] [--verbose] [--dir <path>]
  */
 
 'use strict';
@@ -41,6 +51,8 @@ const PROJECTS_DIR = path.join(DOCS, 'assets', 'images', 'projects');
 
 const FIX = process.argv.includes('--fix');
 const VERBOSE = process.argv.includes('--verbose');
+const DIR_ARG = process.argv.indexOf('--dir');
+const SCAN_ROOT = DIR_ARG > 0 && process.argv[DIR_ARG + 1] ? path.resolve(process.argv[DIR_ARG + 1]) : DOCS;
 
 function walk(dir, out = []) {
   for (const name of fs.readdirSync(dir)) {
@@ -129,11 +141,109 @@ function stripWebpChunks(buf, meta) {
   return out;
 }
 
+// ── TIFF (EXIF body): does IFD0 point at a GPS IFD (tag 0x8825)? ──
+function tiffHasGps(tiff) {
+  if (tiff.length < 8) return false;
+  const le = tiff[0] === 0x49;
+  if (!le && tiff[0] !== 0x4d) return false;
+  const rd16 = (o) => (le ? tiff.readUInt16LE(o) : tiff.readUInt16BE(o));
+  const rd32 = (o) => (le ? tiff.readUInt32LE(o) : tiff.readUInt32BE(o));
+  try {
+    const ifd = rd32(4);
+    const n = rd16(ifd);
+    for (let k = 0; k < n; k++) if (rd16(ifd + 2 + k * 12) === 0x8825) return true;
+  } catch (_) { /* truncated — no GPS proof */ }
+  return false;
+}
+
+// ── AVIF (ISOBMFF/HEIF): walk ftyp → meta → iinf/iloc. Metadata lives in
+//    items: item_type 'Exif', or 'mime' with content_type application/rdf+xml
+//    (XMP). Returns null if not AVIF, else [{ id, what, hasGps }]. ──
+function inspectAvif(buf) {
+  const boxes = (start, end) => {
+    const out = [];
+    let i = start;
+    while (i + 8 <= end) {
+      let size = buf.readUInt32BE(i);
+      const type = buf.subarray(i + 4, i + 8).toString('latin1');
+      let hdr = 8;
+      if (size === 1) { size = Number(buf.readBigUInt64BE(i + 8)); hdr = 16; }
+      else if (size === 0) size = end - i;
+      if (size < hdr || i + size > end) break;
+      out.push({ type, start: i, body: i + hdr, end: i + size });
+      i += size;
+    }
+    return out;
+  };
+  const top = boxes(0, buf.length);
+  if (!top.length || top[0].type !== 'ftyp') return null;
+  const brands = buf.subarray(top[0].body, top[0].end).toString('latin1');
+  if (!/avi[fs]/.test(brands)) return null;
+  const meta = top.find((b) => b.type === 'meta');
+  if (!meta) return [];
+  const kids = boxes(meta.body + 4, meta.end); // meta is a FullBox
+  const found = [];
+  const iinf = kids.find((b) => b.type === 'iinf');
+  if (iinf) {
+    const v = buf[iinf.body];
+    const first = iinf.body + 4 + (v === 0 ? 2 : 4);
+    for (const infe of boxes(first, iinf.end).filter((b) => b.type === 'infe')) {
+      const iv = buf[infe.body];
+      if (iv < 2) continue;
+      let p = infe.body + 4;
+      const id = iv === 2 ? buf.readUInt16BE(p) : buf.readUInt32BE(p);
+      p += (iv === 2 ? 2 : 4) + 2; // item_ID, item_protection_index
+      const itype = buf.subarray(p, p + 4).toString('latin1');
+      p += 4;
+      if (itype === 'Exif') found.push({ id, what: 'Exif' });
+      if (itype === 'mime') {
+        const nameEnd = buf.indexOf(0, p); // item_name is NUL-terminated, then content_type
+        const ctEnd = buf.indexOf(0, nameEnd + 1);
+        const ct = buf.subarray(nameEnd + 1, ctEnd > 0 && ctEnd < infe.end ? ctEnd : infe.end).toString('latin1');
+        if (/rdf\+xml/i.test(ct)) found.push({ id, what: 'XMP' });
+      }
+    }
+  }
+  // Locate each Exif item's bytes via iloc (construction_method 0 = file
+  // offsets) so the message can say whether it carries a GPS IFD.
+  const iloc = kids.find((b) => b.type === 'iloc');
+  if (iloc && found.some((f) => f.what === 'Exif')) {
+    try {
+      const v = buf[iloc.body];
+      let p = iloc.body + 4;
+      const offSz = buf[p] >> 4, lenSz = buf[p] & 15, baseSz = buf[p + 1] >> 4, idxSz = v >= 1 ? buf[p + 1] & 15 : 0;
+      p += 2;
+      const rdN = (n) => { let x = 0; for (let k = 0; k < n; k++) x = x * 256 + buf[p + k]; p += n; return x; };
+      const count = v < 2 ? rdN(2) : rdN(4);
+      for (let c = 0; c < count; c++) {
+        const id = v < 2 ? rdN(2) : rdN(4);
+        const method = v >= 1 ? rdN(2) & 15 : 0;
+        rdN(2); // data_reference_index
+        const base = rdN(baseSz);
+        const extents = rdN(2);
+        const parts = [];
+        for (let e = 0; e < extents; e++) {
+          if (idxSz) rdN(idxSz);
+          const off = rdN(offSz), len = rdN(lenSz);
+          if (method === 0) parts.push(buf.subarray(base + off, base + off + len));
+        }
+        const item = found.find((f) => f.id === id && f.what === 'Exif');
+        if (item && parts.length) {
+          const data = Buffer.concat(parts);
+          const tiffAt = 4 + data.readUInt32BE(0); // exif_tiff_header_offset
+          item.hasGps = tiffHasGps(data.subarray(tiffAt));
+        }
+      }
+    } catch (_) { /* malformed iloc — the Exif item alone already fails */ }
+  }
+  return found;
+}
+
 const failures = [];
 const benign = [];
 let fixed = 0, scanned = 0;
 
-for (const file of walk(DOCS)) {
+for (const file of walk(SCAN_ROOT)) {
   const ext = path.extname(file).toLowerCase();
   const rel = path.relative(REPO_ROOT, file).replace(/\\/g, '/');
   const inProjects = file.startsWith(PROJECTS_DIR + path.sep);
@@ -172,6 +282,14 @@ for (const file of walk(DOCS)) {
     } else {
       failures.push(`${rel}: ${why}`);
     }
+  } else if (ext === '.avif') {
+    scanned++;
+    const meta = inspectAvif(fs.readFileSync(file));
+    if (meta === null) { failures.push(`${rel}: .avif that does not parse as AVIF (ftyp avif/avis missing)`); continue; }
+    if (!meta.length) continue;
+    const gps = meta.some((m) => m.hasGps);
+    const why = `AVIF ${meta.map((m) => m.what).join('+')} metadata item(s)${gps ? ' with an EXIF GPS IFD (customer-property location!)' : ''}`;
+    failures.push(`${rel}: ${why}${FIX ? ' — NOT auto-fixed: re-encode with sharp (strips metadata by default)' : ''}`);
   }
 }
 
