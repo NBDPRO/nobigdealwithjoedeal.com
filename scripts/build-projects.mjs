@@ -683,7 +683,7 @@ const factsHtml = (p) => {
   if (p.duration) rows.push(['Duration', esc(p.duration)]);
   const price = priceLine(p);
   const ctx = dated(p);
-  if (price) rows.push(['Price range', `${esc(price)} (retail${ctx ? `, priced in ${ctx.year}` : ''})`]);
+  if (price) rows.push(['Price range', `${esc(price)} (retail${ctx ? `, priced ${esc(ctx.when)}` : ''})`]);
   rows.push(['Photos', String(p.photos.length)]);
   return `    <h2 class="pd-h2">Project Details</h2>
     <dl class="pd-facts">

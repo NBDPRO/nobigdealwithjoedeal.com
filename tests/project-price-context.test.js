@@ -7,7 +7,8 @@
  * an INJECTED as-of date, so nothing depends on the day this runs:
  *   - a job with a price whose year is more than 12 months before the as-of
  *     date gets the line; the job is dated to Dec 31 of its year (generous)
- *   - a current-year job, an unpriced job and an undated job never do
+ *   - a current-year job and an unpriced job never do; a priced job with no
+ *     year is labelled "Priced before 2025." (Jo, 2026-09-27)
  *   - roofing jobs link the roof cost guide; others their own service hub
  * Then the stamped tree is checked against the same rule at the as-of date
  * build-projects.mjs uses by default (newest published), and the CLI's
@@ -48,7 +49,16 @@ function ok(name, cond, detail) {
   ok('the boundary is strict: a 2024 job on 2025-12-31 is exactly 12 months, no line', !isPriceDated(job({ year: 2024 }), d('2025-12-31')));
   ok('…and gets it the next day', isPriceDated(job({ year: 2024 }), d('2026-01-01')));
   ok('an unpriced 2023 job gets nothing (no price, nothing to put in context)', priceContext(job({ year: 2023, priceLow: undefined, priceHigh: undefined }), TODAY) === null);
-  ok('an undated priced job gets nothing (the year is never guessed)', priceContext(job({ year: undefined }), TODAY) === null);
+  // Jo, 2026-09-27: undated jobs are the legacy ones, all priced before 2025.
+  const undated = priceContext(job({ year: undefined }), TODAY);
+  ok('an undated priced job is labelled "Priced before 2025." (Jo 2026-09-27; the year itself is still not guessed)',
+    !!undated && undated.year === 'before-2025' && undated.when === 'before 2025'
+      && /^Priced before 2025\. Materials and labor have gone up since, and tier and scope move a price by thousands —$/.test(undated.lead)
+      && undated.short === 'Priced before 2025. Materials and labor have gone up since.');
+  ok('  …with the same prices-rise link as a dated job', undated && undated.href === ROOF_COST_GUIDE && undated.linkText === old.linkText);
+  ok('  …whatever the as-of date (it is not an age rule)', !!priceContext(job({ year: undefined }), d('2025-06-01')));
+  ok('an undated UNPRICED job still gets nothing', priceContext(job({ year: undefined, priceLow: undefined, priceHigh: undefined }), TODAY) === null);
+  ok('a dated job keeps "in <year>"', old && old.when === 'in 2023');
   ok('a commercial job links the commercial hub, not the residential cost guide',
     (priceContext(job({ year: 2023, services: ['commercial-roofing', 'storm-damage', 'roof-replacement'] }), TODAY) || {}).href === '/services/commercial-roofing');
   ok('a storm job that was a re-roof links the cost guide',
@@ -69,20 +79,24 @@ function ok(name, cond, detail) {
   const clean = live.filter((p) => p.priceLow != null && !priceContext(p, asOf));
   ok(`some live jobs are dated at the default as-of (${flagged.length})`, flagged.length > 0);
   const page = (slug) => fs.readFileSync(path.join(ROOT, 'docs', 'our-work', `${slug}.html`), 'utf8');
+  const undatedLive = flagged.filter((p) => p.year == null);
+  ok(`every undated priced live job is flagged "before 2025" (${undatedLive.length})`,
+    undatedLive.length > 0 && live.filter((p) => p.year == null && p.priceLow != null).length === undatedLive.length);
   const missing = flagged.filter((p) => {
     const html = page(p.slug);
     const c = priceContext(p, asOf);
-    return !html.includes(`data-price-context="${p.year}"`) || !html.includes(`href="${c.href}"`) || !html.includes(`Priced in ${p.year}.`);
+    return !html.includes(`data-price-context="${c.year}"`) || !html.includes(`href="${c.href}"`) || !html.includes(`Priced ${c.when}.`)
+      || !html.includes(`(retail, priced ${c.when})`);
   });
   ok('every dated job\'s case page carries the line and its link', missing.length === 0, missing.map((p) => p.slug).join(', '));
   const leaked = clean.filter((p) => page(p.slug).includes('data-price-context'));
   ok('no current-priced job\'s case page carries it', leaked.length === 0, leaked.map((p) => p.slug).join(', '));
   const OUR_WORK = fs.readFileSync(path.join(ROOT, 'docs', 'our-work.html'), 'utf8');
-  const cardLines = (OUR_WORK.match(/<p data-price-context="\d{4}">/g) || []).length;
+  const cardLines = (OUR_WORK.match(/<p data-price-context="(\d{4}|before-2025)">/g) || []).length;
   ok('/our-work carries exactly one line per dated live job', cardLines === flagged.length, `${cardLines} vs ${flagged.length}`);
   ok('the price and its year are still shown (context is added, nothing is hidden)',
     flagged.every((p) => page(p.slug).includes(`$${p.priceLow.toLocaleString('en-US')}–$${p.priceHigh.toLocaleString('en-US')}`)));
-  ok('no inline style on the new line (existing classes only)', !/data-price-context="\d{4}"[^>]*style=/.test(OUR_WORK));
+  ok('no inline style on the new line (existing classes only)', !/data-price-context="(\d{4}|before-2025)"[^>]*style=/.test(OUR_WORK));
 
   console.log('\nPRICE CONTEXT — the as-of date is injectable\n');
   const gen = path.join(ROOT, 'scripts', 'build-projects.mjs');
