@@ -59,13 +59,13 @@ Two things surfaced that are **not SEO** and matter more — read §0 first.
 | #1811 | 155 oversized WebPs re-encoded or dropped (−33%); `hero-format` rule understands `<picture>` |
 | #1813 | One FAQPage per page (Covington + Cincinnati had two) + `faq-single` gate |
 | #1814 | Review widget: newest first + hides the "FDP Python…" reviewer (Jo's ask), applied to all 5 response paths |
+| #1797 | ONE business entity (`#org`, Campton KY 41301 to match the GBP's verified address) + ONE Joe (`#joe`) + WebSite, stamped from `site-src/partials/schema-entity.html` into every public page; entity gate in check-seo-surface |
+| #1815 | "N new reviews this month" from Google's daily review-count history (seeded 28 on 08-31, 29 on 09-20) |
 
 ## §2 — Open PRs
 
 | PR | State | Blocker |
 |---|---|---|
-| #1797 | draft, green locally | **Jo: public city.** One `addressLocality` line in `site-src/partials/schema-entity.html` (now "Goshen"). Jo wants off the Goshen framing but the warehouse is there; must match the GBP city. Ask if the warehouse mailing address is Milford 45150. Then `node scripts/apply-partials.js`, un-draft, merge. The single `#org`/`#joe` entity is the biggest AEO/GEO lever. |
-| #1815 | CI (Auto-fix monitor on) | "N new reviews this month" from Google's daily count history (seeded 28 on 08-31, 29 on 09-20). Merge when green. |
 | #1796 | draft | Jo's read-through of the two rewritten insurance posts (5 JOE-CONFIRM items). When it merges, remove their entries from the FAQ-visible allowlist and the entity-gate pending list. |
 | #1802 | draft | Answer-first leads on 25 core service pages. Paused for price validation: 6 `PRICE-PENDING` markers; quotes By Golly's 2023 price without a year. |
 | #1803 | draft | Rebuilt 2026 cost guide (tables, tiers +9/+21). Jo review; 4 `PRICE-PENDING` comments. The live guide is stale ($650–$750/sq, "3-tab") — merge soon after review. |
@@ -84,6 +84,28 @@ Two things surfaced that are **not SEO** and matter more — read §0 first.
 - Semrush MCP is connected but the account has **no API units**.
 - **Business Profile API allowlist requested 2026-09-27** (Jo live, from the Google account that manages the profile; project `nobigdeal-pro` / 717435841570): case **8-9748000042165**, Google quotes 7–10 business days. On approval (Cloud Console quota 0 → 300 QPM) follow `functions/google-reviews.README.md` "Business Profile API (all reviews)" — Jo must sign in himself for the OAuth refresh token. Unlocks all reviews, newest first.
 - Reviews widget: #1814 sorts newest first + hides the "FDP Python…" reviewer (Jo's ask); a stacked lane adds an honest "N new reviews this month" line from Google's count history.
+
+## §3b — Jo's answers (evening Q&A, 2026-09-27)
+
+All recorded in the decisions sheet the session applied (prices, contradictions, CRM choices). Key facts:
+- **LLC legal address + GBP verified address: Campton, KY 41301.** Warehouse: Goshen, OH. Moving the GBP to
+  Goshen was offered (likely the biggest map-pack lever — proximity) and Jo said **not yet**. Jo is getting an
+  Ohio PO box (advised: Ohio, Milford/Goshen area; a PO box can't be the GBP address or the KY "physical
+  address"). Suggested he confirm Ohio foreign-LLC registration with his accountant/attorney.
+- **CRM:** KY insurance deposit $0 until the insurer's written decision + 5 business days; referral bonus $100
+  everywhere; AOB → direction-to-pay in both states (attorney to review wording); review ask mentions town + job;
+  material-delivery add-on $150 (was $412.50 — Jo wants to see the diff first). Being built into #1801 (draft).
+- **Prices/copy:** inspection verbal free / written report $150 / complex $250+; gutter cleaning mostly $200–$300;
+  soft wash $500–$1,000; siding replacement "$20k–$40k, typical ~$30k"; drywall $1k–$3k per room; outbuildings
+  $2k–$4k; commercial bid individually (up to $2k–$3k per square on crane jobs); Roof Care Plan $199/yr or $19/mo;
+  Instant Estimate default $13,300–$18,600; add-ons per unit; undated old jobs "Priced before 2025". Being applied
+  in #1796/#1802/#1803 + a new contradictions PR.
+- **Search Console:** only the www property existed — the apex property was added live (auto-verified via the
+  HTML file in docs/ — keep it), sitemap submitted, homepage indexing requested.
+- **"Meet Joe" video:** script sent; Jo will film. Listings to claim: BBB, Angi, Apple Business Connect,
+  LinkedIn, YouTube, TAMKO locator (he has Nextdoor, Yelp, FB, IG, GBP).
+- **Top towns** (delegated): Cincinnati; Mason, West Chester, Loveland; Milford, Goshen, Batavia, Amelia;
+  Anderson Twp, Blue Ash; Florence KY.
 
 ## §4 — Follow-ups nobody has claimed
 
