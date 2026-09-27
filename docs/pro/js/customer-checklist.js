@@ -45,9 +45,8 @@
       { key: 'ins-file-claim',   label: 'File claim with carrier' },
       { key: 'ins-adjuster',     label: 'Meet adjuster on site' },
       { key: 'ins-scope',        label: 'Receive carrier scope / approval' },
-      // Key kept (renames orphan saved ticks); the document is now the
-      // Direction to Pay, which stamps the same aobFiledAt field (2026-09-27).
-      { key: 'ins-aob',          label: 'Direction to Pay signed',        gateField: 'aobFiledAt' },
+      // 'ins-aob' (Assignment of Benefits filed) retired 2026-09-27: no
+      // assignment or co-payee paperwork in any state. Never reuse the key.
       { key: 'ins-estimate',     label: 'Build & send estimate' },
       { key: 'ins-contract',     label: 'Sign contract',                 gateField: 'contractFiledAt' },
       { key: 'ins-permit',       label: 'Permit filed',                  gateField: 'permitFiledAt', manual: true },

@@ -1328,7 +1328,7 @@ function buildCard(l){
   // Sweep R3 (B): closes the loop on Phase 1's STAGE_ACTIONS map by
   // surfacing the #1 action for this stage + job type on the card face
   // itself, not just inside the Next Actions panel in the lead modal.
-  // Reps see "→ File Claim" / "→ Direction to Pay" / "→ Pull Permit" on every
+  // Reps see "→ File Claim" / "→ Pull Permit" on every
   // card so they can scan the column for what to do, not just where
   // each lead sits.
   //
@@ -1387,7 +1387,7 @@ function buildCard(l){
           // 2026-09-15 (Paperwork Filing)
           contractFiledAt:      'Contract Filed',
           permitFiledAt:        'Permit Filed',
-          aobFiledAt:           'Direction to Pay signed',
+          aobFiledAt:           'AOB filed (retired)',
           warrantyCertFiledAt:  'Warranty Cert Filed',
           cocFiledAt:           'COC Filed'
         };
@@ -1725,7 +1725,7 @@ const _GATE_FIELD_META = {
   // 2026-09-15 (Paperwork Filing)
   contractFiledAt:      { label: 'Contract Filed',           inputId: 'lContractFiled' },
   permitFiledAt:        { label: 'Permit Filed',             inputId: 'lPermitFiled' },
-  aobFiledAt:           { label: 'Direction to Pay signed',  inputId: 'lAobFiled' },
+  aobFiledAt:           { label: 'AOB filed (retired)',      inputId: 'lAobFiled' },
   warrantyCertFiledAt:  { label: 'Warranty Cert Filed',      inputId: 'lWarrantyCertFiled' },
   cocFiledAt:           { label: 'Certificate of Completion Filed', inputId: 'lCocFiled' },
 };

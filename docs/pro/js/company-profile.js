@@ -111,7 +111,7 @@
     // case it did not, pinned by tests/deposit-rule.test.js.
     paymentTermsContract: _depositPolicyText(),
     // "Insurance assignments accepted." dropped 2026-09-27: the AOB is retired
-    // in both states (Direction to Pay instead).
+    // in both states (contracts carry a plain payment clause instead).
     paymentTermsProposal: _depositPolicyText(),
     paymentMethodsNoCash:
       'All payments must be made by check, ACH transfer, or credit card. No cash payments accepted. Material delays may extend timeline.',

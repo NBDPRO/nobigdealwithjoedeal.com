@@ -31,7 +31,7 @@
  * Kentucky insurance job: the extra notices cost nothing on an Ohio contract,
  * while their absence can void a Kentucky one.
  *
- * Not legal advice — counsel should review notice placement and e-delivery.
+ * Statutory text is copied verbatim from 2026 Ky. Acts ch. 54 and 16 CFR 429.
  */
 (function (root, factory) {
   var api = factory();
@@ -71,8 +71,8 @@
     ', not later than midnight of the fifth day after you receive notice from the insurer.'
   ];
   var CANCEL_LINE = 'I HEREBY CANCEL THIS TRANSACTION.';
-  // No fax: the statute's blank is "if applicable" in 367.624(2). Flagged for
-  // counsel — this is the only wording choice made inside the form.
+  // No fax: the statute's blank is "if applicable" in 367.624(2); this is the
+  // only wording choice made inside the form.
   var NO_FAX_TEXT = '(none — the contractor has no facsimile number)';
 
   // KRS 367.628(2)(g) — the contractor's own undertaking, KY insurance jobs.
@@ -101,8 +101,8 @@
   // ── Rep-facing messages (one copy, shared by every surface) ──────────────
   var MSG = {
     addressRequired:
-      'Kentucky insurance contracts must show your business mailing and physical address. Add your full street address in ' +
-      'Settings → Company Profile → Letterhead → "Mailing Address (one line)" (street, city, state, ZIP), then Save Company Profile.',
+      'Kentucky insurance contracts must show your business mailing and physical address. Add your street address ' +
+      '(street, city, state, ZIP — not a PO box) in Settings → Company Profile → "Mailing Address (one line)", then Save Company Profile.',
     depositHold:
       'Kentucky insurance job: nothing is due at signing (KRS 367.626). The deductible and ACV payment become due after the ' +
       'insurer\'s written coverage decision and the 5-business-day cancellation window. Bill emergency tarp or repair work ' +
@@ -112,8 +112,8 @@
       'decision arrived on the lead (Claim section → "Carrier decision received"); the link can be created 5 business days ' +
       'later. Emergency tarp or repair invoices can be marked Emergency and billed now (KRS 367.626(3)).',
     aobRetired:
-      'The Assignment of Benefits has been retired. Use the Direction to Pay instead: it has the insurer pay you for the work ' +
-      'without assigning any of the homeowner\'s policy rights.',
+      'The Assignment of Benefits and the Direction to Pay have been retired. Contracts carry a plain payment clause; ' +
+      'nothing moves any of the homeowner\'s policy rights to you.',
     stateUnknown:
       'The property state could not be read from the address, so this insurance job is treated as a Kentucky insurance job (statutory notices + cancellation form added).'
   };
@@ -554,29 +554,31 @@
     return _str(text).replace(/\s*Insurance assignments? accepted\.?/gi, '').replace(/\s{2,}/g, ' ').trim();
   }
 
-  // ── Direction to Pay (Jo, 2026-09-27) ────────────────────────────────────
-  // Replaces the Assignment of Benefits in EVERY state. KRS 304.20-105(4)(b)
-  // leaves "authorizing or directing payment to ... a person for services"
-  // untouched by the anti-assignment rule; Ohio has no equivalent bar but Jo
-  // chose one form for both states. DRAFT WORDING, kept minimal on purpose —
-  // for Jo's attorney to review before first use. It names the contractor as
-  // payee and does nothing else: no assignment of policy rights or benefits,
-  // no authority over the claim, the homeowner keeps control.
-  var DTP_NOT_ASSIGNMENT =
-    'This is a direction to pay only. It does not assign or transfer any of the homeowner\u2019s rights or benefits under the ' +
-    'insurance policy, and it gives the contractor no authority to adjust, settle or bargain over the claim or to act for the ' +
-    'homeowner with the insurer. The homeowner keeps full control of the claim.';
-  /** The contract / work-authorization clause, naming the contractor. */
-  function directionToPayText(contractorName) {
-    var n = _str(contractorName).trim() || 'the contractor';
-    return 'If any of this work is paid from an insurance claim, the homeowner directs the insurance company to include ' + n +
-      ' as a payee on, or to pay ' + n + ' directly, any payment for the work in this contract, up to the contract price. ' +
-      DTP_NOT_ASSIGNMENT;
+  // ── Payment clause (Jo, 2026-09-27) ──────────────────────────────────────
+  // Jo's rule: no Assignment of Benefits, no direction to pay, no co-payee
+  // instrument of any kind, in any state. Every contract (client and server
+  // renderers print this same string) says plainly how it is paid and that it
+  // moves nothing under the homeowner's policy. Worded so it never needs the
+  // words a guard test forbids on contracts.
+  /**
+   * The contractor's address for the paperwork that legally requires one
+   * (Jo, 2026-09-27): brand.contact.mailingAddress — the Company Profile
+   * "Mailing Address (one line)" field, the same one the CAN-SPAM footer
+   * prints. NEVER businessAddress (the letterhead / microsite field), so the
+   * address appears only where the law puts it. Accepts a company profile
+   * ({ brand: { contact } }) or a brand ({ contact }).
+   */
+  function contractorMailingAddress(src) {
+    var s = src || {};
+    var c = (s.brand && s.brand.contact) || s.contact || {};
+    return _str(c.mailingAddress).trim();
   }
-  /** A Direction to Pay clause prints on insurance jobs, in every state. */
-  function showsDirectionToPay(j) {
-    return !!(j && j.insurance);
-  }
+
+  var PAYMENT_CLAUSE =
+    'Homeowner will pay Contractor the contract price according to the payment schedule above. Homeowner may pay from ' +
+    'insurance proceeds, personal funds, financing, or any combination. This contract does not transfer or give Contractor ' +
+    'any rights or benefits under Homeowner\u2019s insurance policy, and Contractor will not represent Homeowner or act for ' +
+    'Homeowner on any insurance claim.';
 
   return {
     KY_NOTICE_CANCEL: KY_NOTICE_CANCEL,
@@ -616,8 +618,7 @@
     kyCancellationFormsHtml: kyCancellationFormsHtml,
     ftcCancellationFormsHtml: ftcCancellationFormsHtml,
     stripAssignmentSentences: stripAssignmentSentences,
-    DTP_NOT_ASSIGNMENT: DTP_NOT_ASSIGNMENT,
-    directionToPayText: directionToPayText,
-    showsDirectionToPay: showsDirectionToPay
+    PAYMENT_CLAUSE: PAYMENT_CLAUSE,
+    contractorMailingAddress: contractorMailingAddress
   };
 });

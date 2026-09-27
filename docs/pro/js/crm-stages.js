@@ -779,8 +779,8 @@ export const STAGE_ACTIONS = {
     { id: 'photo_report',    label: 'Photo Report',            icon: '📸',  kind: 'doc' },
     { id: 'inspect_report',  label: 'Inspection Report',       icon: '📄',  kind: 'doc' },
     { id: 'file_claim',      label: 'File Claim',              icon: '📋',  kind: 'action', jobTypes: ['insurance'] },
-    // Direction to Pay replaced the Assignment of Benefits (2026-09-27).
-    { id: 'send_dtp',        label: 'Direction to Pay',        icon: '✍️', kind: 'doc',    jobTypes: ['insurance'] },
+    // (The Send AOB chip — briefly a Direction to Pay — was retired
+    // 2026-09-27: no assignment or co-payee paperwork in any state.)
     { id: 'send_estimate',   label: 'Send Estimate',           icon: '💰',  kind: 'doc',    jobTypes: ['cash'] },
     { id: 'send_prequal',    label: 'Send Pre-Qual Link',      icon: '🏦',  kind: 'doc',    jobTypes: ['finance'] },
     { id: 'send_quote',      label: 'Send Service Quote',      icon: '💰',  kind: 'doc',    jobTypes: ['service'] },
@@ -974,10 +974,9 @@ export function preferredActionFor(stage, jobType) {
 // repair, neither issues a NEW warranty on close (not an oversight).
 export const REQUIRED_FIELDS_BY_TYPE = {
   insurance: {
-    // aobFiledAt dropped 2026-09-27: the homeowner files the claim, and the
-    // Direction to Pay that replaced the AOB is optional paperwork — it must
-    // not gate "Claim Filed" (it used to block every Kentucky lead, where an
-    // AOB is void). The field still records a signed Direction to Pay.
+    // aobFiledAt dropped 2026-09-27: the AOB is retired in both states (it
+    // used to block every Kentucky lead, where an AOB is void). The legacy
+    // field is left in place, unused and hidden; no stage requires it.
     [S.CLAIM_FILED]:        ['insCarrier', 'claimNumber'],
     [S.ADJUSTER_SCHEDULED]: ['insCarrier'],
     [S.ESTIMATE_SUBMITTED]: ['estimateAmount', 'deductibleOrOwedByHO'],

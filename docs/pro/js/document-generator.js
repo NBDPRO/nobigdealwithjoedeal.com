@@ -139,10 +139,20 @@ window.NBDDocGen = {
     return j;
   },
 
-  /** The tenant's business mailing/physical address (Company Profile), or ''. */
+  /**
+   * The contractor address a KY insurance contract / cancellation form must
+   * print: brand.contact.mailingAddress ("Mailing Address (one line)"), the
+   * tenant's own (window._brand() never inherits another tenant's). Never
+   * businessAddress — that is the letterhead/microsite field, and Jo's rule
+   * (2026-09-27) is that the address prints only where the law requires it.
+   */
   _contractorPhysicalAddress(cp) {
+    const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
+    if (!J) return '';
+    let fromBrand = '';
+    try { fromBrand = J.contractorMailingAddress(window._brand ? window._brand() : null); } catch (_) { fromBrand = ''; }
     const p = cp || (window._legal ? window._legal() : (window._companyProfile || {}));
-    return String((p && p.businessAddress) || '').trim();
+    return fromBrand || J.contractorMailingAddress(p);
   },
 
   /**
@@ -152,9 +162,10 @@ window.NBDDocGen = {
   _statutoryBlocks(data, cp) {
     const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
     const j = this._jurisdiction(data);
-    // Direction to Pay clause: insurance jobs, every state (2026-09-27).
+    // The plain Payment clause prints on EVERY contract (Jo, 2026-09-27: no
+    // AOB, no direction to pay, no co-payee instrument, any state).
     const out = { j, css: '', notices: '', forms: '', lien: '', partiesExtra: '',
-      directionToPay: (J && j && J.showsDirectionToPay(j)) ? J.directionToPayText(this._resolveCompany().name) : '' };
+      paymentClause: J ? J.PAYMENT_CLAUSE : '' };
     if (!J || !j || !j.kyInsurance) return out;
     const co = this._resolveCompany();
     const addr = this._contractorPhysicalAddress(cp);
@@ -377,13 +388,6 @@ window.NBDDocGen = {
                                { role: 'homeowner', label: 'Homeowner',                       required: true },
                                { role: 'rep',       label: 'Authorized NBD Representative',   required: true },
                              ] },
-    // Direction to Pay (2026-09-27) replaces the retired Assignment of
-    // Benefits in both states. Draft wording, for counsel before first use.
-    direction_to_pay:      { name: 'Direction to Pay',                template: 'renderDirectionToPay',
-                             defaultSigners: [
-                               { role: 'homeowner', label: 'Homeowner / Insured',             required: true },
-                               { role: 'rep',       label: 'Authorized NBD Representative',   required: false },
-                             ] },
     change_order:          { name: 'Change Order',                    template: 'renderChangeOrder',
                              defaultSigners: [
                                { role: 'homeowner', label: 'Homeowner',                       required: true },
@@ -423,10 +427,6 @@ window.NBDDocGen = {
   // alongside the `warranty:{...}` object it already writes.
   FILED_FIELD_BY_DOC_TYPE: {
     contract:                  'contractFiledAt',
-    // The Direction to Pay reuses the legacy aobFiledAt field (its rules
-    // validation, lead-modal checkbox and checklist gate already exist);
-    // it is labelled "Direction to Pay signed" everywhere it shows.
-    direction_to_pay:          'aobFiledAt',
     certificate_of_completion: 'cocFiledAt',
   },
 
@@ -481,14 +481,14 @@ window.NBDDocGen = {
       ? _profileSrc
       : (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
 
-    // ─── Retired: Assignment of Benefits (2026-09-27, both states) ───
-    // An AOB is void in Kentucky (KRS 304.20-105); Jo retired it in Ohio too
-    // in favour of the Direction to Pay. A stale caller (an old bookmark, a
-    // cached chip) gets the reason instead of a document.
+    // ─── Retired: Assignment of Benefits AND Direction to Pay (2026-09-27) ───
+    // An AOB is void in Kentucky (KRS 304.20-105); Jo retired it and every
+    // co-payee / direction-to-pay instrument in both states. A stale caller
+    // (an old bookmark, a cached chip) gets the reason instead of a document.
     const _say = (m) => { if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m); };
-    if (type === 'assignment_of_benefits') {
+    if (type === 'assignment_of_benefits' || type === 'direction_to_pay') {
       const _Jr = window.NBDJurisdiction;
-      _say((_Jr && _Jr.MSG.aobRetired) || 'The Assignment of Benefits has been retired — use the Direction to Pay.');
+      _say((_Jr && _Jr.MSG.aobRetired) || 'The Assignment of Benefits has been retired. Contracts carry a plain payment clause.');
       return;
     }
 
@@ -2531,9 +2531,9 @@ window.NBDDocGen = {
     // undertaking (367.628(2)(g)) and the detachable NOTICE OF CANCELLATION
     // in duplicate on its own page after them (367.624(4)).
     // The "Insurance Assignment" clause is gone in every state (Jo,
-    // 2026-09-27): insurance jobs print a Direction to Pay instead — the
-    // insurer pays the contractor for the work, no policy rights assigned.
-    // Cash jobs print neither.
+    // 2026-09-27). Every contract prints the plain Payment clause instead
+    // (ky-insurance-law.js PAYMENT_CLAUSE) — no assignment, no direction to
+    // pay, no co-payee language anywhere.
     const stat = this._statutoryBlocks(Object.assign({}, data, merged), cp);
     const _J = window.NBDJurisdiction;
     const paymentMethodsText = _J ? _J.stripAssignmentSentences(cp.paymentMethodsNoCash) : cp.paymentMethodsNoCash;
@@ -2631,11 +2631,11 @@ window.NBDDocGen = {
               </div>
             </div>
 
-            ${stat.directionToPay ? `<!-- DIRECTION TO PAY (insurance jobs; draft wording for counsel) -->
+            ${stat.paymentClause ? `<!-- PAYMENT (every contract; ky-insurance-law.js PAYMENT_CLAUSE) -->
             <div class="section">
-              <div class="section-title">Direction to Pay</div>
+              <div class="section-title">Payment</div>
               <div style="margin: 0.1in 0; font-size: 10px;">
-                ${this._escHtml(stat.directionToPay)}
+                ${this._escHtml(stat.paymentClause)}
               </div>
             </div>` : ''}
 
@@ -3610,10 +3610,6 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         { name: 'totalPrice', label: 'Project Total', required: true }
       ],
       referral_card: [],
-      direction_to_pay: [
-        ...commonFields,
-        ...insuranceFields
-      ],
       material_delivery: [
         ...commonFields,
         { name: 'deliveryDate', label: 'Delivery Date', required: true },

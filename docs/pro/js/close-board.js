@@ -666,7 +666,10 @@
     let kyCss = '', kyNotices = '', kyForms = '';
     if (_kyJ && _kyJ.kyInsurance) {
       const _cp = (window._legal ? window._legal() : window._companyProfile) || {};
-      const _addr = String(_cp.businessAddress || '').trim();
+      // brand.contact.mailingAddress only (Jo, 2026-09-27) — never the letterhead address.
+      let _brandSrc = null;
+      try { _brandSrc = window._brand ? window._brand() : null; } catch (_) { _brandSrc = null; }
+      const _addr = _KY.contractorMailingAddress(_brandSrc) || _KY.contractorMailingAddress(_cp);
       if (!_addr) {
         const err = new Error(_KY.MSG.addressRequired);
         err.code = 'ky-address-required';

@@ -83,9 +83,10 @@ function loadDocGen() {
   ok('permit has NO defaultSigners (no in-app signer — filed with a jurisdiction, not signed here)',
     dg.DOCUMENT_TYPES.permit && dg.DOCUMENT_TYPES.permit.defaultSigners === undefined);
   eq('FILED_FIELD_BY_DOC_TYPE.contract', dg.FILED_FIELD_BY_DOC_TYPE.contract, 'contractFiledAt');
-  // The Direction to Pay (replaced the AOB, 2026-09-27) stamps the legacy aobFiledAt field.
-  eq('FILED_FIELD_BY_DOC_TYPE.direction_to_pay', dg.FILED_FIELD_BY_DOC_TYPE.direction_to_pay, 'aobFiledAt');
+  // The AOB (and the Direction to Pay briefly after it) is retired, 2026-09-27:
+  // no document stamps aobFiledAt any more; the field stays, unused.
   eq('no assignment_of_benefits document type is left', dg.FILED_FIELD_BY_DOC_TYPE.assignment_of_benefits, undefined);
+  eq('no direction_to_pay document type either', dg.FILED_FIELD_BY_DOC_TYPE.direction_to_pay, undefined);
   eq('FILED_FIELD_BY_DOC_TYPE.certificate_of_completion', dg.FILED_FIELD_BY_DOC_TYPE.certificate_of_completion, 'cocFiledAt');
   ok('FILED_FIELD_BY_DOC_TYPE has no permit entry (manual-only, no signer to hook)',
     dg.FILED_FIELD_BY_DOC_TYPE.permit === undefined);
@@ -201,8 +202,7 @@ function loadChecklist() {
   ok('ins-contract is NOT manual (auto-derived, read-only)', insContract && !insContract.manual);
   ok('ins-permit carries gateField: permitFiledAt AND manual:true (the one interactive gate row)',
     insPermit && insPermit.gateField === 'permitFiledAt' && insPermit.manual === true);
-  ok('ins-aob carries gateField: aobFiledAt', insAob && insAob.gateField === 'aobFiledAt');
-  ok('ins-aob now reads "Direction to Pay signed" (the AOB is retired)', insAob && insAob.label === 'Direction to Pay signed');
+  ok('ins-aob is gone from the insurance checklist (the AOB is retired)', !insAob);
   ok('ins-warranty-cert carries gateField: warrantyCertFiledAt', insWarrCert && insWarrCert.gateField === 'warrantyCertFiledAt');
   ok('ins-invoice (Final invoice & COC to carrier) carries gateField: cocFiledAt', insInvoice && insInvoice.gateField === 'cocFiledAt');
 

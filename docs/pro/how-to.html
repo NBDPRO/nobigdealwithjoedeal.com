@@ -624,7 +624,7 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
         <summary>Deep dive — what each job type unlocks</summary>
         <div class="detail-body">
           <h4>Insurance</h4>
-          <p>The full claim-driven workflow. Stages: <strong>New → Contacted → Inspected → Claim Filed → Adjuster Mtg → Adjuster Done → Scope Received → Estimate Sent → (Supplement → Supp. Approved) → Contract Signed</strong>. Documents available: Direction to Pay, Inspection Report (Insurance variant), Supplement Request Letter, Estimate (Insurance format), Contract, Certificate of Completion.</p>
+          <p>The full claim-driven workflow. Stages: <strong>New → Contacted → Inspected → Claim Filed → Adjuster Mtg → Adjuster Done → Scope Received → Estimate Sent → (Supplement → Supp. Approved) → Contract Signed</strong>. Documents available: Inspection Report (Insurance variant), Supplement Request Letter, Estimate (Insurance format), Contract, Certificate of Completion.</p>
 
           <h4>Cash</h4>
           <p>Direct-pay homeowner. Stages: <strong>New → Contacted → Inspected → Est. Sent → Negotiating → Contract Signed</strong>. Documents: Inspection Report (Homeowner variant), Cash Estimate, Contract.</p>
@@ -685,8 +685,8 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
         <summary>Common task — Read the Next Actions panel</summary>
         <div class="detail-body">
           <p>Open any existing lead. Scroll to the bottom of the modal, just above Save Lead. You'll see the <strong>Next Actions</strong> panel with context-aware chips like:</p>
-          <p><span class="mock-bar">📸 Photo Report</span> <span class="mock-bar">📋 File Claim</span> <span class="mock-bar">✍️ Direction to Pay</span></p>
-          <p>The chips change based on the lead's current stage <em>and</em> job type. At <code>inspected</code> with <code>jobType: insurance</code>, you'll see File Claim + Direction to Pay. At <code>inspected</code> with <code>jobType: cash</code>, you'll see Send Estimate instead.</p>
+          <p><span class="mock-bar">📸 Photo Report</span> <span class="mock-bar">📋 File Claim</span> <span class="mock-bar">💰 Send Estimate</span></p>
+          <p>The chips change based on the lead's current stage <em>and</em> job type. At <code>inspected</code> with <code>jobType: insurance</code>, you'll see File Claim. At <code>inspected</code> with <code>jobType: cash</code>, you'll see Send Estimate instead.</p>
           <p>Each chip has a small label showing its kind: <span style="color:#0891b2">doc</span> (generates a document), <span style="color:#16a34a">stage</span> (advances the pipeline), or <span style="color:var(--tx2)">action</span> (logs something or opens a tool).</p>
           <div class="note">Some chip handlers are still being wired up — tapping a chip currently emits a custom event and shows a "queued" toast. Real handlers land as each doc/action backend catches up.</div>
         </div>
@@ -989,7 +989,7 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
         <div class="qs-title">Quick Start</div>
         <ol>
           <li>Open a lead → scroll to the <strong>Next Actions</strong> panel at the bottom of the modal.</li>
-          <li>Tap the document chip you need (<span class="mock-bar">✍️ Direction to Pay</span>, <span class="mock-bar">📝 Change Order</span>, etc.).</li>
+          <li>Tap the document chip you need (<span class="mock-bar">✍️ Send Contract</span>, <span class="mock-bar">📝 Change Order</span>, etc.).</li>
           <li>Review the auto-generated content, edit if needed, send.</li>
         </ol>
       </div>
@@ -998,7 +998,7 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
         <summary>Deep dive — what each document is for</summary>
         <div class="detail-body">
           <ul>
-            <li><strong>Direction to Pay</strong> — Insurance only. The homeowner directs their insurer to pay you for the contracted work. It assigns no policy rights and gives you no authority over the claim (it replaced the Assignment of Benefits, which is void in Kentucky). Auto-fills with carrier, claim #, property address.</li>
+            <li><strong>No Assignment of Benefits</strong> — retired in both states (void in Kentucky). The contract's Payment clause covers how the job is paid; the homeowner keeps their claim.</li>
             <li><strong>Contract</strong> — Once the estimate is accepted. Merges in scope of work, total amount, deductible (insurance), warranty terms, payment schedule.</li>
             <li><strong>Supplement Request Letter</strong> — Insurance only. Generated when the carrier's initial scope misses items. Includes line items, code references, and photo evidence.</li>
             <li><strong>Warranty Certificate</strong> — Generated at close-out. Tier-specific, matching the terms the generator prints: all three tiers (Standard/Preferred/Elite) are Lifetime workmanship — Preferred adds transferability to one subsequent owner, Elite adds full transferability + an annual courtesy inspection. PDF-export ready.</li>

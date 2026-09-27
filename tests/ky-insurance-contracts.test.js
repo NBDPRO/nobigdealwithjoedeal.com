@@ -23,18 +23,20 @@
  *      contract without the business address
  *   F. doc-preflight.js — the address block, the $0-at-signing plan (Jo,
  *      2026-09-27; KRS 367.626), the jurisdiction stamp
- *   G. Direction to Pay (replaced the AOB in both states, 2026-09-27) — the
- *      document, the Work Authorization and contract clauses
- *   H. crm-stages.js — "Claim Filed" no longer needs any AOB/DTP stamp
+ *   G. no assignment / direction-to-pay / co-payee instrument anywhere (Jo,
+ *      2026-09-27): the plain Payment clause on every contract; the address
+ *      printed only from brand.contact.mailingAddress, never the letterhead
+ *   H. crm-stages.js — "Claim Filed" no longer needs any AOB stamp
  *   I. close-board.js deal room — a Kentucky insurance deal is a contract entry
  *   J. the Kentucky payment hold — deposit-rule.js $0 at signing; the online
  *      pay link withheld until the carrier's written decision + 5 business
  *      days (ky-insurance-law.js payLinkHold, what createStripePaymentLink runs)
  *
- * The KY fixture must not match /assign/i or /negotiat/i ANYWHERE except two
- * sentences that exist to DENY an assignment: the statutory notice (3)(b)
- * ("shall not assign") and the Direction to Pay's "does not assign or
- * transfer" disclaimer. Those two are removed before the scan, nothing else.
+ * No contract fixture (KY insurance, OH insurance, OH cash — client and
+ * server) may match /direction to pay|assign|co-?payee/i or /negotiat/i,
+ * except the statutory notice (3)(b) on a KY insurance contract ("shall not
+ * assign ... in violation of KRS 304.20-105"), which the statute requires
+ * verbatim. That one sentence is removed before the scan, nothing else.
  *
  * Needs functions/ deps (handlebars), like deposit-rule.test.js.
  * Run: node tests/ky-insurance-contracts.test.js   (KY_VERBOSE=1 for ✓ lines)
@@ -208,8 +210,13 @@ const W = DOCS.win;
 const DG = W.NBDDocGen;
 ok('stack loaded (NBDJurisdiction + NBDDocGen + DocPreflight)', !!(W.NBDJurisdiction && DG && W.DocPreflight));
 
-const PROFILE = (addr) => Object.assign({}, W.NBD_COMPANY_PROFILE_DEFAULTS || {}, {
-  businessAddress: addr,
+// The contractor address lives ONLY in brand.contact.mailingAddress (Jo,
+// 2026-09-27); businessAddress (the letterhead field) stays empty here and is
+// never read for the statutory paperwork.
+const _D = W.NBD_COMPANY_PROFILE_DEFAULTS || {};
+const PROFILE = (addr, letterhead) => Object.assign({}, _D, {
+  businessAddress: letterhead || '',
+  brand: Object.assign({}, _D.brand || {}, { contact: Object.assign({}, (_D.brand || {}).contact || {}, { mailingAddress: addr }) }),
   paymentMethodsNoCash: 'All payments must be made by check, ACH transfer, or credit card. No cash payments accepted. Insurance assignment accepted. Material delays may extend timeline.',
   paymentTermsProposal: 'Cash jobs under $2,000: no deposit. Insurance assignments accepted.',
   paymentTermsContract: 'Balance on completion.',
@@ -228,7 +235,8 @@ const contractData = (address, jobType, extra) => Object.assign({
 
 // The KY fixture's own words, with the ONE statutory sentence that must say
 // "assign" removed — everything else is scanned.
-const scanText = (html) => text(html).split(ACT_NOTICE_B).join(' ').split(J.DTP_NOT_ASSIGNMENT).join(' ');
+const scanText = (html) => text(html).split(ACT_NOTICE_B).join(' ');
+const FORBIDDEN = /direction to pay|assign|co-?payee/i;
 
 // ════════════════════════════════════════════════════════════════════
 // B. renderContract
@@ -258,15 +266,13 @@ ok('KY: NO /assign/i anywhere but the statutory (3)(b) sentence', !/assign/i.tes
   (scanText(kyHtml).match(/.{40}assign.{40}/i) || [''])[0]);
 ok('KY: NO /negotiat/i', !/negotiat/i.test(kyText), (kyText.match(/.{40}negotiat.{40}/i) || [''])[0]);
 ok('KY: no "Insurance Assignment" section', !/Insurance Assignment/.test(kyHtml));
-ok('KY: a Direction to Pay clause instead (payee only, not an assignment)', /Direction to Pay/.test(kyHtml) &&
-  kyText.includes(J.DTP_NOT_ASSIGNMENT) && kyText.includes('as a payee on, or to pay No Big Deal Home Solutions directly'));
+ok('KY: the plain Payment clause, verbatim', kyText.includes(J.PAYMENT_CLAUSE));
 
 const ohInsHtml = withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance' },
   () => DG.renderContract(contractData(OH_ADDR, 'insurance', { claimNumber: 'CLM-8' })));
 ok('OH insurance: the Insurance Assignment clause is gone (retired in both states)',
   !/Insurance Assignment/.test(ohInsHtml) && !text(ohInsHtml).includes('accept assignment of insurance proceeds'));
-ok('OH insurance: Direction to Pay clause, no /negotiat/i', /Direction to Pay/.test(ohInsHtml) &&
-  text(ohInsHtml).includes(J.DTP_NOT_ASSIGNMENT) && !/negotiat/i.test(text(ohInsHtml)));
+ok('OH insurance: the plain Payment clause, no /negotiat/i', text(ohInsHtml).includes(J.PAYMENT_CLAUSE) && !/negotiat/i.test(text(ohInsHtml)));
 ok('OH insurance: no KY notices or KY forms', !text(ohInsHtml).includes(ACT_NOTICE_A) && !/data-nbd-noc="ky"/.test(ohInsHtml));
 
 const ohCashHtml = withLead({ id: 'L1', address: OH_ADDR, jobType: 'cash' },
@@ -275,7 +281,13 @@ ok('OH cash: no "Insurance Assignment" clause', !/Insurance Assignment/.test(ohC
   !text(ohCashHtml).includes('accept assignment of insurance proceeds'));
 ok('OH cash: no "Insurance assignment accepted"', !/Insurance assignments? accepted/i.test(text(ohCashHtml)));
 ok('OH cash: no KY statutory blocks', !/nbd-statutory/.test(ohCashHtml));
-ok('OH cash: no Direction to Pay either (cash job)', !/Direction to Pay/.test(ohCashHtml));
+ok('OH cash: the same plain Payment clause', text(ohCashHtml).includes(J.PAYMENT_CLAUSE));
+for (const [name, html, statutory] of [['KY insurance', kyHtml, true], ['OH insurance', ohInsHtml, false], ['OH cash', ohCashHtml, false]]) {
+  const body = statutory ? scanText(html) : text(html);
+  ok(name + ' client contract: no /direction to pay|assign|co-?payee/i' + (statutory ? ' outside the statutory 304.20-105 notice' : ''),
+    !FORBIDDEN.test(body), (body.match(/.{50}(direction to pay|assign|co-?payee).{50}/i) || [''])[0]);
+  ok(name + ' client contract: no /negotiat/i', !/negotiat/i.test(text(html)));
+}
 
 const kyCashHtml = withLead({ id: 'L1', address: KY_ADDR, jobType: 'cash' },
   () => DG.renderContract(contractData(KY_ADDR, 'cash')));
@@ -389,8 +401,14 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
       () => DG.generate('assignment_of_benefits', { homeownerName: 'Jane', address: addr, leadId: 'L1' }));
     ok('AOB is retired — a ' + st + ' job gets the reason, not a document', viewerOpened === 0 && lastToast() === J.MSG.aobRetired, lastToast());
   }
-  ok('the AOB document type is gone; the Direction to Pay replaces it',
-    !DG.DOCUMENT_TYPES.assignment_of_benefits && !!DG.DOCUMENT_TYPES.direction_to_pay && typeof DG.renderAssignmentOfBenefits !== 'function');
+  DOCS.toasts.length = 0; viewerOpened = 0;
+  await withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance' },
+    () => DG.generate('direction_to_pay', { homeownerName: 'Jane', address: OH_ADDR, leadId: 'L1' }));
+  ok('the Direction to Pay is retired too — a stale call gets the reason', viewerOpened === 0 && lastToast() === J.MSG.aobRetired, lastToast());
+  ok('no AOB, no Direction to Pay document type or renderer is left',
+    !DG.DOCUMENT_TYPES.assignment_of_benefits && !DG.DOCUMENT_TYPES.direction_to_pay &&
+    typeof DG.renderAssignmentOfBenefits !== 'function' && typeof DG.renderDirectionToPay !== 'function' &&
+    !DG.FILED_FIELD_BY_DOC_TYPE.direction_to_pay && !DG.FILED_FIELD_BY_DOC_TYPE.assignment_of_benefits);
 
   W._legal = () => PROFILE('');
   DOCS.toasts.length = 0; viewerOpened = 0;
@@ -429,7 +447,7 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
     p1.notes.some((n) => n.level === 'block' && n.message === J.MSG.addressRequired) &&
     p1.notes.some((n) => n.level === 'warn' && n.message === J.MSG.depositHold));
   ok('pre-flight: the address message says exactly where to enter it',
-    /Settings → Company Profile → Letterhead → "Mailing Address \(one line\)"/.test(J.MSG.addressRequired));
+    /Settings → Company Profile → "Mailing Address \(one line\)"/.test(J.MSG.addressRequired) && /not a PO box/.test(J.MSG.addressRequired));
   ok('pre-flight: the hold note cites KRS 367.626 and the emergency exception', /KRS 367\.626\b/.test(J.MSG.depositHold) && /367\.626\(3\)/.test(J.MSG.depositHold));
   const p2 = await preflight({ address: KY_ADDR, jobType: 'insurance', claimNumber: 'CLM-7', insCarrier: 'SF' }, BIZ_ADDR);
   ok('pre-flight: with the address it generates — the deposit warning never blocks', !!p2.captured &&
@@ -455,21 +473,45 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
   // ══════════════════════════════════════════════════════════════════
   // G. Work Authorization + AOB templates
   // ══════════════════════════════════════════════════════════════════
-  section('G. Direction to Pay — the document, the Work Authorization clause');
+  section('G. no assignment / co-payee instrument; the address only where the law requires it');
   for (const [st, addr] of [['Kentucky', KY_ADDR], ['Ohio', OH_ADDR]]) {
     const wa = withLead({ id: 'L1', address: addr, jobType: 'insurance' }, () => DG.renderWorkAuthorization(
       { homeownerName: 'Jane', address: addr, isInsurance: true, claimNumber: 'C1', insuranceCompany: 'SF', leadId: 'L1' }));
-    ok('WA ' + st + ': Direction to Pay, no assignment of proceeds, no /negotiat/i',
-      /Direction to Pay/.test(wa) && !/assign/i.test(scanText(wa)) && !/negotiat/i.test(text(wa)), (scanText(wa).match(/.{40}assign.{40}/i) || [''])[0]);
-    const dtp = withLead({ id: 'L1', address: addr, jobType: 'insurance' }, () => DG.renderDirectionToPay(
-      { homeownerName: 'Jane Smith', address: addr, claimNumber: 'C1', policyNumber: 'P1', insuranceCompany: 'State Farm', leadId: 'L1' }));
-    const dt = text(dtp);
-    ok('Direction to Pay document (' + st + '): directs the insurer to pay the contractor, up to the contract price',
-      /DIRECTION TO PAY/.test(dtp) && dt.includes('direct State Farm to include No Big Deal Home Solutions as a payee on, or to pay No Big Deal Home Solutions directly') &&
-      dt.includes('up to the contract price'));
-    ok('Direction to Pay document (' + st + '): says it is NOT an assignment and gives no claim authority; no /negotiat/i, no other "assign"',
-      dt.includes(J.DTP_NOT_ASSIGNMENT) && !/negotiat/i.test(dt) && !/assign/i.test(scanText(dtp)) && /homeowner keeps full control of the claim/.test(dt));
+    ok('Work Authorization ' + st + ': no /direction to pay|assign|co-?payee/i, no /negotiat/i',
+      !FORBIDDEN.test(text(wa)) && !/negotiat/i.test(text(wa)), (text(wa).match(/.{40}(direction to pay|assign|co-?payee).{40}/i) || [''])[0]);
   }
+  // Server contracts, all three fixtures, same rule.
+  for (const [name, address, jobType, statutory] of [['KY insurance', KY_ADDR, 'insurance', true], ['OH insurance', OH_ADDR, 'insurance', false], ['OH cash', OH_ADDR, 'cash', false]]) {
+    const sc = serverContract(address, jobType, { address: BIZ_ADDR, email: 'info@nobigdealwithjoedeal.com', fax: '' });
+    const body = statutory ? scanText(sc.html) : text(sc.html);
+    ok(name + ' server contract: the plain Payment clause', text(sc.html).includes(J.PAYMENT_CLAUSE));
+    ok(name + ' server contract: no /direction to pay|assign|co-?payee/i' + (statutory ? ' outside the statutory notice' : ''),
+      !FORBIDDEN.test(body), (body.match(/.{50}(direction to pay|assign|co-?payee).{50}/i) || [''])[0]);
+  }
+
+  // The address: brand.contact.mailingAddress ONLY, never businessAddress.
+  ok('contractorMailingAddress reads brand.contact.mailingAddress, never businessAddress',
+    J.contractorMailingAddress({ businessAddress: 'LETTERHEAD 1', brand: { contact: { mailingAddress: '' } } }) === '' &&
+    J.contractorMailingAddress({ businessAddress: '', brand: { contact: { mailingAddress: BIZ_ADDR } } }) === BIZ_ADDR &&
+    JF.contractorMailingAddress({ contact: { mailingAddress: BIZ_ADDR } }) === BIZ_ADDR);
+  const kyA = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' },
+    () => DG.renderContract(contractData(KY_ADDR, 'insurance', { companyProfile: PROFILE(BIZ_ADDR, '') })));
+  const headerOf = (h) => { const i = h.indexOf('<div class="document-header">'); const j = h.indexOf('<div class="document-title">', i); return i >= 0 && j > i ? h.slice(i, j) : ''; };
+  ok('mailingAddress set + businessAddress empty: the KY insurance contract prints it in the Parties block and both NoC forms',
+    /Mailing Address:<\/strong> 100 Test Plaza/.test(kyA) && count(text(kyA), new RegExp(BIZ_ADDR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) >= 3);
+  ok('…and the letterhead header shows NO contractor address', headerOf(kyA).length > 0 && !headerOf(kyA).includes('100 Test Plaza'), headerOf(kyA).slice(0, 200));
+  const ohEst = withLead({ id: 'L1', address: OH_ADDR, jobType: 'cash' },
+    () => DG.renderProposal(contractData(OH_ADDR, 'cash', { totalPrice: '$9,000.00', companyProfile: PROFILE(BIZ_ADDR, '') })));
+  ok('an Ohio estimate shows the contractor address nowhere', !ohEst.includes('100 Test Plaza'));
+  const ohIns = withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance' },
+    () => DG.renderContract(contractData(OH_ADDR, 'insurance', { companyProfile: PROFILE(BIZ_ADDR, '') })));
+  ok('an Ohio insurance contract shows it nowhere either', !ohIns.includes('100 Test Plaza'));
+  const lhOnly = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' },
+    () => DG._contractorPhysicalAddress(PROFILE('', 'LETTERHEAD ONLY 9 Elm')));
+  ok('a letterhead address alone does NOT satisfy the KY requirement (never read)', lhOnly === '');
+  const rpSrc = read('functions/render-pdf.js').replace(/\r\n/g, '\n');
+  ok('the server reads KyLaw.contractorMailingAddress, not businessAddress',
+    /out\.address = KyLaw\.contractorMailingAddress\(p\);/.test(rpSrc) && !/out\.address = String\(p\.businessAddress/.test(rpSrc));
 
   // ══════════════════════════════════════════════════════════════════
   // H. crm-stages.js — the AOB Filed gate
@@ -510,7 +552,7 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
     sb2.window = sb2; sb2.addEventListener = () => {}; sb2.showToast = () => {}; sb2.open = () => null;
     sb2.NBDJurisdiction = J;
     sb2.NBDDepositRule = require(path.join(ROOT, 'docs/pro/js/deposit-rule.js'));
-    sb2._legal = () => ({ businessAddress: profileAddr });
+    sb2._legal = () => ({ businessAddress: '', brand: { contact: { mailingAddress: profileAddr } } });
     sb2._brand = () => ({ legalName: 'No Big Deal Home Solutions', contact: { email: 'info@nobigdealwithjoedeal.com' } });
     vm.runInNewContext(raw, sb2, { filename: 'close-board.js' });
     return sb2.CloseBoard;

@@ -768,11 +768,9 @@
     const scopeSummary = d.scopeSummary || d.scopeOfWork ||
       'Complete roof replacement including tear-off, installation of new roofing system, and cleanup.';
     // 2026-09-27: the insurance-proceeds ASSIGNMENT paragraph is gone in
-    // every state (void in Kentucky, KRS 304.20-105; retired in Ohio by Jo).
-    // An insurance job prints the Direction to Pay instead — payee only, no
-    // policy rights assigned, no authority over the claim.
-    const _waJ = window.NBDJurisdiction;
-    const dtpText = (d.isInsurance && _waJ) ? _waJ.directionToPayText(C.name) : '';
+    // every state (void in Kentucky, KRS 304.20-105; Jo retired it and every
+    // direction-to-pay / co-payee form in both states). Payment terms live in
+    // the contract.
 
     return page('Work Authorization', `
       ${letterhead()}
@@ -804,11 +802,6 @@
       ${d.accessInstructions ? `<div class="section">
         <div class="section-title">Property Access Instructions</div>
         <p style="font-size:14px;">${esc(d.accessInstructions)}</p>
-      </div>` : ''}
-
-      ${dtpText ? `<div class="section">
-        <div class="section-title">Direction to Pay</div>
-        <p style="font-size:14px;">${esc(dtpText)}${d.claimNumber ? ' (Claim number ' + esc(d.claimNumber) + (d.insuranceCompany ? ' with ' + esc(d.insuranceCompany) : '') + '.)' : ''}</p>
       </div>` : ''}
 
       <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
@@ -1796,52 +1789,8 @@
     `);
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // TEMPLATE 12: DIRECTION TO PAY (replaces the Assignment of Benefits,
-  // 2026-09-27, both states). DRAFT WORDING — for Jo's attorney to review
-  // before first use. Minimal on purpose: it names the contractor as payee
-  // for the contracted work, assigns no policy rights or benefits, gives no
-  // authority over the claim, and leaves the homeowner in control.
-  // ═══════════════════════════════════════════════════════════════
-  DG.renderDirectionToPay = function(data) {
-    const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
-      claimNumber:'[Claim #]', policyNumber:'[Policy #]', insuranceCompany:'[Insurance Company]',
-      dateOfLoss:'[Date of Loss]' }, data);
-    const J = window.NBDJurisdiction;
-    const notAssignment = (J && J.DTP_NOT_ASSIGNMENT) ||
-      'This is a direction to pay only. It does not assign or transfer any of the homeowner\u2019s rights or benefits under the insurance policy.';
-
-    return page('Direction to Pay', `
-      ${letterhead()}
-      <h1 style="text-align:center;font-size:24px;color:${S};margin:24px 0 8px;">DIRECTION TO PAY</h1>
-      <p style="text-align:center;color:#666;font-size:13px;margin-bottom:28px;">Payment direction to the insurance company</p>
-
-      <div class="section">
-        <div class="section-title">Policyholder Information</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;">
-          <div><strong>Policyholder:</strong> ${esc(d.homeownerName)}</div>
-          <div><strong>Claim #:</strong> ${esc(d.claimNumber)}</div>
-          <div><strong>Property Address:</strong> ${esc(d.address)}</div>
-          <div><strong>Policy #:</strong> ${esc(d.policyNumber)}</div>
-          <div><strong>Insurance Company:</strong> ${esc(d.insuranceCompany)}</div>
-          <div><strong>Date of Loss:</strong> ${esc(d.dateOfLoss)}</div>
-        </div>
-      </div>
-
-      <div class="section" style="background:#f8f8f8;padding:24px;border-radius:8px;border-left:4px solid ${A};">
-        <p style="font-size:14px;line-height:1.8;margin:0 0 12px;">
-          I, <strong>${esc(d.homeownerName)}</strong>, the insured for the property at <strong>${esc(d.address)}</strong>,
-          direct <strong>${esc(d.insuranceCompany)}</strong> to include <strong>${C.name}</strong> as a payee on, or to pay
-          <strong>${C.name}</strong> directly, any payment under Claim Number <strong>${esc(d.claimNumber)}</strong> for the
-          repair work ${C.name} performs at this property under our contract, up to the contract price.
-        </p>
-        <p style="font-size:14px;line-height:1.8;margin:0;">${esc(notAssignment)}</p>
-      </div>
-
-      ${sigBlock(['Property Owner / Policyholder','Date','Authorized ' + SEAL + ' Representative (acknowledged)'])}
-      ${footer('Direction to Pay — Claim #' + d.claimNumber)}
-    `);
-  };
+  // (TEMPLATE 12 — the Assignment of Benefits, then a Direction to Pay — was
+  // retired 2026-09-27: no assignment or co-payee instrument in any state.)
 
   // ═══════════════════════════════════════════════════════════════
   // TEMPLATE 13: MATERIAL DELIVERY NOTICE
@@ -2699,7 +2648,6 @@
       before_after_report: ['homeownerName','address','projectType','startDate','completionDate','workDescription'],
       financing_options: ['homeownerName','totalPrice'],
       referral_card: [],
-      direction_to_pay: ['homeownerName','address','claimNumber','policyNumber','insuranceCompany','dateOfLoss'],
       material_delivery: ['homeownerName','address','deliveryDate','deliveryTime','startDate'],
       storm_checklist: [],
       claim_guide: [],

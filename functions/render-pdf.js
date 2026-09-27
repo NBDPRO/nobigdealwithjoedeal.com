@@ -573,7 +573,9 @@ async function resolveContractorContact(companyId, company) {
     if (snap.exists) {
       const p = snap.data() || {};
       const c = (p.brand && p.brand.contact) || {};
-      out.address = String(p.businessAddress || c.address || '').trim();
+      // brand.contact.mailingAddress ONLY (Jo, 2026-09-27): the address prints
+      // only where the law requires it, never from the letterhead field.
+      out.address = KyLaw.contractorMailingAddress(p);
       out.email = String(p.businessEmail || c.email || out.email || '').trim();
       out.fax = String(p.businessFax || c.fax || '').trim();
       out.timeZone = KyLaw.resolveTimeZone(p);
@@ -609,10 +611,9 @@ function buildContractStatutory(payload, contractor, company) {
     css: '', kyInsurance, contractorAddress: '', contractorFax: '',
     kyNoticesHtml: '', kyFormsHtml: '', lienClause: '',
     ftcStatementHtml: '', ftcFormsHtml: '', missingAddress: false,
-    // Direction to Pay (2026-09-27): insurance jobs, every state — replaces
-    // the retired Assignment of Benefits. Draft wording, for counsel.
-    directionToPay: (j.insurance || facts.insurance === true)
-      ? KyLaw.directionToPayText((company && company.footerName) || '') : '',
+    // The plain Payment clause, every contract (Jo, 2026-09-27) — the same
+    // string the client contract prints.
+    paymentClause: KyLaw.PAYMENT_CLAUSE,
   };
   // The FTC form is attached wherever the contract's cancel sentence promises
   // "the attached Notice of Cancellation form" (the default text does).

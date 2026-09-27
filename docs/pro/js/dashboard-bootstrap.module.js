@@ -554,8 +554,6 @@
   // we're just wiring the chips to them. inspect_report is special-cased
   // below to pick the homeowner vs insurance variant by job type.
   const ACTION_DOC_MAP = {
-    // Direction to Pay replaced the Assignment of Benefits (2026-09-27).
-    send_dtp:        'direction_to_pay',
     send_contract:   'contract',
     work_order:      'work_authorization',
     change_order:    'change_order',
@@ -594,7 +592,7 @@
       homeownerEmail:    lead.email || '',
       phone:             lead.phone || '',
       email:             lead.email || '',
-      // Insurance fields (renderDirectionToPay, renderSupplementRequest, renderClaimGuide, etc.)
+      // Insurance fields (renderSupplementRequest, renderClaimGuide, etc.)
       insuranceCompany:  lead.insCarrier || lead.insuranceCarrier || '',
       claimNumber:       lead.claimNumber || '',
       policyNumber:      lead.policyNumber || '',
@@ -789,7 +787,6 @@
     change_order:               { needs: ['estimate'],                  label: 'Change Order',        msg: 'Requires an existing estimate to modify.' },
     before_after_report:        { needs: ['beforeAfterPhotos'],         label: 'Before & After Report', msg: 'Need BOTH before and after photos uploaded.' },
     financing_options:          { needs: ['jobValue'],                  label: 'Financing Options',   msg: 'Add a job value or build an estimate.' },
-    direction_to_pay:           { needs: ['claim'],                     label: 'Direction to Pay',    msg: 'Requires an insurance claim (carrier + claim #).' },
     payment_agreement:          { needs: ['jobValue', 'contact'],       label: 'Payment Agreement',   msg: 'Add job value and customer contact info.' },
     storm_history_report:       { needs: ['address'],                  label: 'Storm History Report', msg: 'Add a property address first — it\'s used to pull the NOAA storm history.' }
   };

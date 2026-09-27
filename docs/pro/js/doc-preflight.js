@@ -1742,9 +1742,14 @@
     });
   }
 
+  // brand.contact.mailingAddress ("Mailing Address (one line)") — the same
+  // source the contract prints; never businessAddress (Jo, 2026-09-27).
   function contractorBusinessAddress() {
+    var DG = window.NBDDocGen;
+    if (DG && typeof DG._contractorPhysicalAddress === 'function') return DG._contractorPhysicalAddress();
+    var J = window.NBDJurisdiction;
     var cp = (window._legal ? window._legal() : window._companyProfile) || {};
-    return String(cp.businessAddress || '').trim();
+    return J ? J.contractorMailingAddress(cp) : '';
   }
 
   function collectLegalNotes() {
