@@ -358,16 +358,14 @@ const ENTITY_IDS = { business: `${ENTITY_ORIGIN}/#org`, person: `${ENTITY_ORIGIN
 const ENTITY_BIZ_TYPES = /^(RoofingContractor|LocalBusiness|Organization|HomeAndConstructionBusiness|GeneralContractor|ProfessionalService)$/;
 const ENTITY_REF_KEYS = new Set(['@id', '@context', 'review']);
 const RX_ENTITY_REGION = /<!--\s*nbd:partial\s+schema-entity\b[^>]*-->([\s\S]*?)<!--\s*\/nbd:partial\s+schema-entity\s*-->/;
-// TODO(entity follow-up): pages not yet migrated, matched against the path
-// under docs/. Exact paths only. To finish one, drop it here AND from
-// PENDING in scripts/migrate-schema-entity.mjs, then run that script with
-// --write and `node scripts/apply-partials.js`.
-//   - the two insurance blog posts: being rewritten in a parallel PR (#1796).
+// Pages not yet migrated, matched against the path under docs/. EMPTY, and
+// meant to stay that way. Exact paths only; if a page ever needs it again,
+// add it here AND to PENDING in scripts/migrate-schema-entity.mjs.
 // (/our-work and docs/our-work/** left this list 2026-09-27: build-projects.mjs
-//  now references #org and stamps the schema-entity region on every page.)
+//  now references #org and stamps the schema-entity region on every page.
+//  The two insurance blog posts left it with their rewrite, #1796: migrated
+//  with migrate-schema-entity.mjs --write + apply-partials.)
 const ENTITY_PENDING = [
-  /^blog\/can-i-keep-insurance-check-not-fix-roof\.html$/,
-  /^blog\/what-to-expect-roof-insurance-adjuster-visit\.html$/,
 ];
 
 function entityKind(n) {

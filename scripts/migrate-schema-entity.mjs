@@ -74,9 +74,8 @@ const SKIP_DIRS = new Set(['pro', 'sites', 'admin', 'tools', 'dev']);
 // Must match ENTITY_PENDING in scripts/check-seo-surface.js.
 const PENDING = [
   // (/our-work and docs/our-work/** left this list 2026-09-27: build-projects.mjs
-  //  now emits only @id references and carries the schema-entity region.)
-  /^blog\/can-i-keep-insurance-check-not-fix-roof\.html$/,     // being rewritten in a parallel lane
-  /^blog\/what-to-expect-roof-insurance-adjuster-visit\.html$/, // being rewritten in a parallel lane
+  //  now emits only @id references and carries the schema-entity region.
+  //  The two insurance blog posts left it with their rewrite, #1796.)
 ];
 
 const STATE = { OH: 'Ohio', KY: 'Kentucky' };
