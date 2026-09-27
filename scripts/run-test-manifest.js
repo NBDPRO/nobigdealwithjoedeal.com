@@ -412,7 +412,10 @@ const RUNNABLE = ['node', 'smoke'];
 //               reviews this month" from Google's count history). Stacked on
 //               #1814's 200/69/292; MEASURED via --check; whoever merges last
 //               re-measures.
-const FLOORS = { node: 202, smoke: 69, disk: 294 };
+//   2026-09-27  202/69/294 -> 204/69/296, tests/ky-insurance-contracts.test.js
+//               + tests/ky-claims-wording-scan.test.js (node; Kentucky
+//               insurance-job contracts, #1801). MEASURED via --check.
+const FLOORS = { node: 204, smoke: 69, disk: 296 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

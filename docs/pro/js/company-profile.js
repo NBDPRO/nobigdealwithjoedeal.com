@@ -34,6 +34,8 @@
       'Cash jobs of $2,000 or more: 50% deposit at contract signing, balance on completion. ' +
       'Insurance claims: the homeowner’s deductible is due at signing and the insurance ACV payment (the carrier’s first check) ' +
       'is due as soon as the carrier releases it; the balance is due on completion. ' +
+      'Kentucky insurance claims: nothing is due at signing; the deductible and the ACV payment are due after the insurer’s ' +
+      'written coverage decision and the 5-business-day cancellation window. ' +
       'The deductible is the homeowner’s responsibility and is never waived or reduced.';
   }
 

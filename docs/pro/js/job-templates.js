@@ -1116,6 +1116,8 @@
       total: total,
       mode: mode || 'cash',
       deductible: meta.deductible,
+      // Kentucky hold (2026-09-27): the job's address decides.
+      address: meta.addr || '',
       overrideAmount: (meta.deposit != null && meta.deposit !== '') ? meta.deposit : undefined
     });
     return { deposit: plan.depositCents / 100, depositPlan: R.toStored(plan) };

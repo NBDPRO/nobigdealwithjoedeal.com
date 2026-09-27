@@ -2672,7 +2672,10 @@
       total: estimate.total,
       mode: jobMode || estimate.mode || 'cash',
       deductible: c.deductible,
-      acv: c.acv
+      acv: c.acv,
+      // Kentucky hold (2026-09-27): the job's address decides; an insurance
+      // quote with no readable state is held, like the contract (fail closed).
+      address: (state.customer && state.customer.address) || ''
     });
   }
   function _stampDeposit(estimate) {

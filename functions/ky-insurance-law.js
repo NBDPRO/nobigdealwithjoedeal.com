@@ -107,6 +107,10 @@
       'Kentucky insurance job: nothing is due at signing (KRS 367.626). The deductible and ACV payment become due after the ' +
       'insurer\'s written coverage decision and the 5-business-day cancellation window. Bill emergency tarp or repair work ' +
       '(KRS 367.626(3)) on its own invoice.',
+    payLinkHeld:
+      'Online payment link withheld: Kentucky insurance job (KRS 367.626). Record the date the carrier\'s written coverage ' +
+      'decision arrived on the lead (Claim section → "Carrier decision received"); the link can be created 5 business days ' +
+      'later. Emergency tarp or repair invoices can be marked Emergency and billed now (KRS 367.626(3)).',
     aobRetired:
       'The Assignment of Benefits has been retired. Use the Direction to Pay instead: it has the insurer pay you for the work ' +
       'without assigning any of the homeowner\'s policy rights.',
@@ -346,6 +350,68 @@
     if (d.getUTCDay() === 0) return false;
     return !_federalHolidays(d.getUTCFullYear())[t];
   }
+  // ── The Kentucky cancellation window (KRS 367.622 / 367.626) ───────────
+  // A Kentucky insurance contract can be cancelled "before midnight of the
+  // fifth business day after" the homeowner receives the insurer's written
+  // coverage decision, and KRS 367.626 bars requiring any payment before that
+  // period expires (emergency work at a reasonable charge excepted, (3)).
+  // Jo's rule (2026-09-27): nothing at signing; the deductible and the ACV
+  // payment fall due after the written decision AND the 5-business-day
+  // window. Business days here skip Saturday too — the conservative reading,
+  // and it can only push the release later, never earlier.
+  var KY_HOLD_DUE = 'After your insurer\u2019s written coverage decision and the 5-business-day cancellation window';
+  function isKyBusinessDay(t) {
+    var d = new Date(t);
+    var dow = d.getUTCDay();
+    if (dow === 0 || dow === 6) return false;
+    return !_federalHolidays(d.getUTCFullYear())[t];
+  }
+  /** The 5th Kentucky business day after the decision date (UTC-midnight ms), or null. */
+  function kyWindowEnd(decisionDate, tz) {
+    var t = toUtcDay(decisionDate, tz);
+    if (t == null) return null;
+    var cur = t, left = 5;
+    while (left > 0) { cur += 86400000; if (isKyBusinessDay(cur)) left--; }
+    return cur;
+  }
+  /**
+   * May a Kentucky insurance job be asked for money yet? Only once the
+   * carrier's written decision date is recorded AND the window has run
+   * (today, in the tenant's zone, is after its last day).
+   */
+  function kyPaymentsReleased(decisionDate, now, tz) {
+    var end = kyWindowEnd(decisionDate, tz);
+    if (end == null) return false;
+    var today = toUtcDay(now == null ? new Date() : now, tz);
+    return today != null && today > end;
+  }
+  /**
+   * payLinkHold(lead, invoice, now, tz) → { held, releaseDate }
+   * The online payment link for an invoice is HELD when the job is a Kentucky
+   * insurance job (classified from the lead; an invoice's kyInsuranceHold
+   * flag can only add the hold) and the window after the carrier's written
+   * decision (lead.carrierDecisionAt) has not run. An invoice marked
+   * emergencyServices (KRS 367.626(3)) is never held.
+   */
+  function payLinkHold(lead, invoice, now, tz) {
+    var inv = invoice || {};
+    if (inv.emergencyServices === true) return { held: false, releaseDate: '' };
+    var l = lead || null;
+    var ky = !!(l && classify({
+      address: l.address || '', zip: l.zip || '', state: l.state || '', jobType: l.jobType,
+      claimNumber: l.claimNumber, insuranceCarrier: l.insuranceCarrier, insCarrier: l.insCarrier
+    }).kyInsurance);
+    if (!ky && inv.kyInsuranceHold !== true) return { held: false, releaseDate: '' };
+    var decision = l ? l.carrierDecisionAt : null;
+    return { held: !kyPaymentsReleased(decision, now, tz), releaseDate: kyReleaseDateText(decision, tz) };
+  }
+
+  /** The first day payment may be asked for ("October 6, 2026"), or ''. */
+  function kyReleaseDateText(decisionDate, tz) {
+    var end = kyWindowEnd(decisionDate, tz);
+    return end == null ? '' : formatDay(end + 86400000);
+  }
+
   /** The Nth business day AFTER the given day, as a UTC-midnight ms. */
   function addBusinessDays(t, n) {
     var cur = t;
@@ -537,6 +603,12 @@
     isoDay: isoDay,
     formatDay: formatDay,
     isBusinessDay: isBusinessDay,
+    KY_HOLD_DUE: KY_HOLD_DUE,
+    isKyBusinessDay: isKyBusinessDay,
+    kyWindowEnd: kyWindowEnd,
+    kyPaymentsReleased: kyPaymentsReleased,
+    kyReleaseDateText: kyReleaseDateText,
+    payLinkHold: payLinkHold,
     addBusinessDays: addBusinessDays,
     esc: esc,
     kyNoticesHtml: kyNoticesHtml,

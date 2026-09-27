@@ -614,6 +614,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // placeholder. Shown in the invoice detail view, never on the
         // customer's invoice (buildInvoiceHtml does not read it).
         depositRepNote: (depositPlan && depositPlan.repNote) ? depositPlan.repNote : '',
+        // Kentucky insurance job (KRS 367.626; Jo, 2026-09-27): nothing may be
+        // required before the insurer's written decision + the 5-business-day
+        // window. The server (createStripePaymentLink) withholds the online
+        // link until the rep records the decision date on the lead and the
+        // window has run — or the rep marks this invoice emergency work
+        // (367.626(3)). Informational here; the server re-derives it.
+        kyInsuranceHold: !!(depositPlan && depositPlan.kyHold),
+        emergencyServices: false,
         terms: 'Net 14.' + (depositPlan && depositPlan.summary ? ' ' + depositPlan.summary : ''),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -735,6 +743,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     } catch (error) {
       if (error && !error.code && /ONLINE_PAYMENTS_UNAVAILABLE/.test(String(error.message || ''))) {
         error.code = 'ONLINE_PAYMENTS_UNAVAILABLE';
+      }
+      if (error && !error.code && /KY_CANCELLATION_WINDOW/.test(String(error.message || ''))) {
+        error.code = 'KY_CANCELLATION_WINDOW';
+        const _J = (typeof window !== 'undefined') && window.NBDJurisdiction;
+        error.message = (_J && _J.MSG.payLinkHeld) || 'Online payment link withheld until the Kentucky cancellation window has run.';
       }
       console.error('generateStripePaymentLink error:', error);
       throw error;
@@ -1163,6 +1176,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         try { await generateStripePaymentLink(invoiceId); }
         catch (regenErr) {
           console.warn('markPaid: payment-link regen failed', regenErr && regenErr.message);
+          if (regenErr && regenErr.code === 'KY_CANCELLATION_WINDOW' && typeof showToast === 'function') {
+            showToast('Payment recorded. ' + regenErr.message, 'info');
+          }
           if (regenErr && regenErr.code === 'ONLINE_PAYMENTS_UNAVAILABLE') {
             // Capability lost since the original mint (deauthorized /
             // sub lapsed). The server refused BEFORE it could deactivate the
@@ -1447,7 +1463,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             <button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>
             ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Mark Paid (Cash/Check)</button>` : ''}
             ${inv.stripePaymentLink ? `<button type="button" class="btn btn-ghost" data-ip-action="copyStripeLink" data-ip-id="${_escJs(inv.stripePaymentLink)}">Copy Payment Link</button>` : ''}
+            ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
+            ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
+          ${(inv.kyInsuranceHold && !inv.stripePaymentLink && inv.status !== 'paid') ? `
+          <div data-ip-ky-hold style="margin:-12px 0 20px;padding:8px;font-size:11px;line-height:1.4;color:var(--orange);font-weight:600;border:1px solid var(--br);border-radius:6px;">
+            ${_esc(((typeof window !== 'undefined' && window.NBDJurisdiction) ? window.NBDJurisdiction.MSG.payLinkHeld : 'Online payment link withheld: Kentucky insurance job (KRS 367.626).'))}
+            ${inv.emergencyServices ? ' This invoice is marked emergency work.' : ''}
+          </div>` : ''}
 
           <div style="background:var(--s2);padding:12px;border-radius:5px;font-size:11px;color:var(--m);">
             <strong>Terms:</strong> ${_esc(inv.terms)}
@@ -1759,6 +1782,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           if (linkErr && linkErr.code === 'ONLINE_PAYMENTS_UNAVAILABLE') {
             showToast('Invoice ready — record check or cash under Mark Paid. '
               + 'To take card payments online, set up payouts under Settings → Billing.', 'info');
+          } else if (linkErr && linkErr.code === 'KY_CANCELLATION_WINDOW') {
+            showToast('Invoice ready. ' + linkErr.message, 'info');
           } else {
             console.warn('payment link failed:', linkErr && linkErr.message);
             showToast('Invoice created, but the online payment link could not be '
@@ -1770,6 +1795,34 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       }
     };
     return done;
+  }
+
+  /**
+   * Kentucky insurance invoices (2026-09-27): retry the online link (the
+   * server decides whether the cancellation window has run), and mark an
+   * invoice as emergency tarp / repair work, which KRS 367.626(3) leaves
+   * billable before the window ends. The rep's attestation, recorded.
+   */
+  async function createPayLinkUI(invoiceId) {
+    try {
+      await generateStripePaymentLink(invoiceId);
+      if (typeof showToast === 'function') showToast('Payment link created', 'success');
+    } catch (e) {
+      if (typeof showToast === 'function') showToast(String((e && e.message) || 'Payment link could not be created'), e && e.code === 'KY_CANCELLATION_WINDOW' ? 'info' : 'error');
+    }
+    try { showInvoiceDetailModal(invoiceId); } catch (_) { /* modal refresh is best-effort */ }
+  }
+  async function markEmergencyUI(invoiceId) {
+    // nbdConfirm: a real modal in the installed PWA, where the native
+    // confirm() is patched to answer YES (standalone-compat.js).
+    const _ask = window.nbdConfirm
+      || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false));
+    const ok = await _ask('Mark this invoice as EMERGENCY tarp or repair work? Kentucky law (KRS 367.626(3)) allows billing emergency work at a reasonable charge before the cancellation window ends. Only do this if the whole invoice is emergency work.');
+    if (!ok) return;
+    await window.updateDoc(window.doc(getDb(), 'invoices', invoiceId), {
+      emergencyServices: true, emergencyMarkedAt: new Date(), updatedAt: new Date()
+    });
+    await createPayLinkUI(invoiceId);
   }
 
   /**
@@ -1954,6 +2007,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     createInvoiceUI,
     sendInvoiceUI,
     showInvoiceDetailModal,
+    createPayLinkUI,
+    markEmergencyUI,
     // Pure helpers, exported for unit tests
     // (tests/invoice-pipeline.test.js) — no DOM/Firestore dependency.
     supplementBillableAmount,
@@ -1999,6 +2054,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         case 'renderDetail':    if (typeof IP.renderInvoiceDetail === 'function') IP.renderInvoiceDetail(target, id); break;
         case 'sendInvoice':     if (typeof IP.sendInvoiceUI === 'function') IP.sendInvoiceUI(id); break;
         case 'markPaid':        if (typeof IP.markPaidUI === 'function') IP.markPaidUI(id); break;
+        case 'createPayLink':   if (typeof IP.createPayLinkUI === 'function') IP.createPayLinkUI(id); break;
+        case 'markEmergency':   if (typeof IP.markEmergencyUI === 'function') IP.markEmergencyUI(id); break;
         case 'print':           window.print(); break;
         case 'copyStripeLink':  {
           if (id) navigator.clipboard.writeText(id);

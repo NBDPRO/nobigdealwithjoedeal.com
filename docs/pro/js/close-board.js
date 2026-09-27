@@ -643,7 +643,7 @@
     const _depRule = window.NBDDepositRule || null;
     const _dealMode = deal.insuranceClaim ? 'insurance' : 'cash';
     const _tierPlan = (price) => (_depRule && Number(price) > 0)
-      ? _depRule.compute({ total: Number(price), mode: _dealMode, deductible: deal.deductible })
+      ? _depRule.compute({ total: Number(price), mode: _dealMode, deductible: deal.deductible, address: deal.address || '' })
       : null;
     const depositLine = (price) => {
       const p = _tierPlan(price);

@@ -510,6 +510,7 @@ function editLead(id){
   setV('lClaimFiledBy', l.claimFiledBy||'');
   setV('lPolicyNumber', l.policyNumber||'');
   setV('lDateOfLoss', l.dateOfLoss||'');
+  setV('lCarrierDecisionAt', l.carrierDecisionAt||'');
   setV('lEstimateAmount', l.estimateAmount||'');
   setV('lDeductible', l.deductibleOrOwedByHO||'');
   setV('lSupplementStatus', l.supplementStatus||'');

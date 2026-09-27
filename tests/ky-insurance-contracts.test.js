@@ -21,15 +21,20 @@
  *   D. functions/render-pdf.js buildContractStatutory + the REAL contract.hbs
  *   E. NBDDocGen.generate gates — no AOB in Kentucky, no KY insurance
  *      contract without the business address
- *   F. doc-preflight.js — the block, the non-blocking deposit warning, the
- *      jurisdiction stamp
- *   G. Work Authorization + Assignment of Benefits templates
- *   H. crm-stages.js — the "AOB Filed" gate never blocks a Kentucky lead
+ *   F. doc-preflight.js — the address block, the $0-at-signing plan (Jo,
+ *      2026-09-27; KRS 367.626), the jurisdiction stamp
+ *   G. Direction to Pay (replaced the AOB in both states, 2026-09-27) — the
+ *      document, the Work Authorization and contract clauses
+ *   H. crm-stages.js — "Claim Filed" no longer needs any AOB/DTP stamp
  *   I. close-board.js deal room — a Kentucky insurance deal is a contract entry
+ *   J. the Kentucky payment hold — deposit-rule.js $0 at signing; the online
+ *      pay link withheld until the carrier's written decision + 5 business
+ *      days (ky-insurance-law.js payLinkHold, what createStripePaymentLink runs)
  *
- * The KY fixture must not match /assign/i or /negotiat/i ANYWHERE except the
- * statutory notice (3)(b) itself, which the statute requires to say "shall
- * not assign" — that one sentence is removed before the scan, nothing else.
+ * The KY fixture must not match /assign/i or /negotiat/i ANYWHERE except two
+ * sentences that exist to DENY an assignment: the statutory notice (3)(b)
+ * ("shall not assign") and the Direction to Pay's "does not assign or
+ * transfer" disclaimer. Those two are removed before the scan, nothing else.
  *
  * Needs functions/ deps (handlebars), like deposit-rule.test.js.
  * Run: node tests/ky-insurance-contracts.test.js   (KY_VERBOSE=1 for ✓ lines)
@@ -223,7 +228,7 @@ const contractData = (address, jobType, extra) => Object.assign({
 
 // The KY fixture's own words, with the ONE statutory sentence that must say
 // "assign" removed — everything else is scanned.
-const scanText = (html) => text(html).split(ACT_NOTICE_B).join(' ');
+const scanText = (html) => text(html).split(ACT_NOTICE_B).join(' ').split(J.DTP_NOT_ASSIGNMENT).join(' ');
 
 // ════════════════════════════════════════════════════════════════════
 // B. renderContract
@@ -253,11 +258,15 @@ ok('KY: NO /assign/i anywhere but the statutory (3)(b) sentence', !/assign/i.tes
   (scanText(kyHtml).match(/.{40}assign.{40}/i) || [''])[0]);
 ok('KY: NO /negotiat/i', !/negotiat/i.test(kyText), (kyText.match(/.{40}negotiat.{40}/i) || [''])[0]);
 ok('KY: no "Insurance Assignment" section', !/Insurance Assignment/.test(kyHtml));
+ok('KY: a Direction to Pay clause instead (payee only, not an assignment)', /Direction to Pay/.test(kyHtml) &&
+  kyText.includes(J.DTP_NOT_ASSIGNMENT) && kyText.includes('as a payee on, or to pay No Big Deal Home Solutions directly'));
 
 const ohInsHtml = withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance' },
   () => DG.renderContract(contractData(OH_ADDR, 'insurance', { claimNumber: 'CLM-8' })));
-ok('OH insurance: Insurance Assignment clause unchanged (owner decision pending)',
-  /Insurance Assignment/.test(ohInsHtml) && text(ohInsHtml).includes('authorized to accept assignment of insurance proceeds'));
+ok('OH insurance: the Insurance Assignment clause is gone (retired in both states)',
+  !/Insurance Assignment/.test(ohInsHtml) && !text(ohInsHtml).includes('accept assignment of insurance proceeds'));
+ok('OH insurance: Direction to Pay clause, no /negotiat/i', /Direction to Pay/.test(ohInsHtml) &&
+  text(ohInsHtml).includes(J.DTP_NOT_ASSIGNMENT) && !/negotiat/i.test(text(ohInsHtml)));
 ok('OH insurance: no KY notices or KY forms', !text(ohInsHtml).includes(ACT_NOTICE_A) && !/data-nbd-noc="ky"/.test(ohInsHtml));
 
 const ohCashHtml = withLead({ id: 'L1', address: OH_ADDR, jobType: 'cash' },
@@ -266,6 +275,7 @@ ok('OH cash: no "Insurance Assignment" clause', !/Insurance Assignment/.test(ohC
   !text(ohCashHtml).includes('accept assignment of insurance proceeds'));
 ok('OH cash: no "Insurance assignment accepted"', !/Insurance assignments? accepted/i.test(text(ohCashHtml)));
 ok('OH cash: no KY statutory blocks', !/nbd-statutory/.test(ohCashHtml));
+ok('OH cash: no Direction to Pay either (cash job)', !/Direction to Pay/.test(ohCashHtml));
 
 const kyCashHtml = withLead({ id: 'L1', address: KY_ADDR, jobType: 'cash' },
   () => DG.renderContract(contractData(KY_ADDR, 'cash')));
@@ -373,15 +383,14 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
   const lastToast = () => (DOCS.toasts[DOCS.toasts.length - 1] || {}).m || '';
 
   W._legal = () => PROFILE(BIZ_ADDR);
-  DOCS.toasts.length = 0; viewerOpened = 0;
-  await withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance', claimNumber: 'C', insCarrier: 'SF' },
-    () => DG.generate('assignment_of_benefits', { homeownerName: 'Jane', address: KY_ADDR, leadId: 'L1' }));
-  ok('AOB for a Kentucky job is refused with the reason', viewerOpened === 0 && /KRS 304\.20-105/.test(lastToast()), lastToast());
-
-  DOCS.toasts.length = 0; viewerOpened = 0;
-  await withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance', claimNumber: 'C', insCarrier: 'SF' },
-    () => DG.generate('assignment_of_benefits', { homeownerName: 'Jane', address: OH_ADDR, leadId: 'L1' }));
-  ok('AOB for an Ohio insurance job still generates (owner decision pending)', viewerOpened === 1, DOCS.toasts.map((t) => t.m).join('|'));
+  for (const [st, addr] of [['Kentucky', KY_ADDR], ['Ohio', OH_ADDR]]) {
+    DOCS.toasts.length = 0; viewerOpened = 0;
+    await withLead({ id: 'L1', address: addr, jobType: 'insurance', claimNumber: 'C', insCarrier: 'SF' },
+      () => DG.generate('assignment_of_benefits', { homeownerName: 'Jane', address: addr, leadId: 'L1' }));
+    ok('AOB is retired — a ' + st + ' job gets the reason, not a document', viewerOpened === 0 && lastToast() === J.MSG.aobRetired, lastToast());
+  }
+  ok('the AOB document type is gone; the Direction to Pay replaces it',
+    !DG.DOCUMENT_TYPES.assignment_of_benefits && !!DG.DOCUMENT_TYPES.direction_to_pay && typeof DG.renderAssignmentOfBenefits !== 'function');
 
   W._legal = () => PROFILE('');
   DOCS.toasts.length = 0; viewerOpened = 0;
@@ -416,39 +425,56 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
   }
   const p1 = await preflight({ address: KY_ADDR, jobType: 'insurance', claimNumber: 'CLM-7', insCarrier: 'SF' }, '');
   ok('pre-flight: KY insurance + no business address → BLOCKED (generator never called)', p1.captured === null && p1.toasts.includes(J.MSG.addressRequired), p1.toasts.join('|'));
-  ok('pre-flight: the block and the deposit warning are both on screen',
+  ok('pre-flight: the address block and the $0-at-signing note are both on screen',
     p1.notes.some((n) => n.level === 'block' && n.message === J.MSG.addressRequired) &&
-    p1.notes.some((n) => n.level === 'warn' && n.message === J.MSG.depositWarning));
-  ok('pre-flight: the deposit warning cites KRS 367.626', /KRS 367\.626/.test(J.MSG.depositWarning));
+    p1.notes.some((n) => n.level === 'warn' && n.message === J.MSG.depositHold));
+  ok('pre-flight: the address message says exactly where to enter it',
+    /Settings → Company Profile → Letterhead → "Mailing Address \(one line\)"/.test(J.MSG.addressRequired));
+  ok('pre-flight: the hold note cites KRS 367.626 and the emergency exception', /KRS 367\.626\b/.test(J.MSG.depositHold) && /367\.626\(3\)/.test(J.MSG.depositHold));
   const p2 = await preflight({ address: KY_ADDR, jobType: 'insurance', claimNumber: 'CLM-7', insCarrier: 'SF' }, BIZ_ADDR);
   ok('pre-flight: with the address it generates — the deposit warning never blocks', !!p2.captured &&
     p2.notes.some((n) => n.level === 'warn') && !p2.notes.some((n) => n.level === 'block'));
   ok('pre-flight: the job\'s jurisdiction is stamped on the document data', !!(p2.captured && p2.captured.jurisdiction && p2.captured.jurisdiction.kyInsurance === true));
+  const kyPlan = p2.captured && p2.captured.depositPlan;
+  ok('pre-flight KY insurance contract: $0 at signing (the real rule, not a warning)', !!kyPlan && kyPlan.depositCents === 0 &&
+    /^Nothing is due at signing\./.test(kyPlan.summary) && kyPlan.rows.every((r) => r.due === J.KY_HOLD_DUE || r.label === 'Balance'),
+    kyPlan && JSON.stringify(kyPlan.rows));
+  if (kyPlan) {
+    const sp = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' }, () => DG._buildServerPayload('contract', Object.assign({}, p2.captured)));
+    ok('server contract Payment Schedule: every stage but the balance is due after the decision + window',
+      sp.paymentSchedule.length > 0 && sp.paymentSchedule.every((r) => r.dueDescription === J.KY_HOLD_DUE || r.stage === 'Balance'),
+      JSON.stringify(sp.paymentSchedule));
+  }
   const p3 = await preflight({ address: OH_ADDR, jobType: 'cash' }, '');
   ok('pre-flight: an Ohio cash contract is untouched (no notes, generates)', !!p3.captured && p3.notes.length === 0);
+  const p4 = await preflight({ address: OH_ADDR, jobType: 'insurance', claimNumber: 'CLM-8', insCarrier: 'SF', deductibleOrOwedByHO: 1000 }, BIZ_ADDR);
+  ok('pre-flight: an Ohio insurance contract keeps the deductible at signing (unchanged)', !!(p4.captured && p4.captured.depositPlan) &&
+    p4.captured.depositPlan.depositCents === 100000 && /deductible is due at signing/.test(p4.captured.depositPlan.summary),
+    p4.captured && p4.captured.depositPlan && p4.captured.depositPlan.summary);
 
   // ══════════════════════════════════════════════════════════════════
   // G. Work Authorization + AOB templates
   // ══════════════════════════════════════════════════════════════════
-  section('G. Work Authorization + Assignment of Benefits');
-  const waKy = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' }, () => DG.renderWorkAuthorization(
-    { homeownerName: 'Jane', address: KY_ADDR, isInsurance: true, claimNumber: 'C1', insuranceCompany: 'SF', leadId: 'L1' }));
-  ok('WA Kentucky: no assignment paragraph, no /negotiat/i', !/assign/i.test(text(waKy)) && !/negotiat/i.test(text(waKy)));
-  const waOh = withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance' }, () => DG.renderWorkAuthorization(
-    { homeownerName: 'Jane', address: OH_ADDR, isInsurance: true, claimNumber: 'C1', insuranceCompany: 'SF', leadId: 'L1' }));
-  ok('WA Ohio: assignment of proceeds kept, negotiation power removed', /assign and transfer/.test(text(waOh)) && !/negotiat/i.test(text(waOh)));
-  const aobOh = withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance' }, () => DG.renderAssignmentOfBenefits(
-    { homeownerName: 'Jane', address: OH_ADDR, claimNumber: 'C1', insuranceCompany: 'SF', leadId: 'L1' }));
-  ok('AOB Ohio: no negotiation / "pursue any and all remedies" powers',
-    !/negotiat/i.test(text(aobOh)) && !/Pursue any and all remedies/i.test(text(aobOh)) && /ASSIGNMENT OF BENEFITS/.test(aobOh));
-  const aobKy = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' }, () => DG.renderAssignmentOfBenefits(
-    { homeownerName: 'Jane', address: KY_ADDR, claimNumber: 'C1', insuranceCompany: 'SF', leadId: 'L1' }));
-  ok('AOB Kentucky: the renderer itself refuses (backstop)', /NOT AVAILABLE/.test(aobKy) && !/do hereby assign/.test(aobKy));
+  section('G. Direction to Pay — the document, the Work Authorization clause');
+  for (const [st, addr] of [['Kentucky', KY_ADDR], ['Ohio', OH_ADDR]]) {
+    const wa = withLead({ id: 'L1', address: addr, jobType: 'insurance' }, () => DG.renderWorkAuthorization(
+      { homeownerName: 'Jane', address: addr, isInsurance: true, claimNumber: 'C1', insuranceCompany: 'SF', leadId: 'L1' }));
+    ok('WA ' + st + ': Direction to Pay, no assignment of proceeds, no /negotiat/i',
+      /Direction to Pay/.test(wa) && !/assign/i.test(scanText(wa)) && !/negotiat/i.test(text(wa)), (scanText(wa).match(/.{40}assign.{40}/i) || [''])[0]);
+    const dtp = withLead({ id: 'L1', address: addr, jobType: 'insurance' }, () => DG.renderDirectionToPay(
+      { homeownerName: 'Jane Smith', address: addr, claimNumber: 'C1', policyNumber: 'P1', insuranceCompany: 'State Farm', leadId: 'L1' }));
+    const dt = text(dtp);
+    ok('Direction to Pay document (' + st + '): directs the insurer to pay the contractor, up to the contract price',
+      /DIRECTION TO PAY/.test(dtp) && dt.includes('direct State Farm to include No Big Deal Home Solutions as a payee on, or to pay No Big Deal Home Solutions directly') &&
+      dt.includes('up to the contract price'));
+    ok('Direction to Pay document (' + st + '): says it is NOT an assignment and gives no claim authority; no /negotiat/i, no other "assign"',
+      dt.includes(J.DTP_NOT_ASSIGNMENT) && !/negotiat/i.test(dt) && !/assign/i.test(scanText(dtp)) && /homeowner keeps full control of the claim/.test(dt));
+  }
 
   // ══════════════════════════════════════════════════════════════════
   // H. crm-stages.js — the AOB Filed gate
   // ══════════════════════════════════════════════════════════════════
-  section('H. crm-stages.js — "AOB Filed" never blocks a Kentucky lead');
+  section('H. crm-stages.js — "Claim Filed" needs no AOB/DTP stamp in either state');
   let src = read('docs/pro/js/crm-stages.js');
   src = src.replace(/export\s+function\s+/g, 'function ').replace(/export\s+const\s+/g, 'const ');
   src += '\nthis.__out = { S, missingRequiredFields };';
@@ -458,7 +484,7 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
   const kyMissing = missingRequiredFields({ jobType: 'insurance', stage: S.CLAIM_FILED, address: KY_ADDR, insCarrier: 'SF', claimNumber: 'C' });
   const ohMissing = missingRequiredFields({ jobType: 'insurance', stage: S.CLAIM_FILED, address: OH_ADDR, insCarrier: 'SF', claimNumber: 'C' });
   ok('Kentucky insurance lead can reach Claim Filed without aobFiledAt', !kyMissing.includes('aobFiledAt'), JSON.stringify(kyMissing));
-  ok('Ohio insurance lead still gated on aobFiledAt (unchanged)', ohMissing.includes('aobFiledAt'), JSON.stringify(ohMissing));
+  ok('Ohio insurance lead too (the requirement was dropped with the AOB)', !ohMissing.includes('aobFiledAt'), JSON.stringify(ohMissing));
 
   // ══════════════════════════════════════════════════════════════════
   // I. Close Board deal room
@@ -483,6 +509,7 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
     };
     sb2.window = sb2; sb2.addEventListener = () => {}; sb2.showToast = () => {}; sb2.open = () => null;
     sb2.NBDJurisdiction = J;
+    sb2.NBDDepositRule = require(path.join(ROOT, 'docs/pro/js/deposit-rule.js'));
     sb2._legal = () => ({ businessAddress: profileAddr });
     sb2._brand = () => ({ legalName: 'No Big Deal Home Solutions', contact: { email: 'info@nobigdealwithjoedeal.com' } });
     vm.runInNewContext(raw, sb2, { filename: 'close-board.js' });
@@ -502,9 +529,37 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
     !/work directly with your insurance/i.test(text(cbKy)) && !/negotiat/i.test(text(cbKy)));
   const cbOh = CB.generatePageHTML(deal(OH_ADDR, true));
   ok('deal room OH insurance: no KY blocks', !/data-nbd-noc="ky"/.test(cbOh));
+  ok('deal room KY insurance: every tier says $0 due at signing', (cbKy.match(/<div class="tier-deposit">[^\n]*?<\/div>/g) || [])
+    .every((l) => /Due at signing: <strong>\$0<\/strong>/.test(l)) && (cbKy.match(/tier-deposit/g) || []).length >= 3);
+  ok('deal room OH insurance: tiers keep the deductible at signing', /Due at signing: <strong>\$1,000<\/strong>/.test(cbOh));
   let threw = null;
   try { closeBoard('').generatePageHTML(deal(KY_ADDR, true)); } catch (e) { threw = e; }
   ok('deal room KY insurance without a business address is refused', !!threw && threw.code === 'ky-address-required');
+
+  // ══════════════════════════════════════════════════════════════════
+  // J. The Kentucky payment hold — what createStripePaymentLink runs
+  // ══════════════════════════════════════════════════════════════════
+  section('J. the online pay link waits for the carrier decision + 5 business days');
+  const KYL = { address: KY_ADDR, jobType: 'insurance', claimNumber: 'C' };
+  ok('no decision date recorded → held', J.payLinkHold(KYL, {}, '2026-10-10').held === true);
+  // Decision Fri 2026-09-25 → KY business days Mon 28 … Fri Oct 2 → payable from Sat Oct 3.
+  ok('the window skips Saturdays and Sundays: ends Fri Oct 2, payable from Oct 3',
+    J.formatDay(J.kyWindowEnd('2026-09-25')) === 'October 2, 2026' && J.kyReleaseDateText('2026-09-25') === 'October 3, 2026');
+  ok('decision recorded, still inside the window → held', J.payLinkHold(Object.assign({ carrierDecisionAt: '2026-09-25' }, KYL), {}, '2026-10-02T15:00:00Z').held === true);
+  ok('…the day after the window → released', J.payLinkHold(Object.assign({ carrierDecisionAt: '2026-09-25' }, KYL), {}, '2026-10-03T15:00:00Z').held === false);
+  // Fri Oct 9 → Tue 13, Wed 14, Thu 15, Fri 16, Mon 19 (Mon 12 skipped).
+  ok('…a federal holiday in the window pushes it out (Columbus Day Mon 2026-10-12)',
+    J.formatDay(J.kyWindowEnd('2026-10-09')) === 'October 19, 2026', J.formatDay(J.kyWindowEnd('2026-10-09')));
+  ok('the window counts from the LOCAL date (10:30 pm ET Friday is still Friday)',
+    J.formatDay(J.kyWindowEnd(new Date('2026-09-26T02:30:00Z'))) === 'October 2, 2026');
+  ok('an invoice marked emergency tarp/repair work is never held (KRS 367.626(3))', J.payLinkHold(KYL, { emergencyServices: true }).held === false);
+  ok('an Ohio insurance job is never held', J.payLinkHold({ address: OH_ADDR, jobType: 'insurance' }, {}).held === false);
+  ok('the invoice flag can ADD the hold (lead unreadable)', J.payLinkHold(null, { kyInsuranceHold: true }).held === true);
+  const stripeSrc = read('functions/stripe.js').replace(/\r\n/g, '\n');
+  const gateAt = stripeSrc.indexOf('KyLaw.payLinkHold(kyLead, invoice, Date.now(), tz)');
+  ok('createStripePaymentLink runs payLinkHold before any Stripe call and refuses with 409 KY_CANCELLATION_WINDOW',
+    gateAt > 0 && gateAt < stripeSrc.indexOf('const stripe = getStripe();', gateAt) &&
+    /res\.status\(409\)\.json\(\{\s*error: 'KY_CANCELLATION_WINDOW'/.test(stripeSrc.slice(gateAt, gateAt + 800)));
 
   console.log('\n' + '─'.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

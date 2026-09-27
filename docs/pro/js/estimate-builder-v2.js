@@ -521,14 +521,17 @@
     if (!rule || !(totalCents > 0)) {
       return { pct: 0, amount: 0, remainder: _fromCents(totalCents), plan: null };
     }
-    const plan = rule.compute({
+    const input = {
       totalCents,
       mode,
       deductible: o.deductible,
       acv: o.acv,
       overridePct: o.overridePct,
       roundToCents: (Number(o.roundTo) > 0) ? _toCents(o.roundTo) : undefined
-    });
+    };
+    // Kentucky hold (2026-09-27): only when the caller knows the address.
+    if (Object.prototype.hasOwnProperty.call(o, 'address')) input.address = o.address;
+    const plan = rule.compute(input);
     return { pct: plan.pct, amount: _fromCents(plan.depositCents), remainder: _fromCents(plan.balanceCents), plan };
   }
 

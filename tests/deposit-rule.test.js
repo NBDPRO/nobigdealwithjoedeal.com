@@ -112,6 +112,9 @@ function load(env, rel) {
 const STACK = [
   'docs/pro/js/estimate-config.js',
   'docs/pro/js/deposit-rule.js',
+  // ky-insurance-law.js is eager beside deposit-rule.js on both pages
+  // (2026-09-27): the rule asks it which jobs get the Kentucky hold.
+  'docs/pro/js/ky-insurance-law.js',
   'docs/pro/js/product-data.js',
   'docs/pro/js/roofivent-catalog.js',
   'docs/pro/js/estimate-labor-catalog.js',
@@ -142,7 +145,7 @@ if (!R || !CFG || !V2 || !FIN || !IP || !JT || !ENGINE) {
 
 // Doc pre-flight + generator on their own page-shaped sandbox (docgen bundle).
 const DOCS = makeSandbox({ _brand: () => ({ legalName: 'No Big Deal Home Solutions', colors: {}, contact: {} }) });
-['docs/pro/js/estimate-config.js', 'docs/pro/js/deposit-rule.js', 'docs/pro/js/customer-estimate-rows.js',
+['docs/pro/js/estimate-config.js', 'docs/pro/js/deposit-rule.js', 'docs/pro/js/ky-insurance-law.js', 'docs/pro/js/customer-estimate-rows.js',
   'docs/pro/js/document-generator.js', 'docs/pro/js/document-generator-templates.js', 'docs/pro/js/doc-preflight.js']
   .forEach((f) => load(DOCS, f));
 DOCS.win.showToast = () => {};
@@ -590,8 +593,8 @@ function closeBoardPage(price, mode, deductible) {
     }
 
     // J. JOB TEMPLATES payload (cash / insurance, no claim fields of its own).
-    const jt = JT.buildEstimatePayload({ totals: { total: c.total, mode: c.mode, lines: [] }, measurements: {} }, { owner: 'Jane' });
-    const jtPlan = R.compute({ total: c.total, mode: c.mode });
+    const jt = JT.buildEstimatePayload({ totals: { total: c.total, mode: c.mode, lines: [] }, measurements: {} }, { owner: 'Jane', addr: '1 Elm St, Cincinnati, OH 45202' });
+    const jtPlan = R.compute({ total: c.total, mode: c.mode, address: '1 Elm St, Cincinnati, OH 45202' });
     ok(tag + 'J job templates: saves the rule\'s deposit (no deductible on a template → the rule\'s unset case)',
       !!jt && cents(jt.deposit) === jtPlan.depositCents && !!jt.depositPlan && jt.depositPlan.summary === jtPlan.summary);
 
@@ -655,7 +658,7 @@ function closeBoardPage(price, mode, deductible) {
     const stale = { grandTotal: 1500, mode: 'cash', deposit: 750, depositPlan: { totalCents: 150000, depositCents: 75000, override: null } };
     ok('a stale saved deposit ($750 on a $1,500 cash job) is recomputed → $0', R.fromEstimate(stale).depositCents === 0);
     // The lead's deductible fills in when the estimate carries none (invoice path).
-    const leadDed = R.fromEstimate({ grandTotal: 12000, mode: 'insurance' }, { lead: { deductibleOrOwedByHO: '1500' } });
+    const leadDed = R.fromEstimate({ grandTotal: 12000, mode: 'insurance' }, { lead: { deductibleOrOwedByHO: '1500', address: '1 Elm St, Cincinnati, OH 45202' } });
     ok('fromEstimate: the lead\'s deductible fills in for an estimate with none', leadDed.depositCents === 150000);
     // Doc pre-flight: a rep-edited Deposit Amount flows into the contract.
     const c6 = CASES[2];
@@ -837,7 +840,7 @@ function closeBoardPage(price, mode, deductible) {
   {
     // V2 saved claim.deductible 2500 on every doc before the rule (its state
     // default). The reviewer's reproduction, through the real invoice path.
-    const legacyV2 = { id: 'est_legacy', builder: 'v2', mode: 'insurance', tier: 'better', leadId: 'lead_legacy', grandTotal: 14000,
+    const legacyV2 = { id: 'est_legacy', builder: 'v2', mode: 'insurance', tier: 'better', leadId: 'lead_legacy', grandTotal: 14000, addr: '1 Elm St, Cincinnati, OH 45202',
       claim: { carrier: 'State Farm', deductible: 2500, acv: null }, deposit: 0,
       rows: [{ code: 'X', desc: 'Roof', total: 14000, retailTotal: 14000, quantity: 1, unit: 'EA' }], subtotal: 14000, tax: 0, taxRate: 0 };
     let cap = null;
@@ -949,7 +952,7 @@ function closeBoardPage(price, mode, deductible) {
   section('10. JOB TEMPLATES + SANDBOX DEMO — the lead\'s deductible, and the demo quotes the rule');
   // ══════════════════════════════════════════════════════════════════
   {
-    const jt = JT.buildEstimatePayload({ totals: { total: 9000, mode: 'insurance', lines: [] }, measurements: {} }, { owner: 'Jane', deductible: 1000 });
+    const jt = JT.buildEstimatePayload({ totals: { total: 9000, mode: 'insurance', lines: [] }, measurements: {} }, { owner: 'Jane', deductible: 1000, addr: '1 Elm St, Cincinnati, OH 45202' });
     ok('a Job Template insurance estimate saves the lead\'s deductible in its plan (portal = invoice)', !!jt && !!jt.depositPlan
       && jt.depositPlan.depositCents === 100000 && /Your \$1,000 deductible/.test(jt.depositPlan.summary), jt && jt.depositPlan && jt.depositPlan.summary);
     const ui = read('docs/pro/js/job-templates-ui.js').replace(/\r\n/g, '\n');
@@ -977,6 +980,68 @@ function closeBoardPage(price, mode, deductible) {
     const sbHtml = read('docs/pro/sandbox.html');
     ok('sandbox.html loads deposit-rule.js (deferred) before the demo', /<script defer src="\/pro\/js\/deposit-rule\.js\?v=\d+"><\/script>/.test(sbHtml)
       && sbHtml.indexOf('js/deposit-rule.js') < sbHtml.indexOf('js/sandbox-demo.js'));
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  section('11. KENTUCKY INSURANCE — nothing at signing (Jo, 2026-09-27; KRS 367.626)');
+  // ══════════════════════════════════════════════════════════════════
+  {
+    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const OHA = '1 Elm St, Cincinnati, OH 45202';
+    const WHEN = 'After your insurer’s written coverage decision and the 5-business-day cancellation window';
+    const k1 = R.compute({ total: 15000, mode: 'insurance', deductible: 2000, acv: 10500, address: KY });
+    ok('KY insurance, deductible + ACV: $0 at signing', k1.depositCents === 0 && k1.balanceCents === 1500000 && k1.kyHold === true, JSON.stringify(k1.rows));
+    ok('…the deductible and the ACV payment are due after the decision + window (amounts shown), the balance on completion',
+      sameRows(k1.rows.map((r) => [r.label, r.due, r.amountText]), [
+        ['Your deductible', WHEN, '$2,000'],
+        ['Insurance ACV payment (your carrier’s first check)', WHEN, '$8,500'],
+        ['Balance', 'On completion', '$4,500']]), JSON.stringify(k1.rows));
+    ok('…the rows foot to the total', k1.rows.reduce((s, r) => s + (r.amountCents || 0), 0) === 1500000);
+    ok('…"Nothing is due at signing" leads the summary; valueText $0', /^Nothing is due at signing\./.test(k1.summary) && k1.valueText === '$0', k1.summary);
+    ok('…the rep note names KRS 367.626 and the emergency exception', /KRS 367\.626\)/.test(k1.repNote) && /367\.626\(3\)/.test(k1.repNote), k1.repNote);
+    const k2 = R.compute({ total: 15000, mode: 'insurance', address: KY });
+    ok('KY insurance, no deductible entered: still $0, the deductible still owed (later)', k2.depositCents === 0 && k2.needsDeductible === true
+      && k2.rows[0].due === WHEN && k2.rows[0].amountText === 'Per your policy', JSON.stringify(k2.rows));
+    const k3 = R.compute({ total: 1500, mode: 'insurance', deductible: 2000, address: KY });
+    ok('KY insurance at or below the deductible: $0 now, the job total after the window', k3.depositCents === 0
+      && sameRows(k3.rows.map((r) => [r.label, r.due, r.amountText]), [['Job total (at or below your deductible)', WHEN, '$1,500']]));
+    const k4 = R.compute({ total: 15000, mode: 'insurance', deductible: 2000, overrideAmount: 5000, address: KY });
+    ok('a rep override cannot raise a KY insurance deposit above $0', k4.depositCents === 0 && /override ignored/i.test(k4.repNote), k4.repNote);
+    ok('KY by ZIP alone holds too', R.compute({ total: 15000, mode: 'insurance', deductible: 2000, address: '7 Elm St, Florence 41042' }).depositCents === 0);
+    ok('insurance with NO readable state is held (fail closed, same as the contract)', R.compute({ total: 15000, mode: 'insurance', deductible: 2000, address: '' }).depositCents === 0);
+    const oh = R.compute({ total: 15000, mode: 'insurance', deductible: 2000, acv: 10500, address: OHA });
+    ok('OHIO insurance unchanged: deductible + ACV up front', oh.depositCents === 1050000 && !oh.kyHold, oh.summary);
+    ok('KY CASH unchanged: 50% at signing', R.compute({ total: 15000, mode: 'cash', address: KY }).depositCents === 750000);
+    ok('a caller that passes no location at all is unchanged (legacy)', R.compute({ total: 15000, mode: 'insurance', deductible: 2000 }).depositCents === 200000);
+    ok('a stamped jurisdiction can force the hold', R.compute({ total: 15000, mode: 'insurance', deductible: 2000, jurisdiction: { kyInsurance: true } }).depositCents === 0);
+    const fe = R.fromEstimate({ grandTotal: 12000, mode: 'insurance', claim: { deductible: 1000 } }, { lead: { address: KY } });
+    ok('fromEstimate: a KY lead holds the invoice / contract deposit', fe.depositCents === 0 && fe.kyHold === true);
+    const fe2 = R.fromEstimate({ grandTotal: 12000, mode: 'insurance', addr: KY, claim: { deductible: 1000 } }, {});
+    ok('fromEstimate: a KY estimate address holds it too', fe2.depositCents === 0);
+    const stored = R.toStored(k1);
+    const { safeDepositPlan: sdp } = require(path.join(ROOT, 'functions/deposit-plan-view.js'));
+    const viewed = sdp({ grandTotal: 15000, depositPlan: stored });
+    ok('the stored KY plan passes the portal / estimate-view whitelist ($0 + balance = total)', !!viewed && viewed.depositCents === 0
+      && viewed.balanceCents === 1500000 && viewed.rows[0].due === WHEN, JSON.stringify(viewed));
+    ok('policyText (contract boilerplate) states the Kentucky rule', /Kentucky insurance claims: nothing is due at signing/.test(R.policyText()));
+
+    // The real invoice path for a KY lead: depositAmount 0, the hold flagged.
+    let capKy = null;
+    const kyEst = { id: 'est_ky', builder: 'v2', mode: 'insurance', tier: 'better', leadId: 'lead_ky', grandTotal: 14000, addr: KY,
+      claim: { carrier: 'State Farm', deductible: 1000, acv: 9000 }, depositPlan: R.toStored(R.compute({ total: 14000, mode: 'insurance', deductible: 1000, acv: 9000, address: KY })),
+      rows: [{ code: 'X', desc: 'Roof', total: 14000, retailTotal: 14000, quantity: 1, unit: 'EA' }], subtotal: 14000, tax: 0, taxRate: 0 };
+    Object.assign(W, {
+      _db: {}, doc: () => ({}), collection: () => ({}), _leads: [{ id: 'lead_ky', firstName: 'Jane', lastName: 'Smith', address: KY, jobType: 'insurance' }],
+      getDoc: async () => ({ exists: () => true, id: 'est_ky', data: () => JSON.parse(JSON.stringify(kyEst)) }),
+      addDoc: async (_c, data) => { capKy = data; return { id: 'inv_ky' }; },
+      getDocs: async () => ({ empty: true, size: 0, forEach() {}, docs: [] }), query: () => ({}), where: () => ({}),
+    });
+    let kyErr = null;
+    try { await IP.createInvoiceFromEstimate('est_ky'); } catch (e) { kyErr = e; }
+    ok('KY invoice: depositAmount 0 and kyInsuranceHold set (the pay link is withheld server-side)', !kyErr && !!capKy
+      && Number(capKy.depositAmount) === 0 && capKy.kyInsuranceHold === true && capKy.emergencyServices === false,
+      (kyErr && kyErr.message) || (capKy && JSON.stringify({ d: capKy.depositAmount, h: capKy.kyInsuranceHold })));
+    ok('KY invoice terms say nothing is due at signing', !!capKy && /Nothing is due at signing/.test(String(capKy.terms)), capKy && capKy.terms);
   }
 
   console.log('\n──────────────────────────────────────────────────');

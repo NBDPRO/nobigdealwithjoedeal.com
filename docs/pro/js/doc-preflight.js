@@ -375,6 +375,8 @@
       : (lead.jobValue || est.grandTotal || est.total || est.amount || 0);
     // Cents here, so a "$9,000.00"-style value can't be read as no price.
     var opts = { totalCents: Math.max(0, _depCents(total) || 0), lead: lead };
+    // The address as the form shows it now (Kentucky hold, 2026-09-27).
+    if (state && state.values && state.values.address) opts.address = state.values.address;
     if (extra.overrideAmount != null && extra.overrideAmount !== '') opts.overrideAmount = extra.overrideAmount;
     return R.fromEstimate(est, opts);
   }
@@ -1719,9 +1721,9 @@
   //   - is BLOCKED without the contractor's business address on the Company
   //     Profile (KRS 367.624(1) mailing address; (4) the cancellation form's
   //     physical address) — never invented, never NBD's;
-  //   - carries a NON-blocking warning about the deposit: KRS 367.626 bars
-  //     requiring advance payment until the cancellation period ends. The
-  //     deposit rule itself is unchanged pending Jo's decision.
+  //   - shows (non-blocking) that nothing is due at signing: deposit-rule.js
+  //     holds the deductible + ACV payment until after the insurer's written
+  //     decision and the 5-business-day window (KRS 367.626; Jo, 2026-09-27).
   function legalJurisdiction() {
     var J = window.NBDJurisdiction;
     if (!J) return null;
@@ -1752,7 +1754,9 @@
     if (!j || !j.kyInsurance) return [];
     var out = [];
     if (!contractorBusinessAddress()) out.push({ level: 'block', message: J.MSG.addressRequired });
-    out.push({ level: 'warn', message: J.MSG.depositWarning });
+    // The deposit is no longer a warning: deposit-rule.js itself puts $0 at
+    // signing on a Kentucky insurance job (Jo, 2026-09-27). Say so.
+    out.push({ level: 'warn', message: J.MSG.depositHold });
     if (!j.stateKnown) out.push({ level: 'warn', message: J.MSG.stateUnknown });
     return out;
   }
