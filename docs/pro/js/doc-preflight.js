@@ -375,6 +375,8 @@
       : (lead.jobValue || est.grandTotal || est.total || est.amount || 0);
     // Cents here, so a "$9,000.00"-style value can't be read as no price.
     var opts = { totalCents: Math.max(0, _depCents(total) || 0), lead: lead };
+    // The address as the form shows it now (Kentucky hold, 2026-09-27).
+    if (state && state.values && state.values.address) opts.address = state.values.address;
     if (extra.overrideAmount != null && extra.overrideAmount !== '') opts.overrideAmount = extra.overrideAmount;
     return R.fromEstimate(est, opts);
   }
@@ -1346,6 +1348,10 @@
     signers: [],       // [{ role, label, required, enabled, removable }]
     softAck: false,    // address-completeness warning acknowledged this open()
     softIssues: [],    // [{ label, message }] from FIELD_VALIDATORS
+    // Kentucky SB 153 (2026-09-27): rep-facing legal notes for a contract /
+    // proposal on a Kentucky insurance job — [{ level: 'block'|'warn', message }].
+    legalNotes: [],
+    estimate: null,    // the estimate this open() resolved (jurisdiction facts)
     // NBDCustomerEstimateRows.estimateWarranty(estimate) for this open():
     // non-null with a string `text` when the estimate is a Job Template one
     // whose warranty comes from its JOB TYPE, not a tier (2026-09-25).
@@ -1708,6 +1714,58 @@
     return 'missing ' + gaps.join(' + ');
   }
 
+  // ── KENTUCKY SB 153 (2026-09-27) ────────────────────────────────
+  // ky-insurance-law.js decides; these gather the facts (the address the
+  // form shows NOW, the lead's job type / claim / carrier, the estimate's
+  // mode). A Kentucky insurance contract or proposal:
+  //   - is BLOCKED without the contractor's business address on the Company
+  //     Profile (KRS 367.624(1) mailing address; (4) the cancellation form's
+  //     physical address) — never invented, never NBD's;
+  //   - shows (non-blocking) that nothing is due at signing: deposit-rule.js
+  //     holds the deductible + ACV payment until after the insurer's written
+  //     decision and the 5-business-day window (KRS 367.626; Jo, 2026-09-27).
+  function legalJurisdiction() {
+    var J = window.NBDJurisdiction;
+    if (!J) return null;
+    var lead = window._leadDoc || {};
+    var est = state.estimate || {};
+    return J.classify({
+      address: state.values.address || state.values.homeownerAddress || lead.address || '',
+      zip: lead.zip || '',
+      state: lead.state || '',
+      jobType: lead.jobType || '',
+      mode: est.mode || est.jobMode || '',
+      claimNumber: state.values.claimNumber || lead.claimNumber || '',
+      insuranceCarrier: lead.insuranceCarrier || '',
+      insCarrier: lead.insCarrier || '',
+      insurance: est.insurance === true ? true : undefined
+    });
+  }
+
+  // brand.contact.mailingAddress ("Mailing Address (one line)") — the same
+  // source the contract prints; never businessAddress (Jo, 2026-09-27).
+  function contractorBusinessAddress() {
+    var DG = window.NBDDocGen;
+    if (DG && typeof DG._contractorPhysicalAddress === 'function') return DG._contractorPhysicalAddress();
+    var J = window.NBDJurisdiction;
+    var cp = (window._legal ? window._legal() : window._companyProfile) || {};
+    return J ? J.contractorMailingAddress(cp) : '';
+  }
+
+  function collectLegalNotes() {
+    var J = window.NBDJurisdiction;
+    if (!J || (state.type !== 'contract' && state.type !== 'proposal')) return [];
+    var j = legalJurisdiction();
+    if (!j || !j.kyInsurance) return [];
+    var out = [];
+    if (!contractorBusinessAddress()) out.push({ level: 'block', message: J.MSG.addressRequired });
+    // The deposit is no longer a warning: deposit-rule.js itself puts $0 at
+    // signing on a Kentucky insurance job (Jo, 2026-09-27). Say so.
+    out.push({ level: 'warn', message: J.MSG.depositHold });
+    if (!j.stateKnown) out.push({ level: 'warn', message: J.MSG.stateUnknown });
+    return out;
+  }
+
   // Field-key → validator. Runs on submit, after the required check.
   var FIELD_VALIDATORS = {
     address: validateAddressCompleteness,
@@ -1955,6 +2013,17 @@
           '.</span></div>'
       : '';
 
+    // Kentucky insurance job: the blocking address note in red, the deposit
+    // warning in amber (2026-09-27).
+    var legalHTML = (state.legalNotes || []).map(function (n) {
+      var red = n.level === 'block';
+      return '<div class="dpf-required-banner" data-dpf-legal="' + (red ? 'block' : 'warn') + '" style="border-color:color-mix(in srgb, ' +
+        (red ? 'var(--red,#E05252)' : 'var(--orange,#BD5728)') + ' 35%, transparent);color:' +
+        (red ? 'var(--red,#E05252)' : 'var(--orange,#BD5728)') + ';">' +
+        '<span style="font-size:14px;">&#9888;</span><span>' + (red ? '<strong>Cannot send yet.</strong> ' : '<strong>Kentucky insurance job.</strong> ') +
+        esc(n.message) + '</span></div>';
+    }).join('');
+
     var html =
       '<div class="dpf-overlay" id="' + MODAL_ID + '" data-dpf-overlay>' +
         '<div class="dpf-card" role="dialog" aria-labelledby="dpf-title">' +
@@ -1970,6 +2039,7 @@
           '</div>' +
           '<div class="dpf-body">' +
             bannerHTML +
+            legalHTML +
             softHTML +
             sectionsHTML +
             renderSignersSection() +
@@ -2531,6 +2601,8 @@
     // must never carry into this one.
     state.softAck = false;
     state.softIssues = [];
+    state.estimate = estimate;
+    state.legalNotes = collectLegalNotes();
 
     // Seed signers from the template's defaultSigners (declared on the
     // NBDDocGen.DOCUMENT_TYPES entry). Each becomes a toggleable row;
@@ -2571,6 +2643,8 @@
     state.fieldIndex = {};
     state.jobWarranty = null;
     state.deposit = null;
+    state.legalNotes = [];
+    state.estimate = null;
   }
 
   /**
@@ -2587,6 +2661,17 @@
       toast('Missing required fields: ' + missing.join(', '), 'error');
       // Re-run render to highlight missing and expand their sections
       state.showAll = true;
+      renderModal();
+      return;
+    }
+
+    // Kentucky insurance contract / proposal (2026-09-27): re-read against
+    // the address as typed now. No business address → blocked (KRS 367.624);
+    // the deposit warning stays on screen but never blocks.
+    state.legalNotes = collectLegalNotes();
+    var legalBlock = state.legalNotes.filter(function (n) { return n.level === 'block'; })[0];
+    if (legalBlock) {
+      toast(legalBlock.message, 'error');
       renderModal();
       return;
     }
@@ -2676,6 +2761,11 @@
 
     // Derive extra fields the templates expect
     hydrateDerivedFields(mergedData);
+
+    // Which law the document is written under (ky-insurance-law.js). The
+    // generator re-derives it too and only ever ADDS a Kentucky signal.
+    var _jur = legalJurisdiction();
+    if (_jur) mergedData.jurisdiction = _jur;
 
     // Attach signers chosen in the modal. The document generator
     // checks for data.signers and emits interactive canvas blocks

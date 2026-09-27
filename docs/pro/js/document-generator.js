@@ -98,6 +98,97 @@ window.NBDDocGen = {
   },
 
   /**
+   * Which law this document is written under (2026-09-27, KY SB 153).
+   * ky-insurance-law.js (window.NBDJurisdiction) decides; this only gathers
+   * the job facts from the document data and the lead it belongs to. A
+   * classification doc pre-flight already stamped on `data.jurisdiction` is
+   * OR-ed in — never trusted to turn a Kentucky signal off (fail closed).
+   * Returns null only when the module did not load.
+   */
+  _jurisdiction(data) {
+    const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
+    if (!J) return null;
+    const d = data || {};
+    let lead = {};
+    try {
+      const leadId = d.leadId || (d.customer && d.customer.id) || null;
+      const cur = window._leadDoc || null;
+      if (cur && (!leadId || cur.id === leadId || !cur.id)) lead = cur;
+      else if (leadId && Array.isArray(window._leads)) lead = window._leads.find(l => l && l.id === leadId) || {};
+    } catch (_) { lead = {}; }
+    const j = J.classify({
+      address: d.address || d.homeownerAddress || d.propertyAddress || d.projectAddress || lead.address || '',
+      zip: d.zip || lead.zip || '',
+      state: d.state || lead.state || '',
+      jobType: d.jobType || lead.jobType || '',
+      mode: d.mode || d.jobMode || '',
+      claimNumber: d.claimNumber || lead.claimNumber || '',
+      insuranceCarrier: d.insuranceCompany || d.insuranceCarrier || lead.insuranceCarrier || '',
+      insCarrier: d.insCarrier || lead.insCarrier || '',
+      isInsuranceJob: d.isInsuranceJob === true,
+      isInsurance: d.isInsurance === true
+    });
+    const s = (d.jurisdiction && typeof d.jurisdiction === 'object') ? d.jurisdiction : null;
+    if (s) {
+      j.kentucky = j.kentucky || s.kentucky === true;
+      j.insurance = j.insurance || s.insurance === true;
+      j.kyInsurance = j.kyInsurance || s.kyInsurance === true || (j.insurance && j.kentucky);
+      j.aobBarred = j.aobBarred || s.aobBarred === true || j.kentucky || j.kyInsurance;
+      if (j.kentucky) j.state = 'KY';
+    }
+    return j;
+  },
+
+  /**
+   * The contractor address a KY insurance contract / cancellation form must
+   * print: brand.contact.mailingAddress ("Mailing Address (one line)"), the
+   * tenant's own (window._brand() never inherits another tenant's). Never
+   * businessAddress — that is the letterhead/microsite field, and Jo's rule
+   * (2026-09-27) is that the address prints only where the law requires it.
+   */
+  _contractorPhysicalAddress(cp) {
+    const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
+    if (!J) return '';
+    let fromBrand = '';
+    try { fromBrand = J.contractorMailingAddress(window._brand ? window._brand() : null); } catch (_) { fromBrand = ''; }
+    const p = cp || (window._legal ? window._legal() : (window._companyProfile || {}));
+    return fromBrand || J.contractorMailingAddress(p);
+  },
+
+  /**
+   * Statutory blocks for a contract-class document (contract, signable
+   * proposal). Every string is '' when the job is not a Kentucky insurance job.
+   */
+  _statutoryBlocks(data, cp) {
+    const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
+    const j = this._jurisdiction(data);
+    // The plain Payment clause prints on EVERY contract (Jo, 2026-09-27: no
+    // AOB, no direction to pay, no co-payee instrument, any state).
+    const out = { j, css: '', notices: '', forms: '', lien: '', partiesExtra: '',
+      paymentClause: J ? J.PAYMENT_CLAUSE : '' };
+    if (!J || !j || !j.kyInsurance) return out;
+    const co = this._resolveCompany();
+    const addr = this._contractorPhysicalAddress(cp);
+    const fax = String((cp && cp.businessFax) || '').trim();
+    out.css = J.STATUTORY_CSS;
+    out.notices = J.kyNoticesHtml();
+    out.lien = J.KY_LIEN_CLAUSE;
+    // The signing date in the tenant's timezone (default America/New_York) —
+    // "now" read there, never the UTC date or the rep's browser clock.
+    out.forms = J.kyCancellationFormsHtml({
+      transactionDate: data.contractDate || new Date(),
+      timeZone: J.resolveTimeZone(cp),
+      physicalAddress: addr,
+      email: co.email || '',
+      fax: fax
+    });
+    out.partiesExtra =
+      '<strong>Mailing Address:</strong> ' + (addr ? this._escHtml(addr) : '<em>(not set — add it in Company Profile)</em>') + '<br/>' +
+      (fax ? '<strong>Fax:</strong> ' + this._escHtml(fax) + '<br/>' : '');
+    return out;
+  },
+
+  /**
    * Logo src for the active tenant — their brand.logoUrl when set, otherwise
    * the NBD inline data URI / asset path (byte-identical for NBD). Phase B-2.
    */
@@ -297,11 +388,6 @@ window.NBDDocGen = {
                                { role: 'homeowner', label: 'Homeowner',                       required: true },
                                { role: 'rep',       label: 'Authorized NBD Representative',   required: true },
                              ] },
-    assignment_of_benefits:{ name: 'Assignment of Benefits',          template: 'renderAssignmentOfBenefits',
-                             defaultSigners: [
-                               { role: 'homeowner', label: 'Homeowner / Insured',             required: true },
-                               { role: 'rep',       label: 'Authorized NBD Representative',   required: true },
-                             ] },
     change_order:          { name: 'Change Order',                    template: 'renderChangeOrder',
                              defaultSigners: [
                                { role: 'homeowner', label: 'Homeowner',                       required: true },
@@ -341,7 +427,6 @@ window.NBDDocGen = {
   // alongside the `warranty:{...}` object it already writes.
   FILED_FIELD_BY_DOC_TYPE: {
     contract:                  'contractFiledAt',
-    assignment_of_benefits:    'aobFiledAt',
     certificate_of_completion: 'cocFiledAt',
   },
 
@@ -395,6 +480,33 @@ window.NBDDocGen = {
     data.companyProfile = (_profileSrc && typeof _profileSrc === 'object')
       ? _profileSrc
       : (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+
+    // ─── Retired: Assignment of Benefits AND Direction to Pay (2026-09-27) ───
+    // An AOB is void in Kentucky (KRS 304.20-105); Jo retired it and every
+    // co-payee / direction-to-pay instrument in both states. A stale caller
+    // (an old bookmark, a cached chip) gets the reason instead of a document.
+    const _say = (m) => { if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m); };
+    if (type === 'assignment_of_benefits' || type === 'direction_to_pay') {
+      const _Jr = window.NBDJurisdiction;
+      _say((_Jr && _Jr.MSG.aobRetired) || 'The Assignment of Benefits has been retired. Contracts carry a plain payment clause.');
+      return;
+    }
+
+    // ─── Kentucky SB 153 gates (2026-09-27) ───
+    // A Kentucky insurance contract must print the contractor's mailing +
+    // physical address (KRS 367.624(1), (4)); without one on the Company
+    // Profile it is refused here as well as in pre-flight, since some
+    // surfaces call generate() directly.
+    const _J = window.NBDJurisdiction;
+    const _jur = this._jurisdiction(data);
+    if (_J && _jur) {
+      data.jurisdiction = _jur;
+      if ((type === 'contract' || type === 'proposal') && _jur.kyInsurance && !data._isBlankPreview
+          && !this._contractorPhysicalAddress(data.companyProfile)) {
+        _say(_J.MSG.addressRequired);
+        return;
+      }
+    }
 
     // ─── QA fix: reconcile single-total docs against their rendered lines ───
     // The invoice + proposal fill-forms collect ONE rep-entered total
@@ -994,6 +1106,33 @@ window.NBDDocGen = {
         warranty: data.warranty || null,
         rightToCancel: data.rightToCancel || 'You, the buyer, may cancel this transaction at any time prior to midnight of the third business day after the date of this transaction. See the attached Notice of Cancellation form for an explanation of this right.',
         additionalTerms: data.additionalTerms || [],
+        // Kentucky SB 153 / FTC Cooling-Off (2026-09-27). The FACTS the server
+        // needs to decide which statutory blocks to print — functions/
+        // render-pdf.js re-classifies them with its own copy of
+        // ky-insurance-law.js (never trusting a client verdict to turn a
+        // Kentucky signal off) and reads the contractor's address from the
+        // tenant's companyProfile server-side.
+        // The LOCAL signing date (tenant timezone, default America/New_York)
+        // as "YYYY-MM-DD", so the server never re-derives it from UTC.
+        transactionDate: data.contractDate || (() => {
+          const J = window.NBDJurisdiction;
+          if (!J) return todayStr;
+          const cp = data.companyProfile || (window._legal ? window._legal() : window._companyProfile) || {};
+          return J.isoDay(J.todayIn(J.resolveTimeZone(cp)));
+        })(),
+        jurisdiction: (() => {
+          const j = (data.jurisdiction && typeof data.jurisdiction === 'object') ? data.jurisdiction : (this._jurisdiction(data) || {});
+          return {
+            address: address,
+            zip: data.zip || '',
+            jobType: data.jobType || (lead && lead.jobType) || '',
+            claimNumber: data.claimNumber || (lead && lead.claimNumber) || '',
+            insuranceCarrier: data.insuranceCompany || data.insuranceCarrier || (lead && (lead.insuranceCarrier || lead.insCarrier)) || '',
+            kentucky: j.kentucky === true,
+            insurance: j.insurance === true,
+            kyInsurance: j.kyInsurance === true,
+          };
+        })(),
       };
     }
 
@@ -2204,11 +2343,20 @@ window.NBDDocGen = {
       ? `<div style="font-size: 11px; line-height: 1.5; color: #333; margin-bottom: 12px; padding: 8px 10px; background: #f6f6f6; border-left: 3px solid #d35400;">${this._escHtml(merged.termsNote).replace(/\n/g, '<br/>')}</div>`
       : '';
 
+    // Kentucky insurance jobs (SB 153, 2026-09-27): a signable proposal is a
+    // contract entry, so it carries the KRS 367.624 notices, the lien clause
+    // and the detachable cancellation forms. "Insurance assignments accepted."
+    // never prints (the AOB is retired, 2026-09-27); a saved tenant
+    // boilerplate that still carries it is stripped.
+    const stat = this._statutoryBlocks(Object.assign({}, data, merged), cp);
+    const _J = window.NBDJurisdiction;
+    const proposalTerms = _J ? _J.stripAssignmentSentences(cp.paymentTermsProposal) : cp.paymentTermsProposal;
+
     // Standard terms — all rep-editable via Settings → Company Profile.
     const termsHTML = `
       ${repNoteHTML}
       <div style="font-size: 10px; line-height: 1.4; color: #555;">
-        <strong>Payment Terms:</strong> ${(merged.depositPlan && merged.depositPlan.summary) ? this._escHtml(merged.depositPlan.summary) : this._escClause(cp.paymentTermsProposal)}
+        <strong>Payment Terms:</strong> ${(merged.depositPlan && merged.depositPlan.summary) ? this._escHtml(merged.depositPlan.summary) : this._escClause(proposalTerms)}
         <br/><br/>
         <strong>Change Orders:</strong> ${this._escClause(cp.changeOrderClauseShort)}
         <br/><br/>
@@ -2217,6 +2365,7 @@ window.NBDDocGen = {
         <strong>Warranty Disclaimer:</strong> ${this._escClause(cp.materialsWarrantyDisclaimer)}
         <br/><br/>
         <strong>Limitation of Liability:</strong> ${this._escClause(cp.limitationOfLiability)}
+        ${stat.lien ? `<br/><br/><strong>Mechanic's Liens:</strong> ${this._escHtml(stat.lien)}` : ''}
       </div>
     `;
 
@@ -2228,6 +2377,7 @@ window.NBDDocGen = {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${this._docTitleCompany()} - Proposal</title>
         ${this.getSharedCSS()}
+        ${stat.css}
       </head>
       <body>
         <div class="print-button-container">
@@ -2284,6 +2434,12 @@ window.NBDDocGen = {
               ${termsHTML}
             </div>
 
+            ${stat.notices ? `<!-- KRS 367.624(3) NOTICES — before the signature block -->
+            <div class="section">
+              <div class="section-title">Important Notices</div>
+              ${stat.notices}
+            </div>` : ''}
+
             <!-- ACCEPTANCE -->
             <div class="section">
               <div class="section-title">Acceptance</div>
@@ -2293,6 +2449,7 @@ window.NBDDocGen = {
                   : ['Homeowner', this._repSignerLabel()]
               )}
             </div>
+            ${stat.forms}
           </div>
 
           ${this.affiliateRow ? this.affiliateRow() : ''}
@@ -2367,6 +2524,20 @@ window.NBDDocGen = {
               </div>`;
     }
 
+    // Kentucky SB 153 (2026-09-27). For a Kentucky insurance job — or an
+    // insurance job whose state is unknown (fail closed) — the contract
+    // carries the contractor's mailing address (KRS 367.624(1)), the two
+    // (3)(a)/(3)(b) notices in bold >= 10pt before the signatures, the lien
+    // undertaking (367.628(2)(g)) and the detachable NOTICE OF CANCELLATION
+    // in duplicate on its own page after them (367.624(4)).
+    // The "Insurance Assignment" clause is gone in every state (Jo,
+    // 2026-09-27). Every contract prints the plain Payment clause instead
+    // (ky-insurance-law.js PAYMENT_CLAUSE) — no assignment, no direction to
+    // pay, no co-payee language anywhere.
+    const stat = this._statutoryBlocks(Object.assign({}, data, merged), cp);
+    const _J = window.NBDJurisdiction;
+    const paymentMethodsText = _J ? _J.stripAssignmentSentences(cp.paymentMethodsNoCash) : cp.paymentMethodsNoCash;
+
     const contractHTML = `
       <!DOCTYPE html>
       <html lang="en">
@@ -2375,6 +2546,7 @@ window.NBDDocGen = {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${this._docTitleCompany()} - Roofing Contract</title>
         ${this.getSharedCSS()}
+        ${stat.css}
       </head>
       <body>
         <div class="print-button-container">
@@ -2392,7 +2564,7 @@ window.NBDDocGen = {
               <div class="section-title">Parties to Agreement</div>
               <div style="margin: 0.1in 0;">
                 <strong>Contractor:</strong> ${merged.contractorName}<br/>
-                <strong>Phone:</strong> ${merged.contractorPhone}<br/>
+                ${stat.partiesExtra}<strong>Phone:</strong> ${merged.contractorPhone}<br/>
                 <strong>Email:</strong> ${this._resolveCompany().email}
               </div>
               <div style="margin: 0.1in 0; margin-top: 0.15in;">
@@ -2425,7 +2597,7 @@ window.NBDDocGen = {
                 {{paymentSchedule}}
               </div>
               <div style="margin: 0.1in 0; margin-top: 0.08in; font-size: 9px;">
-                ${this._escClause(cp.paymentMethodsNoCash)}
+                ${this._escClause(paymentMethodsText)}
               </div>
             </div>
 
@@ -2459,13 +2631,21 @@ window.NBDDocGen = {
               </div>
             </div>
 
-            <!-- INSURANCE CLAUSE -->
+            ${stat.paymentClause ? `<!-- PAYMENT (every contract; ky-insurance-law.js PAYMENT_CLAUSE) -->
             <div class="section">
-              <div class="section-title">Insurance Assignment</div>
-              <div style="margin: 0.1in 0; font-size: 9px;">
-                ${this._escClause(cp.insuranceAssignmentClause)}
+              <div class="section-title">Payment</div>
+              <div style="margin: 0.1in 0; font-size: 10px;">
+                ${this._escHtml(stat.paymentClause)}
               </div>
-            </div>
+            </div>` : ''}
+
+            ${stat.lien ? `<!-- MECHANIC'S LIENS — KRS 367.628(2)(g) -->
+            <div class="section">
+              <div class="section-title">Mechanic's Liens</div>
+              <div style="margin: 0.1in 0; font-size: 10px;">
+                ${this._escHtml(stat.lien)}
+              </div>
+            </div>` : ''}
 
             <!-- ENTIRE AGREEMENT -->
             <div class="section">
@@ -2474,6 +2654,12 @@ window.NBDDocGen = {
                 ${this._escClause(cp.entireAgreementClause)}
               </div>
             </div>
+
+            ${stat.notices ? `<!-- KRS 367.624(3) NOTICES — before the signature block -->
+            <div class="section">
+              <div class="section-title">Important Notices</div>
+              ${stat.notices}
+            </div>` : ''}
 
             <!-- SIGNATURES -->
             <div class="section">
@@ -2486,6 +2672,7 @@ window.NBDDocGen = {
                 )}
               </div>
             </div>
+            ${stat.forms}
           </div>
 
           ${this.affiliateRow ? this.affiliateRow() : ''}
@@ -3423,11 +3610,6 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         { name: 'totalPrice', label: 'Project Total', required: true }
       ],
       referral_card: [],
-      assignment_of_benefits: [
-        ...commonFields,
-        ...insuranceFields,
-        { name: 'scopeSummary', label: 'Scope of Work Summary', required: true, type: 'textarea' }
-      ],
       material_delivery: [
         ...commonFields,
         { name: 'deliveryDate', label: 'Delivery Date', required: true },

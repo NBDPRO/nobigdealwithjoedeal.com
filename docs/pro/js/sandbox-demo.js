@@ -40,7 +40,7 @@
       notes: 'Claim filed. Adjuster assigned — waiting on the meet date.',
       comms: [['CALL', 'Carrier confirmed coverage A'], ['SMS · OUT', 'What-to-expect-at-adjuster-meeting text']] },
     { id: 10, name: 'Priya Nair', addr: '64 Landing Ct', trade: 'Roof', value: 16800, heat: 85, phone: '(555) 010-4433', ins: 0, cash: 0,
-      notes: 'Referral from Sandra Kim ($200 reward code tracked).',
+      notes: 'Referral from Sandra Kim ($100 reward code tracked).',
       comms: [['SMS · IN', '"Sandra said you\'re the one to call — our roof is 19 years old"']] },
   ];
 

@@ -1027,6 +1027,7 @@
           // Same semantics as the custom-item path above.
           line.materialCost = 0;
           line.laborCost = Number(choice.unitPriceOverride) || 0;
+          line.fixedRetail = null; // the typed price wins over a catalog fixed price
           warnings.push('Priced manually: ' + (line.name || code));
         }
         if (SINGLETON_CODES[code]) {
@@ -1116,6 +1117,8 @@
       total: total,
       mode: mode || 'cash',
       deductible: meta.deductible,
+      // Kentucky hold (2026-09-27): the job's address decides.
+      address: meta.addr || '',
       overrideAmount: (meta.deposit != null && meta.deposit !== '') ? meta.deposit : undefined
     });
     return { deposit: plan.depositCents / 100, depositPlan: R.toStored(plan) };

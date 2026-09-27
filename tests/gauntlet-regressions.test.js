@@ -919,7 +919,7 @@ console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
   // tenant's custom stages classify correctly) — so a custom-pipeline lead
   // kept its STALE pre-payoff role (e.g. 'active') after a Stripe payoff,
   // and review-request-nudge.js + referral-rewards.js both key off roleFor(),
-  // silently skipping the review ask and the $200 referral payout on every
+  // silently skipping the review ask and the $100 referral payout on every
   // automated Stripe-payoff loop.
   assert('invoiceWebhook stamps stageRole alongside the final_payment auto-advance',
     /stage: 'final_payment',\s*\r?\n\s*_stageKey: 'final_payment',[\s\S]{0,1200}stageRole: stageRoles\.roleFromKey\('final_payment'\)/.test(st),

@@ -1,10 +1,10 @@
 /**
- * functions/referral-rewards.js — referral-CODE redemption + $200 bonus.
+ * functions/referral-rewards.js — referral-CODE redemption + $100 bonus.
  * ═══════════════════════════════════════════════════════════════
  *
  * The redemption/crediting half of the "share your code" lane. A past
  * customer is texted a personal referral code (JOHN-AB12) by
- * review-engine.js `sendReferralSMS`, promising them a $200 bonus "when
+ * review-engine.js `sendReferralSMS`, promising them a $100 bonus "when
  * their project closes." This trigger is what makes that promise real.
  *
  * A referred lead is stamped with `redeemReferralCode` at intake — either
@@ -21,7 +21,7 @@
  *     'pending'). Idempotent via the `referralAttributedAt` latch.
  *
  *   Phase B — CREDIT: when the referred lead's project reaches a CLOSED stage
- *     (Jo's chosen payout moment), record the $200 as OWED on the referrer's
+ *     (Jo's chosen payout moment), record the $100 as OWED on the referrer's
  *     referrals doc and notify the rep to pay it. Idempotent via the
  *     referralRewardStatus pending→owed flip. There is no automated payment
  *     rail to a customer — the bonus is TRACKED + the rep is notified; they
@@ -51,8 +51,9 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 // code reaches a closed project. Single source of truth so this payout and
 // the SMS copy (docs/pro/js/review-engine.js) stay in sync. FUTURE: read
 // per-tenant from companyProfile so each SaaS tenant sets their own amount;
-// hardcoded to NBD's $200 for now.
-const REFERRAL_BONUS_USD = 200;
+// hardcoded for now.
+// $100 everywhere — all states, all job types (Jo, 2026-09-27; was $200).
+const REFERRAL_BONUS_USD = 100;
 
 // Stages that count as "the project closed" — Jo's payout trigger. Matches
 // crm-stages.js S.CLOSED ('closed', the 🏆 final job stage) plus the legacy
@@ -174,7 +175,7 @@ async function handleReferralLeadWrite(event) {
     // team, but the redeeming lead's userId is whoever entered it (a teammate)
     // or, for a public-microsite lead, the company OWNER. Keying on the minting
     // rep's userId (the old check) wrongly rejected both cases and silently
-    // dropped the customer's $200. Fall back to userId only for legacy referrals
+    // dropped the customer's $100. Fall back to userId only for legacy referrals
     // docs minted before companyId was stamped; both absent = legacy solo tenant.
     let tenantMismatch = false;
     if (referral.companyId && after.companyId) {

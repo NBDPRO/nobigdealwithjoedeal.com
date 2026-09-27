@@ -45,7 +45,8 @@
       { key: 'ins-file-claim',   label: 'File claim with carrier' },
       { key: 'ins-adjuster',     label: 'Meet adjuster on site' },
       { key: 'ins-scope',        label: 'Receive carrier scope / approval' },
-      { key: 'ins-aob',          label: 'Assignment of Benefits filed',   gateField: 'aobFiledAt' },
+      // 'ins-aob' (Assignment of Benefits filed) retired 2026-09-27: no
+      // assignment or co-payee paperwork in any state. Never reuse the key.
       { key: 'ins-estimate',     label: 'Build & send estimate' },
       { key: 'ins-contract',     label: 'Sign contract',                 gateField: 'contractFiledAt' },
       { key: 'ins-permit',       label: 'Permit filed',                  gateField: 'permitFiledAt', manual: true },

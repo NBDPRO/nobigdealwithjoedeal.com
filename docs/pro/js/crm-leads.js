@@ -154,7 +154,7 @@ function _leadModalReset(){
   // EntityResolver.openQuickCreate) — reset it back to New on every dismiss.
   const st=document.getElementById('lStage'); if(st) st.value='new';
   // Clear insurance/finance/job fields
-  ['lClaimNumber','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   ['lClaimFiledBy','lSupplementStatus','lLoanStatus'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   // 2026-09-25: editLead fills these six (crm-portal-bridge.js) but no reset
   // ever cleared them, so dismissing an edit and tapping Add Lead opened the
@@ -196,7 +196,7 @@ const _leadModal = document.getElementById('leadModal');
 // nobody has touched — counting them would prompt on every single dismiss.
 const _LEAD_TYPED_FIELDS = [
   'lFname','lLname','lAddr','lPhone','lEmail','lNotes','lJobValue','lLeadCost','lFollowUp',
-  'lInsCarrier','lReferralCode','lClaimNumber','lPolicyNumber','lDateOfLoss','lEstimateAmount','lDeductible',
+  'lInsCarrier','lReferralCode','lClaimNumber','lPolicyNumber','lDateOfLoss','lCarrierDecisionAt','lEstimateAmount','lDeductible',
   'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'
 ];
 function _leadFormHasContent(){
@@ -365,7 +365,7 @@ async function saveLead(){
       source: document.getElementById('lSource')?.value || '',
       // Referral-code redemption: the code this lead was referred with (if any).
       // Stamped raw + uppercased; the server-side onReferralLeadWrite trigger
-      // resolves it to the referrer and credits the $200 bonus on close.
+      // resolves it to the referrer and credits the $100 bonus on close.
       redeemReferralCode: (document.getElementById('lReferralCode')?.value || '').toUpperCase().replace(/[^A-Z0-9-]/g, ''),
       damageType: document.getElementById('lDamageType')?.value||'',
       claimStatus: document.getElementById('lClaimStatus')?.value||'No Claim',
@@ -382,6 +382,9 @@ async function saveLead(){
       claimFiledBy: document.getElementById('lClaimFiledBy')?.value||'',
       policyNumber: document.getElementById('lPolicyNumber')?.value?.trim()||'',
       dateOfLoss: document.getElementById('lDateOfLoss')?.value||'',
+      // Kentucky hold (KRS 367.626): YYYY-MM-DD the carrier's written decision
+      // arrived; createStripePaymentLink unlocks 5 business days later.
+      carrierDecisionAt: document.getElementById('lCarrierDecisionAt')?.value||'',
       estimateAmount: parseFloat(document.getElementById('lEstimateAmount')?.value)||0,
       deductibleOrOwedByHO: parseFloat(document.getElementById('lDeductible')?.value)||0,
       supplementStatus: document.getElementById('lSupplementStatus')?.value||'',

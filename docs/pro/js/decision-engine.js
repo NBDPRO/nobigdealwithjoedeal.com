@@ -164,12 +164,12 @@
 
 1. Explain clearly why this is insurance fraud (OH Revised Code + KY equivalent)
 2. Draft a polite but firm response I can text or email
-3. Suggest a legitimate alternative (financing the deductible, payment plan, referral credit)
+3. Suggest a legitimate alternative (financing or a payment plan for the deductible — never a discount, credit or rebate on an insurance job; KRS 367.628(2) bars them in Kentucky)
 4. Document this interaction in the customer record so it\'s traceable`,
       playbook: [
         'Politely but firmly say NO to waiving the deductible',
         'Explain: "That would be insurance fraud and I can lose my license"',
-        'Offer alternatives: payment plan, financing options, referral credit, military/senior discount if applicable',
+        'Offer alternatives: a payment plan or financing. On an insurance job, no discount, credit, rebate or referral credit against the price — KRS 367.628(2) bars them in Kentucky',
         'Document the conversation in the customer timeline',
         'If they insist, walk away — the risk is not worth it'
       ],
@@ -365,7 +365,7 @@
         'Run the financing pre-qual together — soft pull, real offers from multiple lenders in about a minute (good for cash jobs)',
         'Tax refund timing: "If we start in February, you get most of your refund before final payment"',
         'HELOC: lower interest than financing, 30+ year term',
-        'For insurance claims: offer to absorb small amount of deductible if customer refers 3 neighbors (legal in OH/KY)',
+        'For insurance claims: the deductible is always the homeowner\'s to pay — never absorb, waive, rebate or discount any of it, for referrals or anything else (insurance fraud in OH and KY; KRS 367.628(2)(b)). Offer financing or a payment plan instead',
         'Walk them through the math in writing so they can show their family',
         'Never pressure — "Take your time, here are the options"'
       ],
@@ -438,15 +438,15 @@
       situation: 'Just finished a job and the customer is thrilled. This is the moment for the referral ask — most contractors miss it.',
       priority: 'medium',
       timeToResolve: 'minutes',
-      prompt: 'I just finished a job for [customer]. They\'re happy. Help me craft a natural referral ask that: (1) thanks them first, (2) asks for a specific number (3 neighbors, not "anyone"), (3) offers a concrete incentive (referral credit, $100 per closed referral), (4) makes it easy (I\'ll give them a card to hand out, or they can introduce me).',
+      prompt: 'I just finished a job for [customer]. They\'re happy. Help me craft a natural referral ask that: (1) thanks them first, (2) asks for a specific number (3 neighbors, not "anyone"), (3) offers a concrete incentive that is lawful for this job (on an insurance job, never a credit against their price — KRS 367.628(2) in Kentucky), (4) makes it easy (I\'ll give them a card to hand out, or they can introduce me).',
       playbook: [
         'Wait until they\'ve seen the finished job and said something positive',
         'Thank them: "Thanks for trusting us with this"',
         'Referral ask: "I\'d love to help 3 more families on your street — who do you know?"',
-        'Offer: "$100 referral credit for every neighbor who signs"',
+        'Offer (cash jobs): "$100 referral credit for every neighbor who signs" — never a credit against an insurance job\'s price (KRS 367.628(2)(c)-(d) in Kentucky)',
         'Make it easy: "Here are 5 cards with my photo and direct line"',
         'Ask permission to mention them: "Can I say \'Jennifer sent me\' when I knock?"',
-        'Leave a thank-you gift (cookies, gift card) within a week'
+        'Leave a small thank-you (cookies, a card) within a week — Kentucky bars giving an insured anything worth more than $100 (KRS 367.628(2)(d))'
       ],
       codeRefs: [],
       relatedScenarios: ['review-request', 'referral-program']
@@ -496,7 +496,7 @@
         'Say: "I wanted to be the first to tell you we\'ve had a crew issue this morning"',
         'Never blame the crew publicly — "my team" owns the problem',
         'Have a backup plan ready: reschedule tomorrow, or Plan B crew if you have one',
-        'Offer specific compensation: 5% off, upgraded ridge vent, future discount',
+        'Offer specific compensation on a cash job: 5% off or an upgraded ridge vent. On an insurance job, no discount or credit against the price (KRS 367.628(2) in Kentucky) — offer schedule priority instead',
         'Follow up with a text summary of the call',
         'Address the crew issue separately — never in front of the customer',
         'Document everything in the customer timeline'
@@ -585,7 +585,7 @@
         'Schedule the fix within 48 hours — no "I\'ll look at it next week"',
         'Send the best crew to do the fix, not the same one who messed up',
         'Photograph the fix for warranty documentation',
-        'Offer something extra as goodwill: gutter cleaning, touchup paint, $100 credit',
+        'Offer something extra as goodwill: gutter cleaning or touchup paint (no price credit on an insurance job — KRS 367.628(2) in Kentucky)',
         'Address the crew internally after — training, rebuke, or replacement',
         'Update your QC process so it doesn\'t happen again'
       ],

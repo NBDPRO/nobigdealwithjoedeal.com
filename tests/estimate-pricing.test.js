@@ -113,8 +113,9 @@ test('39 SQ Better tier ≈ $23,900 (rawSqft pre-baked, waste=1)', () => {
   // 39 × $595 = $23,205. Insurance hides tax.
   // Base + dumpFee default ($550) = $23,755. C-1 fail-safe: no county set →
   // DEFAULT_PERMIT_COST $150 (was a silent $0) = $23,905.
-  // + material delivery $412.50 (flat per job) = $24,317.50 → rounds to $24,325.
-  near(r.total, 24325, 30, 'insurance Better total');
+  // + material delivery $150 (flat per job; Jo 2026-09-27, was $412.50)
+  // = $24,055 → rounds to $24,050.
+  near(r.total, 24050, 30, 'insurance Better total');
 });
 test('C-1: blank/unknown jurisdiction → default permit $150, not $0 (per-SQ)', () => {
   const base = { method: 'per-sq', tier: 'better', mode: 'insurance', rawSqft: 3900, pitch: '6/12', wasteFactorOverride: 1.0 };
@@ -399,13 +400,14 @@ function persqJob(settings) {
   });
 }
 const PERMIT = 150, DUMP = 550, STEEP = 20 * 25;   // 150 + 550 + 500 = 1200
-// Material delivery: flat per job, always on. Charged at the line-item retail
-// figure (275 × 1.25 markup × 1.20 OH&P); its cost is PINNED to that baseline
-// regardless of what the shop charges, so it lands on 275 in integer cents.
+// Material delivery: flat per job, always on. Charged $150 (Jo, 2026-09-27;
+// was the line-item retail figure 412.50 = 275 × 1.25 markup × 1.20 OH&P).
+// Its cost is PINNED to the 'MAT DEL' line baseline regardless of what the
+// shop charges — including this default — so it lands on 275 in integer cents.
 // MATDEL_COST is the literal 275 on purpose — 412.50/1.5 in floating point is
 // 274.99999999999994, while the engine rounds in cents and returns exactly 275,
 // and eq() is a strict !==.
-const MATDEL = 412.50;
+const MATDEL = 150;
 const MATDEL_COST = 275;
 
 test('add-on cost: the fixture fires permit + dump + delivery + steep and nothing else', () => {
@@ -583,14 +585,50 @@ test('delivery: on a sub-minimum job the floor absorbs it — the shop still pay
   eq(on.subtotal > off.subtotal, true, 'the subtotal moves even when the total cannot');
 });
 
-test('delivery: the per-SQ charge equals what line-item already bills', () => {
-  // Mode parity is the whole reason for the figure: MAT DEL is mat 275 in the
-  // xactimate catalog, carried through material markup 25% then OH 10% +
-  // profit 10%. Per-SQ applies no markup, so its price must BE that product.
+test('delivery: $150 default charge; the booked COST stays pinned to the MAT DEL line', () => {
+  // Until 2026-09-27 the per-SQ charge WAS the line-item 'MAT DEL' retail
+  // figure (mat 275 × 1.25 markup × 1.20 OH&P = 412.50). Jo set the per-SQ
+  // charge to $150 per job. The cost baseline must not follow the price down:
+  // it is still the MAT DEL line (275), so a $150 charge books a delivery
+  // cost ABOVE the charge — the margin report tells the truth about the trip.
   const chain = (1 + EBv2.DEFAULT_MATERIAL_MARKUP_PCT)
               * (1 + EBv2.DEFAULT_OVERHEAD_PCT + EBv2.DEFAULT_PROFIT_PCT);
-  eq(Math.round(MATDEL_COST * chain * 100) / 100, MATDEL,
-     '275 × 1.25 × 1.20 = the per-SQ delivery price');
+  eq(Math.round(MATDEL_COST * chain * 100) / 100, 412.5,
+     'the MAT DEL line retail the baseline comes from is unchanged');
+  eq(EBv2.ADDON_PRICES.matDelivery, 150, 'default per-SQ delivery charge is $150');
+  const r = persqJob(costedSettings());
+  eq(r.addOns.matDelivery, 150, 'the job is charged $150');
+  eq(r.internal.addOnCost, PERMIT + DUMP + MATDEL_COST + (STEEP * 0.4),
+     'and still books the 275 baseline, not 150 / 1.5 = 100');
+});
+
+test('delivery: line-item MAT DEL charges the same $150 as per-SQ (Jo, 2026-09-27); cost unchanged', () => {
+  // Load the real catalog + logic engine into a sandbox (browser globals).
+  const vm = require('vm');
+  const fs = require('fs');
+  const path = require('path');
+  const W = { EstimateBuilderV2: EBv2 };
+  W.window = W;
+  const sb = { window: W, console: { log() {}, warn() {}, error() {} }, Math, JSON, Number, String, Object, Array, Date };
+  vm.createContext(sb);
+  for (const f of ['estimate-catalog-xactimate.js', 'estimate-logic-engine.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', f), 'utf8'), sb, { filename: f });
+  }
+  const cat = W.NBD_XACT_CATALOG;
+  const EL = W.EstimateLogic;
+  const md = cat.find('MAT DEL');
+  eq(md.fixedRetail, 150, "catalog 'MAT DEL' carries a $150 fixed customer price");
+  eq(md.materialCost, MATDEL_COST, 'and its modelled cost is unchanged');
+  for (const [oh, pr] of [[0.10, 0.10], [0.15, 0.10], [0, 0]]) {
+    const r = EL.resolveEstimate([Object.assign({}, md, { qtyOverride: 1 })], {},
+      { tier: 'better', mode: 'insurance', overheadPct: oh, profitPct: pr, materialMarkupPct: 0.25, roundTo: 0.01 });
+    eq(Math.round(r.subtotal * 100) / 100, 150, 'O&P ' + oh + '/' + pr + ': the line foots to $150 after O&P');
+    eq(Math.round(r.internal.hardCost * 100) / 100, MATDEL_COST, 'O&P ' + oh + '/' + pr + ': cost booked is still the baseline');
+    eq(Math.round(r.retailBeforeOHP * 100), Math.round(r.lines[0].retailTotal * 100), 'Σ retailTotal == retailBeforeOHP still holds');
+  }
+  const typed = EL.resolveEstimate([Object.assign({}, md, { qtyOverride: 1, fixedRetail: null, materialCost: 0, laborCost: 200 })], {},
+    { tier: 'better', mode: 'insurance', overheadPct: 0.10, profitPct: 0.10, roundTo: 0.01 });
+  eq(Math.round(typed.subtotal * 100) / 100, 240, 'a line without fixedRetail prices cost-plus as before');
 });
 
 console.log('──────────────────────────────────────────────────');

@@ -34,6 +34,8 @@
       'Cash jobs of $2,000 or more: 50% deposit at contract signing, balance on completion. ' +
       'Insurance claims: the homeowner’s deductible is due at signing and the insurance ACV payment (the carrier’s first check) ' +
       'is due as soon as the carrier releases it; the balance is due on completion. ' +
+      'Kentucky insurance claims: nothing is due at signing; the deductible and the ACV payment are due after the insurer’s ' +
+      'written coverage decision and the 5-business-day cancellation window. ' +
       'The deductible is the homeowner’s responsibility and is never waived or reduced.';
   }
 
@@ -95,9 +97,6 @@
     disputeResolutionClause:
       'In the event of dispute, both parties agree to attempt resolution through good faith negotiation. If negotiation fails, disputes shall be resolved through mediation or binding arbitration under Kentucky law.',
 
-    insuranceAssignmentClause:
-      'If this project is insurance-related, NBD is authorized to accept assignment of insurance proceeds as partial or full payment for work performed. Homeowner agrees to provide proof of insurance coverage and claim number.',
-
     entireAgreementClause:
       'This contract constitutes the entire agreement between parties and supersedes all prior negotiations, representations, or agreements. Any modifications must be made in writing and signed by both parties.',
 
@@ -111,9 +110,11 @@
     // on both pages; the literal is the same sentence for the (unexpected)
     // case it did not, pinned by tests/deposit-rule.test.js.
     paymentTermsContract: _depositPolicyText(),
-    paymentTermsProposal: _depositPolicyText() + ' Insurance assignments accepted.',
+    // "Insurance assignments accepted." dropped 2026-09-27: the AOB is retired
+    // in both states (contracts carry a plain payment clause instead).
+    paymentTermsProposal: _depositPolicyText(),
     paymentMethodsNoCash:
-      'All payments must be made by check, ACH transfer, or credit card. No cash payments accepted. Insurance assignment accepted. Material delays may extend timeline.',
+      'All payments must be made by check, ACH transfer, or credit card. No cash payments accepted. Material delays may extend timeline.',
 
     materialsWarrantyDisclaimer:
       'Material warranties are provided by manufacturers and are separate from NBD workmanship warranty. See warranty section below.',
@@ -145,11 +146,11 @@
       { icon: '🌧️', name: 'Gutters',         desc: 'Seamless gutters, guards, downspouts, and drainage' },
       { icon: '🪟',  name: 'Windows & Doors', desc: 'Energy-efficient upgrades and storm damage replacement' },
       { icon: '🎨',  name: 'Interior',        desc: 'Water damage repair, paint, drywall, flooring' },
-      { icon: '⛈️', name: 'Storm Damage',    desc: 'Full insurance claim management from inspection to completion' }
+      { icon: '⛈️', name: 'Storm Damage',    desc: 'Damage inspection, photo documentation and a detailed repair estimate for your claim' }
     ],
     valueProps: [
       { icon: '🛡️', title: 'Warranty Protection',  desc: 'Lifetime workmanship warranty on every tier, plus full manufacturer coverage on all materials.' },
-      { icon: '📋',  title: 'Insurance Specialists', desc: 'We handle the entire insurance claim process so you can focus on what matters.' },
+      { icon: '📋',  title: 'Storm Damage Documentation', desc: 'We document the damage and give you a detailed repair estimate. You manage your claim, and we can meet your adjuster after you file.' },
       { icon: '⭐',  title: '5-Star Service',        desc: 'Exceptional service from first contact through final walkthrough and beyond.' },
       { icon: '💰',  title: 'Flexible Financing',    desc: 'Affordable monthly payments through our partnership with Acorn Finance.' }
     ],
@@ -822,7 +823,7 @@
   // Clauses whose NBD default names the literal "NBD" as the contracting party.
   // For a non-NBD tenant that kept the default, swap "NBD" for their legalName.
   const _PARTY_NAME_CLAUSES = [
-    'changeOrderClause', 'insuranceAssignmentClause',
+    'changeOrderClause',
     'materialsWarrantyDisclaimer', 'limitationOfLiability'
   ];
 

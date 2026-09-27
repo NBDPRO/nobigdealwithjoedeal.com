@@ -661,7 +661,7 @@ exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudg
 const referrals = require('./referrals');
 exports.submitReferral = referrals.submitReferral;
 
-// Referral-CODE redemption + $200 bonus crediting on close. A single
+// Referral-CODE redemption + $100 bonus crediting on close. A single
 // leads/{leadId} onWrite trigger: attributes a redeemed code to its referrer,
 // then records the bonus as OWED when the referred project closes. Self-
 // exports its trigger (literal onDocumentWritten for the CI allowlist), so

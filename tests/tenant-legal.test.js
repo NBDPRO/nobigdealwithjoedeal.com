@@ -56,7 +56,7 @@ function loadCompanyProfile() {
   const L = w1._legal();
   const bundle = [L.cancellationStatute, L.cancellationContractClause, L.cancellationProposalShort,
     L.disputeResolutionClause, L.codeJurisdiction, L.serviceArea, L.changeOrderClause,
-    L.insuranceAssignmentClause, L.materialsWarrantyDisclaimer, L.limitationOfLiability].join('  ');
+    L.materialsWarrantyDisclaimer, L.limitationOfLiability].join('  ');
   ok('no "Kentucky" anywhere in resolved legal text', !/Kentucky/i.test(bundle));
   ok('no "§ 367.390" statute citation', !/367\.390/.test(bundle));
   ok('no stray literal "NBD" as the contracting party', !/\bNBD\b/.test(bundle));
@@ -66,7 +66,9 @@ function loadCompanyProfile() {
   ok('disputeResolutionClause → state-neutral governing law', /state in which the work is performed/i.test(L.disputeResolutionClause));
   ok('codeJurisdiction → neutral', /applicable state and local building codes/i.test(L.codeJurisdiction));
   ok('changeOrderClause names the tenant, not NBD', /Acme Roofing LLC reserves the right/.test(L.changeOrderClause));
-  ok('insuranceAssignmentClause names the tenant', /Acme Roofing LLC is authorized/.test(L.insuranceAssignmentClause));
+  // The Insurance Assignment clause was retired 2026-09-27 (every contract
+  // prints ky-insurance-law.js's plain PAYMENT_CLAUSE instead).
+  ok('insuranceAssignmentClause no longer ships as a default', L.insuranceAssignmentClause === undefined);
   ok('limitationOfLiability names the tenant', /Acme Roofing LLC.?s total liability/.test(L.limitationOfLiability));
   ok('materialsWarrantyDisclaimer names the tenant', /Acme Roofing LLC workmanship warranty/.test(L.materialsWarrantyDisclaimer));
 

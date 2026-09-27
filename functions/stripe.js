@@ -26,6 +26,9 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { FieldValue } = require('firebase-admin/firestore');
+// Kentucky insurance-job payment hold (KRS 367.626) — byte-identical copy of
+// docs/pro/js/ky-insurance-law.js.
+const KyLaw = require('./ky-insurance-law');
 // Lazy require (2026-08-07): the stripe SDK is ~20 MB of parse weight that
 // every deployed function paid at cold start (index.js pulls this module
 // eagerly). Required on first client construction instead.
@@ -1177,6 +1180,43 @@ exports.createStripePaymentLink = onRequest(
         return;
       }
 
+      // ── Kentucky insurance jobs: no payment link inside the window ──────
+      // KRS 367.626 (2026 Ky. Acts ch. 54) bars requiring any payment on a
+      // Kentucky insurance job until the cancellation period ends. Jo's rule
+      // (2026-09-27): the link is withheld until the rep records the date the
+      // carrier's written coverage decision arrived (lead.carrierDecisionAt)
+      // AND 5 business days have passed; an invoice the rep marked emergency
+      // tarp/repair work (367.626(3)) is exempt. Classification is the
+      // server's own (ky-insurance-law.js) — the client's kyInsuranceHold flag
+      // can only ADD the hold. Refused BEFORE any Stripe call.
+      if (invoice.emergencyServices !== true) {
+        let kyLead = null;
+        if (invoice.leadId) {
+          try {
+            const ls = await db.collection('leads').doc(String(invoice.leadId)).get();
+            kyLead = ls.exists ? (ls.data() || {}) : null;
+          } catch (leadErr) {
+            logger.warn('payment_link_ky_lead_read_failed', { invoiceId, err: leadErr && leadErr.message });
+          }
+        }
+        let tz = KyLaw.DEFAULT_TIME_ZONE;
+        try {
+          const ps = await db.collection('companyProfile').doc(String(tenantId)).get();
+          if (ps.exists) tz = KyLaw.resolveTimeZone(ps.data() || {});
+        } catch (_) { /* default zone */ }
+        const hold = KyLaw.payLinkHold(kyLead, invoice, Date.now(), tz);
+        if (hold.held) {
+          logger.info('payment_link_refused_ky_window', { invoiceId, uid: decoded.uid, companyId: tenantId,
+            hasDecision: !!(kyLead && kyLead.carrierDecisionAt) });
+          res.status(409).json({
+            error: 'KY_CANCELLATION_WINDOW',
+            message: KyLaw.MSG.payLinkHeld,
+            releaseDate: hold.releaseDate || null,
+          });
+          return;
+        }
+      }
+
       // Recompute totals server-side from canonical product prices where possible.
       // For items with a productId, look up the catalog; otherwise use the
       // client-provided total but enforce sanity bounds to block $0.01/absurd values.
@@ -1746,7 +1786,7 @@ exports.invoiceWebhook = onRequest(
                       // this, a custom-pipeline tenant's lead keeps its STALE
                       // pre-payoff role (e.g. 'active') because persisted
                       // always wins over derived: review-request-nudge.js and
-                      // the $200 referral-reward system both read roleFor()
+                      // the $100 referral-reward system both read roleFor()
                       // and silently never fire for a Stripe-paid job.
                       // 'final_payment' is a hardcoded built-in key here (not
                       // the lead's arbitrary custom stage), so its role is

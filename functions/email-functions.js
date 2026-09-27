@@ -224,18 +224,19 @@ const DRY_TEMPLATES = {
        <p>Hi {customerName},</p>
        <p>Thank you for choosing No Big Deal Home Solutions for your project at {address}. We'd love to hear about your experience!</p>
        <p><a href="https://google.com/maps/search/No+Big+Deal+Home+Solutions" class="cta-button">Leave a Review</a></p>
+       <p>If you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.</p>
        <p>Your feedback helps us serve you and others better.</p>`
     )
   },
   referralCode: {
-    subject: 'Your Referral Code — Earn $200!',
+    subject: 'Your Referral Code — Earn $100!',
     html: BRANDED_EMAIL_TEMPLATE(
       'Refer & Earn',
       `<h2>Share No Big Deal & Get Rewarded</h2>
        <p>Hi {customerName},</p>
-       <p>We appreciate your business! Want to earn $200?</p>
+       <p>We appreciate your business! Want to earn $100?</p>
        <p><strong>Your referral code:</strong> <code style="background:#f0f0f0;padding:8px 12px;border-radius:4px;">{referralCode}</code></p>
-       <p>Share this code with friends and family. For every job that closes, you'll receive a $200 bonus!</p>
+       <p>Share this code with friends and family. For every job that closes, you'll receive a $100 bonus!</p>
        <p>Thank you for recommending us!</p>`
     )
   }

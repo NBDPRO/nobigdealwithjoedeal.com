@@ -54,6 +54,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Handlebars = require('handlebars');
+// Kentucky SB 153 + FTC Cooling-Off statutory text — byte-identical copy of
+// docs/pro/js/ky-insurance-law.js (pinned by tests/ky-insurance-law.test.js).
+const KyLaw = require('./ky-insurance-law');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -352,7 +355,9 @@ const NBD_DOC_COMPANY = {
   logoUrl: 'https://nobigdealwithjoedeal.com/assets/images/apple-touch-icon.png',
   nameHtml: 'No Big <span class="accent">Deal</span> Home Solutions',
   footerName: 'No Big Deal Home Solutions',
-  brandTag: 'Insurance Restoration Specialists · Greater Cincinnati',
+  // Was 'Insurance Restoration Specialists' — KRS 367.628(1)(a)2 bars a
+  // contractor holding itself out as an insurance/claims specialist (2026-09-27).
+  brandTag: 'Roofing · Siding · Gutters · Greater Cincinnati',
   brandContact: '(859) 420-7382 · jd@nobigdealwithjoedeal.com',
   footerContact: '(859) 420-7382 · jd@nobigdealwithjoedeal.com · Greater Cincinnati, OH',
   // Individual contact pieces the invoice/receipt body templates reference
@@ -556,6 +561,86 @@ async function resolveDocCompany(companyId) {
   return UNRESOLVED;
 }
 
+// ─── Statutory contract blocks (2026-09-27, KY SB 153 + FTC 16 CFR 429) ───
+// The contractor's address/email/fax come from the TENANT'S OWN
+// companyProfile, read here — the client payload only carries job facts.
+// Blank beats wrong: an unresolvable tenant gets '' (never NBD's address).
+async function resolveContractorContact(companyId, company) {
+  const out = { address: '', email: (company && company.email) || '', fax: '', timeZone: KyLaw.DEFAULT_TIME_ZONE };
+  if (!companyId) return out;
+  try {
+    const snap = await getFirestore().collection('companyProfile').doc(String(companyId)).get();
+    if (snap.exists) {
+      const p = snap.data() || {};
+      const c = (p.brand && p.brand.contact) || {};
+      // brand.contact.mailingAddress ONLY (Jo, 2026-09-27): the address prints
+      // only where the law requires it, never from the letterhead field.
+      out.address = KyLaw.contractorMailingAddress(p);
+      out.email = String(p.businessEmail || c.email || out.email || '').trim();
+      out.fax = String(p.businessFax || c.fax || '').trim();
+      out.timeZone = KyLaw.resolveTimeZone(p);
+    }
+  } catch (e) {
+    logger.error('[renderPdf] contractor contact resolve failed', { companyId, err: e && e.message });
+  }
+  return out;
+}
+
+// Pure: payload + contractor contact → the statutory HTML the contract
+// template prints with triple-stash. Re-classifies the job with the server's
+// own copy of ky-insurance-law.js; a client "kentucky/insurance" flag can only
+// ADD protection, never remove it (fail closed).
+//   { css, kyInsurance, contractorAddress, kyNoticesHtml, kyFormsHtml,
+//     lienClause, ftcStatementHtml, ftcFormsHtml, missingAddress }
+function buildContractStatutory(payload, contractor, company) {
+  const p = payload || {};
+  const facts = (p.jurisdiction && typeof p.jurisdiction === 'object') ? p.jurisdiction : {};
+  const j = KyLaw.classify(Object.assign({}, facts, {
+    address: facts.address || (p.preparedFor && p.preparedFor.address) || '',
+  }));
+  const kyInsurance = j.kyInsurance || facts.kyInsurance === true ||
+    ((j.insurance || facts.insurance === true) && (j.kentucky || facts.kentucky === true));
+  const c = contractor || {};
+  // The signing date: the client's local-date stamp, else NOW read in the
+  // tenant's timezone (default America/New_York) — this function runs on a
+  // UTC clock, so a bare new Date() would date a 10 pm Kentucky signing
+  // tomorrow and push the FTC deadline a day late.
+  const timeZone = c.timeZone || KyLaw.DEFAULT_TIME_ZONE;
+  const txDate = p.transactionDate || (p.contract && p.contract.date) || new Date();
+  const out = {
+    css: '', kyInsurance, contractorAddress: '', contractorFax: '',
+    kyNoticesHtml: '', kyFormsHtml: '', lienClause: '',
+    ftcStatementHtml: '', ftcFormsHtml: '', missingAddress: false,
+    // The plain Payment clause, every contract (Jo, 2026-09-27) — the same
+    // string the client contract prints.
+    paymentClause: KyLaw.PAYMENT_CLAUSE,
+  };
+  // The FTC form is attached wherever the contract's cancel sentence promises
+  // "the attached Notice of Cancellation form" (the default text does).
+  if (/notice of cancellation/i.test(String(p.rightToCancel || ''))) {
+    out.css = KyLaw.STATUTORY_CSS;
+    out.ftcStatementHtml = KyLaw.ftcStatementHtml();
+    out.ftcFormsHtml = KyLaw.ftcCancellationFormsHtml({
+      transactionDate: txDate, timeZone,
+      sellerName: (company && company.footerName) || '',
+      sellerAddress: c.address || '',
+    });
+  }
+  if (kyInsurance) {
+    out.css = KyLaw.STATUTORY_CSS;
+    out.contractorAddress = c.address || '';
+    out.contractorFax = c.fax || '';
+    out.contractorEmail = c.email || '';
+    out.missingAddress = !c.address;
+    out.kyNoticesHtml = KyLaw.kyNoticesHtml();
+    out.lienClause = KyLaw.KY_LIEN_CLAUSE;
+    out.kyFormsHtml = KyLaw.kyCancellationFormsHtml({
+      transactionDate: txDate, timeZone, physicalAddress: c.address || '', email: c.email || '', fax: c.fax || '',
+    });
+  }
+  return out;
+}
+
 // ─── Main callable ─────────────────────────────────────────────
 exports.renderPdf = onCall(
   {
@@ -616,7 +701,21 @@ exports.renderPdf = onCall(
     const company = await resolveDocCompany(companyId);
     const brandVars = buildBrandVars(company.colors);
 
-    const bodyHtml = bodyCompiled(Object.assign({}, payload, { company }));
+    // Contract only: KRS 367.624 notices + detachable cancellation forms for a
+    // Kentucky insurance job, the FTC form wherever the cancel sentence
+    // promises one. A Kentucky insurance contract cannot be completed without
+    // the contractor's physical address, so it is refused rather than printed
+    // with a blank (the client pre-flight blocks the same case first).
+    let statutory = null;
+    if (templateKey === 'contract') {
+      const contractor = await resolveContractorContact(companyId, company);
+      statutory = buildContractStatutory(payload, contractor, company);
+      if (statutory.kyInsurance && statutory.missingAddress) {
+        throw new HttpsError('failed-precondition', KyLaw.MSG.addressRequired);
+      }
+    }
+
+    const bodyHtml = bodyCompiled(Object.assign({}, payload, { company }, statutory ? { statutory } : {}));
     // Hoisted so the native footer template (page.pdf below) can stamp the same
     // document number the layout puts in the masthead.
     const docNumberForChrome = payload.certNumber || payload.docNumber || '';
@@ -834,6 +933,8 @@ exports.renderPdf = onCall(
 // placeholders present, tenant strings escaped, no NBD literal for a stranger)
 // be asserted on the real function instead of grepped for in the source.
 exports._buildFooterTemplate = buildFooterTemplate;
+// For tests: the statutory contract blocks (KY SB 153 / FTC 16 CFR 429).
+exports._buildContractStatutory = buildContractStatutory;
 // Also for tests: registering the real helpers against the shared Handlebars
 // instance lets a harness compile the real templates with the real `nl2br`,
 // `gridClass` and `signOff` rather than stand-ins that could diverge from them.

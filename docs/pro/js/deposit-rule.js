@@ -34,6 +34,17 @@
  * The carrier's first check is ACV − deductible, so "deductible + ACV check"
  * equals the ACV value whenever the ACV exceeds the deductible.
  *
+ * KENTUCKY INSURANCE JOBS (Jo, 2026-09-27; KRS 367.626): NOTHING is due at
+ * signing. The deductible and the ACV payment are due after the insurer's
+ * written coverage decision and the 5-business-day cancellation window; the
+ * balance on completion. Emergency tarp/repair work stays billable on its own
+ * invoice (367.626(3)). A rep override cannot raise it. Which jobs: the
+ * caller passes the job's location (address / zip / state / jurisdiction) and
+ * ky-insurance-law.js decides — Kentucky, or an insurance job whose state
+ * cannot be read (fail closed, the same test the contract uses). A caller
+ * that passes NO location (legacy / unit callers) gets the rule as before.
+ * Ohio and cash jobs are unchanged.
+ *
  * Persisted plans (toStored) carry display strings and cents only — never a
  * cost figure — so the homeowner portal can print exactly what the rep's
  * paperwork printed without running this file server-side.
@@ -48,6 +59,88 @@
   });
 
   var ACV_WORDS = 'insurance ACV payment (your carrier’s first check)';
+  var KY_DUE = 'After your insurer’s written coverage decision and the 5-business-day cancellation window';
+  var KY_REP_NOTE = 'Kentucky insurance job: nothing is due at signing (KRS 367.626). The deductible and ACV payment become due after ' +
+    'the insurer’s written coverage decision and the 5-business-day cancellation window. Bill emergency tarp or repair work ' +
+    '(KRS 367.626(3)) on its own invoice.';
+
+  function _jurisdictionApi() {
+    var r = _root();
+    if (r && r.NBDJurisdiction) return r.NBDJurisdiction;
+    if (typeof require === 'function') {
+      try { return require('./ky-insurance-law.js'); } catch (_) { /* browser / sandbox */ }
+    }
+    return null;
+  }
+
+  // Does this insurance job get the Kentucky hold? An explicit flag, a stamped
+  // jurisdiction, or — when the caller passed the job's location at all —
+  // ky-insurance-law.js's classification (Kentucky, or no readable state).
+  function _kyHold(input, insurance) {
+    if (!insurance) return false;
+    if (input.kentucky === true || input.kyInsurance === true) return true;
+    var j = input.jurisdiction;
+    if (j && typeof j === 'object' && (j.kyInsurance === true || j.kentucky === true)) return true;
+    var hasLoc = Object.prototype.hasOwnProperty.call(input, 'address') ||
+      Object.prototype.hasOwnProperty.call(input, 'zip') || Object.prototype.hasOwnProperty.call(input, 'state');
+    if (!hasLoc) return false;
+    var J = _jurisdictionApi();
+    if (!J) return false;
+    return J.classify({ address: input.address || '', zip: input.zip || '', state: input.state || '', mode: 'insurance' }).kyInsurance === true;
+  }
+
+  // The Kentucky insurance plan: $0 at signing; the deductible + ACV payment
+  // after the window; the balance on completion. Amounts shown when known.
+  function _kyPlan(totalCents, dedCents, acvCents) {
+    var mode = 'insurance';
+    var base = { rule: 'insurance-ky', mode: mode, totalCents: totalCents, depositCents: 0, kyHold: true,
+      label: 'Due at signing', valueText: fmtCents(0), repNote: KY_REP_NOTE,
+      terms: 'Nothing at signing; your deductible and insurance ACV payment ' + KY_DUE.charAt(0).toLowerCase() + KY_DUE.slice(1) +
+        '; the balance on completion.' };
+    if (dedCents == null) {
+      base.needsDeductible = true;
+      base.summary = 'Nothing is due at signing. Your insurance deductible and your ' + ACV_WORDS + ' are due after your insurer’s ' +
+        'written coverage decision and the 5-business-day cancellation window, and the rest of the balance is due on completion.';
+      base.rows = [
+        _row('deductible', 'Your deductible', KY_DUE, null, 'Per your policy'),
+        _row('acv', 'Insurance ACV payment (your carrier’s first check)', KY_DUE, null, 'Set by your carrier'),
+        _row('balance', 'Balance', 'On completion', null, 'Remainder of ' + fmtCents(totalCents))
+      ];
+      return _plan(base);
+    }
+    var acvCheck = (acvCents == null) ? null : Math.max(0, acvCents - dedCents);
+    base.deductibleCents = dedCents; base.acvValueCents = acvCents; base.acvCheckCents = acvCheck;
+    if (dedCents >= totalCents) {
+      base.summary = 'Nothing is due at signing. The job total of ' + fmtCents(totalCents) + ' is at or below your ' + fmtCents(dedCents) +
+        ' deductible, and it is due after your insurer’s written coverage decision and the 5-business-day cancellation window.';
+      base.rows = [_row('deductible', 'Job total (at or below your deductible)', KY_DUE, totalCents)];
+      return _plan(base);
+    }
+    if (acvCheck != null && acvCheck > 0) {
+      var later = Math.min(totalCents, dedCents + acvCheck);
+      var acvPart = later - dedCents;
+      var rest = totalCents - later;
+      base.rows = [
+        _row('deductible', 'Your deductible', KY_DUE, dedCents),
+        _row('acv', 'Insurance ACV payment (your carrier’s first check)', KY_DUE, acvPart)
+      ];
+      if (rest > 0) base.rows.push(_row('balance', 'Balance', 'On completion', rest));
+      base.summary = 'Nothing is due at signing. Your ' + fmtCents(dedCents) + ' deductible and your ' + fmtCents(acvPart) + ' ' + ACV_WORDS +
+        ' are due after your insurer’s written coverage decision and the 5-business-day cancellation window' +
+        (rest > 0 ? '; the balance of ' + fmtCents(rest) + ' is due on completion.' : '.');
+      return _plan(base);
+    }
+    var balI = totalCents - dedCents;
+    base.rows = [
+      _row('deductible', 'Your deductible', KY_DUE, dedCents),
+      _row('balance', 'Balance', (acvCheck === 0 ? 'On completion' : 'Insurance ACV payment after the cancellation window; the rest on completion'), balI)
+    ];
+    base.summary = 'Nothing is due at signing. Your ' + fmtCents(dedCents) + ' deductible is due after your insurer’s written coverage ' +
+      'decision and the 5-business-day cancellation window' +
+      (acvCheck === 0 ? '; the balance of ' + fmtCents(balI) + ' is due on completion.'
+        : '. Your ' + ACV_WORDS + ' is due after that window too, and the rest of the ' + fmtCents(balI) + ' balance is due on completion.');
+    return _plan(base);
+  }
 
   function _root() {
     return (typeof window !== 'undefined') ? window : null;
@@ -141,7 +234,8 @@
       terms: base.terms,
       rows: base.rows,
       override: base.override || null,
-      repNote: base.repNote || ''
+      repNote: base.repNote || '',
+      kyHold: !!base.kyHold
     };
     if (base.pctLabel != null) p.pct = base.pctLabel;
     return p;
@@ -274,6 +368,14 @@
     if (!(acv > 0)) acv = null;
     var step = _int(input.roundToCents) || c.CASH_DEPOSIT_ROUND_TO_CENTS;
 
+    // Kentucky insurance job: $0 at signing, whatever the override says.
+    if (totalCents > 0 && _kyHold(input, insurance)) {
+      var ky = _kyPlan(totalCents, ded, acv);
+      var hadOverride = (input.overrideAmount != null && input.overrideAmount !== '') || _validPct(input.overridePct) != null;
+      if (hadOverride) ky.repNote = 'Rep override ignored — ' + KY_REP_NOTE.charAt(0).toLowerCase() + KY_REP_NOTE.slice(1);
+      return ky;
+    }
+
     var base = _rulePlan(totalCents, insurance, ded, acv, c, step);
     if (!(totalCents > 0)) return base;
 
@@ -391,7 +493,14 @@
     var input = {
       totalCents: totalCents, mode: mode,
       deductible: deductible, acv: _first(claim.acv),
-      config: opts.config, roundToCents: opts.roundToCents
+      config: opts.config, roundToCents: opts.roundToCents,
+      // The job's location, for the Kentucky hold (2026-09-27): always
+      // passed from here, so an insurance estimate with no readable state is
+      // held like the contract treats it (fail closed).
+      address: (opts.address != null ? opts.address : (est.addr || est.address || est.propertyAddress || lead.address || '')),
+      zip: opts.zip || lead.zip || '',
+      state: opts.state || lead.state || '',
+      jurisdiction: opts.jurisdiction || null
     };
     var stored = est.depositPlan && est.depositPlan.override;
     if (opts.overrideAmount != null && opts.overrideAmount !== '') input.overrideAmount = opts.overrideAmount;
@@ -441,6 +550,8 @@
       'Cash jobs of ' + under + ' or more: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. ' +
       'Insurance claims: the homeowner’s deductible is due at signing and the insurance ACV payment (the carrier’s first check) ' +
       'is due as soon as the carrier releases it; the balance is due on completion. ' +
+      'Kentucky insurance claims: nothing is due at signing; the deductible and the ACV payment are due after the insurer’s ' +
+      'written coverage decision and the 5-business-day cancellation window. ' +
       'The deductible is the homeowner’s responsibility and is never waived or reduced.';
   }
 

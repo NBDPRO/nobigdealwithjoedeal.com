@@ -554,7 +554,6 @@
   // we're just wiring the chips to them. inspect_report is special-cased
   // below to pick the homeowner vs insurance variant by job type.
   const ACTION_DOC_MAP = {
-    send_aob:        'assignment_of_benefits',
     send_contract:   'contract',
     work_order:      'work_authorization',
     change_order:    'change_order',
@@ -593,7 +592,7 @@
       homeownerEmail:    lead.email || '',
       phone:             lead.phone || '',
       email:             lead.email || '',
-      // Insurance fields (renderAssignmentOfBenefits, renderSupplementRequest, renderClaimGuide, etc.)
+      // Insurance fields (renderSupplementRequest, renderClaimGuide, etc.)
       insuranceCompany:  lead.insCarrier || lead.insuranceCarrier || '',
       claimNumber:       lead.claimNumber || '',
       policyNumber:      lead.policyNumber || '',
@@ -788,7 +787,6 @@
     change_order:               { needs: ['estimate'],                  label: 'Change Order',        msg: 'Requires an existing estimate to modify.' },
     before_after_report:        { needs: ['beforeAfterPhotos'],         label: 'Before & After Report', msg: 'Need BOTH before and after photos uploaded.' },
     financing_options:          { needs: ['jobValue'],                  label: 'Financing Options',   msg: 'Add a job value or build an estimate.' },
-    assignment_of_benefits:     { needs: ['claim'],                     label: 'Assignment of Benefits', msg: 'Requires an insurance claim (carrier + claim #).' },
     payment_agreement:          { needs: ['jobValue', 'contact'],       label: 'Payment Agreement',   msg: 'Add job value and customer contact info.' },
     storm_history_report:       { needs: ['address'],                  label: 'Storm History Report', msg: 'Add a property address first — it\'s used to pull the NOAA storm history.' }
   };
@@ -4775,7 +4773,7 @@
     addonField('v2addonPipeBoot',        'extraPipeBoot',        null,                            85);
     addonField('v2addonValleyLf',        'valleyMetalLf',        null,                            8.5);
     addonField('v2addonGuttersLf',       'guttersLf',            null,                            8.5);
-    addonField('v2addonMatDelivery',     'matDelivery',          'ADDON_MAT_DELIVERY',            412.50);
+    addonField('v2addonMatDelivery',     'matDelivery',          'ADDON_MAT_DELIVERY',            150);
 
     // Remember what each company input was painted with, so a late landing
     // can tell typing (value moved since) from a value it simply replaces.
@@ -5196,7 +5194,7 @@
           extraPipeBoot:        num('v2addonPipeBoot', 85),
           valleyMetalLf:        num('v2addonValleyLf', 8.5),
           guttersLf:            num('v2addonGuttersLf', 8.5),
-          matDelivery:          num('v2addonMatDelivery', 412.50)
+          matDelivery:          num('v2addonMatDelivery', 150)
         };
         // My Jurisdictions rows ride the same per-tenant save (county-
         // jurisdiction settings, 2026-07-29). NOT added to the localStorage
@@ -5563,7 +5561,7 @@
     'cancellationWindowText','cancellationStatute',
     'cancellationContractClause','cancellationProposalShort',
     'changeOrderClause','changeOrderClauseShort',
-    'disputeResolutionClause','insuranceAssignmentClause','entireAgreementClause',
+    'disputeResolutionClause','entireAgreementClause',
     'paymentTermsContract','paymentTermsProposal','paymentMethodsNoCash',
     'materialsWarrantyDisclaimer','limitationOfLiability','latePaymentChargeText',
     'proposalValidityDays'

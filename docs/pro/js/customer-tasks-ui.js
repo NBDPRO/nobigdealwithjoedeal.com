@@ -1785,10 +1785,6 @@ const DOC_PREREQUISITES = {
   invoice:              { needs: ['jobValue'], label: 'Invoice', msg: 'Add a job value or build an estimate first.' },
   change_order:         { needs: ['estimate'], label: 'Change Order', msg: 'Requires an existing estimate to modify.' },
   before_after_report:  { needs: ['beforeAfterPhotos'], label: 'Before & After Report', msg: 'Need BOTH before and after photos uploaded.' },
-  // Parity with _DASH_DOC_PREREQUISITES on dashboard.html — AOB is an
-  // insurance-only doc that needs the claim (carrier + claim #) on the
-  // lead before it can render without placeholder strings.
-  assignment_of_benefits: { needs: ['claim'], label: 'Assignment of Benefits', msg: 'Requires an insurance claim (carrier + claim #).' },
   financing_options:    { needs: ['jobValue'], label: 'Financing Options', msg: 'Add a job value or build an estimate.' },
   company_intro:        { needs: [], label: 'Company Introduction' },
   referral_card:        { needs: [], label: 'Referral Card' },

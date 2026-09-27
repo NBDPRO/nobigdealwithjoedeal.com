@@ -2320,7 +2320,7 @@
   <!-- Money: template-hydrated mount; money-dashboard.js renders the P&L into .view-scroll on init. -->
   <div class="view" id="view-money" data-view-template="tpl-view-money"></div>
   <template id="tpl-view-money"><div class="view-scroll"></div></template>
-  <!-- Referral Rewards: template-hydrated mount; referral-rewards-ui.js renders owed/paid $200 bonuses into .view-scroll on init. -->
+  <!-- Referral Rewards: template-hydrated mount; referral-rewards-ui.js renders owed/paid $100 bonuses into .view-scroll on init. -->
   <div class="view" id="view-refrewards" data-view-template="tpl-view-refrewards"></div>
   <template id="tpl-view-refrewards"><div class="view-scroll" id="refrewardsScroll"></div></template>
   <template id="tpl-view-closeboard">
@@ -2511,14 +2511,6 @@
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Inspection Report (Insurance)</div>
                 <div class="tl-doc-desc">Detailed damage assessment formatted for insurance claims with photo zones</div>
-              </div>
-              <div class="tl-doc-arrow">→</div>
-            </div>
-            <div class="tl-doc-row" data-action="docgen" data-target="assignment_of_benefits">
-              <div class="tl-doc-icon chip-blue">📄</div>
-              <div class="tl-doc-info">
-                <div class="tl-doc-name">Assignment of Benefits (AOB)</div>
-                <div class="tl-doc-desc">Legal assignment authorizing NBD to negotiate and receive insurance proceeds</div>
               </div>
               <div class="tl-doc-arrow">→</div>
             </div>
@@ -3504,7 +3496,7 @@
               <div class="sf"><label>Chimney Flashing ($)</label><input type="number" id="v2addonChimney" value="425" step="5"></div>
               <div class="sf"><label>Skylight Flashing ($)</label><input type="number" id="v2addonSkylight" value="350" step="5"></div>
               <div class="sf"><label>Extra Pipe Boot ($/ea &gt;4)</label><input type="number" id="v2addonPipeBoot" value="85" step="5"></div>
-              <div class="sf"><label>Material Delivery ($/job)</label><input min="0" type="number" id="v2addonMatDelivery" value="412.50" step="12.50"></div>
+              <div class="sf"><label>Material Delivery ($/job)</label><input min="0" type="number" id="v2addonMatDelivery" value="150" step="12.50"></div>
             </div>
             <div class="sf-row">
               <div class="sf"><label>Valley Metal ($/LF)</label><input type="number" id="v2addonValleyLf" value="8.50" step="0.25"></div>
@@ -3829,9 +3821,9 @@
                 <input type="text" id="cp_brand_address" placeholder="City, ST"></div>
             </div>
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Mailing address — required by law on marketing email</div>
-            <div class="sf"><label>Mailing Address (street or PO box, one line)</label>
+            <div class="sf"><label>Mailing Address (one line)</label>
               <input type="text" id="cp_brand_mailingAddress" placeholder="PO Box 123, Goshen, OH 45122" maxlength="200">
-              <div style="margin-top:5px;font-size:11px;line-height:1.5;color:var(--m);">Printed under the unsubscribe link on marketing and follow-up email — CAN-SPAM requires a real postal address there. A PO box is fine, and is the usual choice if you&rsquo;d rather not publish a home address. Leave this blank and no address is shown. Separate from the address above: this one is never used on estimates, invoices or your customer portal.</div></div>
+              <div style="margin-top:5px;font-size:11px;line-height:1.5;color:var(--m);">Printed under the unsubscribe link on marketing and follow-up email — CAN-SPAM requires a real postal address there. A PO box is fine, and is the usual choice if you&rsquo;d rather not publish a home address. Leave this blank and no address is shown. Separate from the address above: this one is never used on estimates, invoices, the letterhead or your customer portal. It IS printed on Kentucky insurance contracts and their Notice of Cancellation, which the law requires (KRS 367.624) &mdash; for that, use a street address, not a PO box.</div></div>
           </div>
         </div>
 
@@ -3851,7 +3843,7 @@
                 <input type="text" id="cp_businessWebsite" placeholder="nobigdealwithjoedeal.com"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Mailing Address (one line)</label>
+              <div class="sf"><label>Letterhead Address (one line, optional)</label>
                 <input type="text" id="cp_businessAddress" placeholder="6563 Manila Rd, Goshen OH 45122"></div>
               <div class="sf"><label>License # (shown in footer disclaimer)</label>
                 <input type="text" id="cp_businessLicense" placeholder="OH-HIC-12345 / KY-CON-98765"></div>
@@ -3880,9 +3872,6 @@
 
             <div class="sf"><label>Dispute Resolution Clause</label>
               <textarea id="cp_disputeResolutionClause" rows="3"></textarea></div>
-
-            <div class="sf"><label>Insurance Assignment Clause</label>
-              <textarea id="cp_insuranceAssignmentClause" rows="3"></textarea></div>
 
             <div class="sf"><label>Entire Agreement Clause</label>
               <textarea id="cp_entireAgreementClause" rows="3"></textarea></div>
@@ -5308,6 +5297,10 @@
            modal won't stop the rep to ask. -->
       <div class="mrow">
         <div class="mfield"><label>Policy Number</label><input type="text" id="lPolicyNumber" placeholder="POL-9988776"></div>
+        <!-- Kentucky insurance jobs (KRS 367.626, 2026-09-27): the date the
+             carrier's WRITTEN coverage decision reached the homeowner. The
+             online payment link unlocks 5 business days after it. -->
+        <div class="mfield"><label>Carrier decision received</label><input type="date" id="lCarrierDecisionAt" title="Date the insurer's written coverage decision arrived. Kentucky insurance jobs: payment can be asked for 5 business days later (KRS 367.626)."></div>
       </div>
       <div class="mrow">
         <div class="mfield"><label>Estimate Amount ($)</label><input type="number" id="lEstimateAmount" placeholder="18500" min="0"></div>
@@ -5332,8 +5325,12 @@
            onPersistFinalized the moment the AOB is e-signed — a plain
            checkbox still lets a rep mark a wet-signed/uploaded AOB filed by
            hand. -->
-      <div class="mrow">
-        <div class="mfield" style="display:flex;align-items:center;gap:6px;"><label style="margin:0;">AOB Filed/Signed</label><input type="checkbox" id="lAobFiled" class="ac-orange"></div>
+      <!-- 2026-09-27: the AOB is retired in both states and no stage requires
+           aobFiledAt. The checkbox stays in the DOM, HIDDEN, so saveLead /
+           editLead keep round-tripping any legacy value instead of wiping it —
+           no data migration. -->
+      <div class="mrow" hidden>
+        <div class="mfield" style="display:flex;align-items:center;gap:6px;"><label style="margin:0;">AOB filed (retired)</label><input type="checkbox" id="lAobFiled" class="ac-orange"></div>
       </div>
     </div>
 
@@ -6687,6 +6684,11 @@
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
 <script defer src="js/deposit-rule.js?v=1"></script>
+<!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
+     Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
+     Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
+     the Close Board deal room all read it. -->
+<script defer src="js/ky-insurance-law.js?v=1"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->

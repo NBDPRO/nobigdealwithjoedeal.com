@@ -779,7 +779,8 @@ export const STAGE_ACTIONS = {
     { id: 'photo_report',    label: 'Photo Report',            icon: '📸',  kind: 'doc' },
     { id: 'inspect_report',  label: 'Inspection Report',       icon: '📄',  kind: 'doc' },
     { id: 'file_claim',      label: 'File Claim',              icon: '📋',  kind: 'action', jobTypes: ['insurance'] },
-    { id: 'send_aob',        label: 'Send AOB',                icon: '✍️', kind: 'doc',    jobTypes: ['insurance'] },
+    // (The Send AOB chip — briefly a Direction to Pay — was retired
+    // 2026-09-27: no assignment or co-payee paperwork in any state.)
     { id: 'send_estimate',   label: 'Send Estimate',           icon: '💰',  kind: 'doc',    jobTypes: ['cash'] },
     { id: 'send_prequal',    label: 'Send Pre-Qual Link',      icon: '🏦',  kind: 'doc',    jobTypes: ['finance'] },
     { id: 'send_quote',      label: 'Send Service Quote',      icon: '💰',  kind: 'doc',    jobTypes: ['service'] },
@@ -973,7 +974,10 @@ export function preferredActionFor(stage, jobType) {
 // repair, neither issues a NEW warranty on close (not an oversight).
 export const REQUIRED_FIELDS_BY_TYPE = {
   insurance: {
-    [S.CLAIM_FILED]:        ['insCarrier', 'claimNumber', 'aobFiledAt'],
+    // aobFiledAt dropped 2026-09-27: the AOB is retired in both states (it
+    // used to block every Kentucky lead, where an AOB is void). The legacy
+    // field is left in place, unused and hidden; no stage requires it.
+    [S.CLAIM_FILED]:        ['insCarrier', 'claimNumber'],
     [S.ADJUSTER_SCHEDULED]: ['insCarrier'],
     [S.ESTIMATE_SUBMITTED]: ['estimateAmount', 'deductibleOrOwedByHO'],
     [S.CONTRACT_SIGNED]:    ['estimateAmount'],

@@ -535,7 +535,7 @@ If you need to reschedule, let me know ASAP so we can coordinate with the insura
 
 We've received the scope of work from {carrier} for your property at {address}.
 
-I'm reviewing the scope now to make sure everything is included. If I find anything that was missed during the adjuster's inspection, I'll prepare a supplement request.
+I'm reviewing the scope now to make sure everything is included. If the adjuster's scope misses anything, I'll prepare an updated estimate of my own showing the additional items.
 
 I'll be in touch soon with the details and next steps.
 
@@ -554,7 +554,7 @@ Estimated Total: {estimateAmount}
 
 The insurance company will review this against their scope. I'm watching for approval and will keep you posted.
 
-If a supplement is needed, I'll handle the documentation and negotiation.
+If your insurer's scope misses anything, I'll put together the supporting photos and documentation for you, and I can meet with your adjuster.
 
 {repName}
 {companyName}
@@ -562,12 +562,12 @@ If a supplement is needed, I'll handle the documentation and negotiation.
   },
 
   supplement_requested: {
-    subject: '📝 Supplement Filed — Additional Work Needed',
+    subject: '📝 Updated Estimate Sent — Additional Items',
     body: `Hi {customerName},
 
-After reviewing the insurance scope for {address}, I've identified additional items that were missed. I've filed a supplement request with {carrier}.
+After reviewing the insurance scope for {address}, I found additional items that were missed. I've sent {carrier} my updated estimate for the work, with photos of those items.
 
-This is normal — supplements ensure all damage is covered and the job is done right. I'll follow up with the adjuster and keep you updated on the approval.
+This is normal — an updated estimate makes sure all the damage is documented and the job is done right. You manage your claim; I'll keep you posted on anything I hear back about my estimate.
 
 {repName}
 {companyName}
@@ -641,7 +641,7 @@ Your project at {address} is officially complete! Thank you for trusting {compan
 
 Your warranty certificate is attached for your records. Please keep this in a safe place.
 
-If you know anyone who needs roofing or home exterior work, we'd appreciate the referral. We offer a $200 referral bonus for every job that closes.
+If you know anyone who needs roofing or home exterior work, we'd appreciate the referral. We offer a $100 referral bonus for every job that closes.
 
 It was a pleasure working with you. Don't hesitate to reach out if you need anything in the future.
 

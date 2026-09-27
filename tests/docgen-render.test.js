@@ -126,7 +126,7 @@ const DOC_TYPES = [
   { label: 'before_after_report',       method: 'renderBeforeAfterReport',       data: BASE },
   { label: 'financing_options',         method: 'renderFinancingOptions',        data: Object.assign({ totalPrice: 18500 }, BASE) },
   { label: 'referral_card',             method: 'renderReferralCard',            data: BASE },
-  { label: 'assignment_of_benefits',    method: 'renderAssignmentOfBenefits',    data: BASE },
+  // (assignment_of_benefits / direction_to_pay retired 2026-09-27 — no renderer.)
   { label: 'material_delivery',         method: 'renderMaterialDelivery',        data: BASE },
   { label: 'storm_checklist',           method: 'renderStormChecklist',          data: BASE },
   { label: 'claim_guide',               method: 'renderClaimGuide',              data: BASE },

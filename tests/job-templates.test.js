@@ -565,6 +565,11 @@ function checkPayload(label, built) {
     // THE cost-leak trap: rows[].total is CUSTOMER retail. With material
     // markup > 0, any material-bearing row priced at exactly
     // materialTotal + laborTotal is leaking the internal cost basis.
+    // A catalog line with a FIXED customer price (fixedRetail — 'MAT DEL',
+    // $150 per job, Jo 2026-09-27) is priced on purpose, not cost-plus; it
+    // may sit below its modelled cost. Its own test is in estimate-pricing.
+    const _fx = (XACT && typeof XACT.find === 'function') ? XACT.find(r.code) : null;
+    if (_fx && _fx.fixedRetail != null) return;
     if (markup > 0 &&
         Number.isFinite(r.materialTotal) && r.materialTotal > 0 &&
         Number.isFinite(r.laborTotal) && Number.isFinite(r.total)) {

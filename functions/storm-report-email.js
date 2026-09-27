@@ -97,7 +97,7 @@ const EMAIL_HTML = ({ firstName, address, summary }) => {
         <div class="muted" style="margin-top:6px;">Source: NWS Local Storm Reports (NOAA), last 5 years.</div>
       </div>
       <p>Storms like these are exactly what homeowners insurance is meant to cover. The catch: hail and wind damage usually isn't visible from the ground &mdash; but it's the first thing an adjuster looks for.</p>
-      <p>The next step is simple, and it's free: I'll come out, get on the roof, and document any damage. If there's a claim worth filing, I'll handle the paperwork with your insurer from start to finish.</p>
+      <p>The next step is simple, and it's free: I'll come out, get on the roof, and document any damage. You'll get my photos and a written repair estimate you can share with your insurer if you decide to file a claim.</p>
       <p style="text-align:center;">
         <a class="cta-button" href="${PHONE_TEL}">Call or text Joe &mdash; ${PHONE_DISPLAY}</a>
       </p>

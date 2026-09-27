@@ -449,7 +449,7 @@
     if (Array.isArray(vp) && vp.length) return vp;
     return [
       {icon:'🛡️',title:'Warranty Protection',desc:'Lifetime workmanship warranty on every tier, plus full manufacturer coverage on all materials.'},
-      {icon:'📋',title:'Insurance Specialists',desc:'We handle the entire insurance claim process so you can focus on what matters.'},
+      {icon:'📋',title:'Storm Damage Documentation',desc:'We inspect and photograph the damage and give you a detailed repair estimate. You manage your claim with your insurer, and we can meet your adjuster after you file.'},
       {icon:'⭐',title:'5-Star Service',desc:'Exceptional service from first contact through final walkthrough and beyond.'},
       {icon:'💰',title:'Flexible Financing',desc:'Affordable monthly payments through our financing marketplace partner.'}
     ];
@@ -767,6 +767,10 @@
     // so a blank scope still yields a complete authorization.
     const scopeSummary = d.scopeSummary || d.scopeOfWork ||
       'Complete roof replacement including tear-off, installation of new roofing system, and cleanup.';
+    // 2026-09-27: the insurance-proceeds ASSIGNMENT paragraph is gone in
+    // every state (void in Kentucky, KRS 304.20-105; Jo retired it and every
+    // direction-to-pay / co-payee form in both states). Payment terms live in
+    // the contract.
 
     return page('Work Authorization', `
       ${letterhead()}
@@ -798,14 +802,6 @@
       ${d.accessInstructions ? `<div class="section">
         <div class="section-title">Property Access Instructions</div>
         <p style="font-size:14px;">${esc(d.accessInstructions)}</p>
-      </div>` : ''}
-
-      ${d.isInsurance ? `<div class="section">
-        <div class="section-title">Insurance Assignment</div>
-        <p style="font-size:14px;">I hereby assign and transfer to <strong>${C.name}</strong> the insurance proceeds
-        relating to claim number <strong>${esc(d.claimNumber)}</strong> with <strong>${esc(d.insuranceCompany)}</strong>
-        to the extent of the contract price for the work authorized herein. This assignment authorizes ${C.name}
-        to negotiate directly with the insurance company regarding the scope and payment for all covered repairs.</p>
       </div>` : ''}
 
       <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
@@ -1793,83 +1789,8 @@
     `);
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // TEMPLATE 12: ASSIGNMENT OF BENEFITS (AOB)
-  // ═══════════════════════════════════════════════════════════════
-  DG.renderAssignmentOfBenefits = function(data) {
-    const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
-      claimNumber:'[Claim #]', policyNumber:'[Policy #]', insuranceCompany:'[Insurance Company]',
-      dateOfLoss:'[Date of Loss]', scopeSummary:'Roof replacement and related repairs due to storm damage.' }, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
-    const rescissionWindow = cp.cancellationWindowText || 'three (3) business days';
-
-    return page('Assignment of Benefits', `
-      ${letterhead()}
-      <h1 style="text-align:center;font-size:24px;color:${S};margin:24px 0 8px;">ASSIGNMENT OF BENEFITS</h1>
-      <p style="text-align:center;color:#666;font-size:13px;margin-bottom:28px;">Insurance Claim Assignment Authorization</p>
-
-      <div class="section">
-        <div class="section-title">Policyholder Information</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;">
-          <div><strong>Policyholder:</strong> ${esc(d.homeownerName)}</div>
-          <div><strong>Claim #:</strong> ${esc(d.claimNumber)}</div>
-          <div><strong>Property Address:</strong> ${esc(d.address)}</div>
-          <div><strong>Policy #:</strong> ${esc(d.policyNumber)}</div>
-          <div><strong>Insurance Company:</strong> ${esc(d.insuranceCompany)}</div>
-          <div><strong>Date of Loss:</strong> ${esc(d.dateOfLoss)}</div>
-        </div>
-      </div>
-
-      <div class="section" style="background:#f8f8f8;padding:24px;border-radius:8px;border-left:4px solid ${A};">
-        <p style="font-size:14px;line-height:1.8;margin:0;">
-          I, <strong>${esc(d.homeownerName)}</strong>, as the named insured and owner of the property located at
-          <strong>${esc(d.address)}</strong>, do hereby assign and transfer to <strong>${C.name}</strong>
-          all insurance rights, benefits, and proceeds under my insurance policy with <strong>${esc(d.insuranceCompany)}</strong>,
-          Policy Number <strong>${esc(d.policyNumber)}</strong>, for Claim Number <strong>${esc(d.claimNumber)}</strong>,
-          to the extent of the contract price for all work performed at the above property.
-        </p>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Scope of Assignment</div>
-        <p style="font-size:14px;line-height:1.8;">This assignment authorizes ${C.name} to:</p>
-        <ul style="font-size:14px;line-height:2;padding-left:24px;">
-          <li>Communicate directly with ${esc(d.insuranceCompany)} regarding the above-referenced claim</li>
-          <li>Negotiate the scope of covered repairs and associated pricing</li>
-          <li>Submit supplemental claims for additional damage discovered during the repair process</li>
-          <li>Receive insurance proceeds and endorsements related to the work performed</li>
-          <li>Pursue any and all remedies available under the insurance policy for work completed</li>
-        </ul>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Work to Be Performed</div>
-        <p style="font-size:14px;">${esc(d.scopeSummary)}</p>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Terms and Conditions</div>
-        <ol style="font-size:13px;line-height:2;padding-left:24px;color:#444;">
-          <li>This assignment does not relieve the policyholder of any obligations under the insurance policy, including the timely payment of any deductible or non-covered amounts.</li>
-          <li>The policyholder retains the right to cancel this assignment upon written notice, provided that payment for all completed work has been satisfied in full.</li>
-          <li>${C.name} agrees to perform all work in a professional manner consistent with industry standards and applicable building codes.</li>
-          <li>Any insurance proceeds received in excess of the contract price shall be returned to the policyholder.</li>
-          <li>This assignment is binding upon the heirs, successors, and assigns of the policyholder.</li>
-        </ol>
-      </div>
-
-      <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
-        <p style="font-size:13px;color:#555;margin:0;">
-          <strong>Right to Rescind:</strong> You may cancel this assignment within ${esc(rescissionWindow)} of signing
-          by providing written notice to ${C.name}. After the rescission period, cancellation is subject to
-          payment for all work completed to date.
-        </p>
-      </div>
-
-      ${sigBlock(['Property Owner / Policyholder','Witness','Authorized ' + SEAL + ' Representative'])}
-      ${footer('Assignment of Benefits — Claim #' + d.claimNumber)}
-    `);
-  };
+  // (TEMPLATE 12 — the Assignment of Benefits, then a Direction to Pay — was
+  // retired 2026-09-27: no assignment or co-payee instrument in any state.)
 
   // ═══════════════════════════════════════════════════════════════
   // TEMPLATE 13: MATERIAL DELIVERY NOTICE
@@ -2200,9 +2121,9 @@
       { num:1, title:'Document the Damage', desc:'Take photos and video of all visible damage from multiple angles. Include wide shots and close-ups. Note the date and time of the storm.', icon:'📸' },
       { num:2, title:'File Your Claim', desc:'Contact your insurance company to file a claim. Provide the date of loss, description of damage, and your policy number. Write down your claim number.', icon:'📞' },
       { num:3, title:'Schedule Your Free Inspection', desc:'Call us to schedule a no-cost professional inspection. We will document all damage using industry standards and create a comprehensive report.', icon:'🔍' },
-      { num:4, title:'Meet the Adjuster', desc:'Your insurance company will send an adjuster to assess the damage. We will be there with you to ensure nothing is missed and all damage is properly documented.', icon:'🤝' },
-      { num:5, title:'Review the Estimate', desc:'Once the insurance company issues their estimate, we will review it to ensure fair and accurate pricing. If anything is missing, we file a supplement on your behalf.', icon:'📋' },
-      { num:6, title:'Approve & Schedule', desc:'After the claim is approved, we handle all scheduling, permits, and coordination. You simply approve the scope of work and we take care of everything else.', icon:'✅' },
+      { num:4, title:'Meet the Adjuster', desc:'Your insurance company will send an adjuster to assess the damage. After you have filed, we can be there to walk the adjuster through the damage we documented.', icon:'🤝' },
+      { num:5, title:'Review the Estimate', desc:'Once the insurance company issues its estimate, we compare it with our own repair estimate. If items are missing, we give you our estimate and supporting photos, and you decide what to send your insurer.', icon:'📋' },
+      { num:6, title:'Approve & Schedule', desc:'Once you have your insurer’s decision and approve the scope of work, we handle scheduling, permits and coordination for the repair.', icon:'✅' },
       { num:7, title:'Project Completion', desc:'Our crew completes the work to the highest standard. We conduct a final walkthrough with you to ensure complete satisfaction before closing out the project.', icon:'🏠' }
     ];
 
@@ -2269,7 +2190,7 @@
         </div>
         <div class="faq-item">
           <div class="faq-q">What if the insurance estimate is too low?</div>
-          <div class="faq-a">We will review every line item. If the estimate does not cover the full scope of necessary repairs, we file a supplement with supporting documentation to get the claim adjusted.</div>
+          <div class="faq-a">We compare it line by line with our own estimate. If it does not cover the full scope of necessary repairs, we give you our estimate and supporting documentation. You manage your claim and decide what to send your insurer.</div>
         </div>
       </div>
 
@@ -2450,7 +2371,7 @@
     const curated = [
       { text:'They made the whole process feel like no big deal. From filing the claim to the final cleanup, everything was handled professionally and on time.', name:'Satisfied Homeowner', location:'Lexington, KY', project:'Roof Replacement', rating:5 },
       { text:'The crew was on time, cleaned up everything, and the roof looks amazing. Best contractor experience I have ever had. Highly recommend.', name:'Satisfied Homeowner', location:'Georgetown, KY', project:'Roof & Gutters', rating:5 },
-      { text:'Joe and his team walked us through the entire insurance claim process. We did not have to stress about a single thing. The new roof looks incredible.', name:'Satisfied Homeowner', location:'Nicholasville, KY', project:'Insurance Restoration', rating:5 },
+      { text:'Joe and his team documented every bit of the storm damage and explained each step of the repair. We did not have to stress about a single thing. The new roof looks incredible.', name:'Satisfied Homeowner', location:'Nicholasville, KY', project:'Insurance Restoration', rating:5 },
       { text:'Professional from start to finish. They showed up when they said they would, did exactly what they said they would do, and left the property cleaner than they found it.', name:'Satisfied Homeowner', location:'Versailles, KY', project:'Siding Replacement', rating:5 }
     ];
 
@@ -2700,7 +2621,6 @@
   // REGISTER ALL DOCUMENT TYPES (extended)
   // ═══════════════════════════════════════════════════════════════
   Object.assign(DG.DOCUMENT_TYPES, {
-    assignment_of_benefits: { name: 'Assignment of Benefits', template: 'renderAssignmentOfBenefits' },
     material_delivery: { name: 'Material Delivery Notice', template: 'renderMaterialDelivery' },
     storm_checklist: { name: 'Storm Damage Checklist', template: 'renderStormChecklist' },
     claim_guide: { name: 'Insurance Claim Process Guide', template: 'renderClaimGuide' },
@@ -2728,7 +2648,6 @@
       before_after_report: ['homeownerName','address','projectType','startDate','completionDate','workDescription'],
       financing_options: ['homeownerName','totalPrice'],
       referral_card: [],
-      assignment_of_benefits: ['homeownerName','address','claimNumber','policyNumber','insuranceCompany','dateOfLoss','scopeSummary'],
       material_delivery: ['homeownerName','address','deliveryDate','deliveryTime','startDate'],
       storm_checklist: [],
       claim_guide: [],
