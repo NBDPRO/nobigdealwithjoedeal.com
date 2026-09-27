@@ -107,7 +107,7 @@
     const phone = lead.phone.replace(/\D/g, '');
 
     const body = encodeURIComponent(
-      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nThank you! — ${brandSignOff()}`
+      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nThank you! — ${brandSignOff()}`
     );
 
     window.open(`sms:${phone}?body=${body}`, '_self');
@@ -129,7 +129,7 @@
 
     const subject = encodeURIComponent(`How did we do? — ${brandName()}`);
     const body = encodeURIComponent(
-      `Hi ${name || 'there'},\n\nThank you for choosing ${brandName()} for your project! We truly enjoyed working with you.\n\nIf you have a moment, we'd be incredibly grateful for a Google review. It helps other homeowners find trustworthy contractors:\n\n${reviewLink}\n\nIf there's anything we could have done better, please let us know directly — we're always improving.\n\nThank you!\n${brandSignOff()}\n${brandPhone()}`
+      `Hi ${name || 'there'},\n\nThank you for choosing ${brandName()} for your project! We truly enjoyed working with you.\n\nIf you have a moment, we'd be incredibly grateful for a Google review. It helps other homeowners find trustworthy contractors:\n\n${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nIf there's anything we could have done better, please let us know directly — we're always improving.\n\nThank you!\n${brandSignOff()}\n${brandPhone()}`
     );
 
     window.location.href = `mailto:${lead.email || ''}?subject=${subject}&body=${body}`;

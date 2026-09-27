@@ -148,7 +148,8 @@ function buildEmailHtml({ firstName, dueLeads }) {
   // time — this preview stays brand-neutral on purpose).
   const sampleScript =
     `Hi {firstName}, thank you so much for trusting us with your project! ` +
-    `We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: {your review link}`;
+    `We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: {your review link} ` +
+    `If you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.`;
 
   const rowsHtml = dueLeads.map(l => {
     const name = `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Customer';

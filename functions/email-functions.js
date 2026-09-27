@@ -224,6 +224,7 @@ const DRY_TEMPLATES = {
        <p>Hi {customerName},</p>
        <p>Thank you for choosing No Big Deal Home Solutions for your project at {address}. We'd love to hear about your experience!</p>
        <p><a href="https://google.com/maps/search/No+Big+Deal+Home+Solutions" class="cta-button">Leave a Review</a></p>
+       <p>If you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.</p>
        <p>Your feedback helps us serve you and others better.</p>`
     )
   },

@@ -535,7 +535,7 @@ If you need to reschedule, let me know ASAP so we can coordinate with the insura
 
 We've received the scope of work from {carrier} for your property at {address}.
 
-I'm reviewing the scope now to make sure everything is included. If I find anything that was missed during the adjuster's inspection, I'll prepare a supplement request.
+I'm reviewing the scope now to make sure everything is included. If the adjuster's scope misses anything, I'll prepare an updated estimate of my own showing the additional items.
 
 I'll be in touch soon with the details and next steps.
 
@@ -562,12 +562,12 @@ If your insurer's scope misses anything, I'll put together the supporting photos
   },
 
   supplement_requested: {
-    subject: '📝 Supplement Filed — Additional Work Needed',
+    subject: '📝 Updated Estimate Sent — Additional Items',
     body: `Hi {customerName},
 
-After reviewing the insurance scope for {address}, I've identified additional items that were missed. I've filed a supplement request with {carrier}.
+After reviewing the insurance scope for {address}, I found additional items that were missed. I've sent {carrier} my updated estimate for the work, with photos of those items.
 
-This is normal — supplements ensure all damage is covered and the job is done right. I'll follow up with the adjuster and keep you updated on the approval.
+This is normal — an updated estimate makes sure all the damage is documented and the job is done right. You manage your claim; I'll keep you posted on anything I hear back about my estimate.
 
 {repName}
 {companyName}
