@@ -887,11 +887,19 @@ async function _thuPlay(id) {
   if (!_thuBlob[id]) {
     _thuStatus(id, 'Loading recording…');
     try {
-      const r = await _thuCallable('getThursdayRecording', { callId: id });
-      const bin = atob(r.base64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      _thuBlob[id] = URL.createObjectURL(new Blob([bytes], { type: r.contentType || 'audio/mpeg' }));
+      // Streamed in parts (5 MB each; a 10-minute WAV is two).
+      const chunks = [];
+      let type = 'audio/mpeg', parts = 1;
+      for (let part = 0; part < parts; part++) {
+        const r = await _thuCallable('getThursdayRecording', { callId: id, part });
+        parts = r.parts || 1;
+        type = r.contentType || type;
+        const bin = atob(r.base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        chunks.push(bytes);
+      }
+      _thuBlob[id] = URL.createObjectURL(new Blob(chunks, { type }));
       _thuStatus(id, '');
     } catch (e) { _thuStatus(id, 'Could not load the recording.'); return; }
   }

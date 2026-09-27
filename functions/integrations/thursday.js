@@ -57,7 +57,10 @@ const REGION = 'us-central1';
 const BLAND_API = 'https://api.bland.ai/v1';
 const MAX_WEBHOOK_BYTES = 1024 * 1024;
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
-const MAX_PLAYBACK_BYTES = 7 * 1024 * 1024;   // callable responses cap at 10 MB after base64
+// Callable responses cap at 10 MB after base64 (×4/3), so recordings stream
+// in 5 MB parts. Bland records WAV (~1 MB/min) and the agent allows 10-minute
+// calls, so one part was never enough.
+const RECORDING_PART_BYTES = 5 * 1024 * 1024;
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 const COMPANY_STAFF = ['company_admin', 'manager'];
 const COMPANY_READERS = ['company_admin', 'manager', 'viewer'];
@@ -273,7 +276,7 @@ async function extract(call) {
 
 const LEAD_MATCH_FIELDS = [
   'companyId', 'firstName', 'lastName', 'name', 'address', 'street', 'city', 'town', 'state', 'zip',
-  'phone', 'phoneDigits', 'altPhone', 'phone2', 'source', 'stage', 'claimNumber', 'deleted', 'isDeleted', 'deletedAt',
+  'phone', 'phoneDigits', 'altPhone', 'altPhoneDigits', 'phone2', 'source', 'stage', 'claimNumber', 'deleted', 'isDeleted', 'deletedAt',
 ];
 
 // Tenant guard #1: the query itself is scoped to the company.
@@ -321,12 +324,8 @@ async function applyRoute(args) {
   // touch stage/source. A Thumbtack lead's proxy number stays; the caller's
   // real number goes in altPhone so the next call (and inbound SMS) matches.
   if (route.action === 'attach') {
-    const patch = { thursdayLastCallAt: FieldValue.serverTimestamp() };
-    const realPhone = T.toE164(extraction.callback_number || call.from);
-    if (realPhone) {
-      if (!lead.phone) { patch.phone = realPhone; patch.phoneDigits = realPhone.slice(-10); }
-      else if (T.isProxyLead(lead) && !lead.altPhone) patch.altPhone = realPhone;
-    }
+    const patch = Object.assign({ thursdayLastCallAt: FieldValue.serverTimestamp() },
+      T.secondNumberPatch(lead, call, extraction));
     if (extraction.email && !lead.email) patch.email = extraction.email;
     await db().doc('leads/' + leadId).set(patch, { merge: true });
   }
@@ -587,10 +586,12 @@ exports.thursdayCallerLookup = onRequest(
     const digits = String(from).replace(/\D/g, '').replace(/^1/, '').slice(-10);
     if (digits.length !== 10) { res.status(200).json(unknown); return; }
     try {
-      const snap = await db().collection('leads')
-        .where('companyId', '==', T.NBD_OWNER_UID).where('phoneDigits', '==', digits)
-        .select(...LEAD_MATCH_FIELDS).limit(5).get();
-      const leads = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+      const col = db().collection('leads').where('companyId', '==', T.NBD_OWNER_UID);
+      const [byMain, byAlt] = await Promise.all([
+        col.where('phoneDigits', '==', digits).select(...LEAD_MATCH_FIELDS).limit(5).get(),
+        col.where('altPhoneDigits', '==', digits).select(...LEAD_MATCH_FIELDS).limit(5).get(),
+      ]);
+      const leads = byMain.docs.concat(byAlt.docs).map((d) => Object.assign({ id: d.id }, d.data()));
       const out = T.buildLookupResponse({ companyId: T.NBD_OWNER_UID, from: digits, leads });
       logger.info('thursdayCallerLookup', { last4: digits.slice(-4), known: out.known, candidates: leads.length });
       res.status(200).json(out);
@@ -635,9 +636,14 @@ exports.getThursdayRecording = onCall(
     if (!data.recordingPath) throw new HttpsError('not-found', 'No recording saved for this call.');
     const file = getStorage().bucket().file(data.recordingPath);
     const [meta] = await file.getMetadata();
-    if (Number(meta.size) > MAX_PLAYBACK_BYTES) throw new HttpsError('resource-exhausted', 'Recording too large to stream.');
-    const [buf] = await file.download();
-    return { contentType: meta.contentType || 'audio/mpeg', base64: buf.toString('base64') };
+    const total = Number(meta.size) || 0;
+    const parts = Math.max(1, Math.ceil(total / RECORDING_PART_BYTES));
+    const part = Math.floor(Number((request.data && request.data.part) || 0));
+    if (!(part >= 0 && part < parts)) throw new HttpsError('invalid-argument', 'Bad part.');
+    const start = part * RECORDING_PART_BYTES;
+    const end = Math.min(total, start + RECORDING_PART_BYTES) - 1;
+    const [buf] = await file.download(total ? { start, end } : {});
+    return { contentType: meta.contentType || 'audio/mpeg', base64: buf.toString('base64'), part, parts, totalBytes: total };
   }
 );
 

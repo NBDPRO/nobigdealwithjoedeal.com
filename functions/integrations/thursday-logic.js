@@ -497,7 +497,7 @@ const STREET_SUFFIX = {
 };
 const DIRECTIONS = { north: 'n', south: 's', east: 'e', west: 'w', n: 'n', s: 's', e: 'e', w: 'w' };
 
-// '1912 Russell St., Covington KY' → { number:'1912', name:'russell', suffix:'st' }
+// '2718 Linden Ave., Covington KY' → { number:'1912', name:'linden', suffix:'ave' }
 function parseStreet(address) {
   const s = String(address || '').toLowerCase().replace(/[.,#]/g, ' ').replace(/\s+/g, ' ').trim();
   const m = /^(\d+[a-z]?)\s+(.+)$/.exec(s);
@@ -557,7 +557,7 @@ function scoreLead(lead, probe) {
   let phone = false;
   if (!isProxyLead(lead)) {
     const ld = phoneDigits10(lead.phoneDigits || lead.phone);
-    const alt = phoneDigits10(lead.altPhone || lead.phone2 || '');
+    const alt = phoneDigits10(lead.altPhoneDigits || lead.altPhone || lead.phone2 || '');
     const hits = [ld, alt].filter((d) => d.length === 10);
     if (hits.some((d) => probe.phones.indexOf(d) !== -1)) { phone = true; reasons.push('phone'); }
   }
@@ -566,7 +566,7 @@ function scoreLead(lead, probe) {
   const firstHit = !!(probe.first && ln.first && (ln.first === probe.first ||
     (ln.first.length >= 3 && probe.first.length >= 3 && (ln.first.startsWith(probe.first) || probe.first.startsWith(ln.first)))));
   const lastHit = !!(probe.last && ln.last && ln.last.length > 1 && ln.last === probe.last);
-  // Thumbtack leads arrive as "Danuta K." — a one-letter last name can only
+  // Thumbtack leads arrive as "Halina N." — a one-letter last name can only
   // ever corroborate, never carry a match on its own.
   const lastInitialHit = !lastHit && !!(probe.last && ln.last && ln.last.length === 1 && probe.last.charAt(0) === ln.last);
   if (firstHit) reasons.push('first-name');
@@ -959,17 +959,61 @@ function jobHintForStage(stage) {
 // Minimal disclosure: a spoofed caller ID learns a first name and a
 // stage-level phrase at most — never an address, price, claim, or last name.
 // Exactly one non-proxy phone match in the tenant, or nothing.
+// The name Thursday asks about. A couple's lead ("Tom & Maria") is
+// greeted "Is this Tom or Maria?" — a real call on 2026-09-26 came from the
+// wife on a lead the husband's name leads.
+function lookupFirstName(lead) {
+  const raw = String((lead && lead.firstName) || '').trim();
+  const parts = raw.split(/\s*(?:&|\+|\/|\band\b)\s*/i)
+    .map((p) => titleCase(normName(p).split(' ')[0] || ''))
+    .filter((p) => p && !/^(caller|unknown|web|mr|mrs|ms)$/i.test(p));
+  return parts.slice(0, 2).join(' or ');
+}
+
+// Minimal disclosure: a spoofed caller ID learns a first name and a
+// stage-level phrase at most — never an address, price, claim, or last name.
+// Exactly one lead in the tenant whose main OR second number is this caller.
 function buildLookupResponse(args) {
   const cid = String(args.companyId || '');
   const d = phoneDigits10(args.from);
   const unknown = { known: false, first_name: '', job_hint: '' };
   if (d.length !== 10 || !cid) return unknown;
-  const hits = (args.leads || []).filter((l) => l && String(l.companyId || '') === cid &&
-    !isDeletedLead(l) && !isProxyLead(l) && phoneDigits10(l.phoneDigits || l.phone) === d);
+  const seen = {};
+  const hits = (args.leads || []).filter((l) => {
+    if (!l || String(l.companyId || '') !== cid || isDeletedLead(l)) return false;
+    const main = !isProxyLead(l) && phoneDigits10(l.phoneDigits || l.phone) === d;
+    const alt = phoneDigits10(l.altPhoneDigits || l.altPhone) === d;
+    if (!(main || alt) || seen[l.id]) return false;
+    seen[l.id] = true;
+    return true;
+  });
   if (hits.length !== 1) return unknown;
-  const first = titleCase(normName(hits[0].firstName || '').split(' ')[0] || '');
-  if (!first || /^(caller|unknown|web)$/i.test(first)) return unknown;
+  const first = lookupFirstName(hits[0]);
+  if (!first) return unknown;
   return { known: true, first_name: first, job_hint: jobHintForStage(hits[0].stage) };
+}
+
+// Fields to add to a lead a call was attached to (strong match only): fill a
+// blank phone, otherwise remember the OTHER number the caller used as the
+// lead's second number — so the next call from it is recognized by both the
+// matcher and the live greeting. Never overwrites anything already set.
+function secondNumberPatch(lead, call, extraction) {
+  const l = lead || {};
+  const ex = extraction || {};
+  const own = phoneDigits10(THURSDAY_NUMBER);
+  const main = phoneDigits10(l.phoneDigits || l.phone);
+  const alt = phoneDigits10(l.altPhoneDigits || l.altPhone);
+  const candidates = [phoneDigits10(call && call.from), phoneDigits10(ex.callback_number)]
+    .filter((d, i, a) => d.length === 10 && d !== own && a.indexOf(d) === i);
+  const patch = {};
+  if (!main) {
+    if (candidates[0]) { patch.phone = '+1' + candidates[0]; patch.phoneDigits = candidates[0]; }
+    return patch;
+  }
+  if (alt) return patch;
+  const other = candidates.find((d) => d !== main && !(isProxyLead(l) && d.slice(0, 3) === '669'));
+  if (other) { patch.altPhone = '+1' + other; patch.altPhoneDigits = other; }
+  return patch;
 }
 
 module.exports = {
@@ -985,5 +1029,5 @@ module.exports = {
   isProxyLead, parseStreet, splitCallerName, matchLeads, displayName,
   decideRoute, buildLeadDoc, buildTask, buildActivity,
   buildSmsText, buildPush, buildEmail, fmtDuration,
-  jobHintForStage, buildLookupResponse,
+  jobHintForStage, buildLookupResponse, lookupFirstName, secondNumberPatch,
 };

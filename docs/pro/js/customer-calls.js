@@ -167,11 +167,19 @@
     if (!blobUrls[callId]) {
       status(callId, 'Loading recording…');
       try {
-        var r = await callable('getThursdayRecording', { callId: callId });
-        var bin = atob(r.base64);
-        var bytes = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        blobUrls[callId] = URL.createObjectURL(new Blob([bytes], { type: r.contentType || 'audio/mpeg' }));
+        // Streamed in parts (5 MB each; a 10-minute WAV is two).
+        var chunks = [], type = 'audio/mpeg', parts = 1;
+        for (var part = 0; part < parts; part++) {
+          var r = await callable('getThursdayRecording', { callId: callId, part: part });
+          parts = r.parts || 1;
+          type = r.contentType || type;
+          var bin = atob(r.base64);
+          var bytes = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          chunks.push(bytes);
+          if (parts > 1) status(callId, 'Loading recording… ' + (part + 1) + '/' + parts);
+        }
+        blobUrls[callId] = URL.createObjectURL(new Blob(chunks, { type: type }));
         status(callId, '');
       } catch (e) {
         status(callId, 'Could not load the recording' + (e && e.message ? ': ' + e.message : '') + '.');

@@ -6,10 +6,12 @@
  * DRY-RUN (default): lists Thursday's inbound calls from Bland, extracts each
  * one with Claude, matches it against NBD's leads (read-only) and prints the
  * route it WOULD take — create lead / attach / possible match / inbox / log.
- * Nothing is written. It also checks the two known test cases from the brief:
- *   - Michelle Sherrill (1912 Russell St, Covington KY) must MATCH her lead.
- *   - Danuta (8586 Alexander Ct, West Chester 45069) must match or flag her
- *     Thumbtack lead — never create a duplicate.
+ * Nothing is written.
+ *
+ * --expect=<name-regex>:<attach|possible_match|no_new_lead> (repeatable) prints
+ * PASS/FAIL for each call whose caller name or transcript matches — how the
+ * brief's two acceptance cases are checked WITHOUT committing customers'
+ * names to this public repo (they live in Jo's shell history only).
  *
  * APPLY (--apply --yes): writes a `pending` thursday_calls doc for each call
  * that has none yet (source 'backfill', notify 'suppress'). The deployed
@@ -46,6 +48,11 @@ function flag(name) {
 const SINCE = flag('since') || '2026-09-20';
 const LIMIT = Math.max(1, Math.min(1000, Number(flag('limit')) || 200));
 const ONE = flag('call');
+const EXPECTS = args.filter((x) => x.startsWith('--expect=')).map((x) => {
+  const v = x.slice(9);
+  const i = v.lastIndexOf(':');
+  return { re: new RegExp(v.slice(0, i), 'i'), want: v.slice(i + 1) };
+});
 
 async function listCallIds() {
   if (ONE) return [ONE];
@@ -142,22 +149,17 @@ async function main() {
     }
   }
 
-  // Brief's acceptance cases.
+  // Acceptance checks (--expect), e.g. an existing customer must attach,
+  // a Thumbtack lead must be flagged rather than duplicated.
   if (!NO_EXTRACT) {
-    line('\n═══ Test cases ═══');
-    const find = (re) => results.filter((r) => re.test(r.extraction.caller_name + ' ' + r.call.transcript));
-    const sher = find(/sherrill/i);
-    if (!sher.length) line('Sherrill : no call in this window mentions "Sherrill"');
-    for (const r of sher) {
-      const good = r.route.action === 'attach' && r.match.lead && /sherrill/i.test(r.match.lead.name);
-      line('Sherrill : ' + (good ? 'PASS' : 'FAIL') + ' — ' + r.route.action + (r.route.leadId ? ' → ' + r.route.leadId : ''));
-    }
-    const dan = find(/danuta/i);
-    if (!dan.length) line('Danuta   : no call in this window mentions "Danuta"');
-    for (const r of dan) {
-      const good = r.route.action !== 'create_lead' &&
-        ((r.match.lead && /danuta/i.test(r.match.lead.name)) || r.match.possible.some((p) => /danuta/i.test(p.name)));
-      line('Danuta   : ' + (good ? 'PASS' : 'FAIL') + ' — ' + r.route.action + (r.route.leadId ? ' → ' + r.route.leadId : ''));
+    if (EXPECTS.length) line('\n═══ Expectations ═══');
+    for (const e of EXPECTS) {
+      const hits = results.filter((r) => e.re.test((r.extraction.caller_name || '') + ' ' + r.call.transcript));
+      if (!hits.length) { line(e.re + ' : no call in this window matches'); continue; }
+      for (const r of hits) {
+        const good = e.want === 'no_new_lead' ? r.route.action !== 'create_lead' : r.route.action === e.want;
+        line(e.re + ' : ' + (good ? 'PASS' : 'FAIL') + ' — ' + r.route.action + (r.route.leadId ? ' → ' + r.route.leadId : ''));
+      }
     }
     const tally = results.reduce((m, r) => { m[r.route.action] = (m[r.route.action] || 0) + 1; return m; }, {});
     line('\nRoutes: ' + JSON.stringify(tally));
