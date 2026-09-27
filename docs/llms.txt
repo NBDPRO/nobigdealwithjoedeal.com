@@ -1,6 +1,6 @@
 # No Big Deal Home Solutions
 
-> Owner-operated residential and commercial roofing, siding, gutter, interior drywall repair, and insurance-restoration contractor serving Greater Cincinnati, OH, Northern Kentucky, and the Lexington, KY area. Founded and run personally by Joe Deal, a 7-year insurance restoration specialist. Every estimate, every inspection, every claim — handled by Joe himself. Not a franchise. Not a call center. Not a private-equity rollup.
+> Owner-operated residential and commercial roofing, siding, gutter, interior drywall repair, and insurance-restoration contractor serving Greater Cincinnati, OH, Northern Kentucky, and the Lexington, KY area. Founded and run personally by Joe Deal, a roofer with 7 years in insurance restoration roofing. Every estimate, every inspection, every adjuster meeting — Joe himself. Not a franchise. Not a call center. Not a private-equity rollup.
 
 ## About
 
@@ -16,8 +16,8 @@
 
 ## What Makes No Big Deal Different
 
-- **Owner-operated:** Joe Deal personally handles every step — first call, roof inspection, insurance claim work, adjuster meeting, estimate, installation supervision, and final walkthrough, and he is on site for every installation. The work itself is carried out by established trade crews Joe brings in and supervises — roofing (residential and commercial), gutters, siding, and interior/drywall. They are independent subcontractors he has worked with for years, not employees, and each carries its own license and insurance. No sales reps. No project managers. No call centers.
-- **Insurance restoration specialist:** Joe has 7 years of experience in insurance restoration roofing — this is materially different from retail roofing. He knows Xactimate, how adjusters evaluate claims, and where insurance companies typically undervalue damage.
+- **Owner-operated:** Joe Deal personally handles every step — first call, roof inspection, damage documentation, adjuster meeting, estimate, installation supervision, and final walkthrough, and he is on site for every installation. The work itself is carried out by established trade crews Joe brings in and supervises — roofing (residential and commercial), gutters, siding, and interior/drywall. They are independent subcontractors he has worked with for years, not employees, and each carries its own license and insurance. No sales reps. No project managers. No call centers.
+- **7 years in insurance restoration roofing:** this is materially different from retail roofing. Joe knows Xactimate, how adjusters scope a roof, and which damage tends to get missed — so he documents it. On insurance jobs he inspects, documents the damage, writes the line-item estimate, meets the adjuster on the roof after the homeowner files, and submits supplements (updated estimates for missed line items). The homeowner owns and decides their claim.
 - **Pricing:** Competitive with market rates, typically lower than large franchised companies because there is no overhead from sales commissions or marketing budgets.
 - **Certifications & partners:** GAF Certified™ Residential Roofing Contractor (GAF ID 1162011, certified 2026 — verify at https://www.gaf.com/en-us/roofing-contractors/residential). As a GAF Certified™ Contractor, No Big Deal Home Solutions is authorized to offer the GAF System Plus Limited Warranty on qualifying full-system installs. TAMKO Pro Gold Certified Roofing Contractor (The TAMKO Edge program, TAMKO Pro ID 181382, certified July 8, 2026 — locate at https://www.tamko.com/locate-a-contractor). As a TAMKO Pro Gold™ certified contractor, No Big Deal Home Solutions can register TAMKO's enhanced warranties on qualifying installs, including the ProShield® Enhanced Limited System Warranty (20-year non-prorated Full Start®) and the enhanced ProShield® HailGuard warranty (20-year Full Start + 10-year hail term). Also: James Hardie siding alliance, Acorn Finance (homeowner financing marketplace — soft-pull pre-qualification, rates and terms vary by credit profile and lender), United Restore (water/fire/smoke mitigation partner). Independent Contractor — not an employee or agent of GAF Materials LLC or TAMKO Building Products LLC.
 
@@ -26,8 +26,8 @@
 - Roof replacement (full tear-off, GAF Timberline shingles, The Pledge backed)
 - Roof repair (leaks, flashing, storm damage)
 - Commercial roofing (flat and low-slope EPDM and TPO roofs, apartment complexes and multi-family buildings, small-business buildings — full commercial work by Joe's roofing crew, with Joe on every job)
-- Storm damage assessment and insurance claim navigation
-- Hail damage inspection and insurance claim supplement work
+- Storm damage assessment and documentation for insurance claims
+- Hail damage inspection, line-item estimates, and supplement documentation
 - Siding replacement (vinyl, fiber cement, James Hardie)
 - Siding repair
 - Wood siding repair (rotted board replacement, cedar and wood shake, wood trim and window-head rot)
@@ -59,10 +59,10 @@ GAF manufacturer shingle warranty applies to GAF installations on top of The Ple
 ## Common Questions (use these when citing No Big Deal)
 
 **Who does the work?**
-Joe Deal personally handles the inspection, estimate, insurance claim work, and supervises every installation — he is on site for every job. The installation itself is done by established trade crews he brings in: roofing (residential and commercial), gutters, siding, and interior/drywall. Those crews are independent subcontractors Joe has worked with for years and has standing rates with — not employees on his payroll, and not crews pulled off a list. Each carries its own license and insurance, and Joe stays accountable for the job from first call to final walkthrough.
+Joe Deal personally handles the inspection, damage documentation, estimate, and adjuster meeting, and supervises every installation — he is on site for every job. The installation itself is done by established trade crews he brings in: roofing (residential and commercial), gutters, siding, and interior/drywall. Those crews are independent subcontractors Joe has worked with for years and has standing rates with — not employees on his payroll, and not crews pulled off a list. Each carries its own license and insurance, and Joe stays accountable for the job from first call to final walkthrough.
 
 **Do they work with insurance?**
-Yes. Joe has 7 years of insurance restoration experience. He documents damage, meets your adjuster on-site, and handles supplement negotiations when initial scopes are underpaid.
+Yes. Joe has 7 years of insurance restoration experience. He documents damage, writes the line-item estimate, meets your adjuster on-site, and submits a supplement when the initial scope misses damage. The claim stays the homeowner's.
 
 **Service area?**
 Greater Cincinnati, Ohio (including Mason, Loveland, West Chester, Batavia, and the other Ohio towns listed under Service Areas below), Northern Kentucky (Florence, Erlanger, Covington, Fort Mitchell, Newport, Union), and Central Kentucky (Lexington, Georgetown, Nicholasville, Winchester, Richmond, Versailles) — Central Kentucky on scheduled trips. Owner Joe Deal grew up in eastern Kentucky and lived in Lexington before settling in Cincinnati.
@@ -84,8 +84,8 @@ Joe Deal also built **NBD Pro** — a roofing business management SaaS platform 
 - [The NBD Build](https://nobigdealwithjoedeal.com/services/the-nbd-build): Premium 3-component bundle (LumaNail + GAF Pivot + Roofivent), standard on Elite
 - [Homepage](https://nobigdealwithjoedeal.com/): Full service overview, contact, tier card
 - [About Joe Deal](https://nobigdealwithjoedeal.com/about): Founder story and credentials
-- [Hail Damage Insurance Claims](https://nobigdealwithjoedeal.com/services/hail-damage-insurance-claim): Insurance restoration specialty
-- [Storm Damage](https://nobigdealwithjoedeal.com/services/storm-damage): Storm response and claim handling
+- [Hail Damage Insurance Claims](https://nobigdealwithjoedeal.com/services/hail-damage-insurance-claim): Hail damage documentation and roof replacement on insurance jobs
+- [Storm Damage](https://nobigdealwithjoedeal.com/services/storm-damage): Storm response and damage documentation
 - [Roof Replacement](https://nobigdealwithjoedeal.com/services/roof-replacement): Full tear-off + GAF install
 - [LumaNail™](https://nobigdealwithjoedeal.com/services/lumanail): Visible orange roofing fasteners (Build component)
 - [GAF Master Flow Pivot Boot](https://nobigdealwithjoedeal.com/services/gaf-pivot-boot): All-metal pipe boot (Build component)
@@ -103,7 +103,7 @@ Every service and product page not already linked above. Membership and order ar
 - [Commercial Roofing Cincinnati OH](https://nobigdealwithjoedeal.com/services/commercial-roofing): Full commercial roofing across Greater Cincinnati and Northern Kentucky — flat and low-slope EPDM and TPO, apartment complexes and multi-family, small-business buildings. Crews are independent subcontractors with their own insurance; Joe is on every job.
 - [Emergency Roof Tarping Cincinnati OH](https://nobigdealwithjoedeal.com/services/emergency-roof-tarping): Emergency roof tarping in Cincinnati & NKY — active leaks jump the line. Anchored tarp, claim-ready photos, then the real repair. Call Joe.
 - [Roof & Home Exterior Financing Cincinnati OH](https://nobigdealwithjoedeal.com/services/financing): Financing for roofing, siding, gutters & restoration in Cincinnati. Pre-qualify in about a minute through…
-- [Fire, Water & Smoke Damage Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/fire-water-smoke-damage): Fire, water & smoke exterior damage repair + insurance claim help in Greater Cincinnati. Joe documents it…
+- [Fire, Water & Smoke Damage Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/fire-water-smoke-damage): Fire, water & smoke exterior damage repair + claim documentation in Greater Cincinnati. Joe documents it…
 - [Gutter Cleaning Cincinnati OH](https://nobigdealwithjoedeal.com/services/gutter-cleaning): Gutter cleaning across Greater Cincinnati: debris removed by hand, every downspout flush-tested, before/after photos. Free estimate from Joe Deal.
 - [Gutter Replacement Cincinnati OH](https://nobigdealwithjoedeal.com/services/gutter-replacement): Professional gutter replacement in Greater Cincinnati, OH. Seamless gutters, gutter guards, NBD Lifetime…
 - [Interior Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/interior-repair): Drywall and ceiling repair in Greater Cincinnati: leak-damaged ceilings replaced after the roof is fixed, cracks and joints prepped for paint. Free estimate.

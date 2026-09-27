@@ -613,6 +613,17 @@
       "sell >= cost > 0 invariant, the hydration path's tombstone/user-edit",
       "semantics, and \"cost not set\" never rendering as a 100% margin)."
     ],
+    "claim-wording.test.js": [
+      "Insurance-claim wording Kentucky law allows (owner decision 2026-09-27).",
+      "KRS 367.628(1)(a) bars a contractor from representing or negotiating on",
+      "an insured's claim, or marketing itself as a claims/insurance specialist",
+      "or expert; (1)(c) allows an estimate and conferring with the adjuster",
+      "after the homeowner files. The banner on 224 pages said \"I Handle the",
+      "Insurance Claim for You\". Scans every public docs/ text file (meta,",
+      "JSON-LD, banner data attributes, JS strings) for handle/manage/",
+      "negotiate/advocate/fight/on-your-behalf/specialist framings; each rule",
+      "is proven red on a fixture, and on a fixture tree."
+    ],
     "catalog-cost-seed.test.js": [
       "Catalog cost privacy. docs/ is hosting.public AND this repo is public,",
       "so product-data.js shipped wholesale COST beside retail SELL for 187",
