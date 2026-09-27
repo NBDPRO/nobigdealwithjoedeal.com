@@ -102,6 +102,14 @@ const REQUIRED_MARKUP = {
   'footer-area': ['<footer>', '</footer>'],
   'footer-extended': ['<footer>', '</footer>'],
   'footer-slim': ['<footer', '</footer>', 'tel:+18594207382', '/privacy'],
+  // The ONE definition of the business, Joe and the WebSite (2026-09-27).
+  // ~500 JSON-LD nodes across the site reference these three @ids; a partial
+  // that drops one leaves every reference on every page dangling while each
+  // page still parses, so check-seo-surface.js alone would stay green.
+  'schema-entity': ['<script type="application/ld+json">',
+    '"@id": "https://nobigdealwithjoedeal.com/#org"',
+    '"@id": "https://nobigdealwithjoedeal.com/#joe"',
+    '"@id": "https://nobigdealwithjoedeal.com/#website"'],
   // ('mobile-nav-hub' removed 2026-08-19 — it was a stale fork of
   //  mobile-nav-standard, 7 destinations short (/visualizer, /roof-score,
   //  /inspect, /free-tools, /services/the-nbd-build, /roofivent,

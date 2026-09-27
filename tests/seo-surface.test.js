@@ -85,6 +85,67 @@ for (const [id, file, expectedCheck, description] of CASES) {
   });
 }
 
+// ── One business, one Joe (2026-09-27) ──────────────────────────────────
+// The site used to hand search engines ~150 disconnected copies of the
+// business. Each of these is one way that comes back; each must go red on its
+// own. The clean fixture (F10/F11) carries the shapes that must NOT fire: a
+// Service whose provider is a bare #org reference, and /review's
+// {"@id": "#org", "review": […]} attachment.
+
+const ENTITY_CASES = [
+  ['E1', 'entity-no-partial.html', 'entity-partial', 'a public page without the schema-entity region'],
+  ['E2', 'entity-hollow-partial.html', 'entity-partial', 'a region that defines neither #org nor #joe'],
+  ['E3', 'entity-inline-provider.html', 'entity-business', 'a Service inlining its own copy of the business'],
+  ['E4', 'entity-redefined-org.html', 'entity-business', 'a node carrying #org that restates facts (a town geo)'],
+  ['E5', 'entity-inline-joe.html', 'entity-person', 'a blog post naming Joe inline instead of #joe'],
+];
+
+for (const [id, file, expectedCheck, description] of ENTITY_CASES) {
+  check(`${id}  catches ${description}`, () => {
+    const got = checksFor(file);
+    assert.deepStrictEqual(got, [expectedCheck],
+      `${file} should raise exactly ERROR:${expectedCheck}, got [${got.join(', ') || 'nothing'}]`);
+  });
+}
+
+check('E6 the ENTITY_PENDING carve-out (one exact blog path) is what keeps E1+E3 quiet there', () => {
+  // Same defects as E1 and E3, at a pending path. If this goes red the
+  // carve-out collapsed; if E1/E3 go green, it swallowed too much.
+  const PENDING_FIXTURE = 'can-i-keep-insurance-check-not-fix-roof.html';
+  const got = (byFile[PENDING_FIXTURE] || []).map((f) => `${f.level}:${f.check}`);
+  assert.deepStrictEqual(got, [], `blog/${PENDING_FIXTURE} must raise nothing, got [${got.join(', ')}]`);
+  const fs = require('fs');
+  const html = fs.readFileSync(path.join(FIXTURES, 'blog', PENDING_FIXTURE), 'utf8');
+  assert.ok(!/nbd:partial schema-entity/.test(html) && /"provider":\{"@type":"RoofingContractor"/.test(html),
+    'the pending fixture must stay defective, or E6 proves nothing');
+});
+
+check('E7 the real partial defines #org, #joe and #website, and serves every area-page town', () => {
+  const fs = require('fs');
+  const src = fs.readFileSync(path.join(ROOT, 'site-src', 'partials', 'schema-entity.html'), 'utf8');
+  const m = src.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(m, 'schema-entity.html must hold one JSON-LD block');
+  const graph = JSON.parse(m[1])['@graph'];
+  const byId = Object.fromEntries(graph.map((n) => [n['@id'], n]));
+  const O = 'https://nobigdealwithjoedeal.com';
+  for (const id of ['#org', '#joe', '#website']) assert.ok(byId[O + '/' + id], `partial must define ${O}/${id}`);
+  // Honest-count rule (marketing-polish-contract): no fabricated rating.
+  assert.ok(!/aggregateRating/.test(src), 'the entity must not carry an aggregateRating');
+  // A new docs/areas page whose town the business does not claim to serve
+  // is the one-entity version of the old per-town drift.
+  const served = new Set(byId[O + '/#org'].areaServed.map((c) => `${c.name}|${c.containedInPlace.name}`));
+  const STATE = { oh: 'Ohio', ky: 'Kentucky' };
+  const missing = [];
+  for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'areas'))) {
+    const fm = f.match(/-(oh|ky)\.html$/);
+    if (!fm) continue;
+    const html = fs.readFileSync(path.join(ROOT, 'docs', 'areas', f), 'utf8');
+    const town = (html.match(/"areaServed":\s*\{"@type":\s*"City",\s*"name":\s*"([^"]+)"/) || [])[1];
+    if (!town || !served.has(`${town}|${STATE[fm[1]]}`)) missing.push(`${f} (${town || 'no City node'})`);
+  }
+  assert.deepStrictEqual(missing, [], `area pages whose town is not in the partial's areaServed: ${missing.join(', ')}`);
+});
+
 // ── The clean fixture must stay clean ───────────────────────────────────
 // Without this, a check that fires on EVERYTHING would satisfy every case
 // above while being worthless.

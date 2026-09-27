@@ -4,7 +4,9 @@
  * docs/assets/data/projects.json:
  *
  *   1. docs/our-work.html         — gallery + filters (OURWORK-STATIC) and
- *                                   head JSON-LD (OURWORK-HEAD-SCHEMA)
+ *                                   head JSON-LD (OURWORK-HEAD-SCHEMA; it
+ *                                   references #org, never defines it —
+ *                                   see site-src/partials/schema-entity.html)
  *   2. docs/services/<hub>.html   — "Recent jobs" strips (OURWORK-STRIP
  *                                   markers, one per hub page; the marker's
  *                                   service="…" attribute picks which
@@ -283,6 +285,15 @@ const townOf = (p) => {
   const slug = `${canon.replace(/\./g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${m[2].toLowerCase()}`;
   return { name: m[1].trim(), state: m[2], slug };
 };
+// areaServed as a typed place, the shape every other Service on the site uses
+// (see site-src/partials/schema-entity.html). A city string that does not
+// parse as "Town, ST" is passed through untouched rather than guessed at.
+const STATE_NAMES = { OH: 'Ohio', KY: 'Kentucky', IN: 'Indiana', TN: 'Tennessee' };
+const placeNode = (city) => {
+  const t = townOf({ city });
+  if (!t || !STATE_NAMES[t.state]) return city;
+  return { '@type': 'City', name: t.name, containedInPlace: { '@type': 'State', name: STATE_NAMES[t.state] } };
+};
 const AREAS_DIR = path.join(ROOT, 'docs', 'areas');
 const areaHref = (t) => (t && existsSync(path.join(AREAS_DIR, `${t.slug}.html`)) ? `/areas/${t.slug}` : null);
 
@@ -417,19 +428,14 @@ const ORIGIN = 'https://nobigdealwithjoedeal.com';
 // markup on a portfolio page is a documented spammy-structured-markup risk,
 // and no rich result exists for local-service portfolios either way.
 // Service keeps the price range machine-readable and ties every item to the
-// sitewide RoofingContractor node via provider @id.
+// sitewide RoofingContractor node via provider @id. That node is NOT defined
+// here: the business, Joe and the WebSite live once, in
+// site-src/partials/schema-entity.html, which apply-partials.js stamps into
+// our-work.html and every detail page. A copy here is a second business, and
+// check-seo-surface.js fails the build on it (entity-business).
 const schema = {
   '@context': 'https://schema.org',
   '@graph': [
-    {
-      '@type': 'RoofingContractor',
-      '@id': `${ORIGIN}/#org`,
-      name: 'No Big Deal Home Solutions',
-      alternateName: 'No Big Deal with Joe Deal',
-      url: ORIGIN,
-      telephone: '+18594207382',
-      email: 'jd@nobigdealwithjoedeal.com',
-    },
     {
       '@type': 'ImageGallery',
       '@id': `${ORIGIN}/our-work#gallery`,
@@ -457,7 +463,7 @@ const schema = {
           name: p.title,
           serviceType: SERVICES[p.services[0]],
           provider: { '@id': `${ORIGIN}/#org` },
-          areaServed: p.city,
+          areaServed: placeNode(p.city),
           description: p.description,
           image: `${ORIGIN}${p.hero}`,
         };
@@ -704,7 +710,7 @@ const detailSchema = (p) => {
       name: p.title,
       serviceType: SERVICES[p.services[0]],
       provider: { '@id': `${DETAIL_ORIGIN}/#org` },
-      areaServed: p.city,
+      areaServed: placeNode(p.city),
       description: p.description,
       image: `${DETAIL_ORIGIN}${p.hero}`,
     },
@@ -714,6 +720,45 @@ const detailSchema = (p) => {
   }
   return { '@context': 'https://schema.org', '@graph': graph };
 };
+
+// <title> for a case page: "<job> — <Town>, ST | NBD", kept to 60 characters
+// so results do not truncate it mid-phrase. Tried in order, first fit wins:
+//   1. the full job title + full city
+//   2. the full job title + the town without its state
+//   3. the job title cut back to whole leading clauses (split at " — ", ", ",
+//      ": ", " + ", " & "), if that leaves a real phrase (>= 20 chars)
+//   4. the job title cut back at a word boundary
+// The job phrase always leads and the town always stays; nothing is
+// reworded. Only <title> changes — og:title and the H1 keep the full title.
+// Titles must be unique across case pages (a trim that collapses two jobs
+// into one title is refused below).
+const TITLE_MAX = 60;
+const TITLE_MIN_PHRASE = 20;
+const trimTail = (s) => s.replace(/[\s—–\-,:;+&]+$/u, '').replace(/\s+(a|an|the|of|to|and|for|near|by|with)$/i, '');
+const pageTitle = (p) => {
+  const t = townOf(p);
+  const tail = ` — ${p.city} | NBD`;
+  const cands = [`${p.title}${tail}`];
+  if (t) cands.push(`${p.title} — ${t.name} | NBD`);
+  const budget = TITLE_MAX - tail.length;
+  const clauses = p.title.split(/(?= — |, |: | \+ | & )/);
+  for (let n = clauses.length - 1; n >= 1; n--) {
+    const phrase = trimTail(clauses.slice(0, n).join(''));
+    if (phrase.length <= budget && phrase.length >= TITLE_MIN_PHRASE) { cands.push(phrase + tail); break; }
+  }
+  const cut = p.title.slice(0, budget + 1);
+  cands.push(trimTail(cut.slice(0, cut.lastIndexOf(' '))) + tail);
+  return cands.find((c) => c.length <= TITLE_MAX) || cands.at(-1);
+};
+{
+  const byTitle = new Map();
+  for (const p of live) {
+    const t = pageTitle(p);
+    if (byTitle.has(t)) fail(`projects "${byTitle.get(t)}" and "${p.slug}" both get the <title> "${t}" — shorten one job title`);
+    byTitle.set(t, p.slug);
+  }
+  if (process.exitCode) process.exit(1);
+}
 
 const detailPage = (p) => {
   const price = priceLine(p);
@@ -731,7 +776,7 @@ const detailPage = (p) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>${esc(p.title)} — ${esc(p.city)} | NBD</title>
+<title>${esc(pageTitle(p))}</title>
 <meta name="description" content="${esc(descMeta)}">
 <link rel="canonical" href="${DETAIL_ORIGIN}/our-work/${esc(p.slug)}">
 <meta property="og:type" content="website">
@@ -739,6 +784,10 @@ const detailPage = (p) => {
 <meta property="og:description" content="${esc(descMeta)}">
 <meta property="og:url" content="${DETAIL_ORIGIN}/our-work/${esc(p.slug)}">
 <meta property="og:image" content="${DETAIL_ORIGIN}${esc(p.hero)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(p.title)}">
+<meta name="twitter:description" content="${esc(descMeta)}">
+<meta name="twitter:image" content="${DETAIL_ORIGIN}${esc(p.hero)}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
 <link rel="icon" type="image/png" sizes="192x192" href="/assets/images/home-icon-192.png">
@@ -797,6 +846,8 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 @media(max-width:768px){.pd-title{font-size:1.9rem}}
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
+<!-- nbd:partial schema-entity -->
+<!-- /nbd:partial schema-entity -->
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 <!-- nbd:partial nav-standard cta_href="/#contact" -->
@@ -898,7 +949,9 @@ const stampFile = (file, transform, required) => {
 // in there (if anything) before diffing/writing keeps the two generators
 // from fighting: without this, every run here would revert the nav/footer
 // to empty and every run of apply-partials.js would refill it, forever.
-const PARTIAL_NAMES = ['nav-standard', 'mobile-nav-standard', 'footer-standard'];
+// schema-entity is the one definition of the business/Joe the page's JSON-LD
+// references by @id; like the chrome, apply-partials.js owns its content.
+const PARTIAL_NAMES = ['nav-standard', 'mobile-nav-standard', 'footer-standard', 'schema-entity'];
 function carryOverPartials(freshHtml, existingHtml) {
   if (!existingHtml) return freshHtml;
   let out = freshHtml;

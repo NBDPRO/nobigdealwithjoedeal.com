@@ -88,20 +88,17 @@ const schema = {
       name: 'The No Big Deal Blog',
       url: `${ORIGIN}/blog`,
       description: 'Straight-talk roofing, siding, and insurance-claim advice for Cincinnati-area homeowners from Joe Deal — 7 years in insurance restoration, no fluff.',
-      publisher: {
-        '@type': 'RoofingContractor',
-        name: 'No Big Deal Home Solutions',
-        alternateName: 'No Big Deal with Joe Deal',
-        url: ORIGIN,
-        telephone: '+18594207382',
-        email: 'jd@nobigdealwithjoedeal.com',
-      },
+      // The business and Joe are defined ONCE, in the schema-entity partial
+      // (site-src/partials/schema-entity.html) stamped into this page's <head>;
+      // everything here references them by @id. An inline copy is a second,
+      // disconnected business, and check-seo-surface.js fails the build on it.
+      publisher: { '@id': `${ORIGIN}/#org` },
       blogPost: live.map((p) => ({
         '@type': 'BlogPosting',
         headline: p.title,
         url: `${ORIGIN}${p.url}`,
         datePublished: p.published,
-        author: { '@type': 'Person', name: 'Joe Deal' },
+        author: { '@id': `${ORIGIN}/#joe` },
       })),
     },
     {

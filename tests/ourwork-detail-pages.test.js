@@ -70,8 +70,20 @@ for (const p of live) {
   // "| NBD", not "| No Big Deal Home Solutions": the site-wide suffix chosen
   // for the ~60-char search-title budget (scripts/normalize-location-templates.js).
   // The long form made 52 of 53 detail titles overflow (2026-09-24).
-  ok(`${p.slug}: <title> uses the short "| NBD" brand suffix`,
-    html.includes(`<title>${esc(p.title)} — ${esc(p.city)} | NBD</title>`));
+  // Since 2026-09-27 build-projects.mjs also holds the whole <title> to that
+  // budget (pageTitle()): the full "<job> — <City, ST> | NBD" whenever it
+  // fits, otherwise a shortened form that still leads with the job phrase,
+  // keeps the town, and ends "| NBD". og:title and the H1 keep the full job.
+  {
+    const full = `${p.title} — ${p.city} | NBD`;
+    const tm = html.match(/<title>([^<]*)<\/title>/);
+    const shown = tm ? tm[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : '';
+    const fits = full.length <= 60
+      ? shown === full
+      : shown.length <= 60 && shown.startsWith(p.title.split(/\s+/)[0]) && shown.includes(p.city.split(',')[0]);
+    ok(`${p.slug}: <title> uses the short "| NBD" brand suffix within the 60-char budget`,
+      shown.endsWith(' | NBD') && fits, `got "${shown}" (${shown.length} chars)`);
+  }
   ok(`${p.slug}: Service + BreadcrumbList JSON-LD present`,
     /"@type":"Service"/.test(html) && /"@type":"BreadcrumbList"/.test(html));
   ok(`${p.slug}: nav-standard region is FILLED, not an empty marker pair (apply-partials ran)`,
