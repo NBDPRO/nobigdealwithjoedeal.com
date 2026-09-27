@@ -108,6 +108,14 @@ All recorded in the decisions sheet the session applied (prices, contradictions,
 - **Top towns** (delegated): Cincinnati; Mason, West Chester, Loveland; Milford, Goshen, Batavia, Amelia;
   Anderson Twp, Blue Ash; Florence KY.
 
+## §3c — CRM settings set live (Jo's explicit ask, 2026-09-27, via Settings UI; each read back after reload)
+
+- Company Profile → **Mailing Address (one line)** = the LLC's Campton, KY 41301 street address (brand.contact.mailingAddress). Prints ONLY on the CAN-SPAM line of commercial email (live now) and, once #1801 deploys, KY insurance contracts + the FTC/KY cancellation forms. The **letterhead** address (businessAddress) is unchanged: "Greater Cincinnati, OH".
+- Profile → **Google Review Link** = https://g.page/r/CXzIjLwvtRPdEBM/review (was EMPTY — review-request nudges had no link to send; resolves to Google's write-review page for place ChIJmcavSvhN9Y0RfMiMvC-1E90).
+- Profile → **Display Name** = "Joe Deal" (was blank; saving the profile page once stored the blank and the header lost its "jd" fallback — fixed).
+- Company Profile → **Jurisdictional Code** default = "Residential Code of Ohio (RCO)" (was Kentucky Building Code; KY leads override per job). Not changed: **Code Cycle** still reads "2021 International Building Code (IBC)" — the IBC is the commercial code family; residential roofs fall under the IRC-based residential codes. Worth correcting once the current RCO / KRC editions are confirmed.
+- Caution recorded: typing into the CRM with keystrokes can fire global hotkeys (n = new lead, e = new estimate) when focus isn't in an input — set fields by value, not keystrokes.
+
 ## §4 — Follow-ups nobody has claimed
 
 - 156 project WebPs are larger than their JPEGs — re-encode (AVIF wins today, so not urgent).
