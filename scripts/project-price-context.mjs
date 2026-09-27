@@ -13,7 +13,14 @@
  * THE RULE: a job with a published price range whose `year` is more than 12
  * months before the as-of date gets the line. Only the year is known, so the
  * job is dated generously to Dec 31 of that year — a 2025 job is not "old"
- * until 2027. No year, or no price, means no line: nothing is guessed.
+ * until 2027. No price means no line.
+ *
+ * UNDATED JOBS (Jo, 2026-09-27): a priced job with NO `year` is one of the
+ * legacy jobs carried over from the old gallery, all priced before 2025
+ * (West Liberty is "2024 or earlier"). They get "Priced before 2025." plus
+ * the same prices-rise note and link. The year itself is still never
+ * guessed; the label names the bound Jo gave. A NEW job must carry `year`,
+ * or it will be labelled this way too.
  *
  * AS-OF DATE: injectable (tests pass their own). build-projects.mjs passes
  * --as-of=YYYY-MM-DD / NBD_PROJECTS_AS_OF when given, else the newest
@@ -65,9 +72,20 @@ export function todayHref(p) {
   return services[0] ? `/services/${services[0]}` : ROOF_COST_GUIDE;
 }
 
+// The data-price-context value and wording for a priced job with no year.
+export const UNDATED_KEY = 'before-2025';
+export const UNDATED_LABEL = 'before 2025';
+
+// A priced job with no usable year (see UNDATED JOBS above).
+export function isUndatedPriced(p) {
+  return !!p && p.priceLow != null && p.priceHigh != null && pricedOn(p) === null;
+}
+
 /**
  * priceContext(p, asOf) -> null | {
- *   year, href,
+ *   year,     2023 | 'before-2025'   (the data-price-context value)
+ *   when,     'in 2023' | 'before 2025'
+ *   href,
  *   lead:     'Priced in 2023. Materials and labor have gone up since, and tier and scope move a price by thousands —',
  *   linkText: 'see what this kind of job runs today →',
  *   short:    'Priced in 2023. Materials and labor have gone up since.'   (cards that are themselves links)
@@ -75,13 +93,20 @@ export function todayHref(p) {
  * Plain text — the caller escapes it.
  */
 export function priceContext(p, asOf) {
-  if (!isPriceDated(p, asOf)) return null;
-  const year = Number(p.year);
+  let year, when;
+  if (isUndatedPriced(p)) {
+    if (!(asOf instanceof Date) || isNaN(asOf.getTime())) throw new Error('priceContext: asOf must be a valid Date');
+    year = UNDATED_KEY; when = UNDATED_LABEL;
+  } else {
+    if (!isPriceDated(p, asOf)) return null;
+    year = Number(p.year); when = `in ${year}`;
+  }
   return {
     year,
+    when,
     href: todayHref(p),
-    lead: `Priced in ${year}. Materials and labor have gone up since, and tier and scope move a price by thousands —`,
+    lead: `Priced ${when}. Materials and labor have gone up since, and tier and scope move a price by thousands —`,
     linkText: 'see what this kind of job runs today →',
-    short: `Priced in ${year}. Materials and labor have gone up since.`,
+    short: `Priced ${when}. Materials and labor have gone up since.`,
   };
 }
