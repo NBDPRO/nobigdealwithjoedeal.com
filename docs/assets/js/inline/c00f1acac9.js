@@ -195,8 +195,8 @@ const POSTS = [
     url: "/blog/how-much-does-roof-cost-cincinnati-2026",
     tag: "Pricing Guide",
     title: "How Much Does a New Roof Cost in Cincinnati in 2026?",
-    meta: "By Joe Deal · May 2025 · 7 min read",
-    excerpt: "Realistic roof replacement pricing for Cincinnati homes in 2026. Cost per square, material tiers, labor rates, insurance vs. out-of-pocket, and what actually drives the final number. No fluff — just straight numbers from a local roofer.",
+    meta: "By Joe Deal · Updated Sept 2026 · 11 min read",
+    excerpt: "What a new roof costs in Greater Cincinnati in 2026: per-square prices, a cost table by roof size, the Standard / Preferred / Elite tiers, what moves the price, and insurance vs. cash. Straight numbers from a local roofer.",
     published: "2025-05-19",
   },
   {
