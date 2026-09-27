@@ -740,7 +740,11 @@ const detailPage = (p) => {
 <meta property="og:url" content="${DETAIL_ORIGIN}/our-work/${esc(p.slug)}">
 <meta property="og:image" content="${DETAIL_ORIGIN}${esc(p.hero)}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/images/home-icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/images/home-icon-512.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
 <link rel="stylesheet" href="/assets/css/project-cards.css?v=1">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">

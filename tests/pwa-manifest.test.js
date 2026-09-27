@@ -45,11 +45,41 @@ function checkManifest(rel, { scope } = {}) {
   ok(`${rel} has a maskable icon`, (m.icons || []).some(i => /maskable/.test(i.purpose || '')));
   for (const ic of (m.icons || [])) {
     ok(`${rel} icon file exists: ${ic.src}`, fs.existsSync(docPath(ic.src)));
+    // Existence alone let a manifest lie about sizes (the 2026-09-13 worry that
+    // kept the homeowner manifest out): read the PNG's IHDR and compare.
+    if (fs.existsSync(docPath(ic.src))) {
+      const b = fs.readFileSync(docPath(ic.src));
+      const real = b.slice(0, 8).toString('hex') === '89504e470d0a1a0a' && b.slice(12, 16).toString('latin1') === 'IHDR'
+        ? `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}` : 'not a PNG';
+      ok(`${rel} icon ${ic.src} really is ${ic.sizes} (IHDR ${real})`, real === ic.sizes);
+    }
   }
   if (scope) ok(`${rel} start_url is within scope ${scope}`, m.start_url.startsWith(scope));
+  if (scope) ok(`${rel} scope is ${scope}`, m.scope === scope);
+  return m;
 }
 
 checkManifest('docs/pro/manifest.json', { scope: '/pro/' });
+
+// ── Homeowner manifest (2026-09-27) ──
+// Jo's iPhone test: Brave's saved-site tile showed the wordless roofline and
+// /manifest.webmanifest 404'd. The homeowner site now ships its own manifest
+// with the lettered NBD mark rendered by scripts/render-apple-touch-icon.js.
+// Linked from every homeowner-site page by scripts/normalize-favicons.js.
+{
+  const home = checkManifest('docs/manifest.webmanifest', { scope: '/' });
+  if (home) {
+    ok('homeowner manifest name is the business name', home.name === 'No Big Deal Home Solutions');
+    ok('homeowner manifest short_name is "No Big Deal" (the home-screen label)', home.short_name === 'No Big Deal');
+    ok('homeowner manifest starts at the homepage', home.start_url === '/');
+    ok('homeowner manifest icons all come from /assets/images (never the Pro art)', home.icons.every((i) => i.src.startsWith('/assets/images/home-icon-')));
+    ok('homeowner manifest has a 512 maskable icon', home.icons.some((i) => i.purpose === 'maskable' && i.sizes === '512x512'));
+  }
+  const fb = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8'));
+  const rules = (fb.hosting.headers || []).filter((h) => h.source === '/manifest.webmanifest');
+  ok('firebase.json serves /manifest.webmanifest as application/manifest+json',
+    rules.length === 1 && rules[0].headers.some((h) => h.key === 'Content-Type' && h.value === 'application/manifest+json'));
+}
 
 // ── Root manifest ──
 // docs/manifest.json was deleted 2026-09-13. It was a copy of the PRO manifest
@@ -59,6 +89,8 @@ checkManifest('docs/pro/manifest.json', { scope: '/pro/' });
 // is not a rename away: no homeowner 192/512/maskable PNG exists, and the
 // icon checks above only test existence, so a rewrite could pass by lying
 // about sizes. Build real assets first if one is ever wanted.
+// (2026-09-27: done — real assets, a separate file at /manifest.webmanifest,
+// and the icon checks above now read each PNG's IHDR. This path stays gone.)
 // documentation/audit/FAVICON-NORMALIZATION-2026-09-13.md
 console.log('\nROOT MANIFEST — docs/manifest.json');
 ok('docs/manifest.json does not exist (Pro-branded orphan with scope "/" deleted 2026-09-13)',

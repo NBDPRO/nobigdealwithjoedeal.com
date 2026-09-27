@@ -51,18 +51,44 @@ const iconCount = (html) => tool.iconLinks(html).length;
 console.log('\nTHE TRANSFORM CAN FAIL — and leaves a correct page alone');
 {
   const H = tool.CANON.homeowner, P = tool.CANON.pro;
+  // A homeowner-SITE page (2026-09-27): four icon tags + manifest + home-screen title.
+  const HB = [...H, ...tool.HOMEOWNER_EXTRAS];
 
   const wrong = head(`${P[0]}\n${P[1]}\n<link rel="stylesheet" href="/a.css">\n`);
   const r1 = tool.normalizeIcons(wrong, 'homeowner');
   ok('a homeowner page carrying the PRO pair is changed', r1.changed === true && !r1.refused);
-  ok('…to exactly the homeowner pair, in place', iconCount(r1.html) === 2 && r1.html.includes(H[0] + '\n' + H[1] + '\n<link rel="stylesheet"'));
+  ok('…to exactly the homeowner block, in place', iconCount(r1.html) === 4 && r1.html.includes(HB.join('\n') + '\n<link rel="stylesheet"'));
   ok('…and no PRO href survives', !r1.html.includes('/pro/favicon.svg') && !r1.html.includes('/pro/img/nbd-icon-192.png'));
 
-  const right = head(`${H[0]}\n${H[1]}\n`);
+  const right = head(`${HB.join('\n')}\n`);
   const r2 = tool.normalizeIcons(right, 'homeowner');
-  ok('a page already carrying its canonical pair is returned unchanged (strict ===)', r2.changed === false && r2.html === right);
-  const reversed = head(`${H[1]}\n${H[0]}\n`);
-  ok('…in either order (pro/daily-success puts apple-touch first)', tool.normalizeIcons(reversed, 'homeowner').html === reversed);
+  ok('a page already carrying its canonical block is returned unchanged (strict ===)', r2.changed === false && r2.html === right);
+  const reversed = head(`${[...HB].reverse().join('\n')}\n`);
+  ok('…in any order (pro/daily-success puts apple-touch first)', tool.normalizeIcons(reversed, 'homeowner').html === reversed);
+
+  // Jo 2026-09-27: Brave's saved-site tile showed the wordless roofline because
+  // favicon.svg was the only rel="icon". The old pair on a homeowner-site page
+  // is now drift, so the sized lettered PNGs cannot silently fall off a page.
+  const oldPair = head(`${tool.HOMEOWNER_ICON}\n${tool.HOMEOWNER_TOUCH_IN_PRO}\n`);
+  const r9 = tool.normalizeIcons(oldPair, 'homeowner', 'services/x.html', 'services/x.html');
+  ok('the pre-2026-09-27 pair on a homeowner-site page is out of contract', r9.changed === true);
+  ok('…and becomes the six-line block where the pair was', r9.html.includes('<title>t</title>\n' + HB.join('\n') + '\n</head>'));
+  ok('the block keeps favicon.svg (small tab mark) and adds 192/512 PNG icons, a sized apple-touch icon, the manifest and the title',
+    H.includes('<link rel="icon" href="/favicon.svg" type="image/svg+xml">')
+    && /sizes="192x192"[^>]*home-icon-192\.png/.test(H.join(' ')) && /sizes="512x512"[^>]*home-icon-512\.png/.test(H.join(' '))
+    && /apple-touch-icon[^>]*sizes="180x180"/.test(H.join(' '))
+    && tool.HOMEOWNER_EXTRAS.includes('<link rel="manifest" href="/manifest.webmanifest">')
+    && tool.HOMEOWNER_EXTRAS.includes('<meta name="apple-mobile-web-app-title" content="No Big Deal">'));
+  const strayExtras = head(`<meta name="apple-mobile-web-app-title" content="Roofing">\n${H.join('\n')}\n<link rel="manifest" href="/pro/manifest.json">\n`);
+  const r10 = tool.normalizeIcons(strayExtras, 'homeowner');
+  ok('a stray manifest link and a different home-screen title on a homeowner-site page are replaced, one of each',
+    tool.isCanonical(r10.html, 'homeowner') && tool.manifestLinks(r10.html).length === 1 && tool.appTitleMetas(r10.html).length === 1 && !r10.html.includes('/pro/manifest.json'));
+  const inPro = tool.normalizeIcons(head(`${H.join('\n')}\n`), 'homeowner', 'pro/portal.html', 'pro/portal.html');
+  ok('a homeowner page inside docs/pro keeps the original pair and gets no manifest or title (the CRM lane owns docs/pro)',
+    inPro.changed && iconCount(inPro.html) === 2 && tool.HOMEOWNER_IN_PRO.every((t) => inPro.html.includes(t))
+    && tool.manifestLinks(inPro.html).length === 0 && tool.appTitleMetas(inPro.html).length === 0);
+  const proWithManifest = head(`${P[0]}\n${P[1]}\n<link rel="manifest" href="/pro/manifest.json">\n`);
+  ok('a pro page\'s own /pro/manifest.json link is not touched', tool.normalizeIcons(proWithManifest, 'pro', 'pro/x.html', 'pro/x.html').html === proWithManifest);
   ok('re-running on the transform\'s own output is a no-op (idempotent)', tool.normalizeIcons(r1.html, 'homeowner').html === r1.html);
 
   const none = head('<link rel="stylesheet" href="/a.css">\n');
@@ -75,14 +101,14 @@ console.log('\nTHE TRANSFORM CAN FAIL — and leaves a correct page alone');
 
   const legacy = head(`<link rel="shortcut icon" href="/favicon.ico">\n  <link rel="mask-icon" href="/x.svg" color="#000">\n<link rel="apple-touch-icon-precomposed" href="/y.png">\n${H[0]}\n${H[0]}\n`);
   const r5 = tool.normalizeIcons(legacy, 'homeowner');
-  ok('shortcut icon, mask-icon, apple-touch-icon-precomposed and a duplicate are all removed', iconCount(r5.html) === 2 && tool.isCanonical(r5.html, 'homeowner'));
-  ok('…and the pair takes the first removed tag\'s position', r5.html.includes('<title>t</title>\n' + H[0] + '\n' + H[1] + '\n</head>'));
+  ok('shortcut icon, mask-icon, apple-touch-icon-precomposed and a duplicate are all removed', iconCount(r5.html) === 4 && tool.isCanonical(r5.html, 'homeowner'));
+  ok('…and the block takes the first removed tag\'s position', r5.html.includes('<title>t</title>\n' + HB.join('\n') + '\n</head>'));
 
   const indented = '<html>\n  <head>\n    <title>t</title>\n    <link rel="icon" href="/favicon.svg">\n  </head>\n</html>';
   const r6 = tool.normalizeIcons(indented, 'pro');
   ok('the removed tag\'s indentation is kept', r6.html.includes('\n    ' + P[0] + '\n    ' + P[1] + '\n  </head>'));
 
-  const preload = head(`<link rel="preload" as="image" href="/favicon.svg">\n${H[0]}\n${H[1]}\n`);
+  const preload = head(`<link rel="preload" as="image" href="/favicon.svg">\n${HB.join('\n')}\n`);
   ok('a non-icon <link> that merely points at /favicon.svg is not an icon tag', tool.normalizeIcons(preload, 'homeowner').html === preload);
 
   const crlf = wrong.replace(/\n/g, '\r\n');
@@ -147,14 +173,17 @@ console.log('\nTHE TREE — every page under docs/, walked from the filesystem')
     const html = fs.readFileSync(f, 'utf8');
     if (audience === 'homeowner' || audience === 'pro') {
       const tags = tool.iconLinks(html);
-      const want = tool.CANON[audience];
-      if (!(tags.length === 2 && want.every((t) => tags.includes(t)))) wrong.push(`${rel} [${audience}] has ${tags.length}: ${tags.map(tool.hrefOf).join(' ')}`);
+      const { icons, extras } = tool.canonFor(audience, rel);
+      if (!(tags.length === icons.length && icons.every((t) => tags.includes(t)))) wrong.push(`${rel} [${audience}] has ${tags.length}: ${tags.map(tool.hrefOf).join(' ')}`);
+      else if (extras.length && !tool.isCanonical(html, audience, rel)) wrong.push(`${rel} [${audience}] lacks exactly one manifest link + home-screen title`);
+      if (extras.length) counts.site = (counts.site || 0) + 1;
     } else if (audience === 'excluded') {
       const bad = tool.iconLinks(html).map(tool.hrefOf).filter((h) => tool.NBD_ICON_HREFS.includes(h));
       if (bad.length) leaks.push(`${rel}: ${bad.join(', ')}`);
     }
   }
-  ok(`every homeowner page (${counts.homeowner}) and pro page (${counts.pro}) carries exactly its audience's two icons`, wrong.length === 0, wrong.slice(0, 5).join(' | ') + (wrong.length > 5 ? ` … +${wrong.length - 5}` : ''));
+  ok(`every homeowner page (${counts.homeowner}) and pro page (${counts.pro}) carries exactly its audience's icon tags (+ manifest and home-screen title on homeowner-site pages)`, wrong.length === 0, wrong.slice(0, 5).join(' | ') + (wrong.length > 5 ? ` … +${wrong.length - 5}` : ''));
+  ok('the homeowner-site block is actually in force (≥ 250 pages carry the manifest + title)', (counts.site || 0) >= 250, String(counts.site));
   ok(`no excluded page (${counts.excluded}: Oaks + tenant template) carries an NBD icon href`, leaks.length === 0, leaks.join(' | '));
   ok('both audiences are actually populated (a classifier that sends everything one way would pass the check above)', counts.homeowner >= 200 && counts.pro >= 30, JSON.stringify(counts));
   ok('the excluded set is non-empty (a dead exclusion pattern is a stale rule)', counts.excluded >= 2);
@@ -199,7 +228,15 @@ console.log('\nASSETS — the four icon hrefs resolve to real files of the right
     const p = path.join(DOCS, rel);
     ok(`/${rel} exists and is SVG markup`, fs.existsSync(p) && fs.readFileSync(p, 'utf8').trimStart().startsWith('<svg'));
   }
-  for (const [rel, dim] of [['assets/images/apple-touch-icon.png', 180], ['pro/img/nbd-icon-192.png', 192]]) {
+  const PNGS = [['assets/images/apple-touch-icon.png', 180], ['assets/images/home-icon-192.png', 192], ['assets/images/home-icon-512.png', 512], ['assets/images/home-icon-maskable-512.png', 512], ['pro/img/nbd-icon-192.png', 192]];
+  // The homeowner PNGs are build products of render-apple-touch-icon.js; pin its target table to this list.
+  const { TARGETS } = require(path.join(ROOT, 'scripts', 'render-apple-touch-icon.js'));
+  ok('render-apple-touch-icon.js renders exactly the four homeowner PNGs at their declared sizes',
+    JSON.stringify(TARGETS.map((t) => [path.relative(DOCS, t.out).replace(/\\/g, '/'), t.size])) === JSON.stringify(PNGS.slice(0, 4)),
+    JSON.stringify(TARGETS.map((t) => [path.basename(t.out), t.size])));
+  ok('…the maskable one from the pack\'s safe-zone (maskable) SVG, the rest from the lettered icon SVG',
+    TARGETS.every((t) => path.basename(t.svg) === (/maskable/.test(t.out) ? 'home-solutions-maskable.svg' : 'home-solutions-icon.svg')));
+  for (const [rel, dim] of PNGS) {
     const exists = fs.existsSync(path.join(DOCS, rel));
     const m = exists ? png(rel) : {};
     ok(`/${rel} is a PNG`, exists && m.sig === '89504e470d0a1a0a' && m.chunk === 'IHDR');
@@ -207,7 +244,7 @@ console.log('\nASSETS — the four icon hrefs resolve to real files of the right
     const problem = exists ? pngProblem(fs.readFileSync(path.join(DOCS, rel))) : 'missing';
     ok(`/${rel} is structurally whole (every chunk in bounds with a valid CRC, IDAT inflates to the declared size)`, problem === null, problem);
   }
-  ok('the canonical tags point at exactly those four files', JSON.stringify([...tool.CANON.homeowner, ...tool.CANON.pro].map(tool.hrefOf)) === JSON.stringify(tool.NBD_ICON_HREFS));
+  ok('the canonical icon tags point at exactly the NBD icon hrefs', JSON.stringify([...tool.CANON.homeowner, ...tool.CANON.pro].map(tool.hrefOf)) === JSON.stringify(tool.NBD_ICON_HREFS));
 }
 
 console.log('\nTHE GATE IS A GATE — --check fails on a bad tree and passes once it is fixed');
@@ -250,22 +287,29 @@ console.log('\nTHE GATE IS A GATE — --check fails on a bad tree and passes onc
   }
 }
 
-console.log('\nMANIFEST — the only web-app manifest is the PRO one');
+console.log('\nMANIFEST — two manifests, one per audience, never crossed');
 {
+  // 2026-09-13: the Pro-branded orphan at docs/manifest.json (scope "/") was
+  // deleted. 2026-09-27: the homeowner site got its own manifest at
+  // /manifest.webmanifest, with real lettered 192/512/maskable PNGs.
   ok('docs/manifest.json does not exist (scope "/" Pro copy deleted 2026-09-13)', !fs.existsSync(path.join(DOCS, 'manifest.json')));
   const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (e.name.endsWith('.html')) o.push(p); } return o; };
   const offenders = [];
-  let linked = 0;
+  let linkedPro = 0, linkedHome = 0;
   for (const f of walk(DOCS)) {
     const html = fs.readFileSync(f, 'utf8');
+    const rel = path.relative(DOCS, f).replace(/\\/g, '/');
+    const { audience } = tool.classify(rel);
     for (const tag of html.match(/<link\b[^>]*\brel=["']?manifest\b[^>]*>/gi) || []) {
-      linked++;
-      const rel = path.relative(DOCS, f).replace(/\\/g, '/');
-      if (tool.hrefOf(tag) !== '/pro/manifest.json' || !rel.startsWith('pro/')) offenders.push(`${rel}: ${tool.hrefOf(tag)}`);
+      const href = tool.hrefOf(tag);
+      if (href === '/pro/manifest.json' && rel.startsWith('pro/')) linkedPro++;
+      else if (href === '/manifest.webmanifest' && audience === 'homeowner' && !rel.startsWith('pro/')) linkedHome++;
+      else offenders.push(`${rel}: ${href}`);
     }
   }
-  ok('every rel="manifest" is /pro/manifest.json on a /pro page', offenders.length === 0, offenders.join(' | '));
-  ok('…and the PRO manifest is still linked somewhere (≥ 1)', linked >= 1);
+  ok('every rel="manifest" is /pro/manifest.json on a /pro page or /manifest.webmanifest on a homeowner-site page', offenders.length === 0, offenders.join(' | '));
+  ok('…and the PRO manifest is still linked somewhere (≥ 1)', linkedPro >= 1);
+  ok('…and the homeowner manifest is linked site-wide (≥ 250 pages)', linkedHome >= 250, String(linkedHome));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -212,3 +212,49 @@ items in "Not done, deliberately" above are now stale:
   too. Full mapping and the two tooling substitutions (sharp in place of the
   repo's Python/Playwright pipelines, unavailable in that session's
   environment) are in the session note linked above.
+
+## Update 2026-09-27: homeowner web manifest and lettered large icons
+
+Jo tested on his iPhone. Google's result favicon and Safari's Add-to-Home-Screen
+both showed the lettered NBD mark, because the live `apple-touch-icon.png` matches
+the repo. A Brave saved-site tile showed the **wordless roofline**. Brave ignores
+apple-touch-icon and picks from `rel="icon"`, and `favicon.svg` was the only
+candidate there. Safari also labelled the home-screen item with the truncated
+full `<title>`, and `/manifest.webmanifest` returned 404. Branch
+`seo/manifest-nosnippet`.
+
+- **The "No homeowner web-app manifest" item above is closed.** Its blocker was
+  that no homeowner 192/512/maskable PNG existed. `scripts/render-apple-touch-icon.js`
+  now renders all four homeowner PNGs through the same Chromium pipeline and
+  read-back check: 180 (apple-touch, byte-identical to before), 192, 512 and a
+  512 maskable. The maskable one comes from the pack's `home-solutions-maskable.svg`,
+  and its artwork reaches 0.574 of the half-width, inside the 0.8 safe zone. The
+  output is deterministic: a second run wrote nothing. `docs/manifest.webmanifest`
+  sets name "No Big Deal Home Solutions", short_name "No Big Deal", start_url and
+  scope `/`, `minimal-ui`, theme `#12223d` (navy-dark), background `#ffffff`
+  (the icon tile). `firebase.json` serves it as `application/manifest+json`.
+  `docs/manifest.json` stays deleted.
+- **`scripts/normalize-favicons.js` still owns the head tags.** Homeowner-site pages
+  (homeowner audience, not under `pro/`) carry a six-line block. It keeps the
+  unchanged `favicon.svg` (the small tab mark stays the roofline), adds
+  `sizes="180x180"` to the apple-touch icon, and adds `rel="icon"` PNGs at 192 and
+  512 (the lettered mark, for large-tile consumers), `rel="manifest"`, and
+  `<meta name="apple-mobile-web-app-title" content="No Big Deal">`. The script
+  rewrote 295 pages, each diff +5/−1. The 7 homeowner-override pages under
+  `docs/pro/` keep the original pair and get no manifest, because that tree
+  belongs to the CRM lane. `canonFor()` is where to change that.
+  `scripts/build-projects.mjs` emits the same block for our-work detail pages
+  (`--check` clean).
+- **Tests:** `tests/favicon-contract.test.js` (96) pins the block, the in-pro
+  variant, the render target table, and a chunk walk of every new PNG. The
+  manifest rule is now "`/pro/manifest.json` on `pro/` pages, `/manifest.webmanifest`
+  on homeowner-site pages, never crossed". `tests/pwa-manifest.test.js` (74)
+  checks the homeowner manifest and now reads each icon's IHDR, so a manifest
+  can no longer misstate its icon sizes. Four breaks were proven red on the
+  expected assertions: a page reverted to the old pair, a pro page linking the
+  homeowner manifest, a misstated icon size, and a dropped Content-Type.
+- Same PR, unrelated to icons: the GAF/TAMKO independent-contractor disclaimers
+  (296 elements on 285 public pages plus the 4 footer partial sources) now sit
+  inside `<span data-nosnippet>`, because Google honours the attribute only on
+  span/div/section. Google had been showing the disclaimer as the homepage
+  snippet.

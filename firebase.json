@@ -122,6 +122,13 @@
         ]
       },
       {
+        "_comment": "Homeowner web-app manifest (2026-09-27). Served as application/manifest+json explicitly rather than trusting the host's extension map. Placed AFTER the ** rule so last-match-wins keeps this Content-Type; the ** rule's security headers still apply. documentation/audit/FAVICON-NORMALIZATION-2026-09-13.md (update 2026-09-27)",
+        "source": "/manifest.webmanifest",
+        "headers": [
+          { "key": "Content-Type", "value": "application/manifest+json" }
+        ]
+      },
+      {
         "_comment": "Public brand assets (logo, illustrations) must be embeddable cross-origin. The Universal Doc Viewer (docs/pro/js/nbd-doc-viewer.js) renders generated PDFs inside <iframe srcdoc> *without* `allow-same-origin` — that gives the iframe a `null` origin, and the global Cross-Origin-Resource-Policy: same-origin above refuses to serve these images into it, leaving every generated document with a broken-image placeholder where the company logo should be. These are public marketing assets — letting them embed cross-origin is safe (CORP only governs *embedding*; it does not grant script-level read access). Targeted at /assets/images/** specifically so unrelated assets keep the stricter default. Placed AFTER the ** rule so last-match-wins lets this one stick.",
         "source": "/assets/images/**",
         "headers": [
