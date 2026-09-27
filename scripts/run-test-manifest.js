@@ -407,7 +407,12 @@ const RUNNABLE = ['node', 'smoke'];
 //               via --check on a0515d8e (#1781); whoever merges last re-measures.
 //   2026-09-26  193/68/284 -> 194/68/285, tests/thursday-ui-wiring.test.js
 //               (node; Calls section, source selects, CSP media-src, widget gate).
-const FLOORS = { node: 200, smoke: 69, disk: 292 };
+//   2026-09-27  200/69/292 -> 202/69/294, tests/google-reviews-momentum.test.js
+//               + tests/google-reviews-momentum-widget.test.js (node; "N new
+//               reviews this month" from Google's count history). Stacked on
+//               #1814's 200/69/292; MEASURED via --check; whoever merges last
+//               re-measures.
+const FLOORS = { node: 202, smoke: 69, disk: 294 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

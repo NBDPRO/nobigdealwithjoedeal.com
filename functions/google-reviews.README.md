@@ -112,12 +112,44 @@ Google section renders above the hand-curated review grid.
   widget renders a "Read our reviews on Google →" fallback card instead
   of hiding itself. Hand-curated review grid still renders either way.
 
+## Review momentum ("N new this month")
+
+Places returns only 5 reviews, picked by relevance, so brand-new reviews
+often don't appear on the cards. What Places *does* return is Google's
+own review count (`userRatingCount` → `total`), so the function keeps a
+history of it and reports growth:
+
+- **Recording.** Every successful Places refresh writes one
+  `{ date, total }` point per America/New_York day into `totalsHistory`
+  on `public_cache/google_reviews`, as part of the same `set` as the
+  snapshot (latest wins within a day; 400 days kept). A fresh GBP
+  full-set serve records its total too, but only when today's point is
+  missing or different. No write happens if the cache read failed, so a
+  flaky read can't wipe the history.
+- **Seed.** `SEED_TOTALS` in `google-reviews-momentum.js` compiles in
+  three verified counts (2026-08-31 → 28, 2026-09-20 → 29,
+  2026-09-27 → 32), each with its source, so the line works before the
+  stored history is 30 days deep. Stored points win on the same date.
+- **The number.** `recent = { newReviews, days, since }` is the current
+  total minus the latest point on or before today − 30 days. Until a
+  point that old exists, the oldest point is used and `days` is the real
+  span, as long as that span is at least 7 days. A stale payload
+  computes as of its own `fetchedAt` and loses the line after a week.
+- **When it hides.** No baseline, a span under 7 days, or growth ≤ 0
+  (e.g. Google removed a review) means `recent` is **absent** from the
+  payload. The widget then renders exactly what it did before. It never
+  shows "0 new".
+- **Where it shows.** After the count in the cards header, and in the
+  homepage summary row via the empty `data-nbd-gr-recent` hook:
+  " · 4 new this month" for a 28–31 day span, otherwise
+  " · 4 new in the last N days".
+
 ## When you want to invalidate the cache manually
 
-```bash
-# From the Firebase console → Firestore → delete the doc:
-public_cache/google_reviews
-```
+**Don't delete the doc.** It also holds `totalsHistory`, and deleting it
+resets "N new this month" to the compiled seed points only. Instead, in
+the Firebase console → Firestore → `public_cache/google_reviews`, set
+`fetchedAt` to `0`.
 
 Next page view will trigger a refresh from Google.
 

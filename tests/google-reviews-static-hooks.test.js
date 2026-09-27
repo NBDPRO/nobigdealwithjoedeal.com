@@ -74,8 +74,12 @@ const starFull = /const STAR_FULL\s*=\s*\n?\s*'([^']*)';/.exec(WIDGET_SRC);
 const starEmpty = /const STAR_EMPTY\s*=\s*\n?\s*'([^']*)';/.exec(WIDGET_SRC);
 const starsFn = lift(WIDGET_SRC, 'function stars(n)');
 const hydrateFn = lift(WIDGET_SRC, 'function hydrateStaticHooks(data)');
+// hydrateStaticHooks calls recentText() for the momentum hook (covered in
+// tests/google-reviews-momentum-widget.test.js); lifted so the closure is whole.
+const recentFn = lift(WIDGET_SRC, 'function recentText(data)');
 
 ok('STAR_FULL constant found', !!starFull);
+ok('recentText() lifted', !!recentFn);
 ok('STAR_EMPTY constant found', !!starEmpty);
 ok('stars() lifted', !!starsFn && starsFn.includes('Math.round'));
 ok('hydrateStaticHooks() lifted', !!hydrateFn && hydrateFn.includes('data-nbd-gr-rating'));
@@ -84,7 +88,7 @@ ok('the widget still CALLS hydrateStaticHooks on the success path (a dead helper
   /hydrateStaticHooks\(data \|\| \{\}\);/.test(WIDGET_SRC),
   'load() must invoke it after the fetch resolves, before renderAll');
 
-if (!starFull || !starEmpty || !starsFn || !hydrateFn) {
+if (!starFull || !starEmpty || !starsFn || !hydrateFn || !recentFn) {
   console.log('\n' + passed + ' passed, ' + (failed + 1) + ' failed\nFATAL: extraction failed — nothing below can run');
   process.exit(1);
 }
@@ -112,7 +116,7 @@ function makeDoc(elsByAttr) {
 function makeHydrate(doc) {
   const factory = new Function(
     'document',
-    `${starFull[0]}\n${starEmpty[0]}\n${starsFn}\n${hydrateFn}\nreturn hydrateStaticHooks;`
+    `${starFull[0]}\n${starEmpty[0]}\n${starsFn}\n${recentFn}\n${hydrateFn}\nreturn hydrateStaticHooks;`
   );
   return factory(doc);
 }

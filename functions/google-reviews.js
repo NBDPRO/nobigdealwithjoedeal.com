@@ -35,6 +35,7 @@ const GOOGLE_PLACES_API_KEY = defineSecret('GOOGLE_PLACES_API_KEY');
 const NBD_PLACE_ID = defineSecret('NBD_PLACE_ID');
 const { secretValue } = require('./integrations/_shared');
 const { presentPayload } = require('./google-reviews-display');
+const { recordTotal, needsRecord } = require('./google-reviews-momentum');
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const CACHE_DOC_PATH = 'public_cache/google_reviews';
@@ -61,6 +62,19 @@ const NOT_CONFIGURED_LOG_INTERVAL_MS = 60 * 60 * 1000;
 let lastNotConfiguredLogAt = 0;
 
 /**
+ * Momentum options for a STALE payload. Its total was observed at
+ * `doc.fetchedAt`, not now, so the 30-day window ends there — computing it
+ * against today would credit old growth to the current month. Past a week of
+ * staleness the line is dropped entirely rather than dated.
+ */
+const STALE_MOMENTUM_MAX_MS = 7 * 24 * 60 * 60 * 1000;
+function staleMomentum(doc, totalsHistory, now) {
+  const at = doc && Number(doc.fetchedAt);
+  if (!at || now - at > STALE_MOMENTUM_MAX_MS) return undefined;
+  return { totalsHistory, now: at };
+}
+
+/**
  * Serve the best payload we still have when a refresh cannot produce one:
  * last-known-good Places cache → stale GBP full set → empty-but-valid body.
  *
@@ -72,10 +86,11 @@ let lastNotConfiguredLogAt = 0;
  * from outside and only Cloud Logging could tell them apart.
  */
 function serveFallback(res, { cached, gbp, now, reason }) {
+  const history = cached && cached.totalsHistory;
   if (cached && cached.data) {
     res.set('Cache-Control', 'public, max-age=120');
     return res.status(200).json({
-      ...presentPayload(cached.data),
+      ...presentPayload(cached.data, staleMomentum(cached, history, now)),
       cached: true,
       stale: true,
       reason,
@@ -87,7 +102,7 @@ function serveFallback(res, { cached, gbp, now, reason }) {
   if (gbp && gbp.data && Array.isArray(gbp.data.reviews) && gbp.data.reviews.length) {
     res.set('Cache-Control', 'public, max-age=120');
     return res.status(200).json({
-      ...presentPayload(gbp.data),
+      ...presentPayload(gbp.data, staleMomentum(gbp, history, now)),
       cached: true,
       stale: true,
       source: 'gbp',
@@ -197,20 +212,48 @@ exports.getGoogleReviews = onRequest(
     const ref = db.doc(CACHE_DOC_PATH);
     const now = Date.now();
 
+    // Both docs are read up front (in parallel): the GBP-fresh path needs the
+    // cache doc too, because the review-count history (totalsHistory, see
+    // google-reviews-momentum.js) lives on it.
+    //
+    // cacheReadOk gates every history WRITE. If the read failed we don't know
+    // what history is stored, and writing recordTotal([]) with merge:true
+    // would replace the whole array with a single point — wiping the
+    // baseline the "N new this month" line depends on.
     let gbp = null;
-    try {
-      const snap = await db.doc(GBP_DOC_PATH).get();
-      if (snap.exists) gbp = snap.data();
-    } catch (e) {
-      logger.warn('getGoogleReviews: gbp doc read failed', e);
-    }
+    let cached = null;
+    let cacheReadOk = true;
+    await Promise.all([
+      db.doc(GBP_DOC_PATH).get().then(
+        (snap) => { if (snap.exists) gbp = snap.data(); },
+        (e) => logger.warn('getGoogleReviews: gbp doc read failed', e)
+      ),
+      ref.get().then(
+        (snap) => { if (snap.exists) cached = snap.data(); },
+        (e) => { cacheReadOk = false; logger.warn('getGoogleReviews: cache read failed', e); }
+      ),
+    ]);
+    const storedHistory = cached && cached.totalsHistory;
+
     if (
       gbp && gbp.fetchedAt && now - gbp.fetchedAt < GBP_FRESH_MS &&
       gbp.data && Array.isArray(gbp.data.reviews) && gbp.data.reviews.length
     ) {
+      // Record the full set's total too — at most one write per day (or when
+      // the count changes), never one per request. Non-fatal: the reviews
+      // are served whether or not the history point lands.
+      let history = storedHistory;
+      if (cacheReadOk && needsRecord(storedHistory, gbp.data.total, now)) {
+        history = recordTotal(storedHistory, gbp.data.total, now);
+        try {
+          await ref.set({ totalsHistory: history }, { merge: true });
+        } catch (e) {
+          logger.warn('getGoogleReviews: totalsHistory write failed', e);
+        }
+      }
       res.set('Cache-Control', 'public, max-age=600');
       return res.status(200).json({
-        ...presentPayload(gbp.data),
+        ...presentPayload(gbp.data, { totalsHistory: history, now }),
         cached: true,
         stale: false,
         source: 'gbp',
@@ -218,19 +261,11 @@ exports.getGoogleReviews = onRequest(
       });
     }
 
-    let cached = null;
-    try {
-      const snap = await ref.get();
-      if (snap.exists) cached = snap.data();
-    } catch (e) {
-      logger.warn('getGoogleReviews: cache read failed', e);
-    }
-
     // Fresh-cache path: serve without hitting Google
     if (cached && cached.fetchedAt && now - cached.fetchedAt < CACHE_TTL_MS) {
       res.set('Cache-Control', 'public, max-age=600');
       return res.status(200).json({
-        ...presentPayload(cached.data),
+        ...presentPayload(cached.data, { totalsHistory: storedHistory, now }),
         cached: true,
         stale: false,
         fetchedAt: cached.fetchedAt,
@@ -279,11 +314,17 @@ exports.getGoogleReviews = onRequest(
 
     try {
       const fresh = await fetchFromGoogle(placeId, apiKey);
-      await ref.set({ data: fresh, fetchedAt: now }, { merge: true });
+      // Same single write as before, now carrying today's count point.
+      // Skipped (field omitted, so merge keeps what's stored) when the cache
+      // read failed — see cacheReadOk above.
+      const history = cacheReadOk ? recordTotal(storedHistory, fresh.total, now) : storedHistory;
+      const write = { data: fresh, fetchedAt: now };
+      if (cacheReadOk) write.totalsHistory = history;
+      await ref.set(write, { merge: true });
 
       res.set('Cache-Control', 'public, max-age=600');
       return res.status(200).json({
-        ...presentPayload(fresh),
+        ...presentPayload(fresh, { totalsHistory: history, now }),
         cached: false,
         stale: false,
         fetchedAt: now,
