@@ -7,8 +7,10 @@
  * an INJECTED as-of date, so nothing depends on the day this runs:
  *   - a job with a price whose year is more than 12 months before the as-of
  *     date gets the line; the job is dated to Dec 31 of its year (generous)
- *   - a current-year job and an unpriced job never do; a priced job with no
- *     year is labelled "Priced before 2025." (Jo, 2026-09-27)
+ *   - a current-year job and an unpriced job never do; a priced LEGACY job
+ *     with no year is labelled "Priced before 2025." (Jo, 2026-09-27) — only
+ *     the slugs in LEGACY_UNDATED_PRICED; any other live priced job with no
+ *     year fails yearRuleErrors (and so the build), naming the slug
  *   - roofing jobs link the roof cost guide; others their own service hub
  * Then the stamped tree is checked against the same rule at the as-of date
  * build-projects.mjs uses by default (newest published), and the CLI's
@@ -49,15 +51,45 @@ function ok(name, cond, detail) {
   ok('the boundary is strict: a 2024 job on 2025-12-31 is exactly 12 months, no line', !isPriceDated(job({ year: 2024 }), d('2025-12-31')));
   ok('…and gets it the next day', isPriceDated(job({ year: 2024 }), d('2026-01-01')));
   ok('an unpriced 2023 job gets nothing (no price, nothing to put in context)', priceContext(job({ year: 2023, priceLow: undefined, priceHigh: undefined }), TODAY) === null);
-  // Jo, 2026-09-27: undated jobs are the legacy ones, all priced before 2025.
-  const undated = priceContext(job({ year: undefined }), TODAY);
+  // Jo, 2026-09-27: undated jobs are the legacy ones, all priced before 2025 —
+  // named one by one in LEGACY_UNDATED_PRICED; only they carry the label.
+  const LEGACY = mod.LEGACY_UNDATED_PRICED[0];
+  const undated = priceContext(job({ slug: LEGACY, year: undefined }), TODAY);
   ok('an undated priced job is labelled "Priced before 2025." (Jo 2026-09-27; the year itself is still not guessed)',
     !!undated && undated.year === 'before-2025' && undated.when === 'before 2025'
       && /^Priced before 2025\. Materials and labor have gone up since, and tier and scope move a price by thousands —$/.test(undated.lead)
       && undated.short === 'Priced before 2025. Materials and labor have gone up since.');
   ok('  …with the same prices-rise link as a dated job', undated && undated.href === ROOF_COST_GUIDE && undated.linkText === old.linkText);
-  ok('  …whatever the as-of date (it is not an age rule)', !!priceContext(job({ year: undefined }), d('2025-06-01')));
-  ok('an undated UNPRICED job still gets nothing', priceContext(job({ year: undefined, priceLow: undefined, priceHigh: undefined }), TODAY) === null);
+  ok('  …whatever the as-of date (it is not an age rule)', !!priceContext(job({ slug: LEGACY, year: undefined }), d('2025-06-01')));
+  ok('an undated UNPRICED job still gets nothing', priceContext(job({ slug: LEGACY, year: undefined, priceLow: undefined, priceHigh: undefined }), TODAY) === null);
+  ok('an undated priced job OUTSIDE the legacy list is NOT labelled "before 2025" (the build refuses it instead)',
+    priceContext(job({ slug: 'new-job-2026', year: undefined }), TODAY) === null && !mod.isUndatedPriced(job({ slug: 'new-job-2026' })));
+
+  console.log('\nYEAR RULE — a priced job must carry a year (injected data)\n');
+  const { yearRuleErrors } = mod;
+  const P = (over) => Object.assign({ slug: 'x', published: '2026-09-01', priceLow: 9000, priceHigh: 10000, year: 2026 }, over);
+  const inj = ['old-legacy-job'];
+  ok('a dated priced job passes', yearRuleErrors([P({ slug: 'dated' })], TODAY, []).length === 0);
+  const miss = yearRuleErrors([P({ slug: 'fresh-reroof-mason', year: undefined })], TODAY, []);
+  ok('a live priced job with no year FAILS, naming the slug', miss.length === 1 && /"fresh-reroof-mason"/.test(miss[0]) && /needs "year"/.test(miss[0]), miss.join(' | '));
+  ok('a legacy-listed undated priced job passes', yearRuleErrors([P({ slug: 'old-legacy-job', year: undefined })], TODAY, inj).length === 0);
+  ok('an unpriced undated job passes (the rule is about prices)', yearRuleErrors([P({ slug: 'u', year: undefined, priceLow: undefined, priceHigh: undefined }), P({ slug: 'old-legacy-job', year: undefined })], TODAY, inj).length === 0);
+  ok('a staged (future-published) undated priced job is not live yet — passes until it is',
+    yearRuleErrors([P({ slug: 'staged', year: undefined, published: '2026-12-01' })], TODAY, []).length === 0
+      && yearRuleErrors([P({ slug: 'staged', year: undefined, published: '2026-12-01' })], d('2026-12-02'), []).length === 1);
+  ok('a garbage year fails', yearRuleErrors([P({ slug: 'g', year: '2024ish' })], TODAY, []).some((e) => /4-digit year/.test(e)));
+  ok('a legacy entry that now has a year fails (the list only shrinks)', yearRuleErrors([P({ slug: 'old-legacy-job', year: 2023 })], TODAY, inj).some((e) => /now has a year/.test(e)));
+  ok('a legacy entry missing from the data fails', yearRuleErrors([P({ slug: 'dated' })], TODAY, inj).some((e) => /not in projects\.json/.test(e)));
+  ok('the real legacy list is exactly the 7 undated priced jobs named in Jo\'s 2026-09-27 call', mod.LEGACY_UNDATED_PRICED.length === 7 && Object.isFrozen(mod.LEGACY_UNDATED_PRICED));
+  {
+    const realProjects = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'data', 'projects.json'), 'utf8')).projects;
+    // Real data at the real date — the same thing the build checks.
+    const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+    const errs = yearRuleErrors(realProjects, endOfToday);
+    ok('the real projects.json passes the year rule', errs.length === 0, errs.join(' | '));
+    const planted = realProjects.concat([P({ slug: 'planted-undated-job', year: undefined, published: '2026-09-01' })]);
+    ok('…and fails once an undated priced job is planted in it', yearRuleErrors(planted, TODAY).some((e) => /"planted-undated-job"/.test(e)));
+  }
   ok('a dated job keeps "in <year>"', old && old.when === 'in 2023');
   ok('a commercial job links the commercial hub, not the residential cost guide',
     (priceContext(job({ year: 2023, services: ['commercial-roofing', 'storm-damage', 'roof-replacement'] }), TODAY) || {}).href === '/services/commercial-roofing');

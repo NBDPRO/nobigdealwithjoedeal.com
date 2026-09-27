@@ -42,11 +42,13 @@ const BANNED = [
 ];
 
 // Rep-facing training / persona content — not a document, email, SMS or page
-// a homeowner receives. (Flagged for a separate rewrite: the sales trainer
-// still coaches the "insurance restoration specialist" pitch.)
-const INTERNAL_ONLY = new Set([
-  'docs/pro/js/sales-training-engine.js',   // rep role-play trainer (flagged for follow-up)
-]);
+// a homeowner receives. Empty since 2026-09-27: the sales trainer
+// (docs/pro/js/sales-training-engine.js) was listed here while it coached the
+// "insurance restoration specialist" / "we handle the entire claims process"
+// pitch; its lines were rewritten to the allowed framing and it is scanned
+// like everything else, because what a rep is trained to say is what the
+// homeowner hears at the door.
+const INTERNAL_ONLY = new Set([]);
 
 const SCAN_DIRS = ['docs/pro', 'functions'];
 const EXT = /\.(js|mjs|html|hbs|json)$/i;
@@ -96,6 +98,9 @@ ok('self-test: a URL is not mistaken for a comment', scanSource("u = 'https://x.
 
 const files = SCAN_DIRS.flatMap((d) => walk(path.join(ROOT, d), []));
 ok('scan covers the CRM and functions (> 200 files)', files.length > 200, 'files=' + files.length);
+ok('the sales trainer is scanned, not exempt',
+  files.some((f) => path.relative(ROOT, f).split(path.sep).join('/') === 'docs/pro/js/sales-training-engine.js')
+    && !INTERNAL_ONLY.has('docs/pro/js/sales-training-engine.js'));
 const found = [];
 for (const abs of files) {
   const rel = path.relative(ROOT, abs).split(path.sep).join('/');

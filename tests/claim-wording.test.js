@@ -98,6 +98,22 @@ const RULES = [
   // public adjuster to negotiate on your behalf") does not match this.
   { id: 'public-adjuster-would', why: '(1)(a)1 represent "as a public adjuster or otherwise"',
     re: /\bpublic adjusters? would\b/i },
+  // Claim-filing help offered as a service (2026-09-27: 41 pages still read
+  // "Insurance claim filing assistance — start through final payment",
+  // "claim filing support", "Insurance claim assistance included"). Offering
+  // to help file or run the claim is advertising to represent the insured;
+  // the allowed line is "I document the damage and write the estimate; you
+  // file, and I can meet the adjuster". A manufacturer WARRANTY claim is not
+  // an insurance claim, so it passes.
+  { id: 'claim-assistance', why: '(1)(a)1 advertise to represent (claim-filing help as a service)',
+    re: /\bclaims?(-| )(filing )?(assistance|help|support|guidance)\b/i, unless: /\bwarranty\b/i },
+  // "help you file", "help filing your claim", "assist with your insurance
+  // claim", "Does Joe help with the insurance claim?". "An inspection helps
+  // you decide whether to file" is advice and passes (the verb must be the
+  // filing itself). "We file the claim" is files-claim above.
+  { id: 'help-file-claim', why: '(1)(a)1 contractor helps file / assists with the claim',
+    re: /\b(help|helps|helping|assist|assists|assisting)( you| homeowners| them| the homeowner)?( to)? (file|filing)\b|\b(help|helps|helping|assist|assists|assisting|assistance) (with|in) (filing|(your|the|a|their) (insurance )?claims?)\b/i,
+    ctx: true, unless: THIRD_PARTY },
 ];
 
 function decode(s) {
@@ -189,6 +205,8 @@ const BAD = {
   // [previous sentence, the sentence] — the claim word is only in the first.
   'advocacy-near-claim': ["Clinton County's smaller contractor pool means claims get under-documented.", "Homeowners file without professional advocacy and accept initial payments that don't reflect actual damage."],
   'public-adjuster-would': 'I build claims files with the same level of detail a public adjuster would prepare.',
+  'claim-assistance': '✓ Insurance claim filing assistance from first call through final payment',
+  'help-file-claim': "I'll inspect and document the damage and help you file if there's a legitimate claim.",
 };
 for (const r of RULES) {
   const fx = BAD[r.id] || 'NO FIXTURE';
@@ -198,6 +216,18 @@ for (const r of RULES) {
 // The near rule is what catches it: the same-sentence "advocate" rule does not.
 ok(!checkSentence(BAD['advocacy-near-claim'][1]).includes('advocate') && !checkSentence(BAD['advocacy-near-claim'][1]).includes('advocacy-near-claim'),
   'advocacy with the claim word only in the neighbouring sentence needs the window (sentence alone passes)');
+// The claim-filing phrase family, each caught by SOME rule (2026-09-27).
+const FILING_FAMILY = [
+  'Free inspections, claim filing assistance, NBD Lifetime Pledge.',
+  'Insurance claim assistance included.',
+  'Kentucky insurance claim filing guidance',
+  'Insurance claim filing support',
+  'I can help filing your claim once the inspection is done.',
+  'We file the claim and meet the adjuster.',
+  'We document damage, assist with your insurance claim, and get your home back to 100%.',
+  'Does Joe help with the insurance claim for Goshen storm damage?',
+];
+for (const s of FILING_FAMILY) ok(checkSentence(s).length > 0, `claim-filing family is caught: "${s.slice(0, 70)}"`);
 
 // ── 2. The compliant vocabulary — and honest third-party advice — passes ─
 console.log('\n2. compliant wording passes');
@@ -214,6 +244,13 @@ const GOOD = [
   'Call Joe first for a free inspection to document the damage, then file the claim with my documentation package in hand.',
   'If a shingle defect ever shows up, I open a claim with my GAF rep.',
   'Getting a new roof shouldn\'t feel like a negotiation.',
+  'Damage documentation and a line-item estimate for your claim; I meet the adjuster after you file',
+  "I'll inspect and document the damage and write the estimate; if there's a legitimate claim, you file it and I can meet the adjuster.",
+  'Otherwise, an independent contractor inspection first helps you decide whether to file a claim at all.',
+  'Once your contractor has documented damage, you file the claim with your insurance company.',
+  'Read the claim-filing guide before you call your insurer.',
+  'If a shingle defect shows up, I handle the GAF warranty claim support paperwork.',
+  'A public adjuster can help you file and argue the claim; I stick to the documentation.',
 ];
 for (const g of GOOD) ok(checkSentence(g).length === 0, `passes: "${g.slice(0, 70)}"${checkSentence(g).length ? ' — fired ' + checkSentence(g).join(',') : ''}`);
 // Windowed context: advocacy talk about a third party, or far from any claim, passes.
