@@ -6,11 +6,11 @@
  * Proves end to end what the unit suite can only prove per function:
  *   1. a signed webhook queues exactly one thursday_calls doc; a bad
  *      signature is refused; a redelivery is a no-op;
- *   2. the trigger attaches a known caller (Sherrill) to HER lead — never to
+ *   2. the trigger attaches a known caller (Castellano) to HER lead — never to
  *      another tenant's lead with the same phone — with a task + activity;
  *   3. a new caller becomes leads/bland_calls__{id} scoped to NBD, with the
  *      canonical source + intake;
- *   4. a Thumbtack-proxy caller (Danuta) is a possible match, not a duplicate;
+ *   4. a Thumbtack-proxy caller (Halina) is a possible match, not a duplicate;
  *   5. reprocessing never duplicates the lead or re-opens a completed task;
  *   6. spam is logged only;
  *   7. thursdayCallAction enforces viewer / tenant / possible-match rules.
@@ -119,39 +119,39 @@ async function callAction(auth, data) {
 }
 
 async function main() {
-  // Seed: Sherrill (NBD), an OTHER-tenant lead holding the Sherrill caller's
-  // phone, Danuta's Thumbtack lead (proxy phone, town only).
-  await db.doc('leads/' + RUN + '-sherrill').set({ userId: NBD, companyId: NBD, firstName: 'Michelle', lastName: 'Sherrill',
-    address: '1912 Russell St, Covington, KY 41014', phoneDigits: '8595550101', phone: '(859) 555-0101', stage: 'Estimate Sent', source: 'Referral' });
-  await db.doc('leads/' + RUN + '-other').set({ userId: OTHER, companyId: OTHER, firstName: 'Michelle', lastName: 'Sherrill',
-    address: '1912 Russell St, Covington, KY 41014', phoneDigits: '5135550142', stage: 'New' });
-  await db.doc('leads/' + RUN + '-danuta').set({ userId: NBD, companyId: NBD, firstName: 'Danuta', lastName: 'K.',
+  // Seed: Castellano (NBD), an OTHER-tenant lead holding the Castellano caller's
+  // phone, Halina's Thumbtack lead (proxy phone, town only).
+  await db.doc('leads/' + RUN + '-castellano').set({ userId: NBD, companyId: NBD, firstName: 'Maria', lastName: 'Castellano',
+    address: '2718 Linden Ave, Covington, KY 41014', phoneDigits: '8595550101', phone: '(859) 555-0101', stage: 'Estimate Sent', source: 'Referral' });
+  await db.doc('leads/' + RUN + '-other').set({ userId: OTHER, companyId: OTHER, firstName: 'Maria', lastName: 'Castellano',
+    address: '2718 Linden Ave, Covington, KY 41014', phoneDigits: '5135550142', stage: 'New' });
+  await db.doc('leads/' + RUN + '-halina').set({ userId: NBD, companyId: NBD, firstName: 'Halina', lastName: 'N.',
     address: 'West Chester, OH 45069', phone: '+16695550199', phoneDigits: '6695550199', source: 'Thumbtack', stage: 'New' });
 
-  EXTRACTIONS['sherrill-call'] = { caller_name: 'Michelle Sherrill', address: '1912 Russell St', town: 'Covington', state: 'KY',
+  EXTRACTIONS['castellano-call'] = { caller_name: 'Maria Castellano', address: '2718 Linden Ave', town: 'Covington', state: 'KY',
     caller_type: 'existing_customer', issue: 'Leak came back over the kitchen', urgent: true, urgent_reason: 'water inside',
     insurance: { involved: 'no', carrier: '', claim_filed: 'no', claim_number: '' }, confidence: 'high' };
   EXTRACTIONS['newbie-call'] = { caller_name: 'Robert Newman', callback_number: '513-555-0888', address: '42 Maple Ave', town: 'Mason',
     state: 'OH', zip: '45040', caller_type: 'new_lead', issue: 'Wants a quote for a full roof replacement', urgent: false,
     heard_about_us: 'found you on Google', insurance: { involved: 'unknown', carrier: '', claim_filed: 'unknown', claim_number: '' }, confidence: 'high' };
-  EXTRACTIONS['danuta-call'] = { caller_name: 'Danuta Kowalski', address: '8586 Alexander Ct', town: 'West Chester', zip: '45069',
+  EXTRACTIONS['halina-call'] = { caller_name: 'Halina Nowicka', address: '7420 Birchwood Ct', town: 'West Chester', zip: '45069',
     caller_type: 'new_lead', issue: 'Following up on her Thumbtack request', urgent: false, heard_about_us: 'Thumbtack', confidence: 'high' };
 
-  const sherrillPayload = (id) => payload(id, { transcripts: [
+  const castellanoPayload = (id) => payload(id, { transcripts: [
     { user: 'assistant', text: 'Thanks for calling.' },
-    { user: 'user', text: 'Hi this is Michelle Sherrill at 1912 Russell Street in Covington, the leak came back again over my kitchen (sherrill-call).' },
+    { user: 'user', text: 'Hi this is Maria Castellano at 2718 Linden Avenue in Covington, the leak came back again over my kitchen (castellano-call).' },
   ] });
 
   section('1. Webhook');
-  const idS = callId('sherrill');
-  const bad = await postWebhook(sherrillPayload(idS), 'deadbeef');
+  const idS = callId('castellano');
+  const bad = await postWebhook(castellanoPayload(idS), 'deadbeef');
   ok('bad signature → 401', bad.code === 401);
   ok('bad signature queued nothing', !(await db.doc('thursday_calls/' + T.callDocId(idS)).get()).exists);
-  const good = await postWebhook(sherrillPayload(idS));
+  const good = await postWebhook(castellanoPayload(idS));
   ok('signed webhook → 200', good.code === 200 && good.body && good.body.ok === true, JSON.stringify(good.body));
   const queued = (await db.doc('thursday_calls/' + T.callDocId(idS)).get()).data() || {};
   ok('queued doc is pending, NBD-scoped', queued.status === 'pending' && queued.companyId === NBD && queued.userId === NBD);
-  const dup = await postWebhook(sherrillPayload(idS));
+  const dup = await postWebhook(castellanoPayload(idS));
   ok('redelivery → 200 duplicate', dup.code === 200 && dup.body.duplicate === true);
   const notThursday = await postWebhook(payload(callId('elsewhere'), { to: '+15135550000' }));
   ok('call to another number ignored', notThursday.code === 200 && notThursday.body.ignored === 'not-thursday');
@@ -159,17 +159,18 @@ async function main() {
   section('2. Known caller attaches to her own lead (not the other tenant\'s)');
   const s = await runTrigger(idS);
   ok('processed', s.status === 'processed', s.status + ' ' + (s.processError || s.extractionError || ''));
-  ok('attached to the NBD Sherrill lead', s.route && s.route.action === 'attach' && s.leadId === RUN + '-sherrill', JSON.stringify(s.route));
+  ok('attached to the NBD Castellano lead', s.route && s.route.action === 'attach' && s.leadId === RUN + '-castellano', JSON.stringify(s.route));
   ok('urgent carried onto the call', s.urgent === true);
-  const task = (await db.doc('leads/' + RUN + '-sherrill/tasks/' + T.taskIdForCall(idS)).get()).data();
+  const task = (await db.doc('leads/' + RUN + '-castellano/tasks/' + T.taskIdForCall(idS)).get()).data();
   ok('call-back task on her lead (reader shape, high priority)', task && task.done === false && task.priority === 'high' && /Call back/.test(task.text));
-  const act = (await db.doc('leads/' + RUN + '-sherrill/activity/' + T.activityIdForCall(idS)).get()).data();
+  const act = (await db.doc('leads/' + RUN + '-castellano/activity/' + T.activityIdForCall(idS)).get()).data();
   ok('activity row on her lead', act && act.type === 'call' && act.source === 'thursday');
   const otherTasks = await db.collection('leads/' + RUN + '-other/tasks').get();
   const otherActs = await db.collection('leads/' + RUN + '-other/activity').get();
   ok('other tenant lead untouched (no task, no activity)', otherTasks.empty && otherActs.empty);
-  const sLead = (await db.doc('leads/' + RUN + '-sherrill').get()).data();
+  const sLead = (await db.doc('leads/' + RUN + '-castellano').get()).data();
   ok('matched lead keeps its stage + source', sLead.stage === 'Estimate Sent' && sLead.source === 'Referral');
+  ok('the other phone she called from is remembered on HER lead', sLead.altPhoneDigits === '5135550142' && sLead.phoneDigits === '8595550101');
   ok('extraction called Claude with the transcript', fetchLog.some((u) => u.startsWith('https://api.anthropic.com/')));
   ok('recording failure recorded, not fatal', typeof s.recordingError === 'string');
   ok('notifications attempted and recorded (email skipped w/o key)', s.notifyState && s.notifyState.email && /skipped/.test(s.notifyState.email.status));
@@ -186,12 +187,12 @@ async function main() {
   ok('lead has phoneDigits for SMS matching', lead && lead.phoneDigits === '5135550888');
 
   section('4. Thumbtack proxy lead → possible match, no duplicate');
-  const idD = callId('danuta');
-  await postWebhook(payload(idD, { from: '+15135559876', transcripts: [{ user: 'user', text: 'This is Danuta from 8586 Alexander Court in West Chester, I sent a request on Thumbtack (danuta-call).' }] }));
+  const idD = callId('halina');
+  await postWebhook(payload(idD, { from: '+15135559876', transcripts: [{ user: 'user', text: 'This is Halina from 7420 Birchwood Court in West Chester, I sent a request on Thumbtack (halina-call).' }] }));
   const d = await runTrigger(idD);
-  ok('route possible_match to her Thumbtack lead', d.route && d.route.action === 'possible_match' && d.leadId === RUN + '-danuta', JSON.stringify(d.route));
+  ok('route possible_match to her Thumbtack lead', d.route && d.route.action === 'possible_match' && d.leadId === RUN + '-halina', JSON.stringify(d.route));
   ok('no duplicate lead created', !(await db.doc('leads/' + T.leadDocIdForCall(idD)).get()).exists);
-  const dTask = (await db.doc('leads/' + RUN + '-danuta/tasks/' + T.taskIdForCall(idD)).get()).data();
+  const dTask = (await db.doc('leads/' + RUN + '-halina/tasks/' + T.taskIdForCall(idD)).get()).data();
   ok('confirm task placed on the candidate lead', dTask && /Possible match/.test(dTask.text));
 
   section('5. Reprocess is idempotent');
@@ -218,11 +219,11 @@ async function main() {
   ok('viewer refused', viewer.err === 'permission-denied', JSON.stringify(viewer));
   const stranger = await callAction({ uid: 'mgrOther', token: { role: 'manager', companyId: OTHER } }, { callId: idD, action: 'mark_reviewed' });
   ok('other-tenant manager refused', stranger.err === 'permission-denied', JSON.stringify(stranger));
-  const notListed = await callAction({ uid: NBD, token: {} }, { callId: idD, action: 'confirm_match', leadId: RUN + '-sherrill' });
+  const notListed = await callAction({ uid: NBD, token: {} }, { callId: idD, action: 'confirm_match', leadId: RUN + '-castellano' });
   ok('confirm_match refuses a lead that was not a possible match', notListed.err === 'invalid-argument', JSON.stringify(notListed));
   const crossAttach = await callAction({ uid: NBD, token: {} }, { callId: idD, action: 'attach_to', leadId: RUN + '-other' });
   ok('attach_to refuses another tenant\'s lead', crossAttach.err === 'permission-denied', JSON.stringify(crossAttach));
-  const confirm = await callAction({ uid: NBD, token: {} }, { callId: idD, action: 'confirm_match', leadId: RUN + '-danuta' });
+  const confirm = await callAction({ uid: NBD, token: {} }, { callId: idD, action: 'confirm_match', leadId: RUN + '-halina' });
   const dAfter = (await db.doc('thursday_calls/' + T.callDocId(idD)).get()).data();
   ok('owner confirms the possible match', confirm.ok && dAfter.route.action === 'attach' && dAfter.reviewed === true, JSON.stringify(confirm));
   const rec = await (async () => { try { await fns.getThursdayRecording.run({ auth: { uid: NBD, token: {} }, data: { callId: idD } }); return 'ok'; } catch (e) { return e.code; } })();
