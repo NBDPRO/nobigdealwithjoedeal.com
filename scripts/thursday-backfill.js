@@ -58,7 +58,7 @@ async function listCallIds() {
 }
 
 async function extract(call) {
-  if (T.isEffectivelySilent(call)) return { extraction: T.silentExtraction(), note: 'silent (no model call)' };
+  if (T.isEffectivelySilent(call)) return { extraction: T.silentExtraction(call), note: 'silent (no model call)' };
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: T.extractionHeaders(secret('ANTHROPIC_API_KEY')),
@@ -92,6 +92,8 @@ async function main() {
   // Tenant guard #1 — same query the trigger runs.
   const leadsSnap = NO_EXTRACT ? null : await db.collection('leads').where('companyId', '==', companyId).get();
   const leads = leadsSnap ? leadsSnap.docs.map((d) => Object.assign({ id: d.id }, d.data())) : [];
+  const cfgSnap = await db.doc('thursday_config/' + companyId).get();
+  const ownerNumbers = (cfgSnap.exists && Array.isArray(cfgSnap.data().ownerNumbers)) ? cfgSnap.data().ownerNumbers : [];
   if (leadsSnap) line('NBD leads loaded for matching: ' + leads.length);
 
   const results = [];
@@ -111,7 +113,10 @@ async function main() {
 
     if (!NO_EXTRACT) {
       try {
-        const { extraction, note } = await extract(call);
+        const x = await extract(call);
+        const note = x.note;
+        // Same overrides the trigger applies (Jo's own phones → test).
+        const extraction = T.applyCallOverrides(x.extraction, call, { ownerNumbers: ownerNumbers });
         const match = T.matchLeads({ companyId, extraction, call, leads });
         const route = T.decideRoute(extraction, match);
         line('   caller  : ' + (extraction.caller_name || '?') + ' · ' + extraction.caller_type + (extraction.urgent ? ' · URGENT' : '') + '  (' + note + ')');

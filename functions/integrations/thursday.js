@@ -71,6 +71,7 @@ const DEFAULT_CONFIG = {
   smsTo: '+18594207382',       // same cell as lead-alert.js ALERT_SMS
   emailTo: ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'],
   pushEnabled: true,
+  ownerNumbers: T.OWNER_NUMBERS_DEFAULT,   // Jo's phones — calls from them are tests
 };
 
 function db() { return getFirestore(); }
@@ -87,6 +88,7 @@ async function loadConfig(companyId) {
       emailTo: Array.isArray(c.emailTo) && c.emailTo.length ? c.emailTo.map(String) : DEFAULT_CONFIG.emailTo,
       pushEnabled: c.pushEnabled !== false,
       pushUid: String(c.pushUid || companyId),
+      ownerNumbers: [].concat(DEFAULT_CONFIG.ownerNumbers, Array.isArray(c.ownerNumbers) ? c.ownerNumbers.map(String) : []),
     };
   } catch (e) {
     logger.warn('thursday: config read failed, using defaults', { err: e && e.message });
@@ -243,7 +245,7 @@ async function saveRecording(call, key, ownerUid) {
 
 async function extract(call) {
   if (T.isEffectivelySilent(call)) {
-    return { extraction: T.silentExtraction(), meta: { skipped: 'silent' } };
+    return { extraction: T.silentExtraction(call), meta: { skipped: 'silent' } };
   }
   const key = secretValue(ANTHROPIC_API_KEY);
   if (!key) throw new T.ExtractionError('anthropic-not-configured');
@@ -474,7 +476,7 @@ async function processCall(ref, data) {
   let extractionError = null;
   try {
     const x = await extract(call);
-    extraction = x.extraction;
+    extraction = T.applyCallOverrides(x.extraction, call, { ownerNumbers: cfg.ownerNumbers });
     update.extractionMeta = x.meta;
   } catch (e) {
     extractionError = (e && e.code) || 'error';
