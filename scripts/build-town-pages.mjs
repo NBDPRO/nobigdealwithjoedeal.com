@@ -20,6 +20,11 @@
  *     <!-- TOWNFAQ:START -->   … 4-5 visible town Q&As + their FAQPage JSON-LD
  *   docs/services/{roof-inspection,siding-replacement,siding-repair}-<slug>.html
  *     <!-- TOWNLOCAL:START --> … a 2-3 sentence "In <Town>" paragraph
+ *     <!-- TOWNSCOPE:START --> … the scope checklist, ordered and annotated for
+ *                               the town's housing era, + NOAA / permit /
+ *                               historic / tree cards (was a shared checklist)
+ *     <!-- TOWNSVCFAQ:START --> … 3 town Q&As + 2 short generic ones, visible
+ *                               accordion + the page's only FAQPage JSON-LD
  *   Each region ends at the matching <!-- NAME:END -->. The markers are placed
  *   once by hand (see the vault note); this script only restamps between
  *   them, and fails if an area page or a town is missing its markers or data.
@@ -514,6 +519,440 @@ function townLocal(t, service) {
   return `      <p><strong>In ${T}:</strong> ${s1}, and ${s2}. ${s3}</p>`;
 }
 
+// ── TOWNSCOPE + TOWNSVCFAQ (service pages) ───────────────────────────
+// The three town service sets used to share a hand-authored "Full Scope"
+// checklist and a four-question FAQ word for word, which made the five pages
+// of each set 40-60% identical (5-gram Jaccard, town names masked). Both are
+// now generated: one crisp checklist whose ORDER and per-item notes come from
+// the town's housing age and storm record, cards for the NOAA record, permits
+// and historic review, and an FAQ that is mostly town questions. Generic
+// detail lives on the core service page, linked from each section.
+//
+// Everything interpretive is phrased as typical ("houses that age usually…");
+// every number is from towns.json and linked to its source.
+const CORE = { 'roof-inspection': '/services/roof-inspection', 'siding-replacement': '/services/siding-replacement', 'siding-repair': '/services/siding-repair' };
+const SVC_NAME = { 'roof-inspection': 'roof inspection', 'siding-replacement': 'siding replacement', 'siding-repair': 'siding repair' };
+const svcLink = (service, text) => `<a href="${CORE[service]}">${text}</a>`;
+const ext = (href, text) => link(href, text);
+const strongest = (t) => [...t.storms.events].sort((a, b) => score(b) - score(a))[0];
+const ul = (items) => `<ul style="margin:8px 0 0 18px;font-size:.85rem;color:var(--gray);line-height:1.7">\n${items.map((x) => `          <li>${x}</li>`).join('\n')}\n        </ul>`;
+const card = (h, body) => `    <div class="local-box">
+      <h3>${h}</h3>
+${body}
+    </div>`;
+const para = (x) => `      <p>${x}</p>`;
+// Bucket-dependent copy: { prewar, postwar, midcentury, eighties, newer }. A
+// value may be an array of phrasings: towns of the same era that have service
+// pages are assigned different ones (by slug order), so two 1950s towns don't
+// carry the same paragraph.
+const SVC_TOWNS = [...new Set(readdirSync(SERVICES).map((f) => (f.match(/^(?:roof-inspection|siding-replacement|siding-repair)-([a-z-]+-(?:oh|ky))\.html$/) || [])[1]).filter((x) => x && bySlug.has(x)))].sort();
+const byEra = (t, o) => [...o[bucket(t.housing.medianYearBuilt)]];
+function B5(t, o) {
+  const b = bucket(t.housing.medianYearBuilt), v = o[b];
+  if (!Array.isArray(v)) return v;
+  const peers = SVC_TOWNS.filter((x) => bucket(bySlug.get(x).housing.medianYearBuilt) === b);
+  return v[Math.max(0, peers.indexOf(t.slug)) % v.length];
+}
+
+// Hail sentence shared by the storm cards (never implies hail where NOAA has none).
+function hailLine(t) {
+  const s = t.storms, r = radiusMi(t), T = esc(t.town);
+  if (!s.hailReports) return `No hail an inch or larger was reported within about ${r} miles of ${T} in that span; wind is what the record shows here.`;
+  const big = s.maxHail;
+  const days = s.hailDays === 1 ? 'one day' : `${s.hailDays} days`;
+  return `Hail an inch or larger was reported on ${days} within about ${r} miles; the largest was ${inches(big.in)} near ${esc(big.place)} on ${ext(noaaUrl(big.noaa), fdate(big.date))}.`;
+}
+
+function stormCard(t, service) {
+  const T = esc(t.town), s = t.storms, r = radiusMi(t), k = 'sv-' + service;
+  const evs = [...s.events].sort((a, b) => score(b) - score(a)).slice(0, 3).sort((a, b) => b.date.localeCompare(a.date));
+  const h = pick(t, k + 'h', [`⛈️ What NOAA logged near ${T}`, `⛈️ ${T}’s storm record since 2019`, `⛈️ Storms on the record near ${T}`]);
+  const lead = `NOAA’s ${ext('https://www.ncdc.noaa.gov/stormevents/', 'Storm Events Database')} has ${s.nearbyCount} reports of damaging wind, 1-inch-plus hail or tornadoes within about ${r} miles of ${T} from January 2019 through June 2026. The ${evs.length === 1 ? 'strongest' : `${evs.length} strongest`}:`;
+  const items = evs.map((e) => `<strong>${fdate(e.date)}</strong>: ${esc(describe(t, e))} (${ext(noaaUrl(e.noaa), 'NOAA')})`);
+  const why = {
+    'roof-inspection': pick(t, k + 'w', [
+      'A storm near town doesn’t mean your roof was hit. Hail bruises and wind-creased tabs rarely show from the yard, which is why I get on the roof.',
+      'None of that tells you whether your roof took a hit. That takes someone on the roof with chalk and a camera.',
+    ]),
+    'siding-replacement': pick(t, k + 'w', [
+      'Siding usually shows wind first: panels unlocked at the laps, corners pulled loose. Hail cracks vinyl that has gone brittle with age.',
+      'On siding, wind is what I see most: panels that came unlocked, loose corner posts, J-channel pulled off a window. Hail marks old vinyl and dents aluminum trim.',
+    ]),
+    'siding-repair': pick(t, k + 'w', [
+      'Most siding repairs I do after a storm are wind: a few panels unlocked at the laps, a corner post pulled loose. That is usually a repair, not a re-side.',
+      'A storm like one of those usually costs a house a few panels, not a wall. Unlocked laps and cracked panels near the corners are the usual repair.',
+    ]),
+  }[service];
+  return card(h, [para(lead), ul(items), para(`${hailLine(t)} ${why}`)].join('\n'));
+}
+
+// Permit + historic card. Roof inspection → the re-roof permit (what applies if
+// the inspection turns up work); siding → the siding-specific entry when
+// towns.json has one, otherwise an honest "no written rule found".
+function permitCard(t, service) {
+  const T = esc(t.town), p = t.permit, k = 'pv-' + service;
+  const out = [];
+  let h;
+  if (service === 'roof-inspection') {
+    h = pick(t, k + 'h', ['📋 If the inspection turns up work', '📋 Permits, if it comes to that']);
+    out.push(para(`The inspection itself needs no permit. If it leads to a re-roof, here is what I know. ${esc(p.summary)} ${pick(t, k + 's', ['Source:', 'See'])} ${ext(p.url, esc(p.authority))}.`));
+    if (p.ask) out.push(para(`For a covering-only job, ask ${esc(p.ask)} for the answer at your address.`));
+    if (t.historic && t.historic.review) out.push(para(`<strong>Historic districts:</strong> ${esc(t.historic.text)} ${ext(t.historic.url, 'Source')}.`));
+  } else {
+    const sd = t.siding;
+    h = pick(t, k + 'h', [`📋 Permits for siding in ${T}`, `📋 Siding permits and approvals`]);
+    if (sd) {
+      out.push(para(`${esc(sd.summary)} ${pick(t, k + 's', ['Source:', 'See'])} ${ext(sd.url, esc(sd.authority))}.${sd.ask ? ` I haven’t found a written siding rule beyond that, so ask ${esc(sd.ask)} before work starts.` : ''}`));
+      if (sd.review) out.push(para(`<strong>Historic districts:</strong> ${esc(sd.review)} ${ext(sd.reviewUrl, 'Source')}.`));
+    } else {
+      out.push(para(`I haven’t found a written rule on siding permits from ${ext(p.url, esc(p.authority))}, which issues ${T}’s building permits. Ask ${esc(p.ask || p.authority)} before work starts; the answer can depend on whether sheathing or framing gets replaced.`));
+    }
+    if (!t.historic || !t.historic.review) out.push(para(pick(t, k + 'n', [`I have no record of a local design review for siding in ${T}.`, `I know of no local historic review of siding in ${T}.`])));
+  }
+  return card(h, out.join('\n'));
+}
+
+function treeCard(t, service) {
+  const f = t.facts.find((x) => x.cat === 'trees');
+  if (!f || service === 'roof-inspection') return '';
+  const note = service === 'siding-repair'
+    ? 'Walls that stay shaded and damp are where I find swollen trim and mildew behind panels first.'
+    : 'Shaded walls stay damp longer, which is where wood trim and fiberboard sheathing fail first.';
+  return card('🌳 Trees and moisture', para(`${esc(f.text)} ${ext(f.url, 'Source')}. ${note}`));
+}
+
+// Checklist items: [id, label, note]. Notes are per housing era; the order
+// is chosen per town.
+function inspectionItems(t) {
+  const s = t.storms, r = radiusMi(t), trees = t.facts.some((f) => f.cat === 'trees');
+  const it = {
+    deck: ['Decking and layers', B5(t, {
+      prewar: 'Houses this old were decked with boards. I look for gaps, soft spots and an old layer left under the current one.',
+      postwar: ['Board or early plywood decking is typical at this age, and so is a second layer of shingles. I count layers and feel for soft spots.', 'Plank sheathing is common under houses this age. I walk every slope for spongy spots and check the edge for a hidden older layer.'],
+      midcentury: 'Usually plywood by this era. I check the eaves for delamination and count layers.',
+      eighties: ['Early OSB swells where a leak went unnoticed, so I press the eaves and valleys and check whether the last roof went over the first.', 'First-generation OSB softens at the eaves when water sits there. I check those edges and look for a roof laid over an older one.'],
+      newer: 'OSB on most builds this age. I check for nail pops and swelling at the edges where gutters overflow.',
+    })],
+    vent: ['Attic ventilation', B5(t, {
+      prewar: 'Older attics often have one or two small vents, or none. Frost stains, rusted nail tips and dark sheathing tell me it’s short.',
+      postwar: ['Small box vents are typical on houses this age, and they were rarely enough. I check the sheathing from the attic when I can get in.', 'Attics from that era were vented with a couple of louvers, if that. Dark, frosty sheathing is what tells me it isn’t enough.'],
+      midcentury: 'Box vents from that era were rarely enough, and intake at the soffit is often missing. Shingle warranties care about this.',
+      eighties: ['Ridge vents start showing up in this era, but insulation often blocks the soffit intake. I look from the attic.', 'Houses this age often have a ridge vent with no working intake, because blown-in insulation covered the soffits.'],
+      newer: 'Ridge and soffit vents are usually there. I check that insulation hasn’t buried the intake.',
+    })],
+    flash: ['Flashing and penetrations', B5(t, {
+      prewar: 'Chimneys on older houses carry decades of patched counter-flashing, and step flashing is sometimes replaced with caulk.',
+      postwar: ['Chimney counter-flashing and step flashing reused through two or three re-roofs are the usual leak points at this age.', 'Masonry chimneys with tarred-over flashing are the classic leak on a house this age, along with wall flashing nobody replaced.'],
+      midcentury: 'Original step flashing reused through a re-roof or two is common, and so are caulk patches that have dried out.',
+      eighties: ['Rubber pipe boots often crack in the sun within 10 to 15 years, so I check each one, plus wall and chimney flashing.', 'Skylights and pipe boots from a second-round roof are the usual leaks here; I check every one and the step flashing along each wall.'],
+      newer: 'Builder pipe boots and caulked wall flashing are the usual leak points on roofs this age.',
+    })],
+    shingles: ['Shingle condition', bucket(t.housing.medianYearBuilt) === 'newer'
+      ? 'Original builder-grade shingles near the end of their rated life show it as granule loss, brittle tabs and lifted edges.'
+      : 'Granule loss, cracking, blistering and lifted tabs, slope by slope.'],
+    storm: ['Storm damage', s.hailReports
+      ? `NOAA logged 1-inch-plus hail on ${s.hailDays === 1 ? 'one day' : s.hailDays + ' days'} within about ${r} miles since 2019. I chalk-mark and photograph every bruise I find.`
+      : `NOAA shows no 1-inch hail within about ${r} miles since 2019; wind is the record here, so I check for creased tabs and loose ridge caps.`],
+    gutters: ['Gutters and fascia', trees ? 'With the tree cover here, I check what the valleys and gutters are holding and the fascia behind them.' : 'Checked on the same visit, including the fascia behind them.'],
+    report: ['Photos and a written summary', 'Repair, replace, or nothing yet, the same day.'],
+  };
+  const order = byEra(t, {
+    prewar: ['deck', 'flash', 'vent', 'storm', 'shingles', 'gutters'],
+    postwar: ['deck', 'flash', 'vent', 'storm', 'shingles', 'gutters'],
+    midcentury: ['vent', 'deck', 'flash', 'storm', 'shingles', 'gutters'],
+    eighties: ['deck', 'flash', 'storm', 'vent', 'shingles', 'gutters'],
+    newer: ['shingles', 'storm', 'vent', 'flash', 'deck', 'gutters'],
+  });
+  if (s.hailDays >= 5 && order.indexOf('storm') > 1) { order.splice(order.indexOf('storm'), 1); order.splice(1, 0, 'storm'); }
+  return [...order, 'report'].map((id) => it[id]);
+}
+
+const SHEATHING = {
+  prewar: 'Board sheathing, or none at all behind the oldest siding. Soft spots get replaced before anything goes back on.',
+  postwar: ['Board sheathing is typical at this age; I replace soft or missing boards before the wrap goes on.', 'Houses this age were usually sheathed in boards, and some spots never were. Anything soft gets replaced before new wrap goes over it.'],
+  midcentury: 'Plywood or fiberboard; fiberboard that has been wet crumbles and gets replaced.',
+  eighties: ['OSB or fiberboard, and water behind failed siding often leaves soft spots under windows.', 'Fiberboard and early OSB were the norm; both turn soft under windows once water gets behind the siding.'],
+  newer: 'OSB behind vinyl. I look for swelling under windows where flashing was skipped.',
+};
+
+function sidingReplacementItems(t) {
+  const review = t.siding && t.siding.review;
+  const it = {
+    tear: ['Tear-off and disposal', B5(t, {
+      prewar: 'If asbestos-cement shingles turn up under the current layer, they get left in place or removed by a licensed abatement contractor, never broken up.',
+      postwar: ['Asbestos-cement shingles are common on houses this age. If they are under the current siding, they stay intact or go to a licensed abatement contractor.', 'Cement-asbestos shingle under an aluminum or vinyl layer is a real possibility here. It is never broken up; it stays put or a licensed abatement contractor removes it.'],
+      midcentury: 'Old aluminum comes off clean; what matters is what it was hiding.',
+      eighties: ['Swollen hardboard comes off in pieces, and I check the sheathing as it goes.', 'Old pressed-wood lap comes off board by board, which shows me every soft spot behind it.'],
+      newer: 'Builder vinyl usually comes off in one layer.',
+    })],
+    sheath: ['Sheathing check', B5(t, SHEATHING)],
+    wrap: ['House wrap and window flashing', 'Wrap lapped shingle-style, with taped flashing at every window and door.'],
+    material: ['Material to suit the house', B5(t, {
+      prewar: 'Fiber cement or LP SmartSide lap reads closest to the original wood; vinyl is the budget option.',
+      postwar: 'Fiber cement or LP SmartSide lap reads closest to the original wood; vinyl is the budget option.',
+      midcentury: 'Vinyl, fiber cement or LP SmartSide, in a lap reveal close to what the house had.',
+      eighties: ['LP SmartSide or fiber cement in the same reveal as the old hardboard, or vinyl to keep the cost down.', 'Vinyl keeps the cost down; LP SmartSide or fiber cement keeps the look of painted lap.'],
+      newer: 'Vinyl to match the street, or fiber cement and LP SmartSide if you want something that takes paint.',
+    })],
+    trim: ['Trim, corners and J-channel', 'Replaced with the siding, so old wood trim doesn’t outlive its welcome behind new walls.'],
+    review: ['Historic approval first', 'Inside the historic district, the approval comes before the material order (see below).'],
+    clean: ['Cleanup and a final walkthrough', 'Nails swept, debris hauled, and we walk every wall together.'],
+  };
+  const order = byEra(t, {
+    prewar: ['tear', 'sheath', 'material', 'wrap', 'trim', 'clean'],
+    postwar: ['tear', 'sheath', 'material', 'wrap', 'trim', 'clean'],
+    midcentury: ['sheath', 'tear', 'wrap', 'material', 'trim', 'clean'],
+    eighties: ['sheath', 'tear', 'material', 'wrap', 'trim', 'clean'],
+    newer: ['material', 'wrap', 'sheath', 'tear', 'trim', 'clean'],
+  });
+  if (review) order.unshift('review');
+  return order.map((id) => it[id]);
+}
+
+function sidingRepairItems(t) {
+  const review = t.siding && t.siding.review;
+  const it = {
+    profile: ['Profile match', B5(t, {
+      prewar: 'Older houses here may be wood, aluminum or asbestos-cement under the vinyl. Wood gets pieced in; aluminum profiles are hard to source now.',
+      postwar: ['Houses this age are often wood or aluminum under a later layer. Wood gets pieced in; aluminum profiles are hard to source now.', 'Wood lap can be milled and painted to match. Aluminum is the hard one; most of its old profiles are hard to find.'],
+      midcentury: 'Aluminum and early vinyl profiles from this era are often discontinued. A panel from a hidden wall is sometimes the best match.',
+      eighties: ['Profiles from the ’80s and early ’90s are often discontinued. A panel borrowed from a hidden wall is sometimes the best match.', 'Many vinyl and pressed-wood profiles from that era are gone. I check the back of a panel for the maker before promising a match.'],
+      newer: 'Builder profiles from the late ’90s on are often still made, or close to it.',
+    })],
+    color: ['Color drift', 'Vinyl fades, so I hold a sample against the wall before ordering and tell you if the difference will show.'],
+    behind: ['What’s behind the panel', B5(t, SHEATHING)],
+    jchan: ['J-channel and corners', 'Separated J-channel at windows and loose corner posts are where water gets in.'],
+    wood: ['Wood trim', 'Fascia, soffit and window heads are wood on most houses, and they rot before the siding does.'],
+    review: ['Historic approval', 'Inside the historic district, check with the city before a visible change (see below).'],
+    seal: ['Seal check', 'Every repair gets checked for gaps before I leave.'],
+  };
+  const order = byEra(t, {
+    prewar: ['profile', 'behind', 'wood', 'color', 'jchan', 'seal'],
+    postwar: ['profile', 'behind', 'wood', 'color', 'jchan', 'seal'],
+    midcentury: ['profile', 'color', 'behind', 'jchan', 'wood', 'seal'],
+    eighties: ['profile', 'behind', 'color', 'wood', 'jchan', 'seal'],
+    newer: ['color', 'jchan', 'profile', 'wood', 'behind', 'seal'],
+  });
+  if (review) order.splice(1, 0, 'review');
+  return order.map((id) => it[id]);
+}
+
+function scopeIntro(t, service) {
+  const T = esc(t.town), Y = t.housing.medianYearBuilt, k = 'si-' + service;
+  const census = link(t.housing.source, 'Census ACS');
+  const lead = pick(t, k + 'l', [
+    `Half of ${T}’s homes were built before ${Y} (${census}).`,
+    `The median ${T} home dates to ${Y}, per the ${census}.`,
+  ]);
+  const body = {
+    'roof-inspection': B5(t, {
+      prewar: `Most of those houses have been re-roofed several times, so the first questions are what’s under the shingles and how many layers there are.`,
+      postwar: [`Most of those houses are on their third roof, so the first questions are what the decking is and how many layers are up there.`, `By now most of them have had two or three roofs, not always torn off down to the boards, so I start by finding out what’s underneath.`],
+      midcentury: `Most roofs that age are a second or third covering on plywood, and the first question is whether the attic can breathe.`,
+      eighties: [`A lot of those roofs are on their second round, often over OSB, and the first question is whether the last job was a tear-off or an overlay.`, `Plenty of those houses are on roof number two, and some got it laid right over number one. That, and how the OSB has aged, is where I start.`],
+      newer: `Many of those roofs are still the builder’s original shingles, so the first question is how much life they have left.`,
+    }),
+    'siding-replacement': B5(t, {
+      prewar: `Houses that old were built with wood clapboard or shingles, and many have since been covered with aluminum, asbestos-cement shingles or vinyl, sometimes more than one.`,
+      postwar: [`Homes from the late ’40s and ’50s typically went up with wood lap siding or asbestos-cement shingles, and many were covered with aluminum or vinyl later. What’s under the current siding matters as much as what’s on top.`, `Post-war houses were usually sided in wood lap or cement-asbestos shingle, and a lot of them got an aluminum or vinyl layer in the ’70s or ’90s. A re-side there starts with finding out how many layers you have.`],
+      midcentury: `Siding from the ’60s and ’70s is often aluminum, hardboard or wood, and plenty of it was covered in vinyl later.`,
+      eighties: [`Homes from the ’80s and early ’90s often went up with hardboard or wood-composite lap siding, cedar, or early vinyl. Hardboard swells at the bottom edges and nail holes once the paint fails.`, `That era favored pressed-wood lap siding, cedar and first-generation vinyl. Pressed wood that lost its paint puffs up along the drip edge of every course, which is usually what starts the re-side conversation.`],
+      newer: `Houses from the late ’90s on were mostly sided in builder-grade vinyl over OSB and house wrap, with wood or composite trim.`,
+    }),
+    'siding-repair': B5(t, {
+      prewar: `On houses that old, a “siding repair” can mean wood clapboard, aluminum or asbestos-cement shingles, depending on what’s on the wall now, and each is a different job.`,
+      postwar: [`On houses that age the wall might be wood lap, asbestos-cement shingle, aluminum or vinyl over one of those, and the repair depends on which.`, `Walls from that era can be wood, cement-asbestos shingle, or aluminum, often with vinyl added later, so the first step is knowing which one is cracked.`],
+      midcentury: `On houses that age the siding is often aluminum, hardboard or a later vinyl layer, and matching it is the hard part.`,
+      eighties: [`Siding from that era is often hardboard, cedar or early vinyl, and the profile is often out of production, so matching is the first question.`, `Houses that age tend to have pressed-wood lap, cedar or early vinyl, and many of those profiles stopped being made years ago. Finding a match comes before anything else.`],
+      newer: `Most of those houses carry builder-grade vinyl, which is the easiest kind to match if the profile is still made.`,
+    }),
+  }[service];
+  return `${lead} ${body}`;
+}
+
+function townScope(t, service) {
+  const T = esc(t.town), k = 'sc-' + service;
+  const items = { 'roof-inspection': inspectionItems, 'siding-replacement': sidingReplacementItems, 'siding-repair': sidingRepairItems }[service](t);
+  const titles = {
+    'roof-inspection': [`What I Check on a <span>${T} Roof</span>`, `${T} Roofs: <span>Where I Look First</span>`, `Inspecting a ${T} Roof, <span>Item by Item</span>`],
+    'siding-replacement': [`Re-siding a ${T} House, <span>Step by Step</span>`, `${T} Siding: <span>What the Job Covers</span>`, `What’s Under ${T} Siding, <span>and What Goes On</span>`],
+    'siding-repair': [`Repairing ${T} Siding: <span>What I Check</span>`, `${T} Siding Repair, <span>In Order</span>`, `Fixing Siding in ${T}: <span>The Checklist</span>`],
+  }[service];
+  const eyebrow = pick(t, k + 'e', ['What’s included', 'The scope, for this town', 'In the order I check it']);
+  const rows = items.map(([label, note]) => `      <div class="inc-item"><span class="inc-check">✓</span><span><strong>${label}.</strong> ${note}</span></div>`).join('\n');
+  const more = {
+    'roof-inspection': pick(t, k + 'm', [`What the full inspection covers and what the photo report looks like: ${svcLink(service, 'roof inspection')}.`, `More on how I inspect, and a sample of the report: ${svcLink(service, 'roof inspection')}.`]),
+    'siding-replacement': pick(t, k + 'm', [`Materials, timelines and repair-versus-replace, in more depth: ${svcLink(service, 'siding replacement')}.`, `The longer guide to materials and timing: ${svcLink(service, 'siding replacement')}.`]),
+    'siding-repair': pick(t, k + 'm', [`How color matching and panel sourcing work, in more depth: ${svcLink(service, 'siding repair')}.`, `The longer guide to matching and repair scope: ${svcLink(service, 'siding repair')}.`]),
+  }[service];
+  const cards = [stormCard(t, service), permitCard(t, service), treeCard(t, service)].filter(Boolean).join('\n');
+  return `<section style="background:var(--off-white)">
+  <div class="section-inner">
+    <div class="eyebrow">${eyebrow}</div>
+    <h2 class="sec-title">${pick(t, k + 't', titles)}</h2>
+    <p style="font-size:.9rem;color:var(--gray);line-height:1.7">${scopeIntro(t, service)}</p>
+    <div class="inc-grid">
+${rows}
+    </div>
+${cards}
+    <p style="font-size:.85rem;color:var(--gray);line-height:1.7;margin-top:8px">${more}</p>
+  </div>
+</section>`;
+}
+
+// ── service FAQ: three town questions (40-80 words, via answer()) + two short
+// generic ones. Visible accordion and FAQPage JSON-LD come from the same list.
+function svcFaqStorm(t, service) {
+  const T = t.town, s = t.storms, r = radiusMi(t), top = strongest(t);
+  const what = (e) => (e.kind === 'tornado' ? `${e.rating} tornado` : e.kind === 'hail' ? `${hailIn(e.hailIn)} hail near ${e.place}` : e.basis === 'measured' ? `${mph(e.kt)} mph gust at ${e.place}` : `wind damage near ${e.place}`);
+  // events[] is the four strongest, so "strongest" is honest; "latest" only for hail,
+  // whose lastHail field covers every 1-inch report in range.
+  const topSeg = seg(`The strongest entry near ${T} since 2019 is the ${what(top)} on ${fdate(top.date)}.`, { href: noaaUrl(top.noaa), anchor: fdate(top.date) });
+  const hailSegs = s.hailReports
+    ? [seg(`The most recent hail an inch or larger within about ${r} miles was ${inches(s.lastHail.in)} near ${s.lastHail.place} on ${fdate(s.lastHail.date)}.`, { href: noaaUrl(s.lastHail.noaa), anchor: fdate(s.lastHail.date) }),
+       seg(`Hail that size shows up on ${s.hailDays === 1 ? 'one day' : s.hailDays + ' days'} since 2019, up to ${inches(s.maxHailIn)}.`, { opt: true })]
+    : [seg(`NOAA shows no hail an inch or larger within about ${r} miles since 2019; the record there is wind.`)];
+  if (service === 'roof-inspection') {
+    const q = pick(t, 'fq-ri1', [`When should I get my ${T} roof inspected?`, `How soon after a storm should a ${T} roof be inspected?`]);
+    return answer(t, [
+      seg('After any storm that brings hail or trees down near you, and before you file anything.'),
+      ...hailSegs, topSeg,
+      seg('Otherwise, every few years once a roof passes 15.', { opt: true }),
+      seg('The inspection is free and I send the photos either way.', { pad: true }),
+    ], q);
+  }
+  const q = service === 'siding-replacement'
+    ? pick(t, 'fq-sr1', [`Have storms damaged siding around ${T}?`, `Do storms near ${T} damage siding?`])
+    : pick(t, 'fq-sp1', [`Does hail or wind damage siding in ${T}?`, `What storm damage do ${T} walls see?`]);
+  return answer(t, [
+    seg(`NOAA logged ${s.nearbyCount} damaging-wind, hail or tornado reports within about ${r} miles of ${T} from 2019 through June 2026.`),
+    topSeg, ...hailSegs,
+    seg('If storm damage is what you have, I document it and write the estimate; you file the claim, and I meet the adjuster after you do.', { opt: true }),
+    seg('Wind usually shows as unlocked panels and loose corners.', { pad: true }),
+  ], q);
+}
+
+function svcFaqPermit(t, service) {
+  const T = t.town, p = t.permit, sd = t.siding;
+  if (service === 'roof-inspection') {
+    const q = pick(t, 'fq-ri2', [`Do I need a permit if the inspection finds work in ${T}?`, `If my ${T} roof needs work, who issues the permit?`]);
+    const first = { yes: 'For a re-roof, yes.', no: 'For a like-for-like re-roof, usually not.', unknown: 'For a re-roof, no official page settles it.', varies: 'For a re-roof, it depends on the job.' }[p.status];
+    return answer(t, [
+      seg('The inspection needs no permit.'), seg(first),
+      seg(p.status === 'unknown' ? p.summary.replace(/^I have not found a written (answer|rule)[.] /, '') : p.summary, { opt: !!p.ask }),
+      ...(p.ask ? [seg(`Ask ${p.ask} before work starts.`)] : []),
+      ...(t.historic && t.historic.review ? [seg('Local historic districts add their own review.', { opt: true })] : []),
+      seg(`Source: ${p.authority}.`, { href: p.url, anchor: p.authority }),
+      seg('Rules change, so confirm for your address.', { pad: true }),
+    ], q);
+  }
+  const q = service === 'siding-replacement'
+    ? pick(t, 'fq-sr2', [`Do I need a permit or approval to re-side a house in ${T}?`, `Is there a permit for new siding in ${T}?`])
+    : pick(t, 'fq-sp2', [`Does a siding repair in ${T} need a permit or historic approval?`, `Do I need approval to repair siding in ${T}?`]);
+  const segs = [];
+  if (sd) {
+    segs.push(seg({ no: 'Usually not a building permit.', unknown: 'No official page I’ve found settles it.' }[sd.status] || 'It depends.'));
+    segs.push(seg(sd.summary, { href: sd.url, anchor: sd.summary.includes(sd.authority) ? sd.authority : undefined }));
+    if (!sd.summary.includes(sd.authority)) segs.push(seg(`Source: ${sd.authority}.`, { href: sd.url, anchor: sd.authority }));
+    if (sd.ask) segs.push(seg(`Ask ${sd.ask} before work starts.`));
+    if (sd.review) segs.push(seg(sd.review, { opt: true }));
+  } else {
+    segs.push(seg(`I haven’t found a written rule on siding from ${p.authority}, which issues building permits there.`, { href: p.url, anchor: p.authority }));
+    segs.push(seg(`Ask ${p.ask || p.authority} before work starts, especially if sheathing or framing will be replaced.`));
+    segs.push(seg(`I know of no local historic review of siding in ${T}.`));
+  }
+  segs.push(seg('Rules change, so confirm for your address.', { pad: true }));
+  segs.push(seg('The estimate comes first either way, free and in writing.', { pad: true }));
+  // answer() requires every link anchor to sit in its sentence; drop anchors that don't.
+  return answer(t, segs.map((x) => (x.href && (!x.anchor || !x.text.includes(x.anchor)) ? seg(x.text, { opt: x.opt, pad: x.pad }) : x)), q);
+}
+
+function svcFaqAge(t, service) {
+  const T = t.town, Y = t.housing.medianYearBuilt;
+  const census = { href: t.housing.source, anchor: 'Census' };
+  if (service === 'roof-inspection') {
+    const q = pick(t, 'fq-ri3', [`What do you usually find on ${T} roofs?`, `What goes wrong first on roofs in ${T}?`]);
+    return answer(t, [
+      seg(`Half of ${T}’s homes were built before ${Y}, per the Census, so it depends on the era.`, census),
+      seg(B5(t, {
+        prewar: 'On houses that old: board decking, extra layers, and chimney flashing patched more than once.',
+        postwar: ['On houses that age: board decking, a second layer, and chimney and wall flashing reused through several re-roofs.', 'At that age I usually find plank sheathing, more than one layer, and chimney flashing that has been tarred over.'],
+        midcentury: 'On houses that age: short ventilation, reused step flashing, and dried-out caulk patches.',
+        eighties: ['On houses that age: swollen OSB at the eaves, cracked pipe boots, and overlays on top of the first roof.', 'At that age: second roofs laid over the first, soft OSB where gutters overflow, and pipe boots cracked by the sun.'],
+        newer: 'On houses that age: tired builder-grade shingles, failing pipe boots, and caulked wall flashing.',
+      })),
+      seg('Your roof can be the exception, which is what the inspection is for.', { opt: true }),
+      seg('I photograph everything and tell you plainly: repair, replace, or leave it.', { pad: true }),
+    ], q);
+  }
+  const q = service === 'siding-replacement'
+    ? pick(t, 'fq-sr3', [`What siding is on most ${T} homes?`, `What kind of siding do ${T} houses usually have?`])
+    : pick(t, 'fq-sp3', [`Can you match the siding on an older ${T} house?`, `Will a repair match the rest of my ${T} siding?`]);
+  const era = service === 'siding-replacement' ? B5(t, {
+    prewar: 'Houses that old were built with wood clapboard or shingles, and many now wear aluminum, asbestos-cement shingles or vinyl on top.',
+    postwar: ['Houses that age were typically built with wood lap or asbestos-cement shingles, and many were covered with aluminum or vinyl later.', 'Most started with wood lap or cement-asbestos shingle; many now wear aluminum or vinyl over it.'],
+    midcentury: 'Houses that age often have aluminum, hardboard or wood, or vinyl added later.',
+    eighties: ['Houses that age often have hardboard or wood-composite lap, cedar, or early vinyl.', 'Expect pressed-wood lap, cedar, or first-generation vinyl, often with some of each.'],
+    newer: 'Houses that age mostly have builder-grade vinyl with wood or composite trim.',
+  }) : B5(t, {
+    prewar: 'On houses that old, wood can be pieced in and painted to match; aluminum and asbestos-cement are harder.',
+    postwar: ['On houses that age, wood can be pieced in and painted; aluminum profiles are hard to source now.', 'Wood lap on a house that age can be milled and painted to match; aluminum is much harder to find.'],
+    midcentury: 'On houses that age, the profile is often discontinued, so a panel from a hidden wall is sometimes the best match.',
+    eighties: ['On houses that age, hardboard and early vinyl profiles are often discontinued; sometimes a panel from a hidden wall is the best match.', 'Many profiles from that era are out of production, so I check the maker first and sometimes borrow a panel from a hidden wall.'],
+    newer: 'On houses that age, the builder profile is often still made, so the question is mostly color fade.',
+  });
+  return answer(t, [
+    seg(`It depends on the era. Half of ${T}’s homes were built before ${Y}, per the Census.`, census),
+    seg(era),
+    seg('I check what’s actually on your walls before quoting anything.', { opt: true }),
+    seg('The estimate is free and in writing.', { pad: true }),
+  ], q);
+}
+
+// Generic questions: short, the same idea on every page, with the long
+// version on the core service page.
+function svcFaqGeneric(t, service) {
+  const L = CORE[service];
+  const G = {
+    'roof-inspection': [
+      ['How long does a roof inspection take?', `Most take 45 to 90 minutes, depending on size, pitch and how many penetrations there are. You get the photos and a written summary the same day.`],
+      ['What does the inspection report include?', `Photos of every finding, shingle condition and remaining life, flashing and ventilation notes, gutters, and a plain recommendation: repair, replace, or check back later. More on the <a href="${L}">roof inspection page</a>.`],
+    ],
+    'siding-replacement': [
+      ['How do I know if I need siding replacement or just repair?', `Repair fits damage confined to a few panels or one wall. Replacement makes sense when the siding is brittle or faded throughout, the profile is discontinued, or water has gotten behind it. More on the <a href="${L}">siding replacement page</a>.`],
+      ['How long does siding replacement take?', `Two to four days on a typical house, longer for fiber cement. Walls are closed up at the end of every day.`],
+    ],
+    'siding-repair': [
+      ['How do you match siding color on a repair?', `Vinyl fades, so an exact match to 20-year-old siding rarely exists. I source the closest profile and color and tell you before ordering if the difference will show. More on the <a href="${L}">siding repair page</a>.`],
+      ['What’s included in a siding repair inspection?', `Every panel in the damaged area, J-channel at windows and doors, corner posts, the wood trim, and where I can reach it, the wrap behind the panels.`],
+    ],
+  }[service];
+  return G.map(([q, html]) => ({ q, html, a: html.replace(/<[^>]+>/g, '') }));
+}
+
+function townSvcFaq(t, service) {
+  const T = esc(t.town), k = 'sf-' + service;
+  const town = [svcFaqStorm(t, service), svcFaqPermit(t, service), svcFaqAge(t, service)];
+  const order = pick(t, k + 'o', [[0, 1, 2], [2, 0, 1], [1, 2, 0]]);
+  const qa = [...order.map((i) => town[i]), ...svcFaqGeneric(t, service)];
+  const items = qa.map((x) => `      <div class="faq-item">
+        <div class="faq-q">${esc(x.q)} <span class="faq-arrow">▸</span></div>
+        <div class="faq-a">${x.html}</div>
+      </div>`).join('\n');
+  const ld = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: qa.map((x) => ({ '@type': 'Question', name: x.q, acceptedAnswer: { '@type': 'Answer', text: x.a } })) };
+  const title = pick(t, k + 't', [`${SVC_NAME[service][0].toUpperCase() + SVC_NAME[service].slice(1)} FAQ — <span>${T}</span>`, `${T} Questions, <span>Answered</span>`, `Asked in <span>${T}</span>`]);
+  return `<section>
+  <div class="section-inner">
+    <div class="eyebrow">${pick(t, k + 'e', ['Common questions', 'Local questions', 'Asked and answered'])}</div>
+    <h2 class="sec-title">${title}</h2>
+    <div style="margin-top:20px">
+${items}
+    </div>
+  </div>
+</section>
+<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>`;
+}
+
 // ── stamping ──────────────────────────────────────────────────────────
 const toEol = (s, eol) => (eol === '\n' ? s : s.replace(/\n/g, eol));
 function stampRegion(src, name, body, eol, rel) {
@@ -560,7 +999,9 @@ for (const f of readdirSync(SERVICES)) {
   const service = SERVICE_SETS.find((s) => f.startsWith(s + '-') && bySlug.has(f.slice(s.length + 1, -5)));
   if (!service) continue;
   const t = bySlug.get(f.slice(service.length + 1, -5));
-  stampFile(path.join(SERVICES, f), [['TOWNLOCAL', townLocal(t, service)]]);
+  const src = readFileSync(path.join(SERVICES, f), 'utf8');
+  if (/"@type":\s*"FAQPage"/.test(src.replace(/<!-- TOWNSVCFAQ:START -->[\s\S]*?<!-- TOWNSVCFAQ:END -->/, ''))) fail(`docs/services/${f}: a FAQPage block outside TOWNSVCFAQ — the generated FAQ is the page's only FAQPage`);
+  stampFile(path.join(SERVICES, f), [['TOWNLOCAL', townLocal(t, service)], ['TOWNSCOPE', townScope(t, service)], ['TOWNSVCFAQ', townSvcFaq(t, service)]]);
   localCount++;
 }
 

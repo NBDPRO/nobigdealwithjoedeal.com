@@ -86,6 +86,18 @@ const RULES = [
     re: /\b(work|works|coordinate|coordinates|deal|deals)( directly)? with your (insurance company|carrier|insurer)\b/i },
   { id: 'claim-communication', why: '(1)(a)1 represent on the claim',
     re: /\b(handle|handles|handling) (all )?(the )?(communication|back-and-forth|adjuster communication)\b/i },
+  // "advocate" above needs the claim word in the SAME sentence. "Homeowners
+  // file without professional advocacy" (2026-09-27, hail-damage-wilmington)
+  // had it one sentence earlier and passed. `near: true` checks the context
+  // against the sentence plus its neighbours; third-party advice still passes.
+  { id: 'advocacy-near-claim', why: '(1)(a)1 represent on the claim (claim context in an adjacent sentence)',
+    re: /\badvoca(te|tes|ting|cy)\b/i, ctx: /\b(claims?|insur\w*|adjusters?)\b/i, near: true, unless: THIRD_PARTY },
+  // Measuring the contractor's work against a public adjuster's frames it as
+  // claim representation ("the same level of detail a public adjuster would
+  // prepare", storm-damage-lebanon, 2026-09-27). Advice to HIRE one ("hire a
+  // public adjuster to negotiate on your behalf") does not match this.
+  { id: 'public-adjuster-would', why: '(1)(a)1 represent "as a public adjuster or otherwise"',
+    re: /\bpublic adjusters? would\b/i },
 ];
 
 function decode(s) {
@@ -108,11 +120,12 @@ function sentences(text) {
   return text.split(/(?<=[.!?])\s+|\r?\n|",\s*"|"\s*:\s*"/).map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
 }
 
-function checkSentence(s) {
+// `win` is the sentence with its neighbours; only `near` rules read it.
+function checkSentence(s, win = s) {
   const hits = [];
   for (const r of RULES) {
     if (!r.re.test(s)) continue;
-    if (r.ctx && !(r.ctx === true ? CTX : r.ctx).test(s)) continue;
+    if (r.ctx && !(r.ctx === true ? CTX : r.ctx).test(r.near ? win : s)) continue;
     if (r.unless && r.unless.test(s)) continue;
     hits.push(r.id);
   }
@@ -138,8 +151,10 @@ function scanTree(docsDir) {
   const files = walk(docsDir, docsDir, []);
   for (const f of files) {
     const text = decode(fs.readFileSync(f, 'utf8'));
-    for (const s of sentences(text)) {
-      for (const id of checkSentence(s)) {
+    const ss = sentences(text);
+    for (let i = 0; i < ss.length; i++) {
+      const s = ss[i];
+      for (const id of checkSentence(s, [ss[i - 1], s, ss[i + 1]].filter(Boolean).join(' '))) {
         findings.push({ file: path.relative(ROOT, f).replace(/\\/g, '/'), rule: id, sentence: s.slice(0, 220) });
       }
     }
@@ -171,10 +186,18 @@ const BAD = {
   'files-claim': 'When the damage warrants a claim, I file with your carrier.',
   'work-with-insurer': 'I document everything and work directly with your insurance company.',
   'claim-communication': 'I document the damage and handle all adjuster communication.',
+  // [previous sentence, the sentence] — the claim word is only in the first.
+  'advocacy-near-claim': ["Clinton County's smaller contractor pool means claims get under-documented.", "Homeowners file without professional advocacy and accept initial payments that don't reflect actual damage."],
+  'public-adjuster-would': 'I build claims files with the same level of detail a public adjuster would prepare.',
 };
 for (const r of RULES) {
-  ok(BAD[r.id] && checkSentence(BAD[r.id]).includes(r.id), `${r.id} (${r.why}) catches: "${(BAD[r.id] || 'NO FIXTURE').slice(0, 70)}"`);
+  const fx = BAD[r.id] || 'NO FIXTURE';
+  const [prev, s] = Array.isArray(fx) ? fx : ['', fx];
+  ok(BAD[r.id] && checkSentence(s, `${prev} ${s}`).includes(r.id), `${r.id} (${r.why}) catches: "${s.slice(0, 70)}"`);
 }
+// The near rule is what catches it: the same-sentence "advocate" rule does not.
+ok(!checkSentence(BAD['advocacy-near-claim'][1]).includes('advocate') && !checkSentence(BAD['advocacy-near-claim'][1]).includes('advocacy-near-claim'),
+  'advocacy with the claim word only in the neighbouring sentence needs the window (sentence alone passes)');
 
 // ── 2. The compliant vocabulary — and honest third-party advice — passes ─
 console.log('\n2. compliant wording passes');
@@ -193,6 +216,12 @@ const GOOD = [
   'Getting a new roof shouldn\'t feel like a negotiation.',
 ];
 for (const g of GOOD) ok(checkSentence(g).length === 0, `passes: "${g.slice(0, 70)}"${checkSentence(g).length ? ' — fired ' + checkSentence(g).join(',') : ''}`);
+// Windowed context: advocacy talk about a third party, or far from any claim, passes.
+const GOOD_NEAR = [
+  ['If the insurer and you disagree on the claim.', 'A public adjuster or an attorney can advocate for you; I stick to the documentation and the estimate.'],
+  ['The attic needs more intake at the soffits.', 'I advocate for balanced ventilation on every roof I put on.'],
+];
+for (const [prev, s] of GOOD_NEAR) ok(checkSentence(s, `${prev} ${s}`).length === 0, `passes with its neighbour: "${s.slice(0, 70)}"`);
 
 // ── 3. The scanner itself goes red on a tree (not just the matcher) ─────
 console.log('\n3. tree scan goes red on a fixture tree, skips private trees');
@@ -203,13 +232,15 @@ try {
   fs.writeFileSync(path.join(tmp, 'services', 'x.html'),
     '<html><head><meta name="description" content="Free inspection. Insurance claim experts."></head><body>' +
     '<script type="application/ld+json">{"@type":"Answer","text":"Yes. I handle the claim process start to finish."}</script>' +
-    '<p>I&#39;m here. Supplement negotiation if the initial scope is short.</p></body></html>');
+    '<p>I&#39;m here. Supplement negotiation if the initial scope is short.</p>' +
+    '<p>Small towns get under-documented claims. Homeowners file without professional advocacy.</p></body></html>');
   fs.writeFileSync(path.join(tmp, 'pro', 'crm.html'), '<p>I handle the insurance claim for you.</p>');
   const r = scanTree(tmp);
   const rules = new Set(r.findings.map((f) => f.rule));
   ok(rules.has('claims-specialist'), 'meta description text is scanned');
   ok(rules.has('handles-claim'), 'JSON-LD answer text is scanned');
   ok(rules.has('negotiate'), 'visible body text is scanned');
+  ok(rules.has('advocacy-near-claim'), 'the tree scan passes each sentence its neighbours (near rules fire)');
   ok(!r.findings.some((f) => /\/pro\//.test(f.file)), 'pro/ (the CRM) is out of scope');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
