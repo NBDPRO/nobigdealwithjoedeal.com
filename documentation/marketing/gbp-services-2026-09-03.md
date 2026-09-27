@@ -1,5 +1,7 @@
 # GBP services — paste-ready list (2026-09-03)
 
+> **Update 2026-09-27:** claim wording changed to what Kentucky law allows (KRS 367.628: a contractor may document damage, estimate and meet the adjuster, but not represent or negotiate the claim or market itself as a claims/insurance specialist) — re-paste the changed blocks anywhere the old 'claims handled start to finish' text is live.
+
 **Why now.** An organic Mason caller searched *"wood siding repair"* and reached
 us through Google's related searches ([WOOD-SIDING-GAP](../audit/WOOD-SIDING-GAP-2026-09-03.md)).
 The site now sells wood siding repair, fascia/soffit, and shed & outbuilding
@@ -66,8 +68,8 @@ there in the posting log afterwards.
 | **Roof replacement** | Full tear-off and replacement, GAF Timberline shingles, backed by the NBD Lifetime Pledge. Joe handles the inspection, the estimate and the install supervision himself. Free written estimates, no pressure to sign on the spot. |
 | **Roof repair** | Leaks, missing shingles, flashing failures at chimneys and skylights, pipe boots, valleys and drip edge. If it can be repaired I'll repair it — and if the roof is genuinely done, you'll hear that straight instead of a pitch. |
 | **Roof inspection** | Free roof inspection with photo documentation. If there's damage I'll walk you through whether an insurance claim makes sense before you file anything. If there isn't, I'll tell you that — no manufactured urgency. |
-| **Storm damage repair** | Wind and storm damage assessed, documented and repaired, with the insurance claim handled for you. 7+ years of insurance restoration experience: I meet the adjuster on site and work supplements when the first scope comes in short. |
-| **Hail damage inspection** | Hail damage documented to the standard adjusters actually accept — impact patterns photographed with a density measurement approach. Covers shingles, siding, gutters and soft metals. Free inspection, claim handled end to end. |
+| **Storm damage repair** | Wind and storm damage assessed, documented and repaired. 7+ years of insurance restoration experience: I write the line-item estimate, meet your adjuster on site, and submit a supplement when the first scope comes in short — the claim stays yours. |
+| **Hail damage inspection** | Hail damage documented to the standard adjusters actually accept — impact patterns photographed with a density measurement approach. Covers shingles, siding, gutters and soft metals. Free inspection, and I meet your adjuster on the roof. |
 | **Siding replacement** | Full siding replacement in vinyl, fiber cement and James Hardie. Whole-envelope inspection first so the material recommendation matches the home's exposure, age and budget. Storm damage documented for the claim where it applies. |
 | **Siding repair** | Cracked, warped and storm-damaged panel replacement, J-channel and trim repair, and moisture barrier work behind compromised sections. Color-matched as closely as the profile allows — and I'll say when the match won't be close enough. |
 | **Gutter replacement** | 5-inch and 6-inch seamless K-style gutters, custom-cut on site so there are no mid-run seams to fail. Downspouts, hangers and fascia wood included where it's needed. Gutter guards and screens available. |

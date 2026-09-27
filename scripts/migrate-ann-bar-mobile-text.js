@@ -24,8 +24,8 @@ const SLIDE_SWAPS = [
     short: 'Free Inspections — (859) 420-7382'
   },
   {
-    long:  'Storm Damage? I Handle the Insurance Claim for You — No Big Deal',
-    short: 'Storm Damage? I Handle the Claim'
+    long:  'Storm Damage? I Document It and Meet Your Adjuster — No Big Deal',
+    short: 'Storm Damage? I Meet Your Adjuster'
   },
   {
     long:  'One free roof a year — nominate a Cincinnati neighbor →',
