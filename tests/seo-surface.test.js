@@ -388,6 +388,101 @@ check('S11 a <loc> that is not an absolute URL is reported, not swallowed', () =
     `should name the offending value, got: ${bad[0].detail}`);
 });
 
+// ── hero-format: markup decides what is "served modern" ─────────────────
+// The rule used to ask one question — is there a same-stem .webp on disk? —
+// so every hero served through <picture> with responsive AVIF/WebP variants
+// (<stem>-640.avif …) was reported as unconverted: 7 false warnings on the
+// live site on 2026-09-27, e.g. our-work.html's before-blue-tarp.jpg. And a
+// bare <img> passed if a .webp merely sat beside it, though nothing asks
+// for it. Now the <picture><source> markup is the evidence, and the source
+// must resolve.
+//
+// Built in a temp dir at run time so no image binaries are committed: the
+// rule reads only size and magic bytes, and a <source> only has to exist.
+
+const HERO_TREE = (() => {
+  const fs = require('fs');
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seo-hero-'));
+  fs.mkdirSync(path.join(dir, 'img'));
+  const jpegBytes = Buffer.alloc(40 * 1024); // over HERO_MIN_BYTES (30 KB)
+  jpegBytes[0] = 0xff; jpegBytes[1] = 0xd8; jpegBytes[2] = 0xff;
+  const webpBytes = Buffer.alloc(40 * 1024);
+  webpBytes.write('RIFF', 0, 'ascii'); webpBytes.write('WEBP', 8, 'ascii');
+  const put = (rel, bytes) => fs.writeFileSync(path.join(dir, rel), bytes);
+  for (const n of ['bare', 'sibling', 'avif', 'webp', 'dead', 'jpegsrc', 'lazy']) put(`img/${n}.jpg`, jpegBytes);
+  put('img/misnamed.jpg', webpBytes);
+  put('img/sibling.webp', Buffer.from('RIFF0000WEBP'));
+  put('img/avif-640.avif', Buffer.from('x'));
+  put('img/avif-800.avif', Buffer.from('x'));
+  put('img/webp-640.webp', Buffer.from('RIFF0000WEBP'));
+  put('img/misnamed-640.avif', Buffer.from('x'));
+
+  const head = fs.readFileSync(path.join(FIXTURES, 'clean.html'), 'utf8')
+    .replace(/<body>[\s\S]*<\/body>/, '<body><h1>Cincinnati Roofing</h1>__IMG__</body>');
+  const page = (name, img) => put(`${name}.html`, head.replace('https://example.com/clean', `https://example.com/${name}`).replace('__IMG__', img));
+  page('hero-bare', '<img src="/img/bare.jpg" alt="a roof" fetchpriority="high">');
+  page('hero-sibling', '<img src="/img/sibling.jpg" alt="a roof">');
+  page('hero-avif', '<picture><source type="image/avif" srcset="/img/avif-640.avif 640w, /img/avif-800.avif 800w" sizes="100vw">'
+    + '<img src="/img/avif.jpg" alt="a roof" fetchpriority="high"></picture>');
+  page('hero-webp', "<picture><source type='image/webp' srcset='/img/webp-640.webp'><img src=\"/img/webp.jpg\" alt=\"a roof\"></picture>");
+  page('hero-dead', '<picture><source type="image/webp" srcset="/img/dead-640.webp 640w"><img src="/img/dead.jpg" alt="a roof"></picture>');
+  page('hero-jpegsrc', '<picture><source type="image/jpeg" srcset="/img/jpegsrc.jpg"><img src="/img/jpegsrc.jpg" alt="a roof"></picture>');
+  page('hero-lazy', '<img src="/img/lazy.jpg" alt="a roof" loading="lazy">');
+  page('hero-misnamed', '<picture><source type="image/avif" srcset="/img/misnamed-640.avif"><img src="/img/misnamed.jpg" alt="a roof"></picture>');
+  return dir;
+})();
+
+const hero = (() => {
+  let out = '';
+  try {
+    out = execFileSync('node', [SCRIPT, '--root', HERO_TREE, '--json'], { encoding: 'utf8' });
+  } catch (e) { out = e.stdout || ''; }
+  require('fs').rmSync(HERO_TREE, { recursive: true, force: true });
+  return JSON.parse(out);
+})();
+const heroWarned = (img) => hero.findings.some((f) => f.check === 'hero-format' && f.detail.includes(`/img/${img}.jpg`));
+
+check('H1 catches a bare eager raster over 30 KB (the rule can still fail)', () => {
+  assert.ok(heroWarned('bare'), 'bare eager /img/bare.jpg must raise WARN:hero-format');
+});
+
+check('H2 a same-stem .webp on disk does NOT excuse a bare <img> — nothing requests it', () => {
+  assert.ok(heroWarned('sibling'), '/img/sibling.jpg has sibling.webp on disk but a bare <img>; it must still warn');
+});
+
+check('H3 an <img> in a <picture> with a responsive AVIF <source> is served modern (no warning)', () => {
+  assert.ok(!heroWarned('avif'), '/img/avif.jpg is the fallback inside <picture><source type=image/avif>; false positive');
+});
+
+check('H4 a WebP <source> (single-quoted attributes) counts too', () => {
+  assert.ok(!heroWarned('webp'), '/img/webp.jpg is the fallback inside <picture><source type=image/webp>; false positive');
+});
+
+check('H5 a modern <source> whose srcset 404s serves nothing — still warns', () => {
+  assert.ok(heroWarned('dead'), '/img/dead.jpg sits in a <picture> whose only WebP source does not exist; must warn');
+});
+
+check('H6 a <picture> offering only a JPEG <source> is not modern — still warns', () => {
+  assert.ok(heroWarned('jpegsrc'), '/img/jpegsrc.jpg has only a type=image/jpeg source; must warn');
+});
+
+check('H7 a lazy raster is off the render path — no warning', () => {
+  assert.ok(!heroWarned('lazy'), '/img/lazy.jpg is loading=lazy; the rule is for eager images only');
+});
+
+check('H8 a misnamed .jpg (really WebP) is still named even inside a modern <picture>', () => {
+  const f = hero.findings.filter((x) => x.check === 'image-extension' && x.detail.includes('/img/misnamed.jpg'));
+  assert.strictEqual(f.length, 1, 'the fallback still ships with the wrong Content-Type; expected one image-extension WARN');
+});
+
+check('H9 the hero tree produced exactly the expected hero-format set', () => {
+  const got = hero.findings.filter((f) => f.check === 'hero-format')
+    .map((f) => f.detail.match(/\/img\/([\w-]+)\.jpg/)[1]).sort();
+  assert.deepStrictEqual(got, ['bare', 'dead', 'jpegsrc', 'sibling'],
+    `hero-format should fire for exactly bare/dead/jpegsrc/sibling, got [${got.join(', ')}]`);
+});
+
 // ── Report ──────────────────────────────────────────────────────────────
 
 console.log('');

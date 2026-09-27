@@ -491,33 +491,68 @@ for (const abs of pages) {
     }
   });
 
-  // -- hero raster with no WebP sibling ----------------------------------
+  // -- hero raster with no modern format ---------------------------------
   // Only eager (non-lazy) images matter here: those are the render-path
   // candidates. A lazy below-the-fold JPG costs nothing at LCP.
-  imgs.forEach((tag) => {
-    if (/loading\s*=\s*["']lazy["']/i.test(tag)) return;
-    const src = attr(tag, 'src');
-    if (!src || !/^\/.*\.(jpe?g|png)$/i.test(src)) return;
-    const abs = path.join(DOCS, src.replace(/^\//, ''));
-    let bytes = 0;
-    try { bytes = fs.statSync(abs).size; } catch (e) { return; }
+  //
+  // An <img> inside a <picture> that offers an AVIF or WebP <source> is
+  // already served modern: the raster is only the fallback for browsers that
+  // take neither. Responsive variants are named <stem>-640.avif etc., so a
+  // same-stem sibling lookup can't see them — the markup is the evidence.
+  // A <source> only counts if a URL in its srcset exists on disk; a source
+  // that 404s serves nothing.
+  const modernSpans = modernPictureSpans(html);
+  for (const m of html.matchAll(rxImg)) {
+    const tag = m[0];
+    if (/loading\s*=\s*["']lazy["']/i.test(tag)) continue;
+    const servedModern = modernSpans.some(([a, b]) => m.index > a && m.index < b);
+    heroCandidate(tag, rel, servedModern);
+  }
+}
 
-    // Already a modern format wearing the wrong extension: nothing to
-    // convert, but the name is a trap for the next person (and for Hosting's
-    // Content-Type, which is set from the extension).
-    const real = sniffImageFormat(abs);
-    if (real === 'webp') {
-      if (!misnamedImages.has(src)) misnamedImages.set(src, { real, pages: new Set() });
-      misnamedImages.get(src).pages.add(rel);
-      return;
-    }
+// [start, end] offsets of every <picture> whose <source>s include an AVIF or
+// WebP type with at least one srcset URL that resolves under DOCS.
+function modernPictureSpans(html) {
+  const spans = [];
+  for (const p of html.matchAll(/<picture\b[^>]*>[\s\S]*?<\/picture>/gi)) {
+    const sources = p[0].match(/<source\b[^>]*>/gi) || [];
+    const modern = sources.some((s) => {
+      if (!/^image\/(avif|webp)$/i.test((attr(s, 'type') || '').trim())) return false;
+      const urls = (attr(s, 'srcset') || '').split(',')
+        .map((c) => c.trim().split(/\s+/)[0]).filter(Boolean);
+      return urls.some((u) => /^\//.test(u)
+        && fs.existsSync(path.join(DOCS, u.replace(/^\//, '').split(/[?#]/)[0])));
+    });
+    if (modern) spans.push([p.index, p.index + p[0].length]);
+  }
+  return spans;
+}
 
-    const webp = src.replace(/\.(jpe?g|png)$/i, '.webp');
-    if (fs.existsSync(path.join(DOCS, webp.replace(/^\//, '')))) return;
-    if (bytes < HERO_MIN_BYTES) return;
-    if (!heroRasters.has(src)) heroRasters.set(src, { bytes, pages: new Set() });
-    heroRasters.get(src).pages.add(rel);
-  });
+// One eager <img>: record it as a misnamed image or an unconverted hero.
+function heroCandidate(tag, rel, servedModern) {
+  const src = attr(tag, 'src');
+  if (!src || !/^\/.*\.(jpe?g|png)$/i.test(src)) return;
+  const abs = path.join(DOCS, src.replace(/^\//, ''));
+  let bytes = 0;
+  try { bytes = fs.statSync(abs).size; } catch (e) { return; }
+
+  // Already a modern format wearing the wrong extension: nothing to
+  // convert, but the name is a trap for the next person (and for Hosting's
+  // Content-Type, which is set from the extension). Checked even inside a
+  // <picture> — the fallback still ships with the wrong Content-Type.
+  const real = sniffImageFormat(abs);
+  if (real === 'webp') {
+    if (!misnamedImages.has(src)) misnamedImages.set(src, { real, pages: new Set() });
+    misnamedImages.get(src).pages.add(rel);
+    return;
+  }
+
+  // A same-stem .webp sitting on disk is NOT evidence: a bare <img> never
+  // requests it. Only markup that offers the modern file counts.
+  if (servedModern) return;
+  if (bytes < HERO_MIN_BYTES) return;
+  if (!heroRasters.has(src)) heroRasters.set(src, { bytes, pages: new Set() });
+  heroRasters.get(src).pages.add(rel);
 }
 
 // A temporary exemption that no longer exempts anything is stale — say so,
@@ -545,7 +580,7 @@ for (const [src, info] of misnamedImages) {
 for (const [src, info] of [...heroRasters.entries()].sort((a, b) => b[1].bytes - a[1].bytes)) {
   const n = info.pages.size;
   add('WARN', [...info.pages][0], 'hero-format',
-    `eager ${Math.round(info.bytes / 1024)} KB raster with no .webp sibling: ${src}`
+    `eager ${Math.round(info.bytes / 1024)} KB raster not offered as AVIF/WebP (no <picture><source>): ${src}`
     + (n > 1 ? ` (on ${n} pages)` : ''));
 }
 
