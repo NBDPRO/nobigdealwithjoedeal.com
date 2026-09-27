@@ -12,6 +12,18 @@
  *   3. docs/assets/data/homeowner-wall.json — homepage photo-wall manifest,
  *                                   derived from the same live projects so
  *                                   the two manifests can never drift
+ *   4. docs/our-work/<slug>.html   — one case-study page per live project
+ *   5. docs/areas/<town>.html      — "Jobs we've done in <Town>" (OURWORK-AREA,
+ *                                   only on towns with ≥1 live job; the
+ *                                   generator inserts/removes the region)
+ *   6. docs/services/<svc>-<town>.html — "Real <svc> jobs in <Town>"
+ *                                   (OURWORK-LOCAL, same insert/remove rule)
+ *
+ * INTERNAL LINKING (2026-09-27): every card on a hub strip, area block and
+ * town-service strip links the job's own /our-work/<slug> page, and every
+ * case page links back out to its service hub, its town-service page, its
+ * area page, and a ring of sibling jobs by service and by town — so the case
+ * pages are neither orphans nor dead ends.
  *
  * WHY: /our-work is the Thumbtack-style featured-projects page — real jobs
  * with retail price RANGES, photos, and service filters. The cards must be
@@ -90,7 +102,22 @@ const KNOWN_FIELDS = new Set([
   'slug', 'title', 'category', 'services', 'tag', 'city', 'description',
   'hero', 'photos', 'consentOnFile', 'published', 'priceLow', 'priceHigh',
   'year', 'duration',
+  // Optional case-study narrative (2026-09-27). Each renders its own H2 on the
+  // /our-work/<slug> page ONLY when present — the template never fills a gap
+  // with invented copy. Strings, except scope/materials which may also be a
+  // list of strings (rendered as a bullet list).
+  'problem', 'scope', 'materials', 'timeline', 'outcome',
 ]);
+
+// Case-study sections, in reading order. key → H2 on the detail page.
+const NARRATIVE = [
+  ['problem', 'The problem'],
+  ['scope', 'What we did'],
+  ['materials', 'Materials'],
+  ['timeline', 'Timeline'],
+  ['outcome', 'Result'],
+];
+const LIST_OK = new Set(['scope', 'materials']);
 
 // ── Load + validate ─────────────────────────────────────────────
 const manifest = JSON.parse(readFileSync(DATA, 'utf8'));
@@ -151,6 +178,19 @@ for (const p of all) {
   }
   for (const ph of p.photos) {
     if (!ph.alt || !String(ph.alt).trim()) fail(`${at}: every photo needs real alt text`);
+    if (ph.caption != null && (typeof ph.caption !== 'string' || !ph.caption.trim())) fail(`${at}: photo caption (optional) must be a non-empty string — omit it to fall back to the alt text`);
+  }
+  for (const [k] of NARRATIVE) {
+    if (p[k] == null) continue;
+    const v = p[k];
+    const good = (typeof v === 'string' && v.trim())
+      || (LIST_OK.has(k) && Array.isArray(v) && v.length && v.every((s) => typeof s === 'string' && s.trim()));
+    if (!good) fail(`${at}: "${k}" (optional) must be a non-empty string${LIST_OK.has(k) ? ' or a list of non-empty strings' : ''} — omit it when there is nothing true to say`);
+  }
+  // Town-level location is what links a job to /areas/<town> and the
+  // town-specific service pages, so the shape is enforced: "Town, ST".
+  if (typeof p.city === 'string' && !/^[A-Za-z][A-Za-z .'-]*, [A-Z]{2}$/.test(p.city.trim())) {
+    fail(`${at}: city must be "Town, ST" (e.g. "Mason, OH") — town level only`);
   }
   // Warn-only typo net: an unknown optional field silently no-ops otherwise.
   for (const k of Object.keys(p)) {
@@ -190,6 +230,84 @@ const heroImg = (p, cls) => {
 };
 
 const PIN_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>';
+
+// ── Towns → /areas/<town> and /services/<service>-<town> ─────────
+// A job's town is its city field ("Mason, OH"). The slug rule is the one the
+// area pages were named by: lowercase, dots dropped, non-alphanumerics → "-",
+// then the state. TOWN_ALIASES folds spelling variants onto the page's own
+// spelling BEFORE slugging — add a row here rather than renaming a page. A
+// town with no docs/areas/<slug>.html (out-of-area jobs: Evansville IN,
+// Gatlinburg TN, West Liberty KY) simply gets no area link; nothing is guessed.
+const TOWN_ALIASES = {
+  'mount orab': 'mt orab',
+  'mt. orab': 'mt orab',
+  'anderson': 'anderson township',
+  'sycamore twp': 'sycamore township',
+};
+const townOf = (p) => {
+  const m = /^(.+?),\s*([A-Z]{2})$/.exec(String(p.city || '').trim());
+  if (!m) return null;
+  const lower = m[1].toLowerCase().trim();
+  const canon = TOWN_ALIASES[lower] || lower;
+  const slug = `${canon.replace(/\./g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${m[2].toLowerCase()}`;
+  return { name: m[1].trim(), state: m[2], slug };
+};
+const AREAS_DIR = path.join(ROOT, 'docs', 'areas');
+const areaHref = (t) => (t && existsSync(path.join(AREAS_DIR, `${t.slug}.html`)) ? `/areas/${t.slug}` : null);
+
+// Town-specific service pages are named <prefix>-<town-slug>.html; the hail
+// family is fed by the storm-damage service, same as its hub strip.
+const TOWN_PAGE_PREFIX = {
+  'roof-replacement': 'roof-replacement', 'roof-repair': 'roof-repair',
+  'roof-inspection': 'roof-inspection', 'storm-damage': 'storm-damage',
+  'hail-damage': 'storm-damage', 'gutter-replacement': 'gutter-replacement',
+  'siding-replacement': 'siding-replacement', 'siding-repair': 'siding-repair',
+  'wood-siding-repair': 'wood-siding-repair',
+};
+// The page a case study links as "<service> in <Town>": the prefix that
+// shares the service's own name (storm-damage-<town>, not hail-damage-<town>).
+const townServiceHref = (service, t) => {
+  if (!t || !(service in TOWN_PAGE_PREFIX)) return null;
+  return existsSync(path.join(SERVICES_DIR, `${service}-${t.slug}.html`)) ? `/services/${service}-${t.slug}` : null;
+};
+
+// "Real <noun> Jobs" / "More <noun> Jobs" — SERVICES labels are filter-button
+// text ("Gutters", "Inspection") and read wrong in a sentence.
+const JOB_NOUN = {
+  'roof-replacement': 'Roof Replacement', 'roof-repair': 'Roof Repair',
+  'commercial-roofing': 'Commercial Roofing', 'siding-replacement': 'Siding Replacement',
+  'siding-repair': 'Siding Repair', 'wood-siding-repair': 'Wood Siding Repair',
+  'shed-roof-replacement': 'Shed & Outbuilding', 'gutter-replacement': 'Gutter',
+  'gutter-cleaning': 'Gutter Cleaning', 'storm-damage': 'Storm Damage',
+  'roof-inspection': 'Roof Inspection', 'interior-repair': 'Interior Repair',
+};
+
+// Card that links to the job's own case-study page (hub strips, area blocks,
+// town-service strips). withDesc adds the write-up — used where the card is
+// the page's local-proof content, not a teaser.
+const caseCard = (p, { withDesc = false } = {}) => {
+  const price = priceLine(p);
+  const meta = [`<span class="project-loc">${PIN_SVG} ${esc(p.city)}</span>`];
+  if (p.year) meta.push(`<span>${esc(String(p.year))}</span>`);
+  return `    <a class="project project-link" href="/our-work/${esc(p.slug)}">
+      ${heroImg(p, 'project-img')}
+      <div class="project-body">
+        <span class="project-tag">${esc(p.tag)}</span>
+        <h3>${esc(p.title)}</h3>${price ? `
+        <div class="project-price">${esc(price)}</div>` : ''}${withDesc ? `
+        <p>${esc(p.description)}</p>` : ''}
+        <div class="project-meta">${meta.join(' <span class="project-dot">·</span> ')}</div>
+      </div>
+    </a>`;
+};
+
+// Compact crawlable list for the jobs past a card cap — every job still gets
+// its link without a wall of images.
+const moreList = (ps, heading) => (ps.length ? `
+    <p class="nbd-recent-jobs-more-h">${heading}</p>
+    <ul class="nbd-recent-jobs-more">
+${ps.map((p) => `      <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}</span></li>`).join('\n')}
+    </ul>` : '');
 
 const card = (p) => {
   const price = priceLine(p);
@@ -321,19 +439,11 @@ const schemaBlock = `<!-- OURWORK-HEAD-SCHEMA-START -->
 // nbd:partial region; this script owns everything between them.
 const STRIP_MAX = 3;
 
-const stripCard = (p, service) => {
-  const price = priceLine(p);
-  return `    <a class="project project-link" href="/our-work#svc-${service}">
-      ${heroImg(p, 'project-img')}
-      <div class="project-body">
-        <span class="project-tag">${esc(p.tag)}</span>
-        <h3>${esc(p.title)}</h3>${price ? `
-        <div class="project-price">${esc(price)}</div>` : ''}
-        <div class="project-meta"><span class="project-loc">${PIN_SVG} ${esc(p.city)}</span></div>
-      </div>
-    </a>`;
-};
-
+// Cards link to each job's own /our-work/<slug> case study (2026-09-27) —
+// they used to point at /our-work#svc-<service>, which left the 53 case pages
+// with one inbound link each (the gallery). The filtered-gallery deep link
+// survives as the strip's "See all" link. Jobs past STRIP_MAX are still
+// linked, as a compact text list under the cards.
 const stripBlock = (service) => {
   const label = SERVICES[service];
   // Count BEFORE the cap: the provenance comment is what a future session reads to
@@ -341,7 +451,7 @@ const stripBlock = (service) => {
   const all = live.filter((p) => p.services.includes(service));
   const matches = all.slice(0, STRIP_MAX);
   const newest = matches.length ? matches.map((p) => p.published).sort().at(-1) : null;
-  const capped = all.length > matches.length ? ` (${all.length} carry this service; ${all.length - matches.length} not shown, STRIP_MAX=${STRIP_MAX})` : '';
+  const capped = all.length > matches.length ? ` (${all.length} carry this service; ${all.length - matches.length} more listed as links, STRIP_MAX=${STRIP_MAX})` : '';
   const header = `<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; ${matches.length} live ${service} project(s)${capped}${newest ? `, newest published ${newest}` : ''} -->`;
   if (!matches.length) {
     // No matching live jobs yet: CTA band only — never an empty grid.
@@ -363,8 +473,79 @@ const stripBlock = (service) => {
       <a class="nbd-recent-jobs-all" href="/our-work#svc-${service}">See all our work &rarr;</a>
     </div>
     <div class="gallery">
-${matches.map((p) => stripCard(p, service)).join('\n\n')}
+${matches.map((p) => caseCard(p)).join('\n\n')}
+    </div>${moreList(all.slice(STRIP_MAX), `More ${esc(JOB_NOUN[service])} jobs`)}
+  </div>
+</section>`;
+};
+
+// ── Generated regions that the generator places itself ──────────
+// OURWORK-AREA (on /areas/<town>) and OURWORK-LOCAL (on the town-specific
+// /services/<service>-<town> pages) exist only where there is at least one
+// matching live job: the generator INSERTS the region before a fixed anchor
+// the first time a town gets a job, restamps it after, and REMOVES it
+// (markers included) if the last job goes — never an empty block. --check
+// treats a missing-but-owed or present-but-unowed region as drift.
+const syncRegion = (src, eol, start, end, block, anchor) => {
+  const q = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`${q(start)}[\\s\\S]*?${q(end)}\\r?\\n(?:\\r?\\n)?`);
+  const has = re.test(src);
+  if (!block) return has ? src.replace(re, '') : src;
+  const full = toEol(`${start}\n${block}\n${end}\n\n`, eol);
+  if (has) return src.replace(re, () => full);
+  const at = src.indexOf(anchor);
+  if (at < 0) return null;
+  return src.slice(0, at) + full + src.slice(at);
+};
+
+const byTown = new Map();                    // area slug → live jobs, newest first
+for (const p of live) {
+  const t = townOf(p);
+  if (!t) continue;
+  if (!byTown.has(t.slug)) byTown.set(t.slug, []);
+  byTown.get(t.slug).push(p);
+}
+
+// Reuses project-cards.css; area and town-service pages don't load it in
+// <head>, so the region carries its own <link> (body-ok per the HTML spec,
+// and it arrives and leaves with the region).
+const CARDS_CSS = '<link rel="stylesheet" href="/assets/css/project-cards.css?v=1">';
+const AREA_CARDS = 6;
+const LOCAL_CARDS = 3;
+
+const areaBlock = (t, jobs) => {
+  const town = t.name;
+  const priced = jobs.some((p) => p.priceLow != null);
+  return `<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; ${jobs.length} live job(s) in ${esc(town)}, ${t.state}, newest published ${jobs.map((p) => p.published).sort().at(-1)} -->
+${CARDS_CSS}
+<section class="nbd-recent-jobs nbd-local-jobs" id="local-jobs" aria-labelledby="local-jobs-h">
+  <div class="nbd-recent-jobs-inner">
+    <div class="nbd-recent-jobs-head">
+      <h2 id="local-jobs-h">Jobs We've Done in <span>${esc(town)}</span></h2>
+      <a class="nbd-recent-jobs-all" href="/our-work">See all our work &rarr;</a>
     </div>
+    <p class="nbd-recent-jobs-lede">${jobs.length === 1 ? 'A finished job' : `${jobs.length} finished jobs`} in ${esc(town)}, ${t.state} — photos and the write-up for ${jobs.length === 1 ? 'it' : 'each one'}${priced ? ', with the price range where we publish one' : ''}.</p>
+    <div class="gallery">
+${jobs.slice(0, AREA_CARDS).map((p) => caseCard(p, { withDesc: true })).join('\n\n')}
+    </div>${moreList(jobs.slice(AREA_CARDS), `More ${esc(town)} jobs`)}
+  </div>
+</section>`;
+};
+
+const localBlock = (service, t, jobs) => {
+  const noun = JOB_NOUN[service];
+  const area = areaHref(t);
+  return `<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; ${jobs.length} live ${service} job(s) in ${esc(t.name)}, ${t.state}, newest published ${jobs.map((p) => p.published).sort().at(-1)} -->
+${CARDS_CSS}
+<section class="nbd-recent-jobs nbd-local-jobs" id="local-jobs" aria-labelledby="local-jobs-h">
+  <div class="nbd-recent-jobs-inner">
+    <div class="nbd-recent-jobs-head">
+      <h2 id="local-jobs-h">Real ${esc(noun)} Jobs in <span>${esc(t.name)}</span></h2>
+      ${area ? `<a class="nbd-recent-jobs-all" href="${area}">Everything we've done in ${esc(t.name)} &rarr;</a>` : `<a class="nbd-recent-jobs-all" href="/our-work#svc-${service}">See all our work &rarr;</a>`}
+    </div>
+    <div class="gallery">
+${jobs.slice(0, LOCAL_CARDS).map((p) => caseCard(p, { withDesc: true })).join('\n\n')}
+    </div>${moreList(jobs.slice(LOCAL_CARDS), `More ${esc(noun.toLowerCase())} jobs in ${esc(t.name)}`)}
   </div>
 </section>`;
 };
@@ -384,8 +565,79 @@ const detailPhotoCard = (ph) => {
   const img = `<img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;">`;
   return `      <figure style="margin:0;">
         ${webp ? `<picture><source srcset="${esc(webp)}" type="image/webp">${img}</picture>` : img}
-        <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">${esc(ph.alt)}</figcaption>
+        <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">${esc(ph.caption || ph.alt)}</figcaption>
       </figure>`;
+};
+
+// ── Case-study body: narrative sections + links back out ─────────
+// Only fields the manifest actually carries are rendered. Nothing here writes
+// a sentence about a job that projects.json does not state.
+const narrativeHtml = (p) => NARRATIVE.filter(([k]) => p[k] != null).map(([k, h2]) => {
+  const v = p[k];
+  const body = Array.isArray(v)
+    ? `<ul class="pd-list">\n${v.map((s) => `      <li>${esc(s)}</li>`).join('\n')}\n    </ul>`
+    : `<p class="pd-text">${esc(v)}</p>`;
+  return `    <h2 class="pd-h2">${h2}</h2>
+    ${body}`;
+}).join('\n');
+
+// Deterministic "next K in the ring" pick: each job links the jobs AFTER it in
+// the newest-first list, wrapping. Spreads inbound links evenly across the set
+// instead of every page pointing at the same three newest jobs.
+const ringPick = (list, p, k, skip) => {
+  const i = list.indexOf(p);
+  const out = [];
+  for (let j = 1; j < list.length && out.length < k; j++) {
+    const q = list[(i + j) % list.length];
+    if (q !== p && !skip.has(q.slug)) { out.push(q); skip.add(q.slug); }
+  }
+  return out;
+};
+const RELATED_BY_SERVICE = 4;
+const RELATED_BY_TOWN = 6;
+
+const relatedList = (ps) => `<ul class="pd-related">
+${ps.map((q) => `      <li><a href="/our-work/${esc(q.slug)}">${esc(q.title)}</a> <span>${esc(q.city)}${q.year ? ` · ${esc(String(q.year))}` : ''}</span></li>`).join('\n')}
+    </ul>`;
+
+const linksOutHtml = (p) => {
+  const t = townOf(p);
+  const area = areaHref(t);
+  const primary = p.services[0];
+  const noun = JOB_NOUN[primary];
+  const skip = new Set([p.slug]);
+  const svcPeers = ringPick(live.filter((q) => q.services.includes(primary)), p, RELATED_BY_SERVICE, skip);
+  const townPeers = t ? ringPick(byTown.get(t.slug) || [], p, RELATED_BY_TOWN, skip) : [];
+  const svcLinks = [`<a href="/services/${primary}">${esc(SERVICES[primary])} — how we do it</a>`];
+  const local = townServiceHref(primary, t);
+  if (local) svcLinks.push(`<a href="${local}">${esc(noun)} in ${esc(t.name)}</a>`);
+  const out = [`    <h2 class="pd-h2">More ${esc(noun)} Work</h2>
+    <p class="pd-links">${svcLinks.join(' <span class="project-dot">·</span> ')}</p>${svcPeers.length ? `
+    ${relatedList(svcPeers)}` : ''}`];
+  if (t && (area || townPeers.length)) {
+    out.push(`    <h2 class="pd-h2">Other Jobs in ${esc(t.name)}</h2>${area ? `
+    <p class="pd-links"><a href="${area}">Roofing and exterior work in ${esc(t.name)}, ${t.state}</a></p>` : ''}${townPeers.length ? `
+    ${relatedList(townPeers)}` : ''}`);
+  }
+  return out.join('\n');
+};
+
+const factsHtml = (p) => {
+  const t = townOf(p);
+  const area = areaHref(t);
+  const rows = [
+    ['Location', area ? `<a href="${area}">${esc(p.city)}</a>` : esc(p.city)],
+    ['Services', p.services.map((s) => `<a href="/services/${s}">${esc(SERVICES[s])}</a>`).join(', ')],
+  ];
+  if (p.year) rows.push(['Year', esc(String(p.year))]);
+  if (p.duration) rows.push(['Duration', esc(p.duration)]);
+  const price = priceLine(p);
+  if (price) rows.push(['Price range', `${esc(price)} (retail)`]);
+  rows.push(['Photos', String(p.photos.length)]);
+  return `    <h2 class="pd-h2">Project Details</h2>
+    <dl class="pd-facts">
+${rows.map(([k, v]) => `      <div><dt>${k}</dt><dd>${v}</dd></div>`).join('\n')}
+    </dl>`;
 };
 
 const DETAIL_ORIGIN = 'https://nobigdealwithjoedeal.com';
@@ -423,7 +675,11 @@ const detailPage = (p) => {
   const metaBits = [esc(p.city)];
   if (p.year) metaBits.push(esc(String(p.year)));
   if (p.duration) metaBits.push(esc(p.duration));
-  const pills = p.services.map((s) => `<a href="/services/${s}">${esc(SERVICES[s])}</a>`).join('\n    ');
+  // Footer crumb names the job's own town when it has an area page (it read
+  // "Cincinnati, OH" on every case page until 2026-09-27); out-of-area jobs
+  // keep the metro default.
+  const crumbArea = areaHref(townOf(p)) || '/areas/cincinnati-oh';
+  const crumbCity = crumbArea === '/areas/cincinnati-oh' ? 'Cincinnati, OH' : esc(p.city);
   const descMeta = String(p.description).slice(0, 155);
   return `<!DOCTYPE html>
 <html lang="en">
@@ -475,9 +731,20 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 .pd-price{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#A14A22;margin-bottom:14px;}
 .pd-meta{font-size:.85rem;color:var(--gray);margin-bottom:20px;}
 .pd-desc{font-size:1rem;line-height:1.7;color:#333;margin-bottom:32px;max-width:720px;}
-.pd-services{margin-bottom:32px;display:flex;flex-wrap:wrap;gap:8px;}
 .pd-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px;}
 .pd-back{display:inline-block;margin-top:8px;font-weight:700;color:#A14A22;text-decoration:none;}
+.pd-h2{font-family:'Bebas Neue',sans-serif;font-size:1.7rem;color:var(--navy-dark);letter-spacing:.5px;margin:8px 0 12px;}
+.pd-text{font-size:1rem;line-height:1.7;color:#333;margin-bottom:28px;max-width:720px;}
+.pd-list{margin:0 0 28px 1.2em;max-width:720px;line-height:1.7;color:#333;}
+.pd-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 24px;margin-bottom:32px;max-width:720px;}
+.pd-facts dt{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gray);}
+.pd-facts dd{font-size:.95rem;color:#1a1a1a;margin-top:2px;}
+.pd-facts a,.pd-links a,.pd-related a{color:#A14A22;font-weight:700;text-decoration:none;}
+.pd-facts a:hover,.pd-links a:hover,.pd-related a:hover{text-decoration:underline;}
+.pd-links{font-size:.92rem;margin-bottom:12px;line-height:1.8;}
+.pd-related{list-style:none;margin:0 0 32px;display:grid;gap:8px;}
+.pd-related li{font-size:.92rem;line-height:1.5;}
+.pd-related span{color:var(--gray);font-size:.8rem;margin-left:4px;}
 @media(max-width:768px){.pd-title{font-size:1.9rem}}
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
@@ -496,16 +763,16 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
     <div class="pd-price">${esc(price)}</div>` : ''}
     <div class="pd-meta">${PIN_SVG} ${metaBits.join(' · ')}</div>
     <p class="pd-desc">${esc(p.description)}</p>
-    <div class="pd-services">
-    ${pills}
-    </div>
+${narrativeHtml(p) ? `${narrativeHtml(p)}\n` : ''}${factsHtml(p)}
+    <h2 class="pd-h2">Photos</h2>
     <div class="pd-photos">
 ${p.photos.map(detailPhotoCard).join('\n')}
     </div>
+${linksOutHtml(p)}
     <a class="pd-back" href="/our-work">&larr; See more of our work</a>
   </div>
 </main>
-<!-- nbd:partial footer-standard crumb_service_href="/our-work" crumb_service_name="Our Work" crumb_city_href="/areas/cincinnati-oh" crumb_city_name="Cincinnati, OH" -->
+<!-- nbd:partial footer-standard crumb_service_href="/our-work" crumb_service_name="Our Work" crumb_city_href="${crumbArea}" crumb_city_name="${crumbCity}" -->
 <!-- /nbd:partial footer-standard -->
 </body>
 </html>
@@ -666,6 +933,56 @@ for (const f of readdirSync(SERVICES_DIR)) {
   }, false);
 }
 
+// 2b. /areas/<town> — "Jobs we've done in <Town>" (OURWORK-AREA), placed
+// just before the page's <!-- SERVICES --> section.
+const AREA_START = '<!-- OURWORK-AREA-START -->';
+const AREA_END = '<!-- OURWORK-AREA-END -->';
+const AREA_ANCHOR = '<!-- SERVICES -->';
+let areaCount = 0;
+for (const f of readdirSync(AREAS_DIR)) {
+  if (!f.endsWith('.html') || f === 'index.html') continue;
+  const slug = f.replace(/\.html$/, '');
+  const jobs = byTown.get(slug) || [];
+  const block = jobs.length ? areaBlock(townOf(jobs[0]), jobs) : null;
+  if (block) areaCount++;
+  stampFile(path.join(AREAS_DIR, f), (src, eol) => {
+    const out = syncRegion(src, eol, AREA_START, AREA_END, block, AREA_ANCHOR);
+    if (out === null) { console.error(`FATAL: docs/areas/${f}: has ${jobs.length} job(s) but no "${AREA_ANCHOR}" anchor to place OURWORK-AREA before`); process.exit(1); }
+    return out;
+  }, false);
+}
+
+// 2c. Town-specific service pages (/services/<prefix>-<town>.html) —
+// "Real <service> jobs in <Town>" (OURWORK-LOCAL), placed just before the
+// quick-quote form. Pages that already carry a service-wide OURWORK-STRIP
+// (the wood-siding town pages) are skipped: one jobs strip per page.
+const LOCAL_START = '<!-- OURWORK-LOCAL-START -->';
+const LOCAL_END = '<!-- OURWORK-LOCAL-END -->';
+const LOCAL_ANCHOR = '<section class="qlf-section" id="quote">';
+let localCount = 0;
+{
+  const prefixes = Object.keys(TOWN_PAGE_PREFIX).sort((a, b) => b.length - a.length);
+  for (const f of readdirSync(SERVICES_DIR)) {
+    if (!f.endsWith('.html')) continue;
+    const base = f.replace(/\.html$/, '');
+    const prefix = prefixes.find((x) => base.startsWith(`${x}-`) && existsSync(path.join(AREAS_DIR, `${base.slice(x.length + 1)}.html`)));
+    if (!prefix) continue;
+    const townSlug = base.slice(prefix.length + 1);
+    const service = TOWN_PAGE_PREFIX[prefix];
+    const jobs = (byTown.get(townSlug) || []).filter((p) => p.services.includes(service));
+    const file = path.join(SERVICES_DIR, f);
+    const hasStrip = /<!-- OURWORK-STRIP-START /.test(readFileSync(file, 'utf8'));
+    const t = jobs.length ? townOf(jobs[0]) : null;
+    const block = jobs.length && !hasStrip ? localBlock(service, t, jobs) : null;
+    if (block) localCount++;
+    stampFile(file, (src, eol) => {
+      const out = syncRegion(src, eol, LOCAL_START, LOCAL_END, block, LOCAL_ANCHOR);
+      if (out === null) { console.error(`FATAL: docs/services/${f}: has ${jobs.length} matching job(s) but no quick-quote anchor to place OURWORK-LOCAL before`); process.exit(1); }
+      return out;
+    }, false);
+  }
+}
+
 // 3. Derived homeowner-wall manifest
 {
   const rel = path.relative(ROOT, WALL);
@@ -681,7 +998,7 @@ for (const f of readdirSync(SERVICES_DIR)) {
 
 if (CHECK) {
   if (!stale.length) {
-    console.log(`build-projects --check: ${live.length} live project(s), ${stripCount} hub strip(s), ${live.length} detail page(s) — all stamped surfaces clean.`);
+    console.log(`build-projects --check: ${live.length} live project(s), ${stripCount} hub strip(s), ${areaCount} area block(s), ${localCount} town-service strip(s), ${live.length} detail page(s) — all stamped surfaces clean.`);
     process.exit(0);
   }
   console.error(`build-projects --check: stale generated surfaces vs assets/data/projects.json:
@@ -692,4 +1009,4 @@ and commit ALL stamped files.`);
   process.exit(1);
 }
 
-console.log(`OK: ${live.length} live project(s) stamped — gallery + schema in docs/our-work.html, ${stripCount} hub strip(s), ${detailWritten} detail page(s) written (${detailDeleted} orphaned deleted), homeowner-wall.json (${Math.min(live.length, 12)} entries)${all.length - live.length ? ` (${all.length - live.length} staged for a future date)` : ''}`);
+console.log(`OK: ${live.length} live project(s) stamped — gallery + schema in docs/our-work.html, ${stripCount} hub strip(s), ${areaCount} area block(s), ${localCount} town-service strip(s), ${detailWritten} detail page(s) written (${detailDeleted} orphaned deleted), homeowner-wall.json (${Math.min(live.length, 12)} entries)${all.length - live.length ? ` (${all.length - live.length} staged for a future date)` : ''}`);

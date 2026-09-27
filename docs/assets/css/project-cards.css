@@ -47,12 +47,25 @@
 .nbd-recent-jobs .gallery{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
 a.project-link{display:block;color:inherit;text-decoration:none}
 
+/* Jobs past a strip's card cap — still crawlable links, no image wall */
+.nbd-recent-jobs-more-h{margin:24px 0 8px;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gray,#5d6673)}
+.nbd-recent-jobs-more{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px 24px}
+.nbd-recent-jobs-more li{font-size:.85rem;line-height:1.5}
+.nbd-recent-jobs-more a{color:#A14A22;font-weight:700;text-decoration:none}
+.nbd-recent-jobs-more a:hover{text-decoration:underline}
+.nbd-recent-jobs-more span{color:var(--gray,#5d6673);font-size:.76rem;margin-left:4px}
+
+/* Town jobs (OURWORK-AREA on /areas/, OURWORK-LOCAL on town service pages):
+   white band — those pages already alternate off-white sections around it */
+.nbd-local-jobs{background:#fff}
+.nbd-recent-jobs-lede{color:var(--gray,#5d6673);font-size:.9rem;line-height:1.6;margin:-12px 0 20px;max-width:720px}
+
 /* Empty state: CTA band only — never a bare grid (homeowner-wall discipline) */
 .nbd-recent-jobs-cta{background:#fff;border:1px solid var(--light-gray,#e8e5e0);border-radius:14px;padding:28px;text-align:center}
 .nbd-recent-jobs-cta p{color:var(--gray,#5d6673);font-size:.9rem;margin:0 0 14px}
 .nbd-recent-jobs-cta a{display:inline-block;background:#BD5728;color:#fff;padding:12px 24px;border-radius:8px;font-weight:700;font-size:.85rem;text-decoration:none}
 
 @media(max-width:768px){
-  .gallery,.nbd-recent-jobs .gallery{grid-template-columns:1fr}
+  .gallery,.nbd-recent-jobs .gallery,.nbd-recent-jobs-more{grid-template-columns:1fr}
   .nbd-recent-jobs{padding:40px 20px}
 }

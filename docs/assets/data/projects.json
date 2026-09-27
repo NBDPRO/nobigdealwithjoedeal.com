@@ -19,7 +19,14 @@
     "location; photos must be re-encoded copies under /assets/images/projects/",
     "(the re-encode strips EXIF), never CRM storage URLs; consentOnFile must be",
     "true or the build refuses the entry; a future published date stages the",
-    "entry until the first deploy after that date."
+    "entry until the first deploy after that date.",
+    "OPTIONAL CASE-STUDY FIELDS (2026-09-27): problem, scope, materials, timeline,",
+    "outcome — each renders its own H2 (The problem / What we did / Materials /",
+    "Timeline / Result) on /our-work/<slug> ONLY when present; scope and materials",
+    "may be a list of strings. Photos may carry an optional caption (falls back to",
+    "alt). Write only what is true of the job — the template never fills a gap.",
+    "city ('Town, ST') also places the job on /areas/<town> and the town-specific",
+    "/services/<service>-<town> pages (OURWORK-AREA / OURWORK-LOCAL regions)."
   ],
   "projects": [
     {

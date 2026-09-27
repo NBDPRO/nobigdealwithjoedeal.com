@@ -12,6 +12,31 @@
 >
 > CI fails any drift (`build-projects.mjs --check`). Never hand-edit inside
 > markers. One edit → every surface updates.
+>
+> **Update 2026-09-27 — internal links + case-study depth.** The generator now
+> also stamps:
+>
+> - `docs/our-work/<slug>.html` — the case page, which now links back out to
+>   its service hub, its town-specific service page, its `/areas/<town>` page,
+>   and a ring of sibling jobs by service and by town
+> - an `OURWORK-AREA` "Jobs we've done in <Town>" region on every
+>   `/areas/<town>` page with ≥1 live job (inserted before `<!-- SERVICES -->`;
+>   removed again if the town's last job goes — never an empty block)
+> - an `OURWORK-LOCAL` "Real <service> jobs in <Town>" region on each
+>   `/services/<service>-<town>` page with a matching job (inserted before the
+>   quick-quote form; skipped on pages that already carry an `OURWORK-STRIP`)
+>
+> Hub-strip cards now link the job's own case page, not `/our-work#svc-…`.
+> The town comes from `city` (`"Town, ST"`, now validated); spelling variants
+> go in `TOWN_ALIASES` in the generator. A town with no area page gets no area
+> link — nothing is guessed.
+>
+> **Optional case-study fields** — add any of these to an entry and the case
+> page grows the matching H2; leave them out and nothing is rendered:
+> `problem` (The problem), `scope` (What we did — string or list),
+> `materials` (string or list), `timeline`, `outcome` (Result), plus an
+> optional per-photo `caption` (falls back to `alt`). Only write what is true
+> of the job.
 
 ## The fastest way: post a job from your phone (agent session)
 
