@@ -85,6 +85,7 @@ node scripts/check-site-integrity.js --quiet
 node scripts/apply-partials.js --check --diff
 node scripts/build-sitemap.js          # dry-run drift check
 node scripts/build-projects.mjs --check
+node scripts/build-llms.mjs --check-regions  # llms.txt lists (llms-full.txt regenerates at deploy)
 node scripts/check-inline-html-scripts.js
 node scripts/check-image-privacy.js       # EXIF/GPS strip invariant (images)
 node scripts/check-vault-index.js         # documentation/ edits (see logging rule above)

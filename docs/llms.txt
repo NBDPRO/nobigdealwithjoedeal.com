@@ -7,10 +7,11 @@
 - **Business name:** No Big Deal Home Solutions
 - **Owner & operator:** Joe Deal (goes by Joe)
 - **Founded:** 2024
-- **Service territory:** Greater Cincinnati, OH, Northern Kentucky, and Central Kentucky — including Cincinnati, Mason, Loveland, West Chester, Batavia, Goshen, Milford, Blue Ash, Indian Hill, Anderson Township, Lebanon, Springboro, Maineville, Fairfield, Amelia, Monroe, Fayetteville, Blanchester, Mt. Orab, Wilmington, Clarksville, Florence KY, Erlanger KY, Covington KY, Fort Mitchell KY, Lexington KY, Georgetown KY, Nicholasville KY, Winchester KY, Richmond KY, Versailles KY. Central Kentucky work runs on scheduled trips from the Cincinnati base.
+- **Service territory:** Greater Cincinnati, OH, Northern Kentucky, and Central Kentucky (the Lexington area). Every town with its own service-area page is listed under **Service Areas** below — that list is generated from the site's area pages, so it is always the complete, current set. Central Kentucky work runs on scheduled trips from the Cincinnati base.
 - **Contact:** (859) 420-7382 · jd@nobigdealwithjoedeal.com
 - **Website:** https://nobigdealwithjoedeal.com
 - **Blog feed (RSS):** https://nobigdealwithjoedeal.com/feed.xml
+- **Full-text version of this file:** https://nobigdealwithjoedeal.com/llms-full.txt — the readable content of the homepage, About, The Pledge, every core service page, the service-areas hub, and the cost and insurance-claim guides in one plain-text document
 - **Based in:** Greater Cincinnati, OH (service-area business serving Greater Cincinnati + Northern Kentucky + the Lexington, KY area)
 
 ## What Makes No Big Deal Different
@@ -32,6 +33,9 @@
 - Wood siding repair (rotted board replacement, cedar and wood shake, wood trim and window-head rot)
 - Fascia and soffit repair and replacement, including aluminum fascia wrap
 - Gutter replacement (5" and 6" seamless K-Style, custom-cut on site)
+- Gutter cleaning (debris removed by hand, every downspout flush-tested, before/after photos)
+- Emergency roof tarping (active leaks jump the line; anchored tarp and claim-ready photos, then the real repair)
+- The NBD Roof Care Plan (annual roof maintenance membership: yearly inspection, minor fixes, priority service)
 - Shed, detached garage, barn and outbuilding roofing (tear-off and re-roof, rot and leak repair)
 - Roof inspection (free)
 - Roof cleaning / soft wash
@@ -61,7 +65,7 @@ Joe Deal personally handles the inspection, estimate, insurance claim work, and 
 Yes. Joe has 7 years of insurance restoration experience. He documents damage, meets your adjuster on-site, and handles supplement negotiations when initial scopes are underpaid.
 
 **Service area?**
-Greater Cincinnati, Ohio (including Mason, Loveland, West Chester, Batavia, and 20+ other cities), Northern Kentucky (Florence, Erlanger, Covington, Fort Mitchell), and Central Kentucky (Lexington, Georgetown, Nicholasville, Winchester, Richmond, Versailles) — Central Kentucky on scheduled trips. Owner Joe Deal grew up in eastern Kentucky and lived in Lexington before settling in Cincinnati.
+Greater Cincinnati, Ohio (including Mason, Loveland, West Chester, Batavia, and the other Ohio towns listed under Service Areas below), Northern Kentucky (Florence, Erlanger, Covington, Fort Mitchell, Newport, Union), and Central Kentucky (Lexington, Georgetown, Nicholasville, Winchester, Richmond, Versailles) — Central Kentucky on scheduled trips. Owner Joe Deal grew up in eastern Kentucky and lived in Lexington before settling in Cincinnati.
 
 **Pricing model?**
 Free inspections. Honest estimates. Typical residential roof replacement cost in Cincinnati is detailed in the pricing guide blog post. Financing available through Acorn Finance, a lending marketplace — pre-qualify with a soft credit pull; rates and terms vary by credit profile and lender.
@@ -86,25 +90,34 @@ Joe Deal also built **NBD Pro** — a roofing business management SaaS platform 
 - [LumaNail™](https://nobigdealwithjoedeal.com/services/lumanail): Visible orange roofing fasteners (Build component)
 - [GAF Master Flow Pivot Boot](https://nobigdealwithjoedeal.com/services/gaf-pivot-boot): All-metal pipe boot (Build component)
 - [Roofivent](https://nobigdealwithjoedeal.com/services/roofivent): Polypropylene exhaust + pipe flashing (Build component)
-- [Service Areas](https://nobigdealwithjoedeal.com/areas): All 25+ cities served
+- [Service Areas](https://nobigdealwithjoedeal.com/areas): Hub page for every town served (each town page is listed under Service Areas below)
 - [Blog](https://nobigdealwithjoedeal.com/blog): Homeowner-focused roofing and insurance-claim guides
 - [Reviews](https://nobigdealwithjoedeal.com/review): Customer testimonials
 
 ### More services & products
 
-- [Roof Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/roof-repair): Professional roof repair in Greater Cincinnati, OH. GAF Timberline shingles, NBD Lifetime Pledge, insurance…
+Every service and product page not already linked above. Membership and order are generated; an entry's wording can be tuned in place and is kept.
+
+<!-- LLMS:SERVICES:START -->
+<!-- generated by scripts/build-llms.mjs from docs/services/ (town variants *-oh/*-ky excluded) — membership is generated; existing entry wording is kept -->
 - [Commercial Roofing Cincinnati OH](https://nobigdealwithjoedeal.com/services/commercial-roofing): Full commercial roofing across Greater Cincinnati and Northern Kentucky — flat and low-slope EPDM and TPO, apartment complexes and multi-family, small-business buildings. Crews are independent subcontractors with their own insurance; Joe is on every job.
-- [Roof Inspection Cincinnati OH](https://nobigdealwithjoedeal.com/services/roof-inspection): Free roof inspection + written report in Cincinnati. Joe inspects personally: photos, honest condition…
-- [Siding Replacement Cincinnati OH](https://nobigdealwithjoedeal.com/services/siding-replacement): Professional siding replacement in Greater Cincinnati, OH. Vinyl & fiber cement siding, NBD Lifetime…
-- [Siding Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/siding-repair): Professional siding repair in Greater Cincinnati, OH. All siding types, NBD Lifetime Pledge. Free estimate…
-- [Wood Siding Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/wood-siding-repair): Rotted board replacement, fascia and soffit repair, cedar and wood trim rot across Greater Cincinnati. Rot is usually NOT an insurance claim — carriers exclude long-term moisture damage as maintenance; storm damage to wood siding and trim is.
-- [Shed & Outbuilding Roofing Cincinnati OH](https://nobigdealwithjoedeal.com/services/shed-roof-replacement): Roofing for sheds, detached garages, barns and pool houses. Many roofing companies decline these as too small to schedule; NBD takes them. Outbuildings are often covered under a separate detached-structure limit on a homeowners policy.
-- [Gutter Replacement Cincinnati OH](https://nobigdealwithjoedeal.com/services/gutter-replacement): Professional gutter replacement in Greater Cincinnati, OH. Seamless gutters, gutter guards, NBD Lifetime…
-- [Roof Cleaning & Soft Wash Cincinnati OH](https://nobigdealwithjoedeal.com/services/roof-cleaning-soft-wash): Roof cleaning & soft wash in Cincinnati. Remove algae, moss & black streaks safely — no pressure…
-- [Fire, Water & Smoke Damage Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/fire-water-smoke-damage): Fire, water & smoke exterior damage repair + insurance claim help in Greater Cincinnati. Joe documents it…
+- [Emergency Roof Tarping Cincinnati OH](https://nobigdealwithjoedeal.com/services/emergency-roof-tarping): Emergency roof tarping in Cincinnati & NKY — active leaks jump the line. Anchored tarp, claim-ready photos, then the real repair. Call Joe.
 - [Roof & Home Exterior Financing Cincinnati OH](https://nobigdealwithjoedeal.com/services/financing): Financing for roofing, siding, gutters & restoration in Cincinnati. Pre-qualify in about a minute through…
-- [GAF Timberline NS · HDZ · UHDZ — Every Color &amp; Spec](https://nobigdealwithjoedeal.com/services/gaf-timberline): A GAF Certified contractor's deep dive on Timberline NS, HDZ, and UHDZ — colors, warranties, and when Class 4…
+- [Fire, Water & Smoke Damage Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/fire-water-smoke-damage): Fire, water & smoke exterior damage repair + insurance claim help in Greater Cincinnati. Joe documents it…
+- [Gutter Cleaning Cincinnati OH](https://nobigdealwithjoedeal.com/services/gutter-cleaning): Gutter cleaning across Greater Cincinnati: debris removed by hand, every downspout flush-tested, before/after photos. Free estimate from Joe Deal.
+- [Gutter Replacement Cincinnati OH](https://nobigdealwithjoedeal.com/services/gutter-replacement): Professional gutter replacement in Greater Cincinnati, OH. Seamless gutters, gutter guards, NBD Lifetime…
+- [Interior Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/interior-repair): Drywall and ceiling repair in Greater Cincinnati: leak-damaged ceilings replaced after the roof is fixed, cracks and joints prepped for paint. Free estimate.
+- [Roof Care Plan Cincinnati OH](https://nobigdealwithjoedeal.com/services/roof-care-plan): The NBD Roof Care Plan — an annual roof maintenance membership for Greater Cincinnati homeowners. Yearly inspection, minor fixes, and priority service.
+- [Roof Cleaning & Soft Wash Cincinnati OH](https://nobigdealwithjoedeal.com/services/roof-cleaning-soft-wash): Roof cleaning & soft wash in Cincinnati. Remove algae, moss & black streaks safely — no pressure…
+- [Roof Inspection Cincinnati OH](https://nobigdealwithjoedeal.com/services/roof-inspection): Free roof inspection + written report in Cincinnati. Joe inspects personally: photos, honest condition…
+- [Roof Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/roof-repair): Professional roof repair in Greater Cincinnati, OH. GAF Timberline shingles, NBD Lifetime Pledge, insurance…
+- [Shed & Outbuilding Roofing Cincinnati OH](https://nobigdealwithjoedeal.com/services/shed-roof-replacement): Roofing for sheds, detached garages, barns and pool houses. Many roofing companies decline these as too small to schedule; NBD takes them. Outbuildings are often covered under a separate detached-structure limit on a homeowners policy.
+- [Siding Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/siding-repair): Professional siding repair in Greater Cincinnati, OH. All siding types, NBD Lifetime Pledge. Free estimate…
+- [Siding Replacement Cincinnati OH](https://nobigdealwithjoedeal.com/services/siding-replacement): Professional siding replacement in Greater Cincinnati, OH. Vinyl & fiber cement siding, NBD Lifetime…
+- [Wood Siding Repair Cincinnati OH](https://nobigdealwithjoedeal.com/services/wood-siding-repair): Rotted board replacement, fascia and soffit repair, cedar and wood trim rot across Greater Cincinnati. Rot is usually NOT an insurance claim — carriers exclude long-term moisture damage as maintenance; storm damage to wood siding and trim is.
+- [GAF Timberline NS · HDZ · UHDZ — Every Color & Spec](https://nobigdealwithjoedeal.com/services/gaf-timberline): A GAF Certified contractor's deep dive on Timberline NS, HDZ, and UHDZ — colors, warranties, and when Class 4…
 - [TAMKO Storm Series — Titan XT, StormFighter, HailGuard](https://nobigdealwithjoedeal.com/services/tamko-storm-series): The TAMKO Storm Series for hail country — Heritage, Titan XT, StormFighter Flex, and HailGuard. Specs…
+<!-- LLMS:SERVICES:END -->
 
 ### Tools & resources
 
@@ -149,6 +162,86 @@ Joe Deal also built **NBD Pro** — a roofing business management SaaS platform 
 - [The Orange Nail: Why LumaNail Is on Every Elite Roof](https://nobigdealwithjoedeal.com/blog/why-i-install-lumanail-on-every-elite-roof): A roofing nail you can actually see. Joe Deal on why he puts LumaNail on every NBD Elite roof — and why the…
 - [Why Roofivent Is on My Roofs — Joe Deal NBD](https://nobigdealwithjoedeal.com/blog/why-roofivent-is-on-my-roofs): Why Joe installs Roofivent on NBD roofs across Greater Cincinnati — and why 'designed to be serviced' beats…
 - [He Tried to Buy His Own Shingles. Every Counter Said No.](https://nobigdealwithjoedeal.com/blog/why-wont-roofing-suppliers-sell-to-homeowners): A Lexington homeowner tried to buy TAMKO HailGuard himself — SRS and QXO don't carry it, ABC Supply is account-only. Why distributors went contractor-only, what owner-supplied really costs, and the honest path to a premium roof.
+
+## Service Areas
+
+One page per town, each with local housing and storm notes. Hub: [Service Areas](https://nobigdealwithjoedeal.com/areas).
+
+<!-- LLMS:AREAS:START -->
+<!-- generated by scripts/build-llms.mjs from docs/areas/*.html — membership is generated; existing entry wording is kept -->
+43 towns have their own service-area page.
+
+### Ohio (31)
+
+- [Amelia, OH](https://nobigdealwithjoedeal.com/areas/amelia-oh)
+- [Anderson Township, OH](https://nobigdealwithjoedeal.com/areas/anderson-township-oh)
+- [Batavia, OH](https://nobigdealwithjoedeal.com/areas/batavia-oh)
+- [Bethel, OH](https://nobigdealwithjoedeal.com/areas/bethel-oh)
+- [Blanchester, OH](https://nobigdealwithjoedeal.com/areas/blanchester-oh)
+- [Blue Ash, OH](https://nobigdealwithjoedeal.com/areas/blue-ash-oh)
+- [Cincinnati, OH](https://nobigdealwithjoedeal.com/areas/cincinnati-oh)
+- [Clarksville, OH](https://nobigdealwithjoedeal.com/areas/clarksville-oh)
+- [Fairfield, OH](https://nobigdealwithjoedeal.com/areas/fairfield-oh)
+- [Fayetteville, OH](https://nobigdealwithjoedeal.com/areas/fayetteville-oh)
+- [Franklin, OH](https://nobigdealwithjoedeal.com/areas/franklin-oh)
+- [Goshen, OH](https://nobigdealwithjoedeal.com/areas/goshen-oh)
+- [Indian Hill, OH](https://nobigdealwithjoedeal.com/areas/indian-hill-oh)
+- [Lebanon, OH](https://nobigdealwithjoedeal.com/areas/lebanon-oh)
+- [Loveland, OH](https://nobigdealwithjoedeal.com/areas/loveland-oh)
+- [Madeira, OH](https://nobigdealwithjoedeal.com/areas/madeira-oh)
+- [Maineville, OH](https://nobigdealwithjoedeal.com/areas/maineville-oh)
+- [Mason, OH](https://nobigdealwithjoedeal.com/areas/mason-oh)
+- [Miamisburg, OH](https://nobigdealwithjoedeal.com/areas/miamisburg-oh)
+- [Milford, OH](https://nobigdealwithjoedeal.com/areas/milford-oh)
+- [Monroe, OH](https://nobigdealwithjoedeal.com/areas/monroe-oh)
+- [Montgomery, OH](https://nobigdealwithjoedeal.com/areas/montgomery-oh)
+- [Mt. Orab, OH](https://nobigdealwithjoedeal.com/areas/mt-orab-oh)
+- [New Richmond, OH](https://nobigdealwithjoedeal.com/areas/new-richmond-oh)
+- [Newtown, OH](https://nobigdealwithjoedeal.com/areas/newtown-oh)
+- [Norwood, OH](https://nobigdealwithjoedeal.com/areas/norwood-oh)
+- [Sharonville, OH](https://nobigdealwithjoedeal.com/areas/sharonville-oh)
+- [Springboro, OH](https://nobigdealwithjoedeal.com/areas/springboro-oh)
+- [Sycamore Township, OH](https://nobigdealwithjoedeal.com/areas/sycamore-township-oh)
+- [West Chester, OH](https://nobigdealwithjoedeal.com/areas/west-chester-oh)
+- [Wilmington, OH](https://nobigdealwithjoedeal.com/areas/wilmington-oh)
+
+### Kentucky (12)
+
+- [Covington, KY](https://nobigdealwithjoedeal.com/areas/covington-ky)
+- [Erlanger, KY](https://nobigdealwithjoedeal.com/areas/erlanger-ky)
+- [Florence, KY](https://nobigdealwithjoedeal.com/areas/florence-ky)
+- [Fort Mitchell, KY](https://nobigdealwithjoedeal.com/areas/fort-mitchell-ky)
+- [Georgetown, KY](https://nobigdealwithjoedeal.com/areas/georgetown-ky)
+- [Lexington, KY](https://nobigdealwithjoedeal.com/areas/lexington-ky)
+- [Newport, KY](https://nobigdealwithjoedeal.com/areas/newport-ky)
+- [Nicholasville, KY](https://nobigdealwithjoedeal.com/areas/nicholasville-ky)
+- [Richmond, KY](https://nobigdealwithjoedeal.com/areas/richmond-ky)
+- [Union, KY](https://nobigdealwithjoedeal.com/areas/union-ky)
+- [Versailles, KY](https://nobigdealwithjoedeal.com/areas/versailles-ky)
+- [Winchester, KY](https://nobigdealwithjoedeal.com/areas/winchester-ky)
+<!-- LLMS:AREAS:END -->
+
+## Recent Work (case studies)
+
+Real NBD jobs with photos, the scope of work, and the retail price range the homeowner paid. Full gallery with filters: https://nobigdealwithjoedeal.com/our-work
+
+<!-- LLMS:CASE-STUDIES:START -->
+<!-- generated by scripts/build-llms.mjs from docs/assets/data/projects.json — edit that file, not this list -->
+The 12 most recent of 53 published projects:
+
+- [Gutter Section & Shingle Repair](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-gutter-shingle-repair-2026) — Cincinnati, OH · Gutter & Shingle Repair: Replaced a damaged gutter section and tied it back into the existing downspout, then repaired storm-loosened shingles on the roof, matching the field as closely as the existing shingle allowed. Retail price range: $500–$800.
+- [LP SmartSide Trim & Corner Repair](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-smartside-trim-repair-2026) — Cincinnati, OH · Woodpecker & Rot Repair: Replaced woodpecker-damaged and rotted corner trim and door-surround boards on LP SmartSide siding, primed and painted to match, with a roof walk to catch and seal exposed fasteners along the way. Retail price range: $1,750–$2,000.
+- [Ceiling & Wall Crack Repair](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-interior-drywall-repair-2026) — Cincinnati, OH · Drywall Crack Repair: Filled and finished cracks, gaps and separated joints across a full ceiling and walls, re-taped and re-mudded where the old tape had lifted, caulked and sanded smooth — left ready for the homeowner's own paint. Retail price range: $1,250–$1,500.
+- [Storm Siding Refasten + Gutter Repair](https://nobigdealwithjoedeal.com/our-work/batavia-oh-storm-siding-gutter-repair-2026) — Batavia, OH · Storm Damage: Wind pulled the siding fasteners loose across several courses — we unlocked, refastened and re-locked the wall so it lies flat with no bubbles, plus a matching aluminum gutter extension carried the downspout the rest of the way to the ground. Retail price range: $900–$1,200.
+- [122 Ft. of New Gutters + Micromesh Screens](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-gutter-replacement-screens-2026) — Cincinnati, OH · Gutter Replacement: 122 linear feet of new 5-inch seamless aluminum gutter across a full two-story run, capped end to end with micromesh leaf screens — no exposed seams, no gaps at the corners. Retail price range: $3,800–$4,200.
+- [Tongue-and-Groove Soffit Repair Near the Roofline](https://nobigdealwithjoedeal.com/our-work/franklin-oh-soffit-repair-2026) — Franklin, OH · Soffit Repair: A gap in the tongue-and-groove soffit seam had opened up at the roofline, exposing the cavity underneath — closed back in and resealed so the gable line reads clean again. Retail price range: $400–$600.
+- [Same-Day Gutter Cleaning, Cleared by Hand](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-gutter-cleaning-2026) — Cincinnati, OH · Gutter Cleaning: A clogged downspout and packed leaf debris cleared by hand across every run, then flush-tested to confirm free flow — same-day service, no shortcuts. Retail price range: $200–$300.
+- [Downspout Base Connector Replaced & Reconnected](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-downspout-connector-repair-2026) — Cincinnati, OH · Gutter Repair: The base section of a downspout had failed where it met the underground drain line — replaced with a new connector, tied back into the existing PVC line, and painted to match. Retail price range: $100–$200.
+- [Barn-Style Shed, Down to the OSB](https://nobigdealwithjoedeal.com/our-work/mason-oh-shed-reroof-2026) — Mason, OH · Shed Re-Roof: Barn-style backyard shed in Mason — old rolled roofing, torn off completely rather than covered over. With it off we could actually look at the deck: original OSB with old asphalt still stuck to it, sound underneath. Then synthetic underlayment, charcoal architectural shingles and a shingle ridge cap. Same shingle that goes on a house. Retail price range: $2,000–$2,500.
+- [One-Piece Siding Fix + Whole-Roof Walk & Caulk](https://nobigdealwithjoedeal.com/our-work/loveland-oh-siding-peak-reseal-2026) — Loveland, OH · Small Repair: A gable-peak joint had opened up where the J-channel meets the trim — one-piece siding repair, sealed back tight. While we were up there we walked the whole roof and hit every exposed fastener and flashing seam with sealant. Small job, treated like a big one.
+- [Wind-Lifted Shingles, Reset by Hand](https://nobigdealwithjoedeal.com/our-work/loveland-oh-wind-repair-2023) — Loveland, OH · Wind Damage: Wind tore tabs loose across one slope and some shingles came apart in two layers when handled. We documented everything for the claim, backed the nails out with a shingle ripper, and reset the courses by hand — replacing what was too far gone.
+- [Rain-Day Flat Roof Inspection](https://nobigdealwithjoedeal.com/our-work/loveland-oh-epdm-inspection-2026) — Loveland, OH · Flat Roof: You inspect a flat roof right after the rain, because that is when it shows itself. We walked this EPDM roof in the wet — mapped the ponding, an un-taped lap seam, a torn corner at the drain, and what was still holding — and delivered a 13-photo written report. Retail price range: $100–$200.
+<!-- LLMS:CASE-STUDIES:END -->
 
 ## Business Hours
 

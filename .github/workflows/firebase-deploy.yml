@@ -178,6 +178,20 @@ jobs:
           node scripts/build-feed.mjs --write \
             || echo "::warning::feed regeneration failed — deploying the committed feed as-is"
 
+      # Same soft-fail shape for llms.txt's generated lists and llms-full.txt.
+      # Runs AFTER the projects + sitemap regen above because it reads both:
+      # this is what flips a future-dated project into llms.txt's case studies.
+      # It MUST stay before "Deploy Hosting": that step uploads this job's
+      # working-tree docs/ (firebase.json hosting.public), so the llms-full.txt
+      # written here — rebuilt from the exact pages being deployed — is the one
+      # that ships. CI gates only the llms.txt regions; the committed
+      # llms-full.txt is a seed that may lag (tests/build-llms-modes.test.js).
+      - name: Regenerate llms.txt lists + llms-full.txt
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        run: |
+          node scripts/build-llms.mjs --write \
+            || echo "::warning::llms regeneration failed — deploying the committed llms files as-is"
+
       - name: Install Cloud Functions dependencies
         working-directory: functions
         run: |
@@ -279,6 +293,7 @@ jobs:
       # NOTE: "first" is about DEPLOY ordering, not about skipping validation —
       # the static pre-flight gate above still runs ahead of this step.
       - name: Deploy Hosting
+        id: hosting
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
@@ -314,6 +329,25 @@ jobs:
           done
           echo "::error::Hosting deploy failed after 3 attempts."
           exit 1
+
+      # IndexNow: announce the public pages this push changed (Bing's index
+      # feeds ChatGPT search). PRODUCTION ONLY — a push to main whose Hosting
+      # deploy just succeeded; never workflow_dispatch, never a PR or preview.
+      # The script diffs github.event.before..sha under docs/, maps files to
+      # canonical URLs, keeps only sitemap-listed non-noindex public pages
+      # (never /pro, /admin, /sites) plus llms.txt / llms-full.txt /
+      # sitemap.xml, and POSTs them. An all-zero before-SHA (new branch /
+      # force push) or an unfetchable before-commit is a clean skip.
+      # continue-on-error + a 2-minute cap: a ping failure must never fail or
+      # stall a deploy. It runs only `git` and `fetch` — no firebase tooling.
+      - name: Ping IndexNow with changed public pages
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.hosting.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: node scripts/indexnow-ping.mjs --before "$BEFORE_SHA" --after "$AFTER_SHA"
 
       # ─────────────────────────────────────────────────────────
       # Enable APIs that firebase-tools doesn't auto-enable. 2nd-gen

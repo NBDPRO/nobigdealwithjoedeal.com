@@ -407,7 +407,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               via --check on a0515d8e (#1781); whoever merges last re-measures.
 //   2026-09-26  193/68/284 -> 194/68/285, tests/thursday-ui-wiring.test.js
 //               (node; Calls section, source selects, CSP media-src, widget gate).
-const FLOORS = { node: 194, smoke: 68, disk: 285 };
+const FLOORS = { node: 196, smoke: 68, disk: 287 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

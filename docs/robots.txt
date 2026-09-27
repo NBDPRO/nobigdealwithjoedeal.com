@@ -1,6 +1,6 @@
 # No Big Deal Home Solutions — robots.txt
 # Site: https://nobigdealwithjoedeal.com
-# AI/LLM guide: https://nobigdealwithjoedeal.com/llms.txt
+# AI/LLM guide: https://nobigdealwithjoedeal.com/llms.txt (full text: /llms-full.txt)
 #
 # Structure note: all user-agents (wildcard + the explicitly welcomed AI/search
 # crawlers) are stacked into ONE group so every rule below applies to every
@@ -70,3 +70,4 @@ Sitemap: https://nobigdealwithjoedeal.com/sitemap-pro.xml
 
 # LLM context file (see https://llmstxt.org)
 # Additional context: https://nobigdealwithjoedeal.com/llms.txt
+# Full-text context (core pages as plain text): https://nobigdealwithjoedeal.com/llms-full.txt
