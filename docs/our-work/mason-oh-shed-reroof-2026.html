@@ -48,9 +48,20 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 .pd-price{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#A14A22;margin-bottom:14px;}
 .pd-meta{font-size:.85rem;color:var(--gray);margin-bottom:20px;}
 .pd-desc{font-size:1rem;line-height:1.7;color:#333;margin-bottom:32px;max-width:720px;}
-.pd-services{margin-bottom:32px;display:flex;flex-wrap:wrap;gap:8px;}
 .pd-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px;}
 .pd-back{display:inline-block;margin-top:8px;font-weight:700;color:#A14A22;text-decoration:none;}
+.pd-h2{font-family:'Bebas Neue',sans-serif;font-size:1.7rem;color:var(--navy-dark);letter-spacing:.5px;margin:8px 0 12px;}
+.pd-text{font-size:1rem;line-height:1.7;color:#333;margin-bottom:28px;max-width:720px;}
+.pd-list{margin:0 0 28px 1.2em;max-width:720px;line-height:1.7;color:#333;}
+.pd-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 24px;margin-bottom:32px;max-width:720px;}
+.pd-facts dt{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gray);}
+.pd-facts dd{font-size:.95rem;color:#1a1a1a;margin-top:2px;}
+.pd-facts a,.pd-links a,.pd-related a{color:#A14A22;font-weight:700;text-decoration:none;}
+.pd-facts a:hover,.pd-links a:hover,.pd-related a:hover{text-decoration:underline;}
+.pd-links{font-size:.92rem;margin-bottom:12px;line-height:1.8;}
+.pd-related{list-style:none;margin:0 0 32px;display:grid;gap:8px;}
+.pd-related li{font-size:.92rem;line-height:1.5;}
+.pd-related span{color:var(--gray);font-size:.8rem;margin-left:4px;}
 @media(max-width:768px){.pd-title{font-size:1.9rem}}
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
@@ -160,9 +171,15 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
     <div class="pd-price">$2,000–$2,500</div>
     <div class="pd-meta"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Mason, OH · 2026</div>
     <p class="pd-desc">Barn-style backyard shed in Mason — old rolled roofing, torn off completely rather than covered over. With it off we could actually look at the deck: original OSB with old asphalt still stuck to it, sound underneath. Then synthetic underlayment, charcoal architectural shingles and a shingle ridge cap. Same shingle that goes on a house.</p>
-    <div class="pd-services">
-    <a href="/services/shed-roof-replacement">Sheds &amp; Outbuildings</a>
-    </div>
+    <h2 class="pd-h2">Project Details</h2>
+    <dl class="pd-facts">
+      <div><dt>Location</dt><dd><a href="/areas/mason-oh">Mason, OH</a></dd></div>
+      <div><dt>Services</dt><dd><a href="/services/shed-roof-replacement">Sheds &amp; Outbuildings</a></dd></div>
+      <div><dt>Year</dt><dd>2026</dd></div>
+      <div><dt>Price range</dt><dd>$2,000–$2,500 (retail)</dd></div>
+      <div><dt>Photos</dt><dd>6</dd></div>
+    </dl>
+    <h2 class="pd-h2">Photos</h2>
     <div class="pd-photos">
       <figure style="margin:0;">
         <picture><source srcset="/assets/images/projects/mason-oh-shed-reroof-2026-1.webp" type="image/webp"><img src="/assets/images/projects/mason-oh-shed-reroof-2026-1.jpg" alt="White gambrel shed with dark green trim and double doors under a new charcoal shingle roof, chain-link fence and woods behind" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;"></picture>
@@ -189,10 +206,22 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
         <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">New charcoal shingles and ridge cap on the shed's gambrel slope, ladders leaning against the white siding, old black roofing piled below</figcaption>
       </figure>
     </div>
+    <h2 class="pd-h2">More Shed &amp; Outbuilding Work</h2>
+    <p class="pd-links"><a href="/services/shed-roof-replacement">Sheds &amp; Outbuildings — how we do it</a></p>
+    <ul class="pd-related">
+      <li><a href="/our-work/batavia-oh-full-replacement-2025">House, Garage and Outbuilding</a> <span>Batavia, OH · 2025</span></li>
+      <li><a href="/our-work/amelia-oh-gambrel-ridge-repair-2026">Sixty-Eight Feet of Ridge</a> <span>Amelia, OH · 2026</span></li>
+      <li><a href="/our-work/new-richmond-oh-storm-replacement-2024">House and Outbuildings, One Day</a> <span>New Richmond, OH · 2024</span></li>
+    </ul>
+    <h2 class="pd-h2">Other Jobs in Mason</h2>
+    <p class="pd-links"><a href="/areas/mason-oh">Roofing and exterior work in Mason, OH</a></p>
+    <ul class="pd-related">
+      <li><a href="/our-work/hail-impact-chalk-marked">Hail Impact — Chalk-Marked Inspection</a> <span>Mason, OH</span></li>
+    </ul>
     <a class="pd-back" href="/our-work">&larr; See more of our work</a>
   </div>
 </main>
-<!-- nbd:partial footer-standard crumb_service_href="/our-work" crumb_service_name="Our Work" crumb_city_href="/areas/cincinnati-oh" crumb_city_name="Cincinnati, OH" -->
+<!-- nbd:partial footer-standard crumb_service_href="/our-work" crumb_service_name="Our Work" crumb_city_href="/areas/mason-oh" crumb_city_name="Mason, OH" -->
 <footer>
   <!-- FOOTER CERT BAR (injected 2026-07-20) -->
   <div data-nbd-certbar="v1" style="max-width:1100px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:left">
@@ -216,7 +245,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
   <a class="s-gg" href="https://share.google/dHlqknguidMfhTFS9" target="_blank" rel="noopener" aria-label="Google Business Profile"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.6 12.23c0-.68-.06-1.34-.17-1.98H12v3.75h5.4a4.62 4.62 0 0 1-2 3.03v2.52h3.24c1.9-1.74 3-4.3 3-7.32zM12 22c2.7 0 4.97-.9 6.63-2.44l-3.24-2.52c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.76-5.6-4.13H3.05v2.6A10 10 0 0 0 12 22zm-5.6-7.13A6 6 0 0 1 6.08 12c0-.99.17-1.95.44-2.87V6.53H3.05A10 10 0 0 0 2 12c0 1.6.39 3.14 1.05 4.47l3.35-2.6zM12 5.88c1.47 0 2.8.5 3.84 1.5l2.88-2.88A10 10 0 0 0 12 2 10 10 0 0 0 3.05 7.53l3.35 2.6C7.18 7.63 9.39 5.88 12 5.88z"/></svg></a>
   <a class="s-yelp" href="https://www.yelp.com/biz/no-big-deal-home-solutions-cincinnati" target="_blank" rel="noopener" aria-label="Yelp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.6 12.6c0-.4-.2-.7-.5-.8L6.5 10.1c-.5-.2-1.1.2-1.1.8l.1 5.5c0 .7.7 1.1 1.3.8l4.5-2.9c.2-.2.3-.5.3-.8v-.9zm1.8 1c-.3-.2-.6-.1-.8.1L9.4 17c-.4.4-.2 1 .3 1.1l4.4 1.2c.6.1 1.1-.5 1-1.1l-1-3.8c-.1-.3-.3-.5-.7-.8zm-2.7-5.5c.4-.2.6-.6.5-1l-.8-4.4c-.1-.6-.8-.9-1.3-.5L5.6 4.9c-.5.4-.4 1.1.1 1.4l4.4 2c.2 0 .4 0 .6-.2zm5 3.6L14.4 9c-.3-.4-.9-.3-1.1.2l-1.2 3.8c-.2.5.2 1 .7 1l4.2.3c.7.1 1-.8.5-1.3l-1.8-1.3zm-.6 3.4c-.4-.2-1 .1-1.1.6l-.5 4c-.1.6.5 1 1 .8l3.9-1.6c.6-.2.6-1 .1-1.4l-3.4-2.4z"/></svg></a>
 </span><br>
-  <a href="/our-work">Our Work</a> · <a href="/areas/cincinnati-oh">Cincinnati, OH</a> · <a href="/">nobigdealwithjoedeal.com</a><br>
+  <a href="/our-work">Our Work</a> · <a href="/areas/mason-oh">Mason, OH</a> · <a href="/">nobigdealwithjoedeal.com</a><br>
   <a href="tel:+18594207382">(859) 420-7382</a> · <a href="mailto:jd&#64;nobigdealwithjoedeal&#46;com">jd&#64;nobigdealwithjoedeal&#46;com</a></p>
   <!-- Quiet pro door — same posture as footer-extended/footer-blog: visible only to those looking for it -->
   <p style="margin-top:10px"><a href="/pro/" style="color:inherit;text-decoration:none;font-size:.78rem;opacity:.55">Are you a contractor? → NBD Pro</a></p>
