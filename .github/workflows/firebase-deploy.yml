@@ -181,6 +181,11 @@ jobs:
       # Same soft-fail shape for llms.txt's generated lists and llms-full.txt.
       # Runs AFTER the projects + sitemap regen above because it reads both:
       # this is what flips a future-dated project into llms.txt's case studies.
+      # It MUST stay before "Deploy Hosting": that step uploads this job's
+      # working-tree docs/ (firebase.json hosting.public), so the llms-full.txt
+      # written here — rebuilt from the exact pages being deployed — is the one
+      # that ships. CI gates only the llms.txt regions; the committed
+      # llms-full.txt is a seed that may lag (tests/build-llms-modes.test.js).
       - name: Regenerate llms.txt lists + llms-full.txt
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |

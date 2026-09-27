@@ -169,12 +169,15 @@ jobs:
       # and live-post filter as the blog index, deterministic timestamps).
       - name: Check feed drift (dry-run diff)
         run: node scripts/build-feed.mjs
-      # llms.txt / llms-full.txt drift gate: the SERVICES / AREAS / CASE-STUDIES
-      # marker regions in docs/llms.txt and the whole of docs/llms-full.txt are
-      # generated from docs/services/, docs/areas/, projects.json and the core
-      # pages. Exits 1 on drift; writes nothing with --check.
-      - name: Check llms.txt / llms-full.txt drift (dry-run diff)
-        run: node scripts/build-llms.mjs --check
+      # llms.txt drift gate: the SERVICES / AREAS / CASE-STUDIES marker regions
+      # in docs/llms.txt are generated from docs/services/, docs/areas/ and
+      # projects.json; they move only when a page/project is added, removed or
+      # retitled. Exits 1 on drift; writes nothing. docs/llms-full.txt is
+      # deliberately NOT gated here — it mirrors the text of ~37 pages, so a
+      # gate would redden every copy edit; firebase-deploy.yml regenerates it
+      # before the Hosting deploy instead.
+      - name: Check llms.txt generated regions (dry-run diff)
+        run: node scripts/build-llms.mjs --check-regions
       # Featured Projects drift gate: the OURWORK-* regions in docs/our-work.html
       # are generated from assets/data/projects.json. Same rationale as the
       # partial gate below — without this the scheme is advisory.
