@@ -654,7 +654,7 @@ function inspectionItems(t) {
       ? `NOAA logged 1-inch-plus hail on ${s.hailDays === 1 ? 'one day' : s.hailDays + ' days'} within about ${r} miles since 2019. I chalk-mark and photograph every bruise I find.`
       : `NOAA shows no 1-inch hail within about ${r} miles since 2019; wind is the record here, so I check for creased tabs and loose ridge caps.`],
     gutters: ['Gutters and fascia', trees ? 'With the tree cover here, I check what the valleys and gutters are holding and the fascia behind them.' : 'Checked on the same visit, including the fascia behind them.'],
-    report: ['Photos and a written summary', 'Repair, replace, or nothing yet, the same day.'],
+    report: ['A straight answer, and a report if you want one', 'Repair, replace, or nothing yet, the same day. The written report with photos is $150.'],
   };
   const order = byEra(t, {
     prewar: ['deck', 'flash', 'vent', 'storm', 'shingles', 'gutters'],
@@ -817,7 +817,7 @@ function svcFaqStorm(t, service) {
     return answer(t, [
       seg('After any storm that brings hail or trees down near you, and before you file anything.'),
       ...hailSegs, topSeg,
-      seg('Otherwise, every few years once a roof passes 15.', { opt: true }),
+      seg('Otherwise, yearly as the roof gets older.', { opt: true }),
       seg('The inspection is free and I send the photos either way.', { pad: true }),
     ], q);
   }
@@ -915,7 +915,7 @@ function svcFaqGeneric(t, service) {
   const L = CORE[service];
   const G = {
     'roof-inspection': [
-      ['How long does a roof inspection take?', `Most take 45 to 90 minutes, depending on size, pitch and how many penetrations there are. You get the photos and a written summary the same day.`],
+      ['How long does a roof inspection take?', `Most take 45 to 90 minutes, depending on size, pitch and how many penetrations there are. You get a straight verbal assessment on the spot; a written report with photos is $150.`],
       ['What does the inspection report include?', `Photos of every finding, shingle condition and remaining life, flashing and ventilation notes, gutters, and a plain recommendation: repair, replace, or check back later. More on the <a href="${L}">roof inspection page</a>.`],
     ],
     'siding-replacement': [
