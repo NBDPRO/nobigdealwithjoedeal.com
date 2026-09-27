@@ -4817,7 +4817,7 @@
     addonField('v2addonPipeBoot',        'extraPipeBoot',        null,                            85);
     addonField('v2addonValleyLf',        'valleyMetalLf',        null,                            8.5);
     addonField('v2addonGuttersLf',       'guttersLf',            null,                            8.5);
-    addonField('v2addonMatDelivery',     'matDelivery',          'ADDON_MAT_DELIVERY',            412.50);
+    addonField('v2addonMatDelivery',     'matDelivery',          'ADDON_MAT_DELIVERY',            150);
 
     // Remember what each company input was painted with, so a late landing
     // can tell typing (value moved since) from a value it simply replaces.
@@ -5238,7 +5238,7 @@
           extraPipeBoot:        num('v2addonPipeBoot', 85),
           valleyMetalLf:        num('v2addonValleyLf', 8.5),
           guttersLf:            num('v2addonGuttersLf', 8.5),
-          matDelivery:          num('v2addonMatDelivery', 412.50)
+          matDelivery:          num('v2addonMatDelivery', 150)
         };
         // My Jurisdictions rows ride the same per-tenant save (county-
         // jurisdiction settings, 2026-07-29). NOT added to the localStorage

@@ -129,15 +129,14 @@
     // of its legacy $45 (window.R.pipe fallback), matching V2's $85.
     ADDON_EXTRA_PIPE_BOOT: 85,
     // Material delivery + fuel surcharge — FLAT PER JOB (no _PER_SQ suffix:
-    // the suffix is the unit contract in this file). Per-SQ mode's twin of
-    // line-item catalog line 'MAT DEL' (estimate-catalog-xactimate.js, unit
-    // JOB). This is a RETAIL CHARGE, not a cost: it is that line's published
-    // baseline carried through the same chain calculateLineItem applies —
-    // material markup 25%, then overhead 10% + profit 10% — so a homeowner is
-    // quoted the same delivery money whichever mode the rep opened.
-    // Parity holds at the DEFAULT markup ladder; a shop that edits OH&P moves
-    // line-item's figure and not this one.
-    ADDON_MAT_DELIVERY: 412.50,
+    // the suffix is the unit contract in this file). A RETAIL CHARGE, not a
+    // cost. Jo set it to $150 per job on 2026-09-27 (was 412.50, the
+    // line-item catalog line 'MAT DEL' carried through the default markup
+    // ladder). The per-SQ charge and the line-item 'MAT DEL' line no longer
+    // match; the delivery COST stays pinned to the catalog line
+    // (estimate-builder-v2.js MAT_DELIVERY_BASELINE), so internal margin
+    // reports the trip at what the supplier bills, not at what is charged.
+    ADDON_MAT_DELIVERY: 150,
 
     // Per-SQ complexity add-ons (Phase 1, Joe-confirmed 2026-06-08).
     // Surfaced into the per-SQ engine (calculatePerSq) so cash/retail

@@ -179,7 +179,8 @@
     // delivery trip does not scale with roof size, and amortising a flat fee
     // into costBasis[tier] (a per-SQ number) is exact at exactly one job size
     // — see documentation/audit/CATALOG-UNDER-COST-2026-08-19.md finding 1.
-    matDelivery:    (_NBD_CFG && _NBD_CFG.ADDON_MAT_DELIVERY)    || 412.50
+    // $150 per job (Jo, 2026-09-27; was 412.50).
+    matDelivery:    (_NBD_CFG && _NBD_CFG.ADDON_MAT_DELIVERY)    || 150
   };
 
   // ═════════════════════════════════════════════════════════
@@ -419,9 +420,16 @@
   // Declared HERE, not beside ADDON_COST_PASS_THROUGH where it reads more
   // naturally: the three rates above are declared ~290 lines below that block,
   // so a top-level const there would throw a TDZ ReferenceError at load.
+  //
+  // 2026-09-27: the default CHARGE dropped to $150 (Jo). The baseline used to
+  // be derived from that default (charge / chain), which would have quietly
+  // cut the modelled delivery cost with the price. It is now pinned to the
+  // line-item 'MAT DEL' retail figure the charge was originally built from,
+  // so the cost the margin report books is unchanged whatever is charged.
   const MAT_DELIVERY_MARKUP_CHAIN =
     (1 + DEFAULT_MATERIAL_MARKUP_PCT) * (1 + DEFAULT_OVERHEAD_PCT + DEFAULT_PROFIT_PCT);
-  const MAT_DELIVERY_BASELINE = ADDON_PRICES.matDelivery / MAT_DELIVERY_MARKUP_CHAIN;
+  const MAT_DELIVERY_LINE_RETAIL = 412.50; // 'MAT DEL' at the default ladder — a published retail figure
+  const MAT_DELIVERY_BASELINE = MAT_DELIVERY_LINE_RETAIL / MAT_DELIVERY_MARKUP_CHAIN;
 
   /** Default cost/charge ratio for material delivery: baseline / what we charge. */
   function _matDeliveryCostRatio(s) {
