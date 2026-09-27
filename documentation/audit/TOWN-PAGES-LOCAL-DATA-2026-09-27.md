@@ -178,9 +178,4 @@ areas", "valley funnels storms") claim was rewritten to that town's NOAA record
 in `towns.json`, in body, FAQ (both copies) and meta descriptions. Also:
 Blanchester is southwest of Wilmington, not east.
 
-**Left for a claim-wording pass** (the gate passes on them today):
-hail-damage-west-chester FAQ "walk you through the claim process … navigate
-this alone"; hail-damage-wilmington "without professional advocacy";
-storm-damage-lebanon "the same level of detail a public adjuster would
-prepare"; hail-damage-maineville "documented and filed Warren County hail
-claims".
+**Claim-wording follow-up (same PR):** hail-damage-wilmington "file without professional advocacy", storm-damage-lebanon "the same level of detail a public adjuster would prepare" and the hail-damage-west-chester FAQ ("walk you through the claim process … navigate this alone") were reworded to the allowed framing, and tests/claim-wording.test.js gained two rules: advocacy-near-claim (claim context in an adjacent sentence; the scanner now passes each sentence its neighbours) and public-adjuster-would. Still worth a human read: hail-damage-maineville "documented and filed Warren County hail claims".
