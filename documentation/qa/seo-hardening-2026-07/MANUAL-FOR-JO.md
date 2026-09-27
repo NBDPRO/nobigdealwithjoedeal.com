@@ -80,7 +80,12 @@ Note: the WooRank scan said "10 elements"; the real number is ~35 patterns.
 Whatever you pick, the fix mechanic is the same codemod pattern used for the
 announcement bar (`scripts/fix-ann-bar-contrast.js`).
 
-## 2. ACTION NEEDED — www → apex 301 (F1, ~2 minutes)
+## 2. ~~ACTION NEEDED~~ DONE — www → apex 301 (F1, ~2 minutes)
+
+> **Update 2026-09-27:** done 2026-08-17 via the Hosting API workflow
+> (#1217, verified in #1220); `www` and `http` both 301 to the apex, re-checked
+> live 2026-09-27 ([SEO-AEO-GEO-DEEP-DIVE-2026-09-27](../../audit/SEO-AEO-GEO-DEEP-DIVE-2026-09-27.md)).
+> The steps below are kept for history only.
 
 The site is **Firebase Hosting** (not Cloudflare Pages, whatever the scan
 assumed). `firebase.json` redirects can't match hostnames, so this is a
