@@ -29,7 +29,9 @@
  *     missing/empty <title>; missing meta description; zero or multiple <h1>;
  *     missing canonical; malformed JSON-LD (unparseable); missing lang;
  *     missing viewport; an <img> with no alt attribute at all; a FAQPage
- *     question that appears nowhere in the page's visible text.
+ *     question that appears nowhere in the page's visible text; the business
+ *     or Joe defined anywhere but the schema-entity partial, or a public page
+ *     that does not carry that partial (see ENTITY_*).
  *
  *   WARN — a real weakness, reported but does not block
  *     title outside 50-60 chars; description outside 120-160; no JSON-LD;
@@ -333,6 +335,103 @@ const FAQ_VISIBLE_ALLOWLIST = new Set([
 ]);
 const faqAllowlistHit = new Set();
 
+// ── One business entity, one Joe (2026-09-27) ───────────────────────────
+// Search and AI engines used to see ~150 disconnected copies of the business:
+// a full RoofingContractor on the homepage with no @id, a mini-business on
+// every area page pinned to THAT town's coordinates, a provider inlined into
+// every Service, an anonymous Organization publishing every blog post — and
+// Joe in four shapes. There was no single entity for any of it to accrue to.
+//
+// Now the business (#org), Joe (#joe) and the WebSite (#website) are defined
+// ONCE, in site-src/partials/schema-entity.html, which apply-partials.js
+// stamps into every public page; everything else references them by @id.
+// These rules keep it that way:
+//   entity-partial   a public page does not carry the partial, or the region
+//                    it carries does not define #org and #joe
+//   entity-business  a node that is the business (typed as a business and
+//                    named "No Big Deal…", or carrying #org) outside the
+//                    partial that is anything but a bare {"@id": "…/#org"}
+//   entity-person    the same for Joe Deal / #joe
+// A bare reference may also carry review[] — /review attaches its reviews to
+// the one entity as {"@id": "…/#org", "review": […]}.
+const ENTITY_ORIGIN = 'https://nobigdealwithjoedeal.com';
+const ENTITY_IDS = { business: `${ENTITY_ORIGIN}/#org`, person: `${ENTITY_ORIGIN}/#joe` };
+const ENTITY_BIZ_TYPES = /^(RoofingContractor|LocalBusiness|Organization|HomeAndConstructionBusiness|GeneralContractor|ProfessionalService)$/;
+const ENTITY_REF_KEYS = new Set(['@id', '@context', 'review']);
+const RX_ENTITY_REGION = /<!--\s*nbd:partial\s+schema-entity\b[^>]*-->([\s\S]*?)<!--\s*\/nbd:partial\s+schema-entity\s*-->/;
+// TODO(entity follow-up): pages not yet migrated, matched against the path
+// under docs/. Exact paths only. To finish one, drop it here AND from
+// PENDING in scripts/migrate-schema-entity.mjs, then run that script with
+// --write and `node scripts/apply-partials.js`.
+//   - the two insurance blog posts: being rewritten in a parallel PR (#1796).
+// (/our-work and docs/our-work/** left this list 2026-09-27: build-projects.mjs
+//  now references #org and stamps the schema-entity region on every page.)
+const ENTITY_PENDING = [
+  /^blog\/can-i-keep-insurance-check-not-fix-roof\.html$/,
+  /^blog\/what-to-expect-roof-insurance-adjuster-visit\.html$/,
+];
+
+function entityKind(n) {
+  if (!n || typeof n !== 'object' || Array.isArray(n)) return null;
+  const types = [].concat(n['@type'] || []);
+  const name = typeof n.name === 'string' ? n.name.trim() : '';
+  if (n['@id'] === ENTITY_IDS.business
+    || (types.some((t) => ENTITY_BIZ_TYPES.test(t)) && /^no big deal\b/i.test(name))) return 'business';
+  if (n['@id'] === ENTITY_IDS.person || (types.includes('Person') && /^joe deal$/i.test(name))) return 'person';
+  return null;
+}
+
+function eachNode(v, visit, where = '') {
+  if (Array.isArray(v)) { v.forEach((x, i) => eachNode(x, visit, `${where}[${i}]`)); return; }
+  if (!v || typeof v !== 'object') return;
+  visit(v, where || '(root)');
+  for (const [k, x] of Object.entries(v)) eachNode(x, visit, where ? `${where}.${k}` : k);
+}
+
+function checkEntity(abs, rel, raw) {
+  const docsRel = path.relative(DOCS, abs).replace(/\\/g, '/');
+  if (ENTITY_PENDING.some((rx) => rx.test(docsRel))) return;
+  // A sitemapped page inside a skipped directory (the public /pro pages) is
+  // outside apply-partials' reach, so it cannot carry the partial. It still
+  // may not define a SECOND business or Joe — but a node there that carries
+  // the canonical @id is the entity, identity-linked, not a copy.
+  const partialReach = !SKIP_DIRS.has(docsRel.split('/')[0]);
+
+  const region = raw.match(RX_ENTITY_REGION);
+  if (partialReach) {
+    const defined = new Set();
+    for (const m of (region ? region[1] : '').matchAll(rxLdJson)) {
+      try {
+        eachNode(JSON.parse(m[1]), (n) => {
+          const kind = entityKind(n);
+          if (kind && n['@id'] === ENTITY_IDS[kind] && n['@type'] && n.name) defined.add(kind);
+        });
+      } catch (e) { /* the structured-data check above already reports it */ }
+    }
+    if (!region) {
+      add('ERROR', rel, 'entity-partial', 'no <!-- nbd:partial schema-entity --> region in <head> — the page\'s @id references resolve to nothing on it');
+    } else if (!defined.has('business') || !defined.has('person')) {
+      add('ERROR', rel, 'entity-partial', `the schema-entity region does not define ${['business', 'person'].filter((k) => !defined.has(k)).map((k) => ENTITY_IDS[k]).join(' and ')}`);
+    }
+  }
+
+  const outside = stripComments(region ? raw.replace(RX_ENTITY_REGION, '') : raw);
+  [...outside.matchAll(rxLdJson)].forEach((m, i) => {
+    let data;
+    try { data = JSON.parse(m[1]); } catch (e) { return; }
+    eachNode(data, (n, where) => {
+      const kind = entityKind(n);
+      if (!kind) return;
+      const canonical = n['@id'] === ENTITY_IDS[kind];
+      if (canonical && Object.keys(n).every((k) => ENTITY_REF_KEYS.has(k))) return;
+      if (canonical && !partialReach) return;
+      add('ERROR', rel, `entity-${kind}`,
+        `JSON-LD block ${i + 1} defines ${kind === 'business' ? 'the business' : 'Joe Deal'} at ${where} outside `
+          + `site-src/partials/schema-entity.html — reference it as {"@id": "${ENTITY_IDS[kind]}"}`);
+    });
+  });
+}
+
 // ── The audit ───────────────────────────────────────────────────────────
 const findings = [];
 function add(level, file, check, detail) {
@@ -494,6 +593,9 @@ for (const abs of pages) {
       }
     }
   }
+
+  // -- one business, one Joe (see ENTITY_* above) -------------------------
+  checkEntity(abs, rel, raw);
 
   // -- Open Graph --------------------------------------------------------
   for (const p of ['og:title', 'og:description', 'og:image']) {

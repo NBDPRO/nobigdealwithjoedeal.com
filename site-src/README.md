@@ -61,6 +61,33 @@ The renderer also asserts structural contracts before stamping anything — a
 the runtime JS binds to, so losing one would ship pages whose controls are
 silently dead rather than visibly broken.
 
+## `schema-entity` — the one business, the one Joe (2026-09-27)
+
+`schema-entity.html` is the ONLY place the business (`#org`, a
+RoofingContractor), Joe (`#joe`, a Person) and the site (`#website`) are
+defined in JSON-LD. It is stamped into the `<head>` of every public page;
+every other JSON-LD node on the site refers to them by `{"@id": …}`
+(`Service.provider`, `BlogPosting.author/publisher`, `WebPage.isPartOf`, …).
+
+- **Change a business fact** (hours, phone, a credential, a new town in
+  `areaServed`, the address locality) → edit `schema-entity.html`, run
+  `node scripts/apply-partials.js`. The address is the single `"address"` line
+  in that file: Campton, KY 41301, no street — the Google Business Profile's
+  verified (hidden) address, the Kentucky LLC's legal address (Jo, 2026-09-27).
+  It must match the GBP; if the GBP moves to the Goshen warehouse, change both
+  together. `geo` is deliberately the Greater-Cincinnati service-area point,
+  not the address.
+- **Never** add a business or Joe node to a page's own JSON-LD, even a small
+  one — that is a second, disconnected entity. `check-seo-surface.js` fails
+  the build on it (`entity-business` / `entity-person`) and on a public page
+  that lacks the region (`entity-partial`). Page-specific facts go on the
+  page's own node: an area page carries a `Service` whose `areaServed` is its
+  City and whose `provider` is `{"@id": "https://nobigdealwithjoedeal.com/#org"}`.
+- New area page → add its town to `areaServed` here; `tests/seo-surface.test.js`
+  (E7) fails until you do.
+- The one-time move onto this shape is `scripts/migrate-schema-entity.mjs`
+  (idempotent; also how a pending page is finished — see its header).
+
 ## Line endings
 
 The pages are **CRLF**. The renderer works in LF internally and re-emits with

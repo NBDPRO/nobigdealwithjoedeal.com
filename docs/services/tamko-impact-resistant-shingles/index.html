@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"Service","name":"TAMKO Impact-Resistant Shingle Installation","description":"Installation of TAMKO's impact-rated asphalt shingles — Titan XT (UL 2218 Class 3), StormFighter FLEX and HailGuard (UL 2218 Class 4) — plus TAMKO Heritage architectural shingles, for hail-prone roofs in Greater Cincinnati, OH and Northern Kentucky.","provider":{"@type":"RoofingContractor","name":"No Big Deal Home Solutions","telephone":"+18594207382","url":"https://nobigdealwithjoedeal.com","hasCredential":{"@type":"EducationalOccupationalCredential","credentialCategory":"certification","name":"TAMKO Pro Gold Certified Roofing Contractor","recognizedBy":{"@type":"Organization","name":"TAMKO Building Products LLC","url":"https://www.tamko.com"},"identifier":"181382"}},"areaServed":"Greater Cincinnati, OH and Northern Kentucky","brand":[{"@type":"Brand","name":"TAMKO Heritage"},{"@type":"Brand","name":"TAMKO Titan XT"},{"@type":"Brand","name":"TAMKO StormFighter FLEX"},{"@type":"Brand","name":"TAMKO HailGuard"}],"url":"https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Service","name":"TAMKO Impact-Resistant Shingle Installation","description":"Installation of TAMKO's impact-rated asphalt shingles — Titan XT (UL 2218 Class 3), StormFighter FLEX and HailGuard (UL 2218 Class 4) — plus TAMKO Heritage architectural shingles, for hail-prone roofs in Greater Cincinnati, OH and Northern Kentucky.","provider":{"@id":"https://nobigdealwithjoedeal.com/#org"},"areaServed":"Greater Cincinnati, OH and Northern Kentucky","brand":[{"@type":"Brand","name":"TAMKO Heritage"},{"@type":"Brand","name":"TAMKO Titan XT"},{"@type":"Brand","name":"TAMKO StormFighter FLEX"},{"@type":"Brand","name":"TAMKO HailGuard"}],"url":"https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Services","item":"https://nobigdealwithjoedeal.com/services/roof-replacement"},{"@type":"ListItem","position":3,"name":"TAMKO Impact-Resistant Shingles","item":"https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What's the difference between StormFighter Flex and HailGuard?","acceptedAnswer":{"@type":"Answer","text":"Both are UL 2218 Class 4 impact shingles. StormFighter Flex delivers full Class 4 with a 160 mph WindGuard rating and a cold-weather install window; HailGuard sits at the top of the lineup, is tested beyond Class 4, and is the first asphalt shingle to carry a written hail warranty."}},{"@type":"Question","name":"What does the 160 mph TAMKO wind rating require?","acceptedAnswer":{"@type":"Answer","text":"The full TAMKO system — TAMKO starter and TAMKO hip and ridge installed with the shingle. Without the system accessories, the headline wind rating doesn't apply."}},{"@type":"Question","name":"What hail warranty comes with HailGuard?","acceptedAnswer":{"@type":"Answer","text":"Every correctly installed HailGuard roof carries the base HailGuard Limited System Warranty: a 10-year non-prorated Full Start period plus a 7-year hail warranty. Through a TAMKO Pro Gold certified contractor, qualifying systems can register the enhanced ProShield HailGuard warranty: a 20-year non-prorated Full Start plus a 10-year hail warranty."}},{"@type":"Question","name":"Do TAMKO Class 4 shingles qualify for an insurance discount?","acceptedAnswer":{"@type":"Answer","text":"Often, yes — many carriers discount the wind/hail portion of the premium for documented Class 4 installs, commonly $60 to $300+ per year. Confirm your carrier's discount with your agent in writing before you commit."}}]}</script>
 <style>
@@ -224,6 +224,181 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 <script defer src="/assets/js/inline/2a90205f1b.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <link rel="stylesheet" href="/assets/css/mfr-source.css">
+<!-- nbd:partial schema-entity -->
+<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "RoofingContractor",
+      "@id": "https://nobigdealwithjoedeal.com/#org",
+      "name": "No Big Deal Home Solutions",
+      "alternateName": "No Big Deal with Joe Deal",
+      "url": "https://nobigdealwithjoedeal.com",
+      "telephone": "+18594207382",
+      "email": "jd@nobigdealwithjoedeal.com",
+      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Licensed, insured, locally owned. Call Joe directly.",
+      "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
+      "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
+      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
+      "priceRange": "$$",
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+          "opens": "07:00",
+          "closes": "18:00"
+        }
+      ],
+      "founder": {"@id": "https://nobigdealwithjoedeal.com/#joe"},
+      "sameAs": [
+        "https://g.page/r/CXzIjLwvtRPdEBM",
+        "https://www.facebook.com/people/No-Big-Deal-Home-Solutions/61577416645584/",
+        "https://www.instagram.com/nbdhomesolutions",
+        "https://www.yelp.com/biz/no-big-deal-home-solutions-cincinnati",
+        "https://www.gaf.com/en-us/roofing-contractors/residential/usa/oh/goshen/no-big-deal-home-solutions-1162011"
+      ],
+      "hasCredential": [
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "GAF Certified Residential Roofing Contractor",
+          "recognizedBy": {"@type": "Organization", "name": "GAF Materials LLC", "url": "https://www.gaf.com"},
+          "identifier": "1162011"
+        },
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "TAMKO Pro Gold Certified Roofing Contractor",
+          "recognizedBy": {"@type": "Organization", "name": "TAMKO Building Products LLC", "url": "https://www.tamko.com"},
+          "identifier": "181382"
+        },
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "Locally Owned & Operated — Certified by American Operator",
+          "recognizedBy": {"@type": "Organization", "name": "American Operator", "url": "https://www.americanoperator.com"}
+        }
+      ],
+      "memberOf": [{"@type": "Organization", "name": "James Hardie Alliance"}],
+      "areaServed": [
+        {"@type": "City", "name": "Amelia", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Anderson Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Batavia", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Bethel", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Blanchester", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Blue Ash", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Cincinnati", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Clarksville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Fairfield", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Fayetteville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Franklin", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Mason", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Miamisburg", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Milford", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Monroe", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Montgomery", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Mt. Orab", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "New Richmond", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Newtown", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Norwood", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Sharonville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Springboro", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Sycamore Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "West Chester", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Wilmington", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Covington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Erlanger", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Richmond", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Union", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Versailles", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Winchester", "containedInPlace": {"@type": "State", "name": "Kentucky"}}
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Home Services",
+        "itemListElement": [
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Roof Replacement"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Roof Repair"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Roofing"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Siding Replacement"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Gutter Replacement"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Insurance Claims"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Interior Drywall and Ceiling Repair"}}
+        ]
+      }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://nobigdealwithjoedeal.com/#joe",
+      "name": "Joe Deal",
+      "jobTitle": "Owner & Operator, No Big Deal Home Solutions",
+      "url": "https://nobigdealwithjoedeal.com/about",
+      "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
+      "telephone": "+18594207382",
+      "email": "jd@nobigdealwithjoedeal.com",
+      "description": "Joe Deal is the owner and operator of No Big Deal Home Solutions in Greater Cincinnati. Raised in eastern Kentucky near the Red River Gorge; lived in Lexington before Cincinnati. 7+ years in insurance restoration roofing. Every customer dealt with personally.",
+      "worksFor": {"@id": "https://nobigdealwithjoedeal.com/#org"},
+      "knowsAbout": [
+        "Roofing",
+        "Commercial Roofing",
+        "Insurance Restoration Roofing",
+        "Hail Damage Claims",
+        "Storm Damage Claims",
+        "Xactimate Estimating",
+        "GAF Shingle Installation",
+        "TAMKO Impact-Resistant Shingle Installation",
+        "Impact-Resistant Shingle Installation",
+        "Siding Replacement",
+        "Gutter Installation",
+        "Interior Drywall and Ceiling Repair",
+        "Insurance Claim Damage Documentation",
+        "Storm Damage Assessment"
+      ],
+      "hasCredential": [
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "GAF Certified Residential Roofing Contractor",
+          "recognizedBy": {"@type": "Organization", "name": "GAF Materials LLC", "url": "https://www.gaf.com"},
+          "identifier": "1162011"
+        },
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "TAMKO Pro Gold Certified Roofing Contractor",
+          "recognizedBy": {"@type": "Organization", "name": "TAMKO Building Products LLC", "url": "https://www.tamko.com"},
+          "identifier": "181382"
+        }
+      ],
+      "memberOf": [{"@type": "Organization", "name": "James Hardie Alliance"}]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://nobigdealwithjoedeal.com/#website",
+      "url": "https://nobigdealwithjoedeal.com/",
+      "name": "No Big Deal Home Solutions",
+      "inLanguage": "en-US",
+      "publisher": {"@id": "https://nobigdealwithjoedeal.com/#org"}
+    }
+  ]
+}
+</script>
+<!-- /nbd:partial schema-entity -->
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
