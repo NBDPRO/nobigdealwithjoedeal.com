@@ -1042,7 +1042,15 @@ export function missingRequiredFields(lead) {
     return anyTypeRequires ? ['jobType'] : [];
   }
   const required = requiredFieldsFor(jobType, lead.stage);
+  // Kentucky (2026-09-27): an Assignment of Benefits is void there (KRS
+  // 304.20-105) and the AOB document is refused for a Kentucky job, so its
+  // "AOB Filed" gate can never be satisfied — it must not block Claim Filed.
+  // ky-insurance-law.js decides (Kentucky, or insurance with no readable
+  // state); without it loaded the gate stands as before.
+  const _J = (typeof globalThis !== 'undefined') ? globalThis.NBDJurisdiction : null;
+  const aobBarred = !!(_J && typeof _J.classifyLead === 'function' && _J.classifyLead(lead).aobBarred);
   return required.filter(f => {
+    if (f === 'aobFiledAt' && aobBarred) return false;
     const v = lead[f];
     return v === undefined || v === null || v === '';
   });

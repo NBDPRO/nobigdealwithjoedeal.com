@@ -196,7 +196,7 @@ async function generateWarrantyCertPDF() {
     <div>
       <div class="brand">${isNbd ? 'No Big <span>Deal</span> Home Solutions' : escCert(_b.legalName)}</div>
       ${isNbd
-        ? '<div class="brand-sub">Insurance Restoration Specialists · Greater Cincinnati</div>'
+        ? '<div class="brand-sub">Roofing · Siding · Gutters · Greater Cincinnati</div>'
         : (_b.tagline ? '<div class="brand-sub">' + escCert(_b.tagline) + '</div>' : '')}
       <div style="font-size:11px;color:#666;margin-top:8px;">${isNbd ? '(859) 420-7382 · jd@nobigdealwithjoedeal.com' : escCert([_bc.phone, _bc.email].filter(Boolean).join(' · '))}</div>
     </div>

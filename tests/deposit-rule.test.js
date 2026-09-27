@@ -585,8 +585,8 @@ function closeBoardPage(price, mode, deductible) {
       cbLines.length === 3 && cbLines.every((l) => stripTags(l) === cbWant), cbLines.map(stripTags).join(' | '));
     if (c.mode === 'insurance') {
       ok(tag + 'I close board: insurance box uses the rule\'s terms, not "you typically only pay your deductible"',
-        stripTags(cb).indexOf('We work directly with your insurance. ' + (c.cbTerms || plan.terms)) !== -1 && !/typically only pay your deductible/.test(cb),
-        (stripTags(cb).match(/We work directly with your insurance\.[^|]{0,160}/) || [''])[0]);
+        stripTags(cb).indexOf('we provide our estimate and documentation. ' + (c.cbTerms || plan.terms)) !== -1 && !/typically only pay your deductible/.test(cb),
+        (stripTags(cb).match(/we provide our estimate and documentation\.[^|]{0,160}/) || [''])[0]);
     }
 
     // J. JOB TEMPLATES payload (cash / insurance, no claim fields of its own).

@@ -245,7 +245,7 @@
     interested: { label: 'Thanks for Chatting', body: 'Hey {name}! This is {rep} from {company}. Great chatting today — I\'d love to take a closer look at your roof. Let me know a good time!' },
     appointment: { label: 'Appointment Confirmation', body: 'Hi {name}! {rep} from {company} confirming our upcoming roof inspection. Looking forward to it!' },
     storm_damage: { label: 'Storm Damage Alert', body: 'Hi {name}, {rep} from {company}. I noticed some storm damage on your roof today. I offer free inspections — would you like me to come take a closer look?' },
-    ins_has_claim: { label: 'Insurance Help', body: 'Hi {name}, {rep} from {company}. I can help guide you through your insurance claim process. Want to set up a time to chat?' },
+    ins_has_claim: { label: 'Insurance Help', body: 'Hi {name}, {rep} from {company}. I can document the storm damage and give you a repair estimate to share with your insurer. Want to set up a time to chat?' },
     follow_up: { label: 'General Follow-up', body: 'Hi {name}! {rep} from {company} checking in. We chatted recently about your roof — any updates on your end? Happy to answer any questions.' },
     not_home: { label: 'Missed You', body: 'Hi {name}, {rep} from {company}. I stopped by {address} today but missed you. I noticed a few things on your roof I\'d love to discuss. When works best for a quick chat?' }
   };

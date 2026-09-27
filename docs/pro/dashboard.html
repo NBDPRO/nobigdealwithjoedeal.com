@@ -2518,7 +2518,7 @@
               <div class="tl-doc-icon chip-blue">📄</div>
               <div class="tl-doc-info">
                 <div class="tl-doc-name">Assignment of Benefits (AOB)</div>
-                <div class="tl-doc-desc">Legal assignment authorizing NBD to negotiate and receive insurance proceeds</div>
+                <div class="tl-doc-desc">Assignment of insurance proceeds to NBD as payment. Not available for Kentucky jobs (KRS 304.20-105).</div>
               </div>
               <div class="tl-doc-arrow">→</div>
             </div>
@@ -6687,6 +6687,11 @@
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
 <script defer src="js/deposit-rule.js?v=1"></script>
+<!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
+     Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
+     Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
+     the Close Board deal room all read it. -->
+<script defer src="js/ky-insurance-law.js?v=1"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->

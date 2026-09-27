@@ -145,11 +145,11 @@
       { icon: '🌧️', name: 'Gutters',         desc: 'Seamless gutters, guards, downspouts, and drainage' },
       { icon: '🪟',  name: 'Windows & Doors', desc: 'Energy-efficient upgrades and storm damage replacement' },
       { icon: '🎨',  name: 'Interior',        desc: 'Water damage repair, paint, drywall, flooring' },
-      { icon: '⛈️', name: 'Storm Damage',    desc: 'Full insurance claim management from inspection to completion' }
+      { icon: '⛈️', name: 'Storm Damage',    desc: 'Damage inspection, photo documentation and a detailed repair estimate for your claim' }
     ],
     valueProps: [
       { icon: '🛡️', title: 'Warranty Protection',  desc: 'Lifetime workmanship warranty on every tier, plus full manufacturer coverage on all materials.' },
-      { icon: '📋',  title: 'Insurance Specialists', desc: 'We handle the entire insurance claim process so you can focus on what matters.' },
+      { icon: '📋',  title: 'Storm Damage Documentation', desc: 'We document the damage and give you a detailed repair estimate. You manage your claim, and we can meet your adjuster after you file.' },
       { icon: '⭐',  title: '5-Star Service',        desc: 'Exceptional service from first contact through final walkthrough and beyond.' },
       { icon: '💰',  title: 'Flexible Financing',    desc: 'Affordable monthly payments through our partnership with Acorn Finance.' }
     ],

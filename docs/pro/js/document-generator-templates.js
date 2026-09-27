@@ -449,7 +449,7 @@
     if (Array.isArray(vp) && vp.length) return vp;
     return [
       {icon:'🛡️',title:'Warranty Protection',desc:'Lifetime workmanship warranty on every tier, plus full manufacturer coverage on all materials.'},
-      {icon:'📋',title:'Insurance Specialists',desc:'We handle the entire insurance claim process so you can focus on what matters.'},
+      {icon:'📋',title:'Storm Damage Documentation',desc:'We inspect and photograph the damage and give you a detailed repair estimate. You manage your claim with your insurer, and we can meet your adjuster after you file.'},
       {icon:'⭐',title:'5-Star Service',desc:'Exceptional service from first contact through final walkthrough and beyond.'},
       {icon:'💰',title:'Flexible Financing',desc:'Affordable monthly payments through our financing marketplace partner.'}
     ];
@@ -767,6 +767,16 @@
     // so a blank scope still yields a complete authorization.
     const scopeSummary = d.scopeSummary || d.scopeOfWork ||
       'Complete roof replacement including tear-off, installation of new roofing system, and cleanup.';
+    // 2026-09-27 (KY SB 153): the assignment paragraph never prints for a
+    // Kentucky job (an assignment of benefits is void there, KRS 304.20-105),
+    // nor for an insurance job whose state is unknown (fail closed). Where it
+    // still prints it no longer claims any power to negotiate with the insurer
+    // (KRS 367.628(1)(a); Ohio limits claim negotiation for pay to licensed
+    // public adjusters).
+    // TODO(JOE — Ohio AOB policy, pending): whether Ohio keeps this
+    // assignment of proceeds or moves to a direction-to-pay form.
+    const _waJ = (typeof DG._jurisdiction === 'function') ? DG._jurisdiction(d) : null;
+    const showAssignment = !!d.isInsurance && !(_waJ && _waJ.aobBarred);
 
     return page('Work Authorization', `
       ${letterhead()}
@@ -800,12 +810,11 @@
         <p style="font-size:14px;">${esc(d.accessInstructions)}</p>
       </div>` : ''}
 
-      ${d.isInsurance ? `<div class="section">
+      ${showAssignment ? `<div class="section">
         <div class="section-title">Insurance Assignment</div>
         <p style="font-size:14px;">I hereby assign and transfer to <strong>${C.name}</strong> the insurance proceeds
         relating to claim number <strong>${esc(d.claimNumber)}</strong> with <strong>${esc(d.insuranceCompany)}</strong>
-        to the extent of the contract price for the work authorized herein. This assignment authorizes ${C.name}
-        to negotiate directly with the insurance company regarding the scope and payment for all covered repairs.</p>
+        to the extent of the contract price for the work authorized herein.</p>
       </div>` : ''}
 
       <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
@@ -1803,6 +1812,24 @@
     const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
     const rescissionWindow = cp.cancellationWindowText || 'three (3) business days';
 
+    // 2026-09-27 (KY SB 153): an assignment of insurance benefits is void in
+    // Kentucky (KRS 304.20-105(2)-(3)). NBDDocGen.generate() refuses the
+    // document for a Kentucky job; this is the renderer's own backstop, so a
+    // caller that reaches it directly still never prints one.
+    const _aobJ = (typeof DG._jurisdiction === 'function') ? DG._jurisdiction(d) : null;
+    if (_aobJ && _aobJ.aobBarred && !d._isBlankPreview) {
+      return page('Assignment of Benefits', `
+      ${letterhead()}
+      <h1 style="text-align:center;font-size:22px;color:${S};margin:24px 0 8px;">ASSIGNMENT OF BENEFITS — NOT AVAILABLE</h1>
+      <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
+        <p style="font-size:14px;margin:0;">${esc((window.NBDJurisdiction && window.NBDJurisdiction.MSG.aobBarred) || 'Not available for Kentucky jobs.')}</p>
+      </div>
+      ${footer('Assignment of Benefits')}
+    `);
+    }
+    // TODO(JOE — Ohio AOB policy, pending): Ohio insurance jobs keep this
+    // document until the owner decides between it and a direction-to-pay.
+
     return page('Assignment of Benefits', `
       ${letterhead()}
       <h1 style="text-align:center;font-size:24px;color:${S};margin:24px 0 8px;">ASSIGNMENT OF BENEFITS</h1>
@@ -1835,11 +1862,10 @@
         <p style="font-size:14px;line-height:1.8;">This assignment authorizes ${C.name} to:</p>
         <ul style="font-size:14px;line-height:2;padding-left:24px;">
           <li>Communicate directly with ${esc(d.insuranceCompany)} regarding the above-referenced claim</li>
-          <li>Negotiate the scope of covered repairs and associated pricing</li>
           <li>Submit supplemental claims for additional damage discovered during the repair process</li>
           <li>Receive insurance proceeds and endorsements related to the work performed</li>
-          <li>Pursue any and all remedies available under the insurance policy for work completed</li>
         </ul>
+        <p style="font-size:13px;line-height:1.7;color:#444;">This assignment does not authorize ${C.name} to adjust or settle the claim, or to act or appear for the policyholder in any dispute with the insurer. The policyholder manages the claim.</p>
       </div>
 
       <div class="section">
@@ -2200,9 +2226,9 @@
       { num:1, title:'Document the Damage', desc:'Take photos and video of all visible damage from multiple angles. Include wide shots and close-ups. Note the date and time of the storm.', icon:'📸' },
       { num:2, title:'File Your Claim', desc:'Contact your insurance company to file a claim. Provide the date of loss, description of damage, and your policy number. Write down your claim number.', icon:'📞' },
       { num:3, title:'Schedule Your Free Inspection', desc:'Call us to schedule a no-cost professional inspection. We will document all damage using industry standards and create a comprehensive report.', icon:'🔍' },
-      { num:4, title:'Meet the Adjuster', desc:'Your insurance company will send an adjuster to assess the damage. We will be there with you to ensure nothing is missed and all damage is properly documented.', icon:'🤝' },
-      { num:5, title:'Review the Estimate', desc:'Once the insurance company issues their estimate, we will review it to ensure fair and accurate pricing. If anything is missing, we file a supplement on your behalf.', icon:'📋' },
-      { num:6, title:'Approve & Schedule', desc:'After the claim is approved, we handle all scheduling, permits, and coordination. You simply approve the scope of work and we take care of everything else.', icon:'✅' },
+      { num:4, title:'Meet the Adjuster', desc:'Your insurance company will send an adjuster to assess the damage. After you have filed, we can be there to walk the adjuster through the damage we documented.', icon:'🤝' },
+      { num:5, title:'Review the Estimate', desc:'Once the insurance company issues its estimate, we compare it with our own repair estimate. If items are missing, we give you our estimate and supporting photos, and you decide what to send your insurer.', icon:'📋' },
+      { num:6, title:'Approve & Schedule', desc:'Once you have your insurer’s decision and approve the scope of work, we handle scheduling, permits and coordination for the repair.', icon:'✅' },
       { num:7, title:'Project Completion', desc:'Our crew completes the work to the highest standard. We conduct a final walkthrough with you to ensure complete satisfaction before closing out the project.', icon:'🏠' }
     ];
 
@@ -2269,7 +2295,7 @@
         </div>
         <div class="faq-item">
           <div class="faq-q">What if the insurance estimate is too low?</div>
-          <div class="faq-a">We will review every line item. If the estimate does not cover the full scope of necessary repairs, we file a supplement with supporting documentation to get the claim adjusted.</div>
+          <div class="faq-a">We compare it line by line with our own estimate. If it does not cover the full scope of necessary repairs, we give you our estimate and supporting documentation. You manage your claim and decide what to send your insurer.</div>
         </div>
       </div>
 
@@ -2450,7 +2476,7 @@
     const curated = [
       { text:'They made the whole process feel like no big deal. From filing the claim to the final cleanup, everything was handled professionally and on time.', name:'Satisfied Homeowner', location:'Lexington, KY', project:'Roof Replacement', rating:5 },
       { text:'The crew was on time, cleaned up everything, and the roof looks amazing. Best contractor experience I have ever had. Highly recommend.', name:'Satisfied Homeowner', location:'Georgetown, KY', project:'Roof & Gutters', rating:5 },
-      { text:'Joe and his team walked us through the entire insurance claim process. We did not have to stress about a single thing. The new roof looks incredible.', name:'Satisfied Homeowner', location:'Nicholasville, KY', project:'Insurance Restoration', rating:5 },
+      { text:'Joe and his team documented every bit of the storm damage and explained each step of the repair. We did not have to stress about a single thing. The new roof looks incredible.', name:'Satisfied Homeowner', location:'Nicholasville, KY', project:'Insurance Restoration', rating:5 },
       { text:'Professional from start to finish. They showed up when they said they would, did exactly what they said they would do, and left the property cleaner than they found it.', name:'Satisfied Homeowner', location:'Versailles, KY', project:'Siding Replacement', rating:5 }
     ];
 

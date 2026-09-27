@@ -1788,7 +1788,9 @@ const DOC_PREREQUISITES = {
   // Parity with _DASH_DOC_PREREQUISITES on dashboard.html — AOB is an
   // insurance-only doc that needs the claim (carrier + claim #) on the
   // lead before it can render without placeholder strings.
-  assignment_of_benefits: { needs: ['claim'], label: 'Assignment of Benefits', msg: 'Requires an insurance claim (carrier + claim #).' },
+  // notKentucky (2026-09-27): an AOB is void in Kentucky (KRS 304.20-105) —
+  // and for an insurance job whose state is unknown (fail closed).
+  assignment_of_benefits: { needs: ['notKentucky', 'claim'], label: 'Assignment of Benefits', msg: 'Requires an insurance claim (carrier + claim #). Not available for Kentucky jobs.' },
   financing_options:    { needs: ['jobValue'], label: 'Financing Options', msg: 'Add a job value or build an estimate.' },
   company_intro:        { needs: [], label: 'Company Introduction' },
   referral_card:        { needs: [], label: 'Referral Card' },
@@ -1882,6 +1884,8 @@ function getCustomerDocData() {
     _hasPhotos: photos.length > 0,
     _hasBeforeAfterPhotos: beforePhotos.length > 0 && afterPhotos.length > 0,
     _hasClaim: !!(lead.claimNumber && lead.insCarrier),
+    // ky-insurance-law.js: Kentucky, or insurance with no readable state.
+    _aobBarred: !!(window.NBDJurisdiction && window.NBDJurisdiction.classifyLead(lead, est).aobBarred),
     _hasContact: !!(lead.phone || lead.email),
     _hasAddress: !!lead.address,
     _hasScope: !!(lead.scopeOfWork || est?.description),
@@ -1912,6 +1916,7 @@ function checkPrerequisites(type, data) {
       case 'scope': if (!data._hasScope) missing.push({ need, text: 'Add scope of work' }); break;
       case 'photos': if (!data._hasPhotos) missing.push({ need, text: 'Upload inspection photos' }); break;
       case 'claim': if (!data._hasClaim) missing.push({ need, text: 'Add insurance carrier & claim number' }); break;
+      case 'notKentucky': if (data._aobBarred) missing.push({ need, text: 'Not available in Kentucky — KRS 304.20-105 voids assignments of insurance benefits. Use the contract instead.' }); break;
       case 'jobValue': if (!data._hasJobValue) missing.push({ need, text: 'Add job value or build estimate' }); break;
       case 'jobComplete': if (!data._isJobComplete) missing.push({ need, text: 'Mark job as Complete' }); break;
       case 'beforeAfterPhotos': if (!data._hasBeforeAfterPhotos) missing.push({ need, text: 'Upload both Before AND After photos' }); break;
@@ -2212,7 +2217,7 @@ window.generateCustomerDoc = async function(type) {
         <div style="text-align:left;background:var(--s);border-radius:8px;padding:14px;margin-bottom:20px;">
           ${check.missing.map(m => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--orange);padding:4px 0;">'
             + '<span>• ' + esc(m.text) + '</span>'
-            + '<button type="button" class="nbd-preq-fix" data-need="' + esc(m.need) + '" style="flex:none;padding:5px 12px;background:rgba(255,255,255,.08);color:var(--t);border:1px solid var(--br);border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;">Fix &rarr;</button>'
+            + (m.need === 'notKentucky' ? '' : '<button type="button" class="nbd-preq-fix" data-need="' + esc(m.need) + '" style="flex:none;padding:5px 12px;background:rgba(255,255,255,.08);color:var(--t);border:1px solid var(--br);border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;">Fix &rarr;</button>')
             + '</div>').join('')}
         </div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">

@@ -590,7 +590,7 @@
 
     points.push({
       type: 'insurance',
-      text: 'We work directly with your insurance company — we handle the entire claims process. You typically only pay your deductible.'
+      text: 'We document the damage with photos and give you a detailed repair estimate. You file and manage your claim, and once you have filed we can meet your adjuster. Your deductible is always yours to pay.'
     });
     points.push({
       type: 'close',

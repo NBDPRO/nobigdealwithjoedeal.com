@@ -97,7 +97,7 @@ const D2D_SMS_TEMPLATES = {
   },
   ins_has_claim: {
     label: 'Insurance Claim Alert',
-    body: 'Hi {name}! {rep} from NBD. I see your roof has damage that your insurance should cover. We help with the claims process at no cost to you. Want to talk?'
+    body: 'Hi {name}! {rep} from NBD. I noticed storm damage on your roof. I can inspect it and give you photos and a repair estimate to share with your insurer. Want to talk?'
   },
   follow_up: {
     label: 'Follow-Up',

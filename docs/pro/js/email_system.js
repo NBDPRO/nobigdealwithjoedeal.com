@@ -554,7 +554,7 @@ Estimated Total: {estimateAmount}
 
 The insurance company will review this against their scope. I'm watching for approval and will keep you posted.
 
-If a supplement is needed, I'll handle the documentation and negotiation.
+If your insurer's scope misses anything, I'll put together the supporting photos and documentation for you, and I can meet with your adjuster.
 
 {repName}
 {companyName}

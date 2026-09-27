@@ -72,7 +72,15 @@
   };
 
   function itemsFor(lead) {
-    return (lead && lead.jobType === 'insurance') ? CHECKLISTS.insurance : CHECKLISTS.default;
+    if (!(lead && lead.jobType === 'insurance')) return CHECKLISTS.default;
+    // Kentucky (2026-09-27): no Assignment of Benefits exists to file (KRS
+    // 304.20-105), so the item — read-only, gated on aobFiledAt — is dropped
+    // rather than left unticked forever. ky-insurance-law.js decides.
+    var J = (typeof window !== 'undefined') ? window.NBDJurisdiction : null;
+    if (J && typeof J.classifyLead === 'function' && J.classifyLead(lead).aobBarred) {
+      return CHECKLISTS.insurance.filter(function (i) { return i.key !== 'ins-aob'; });
+    }
+    return CHECKLISTS.insurance;
   }
 
   // Checked state for one item — a gateField item reads the REAL lead

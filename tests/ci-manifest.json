@@ -211,7 +211,9 @@
     "role-gate.test.js",
     "collection-group-paths.test.js",
     "indexnow-ping.test.js",
-    "build-llms-modes.test.js"
+    "build-llms-modes.test.js",
+    "ky-insurance-contracts.test.js",
+    "ky-claims-wording-scan.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

@@ -651,11 +651,44 @@
     };
     const _insPlan = _tierPlan(deal.tiers.better.price) || _tierPlan(deal.tiers.good.price) || _tierPlan(deal.tiers.best.price);
 
+    // Kentucky SB 153 (2026-09-27). The homeowner signs and ACCEPTS here, so
+    // for a Kentucky insurance deal (or an insurance deal whose state cannot
+    // be read — fail closed) this page is a contract entry: it carries the two
+    // KRS 367.624(3) notices before the signature pad and the detachable
+    // NOTICE OF CANCELLATION in duplicate after it, completed with the
+    // contractor's address from the Company Profile. No address → the page is
+    // refused (the caller toasts the reason) rather than printed with a blank.
+    const _KY = window.NBDJurisdiction || null;
+    const _kyJ = _KY ? _KY.classify({
+      address: deal.address, insuranceClaim: deal.insuranceClaim === true,
+      insuranceCarrier: deal.insuranceCarrier, claimNumber: deal.claimNumber
+    }) : null;
+    let kyCss = '', kyNotices = '', kyForms = '';
+    if (_kyJ && _kyJ.kyInsurance) {
+      const _cp = (window._legal ? window._legal() : window._companyProfile) || {};
+      const _addr = String(_cp.businessAddress || '').trim();
+      if (!_addr) {
+        const err = new Error(_KY.MSG.addressRequired);
+        err.code = 'ky-address-required';
+        throw err;
+      }
+      let _email = deal.repEmail || '';
+      try { const _b = window._brand ? window._brand() : null; _email = (_b && _b.contact && _b.contact.email) || _email; } catch (_) {}
+      kyCss = _KY.STATUTORY_CSS;
+      kyNotices = '<div style="background:#fff;color:#111;border-radius:10px;padding:14px;margin:16px 0;">' +
+        '<div style="font-size:12px;margin-bottom:8px;color:#333;">' + esc(BRAND.name) + ' · Mailing address: ' + esc(_addr) + '</div>' +
+        _KY.kyNoticesHtml() + '</div>';
+      kyForms = '<div style="background:#fff;color:#111;border-radius:10px;padding:14px;margin-top:20px;">' +
+        _KY.kyCancellationFormsHtml({ transactionDate: new Date(), physicalAddress: _addr, email: _email, fax: _cp.businessFax || '' }) +
+        '</div>';
+    }
+
     return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Your Roof Estimate — ${BRAND.nameEsc}</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+${kyCss}
 <style>
 /* Standalone generated page: define the token locally so the color-mix
    glow below resolves (visual audit 2026-07-19 — var(--orange) was
@@ -763,7 +796,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     <div class="ins-detail">Carrier: <strong>${esc(deal.insuranceCarrier)}</strong></div>
     ${deal.claimNumber ? `<div class="ins-detail">Claim #: ${esc(deal.claimNumber)}</div>` : ''}
     ${deal.deductible ? `<div class="ins-detail">Your deductible: <strong>${fmtCurrency(deal.deductible)}</strong></div>` : ''}
-    <div style="font-size:11px;color:#8b8e96;margin-top:8px;">We work directly with your insurance. ${esc(_insPlan && _insPlan.terms ? _insPlan.terms : '')}</div>
+    <div style="font-size:11px;color:#8b8e96;margin-top:8px;">You manage your claim with your insurer; we provide our estimate and documentation. ${esc(_insPlan && _insPlan.terms ? _insPlan.terms : '')}</div>
   </div>
   ` : ''}
 
@@ -771,6 +804,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   <div class="finance-section" id="financeOpts"></div>
 
   <div class="section-title">Sign & Schedule</div>
+  ${kyNotices}
   <div class="sign-section">
     <p style="font-size:13px;color:#8b8e96;margin-bottom:8px;">By signing below, you authorize ${BRAND.nameEsc} to proceed with the selected roof package.</p>
     <div class="sign-canvas-wrap">
@@ -783,6 +817,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     </div>
     <button class="sign-btn" id="submitBtn" data-deal-action="submit" disabled>✓ ACCEPT & SCHEDULE</button>
   </div>
+  ${kyForms}
 
   <div class="footer">
     <div>${BRAND.nameEsc} · Licensed & Insured</div>
@@ -812,9 +847,24 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   // SHARE FUNCTIONS
   // ============================================================================
 
+  // generateDealPageHTML throws for a Kentucky insurance deal with no business
+  // address on the Company Profile (2026-09-27). Callers use this: the rep
+  // gets the reason, and nothing half-complete is shared.
+  function _dealHtmlOrToast(deal) {
+    try { return generateDealPageHTML(deal); }
+    catch (e) {
+      if (e && e.code === 'ky-address-required') {
+        if (window.showToast) window.showToast(e.message, 'error');
+        return null;
+      }
+      throw e;
+    }
+  }
+
   function generateShareableLink(deal) {
     // Generate the HTML and store as a data URL or blob URL
-    const html = generateDealPageHTML(deal);
+    const html = _dealHtmlOrToast(deal);
+    if (html == null) return null;
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
 
@@ -851,7 +901,8 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   async function openDealPreview(dealId) {
     const deal = _findDeal(dealId);
     if (!deal) return;
-    const html = generateDealPageHTML(deal);
+    const html = _dealHtmlOrToast(deal);
+    if (html == null) return;
     // CB fix: the deal preview is INTERACTIVE (pick tier, choose financing,
     // sign, ACCEPT). Its inline <script> + onclick handlers are dead inside the
     // NBDDocViewer srcdoc sandbox (no allow-same-origin + the dashboard's strict
@@ -1013,7 +1064,8 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       return null;
     }
     try { await syncDealToFirestore(deal); } catch (_) {}
-    const html = generateDealPageHTML(deal);
+    const html = _dealHtmlOrToast(deal);
+    if (html == null) return null;
     await uploadDealPage(deal, html); // → deal_rooms/<uid>/<dealId>.html
     // Load the Functions SDK ourselves when no other feature has yet. This
     // used to bail with "Sign in required" whenever window._functions /

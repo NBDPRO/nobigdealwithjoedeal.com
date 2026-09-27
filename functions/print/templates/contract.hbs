@@ -17,7 +17,17 @@
     warranty (string)
     rightToCancel (string)
     additionalTerms (array of {title, body})
+    transactionDate, jurisdiction { address, zip, jobType, claimNumber,
+      insuranceCarrier, kentucky, insurance, kyInsurance }  (job FACTS only)
+  Server-computed (functions/render-pdf.js buildContractStatutory, never the
+  client payload): statutory { css, kyInsurance, contractorAddress,
+  contractorFax, kyNoticesHtml, kyFormsHtml, lienClause, ftcStatementHtml,
+  ftcFormsHtml } — KRS 367.624 notices + detachable NOTICE OF CANCELLATION
+  (Kentucky insurance jobs, 2026 Ky. Acts ch. 54) and the FTC 16 CFR 429.1
+  form the cancel sentence promises. Triple-stash is safe: every value inside
+  those strings is escaped by ky-insurance-law.js.
 --}}
+{{{statutory.css}}}
 
 {{> coverPage
   eyebrow="Project Contract · Roofing Services"
@@ -34,6 +44,18 @@
     <div class="hero-title" style="font-size:30pt;">The work, the price, the timeline.</div>
     <p class="hero-sub">This document is a binding agreement between the homeowner and {{company.footerName}} for the roofing services described below. Both parties sign at the end.</p>
   </div>
+
+  {{#if statutory.kyInsurance}}
+  {{!-- KRS 367.624(1)-(2): contractor mailing address, phone, fax/email --}}
+  <section class="avoid-break" style="margin-bottom: var(--s-5);">
+    <div class="eyebrow">Contractor</div>
+    <p style="line-height:1.65;margin:0;"><strong>{{company.footerName}}</strong><br>
+    Mailing address: {{statutory.contractorAddress}}<br>
+    {{#if company.phone}}Phone: {{company.phone}}<br>{{/if}}
+    {{#if statutory.contractorFax}}Fax: {{statutory.contractorFax}}<br>{{/if}}
+    {{#if statutory.contractorEmail}}Email: {{statutory.contractorEmail}}{{/if}}</p>
+  </section>
+  {{/if}}
 
   {{!-- Headline contract price card --}}
   <section class="avoid-break total-block" style="margin-bottom: var(--s-6);">
@@ -88,6 +110,11 @@
   <p style="line-height:1.65;">{{rightToCancel}}</p>
   {{/if}}
 
+  {{#if statutory.lienClause}}
+  <h2>Mechanic's Liens</h2>
+  <p style="line-height:1.65;">{{statutory.lienClause}}</p>
+  {{/if}}
+
   {{#if additionalTerms.length}}
   {{#each additionalTerms}}
   <h2>{{add @index 7}} · {{this.title}}</h2>
@@ -99,6 +126,11 @@
 <div class="sig-block page-break">
   <h2 style="margin-top:0;">Acceptance &amp; Signatures</h2>
   <p class="meta" style="margin-bottom: var(--s-4);">By signing below, both parties acknowledge they have read, understood, and agree to all terms of this contract. This document constitutes the complete agreement between the parties; no other promises, representations, or agreements shall be binding unless in writing.</p>
+  {{!-- KRS 367.624(3) notices, then the 16 CFR 429.1(a) statement "in
+        immediate proximity to the space reserved ... for the signature of
+        the buyer" — both bold, >= 10pt. --}}
+  {{{statutory.kyNoticesHtml}}}
+  {{{statutory.ftcStatementHtml}}}
   <div class="sig-grid">
     <div class="sig">
       <div class="sig-line"></div>
@@ -111,5 +143,11 @@
   </div>
   <p class="meta" style="margin-top: var(--s-4); font-size: 9pt; text-align: center;">Each party should retain a fully-signed copy of this contract for their records.</p>
 </div>
+
+{{!-- Detachable cancellation forms, in duplicate, each on its own page after
+      the signatures: KRS 367.624(4) (Kentucky insurance jobs) and the FTC
+      Cooling-Off form (16 CFR 429.1(b)) the cancel sentence promises. --}}
+{{{statutory.kyFormsHtml}}}
+{{{statutory.ftcFormsHtml}}}
 
 {{> affiliateRow}}
