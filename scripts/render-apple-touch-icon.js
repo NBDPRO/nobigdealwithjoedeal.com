@@ -43,6 +43,19 @@
  *    Chromium, and compared channel-for-channel with the SVG render. Any
  *    difference aborts before the file is written.
  *
+ * MORE SIZES (2026-09-27)
+ * ───────────────────────
+ * The homeowner site gained a web-app manifest (docs/manifest.webmanifest) and
+ * sized rel="icon" PNGs, because large-tile consumers (Brave's saved-site
+ * tiles, Android's home screen) ignore apple-touch-icon and were falling back
+ * to the wordless favicon.svg. Every homeowner icon larger than a tab is now
+ * rendered here from the pack's lettered SVGs, through the same pipeline and
+ * the same read-back check: 180 (apple-touch), 192 and 512 (purpose "any"),
+ * and 512 maskable, drawn from home-solutions-maskable.svg (full-bleed tile,
+ * mark scaled to 66% so it sits inside the 80% safe-zone circle). The 180px
+ * output is byte-identical to what this script produced before the change.
+ * scripts/normalize-favicons.js pins the <head> tags that point at them.
+ *
  * Usage:  node scripts/render-apple-touch-icon.js
  * Needs:  tests/node_modules (cd tests && npm ci) — not run in CI.
  */
@@ -53,9 +66,14 @@ const path = require('path');
 const zlib = require('zlib');
 
 const ROOT = path.join(__dirname, '..');
-const SVG = path.join(ROOT, 'brand', 'logo-pack-2026-09', 'icons', 'home-solutions-icon.svg');
-const OUT = path.join(ROOT, 'docs', 'assets', 'images', 'apple-touch-icon.png');
-const SIZE = 180;
+const PACK = path.join(ROOT, 'brand', 'logo-pack-2026-09', 'icons');
+const IMAGES = path.join(ROOT, 'docs', 'assets', 'images');
+const TARGETS = [
+  { svg: path.join(PACK, 'home-solutions-icon.svg'), out: path.join(IMAGES, 'apple-touch-icon.png'), size: 180 },
+  { svg: path.join(PACK, 'home-solutions-icon.svg'), out: path.join(IMAGES, 'home-icon-192.png'), size: 192 },
+  { svg: path.join(PACK, 'home-solutions-icon.svg'), out: path.join(IMAGES, 'home-icon-512.png'), size: 512 },
+  { svg: path.join(PACK, 'home-solutions-maskable.svg'), out: path.join(IMAGES, 'home-icon-maskable-512.png'), size: 512 },
+];
 const TILE = '#ffffff'; // the tile colour in the source SVG (2026-09-14 brand refresh: was '#1a3057')
 
 function crc32(buf) {
@@ -116,7 +134,16 @@ async function main() {
   }
   const browser = await chromium.launch();
   try {
-    const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE }, deviceScaleFactor: 1 });
+    for (const t of TARGETS) await renderTarget(browser, t);
+    return 0;
+  } finally {
+    await browser.close();
+  }
+}
+
+async function renderTarget(browser, { svg: SVG, out: OUT, size: SIZE }) {
+  const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE }, deviceScaleFactor: 1 });
+  try {
     const draw = async (src, bg) => {
       await page.setContent(`<!doctype html><html><body style="margin:0"><canvas id="c" width="${SIZE}" height="${SIZE}"></canvas></body></html>`);
       return page.evaluate(async ({ src, bg, SIZE }) => {
@@ -141,18 +168,17 @@ async function main() {
     const back = await draw('data:image/png;base64,' + png.toString('base64'), '#ff00ff');
     let diff = 0;
     for (let i = 0; i < back.data.length; i++) if (back.data[i] !== svg.data[i]) diff++;
-    if (back.w !== SIZE || back.h !== SIZE || diff) throw new Error(`read-back mismatch: ${back.w}x${back.h}, ${diff} channel(s) differ`);
+    if (back.w !== SIZE || back.h !== SIZE || diff) throw new Error(`read-back mismatch on ${path.basename(OUT)}: ${back.w}x${back.h}, ${diff} channel(s) differ`);
 
     const before = fs.existsSync(OUT) ? fs.readFileSync(OUT) : null;
-    if (before && before.equals(png)) { console.log(`render-apple-touch-icon: ${path.relative(ROOT, OUT)} already matches favicon.svg (${png.length} bytes).`); return 0; }
+    if (before && before.equals(png)) { console.log(`render-apple-touch-icon: ${path.relative(ROOT, OUT)} already matches ${path.basename(SVG)} (${png.length} bytes).`); return; }
     fs.writeFileSync(OUT, png);
-    console.log(`render-apple-touch-icon: wrote ${path.relative(ROOT, OUT)} — ${SIZE}x${SIZE} RGB, ${png.length} bytes, read-back identical to the SVG render.`);
-    return 0;
+    console.log(`render-apple-touch-icon: wrote ${path.relative(ROOT, OUT)} — ${SIZE}x${SIZE} RGB from ${path.basename(SVG)}, ${png.length} bytes, read-back identical to the SVG render.`);
   } finally {
-    await browser.close();
+    await page.close();
   }
 }
 
 if (require.main === module) main().then((c) => process.exit(c), (e) => { console.error('render-apple-touch-icon:', e.message); process.exit(1); });
 
-module.exports = { encodeRGB, validate, crc32 };
+module.exports = { encodeRGB, validate, crc32, TARGETS };

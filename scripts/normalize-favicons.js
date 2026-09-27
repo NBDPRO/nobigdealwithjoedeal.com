@@ -39,13 +39,35 @@
  *
  * WHAT A NORMALIZED PAGE LOOKS LIKE
  * ─────────────────────────────────
+ * (2026-09-13 wording; homeowner-site pages now carry the six-line block in
+ * the section below.)
  * Exactly two icon <link> tags — the canonical pair for its audience, byte-for-
  * byte (the homeowner strings are the ones 256 pages already carried, so those
  * pages are no-ops). Every other rel=icon / shortcut icon / apple-touch-icon /
  * apple-touch-icon-precomposed / mask-icon tag is removed. The pair goes where
  * the first removed tag was (same indentation), or, on a page with none, on
  * the line after <title>…</title>, or failing that immediately before </head>.
- * No page gains a rel=manifest (the only manifest is /pro/manifest.json).
+ *
+ * LARGE CONTEXTS GET THE LETTERED MARK (2026-09-27)
+ * ─────────────────────────────────────────────────
+ * Jo's iPhone test: Safari's home-screen icon and Google's result favicon
+ * showed the lettered NBD mark, but a Brave saved-site tile showed the
+ * wordless roofline — Brave ignores apple-touch-icon and picks from rel="icon",
+ * where favicon.svg was the only candidate. Homeowner-SITE pages (homeowner
+ * audience, not under pro/) now carry a six-line block instead of the pair:
+ *   favicon.svg (unchanged — the small tab mark stays the wordless roofline),
+ *   apple-touch-icon with sizes="180x180",
+ *   rel="icon" PNGs at 192 and 512 (the lettered mark; large-tile consumers
+ *     choose the biggest sized icon, tabs keep the SVG),
+ *   rel="manifest" → /manifest.webmanifest (the homeowner web-app manifest),
+ *   <meta name="apple-mobile-web-app-title" content="No Big Deal"> (the
+ *     home-screen label; without it iOS truncates the full <title>).
+ * The manifest link and the title meta are owned here too: on a homeowner-
+ * site page any other rel=manifest / apple-mobile-web-app-title is replaced.
+ * Homeowner-audience pages INSIDE the CRM app (the pro/ OVERRIDES above) keep
+ * the original pair and gain no manifest — docs/pro is the CRM lane's tree
+ * and ships its own /pro/manifest.json; flip that in canonFor() if wanted.
+ * The PNGs are build products of scripts/render-apple-touch-icon.js.
  *
  * LINE ENDINGS (CLAUDE.md) — the tree is CRLF. Lines are split on the file's
  * own EOL and rejoined with it once; inserted lines carry no EOL of their own;
@@ -66,18 +88,39 @@ const path = require('path');
 const DEFAULT_DOCS = path.join(__dirname, '..', 'docs');
 
 const HOMEOWNER_ICON = '<link rel="icon" href="/favicon.svg" type="image/svg+xml">';
-const HOMEOWNER_TOUCH = '<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">';
+const HOMEOWNER_TOUCH = '<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">';
+const HOMEOWNER_ICON_192 = '<link rel="icon" type="image/png" sizes="192x192" href="/assets/images/home-icon-192.png">';
+const HOMEOWNER_ICON_512 = '<link rel="icon" type="image/png" sizes="512x512" href="/assets/images/home-icon-512.png">';
+// The original pair, kept by homeowner-audience pages inside docs/pro (see header).
+const HOMEOWNER_TOUCH_IN_PRO = '<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">';
 const PRO_ICON = '<link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">';
 const PRO_TOUCH = '<link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">';
+const HOMEOWNER_MANIFEST = '<link rel="manifest" href="/manifest.webmanifest">';
+const HOMEOWNER_APP_TITLE = '<meta name="apple-mobile-web-app-title" content="No Big Deal">';
 
 const CANON = {
-  homeowner: [HOMEOWNER_ICON, HOMEOWNER_TOUCH],
+  homeowner: [HOMEOWNER_ICON, HOMEOWNER_TOUCH, HOMEOWNER_ICON_192, HOMEOWNER_ICON_512],
   pro: [PRO_ICON, PRO_TOUCH],
 };
+const HOMEOWNER_IN_PRO = [HOMEOWNER_ICON, HOMEOWNER_TOUCH_IN_PRO];
+const HOMEOWNER_EXTRAS = [HOMEOWNER_MANIFEST, HOMEOWNER_APP_TITLE];
 
-// The four hrefs that identify an NBD icon. An excluded page carrying any of
+// The hrefs that identify an NBD icon. An excluded page carrying any of
 // them in an icon <link> is a cross-brand leak.
-const NBD_ICON_HREFS = ['/favicon.svg', '/assets/images/apple-touch-icon.png', '/pro/favicon.svg', '/pro/img/nbd-icon-192.png'];
+const NBD_ICON_HREFS = ['/favicon.svg', '/assets/images/apple-touch-icon.png', '/assets/images/home-icon-192.png', '/assets/images/home-icon-512.png', '/pro/favicon.svg', '/pro/img/nbd-icon-192.png'];
+
+/**
+ * The tags a page must carry, by audience and path.
+ *   icons  — the exact set of icon <link> tags
+ *   extras — the manifest link + home-screen title meta (homeowner site only)
+ * rel omitted → treated as a page outside pro/.
+ */
+function canonFor(audience, rel = '') {
+  if (!CANON[audience]) throw new Error('canonFor: audience must be homeowner or pro, got ' + audience);
+  if (audience === 'pro') return { icons: CANON.pro, extras: [] };
+  if (String(rel).replace(/\\/g, '/').startsWith('pro/')) return { icons: HOMEOWNER_IN_PRO, extras: [] };
+  return { icons: CANON.homeowner, extras: HOMEOWNER_EXTRAS };
+}
 
 const SKIP = [
   { re: /^googlee?[0-9a-f]+\.html$/, reason: 'Search Console verification token (no <head>) — never edited' },
@@ -105,6 +148,7 @@ const OVERRIDES = {
 
 const ICON_RELS = new Set(['icon', 'apple-touch-icon', 'apple-touch-icon-precomposed', 'mask-icon']);
 const LINK_RE = /<link\b[^>]*>/gi;
+const TAG_RE = /<(?:link|meta)\b[^>]*>/gi;
 
 function relTokens(tag) {
   const m = tag.match(/\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
@@ -125,6 +169,28 @@ function isIconLink(tag) {
 /** Every icon <link> tag in the page, in document order. */
 function iconLinks(html) {
   return (html.match(LINK_RE) || []).filter(isIconLink);
+}
+
+/** rel="manifest" <link> tags. */
+function isManifestLink(tag) {
+  return /^<link\b/i.test(tag) && relTokens(tag).includes('manifest');
+}
+function manifestLinks(html) {
+  return (html.match(LINK_RE) || []).filter(isManifestLink);
+}
+
+/** <meta name="apple-mobile-web-app-title"> tags. */
+function isAppTitleMeta(tag) {
+  return /^<meta\b/i.test(tag) && /\bname\s*=\s*["']?apple-mobile-web-app-title["'\s>]/i.test(tag);
+}
+function appTitleMetas(html) {
+  return (html.match(/<meta\b[^>]*>/gi) || []).filter(isAppTitleMeta);
+}
+
+/** A tag this script owns on a page whose canon carries extras (or not). */
+function isOwnedTag(tag, withExtras) {
+  if (/^<link\b/i.test(tag) && isIconLink(tag)) return true;
+  return withExtras && (isManifestLink(tag) || isAppTitleMeta(tag));
 }
 
 /**
@@ -149,27 +215,39 @@ function assertCleanEol(out, eol, label) {
   if (eol === '\r\n' && /(^|[^\r])\n/.test(out)) throw new Error(`normalize-favicons: bare LF produced in CRLF file ${label} — refusing to write`);
 }
 
-/** True when the page's icon tags are exactly the canonical pair (any order). */
-function isCanonical(html, audience) {
-  const found = iconLinks(html);
-  const want = CANON[audience];
-  return found.length === 2 && want.every((t) => found.includes(t)) && found[0] !== found[1];
+/** Exactly the tags in `want` (any order), each once. */
+function exactSet(found, want) {
+  return found.length === want.length && want.every((t) => found.includes(t)) && new Set(found).size === found.length;
+}
+
+/**
+ * True when the page carries exactly its canonical icon tags (any order) and,
+ * on a homeowner-site page, exactly one manifest link and one home-screen
+ * title meta, both canonical. rel omitted → a page outside pro/.
+ */
+function isCanonical(html, audience, rel = '') {
+  const { icons, extras } = canonFor(audience, rel);
+  if (!exactSet(iconLinks(html), icons)) return false;
+  if (!extras.length) return true;
+  return exactSet(manifestLinks(html), [HOMEOWNER_MANIFEST]) && exactSet(appTitleMetas(html), [HOMEOWNER_APP_TITLE]);
 }
 
 /**
  * Pure transform. Returns { html, changed, refused, reason }.
  *   refused — the page does not have exactly one </head> (nothing is changed).
+ * rel (docs-relative path) decides the homeowner variant; omitted → outside pro/.
  */
-function normalizeIcons(html, audience, label = '(page)') {
+function normalizeIcons(html, audience, label = '(page)', rel = '') {
   if (!CANON[audience]) throw new Error('normalizeIcons: audience must be homeowner or pro, got ' + audience);
   const heads = (html.match(/<\/head>/gi) || []).length;
   if (heads !== 1) return { html, changed: false, refused: true, reason: `${heads} </head> tags (need exactly 1)` };
-  if (isCanonical(html, audience)) return { html, changed: false, refused: false };
+  if (isCanonical(html, audience, rel)) return { html, changed: false, refused: false };
 
   const eol = eolOf(html);
   const lines = html.split(eol);
   const headLine = lines.findIndex((l) => /<\/head>/i.test(l));
-  const pair = CANON[audience];
+  const { icons, extras } = canonFor(audience, rel);
+  const pair = [...icons, ...extras];
 
   let insertAt = -1;
   let indent = '';
@@ -177,7 +255,7 @@ function normalizeIcons(html, audience, label = '(page)') {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (i > headLine) { out.push(line); continue; }
-    const tags = (line.match(LINK_RE) || []).filter(isIconLink);
+    const tags = (line.match(TAG_RE) || []).filter((t) => isOwnedTag(t, extras.length > 0));
     if (!tags.length) { out.push(line); continue; }
     let rest = line;
     for (const t of tags) rest = rest.replace(t, '');
@@ -208,10 +286,10 @@ function normalizeIcons(html, audience, label = '(page)') {
     }
   }
 
-  out.splice(insertAt, 0, indent + pair[0], indent + pair[1]);
+  out.splice(insertAt, 0, ...pair.map((t) => indent + t));
   const next = out.join(eol);
   assertCleanEol(next, eol, label);
-  if (!isCanonical(next, audience)) throw new Error(`normalizeIcons: post-condition failed for ${label}`);
+  if (!isCanonical(next, audience, rel)) throw new Error(`normalizeIcons: post-condition failed for ${label}`);
   return { html: next, changed: next !== html, refused: false };
 }
 
@@ -246,10 +324,11 @@ function run({ root = DEFAULT_DOCS, write = false, registryChecks = root === DEF
     if (audience === 'excluded') {
       result.excluded++;
       const bad = iconLinks(html).map(hrefOf).filter((h) => NBD_ICON_HREFS.includes(h));
+      bad.push(...manifestLinks(html).map(hrefOf).filter((h) => h === '/manifest.webmanifest'));
       if (bad.length) result.leaks.push(`${rel} carries NBD icon href(s): ${bad.join(', ')}`);
       continue;
     }
-    const r = normalizeIcons(html, audience, rel);
+    const r = normalizeIcons(html, audience, rel, rel);
     if (r.refused) { result.refused.push(`${rel} (${r.reason})`); continue; }
     if (!r.changed) { result.unchanged++; continue; }
     result.drift.push(`${rel} [${audience}]`);
@@ -294,7 +373,7 @@ function main(argv) {
       if (r.drift.length) console.error('Run: node scripts/normalize-favicons.js');
       return 1;
     }
-    console.log(`normalize-favicons --check: all ${r.pages - r.skipped - r.excluded} in-scope pages carry exactly their audience's two icons (${r.byAudience.homeowner} homeowner, ${r.byAudience.pro} pro; ${r.excluded} excluded, ${r.skipped} skipped).`);
+    console.log(`normalize-favicons --check: all ${r.pages - r.skipped - r.excluded} in-scope pages carry exactly their audience's icon tags (${r.byAudience.homeowner} homeowner — the site's with the manifest + home-screen title — ${r.byAudience.pro} pro; ${r.excluded} excluded, ${r.skipped} skipped).`);
     return 0;
   }
   console.log(JSON.stringify({ written: r.written.length, unchanged: r.unchanged, excluded: r.excluded, skipped: r.skipped, byAudience: r.byAudience, refused: r.refused, leaks: r.leaks, problems: r.problems }, null, 2));
@@ -305,7 +384,8 @@ function main(argv) {
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
 module.exports = {
-  classify, normalizeIcons, isCanonical, iconLinks, hrefOf, run, walk,
-  CANON, OVERRIDES, EXCLUDED, SKIP, NBD_ICON_HREFS,
-  HOMEOWNER_ICON, HOMEOWNER_TOUCH, PRO_ICON, PRO_TOUCH,
+  classify, normalizeIcons, isCanonical, iconLinks, manifestLinks, appTitleMetas, hrefOf, run, walk, canonFor,
+  CANON, OVERRIDES, EXCLUDED, SKIP, NBD_ICON_HREFS, HOMEOWNER_IN_PRO, HOMEOWNER_EXTRAS,
+  HOMEOWNER_ICON, HOMEOWNER_TOUCH, HOMEOWNER_ICON_192, HOMEOWNER_ICON_512, HOMEOWNER_TOUCH_IN_PRO,
+  HOMEOWNER_MANIFEST, HOMEOWNER_APP_TITLE, PRO_ICON, PRO_TOUCH,
 };

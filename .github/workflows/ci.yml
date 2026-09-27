@@ -309,6 +309,9 @@ jobs:
       # excluded and must carry no NBD icon. Before this, 31 of 36 CRM pages flew
       # the homeowner favicon and 13 pages had none.
       # documentation/audit/FAVICON-NORMALIZATION-2026-09-13.md
+      # 2026-09-27: homeowner-site pages (not pro/**) now carry a six-line block —
+      # the SVG, a sized apple-touch icon, 192/512 lettered PNG icons, the
+      # /manifest.webmanifest link and the apple-mobile-web-app-title meta.
       - name: Check favicon pairs (two icons, by audience)
         run: node scripts/normalize-favicons.js --check
       # Manifest completeness tripwire (2026-08-07): every tests/*.test.js
