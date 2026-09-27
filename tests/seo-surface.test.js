@@ -116,6 +116,47 @@ check('F19 a description of 166 raw bytes but 154 rendered chars is IN range', (
   );
 });
 
+// ── FAQPage questions must be visible ───────────────────────────────────
+// 84 of 753 FAQPage questions on the live site (2026-09-27) existed only in
+// JSON-LD — against Google's FAQ policy, and some contradicted the article
+// they sat on. Every check above passed them: the JSON parsed fine.
+
+check('F20 catches a FAQPage question that exists only in the JSON-LD', () => {
+  const errs = (byFile['faq-hidden.html'] || []).filter((f) => f.level === 'ERROR');
+  const faq = errs.filter((f) => f.check === 'faq-visible');
+  assert.strictEqual(faq.length, 1,
+    `faq-hidden.html has one schema-only question; expected exactly 1 faq-visible ERROR, got ${faq.length}`);
+  assert.ok(/only in the schema/.test(faq[0].detail),
+    `the finding should name the hidden question, got: ${faq[0].detail}`);
+  // Its text also sits in a comment, a <script> attribute and a <template>.
+  // None of those is visible, so none of them may satisfy the check — this
+  // pins that the visible-text reader strips them rather than grepping raw HTML.
+  assert.deepStrictEqual(errs.map((f) => f.check), ['faq-visible'],
+    `faq-hidden.html should fail on faq-visible alone, got [${errs.map((f) => f.check).join(', ')}]`);
+});
+
+check('F21 a question rendered with entities, curly quotes and inline tags counts as visible', () => {
+  // The schema says `Don't ... & a permit?`; the page says
+  // `Don&rsquo;t ... <em>GAF-certified</em> ... &amp; a permit?`. Same text
+  // to a reader — a check that compares raw strings would fail every page
+  // written with typographic apostrophes, and get switched off.
+  const got = (byFile['faq-visible.html'] || []).map((f) => `${f.level}:${f.check}`);
+  assert.deepStrictEqual(got, [], `faq-visible.html should raise nothing, got [${got.join(', ')}]`);
+});
+
+check('F22 the faq-visible allowlist stays narrow (two named posts, no globs)', () => {
+  const fs = require('fs');
+  const src = fs.readFileSync(SCRIPT, 'utf8');
+  const m = src.match(/const FAQ_VISIBLE_ALLOWLIST = new Set\(\[([\s\S]*?)\]\);/);
+  assert.ok(m, 'FAQ_VISIBLE_ALLOWLIST literal not found — if it was removed, delete this case too');
+  const entries = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  assert.ok(entries.length <= 2,
+    `the allowlist is a temporary carve-out for two posts under rewrite; it has ${entries.length} entries`);
+  for (const e of entries) {
+    assert.ok(/^docs\/blog\/[a-z0-9-]+\.html$/.test(e), `allowlist entry must be one exact file path, got ${e}`);
+  }
+});
+
 // ── noindex exemption ───────────────────────────────────────────────────
 
 check('F12 a noindex page is skipped, not audited', () => {
