@@ -236,10 +236,10 @@ function mapPublicLeadToLead(args) {
   // Referral-code self-redemption: a friend entered a customer's personal
   // code on the public form. Carry it onto the CRM lead (uppercased to match
   // the referrals-collection code format) so the onReferralLeadWrite trigger
-  // can attribute it and credit the $200 bonus on close.
+  // can attribute it and credit the $100 bonus on close.
   // Strip to A-Z0-9- so the redeemed value matches the minted code format
   // exactly (internal spaces/punctuation would miss the exact-match lookup and
-  // silently lose the referrer's $200).
+  // silently lose the referrer's $100).
   if (data.referralCode) doc.redeemReferralCode = String(data.referralCode).toUpperCase().replace(/[^A-Z0-9-]/g, '');
 
   // TCPA consent provenance (2026-09-04). The homeowner ticked the express-

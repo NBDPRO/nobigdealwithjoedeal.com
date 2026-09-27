@@ -2,7 +2,7 @@
  * referral-rewards-ui.js — rep-facing "Referral Rewards" view.
  * ═══════════════════════════════════════════════════════════════
  *
- * Lists the $200 code-referral bonuses that are OWED (a referred lead's
+ * Lists the $100 code-referral bonuses that are OWED (a referred lead's
  * project reached a closed stage → the onReferralLeadWrite Cloud Function
  * stamped `referralRewardStatus:'owed'` on the lead) with a "Mark Paid" action,
  * plus a paid-history section that can be reversed.
@@ -20,7 +20,7 @@
 (function () {
   'use strict';
 
-  const BONUS_DEFAULT = 200;
+  const BONUS_DEFAULT = 100; // $100 everywhere (Jo, 2026-09-27; was $200)
   const esc = (s) => (window.nbdEsc
     ? window.nbdEsc(s)
     : String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));

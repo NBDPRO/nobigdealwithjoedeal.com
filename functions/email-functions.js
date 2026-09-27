@@ -228,14 +228,14 @@ const DRY_TEMPLATES = {
     )
   },
   referralCode: {
-    subject: 'Your Referral Code — Earn $200!',
+    subject: 'Your Referral Code — Earn $100!',
     html: BRANDED_EMAIL_TEMPLATE(
       'Refer & Earn',
       `<h2>Share No Big Deal & Get Rewarded</h2>
        <p>Hi {customerName},</p>
-       <p>We appreciate your business! Want to earn $200?</p>
+       <p>We appreciate your business! Want to earn $100?</p>
        <p><strong>Your referral code:</strong> <code style="background:#f0f0f0;padding:8px 12px;border-radius:4px;">{referralCode}</code></p>
-       <p>Share this code with friends and family. For every job that closes, you'll receive a $200 bonus!</p>
+       <p>Share this code with friends and family. For every job that closes, you'll receive a $100 bonus!</p>
        <p>Thank you for recommending us!</p>`
     )
   }

@@ -1746,7 +1746,7 @@ exports.invoiceWebhook = onRequest(
                       // this, a custom-pipeline tenant's lead keeps its STALE
                       // pre-payoff role (e.g. 'active') because persisted
                       // always wins over derived: review-request-nudge.js and
-                      // the $200 referral-reward system both read roleFor()
+                      // the $100 referral-reward system both read roleFor()
                       // and silently never fire for a Stripe-paid job.
                       // 'final_payment' is a hardcoded built-in key here (not
                       // the lead's arbitrary custom stage), so its role is

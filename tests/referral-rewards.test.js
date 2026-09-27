@@ -1,5 +1,5 @@
 /**
- * tests/referral-rewards.test.js — referral-CODE redemption + $200 bonus.
+ * tests/referral-rewards.test.js — referral-CODE redemption + $100 bonus.
  *
  * Drives the REAL onReferralLeadWrite Firestore trigger (functions+firestore
  * emulator) end-to-end by writing lead/referrals docs through the emulator's
@@ -10,7 +10,7 @@
  *   - ATTRIBUTE: a lead stamped with `redeemReferralCode` gets linked to its
  *     referrer (referrerLeadId + referralRewardStatus 'pending'), the referral
  *     doc's referredLeads is updated, and the rep is notified.
- *   - CREDIT: when that lead's stage → 'closed', the $200 bonus is recorded as
+ *   - CREDIT: when that lead's stage → 'closed', the $100 bonus is recorded as
  *     OWED on the referral doc (rewards[] + rewardsOwedTotal) and the rep is
  *     notified.
  *   - IDEMPOTENT: re-writing/re-closing does not double-credit.
@@ -120,7 +120,7 @@ const REP = 'repUid_AAAAAAAAAAAAAAAAAAAA1';   // owns the codes under test
 const REP2 = 'repUid_BBBBBBBBBBBBBBBBBBBB2';  // a different tenant
 
 async function run() {
-  console.log('REFERRAL REWARDS — code redemption + $200 bonus on close\n');
+  console.log('REFERRAL REWARDS — code redemption + $100 bonus on close\n');
 
   // ── Seed: a referrer (past customer) + their minted code ──────
   await setDoc('leads', 'ref_referrer', { userId: REP, companyId: REP, firstName: 'John', lastName: 'Doe', stage: 'closed' });
@@ -152,18 +152,18 @@ async function run() {
   ok('rep notified: referral tracked', attrNotes.some((n) => n.type === 'referral'));
 
   // ═══ 2. CREDIT ON CLOSE ═══════════════════════════════════════
-  console.log('\n2) Credit — the referred project closes → $200 owed');
+  console.log('\n2) Credit — the referred project closes → $100 owed');
   await patchDoc('leads', 'ref_friend', { stage: 'closed' });
   const credited = await waitUntil(() => getDoc('leads', 'ref_friend'), (l) => l && l.referralRewardStatus === 'owed');
   ok('reward status = owed', credited && credited.referralRewardStatus === 'owed');
-  ok('reward amount = 200', credited && credited.referralRewardAmount === 200);
+  ok('reward amount = 100', credited && credited.referralRewardAmount === 100);
   ok('reward owedAt stamped', !!(credited && credited.referralRewardOwedAt));
 
-  const codeAfterCredit = await waitUntil(() => getDoc('referrals', codeDocId), (d) => d && d.rewardsOwedTotal === 200);
-  ok('code doc rewardsOwedTotal = 200', !!codeAfterCredit && codeAfterCredit.rewardsOwedTotal === 200);
+  const codeAfterCredit = await waitUntil(() => getDoc('referrals', codeDocId), (d) => d && d.rewardsOwedTotal === 100);
+  ok('code doc rewardsOwedTotal = 100', !!codeAfterCredit && codeAfterCredit.rewardsOwedTotal === 100);
   ok('code doc rewards[] has the owed entry',
     !!codeAfterCredit && Array.isArray(codeAfterCredit.rewards)
-    && codeAfterCredit.rewards.some((r) => r.referredLeadId === 'ref_friend' && r.amount === 200 && r.status === 'owed'));
+    && codeAfterCredit.rewards.some((r) => r.referredLeadId === 'ref_friend' && r.amount === 100 && r.status === 'owed'));
   const rewardNotes = await waitUntil(() => notificationsFor('ref_friend'), (n) => n.some((x) => x.type === 'referral_reward'));
   ok('rep notified: bonus owed', rewardNotes.some((n) => n.type === 'referral_reward'));
 
@@ -172,7 +172,7 @@ async function run() {
   await patchDoc('leads', 'ref_friend', { stage: 'closed', touchedBy: 'test-rewrite' });
   await sleep(2500); // let any spurious re-trigger settle
   const codeStill = await getDoc('referrals', codeDocId);
-  ok('rewardsOwedTotal still 200 (no double credit)', codeStill && codeStill.rewardsOwedTotal === 200);
+  ok('rewardsOwedTotal still 100 (no double credit)', codeStill && codeStill.rewardsOwedTotal === 100);
   ok('rewards[] still a single entry', codeStill && Array.isArray(codeStill.rewards) && codeStill.rewards.length === 1);
 
   // ═══ 4. REJECTIONS ════════════════════════════════════════════
@@ -221,7 +221,7 @@ async function run() {
   await setDoc('leads', 'ref_teamref', { userId: REP, companyId: COMPANY, firstName: 'Team', lastName: 'Referrer', stage: 'closed' });
   await addDoc('referrals', { code: 'TEAM-AB12', referrerLeadId: 'ref_teamref', userId: REP, companyId: COMPANY, referredLeads: [], rewardsPaid: 0, status: 'active' });
   // Lead owned by a DIFFERENT rep (REP3) but the SAME company — the old
-  // rep-userId guard wrongly rejected this and dropped the $200.
+  // rep-userId guard wrongly rejected this and dropped the bonus.
   await setDoc('leads', 'ref_teamfriend', { userId: REP3, companyId: COMPANY, firstName: 'New', lastName: 'Friend', stage: 'new', redeemReferralCode: 'TEAM-AB12' });
   const teamAttr = await waitUntil(() => getDoc('leads', 'ref_teamfriend'), (l) => l && l.referralAttributedAt);
   ok('same-company code (diff rep) → attributed, not rejected',

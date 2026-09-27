@@ -248,7 +248,7 @@
 
     // Sanitize the name prefix to A-Z0-9 so the code never carries a space or
     // punctuation (e.g. 'Jo Ann' or a '(Web lead)' default) that would break the
-    // exact-match redemption lookup and silently lose the $200. Pad the random
+    // exact-match redemption lookup and silently lose the bonus. Pad the random
     // suffix to a full 4 chars (toString(36) can drop trailing zeros → 'JOHN-').
     // NBD-leak gate (2026-07-29): a nameless lead (Quick Add creates
     // firstName:'' by design, and non-Latin names sanitize to '') used to get
@@ -348,18 +348,18 @@
     const firstName = lead.firstName || lead.fname || '';
     const phone = lead.phone.replace(/\D/g, '');
     const body = encodeURIComponent(
-      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $200 bonus when their project closes. Win-win!`
+      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $100 bonus when their project closes. Win-win!`
     );
     window.open(`sms:${phone}?body=${body}`, '_self');
   }
 
-  // Referral attribution + the $200-bonus crediting-on-close moved SERVER-SIDE
+  // Referral attribution + the $100-bonus crediting-on-close moved SERVER-SIDE
   // to functions/referral-rewards.js (onReferralLeadWrite). Intake now just
   // stamps `redeemReferralCode` on the lead (rep Add/Edit Lead modal or the
   // public /inspect form) and the trigger resolves the code to its referrer
   // and records the bonus as owed when the project closes. The old client-side
   // trackReferral() that lived here had ZERO callers and no crediting path, so
-  // the $200 promised in sendReferralSMS was unbacked — removed to avoid a
+  // the $100 promised in sendReferralSMS was unbacked — removed to avoid a
   // second, drifting attribution lane.
 
   /**

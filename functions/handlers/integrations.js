@@ -227,7 +227,7 @@ const PUBLIC_LEAD_OPTIONAL_DEFAULTS = [
   // Referral-code self-redemption: a friend who was texted a customer's
   // personal code (e.g. JOHN-AB12) can enter it on any public form. It flows
   // through lead-bridge onto the CRM lead as `redeemReferralCode`, where the
-  // onReferralLeadWrite trigger resolves it and credits the $200 bonus on
+  // onReferralLeadWrite trigger resolves it and credits the $100 bonus on
   // close. Capped short below (maxLen.referralCode) on every kind.
   'referralCode'
 ];
