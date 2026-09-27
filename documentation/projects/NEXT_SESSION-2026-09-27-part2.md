@@ -65,12 +65,12 @@ Two things surfaced that are **not SEO** and matter more — read §0 first.
 | #1802 | Answer-first 40–60-word leads + question H2s on 25 core service pages, with Jo's prices (inspection report $150, Care Plan $199/yr, soft wash, siding, drywall, shed, commercial, add-ons per unit) |
 | #1803 | The 2026 Greater Cincinnati roof cost guide rebuilt (tables by size + tier, delivery $150, add-ons per unit) |
 | #1816 | Contradictions settled site-wide (storm-first "depends", check-your-policy deadline, 1 day / 2 complex, inspect after any storm, no arch-vs-3-tab %); undated priced jobs "Priced before 2025"; Instant Estimate default $13,300–$18,600 |
+| #1801 | CRM Kentucky compliance with ALL of Jo's decisions: statutory notices + 2× NOC verbatim, FTC 3-day form attached, $0 at signing on KY insurance jobs (pay links held until carrier decision + 5 business days), $100 referral everywhere, NO AOB and NO direction-to-pay (plain payment clause — Jo declined attorney review), review ask mentions town + job, $150 delivery in both estimate modes. The Campton mailing address is already set in Settings (see §3c) — it prints only on KY insurance contracts, the FTC cancellation forms, and the CAN-SPAM email line; never on the letterhead. |
 
 ## §2 — Open PRs
 
 | PR | State | Blocker |
 |---|---|---|
-| #1801 | ready, CI (Auto-fix on; @stranger onboarding timeout re-run — known provisioning flake) | CRM Kentucky compliance with ALL of Jo's decisions: statutory notices + 2× NOC verbatim, FTC 3-day form attached, $0 at signing on KY insurance jobs (pay links held until carrier decision + 5 business days), $100 referral everywhere, NO AOB and NO direction-to-pay (plain payment clause — Jo declined attorney review), review ask mentions town + job, $150 delivery in both estimate modes. **After deploy:** enter "4813 KY 715 S, Campton, KY 41301" in Settings → Company Profile → Mailing Address (one line) — prints only on KY insurance contracts, the FTC cancellation forms, and the CAN-SPAM email line; never on the letterhead. |
 
 ## §3 — Waiting on Jo (all asked in chat; answers unblock work)
 
