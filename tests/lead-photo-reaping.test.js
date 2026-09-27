@@ -376,12 +376,23 @@ console.log('\nVOICE PIPELINE — D2D memos are not a lead');
     process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: 'demo-unit', storageBucket: 'demo-unit.appspot.com' });
   }
   if (!process.env.GCLOUD_PROJECT) process.env.GCLOUD_PROJECT = 'demo-unit';
-  const { _parseAudioPath: parse } = require(path.join(ROOT, 'functions', 'integrations', 'voice-intelligence.js'));
+  const { _parseAudioPath: parse, _retentionAudioPathFor: retentionAudio } =
+    require(path.join(ROOT, 'functions', 'integrations', 'voice-intelligence.js'));
   ok('a D2D memo is not a recording of lead "d2d"', parse(`audio/${UID}/d2d/K1_1790000000000.webm`) === null);
   ok('nor is any reserved id', parse(`audio/${UID}/_variants/r1.webm`) === null);
   const real = parse(`audio/${UID}/${LEAD}/rec1.webm`);
   ok('a real lead\'s recording still parses (vacuity guard)',
      !!real && real.leadId === LEAD && real.uid === UID && real.recordingId === 'rec1');
+  // 2026-09-26 (rebased onto #1779): the retention cron's path check parses
+  // audioPath with the same function, so a leads/d2d recordings row, even one
+  // whose ids pair up, never deletes a D2D memo. The real-lead pairing still
+  // resolves, so this is not passing because the helper returns null always.
+  ok('the retention cron never deletes a D2D memo through a leads/d2d row',
+     retentionAudio('leads/d2d/recordings/K1_1790000000000',
+                    `audio/${UID}/d2d/K1_1790000000000.webm`) === null);
+  ok('a real lead\'s own recording is still deleted by retention (vacuity guard)',
+     retentionAudio(`leads/${LEAD}/recordings/rec1`, `audio/${UID}/${LEAD}/rec1.webm`)
+       === `audio/${UID}/${LEAD}/rec1.webm`);
 }
 
 console.log('\nSOURCE — the helpers must stay firebase-free and off the deploy index');

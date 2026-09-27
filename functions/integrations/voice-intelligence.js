@@ -101,6 +101,11 @@ function parseAudioPath(fullPath) {
 // audio/{uid}/{leadId}/{recordingId}.ext, so require exactly that pairing:
 // a doc anywhere else, or one naming another recording's audio, deletes
 // nothing from Storage.
+// 2026-09-26 (PR #1777 rebased onto this): parseAudioPath also refuses a
+// reserved lead id, so a row at leads/d2d/recordings/{R} (or _variants, …)
+// never deletes audio either. That is intended: audio/{uid}/d2d/… is a D2D
+// knock's memo, owned by the knock, not a recording row; processRecording no
+// longer writes such rows, and the production census for #1777 found none.
 function retentionAudioPathFor(docPath, audioPath) {
   const at = matchDocPath('leads/{leadId}/recordings/{recordingId}', docPath);
   const audio = parseAudioPath(audioPath);
