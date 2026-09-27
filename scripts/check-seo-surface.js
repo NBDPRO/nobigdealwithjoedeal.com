@@ -28,7 +28,8 @@
  *   ERROR — objectively broken, blocks CI
  *     missing/empty <title>; missing meta description; zero or multiple <h1>;
  *     missing canonical; malformed JSON-LD (unparseable); missing lang;
- *     missing viewport; an <img> with no alt attribute at all.
+ *     missing viewport; an <img> with no alt attribute at all; a FAQPage
+ *     question that appears nowhere in the page's visible text.
  *
  *   WARN — a real weakness, reported but does not block
  *     title outside 50-60 chars; description outside 120-160; no JSON-LD;
@@ -255,7 +256,8 @@ function stripComments(html) {
 const NAMED_ENTITIES = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
   mdash: '—', ndash: '–', hellip: '…', rsquo: '’', lsquo: '‘',
-  ldquo: '“', rdquo: '”',
+  ldquo: '“', rdquo: '”', trade: '™', reg: '®', copy: '©', rarr: '→',
+  larr: '←', middot: '·', times: '×', bull: '•', deg: '°',
 };
 function decodeEntities(s) {
   return String(s)
@@ -264,6 +266,65 @@ function decodeEntities(s) {
     .replace(/&([a-z]+);/gi, (m, n) => (NAMED_ENTITIES[n.toLowerCase()] !== undefined
       ? NAMED_ENTITIES[n.toLowerCase()] : m));
 }
+
+// ── FAQPage questions must be on the page ───────────────────────────────
+// Google's FAQ structured-data policy requires every question and answer in
+// the markup to be visible on the page, and AI answer engines cross-check the
+// same way. The 2026-09-27 audit found 84 of 753 questions across 25 public
+// pages that existed ONLY in JSON-LD — some carrying figures the article body
+// contradicted. Nothing caught it because the parse check above only asks
+// whether the block is valid JSON, not whether it is true of the page.
+//
+// "Visible" means: present in the text left after dropping comments, script,
+// style, template and noscript, with tags removed, entities decoded, curly
+// quotes straightened, case folded and ALL whitespace removed. Whitespace is
+// dropped entirely rather than collapsed because a tag between words and
+// punctuation (`<a>UHDZ</a>.`) becomes a space on one side and not the other.
+// A question inside a collapsed accordion still counts — it is in the DOM,
+// which is what the policy asks for. Questions only: answers legitimately
+// carry links and emphasis the plain-text schema copy cannot, and are
+// reviewed by hand when a page is fixed. (Fixtures F20/F21.)
+function squashText(s) {
+  return decodeEntities(s)
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+function visibleText(html) {
+  return squashText(html
+    .replace(/<(script|style|template|noscript)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' '));
+}
+
+function faqQuestions(node, out = []) {
+  if (!node || typeof node !== 'object') return out;
+  if (Array.isArray(node)) {
+    node.forEach((n) => faqQuestions(n, out));
+    return out;
+  }
+  const types = [].concat(node['@type'] || []);
+  if (types.includes('FAQPage')) {
+    for (const q of [].concat(node.mainEntity || [])) {
+      if (q && typeof q.name === 'string' && q.name.trim()) out.push(q.name);
+    }
+  }
+  if (node['@graph']) faqQuestions(node['@graph'], out);
+  return out;
+}
+
+// TEMPORARY. These two posts are being rewritten in a separate lane
+// (2026-09-27); their FAQ schema still names questions the body does not
+// show. Being rewritten — remove when the rewrite lands. Exact paths, never
+// a glob: a pattern here is the "list where a real finding goes to hide"
+// that isNoIndex() above refuses to be. An entry that no longer fails is
+// reported as a WARN so the list cannot quietly outlive its reason.
+const FAQ_VISIBLE_ALLOWLIST = new Set([
+  'docs/blog/can-i-keep-insurance-check-not-fix-roof.html',
+  'docs/blog/what-to-expect-roof-insurance-adjuster-visit.html',
+]);
+const faqAllowlistHit = new Set();
 
 // ── The audit ───────────────────────────────────────────────────────────
 const findings = [];
@@ -397,13 +458,23 @@ for (const abs of pages) {
   if (blocks.length === 0) {
     add('WARN', rel, 'structured-data', 'no JSON-LD on the page');
   } else {
+    const questions = [];
     blocks.forEach((b, i) => {
       try {
-        JSON.parse(b);
+        faqQuestions(JSON.parse(b), questions);
       } catch (e) {
         add('ERROR', rel, 'structured-data', `JSON-LD block ${i + 1} does not parse: ${e.message}`);
       }
     });
+    if (questions.length) {
+      const shown = visibleText(html);
+      for (const q of questions) {
+        if (shown.includes(squashText(q))) continue;
+        if (FAQ_VISIBLE_ALLOWLIST.has(rel)) { faqAllowlistHit.add(rel); continue; }
+        add('ERROR', rel, 'faq-visible',
+          `FAQPage question is not in the page's visible text (render it, or remove it from the schema): "${q}"`);
+      }
+    }
   }
 
   // -- Open Graph --------------------------------------------------------
@@ -447,6 +518,18 @@ for (const abs of pages) {
     if (!heroRasters.has(src)) heroRasters.set(src, { bytes, pages: new Set() });
     heroRasters.get(src).pages.add(rel);
   });
+}
+
+// A temporary exemption that no longer exempts anything is stale — say so,
+// so it is removed with the rewrite instead of lingering as a blind spot.
+// Only for a live-site run: a --root fixture tree never contains these paths.
+if (rootFlag < 0) {
+  for (const rel of FAQ_VISIBLE_ALLOWLIST) {
+    if (!faqAllowlistHit.has(rel)) {
+      add('WARN', rel, 'faq-visible-allowlist',
+        'listed in FAQ_VISIBLE_ALLOWLIST but every FAQ question is now visible (or the page is gone) — remove the entry');
+    }
+  }
 }
 
 // Extension lies about the real encoding. Firebase Hosting sets Content-Type
