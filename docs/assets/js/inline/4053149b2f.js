@@ -630,8 +630,11 @@ function priceRangeForFunnel(size) {
     var g = PRICING.gutters[mat] || PRICING.gutters.seamless;
     return { min: roundTo25(g[0] * lf), max: roundTo25(g[1] * lf) };
   }
-  // Sensible default
-  return { min: 10000, max: 18500 };
+  // Default (service not picked): Jo 2026-09-27 — $13,300–$18,600, the
+  // Preferred ("better") asphalt range above on a typical 20–25 square home
+  // ($665 x 20 .. $745 x 25, to the nearest $100), the same headline the
+  // roof cost guide publishes. Not part of the locked CRM spec.
+  return { min: 13300, max: 18600 };
 }
 
 // Phone number formatting
