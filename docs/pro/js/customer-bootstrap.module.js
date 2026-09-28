@@ -2689,6 +2689,8 @@ function renderUploadPreviewStructure() {
   var sendable = window._uploadQueue.filter(function(it){ return it && !it.failed; }).length;
   uploadBtn.style.display = (sendable || _uploadBatchRunning) ? 'block' : 'none';
   uploadCount.textContent = sendable;
+  const noun = document.getElementById('uploadCountNoun'); // "Upload 1 Photos"
+  if (noun) noun.textContent = sendable === 1 ? 'Photo' : 'Photos';
 }
 
 // A tile's bar and label. A photo that failed says so (2026-09-25, #1773
