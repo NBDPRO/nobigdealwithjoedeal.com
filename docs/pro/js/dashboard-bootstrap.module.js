@@ -2220,6 +2220,13 @@
     // failure was masking the dead path.
 
     // Check for query params (edit=xxx or tasks=xxx from customer.html)
+    // Every branch below cleans the query off the URL with replaceState. It
+    // KEEPS location.hash: goTo() has just written '#/<view>', and the
+    // hashchange that write queued fires AFTER a synchronous replaceState —
+    // dropping the hash made dashboard-main.js's hashchange handler read ''
+    // and route to Home over the view the link asked for (?settings=billing,
+    // Stripe Connect's return URL, landed on Home; so did ?edit= / ?tasks= /
+    // ?templates= behind their modals). CRM sweep R13, 2026-09-28.
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
     const tasksId = urlParams.get('tasks');
@@ -2244,7 +2251,7 @@
         } else if (typeof showToast === 'function') {
           showToast('Templates are still loading — try again in a moment', 'warning');
         }
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       }, 500);
     } else if (estParam && editId) {
       // ── REOPEN SAVED ESTIMATE from customer page ──
@@ -2283,14 +2290,14 @@
           }
         };
         await tryReopen(0);
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       })();
     } else if (editId && !estParam) {
       // ── EDIT LEAD in CRM ──
       setTimeout(() => {
         goTo('crm');
         editLead(editId);
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       }, 500);
     } else if (leadDeepLinkId(urlParams)) {
       // ── OPEN A LEAD: ?tab=crm&lead=ID (notification bell, tasks) and
@@ -2302,7 +2309,7 @@
       //    cache (the card modal reads window._leads); a lead not in this
       //    rep's cache opens on its customer page instead of doing nothing.
       const _openId = leadDeepLinkId(urlParams);
-      window.history.replaceState({}, '', '/pro/dashboard.html');
+      window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       (async () => {
         for (let i = 0; i < 40 && window._leadsLoaded !== true; i++) {
           await new Promise(r => setTimeout(r, 250));
@@ -2347,7 +2354,7 @@
             startNewEstimate();
           }
         }
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       })();
     } else if (tasksId) {
       // Wait for leads to load, then open task modal
@@ -2355,7 +2362,7 @@
         goTo('crm');
         openTaskModal(tasksId);
         // Clean URL
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       }, 500);
     } else if (urlParams.get('settings')) {
       // ── DEEP LINK: Settings → <tab> ──
@@ -2388,7 +2395,7 @@
       }
       if (SETTINGS_TABS.indexOf(wantTab) !== -1) {
         (async () => {
-          if (typeof goTo === 'function') goTo('settings');
+          if (typeof goTo === 'function') goTo('settings', { id: wantTab });
           // The settings view is LAZILY hydrated, so switchSettingsTab and the
           // panel may both be missing for a while. Poll instead of guessing a
           // delay — openSettingsTab()'s fixed 200ms is exactly that race.
@@ -2401,7 +2408,7 @@
               && document.getElementById('stab-panel-' + wantTab)) {
             window.switchSettingsTab(wantTab);
           }
-          window.history.replaceState({}, '', '/pro/dashboard.html');
+          window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
         })();
       }
     }

@@ -6316,7 +6316,9 @@ section('Job Templates link from customer.html (2026-09-17, Jo: "job templates a
   assert('the templates deep link calls openJobTemplatesForLead — the SAME entry point the dashboard\'s own "Template Quote" button uses, not a second picker',
     /window\.openJobTemplatesForLead\(leadParam\)/.test(templatesFn));
   assert('the templates deep link cleans the URL after opening (same convention every other deep link here uses)',
-    /window\.history\.replaceState\(\{\}, '', '\/pro\/dashboard\.html'\)/.test(templatesFn));
+    // …keeping the view hash (2026-09-28): dropping it let the queued
+    // hashchange route to Home behind the Templates modal.
+    /window\.history\.replaceState\(\{\}, '', '\/pro\/dashboard\.html' \+ window\.location\.hash\)/.test(templatesFn));
 }
 
 section('Mobile Details-tab parity round 2: Warranty Claim, Insurance Details, Job Checklist, Notes (2026-09-17)');

@@ -179,6 +179,7 @@ Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26
   - Also merged:
     - **#1844:** a declined duplicate prompt stranded a D2D knock as "converted" forever.
     - **#1845:** overdue tasks vanished from the bell after a Firestore connection cycle (`fromCache` reads).
+- **Settings deep links (R13-09):** `?settings=<tab>` (incl. Stripe Connect's return to Billing) and billing-gate's "Go to Billing" now open their tab; deep links keep the view hash. PR opened last in the session.
 - **Test-count floors:** after #1844 main is node 218 / disk 312; #1845 takes 219 / 313.
 - **Open for Jo:**
   - R13-08: show Insurance Claim Progress on cash jobs?
