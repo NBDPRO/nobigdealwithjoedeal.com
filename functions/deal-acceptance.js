@@ -49,6 +49,15 @@ const DEAL_URL_BASE = 'https://nobigdealwithjoedeal.com/deal/';
 const SUBMIT_PATH = '/api/deal-accept'; // same-origin hosting rewrite → submitDealAcceptance
 
 const VALID_TIERS = ['good', 'better', 'best'];
+// A deal past acceptance. Every Text / Email / Copy on the Close Board mints a
+// fresh token and the older ones stay pending, so a deal commonly has several
+// live links. Before 2026-09-28 only the TOKEN's status was checked: after the
+// homeowner accepted on one link, merely opening another regressed the deal to
+// 'viewed' (off the signed list, out of booked revenue), and submitting it
+// overwrote the accepted tier, price and signature and re-notified the rep.
+// The DEAL's status is now the gate at all three entry points.
+const DONE_STATUSES = ['accepted', 'signed', 'scheduled'];
+const ALREADY_ACCEPTED_MSG = 'This deal has already been accepted — your rep will reach out to confirm your installation.';
 
 // 32-char no-confusable alphabet (no 0/O, 1/I/L) — same as portal.js / remote-signing.js.
 const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -97,6 +106,9 @@ exports.createDealAcceptToken = onCall(
     const deal = dealSnap.data();
     const isAdmin = request.auth.token.role === 'admin';
     if (deal.userId !== uid && !isAdmin) throw new HttpsError('permission-denied', 'Not your deal');
+    if (DONE_STATUSES.includes(deal.status)) {
+      throw new HttpsError('failed-precondition', 'This deal is already accepted — no new link needed.');
+    }
 
     // The interactive deal-room HTML must already be uploaded to Storage by
     // the client (uploadDealPage → deal_rooms/<uid>/<dealId>.html). We serve
@@ -183,6 +195,11 @@ exports.getDealRoom = onRequest(
     const dealRoomSnap = await db.doc(`deal_rooms/${tok.dealId}`).get();
     if (!dealRoomSnap.exists) {
       errPage(410, 'This deal is no longer available. Ask your rep for an update.'); return;
+    }
+    // Accepted through a sibling link: this one must not regress the deal to
+    // 'viewed' or offer a second acceptance (see DONE_STATUSES).
+    if (DONE_STATUSES.includes((dealRoomSnap.data() || {}).status)) {
+      errPage(410, ALREADY_ACCEPTED_MSG); return;
     }
 
     // Fire-and-forget viewed stamps (do not gate the response). update(), not
@@ -303,6 +320,12 @@ exports.submitDealAcceptance = onRequest(
         const dealRoomSnap = await tx.get(dealRoomRef);
         if (!dealRoomSnap.exists) {
           const e = new Error('gone'); e._http = 410; e._msg = 'This deal is no longer available. Ask your rep for an update.'; throw e;
+        }
+        // Already accepted through a sibling link — never overwrite the
+        // recorded tier / price / signature (see DONE_STATUSES). Inside the
+        // transaction, so two links submitted at once can't both win.
+        if (DONE_STATUSES.includes((dealRoomSnap.data() || {}).status)) {
+          const e = new Error('done'); e._http = 409; e._msg = ALREADY_ACCEPTED_MSG; throw e;
         }
         const price = (t.tierPrices && t.tierPrices[tier]) || 0;
         tx.update(tokRef, { status: 'accepted', acceptedAt: FieldValue.serverTimestamp() });

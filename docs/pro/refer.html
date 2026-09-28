@@ -74,10 +74,12 @@
     margin-top:12px; padding:12px 14px; border-radius:8px;
     font-size:13px; display:none;
   }
-  .status.error { background:rgba(220,38,38,.12); color:#fca5a5;
+  /* Dark text: this page is light (--bg #faf8f5). The old #fca5a5 / #a7f3d0
+     were dark-theme colours — pale text on a pale tint. */
+  .status.error { background:rgba(220,38,38,.08); color:#991b1b;
     border:1px solid rgba(220,38,38,.45); display:block; }
   .status.success {
-    background:rgba(46,204,138,.12); color:#a7f3d0;
+    background:rgba(46,204,138,.10); color:#065f46;
     border:1px solid rgba(46,204,138,.4); display:block;
   }
   .legal { font-size:11px; color:var(--muted); line-height:1.5; margin-top:14px; }

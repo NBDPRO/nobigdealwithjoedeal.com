@@ -35,7 +35,10 @@ const SCRIPT = path.join(__dirname, '..', 'scripts', 'audit-lead-addresses.js');
  * Run the real script over `rows`, returning { code, out }.
  * Each row: { id, address, firstName?, lastName?, jobValue?, deleted? }
  */
-function runAudit(rows, argv) {
+function runAudit(rows, argv, opts) {
+  // CI itself runs with GITHUB_ACTIONS=true, which forces redaction — so each
+  // case pins the variable explicitly instead of inheriting the runner's.
+  const ciEnv = !!(opts && opts.ci);
   const docs = rows.map(r => ({ id: r.id, data: () => r }));
 
   const makeQuery = () => {
@@ -69,6 +72,8 @@ function runAudit(rows, argv) {
   const realErr = console.error;
   const realExit = process.exit;
   const realArgv = process.argv;
+  const realCi = process.env.GITHUB_ACTIONS;
+  if (ciEnv) process.env.GITHUB_ACTIONS = 'true'; else delete process.env.GITHUB_ACTIONS;
 
   let out = '';
   let code = null;
@@ -87,6 +92,7 @@ function runAudit(rows, argv) {
     Module._load = realLoad;
     console.log = realLog; console.error = realErr;
     process.exit = realExit; process.argv = realArgv;
+    if (realCi === undefined) delete process.env.GITHUB_ACTIONS; else process.env.GITHUB_ACTIONS = realCi;
   };
 
   delete require.cache[require.resolve(SCRIPT)];
@@ -128,6 +134,42 @@ const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobV
   {
     const { code } = await runAudit([CLEAN, BLANK]);
     ok('a blank address → FAIL (exit 1)', code === 1);
+  }
+
+  console.log('ADDRESS AUDIT SCRIPT — an intake lead that gave no address is missing, not broken');
+  {
+    // One per intake channel's marker (scripts/audit-lead-addresses.js isIntakeLead).
+    const intake = [
+      Object.assign({}, BLANK, { id: 'W1', webLead: true }),                              // Cal.com / web
+      Object.assign({}, BLANK, { id: 'W2', publicLeadKind: 'thursday_call' }),           // forms / Thumbtack / Thursday
+      Object.assign({}, BLANK, { id: 'W3', referredByLeadId: 'src1' }),                  // referral form
+      Object.assign({}, BLANK, { id: 'W4', convertedFromUnmatchedSms: 'sms1' }),         // SMS → lead
+    ];
+    const { code, out } = await runAudit([CLEAN].concat(intake), ['--list', '--redact']);
+    ok('blank address on every intake channel → PASS (exit 0)', code === 0);
+    ok('…all four listed under "intake lead, none given", not hidden',
+      /─── THIN\s+intake lead, none given ───\s+W1\s+W2\s+W3\s+W4\b/.test(out));
+    const { code: c2 } = await runAudit([CLEAN, intake[0], BLANK]);
+    ok('a blank CRM-entered lead (no intake marker) still fails alongside them', c2 === 1);
+    const falsy = Object.assign({}, BLANK, { id: 'F1', webLead: false, publicLeadKind: '', referredByLeadId: null });
+    const { code: c3 } = await runAudit([CLEAN, falsy]);
+    ok('empty / false markers do not count as intake (still fails)', c3 === 1);
+  }
+
+  console.log('ADDRESS AUDIT SCRIPT — public Actions logs never get customer data');
+  {
+    const { code, out } = await runAudit([CLEAN, THIN, MANGLED], ['--list'], { ci: true });
+    ok('CI --list still fails on the mangled row', code === 1);
+    ok('CI --list prints the offending doc ids', /^\s+A3$/m.test(out) && /^\s+A2$/m.test(out));
+    ok('CI --list prints no names', !/Mangled|Thin Row|Clean Row/.test(out));
+    ok('CI --list prints no addresses', !/Greenstone|Cincinnati|Hagewa/.test(out));
+    ok('CI output prints no dollar figures', !/\$/.test(out));
+    const local = await runAudit([CLEAN, MANGLED], ['--list']);
+    ok('locally --list still shows name + address (the redaction is CI-only)', /Mangled Row/.test(local.out) && /Greenstone/.test(local.out));
+    const red = await runAudit([CLEAN, MANGLED], ['--list', '--redact']);
+    ok('--redact gives the CI output locally', !/Mangled Row|Greenstone/.test(red.out) && /^\s+A3$/m.test(red.out));
+    const csv = await runAudit([CLEAN, MANGLED], ['--csv'], { ci: true });
+    ok('--csv is refused in CI (exit 2)', csv.code === 2);
   }
 
   console.log('ADDRESS AUDIT SCRIPT — soft-deleted rows are not the working set');
