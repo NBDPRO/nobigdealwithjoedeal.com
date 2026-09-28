@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Your Project · No Big Deal Home Solutions</title>
+<title>Your Project</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
 <!-- Photo system Phase 1 (2026-05-13): customer-facing surfaces use the
@@ -570,7 +570,10 @@
   </div>
 </main>
 
-<footer>
+<!-- Hidden until portal.js knows whose portal this is (renderView): while
+     "Loading your project…" showed, another contractor's homeowner saw
+     NBD's name here and in the tab title. -->
+<footer id="portalFooter" style="visibility:hidden;">
   <!-- White-label: portal.js swaps this span (and hides the link) for
        non-NBD tenants; NBD markup stays byte-identical. -->
   <span id="portalFooterBrand">© 2026 No Big Deal Home Solutions</span> <span id="portalFooterSite">·

@@ -131,6 +131,21 @@ export async function connectEmulatorsIfLocal(svc = {}) {
       connectStorageEmulator(storage, '127.0.0.1', 9199);
       _connected.st.add(storage);
     }
+    // The app's DEFAULT functions instance too. ~20 call sites do a bare
+    // `getFunctions()` later (customer-portal.js mintTokenUrl, admin-manager,
+    // d2d, dashboard-api …) and pages don't pass a functions instance here, so
+    // locally those callables hit PRODUCTION with an emulator token — portal
+    // links, Team Manager and friends were untestable in the rig. Same SDK URL
+    // everywhere (10.12.2), so this is the instance they get.
+    const app = (auth && auth.app) || (db && db.app) || (storage && storage.app) || null;
+    if (app) {
+      const { getFunctions, connectFunctionsEmulator } = await import(`${SDK}/firebase-functions.js`);
+      const defFns = getFunctions(app);
+      if (!_connected.fn.has(defFns)) {
+        connectFunctionsEmulator(defFns, '127.0.0.1', 5001);
+        _connected.fn.add(defFns);
+      }
+    }
     if (!__NBD_EMU_LOGGED) {
       __NBD_EMU_LOGGED = true;
       console.info('[nbd-emulator-connect] LOCAL emulator mode — client wired to 127.0.0.1 (auth/firestore/functions/storage). This NEVER runs in production.');

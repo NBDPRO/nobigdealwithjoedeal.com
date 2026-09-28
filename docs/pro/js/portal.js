@@ -645,7 +645,15 @@
           if (document.body) _apply(document.body.style);
         }
       } catch (e) { /* brand chrome is best-effort; portal content still renders */ }
+    } else {
+      // portal.html now ships a neutral "Your Project" title (no company
+      // name during loading); NBD's own portal gets its full title back here
+      // (companyName resolves to NBD's name on this branch).
+      document.title = 'Your Project · ' + companyName;
     }
+    // Footer was hidden while loading — reveal it now that it carries the
+    // right company.
+    try { var _pf = document.getElementById('portalFooter'); if (_pf) _pf.style.visibility = ''; } catch (_) {}
 
     // Hero
     document.getElementById('heroWrap').style.display = '';
