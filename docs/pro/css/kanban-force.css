@@ -1168,6 +1168,12 @@
   .crm-list-wrap{ display:none; }
   body.crm-list-mode #view-crm .kanban-board{ display:none !important; }
   body.crm-list-mode .crm-list-wrap{ display:block; padding:0 4px 20px; overflow:auto; }
+  /* Phones: the last card's CALL/TEXT/MAP/OPEN row could not scroll clear of
+     the fixed FAB stack + tab bar (QA 2026-09-27: OPEN covered). Same 150px
+     clearance the D2D view uses. */
+  @media (max-width:768px){
+    body.crm-list-mode .crm-list-wrap{ padding-bottom:calc(150px + env(safe-area-inset-bottom,0px) + var(--nbd-bottom-chrome,0px)); }
+  }
   .crm-list-table{ width:100%; border-collapse:collapse; font-size:12px; }
   .crm-list-table th{
     position:sticky; top:0; z-index:5;

@@ -469,6 +469,16 @@
     }
     if (confirmWrap && chk) {
       const needsConfirm = res.confidence !== 'verified';
+      // Save hard-requires a leading door number in the box (handleSubmitKnock),
+      // so offering "I've confirmed this door number" when there is none to
+      // confirm was a dead end: ticked, then rejected. Ask for the number.
+      const typed = (document.getElementById('d2d-qk-address') || {}).value || '';
+      const hasTypedNumber = !!state.extractHouseNumber(typed);
+      if (needsConfirm && !hasTypedNumber) {
+        confirmWrap.style.display = 'none';
+        if (note) note.insertAdjacentHTML('beforeend', '<div class="d2d-addr-reasons"><b>Type the door number at the start of the address</b> (e.g. "123 Main St"), then tap ✓ Verify.</div>');
+        return;
+      }
       confirmWrap.style.display = needsConfirm ? 'block' : 'none';
       chk.checked = needsConfirm ? !!(state.currentKnockEntry && state.currentKnockEntry.addrConfirmed) : true;
       // onchange is bound once at modal setup (see openQuickKnock).
@@ -675,15 +685,11 @@
     knockSaved = true;
     closeQuickKnock();
 
-    // Auto-offer lead conversion for hot dispositions
-    if (state.HOT_DISPOSITIONS.includes(savedDispo)) {
-      setTimeout(() => {
-        const dispoLabel = state.DISPOSITIONS[savedDispo]?.label || savedDispo;
-        showConversionPrompt(knockId, dispoLabel);
-      }, 400);
-    }
-    // Offer SMS follow-up for relevant dispositions (if not already converting)
-    else if (savedPhone && ['interested', 'appointment', 'storm_damage', 'ins_has_claim'].includes(savedDispo)) {
+    // Hot dispositions are already auto-converted to a CRM lead by submitKnock
+    // (core: convertToLead after save). A second "Convert Now?" prompt here
+    // contradicted the "Converted to CRM Lead" toast and its Edit First path
+    // could create a duplicate lead — so no prompt; just offer the follow-up text.
+    if (savedPhone && ['interested', 'appointment', 'storm_damage', 'ins_has_claim'].includes(savedDispo)) {
       setTimeout(async () => {
         if (await state.uiConfirm('Send follow-up text?', { okLabel: 'Yes, text them' })) {
           const knock = state.knocks.find(k => k.id === knockId);

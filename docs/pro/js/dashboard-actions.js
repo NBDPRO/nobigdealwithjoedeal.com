@@ -223,6 +223,9 @@ function hideFollowUpAlerts() {
 };
 function goToD2DFromMaps() {
   if (typeof goTo === 'function') goTo('d2d');
+  // The clicked #nav-map keeps focus, and its :focus-visible/:hover styling
+  // read as a second active item beside Door-to-Door.
+  try { const ae = document.activeElement; if (ae && ae !== document.body && !/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && typeof ae.blur === 'function') ae.blur(); } catch (e) {}
   try {
     if (!localStorage.getItem('nbd_maps_redirect_seen')) {
       if (typeof showToast === 'function') {

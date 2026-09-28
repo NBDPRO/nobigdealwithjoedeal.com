@@ -885,6 +885,7 @@
             <button id="v2jobInsurance" type="button" class="active" data-action="set-job-mode" data-arg="insurance">Insurance</button>
             <button id="v2jobCash" type="button" data-action="set-job-mode" data-arg="cash">Cash</button>
           </div>
+          <div id="v2modeHint" class="v2-mode-hint" hidden style="font-size:12px;color:var(--gold,#D4A017);margin:6px 2px 0;"></div>
 
           <!-- Wave 142: Tier selector. Drives the Good/Better/Best
                per-SQ rate ($545/$595/$660) AND the catalog-mode
@@ -1340,7 +1341,12 @@
           }
           break;
         case 'finalize':
-          if (arg) finalize(arg);
+          // finalize is async; an unhandled rejection used to fail silently
+          // after the "Rendering…" toast — no modal, no message.
+          if (arg) finalize(arg).catch(e => {
+            console.error('[V2 finalize] failed:', e);
+            if (typeof window.showToast === 'function') window.showToast('Preview failed: ' + ((e && e.message) || 'unknown error') + ' — try again.', 'error');
+          });
           break;
         case 'create-deal-room':
           createDealRoomFromEstimate();
@@ -1495,6 +1501,25 @@
     document.getElementById('v2modePerSq').classList.toggle('active', mode === 'per-sq');
     document.getElementById('v2modeLine').classList.toggle('active', mode === 'line-item');
     render();
+  }
+
+  // Per-SQ only prices when the overlay applies (Cash + a roof area). Without
+  // this, picking Per-SQ on a fresh Insurance estimate silently kept
+  // line-item pricing and the Settings tier rates looked dead.
+  function _paintModeHint() {
+    const el = document.getElementById('v2modeHint');
+    if (!el) return;
+    let msg = '';
+    if (state.mode === 'per-sq') {
+      if (!_perSqOverlayApplies()) {
+        if (state.jobMode === 'insurance') msg = 'Per-SQ pricing applies to Cash jobs — switch to Cash to use your tier rates.';
+        else msg = 'Enter the raw roof area below — Per-SQ prices from it.';
+      } else if (!(state.scope && state.scope.length)) {
+        msg = 'Add the roofing system from Items — Per-SQ then prices the job at your tier rate.';
+      }
+    }
+    el.textContent = msg;
+    el.hidden = !msg;
   }
 
   function setJobMode(jobMode) {
@@ -3320,6 +3345,7 @@
     renderCatalog();
     renderScope();
     renderPhotos();
+    _paintModeHint();
     // F7: debounced autosave on every render. Cheap — just a JSON
     // write to localStorage. Firestore backup fires on a slower
     // cadence so network blips don't cost the rep their work.
@@ -4375,7 +4401,9 @@
     // computed so the highlighted card == headline == saved grandTotal.
     if (format === 'retail-quote' && state.mode === 'per-sq' && state.jobMode !== 'insurance') {
       if (estimate.perSqTiers) {
-        meta.tiers = estimate.perSqTiers;
+        // Copy: `.recommended` is stamped below, and perSqTiers is the
+        // estimate's cached object reused by later renders.
+        meta.tiers = Object.assign({}, estimate.perSqTiers);
       } else if (window.EstimateBuilderV2 && typeof window.EstimateBuilderV2.calculateAllTiers === 'function') {
         meta.tiers = window.EstimateBuilderV2.calculateAllTiers(buildPerSqInput());
       } else {

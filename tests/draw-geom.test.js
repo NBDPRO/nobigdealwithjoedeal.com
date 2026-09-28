@@ -224,17 +224,25 @@ function runGeom(sc) {
     return { name: 'random #' + i, lines, facets, perimClosed, perimBaseArea, pitch, waste };
   });
   const LEGACY = legacyAutosave();
-  let mism = [], dsBad = [], dsDiffer = 0;
+  let mism = [], dsBad = [], dsDiffer = 0, lineGuessDropped = 0;
   for (const sc of fixed.concat(random)) {
     if (sc.legacy) { sc.lines = LEGACY.lines; sc.facets = LEGACY.facets; }
     const live = runLiveRecalc(sc), geo = runGeom(sc);
     const liveNoDs = Object.assign({}, live, { ds: null }), geoNoDs = Object.assign({}, geo, { ds: null });
-    if (JSON.stringify(liveNoDs) !== JSON.stringify(geoNoDs)) mism.push(sc.name + ': pre-L2 ' + JSON.stringify(live) + ' vs geom ' + JSON.stringify(geo));
+    // One intentional divergence (2026-09-27): the old (sum/4)^2 guess from
+    // bare lines is gone, so where pre-L2 took that branch the area is 0.
+    const src = G.computeTotals(sc.lines, sc.facets, sc.pitch === null ? undefined : sc.pitch, sc.waste === null ? undefined : sc.waste,
+      { perimClosed: sc.perimClosed, perimBaseArea: sc.perimBaseArea }).source;
+    if (src === 'none' && live.base !== geo.base) {
+      lineGuessDropped++;
+      if (geo.base !== '0 sf' || geo.sq !== '0.00 sq' || geo.gutter !== live.gutter) mism.push(sc.name + ': dropped line guess should read 0 sf / 0.00 sq, got ' + JSON.stringify(geo));
+    } else if (JSON.stringify(liveNoDs) !== JSON.stringify(geoNoDs)) mism.push(sc.name + ': pre-L2 ' + JSON.stringify(live) + ' vs geom ' + JSON.stringify(geo));
     // Per-run downspouts (L2) can only ADD: sum(ceil(run/40)) >= ceil(sum/40).
     if (Number(geo.ds) < Number(live.ds)) dsBad.push(sc.name + ': ' + geo.ds + ' < ' + live.ds);
     if (geo.ds !== live.ds) dsDiffer++;
   }
-  ok('computeTotals().text === the pre-L2 recalc()+recalcGutters() text (area, squares, gutter LF), 11 named + 250 random drawings', mism.length === 0, mism.slice(0, 3).join(' | '));
+  ok('computeTotals().text === the pre-L2 recalc()+recalcGutters() text (area, squares, gutter LF), 11 named + 250 random drawings — except the dropped bare-line guess, which reads 0', mism.length === 0, mism.slice(0, 3).join(' | '));
+  ok('the dropped bare-line guess was actually exercised (' + lineGuessDropped + ' drawings)', lineGuessDropped > 0);
   ok('per-run downspouts are never fewer than the old ceil(total/40) (' + dsDiffer + ' drawings gained one or more)', dsBad.length === 0 && dsDiffer > 0, dsBad.slice(0, 3).join(' | '));
   const leg = G.computeTotals(LEGACY.lines, LEGACY.facets, LEGACY.pitch, LEGACY.waste);
   ok('the legacy duplicate-facet drawing reads 2898 pitched sf as stored (the B4 double count, 2 x 1449) — normalizeDrawing() repairs it, below', leg.text.pitched === '2898 sf' && leg.source === 'facets');
@@ -476,7 +484,9 @@ console.log('\n[L2: the outline being traced is not area evidence]');
   const pre = G.computeTotals(open.map((l) => ({ type: l.type, dist: l.dist })), [], '1.202', '1.17');
   ok('three edges of an open outline no longer read as eave x rake (2086 sf before; the audit saw 2089 sf mid-trace)', mid.base === 0 && mid.source === 'none' && pre.text.base === '2086 sf');
   const withLine = G.computeTotals(open.concat([{ type: 0, dist: 20 }]), [], '1.202', '1.17');
-  ok('...a finished line beside them still guesses from itself only ((20/4)^2 = 25 sf)', withLine.source === 'lines' && withLine.text.base === '25 sf');
+  ok('...a finished ridge beside them is not area evidence either (no (len/4)^2 guess)', withLine.source === 'none' && withLine.base === 0);
+  const ridges = G.computeTotals([{ type: 0, dist: 142.6 }, { type: 0, dist: 142.6 }], [], '1.202', '1.17');
+  ok('two 142.6 ft ridges and no outline read 0 sf / 0 sq (QA 2026-09-27 saw 5070 sf)', ridges.base === 0 && ridges.squares === 0 && ridges.source === 'none');
 }
 console.log('\n[L2: Firestore-safe copies walk arrays by index]');
 {

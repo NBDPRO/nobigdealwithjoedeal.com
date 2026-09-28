@@ -223,10 +223,13 @@ function nbdApplyTheme(id) {
 }
 
 /* ── APPLY FONT ───────────────────────────────────────────────────── */
-function nbdApplyFont(id) {
+// opts.silent: boot-time restore of the saved font — no toast. Announcing
+// "✓ Font: NBD Default" on every page load covered the phone tab bar.
+function nbdApplyFont(id, opts) {
+  const silent = !!(opts && opts.silent);
   const f = NBD_FONTS.find(f => f.id === id);
   if (!f) return;
-  if (!_nbdUnlocked(f.plan)) { nbdToast('🔒 Font requires ' + f.plan + ' plan'); return; }
+  if (!_nbdUnlocked(f.plan)) { if (!silent) nbdToast('🔒 Font requires ' + f.plan + ' plan'); return; }
   const R = document.documentElement.style;
   R.setProperty('--fd', f.css.fd);
   R.setProperty('--fu', f.css.fu);
@@ -236,7 +239,7 @@ function nbdApplyFont(id) {
   _nbd_activeFont = id;
   localStorage.setItem('nbd-font', id);
   nbdRenderFonts();
-  nbdToast('✓ Font: ' + f.name);
+  if (!silent) nbdToast('✓ Font: ' + f.name);
 }
 
 /* ── LABELS ───────────────────────────────────────────────────────── */
@@ -516,8 +519,8 @@ window.buildWelcomeThemePicker = () => {};  // DS welcome modal — no-op, full 
   (function(){
     var mapsFont = localStorage.getItem('nbd-font');
     var legacyFont = localStorage.getItem('nbd_font');
-    if (mapsFont) nbdApplyFont(mapsFont);
-    else if (!(legacyFont && legacyFont !== 'barlow')) nbdApplyFont('nbd-default');
+    if (mapsFont) nbdApplyFont(mapsFont, { silent: true });
+    else if (!(legacyFont && legacyFont !== 'barlow')) nbdApplyFont('nbd-default', { silent: true });
     // else: a Settings-grid font is active; prefs-boot already applied it — leave it.
   })();
   nbdRenderCats();

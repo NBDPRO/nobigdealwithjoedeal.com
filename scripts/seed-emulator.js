@@ -50,16 +50,27 @@ const db = getFirestore();
 const auth = getAuth();
 const TS = Timestamp;
 
-const COMPANY_ID = 'demo-co';
+// Production shape: a tenant's companyId IS its owner's uid (subscriptions/
+// {companyId}, companyProfile/{companyId} and every companyId claim key off
+// it). A literal like 'demo-co' made the app miss the seeded subscription and
+// fall back to the Free plan — a seed artifact that read as a billing bug.
+// Assigned in seed() once the company_admin exists.
+let COMPANY_ID = null;
 const PASSWORD = 'Test123!';
 
 const USERS = [
-  { key: 'companyAdmin', email: 'companyadmin@demo.test', name: 'Casey Admin',   claims: { role: 'company_admin', companyId: COMPANY_ID } },
-  { key: 'salesRep',     email: 'salesrep@demo.test',     name: 'Sam Rep',       claims: { role: 'sales_rep',     companyId: COMPANY_ID } },
-  { key: 'viewer',       email: 'viewer@demo.test',       name: 'Val Viewer',    claims: { role: 'viewer',        companyId: COMPANY_ID } },
-  { key: 'platformAdmin',email: 'admin@demo.test',        name: 'Pat Platform',  claims: { role: 'admin',         companyId: COMPANY_ID } },
-  { key: 'demo',         email: 'demo@nobigdeal.pro',     name: 'Demo User',     claims: { role: 'demo_viewer', demo: true, companyId: COMPANY_ID } },
+  { key: 'companyAdmin', email: 'companyadmin@demo.test', name: 'Casey Admin',   role: 'company_admin' },
+  { key: 'salesRep',     email: 'salesrep@demo.test',     name: 'Sam Rep',       role: 'sales_rep' },
+  { key: 'viewer',       email: 'viewer@demo.test',       name: 'Val Viewer',    role: 'viewer' },
+  { key: 'platformAdmin',email: 'admin@demo.test',        name: 'Pat Platform',  role: 'admin' },
+  { key: 'demo',         email: 'demo@nobigdeal.pro',     name: 'Demo User',     role: 'demo_viewer', demo: true },
 ];
+
+function claimsFor(u) {
+  const c = { role: u.role, companyId: COMPANY_ID };
+  if (u.demo) c.demo = true;
+  return c;
+}
 
 async function ensureUser(u) {
   let rec;
@@ -68,7 +79,6 @@ async function ensureUser(u) {
   } catch {
     rec = await auth.createUser({ email: u.email, password: PASSWORD, displayName: u.name, emailVerified: true });
   }
-  await auth.setCustomUserClaims(rec.uid, u.claims);
   return rec.uid;
 }
 
@@ -79,12 +89,14 @@ function daysAgo(n) {
 async function seed() {
   console.log('\n[1/6] Users + custom claims');
   const uid = {};
+  for (const u of USERS) uid[u.key] = await ensureUser(u);
+  COMPANY_ID = uid.companyAdmin;
   for (const u of USERS) {
-    uid[u.key] = await ensureUser(u);
-    console.log(`  ✓ ${u.email.padEnd(24)} uid=${uid[u.key]}  claims=${JSON.stringify(u.claims)}`);
+    await auth.setCustomUserClaims(uid[u.key], claimsFor(u));
+    console.log(`  ✓ ${u.email.padEnd(24)} uid=${uid[u.key]}  claims=${JSON.stringify(claimsFor(u))}`);
   }
 
-  console.log('\n[2/6] companyProfile/demo-co (per-tenant)');
+  console.log(`\n[2/6] companyProfile/${COMPANY_ID} (per-tenant)`);
   await db.doc(`companyProfile/${COMPANY_ID}`).set({
     companyId: COMPANY_ID,
     name: 'Demo Roofing Co',
@@ -96,7 +108,7 @@ async function seed() {
   console.log('  ✓ companyProfile written');
 
   console.log('\n[3/6] Subscription (ACTIVE professional → passes billing gate)');
-  await db.doc(`subscriptions/${uid.companyAdmin}`).set({
+  await db.doc(`subscriptions/${COMPANY_ID}`).set({
     plan: 'professional', status: 'active', companyId: COMPANY_ID,
     stripeCustomerId: 'cus_emulator_demo', currentPeriodEnd: daysAgo(-30),
   });
@@ -107,9 +119,12 @@ async function seed() {
   const leadDefs = [
     { owner: 'companyAdmin', firstName: 'Maria',  lastName: 'Lopez',   stage: 'new',       jobValue: 14500 },
     { owner: 'companyAdmin', firstName: 'James',  lastName: 'Nguyen',  stage: 'inspected', jobValue: 21800 },
-    { owner: 'companyAdmin', firstName: 'Tara',   lastName: 'Boone',   stage: 'won',       jobValue: 19200 },
-    { owner: 'salesRep',     firstName: 'Derek',  lastName: 'Shaw',    stage: 'new',       jobValue: 9800  },
-    { owner: 'salesRep',     firstName: 'Priya',  lastName: 'Patel',   stage: 'quoted',    jobValue: 16400 },
+    // Real stage keys only (docs/pro/js/crm-stages.js S.*). 'won'/'quoted'
+    // are not stages: normalizeStage() falls them back to 'new', which made
+    // every board/KPI surface disagree with raw-field readers like Photos.
+    { owner: 'companyAdmin', firstName: 'Tara',   lastName: 'Boone',   stage: 'closed',             jobValue: 19200 },
+    { owner: 'salesRep',     firstName: 'Derek',  lastName: 'Shaw',    stage: 'new',                jobValue: 9800  },
+    { owner: 'salesRep',     firstName: 'Priya',  lastName: 'Patel',   stage: 'estimate_submitted', jobValue: 16400 },
   ];
   const leadIds = [];
   for (const l of leadDefs) {
@@ -134,8 +149,13 @@ async function seed() {
   console.log('\n[5/6] Estimates + customer + knock (companyId-stamped)');
   for (const l of leadIds.slice(0, 3)) {
     const ref = db.collection('estimates').doc();
+    // Classic-wizard shape: every real writer stores `raw` (the wizard
+    // re-derives squares from it on open). Without it, Edit repriced the
+    // estimate to the job minimum — a seed artifact. raw*pf(6/12)*wf/100 ≈ sq.
     await ref.set({
       userId: uid[l.owner], companyId: COMPANY_ID, leadId: l.id,
+      builder: 'classic', mode: 'cash',
+      raw: Math.round(l.sq * 100 / (1.118 * 1.15)), wf: 1.15,
       tier: 'better', tierName: 'Better', sq: l.sq,
       grandTotal: l.sq * 480, roofType: 'Gable', pitch: '6/12',
       rows: [{ code: 'RFG 240', desc: 'Architectural shingles', qty: l.sq, rate: 360, total: l.sq * 360 }],
@@ -163,7 +183,7 @@ async function verify(ctx) {
   for (const u of USERS) {
     const rec = await auth.getUser(ctx.uid[u.key]);
     const c = rec.customClaims || {};
-    const ok = c.role === u.claims.role && (u.key === 'platformAdmin' || c.companyId === COMPANY_ID);
+    const ok = c.role === u.role && (u.key === 'platformAdmin' || c.companyId === COMPANY_ID);
     console.log(`  ${ok ? '✓' : '✗'} ${u.email.padEnd(24)} claims=${JSON.stringify(c)}`);
     if (!ok && u.key !== 'platformAdmin') problems++;
   }
@@ -192,7 +212,7 @@ async function verify(ctx) {
   }
   console.log('\n✓ SEED VERIFIED — tenant is tenancy-correct (every doc carries companyId; claims match).');
   console.log(`\nLogin credentials (password for all): ${PASSWORD}`);
-  for (const u of USERS) console.log(`  ${u.claims.role.padEnd(13)} → ${u.email}`);
+  for (const u of USERS) console.log(`  ${u.role.padEnd(13)} → ${u.email}`);
 }
 
 seed().then(verify).then(() => process.exit(0)).catch(e => {
