@@ -429,7 +429,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-09-27  208/69/300 -> 209/69/301, tests/check-js-syntax.test.js
 //               (node; syntax gate page scan + per-file grammar, #1782).
 //               MEASURED via --check.
-const FLOORS = { node: 209, smoke: 69, disk: 301 };
+//   2026-09-28  209/69/301 -> 209/70/302, tests/invoice-markpaid-stage.test.js
+//               (smoke; full payment never moves a lead backward). MEASURED via --check.
+const FLOORS = { node: 209, smoke: 70, disk: 302 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

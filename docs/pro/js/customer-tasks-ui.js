@@ -498,7 +498,7 @@ window.loadProjectTimeline = async function(leadId) {
       { stage: 'adjuster_meeting_scheduled', label: 'Adjuster Meeting', icon: '📅', desc: 'Meeting scheduled' },
       { stage: 'adjuster_inspection_done', label: 'Adjuster Inspection', icon: '✓', desc: 'Adjuster completed review' },
       { stage: 'scope_received', label: 'Scope Received', icon: '📄', desc: 'Scope of work received' },
-      { stage: 'estimate_submitted', label: 'Estimate Approved', icon: '💰', desc: 'Estimate sent to customer' },
+      { stage: 'estimate_submitted', label: 'Estimate Sent', icon: '💰', desc: 'Estimate sent to customer' }, // was "Estimate Approved" — nothing is approved at this stage
       { stage: 'supplement_requested', label: 'Supplement Requested', icon: '⚙️', desc: 'Additional work requested' },
       { stage: 'supplement_approved', label: 'Supplement Approved', icon: '✓', desc: 'Supplement approved' },
       { stage: 'contract_signed', label: 'Contract Signed', icon: '✍️', desc: 'Customer signed contract' },
@@ -514,6 +514,22 @@ window.loadProjectTimeline = async function(leadId) {
       { stage: 'final_payment', label: 'Final Payment', icon: '✓', desc: 'Project paid in full' },
       { stage: 'closed', label: 'Warranty Registered', icon: '✅', desc: 'Project complete' }
     ];
+
+    // The list above is the insurance ladder. A cash / finance / warranty /
+    // custom-stage lead matched none of it (currentIndex -1 → nothing shown as
+    // reached). Use the lead's own track when the page exposes it, keeping
+    // the icons/descriptions above for the stages they cover.
+    if (typeof window._leadPipelineFor === 'function') {
+      const track = window._leadPipelineFor(lead);
+      if (Array.isArray(track) && track.length && track.includes(currentStage)) {
+        const byKey = {};
+        milestones.forEach(m => { byKey[m.stage] = m; });
+        const labelOf = (k) => (typeof window.stageLabel === 'function' && window.stageLabel(k)) || k;
+        const own = track.map(k => byKey[k] || { stage: k, label: labelOf(k), icon: '•', desc: '' });
+        milestones.length = 0;
+        own.forEach(m => milestones.push(m));
+      }
+    }
 
     // Find current stage index
     const currentIndex = milestones.findIndex(m => m.stage === currentStage);

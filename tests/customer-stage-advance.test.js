@@ -88,8 +88,12 @@ ok('progressStage does NOT carry its own hardcoded STAGE_LABELS table',
   !/STAGE_LABELS\s*=\s*\{/.test(progressFn));
 ok('progressStage calls the shared _nextStageFor rather than recomputing the ladder',
   /_nextStageFor\(/.test(progressFn));
+// 2026-09-28: the track computation moved into _pipelineFor (shared with the
+// Project Timeline); _nextStageFor calls it.
+const pipelineForStart = boot.indexOf('function _pipelineFor(');
+const pipelineForFn = pipelineForStart >= 0 ? boot.slice(pipelineForStart, pipelineForStart + 1500) : '';
 ok('_nextStageFor reads the tenant-resolved pipeline config (resolvePipelineConfig), not just built-in defaults',
-  /_resolvePipelineConfig\(window\._companyProfile/.test(nextStageFn),
+  /_pipelineFor\(lead\)/.test(nextStageFn) && /_resolvePipelineConfig\(window\._companyProfile/.test(pipelineForFn),
   'without this, a custom stage added via Settings > Pipelines stays invisible to this page');
 ok('the canonical stage config is imported (crm-stages.js), not a private hardcoded copy',
   /import\s*\{[^}]*\bstageRole\b[^}]*\}\s*from\s*["']\.\/crm-stages\.js["']/.test(boot));

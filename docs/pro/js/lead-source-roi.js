@@ -88,8 +88,14 @@
 
       const source = normalizeSource(lead.source);
       const stageKey = lead._stageKey || lead.stage || 'new';
-      const isClosed = CLOSED_STAGE_KEYS.has(stageKey);
-      const isLost   = LOST_STAGE_KEYS.has(stageKey);
+      // Semantic role (crm-stages, custom-pipeline aware) — the same test the
+      // Pipeline header and Home widgets use. The hand-copied set below missed
+      // install_complete / final_photos / collections / warranty_claim and any
+      // custom won stage, so those jobs counted as open pipeline here.
+      const role = lead._stageRole
+        || (typeof window.stageRole === 'function' ? (function () { try { return window.stageRole(stageKey); } catch (_) { return null; } })() : null);
+      const isClosed = role ? role === 'won' : CLOSED_STAGE_KEYS.has(stageKey);
+      const isLost   = role ? role === 'lost' : LOST_STAGE_KEYS.has(stageKey);
       const value    = toNum(lead.jobValue);
 
       if (!buckets[source]) {

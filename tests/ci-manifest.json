@@ -238,6 +238,11 @@
       "sales-tax line and refuse to issue any link that wouldn't charge",
       "invoice.total. Dependency-free logic mirror of functions/stripe.js."
     ],
+    "invoice-markpaid-stage.test.js": [
+      "Paying an invoice in full may move its lead FORWARD to contract_signed,",
+      "never backward: a Closed/job/lost lead stays put (2026-09-28 sweep R5-10).",
+      "Runs the real InvoicePipeline.markPaid against a stubbed Firestore."
+    ],
     "invoice-pipeline.test.js": [
       "Money-path gate: approved/partial insurance supplements must fold into",
       "invoice subtotal + total (tax-exempt, own line items) or invoices on",

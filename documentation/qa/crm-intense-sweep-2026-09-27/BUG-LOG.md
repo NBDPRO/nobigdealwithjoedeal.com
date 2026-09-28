@@ -248,3 +248,21 @@ New → Contacted (writes stage history); tasks add / check / delete; lead
 edit validation (email, 10-digit phone, `12,500` → 12500); right-click
 Delete → Deleted bin → Restore (stage, value and task count intact); phone
 list stage dropdown to a gated stage opens the editor instead of skipping.
+
+## Round 5 — 2026-09-28 (after #1820 shipped): Settings, estimate list actions
+
+| # | Finding | Fix |
+|---|---|---|
+| R5-01 | **Settings → Profile lost data on refresh.** Refreshing on `#/settings` ran the Profile loader before the bootstrap module had registered it (and before sign-in), so saved Phone / Google review link / Cal.com showed blank — and the next **Save wrote the blanks over the real values** (reproduced: phone wiped). | Tab retries until the loader exists; the loader waits for sign-in; the sign-in profile read also repaints the tab. Verified: every field survives a refresh. |
+| R5-02 | **Company / Role / License # were never saved** (a code note called them "deferred"), while Save said "Settings saved!". | Stored on the rep's own `users/{uid}` as `profileCompany` / `jobTitle` / `licenseNumber` and loaded back (never `role`, which is claims-owned). |
+| R5-03 | An invalid Google review link was silently cleared under a success toast. | Warning toast says it must start with https:// and was cleared. |
+| R5-04 | Toasts read "✓ ✓ Estimate duplicated" — callers prefix a ✓ beside the type icon. | The toast drops a leading mark that repeats its icon (app-wide, one place). |
+| R5-05 | **Reports → Lead Source ROI counted finished jobs as open pipeline.** Its hand-copied closed list missed Install Done / Final Photos / Collections / Warranty Claim and custom won stages. | Uses the shared stage role (verified: a lead at Install Done moves from pipeline to closed revenue). |
+| R5-06 | Same drift in margin analytics (`profit-tracker.js`) and the standalone Leaderboard page: Collections and Warranty Claim jobs (ROLE won in `crm-stages.js`) were not counted as won. | Profit tracker uses the stage role (list as fallback); Leaderboard list matches ROLE won. |
+| R5-07 | A non-appointment hot knock (e.g. Callback Requested) toasted **"Converted to CRM Lead — visible in your pipeline"** but is saved as a prospect, which the pipeline hides. | Toast says "Saved to Prospects — promote it when it's qualified"; appointments keep the pipeline message. Prospect → Promote to customer verified. |
+| R5-08 | Photo upload button read "Upload 1 Photos". | Singular/plural by count. (Upload itself verified: stored under the tenant, shown on the customer page.) |
+| R5-09 | *Seed:* invoices showed NBD's name/phone/logo for "Demo Roofing Co" because the seeded profile had no `brand.legalName` (real signups always write it — `createCompany` + onboarding); seeded estimate rows didn't sum to the subtotal. | Seed writes the tenant brand and rows that add up. Not a production bug. |
+| R5-10 | **Paying an invoice in full dragged a Closed job back to Contract Signed.** `markPaid` wrote `stage: contract_signed` on every payoff, whatever the lead's stage — the job left won revenue and reappeared on the board as an active contract. | Only advances a lead that hasn't reached Contract Signed / a job / won / lost. New behavioral test `invoice-markpaid-stage.test.js` (fails 4/11 on the old code). |
+| R5-11 | **Customer Project Timeline was insurance-only**: a cash / finance / warranty / custom-stage lead matched none of its milestones, so nothing showed as reached. Also labelled `estimate_submitted` "Estimate Approved". | Timeline follows the lead's own tenant-resolved track (shared `_pipelineFor`); "Estimate Sent". Verified on a cash lead at Est. Sent. |
+
+**Worked:** estimates list Duplicate (copy is unassigned by design on this list), Rename, Assign-to-customer with search, Delete; seeded estimates now carry title/address like real saves.
