@@ -75,7 +75,14 @@
   function searchLeads(query, leads) {
     const q = normalize(query);
     if (!q) return [];
-    const phoneDigits = q.replace(/\D+/g, '');
+    // Only a PHONE-SHAPED query searches phones, and only from 3 digits.
+    // Stripping every non-digit from any query turned "zzqa-imp1" (an email)
+    // into "1" and "12 oak" into "12" — every lead with that digit anywhere in
+    // its phone matched at phone strength (70), outranking the real email /
+    // address hit (CRM sweep R13, 2026-09-28). Same 3-digit floor as the
+    // Cmd+K palette (command-palette.js).
+    const phoneDigits = (/^[\d\s().+\-]+$/.test(q) && q.replace(/\D+/g, '').length >= 3)
+      ? q.replace(/\D+/g, '') : '';
     const results = [];
     for (const l of leads) {
       if (!l || l.deleted) continue;
