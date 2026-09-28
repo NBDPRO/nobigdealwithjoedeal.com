@@ -54,6 +54,7 @@
     if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_) { return 0; } }
     if (typeof v.seconds === 'number') return v.seconds * 1000;
     if (v instanceof Date) return v.getTime();
+    if (typeof v === 'string') { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
     return 0;
   }
 
@@ -87,6 +88,13 @@
     };
   }
 
+  // When an estimate reached the homeowner: the earliest stamp that proves it.
+  // 0 = never sent (a draft) — never createdAt.
+  function _sentMs(e) {
+    const ms = [e.sentAt, e.sharedAt, e.viewedAt, e.signedAt].map(_toMillis).filter(Boolean);
+    return ms.length ? Math.min.apply(null, ms) : 0;
+  }
+
   // ─── Compute metrics for a window ────────────────────────────
   function _computeWindow(start, end) {
     const leads = Array.isArray(window._leads) ? window._leads : [];
@@ -95,7 +103,13 @@
     const inWindow = (ms) => ms >= start && ms <= end;
 
     const leadsInWindow = leads.filter(l => inWindow(_toMillis(l.createdAt)));
-    const estsInWindow = ests.filter(e => inWindow(_toMillis(e.sentAt) || _toMillis(e.createdAt)));
+    // ONE definition of "sent" for the whole panel: the earliest of sentAt /
+    // sharedAt / viewedAt / signedAt — a view or a signature proves it went out.
+    // Before 2026-09-28 the close-rate denominator fell back to createdAt (an
+    // unsent DRAFT counted as "sent") while the funnel required sentAt, which the
+    // homeowner share-link flow never stamps (it writes sharedAt): the emulator
+    // showed "0 / 3 sent" beside a funnel reading Estimate sent 0 → Viewed 1.
+    const estsInWindow = ests.filter(e => { const m = _sentMs(e); return !!m && inWindow(m); });
     const signedInWindow = ests.filter(e => inWindow(_toMillis(e.signedAt)));
 
     const revenue = signedInWindow.reduce((sum, e) => sum + (Number(e.grandTotal || e.total) || 0), 0);
@@ -127,7 +141,7 @@
     const leadIds = new Set(leadsInWindow.map(l => l.id));
     ests.forEach(e => {
       if (!leadIds.has(e.leadId)) return;
-      const sentMs = _toMillis(e.sentAt);
+      const sentMs = _sentMs(e);
       if (sentMs && sentMs >= start && sentMs <= end) funnel.estimateSent++;
       // Use inWindow (both bounds) not `>= start` — a bare lower bound let
       // views/signings AFTER a custom range's end leak into the funnel.
