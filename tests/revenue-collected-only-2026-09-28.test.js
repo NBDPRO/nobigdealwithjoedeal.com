@@ -158,6 +158,29 @@ console.log('REVENUE — invoice load scoping + per-account cache');
     ok('a win counts only if it reached a won stage this week (stageStartedAt)', /touchedThisWeek\.filter\(_isWonLead\)\s*\.filter\(l => !l\.stageStartedAt \|\| timestampMillis\(l\.stageStartedAt\) >= cutoff\)/.test(wd));
   }
 
+  console.log('REVENUE — Reports weekly trend (collected, right week)');
+  {
+    const RT = read('docs/pro/js/reports-trends.js');
+    const R = loadRevenue().NBDRevenue;
+    const ctx = { window: { NBDRevenue: R }, Date, Math, Number, isNaN };
+    vm.createContext(ctx);
+    vm.runInContext(['_toMillis', '_computeWeeklyRevenue'].map((n) => extractFn(RT, n)).join('\n') + '\nglobalThis.__w = _computeWeeklyRevenue;', ctx);
+    const now = new Date();
+    const monday = new Date(now); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const M = monday.getTime(), WEEK = 7 * 86400000;
+    const invs = [
+      { leadId: 'a', total: 100, balanceDue: 0, payments: [{ amount: 100, at: new Date(Math.max(M, now.getTime() - 1000)) }] }, // this week
+      { leadId: 'b', total: 40, balanceDue: 0, payments: [{ amount: 40, at: new Date(M - 1) }] },                                   // last Sunday night
+      { leadId: 'c', total: 7, balanceDue: 0, payments: [{ amount: 7, at: new Date(M - WEEK - 1) }] },                               // two weeks back
+    ];
+    const r = ctx.__w(12, invs);
+    ok('a payment this week lands in THIS week\'s bar (was dropped off the chart)', r.buckets[11] === 100, JSON.stringify(r.buckets.slice(-3)));
+    ok('last Sunday\'s payment lands in last week\'s bar (was shown as this week)', r.buckets[10] === 40);
+    ok('two weeks back lands two bars back', r.buckets[9] === 7);
+    const rt = strip(RT);
+    ok('weekly trend + top customers/sources read collected payments, not signed estimates', !/e\.signedAt/.test(rt.slice(rt.indexOf('function _computeWeeklyRevenue'), rt.indexOf('function render()'))) && /collectedByLead/.test(rt));
+  }
+
   console.log('\n──────────────────────');
   console.log(passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }
