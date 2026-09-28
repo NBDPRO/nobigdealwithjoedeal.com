@@ -20,6 +20,7 @@
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
+    "bulk-carrier-field-2026-09-28.test.js",
     "settings-deep-link-tab-2026-09-28.test.js",
     "tasks-load-from-cache-retry-2026-09-28.test.js",
     "d2d-convert-lock-release-2026-09-28.test.js",

@@ -275,14 +275,14 @@ async function bulkDelete() {
   }
 
   try {
-    await commitBulkLeadOp(selectedIds, function (batch, ref) {
+    const { applied } = await commitBulkLeadOp(selectedIds, function (batch, ref) {
       batch.update(ref, { deleted: true, deletedAt: _serverTimestamp() });
     });
 
     await loadLeads();
     clearBulkSelection();
     toggleBulkMode();
-    showToast(`Deleted ${selectedIds.length} lead(s)`, 'ok');
+    showToast(`Deleted ${applied} lead(s)`, 'ok');
   } catch (error) {
     console.error('Bulk delete error:', error);
     showToast('Bulk delete failed: ' + (error && error.message || 'unknown error'), 'error');
@@ -300,7 +300,11 @@ async function bulkDelete() {
 // post-import cleanup ops, e.g. fixing 50 imported leads' source
 // to "Spring Hailstorm" or routing all cash deals to the cash
 // pipeline at once.
-const BULK_LEAD_FIELDS = new Set(['carrier', 'damageType', 'followUp', 'tags', 'source', 'jobType']);
+// 'insCarrier', not 'carrier' (CRM sweep R14, 2026-09-28): the lead form,
+// claim core, KY-law checks, photo report and card detail all read
+// insCarrier FIRST, so a bulk-set 'carrier' was invisible wherever a carrier
+// was already on file, and the Edit Lead form never showed it.
+const BULK_LEAD_FIELDS = new Set(['insCarrier', 'damageType', 'followUp', 'tags', 'source', 'jobType']);
 
 async function bulkAssignField(field, value, label) {
   if (!BULK_LEAD_FIELDS.has(field)) {
@@ -321,7 +325,7 @@ async function bulkAssignField(field, value, label) {
 
   const ids = Array.from(selSet);
   try {
-    await commitBulkLeadOp(ids, function (batch, ref) {
+    const { applied } = await commitBulkLeadOp(ids, function (batch, ref) {
       const patch = {};
       patch[field] = value;
       patch.updatedAt = _serverTimestamp();
@@ -339,7 +343,7 @@ async function bulkAssignField(field, value, label) {
 
     clearBulkSelection();
     toggleBulkMode();
-    showToast(`Updated ${ids.length} lead(s) → ${label || field}: ${value}`, 'ok');
+    showToast(`Updated ${applied} lead(s) → ${label || field}: ${value}`, 'ok');
   } catch (error) {
     console.error('Bulk assign error:', error);
     showToast('Bulk update failed: ' + (error && error.message || 'unknown error'), 'error');
@@ -350,7 +354,7 @@ async function bulkAssignCarrier() {
   const sel = document.getElementById('bulkCarrierSelect');
   const value = sel && sel.value;
   if (!value) { showToast('Pick a carrier first', 'error'); return; }
-  return bulkAssignField('carrier', value, 'Carrier');
+  return bulkAssignField('insCarrier', value, 'Carrier');
 }
 
 async function bulkAssignDamage() {
