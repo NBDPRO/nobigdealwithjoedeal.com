@@ -137,14 +137,19 @@ export async function connectEmulatorsIfLocal(svc = {}) {
     // locally those callables hit PRODUCTION with an emulator token — portal
     // links, Team Manager and friends were untestable in the rig. Same SDK URL
     // everywhere (10.12.2), so this is the instance they get.
+    // NOT awaited: pages top-level-await this function, and fetching the
+    // functions SDK here delayed every page's own setup (pricing.html's
+    // window.subscribe went missing in the public E2E). Those callables fire
+    // on user actions, long after this resolves.
     const app = (auth && auth.app) || (db && db.app) || (storage && storage.app) || null;
     if (app) {
-      const { getFunctions, connectFunctionsEmulator } = await import(`${SDK}/firebase-functions.js`);
-      const defFns = getFunctions(app);
-      if (!_connected.fn.has(defFns)) {
-        connectFunctionsEmulator(defFns, '127.0.0.1', 5001);
-        _connected.fn.add(defFns);
-      }
+      import(`${SDK}/firebase-functions.js`).then(({ getFunctions, connectFunctionsEmulator }) => {
+        const defFns = getFunctions(app);
+        if (!_connected.fn.has(defFns)) {
+          connectFunctionsEmulator(defFns, '127.0.0.1', 5001);
+          _connected.fn.add(defFns);
+        }
+      }).catch((e) => console.warn('[nbd-emulator-connect] functions connect warning:', e && e.message));
     }
     if (!__NBD_EMU_LOGGED) {
       __NBD_EMU_LOGGED = true;
