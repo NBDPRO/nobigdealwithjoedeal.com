@@ -845,9 +845,30 @@ document.addEventListener('click', function _nbdActionDelegate(e) {
 // ══════════════════════════════════════════════
 // CAL.COM SCHEDULING FUNCTIONS
 // ══════════════════════════════════════════════
+// "https://cal.com/joe/roof-inspection", "cal.com/joe", "@joe" → {username, slug}.
+// Pasting the booking link here used to build cal.com/https://cal.com/joe/…
+function _parseCalInput(rawUser, rawSlug) {
+  const parts = String(rawUser || '').trim()
+    .replace(/^https?:\/\//i, '').replace(/^(www\.)?cal\.com\//i, '').replace(/^@+/, '')
+    .split(/[?#]/)[0].split('/').filter(Boolean);
+  return {
+    username: (parts[0] || '').toLowerCase().slice(0, 60),
+    eventSlug: String(rawSlug || '').trim().replace(/^\/+|\/+$/g, '') || parts[1] || '',
+  };
+}
+
 function loadCalSettings() {
   try {
-    const saved = localStorage.getItem('nbd_cal_settings');
+    // users/{uid}.calcomUsername (Settings → Cal.com) is the real setting —
+    // the webhook routes bookings by it, and it survives sign-out, which wipes
+    // this page's old nbd_cal_settings cache. Prefer it; the cache is legacy.
+    const rep = window._currentRep || {};
+    let saved = null;
+    if (rep.calcomUsername) {
+      saved = JSON.stringify({ username: rep.calcomUsername, eventSlug: rep.calcomEventSlug || 'roof-inspection' });
+    } else {
+      saved = localStorage.getItem('nbd_cal_settings');
+    }
     if (saved) {
       const s = JSON.parse(saved);
       const uEl = document.getElementById('calUsername');
@@ -864,12 +885,24 @@ function loadCalSettings() {
 }
 
 const saveCalSettings = function() {
-  const username = (document.getElementById('calUsername')?.value || '').trim();
-  const eventSlug = (document.getElementById('calEventSlug')?.value || '').trim();
+  const uEl = document.getElementById('calUsername');
+  const eEl = document.getElementById('calEventSlug');
+  const { username, eventSlug } = _parseCalInput(uEl?.value, eEl?.value);
   if (!username) { showToast('Enter your Cal.com username', 'error'); return; }
   if (!eventSlug) { showToast('Enter your event type slug', 'error'); return; }
+  if (uEl) uEl.value = username;
+  if (eEl) eEl.value = eventSlug;
   const settings = { username, eventSlug };
-  localStorage.setItem('nbd_cal_settings', JSON.stringify(settings));
+  try { localStorage.setItem('nbd_cal_settings', JSON.stringify(settings)); } catch (_) {}
+  // Same field Settings → Cal.com writes, so the two stay one setting.
+  try {
+    if (window.db && window.doc && window.setDoc && window._user) {
+      window.setDoc(window.doc(window.db, 'users', window._user.uid),
+        { calcomUsername: username, calcomEventSlug: eventSlug }, { merge: true })
+        .catch(() => showToast('Saved on this device only — couldn’t sync to your account', 'warning'));
+    }
+    window._currentRep = Object.assign({}, window._currentRep || {}, { calcomUsername: username, calcomEventSlug: eventSlug });
+  } catch (_) {}
   const urlEl = document.getElementById('calBookingUrl');
   if (urlEl) urlEl.value = 'https://cal.com/' + username + '/' + eventSlug;
   updateCalEmbed();
@@ -980,6 +1013,9 @@ const updateCalEmbed = function() {
 const copyCalLink = function() {
   const urlEl = document.getElementById('calBookingUrl');
   if (!urlEl) return;
+  // Same guard as the Text/Email siblings below — with no Cal.com username
+  // saved this copied an empty string and still said "Booking link copied!".
+  if (!urlEl.value) { showToast('Set up your booking link first', 'error'); return; }
   navigator.clipboard.writeText(urlEl.value).then(() => showToast('Booking link copied!')).catch(() => {
     urlEl.select(); document.execCommand('copy'); showToast('Booking link copied!');
   });

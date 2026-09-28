@@ -56,7 +56,7 @@ async function buildJobsLayer() {
         geo = _jobsGeocodeCache.get(key);
       } else {
         if (liveRequests >= _JOBS_GEOCODE_CAP) continue; // respect fair-use
-        geo = await geocode(addr);
+        geo = await geocode(addr, { quiet: true });
         _jobsGeocodeCache.set(key, geo || null);
         liveRequests++;
         // Nominatim fair-use: ≥ 1 req/s. Previous 180ms = 5.5 req/s and
@@ -81,9 +81,9 @@ async function buildJobsLayer() {
       });
       const m = L.marker([parseFloat(geo.lat),parseFloat(geo.lon)],{icon});
       m.bindPopup(`<div style="font-family:sans-serif;min-width:160px;">
-        <b style="font-size:13px;color:${esc(color)};">${esc(lead.name||'Lead')}</b>
+        <b style="font-size:13px;color:${esc(color)};">${esc(((lead.firstName||'')+' '+(lead.lastName||'')).trim()||lead.name||'Lead')}</b>
         <p style="font-size:11px;color:#666;margin:4px 0;">${esc(addr)}</p>
-        <p style="font-size:11px;margin:2px 0;"><b>Stage:</b> ${esc(lead.stage)}</p>
+        <p style="font-size:11px;margin:2px 0;"><b>Stage:</b> ${esc((typeof window.stageLabel==='function'&&window.stageLabel(_stg))||_stg)}</p>
         ${val>0?`<p style="font-size:12px;font-weight:700;color:${esc(color)};">$${val.toLocaleString()}</p>`:''}
       </div>`);
       jobMarkers.push(m);

@@ -3399,7 +3399,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
     modal.id = 'docgenFillModal';
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10010;';
     modal.innerHTML = `
-      <div style="background:#fff;border-radius:12px;max-width:600px;width:95%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="background:#fff;color:#12223d;border-radius:12px;max-width:600px;width:95%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;">
         <div style="padding:20px 24px;border-bottom:2px solid #eee;display:flex;justify-content:space-between;align-items:center;">
           <div><div style="font-size:10px;color:#1a3057;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">Generate Document</div>
           <div style="font-size:18px;font-weight:700;color:#12223d;font-family:'Helvetica Neue',Arial,sans-serif;">${docName}</div></div>
@@ -3472,10 +3472,23 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
     // Submit handler
     window._docgenSubmit = function(type) {
       const data = {};
+      const missing = [];
       fields.forEach(f => {
         const el = document.getElementById('docgen_'+f.name);
-        if (el) data[f.name] = el.value;
+        if (el) {
+          data[f.name] = el.value;
+          // The * was decorative: a certificate generated with a blank
+          // homeowner or "work performed" line. (Blank hand-fill copies go
+          // through the row's separate Blank button, not this form.)
+          const empty = f.required && !String(el.value || '').trim();
+          el.style.borderColor = empty ? '#dc2626' : '#ddd';
+          if (empty) missing.push(f.label);
+        }
       });
+      if (missing.length) {
+        if (typeof window.showToast === 'function') window.showToast('Fill in: ' + missing.join(', '), 'error');
+        return;
+      }
       // NEW-D2: thread the chosen lead through so generate()'s _leadIdEarly is
       // non-null and the document actually persists to leads/{id}/documents +
       // Storage (and the e-sign hook can arm). The "Auto-fill from Lead" select

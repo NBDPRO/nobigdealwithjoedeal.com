@@ -358,6 +358,19 @@ window.toggleTask = async function(taskId, newDoneState) {
 // 9s). Themed surface, type left-borders, bottom-right stacking container,
 // per-type durations, dismissible.
 window.showToast = function(message, type = 'info') {
+  // Object form, same shape the dashboard toast takes:
+  // { message, type, duration, undoAction, undoText }. progressStage's
+  // required-field block passes one, and this page rendered it as
+  // "[object Object]" — the rep never learned which field was missing.
+  let duration = null, actionFn = null, actionText = '';
+  if (message && typeof message === 'object') {
+    const o = message;
+    type = o.type || type;
+    duration = typeof o.duration === 'number' ? o.duration : null;
+    actionFn = typeof o.undoAction === 'function' ? o.undoAction : null;
+    actionText = o.undoText || 'Undo';
+    message = o.message != null ? o.message : '';
+  }
   const DURATIONS = { success: 4000, info: 5000, warning: 7000, error: 9000 };
   let container = document.getElementById('toastContainer');
   if (!container) {
@@ -406,6 +419,14 @@ window.showToast = function(message, type = 'info') {
   close.style.cssText = 'background:none;border:none;color:var(--m,#8a93a8);cursor:pointer;font-size:12px;padding:2px 4px;flex-shrink:0;';
   close.addEventListener('click', () => toast.remove());
   toast.appendChild(msg);
+  if (actionFn) {
+    const act = document.createElement('button');
+    act.type = 'button';
+    act.textContent = actionText;
+    act.style.cssText = 'background:none;border:1px solid var(--br,rgba(255,255,255,.2));border-radius:6px;color:var(--orange,#e8720c);cursor:pointer;font-size:12px;font-weight:700;padding:4px 8px;flex-shrink:0;';
+    act.addEventListener('click', () => { toast.remove(); try { actionFn(); } catch (_) {} });
+    toast.appendChild(act);
+  }
   toast.appendChild(close);
   container.appendChild(toast);
   setTimeout(() => {
@@ -413,7 +434,7 @@ window.showToast = function(message, type = 'info') {
     toast.style.opacity = '0';
     toast.style.transform = 'translateX(16px)';
     setTimeout(() => { if (toast.parentNode) toast.remove(); }, 260);
-  }, DURATIONS[type] || 5000);
+  }, duration || DURATIONS[type] || 5000);
 };
 
 // Entry animation keyframes. The slide is 16px, not 40px (and the exit

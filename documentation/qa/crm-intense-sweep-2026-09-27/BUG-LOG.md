@@ -215,3 +215,36 @@ Opened Tara Boone's own **customer detail page** directly (`/pro/customer?id=...
 - **Rep OS** "Generate Today's Briefing" produces a sensible daily plan (schedule blocks, mindset note, quick actions) with no errors, entirely from local heuristics — no backend dependency to fail in the emulator.
 - **Daily Success** (standalone `/pro/daily-success` PWA-style tool) correctly persists localStorage state across reload — toggled a daily floor checkbox, saved, reloaded, and the checked state + score survived (aside from the unrelated chart bug in NEW-22).
 - **Settings → Estimates → Weekly Digest checkbox** (a historically-reported non-round-tripping bug from a prior QA campaign) is now fixed and holds correctly across save + reload.
+
+## Round 4 — 2026-09-28 (sales-rep role, lead lifecycle, customer page, phone) — found and fixed in the same PR
+
+Emulator re-seeded production-shaped; functions emulator loaded (needs
+`FUNCTIONS_DISCOVERY_TIMEOUT=90` — the 10 s default times out on this machine).
+Logged in as `sales_rep`. Each fix was re-checked in the browser.
+
+| # | Finding | Fix |
+|---|---|---|
+| R4-01 | **Home shows form-created leads by their address.** The lead form writes `firstName`/`lastName` and never `name`; Hot Leads, Recent Activity, Stale Leads and Close Board read `l.name` only (the seed writes `name`, so the emulator hid it). Same read on the Photos lead picker ("Unknown — address"), the Jobs map popup, Ask Joe alerts ("Hot lead: Unknown"), the Leaderboard feed and the **inspection report's homeowner line ("N/A")**. | First/last name first, then `name`, at every site. |
+| R4-02 | **Close Board summed `estValue \|\| value`** — fields a lead doesn't have — so it always read $0 closeable. (Pipeline Value had the same bug, fixed 2026-06-21; this sibling was missed.) | `jobValue` first, legacy fallbacks after. |
+| R4-03 | **Red "Address not found" after a successful save**, on every save of a lead with no map coordinates, and once per unmappable lead while the Customers/Jobs map layers geocode in the background. | `geocode(q, {quiet:true})` for background + save callers; the save shows one plain info note only when the address is new or changed. |
+| R4-04 | **Customer page stage badge stayed on the old stage** after "Move to …" succeeded (button and toast had advanced). | Badge updated in place; badge + background refresh use the tenant-aware label (a custom stage no longer reads "New Lead"). |
+| R4-05 | **"[object Object]" toast** when a customer-page stage move is blocked by required fields — the page's `showToast` didn't accept the object form, so the rep never saw which field was missing or the "Open full editor" button. | Object form + action button supported. |
+| R4-06 | Blocked-move message listed raw keys ("insCarrier, claimNumber"). | Shared `REQUIRED_FIELD_LABELS` in `crm-stages.js` → "Carrier, Claim #". |
+| R4-07 | **Retired AOB checkbox visible and tickable** in the lead editor: `<div class="mrow" hidden>` but `.mrow{display:grid}` beats the UA `[hidden]` rule. Same pattern put an **empty red ⛈ storm pill** on every phone job-detail sheet without a hail hit. | `.mrow[hidden]` / `.m-jd-storm[hidden]` → `display:none`. Scanned 19 other Pro pages for `[hidden]` elements that still render: none. |
+| R4-08 | Raw stage keys ("Stage: contacted") in the Deleted-leads bin, overdue follow-up notifications and the customer timeline. | Stage labels. |
+| R4-09 | Invoice dialog on a customer with no estimates was a bare "Enter estimate ID" box. | Says there are no estimates yet and to build one first. |
+| R4-11 | **Pasting a Cal.com link as the username broke every booking link.** Schedule page built `cal.com/https://cal.com/joe/roof-inspection`; Settings saved `https://cal.com/joe` as `calcomUsername`, so texted/emailed links were broken and `calcomWebhook` could not match bookings to the rep. Also the Schedule page's Cal.com box was a separate localStorage-only setting (ignored Settings, wiped at sign-out), and **Copy Link said "Booking link copied!" while copying nothing** when unset; Open Full Page silently did nothing. | Both inputs reduce a pasted link to username (+ slug); the Schedule box reads/writes `users/{uid}.calcomUsername/calcomEventSlug` (verified: survives a local-storage wipe); Copy / Open say "Set up your booking link first". **Prod follow-up:** users already saved with a URL-shaped `calcomUsername` stay broken until re-saved. |
+| R4-12 | **Templates → any generator: form labels invisible** — near-white app text on the form's hard-coded white panel ("Auto-fill from Lead", "Homeowner Name*" …). And the required `*` fields weren't enforced: a Warranty Certificate generated with a blank "Work Performed". Insurance section header said "6 docs" over 5. | Panel sets its own dark text; required fields outlined red + "Fill in: …" toast; header 5. (Generate → auto-save to the lead → "Save to Customer" updates that copy, no duplicate — verified.) |
+| R4-13 | **Refreshing Team Manager (`#/admin`) bounced every owner to the Dashboard** with "Admin access required": the route ran before sign-in resolved. Related: the nav gate could run in the gap between `_user` and `_userClaims` and never re-run. Owners also saw a raw rules error ("Could not load inbound texts: …") for the platform-admin-only unknown-number inbox, and **their own row always said "0 leads"** (hard-coded in `listTeamMembers`). | Route waits for a signed-in, claims-loaded gate verdict; nav gate re-runs when claims land; inbox panel only for platform admins; owner lead count computed. *Seed:* now writes `companies/{id}` + `members/{email}` (roster read 1 member and analytics 0 leads without them — artifacts). |
+| R4-10 | **Viewer's right-click menu offered every write** (Edit, Add task, Move, Snooze, portal links, Delete). Each was refused on click (the role gate held), but Delete opened a "Move to Deleted?" dialog with only Cancel. | Viewer menu shows View details / Call / Copy phone / Copy address / Open in Maps. Drag and Log Contact were already refused with a clear toast. |
+
+**Not bugs (rig artifacts):** the "AOB required for Claim Filed" block was a
+stale cached `crm-stages.js` (source dropped it 2026-09-27); "Couldn't copy
+link: internal" on Copy Portal Link is the emulator page calling the
+*production* `createPortalToken` with an emulator token.
+
+**Worked:** Quick Add validation → prefilled full form → save; kanban drag
+New → Contacted (writes stage history); tasks add / check / delete; lead
+edit validation (email, 10-digit phone, `12,500` → 12500); right-click
+Delete → Deleted bin → Restore (stage, value and task count intact); phone
+list stage dropdown to a gated stage opens the editor instead of skipping.

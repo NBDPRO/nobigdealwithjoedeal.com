@@ -18,6 +18,7 @@ import {
   stageLabel as _stageLabel, actionsForStage as _actionsForStage,
   preferredActionFor as _preferredActionFor,
   isJobStage as _isJobStage, isTerminalStage as _isTerminalStage,
+  requiredFieldLabel as _requiredFieldLabel,
 } from "./crm-stages.js";
 import { commitStageChange as _commitStageChange } from "./stage-write.js";
 // dashboard-bootstrap.module.js exposes these identically; mirrored here so
@@ -424,7 +425,8 @@ function _revalidateLeadInBackground(id, hydratedLead) {
         if (stageEl && fresh.stage) {
           // _stageLabel is module-scope (imported at the top of this file),
           // reachable from this closure directly — no window bridge needed.
-          stageEl.textContent = _stageLabel(fresh.stage) || fresh.stage;
+          stageEl.textContent = window.stageLabel(fresh.stage) || fresh.stage;
+          stageEl.className = 'stage-badge stage-' + String(fresh.stage).toLowerCase().replace(/[_\s]+/g, '-');
         }
       } catch (e) { /* non-fatal */ }
     } catch (e) {
@@ -634,7 +636,9 @@ async function loadCustomerData(id) {
     // need (Wave 14, for that OTHER function's lack of module-scope access
     // to a locally-const'd map) is no longer necessary now that both call
     // sites reach the same imported function instead of a local copy.
-    stageBadge.textContent = _stageLabel(stage) || stage;
+    // window.stageLabel (defined above) reads the tenant's pipeline config; the
+    // bare import normalizes an unknown custom key to 'new' → "New Lead".
+    stageBadge.textContent = window.stageLabel(stage) || stage;
     stageBadge.className = 'stage-badge stage-' + stage.toLowerCase().replace(/[_\s]+/g, '-');
 
     // ── Days-in-stage badge ──
@@ -1159,7 +1163,7 @@ async function loadTimeline(leadId, lead) {
       timeline.push({
         time: h.timestamp ? new Date(h.timestamp) : new Date(),
         icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M3 10a7 7 0 0112.9-3.7L17 5"/><path d="M17 10a7 7 0 01-12.9 3.7L3 15"/><path d="M17 2v3h-3M3 18v-3h3"/></svg>',
-        title: `Stage: ${h.from} → ${h.to}`,
+        title: `Stage: ${(h.from && window.stageLabel(h.from)) || h.from} → ${(h.to && window.stageLabel(h.to)) || h.to}`,
         desc: h.user || 'System',
         type: 'stage'
       });
@@ -2301,7 +2305,7 @@ window.progressStage = async function() {
     if (missing.length) {
       if (window.showToast) {
         window.showToast({
-          message: `Can't move to "${label}" yet — missing: ${missing.join(', ')}.`,
+          message: `Can't move to "${label}" yet — missing: ${missing.map(_requiredFieldLabel).join(', ')}.`,
           type: 'error',
           duration: 8000,
           undoAction: () => { window.location.href = '/pro/dashboard?lead=' + window._customerId; },
@@ -2332,6 +2336,16 @@ window.progressStage = async function() {
     if (window._leadDoc) window._leadDoc.stage = nextStage;
 
     if (window.showToast) window.showToast('✓ Stage moved to ' + label, 'success');
+
+    // The header stage pill — it kept showing the OLD stage until a reload
+    // while the button beside it had already advanced.
+    try {
+      const stageBadge = document.getElementById('customerStage');
+      if (stageBadge) {
+        stageBadge.textContent = label;
+        stageBadge.className = 'stage-badge stage-' + String(nextStage).toLowerCase().replace(/[_\s]+/g, '-');
+      }
+    } catch (_) {}
 
     // Re-render whatever on this page reflects the stage: the button's own
     // "next stage" label (recomputed from the NEW current stage), and the
@@ -3748,7 +3762,7 @@ async function _gatherTimelineForReport(leadId, lead) {
     lead.stageHistory.forEach(h => {
       timeline.push({
         time: h.timestamp ? new Date(h.timestamp) : new Date(0),
-        title: `Stage: ${h.from || '?'} → ${h.to || '?'}`,
+        title: `Stage: ${(h.from && window.stageLabel(h.from)) || h.from || '?'} → ${(h.to && window.stageLabel(h.to)) || h.to || '?'}`,
         desc:  h.user || 'System',
         type:  'stage'
       });

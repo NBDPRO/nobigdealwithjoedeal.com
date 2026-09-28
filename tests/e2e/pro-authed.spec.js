@@ -240,7 +240,10 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
     // Lead card should now show in some column with our [E2E] prefix.
     // We don't bind to a specific stage column because crm.js is free
     // to bucket new leads in different stages depending on view config.
-    const card = page.locator(`text=/\\[E2E\\] Smith.*${stamp}/i`).first();
+    // Scoped to the CRM view: since 2026-09-28 the (hidden) Home widgets name
+    // form-created leads too, so an unscoped .first() matched a Recent
+    // Activity row under display:none instead of the kanban card.
+    const card = page.locator('#view-crm').locator(`text=/\\[E2E\\] Smith.*${stamp}/i`).first();
     await expect(card, 'new [E2E] lead card visible in kanban').toBeVisible({ timeout: 8_000 });
 
     // Read the saved doc back via Firestore SDK to lock in companyId

@@ -454,6 +454,14 @@
       container.innerHTML = '<div class="empty" style="padding:24px;"><div class="empty-icon">⚠️</div>Inbound triage not ready.</div>';
       return;
     }
+    // Platform-admin-only collection (rules: isAdmin()). Don't query it for a
+    // company owner at all — the denial surfaced as a raw rules error, and the
+    // offline cache could briefly paint an empty "inbox" instead.
+    if (!(window._userClaims && window._userClaims.role === 'admin')) {
+      const panel = container.closest('.panel');
+      if (panel) panel.style.display = 'none';
+      return;
+    }
     container.innerHTML = '<div class="empty" style="padding:24px;"><div class="empty-icon">⏳</div>Loading inbound texts…</div>';
     try {
       // unmatched_sms has no companyId (an unknown number has no tenant), and
@@ -463,6 +471,14 @@
       snap.forEach((d) => docs.push(Object.assign({ id: d.id }, d.data())));
       renderInboundTexts(T.triageInbound(docs));
     } catch (e) {
+      // unmatched_sms is platform-admin-only (see above). A company owner
+      // opening Team Manager hit the rule and saw the raw Firestore error
+      // ("Missing or insufficient permissions") — hide the panel instead.
+      if (e && (e.code === 'permission-denied' || /insufficient permissions|false for 'list'/i.test(e.message || ''))) {
+        const panel = container.closest('.panel');
+        if (panel) panel.style.display = 'none';
+        return;
+      }
       container.innerHTML = '<div class="empty" style="padding:24px;"><div class="empty-icon">⚠️</div>Could not load inbound texts: ' + escapeHTML(e && e.message || 'error') + '</div>';
     }
   }
@@ -552,11 +568,14 @@
     applyGate();
     // Re-check gate on auth-state flips. The main auth listener sets
     // window._user + window._userClaims, so just poll for a change.
-    let lastUid = null;
+    // Keyed on uid AND whether claims have landed: _user is set before
+    // _userClaims, and a gate run in that gap decided "not admin" and was
+    // never re-run for the same uid (Team Manager nav stayed hidden).
+    let lastKey = null;
     setInterval(() => {
-      const uid = window._user?.uid || null;
-      if (uid !== lastUid) {
-        lastUid = uid;
+      const key = (window._user?.uid || '') + '|' + (window._userClaims ? 'c' : '');
+      if (key !== lastKey) {
+        lastKey = key;
         applyGate();
       }
     }, 1000);
@@ -569,6 +588,26 @@
     window.goTo = function (name, params) {
       const result = origGoTo.apply(this, arguments);
       if (name === 'admin') {
+        // Refreshing on #/admin routes here before sign-in resolves, when the
+        // gate hasn't run yet — that bounced every owner to the Dashboard with
+        // "Admin access required". Wait for a gate verdict on a signed-in user.
+        if (!state.canManage && (!window._user || !state.gatedChecked || state.gateUid !== window._user.uid)) {
+          const started = Date.now();
+          const retry = async () => {
+            // _user lands before _userClaims (an await apart in the bootstrap).
+            if (window._user && window._userClaims) {
+              await applyGate();
+              state.gateUid = window._user.uid;
+              if (window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0] !== 'admin') return; // user moved on
+              if (state.canManage) { if (!state.loaded) { loadMembers(); loadAnalytics(); loadInboundTexts(); } }
+              else { toast('Admin access required', 'error'); origGoTo('dash'); }
+              return;
+            }
+            if (Date.now() - started < 15000) setTimeout(retry, 300);
+          };
+          setTimeout(retry, 0);
+          return result;
+        }
         if (!state.canManage) {
           toast('Admin access required', 'error');
           origGoTo('dash');

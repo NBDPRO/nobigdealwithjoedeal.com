@@ -1722,7 +1722,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         <select id="nbd-inv-est-pick" class="fi" style="margin-top:6px;">
           ${estOptions}
           <option value="__manual__">Other — enter an estimate ID…</option>
-        </select>` : ''}
+        </select>` : `
+        <div style="font-size:12px;color:var(--m);margin-top:6px;line-height:1.45;">This customer has no estimates yet. Build one first (Template Quote or Estimates), then invoice from it — or paste an estimate ID below.</div>`}
         <input id="nbd-inv-est-id" type="text" class="fi" placeholder="Enter estimate ID..." style="margin-top:6px;"${leadEstimates.length ? ' hidden' : ''}>
         <div style="display:flex;gap:8px;margin-top:20px;">
           <button id="nbd-inv-cancel" type="button" class="btn btn-ghost" style="flex:1;justify-content:center;">Cancel</button>

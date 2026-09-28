@@ -238,6 +238,8 @@ function goToD2DFromMaps() {
 function openCalBookingUrl() {
   const input = document.getElementById('calBookingUrl');
   if (input && input.value) window.open(input.value, '_blank', 'noopener');
+  // Was a silent no-op with no Cal.com username saved.
+  else if (typeof window.showToast === 'function') window.showToast('Set up your booking link first', 'error');
 };
 function hardResetTest() {
   if (typeof window.__nbdHardReset === 'function') window.__nbdHardReset();
@@ -533,7 +535,9 @@ function goTo(name, params = {}) {
       window._leads.forEach(l => {
         const opt = document.createElement('option');
         opt.value = l.id;
-        opt.textContent = (l.name || 'Unknown') + ' — ' + (l.address || 'No address');
+        // Form-created leads carry firstName/lastName, not `name`.
+        const nm = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || 'Unknown';
+        opt.textContent = nm + ' — ' + (l.address || 'No address');
         sel.appendChild(opt);
       });
       // Restore last selected lead

@@ -3170,7 +3170,9 @@
       const d = data || {};
       return Object.assign({}, base, {
         address: d.address || base.address,
-        name: d.ownerName || base.name,
+        // Form-created leads carry firstName/lastName, not `name` — reading
+        // base.name alone printed "N/A" as the homeowner on the report.
+        name: d.ownerName || ((base.firstName || '') + ' ' + (base.lastName || '')).trim() || base.name,
         phone: d.phone || base.phone,
         email: d.email || base.email
       });

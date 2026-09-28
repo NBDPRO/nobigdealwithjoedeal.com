@@ -622,7 +622,7 @@ async function renderDeletedDrawer() {
     const addr = escHtml((l.address||'').split(',').slice(0,2).join(','));
     const deletedDate = escHtml(l.deletedAt?.toDate ? l.deletedAt.toDate().toLocaleDateString() : 'Recently');
     const val = l.jobValue ? ' · $'+parseFloat(l.jobValue).toLocaleString() : '';
-    const stage = escHtml(l.stage || 'New');
+    const stage = escHtml((typeof window.stageLabel === 'function' && l.stage && window.stageLabel(l.stage)) || l.stage || 'New');
     const safeId = escHtml(l.id);
     return `<div class="deleted-card" id="dc-${safeId}">
       <div class="deleted-card-name">${name}</div>

@@ -7,9 +7,10 @@
  * Auth + Firestore emulator host env vars are present (set automatically by
  * `firebase emulators:exec`). RULE 0 guard.
  *
- * What it creates (companyId = 'demo-co' for the whole tenant):
+ * What it creates (companyId = the company_admin's uid, as in production):
  *   - 4 role users + 1 demo user, each with custom claims { role, companyId }
- *   - companyProfile/demo-co (per-tenant, Audit #2 scoped)
+ *   - companyProfile/{companyId} (per-tenant, Audit #2 scoped)
+ *   - companies/{companyId} + members/{email} for the sales rep and viewer
  *   - an ACTIVE professional subscription for the company_admin (billing gate)
  *   - leads owned by BOTH the company_admin and a sales_rep (lead reads are
  *     gated on userId ownership per firestore.rules:74, so each operator needs
@@ -107,6 +108,23 @@ async function seed() {
   });
   console.log('  ✓ companyProfile written');
 
+  // companies/{id} + its members roster, as createCompany and the invite /
+  // createTeamMember flows write them. Without these, Team Manager listed only
+  // the owner and getAdminAnalytics (which scopes by owner + member uids)
+  // reported zero leads — seed artifacts that read as product bugs.
+  await db.doc(`companies/${COMPANY_ID}`).set({
+    name: 'Demo Roofing Co', ownerId: uid.companyAdmin, status: 'active',
+    plan: 'professional', source: 'emulator-seed', createdAt: daysAgo(120),
+  }, { merge: true });
+  for (const u of USERS) {
+    if (u.key === 'companyAdmin' || u.role === 'admin' || u.demo) continue; // owner is listed from ownerId; platform/demo users aren't tenant staff
+    await db.doc(`companies/${COMPANY_ID}/members/${u.email.toLowerCase()}`).set({
+      email: u.email.toLowerCase(), role: u.role, displayName: u.name, uid: uid[u.key],
+      status: 'active', active: true, invitedAt: daysAgo(90), invitedBy: uid.companyAdmin,
+    }, { merge: true });
+  }
+  console.log('  ✓ companies doc + members roster written');
+
   console.log('\n[3/6] Subscription (ACTIVE professional → passes billing gate)');
   await db.doc(`subscriptions/${COMPANY_ID}`).set({
     plan: 'professional', status: 'active', companyId: COMPANY_ID,
@@ -131,7 +149,10 @@ async function seed() {
     const ref = db.collection('leads').doc();
     await ref.set({
       userId: uid[l.owner], companyId: COMPANY_ID,
-      firstName: l.firstName, lastName: l.lastName, name: `${l.firstName} ${l.lastName}`,
+      // No `name`, `estValue` or `value`: the lead form writes firstName/
+      // lastName + jobValue only. Seeding the extras hid two real bugs
+      // (Home widgets read `name`; Close Board summed `estValue||value`).
+      firstName: l.firstName, lastName: l.lastName,
       address: `${100 + leadIds.length} Maple St, Austin, TX`, phone: '555-02' + (10 + leadIds.length),
       // Normalized inbound-SMS match key — mirrors what every prod
       // lead-write path stamps (functions/phone-utils.js), so emulator QA
@@ -139,10 +160,10 @@ async function seed() {
       // legacy exact-phone fallback.
       phoneDigits: String('555-02' + (10 + leadIds.length)).replace(/\D/g, '').replace(/^1/, '').slice(-10),
       email: `${l.firstName.toLowerCase()}@example.com`,
-      stage: l.stage, source: 'manual', jobValue: l.jobValue, estValue: l.jobValue, value: l.jobValue,
+      stage: l.stage, source: 'manual', jobValue: l.jobValue,
       deleted: false, createdAt: daysAgo(20 - leadIds.length), updatedAt: daysAgo(2),
     });
-    leadIds.push({ id: ref.id, owner: l.owner, sq: 28 + leadIds.length * 3 });
+    leadIds.push({ id: ref.id, owner: l.owner, sq: 28 + leadIds.length * 3, addr: `${100 + leadIds.length} Maple St, Austin, TX` });
   }
   console.log(`  ✓ ${leadIds.length} leads written (3 companyAdmin, 2 salesRep)`);
 
@@ -157,6 +178,7 @@ async function seed() {
       builder: 'classic', mode: 'cash',
       raw: Math.round(l.sq * 100 / (1.118 * 1.15)), wf: 1.15,
       tier: 'better', tierName: 'Better', sq: l.sq,
+      addr: l.addr, title: 'Better — ' + l.addr, // as the classic save writes them
       grandTotal: l.sq * 480, roofType: 'Gable', pitch: '6/12',
       rows: [{ code: 'RFG 240', desc: 'Architectural shingles', qty: l.sq, rate: 360, total: l.sq * 360 }],
       createdAt: daysAgo(10), updatedAt: daysAgo(5),

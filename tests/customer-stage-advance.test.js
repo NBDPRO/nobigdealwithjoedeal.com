@@ -155,8 +155,8 @@ ok('missing required fields BLOCK the move (return before the write)',
   'Jo\'s 2026-09-15 call: hard block, matching the kanban, over the prior non-blocking warning');
 ok('the block happens BEFORE _commitStageChange is called (not after a partial write)',
   progressFn.indexOf('_missingRequiredFields(') < progressFn.indexOf('await _commitStageChange('));
-ok('the block message NAMES the missing fields, not just a count',
-  /missing\.join\(', '\)/.test(progressFn));
+ok('the block message NAMES the missing fields by their labels ("Carrier", not "insCarrier"), not just a count',
+  /missing\.map\(_requiredFieldLabel\)\.join\(', '\)/.test(progressFn));
 ok('the check evaluates the DESTINATION stage, not the current one',
   /_missingRequiredFields\([\s\S]{0,120}?stage:\s*nextStage/.test(progressFn),
   'checking the current stage would block on the wrong requirements');

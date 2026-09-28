@@ -191,7 +191,8 @@ async function checkAndCreateFollowUpNotifications(leads) {
   const _safeName = (l) =>
     _sanitize(`${l.firstName||''} ${l.lastName||''}`.trim() || (l.address||'').split(',')[0] || 'Lead', 80);
   const _safeAddr = (l) => _sanitize((l.address||'').split(',')[0] || '', 80);
-  const _safeStage = (l) => _sanitize(l.stage || '', 40);
+  // Label, not the raw key ("estimate_submitted") — this text lands in the bell.
+  const _safeStage = (l) => _sanitize((typeof window.stageLabel === 'function' && l.stage && window.stageLabel(l.stage)) || l.stage || '', 40);
   const _safeCarrier = (l) => _sanitize(l.insCarrier || '', 40);
 
   const toCreate = [];
@@ -316,7 +317,9 @@ async function checkAndCreateNeedsFieldNotifications(leads) {
     dateOfLoss: 'date of loss', estimateAmount: 'estimate amount',
     deductibleOrOwedByHO: 'deductible', jobValue: 'job value',
     financeCompany: 'lender', loanAmount: 'loan amount',
-    scheduledDate: 'install date'
+    scheduledDate: 'install date', jobType: 'job type',
+    contractFiledAt: 'contract filed', permitFiledAt: 'permit filed',
+    warrantyCertFiledAt: 'warranty cert filed', cocFiledAt: 'COC filed'
   };
 
   const toCreate = [];
