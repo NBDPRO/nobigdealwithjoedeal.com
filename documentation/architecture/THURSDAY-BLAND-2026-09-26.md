@@ -304,6 +304,14 @@ Jo reported two things. A caller had to say "Hello?" before Thursday spoke. Anot
 - **Greet-by-name root cause (§9):** the builder warns "the step is on but has no saved snippet — it will not run, and conversations start at the agent".
   - The Initialization code was only ever set through the API snapshot, never saved in the builder, so the lookup never ran.
   - Fix: paste `INIT_CODE` from `scripts/thursday-agent-lookup.js` into the builder's Initialization step and save, then staging → test → promote.
+  - **FIXED + LIVE 2026-09-28 18:16Z (0.6.2, pathway v17, on Jo's OK).** In the builder: Initialization → **Save code**, which produced `initialization.step.snippetId` + `snippetVersion: 1`.
+  - The compiled pathway gained an `__initialization` Custom Code node, its first ever. Run test → 200 in 37 ms, unknown caller (the test sends no number). Production agent var `THURSDAY_LOOKUP_TOKEN` is set.
+  - The same version rewrites three prompt lines, since the number's `first_sentence` now greets:
+    - OPENING: "the phone system speaks your opening … never repeat it";
+    - RETURNING CALLERS: ask "Is this {{caller_first_name}}?" in the first reply;
+    - RECORDING NOTICE: already said.
+  - `thursday-agent-lookup.js` PROMPT_BLOCK matches the new text; its dry run differs from live only in builder whitespace.
+  - Unverified until a real call: the greeting timing with the init step in front, and a known caller getting "Is this …?".
 - **Bland balance read −0.50 credits** on 2026-09-28. Watch it: a negative balance may stop calls.
 
 ## 6. Coordination notes
