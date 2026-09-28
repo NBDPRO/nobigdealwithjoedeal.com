@@ -176,10 +176,10 @@ Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26
   - Merged:
     - **#1842:** a payment smaller than the deposit was invisible on the invoice and the emailed invoice.
     - **#1843:** CSV import stored raw stage text (the server called an imported finished job "active") and duplicated customer IDs; the top-bar search matched phones on stray digits; **every notification-bell lead link opened a blank Estimate Builder** (`?tab=` was never read).
-  - In CI when written:
+  - Also merged:
     - **#1844:** a declined duplicate prompt stranded a D2D knock as "converted" forever.
     - **#1845:** overdue tasks vanished from the bell after a Firestore connection cycle (`fromCache` reads).
-- **Test-count floors:** #1844 → node 218 / disk 312, #1845 → 219 / 313 once #1844 lands.
+- **Test-count floors:** after #1844 main is node 218 / disk 312; #1845 takes 219 / 313.
 - **Open for Jo:**
   - R13-08: show Insurance Claim Progress on cash jobs?
   - The §4 items above (audit run logs, Bland balance / ticket) still stand.
