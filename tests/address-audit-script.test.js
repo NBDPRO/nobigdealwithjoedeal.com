@@ -35,7 +35,10 @@ const SCRIPT = path.join(__dirname, '..', 'scripts', 'audit-lead-addresses.js');
  * Run the real script over `rows`, returning { code, out }.
  * Each row: { id, address, firstName?, lastName?, jobValue?, deleted? }
  */
-function runAudit(rows, argv) {
+function runAudit(rows, argv, opts) {
+  // CI itself runs with GITHUB_ACTIONS=true, which forces redaction — so each
+  // case pins the variable explicitly instead of inheriting the runner's.
+  const ciEnv = !!(opts && opts.ci);
   const docs = rows.map(r => ({ id: r.id, data: () => r }));
 
   const makeQuery = () => {
@@ -69,6 +72,8 @@ function runAudit(rows, argv) {
   const realErr = console.error;
   const realExit = process.exit;
   const realArgv = process.argv;
+  const realCi = process.env.GITHUB_ACTIONS;
+  if (ciEnv) process.env.GITHUB_ACTIONS = 'true'; else delete process.env.GITHUB_ACTIONS;
 
   let out = '';
   let code = null;
@@ -87,6 +92,7 @@ function runAudit(rows, argv) {
     Module._load = realLoad;
     console.log = realLog; console.error = realErr;
     process.exit = realExit; process.argv = realArgv;
+    if (realCi === undefined) delete process.env.GITHUB_ACTIONS; else process.env.GITHUB_ACTIONS = realCi;
   };
 
   delete require.cache[require.resolve(SCRIPT)];
@@ -128,6 +134,32 @@ const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobV
   {
     const { code } = await runAudit([CLEAN, BLANK]);
     ok('a blank address → FAIL (exit 1)', code === 1);
+  }
+
+  console.log('ADDRESS AUDIT SCRIPT — a web lead that gave no address is missing, not broken');
+  {
+    const webBlank = Object.assign({}, BLANK, { id: 'W1', webLead: true });
+    const { code, out } = await runAudit([CLEAN, webBlank], ['--list']);
+    ok('blank address on a web lead → PASS (exit 0)', code === 0);
+    ok('…listed under "web lead, none given", not hidden', /─── THIN\s+web lead, none given ───\s+W1\b/.test(out));
+    const { code: c2 } = await runAudit([CLEAN, webBlank, BLANK]);
+    ok('a blank CRM-entered lead still fails alongside it', c2 === 1);
+  }
+
+  console.log('ADDRESS AUDIT SCRIPT — public Actions logs never get customer data');
+  {
+    const { code, out } = await runAudit([CLEAN, THIN, MANGLED], ['--list'], { ci: true });
+    ok('CI --list still fails on the mangled row', code === 1);
+    ok('CI --list prints the offending doc ids', /^\s+A3$/m.test(out) && /^\s+A2$/m.test(out));
+    ok('CI --list prints no names', !/Mangled|Thin Row|Clean Row/.test(out));
+    ok('CI --list prints no addresses', !/Greenstone|Cincinnati|Hagewa/.test(out));
+    ok('CI output prints no dollar figures', !/\$/.test(out));
+    const local = await runAudit([CLEAN, MANGLED], ['--list']);
+    ok('locally --list still shows name + address (the redaction is CI-only)', /Mangled Row/.test(local.out) && /Greenstone/.test(local.out));
+    const red = await runAudit([CLEAN, MANGLED], ['--list', '--redact']);
+    ok('--redact gives the CI output locally', !/Mangled Row|Greenstone/.test(red.out) && /^\s+A3$/m.test(red.out));
+    const csv = await runAudit([CLEAN, MANGLED], ['--csv'], { ci: true });
+    ok('--csv is refused in CI (exit 2)', csv.code === 2);
   }
 
   console.log('ADDRESS AUDIT SCRIPT — soft-deleted rows are not the working set');
