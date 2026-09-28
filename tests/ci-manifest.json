@@ -167,6 +167,7 @@
     "lead-form-phone-contract.test.js",
     "pro-claims-honesty-2026-09-13.test.js",
     "deal-acceptance-atomicity.test.js",
+    "refer-form-errors-visible-2026-09-28.test.js",
     "photo-queue-customer-page-2026-09-14.test.js",
     "sign-image-url-allowlist-2026-09-14.test.js",
     "nav-logo-size-2026-09-14.test.js",
