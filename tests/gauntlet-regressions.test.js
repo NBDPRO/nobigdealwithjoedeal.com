@@ -932,8 +932,12 @@ console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
   const ip = read('docs/pro/js/invoice-pipeline.js');
   assert('markPaid stamps lastPaymentAt on every payment (incl. partials)',
     /lastPaymentAt:\s*paidAtNow/.test(ip) || /lastPaymentAt:\s*new Date\(\)/.test(ip));
+  // Since 2026-09-28 (R14) the advance goes through stage-write.js's
+  // commitStageChange, which stamps stageRole (plus stageStartedAt / history);
+  // behaviour pinned in invoice-markpaid-stage.test.js.
   assert('markPaid stamps stageRole alongside the contract_signed full-payoff advance (client, window.stageRole)',
-    /stage: 'contract_signed',[\s\S]{0,900}window\.stageRole \? \{ stageRole: window\.stageRole\('contract_signed'\) \} : \{\}/.test(ip),
+    /commitStageChange\(invoice\.leadId, 'contract_signed'/.test(ip)
+      && /stageRole: window\.stageRole\(newStage\)/.test(read('docs/pro/js/stage-write.js')),
     'consequence-neutral today (contract_signed already derives to role active) but keeps this write conforming to the persisted-stageRole-wins invariant every other stage-change path upholds');
   const md = read('docs/pro/js/money-dashboard.js');
   assert('money dashboard attributes Collected per payment date (payments[] ledger + legacy lastPaymentAt lump)',
