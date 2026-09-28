@@ -236,8 +236,14 @@ console.log('\nTHURSDAY — real-call tuning (2026-09-26 dry-run)');
   ok('nobody spoke, hung up fast → log only', T.decideRoute(mute, none).action === 'log_only');
   const waited = T.silentExtraction(T.normalizeCall({ call_id: 'tune1237', transcripts: [], call_length: 0.4 }));
   ok('nobody spoke but stayed 24 s (waiting for Thursday) → inbox', T.decideRoute(waited, none).action === 'inbox');
-  const quick = T.silentExtraction(T.normalizeCall({ call_id: 'tune1238', transcripts: [], call_length: 0.1 }));
-  ok('silent 6 s hang-up → log only', T.decideRoute(quick, none).action === 'log_only');
+  // 2026-09-28: Thursday greets on connect, so a caller who hangs up during
+  // her greeting (the real 3 s call, only her words in the transcript) is a
+  // missed caller; a sub-2 s blip is not.
+  const greeted = T.normalizeCall({ call_id: 'tune1238', transcripts: [{ user: 'assistant', text: 'Thanks for calling No Big Deal Home Solutions, this is Thursday.' }], call_length: 0.05 });
+  ok('greeting-only transcript is still silent (caller said nothing)', T.isEffectivelySilent(greeted));
+  ok('hung up 3 s into Thursday\'s greeting → inbox, no alerts', (() => { const r = T.decideRoute(T.silentExtraction(greeted), none); return r.action === 'inbox' && !r.notifyEmail && !r.notifyPush && !r.notifySms; })());
+  const blip = T.silentExtraction(T.normalizeCall({ call_id: 'tune1239', transcripts: [], call_length: 0.0166666666666667 }));
+  ok('1 s line blip → log only', T.decideRoute(blip, none).action === 'log_only');
   const own = T.applyCallOverrides(ex({ caller_type: 'new_lead', caller_name: '' }), call({ from: '+18594207382' }), {});
   const rOwn = T.decideRoute(own, none);
   ok('call from Jo\'s own cell → test, log only, no lead', own.caller_type === 'test' && rOwn.action === 'log_only' && !rOwn.createTask);
