@@ -220,7 +220,18 @@ const WIDGETS = [
         const d = closedDate(l);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       });
-      const rev = thisMonth.reduce((s,l) => s + parseFloat(l.jobValue || l.estValue || l.value || 0), 0);
+      // Revenue = money COLLECTED this month (invoice payments by the date each
+      // arrived) — Jo, 2026-09-28: "Revenue is always collected only." This
+      // tile used to sum the jobValue of leads that CLOSED this month (booked,
+      // not banked). `thisMonth` above is kept for the won-count sub-line only.
+      const R = window.NBDRevenue;
+      const invs = R ? R.cached() : null;
+      if (R && !invs) {
+        R.loadInvoices().then(() => { if (!R.cached()) return; const w = WIDGETS.find(x => x.id === 'revenue-month'); if (w && document.contains(el)) w.render(el); });
+      }
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      const rev = invs ? R.collectedBetween(invs, monthStart, now.getTime()).total : 0;
+      const revText = invs ? ('$' + (rev >= 1000 ? (rev/1000).toFixed(1)+'k' : rev.toFixed(0))) : '…';
       // nbd_ localStorage is wiped on every sign-out, so the goal also lives on
       // userSettings/{uid}.monthlyGoal (the notification-settings pattern:
       // local cache for the instant paint, Firestore as the source of truth).
@@ -245,8 +256,8 @@ const WIDGETS = [
       // text gives the user a way to customize without us having to
       // build a whole settings panel.
       el.innerHTML = `
-        <div class="w-big-num" style="color:var(--green);">$${rev >= 1000 ? (rev/1000).toFixed(1)+'k' : rev.toFixed(0)}</div>
-        <div class="w-sub">Revenue This Month</div>
+        <div class="w-big-num" style="color:var(--green);">${revText}</div>
+        <div class="w-sub">Revenue This Month <span style="opacity:.7">· collected</span>${thisMonth.length ? ' <span style="opacity:.7">· ' + thisMonth.length + ' closed</span>' : ''}</div>
         <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%"></div></div>
         <div class="w-goal-edit" data-w-stop="1" title="Click to change your monthly goal" style="font-size:9px;color:var(--m);text-align:right;margin-top:3px;cursor:pointer;user-select:none;">${pct.toFixed(0)}% of $${(goal/1000).toFixed(0)}k goal ✎</div>`;
       const goalEl = el.querySelector('.w-goal-edit');

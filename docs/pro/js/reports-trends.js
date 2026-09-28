@@ -48,12 +48,27 @@
     if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_) { return 0; } }
     if (typeof v.seconds === 'number') return v.seconds * 1000;
     if (v instanceof Date) return v.getTime();
+    if (typeof v === 'string') { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
     return 0;
   }
 
+  // Revenue = money COLLECTED (Jo, 2026-09-28: "Revenue is always collected
+  // only"). This panel used signed estimates' totals — a signature is a
+  // promise, not money. Invoices come from the shared NBDRevenue cache; null
+  // until the first load lands (the panel shows "…" and re-renders once).
+  function _invoices() {
+    const R = window.NBDRevenue;
+    if (!R) return [];
+    const inv = R.cached();
+    if (!inv) {
+      R.loadInvoices().then(function () { if (R.cached() && document.getElementById(TARGET_ID)) render(); });
+      return null;
+    }
+    return inv;
+  }
+
   // ─── Compute weekly revenue buckets ─────────────────────────
-  function _computeWeeklyRevenue(weeks) {
-    const ests = Array.isArray(window._estimates) ? window._estimates : [];
+  function _computeWeeklyRevenue(weeks, invoices) {
     const now = new Date();
     // Snap to the start of the current week — MONDAY (ISO-8601; Jo's call
     // 2026-06-25). getDay() is 0=Sun..6=Sat; (getDay()+6)%7 is days since Monday
@@ -68,13 +83,20 @@
       d.setDate(startOfThisWeek.getDate() - (weeks - 1 - i) * 7);
       labels[i] = (d.getMonth() + 1) + '/' + d.getDate();
     }
-    for (const e of ests) {
-      const signedMs = _toMillis(e.signedAt);
-      if (!signedMs) continue;
-      const total = Number(e.grandTotal || e.total) || 0;
-      const weeksAgo = Math.floor((startOfThisWeek.getTime() - signedMs) / (7 * 86_400_000));
-      const idx = weeks - 1 - weeksAgo;
-      if (idx >= 0 && idx < weeks) buckets[idx] += total;
+    const R = window.NBDRevenue;
+    for (const inv of (invoices || [])) {
+      if (!inv || inv.deleted === true || !R) continue;
+      for (const p of R.paymentsOf(inv)) {
+        const paidMs = _toMillis(p.at);
+        if (!paidMs) continue;
+        // This week (Monday 00:00 onward) is the last bucket; each earlier
+        // Monday-to-Sunday week steps one bucket left. The old
+        // floor((weekStart − t) / week) dropped THIS week's money (index =
+        // weeks, off the chart) and put last week's into "this week".
+        const start = startOfThisWeek.getTime();
+        const idx = paidMs >= start ? weeks - 1 : weeks - 2 - Math.floor((start - paidMs - 1) / (7 * 86_400_000));
+        if (idx >= 0 && idx < weeks) buckets[idx] += Number(p.amount) || 0;
+      }
     }
     return { buckets, labels };
   }
@@ -118,20 +140,17 @@
   }
 
   // ─── Compute leaderboard data ───────────────────────────────
-  function _computeLeaderboards() {
+  function _computeLeaderboards(invoices) {
     const leads = Array.isArray(window._leads) ? window._leads : [];
     const ests = Array.isArray(window._estimates) ? window._estimates : [];
+    const R = window.NBDRevenue;
+    const paid = (R && invoices) ? R.collectedByLead(invoices, null, null) : {};
 
-    // Top customers by signed revenue
+    // Top customers by COLLECTED revenue (all time)
     const customerTotals = new Map();
-    for (const e of ests) {
-      if (!_toMillis(e.signedAt)) continue;
-      const total = Number(e.grandTotal || e.total) || 0;
-      if (!total) continue;
-      const cur = customerTotals.get(e.leadId) || { leadId: e.leadId, total: 0, count: 0 };
-      cur.total += total;
-      cur.count++;
-      customerTotals.set(e.leadId, cur);
+    for (const leadId of Object.keys(paid)) {
+      if (!(paid[leadId] > 0)) continue;
+      customerTotals.set(leadId, { leadId, total: paid[leadId], count: 1 });
     }
     const topCustomers = Array.from(customerTotals.values())
       .sort((a, b) => b.total - a.total)
@@ -144,16 +163,14 @@
         return { name, total: c.total, count: c.count };
       });
 
-    // Top sources by signed revenue
+    // Top sources by COLLECTED revenue (count = paying customers)
     const sourceTotals = new Map();
-    for (const e of ests) {
-      if (!_toMillis(e.signedAt)) continue;
-      const total = Number(e.grandTotal || e.total) || 0;
-      if (!total) continue;
-      const lead = leads.find(l => l.id === e.leadId);
+    for (const leadId of Object.keys(paid)) {
+      if (!(paid[leadId] > 0)) continue;
+      const lead = leads.find(l => l.id === leadId);
       const source = (lead && lead.source) || 'unknown';
       const cur = sourceTotals.get(source) || { source, total: 0, count: 0 };
-      cur.total += total;
+      cur.total += paid[leadId];
       cur.count++;
       sourceTotals.set(source, cur);
     }
@@ -189,8 +206,9 @@
   function render() {
     const host = document.getElementById(TARGET_ID);
     if (!host) return;
-    const { buckets, labels } = _computeWeeklyRevenue(TREND_WEEKS);
-    const { topCustomers, topSources, engaged } = _computeLeaderboards();
+    const invoices = _invoices();
+    const { buckets, labels } = _computeWeeklyRevenue(TREND_WEEKS, invoices || []);
+    const { topCustomers, topSources, engaged } = _computeLeaderboards(invoices);
 
     const totalThisWeek = buckets[buckets.length - 1];
     const totalLastWeek = buckets[buckets.length - 2] || 0;
@@ -209,7 +227,7 @@
             '<span style="font-weight:700;font-variant-numeric:tabular-nums;color:var(--green, #2ecc8a);">' + _money(c.total) + '</span>' +
           '</div>'
         ).join('')
-      : '<div style="color:var(--m, #888);font-size:12px;font-style:italic;">No signed estimates yet.</div>';
+      : '<div style="color:var(--m, #888);font-size:12px;font-style:italic;">' + (invoices ? 'No payments collected yet.' : 'Loading…') + '</div>';
 
     const sourceRows = topSources.length
       ? topSources.map((s, i) =>
@@ -218,7 +236,7 @@
             '<span style="font-weight:700;font-variant-numeric:tabular-nums;color:var(--green, #2ecc8a);">' + _money(s.total) + '</span>' +
           '</div>'
         ).join('')
-      : '<div style="color:var(--m, #888);font-size:12px;font-style:italic;">No source data yet.</div>';
+      : '<div style="color:var(--m, #888);font-size:12px;font-style:italic;">' + (invoices ? 'No payments collected yet.' : 'Loading…') + '</div>';
 
     const engagedRows = engaged.length
       ? engaged.map((e, i) => {
@@ -238,9 +256,9 @@
       '<div style="margin-bottom:18px;">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:8px;">' +
           '<div>' +
-            '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;">Weekly revenue</div>' +
+            '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;">Weekly revenue · collected</div>' +
             '<div style="font-size:18px;font-weight:800;color:var(--t, #e8eaf0);font-variant-numeric:tabular-nums;">' +
-              _money(totalThisWeek) + ' this week' + wowBadge +
+              (invoices ? _money(totalThisWeek) + ' this week' + wowBadge : '…') +
             '</div>' +
           '</div>' +
           '<div style="font-size:11px;color:var(--m, #888);">Last ' + TREND_WEEKS + ' weeks</div>' +
@@ -250,11 +268,11 @@
 
       '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;">' +
         '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:8px;padding:14px 16px;">' +
-          '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Top customers</div>' +
+          '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Top customers · collected</div>' +
           customerRows +
         '</div>' +
         '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:8px;padding:14px 16px;">' +
-          '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Top sources</div>' +
+          '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Top sources · collected</div>' +
           sourceRows +
         '</div>' +
         '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:8px;padding:14px 16px;">' +

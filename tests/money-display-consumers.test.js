@@ -48,8 +48,10 @@ ok('leaderboard revenue sums payments in-period (per payment date)',
 ok('leaderboard revenue no longer computed from status===paid invoice totals',
   !/paidInvoices\.reduce\([^)]*inv\.total/.test(LB));
 
-ok('leaderboard keeps jobValue fallback when no invoice cash',
-  /totalRevenue > 0 \? totalRevenue : wonLeads\.reduce/.test(LB));
+// Reversed 2026-09-28 (Jo: "Revenue is always collected only"): $0 collected
+// reads $0 — never a won-jobValue stand-in labelled revenue.
+ok('leaderboard has NO jobValue fallback when no invoice cash',
+  !/totalRevenue > 0 \? totalRevenue : wonLeads\.reduce/.test(LB) && /const revenueFallback = totalRevenue;/.test(LB));
 
 // ── customer-tasks-ui.js loadInvoices ──
 ok('customer tab reads inv.total (amount only as legacy fallback)',
