@@ -107,7 +107,9 @@
       weight: 10,
       score: (lead) => {
         if (!lead.followUp) return 0.3;
-        const fDate = new Date(lead.followUp);
+        // Local day ('YYYY-MM-DD' parses as UTC — a day early in the US).
+        const _m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(lead.followUp));
+        const fDate = _m ? new Date(+_m[1], +_m[2] - 1, +_m[3]) : new Date(lead.followUp);
         const now = new Date();
         now.setHours(0,0,0,0);
         fDate.setHours(0,0,0,0);

@@ -61,7 +61,9 @@ function buildJoeContext() {
   const closed = leads.filter(l => l.stage === 'closed' || l.stage === 'Complete');
   const overdue = leads.filter(l => {
     if (!l.followUp || _terminal.has(l.stage || '')) return false;
-    return new Date(l.followUp) <= today;
+    // Local day ('YYYY-MM-DD' parses as UTC — a day early in the US).
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(l.followUp));
+    return (m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(l.followUp)) <= today;
   });
   const pipeVal = active.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);
   const closedRev = closed.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);

@@ -158,7 +158,9 @@ async function checkAndCreateFollowUpNotifications(leads) {
 
   leads.forEach(l => {
     if (!l.followUp || ['Complete','Lost'].includes(l.stage||'')) return;
-    const d = new Date(l.followUp); d.setHours(0,0,0,0);
+    // Local day, not UTC (window.nbdFollowUpDay) — these became "Overdue"
+    // notifications a day early.
+    const d = (typeof window.nbdFollowUpDay === 'function') ? window.nbdFollowUpDay(l.followUp) : new Date(l.followUp); d.setHours(0,0,0,0);
     if (d < today) overdue.push(l);
     else if (d.getTime() === today.getTime()) dueToday.push(l);
     else if (d.getTime() === tomorrow.getTime()) dueTomorrow.push(l);
@@ -202,7 +204,7 @@ async function checkAndCreateFollowUpNotifications(leads) {
     const name = _safeName(l);
     const addr = _safeAddr(l);
     const stage = _safeStage(l);
-    const daysLate = Math.round((today - new Date(l.followUp)) / 86400000);
+    const daysLate = Math.round((today - ((typeof window.nbdFollowUpDay === 'function') ? window.nbdFollowUpDay(l.followUp) : new Date(l.followUp))) / 86400000);
     toCreate.push({
       userId, type: 'follow_up', leadId: l.id, dateKey: todayKey,
       title: `Overdue Follow-Up — ${name}`,

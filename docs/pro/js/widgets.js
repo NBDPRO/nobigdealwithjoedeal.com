@@ -91,6 +91,7 @@ function _stageText(l) {
 // Display name for a lead. The lead form writes firstName/lastName and no
 // `name` (only seeds, D2D and some imports set it), so reading `l.name` alone
 // showed every form-created lead by its address.
+let _wGoalSynced = false; // revenue-month: one userSettings read per page
 function _leadName(l, fallback) {
   if (!l) return fallback;
   return ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.customerName || l.address || fallback;
@@ -220,7 +221,23 @@ const WIDGETS = [
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       });
       const rev = thisMonth.reduce((s,l) => s + parseFloat(l.jobValue || l.estValue || l.value || 0), 0);
-      const goal = parseFloat(localStorage.getItem('nbd_monthly_goal') || '50000');
+      // nbd_ localStorage is wiped on every sign-out, so the goal also lives on
+      // userSettings/{uid}.monthlyGoal (the notification-settings pattern:
+      // local cache for the instant paint, Firestore as the source of truth).
+      let _cachedGoal = null;
+      try { _cachedGoal = localStorage.getItem('nbd_monthly_goal'); } catch (_) {}
+      const goal = parseFloat(_cachedGoal || '50000');
+      if (!_cachedGoal && !_wGoalSynced && window._user && window.getDoc && window.doc && window.db) {
+        _wGoalSynced = true;
+        window.getDoc(window.doc(window.db, 'userSettings', window._user.uid)).then(snap => {
+          const g = snap && snap.exists() ? Number(snap.data().monthlyGoal) : 0;
+          if (g > 0) {
+            try { localStorage.setItem('nbd_monthly_goal', String(g)); } catch (_) {}
+            const w = WIDGETS.find(x => x.id === 'revenue-month');
+            if (w && document.contains(el)) w.render(el);
+          }
+        }).catch(() => {});
+      }
       const pct = goal > 0 ? Math.min(100, rev / goal * 100) : 0;
       // Sweep Pass 4: 'nbd_monthly_goal' was read but never written —
       // no settings UI existed to set it, so the goal was permanently
@@ -246,12 +263,19 @@ const WIDGETS = [
             return;
           }
           try { localStorage.setItem('nbd_monthly_goal', String(next)); } catch (_) {}
+          try {
+            if (window._user && window.setDoc && window.doc && window.db) {
+              window.setDoc(window.doc(window.db, 'userSettings', window._user.uid), { monthlyGoal: next }, { merge: true }).catch(() => {});
+            }
+          } catch (_) {}
           if (typeof window.showToast === 'function') {
             window.showToast('Monthly goal set to $' + (next/1000).toFixed(0) + 'k', 'success');
           }
           // Re-render this widget in place so the user sees the new
-          // goal + percentage immediately without a page reload.
-          const widget = window._widgets && window._widgets.find(w => w.id === 'revenue-month');
+          // goal + percentage immediately without a page reload. (Looked up
+          // window._widgets, which never existed — the goal saved but the
+          // widget kept showing the old one until a reload.)
+          const widget = WIDGETS.find(w => w.id === 'revenue-month');
           if (widget && typeof widget.render === 'function') widget.render(el);
         });
       }

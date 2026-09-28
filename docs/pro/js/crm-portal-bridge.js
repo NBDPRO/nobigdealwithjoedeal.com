@@ -471,7 +471,9 @@ function scrollToFollowUps(){
   if(wrap.style.display!=='none') wrap.scrollIntoView({behavior:'smooth'});
 }
 
-function isOverdue(d){ if(!d) return false; const dt=new Date(d); dt.setHours(0,0,0,0); const t=new Date(); t.setHours(0,0,0,0); return dt<t; }
+// Local-day parse (window.nbdFollowUpDay, crm-pipeline.js): a 'YYYY-MM-DD'
+// read as UTC flagged a follow-up overdue on its own due date.
+function isOverdue(d){ if(!d) return false; const dt=(typeof window.nbdFollowUpDay==='function')?window.nbdFollowUpDay(d):new Date(d); dt.setHours(0,0,0,0); const t=new Date(); t.setHours(0,0,0,0); return dt<t; }
 
 // (exportLeadsCSV removed — canonical definition is in tools.js)
 

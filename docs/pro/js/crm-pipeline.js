@@ -86,6 +86,29 @@ try {
   if (mq && mq.addEventListener) mq.addEventListener('change', refit);
   else if (mq && mq.addListener) mq.addListener(refit);
 } catch (_) {}
+// A follow-up date as LOCAL midnight. followUp is stored 'YYYY-MM-DD' (the
+// <input type="date"> value), and new Date('YYYY-MM-DD') is UTC midnight —
+// the previous evening anywhere in the US — so every follow-up read as due a
+// day early (banner, card badge, "Overdue Follow-Up" notifications).
+function _followUpDay(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v == null ? '' : v).trim());
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+window.nbdFollowUpDay = _followUpDay;
+// "Due today" / "Due Sep 29" / "3 days overdue" — the banner printed the raw
+// "Due: 2026-09-29".
+function _followUpDueText(v) {
+  const d = _followUpDay(v);
+  if (isNaN(d)) return 'Due: ' + String(v || '');
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const days = Math.round((t - d) / 86400000);
+  if (days === 0) return 'Due today';
+  if (days > 0) return days + (days === 1 ? ' day' : ' days') + ' overdue';
+  return 'Due ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 function _renderFollowUpRows(box, overdue) {
   _fuLast = { box, overdue };
   const phone = !!(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
@@ -95,7 +118,7 @@ function _renderFollowUpRows(box, overdue) {
           <span class="fa-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:middle;"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></span>
           <span class="fa-name">${escHtml(l.firstName||'')} ${escHtml(l.lastName||'')}</span>
           <span class="fa-addr" style="color:var(--m);font-size:11px;">${escHtml(String(l.address||'').split(',')[0])}</span>
-          <span class="fa-date">Due: ${escHtml(l.followUp)}</span>
+          <span class="fa-date">${escHtml(_followUpDueText(l.followUp))}</span>
           <button class="fa-btn nbd-fa-edit" data-lead-id="${escHtml(l.id)}">View →</button>
         </div>`).join('')
     + (overdue.length > cap ? `<button type="button" class="fa-more">+ ${overdue.length - cap} more</button>` : '');
@@ -465,7 +488,7 @@ function renderLeads(leads, filtered){
     const role = l._stageRole || (typeof window.stageRole === 'function' ? window.stageRole(sk) : 'active');
     if(role === 'won' || role === 'lost' || role === 'job') return false;
     if(_terminalStages.includes(sk) || _terminalStages.includes(l.stage||'')) return false;
-    const d=new Date(l.followUp); d.setHours(0,0,0,0); return d<=today;
+    const d=_followUpDay(l.followUp); return d<=today;
   });
   setEl('crmFollowUps', overdue.length);
   const fp=document.getElementById('followUpPill');
@@ -881,7 +904,7 @@ function buildCard(l){
   const today = new Date(); today.setHours(0,0,0,0);
   const _sk = l._stageKey || (window.normalizeStage ? window.normalizeStage(l.stage) : l.stage || 'new');
   const isTerminal = ['closed','lost','Complete','Lost'].includes(_sk) || ['closed','lost','Complete','Lost'].includes(l.stage||'');
-  const overdue = l.followUp && new Date(l.followUp)<=today && !isTerminal;
+  const overdue = l.followUp && _followUpDay(l.followUp)<=today && !isTerminal;
   // Prev/next arrows use stage keys
   const _keys = window._stageKeys || [];
   const stageIdx = _keys.indexOf(_sk);

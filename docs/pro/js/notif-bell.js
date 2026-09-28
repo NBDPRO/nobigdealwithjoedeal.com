@@ -294,7 +294,15 @@
       // Skip estimates the customer already responded to.
       if (status === 'signed' || status === 'rejected' || status === 'expired') return;
       if (est.respondedAt) return;
-      const sentAt = toDate(est.sentAt) || toDate(est.createdAt);
+      // A never-sent draft isn't "awaiting reply" — same draft test as the
+      // Estimates page (estimate-analytics.js). The createdAt fallback below
+      // stays for legacy sent docs that predate sentAt stamping.
+      // "Sent" evidence: sentAt, an e-sign send (signatureStatus /
+      // signatureSentAt, functions/integrations/esign.js) or a homeowner view.
+      const _wasSent = est.sentAt || est.signatureSentAt || est.viewedAt
+        || (est.signatureStatus && est.signatureStatus !== 'none');
+      if ((status === '' || status === 'draft') && !_wasSent) return;
+      const sentAt = toDate(est.sentAt) || toDate(est.signatureSentAt) || toDate(est.createdAt);
       if (!sentAt || sentAt > staleCutoff) return;
       const lead = leads.find(l => l.id === est.leadId);
       const id = `estimate:${est.id}`;
@@ -309,7 +317,8 @@
         severity: 'medium',
         icon:    '📄',
         title:   est.viewedAt ? 'Estimate viewed, no response' : 'Estimate awaiting reply',
-        text:    `$${Number(est.total || est.amount || 0).toLocaleString()} estimate`,
+        // grandTotal first — estimates store it there, so this read "$0 estimate".
+        text:    `$${Number(est.grandTotal || est.total || est.amount || 0).toLocaleString()} estimate`,
         sub:     leadName(lead) + ' · sent ' + relativeTime(sentAt),
         ts:      sentAt,
         href:    `/pro/dashboard.html?tab=estimates&est=${encodeURIComponent(est.id)}`,

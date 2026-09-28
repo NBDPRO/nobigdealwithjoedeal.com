@@ -155,7 +155,12 @@
       const status = (e.status || '').toLowerCase();
       if (status === 'signed' || status === 'rejected' || status === 'expired') continue;
       if (e.respondedAt) continue;
-      const sent = toMillis(e.sentAt) || toMillis(e.createdAt);
+      // Never-sent drafts aren't stale estimates (same test as the bell and
+      // the Estimates page).
+      const _wasSent = e.sentAt || e.signatureSentAt || e.viewedAt
+        || (e.signatureStatus && e.signatureStatus !== 'none');
+      if ((status === '' || status === 'draft') && !_wasSent) continue;
+      const sent = toMillis(e.sentAt) || toMillis(e.signatureSentAt) || toMillis(e.createdAt);
       if (sent && sent < cutoff) return 'stale-estimate';
     }
 
