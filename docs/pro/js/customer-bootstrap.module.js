@@ -1,11 +1,11 @@
 
 let toggleCustomerPhotoReorder, _lightboxIndex, _lightboxSource; // module-local (globals Tranche 1 — was window.*)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, getDocs, getDoc, doc, query, orderBy, where, updateDoc, deleteDoc, serverTimestamp, addDoc, arrayUnion, arrayRemove, limit, runTransaction, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { connectEmulatorsIfLocal } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
+import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 // The canonical stage config. This page used to advance stages with a private
 // hardcoded copy of the pipeline ladder and none of the kanban's bookkeeping;
 // see progressStage below for what that cost. stageOptionsForType/
@@ -115,7 +115,21 @@ const app = initializeApp(firebaseConfig);
 // production without it. Mirrors dashboard-bootstrap.module.js. The site key
 // is set by the classic js/dashboard-appcheck-config.js script in <head>.
 const __APP_CHECK_KEY = (window.__NBD_APP_CHECK_KEY || '').trim();
-if (__APP_CHECK_KEY && !window.__NBD_APP_CHECK_INITIALIZED) {
+if (isLocalEmulatorEnv() && !window.__NBD_APP_CHECK_INITIALIZED) {
+  // Emulator rig only (no-op in production) — mirrors dashboard-bootstrap.
+  // reCAPTCHA can't mint tokens off the registered origin, so on localhost
+  // every enforced callable from this page (replyToPortalMessage, …) failed
+  // "Unauthenticated" and those flows couldn't be QA'd (CRM sweep R14).
+  try {
+    window.__NBD_APP_CHECK = initializeAppCheck(app, {
+      provider: new CustomProvider({ getToken: async () => emulatorAppCheckFakeToken() }),
+      isTokenAutoRefreshEnabled: false
+    });
+    window.__NBD_APP_CHECK_INITIALIZED = true;
+  } catch (e) {
+    console.warn('[customer] App Check emulator shim init failed:', e);
+  }
+} else if (__APP_CHECK_KEY && !window.__NBD_APP_CHECK_INITIALIZED) {
   try {
     // Expose instance so NBDComms / claude-proxy can attach App Check headers.
     window.__NBD_APP_CHECK = initializeAppCheck(app, {
