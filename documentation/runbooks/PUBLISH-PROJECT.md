@@ -37,6 +37,15 @@
 > `materials` (string or list), `timeline`, `outcome` (Result), plus an
 > optional per-photo `caption` (falls back to `alt`). Only write what is true
 > of the job.
+>
+> **Update 2026-09-27 (later) — `year` is required on a priced job.** A live
+> entry with `priceLow`/`priceHigh` and no `year` now fails the build, and the
+> message names the slug. The only exceptions are the seven legacy jobs listed
+> by slug in `LEGACY_UNDATED_PRICED` (`scripts/project-price-context.mjs`) —
+> priced before 2025, dates unknown (Jo 2026-09-27) — and only they carry the
+> "Priced before 2025." label. **Do not add to that list**; if a real year
+> turns up for one, set `year` and delete its slug (the build insists).
+> Give every new job a `year`, priced or not.
 
 ## The fastest way: post a job from your phone (agent session)
 
@@ -53,6 +62,7 @@ Post a completed job to the site:
              gutter-replacement | storm-damage | roof-inspection>
 - What we did (2–3 sentences, your voice): <...>
 - Retail price range (optional, nearest $500–$1,000): <$X–$Y or "skip">
+- Year the job was done/priced (required): <YYYY>
 - Homeowner consent to publish photos is on file: yes
 ```
 
@@ -156,6 +166,10 @@ you review the PR preview and merge.
      passes, CI's `--check` reads red on the next PR until someone restamps.
    - Insurance jobs: the range is the retail value of the work, not the
      claim math. Don't publish what a carrier paid.
+   - **`year` (required)** — the year the job was done and priced, a
+     4-digit number. The build refuses a priced job without it (naming the
+     slug); prices more than 12 months old get an honest "Priced in <year>"
+     line automatically. Don't leave it off an unpriced job either.
 
 5. **Build and verify:**
 

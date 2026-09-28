@@ -56,7 +56,9 @@
  * fatal — tests/catalog-cost-privacy.test.js is the independent backstop),
  * consentOnFile must be literally true, photos must be repo-local
  * re-encoded copies that exist on disk (never CRM storage URLs), and the
- * price range must be a sane both-or-neither pair.
+ * price range must be a sane both-or-neither pair. A live, priced job must
+ * carry `year` — only the named legacy jobs in LEGACY_UNDATED_PRICED
+ * (project-price-context.mjs) may omit it, and the failure names the slug.
  *
  * Publish procedure: documentation/runbooks/PUBLISH-PROJECT.md
  */
@@ -64,7 +66,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { priceContext, parseAsOf } from './project-price-context.mjs';
+import { priceContext, parseAsOf, yearRuleErrors } from './project-price-context.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = path.join(ROOT, 'docs', 'assets', 'data', 'projects.json');
@@ -199,6 +201,15 @@ for (const p of all) {
   for (const k of Object.keys(p)) {
     if (!KNOWN_FIELDS.has(k)) console.warn(`WARN: ${at}: unknown field "${k}" is ignored by the renderer (typo?)`);
   }
+}
+// A live, priced job must say what year it was priced (2026-09-27). Without
+// it the dated-price line cannot be honest, and before this gate an undated
+// job silently inherited the legacy "Priced before 2025." label. The legacy
+// allowlist and the rule live in project-price-context.mjs (unit-tested with
+// injected data in tests/project-price-context.test.js).
+{
+  const validateToday = new Date(); validateToday.setHours(23, 59, 59, 999);
+  for (const msg of yearRuleErrors(all, validateToday)) fail(msg);
 }
 if (process.exitCode) process.exit(1);
 

@@ -125,7 +125,7 @@
               feedback: 'Masterclass close. You reassured her (not ruined), explained the risk (compromised), provided the solution (insurance), offered value (documented photos), set honest expectations (if no damage I\'ll say so), and made the ask easy (fair enough?). This is how deals start.'
             },
             {
-              text: '"Well, a full roof replacement in this area runs about $8,000 to $15,000 depending on the size. But don\'t worry — insurance covers storm damage. We handle the whole claims process for you. I just need to get up there, take photos, and we can get the ball rolling today."',
+              text: '"Well, a full roof replacement in this area runs about $8,000 to $15,000 depending on the size. But don\'t worry — insurance covers storm damage. I document the damage and write the estimate, and you file with that in hand. I just need to get up there, take photos, and we can get the ball rolling today."',
               nextNode: 'price_shock',
               score: 12,
               tags: { technical: 15, closing: 10, empathy: 0, rapport: 0 },
@@ -267,11 +267,11 @@
               feedback: 'Calling her lived experience a "myth" is dismissive — her rates DID go up last time, so to her it\'s not a myth. The deductible mention is good but came too late after she\'s already in panic mode. You needed to slow down and acknowledge her emotion before jumping to facts.'
             },
             {
-              text: '"Don\'t worry about the price — that\'s what insurance is for! Let me get up there, document everything, and we\'ll handle the claim for you. You won\'t pay a dime except your deductible."',
+              text: '"Don\'t worry about the price — that\'s what insurance is for! Let me get up there, document everything, and we\'ll get your claim approved. You won\'t pay a dime except your deductible."',
               nextNode: 'fear_fail',
               score: 6,
               tags: { closing: 10, empathy: 0, objection: 0, technical: 0 },
-              feedback: '"Don\'t worry about the price" to someone who just said she can\'t afford it is tone-deaf. You completely ignored her insurance claim fear. And "we\'ll handle the claim for you" with someone who doesn\'t trust the process yet sounds like you\'re trying to take over. Read the room.'
+              feedback: '"Don\'t worry about the price" to someone who just said she can\'t afford it is tone-deaf. You completely ignored her insurance claim fear. And "we\'ll get your claim approved" is a promise nobody but the insurer can keep — the homeowner files, the carrier decides. Read the room.'
             }
           ]
         },
@@ -385,7 +385,7 @@
               feedback: 'You surrendered instantly. "I already have a guy" is the most common objection in the industry — if you fold every time you hear it, you\'ll never close a deal. This wasn\'t rude or aggressive; he was open to a brief conversation. You just didn\'t try.'
             },
             {
-              text: '"That\'s great that you have someone. But is he an insurance restoration specialist? Because general roofing and insurance claims work are two completely different things. If your guy doesn\'t know Xactimate pricing and supplement procedures, you could be leaving thousands on the table."',
+              text: '"That\'s great that you have someone. But does he do storm-damage documentation? Photos of every hit, a line-item estimate in Xactimate, meeting the adjuster on the roof after you file — that\'s different work from a regular re-roof, and if it\'s thin, items get missed."',
               nextNode: 'technical_push',
               score: 16,
               tags: { technical: 25, authority: 20, objection: 15, empathy: 0, rapport: 0 },
@@ -1225,7 +1225,7 @@
         },
         neighbor_win: {
           id: 'neighbor_win',
-          prompt: '✅ You finish Mrs. Johnson\'s inspection, then walk next door. The neighbor — Tom — shows you the leak. It\'s a cracked boot vent, easy fix but also storm damage on the north slope. You file his claim too. Two signed contracts from one hostile encounter. Tom becomes your biggest referral source on the block.',
+          prompt: '✅ You finish Mrs. Johnson\'s inspection, then walk next door. The neighbor — Tom — shows you the leak. It\'s a cracked boot vent, easy fix but also storm damage on the north slope. He files his claim with your photo report in hand. Two signed contracts from one hostile encounter. Tom becomes your biggest referral source on the block.',
           options: [],
           terminal: true,
           outcome: 'win',
@@ -1381,7 +1381,7 @@
       options: [
         { text: '"That\'s great — loyalty to a good contractor is rare. Has he been by since the storm to check on you?"', score: 3, correct: true, explanation: 'Validates loyalty, plants doubt with a question they probably haven\'t thought about.' },
         { text: '"We\'re probably better. Want a free second opinion?"', score: 0, correct: false, explanation: 'Insulting their contractor is insulting their judgment. Never attack the competition — elevate yourself.' },
-        { text: '"Is he an insurance restoration specialist? General roofers often miss things on the claims side."', score: 2, correct: false, explanation: 'Valid point but delivered as an attack on their guy. Better to ask the question without the follow-up dig.' },
+        { text: '"Does he document storm damage for insurance? General roofers often miss line items."', score: 2, correct: false, explanation: 'Valid point but delivered as an attack on their guy. Better to ask the question without the follow-up dig. (And never pitch NBD as the insurance-claims pro — Kentucky law (KRS 367.628) bars a contractor from representing or negotiating on a homeowner\'s claim or marketing itself as a claims or insurance expert, and in Ohio negotiating a claim for pay takes a public adjuster license.)' },
         { text: '"No problem. Here\'s my card if you ever need another option."', score: 1, correct: false, explanation: 'Passive surrender. The card goes in the trash. You didn\'t even try to differentiate yourself.' }
       ],
       tags: { objection: 30, rapport: 20, authority: 10 }
@@ -1451,8 +1451,8 @@
       objection: '"I don\'t want to deal with the hassle."',
       context: 'The process seems overwhelming',
       options: [
-        { text: '"Totally get it. That\'s actually exactly what we handle — the paperwork, the insurance communication, meeting the adjuster. You basically just sign the claim and we do the rest. Most homeowners say it was way easier than they expected."', score: 3, correct: true, explanation: 'Acknowledges the concern then repositions your company as the hassle-remover, not the hassle-creator. Social proof at the end seals it.' },
-        { text: '"It\'s actually not that much hassle. Just a quick inspection and then we handle the claim."', score: 1, correct: false, explanation: 'Minimizing their concern doesn\'t resolve it. "Not that much hassle" is still some hassle. Tell them what YOU do, not what they have to do.' },
+        { text: '"Totally get it. Here\'s what comes off your plate: I photograph every bit of damage, write the line-item estimate, and after you call in the claim I meet your adjuster on the roof and walk them through it. Your part is one phone call — you stay in charge of the claim. Most homeowners say it was way easier than they expected."', score: 3, correct: true, explanation: 'Acknowledges the concern, then shows how little is on their plate — using only what a contractor may do: document, estimate, meet the adjuster after the homeowner files. Kentucky law (KRS 367.628) bars a contractor from representing or negotiating on a homeowner\'s claim or marketing itself as a claims or insurance expert, and in Ohio negotiating a claim for pay takes a public adjuster license, so the homeowner files and owns the claim. Social proof at the end seals it.' },
+        { text: '"It\'s actually not that much hassle. Just a quick inspection and then we handle the claim."', score: 0, correct: false, explanation: 'Minimizing their concern doesn\'t resolve it — and "we handle the claim" is a promise you can\'t make: Kentucky law (KRS 367.628) bars a contractor from representing or negotiating on a homeowner\'s claim or marketing itself as a claims or insurance expert, and in Ohio negotiating a claim for pay takes a public adjuster license. Tell them what you DO do: the documentation, the estimate, the adjuster meeting.' },
         { text: '"The only hassle is dealing with a leaking roof when it rains. Trust me, this is easier."', score: 1, correct: false, explanation: 'Scare tactic. Comparing hassles doesn\'t make the process hassle feel better. Reframe instead of threaten.' },
         { text: '"Would it help if I walked you through the exact process step by step? It\'s simpler than you think."', score: 2, correct: false, explanation: 'Offering to explain is polite but "simpler than you think" is mildly condescending. Better to describe what YOU handle so they see how little THEY have to do.' }
       ],
@@ -1607,10 +1607,10 @@
       objection: '"I had a bad experience with my insurance company before."',
       context: 'Past claim trauma creating resistance',
       options: [
-        { text: '"I hear that a lot, and it\'s frustrating. What happened? ... The good thing is you don\'t have to deal with them alone this time. That\'s literally what we do — we handle the entire claims process. We meet with the adjuster, we submit the documentation, we fight for the full scope. You don\'t have to make a single call if you don\'t want to."', score: 3, correct: true, explanation: 'You listened first, empathized, then positioned yourself as the solution to their past problem. Handling the claims process for them removes the barrier entirely.' },
+        { text: '"I hear that a lot, and it\'s frustrating. What happened? ... The difference this time is you won\'t go in empty-handed. I photograph every hit and write a line-item estimate before you call it in, and once you\'ve filed I meet the adjuster on the roof and walk them through it. If their scope misses items, I send my updated estimate with the photos. It\'s your claim — you\'ll just have the record to back it."', score: 3, correct: true, explanation: 'You listened first, empathized, then showed what changes: documentation, an estimate, and the adjuster meeting — the work a contractor may do. You did NOT promise to handle or fight the claim: Kentucky law (KRS 367.628) bars a contractor from representing or negotiating on a homeowner\'s claim or marketing itself as a claims or insurance expert, and in Ohio negotiating a claim for pay takes a public adjuster license.' },
         { text: '"That won\'t happen this time — insurance always covers storm damage."', score: 0, correct: false, explanation: 'Dismissive of their experience and not even accurate. Insurance doesn\'t "always" cover everything. This response kills trust.' },
         { text: '"Which company are you with? Some are harder than others."', score: 2, correct: false, explanation: 'Not bad — knowing their carrier helps you tailor the approach. But you skipped over their emotional concern entirely. Listen first.' },
-        { text: '"I can refer you to a public adjuster who will fight for you."', score: 1, correct: false, explanation: 'Why are you sending them to someone else? YOU should be the one fighting for them. That\'s your value proposition.' }
+        { text: '"I can refer you to a public adjuster who will fight for you."', score: 1, correct: false, explanation: 'A public adjuster is the right call if a claim ends up disputed — they are licensed to negotiate it, and you are not. But leading with a referral skips what you CAN offer: the documentation, the estimate, and meeting the adjuster after they file.' }
       ],
       tags: { empathy: 30, authority: 20, objection: 15, rapport: 10 }
     },
@@ -1655,7 +1655,7 @@
       objection: '"I\'ll just file the claim myself — I don\'t need a contractor for that."',
       context: 'DIY mentality with insurance claims',
       options: [
-        { text: '"You absolutely can file yourself — it\'s your policy. But here\'s what usually happens: the adjuster comes out, does a quick ground inspection, and approves a $3,000 repair. When we\'re there WITH the adjuster, pointing out every damaged shingle, vent boot, and flashing — that same claim comes back at $12,000+. Our presence at the meeting typically triples the approved scope. And it costs you nothing extra."', score: 3, correct: true, explanation: 'You respected their autonomy, then showed the massive dollar difference between DIY and professional claims. The "triples the scope" line backed by specifics makes the value undeniable.' },
+        { text: '"You should — it\'s your policy and your claim, and you file it. Where I come in is the documentation. Here\'s what usually happens: the adjuster comes out, does a quick ground inspection, and approves a $3,000 repair. When we\'re there WITH the adjuster, pointing out every damaged shingle, vent boot, and flashing — that same claim comes back at $12,000+. Our presence at the meeting typically triples the approved scope. And it costs you nothing extra."', score: 3, correct: true, explanation: 'You respected their autonomy (they file and own the claim — Kentucky law (KRS 367.628) bars a contractor from representing or negotiating on a homeowner\'s claim or marketing itself as a claims or insurance expert, and in Ohio negotiating a claim for pay takes a public adjuster license), then showed the dollar difference documentation and an adjuster meeting make. The "triples the scope" line backed by specifics makes the value undeniable.' },
         { text: '"Trust me, you want a contractor there. Insurance companies lowball everyone."', score: 1, correct: false, explanation: '"Trust me" and "lowball" are alarm words. Show the math, don\'t make claims about insurance companies being adversarial.' },
         { text: '"That\'s fine. Let me know if you need help."', score: 0, correct: false, explanation: 'You just let a qualified lead walk because they didn\'t understand the process. It\'s your job to educate, not surrender.' },
         { text: '"Most homeowners who file alone end up getting about a third of what they\'re entitled to."', score: 2, correct: false, explanation: 'Good stat but sounds made up without context. Show the specific example of HOW the dollar difference happens — adjuster meeting, scope detail, line items.' }

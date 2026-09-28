@@ -19,8 +19,9 @@
  * legacy jobs carried over from the old gallery, all priced before 2025
  * (West Liberty is "2024 or earlier"). They get "Priced before 2025." plus
  * the same prices-rise note and link. The year itself is still never
- * guessed; the label names the bound Jo gave. A NEW job must carry `year`,
- * or it will be labelled this way too.
+ * guessed; the label names the bound Jo gave. Those jobs are named one by
+ * one in LEGACY_UNDATED_PRICED, and only they get the label: a NEW priced job
+ * without `year` fails the build (yearRuleErrors, run by build-projects.mjs).
  *
  * AS-OF DATE: injectable (tests pass their own). build-projects.mjs passes
  * --as-of=YYYY-MM-DD / NBD_PROJECTS_AS_OF when given, else the newest
@@ -76,9 +77,66 @@ export function todayHref(p) {
 export const UNDATED_KEY = 'before-2025';
 export const UNDATED_LABEL = 'before 2025';
 
-// A priced job with no usable year (see UNDATED JOBS above).
+// Priced before 2025 — dates unknown (Jo 2026-09-27); do not add new entries.
+// These are the only jobs that may be published with a price and no `year`,
+// and the only ones labelled "Priced before 2025." Every other priced live
+// job must carry `year` — build-projects.mjs fails the build naming the slug
+// (yearRuleErrors below). If a real year turns up for one of these, add it to
+// projects.json and delete the slug here (the build insists).
+export const LEGACY_UNDATED_PRICED = Object.freeze([
+  'brick-colonial-full-reroof',
+  'brick-two-story-drone-verified',
+  'multi-section-complex-roof',
+  'wind-damage-lifted-shingles',
+  'cul-de-sac-full-crew-tearoff',
+  'two-properties-one-day',
+  'apartment-complex-tearoff',
+]);
+const LEGACY_SET = new Set(LEGACY_UNDATED_PRICED);
+
+// A priced legacy job with no usable year (see UNDATED JOBS above). Only the
+// allowlist qualifies: an undated priced job outside it is a data error the
+// build refuses, never a job that quietly inherits the "before 2025" label.
 export function isUndatedPriced(p) {
-  return !!p && p.priceLow != null && p.priceHigh != null && pricedOn(p) === null;
+  return !!p && p.priceLow != null && p.priceHigh != null && pricedOn(p) === null && LEGACY_SET.has(p.slug);
+}
+
+/**
+ * yearRuleErrors(projects, today, legacy = LEGACY_UNDATED_PRICED) -> string[]
+ * One message per violation (empty = pass). `today` is a Date; a project is
+ * live when its `published` date is on or before it (the build's own filter).
+ *   - a `year` that is present must be a real 4-digit year
+ *   - a live, priced project needs `year` unless its slug is in `legacy`
+ *   - a `legacy` slug must still exist, and must still lack a year (a found
+ *     year retires the entry, so the list only shrinks)
+ * Pure; `legacy` is injectable for tests.
+ */
+export function yearRuleErrors(projects, today, legacy = LEGACY_UNDATED_PRICED) {
+  if (!(today instanceof Date) || isNaN(today.getTime())) throw new Error('yearRuleErrors: today must be a valid Date');
+  const allow = new Set(legacy);
+  const errs = [];
+  const bySlug = new Map((projects || []).map((p) => [p && p.slug, p]));
+  for (const p of projects || []) {
+    if (!p) continue;
+    const at = `project "${p.slug || p.title || '?'}"`;
+    if (p.year != null && pricedOn(p) === null) {
+      errs.push(`${at}: year must be a 4-digit year (e.g. 2026), got ${JSON.stringify(p.year)}`);
+      continue;
+    }
+    const pub = new Date(p.published);
+    const live = !isNaN(pub.getTime()) && pub <= today;
+    const priced = p.priceLow != null || p.priceHigh != null;
+    if (live && priced && p.year == null && !allow.has(p.slug)) {
+      errs.push(`${at}: a priced project needs "year" (the year the job was priced) — "${p.slug}" has priceLow/priceHigh and no year. `
+        + 'Only the legacy jobs in LEGACY_UNDATED_PRICED (scripts/project-price-context.mjs) may omit it; do not add to that list.');
+    }
+  }
+  for (const slug of allow) {
+    const p = bySlug.get(slug);
+    if (!p) errs.push(`LEGACY_UNDATED_PRICED lists "${slug}", which is not in projects.json — delete the entry`);
+    else if (p.year != null) errs.push(`project "${slug}" now has a year — delete it from LEGACY_UNDATED_PRICED (scripts/project-price-context.mjs)`);
+  }
+  return errs;
 }
 
 /**
