@@ -88,6 +88,7 @@ function stubs(pdfBase64) {
         };
       }`,
     'nbd-emulator-connect.js': `export async function connectEmulatorsIfLocal(){return false}
+      export async function emulatorAppCheckIfLocal(){return false}
       export function isLocalEmulatorEnv(){return false}`,
   };
 }
