@@ -2346,7 +2346,12 @@
       await updateKnock(knockId, { convertedToLead: true });
       if (window.D2D && typeof window.D2D.closeKnockDetail === 'function') window.D2D.closeKnockDetail();
       if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
-      window.showToast?.('✅ Converted to CRM Lead — visible in your pipeline', 'success');
+      // Only appointments land on the kanban; everything else is a prospect
+      // (isProspect above), which the pipeline hides. The toast used to say
+      // "visible in your pipeline" either way.
+      window.showToast?.(isAppointment
+        ? '✅ Converted to CRM Lead — visible in your pipeline'
+        : '✅ Saved to Prospects — promote it when it’s qualified', 'success');
     } catch (e) {
       console.error('convertToLead failed:', e);
       window.showToast?.('Failed to convert to lead', 'error');
