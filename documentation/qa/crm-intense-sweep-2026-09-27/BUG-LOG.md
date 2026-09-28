@@ -257,5 +257,6 @@ list stage dropdown to a gated stage opens the editor instead of skipping.
 | R5-02 | **Company / Role / License # were never saved** (a code note called them "deferred"), while Save said "Settings saved!". | Stored on the rep's own `users/{uid}` as `profileCompany` / `jobTitle` / `licenseNumber` and loaded back (never `role`, which is claims-owned). |
 | R5-03 | An invalid Google review link was silently cleared under a success toast. | Warning toast says it must start with https:// and was cleared. |
 | R5-04 | Toasts read "✓ ✓ Estimate duplicated" — callers prefix a ✓ beside the type icon. | The toast drops a leading mark that repeats its icon (app-wide, one place). |
+| R5-05 | **Reports → Lead Source ROI counted finished jobs as open pipeline.** Its hand-copied closed list missed Install Done / Final Photos / Collections / Warranty Claim and custom won stages. | Uses the shared stage role (verified: a lead at Install Done moves from pipeline to closed revenue). |
 
 **Worked:** estimates list Duplicate (copy is unassigned by design on this list), Rename, Assign-to-customer with search, Delete; seeded estimates now carry title/address like real saves.
