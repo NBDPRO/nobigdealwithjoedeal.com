@@ -271,7 +271,9 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
     }, { last: LEAD_LAST, stamp });
 
-    const card = page.locator(`text=/\\[E2E\\] Homeowner.*${stamp}/i`).first();
+    // Scoped to the CRM view — the hidden Home widgets also name the lead
+    // (2026-09-28), and an unscoped .first() can land on one of those.
+    const card = page.locator('#view-crm').locator(`text=/\\[E2E\\] Homeowner.*${stamp}/i`).first();
     await expect(card, 'lead card visible in the new tenant kanban').toBeVisible({ timeout: 10_000 });
 
     // Server truth: the lead is stamped to the STRANGER tenant.
@@ -441,7 +443,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
       // visibility-incomplete.
       await repPage.waitForURL(/\/pro\/dashboard(\.html)?([?#]|$)/, { timeout: 30_000 });
       await openCrm(repPage);
-      await expect(repPage.locator(`text=/\\[E2E\\] Homeowner.*${stamp}/i`).first(),
+      await expect(repPage.locator('#view-crm').locator(`text=/\\[E2E\\] Homeowner.*${stamp}/i`).first(),
         "owner's lead card visible on the manager's shared kanban").toBeVisible({ timeout: 30_000 });
 
       // Rules-level proof of the same thing (read the owner's lead doc
