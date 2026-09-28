@@ -238,6 +238,11 @@
       "sales-tax line and refuse to issue any link that wouldn't charge",
       "invoice.total. Dependency-free logic mirror of functions/stripe.js."
     ],
+    "followup-local-day.test.js": [
+      "A 'YYYY-MM-DD' follow-up is a LOCAL day: parsed as UTC it read a day",
+      "early in every US time zone (banner, card badge, overdue notifications).",
+      "Runs crm-pipeline.js's _followUpDay/_followUpDueText under TZ=America/New_York."
+    ],
     "invoice-markpaid-stage.test.js": [
       "Paying an invoice in full may move its lead FORWARD to contract_signed,",
       "never backward: a Closed/job/lost lead stays put (2026-09-28 sweep R5-10).",

@@ -266,3 +266,9 @@ list stage dropdown to a gated stage opens the editor instead of skipping.
 | R5-11 | **Customer Project Timeline was insurance-only**: a cash / finance / warranty / custom-stage lead matched none of its milestones, so nothing showed as reached. Also labelled `estimate_submitted` "Estimate Approved". | Timeline follows the lead's own tenant-resolved track (shared `_pipelineFor`); "Estimate Sent". Verified on a cash lead at Est. Sent. |
 
 **Worked:** estimates list Duplicate (copy is unassigned by design on this list), Rename, Assign-to-customer with search, Delete; seeded estimates now carry title/address like real saves.
+
+## Round 6 — 2026-09-28
+
+| # | Finding | Fix |
+|---|---|---|
+| R6-01 | **Every follow-up read as due a day early** in US time zones: `followUp` is stored `YYYY-MM-DD` and `new Date()` parses that as UTC midnight (the previous evening locally). Hit the pipeline "Follow-ups Due" banner, the card badge, the **"Overdue Follow-Up" bell notifications**, Analytics overdue count, Ask Joe's overdue list and lead scoring. The banner also printed "Due: 2026-09-29". | Local-day parse at all 7 sites (`window.nbdFollowUpDay`); banner says "Due today" / "Due Sep 29" / "3 days overdue". Verified: a tomorrow follow-up no longer shows, today's does. Test `followup-local-day.test.js` (runs under TZ=America/New_York, with a control proving the old parse is a day early). |
