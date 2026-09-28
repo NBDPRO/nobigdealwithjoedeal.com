@@ -273,6 +273,20 @@
       danger: true,
       onSelect: () => window.deleteLead && window.deleteLead(lead.id),
     });
+    // A viewer is read-only (role-gate.js). Every write below was refused on
+    // click — Delete even opened a dialog with only Cancel — so offer just the
+    // read actions. Portal links mint tokens, which is a write.
+    if (window.NBDRole && typeof window.NBDRole.isViewer === 'function' && window.NBDRole.isViewer()) {
+      const READ_ONLY = /^(View details|Call |Copy phone|Copy address|Open in Maps)/;
+      // Keep read items; drop leading, doubled and trailing dividers.
+      const clean = [];
+      for (const it of items) {
+        if (it.divider) { if (clean.length && !clean[clean.length - 1].divider) clean.push(it); }
+        else if (READ_ONLY.test(it.label || '')) clean.push(it);
+      }
+      while (clean.length && clean[clean.length - 1].divider) clean.pop();
+      return renderMenu(clean, x, y);
+    }
     return renderMenu(items, x, y);
   }
 

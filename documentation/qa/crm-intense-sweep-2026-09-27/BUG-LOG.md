@@ -233,6 +233,7 @@ Logged in as `sales_rep`. Each fix was re-checked in the browser.
 | R4-07 | **Retired AOB checkbox visible and tickable** in the lead editor: `<div class="mrow" hidden>` but `.mrow{display:grid}` beats the UA `[hidden]` rule. Same pattern put an **empty red ⛈ storm pill** on every phone job-detail sheet without a hail hit. | `.mrow[hidden]` / `.m-jd-storm[hidden]` → `display:none`. Scanned 19 other Pro pages for `[hidden]` elements that still render: none. |
 | R4-08 | Raw stage keys ("Stage: contacted") in the Deleted-leads bin, overdue follow-up notifications and the customer timeline. | Stage labels. |
 | R4-09 | Invoice dialog on a customer with no estimates was a bare "Enter estimate ID" box. | Says there are no estimates yet and to build one first. |
+| R4-10 | **Viewer's right-click menu offered every write** (Edit, Add task, Move, Snooze, portal links, Delete). Each was refused on click (the role gate held), but Delete opened a "Move to Deleted?" dialog with only Cancel. | Viewer menu shows View details / Call / Copy phone / Copy address / Open in Maps. Drag and Log Contact were already refused with a clear toast. |
 
 **Not bugs (rig artifacts):** the "AOB required for Claim Filed" block was a
 stale cached `crm-stages.js` (source dropped it 2026-09-27); "Couldn't copy
