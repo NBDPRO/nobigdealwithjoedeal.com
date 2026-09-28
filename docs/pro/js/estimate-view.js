@@ -172,9 +172,12 @@
     // tenant-set https logo / hex colors only; null-ish name for NBD).
     var coName = (company && company.name) || 'No Big Deal Home Solutions';
     var isNbd = coName === 'No Big Deal Home Solutions';
+    // The page ships a neutral "Your Estimate" title — it used to say
+    // "— No Big Deal" until this ran, so another contractor's homeowner saw
+    // NBD's name while the estimate loaded. Set it for every company here.
+    document.title = 'Your Estimate — ' + coName;
     if (!isNbd) {
       try {
-        document.title = 'Your Estimate — ' + coName;
         if (company.colors && company.colors.accent) {
           // Certification: body carries .nbd-brand, whose token block SHADOWS
           // an html-only override — set on BOTH roots, override the derived

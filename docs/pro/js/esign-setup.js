@@ -27,7 +27,7 @@ import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/
 import { getStorage, ref as storageRef, uploadBytes } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
 import * as pdfjsLib from '/assets/vendor/pdfjs/pdf.min.mjs';
-import { connectEmulatorsIfLocal } from './nbd-emulator-connect.js';
+import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal } from './nbd-emulator-connect.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/assets/vendor/pdfjs/pdf.worker.min.mjs';
 
@@ -42,8 +42,13 @@ const firebaseConfig = {
   appId: '1:717435841570:web:c2338e11052c96fde02e7b',
 };
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+// Locally, the emulator App Check shim (same as login/register): reCAPTCHA
+// can't mint a token on localhost, so createEsignEnvelope (enforceAppCheck)
+// answered "Unauthenticated" and e-sign setup was untestable in the rig.
+// No-op off localhost — production takes the reCAPTCHA branch below.
+const _emuAppCheck = await emulatorAppCheckIfLocal(app);
 try {
-  if (typeof window.__NBD_APP_CHECK_KEY === 'string' && window.__NBD_APP_CHECK_KEY) {
+  if (!_emuAppCheck && typeof window.__NBD_APP_CHECK_KEY === 'string' && window.__NBD_APP_CHECK_KEY) {
     initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(window.__NBD_APP_CHECK_KEY),
       isTokenAutoRefreshEnabled: true,
@@ -580,7 +585,27 @@ el.file.addEventListener('change', async () => {
 onAuthStateChanged(auth, async (user) => {
   if (!user) { location.href = '/pro/login?next=' + encodeURIComponent(location.pathname + location.search); return; }
   uid = user.uid;
-  if (!envelopeId) return;                 // new envelope: wait for a file
+  if (!envelopeId) {                        // new envelope: wait for a file
+    // Pre-fill the signer from this customer (the rep had to retype both,
+    // and a typo'd email sends a legal document to the wrong person). Only
+    // fills empty boxes; best-effort — rules or a missing lead just leave
+    // them blank as before.
+    if (leadId) {
+      try {
+        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const db = fs.getFirestore(app);
+        try { await connectEmulatorsIfLocal({ db }); } catch (_) {}
+        const snap = await fs.getDoc(fs.doc(db, 'leads', leadId));
+        if (snap.exists()) {
+          const l = snap.data() || {};
+          const nm = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || '';
+          if (nm && !el.signerName.value.trim()) el.signerName.value = nm;
+          if (l.email && !el.signerEmail.value.trim()) el.signerEmail.value = l.email;
+        }
+      } catch (_) { /* leave the signer boxes for the rep */ }
+    }
+    return;
+  }
   busy('Loading…', 'Fetching the document you started.');
   try {
     const r = await httpsCallable(fns, 'getEsignEnvelopeForOwner')({ envelopeId });

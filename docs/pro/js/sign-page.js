@@ -109,10 +109,14 @@
     if (docName) docName.textContent = r.data.docTypeName ? '· ' + r.data.docTypeName : '';
     // White-label (2026-07-19): tenant signing sessions brand the chrome with
     // the tenant's name (server-resolved, '' for NBD -> literals untouched).
-    if (r.data.companyName) {
-      var brandEl = document.getElementById('spBrand');
-      if (brandEl) brandEl.textContent = r.data.companyName;
-      try { document.title = 'Review & Sign · ' + r.data.companyName; } catch (e) {}
+    var brandEl = document.getElementById('spBrand');
+    if (r.data.companyName && brandEl) brandEl.textContent = r.data.companyName;
+    // sign.html now ships a neutral title and a hidden brand span (another
+    // contractor's homeowner saw NBD's name while the document loaded). Once
+    // the company is known — the tenant's, or the page's NBD default — show it.
+    if (brandEl) {
+      brandEl.style.visibility = '';
+      try { document.title = 'Review & Sign · ' + brandEl.textContent; } catch (e) {}
     }
     frame.srcdoc = withPhoneLayout(r.data.html || '');
     frame.style.display = 'block';

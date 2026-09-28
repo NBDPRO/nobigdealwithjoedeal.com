@@ -54,6 +54,7 @@ const STUBS = {
         return {data:{ok:true, link:'https://example.test/pro/esign.html?t=TOK'}}; };
     }`,
   'nbd-emulator-connect.js': `export async function connectEmulatorsIfLocal(){return false}
+    export async function emulatorAppCheckIfLocal(){return false}
     export function isLocalEmulatorEnv(){return false}`,
 };
 

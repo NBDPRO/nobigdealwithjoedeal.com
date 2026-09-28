@@ -330,10 +330,64 @@
     } catch (_) {}
   }
 
+  // ── E-sign envelopes for this customer ──────────────────────────
+  // esign-setup.js creates esign_envelopes/{id} and submitEsignEnvelope writes
+  // the executed copy to esign/{uid}/{leadId}/{envId}/signed.pdf — but no CRM
+  // surface read either, so after "Document signed" the rep had no way to open
+  // the signed agreement. Owner-scoped query (rules: ownerUid == auth.uid);
+  // the signed PDF is fetched as a blob, never via a download-token URL
+  // (tokens bypass storage.rules).
+  var ENV_LABEL = { draft: 'Draft', sent: 'Sent — waiting for signature', completed: 'Signed', voided: 'Voided' };
+  async function loadEnvelopes(id) {
+    var box = document.getElementById('esignEnvelopeList');
+    var uid = window._user && window._user.uid || (window.auth && window.auth.currentUser && window.auth.currentUser.uid);
+    if (!box || !id || !uid || !window.db || !window.getDocs || !window.query || !window.where || !window.collection) return;
+    try {
+      var snap = await window.getDocs(window.query(window.collection(window.db, 'esign_envelopes'),
+        window.where('ownerUid', '==', uid), window.where('leadId', '==', id)));
+      var rows = [];
+      snap.forEach(function (d) { rows.push(Object.assign({ id: d.id }, d.data())); });
+      var ms = function (t) { return t && t.toMillis ? t.toMillis() : (t && t.seconds ? t.seconds * 1000 : 0); };
+      rows.sort(function (a, b) { return ms(b.signedAt || b.sentAt || b.createdAt) - ms(a.signedAt || a.sentAt || a.createdAt); });
+      if (!rows.length) { box.innerHTML = ''; return; }
+      box.innerHTML = rows.map(function (e) {
+        var when = ms(e.signedAt || e.sentAt || e.createdAt);
+        var whenTxt = when ? new Date(when).toLocaleDateString() : '';
+        var action = (e.status === 'completed' && e.signedPath)
+          ? '<button type="button" class="btn btn-ghost" data-esign-open="' + esc(e.signedPath) + '" style="font-size:11px;padding:6px 12px;">Open signed PDF</button>'
+          : (e.status === 'draft' || e.status === 'sent')
+            ? '<a class="btn btn-ghost" href="/pro/esign-setup?lead=' + encodeURIComponent(id) + '&env=' + encodeURIComponent(e.id) + '" style="font-size:11px;padding:6px 12px;text-decoration:none;">Open</a>'
+            : '';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--br);">' +
+          '<div style="min-width:0;"><div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(e.title || 'Document') + '</div>' +
+          '<div style="font-size:11px;color:var(--m);">' + esc(ENV_LABEL[e.status] || e.status || '') +
+          (e.remoteSignerName || e.signerName ? ' · ' + esc(e.remoteSignerName || e.signerName) : '') +
+          (whenTxt ? ' · ' + esc(whenTxt) : '') + '</div></div>' + action + '</div>';
+      }).join('');
+      box.querySelectorAll('[data-esign-open]').forEach(function (b) {
+        b.addEventListener('click', async function () {
+          var w = window.open('', '_blank'); // open now — a popup opened after an await is blocked
+          try {
+            var st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+            var blob = await st.getBlob(st.ref(window.storage, b.getAttribute('data-esign-open')));
+            var url = URL.createObjectURL(blob);
+            if (w) w.location.href = url; else window.open(url, '_blank');
+          } catch (err) {
+            if (w) w.close();
+            if (typeof window.showToast === 'function') window.showToast('Couldn’t open the signed PDF: ' + ((err && err.message) || 'error'), 'error');
+          }
+        });
+      });
+    } catch (err) {
+      console.warn('[customer-documents] envelopes load failed', err && err.message);
+    }
+  }
+
   async function load(leadId) {
     var id = leadId || window._customerId;
     if (!id) return [];
     stampEsignLink(id);
+    loadEnvelopes(id);
     try {
       _inflight = fetchAll(id);
       window._customerDocs = await _inflight;
