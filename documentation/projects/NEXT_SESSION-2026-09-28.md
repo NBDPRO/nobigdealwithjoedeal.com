@@ -92,10 +92,22 @@ each merged green and deployed; details and repro notes per round in
   revenue goal didn't stick.
 - **#1823** — Photos, Dashboard (Analytics) and Money painted empty/$0 after
   a refresh and never recovered.
-- **Round 8 (this PR)** — customer-page Edit Info saved phone "123", email
+- **Round 8 (#1824)** — customer-page Edit Info saved phone "123", email
   "bad" and negative job values; the homeowner portal flashed NBD's name while
   loading for other tenants; the rig now wires default functions to the
   emulator (portal links / Team Manager testable locally).
+- **#1827** — **a signed e-sign agreement was unreachable from the CRM**
+  (nothing read `esign_envelopes`); the customer's Documents tab now lists
+  envelopes with **Open signed PDF** (blob, no download token); signer
+  pre-filled; estimate view + signing page no longer show NBD while loading.
+- **#1828** — Close Board deals "Unnamed" and missing claim details; photo
+  report Carrier and job-sheet Carrier/Deductible blank (wrong lead field
+  names: form writes `firstName`/`lastName`, `insCarrier`,
+  `deductibleOrOwedByHO`).
+
+Local rig note: functions use a **live Resend key** — keep test signer/email
+addresses on `example.com`. Homeowner photo upload fails locally only (no
+service-account key for `getSignedUrl`); prod IAM grant verified read-only.
 
 **Rig lessons (also in memory `emulator-seed-shape-artifacts`):** the seed
 now writes `companies/{id}` + members, the tenant `brand`, 10-digit phones,
