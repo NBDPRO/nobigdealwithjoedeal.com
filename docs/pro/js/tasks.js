@@ -84,12 +84,22 @@ async function createNotification(userId, type, title, message, leadId, priority
   }
 }
 
+// Leads whose last read came from the LOCAL cache, not the server. getDocs
+// answers from cache without an error while the connection is being cycled
+// (boot pre-flight, the visibility handler's "tab returned to foreground"
+// cycle): every lead read 0 tasks fromCache=true on the emulator, the boot
+// pass never ran again, and overdue tasks were missing from the bell, the
+// Today list and the overdue notification until a full reload (CRM sweep R13,
+// 2026-09-28). loadAllTasks re-reads these once the connection is back.
+const _tasksFromCache = new Set();
 async function _loadTasks(leadId) {
   if (!window._taskCache) window._taskCache = {};
   try {
     const snap = await getDocs(query(collection(db,'leads',leadId,'tasks'), orderBy('createdAt','asc')));
     const tasks = snap.docs.map(d=>({id:d.id,...d.data()}));
     window._taskCache[leadId] = tasks;
+    if (snap.metadata && snap.metadata.fromCache) _tasksFromCache.add(leadId);
+    else _tasksFromCache.delete(leadId);
     return tasks;
   } catch(e){ return window._taskCache[leadId]||[]; }
 }
@@ -118,13 +128,27 @@ async function _deleteTask(leadId, taskId) {
   try { await deleteDoc(doc(db,'leads',leadId,'tasks',taskId)); return true; }
   catch(e){ console.error('deleteTask error:', e); return false; }
 }
-async function loadAllTasks() {
+let _taskCacheRetries = 0;
+const _TASK_CACHE_RETRY_MS = 2500, _TASK_CACHE_MAX_RETRIES = 4;
+async function loadAllTasks(opts) {
+  // A retry re-reads only the leads whose last read came from cache.
+  const ids = (opts && opts.retry)
+    ? Array.from(_tasksFromCache)
+    : (window._leads||[]).map(l=>l.id);
   // Use allSettled so a single lead's failure doesn't block the rest
-  await Promise.allSettled((window._leads||[]).map(l=>_loadTasks(l.id)));
+  await Promise.allSettled(ids.map(id=>_loadTasks(id)));
   renderTodayTasks();
   renderLeads(window._leads, window._filteredLeads);
   // Wave 13: tell the notification bell tasks just refreshed.
   try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'tasks' } })); } catch (_) {}
+  // Any read served from the local cache is re-read from the server shortly
+  // (bounded: a genuinely offline rep keeps the cached tasks, which are the
+  // best available, and the retries stop).
+  if (!(opts && opts.retry)) _taskCacheRetries = 0;
+  if (_tasksFromCache.size && _taskCacheRetries < _TASK_CACHE_MAX_RETRIES) {
+    _taskCacheRetries++;
+    setTimeout(() => { loadAllTasks({ retry: true }); }, _TASK_CACHE_RETRY_MS);
+  }
 }
 function renderTodayTasks() {
   const el = document.getElementById('todayTasksList');

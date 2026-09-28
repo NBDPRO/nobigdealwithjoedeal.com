@@ -168,3 +168,19 @@ Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26
   3. The Bland balance read −0.50 credits.
   4. Optional Bland support ticket (latency ~2 s/turn, start node, tool binding) — drafted in the session.
 
+
+## Update — 2026-09-28 (night): revenue = collected; sweep round 13
+
+- **Revenue decided (Jo):** "Revenue is always collected only. Projected is separate." **#1841** makes every revenue figure invoice payments by payment date: Home, Analytics, Reports, rep reports, leaderboard, lead-source ROI, achievements, AI context and the weekly digest email. It also fixes Reports' off-by-one weekly chart. BUG-LOG R12-07 is closed. Memory: `revenue-is-collected-only`.
+- **Round 13 (BUG-LOG R13-01 … R13-08).**
+  - Merged:
+    - **#1842:** a payment smaller than the deposit was invisible on the invoice and the emailed invoice.
+    - **#1843:** CSV import stored raw stage text (the server called an imported finished job "active") and duplicated customer IDs; the top-bar search matched phones on stray digits; **every notification-bell lead link opened a blank Estimate Builder** (`?tab=` was never read).
+  - Also merged:
+    - **#1844:** a declined duplicate prompt stranded a D2D knock as "converted" forever.
+    - **#1845:** overdue tasks vanished from the bell after a Firestore connection cycle (`fromCache` reads).
+- **Test-count floors:** after #1844 main is node 218 / disk 312; #1845 takes 219 / 313.
+- **Open for Jo:**
+  - R13-08: show Insurance Claim Progress on cash jobs?
+  - The §4 items above (audit run logs, Bland balance / ticket) still stand.
+- **Not yet swept:** estimate builder edge cases on a phone; Settings → Team invites end to end (needs the functions emulator); the homeowner portal on a phone.
