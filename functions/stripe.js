@@ -1790,9 +1790,11 @@ exports.invoiceWebhook = onRequest(
                 if (leadSnap.exists) {
                   const lead = leadSnap.data();
                   const curStage = (lead.stage || '').toLowerCase();
-                  // Stages we won't override (already at-or-past final payment, or lost).
-                  const PROTECTED = new Set(['final_payment', 'closed', 'lost']);
-                  if (!PROTECTED.has(curStage)) {
+                  // Forward-only, main job track only — see
+                  // stage-roles.js payoffAdvanceAllowed (R14, 2026-09-28): the
+                  // old final_payment/closed/lost list let a warranty or
+                  // service payoff drag the lead onto Final Payment.
+                  if (stageRoles.payoffAdvanceAllowed(lead)) {
                     await leadRef.update({
                       stage: 'final_payment',
                       _stageKey: 'final_payment',
@@ -1809,6 +1811,12 @@ exports.invoiceWebhook = onRequest(
                       // unambiguous — no client-side derivation needed.
                       stageRole: stageRoles.roleFromKey('final_payment'),
                       stageStartedAt: FieldValue.serverTimestamp(),
+                      // Same history entry every client stage move writes
+                      // (stage-write.js commitStageChange).
+                      stageHistory: FieldValue.arrayUnion({
+                        from: lead.stage || null, to: 'final_payment',
+                        timestamp: new Date().toISOString(), user: 'stripe (online payment)',
+                      }),
                       autoAdvancedFromInvoiceId: invoiceId,
                       autoAdvancedAt: FieldValue.serverTimestamp(),
                       updatedAt: FieldValue.serverTimestamp(),
