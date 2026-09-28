@@ -418,6 +418,41 @@ test('no-deposit invoice: deposit/balance block does not render at all', () => {
   eq(extractRow(html, 'Balance Due'), null, 'no balance-due row either — nothing to reconcile');
 });
 
+// ── Partial payment SMALLER than the deposit (emulator, 2026-09-28) ──────
+// $14,880 invoice, $7,450 deposit, a $3,000 check recorded via Mark Paid.
+// markPaid stored amountPaid 3000 / balanceDue 11880 / depositPaid false —
+// and both renderers kept printing "Deposit due $7,450 · Balance Due $7,430",
+// exactly as before the check: the payment was invisible.
+const partialUnderDeposit = {
+  total: 14880, depositAmount: 7450, depositPaid: false, amountPaid: 3000, balanceDue: 11880,
+  items: [], invoiceNumber: 'INV-PART', customerName: 'Jane Homeowner', customerAddress: '1 Main St',
+};
+test('partial < deposit: remaining deposit, paid to date, and a balance that still foots', () => {
+  const html = IP.buildInvoiceHtml(partialUnderDeposit);
+  eq(extractRow(html, 'Deposit due (remaining)'), '$4,450.00', 'deposit left = 7,450 − 3,000');
+  eq(extractRow(html, 'Paid to date'), '$3,000.00', 'the check is shown');
+  eq(extractRow(html, 'Balance Due'), '$7,430.00', 'deposit left + balance = 11,880 outstanding');
+});
+test('paymentSummaryRows: rows always foot to total − paid', () => {
+  const cases = [
+    depositInvoiceUnpaid,
+    Object.assign({}, depositInvoiceUnpaid, { depositPaid: true, amountPaid: 7100, balanceDue: 7100 }),
+    partialUnderDeposit,
+    Object.assign({}, partialUnderDeposit, { amountPaid: 9000, balanceDue: 5880, depositPaid: true }),
+    { total: 5000, depositAmount: 0, amountPaid: 1200, balanceDue: 3800 },
+  ];
+  for (const c of cases) {
+    const rows = IP.paymentSummaryRows(c);
+    const due = rows.filter(r => r.label !== 'Paid to date' && r.label !== 'Deposit (paid)').reduce((s, r) => s + r.amount, 0);
+    eq(Math.round(due * 100), Math.round((c.total - (c.amountPaid || 0)) * 100), 'foots for ' + JSON.stringify({ t: c.total, d: c.depositAmount, p: c.amountPaid }));
+  }
+});
+test('no-deposit invoice with a partial payment shows paid + balance (was: nothing)', () => {
+  const html = IP.buildInvoiceHtml({ total: 5000, depositAmount: 0, amountPaid: 1200, balanceDue: 3800, items: [], invoiceNumber: 'INV-3', customerName: 'X', customerAddress: 'Y' });
+  eq(extractRow(html, 'Paid to date'), '$1,200.00', 'paid row');
+  eq(extractRow(html, 'Balance Due'), '$3,800.00', 'balance row');
+});
+
 // ── Bill-To name (phone audit 2026-09-25, estimate#9) ─────────────────────
 // Real shapes: no estimate writer stamps customerName (V2 and Classic save the
 // homeowner as `owner`), and saveLead writes firstName/lastName, never `name`.
