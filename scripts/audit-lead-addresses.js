@@ -54,6 +54,13 @@ const { initAdmin, getFirestore } = require('./_admin');
 const args = process.argv.slice(2);
 const LIST = args.includes('--list');
 const CSV = args.includes('--csv');
+// This repo is PUBLIC, and so are its Actions logs and job summaries. From
+// 2026-08-20 to 2026-09-28 the daily run printed customers' names, street
+// addresses and job values into them. On a runner (GITHUB_ACTIONS=true) the
+// list is forced down to category + Firestore doc id — enough to open the
+// record in NBD Pro — and --csv is refused. There is no flag to undo this in
+// CI on purpose. Locally, --redact gives the same output.
+const REDACT = process.env.GITHUB_ACTIONS === 'true' || args.includes('--redact');
 const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
 const PAGE = 500;
 
@@ -75,11 +82,15 @@ function classify(addr) {
   return 'ok';
 }
 
+function isIntakeLead(d) {
+  return d.webLead === true || !!d.publicLeadKind || !!d.referredByLeadId || !!d.convertedFromUnmatchedSms;
+}
+
 async function main() {
   initAdmin({ projectId: PROJECT });
   const db = getFirestore();
 
-  const buckets = { legacyMangled: [], blank: [], noStreet: [], noState: [], noZip: [], ok: [] };
+  const buckets = { legacyMangled: [], blank: [], notProvided: [], noStreet: [], noState: [], noZip: [], ok: [] };
   let scanned = 0;
   let skipped = 0;   // soft-deleted (deleted === true) — retired, not broken
   let last = null;
@@ -101,7 +112,17 @@ async function main() {
       if (d.deleted === true) { skipped++; continue; }
       scanned++;
       const name = [d.firstName, d.lastName].filter(Boolean).join(' ').trim() || '(no name)';
-      buckets[classify(d.address)].push({
+      let cls = classify(d.address);
+      // A lead from an automatic intake whose sender gave no address was never
+      // corrupted — none of those channels requires one. That is missing
+      // data, like noStreet, not the blanking this gate exists to catch;
+      // failing on it kept the job red daily from 2026-09-04 (one contact-form
+      // lead). Every intake leaves a marker: website forms / Thumbtack /
+      // Thursday calls set publicLeadKind, Cal.com sets webLead, the referral
+      // form sets referredByLeadId, and an SMS converted into a lead sets
+      // convertedFromUnmatchedSms (always with a blank address).
+      if (cls === 'blank' && isIntakeLead(d)) cls = 'notProvided';
+      buckets[cls].push({
         id: doc.id,
         name,
         address: String(d.address == null ? '' : d.address).trim(),
@@ -114,6 +135,7 @@ async function main() {
   }
 
   if (CSV) {
+    if (REDACT) { console.error('--csv prints customer data; refused when redacting (CI or --redact).'); process.exit(2); }
     console.log('category,id,name,jobValue,address');
     for (const k of Object.keys(buckets)) {
       for (const r of buckets[k]) {
@@ -130,10 +152,11 @@ async function main() {
   console.log('Lead address audit — project ' + PROJECT);
   console.log('═══════════════════════════════════════════════════════════\n');
 
-  const order = ['legacyMangled', 'blank', 'noStreet', 'noState', 'noZip', 'ok'];
+  const order = ['legacyMangled', 'blank', 'notProvided', 'noStreet', 'noState', 'noZip', 'ok'];
   const label = {
     legacyMangled: 'BROKEN  pre-Wave-141 mangled',
     blank:         'BROKEN  no address at all',
+    notProvided:   'THIN    intake lead, none given',
     noStreet:      'THIN    city/ZIP only, no street',
     noState:       'THIN    no state',
     noZip:         'THIN    no ZIP',
@@ -144,7 +167,7 @@ async function main() {
     console.log(
       '  ' + label[k].padEnd(36) +
       String(rows.length).padStart(4) + '  ' + pct(rows.length).padStart(5) +
-      '   $' + money(rows).toLocaleString()
+      (REDACT ? '' : '   $' + money(rows).toLocaleString())
     );
   }
   console.log('\n  scanned: ' + scanned +
@@ -155,6 +178,7 @@ async function main() {
       if (k === 'ok' || !buckets[k].length) continue;
       console.log('\n─── ' + label[k] + ' ───');
       for (const r of buckets[k].sort((a, b) => b.jobValue - a.jobValue)) {
+        if (REDACT) { console.log('  ' + r.id); continue; }
         console.log('  ' + r.id + '  ' + r.name.padEnd(28) +
           ('$' + r.jobValue.toLocaleString()).padStart(12) + '   ' +
           (r.address || '(blank)'));

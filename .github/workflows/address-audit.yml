@@ -153,8 +153,12 @@ jobs:
       # The gate itself. audit-lead-addresses.js exits non-zero when any
       # `legacyMangled` or `blank` address remains, so a regression turns this
       # job red and GitHub emails the repo owner. Output is captured so the
-      # offending records land in the run summary — a red check with no names
-      # in it is a red check nobody acts on.
+      # offending records land in the run summary — as Firestore doc ids ONLY.
+      # This repo is public, and so are its run logs and summaries: from
+      # 2026-08-20 to 2026-09-28 they carried customers' names, addresses and
+      # job values. The script now redacts itself whenever GITHUB_ACTIONS=true
+      # (tests/address-audit-script.test.js pins it); open an id in NBD Pro, or
+      # run the script locally for the full list.
       - name: Run the audit
         if: steps.gate.outputs.configured == 'true'
         env:
