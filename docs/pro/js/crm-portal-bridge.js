@@ -213,6 +213,8 @@ async function bulkMoveStage() {
   }
 
   const selectedIds = Array.from(sel);
+  const _label = (typeof window.stageLabel === 'function' && window.stageLabel(newStage)) || newStage;
+  const _nameOf = (l) => ((l && ((l.firstName || '') + ' ' + (l.lastName || '')).trim()) || (l && l.address) || 'a lead');
 
   try {
     // Wave 103: collect failures separately so we can report
@@ -222,13 +224,34 @@ async function bulkMoveStage() {
     // through M had not. Cards 1-N were silently in the new
     // stage, cards N+1 to M still in the old. No way for the
     // rep to know which.
+    //
+    // moveCard returns true ONLY when the move committed; a refusal (the
+    // destination's required fields, a teammate's lead, a cancelled prompt)
+    // or a rolled-back write returns undefined and never throws. Counting
+    // "no throw" as moved toasted "Moved 2 lead(s)" for two leads the
+    // required-field gate had refused (CRM sweep R13, 2026-09-28). Those are
+    // checked up front here instead: moveCard would open the lead modal for
+    // each one in turn, and only the last would stay on screen.
     const failures = [];
+    const needFields = [];
+    const _lost = /^lost$/i.test(String(newStage));
+    const _destKey = typeof window.normalizeStage === 'function' ? window.normalizeStage(newStage) : newStage;
+    let already = 0;
     for (const leadId of selectedIds) {
-      try { await moveCard(leadId, newStage); }
-      catch (err) {
-        console.warn('[bulkMoveStage] failed for', leadId, err);
-        failures.push(leadId);
+      const lead = (window._leads || []).find((l) => l && l.id === leadId);
+      // Already there: skip. Re-committing the same stage re-ran its entry
+      // automations (a second "stage email ready", stage tasks) for a lead
+      // that never moved.
+      if (lead && (lead._stageKey || lead.stage) === _destKey) { already++; continue; }
+      if (!_lost && lead && typeof window.missingRequiredFields === 'function'
+          && window.missingRequiredFields({ ...lead, stage: newStage }).length > 0) {
+        needFields.push(_nameOf(lead));
+        continue;
       }
+      let moved = false;
+      try { moved = (await moveCard(leadId, newStage)) === true; }
+      catch (err) { console.warn('[bulkMoveStage] failed for', leadId, err); }
+      if (!moved) failures.push(leadId);
     }
 
     // Clear selection and exit bulk mode regardless — partial
@@ -237,12 +260,14 @@ async function bulkMoveStage() {
     clearBulkSelection();
     toggleBulkMode();
 
-    const movedCount = selectedIds.length - failures.length;
-    if (failures.length > 0) {
-      showToast(`Moved ${movedCount}/${selectedIds.length}. ${failures.length} failed — try again.`, 'error');
-    } else {
-      showToast(`Moved ${movedCount} lead(s) to ${newStage}`, 'ok');
+    const movedCount = selectedIds.length - failures.length - needFields.length - already;
+    const parts = [`Moved ${movedCount} of ${selectedIds.length} to ${_label}.`];
+    if (already) parts.push(`${already} already there.`);
+    if (needFields.length) {
+      parts.push(`${needFields.length} need ${_label}'s required info first: ${needFields.slice(0, 3).join(', ')}${needFields.length > 3 ? '…' : ''}.`);
     }
+    if (failures.length) parts.push(`${failures.length} not moved — open them to see why.`);
+    showToast(parts.join(' '), (needFields.length || failures.length) ? 'error' : 'ok');
     return; // skip the outer catch — we handled failures explicitly
     
   } catch (error) {
