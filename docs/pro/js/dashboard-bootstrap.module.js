@@ -26,7 +26,7 @@
     SUB_TYPES, subTypeOptionsFor, subTypeLabel,
     TRADES, tradeLabel, tradesLabel,
     STAGE_ACTIONS, actionsForStage, preferredActionFor,
-    REQUIRED_FIELDS_BY_TYPE, requiredFieldsFor, missingRequiredFields,
+    REQUIRED_FIELDS_BY_TYPE, requiredFieldsFor, missingRequiredFields, requiredFieldLabel,
     CLAIM_STATUSES, CLAIM_STATUS_ACTIONS, preferredActionForClaim,
     REQUIRED_FIELDS_BY_CLAIM_STATUS, missingClaimFields,
     tagClass as _tagClass
@@ -36,6 +36,9 @@
   window.preferredActionFor = preferredActionFor;
   window.requiredFieldsFor = requiredFieldsFor;
   window.missingRequiredFields = missingRequiredFields;
+  // Human labels for missingRequiredFields keys — the Edit Lead form's stage
+  // gate (crm-leads.js saveLead) names the fields it needs.
+  window.requiredFieldLabel = requiredFieldLabel;
   // subTypeOptionsFor/subTypeLabel: registered in __NBD_CALL_REGISTRY at the
   // end of this file (Globals Tranche 3 T3-C, 2026-09-18) instead — this
   // comment block's "crm.js" framing was stale for these two specifically
