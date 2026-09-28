@@ -48,7 +48,12 @@ window.isTerminalStage = _isTerminalStage;
 // stage…" picker uses (dashboard-bootstrap.module.js's window.
 // stageOptionsForType override) via resolvePipelineConfig, with the same
 // splice-VIEW_JOBS-after-contract_signed convergence rule.
-function _nextStageFor(lead) {
+// The lead's own ordered stage track (its jobType's tenant-resolved view, with
+// the Jobs stages spliced in after contract_signed). Shared by _nextStageFor
+// and the Project Timeline (customer-tasks-ui.js), which used to hard-code the
+// insurance ladder — a cash / finance / custom-stage lead matched nothing
+// there and showed no milestone reached at all.
+function _pipelineFor(lead) {
   const jobType = (lead && lead.jobType) || 'insurance';
   const resolved = _resolvePipelineConfig(window._companyProfile && window._companyProfile.pipelines);
   const view = resolved.views[jobType] || resolved.views.insurance || { stages: [] };
@@ -61,6 +66,12 @@ function _nextStageFor(lead) {
     }
   }
   pipeline = pipeline.filter((k) => !(resolved.stageMeta[k] && resolved.stageMeta[k].hidden));
+  return { pipeline, resolved };
+}
+window._leadPipelineFor = (lead) => { try { return _pipelineFor(lead).pipeline; } catch (_) { return null; } };
+
+function _nextStageFor(lead) {
+  const { pipeline, resolved } = _pipelineFor(lead);
 
   // Legacy 7-stage display-name compat — pre-freeform-pipeline lead docs.
   const legacyMap = {
