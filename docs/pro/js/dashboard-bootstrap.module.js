@@ -631,6 +631,17 @@
     return window._leads.find(l => l && l.id === id) || null;
   }
 
+  // "Open this lead" deep link → the lead id, else null. Two shapes exist:
+  // ?tab=crm&lead=ID (notification bell, tasks.js) and ?tab=leads&leadId=ID
+  // (push notifications, firebase-messaging-sw.js). A bare ?lead=ID (no tab)
+  // stays the NEW-ESTIMATE deep link, and an ?est= link is never a lead open.
+  function leadDeepLinkId(params) {
+    if (!params || params.get('est')) return null;
+    const tab = params.get('tab');
+    if (tab !== 'crm' && tab !== 'leads') return null;
+    return params.get('lead') || params.get('leadId') || null;
+  }
+
   function _logLeadActivity(leadId, actionId, label) {
     // Append a lightweight activity entry. We use updateDoc with
     // arrayUnion so concurrent activity entries from other tabs don't
@@ -2281,6 +2292,29 @@
         editLead(editId);
         window.history.replaceState({}, '', '/pro/dashboard.html');
       }, 500);
+    } else if (leadDeepLinkId(urlParams)) {
+      // ── OPEN A LEAD: ?tab=crm&lead=ID (notification bell, tasks) and
+      //    ?tab=leads&leadId=ID (push notifications). CRM sweep R13,
+      //    2026-09-28: `tab` was never read, so the bell's links fell into
+      //    the NEW-ESTIMATE branch below — tapping "New referral" / "Document
+      //    signed" opened a blank estimate for that lead — and push's
+      //    `leadId` matched nothing and landed on Home. Waits for the lead
+      //    cache (the card modal reads window._leads); a lead not in this
+      //    rep's cache opens on its customer page instead of doing nothing.
+      const _openId = leadDeepLinkId(urlParams);
+      window.history.replaceState({}, '', '/pro/dashboard.html');
+      (async () => {
+        for (let i = 0; i < 40 && window._leadsLoaded !== true; i++) {
+          await new Promise(r => setTimeout(r, 250));
+        }
+        goTo('crm');
+        const _hit = (window._leads || []).some(l => l && l.id === _openId);
+        if (_hit && typeof window.openCardDetailModal === 'function') {
+          window.openCardDetailModal(_openId);
+        } else {
+          window.location.href = '/pro/customer.html?id=' + encodeURIComponent(_openId);
+        }
+      })();
     } else if (estParam || leadParam) {
       // ── NEW ESTIMATE (optionally pre-filled from lead) ──
       (async () => {
