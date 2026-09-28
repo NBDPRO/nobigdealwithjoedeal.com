@@ -239,6 +239,11 @@ jobs:
       # A failure here is real: a shipped .js that parses under neither
       # grammar, or a dead internal link / 404'd asset / broken anchor.
       #
+      # --shipped-only (2026-09-25): check-js-syntax.js now also parses tests/
+      # by default, for ci.yml. A spec that fails to parse must turn CI red,
+      # but it ships nothing, so it must not hold back this deploy — the flag
+      # keeps this gate on functions/ + docs/, exactly the scope it had.
+      #
       # Placement is deliberate: this runs AFTER the blog-index and sitemap
       # regeneration steps above, which rewrite docs/ at deploy time. So the
       # integrity check validates the content that ACTUALLY ships, including
@@ -250,7 +255,7 @@ jobs:
         if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
         run: |
           set -e
-          node scripts/check-js-syntax.js
+          node scripts/check-js-syntax.js --shipped-only
           node scripts/check-site-integrity.js --quiet
           # Shared-partial drift, checked against the tree that actually ships.
           # --check writes nothing: if a region were restamped here the deploy

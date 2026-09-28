@@ -1405,6 +1405,11 @@ section('E2: CI workflow present');
   assert('CI runs smoke tests',           /node tests\/smoke\.test\.js/.test(ci));
   assert('CI runs firestore rules tests', /firestore-rules\.test\.js/.test(ci));
   assert('CI does a syntax pass',         /check-js-syntax\.js/.test(ci));
+  // 2026-09-25: the syntax pass covers tests/** too — a merge left a duplicate
+  // declaration in tests/e2e/phone-views.spec.js that every Node gate passed.
+  // The deploy gate opts out with --shipped-only; this CI step must not.
+  assert('CI syntax pass runs the full scope, tests/ included (no --shipped-only)',
+    /^\s*run: node scripts\/check-js-syntax\.js\s*$/m.test(ci));
   assert('CI secret-scans for private keys',
     /PRIVATE KEY/.test(ci) && /sk-ant-/.test(ci) && /sk_live_/.test(ci));
 
@@ -1460,6 +1465,9 @@ section('E2b: hosting deploy is gated');
   const checker = read(path.join(ROOT, 'scripts/check-js-syntax.js'));
   assert('the syntax checker uses only Node builtins',
     !/require\(['"](?!child_process|fs|os|path)[^'"]+['"]\)/.test(checker));
+  assert('the syntax checker parses tests/ unless --shipped-only',
+    /const TEST_ROOTS = \['tests'\];/.test(checker) &&
+    /SHIPPED_ONLY \? SHIPPED_ROOTS : \[\.\.\.SHIPPED_ROOTS, \.\.\.TEST_ROOTS\]/.test(checker));
 }
 
 section('E3: CODEOWNERS + PR template + Dependabot');
