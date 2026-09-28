@@ -1,0 +1,69 @@
+# Next session — 2026-09-28 (CRM sweep + fix session)
+
+Handoff from the 2026-09-27/28 session: a whole-CRM emulator click-through, then a
+fix session. One code PR, **#1818, merged (`74d74639`) and deployed** — Firebase
+deploy run 36398135780 green; all 17 changed JS/CSS files were confirmed live on
+nobigdealwithjoedeal.com by content marker.
+
+The QA log and its resolution table:
+[crm-intense-sweep-2026-09-27/BUG-LOG](../qa/crm-intense-sweep-2026-09-27/BUG-LOG.md).
+
+## §0 — Read before trusting any emulator QA finding
+
+About a third of the sweep's findings were **seed-script artifacts**, not app bugs.
+`scripts/seed-emulator.js` wrote stage `'won'`/`'quoted'` (not stage keys — they
+normalize to `new`), `companyId: 'demo-co'` (production keys a tenant on its
+owner's uid, so the seeded subscription was never read → "Free plan", and the admin
+took the invited-rep activation path → Home stalled at $0), and estimates without
+`raw`. **The seed is production-shaped since #1818.** If two surfaces disagree
+about a record, read the raw doc and grep the writers for that value before
+calling it an app bug.
+
+Also: the Claude browser pane auto-cancels native `confirm()` (buttons look dead),
+a same-URL `#hash` navigate does not reload JS, and the Windows hosting emulator
+serves stale `?v=` scripts from the HTTP cache. Production is unaffected
+(`max-age=0, must-revalidate` + network-first SW) — no `?v=` bumps needed to ship.
+
+## §1 — What #1818 changed (all verified in the re-seeded emulator)
+
+- **Home ≠ Pipeline**: Pipeline Value counted won/lost/signed jobs ($81.7k vs
+  Pipeline's $62.5k). Widgets now use `stageRole`/`isJobStage` and stage labels; Home
+  repaints on `nbd:data-refreshed` (leads) and renders outside the kanban try.
+- `activateInvitedRep` / `claimInvite` awaits bounded to 8s (they gate loadLeads).
+- `nbd-auth.js` 5s timeouts resolved `undefined` → `.exists` TypeError; now reject.
+- **Draw**: removed the `(Σ any lines ÷ 4)²` area guess (two ridges read 5,070 sf).
+  e2e B7 updated for the one intentional change.
+- **D2D knock**: no confirm checkbox when there is no door number; no second
+  "Convert Now?" prompt after auto-convert (its Edit First path could duplicate).
+- Pipeline search count = what renders, + "N hidden (prospects/snoozed/tab)".
+- Classic estimates with `sq` but no `raw` reopen at their squares, not 0 SQ →
+  job minimum.
+- V2 doc viewer re-appended last in `<body>` on open; finalize rejections toast.
+- Per-SQ mode says why it isn't pricing (Insurance / no area / no scope item).
+- Phones: Job Templates bulk bar, pipeline list, `.nbd-toast` clear the tab bar;
+  boot font restore is silent. Retail Quote uses the full logo. Chart.js canvas
+  reuse, `..` in the AI proxy error, Maps & Pins focus.
+
+## §2 — Open questions for Jo
+
+1. **Tier rates are per-device** (localStorage `nbd_est_settings_v3`) by an explicit
+   2026-09-25 design decision. They work — Cash + roof area + a scope item prices
+   Better at $595/SQ ($18,475 on the test job). Should they be shop-wide
+   (`companyProfile.pricing.tierRates`, which the engine already reads)?
+2. **Production dry run** of the fixes needs Jo signed in to the Browser pane (Claude
+   cannot enter his password). Status at time of writing: see §3.
+
+## §3 — Production dry run
+
+Pending Jo's sign-in when this note was written. Plan: use `ZZ_QA`-prefixed
+records on the real tenant, re-run the sweep's repro steps (Home vs Pipeline
+totals, knock without a door number, Interested knock, pipeline search, estimate
+reopen, draw ridges-only, V2 Retail Quote twice, mobile list), then delete every
+`ZZ_QA` record and verify.
+
+## §4 — Housekeeping
+
+- Worktree `C:\Users\jonat\nbd-wt-qafix` has `functions/node_modules` and
+  `tests/node_modules` **junctions** — unlink both (non-recursive) and confirm the
+  main checkout's folders still have content BEFORE `git worktree remove`
+  (see memory `worktree-path-length-limit`).
