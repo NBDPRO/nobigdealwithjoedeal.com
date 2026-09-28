@@ -19,6 +19,7 @@
     "portal-tenant-cta-contrast-2026-09-16.test.js",
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
+    "deal-room-sibling-links-2026-09-28.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
     "customer-photo-fetch-unification-2026-09-17.test.js",
