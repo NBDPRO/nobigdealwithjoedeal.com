@@ -583,18 +583,23 @@
       if (shingle) selectedProducts.push({ name: shingle.name, manufacturer: shingle.manufacturer });
     }
 
+    // Lead field names as the lead form writes them: firstName/lastName (no
+    // `name`), insCarrier, deductibleOrOwedByHO. Reading name/insuranceCarrier/
+    // deductible alone made every deal "Unnamed" with no claim details.
+    const _nm = ((leadData?.firstName || '') + ' ' + (leadData?.lastName || '')).trim() || leadData?.name || '';
+    const _carrier = leadData?.insCarrier || leadData?.insuranceCarrier || '';
     const deal = createDealRoom({
-      customerName: leadData?.name || '',
+      customerName: _nm,
       customerEmail: leadData?.email || '',
       customerPhone: leadData?.phone || '',
       address: leadData?.address || '',
       leadId: leadData?.id || null,
       tiers,
       selectedProducts,
-      insuranceClaim: !!leadData?.insuranceCarrier,
-      insuranceCarrier: leadData?.insuranceCarrier || '',
+      insuranceClaim: !!_carrier,
+      insuranceCarrier: _carrier,
       claimNumber: leadData?.claimNumber || '',
-      deductible: leadData?.deductible || 0
+      deductible: leadData?.deductibleOrOwedByHO || leadData?.deductible || 0
     });
 
     return deal;
