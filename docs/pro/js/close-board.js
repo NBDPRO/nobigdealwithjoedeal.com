@@ -132,6 +132,13 @@
     return (d.tiers && d.tiers[tierKey] && Number(d.tiers[tierKey].price)) || 0;
   }
 
+  // Closed = the homeowner accepted (or later signed / scheduled). Mirrors the
+  // server's DONE_STATUSES (functions/deal-acceptance.js): no new accept link is
+  // minted for these, so the card drops Text / Email / Copy.
+  function _isClosedDeal(d) {
+    return !!(d && [DEAL_STATUS.ACCEPTED, DEAL_STATUS.SIGNED, DEAL_STATUS.SCHEDULED].includes(d.status));
+  }
+
   // Whether the homeowner ever opened the deal link. The server stamps viewedAt
   // (getDealRoom) on first open, then overwrites status to 'accepted' on accept —
   // so status==='viewed' undercounts, and viewCount is never incremented at all.
@@ -746,11 +753,11 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 .schedule-section{margin-top:20px;text-align:center;}
 .schedule-input{padding:12px;background:#1e2028;border:1px solid #2a2d35;border-radius:8px;color:#e5e7eb;font-size:14px;font-family:'Barlow',sans-serif;width:100%;max-width:300px;}
 .footer{text-align:center;padding:30px 20px;font-size:11px;color:#8b8e96;border-top:1px solid #2a2d35;margin-top:30px;}
-.success-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.85);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.success-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(10,11,14,.97);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:24px;}
 .success-overlay.show{display:flex;}
 .success-icon{font-size:60px;}
 .success-text{font-size:22px;font-weight:700;font-family:'Barlow Condensed',sans-serif;}
-.success-sub{font-size:13px;color:#8b8e96;max-width:300px;text-align:center;}
+.success-sub{font-size:14px;line-height:1.5;color:#c9ccd2;max-width:320px;text-align:center;}
 .warranty-badge{display:inline-block;background:linear-gradient(135deg,var(--orange),#ff8c42);color:white;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em;margin-top:12px;}
 @media(max-width:500px){.tier-price{font-size:22px;}.tier-name{font-size:17px;}}
 </style>
@@ -1105,7 +1112,10 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       return acceptUrl || null;
     } catch (e) {
       console.error('createDealAcceptToken failed:', e);
-      if (window.showToast) window.showToast('Could not create the accept link — try again', 'error');
+      // An accepted deal gets no new link (deal-acceptance.js DONE_STATUSES) —
+      // say so, rather than "try again", which never succeeds.
+      const done = e && /failed-precondition/.test(String(e.code || ''));
+      if (window.showToast) window.showToast(done ? (e.message || 'This deal is already accepted.') : 'Could not create the accept link — try again', done ? 'info' : 'error');
       return null;
     }
   }
@@ -1164,7 +1174,11 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       return `<button data-cb-action="setTab" data-cb-id="${id}" style="padding:8px 16px;border:none;border-radius:8px;background:${active ? 'var(--orange,#BD5728)' : 'var(--s2,#1e2028)'};color:${active ? '#fff' : 'var(--m,#8b8e96)'};font-size:12px;font-weight:${active ? '700' : '500'};font-family:'Barlow Condensed',sans-serif;cursor:pointer;letter-spacing:.03em;transition:all .15s;">${icon} ${label}</button>`;
     };
 
+    // The Active tab LISTS every non-expired deal (closed ones stay visible),
+    // but the Active Deals stat counts only OPEN ones — an accepted deal is in
+    // Signed / Closed Value, and Rep OS already counted it that way.
     const active = dealRooms.filter(d => d.status !== DEAL_STATUS.EXPIRED);
+    const openCount = active.filter(d => !_isClosedDeal(d)).length;
     // A remote homeowner acceptance lands as status 'accepted' (deal-acceptance.js);
     // count it as closed alongside signed/scheduled so Closed Value actually moves.
     const signed = dealRooms.filter(d => d.status === DEAL_STATUS.ACCEPTED || d.status === DEAL_STATUS.SIGNED || d.status === DEAL_STATUS.SCHEDULED);
@@ -1185,7 +1199,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
         <!-- Stats -->
         <div class="cb-stats-row" style="display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;">
           <div style="flex:1;min-width:100px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center;">
-            <div style="font-size:22px;font-weight:700;color:var(--blue);">${active.length}</div>
+            <div style="font-size:22px;font-weight:700;color:var(--blue);">${openCount}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Active Deals</div>
           </div>
           <div style="flex:1;min-width:100px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center;">
@@ -1283,9 +1297,9 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
             <button data-cb-action="preview" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--blue,var(--orange));color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">👁 Preview</button>
-            <button data-cb-action="sendSMS" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--green,#2ECC8A);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">📱 Text</button>
+            ${_isClosedDeal(d) ? '' : `<button data-cb-action="sendSMS" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--green,#2ECC8A);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">📱 Text</button>
             <button data-cb-action="sendEmail" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--orange,#BD5728);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">📧 Email</button>
-            <button data-cb-action="copyLink" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--s);border:1px solid var(--br);color:var(--t);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🔗 Copy</button>
+            <button data-cb-action="copyLink" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--s);border:1px solid var(--br);color:var(--t);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🔗 Copy</button>`}
             <button data-cb-action="remove" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:transparent;border:1px solid var(--br);color:var(--m);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🗑 Delete</button>
           </div>
         </div>
