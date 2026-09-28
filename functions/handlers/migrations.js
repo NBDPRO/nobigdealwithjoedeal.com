@@ -21,6 +21,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 
 const { enforceRateLimit } = require('../integrations/upstash-ratelimit');
+const { assertNotViewer } = require('../shared');
 const {
   CORS_ORIGINS,
   reverseGeocode,
@@ -59,6 +60,9 @@ exports.backfillAnalytics = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Not authenticated');
+    // 2026-09-25 (decision B): a viewer is read-only. This rewrites fields
+    // on every knock and lead the caller owns (and bills Google geocoding).
+    assertNotViewer(request.auth.token);
 
     // Rate-limit: max 1 call per 10 minutes per user. Backfill is
     // expensive (hits Google Geocoding + writes to Firestore), so

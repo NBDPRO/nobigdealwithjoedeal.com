@@ -24,7 +24,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { defineSecret } = require('firebase-functions/params');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { callableRateLimit } = require('../shared');
+const { callableRateLimit, assertNotViewer } = require('../shared');
 const { CORS_ORIGINS } = require('./_shared');
 const { secretValue } = require('../integrations/_shared'); // the secret registry, not handlers/_shared
 const { SECRETS } = require('../integrations/_shared');
@@ -48,6 +48,10 @@ exports.attachStormProof = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B): a viewer is read-only. The access check below
+    // admits ANY same-company member on ANY lead, and this writes an
+    // immutable storm_proofs record plus a paid hail lookup — refused first.
+    assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'attachStormProof', 60, 60 * 60_000);
 
     const claims = request.auth.token || {};

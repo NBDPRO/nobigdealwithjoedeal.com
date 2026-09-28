@@ -168,6 +168,9 @@ function makeWorld(opts) {
           ? { ok: false, status: 402, error: 'An active paid subscription is required.' }
           : { ok: true, plan: 'growth' };
       },
+      // 2026-09-25: sendSMS / sendD2DSMS now refuse a viewer first. No caller
+      // here is a viewer; the refusal itself is tests/viewer-callables.test.js.
+      viewOnlyRefusal: () => null,
     },
     './handlers/ai-texting': { generateAIDraft: async () => null, ANTHROPIC_API_KEY: { value: () => '' } },
     './ai-draft-routing': { isPortalDraft: () => false, clampPortalText: (s) => s },

@@ -115,6 +115,7 @@
     "sms-outbox-server.test.js",
     "sms-send-optout-order.test.js",
     "email-unsubscribe.test.js",
+    "viewer-callables.test.js",
     "state-store.test.js",
     "storm-geo.test.js",
     "storm-outlook.test.js",

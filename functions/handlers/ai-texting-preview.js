@@ -13,7 +13,7 @@
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
-const { callableRateLimit } = require('../shared');
+const { callableRateLimit, assertNotViewer } = require('../shared');
 const { CORS_ORIGINS } = require('./_shared');
 const { secretValue } = require('../integrations/_shared'); // the secret registry, not handlers/_shared
 const { buildPersonaPrompt } = require('./ai-persona');
@@ -50,6 +50,13 @@ exports.previewAiPersona = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    // 2026-09-25 (decision B, #1780 review): a viewer is refused. Each preview
+    // bills a live Claude call, and the persona it previews only shapes AI
+    // drafts of texts to homeowners — which a viewer can neither approve nor
+    // send (sendSMS refuses a viewer; the draft rows are rules-refused). So
+    // the spend buys a viewer nothing. The panel's own catch prints the
+    // server's message ("Couldn't generate a preview. Your role is view-only").
+    assertNotViewer(request.auth.token);
 
     // Global AI kill-switch (Audit #4) — emergency halt without a deploy.
     if (await require('../integrations/killswitch').isAiDisabled()) {

@@ -422,7 +422,11 @@ const RUNNABLE = ['node', 'smoke'];
 //               MEASURED via --check.
 //   2026-09-27  206/69/298 -> 207/69/299, tests/lead-task-writer-shape.test.js
 //               (node; voicemail + Quick Add task shape, #1785). MEASURED via --check.
-const FLOORS = { node: 207, smoke: 69, disk: 299 };
+//   2026-09-27  207/69/299 -> 208/69/300, tests/viewer-callables.test.js
+//               (Cloud Functions refuse a viewer's writes / sends / mints,
+//               and every exported callable carries a verdict, #1780).
+//               MEASURED via --check.
+const FLOORS = { node: 208, smoke: 69, disk: 300 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

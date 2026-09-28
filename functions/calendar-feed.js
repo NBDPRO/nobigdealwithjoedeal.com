@@ -38,7 +38,7 @@ const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { logger } = require('firebase-functions/v2');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { httpRateLimit, enforceRateLimit } = require('./integrations/upstash-ratelimit');
-const { callableRateLimit } = require('./shared');
+const { callableRateLimit, assertNotViewer } = require('./shared');
 const { buildCalendar } = require('./calendar-feed-logic');
 
 const CORS_ORIGINS = [
@@ -95,11 +95,17 @@ exports.createCalendarFeedToken = onCall(
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    const revokeOnly = !!(request.data && request.data.revokeOnly);
+    // 2026-09-25 (decision B): a viewer is read-only, and a feed link is an
+    // unauthenticated URL serving the schedule's lead names and addresses —
+    // a viewer may not mint one. revokeOnly stays open: it only turns off
+    // links the caller minted themselves (e.g. before being made a viewer),
+    // which leaves less tenant data reachable, not more.
+    if (!revokeOnly) assertNotViewer(request.auth.token);
     // A compromised session could otherwise mint links in a loop.
     await callableRateLimit(request, 'createCalendarFeedToken', 10, 60 * 60_000);
 
     const db = getFirestore();
-    const revokeOnly = !!(request.data && request.data.revokeOnly);
 
     // Revoke every currently-active token for this rep. Rotation is the only
     // revocation this feature has, so it must be reliable rather than clever:

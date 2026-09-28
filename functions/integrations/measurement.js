@@ -51,6 +51,7 @@ const crypto = require('crypto');
 const { getSecret, hasSecret, secretValue, PROVIDERS, notConfigured, SECRETS } = require('./_shared');
 const IR = require('./instantroofer-logic');
 const geocodeHandlers = require('../handlers/geocode');
+const { assertNotViewer } = require('../shared');
 
 // Bare param that predates the SECRETS registry — declared the same way in
 // handlers/geocode.js. Read ONLY through secretValue() so the deploy stub
@@ -514,6 +515,10 @@ exports.requestMeasurement = onCall(
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
     const token = request.auth.token || {};
+    // 2026-09-25 (decision B): a viewer is read-only. This places a PAID
+    // provider order and writes the result onto the lead, and the lead check
+    // below admits any same-company member — refused before any spend.
+    assertNotViewer(token);
 
     // D1: measurement jobs cost real money per provider API call.
     // Cap at 20/hour/uid so a runaway loop or malicious caller

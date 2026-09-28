@@ -185,7 +185,9 @@ function loadEsignHandlers(db) {
     },
     'firebase-admin/storage': { getStorage: () => storageStub },
     './integrations/upstash-ratelimit': { httpRateLimit: async () => true, clientIp: () => '203.0.113.9' },
-    './shared': { callableRateLimit: async () => {} },
+    // assertNotViewer (2026-09-25): no caller here is a viewer; the refusal
+    // itself is tests/viewer-callables.test.js.
+    './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },
     './esign-stamp': {
       stampPdf: async () => ({ bytes: Buffer.from('%PDF-SIGNED'), missingRequired: [] }),
       readPdfGeometry: async () => [{ w: 612, h: 792 }],

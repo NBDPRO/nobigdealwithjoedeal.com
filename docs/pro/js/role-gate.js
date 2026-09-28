@@ -100,6 +100,12 @@
     // knocks (Prospects "+ New Knock"; D2D.openQuickKnock is guarded too),
     // and the Settings rules self-test, which creates a probe lead.
     'openD2DOrGo', 'testFirestoreRules',
+    // 2026-09-25: controls whose Cloud Function now refuses a viewer
+    // (functions/shared.js assertNotViewer). Card detail: 🛡️ Storm Proof
+    // (attachStormProof writes a storm_proofs record), Share / Revoke portal
+    // link (createPortalToken / revokePortalToken); Reports: ✨ Enrich Data
+    // (backfillAnalytics rewrites the caller's knocks and leads).
+    'verifyStormProofForLead', 'cdaSharePortalLink', 'cdaRevokePortalLink', 'enrichReportData',
   ];
   // Controls with no data-action of their own.
   var WRITE_IDS = [
@@ -108,6 +114,7 @@
     'deleteEstimateBtn',    // estimate viewer: Archive
     'repMsgSend',           // portal-message reply
     'repMsgText',           // …and its textarea (a composer with no Send button)
+    'v2measureBtn',         // estimate builder 📐 Auto-measure: a paid requestMeasurement order (2026-09-25)
   ];
   // Controls dispatched by their own module's attribute, not data-action.
   // Added 2026-09-25 from the #1776 review: each of these was still offered
@@ -131,9 +138,27 @@
     '.kc-task-badge.empty',
     // customer.html phone quick-action bar: Task (Call/Text/Email stay).
     '#nbd-quick-action-bar .qab-task',
-    // Smart Follow-up sends to the homeowner. sendSMS has no server-side role
-    // check yet (the callables follow-up), so the client must not offer it.
+    // Smart Follow-up sends to the homeowner. (sendEmail has refused a viewer
+    // server-side since 2026-06-24 and sendSMS does since 2026-09-25; not
+    // offering the send is still the honest UI.)
     '[data-csf-action="sms"]', '[data-csf-action="email"]',
+    // 2026-09-25 — controls whose Cloud Function now refuses a viewer and
+    // whose own error handling would have hidden why:
+    // Close board 📱 Text / 📧 Email / 🔗 Copy each mint a deal-room accept
+    // link (createDealAcceptToken) and failed as "Could not create the accept
+    // link — try again". Preview stays: reading.
+    '[data-cb-action="sendSMS"]', '[data-cb-action="sendEmail"]', '[data-cb-action="copyLink"]',
+    // D2D knock detail 📐 Order precise roof report: a paid requestMeasurement
+    // order that failed as "Could not order the report".
+    '[data-d2d-action="orderRoofReport"]',
+    // Photo lightbox ✨ Analyze damage with AI: analyzeRoofPhoto spends a
+    // vision call and stamps the result onto the photo.
+    '.pa-analyze-btn',
+    // D2D address-quality panel 🔁 re-verify (one knock, or the batch): each
+    // bills resolveAddress (now refused to a viewer, #1780 review) and then
+    // rewrites the knock, which the rules refuse a viewer. "Load owner & roof
+    // intel" stays: reading.
+    '[data-d2d-action="reverifyKnock"]', '[data-d2d-action="reverifyPending"]',
   ];
   // Stays VISIBLE (it shows state) but a viewer's click does nothing but explain.
   var BLOCK_ONLY = [

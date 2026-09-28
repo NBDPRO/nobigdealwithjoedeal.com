@@ -10,6 +10,13 @@ Background: [RULES-DELETE-NULL-RESOURCE-2026-09-25](RULES-DELETE-NULL-RESOURCE-2
 (#1771) split the `documents` / `warrantyClaims` delete out of `allow write`
 and listed both points below as open product calls.
 
+> **Update 2026-09-25 (later the same day): the callables item under Left
+> open is closed.** Cloud Functions now refuse a viewer through one shared
+> guard, and every exported callable / HTTP function has a recorded verdict:
+> [VIEWER-CALLABLES-2026-09-25](VIEWER-CALLABLES-2026-09-25.md) (branch
+> `fix/viewer-callables`). The lines below that say `sendSMS` has no
+> server-side role check describe #1776 as merged.
+
 ## Update 2026-09-25 (review fixup of #1776)
 
 A review of the first push found two blocking client defects and several
@@ -418,7 +425,9 @@ again reddens "Templates rows stay listed for a viewer".
 
 ## Left open
 
-- **Callables do not check the role (tracked follow-up; decision B is not
+- **Closed 2026-09-25 by [VIEWER-CALLABLES-2026-09-25](VIEWER-CALLABLES-2026-09-25.md)**
+  (29 functions refuse a viewer; the other 95 carry a verdict).
+  **Callables do not check the role (tracked follow-up; decision B is not
   yet enforced server-side for these).** Admin-SDK Cloud Functions a viewer's
   browser can call write or send on the caller's behalf without a `viewer`
   check. Two reach further than a viewer's OWN leads: `attachStormProof`

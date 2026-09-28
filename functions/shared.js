@@ -181,8 +181,62 @@ async function requireAuth(req, { adminOnly = false } = {}) {
   return { decoded };
 }
 
+// ═════════════════════════════════════════════════════════════
+// View-only role guard — assertNotViewer (onCall) / viewOnlyRefusal
+// (onRequest). Added 2026-09-25.
+//
+// WHY: Jo's decision B (2026-09-25, final) — "The 'viewer' role is
+// READ-ONLY everywhere: a viewer can read what their company role
+// allows but cannot create, update or delete any tenant data —
+// including rows under leads they own." firestore.rules and
+// storage.rules enforce that for client writes (#1776, notViewer()),
+// but a Cloud Function writes with the Admin SDK, which bypasses the
+// rules, and most callables checked ownership only — so a viewer's
+// browser could still write, text a homeowner, mint a portal / share /
+// sign link or order a paid measurement through them. Every callable
+// and HTTP function that creates, updates or deletes tenant data,
+// sends to a homeowner or third party, mints a token or link, or
+// places a paid order now calls one of these at the top of its
+// handler — as does a paid vendor call whose only client use is a
+// write flow a viewer cannot finish (previewAiPersona,
+// extractReceiptData, resolveAddress; added from the #1780 review).
+// The full sweep (every exported function, with its verdict)
+// is documentation/audit/VIEWER-CALLABLES-2026-09-25.md and
+// tests/viewer-callables.test.js, which fails on an unclassified one.
+//
+// Only a POSITIVE role === 'viewer' claim is refused — the same
+// expression as the rules' notViewer(). A solo operator carries no
+// role claim and must stay allowed; every other role is untouched.
+// Accepts either claims shape (design rule 2): onCall passes
+// `request.auth.token`, onRequest the decoded Bearer token.
+// ═════════════════════════════════════════════════════════════
+const VIEW_ONLY_MESSAGE = 'Your role is view-only';
+
+function isViewOnlyRole(claims) {
+  return !!claims && typeof claims === 'object' && claims.role === 'viewer';
+}
+
+// onCall: throws HttpsError('permission-denied', 'Your role is view-only').
+function assertNotViewer(claims) {
+  if (isViewOnlyRole(claims)) {
+    throw new (HttpsError())('permission-denied', VIEW_ONLY_MESSAGE);
+  }
+}
+
+// onRequest (design rule 3 — never throw HttpsError at an HTTP handler):
+// returns null, or { status: 403, body } for the caller to write with
+// `res.status(r.status).json(r.body)` and return — requireAuth's shape.
+function viewOnlyRefusal(decoded) {
+  if (!isViewOnlyRole(decoded)) return null;
+  return { status: 403, body: { error: VIEW_ONLY_MESSAGE, code: 'view-only' } };
+}
+
 module.exports = {
   callableRateLimit,
   requirePaidSubscription,
   requireAuth,
+  VIEW_ONLY_MESSAGE,
+  isViewOnlyRole,
+  assertNotViewer,
+  viewOnlyRefusal,
 };
