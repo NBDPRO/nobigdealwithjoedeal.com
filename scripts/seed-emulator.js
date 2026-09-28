@@ -7,9 +7,10 @@
  * Auth + Firestore emulator host env vars are present (set automatically by
  * `firebase emulators:exec`). RULE 0 guard.
  *
- * What it creates (companyId = 'demo-co' for the whole tenant):
+ * What it creates (companyId = the company_admin's uid, as in production):
  *   - 4 role users + 1 demo user, each with custom claims { role, companyId }
- *   - companyProfile/demo-co (per-tenant, Audit #2 scoped)
+ *   - companyProfile/{companyId} (per-tenant, Audit #2 scoped)
+ *   - companies/{companyId} + members/{email} for the sales rep and viewer
  *   - an ACTIVE professional subscription for the company_admin (billing gate)
  *   - leads owned by BOTH the company_admin and a sales_rep (lead reads are
  *     gated on userId ownership per firestore.rules:74, so each operator needs
@@ -106,6 +107,23 @@ async function seed() {
     createdAt: daysAgo(120),
   });
   console.log('  ✓ companyProfile written');
+
+  // companies/{id} + its members roster, as createCompany and the invite /
+  // createTeamMember flows write them. Without these, Team Manager listed only
+  // the owner and getAdminAnalytics (which scopes by owner + member uids)
+  // reported zero leads — seed artifacts that read as product bugs.
+  await db.doc(`companies/${COMPANY_ID}`).set({
+    name: 'Demo Roofing Co', ownerId: uid.companyAdmin, status: 'active',
+    plan: 'professional', source: 'emulator-seed', createdAt: daysAgo(120),
+  }, { merge: true });
+  for (const u of USERS) {
+    if (u.key === 'companyAdmin' || u.role === 'admin' || u.demo) continue; // owner is listed from ownerId; platform/demo users aren't tenant staff
+    await db.doc(`companies/${COMPANY_ID}/members/${u.email.toLowerCase()}`).set({
+      email: u.email.toLowerCase(), role: u.role, displayName: u.name, uid: uid[u.key],
+      status: 'active', active: true, invitedAt: daysAgo(90), invitedBy: uid.companyAdmin,
+    }, { merge: true });
+  }
+  console.log('  ✓ companies doc + members roster written');
 
   console.log('\n[3/6] Subscription (ACTIVE professional → passes billing gate)');
   await db.doc(`subscriptions/${COMPANY_ID}`).set({

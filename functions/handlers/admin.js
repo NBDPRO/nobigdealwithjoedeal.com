@@ -898,6 +898,13 @@ exports.listTeamMembers = onCall(
     if (ownerId) {
       try {
         const ownerRecord = await getAuth().getUser(ownerId);
+        // Counted like every member below — this was hard-coded 0, so the
+        // owner's own row always read "0 leads".
+        let ownerLeadCount = 0;
+        try {
+          const ownerLeads = await db.collection('leads').where('userId', '==', ownerId).count().get();
+          ownerLeadCount = ownerLeads.data().count || 0;
+        } catch (e) { /* counts may fail on missing index; leave 0 */ }
         members.push({
           uid: ownerId,
           email: (ownerRecord.email || '').toLowerCase(),
@@ -908,7 +915,7 @@ exports.listTeamMembers = onCall(
           disabled: !!ownerRecord.disabled,
           lastSignInTime: ownerRecord.metadata?.lastSignInTime || null,
           creationTime: ownerRecord.metadata?.creationTime || null,
-          leadCount: 0
+          leadCount: ownerLeadCount
         });
       } catch (e) {
         logger.warn('listTeamMembers: owner lookup failed', { ownerId, err: e.message });
