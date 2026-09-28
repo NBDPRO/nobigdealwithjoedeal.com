@@ -1462,9 +1462,11 @@ section('E2b: hosting deploy is gated');
   // The gate must stay dependency-free. Hosting-first exists to protect
   // content delivery from deploy-step auth flakes, so a gate that needed a
   // network/emulator/npm-install round-trip would hand that guarantee back.
+  // 2026-09-26: `vm` joined the list. It parses docs/ files as classic
+  // scripts (vm.Script), the grammar a browser applies to <script src>.
   const checker = read(path.join(ROOT, 'scripts/check-js-syntax.js'));
   assert('the syntax checker uses only Node builtins',
-    !/require\(['"](?!child_process|fs|os|path)[^'"]+['"]\)/.test(checker));
+    !/require\(['"](?!(?:child_process|fs|os|path|vm)['"])[^'"]+['"]\)/.test(checker));
   assert('the syntax checker parses tests/ unless --shipped-only',
     /const TEST_ROOTS = \['tests'\];/.test(checker) &&
     /SHIPPED_ONLY \? SHIPPED_ROOTS : \[\.\.\.SHIPPED_ROOTS, \.\.\.TEST_ROOTS\]/.test(checker));
