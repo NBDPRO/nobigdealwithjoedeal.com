@@ -178,6 +178,9 @@ console.log('REVENUE — invoice load scoping + per-account cache');
     ok('last Sunday\'s payment lands in last week\'s bar (was shown as this week)', r.buckets[10] === 40);
     ok('two weeks back lands two bars back', r.buckets[9] === 7);
     const rt = strip(RT);
+    const rd = strip(read('docs/pro/js/reports-dashboard.js'));
+    ok('Reports "Revenue" tile = collected in the window (signed value kept apart)',
+      /const revenue = collected \? collected\.total : null;/.test(rd) && /R\.collectedBetween\(invs, start, end\)/.test(rd) && /'collected · '/.test(rd));
     ok('weekly trend + top customers/sources read collected payments, not signed estimates', !/e\.signedAt/.test(rt.slice(rt.indexOf('function _computeWeeklyRevenue'), rt.indexOf('function render()'))) && /collectedByLead/.test(rt));
   }
 
