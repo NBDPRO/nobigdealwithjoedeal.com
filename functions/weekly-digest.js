@@ -161,8 +161,12 @@ function buildDigestHtml(d) {
 
       <div class="stats">
         <div class="stat success">
+          <div class="stat-value">${fmtMoney(d.collectedThisWeek || 0)}</div>
+          <div class="stat-label">Revenue Collected (Wk)</div>
+        </div>
+        <div class="stat">
           <div class="stat-value">${fmtMoney(d.wonRevenue)}</div>
-          <div class="stat-label">Won Revenue (Wk)</div>
+          <div class="stat-label">Won This Week (booked)</div>
         </div>
         <div class="stat">
           <div class="stat-value">${fmtMoney(d.activePipelineValue)}</div>
@@ -199,7 +203,43 @@ function timestampMillis(t) {
   if (typeof t.toMillis === 'function') return t.toMillis();
   if (typeof t.toDate === 'function')   return t.toDate().getTime();
   if (typeof t === 'number')            return t;
+  // Payment dates may be Date objects or ISO strings (invoice ledger writers).
+  if (t instanceof Date)                return t.getTime();
+  if (typeof t === 'string')            { const n = Date.parse(t); return isNaN(n) ? 0 : n; }
   return 0;
+}
+
+// Invoice payments with their dates — mirrors collected-revenue.js paymentsOf:
+// the payments[] ledger (+ a synthetic remainder when it sums short of
+// total−balanceDue), else one lump dated lastPaymentAt||paidAt.
+function _paymentsOf(inv) {
+  const total = Number(inv.total) || 0;
+  const bal = inv.balanceDue != null ? (Number(inv.balanceDue) || 0) : 0;
+  const collectedCents = Math.round(Math.max(0, total - bal) * 100);
+  if (Array.isArray(inv.payments) && inv.payments.length) {
+    const out = [];
+    let ledgerCents = 0, earliestAt = null, earliestMs = Infinity;
+    inv.payments.forEach(p => {
+      const amt = Number(p && p.amount);
+      const at = p && (p.at != null ? p.at : p.date);
+      if (!(amt > 0) || at == null) return;
+      out.push({ amount: amt, at });
+      ledgerCents += Math.round(amt * 100);
+      const ms = timestampMillis(at);
+      if (ms && ms < earliestMs) { earliestMs = ms; earliestAt = at; }
+    });
+    if (out.length) {
+      const rem = collectedCents - ledgerCents;
+      if (rem >= 1) {
+        const remAt = earliestAt != null ? earliestAt : (inv.lastPaymentAt != null ? inv.lastPaymentAt : inv.paidAt);
+        if (remAt != null) out.push({ amount: rem / 100, at: remAt, synthetic: true });
+      }
+      return out;
+    }
+  }
+  if (collectedCents <= 0) return [];
+  const payDate = inv.lastPaymentAt != null ? inv.lastPaymentAt : inv.paidAt;
+  return payDate == null ? [] : [{ amount: collectedCents / 100, at: payDate }];
 }
 
 // ─── Per-user aggregation ───────────────────────────────────────
@@ -242,8 +282,33 @@ async function aggregateUserMetrics(db, uid) {
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(l => !l.deleted);
 
-  const wonThisWeek = touchedThisWeek.filter(_isWonLead);
+  // Won THIS WEEK = reached a won stage in the window (stageStartedAt), not
+  // merely touched: a March close that got a note on Tuesday is not a win this
+  // week. stageStartedAt is stamped on every stage move (backfilled by
+  // migrations 002/003); a doc without it falls back to "touched this week".
+  const wonThisWeek = touchedThisWeek.filter(_isWonLead)
+    .filter(l => !l.stageStartedAt || timestampMillis(l.stageStartedAt) >= cutoff);
+  // BOOKED value of those wins — projected, not money (labelled so below).
   const wonRevenue = wonThisWeek.reduce((s, l) => s + (Number(l.jobValue) || 0), 0);
+
+  // Revenue = money COLLECTED this week (Jo, 2026-09-28: "Revenue is always
+  // collected only"): each invoice payment by the date it arrived. Same
+  // ledger logic as docs/pro/js/collected-revenue.js paymentsOf. createdBy is
+  // a single-field filter (no composite index); dates are filtered here.
+  let collectedCents = 0;
+  try {
+    const invSnap = await db.collection('invoices').where('createdBy', '==', uid).limit(5000).get();
+    invSnap.docs.forEach(d => {
+      const inv = d.data() || {};
+      if (inv.deleted === true) return;
+      _paymentsOf(inv).forEach(p => {
+        if (timestampMillis(p.at) >= cutoff) collectedCents += Math.round((Number(p.amount) || 0) * 100);
+      });
+    });
+  } catch (e) {
+    logger.warn('weekly_digest_invoice_read_failed', { uid, err: e && e.message });
+  }
+  const collectedThisWeek = collectedCents / 100;
 
   const lostThisWeek = touchedThisWeek.filter(_isLostLead);
 
@@ -283,9 +348,10 @@ async function aggregateUserMetrics(db, uid) {
     wonCount: wonThisWeek.length,
     lostCount: lostThisWeek.length,
     wonRevenue,
+    collectedThisWeek,
     activePipelineValue,
     topLeads,
-    hasAnyActivity: newLeads.length > 0 || wonThisWeek.length > 0 || lostThisWeek.length > 0,
+    hasAnyActivity: newLeads.length > 0 || wonThisWeek.length > 0 || lostThisWeek.length > 0 || collectedCents > 0,
   };
 }
 
@@ -351,7 +417,7 @@ exports.weeklyDigest = onSchedule(
 
         const firstName = user.displayName ? String(user.displayName).split(' ')[0] : '';
         const html = buildDigestHtml({ ...metrics, firstName, weekLabel });
-        const subject = `Your NBD week: ${metrics.newLeadsCount} new · ${metrics.wonCount} closed · ${fmtMoney(metrics.wonRevenue)} won`;
+        const subject = `Your NBD week: ${metrics.newLeadsCount} new · ${metrics.wonCount} closed · ${fmtMoney(metrics.collectedThisWeek || 0)} collected`;
 
         if (!enabled || !resend) {
           logger.info('weekly_digest_dry_run', {

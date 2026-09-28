@@ -1118,7 +1118,7 @@
               <div><div class="stat-val" style="font-size:18px;color:var(--green);">${rev.expectedJobs}</div><div class="stat-lbl">Expected Jobs</div></div>
             </div>
             <div class="stat-card" style="flex:1;padding:10px 12px;">
-              <div><div class="stat-val" style="font-size:18px;color:var(--green);">${rev.revenueFormatted}</div><div class="stat-lbl">Revenue</div></div>
+              <div><div class="stat-val" style="font-size:18px;color:var(--green);">${rev.revenueFormatted}</div><div class="stat-lbl" title="Model: roofs × damage probability × close rate × avg job — not collected money">Projected Revenue</div></div>
             </div>
           </div>
 
@@ -1199,7 +1199,7 @@
                   <div style="font-size:12px;font-weight:600;color:var(--t);">${esc(z.name.substring(0, 40))}</div>
                   <div style="font-size:10px;color:var(--m);">${timeAgo(z.createdAt)} · ${Number(z.knockCount) || 0} knocks · ${Number(z.leadCount) || 0} leads</div>
                 </div>
-                <div style="font-size:12px;font-weight:700;color:var(--green);">${rev.revenueFormatted}</div>
+                <div style="font-size:12px;font-weight:700;color:var(--green);" title="Projected — storm-zone model, not collected money">${rev.revenueFormatted} <span style="font-size:9px;font-weight:500;color:var(--m);">proj.</span></div>
               </div>
             `;
           }).join('')

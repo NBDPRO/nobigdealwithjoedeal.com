@@ -112,8 +112,18 @@
     const estsInWindow = ests.filter(e => { const m = _sentMs(e); return !!m && inWindow(m); });
     const signedInWindow = ests.filter(e => inWindow(_toMillis(e.signedAt)));
 
-    const revenue = signedInWindow.reduce((sum, e) => sum + (Number(e.grandTotal || e.total) || 0), 0);
-    const avgTicket = signedInWindow.length ? revenue / signedInWindow.length : 0;
+    // Revenue = money COLLECTED in the window (Jo, 2026-09-28: "Revenue is
+    // always collected only") — invoice payments by payment date, from the
+    // shared NBDRevenue cache (null until the first load lands → "…").
+    // Signed-estimate value is a promise: kept as signedValue, and Avg ticket
+    // stays the average SIGNED job (a size-of-deal measure, not revenue).
+    const R = window.NBDRevenue;
+    const invs = R ? R.cached() : null;
+    const collected = invs ? R.collectedBetween(invs, start, end) : null;
+    const revenue = collected ? collected.total : null;
+    const paymentCount = collected ? collected.count : 0;
+    const signedValue = signedInWindow.reduce((sum, e) => sum + (Number(e.grandTotal || e.total) || 0), 0);
+    const avgTicket = signedInWindow.length ? signedValue / signedInWindow.length : 0;
     // Close rate must be a SUBSET of its denominator or it can exceed 100%:
     // signedInWindow filters on signedAt while estsInWindow filters on sentAt,
     // so an estimate sent before the period but signed inside it landed in the
@@ -153,6 +163,8 @@
       leadCount: leadsInWindow.length,
       estimateCount: estsInWindow.length,
       signedCount: signedInWindow.length,
+      signedValue,
+      paymentCount,
       revenue,
       avgTicket,
       closeRate,
@@ -184,6 +196,9 @@
     const period = _readPeriod();
     const range = _periodRange(period);
     const cur = _computeWindow(range.currentStart, range.currentEnd);
+    if (cur.revenue === null && window.NBDRevenue) {
+      window.NBDRevenue.loadInvoices().then(function () { if (window.NBDRevenue.cached()) render(); });
+    }
     const prev = _computeWindow(range.prevStart, range.prevEnd);
 
     const periodTabs = PERIODS.map(p =>
@@ -233,7 +248,9 @@
       '</div>' +
 
       '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;">' +
-        tile('Revenue',     _money(cur.revenue),       _delta(cur.revenue, prev.revenue),       cur.signedCount + ' signed') +
+        tile('Revenue',     cur.revenue === null ? '…' : _money(cur.revenue),
+             cur.revenue === null ? '' : _delta(cur.revenue, prev.revenue || 0),
+             'collected · ' + cur.paymentCount + ' payment' + (cur.paymentCount === 1 ? '' : 's') + (cur.signedCount ? ' · ' + _money(cur.signedValue) + ' signed' : '')) +
         tile('Avg ticket',  _money(cur.avgTicket),     _delta(cur.avgTicket, prev.avgTicket),   prev.avgTicket ? 'was ' + _money(prev.avgTicket) : '') +
         tile('Leads added', String(cur.leadCount),     _delta(cur.leadCount, prev.leadCount),   prev.leadCount + ' previous') +
         tile('Close rate',  Math.round(cur.closeRate * 100) + '%', _delta(cur.closeRate, prev.closeRate), cur.signedCount + ' / ' + cur.estimateCount + ' sent') +

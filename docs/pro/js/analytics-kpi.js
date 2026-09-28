@@ -243,6 +243,14 @@
     if (!container) return;
 
     var k = computeKPIs();
+    // Revenue This Month = money COLLECTED this month (Jo, 2026-09-28:
+    // "Revenue is always collected only"). k.monthlyRevenue is the jobValue of
+    // leads that CLOSED this month — booked, not banked — so it no longer
+    // fills this card. Shared invoice cache; '…' until the first load lands.
+    var _R = window.NBDRevenue, _invs = _R ? _R.cached() : null;
+    if (_R && !_invs) _R.loadInvoices().then(function () { if (_R.cached() && document.getElementById('kpiRow')) renderKPIRow(); });
+    var _now = new Date();
+    var _collectedMonth = _invs ? _R.collectedBetween(_invs, new Date(_now.getFullYear(), _now.getMonth(), 1).getTime(), _now.getTime()).total : null;
 
     // Every card routes somewhere (data-ak-action="goTo" + data-ak-target,
     // dispatched by the delegate at the bottom of this file). These cards
@@ -261,9 +269,9 @@
         '<div class="kpi-card kpi-green" data-ak-action="goTo" data-ak-target="money" role="button" title="Open Money dashboard" style="cursor:pointer;">' +
           '<div class="kpi-icon">📈</div>' +
           '<div class="kpi-data">' +
-            '<div class="kpi-value">$' + formatNum(k.monthlyRevenue) + '</div>' +
+            '<div class="kpi-value">' + (_collectedMonth == null ? '…' : '$' + formatNum(_collectedMonth)) + '</div>' +
             '<div class="kpi-label">Revenue This Month</div>' +
-            '<div class="kpi-sub">' + k.closedThisMonthCount + ' closed</div>' +
+            '<div class="kpi-sub">Collected · ' + k.closedThisMonthCount + ' closed ($' + formatNum(k.monthlyRevenue) + ' booked)</div>' +
           '</div>' +
         '</div>' +
         '<div class="kpi-card" data-ak-action="goTo" data-ak-target="board" role="button" title="Open analytics" style="cursor:pointer;">' +
@@ -509,12 +517,20 @@
       var ud = toJSDate(l.stageStartedAt || l.updatedAt);
       if (ud) {
         var mk = monthKey(ud);
-        if (monthlyTrend[mk]) {
-          monthlyTrend[mk].closed++;
-          monthlyTrend[mk].revenue += parseFloat(l.jobValue) || 0;
-        }
+        if (monthlyTrend[mk]) monthlyTrend[mk].closed++;
       }
     });
+    // Revenue bars = money COLLECTED in each month (payment date), not the
+    // closed jobs' jobValue (Jo, 2026-09-28: revenue is collected only).
+    invoices.forEach(function (inv) {
+      paymentsOf(inv).forEach(function (p) {
+        var pd = toJSDate(p.at);
+        if (!pd) return;
+        var mk = monthKey(pd);
+        if (monthlyTrend[mk]) monthlyTrend[mk].revenue += parseFloat(p.amount) || 0;
+      });
+    });
+    Object.keys(monthlyTrend).forEach(function (k) { monthlyTrend[k].revenue = Math.round(monthlyTrend[k].revenue * 100) / 100; });
 
     // ── D2D efficiency ──
     var totalKnocks = knocks.length;
@@ -1080,7 +1096,7 @@
               '<div class="ak-card blue"><div class="ak-lbl">Doors Knocked</div><div class="ak-val">' + uniqDoors.toLocaleString() + '</div><div class="ak-sub">' + convos.toLocaleString() + ' conversations</div></div>' +
               '<div class="ak-card cyan"><div class="ak-lbl">Appointments</div><div class="ak-val">' + appts.toLocaleString() + '</div><div class="ak-sub">' + clampPct(appts, uniqDoors) + '% of doors</div></div>' +
               '<div class="ak-card orange"><div class="ak-lbl">D2D Leads Won</div><div class="ak-val">' + won.toLocaleString() + '</div><div class="ak-sub">' + converted.toLocaleString() + ' doors converted</div></div>' +
-              '<div class="ak-card green"><div class="ak-lbl">D2D Revenue</div><div class="ak-val">' + fmt$(d2dRevenue) + '</div><div class="ak-sub">' + (won > 0 ? fmt$(d2dRevenue / won) + ' avg' : 'from door knocks') + '</div></div>' +
+              '<div class="ak-card green"><div class="ak-lbl">D2D Booked</div><div class="ak-val">' + fmt$(d2dRevenue) + '</div><div class="ak-sub">' + (won > 0 ? 'projected · ' + fmt$(d2dRevenue / won) + ' avg won job' : 'projected · won door-knock jobs') + '</div></div>' +
             '</div>' +
             '<div style="font-weight:700;font-size:12px;color:var(--m);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px;">Conversion Funnel</div>' +
             funnel.map(f => {

@@ -166,8 +166,9 @@ function computeMetrics() {
     });
   });
   totalRevenue = Math.round(totalRevenue * 100) / 100;
-  // If no invoice cash, fall back to job value from won leads
-  const revenueFallback = totalRevenue > 0 ? totalRevenue : wonLeads.reduce((s, l) => s + (parseFloat(l.jobValue) || 0), 0);
+  // No fallback to won jobs' jobValue when no cash came in: revenue is
+  // COLLECTED only (Jo, 2026-09-28) — $0 collected reads $0, not a booked total.
+  const revenueFallback = totalRevenue;
   const closeRate = (totalDeals + leads.filter(l => ['lost','Lost'].includes(l._stageKey || l.stage || '')).length) > 0
     ? Math.round(totalDeals / (totalDeals + leads.filter(l => ['lost','Lost'].includes(l._stageKey || l.stage || '')).length) * 100)
     : 0;

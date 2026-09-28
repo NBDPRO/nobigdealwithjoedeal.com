@@ -241,10 +241,10 @@ ok('topSource = referral (3 non-deleted)', k.topSource === 'referral' && k.topSo
     }],
   }).monthlyTrend;
 
-  ok('revenue lands in the close month, not the edit month',
-    trend[prevKey] && trend[prevKey].revenue === 2500);
-  ok('the edit month gets nothing',
-    trend[thisKey] && trend[thisKey].revenue === 0);
+  // Revenue = COLLECTED (Jo, 2026-09-28): a won lead's jobValue is booked,
+  // not revenue — with no invoice payments, no month shows revenue.
+  ok('a won lead with no payments adds no revenue to any month',
+    trend[prevKey] && trend[prevKey].revenue === 0 && trend[thisKey] && trend[thisKey].revenue === 0);
   ok('the close is counted once, in the close month',
     trend[prevKey].closed === 1 && trend[thisKey].closed === 0);
 
@@ -257,7 +257,16 @@ ok('topSource = referral (3 non-deleted)', k.topSource === 'referral' && k.topSo
     }],
   }).monthlyTrend;
   ok('a row with no stageStartedAt still falls back to updatedAt',
-    legacyTrend[prevKey] && legacyTrend[prevKey].revenue === 700);
+    legacyTrend[prevKey] && legacyTrend[prevKey].closed === 1);
+
+  // Trend revenue comes from invoice payments, bucketed by PAYMENT date.
+  const cashTrend = CFA({
+    leads: [], knocks: [], photos: [], estimates: [], expenses: [],
+    invoices: [{ status: 'partial', total: 9000, amountPaid: 4000, balanceDue: 5000,
+      lastPaymentAt: inMonth, payments: [{ amount: 1500, at: prevMonth }, { amount: 2500, at: inMonth }] }],
+  }).monthlyTrend;
+  ok('trend revenue = payments in their own months (1500 last month, 2500 this month)',
+    cashTrend[prevKey] && cashTrend[prevKey].revenue === 1500 && cashTrend[thisKey] && cashTrend[thisKey].revenue === 2500);
 }
 
 console.log('\n──────────────────────────────────────────────────');

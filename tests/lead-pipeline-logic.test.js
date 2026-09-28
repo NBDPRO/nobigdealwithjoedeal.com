@@ -121,9 +121,9 @@ function loadIIFE(file) {
   const R = roiWin.LeadSourceROI;
   ok('exposes LeadSourceROI.compute', R && typeof R.compute === 'function');
   const leads = [
-    { source: 'referral',   stage: 'closed', jobValue: 20000 },
-    { source: 'referral',   stage: 'closed', jobValue: 30000 },
-    { source: 'referral',   stage: 'new',    jobValue: 10000 },
+    { id: 'r1', source: 'referral',   stage: 'closed', jobValue: 20000 },
+    { id: 'r2', source: 'referral',   stage: 'closed', jobValue: 30000 },
+    { id: 'r3', source: 'referral',   stage: 'new',    jobValue: 10000 },
     // All four spellings of the SAME act. 'Door Knock' is canonical as of
     // 2026-09-06 (was 'Door-to-Door'); the stored data was normalized and
     // d2d-tracker now writes the canonical string, but the aliases have to
@@ -137,19 +137,28 @@ function loadIIFE(file) {
     { source: 'referral',   deleted: true,     jobValue: 88888 }, // skipped (deleted)
   ];
   roiWin._leads = leads;           // compute() reads window._leads
+  // Revenue = COLLECTED cash (Jo, 2026-09-28). r1 paid in full, r2 paid a
+  // deposit, r3 (still open) paid a deposit too — all three are revenue;
+  // booked jobValue drives Avg Deal only.
+  const paidByLead = { r1: 20000, r2: 5000, r3: 1500 };
+  roiWin.NBDRevenue = { cached: () => [{}], collectedByLead: () => paidByLead };
   const m = R.compute();
   const ref = m.rows.find(r => r.source === 'Referral');
   const d2d = m.rows.find(r => r.source === 'Door Knock');
   ok('prospects + deleted excluded (totals.total === 7)', m.totals.total === 7);
   ok('Referral total === 3 (2 closed + 1 open)', ref && ref.total === 3);
-  ok('Referral closed === 2, closedRev === 50000', ref.closed === 2 && ref.closedRev === 50000);
+  ok('Referral closed === 2, collectedRev === 26500 (cash, incl. the open job\'s deposit)', ref.closed === 2 && ref.collectedRev === 26500);
+  ok('booked value is NOT revenue: bookedRev === 50000 is kept only for Avg Deal', ref.bookedRev === 50000 && m.totals.collectedRev === 26500);
   ok('Referral conversionRate === 67 (2/3)', ref.conversionRate === 67);
   ok('Referral avgDealSize === 25000', ref.avgDealSize === 25000);
   ok("canonical bucket is 'Door Knock', not 'Door-to-Door'",
     !!d2d && !m.rows.find(r => r.source === 'Door-to-Door'));
   ok('all four door spellings fold into ONE bucket (total === 4, lost === 4)',
     d2d.total === 4 && d2d.lost === 4 && d2d.closed === 0);
-  ok('rows sorted by closedRev desc (Referral first)', m.rows[0].source === 'Referral');
+  ok('rows sorted by collectedRev desc (Referral first)', m.rows[0].source === 'Referral');
+  roiWin.NBDRevenue = undefined;
+  const m0 = R.compute();
+  ok('no invoice data yet → $0 collected, never a jobValue fallback', m0.rows.find(r => r.source === 'Referral').collectedRev === 0);
 }
 
 console.log('\n──────────────────────────────────────────────────');
