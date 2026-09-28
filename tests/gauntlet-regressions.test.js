@@ -132,11 +132,14 @@ console.log('\nCap-blocked D2D convert — _saveLead\'s return must not be disca
 {
   const d2d = read('docs/pro/js/d2d-tracker-core-2026b.js');
   const fnStart = d2d.indexOf('async function convertToLead(knockId)');
-  const fnBody = fnStart >= 0 ? d2d.slice(fnStart, fnStart + 9000) : '';
+  const fnBody = fnStart >= 0 ? d2d.slice(fnStart, fnStart + 12000) : '';
   assert('convertToLead captures _saveLead\'s return value',
     /const leadId = await window\._saveLead\(leadData\)/.test(fnBody));
   assert('convertToLead bails before marking the knock converted when _saveLead short-circuits',
-    /if \(!leadId\) return;/.test(fnBody) && fnBody.indexOf('if (!leadId) return;') < fnBody.indexOf('updateKnock(knockId'),
+    // Since 2026-09-28 the bail also releases the transaction's lock (behaviour
+    // pinned in tests/d2d-convert-lock-release-2026-09-28.test.js).
+    /if \(!leadId\) \{ await _release\(\); return; \}/.test(fnBody)
+      && fnBody.indexOf('if (!leadId) { await _release(); return; }') < fnBody.indexOf('updateKnock(knockId'),
     'a capped tenant must not see "Converted to CRM Lead" with no lead actually created');
 }
 
