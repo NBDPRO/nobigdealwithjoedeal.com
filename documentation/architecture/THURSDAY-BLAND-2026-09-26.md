@@ -290,6 +290,22 @@ Jo reported two things. A caller had to say "Hello?" before Thursday spoke. Anot
   - Fix: in the agent builder, delete the two @tags and re-tag End call + a transfer to Joe's cell. Then publish to **staging**, test a transfer, and promote.
   - The public v2 create-tool API has no `agent_id` field, so this is a UI step.
 
+- **Tools fixed and LIVE, 2026-09-28 18:09Z (agent 0.6.1, pathway v16, Jo: "just promote it").**
+  - **Root cause:** the agent node's `data.tools` array was **absent in every version**. The prompt `@mentions` alone do not bind a tool.
+    Once the node has `tools`, the compiled pathway node gains `tools` (`name|tools|prompt|extractVars|compiledRole`).
+  - **Fix, in the agent builder:**
+    1. Create tool → Custom tool → Bland creates agent-owned copies (`agent_id` = Thursday): "Connect to Joe emergency" (cold transfer to Joe's cell) and "Hang up" (end call). The wording is copied from the originals.
+    2. Every old chip was replaced with the new tag.
+    3. Publish to staging (0.6.1), then `thursday-agent-lookup.js --promote --yes`.
+  - **Verified vs 0.6.0 via the API:** the prompt is identical apart from whitespace and tag names; the mentions and the node `tools` changed.
+  - **Leftover:** the node's `tools` also holds the old org-level "Emergency connect to Joe" (from an "Add to node" click). It dials the same number with the same wording, and the builder doesn't display it.
+  - Rollback: `--rollback=0.6.0 --yes`.
+  - **Unverified until a real transfer / hang-up:** check the next call's `pathway_logs` for `Tool Call` without `Unmatched`.
+- **Greet-by-name root cause (§9):** the builder warns "the step is on but has no saved snippet — it will not run, and conversations start at the agent".
+  - The Initialization code was only ever set through the API snapshot, never saved in the builder, so the lookup never ran.
+  - Fix: paste `INIT_CODE` from `scripts/thursday-agent-lookup.js` into the builder's Initialization step and save, then staging → test → promote.
+- **Bland balance read −0.50 credits** on 2026-09-28. Watch it: a negative balance may stop calls.
+
 ## 6. Coordination notes
 
 - **#1780** (viewer-refusing callables) adds `tests/viewer-callables.test.js`. It requires every exported callable and HTTP function to carry a verdict.

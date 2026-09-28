@@ -141,3 +141,11 @@ Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26
 - **Tools (option c):** both tagged tools are org-level (`agent_id: null`), not the agent's own copies.
   Re-tag them in the Bland agent builder, which needs Jo signed in. Then staging → test → promote.
   If that doesn't fix it, call Bland support.
+- **18:09Z — Thursday tools LIVE** (0.6.1): the node never had a `tools` array.
+  Re-created both tools inside the agent and promoted on Jo's say-so.
+  Next call: confirm `Tool Call` without `Unmatched`.
+- **Still open for Thursday:**
+  - greet-by-name: the Initialization snippet was never saved in the builder (THURSDAY-BLAND §10);
+  - ~6 s per-turn latency;
+  - the Bland balance at −0.50.
+- **#1831 merged:** a silent hang-up of 2 s or more → inbox "Hung up — call back?" (no alerts).
