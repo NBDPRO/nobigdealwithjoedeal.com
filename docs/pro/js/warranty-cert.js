@@ -71,6 +71,17 @@ function updateCertPreview() {
   const isNbd = !_b || !_b.legalName || _b.legalName === 'No Big Deal Home Solutions';
   const raw = WC_TIER_DESCS[tier] || '';
   desc.textContent = isNbd ? raw : String(raw).replace(/\bNBD\b/g, (_b.seal || _b.legalName || 'We'));
+  // The Guarantee Tier <select> is static markup in dashboard.html whose first
+  // option read "Standard — NBD Lifetime Pledge" for EVERY tenant's rep. Name
+  // the pledge the way generateWarrantyCertPDF prints it (NBD unchanged).
+  const seal = isNbd ? 'NBD' : (_b.seal || _b.legalName || '');
+  const sel = document.getElementById('wcTier');
+  if (sel && sel.options && sel.options[0] && sel.options[0].value === 'standard') {
+    sel.options[0].textContent = 'Standard — ' + (seal ? seal + ' Lifetime Pledge' : 'Lifetime Pledge');
+  }
+  // Same for the modal's eyebrow ("NBD Guarantee" above the title).
+  const eyebrow = document.getElementById('wcEyebrow');
+  if (eyebrow) eyebrow.textContent = seal ? seal + ' Guarantee' : 'Guarantee';
 }
 
 async function generateWarrantyCertPDF() {

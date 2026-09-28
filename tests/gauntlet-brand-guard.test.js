@@ -168,6 +168,38 @@ console.log('\nBRAND GUARD — deal-acceptance error page title is neutral');
     !/<title>No Big Deal<\/title>/.test(da));
 }
 
+// ── Warranty wizard tier picker names the tenant's pledge, not NBD's ───
+// dashboard.html's #wcTier first option is static "Standard — NBD Lifetime
+// Pledge"; updateCertPreview (run on open + on change) relabels it per tenant.
+// Behavioral: the REAL warranty-cert.js in a vm with a stub DOM (2026-09-28).
+console.log('\nBRAND GUARD — warranty tier picker is tenant-named');
+{
+  const vm = require('vm');
+  const src = fs.readFileSync(path.join(ROOT, 'docs/pro/js/warranty-cert.js'), 'utf8');
+  function relabel(brand) {
+    const opt0 = { value: 'standard', textContent: 'Standard — NBD Lifetime Pledge' };
+    const els = {
+      wcTier: { value: 'standard', options: [opt0, { value: 'preferred', textContent: 'Preferred' }] },
+      wcTierDesc: { textContent: '' },
+      wcEyebrow: { textContent: 'NBD Guarantee' },
+    };
+    const ctx = { window: { _brand: () => brand }, document: { getElementById: (id) => els[id] || null }, console };
+    vm.createContext(ctx);
+    vm.runInContext(src, ctx, { filename: 'warranty-cert.js' });
+    vm.runInContext('updateCertPreview()', ctx);
+    return { opt: opt0.textContent, desc: els.wcTierDesc.textContent, eyebrow: els.wcEyebrow.textContent };
+  }
+  const nbd = relabel({ legalName: 'No Big Deal Home Solutions' });
+  ok('NBD keeps "Standard — NBD Lifetime Pledge"', nbd.opt === 'Standard — NBD Lifetime Pledge');
+  ok('NBD keeps the "NBD Guarantee" eyebrow', nbd.eyebrow === 'NBD Guarantee');
+  const t = relabel({ legalName: 'Demo Roofing Co', seal: 'DRC' });
+  ok('a tenant with a seal sees "Standard — DRC Lifetime Pledge"', t.opt === 'Standard — DRC Lifetime Pledge');
+  ok('…and no "NBD" in the tier description', !/\bNBD\b/.test(t.desc));
+  ok('…and the eyebrow reads "DRC Guarantee"', t.eyebrow === 'DRC Guarantee');
+  const t2 = relabel({ legalName: 'Demo Roofing Co' });
+  ok('a tenant without a seal gets its legal name', t2.opt === 'Standard — Demo Roofing Co Lifetime Pledge');
+}
+
 console.log('\n──────────────────────────────');
 console.log(`${passed} passed, ${failed} failed` + (totalUngated ? ` (${totalUngated} ungated literal lines)` : ''));
 if (failed) { console.log('\nUngated NBD literals found — gate each behind isNbd/_brand()/{{company}} or make it a per-tenant value:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1); }
