@@ -441,7 +441,57 @@ async function saveLead(){
     // id right back on an edit, so a truthy return value alone can't
     // distinguish the two.
     const _wasNewLead = !_leadPayload.id;
+    // A stage CHANGE made here goes through stage-write.js commitStageChange —
+    // the same path as the kanban and the customer page. Until 2026-09-28 this
+    // form spread `stage` straight into updateDoc, so an edit-modal move never
+    // reset stageStartedAt (days-in-stage, the bottleneck widget and the
+    // server's dormant-lead nudge all read the lead's CREATION date), never
+    // appended stageHistory / the timeline note, skipped the email drip and
+    // the stage-entry task, and ignored the destination's required fields
+    // (an insurance lead jumped New → Closed with no warranty cert or COC).
+    // Unrelated edits to a lead that already sits on a stage with missing
+    // fields are never blocked: the gate runs only when the stage changes.
+    let _stageMove = null;
+    if (!_wasNewLead && _leadPayload.stage) {
+      const _existing = (window._leads || []).find(l => l && l.id === _leadPayload.id);
+      const _norm = (s) => (typeof window.normalizeStage === 'function' ? window.normalizeStage(s) : s);
+      if (_existing && _existing.stage && _norm(_existing.stage) !== _norm(_leadPayload.stage)) {
+        const _isLost = (_editStageRole || '') === 'lost';
+        if (!_isLost && typeof window.missingRequiredFields === 'function') {
+          const _missing = window.missingRequiredFields(Object.assign({}, _existing, _leadPayload)) || [];
+          if (_missing.length) {
+            const _lbl = (f) => (typeof window.requiredFieldLabel === 'function' ? window.requiredFieldLabel(f) : f);
+            showFormError('To move to this stage, fill in: ' + _missing.map(_lbl).join(', ') + '.');
+            return; // finally{} re-enables the Save button
+          }
+        }
+        _stageMove = { from: _existing.stage, to: _leadPayload.stage, isLost: _isLost };
+        delete _leadPayload.stage;
+        delete _leadPayload.stageRole;
+      }
+    }
     const _savedId = await window._saveLead(_leadPayload);
+    if (_savedId && _stageMove) {
+      try {
+        const { commitStageChange } = await import('./stage-write.js');
+        await commitStageChange(_savedId, _stageMove.to, _stageMove.from, {
+          isLostMove: _stageMove.isLost,
+          jobType: _leadPayload.jobType || null,
+          actorLabel: window._currentUser?.email,
+        });
+      } catch (stageErr) {
+        const m = stageErr && stageErr.message;
+        if (m !== 'STAGE_RACE_NOOP') {
+          console.warn('[saveLead] stage move failed:', m);
+          if (typeof showToast === 'function') {
+            showToast(m === 'STAGE_RACE_LOST'
+              ? 'Details saved — but someone else moved this lead’s stage first. Refresh to see it.'
+              : 'Details saved, but the stage change didn’t go through — try the move again.', 'warning');
+          }
+        }
+      }
+      if (typeof window.loadLeads === 'function') { try { window.loadLeads(); } catch (_) {} }
+    }
     // _saveLead returns null when it deliberately did NOT write: the Lite
     // lead cap, the billing gate's upgrade modal, or the rep choosing
     // cancel / "open the existing lead" on the dedup prompt. Each of
