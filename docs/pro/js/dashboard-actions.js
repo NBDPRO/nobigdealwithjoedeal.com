@@ -238,6 +238,8 @@ function goToD2DFromMaps() {
 function openCalBookingUrl() {
   const input = document.getElementById('calBookingUrl');
   if (input && input.value) window.open(input.value, '_blank', 'noopener');
+  // Was a silent no-op with no Cal.com username saved.
+  else if (typeof window.showToast === 'function') window.showToast('Set up your booking link first', 'error');
 };
 function hardResetTest() {
   if (typeof window.__nbdHardReset === 'function') window.__nbdHardReset();

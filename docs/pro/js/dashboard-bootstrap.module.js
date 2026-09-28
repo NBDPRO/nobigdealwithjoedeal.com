@@ -2047,6 +2047,9 @@
           calcomUsername: calVal,
           calcomEventSlug: d.calcomEventSlug || 'roof-inspection'
         });
+        // The Schedule view's Cal.com box loaded at DOMContentLoaded, before
+        // this profile existed — repaint it now from the account setting.
+        if (calVal && typeof window.loadCalSettings === 'function') { try { window.loadCalSettings(); } catch (_) {} }
         const calEl = document.getElementById('settingsCalcom');
         const calPrev = document.getElementById('settingsCalcomPreview');
         if (calEl) calEl.value = calVal;
@@ -4521,7 +4524,12 @@
     // calcomWebhook can resolve incoming bookings back to this rep.
     // Normalize: lowercase, strip trailing slashes / leading @.
     const rawCal = (document.getElementById('settingsCalcom')?.value || '').trim();
-    const calcomUsername = rawCal.replace(/^@+/, '').replace(/\/+$/,'')
+    // A pasted link ("https://cal.com/joe" or "cal.com/joe/roof-inspection")
+    // used to be saved whole, so every booking link read
+    // cal.com/https%3A%2F%2Fcal.com%2Fjoe and calcomWebhook never matched
+    // the rep. Keep only the username segment.
+    const calcomUsername = rawCal.replace(/^https?:\/\//i, '').replace(/^(www\.)?cal\.com\//i, '')
+                                 .replace(/^@+/, '').split(/[/?#]/)[0]
                                  .toLowerCase().slice(0, 60) || null;
     // Wave 16: weekly digest opt-in/out. Stored as a boolean so the
     // weeklyDigest cron's `=== false` check works as expected (default
