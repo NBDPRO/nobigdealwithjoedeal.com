@@ -153,8 +153,11 @@ console.log('\nTHE BILLING CTA GOES TO BILLING');
 {
   const bg = read('billing-gate.js');
   ok("billing-gate no longer calls goTo('billing')", !/goTo\('billing'\)/.test(bg));
-  ok('billing-gate routes to the settings view', /goTo\('settings'\)/.test(bg));
-  ok('billing-gate selects the billing tab', /switchSettingsTab\('billing'\)/.test(bg));
+  ok('billing-gate routes to the settings view', /goTo\('settings'[,)]/.test(bg));
+  // Since 2026-09-28 the tab rides in goTo's route id: a separate
+  // switchSettingsTab('billing') was undone by goTo's 50 ms default-tab timer
+  // (behaviour pinned in settings-deep-link-tab-2026-09-28.test.js).
+  ok('billing-gate selects the billing tab', /goTo\('settings',\s*\{\s*id:\s*'billing'\s*\}\)/.test(bg));
   // switchSettingsTab looks up '#stab-panel-' + tab and '#stab-' + tab, so
   // the markup has to carry both or the call silently no-ops.
   const html = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'dashboard.html'), 'utf8');

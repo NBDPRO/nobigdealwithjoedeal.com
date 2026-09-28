@@ -144,7 +144,7 @@ function openSettingsTab(tabKey) {
   if (typeof nbdPickerOpen === 'function') {
     nbdPickerOpen();
   } else {
-    if (typeof goTo === 'function') goTo('settings');
+    if (typeof goTo === 'function') goTo('settings', { id: tabKey });
     setTimeout(function(){
       if (typeof switchSettingsTab === 'function') switchSettingsTab(tabKey);
     }, 200);
@@ -573,7 +573,16 @@ function goTo(name, params = {}) {
     if (typeof window.showPhotosSkeleton === 'function') { try { window.showPhotosSkeleton(); } catch (_) {} }
     _fillPhotosView();
   }
-  if(name==='settings') { setTimeout(() => switchSettingsTab('profile'), 50); }
+  // Settings opens on params.id's tab when it names a real panel, else
+  // Profile. The id rides in the hash (#/settings/billing), so the hashchange
+  // re-entry lands on the same tab. This timer used to reset to Profile
+  // unconditionally 50 ms after EVERY goTo('settings') — undoing the
+  // ?settings=<tab> deep link (Stripe Connect returns to ?settings=billing)
+  // and billing-gate's "Go to Billing", which both switched tabs sooner.
+  if(name==='settings') {
+    const _tab = params.id;
+    setTimeout(() => switchSettingsTab(_tab && document.getElementById('stab-panel-' + _tab) ? _tab : 'profile'), 50);
+  }
   if(name==='home') { if(window.NBDWidgets) window.NBDWidgets.render(); }
   if(name==='prospects') {
     // Init / refresh on every entry so a prospect promoted from another
