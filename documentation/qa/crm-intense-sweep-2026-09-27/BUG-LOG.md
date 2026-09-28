@@ -258,5 +258,6 @@ list stage dropdown to a gated stage opens the editor instead of skipping.
 | R5-03 | An invalid Google review link was silently cleared under a success toast. | Warning toast says it must start with https:// and was cleared. |
 | R5-04 | Toasts read "✓ ✓ Estimate duplicated" — callers prefix a ✓ beside the type icon. | The toast drops a leading mark that repeats its icon (app-wide, one place). |
 | R5-05 | **Reports → Lead Source ROI counted finished jobs as open pipeline.** Its hand-copied closed list missed Install Done / Final Photos / Collections / Warranty Claim and custom won stages. | Uses the shared stage role (verified: a lead at Install Done moves from pipeline to closed revenue). |
+| R5-06 | Same drift in margin analytics (`profit-tracker.js`) and the standalone Leaderboard page: Collections and Warranty Claim jobs (ROLE won in `crm-stages.js`) were not counted as won. | Profit tracker uses the stage role (list as fallback); Leaderboard list matches ROLE won. |
 
 **Worked:** estimates list Duplicate (copy is unassigned by design on this list), Rename, Assign-to-customer with search, Delete; seeded estimates now carry title/address like real saves.

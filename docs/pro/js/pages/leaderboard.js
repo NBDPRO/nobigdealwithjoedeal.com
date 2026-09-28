@@ -22,7 +22,10 @@ const db = getFirestore(app);
 await connectEmulatorsIfLocal({ auth, db }); // Audit #3: localhost-only, no-op in prod
 
 // ── Stage classification ──
-const WON_STAGES = ['closed','install_complete','final_photos','final_payment','deductible_collected','Complete'];
+// Kept in step with crm-stages ROLE 'won' (this standalone page doesn't load
+// it): collections + warranty_claim were missing, so those jobs fell out of
+// "deals closed".
+const WON_STAGES = ['closed','install_complete','final_photos','final_payment','deductible_collected','collections','warranty_claim','Complete'];
 
 // ── State ──
 let currentTab = 'doors';

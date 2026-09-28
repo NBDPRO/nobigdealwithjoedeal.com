@@ -133,9 +133,16 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
    */
   function computeMarginAnalytics() {
     const leads = window._leads || [];
-    const WON = ['closed','install_complete','final_photos','final_payment','deductible_collected','Complete'];
+    const WON = ['closed','install_complete','final_photos','final_payment','deductible_collected','collections','warranty_claim','Complete'];
+    // Stage role first (custom-pipeline aware, same as Pipeline/Home); the
+    // list is the fallback for a page without crm-stages loaded.
+    const isWon = (l) => {
+      const k = l._stageKey || l.stage || '';
+      const r = l._stageRole || (typeof window.stageRole === 'function' ? (function () { try { return window.stageRole(k); } catch (_) { return null; } })() : null);
+      return r ? r === 'won' : WON.includes(k);
+    };
 
-    const wonJobs = leads.filter(l => WON.includes(l._stageKey || l.stage || '') && !l.deleted);
+    const wonJobs = leads.filter(l => isWon(l) && !l.deleted);
     const jobsWithCosts = wonJobs.filter(l => (parseFloat(l.materialCost) || 0) > 0 || (parseFloat(l.laborCost) || 0) > 0);
 
     if (jobsWithCosts.length === 0) {
