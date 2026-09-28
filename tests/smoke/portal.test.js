@@ -92,6 +92,57 @@ section('Wave B4+B5: revoke / regenerate portal link');
     /window\._revokePortalLink\s*=/.test(dash));
 }
 
+section('2026-09-25 (review of PR #1777): portal records scoped to the token\'s tenant');
+{
+  // A re-created lead id passed canManageLead for a stranger, and the portal
+  // view found estimates / invoices / e-sign envelopes by leadId alone, so it
+  // served the deleted lead's tenant's records (reproduced on the emulator;
+  // tests/lead-artifact-cleanup.integration.test.js section P drives the real
+  // handler). Behavioral matrix on the REAL pure module.
+  const { portalTenant, recordInPortalTenant: inT, tokenMatchesLead } =
+    require(path.join(FUNCTIONS, 'portal-authz.js'));
+  const lead = { userId: 'rep1', companyId: 'coA' };
+  const tok = { leadId: 'L1', ownerUid: 'rep1', companyId: 'coA' };
+  const t = portalTenant(tok, lead);
+  assert('tenant = the lead\'s companyId', t.companyId === 'coA');
+  assert('tenant uids = lead owner + token owner', t.uids.has('rep1') && t.uids.size === 1);
+  assert('a legacy lead with no companyId falls back to the token\'s',
+    portalTenant({ ownerUid: 'r', companyId: 'coT' }, { userId: 'r' }).companyId === 'coT');
+  assert('same-company estimate by a teammate is shown',
+    inT({ companyId: 'coA', userId: 'mate' }, ['userId'], t) === true);
+  assert('ANOTHER tenant\'s estimate at the same lead id is hidden (the hole)',
+    inT({ companyId: 'coB', userId: 'rep1' }, ['userId'], t) === false);
+  assert('an unstamped legacy estimate by the lead owner is shown',
+    inT({ userId: 'rep1' }, ['userId'], t) === true);
+  assert('an unstamped estimate by anyone else is hidden',
+    inT({ userId: 'stranger' }, ['userId'], t) === false);
+  assert('invoice owner field is createdBy',
+    inT({ createdBy: 'rep1' }, ['createdBy'], t) === true && inT({ userId: 'rep1' }, ['createdBy'], t) === false);
+  assert('esign envelope with companyId null falls back to ownerUid',
+    inT({ companyId: null, ownerUid: 'rep1' }, ['ownerUid'], t) === true);
+  assert('a tenant with no companyId hides every stamped record (fail-closed)',
+    inT({ companyId: 'coA' }, ['userId'], { companyId: '', uids: new Set(['rep1']) }) === false);
+  assert('null record / tenant -> hidden', inT(null, ['userId'], t) === false && inT({}, ['userId'], null) === false);
+  assert('a token opens the lead its tenant holds', tokenMatchesLead(tok, lead) === true);
+  assert('an old tenant\'s token does not open a re-created lead of another tenant',
+    tokenMatchesLead(tok, { userId: 'x', companyId: 'coB' }) === false);
+  assert('a legacy token without companyId keeps the old behaviour',
+    tokenMatchesLead({ ownerUid: 'rep1' }, { companyId: 'coB' }) === true);
+
+  // Wiring: each of the three leadId-only queries' results goes through it.
+  const psrc = read(path.join(FUNCTIONS, 'portal.js'));
+  assert('portal view refuses a token of another tenant than the lead\'s',
+    /if \(!tokenMatchesLead\(tok, lead\)\) \{\s*res\.status\(404\)/.test(psrc));
+  assert('portal view filters estimates by tenant',
+    /estSnap\.docs\.map\([^\n]*\)\s*\.filter\(e => recordInPortalTenant\(e, \['userId'\], tenant\)\)/.test(psrc));
+  assert('portal view filters e-sign envelopes by tenant',
+    /if \(!recordInPortalTenant\(e, \['ownerUid'\], tenant\)\) return null;/.test(psrc));
+  assert('portal view filters invoices by tenant',
+    /\.filter\(inv => recordInPortalTenant\(inv, \['createdBy'\], tenant\)\)/.test(psrc));
+  assert('getEstimateForView checks the estimate\'s tenant',
+    /recordInPortalTenant\(est, \['userId'\], portalTenant\(tok, tokLead\)\)/.test(psrc));
+}
+
 section('Audit 2026-08-02: tenant-admin revoke authority (canManageLead)');
 {
   // Behavioral matrix on the REAL pure module (zero-dep require).

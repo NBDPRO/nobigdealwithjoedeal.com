@@ -62,7 +62,7 @@ const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
 // rep, or a company_admin of the lead's tenant. Pure module — decision is
 // unit-tested there, not here.
-const { canManageLead } = require('./portal-authz');
+const { canManageLead, portalTenant, recordInPortalTenant, tokenMatchesLead } = require('./portal-authz');
 
 // CORS origins — identical to the list in functions/index.js. The
 // duplication is deliberate: portal.js is meant to be importable on
@@ -678,6 +678,15 @@ exports.getHomeownerPortalView = onRequest(
 
     if (!leadSnap.exists) { res.status(404).json({ error: 'Project not found', code: 'project_missing' }); return; }
     const lead = leadSnap.data();
+    // 2026-09-25 (review of PR #1777): a lead id can be re-created by another
+    // tenant after a hard delete. The old tenant's link must not open the new
+    // lead, and the estimates / e-sign envelopes / invoices below, found by
+    // leadId alone, must be this tenant's. See portal-authz.js.
+    if (!tokenMatchesLead(tok, lead)) {
+      res.status(404).json({ error: 'Project not found', code: 'project_missing' });
+      return;
+    }
+    const tenant = portalTenant(tok, lead);
     const rep = repSnap.exists ? repSnap.data() : {};
 
     // Multi-tenant branding: resolve the tenant's legal name from its
@@ -746,7 +755,8 @@ exports.getHomeownerPortalView = onRequest(
       || SHARED_SIG.includes(e.signatureStatus)
       || !!e.sentAt;
 
-    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(e => recordInPortalTenant(e, ['userId'], tenant));
     estimates.sort((a, b) => {
       const ta = a.createdAt?.toMillis?.() || 0;
       const tb = b.createdAt?.toMillis?.() || 0;
@@ -882,6 +892,7 @@ exports.getHomeownerPortalView = onRequest(
     // _refreshHomeownerPhotoUrls above.
     const _esignDocs = (await Promise.all(envSnap.docs.map(async (d) => {
       const e = d.data();
+      if (!recordInPortalTenant(e, ['ownerUid'], tenant)) return null;
       if (typeof e.signedPath !== 'string' || !e.signedPath) return null;
       try {
         const [url] = await getStorage().bucket().file(e.signedPath).getSignedUrl({
@@ -913,6 +924,7 @@ exports.getHomeownerPortalView = onRequest(
     // exactly one, but this doesn't assume that.
     const _unpaidInvoice = invSnap.docs
       .map(d => d.data())
+      .filter(inv => recordInPortalTenant(inv, ['createdBy'], tenant))
       .filter(inv => Number(inv.balanceDue) > 0)
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))[0] || null;
     const _balance = _unpaidInvoice ? {
@@ -2405,9 +2417,19 @@ exports.getEstimateForView = onRequest(
     }
 
     const estRef = db.doc(`estimates/${estimateId}`);
-    const estSnap = await estRef.get();
+    const [estSnap, tokLeadSnap] = await Promise.all([estRef.get(), db.doc(`leads/${tok.leadId}`).get()]);
     if (!estSnap.exists) { res.status(404).json({ error: 'Estimate not found.' }); return; }
     const est = estSnap.data();
+    // 2026-09-25 (review of PR #1777): same tenant scope as
+    // getHomeownerPortalView. The leadId check below ties the estimate to the
+    // lead id; a lead id can be re-created by another tenant, and an estimate
+    // can be written with any lead's id, so it must also be this tenant's.
+    const tokLead = tokLeadSnap.exists ? (tokLeadSnap.data() || {}) : null;
+    if (!tokLead || !tokenMatchesLead(tok, tokLead)
+        || !recordInPortalTenant(est, ['userId'], portalTenant(tok, tokLead))) {
+      res.status(403).json({ error: 'Estimate not available for this link.' });
+      return;
+    }
 
     // Cross-tenant defense: the estimate must belong to the same
     // lead the token grants access to. A homeowner with a valid

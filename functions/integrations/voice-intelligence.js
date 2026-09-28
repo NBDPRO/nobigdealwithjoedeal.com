@@ -36,6 +36,7 @@ const { getSecret, hasSecret, secretValue, PROVIDERS, SECRETS } = require('./_sh
 const { isVoiceIntelDisabled } = require('./killswitch');
 const prompts = require('../voice-prompts');
 const { matchDocPath } = require('../collection-group-paths');
+const { isReservedLeadId } = require('../lead-artifact-paths');
 
 // Claude analysis + consent check reuse the existing Anthropic key.
 const ANTHROPIC_API_KEY_FOR_VOICE = defineSecret('ANTHROPIC_API_KEY');
@@ -74,12 +75,21 @@ const PIPELINE_TIMEOUT_MS = 520_000;
 // parseAudioPath: audio/{uid}/{leadId}/{recordingId}.{ext}
 // Returns null on any shape mismatch. Storage triggers fire on ALL
 // finalizations in the bucket; we ignore non-audio paths silently.
+//
+// 2026-09-25 (review of PR #1777): the second segment must be a real lead
+// id. D2D voice memos upload to `audio/{uid}/d2d/{knockId}_{ts}.webm`, which
+// fits the shape, so every user's memo became a row at
+// `leads/d2d/recordings/...` — one phantom lead shared by every tenant, which
+// anyone can create and hard-delete (onLeadDeleted's subtree sweep would then
+// have erased all of them), and nothing reads. isReservedLeadId() is the same
+// list onLeadDeleted refuses to sweep.
 function parseAudioPath(fullPath) {
   if (typeof fullPath !== 'string') return null;
   const m = fullPath.match(
     /^audio\/([^/]+)\/([^/]+)\/([^/]+)\.(webm|mp3|mp4|m4a|ogg|wav|aac)$/i
   );
   if (!m) return null;
+  if (isReservedLeadId(m[2])) return null;
   return { uid: m[1], leadId: m[2], recordingId: m[3], ext: m[4].toLowerCase() };
 }
 
@@ -91,6 +101,11 @@ function parseAudioPath(fullPath) {
 // audio/{uid}/{leadId}/{recordingId}.ext, so require exactly that pairing:
 // a doc anywhere else, or one naming another recording's audio, deletes
 // nothing from Storage.
+// 2026-09-26 (PR #1777 rebased onto this): parseAudioPath also refuses a
+// reserved lead id, so a row at leads/d2d/recordings/{R} (or _variants, …)
+// never deletes audio either. That is intended: audio/{uid}/d2d/… is a D2D
+// knock's memo, owned by the knock, not a recording row; processRecording no
+// longer writes such rows, and the production census for #1777 found none.
 function retentionAudioPathFor(docPath, audioPath) {
   const at = matchDocPath('leads/{leadId}/recordings/{recordingId}', docPath);
   const audio = parseAudioPath(audioPath);

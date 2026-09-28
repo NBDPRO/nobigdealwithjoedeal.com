@@ -116,6 +116,20 @@ async function run() {
     await setDoc(doc(db, 'leads/leadA/signatures/Homeowner'),{ userId: 'alice', role: 'Homeowner', png: 'data:image/png;base64,iVBORw0KGgo=' });
     await setDoc(doc(db, 'measurements/measA'),        { ownerId: 'alice', companyId: 'co-a', leadId: 'leadA', status: 'ready' });
     await setDoc(doc(db, 'measurements/measLegacy'),   { ownerId: 'alice', leadId: 'leadA', status: 'ready' }); // legacy doc, no companyId — must stay owner-only
+    // Section Z (2026-09-25): a lead alice hard-deletes, with a row in every
+    // parent-authorised subcollection.
+    await setDoc(doc(db, 'leads/leadGone'),                        { userId: 'alice', companyId: 'co-a', name: 'Gone Homeowner' });
+    await setDoc(doc(db, 'leads/leadGone/notes/n1'),               { text: 'gate code 4411', userId: 'alice' });
+    await setDoc(doc(db, 'leads/leadGone/tasks/t1'),               { title: 'call back', userId: 'alice' });
+    await setDoc(doc(db, 'leads/leadGone/activity/a1'),            { type: 'note', source: 'rep', userId: 'alice' });
+    await setDoc(doc(db, 'leads/leadGone/drawings/d1'),            { sq: 31 });
+    await setDoc(doc(db, 'leads/leadGone/signatures/Homeowner'),   { role: 'Homeowner', png: 'data:image/png;base64,iVBORw0KGgo=' });
+    await setDoc(doc(db, 'leads/leadGone/documents/doc1'),         { name: 'contract', htmlPath: 'documents/alice/leadGone/doc1.html' });
+    await setDoc(doc(db, 'leads/leadGone/warrantyClaims/c1'),      { status: 'open', reason: 'workmanship' });
+    await setDoc(doc(db, 'leads/leadGone/portal_messages/m1'),     { body: 'is Tuesday ok?', from: 'homeowner' });
+    // Review of PR #1777: a TOP-LEVEL note naming it. The /notes read rule
+    // reads the lead the note names, so a re-creator read these as well.
+    await setDoc(doc(db, 'notes/topGone'),                         { leadId: 'leadGone', userId: 'alice', text: 'Stage moved to Inspected' });
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -455,6 +469,69 @@ async function run() {
   await check('thursday_config: same-tenant manager reads',    'allow', getDoc(doc(eveMgr, 'thursday_config/co-a')));
   await check('thursday_config: B reads co-a',                 'deny',  getDoc(doc(bob,    'thursday_config/co-a')));
   await check('thursday_config: co_admin cannot write',        'deny',  setDoc(doc(aliceCA,'thursday_config/co-a'), { smsEnabled: true }));
+
+  // ═══════════════════════════════════════════════════════════
+  // Z. A HARD-DELETED LEAD vs A STRANGER WHO RE-CREATES ITS ID (2026-09-25)
+  // Every rule under leads/{leadId}/... decides "owner" by reading the
+  // parent lead, and the lead create rule only ties userId/companyId to the
+  // caller. So once a lead is gone, anyone who creates a lead at that id owns
+  // whatever rows are left. The rules cannot see those rows (they cannot list
+  // subcollections), so the create stays allowed; the defence is
+  // onLeadDeleted sweeping the subtree first. This runs that sweep, the same
+  // module (functions/lead-subtree-sweep.js), over the admin SDK, then
+  // checks what the stranger can read. Without the sweep every read below
+  // returns the old lead's row (documentation/audit/LEAD-SUBTREE-HIJACK-2026-09-25.md).
+  // ═══════════════════════════════════════════════════════════
+  {
+    const { getDocs, collection, query, where } = require('firebase/firestore');
+    async function checkEmpty(label, promise) {
+      try {
+        const snap = await promise;
+        results.push(snap.size === 0
+          ? { label, expect: 'empty', outcome: 'PASS', note: 'nothing of the deleted lead' }
+          : { label, expect: 'empty', outcome: 'FAIL', note: `>>> ${snap.size} row(s) of the deleted lead readable` });
+      } catch (e) {
+        results.push({ label, expect: 'empty', outcome: 'FAIL', note: '>>> read denied; expected an allowed, empty read' });
+      }
+    }
+    const SUBS = ['notes', 'tasks', 'activity', 'drawings', 'signatures', 'documents', 'warrantyClaims', 'portal_messages'];
+
+    await check('Z: owner hard-deletes their lead',                  'allow', deleteDoc(doc(alice, 'leads/leadGone')));
+    await check('Z: before a re-create, B cannot read its notes',    'deny',  getDocs(collection(bob, 'leads/leadGone/notes')));
+    await check('Z: before a re-create, B cannot read its top-level notes', 'deny',
+      getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
+
+    // onLeadDeleted's sweep, run the way the trigger runs it. The rules env
+    // above talks to 127.0.0.1:8080; the admin SDK needs the env var.
+    process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
+    const { initializeApp: initAdminApp } = require('firebase-admin/app');
+    const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
+    const { sweepLeadSubtree, sweepLeadKeyedDocs, makeLeadWatch } = require(path.resolve(__dirname, '../functions/lead-subtree-sweep.js'));
+    const adminDb = getAdminFirestore(initAdminApp({ projectId: PROJECT_ID }, 'xtenant-subtree-sweep'));
+    const noStorage = { file: () => ({ delete: async () => {} }) };
+    const sweep = await sweepLeadSubtree({
+      db: adminDb, bucket: noStorage, leadId: 'leadGone',
+      cutoffNs: BigInt(Date.now()) * 1000000n,
+    });
+    results.push(sweep.rowsDeleted === SUBS.length && sweep.failures.length === 0
+      ? { label: 'Z: the sweep removed every row', expect: 'swept', outcome: 'PASS', note: `${sweep.rowsDeleted} rows` }
+      : { label: 'Z: the sweep removed every row', expect: 'swept', outcome: 'FAIL', note: `>>> ${sweep.rowsDeleted} rows, failures: ${sweep.failures.join('; ')}` });
+    // ...and onLeadDeleted's /notes step, the same module.
+    const watch = makeLeadWatch({ db: adminDb, leadId: 'leadGone', cutoffNs: BigInt(Date.now()) * 1000000n,
+      deletedLead: { userId: 'alice', companyId: 'co-a' } });
+    const notesSweep = await sweepLeadKeyedDocs({ db: adminDb, collection: 'notes', leadId: 'leadGone', watch });
+    results.push(notesSweep.deleted === 1 && notesSweep.failures.length === 0
+      ? { label: 'Z: the /notes step removed the top-level note', expect: 'swept', outcome: 'PASS', note: '1 doc' }
+      : { label: 'Z: the /notes step removed the top-level note', expect: 'swept', outcome: 'FAIL', note: `>>> ${notesSweep.deleted} docs, failures: ${notesSweep.failures.join('; ')}` });
+
+    await check('Z: B can still create leads/leadGone as their own', 'allow',
+      setDoc(doc(bob, 'leads/leadGone'), { userId: 'bob', companyId: 'co-b', name: 'mine now' }));
+    for (const sub of SUBS) {
+      await checkEmpty(`Z: B re-created it; reads none of A's ${sub}`, getDocs(collection(bob, `leads/leadGone/${sub}`)));
+    }
+    await checkEmpty("Z: B re-created it; reads none of A's top-level notes",
+      getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
+  }
 
   // ── Summary ────────────────────────────────────────────────
   const pass = results.filter(r => r.outcome === 'PASS').length;
