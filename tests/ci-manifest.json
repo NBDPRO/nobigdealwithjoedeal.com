@@ -22,6 +22,7 @@
     "reports-sent-definition-2026-09-28.test.js",
     "csv-import-stage-customerid-2026-09-28.test.js",
     "global-search-phone-match-2026-09-28.test.js",
+    "lead-deep-link-2026-09-28.test.js",
     "deal-room-sibling-links-2026-09-28.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
