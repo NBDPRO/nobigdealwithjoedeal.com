@@ -341,7 +341,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     // …and their card shows up in THEIR kanban like any other lead.
     await loginAs(page, { email: STRANGER.email, password: STRANGER.password });
     await openCrm(page);
-    await expect(page.locator(`text=/Micro.*Site${stamp}/i`).first(),
+    await expect(page.locator('#view-crm').locator(`text=/Micro.*Site${stamp}/i`).first(),
       'microsite lead card visible in tenant kanban').toBeVisible({ timeout: 15_000 });
   });
 

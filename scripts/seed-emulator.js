@@ -149,7 +149,10 @@ async function seed() {
     const ref = db.collection('leads').doc();
     await ref.set({
       userId: uid[l.owner], companyId: COMPANY_ID,
-      firstName: l.firstName, lastName: l.lastName, name: `${l.firstName} ${l.lastName}`,
+      // No `name`, `estValue` or `value`: the lead form writes firstName/
+      // lastName + jobValue only. Seeding the extras hid two real bugs
+      // (Home widgets read `name`; Close Board summed `estValue||value`).
+      firstName: l.firstName, lastName: l.lastName,
       address: `${100 + leadIds.length} Maple St, Austin, TX`, phone: '555-02' + (10 + leadIds.length),
       // Normalized inbound-SMS match key — mirrors what every prod
       // lead-write path stamps (functions/phone-utils.js), so emulator QA
@@ -157,10 +160,10 @@ async function seed() {
       // legacy exact-phone fallback.
       phoneDigits: String('555-02' + (10 + leadIds.length)).replace(/\D/g, '').replace(/^1/, '').slice(-10),
       email: `${l.firstName.toLowerCase()}@example.com`,
-      stage: l.stage, source: 'manual', jobValue: l.jobValue, estValue: l.jobValue, value: l.jobValue,
+      stage: l.stage, source: 'manual', jobValue: l.jobValue,
       deleted: false, createdAt: daysAgo(20 - leadIds.length), updatedAt: daysAgo(2),
     });
-    leadIds.push({ id: ref.id, owner: l.owner, sq: 28 + leadIds.length * 3 });
+    leadIds.push({ id: ref.id, owner: l.owner, sq: 28 + leadIds.length * 3, addr: `${100 + leadIds.length} Maple St, Austin, TX` });
   }
   console.log(`  ✓ ${leadIds.length} leads written (3 companyAdmin, 2 salesRep)`);
 
@@ -175,6 +178,7 @@ async function seed() {
       builder: 'classic', mode: 'cash',
       raw: Math.round(l.sq * 100 / (1.118 * 1.15)), wf: 1.15,
       tier: 'better', tierName: 'Better', sq: l.sq,
+      addr: l.addr, title: 'Better — ' + l.addr, // as the classic save writes them
       grandTotal: l.sq * 480, roofType: 'Gable', pitch: '6/12',
       rows: [{ code: 'RFG 240', desc: 'Architectural shingles', qty: l.sq, rate: 360, total: l.sq * 360 }],
       createdAt: daysAgo(10), updatedAt: daysAgo(5),
