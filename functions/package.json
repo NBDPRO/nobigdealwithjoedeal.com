@@ -9,14 +9,14 @@
   "dependencies": {
     "@sentry/node": "^10.75.0",
     "@sparticuz/chromium": "153.0.0",
-    "firebase-admin": "^14.4.0",
+    "firebase-admin": "^14.5.0",
     "firebase-functions": "^7.4.0",
     "google-auth-library": "^11.1.0",
     "handlebars": "^4.7.8",
     "heic-convert": "^2.1.0",
     "pdf-lib": "^1.17.1",
     "puppeteer-core": "25.11.0",
-    "resend": "^6.28.1",
+    "resend": "^6.29.0",
     "sharp": "^0.35.4",
     "stripe": "^22.6.2",
     "twilio": "^6.1.1"
