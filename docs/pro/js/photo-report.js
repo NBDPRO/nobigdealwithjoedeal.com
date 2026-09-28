@@ -1524,7 +1524,7 @@
     const meta = [
       { label: 'Property', value: lead.address || '' },
       { label: 'Claim No.', value: lead.claimNumber || '' },
-      { label: 'Carrier', value: lead.insuranceCarrier || lead.carrier || '' },
+      { label: 'Carrier', value: lead.insCarrier || lead.insuranceCarrier || lead.carrier || '' }, // insCarrier is what the lead form writes
       { label: 'Date of Loss', value: lead.dateOfLoss || '' },
       { label: 'Damage Type', value: lead.damageType || '' },
       { label: 'Photos', value: String((allPhotos || []).length) },

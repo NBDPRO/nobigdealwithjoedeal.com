@@ -1879,7 +1879,7 @@ function getCustomerDocData() {
     insCarrier: lead.insCarrier || '', insuranceCompany: lead.insCarrier || '',
     claimNumber: lead.claimNumber || '', claimStatus: lead.claimStatus || '',
     policyNumber: lead.policyNumber || '', dateOfLoss: lead.dateOfLoss || '',
-    deductible: lead.deductible || '', supplementStatus: lead.supplementStatus || '',
+    deductible: lead.deductibleOrOwedByHO || lead.deductible || '', supplementStatus: lead.supplementStatus || '',
 
     // Estimate
     totalPrice: jobVal ? '$' + Number(jobVal).toLocaleString() : '',

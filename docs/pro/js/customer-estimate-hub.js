@@ -360,11 +360,14 @@
       custRows += '<div class="ceh-row"><span class="ceh-row-k">Address</span><span class="ceh-row-v">' +
         '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr) + '" target="_blank" rel="noopener noreferrer">' + esc(addr) + '</a></span></div>';
     }
-    var carrier = lead.carrier || lead.insuranceCarrier || '';
+    // insCarrier / deductibleOrOwedByHO are what the lead form writes; the
+    // other names are legacy. Reading only those left both rows blank.
+    var carrier = lead.insCarrier || lead.carrier || lead.insuranceCarrier || '';
+    var _ded = lead.deductibleOrOwedByHO || lead.deductible;
     var claim = lead.claimNumber || lead.claim || '';
     if (carrier) custRows += '<div class="ceh-row"><span class="ceh-row-k">Carrier</span><span class="ceh-row-v">' + esc(carrier) + '</span></div>';
     if (claim) custRows += '<div class="ceh-row"><span class="ceh-row-k">Claim #</span><span class="ceh-row-v">' + esc(claim) + '</span></div>';
-    if (lead.deductible) custRows += '<div class="ceh-row"><span class="ceh-row-k">Deductible</span><span class="ceh-row-v">' + money(lead.deductible) + '</span></div>';
+    if (_ded) custRows += '<div class="ceh-row"><span class="ceh-row-k">Deductible</span><span class="ceh-row-v">' + money(_ded) + '</span></div>';
     if (!custRows) custRows = '<div class="ceh-row"><span class="ceh-row-v" style="color:var(--m,#98a0ab);">No contact details on file yet — use Edit on the customer to add them.</span></div>';
 
     var custName = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || lead.name || 'Customer';
