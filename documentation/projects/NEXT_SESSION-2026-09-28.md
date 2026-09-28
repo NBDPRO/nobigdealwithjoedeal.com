@@ -149,3 +149,22 @@ Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26
   - ~6 s per-turn latency;
   - the Bland balance at −0.50.
 - **#1831 merged:** a silent hang-up of 2 s or more → inbox "Hung up — call back?" (no alerts).
+
+## Update — 2026-09-28 (late evening): rounds 11–12 + Thursday live fixes
+
+- **Thursday (live on Jo's OK):**
+  - static opening line on the number;
+  - agent 0.6.1: tools bound (emergency transfer + hang-up), promoted;
+  - agent 0.6.2: Initialization snippet saved in the builder, so greet-by-name runs; the prompt no longer re-greets.
+  - A 2 s+ silent hang-up is now a missed-caller inbox row (#1831).
+  - Details: [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26.md).
+- **Merged:** #1830 #1831 #1832 #1833 (public-log PII fix) #1834 (deal-room stale links).
+- **In CI, auto-merging on green at their pinned heads:** #1835 (referral form errors), #1836 (Edit Lead stage writes), #1837 (warranty wizard white-label), #1838 (expenses row), #1839 (Reports "sent").
+  - #1835, #1836 and #1839 each add a test suite. Whichever merges later must bump `FLOORS` in `scripts/run-test-manifest.js` to the new disk count, or main's manifest check goes red with "floor is stale".
+- **Jo's to-do:**
+  1. **Delete the old Lead-address-audit run logs.** 41 runs, 08-20 → 09-28, are public and hold customer names and addresses:
+     `gh run list --workflow "Lead address audit" --limit 100 --json databaseId --jq '.[].databaseId' | xargs -n1 gh run delete`
+  2. Decide what "revenue" means for Reports (signed estimates) vs Home (closed jobs) — BUG-LOG R12-07.
+  3. The Bland balance read −0.50 credits.
+  4. Optional Bland support ticket (latency ~2 s/turn, start node, tool binding) — drafted in the session.
+
