@@ -756,7 +756,12 @@ function showToast(msgOrOptions, typeArg) {
     <button class="toast-close" data-ui-action="closeToast" data-ui-id="${toastId}">✕</button>
   `;
   const _msgEl = toast.querySelector('.toast-message');
-  if (_msgEl) _msgEl.textContent = (message == null ? '' : String(message));
+  // Many callers prefix their own "✓ " / "⚠️ " — beside the type icon that
+  // read "✓ ✓ Estimate duplicated". Drop a leading mark that repeats the icon.
+  let _msgText = (message == null ? '' : String(message));
+  if (type === 'success') _msgText = _msgText.replace(/^\s*[✓✔✅]️?\s*/, '');
+  else if (type === 'error' || type === 'warning') _msgText = _msgText.replace(/^\s*⚠️?\s*/, '');
+  if (_msgEl) _msgEl.textContent = _msgText;
 
   container.appendChild(toast);
   
@@ -1029,9 +1034,15 @@ function switchSettingsTab(tab) {
   // checkboxes reflect what was actually saved (not the hardcoded
   // `checked` defaults in the markup).
   if (tab === 'profile') {
-    if (_nbdReg && typeof _nbdReg._loadProfileSettings === 'function') {
-      _nbdReg._loadProfileSettings();
-    }
+    // On a refresh straight onto #/settings this runs before the bootstrap
+    // module has registered its loaders, so the call silently no-oped and the
+    // saved Phone / review link / Cal.com showed blank — and the next Save
+    // wrote those blanks over the real values. Retry until it exists.
+    (function _runProfileLoad(tries) {
+      var _nbdReg = window.__NBD_CALL_REGISTRY; // re-read each try (was undefined on the first)
+      if (_nbdReg && typeof _nbdReg._loadProfileSettings === 'function') { _nbdReg._loadProfileSettings(); return; }
+      if (tries < 60) setTimeout(function () { _runProfileLoad(tries + 1); }, 250);
+    })(0);
     // The kanban density buttons + bold/auto-collapse checkboxes live in
     // this panel too; their boot-time DCL+200ms painter ran before the
     // template hydrated on any non-direct load, so the active state and

@@ -2050,6 +2050,15 @@
         // The Schedule view's Cal.com box loaded at DOMContentLoaded, before
         // this profile existed — repaint it now from the account setting.
         if (calVal && typeof window.loadCalSettings === 'function') { try { window.loadCalSettings(); } catch (_) {} }
+        // Same for Settings → Profile when a refresh landed on #/settings: the
+        // tab's own load ran before sign-in, so saved Phone / review link /
+        // Company showed blank and the next Save wrote the blanks back.
+        if (document.getElementById('settingsPhone')) {
+          setTimeout(() => {
+            const reg = window.__NBD_CALL_REGISTRY;
+            if (reg && typeof reg._loadProfileSettings === 'function') { try { reg._loadProfileSettings(); } catch (_) {} }
+          }, 0);
+        }
         const calEl = document.getElementById('settingsCalcom');
         const calPrev = document.getElementById('settingsCalcomPreview');
         if (calEl) calEl.value = calVal;
@@ -4471,6 +4480,10 @@
   // stored value is explicitly false — matches the cron `=== false`
   // opt-out checks in functions/weekly-digest.js + dormant-leads.js).
   async function _loadProfileSettings() {
+    // Refreshing on #/settings runs this ~50ms after load, before sign-in
+    // resolves — it used to return here, leaving Phone / Google review /
+    // Cal.com blank, and the next Save then wrote those blanks back.
+    for (let i = 0; i < 60 && !window._user; i++) await new Promise(r => setTimeout(r, 250));
     const u = window._user;
     if (!u) return;
     const _setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
@@ -4512,9 +4525,15 @@
       // everyone. Persisted in _saveSettings below.
       _setVal('settingsPhone', d.phone || '');
       _setVal('settingsGoogleReview', d.googleReviewUrl || '');
-      // NOTE (still deferred): #settingsCompany / #settingsRole / #settingsLicense
-      // remain unwired — Company overlaps the tenant-wide Company Profile editor
-      // and Role/License need a product decision (Tier-A follow-up).
+      // Company / Role / License # — the rep's own profile text (2026-09-28;
+      // they used to be unwired and silently dropped). The tenant-wide brand
+      // still lives in the Company Profile tab.
+      if (d.profileCompany != null) _setVal('settingsCompany', d.profileCompany);
+      if (d.licenseNumber != null) _setVal('settingsLicense', d.licenseNumber);
+      if (d.jobTitle) {
+        const roleEl = document.getElementById('settingsRole');
+        if (roleEl && [...roleEl.options].some(o => (o.value || o.textContent) === d.jobTitle)) roleEl.value = d.jobTitle;
+      }
     } catch (e) { /* silent — rules may deny mid-bootstrap */ }
   };
 
@@ -4552,6 +4571,12 @@
     const phone = (document.getElementById('settingsPhone')?.value || '').trim().slice(0, 30);
     const rawReview = (document.getElementById('settingsGoogleReview')?.value || '').trim();
     const googleReviewUrl = /^https?:\/\//i.test(rawReview) ? rawReview.slice(0, 500) : '';
+    // Company / Role / License # had no writer: typed values vanished on the
+    // next load while the save said "Settings saved!". Kept on the rep's own
+    // user doc (never `role` — that key is claims-owned and rules-protected).
+    const profileCompany = (document.getElementById('settingsCompany')?.value || '').trim().slice(0, 120);
+    const jobTitle = (document.getElementById('settingsRole')?.value || '').trim().slice(0, 60);
+    const licenseNumber = (document.getElementById('settingsLicense')?.value || '').trim().slice(0, 60);
     try {
       await updateProfile(window._user, {displayName: name});
       document.getElementById('userName').textContent = name;
@@ -4566,7 +4591,10 @@
           dormantNudgeEnabled,
           reviewNudgeEnabled,
           phone,
-          googleReviewUrl
+          googleReviewUrl,
+          profileCompany,
+          jobTitle,
+          licenseNumber
         }, { merge: true });
       }
       // Refresh the in-memory rep shadow so the next booking SMS
@@ -4577,7 +4605,11 @@
         phone,
         googleReviewUrl
       });
-      showToast('Settings saved!');
+      if (rawReview && !googleReviewUrl) {
+        showToast('Saved — but the Google review link must start with https:// and was cleared', 'warning');
+      } else {
+        showToast('Settings saved!', 'success');
+      }
     } catch(e) { showToast('Save failed','error'); }
   };
 

@@ -248,3 +248,14 @@ New → Contacted (writes stage history); tasks add / check / delete; lead
 edit validation (email, 10-digit phone, `12,500` → 12500); right-click
 Delete → Deleted bin → Restore (stage, value and task count intact); phone
 list stage dropdown to a gated stage opens the editor instead of skipping.
+
+## Round 5 — 2026-09-28 (after #1820 shipped): Settings, estimate list actions
+
+| # | Finding | Fix |
+|---|---|---|
+| R5-01 | **Settings → Profile lost data on refresh.** Refreshing on `#/settings` ran the Profile loader before the bootstrap module had registered it (and before sign-in), so saved Phone / Google review link / Cal.com showed blank — and the next **Save wrote the blanks over the real values** (reproduced: phone wiped). | Tab retries until the loader exists; the loader waits for sign-in; the sign-in profile read also repaints the tab. Verified: every field survives a refresh. |
+| R5-02 | **Company / Role / License # were never saved** (a code note called them "deferred"), while Save said "Settings saved!". | Stored on the rep's own `users/{uid}` as `profileCompany` / `jobTitle` / `licenseNumber` and loaded back (never `role`, which is claims-owned). |
+| R5-03 | An invalid Google review link was silently cleared under a success toast. | Warning toast says it must start with https:// and was cleared. |
+| R5-04 | Toasts read "✓ ✓ Estimate duplicated" — callers prefix a ✓ beside the type icon. | The toast drops a leading mark that repeats its icon (app-wide, one place). |
+
+**Worked:** estimates list Duplicate (copy is unassigned by design on this list), Rename, Assign-to-customer with search, Delete; seeded estimates now carry title/address like real saves.
