@@ -137,6 +137,27 @@ console.log('REVENUE — invoice load scoping + per-account cache');
   ok('no "Closed Revenue" / "Revenue Added" labels on the dashboard', !/>Closed Revenue</.test(dash) && !/>Revenue Added</.test(dash));
   ok('collected-revenue.js loads before widgets.js', dash.indexOf('js/collected-revenue.js') > 0 && dash.indexOf('js/collected-revenue.js') < dash.indexOf('js/widgets.js'));
 
+  console.log('REVENUE — rep reports + weekly digest email');
+  {
+    const rep = strip(read('docs/pro/js/rep-report-generator.js'));
+    ok('rep report loads the shared invoices before computing', /_repInvoices = window\.NBDRevenue \? await window\.NBDRevenue\.loadInvoices\(\)/.test(rep));
+    ok('core KPI revenue = collectedOn(leads, range); booked kept separately', /const revenue = collectedOn\(leads, rangeStart, rangeEnd\);\s*const bookedValue =/.test(rep));
+    ok('no report revenue sums jobValue', !/revenue \+= Number\(l\.jobValue\)/.test(rep) && !/revenue = won\.reduce/.test(rep));
+    ok('hero label says Revenue Collected', />Revenue Collected</.test(rep) && !/>Revenue Closed</.test(rep));
+
+    const WD = read('functions/weekly-digest.js');
+    const wdCtx = {};
+    vm.createContext(wdCtx);
+    vm.runInContext(['timestampMillis', '_paymentsOf'].map((n) => extractFn(WD, n)).join('\n') + '\nglobalThis.__p = _paymentsOf;', wdCtx);
+    const R = loadRevenue().NBDRevenue;
+    const sameServer = INVOICES.every((inv) => JSON.stringify(wdCtx.__p(inv).map((p) => [p.amount, !!p.synthetic])) === JSON.stringify(R.paymentsOf(inv).map((p) => [p.amount, !!p.synthetic])));
+    ok('digest _paymentsOf (server) matches the client definition on every shape', sameServer);
+    const wd = strip(WD);
+    ok('digest headline stat is Revenue Collected (Wk); wins are labelled booked', /Revenue Collected \(Wk\)/.test(wd) && /Won This Week \(booked\)/.test(wd) && !/Won Revenue \(Wk\)/.test(wd));
+    ok('digest subject quotes collected, not won value', /collectedThisWeek \|\| 0\)\} collected`/.test(wd));
+    ok('a win counts only if it reached a won stage this week (stageStartedAt)', /touchedThisWeek\.filter\(_isWonLead\)\s*\.filter\(l => !l\.stageStartedAt \|\| timestampMillis\(l\.stageStartedAt\) >= cutoff\)/.test(wd));
+  }
+
   console.log('\n──────────────────────');
   console.log(passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }

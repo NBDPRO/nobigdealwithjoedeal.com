@@ -161,6 +161,21 @@
   // only as fallbacks for anything the backfill never saw.
   const stageDate = (lead) => toDate(lead.stageStartedAt || lead.updatedAt || lead.createdAt);
 
+  // Revenue = money COLLECTED (Jo, 2026-09-28: "Revenue is always collected
+  // only"): invoice payments on THESE leads, by the date each payment arrived
+  // (collected-revenue.js). The report used to call won jobs' jobValue
+  // "Revenue Closed" — booked, not banked. _repInvoices is loaded once per
+  // generate(); booked value is still reported, labelled as such.
+  let _repInvoices = [];
+  function collectedOn(leads, rangeStart, rangeEnd) {
+    const R = window.NBDRevenue;
+    if (!R) return 0;
+    const ids = new Set(leads.map(l => l && l.id).filter(Boolean));
+    return R.collectedBetween(_repInvoices,
+      rangeStart ? rangeStart.getTime() : null, rangeEnd ? rangeEnd.getTime() : null,
+      id => ids.has(id)).total;
+  }
+
   // ─── Metric calculators (pure functions) ─────────────────
 
   // Knocks-to-deal ratio — how many doors does it take to close one?
@@ -243,14 +258,20 @@
         cityStats[city].appts++;
       }
     });
+    // Deals by the date the lead reached its stage (stageDate — updatedAt
+    // re-dated old closes to the last edit); revenue = cash collected in the
+    // range on each city's leads, whatever their stage.
+    const paidByLead = window.NBDRevenue
+      ? window.NBDRevenue.collectedByLead(_repInvoices, rangeStart.getTime(), rangeEnd.getTime()) : {};
     leads.forEach(l => {
-      const d = toDate(l.updatedAt || l.createdAt);
-      if (!d || !inRange(d, rangeStart, rangeEnd)) return;
-      if (!isWon(l)) return;
       const city = l.city || parseCity(l.address);
+      const paid = paidByLead[l.id] || 0;
+      const d = stageDate(l);
+      const wonHere = isWon(l) && d && inRange(d, rangeStart, rangeEnd);
+      if (!wonHere && !paid) return;
       if (!cityStats[city]) cityStats[city] = { city, knocks: 0, appts: 0, deals: 0, revenue: 0 };
-      cityStats[city].deals++;
-      cityStats[city].revenue += Number(l.jobValue) || 0;
+      if (wonHere) cityStats[city].deals++;
+      cityStats[city].revenue += paid;
     });
     const sorted = Object.values(cityStats)
       .sort((a, b) => (b.deals * 1000 + b.appts * 10 + b.knocks) - (a.deals * 1000 + a.appts * 10 + a.knocks))
@@ -308,9 +329,7 @@
     );
     const knocksCount = inRangeKnocks.length;
     const doorsCount = new Set(inRangeKnocks.map(doorKey)).size;
-    const revenue = leads
-      .filter(l => isWon(l) && inRange(stageDate(l), rangeStart, rangeEnd))
-      .reduce((sum, l) => sum + (Number(l.jobValue) || 0), 0);
+    const revenue = collectedOn(leads, rangeStart, rangeEnd);
     return {
       knocks: knocksCount,
       doors: doorsCount,
@@ -443,11 +462,22 @@
       const d = stageDate(l);
       if (!d || !inRange(d, rangeStart, rangeEnd)) return;
       const key = monthKey(d);
-      if (buckets[key]) {
-        buckets[key].revenue += Number(l.jobValue) || 0;
-        buckets[key].deals++;
-      }
+      if (buckets[key]) buckets[key].deals++;
     });
+    // Revenue bars = payments collected in each month on these leads.
+    const R = window.NBDRevenue;
+    if (R) {
+      const ids = new Set(leads.map(l => l && l.id).filter(Boolean));
+      _repInvoices.forEach(inv => {
+        if (!inv || inv.deleted === true || !ids.has(inv.leadId)) return;
+        R.paymentsOf(inv).forEach(p => {
+          const d = toDate(p.at);
+          if (!d || !inRange(d, rangeStart, rangeEnd)) return;
+          const b = buckets[monthKey(d)];
+          if (b) b.revenue += Number(p.amount) || 0;
+        });
+      });
+    }
 
     const list = Object.values(buckets);
     const best = list.reduce((a, b) => (a && a.revenue > b.revenue) ? a : b, null);
@@ -489,7 +519,8 @@
     const won = decidedInRange.filter(isWon);
     const lost = decidedInRange.filter(isLost);
     const active = leads.filter(l => !isWon(l) && !isLost(l));
-    const revenue = won.reduce((sum, l) => sum + (Number(l.jobValue) || 0), 0);
+    const revenue = collectedOn(leads, rangeStart, rangeEnd);
+    const bookedValue = won.reduce((sum, l) => sum + (Number(l.jobValue) || 0), 0);
     const pipelineValue = active.reduce((sum, l) => sum + (Number(l.jobValue) || 0), 0);
     const total = won.length + lost.length;
     const closeRate = total > 0 ? (won.length / total) : 0;
@@ -498,9 +529,10 @@
       dealsClosed: won.length,
       dealsLost: lost.length,
       revenue,
+      bookedValue,
       pipelineValue,
       closeRate,
-      avgJobValue: won.length > 0 ? (revenue / won.length) : 0
+      avgJobValue: won.length > 0 ? (bookedValue / won.length) : 0
     };
   }
 
@@ -691,7 +723,7 @@
       'Report: ' + templateName,
       'Rep: ' + (opts.repName || 'Rep'),
       'Period: ' + periodLabel,
-      'Revenue closed: ' + fmtMoney(core.revenue) + ' (' + (core.dealsClosed || 0) + ' deals)',
+      'Revenue collected: ' + fmtMoney(core.revenue) + ' (' + (core.dealsClosed || 0) + ' deals closed, ' + fmtMoney(core.bookedValue || 0) + ' booked)',
       'Close rate: ' + fmtPct(core.closeRate || 0),
       'Pipeline value: ' + fmtMoney(core.pipelineValue) + ' (' + (core.leadsCreated || 0) + ' new leads)',
       'Avg deal size: ' + fmtMoney(core.avgJobValue)
@@ -709,7 +741,7 @@
     if (comparison && comparison.metrics && comparison.metrics.core) {
       const priorCore = comparison.metrics.core;
       lines.push('--- Compared period (' + comparison.mode + ') ---');
-      lines.push('Prior revenue: ' + fmtMoney(priorCore.revenue));
+      lines.push('Prior revenue (collected): ' + fmtMoney(priorCore.revenue));
       lines.push('Prior deals: ' + priorCore.dealsClosed);
       lines.push('Prior close rate: ' + fmtPct(priorCore.closeRate || 0));
     }
@@ -876,6 +908,7 @@
     }
 
     await ensureKnocks();
+    _repInvoices = window.NBDRevenue ? await window.NBDRevenue.loadInvoices() : [];
     const leads = window._leads || [];
     const knocks = window._knocks || [];
     const estimates = window._estimates || [];
@@ -1364,7 +1397,7 @@ ${STATIC_CHART_CSS}
     <!-- HERO NUMBERS -->
     <div class="hero-grid">
       <div class="hero-cell">
-        <div class="hero-label">Revenue Closed</div>
+        <div class="hero-label">Revenue Collected</div>
         <div class="hero-value orange">${fmtMoney(core.revenue)} ${priorCore ? deltaChip(core.revenue, priorCore.revenue) : ''}</div>
         <div class="hero-sub">${fmtNumber(core.dealsClosed)} deals</div>
       </div>
