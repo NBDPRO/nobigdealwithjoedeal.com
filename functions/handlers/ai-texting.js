@@ -290,7 +290,25 @@ async function resolvePersona(db, userId, companyId, repDisplayName) {
 
   const legalName = brand.legalName || '';
   const isNBD = !legalName || legalName === 'No Big Deal Home Solutions';
-  const repName = (repDisplayName && String(repDisplayName).slice(0, 40)) || '';
+  let repName = (repDisplayName && String(repDisplayName).slice(0, 40)) || '';
+  // Callers pass lead.repName, which the lead form never writes — so a tenant
+  // draft fell back to the COMPANY name as the rep ("this is Demo Roofing Co's
+  // assistant … while Demo Roofing Co is in the field"). The owning rep's
+  // profile name is the right fallback. Only read for non-NBD (NBD keeps its
+  // 'Joe' default byte-identical).
+  if (!repName && !isNBD && userId) {
+    try {
+      const u = await db.collection('users').doc(String(userId)).get();
+      let dn = u.exists ? String((u.data() || {}).displayName || '').trim() : '';
+      if (!dn) {
+        // No profile doc yet (invited reps often have none) — the sign-in name.
+        const { getAuth } = require('firebase-admin/auth');
+        const rec = await getAuth().getUser(String(userId));
+        dn = String((rec && rec.displayName) || '').trim();
+      }
+      if (dn) repName = dn.split(/\s+/)[0].slice(0, 40); // first name, as a homeowner would hear it
+    } catch (e) { /* best-effort — falls back to the company name below */ }
+  }
 
   if (persona) {
     // Fill only the GAPS so a tenant that set its own companyName/identityName

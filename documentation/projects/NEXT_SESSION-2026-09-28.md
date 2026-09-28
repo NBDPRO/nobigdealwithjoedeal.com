@@ -67,3 +67,43 @@ reopen, draw ridges-only, V2 Retail Quote twice, mobile list), then delete every
   `tests/node_modules` **junctions** — unlink both (non-recursive) and confirm the
   main checkout's folders still have content BEFORE `git worktree remove`
   (see memory `worktree-path-length-limit`).
+
+## Update — 2026-09-28 (later): sweep rounds 4–8, all shipped
+
+Kept testing in the emulator (no production sign-in needed). Five more PRs,
+each merged green and deployed; details and repro notes per round in
+[BUG-LOG](../qa/crm-intense-sweep-2026-09-27/BUG-LOG.md) (Round 4 … Round 8).
+
+- **#1820** — form-created leads showed by address / "Unknown" / "N/A"
+  (surfaces read `lead.name`, which the form never writes); Close Board $0;
+  Cal.com pasted-URL usernames broke booking links + webhook matching;
+  Templates generator labels invisible + required fields unenforced; Team
+  Manager bounced on refresh, raw rules error, owner "0 leads" (functions);
+  customer-page stage badge stale + "[object Object]" blocked-move toast;
+  retired AOB checkbox visible (`.mrow{display:grid}` beat `[hidden]`).
+- **#1821** — **paying an invoice in full dragged a Closed job back to
+  Contract Signed** (test `invoice-markpaid-stage.test.js`); Settings →
+  Profile blanked on refresh and the next Save overwrote real values;
+  Company/Role/License never saved; won-stage drift in Lead Source ROI,
+  margin analytics and Leaderboard; Project Timeline was insurance-only.
+- **#1822** — **every follow-up was due a day early** in US time zones
+  (`YYYY-MM-DD` parsed as UTC; test `followup-local-day.test.js`); bell +
+  Needs Attention flagged unsent drafts as "awaiting reply" at "$0"; monthly
+  revenue goal didn't stick.
+- **#1823** — Photos, Dashboard (Analytics) and Money painted empty/$0 after
+  a refresh and never recovered.
+- **Round 8 (this PR)** — customer-page Edit Info saved phone "123", email
+  "bad" and negative job values; the homeowner portal flashed NBD's name while
+  loading for other tenants; the rig now wires default functions to the
+  emulator (portal links / Team Manager testable locally).
+
+**Rig lessons (also in memory `emulator-seed-shape-artifacts`):** the seed
+now writes `companies/{id}` + members, the tenant `brand`, 10-digit phones,
+and *no* `lead.name`/`estValue`/`value` — those extras hid two real bugs.
+Start the functions emulator with `FUNCTIONS_DISCOVERY_TIMEOUT=90`.
+
+**Still open:** production dry run (needs Jo signed in); users already saved
+with a URL-shaped `calcomUsername` stay broken until they re-save Settings;
+Jo's call on shop-wide tier rates; Settings → Company Profile shows NBD's
+default legal text as the editable starting value for other tenants (documents
+already substitute the tenant name — cosmetic).

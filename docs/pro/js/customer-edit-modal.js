@@ -122,6 +122,20 @@ async function saveCustomerEdits() {
       jobValue: parseFloat(String(document.getElementById('editJobValue').value).replace(/[^0-9.\-]/g, '')) || 0,
       updatedAt: new Date()
     };
+    // Same rules as the pipeline lead editor (crm-leads.js saveLead). This
+    // form saved phone "123", email "bad" and a NEGATIVE job value (which
+    // subtracts from every pipeline total) without a word.
+    const _bad = (msg, id) => {
+      if (typeof showToast === 'function') showToast(msg, 'error');
+      const el = document.getElementById(id); if (el) { try { el.focus(); } catch (_) {} }
+      btn.disabled = false; btn.textContent = 'SAVE CHANGES';
+    };
+    if (updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) { _bad('Email looks invalid (e.g. name@example.com).', 'editEmail'); return; }
+    if (updates.phone) {
+      const _d = updates.phone.replace(/\D/g, '');
+      if (_d.length < 10 || _d.length > 15) { _bad('Phone needs at least 10 digits.', 'editPhone'); return; }
+    }
+    if (updates.jobValue < 0) { _bad('Job value can’t be negative.', 'editJobValue'); return; }
     // Refresh the normalized inbound-SMS match key alongside phone —
     // incomingSMS queries leads by phoneDigits; writing phone without it
     // leaves the OLD number's key on the lead, so texts from the corrected
