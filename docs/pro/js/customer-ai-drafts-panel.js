@@ -159,7 +159,7 @@
     const when = relTime(draft.generatedAt);
     const incomingHtml = incoming ? `
       <div style="font-size:12px; color:var(--m,#9aa3b2); margin:2px 0 10px;">
-        They texted:
+        ${isPortalDraft(draft) ? 'They wrote in the portal:' : 'They texted:'}
         <span style="color:var(--t,#e8eaf0);">"${escapeHtml(incoming.slice(0, 280))}"</span>
       </div>` : '';
 
