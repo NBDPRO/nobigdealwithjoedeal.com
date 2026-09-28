@@ -302,6 +302,12 @@ async function saveLead(){
       return;
     }
   }
+  // A negative job value subtracts from every pipeline total; a negative lead
+  // cost inflates ROI. Neither is a real number here.
+  for (const [id, label] of [['lJobValue', 'Job value'], ['lLeadCost', 'Lead cost']]) {
+    const el = document.getElementById(id);
+    if (el && parseFloat(el.value) < 0) { showFormError(label + ' can’t be negative.', el); return; }
+  }
 
   // Prevent double-submit
   if(saveBtn.disabled) return;

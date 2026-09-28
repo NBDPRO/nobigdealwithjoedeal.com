@@ -281,3 +281,9 @@ list stage dropdown to a gated stage opens the editor instead of skipping.
 | # | Finding | Fix |
 |---|---|---|
 | R7-01 | **Refreshing on a view painted it from empty data and never repainted.** Photos: "No customers yet" + empty property picker (6 leads existed). Dashboard (Analytics): $0 pipeline, "No lead data yet". Money: "Your books", $0 collected / $0 A/R (in-app: Team-wide, $8,160 / $8,160). These views built once on entry, before sign-in and `loadLeads()` finished. | They now repaint on `nbd:data-refreshed` (leads) when on screen. Verified each after a refresh. Estimates, Reports, Settings, Prospects already recovered. |
+
+## Round 8 — 2026-09-28
+
+| # | Finding | Fix |
+|---|---|---|
+| R8-01 | **The customer page's Edit Info form saved anything**: phone "123", email "bad", and a **negative job value** (−$500 subtracts from every pipeline total). The pipeline editor rejects the first two; neither rejected a negative value. | Customer form uses the pipeline editor's exact rules; both forms refuse a negative job value (and lead cost). Verified: each bad value refused with a clear message, a valid save still works. **Also verified:** a sales rep who opens `#/admin` directly is turned away with the nav hidden (round-4 guard change holds); Money shows a rep "Your books". |
