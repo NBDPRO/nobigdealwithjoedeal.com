@@ -82,6 +82,10 @@ function classify(addr) {
   return 'ok';
 }
 
+function isIntakeLead(d) {
+  return d.webLead === true || !!d.publicLeadKind || !!d.referredByLeadId || !!d.convertedFromUnmatchedSms;
+}
+
 async function main() {
   initAdmin({ projectId: PROJECT });
   const db = getFirestore();
@@ -109,11 +113,15 @@ async function main() {
       scanned++;
       const name = [d.firstName, d.lastName].filter(Boolean).join(' ').trim() || '(no name)';
       let cls = classify(d.address);
-      // A website lead (contact form, booking, marketplace) whose sender gave
-      // no address was never corrupted — the form doesn't require one. That is
-      // missing data, like noStreet, not the blanking this gate exists to
-      // catch; failing on it kept the job red daily from 2026-09-04.
-      if (cls === 'blank' && d.webLead === true) cls = 'notProvided';
+      // A lead from an automatic intake whose sender gave no address was never
+      // corrupted — none of those channels requires one. That is missing
+      // data, like noStreet, not the blanking this gate exists to catch;
+      // failing on it kept the job red daily from 2026-09-04 (one contact-form
+      // lead). Every intake leaves a marker: website forms / Thumbtack /
+      // Thursday calls set publicLeadKind, Cal.com sets webLead, the referral
+      // form sets referredByLeadId, and an SMS converted into a lead sets
+      // convertedFromUnmatchedSms (always with a blank address).
+      if (cls === 'blank' && isIntakeLead(d)) cls = 'notProvided';
       buckets[cls].push({
         id: doc.id,
         name,
@@ -148,7 +156,7 @@ async function main() {
   const label = {
     legacyMangled: 'BROKEN  pre-Wave-141 mangled',
     blank:         'BROKEN  no address at all',
-    notProvided:   'THIN    web lead, none given',
+    notProvided:   'THIN    intake lead, none given',
     noStreet:      'THIN    city/ZIP only, no street',
     noState:       'THIN    no state',
     noZip:         'THIN    no ZIP',

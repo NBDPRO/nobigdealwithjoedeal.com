@@ -136,14 +136,24 @@ const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobV
     ok('a blank address → FAIL (exit 1)', code === 1);
   }
 
-  console.log('ADDRESS AUDIT SCRIPT — a web lead that gave no address is missing, not broken');
+  console.log('ADDRESS AUDIT SCRIPT — an intake lead that gave no address is missing, not broken');
   {
-    const webBlank = Object.assign({}, BLANK, { id: 'W1', webLead: true });
-    const { code, out } = await runAudit([CLEAN, webBlank], ['--list']);
-    ok('blank address on a web lead → PASS (exit 0)', code === 0);
-    ok('…listed under "web lead, none given", not hidden', /─── THIN\s+web lead, none given ───\s+W1\b/.test(out));
-    const { code: c2 } = await runAudit([CLEAN, webBlank, BLANK]);
-    ok('a blank CRM-entered lead still fails alongside it', c2 === 1);
+    // One per intake channel's marker (scripts/audit-lead-addresses.js isIntakeLead).
+    const intake = [
+      Object.assign({}, BLANK, { id: 'W1', webLead: true }),                              // Cal.com / web
+      Object.assign({}, BLANK, { id: 'W2', publicLeadKind: 'thursday_call' }),           // forms / Thumbtack / Thursday
+      Object.assign({}, BLANK, { id: 'W3', referredByLeadId: 'src1' }),                  // referral form
+      Object.assign({}, BLANK, { id: 'W4', convertedFromUnmatchedSms: 'sms1' }),         // SMS → lead
+    ];
+    const { code, out } = await runAudit([CLEAN].concat(intake), ['--list', '--redact']);
+    ok('blank address on every intake channel → PASS (exit 0)', code === 0);
+    ok('…all four listed under "intake lead, none given", not hidden',
+      /─── THIN\s+intake lead, none given ───\s+W1\s+W2\s+W3\s+W4\b/.test(out));
+    const { code: c2 } = await runAudit([CLEAN, intake[0], BLANK]);
+    ok('a blank CRM-entered lead (no intake marker) still fails alongside them', c2 === 1);
+    const falsy = Object.assign({}, BLANK, { id: 'F1', webLead: false, publicLeadKind: '', referredByLeadId: null });
+    const { code: c3 } = await runAudit([CLEAN, falsy]);
+    ok('empty / false markers do not count as intake (still fails)', c3 === 1);
   }
 
   console.log('ADDRESS AUDIT SCRIPT — public Actions logs never get customer data');
