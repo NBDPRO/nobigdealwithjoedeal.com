@@ -277,6 +277,18 @@ Jo reported two things. A caller had to say "Hello?" before Thursday spoke. Anot
   - Neither sits behind the agent's staging → production flow, so a write here is a live change with no staging step.
   - Bland's public docs (agent builder, publish API) don't document a greeting field on v2 agents.
 - **Next:** see the handoff. The options are Bland support (start node + tools), a persona `call_config`/`first_sentence` test on Jo's OK, or rebuilding the tools in the v2 agent builder UI.
+- **Applied 2026-09-28 17:31Z (Jo's OK): a static opening on the number.**
+  - The command was `node scripts/thursday-bland-setup.js set-first-sentence --apply --yes`. The diff guard showed only `first_sentence` changed.
+  - The persona still owns the number (checked via `GET /v1/personas/{id}`), and the webhook is intact.
+  - The line: greeting + recording notice + "How can I help?". The varying "Joe's on a roof" reason can't be static, so the LLM adds it later if at all.
+  - Rollback: `set-first-sentence --clear --apply --yes`. A backup is in `%TEMP%/thursday-bland-backups`.
+  - **Unverified until a real call.** Bland may not honour the number's `first_sentence` when a persona runs the call. If the next call's `pathway_logs` still show the caller speaking first, fall back to persona `call_config` or support.
+- **Why the tools are unbound:**
+  - `GET /v2/tools` lists both mentioned tools with **`agent_id: null`**: org-level records, created 09-26 22:32 when 0.3.0 was published by hand.
+  - The only working tool shape is an agent-owned copy. Another agent's "End Call" carries its `agent_id`.
+  - Bland's tools guide says "Tagging gives the agent its own copy of the tool". End call and transfer are built-in `bland` integration actions.
+  - Fix: in the agent builder, delete the two @tags and re-tag End call + a transfer to Joe's cell. Then publish to **staging**, test a transfer, and promote.
+  - The public v2 create-tool API has no `agent_id` field, so this is a UI step.
 
 ## 6. Coordination notes
 

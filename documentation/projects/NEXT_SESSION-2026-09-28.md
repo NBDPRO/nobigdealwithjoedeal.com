@@ -135,3 +135,9 @@ Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26
   (b) set `first_sentence` / persona `call_config` on the live number, back it up first, and test with Jo;
   (c) re-create both tools in the v2 agent builder and re-tag them, then publish to staging
   through `thursday-agent-lookup.js`-style tooling.
+- **Applied 17:31Z on Jo's OK:** option (b), a static `first_sentence` on the number
+  (`scripts/thursday-bland-setup.js set-first-sentence`; rollback `--clear`).
+  Verify on the next real call's `pathway_logs`.
+- **Tools (option c):** both tagged tools are org-level (`agent_id: null`), not the agent's own copies.
+  Re-tag them in the Bland agent builder, which needs Jo signed in. Then staging → test → promote.
+  If that doesn't fix it, call Bland support.

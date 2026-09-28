@@ -16,6 +16,10 @@
  *       number again and diffs every field. Exits 1 (and prints the backup
  *       path for rollback) if ANYTHING other than the webhook changed.
  *
+ *   node scripts/thursday-bland-setup.js set-first-sentence [--text="…" | --clear] [--apply --yes]
+ *       POSTs ONLY {"first_sentence": …} (static opening line, spoken on
+ *       connect). --clear sets it back to null. Same backup + diff guard.
+ *
  *   node scripts/thursday-bland-setup.js pathway-backup [--pathway=<id>]
  *       GET the pathway (nodes/edges) → backup. Read-only.
  *
@@ -137,6 +141,46 @@ async function setWebhook() {
   console.log('\n✓ Only the webhook changed. Pathway ' + (after.pathway_id || '(none)') + ' still answers ' + NUMBER + '.');
 }
 
+// Dead air (THURSDAY-BLAND §10): the compiled start node waits for the
+// caller's voice, so a silent caller hears nothing. A static first_sentence
+// on the number is spoken on connect. --clear restores null (rollback).
+const DEFAULT_FIRST_SENTENCE = "Thanks for calling No Big Deal Home Solutions, this is Thursday, Joe's assistant. " +
+  'Just so you know, calls are recorded so Joe gets your message right. How can I help?';
+// Representation-only drift already seen on a webhook POST (§7): empty before and after.
+const EMPTY_DRIFT = /^(custom_tools|tools)$/;
+
+async function setFirstSentence() {
+  const clear = args.includes('--clear');
+  const text = clear ? null : (flag('text') || DEFAULT_FIRST_SENTENCE);
+  if (APPLY && !YES) { console.error('Refusing to --apply without --yes. Re-run with: --apply --yes'); process.exit(2); }
+  const before = await getNumber();
+  const file = backup('inbound-' + NUMBER.replace('+', '') + '-before-first-sentence', before);
+  console.log('Backup saved: ' + file);
+  console.log('Current first_sentence : ' + JSON.stringify(before.first_sentence));
+  console.log('New first_sentence     : ' + JSON.stringify(text));
+  if (!APPLY) { console.log('\nDry run. Would POST only {"first_sentence": …}. Add --apply --yes to write.'); return; }
+
+  const resp = await bland('/inbound/' + encodeURIComponent(NUMBER), { method: 'POST', body: { first_sentence: text } });
+  console.log('POST response:', JSON.stringify(redact(resp)).slice(0, 400));
+  const after = await getNumber();
+  backup('inbound-' + NUMBER.replace('+', '') + '-after-first-sentence', after);
+  const changes = diff(before, after);
+  const emptyish = (v) => v == null || v === '[]' || (Array.isArray(v) && !v.length);
+  const unexpected = changes.filter((c) => c.path !== 'first_sentence' &&
+    !(EMPTY_DRIFT.test(c.path) && emptyish(c.before) && emptyish(c.after)));
+  console.log('\nChanged fields:', JSON.stringify(changes.map((c) => c.path)));
+  if ((after.first_sentence || null) !== text) {
+    console.error('\n✗ first_sentence did not stick (reads back ' + JSON.stringify(after.first_sentence) + ').');
+    process.exit(1);
+  }
+  if (unexpected.length) {
+    console.error('\n✗ Fields OTHER than first_sentence changed. Roll back by re-POSTing them from ' + file);
+    process.exit(1);
+  }
+  // GET /v1/inbound omits persona_id; confirm ownership via GET /v1/personas/{id}.
+  console.log('\n✓ Only first_sentence changed on ' + NUMBER + '.');
+}
+
 async function pathwayBackup() {
   const id = flag('pathway') || PATHWAY_ID;
   const p = await bland('/pathway/' + encodeURIComponent(id));
@@ -151,6 +195,6 @@ async function pathwayBackup() {
   }, null, 2));
 }
 
-const COMMANDS = { status, 'set-webhook': setWebhook, 'pathway-backup': pathwayBackup };
+const COMMANDS = { status, 'set-webhook': setWebhook, 'set-first-sentence': setFirstSentence, 'pathway-backup': pathwayBackup };
 if (!COMMANDS[cmd]) { console.error('Unknown command ' + cmd + '. Use: ' + Object.keys(COMMANDS).join(' | ')); process.exit(2); }
 COMMANDS[cmd]().catch((e) => { console.error(e && e.message || e); process.exit(1); });
