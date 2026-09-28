@@ -2178,8 +2178,27 @@
   }
 
   async function convertToLead(knockId) {
+    // The transaction below LOCKS the knock (convertedToLead:true) before the
+    // lead is written. Every exit that writes no lead must release it: a
+    // declined dedup prompt / plan cap (_saveLead → null) or a failed save
+    // left the knock marked converted with no lead behind it, and both guards
+    // then refused every retry — the prospect was lost (CRM sweep R13,
+    // 2026-09-28). _saveLead's own catch comment expects exactly this.
+    let _locked = false;
+    let knock = null;
+    const _release = async () => {
+      if (!_locked) return;
+      _locked = false;
+      if (knock) knock.convertedToLead = false;
+      try {
+        await window.updateDoc(window.doc(window._db, 'knocks', knockId), {
+          convertedToLead: false,
+          conversionStartedAt: null,
+        });
+      } catch (relErr) { console.warn('convertToLead: could not release the knock lock', relErr); }
+    };
     try {
-      const knock = state.knocks.find(k => k.id === knockId);
+      knock = state.knocks.find(k => k.id === knockId);
       if (!knock || knock.convertedToLead) return;
 
       // ─── Cross-call double-convert guard ───
@@ -2223,6 +2242,7 @@
         // Reflect the lock in our local cache so subsequent renders
         // know this knock is converting and don't re-offer the prompt.
         knock.convertedToLead = true;
+        _locked = true;
       }
 
       const firstName = (knock.homeowner || '').split(' ')[0] || 'D2D';
@@ -2329,7 +2349,7 @@
         // plan's lead cap, dedup declined) and has already shown its own
         // toast -- bail here instead of stamping the knock converted and
         // telling the rep it worked (mirrors tools.js's quick-add guard).
-        if (!leadId) return;
+        if (!leadId) { await _release(); return; }
       } else {
         // Fallback: direct Firestore write. stageStartedAt anchors the
         // days-in-stage badge to actual lead-create time.
@@ -2340,8 +2360,10 @@
           createdAt: window.serverTimestamp(),
           stageStartedAt: window.serverTimestamp()
         });
+        _locked = false;
         if (typeof window._loadLeads === 'function') await window._loadLeads();
       }
+      _locked = false; // a lead exists now — the knock stays converted whatever follows
 
       await updateKnock(knockId, { convertedToLead: true });
       if (window.D2D && typeof window.D2D.closeKnockDetail === 'function') window.D2D.closeKnockDetail();
@@ -2354,6 +2376,7 @@
         : '✅ Saved to Prospects — promote it when it’s qualified', 'success');
     } catch (e) {
       console.error('convertToLead failed:', e);
+      await _release();
       window.showToast?.('Failed to convert to lead', 'error');
     }
   }
