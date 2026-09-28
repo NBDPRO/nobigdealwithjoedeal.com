@@ -20,6 +20,7 @@
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
+    "tasks-load-from-cache-retry-2026-09-28.test.js",
     "deal-room-sibling-links-2026-09-28.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
