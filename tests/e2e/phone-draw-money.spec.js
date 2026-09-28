@@ -329,11 +329,16 @@ function suite(label, ctxOpts, opts) {
       expect(imp.chimneys, 'chimneys').toBe(1);
       expect(imp.skylights, 'skylights').toBe(1);
       expect(g.chooser, 'an in-page chooser names both builders').toBe(true);
-      expect(g.warning, 'no closed section: the guessed area must be acknowledged').toMatch(/estimated/i);
+      // Only eave x rake is area evidence without a closed section (2026-09-27:
+      // the old (sum of any lines / 4)^2 guess is gone). The short type list
+      // has rake but no eave, so it has no area at all and must say so.
+      const footprint = types.includes(5) && types.includes(4);
+      expect(g.warning, 'no closed section: the guessed or missing area must be acknowledged')
+        .toMatch(footprint ? /estimated/i : /No roof area drawn/i);
       expect(g.text, 'rake shown flat beside sloped').toMatch(/Rake[\s\S]*flat[\s\S]*sloped/);
       expect(g.fits, 'the chooser fits the screen').toBe(true);
       expect(g.minButtonH, 'chooser buttons are finger-sized').toBeGreaterThanOrEqual(44);
-      expect(await page.evaluate(() => !document.getElementById('cr-est-badge').hidden), '"est." beside Base Area').toBe(true);
+      expect(await page.evaluate(() => !document.getElementById('cr-est-badge').hidden), '"est." beside Base Area only when an area is guessed').toBe(footprint);
       expect(await page.evaluate(() => document.getElementById('lineList').textContent), 'sloped feet beside the flat chips').toMatch(/sloped/);
       // Slope switch OFF -> flat feet; Flat pitch -> 3/12, never the steep 8.
       await page.evaluate(() => { const b = document.getElementById('slopeLfToggle'); b.checked = false; b.dispatchEvent(new Event('change', { bubbles: true })); });
