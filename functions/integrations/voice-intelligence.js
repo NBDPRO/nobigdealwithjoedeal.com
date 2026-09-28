@@ -32,7 +32,7 @@ const { defineSecret } = require('firebase-functions/params');
 const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
-const { getSecret, hasSecret, PROVIDERS, SECRETS } = require('./_shared');
+const { getSecret, hasSecret, secretValue, PROVIDERS, SECRETS } = require('./_shared');
 const { isVoiceIntelDisabled } = require('./killswitch');
 const prompts = require('../voice-prompts');
 const { matchDocPath } = require('../collection-group-paths');
@@ -97,6 +97,16 @@ function retentionAudioPathFor(docPath, audioPath) {
   if (!at || !audio) return null;
   if (audio.leadId !== at.leadId || audio.recordingId !== at.recordingId) return null;
   return audioPath;
+}
+
+// May the uploader attach a recording to this lead? Their own lead, or one in
+// their company. `companyId` is users/{uid}.companyId (firestore.rules keeps
+// that field server-only) or, for a solo operator, their uid — a lead whose
+// companyId is someone else's uid does not match. No lead → no.
+function uploaderMayRecordOn(lead, uid, companyId) {
+  if (!lead) return false;
+  if (lead.userId === uid) return true;
+  return !!companyId && lead.companyId != null && lead.companyId === companyId;
 }
 
 // getCompanyContext: resolve the caller's companyId + plan tier +
@@ -319,8 +329,21 @@ const VOICE_CONSENT_MAX_TOKENS = 120;
 // wrapper patterns (```json ... ``` fences, leading/trailing prose)
 // before JSON.parse so minor prompt compliance drift doesn't cause
 // a hard fail. Throws VoiceError on actual failures.
+//
+// 2026-09-26: the key is read from the bare param this module binds to
+// onAudioUploaded, through secretValue(). It used to be
+// hasSecret('ANTHROPIC_API_KEY') + getSecret('ANTHROPIC_API_KEY'), but those
+// only know the names in _shared.js's SECRETS registry, and ANTHROPIC_API_KEY
+// has never been in it — hasSecret() returned false with the key bound and
+// set, so every recording would have ended [anthropic-not-configured] after
+// Groq had already been paid to transcribe it. Registering the name instead
+// would widen hasSecret() for every module that loads the registry, and would
+// mount the key on integrationStatus, which binds every registry entry.
+// dictate.js and handlers/ai-texting.js read it the same way as here.
+// tests/voice-intel-anthropic-key.test.js runs the pipeline against it.
 async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose }) {
-  if (!hasSecret('ANTHROPIC_API_KEY')) {
+  const apiKey = secretValue(ANTHROPIC_API_KEY_FOR_VOICE); // '__unset__' stub → null
+  if (!apiKey) {
     throw new VoiceError('anthropic-not-configured',
       'ANTHROPIC_API_KEY secret is unset');
   }
@@ -338,7 +361,7 @@ async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose }) 
       headers: {
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
-        'x-api-key': getSecret('ANTHROPIC_API_KEY')
+        'x-api-key': apiKey
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(60_000)
@@ -510,6 +533,29 @@ async function processRecording({
     return { ok: true, skipped: 'quarantined_consent' };
   }
 
+  // ── Resolve caller context ──
+  const ctx = await getCompanyContext(db, uid);
+
+  // ── Tenancy ── (2026-09-26, STABILITY-AUDIT-2026-09-04 cross-tenant-write)
+  // storage.rules lets a user write ANY audio/{theirUid}/{x}/{y}.webm, so the
+  // lead id here is client-chosen. Checked before every write below — the
+  // kill-switch and over-budget branches write a doc under leadId too — and
+  // before any vendor call. This used to be moot: every run died at
+  // [anthropic-not-configured]. Once analysis works, a planted recording
+  // completes and voiceConsumer writes tasks + insurance fields onto the
+  // named lead, so the plant would reach another tenant's CRM.
+  let leadForTenancy = null;
+  try {
+    const leadSnap = await db.doc('leads/' + leadId).get();
+    if (leadSnap.exists) leadForTenancy = leadSnap.data();
+  } catch (_) {}
+  if (!uploaderMayRecordOn(leadForTenancy, uid, ctx.companyId)) {
+    logger.warn('voice: uploader cannot record on this lead — ignoring', {
+      uid, leadId, recordingId, leadExists: !!leadForTenancy
+    });
+    return { ok: true, skipped: 'lead_not_accessible' };
+  }
+
   // ── Global kill switch (SPEND_KILLSWITCH.md) ──
   // One write to feature_flags/global.voiceIntelDisabled halts new Groq/
   // Anthropic spend without a deploy or secret rotation. We still write a
@@ -528,9 +574,6 @@ async function processRecording({
     }, { merge: true });
     return { ok: true, skipped: 'voice_disabled' };
   }
-
-  // ── Resolve caller context ──
-  const ctx = await getCompanyContext(db, uid);
 
   // ── Budget gate ──
   // Over-budget recordings get flagged but NOT dropped — retention
@@ -945,6 +988,7 @@ module.exports = Object.assign(module.exports, {
   _parseAudioPath: parseAudioPath,
   _retentionAudioPathFor: retentionAudioPathFor,
   _getCompanyContext: getCompanyContext,
+  _uploaderMayRecordOn: uploaderMayRecordOn,
   _checkBudget: checkBudget,
   _incrementVoiceUsage: incrementVoiceUsage,
   _transcribeAudio: transcribeAudio,
