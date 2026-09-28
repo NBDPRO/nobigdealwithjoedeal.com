@@ -22,6 +22,14 @@
  *      are one-party-consent states).
  * Nothing else in the snapshot is touched (the script diffs to prove it).
  *
+ * 2026-09-28 (vault THURSDAY-BLAND §10): the Initialization step only RUNS
+ * when the builder holds a saved snippet (initialization.step.snippetId) —
+ * API-set code alone never compiled an __initialization node. The live
+ * version (0.6.2) was saved + published from the builder; the opening line is
+ * now the number's static first_sentence, so the block below no longer
+ * greets or says the recording notice itself. Prefer builder edits; if this
+ * script publishes, carry the base's snippetId (it copies the base snapshot).
+ *
  *   node scripts/thursday-agent-lookup.js                 # dry-run: base version, diff, new prompt block
  *   node scripts/thursday-agent-lookup.js --publish --yes # new version → STAGING only
  *   node scripts/thursday-agent-lookup.js --promote --yes # staging → PRODUCTION (after Jo's test + OK)
@@ -97,7 +105,7 @@ const PROMPT_BLOCK = `
 
 ${MARK}
 Before you speak, the phone system may recognize the caller's number from Joe's customer list.
-If {{caller_known}} is "true": open with "Thanks for calling No Big Deal Home Solutions, this is Thursday, Joe's assistant. Is this {{caller_first_name}}?"
+If {{caller_known}} is "true": your automatic opening has already played, so in your first reply (after briefly answering anything they said) ask: "Is this {{caller_first_name}}?"
 - If they say yes, use their first name naturally for the rest of the call. If it fits, you can ask "Is this about {{caller_job_hint}}?" — only if that phrase is not empty.
 - If they say no, or someone else is calling from that phone, apologize lightly ("Oh sorry about that!"), never use that name again, and carry on with the normal call. Never say whose number it is, and never mention any address, job, price or claim because of the lookup.
 - Still get the name, callback number and address as usual; the lookup is only a friendly greeting, not proof of who they are.
@@ -110,7 +118,7 @@ You may remember people from earlier calls. A phone number is not a person: a sp
 - If they say no, hesitate, or give another name: say "Oh, sorry about that!", treat them as a brand-new caller, never use the remembered name again, and never mention anything from earlier calls.
 
 RECORDING NOTICE
-On every call, once, right after your opening line and before you ask how you can help, say: "Just so you know, calls are recorded so Joe gets your message right." Keep it light and move on. (Jo's decision, 2026-09-26.)`;
+The recording notice is part of your automatic opening (see OPENING), so it has already been said when you first speak. Never say it again. (Jo's decision, 2026-09-26.)`;
 
 function backup(label, data) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
