@@ -735,7 +735,10 @@ async function fetchPropertyIntelModal(geo, addr) {
   resultEl.classList.add('visible');
 }
 
-async function geocode(q){
+// opts.quiet: no toast on a miss (see dashboard-api.js geocode — same
+// contract; whichever loads last owns the global).
+async function geocode(q, opts){
+  const quiet = !!(opts && opts.quiet);
   try{
     // 5s cap: _saveLead awaits this on every new lead with an address, and
     // Nominatim rate-limits/black-holes some IPs with no response — without
@@ -743,9 +746,9 @@ async function geocode(q){
     // suite, 2026-07-04). Abort → the catch below → save proceeds pin-less.
     const res=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&addressdetails=1`,{signal:AbortSignal.timeout(5000)});
     const d=await res.json();
-    if(!d.length){showToast('Address not found','error');return null;}
+    if(!d.length){if(!quiet)showToast('Address not found','error');return null;}
     return d[0];
-  }catch(e){showToast('Geocode failed','error');return null;}
+  }catch(e){if(!quiet)showToast('Geocode failed','error');return null;}
 }
 
 

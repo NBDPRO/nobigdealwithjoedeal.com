@@ -277,7 +277,7 @@ function renderFeed(metrics) {
 
   metrics.wonLeads.slice(0, 5).forEach(l => {
     const d = toDate(l.updatedAt);
-    if (d) events.push({ icon: '🏆', text: '<strong>Deal closed</strong> — ' + esc(l.name || l.address || 'Lead') + (l.jobValue ? ' · ' + fmtCurrency(parseFloat(l.jobValue)) : ''), time: d });
+    if (d) events.push({ icon: '🏆', text: '<strong>Deal closed</strong> — ' + esc(((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.address || 'Lead') + (l.jobValue ? ' · ' + fmtCurrency(parseFloat(l.jobValue)) : ''), time: d });
   });
 
   const recentKnocks = metrics.knocks.filter(k => k.disposition === 'appointment').slice(0, 5);

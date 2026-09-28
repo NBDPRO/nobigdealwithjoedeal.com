@@ -560,6 +560,9 @@ header{flex-shrink:0;background:rgba(10,12,15,.97);-webkit-backdrop-filter:blur(
   -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
 }
 .m-jd-storm::before{ content:'⛈'; font-size:13px; }
+/* display:inline-flex above beats the UA [hidden] rule — without this an
+   empty red storm pill showed on every lead with no hail hit. */
+.m-jd-storm[hidden]{ display:none; }
 
 /* Title block */
 .m-jd-title-block{
@@ -2831,6 +2834,9 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .mfield select option{background:var(--s2);}
 .mfield textarea{resize:vertical;min-height:65px;}
 .mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+/* display:grid beats the UA [hidden] rule — the retired AOB row
+   (dashboard.html, `<div class="mrow" hidden>`) rendered and was tickable. */
+.mrow[hidden]{display:none;}
 .msave{width:100%;background:var(--orange);color:var(--accent-fg);border:none;border-radius:8px;padding:11px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin-top:6px;}
 .msave:hover{background:var(--ob);}
 /* Next Actions panel — context-aware action chips inside the lead modal */

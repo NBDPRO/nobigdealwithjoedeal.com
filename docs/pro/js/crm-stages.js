@@ -1018,6 +1018,21 @@ export const REQUIRED_FIELDS_BY_TYPE = {
   },
 };
 
+// Human labels for the gate fields above — a rep reads "Carrier", not
+// "insCarrier". crm-pipeline.js's card chip keeps its own short copy.
+export const REQUIRED_FIELD_LABELS = {
+  jobType: 'Job Type', insCarrier: 'Carrier', claimNumber: 'Claim #',
+  policyNumber: 'Policy #', dateOfLoss: 'Date of Loss',
+  estimateAmount: 'Estimate $', deductibleOrOwedByHO: 'Deductible',
+  jobValue: 'Job Value', financeCompany: 'Lender', loanAmount: 'Loan $',
+  scheduledDate: 'Schedule Date', contractFiledAt: 'Contract Filed',
+  permitFiledAt: 'Permit Filed', warrantyCertFiledAt: 'Warranty Cert Filed',
+  cocFiledAt: 'COC Filed',
+};
+export function requiredFieldLabel(f) {
+  return REQUIRED_FIELD_LABELS[f] || f;
+}
+
 /**
  * Required field names for a given job type + stage. Empty array if none.
  */

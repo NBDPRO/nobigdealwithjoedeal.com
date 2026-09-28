@@ -88,6 +88,18 @@ function _stageText(l) {
   const k = _normStage(l);
   return (typeof window.stageLabel === 'function' && window.stageLabel(k)) || (l && l.stage) || '';
 }
+// Display name for a lead. The lead form writes firstName/lastName and no
+// `name` (only seeds, D2D and some imports set it), so reading `l.name` alone
+// showed every form-created lead by its address.
+function _leadName(l, fallback) {
+  if (!l) return fallback;
+  return ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.customerName || l.address || fallback;
+}
+// A lead's dollar amount lives in jobValue (see pipeline-value below);
+// estValue/value are legacy fallbacks.
+function _leadValue(l) {
+  return parseFloat(l.jobValue || l.estValue || l.value || 0) || 0;
+}
 function _bucketOf(l) {
   const k = _normStage(l);
   for (const [bucket, keys] of Object.entries(_STAGE_BUCKETS)) {
@@ -157,7 +169,7 @@ const WIDGETS = [
         const color = k === 'contacted' ? '#A855F7' : (k === 'estimate_submitted' || k === 'estimate_sent_cash') ? '#F97316' : 'var(--m)';
         return `
         <div class="w-lead-row" data-w-goto="crm">
-          <div class="w-lead-name">${esc(l.name || l.address || 'Unknown')}</div>
+          <div class="w-lead-name">${esc(_leadName(l, 'Unknown'))}</div>
           <div class="w-lead-stage" style="color:${color}">${esc(_stageText(l))}</div>
         </div>`;
       }).join('');
@@ -271,7 +283,7 @@ const WIDGETS = [
         return `<div class="w-activity-row">
           <div class="w-activity-dot" style="background:${(()=>{const b=_bucketOf(l);const s=_normStage(l);return b==='Won'?'var(--green)':s==='lost'?'#EF4444':'var(--orange)';})()}"></div>
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:11px;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(l.name||l.address||'Lead')}</div>
+            <div style="font-weight:600;font-size:11px;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(_leadName(l, 'Lead'))}</div>
             <div style="font-size:10px;color:var(--m);">${esc(_stageText(l))} • ${esc(ago)}</div>
           </div>
         </div>`;
@@ -291,7 +303,7 @@ const WIDGETS = [
       el.innerHTML = `<div style="font-size:10px;color:var(--red);margin-bottom:6px;font-weight:700;">${stale.length} leads need attention</div>` +
         stale.map(l => {
           const days = Math.floor((now - _toMs(l.updatedAt||l.createdAt)) / 86400000);
-          return `<div class="w-lead-row"><div class="w-lead-name">${esc(l.name||l.address||'Lead')}</div><div style="color:var(--red);font-size:10px;">${days > 0 ? days+'d ago' : 'today'}</div></div>`;
+          return `<div class="w-lead-row"><div class="w-lead-name">${esc(_leadName(l, 'Lead'))}</div><div style="color:var(--red);font-size:10px;">${days > 0 ? days+'d ago' : 'today'}</div></div>`;
         }).join('');
     }},
 
@@ -301,15 +313,15 @@ const WIDGETS = [
         const b = _bucketOf(l);
         return b === 'Negotiating' || b === 'Est. Sent';
       });
-      const total = leads.reduce((s,l) => s + parseFloat(l.estValue||l.value||0), 0);
+      const total = leads.reduce((s,l) => s + _leadValue(l), 0);
       el.innerHTML = `
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
           <span class="w-big-num" style="font-size:22px;">${leads.length}</span>
           <span style="font-size:11px;color:var(--green);font-weight:700;">$${total>=1000?(total/1000).toFixed(1)+'k':total.toFixed(0)} closeable</span>
         </div>` +
         leads.slice(0,4).map(l => `<div class="w-lead-row">
-          <div class="w-lead-name">${esc(l.name||l.address||'Lead')}</div>
-          <div style="color:var(--orange);font-size:10px;font-weight:700;">$${parseFloat(l.estValue||l.value||0).toLocaleString()}</div>
+          <div class="w-lead-name">${esc(_leadName(l, 'Lead'))}</div>
+          <div style="color:var(--orange);font-size:10px;font-weight:700;">$${_leadValue(l).toLocaleString()}</div>
         </div>`).join('');
     }},
 

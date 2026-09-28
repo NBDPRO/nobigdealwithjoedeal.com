@@ -3511,7 +3511,10 @@
       if (!editId || editId.startsWith('d-')) {
         if (data.address) {
           try {
-            const geo = await geocode(data.address);
+            const geo = await geocode(data.address, { quiet: true });
+            if (!geo && typeof showToast === 'function') {
+              showToast('Couldn’t place this address on the map — the lead still saves', 'info');
+            }
             if (geo && geo.lat && geo.lon) {
               // Store lat/lng on lead
               data.lat = parseFloat(geo.lat);
@@ -3720,8 +3723,13 @@
           const _missingCoords = !_prev || _prev.lat == null || _prev.lng == null;
           if (_addrChanged || _missingCoords) {
             try {
-              const geo = await geocode(data.address);
+              // Quiet: a lead with an unmappable address re-geocodes on every
+              // save (coords stay missing) and used to flash a red error each time.
+              const geo = await geocode(data.address, { quiet: true });
               if (geo && geo.lat && geo.lon) { data.lat = parseFloat(geo.lat); data.lng = parseFloat(geo.lon); }
+              else if (_addrChanged && typeof showToast === 'function') {
+                showToast('Couldn’t place this address on the map — changes still saved', 'info');
+              }
             } catch (_) { /* keep existing coords */ }
           }
         }

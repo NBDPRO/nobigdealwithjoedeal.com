@@ -684,11 +684,16 @@
     });
   }
 
+  // Form-created leads carry firstName/lastName, not `name`.
+  function leadName(lead) {
+    return ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || lead.name || 'Unknown';
+  }
+
   function triggerHotLeadAlert(lead) {
     pushToQueue({
       type: 'hot_lead',
       priority: 'high',
-      title: `🔥 Hot lead: ${lead.name || 'Unknown'}`,
+      title: `🔥 Hot lead: ${leadName(lead)}`,
       body: `Score ${lead.leadScore} · ${lead.stage}`,
       leadId: lead.id,
       action: 'view_lead'
@@ -699,7 +704,7 @@
     pushToQueue({
       type: 'inbound_message',
       priority: 'medium',
-      title: `${channel === 'sms' ? '💬' : channel === 'email' ? '📧' : '📞'} ${lead.name || 'Unknown'} replied`,
+      title: `${channel === 'sms' ? '💬' : channel === 'email' ? '📧' : '📞'} ${leadName(lead)} replied`,
       body: `${channel} · ${lead.stage}`,
       leadId: lead.id,
       action: 'view_lead'

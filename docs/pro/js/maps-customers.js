@@ -346,7 +346,7 @@ async function buildCustomersLayer(doGeocode) {
     if (geo === undefined) {
       if (liveRequests >= _CUST_GEOCODE_CAP) continue;
       if (typeof geocode !== 'function') continue;
-      try { geo = await geocode(addr); } catch (_) { geo = null; }
+      try { geo = await geocode(addr, { quiet: true }); } catch (_) { geo = null; }
       if (token !== _custBuildToken) return; // superseded mid-await — a newer build owns the layer
       geo = geo ? { lat: parseFloat(geo.lat), lng: parseFloat(geo.lon) } : null;
       _custGeocodeCache.set(key, geo);

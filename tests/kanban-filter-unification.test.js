@@ -153,10 +153,14 @@ console.log('\ncustomer-bootstrap.module.js — wiring (source-text)');
     /isJobStage as _isJobStage, isTerminalStage as _isTerminalStage/.test(src));
   ok('exposes window.isJobStage / window.isTerminalStage',
     /window\.isJobStage = _isJobStage;/.test(src) && /window\.isTerminalStage = _isTerminalStage;/.test(src));
-  ok('the customerStage badge now calls _stageLabel directly (no more hand-copied STAGE_LABELS map missing \'collections\')',
-    /stageBadge\.textContent = _stageLabel\(stage\) \|\| stage;/.test(src));
-  ok('the background-revalidate refresher ALSO calls _stageLabel directly (both call sites reach the same imported function, not a bridge object)',
-    /stageEl\.textContent = _stageLabel\(fresh\.stage\) \|\| fresh\.stage;/.test(src));
+  // 2026-09-28: both now call window.stageLabel — this module's own
+  // tenant-aware wrapper over _stageLabel (custom stages keep their label
+  // instead of normalizing to "New Lead"). Still no hand-copied map.
+  ok('the customerStage badge calls the stageLabel resolver (no more hand-copied STAGE_LABELS map missing \'collections\')',
+    /stageBadge\.textContent = window\.stageLabel\(stage\) \|\| stage;/.test(src)
+    && /window\.stageLabel = \(k\) => \{[\s\S]{0,200}?_stageLabel\(k\)/.test(src));
+  ok('the background-revalidate refresher ALSO calls the same resolver (both call sites reach one function, not a bridge object)',
+    /stageEl\.textContent = window\.stageLabel\(fresh\.stage\) \|\| fresh\.stage;/.test(src));
   ok('the old window.__STAGE_LABELS bridge object is gone entirely (both call sites now reach module-scope _stageLabel directly — only a historical comment mentioning it may remain)',
     !/window\.__STAGE_LABELS\s*(=|\[)/.test(src));
 }

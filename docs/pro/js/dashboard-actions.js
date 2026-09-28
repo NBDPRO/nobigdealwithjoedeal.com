@@ -533,7 +533,9 @@ function goTo(name, params = {}) {
       window._leads.forEach(l => {
         const opt = document.createElement('option');
         opt.value = l.id;
-        opt.textContent = (l.name || 'Unknown') + ' — ' + (l.address || 'No address');
+        // Form-created leads carry firstName/lastName, not `name`.
+        const nm = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || 'Unknown';
+        opt.textContent = nm + ' — ' + (l.address || 'No address');
         sel.appendChild(opt);
       });
       // Restore last selected lead
