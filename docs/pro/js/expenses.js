@@ -655,7 +655,7 @@
 
     // Summary cards
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">';
-    html += card('Total Spend', money(agg.totalCents), agg.supplierCount + ' suppliers', accent);
+    html += card('Total Spend', money(agg.totalCents), agg.supplierCount + (agg.supplierCount === 1 ? ' supplier' : ' suppliers'), accent);
     html += card('Direct / Job Costs', money(agg.directCents), 'COGS — feeds margin', 'var(--green,#16a34a)');
     html += card('Overhead', money(agg.overheadCents), 'Operating costs', 'var(--blue,#3b82f6)');
     html += '</div>';
@@ -760,7 +760,7 @@
         }
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.06));">' +
           '<div style="min-width:0;"><div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(leadName(row.lead)) + '</div>' +
-          '<div style="font-size:11px;color:var(--m,#9ca3af);">' + row.jb.count + ' expenses · ' + money(row.jb.directCents) + ' direct</div>' + vaTxt + '</div>' +
+          '<div style="font-size:11px;color:var(--m,#9ca3af);">' + row.jb.count + (row.jb.count === 1 ? ' expense · ' : ' expenses · ') + money(row.jb.directCents) + ' direct</div>' + vaTxt + '</div>' +
           '<div style="text-align:right;white-space:nowrap;"><div style="font-size:14px;font-weight:700;color:var(--t,#fff);">' + money(row.jb.cents) + '</div>' +
           '<div style="font-size:11px;font-weight:700;color:' + mColor + ';">' + budgetBadge + marginTxt + '</div></div></div>';
       });
@@ -828,7 +828,13 @@
         '<div style="font-size:11px;color:var(--m,#9ca3af);">' + esc(fmtDate(e.date)) + (lead ? ' · ' + esc(leadName(lead)) : '') + (e.note ? ' · ' + esc(e.note) : '') + (e.source === 'ocr' ? ' · scanned' : '') + '</div></div>' +
         (e.needsReview ? '<span title="AI scan — review the amount/vendor" style="color:var(--gold,#eab308);font-size:13px;">⚠</span>' : '') +
         (e.receiptStoragePath ? '<button data-exp-action="receipt" data-exp-path="' + esc(e.receiptStoragePath) + '" title="View receipt" style="background:none;border:none;cursor:pointer;font-size:15px;">📎</button>' : '') +
-        '<div style="font-size:14px;font-weight:700;color:var(--t,#fff);white-space:nowrap;">' + money(e.amountCents) + '</div>' +
+        // Total incl. sales tax — the same figure every card above sums
+        // (a $1,234.56 + $87.65 tax row used to read $1,234.56 under a
+        // $1,322.21 total). The tax is named on a second line.
+        '<div style="text-align:right;white-space:nowrap;"><div style="font-size:14px;font-weight:700;color:var(--t,#fff);">' +
+          money((parseInt(e.amountCents, 10) || 0) + (parseInt(e.taxCents, 10) || 0)) + '</div>' +
+          ((parseInt(e.taxCents, 10) || 0) > 0 ? '<div style="font-size:10px;color:var(--m,#9ca3af);">incl. ' + money(e.taxCents) + ' tax</div>' : '') +
+        '</div>' +
         '<button data-exp-action="delete" data-exp-id="' + esc(e.id) + '" title="Delete" style="background:none;border:none;color:var(--red,#dc2626);cursor:pointer;font-size:14px;">✕</button>' +
         '</div>';
     });
@@ -1059,7 +1065,7 @@
       ].map(csvCell).join(',');
     });
     if (downloadCSV('nbd-expenses-' + new Date().toISOString().slice(0, 10) + '.csv', cols.join(',') + '\n' + rows.join('\n'))) {
-      toast('Exported ' + _expenses.length + ' expenses', 'ok');
+      toast('Exported ' + _expenses.length + (_expenses.length === 1 ? ' expense' : ' expenses'), 'ok');
     } else { toast('Export failed', 'error'); }
   }
   function downloadCSV(filename, csv) {
