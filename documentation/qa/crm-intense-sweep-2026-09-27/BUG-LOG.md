@@ -334,3 +334,12 @@ list stage dropdown to a gated stage opens the editor instead of skipping.
 
 **Worked end to end on the emulator:** referral link → friend form → lead on the referrer's rep's book with "Referred by" badge, customer ID, source Referral, referrer's "1 sent your way" + activity, rep notification. Referral **code** lane: code minted (opens the rep's own SMS app — no server send), lowercase code uppercased, attribution pending → **$100 owed** the moment the lead hit Closed, recorded on the referrer's doc. Expense cents math and job margin (92%). 1099 threshold $2,000 for 2026 (correct post-2025 law). Storm Center loads (no alerts; console noise is SW / tile-server only).
 
+
+## Round 13 — 2026-09-28 (revenue definition, invoice lifecycle)
+
+| # | Finding | Fix |
+|---|---|---|
+| R13-01 | R12-07 answered by Jo: **"Revenue is always collected only."** Home, Analytics, Reports (tile, weekly chart, top customers / sources), rep reports, leaderboard, lead-source ROI, achievements, the AI context and the weekly digest email all now count invoice payments by payment date. Booked / signed / pipeline figures stay, labelled as such. Reports' weekly chart also had an off-by-one week (this week's money fell off the chart; last week's showed as this week). | Shared `collected-revenue.js` (`NBDRevenue`), one ledger reader. #1841 |
+| R13-02 | **A payment smaller than the deposit was invisible.** $14,880 invoice, $7,450 deposit; a $3,000 check via Mark Paid stored correctly (amountPaid 3000, balanceDue 11880, payments[1]) but the invoice view AND the emailed invoice still read "Deposit due $7,450 · Balance Due $7,430" — identical to before the check. A no-deposit invoice with a partial payment showed no balance block at all. | One `paymentSummaryRows` for both renderers: Deposit due (remaining) $4,450 · Paid to date $3,000 · Balance Due $7,430 — the rows always foot to total − paid. Test (3 new; 3 red on main). #1842 |
+
+**Worked end to end on the emulator:** estimate → invoice from the card (`cdaInvoice`): 7.5% tax backed out of the total, deposit per rule ($7,450, nearest $25), terms sentence. $3,000 check → ledger entry, status unchanged (draft). Payoff prefill = the true outstanding ($11,880) → status paid, paidAt, depositPaid, lead advanced inspected → Contract Signed (forward only). Home "Revenue this month" $8.2k → $23.0k collected.
