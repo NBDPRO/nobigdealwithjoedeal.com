@@ -309,6 +309,50 @@ function modeLineDraw() {
   });
 })();
 
+// Photos view: property list + the photo engine's lead picker. Runs on entry
+// AND again when leads finish loading — a refresh straight onto #/photos
+// entered before loadLeads() returned, painted "No customers yet" with an
+// empty picker, and never repainted.
+function _fillPhotosView() {
+  renderPhotoLeads();
+  const sel = document.getElementById('photoLeadSelect');
+  if (sel && window._leads) {
+    sel.innerHTML = '<option value="">Select a property...</option>';
+    window._leads.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      // Form-created leads carry firstName/lastName, not `name`.
+      const nm = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || 'Unknown';
+      opt.textContent = nm + ' — ' + (l.address || 'No address');
+      sel.appendChild(opt);
+    });
+    // Restore last selected lead
+    if (window._currentPhotoLeadId) sel.value = window._currentPhotoLeadId;
+  }
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('nbd:data-refreshed', (e) => {
+    const src = e && e.detail && e.detail.source;
+    if (src && src !== 'leads') return;
+    const v = document.getElementById('view-photos');
+    if (v && v.classList.contains('active')) { try { _fillPhotosView(); } catch (_) {} }
+    // Same race on the Dashboard (Analytics) view: a refresh onto #/board
+    // rendered every KPI from an empty lead list — $0 pipeline, "No lead
+    // data yet" — and stayed that way.
+    const b = document.getElementById('view-board');
+    if (b && b.classList.contains('active')) {
+      try { if (window.AnalyticsKPI) window.AnalyticsKPI.render('analyticsContainer'); } catch (_) {}
+      try { if (typeof renderLeaderboard === 'function') renderLeaderboard(); } catch (_) {}
+    }
+    // …and Money / Expenses, which resolved "Your books" vs "Team-wide" and
+    // read invoices before sign-in finished: $0 collected, $0 A/R.
+    const m = document.getElementById('view-money');
+    if (m && m.classList.contains('active') && window.MoneyDashboard) { try { window.MoneyDashboard.init(); } catch (_) {} }
+    const x = document.getElementById('view-expenses');
+    if (x && x.classList.contains('active') && window.Expenses) { try { window.Expenses.init(); } catch (_) {} }
+  });
+}
+
 // ══════════════════════════════════════════════
 // NAVIGATION ROUTER — goTo()
 // ══════════════════════════════════════════════
@@ -527,22 +571,7 @@ function goTo(name, params = {}) {
     // Consolidation 2026-07-19: the skeleton system existed with zero
     // callers — the view booted on whatever was previously painted.
     if (typeof window.showPhotosSkeleton === 'function') { try { window.showPhotosSkeleton(); } catch (_) {} }
-    renderPhotoLeads();
-    // Populate lead selector for photo engine
-    const sel = document.getElementById('photoLeadSelect');
-    if (sel && window._leads) {
-      sel.innerHTML = '<option value="">Select a property...</option>';
-      window._leads.forEach(l => {
-        const opt = document.createElement('option');
-        opt.value = l.id;
-        // Form-created leads carry firstName/lastName, not `name`.
-        const nm = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || 'Unknown';
-        opt.textContent = nm + ' — ' + (l.address || 'No address');
-        sel.appendChild(opt);
-      });
-      // Restore last selected lead
-      if (window._currentPhotoLeadId) sel.value = window._currentPhotoLeadId;
-    }
+    _fillPhotosView();
   }
   if(name==='settings') { setTimeout(() => switchSettingsTab('profile'), 50); }
   if(name==='home') { if(window.NBDWidgets) window.NBDWidgets.render(); }

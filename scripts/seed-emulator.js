@@ -160,12 +160,14 @@ async function seed() {
       // lastName + jobValue only. Seeding the extras hid two real bugs
       // (Home widgets read `name`; Close Board summed `estValue||value`).
       firstName: l.firstName, lastName: l.lastName,
-      address: `${100 + leadIds.length} Maple St, Austin, TX`, phone: '555-02' + (10 + leadIds.length),
+      // 10 digits: the lead form refuses anything shorter, so a 7-digit seed
+      // phone made every seeded lead fail its own edit-save.
+      address: `${100 + leadIds.length} Maple St, Austin, TX`, phone: '(513) 555-02' + (10 + leadIds.length),
       // Normalized inbound-SMS match key — mirrors what every prod
       // lead-write path stamps (functions/phone-utils.js), so emulator QA
       // exercises the real incomingSMS phoneDigits match instead of the
       // legacy exact-phone fallback.
-      phoneDigits: String('555-02' + (10 + leadIds.length)).replace(/\D/g, '').replace(/^1/, '').slice(-10),
+      phoneDigits: String('(513) 555-02' + (10 + leadIds.length)).replace(/\D/g, '').replace(/^1/, '').slice(-10),
       email: `${l.firstName.toLowerCase()}@example.com`,
       stage: l.stage, source: 'manual', jobValue: l.jobValue,
       deleted: false, createdAt: daysAgo(20 - leadIds.length), updatedAt: daysAgo(2),
@@ -200,7 +202,7 @@ async function seed() {
   }
   await db.collection('customers').doc().set({
     userId: uid.companyAdmin, companyId: COMPANY_ID,
-    name: 'Tara Boone', address: '102 Maple St, Austin, TX', phone: '555-0212',
+    name: 'Tara Boone', address: '102 Maple St, Austin, TX', phone: '(513) 555-0212',
     createdAt: daysAgo(8),
   });
   await db.collection('knocks').doc().set({
