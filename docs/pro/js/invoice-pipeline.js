@@ -1205,7 +1205,22 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // crm-stages.js). v159.4 swept most legacy writes; this one was
       // missed. Writing the canonical key keeps the Firestore doc in sync
       // with the schema instead of relying on normalizeStage() at read time.
+      // ONLY forward: a lead already at Contract Signed or beyond (a job, or
+      // Closed/won) must not move. This ran unconditionally, so paying the
+      // final invoice on a Closed job dragged it BACK to Contract Signed —
+      // out of won revenue and onto the board as an active contract.
+      let _advance = false;
       if (newBalanceDue === 0 && invoice.leadId) {
+        let _lead = (window._leads || []).find(l => l && l.id === invoice.leadId) || null;
+        if (!_lead) {
+          try { const ls = await window.getDoc(window.doc(db, 'leads', invoice.leadId)); if (ls.exists()) _lead = ls.data(); } catch (_) {}
+        }
+        const _k = (_lead && (_lead._stageKey || _lead.stage)) || 'new';
+        const _role = (_lead && _lead._stageRole) || (typeof window.stageRole === 'function' ? window.stageRole(_k) : null);
+        const _isJob = typeof window.isJobStage === 'function' ? window.isJobStage(_k) : false;
+        _advance = _k !== 'contract_signed' && !_isJob && (_role === 'new' || _role === 'active');
+      }
+      if (_advance) {
         await window.updateDoc(window.doc(db, 'leads', invoice.leadId), {
           stage: 'contract_signed',
           // Stamp stageRole alongside stage, same as every other stage-mutation

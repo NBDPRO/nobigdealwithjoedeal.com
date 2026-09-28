@@ -104,6 +104,13 @@ async function seed() {
     ownerUid: uid.companyAdmin,
     phone: '555-0100', email: 'office@demo.test',
     address: '100 Demo Way, Austin, TX 78701',
+    // createCompany + the onboarding wizard always write brand.legalName.
+    // Without it _resolveBrand() treats the tenant as NBD, so every seeded
+    // invoice/doc wore NBD's name, phone and logo — a seed artifact.
+    brand: {
+      legalName: 'Demo Roofing Co', displayName: 'Demo Roofing',
+      contact: { phone: '555-0100', email: 'office@demo.test', alertEmail: 'office@demo.test' },
+    },
     createdAt: daysAgo(120),
   });
   console.log('  ✓ companyProfile written');
@@ -180,7 +187,14 @@ async function seed() {
       tier: 'better', tierName: 'Better', sq: l.sq,
       addr: l.addr, title: 'Better — ' + l.addr, // as the classic save writes them
       grandTotal: l.sq * 480, roofType: 'Gable', pitch: '6/12',
-      rows: [{ code: 'RFG 240', desc: 'Architectural shingles', qty: l.sq, rate: 360, total: l.sq * 360 }],
+      // Rows sum to the pre-tax subtotal (grandTotal / 1.075) so an invoice
+      // built from this estimate adds up line by line.
+      rows: [
+        { code: 'RFG 240', desc: 'Architectural shingles', qty: l.sq, rate: 360, total: l.sq * 360 },
+        { code: 'RFG LAB', desc: 'Tear-off, underlayment & install', qty: 1,
+          rate: Math.round((l.sq * 480 / 1.075 - l.sq * 360) * 100) / 100,
+          total: Math.round((l.sq * 480 / 1.075 - l.sq * 360) * 100) / 100 },
+      ],
       createdAt: daysAgo(10), updatedAt: daysAgo(5),
     });
   }
