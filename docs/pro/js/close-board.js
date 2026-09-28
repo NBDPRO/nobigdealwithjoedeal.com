@@ -1105,7 +1105,10 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       return acceptUrl || null;
     } catch (e) {
       console.error('createDealAcceptToken failed:', e);
-      if (window.showToast) window.showToast('Could not create the accept link — try again', 'error');
+      // An accepted deal gets no new link (deal-acceptance.js DONE_STATUSES) —
+      // say so, rather than "try again", which never succeeds.
+      const done = e && /failed-precondition/.test(String(e.code || ''));
+      if (window.showToast) window.showToast(done ? (e.message || 'This deal is already accepted.') : 'Could not create the accept link — try again', done ? 'info' : 'error');
       return null;
     }
   }
