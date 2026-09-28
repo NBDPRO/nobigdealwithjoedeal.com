@@ -434,11 +434,13 @@ function sanitizeExtraction(raw) {
 // `spoke` records whether the caller said anything at all ("Hello?"): that
 // is a real person who did not connect, worth a call back, not just noise.
 //
-// A caller who stayed on the line 10 s+ counts too, even without a word: from
-// Thursday's launch until 2026-09-26 she usually did NOT speak first (5-22 s
-// of dead air — see the vault note §9), so people waited in silence and hung
-// up. Those are missed callers, not pocket-dials.
-const SILENT_WAITED_SECONDS = 10;
+// A caller who stayed on the line counts too, even without a word. Since
+// 2026-09-28 Thursday greets on connect (static first_sentence, vault note
+// §10), so anyone still there at 2 s heard her start and chose to hang up — a
+// real caller Jo wants to call back (his call on a 3 s hang-up that day).
+// Under 2 s is a line blip. (Before the fix this was 10 s: people sat through
+// dead air first, so short silent calls looked like pocket-dials.)
+const SILENT_WAITED_SECONDS = 2;
 function silentExtraction(call) {
   const words = call ? transcriptWordCount(call) : 0;
   const waited = !!call && (Number(call.durationSec) || 0) >= SILENT_WAITED_SECONDS;
