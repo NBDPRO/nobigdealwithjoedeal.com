@@ -135,7 +135,7 @@ async function renderLeaderboard(){
       '</div>' +
       '<div style="text-align:right;">' +
         '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:20px;font-weight:700;color:var(--orange);">' + r.won + ' <span style="font-size:11px;color:var(--m);">WON</span></div>' +
-        '<div style="font-size:10px;color:var(--m);margin-top:2px;">' + revStr + ' revenue</div>' +
+        '<div style="font-size:10px;color:var(--m);margin-top:2px;">' + revStr + ' booked</div>' +
       '</div>' +
     '</div>';
   }).join('');

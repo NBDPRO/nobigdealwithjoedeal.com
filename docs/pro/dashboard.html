@@ -871,7 +871,7 @@
               <div style="font-size:24px;font-weight:700;color:var(--gold);" id="weekEstimates">0</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="crm" class="hov-green">
-              <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Revenue Added</div>
+              <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;" title="Job value of leads added this week — pipeline, not collected money">Pipeline Added</div>
               <div style="font-size:24px;font-weight:700;color:var(--green);" id="weekRevenue">$0</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="crm" class="hov-purple">
@@ -886,7 +886,7 @@
         <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon si-b">👥</div><div><div class="stat-val" id="statLeads">0</div><div class="stat-lbl">Active Leads</div></div></div>
         <div class="stat-card cp" data-action="goTo" data-target="est"><div class="stat-icon si-p">📋</div><div><div class="stat-val" id="statEsts">0</div><div class="stat-lbl">Estimates</div></div></div>
         <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon si-g">💰</div><div><div class="stat-val" id="statVal" style="color:var(--green);font-size:18px;">$0</div><div class="stat-lbl">Pipeline Value</div></div></div>
-        <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon" style="color:var(--green);">🏆</div><div><div class="stat-val" id="statClosed" style="color:var(--green);font-size:18px;">$0</div><div class="stat-lbl">Closed Revenue</div></div></div>
+        <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon" style="color:var(--green);">🏆</div><div><div class="stat-val" id="statClosed" style="color:var(--green);font-size:18px;">$0</div><div class="stat-lbl" title="Job value of won jobs — booked, not collected (Money shows collected)">Booked Value</div></div></div>
       </div>
 
       <!-- WAVE 29: HOT LEADS WIDGET ─────────────────────────────────
@@ -6627,6 +6627,8 @@
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
+<!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
+<script defer src="js/collected-revenue.js?v=1"></script>
 <script defer src="js/widgets.js?v=9"></script>
 <script defer src="js/ui.js?v=7"></script>
 <script defer src="js/demo.js?v=4"></script>

@@ -204,6 +204,7 @@
     "pipeline-builder-hydration.test.js",
     "map-views-hydration.test.js",
     "lead-trades-unknown.test.js",
+    "revenue-collected-only-2026-09-28.test.js",
     "strip-redundant-inline-css.test.js",
     "upgrade-pricing.test.js",
     "job-template-honest-paperwork.test.js",
