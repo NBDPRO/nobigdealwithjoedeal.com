@@ -240,6 +240,44 @@ Backups of the number, persona, pathway and agent versions are in `%TEMP%/thursd
   - **Fix needed:** a fixed opening line (Bland UI setting or support), not a prompt tweak.
   - Meanwhile the CRM treats a silent call of 10 s or more from a non-owner number as a missed caller: an inbox row, no alerts.
 
+## 10. Dead air root cause + tools never bound (recon 2026-09-28, read-only)
+
+Jo reported two things. A caller had to say "Hello?" before Thursday spoke. Another caller heard silence and hung up, then reached her on the second try only because she was talking to herself. Every call's `pathway_logs` (Bland `GET /v1/calls/{id}`) explain both.
+
+- **The start node waits for the caller's voice.**
+  - Every call follows the same timeline:
+    - `__start` at ~1 s.
+    - `<Call Connected>`.
+    - `[extended silence, may not be present or have heard you]` at ~4.5 s.
+    - Then **nothing**, until the caller speaks.
+  - Only the caller's first utterance moves the call to the `agent` node. Then the LLM takes another ~6–10 s to produce the opening.
+  - Timings on 09-28 (caller speech → Thursday's first line):
+    - 12.8 s → 22.1 s
+    - 9.0 s → 18.5 s
+    - 32.1 s → 34.6 s (a caller muttering to herself set it off)
+    - 3.7 s → 11.6 s
+  - Six calls from 09-26 to 09-28 have **no transcript at all**. Nobody spoke, so Thursday never did, and the caller hung up.
+  - `settings.voiceCall.waitForGreeting: false` and the start node's `skipUserResponse: true` do not change this. The OPENING prompt's "You speak first" never runs, because the LLM gets no turn.
+  - This correction replaces §9's "the first line is LLM-generated, so it's slow" as the main cause. Slow generation is the *second* delay.
+- **Every turn is slow, not just the first.** Mid-call, the gap from the end of the caller's speech to Thursday's reply is ~5.5–7 s (one call, 8 turns).
+  - The agent node is picked ~1 s after the caller finishes. The rest is LLM + TTS time on the 11.6k-character prompt.
+  - Inbound number fields: `model: "enhanced"`, `reduce_latency: true`.
+- **Tools have never been bound. Emergency transfer does not work.**
+  - The agent prompt @mentions `emergency-connect-to-joe` (a cold transfer to Joe's cell) and `end-call`, and both refIds resolve on `GET /v1/tools/{id}`.
+  - `GET /v2/tools/{id}` returns 404 for both.
+  - Every compiled pathway version (1 to 14, back to the 09-24 original) has an agent node with only `name|prompt|extractVars|compiledRole`: no tools.
+  - When the LLM calls one, the log reads `Tool Call Unmatched … available_tools: []`:
+    - `end-call` on 09-28;
+    - `emergency-connect-to-joe` **twice** on Jo's 09-27 test call.
+  - So Thursday cannot transfer an emergency or hang up. Callers end every call.
+  - None of our publishes caused this. Version 1 already lacked tools.
+- **Where a fixed opening line could live:**
+  - The persona-managed number has a real `first_sentence` field (currently `null`).
+  - The persona's production version has `call_config: null`.
+  - Neither sits behind the agent's staging → production flow, so a write here is a live change with no staging step.
+  - Bland's public docs (agent builder, publish API) don't document a greeting field on v2 agents.
+- **Next:** see the handoff. The options are Bland support (start node + tools), a persona `call_config`/`first_sentence` test on Jo's OK, or rebuilding the tools in the v2 agent builder UI.
+
 ## 6. Coordination notes
 
 - **#1780** (viewer-refusing callables) adds `tests/viewer-callables.test.js`. It requires every exported callable and HTTP function to carry a verdict.

@@ -119,3 +119,19 @@ with a URL-shaped `calcomUsername` stay broken until they re-save Settings;
 Jo's call on shop-wide tier rates; Settings → Company Profile shows NBD's
 default legal text as the editable starting value for other tenants (documents
 already substitute the tenant name — cosmetic).
+
+## Update — 2026-09-28 (evening): Thursday dead air, root cause (read-only)
+
+Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26.md).
+
+- **The start node waits for the caller to speak.** A silent caller gets silence
+  forever, and six calls since 09-24 hung up with no words from either side.
+  After the caller does speak, the opening takes another ~6–10 s (every turn runs ~6 s).
+- **Tools were never bound in any compiled pathway version** (1–14):
+  `emergency-connect-to-joe` failed twice on Jo's 09-27 test (`Tool Call Unmatched`),
+  and `end-call` failed too. The tools are v1 records (`/v2/tools/{id}` returns 404).
+- **Options, all needing Jo's OK because none can be staged:**
+  (a) Bland support ticket covering the start node and tool binding;
+  (b) set `first_sentence` / persona `call_config` on the live number, back it up first, and test with Jo;
+  (c) re-create both tools in the v2 agent builder and re-tag them, then publish to staging
+  through `thursday-agent-lookup.js`-style tooling.
