@@ -93,7 +93,9 @@ each merged green and deployed; details and repro notes per round in
 - **#1823** — Photos, Dashboard (Analytics) and Money painted empty/$0 after
   a refresh and never recovered.
 - **Round 8 (this PR)** — customer-page Edit Info saved phone "123", email
-  "bad" and negative job values.
+  "bad" and negative job values; the homeowner portal flashed NBD's name while
+  loading for other tenants; the rig now wires default functions to the
+  emulator (portal links / Team Manager testable locally).
 
 **Rig lessons (also in memory `emulator-seed-shape-artifacts`):** the seed
 now writes `companies/{id}` + members, the tenant `brand`, 10-digit phones,
