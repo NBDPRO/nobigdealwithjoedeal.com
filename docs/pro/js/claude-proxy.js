@@ -95,7 +95,8 @@ async function callClaude(params) {
       result = await _callDirect(params);
     } else {
       throw new Error(
-        'Claude proxy unavailable' + (proxyError ? (': ' + proxyError.message) : '') +
+        // Server messages already end in '.', which read ".." before this.
+        'Claude proxy unavailable' + (proxyError ? (': ' + String(proxyError.message || '').replace(/[.\s]+$/, '')) : '') +
         '. Direct browser calls are disabled for key safety.'
       );
     }

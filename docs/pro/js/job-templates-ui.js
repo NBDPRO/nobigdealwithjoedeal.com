@@ -777,6 +777,11 @@
       '.jt-empty{text-align:center;padding:56px 20px;color:var(--m,#9aa3ad);font-size:14px;}',
       '.jt-stickybar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--s,#111418);border:1px solid var(--orange,#BD5728);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.5);padding:10px 14px;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 24px);flex-wrap:wrap;justify-content:center;}',
       '.jt-stickybar .n{font-size:13px;font-weight:700;color:var(--t,#e8eaf0);white-space:nowrap;}',
+      // Ride above bottom strips (Free-plan banner, z 9999) and, on phones, the
+      // 62px #mobile-nav (z 1900): both covered this bar, so the checkboxes'
+      // "Configure & Preview (N)" action was unreachable (QA 2026-09-27).
+      '.jt-stickybar{margin-bottom:var(--nbd-bottom-chrome,0px);}',
+      '@media (max-width:768px){.jt-stickybar{bottom:calc(62px + 12px + env(safe-area-inset-bottom,0px));z-index:1950;}}',
       // ── Modal shell ──
       // Phone audit 2026-09-25 (estimate#12): the body had no background, so
       // the full-screen modal was the .96 overlay over the live dashboard —

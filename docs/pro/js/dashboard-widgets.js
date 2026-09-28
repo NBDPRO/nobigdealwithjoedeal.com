@@ -550,6 +550,16 @@ function viewEstimate(id) {
     }
   }
 
+  // The wizard re-derives squares from estRawSqft (sq = raw*pf*wf/100) and
+  // never reads est.sq. An unstamped doc with sq but no raw (very old saves,
+  // imports) therefore reopened at 0 SQ and repriced to the job minimum —
+  // one Save from overwriting the real total. Back-derive raw from sq.
+  if ((est.raw == null || est.raw === '' || Number(est.raw) === 0) && Number(est.sq) > 0) {
+    const _pf = parseFloat(String((document.getElementById('estPitch') || {}).value || '').split('|')[0]) || 1;
+    const _wf = parseFloat((document.getElementById('estWaste') || {}).value) || parseFloat(est.wf) || 1;
+    setVal('estRawSqft', Math.round(Number(est.sq) * 100 / (_pf * _wf)));
+  }
+
   // ── Restore Step 2 EBv2 fields from the saved doc. These were added
   // to the persistence layer 2026-05-19 — older docs won't have them,
   // which is fine: they just stay at the neutral defaults set above.

@@ -289,6 +289,7 @@ Campaign folders (each has its own STATUS / BUG-LOG / CLEANUP):
 - [untested-surface-drive-2026-06-22](qa/untested-surface-drive-2026-06-22/FINDINGS.md)
 - [exhaustive-sweep](qa/exhaustive-sweep/COVERAGE-SUMMARY.md)
 - [seo-hardening-2026-07](qa/seo-hardening-2026-07/REVISED-PLAN.md) — includes [MANUAL-FOR-JO](qa/seo-hardening-2026-07/MANUAL-FOR-JO.md)
+- [crm-intense-sweep-2026-09-27](qa/crm-intense-sweep-2026-09-27/BUG-LOG.md) — emulator click-through of the whole CRM + fix session; read its resolution table first (several findings were seed-script artifacts, now fixed in the seed)
 
 ## Dev notes elsewhere in the repo
 

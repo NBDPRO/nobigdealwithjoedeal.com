@@ -63,6 +63,31 @@ const _STAGE_BUCKETS = {
   'Negotiating': new Set(['negotiating']),
   'Won':         new Set(['contract_signed', 'install_in_progress', 'install_complete', 'closed']),
 };
+// Semantic role via crm-stages (custom-pipeline aware), like crm-pipeline.js.
+// The widgets below used hand-copied won lists that missed collections /
+// warranty_claim / custom won stages and disagreed with the Pipeline header.
+const _WON_FALLBACK = ['closed','install_complete','final_photos','final_payment','deductible_collected','collections','warranty_claim'];
+function _roleOf(l) {
+  if (!l) return 'active';
+  if (l._stageRole) return l._stageRole;
+  const k = _normStage(l);
+  if (typeof window.stageRole === 'function') { try { return window.stageRole(k); } catch (_) {} }
+  if (_WON_FALLBACK.includes(k)) return 'won';
+  if (k === 'lost') return 'lost';
+  return 'active';
+}
+// In play = not won, not lost, not a signed/in-production job — the same
+// bucket crm-pipeline.js calls pipeline value (metrics audit F2).
+function _inPlay(l) {
+  const r = _roleOf(l);
+  if (r === 'won' || r === 'lost' || r === 'job') return false;
+  return !(typeof window.isJobStage === 'function' && window.isJobStage(_normStage(l)));
+}
+// Display label for a lead's stage — never the raw key ("estimate_submitted").
+function _stageText(l) {
+  const k = _normStage(l);
+  return (typeof window.stageLabel === 'function' && window.stageLabel(k)) || (l && l.stage) || '';
+}
 function _bucketOf(l) {
   const k = _normStage(l);
   for (const [bucket, keys] of Object.entries(_STAGE_BUCKETS)) {
@@ -89,6 +114,10 @@ const WIDGETS = [
       const stages = {New:0, Contacted:0, 'Est. Sent':0, Negotiating:0, Won:0};
       let total = 0;
       leads.forEach(l => {
+        // Pipeline = deals still in play (matches the CRM header): won, lost
+        // and signed jobs used to be summed in too, so Home read higher than
+        // the Pipeline page for the same data.
+        if (!_inPlay(l)) return;
         // QA 2026-06-21 #3: leads store their amount in `jobValue` (see
         // crm-pipeline.js — the CRM header sums jobValue to $126k). This
         // widget summed `estValue || value`, fields that don't exist on a
@@ -109,35 +138,36 @@ const WIDGETS = [
         <div class="w-sub">Total Pipeline Value</div>
         <div style="display:flex;border-radius:4px;overflow:hidden;margin-top:10px;gap:1px;">${stageBar || '<div style="flex:1;background:var(--br);height:8px;"></div>'}</div>
         <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:var(--m);">
-          <span>${leads.length} leads</span><span>${leads.filter(l=>['closed','Complete','install_complete'].includes(l.stage||l._stageKey||'')).length} won</span>
+          <span>${leads.filter(_inPlay).length} in play</span><span>${leads.filter(l=>_roleOf(l)==='won').length} won</span>
         </div>`;
     }},
 
   {id:'hot-leads', name:'Hot Leads', icon:'🔥', cat:'Pipeline & Sales', size:'md',
     render(el){
-      const TERMINAL = ['closed','Complete','install_complete','lost','Lost'];
-      const HOT = ['contacted','estimate_submitted','contract_signed','Contacted','Est. Sent'];
+      const HOT = ['contacted','estimate_submitted','estimate_sent_cash','negotiating','contract_signed'];
       const leads = (window._leads || []).filter(l => {
-        const sk = l.stage || l._stageKey || '';
-        if(TERMINAL.includes(sk)) return false;
+        const r = _roleOf(l);
+        if (r === 'won' || r === 'lost') return false;
         if(l.callback) { const cb = new Date(l.callback); return cb <= new Date(); }
-        return HOT.includes(sk);
+        return HOT.includes(_normStage(l));
       }).slice(0, 5);
       if(!leads.length) { el.innerHTML = '<div class="w-empty">No hot leads right now</div>'; return; }
-      el.innerHTML = leads.map(l => `
+      el.innerHTML = leads.map(l => {
+        const k = _normStage(l);
+        const color = k === 'contacted' ? '#A855F7' : (k === 'estimate_submitted' || k === 'estimate_sent_cash') ? '#F97316' : 'var(--m)';
+        return `
         <div class="w-lead-row" data-w-goto="crm">
           <div class="w-lead-name">${esc(l.name || l.address || 'Unknown')}</div>
-          <div class="w-lead-stage" style="color:${l.stage==='Contacted'?'#A855F7':l.stage==='Est. Sent'?'#F97316':'var(--m)'}">${esc(l.stage)}</div>
-        </div>`).join('');
+          <div class="w-lead-stage" style="color:${color}">${esc(_stageText(l))}</div>
+        </div>`;
+      }).join('');
     }},
 
   {id:'win-rate', name:'Win Rate', icon:'🏆', cat:'Pipeline & Sales', size:'sm',
     render(el){
       const leads = window._leads || [];
-      const WON = ['closed','Complete','install_complete','final_photos','final_payment','deductible_collected'];
-      const LOST = ['lost','Lost'];
-      const decided = leads.filter(l => WON.includes(l.stage||l._stageKey||'') || LOST.includes(l.stage||l._stageKey||''));
-      const won = decided.filter(l => WON.includes(l.stage||l._stageKey||'')).length;
+      const decided = leads.filter(l => { const r = _roleOf(l); return r === 'won' || r === 'lost'; });
+      const won = decided.filter(l => _roleOf(l) === 'won').length;
       const closed = decided;
       const rate = closed.length > 0 ? (won / closed.length * 100) : 0;
       const circumference = 2 * Math.PI * 36;
@@ -156,7 +186,6 @@ const WIDGETS = [
     render(el){
       const leads = window._leads || [];
       const now = new Date();
-      const WON = ['closed','Complete','install_complete','final_photos','final_payment','deductible_collected'];
       // Which date counts as "when this job earned its money".
       //
       // This used to read updatedAt, which is LAST-TOUCHED, not when the job
@@ -174,7 +203,7 @@ const WIDGETS = [
       const asDate = v => v?.toDate ? v.toDate() : v?.seconds ? new Date(v.seconds*1000) : (v ? new Date(v) : null);
       const closedDate = l => asDate(l.closedAt) || asDate(l.stageStartedAt) || asDate(l.updatedAt) || new Date(0);
       const thisMonth = leads.filter(l => {
-        if(!WON.includes(l.stage||l._stageKey||'')) return false;
+        if(_roleOf(l) !== 'won') return false;
         const d = closedDate(l);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       });
@@ -243,7 +272,7 @@ const WIDGETS = [
           <div class="w-activity-dot" style="background:${(()=>{const b=_bucketOf(l);const s=_normStage(l);return b==='Won'?'var(--green)':s==='lost'?'#EF4444':'var(--orange)';})()}"></div>
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;font-size:11px;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(l.name||l.address||'Lead')}</div>
-            <div style="font-size:10px;color:var(--m);">${esc(l.stage)} • ${esc(ago)}</div>
+            <div style="font-size:10px;color:var(--m);">${esc(_stageText(l))} • ${esc(ago)}</div>
           </div>
         </div>`;
       }).join('');
@@ -1189,6 +1218,19 @@ window.NBDWidgets = {
   resetDefaults,
   getActive: getActiveWidgets,
 };
+
+// Home first paints on DOMContentLoaded, before auth, with window._leads
+// empty ($0 / "0 leads"). Repaint when the lead cache lands instead of
+// relying only on the end of the bootstrap render chain. Leads source only,
+// and never mid-typing — a rebuild would wipe Quick Add / task inputs.
+if (typeof window.addEventListener === 'function') window.addEventListener('nbd:data-refreshed', (ev) => {
+  const src = ev && ev.detail && ev.detail.source;
+  if (src !== 'leads') return;
+  const grid = document.getElementById('widgetGrid');
+  if (!grid) return;
+  if (grid.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  try { renderWidgetHome(); } catch (e) { console.warn('[widgets] repaint on leads refresh failed:', e.message); }
+});
 
 // ── CSP-SAFE EVENT DELEGATION ──────────────────────────────────
 // Prod CSP `script-src-attr 'none'` blocks every inline onclick=, even

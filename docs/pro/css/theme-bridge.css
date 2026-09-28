@@ -151,6 +151,8 @@ body.theme-frosted {
 /* ── TOAST ─────────────────────────────────────────────────────────── */
 .nbd-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(12px); background: #1e2530; border: 1px solid #2a3040; border-radius: 8px; padding: 9px 18px; font-family: 'DM Mono', monospace; font-size: 11px; color: #e8eaf0; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 9999; }
 .nbd-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* Phones: clear the 62px bottom tab bar (and any bottom strip) instead of covering its labels. */
+@media (max-width: 768px) { .nbd-toast { bottom: calc(62px + 16px + env(safe-area-inset-bottom, 0px) + var(--nbd-bottom-chrome, 0px)); } }
 
 /* ══ DOOR-TO-DOOR TRACKER ══════════════════════════════════════════════ */
 #view-d2d { display:none; flex-direction:column; height:100%; }

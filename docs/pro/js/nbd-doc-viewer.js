@@ -730,6 +730,13 @@
     }
     ensureStyles();
     if (!currentOverlay) currentOverlay = buildOverlay();
+    // Keep the viewer last in <body> (before its iframe is filled — moving an
+    // iframe reloads it): it shares z-index var(--z-overlay) with the V2
+    // builder modal, and once the builder sat after it in the DOM the viewer
+    // opened BEHIND it — the "Rendering…" toast fired and nothing appeared.
+    if (currentOverlay.parentNode === document.body && document.body.lastElementChild !== currentOverlay) {
+      document.body.appendChild(currentOverlay);
+    }
 
     currentContext = {
       html: opts.html || null,

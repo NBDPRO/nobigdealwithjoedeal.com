@@ -513,9 +513,11 @@ export const NBDAuth = {
         // Fetch user doc for role — 5s timeout so a Firestore hang
         // doesn't keep the page invisible (visibility:hidden) indefinitely.
         try {
+          // Reject (not resolve-undefined) on timeout: the old resolve made
+          // `.exists()` throw a TypeError that only reached the catch by accident.
           const userSnap = await Promise.race([
             getDoc(doc(_db, 'users', user.uid)),
-            new Promise(resolve => setTimeout(resolve, 5000))
+            new Promise((_, rej) => setTimeout(() => rej(new Error('user doc read timed out')), 5000))
           ]);
           if (userSnap.exists()) {
             const userData = userSnap.data();
@@ -545,7 +547,7 @@ export const NBDAuth = {
         try {
           const subSnap = await Promise.race([
             getDoc(doc(_db, 'subscriptions', _claimCompanyId || user.uid)),
-            new Promise(resolve => setTimeout(resolve, 5000))
+            new Promise((_, rej) => setTimeout(() => rej(new Error('subscription read timed out')), 5000))
           ]);
           if (subSnap.exists()) {
             _subscription = subSnap.data();

@@ -245,12 +245,10 @@
       source = 'eave-rake';
       base = sumDist(eave, function () { return true; }) * (sumDist(rake, function () { return true; }) / rake.length);
       pitched = base * globalPitch;
-    } else if (guessable.filter(function (l) { return l.type !== LT.GUTTERS; }).length) {
-      source = 'lines';
-      const tot = sumDist(guessable, function (l) { return l.type !== LT.GUTTERS; });
-      base = (tot / 4) * (tot / 4);
-      pitched = base * globalPitch;
     }
+    // No 'lines' guess: it squared a quarter of ANY drawn length (two 142 ft
+    // ridges read as a 5070 sf roof) and fed Save/reports as a real area.
+    // Ridge/hip/valley lengths are not footprint evidence — base stays 0.
 
     const withWaste = pitched * w;
     const squares = withWaste / 100;

@@ -188,6 +188,11 @@
     // 'job-templates': ['estimates'] below is the ONLY entry point, so there
     // is no page where job templates load without the cost book.
     estimates: [
+      // The full brand mark for the V2 Retail Quote / Insurance Scope exports.
+      // Without it _brandLogoSrc() fell back to nbd-logo.png, which renders
+      // only "DEAL / Home Solutions" — a different letterhead from every
+      // Templates document. Same cache key as the docgen bundle.
+      'js/nbd-logo-asset.js?v=3',
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=3',

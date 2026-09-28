@@ -1821,7 +1821,13 @@
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'activateInvitedRep');
-          await fn({});
+          // Bounded: this await gates loadLeads and the greeting, so a hung
+          // callable left the whole dashboard on its empty first paint. On
+          // timeout the flag stays unset and the next load retries.
+          await Promise.race([
+            fn({}),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('activateInvitedRep timed out')), 8000)),
+          ]);
           localStorage.setItem(_repActivatedKey, '1');
         } catch (e) { console.warn('Rep activation skipped:', e.message); }
       }
@@ -1839,7 +1845,10 @@
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'claimInvite');
-          const res = await fn({});
+          const res = await Promise.race([
+            fn({}),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('claimInvite timed out')), 8000)),
+          ]);
           const out = (res && res.data) || {};
           if (out.claimed) {
             // Claims changed → the whole tenant scope changed. Refresh the
@@ -2115,6 +2124,11 @@
         // window._leads may be undefined if loadLeads catch-path never
         // assigned it; coalesce to [] so renderLeads never throws.
         const leads = Array.isArray(window._leads) ? window._leads : [];
+        // Home widgets first, in their own try: they only read window._leads,
+        // and a throw from any kanban call below used to skip them, leaving
+        // Home on its pre-data $0 / "0 leads" paint while Pipeline had data.
+        try { if (window.NBDWidgets) window.NBDWidgets.render(); }
+        catch (e) { console.warn('[render-retry] NBDWidgets.render threw:', e.message); }
         try {
           renderLeads(leads);
           if (typeof restoreCrmSearch === 'function') restoreCrmSearch();
@@ -2122,7 +2136,6 @@
           if (typeof calculateWeeklyStats === 'function') calculateWeeklyStats();
           if (typeof refreshTrashBadge === 'function') refreshTrashBadge();
           if (typeof renderKPIRow === 'function') renderKPIRow();
-          if (window.NBDWidgets) window.NBDWidgets.render();
         } catch (renderErr) {
           console.warn('[render-retry] renderLeads threw:', renderErr.message);
           return false;

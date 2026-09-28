@@ -561,7 +561,9 @@ localStorage.setItem('nbd_collapsed',JSON.stringify(st));
 }
 
 function killCharts(){charts.forEach(c=>{try{c.destroy();}catch{}});charts=[];}
-function mkChart(id,labels,data,color){const ctx=document.getElementById(id);if(!ctx)return;const ch=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:2,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'#888',maxRotation:45},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'#888'},grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true}}}});charts.push(ch);}
+// Two renderDash() calls inside the 80ms defer both reach mkChart after
+// killCharts ran — the second hit a canvas still holding a chart and threw.
+function mkChart(id,labels,data,color){const ctx=document.getElementById(id);if(!ctx)return;const prev=(typeof Chart.getChart==='function')?Chart.getChart(ctx):null;if(prev){try{prev.destroy();}catch{}charts=charts.filter(c=>c!==prev);}const ch=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:2,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'#888',maxRotation:45},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'#888'},grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true}}}});charts.push(ch);}
 
 function renderDash(){
 killCharts();const main=document.getElementById('main');main.innerHTML='';
@@ -1225,10 +1227,12 @@ function nbdApplyTheme(id) {
 }
 
 /* ── APPLY FONT ───────────────────────────────────────────────────── */
-function nbdApplyFont(id) {
+// opts.silent: boot-time restore — no "✓ Font:" toast on every load.
+function nbdApplyFont(id, opts) {
+  const silent = !!(opts && opts.silent);
   const f = NBD_FONTS.find(f => f.id === id);
   if (!f) return;
-  if (!_nbdUnlocked(f.plan)) { nbdToast('🔒 Font requires ' + f.plan + ' plan'); return; }
+  if (!_nbdUnlocked(f.plan)) { if (!silent) nbdToast('🔒 Font requires ' + f.plan + ' plan'); return; }
   const R = document.documentElement.style;
   R.setProperty('--fd', f.css.fd);
   R.setProperty('--fu', f.css.fu);
@@ -1238,7 +1242,7 @@ function nbdApplyFont(id) {
   _nbd_activeFont = id;
   localStorage.setItem('nbd-font', id);
   nbdRenderFonts();
-  nbdToast('✓ Font: ' + f.name);
+  if (!silent) nbdToast('✓ Font: ' + f.name);
 }
 
 /* ── LABELS ───────────────────────────────────────────────────────── */
@@ -1405,7 +1409,7 @@ window.buildWelcomeThemePicker = () => {};  // DS welcome modal — no-op, full 
     _nbd_activeTheme = t.id;
     _nbdUpdateLabels(t);
   }
-  nbdApplyFont(localStorage.getItem('nbd-font') || 'nbd-default');
+  nbdApplyFont(localStorage.getItem('nbd-font') || 'nbd-default', { silent: true });
   nbdRenderCats();
 })();
 

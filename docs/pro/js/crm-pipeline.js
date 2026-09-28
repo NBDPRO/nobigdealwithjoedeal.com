@@ -220,6 +220,19 @@ function renderLeads(leads, filtered){
   }
   // simple view: no filter (list stays as-is)
 
+  // Search count = what the board actually shows. kanbanFilter used to count
+  // before the prospect/snooze/track filters above, so a match hidden as a
+  // prospect read "1 match" over an empty board.
+  if (filtered !== undefined && filtered !== null) {
+    const countSpan = document.getElementById('crmSearchCount');
+    if (countSpan) {
+      const shown = list.length;
+      const hiddenN = Math.max(0, filtered.length - shown);
+      countSpan.textContent = `${shown} match${shown === 1 ? '' : 'es'}`
+        + (hiddenN ? ` · ${hiddenN} hidden (prospects, snoozed, or another pipeline tab)` : '');
+    }
+  }
+
   // ── stat helpers ──
   const setEl = (id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
 
@@ -2298,9 +2311,7 @@ function kanbanFilter(){
     return matchS && matchD;
   });
   
-  const countSpan = document.getElementById('crmSearchCount');
-  if(countSpan) countSpan.textContent = `${filtered.length} match${filtered.length===1?'':'es'}`;
-  
+  // renderLeads writes #crmSearchCount from what it actually renders.
   renderLeads(window._leads, filtered);
 }
 
