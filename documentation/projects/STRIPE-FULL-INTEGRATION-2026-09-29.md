@@ -103,3 +103,38 @@ for this and turning on bank (ACH) payments.
   is a Stripe write; do it after the backfill.
 - **The `stripeInvoiceId` field is overloaded.** CRM payment-link invoices
   store a `plink_` id there; ledger mirrors store a real `in_` id.
+
+## 5. Update 2026-09-29: the UI (rollout step 5)
+
+Built in `feat/stripe-ledger-ui`, stacked on this PR:
+
+- **Money view → Stripe panel** (`docs/pro/js/stripe-ledger-panel.js`).
+  - Shows the balance and payouts (`getStripeOverview`) and this month's
+    Stripe gross, fees and net. The total counts `charge` rows only, so
+    subscriptions and failed or pending charges are left out. Refunds show
+    beside it, not netted in.
+  - Shows the **Needs review** list, with "Assign to <name>" (two taps), a
+    customer search and a count badge.
+  - Shows recent transactions under the matched customer's name.
+  - **Sync from Stripe** always runs `dryRun:true` first and shows a preview
+    grouped by outcome. **Apply** is offered only after that.
+- **Customer page** gets a Stripe Payments section
+  (`stripe-ledger-customer.js`).
+- Invoices with `source:'stripe'` get a **From Stripe** chip and Open in
+  Stripe / PDF links, in the customer invoice list and in
+  `invoice-pipeline.js`.
+- The pure rules are in `stripe-ledger-ui-logic.js`. They are pinned by
+  `tests/stripe-ledger-ui-2026-09-29.test.js`.
+- Sales reps and viewers never see the panel. Managers can read it, but only
+  the owner, company_admin or a platform admin get the write buttons
+  (`role-gate.js`).
+
+Found while building it. These are server-side and not fixed in the UI PR:
+
+- `mirrorInvoice()` writes line items as `{rate, amount}`. The invoice detail
+  renderer reads `{unitPrice, total}`, so a mirrored invoice shows $0.00 per
+  line even though its totals are right.
+- On this branch, `tests/viewer-callables.test.js` fails because the three new
+  callables have no viewer verdict. `tests/secret-stub-guard.test.js` fails
+  because `stripe-ledger.js` has a `.value() ||` fallback outside the
+  allowlist.
