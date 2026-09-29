@@ -130,7 +130,7 @@ function deepMerge(prev, next) {
 }
 
 function makeFirestore(docs, opts) {
-  const state = Object.assign({ denyWrite: false, reads: 0, writes: 0, failRead: false, noUpdateDoc: false }, opts || {});
+  const state = Object.assign({ denyWrite: false, reads: 0, writes: 0, failRead: false, noUpdateDoc: false, readPaths: [] }, opts || {});
   const guard = () => {
     if (state.denyWrite) { const e = new Error('Missing or insufficient permissions.'); e.code = 'permission-denied'; throw e; }
   };
@@ -138,6 +138,7 @@ function makeFirestore(docs, opts) {
     doc: (db, col, id) => ({ __path: col + '/' + id }),
     getDoc: async (ref) => {
       state.reads++;
+      state.readPaths.push(ref.__path);
       if (state.failRead) { const e = new Error('client is offline'); e.code = 'unavailable'; throw e; }
       const data = docs[ref.__path];
       return { exists: () => !!data, data: () => (data ? JSON.parse(JSON.stringify(data)) : null) };
@@ -378,7 +379,8 @@ console.log('──────────────────────�
     const after = c.readStore().items.find((p) => p.id === 'shingle_001');
 
     test('COLD: hydration reads the tenant book and patches the STORE in place', () => {
-      eq(c.fsStub.__state.reads, 1, 'Firestore reads');
+      // productLibrary/{companyId} is read too since 2026-09-29; count the book.
+      eq(c.fsStub.__state.readPaths.filter((p) => p.indexOf('catalogCosts/') === 0).length, 1, 'cost-book reads');
       eq(after.pricing.good.cost, BOOK.costs.shingle_001.cost.good, 'good cost');
       eq(after.labor.perUnit, BOOK.costs.shingle_001.labor.perUnit, 'labor.perUnit');
     });
@@ -738,7 +740,8 @@ console.log('──────────────────────�
   // on labor alone.
 
   {
-    const env = boot({ docs: {} });
+    // An editor: the company library (2026-09-29) refuses the modal to reps.
+    const env = boot({ docs: {}, claims: { companyId: TENANT, role: 'company_admin' } });
     await env.win.NBDCatalogCosts.hydrate();
 
     // Drive saveFromModal through a DOM shim so the real guard runs.
