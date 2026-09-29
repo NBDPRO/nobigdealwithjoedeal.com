@@ -129,6 +129,7 @@
     "tamko-page-rename.test.js",
     "smart-calendar-forecast.test.js",
     "schedule-events-2026-09-28.test.js",
+    "hd-import-2026-09-29.test.js",
     "notify-new-lead-email-escape-2026-09-29.test.js",
     "escape-user-text-sinks-2026-09-29.test.js",
     "yard-signs-2026-09-29.test.js",
