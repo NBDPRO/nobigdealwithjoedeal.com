@@ -166,7 +166,8 @@ ok('the check evaluates the DESTINATION stage, not the current one',
   'checking the current stage would block on the wrong requirements');
 ok('the block offers an escape hatch to the full editor (this page cannot satisfy every gated field itself)',
   /undoText:\s*['"]Open full editor['"]/.test(progressFn)
-  && /window\.location\.href = ['"]\/pro\/dashboard\?lead=['"] \+ window\._customerId/.test(progressFn),
+  // ?edit= (R14, 2026-09-28) — a bare ?lead= is the NEW-ESTIMATE deep link.
+  && /window\.location\.href = ['"]\/pro\/dashboard\?edit=['"] \+ encodeURIComponent\(window\._customerId\)/.test(progressFn),
   'a hard block with no way forward strands the rep worse than the silent advance it replaced');
 
 // ── no reload on the common (successful) path ───────────────────────────
