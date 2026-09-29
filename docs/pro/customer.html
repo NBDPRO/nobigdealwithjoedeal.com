@@ -190,6 +190,10 @@ header {
 .meta-item {
   display:flex; align-items:center; gap:6px;
   font-size:13px; color:var(--m);
+  /* The stage item carries up to six chips (stage, days in stage, copied,
+     viewed, hot, score): unwrapped it ran 351px inside a 309px row and the
+     whole page scrolled sideways on a 375px phone (2026-09-29). */
+  flex-wrap:wrap; min-width:0; max-width:100%;
 }
 .stage-badge {
   padding:4px 12px; background:var(--s2); border:1px solid var(--br);
