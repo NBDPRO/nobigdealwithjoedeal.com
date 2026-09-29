@@ -47,14 +47,21 @@ tag the Stripe customer at creation (#1884). No Stripe writes were added.
 4. **Cash App Pay:** keep it or turn it off.
 5. **Home Depot:** the unsure receipts, the missing leads, then the real
    import and the PO/Job names (morning brief §2.4).
-6. **Food logging preference** (tracker Phase 2). The default is typed macros
-   plus favorites.
-7. **Still open from before:** Insurance Claim Progress on cash jobs; old
+6. **Food logging:** the default shipped in the evening (see §3.1). Jo can ask
+   for barcode lookup if typing macros gets old.
+7. **One Thursday test call from Jo's phone.** Stay on past the greeting and
+   say a sentence. The dead air is fixed, but greet-by-name has never been
+   seen working: the lookup endpoint got no requests after 09-27. Details are
+   in [the Thursday note §11](../architecture/THURSDAY-BLAND-2026-09-26.md).
+8. **Still open from before:** Insurance Claim Progress on cash jobs; old
    audit logs; the Bland balance; the `<` / `>` leads count (not approved).
 
 ## §3 Next build lanes
 
-1. **Tracker Phase 2 (food)** once Jo answers.
+1. **Tracker Phase 2 (food): SHIPPED in the evening PR, on the default.**
+   It adds the Food card (protein bar, favorites, "same as yesterday"); see
+   the tracker plan's evening update. The follow-up is barcode lookup, only if
+   Jo asks.
 2. **Calendar:** after Jo connects, verify in production that one lead write
    produces one event, and that the 05:45 reconcile reports `unchanged` on a
    quiet day. Read `integrations/googleCalendar.lastSync`.
