@@ -165,3 +165,44 @@ answers above.
    Jo contacts the customer to reschedule. Any automatic "we may need to move
    your time" message to the customer is a separate decision, because the CRM
    never texts or emails homeowners on its own without Jo's say-so.
+
+## Update 2026-09-29 (evening) — Plan Jobs + week-first scheduling
+
+Google Calendar went live with **1 event**, which was correct: 1 of 247 leads
+had a job date. Jo hadn't been scheduling in the CRM and asked for a fast way
+to fill in the next month. Jo also asked to **book a week first and set the
+day later**, with the homeowner told "the week of…".
+
+- **Plan Jobs** is a new panel on the Schedule view (`js/schedule-planner.js`,
+  with rules in `schedule-planner-logic.js`).
+  - **Needs a date** lists committed jobs (Contract Signed through
+    Installing, plus approved service and warranty visits) that have no
+    date. A switch shows every open lead, and a search box narrows either
+    list.
+  - **Next 30 days** holds scheduled jobs, so they can be moved in place.
+  - Each row sets a **Week of** *or* a **Date** + start + days. A save
+    writes only the schedule fields, validated by
+    `NBDScheduleWindow.check`.
+  - Anything typed but not saved survives a background refresh.
+- **`scheduledWeek`** is a new lead field holding the week's Monday, set
+  only while there is no day. Setting a day clears it.
+  - **Rules:** `scheduleWindowOk` shape-checks it.
+  - **Google:** a **free** all-day Mon–Fri bar, "📆 Week of: name", on the
+    job's own event id, so setting the day updates that event in place.
+    `WATCHED` includes the new field.
+  - **Portal:** "Your project is scheduled for the week of October 5 — We'll
+    confirm your exact day as that week's schedule comes together, and we'll
+    reach out before the crew arrives." It shows only while there's no day,
+    and never once the week has passed.
+  - **Not covered:** the older .ics subscribe feed and the customer page and
+    lead modal editors don't show or set weeks yet. Plan Jobs is the place
+    to set them.
+- Tests: [schedule-planner](../../tests/schedule-planner-2026-09-29.test.js)
+  (40 checks, including the portal wording run in a vm sandbox). The rules
+  suite passed in full.
+- Verified on the emulator:
+  - Choosing Thu Oct 8 saved week-of Oct 5 and moved the row to Next 30
+    days.
+  - Refining to Oct 7, 2 days, 7:30 stored the end date Oct 8 and cleared
+    the week.
+  - The panel fits at 375px.

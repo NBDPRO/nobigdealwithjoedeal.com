@@ -495,6 +495,8 @@
     font-weight:600; color: var(--nbd-ink-subtle);
   }
   .progress-schedule + .progress-next{ margin-top: var(--nbd-space-2); }
+  /* A week-planned job: the line plus what happens next (2026-09-29). */
+  .progress-schedule-note{ margin-top: 4px; font-size: var(--nbd-text-sm, 13px); font-weight: 500; color: var(--nbd-ink-subtle); }
   @media (max-width:520px){
     /* Phone audit (2026-09-25): was font-size 9px with the base rule's
        nowrap + ellipsis, so every phone got 9px milestone names and a 320px
@@ -592,6 +594,6 @@
 <!-- Arrival-window wording for the install-date line (2026-09-29). Pure, no
      Firebase; before portal.js, which reads window.NBDScheduleWindow. -->
 <script defer src="js/schedule-window.js?v=1"></script>
-<script src="js/portal.js?v=3" defer></script>
+<script src="js/portal.js?v=4" defer></script>
 </body>
 </html>

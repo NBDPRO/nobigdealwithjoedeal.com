@@ -160,7 +160,7 @@
      ═══════════════════════════════════════════════════════════════ -->
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
-<link rel="stylesheet" href="css/google-calendar.css?v=1">
+<link rel="stylesheet" href="css/google-calendar.css?v=2">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -4903,6 +4903,13 @@
         </div>
       </div>
 
+      <!-- PLAN JOBS — js/schedule-planner.js. Jobs that need a date + the next
+           30 days, each row saved on its own (2026-09-29). -->
+      <div class="panel" id="schedPlanPanel" hidden>
+        <div class="panel-hdr"><div><div class="panel-label">Fill in your month</div><div class="panel-title">Plan Jobs</div></div></div>
+        <div class="panel-body" id="schedPlanBody"></div>
+      </div>
+
       <!-- BOOKING LINK SHARE -->
       <div class="panel">
         <div class="panel-hdr"><div><div class="panel-label">Your Booking Link</div><div class="panel-title">Share With Homeowners</div></div></div>
@@ -6735,7 +6742,9 @@
      maps.js because it uses window.hav() (haversine distance). -->
 <script defer src="js/smart-calendar.js?v=3"></script>
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
-<script defer src="js/google-calendar-ui.js?v=1"></script>
+<script defer src="js/google-calendar-ui.js?v=2"></script>
+<script defer src="js/schedule-planner-logic.js?v=1"></script>
+<script defer src="js/schedule-planner.js?v=1"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.
