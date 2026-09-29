@@ -19,6 +19,7 @@ import {
   preferredActionFor as _preferredActionFor,
   isJobStage as _isJobStage, isTerminalStage as _isTerminalStage,
   requiredFieldLabel as _requiredFieldLabel,
+  subTypeOptionsFor as _subTypeOptionsFor,
 } from "./crm-stages.js";
 import { commitStageChange as _commitStageChange } from "./stage-write.js";
 // dashboard-bootstrap.module.js exposes these identically; mirrored here so
@@ -62,7 +63,21 @@ function _pipelineFor(lead) {
     const at = pipeline.indexOf('contract_signed');
     if (at !== -1) {
       const jobs = ((resolved.views.jobs && resolved.views.jobs.stages) || []).filter(k => !pipeline.includes(k));
-      pipeline.splice(at + 1, 0, ...jobs);
+      // Insert the job track AFTER any stages the tenant placed after Contract
+      // Signed (the pipeline builder adds custom stages there, before Lost) —
+      // i.e. at the first lost-role stage — not immediately after Contract
+      // Signed. Splicing at at+1 pushed a custom stage past the whole job and
+      // warranty track, so a Warranty Claim lead was offered "→ Move to
+      // <custom production stage>" (CRM sweep R14, 2026-09-28). Stock
+      // pipelines ([…, contract_signed, lost]) are unchanged.
+      let ins = at + 1;
+      while (ins < pipeline.length) {
+        const m = resolved.stageMeta[pipeline[ins]];
+        const role = (m && m.role) || (typeof _stageRole === 'function' ? _stageRole(pipeline[ins]) : null);
+        if (role === 'lost' || pipeline[ins] === 'lost') break;
+        ins++;
+      }
+      pipeline.splice(ins, 0, ...jobs);
     }
   }
   pipeline = pipeline.filter((k) => !(resolved.stageMeta[k] && resolved.stageMeta[k].hidden));
@@ -83,8 +98,19 @@ function _nextStageFor(lead) {
   const current = (lead && lead.stage) || 'new';
   let nextStage = null;
   const idx = pipeline.indexOf(current);
-  if (idx >= 0 && idx < pipeline.length - 1) nextStage = pipeline[idx + 1];
-  else if (legacyMap[current]) nextStage = legacyMap[current];
+  // "Next Stage" never means Lost (CRM sweep R14, 2026-09-28) — a custom stage
+  // added after Lost offered "→ Move to Lost" as its next step. Skip every
+  // lost-role stage; losing a job is its own action.
+  const _isLost = (k) => {
+    const meta = resolved && resolved.stageMeta && resolved.stageMeta[k];
+    const role = (meta && meta.role) || (typeof window.stageRole === 'function' ? window.stageRole(k) : null);
+    return role === 'lost' || k === 'lost';
+  };
+  if (idx >= 0) {
+    for (let i = idx + 1; i < pipeline.length; i++) {
+      if (!_isLost(pipeline[i])) { nextStage = pipeline[i]; break; }
+    }
+  } else if (legacyMap[current]) nextStage = legacyMap[current];
   if (!nextStage) return null;
 
   const label = (resolved.stageMeta[nextStage] && resolved.stageMeta[nextStage].label) || _stageLabel(nextStage) || nextStage;
@@ -2281,33 +2307,6 @@ window.progressStage = async function() {
   const ok = await ask(`Move customer to "${label}" stage?`);
   if (!ok) return;
 
-  // ─── Warranty-claim guard ───
-  // 2026-09-15 (Warranty Claim lane). Same two-directional guard as
-  // crm-pipeline.js's moveCard() — this page's OWN write path
-  // (progressStage) shares the same commitStageChange() call below, so it
-  // needs the identical gate or a customer-page move could open/leave a
-  // claim un-tracked. See moveCard()'s own comment for the full rationale;
-  // canceling either prompt cancels the whole move.
-  if (nextStage === 'warranty_claim' && current !== 'warranty_claim') {
-    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptIntake === 'function')) {
-      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
-      return;
-    }
-    let opened;
-    try { opened = await window.WarrantyClaim.promptIntake(lead); }
-    catch (e) { if (window.showToast) window.showToast('Could not open the claim: ' + e.message, 'error'); return; }
-    if (!opened) return;
-  } else if (current === 'warranty_claim' && nextStage !== 'warranty_claim' && lead.openWarrantyClaimId) {
-    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptResolution === 'function')) {
-      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
-      return;
-    }
-    let resolved;
-    try { resolved = await window.WarrantyClaim.promptResolution(lead); }
-    catch (e) { if (window.showToast) window.showToast('Could not resolve the claim: ' + e.message, 'error'); return; }
-    if (!resolved) return;
-  }
-
   // Pre-flight: surface common failure causes immediately rather than
   // letting the writer fail silently. The original implementation
   // swallowed errors via patched alert() (also a 4s toast in PWA),
@@ -2333,12 +2332,45 @@ window.progressStage = async function() {
           message: `Can't move to "${label}" yet — missing: ${missing.map(_requiredFieldLabel).join(', ')}.`,
           type: 'error',
           duration: 8000,
-          undoAction: () => { window.location.href = '/pro/dashboard?lead=' + window._customerId; },
+          // ?edit=, not ?lead= — a bare ?lead= is the NEW-ESTIMATE deep link, so
+          // "Open full editor" opened a blank Estimate Builder (R14, 2026-09-28).
+          undoAction: () => { window.location.href = '/pro/dashboard?edit=' + encodeURIComponent(window._customerId); },
           undoText: 'Open full editor',
         });
       }
       return;
     }
+  }
+
+  // ─── Warranty-claim guard ───
+  // Runs AFTER the required-field gate above (CRM sweep R14, 2026-09-28):
+  // this guard WRITES (files or resolves a claim), and resolving a claim then
+  // being refused by the gate left the lead in Warranty Claim with no open
+  // claim behind it. Check first, write after — same order as moveCard.
+  // 2026-09-15 (Warranty Claim lane). Same two-directional guard as
+  // crm-pipeline.js's moveCard() — this page's OWN write path
+  // (progressStage) shares the same commitStageChange() call below, so it
+  // needs the identical gate or a customer-page move could open/leave a
+  // claim un-tracked. See moveCard()'s own comment for the full rationale;
+  // canceling either prompt cancels the whole move.
+  if (nextStage === 'warranty_claim' && current !== 'warranty_claim') {
+    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptIntake === 'function')) {
+      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
+      return;
+    }
+    let opened;
+    try { opened = await window.WarrantyClaim.promptIntake(lead); }
+    catch (e) { if (window.showToast) window.showToast('Could not open the claim: ' + e.message, 'error'); return; }
+    if (!opened) return;
+  } else if (current === 'warranty_claim' && nextStage !== 'warranty_claim' && lead.openWarrantyClaimId) {
+    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptResolution === 'function')) {
+      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
+      return;
+    }
+    let resolved;
+    try { resolved = await window.WarrantyClaim.promptResolution(lead); }
+    catch (e) { if (window.showToast) window.showToast('Could not resolve the claim: ' + e.message, 'error'); return; }
+    if (!resolved) return;
   }
 
   const btnEl = document.getElementById('stageProgressBtn');
@@ -4071,6 +4103,11 @@ Object.assign(window.__NBD_CALL_REGISTRY, {
   setLightboxSource: setLightboxSource,
   // customer-quick-action-bar.js's Comm Log tap listener (T3-C, 2026-09-18).
   logCommunication: logCommunication,
+  // warranty-claim.js reads the claim "Reason" list from here. Only the
+  // dashboard registered it, so filing a claim from this page offered just its
+  // one-item fallback, "Workmanship" — never Material Defect, Manufacturer
+  // Claim or Goodwill (CRM sweep R14, 2026-09-28).
+  subTypeOptionsFor: _subTypeOptionsFor,
 });
 
 // ═══════════════════════════════════════════════════════════════

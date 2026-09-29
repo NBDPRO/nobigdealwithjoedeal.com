@@ -2294,11 +2294,22 @@
       })();
     } else if (editId && !estParam) {
       // ── EDIT LEAD in CRM ──
-      setTimeout(() => {
+      // Wait for the lead cache: editLead() looks the id up in window._leads,
+      // and at a fixed 500 ms it usually wasn't loaded yet — editLead fell
+      // through to a BLANK new-lead form, which saves a duplicate (R14,
+      // 2026-09-28; the customer page's "Open full editor" lands here).
+      window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
+      (async () => {
+        for (let i = 0; i < 40 && window._leadsLoaded !== true; i++) {
+          await new Promise(r => setTimeout(r, 250));
+        }
         goTo('crm');
-        editLead(editId);
-        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
-      }, 500);
+        if ((window._leads || []).some(l => l && l.id === editId)) {
+          editLead(editId);
+        } else {
+          window.location.href = '/pro/customer.html?id=' + encodeURIComponent(editId);
+        }
+      })();
     } else if (leadDeepLinkId(urlParams)) {
       // ── OPEN A LEAD: ?tab=crm&lead=ID (notification bell, tasks) and
       //    ?tab=leads&leadId=ID (push notifications). CRM sweep R13,
