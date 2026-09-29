@@ -784,6 +784,34 @@ service cloud.firestore {
         && (!('taxCents' in d) || (d.taxCents is int && d.taxCents >= 0))
         && (!('costType' in d) || d.costType in ['direct', 'overhead']);
     }
+    // Yard signs (yard-signs.js, 2026-09-29): where each sign is, a photo,
+    // placed / pickup dates. The rep who placed it owns it; the company
+    // (admins, managers, viewers) can see them; a company_admin can also
+    // update one (pick up a rep's sign). Never hard-deleted from the client —
+    // a sign ends as status 'picked_up' or 'missing'. The daily pickup
+    // reminder (functions/yard-sign-reminder.js) reads them with the admin SDK.
+    match /yardSigns/{signId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin()
+        || (isCompanyReader()
+            && resource.data.get('companyId', '') != ''
+            && resource.data.get('companyId', '') == myCompanyId());
+      allow create: if isAuth()
+        && notViewer()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0
+        && (request.resource.data.companyId == request.auth.token.get('companyId', '')
+            || (request.auth.token.get('companyId', '') == '' && request.resource.data.companyId == request.auth.uid))
+        && request.resource.data.status == 'out';
+      allow update: if (
+          (isOwner(resource.data.userId) && notViewer())
+          || (isCompanyAdmin() && resource.data.get('companyId', '') != '' && resource.data.get('companyId', '') == myCompanyId())
+          || isAdmin())
+        && didNotChange(['userId', 'companyId', 'createdAt'])
+        && request.resource.data.status in ['out', 'picked_up', 'missing'];
+      allow delete: if isAdmin();
+    }
+
     match /expenses/{expenseId} {
       allow read: if isOwner(resource.data.userId)
         || isAdmin()

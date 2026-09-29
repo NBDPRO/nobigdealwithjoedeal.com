@@ -350,6 +350,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     if (m && m.classList.contains('active') && window.MoneyDashboard) { try { window.MoneyDashboard.init(); } catch (_) {} }
     const x = document.getElementById('view-expenses');
     if (x && x.classList.contains('active') && window.Expenses) { try { window.Expenses.init(); } catch (_) {} }
+    const ys = document.getElementById('view-signs');
+    if (ys && ys.classList.contains('active') && window.YardSigns) { try { window.YardSigns.init(); } catch (_) {} }
   });
 }
 
@@ -563,6 +565,7 @@ function goTo(name, params = {}) {
   if(name==='closeboard') { _lazyPreload.then(() => { if (window.CloseBoard)  window.CloseBoard.init();  }); }
   if(name==='expenses')   { _lazyPreload.then(() => { if (window.Expenses)    window.Expenses.init();    }); }
   if(name==='money')      { _lazyPreload.then(() => { if (window.MoneyDashboard) window.MoneyDashboard.init(); }); }
+  if(name==='signs')      { _lazyPreload.then(() => { if (window.YardSigns)   window.YardSigns.init();   }); }
   if(name==='refrewards') { if (window.ReferralRewards) window.ReferralRewards.render(); }
   if(name==='repos')      { _lazyPreload.then(() => { if (window.RepOS)       window.RepOS.init();       }); }
   if(name==='talk-tank')  { _lazyPreload.then(() => { if (window.TalkTank)  window.TalkTank.init();  }); }
@@ -1346,6 +1349,18 @@ function dsSaveConfig() {
     showGoose: document.getElementById('ds-showgoose')?.checked !== false,
   };
   localStorage.setItem(DS_NBD_CFG, JSON.stringify(config));
+  // nbd_ localStorage is wiped on every sign-out (purgeAccountStorage), so the
+  // settings also go to userSettings/{uid}; the _at stamp lets the newer copy
+  // win against the Daily Success page (ds-firebase-sync.js) and other devices.
+  const dsCfgAt = Date.now();
+  try { localStorage.setItem(DS_NBD_CFG + '_at', String(dsCfgAt)); } catch {}
+  try {
+    const u = window._user && window._user.uid;
+    if (u && window.db && window.setDoc && window.doc) {
+      window.setDoc(window.doc(window.db, 'userSettings', u), { dsConfig: config, dsConfigAt: dsCfgAt }, { merge: true })
+        .catch(e => console.warn('[ds-settings] cloud save failed', e && e.code));
+    }
+  } catch {}
   // NEW-4: mirror into the derived 'nbd_ds_config' key that the Home widgets
   // read (north-star / daily-floors / golden-goose in js/widgets.js). Without
   // this, a North Star set here saves to nbd_user_config but the Home widget

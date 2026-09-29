@@ -1856,8 +1856,7 @@ async function run() {
     throw new Error('37 productLibrary: ' + s37Fail.length + ' check(s) went the wrong way:\n    ' + s37Fail.join('\n    '));
   }
 
-  // ─── 38. Arrival window + adjuster meeting (2026-09-29, calendar hub
-  // Phase 0) — scheduleWindowOk() on /leads create + update: shape only.
+  // ─── 38. yardSigns — the yard-sign tracker (2026-09-29) ───
   const s38Fail = []; let s38Pass = 0;
   async function x38(label, want, promise) {
     try {
@@ -1865,32 +1864,65 @@ async function run() {
       s38Pass++;
     } catch (e) { s38Fail.push(label + ' (wanted ' + want + ')'); }
   }
+  const ysRep  = env.authenticatedContext('ysrep',  { role: 'sales_rep', companyId: 'co-38' }).firestore();
+  const ysRep2 = env.authenticatedContext('ysrep2', { role: 'sales_rep', companyId: 'co-38' }).firestore();
+  const ysAdm  = env.authenticatedContext('ysadm',  { role: 'company_admin', companyId: 'co-38' }).firestore();
+  const ysView = env.authenticatedContext('ysview', { role: 'viewer', companyId: 'co-38' }).firestore();
+  const ysOther = env.authenticatedContext('ysoth', { role: 'company_admin', companyId: 'co-x' }).firestore();
+  const SIGN = { userId: 'ysrep', companyId: 'co-38', address: '1 ZZ_QA St', lat: 39.1, lng: -84.5, status: 'out', durationDays: 14 };
+  await x38('rep places a sign', 'allow', setDoc(doc(ysRep, 'yardSigns/s1'), SIGN));
+  await x38('a sign cannot be created already picked up', 'deny', setDoc(doc(ysRep, 'yardSigns/s2'), Object.assign({}, SIGN, { status: 'picked_up' })));
+  await x38('a sign cannot be created for someone else', 'deny', setDoc(doc(ysRep, 'yardSigns/s3'), Object.assign({}, SIGN, { userId: 'ysrep2' })));
+  await x38('a sign cannot be stamped with another company', 'deny', setDoc(doc(ysRep, 'yardSigns/s4'), Object.assign({}, SIGN, { companyId: 'co-x' })));
+  await x38('a viewer cannot place a sign', 'deny', setDoc(doc(ysView, 'yardSigns/s5'), Object.assign({}, SIGN, { userId: 'ysview' })));
+  await x38('the company viewer can see it', 'allow', getDoc(doc(ysView, 'yardSigns/s1')));
+  await x38('another company cannot see it', 'deny', getDoc(doc(ysOther, 'yardSigns/s1')));
+  await x38('a teammate rep cannot pick up someone else\'s sign', 'deny', updateDoc(doc(ysRep2, 'yardSigns/s1'), { status: 'picked_up' }));
+  await x38('the company admin can pick it up', 'allow', updateDoc(doc(ysAdm, 'yardSigns/s1'), { status: 'picked_up' }));
+  await x38('the owner can extend it', 'allow', updateDoc(doc(ysRep, 'yardSigns/s1'), { status: 'out', durationDays: 21 }));
+  await x38('an unknown status is refused', 'deny', updateDoc(doc(ysRep, 'yardSigns/s1'), { status: 'gone' }));
+  await x38('ownership cannot be rewritten', 'deny', updateDoc(doc(ysRep, 'yardSigns/s1'), { userId: 'ysrep2' }));
+  await x38('the owner cannot hard-delete (signs end as picked up / missing)', 'deny', deleteDoc(doc(ysRep, 'yardSigns/s1')));
+  console.log('  38: ' + s38Pass + ' yard-sign checks passed, ' + s38Fail.length + ' failed');
+  if (s38Fail.length) {
+    throw new Error('38 yardSigns: ' + s38Fail.length + ' check(s) went the wrong way:\n    ' + s38Fail.join('\n    '));
+  }
+
+  // ─── 39. Arrival window + adjuster meeting (2026-09-29, calendar hub
+  // Phase 0) — scheduleWindowOk() on /leads create + update: shape only.
+  const s39Fail = []; let s39Pass = 0;
+  async function x39(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s39Pass++;
+    } catch (e) { s39Fail.push(label + ' (wanted ' + want + ')'); }
+  }
   const L38 = doc(alice, 'leads/zzqaWin38');
   const base38 = { userId: 'alice', companyId: 'co-a', firstName: 'ZZ_QA', lastName: 'Window', scheduledDate: '2026-10-06' };
-  await x38('create with a full project window', 'allow', setDoc(L38, Object.assign({}, base38, { scheduledStart: '07:00', scheduledDurationMin: null, scheduledEndDate: '2026-10-07' })));
-  await x38('create with a bad start time', 'deny', setDoc(doc(alice, 'leads/zzqaWin38b'), Object.assign({}, base38, { scheduledStart: '7am' })));
-  await x38('create with no window at all (the pre-2026-09-29 lead)', 'allow', setDoc(doc(alice, 'leads/zzqaWin38c'), base38));
-  await x38('repair: start + 90 min', 'allow', updateDoc(L38, { scheduledStart: '14:30', scheduledDurationMin: 90, scheduledEndDate: null }));
-  await x38('all day: every window field null', 'allow', updateDoc(L38, { scheduledStart: null, scheduledDurationMin: null, scheduledEndDate: null }));
-  await x38('empty strings are empty, not garbage', 'allow', updateDoc(L38, { scheduledStart: '', scheduledEndDate: '' }));
-  await x38('start 24:00', 'deny', updateDoc(L38, { scheduledStart: '24:00' }));
-  await x38('start as a number', 'deny', updateDoc(L38, { scheduledStart: 700 }));
-  await x38('start with seconds', 'deny', updateDoc(L38, { scheduledStart: '07:00:00' }));
-  await x38('duration 0', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: 0 }));
-  await x38('duration over 24h', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: 1441 }));
-  await x38('duration as text', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: '60' }));
-  await x38('duration fractional', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: 30.5 }));
-  await x38('duration 1440 (a full day) is the ceiling', 'allow', updateDoc(L38, { scheduledStart: '00:00', scheduledDurationMin: 1440 }));
-  await x38('end date as an ISO timestamp', 'deny', updateDoc(L38, { scheduledDurationMin: null, scheduledEndDate: '2026-10-07T00:00:00Z' }));
-  await x38('end date as a map', 'deny', updateDoc(L38, { scheduledEndDate: { forged: true } }));
-  await x38('adjuster meeting date + time', 'allow', updateDoc(L38, { adjusterMeetingDate: '2026-10-02', adjusterMeetingStart: '10:00' }));
-  await x38('adjuster meeting cleared to empty strings', 'allow', updateDoc(L38, { adjusterMeetingDate: '', adjusterMeetingStart: '' }));
-  await x38('adjuster meeting free text', 'deny', updateDoc(L38, { adjusterMeetingDate: 'next Tuesday' }));
-  await x38('adjuster meeting time "10am"', 'deny', updateDoc(L38, { adjusterMeetingStart: '10am' }));
-  await x38('an unrelated edit still saves', 'allow', updateDoc(L38, { notes: 'ZZ_QA note' }));
-  console.log('  38: ' + s38Pass + ' arrival-window / adjuster-meeting checks passed, ' + s38Fail.length + ' failed');
-  if (s38Fail.length) {
-    throw new Error('38 scheduleWindowOk: ' + s38Fail.length + ' check(s) went the wrong way:\n    ' + s38Fail.join('\n    '));
+  await x39('create with a full project window', 'allow', setDoc(L38, Object.assign({}, base38, { scheduledStart: '07:00', scheduledDurationMin: null, scheduledEndDate: '2026-10-07' })));
+  await x39('create with a bad start time', 'deny', setDoc(doc(alice, 'leads/zzqaWin38b'), Object.assign({}, base38, { scheduledStart: '7am' })));
+  await x39('create with no window at all (the pre-2026-09-29 lead)', 'allow', setDoc(doc(alice, 'leads/zzqaWin38c'), base38));
+  await x39('repair: start + 90 min', 'allow', updateDoc(L38, { scheduledStart: '14:30', scheduledDurationMin: 90, scheduledEndDate: null }));
+  await x39('all day: every window field null', 'allow', updateDoc(L38, { scheduledStart: null, scheduledDurationMin: null, scheduledEndDate: null }));
+  await x39('empty strings are empty, not garbage', 'allow', updateDoc(L38, { scheduledStart: '', scheduledEndDate: '' }));
+  await x39('start 24:00', 'deny', updateDoc(L38, { scheduledStart: '24:00' }));
+  await x39('start as a number', 'deny', updateDoc(L38, { scheduledStart: 700 }));
+  await x39('start with seconds', 'deny', updateDoc(L38, { scheduledStart: '07:00:00' }));
+  await x39('duration 0', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: 0 }));
+  await x39('duration over 24h', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: 1441 }));
+  await x39('duration as text', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: '60' }));
+  await x39('duration fractional', 'deny', updateDoc(L38, { scheduledStart: '09:00', scheduledDurationMin: 30.5 }));
+  await x39('duration 1440 (a full day) is the ceiling', 'allow', updateDoc(L38, { scheduledStart: '00:00', scheduledDurationMin: 1440 }));
+  await x39('end date as an ISO timestamp', 'deny', updateDoc(L38, { scheduledDurationMin: null, scheduledEndDate: '2026-10-07T00:00:00Z' }));
+  await x39('end date as a map', 'deny', updateDoc(L38, { scheduledEndDate: { forged: true } }));
+  await x39('adjuster meeting date + time', 'allow', updateDoc(L38, { adjusterMeetingDate: '2026-10-02', adjusterMeetingStart: '10:00' }));
+  await x39('adjuster meeting cleared to empty strings', 'allow', updateDoc(L38, { adjusterMeetingDate: '', adjusterMeetingStart: '' }));
+  await x39('adjuster meeting free text', 'deny', updateDoc(L38, { adjusterMeetingDate: 'next Tuesday' }));
+  await x39('adjuster meeting time "10am"', 'deny', updateDoc(L38, { adjusterMeetingStart: '10am' }));
+  await x39('an unrelated edit still saves', 'allow', updateDoc(L38, { notes: 'ZZ_QA note' }));
+  console.log('  39: ' + s39Pass + ' arrival-window / adjuster-meeting checks passed, ' + s39Fail.length + ' failed');
+  if (s39Fail.length) {
+    throw new Error('39 scheduleWindowOk: ' + s39Fail.length + ' check(s) went the wrong way:\n    ' + s39Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

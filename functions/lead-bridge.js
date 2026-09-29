@@ -35,6 +35,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 
 const L = require('./lead-bridge-logic');
+const { createLeadWithCustomerId } = require('./customer-id-mint');
 
 // Tenant-zero (NBD) owner uid — Joe / jonathandeal459@gmail.com. Matches the
 // uid in set-jd-claims.js (companyId == uid solo convention). Overridable via
@@ -88,10 +89,11 @@ async function bridgeToCrm(collection, data, sourceId) {
 
   try {
     // create() (not set()) so a re-delivery hits ALREADY_EXISTS instead of
-    // overwriting a lead the rep may have already edited.
-    await db.collection('leads').doc(id).create(leadDoc);
+    // overwriting a lead the rep may have already edited. The customerId is
+    // minted in the same transaction (customer-id-mint.js) — failure-tolerant.
+    const { customerId } = await createLeadWithCustomerId(db, db.collection('leads').doc(id), leadDoc, { nbdOwnerUid: NBD_OWNER_UID });
     logger.info('leadBridge: mirrored public lead into CRM', {
-      collection, sourceId, leadId: id, companyId: target.companyId, ownerUid: target.ownerUid,
+      collection, sourceId, leadId: id, companyId: target.companyId, ownerUid: target.ownerUid, customerId,
     });
   } catch (e) {
     if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) {

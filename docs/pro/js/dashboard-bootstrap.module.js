@@ -3658,14 +3658,16 @@
                   await window._loadCompanyProfile();
                 }
                 if (window._companyProfileLoaded !== true
-                    || typeof window._custCounterId !== 'function'
-                    || typeof window._custIdPrefix !== 'function'
+                    || typeof window._custIdMint !== 'function'
                     || typeof window._formatCustomerId !== 'function') {
                   throw new Error('company profile not hydrated — customer-ID mint deferred');
                 }
                 const _cid = window._userClaims?.companyId || window._user?.uid;
-                const _ctrId = window._custCounterId(_cid);
-                const _pfx = window._custIdPrefix();
+                // Platform-identity veto (company-profile.js _custIdMint).
+                const _mint = window._custIdMint(_cid);
+                if (!_mint) throw new Error('tenant brand not set — customer-ID mint skipped (platform-identity veto)');
+                const _ctrId = _mint.counterId;
+                const _pfx = _mint.prefix;
                 const counterRef = doc(db, 'counters', _ctrId);
                 const custId = await runTransaction(db, async (tx) => {
                   const snap = await tx.get(counterRef);
@@ -3743,14 +3745,16 @@
             await window._loadCompanyProfile();
           }
           if (window._companyProfileLoaded !== true
-              || typeof window._custCounterId !== 'function'
-              || typeof window._custIdPrefix !== 'function'
+              || typeof window._custIdMint !== 'function'
               || typeof window._formatCustomerId !== 'function') {
             throw new Error('company profile not hydrated — customer-ID mint deferred');
           }
           const _cid = window._userClaims?.companyId || window._user?.uid;
-          const _ctrId = window._custCounterId(_cid);
-          const _pfx = window._custIdPrefix();
+          // Platform-identity veto (company-profile.js _custIdMint).
+          const _mint = window._custIdMint(_cid);
+          if (!_mint) throw new Error('tenant brand not set — customer-ID mint skipped (platform-identity veto)');
+          const _ctrId = _mint.counterId;
+          const _pfx = _mint.prefix;
           const counterRef = doc(db, 'counters', _ctrId);
           const custId = await runTransaction(db, async (tx) => {
             const snap = await tx.get(counterRef);

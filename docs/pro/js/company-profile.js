@@ -964,6 +964,26 @@
     return 'customerIds_' + String(companyId || window._custIdPrefix() || '').toLowerCase();
   };
 
+  // ── Customer-ID mint plan: the ONE entry point every client mint site uses ──
+  // Returns { prefix, counterId } for the tenant that owns the lead, or null
+  // when the mint must be SKIPPED. PLATFORM-IDENTITY VETO (2026-09-29):
+  // _custIdPrefix/_custCounterId gate on _isNbdBrand(), which is true for ANY
+  // tenant that never set brand.legalName — a real state (provisioning-retry.js)
+  // — so a hydrated but un-provisioned contractor minted an un-salted
+  // 'NBD-####' from NBD's shared counters/customerIds sequence. That is NBD's
+  // identity on another tenant's customer, and it never self-heals (mints only
+  // run while customerId is absent). Same test as the server mint
+  // (functions/customer-id-mint.js resolveLeadMint) and _tenantFilePrefix
+  // above: NBD format only when companyId IS the NBD owner; otherwise skip —
+  // a later visit mints correctly once the tenant sets its brand.
+  window._custIdMint = function (companyId) {
+    const cid = companyId ? String(companyId) : '';
+    if (!cid) return null;
+    const OWNER = window.__NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+    if (_isNbdBrand(_resolveBrand()) && cid !== OWNER) return null;
+    return { prefix: window._custIdPrefix(), counterId: window._custCounterId(cid) };
+  };
+
   // ── Customer-ID salt (defense-in-depth against prefix collision) ──
   // The prefix registry (docPrefixes/{PREFIX}, enforced by reserveCompanyPrefix)
   // makes prefixes globally unique, which alone makes every customerId unique.

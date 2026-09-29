@@ -152,10 +152,12 @@ function loadCompanyProfile() {
   console.log('\nMint-site hydration gates (customer/dashboard bootstraps)');
   for (const rel of ['customer-bootstrap.module.js', 'dashboard-bootstrap.module.js']) {
     const src = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js', rel), 'utf8');
-    const mintBlocks = src.split(/_custCounterId\(/).length - 1;
+    // Mint sites route through _custIdMint( since 2026-09-29 (platform-identity
+    // veto — pinned in tests/cust-id-platform-veto.test.js).
+    const mintBlocks = src.split(/_custIdMint\(/).length - 1;
     ok(rel + ': every mint gates on _companyProfileLoaded',
       mintBlocks > 0
-      && (src.match(/_companyProfileLoaded !== true[\s\S]{0,900}?_custCounterId\(/g) || []).length === mintBlocks);
+      && (src.match(/_companyProfileLoaded !== true[\s\S]{0,900}?_custIdMint\(/g) || []).length === mintBlocks);
     ok(rel + ": no 'NBD' / 'customerIds' typeof fallback at a mint site",
       !/typeof window\._custCounterId === 'function'\) \? [^:]+ : 'customerIds'/.test(src)
       && !/typeof window\._custIdPrefix === 'function'\) \? [^:]+ : 'NBD'/.test(src)

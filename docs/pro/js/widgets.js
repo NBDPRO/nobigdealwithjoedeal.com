@@ -467,6 +467,28 @@ const WIDGETS = [
   // read of the tenant's own Product Library pricing) ever lands, re-add it
   // then — pointed at that source. Until then, no widget beats a lying one.
 
+  // Yard signs out in the field — how many, and how many are due back.
+  // Reads the same yardSigns docs the Yard Signs view writes; the pickup
+  // math is NBDYardSignLogic's when that bundle is loaded, else a plain
+  // dueAt <= now count (the widget must not pull the Leaflet bundle).
+  {id:'yard-signs', name:'Yard Signs', icon:'🪧', cat:'Operations', size:'sm',
+    async render(el){
+      el.innerHTML = '<div class="w-empty">Loading…</div>';
+      try {
+        const uid = window._user && window._user.uid;
+        if (!uid || !window.db || !window.getDocs) { el.innerHTML = '<div class="w-empty">Sign in to see signs</div>'; return; }
+        const snap = await window.getDocs(window.query(window.collection(window.db, 'yardSigns'),
+          window.where('userId', '==', uid), window.where('status', '==', 'out')));
+        const now = Date.now();
+        let out = 0, due = 0;
+        snap.forEach(d => { out++; const v = d.data(); const t = v.dueAt && v.dueAt.toMillis ? v.dueAt.toMillis() : Number(v.dueAt) || 0;
+          if (t && t <= now + 86400000) due++; });
+        el.innerHTML = '<div class="w-big-num">' + out + '</div><div class="w-sub">' + (out === 1 ? 'sign' : 'signs') + ' out'
+          + (due ? ' · <strong>' + due + ' due for pickup</strong>' : '') + '</div>';
+      } catch (e) { el.innerHTML = '<div class="w-empty">Could not load signs</div>'; }
+    }
+  },
+
   {id:'team-leaderboard', name:'Team Leaderboard', icon:'🥇', cat:'Operations', size:'sm',
     render(el){
       // REAL data. This used to render three invented reps — "Joe Deal $48.5k
@@ -887,6 +909,38 @@ async function _homeHydrate() {
     const localTasks = _cleanTasks(_readLocal(HOME_TASKS_KEY));
     if (localTasks && localTasks.length) up.homeTasks = localTasks;
   }
+  // Daily Success settings ride on the same doc (ds-firebase-sync.js writes
+  // them from the program page). The North Star / Daily Floors / Golden Goose
+  // widgets read nbd_ds_config, which sign-out wipes — restore it here so they
+  // don't sit on placeholders until the program page is opened.
+  const dsKeys = [['nbd_user_config', 'dsConfig'], ['nbd_gt', 'dsGoalTargets']];
+  for (const [key, field] of dsKeys) {
+    const cv = data[field];
+    const cloudAt = Number(data[field + 'At']) || 0;
+    const localVal = _readLocal(key);
+    const localAt = Number(localStorage.getItem(key + '_at')) || 0;
+    if (cv && typeof cv === 'object' && (localVal == null || cloudAt > localAt)) {
+      if (JSON.stringify(cv) !== JSON.stringify(localVal)) {
+        _writeLocal(key, cv);
+        try { localStorage.setItem(key + '_at', String(cloudAt || Date.now())); } catch (e) {}
+        if (key === 'nbd_user_config') {
+          // Same shape as ds-sync-logic.js widgetCfgFrom / app.js syncToWidgetKeys.
+          const ns = cv.northStar || {};
+          _writeLocal('nbd_ds_config', {
+            northStar: ns.target || ns.category || '',
+            northStarDeadline: ns.deadline || '',
+            floors: (cv.floors || []).map(f => ({ label: f.label, target: parseFloat(f.targetValue) || 1, unit: f.unit || '' })),
+            goldenGoose: cv.goose || '',
+          });
+        }
+        changed = true;
+      }
+    } else if (localVal && typeof localVal === 'object' && (!cv || localAt > cloudAt)) {
+      // First backup of settings that only ever lived on this device.
+      up[field] = localVal;
+      up[field + 'At'] = localAt || Date.now();
+    }
+  }
   if (Object.keys(up).length) _homeCloudSave(up);
   if (changed) renderWidgetHome();
 }
@@ -1131,7 +1185,7 @@ function renderWidgetHome() {
       // 'material-watch' dropped with the widget itself (see above). This map
       // is keyed by widget id, so a stale entry is harmless — removed anyway so
       // the next reader doesn't go looking for a widget that isn't there.
-      'today-schedule': 'schedule'
+      'today-schedule': 'schedule', 'yard-signs': 'signs'
     };
     const card = document.createElement('div');
     card.className = 'w-card w-' + w.size;
