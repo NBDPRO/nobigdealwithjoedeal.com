@@ -2,8 +2,8 @@
  * tests/workout-coach-2026-09-29.test.js
  *
  * The Workout Coach (tracker revamp Phase 1). Jo's ask: keep the training
- * varied (he repeats himself without a plan) while tracking reps / weight /
- * intensity and telling him what to beat. Pins the pure rules in
+ * varied (without a plan the same routines repeat) while tracking reps /
+ * weight / intensity and showing what to beat. Pins the pure rules in
  * docs/pro/daily-success/js/workout-coach-logic.js.
  *
  * Run: node tests/workout-coach-2026-09-29.test.js
