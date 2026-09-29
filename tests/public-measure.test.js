@@ -107,6 +107,27 @@ section('an automatically measured web lead is billable like any other');
     /passThruHasDocument: false/.test(src));
 }
 
+section('only a BRIDGE-created lead may spend or write back (client-set fields are not trusted)');
+if (PM && PM._test && PM._test.bridgedEstimateId) {
+  const B = require(path.join(FUNCTIONS, 'lead-bridge-logic.js'));
+  const f = PM._test.bridgedEstimateId;
+  // Positive control: the bridge's OWN mapper + id for a real estimate lead.
+  const srcId = 'aB3xYz09QrStUvWx12Cd';
+  const real = B.mapPublicLeadToLead({ collection: 'estimate_leads', sourceId: srcId, data: { name: 'ZZ_QA Test', address: '1 Test St' }, ownerUid: 'o1', companyId: 'c1' });
+  const realId = B.bridgeDocId('estimate_leads', srcId);
+  ok('a real bridged estimate lead passes (positive control — the gate did not switch the feature off)', f(real, realId) === srcId);
+  ok('a hand-made lead with the same fields but its own doc id is refused', f(real, 'clientChosenId') === null);
+  ok('a lead aiming the write at another collection is refused',
+    f(Object.assign({}, real, { publicLeadCollection: 'users', publicLeadId: 'victimUid' }), B.bridgeDocId('users', 'victimUid')) === null);
+  ok('a path-shaped public id is refused', f(Object.assign({}, real, { publicLeadId: 'x/../../users/victim' }), 'estimate_leads__x/../../users/victim') === null);
+  ok('non-estimate / non-web leads are refused', f(Object.assign({}, real, { publicLeadKind: 'contact' }), realId) === null && f(Object.assign({}, real, { webLead: false }), realId) === null);
+  ok('the paid trigger checks it before spending', src.indexOf('bridgedEstimateId(lead, leadId)') > 0 && src.indexOf('bridgedEstimateId(lead, leadId)') < src.indexOf('isWebLeadMeasureDisabled()'));
+  ok('the write-back uses the fixed collection, never a path read off the lead',
+    /db\.collection\(ESTIMATE_COLLECTION\)\.doc\(pubId\)/.test(src) && !/db\.doc\(`\$\{coll\}/.test(src) && !/lead\.publicLeadCollection;/.test(src));
+} else {
+  ok('bridgedEstimateId exported on the test seam', false);
+}
+
 section('publicSummary — only homeowner-safe fields cross the line');
 if (PM && PM._test) {
   const full = {

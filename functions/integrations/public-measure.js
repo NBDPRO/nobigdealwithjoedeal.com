@@ -38,6 +38,28 @@ const { SECRETS, PROVIDERS } = require('./_shared');
 const IR = require('./instantroofer-logic');
 const measurement = require('./measurement');
 const { isWebLeadMeasureDisabled } = require('./killswitch');
+const { bridgeDocId } = require('../lead-bridge-logic');
+
+// ─── Only a lead the BRIDGE created may spend or write back ───
+// A lead's publicLeadCollection / publicLeadId / webLead / publicLeadKind are
+// plain fields a signed-in client can set on any lead it creates. Trusting them
+// let a client (a) trigger the paid measurement for a hand-made lead and
+// (b) aim the Admin-SDK write below at ANY `${collection}/${id}` in the
+// database. The bridge writes its leads under a deterministic id
+// (lead-bridge-logic bridgeDocId), the same proof lead-alert.js uses for
+// Thumbtack. So: the collection is fixed, the id is validated, and the lead's
+// own doc id must be the bridge id for that public doc. Returns the public
+// estimate_leads id, or null.
+const ESTIMATE_COLLECTION = 'estimate_leads';
+function bridgedEstimateId(lead, leadId) {
+  const l = lead || {};
+  if (l.webLead !== true || l.publicLeadKind !== 'estimate') return null;
+  if (l.publicLeadCollection !== ESTIMATE_COLLECTION) return null;
+  const pubId = String(l.publicLeadId || '');
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(pubId)) return null;
+  if (String(leadId || '') !== bridgeDocId(ESTIMATE_COLLECTION, pubId)) return null;
+  return pubId;
+}
 const { rateLimitIpKey, clientIp } = require('../rate-limit');
 
 // A ceiling on AUTOMATED spend, independent of the per-rep and per-account
@@ -215,10 +237,10 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
   }
 
   // Copy the safe subset where the anonymous wizard can reach it.
-  const coll = lead.publicLeadCollection;
-  const pubId = lead.publicLeadId;
-  if (summary && coll && pubId) {
-    await db.doc(`${coll}/${pubId}`).set({
+  // Fixed collection + a bridge-proven id — never a path read off the lead.
+  const pubId = bridgedEstimateId(lead, leadId);
+  if (summary && pubId) {
+    await db.collection(ESTIMATE_COLLECTION).doc(pubId).set({
       publicMeasurement: summary,
       publicMeasurementAt: FieldValue.serverTimestamp()
     }, { merge: true }).catch((e) => logger.warn('public-measure: public copy failed', { pubId, err: e.message }));
@@ -251,6 +273,11 @@ exports.measureNewWebLead = onDocumentCreated(
 
     if (lead.webLead !== true) return;
     if (lead.publicLeadKind !== 'estimate') return;
+    // Paid call: only for a lead the bridge itself created (see bridgedEstimateId).
+    if (!bridgedEstimateId(lead, leadId)) {
+      logger.warn('public-measure: not a bridged estimate lead — no measurement', { leadId });
+      return;
+    }
     if (!IR.validateCoords(lead.lat, lead.lng).ok) {
       logger.info('public-measure: web lead has no usable coordinates, skipping', { leadId });
       return;
@@ -343,6 +370,6 @@ exports.publicRoofMeasure = onRequest(
   }
 );
 
-exports._test = { publicSummary, measureLeadAndPublish, PUBLIC_WAIT_MS, PUBLIC_POLL_MS, corsOrigin, AUTO_MEASURE_DAILY_CAP };
+exports._test = { publicSummary, measureLeadAndPublish, bridgedEstimateId, PUBLIC_WAIT_MS, PUBLIC_POLL_MS, corsOrigin, AUTO_MEASURE_DAILY_CAP };
 
 module.exports = exports;
