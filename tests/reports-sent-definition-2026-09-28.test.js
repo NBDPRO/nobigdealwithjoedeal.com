@@ -102,6 +102,39 @@ const ests = [
   ok('an estimate sent BEFORE the window is not counted as sent in it', r && r.estimateCount === 0);
 }
 
+// ── 2026-09-29: the funnel counts LEADS at their furthest step ──
+function computeRoles(leads, ests, roles) {
+  const ctx = { window: { _leads: leads, _estimates: ests, stageRole: (k) => roles[k] || 'active' } };
+  vm.createContext(ctx);
+  const code = ['_toMillis', '_sentMs', '_computeWindow'].map((n) => extractFn(SRC, n)).join('\n')
+    + '\nglobalThis.__r = _computeWindow(' + (NOW - 30 * DAY) + ', ' + NOW + ');';
+  vm.runInContext(code, ctx);
+  return ctx.__r;
+}
+console.log('\nREPORTS — the funnel counts leads (2026-09-29)');
+{
+  const roles = { contract_signed: 'job', closed: 'won', final_payment: 'won', lost: 'lost', new: 'new' };
+  const c = ts('2026-09-20T12:00:00Z');
+  // The rep on the emulator: three won jobs signed on paper, no e-signed estimate.
+  const r = computeRoles([
+    { id: 'W1', createdAt: c, stage: 'contract_signed' },
+    { id: 'W2', createdAt: c, stage: 'closed' },
+    { id: 'W3', createdAt: c, stage: 'final_payment' },
+    { id: 'N1', createdAt: c, stage: 'new' },
+    { id: 'X1', createdAt: c, stage: 'lost' },
+    { id: 'M1', createdAt: c, stage: 'estimate_sent' },
+  ], [
+    { leadId: 'M1', sentAt: ts('2026-09-21T12:00:00Z') },
+    { leadId: 'M1', sentAt: ts('2026-09-22T12:00:00Z') },
+    { leadId: 'M1', sentAt: ts('2026-09-23T12:00:00Z') },
+  ], roles);
+  const f = r && r.funnel;
+  ok('won / signed-job leads count as Signed without an e-signed estimate', f && f.signed === 3, f && JSON.stringify(f));
+  ok('three estimates on one lead count as ONE sent lead', f && f.estimateSent === 4, f && ('sent=' + f.estimateSent + ' (3 signed + 1)'));
+  ok('a lead lost straight from New is not "inspected"', f && f.inspected === 4, f && ('inspected=' + f.inspected));
+  ok('every row is a subset of the one above', f && f.leads >= f.inspected && f.inspected >= f.estimateSent && f.estimateSent >= f.estimateViewed && f.estimateViewed >= f.signed);
+}
+
 console.log('\n──────────────────────');
 console.log(passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }
