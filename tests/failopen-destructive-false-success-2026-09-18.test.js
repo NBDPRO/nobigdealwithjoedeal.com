@@ -1116,6 +1116,36 @@ console.log('\n8. close-board.js — a delete wins over an updateDeal sync that 
   }
 }
 
+console.log('\n9. close-board.js — an accepted deal is a signed record (2026-09-28)');
+{
+  // Local copy as it looks after a reload: hydrate stored the server's
+  // acceptedAt Timestamp, and localStorage JSON turned it into a plain map.
+  const acc = fullDeal({ id: 'acc1', userId: 'u1', status: 'accepted', acceptedTier: 'better', acceptedPrice: 11000,
+    acceptedSignature: 'data:image/png;base64,AAAA', acceptedVia: 'remote', acceptedAt: { seconds: 1790000000, nanoseconds: 0 } });
+  const t = loadCloseBoard({ deals: [acc] });
+  await flush();
+  t.CB.updateDeal('acc1', { notes: 'call before install' });
+  await flush();
+  const w = t.calls.updateDocs.concat(t.calls.setDocs).find((c) => c.path === 'deal_rooms/acc1');
+  ok('editing an accepted deal still syncs its notes', !!w && w.data.notes === 'call before install');
+  ok('...without echoing the server-owned acceptance fields (the rules lock them)',
+    !!w && ['acceptedTier', 'acceptedPrice', 'acceptedFinancing', 'acceptedSignature', 'acceptedAt', 'acceptedVia'].every((k) => !(k in w.data)));
+  ok('...and the local copy keeps them for display', t.deal('acc1').acceptedPrice === 11000);
+  const r = await t.CB.deleteDeal('acc1');
+  ok('deleteDeal refuses an accepted deal (no deleteDoc, still listed)', r === false && t.calls.deleteDocs.length === 0 && t.ids() === 'acc1');
+  t.CB.render();
+  const html = t.sandbox.document.getElementById('view-closeboard').innerHTML;
+  // One deal per board: the harness's esc() renders ids as "", so match the action.
+  ok('the row offers no Delete, shows "On record"', /On record/.test(html) && !/data-cb-action="remove"/.test(html));
+  ok('...and no "Expires" date (a signed deal does not lapse)', /Created /.test(html) && !/Expires/.test(html));
+  const t2 = loadCloseBoard({ deals: [fullDeal({ id: 'open1', userId: 'u1', status: 'sent' })] });
+  await flush();
+  t2.CB.render();
+  ok('control: an open deal still shows its expiry', /Expires/.test(t2.sandbox.document.getElementById('view-closeboard').innerHTML));
+  ok('control: an open deal still has its Delete button',
+    /data-cb-action="remove"/.test(t2.sandbox.document.getElementById('view-closeboard').innerHTML));
+}
+
 finished = true;
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('Failures:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1); }
