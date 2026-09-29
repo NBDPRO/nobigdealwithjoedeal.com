@@ -219,6 +219,8 @@ All merged, each with a test that fails on the old code (BUG-LOG R14-01 … R14-
 
 **Same class, found auditing `purgeAccountStorage`:** **#1865**. The Home layout and Task Checklist now survive sign-out (R14-22). **#1866**: the Reports funnel counts leads, so won jobs show as Signed (R14-23). The Streak and Daily Floors widgets read 0 after sign-out until Daily Tracker is opened (it re-pulls from `ds_pages`); left as is.
 
+**Later, same round:** **#1867**: the profit panel shows no margin without costs (R14-24). **#1868**: phone header chips wrap (R14-25). **#1869**: security, 12 unescaped HTML sinks including a public-form lead name executing in Cmd-K (R14-26). **#1870**: the public form strips `<>` (R14-27). The self-only `maps-routing.js` report title is left as is.
+
 **Questions for Jo:** Insurance Claim Progress on cash jobs, the public audit run logs, and the Bland balance.
 
 **Rig notes (memory):**
