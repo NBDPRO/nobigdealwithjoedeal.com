@@ -129,3 +129,29 @@ on these answers.
    bodyweight into the new model with a dry-run preview first, and keep the old
    pages readable. The history is what makes the progression charts and
    "last time" targets useful from day one.
+
+### Update 2026-09-29 — Phase 3 (weight) and Phase 4 (lifts) shipped
+
+- **Weight card** (`js/tracker-history-ui.js`, rules in
+  `js/tracker-history-logic.js`). It reads the weight box that day pages
+  already have (Body Metrics → `data['bm-wt']`), so there is no new place to
+  type.
+  - It shows the latest reading, the 7-day average, and how that average moved
+    against last week and against 30 days ago, with a sparkline.
+  - Readings outside 60–700 lb are treated as typos.
+  - It sits on the program dashboard and on top of each day page's Fitness
+    section.
+- **Old workouts → coach.** The Fitness section offers "Bring N days of old
+  workouts into the coach". It shows a preview first (days, lifts, recognized,
+  and the names it could not recognize), then imports on tap.
+  - Recognized names map to the coach library through an alias table, then
+    exact name, then word overlap. It never guesses a tie.
+  - Unrecognized names are kept under their own names, so no history is lost,
+    but they do not drive targets.
+  - Session ids are `imp_<pageId>`, so re-running imports nothing twice.
+  - Sessions go to `nbd_ds_workouts` and the `ds_workouts` cloud mirror.
+- Not migrated: the old free-typed PR strings, which the coach recomputes from
+  sessions, and diet rows (food logging is still unanswered).
+- Test: [tracker-weight-history](../../tests/tracker-weight-history-2026-09-29.test.js)
+  (34 checks). Verified on the emulator with synthetic pages: 9 days imported,
+  and a re-run found 0.
