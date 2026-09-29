@@ -589,14 +589,17 @@ async function loadCustomerData(id) {
           await window._loadCompanyProfile();
         }
         if (window._companyProfileLoaded !== true
-            || typeof window._custCounterId !== 'function'
-            || typeof window._custIdPrefix !== 'function'
+            || typeof window._custIdMint !== 'function'
             || typeof window._formatCustomerId !== 'function') {
           throw new Error('company profile not hydrated — customer-ID mint skipped this visit');
         }
         const _cid = (lead && lead.companyId) || (window._user && window._user.uid);
-        const _ctrId = window._custCounterId(_cid);
-        const _pfx = window._custIdPrefix();
+        // Platform-identity veto (company-profile.js _custIdMint): null for a
+        // non-NBD tenant whose brand still resolves as NBD — skip, never 'NBD-'.
+        const _mint = window._custIdMint(_cid);
+        if (!_mint) throw new Error('tenant brand not set — customer-ID mint skipped (platform-identity veto)');
+        const _ctrId = _mint.counterId;
+        const _pfx = _mint.prefix;
         const counterRef = doc(db, 'counters', _ctrId);
         const newId = await runTransaction(db, async (transaction) => {
           const counterSnap = await transaction.get(counterRef);
