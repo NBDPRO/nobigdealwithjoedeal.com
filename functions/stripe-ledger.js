@@ -51,8 +51,9 @@ const CORS_ORIGINS = ['https://nobigdealwithjoedeal.com', 'https://www.nobigdeal
 let _stripe = null;
 function stripeClient() {
   if (_stripe) return _stripe;
-  const key = String(STRIPE_SECRET_KEY.value() || '').trim();
-  if (!key || key === '__unset__') throw new Error('STRIPE_SECRET_KEY not configured');
+  const { secretValue } = require('./integrations/_shared'); // '__unset__' stub / blank → null
+  const key = secretValue(STRIPE_SECRET_KEY);
+  if (!key) throw new Error('STRIPE_SECRET_KEY not configured');
   const Stripe = require('stripe');
   _stripe = new Stripe(key, { apiVersion: API_VERSION, maxNetworkRetries: 2, timeout: 20000 });
   return _stripe;

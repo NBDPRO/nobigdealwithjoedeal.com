@@ -386,8 +386,9 @@ function mirrorInvoice(src, lead, companyId, nowMs) {
   const isInv = src && src.object === 'invoice';
   const lines = isInv ? ((src.lines && src.lines.data) || []) : [];
   const items = lines.length
-    ? lines.map((l) => ({ description: l.description || 'Item', quantity: l.quantity || 1, rate: (l.amount || 0) / 100 / (l.quantity || 1), amount: (l.amount || 0) / 100 }))
-    : [{ description: (src && src.description) || 'Stripe payment', quantity: 1, rate: ((src && (src.amount_captured || src.amount)) || 0) / 100, amount: ((src && (src.amount_captured || src.amount)) || 0) / 100 }];
+    // The CRM invoice line shape (invoice-pipeline.js): unitPrice + total.
+    ? lines.map((l) => ({ description: l.description || 'Item', quantity: l.quantity || 1, unitPrice: Math.round((l.amount || 0) / (l.quantity || 1)) / 100, total: (l.amount || 0) / 100 }))
+    : [{ description: (src && src.description) || 'Stripe payment', quantity: 1, unitPrice: ((src && (src.amount_captured || src.amount)) || 0) / 100, total: ((src && (src.amount_captured || src.amount)) || 0) / 100 }];
   const totalC = isInv ? (src.total || 0) : ((src && (src.amount_captured || src.amount)) || 0);
   const createdMs = ((src && src.created) || Math.floor(nowMs / 1000)) * 1000;
   return {

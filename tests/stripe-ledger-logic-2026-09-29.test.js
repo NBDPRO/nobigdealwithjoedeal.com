@@ -162,6 +162,7 @@ console.log('\n6. NBD invoice numbers + mirrored CRM invoices');
   ok('mirror: the lead, the lines, the total, owed until credited', m.leadId === 'L1' && m.items.length === 3 && m.total === 1825 && m.balanceDue === 1825 && m.amountPaid === 0);
   ok('mirror: a real Stripe invoice id + links + NBD number, marked source=stripe', m.stripeInvoiceId === 'in_M' && m.stripeHostedUrl && m.stripePdfUrl && m.nbdInvoiceNumber === 'NBD-2026-0917-ZQAL' && m.source === 'stripe');
   ok('mirror: tenant-stamped for the rules', m.companyId === 'OWNER' && m.createdBy === 'OWNER');
+  ok('mirror: lines in the CRM shape (unitPrice + total — the detail view reads these)', m.items[0].unitPrice === 1800 && m.items[0].total === 1800 && m.items[2].total === -100 && !('rate' in m.items[0]));
   ok('mirror: dated when Stripe created it, not today', m.createdAt.getTime() === 1789652222000);
   const bare = L.mirrorInvoice({ object: 'charge', amount: 45000, amount_captured: 45000, created: 1787781726, description: null }, leads[5], 'OWNER', 1);
   ok('mirror of a bare charge (payment link, no invoice): one line for the amount', bare.items.length === 1 && bare.total === 450 && bare.stripeInvoiceId === null);
