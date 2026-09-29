@@ -162,5 +162,32 @@ console.log('\nEstimate preview sheet (estimate-preview.js)');
   ok('money prints cents when there are any ($4,271.61, not $4,272)', EP._money(4271.61) === '$4,271.61' && EP._money(4600) === '$4,600');
 }
 
+// ── 5. saved docs carry unrounded floats: the rows must foot AS PRINTED ──
+// A real Job Template estimate on the emulator: subtotal 1019.175, tax
+// 79.49565, total 1100. Printed Subtotal $1,019.18 + Tax $79.50 needs
+// Rounding $1.32, not $1.33 (float math said 1.32935 → $1.33 → $1,100.01).
+console.log('\nUnrounded saved floats foot to the cent as printed');
+{
+  const F = { subtotal: 1019.175, tax: 79.49565, total: 1100 };
+  const cents = (s) => Math.round(Number(String(s).replace(/[^\d.]/g, '')) * 100) * (/^[−-]/.test(String(s).trim()) ? -1 : 1);
+  const win = {}; win.window = win;
+  vm.runInNewContext(read('docs/pro/js/estimate-preview.js'), { window: win, document: { getElementById: () => null, addEventListener() {}, removeEventListener() {} }, console: quiet, Math, JSON, Number, String, isFinite }, { filename: 'estimate-preview.js' });
+  const EP = win.EstimatePreview;
+  const pv = EP._adjustmentRow(EP._normalize({ rows: [], subtotal: F.subtotal, tax: F.tax, grandTotal: F.total })).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  ok('estimate sheet: "Rounding $1.32"', pv === 'Rounding $1.32', pv);
+  const jt = JT._totalsAdjustmentRow({ subtotal: F.subtotal, tax: F.tax, total: F.total });
+  ok('Job Templates preview: "Rounding $1.32"', /<span>Rounding<\/span><span>\$1\.32<\/span>/.test(jt), jt);
+  const p = T.buildEstimatePayload('retail-quote', { method: 'line-item', tier: 'better', mode: 'retail', priceMode: 'line-item', lines, overhead: 0, profit: 0, subtotal: F.subtotal, tax: F.tax, taxRate: 0.078, total: F.total }, meta);
+  const html = tpl(Object.assign({ company: { footerName: 'NBD Co', seal: 'Estimate' } }, p));
+  const sub = /Subtotal<\/td>\s*<td class="num money">([^<]*)</.exec(html), tax = /Tax<\/td>\s*<td class="num money">([^<]*)</.exec(html), adj = ROW.exec(html), tot = /<div class="total-amount">([^<]*)</.exec(html);
+  ok('Retail Quote PDF: printed Subtotal + Tax + Rounding = printed Total',
+    sub && tax && adj && tot && cents(sub[1]) + cents(tax[1]) + cents(adj[2]) === cents(tot[1]),
+    [sub && sub[1], tax && tax[1], adj && adj[2], tot && tot[1]].join(' | '));
+  const ins = FIN.formatEstimate({ method: 'line-item', tier: 'better', mode: 'insurance', lines, materialMarkupPct: 0, retailBeforeOHP: F.subtotal,
+    overhead: 0, overheadPct: 0, profit: 0, profitPct: 0, subtotal: F.subtotal, tax: F.tax, taxRate: 0.078, total: F.total, minJobApplied: false },
+  'insurance-scope', { customer: { name: 'ZZ_QA Jane' }, claim: {}, estimate: { date: '2026-09-28' } }).html || '';
+  ok('insurance scope: "Rounding $1.32"', />Rounding<[\s\S]{0,200}?>\$1\.32</.test(ins));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

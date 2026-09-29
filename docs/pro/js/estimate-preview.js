@@ -54,7 +54,8 @@
   // Only alongside a printed Subtotal row.
   function adjustmentRow(v) {
     if (v.subtotal == null || v.total == null || v.subtotal === v.total) return '';
-    var adj = Math.round((v.total - v.subtotal - (v.tax || 0)) * 100) / 100;
+    // In cents from the printed (cent-rounded) figures, so the rows foot as shown.
+    var adj = (Math.round((v.total) * 100) - Math.round((v.subtotal) * 100) - Math.round((v.tax || 0) * 100)) / 100;
     if (!adj) return '';
     return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--m,#98a0ab);"><span>' +
       ((v.minJobApplied && adj > 0) ? 'Minimum job charge adjustment' : 'Rounding') + '</span><span>' +

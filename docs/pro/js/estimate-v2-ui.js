@@ -3817,7 +3817,8 @@
       // total to the nearest $25 (either way) and lifts it to the shop
       // minimum. Print the difference as its own row so the ladder adds up.
       ...(() => {
-        const diff = Math.round((Number(estimate.total || 0) - Number(estimate.subtotal || 0) - Number(estimate.tax || 0)) * 100) / 100;
+        // In cents from the printed (cent-rounded) figures, so the rows foot as shown.
+        const diff = (Math.round((Number(estimate.total || 0)) * 100) - Math.round((Number(estimate.subtotal || 0)) * 100) - Math.round((Number(estimate.tax || 0)) * 100)) / 100;
         if (!diff) return { rounding: 0 };
         return {
           rounding: diff,

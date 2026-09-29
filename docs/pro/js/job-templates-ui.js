@@ -2245,7 +2245,8 @@
   // proposal's rows foot to its Total.
   function totalsAdjustmentRow(totals) {
     if (!totals || totals.total == null || totals.subtotal == null) return '';
-    var adj = Math.round((totals.total - totals.subtotal - (totals.tax || 0)) * 100) / 100;
+    // In cents from the printed (cent-rounded) figures, so the rows foot as shown.
+    var adj = (Math.round((totals.total) * 100) - Math.round((totals.subtotal) * 100) - Math.round((totals.tax || 0) * 100)) / 100;
     if (!adj) return '';
     return '<div class="r"><span>' + ((totals.minApplied && adj > 0) ? 'Minimum job charge adjustment' : 'Rounding') +
       '</span><span>' + (adj < 0 ? '−' : '') + esc(money(Math.abs(adj))) + '</span></div>';

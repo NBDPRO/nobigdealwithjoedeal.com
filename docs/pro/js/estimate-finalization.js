@@ -641,7 +641,8 @@
     // RCV is Subtotal + Tax rounded to the nearest $25 (either way), then
     // lifted to the shop minimum. Show that difference so Subtotal → RCV
     // reads as an honest ladder instead of an unexplained jump.
-    const adj = Math.round((rcv - (Number(estimate.subtotal) || 0) - (Number(estimate.tax) || 0)) * 100) / 100;
+    // In cents from the printed (cent-rounded) figures, so the rows foot as shown.
+    const adj = (Math.round((Number(rcv) || 0) * 100) - Math.round((Number(estimate.subtotal) || 0) * 100) - Math.round((Number(estimate.tax) || 0) * 100)) / 100;
     if (adj) {
       const label = (estimate.minJobApplied && adj > 0) ? 'Minimum Job Charge Adjustment' : 'Rounding';
       summaryRows.push([label, (adj < 0 ? '−' : '') + fmtMoney(Math.abs(adj))]);
