@@ -74,6 +74,22 @@ console.log('\n2. merging: deletes stick, the newer copy wins');
   ok('a page the cloud has tombstoned is dropped from this device', del.pages.length === 1 && del.pages[0].id === 8);
   ok('...and reported as removed + cloud-deleted', del.removed.join() === '9' && del.cloudDeleted.join() === '9');
 
+  // After sign-out the device is empty, so loadPages() makes a blank today
+  // page before the cloud answers — the old merge kept it beside the real one.
+  const blank = { id: 111, dk: '2026-09-29', suf: 1, name: '', data: {}, kpi: { doors: 0, closes: 0 }, exercises: [], objections: [], commissions: [] };
+  const real = { id: 222, dk: '2026-09-29', suf: 1, name: '', data: { 'l-win': 'closed Kim' }, kpi: { doors: 40 } };
+  const signIn = L.mergePages([blank], [real], []);
+  ok('sign-in: the blank auto page does not duplicate the real day from the cloud',
+    signIn.pages.length === 1 && signIn.pages[0].id === 222 && signIn.removed.join() === '111');
+  ok('a blank page on a day the cloud has NO page is kept', L.mergePages([blank], [pg(5, '2026-09-28')], []).pages.length === 2);
+  ok('a page with anything typed is never treated as blank',
+    !L.isBlankAutoPage(Object.assign({}, blank, { data: { 'l-p1': 'x' } })) && !L.isBlankAutoPage(Object.assign({}, blank, { kpi: { doors: 1 } }))
+    && !L.isBlankAutoPage(Object.assign({}, blank, { exercises: [{ name: 'Bench', sets: '' }] })));
+  ok('a deliberate second entry (suf 2) or a named page is never treated as blank',
+    !L.isBlankAutoPage(Object.assign({}, blank, { suf: 2 })) && !L.isBlankAutoPage(Object.assign({}, blank, { name: 'Gym' })));
+  ok('the same blank page already IN the cloud is left alone (merge never drops cloud data)',
+    L.mergePages([blank], [blank], []).pages.length === 1);
+
   const localTomb = L.mergePages([pg(8, 'd')], [pg(8, 'd'), pg(10, 'f')], ['10']);
   ok('a page deleted here (tombstone not yet pushed) is NOT resurrected by the cloud', localTomb.pages.map((p) => p.id).join() === '8');
 }

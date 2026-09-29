@@ -81,11 +81,33 @@
    * Returns { pages (sorted by day), removed: ids dropped from local,
    *           cloudDeleted: ids the cloud has tombstoned }.
    */
+  // The page app.js loadPages() creates when localStorage is empty — the state
+  // after every sign-out. Untouched: no name, first entry of its day, nothing
+  // typed, no KPI counted.
+  function isBlankAutoPage(p) {
+    if (!p || p.name || (p.suf && p.suf !== 1)) return false;
+    const vals = Object.values(p.data || {});
+    if (vals.some((v) => v != null && String(v).trim() !== '')) return false;
+    if (Object.values(p.kpi || {}).some((v) => Number(v) > 0)) return false;
+    const rows = [].concat(p.exercises || [], p.objections || [], p.commissions || []);
+    return !rows.some((r) => r && Object.values(r).some((v) => v != null && String(v).trim() !== ''));
+  }
+
   function mergePages(local, cloud, tombstones) {
     const tomb = new Set((tombstones || []).map(String));
     const cloudDeleted = [];
     const map = new Map();
-    for (const p of local || []) if (p && !tomb.has(idOf(p))) map.set(idOf(p), p);
+    const cloudIds = new Set();
+    const cloudDays = new Set();
+    for (const cp of cloud || []) if (cp && !cp.deleted) { cloudIds.add(idOf(cp)); cloudDays.add(cp.dk); }
+    for (const p of local || []) {
+      if (!p || tomb.has(idOf(p))) continue;
+      // Every sign-in used to add a second, empty "today": the blank page
+      // loadPages() makes for an empty device, next to the real one from the
+      // cloud. A blank local-only page loses to a cloud page on the same day.
+      if (!cloudIds.has(idOf(p)) && cloudDays.has(p.dk) && isBlankAutoPage(p)) continue;
+      map.set(idOf(p), p);
+    }
     for (const cp of cloud || []) {
       if (!cp) continue;
       const k = idOf(cp);
@@ -157,7 +179,7 @@
     };
   }
 
-  const api = { CHUNK, snapshotOf, stampChanged, seedSnapshots, mergePages, changedSince, chunk, parseJson, pickSettings, widgetCfgFrom, mtOf };
+  const api = { CHUNK, isBlankAutoPage, snapshotOf, stampChanged, seedSnapshots, mergePages, changedSince, chunk, parseJson, pickSettings, widgetCfgFrom, mtOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDDsSync = api;
 })(typeof window !== 'undefined' ? window : null);

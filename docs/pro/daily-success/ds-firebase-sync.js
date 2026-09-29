@@ -15,6 +15,7 @@ import {
   getFirestore, doc, getDoc, setDoc, getDocs,
   collection, writeBatch, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { connectEmulatorsIfLocal } from '/pro/js/nbd-emulator-connect.js';
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",
@@ -28,6 +29,9 @@ const FIREBASE_CONFIG = {
 const fbApp = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
+// Localhost only (no-op in prod): this module can win the race against
+// nbd-auth.js and must never send an emulator session's reads to production.
+await connectEmulatorsIfLocal({ auth, db });
 
 const STORE = 'nbd_dsp_v1';
 const TOMB  = 'nbd_dsp_tomb';
