@@ -185,3 +185,36 @@ Full evidence in [THURSDAY-BLAND §10](../architecture/THURSDAY-BLAND-2026-09-26
   - R13-08: show Insurance Claim Progress on cash jobs?
   - The §4 items above (audit run logs, Bland balance / ticket) still stand.
 - **Not yet swept:** estimate builder edge cases on a phone; Settings → Team invites end to end (needs the functions emulator); the homeowner portal on a phone.
+
+## Update — 2026-09-29 (small hours): sweep round 14 — stage writers, bulk actions, warranty, leaderboards
+
+All merged, each with a test that fails on the old code (BUG-LOG R14-01 … R14-16):
+
+- **Stage writers:**
+  - **#1847** bulk move said "Moved 2" when nothing moved.
+  - **#1849** invoice payoff skipped the stage bookkeeping.
+  - **#1850** Stripe payoff dragged warranty/service jobs to Final Payment.
+  - **#1853** stage-entry tasks never reached Today / the bell (Jo: the bell volume is fine).
+  - **#1855** "next stage" could mean Lost.
+  - **#1858** a warranty claim could be resolved and then refused, orphaning the lead.
+- **Bulk / tasks:**
+  - **#1848** bulk carrier wrote a field nothing reads first.
+  - **#1851** customer-page events counted as open to-dos.
+- **Labels / reports:**
+  - **#1852** Analytics raw stage keys.
+  - **#1856** rep report paired cash with a deal count, and the Coach's Note was unstyled.
+  - **#1859** leaderboards named teammates "Teammate Y6HCf6" and split one rep in two.
+- **Customer page:**
+  - **#1857** custom stage placed after the job track; warranty reasons.
+  - **#1858** "Open full editor" opened a blank estimate; `?edit=` opened a blank new-lead form.
+- **Rig:** **#1854** customer-page callables work on the emulator (App Check shim).
+
+**Questions for Jo:**
+- Estimate totals round (`roundTo`) with no rounding line on the proposal: a template quote reads Subtotal $1,019.18 + Tax $79.50 = Total $1,100.00.
+- Customer-page Add Event entries don't appear on the Schedule view.
+- Earlier ones still stand: Insurance Claim Progress on cash jobs, the public audit run logs, and the Bland balance.
+
+**Rig notes (memory):**
+- Screenshot pixels ≠ CSS pixels: click by ref.
+- Resend rejects @example.com: use `delivered@resend.dev`.
+- One-shot boot reads can come from the Firestore cache.

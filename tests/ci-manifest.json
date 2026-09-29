@@ -20,6 +20,7 @@
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
+    "leaderboard-rep-names-2026-09-28.test.js",
     "gate-before-warranty-writes-2026-09-28.test.js",
     "customer-pipeline-order-warranty-reasons-2026-09-28.test.js",
     "next-stage-never-lost-2026-09-28.test.js",
