@@ -29,6 +29,7 @@ const CRON_GATES = [
   { name: 'WEEKLY_DIGEST_ENABLED', polarity: 'enabled', file: 'weekly-digest.js' },
   { name: 'MONTHLY_OVERHEAD_ALERT_DISABLED', polarity: 'disabled', file: 'monthly-overhead-alert.js' },
   { name: 'STRIPE_LEDGER_DISABLED', polarity: 'disabled', file: 'stripe-ledger.js' },
+  { name: 'GOOGLE_CALENDAR_SYNC_DISABLED', polarity: 'disabled', file: 'google-calendar.js' },
 ];
 
 /**

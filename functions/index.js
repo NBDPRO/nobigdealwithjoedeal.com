@@ -434,6 +434,16 @@ exports.stripeLedgerReconcile   = stripeLedger.stripeLedgerReconcile;
 exports.assignStripeTransaction = stripeLedger.assignStripeTransaction;
 exports.getStripeOverview       = stripeLedger.getStripeOverview;
 
+// Google Calendar sync (2026-09-29, calendar hub Phase 2): CRM jobs + adjuster
+// meetings → an "NBD Jobs" calendar the service account owns and shares with
+// Jo; free/busy for the double-booking warning. Inert until set up.
+const googleCalendar = require('./google-calendar');
+exports.setupGoogleCalendar     = googleCalendar.setupGoogleCalendar;
+exports.getGoogleCalendarStatus = googleCalendar.getGoogleCalendarStatus;
+exports.getBusyTimes            = googleCalendar.getBusyTimes;
+exports.onLeadCalendarWrite     = googleCalendar.onLeadCalendarWrite;
+exports.googleCalendarReconcile = googleCalendar.googleCalendarReconcile;
+
 // Automated Firestore daily backup + retention. Needs a one-time bucket + IAM
 // setup documented in functions/firestore-backup.js. Both are scheduled-only.
 //

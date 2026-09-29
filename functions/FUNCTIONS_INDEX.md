@@ -156,6 +156,9 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `stripeLedgerSync` | onCall | requireOwner: platform owner, its company_admin, or role admin | Stripe ledger — pulls every charge / invoice / refund / dispute / payout (optionally since N days) into `stripeLedger/` and books matched money onto CRM invoices. `dryRun` defaults to TRUE (functions/stripe-ledger.js) |
 | `assignStripeTransaction` | onCall | requireOwner | Stripe ledger — assigns a review-list payment to a customer, books it, remembers the Stripe customer on the lead |
 | `getStripeOverview` | onCall | requireOwner | Stripe ledger — balance (available/pending) + last 10 payouts for the Money view |
+| `setupGoogleCalendar` | onCall | requireOwner: platform owner, its company_admin, or role admin | Google Calendar — creates the "NBD Jobs" calendar (owned by the functions service account), shares it READ-ONLY with the given Google account, fills it (functions/google-calendar.js) |
+| `getGoogleCalendarStatus` | onCall | requireOwner | Google Calendar — set up? shared with whom, the service-account email to share free/busy with, whether Jo's main calendar is readable |
+| `getBusyTimes` | onCall | requireOwner | Google Calendar — merged busy blocks (NBD Jobs + Jo's main calendar) for the double-booking warning; ≤62-day window |
 | `reverifyCompanyKnocks` | onCall | `requireTeamAdmin` | D2D — re-geocodes/verifies the company's knock addresses (540s sweep) |
 | `convertUnmatchedSms` | onCall | `isOwnerCaller` or `role === 'admin'` | Turns an `unmatched_sms` triage row into a real lead + AI draft (handlers/inbound-sms-convert.js) |
 
@@ -186,7 +189,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runMigrations` | onCall | `role === 'admin'` (see ADMIN note) | Manual versioned-migration trigger (was mislabeled "scheduler-triggered" in the previous index) |
 | `migrationsTick` | scheduled (every 24h) | n/a (server-only) | Idempotent daily migration cron (also listed in SCHEDULED) |
 
-## SCHEDULED CRONS (server-only, no client traffic) — 26
+## SCHEDULED CRONS (server-only, no client traffic) — 27
 | Export | Schedule | Purpose |
 |---|---|---|
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
@@ -203,6 +206,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `hailMatchCron` | daily 09:00 | HailTrace/NOAA storm-match sweep + Slack notify — deliberately never uses the Swath provider (a 500-lead sweep would burn the credit budget; see hail-cron.js) (was listed as `hailCron` — actual export name is `hailMatchCron`) |
 | `onAppointmentReminder` | every 15 min | Push notification 15 min before appointments |
 | `onFollowUpDue` | daily 08:00 | Push notification for due follow-ups |
+| `googleCalendarReconcile` | daily 05:45 ET | Google Calendar — makes "NBD Jobs" match the CRM (jobs + adjuster meetings from 30 days back; removes stale events). No-op until set up; kill switch `GOOGLE_CALENDAR_SYNC_DISABLED=true` |
 | `stripeLedgerReconcile` | daily 06:15 ET | Stripe ledger — re-ingests the last 4 days of Stripe activity so a missed webhook can never lose a payment (idempotent; kill switch `STRIPE_LEDGER_DISABLED=true`, also honoured by the webhook path) |
 | `onYardSignPickupDue` | daily 07:30 ET | Push: yard signs due for pickup today or overdue (one per rep, repeats daily until handled) |
 | `migrationsTick` | every 24h | Idempotent versioned-migration runner tick |
@@ -217,13 +221,14 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 
-## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 37 Firestore + 2 Storage
+## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 38 Firestore + 2 Storage
 | Export | Watches | Purpose |
 |---|---|---|
 | `onPhotoUploaded` | Storage finalize (`nobigdeal-pro.appspot.com`) | 200/600/1600 px WebP variant pipeline; stamps `photo.urls` (or `knock.photoVariants[idx]` for `/d2d/` sources, mirrored to the converted lead) |
 | `onKnockCreated` | `knocks/{knockId}` created | Race-heal for d2d photo variants: photos upload BEFORE the knock doc exists, so early photos' Storage triggers miss — this stamps `photoVariants` for any `photoPaths` entry whose variants already exist (tokens recovered from variant object metadata) |
 | `onAudioUploaded` | Storage finalize (`nobigdeal-pro.firebasestorage.app`) | Voice intelligence — recording → transcribe + analyze (was listed as `voiceIntelligenceTrigger`). 2026-09-25: ignores `audio/{uid}/d2d/...` and other reserved lead ids, which used to land every D2D memo under one phantom `leads/d2d` |
 | `onNewLead` | `leads/{leadId}` created | Push notification to assigned rep |
+| `onLeadCalendarWrite` | `leads/{leadId}` written | Google Calendar — updates that lead's "NBD Jobs" events (job + adjuster meeting) when a field the calendar shows changes; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onClaimStageChange` | `leads/{leadId}` updated | Push notification on claim-stage transitions |
 | `onAiDraftApproved` | `leads/{leadId}/ai_drafts/{draftId}` updated | Sends approved AI-drafted SMS via Twilio (pending→approved transition only; idempotent) |
 | `estimateEmail` | `estimate_leads/{id}` created | Emails homeowner their estimate on `email_estimate_request`; LIVE by default (2026-07-18), `ESTIMATE_EMAIL_ENABLED=false` forces DRY-RUN |

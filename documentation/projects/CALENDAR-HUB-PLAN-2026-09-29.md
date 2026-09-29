@@ -11,6 +11,17 @@ overlap or issues". The homeowner page should also show a scheduled block
 **Decision already made:** Google Calendar is the hub (Jo picked it over building
 our own). Do not relitigate this.
 
+> **Update 2026-09-29 (later) — Phase 2 built, a different route than §3 said.**
+> No OAuth app (a calendar scope needs Google verification). The functions'
+> service account OWNS an "NBD Jobs" calendar and shares it read-only with
+> Jo's Google account; free/busy of Jo's main calendar is readable once Jo
+> shares it ("See only free/busy") with the service-account email, which the
+> Schedule view's Google Calendar panel shows. `functions/google-calendar.js`:
+> setupGoogleCalendar, getGoogleCalendarStatus, getBusyTimes,
+> onLeadCalendarWrite (per-lead, seconds), googleCalendarReconcile (nightly);
+> the double-booking warning sits under both schedule pickers. Inert until
+> Jo presses Connect. Requires the Calendar API enabled on the project.
+
 ## 1. Where things stand (recon, verified against the tree)
 
 | Source | Where it lives today | Reaches Jo's phone calendar? |
