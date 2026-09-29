@@ -188,7 +188,8 @@ function summarize(row, match, booked) {
     date: row.atMs ? new Date(row.atMs).toISOString().slice(0, 10) : null,
     customer: (row.party && row.party.name) || (row.party && row.party.email) || null,
     match: match.leadId ? { leadId: match.leadId, name: lead ? L.leadName(lead) : null, method: match.method, confidence: match.confidence } : { confidence: match.confidence, candidates: match.candidates || [] },
-    action: booked ? (booked.credited ? (booked.created ? 'created CRM invoice + recorded payment' : 'recorded on CRM invoice') : booked.why) : (match.confidence === 'high' ? 'ledger only' : 'needs review'),
+    action: row.kind === 'charge' && row.status !== 'succeeded' ? 'declined attempt — recorded, no money'
+      : booked ? (booked.credited ? (booked.created ? 'created CRM invoice + recorded payment' : 'recorded on CRM invoice') : booked.why) : (match.confidence === 'high' ? 'ledger only' : 'needs review'),
     invoiceId: booked ? booked.invoiceId : null,
   };
 }
@@ -219,6 +220,15 @@ async function ingestCharge(ctx, chargeOrId, opts) {
     // A Stripe invoice the CRM made (stripe-crm-invoice.js) names its lead.
     if (sInv.metadata && sInv.metadata.leadId && !row.party.leadIdHint) row.party.leadIdHint = sInv.metadata.leadId;
     if (!row.party.name && sInv.customer_name) row.party.name = sInv.customer_name;
+    // The card's Stripe customer often lacks what the invoice carries (the
+    // phone and address typed onto the invoice). Fill the gaps, so the match
+    // is by phone / address — money-booking keys — instead of a name.
+    if (!row.party.email && sInv.customer_email) row.party.email = sInv.customer_email;
+    if (!row.party.phone && sInv.customer_phone) row.party.phone = sInv.customer_phone;
+    if (!row.party.address && sInv.customer_address) {
+      const a = sInv.customer_address;
+      row.party.address = typeof a === 'string' ? a : [a.line1, a.city, a.state, a.postal_code].filter(Boolean).join(', ');
+    }
   }
 
   // A charge the CRM's own payment link minted: stripe.js already credits it

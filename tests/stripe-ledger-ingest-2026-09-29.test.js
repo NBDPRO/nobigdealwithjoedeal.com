@@ -109,6 +109,7 @@ const seedLeads = [
   { id: 'L_NAME', companyId: 'OWNER', userId: 'OWNER', firstName: 'Zora', lastName: 'Nameonly', address: '4 ZZQA St' },
   { id: 'L_OOB', companyId: 'OWNER', userId: 'OWNER', firstName: 'ZZ_QA', lastName: 'Zelle', email: 'zelle@example.com', address: '5 ZZQA St' },
   { id: 'L_OTHER', companyId: 'someone-else', userId: 'someone-else', firstName: 'ZZ_QA', lastName: 'Othertenant', email: 'other@example.com' },
+  { id: 'L_PHONE', companyId: 'OWNER', userId: 'OWNER', firstName: 'ZZ_QA', lastName: 'Phonebook', phone: '(513) 555-0199', address: '77 Elsewhere Ave' },
 ];
 const seedInvoices = [
   { id: 'INV_OPEN', companyId: 'OWNER', createdBy: 'OWNER', leadId: 'L_OPEN', total: 1450, amountPaid: 0, balanceDue: 1450, status: 'sent', payments: [] },
@@ -129,6 +130,9 @@ const seedInvoices = [
     charges: [
       charge('ch_email', 182500, cEmail, { invoice: inMir }),
       charge('ch_open', 145000, cOpen),
+      // The card's customer has only a name; the invoice carries the phone.
+      charge('ch_invphone', 35000, cust('cus_bare', 'Somebody Else', null, null, null),
+        { invoice: stripeInvoice('in_phone', 35000, null, { customer_name: 'Somebody Else', customer_phone: '513 555 0199', customer_address: { line1: '9 Phoneonly Rd' } }) }),
       charge('ch_hand', 60000, cHand),
       charge('ch_name', 45000, cName),
       charge('ch_nobody', 22500, cNobody),
@@ -137,7 +141,7 @@ const seedInvoices = [
       charge('ch_link', 9900, cEmail, { payment_intent: { id: 'pi_ch_link', metadata: { invoiceId: 'INV_LINK' } } }),
     ],
     invoices: [
-      stripeInvoice('in_oob', 60000, cOob, { paid_out_of_band: true, charge: null, payment_intent: null, status_transitions: { paid_at: T0 + DAY } }),
+      stripeInvoice('in_oob', 60000, cOob, { amount_paid: 0, paid_out_of_band: true, charge: null, payment_intent: null, status_transitions: { paid_at: T0 + DAY } }),
       stripeInvoice('in_open', 30000, cOob, { status: 'open', amount_paid: 0, charge: null, payment_intent: null }),
       inMir,
     ],
@@ -159,6 +163,7 @@ const seedInvoices = [
     ok('already marked paid by hand → would NOT count it again', by('ch_hand').action === 'already_recorded_by_hand', by('ch_hand').action);
     ok('name only / unknown → needs review', by('ch_name').action === 'needs review' && by('ch_nobody').action === 'needs review');
     ok('subscription billing is labelled, not a customer job', /subscription/.test(by('ch_sub').action));
+    ok('a declined attempt is labelled as such, not "needs review"', /declined/.test(by('ch_failed').action));
     ok('the totals say it was a dry run', res.totals.dryRun === true);
   }
 
@@ -180,6 +185,8 @@ const seedInvoices = [
     ok('the charge rows carry fee and net', row('ch_open').feeCents > 0 && row('ch_open').netCents === 145000 - row('ch_open').feeCents);
     ok('the matched customer is remembered on the lead', db._dump('leads').find((l) => l.id === 'L_OPEN').stripeCustomerId === 'cus_open');
     ok('an unknown customer lands in the review list, no invoice', row('ch_nobody').needsReview === true && !row('ch_nobody').match.invoiceId);
+    ok('the phone typed on the INVOICE matches when the card customer has none → booked, not name-guessed',
+      row('ch_invphone').match.leadId === 'L_PHONE' && row('ch_invphone').match.method === 'phone' && row('ch_invphone').needsReview === false);
     ok('a name-only match is a suggestion in the review list, not booked', row('ch_name').needsReview === true && row('ch_name').match.leadId === 'L_NAME' && row('ch_name').match.confidence === 'suggest'
       && !db._dump('invoices').some((i) => i.leadId === 'L_NAME'));
     ok('a declined card is recorded for the history, books $0, not in review', row('ch_failed').status === 'failed' && row('ch_failed').amountCents === 0 && row('ch_failed').needsReview === false);

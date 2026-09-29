@@ -145,6 +145,12 @@ console.log('\n5. ledger rows from Stripe objects');
     status_transitions: { paid_at: 10 }, customer: 'cus_X', customer_name: 'Zed Qalander', customer_email: 'zq@example.com', customer_address: { line1: '1 A St' } };
   ok('an invoice marked paid in Stripe with no charge is recognized', L.isPaidOutOfBand(oob) === true);
   ok('...and a card-paid invoice is not', L.isPaidOutOfBand(Object.assign({}, oob, { paid_out_of_band: false, charge: 'ch_1' })) === false);
+  // The live shape at API 2023-10-16: marked paid outside Stripe reports amount_paid 0.
+  const live = Object.assign({}, oob, { amount_paid: 0, total: 60000 });
+  ok('amount_paid 0 + paid_out_of_band (the real 2023-10-16 shape) → still recognized, booked at the total',
+    L.isPaidOutOfBand(live) === true && L.outOfBandEntry(live, 'O').amountCents === 60000);
+  ok('a $0 subscription-trial invoice (no charge, total 0) is not money',
+    L.isPaidOutOfBand({ status: 'paid', amount_paid: 0, total: 0, paid_out_of_band: false, charge: null, payment_intent: null }) === false);
   const oe = L.outOfBandEntry(oob, 'O');
   ok('its row books the money, dated when it was marked paid', oe.amountCents === 60000 && oe.atMs === 10000 && oe.method === 'marked_paid_in_stripe' && oe.party.email === 'zq@example.com');
 }
