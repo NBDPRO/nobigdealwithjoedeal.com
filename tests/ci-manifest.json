@@ -138,6 +138,8 @@
     "daily-success-sync-2026-09-29.test.js",
     "home-widgets-survive-signout-2026-09-29.test.js",
     "product-library-company-2026-09-29.test.js",
+    "schedule-window-2026-09-29.test.js",
+    "calendar-phase0-2026-09-29.test.js",
     "sms-optout-key.test.js",
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
