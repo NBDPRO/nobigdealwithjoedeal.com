@@ -323,6 +323,31 @@ eq('advanceDate Jan31 +monthly -> Feb 28 (clamped)', ymd(EX.advanceDate(new Date
 eq('advanceDate Jan31 +quarterly -> Apr 30 (clamped)', ymd(EX.advanceDate(new Date(2026, 0, 31), 'quarterly')), '2026-4-30');
 eq('advanceDate Feb29 (2028 leap) +annual -> Feb 28 2029', ymd(EX.advanceDate(new Date(2028, 1, 29), 'annual')), '2029-2-28');
 
+// ── cost panel: "costs not set" is not a 100% margin (2026-09-29) ──
+console.log('\nPROFIT PANEL — no invented margin, reconcilable labels, escaped notes');
+{
+  const panel = { innerHTML: '' };
+  const pwin = makeWin();
+  const src = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js', 'profit-tracker.js'), 'utf8');
+  vm.runInNewContext(src, {
+    window: pwin,
+    document: { addEventListener() {}, removeEventListener() {}, getElementById(id) { return id === 'pp' ? panel : null; }, querySelector() { return null; }, querySelectorAll() { return []; }, createElement() { return { style: {} }; }, body: {}, readyState: 'complete' },
+    console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, Date, Math, JSON,
+  }, { filename: 'profit-tracker.js' });
+  const render = (lead, exps) => { pwin._leads = [lead]; pwin.ProfitTracker.renderCostPanel('pp', lead.id, exps); return panel.innerHTML; };
+  const blank = render({ id: 'L1', jobValue: 9800, costNotes: '<img src=x onerror=alert(1)>' });
+  ok('no costs entered: no "% margin" badge', !/\d+% margin/.test(blank));
+  ok('no costs entered: no GROSS PROFIT figure', !/GROSS PROFIT/.test(blank));
+  ok('no costs entered: says costs are not set', /Costs not set/.test(blank));
+  ok('cost notes are escaped (no raw <img>)', !/<img/.test(blank) && /&lt;img/.test(blank));
+  const costed = render({ id: 'L2', jobValue: 10000, materialCost: 3000, laborCost: 2000, overheadPct: 10 });
+  ok('with costs: margin badge shows 50%', /50% margin/.test(costed));
+  ok('with costs: gross profit is labelled "before overhead"', /GROSS PROFIT <span[^>]*>\(before overhead\)/.test(costed));
+  ok('with costs: total cost is labelled with its overhead %', /TOTAL COST <span[^>]*>\(incl\. 10% overhead\)/.test(costed));
+  const fed = render({ id: 'L3', jobValue: 10000 }, [{ amountCents: 400000, taxCents: 0, category: 'materials', costType: 'direct' }]);
+  ok('logged expenses count as costs set (60% margin)', /60% margin/.test(fed));
+}
+
 // ── summary ──────────────────────────────────────────────────
 console.log('\n' + (failed === 0 ? '✓' : '✗') + ' expenses logic: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) { console.error('FAILED: ' + fails.join(', ')); process.exit(1); }
