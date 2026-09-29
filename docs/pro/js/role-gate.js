@@ -136,6 +136,10 @@
     // Yard Signs view (yard-signs.js): place, pick up, extend, mark missing.
     '[data-ys-action="open-place"]', '[data-ys-action="save-place"]', '[data-ys-action="pickup"]',
     '[data-ys-action="extend"]', '[data-ys-action="missing"]',
+    // Invoice detail (invoice-pipeline.js, 2026-09-29): Record Payment and
+    // 📎 Attach proof both write the invoice's payments[] ledger (and upload to
+    // Storage, which refuses a viewer). 📎 View stays: reading.
+    '[data-ip-action="markPaid"]', '[data-ip-action="attachProof"]',
     // Kanban card "+" (no tasks yet = "Add a task"). A card WITH tasks keeps
     // its count badge; its click is refused by tasks.js openTaskModal's guard.
     '.kc-task-badge.empty',

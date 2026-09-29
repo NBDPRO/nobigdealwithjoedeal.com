@@ -298,6 +298,8 @@ async function partA() {
     // bill it and then rewrite the knock.
     'D2D address re-verify, one knock and the batch':
       ['[data-d2d-action="reverifyKnock"]', '[data-d2d-action="reverifyPending"]'],
+    // 2026-09-29: Record Payment + 📎 Attach proof write payments[] / Storage.
+    'invoice record payment + attach proof': ['[data-ip-action="markPaid"]', '[data-ip-action="attachProof"]'],
   };
   for (const [what, sels] of Object.entries(MUST)) {
     const missing = sels.filter((s) => !has(s));
@@ -313,7 +315,9 @@ async function partA() {
     // 2026-09-25: reading a deal room, and opening a lead's photos / docs
     '[data-cb-action="preview"]', F('openPhotosForLead'), F('openDocsForLead'),
     // 2026-09-25 (#1780 review): the knock detail's owner & roof intel (lookupParcel stays open: reading)
-    '[data-d2d-action="loadPropertyIntel"]'];
+    '[data-d2d-action="loadPropertyIntel"]',
+    // 2026-09-29: opening a payment's proof is reading
+    '[data-ip-action="viewProof"]'];
   const wrong = MUST_NOT.filter(has);
   ok('not gated: settings, notification read state, exports, filters, navigation', wrong.length === 0, 'gated by mistake: ' + wrong.join(' '));
 

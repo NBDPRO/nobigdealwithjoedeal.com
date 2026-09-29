@@ -219,6 +219,49 @@ async function run() {
     { contentType: 'image/jpeg' }
   ));
 
+  // ── PAYMENT PROOFS (payment-proofs/{uid}/{invoiceId}/, 2026-09-29) ─────
+  // Same posture as receipts/: check photo or PDF, 25MB, owner write,
+  // owner + platform admin read, flat path denied.
+  // 22a. alice can upload a check photo and a bank PDF under her uid
+  await assertSucceeds(uploadBytes(
+    ref(alice, 'payment-proofs/alice/inv1/1790000000000_check.jpg'),
+    buf(1024),
+    { contentType: 'image/jpeg' }
+  ));
+  await assertSucceeds(uploadBytes(
+    ref(alice, 'payment-proofs/alice/inv1/1790000000001_ach.pdf'),
+    buf(8 * 1024),
+    { contentType: 'application/pdf' }
+  ));
+  // 22b. executables blocked; over 25MB blocked
+  await assertFails(uploadBytes(
+    ref(alice, 'payment-proofs/alice/inv1/mal.exe'),
+    buf(1024),
+    { contentType: 'application/x-msdownload' }
+  ));
+  await assertFails(uploadBytes(
+    ref(alice, 'payment-proofs/alice/inv1/huge.pdf'),
+    buf(26 * 1024 * 1024),
+    { contentType: 'application/pdf' }
+  ));
+  // 22c. bob cannot write into or read alice's proofs; admin reads; anon never
+  await assertFails(uploadBytes(
+    ref(bob, 'payment-proofs/alice/inv1/sneak.jpg'),
+    buf(1024),
+    { contentType: 'image/jpeg' }
+  ));
+  await assertFails(getBytes(ref(bob, 'payment-proofs/alice/inv1/1790000000000_check.jpg')));
+  await assertFails(getBytes(ref(anon, 'payment-proofs/alice/inv1/1790000000000_check.jpg')));
+  await assertSucceeds(getBytes(ref(alice, 'payment-proofs/alice/inv1/1790000000000_check.jpg')));
+  await assertSucceeds(getBytes(ref(admin, 'payment-proofs/alice/inv1/1790000000000_check.jpg')));
+  // 22d. owner deletes; the bare prefix always denies
+  await assertSucceeds(deleteObject(ref(alice, 'payment-proofs/alice/inv1/1790000000001_ach.pdf')));
+  await assertFails(uploadBytes(
+    ref(alice, 'payment-proofs/flat.jpg'),
+    buf(1024),
+    { contentType: 'image/jpeg' }
+  ));
+
 
   // ── UNTESTED-FOR-A-MONTH PREFIXES (2026-09-02) ───────────────────────
   // galleries/, reports/, shared_docs/ and audio/ carried owner-only rules
@@ -366,6 +409,7 @@ async function run() {
     ['audio',       'lead42/rec.webm',    'audio/webm'],
     ['receipts',    'rc.jpg',             'image/jpeg'],
     ['yard-signs',  'ys.jpg',             'image/jpeg'],
+    ['payment-proofs', 'inv1/pp.jpg',     'image/jpeg'],
   ];
   await env.withSecurityRulesDisabled(async (context) => {
     for (const [p, name, type] of VIEWER_PREFIXES) {
