@@ -1137,9 +1137,11 @@ console.log('\n9. close-board.js — an accepted deal is a signed record (2026-0
   const html = t.sandbox.document.getElementById('view-closeboard').innerHTML;
   // One deal per board: the harness's esc() renders ids as "", so match the action.
   ok('the row offers no Delete, shows "On record"', /On record/.test(html) && !/data-cb-action="remove"/.test(html));
+  ok('...and no "Expires" date (a signed deal does not lapse)', /Created /.test(html) && !/Expires/.test(html));
   const t2 = loadCloseBoard({ deals: [fullDeal({ id: 'open1', userId: 'u1', status: 'sent' })] });
   await flush();
   t2.CB.render();
+  ok('control: an open deal still shows its expiry', /Expires/.test(t2.sandbox.document.getElementById('view-closeboard').innerHTML));
   ok('control: an open deal still has its Delete button',
     /data-cb-action="remove"/.test(t2.sandbox.document.getElementById('view-closeboard').innerHTML));
 }

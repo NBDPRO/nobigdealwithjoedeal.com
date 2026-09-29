@@ -687,6 +687,12 @@ console.log('──────────────────────�
       ok(/Profit —/.test(html), 'tiers should read "Profit —" when cost is unset');
     });
 
+    test('a one-color product reads "1 color", not "1 colors" (2026-09-28)', () => {
+      ok(!/🎨 1 colors</.test(html), '"1 colors" rendered');
+      ok(/🎨 1 color</.test(html), 'no one-color product rendered (fixture changed?)');
+      ok(/🎨 [2-9]\d* colors</.test(html), 'control: a many-color product should still say "colors"');
+    });
+
     test('NEW TENANT: the library says the costs are not set', () => {
       ok(/not set/i.test(html), 'no "not set" affordance rendered');
       ok(/Your costs aren't set yet/.test(html), 'no empty-state banner');

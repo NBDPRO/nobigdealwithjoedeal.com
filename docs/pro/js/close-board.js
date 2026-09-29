@@ -1318,7 +1318,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
               : `<button data-cb-action="remove" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:transparent;border:1px solid var(--br);color:var(--m);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🗑 Delete</button>`}
           </div>
         </div>
-        <div style="font-size:10px;color:var(--m);margin-top:8px;">Created ${timeAgo(d.createdAt)} · Expires ${fmtDate(d.expiresAt)}${d.scheduledInstallDate ? ' · 🔨 Install ' + esc(fmtDate(d.scheduledInstallDate)) : ''}</div>
+        <div style="font-size:10px;color:var(--m);margin-top:8px;">Created ${timeAgo(d.createdAt)}${_isClosedDeal(d) ? '' : ' · Expires ' + fmtDate(d.expiresAt)}${d.scheduledInstallDate ? ' · 🔨 Install ' + esc(fmtDate(d.scheduledInstallDate)) : ''}</div>
       </div>
     `).join('');
   }
