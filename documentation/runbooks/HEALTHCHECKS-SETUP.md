@@ -71,6 +71,7 @@ may be before Healthchecks alerts (generous where a run can be slow).
 | `recording-retention-cron` | recordingRetentionCron | 05:00 CT daily | 1 day · 6 h |
 | `backup-freshness-cron` | backupFreshnessCron | 06:00 ET daily | 1 day · 3 h |
 | `sync-gbp-reviews` | syncGbpReviews | 06:00 ET daily | 1 day · 6 h |
+| `stripe-ledger-reconcile` | stripeLedgerReconcile | 06:15 ET daily | 1 day · 6 h |
 | `daily-lead-digest` | dailyLeadDigest | 07:00 ET daily | 1 day · 3 h |
 | `on-follow-up-due` | onFollowUpDue | 08:00 ET daily | 1 day · 3 h |
 | `on-yard-sign-pickup-due` | onYardSignPickupDue | 07:30 ET daily | 1 day · 3 h |
