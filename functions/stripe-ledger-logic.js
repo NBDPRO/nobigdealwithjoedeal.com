@@ -358,7 +358,7 @@ function outOfBandEntry(inv, companyId) {
   return Object.assign(baseRow(companyId), {
     kind: 'invoice_paid_outside_stripe',
     status: 'succeeded',
-    amountCents: inv.amount_paid || 0,
+    amountCents: oobAmountCents(inv),
     atMs: ((inv.status_transitions && inv.status_transitions.paid_at) || inv.created || 0) * 1000,
     method: 'marked_paid_in_stripe',
     stripeInvoiceId: inv.id,
@@ -368,12 +368,17 @@ function outOfBandEntry(inv, companyId) {
   });
 }
 
+// At the pinned API version (2023-10-16) an invoice marked paid outside
+// Stripe reports amount_paid: 0 — the total is what was paid. Verified
+// against the live account 2026-09-29 (the first preview skipped both of
+// Jo's Zelle/check invoices because of it).
+function oobAmountCents(inv) { return inv && inv.amount_paid > 0 ? inv.amount_paid : ((inv && inv.total) || 0); }
+
 function isPaidOutOfBand(inv) {
-  // 2023-10-16 shape: paid_out_of_band is explicit. A paid invoice with no
-  // charge and no payment intent is the same thing on older objects.
-  if (!inv || inv.status !== 'paid' || !(inv.amount_paid > 0)) return false;
-  if (inv.paid_out_of_band === true) return true;
-  return !inv.charge && !inv.payment_intent;
+  if (!inv || inv.status !== 'paid') return false;
+  if (inv.paid_out_of_band === true) return oobAmountCents(inv) > 0;
+  // Older objects: paid, money recorded, but no charge and no payment intent.
+  return !inv.charge && !inv.payment_intent && inv.amount_paid > 0;
 }
 
 /**
@@ -432,5 +437,5 @@ module.exports = {
   buildLeadIndex, matchLead, nameAgrees,
   cents, pickInvoice, findManualDuplicate, planCredit,
   methodOfCharge, partyFromCustomer, nbdNumberOf,
-  chargeEntry, refundEntry, disputeEntry, payoutEntry, outOfBandEntry, isPaidOutOfBand, mirrorInvoice,
+  chargeEntry, refundEntry, disputeEntry, payoutEntry, outOfBandEntry, isPaidOutOfBand, oobAmountCents, mirrorInvoice,
 };
