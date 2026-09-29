@@ -1349,6 +1349,18 @@ function dsSaveConfig() {
     showGoose: document.getElementById('ds-showgoose')?.checked !== false,
   };
   localStorage.setItem(DS_NBD_CFG, JSON.stringify(config));
+  // nbd_ localStorage is wiped on every sign-out (purgeAccountStorage), so the
+  // settings also go to userSettings/{uid}; the _at stamp lets the newer copy
+  // win against the Daily Success page (ds-firebase-sync.js) and other devices.
+  const dsCfgAt = Date.now();
+  try { localStorage.setItem(DS_NBD_CFG + '_at', String(dsCfgAt)); } catch {}
+  try {
+    const u = window._user && window._user.uid;
+    if (u && window.db && window.setDoc && window.doc) {
+      window.setDoc(window.doc(window.db, 'userSettings', u), { dsConfig: config, dsConfigAt: dsCfgAt }, { merge: true })
+        .catch(e => console.warn('[ds-settings] cloud save failed', e && e.code));
+    }
+  } catch {}
   // NEW-4: mirror into the derived 'nbd_ds_config' key that the Home widgets
   // read (north-star / daily-floors / golden-goose in js/widgets.js). Without
   // this, a North Star set here saves to nbd_user_config but the Home widget

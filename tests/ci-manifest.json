@@ -134,6 +134,7 @@
     "notify-new-lead-email-escape-2026-09-29.test.js",
     "escape-user-text-sinks-2026-09-29.test.js",
     "yard-signs-2026-09-29.test.js",
+    "daily-success-sync-2026-09-29.test.js",
     "home-widgets-survive-signout-2026-09-29.test.js",
     "product-library-company-2026-09-29.test.js",
     "sms-optout-key.test.js",

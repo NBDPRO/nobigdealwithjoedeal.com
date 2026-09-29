@@ -909,6 +909,38 @@ async function _homeHydrate() {
     const localTasks = _cleanTasks(_readLocal(HOME_TASKS_KEY));
     if (localTasks && localTasks.length) up.homeTasks = localTasks;
   }
+  // Daily Success settings ride on the same doc (ds-firebase-sync.js writes
+  // them from the program page). The North Star / Daily Floors / Golden Goose
+  // widgets read nbd_ds_config, which sign-out wipes — restore it here so they
+  // don't sit on placeholders until the program page is opened.
+  const dsKeys = [['nbd_user_config', 'dsConfig'], ['nbd_gt', 'dsGoalTargets']];
+  for (const [key, field] of dsKeys) {
+    const cv = data[field];
+    const cloudAt = Number(data[field + 'At']) || 0;
+    const localVal = _readLocal(key);
+    const localAt = Number(localStorage.getItem(key + '_at')) || 0;
+    if (cv && typeof cv === 'object' && (localVal == null || cloudAt > localAt)) {
+      if (JSON.stringify(cv) !== JSON.stringify(localVal)) {
+        _writeLocal(key, cv);
+        try { localStorage.setItem(key + '_at', String(cloudAt || Date.now())); } catch (e) {}
+        if (key === 'nbd_user_config') {
+          // Same shape as ds-sync-logic.js widgetCfgFrom / app.js syncToWidgetKeys.
+          const ns = cv.northStar || {};
+          _writeLocal('nbd_ds_config', {
+            northStar: ns.target || ns.category || '',
+            northStarDeadline: ns.deadline || '',
+            floors: (cv.floors || []).map(f => ({ label: f.label, target: parseFloat(f.targetValue) || 1, unit: f.unit || '' })),
+            goldenGoose: cv.goose || '',
+          });
+        }
+        changed = true;
+      }
+    } else if (localVal && typeof localVal === 'object' && (!cv || localAt > cloudAt)) {
+      // First backup of settings that only ever lived on this device.
+      up[field] = localVal;
+      up[field + 'At'] = localAt || Date.now();
+    }
+  }
   if (Object.keys(up).length) _homeCloudSave(up);
   if (changed) renderWidgetHome();
 }
