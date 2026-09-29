@@ -9,6 +9,9 @@
 let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
 (function() {
   'use strict';
+  // Claim # and carrier are free text a rep types or the Thursday phone-intake
+  // AI copies from a caller (security audit 2026-09-29) — never raw HTML.
+  function _icEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
   // Claim workflow stages in order
   const CLAIM_STAGES = [
@@ -257,8 +260,8 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
           </div>
 
           <div class="claim-details" style="background: rgba(255,255,255,.02); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--br,rgba(255,255,255,.08)); font-size: 13px;">
-            ${status.claimNumber ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Claim #:</strong> ${status.claimNumber}</div>` : ''}
-            ${status.insuranceCarrier ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Carrier:</strong> ${status.insuranceCarrier}</div>` : ''}
+            ${status.claimNumber ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Claim #:</strong> ${_icEsc(status.claimNumber)}</div>` : ''}
+            ${status.insuranceCarrier ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Carrier:</strong> ${_icEsc(status.insuranceCarrier)}</div>` : ''}
             ${status.approvedAmount ? `<div style="color: var(--m,#9ca3af);"><strong style="color: var(--t);">Approved:</strong> $${status.approvedAmount.toLocaleString()}</div>` : ''}
           </div>
 
@@ -421,7 +424,7 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       ">
         <div style="color: var(--m,#9ca3af); margin-bottom: 4px;">Insurance Claim</div>
         <div style="color: var(--t); font-weight: 600; margin-bottom: 4px;">${status.currentStage}</div>
-        ${status.claimNumber ? `<div style="color: var(--m,#9ca3af);">Claim #${status.claimNumber}</div>` : ''}
+        ${status.claimNumber ? `<div style="color: var(--m,#9ca3af);">Claim #${_icEsc(status.claimNumber)}</div>` : ''}
       </div>
     `;
   }

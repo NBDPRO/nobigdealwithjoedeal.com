@@ -678,7 +678,7 @@ const WIDGETS = [
         const pct = (count/total*100).toFixed(0);
         return `<div style="margin-bottom:6px;">
           <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;">
-            <span style="color:var(--t);font-weight:600;">${name}</span>
+            <span style="color:var(--t);font-weight:600;">${esc(name)}</span>
             <span style="color:var(--m);">${count} (${pct}%)</span>
           </div>
           <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%;background:${colors[i%colors.length]};"></div></div>
@@ -724,7 +724,7 @@ const WIDGETS = [
       if(!entries.length) { el.innerHTML = '<div class="w-empty">No source data yet</div>'; return; }
       el.innerHTML = entries.map(([s,c]) => `
         <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--br);font-size:11px;">
-          <span style="color:var(--t);font-weight:600;">${s}</span>
+          <span style="color:var(--t);font-weight:600;">${esc(s)}</span>
           <span style="color:var(--orange);font-weight:700;">${c}</span>
         </div>`).join('');
     }},

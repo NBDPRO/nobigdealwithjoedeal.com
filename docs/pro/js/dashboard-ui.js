@@ -1629,12 +1629,14 @@ function openDocTemplate(key){
   // delivery", a sixth deposit answer that matched none of the others.
   const _dr = window.NBDDepositRule;
   const payTerms = (_dr && typeof _dr.policyText === 'function') ? _dr.policyText() : '';
-  const _escT = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Company legal name / phone and the rep's name are typed by people, not
+  // constants — escaped like the terms (security audit 2026-09-29).
+  const _escT = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   document.getElementById('docViewerContent').innerHTML = t.content
-    .split('{{REP_NAME}}').join(repName)
-    .split('{{COMPANY_PHONE}}').join(co.phone)
+    .split('{{REP_NAME}}').join(_escT(repName))
+    .split('{{COMPANY_PHONE}}').join(_escT(co.phone))
     .split('{{PAYMENT_TERMS}}').join(_escT(payTerms))
-    .split('{{COMPANY}}').join(co.name);
+    .split('{{COMPANY}}').join(_escT(co.name));
   if(window.nbdModal){window.nbdModal.open('docViewerModal');}else{document.getElementById('docViewerModal').classList.add('open');}
 }
 const closeDocViewer = function(){ if(window.nbdModal){window.nbdModal.close('docViewerModal');}else{document.getElementById('docViewerModal').classList.remove('open');} };
