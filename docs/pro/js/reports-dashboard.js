@@ -137,26 +137,43 @@
 
     // Conversion funnel — uses lead.stage progression for in-window leads
     // plus their estimate state. Five stages of interest.
-    const funnel = {
-      leads: leadsInWindow.length,
-      inspected: leadsInWindow.filter(l => {
-        const sk = String(l._stageKey || l.stage || '').toLowerCase();
-        return sk && sk !== 'new' && sk !== 'contacted';
-      }).length,
-      estimateSent: 0,
-      estimateViewed: 0,
-      signed: 0,
-    };
-    // Match estimates back to leads in window
-    const leadIds = new Set(leadsInWindow.map(l => l.id));
+    //
+    // It counts LEADS, each at the furthest step it reached by the window's
+    // end, so every row is a subset of the one above it (2026-09-29). It used
+    // to count ESTIMATES (three estimates on one lead = 3 "sent", more than
+    // the leads row) and only an e-signed estimate made a lead "Signed" — a
+    // rep with three won jobs signed on paper read "Signed 0" beside a Lead
+    // Source table saying 3 closed. A lead in a job or won stage IS signed
+    // (stage roles, custom-pipeline aware); a lost lead counts only as far as
+    // its estimates got — never as "inspected" just for having been lost.
+    const byLead = {};
     ests.forEach(e => {
-      if (!leadIds.has(e.leadId)) return;
+      if (!e || !e.leadId || e.deleted) return;
+      const b = byLead[e.leadId] || (byLead[e.leadId] = { sent: false, viewed: false, signed: false });
       const sentMs = _sentMs(e);
-      if (sentMs && sentMs >= start && sentMs <= end) funnel.estimateSent++;
-      // Use inWindow (both bounds) not `>= start` — a bare lower bound let
-      // views/signings AFTER a custom range's end leak into the funnel.
-      if (e.viewedAt && inWindow(_toMillis(e.viewedAt))) funnel.estimateViewed++;
-      if (e.signedAt && inWindow(_toMillis(e.signedAt))) funnel.signed++;
+      if (sentMs && sentMs <= end) b.sent = true;
+      const v = _toMillis(e.viewedAt);
+      if (v && v <= end) b.viewed = true;
+      const s = _toMillis(e.signedAt);
+      if (s && s <= end) b.signed = true;
+    });
+    const roleOf = (l) => String(l._stageRole
+      || (typeof window.stageRole === 'function' ? window.stageRole(l._stageKey || l.stage) : '')
+      || (String(l._stageKey || l.stage || '').toLowerCase() === 'closed' ? 'won' : ''));
+    const funnel = { leads: leadsInWindow.length, inspected: 0, estimateSent: 0, estimateViewed: 0, signed: 0 };
+    leadsInWindow.forEach(l => {
+      const e = byLead[l.id] || {};
+      const role = roleOf(l);
+      const sk = String(l._stageKey || l.stage || '').toLowerCase();
+      const level = (e.signed || role === 'job' || role === 'won') ? 4
+        : e.viewed ? 3
+        : e.sent ? 2
+        : (sk && sk !== 'new' && sk !== 'contacted' && role !== 'lost' && sk !== 'lost') ? 1
+        : 0;
+      if (level >= 1) funnel.inspected++;
+      if (level >= 2) funnel.estimateSent++;
+      if (level >= 3) funnel.estimateViewed++;
+      if (level >= 4) funnel.signed++;
     });
 
     return {
