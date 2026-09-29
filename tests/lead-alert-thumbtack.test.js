@@ -273,8 +273,12 @@ const counts = () => ({ emails: rec.emails.length, sms: rec.sms.length, outbox: 
     const bridgeSrc = fs.readFileSync(path.join(ROOT, 'functions', 'lead-bridge.js'), 'utf8');
     ok('lead-bridge.js still refuses to bridge a Thumbtack test delivery',
       /function onThumbtackBridge\(\)[\s\S]*?if \(data\.isTest\) \{[\s\S]*?return;[\s\S]*?bridgeToCrm\('thumbtack_leads'/.test(bridgeSrc));
+    // Since 2026-09-29 the create goes through createLeadWithCustomerId, which
+    // keeps create() semantics (ALREADY_EXISTS on redelivery, never an
+    // overwrite) — pinned behaviourally in customer-id-mint.test.js.
     ok('lead-bridge.js still creates the mirror with create() (a re-delivery is a no-op, not a second create)',
-      /db\.collection\('leads'\)\.doc\(id\)\.create\(leadDoc\)/.test(bridgeSrc));
+      /createLeadWithCustomerId\(db, db\.collection\('leads'\)\.doc\(id\), leadDoc,/.test(bridgeSrc)
+      && !/collection\('leads'\)\.doc\(id\)\.set\(/.test(bridgeSrc));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);
