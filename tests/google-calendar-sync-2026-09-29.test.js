@@ -189,6 +189,19 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     ok('index.js exports all five functions', ['setupGoogleCalendar', 'getGoogleCalendarStatus', 'getBusyTimes', 'onLeadCalendarWrite', 'googleCalendarReconcile'].every((n) => new RegExp('exports\\.' + n + '\\s*=').test(idx)));
   }
 
+  console.log('\n6. Jo can find it (2026-09-29: "don\'t see any schedule button anywhere")');
+  {
+    const dash = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'dashboard.html'), 'utf8');
+    ok('Schedule is in the desktop sidebar, right under Pipeline',
+      /id="nav-crm"[^\n]*\n\s*<div class="ni"[^>]*data-target="schedule" id="nav-schedule"/.test(dash));
+    ok('...and in the phone More drawer', /class="mm-item" data-action="mobileNav" data-target="schedule"/.test(dash));
+    const mnc = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'mobile-nav-customizer.js'), 'utf8');
+    ok('...and offered as a bottom-bar tab', /id: 'schedule',[^\n]*action: 'schedule'/.test(mnc));
+    const ui = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'google-calendar-ui.js'), 'utf8');
+    ok('a direct #/schedule link waits for the panel AND the signed-in user before its one status load',
+      /\$\('gcalPanel'\) && window\._user && window\._user\.uid/.test(ui) && /_tries < 40/.test(ui) && /addEventListener\('nbd:data-refreshed', maybeLoad\)/.test(ui));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
