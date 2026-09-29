@@ -129,7 +129,7 @@ section('Phase 1a: shared estimate preview sheet (mobile-first, both doc shapes)
   assert('estimate-preview.js exists', fs.existsSync(p));
   const src = read(p);
   assert('exposes EstimatePreview.open with sentinel',
-    /window\.EstimatePreview = \{ __sentinel: 'nbd-est-preview-v1', open: open, close: close \}/.test(src));
+    /window\.EstimatePreview = \{ __sentinel: 'nbd-est-preview-v1', open: open, close: close[,\s]/.test(src));
   // The whole point: ONE normalizer for both estimate shapes. The customer
   // page's legacy modal read classic fields only, so V2 docs previewed as
   // "Untitled, $0, no lines".

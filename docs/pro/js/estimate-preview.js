@@ -37,7 +37,11 @@
   var money = function (n) {
     var v = Number(n);
     if (!isFinite(v)) v = 0;
-    return '$' + Math.round(v).toLocaleString('en-US');
+    // Cents when there are any (render-pdf's money helper does the same):
+    // whole-dollar rounding left Subtotal + Tax + Rounding a dollar off Total.
+    var c = Math.round(v * 100);
+    var d = (c % 100 === 0) ? 0 : 2;
+    return '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   };
 
   // ── Normalize both estimate shapes to one view model ──────────────
@@ -45,6 +49,19 @@
   //          tier, sq, builder:'v2', signatureStatus, leadId
   // Classic: title|name, lineItems[{description,quantity,unit,amount}],
   //          total|amount, subtotal, tax, status
+  // Total = Subtotal + Tax rounded to the nearest $25 (either way), then
+  // lifted to the shop minimum — print the difference so the rows foot.
+  // Only alongside a printed Subtotal row.
+  function adjustmentRow(v) {
+    if (v.subtotal == null || v.total == null || v.subtotal === v.total) return '';
+    // In cents from the printed (cent-rounded) figures, so the rows foot as shown.
+    var adj = (Math.round((v.total) * 100) - Math.round((v.subtotal) * 100) - Math.round((v.tax || 0) * 100)) / 100;
+    if (!adj) return '';
+    return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--m,#98a0ab);"><span>' +
+      ((v.minJobApplied && adj > 0) ? 'Minimum job charge adjustment' : 'Rounding') + '</span><span>' +
+      (adj < 0 ? '−' : '') + money(Math.abs(adj)) + '</span></div>';
+  }
+
   function normalize(est) {
     var lines = [];
     if (Array.isArray(est.rows) && est.rows.length) {
@@ -89,7 +106,9 @@
       leadId: est.leadId || null,
       lines: lines,
       subtotal: est.subtotal != null ? Number(est.subtotal) : null,
-      tax: est.tax != null && Number(est.tax) > 0 ? Number(est.tax) : null,
+      // Classic-builder docs store taxAmount, not tax.
+      tax: (function () { var t = est.tax != null ? est.tax : est.taxAmount; return t != null && Number(t) > 0 ? Number(t) : null; })(),
+      minJobApplied: !!est.minJobApplied,
       total: total,
       created: created
     };
@@ -150,6 +169,7 @@
         ? '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--m,#98a0ab);"><span>Subtotal</span><span>' + money(v.subtotal) + '</span></div>' : '') +
       (v.tax != null
         ? '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--m,#98a0ab);"><span>Tax</span><span>' + money(v.tax) + '</span></div>' : '') +
+      adjustmentRow(v) +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;">' +
         '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:14px;font-weight:800;letter-spacing:.08em;color:var(--m,#98a0ab);">TOTAL</span>' +
         '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:28px;font-weight:800;color:var(--green,#2ecc8a);">' + money(v.total) + '</span></div>';
@@ -220,5 +240,7 @@
     document.body.appendChild(ov);
   }
 
-  window.EstimatePreview = { __sentinel: 'nbd-est-preview-v1', open: open, close: close };
+  window.EstimatePreview = { __sentinel: 'nbd-est-preview-v1', open: open, close: close,
+    // Test hooks (tests/estimate-rounding-line-2026-09-28.test.js).
+    _normalize: normalize, _adjustmentRow: adjustmentRow, _money: money };
 })();
