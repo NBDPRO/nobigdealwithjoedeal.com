@@ -85,9 +85,15 @@ async function renderLeaderboard(){
       reps[owner].revenue += parseFloat(l.jobValue) || 0;
     }
   });
+  // Teammate names from the company roster (team-names.js). Without it a rep
+  // whose leads carry no repName showed as "Teammate Y6HCf6" — a uid fragment
+  // (CRM sweep R14, 2026-09-28). A refused roster read falls back as before.
+  if (window.NBDTeamNames) { try { await window.NBDTeamNames.load(); } catch (_) {} }
   Object.values(reps).forEach(r => {
     if (r.name) return;
-    if (r.owner === uid) r.name = window._user?.displayName || 'You';
+    const rosterName = window.NBDTeamNames ? window.NBDTeamNames.nameFor(r.owner) : null;
+    if (rosterName) r.name = rosterName;
+    else if (r.owner === uid) r.name = window._user?.displayName || 'You';
     else if (r.owner === '(unknown)') r.name = 'Unassigned';
     else r.name = 'Teammate ' + String(r.owner).slice(0, 6);
   });
