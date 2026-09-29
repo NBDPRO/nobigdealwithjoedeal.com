@@ -807,6 +807,15 @@
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
+      <!-- Needs-you strip (js/home-attention.js): Stripe payments to assign +
+           yard signs to pick up. Hidden when both are zero. -->
+      <div id="homeAttention" class="ha-strip mb-md" hidden></div>
+      <style>
+        .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
+        .ha-strip[hidden]{display:none;}
+        .ha-item{font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px;border:1px solid var(--br);background:var(--s2,#1a1d23);color:var(--t);cursor:pointer;min-height:40px;}
+        .ha-item.ha-warn{border-color:var(--gold,#f59e0b);color:var(--gold,#f59e0b);}
+      </style>
       <div class="widget-grid" id="widgetGrid"></div>
     </div>
   </template>
@@ -6661,6 +6670,7 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=2"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
+<script defer src="js/home-attention.js?v=1"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>

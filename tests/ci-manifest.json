@@ -138,6 +138,7 @@
     "mark-paid-methods-2026-09-29.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
+    "home-attention-yard-chip-2026-09-29.test.js",
     "refunds-in-revenue-2026-09-29.test.js",
     "smart-followup-ai-burst-2026-09-29.test.js",
     "stripe-crm-invoice-2026-09-29.test.js",
