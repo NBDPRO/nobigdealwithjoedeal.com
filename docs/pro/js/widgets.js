@@ -377,28 +377,38 @@ const WIDGETS = [
 
   {id:'storm-alerts', name:'Storm Alerts', icon:'⛈️', cat:'Operations', size:'sm',
     render(el){
-      el.innerHTML = `<div class="w-empty" style="font-size:11px;">
-        <div style="font-size:20px;margin-bottom:6px;">🛡️</div>
-        No active alerts in your area.<br>
-        <span style="font-size:9px;color:var(--m);">Checks NWS alerts API</span>
-      </div>`;
-      // Attempt to fetch NWS alerts
-      fetch('https://api.weather.gov/alerts/active?area=OH&severity=Severe,Extreme&limit=3')
-        .then(r => r.json()).then(data => {
-          if(data.features && data.features.length) {
-            el.innerHTML = data.features.slice(0,3).map(f => `
-              <div style="padding:6px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:5px;margin-bottom:4px;font-size:10px;">
-                <div style="font-weight:700;color:var(--red);">${f.properties.event}</div>
-                <div style="color:var(--m);margin-top:2px;">${(f.properties.headline||'').substring(0,80)}</div>
-              </div>`).join('');
-          }
-        }).catch(() => {});
+      // Shows what Storm Center last found for THIS rep's area (it localizes
+      // to their county). This used to query area=OH for every tenant and
+      // print "No active alerts in your area" for everyone outside Ohio,
+      // and it put NWS text into innerHTML unescaped (2026-09-29).
+      let cached = null;
+      try {
+        const raw = JSON.parse(localStorage.getItem('nbd_storm_alerts_cache') || 'null');
+        if (raw && Array.isArray(raw.data) && Date.now() - raw.ts < 60 * 60 * 1000) cached = raw.data;
+      } catch (e) { cached = null; }
+      if (cached && cached.length) {
+        el.innerHTML = cached.slice(0,3).map(a => `
+          <div style="padding:6px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:5px;margin-bottom:4px;font-size:10px;">
+            <div style="font-weight:700;color:var(--red);">${esc(a.event || 'Weather alert')}</div>
+            <div style="color:var(--m);margin-top:2px;">${esc(String(a.headline || '').substring(0,80))}</div>
+          </div>`).join('');
+      } else {
+        el.innerHTML = `<div class="w-empty" style="font-size:11px;">
+          <div style="font-size:20px;margin-bottom:6px;">🛡️</div>
+          ${cached ? 'No active alerts in your area.' : 'Check alerts for your area.'}<br>
+          <button class="w-mini-btn" data-w-goto="storm" style="margin-top:6px;">Open Storm Center →</button>
+        </div>`;
+      }
     }},
 
   {id:'today-schedule', name:"Today's Schedule", icon:'📅', cat:'Operations', size:'md',
     render(el){
-      const calSettings = JSON.parse(localStorage.getItem('nbd_cal_settings') || '{}');
-      if(!calSettings.username) {
+      // users/{uid}.calcomUsername is the real setting (it survives sign-out,
+      // which wipes the legacy nbd_cal_settings cache) — same order as
+      // dashboard-ui.js loadCalSettings.
+      let calUser = (window._currentRep && window._currentRep.calcomUsername) || '';
+      if (!calUser) { try { calUser = (JSON.parse(localStorage.getItem('nbd_cal_settings') || '{}') || {}).username || ''; } catch (e) { calUser = ''; } }
+      if(!calUser) {
         el.innerHTML = '<div class="w-empty"><div style="font-size:20px;margin-bottom:6px;">📅</div>Connect Cal.com in Settings to see today\'s appointments</div>';
         return;
       }
@@ -407,13 +417,12 @@ const WIDGETS = [
           <span style="font-size:11px;font-weight:700;color:var(--t);">Today</span>
           <button class="w-mini-btn" data-w-goto="schedule">Open Calendar →</button>
         </div>
-        <div class="w-empty" style="font-size:11px;">Cal.com appointments will appear here with future webhook integration.</div>`;
+        <div class="w-empty" style="font-size:11px;">Your Cal.com bookings and today's events are on your Schedule.</div>`;
     }},
 
   {id:'task-checklist', name:'Task Checklist', icon:'✅', cat:'Operations', size:'md',
     render(el){
-      let tasks = JSON.parse(localStorage.getItem('nbd_home_tasks') || '[]');
-      if(!tasks.length) tasks = [{t:'Follow up on yesterday\'s leads',d:false},{t:'Send 3 estimates',d:false},{t:'Update pipeline stages',d:false},{t:'Check storm reports',d:false}];
+      const tasks = _getHomeTasks();
       el.innerHTML = `<div id="w-tasks">` + tasks.map((t,i) => `
         <label class="w-task-row">
           <input type="checkbox" ${t.d?'checked':''} data-w-change="toggleTask" data-w-idx="${i}">
@@ -816,6 +825,83 @@ async function _thuSetHidden(hidden) {
   catch (e) { console.warn('[thursday] could not save widget preference', e && e.code); }
 }
 
+// ── Home layout + Task Checklist survive sign-out (2026-09-29) ──
+// Both lived only in `nbd_home_widgets` / `nbd_home_tasks`, and
+// NBDAuth.purgeAccountStorage() deletes every nbd_ key on every sign-out:
+// a rep's arranged Home and their checklist reset at each logout and never
+// reached their phone. They now live on userSettings/{uid} (owner read/write
+// in firestore.rules — no rules change); localStorage is this device's cache.
+// First load with no cloud copy lifts this device's copy up once.
+const HOME_TASKS_KEY = 'nbd_home_tasks';
+let _homeCloudLoaded = false;
+let _homeCloudPending = false;
+
+function _cleanWidgetIds(v) {
+  if (!Array.isArray(v)) return null;
+  const ids = v.filter(x => typeof x === 'string' && x.length <= 60 && WIDGETS.some(w => w.id === x)).slice(0, 60);
+  return ids.length ? ids : null;
+}
+function _cleanTasks(v) {
+  if (!Array.isArray(v)) return null;
+  return v.filter(x => x && typeof x.t === 'string').slice(0, 100)
+    .map(x => ({ t: String(x.t).slice(0, 200), d: x.d === true }));
+}
+function _readLocal(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
+function _writeLocal(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* quota — cloud still has it */ } }
+
+async function _homeCloudSave(patch) {
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  if (!uid || !window.db || !window.setDoc || !window.doc) return false;
+  try { await window.setDoc(window.doc(window.db, 'userSettings', uid), patch, { merge: true }); return true; }
+  catch (e) { console.warn('[home] could not save to your account', e && e.code); return false; }
+}
+
+async function _homeHydrate() {
+  if (_homeCloudLoaded || _homeCloudPending) return;
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  if (!uid || !window.db || !window.getDoc || !window.doc) return; // retry on the next Home render
+  _homeCloudPending = true;
+  let data = null;
+  try {
+    const snap = await (window.nbdRetryOffline || (f => f()))(() => window.getDoc(window.doc(window.db, 'userSettings', uid)));
+    data = snap.exists() ? (snap.data() || {}) : {};
+  } catch (e) {
+    _homeCloudPending = false;
+    return; // a FAILED read never uploads — try again on the next render
+  }
+  _homeCloudPending = false;
+  _homeCloudLoaded = true;
+  const cloudIds = _cleanWidgetIds(data.homeWidgets);
+  const cloudTasks = _cleanTasks(data.homeTasks);
+  const up = {};
+  let changed = false;
+  if (cloudIds) {
+    if (JSON.stringify(cloudIds) !== JSON.stringify(_readLocal(STORAGE_KEY))) { _writeLocal(STORAGE_KEY, cloudIds); changed = true; }
+  } else {
+    const localIds = _cleanWidgetIds(_readLocal(STORAGE_KEY));
+    if (localIds) up.homeWidgets = localIds;
+  }
+  if (cloudTasks) {
+    if (JSON.stringify(cloudTasks) !== JSON.stringify(_readLocal(HOME_TASKS_KEY))) { _writeLocal(HOME_TASKS_KEY, cloudTasks); changed = true; }
+  } else {
+    const localTasks = _cleanTasks(_readLocal(HOME_TASKS_KEY));
+    if (localTasks && localTasks.length) up.homeTasks = localTasks;
+  }
+  if (Object.keys(up).length) _homeCloudSave(up);
+  if (changed) renderWidgetHome();
+}
+
+function _getHomeTasks() {
+  const t = _cleanTasks(_readLocal(HOME_TASKS_KEY));
+  if (t && t.length) return t;
+  return [{t:'Follow up on yesterday\'s leads',d:false},{t:'Send 3 estimates',d:false},{t:'Update pipeline stages',d:false},{t:'Check storm reports',d:false}];
+}
+function _saveHomeTasks(tasks) {
+  const clean = _cleanTasks(tasks) || [];
+  _writeLocal(HOME_TASKS_KEY, clean);
+  _homeCloudSave({ homeTasks: clean });
+}
+
 async function _thuFetch() {
   const db = window.db;
   const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
@@ -1008,7 +1094,9 @@ function getActiveWidgets() {
 }
 
 function saveActiveWidgets(ids) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+  _writeLocal(STORAGE_KEY, ids);
+  const clean = _cleanWidgetIds(ids);
+  if (clean) _homeCloudSave({ homeWidgets: clean });
 }
 
 
@@ -1017,6 +1105,7 @@ function renderWidgetHome() {
   const grid = document.getElementById('widgetGrid');
   if(!grid) return;
   if (_thuGateState === null) { _thuGateState = { enabled: false, hidden: false, pending: true }; _thuResolveGate(); }
+  if (!_homeCloudLoaded) _homeHydrate();
 
   const activeIds = getActiveWidgets();
   grid.innerHTML = '';
@@ -1171,19 +1260,18 @@ function resetDefaults() {
 
 // ── WIDGET INTERACTION HELPERS (global) ─────────────────────────
 _wToggleTask = function(idx, done) {
-  let tasks = JSON.parse(localStorage.getItem('nbd_home_tasks') || '[]');
-  if(!tasks.length) tasks = [{t:'Follow up on yesterday\'s leads',d:false},{t:'Send 3 estimates',d:false},{t:'Update pipeline stages',d:false},{t:'Check storm reports',d:false}];
-  if(tasks[idx]) tasks[idx].d = done;
-  localStorage.setItem('nbd_home_tasks', JSON.stringify(tasks));
+  const tasks = _getHomeTasks();
+  if(tasks[idx]) tasks[idx].d = !!done;
+  _saveHomeTasks(tasks);
   renderWidgetHome();
 };
 
 _wAddTask = function() {
   const input = document.getElementById('w-task-input');
   if(!input || !input.value.trim()) return;
-  let tasks = JSON.parse(localStorage.getItem('nbd_home_tasks') || '[]');
+  const tasks = _cleanTasks(_readLocal(HOME_TASKS_KEY)) || [];
   tasks.push({t: input.value.trim(), d: false});
-  localStorage.setItem('nbd_home_tasks', JSON.stringify(tasks));
+  _saveHomeTasks(tasks);
   renderWidgetHome();
 };
 
@@ -1264,6 +1352,12 @@ window.NBDWidgets = {
   removeWidget,
   resetDefaults,
   getActive: getActiveWidgets,
+  // Test hooks (tests/home-widgets-survive-signout-2026-09-29.test.js).
+  _home: {
+    hydrate: _homeHydrate, getTasks: _getHomeTasks, saveTasks: _saveHomeTasks,
+    saveActive: saveActiveWidgets, toggleTask: (i, d) => _wToggleTask(i, d),
+    loaded: () => _homeCloudLoaded,
+  },
 };
 
 // Home first paints on DOMContentLoaded, before auth, with window._leads
