@@ -87,9 +87,36 @@ function desiredEventsForLead(lead) {
   const out = [];
   const job = FEED.normalizeLead(doc);
   if (job) out.push(toGoogleEvent(job, lead));
+  else {
+    const wk = weekEventFor(doc, lead);
+    if (wk) out.push(wk);
+  }
   const adj = FEED.normalizeAdjusterMeeting(doc);
   if (adj) out.push(toGoogleEvent(adj, lead));
   return out;
+}
+
+/**
+ * A job planned to a WEEK but not a day yet (lead.scheduledWeek = that
+ * week's Monday, no scheduledDate — Jo, 2026-09-29: "assign them to a week
+ * and then refine"). One all-day bar Monday–Friday, FREE, so it never blocks
+ * Cal.com or trips the double-booking warning: it is a plan, not a slot. It
+ * uses the job's own event id, so setting a real date later updates this
+ * event in place instead of leaving a stray.
+ */
+function weekEventFor(doc, lead) {
+  const wk = String((doc && doc.scheduledWeek) || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(wk) || (doc && doc.scheduledDate)) return null;
+  const friday = new Date(Date.parse(wk + 'T12:00:00Z') + 4 * 86400000).toISOString().slice(0, 10);
+  const ev = FEED.normalizeLead(Object.assign({}, doc, {
+    scheduledDate: wk, scheduledEndDate: friday, scheduledStart: null, scheduledDurationMin: null,
+  }));
+  if (!ev) return null;
+  const g = toGoogleEvent(Object.assign({}, ev, { windowNote: '' }), lead);
+  g.summary = '📆 Week of: ' + (ev.title || 'Scheduled job');
+  g.transparency = 'transparent';
+  g.description = 'Planned for this week — exact day not set yet. Set the date in NBD Pro (Schedule → Plan Jobs).\n' + g.description;
+  return g;
 }
 
 /** The two ids a lead can ever own — what to delete when it has none. */
@@ -128,7 +155,7 @@ function planSync(desired, existing) {
 }
 
 /** Did a lead write change anything the calendar shows? (cheap trigger gate) */
-const WATCHED = ['scheduledDate', 'scheduledStart', 'scheduledDurationMin', 'scheduledEndDate', 'adjusterMeetingDate',
+const WATCHED = ['scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledDurationMin', 'scheduledEndDate', 'adjusterMeetingDate',
   'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'firstName', 'lastName', 'address', 'deleted', 'stage', 'phone',
   'customerId', 'insCarrier', 'insuranceCarrier', 'claimNumber', 'companyId', 'userId'];
 function calendarFieldsChanged(before, after) {
@@ -182,5 +209,5 @@ function conflictsWith(blocks, startMs, endMs, ignoreEventCalendar) {
 
 module.exports = {
   TZ, eventIdFor, toGoogleEvent, desiredEventsForLead, allIdsForLead, eventSignature, planSync,
-  calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED,
+  calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED, weekEventFor,
 };

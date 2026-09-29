@@ -519,6 +519,29 @@
     return { when, text: 'Scheduled for ' + pretty };
   }
 
+  // A job planned to a week, before its day is set (2026-09-29). weekYmd is
+  // that week's Monday. Past weeks say nothing: a lapsed plan is not a
+  // promise to repeat to the homeowner. The note is the "we'll walk down your
+  // days" Jo asked for, phrased as what happens next, not a guarantee.
+  function _weekLine(weekYmd, todayYmd) {
+    if (typeof weekYmd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(weekYmd)) return null;
+    const [y, m, d] = weekYmd.split('-').map(Number);
+    const mon = new Date(y, m - 1, d);
+    if (mon.getFullYear() !== y || mon.getMonth() !== m - 1 || mon.getDate() !== d) return null;
+    const sun = new Date(y, m - 1, d + 6);
+    const p = (v) => String(v).padStart(2, '0');
+    const sunYmd = sun.getFullYear() + '-' + p(sun.getMonth() + 1) + '-' + p(sun.getDate());
+    if (sunYmd < todayYmd) return null;
+    let pretty;
+    try { pretty = mon.toLocaleDateString(undefined, { month: 'long', day: 'numeric' }); } catch (_) { pretty = weekYmd; }
+    const thisWeek = weekYmd <= todayYmd;
+    return {
+      when: 'week',
+      text: thisWeek ? 'Your project is scheduled for this week' : 'Your project is scheduled for the week of ' + pretty,
+      note: 'We\'ll confirm your exact day as that week\'s schedule comes together, and we\'ll reach out before the crew arrives.',
+    };
+  }
+
   // The arrival window after the date (2026-09-29): "· arriving around
   // 7:00 am · 2-day job" / "· 2:30–3:30 pm". The server sends the window's
   // three fields raw (functions/portal.js scheduleWindowFor); the wording and
@@ -724,11 +747,18 @@
       // sent, compared against the READER's local today.
       const sched = _scheduleLine(p.scheduledDate, _localToday());
       const schedWin = sched ? _scheduleWindowSuffix(p.scheduledDate, p.scheduleWindow, sched.when) : '';
+      // No exact date yet but a planned week → the week line (never both).
+      const week = sched ? null : _weekLine(p.scheduledWeek, _localToday());
       const schedHtml = sched
         ? '<div class="progress-schedule" data-when="' + esc(sched.when) + '">'
             + '<span aria-hidden="true">📅</span> ' + esc(sched.text) + esc(schedWin)
           + '</div>'
-        : '';
+        : week
+          ? '<div class="progress-schedule" data-when="week">'
+              + '<span aria-hidden="true">📅</span> ' + esc(week.text)
+              + '<div class="progress-schedule-note">' + esc(week.note) + '</div>'
+            + '</div>'
+          : '';
       parts.push(
         '<div class="card progress-card">' +
           '<div class="card-label">Where We Are</div>' +

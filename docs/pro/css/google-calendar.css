@@ -11,3 +11,23 @@
 .gcal-code { font-size: 11px; background: rgba(0, 0, 0, .15); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
 .gcal-conflict { font-size: 12px; line-height: 1.45; color: var(--gold, #f59e0b); margin-top: 4px; min-height: 1em; overflow-wrap: anywhere; }
 .gcal-clear { color: var(--green, #22c55e); }
+
+/* Plan Jobs (js/schedule-planner.js) — phone first: the inputs wrap under the name. */
+.sp-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.sp-search { flex: 1 1 220px; min-width: 0; background: var(--s2); border: 1px solid var(--br); border-radius: 7px; padding: 10px 12px; font: inherit; font-size: 14px; color: var(--t); }
+.sp-toggle { font-size: 12px; color: var(--m); display: flex; align-items: center; gap: 6px; }
+.sp-h { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; margin: 14px 0 6px; color: var(--t); }
+.sp-count { color: var(--orange); margin-left: 4px; }
+.sp-row { border: 1px solid var(--br); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--s2); }
+.sp-name { font-weight: 700; color: var(--t); text-decoration: none; }
+.sp-sub { font-size: 11px; color: var(--m); margin-top: 2px; overflow-wrap: anywhere; }
+.sp-in { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; }
+.sp-in label { display: flex; flex-direction: column; font-size: 10px; color: var(--m); gap: 3px; }
+.sp-in input { font: inherit; font-size: 14px; min-height: 38px; padding: 4px 8px; border: 1px solid var(--br); border-radius: 6px; background: var(--s); color: var(--t); }
+.sp-days { width: 64px; }
+.sp-save, .sp-clear { min-height: 38px; font-size: 12px; padding: 8px 14px; }
+.sp-msg { font-size: 12px; color: var(--gold, #f59e0b); margin-top: 4px; min-height: 0; }
+.sp-note { font-size: 12px; color: var(--m); padding: 6px 0; }
+.sp-week { font-size: 12px; color: var(--blue, #3b82f6); margin-top: 3px; font-weight: 600; }
+.sp-week-late { color: var(--gold, #f59e0b); }
+.sp-or { font-size: 11px; color: var(--m); align-self: center; padding-bottom: 10px; }

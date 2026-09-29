@@ -233,6 +233,7 @@ service cloud.firestore {
       let dur = request.resource.data.get('scheduledDurationMin', null);
       return _hmOk('scheduledStart')
           && _ymdOk('scheduledEndDate')
+          && _ymdOk('scheduledWeek')         // the Monday of a week-planned job (2026-09-29)
           && (dur == null || (dur is int && dur >= 1 && dur <= 1440))
           && _ymdOk('adjusterMeetingDate')
           && _hmOk('adjusterMeetingStart');

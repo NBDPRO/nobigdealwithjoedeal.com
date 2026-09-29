@@ -863,6 +863,14 @@ exports.getHomeownerPortalView = onRequest(
       // "…· arriving around 7:00 am · 2-day job" on the card. Whitelisted by
       // scheduleWindowFor() above; no other lead field rides along.
       scheduleWindow: scheduleWindowFor(lead),
+      // The Monday of the week the job is planned for, sent ONLY while there
+      // is no exact date (Jo, 2026-09-29: book a week first, then "walk down"
+      // the days). Raw YYYY-MM-DD for the same reader-timezone reason as
+      // scheduledDate; shape-validated.
+      scheduledWeek: (!/^\d{4}-\d{2}-\d{2}$/.test(String(lead.scheduledDate || ''))
+          && /^\d{4}-\d{2}-\d{2}$/.test(String(lead.scheduledWeek || '')))
+        ? lead.scheduledWeek
+        : null,
       // {inspected: <ISOString>, estimate_sent: ..., ...} — only keys the
       // lead has actually reached carry a date; see milestoneDatesFor above.
       milestoneDates: milestoneDatesFor(lead),
