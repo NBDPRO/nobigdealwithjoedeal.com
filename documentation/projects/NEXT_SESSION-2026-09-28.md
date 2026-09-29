@@ -209,10 +209,11 @@ All merged, each with a test that fails on the old code (BUG-LOG R14-01 … R14-
   - **#1858** "Open full editor" opened a blank estimate; `?edit=` opened a blank new-lead form.
 - **Rig:** **#1854** customer-page callables work on the emulator (App Check shim).
 
-**Questions for Jo:**
-- Estimate totals round (`roundTo`) with no rounding line on the proposal: a template quote reads Subtotal $1,019.18 + Tax $79.50 = Total $1,100.00.
-- Customer-page Add Event entries don't appear on the Schedule view.
-- Earlier ones still stand: Insurance Claim Progress on cash jobs, the public audit run logs, and the Bland balance.
+**Answered by Jo, then built (R14-17, R14-18):**
+- "show the rounding line on proposals": **#1861**. The Retail Quote PDF, insurance scope and Job Templates preview print `Rounding −$4.80`, or `Minimum job charge adjustment`, so Subtotal + Tax foots to Total.
+- "events on schedule yes": **#1860**. Today's customer-page Add Event entries show on the Schedule view.
+
+**Questions for Jo:** Insurance Claim Progress on cash jobs, the public audit run logs, and the Bland balance.
 
 **Rig notes (memory):**
 - Screenshot pixels ≠ CSS pixels: click by ref.
