@@ -1787,6 +1787,42 @@ async function run() {
       + s35Fail.join('\n    '));
   }
 
+  // ─── 36. An accepted deal room is a signed record (2026-09-28) ───
+  // Like a signed contract (Jo, 2026-09-25): nobody deletes it, moves it back
+  // out of a closed status, or rewrites the homeowner's acceptance. Open
+  // deals stay fully editable and deletable.
+  const s36Fail = []; let s36Pass = 0;
+  async function x36(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s36Pass++;
+    } catch (e) { s36Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const r36 = env.authenticatedContext('r36', { role: 'sales_rep', companyId: 'co-36' }).firestore();
+  const acc36 = { userId: 'r36', companyId: 'co-36', status: 'accepted', acceptedTier: 'better', acceptedPrice: 15000,
+    acceptedSignature: 'data:image/png;base64,AAAA', acceptedVia: 'remote', notes: '' };
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const a = ctx.firestore();
+    await setDoc(doc(a, 'deal_rooms/acc36'), acc36);
+    await setDoc(doc(a, 'deal_rooms/acc36b'), acc36);
+    await setDoc(doc(a, 'deal_rooms/open36'), { userId: 'r36', companyId: 'co-36', status: 'sent', notes: '' });
+  });
+  await x36('owner edits a note on an accepted deal', 'allow', updateDoc(doc(r36, 'deal_rooms/acc36'), { notes: 'call before install' }));
+  await x36('owner moves accepted → scheduled', 'allow', updateDoc(doc(r36, 'deal_rooms/acc36'), { status: 'scheduled', scheduledInstallDate: '2026-10-10' }));
+  await x36('stale tab writes status sent over accepted', 'deny', updateDoc(doc(r36, 'deal_rooms/acc36b'), { status: 'sent' }));
+  await x36('stale tab writes status expired over accepted', 'deny', updateDoc(doc(r36, 'deal_rooms/acc36b'), { status: 'expired' }));
+  await x36('owner rewrites acceptedPrice', 'deny', updateDoc(doc(r36, 'deal_rooms/acc36b'), { acceptedPrice: 9000 }));
+  await x36('owner rewrites acceptedSignature', 'deny', updateDoc(doc(r36, 'deal_rooms/acc36b'), { acceptedSignature: 'x' }));
+  await x36('owner deletes an accepted deal', 'deny', deleteDoc(doc(r36, 'deal_rooms/acc36b')));
+  await x36('platform admin deletes an accepted deal', 'deny', deleteDoc(doc(admin, 'deal_rooms/acc36b')));
+  await x36('owner deletes a scheduled deal', 'deny', deleteDoc(doc(r36, 'deal_rooms/acc36')));
+  await x36('owner edits an open deal', 'allow', updateDoc(doc(r36, 'deal_rooms/open36'), { status: 'viewed', notes: 'x' }));
+  await x36('owner deletes an open deal', 'allow', deleteDoc(doc(r36, 'deal_rooms/open36')));
+  console.log('  36: ' + s36Pass + ' signed-deal-room checks passed, ' + s36Fail.length + ' failed');
+  if (s36Fail.length) {
+    throw new Error('36 signed deal rooms: ' + s36Fail.length + ' check(s) went the wrong way:\n    ' + s36Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }
