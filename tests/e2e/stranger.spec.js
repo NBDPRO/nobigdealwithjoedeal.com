@@ -414,10 +414,17 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
         await m.getAuth().currentUser.getIdToken(true);
       });
 
-      // Step 3: open the dashboard — claimInvite runs on first load and
-      // reboots the page into team scope.
+      // Step 3: open the dashboard — claimInvite runs on first load. This rep
+      // registered on the plain sign-up page, so they own an (empty) starter
+      // company: since 2026-09-29 the server asks before re-pointing an owner
+      // (confirm_required), the Join prompt shows, and ONE tap joins (no data
+      // → no second step). Then the page reboots into team scope.
       await repPage.click('[data-action="skip"]');
       await repPage.waitForURL(/\/pro\/dashboard(\.html)?([?#]|$)/, { timeout: 30_000 });
+      const joinBtn = repPage.locator('#inviteJoinModal.open [data-ij="join"]');
+      await expect(joinBtn, 'the Join prompt names the team').toBeVisible({ timeout: 45_000 });
+      await expect(repPage.locator('#inviteJoinModal')).toContainText('invited you to join their team');
+      await joinBtn.click();
 
       const activated = await eventually(async () => {
         const m = (await memberRef.get()).data();

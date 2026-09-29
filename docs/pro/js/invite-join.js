@@ -13,8 +13,10 @@
  *   - A company Jo already said "Not now" to is skipped at boot. The decline
  *     is stored on userSettings/{uid}.inviteDeclined — NOT nbd_ localStorage,
  *     which sign-out wipes (the reason the old boot flag re-armed).
- *   - Joining asks twice: the second step says plainly that this account
- *     stops working inside its own company.
+ *   - Joining asks twice when the account's own company has records
+ *     (claimInvite's hasData): the second step says plainly that this account
+ *     stops working inside its own company. An empty starter company — a rep
+ *     who registered on the plain sign-up page — asks once.
  *
  * Classic script; Firestore helpers come from dashboard-bootstrap
  * (window.db / doc / getDoc / setDoc). Every value into innerHTML is escaped.
@@ -92,7 +94,10 @@
     );
     if (first !== 'join') { await rememberDecline(r.companyId); return 'declined'; }
 
-    const second = await ask(
+    // An empty starter company (a rep who signed up on the plain register
+    // page) needs no second step. Anything else — including an unknown
+    // answer — gets it.
+    const second = r.hasData === false ? 'confirm' : await ask(
       '<h3 style="margin:0 0 10px;">Switch this account to ' + co + '?</h3>' +
       '<p style="margin:0 0 8px;line-height:1.5;">This account runs its own company in NBD Pro. After joining, you will work inside ' + co +
       '\'s workspace instead: their leads, their pipeline, their settings.</p>' +

@@ -317,6 +317,32 @@ console.log('\nManual invite-claim recovery (Team tab)');
     /_NBD_INVITE_CHECK_DELEGATE/.test(tab));
 }
 
+console.log('\nExplicit Join for company owners (2026-09-29)');
+{
+  // The server previews for an owner (confirm_required) and joins only on
+  // { confirm: true } — tests/invite-claim-path.integration.test.js §12 drives
+  // it. These pin the client half: both callers prompt, the boot never waits
+  // on a person, and a decline survives sign-out.
+  const html = read('docs/pro/dashboard.html');
+  const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
+  const tab = read('docs/pro/js/dashboard-team-tab.js');
+  const ij = read('docs/pro/js/invite-join.js');
+  assert('invite-join.js loads (deferred) before the bootstrap that calls it',
+    html.indexOf('js/invite-join.js') > 0 && html.indexOf('js/invite-join.js') < html.indexOf('js/dashboard-bootstrap.module.js'));
+  assert('boot prompts on confirm_required without awaiting it (the claim await gates loadLeads)',
+    /out\.reason === 'confirm_required'/.test(boot) && /window\.NBDInviteJoin\.handle\(out, \(p\) => fn\(p\), \{ fromBoot: true \}\)\.then\(/.test(boot));
+  assert('confirm_required is NOT terminal at boot (no checked flag set)',
+    /\|\| out\.reason === 'confirm_required'\) \{/.test(boot));
+  assert('Team tab "Check my invite now" prompts too, even after a boot decline',
+    /data\.reason === 'confirm_required' && window\.NBDInviteJoin/.test(tab) && /fromBoot: false/.test(tab));
+  assert('a decline is stored on userSettings (survives sign-out), not nbd_ localStorage',
+    /inviteDeclined: \{ \[companyId\]: Date\.now\(\) \}/.test(ij) && /'userSettings'/.test(ij) && !/localStorage/.test(ij.replace(/\/\*[\s\S]*?\*\//g, '')));
+  assert('joining asks twice and sends confirm: true only after the second yes',
+    /second !== 'confirm'\) return 'later'/.test(ij) && /callFn\(\{ confirm: true \}\)/.test(ij)
+      && ij.indexOf("second !== 'confirm'") < ij.indexOf('callFn({ confirm: true })'));
+  assert('company name escaped before innerHTML', /const co = esc\(r\.companyName/.test(ij));
+}
+
 console.log('\nInvitee register bypass (?invite=1)');
 {
   const reg = read('docs/pro/js/pages/register.js');

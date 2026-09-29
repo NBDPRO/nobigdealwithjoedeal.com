@@ -212,7 +212,23 @@ exports.claimInvite = onCall(
     }
     const confirmed = !!(request.data && request.data.confirm === true);
     if (ownsTenant && !confirmed) {
-      return { claimed: false, reason: 'confirm_required', companyId, companyName, role, ownsTenant: true };
+      // Does the account's own company hold anything? A rep who registered on
+      // the plain sign-up page (not the invite link) owns an EMPTY starter
+      // company — one "Join" is enough for them. Only an owner with real
+      // records gets the second, stronger confirmation (invite-join.js).
+      // Two cheap limit(1) reads, same two scopes the owner-lead readers use.
+      let hasData = false;
+      try {
+        const [a, b] = await Promise.all([
+          db.collection('leads').where('companyId', '==', uid).limit(1).get(),
+          db.collection('leads').where('userId', '==', uid).limit(1).get(),
+        ]);
+        hasData = !a.empty || !b.empty;
+      } catch (e) {
+        hasData = true; // unknown → the careful path
+        logger.warn('claimInvite: data check failed — treating as has-data', { uid, err: e.message });
+      }
+      return { claimed: false, reason: 'confirm_required', companyId, companyName, role, ownsTenant: true, hasData };
     }
 
     // Only companyId + role. Deliberately NO `plan` claim: post-Pillar-4

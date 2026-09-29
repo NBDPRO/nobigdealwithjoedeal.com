@@ -415,6 +415,10 @@ async function run() {
       (await claimsOf(soloUid)).companyId === soloUid && (await claimsOf(soloUid)).role === 'company_admin');
     ok('12 ...invite still pending', (await statusOf(inv)) === 'invited');
     ok('12 ...own company not superseded', !(await db.doc(`companies/${soloUid}`).get()).data().status || (await db.doc(`companies/${soloUid}`).get()).data().status === 'active');
+    ok('12 an EMPTY own company → hasData:false (one Join is enough)', preview.hasData === false, JSON.stringify(preview));
+    await db.doc(`leads/${RUN}-lead12`).set({ companyId: soloUid, userId: soloUid, firstName: 'ZZ_QA', lastName: 'Lead' });
+    const withData = await claim(solo, { companyId: soloUid, role: 'company_admin' });
+    ok('12 an own company WITH a lead → hasData:true (the second, stronger step)', withData.reason === 'confirm_required' && withData.hasData === true, JSON.stringify(withData));
 
     const truthy = await claim(solo, { companyId: soloUid, role: 'company_admin' }, { confirm: 'yes' });
     ok('12 confirm must be exactly true (a truthy string is still a preview)', truthy.reason === 'confirm_required', JSON.stringify(truthy));
