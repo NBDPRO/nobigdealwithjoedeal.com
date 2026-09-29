@@ -582,7 +582,7 @@ const phoneSuite = (width) => test.describe.serial(`phone dashboard nav + quick 
   });
 
   test('more:Reports, Talk Tank and Referrals open from the More drawer, and the drawer covers the sidebar', async () => {
-    for (const target of ['reports', 'talk-tank', 'refrewards', 'signs']) {
+    for (const target of ['reports', 'talk-tank', 'refrewards', 'signs', 'schedule']) {
       await dismissToasts(page);
       await page.locator('#mni-more').tap();
       const item = `#mobile-more-menu .mm-item[data-target="${target}"]`;
@@ -613,7 +613,7 @@ const phoneSuite = (width) => test.describe.serial(`phone dashboard nav + quick 
     const cust = '#mobile-more-menu .mm-item-customize';
     await page.locator(cust).scrollIntoViewIfNeeded();
     await page.locator(cust).tap();
-    for (const id of ['reports', 'talk-tank', 'refrewards', 'signs']) {
+    for (const id of ['reports', 'talk-tank', 'refrewards', 'signs', 'schedule']) {
       const tile = `#navCustomizeModal .ncm-pool-item[data-tab-id="${id}"]`;
       await expect(page.locator(tile), `tab-bar picker offers ${id}`).toHaveCount(1);
       await page.locator(tile).scrollIntoViewIfNeeded();
