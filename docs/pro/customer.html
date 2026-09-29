@@ -2635,8 +2635,11 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Claim unification: canonical claim view + Claim Details panel/editor.
      MUST load before insurance-claim.js — advanceClaimStage syncs the
      coarse claimStatus via window.ClaimCore.claimStatusFromStage. -->
-<script defer src="js/claim-core.js?v=3"></script>
-<script defer src="js/insurance-claim.js?v=5"></script>
+<!-- Arrival-window / meeting date math (2026-09-29), pure. Before claim-core.js
+     (the Adjuster Meeting cell) and insurance-claim.js, which format with it. -->
+<script defer src="js/schedule-window.js?v=1"></script>
+<script defer src="js/claim-core.js?v=4"></script>
+<script defer src="js/insurance-claim.js?v=6"></script>
 <script defer src="js/offline-manager.js?v=6"></script>
 <script defer src="js/customer-dnd-upload.js?v=3"></script>
 <script defer src="js/customer-quick-action-bar.js?v=3"></script>
@@ -2805,6 +2808,39 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
         <label for="editScope" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Scope of Work</label>
         <textarea id="editScope" rows="3" aria-label="Scope of work" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;resize:vertical;font-family:inherit;" placeholder="e.g. Full tear-off and replacement, 30-yr architectural shingle, 6 squares"></textarea>
       </div>
+      <!-- 2026-09-29 (calendar hub Phase 0): the install day and its arrival
+           window. Until now this modal had no Scheduled Date at all — a rep
+           had to leave for the dashboard's card editor to set one. Wired by
+           js/schedule-window-ui.js (delegated, no inline handlers); "All day /
+           no time" saves only the date, exactly as the dashboard always has. -->
+      <div>
+        <label for="editScheduledDate" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Scheduled Date</label>
+        <input id="editScheduledDate" type="date" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;" />
+        <div data-schedwin="edit" data-schedwin-date="editScheduledDate" data-schedwin-mode="allday" style="margin-top:8px;">
+          <div role="group" aria-label="Arrival window" style="display:flex;flex-wrap:wrap;gap:6px;">
+            <button type="button" data-schedwin-preset="allday" aria-pressed="true" style="padding:6px 10px;min-height:36px;border:1px solid var(--orange,#BD5728);border-radius:999px;background:var(--orange,#BD5728);color:#fff;font-size:12px;cursor:pointer;">All day / no time</button>
+            <button type="button" data-schedwin-preset="project" aria-pressed="false" style="padding:6px 10px;min-height:36px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Full project</button>
+            <button type="button" data-schedwin-preset="repair" aria-pressed="false" style="padding:6px 10px;min-height:36px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Repair / inspection</button>
+          </div>
+          <div data-schedwin-fields hidden style="display:none;">
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">
+              <div style="flex:1;min-width:120px;">
+                <label for="editSchedStart" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Start time</label>
+                <input id="editSchedStart" type="time" step="300" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;" />
+              </div>
+              <div data-schedwin-for="project" hidden style="display:none;flex:1;min-width:120px;">
+                <label for="editSchedDays" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Length</label>
+                <select id="editSchedDays" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;"><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option></select>
+              </div>
+              <div data-schedwin-for="repair" hidden style="display:none;flex:1;min-width:120px;">
+                <label for="editSchedDuration" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Length</label>
+                <select id="editSchedDuration" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;"><option value="">No set length</option><option value="30">30 min</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select>
+              </div>
+            </div>
+          </div>
+          <div id="editSchedPreview" aria-live="polite" style="font-size:12px;color:var(--m);margin-top:6px;min-height:1em;"></div>
+        </div>
+      </div>
       <div>
         <label for="editJobValue" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Job Value</label>
         <!-- type="number" is load-bearing, not cosmetic: as a free text
@@ -2823,7 +2859,11 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   </div>
 </div>
 
-<script defer src="js/customer-edit-modal.js?v=3"></script>
+<!-- Arrival-window controls above (2026-09-29; the date math,
+     schedule-window.js, loads before claim-core.js). Before
+     customer-edit-modal.js, which fills and reads them. -->
+<script defer src="js/schedule-window-ui.js?v=1"></script>
+<script defer src="js/customer-edit-modal.js?v=4"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      Voice Intelligence mount (C4)

@@ -122,6 +122,9 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       approvedAmount: lead.approvedAmount,
       deductible: (lead.deductibleOrOwedByHO != null && lead.deductibleOrOwedByHO !== '')
         ? lead.deductibleOrOwedByHO : lead.deductible,
+      // Set in the Claim Details editor (claim-core.js), 2026-09-29.
+      adjusterMeetingDate: lead.adjusterMeetingDate || '',
+      adjusterMeetingStart: lead.adjusterMeetingStart || '',
       history: claimHistory
     };
   }
@@ -203,6 +206,13 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       const lead = leadSnap.data();
       const status = getClaimStatus(lead);
       const currentIndex = CLAIM_STAGES.findIndex(s => s.id === status.currentStageId);
+      // "Tue, Oct 6 · 10:00 am" — schedule-window.js loads before this file;
+      // the raw values if it did not. Escaped at the sink below either way.
+      const _SW = window.NBDScheduleWindow;
+      const meeting = status.adjusterMeetingDate
+        ? ((_SW && _SW.formatWindow && _SW.formatWindow({ scheduledDate: status.adjusterMeetingDate, scheduledStart: status.adjusterMeetingStart || null }))
+          || (status.adjusterMeetingDate + (status.adjusterMeetingStart ? ' ' + status.adjusterMeetingStart : '')))
+        : '';
 
       // .claim-stages is a read-only progress list, not buttons (2026-09-25
       // phone audit). The 11 stages rendered as filled, rounded,
@@ -262,6 +272,7 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
           <div class="claim-details" style="background: rgba(255,255,255,.02); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--br,rgba(255,255,255,.08)); font-size: 13px;">
             ${status.claimNumber ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Claim #:</strong> ${_icEsc(status.claimNumber)}</div>` : ''}
             ${status.insuranceCarrier ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Carrier:</strong> ${_icEsc(status.insuranceCarrier)}</div>` : ''}
+            ${meeting ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Adjuster meeting:</strong> ${_icEsc(meeting)}</div>` : ''}
             ${status.approvedAmount ? `<div style="color: var(--m,#9ca3af);"><strong style="color: var(--t);">Approved:</strong> $${status.approvedAmount.toLocaleString()}</div>` : ''}
           </div>
 

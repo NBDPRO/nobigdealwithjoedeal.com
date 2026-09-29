@@ -18,12 +18,19 @@
  *         the 6th. Get this wrong and every scheduled job renders as two days.
  *   §3.3.11 TEXT values escape backslash, semicolon, comma and newline.
  *
- * America/New_York enters in exactly one place: deciding which local calendar
- * DAY an appointment falls on, for the lead/appointment dedup. Everything a
- * calendar client renders is UTC or a bare date.
+ * America/New_York enters in exactly two places: deciding which local calendar
+ * DAY an appointment falls on, for the lead/appointment dedup; and turning a
+ * lead's wall-clock arrival time (scheduledStart, 2026-09-29) into an instant,
+ * which schedule-window.js does. Everything a calendar client renders is UTC
+ * or a bare date, so there is still no VTIMEZONE block to get wrong.
  */
 
 'use strict';
+
+// Byte-identical copy of docs/pro/js/schedule-window.js (functions/ deploys on
+// its own and cannot require docs/). tests/schedule-window-2026-09-29.test.js
+// holds the two equal.
+const SW = require('./schedule-window');
 
 const PRODID = '-//NBD Pro//Calendar Feed//EN';
 const UID_DOMAIN = 'nobigdealwithjoedeal.com';
@@ -151,9 +158,18 @@ function normalizeAppointment(doc) {
 }
 
 /**
- * leads/{id} → an all-day event, or null. A rep-typed Scheduled Date is a
- * date-only string; anything that is not exactly YYYY-MM-DD is skipped rather
- * than guessed at, because a malformed DTSTART makes iOS drop the whole feed.
+ * leads/{id} → an event, or null. A rep-typed Scheduled Date is a date-only
+ * string; anything that is not exactly YYYY-MM-DD is skipped rather than
+ * guessed at, because a malformed DTSTART makes iOS drop the whole feed.
+ *
+ * The arrival window (2026-09-29, schedule-window.js) decides the shape:
+ *   - no start time, or a multi-day project → all-day, spanning every day of
+ *     the job (DTEND the day after scheduledEndDate);
+ *   - a start time on a single day → timed, start + length (or a point in
+ *     time when there is no length).
+ * A window whose fields contradict each other (an end before the start) falls
+ * back to the plain all-day event on scheduledDate — the day is still right,
+ * and a feed that drops a job is worse than one that shows it without a time.
  */
 function normalizeLead(doc) {
   if (!doc || typeof doc !== 'object') return null;
@@ -161,14 +177,54 @@ function normalizeLead(doc) {
   const ymd = String(doc.scheduledDate || '');
   if (!YMD_RE.test(ymd)) return null;
   const name = `${doc.firstName || ''} ${doc.lastName || ''}`.trim();
+  const w = SW.normalize(doc);
+  const ics = w ? SW.toIcsTimes(doc) : null;
   return {
     kind: 'lead',
     id: String(doc.id || ''),
     date: ymd,
+    // Exclusive all-day end ('YYYY-MM-DD'), or null for a timed job.
+    endExclusive: ics && !ics.allDay ? null : nextDate((w && w.endDate) || ymd),
+    startMs: ics && !ics.allDay ? ics.startMs : null,
+    endMs: ics && !ics.allDay ? ics.endMs : null,
+    // "7:00 am · 2-day job" — rides in the title of an all-day project so the
+    // start time is not lost when the event itself cannot carry one.
+    windowNote: w && ics && ics.allDay ? [SW.timeLabel(w), w.days > 1 ? w.days + '-day job' : ''].filter(Boolean).join(' · ') : '',
     title: name || String(doc.address || '') || 'Scheduled job',
     location: String(doc.address || ''),
     stage: String(doc.stage || ''),
     phone: String(doc.phone || ''),
+    updatedMs: toMs(doc.updatedAt),
+  };
+}
+
+/**
+ * leads/{id} → the adjuster meeting as its own event, or null (2026-09-29).
+ * adjusterMeetingDate is 'YYYY-MM-DD', adjusterMeetingStart optional 'HH:MM'
+ * America/New_York. Timed meetings default to an hour — the carrier never
+ * says how long; all-day ones are TRANSPARENT like a date-only job.
+ */
+function normalizeAdjusterMeeting(doc) {
+  if (!doc || typeof doc !== 'object') return null;
+  if (doc.deleted === true) return null;
+  const ymd = String(doc.adjusterMeetingDate || '');
+  if (!SW.parseYmd(ymd)) return null;
+  const start = String(doc.adjusterMeetingStart || '');
+  const startMs = start ? SW.localToUtcMs(ymd, start) : null;
+  const name = `${doc.firstName || ''} ${doc.lastName || ''}`.trim();
+  return {
+    kind: 'adjuster',
+    id: String(doc.id || ''),
+    date: ymd,
+    endExclusive: startMs == null ? nextDate(ymd) : null,
+    startMs,
+    endMs: startMs == null ? null : startMs + DEFAULT_DURATION_MS,
+    title: 'Adjuster meeting · ' + (name || String(doc.address || '') || 'Claim'),
+    location: String(doc.address || ''),
+    adjusterName: String(doc.adjusterName || ''),
+    adjusterPhone: String(doc.adjusterPhone || ''),
+    carrier: String(doc.insCarrier || doc.insuranceCarrier || ''),
+    claimNumber: String(doc.claimNumber || ''),
     updatedMs: toMs(doc.updatedAt),
   };
 }
@@ -207,17 +263,47 @@ function eventLines(ev, nowStamp) {
     ].filter(Boolean).join('\n');
     if (desc) out.push('DESCRIPTION:' + escapeText(desc));
     out.push('STATUS:CONFIRMED');
+  } else if (ev.kind === 'adjuster') {
+    // Its own UID namespace: the same lead can carry an install day AND an
+    // adjuster meeting, and a shared UID would make iOS keep only one.
+    out.push('UID:adj-' + ev.id + '@' + UID_DOMAIN);
+    out.push('DTSTAMP:' + nowStamp);
+    if (ev.startMs != null) {
+      out.push('DTSTART:' + fmtUtc(ev.startMs));
+      out.push('DTEND:' + fmtUtc(ev.endMs));
+    } else {
+      out.push('DTSTART;VALUE=DATE:' + fmtDate(ev.date));
+      out.push('DTEND;VALUE=DATE:' + fmtDate(ev.endExclusive));
+    }
+    out.push('SUMMARY:' + escapeText(ev.title));
+    if (ev.location) out.push('LOCATION:' + escapeText(ev.location));
+    const desc = [
+      ev.adjusterName ? 'Adjuster: ' + ev.adjusterName : '',
+      ev.adjusterPhone ? 'Adjuster phone: ' + ev.adjusterPhone : '',
+      ev.carrier ? 'Carrier: ' + ev.carrier : '',
+      ev.claimNumber ? 'Claim #: ' + ev.claimNumber : '',
+    ].filter(Boolean).join('\n');
+    if (desc) out.push('DESCRIPTION:' + escapeText(desc));
+    if (ev.startMs == null) out.push('TRANSP:TRANSPARENT');
   } else {
     out.push('UID:lead-' + ev.id + '@' + UID_DOMAIN);
     out.push('DTSTAMP:' + nowStamp);
-    // All-day: a bare DATE, and an EXCLUSIVE end on the following day.
-    out.push('DTSTART;VALUE=DATE:' + fmtDate(ev.date));
-    out.push('DTEND;VALUE=DATE:' + fmtDate(nextDate(ev.date)));
-    out.push('SUMMARY:' + escapeText(ev.title + (ev.stage ? ' · ' + ev.stage : '')));
+    if (ev.startMs != null) {
+      // A start time Jo set is a commitment: timed, and OPAQUE (the default —
+      // no TRANSP line), so it reads as busy.
+      out.push('DTSTART:' + fmtUtc(ev.startMs));
+      out.push('DTEND:' + fmtUtc(ev.endMs));
+    } else {
+      // All-day: a bare DATE, and an EXCLUSIVE end the day after the job's
+      // last day (the following day for a one-day job).
+      out.push('DTSTART;VALUE=DATE:' + fmtDate(ev.date));
+      out.push('DTEND;VALUE=DATE:' + fmtDate(ev.endExclusive || nextDate(ev.date)));
+    }
+    out.push('SUMMARY:' + escapeText(ev.title + (ev.windowNote ? ' · ' + ev.windowNote : '') + (ev.stage ? ' · ' + ev.stage : '')));
     if (ev.location) out.push('LOCATION:' + escapeText(ev.location));
     if (ev.phone) out.push('DESCRIPTION:' + escapeText('Phone: ' + ev.phone));
     // A date-only job is a plan, not a commitment to be busy all day.
-    out.push('TRANSP:TRANSPARENT');
+    if (ev.startMs == null) out.push('TRANSP:TRANSPARENT');
   }
   if (ev.updatedMs) out.push('LAST-MODIFIED:' + fmtUtc(ev.updatedMs));
   out.push('END:VEVENT');
@@ -243,14 +329,15 @@ function buildCalendar(o) {
 
   const appts = (Array.isArray(opts.appointments) ? opts.appointments : [])
     .map(normalizeAppointment).filter(Boolean);
-  const leads = dedupLeads(
-    (Array.isArray(opts.leads) ? opts.leads : []).map(normalizeLead).filter(Boolean),
-    appts,
-  );
+  const rawLeads = Array.isArray(opts.leads) ? opts.leads : [];
+  const leads = dedupLeads(rawLeads.map(normalizeLead).filter(Boolean), appts);
+  // Adjuster meetings are never deduped against appointments: a Cal.com
+  // booking on the lead is the homeowner's visit, not the carrier's.
+  const adjusters = rawLeads.map(normalizeAdjusterMeeting).filter(Boolean);
 
-  const events = appts.concat(leads).sort((a, b) => {
-    const as = a.kind === 'appointment' ? a.startMs : Date.parse(a.date + 'T00:00:00Z');
-    const bs = b.kind === 'appointment' ? b.startMs : Date.parse(b.date + 'T00:00:00Z');
+  const events = appts.concat(leads, adjusters).sort((a, b) => {
+    const as = a.startMs != null ? a.startMs : Date.parse(a.date + 'T00:00:00Z');
+    const bs = b.startMs != null ? b.startMs : Date.parse(b.date + 'T00:00:00Z');
     if (as !== bs) return as - bs;
     return String(a.id).localeCompare(String(b.id));
   }).slice(0, MAX_EVENTS);
@@ -283,6 +370,7 @@ module.exports = {
   toMs,
   normalizeAppointment,
   normalizeLead,
+  normalizeAdjusterMeeting,
   dedupLeads,
   buildCalendar,
   PRODID,

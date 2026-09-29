@@ -211,6 +211,33 @@ service cloud.firestore {
       return v == null || (v is string && v.size() <= 60);
     }
 
+    // 2026-09-29 (calendar hub Phase 0) — the arrival window and the adjuster
+    // meeting. These reach the .ics feed and (the window) the homeowner
+    // portal, both of which re-validate; this is the same shape-only bar as
+    // paperworkFieldsOk() so a garbage value never lands in the first place.
+    // '' is allowed wherever null is: the claim editor saves an empty input
+    // as ''. Date ORDER (end ≥ start) is the client's and the readers' job
+    // (schedule-window.js) — string dates compare, but a rule that rejected a
+    // mid-edit ordering would strand the whole lead save.
+    function _hmOk(f) {
+      let v = request.resource.data.get(f, null);
+      return v == null || v == ''
+        || (v is string && v.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'));
+    }
+    function _ymdOk(f) {
+      let v = request.resource.data.get(f, null);
+      return v == null || v == ''
+        || (v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+    function scheduleWindowOk() {
+      let dur = request.resource.data.get('scheduledDurationMin', null);
+      return _hmOk('scheduledStart')
+          && _ymdOk('scheduledEndDate')
+          && (dur == null || (dur is int && dur >= 1 && dur <= 1440))
+          && _ymdOk('adjusterMeetingDate')
+          && _hmOk('adjusterMeetingStart');
+    }
+
     // 2026-09-15 (Warranty Claim lane) — shape validator for the claim
     // subdoc itself (leads/{leadId}/warrantyClaims/{claimId}), modeled on
     // stageWriteOk()'s enum-check style. status/reason are the only fields
@@ -358,6 +385,7 @@ service cloud.firestore {
           && stageWriteOk()
           && paperworkFieldsOk()
           && openClaimIdOk()
+          && scheduleWindowOk()
         );
       allow delete: if (isOwner(resource.data.userId) && notViewer())
         || isAdmin()
@@ -376,7 +404,9 @@ service cloud.firestore {
         // rollups. Client always stamps `claims.companyId || uid`.
         && (request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && request.resource.data.companyId == request.auth.uid))
+        // The lead modal's Add Lead carries the window too (2026-09-29).
+        && scheduleWindowOk();
 
       // D3: flat-path subcollections — the measurementWebhook +
       // esignWebhook auto-append activity here via admin SDK. Rules

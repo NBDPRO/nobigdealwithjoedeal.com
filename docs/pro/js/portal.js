@@ -519,6 +519,26 @@
     return { when, text: 'Scheduled for ' + pretty };
   }
 
+  // The arrival window after the date (2026-09-29): "· arriving around
+  // 7:00 am · 2-day job" / "· 2:30–3:30 pm". The server sends the window's
+  // three fields raw (functions/portal.js scheduleWindowFor); the wording and
+  // the date math are schedule-window.js's (window.NBDScheduleWindow), which
+  // portal.html loads first. Only a date still ahead (or today) gets a window:
+  // _scheduleLine's past branch states the record and promises nothing, and a
+  // time on it would be a promise.
+  function _scheduleWindowSuffix(scheduledDate, win, when) {
+    if (when === 'past' || !win || typeof win !== 'object') return '';
+    const W = window.NBDScheduleWindow;
+    if (!W || typeof W.portalPhrase !== 'function') return '';
+    const phrase = W.portalPhrase({
+      scheduledDate: scheduledDate,
+      scheduledStart: win.scheduledStart,
+      scheduledDurationMin: win.scheduledDurationMin,
+      scheduledEndDate: win.scheduledEndDate,
+    });
+    return phrase ? ' · ' + phrase : '';
+  }
+
   // Local today as YYYY-MM-DD. toISOString() would be UTC and would flip the
   // answer for every evening visitor east or west of it.
   function _localToday(now) {
@@ -703,9 +723,10 @@
       // beats a milestone name. Rendered from the raw YYYY-MM-DD the server
       // sent, compared against the READER's local today.
       const sched = _scheduleLine(p.scheduledDate, _localToday());
+      const schedWin = sched ? _scheduleWindowSuffix(p.scheduledDate, p.scheduleWindow, sched.when) : '';
       const schedHtml = sched
         ? '<div class="progress-schedule" data-when="' + esc(sched.when) + '">'
-            + '<span aria-hidden="true">📅</span> ' + esc(sched.text)
+            + '<span aria-hidden="true">📅</span> ' + esc(sched.text) + esc(schedWin)
           + '</div>'
         : '';
       parts.push(
