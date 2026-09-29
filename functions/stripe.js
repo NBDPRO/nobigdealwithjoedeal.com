@@ -1660,6 +1660,15 @@ exports.invoiceWebhook = onRequest(
         throw e;
       }
 
+      // Every event also goes to the Stripe ledger (stripe-ledger.js), which
+      // records the movement under the right CRM customer — including the
+      // Stripe Invoices Jo builds in the dashboard, which carry no CRM
+      // invoiceId and were credited nowhere before 2026-09-29. It throws on
+      // failure so the outer catch releases the marker and Stripe retries;
+      // every ledger step is idempotent, and it never re-credits a payment
+      // the payment-link branch below credits (paidIntentIds).
+      await require('./stripe-ledger').onEvent(db, event);
+
       // Handle payment_intent.succeeded event
       if (event.type === 'payment_intent.succeeded') {
         const paymentIntent = event.data.object;
