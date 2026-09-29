@@ -63,6 +63,24 @@ const { safeDepositPlan } = require('./deposit-plan-view');
 // rep, or a company_admin of the lead's tenant. Pure module — decision is
 // unit-tested there, not here.
 const { canManageLead, portalTenant, recordInPortalTenant, tokenMatchesLead } = require('./portal-authz');
+// The lead's arrival window (2026-09-29) — byte-identical copy of
+// docs/pro/js/schedule-window.js; see scheduleWindowFor() below.
+const ScheduleWindow = require('./schedule-window');
+
+// The arrival window the homeowner may see, and nothing else from the lead:
+// the three window fields, validated together with scheduledDate, raw (the
+// reader's browser formats them — this function runs in UTC). A window whose
+// fields contradict each other (an end before the start) ships as null, so
+// the card falls back to the bare date rather than printing a wrong time.
+function scheduleWindowFor(lead) {
+  const w = ScheduleWindow.normalize(lead || {});
+  if (!w || w.kind === 'allday') return null;
+  return {
+    scheduledStart: w.start,
+    scheduledDurationMin: w.durationMin,
+    scheduledEndDate: w.endDate,
+  };
+}
 
 // CORS origins — identical to the list in functions/index.js. The
 // duplication is deliberate: portal.js is meant to be importable on
@@ -841,6 +859,10 @@ exports.getHomeownerPortalView = onRequest(
       scheduledDate: /^\d{4}-\d{2}-\d{2}$/.test(String(lead.scheduledDate || ''))
         ? lead.scheduledDate
         : null,
+      // {scheduledStart, scheduledDurationMin, scheduledEndDate} or null —
+      // "…· arriving around 7:00 am · 2-day job" on the card. Whitelisted by
+      // scheduleWindowFor() above; no other lead field rides along.
+      scheduleWindow: scheduleWindowFor(lead),
       // {inspected: <ISOString>, estimate_sent: ..., ...} — only keys the
       // lead has actually reached carry a date; see milestoneDatesFor above.
       milestoneDates: milestoneDatesFor(lead),

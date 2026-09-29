@@ -39,6 +39,7 @@ const { FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestor
 const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
+const { fillLeadInstallDate } = require('./deal-install-date');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -369,7 +370,13 @@ exports.submitDealAcceptance = onRequest(
       });
     } catch (e) { logger.warn('[submitDealAcceptance] notify failed', { msg: e.message }); }
 
-    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier });
+    // The homeowner's install date → leads/{id}.scheduledDate, ONLY when the
+    // lead has none (never over a date Jo typed). Best-effort like the bell:
+    // the acceptance is already committed and must not fail on this.
+    // deal-install-date.js has the rule and why.
+    const leadFill = await fillLeadInstallDate(db, info, scheduledDate, { logger });
+
+    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill });
     res.status(200).json({ ok: true });
   }
 );

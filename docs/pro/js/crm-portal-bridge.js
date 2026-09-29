@@ -553,6 +553,9 @@ function editLead(id){
   setV('lPreQualLink', l.preQualLink||'');
   // Job fields
   setV('lScheduledDate', l.scheduledDate||'');
+  // Arrival window (2026-09-29): the preset + start/length/days this lead
+  // was saved with, or "All day" for one that has none.
+  if (window.NBDScheduleWindowUI) window.NBDScheduleWindowUI.fill('l', l);
   setV('lCrew', l.crew||'');
   // 2026-09-15 (Paperwork Filing) — checkboxes use .checked, not .value
   // (setV above would leave every one permanently checked: an unattributed
