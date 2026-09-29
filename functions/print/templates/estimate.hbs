@@ -131,6 +131,13 @@
         <td class="num money">{{money tax}}</td>
       </tr>
       {{/if}}
+      {{#if rounding}}
+      <tr class="totals-row">
+        <td colspan="4"></td>
+        <td class="num totals-label">{{roundingLabel}}</td>
+        <td class="num money">{{roundingSign}}{{money roundingAbs}}</td>
+      </tr>
+      {{/if}}
     </tfoot>
   </table>
 </section>

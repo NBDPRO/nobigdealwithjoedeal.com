@@ -3813,6 +3813,19 @@
       subtotal: Number(estimate.subtotal || 0),
       tax:      Number(estimate.tax || 0),
       total:    Number(estimate.total || 0),
+      // Subtotal + Tax never foots to Total by itself: the engine rounds the
+      // total to the nearest $25 (either way) and lifts it to the shop
+      // minimum. Print the difference as its own row so the ladder adds up.
+      ...(() => {
+        const diff = Math.round((Number(estimate.total || 0) - Number(estimate.subtotal || 0) - Number(estimate.tax || 0)) * 100) / 100;
+        if (!diff) return { rounding: 0 };
+        return {
+          rounding: diff,
+          roundingLabel: (estimate.minJobApplied && diff > 0) ? 'Minimum job charge adjustment' : 'Rounding',
+          roundingSign: diff < 0 ? '−' : '',
+          roundingAbs: Math.abs(diff),
+        };
+      })(),
       terms: {
         validityDays: 30,
         validUntil:   validUntilFmt,

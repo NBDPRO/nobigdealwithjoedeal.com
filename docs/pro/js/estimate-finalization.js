@@ -638,12 +638,13 @@
     if (estimate.taxRate && estimate.taxRate > 0) {
       summaryRows.push(['Sales Tax (' + (estimate.taxRate * 100).toFixed(2) + '%)', fmtMoney(estimate.tax)]);
     }
-    // When the job fell under the shop minimum, RCV was raised to the minimum —
-    // show that adjustment so Subtotal → RCV still reads as an honest ladder
-    // instead of an unexplained jump.
-    if (estimate.minJobApplied) {
-      const minAdj = rcv - (Number(estimate.subtotal) || 0) - (Number(estimate.tax) || 0);
-      if (Math.round(minAdj) !== 0) summaryRows.push(['Minimum Job Charge Adjustment', fmtMoney(minAdj)]);
+    // RCV is Subtotal + Tax rounded to the nearest $25 (either way), then
+    // lifted to the shop minimum. Show that difference so Subtotal → RCV
+    // reads as an honest ladder instead of an unexplained jump.
+    const adj = Math.round((rcv - (Number(estimate.subtotal) || 0) - (Number(estimate.tax) || 0)) * 100) / 100;
+    if (adj) {
+      const label = (estimate.minJobApplied && adj > 0) ? 'Minimum Job Charge Adjustment' : 'Rounding';
+      summaryRows.push([label, (adj < 0 ? '−' : '') + fmtMoney(Math.abs(adj))]);
     }
     summaryRows.push(['REPLACEMENT COST VALUE (RCV)', fmtMoneyBig(rcv), 'grand']);
     if (acv) {

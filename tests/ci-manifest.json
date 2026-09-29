@@ -84,6 +84,7 @@
     "estimate-render.test.js",
     "estimate-scope-display.test.js",
     "estimate-v2-payload.test.js",
+    "estimate-rounding-line-2026-09-28.test.js",
     "expenses-logic.test.js",
     "function-orphans.test.js",
     "funnel-recovery-hardening.test.js",

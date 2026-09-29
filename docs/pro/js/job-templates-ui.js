@@ -2240,6 +2240,17 @@
     return base + extra + ' — ' + (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
   }
 
+  // Total = Subtotal + Tax rounded to the nearest $25 (either way), then
+  // lifted to the shop minimum. Print the difference as its own row so the
+  // proposal's rows foot to its Total.
+  function totalsAdjustmentRow(totals) {
+    if (!totals || totals.total == null || totals.subtotal == null) return '';
+    var adj = Math.round((totals.total - totals.subtotal - (totals.tax || 0)) * 100) / 100;
+    if (!adj) return '';
+    return '<div class="r"><span>' + ((totals.minApplied && adj > 0) ? 'Minimum job charge adjustment' : 'Rounding') +
+      '</span><span>' + (adj < 0 ? '−' : '') + esc(money(Math.abs(adj))) + '</span></div>';
+  }
+
   function renderPreview(res, model) {
     var totals = readTotals(res);
     var lines = readLines(res).filter(function (l) {
@@ -2319,8 +2330,8 @@
       }
       if (totals.subtotal != null) totsHtml += '<div class="r"><span>Subtotal</span><span>' + esc(money(totals.subtotal)) + '</span></div>';
       if (totals.tax != null && totals.tax > 0) totsHtml += '<div class="r"><span>Tax</span><span>' + esc(money(totals.tax)) + '</span></div>';
+      totsHtml += totalsAdjustmentRow(totals);
       totsHtml += '<div class="r g"><span>Total</span><span>' + esc(totals.total != null ? money(totals.total) : '—') + '</span></div>';
-      if (totals.minApplied) totsHtml += '<div class="r" style="font-size:11px;color:#94a3b8;"><span>Minimum job charge applied</span><span></span></div>';
     } else {
       totsHtml = '<div class="r g"><span>Total</span><span>—</span></div>';
     }
@@ -3245,7 +3256,9 @@
     // cached price band was computed against an empty book and is wrong (an
     // empty band where there should be a range). Dropping the cache is what
     // makes the cards repaint at the tenant's real numbers.
-    clearBandCache: clearBandCache
+    clearBandCache: clearBandCache,
+    // Test hook (tests/estimate-rounding-line-2026-09-28.test.js).
+    _totalsAdjustmentRow: totalsAdjustmentRow
   };
 
   // Globals Tranche 3 T3-C (2026-09-18): renderJobTemplatesLibrary is
