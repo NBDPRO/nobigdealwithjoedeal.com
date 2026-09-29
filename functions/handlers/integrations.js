@@ -347,6 +347,12 @@ const { SECRETS: INT_SECRETS } = require('../integrations/_shared');
 // IPv6 allocation can't rotate through its 2^64 addresses to bypass the per-IP
 // cap. IPv4 (no ':') and anything unparseable pass through unchanged — exact
 // canonicalisation isn't needed, only a stable per-customer bucket.
+// Public form text never carries markup (names, addresses, messages, UTMs).
+// Drop < and > at the door so a web-form lead can't smuggle HTML into the
+// CRM — defence in depth behind the client-side escaping (security audit
+// 2026-09-29 found the Cmd-K palette rendering web-form names raw).
+function noAngle(s) { return String(s).replace(/[<>]/g, ''); }
+
 function rateLimitIpKey(ip) {
   const s = String(ip || '');
   if (s.indexOf(':') === -1) return s; // IPv4 / empty — unchanged
@@ -459,7 +465,7 @@ exports.submitPublicLead = onRequest(
       if (spec.exact && spec.exact[key] != null && val.length !== spec.exact[key]) {
         res.status(400).json({ error: 'Invalid submission' }); return;
       }
-      data[key] = val;
+      data[key] = noAngle(val);
     }
 
     // M-04: optional fields are a per-kind allowlist (UTMs + referrer
@@ -474,7 +480,7 @@ exports.submitPublicLead = onRequest(
       // an optional field should never fail an otherwise-valid submission.
       const max = (spec.maxLen && spec.maxLen[key]) || 500;
       if (v.length === 0 || v.length > max) continue;
-      data[key] = v;
+      data[key] = noAngle(v);
     }
 
     // M-04 addendum (2026-09-04): boolean consent fields. Kept as its own

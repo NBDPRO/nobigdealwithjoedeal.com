@@ -265,6 +265,18 @@ async function run() {
     ok('contact doc written + readable', !!fields);
     ok('tcpaConsent dropped on a kind that does not declare it (M-04 intact)', !!fields && !fields.tcpaConsent);
   }
+  {
+    // 2026-09-29 security audit: a web-form name reached the Cmd-K palette as
+    // raw HTML. The gateway now drops < and > from every text field (required
+    // and optional) — defence in depth behind client escaping.
+    const r = await post({
+      kind: 'contact', firstName: 'Zz<img src=x onerror=alert(1)>', phone: '8595550123', source: '/contact',
+      message: 'hi <script>x</script> there'
+    }, '203.0.113.17');
+    const fields = (r.body && r.body.id) ? await fetchDoc('contact_leads', r.body.id) : null;
+    ok('markup in a web-form name is stored without < >', !!fields && String(str(fields, 'firstName')).indexOf('<') === -1 && String(str(fields, 'firstName')).indexOf('>') === -1 && /Zz/.test(String(str(fields, 'firstName'))));
+    ok('...and in an optional message', !!fields && String(str(fields, 'message') || '').indexOf('<') === -1);
+  }
 
   // ── siteKey tenant tagging (P5 indirection, 2026-08-06) ──
   // The tenant microsite tags leads with its public siteKey (slug when
