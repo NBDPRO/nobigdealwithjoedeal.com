@@ -532,6 +532,45 @@
     } finally { if (btn) btn.disabled = false; }
   }
 
+  // Attach a receipt (photo or PDF) to an expense that has none — imported
+  // Home Depot purchases arrive without one. Recommended, never required.
+  function attachReceipt(expenseId) {
+    var u = uid();
+    if (!u || !expenseId) return;
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*,application/pdf';
+    inp.style.display = 'none';
+    inp.addEventListener('change', function () {
+      var file = inp.files && inp.files[0];
+      inp.remove();
+      saveAttachedReceipt(expenseId, file);
+    });
+    document.body.appendChild(inp);
+    inp.click();
+  }
+
+  async function saveAttachedReceipt(expenseId, file) {
+    var u = uid();
+    if (!file || !u) return false;
+    if (!receiptTypeOk(file)) { toast('Receipt must be a photo or PDF', 'error'); return false; }
+    if (file.size > 25 * 1024 * 1024) { toast('Receipt is over the 25MB limit', 'error'); return false; }
+    if (!window.updateDoc || !window.doc) { toast('Not connected — try again', 'error'); return false; }
+    try {
+      toast('Uploading receipt…', 'info');
+      var path = await uploadReceipt(file, u);
+      await window.updateDoc(window.doc(window.db, 'expenses', expenseId), { receiptStoragePath: path, updatedAt: window.serverTimestamp() });
+      _expenses.forEach(function (e) { if (e.id === expenseId) e.receiptStoragePath = path; });
+      toast('Receipt attached', 'ok');
+      render();
+      return true;
+    } catch (e) {
+      console.warn('[expenses] attach receipt failed', e && e.code);
+      toast(/permission/i.test((e && (e.code || e.message)) || '') ? 'Only the person who logged this expense can attach its receipt' : 'Could not attach the receipt — try again', 'error');
+      return false;
+    }
+  }
+
   async function openReceipt(path) {
     if (!path || !window.getDownloadURL || !window.ref) return;
     try {
@@ -649,6 +688,7 @@
       '<div style="font-size:12px;color:var(--m,#9ca3af);margin-top:2px;">' + (isStaff() && claims().companyId ? 'Team-wide (all reps)' : 'Your expenses') + ' · ' + _expenses.length + ' logged</div></div>' +
       '<div style="display:flex;gap:8px;">' +
         (_expenses.length ? '<button type="button" class="btn btn-ghost" data-exp-action="export-csv" title="Download CSV for your accountant">⬇ Export CSV</button>' : '') +
+        (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') +
         '<button type="button" class="btn btn-orange" data-exp-action="open-form">+ Log Expense</button>' +
       '</div>' +
       '</div>';
@@ -817,17 +857,22 @@
 
     // Recent expense list (only when there are expenses)
     if (_expenses.length) {
+    var noReceipt = _expenses.filter(function (e) { return !e.receiptStoragePath && e.category !== 'mileage'; }).length;
     html += '<div style="background:var(--s,#12223D);border:1px solid var(--br,rgba(255,255,255,.08));border-radius:12px;padding:16px;">' +
-      '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">Recent Expenses</h3>';
+      '<h3 style="margin:0 0 4px;font-size:14px;color:var(--t,#fff);">Recent Expenses</h3>' +
+      (noReceipt ? '<div style="font-size:11px;color:var(--gold,#eab308);margin-bottom:10px;">📎 ' + noReceipt + ' expense' + (noReceipt === 1 ? '' : 's') + ' without a receipt — attaching a photo or PDF is recommended (taxes, disputes, warranty claims).</div>' : '<div style="margin-bottom:8px;"></div>');
     _expenses.slice(0, 60).forEach(function (e) {
       var lead = e.leadId ? leadById(e.leadId) : null;
       html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.06));">' +
         '<div style="min-width:0;flex:1;">' +
         '<div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.supplier || 'Unknown') +
         ' <span style="font-size:10px;color:var(--m,#9ca3af);">· ' + esc(EC() ? EC().labelFor(e.category) : e.category) + '</span></div>' +
-        '<div style="font-size:11px;color:var(--m,#9ca3af);">' + esc(fmtDate(e.date)) + (lead ? ' · ' + esc(leadName(lead)) : '') + (e.note ? ' · ' + esc(e.note) : '') + (e.source === 'ocr' ? ' · scanned' : '') + '</div></div>' +
+        '<div style="font-size:11px;color:var(--m,#9ca3af);">' + esc(fmtDate(e.date)) + (lead ? ' · ' + esc(leadName(lead)) : '') + (e.note ? ' · ' + esc(e.note) : '') + (e.source === 'ocr' ? ' · scanned' : e.source === 'import_homedepot' ? ' · Home Depot import' : '') + '</div></div>' +
         (e.needsReview ? '<span title="AI scan — review the amount/vendor" style="color:var(--gold,#eab308);font-size:13px;">⚠</span>' : '') +
-        (e.receiptStoragePath ? '<button data-exp-action="receipt" data-exp-path="' + esc(e.receiptStoragePath) + '" title="View receipt" style="background:none;border:none;cursor:pointer;font-size:15px;">📎</button>' : '') +
+        (e.receiptStoragePath
+          ? '<button data-exp-action="receipt" data-exp-path="' + esc(e.receiptStoragePath) + '" title="View receipt" style="background:none;border:none;cursor:pointer;font-size:15px;">📎</button>'
+          // No receipt yet — recommended, never required (Jo, 2026-09-29).
+          : '<button data-exp-action="attach" data-exp-id="' + esc(e.id) + '" title="Attach a receipt (photo or PDF)" style="background:none;border:1px dashed var(--br,rgba(255,255,255,.25));border-radius:6px;color:var(--m,#9ca3af);cursor:pointer;font-size:11px;padding:3px 7px;white-space:nowrap;">📎 Add receipt</button>') +
         // Total incl. sales tax — the same figure every card above sums
         // (a $1,234.56 + $87.65 tax row used to read $1,234.56 under a
         // $1,322.21 total). The tax is named on a second line.
@@ -1172,6 +1217,7 @@
       else if (a === 'scan') scanReceipt(t);
       else if (a === 'save') saveFromForm(t);
       else if (a === 'receipt') openReceipt(t.dataset.expPath);
+      else if (a === 'attach') attachReceipt(t.dataset.expId);
       else if (a === 'add-recurring') addFromTemplate(t.dataset.recId);
       else if (a === 'del-recurring') { if (await ask('Delete this recurring template?')) deleteTemplate(t.dataset.recId); }
       else if (a === 'open-supplier') openSupplierForm();
@@ -1196,6 +1242,9 @@
     createExpense: createExpense,
     removeExpense: removeExpense,
     exportCSV: exportCSV,
+    // Loaded expenses (hd-import.js skips receipts already imported).
+    list: function () { return _expenses.slice(); },
+    saveAttachedReceipt: saveAttachedReceipt,
     // pure functions (exported for unit tests)
     aggregate: aggregate,
     jobMargin: jobMargin,

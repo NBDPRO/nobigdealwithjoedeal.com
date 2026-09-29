@@ -348,6 +348,35 @@ console.log('\nPROFIT PANEL — no invented margin, reconcilable labels, escaped
   ok('logged expenses count as costs set (60% margin)', /60% margin/.test(fed));
 }
 
+// ── attach a receipt to an existing expense (2026-09-29) ────────
+console.log('\nATTACH RECEIPT — photo or PDF onto an expense that has none');
+(async () => {
+  const uploads = [], updates = [];
+  win._user = { uid: 'u1' };
+  win.storage = {}; win.db = {};
+  win.ref = (s, p) => ({ p });
+  win.uploadBytes = async (r, body, meta) => { uploads.push({ path: r.p, type: meta.contentType }); };
+  win.doc = (db, col, id) => ({ col, id });
+  win.updateDoc = async (ref, data) => { updates.push({ ref, data }); };
+  win.serverTimestamp = () => 'ts';
+  win.showToast = () => {};
+  EX._setData([{ id: 'e1', supplier: 'Home Depot', amountCents: 100, taxCents: 0, category: 'materials' }]);
+  const pdf = { name: 'hd receipt.pdf', type: 'application/pdf', size: 1000 };
+  const ok1 = await EX.saveAttachedReceipt('e1', pdf);
+  ok('a PDF uploads under receipts/{uid}/ and is linked on the expense',
+    ok1 === true && uploads.length === 1 && /^receipts\/u1\/\d+_hd_receipt\.pdf$/.test(uploads[0].path)
+    && updates.length === 1 && updates[0].ref.id === 'e1' && updates[0].data.receiptStoragePath === uploads[0].path);
+  const bad = await EX.saveAttachedReceipt('e1', { name: 'x.exe', type: 'application/x-msdownload', size: 10 });
+  ok('a non-image/non-PDF is refused (no upload, no update)', bad === false && uploads.length === 1 && updates.length === 1);
+  const big = await EX.saveAttachedReceipt('e1', { name: 'huge.pdf', type: 'application/pdf', size: 26 * 1024 * 1024 });
+  ok('a file over 25MB is refused', big === false && uploads.length === 1);
+  win.updateDoc = async () => { const e = new Error('Missing or insufficient permissions.'); e.code = 'permission-denied'; throw e; };
+  const denied = await EX.saveAttachedReceipt('e1', pdf);
+  ok('someone else\'s expense: refused cleanly (false, no throw)', denied === false);
+  finish();
+})();
+function finish() {
 // ── summary ──────────────────────────────────────────────────
 console.log('\n' + (failed === 0 ? '✓' : '✗') + ' expenses logic: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) { console.error('FAILED: ' + fails.join(', ')); process.exit(1); }
+}
