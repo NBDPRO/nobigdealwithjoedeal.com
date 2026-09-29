@@ -1856,6 +1856,38 @@ async function run() {
     throw new Error('37 productLibrary: ' + s37Fail.length + ' check(s) went the wrong way:\n    ' + s37Fail.join('\n    '));
   }
 
+  // ─── 38. yardSigns — the yard-sign tracker (2026-09-29) ───
+  const s38Fail = []; let s38Pass = 0;
+  async function x38(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s38Pass++;
+    } catch (e) { s38Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const ysRep  = env.authenticatedContext('ysrep',  { role: 'sales_rep', companyId: 'co-38' }).firestore();
+  const ysRep2 = env.authenticatedContext('ysrep2', { role: 'sales_rep', companyId: 'co-38' }).firestore();
+  const ysAdm  = env.authenticatedContext('ysadm',  { role: 'company_admin', companyId: 'co-38' }).firestore();
+  const ysView = env.authenticatedContext('ysview', { role: 'viewer', companyId: 'co-38' }).firestore();
+  const ysOther = env.authenticatedContext('ysoth', { role: 'company_admin', companyId: 'co-x' }).firestore();
+  const SIGN = { userId: 'ysrep', companyId: 'co-38', address: '1 ZZ_QA St', lat: 39.1, lng: -84.5, status: 'out', durationDays: 14 };
+  await x38('rep places a sign', 'allow', setDoc(doc(ysRep, 'yardSigns/s1'), SIGN));
+  await x38('a sign cannot be created already picked up', 'deny', setDoc(doc(ysRep, 'yardSigns/s2'), Object.assign({}, SIGN, { status: 'picked_up' })));
+  await x38('a sign cannot be created for someone else', 'deny', setDoc(doc(ysRep, 'yardSigns/s3'), Object.assign({}, SIGN, { userId: 'ysrep2' })));
+  await x38('a sign cannot be stamped with another company', 'deny', setDoc(doc(ysRep, 'yardSigns/s4'), Object.assign({}, SIGN, { companyId: 'co-x' })));
+  await x38('a viewer cannot place a sign', 'deny', setDoc(doc(ysView, 'yardSigns/s5'), Object.assign({}, SIGN, { userId: 'ysview' })));
+  await x38('the company viewer can see it', 'allow', getDoc(doc(ysView, 'yardSigns/s1')));
+  await x38('another company cannot see it', 'deny', getDoc(doc(ysOther, 'yardSigns/s1')));
+  await x38('a teammate rep cannot pick up someone else\'s sign', 'deny', updateDoc(doc(ysRep2, 'yardSigns/s1'), { status: 'picked_up' }));
+  await x38('the company admin can pick it up', 'allow', updateDoc(doc(ysAdm, 'yardSigns/s1'), { status: 'picked_up' }));
+  await x38('the owner can extend it', 'allow', updateDoc(doc(ysRep, 'yardSigns/s1'), { status: 'out', durationDays: 21 }));
+  await x38('an unknown status is refused', 'deny', updateDoc(doc(ysRep, 'yardSigns/s1'), { status: 'gone' }));
+  await x38('ownership cannot be rewritten', 'deny', updateDoc(doc(ysRep, 'yardSigns/s1'), { userId: 'ysrep2' }));
+  await x38('the owner cannot hard-delete (signs end as picked up / missing)', 'deny', deleteDoc(doc(ysRep, 'yardSigns/s1')));
+  console.log('  38: ' + s38Pass + ' yard-sign checks passed, ' + s38Fail.length + ' failed');
+  if (s38Fail.length) {
+    throw new Error('38 yardSigns: ' + s38Fail.length + ' check(s) went the wrong way:\n    ' + s38Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

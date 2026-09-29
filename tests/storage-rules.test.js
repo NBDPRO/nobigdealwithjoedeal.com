@@ -365,6 +365,7 @@ async function run() {
     ['shared_docs', 's.pdf',              'application/pdf'],
     ['audio',       'lead42/rec.webm',    'audio/webm'],
     ['receipts',    'rc.jpg',             'image/jpeg'],
+    ['yard-signs',  'ys.jpg',             'image/jpeg'],
   ];
   await env.withSecurityRulesDisabled(async (context) => {
     for (const [p, name, type] of VIEWER_PREFIXES) {

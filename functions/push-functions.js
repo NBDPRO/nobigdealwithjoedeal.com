@@ -540,6 +540,65 @@ exports.onFollowUpDue = onSchedule(
 );
 
 /**
+ * TRIGGER: Daily 7:30 AM ET
+ * ACTION: Remind each rep of the yard signs due for pickup today or overdue.
+ *
+ * Jo (2026-09-29): he agrees 1–2 weeks with the homeowner and they text him
+ * only if he DOESN'T come — so this push is the whole reminder system. Signs
+ * live in yardSigns/{id} (docs/pro/js/yard-signs.js); status 'out' until
+ * picked up / missing. An overdue sign is reminded again EVERY morning until
+ * it's handled (one push per rep per day, deterministic tray tag).
+ *
+ * Single-field equality on status needs no composite index; the due-day test
+ * runs in code in ET, same as onFollowUpDue above.
+ */
+exports.onYardSignPickupDue = onSchedule(
+  { schedule: 'every day 07:30', timeZone: FOLLOWUP_TZ },
+  async () => {
+    const todayEt = etYmd(new Date());
+    try {
+      const snap = await db.collection('yardSigns').where('status', '==', 'out').get();
+      const byRep = new Map(); // uid -> [{ id, address, overdue }]
+      snap.forEach((doc) => {
+        const s = doc.data() || {};
+        if (s.deleted) return;
+        const dueEt = etYmd(s.dueAt);
+        if (!dueEt || dueEt > todayEt) return;
+        const uid = s.userId;
+        if (!uid) return;
+        if (!byRep.has(uid)) byRep.set(uid, []);
+        byRep.get(uid).push({ id: doc.id, address: s.address || '', overdue: dueEt < todayEt });
+      });
+
+      const sends = [...byRep.entries()].map(([uid, items]) => (async () => {
+        const enabled = await isNotificationEnabled(uid, 'yardSigns');
+        if (!enabled) return;
+        items.sort((a, b) => (b.overdue - a.overdue));
+        const overdue = items.filter((i) => i.overdue).length;
+        const title = items.length === 1 ? '🪧 Yard sign to pick up' : `🪧 ${items.length} yard signs to pick up`;
+        const where = items.slice(0, 2).map((i) => i.address || 'a sign').join(', ') + (items.length > 2 ? ` +${items.length - 2} more` : '');
+        const body = (overdue ? `${overdue} overdue · ` : '') + where;
+        const result = await sendPushNotification(uid, title, body, {
+          type: 'yardSignPickup',
+          count: String(items.length),
+          clickUrl: '/pro/dashboard.html#/signs',
+          notificationId: `yardsign-${uid}-${todayEt}`,
+        });
+        if (result && result.sent > 0) {
+          await logNotificationSent(uid, 'yardSigns', { count: items.length, overdue, signIds: items.slice(0, 20).map((i) => i.id) });
+        }
+      })());
+      await Promise.allSettled(sends);
+      logger.info('[Push] Yard-sign pickup check complete', {
+        out: snap.size, due: [...byRep.values()].reduce((n, a) => n + a.length, 0), reps: byRep.size,
+      });
+    } catch (err) {
+      logger.error('[Push] Error checking yard signs:', err);
+    }
+  }
+);
+
+/**
  * TRIGGER: Claim stage changes
  * ACTION: Send notification to rep about stage update
  */
@@ -688,6 +747,7 @@ module.exports = {
   onNewLead: exports.onNewLead,
   onAppointmentReminder: exports.onAppointmentReminder,
   onFollowUpDue: exports.onFollowUpDue,
+  onYardSignPickupDue: exports.onYardSignPickupDue,
   onClaimStageChange: exports.onClaimStageChange,
   sendTeamNotification: exports.sendTeamNotification,
   sendStreakNotification: exports.sendStreakNotification,

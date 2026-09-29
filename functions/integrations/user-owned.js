@@ -52,6 +52,9 @@ const FLAT_USER_COLLECTIONS = [
   // Receipt images live in Storage under receipts/{uid}/ (see the Storage
   // prefix cleanup); the Firestore doc only holds receiptStoragePath.
   { name: 'expenses' },
+  // Yard-sign placements (yard-signs.js, 2026-09-29). Owner-keyed on userId;
+  // photos live in Storage under yard-signs/{uid}/.
+  { name: 'yardSigns' },
   // Recurring-expense templates + supplier/vendor records (money-layer
   // expansion). Owner-keyed on userId; erase/export with the account. Supplier
   // docs hold NO tax IDs (tracking only); the locked suppliers/{id}/private/**
@@ -193,6 +196,8 @@ const STORAGE_PREFIXES = [
   // receipts/{uid}/... — original receipt images/PDFs backing expense docs
   // (Phase 1 expense subsystem). Owner-keyed like docs/; erase with the account.
   'receipts',
+  // yard-signs/{uid}/... — photos of placed yard signs (yard-signs.js).
+  'yard-signs',
   // documents/{uid}/{leadId}/{docId}.html — generated + signed customer
   // documents (document-generator.js onPersistFinalized, storage.rules:96).
   // Added 2026-09-08. onLeadDeleted already reaps this prefix per-lead
