@@ -557,13 +557,16 @@
         try {
           if (!lead.customerId
               && window._companyProfileLoaded === true
-              && typeof window._custCounterId === 'function'
-              && typeof window._custIdPrefix === 'function'
+              && typeof window._custIdMint === 'function'
               && typeof window._formatCustomerId === 'function'
               && typeof window.runTransaction === 'function'
-              && typeof window.updateDoc === 'function') {
-            const _ctrId = window._custCounterId(companyId);
-            const _pfx = window._custIdPrefix();
+              && typeof window.updateDoc === 'function'
+              // Platform-identity veto (company-profile.js _custIdMint): null
+              // for a non-NBD tenant whose brand still resolves as NBD → skip.
+              && window._custIdMint(companyId)) {
+            const _mint = window._custIdMint(companyId);
+            const _ctrId = _mint.counterId;
+            const _pfx = _mint.prefix;
             const counterRef = window.doc(window.db, 'counters', _ctrId);
             const custId = await window.runTransaction(window.db, async (tx) => {
               const snap = await tx.get(counterRef);
