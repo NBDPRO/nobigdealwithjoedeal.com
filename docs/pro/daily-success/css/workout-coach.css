@@ -70,3 +70,17 @@ body.wc-lock { overflow: hidden; }
 .wc-sum b { display: block; font-size: 22px; color: #fff; }
 .wc-prs { background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .35); border-radius: 10px; padding: 10px 12px; margin: 8px 0; line-height: 1.7; }
 .wc-prs small { color: #b9a37a; }
+
+/* Weight card + old-workout import (js/tracker-history-ui.js) */
+.wt-card { border-left-color: #2563eb; }
+.wt-dash .wt-card { margin: 0 0 14px; }
+.wt-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.wt-big { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 28px; line-height: 1; }
+.wt-big small { font-family: inherit; font-size: 12px; font-weight: 500; color: var(--muted, #6b7280); }
+.wt-chart { color: #2563eb; max-width: 100%; }
+.wt-chart svg { display: block; max-width: 100%; height: auto; }
+.wt-down { color: #16a34a; }
+.wt-up { color: #b45309; }
+.wt-flat { color: var(--muted, #6b7280); }
+.wt-import-link { display: block; width: 100%; text-align: left; margin: -6px 0 14px; padding: 10px 12px; border: 1px dashed var(--rule, #d4c9b0); border-radius: 8px; background: transparent; font: inherit; font-size: 12px; color: var(--ac, #BD5728); cursor: pointer; }
+.th-list { margin: 6px 0 12px 18px; padding: 0; font-size: 13px; color: #cbd5e1; line-height: 1.6; }
