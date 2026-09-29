@@ -1041,7 +1041,11 @@
       // revenue lands in an explicit 'Unattributed' bucket (keeps the leaderboard
       // total equal to the headline). Solo owner: own == whole company.
       let knocks = Array.isArray(window._knocks) ? window._knocks : [];
-      const canReadTeam = c.role === 'admin' || c.role === 'manager' || window._role === 'admin';
+      // company_admin (the tenant owner) too: the /knocks rule is isCompanyStaff
+      // (company_admin OR manager). Excluding it left an owner's board built
+      // from their OWN knocks only — teammates' D2D revenue fell into
+      // "Unattributed" (CRM sweep R14, 2026-09-28).
+      const canReadTeam = c.role === 'admin' || c.role === 'company_admin' || c.role === 'manager' || window._role === 'admin';
       if (canReadTeam && c.companyId && window._db && window.getDocs && window.collection && window.query && window.where) {
         try {
           const snap = await window.getDocs(window.query(window.collection(window._db, 'knocks'), window.where('companyId', '==', c.companyId)));
@@ -1069,11 +1073,32 @@
       });
       const uniqDoors = doorSet.size, convos = convoSet.size, appts = apptSet.size, converted = convertedSet.size, won = wonD2D.length;
 
+      // One row per REP (the knock's owner uid), named from the company
+      // roster. Keying by the free-text repName split one person into
+      // "Casey ZZ_QA" (knocks that carried a name) and "You" (knocks that
+      // didn't), and credited a teammate's unnamed knocks to the viewer
+      // (CRM sweep R14, 2026-09-28). A won lead whose knock isn't loaded is
+      // credited to the lead's owner; only a lead with neither is Unattributed.
+      if (window.NBDTeamNames) { try { await window.NBDTeamNames.load(); } catch (_) {} }
       const byRep = {};
-      const bump = (r) => byRep[r] || (byRep[r] = { knocks: 0, appts: 0, converted: 0, revenue: 0 });
-      knocks.forEach(k => { const s = bump(k.repName || 'You'); s.knocks++; if (k.disposition === 'appointment') s.appts++; if (k.convertedToLead) s.converted++; });
-      wonD2D.forEach(l => { const k = knockById[l.d2dKnockId]; bump((k && k.repName) || 'Unattributed').revenue += Number(l.jobValue) || 0; });
-      const reps = Object.keys(byRep).map(name => Object.assign({ name }, byRep[name])).sort((a, b) => b.revenue - a.revenue || b.appts - a.appts);
+      const _repKey = (uid, repName) => uid ? 'u:' + uid : (repName ? 'n:' + repName : 'unattributed');
+      const bump = (key, uid, repName) => byRep[key] || (byRep[key] = { uid: uid || null, repName: repName || '', knocks: 0, appts: 0, converted: 0, revenue: 0 });
+      knocks.forEach(k => {
+        const key = _repKey(k.userId, k.repName);
+        const s = bump(key, k.userId, k.repName);
+        if (!s.repName && k.repName) s.repName = k.repName;
+        s.knocks++; if (k.disposition === 'appointment') s.appts++; if (k.convertedToLead) s.converted++;
+      });
+      wonD2D.forEach(l => {
+        const k = knockById[l.d2dKnockId];
+        const uid = (k && k.userId) || l.userId || null;
+        const nm = (k && k.repName) || '';
+        bump(_repKey(uid, nm), uid, nm).revenue += Number(l.jobValue) || 0;
+      });
+      const _me = window._user && window._user.uid;
+      const _nameOf = (r) => (window.NBDTeamNames && r.uid && window.NBDTeamNames.nameFor(r.uid))
+        || r.repName || (r.uid && r.uid === _me ? 'You' : (r.uid ? 'Teammate' : 'Unattributed'));
+      const reps = Object.keys(byRep).map(key => Object.assign({ name: _nameOf(byRep[key]) }, byRep[key])).sort((a, b) => b.revenue - a.revenue || b.appts - a.appts);
 
       const fmt$ = (n) => '$' + Math.round(n).toLocaleString();
       const clampPct = (n, d) => d > 0 ? Math.min(100, Math.round(n / d * 100)) : 0;
