@@ -909,7 +909,17 @@ function buildCard(l){
   const _keys = window._stageKeys || [];
   const stageIdx = _keys.indexOf(_sk);
   const prevS = stageIdx>0 ? _keys[stageIdx-1] : null;
-  const nextS = stageIdx>=0 && stageIdx<_keys.length-1 ? _keys[stageIdx+1] : null;
+  // "Next" never means Lost (CRM sweep R14, 2026-09-28): Lost sorts last in
+  // every view, so the last working column's ▶ read "→ Lost" (Contract Signed
+  // on the stock Insurance board) — one tap toward losing a signed job.
+  // Losing is its own action (context menu / stage picker), not progress.
+  let nextS = null;
+  if (stageIdx >= 0) {
+    for (let _i = stageIdx + 1; _i < _keys.length; _i++) {
+      const _role = typeof window.stageRole === 'function' ? window.stageRole(_keys[_i]) : (_keys[_i] === 'lost' ? 'lost' : '');
+      if (_role !== 'lost') { nextS = _keys[_i]; break; }
+    }
+  }
   const prevLabel = prevS && window.STAGE_META?.[prevS]?.label || prevS || '';
   const nextLabel = nextS && window.STAGE_META?.[nextS]?.label || nextS || '';
 

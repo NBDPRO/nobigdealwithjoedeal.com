@@ -774,7 +774,14 @@
       stageBarsHTML = '<div class="nbd-empty"><div class="ne-icon">📊</div><div class="ne-msg">No lead data yet</div></div>';
     } else {
       stageEntries.forEach(function (entry) {
-        var label = stageLabels[entry[0]] || entry[0].replace(/_/g, ' ');
+        // The board's own label first (window.STAGE_META — tenant-aware,
+        // includes custom stages). The map above predates the stage-key
+        // migration, so current keys fell through to their raw text: the
+        // panel read "contract signed", "estimate sent cash" beside
+        // "Install Complete" (CRM sweep R14, 2026-09-28). STAGE_META, not
+        // stageLabel(): stageLabel normalizes an unknown key to "New Lead".
+        var _meta = (typeof window !== 'undefined' && window.STAGE_META) ? window.STAGE_META[entry[0]] : null;
+        var label = (_meta && _meta.label) || stageLabels[entry[0]] || entry[0].replace(/_/g, ' ');
         var count = entry[1];
         var widthPct = Math.max(Math.round((count / maxStage) * 100), 4);
         var color = stageColor(entry[0]);
