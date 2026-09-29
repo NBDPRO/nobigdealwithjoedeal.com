@@ -157,6 +157,7 @@
      ═══════════════════════════════════════════════════════════════ -->
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
+<link rel="stylesheet" href="css/google-calendar.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -4934,6 +4935,14 @@
         </div>
       </div>
 
+      <!-- GOOGLE CALENDAR (calendar hub Phase 2) — the "NBD Jobs" calendar the
+           CRM keeps in your Google account. Owner / company admin only;
+           rendered by js/google-calendar-ui.js (listeners delegated by id). -->
+      <div class="panel" id="gcalPanel" hidden style="display:none;">
+        <div class="panel-hdr"><div><div class="panel-label">Your Calendar</div><div class="panel-title">Google Calendar</div></div></div>
+        <div class="panel-body" id="gcalBody"></div>
+      </div>
+
       <!-- CAL.COM SETTINGS -->
       <div class="panel">
         <div class="panel-hdr"><div><div class="panel-label">Setup</div><div class="panel-title">Cal.com Configuration</div></div></div>
@@ -6719,6 +6728,7 @@
      maps.js because it uses window.hav() (haversine distance). -->
 <script defer src="js/smart-calendar.js?v=3"></script>
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
+<script defer src="js/google-calendar-ui.js?v=1"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.

@@ -421,6 +421,8 @@ const VERDICTS = {
   activateInvitedRep: 'self', analyzePhotoVision: 'refused', assignSeats: 'role-gated',
   // Stripe ledger (2026-09-29): owner / owner's company_admin / platform admin only.
   assignStripeTransaction: 'role-gated', getStripeOverview: 'role-gated', stripeLedgerSync: 'role-gated',
+  // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
+  setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
   attachStormProof: 'refused', backfillAnalytics: 'refused', claimInvite: 'self',
   cleanupE2ETestData: 'role-gated', convertUnmatchedSms: 'role-gated',
   createCalendarFeedToken: 'refused', createCompany: 'self', createConnectAccount: 'role-gated',

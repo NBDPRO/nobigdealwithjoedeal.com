@@ -1,0 +1,13 @@
+/* Google Calendar panel (Schedule view) + the double-booking warning under the
+   job date/time pickers. js/google-calendar-ui.js. Phone-first: wraps, no
+   fixed widths. */
+.gcal-muted { font-size: 12px; color: var(--m); line-height: 1.5; margin-bottom: 12px; }
+.gcal-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.gcal-input { flex: 1 1 220px; min-width: 0; background: var(--s2); border: 1px solid var(--br); border-radius: 7px; padding: 10px 14px; font-family: inherit; font-size: 13px; color: var(--t); }
+.gcal-small { font-size: 11px; padding: 7px 14px; }
+.gcal-ok { font-size: 12px; color: var(--green, #22c55e); line-height: 1.5; margin-bottom: 6px; }
+.gcal-warn { font-size: 12px; color: var(--gold, #f59e0b); margin-top: 8px; }
+.gcal-step { font-size: 12px; line-height: 1.6; color: var(--t); background: var(--s2); border: 1px solid var(--br); border-radius: 8px; padding: 10px 12px; margin: 6px 0; overflow-wrap: anywhere; }
+.gcal-code { font-size: 11px; background: rgba(0, 0, 0, .15); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
+.gcal-conflict { font-size: 12px; line-height: 1.45; color: var(--gold, #f59e0b); margin-top: 4px; min-height: 1em; overflow-wrap: anywhere; }
+.gcal-clear { color: var(--green, #22c55e); }

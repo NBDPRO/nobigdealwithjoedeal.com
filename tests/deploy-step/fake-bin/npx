@@ -22,6 +22,8 @@ CALL=$(( $(cat "$CALLS_FILE" 2>/dev/null || echo 0) + 1 ))
 echo "$CALL" > "$CALLS_FILE"
 
 NAMES=$(printf '%s' "$ONLY" | tr ',' '\n' | sed -E 's/^functions://' | grep -v '^$')
+# Names an EARLIER call already targeted: this call is retrying them.
+PRIOR=$(cat "$TARGETS_LOG" 2>/dev/null)
 echo "$NAMES" >> "$TARGETS_LOG"
 
 G=$'\033[1m\033[32m'
@@ -52,16 +54,16 @@ case "$FAKE_MODE" in
     # Mode 3: every target logs "updating...", but DROP_NAMES never get a
     # completion line — and the CLI still exits 0.
     #
-    # Healing keys on BATCH SIZE, not invocation count: with a chunked wave 1
+    # Healing keys on whether THIS name was targeted by an earlier call (a
+    # retry), not on invocation count or batch size. With a chunked wave 1
     # (NBD_DEPLOY_WAVE1_MAX) the 2nd and 3rd chunks are still wave 1 and must
-    # still drop. Retry batches are <= NBD_DEPLOY_BATCH_SIZE (20); wave-1 chunks
-    # are 47-60 (or the full 167 uncapped), so 30 separates them cleanly.
-    # Keying on invocation count made the chunked+drop case silently untestable.
-    NCOUNT=$(printf '%s\n' "$NAMES" | grep -c .)
+    # still drop — keying on invocation count made that case untestable. Keying
+    # on batch size (<= 30 = retry) broke when the function count left a small
+    # remainder chunk (206 functions / 60 → a last wave-1 chunk of 26, 2026-09-29).
     for n in $NAMES; do emit_start "$n"; done
     for n in $NAMES; do
       if echo " $DROP_NAMES " | grep -q " $n "; then
-        if [ "$FAKE_MODE" = "drop" ] && [ "$NCOUNT" -le 30 ]; then emit_success "$n"; fi
+        if [ "$FAKE_MODE" = "drop" ] && printf '%s\n' "$PRIOR" | grep -qx "$n"; then emit_success "$n"; fi
       else
         emit_success "$n"
       fi
