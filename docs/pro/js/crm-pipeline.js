@@ -2111,7 +2111,13 @@ async function moveCard(id, newStage, opts){
         if (card) card.classList.remove('k-card-sync-success');
       } catch (_) { /* fall back to next nbd:data-refreshed cycle */ }
     }, 1000);
-    
+    // true ONLY when the move committed. Every refusal above (teammate's
+    // lead, prospect not promoted, lost/warranty prompt cancelled, required
+    // fields missing) and every failure below returns undefined — bulk move
+    // counts on this: it used to count "no throw" as moved and toasted
+    // "Moved 2 lead(s)" for two leads the required-field gate had refused.
+    return true;
+
   } catch(e){
     console.error('moveCard error',e);
 
@@ -2125,7 +2131,7 @@ async function moveCard(id, newStage, opts){
       lead._syncing = false;
       delete lead._pending;
       try { await loadLeads(); } catch(_) {}
-      return;
+      return true; // already at the destination — the move's outcome holds
     }
     // STAGE_RACE_LOST: another tab moved this card to a DIFFERENT
     // stage. Don't override their move — restore from Firestore so
