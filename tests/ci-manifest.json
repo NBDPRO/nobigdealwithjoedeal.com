@@ -20,6 +20,7 @@
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
+    "customer-pipeline-order-warranty-reasons-2026-09-28.test.js",
     "next-stage-never-lost-2026-09-28.test.js",
     "analytics-stage-labels-2026-09-28.test.js",
     "events-not-open-tasks-2026-09-28.test.js",
