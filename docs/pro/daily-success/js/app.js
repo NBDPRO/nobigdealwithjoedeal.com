@@ -563,7 +563,10 @@ const exs=p.exercises&&p.exercises.length?p.exercises:Array(4).fill({});
 exs.forEach(ex=>addExercise(ex,false));
 
 const d=p.data||{};
-document.querySelectorAll('[data-k]').forEach(el=>{if(d[el.dataset.k]!==undefined&&!el.dataset.k.startsWith('diet-m'))el.value=d[el.dataset.k];});
+// The Exercise Log renders from p.exercises; p.data also carries an ex-N-* copy
+// that can be older (the Workout Coach writes the list). Don't let the copy
+// overwrite a list that has content.
+const _exList=(p.exercises||[]).some(r=>r&&Object.values(r).some(v=>String(v||'').trim()));document.querySelectorAll('[data-k]').forEach(el=>{if(d[el.dataset.k]!==undefined&&!el.dataset.k.startsWith('diet-m')&&!(_exList&&el.dataset.k.startsWith('ex-')))el.value=d[el.dataset.k];});
 
 document.querySelectorAll('textarea.ed').forEach(ta=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';markDirty();});});
 document.querySelectorAll('input.ed,.bm-inp,.rbox input,.pr-inp,.scinp').forEach(e=>e.addEventListener('input',markDirty));

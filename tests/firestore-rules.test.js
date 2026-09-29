@@ -1765,7 +1765,7 @@ async function run() {
   // ✅ every subcollection the app writes under users/{uid} (the allowlist in
   //    firestore.rules, plus the two explicit template matches), create +
   //    update + delete, by the owner.
-  for (const s of ['captures/c1', 'ds_meta/streaks', 'ds_pages/p1', 'fcmTokens/t1',
+  for (const s of ['captures/c1', 'ds_meta/streaks', 'ds_pages/p1', 'ds_workouts/w1', 'fcmTokens/t1',
     'preferences/mobileNav', 'settings/aiPersona', 'jobTemplates/jt1', 'templates/t1']) {
     await x35('owner create users/{uid}/' + s, 'allow', setDoc(doc(ux, 'users/u35/' + s), { v: 1 }));
     await x35('owner update users/{uid}/' + s, 'allow', updateDoc(doc(ux, 'users/u35/' + s), { v: 2 }));
