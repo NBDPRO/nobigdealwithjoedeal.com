@@ -213,6 +213,8 @@ All merged, each with a test that fails on the old code (BUG-LOG R14-01 … R14-
 - "show the rounding line on proposals": **#1861**. The Retail Quote PDF, insurance scope and Job Templates preview print `Rounding −$4.80`, or `Minimum job charge adjustment`, so Subtotal + Tax foots to Total.
 - "events on schedule yes": **#1860**. Today's customer-page Add Event entries show on the Schedule view.
 
+**Found, fixed:** **#1862**. A homeowner's accepted deal room could be deleted or overwritten from the Close Board. It is now locked like a signed contract, in the rules and the client (R14-19).
+
 **Questions for Jo:** Insurance Claim Progress on cash jobs, the public audit run logs, and the Bland balance.
 
 **Rig notes (memory):**
