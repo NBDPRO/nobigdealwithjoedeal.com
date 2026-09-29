@@ -71,4 +71,25 @@ function isDecided(lead) { const r = roleFor(lead); return r === ROLE.WON || r =
 const WON_STAGES  = Object.freeze(Array.from(WON));
 const WON_ALIASES = Object.freeze(Object.keys(ALIAS).filter((k) => ALIAS[k] === 'closed'));
 
-module.exports = { ROLE, WON_STAGES, WON_ALIASES, normKey, roleFromKey, roleFor, isWon, isLost, isDecided };
+// May an online payoff (Stripe invoiceWebhook) auto-advance this lead to
+// 'final_payment'? Only FORWARD, only on the main job track (CRM sweep R14,
+// 2026-09-28). The webhook's old guard protected just final_payment / closed /
+// lost, so a payoff on a WARRANTY or SERVICE lead dragged it onto the main
+// track's Final Payment — orphaning an open warranty claim, which the kanban
+// refuses to do by hand (moveCard's warranty guard) — and any custom won stage
+// was pulled back to it too. Same forward-only rule as the client payoff
+// (invoice-pipeline.js markPaid, #1821).
+const PRE_FINAL_WON = new Set(['install_complete', 'final_photos', 'deductible_collected', 'collections']);
+function payoffAdvanceAllowed(lead) {
+  if (!lead) return false;
+  const key = normKey(lead._stageKey || lead.stage);
+  if (key === 'final_payment') return false;
+  const jt = String(lead.jobType || '').toLowerCase();
+  if (jt === 'warranty' || jt === 'service') return false;
+  if (/^(warranty|service)_/.test(key) || lead.openWarrantyClaimId) return false;
+  const role = roleFor(lead);
+  if (role === ROLE.NEW || role === ROLE.ACTIVE || role === ROLE.JOB) return true;
+  return role === ROLE.WON && PRE_FINAL_WON.has(key);
+}
+
+module.exports = { ROLE, WON_STAGES, WON_ALIASES, normKey, roleFromKey, roleFor, isWon, isLost, isDecided, payoffAdvanceAllowed };
