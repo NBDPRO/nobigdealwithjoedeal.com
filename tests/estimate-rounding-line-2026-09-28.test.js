@@ -145,5 +145,22 @@ ok('float noise under a cent → no row', JT._totalsAdjustmentRow({ subtotal: 0.
 ok('preview no longer prints the amount-less "Minimum job charge applied" note',
   !/Minimum job charge applied/.test(read('docs/pro/js/job-templates-ui.js')));
 
+// ── 4. customer page estimate preview (rep's screen, often shown to the homeowner) ──
+console.log('\nEstimate preview sheet (estimate-preview.js)');
+{
+  const win = {}; win.window = win;
+  vm.runInNewContext(read('docs/pro/js/estimate-preview.js'), { window: win, document: { getElementById: () => null, addEventListener() {}, removeEventListener() {} }, console: quiet, Math, JSON, Number, String, isFinite }, { filename: 'estimate-preview.js' });
+  const EP = win.EstimatePreview;
+  ok('hooks are exposed', EP && typeof EP._adjustmentRow === 'function' && typeof EP._normalize === 'function');
+  const row = (est) => EP._adjustmentRow(EP._normalize(est));
+  const txt = (h) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  ok('V2 doc rounded down → "Rounding −$13.13"', txt(row({ rows: [], subtotal: 6500, tax: 488.13, grandTotal: 6975 })) === 'Rounding −$13.13', txt(row({ rows: [], subtotal: 6500, tax: 488.13, grandTotal: 6975 })));
+  ok('minimum lifted → "Minimum job charge adjustment $1,069.96"', txt(row({ rows: [], subtotal: 400, tax: 30.04, grandTotal: 1500, minJobApplied: true })) === 'Minimum job charge adjustment $1,069.96');
+  ok('classic doc: tax read from taxAmount', EP._normalize({ lineItems: [], subtotal: 1000, taxAmount: 70, grandTotal: 1075 }).tax === 70);
+  ok('classic doc: taxAmount counted in the ladder → "Rounding $5"', txt(row({ lineItems: [], subtotal: 1000, taxAmount: 70, grandTotal: 1075 })) === 'Rounding $5');
+  ok('already foots → no row', row({ rows: [], subtotal: 6500, tax: 500, grandTotal: 7000 }) === '');
+  ok('money prints cents when there are any ($4,271.61, not $4,272)', EP._money(4271.61) === '$4,271.61' && EP._money(4600) === '$4,600');
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
