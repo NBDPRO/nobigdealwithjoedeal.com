@@ -192,6 +192,29 @@ exports.claimInvite = onCall(
     // findPendingInvite already read (and required) the company doc.
     const companyName = (lookup.company && lookup.company.name) || '';
 
+    // Explicit Join for anyone who owns a company of their own (2026-09-29,
+    // the 09-26 "inviteaccept" lane). The dashboard used to call this at boot
+    // for every solo account and it claimed on the spot, so ANY tenant's
+    // invite to an owner's email silently moved that owner (Jo included) into
+    // the other team — and the client's "already checked" flag lives in nbd_
+    // localStorage, which sign-out wipes. Enforced HERE, not in the client, so
+    // a stale cached dashboard cannot claim either: an owner gets a preview
+    // and must call again with { confirm: true }.
+    //
+    // An account with no tenant of its own still joins at once. That is the
+    // person who signed up through the invite email's link (register.js
+    // ?invite=1 never provisions a solo company), and signing up through the
+    // invite IS the acceptance.
+    let ownsTenant = token.companyId === uid;
+    if (!ownsTenant) {
+      const own = await db.doc(`companies/${uid}`).get();
+      ownsTenant = own.exists && (own.data() || {}).ownerId === uid;
+    }
+    const confirmed = !!(request.data && request.data.confirm === true);
+    if (ownsTenant && !confirmed) {
+      return { claimed: false, reason: 'confirm_required', companyId, companyName, role, ownsTenant: true };
+    }
+
     // Only companyId + role. Deliberately NO `plan` claim: post-Pillar-4
     // billing resolves from subscriptions/{companyId}, so a rep inherits the
     // company plan from the doc automatically — and hardcoding plan:'growth'

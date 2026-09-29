@@ -100,6 +100,9 @@
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
 <script defer src="js/role-gate.js?v=4"></script>
+<!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
+     anyone who owns a company. Before the bootstrap, which calls it. -->
+<script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
 <script src="js/script-loader.js?v=14"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
@@ -120,7 +123,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=18"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=19"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -4195,7 +4198,7 @@
         </div>
       </div><!-- /stab-panel-team -->
 
-      <script src="js/dashboard-team-tab.js?v=3"></script>
+      <script src="js/dashboard-team-tab.js?v=4"></script>
 
       <!-- ══ TAB: ACCESS ══ -->
       <div class="stab-panel dn" id="stab-panel-access">

@@ -1864,7 +1864,23 @@
             new Promise((_, rej) => setTimeout(() => rej(new Error('claimInvite timed out')), 8000)),
           ]);
           const out = (res && res.data) || {};
-          if (out.claimed) {
+          // An account that owns its own company must choose to join
+          // (claimInvite answers confirm_required; invite-join.js asks). Not
+          // awaited: the prompt waits on a person, and this await gates
+          // loadLeads. The flag stays unset, so a later load asks again unless
+          // the company was declined (remembered on userSettings, which
+          // survives sign-out).
+          if (out.reason === 'confirm_required') {
+            if (window.NBDInviteJoin) {
+              window.NBDInviteJoin.handle(out, (p) => fn(p), { fromBoot: true }).then(async (outcome) => {
+                if (outcome !== 'joined') return;
+                await user.getIdToken(true);
+                localStorage.setItem(_inviteCheckedKey, '1');
+                localStorage.setItem(_repActivatedKey, '1');
+                window.location.reload();
+              }).catch((e) => console.warn('Invite prompt failed:', e && e.message));
+            }
+          } else if (out.claimed) {
             // Claims changed → the whole tenant scope changed. Refresh the
             // token FIRST, then set the flags + reboot so every scoped query
             // re-runs under the team's companyId. Setting the flags before the
@@ -1887,7 +1903,7 @@
           const _createdMs = Date.parse((user.metadata && user.metadata.creationTime) || '') || 0;
           const _youngAccount = _createdMs && (Date.now() - _createdMs) < 14 * 24 * 3600 * 1000;
           if ((out.reason === 'no_invite' && _youngAccount) || out.reason === 'invite_expired'
-              || out.reason === 'ambiguous_invite') {
+              || out.reason === 'ambiguous_invite' || out.reason === 'confirm_required') {
             // leave the flag unset — re-check next load. invite_expired
             // stays non-terminal so a Re-send (fresh 30-day invite) is
             // picked up without any manual recovery step. ambiguous_invite
