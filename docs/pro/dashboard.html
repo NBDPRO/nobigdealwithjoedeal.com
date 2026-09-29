@@ -44,11 +44,11 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=3" as="script">
+<link rel="preload" href="js/crm-leads.js?v=4" as="script">
 <link rel="preload" href="js/crm-pipeline.js?v=5" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=2" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=4" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=5" as="script">
 <link rel="preload" href="js/crm.js?v=34" as="script">
 <link rel="preload" href="js/maps.js?v=11" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -5362,6 +5362,29 @@
         <div class="mfield"><label>Scheduled Date</label><input type="date" id="lScheduledDate"></div>
         <div class="mfield"><label>Crew</label><input type="text" id="lCrew" placeholder="Crew name or lead installer"></div>
       </div>
+      <!-- 2026-09-29 (calendar hub Phase 0): arrival window beside the date.
+           Wired by js/schedule-window-ui.js (delegated, no inline handlers);
+           "All day / no time" saves exactly what this form always saved. -->
+      <div data-schedwin="l" data-schedwin-date="lScheduledDate" data-schedwin-mode="allday" style="margin:0 0 10px;">
+        <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--m);margin-bottom:4px;">Arrival window</div>
+        <div role="group" aria-label="Arrival window" style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button type="button" data-schedwin-preset="allday" aria-pressed="true" style="padding:6px 10px;min-height:32px;border:1px solid var(--orange,#BD5728);border-radius:999px;background:var(--orange,#BD5728);color:#fff;font-size:12px;cursor:pointer;">All day / no time</button>
+          <button type="button" data-schedwin-preset="project" aria-pressed="false" style="padding:6px 10px;min-height:32px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Full project</button>
+          <button type="button" data-schedwin-preset="repair" aria-pressed="false" style="padding:6px 10px;min-height:32px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Repair / inspection</button>
+        </div>
+        <div data-schedwin-fields hidden style="display:none;">
+          <div class="mrow" style="margin-top:8px;">
+            <div class="mfield"><label for="lSchedStart">Start time</label><input type="time" id="lSchedStart" step="300"></div>
+            <div class="mfield" data-schedwin-for="project" hidden style="display:none;"><label for="lSchedDays">Length</label>
+              <select id="lSchedDays"><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option></select>
+            </div>
+            <div class="mfield" data-schedwin-for="repair" hidden style="display:none;"><label for="lSchedDuration">Length</label>
+              <select id="lSchedDuration"><option value="">No set length</option><option value="30">30 min</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select>
+            </div>
+          </div>
+        </div>
+        <div id="lSchedPreview" aria-live="polite" style="font-size:12px;color:var(--m);margin-top:4px;min-height:1em;"></div>
+      </div>
       <!-- 2026-09-15 (Paperwork Filing): gate REQUIRED_FIELDS_BY_TYPE's
            JOB_CREATED / MATERIALS_ORDERED / CLOSED checkpoints. Contract and
            Warranty Cert are auto-checked by document-generator.js /
@@ -6581,7 +6604,12 @@
      All four split files run BEFORE the shim so the long sweep
      of window.* exports in the shim can reach functions defined
      in the split files via classic-script sibling-scope globals. -->
-<script defer src="js/crm-leads.js?v=3"></script>
+<!-- Arrival window on a lead (2026-09-29, calendar hub Phase 0): the pure
+     date math, then the lead-modal controls beside #lScheduledDate. Before
+     crm-leads.js (saveLead reads them) and smart-calendar.js. -->
+<script defer src="js/schedule-window.js?v=1"></script>
+<script defer src="js/schedule-window-ui.js?v=1"></script>
+<script defer src="js/crm-leads.js?v=4"></script>
 <script defer src="js/crm-pipeline.js?v=5"></script>
 <script defer src="js/crm-snooze.js?v=2"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
@@ -6590,7 +6618,7 @@
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=3"></script>
 <script defer src="js/push-actions.js?v=1"></script>
-<script defer src="js/crm-portal-bridge.js?v=4"></script>
+<script defer src="js/crm-portal-bridge.js?v=5"></script>
 <script defer src="js/crm.js?v=34"></script>
 <script defer src="js/crm-list-view.js?v=7"></script>
 <script defer src="js/tasks.js?v=6"></script>
@@ -6642,7 +6670,7 @@
 <script defer src="js/warranty-claim.js?v=3"></script>
 <!-- Insurance Details panel reuse (mobile Details tab) — ClaimPanel.render
      is container-agnostic; not loaded on this page before. -->
-<script defer src="js/claim-core.js?v=2"></script>
+<script defer src="js/claim-core.js?v=4"></script>
 <!-- Job Checklist panel reuse (mobile Details tab) — not loaded on this
      page before. -->
 <script defer src="js/customer-checklist.js?v=2"></script>
@@ -6672,7 +6700,7 @@
      refs with window._leads for jobValue + lat/lng, and renders a
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
-<script defer src="js/smart-calendar.js?v=2"></script>
+<script defer src="js/smart-calendar.js?v=3"></script>
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured

@@ -6346,8 +6346,10 @@ section('Mobile Details-tab parity round 2: Warranty Claim, Insurance Details, J
   // ── Insurance Details ──
   assert('dashboard.html: the Details tab carries an Insurance Details panel container',
     /id="mJdInsurancePanel"/.test(html));
+  // Any ?v= — the point is that it loads; the cache-bust number moves with the
+  // file (v=4 since 2026-09-29, the adjuster-meeting fields).
   assert('dashboard.html now loads claim-core.js (not loaded there before this round)',
-    /<script defer src="js\/claim-core\.js\?v=2"><\/script>/.test(html));
+    /<script defer src="js\/claim-core\.js\?v=\d+"><\/script>/.test(html));
   assert('openMobileJobDetail gates the insurance panel the SAME way customer-bootstrap.module.js gates #insurancePanel',
     /const isInsurance = lead\.jobType === 'insurance' \|\| lead\.insCarrier \|\| lead\.insuranceCarrier/.test(openMobileFn3));
   assert('openMobileJobDetail calls window.ClaimPanel.render UNMODIFIED, pointed at the mobile container',
