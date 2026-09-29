@@ -127,6 +127,7 @@
     "seo-surface.test.js",
     "tamko-page-rename.test.js",
     "smart-calendar-forecast.test.js",
+    "schedule-events-2026-09-28.test.js",
     "sms-optout-key.test.js",
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",

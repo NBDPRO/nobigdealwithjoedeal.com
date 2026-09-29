@@ -56,6 +56,10 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     // showed on NO calendar. List those as their own "no set time" block,
     // deduped against any cal.com appointment already shown.
     const leads = Array.isArray(window._leads) ? window._leads : [];
+    // Customer-page "Add Event" entries (leads/{id}/tasks, type:'event') for
+    // today join the timeline as timed entries (Jo, 2026-09-28: "events on
+    // schedule yes") — before, they showed only on that customer's timeline.
+    appts = appts.concat(_todaysEvents(user.uid, leads));
     if (appts.length) {
       // Sort by start time so travel-time math is meaningful.
       appts.sort((a, b) => _toMs(a.startTime) - _toMs(b.startTime));
@@ -146,6 +150,44 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     if (typeof t.toMillis === 'function') return t.toMillis();
     if (typeof t.seconds === 'number') return t.seconds * 1000;
     return 0;
+  }
+
+  // Today's Add-Event entries from the dashboard's task cache (tasks.js
+  // loadAllTasks fills window._taskCache for every lead on the board), shaped
+  // like an appointment so the timeline, travel math and lead chip all apply.
+  // Mine only — the viewer created it, or it sits on the viewer's own lead —
+  // matching how appointments are rep-scoped. Zero duration (the form records
+  // a start time only), so an event never manufactures a "conflict". Pure;
+  // exported for tests.
+  function _todaysEvents(uid, leads, now, taskCache) {
+    const cache = taskCache || window._taskCache || {};
+    const d = now ? new Date(now) : new Date();
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const end = start + 86400000;
+    const byId = {};
+    (leads || []).forEach(l => { if (l && l.id) byId[l.id] = l; });
+    const out = [];
+    Object.keys(cache).forEach(leadId => {
+      const lead = byId[leadId];
+      (cache[leadId] || []).forEach(t => {
+        if (!t || t.type !== 'event' || t.done || !t.eventAt) return;
+        const at = new Date(t.eventAt).getTime();
+        if (!(at >= start && at < end)) return;
+        const mine = (uid && t.userId === uid) || (lead && uid && lead.userId === uid);
+        if (!mine) return;
+        out.push({
+          id: 'event:' + leadId + ':' + (t.id || at),
+          title: '📅 ' + (t.title || t.text || 'Event'),
+          startTime: at, // ms — _toMs reads numbers, not Date objects
+          endTime: at,
+          leadId: leadId,
+          notes: t.notes || '',
+          status: 'event',
+          _isEvent: true,
+        });
+      });
+    });
+    return out;
   }
 
   // ── lead matching ───────────────────────────────────────────
@@ -304,7 +346,8 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
 
   function _renderApptRow(a) {
     const start = _fmtTime(_toMs(a.startTime));
-    const end = _fmtTime(_toMs(a.endTime));
+    // A point-in-time entry (an Add-Event with no end) shows its start only.
+    const end = _toMs(a.endTime) > _toMs(a.startTime) ? _fmtTime(_toMs(a.endTime)) : '';
     const title = a.title || a.attendeeName || 'Appointment';
     const where = a.location || a._leadAddress || '';
     const valueBadge = _renderValueBadge(a._leadValue);
@@ -577,8 +620,16 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     // First paint after leads load — if user landed on /pro/dashboard.html#schedule
     // we want the timeline to populate without requiring a re-nav.
     document.addEventListener('DOMContentLoaded', () => setTimeout(refresh, 600));
-    // Also retry after leads are loaded so value badges populate.
-    window.addEventListener('nbd:leads-loaded', refresh);
+    // Re-render when leads or tasks (re)load — value badges, and today's
+    // Add-Event entries, which come from the task cache. This listened for
+    // 'nbd:leads-loaded', which nothing dispatches; the loaders announce
+    // 'nbd:data-refreshed' with a source (R14, 2026-09-28).
+    let _t = null;
+    window.addEventListener('nbd:data-refreshed', (e) => {
+      const src = e && e.detail && e.detail.source;
+      if (src !== 'leads' && src !== 'tasks') return;
+      clearTimeout(_t); _t = setTimeout(refresh, 250);
+    });
   }
 
   // Registered, not window-exported (Globals Tranche 3 T3-C, 2026-09-18):
@@ -594,6 +645,8 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     renderForecastChip, renderRainSummary, fetchForecast,
     NWS_MAX_POINTS, NWS_CACHE_TTL_MS, NWS_CACHE_PREFIX,
   };
+  // Schedule-row helpers, exposed for tests/schedule-events-2026-09-28.test.js.
+  window.NBDSchedule = { todaysEvents: _todaysEvents, renderApptRow: _renderApptRow };
   _attachAutoLoad();
 })();
 
