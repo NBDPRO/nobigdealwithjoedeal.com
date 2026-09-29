@@ -54,7 +54,8 @@ function extractFn(src, name) {
 const AK = read('docs/pro/js/analytics-kpi.js');
 const akCtx = {};
 vm.createContext(akCtx);
-vm.runInContext(['toJSDate', 'collectedDollarsOf', 'paymentsOf'].map((n) => extractFn(AK, n)).join('\n') + '\nglobalThis.__p = paymentsOf;', akCtx);
+// paymentsOf = paymentsOnlyOf + refundsOf since 2026-09-29 (refunds come off revenue).
+vm.runInContext(['toJSDate', 'collectedDollarsOf', 'paymentsOnlyOf', 'refundsOf', 'paymentsOf'].map((n) => extractFn(AK, n)).join('\n') + '\nglobalThis.__p = paymentsOf;', akCtx);
 const akPaymentsOf = akCtx.__p;
 
 const T = (iso) => ({ toDate: () => new Date(iso), seconds: Date.parse(iso) / 1000 });

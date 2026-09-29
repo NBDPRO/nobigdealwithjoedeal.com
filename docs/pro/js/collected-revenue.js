@@ -19,7 +19,7 @@
  *   window.NBDRevenue.collectedBetween(invs, startMs, endMs, leadIdFilter?)
  *                                            → { total, count }  (dollars, payments)
  *   window.NBDRevenue.collectedByLead(invs, startMs, endMs) → { leadId: dollars }
- *   window.NBDRevenue.paymentsOf(inv)        → [{ amount, at, synthetic? }]
+ *   window.NBDRevenue.paymentsOf(inv)        → [{ amount, at, synthetic?, refund? }] (refunds negative)
  *
  * Emits 'nbd:invoices-loaded' on window after each load. Invalidated on
  * 'nbd:data-refreshed' and when the signed-in account changes.
@@ -46,7 +46,7 @@
   // prefer the payments[] ledger (each credit dated), append a synthetic
   // remainder when the ledger sums short of total−balanceDue (pre-ledger
   // partials), and fall back to one lump dated lastPaymentAt||paidAt.
-  function paymentsOf(inv) {
+  function paymentsOnlyOf(inv) {
     if (Array.isArray(inv.payments) && inv.payments.length > 0) {
       var out = [];
       var ledgerCents = 0;
@@ -79,6 +79,30 @@
     return [{ amount: collected, at: payDate }];
   }
 
+  // Refunds (invoices.refunds[], recorded by the Stripe ledger) come off
+  // revenue on the day they happened — negative entries tagged refund:true.
+  // They never touch payments[] / amountPaid / balanceDue, so the
+  // remainder math in paymentsOnlyOf is unaffected. A failed or canceled
+  // refund, or a dispute Jo won, returned nothing. Same helper in all four
+  // revenue readers
+  // (collected-revenue.js, money-dashboard.js, analytics-kpi.js,
+  // pages/leaderboard.js) — tests/refunds-in-revenue-2026-09-29.test.js.
+  function refundsOf(inv) {
+    var out = [];
+    var list = Array.isArray(inv && inv.refunds) ? inv.refunds : [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i] || {};
+      var amt = parseFloat(r.amount);
+      var at = r.at != null ? r.at : r.date;
+      if (!(amt > 0) || at == null || r.status === 'failed' || r.status === 'canceled' || r.status === 'won') continue;
+      out.push({ amount: -amt, at: at, refund: true });
+    }
+    return out;
+  }
+  function paymentsOf(inv) {
+    return paymentsOnlyOf(inv).concat(refundsOf(inv));
+  }
+
   // start/end in ms, inclusive; either may be null (open-ended).
   function inRange(ms, startMs, endMs) {
     if (!ms) return false;
@@ -95,7 +119,7 @@
       paymentsOf(inv).forEach(function (p) {
         if (!inRange(toMs(p.at), startMs, endMs)) return;
         totalCents += Math.round((parseFloat(p.amount) || 0) * 100);
-        count++;
+        if (!p.refund) count++; // a refund is money back, not a payment
       });
     });
     return { total: totalCents / 100, count: count };
