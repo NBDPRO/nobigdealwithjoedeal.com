@@ -102,7 +102,14 @@
   // Quotes too — used in attributes (alt="…"); security audit 2026-09-29.
   function esc(s) { return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function fmtCurrency(n) { return '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+  // A bare 'YYYY-MM-DD' (the install date) is a local day — new Date() reads it
+  // as UTC midnight, which is the evening before in Eastern time.
+  function fmtDate(d) {
+    if (!d) return '—';
+    const ymd = typeof d === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    const dt = ymd ? new Date(+ymd[1], +ymd[2] - 1, +ymd[3]) : new Date(d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
   function timeAgo(d) {
     if (!d) return '';
     const diff = Date.now() - new Date(d).getTime();
