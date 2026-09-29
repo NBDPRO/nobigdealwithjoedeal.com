@@ -356,6 +356,10 @@ section('ScriptLoader contract');
     expBundleSrc.indexOf('expense-config.js') < expBundleSrc.indexOf('expenses.js') &&
     expBundleSrc.indexOf('profit-tracker.js') < expBundleSrc.indexOf('expenses.js'),
     'expense-config.js and profit-tracker.js must load before expenses.js');
+  assert('signs view preloads Leaflet then the yard-signs bundle (logic before UI)',
+    /signs:\s*\['mapvendor',\s*'signs'\]/.test(src) &&
+    ((src.match(/signs:\s*\[([\s\S]*?)\]/g) || []).join('').indexOf('yard-signs-logic.js') > -1),
+    'VIEW_BUNDLES.signs must be [mapvendor, signs]; BUNDLES.signs must carry yard-signs-logic.js');
   assert('expenses view preloads the expenses bundle',
     /expenses:\s*\['expenses'\]/.test(src),
     "VIEW_BUNDLES must map expenses to the expenses bundle");
@@ -1874,14 +1878,15 @@ section('Phase C.4 mobile-nav — bottom-nav and More-drawer items');
   // sidebar-only and unreachable on a phone. Talk Tank came in with them but
   // is not counted: `[a-z]+` stops at the hyphen, same as job-templates.)
   const mnCount = (dash.match(/data-action="mobileNav"\s+data-target="[a-z]+"/g) || []).length;
-  assert('mobileNav conversions: 26 (3 bottom-nav + 23 more-drawer)',
-    mnCount === 26,
-    'expected 26 mobileNav data-actions; got ' + mnCount);
+  // (Yard Signs added 2026-09-29.)
+  assert('mobileNav conversions: 27 (3 bottom-nav + 24 more-drawer)',
+    mnCount === 27,
+    'expected 27 mobileNav data-actions; got ' + mnCount);
 
   const closeMoreCount = (dash.match(/data-action="mobileNav"\s+data-target="[a-z]+"\s+data-close-more/g) || []).length;
-  assert('23 mobileNav items carry data-close-more (More-drawer items)',
-    closeMoreCount === 23,
-    'expected 23 data-close-more flags; got ' + closeMoreCount);
+  assert('24 mobileNav items carry data-close-more (More-drawer items)',
+    closeMoreCount === 24,
+    'expected 24 data-close-more flags; got ' + closeMoreCount);
 
   // C.4 finale: every mobileNav handler is delegated (no inline onclicks).
   const remaining = (dash.match(/onclick="mobileNav\(/g) || []).length;
@@ -2189,6 +2194,7 @@ section('Routes: every view-* mount has a routeConfig entry (W160 regression cla
   for (const v of ['expenses', 'money', 'refrewards']) {
     assert('route ' + v + ' is registered (2026-09-02 fix)', routes.has(v));
   }
+  assert('route signs is registered (yard signs 2026-09-29)', routes.has('signs'));
 }
 
 section('Phase C.3 finish — view-prospects + D.1 plumbing');

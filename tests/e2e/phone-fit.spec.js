@@ -30,7 +30,7 @@ const { requireTestUser, loginAs } = require('./fixtures/auth');
 // left out rather than asserted vacuously.
 const VIEWS = ['home', 'dash', 'crm', 'prospects', 'est', 'schedule', 'd2d', 'draw',
   'photos', 'docs', 'money', 'expenses', 'reports', 'storm', 'joe', 'settings',
-  'products', 'training', 'closeboard', 'repos', 'board', 'talk-tank'];
+  'products', 'training', 'closeboard', 'repos', 'board', 'talk-tank', 'signs'];
 const WIDTHS = [412, 360];
 
 test.use({

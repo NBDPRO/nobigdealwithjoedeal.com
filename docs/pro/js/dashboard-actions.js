@@ -350,6 +350,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     if (m && m.classList.contains('active') && window.MoneyDashboard) { try { window.MoneyDashboard.init(); } catch (_) {} }
     const x = document.getElementById('view-expenses');
     if (x && x.classList.contains('active') && window.Expenses) { try { window.Expenses.init(); } catch (_) {} }
+    const ys = document.getElementById('view-signs');
+    if (ys && ys.classList.contains('active') && window.YardSigns) { try { window.YardSigns.init(); } catch (_) {} }
   });
 }
 
@@ -563,6 +565,7 @@ function goTo(name, params = {}) {
   if(name==='closeboard') { _lazyPreload.then(() => { if (window.CloseBoard)  window.CloseBoard.init();  }); }
   if(name==='expenses')   { _lazyPreload.then(() => { if (window.Expenses)    window.Expenses.init();    }); }
   if(name==='money')      { _lazyPreload.then(() => { if (window.MoneyDashboard) window.MoneyDashboard.init(); }); }
+  if(name==='signs')      { _lazyPreload.then(() => { if (window.YardSigns)   window.YardSigns.init();   }); }
   if(name==='refrewards') { if (window.ReferralRewards) window.ReferralRewards.render(); }
   if(name==='repos')      { _lazyPreload.then(() => { if (window.RepOS)       window.RepOS.init();       }); }
   if(name==='talk-tank')  { _lazyPreload.then(() => { if (window.TalkTank)  window.TalkTank.init();  }); }
