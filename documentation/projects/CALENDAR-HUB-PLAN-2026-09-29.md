@@ -133,3 +133,24 @@ crew-facing views; per-rep calendars for team tenants.
 
 Phase 0 can start on a yes to this plan. It doesn't depend on any of the
 answers above.
+
+### Jo's answers (2026-09-29) — do not relitigate
+
+1. **Windows depend on the job.** Large projects start early and run 1–2 days.
+   Repairs, inspections and similar jobs take minutes to hours and can land at
+   almost any time. So the model is **start time + length**, not AM/PM buckets:
+   `scheduledStart` (`'07:00'`, optional) plus either `scheduledDurationMin` (for
+   short jobs) or `scheduledEndDate` (for multi-day projects). Presets: "Full
+   project" pre-fills 7:00 am and 1–2 days; "Repair / inspection" asks for a time
+   and a length in minutes or hours. `scheduledDate` stays the day the job starts.
+2. **Almost everything Jo needs to remember goes to Google.** That means install
+   days, repairs, inspections, adjuster meetings and yard-sign pickups, and
+   follow-ups when they carry a time.
+3. **One "NBD Jobs" calendar, just for Jo, for now.**
+4. **Warn; don't block.** When a customer books through Cal.com, the conflict
+   must never be silent. The default setup already stops Cal.com offering a slot
+   that's busy on either Google calendar. If a conflict still happens (for
+   example, a job moved onto an existing booking later), the CRM alerts Jo, and
+   Jo contacts the customer to reschedule. Any automatic "we may need to move
+   your time" message to the customer is a separate decision, because the CRM
+   never texts or emails homeowners on its own without Jo's say-so.

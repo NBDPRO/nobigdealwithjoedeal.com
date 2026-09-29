@@ -110,3 +110,22 @@ the standing phone rule.
 
 Phase 0 fixes live bugs, so it can start on a yes to this plan without waiting
 on these answers.
+
+### Jo's answers (2026-09-29) — do not relitigate
+
+1. **Workouts:** Jo repeats the same routines and gets repetitive without a
+   plan. **Variety is the feature.** Phase 1 becomes a *coach*, not just a log:
+   - templates plus automatic rotation that swaps exercises within the same
+     muscle group or movement pattern, so a week doesn't repeat
+   - per-set reps, weight and intensity (RPE)
+   - progressive overload suggestions ("last time 185×8 at RPE 7 → try 190×8")
+   - a "switch it up" button that rebuilds today's session with fresh variations
+2. **Food:** no answer yet. The default is hand-typed macros plus saved
+   favorites; ask again before Phase 2.
+3. **Health metrics:** weight only, from a **Hume** smart scale. Phase 3 shrinks
+   to a weight trend. A Hume → Apple Health → Shortcut import is a possible
+   follow-up; v1 is manual entry.
+4. **Old pages:** Jo left it to us. **Decision: migrate** lifts, PRs and
+   bodyweight into the new model with a dry-run preview first, and keep the old
+   pages readable. The history is what makes the progression charts and
+   "last time" targets useful from day one.
