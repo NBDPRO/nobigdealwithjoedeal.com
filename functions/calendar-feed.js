@@ -258,10 +258,19 @@ exports.getCalendarFeed = onRequest(
         .where('userId', '==', uid).limit(LEAD_SCAN_CAP).get();
       const fromYmd = ymd(fromMs);
       const toYmd = ymd(toMsWindow);
+      // A lead is in the window when any day of its job is (a 2-day project
+      // that started yesterday is still on the phone today — scheduledEndDate,
+      // 2026-09-29), or when its adjuster meeting is. Plain string compares:
+      // zero-padded YYYY-MM-DD sorts chronologically. buildCalendar re-validates
+      // every field, so a malformed value here only widens the read.
+      const inWindow = (s) => typeof s === 'string' && s >= fromYmd && s <= toYmd;
       leadSnap.forEach((d) => {
         const data = d.data();
-        const sd = data && data.scheduledDate;
-        if (typeof sd === 'string' && sd >= fromYmd && sd <= toYmd) {
+        if (!data) return;
+        const sd = data.scheduledDate;
+        const ed = typeof data.scheduledEndDate === 'string' && data.scheduledEndDate ? data.scheduledEndDate : sd;
+        const jobInWindow = typeof sd === 'string' && sd <= toYmd && typeof ed === 'string' && ed >= fromYmd;
+        if (jobInWindow || inWindow(data.adjusterMeetingDate)) {
           leads.push(Object.assign({ id: d.id }, data));
         }
       });

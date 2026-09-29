@@ -155,6 +155,8 @@ function _leadModalReset(){
   const st=document.getElementById('lStage'); if(st) st.value='new';
   // Clear insurance/finance/job fields
   ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  // The arrival window rides with #lScheduledDate — back to "All day".
+  if (window.NBDScheduleWindowUI) window.NBDScheduleWindowUI.reset('l');
   ['lClaimFiledBy','lSupplementStatus','lLoanStatus'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   // 2026-09-25: editLead fills these six (crm-portal-bridge.js) but no reset
   // ever cleared them, so dismissing an edit and tapping Add Lead opened the
@@ -308,6 +310,12 @@ async function saveLead(){
     const el = document.getElementById(id);
     if (el && parseFloat(el.value) < 0) { showFormError(label + ' can’t be negative.', el); return; }
   }
+  // Arrival window (2026-09-29, schedule-window-ui.js): a repair with no start
+  // time or a last day before the first is refused here, not saved as a
+  // window the calendar feed and the portal then have to guess around.
+  const _schedWinUI = window.NBDScheduleWindowUI;
+  const _schedWinErr = _schedWinUI ? _schedWinUI.validate('l') : null;
+  if (_schedWinErr) { showFormError(_schedWinErr, document.getElementById('lSchedStart')); return; }
 
   // Prevent double-submit
   if(saveBtn.disabled) return;
@@ -402,6 +410,11 @@ async function saveLead(){
       preQualLink: document.getElementById('lPreQualLink')?.value?.trim()||'',
       // Job fields
       scheduledDate: document.getElementById('lScheduledDate')?.value||'',
+      // scheduledStart / scheduledDurationMin / scheduledEndDate — null when
+      // "All day / no time" (which clears a window saved earlier). OMITTED
+      // entirely when the controls never loaded (a stale cached page), the
+      // same rule as `trades` above: a guessed null would wipe a real window.
+      ...(_schedWinUI ? _schedWinUI.read('l') : {}),
       crew: document.getElementById('lCrew')?.value?.trim()||'',
       // 2026-09-15 (Paperwork Filing) — gate fields for REQUIRED_FIELDS_BY_TYPE
       // (crm-stages.js). '' when unchecked, never false/0 — missingRequiredFields
