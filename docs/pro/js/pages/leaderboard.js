@@ -110,7 +110,7 @@ async function loadData() {
 // dated lastPaymentAt||paidAt. TRANSITION RECONCILIATION: when the ledger
 // sums short of total−balanceDue (pre-ledger partial), append a synthetic
 // remainder dated at the EARLIEST ledger entry so totals stay exact.
-function paymentsOf(inv) {
+function paymentsOnlyOf(inv) {
   const collected = Math.max(0,
     (parseFloat(inv.total) || 0)
     - ((inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0));
@@ -142,6 +142,30 @@ function paymentsOf(inv) {
   const payDate = inv.lastPaymentAt != null ? inv.lastPaymentAt : inv.paidAt;
   if (payDate == null) return [];
   return [{ amount: collected, at: payDate }];
+}
+
+// Refunds (invoices.refunds[], recorded by the Stripe ledger) come off
+// revenue on the day they happened — negative entries tagged refund:true.
+// They never touch payments[] / amountPaid / balanceDue, so the
+// remainder math in paymentsOnlyOf is unaffected. A failed or canceled
+// refund, or a dispute Jo won, returned nothing. Same helper in all four
+// revenue readers
+// (collected-revenue.js, money-dashboard.js, analytics-kpi.js,
+// pages/leaderboard.js) — tests/refunds-in-revenue-2026-09-29.test.js.
+function refundsOf(inv) {
+  const out = [];
+  const list = Array.isArray(inv && inv.refunds) ? inv.refunds : [];
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i] || {};
+    const amt = parseFloat(r.amount);
+    const at = r.at != null ? r.at : r.date;
+    if (!(amt > 0) || at == null || r.status === 'failed' || r.status === 'canceled' || r.status === 'won') continue;
+    out.push({ amount: -amt, at: at, refund: true });
+  }
+  return out;
+}
+function paymentsOf(inv) {
+  return paymentsOnlyOf(inv).concat(refundsOf(inv));
 }
 
 // ── Compute metrics for the selected period ──
