@@ -542,6 +542,28 @@ test.describe.serial('customer page at 360px, small Androids @shard2', () => {
     await docRowChecks(page, W);
   });
 
+  // 2026-09-29: a lead that was shared, viewed, hot and scored carries six
+  // chips in the header's stage item. Unwrapped they ran 351px inside a
+  // 309px row and the whole record scrolled sideways at 375. The seeded
+  // lead has none of those chips, so add the worst case to the real row.
+  test('Header: a stage item full of chips wraps instead of widening the page', async () => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const res = await page.evaluate(() => {
+      const item = document.querySelector('.customer-meta .meta-item');
+      if (!item) return null;
+      ['1 day in stage', '📤 copied today', '👁 viewed today', '🔥 Hot', '70 SCORE'].forEach((t) => {
+        const s = document.createElement('span');
+        s.className = 'stage-badge';
+        s.textContent = t;
+        item.appendChild(s);
+      });
+      return { right: item.getBoundingClientRect().right, scroll: document.documentElement.scrollWidth };
+    });
+    expect(res, 'the header stage item exists').not.toBeNull();
+    expect(res.right, 'the chips end on the screen').toBeLessThanOrEqual(W);
+    expect(res.scroll, 'the record does not scroll sideways').toBeLessThanOrEqual(W);
+  });
+
   test('Timeline & Tasks header: one-line title, one-line buttons, both reachable', async () => {
     const title = await page.evaluate(() => {
       const t = [...document.querySelectorAll('.panel-title')].find((x) => /Timeline & Tasks/.test(x.textContent));
