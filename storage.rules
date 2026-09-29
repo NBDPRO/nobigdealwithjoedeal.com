@@ -231,6 +231,26 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // ── PAYMENT PROOFS ────────────────────────────────
+    // Path: payment-proofs/{uid}/{invoiceId}/{ts}_{name}
+    // The check photo, Zelle screenshot or bank PDF backing a manual payment
+    // in invoices/{id}.payments[] (invoice-pipeline.js Record Payment /
+    // 📎 Attach proof, 2026-09-29). Modeled exactly on receipts/: owner
+    // writes (never a viewer), owner + platform admin read, images + PDFs
+    // (isDocType), 25MB cap. The CRM opens it through getDownloadURL under
+    // these same rules. Unique ts_ filenames — an upload never overwrites a
+    // prior proof.
+    match /payment-proofs/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if ownerWrites(uid)
+        && request.resource.size < 25 * 1024 * 1024
+        && isDocType();
+      allow delete: if ownerWrites(uid) || isAdmin();
+    }
+    match /payment-proofs/{file} {
+      allow read, write: if false;
+    }
+
     // ── YARD-SIGN PHOTOS ──────────────────────────────
     // Path: yard-signs/{uid}/{ts}_{name} — a photo of each placed yard sign
     // (yard-signs.js, 2026-09-29). Same owner posture and image limits as
