@@ -135,6 +135,7 @@
     "notify-new-lead-email-escape-2026-09-29.test.js",
     "escape-user-text-sinks-2026-09-29.test.js",
     "yard-signs-2026-09-29.test.js",
+    "mark-paid-methods-2026-09-29.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
     "stripe-crm-invoice-2026-09-29.test.js",
