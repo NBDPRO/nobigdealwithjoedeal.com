@@ -143,7 +143,7 @@ section('Bulk lead operations — writeBatch + NBDStore + new fields');
   // direct UX wins; without them Joe was hand-editing 20+ leads
   // one at a time after a hailstorm sweep.
   assert('bulkAssignCarrier reads bulkCarrierSelect.value',
-    /async function bulkAssignCarrier\(\)[\s\S]{0,300}bulkCarrierSelect[\s\S]{0,200}bulkAssignField\(['"]carrier['"]/.test(crm));
+    /async function bulkAssignCarrier\(\)[\s\S]{0,300}bulkCarrierSelect[\s\S]{0,200}bulkAssignField\(['"]insCarrier['"]/.test(crm));  // the lead form's field (R14, 2026-09-28)
   assert('bulkAssignDamage reads bulkDamageSelect.value',
     /async function bulkAssignDamage\(\)[\s\S]{0,300}bulkDamageSelect[\s\S]{0,200}bulkAssignField\(['"]damageType['"]/.test(crm));
 
@@ -154,7 +154,7 @@ section('Bulk lead operations — writeBatch + NBDStore + new fields');
   // post-import cleanup; the test rewrites against the same shape
   // and explicitly asserts the privileged-field guard separately.
   assert('BULK_LEAD_FIELDS allowlist constrains writable fields',
-    /BULK_LEAD_FIELDS\s*=\s*new Set\(\[['"]carrier['"], ['"]damageType['"], ['"]followUp['"], ['"]tags['"], ['"]source['"], ['"]jobType['"]\]\)/.test(crm));
+    /BULK_LEAD_FIELDS\s*=\s*new Set\(\[['"]insCarrier['"], ['"]damageType['"], ['"]followUp['"], ['"]tags['"], ['"]source['"], ['"]jobType['"]\]\)/.test(crm));
   // Privileged-field exclusion sanity check — these must NEVER
   // appear in the allowlist no matter how it's expanded.
   assert('BULK_LEAD_FIELDS does not allow privileged fields',

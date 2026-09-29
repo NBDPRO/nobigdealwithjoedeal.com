@@ -104,8 +104,13 @@ ok('file loads without throwing and exposes window.StageChecklist.onStageChange'
       ok('stageKey + actionId are recorded (traceable back to why this task exists)',
         data.stageKey === 'claim_filed' && data.actionId === 'file_claim');
       ok('done starts false', data.done === false);
-      ok('dueDate is the empty string, matching _saveTask\'s convention (not null, not undefined)',
-        data.dueDate === '');
+      // 2026-09-28 (R14): due TODAY, local day — an empty dueDate is skipped by
+      // Today's Tasks and the bell, so the task never surfaced where this
+      // module promises it does. Same YYYY-MM-DD string shape _saveTask uses.
+      const _d = new Date();
+      const _today = _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0');
+      ok('dueDate is TODAY as a local YYYY-MM-DD (so Today\'s Tasks and the bell surface it)',
+        data.dueDate === _today, 'dueDate=' + JSON.stringify(data.dueDate) + ' today=' + _today);
       ok('createdAt uses serverTimestamp()', data.createdAt === '__SERVER_TS__');
     }
     ok('preferredActionFor was called with the NEW stage and the passed-through jobType',
