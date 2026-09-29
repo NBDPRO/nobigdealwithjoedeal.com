@@ -215,6 +215,8 @@ All merged, each with a test that fails on the old code (BUG-LOG R14-01 … R14-
 
 **Found, fixed:** **#1862**. A homeowner's accepted deal room could be deleted or overwritten from the Close Board. It is now locked like a signed contract, in the rules and the client (R14-19).
 
+**Answered by Jo, built:** "company-wide, owner and admins edit" → **#1864**. The Product Library is now a company doc (`productLibrary/{companyId}`), so edits survive sign-out and reach every device and rep (R14-21).
+
 **Questions for Jo:** Insurance Claim Progress on cash jobs, the public audit run logs, and the Bland balance.
 
 **Rig notes (memory):**

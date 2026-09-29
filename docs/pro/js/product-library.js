@@ -142,7 +142,11 @@
     products.forEach(p => {
       if (!p || !p.id || tombstoned.has(p.id)) return;
       if (p.isActive === false) return;
-      if (p.updatedAt && p.createdAt && p.updatedAt !== p.createdAt) return;
+      // An edited product keeps its own numbers — but one that carries NO
+      // cost at all (the company library ships rows without the private
+      // half, 2026-09-29) is filled from the book, never overwritten.
+      if (p.updatedAt && p.createdAt && p.updatedAt !== p.createdAt
+          && (TIERS.some(t => hasCost(p, t)) || p.labor)) return;
       if (merge(p, costs[p.id])) patched++;
     });
     if (patched) { saveAll(); reRender(); }
@@ -178,6 +182,8 @@
       const cc = window.NBDCatalogCosts;
       if (cc && typeof cc.recordProduct === 'function') cc.recordProduct(product);
     } catch (e) { /* never block a local save on the sync */ }
+    // …and the rest of the row to the company library.
+    cloudRecord(product);
     return product;
   }
 
@@ -189,6 +195,7 @@
       // archived copy as user-touched and never resurrects the default.
       products[idx].updatedAt = new Date().toISOString();
       saveAll();
+      cloudRecord(products[idx]);
     }
   }
 
@@ -198,6 +205,227 @@
     // from fresh defaults.
     if (deletedIds.indexOf(id) === -1) deletedIds.push(id);
     saveAll();
+    cloudTombstone(id);
+  }
+
+  // ============================================================================
+  // COMPANY LIBRARY — productLibrary/{companyId} (Jo, 2026-09-29)
+  // ============================================================================
+  // The store above lived ONLY in this browser's localStorage under an `nbd_`
+  // key, and NBDAuth.purgeAccountStorage() deletes every such key on every
+  // sign-out. So custom products, sell-price edits and archives were erased at
+  // each logout and never reached the owner's other devices or their reps
+  // (the classic builder's rates and the Close Board read these prices).
+  //
+  // Jo's call: ONE company-wide library; the owner and company admins edit it,
+  // everyone else in the company reads it. Same rules as catalogCosts.
+  //
+  // The document holds only the company's DELTA from the published catalog —
+  // the same three kinds of row migrateStore already treats as the user's:
+  // user-created, user-edited (updatedAt !== createdAt) and archived — plus
+  // the hard-delete tombstones. Untouched defaults are never uploaded, so
+  // catalog fixes keep landing through migrateStore exactly as before.
+  //
+  // NEVER the cost half: pricing[tier].cost and the labor block are
+  // tenant-private money data and live in catalogCosts/{companyId}
+  // (catalog-costs.js recordProduct). cloudItem() strips them, and the apply
+  // path merges them back from the cost book.
+  const CLOUD_COLLECTION = 'productLibrary';
+  const CLOUD_VERSION = 1;
+  const SAFE_ID = /^[A-Za-z0-9_-]+$/; // written as a dotted field path
+  const DEFAULT_IDS = new Set(DEFAULT_PRODUCTS.map(p => p.id));
+  let cloudKey = null;
+  let cloudLoaded = false;   // a read completed (the doc exists or not)
+  let cloudInflight = null;
+
+  async function cloudFs() {
+    if (window.__NBD_FS__) return window.__NBD_FS__;
+    return import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  }
+  function cloudDb() { return window.db || window._db || null; }
+
+  async function cloudResolveKey() {
+    if (typeof window._resolveCompanyKey === 'function') {
+      try { const k = await window._resolveCompanyKey(); if (k) return String(k); } catch (e) { /* fall through */ }
+    }
+    const c = window._userClaims;
+    if (c && c.companyId) return String(c.companyId);
+    const u = (window.auth && window.auth.currentUser) || window._user || null;
+    return u && u.uid ? String(u.uid) : null;
+  }
+
+  // Mirrors firestore.rules productLibrary write: platform admin, the account
+  // whose uid IS the company key (a solo owner), or a company_admin of it.
+  // Presentation only — the rules are the gate.
+  function canEditLibrary() {
+    const c = window._userClaims || {};
+    const role = c.role || '';
+    if (role === 'viewer') return false;
+    if (role === 'admin' || role === 'company_admin' || c.owner === true) return true;
+    const u = (window.auth && window.auth.currentUser) || window._user || null;
+    const uid = u && u.uid;
+    if (!c.companyId) return true;             // no company claim: a solo owner
+    return !!uid && String(c.companyId) === String(uid);
+  }
+
+  function refuseEdit() {
+    if (canEditLibrary()) return false;
+    showToast('The product library is shared by your company — only the owner or an admin can change it.', 'info');
+    return true;
+  }
+
+  function isDelta(p) {
+    return !!p && !!p.id && (!DEFAULT_IDS.has(p.id) || (p.updatedAt && p.updatedAt !== p.createdAt) || p.isActive === false);
+  }
+
+  // A product without its private half (see above).
+  function cloudItem(p) {
+    const out = JSON.parse(JSON.stringify(p));
+    delete out.labor;
+    if (out.pricing && typeof out.pricing === 'object') {
+      Object.keys(out.pricing).forEach(t => { if (out.pricing[t] && typeof out.pricing[t] === 'object') delete out.pricing[t].cost; });
+    }
+    return out;
+  }
+
+  // Rebuild the store from the published catalog + the company's delta.
+  // Cloud rows carry no private half, so each keeps this device's own cost
+  // and labor for that product when it has them (else the published row's);
+  // applyCostSeed then fills any product still without a cost from the book.
+  function applyCloud(data) {
+    const now = new Date().toISOString();
+    const prevById = new Map(products.map(p => [p.id, p]));
+    const tomb = Array.isArray(data.deleted) ? data.deleted.filter(id => typeof id === 'string') : [];
+    const items = (data.items && typeof data.items === 'object') ? data.items : {};
+    const tombstoned = new Set(tomb);
+    const byId = new Map();
+    DEFAULT_PRODUCTS.forEach(p => {
+      if (tombstoned.has(p.id)) return;
+      byId.set(p.id, { ...p, createdAt: now, updatedAt: now });
+    });
+    Object.keys(items).forEach(id => {
+      const it = items[id];
+      if (!it || typeof it !== 'object' || tombstoned.has(id)) return;
+      const merged = JSON.parse(JSON.stringify({ ...it, id }));
+      [prevById.get(id), byId.get(id)].forEach(src => {
+        if (!src) return;
+        if (src.labor && !merged.labor) merged.labor = JSON.parse(JSON.stringify(src.labor));
+        TIERS.forEach(t => {
+          const c = src.pricing && src.pricing[t] && src.pricing[t].cost;
+          if (typeof c === 'number' && merged.pricing && merged.pricing[t] && merged.pricing[t].cost == null) merged.pricing[t].cost = c;
+        });
+      });
+      byId.set(id, merged);
+    });
+    products = Array.from(byId.values());
+    deletedIds = tomb;
+    try {
+      const cc = window.NBDCatalogCosts;
+      const book = cc && typeof cc.get === 'function' ? cc.get() : null;
+      if (book) applyCostSeed(book);
+    } catch (e) { /* best-effort */ }
+    saveAll();
+    try { if (typeof window.syncRatesFromProductLibrary === 'function' && window.R) window.syncRatesFromProductLibrary('better'); } catch (e) { /* best-effort */ }
+    reRender();
+  }
+
+  // Write rows (and optionally the tombstone list) with per-row dotted paths,
+  // so two admins saving different products never clobber each other. First
+  // write for a company falls back to setDoc (nothing to merge against).
+  async function cloudWrite(rows, extra) {
+    if (!canEditLibrary()) return false;
+    const db = cloudDb();
+    const key = cloudKey || await cloudResolveKey();
+    if (!db || !key) return false;
+    try {
+      const fs = await cloudFs();
+      const ref = fs.doc(db, CLOUD_COLLECTION, key);
+      const paths = { version: CLOUD_VERSION, updatedAt: new Date().toISOString() };
+      Object.keys(rows).forEach(id => { if (SAFE_ID.test(id)) paths['items.' + id] = rows[id]; });
+      if (extra && extra.deleted) paths.deleted = extra.deleted.slice();
+      let wrote = false;
+      if (typeof fs.updateDoc === 'function') {
+        try { await fs.updateDoc(ref, paths); wrote = true; }
+        catch (e) { if (!/not-found|No document to update/i.test((e && (e.code || e.message)) || '')) throw e; }
+      }
+      if (!wrote) {
+        const payload = { version: CLOUD_VERSION, updatedAt: paths.updatedAt, items: {}, deleted: (extra && extra.deleted) ? extra.deleted.slice() : deletedIds.slice() };
+        Object.keys(rows).forEach(id => { if (SAFE_ID.test(id) && rows[id]) payload.items[id] = rows[id]; });
+        await fs.setDoc(ref, payload, { merge: true });
+      }
+      return true;
+    } catch (e) {
+      const msg = (e && (e.code || e.message)) || '';
+      console.warn('[product-library] company library write failed:', msg);
+      if (/permission/i.test(msg)) showToast('Saved on this device only — the company library is owner/admin-editable.', 'error');
+      else showToast('Could not save to the company library — check your connection.', 'error');
+      return false;
+    }
+  }
+
+  function cloudRecord(p) {
+    if (!p || !p.id || !isDelta(p)) return Promise.resolve(false);
+    const rows = {}; rows[p.id] = cloudItem(p);
+    return cloudWrite(rows);
+  }
+
+  function cloudTombstone(id) {
+    const rows = {}; rows[id] = null;
+    return cloudWrite(rows, { deleted: deletedIds });
+  }
+
+  // Reset to defaults = the company has no delta. Whole-document replace.
+  async function cloudReset() {
+    if (!canEditLibrary()) return false;
+    const db = cloudDb();
+    const key = cloudKey || await cloudResolveKey();
+    if (!db || !key) return false;
+    try {
+      const fs = await cloudFs();
+      await fs.setDoc(fs.doc(db, CLOUD_COLLECTION, key), { version: CLOUD_VERSION, updatedAt: new Date().toISOString(), items: {}, deleted: [] });
+      return true;
+    } catch (e) {
+      console.warn('[product-library] company library reset failed:', (e && (e.code || e.message)) || e);
+      showToast('Could not reset the company library — check your connection.', 'error');
+      return false;
+    }
+  }
+
+  // Read the company library and apply it. When the company has none yet and
+  // this person may edit it, lift this device's delta up ONCE so the numbers
+  // they have been quoting off are not lost (same one-time upgrade
+  // catalog-costs.js adoptLocal() did for costs). Guarded on a COMPLETED read
+  // — a failed read must never be mistaken for "no library".
+  function cloudHydrate(opts) {
+    const force = !!(opts && opts.force);
+    if (!force && cloudLoaded) return Promise.resolve(true);
+    if (cloudInflight) return cloudInflight;
+    cloudInflight = (async function () {
+      const db = cloudDb();
+      const key = await cloudResolveKey();
+      if (!db || !key) return false;
+      cloudKey = key;
+      const fs = await cloudFs();
+      const retry = window.nbdRetryOffline || (fn => fn());
+      let snap;
+      try { snap = await retry(() => fs.getDoc(fs.doc(db, CLOUD_COLLECTION, key))); }
+      catch (e) { console.warn('[product-library] company library read failed:', (e && (e.code || e.message)) || e); return false; }
+      cloudLoaded = true;
+      if (snap && snap.exists()) {
+        applyCloud(snap.data() || {});
+        return true;
+      }
+      const delta = products.filter(isDelta);
+      if ((delta.length || deletedIds.length) && canEditLibrary()) {
+        const rows = {};
+        delta.forEach(p => { rows[p.id] = cloudItem(p); });
+        if (await cloudWrite(rows, { deleted: deletedIds })) {
+          console.info('[product-library] adopted ' + delta.length + ' product edits into the company library');
+        }
+      }
+      return true;
+    })().then(r => { cloudInflight = null; return r; }, e => { cloudInflight = null; console.warn('[product-library] hydrate failed:', e && e.message); return false; });
+    return cloudInflight;
   }
 
   // ============================================================================
@@ -324,6 +552,10 @@
   // ============================================================================
 
   function render() {
+    // A read picks up the company library when the view opens (the load-time
+    // read can run before sign-in finishes).
+    if (!cloudLoaded) cloudHydrate();
+    const editable = canEditLibrary();
     const results = getFilteredProducts();
     const activeCount = products.filter(p => p.isActive !== false).length;
     const usedCats = [...new Set(products.filter(p => p.isActive !== false).map(p => p.category))];
@@ -429,9 +661,9 @@
               <div style="font-size:12px;color:var(--m);"><strong>Gross Profit <span style="font-weight:400;opacity:.7;">(${TIER_LABELS[tierForMargin]})</span>:</strong> ${costKnown
                 ? `<span style="color:${m >= 40 ? '#10b981' : m >= 25 ? '#f59e0b' : '#ef4444'};font-weight:700;">${formatCurrency(sellPrice - myCost)}/${p.unit} (${m}%)</span>`
                 : NOT_SET}</div>
-              <div style="display:flex;gap:6px;">
+              <div style="display:flex;gap:6px;">${editable ? `
                 <button class="pl-card-btn" data-pl-action="editProduct" data-pl-id="${p.id}" style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Edit</button>
-                <button class="pl-card-btn" data-pl-action="archiveProduct" data-pl-id="${p.id}" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;">Archive</button>
+                <button class="pl-card-btn" data-pl-action="archiveProduct" data-pl-id="${p.id}" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;">Archive</button>` : ''}
               </div>
             </div>
           </div>
@@ -455,11 +687,13 @@
           <div>
             <h1 style="margin:0;font-size:28px;font-weight:700;color:var(--t);">Product Library</h1>
             <p style="margin:6px 0 0;font-size:13px;color:var(--m);">Materials, labor, and pricing for your estimates — ${activeCount} products across ${categoryCount} categories</p>
+            ${editable ? '' : '<p style="margin:4px 0 0;font-size:12px;color:var(--m);">🔒 Your company’s shared library — only the owner or an admin can change it.</p>'}
           </div>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;">${editable ? `
             <button data-pl-action="addProduct" style="padding:8px 16px;background:var(--orange,#BD5728);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">+ Add Product</button>
+` : ''}
             <button data-pl-action="exportCSV" style="padding:8px 14px;background:#10b981;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:13px;">Export CSV</button>
-            <button data-pl-action="resetDefaults" style="padding:8px 14px;background:#ef4444;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:13px;">Reset</button>
+            ${editable ? `<button data-pl-action="resetDefaults" style="padding:8px 14px;background:#ef4444;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:13px;">Reset</button>` : ''}
           </div>
         </div>
 
@@ -522,6 +756,7 @@
   // ============================================================================
 
   function openModal(productId) {
+    if (refuseEdit()) return;
     const p = productId ? products.find(x => x.id === productId) : null;
     editingProduct = p ? { ...p } : null;
 
@@ -718,6 +953,7 @@
   }
 
   async function saveFromModal() {
+    if (refuseEdit()) return;
     const name = document.getElementById('pm-name').value.trim();
     if (!name) { showToast('Product name is required', 'error'); return; }
 
@@ -799,6 +1035,7 @@
 
   async function deleteFromModal() {
     if (!editingProduct) return;
+    if (refuseEdit()) return;
     // Batch 2 (iOS PWA): real async gate via nbdConfirm.
     const _ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
     if (await _ask('Delete this product?')) {
@@ -814,6 +1051,7 @@
   // ============================================================================
 
   async function archiveProductFromUI(id) {
+    if (refuseEdit()) return;
     // Batch 2 (iOS PWA): archiving also stamps updatedAt, which permanently
     // marks the product user-edited — not something to do on a phantom yes.
     const _ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
@@ -860,10 +1098,12 @@
   }
 
   async function resetToDefaults() {
+    if (refuseEdit()) return;
     // Batch 2 (iOS PWA): seedDefaults() wipes every edit and every tombstone.
     const _ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
     if (await _ask('Reset all products to defaults? Your customizations will be lost.')) {
       seedDefaults();
+      cloudReset();
       showToast('Products reset to defaults', 'success');
       reRender();
     }
@@ -908,6 +1148,10 @@
     hardDelete: hardDeleteProduct,
     // Called by catalog-costs.js once the tenant's cost book loads.
     applyCostSeed,
+    // Company library (productLibrary/{companyId}).
+    hydrateCompany: cloudHydrate,
+    canEdit: canEditLibrary,
+    _cloudItem: cloudItem,
     search: searchProducts,
     exportCSV: exportProductsCSV,
     resetDefaults: resetToDefaults,
@@ -992,6 +1236,7 @@
 
   // Auto-load
   loadProducts();
+  cloudHydrate();
 
 })();
 
