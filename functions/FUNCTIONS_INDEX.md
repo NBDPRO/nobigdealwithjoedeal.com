@@ -76,7 +76,7 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `createCheckoutSession` | onRequest | Stripe Checkout session (ID-token verified) |
 | `createCustomerPortalSession` | onRequest | Stripe billing-portal session (ID-token verified) |
 | `getSubscriptionStatus` | onRequest | Reads caller's Stripe subscription status (ID-token verified) |
-| `createStripePaymentLink` | onRequest | Stripe payment link for invoices (ID-token verified) |
+| `createStripePaymentLink` | onRequest | Stripe payment link for invoices (ID-token verified). Since 2026-09-29 the PLATFORM tenant gets a real, finalized Stripe Invoice instead (stripe-crm-invoice.js — tagged for the Stripe ledger, not emailed by Stripe; off switch `NBD_CRM_STRIPE_INVOICES=off`); Connect tenants still get the destination-charge link |
 
 ## PUBLIC (no Firebase auth, compensating controls)
 

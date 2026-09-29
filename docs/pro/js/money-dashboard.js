@@ -324,6 +324,12 @@
       card('Outstanding A/R', fmt(m.outstandingCents), 'unpaid invoices', 'var(--blue,#3b82f6)'),
     ]);
 
+    // Stripe panel (2026-09-29): balance, payouts, this month's Stripe
+    // collected, the needs-review list and Sync from Stripe. Rendered by
+    // stripe-ledger-panel.js into this host; hidden for sales reps and
+    // viewers (they cannot read the ledger).
+    html += '<div id="nbd-stripe-panel" hidden></div>';
+
     // Collections queue — same outstanding population as the Outstanding
     // A/R tile above, broken into aging buckets + a per-invoice
     // drill-down so a rep knows WHICH invoice to chase and can act on it
@@ -398,6 +404,7 @@
     html += '</div>';
 
     scroll.innerHTML = html;
+    if (window.StripeLedgerPanel) { try { window.StripeLedgerPanel.mount('nbd-stripe-panel'); } catch (e) { console.warn('[money] stripe panel', e); } }
   }
 
   // Lazily-loaded, cached handle on stage-write.js's shared

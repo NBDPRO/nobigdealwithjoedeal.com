@@ -1388,6 +1388,23 @@ exports.createStripePaymentLink = onRequest(
         companyId: tenantId,
         chargedCents: String(balanceDueCents),
       };
+      // Platform tenant (Jo, 2026-09-29): a REAL Stripe Invoice instead of a
+      // bare payment link — invoice page + PDF, every payment method the
+      // account has on (ACH included once activated), tracked by Stripe as
+      // an invoice and tagged so the Stripe ledger books the payment onto this
+      // CRM invoice. Every gate above (auth, tenancy, Kentucky hold, lines,
+      // total, balance) has already run. Same response shape, so the Pay
+      // Online button / SMS / portal need no change. Connect tenants keep the
+      // link below. Off switch: NBD_CRM_STRIPE_INVOICES=off.
+      if (!connectState && isPlatformTenant(decoded) && process.env.NBD_CRM_STRIPE_INVOICES !== 'off') {
+        const minted = await require('./stripe-crm-invoice').mintCrmStripeInvoice(stripe, db, {
+          invoiceId, invoice, tenantId, uid: decoded.uid, lineItems: chargeLineItems, balanceDueCents,
+        });
+        logger.info('crm_stripe_invoice_minted', { invoiceId, uid: decoded.uid, stripeInvoiceId: minted.id, reused: minted.reused, balanceDueCents });
+        res.json({ url: minted.url, paymentLinkId: minted.id, stripeInvoice: true, pdfUrl: minted.pdf || null });
+        return;
+      }
+
       const paymentLink = await stripe.paymentLinks.create({
         line_items: chargeLineItems,
         // Single-use: without this the link is reusable and a homeowner (or a
