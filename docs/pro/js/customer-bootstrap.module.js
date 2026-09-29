@@ -3626,7 +3626,12 @@ window.generateCertFromEstimate = async function(estimateId) {
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const custName = esc(((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || 'Customer');
-  const installDate = lead.scheduledDate || new Date().toISOString().split('T')[0];
+  // A LOCAL calendar day, built from parts. toISOString() gave tomorrow after
+  // 8 pm Eastern, and new Date('YYYY-MM-DD') reads UTC midnight — the
+  // certificate printed the completion date a day early.
+  const _now = new Date();
+  const _sd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(lead.scheduledDate || ''));
+  const installDay = _sd ? new Date(+_sd[1], +_sd[2] - 1, +_sd[3]) : new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
   // GBB audit, 2026-09-09: was a hardcoded `warrantyYears = 5` regardless of
   // which tier the estimate underneath was actually sold at — a homeowner
   // who bought Elite could receive a certificate claiming only 5 years. All
@@ -3696,7 +3701,7 @@ window.generateCertFromEstimate = async function(estimateId) {
     <div class="row"><span class="label">Customer</span><span class="value">${custName}</span></div>
     <div class="row"><span class="label">Property</span><span class="value">${esc(lead.address || '—')}</span></div>
     <div class="row"><span class="label">Work Performed</span><span class="value">${esc(est.title || (_jobW && est.name) || 'Roofing Installation')}</span></div>
-    <div class="row"><span class="label">Completion Date</span><span class="value">${new Date(installDate).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</span></div>
+    <div class="row"><span class="label">Completion Date</span><span class="value">${installDay.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</span></div>
     ${tierLabelStr ? `<div class="row"><span class="label">Guarantee Tier</span><span class="value">${esc(tierLabelStr)}</span></div>` : ''}
     <div class="row"><span class="label">Warranty Period</span><span class="value">${_jobW ? esc(_jobW.years ? _jobW.years + '-Year Workmanship' : 'As stated below') : 'Lifetime Workmanship'}</span></div>
     ${warrantyBlurb ? `<div class="row"><span class="label">Transferability</span><span class="value">${esc(warrantyBlurb)}</span></div>` : ''}
