@@ -217,6 +217,8 @@ All merged, each with a test that fails on the old code (BUG-LOG R14-01 … R14-
 
 **Answered by Jo, built:** "company-wide, owner and admins edit" → **#1864**. The Product Library is now a company doc (`productLibrary/{companyId}`), so edits survive sign-out and reach every device and rep (R14-21).
 
+**Same class, found auditing `purgeAccountStorage`:** **#1865**. The Home layout and Task Checklist now survive sign-out (R14-22). **#1866**: the Reports funnel counts leads, so won jobs show as Signed (R14-23). The Streak and Daily Floors widgets read 0 after sign-out until Daily Tracker is opened (it re-pulls from `ds_pages`); left as is.
+
 **Questions for Jo:** Insurance Claim Progress on cash jobs, the public audit run logs, and the Bland balance.
 
 **Rig notes (memory):**
