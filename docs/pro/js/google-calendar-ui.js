@@ -180,12 +180,28 @@
   // The panel lives in the Schedule view's template, stamped on first visit.
   // The status check reads Google, so it runs only when that view is open —
   // never on an ordinary page load.
+  //
+  // Opened by a direct link (…/dashboard.html#/schedule) the page is still
+  // signing in and stamping the view when this first runs, so a single
+  // delayed check could see no user / no panel and leave the panel hidden for
+  // good (Jo, 2026-09-29: "don't see any schedule button anywhere"). Retry
+  // every 500 ms, up to 20 s, until both the panel and the signed-in user
+  // exist; then load once.
+  let _tries = 0, _timer = null;
   function maybeLoad() {
     if (!/schedule/.test(location.hash || '')) return;
-    setTimeout(() => { if ($('gcalPanel') && !_status) loadStatus(); else renderPanel(); }, 300);
+    clearTimeout(_timer);
+    _tries = 0;
+    const tick = () => {
+      const ready = $('gcalPanel') && window._user && window._user.uid;
+      if (ready) { if (!_status && allowed()) loadStatus(); else renderPanel(); return; }
+      if (++_tries < 40) _timer = setTimeout(tick, 500);
+    };
+    _timer = setTimeout(tick, 300);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', maybeLoad); else maybeLoad();
   window.addEventListener('hashchange', maybeLoad);
+  window.addEventListener('nbd:data-refreshed', maybeLoad);
 
   window.NBDGoogleCalendarUI = { loadStatus, check, _windowFor: windowFor };
 })();
