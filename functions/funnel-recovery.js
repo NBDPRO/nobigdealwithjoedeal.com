@@ -79,8 +79,15 @@ function sanitizeString(value, maxLen = 200) {
   return value.trim().slice(0, maxLen);
 }
 
+// firstName is whatever the public funnel was sent, and this email goes to
+// whatever address was typed — escape it so the name can't carry links or
+// markup into a branded email (security audit 2026-09-29).
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function buildRecoveryEmailHtml({ firstName }) {
-  const greeting = firstName ? `Hey ${firstName},` : 'Hey,';
+  const greeting = firstName ? `Hey ${escHtml(firstName)},` : 'Hey,';
   const resumeUrl = `${SITE_URL}/estimate?utm_source=recovery&utm_medium=email&utm_campaign=abandoned-funnel`;
   return `<!DOCTYPE html>
 <html>
