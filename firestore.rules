@@ -1729,6 +1729,20 @@ service cloud.firestore {
     // owner + company_admin only (not manager), same split /leads already
     // makes — a manager manages the queue, only the creator or the tenant
     // owner destroys a billing record.
+    // Stripe ledger (2026-09-29): one row per Stripe money movement on the
+    // platform account (charge / refund / dispute / payout / invoice paid
+    // outside Stripe), matched to a CRM customer. Written ONLY by the admin
+    // SDK (functions/stripe-ledger.js); a review assignment goes through the
+    // assignStripeTransaction callable. Read: owner, same-company staff, admin.
+    match /stripeLedger/{rowId} {
+      allow read: if isOwner(resource.data.userId)
+        || isAdmin()
+        || (isCompanyStaff()
+            && resource.data.companyId != null
+            && resource.data.companyId == myCompanyId());
+      allow write: if false;
+    }
+
     match /invoices/{invoiceId} {
       allow read: if isOwner(resource.data.createdBy)
         || isAdmin()

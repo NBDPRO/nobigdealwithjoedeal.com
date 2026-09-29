@@ -3106,6 +3106,10 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     const toDate = (d) => {
       if (!d) return null;
+      // A bare 'YYYY-MM-DD' (scheduledDate) is a local calendar day. new Date()
+      // would read it as UTC midnight — the evening before, in Eastern time.
+      const ymd = typeof d === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+      if (ymd) return new Date(+ymd[1], +ymd[2] - 1, +ymd[3]);
       const dt = d.toDate ? d.toDate() : (d instanceof Date ? d : new Date(d));
       return isNaN(dt.getTime()) ? null : dt;
     };

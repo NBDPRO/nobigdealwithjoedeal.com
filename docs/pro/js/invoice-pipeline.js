@@ -168,6 +168,26 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   /**
+   * "From Stripe" chip + Open in Stripe / PDF links for an invoice the Stripe
+   * ledger created (source:'stripe', functions/stripe-ledger-logic.js
+   * mirrorInvoice). '' for every other invoice. Escaped, http(s) links only.
+   * Kept local (this file loads without the ledger's UI rules).
+   */
+  function stripeSourceHtml(inv) {
+    if (!inv || inv.source !== 'stripe') return '';
+    const safe = (u) => (/^https?:\/\/[^\s"'<>]+$/i.test(String(u || '').trim()) ? String(u).trim() : null);
+    const hosted = safe(inv.stripeHostedUrl), pdf = safe(inv.stripePdfUrl);
+    const num = inv.nbdInvoiceNumber || inv.stripeInvoiceNumber || '';
+    const a = 'color:var(--blue,#3b82f6);font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap;';
+    return '<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:3px;">' +
+      '<span style="background:color-mix(in srgb,#635bff 16%,transparent);color:#8b85ff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap;">From Stripe</span>' +
+      (num ? '<span style="font-size:11px;color:var(--m);">' + escHtml(num) + '</span>' : '') +
+      (hosted ? '<a href="' + escHtml(hosted) + '" target="_blank" rel="noopener noreferrer" style="' + a + '">Open in Stripe ↗</a>' : '') +
+      (pdf ? '<a href="' + escHtml(pdf) + '" target="_blank" rel="noopener noreferrer" style="' + a + '">PDF ↗</a>' : '') +
+      '</span>';
+  }
+
+  /**
    * Company name on anything a HOMEOWNER receives from this module — the
    * invoice email subject, the emailed invoice header and thank-you line, the
    * payment-received receipt, and the SMS. All five were hardcoded
@@ -254,6 +274,290 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       throw new Error('Firestore (v9) not initialized — window._db missing');
     }
     return window._db;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // MANUAL PAYMENTS — methods, cents math, ledger entry, proof (2026-09-29)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Jo (2026-09-29): "the only other payments would be checks I can attach and
+  // upload to customers to be as easy and automated as possible", and the
+  // receipt "either photo or pdf ... not required but definitely recommended".
+  // Everything below is pure (no DOM / Firestore) and exported for
+  // tests/mark-paid-methods-2026-09-29.test.js. payments[] keeps `amount` in
+  // DOLLARS — collected-revenue.js / money-dashboard.js already sum it that
+  // way — but every sum and comparison here runs in integer cents.
+
+  // Order = button order in the Record Payment sheet (checks are most common).
+  const PAYMENT_METHODS = [
+    { key: 'check', label: 'Check', icon: '🧾', refLabel: 'Check #' },
+    { key: 'zelle', label: 'Zelle', icon: '⚡', refLabel: 'Zelle confirmation #' },
+    { key: 'cash',  label: 'Cash',  icon: '💵', refLabel: 'Receipt # (optional)' },
+    { key: 'ach',   label: 'ACH / bank transfer', icon: '🏦', refLabel: 'Transfer / trace #' },
+    { key: 'other', label: 'Other', icon: '➕', refLabel: 'Reference' },
+  ];
+  const PROOF_MAX_BYTES = 25 * 1024 * 1024;     // storage.rules payment-proofs/ cap
+  const PAYMENT_REF_MAX = 80;
+  const PAYMENT_NOTE_MAX = 500;
+  const PROOF_NAME_MAX = 120;
+
+  function isManualPaymentMethod(m) {
+    return PAYMENT_METHODS.some(x => x.key === m);
+  }
+
+  function paymentMethodLabel(m) {
+    if (m === 'stripe') return 'Stripe';
+    if (m === 'manual' || !m) return 'Manual';
+    const hit = PAYMENT_METHODS.find(x => x.key === m);
+    return hit ? hit.label : String(m);
+  }
+
+  // HTML-escape every user value that reaches innerHTML (& < > " ').
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // Dollars (number or "$1,234.56" string) → integer cents, rounded half-up
+  // on the DECIMAL digits, not on the binary float: 1.005 * 100 is
+  // 100.49999999999999 in IEEE-754, so Math.round(x * 100) loses the cent.
+  // Returns NaN for anything that is not a non-negative decimal.
+  function toCents(v) {
+    if (typeof v === 'number' && !Number.isFinite(v)) return NaN;
+    let s = String(v == null ? '' : v).trim().replace(/[$,\s]/g, '');
+    if (s === '' || s === '.') return NaN;
+    const m = /^(\d*)(?:\.(\d*))?$/.exec(s);
+    if (!m) return NaN;
+    const whole = m[1] ? parseInt(m[1], 10) : 0;
+    const frac = (m[2] || '');
+    const first2 = parseInt((frac + '00').slice(0, 2), 10);
+    const roundUp = frac.length > 2 && parseInt(frac[2], 10) >= 5 ? 1 : 0;
+    const cents = whole * 100 + first2 + roundUp;
+    return Number.isSafeInteger(cents) ? cents : NaN;
+  }
+
+  function centsToDollars(c) {
+    return Math.round(Number(c) || 0) / 100;
+  }
+
+  function _tsMs(v) {
+    if (v == null) return NaN;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.toDate === 'function') return v.toDate().getTime();
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === 'object' && typeof v.seconds === 'number') return v.seconds * 1000;
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : NaN;
+  }
+
+  // <input type="date"> value for a Date, in LOCAL time (toISOString is UTC
+  // and turns 9pm Eastern into tomorrow).
+  function localDateInputValue(d) {
+    const x = d instanceof Date ? d : new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return x.getFullYear() + '-' + p(x.getMonth() + 1) + '-' + p(x.getDate());
+  }
+
+  // The date the money was RECEIVED, from the sheet's date field. Today → the
+  // current instant; an earlier day → local noon that day (noon keeps the day
+  // stable across a DST shift or a UTC reading). Future or garbage → null.
+  function receivedAtFromDateInput(str, now) {
+    now = now instanceof Date ? now : new Date();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(str || '').trim());
+    if (!m) return null;
+    const y = +m[1], mo = +m[2], d = +m[3];
+    const day = new Date(y, mo - 1, d, 12, 0, 0, 0);
+    if (day.getFullYear() !== y || day.getMonth() !== mo - 1 || day.getDate() !== d) return null;
+    const today = localDateInputValue(now);
+    if (str.trim() === today) return new Date(now.getTime());
+    if (str.trim() > today) return null;               // no future-dated receipts
+    return day;
+  }
+
+  function _cleanText(v, max) {
+    return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
+  }
+
+  // Storage path for a payment's proof (check photo, Zelle screenshot, PDF).
+  // Owner-keyed like receipts/: payment-proofs/{uid}/{invoiceId}/{ts}_{name}.
+  function paymentProofPath(uid, invoiceId, ts, name) {
+    const safeName = String(name || 'proof').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'proof';
+    const safeInv = String(invoiceId || 'invoice').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'invoice';
+    return `payment-proofs/${uid}/${safeInv}/${Number(ts) || 0}_${safeName}`;
+  }
+
+  // Photo (any image/*) or PDF, at most 25MB. Optional — a missing file is ok.
+  function proofFileCheck(file) {
+    if (!file) return { ok: true, none: true };
+    const t = String(file.type || '');
+    if (!(/^image\//.test(t) || t === 'application/pdf')) return { ok: false, reason: 'Proof must be a photo or PDF' };
+    if (!(Number(file.size) <= PROOF_MAX_BYTES)) return { ok: false, reason: 'Proof is over the 25MB limit' };
+    return { ok: true };
+  }
+
+  // One payments[] entry for a manual payment. Throws on a bad method or a
+  // non-positive amount; optional fields are OMITTED when empty (Firestore
+  // rejects `undefined`, and an empty key is noise in the ledger).
+  function buildManualPaymentEntry(input) {
+    input = input || {};
+    const method = input.method;
+    if (!isManualPaymentMethod(method)) throw new Error('Pick a payment method');
+    const cents = toCents(input.amount);
+    if (!Number.isFinite(cents) || cents <= 0) throw new Error('Invalid payment amount');
+    const at = input.at instanceof Date ? input.at : null;
+    if (!at || !Number.isFinite(at.getTime())) throw new Error('Invalid payment date');
+    const recordedAt = input.recordedAt instanceof Date ? input.recordedAt : new Date();
+    const entry = {
+      amount: centsToDollars(cents),
+      at,
+      method,
+      recordedBy: String(input.recordedBy || ''),
+      recordedAt,
+    };
+    const reference = _cleanText(input.reference, PAYMENT_REF_MAX);
+    const note = _cleanText(input.note, PAYMENT_NOTE_MAX);
+    if (reference) entry.reference = reference;
+    if (note) entry.note = note;
+    if (input.proofStoragePath) {
+      entry.proofStoragePath = String(input.proofStoragePath);
+      entry.proofName = _cleanText(input.proofName, PROOF_NAME_MAX) || 'proof';
+    }
+    return entry;
+  }
+
+  // The invoice patch for one more payment. Cumulative ledger, in cents:
+  // balanceDue = total − amountPaid, clamped at 0 — an overpayment is
+  // RECORDED (the money came in) and simply leaves nothing due, exactly as
+  // markPaid has always behaved. lastPaymentAt never moves backwards when a
+  // rep logs an older check after a newer payment.
+  function applyPaymentToInvoice(invoice, entry) {
+    invoice = invoice || {};
+    const totalC = toCents(Math.max(0, Number(invoice.total) || 0));
+    const priorPaidC = toCents(Math.max(0, Number(invoice.amountPaid) || 0));
+    const amtC = toCents(entry.amount);
+    const newPaidC = (priorPaidC || 0) + amtC;
+    const newBalanceC = Math.max(0, (totalC || 0) - newPaidC);
+    const newPaid = centsToDollars(newPaidC);
+    const newBalanceDue = centsToDollars(newBalanceC);
+    const depositC = toCents(Math.max(0, Number(invoice.depositAmount) || 0)) || 0;
+    const priorLastMs = _tsMs(invoice.lastPaymentAt);
+    const paidAtNow = (Number.isFinite(priorLastMs) && priorLastMs > entry.at.getTime())
+      ? invoice.lastPaymentAt : entry.at;
+    const priorPayments = Array.isArray(invoice.payments) ? invoice.payments.slice() : [];
+    priorPayments.push(entry);
+    return {
+      newBalanceDue,
+      patch: {
+        amountPaid: newPaid,
+        depositPaid: newPaidC >= depositC,
+        balanceDue: newBalanceDue,
+        status: newBalanceC === 0 ? 'paid' : (invoice.status == null ? 'sent' : invoice.status),
+        paidAt: newBalanceC === 0 ? entry.at : (invoice.paidAt == null ? null : invoice.paidAt),
+        lastPaymentAt: paidAtNow,
+        payments: priorPayments,
+      },
+    };
+  }
+
+  // Which payments[] entry a rep tapped "Attach proof" on. The index is the
+  // fast path, but the array can shift under us (another device logged a
+  // payment), so the entry must still MATCH the key captured at render time:
+  // recordedAt when present, else at + amount + method.
+  function paymentKey(p) {
+    p = p || {};
+    return {
+      recordedAtMs: _tsMs(p.recordedAt),
+      atMs: _tsMs(p.at != null ? p.at : p.date),
+      cents: toCents(Number(p.amount) || 0),
+      method: p.method || '',
+    };
+  }
+  function _keyMatches(p, key) {
+    const k = paymentKey(p);
+    if (Number.isFinite(key.recordedAtMs)) return k.recordedAtMs === key.recordedAtMs;
+    return !Number.isFinite(k.recordedAtMs) && k.atMs === key.atMs && k.cents === key.cents && k.method === key.method;
+  }
+  function findPaymentIndex(payments, index, key) {
+    if (!Array.isArray(payments) || !key) return -1;
+    if (Number.isInteger(index) && index >= 0 && index < payments.length && _keyMatches(payments[index], key)) return index;
+    return payments.findIndex(p => _keyMatches(p, key));
+  }
+  // New payments[] with the proof set on the matched entry. Refuses Stripe
+  // entries (Stripe is its own receipt) and entries that already carry proof.
+  function attachProofToPayments(payments, index, key, proof) {
+    const i = findPaymentIndex(payments, index, key);
+    if (i < 0) throw new Error('That payment changed — reopen the invoice and try again');
+    const cur = payments[i] || {};
+    if (cur.method === 'stripe') throw new Error('Stripe payments carry their own receipt');
+    if (cur.proofStoragePath) throw new Error('That payment already has proof attached');
+    if (!proof || !proof.proofStoragePath) throw new Error('No proof to attach');
+    const next = payments.slice();
+    next[i] = Object.assign({}, cur, {
+      proofStoragePath: String(proof.proofStoragePath),
+      proofName: _cleanText(proof.proofName, PROOF_NAME_MAX) || 'proof',
+    });
+    return next;
+  }
+
+  // Display rows for the invoice's payment history (newest first). Pure.
+  function paymentHistoryRows(inv) {
+    const list = (inv && Array.isArray(inv.payments)) ? inv.payments : [];
+    return list.map((p, index) => {
+      p = p || {};
+      const k = paymentKey(p);
+      const isStripe = p.method === 'stripe';
+      return {
+        index,
+        atMs: k.atMs,
+        amount: Number(p.amount) || 0,
+        method: p.method || 'manual',
+        methodLabel: paymentMethodLabel(p.method),
+        reference: p.reference ? String(p.reference) : '',
+        note: p.note ? String(p.note) : '',
+        proofStoragePath: p.proofStoragePath ? String(p.proofStoragePath) : '',
+        proofName: p.proofName ? String(p.proofName) : '',
+        isStripe,
+        canAttach: !isStripe && !p.proofStoragePath,
+        keyRecordedAtMs: k.recordedAtMs,
+      };
+    }).filter(r => r.amount > 0)
+      .sort((a, b) => (Number.isFinite(b.atMs) ? b.atMs : 0) - (Number.isFinite(a.atMs) ? a.atMs : 0));
+  }
+
+  // The payment-history block for the invoice detail view. Every user value
+  // goes through escHtml; data-* carry only numbers/ids.
+  function paymentHistoryHtml(invoiceId, inv) {
+    const rows = paymentHistoryRows(inv);
+    if (!rows.length) return '';
+    const id = escHtml(invoiceId);
+    const body = rows.map(r => {
+      const date = Number.isFinite(r.atMs) ? new Date(r.atMs).toLocaleDateString() : '—';
+      const ref = r.reference ? ` · #${escHtml(r.reference)}` : '';
+      const note = r.note ? `<div style="font-size:11px;color:var(--m);margin-top:2px;">${escHtml(r.note)}</div>` : '';
+      let proof = '';
+      if (r.proofStoragePath) {
+        proof = `<button type="button" class="btn btn-ghost" data-ip-action="viewProof" data-ip-id="${id}" data-ip-idx="${r.index}" style="min-height:40px;padding:6px 10px;font-size:12px;" title="${escHtml(r.proofName || 'Proof')}">📎 View</button>`;
+      } else if (r.canAttach) {
+        proof = `<button type="button" class="btn btn-ghost" data-ip-action="attachProof" data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''} style="min-height:40px;padding:6px 10px;font-size:12px;">📎 Attach proof</button>`;
+      }
+      return `
+        <div data-ip-payment-row style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--br);font-size:12px;">
+          <div style="min-width:0;">
+            <div><strong>${escHtml(date)}</strong> · ${escHtml(r.methodLabel)}${ref}</div>
+            ${note}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <span style="font-weight:700;">${escHtml(formatCurrency(r.amount))}</span>
+            ${proof}
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      <div data-ip-payment-history style="margin-bottom:20px;">
+        <div style="font-size:10px;color:var(--m);text-transform:uppercase;font-weight:700;margin-bottom:4px;">Payment History</div>
+        ${body}
+      </div>`;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1153,13 +1457,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * Mark invoice as paid
    * @param {string} invoiceId
    * @param {number} amount
-   * @param {string} method - 'cash' | 'check' | 'stripe'
+   * @param {string} method - one of PAYMENT_METHODS (check | zelle | cash | ach | other)
+   * @param {object} [details] - { at: Date received, reference, note,
+   *   proofStoragePath, proofName } — all optional; `at` defaults to now.
    */
-  async function markPaid(invoiceId, amount, method) {
+  async function markPaid(invoiceId, amount, method, details) {
     const db = getDb();
+    details = details || {};
 
-    amount = Number(amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!(toCents(amount) > 0)) {
       throw new Error('Invalid payment amount');
     }
 
@@ -1170,39 +1476,31 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       if (!invSnap.exists()) throw new Error('Invoice not found');
 
       const invoice = invSnap.data();
-      // Cumulative paid ledger: balanceDue = total − amountPaid, so multiple
-      // partial payments accumulate correctly. The old `balanceDue - amount`
-      // plus a heuristic depositPaid (flips on ANY payment ≥ depositAmount) lost
-      // track across payments and couldn't tell a deposit from a final payment.
-      const total = Number(invoice.total) || 0;
-      const newPaid = Math.round(((Number(invoice.amountPaid) || 0) + (Number(amount) || 0)) * 100) / 100;
-      const newBalanceDue = Math.max(0, Math.round((total - newPaid) * 100) / 100);
-      const paidAtNow = new Date();
       // Append-only cash ledger: each credit keeps its own date so Money +
       // Analytics can attribute multi-payment invoices by receipt period
-      // (deposit in May ≠ balance payoff in July). lastPaymentAt stays as the
-      // latest-receipt pointer for UI/"has any payment" checks.
-      const priorPayments = Array.isArray(invoice.payments) ? invoice.payments.slice() : [];
-      priorPayments.push({
-        amount: Math.round(amount * 100) / 100,
-        at: paidAtNow,
-        method: method || 'manual',
+      // (deposit in May ≠ balance payoff in July). `at` is the day the money
+      // was RECEIVED (the sheet's date field — a check that came yesterday is
+      // logged today); recordedAt/recordedBy say when and who typed it.
+      const entry = buildManualPaymentEntry({
+        amount,
+        method: method || 'other',
+        at: details.at instanceof Date ? details.at : new Date(),
+        reference: details.reference,
+        note: details.note,
+        proofStoragePath: details.proofStoragePath,
+        proofName: details.proofName,
+        recordedBy: (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
+          || (window._user && window._user.uid) || '',
+        recordedAt: new Date(),
       });
+      // Cumulative paid ledger in cents (applyPaymentToInvoice): balanceDue =
+      // total − amountPaid, so multiple partial payments accumulate correctly.
+      const { patch, newBalanceDue } = applyPaymentToInvoice(invoice, entry);
 
-      // Update invoice
-      await window.updateDoc(invRef, {
-        amountPaid: newPaid,
-        depositPaid: newPaid >= (Number(invoice.depositAmount) || 0),
-        balanceDue: newBalanceDue,
-        status: newBalanceDue === 0 ? 'paid' : invoice.status,
-        paidAt: newBalanceDue === 0 ? paidAtNow : invoice.paidAt,
-        // Stamped on EVERY payment (incl. partial deposits) so the money
-        // dashboard attributes collected cash to the year it was received.
-        // paidAt only fires on full payoff, so it alone hid deposit cash.
-        lastPaymentAt: paidAtNow,
-        payments: priorPayments,
-        updatedAt: paidAtNow
-      });
+      // Update invoice. lastPaymentAt is stamped on EVERY payment (incl.
+      // partial deposits) so the money dashboard attributes collected cash to
+      // the year it was received; paidAt only fires on full payoff.
+      await window.updateDoc(invRef, Object.assign({}, patch, { updatedAt: entry.recordedAt }));
 
       // Regenerate the online payment link to the NEW outstanding balance.
       // The link is minted at invoice creation for the full total; once a
@@ -1350,6 +1648,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               <div style="flex:1;">
                 <div style="font-weight:700;font-size:12px;">${formatCurrency(inv.total)}</div>
                 <div style="font-size:11px;color:var(--m);">${statusTxt}</div>
+                ${stripeSourceHtml(inv)}
               </div>
               <div style="display:flex;gap:6px;">
                 <button type="button" class="btn btn-ghost btn-sm" data-ip-action="renderDetail" data-ip-id="${inv.id}" data-ip-target="inv-detail">View</button>
@@ -1437,6 +1736,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             <div>
               <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:var(--orange);">${_esc(_invoiceBrandName())}</div>
               <div style="font-size:12px;color:var(--m);">Invoice ${_esc(invoiceId)}</div>
+              ${stripeSourceHtml(inv)}
             </div>
             <div style="text-align:right;">
               <div style="font-size:32px;font-weight:700;color:var(--orange);">${formatCurrency(inv.total)}</div>
@@ -1518,10 +1818,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             </div>
           </div>
 
+          ${paymentHistoryHtml(invoiceId, inv)}
+
           <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
             <button type="button" class="btn btn-ghost" data-ip-action="print">Print Invoice</button>
             <button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>
-            ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Mark Paid (Cash/Check)</button>` : ''}
+            ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Record Payment (Check/Zelle/Cash)</button>` : ''}
             ${inv.stripePaymentLink ? `<button type="button" class="btn btn-ghost" data-ip-action="copyStripeLink" data-ip-id="${_escJs(inv.stripePaymentLink)}">Copy Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
@@ -1606,7 +1908,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         html += `
           <tr style="border-bottom:1px solid var(--br);">
             <td style="padding:10px;font-weight:700;font-size:12px;">${escHtml(inv.id.slice(0, 8))}</td>
-            <td style="padding:10px;font-size:12px;">${escHtml(invoiceCustomerName(inv) || '—')}</td>
+            <td style="padding:10px;font-size:12px;">${escHtml(invoiceCustomerName(inv) || '—')}${inv.source === 'stripe' ? '<br>' + stripeSourceHtml(inv) : ''}</td>
             <td style="text-align:right;padding:10px;font-size:12px;font-weight:700;">${formatCurrency(inv.total)}</td>
             <td style="text-align:right;padding:10px;font-size:12px;">${dueDate.toLocaleDateString()}</td>
             <td style="padding:10px;">
@@ -1961,9 +2263,160 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
   }
 
+  // ── Payment proof: upload / attach / view (2026-09-29) ─────────────────
+  function _currentUid() {
+    return (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
+      || (window.auth && window.auth.currentUser && window.auth.currentUser.uid)
+      || (window._user && window._user.uid) || '';
+  }
+  function _toast(msg, kind) {
+    if (typeof showToast === 'function') showToast(msg, kind);
+    else if (typeof window !== 'undefined' && typeof window.showToast === 'function') window.showToast(msg, kind);
+  }
+
+  // Shrink a big phone photo before upload — same recipe as expenses.js
+  // downscaleImage (max 1600px, JPEG 0.85). PDFs, HEIC, small images and any
+  // failure pass the ORIGINAL file through unchanged.
+  function _downscaleProofImage(file) {
+    return new Promise(function (resolve) {
+      try {
+        const t = (file && file.type) || '';
+        if (!/^image\/(jpeg|png|webp)$/.test(t) || file.size < 1200 * 1024) return resolve(file);
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        let done = false;
+        const finish = (out) => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch (e) {} resolve(out); };
+        const timer = setTimeout(() => finish(file), 8000);
+        img.onload = function () {
+          try {
+            const max = 1600, scale = Math.min(1, max / Math.max(img.width, img.height));
+            if (scale >= 1) { clearTimeout(timer); return finish(file); }
+            const cv = document.createElement('canvas');
+            cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+            cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+            cv.toBlob((blob) => { clearTimeout(timer); finish(blob && blob.size < file.size ? blob : file); }, 'image/jpeg', 0.85);
+          } catch (e) { clearTimeout(timer); finish(file); }
+        };
+        img.onerror = function () { clearTimeout(timer); finish(file); };
+        img.src = url;
+      } catch (e) { resolve(file); }
+    });
+  }
+
+  // Upload one proof file to payment-proofs/{uid}/{invoiceId}/{ts}_{name}.
+  // Returns { proofStoragePath, proofName }.
+  async function uploadPaymentProof(invoiceId, file) {
+    const chk = proofFileCheck(file);
+    if (!chk.ok || chk.none) throw new Error(chk.reason || 'No file');
+    const uid = _currentUid();
+    if (!uid) throw new Error('Not signed in');
+    if (!window.storage || !window.ref || !window.uploadBytes) throw new Error('storage unavailable');
+    const body = await _downscaleProofImage(file);
+    const path = paymentProofPath(uid, invoiceId, Date.now(), file.name);
+    await window.uploadBytes(window.ref(window.storage, path), body,
+      { contentType: (body && body.type) || file.type || 'application/octet-stream' });
+    return { proofStoragePath: path, proofName: String(file.name || 'proof') };
+  }
+
+  // A hidden <input type=file>; resolves with the chosen File or null.
+  function _pickProofFile(capture) {
+    return new Promise((resolve) => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = capture ? 'image/*' : 'image/*,application/pdf';
+      if (capture) inp.setAttribute('capture', 'environment');
+      inp.style.display = 'none';
+      inp.addEventListener('change', () => {
+        const f = inp.files && inp.files[0];
+        inp.remove();
+        resolve(f || null);
+      });
+      document.body.appendChild(inp);
+      inp.click();
+    });
+  }
+
   /**
-   * UI: record a manual (cash/check) payment. Wires the previously-dead
-   * markPaid() to a modal so reps can record off-Stripe payments.
+   * "📎 Attach proof" on a past manual payment that has none. The payments[]
+   * entry is updated IN PLACE inside a transaction (read-modify-write when the
+   * page has no runTransaction), matched by index + recordedAt / at+amount,
+   * so a payment another device logged meanwhile is never clobbered.
+   */
+  async function attachProofUI(invoiceId, index, recordedAtMs) {
+    if (!invoiceId) return false;
+    const db = getDb();
+    const invRef = window.doc(db, 'invoices', invoiceId);
+    let key;
+    try {
+      const snap = await window.getDoc(invRef);
+      const pays = (snap.exists() && Array.isArray(snap.data().payments)) ? snap.data().payments : [];
+      const p = pays[index];
+      if (!p) throw new Error('That payment changed — reopen the invoice and try again');
+      key = paymentKey(p);
+      if (Number.isFinite(recordedAtMs) && key.recordedAtMs !== recordedAtMs) {
+        throw new Error('That payment changed — reopen the invoice and try again');
+      }
+      if (p.method === 'stripe') throw new Error('Stripe payments carry their own receipt');
+    } catch (e) { _toast(e.message || 'Could not load the invoice', 'error'); return false; }
+
+    const file = await _pickProofFile(false);
+    if (!file) return false;
+    const chk = proofFileCheck(file);
+    if (!chk.ok) { _toast(chk.reason, 'error'); return false; }
+    try {
+      _toast('Uploading proof…', 'info');
+      const proof = await uploadPaymentProof(invoiceId, file);
+      if (typeof window.runTransaction === 'function') {
+        await window.runTransaction(db, async (tx) => {
+          const s = await tx.get(invRef);
+          if (!s.exists()) throw new Error('Invoice not found');
+          const next = attachProofToPayments(s.data().payments || [], index, key, proof);
+          tx.update(invRef, { payments: next, updatedAt: new Date() });
+        });
+      } else {
+        const s = await window.getDoc(invRef);
+        if (!s.exists()) throw new Error('Invoice not found');
+        const next = attachProofToPayments(s.data().payments || [], index, key, proof);
+        await window.updateDoc(invRef, { payments: next, updatedAt: new Date() });
+      }
+      _toast('Proof attached', 'success');
+      if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
+      return true;
+    } catch (e) {
+      console.warn('[invoice-pipeline] attach proof failed', e && (e.code || e.message));
+      _toast(/permission/i.test((e && (e.code || e.message)) || '')
+        ? 'You do not have permission to attach proof here'
+        : ('Could not attach the proof: ' + ((e && e.message) || 'try again')), 'error');
+      return false;
+    }
+  }
+
+  // "📎 View" — opens the proof through getDownloadURL (Storage rules apply:
+  // the uploader and a platform admin can read it). The tab is opened
+  // synchronously first so a phone's popup blocker doesn't eat it after the
+  // await.
+  async function viewProofUI(invoiceId, index) {
+    let w = null;
+    try { w = window.open('about:blank', '_blank'); if (w) w.opener = null; } catch (_) { w = null; }
+    try {
+      const snap = await window.getDoc(window.doc(getDb(), 'invoices', invoiceId));
+      const pays = (snap.exists() && Array.isArray(snap.data().payments)) ? snap.data().payments : [];
+      const path = pays[index] && pays[index].proofStoragePath;
+      if (!path || !window.getDownloadURL || !window.ref) throw new Error('no proof');
+      const url = await window.getDownloadURL(window.ref(window.storage, path));
+      if (w) w.location.href = url; else window.open(url, '_blank', 'noopener');
+    } catch (e) {
+      if (w) { try { w.close(); } catch (_) {} }
+      _toast('Could not open the proof', 'error');
+    }
+  }
+
+  /**
+   * UI: record a manual payment (check, Zelle, cash, ACH, other) with an
+   * optional reference, note and proof attachment. Built for one hand on a
+   * phone: big method buttons, amount pre-filled with the balance due, date
+   * defaulting to today (editable — a check received yesterday is logged
+   * today), and proof recommended but never required.
    */
   async function markPaidUI(invoiceId) {
     let balanceDefault = '';
@@ -1972,9 +2425,16 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       if (snap.exists()) {
         const d = snap.data();
         const bal = (d.balanceDue != null) ? d.balanceDue : d.total;
-        if (Number.isFinite(Number(bal))) balanceDefault = String(Number(bal).toFixed(2));
+        const c = toCents(Math.max(0, Number(bal) || 0));
+        if (Number.isFinite(c)) balanceDefault = (c / 100).toFixed(2);
       }
     } catch (_) { /* default to blank */ }
+
+    const today = localDateInputValue(new Date());
+    const methodBtns = PAYMENT_METHODS.map((m, i) => `
+          <button type="button" class="nbd-mp-method btn btn-ghost" data-method="${escHtml(m.key)}" aria-pressed="${i === 0 ? 'true' : 'false'}"
+            style="min-height:52px;justify-content:center;font-size:15px;font-weight:700;">${escHtml(m.icon)} ${escHtml(m.label)}</button>`).join('');
+    const lbl = 'font-size:10px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.08em;';
 
     destroyExisting('nbd-markpaid-modal');
     const overlay = document.createElement('div');
@@ -1983,15 +2443,30 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // Stacks above the (also-open) invoice detail overlay.
     overlay.style.cssText = 'z-index:var(--z-overlay-top,10001);';
     overlay.innerHTML = `
-      <div class="modal" style="max-width:380px;">
-        <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;">Record Payment</div>
-        <label style="font-size:10px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.08em;">Amount</label>
-        <input id="nbd-mp-amount" type="number" class="fi" autofocus step="0.01" min="0" value="${balanceDefault}" style="margin:6px 0 14px;">
-        <div style="display:flex;gap:8px;">
-          <button type="button" class="nbd-mp-method btn btn-ghost" data-method="cash" style="flex:1;justify-content:center;">💵 Cash</button>
-          <button type="button" class="nbd-mp-method btn btn-ghost" data-method="check" style="flex:1;justify-content:center;">🧾 Check</button>
+      <style>
+        #nbd-markpaid-modal .nbd-mp-method[aria-pressed="true"]{border-color:var(--orange);color:var(--orange);background:rgba(232,114,12,.10);}
+        #nbd-markpaid-modal .fi{font-size:16px;min-height:44px;}
+      </style>
+      <div class="modal" style="max-width:420px;width:100%;">
+        <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;margin-bottom:14px;">Record Payment</div>
+        <div role="group" aria-label="Payment method" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">${methodBtns}
         </div>
-        <button id="nbd-mp-cancel" type="button" class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:12px;">Cancel</button>
+        <label for="nbd-mp-amount" style="${lbl}">Amount</label>
+        <input id="nbd-mp-amount" type="number" inputmode="decimal" class="fi" step="0.01" min="0" value="${escHtml(balanceDefault)}" style="margin:6px 0 12px;width:100%;">
+        <label for="nbd-mp-date" style="${lbl}">Date received</label>
+        <input id="nbd-mp-date" type="date" class="fi" value="${escHtml(today)}" max="${escHtml(today)}" style="margin:6px 0 12px;width:100%;">
+        <label for="nbd-mp-ref" id="nbd-mp-ref-label" style="${lbl}">${escHtml(PAYMENT_METHODS[0].refLabel)}</label>
+        <input id="nbd-mp-ref" type="text" class="fi" maxlength="${PAYMENT_REF_MAX}" autocomplete="off" style="margin:6px 0 12px;width:100%;">
+        <label for="nbd-mp-note" style="${lbl}">Note (optional)</label>
+        <input id="nbd-mp-note" type="text" class="fi" maxlength="${PAYMENT_NOTE_MAX}" autocomplete="off" style="margin:6px 0 12px;width:100%;">
+        <div style="${lbl}margin-bottom:6px;">Proof — photo or PDF</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button type="button" id="nbd-mp-proof-cam" class="btn btn-ghost" style="min-height:48px;justify-content:center;">📷 Take photo</button>
+          <button type="button" id="nbd-mp-proof-file" class="btn btn-ghost" style="min-height:48px;justify-content:center;">📄 Choose file</button>
+        </div>
+        <div id="nbd-mp-proof-status" data-ip-proof-nudge style="font-size:12px;margin:8px 0 4px;color:var(--orange);font-weight:600;">📎 Proof recommended</div>
+        <button id="nbd-mp-save" type="button" class="btn btn-green" style="width:100%;justify-content:center;min-height:52px;font-size:16px;font-weight:700;margin-top:10px;">Save payment</button>
+        <button id="nbd-mp-cancel" type="button" class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px;min-height:44px;">Cancel</button>
       </div>
     `;
     const closeModal = openOverlay(overlay);
@@ -2025,29 +2500,83 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       });
       mo.observe(document.body, { childList: true, subtree: true });
 
+      let method = PAYMENT_METHODS[0].key;
+      let proofFile = null;
+      const $ = (sel) => overlay.querySelector(sel);
+      const status = $('#nbd-mp-proof-status');
+      const paintProof = () => {
+        if (proofFile) {
+          status.style.color = 'var(--green,#1a7f37)';
+          status.textContent = '📎 ' + (proofFile.name || 'proof') + ' attached';
+        } else {
+          status.style.color = 'var(--orange)';
+          status.textContent = '📎 Proof recommended';
+        }
+      };
+
       overlay.querySelectorAll('.nbd-mp-method').forEach(btn => {
-        btn.onclick = async () => {
-          const amount = parseFloat(overlay.querySelector('#nbd-mp-amount').value);
-          if (!Number.isFinite(amount) || amount <= 0) {
-            if (typeof showToast === 'function') showToast('Enter a valid amount', 'error');
-            return;                     // stay open; do NOT settle
-          }
-          const method = btn.dataset.method;
-          closeModal();
-          try {
-            if (typeof showToast === 'function') showToast('Recording payment...', 'info');
-            await markPaid(invoiceId, amount, method);
-            if (typeof showToast === 'function') showToast('Payment recorded', 'success');
-            if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
-            mo.disconnect();
-            settle(true);
-          } catch (error) {
-            if (typeof showToast === 'function') showToast(`Error: ${error.message}`, 'error');
-            mo.disconnect();
-            settle(false);              // write failed — caller must not claim success
-          }
+        btn.onclick = () => {
+          method = btn.dataset.method;
+          overlay.querySelectorAll('.nbd-mp-method').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+          const m = PAYMENT_METHODS.find(x => x.key === method);
+          $('#nbd-mp-ref-label').textContent = m ? m.refLabel : 'Reference';
         };
       });
+
+      const pick = async (capture) => {
+        const f = await _pickProofFile(capture);
+        if (!f) return;
+        const chk = proofFileCheck(f);
+        if (!chk.ok) { _toast(chk.reason, 'error'); return; }
+        proofFile = f;
+        paintProof();
+      };
+      $('#nbd-mp-proof-cam').onclick = () => { pick(true); };
+      $('#nbd-mp-proof-file').onclick = () => { pick(false); };
+
+      const saveBtn = $('#nbd-mp-save');
+      saveBtn.onclick = async () => {
+        const amount = $('#nbd-mp-amount').value;
+        if (!(toCents(amount) > 0)) {
+          _toast('Enter a valid amount', 'error');
+          return;                       // stay open; do NOT settle
+        }
+        const at = receivedAtFromDateInput($('#nbd-mp-date').value, new Date());
+        if (!at) {
+          _toast('Pick the date the payment was received (not a future date)', 'error');
+          return;
+        }
+        if (!isManualPaymentMethod(method)) { _toast('Pick a payment method', 'error'); return; }
+        const details = { at, reference: $('#nbd-mp-ref').value, note: $('#nbd-mp-note').value };
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+        // Proof first, so the ledger entry can carry its path. An upload that
+        // fails never blocks the payment — it saves without proof and the
+        // rep attaches it later from Payment History.
+        if (proofFile) {
+          try {
+            _toast('Uploading proof…', 'info');
+            Object.assign(details, await uploadPaymentProof(invoiceId, proofFile));
+          } catch (upErr) {
+            console.warn('[invoice-pipeline] proof upload failed', upErr && (upErr.code || upErr.message));
+            _toast('Proof upload failed — saving the payment without it. Attach it from Payment History.', 'warning');
+          }
+        }
+        try {
+          _toast('Recording payment...', 'info');
+          await markPaid(invoiceId, amount, method, details);
+          _toast('Payment recorded', 'success');
+          mo.disconnect();
+          closeModal();
+          if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
+          settle(true);
+        } catch (error) {
+          // Stay open with everything the rep typed, so a retry is one tap.
+          _toast(`Error: ${error.message}`, 'error');
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save payment';
+        }
+      };
     });
   }
 
@@ -2061,6 +2590,28 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     sendInvoice,
     markPaid,
     markPaidUI,
+    attachProofUI,
+    viewProofUI,
+    uploadPaymentProof,
+    // Manual-payment pure helpers (tests/mark-paid-methods-2026-09-29.test.js)
+    PAYMENT_METHODS,
+    PROOF_MAX_BYTES,
+    isManualPaymentMethod,
+    paymentMethodLabel,
+    escHtml,
+    toCents,
+    centsToDollars,
+    localDateInputValue,
+    receivedAtFromDateInput,
+    paymentProofPath,
+    proofFileCheck,
+    buildManualPaymentEntry,
+    applyPaymentToInvoice,
+    paymentKey,
+    findPaymentIndex,
+    attachProofToPayments,
+    paymentHistoryRows,
+    paymentHistoryHtml,
     renderInvoicePanel,
     renderInvoiceDetail,
     renderInvoiceList,
@@ -2115,6 +2666,17 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         case 'renderDetail':    if (typeof IP.renderInvoiceDetail === 'function') IP.renderInvoiceDetail(target, id); break;
         case 'sendInvoice':     if (typeof IP.sendInvoiceUI === 'function') IP.sendInvoiceUI(id); break;
         case 'markPaid':        if (typeof IP.markPaidUI === 'function') IP.markPaidUI(id); break;
+        case 'attachProof': {
+          const idx = parseInt(t.dataset.ipIdx, 10);
+          const rec = t.dataset.ipRec != null ? Number(t.dataset.ipRec) : NaN;
+          if (typeof IP.attachProofUI === 'function' && Number.isInteger(idx)) IP.attachProofUI(id, idx, rec);
+          break;
+        }
+        case 'viewProof': {
+          const idx = parseInt(t.dataset.ipIdx, 10);
+          if (typeof IP.viewProofUI === 'function' && Number.isInteger(idx)) IP.viewProofUI(id, idx);
+          break;
+        }
         case 'createPayLink':   if (typeof IP.createPayLinkUI === 'function') IP.createPayLinkUI(id); break;
         case 'markEmergency':   if (typeof IP.markEmergencyUI === 'function') IP.markEmergencyUI(id); break;
         case 'print':           window.print(); break;

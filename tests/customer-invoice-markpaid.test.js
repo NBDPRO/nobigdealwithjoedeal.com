@@ -121,7 +121,7 @@ ok('the module publishes itself as window.InvoicePipeline',
 // kept saying unpaid until a manual reload.
 ok('markPaidUI resolves on the payment, not on the modal opening',
   /return await new Promise\(/.test(invoicePipeline)
-  && /await markPaid\(invoiceId, amount, method\);[\s\S]{0,400}?settle\(true\)/.test(invoicePipeline),
+  && /await markPaid\(invoiceId, amount, method(?:, details)?\);[\s\S]{0,400}?settle\(true\)/.test(invoicePipeline),
   'an async function that returns at modal-open time makes every caller repaint too early');
 
 ok('a dismissed modal settles false so an awaiting caller cannot hang',

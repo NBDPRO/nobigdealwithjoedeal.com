@@ -285,6 +285,10 @@ async function partA() {
       '[data-exp-action="add-recurring"]', '[data-exp-action="del-recurring"]', '[data-exp-action="del-supplier"]', '[data-exp-action="delete"]'],
     'yard signs place/pickup/extend/missing': ['[data-ys-action="open-place"]', '[data-ys-action="save-place"]',
       '[data-ys-action="pickup"]', '[data-ys-action="extend"]', '[data-ys-action="missing"]'],
+    // 2026-09-29: Money view → Stripe panel. Each books money through an
+    // owner-only callable (assignStripeTransaction / stripeLedgerSync).
+    'Stripe ledger assign, sync, preview and apply':
+      ['[data-sl-action="assign"]', '[data-sl-action="open-sync"]', '[data-sl-action="sync-preview"]', '[data-sl-action="sync-apply"]'],
     'knock, kanban "+ task", phone Task, portal reply, rules self-test, follow-up sends': [F('openD2DOrGo'), '.kc-task-badge.empty',
       '#nbd-quick-action-bar .qab-task', '#repMsgText', '#repMsgSend', F('testFirestoreRules'), '[data-csf-action="sms"]', '[data-csf-action="email"]'],
     'document generation (kept visible, blocked)': [A('docgen'), A('generateCustomerDoc')],
@@ -298,6 +302,8 @@ async function partA() {
     // bill it and then rewrite the knock.
     'D2D address re-verify, one knock and the batch':
       ['[data-d2d-action="reverifyKnock"]', '[data-d2d-action="reverifyPending"]'],
+    // 2026-09-29: Record Payment + 📎 Attach proof write payments[] / Storage.
+    'invoice record payment + attach proof': ['[data-ip-action="markPaid"]', '[data-ip-action="attachProof"]'],
   };
   for (const [what, sels] of Object.entries(MUST)) {
     const missing = sels.filter((s) => !has(s));
@@ -313,9 +319,14 @@ async function partA() {
     // 2026-09-25: reading a deal room, and opening a lead's photos / docs
     '[data-cb-action="preview"]', F('openPhotosForLead'), F('openDocsForLead'),
     // 2026-09-25 (#1780 review): the knock detail's owner & roof intel (lookupParcel stays open: reading)
-    '[data-d2d-action="loadPropertyIntel"]'];
+    '[data-d2d-action="loadPropertyIntel"]',
+    // 2026-09-29: opening a payment's proof is reading
+    '[data-ip-action="viewProof"]'];
   const wrong = MUST_NOT.filter(has);
   ok('not gated: settings, notification read state, exports, filters, navigation', wrong.length === 0, 'gated by mistake: ' + wrong.join(' '));
+
+  // Stripe panel Refresh / Show more only read the ledger.
+  ok('not gated: Stripe panel refresh + show more', !has('[data-sl-action="refresh"]') && !has('[data-sl-action="more"]'));
 
   // Layer 1: the stylesheet hides exactly the HIDE list, only under the class.
   const style = dom.head.children.find((c) => c.id === 'nbdRoleGateStyle');

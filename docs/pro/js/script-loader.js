@@ -115,7 +115,9 @@
     // Money / P&L capstone — self-contained (reads doc fields directly, no
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
-      'js/money-dashboard.js?v=2'
+      'js/stripe-ledger-ui-logic.js?v=1',
+      'js/stripe-ledger-panel.js?v=1',
+      'js/money-dashboard.js?v=3'
     ],
     repos: [
       'js/rep-os.js?v=2'

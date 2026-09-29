@@ -377,13 +377,68 @@
   //   - Network blip
   //   - claudeProxy itself returns 5xx
 
-  const _aiCache = new Map(); // leadId → { result, stamp }
+  const _aiCache = new Map(); // leadId → { result, stamp, fp }
   const AI_CACHE_TTL_MS = 10 * 60 * 1000;
 
-  // Invalidate the AI cache on data refresh — engagement signals
-  // changed underneath, the previous AI take is stale.
-  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    window.addEventListener('nbd:data-refreshed', () => _aiCache.clear());
+  // 2026-09-29 — the rate-limit alarm (claudeProxy:uid) fired from Jo's
+  // phone: three ~10-request bursts in a minute. The briefing and Ask Joe's
+  // proactive slice both enrich the SAME top 5 leads on every render, the
+  // cache was wiped on every 'nbd:data-refreshed', and nothing de-duplicated
+  // a request already in flight — 10 calls for 5 answers, each refresh.
+  // Now:
+  //   - the cache is keyed by a fingerprint of what the heuristic saw
+  //     (priority / action / channel / signals). A refresh that changed
+  //     nothing for this lead keeps its AI take; one that did gets a new one.
+  //     The blanket clear-on-refresh is gone.
+  //   - one request per lead in flight; a second caller shares it
+  //   - at most AI_MAX_CONCURRENT requests at a time; the rest queue
+  //   - a rate-limit answer pauses enrichment for AI_COOLDOWN_MS (the
+  //     heuristic shows meanwhile — it always did on failure)
+  //   - the cache survives a reload for the browser session (sessionStorage)
+  const AI_MAX_CONCURRENT = 2;
+  const AI_COOLDOWN_MS = 60 * 1000;
+  const AI_SESSION_KEY = 'nbd_sf_ai_cache_v1';
+  const _aiInflight = new Map(); // leadId|fp → Promise
+  const _aiWaiters = [];
+  let _aiActive = 0;
+  let _aiCoolUntil = 0;
+
+  function _aiFingerprint(h) {
+    if (!h) return '';
+    const sig = Array.isArray(h.signals) ? h.signals.slice().sort().join(',') : '';
+    return [h.priority, h.action, h.channel, sig].join('|');
+  }
+  function _aiSlot() {
+    return new Promise((resolve) => {
+      if (_aiActive < AI_MAX_CONCURRENT) { _aiActive++; resolve(); } else _aiWaiters.push(resolve);
+    });
+  }
+  function _aiRelease() {
+    const next = _aiWaiters.shift();
+    if (next) next(); else _aiActive = Math.max(0, _aiActive - 1);
+  }
+  function _aiSave() {
+    try {
+      if (typeof sessionStorage === 'undefined') return;
+      const out = {};
+      _aiCache.forEach((v, k) => { if (Date.now() - v.stamp < AI_CACHE_TTL_MS) out[k] = v; });
+      sessionStorage.setItem(AI_SESSION_KEY, JSON.stringify(out));
+    } catch (_) { /* quota / private mode — the in-memory cache still works */ }
+  }
+  (function _aiLoad() {
+    try {
+      if (typeof sessionStorage === 'undefined') return;
+      const raw = JSON.parse(sessionStorage.getItem(AI_SESSION_KEY) || '{}');
+      Object.keys(raw).forEach((k) => {
+        const v = raw[k];
+        if (v && v.result && typeof v.stamp === 'number' && Date.now() - v.stamp < AI_CACHE_TTL_MS) _aiCache.set(k, v);
+      });
+    } catch (_) { /* unreadable → start empty */ }
+  })();
+  function _isRateLimited(errOrResp) {
+    const e = errOrResp || {};
+    const s = String((e && (e.status || e.code || '')) || '') + ' ' + String((e && (e.message || (e.error && (e.error.message || e.error)))) || '');
+    return /429|rate.?limit|too many|resource.?exhausted/i.test(s);
   }
 
   // Build a compact context payload for the AI. Strip Firestore
@@ -478,13 +533,37 @@ Rules:
     if (heuristic.priority === 'wait' || heuristic.priority === 'monitor') {
       return heuristic;
     }
-    // Cache hit?
+    // Cache hit — same lead, same underlying signals, still fresh?
+    const fp = _aiFingerprint(heuristic);
     const cached = _aiCache.get(lead.id);
-    if (cached && (Date.now() - cached.stamp) < AI_CACHE_TTL_MS) {
+    if (cached && cached.fp === fp && (Date.now() - cached.stamp) < AI_CACHE_TTL_MS) {
       return cached.result;
     }
     if (typeof window.callClaude !== 'function') return heuristic;
+    if (Date.now() < _aiCoolUntil) return heuristic;   // backing off after a 429
 
+    // Someone is already asking about this lead in this state — share it.
+    const key = lead.id + '|' + fp;
+    if (_aiInflight.has(key)) return _aiInflight.get(key);
+    const p = (async () => {
+      await _aiSlot();
+      try {
+        // Re-check after waiting in the queue: another caller may have
+        // filled the cache, or a 429 may have started a cooldown.
+        const again = _aiCache.get(lead.id);
+        if (again && again.fp === fp && (Date.now() - again.stamp) < AI_CACHE_TTL_MS) return again.result;
+        if (Date.now() < _aiCoolUntil) return heuristic;
+        return await _enrichNow(lead, ctx, heuristic, fp);
+      } finally {
+        _aiRelease();
+        _aiInflight.delete(key);
+      }
+    })();
+    _aiInflight.set(key, p);
+    return p;
+  }
+
+  async function _enrichNow(lead, ctx, heuristic, fp) {
     try {
       const ctxPayload = _buildAIContext(lead, ctx);
       const userPrompt = _buildAIUserPrompt(lead, heuristic, ctxPayload);
@@ -523,10 +602,14 @@ Rules:
         _aiEnriched: true,
         computedAt: Date.now(),
       };
-      _aiCache.set(lead.id, { result: enriched, stamp: Date.now() });
+      _aiCache.set(lead.id, { result: enriched, stamp: Date.now(), fp });
+      _aiSave();
       return enriched;
-    } catch (_) {
-      // AI call failed for any reason — gracefully degrade.
+    } catch (e) {
+      // AI call failed for any reason — gracefully degrade. A rate-limit
+      // answer also pauses every other enrichment for a minute, so the
+      // next render does not immediately hit the limit again.
+      if (_isRateLimited(e)) _aiCoolUntil = Date.now() + AI_COOLDOWN_MS;
       return heuristic;
     }
   }

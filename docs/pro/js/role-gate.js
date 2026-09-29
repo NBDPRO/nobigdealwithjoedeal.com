@@ -136,6 +136,10 @@
     // Yard Signs view (yard-signs.js): place, pick up, extend, mark missing.
     '[data-ys-action="open-place"]', '[data-ys-action="save-place"]', '[data-ys-action="pickup"]',
     '[data-ys-action="extend"]', '[data-ys-action="missing"]',
+    // Invoice detail (invoice-pipeline.js, 2026-09-29): Record Payment and
+    // 📎 Attach proof both write the invoice's payments[] ledger (and upload to
+    // Storage, which refuses a viewer). 📎 View stays: reading.
+    '[data-ip-action="markPaid"]', '[data-ip-action="attachProof"]',
     // Kanban card "+" (no tasks yet = "Add a task"). A card WITH tasks keeps
     // its count badge; its click is refused by tasks.js openTaskModal's guard.
     '.kc-task-badge.empty',
@@ -162,6 +166,12 @@
     // rewrites the knock, which the rules refuse a viewer. "Load owner & roof
     // intel" stays: reading.
     '[data-d2d-action="reverifyKnock"]', '[data-d2d-action="reverifyPending"]',
+    // Money view → Stripe panel (stripe-ledger-panel.js, 2026-09-29): assign a
+    // payment to a customer, open Sync from Stripe, and its preview / Apply.
+    // Each books money through an owner-only callable (and the whole panel is
+    // not rendered for a viewer or sales rep). Refresh stays: reading.
+    '[data-sl-action="assign"]', '[data-sl-action="open-sync"]',
+    '[data-sl-action="sync-preview"]', '[data-sl-action="sync-apply"]',
   ];
   // Stays VISIBLE (it shows state) but a viewer's click does nothing but explain.
   var BLOCK_ONLY = [

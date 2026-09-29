@@ -425,6 +425,15 @@ exports.pdfRenderRetention = pdfRenderRetention.pdfRenderRetention;
 const stripeFunctions = require('./stripe');
 Object.assign(exports, stripeFunctions);
 
+// Stripe ledger (2026-09-29): every Stripe money movement recorded under the
+// CRM customer it belongs to. Named exports only — the module also exports
+// plain helpers (onEvent, used by invoiceWebhook) that are not functions.
+const stripeLedger = require('./stripe-ledger');
+exports.stripeLedgerSync        = stripeLedger.stripeLedgerSync;
+exports.stripeLedgerReconcile   = stripeLedger.stripeLedgerReconcile;
+exports.assignStripeTransaction = stripeLedger.assignStripeTransaction;
+exports.getStripeOverview       = stripeLedger.getStripeOverview;
+
 // Automated Firestore daily backup + retention. Needs a one-time bucket + IAM
 // setup documented in functions/firestore-backup.js. Both are scheduled-only.
 //

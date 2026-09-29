@@ -76,8 +76,8 @@ const staleInRegistry = [...registryNames].filter((n) => !foundNames.has(n));
 ok('every registered gate is actually checked by some function (no stale entries)',
   staleInRegistry.length === 0, JSON.stringify(staleInRegistry));
 
-ok('the registry has exactly 12 gates (update this pin deliberately if that changes)',
-  CRON_GATES.length === 12, String(CRON_GATES.length));
+ok('the registry has exactly 13 gates (update this pin deliberately if that changes)',
+  CRON_GATES.length === 13, String(CRON_GATES.length));
 
 for (const g of CRON_GATES) {
   const files2 = foundInFile.get(g.name);

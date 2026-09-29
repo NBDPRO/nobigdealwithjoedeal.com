@@ -55,6 +55,7 @@ const FLAT_USER_COLLECTIONS = [
   // Yard-sign placements (yard-signs.js, 2026-09-29). Owner-keyed on userId;
   // photos live in Storage under yard-signs/{uid}/.
   { name: 'yardSigns' },
+  { name: 'stripeLedger' }, // Stripe money movements matched to CRM customers (stripe-ledger.js)
   // Recurring-expense templates + supplier/vendor records (money-layer
   // expansion). Owner-keyed on userId; erase/export with the account. Supplier
   // docs hold NO tax IDs (tracking only); the locked suppliers/{id}/private/**
@@ -198,6 +199,10 @@ const STORAGE_PREFIXES = [
   'receipts',
   // yard-signs/{uid}/... — photos of placed yard signs (yard-signs.js).
   'yard-signs',
+  // payment-proofs/{uid}/{invoiceId}/... — check photos / Zelle screenshots /
+  // bank PDFs attached to manual invoice payments (invoice-pipeline.js,
+  // 2026-09-29). Owner-keyed like receipts/; erase with the account.
+  'payment-proofs',
   // documents/{uid}/{leadId}/{docId}.html — generated + signed customer
   // documents (document-generator.js onPersistFinalized, storage.rules:96).
   // Added 2026-09-08. onLeadDeleted already reaps this prefix per-lead
