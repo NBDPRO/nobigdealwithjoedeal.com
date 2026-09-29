@@ -1823,6 +1823,39 @@ async function run() {
     throw new Error('36 signed deal rooms: ' + s36Fail.length + ' check(s) went the wrong way:\n    ' + s36Fail.join('\n    '));
   }
 
+  // ─── 37. productLibrary/{companyId} — the company's shared library ───
+  // Jo, 2026-09-29: one company-wide Product Library; the owner and company
+  // admins edit, everyone in the company reads. Same access as catalogCosts.
+  const s37Fail = []; let s37Pass = 0;
+  async function x37(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s37Pass++;
+    } catch (e) { s37Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const rep37   = env.authenticatedContext('rep37',  { role: 'sales_rep', companyId: 'co-37' }).firestore();
+  const cadm37  = env.authenticatedContext('cadm37', { role: 'company_admin', companyId: 'co-37' }).firestore();
+  const own37   = env.authenticatedContext('co-37',  { companyId: 'co-37' }).firestore();       // owner: uid IS the company key
+  const view37  = env.authenticatedContext('vw37',   { role: 'viewer', companyId: 'co-37' }).firestore();
+  const other37 = env.authenticatedContext('oth37',  { role: 'company_admin', companyId: 'co-other' }).firestore();
+  const solo37  = env.authenticatedContext('solo37', {}).firestore();
+  const LIB = { version: 1, items: { prod_1: { id: 'prod_1', name: 'ZZ_QA custom', pricing: { good: { sell: 10 } } } }, deleted: [] };
+  await x37('company_admin creates the library', 'allow', setDoc(doc(cadm37, 'productLibrary/co-37'), LIB));
+  await x37('owner (uid = company key) edits a row', 'allow', updateDoc(doc(own37, 'productLibrary/co-37'), { 'items.prod_1': { id: 'prod_1', name: 'edited' } }));
+  await x37('sales rep reads the library', 'allow', getDoc(doc(rep37, 'productLibrary/co-37')));
+  await x37('viewer reads the library', 'allow', getDoc(doc(view37, 'productLibrary/co-37')));
+  await x37('sales rep edits a row', 'deny', updateDoc(doc(rep37, 'productLibrary/co-37'), { 'items.prod_1': { id: 'prod_1', name: 'rep' } }));
+  await x37('sales rep resets the library', 'deny', setDoc(doc(rep37, 'productLibrary/co-37'), { version: 1, items: {}, deleted: [] }));
+  await x37('viewer edits a row', 'deny', updateDoc(doc(view37, 'productLibrary/co-37'), { deleted: ['prod_1'] }));
+  await x37('another company reads it', 'deny', getDoc(doc(other37, 'productLibrary/co-37')));
+  await x37('another company writes it', 'deny', setDoc(doc(other37, 'productLibrary/co-37'), LIB));
+  await x37('solo owner writes their own (uid key)', 'allow', setDoc(doc(solo37, 'productLibrary/solo37'), LIB));
+  await x37('platform admin writes any', 'allow', updateDoc(doc(admin, 'productLibrary/co-37'), { deleted: [] }));
+  console.log('  37: ' + s37Pass + ' company product-library checks passed, ' + s37Fail.length + ' failed');
+  if (s37Fail.length) {
+    throw new Error('37 productLibrary: ' + s37Fail.length + ' check(s) went the wrong way:\n    ' + s37Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

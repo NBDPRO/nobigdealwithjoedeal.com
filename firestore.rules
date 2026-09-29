@@ -1354,6 +1354,19 @@ service cloud.firestore {
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
+    // The company's Product Library (product-library.js, 2026-09-29): its
+    // custom / edited / archived products and tombstones, WITHOUT costs (those
+    // stay in catalogCosts above). It lived only in per-device localStorage,
+    // which every sign-out purges. Jo: one company-wide library, the owner and
+    // company admins edit, everyone in the company reads. Identical access to
+    // catalogCosts on purpose — same tenant, same editors.
+    match /productLibrary/{companyId} {
+      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow write: if isAdmin()
+        || (companyId == request.auth.uid && notViewer())
+        || (isCompanyAdmin() && companyId == myCompanyId());
+    }
+
     // ── PHOTO VISION COST METERS (admin-SDK writes) ──
     // Owner can read their own meters so the client knows when caps
     // are approaching ("$8.40 of $10 used on this lead"). Writes are
