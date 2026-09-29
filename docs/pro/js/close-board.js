@@ -135,6 +135,9 @@
   // Closed = the homeowner accepted (or later signed / scheduled). Mirrors the
   // server's DONE_STATUSES (functions/deal-acceptance.js): no new accept link is
   // minted for these, so the card drops Text / Email / Copy.
+  // Server-owned fields of a homeowner acceptance (deal-acceptance.js).
+  const ACCEPTANCE_KEYS = ['acceptedTier', 'acceptedPrice', 'acceptedFinancing', 'acceptedSignature', 'acceptedAt', 'acceptedVia'];
+
   function _isClosedDeal(d) {
     return !!(d && [DEAL_STATUS.ACCEPTED, DEAL_STATUS.SIGNED, DEAL_STATUS.SCHEDULED].includes(d.status));
   }
@@ -287,6 +290,11 @@
         companyId: window._userClaims?.companyId || uid,
         updatedAt: new Date().toISOString()
       };
+      // The homeowner's acceptance is server-written (deal-acceptance.js) and
+      // locked by firestore.rules once the deal closes. Never echo it back:
+      // after a reload the local copy holds acceptedAt as a plain
+      // {seconds, nanoseconds} map, and writing that would be a change.
+      ACCEPTANCE_KEYS.forEach(k => { delete data[k]; });
       if (deal.userId === uid) await updateDoc(ref, data);
       else await setDoc(ref, data, { merge: true });
       // The server now holds this deal. Stamp that on the LOCAL copy too:
@@ -492,6 +500,11 @@
   async function deleteDeal(dealId) {
     const deal = _findDeal(dealId);
     if (!deal || _dealDeletesInFlight.has(dealId)) return false;
+    // A signed / accepted deal is a record (firestore.rules denies the delete).
+    if (_isClosedDeal(deal)) {
+      if (window.showToast) window.showToast('A signed deal is kept on record — it can\'t be deleted.', 'info');
+      return false;
+    }
     const onServer = !!(deal.userId || deal.acceptUrl);
     if (window._db && window._user) {
       if (window.showToast) window.showToast('Deleting…', 'info');
@@ -1300,7 +1313,9 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
             ${_isClosedDeal(d) ? '' : `<button data-cb-action="sendSMS" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--green,#2ECC8A);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">📱 Text</button>
             <button data-cb-action="sendEmail" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--orange,#BD5728);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">📧 Email</button>
             <button data-cb-action="copyLink" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--s);border:1px solid var(--br);color:var(--t);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🔗 Copy</button>`}
-            <button data-cb-action="remove" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:transparent;border:1px solid var(--br);color:var(--m);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🗑 Delete</button>
+            ${_isClosedDeal(d)
+              ? `<span title="A signed deal is kept on record" style="padding:5px 10px;border:1px solid var(--br);color:var(--m);border-radius:5px;font-size:10px;font-weight:600;text-align:center;">🔒 On record</span>`
+              : `<button data-cb-action="remove" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:transparent;border:1px solid var(--br);color:var(--m);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🗑 Delete</button>`}
           </div>
         </div>
         <div style="font-size:10px;color:var(--m);margin-top:8px;">Created ${timeAgo(d.createdAt)}${_isClosedDeal(d) ? '' : ' · Expires ' + fmtDate(d.expiresAt)}${d.scheduledInstallDate ? ' · 🔨 Install ' + esc(fmtDate(d.scheduledInstallDate)) : ''}</div>
