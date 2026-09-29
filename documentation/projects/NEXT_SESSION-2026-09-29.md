@@ -1,5 +1,10 @@
 # NEXT_SESSION — 2026-09-29
 
+> **Update 2026-09-29 (afternoon):** all five §3 lanes are closed. See
+> [NEXT_SESSION-2026-09-29-part2](NEXT_SESSION-2026-09-29-part2.md), which is
+> now the current brief. §2 here is carried there, with Connect Google
+> Calendar added.
+
 The 09-28/29 marathon: a CRM sweep, then Jo's asks one at a time: Home Depot,
 yard signs, calendar, the tracker, and full Stripe. **Everything below is merged
 and deployed** unless it says otherwise.
