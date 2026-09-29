@@ -215,6 +215,8 @@ async function ingestCharge(ctx, chargeOrId, opts) {
     row.stripeInvoiceNumber = sInv.number || null;
     row.nbdInvoiceNumber = L.nbdNumberOf(sInv);
     row.stripeHostedUrl = sInv.hosted_invoice_url || null;
+    // A Stripe invoice the CRM made (stripe-crm-invoice.js) names its lead.
+    if (sInv.metadata && sInv.metadata.leadId && !row.party.leadIdHint) row.party.leadIdHint = sInv.metadata.leadId;
     if (!row.party.name && sInv.customer_name) row.party.name = sInv.customer_name;
   }
 
@@ -262,6 +264,10 @@ async function ingestInvoice(ctx, invOrId, opts) {
     : await stripe.invoices.retrieve(typeof invOrId === 'string' ? invOrId : invOrId.id, { expand: ['customer'] });
   if (inv.billing_reason && inv.billing_reason !== 'manual') return null;   // subscription billing — not customer work
   const party = L.partyFromCustomer(inv.customer, { name: inv.customer_name, email: inv.customer_email, phone: inv.customer_phone, address: inv.customer_address });
+  if (inv.metadata && inv.metadata.leadId && !party.leadIdHint) party.leadIdHint = inv.metadata.leadId;
+  // Made BY the CRM from one of its own invoices (stripe-crm-invoice.js):
+  // that CRM invoice already exists and carries this in_ id — never mirror.
+  const crmMade = !!(inv.metadata && inv.metadata.source === 'crm' && inv.metadata.invoiceId);
   const match = L.matchLead(party, ctx.idx);
   match._lead = match.leadId ? ctx.leads.get(match.leadId) : null;
 
@@ -287,7 +293,7 @@ async function ingestInvoice(ctx, invOrId, opts) {
   }
 
   // Open (sent, unpaid): owed money the CRM should show under the customer.
-  if ((inv.status === 'open') && match.confidence === 'high' && !o.dryRun) {
+  if ((inv.status === 'open') && !crmMade && match.confidence === 'high' && !o.dryRun) {
     const invs = ctx.invoicesByLead.get(match.leadId) || [];
     if (!invs.some((i) => i.stripeInvoiceId === inv.id)) {
       const ref = ctx.db.collection('invoices').doc();
