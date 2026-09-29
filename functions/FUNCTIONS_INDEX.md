@@ -76,14 +76,14 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `createCheckoutSession` | onRequest | Stripe Checkout session (ID-token verified) |
 | `createCustomerPortalSession` | onRequest | Stripe billing-portal session (ID-token verified) |
 | `getSubscriptionStatus` | onRequest | Reads caller's Stripe subscription status (ID-token verified) |
-| `createStripePaymentLink` | onRequest | Stripe payment link for invoices (ID-token verified) |
+| `createStripePaymentLink` | onRequest | Stripe payment link for invoices (ID-token verified). Since 2026-09-29 the PLATFORM tenant gets a real, finalized Stripe Invoice instead (stripe-crm-invoice.js — tagged for the Stripe ledger, not emailed by Stripe; off switch `NBD_CRM_STRIPE_INVOICES=off`); Connect tenants still get the destination-charge link |
 
 ## PUBLIC (no Firebase auth, compensating controls)
 
 | Export | Type | Compensating control |
 |---|---|---|
 | `stripeWebhook` | onRequest | Stripe signature verification + idempotency via `stripe_events/{eventId}` |
-| `invoiceWebhook` | onRequest | Stripe signature verification (payment_intent.succeeded credit; phase-3 dispute auto-reversal + refund/decline visibility) |
+| `invoiceWebhook` | onRequest | Stripe signature verification (payment_intent.succeeded credit; phase-3 dispute auto-reversal + refund/decline visibility; since 2026-09-29 every event also feeds the Stripe ledger — stripe-ledger.js `onEvent`) |
 | `esignWebhook` | onRequest | BoldSign webhook-secret verification |
 | `measurementWebhook` | onRequest | Hover/EagleView HMAC + Instant Roofer bearer-token verification; human-report file URLs land here |
 | `measureNewWebLead` | onDocumentCreated `leads/{leadId}` | **The only automated spender.** Measures a bridged public estimate lead's roof ($3) once per created lead — gated on `webLead === true`, `publicLeadKind === 'estimate'` and usable coordinates, capped at 25/day, and stoppable without a deploy via `feature_flags/global.webLeadMeasureDisabled` (integrations/public-measure.js) |
@@ -153,6 +153,9 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `createConnectOnboardingLink` | onCall | `requireTeamAdmin` | Stripe Connect — mints the hosted-onboarding link |
 | `createConnectDashboardLink` | onCall | `requireTeamAdmin` | Stripe Connect — mints the Express-dashboard login link |
 | `getConnectStatus` | onCall | `requireTeamAdmin` | Stripe Connect — reads capability/charges state (fail-closed bools) |
+| `stripeLedgerSync` | onCall | requireOwner: platform owner, its company_admin, or role admin | Stripe ledger — pulls every charge / invoice / refund / dispute / payout (optionally since N days) into `stripeLedger/` and books matched money onto CRM invoices. `dryRun` defaults to TRUE (functions/stripe-ledger.js) |
+| `assignStripeTransaction` | onCall | requireOwner | Stripe ledger — assigns a review-list payment to a customer, books it, remembers the Stripe customer on the lead |
+| `getStripeOverview` | onCall | requireOwner | Stripe ledger — balance (available/pending) + last 10 payouts for the Money view |
 | `reverifyCompanyKnocks` | onCall | `requireTeamAdmin` | D2D — re-geocodes/verifies the company's knock addresses (540s sweep) |
 | `convertUnmatchedSms` | onCall | `isOwnerCaller` or `role === 'admin'` | Turns an `unmatched_sms` triage row into a real lead + AI draft (handlers/inbound-sms-convert.js) |
 
@@ -183,7 +186,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runMigrations` | onCall | `role === 'admin'` (see ADMIN note) | Manual versioned-migration trigger (was mislabeled "scheduler-triggered" in the previous index) |
 | `migrationsTick` | scheduled (every 24h) | n/a (server-only) | Idempotent daily migration cron (also listed in SCHEDULED) |
 
-## SCHEDULED CRONS (server-only, no client traffic) — 25
+## SCHEDULED CRONS (server-only, no client traffic) — 26
 | Export | Schedule | Purpose |
 |---|---|---|
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
@@ -200,6 +203,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `hailMatchCron` | daily 09:00 | HailTrace/NOAA storm-match sweep + Slack notify — deliberately never uses the Swath provider (a 500-lead sweep would burn the credit budget; see hail-cron.js) (was listed as `hailCron` — actual export name is `hailMatchCron`) |
 | `onAppointmentReminder` | every 15 min | Push notification 15 min before appointments |
 | `onFollowUpDue` | daily 08:00 | Push notification for due follow-ups |
+| `stripeLedgerReconcile` | daily 06:15 ET | Stripe ledger — re-ingests the last 4 days of Stripe activity so a missed webhook can never lose a payment (idempotent; kill switch `STRIPE_LEDGER_DISABLED=true`, also honoured by the webhook path) |
 | `onYardSignPickupDue` | daily 07:30 ET | Push: yard signs due for pickup today or overdue (one per rep, repeats daily until handled) |
 | `migrationsTick` | every 24h | Idempotent versioned-migration runner tick |
 | `auditLogRetentionCron` | daily 03:30 | Prunes `audit_log` rows past retention (keys on `ts`) |

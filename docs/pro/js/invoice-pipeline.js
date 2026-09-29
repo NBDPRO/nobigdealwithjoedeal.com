@@ -168,6 +168,26 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   /**
+   * "From Stripe" chip + Open in Stripe / PDF links for an invoice the Stripe
+   * ledger created (source:'stripe', functions/stripe-ledger-logic.js
+   * mirrorInvoice). '' for every other invoice. Escaped, http(s) links only.
+   * Kept local (this file loads without the ledger's UI rules).
+   */
+  function stripeSourceHtml(inv) {
+    if (!inv || inv.source !== 'stripe') return '';
+    const safe = (u) => (/^https?:\/\/[^\s"'<>]+$/i.test(String(u || '').trim()) ? String(u).trim() : null);
+    const hosted = safe(inv.stripeHostedUrl), pdf = safe(inv.stripePdfUrl);
+    const num = inv.nbdInvoiceNumber || inv.stripeInvoiceNumber || '';
+    const a = 'color:var(--blue,#3b82f6);font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap;';
+    return '<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:3px;">' +
+      '<span style="background:color-mix(in srgb,#635bff 16%,transparent);color:#8b85ff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap;">From Stripe</span>' +
+      (num ? '<span style="font-size:11px;color:var(--m);">' + escHtml(num) + '</span>' : '') +
+      (hosted ? '<a href="' + escHtml(hosted) + '" target="_blank" rel="noopener noreferrer" style="' + a + '">Open in Stripe ↗</a>' : '') +
+      (pdf ? '<a href="' + escHtml(pdf) + '" target="_blank" rel="noopener noreferrer" style="' + a + '">PDF ↗</a>' : '') +
+      '</span>';
+  }
+
+  /**
    * Company name on anything a HOMEOWNER receives from this module — the
    * invoice email subject, the emailed invoice header and thank-you line, the
    * payment-received receipt, and the SMS. All five were hardcoded
@@ -1628,6 +1648,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               <div style="flex:1;">
                 <div style="font-weight:700;font-size:12px;">${formatCurrency(inv.total)}</div>
                 <div style="font-size:11px;color:var(--m);">${statusTxt}</div>
+                ${stripeSourceHtml(inv)}
               </div>
               <div style="display:flex;gap:6px;">
                 <button type="button" class="btn btn-ghost btn-sm" data-ip-action="renderDetail" data-ip-id="${inv.id}" data-ip-target="inv-detail">View</button>
@@ -1715,6 +1736,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             <div>
               <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:var(--orange);">${_esc(_invoiceBrandName())}</div>
               <div style="font-size:12px;color:var(--m);">Invoice ${_esc(invoiceId)}</div>
+              ${stripeSourceHtml(inv)}
             </div>
             <div style="text-align:right;">
               <div style="font-size:32px;font-weight:700;color:var(--orange);">${formatCurrency(inv.total)}</div>
@@ -1886,7 +1908,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         html += `
           <tr style="border-bottom:1px solid var(--br);">
             <td style="padding:10px;font-weight:700;font-size:12px;">${escHtml(inv.id.slice(0, 8))}</td>
-            <td style="padding:10px;font-size:12px;">${escHtml(invoiceCustomerName(inv) || '—')}</td>
+            <td style="padding:10px;font-size:12px;">${escHtml(invoiceCustomerName(inv) || '—')}${inv.source === 'stripe' ? '<br>' + stripeSourceHtml(inv) : ''}</td>
             <td style="text-align:right;padding:10px;font-size:12px;font-weight:700;">${formatCurrency(inv.total)}</td>
             <td style="text-align:right;padding:10px;font-size:12px;">${dueDate.toLocaleDateString()}</td>
             <td style="padding:10px;">

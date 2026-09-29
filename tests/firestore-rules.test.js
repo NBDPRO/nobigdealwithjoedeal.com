@@ -64,6 +64,8 @@ async function run() {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     // Original fixture
+    // §40 Stripe ledger rows (written only by the admin SDK in production).
+    await setDoc(doc(db, 'stripeLedger/ch_zz40'), { companyId: 'owner40', userId: 'owner40', kind: 'charge', amountCents: 145000, status: 'succeeded' });
     await setDoc(doc(db, 'users/alice'), { firstName: 'Alice', role: 'member' });
     await setDoc(doc(db, 'subscriptions/alice'), { plan: 'free', status: 'inactive' });
     await setDoc(doc(db, 'leads/leadA'), { userId: 'alice', name: 'Alice Lead' });
@@ -1923,6 +1925,33 @@ async function run() {
   console.log('  39: ' + s39Pass + ' arrival-window / adjuster-meeting checks passed, ' + s39Fail.length + ' failed');
   if (s39Fail.length) {
     throw new Error('39 scheduleWindowOk: ' + s39Fail.length + ' check(s) went the wrong way:\n    ' + s39Fail.join('\n    '));
+  }
+
+  // ─── 40. stripeLedger — Stripe money movements (2026-09-29) ───
+  // Read: the owner, same-company admin/manager, platform admin. Write:
+  // nobody from a client — only functions/stripe-ledger.js (admin SDK).
+  const s40Fail = []; let s40Pass = 0;
+  async function x40(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s40Pass++;
+    } catch (e) { s40Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own40 = env.authenticatedContext('owner40', { role: 'company_admin', companyId: 'owner40' }).firestore();
+  const mgr40 = env.authenticatedContext('mgr40', { role: 'manager', companyId: 'owner40' }).firestore();
+  const rep40 = env.authenticatedContext('rep40', { role: 'sales_rep', companyId: 'owner40' }).firestore();
+  const oth40 = env.authenticatedContext('oth40', { role: 'company_admin', companyId: 'co-other40' }).firestore();
+  await x40('the owner reads a ledger row', 'allow', getDoc(doc(own40, 'stripeLedger/ch_zz40')));
+  await x40('a same-company manager reads it', 'allow', getDoc(doc(mgr40, 'stripeLedger/ch_zz40')));
+  await x40('a sales rep does not see the money ledger', 'deny', getDoc(doc(rep40, 'stripeLedger/ch_zz40')));
+  await x40('another company cannot read it', 'deny', getDoc(doc(oth40, 'stripeLedger/ch_zz40')));
+  await x40('platform admin reads it', 'allow', getDoc(doc(admin, 'stripeLedger/ch_zz40')));
+  await x40('the owner cannot forge a row', 'deny', setDoc(doc(own40, 'stripeLedger/ch_forged'), { companyId: 'owner40', userId: 'owner40', amountCents: 999999 }));
+  await x40('the owner cannot edit a row', 'deny', updateDoc(doc(own40, 'stripeLedger/ch_zz40'), { amountCents: 1 }));
+  await x40('the owner cannot delete a row', 'deny', deleteDoc(doc(own40, 'stripeLedger/ch_zz40')));
+  console.log('  40: ' + s40Pass + ' stripe-ledger checks passed, ' + s40Fail.length + ' failed');
+  if (s40Fail.length) {
+    throw new Error('40 stripeLedger: ' + s40Fail.length + ' check(s) went the wrong way:\n    ' + s40Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

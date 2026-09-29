@@ -682,6 +682,10 @@ window.loadInvoices = async function(leadId) {
 
     const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
     const ALLOWED_STATUSES = new Set(['draft','sent','viewed','paid','overdue','cancelled']);
+    // Invoices the Stripe ledger created (source:'stripe') get a "From Stripe"
+    // chip + Open in Stripe / PDF links (stripe-ledger-ui-logic.js, escaped
+    // and http(s)-only). '' when the rules module is absent.
+    const stripeBadge = (inv) => (window.NBDStripeLedgerLogic ? window.NBDStripeLedgerLogic.stripeInvoiceBadgeHtml(inv) : '');
     let totalAmount = 0;
     let totalPaid = 0;
     let html = '';
@@ -715,6 +719,7 @@ window.loadInvoices = async function(leadId) {
           <div class="invoice-left">
             <div class="invoice-date">${esc(dateStr)}</div>
             <div class="invoice-desc">${esc(inv.description || 'Invoice')}</div>
+            ${stripeBadge(inv)}
           </div>
           <div class="invoice-right">
             <div class="invoice-amount">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>

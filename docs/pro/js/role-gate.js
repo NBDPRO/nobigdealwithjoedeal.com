@@ -166,6 +166,12 @@
     // rewrites the knock, which the rules refuse a viewer. "Load owner & roof
     // intel" stays: reading.
     '[data-d2d-action="reverifyKnock"]', '[data-d2d-action="reverifyPending"]',
+    // Money view → Stripe panel (stripe-ledger-panel.js, 2026-09-29): assign a
+    // payment to a customer, open Sync from Stripe, and its preview / Apply.
+    // Each books money through an owner-only callable (and the whole panel is
+    // not rendered for a viewer or sales rep). Refresh stays: reading.
+    '[data-sl-action="assign"]', '[data-sl-action="open-sync"]',
+    '[data-sl-action="sync-preview"]', '[data-sl-action="sync-apply"]',
   ];
   // Stays VISIBLE (it shows state) but a viewer's click does nothing but explain.
   var BLOCK_ONLY = [
