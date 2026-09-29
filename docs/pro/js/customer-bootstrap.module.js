@@ -19,6 +19,7 @@ import {
   preferredActionFor as _preferredActionFor,
   isJobStage as _isJobStage, isTerminalStage as _isTerminalStage,
   requiredFieldLabel as _requiredFieldLabel,
+  subTypeOptionsFor as _subTypeOptionsFor,
 } from "./crm-stages.js";
 import { commitStageChange as _commitStageChange } from "./stage-write.js";
 // dashboard-bootstrap.module.js exposes these identically; mirrored here so
@@ -62,7 +63,21 @@ function _pipelineFor(lead) {
     const at = pipeline.indexOf('contract_signed');
     if (at !== -1) {
       const jobs = ((resolved.views.jobs && resolved.views.jobs.stages) || []).filter(k => !pipeline.includes(k));
-      pipeline.splice(at + 1, 0, ...jobs);
+      // Insert the job track AFTER any stages the tenant placed after Contract
+      // Signed (the pipeline builder adds custom stages there, before Lost) —
+      // i.e. at the first lost-role stage — not immediately after Contract
+      // Signed. Splicing at at+1 pushed a custom stage past the whole job and
+      // warranty track, so a Warranty Claim lead was offered "→ Move to
+      // <custom production stage>" (CRM sweep R14, 2026-09-28). Stock
+      // pipelines ([…, contract_signed, lost]) are unchanged.
+      let ins = at + 1;
+      while (ins < pipeline.length) {
+        const m = resolved.stageMeta[pipeline[ins]];
+        const role = (m && m.role) || (typeof _stageRole === 'function' ? _stageRole(pipeline[ins]) : null);
+        if (role === 'lost' || pipeline[ins] === 'lost') break;
+        ins++;
+      }
+      pipeline.splice(ins, 0, ...jobs);
     }
   }
   pipeline = pipeline.filter((k) => !(resolved.stageMeta[k] && resolved.stageMeta[k].hidden));
@@ -4071,6 +4086,11 @@ Object.assign(window.__NBD_CALL_REGISTRY, {
   setLightboxSource: setLightboxSource,
   // customer-quick-action-bar.js's Comm Log tap listener (T3-C, 2026-09-18).
   logCommunication: logCommunication,
+  // warranty-claim.js reads the claim "Reason" list from here. Only the
+  // dashboard registered it, so filing a claim from this page offered just its
+  // one-item fallback, "Workmanship" — never Material Defect, Manufacturer
+  // Claim or Goodwill (CRM sweep R14, 2026-09-28).
+  subTypeOptionsFor: _subTypeOptionsFor,
 });
 
 // ═══════════════════════════════════════════════════════════════
