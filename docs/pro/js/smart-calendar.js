@@ -60,15 +60,22 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     // today join the timeline as timed entries (Jo, 2026-09-28: "events on
     // schedule yes") — before, they showed only on that customer's timeline.
     appts = appts.concat(_todaysEvents(user.uid, leads));
+    const _t = new Date();
+    const todayStr = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, '0')}-${String(_t.getDate()).padStart(2, '0')}`;
+    // A lead that already has a Cal.com appointment (or an Add-Event) today is
+    // not listed again as a job — same dedup as before the window existed.
+    const apptLeadIds = new Set(appts.map(a => _attachLead(a, leads)._leadId).filter(Boolean));
+    // Today's jobs and adjuster meetings off the lead book (2026-09-29): a
+    // job with a start time and an adjuster meeting with a time join the
+    // timeline; the rest are listed under "no set time".
+    const dayItems = _leadDayItems(leads, todayStr, apptLeadIds);
+    appts = appts.concat(dayItems.timed);
     if (appts.length) {
       // Sort by start time so travel-time math is meaningful.
       appts.sort((a, b) => _toMs(a.startTime) - _toMs(b.startTime));
       appts = appts.map(a => _attachLead(a, leads));
     }
-    const _t = new Date();
-    const todayStr = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, '0')}-${String(_t.getDate()).padStart(2, '0')}`;
-    const apptLeadIds = new Set(appts.map(a => a._leadId).filter(Boolean));
-    const manualToday = leads.filter(l => l && l.scheduledDate === todayStr && !apptLeadIds.has(l.id));
+    const manualToday = dayItems.untimed;
 
     if (!appts.length && !manualToday.length) {
       host.innerHTML = _emptyState('No appointments today. Time to knock some doors. 🚪');
@@ -190,6 +197,78 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     return out;
   }
 
+  // Today's install/repair jobs and adjuster meetings from the lead book
+  // (calendar hub Phase 0, 2026-09-29). A lead's arrival window
+  // (schedule-window.js) decides where it goes:
+  //   • a start time on the job's first day → a timed entry on the timeline,
+  //     start + length (a point in time with no length, like an Add-Event, so
+  //     it never manufactures a "conflict");
+  //   • no start time, or day 2+ of a multi-day project → the "no set time"
+  //     block, labelled ("7:00 am · day 2 of 2").
+  // A multi-day project is on the board EVERY day it covers — before the
+  // window existed only its first day was. Adjuster meetings
+  // (adjusterMeetingDate / adjusterMeetingStart, claim-core.js) follow the
+  // same split and are never deduped: a Cal.com booking on the lead is the
+  // homeowner's visit, not the carrier's. Pure; exported for tests.
+  function _leadDayItems(leads, todayYmd, skipJobLeadIds) {
+    const W = window.NBDScheduleWindow || null;
+    const skip = skipJobLeadIds || new Set();
+    const timed = [], untimed = [];
+    const at = (ymd, hm) => {
+      const [y, m, d] = String(ymd).split('-').map(Number);
+      const [h, mi] = String(hm).split(':').map(Number);
+      return new Date(y, m - 1, d, h, mi).getTime(); // local wall clock, never UTC-parsed
+    };
+    (leads || []).forEach(l => {
+      if (!l || !l.id || l.deleted === true) return;
+      const name = `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.address || 'Lead';
+
+      if (!skip.has(l.id)) {
+        const w = W ? W.normalize(l) : null;
+        // No module, or a window that contradicts itself: the date alone, as before.
+        const onToday = w ? W.coversDay(l, todayYmd) : l.scheduledDate === todayYmd;
+        if (onToday) {
+          const dayN = w ? W.parseYmd(todayYmd).day - W.parseYmd(w.date).day + 1 : 1;
+          const ofDays = w && w.days > 1 ? `day ${dayN} of ${w.days}` : '';
+          if (w && w.start && dayN === 1) {
+            const s = at(todayYmd, w.start);
+            timed.push({
+              id: 'job:' + l.id,
+              title: '🔨 ' + name + (ofDays ? ' · ' + ofDays : ''),
+              startTime: s,
+              endTime: s + (w.durationMin || 0) * 60000,
+              leadId: l.id,
+              status: 'job',
+              _isLeadJob: true,
+            });
+          } else {
+            untimed.push({ lead: l, label: [w && w.start ? W.timeLabel(w) : '', ofDays].filter(Boolean).join(' · ') });
+          }
+        }
+      }
+
+      if (l.adjusterMeetingDate === todayYmd) {
+        const start = String(l.adjusterMeetingStart || '');
+        const label = 'Adjuster meeting' + (l.adjusterName ? ' · ' + l.adjusterName : '');
+        if (/^([01]\d|2[0-3]):[0-5]\d$/.test(start)) {
+          const s = at(todayYmd, start);
+          timed.push({
+            id: 'adj:' + l.id,
+            title: '🧾 ' + label + ' · ' + name,
+            startTime: s,
+            endTime: s,
+            leadId: l.id,
+            status: 'adjuster',
+            _isAdjuster: true,
+          });
+        } else {
+          untimed.push({ lead: l, label: label });
+        }
+      }
+    });
+    return { timed, untimed };
+  }
+
   // ── lead matching ───────────────────────────────────────────
   function _attachLead(appt, leads) {
     if (!leads.length) return appt;
@@ -285,18 +364,22 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       </div>`;
   }
 
-  // Today's MANUALLY scheduled jobs (lead.scheduledDate is date-only — no set
-  // time — so they're listed as a block rather than placed on the hourly
-  // timeline). Reuses the timeline's openCardDetail delegate.
-  function _renderManualScheduled(leadsToday) {
-    const rows = leadsToday.map(l => {
+  // Today's MANUALLY scheduled jobs with no set time (a date-only
+  // scheduledDate, day 2+ of a project, an adjuster meeting with no time) —
+  // listed as a block rather than placed on the hourly timeline. Items are
+  // { lead, label } from _leadDayItems; label is the window ("7:00 am · day 2
+  // of 2") or "Adjuster meeting". Reuses the timeline's openCardDetail delegate.
+  function _renderManualScheduled(items) {
+    const rows = items.map(item => {
+      const l = item.lead || {};
       const name = _esc(`${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead');
+      const label = item.label ? `<div style="font-size:11px;color:var(--orange);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(item.label)}</div>` : '';
       const addr = _esc(l.address || '');
       const open = l.id
         ? `<button data-sc-action="openCardDetail" data-sc-id="${_esc(l.id)}" style="background:none;border:none;color:var(--orange);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap;">Open →</button>`
         : '';
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--br);">
-        <div style="min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+        <div style="min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>${label}
         ${addr ? `<div style="font-size:11px;color:var(--m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${addr}</div>` : ''}<span data-sc-forecast="${_esc(l.id || '')}"></span></div>
         ${open}
       </div>`;
@@ -546,7 +629,9 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       const key = forecastKey(a._leadLat, a._leadLng);
       if (key && a.id) targets.push({ key, atMs: _toMs(a.startTime), id: String(a.id) });
     }
-    for (const l of manualToday || []) {
+    for (const item of manualToday || []) {
+      // { lead, label } from _leadDayItems (2026-09-29); a bare lead still works.
+      const l = (item && item.lead) || item || {};
       const key = forecastKey(l.lat, l.lng);
       if (key && l.id) targets.push({ key, atMs: 0, id: String(l.id) });
     }
@@ -646,7 +731,11 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     NWS_MAX_POINTS, NWS_CACHE_TTL_MS, NWS_CACHE_PREFIX,
   };
   // Schedule-row helpers, exposed for tests/schedule-events-2026-09-28.test.js.
-  window.NBDSchedule = { todaysEvents: _todaysEvents, renderApptRow: _renderApptRow };
+  window.NBDSchedule = {
+    todaysEvents: _todaysEvents, renderApptRow: _renderApptRow,
+    // tests/calendar-phase0-2026-09-29.test.js
+    leadDayItems: _leadDayItems, renderManualScheduled: _renderManualScheduled,
+  };
   _attachAutoLoad();
 })();
 
