@@ -2017,11 +2017,11 @@
     container.innerHTML = `
       <div class="pe-gallery-grid">
         ${photos.map(photo => `
-          <div class="pe-gallery-item" data-photo-id="${photo.id}">
-            <img class="pe-gallery-thumbnail" src="${photo.thumbUrl || photo.url}" alt="Photo"
-                 data-action="peOpenLightbox" data-photo-id="${photo.id}" data-lead-id="${leadId}" />
+          <div class="pe-gallery-item" data-photo-id="${escHtml(photo.id)}">
+            <img class="pe-gallery-thumbnail" src="${escHtml(photo.thumbUrl || photo.url)}" alt="Photo"
+                 data-action="peOpenLightbox" data-photo-id="${escHtml(photo.id)}" data-lead-id="${escHtml(leadId)}" />
             ${state.stagedPhotos[leadId]?.includes(photo.id) ? `<div class="pe-staged-badge">OK</div>` : ''}
-            <input type="checkbox" class="pe-gallery-checkbox" data-photo-id="${photo.id}" />
+            <input type="checkbox" class="pe-gallery-checkbox" data-photo-id="${escHtml(photo.id)}" />
             <div class="pe-gallery-tags">
               ${photo.tags.slice(0, 3).map(tag => `<span class="pe-mini-tag">${escHtml(tag)}</span>`).join('')}
             </div>
@@ -2066,7 +2066,7 @@
 
       lightbox.innerHTML = `
         <div class="pe-lightbox-content">
-          <img class="pe-lightbox-image" src="${photo.url}" alt="Full size" />
+          <img class="pe-lightbox-image" src="${escHtml(photo.url)}" alt="Full size" />
           <div class="pe-lightbox-metadata">
             <div class="pe-metadata-row">
               <div class="pe-metadata-label">Date</div>

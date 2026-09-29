@@ -99,7 +99,8 @@
   // HELPERS
   // ============================================================================
 
-  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  // Quotes too — used in attributes (alt="…"); security audit 2026-09-29.
+  function esc(s) { return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function fmtCurrency(n) { return '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
   function timeAgo(d) {

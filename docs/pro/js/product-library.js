@@ -598,10 +598,10 @@
       const chevron = isCollapsed ? '▸' : '▾';
       productsHtml += `
         <div style="margin-bottom:28px;">
-          <div data-pl-action="toggleCategory" data-pl-id="${catId}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
+          <div data-pl-action="toggleCategory" data-pl-id="${escapeHtml(catId)}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
             <span style="font-size:14px;color:var(--m);font-weight:700;width:16px;text-align:center;">${chevron}</span>
             <span style="font-size:20px;">${catIcon(catId)}</span>
-            <h3 style="margin:0;font-size:16px;font-weight:700;color:${catColor(catId)};flex:1;">${catLabel(catId)}</h3>
+            <h3 style="margin:0;font-size:16px;font-weight:700;color:${catColor(catId)};flex:1;">${escapeHtml(catLabel(catId))}</h3>
             <span style="font-size:12px;color:var(--m);font-weight:500;">${catProds.length} product${catProds.length !== 1 ? 's' : ''}</span>
           </div>
           <div class="pl-product-grid" style="display:${isCollapsed ? 'none' : 'grid'};margin-top:${isCollapsed ? '0' : '12px'};">
@@ -662,8 +662,8 @@
                 ? `<span style="color:${m >= 40 ? '#10b981' : m >= 25 ? '#f59e0b' : '#ef4444'};font-weight:700;">${formatCurrency(sellPrice - myCost)}/${p.unit} (${m}%)</span>`
                 : NOT_SET}</div>
               <div style="display:flex;gap:6px;">${editable ? `
-                <button class="pl-card-btn" data-pl-action="editProduct" data-pl-id="${p.id}" style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Edit</button>
-                <button class="pl-card-btn" data-pl-action="archiveProduct" data-pl-id="${p.id}" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;">Archive</button>` : ''}
+                <button class="pl-card-btn" data-pl-action="editProduct" data-pl-id="${escapeHtml(p.id)}" style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Edit</button>
+                <button class="pl-card-btn" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;">Archive</button>` : ''}
               </div>
             </div>
           </div>

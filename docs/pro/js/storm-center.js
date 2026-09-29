@@ -86,7 +86,7 @@
   // HELPERS
   // ============================================================================
 
-  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  function esc(s) { return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); if (isNaN(dt.getTime())) return '—'; return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
   function timeAgo(d) {
     if (!d) return '';

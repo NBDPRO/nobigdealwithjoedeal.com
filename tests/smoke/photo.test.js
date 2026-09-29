@@ -352,7 +352,8 @@ section('Phase C.4 photo-engine — inline actions in rendered templates');
     /data-action="peBulkAnalyze"\s+data-lead-id="\$\{leadId\}"/.test(pe),
     'expected pe-bulk-ai-btn to use peBulkAnalyze');
   assert('gallery thumbnail uses peOpenLightbox with photo+lead ids',
-    /data-action="peOpenLightbox"\s+data-photo-id="\$\{photo\.id\}"\s+data-lead-id="\$\{leadId\}"/.test(pe),
+    // Ids are escaped since the 2026-09-29 security audit.
+    /data-action="peOpenLightbox"\s+data-photo-id="\$\{escHtml\(photo\.id\)\}"\s+data-lead-id="\$\{escHtml\(leadId\)\}"/.test(pe),
     'expected thumbnail to use peOpenLightbox');
   assert('lightbox stage button uses peStagePhoto',
     /data-action="peStagePhoto"\s+data-photo-id="\$\{photoId\}"\s+data-lead-id="\$\{leadId\}"/.test(pe),

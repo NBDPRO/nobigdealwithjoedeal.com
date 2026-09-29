@@ -338,10 +338,10 @@
   // ============================================================================
   // UTILITY FUNCTIONS
   // ============================================================================
+  // Quotes too: this is used inside value="…" and data-d2d-args='…'
+  // attributes (security audit 2026-09-29) — textContent→innerHTML left them raw.
   function esc(s) {
-    const div = document.createElement('div');
-    div.textContent = s || '';
-    return div.innerHTML;
+    return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   // Audit finding #10: Safari's date-string parser is much stricter

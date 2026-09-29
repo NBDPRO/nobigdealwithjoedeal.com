@@ -129,6 +129,7 @@
     "tamko-page-rename.test.js",
     "smart-calendar-forecast.test.js",
     "schedule-events-2026-09-28.test.js",
+    "escape-user-text-sinks-2026-09-29.test.js",
     "home-widgets-survive-signout-2026-09-29.test.js",
     "product-library-company-2026-09-29.test.js",
     "sms-optout-key.test.js",
