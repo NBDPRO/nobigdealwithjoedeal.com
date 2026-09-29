@@ -1839,9 +1839,29 @@ service cloud.firestore {
     // to the caller on create (a rep can't plant a deal under another uid).
     // Without this rule the client write default-denied and deals never synced.
     // Read split from the writes 2026-09-25 so they can carry notViewer().
+    // A deal the homeowner accepted (or the rep signed / scheduled) is a signed
+    // record, locked like a signed contract (Jo, 2026-09-25): nobody deletes
+    // it, moves it back out of a closed status, or rewrites what was accepted.
+    // syncDealToFirestore pushes the rep's whole LOCAL copy, so a tab that
+    // hadn't re-read the server since a remote acceptance wrote status 'sent'
+    // back over 'accepted' (2026-09-28). Other fields (notes, install date)
+    // stay editable.
+    function dealIsClosed(d) {
+      return d.get('status', '') in ['accepted', 'signed', 'scheduled'];
+    }
+    function dealAcceptanceIntact() {
+      return !dealIsClosed(resource.data)
+        || (dealIsClosed(request.resource.data)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'acceptedTier', 'acceptedPrice', 'acceptedFinancing',
+              'acceptedSignature', 'acceptedAt', 'acceptedVia']));
+    }
     match /deal_rooms/{dealId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow update, delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+      allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
+        && dealAcceptanceIntact();
+      allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
+        && !dealIsClosed(resource.data);
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
     }
 
