@@ -328,6 +328,32 @@ async function ingestInvoice(ctx, invOrId, opts) {
   return null;
 }
 
+/**
+ * Money going back to the customer, on the CRM invoice it came from:
+ * invoices/{id}.refunds[] + refundedTotal. Revenue readers subtract these on
+ * the day they happened (collected-revenue.js refundsOf). Keyed by the
+ * Stripe id; a later status change (a refund that failed, a dispute that
+ * was reversed) updates the entry in place, and refundedTotal counts only
+ * entries that actually returned money.
+ */
+async function recordMoneyBack(ctx, invoiceId, mb) {
+  const ref = ctx.db.collection('invoices').doc(invoiceId);
+  await ctx.db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    if (!s.exists) return;
+    const cur = s.data();
+    const list = (Array.isArray(cur.refunds) ? cur.refunds : []).slice();
+    const entry = { amount: mb.cents / 100, at: new Date(mb.atMs), stripeRef: mb.stripeRef, status: mb.status, kind: mb.kind };
+    const i = list.findIndex((x) => x && x.stripeRef === mb.stripeRef);
+    if (i > -1) {
+      if (list[i].status === mb.status && list[i].amount === entry.amount) return;
+      list[i] = Object.assign({}, list[i], entry);
+    } else list.push(entry);
+    const counted = list.filter((x) => x && x.status !== 'failed' && x.status !== 'canceled' && x.status !== 'won');
+    tx.update(ref, { refunds: list, refundedTotal: counted.reduce((t, x) => t + L.cents(x.amount), 0) / 100, updatedAt: FieldValue.serverTimestamp() });
+  });
+}
+
 async function ingestRefund(ctx, re, opts) {
   const o = opts || {};
   const stripe = stripeClient();
@@ -339,23 +365,36 @@ async function ingestRefund(ctx, re, opts) {
   row.party = chargeRow && chargeRow.exists ? chargeRow.data().party || null : null;
   row.match = { leadId: cm.leadId || null, invoiceId: cm.invoiceId || null, method: cm.leadId ? 'from_charge' : null, confidence: cm.leadId ? 'high' : 'none', candidates: [], leadName: cm.leadName || null };
   row.needsReview = false;
-  // Recorded on the CRM invoice for the record (refunds[]); the payments
-  // ledger that revenue reads is left alone until refunds are modelled in
-  // every revenue reader at once — flagged in the project note.
+  // On the CRM invoice's refunds[] — the four revenue readers subtract it on
+  // its date (payments[] / amountPaid are left as they were).
   if (cm.invoiceId && !o.dryRun) {
-    const ref = ctx.db.collection('invoices').doc(cm.invoiceId);
-    await ctx.db.runTransaction(async (tx) => {
-      const s = await tx.get(ref);
-      if (!s.exists) return;
-      const cur = s.data();
-      const list = Array.isArray(cur.refunds) ? cur.refunds : [];
-      if (list.some((x) => x.stripeRef === refund.id)) return;
-      tx.update(ref, { refunds: list.concat({ amount: (refund.amount || 0) / 100, at: new Date((refund.created || 0) * 1000), stripeRef: refund.id, status: refund.status }),
-        refundedTotal: Math.round((L.cents(cur.refundedTotal) + (refund.amount || 0))) / 100, updatedAt: FieldValue.serverTimestamp() });
-    });
+    await recordMoneyBack(ctx, cm.invoiceId, { stripeRef: refund.id, cents: refund.amount || 0, atMs: (refund.created || 0) * 1000, status: refund.status, kind: 'refund' });
   }
   await writeRow(ctx, refund.id, row, o.dryRun);
   return { id: refund.id, kind: 'refund', amount: -(refund.amount || 0) / 100, match: row.match };
+}
+
+/**
+ * A dispute (chargeback). Always in the review list. When it is LOST the
+ * money is gone for good, so it goes on the CRM invoice's refunds[] (kind
+ * 'dispute_lost') and comes off revenue on the day it closed. A dispute
+ * that is won, or still open, takes nothing off.
+ */
+async function ingestDispute(ctx, dp, opts) {
+  const o = opts || {};
+  const chargeId = dp.charge && (dp.charge.id || dp.charge);
+  const chargeRow = chargeId ? await ctx.db.collection(COL).doc(String(chargeId)).get() : null;
+  const row = L.disputeEntry(dp, OWNER, null);
+  const cm = chargeRow && chargeRow.exists ? chargeRow.data().match || {} : {};
+  row.party = chargeRow && chargeRow.exists ? chargeRow.data().party || null : null;
+  row.match = { leadId: cm.leadId || null, invoiceId: cm.invoiceId || null, method: cm.leadId ? 'from_charge' : null, confidence: cm.leadId ? 'high' : 'none', candidates: [], leadName: cm.leadName || null };
+  row.needsReview = dp.status !== 'won' && dp.status !== 'lost'; // open disputes want Jo's eyes
+  if (cm.invoiceId && !o.dryRun && (dp.status === 'lost' || dp.status === 'won')) {
+    // 'won' after a prior 'lost' reverses it in place (recordMoneyBack ignores won).
+    const closedMs = ((dp.status_transitions && dp.status_transitions.closed_at) || dp.created || 0) * 1000;
+    await recordMoneyBack(ctx, cm.invoiceId, { stripeRef: dp.id, cents: dp.amount || 0, atMs: closedMs || Date.now(), status: dp.status, kind: 'dispute_lost' });
+  }
+  return ingestSimple(ctx, dp.id, row, o);
 }
 
 async function ingestSimple(ctx, id, row, opts) {
@@ -395,15 +434,8 @@ async function onEvent(db, event) {
       for (const r of refunds) out.push(await ingestRefund(ctx, r));
       return out;
     }
-    case 'charge.dispute.created': case 'charge.dispute.closed': {
-      const chargeRow = obj.charge ? await db.collection(COL).doc(String(obj.charge.id || obj.charge)).get() : null;
-      const row = L.disputeEntry(obj, OWNER, null);
-      const cm = chargeRow && chargeRow.exists ? chargeRow.data().match || {} : {};
-      row.party = chargeRow && chargeRow.exists ? chargeRow.data().party || null : null;
-      row.match = { leadId: cm.leadId || null, invoiceId: cm.invoiceId || null, method: cm.leadId ? 'from_charge' : null, confidence: cm.leadId ? 'high' : 'none', candidates: [], leadName: cm.leadName || null };
-      row.needsReview = true; // a dispute always wants Jo's eyes
-      return ingestSimple(ctx, obj.id, row);
-    }
+    case 'charge.dispute.created': case 'charge.dispute.closed':
+      return ingestDispute(ctx, obj);
     case 'invoice.finalized': case 'invoice.sent': case 'invoice.paid': case 'invoice.voided': case 'invoice.marked_uncollectible':
       return ingestInvoice(ctx, obj.id);
     case 'payout.paid': case 'payout.failed':
@@ -427,10 +459,7 @@ async function sync(db, { sinceSec, dryRun }) {
     if (r) out.invoices.push(r);
   }
   for await (const re of stripe.refunds.list({ limit: 100, created })) out.refunds.push(await ingestRefund(ctx, re, { dryRun }));
-  for await (const dp of stripe.disputes.list({ limit: 100, created })) {
-    const row = L.disputeEntry(dp, OWNER, null); row.needsReview = true;
-    out.disputes.push(await ingestSimple(ctx, dp.id, row, { dryRun }));
-  }
+  for await (const dp of stripe.disputes.list({ limit: 100, created })) out.disputes.push(await ingestDispute(ctx, dp, { dryRun }));
   for await (const po of stripe.payouts.list({ limit: 100, created })) out.payouts.push(await ingestSimple(ctx, po.id, L.payoutEntry(po, OWNER), { dryRun }));
   const money = out.charges.filter((c) => c.status === 'succeeded').concat(out.invoices);
   out.totals = {
@@ -539,5 +568,5 @@ exports.getStripeOverview = onCall(
 
 module.exports.onEvent = onEvent;
 module.exports.LEDGER_EVENTS = LEDGER_EVENTS;
-module.exports._internal = { loadContext, book, ingestCharge, ingestInvoice, ingestRefund, sync, assign,
+module.exports._internal = { loadContext, book, ingestCharge, ingestInvoice, ingestRefund, ingestDispute, recordMoneyBack, sync, assign,
   setStripe: (client) => { _stripe = client; } };

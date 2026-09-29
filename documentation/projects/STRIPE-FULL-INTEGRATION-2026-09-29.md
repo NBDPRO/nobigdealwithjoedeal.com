@@ -94,6 +94,13 @@ for this and turning on bank (ACH) payments.
 
 ## 4. Known follow-ups
 
+> **Update 2026-09-29 (later):** the first item below is DONE. The four revenue
+> readers subtract `invoices.refunds[]` on its date (identical `refundsOf`
+> helper; a failed/canceled refund or a WON dispute counts nothing); a LOST
+> dispute is written onto `refunds[]` (kind `dispute_lost`) and a status
+> change updates the entry in place. `tests/refunds-in-revenue-2026-09-29.test.js`.
+
+
 - **Refunds and disputes in revenue.** `collected-revenue.js` `paymentsOf()`
   skips amounts ≤ 0, and three other revenue readers copy it (see its header).
   Modelling a refund means changing all four together, plus the "synthetic

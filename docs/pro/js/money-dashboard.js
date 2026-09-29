@@ -58,7 +58,7 @@
   // tightest upper bound we have for pre-ledger cash — lastPaymentAt is the
   // NEWEST credit, strictly later), falling back to lastPaymentAt||paidAt.
   // That dating degrades to the pre-ledger behavior at worst; totals never do.
-  function paymentsOf(inv) {
+  function paymentsOnlyOf(inv) {
     if (Array.isArray(inv.payments) && inv.payments.length > 0) {
       var out = [];
       var ledgerCents = 0;
@@ -89,6 +89,30 @@
     var payDate = inv.lastPaymentAt != null ? inv.lastPaymentAt : inv.paidAt;
     if (payDate == null) return [];
     return [{ amount: cents / 100, at: payDate }];
+  }
+
+  // Refunds (invoices.refunds[], recorded by the Stripe ledger) come off
+  // revenue on the day they happened — negative entries tagged refund:true.
+  // They never touch payments[] / amountPaid / balanceDue, so the
+  // remainder math in paymentsOnlyOf is unaffected. A failed or canceled
+  // refund, or a dispute Jo won, returned nothing. Same helper in all four
+  // revenue readers
+  // (collected-revenue.js, money-dashboard.js, analytics-kpi.js,
+  // pages/leaderboard.js) — tests/refunds-in-revenue-2026-09-29.test.js.
+  function refundsOf(inv) {
+    var out = [];
+    var list = Array.isArray(inv && inv.refunds) ? inv.refunds : [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i] || {};
+      var amt = parseFloat(r.amount);
+      var at = r.at != null ? r.at : r.date;
+      if (!(amt > 0) || at == null || r.status === 'failed' || r.status === 'canceled' || r.status === 'won') continue;
+      out.push({ amount: -amt, at: at, refund: true });
+    }
+    return out;
+  }
+  function paymentsOf(inv) {
+    return paymentsOnlyOf(inv).concat(refundsOf(inv));
   }
   // Canonicalize a vendor name for 1099 matching (mirrors ExpenseConfig.normVendor;
   // inlined to keep this a dependency-free single-module bundle).
