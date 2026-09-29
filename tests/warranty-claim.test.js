@@ -351,15 +351,16 @@ console.log('\nGuard call sites — source-text wiring');
     /oldStageKey === 'warranty_claim'[\s\S]{0,100}newStageKey !== 'warranty_claim'[\s\S]{0,100}lead\.openWarrantyClaimId[\s\S]{0,400}window\.WarrantyClaim\.promptResolution\(lead\)/.test(cp));
   ok('a canceled resolution aborts the move too',
     /resolved = await window\.WarrantyClaim\.promptResolution\(lead\)[\s\S]{0,300}if \(!resolved\)[\s\S]{0,150}return;/.test(cp));
-  // The guard must run BEFORE the required-field gate (same ordering as the
-  // lost-reason prompt) — a stage write must never land while a prompt is
-  // still pending.
+  // Since 2026-09-28 (R14) the required-field gate runs BEFORE the guard: the
+  // gate writes nothing, but the guard WRITES (files / resolves a claim), so
+  // guard-then-gate resolved a claim and was then refused — the lead sat in
+  // Warranty Claim with no open claim. The stage write still lands only after
+  // both (gate-before-warranty-writes-2026-09-28.test.js pins the order).
   const guardIdx = cp.indexOf("newStageKey === 'warranty_claim'");
-  // lastIndexOf, not indexOf — an EARLIER, unrelated comment (the missing-
-  // fields banner helper) also says "Required-field gate"; the one that
-  // matters here is moveCard()'s own gate, right after the guard block.
   const gateIdx = cp.lastIndexOf('Required-field gate');
-  ok('the warranty-claim guard block appears BEFORE the required-field gate', guardIdx > -1 && gateIdx > -1 && guardIdx < gateIdx);
+  const writeIdx = cp.indexOf('commitStageChange(', guardIdx);
+  ok('the required-field gate runs BEFORE the warranty-claim guard, and the stage write after both',
+    guardIdx > -1 && gateIdx > -1 && gateIdx < guardIdx && writeIdx > guardIdx);
 
   const claimBadgeIdx = cp.indexOf('const claimBadge');
   ok('claimBadge reads l.openWarrantyClaimId', /const claimBadge = \(l\.openWarrantyClaimId/.test(cp));

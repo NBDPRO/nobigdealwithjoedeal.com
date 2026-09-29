@@ -1997,6 +1997,27 @@ async function moveCard(id, newStage, opts){
     // lostReason is either a string or null (skip)
   }
 
+  // ─── Required-field gate ───
+  // Runs BEFORE the warranty guard (CRM sweep R14, 2026-09-28): that guard
+  // WRITES (files a claim / resolves one) — resolving a claim and then being
+  // refused here (Closed needs warranty cert + COC dates) left the lead in
+  // Warranty Claim with no open claim behind it. Check first, write after.
+  // Block stage advancement when the destination stage has required fields
+  // missing on the lead (e.g., can't move to claim_filed without claimNumber).
+  // Skip for moves to 'lost' — reps need to dispose of dead leads regardless.
+  // The check uses missingRequiredFields against a hypothetical lead at the
+  // new stage so we evaluate the destination's requirements, not the current.
+  // The helper opens the lead modal with an in-place banner listing what's
+  // missing + click-to-jump anchors; see _openLeadModalWithMissingFieldsBanner
+  // above for the UX rationale (banner-instead-of-flash-toast).
+  if (!isLostMove && typeof window.missingRequiredFields === 'function') {
+    const missing = window.missingRequiredFields({ ...lead, stage: newStage });
+    if (missing.length > 0) {
+      _openLeadModalWithMissingFieldsBanner(lead, newStage, missing);
+      return;
+    }
+  }
+
   // ─── Warranty-claim guard ───
   // 2026-09-15 (Warranty Claim lane). Two directions, both must run BEFORE
   // the lead.stage write below (same contract as the lost-reason prompt):
@@ -2046,22 +2067,6 @@ async function moveCard(id, newStage, opts){
     }
   }
 
-  // ─── Required-field gate ───
-  // Block stage advancement when the destination stage has required fields
-  // missing on the lead (e.g., can't move to claim_filed without claimNumber).
-  // Skip for moves to 'lost' — reps need to dispose of dead leads regardless.
-  // The check uses missingRequiredFields against a hypothetical lead at the
-  // new stage so we evaluate the destination's requirements, not the current.
-  // The helper opens the lead modal with an in-place banner listing what's
-  // missing + click-to-jump anchors; see _openLeadModalWithMissingFieldsBanner
-  // above for the UX rationale (banner-instead-of-flash-toast).
-  if (!isLostMove && typeof window.missingRequiredFields === 'function') {
-    const missing = window.missingRequiredFields({ ...lead, stage: newStage });
-    if (missing.length > 0) {
-      _openLeadModalWithMissingFieldsBanner(lead, newStage, missing);
-      return;
-    }
-  }
 
   lead._pending = true;
 
