@@ -99,10 +99,10 @@ function inviteDoc(email, role, invitedBy) {
   return { email, role, status: 'invited', invitedAt: FieldValue.serverTimestamp(), invitedBy: invitedBy || 'x' };
 }
 // Exactly the request shape the callable wrapper hands the handler.
-async function claim(user, tokenExtra) {
+async function claim(user, tokenExtra, data) {
   const token = Object.assign({ email: user.email, email_verified: true }, tokenExtra || {});
   try {
-    return await claimInvite.run({ auth: { uid: user.uid, token }, data: {} });
+    return await claimInvite.run({ auth: { uid: user.uid, token }, data: data || {} });
   } catch (e) {
     return { threw: e.code || e.message };
   }
@@ -392,6 +392,59 @@ async function run() {
     const l3 = await findPendingInvite(db, e3, opts);
     ok('11 real invite past the ceiling → ambiguous, not none',
       l3.status === 'ambiguous' && l3.truncated === true, JSON.stringify({ s: l3.status, t: l3.truncated }));
+  }
+
+  // ── 12. An owner of their own company must choose to join (2026-09-29) ──
+  // The dashboard calls claimInvite at boot. It used to claim on the spot, so
+  // any tenant's invite to an owner's email silently moved that owner into the
+  // other team. Now the server previews unless { confirm: true }.
+  section('12. explicit Join for anyone who owns a company');
+  {
+    const co = await makeCompany('owner12');
+    const soloUid = await makeCompany('solo12');                  // owns companies/{uid}
+    const solo = { uid: soloUid, email: (await auth.getUser(soloUid)).email };
+    await auth.setCustomUserClaims(soloUid, { companyId: soloUid, role: 'company_admin' });
+    const inv = `companies/${co}/members/${solo.email}`;
+    await db.doc(inv).set(inviteDoc(solo.email, 'sales_rep', co));
+
+    const preview = await claim(solo, { companyId: soloUid, role: 'company_admin' });
+    ok('12 owner + real invite, no confirm → confirm_required with who/what, nothing claimed',
+      preview.claimed === false && preview.reason === 'confirm_required' && preview.companyId === co
+        && preview.companyName === 'Co owner12' && preview.role === 'sales_rep', JSON.stringify(preview));
+    ok('12 ...claims untouched (still their own company, still company_admin)',
+      (await claimsOf(soloUid)).companyId === soloUid && (await claimsOf(soloUid)).role === 'company_admin');
+    ok('12 ...invite still pending', (await statusOf(inv)) === 'invited');
+    ok('12 ...own company not superseded', !(await db.doc(`companies/${soloUid}`).get()).data().status || (await db.doc(`companies/${soloUid}`).get()).data().status === 'active');
+    ok('12 an EMPTY own company → hasData:false (one Join is enough)', preview.hasData === false, JSON.stringify(preview));
+    await db.doc(`leads/${RUN}-lead12`).set({ companyId: soloUid, userId: soloUid, firstName: 'ZZ_QA', lastName: 'Lead' });
+    const withData = await claim(solo, { companyId: soloUid, role: 'company_admin' });
+    ok('12 an own company WITH a lead → hasData:true (the second, stronger step)', withData.reason === 'confirm_required' && withData.hasData === true, JSON.stringify(withData));
+
+    const truthy = await claim(solo, { companyId: soloUid, role: 'company_admin' }, { confirm: 'yes' });
+    ok('12 confirm must be exactly true (a truthy string is still a preview)', truthy.reason === 'confirm_required', JSON.stringify(truthy));
+
+    const joined = await claim(solo, { companyId: soloUid, role: 'company_admin' }, { confirm: true });
+    ok('12 { confirm: true } → joins', joined.claimed === true && joined.companyId === co, JSON.stringify(joined));
+    ok('12 ...claims now the team', (await claimsOf(soloUid)).companyId === co);
+    ok('12 ...own company marked superseded (records kept)', (await db.doc(`companies/${soloUid}`).get()).data().status === 'superseded-by-invite');
+
+    // No companyId claim yet but a companies/{uid} doc it owns (a legacy or
+    // mid-provisioning owner) is still an owner — no silent claim.
+    const co2 = await makeCompany('owner12b');
+    const legacyUid = await makeCompany('legacy12');
+    const legacy = { uid: legacyUid, email: (await auth.getUser(legacyUid)).email };
+    await db.doc(`companies/${co2}/members/${legacy.email}`).set(inviteDoc(legacy.email, 'manager', co2));
+    const lp = await claim(legacy);
+    ok('12 owner with no companyId claim (owns companies/{uid}) → still confirm_required', lp.reason === 'confirm_required', JSON.stringify(lp));
+
+    // Positive control: an account with no company of its own (signed up
+    // through the invite link) still joins at once — section 2 covers the
+    // full shape; this pins that the new gate did not catch it.
+    const co3 = await makeCompany('owner12c');
+    const invitee = await makeUser('invitee12');
+    await db.doc(`companies/${co3}/members/${invitee.email}`).set(inviteDoc(invitee.email, 'sales_rep', co3));
+    const direct = await claim(invitee);
+    ok('12 invite-link signup (no company of its own) → joins without a prompt', direct.claimed === true && direct.companyId === co3, JSON.stringify(direct));
   }
 }
 

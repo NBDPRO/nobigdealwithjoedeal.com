@@ -492,6 +492,14 @@
         try {
           var res = await _teamCallable('claimInvite', {});
           var data = (res && res.data) || {};
+          // An owner of their own company must choose to join (invite-join.js).
+          // Asked even if they declined at boot: pressing this button is asking.
+          if (data.reason === 'confirm_required' && window.NBDInviteJoin) {
+            say('Invite found from ' + (data.companyName || 'a team') + '.', 'var(--orange)');
+            var outcome = await window.NBDInviteJoin.handle(data, function (p) { return _teamCallable('claimInvite', p); }, { fromBoot: false });
+            if (outcome !== 'joined') { say('Not joined. You can check again any time.', 'var(--m)'); return; }
+            data = { claimed: true };
+          }
           if (data.claimed) {
             say('Invite found! Joining your team — reloading…', 'var(--orange)');
             if (window._user) await window._user.getIdToken(true);

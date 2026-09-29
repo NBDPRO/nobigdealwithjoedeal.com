@@ -103,6 +103,7 @@ Worktrees exist, but they are empty: `nbd-wt-signlock`, `nbd-wt-inviteaccept`, `
   - **Must keep working:** the signing transition itself (in-person in the doc viewer, and remote via `sign.html`) and the server paths that update signed docs.
   - **Client:** a locked-document message.
 - **inviteaccept (`fix/invite-explicit-accept`):**
+  - **DONE 2026-09-29** (branch `fix/invite-join-step`; the old empty branch was left alone). The server enforces it: claimInvite answers `confirm_required` (with `hasData`) for anyone who owns a company, and joins only on `{ confirm: true }`. An account with no company of its own (signed up through the invite link) still joins at once. invite-join.js shows Join / Not now at boot, without blocking it, and in the Team tab; there is a second step only when the owner's company has leads. Declines are stored on `userSettings.inviteDeclined`.
   - **The problem:** `dashboard-bootstrap.module.js` (~L1795-1822) calls `claimInvite` automatically at boot for anyone with no `companyId` claim or with `companyId == uid`. That includes **Jo's own solo account**. A real invite from any paid tenant silently re-points that account.
   - **Preview first:** fetch the invite without claiming it, then show a "Join team / Not now" modal.
   - **Solo owners with data** get a strong warning and a second confirm.
