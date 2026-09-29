@@ -314,6 +314,39 @@ Jo reported two things. A caller had to say "Hello?" before Thursday spoke. Anot
   - Unverified until a real call: the greeting timing with the init step in front, and a known caller getting "Is this …?".
 - **Bland balance read −0.50 credits** on 2026-09-28. Watch it: a negative balance may stop calls.
 
+## 11. Verification of the 09-28 fixes (2026-09-29, read-only)
+
+Read from Bland (`GET /v1/calls`, `/v1/calls/{id}`) and from Cloud Logging,
+without placing any calls. The analyzer printed only timings, flags and
+variable **names**, never numbers or transcript text.
+
+- **Dead air: FIXED.** There were 2 inbound calls after 2026-09-28 18:16Z
+  (09-28 20:28Z and 09-29 16:53Z), both on pathway v17.
+  - On both, Thursday spoke first: the 166-character `first_sentence`,
+    stamped at 4.3 s and 4.5 s. That stamp marks when she *finished* the line,
+    so she started at ~1 s.
+  - Before the fix, the caller always spoke first, 9–32 s in.
+- **Both callers hung up ~6 s in without a word** (1 transcript turn each,
+  `call_ended_by: USER`). Two calls can't separate spam or hang-ups-on-a-bot
+  from a problem with the line.
+- **Greet-by-name: still unproven, and suspect.**
+  - `thursdaycallerlookup` has had **no HTTP requests since 2026-09-27
+    01:51Z**. The positive control, `thursdaywebhook`, logged a 200 for
+    each of the two calls.
+  - That includes the builder "Run test → 200 in 37 ms" from 09-28 18:16Z.
+    So that test did not reach our function, or it reached a different URL.
+  - Neither call carries any `caller_*` variable. Both callers hung up
+    before the agent's first turn, though, so the init step may simply not
+    have been reached.
+- **Next (needs Jo):** one test call from Jo's phone, staying on the line
+  past the greeting and saying a sentence.
+  1. Re-run the analyzer (scratch: `thu-verify.js`, `thu-vars.js`), then
+     check `thursdaycallerlookup` request logs for that minute.
+  2. If there is no request, open the builder's Initialization snippet and
+     compare its URL with the deployed function URL.
+- **Tools** (transfer / hang-up) are still unverified: neither call reached a
+  turn where they'd fire.
+
 ## 6. Coordination notes
 
 - **#1780** (viewer-refusing callables) adds `tests/viewer-callables.test.js`. It requires every exported callable and HTTP function to carry a verdict.

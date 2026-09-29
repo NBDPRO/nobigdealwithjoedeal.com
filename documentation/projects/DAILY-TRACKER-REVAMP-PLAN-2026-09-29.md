@@ -155,3 +155,32 @@ on these answers.
 - Test: [tracker-weight-history](../../tests/tracker-weight-history-2026-09-29.test.js)
   (34 checks). Verified on the emulator with synthetic pages: 9 days imported,
   and a re-run found 0.
+
+### Update 2026-09-29 (evening) — Phase 2 (food) shipped on the default
+
+Jo still hadn't picked a style and said "do all 3 that you can", so this is
+the plan's default. Jo can ask for barcode lookup (Open Food Facts) later.
+
+- **The 🍽 Food card** sits on top of the Diet section. It writes into the
+  existing four meal rows (`data['diet-m{i}-*']`), so meals save and sync
+  with the day page. There is no new collection and no rules change.
+- **Protein bar:** the target defaults to **1 g per lb of the 7-day average
+  weight**, from the weight card. Calories show only when Jo sets a target.
+  With no weight and no target there is no bar; it never invents a number.
+- **Favorites:** "Save as favorite" takes a meal row Jo typed. One tap adds a
+  favorite into the meal for this time of day, or into a meal Jo picks:
+  macros sum, and a name isn't repeated.
+- **"Same as yesterday"** fills only **empty** meal rows from the previous
+  dated page. It never overwrites.
+- Favorites and targets are stored in `nbd_ds_food` and sync through
+  `userSettings.dsFood`, the same path the coach uses, so they survive
+  sign-out.
+- Test: [tracker-food-log](../../tests/tracker-food-log-2026-09-29.test.js)
+  (26 checks). It caught a real bug: a favorite whose name contains " + "
+  used to get repeated.
+- Verified on the emulator:
+  - Yesterday's meals copied into empty rows.
+  - The favorite reached `userSettings.dsFood` in Firestore.
+  - A quick-add summed into the right meal.
+  - The header read SAVED.
+  - The card fits at 375px.
