@@ -137,6 +137,7 @@
     "yard-signs-2026-09-29.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
+    "stripe-ledger-ui-2026-09-29.test.js",
     "daily-success-sync-2026-09-29.test.js",
     "home-widgets-survive-signout-2026-09-29.test.js",
     "product-library-company-2026-09-29.test.js",
