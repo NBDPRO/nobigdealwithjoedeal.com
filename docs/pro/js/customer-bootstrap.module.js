@@ -83,8 +83,19 @@ function _nextStageFor(lead) {
   const current = (lead && lead.stage) || 'new';
   let nextStage = null;
   const idx = pipeline.indexOf(current);
-  if (idx >= 0 && idx < pipeline.length - 1) nextStage = pipeline[idx + 1];
-  else if (legacyMap[current]) nextStage = legacyMap[current];
+  // "Next Stage" never means Lost (CRM sweep R14, 2026-09-28) — a custom stage
+  // added after Lost offered "→ Move to Lost" as its next step. Skip every
+  // lost-role stage; losing a job is its own action.
+  const _isLost = (k) => {
+    const meta = resolved && resolved.stageMeta && resolved.stageMeta[k];
+    const role = (meta && meta.role) || (typeof window.stageRole === 'function' ? window.stageRole(k) : null);
+    return role === 'lost' || k === 'lost';
+  };
+  if (idx >= 0) {
+    for (let i = idx + 1; i < pipeline.length; i++) {
+      if (!_isLost(pipeline[i])) { nextStage = pipeline[i]; break; }
+    }
+  } else if (legacyMap[current]) nextStage = legacyMap[current];
   if (!nextStage) return null;
 
   const label = (resolved.stageMeta[nextStage] && resolved.stageMeta[nextStage].label) || _stageLabel(nextStage) || nextStage;
