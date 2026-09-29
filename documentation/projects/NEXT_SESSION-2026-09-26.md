@@ -109,6 +109,7 @@ Worktrees exist, but they are empty: `nbd-wt-signlock`, `nbd-wt-inviteaccept`, `
   - **Declines persist** on `userSettings` or on the member doc, *not* in `nbd_` localStorage.
   - **Sign-up through the invite link counts as acceptance.** Document why.
 - **publead (`fix/public-measure-path-allowlist`):**
+  - **DONE 2026-09-29** (branch `fix/public-measure-bridged-only`). The paid gate and the write-back both require a bridge-created lead: the doc id must equal `bridgeDocId('estimate_leads', publicLeadId)`, the collection is fixed, and the id is validated. There is no rules change: the server check closes the hole, and blocking those fields in rules risked breaking lead edits and restores. Swept `functions/` for other template-path doc refs: `publicRoofMeasure` maps kind to a fixed collection with a validated id, and `stripe-connect` uses constant collections with ids from auth or Stripe. No other data-derived paths.
   - **The problem:** `functions/integrations/public-measure.js` (~L217-224) makes an Admin-SDK write to `${lead.publicLeadCollection}/${lead.publicLeadId}`. Both fields can be set by the client, and the path can also trigger a paid vendor call.
   - **Fix:** allowlist the collection, validate the id, and verify a back-reference.
   - **Rules:** clients may not set `webLead`, `publicLeadKind`, `publicLeadCollection` or `publicLeadId`.
