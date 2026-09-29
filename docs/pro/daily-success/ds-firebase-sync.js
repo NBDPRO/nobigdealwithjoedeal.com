@@ -232,8 +232,9 @@ onAuthStateChanged(auth, async user => {
     }
     if (restored && typeof window.hideBanner === 'function' && localStorage.getItem('nbd_user_config')) window.hideBanner();
     if (changedLocal || restored) {
-      if (typeof window.renderTabs === 'function') window.renderTabs();
-      if (typeof window.renderDash === 'function') window.renderDash();
+      // The CURRENT view — forcing renderDash() here left `cur` on a page the
+      // screen wasn't showing, and the next tab tap wiped that page's rows.
+      if (typeof window.dsRefreshView === 'function') window.dsRefreshView();
     }
     await pushToFirestore(merged.pages);
     showBadge(merged.pages.length + ' days loaded', '#2ECC8A');
