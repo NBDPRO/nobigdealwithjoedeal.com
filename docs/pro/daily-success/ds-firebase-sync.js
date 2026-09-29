@@ -40,7 +40,9 @@ const TOMB  = 'nbd_dsp_tomb';
 const SETTINGS = [
   { key: 'nbd_user_config', field: 'dsConfig' },
   { key: 'nbd_gt',          field: 'dsGoalTargets' },
+  { key: 'nbd_ds_coach',    field: 'dsCoach' },        // Workout Coach: rotation / freshness / equipment
 ];
+const WKEY = 'nbd_ds_workouts'; // Workout Coach sessions (users/{uid}/ds_workouts)
 
 let _uid = null, _syncTimer = null, _badge = null;
 let _pushing = null;              // the in-flight push, so two never overlap
@@ -192,7 +194,37 @@ async function syncSettings() {
   return restored;
 }
 
-window.NBDDsCloud = { pushSettings };
+// ── Workout Coach sessions (users/{uid}/ds_workouts) ─────────────────────
+// Same newer-mt-wins merge as the pages (NBDCoach.mergeSessions). A session
+// finished offline lives in localStorage and is pushed on the next sync.
+async function syncWorkouts() {
+  if (!_uid || !window.NBDCoach || !L()) return;
+  const cloud = [];
+  try {
+    const snap = await getDocs(collection(db, 'users', _uid, 'ds_workouts'));
+    snap.forEach(d => { const x = d.data(); delete x._uid; delete x._updatedAt; cloud.push(x); });
+  } catch (e) { return; }
+  const merged = window.NBDCoach.mergeSessions(readJson(WKEY, []), cloud);
+  localStorage.setItem(WKEY, JSON.stringify(merged));
+  const inCloud = new Map(cloud.map(x => [String(x.id), x]));
+  const push = merged.filter(x => { const c = inCloud.get(String(x.id)); return !c || (Number(x.mt) || 0) > (Number(c.mt) || 0); });
+  for (const group of L().chunk(push, L().CHUNK)) {
+    const batch = writeBatch(db);
+    for (const x of group) batch.set(doc(db, 'users', _uid, 'ds_workouts', String(x.id)), { ...x, _uid, _updatedAt: serverTimestamp() }, { merge: true });
+    await batch.commit();
+  }
+  if (window.NBDCoachUI && typeof window.NBDCoachUI.refresh === 'function') window.NBDCoachUI.refresh();
+}
+
+async function pushWorkout(session) {
+  if (!_uid || !session || !session.id) return false;
+  try {
+    await setDoc(doc(db, 'users', _uid, 'ds_workouts', String(session.id)), { ...session, _uid, _updatedAt: serverTimestamp() }, { merge: true });
+    return true;
+  } catch (e) { console.warn('[ds-sync] workout push failed', e && e.code); return false; }
+}
+
+window.NBDDsCloud = { pushSettings, pushWorkout };
 
 function installInterceptor() {
   const orig = window.savePages;
@@ -237,6 +269,7 @@ onAuthStateChanged(auth, async user => {
       if (typeof window.dsRefreshView === 'function') window.dsRefreshView();
     }
     await pushToFirestore(merged.pages);
+    await syncWorkouts();
     showBadge(merged.pages.length + ' days loaded', '#2ECC8A');
   } catch(e) { showBadge('Sync error'); }
 });

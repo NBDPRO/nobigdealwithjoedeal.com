@@ -1168,6 +1168,7 @@ service cloud.firestore {
       //   captures     quick-capture.js, quick-capture-inbox.js, talk-tank.js
       //   ds_meta      daily-success/ds-firebase-sync.js (streaks doc)
       //   ds_pages     daily-success/ds-firebase-sync.js
+      //   ds_workouts  daily-success/ds-firebase-sync.js (Workout Coach sessions)
       //   fcmTokens    push-registration.js
       //   preferences  mobile-nav-customizer.js
       //   settings     ai-texting-persona.js (aiPersona)
@@ -1176,7 +1177,7 @@ service cloud.firestore {
       // A NEW client-written subcollection must be added here or its writes
       // are denied; tests/firestore-rules.test.js section 35 pins the list.
       function userWritableSubcollection(name) {
-        return name in ['captures', 'ds_meta', 'ds_pages', 'fcmTokens', 'preferences', 'settings'];
+        return name in ['captures', 'ds_meta', 'ds_pages', 'ds_workouts', 'fcmTokens', 'preferences', 'settings'];
       }
       match /{subcol}/{docId} {
         allow read: if isOwner(uid) || isAdmin();
