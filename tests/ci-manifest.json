@@ -20,6 +20,7 @@
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
+    "events-not-open-tasks-2026-09-28.test.js",
     "stripe-payoff-advance-guard-2026-09-28.test.js",
     "bulk-carrier-field-2026-09-28.test.js",
     "bulk-move-honest-count-2026-09-28.test.js",
