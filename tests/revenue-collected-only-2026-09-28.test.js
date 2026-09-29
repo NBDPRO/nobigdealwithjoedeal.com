@@ -144,6 +144,29 @@ console.log('REVENUE — invoice load scoping + per-account cache');
     ok('core KPI revenue = collectedOn(leads, range); booked kept separately', /const revenue = collectedOn\(leads, rangeStart, rangeEnd\);\s*const bookedValue =/.test(rep));
     ok('no report revenue sums jobValue', !/revenue \+= Number\(l\.jobValue\)/.test(rep) && !/revenue = won\.reduce/.test(rep));
     ok('hero label says Revenue Collected', />Revenue Collected</.test(rep) && !/>Revenue Closed</.test(rep));
+    // R14 (2026-09-28): the report showed "Revenue Collected $23,140 · 6 deals"
+    // (cash beside a won-deal count) and a second template still said "Total
+    // Revenue"; the fallback narrative said the cash "closed across N deals".
+    ok('no report template labels collected money "Total Revenue"', !/>Total Revenue</.test(rep));
+    ok('the revenue tile\'s sub-label separates closed deals from booked value',
+      (rep.match(/deals closed · \$\{fmtMoney\(core\.bookedValue \|\| 0\)\} booked/g) || []).length === 3);
+    {
+      // R14: the Monthly Review template builds its own <style> and never had
+      // the shell's .narrative rules — the Coach's Note rendered as bare text.
+      const RRG0 = read('docs/pro/js/rep-report-generator.js');
+      const mStart = RRG0.indexOf('function buildRepMonthlyReviewHTML(');
+      const mStyle = mStart > 0 ? RRG0.slice(mStart, RRG0.indexOf('</style>', mStart)) : '';
+      ok('Monthly Review stylesheet styles the AI Coach\'s Note', /\.narrative \{/.test(mStyle) && /\.narrative-text \{/.test(mStyle) && /\.narrative-badge \{/.test(mStyle));
+    }
+    {
+      const RRG = read('docs/pro/js/rep-report-generator.js');
+      const nctx = { fmtMoney: (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US'), Math };
+      vm.createContext(nctx);
+      vm.runInContext(extractFn(RRG, 'buildFallbackNarrative') + '\nglobalThis.__n = buildFallbackNarrative;', nctx);
+      const text = String(nctx.__n('monthly', { core: { revenue: 23140, dealsClosed: 6, bookedValue: 56520, avgJobValue: 9420 } }, null));
+      ok('fallback narrative: cash is "collected", deals are "booked" — never "closed across"',
+        /\$23,140 collected/.test(text) && /\$56,520 booked/.test(text) && !/closed across/.test(text), text.slice(0, 160));
+    }
 
     const WD = read('functions/weekly-digest.js');
     const wdCtx = {};

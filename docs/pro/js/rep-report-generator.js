@@ -778,9 +778,11 @@
     const topCity = (metrics.topCities && metrics.topCities.topCities && metrics.topCities.topCities[0]) || null;
     const parts = [];
     if (core.revenue > 0) {
-      parts.push(fmtMoney(core.revenue) + ' closed across ' + (core.dealsClosed || 0) + ' deals (avg ' + fmtMoney(core.avgJobValue) + ').');
+      // Revenue is money COLLECTED (Jo, 2026-09-28) — it is not what the
+      // closed deals were worth, so don't say the cash "closed across" them.
+      parts.push(fmtMoney(core.revenue) + ' collected; ' + (core.dealsClosed || 0) + ' deals closed worth ' + fmtMoney(core.bookedValue || 0) + ' booked (avg ' + fmtMoney(core.avgJobValue) + ').');
     } else {
-      parts.push('No closed revenue in this period — pipeline has ' + (core.leadsCreated || 0) + ' new leads worth ' + fmtMoney(core.pipelineValue) + '.');
+      parts.push('No revenue collected in this period — pipeline has ' + (core.leadsCreated || 0) + ' new leads worth ' + fmtMoney(core.pipelineValue) + '.');
     }
     if (k2d.totalKnocks > 0 && k2d.dealsClosed > 0) {
       parts.push('Conversion sits at ' + Math.round(k2d.knocksPerDeal) + ' knocks per deal across ' + k2d.totalKnocks + ' total doors.');
@@ -1374,6 +1376,13 @@
     border: 1px solid #eee;
     min-height: 300px;
   }
+  /* AI "Coach's Note" — same rules as the shared report shell. This template
+     builds its own page and never had them, so the note rendered as bare
+     text flush against the page edge (CRM sweep R14, 2026-09-28). */
+  .narrative { background: #fff8f0; border-left: 5px solid #BD5728; padding: 24px 28px; margin: 0; border-bottom: 1px solid #eee; position: relative; }
+  .narrative-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .18em; color: var(--orange,#BD5728); text-transform: uppercase; margin-bottom: 8px; }
+  .narrative-text { font-size: 16px; line-height: 1.6; color: #1a1a1a; font-weight: 500; }
+  .narrative-badge { position: absolute; top: 12px; right: 20px; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--orange,#BD5728); background: #fff; border: 1px solid color-mix(in srgb, #BD5728 30%, transparent); padding: 3px 8px; border-radius: 10px; }
 ${STATIC_CHART_CSS}
   @media print {
     body { background: #fff; }
@@ -1399,7 +1408,7 @@ ${STATIC_CHART_CSS}
       <div class="hero-cell">
         <div class="hero-label">Revenue Collected</div>
         <div class="hero-value orange">${fmtMoney(core.revenue)} ${priorCore ? deltaChip(core.revenue, priorCore.revenue) : ''}</div>
-        <div class="hero-sub">${fmtNumber(core.dealsClosed)} deals</div>
+        <div class="hero-sub">${fmtNumber(core.dealsClosed)} deals closed · ${fmtMoney(core.bookedValue || 0)} booked</div>
       </div>
       <div class="hero-cell">
         <div class="hero-label">Close Rate</div>
@@ -1671,9 +1680,9 @@ ${STATIC_CHART_CSS}
         <div class="hero-sub">${topCity ? (fmtMoney(topCity.revenue) + ' closed') : 'no data'}</div>
       </div>
       <div class="hero-cell">
-        <div class="hero-label">Total Revenue</div>
+        <div class="hero-label">Revenue Collected</div>
         <div class="hero-value">${fmtMoney(core.revenue)} ${priorCore ? deltaChip(core.revenue, priorCore.revenue) : ''}</div>
-        <div class="hero-sub">${fmtNumber(core.dealsClosed)} deals</div>
+        <div class="hero-sub">${fmtNumber(core.dealsClosed)} deals closed · ${fmtMoney(core.bookedValue || 0)} booked</div>
       </div>
       <div class="hero-cell">
         <div class="hero-label">Revenue per Door</div>
@@ -1871,9 +1880,9 @@ ${STATIC_CHART_CSS}
     return shell.head + `
     <div class="hero-grid">
       <div class="hero-cell">
-        <div class="hero-label">Total Revenue</div>
+        <div class="hero-label">Revenue Collected</div>
         <div class="hero-value orange">${fmtMoney(core.revenue)} ${priorCore ? deltaChip(core.revenue, priorCore.revenue) : ''}</div>
-        <div class="hero-sub">${fmtNumber(core.dealsClosed)} deals closed</div>
+        <div class="hero-sub">${fmtNumber(core.dealsClosed)} deals closed · ${fmtMoney(core.bookedValue || 0)} booked</div>
       </div>
       <div class="hero-cell">
         <div class="hero-label">Pipeline Value</div>
