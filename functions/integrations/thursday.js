@@ -48,6 +48,7 @@ const { SECRETS, getSecret, hasSecret, secretValue, secretOr } = require('./_sha
 const { enforceRateLimit, clientIp } = require('./upstash-ratelimit');
 const { resendRejected, resendErrorMessage } = require('../resend-guard');
 const T = require('./thursday-logic');
+const { createLeadWithCustomerId, isAlreadyExists } = require('../customer-id-mint');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -310,11 +311,16 @@ async function applyRoute(args) {
   if (route.action === 'create_lead') {
     leadId = T.leadDocIdForCall(call.callId);
     const doc = T.buildLeadDoc({ extraction, call, ownerUid, companyId });
-    await createIfAbsent(db().doc('leads/' + leadId), Object.assign(doc, {
-      createdAt: FieldValue.serverTimestamp(),
-      stageStartedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }));
+    // Create-if-absent, with the customerId minted in the same transaction.
+    try {
+      await createLeadWithCustomerId(db(), db().doc('leads/' + leadId), Object.assign(doc, {
+        createdAt: FieldValue.serverTimestamp(),
+        stageStartedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }));
+    } catch (e) {
+      if (!isAlreadyExists(e)) throw e;
+    }
   }
   if (!leadId || route.action === 'inbox' || route.action === 'log_only') return { leadId: null, taskId: null };
 

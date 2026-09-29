@@ -50,6 +50,12 @@ Checked in this order:
 | 4 | It matches a customer's full name, or their street (with or without the house number; spelling-tolerant) | Suggested job, which you confirm |
 | 5 | Nothing matches, or several customers do | You pick |
 
+Every lead has its customer number from the moment it's created, including
+website forms, Thumbtack, Cal.com bookings, Thursday calls, referrals and
+converted texts (server-side mint, 2026-09-29). Put it in the PO/Job name when
+you buy. The one exception is a tenant that has never set its company legal
+name. Those leads get their number the first time someone opens the customer page.
+
 **Category:**
 - **Tools & Small Equipment** when the job name or the items are tools. Home Depot files power tools under *Hardware*, so tool words decide, not the department.
 - **Equipment** (a job cost) only when Home Depot's own department is **TOOL RENTAL**, meaning a real rental.

@@ -73,7 +73,8 @@ const routeConfig = {
   // set-compares every view-* mount against these keys.
   'expenses':     { label: 'Expenses',          parent: null },
   'money':        { label: 'Money',             parent: null },
-  'refrewards':   { label: 'Referrals',         parent: null }
+  'refrewards':   { label: 'Referrals',         parent: null },
+  'signs':        { label: 'Yard Signs',        parent: null }
 };
 
 /**

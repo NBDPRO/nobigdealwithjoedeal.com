@@ -52,6 +52,7 @@ const crypto = require('crypto');
 const { getSecret, hasSecret, SECRETS } = require('./_shared');
 const L = require('../lead-bridge-logic');
 const CL = require('./calcom-logic');
+const { createLeadWithCustomerId } = require('../customer-id-mint');
 
 exports.calcomWebhook = onRequest(
   {
@@ -177,7 +178,7 @@ exports.calcomWebhook = onRequest(
           try {
             const newLeadId = L.bridgeDocId('calcom', bookingId);
             const fields = CL.buildCalcomLeadFields({ payload, bookingId });
-            await db.collection('leads').doc(newLeadId).create({
+            await createLeadWithCustomerId(db, db.collection('leads').doc(newLeadId), {
               ...fields,
               userId: repUid,
               companyId: repCompanyId || repUid,

@@ -283,6 +283,8 @@ async function partA() {
       '[data-ceh-act="primary"]', '[data-ceh-act="duplicate"]', '[data-ceh-act="assign"]', '[data-ceh-act="archive"]', '[data-ceh-act="new"]'],
     'expenses log/supplier/recurring/delete': ['[data-exp-action="open-form"]', '[data-exp-action="open-supplier"]',
       '[data-exp-action="add-recurring"]', '[data-exp-action="del-recurring"]', '[data-exp-action="del-supplier"]', '[data-exp-action="delete"]'],
+    'yard signs place/pickup/extend/missing': ['[data-ys-action="open-place"]', '[data-ys-action="save-place"]',
+      '[data-ys-action="pickup"]', '[data-ys-action="extend"]', '[data-ys-action="missing"]'],
     'knock, kanban "+ task", phone Task, portal reply, rules self-test, follow-up sends': [F('openD2DOrGo'), '.kc-task-badge.empty',
       '#nbd-quick-action-bar .qab-task', '#repMsgText', '#repMsgSend', F('testFirestoreRules'), '[data-csf-action="sms"]', '[data-csf-action="email"]'],
     'document generation (kept visible, blocked)': [A('docgen'), A('generateCustomerDoc')],
