@@ -349,6 +349,11 @@ exports.notifyNewLead = onCall(
       const resend = new Resend(RESEND_API_KEY.value());
       const fromEmail = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
 
+      // Every value below is public input (the estimate funnel) — escaped so a
+      // submitter cannot inject links or markup into Joe's inbox (security
+      // audit 2026-09-29).
+      const h = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const telDigits = String(phone).replace(/\D/g, '');
       const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -376,33 +381,33 @@ exports.notifyNewLead = onCall(
     ${timeline === 'asap' ? '<div style="margin-bottom:14px;"><span class="badge urgent">🚨 URGENT — ASAP Timeline</span></div>' : ''}
     <div class="field">
       <div class="label">Name</div>
-      <div class="value">${name}</div>
+      <div class="value">${h(name)}</div>
     </div>
     <div class="field">
       <div class="label">Phone ${verified ? '<span class="badge verified">✅ Verified</span>' : '<span class="badge unverified">⚠️ Unverified</span>'}</div>
-      <div class="value"><a href="tel:${phone.replace(/\\D/g, '')}" style="color:#bd5728;text-decoration:none;">${phone}</a></div>
+      <div class="value"><a href="tel:${telDigits}" style="color:#bd5728;text-decoration:none;">${h(phone)}</a></div>
     </div>
     <div class="field">
       <div class="label">Email</div>
-      <div class="value"><a href="mailto:${email || ''}" style="color:#bd5728;text-decoration:none;">${email || 'Not provided'}</a></div>
+      <div class="value"><a href="mailto:${h(email || '')}" style="color:#bd5728;text-decoration:none;">${h(email || 'Not provided')}</a></div>
     </div>
     <div class="field">
       <div class="label">Address</div>
-      <div class="value">${address || 'Not provided'}</div>
+      <div class="value">${h(address || 'Not provided')}</div>
     </div>    <div class="field">
       <div class="label">Service</div>
-      <div class="value">${serviceName}</div>
+      <div class="value">${h(serviceName)}</div>
     </div>
     <div class="field">
       <div class="label">Timeline</div>
-      <div class="value">${timelineName}</div>
+      <div class="value">${h(timelineName)}</div>
     </div>
     ${requestLabel ? `<div class="field">
       <div class="label">Request Type</div>
-      <div class="value">${requestLabel}</div>
+      <div class="value">${h(requestLabel)}</div>
     </div>` : ''}
   </div>
-  <a href="tel:${phone.replace(/\\D/g, '')}" class="cta">📞 Call ${name.split(' ')[0]} Now</a>
+  <a href="tel:${telDigits}" class="cta">📞 Call ${h(String(name).split(' ')[0])} Now</a>
   <div class="footer">Lead from nobigdealwithjoedeal.com/estimate</div>
 </div>
 </body>

@@ -374,6 +374,26 @@ console.log('\n(4) MISCONFIGURATION MUST FAIL THE HEARTBEAT — a missing RESEND
     threw instanceof Error && /RESEND_API_KEY|missing_api_key/i.test(threw.message || ''), threw && threw.message);
 }
 
+console.log('\n(9) the recovery email escapes the public first name (security audit 2026-09-29)');
+{
+  currentDb = makeFakeDb();
+  const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+  await currentDb.collection('funnel_abandoned').doc('xss00001').set({
+    email: 'someone@example.com', funnelId: 'xss00001', firstName: '<a href="https://evil.example">Claim your refund</a>',
+    createdAt: fakeTs(twoHoursAgo), updatedAt: fakeTs(twoHoursAgo),
+    completedAt: null, recoveryEmailSentAt: null, recoveryEmailStatus: null,
+  });
+  process.env.FUNNEL_RECOVERY_ENABLED = 'true';
+  process.env.RESEND_API_KEY = 'test-resend-key';
+  const sent = [];
+  currentResendSend = async (p) => { sent.push(p); return { data: { id: 'em_x' }, error: null }; };
+  await FR.runAbandonRecovery.run({});
+  const html = (sent[0] && sent[0].html) || '';
+  ok('the recovery email was sent', sent.length === 1, sent.length);
+  ok('no live link from the first name', !/<a href="https:\/\/evil\.example"/.test(html), html.slice(0, 200));
+  ok('the name shows escaped', /&lt;a href=&quot;https:\/\/evil\.example&quot;&gt;/.test(html));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 
