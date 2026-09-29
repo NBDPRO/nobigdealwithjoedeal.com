@@ -43,6 +43,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { phoneDigits10 } = require('./phone-utils');
+const { createLeadWithCustomerId } = require('./customer-id-mint');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -244,7 +245,8 @@ exports.submitReferral = onRequest(
 
     let newLeadId;
     try {
-      const ref = await db.collection('leads').add(leadData);
+      const ref = db.collection('leads').doc();
+      await createLeadWithCustomerId(db, ref, leadData);
       newLeadId = ref.id;
     } catch (e) {
       logger.error('[submitReferral] lead create failed', { err: e.message });

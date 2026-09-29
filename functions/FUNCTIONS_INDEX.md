@@ -183,7 +183,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runMigrations` | onCall | `role === 'admin'` (see ADMIN note) | Manual versioned-migration trigger (was mislabeled "scheduler-triggered" in the previous index) |
 | `migrationsTick` | scheduled (every 24h) | n/a (server-only) | Idempotent daily migration cron (also listed in SCHEDULED) |
 
-## SCHEDULED CRONS (server-only, no client traffic) — 24
+## SCHEDULED CRONS (server-only, no client traffic) — 25
 | Export | Schedule | Purpose |
 |---|---|---|
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
@@ -200,6 +200,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `hailMatchCron` | daily 09:00 | HailTrace/NOAA storm-match sweep + Slack notify — deliberately never uses the Swath provider (a 500-lead sweep would burn the credit budget; see hail-cron.js) (was listed as `hailCron` — actual export name is `hailMatchCron`) |
 | `onAppointmentReminder` | every 15 min | Push notification 15 min before appointments |
 | `onFollowUpDue` | daily 08:00 | Push notification for due follow-ups |
+| `onYardSignPickupDue` | daily 07:30 ET | Push: yard signs due for pickup today or overdue (one per rep, repeats daily until handled) |
 | `migrationsTick` | every 24h | Idempotent versioned-migration runner tick |
 | `auditLogRetentionCron` | daily 03:30 | Prunes `audit_log` rows past retention (keys on `ts`) |
 | `recordingRetentionCron` | daily 05:00 | Prunes aged voice-intelligence recordings |

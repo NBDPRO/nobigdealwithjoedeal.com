@@ -73,6 +73,7 @@ may be before Healthchecks alerts (generous where a run can be slow).
 | `sync-gbp-reviews` | syncGbpReviews | 06:00 ET daily | 1 day · 6 h |
 | `daily-lead-digest` | dailyLeadDigest | 07:00 ET daily | 1 day · 3 h |
 | `on-follow-up-due` | onFollowUpDue | 08:00 ET daily | 1 day · 3 h |
+| `on-yard-sign-pickup-due` | onYardSignPickupDue | 07:30 ET daily | 1 day · 3 h |
 | `anniversary-auto-touch` | anniversaryAutoTouch | 08:00 ET daily | 1 day · 6 h |
 | `review-request-nudge` | reviewRequestNudge | 08:15 ET daily | 1 day · 6 h |
 | `enforce-lapsed-seats` | enforceLapsedSeats | 09:00 ET daily | 1 day · 6 h |

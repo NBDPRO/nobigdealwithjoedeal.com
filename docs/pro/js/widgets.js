@@ -467,6 +467,28 @@ const WIDGETS = [
   // read of the tenant's own Product Library pricing) ever lands, re-add it
   // then — pointed at that source. Until then, no widget beats a lying one.
 
+  // Yard signs out in the field — how many, and how many are due back.
+  // Reads the same yardSigns docs the Yard Signs view writes; the pickup
+  // math is NBDYardSignLogic's when that bundle is loaded, else a plain
+  // dueAt <= now count (the widget must not pull the Leaflet bundle).
+  {id:'yard-signs', name:'Yard Signs', icon:'🪧', cat:'Operations', size:'sm',
+    async render(el){
+      el.innerHTML = '<div class="w-empty">Loading…</div>';
+      try {
+        const uid = window._user && window._user.uid;
+        if (!uid || !window.db || !window.getDocs) { el.innerHTML = '<div class="w-empty">Sign in to see signs</div>'; return; }
+        const snap = await window.getDocs(window.query(window.collection(window.db, 'yardSigns'),
+          window.where('userId', '==', uid), window.where('status', '==', 'out')));
+        const now = Date.now();
+        let out = 0, due = 0;
+        snap.forEach(d => { out++; const v = d.data(); const t = v.dueAt && v.dueAt.toMillis ? v.dueAt.toMillis() : Number(v.dueAt) || 0;
+          if (t && t <= now + 86400000) due++; });
+        el.innerHTML = '<div class="w-big-num">' + out + '</div><div class="w-sub">' + (out === 1 ? 'sign' : 'signs') + ' out'
+          + (due ? ' · <strong>' + due + ' due for pickup</strong>' : '') + '</div>';
+      } catch (e) { el.innerHTML = '<div class="w-empty">Could not load signs</div>'; }
+    }
+  },
+
   {id:'team-leaderboard', name:'Team Leaderboard', icon:'🥇', cat:'Operations', size:'sm',
     render(el){
       // REAL data. This used to render three invented reps — "Joe Deal $48.5k
@@ -1131,7 +1153,7 @@ function renderWidgetHome() {
       // 'material-watch' dropped with the widget itself (see above). This map
       // is keyed by widget id, so a stale entry is harmless — removed anyway so
       // the next reader doesn't go looking for a widget that isn't there.
-      'today-schedule': 'schedule'
+      'today-schedule': 'schedule', 'yard-signs': 'signs'
     };
     const card = document.createElement('div');
     card.className = 'w-card w-' + w.size;

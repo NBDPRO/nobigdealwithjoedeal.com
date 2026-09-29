@@ -60,6 +60,7 @@ ok("'home' is a route", ROUTES.has('home'));
 ok("'settings' is a route", ROUTES.has('settings'));
 // The three the previous session had to add — pinned so they cannot vanish.
 ['expenses', 'money', 'refrewards'].forEach((r) => ok("'" + r + "' is a route (added 2026-09-02)", ROUTES.has(r)));
+ok("'signs' is a route (yard signs, 2026-09-29)", ROUTES.has('signs'));
 
 console.log('\nEVERY goTo() LITERAL NAMES A REAL ROUTE');
 {
