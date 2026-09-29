@@ -342,7 +342,9 @@ section('Phase C: lead-bridge (H-1 intake → CRM)');
   }
   assert('lead-bridge fires onDocumentCreated', /onDocumentCreated/.test(bridge));
   assert('lead-bridge mirrors into the leads collection', /collection\('leads'\)\.doc\(/.test(bridge));
-  assert('lead-bridge idempotent via create() (not set)', /\.create\(leadDoc\)/.test(bridge));
+  // create() semantics now live in createLeadWithCustomerId (customer-id-mint.js),
+  // pinned behaviourally by tests/customer-id-mint.test.js.
+  assert('lead-bridge idempotent via create() (not set)', /createLeadWithCustomerId\(db, db\.collection\('leads'\)\.doc\(id\), leadDoc,/.test(bridge));
   assert('lead-bridge uses modular FieldValue (emulator-safe)',
     /require\('firebase-admin\/firestore'\)/.test(bridge) && /FieldValue\.serverTimestamp/.test(bridge));
 
@@ -644,7 +646,7 @@ section('Cal.com webhook');
   // silently dropped — appointments/{id} got written but nothing appeared in
   // Pipeline. Regression guard so this doesn't quietly regress back to that.
   assert('creates a CRM lead when no existing lead matches the booking',
-    /if \(!leadId\) \{[\s\S]{0,600}collection\('leads'\)\.doc\(newLeadId\)\.create\(/.test(src));
+    /if \(!leadId\) \{[\s\S]{0,600}createLeadWithCustomerId\(db, db\.collection\('leads'\)\.doc\(newLeadId\),/.test(src));
   assert('new-lead id is deterministic (idempotent against retried webhook delivery)',
     /bridgeDocId\('calcom', bookingId\)/.test(src));
   // 2026-09-13: the contact fields (phone, phoneDigits, address) moved into

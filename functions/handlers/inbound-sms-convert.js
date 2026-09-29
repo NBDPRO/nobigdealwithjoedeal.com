@@ -33,6 +33,7 @@ const { callableRateLimit } = require('../shared');
 const { CORS_ORIGINS, isOwnerCaller } = require('./_shared');
 const { phoneDigits10 } = require('../phone-utils');
 const { buildConvertedLead } = require('../inbound-sms-convert-logic');
+const { createLeadWithCustomerId } = require('../customer-id-mint');
 const { generateAIDraft, ANTHROPIC_API_KEY } = require('./ai-texting');
 
 exports.convertUnmatchedSms = onCall(
@@ -95,12 +96,13 @@ exports.convertUnmatchedSms = onCall(
       lead = (await db.collection('leads').doc(leadId).get()).data() || {};
     } else {
       const leadDoc = buildConvertedLead({ from, body, phoneDigits: pd, ownerUid, companyId, unmatchedId: id });
-      const created = await db.collection('leads').add(Object.assign({}, leadDoc, {
+      const created = db.collection('leads').doc();
+      const { customerId } = await createLeadWithCustomerId(db, created, Object.assign({}, leadDoc, {
         createdAt: FieldValue.serverTimestamp(),
         stageStartedAt: FieldValue.serverTimestamp(),
       }));
       leadId = created.id;
-      lead = leadDoc;
+      lead = customerId ? Object.assign({}, leadDoc, { customerId }) : leadDoc;
     }
 
     // Auto-draft an AI reply (best-effort; self-gates on the Anthropic secret).
