@@ -923,8 +923,11 @@ function buildCard(l){
   const prevLabel = prevS && window.STAGE_META?.[prevS]?.label || prevS || '';
   const nextLabel = nextS && window.STAGE_META?.[nextS]?.label || nextS || '';
 
-  // Task badge
-  const tasks = window._taskCache?.[l.id] || [];
+  // Task badge. Add-Event entries (type:'event', customer page) share the
+  // tasks subcollection but are dated appointments, not to-dos — counting
+  // them left a card at "☑ 0/2" forever for one real task + one meeting
+  // (CRM sweep R14, 2026-09-28). The customer page already excludes them.
+  const tasks = (window._taskCache?.[l.id] || []).filter(t => t && t.type !== 'event');
   const totalT = tasks.length;
   const doneT  = tasks.filter(t=>t.done).length;
   
