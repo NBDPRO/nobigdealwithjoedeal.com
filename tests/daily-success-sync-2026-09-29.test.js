@@ -169,5 +169,38 @@ console.log('\n6. wiring');
   ok('the CRM Home restores nbd_ds_config after sign-out', /\['nbd_user_config', 'dsConfig'\]/.test(widgets) && /_writeLocal\('nbd_ds_config'/.test(widgets));
 }
 
+console.log('\n7. collectPage never reads a page that is not on screen');
+{
+  // The bug: after boot / a cloud sync the dashboard was showing while `cur`
+  // still pointed at a page; the next tab tap ran collectPage() against a DOM
+  // with no exercise rows and saved exercises:[] over that day's log.
+  const app = read('docs/pro/daily-success/js/app.js');
+  const start = app.indexOf('function collectPage(silent){');
+  let i = app.indexOf('{', start), depth = 0;
+  for (; i < app.length; i++) { if (app[i] === '{') depth++; else if (app[i] === '}' && --depth === 0) break; }
+  const src = app.slice(start, i + 1);
+  function run(shownId) {
+    const ctx = {
+      pages: [{ id: 7, data: { 'l-win': 'kept' }, exercises: [{ name: 'Bench', sets: '3' }] }], cur: 0, exCount: 0,
+      document: { getElementById: () => ({ dataset: { dsPage: shownId } }), querySelectorAll: () => [], querySelector: () => null },
+      savePages() { ctx.saved = true; }, markSaved() {},
+    };
+    vm.runInNewContext(src + '\ncollectPage(true);', ctx);
+    return ctx;
+  }
+  const off = run('');
+  ok('dashboard on screen: the page\'s Exercise Log is untouched', off.pages[0].exercises.length === 1 && off.pages[0].exercises[0].name === 'Bench' && !off.saved);
+  const on = run('7');
+  ok('positive control: with the page on screen the same call DOES collect (so the guard is what saved it)', on.saved === true && on.pages[0].exercises.length === 0);
+  const other = run('8');
+  ok('a different page on screen is not collected into this one', other.pages[0].exercises.length === 1 && !other.saved);
+  ok('renderPage stamps the page on screen; renderDash clears it',
+    /const p=pages\[cur\];\r?\nmain\.dataset\.dsPage=String\(p&&p\.id\);/.test(app) && /function renderDash\(\)\{\r?\nkillCharts\(\);const main=document\.getElementById\('main'\);main\.innerHTML='';main\.dataset\.dsPage='';/.test(app));
+  ok('boot opens on the dashboard with cur=-1 (tabs and screen agree)', /loadPages\(\);cur=-1;renderTabs\(\);renderDash\(\);/.test(app));
+  const sync = read('docs/pro/daily-success/ds-firebase-sync.js');
+  const code = sync.replace(/^\s*\/\/.*$/gm, '');
+  ok('the sync re-renders the current view, never a bare renderDash()', /dsRefreshView\(\)/.test(code) && !/renderDash\(\)/.test(code));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

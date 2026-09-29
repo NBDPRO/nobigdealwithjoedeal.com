@@ -173,12 +173,17 @@ function applyRen(){pages[cur].name=document.getElementById('renInp').value.trim
 function markDirty(){if(dirty)return;dirty=true;const e=document.getElementById('sdot');e.textContent='● UNSAVED';e.className='sdot dirty';}
 function markSaved(){dirty=false;const e=document.getElementById('sdot');e.textContent='● SAVED';e.className='sdot ok';}
 function collectPage(silent){
-if(cur<0)return;const p=pages[cur];
+// Only collect from the page that is ON SCREEN. After a cloud sync the
+// dashboard was shown while `cur` still pointed at a page, and the next tab
+// tap collected that page from a DOM with no rows — wiping its Exercise Log.
+if(cur<0)return;const p=pages[cur];if(!p)return;const _shown=document.getElementById('main');if(!_shown||_shown.dataset.dsPage!==String(p.id))return;
 document.querySelectorAll('[data-k]').forEach(el=>{p.data[el.dataset.k]=el.value||'';});
 p.exercises=[];for(let i=0;i<exCount;i++){const r={};['name','sets','reps','weight','notes'].forEach(f=>{const el=document.querySelector(`[data-k="ex-${i}-${f}"]`);r[f]=el?el.value:'';});p.exercises.push(r);}
 savePages();if(!silent)markSaved();
 }
 function saveNow(){collectPage();toast('Saved ✓');}
+// Re-render whatever view is current (after the cloud merge replaced `pages`).
+function dsRefreshView(){if(cur>=pages.length)cur=pages.length-1;renderTabs();if(cur===-1)renderDash();else renderPage();}
 function switchTo(idx){collectPage(true);cur=idx;renderTabs();killCharts();if(cur===-1)renderDash();else renderPage();markSaved();}
 
 function renderTabs(){
@@ -534,6 +539,7 @@ function renderPage(){
 killCharts();exCount=0;
 const main=document.getElementById('main');main.innerHTML='';
 const p=pages[cur];
+main.dataset.dsPage=String(p&&p.id);
 
 const wrap=document.createElement('div');
 wrap.style.cssText='width:100%;max-width:760px;display:flex;flex-direction:column;gap:18px;';
@@ -581,7 +587,7 @@ function killCharts(){charts.forEach(c=>{try{c.destroy();}catch{}});charts=[];}
 function mkChart(id,labels,data,color){const ctx=document.getElementById(id);if(!ctx)return;const prev=(typeof Chart.getChart==='function')?Chart.getChart(ctx):null;if(prev){try{prev.destroy();}catch{}charts=charts.filter(c=>c!==prev);}const ch=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:2,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'DM Mono',size:9},color:'#888',maxRotation:45},grid:{display:false}},y:{ticks:{font:{family:'DM Mono',size:9},color:'#888'},grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true}}}});charts.push(ch);}
 
 function renderDash(){
-killCharts();const main=document.getElementById('main');main.innerHTML='';
+killCharts();const main=document.getElementById('main');main.innerHTML='';main.dataset.dsPage='';
 let totD=0,totR=0,totC=0,totA=0,totCon=0,bDV=0,bRV=0,bDI=-1,bRI=-1;
 let runD=0,runW=0,runWin=0,maxD=0,maxW=0,maxWin=0,prevD=0,prevR=0,lastD=0,lastR=0;
 const habTot=HABITS.map(()=>0),cLbls=[],cDoors=[],cRev=[],cClose=[];
@@ -1049,7 +1055,7 @@ if(e.key==='Escape'){closeM('mDel');closeM('mRen');closeM('mPRH');closeM('mOnboa
 });
 window.addEventListener('beforeunload',()=>{if(dirty)collectPage(true);});
 
-initTheme();loadPages();renderTabs();renderDash();markSaved();checkOnboardBanner();syncToWidgetKeys();startAutoSave();
+initTheme();loadPages();cur=-1;renderTabs();renderDash();markSaved();checkOnboardBanner();syncToWidgetKeys();startAutoSave();
 
 // ── DAILY SUCCESS THEME SYSTEM ──────────────────
 /* ═══════════════════════════════════════════════════════════════════
