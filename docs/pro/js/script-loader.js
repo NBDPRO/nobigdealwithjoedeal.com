@@ -126,7 +126,7 @@
     // reminders. Pure rules first so the view can use them at init.
     signs: [
       'js/yard-signs-logic.js?v=3',
-      'js/yard-signs.js?v=3'
+      'js/yard-signs.js?v=4'
     ],
     decision: [
       'js/decision-engine.js?v=2'
