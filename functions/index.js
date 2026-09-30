@@ -699,7 +699,10 @@ exports.submitReferral = referrals.submitReferral;
 // exports its trigger (literal onDocumentWritten for the CI allowlist), so
 // merge the whole module — same pattern as lead-bridge above.
 const referralRewards = require('./referral-rewards');
-Object.assign(exports, referralRewards);
+// Explicit (2026-09-30): the module now also exports `_internal` for tests,
+// which must never become a deployed function group.
+exports.onReferralLeadWrite = referralRewards.onReferralLeadWrite;
+exports.onReferralJobWrite  = referralRewards.onReferralJobWrite;
 
 // ═══════════════════════════════════════════════════════════════
 // VISUALIZER IMAGE GENERATION — FLUX.1 Kontext via Replicate

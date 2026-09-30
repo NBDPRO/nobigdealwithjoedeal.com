@@ -2108,6 +2108,15 @@ async function run() {
   await x43('a rep asks for the whole company\'s jobs', 'deny', getDocs(query(collectionGroup(own43, 'jobs'), where('companyId', '==', 'co43'))));
   await x43('another tenant asks for co43\'s jobs', 'deny', getDocs(query(collectionGroup(bob, 'jobs'), where('companyId', '==', 'co43'))));
   await x43('an unfiltered collection-group read', 'deny', getDocs(collectionGroup(mgr43, 'jobs')));
+  // Referral bonus per job (J1, 2026-09-30): the latch is server-only.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'leads/lead43/jobs/jPaid'), Object.assign({}, good, { stage: 'closed', referralRewardOwedAt: new Date(), referralRewardAmount: 100 }));
+  });
+  await x43('a job created WITH a referral latch (forging "already paid")', 'deny', setDoc(j43(own43, 'j9'), Object.assign({}, good, { referralRewardOwedAt: new Date() })));
+  await x43('clearing a closed job\'s referral latch (re-arms a second bonus)', 'deny', updateDoc(j43(own43, 'jPaid'), { referralRewardOwedAt: null }));
+  await x43('changing a job\'s bonus amount', 'deny', updateDoc(j43(mgr43, 'jPaid'), { referralRewardAmount: 500 }));
+  await x43('an ordinary edit to that job still works', 'allow', updateDoc(j43(own43, 'jPaid'), { title: 'Roof (done)' }));
+  await x43('forging the customer\'s referral job count', 'deny', updateDoc(doc(own43, 'leads/lead43'), { referralRewardJobCount: 0 }));
   console.log('  43: ' + s43Pass + ' jobs-stage-1 checks passed, ' + s43Fail.length + ' failed');
   if (s43Fail.length) {
     throw new Error('43 jobs stage 1: ' + s43Fail.length + ' check(s) went the wrong way:\n    ' + s43Fail.join('\n    '));
