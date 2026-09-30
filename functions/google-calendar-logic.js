@@ -105,15 +105,11 @@ function desiredEventsForLead(lead) {
  * event in place instead of leaving a stray.
  */
 function weekEventFor(doc, lead) {
-  const wk = String((doc && doc.scheduledWeek) || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(wk) || (doc && doc.scheduledDate)) return null;
-  const friday = new Date(Date.parse(wk + 'T12:00:00Z') + 4 * 86400000).toISOString().slice(0, 10);
-  const ev = FEED.normalizeLead(Object.assign({}, doc, {
-    scheduledDate: wk, scheduledEndDate: friday, scheduledStart: null, scheduledDurationMin: null,
-  }));
+  // Same week event the .ics feed shows (calendar-feed-logic normalizeLeadWeek).
+  const ev = FEED.normalizeLeadWeek(doc);
   if (!ev) return null;
-  const g = toGoogleEvent(Object.assign({}, ev, { windowNote: '' }), lead);
-  g.summary = '📆 Week of: ' + (ev.title || 'Scheduled job');
+  const g = toGoogleEvent(ev, lead);
+  g.summary = '📆 ' + ev.title;
   g.transparency = 'transparent';
   g.description = 'Planned for this week — exact day not set yet. Set the date in NBD Pro (Schedule → Plan Jobs).\n' + g.description;
   return g;

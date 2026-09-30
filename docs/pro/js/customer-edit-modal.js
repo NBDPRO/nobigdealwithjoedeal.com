@@ -29,6 +29,9 @@ function openEditCustomerModal() {
   const _sd = document.getElementById('editScheduledDate');
   if (_sd) _sd.value = lead.scheduledDate || '';
   if (_sd && window.NBDScheduleWindowUI) window.NBDScheduleWindowUI.fill('edit', lead);
+  // Planned week (2026-09-29) — shown only while there is no exact day.
+  const _sw = document.getElementById('editScheduledWeek');
+  if (_sw) _sw.value = lead.scheduledDate ? '' : (lead.scheduledWeek || '');
   // nbdModal owns visibility + Esc/backdrop close (batch-4 consolidation).
   window.nbdModal.open('editCustomerModal');
 }
@@ -151,6 +154,12 @@ async function saveCustomerEdits() {
       if (_winErr) { _bad(_winErr, 'editSchedStart'); return; }
       updates.scheduledDate = String(_sdEl.value || '').trim();
       if (_winUI) Object.assign(updates, _winUI.read('edit'));
+      // A real day replaces the week plan; with no day, a picked week is kept
+      // as its Monday (the same rule as Schedule → Plan Jobs).
+      const _swEl = document.getElementById('editScheduledWeek');
+      const _W = window.NBDScheduleWindow;
+      if (updates.scheduledDate) updates.scheduledWeek = null;
+      else if (_swEl) updates.scheduledWeek = (_swEl.value && _W && _W.mondayOf(_swEl.value)) || null;
     }
     // Refresh the normalized inbound-SMS match key alongside phone —
     // incomingSMS queries leads by phoneDigits; writing phone without it

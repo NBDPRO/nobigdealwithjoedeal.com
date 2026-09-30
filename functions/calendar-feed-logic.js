@@ -199,6 +199,38 @@ function normalizeLead(doc) {
 }
 
 /**
+ * leads/{id} planned to a WEEK but no day yet → an all-day Mon–Fri event, or
+ * null (2026-09-29: Jo books a week first and "walks down" the day later).
+ * scheduledWeek is that week's Monday; it only counts while scheduledDate is
+ * empty. Same kind ('lead') and so the same UID / Google event id as the
+ * day-level job, so setting the day later turns this event into it in place
+ * instead of leaving a stray week bar. All-day → free (TRANSPARENT), a plan
+ * not a slot. Shared by the .ics feed and the Google sync.
+ */
+function normalizeLeadWeek(doc) {
+  if (!doc || typeof doc !== 'object' || doc.deleted === true) return null;
+  if (YMD_RE.test(String(doc.scheduledDate || ''))) return null;
+  const monday = SW.mondayOf(String(doc.scheduledWeek || ''));
+  if (!monday) return null;
+  const name = `${doc.firstName || ''} ${doc.lastName || ''}`.trim();
+  return {
+    kind: 'lead',
+    weekPlan: true,
+    id: String(doc.id || ''),
+    date: monday,
+    endExclusive: SW.addDays(monday, 5),            // Saturday — the bar covers Mon–Fri
+    startMs: null,
+    endMs: null,
+    windowNote: '',
+    title: 'Week of: ' + (name || String(doc.address || '') || 'Scheduled job'),
+    location: String(doc.address || ''),
+    stage: String(doc.stage || ''),
+    phone: String(doc.phone || ''),
+    updatedMs: toMs(doc.updatedAt),
+  };
+}
+
+/**
  * leads/{id} → the adjuster meeting as its own event, or null (2026-09-29).
  * adjusterMeetingDate is 'YYYY-MM-DD', adjusterMeetingStart optional 'HH:MM'
  * America/New_York. Timed meetings default to an hour — the carrier never
@@ -330,7 +362,8 @@ function buildCalendar(o) {
   const appts = (Array.isArray(opts.appointments) ? opts.appointments : [])
     .map(normalizeAppointment).filter(Boolean);
   const rawLeads = Array.isArray(opts.leads) ? opts.leads : [];
-  const leads = dedupLeads(rawLeads.map(normalizeLead).filter(Boolean), appts);
+  // A lead with no day but a planned week shows as its week bar.
+  const leads = dedupLeads(rawLeads.map((d) => normalizeLead(d) || normalizeLeadWeek(d)).filter(Boolean), appts);
   // Adjuster meetings are never deduped against appointments: a Cal.com
   // booking on the lead is the homeowner's visit, not the carrier's.
   const adjusters = rawLeads.map(normalizeAdjusterMeeting).filter(Boolean);
@@ -370,6 +403,7 @@ module.exports = {
   toMs,
   normalizeAppointment,
   normalizeLead,
+  normalizeLeadWeek,
   normalizeAdjusterMeeting,
   dedupLeads,
   buildCalendar,

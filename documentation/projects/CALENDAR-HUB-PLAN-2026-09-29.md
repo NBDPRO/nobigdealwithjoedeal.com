@@ -194,9 +194,15 @@ day later**, with the homeowner told "the week of…".
     confirm your exact day as that week's schedule comes together, and we'll
     reach out before the crew arrives." It shows only while there's no day,
     and never once the week has passed.
-  - **Not covered:** the older .ics subscribe feed and the customer page and
-    lead modal editors don't show or set weeks yet. Plan Jobs is the place
-    to set them.
+  - **Now covered everywhere (follow-up PR, same evening):**
+    - The customer page Edit modal (`#editScheduledWeek`) and the dashboard
+      lead editor (`#lScheduledWeek`) set a week too, with the same rule: a
+      day clears the week.
+    - The .ics subscribe feed shows the Mon–Fri week bar. `normalizeLeadWeek`
+      in `calendar-feed-logic.js` is shared with the Google sync, and it uses
+      the job's own UID and event id.
+    - `mondayOf` moved into the shared `schedule-window.js`, with both copies
+      byte-identical.
 - Tests: [schedule-planner](../../tests/schedule-planner-2026-09-29.test.js)
   (40 checks, including the portal wording run in a vm sandbox). The rules
   suite passed in full.
