@@ -27,6 +27,9 @@ const CRON_GATES = [
   { name: 'STORM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-watch.js' },
   { name: 'VISUALIZER_IMAGEGEN_ENABLED', polarity: 'enabled', file: 'visualizer-image-gen.js' },
   { name: 'WEEKLY_DIGEST_ENABLED', polarity: 'enabled', file: 'weekly-digest.js' },
+  // Not a cron: a lead trigger that writes jobs/j1 + activeJobId onto live
+  // leads (multi-job phase 1). OFF until Jo says go (2026-09-30).
+  { name: 'JOBS_MIRROR_ENABLED', polarity: 'enabled', file: 'jobs-mirror.js' },
   { name: 'MONTHLY_OVERHEAD_ALERT_DISABLED', polarity: 'disabled', file: 'monthly-overhead-alert.js' },
   { name: 'STRIPE_LEDGER_DISABLED', polarity: 'disabled', file: 'stripe-ledger.js' },
   { name: 'GOOGLE_CALENDAR_SYNC_DISABLED', polarity: 'disabled', file: 'google-calendar.js' },

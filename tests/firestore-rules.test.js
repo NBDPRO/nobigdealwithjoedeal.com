@@ -55,7 +55,7 @@ async function run() {
   const solo   = env.authenticatedContext('solo1',  {}).firestore();
   const anon  = env.unauthenticatedContext().firestore();
 
-  const { setDoc, doc, getDoc, updateDoc, deleteDoc } = require('firebase/firestore');
+  const { setDoc, doc, getDoc, updateDoc, deleteDoc, deleteField } = require('firebase/firestore');
 
   // ─── Seed ALL state in a single withSecurityRulesDisabled call.
   // Multiple calls conflict on Firestore settings in v10+ of the
@@ -2025,6 +2025,45 @@ async function run() {
   console.log('  41: ' + s41Pass + ' signed-document lock checks passed, ' + s41Fail.length + ' failed');
   if (s41Fail.length) {
     throw new Error('41 signed-document lock: ' + s41Fail.length + ' check(s) went the wrong way:\n    ' + s41Fail.join('\n    '));
+  }
+
+  // ─── 42. Jobs under a lead — phase 1 (2026-09-30, a customer can have more
+  // than one job). Clients READ leads/{id}/jobs like the lead's other
+  // subcollections and write NONE (functions/jobs-mirror.js is the writer);
+  // lead.activeJobId is server-owned: re-saving it is fine, moving or
+  // claiming it is not.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'leads/lead42'), { userId: 'own42', companyId: 'co42', stage: 'new', firstName: 'Z', activeJobId: 'j1' });
+    await setDoc(doc(db, 'leads/lead42/jobs/j1'), { stage: 'new', userId: 'own42', companyId: 'co42' });
+    await setDoc(doc(db, 'leads/lead42b'), { userId: 'own42', companyId: 'co42', stage: 'new', firstName: 'Y' });
+  });
+  const s42Fail = []; let s42Pass = 0;
+  async function x42(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s42Pass++;
+    } catch (e) { s42Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own42 = env.authenticatedContext('own42', { role: 'sales_rep', companyId: 'co42' }).firestore();
+  const mgr42 = env.authenticatedContext('mgr42', { role: 'manager', companyId: 'co42' }).firestore();
+  await x42('owner reads the lead\'s job', 'allow', getDoc(doc(own42, 'leads/lead42/jobs/j1')));
+  await x42('same-company manager reads it', 'allow', getDoc(doc(mgr42, 'leads/lead42/jobs/j1')));
+  await x42('another tenant reads it', 'deny', getDoc(doc(bob, 'leads/lead42/jobs/j1')));
+  await x42('owner creates a job (server-only in phase 1)', 'deny', setDoc(doc(own42, 'leads/lead42/jobs/j2'), { stage: 'new' }));
+  await x42('owner edits a job', 'deny', updateDoc(doc(own42, 'leads/lead42/jobs/j1'), { jobValue: 1 }));
+  await x42('manager edits a job', 'deny', updateDoc(doc(mgr42, 'leads/lead42/jobs/j1'), { stage: 'closed' }));
+  await x42('owner deletes a job', 'deny', deleteDoc(doc(own42, 'leads/lead42/jobs/j1')));
+  await x42('owner re-points activeJobId', 'deny', updateDoc(doc(own42, 'leads/lead42'), { activeJobId: 'j9' }));
+  await x42('owner removes activeJobId', 'deny', updateDoc(doc(own42, 'leads/lead42'), { activeJobId: deleteField() }));
+  await x42('owner edits the lead, re-saving the same activeJobId', 'allow', updateDoc(doc(own42, 'leads/lead42'), { firstName: 'Zed', activeJobId: 'j1' }));
+  await x42('owner edits a lead that has no job yet', 'allow', updateDoc(doc(own42, 'leads/lead42b'), { firstName: 'Yan' }));
+  await x42('owner claims an activeJobId on a lead', 'deny', updateDoc(doc(own42, 'leads/lead42b'), { activeJobId: 'j1' }));
+  await x42('a new lead carrying activeJobId', 'deny', setDoc(doc(own42, 'leads/lead42c'), { userId: 'own42', companyId: 'co42', stage: 'new', activeJobId: 'j1' }));
+  await x42('a new lead without it (unchanged)', 'allow', setDoc(doc(own42, 'leads/lead42d'), { userId: 'own42', companyId: 'co42', stage: 'new' }));
+  console.log('  42: ' + s42Pass + ' jobs-phase-1 checks passed, ' + s42Fail.length + ' failed');
+  if (s42Fail.length) {
+    throw new Error('42 jobs phase 1: ' + s42Fail.length + ' check(s) went the wrong way:\n    ' + s42Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');
