@@ -214,12 +214,49 @@ function buildEmailHtml({ firstName, anniversaries }) {
 </html>`;
 }
 
+// ─── Multi-job (Jo, J2, 2026-09-30): once a year, from the FIRST job ──
+// A customer can have several jobs, and the lead's own fields describe only
+// the one on their card (a finished job hands the card to the next one). So
+// the anniversary is keyed on the customer's FIRST completed job and comes
+// round every year, not only at year one.
+
+/** The lead's own completion (its active job), when that job is won. */
+function leadCompletionMs(lead) {
+  if (!lead || stageRoles.roleFor(lead) !== stageRoles.ROLE.WON) return 0;
+  return timestampMillis(lead.completedAt) || timestampMillis(lead.installCompletedAt)
+    || timestampMillis(lead.stageStartedAt) || timestampMillis(lead.updatedAt);
+}
+
+/** PURE. The customer's first completed job: min over the lead (active job) and its won jobs. */
+function firstCompletionMs(lead, jobs) {
+  const all = [leadCompletionMs(lead)];
+  for (const j of jobs || []) {
+    if (!j || stageRoles.roleFor(j) !== stageRoles.ROLE.WON) continue;
+    all.push(timestampMillis(j.closedAt) || timestampMillis(j.stageStartedAt));
+  }
+  const ms = all.filter((x) => x > 0);
+  return ms.length ? Math.min(...ms) : 0;
+}
+
+/**
+ * PURE. Is today inside an anniversary window of `firstMs`? Year k's window
+ * is [365k − 5, 365k + 15] days after the first job — year 1 is exactly the
+ * original 360–380 day window. Re-touch guard: not within 350 days.
+ */
+function anniversaryDue(firstMs, lastTouchedMs, now) {
+  if (!firstMs) return false;
+  if (lastTouchedMs && lastTouchedMs > now - RESKIP_WINDOW_DAYS * DAY_MS) return false;
+  const days = (now - firstMs) / DAY_MS;
+  if (days < ANNIVERSARY_MIN_DAYS) return false;
+  const before = 365 - ANNIVERSARY_MIN_DAYS;              // 5 days early
+  const after = ANNIVERSARY_MAX_DAYS - 365;               // 15 days late
+  const k = Math.max(1, Math.round((days - (after - before) / 2) / 365));   // nearest anniversary year
+  return days >= 365 * k - before && days <= 365 * k + after;
+}
+
 // ─── Per-user aggregation ────────────────────────────────────────
 async function findAnniversaryLeads(db, uid) {
   const now = Date.now();
-  const minCompletionMs = now - ANNIVERSARY_MAX_DAYS * DAY_MS;
-  const maxCompletionMs = now - ANNIVERSARY_MIN_DAYS * DAY_MS;
-  const reSkipCutoff    = now - RESKIP_WINDOW_DAYS    * DAY_MS;
 
   // 5.2: filter to completed stages server-side (composite index
   // leads(userId, stage)). Reads only completed leads, not the whole
@@ -231,34 +268,56 @@ async function findAnniversaryLeads(db, uid) {
     .where('stage', 'in', COMPLETE_STAGE_LIST)
     .limit(5000)
     .get();
+  // Multi-job: every job of this rep's customers, grouped by customer (one
+  // collection-group read; single-field COLLECTION_GROUP index on userId).
+  const jobsByLead = new Map();
+  if (typeof db.collectionGroup === 'function') {
+    try {
+      const js = await db.collectionGroup('jobs').where('userId', '==', uid).limit(5000).get();
+      for (const d of js.docs) {
+        const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+        if (!leadId) continue;
+        const arr = jobsByLead.get(leadId) || [];
+        arr.push({ id: d.id, ...d.data() });
+        jobsByLead.set(leadId, arr);
+      }
+    } catch (e) {
+      logger.warn('anniversary_jobs_read_failed', { uid, err: e.message });
+    }
+  }
+
   const out = [];
-  for (const doc of snap.docs) {
-    const lead = { id: doc.id, ...doc.data() };
-    if (lead.deleted) continue;
-    if (lead.isProspect) continue;
+  const seen = new Set();
+  const consider = (lead) => {
+    seen.add(lead.id);
+    if (lead.deleted) return;
+    if (lead.isProspect) return;
     // Authoritative re-check, mirroring dormant-leads.js's _isTerminalLead:
-    // reuse stage-roles.js's roleFor()/ROLE.WON instead of a literal-stage
-    // Set, so a persisted stageRole (custom pipelines) or a stage this file
-    // hasn't been told about yet is still classified correctly.
-    if (stageRoles.roleFor(lead) !== stageRoles.ROLE.WON) continue;
-
-    // Use the canonical completion field — fall back through the
-    // common candidates the codebase uses to mark "job is done".
-    const completionMs = timestampMillis(lead.completedAt)
-                      || timestampMillis(lead.installCompletedAt)
-                      || timestampMillis(lead.stageStartedAt)
-                      || timestampMillis(lead.updatedAt);
-    if (!completionMs) continue;
-
-    // Inside the 360-380 day window?
-    if (completionMs < minCompletionMs) continue;
-    if (completionMs > maxCompletionMs) continue;
-
-    // Idempotency — already touched within RESKIP_WINDOW_DAYS?
-    const lastTouchedMs = timestampMillis(lead.anniversaryTouchedAt);
-    if (lastTouchedMs && lastTouchedMs > reSkipCutoff) continue;
-
+    // reuse stage-roles.js's roleFor()/ROLE.WON (via leadCompletionMs /
+    // firstCompletionMs) instead of a literal-stage Set, so a persisted
+    // stageRole (custom pipelines) or a stage this file hasn't been told
+    // about yet is still classified correctly.
+    const completionMs = firstCompletionMs(lead, jobsByLead.get(lead.id));
+    if (!completionMs) return;
+    // Inside this year's anniversary window (year 1 = 360–380 days), and not
+    // already touched within RESKIP_WINDOW_DAYS?
+    if (!anniversaryDue(completionMs, timestampMillis(lead.anniversaryTouchedAt), now)) return;
     out.push({ ...lead, completionMs });
+  };
+  for (const doc of snap.docs) consider({ id: doc.id, ...doc.data() });
+
+  // A customer whose card now shows a NEWER, still-open job is not in the
+  // completed-stage query above, but their first job still has its day.
+  for (const [leadId, jobs] of jobsByLead) {
+    if (seen.has(leadId)) continue;
+    const first = firstCompletionMs(null, jobs);
+    if (!anniversaryDue(first, 0, now)) continue;         // cheap check before reading the lead
+    try {
+      const ls = await db.collection('leads').doc(leadId).get();
+      if (ls.exists) consider({ id: leadId, ...ls.data() });
+    } catch (e) {
+      logger.warn('anniversary_lead_read_failed', { leadId, err: e.message });
+    }
   }
   // Newest install first — gives the email a sensible visual rhythm
   // when there are multiple anniversaries the same day.
@@ -405,4 +464,4 @@ exports.anniversaryAutoTouch = onSchedule(
 // findAnniversaryLeads can't be exercised through the onSchedule wrapper
 // without a live/emulated Firestore + scheduler trigger, so tests call it
 // directly against a fake `db` — see tests/anniversary-touch-stage-roles.test.js.
-exports._test = { findAnniversaryLeads, COMPLETE_STAGE_LIST };
+exports._test = { findAnniversaryLeads, COMPLETE_STAGE_LIST, firstCompletionMs, anniversaryDue };
