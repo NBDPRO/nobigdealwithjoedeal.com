@@ -74,6 +74,10 @@ async function run() {
     await setDoc(doc(db, 'leads/lead41/documents/legacy41'), { name: 'old-contract.html', signedAt: signedAt41, userId: 'owner41' });
     await setDoc(doc(db, 'leads/lead41/documents/draft41'), { name: 'proposal.html', status: 'draft', userId: 'owner41' });
     await setDoc(doc(db, 'leads/lead41/documents/draft41b'), { name: 'scratch.html', status: 'draft', userId: 'owner41' });
+    // §41 legacy top-level /documents twins (2026-09-30).
+    await setDoc(doc(db, 'documents/legacySigned41'), { name: 'old-contract.html', status: 'signed', signedAt: signedAt41, userId: 'owner41', leadId: 'lead41' });
+    await setDoc(doc(db, 'documents/legacySigned41b'), { name: 'old-contract-2.html', signedAt: signedAt41, userId: 'owner41', leadId: 'lead41' });
+    await setDoc(doc(db, 'documents/legacyDraft41'), { name: 'old-draft.html', userId: 'owner41', leadId: 'lead41' });
     await setDoc(doc(db, 'users/alice'), { firstName: 'Alice', role: 'member' });
     await setDoc(doc(db, 'subscriptions/alice'), { plan: 'free', status: 'inactive' });
     await setDoc(doc(db, 'leads/leadA'), { userId: 'alice', name: 'Alice Lead' });
@@ -2006,6 +2010,18 @@ async function run() {
   await x41('draft → signed (in-person signing) still works', 'allow', updateDoc(d41(mgr41, 'draft41'), { status: 'signed', signedAt: new Date('2026-09-29T16:00:00Z'), signedSigners: [{ role: 'homeowner', label: null, signedAt: null }] }));
   await x41('...and right after, it is locked', 'deny', updateDoc(d41(mgr41, 'draft41'), { name: 'changed-after-signing.html' }));
   await x41('owner hard-deletes an unsigned draft (unchanged)', 'allow', deleteDoc(d41(own41, 'draft41b')));
+  // Legacy top-level /documents (no parent lead): the same lock, owner archives.
+  const t41 = (ctx, id) => doc(ctx, 'documents/' + id);
+  await x41('legacy: owner edits a signed row\'s content', 'deny', updateDoc(t41(own41, 'legacySigned41'), { name: 'forged.html' }));
+  await x41('legacy: owner flips a signed row back to draft', 'deny', updateDoc(t41(own41, 'legacySigned41'), { status: 'draft' }));
+  await x41('legacy: a signedAt-only row is locked too', 'deny', updateDoc(t41(own41, 'legacySigned41b'), { name: 'forged.html' }));
+  await x41('legacy: owner toggles homeowner sharing', 'allow', updateDoc(t41(own41, 'legacySigned41'), { sharedWithHomeowner: true }));
+  await x41('legacy: owner archives a signed row', 'allow', updateDoc(t41(own41, 'legacySigned41'), { deleted: true, deletedAt: '2026-09-30T00:00:00Z' }));
+  await x41('legacy: archive + content change in one write', 'deny', updateDoc(t41(own41, 'legacySigned41b'), { deleted: true, name: 'x' }));
+  await x41('legacy: owner hard-deletes a signed row', 'deny', deleteDoc(t41(own41, 'legacySigned41b')));
+  await x41('legacy: platform admin hard-deletes a signed row', 'deny', deleteDoc(t41(admin, 'legacySigned41b')));
+  await x41('legacy: an unsigned row stays editable', 'allow', updateDoc(t41(own41, 'legacyDraft41'), { name: 'old-draft-v2.html' }));
+  await x41('legacy: an unsigned row can still be deleted by its owner', 'allow', deleteDoc(t41(own41, 'legacyDraft41')));
   console.log('  41: ' + s41Pass + ' signed-document lock checks passed, ' + s41Fail.length + ' failed');
   if (s41Fail.length) {
     throw new Error('41 signed-document lock: ' + s41Fail.length + ' check(s) went the wrong way:\n    ' + s41Fail.join('\n    '));

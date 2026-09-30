@@ -292,6 +292,12 @@ service cloud.firestore {
         && (resource.data.get('status', '') == 'signed'
             || resource.data.get('signedAt', null) != null);
     }
+    // The legacy top-level twin has no parent lead: the row's own owner archives.
+    function legacySignedDocumentUpdateOk() {
+      let keys = request.resource.data.diff(resource.data).affectedKeys();
+      return keys.hasOnly(['sharedWithHomeowner', 'updatedAt'])
+        || (keys.hasOnly(['deleted', 'deletedAt']) && isOwner(resource.data.userId));
+    }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
       return keys.hasOnly(['sharedWithHomeowner', 'updatedAt'])
@@ -1122,9 +1128,16 @@ service cloud.firestore {
 
     // ── DOCUMENTS ─────────────────────────────────────
     // Split read from the writes 2026-09-25 so they can carry notViewer().
+    // Legacy top-level documents ({userId, leadId}). Empty in production as of
+    // 2026-09-30, but still writable, so the signed-document lock applies here
+    // too (documentIsSigned, §leads documents): once signed, only the share
+    // toggle, or an archive by the row's owner, and no client hard delete.
     match /documents/{docId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow update, delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+      allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
+        && (!documentIsSigned() || legacySignedDocumentUpdateOk());
+      allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
+        && !documentIsSigned();
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
     }
 
