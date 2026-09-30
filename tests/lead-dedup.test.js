@@ -78,6 +78,23 @@ console.log('\nLEAD-DEDUP — findDuplicates end to end');
     hi({ firstName: 'Teddy', lastName: 'Berry', phone: '669-312-3973', address: 'Cincinnati, OH 45211' }).length === 0);
   ok('neighbour on the same street -> NO match',
     hi({ firstName: 'Cheryl', lastName: 'Horne', address: '133 W Seymour Ave, Cincinnati, OH 45216' }).length === 0);
+  // 2026-09-30 — same name where one side has no street (Rose Mitchell: the
+  // Thumbtack card had "Mason, OH 45040" and a 669 proxy phone).
+  const tt = [{ id: 'tt', firstName: 'Rose', lastName: 'Mitchell', phone: '669-555-0100', address: 'Mason, OH 45040' }];
+  const med = (c, list) => (LD.findDuplicates(c, list) || []).filter(m => m.confidence === 'medium');
+  ok('same name, the existing card has no street -> MEDIUM match',
+    med({ firstName: 'Rose', lastName: 'Mitchell', phone: '513-555-0142', address: '4410 Tylers Pl, Mason, OH 45040' }, tt).length === 1);
+  ok('…the reason says why', /no street address/.test((med({ firstName: 'Rose', lastName: 'Mitchell', address: '4410 Tylers Pl, Mason, OH 45040' }, tt)[0] || {}).reason || ''));
+  ok('same name, the NEW lead has no street -> MEDIUM match',
+    med({ firstName: 'rose', lastName: 'mitchell', address: 'Mason, OH 45040' }, [{ id: 'x', firstName: 'Rose', lastName: 'Mitchell', address: '4410 Tylers Pl, Mason, OH 45040' }]).length === 1);
+  ok('same name in the same ZIP on a different street -> MEDIUM (second property)',
+    med({ firstName: 'Larry', lastName: 'Cunningham', address: '12 Marlette Dr, Morrow, OH 45152' }, [{ id: 'l', firstName: 'Larry', lastName: 'Cunningham', address: '600 Main St, Morrow, OH 45152' }]).length === 1);
+  ok('same name, different street AND different ZIP -> NO match (common names stay quiet)',
+    (LD.findDuplicates({ firstName: 'John', lastName: 'Smith', address: '1 Oak St, Mason, OH 45040' }, [{ id: 'j', firstName: 'John', lastName: 'Smith', address: '9 Elm St, Dayton, OH 45402' }]) || []).length === 0);
+  ok('different name with a street-less card -> still NO match (area is not identity)',
+    (LD.findDuplicates({ firstName: 'Teddy', lastName: 'Berry', address: '8 Pine Ct, Mason, OH 45040' }, tt) || []).length === 0);
+  ok('first name only (no last name) never matches on name',
+    (LD.findDuplicates({ firstName: 'Rose', address: 'Mason, OH 45040' }, tt) || []).length === 0);
   ok('empty candidate is safe', (LD.findDuplicates({}, existing) || []).length === 0);
   ok('non-array existingLeads is safe', (LD.findDuplicates({ phone: '1' }, null) || []).length === 0);
 }
