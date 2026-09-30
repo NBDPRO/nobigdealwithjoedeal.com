@@ -98,6 +98,11 @@ Before starting any slice, run `gh pr list --state open` and `git worktree list`
 Worktrees exist, but they are empty: `nbd-wt-signlock`, `nbd-wt-inviteaccept`, `nbd-wt-publead`. The full briefs are in the stopped workflow script: `~/.claude/projects/C--Users-jonat-nobigdealwithjoedeal-com/0bad9f44-4f61-4ddf-9d9f-dc8bf4d3db28/workflows/scripts/batch4-rebases-verify-and-security-wf_5e25e561-352.js`. Workflow resume works only within the same session, so reuse the briefs rather than trying to resume.
 
 - **signlock (`fix/lock-signed-documents`):** Jo's lock-once-signed decision.
+  - **DONE 2026-09-29** (branch `fix/lock-signed-contracts`; the old empty branch was left alone).
+    - **Firestore:** a document with status `signed` or a `signedAt` stamp accepts only `sharedWithHomeowner` changes, plus archive or un-archive by the lead owner or a company_admin. No client hard-deletes it. The draft → signed transition is unchanged.
+    - **Storage:** in-person signing uploads the HTML with `customMetadata {signed:'true'}`, and a tagged object cannot be overwritten or deleted. `esign/.../signed.pdf` is function-only.
+    - **Client:** a manager is told signed contracts are locked, and archiving a signed contract uses its own wording.
+    - **Tests:** decision A's two role-matrix tests used signed fixtures and now use unsigned ones. The lock, the later decision, takes precedence for signed rows.
   - **Rules:** after signing, a client may change only the archive/soft-delete fields, and only as the owner or company_admin.
   - **Storage:** signed artifacts cannot be overwritten either.
   - **Must keep working:** the signing transition itself (in-person in the doc viewer, and remote via `sign.html`) and the server paths that update signed docs.
