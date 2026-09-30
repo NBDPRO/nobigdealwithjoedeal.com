@@ -181,8 +181,17 @@
   // HOME KPI ROW (existing functionality)
   // ════════════════════════════════════════════
 
+  // Multi-job (2026-09-30): money and win/loss totals count every JOB (a
+  // customer's second job has its own value and its own outcome); counts of
+  // CUSTOMERS stay on the leads. jobs-store.js recordsFor.
+  function _jobRecs(leads) {
+    var J = window.NBDJobs;
+    return J && typeof J.recordsFor === 'function' ? J.recordsFor(leads) : leads;
+  }
+
   function computeKPIs() {
     var leads = window._leads || [];
+    var recs = _jobRecs(leads);
     var estimates = window._estimates || [];
     var now = new Date();
     var thisMonth = now.getMonth();
@@ -190,14 +199,14 @@
     var today = new Date(); today.setHours(0, 0, 0, 0);
 
     // F8: active = still in play — not won, not lost, not in production.
-    var activeLeads = leads.filter(function (l) {
+    var activeLeads = recs.filter(function (l) {
       return !_isDecided(l) && !_isJob(l) && !l.deleted;
     });
     var pipelineValue = activeLeads.reduce(function (sum, l) {
       return sum + (parseFloat(l.jobValue) || 0);
     }, 0);
 
-    var closedThisMonth = leads.filter(function (l) {
+    var closedThisMonth = recs.filter(function (l) {
       if (!_isClosedWon(l)) return false;
       // F3: stageStartedAt is stamped on every stage move (+ backfilled by
       // migrations 002/003) — for a won lead it IS the close date. The old
@@ -210,10 +219,10 @@
       return sum + (parseFloat(l.jobValue) || 0);
     }, 0);
 
-    var totalClosed = leads.filter(function (l) {
+    var totalClosed = recs.filter(function (l) {
       return _isClosedWon(l);
     }).length;
-    var totalLost = leads.filter(function (l) {
+    var totalLost = recs.filter(function (l) {
       return _isLost(l);
     }).length;
     var totalDecided = totalClosed + totalLost;
@@ -235,7 +244,7 @@
       return d < today;
     }).length;
 
-    var closedWithValue = leads.filter(function (l) {
+    var closedWithValue = recs.filter(function (l) {
       return _isClosedWon(l) && parseFloat(l.jobValue) > 0;
     });
     var avgDealSize = closedWithValue.length > 0
@@ -460,19 +469,20 @@
       return sum + (parseFloat(inv.balanceDue) || parseFloat(inv.total) || 0);
     }, 0);
 
-    // ── Pipeline value from active leads ──
-    var activeLeads = leads.filter(function (l) {
+    // ── Pipeline value from active jobs (every job, multi-job) ──
+    var recs = _jobRecs(leads);
+    var activeLeads = recs.filter(function (l) {
       return !_isDecided(l) && !l.deleted;
     });
     var pipelineValue = activeLeads.reduce(function (sum, l) {
       return sum + (parseFloat(l.jobValue) || 0);
     }, 0);
 
-    // ── Conversion rate ──
-    var wonLeads = leads.filter(function (l) {
+    // ── Conversion rate (per job: a customer's second job is its own win or loss) ──
+    var wonLeads = recs.filter(function (l) {
       return _isWon(l);
     });
-    var lostLeads = leads.filter(function (l) {
+    var lostLeads = recs.filter(function (l) {
       return _isLost(l);
     });
     var totalDecided = wonLeads.length + lostLeads.length;
@@ -609,7 +619,10 @@
     // direct costs — including uncosted jobs (revenue, $0 cost) would inflate
     // the margin and lie. The sub-label shows "N of M costed" for honesty.
     var wonRev = 0, wonDirect = 0, costedJobs = 0;
-    wonLeads.forEach(function (l) {
+    // Per CUSTOMER, not per job: expenses are keyed by leadId, so a per-job
+    // record would count one customer's costs once for each of their jobs.
+    var wonCustomers = leads.filter(function (l) { return _isWon(l); });
+    wonCustomers.forEach(function (l) {
       var rev = parseFloat(l.jobValue) || 0;
       var dc = (directByJob[l.id] || 0) / 100;
       if (rev > 0 && dc > 0) { wonRev += rev; wonDirect += dc; costedJobs += 1; }
@@ -628,7 +641,7 @@
       expMonthDollars: expMonthCents / 100,
       expGrossMargin: expGrossMargin,
       expCostedJobs: costedJobs,
-      expWonJobs: wonLeads.length,
+      expWonJobs: wonCustomers.length,
       expSupplierLeaderboard: supplierLeaderboard,
       unpaidAmount: unpaidAmount,
       pipelineValue: pipelineValue,

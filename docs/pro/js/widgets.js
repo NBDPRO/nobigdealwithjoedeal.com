@@ -123,7 +123,9 @@ const WIDGETS = [
   // ═══ PIPELINE & SALES ═══
   {id:'pipeline-value', name:'Pipeline Value', icon:'💰', cat:'Pipeline & Sales', size:'md',
     render(el){
-      const leads = window._leads || [];
+      // Every JOB, not every customer (multi-job, 2026-09-30): a customer's
+      // second open job adds its own value — the same cards the CRM shows.
+      const leads = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(window._leads || []) : (window._leads || []);
       const stages = {New:0, Contacted:0, 'Est. Sent':0, Negotiating:0, Won:0};
       let total = 0;
       leads.forEach(l => {
@@ -506,7 +508,10 @@ const WIDGETS = [
       // Same aggregation the real Leaderboard view uses: group non-deleted
       // leads by owner, count won by stage ROLE (not a hardcoded name list, so
       // custom pipelines work), and sum jobValue — the canonical money field.
-      const leads = (window._leads || []).filter(l => l && !l.deleted);
+      // Every won JOB counts (multi-job, 2026-09-30): a customer's second job
+      // is its own deal and its own value.
+      const _all = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(window._leads || []) : (window._leads || []);
+      const leads = _all.filter(l => l && !l.deleted);
       const byRep = {};
       leads.forEach(l => {
         const owner = l.userId || '(unknown)';

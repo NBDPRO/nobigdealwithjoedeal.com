@@ -513,12 +513,15 @@
     const inRangeLeads = leads.filter(l =>
       inRange(toDate(l.createdAt), rangeStart, rangeEnd)
     );
-    const decidedInRange = leads.filter(l =>
+    // Deals, value and close rate per JOB (multi-job, 2026-09-30); leads
+    // created stays per customer.
+    const recs = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(leads) : leads;
+    const decidedInRange = recs.filter(l =>
       inRange(stageDate(l), rangeStart, rangeEnd)
     );
     const won = decidedInRange.filter(isWon);
     const lost = decidedInRange.filter(isLost);
-    const active = leads.filter(l => !isWon(l) && !isLost(l));
+    const active = recs.filter(l => !isWon(l) && !isLost(l));
     const revenue = collectedOn(leads, rangeStart, rangeEnd);
     const bookedValue = won.reduce((sum, l) => sum + (Number(l.jobValue) || 0), 0);
     const pipelineValue = active.reduce((sum, l) => sum + (Number(l.jobValue) || 0), 0);

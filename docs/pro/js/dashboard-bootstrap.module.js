@@ -3003,7 +3003,15 @@
       // the first paint; a failed load leaves one card per customer (as before).
       if (window.NBDJobs && typeof window.NBDJobs.load === 'function') {
         window.NBDJobs.load()
-          .then(() => { if (typeof renderLeads === 'function') renderLeads(window._leads, window._filteredLeads); })
+          .then(() => {
+            if (typeof renderLeads === 'function') renderLeads(window._leads, window._filteredLeads);
+            // The money tiles count every job (jobs-store recordsFor): repaint
+            // them now the jobs are in — never while someone is typing in one.
+            const grid = document.getElementById('widgetGrid');
+            const typing = grid && grid.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+            try { if (typeof window.renderKPIRow === 'function') window.renderKPIRow(); } catch (_) {}
+            try { if (!typing && typeof window.renderWidgetHome === 'function') window.renderWidgetHome(); } catch (_) {}
+          })
           .catch((e) => console.warn('[loadLeads] jobs load failed — one card per customer:', e && (e.code || e.message)));
       }
       // Wave 13: tell the notification bell + any other listeners that

@@ -141,7 +141,7 @@
       // CDN fetch fails, load() resolves anyway and the generator's existing
       // `typeof ApexCharts === 'undefined'` guard degrades gracefully.
       '/assets/vendor/apexcharts/apexcharts.min.js',
-      'js/rep-report-generator.js?v=5'
+      'js/rep-report-generator.js?v=6'
     ],
     // Doc-generation cluster (PR 2b). Only needed when the rep generates a
     // document — from a lead-card doc chip (_generateDocWithPreflight) or

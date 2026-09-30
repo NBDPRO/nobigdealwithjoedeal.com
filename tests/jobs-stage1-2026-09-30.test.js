@@ -98,6 +98,33 @@ ok('the customer page loads jobs-store.js, then customer-jobs.js (stage 2b)', /j
   ok('a company lead: both stamps equal the lead\'s', co.job.userId === 'u1' && co.job.companyId === 'c1');
   ok('written under leads/{id}/jobs, stage New, the given fields kept', /^leads\/L1\/jobs\/j[a-z0-9]+$/.test(solo.path) && solo.job.stage === 'new' && solo.job.title === 'Gutter guards' && solo.job.jobValue === 1450 && solo.job.origin === 'add_job');
 
+  console.log('\n7. money totals count every JOB (records, 2026-09-30)');
+  {
+    const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, '_');
+    const roleOf = (k) => ({ closed: 'won', new: 'new', lost: 'lost' }[k] || 'active');
+    const two = { id: 'A', activeJobId: 'j1', stage: 'closed', stageRole: 'won', _stageKey: 'closed', _stageRole: 'won', jobValue: 250, userId: 'u' };
+    const one = { id: 'B', activeJobId: 'j1', stage: 'new', _stageKey: 'new', jobValue: 900, userId: 'u' };
+    const none = { id: 'C', stage: 'contacted', jobValue: 400, userId: 'u' };
+    const jobs = { A: [{ id: 'j1', stage: 'closed' }, { id: 'j2', title: 'Caulk', stage: 'new', jobValue: 180 }, { id: 'j3', stage: 'lost', stageRole: 'lost', jobValue: 99 }], B: [{ id: 'j1', stage: 'new' }] };
+    const recs = JS.records([two, one, none], (id) => jobs[id] || [], norm, roleOf);
+    ok('one record per job; a customer with no jobs counts once', recs.length === 5, JSON.stringify(recs.map((r) => r._cardKey || r.id)));
+    const sum = recs.reduce((s, r) => s + (r.jobValue || 0), 0);
+    ok('the caulk job adds its own $180 (total 250+180+99+900+400)', sum === 1829, String(sum));
+    const caulk = recs.find((r) => r._jobId === 'j2');
+    ok('a job record carries ITS stage keys, not the customer\'s (won customer, new caulk job)', caulk._stageKey === 'new' && caulk._stageRole === 'new' && caulk.stage === 'new');
+    ok('...and the lost job reads lost', recs.find((r) => r._jobId === 'j3')._stageRole === 'lost');
+    ok('the active job IS the lead object (every existing reader keeps working)', recs.includes(two) && recs.includes(one) && recs.includes(none));
+    ok('a customer whose card job is not loaded still counts once, plus its other jobs',
+      JS.records([{ id: 'D', activeJobId: 'j9', jobValue: 10 }], () => [{ id: 'j2', jobValue: 5 }], norm, roleOf).length === 2);
+    ok('before jobs load, recordsFor is the leads as they are', JSON.stringify(JS.recordsFor([two])) === JSON.stringify([two]));
+    const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', f), 'utf8');
+    ok('the KPI row, analytics, Home pipeline + leaderboard tiles, the leaderboard and the rep report use it',
+      /var recs = _jobRecs\(leads\);/.test(read('analytics-kpi.js')) && (read('widgets.js').match(/NBDJobs\.recordsFor\(window\._leads/g) || []).length === 2
+      && /NBDJobs\.recordsFor\(leads\)/.test(read('dashboard-api.js')) && /NBDJobs\.recordsFor\(leads\)/.test(read('rep-report-generator.js')));
+    ok('expenses-based margin stays per CUSTOMER (never counts one customer\'s costs per job)', /var wonCustomers = leads\.filter/.test(read('analytics-kpi.js')) && /wonCustomers\.forEach\(function \(l\) \{\s*var rev/.test(read('analytics-kpi.js')));
+    ok('the money tiles repaint once the jobs have loaded', /window\.NBDJobs\.load\(\)[\s\S]{0,700}window\.renderKPIRow\(\)[\s\S]{0,200}window\.renderWidgetHome\(\)/.test(read('dashboard-bootstrap.module.js')));
+  }
+
   console.log('\n6. the duplicate prompt offers "Add a job to them"');
   const dd = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'lead-dedup.js'), 'utf8');
   const boot = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'dashboard-bootstrap.module.js'), 'utf8');
