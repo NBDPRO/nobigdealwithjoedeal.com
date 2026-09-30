@@ -44,6 +44,7 @@ covers scheduling for real use, two security lanes from the
 | #1897 | **Security (inviteaccept):** `claimInvite` answers `confirm_required` (with `hasData`) for anyone who owns a company, and joins only on `{confirm:true}`. Before, any tenant's invite to an owner's email silently moved that owner into the other team at boot. An invite-link signup, which owns no company, still joins at once. "Not now" is stored on `userSettings.inviteDeclined`. The E2E rep now taps Join; `@stranger` passed. |
 | #1898 | **Plan Jobs panel** plus week-first scheduling: the Google week bar, the portal "week of…" line, and a `scheduledWeek` rules shape check. |
 | #1899 | **Weeks everywhere:** the customer page Edit modal, the dashboard lead editor, and the iPhone .ics feed. `normalizeLeadWeek` is shared by the feed and Google; `mondayOf` is in the shared `schedule-window.js`. |
+| #1901 *(open)* | **Homepage QA audit** (Jo's QAlaunch report).<br>• Tap-to-call on the contact step.<br>• Desktop hero CTA above the fold: at 1280×720, "Call Joe" moves from 910 to 554. Desktop only; 390px is pixel-identical.<br>• WCAG AA contrast: 56 failures → 0, using palette colors only. Also fixes two **invisible** ghost buttons, "See every job" and "Read all our Google reviews".<br>• Nav **not** enlarged: 15–16px wraps, and 12px is the most that fits.<br>• Form verified end to end, so no change.<br>**Waiting on:** the landing visual re-bless from CI's `-actual.png`s. That needs Jo's OK to download the ~100 MB CI artifact (asked; no answer yet). Then merge; Jo waived review. |
 | #1900 | **Signed contract lock:** Firestore (share toggle plus owner/company_admin archive only, no client hard delete), Storage (signed HTML tagged `signed:'true'` and immutable; `esign/.../signed.pdf` function-only), and a clear client message. |
 
 ## §2 Open — Jo's hands
@@ -95,3 +96,11 @@ covers scheduling for real use, two security lanes from the
   targeted, not by batch size (fixed in #1891; memory notes it).
 - **A decision conflict belongs in the PR body and in memory,** not only in a
   test comment.
+- **When a rule change makes old fixtures behave differently, grep EVERY test
+  file,** not just the suite you're editing. #1900 went red in CI because
+  `firestore-rules.cross-tenant.test.js` (a second rules suite) also used a
+  signed fixture to test role tiers. Command: `grep -rln "status: *'signed'" tests/`.
+- **The homepage has its own measurement harness** (scratch `home-audit.js`):
+  hero CTA against the fold at 1280×720/800, 1440×900 and 390, plus an
+  in-browser WCAG contrast pass that composites real backgrounds after
+  scrolling so fade-ins complete. axe and Lighthouse are not installed.
