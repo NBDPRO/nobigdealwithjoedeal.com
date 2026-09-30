@@ -436,6 +436,11 @@ exports.stripeLedgerReconcile   = stripeLedger.stripeLedgerReconcile;
 exports.assignStripeTransaction = stripeLedger.assignStripeTransaction;
 exports.getStripeOverview       = stripeLedger.getStripeOverview;
 
+// Every charge gets a filed document (Jo's live-CRM handoff 2026-09-30 #7):
+// NBD-500 invoice / NBD-510 receipt PDFs filed on the lead, and a Mark-Paid
+// payoff marks the open Stripe invoice paid out of band. See money-paper.js.
+exports.moneyPaperOnInvoice = require('./money-paper').moneyPaperOnInvoice;
+
 // Google Calendar sync (2026-09-29, calendar hub Phase 2): CRM jobs + adjuster
 // meetings → an "NBD Jobs" calendar the service account owns and shares with
 // Jo; free/busy for the double-booking warning. Inert until set up.

@@ -642,6 +642,118 @@ function buildContractStatutory(payload, contractor, company) {
 }
 
 // ─── Main callable ─────────────────────────────────────────────
+// ─── Shared render helpers (2026-09-30) ─────────────────────────
+// Split out of renderPdf so functions/money-paper.js can render and FILE an
+// invoice / receipt from a trigger (no callable, no client). renderPdf calls
+// the same two functions, so both paths print byte-identical documents.
+//
+// buildDocHtml → { html, company, tmplCfg, docNumber }. Throws the same
+// HttpsError as before for a Kentucky contract with no contractor address.
+async function buildDocHtml(templateKey, payload, companyId) {
+  const tmplCfg = TEMPLATES[templateKey];
+  if (!tmplCfg) throw new HttpsError('invalid-argument', 'Unknown template');
+  registerPartialsOnce();
+  registerHelpersOnce();
+  const bodyCompiled = loadTemplate(tmplCfg.file);
+  const layoutCompiled = loadLayout();
+
+  const company = await resolveDocCompany(companyId);
+  const brandVars = buildBrandVars(company.colors);
+
+  // Contract only: KRS 367.624 notices + detachable cancellation forms for a
+  // Kentucky insurance job, the FTC form wherever the cancel sentence
+  // promises one. A Kentucky insurance contract cannot be completed without
+  // the contractor's physical address, so it is refused rather than printed
+  // with a blank (the client pre-flight blocks the same case first).
+  let statutory = null;
+  if (templateKey === 'contract') {
+    const contractor = await resolveContractorContact(companyId, company);
+    statutory = buildContractStatutory(payload, contractor, company);
+    if (statutory.kyInsurance && statutory.missingAddress) {
+      throw new HttpsError('failed-precondition', KyLaw.MSG.addressRequired);
+    }
+  }
+
+  const bodyHtml = bodyCompiled(Object.assign({}, payload, { company }, statutory ? { statutory } : {}));
+  // Hoisted so the native footer template (page.pdf below) can stamp the same
+  // document number the layout puts in the masthead.
+  const docNumberForChrome = payload.certNumber || payload.docNumber || '';
+  const html = layoutCompiled({
+    title:           tmplCfg.docType,
+    docType:         tmplCfg.docType,
+    seal:            tmplCfg.seal,
+    docNumber:       docNumberForChrome,
+    designSystemCss: loadDesignSystemCss(),
+    brandVars:       brandVars,
+    // Per-template overrides. The slot has existed since D-1 and was wired to
+    // '' with a "reserved for later" note, so a template that needed its own
+    // rules had no home for them and had to inline styles into the .hbs.
+    // It now loads print/templates/<key>.css when that file exists.
+    templateCss:     loadTemplateCss(templateKey),
+    // Density preset — 'comfortable' (default) | 'compact' | 'evidence'.
+    // A body class rather than a payload flag threaded through every block,
+    // so a preset is a stylesheet concern and the template stays structural.
+    bodyClass:       'pr-density-' + normalizeDensity(payload.opts && payload.opts.density)
+                     + (payload.opts && payload.opts.fit === 'contain' ? ' pr-fit-contain' : ''),
+    company:         company,
+    body:            bodyHtml,
+  });
+  return { html, company, tmplCfg, docNumber: docNumberForChrome };
+}
+
+// htmlToPdf → Buffer. stageRef.stage is updated as it goes so a caller can
+// label a failure (renderPdf reports it in the HttpsError details).
+async function htmlToPdf(html, company, tmplCfg, docNumberForChrome, stageRef) {
+  stageRef = stageRef || { stage: 'launch' };
+  stageRef.stage = 'launch';
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    stageRef.stage = 'setContent';
+    // Cap setContent so a stalled remote asset (Google Fonts, logo) can't
+    // burn the whole 60s function budget before failing.
+    await page.setContent(html, { waitUntil: ['load', 'networkidle0'], timeout: 25_000 });
+    // Wait for fonts to decode, but race a never-resolving font-face
+    // against a short ceiling so it can't hang the render.
+    stageRef.stage = 'fonts';
+    await Promise.race([
+      page.evaluateHandle('document.fonts.ready'),
+      new Promise((resolve) => setTimeout(resolve, 4_000)),
+    ]);
+    stageRef.stage = 'pdf';
+    return await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0', bottom: '0', left: '0', right: '0' }, // controlled by @page
+      // The running footer + page numbers. This MUST be Chromium's native
+      // header/footer: design-system.css asked for them with CSS Paged
+      // Media (`position: running(footer)` + `@page { @bottom-center {
+      // content: element(footer) } }`), and Chromium implements NEITHER —
+      // `CSS.supports('position','running(footer)')` is false, so the
+      // declaration was dropped, `.doc-band-bottom` fell back to static,
+      // and the seal band rendered ONCE in normal flow at the top of page
+      // one, above the cover. Every document this renderer has ever
+      // produced — all eight types — shipped that way, with no page
+      // numbers at all.
+      //
+      // Margins stay at 0 here on purpose: `preferCSSPageSize: true` makes
+      // the CSS @page box authoritative, so these values are ignored and
+      // @page's 18/22/18/18mm still owns the geometry. Chromium draws the
+      // native footer into the physical page margin that @page already
+      // keeps clear — measured at y=768 on a 792pt page, with body content
+      // ending at y=645. No overlap, and the page count is unchanged from
+      // before this fix.
+      displayHeaderFooter: true,
+      headerTemplate: '<span></span>',
+      footerTemplate: buildFooterTemplate(company, tmplCfg, docNumberForChrome),
+      timeout: 25_000,
+    });
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 exports.renderPdf = onCall(
   {
     region: 'us-central1',
@@ -699,56 +811,12 @@ exports.renderPdf = onCall(
     const tmplCfg = TEMPLATES[templateKey];
     const t0 = Date.now();
 
-    // ── render the HTML body via Handlebars ──
-    registerPartialsOnce();
-    registerHelpersOnce();
-    const bodyCompiled = loadTemplate(tmplCfg.file);
-    const layoutCompiled = loadLayout();
-
+    // ── render the HTML body via Handlebars (buildDocHtml, shared with the
+    // money-paper trigger) ──
     // Resolve the active tenant's brand from the caller's companyId claim
     // (solo-op convention: companyId == uid). NBD → byte-identical chrome.
     const companyId = (request.auth.token && request.auth.token.companyId) || uid;
-    const company = await resolveDocCompany(companyId);
-    const brandVars = buildBrandVars(company.colors);
-
-    // Contract only: KRS 367.624 notices + detachable cancellation forms for a
-    // Kentucky insurance job, the FTC form wherever the cancel sentence
-    // promises one. A Kentucky insurance contract cannot be completed without
-    // the contractor's physical address, so it is refused rather than printed
-    // with a blank (the client pre-flight blocks the same case first).
-    let statutory = null;
-    if (templateKey === 'contract') {
-      const contractor = await resolveContractorContact(companyId, company);
-      statutory = buildContractStatutory(payload, contractor, company);
-      if (statutory.kyInsurance && statutory.missingAddress) {
-        throw new HttpsError('failed-precondition', KyLaw.MSG.addressRequired);
-      }
-    }
-
-    const bodyHtml = bodyCompiled(Object.assign({}, payload, { company }, statutory ? { statutory } : {}));
-    // Hoisted so the native footer template (page.pdf below) can stamp the same
-    // document number the layout puts in the masthead.
-    const docNumberForChrome = payload.certNumber || payload.docNumber || '';
-    const html = layoutCompiled({
-      title:           tmplCfg.docType,
-      docType:         tmplCfg.docType,
-      seal:            tmplCfg.seal,
-      docNumber:       docNumberForChrome,
-      designSystemCss: loadDesignSystemCss(),
-      brandVars:       brandVars,
-      // Per-template overrides. The slot has existed since D-1 and was wired to
-      // '' with a "reserved for later" note, so a template that needed its own
-      // rules had no home for them and had to inline styles into the .hbs.
-      // It now loads print/templates/<key>.css when that file exists.
-      templateCss:     loadTemplateCss(templateKey),
-      // Density preset — 'comfortable' (default) | 'compact' | 'evidence'.
-      // A body class rather than a payload flag threaded through every block,
-      // so a preset is a stylesheet concern and the template stays structural.
-      bodyClass:       'pr-density-' + normalizeDensity(payload.opts && payload.opts.density)
-                       + (payload.opts && payload.opts.fit === 'contain' ? ' pr-fit-contain' : ''),
-      company:         company,
-      body:            bodyHtml,
-    });
+    const { html, company, docNumber: docNumberForChrome } = await buildDocHtml(templateKey, payload, companyId);
     const buildMs = Date.now() - t0;
 
     // ── render the PDF via Chromium ──
@@ -760,52 +828,9 @@ exports.renderPdf = onCall(
     let stage = 'launch';
     let pdfBuffer, bucket, objectPath, file, downloadToken, renderMs;
     try {
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-      try {
-        stage = 'setContent';
-        // Cap setContent so a stalled remote asset (Google Fonts, logo) can't
-        // burn the whole 60s function budget before failing.
-        await page.setContent(html, { waitUntil: ['load', 'networkidle0'], timeout: 25_000 });
-        // Wait for fonts to decode, but race a never-resolving font-face
-        // against a short ceiling so it can't hang the render.
-        stage = 'fonts';
-        await Promise.race([
-          page.evaluateHandle('document.fonts.ready'),
-          new Promise((resolve) => setTimeout(resolve, 4_000)),
-        ]);
-        stage = 'pdf';
-        pdfBuffer = await page.pdf({
-          format: 'Letter',
-          printBackground: true,
-          preferCSSPageSize: true,
-          margin: { top: '0', bottom: '0', left: '0', right: '0' }, // controlled by @page
-          // The running footer + page numbers. This MUST be Chromium's native
-          // header/footer: design-system.css asked for them with CSS Paged
-          // Media (`position: running(footer)` + `@page { @bottom-center {
-          // content: element(footer) } }`), and Chromium implements NEITHER —
-          // `CSS.supports('position','running(footer)')` is false, so the
-          // declaration was dropped, `.doc-band-bottom` fell back to static,
-          // and the seal band rendered ONCE in normal flow at the top of page
-          // one, above the cover. Every document this renderer has ever
-          // produced — all eight types — shipped that way, with no page
-          // numbers at all.
-          //
-          // Margins stay at 0 here on purpose: `preferCSSPageSize: true` makes
-          // the CSS @page box authoritative, so these values are ignored and
-          // @page's 18/22/18/18mm still owns the geometry. Chromium draws the
-          // native footer into the physical page margin that @page already
-          // keeps clear — measured at y=768 on a 792pt page, with body content
-          // ending at y=645. No overlap, and the page count is unchanged from
-          // before this fix.
-          displayHeaderFooter: true,
-          headerTemplate: '<span></span>',
-          footerTemplate: buildFooterTemplate(company, tmplCfg, docNumberForChrome),
-          timeout: 25_000,
-        });
-      } finally {
-        await page.close().catch(() => {});
-      }
+      const stageRef = { stage };
+      try { pdfBuffer = await htmlToPdf(html, company, tmplCfg, docNumberForChrome, stageRef); }
+      finally { stage = stageRef.stage; }
       renderMs = Date.now() - t0 - buildMs;
 
       // ── upload to Storage with a deterministic-ish key ──
@@ -943,6 +968,9 @@ exports.renderPdf = onCall(
 // placeholders present, tenant strings escaped, no NBD literal for a stranger)
 // be asserted on the real function instead of grepped for in the source.
 exports._buildFooterTemplate = buildFooterTemplate;
+exports.buildDocHtml = buildDocHtml;
+exports.htmlToPdf = htmlToPdf;
+exports.TEMPLATES = TEMPLATES;
 // For tests: the statutory contract blocks (KY SB 153 / FTC 16 CFR 429).
 exports._buildContractStatutory = buildContractStatutory;
 // Also for tests: registering the real helpers against the shared Handlebars

@@ -25,7 +25,11 @@
 
   {{#if tagline}}<div class="cover-v2-tagline">{{{tagline}}}</div>{{/if}}
 
-  {{#if sub}}<p class="cover-v2-sub">{{sub}}</p>{{/if}}
+  {{!-- ./sub, not sub: render-pdf.js registers a `sub` (subtraction) helper,
+       and a bare {{sub}} CALLS it — sub(undefined, undefined) → "NaN". Every
+       server-rendered cover printed "NaN" for its subtitle from #362 until
+       2026-09-30. ./ forces the lookup onto this partial's own `sub` param. --}}
+  {{#if ./sub}}<p class="cover-v2-sub">{{./sub}}</p>{{/if}}
 
   {{#if heroPhoto}}
     <div class="cover-v2-hero">

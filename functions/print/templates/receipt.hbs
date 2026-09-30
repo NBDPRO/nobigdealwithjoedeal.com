@@ -29,6 +29,14 @@
     <p class="hero-sub">This receipt confirms payment for the project below. Keep it with your project records — you'll want it for tax season and any future warranty claims.</p>
   </div>
 
+  {{!-- Photo plate (money-paper.js: cover photo, else newest After). --}}
+  {{#if photoPlate}}
+  <figure class="avoid-break" style="margin: 0 0 var(--s-5); text-align:center;">
+    <img src="{{photoPlate.url}}" alt="Project photo" style="max-width:100%; max-height:3.2in; object-fit:cover; border-radius:4pt;">
+    {{#if photoPlate.caption}}<figcaption class="meta" style="margin-top:4pt;">{{photoPlate.caption}}</figcaption>{{/if}}
+  </figure>
+  {{/if}}
+
   {{!-- Headline payment amount with PAID stamp --}}
   <section class="avoid-break total-block" style="margin-bottom: var(--s-6); position: relative;">
     <div class="total-eyebrow">Amount Received</div>

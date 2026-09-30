@@ -114,7 +114,8 @@ const names = (s) => s.calls.map((c) => c[0]);
     ok('customer created with the CRM ids on it', st.calls.find((c) => c[0] === 'customers.create')[1].metadata.nbd_lead_id === 'L1'
       && st.calls.find((c) => c[0] === 'customers.create')[1].metadata.nbd_customer_id === 'NBD-0999');
     ok('...and remembered on the lead', db._get('leads', 'L1').stripeCustomerId === 'cus_new');
-    ok('a send_invoice invoice, due in 14 days, NOT auto-advanced (Stripe does not email it)', create.collection_method === 'send_invoice' && create.days_until_due === 14 && create.auto_advance === false);
+    // 14 → 7 days on 2026-09-30 (Jo's live-CRM handoff #7).
+    ok('a send_invoice invoice, due in 7 days, NOT auto-advanced (Stripe does not email it)', create.collection_method === 'send_invoice' && create.days_until_due === 7 && create.auto_advance === false);
     ok('tagged with the CRM invoice + lead + source for the ledger', create.metadata.invoiceId === 'CRM1' && create.metadata.leadId === 'L1' && create.metadata.source === 'crm');
     ok('no payment_method_types → the account decides (ACH appears once activated)', !('payment_method_types' in create) && !create.payment_settings);
     ok('the Zelle / check footer is on it', /Zelle/.test(create.footer) && /check/.test(create.footer));

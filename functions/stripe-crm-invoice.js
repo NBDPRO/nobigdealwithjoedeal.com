@@ -105,7 +105,9 @@ async function mintCrmStripeInvoice(stripe, db, args) {
   const draft = await stripe.invoices.create({
     customer: customerId,
     collection_method: 'send_invoice',
-    days_until_due: 14,
+    // 7 days (Jo's live-CRM handoff, 2026-09-30); was 14. The NBD-500 PDF
+    // filed by money-paper.js states the same due date.
+    days_until_due: 7,
     auto_advance: false,
     pending_invoice_items_behavior: 'exclude',
     metadata,

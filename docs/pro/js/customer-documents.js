@@ -83,6 +83,10 @@
       generated: !!(d.typeName || (d.type && !/\//.test(String(d.type)))),
       url: /^https?:/i.test(url) ? url : '',
       htmlPath: (typeof d.htmlPath === 'string' && d.htmlPath) ? d.htmlPath : null,
+      // Filed PDFs (money-paper.js: NBD-500 invoice / NBD-510 receipt). No
+      // stored URL — View asks getDocumentPdfUrl for a 10-minute signed link.
+      pdfPath: (typeof d.pdfPath === 'string' && d.pdfPath) ? d.pdfPath : null,
+      docCode: (typeof d.docCode === 'string' && d.docCode) ? d.docCode : null,
       size: Number.isFinite(+d.size) ? +d.size : null,
       date: toDate(d.uploadedAt) || toDate(d.createdAt) || toDate(d.date) || signedAt,
       status: status,
@@ -236,7 +240,10 @@
           : (doc.htmlPath
               ? '<button type="button" class="doc-btn" data-doc-view="' + esc(doc.id) + '"'
                 + ' style="background:none;border:0;cursor:pointer;font-family:inherit;">View</button>'
-              : ''))
+              : (doc.pdfPath
+                  ? '<button type="button" class="doc-btn" data-doc-pdf="' + esc(doc.id) + '"'
+                    + ' style="background:none;border:0;cursor:pointer;font-family:inherit;">View</button>'
+                  : '')))
       + (doc.shareable
           ? '<button type="button" class="doc-btn" data-doc-share="' + esc(doc.id) + '"'
             + ' title="' + (doc.shareUrl
@@ -494,6 +501,42 @@
     if (!btn) return;
     e.preventDefault();
     viewGeneratedDoc(btn.getAttribute('data-doc-view'), btn);
+  });
+
+  // Open a filed PDF (NBD-500 / NBD-510). The tab is opened synchronously in
+  // the click so a popup blocker allows it, then pointed at the short-lived
+  // signed link once getDocumentPdfUrl returns it.
+  async function viewFiledPdf(docId, btn) {
+    if (!docId || !window._customerId) return;
+    var tab = window.open('about:blank', '_blank');
+    var label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
+    try {
+      if (!window._functions || !window._httpsCallable) {
+        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        window._functions = window._functions || mod.getFunctions();
+        window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+      }
+      var fn = window._httpsCallable(window._functions, 'getDocumentPdfUrl');
+      var res = await fn({ leadId: window._customerId, docId: docId });
+      var url = res && res.data && res.data.url;
+      if (!url || !/^https:/i.test(url)) throw new Error('No link came back');
+      if (tab && !tab.closed) { try { tab.opener = null; } catch (_) {} tab.location.href = url; }
+      else window.location.href = url;
+    } catch (e) {
+      if (tab && !tab.closed) tab.close();
+      console.warn('viewFiledPdf failed:', e && e.message);
+      if (typeof showToast === 'function') showToast('Could not open document: ' + ((e && e.message) || 'unknown'), 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = label || 'View'; }
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest && e.target.closest('[data-doc-pdf]');
+    if (!btn) return;
+    e.preventDefault();
+    viewFiledPdf(btn.getAttribute('data-doc-pdf'), btn);
   });
 
   /**

@@ -432,7 +432,7 @@ const VERDICTS = {
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
-  getConnectStatus: 'read', getDocumentHtml: 'read', getEsignEnvelopeForOwner: 'read',
+  getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid', getSwathReport: 'role-gated', getSwathUsage: 'role-gated',
   integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
