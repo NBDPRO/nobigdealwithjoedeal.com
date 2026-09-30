@@ -258,6 +258,57 @@ group('The styling exists and past is visually demoted', () => {
     missing.length === 0, 'undefined: ' + missing.join(', '));
 });
 
+group('Multi-job (2026-09-30): "Also scheduled" for a customer\'s other jobs', () => {
+  // Client: lift _otherJobLines with the two line builders it reuses.
+  const src = [lift('_scheduleLine'), lift('_weekLine'), lift('_otherJobLines')];
+  assert('found _otherJobLines + _weekLine in docs/pro/js/portal.js', src.every(Boolean));
+  if (!src.every(Boolean)) return;
+  const c = { Date, RegExp, String, Number, Array };
+  vm.createContext(c);
+  vm.runInContext(src.join('\n') + '\nthis.__o = _otherJobLines;', c);
+  const T = '2026-10-05';
+  const lines = c.__o([
+    { title: 'Gutter guards', scheduledDate: '2026-10-12', scheduleWindow: { scheduledStart: '09:00', scheduledDurationMin: 120 } },
+    { title: 'Old repair', scheduledDate: '2026-09-20' },
+    { title: 'Skylight', scheduledWeek: '2026-10-19' },
+    { title: 'Last month', scheduledWeek: '2026-09-07' },
+    { title: '', scheduledDate: '2026-10-20' },
+  ], T);
+  assert('a future day → "Crew arrives <weekday, date>" with its window kept for the suffix',
+    lines.length === 2 && lines[0].title === 'Gutter guards' && /^Crew arrives Monday, October 12$/.test(lines[0].text) && lines[0].win && lines[0].win.scheduledStart === '09:00',
+    JSON.stringify(lines));
+  assert('a planned week → "Scheduled for the week of …"', lines[1] && lines[1].when === 'week' && /^Scheduled for the week of October 19$/.test(lines[1].text), JSON.stringify(lines[1]));
+  assert('a past day / lapsed week / untitled job says nothing', !lines.some((l) => /Old repair|Last month/.test(l.title)) && lines.length === 2);
+  assert('the portal renders them under the main date, escaped',
+    /const otherHtml = _otherJobLines\(p\.otherJobs, _localToday\(\)\)/.test(PORTAL)
+    && /Also scheduled — <strong>' \+ esc\(o\.title\) \+ '<\/strong>: ' \+ esc\(o\.text\) \+ esc\(win\)/.test(PORTAL)
+    && /schedHtml \+\s*otherHtml \+\s*nextHtml/.test(PORTAL));
+
+  // Server: lift otherJobsFor (top-level) + scheduleWindowFor with the real modules.
+  const liftTop = (name) => { const s = PORTAL_FN.indexOf('function ' + name + '('); const e = PORTAL_FN.indexOf('\n}\n', s); return s < 0 || e < 0 ? null : PORTAL_FN.slice(s, e + 3); };
+  const fsrc = [liftTop('scheduleWindowFor'), liftTop('otherJobsFor')];
+  assert('found otherJobsFor in functions/portal.js', fsrc.every(Boolean));
+  if (!fsrc.every(Boolean)) return;
+  const s = { JOBS: require(path.join(ROOT, 'functions', 'jobs-logic.js')), ScheduleWindow: require(path.join(ROOT, 'functions', 'schedule-window.js')), YMD: /^\d{4}-\d{2}-\d{2}$/, String, Object, Array };
+  vm.createContext(s);
+  vm.runInContext(fsrc.join('\n') + '\nthis.__f = otherJobsFor;', s);
+  const out = s.__f({ activeJobId: 'j1' }, [
+    { id: 'j1', title: 'Roof', scheduledDate: '2026-10-06' },
+    { id: 'j2', title: 'Gutter guards', stage: 'new', scheduledDate: '2026-10-12', scheduledStart: '09:00', scheduledDurationMin: 120, jobValue: 1450, claimNumber: 'C-9', crew: 'ZZ crew', notes: 'secret' },
+    { id: 'j3', title: 'Done job', stage: 'closed', paidInFull: true, scheduledDate: '2026-10-20' },
+    { id: 'j4', title: 'Lost job', stageRole: 'lost', scheduledDate: '2026-10-21' },
+    { id: 'j5', title: 'No date yet' },
+    { id: 'j6', title: 'Skylight', scheduledWeek: '2026-10-19' },
+  ]);
+  assert('only the customer\'s OTHER open, dated jobs go out (not the card\'s, done, lost or undated)',
+    out.length === 2 && out[0].title === 'Gutter guards' && out[1].title === 'Skylight', JSON.stringify(out));
+  assert('...carrying ONLY title + schedule fields (no value, claim, crew or notes)',
+    JSON.stringify(Object.keys(out[0]).sort()) === JSON.stringify(['scheduleWindow', 'scheduledDate', 'scheduledWeek', 'title'])
+    && !/1450|C-9|ZZ crew|secret/.test(JSON.stringify(out)));
+  assert('the handler reads the jobs best-effort (a failure never blanks the portal)',
+    /try \{\s*const js = await db\.collection\('leads'\)\.doc\(tok\.leadId\)\.collection\('jobs'\)\.get\(\);\s*progress\.otherJobs = otherJobsFor\(/.test(PORTAL_FN));
+});
+
 console.log('\n──────────────────────────────────────────────────');
 console.log(passed + ' passed, ' + failed + ' failed');
 if (failed > 0) process.exit(1);

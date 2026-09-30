@@ -82,6 +82,28 @@ function scheduleWindowFor(lead) {
   };
 }
 
+// Multi-job (2026-09-30): a customer's OTHER open jobs that have a day or a
+// planned week, for the portal's "Also scheduled" line (Jo: portal first).
+// The job on the customer's card is the main progress card already. Only a
+// short title and the raw schedule fields leave the server — never a value,
+// claim, crew or note — and the reader's browser decides past/future.
+const JOBS = require('./jobs-logic');
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+function otherJobsFor(lead, jobs) {
+  const l = lead || {};
+  const out = [];
+  for (const j of jobs || []) {
+    if (!j || !j.id || j.id === l.activeJobId || !JOBS.isOpen(j)) continue;
+    const day = YMD.test(String(j.scheduledDate || '')) ? j.scheduledDate : null;
+    const week = !day && YMD.test(String(j.scheduledWeek || '')) ? j.scheduledWeek : null;
+    if (!day && !week) continue;
+    const title = String(j.title || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Your other project';
+    out.push({ title, scheduledDate: day, scheduledWeek: week, scheduleWindow: day ? scheduleWindowFor(j) : null });
+  }
+  out.sort((a, b) => String(a.scheduledDate || a.scheduledWeek).localeCompare(String(b.scheduledDate || b.scheduledWeek)));
+  return out.slice(0, 5);
+}
+
 // CORS origins — identical to the list in functions/index.js. The
 // duplication is deliberate: portal.js is meant to be importable on
 // its own, and the origin allowlist is short and rarely changes.
@@ -874,7 +896,15 @@ exports.getHomeownerPortalView = onRequest(
       // {inspected: <ISOString>, estimate_sent: ..., ...} — only keys the
       // lead has actually reached carry a date; see milestoneDatesFor above.
       milestoneDates: milestoneDatesFor(lead),
+      // [{title, scheduledDate|scheduledWeek, scheduleWindow}] — see otherJobsFor.
+      otherJobs: [],
     };
+    try {
+      const js = await db.collection('leads').doc(tok.leadId).collection('jobs').get();
+      progress.otherJobs = otherJobsFor(lead, js.docs.map((d) => Object.assign({ id: d.id }, d.data())));
+    } catch (e) {
+      logger.warn('portal other-jobs read failed', { err: e && e.message });   // the main card still renders
+    }
 
     // Refresh any homeowner-upload URL that is dead or nearly dead before
     // it reaches the gallery. Rep-uploaded photos carry permanent variant
