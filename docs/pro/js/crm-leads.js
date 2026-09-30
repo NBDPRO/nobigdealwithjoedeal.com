@@ -122,6 +122,16 @@ function openLeadModal(){
   if (_nbdReg && typeof _nbdReg.filterStageDropdownByJobType === 'function') {
     _nbdReg.filterStageDropdownByJobType(jtEl?.value || '');
   }
+  // Show the field blocks that match the job type NOW (2026-09-30). The
+  // auto-inferred jobType above (Insurance view → 'insurance') never ran
+  // toggleInsuranceFields, so Add Lead opened with Job Type "Insurance" and
+  // the 308px insurance block hidden. The first Stage change then ran the
+  // toggle and dropped the block in mid-form, and the rep's next click
+  // landed on the wrong field (Jo's live session). editLead re-runs this
+  // after it fills the form; running it here costs nothing.
+  if (_nbdReg && typeof _nbdReg.toggleInsuranceFields === 'function') {
+    try { _nbdReg.toggleInsuranceFields(); } catch (_) {}
+  }
 }
 function closeLeadModal(){
   // Visibility toggle is dual-path (nbdModal on dashboard.html, classList on
@@ -172,8 +182,10 @@ function _leadModalReset(){
   // checked when the modal reopened blank for "Add Lead", silently stamping
   // a fresh contractFiledAt/etc. on a brand-new lead that was never filed.
   ['lContractFiled','lPermitFiled','lAobFiled','lWarrantyCertFiled','lCocFiled'].forEach(id=>{ const e=document.getElementById(id); if(e) e.checked=false; });
-  // Hide conditional field blocks
-  ['insuranceFieldsBlock','financeFieldsBlock','jobFieldsBlock'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
+  // Hide conditional field blocks. #jobFieldsBlock is NOT one of them since
+  // 2026-09-30: it is always shown, so changing Stage no longer inserts it
+  // mid-form (see toggleInsuranceFields in dashboard-bootstrap.module.js).
+  ['insuranceFieldsBlock','financeFieldsBlock'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
   window._modalIntel = null;
   // Drop the map-pin / GPS latch with the form it belongs to. maps-overlays
   // sets _pendingPinId + _pendingPinLatLng ~100ms AFTER openLeadModal, so this
@@ -326,8 +338,14 @@ async function saveLead(){
   const _schedWinErr = _schedWinUI ? _schedWinUI.validate('l') : null;
   if (_schedWinErr) { showFormError(_schedWinErr, document.getElementById('lSchedStart')); return; }
 
-  // Prevent double-submit
-  if(saveBtn.disabled) return;
+  // Prevent double-submit. Two buttons call saveLead: the bottom "Save Lead"
+  // (.msave) and the header bar's "Save" (#leadModalSave). One in-flight
+  // flag covers both, and both are disabled while a save runs, so a second
+  // tap on either (or one of each) cannot write a second lead (2026-09-30).
+  if(saveLead._inFlight || saveBtn.disabled) return;
+  saveLead._inFlight = true;
+  const barSave = document.getElementById('leadModalSave');
+  if (barSave) barSave.disabled = true;
   saveBtn.disabled=true;
   const origText=saveBtn.textContent;
   saveBtn.textContent='Saving...';
@@ -562,6 +580,8 @@ async function saveLead(){
     console.error('saveLead error:', e);
     mErr.textContent='Save failed — check your connection and try again.';mErr.style.display='block';
   } finally {
+    saveLead._inFlight = false;
+    if (barSave) barSave.disabled = false;
     saveBtn.disabled=false;
     saveBtn.textContent=origText;
   }

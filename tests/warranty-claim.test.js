@@ -387,7 +387,9 @@ console.log('\ndashboard-bootstrap.module.js — wiring (source-text)');
   const db = read('docs/pro/js/dashboard-bootstrap.module.js');
   ok('STAGE_TARGETS.file_warranty_claim -> warranty_claim', /file_warranty_claim:\s*'warranty_claim'/.test(db));
   ok('STAGE_TARGETS.resolve_warranty_claim -> closed', /resolve_warranty_claim:\s*'closed'/.test(db));
-  ok("jobStages array (controls #jobFieldsBlock visibility) includes 'warranty_claim'", /'collections','closed','warranty_claim'/.test(db));
+  // #jobFieldsBlock used to show only for a jobStages list (which had to
+  // include 'warranty_claim'); since 2026-09-30 it is always shown.
+  ok("#jobFieldsBlock is visible at warranty_claim (always shown since 2026-09-30)", /if \(job\) job\.style\.display = 'block';/.test(db));
   ok('imports CLAIM_STATUSES/preferredActionForClaim/missingClaimFields from crm-stages.js',
     /CLAIM_STATUSES, CLAIM_STATUS_ACTIONS, preferredActionForClaim/.test(db) && /REQUIRED_FIELDS_BY_CLAIM_STATUS, missingClaimFields/.test(db));
   ok('registers missingClaimFields in __NBD_CALL_REGISTRY for warranty-claim.js to consume (Globals Tranche 3 T3-C)',

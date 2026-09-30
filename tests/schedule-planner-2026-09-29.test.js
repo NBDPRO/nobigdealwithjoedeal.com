@@ -175,7 +175,9 @@ console.log('\n3e. weeks everywhere — the iPhone feed, the customer page, the 
       && (leads.match(/'lScheduledWeek'/g) || []).length >= 2);
   ok('cache versions bumped for every changed file',
     /schedule-window\.js\?v=2/.test(cust) && /schedule-window\.js\?v=2/.test(dash) && /customer-edit-modal\.js\?v=5/.test(cust)
-      && /crm-leads\.js\?v=5/.test(dash) && /crm-portal-bridge\.js\?v=6/.test(dash));
+      // A floor, not an exact pin: a later change bumping crm-leads.js again
+      // (the 2026-09-30 CRM handoff → v=6) still satisfies "bumped for this one".
+      && +((dash.match(/crm-leads\.js\?v=(\d+)/) || [])[1] || 0) >= 5 && /crm-portal-bridge\.js\?v=6/.test(dash));
 }
 
 console.log('\n4. wiring');
