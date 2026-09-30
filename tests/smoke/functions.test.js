@@ -99,10 +99,14 @@ section('Review request nudge (post-win sweep, 2026-07-14)');
 
   // The anniversary-touch idempotency lesson, pinned: the mark fires in
   // every mode (incl. dry-run), and both "already asked" lanes skip.
+  // Multi-job (J2, 2026-09-30): the skips live in reviewAskDue — a customer
+  // with no jobs keeps the once-ever rule; a job skips once IT was nudged or
+  // asked, and every customer skips within 90 days of their last ask.
   assert('nudge marks reviewNudgedAt in every mode and skips asked/nudged leads',
-    /markReviewNudged/.test(nudge)
-    && /lead\.reviewRequested\) continue/.test(nudge)
-    && /timestampMillis\(lead\.reviewNudgedAt\)\) continue/.test(nudge));
+    /markReviewNudged\(db, lead\.id, lead\.jobId \|\| null\)/.test(nudge)
+    && /if \(!jobId\) return !l\.reviewRequested && !timestampMillis\(l\.reviewNudgedAt\);/.test(nudge)
+    && /if \(timestampMillis\(j\.reviewNudgedAt\) \|\| timestampMillis\(j\.reviewRequestedAt\)\) return false;/.test(nudge)
+    && /now - last < REVIEW_GAP_DAYS \* DAY_MS\) return false;/.test(nudge));
 
   // Rep-in-the-loop: the sweep must never email/SMS the homeowner —
   // the only Resend send goes to the rep's own user.email digest.
