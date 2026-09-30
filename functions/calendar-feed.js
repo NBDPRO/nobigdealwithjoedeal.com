@@ -40,6 +40,7 @@ const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { httpRateLimit, enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { buildCalendar } = require('./calendar-feed-logic');
+const JOBS = require('./jobs-logic');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -264,16 +265,38 @@ exports.getCalendarFeed = onRequest(
       // zero-padded YYYY-MM-DD sorts chronologically. buildCalendar re-validates
       // every field, so a malformed value here only widens the read.
       const inWindow = (s) => typeof s === 'string' && s >= fromYmd && s <= toYmd;
-      leadSnap.forEach((d) => {
-        const data = d.data();
-        if (!data) return;
+      const wanted = (data) => {
         const sd = data.scheduledDate;
         const ed = typeof data.scheduledEndDate === 'string' && data.scheduledEndDate ? data.scheduledEndDate : sd;
         const jobInWindow = typeof sd === 'string' && sd <= toYmd && typeof ed === 'string' && ed >= fromYmd;
-        if (jobInWindow || inWindow(data.adjusterMeetingDate)) {
-          leads.push(Object.assign({ id: d.id }, data));
-        }
+        return jobInWindow || inWindow(data.adjusterMeetingDate);
+      };
+      const leadsById = new Map();
+      leadSnap.forEach((d) => {
+        const data = d.data();
+        if (!data) return;
+        leadsById.set(d.id, data);
+        if (wanted(data)) leads.push(Object.assign({ id: d.id }, data));
       });
+      // Multi-job (2026-09-30): a customer's OTHER jobs (the lead's own fields
+      // are the job on their card). Each is the lead with that job's fields
+      // laid over it, under its own id `leadId/jobId` — so its own UID — and
+      // titled with the job. One collection-group read (single-field index).
+      // A failed jobs read must not 503 the whole feed: the customers' own
+      // events are still right, so serve them and log.
+      try {
+        const jobSnap = await db.collectionGroup('jobs').where('userId', '==', uid).limit(LEAD_SCAN_CAP).get();
+        jobSnap.forEach((d) => {
+          const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+          const lead = leadId ? leadsById.get(leadId) : null;
+          if (!lead || lead.deleted === true || lead.activeJobId === d.id) return;
+          const job = d.data() || {};
+          const view = Object.assign(JOBS.jobView(lead, job), { id: leadId + '/' + d.id, _jobTitle: job.title || null });
+          if (wanted(view)) leads.push(view);
+        });
+      } catch (e) {
+        logger.warn('[getCalendarFeed] jobs read failed — serving customers only', { uid, err: e && e.message });
+      }
       if (leadSnap.size === LEAD_SCAN_CAP) {
         logger.warn('[getCalendarFeed] lead scan hit the cap', { uid, cap: LEAD_SCAN_CAP });
       }

@@ -171,6 +171,13 @@ function normalizeAppointment(doc) {
  * back to the plain all-day event on scheduledDate — the day is still right,
  * and a feed that drops a job is worse than one that shows it without a time.
  */
+// Multi-job (2026-09-30): a customer's other job is fed in as the lead with
+// that job's fields laid over it, id `leadId/jobId`, and `_jobTitle` — so two
+// jobs for one customer read apart. A plain lead has no `_jobTitle`.
+function jobSuffix(doc) {
+  return doc && typeof doc._jobTitle === 'string' && doc._jobTitle ? ' — ' + doc._jobTitle : '';
+}
+
 function normalizeLead(doc) {
   if (!doc || typeof doc !== 'object') return null;
   if (doc.deleted === true) return null;
@@ -190,7 +197,7 @@ function normalizeLead(doc) {
     // "7:00 am · 2-day job" — rides in the title of an all-day project so the
     // start time is not lost when the event itself cannot carry one.
     windowNote: w && ics && ics.allDay ? [SW.timeLabel(w), w.days > 1 ? w.days + '-day job' : ''].filter(Boolean).join(' · ') : '',
-    title: name || String(doc.address || '') || 'Scheduled job',
+    title: (name || String(doc.address || '') || 'Scheduled job') + jobSuffix(doc),
     location: String(doc.address || ''),
     stage: String(doc.stage || ''),
     phone: String(doc.phone || ''),
@@ -222,7 +229,7 @@ function normalizeLeadWeek(doc) {
     startMs: null,
     endMs: null,
     windowNote: '',
-    title: 'Week of: ' + (name || String(doc.address || '') || 'Scheduled job'),
+    title: 'Week of: ' + (name || String(doc.address || '') || 'Scheduled job') + jobSuffix(doc),
     location: String(doc.address || ''),
     stage: String(doc.stage || ''),
     phone: String(doc.phone || ''),
@@ -251,7 +258,7 @@ function normalizeAdjusterMeeting(doc) {
     endExclusive: startMs == null ? nextDate(ymd) : null,
     startMs,
     endMs: startMs == null ? null : startMs + DEFAULT_DURATION_MS,
-    title: 'Adjuster meeting · ' + (name || String(doc.address || '') || 'Claim'),
+    title: 'Adjuster meeting · ' + (name || String(doc.address || '') || 'Claim') + jobSuffix(doc),
     location: String(doc.address || ''),
     adjusterName: String(doc.adjusterName || ''),
     adjusterPhone: String(doc.adjusterPhone || ''),
