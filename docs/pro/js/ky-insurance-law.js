@@ -109,7 +109,7 @@
       '(KRS 367.626(3)) on its own invoice.',
     payLinkHeld:
       'Online payment link withheld: Kentucky insurance job (KRS 367.626). Record the date the carrier\'s written coverage ' +
-      'decision arrived on the lead (Claim section → "Carrier decision received"); the link can be created 5 business days ' +
+      'decision arrived on the lead (Claim section → "Carrier decision"); the link can be created 5 business days ' +
       'later. Emergency tarp or repair invoices can be marked Emergency and billed now (KRS 367.626(3)).',
     aobRetired:
       'The Assignment of Benefits and the Direction to Pay have been retired. Contracts carry a plain payment clause; ' +

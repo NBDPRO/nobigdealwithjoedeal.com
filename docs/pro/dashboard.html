@@ -5333,7 +5333,7 @@
         <!-- Kentucky insurance jobs (KRS 367.626, 2026-09-27): the date the
              carrier's WRITTEN coverage decision reached the homeowner. The
              online payment link unlocks 5 business days after it. -->
-        <div class="mfield"><label>Carrier decision received</label><input type="date" id="lCarrierDecisionAt" title="Date the insurer's written coverage decision arrived. Kentucky insurance jobs: payment can be asked for 5 business days later (KRS 367.626)."></div>
+        <div class="mfield"><label for="lCarrierDecisionAt">Carrier decision</label><input type="date" id="lCarrierDecisionAt" title="Date the insurer's written coverage decision arrived. Kentucky insurance jobs: payment can be asked for 5 business days later (KRS 367.626)."></div>
       </div>
       <div class="mrow">
         <div class="mfield"><label>Estimate Amount ($)</label><input type="number" id="lEstimateAmount" placeholder="18500" min="0"></div>
@@ -6768,7 +6768,7 @@
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
      the Close Board deal room all read it. -->
-<script defer src="js/ky-insurance-law.js?v=1"></script>
+<script defer src="js/ky-insurance-law.js?v=2"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->
@@ -6827,7 +6827,7 @@
 <script defer src="js/lead-source-roi.js?v=2"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
 <script defer src="js/forecasting.js?v=2"></script>
-<script defer src="js/onboarding-tour.js?v=3"></script>
+<script defer src="js/onboarding-tour.js?v=4"></script>
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>
