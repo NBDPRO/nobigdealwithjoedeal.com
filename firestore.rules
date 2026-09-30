@@ -133,8 +133,20 @@ service cloud.firestore {
     function referralServerFieldsFrozen() {
       return didNotChange([
         'referralRewardAmount', 'referralAttributedAt', 'referrerLeadId',
-        'referralDocId', 'referralRewardOwedAt', 'referredBy', 'referralCodeInvalid'
+        'referralDocId', 'referralRewardOwedAt', 'referredBy', 'referralCodeInvalid',
+        // Multi-job (J1, 2026-09-30): how many jobs earned a bonus. Forging it
+        // would defeat the "first job was already paid" legacy guard.
+        'referralRewardJobCount'
       ]);
+    }
+    // The per-JOB referral latch (functions/referral-rewards.js creditJob).
+    // A client must never set, clear or change it on a job: clearing it on a
+    // closed job would re-arm onReferralJobWrite and pay the bonus twice.
+    function jobReferralFieldsOk() {
+      let keys = ['referralRewardOwedAt', 'referralRewardAmount', 'referralRewardLegacy'];
+      return request.method == 'create'
+        ? !request.resource.data.keys().hasAny(keys)
+        : !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
     }
     // referralRewardStatus is trigger-set (pending->owed). The ONLY client-allowed
     // change is the rep's Mark Paid / Mark Unpaid toggle between owed and paid
@@ -181,7 +193,7 @@ service cloud.firestore {
       return stageWriteOk() && paperworkFieldsOk() && scheduleWindowOk()
         && d.get('userId', '') == lead.get('userId', '')
         && d.get('companyId', '') == lead.get('companyId', '')
-        && valueOk && titleOk;
+        && valueOk && titleOk && jobReferralFieldsOk();
     }
 
     function stageWriteOk() {
