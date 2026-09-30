@@ -36,7 +36,7 @@ const JOB_FIELDS = Object.freeze([
   'financeCompany', 'loanAmount', 'loanStatus', 'preQualLink',
   // schedule
   'scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledEndDate', 'scheduledDurationMin',
-  'adjusterMeetingDate', 'adjusterMeetingTime', 'crew',
+  'adjusterMeetingDate', 'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'crew',
   // paperwork
   'contractFiledAt', 'permitFiledAt', 'aobFiledAt', 'warrantyCertFiledAt', 'cocFiledAt',
 ]);
@@ -159,4 +159,18 @@ function promotionPatch(job) {
   return patch;
 }
 
-module.exports = { JOB_FIELDS, FIRST_JOB_ID, titleFor, firstJobFromLead, mirrorPatch, isOpen, same, pickPromotion, promotionPatch };
+/**
+ * The lead as ONE of its jobs: the customer's fields with that job's per-job
+ * fields laid over it (null where the job has none) and the job's property
+ * address. Same overlay the pipeline cards use (docs/pro/js/jobs-store.js
+ * cardsFor), so a non-active job reads the same on the calendar as on its card.
+ */
+function jobView(lead, job) {
+  const v = Object.assign({}, lead || {});
+  const j = job || {};
+  JOB_FIELDS.forEach((f) => { v[f] = j[f] === undefined ? null : j[f]; });
+  if (j.property && typeof j.property.address === 'string' && j.property.address) v.address = j.property.address;
+  return v;
+}
+
+module.exports = { JOB_FIELDS, FIRST_JOB_ID, titleFor, firstJobFromLead, mirrorPatch, isOpen, same, pickPromotion, promotionPatch, jobView };

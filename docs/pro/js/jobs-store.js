@@ -42,7 +42,7 @@
     'carrierDecisionAt', 'estimateAmount', 'deductibleOrOwedByHO', 'supplementStatus',
     'financeCompany', 'loanAmount', 'loanStatus', 'preQualLink',
     'scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledEndDate', 'scheduledDurationMin',
-    'adjusterMeetingDate', 'adjusterMeetingTime', 'crew',
+    'adjusterMeetingDate', 'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'crew',
     'contractFiledAt', 'permitFiledAt', 'aobFiledAt', 'warrantyCertFiledAt', 'cocFiledAt',
   ];
 

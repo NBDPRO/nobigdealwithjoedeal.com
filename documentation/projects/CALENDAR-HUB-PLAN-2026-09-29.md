@@ -1,7 +1,9 @@
 # Calendar hub plan — 2026-09-29
 
-**Status:** plan only. Nothing here is built yet. It needs Jo's sign-off on the
-§6 questions before any code is written.
+**Status (corrected 2026-09-30):** Phase 0 and Phase 2 are BUILT and live
+(#1879, #1891, week-first scheduling the same evening; per-job events
+2026-09-30). The updates below and at the end describe what shipped. Jo's §6
+answers are recorded; Phase 1 (Cal.com ↔ Google) is Jo's settings click.
 
 **Jo's ask (2026-09-29):** join his regular calendar, his Cal.com bookings and
 his daily job schedule into one place, with "flawless running function with no
@@ -212,3 +214,29 @@ day later**, with the homeowner told "the week of…".
   - Refining to Oct 7, 2 days, 7:30 stored the end date Oct 8 and cleared
     the week.
   - The panel fits at 375px.
+
+## Update 2026-09-30 — events per JOB (multi-job)
+
+A customer can now have more than one job
+([CRM-JOBS-AND-MONEY-PAPER-PLAN](CRM-JOBS-AND-MONEY-PAPER-PLAN-2026-09-30.md)).
+Google events were keyed per LEAD, so a second job's date had nowhere to go.
+
+- The customer's **active job** keeps the per-lead event ids (its fields live
+  on the lead), so every existing event is untouched.
+- Every **other** job with a date gets its own events, keyed by lead + job
+  (`eventIdFor(kind, leadId, jobId)`; `/` can't occur in a doc id, so no
+  collisions), titled "🔨 Name — <job title>", at the job's own property.
+  Built from the lead with the job's fields laid over it
+  (`jobs-logic.js jobView`, the same overlay the pipeline cards use).
+- **`onJobCalendarWrite`** (`leads/{id}/jobs/{jobId}`) syncs those; the
+  lead trigger re-syncs both jobs when a promotion swaps `activeJobId`; the
+  nightly reconcile reads jobs by collection group.
+- The double-booking check still skips the job being edited, but the same
+  customer's OTHER job now counts as a clash.
+- Found on the way: the job field list carried `adjusterMeetingTime`, a field
+  nothing writes; the app writes `adjusterMeetingStart`, `adjusterName`,
+  `adjusterPhone`. Fixed in both copies, so the mirror carries them and a
+  promotion no longer leaves the old claim's adjuster on the card.
+- Not yet per job: the .ics subscribe feed (its UIDs and links are per lead).
+- Tests: [google-calendar-sync](../../tests/google-calendar-sync-2026-09-29.test.js)
+  §7 (57 checks); break-tested ids, busy, overlay and the promotion swap.

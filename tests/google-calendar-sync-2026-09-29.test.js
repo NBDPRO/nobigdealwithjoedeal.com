@@ -61,8 +61,18 @@ function fakeDb(seed) {
   const docs = {};
   for (const [k, v] of Object.entries(seed || {})) docs[k] = JSON.parse(JSON.stringify(v));
   const ref = (p) => ({
-    async get() { return { exists: !!docs[p], data: () => docs[p] && JSON.parse(JSON.stringify(docs[p])) }; },
+    async get() { return { exists: !!docs[p], id: p.split('/').pop(), data: () => docs[p] && JSON.parse(JSON.stringify(docs[p])) }; },
     async set(d, o) { const clean = JSON.parse(JSON.stringify(d, (k, v) => (v && v.constructor && v.constructor.name === 'ServerTimestampTransform' ? 'TS' : v))); docs[p] = o && o.merge && docs[p] ? Object.assign(docs[p], clean) : clean; },
+    collection: (c) => ({ doc: (id) => ref(p + '/' + c + '/' + id) }),
+  });
+  // leads/{id}/jobs/{jobId} across all leads (multi-job, 2026-09-30).
+  const cg = (name, fl) => ({
+    where: (f, op, v) => cg(name, fl.concat([[f, v]])),
+    async get() {
+      const hits = Object.keys(docs).filter((k) => { const s = k.split('/'); return s.length >= 4 && s[s.length - 2] === name && fl.every(([f, v]) => docs[k][f] === v); })
+        .map((k) => { const s = k.split('/'); return { id: s[s.length - 1], ref: { parent: { parent: { id: s[s.length - 3] } } }, data: () => JSON.parse(JSON.stringify(docs[k])) }; });
+      return { forEach: (fn) => hits.forEach(fn), docs: hits, size: hits.length };
+    },
   });
   const q = (col, fl) => ({
     where: (f, op, v) => q(col, fl.concat([[f, v]])),
@@ -72,7 +82,7 @@ function fakeDb(seed) {
       return { forEach: (fn) => hits.forEach(fn), docs: hits, size: hits.length };
     },
   });
-  return { doc: (p) => ref(p), collection: (c) => Object.assign(q(c, []), { doc: (id) => ref(c + '/' + id) }), _docs: docs };
+  return { doc: (p) => ref(p), collection: (c) => Object.assign(q(c, []), { doc: (id) => ref(c + '/' + id) }), collectionGroup: (n) => cg(n, []), _docs: docs };
 }
 
 const L = (id, f) => Object.assign({ companyId: 'OWNER', userId: 'OWNER', firstName: 'ZZ_QA', lastName: id, address: id + ' ZZQA St', stage: 'contract_signed' }, f);
@@ -200,6 +210,67 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     const ui = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'google-calendar-ui.js'), 'utf8');
     ok('a direct #/schedule link waits for the panel AND the signed-in user before its one status load',
       /\$\('gcalPanel'\) && window\._user && window\._user\.uid/.test(ui) && /_tries < 40/.test(ui) && /addEventListener\('nbd:data-refreshed', maybeLoad\)/.test(ui));
+  }
+
+  console.log('\n7. a customer with two jobs (multi-job, 2026-09-30)');
+  {
+    const lead = Object.assign({ id: 'M1', activeJobId: 'j1' }, L('Twojobs', { scheduledDate: future(4), scheduledStart: '07:00', scheduledDurationMin: 480 }));
+    const gutters = { id: 'j2', title: 'Gutter guards', stage: 'new', scheduledDate: future(6), scheduledStart: '09:00', scheduledDurationMin: 120, property: { address: '9 Other Rd' }, companyId: 'OWNER', userId: 'OWNER' };
+    const ev = G.desiredEventsForJob(lead, gutters);
+    ok('the other job gets its own event, keyed per job (not the customer\'s id)', ev.length === 1 && ev[0].id === G.eventIdFor('job', 'M1', 'j2') && ev[0].id !== G.eventIdFor('job', 'M1'));
+    ok('...a valid Google id', /^[a-v0-9]{5,1024}$/.test(ev[0].id));
+    ok('...named with the job, at the job\'s own property, on its own time', /Gutter guards/.test(ev[0].summary) && ev[0].location === '9 Other Rd'
+      && Date.parse(ev[0].end.dateTime) - Date.parse(ev[0].start.dateTime) === 120 * 60000, ev[0].summary + ' @ ' + ev[0].location);
+    ok('...tagged with its job id', ev[0].extendedProperties.private.nbdJobId === 'j2' && ev[0].extendedProperties.private.nbdLeadId === 'M1');
+    ok('the ACTIVE job has no per-job event (the lead\'s event is it)', G.desiredEventsForJob(lead, { id: 'j1', scheduledDate: future(4) }).length === 0);
+    ok('a job with no date of its own shows nothing (the customer\'s install date is not copied onto it)', G.desiredEventsForJob(lead, { id: 'j3', title: 'Caulk' }).length === 0);
+    ok('the active job\'s event is unchanged by multi-job (same id, no job name)', G.desiredEventsForLead(lead)[0].id === G.eventIdFor('job', 'M1') && !/—/.test(G.desiredEventsForLead(lead)[0].summary));
+
+    const g7 = fakeGoogle();
+    M._internal.setClient(g7.client);
+    const db7 = fakeDb({
+      'leads/M1': lead,
+      'leads/M1/jobs/j1': { stage: 'contract_signed', title: 'Roof', scheduledDate: future(4), scheduledStart: '07:00', scheduledDurationMin: 480, companyId: 'OWNER', userId: 'OWNER' },
+      'leads/M1/jobs/j2': gutters,
+      'leads/X/jobs/j2': { title: 'Other tenant', scheduledDate: future(6), companyId: 'someone-else', userId: 'someone-else' },
+    });
+    const r = await M._internal.reconcile(db7, 'cal7');
+    const t7 = () => g7.live('cal7').map((e) => e.summary).join(' | ');
+    ok('reconcile: the roof (customer card) AND the gutter job — two events, no third', g7.live('cal7').length === 2 && /Gutter guards/.test(t7()) && r.jobs === 2, t7());
+    const r2 = await M._internal.reconcile(db7, 'cal7');
+    ok('a second reconcile changes nothing', r2.upserted === 0 && r2.deleted === 0);
+
+    // Busy: editing the customer skips its own card's event, not its other job.
+    const self = G.jobsBusy(g7.live('cal7'), 'M1', () => 0);
+    ok('double-booking check while editing this customer: the other job still counts', self.length === 1 && /Gutter guards/.test(self[0].title));
+
+    // Promotion: the roof is paid in full; the gutter job takes over the card.
+    const promoted = Object.assign({}, lead, { activeJobId: 'j2', scheduledDate: gutters.scheduledDate, scheduledStart: '09:00', scheduledDurationMin: 120 });
+    db7._docs['leads/M1'] = promoted;
+    await M._internal.syncLead('cal7', 'M1', promoted);
+    const sw = await M._internal.syncSwappedJobs(db7, 'cal7', 'M1', promoted, ['j1', 'j2']);
+    const live = g7.live('cal7');
+    ok('after the swap: still exactly two events (no duplicate gutter job)', live.length === 2, t7());
+    ok('...the card\'s event now shows the gutter date', live.some((e) => e.id === G.eventIdFor('job', 'M1') && e.start.dateTime && e.start.dateTime.slice(0, 10) >= gutters.scheduledDate.slice(0, 8)));
+    ok('...the roof keeps its day as its own job event; the gutter job\'s per-job event is gone',
+      live.some((e) => e.id === G.eventIdFor('job', 'M1', 'j1') && /Roof/.test(e.summary)) && !live.some((e) => e.id === G.eventIdFor('job', 'M1', 'j2')), JSON.stringify(sw));
+    await M._internal.syncJob('cal7', 'M1', promoted, 'j1', null);
+    ok('a removed job\'s events are removed', !g7.live('cal7').some((e) => e.id === G.eventIdFor('job', 'M1', 'j1')));
+    M._internal.setClient(g.client);
+
+    ok('job trigger gate: a note on the job is ignored; a new date or title is not', G.jobCalendarFieldsChanged({ notes: 'a', scheduledDate: 'x' }, { notes: 'b', scheduledDate: 'x' }) === false
+      && G.jobCalendarFieldsChanged({ scheduledDate: 'x' }, { scheduledDate: 'y' }) === true && G.jobCalendarFieldsChanged({ title: 'a' }, { title: 'b' }) === true);
+    ok('a promotion (activeJobId) re-syncs the lead', G.calendarFieldsChanged({ activeJobId: 'j1' }, { activeJobId: 'j2' }) === true);
+
+    const J = require(path.join(__dirname, '..', 'functions', 'jobs-logic.js'));
+    ok('the job fields are the ones the app writes (adjusterMeetingStart/Name/Phone; no phantom adjusterMeetingTime)',
+      ['adjusterMeetingStart', 'adjusterName', 'adjusterPhone'].every((f) => J.JOB_FIELDS.includes(f)) && !J.JOB_FIELDS.includes('adjusterMeetingTime'));
+    const src = fs.readFileSync(path.join(__dirname, '..', 'functions', 'google-calendar.js'), 'utf8');
+    ok('the job trigger leaves the active job to the lead trigger', /if \(lead && lead\.activeJobId === jobId\) return;/.test(src));
+    ok('the lead trigger re-syncs BOTH jobs when a promotion swaps the active one',
+      /if \(after && was !== now\) r\.jobs = await syncSwappedJobs\(db, cfg\.calendarId, event\.params\.leadId, after, \[was, now\]\);/.test(src));
+    const idx = fs.readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
+    ok('index.js exports onJobCalendarWrite', /exports\.onJobCalendarWrite\s*=/.test(idx));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
