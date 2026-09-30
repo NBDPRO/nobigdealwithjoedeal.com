@@ -747,7 +747,9 @@ window.NBDDocGen = {
             if (_htmlPath && window.storage && window.ref && window.uploadBytes) {
               const sRef = window.ref(window.storage, _htmlPath);
               const blob = new Blob([signedHtml], { type: 'text/html' });
-              await window.uploadBytes(sRef, blob, { contentType: 'text/html' });
+              // signed:'true' locks the object: storage.rules refuses any
+              // later client overwrite or delete of a signed record (2026-09-29).
+              await window.uploadBytes(sRef, blob, { contentType: 'text/html', customMetadata: { signed: 'true' } });
             }
           } catch (e) {
             console.warn('Signed HTML upload failed:', e && e.message);

@@ -274,6 +274,32 @@ service cloud.firestore {
       return status == null || status in ['draft', 'sent', 'signed'];
     }
 
+    // 2026-09-29 — a SIGNED document is locked (Jo, 2026-09-25: "nobody can
+    // change its content or status; the lead owner or a company_admin can
+    // only archive it"). Signed = status 'signed', or a signedAt stamp (rows
+    // from before the status field existed). Reaching 'signed' is unchanged:
+    // that write goes FROM draft/sent, so the in-person onPersistFinalized
+    // and the server's remote-signing path (admin SDK, no rules) both work.
+    // Once signed, a client may only:
+    //   - flip sharedWithHomeowner (visibility, not content) — any writer;
+    //   - archive / un-archive (deleted, deletedAt) — owner or company_admin.
+    // Hard delete of a signed row is refused for every client; the admin-SDK
+    // sweep on lead deletion (onLeadDeleted) is unaffected.
+    // Null-safe: a delete of a row that no longer exists has no `resource`
+    // (a double-tap, a sweep race) and must not turn into an evaluation error.
+    function documentIsSigned() {
+      return resource != null
+        && (resource.data.get('status', '') == 'signed'
+            || resource.data.get('signedAt', null) != null);
+    }
+    function signedDocumentUpdateOk(leadId) {
+      let keys = request.resource.data.diff(resource.data).affectedKeys();
+      return keys.hasOnly(['sharedWithHomeowner', 'updatedAt'])
+        || (keys.hasOnly(['deleted', 'deletedAt'])
+            && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+                || (isCompanyAdmin() && parentLeadInMyCompany(leadId))));
+    }
+
     // A tenant's customer-ID prefix (brand.docPrefix) + its display twin
     // (brand.seal) are set ONLY by the reserveCompanyPrefix callable (admin SDK)
     // after it atomically claims docPrefixes/{PREFIX}. They must be immutable to
@@ -580,13 +606,21 @@ service cloud.firestore {
         //  B. A viewer writes nothing here, a viewer-owner included, so the
         //     viewer-owner exception described above is gone on all three
         //     operations.
-        allow create, update: if isAuth() && notViewer()
+        allow create: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
           && documentStatusWriteOk();
+        // Split from create (2026-09-29): an update reads `resource`, which a
+        // create does not have. A signed row is locked — see documentIsSigned().
+        allow update: if isAuth() && notViewer()
+          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+              || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
+          && documentStatusWriteOk()
+          && (!documentIsSigned() || signedDocumentUpdateOk(leadId));
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
-              || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
+              || (isCompanyAdmin() && parentLeadInMyCompany(leadId)))
+          && !documentIsSigned();
       }
 
       // ── WARRANTY CLAIMS (2026-09-15) ───────────────────

@@ -416,13 +416,28 @@
     if (!docId || !window._customerId) return;
     var name = label || 'this document';
     var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
-    var okToDelete = await ask('Remove "' + name + '" from this customer record?\n\n'
-      + 'It stops showing on the record. Anyone you already sent the link to can still open it.');
-    if (!okToDelete) return;
-
     // Legacy rows live in the top-level collection; canonical ones in the
     // lead subcollection. Target whichever this id came from.
     var entry = (window._customerDocs || []).filter(function (d) { return d.id === docId; })[0];
+
+    // A signed contract is locked (2026-09-29, firestore.rules
+    // documentIsSigned): only the lead owner or a company_admin may archive
+    // it. Say so up front instead of surfacing a raw permission error.
+    if (entry && entry.signed && !entry.legacy) {
+      var claims = window._userClaims || {};
+      var me = window._user && window._user.uid;
+      var lead = window._currentLead || {};
+      if (!(claims.role === 'company_admin' || (me && lead.userId === me))) {
+        if (typeof showToast === 'function') showToast('Signed contracts are locked. Only the account owner or a company admin can archive one.', 'error');
+        return;
+      }
+    }
+    var okToDelete = await ask(entry && entry.signed
+      ? 'Archive the signed "' + name + '"?\n\n'
+        + 'Signed contracts are locked records: it is hidden from this customer record but never deleted or changed.'
+      : 'Remove "' + name + '" from this customer record?\n\n'
+        + 'It stops showing on the record. Anyone you already sent the link to can still open it.');
+    if (!okToDelete) return;
     var ref = entry && entry.legacy
       ? window.doc(window.db, LEGACY_TOP, docId)
       : window.doc(window.db, 'leads', window._customerId, LEAD_SUB, docId);
