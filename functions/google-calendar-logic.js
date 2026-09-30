@@ -16,6 +16,7 @@
 'use strict';
 
 const FEED = require('./calendar-feed-logic');
+const JOBS = require('./jobs-logic');
 
 const TZ = 'America/New_York';
 const APP_URL = 'https://nobigdealwithjoedeal.com/pro/customer.html?id=';
@@ -26,8 +27,13 @@ const APP_URL = 'https://nobigdealwithjoedeal.com/pro/customer.html?id=';
  * maps to the same id, so an update never makes a duplicate and a retry is a
  * no-op.
  */
-function eventIdFor(kind, leadId) {
-  const hex = Buffer.from(String(leadId), 'utf8').toString('hex');
+function eventIdFor(kind, leadId, jobId) {
+  // Multi-job (2026-09-30): a customer's ACTIVE job keeps the per-lead id (its
+  // fields live on the lead). Any other job is keyed by lead + job; '/' can
+  // never occur in a Firestore document id, so these can never collide with
+  // a per-lead id.
+  const key = jobId ? String(leadId) + '/' + String(jobId) : String(leadId);
+  const hex = Buffer.from(key, 'utf8').toString('hex');
   return 'nbd' + (kind === 'adjuster' ? 'a' : 'j') + hex;
 }
 
@@ -41,10 +47,11 @@ const iso = (ms) => new Date(ms).toISOString();
  * offer those hours; a date-only job with no time shows FREE (it is a
  * reminder, not a block), the same choice the .ics feed made.
  */
-function toGoogleEvent(ev, lead) {
+function toGoogleEvent(ev, lead, job) {
   if (!ev) return null;
   const isAdj = ev.kind === 'adjuster';
-  const name = ev.title || 'Scheduled job';
+  // A customer's other job names itself, so two jobs for one customer read apart.
+  const name = (ev.title || 'Scheduled job') + (job && job.title ? ' — ' + job.title : '');
   const summary = isAdj ? name : ('🔨 ' + name + (ev.windowNote ? ' · ' + ev.windowNote : ''));
   const lines = [];
   if (isAdj) {
@@ -62,7 +69,7 @@ function toGoogleEvent(ev, lead) {
   const timed = ev.startMs != null && ev.endMs != null;
   const multiDay = !timed && ev.endExclusive && ev.endExclusive !== FEED.nextDate(ev.date);
   const out = {
-    id: eventIdFor(ev.kind, ev.id),
+    id: eventIdFor(ev.kind, ev.id, job && job.id),
     summary,
     location: ev.location || undefined,
     description: lines.join('\n'),
@@ -73,6 +80,7 @@ function toGoogleEvent(ev, lead) {
     source: { title: 'NBD Pro', url: APP_URL + encodeURIComponent(ev.id) },
   };
   if (!out.location) delete out.location;
+  if (job && job.id) out.extendedProperties.private.nbdJobId = String(job.id);
   return out;
 }
 
@@ -81,19 +89,37 @@ function toGoogleEvent(ev, lead) {
  * Tenant scoping is the caller's job — only the platform tenant's leads come
  * in here.
  */
-function desiredEventsForLead(lead) {
+function desiredEventsForLead(lead, job) {
   if (!lead || lead.deleted === true) return [];
   const doc = Object.assign({}, lead, { id: lead.id });
   const out = [];
-  const job = FEED.normalizeLead(doc);
-  if (job) out.push(toGoogleEvent(job, lead));
+  const ev = FEED.normalizeLead(doc);
+  if (ev) out.push(toGoogleEvent(ev, lead, job));
   else {
-    const wk = weekEventFor(doc, lead);
+    const wk = weekEventFor(doc, lead, job);
     if (wk) out.push(wk);
   }
   const adj = FEED.normalizeAdjusterMeeting(doc);
-  if (adj) out.push(toGoogleEvent(adj, lead));
+  if (adj) out.push(toGoogleEvent(adj, lead, job));
   return out;
+}
+
+/**
+ * Multi-job (2026-09-30): the events for one of a customer's OTHER jobs (not
+ * the active one — the lead's own events cover that). Built from the lead
+ * with the job's fields laid over it (jobs-logic jobView), keyed per job so
+ * a second job never overwrites the first job's event. A job that is the
+ * active one, or has no id → none (its events are the lead's).
+ */
+function desiredEventsForJob(lead, job) {
+  if (!lead || !job || !job.id || job.id === lead.activeJobId) return [];
+  const view = Object.assign(JOBS.jobView(lead, job), { id: lead.id });
+  return desiredEventsForLead(view, { id: String(job.id), title: job.title || null });
+}
+
+/** The two ids one of a customer's other jobs can own. */
+function allIdsForJob(leadId, jobId) {
+  return [eventIdFor('job', leadId, jobId), eventIdFor('adjuster', leadId, jobId)];
 }
 
 /**
@@ -104,12 +130,12 @@ function desiredEventsForLead(lead) {
  * uses the job's own event id, so setting a real date later updates this
  * event in place instead of leaving a stray.
  */
-function weekEventFor(doc, lead) {
+function weekEventFor(doc, lead, job) {
   // Same week event the .ics feed shows (calendar-feed-logic normalizeLeadWeek).
   const ev = FEED.normalizeLeadWeek(doc);
   if (!ev) return null;
-  const g = toGoogleEvent(ev, lead);
-  g.summary = '📆 ' + ev.title;
+  const g = toGoogleEvent(ev, lead, job);
+  g.summary = '📆 ' + ev.title + (job && job.title ? ' — ' + job.title : '');
   g.transparency = 'transparent';
   g.description = 'Planned for this week — exact day not set yet. Set the date in NBD Pro (Schedule → Plan Jobs).\n' + g.description;
   return g;
@@ -153,7 +179,15 @@ function planSync(desired, existing) {
 /** Did a lead write change anything the calendar shows? (cheap trigger gate) */
 const WATCHED = ['scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledDurationMin', 'scheduledEndDate', 'adjusterMeetingDate',
   'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'firstName', 'lastName', 'address', 'deleted', 'stage', 'phone',
-  'customerId', 'insCarrier', 'insuranceCarrier', 'claimNumber', 'companyId', 'userId'];
+  'customerId', 'insCarrier', 'insuranceCarrier', 'claimNumber', 'companyId', 'userId',
+  // Multi-job: a promotion swaps which job the lead's events describe.
+  'activeJobId'];
+// A job doc: its own fields plus what its event title / place come from.
+const JOB_WATCHED = JOBS.JOB_FIELDS.filter((f) => WATCHED.includes(f)).concat(['title', 'property', 'companyId', 'userId']);
+function jobCalendarFieldsChanged(before, after) {
+  const a = before || {}, b = after || {};
+  return JOB_WATCHED.some((k) => JSON.stringify(a[k] === undefined ? null : a[k]) !== JSON.stringify(b[k] === undefined ? null : b[k]));
+}
 function calendarFieldsChanged(before, after) {
   const a = before || {}, b = after || {};
   return WATCHED.some((k) => JSON.stringify(a[k] === undefined ? null : a[k]) !== JSON.stringify(b[k] === undefined ? null : b[k]));
@@ -187,7 +221,9 @@ function jobsBusy(events, excludeLeadId, localToUtcMs) {
   for (const e of events || []) {
     if (!e || e.status === 'cancelled' || e.transparency === 'transparent') continue;
     const p = (e.extendedProperties && e.extendedProperties.private) || {};
-    if (excludeLeadId && p.nbdLeadId === String(excludeLeadId)) continue;
+    // The lead being edited: skip ITS OWN (active-job) events only — the same
+    // customer's other job on that day is a real clash and still warns.
+    if (excludeLeadId && p.nbdLeadId === String(excludeLeadId) && !p.nbdJobId) continue;
     const s = e.start || {}, en = e.end || {};
     const startMs = s.dateTime ? Date.parse(s.dateTime) : (s.date ? localToUtcMs(s.date, '00:00', TZ) : NaN);
     const endMs = en.dateTime ? Date.parse(en.dateTime) : (en.date ? localToUtcMs(en.date, '00:00', TZ) : NaN);
@@ -206,4 +242,5 @@ function conflictsWith(blocks, startMs, endMs, ignoreEventCalendar) {
 module.exports = {
   TZ, eventIdFor, toGoogleEvent, desiredEventsForLead, allIdsForLead, eventSignature, planSync,
   calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED, weekEventFor,
+  desiredEventsForJob, allIdsForJob, jobCalendarFieldsChanged, JOB_WATCHED,
 };

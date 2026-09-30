@@ -101,6 +101,31 @@ async function syncLead(calendarId, leadId, lead) {
   return { upserted: want.length, removed };
 }
 
+/**
+ * One of a customer's OTHER jobs → its events (multi-job, 2026-09-30). The
+ * active job's events are the lead's (syncLead); a job that is active, gone,
+ * or not the owner's has none, and any it had are removed.
+ */
+async function syncJob(calendarId, leadId, lead, jobId, job) {
+  const want = isOwnerLead(lead) && job ? G.desiredEventsForJob(Object.assign({ id: leadId }, lead), Object.assign({ id: jobId }, job)) : [];
+  const wantIds = new Set(want.map((e) => e.id));
+  for (const e of want) await upsertEvent(calendarId, e);
+  let removed = 0;
+  for (const id of G.allIdsForJob(leadId, jobId)) if (!wantIds.has(id) && await deleteEvent(calendarId, id)) removed++;
+  return { upserted: want.length, removed };
+}
+
+/** Re-sync the jobs a promotion swapped (old active → own events, new active → the lead's). */
+async function syncSwappedJobs(db, calendarId, leadId, lead, jobIds) {
+  const out = {};
+  for (const jid of jobIds) {
+    if (!jid || !/^[A-Za-z0-9_-]{1,40}$/.test(jid)) continue;
+    const s = await db.collection('leads').doc(String(leadId)).collection('jobs').doc(jid).get();
+    out[jid] = await syncJob(calendarId, leadId, lead, jid, s.exists ? s.data() : null);
+  }
+  return out;
+}
+
 /** Make Google match the CRM: every owner lead from 30 days back. */
 async function reconcile(db, calendarId) {
   const sinceMs = Date.now() - 30 * 86400000;
@@ -110,18 +135,32 @@ async function reconcile(db, calendarId) {
   ]);
   const leads = new Map();
   [a, b].forEach((s) => s.forEach((d) => leads.set(d.id, Object.assign({ id: d.id }, d.data()))));
+  // Multi-job: every owner job (one collection-group read per stamp — the
+  // single-field COLLECTION_GROUP indexes from #1917 serve both).
+  const [ja, jb] = await Promise.all([
+    db.collectionGroup('jobs').where('companyId', '==', OWNER).get(),
+    db.collectionGroup('jobs').where('userId', '==', OWNER).get(),
+  ]);
+  const jobs = new Map();
+  [ja, jb].forEach((s) => s.forEach((d) => {
+    const leadId = d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+    if (leadId) jobs.set(leadId + '/' + d.id, { leadId, job: Object.assign({ id: d.id }, d.data()) });
+  }));
   const desired = [];
-  for (const l of leads.values()) {
-    for (const e of G.desiredEventsForLead(l)) {
-      const endMs = e.end.dateTime ? Date.parse(e.end.dateTime) : Date.parse(e.end.date + 'T23:59:59Z');
-      if (endMs >= sinceMs) desired.push(e);
-    }
+  const keep = (e) => {
+    const endMs = e.end.dateTime ? Date.parse(e.end.dateTime) : Date.parse(e.end.date + 'T23:59:59Z');
+    if (endMs >= sinceMs) desired.push(e);
+  };
+  for (const l of leads.values()) G.desiredEventsForLead(l).forEach(keep);
+  for (const { leadId, job } of jobs.values()) {
+    const l = leads.get(leadId);
+    if (l) G.desiredEventsForJob(l, job).forEach(keep);
   }
   const existing = await listManaged(calendarId, sinceMs);
   const plan = G.planSync(desired, existing);
   for (const e of plan.upserts) await upsertEvent(calendarId, e);
   for (const id of plan.deletes) await deleteEvent(calendarId, id);
-  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leads.size };
+  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leads.size, jobs: jobs.size };
 }
 
 // ── owner gate (same shape as stripe-ledger.js) ───────────────────────────
@@ -233,10 +272,41 @@ exports.onLeadCalendarWrite = onDocumentWritten(
     if (!cfg || !cfg.calendarId) return;                               // not set up yet
     try {
       const r = await syncLead(cfg.calendarId, event.params.leadId, after);
+      // A promotion (jobs-mirror) swapped the active job: the old one now
+      // gets its own events, the new one's move onto the lead's.
+      const was = before && before.activeJobId, now = after && after.activeJobId;
+      if (after && was !== now) r.jobs = await syncSwappedJobs(db, cfg.calendarId, event.params.leadId, after, [was, now]);
       logger.info('[googleCalendar] lead synced', { leadId: event.params.leadId, ...r });
     } catch (e) {
       // The nightly reconcile repairs anything missed here.
       logger.warn('[googleCalendar] lead sync failed', { leadId: event.params.leadId, status: statusOf(e), msg: e && e.message });
+    }
+  }
+);
+
+// Multi-job (2026-09-30): one of a customer's other jobs was added, moved,
+// rescheduled or removed → its own events. The active job is the lead's
+// (onLeadCalendarWrite), so it is skipped here.
+exports.onJobCalendarWrite = onDocumentWritten(
+  { document: 'leads/{leadId}/jobs/{jobId}', region: 'us-central1', timeoutSeconds: 60, retry: false },
+  async (event) => {
+    if (disabled()) return;
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    if (!isOwnerLead(before) && !isOwnerLead(after)) return;          // another tenant's job
+    if (before && after && !G.jobCalendarFieldsChanged(before, after)) return;
+    const db = getFirestore();
+    const cfg = await loadConfig(db);
+    if (!cfg || !cfg.calendarId) return;
+    const { leadId, jobId } = event.params;
+    try {
+      const ls = await db.collection('leads').doc(leadId).get();
+      const lead = ls.exists ? ls.data() : null;
+      if (lead && lead.activeJobId === jobId) return;                  // the lead's own events
+      const r = await syncJob(cfg.calendarId, leadId, lead, jobId, after);
+      logger.info('[googleCalendar] job synced', { leadId, jobId, ...r });
+    } catch (e) {
+      logger.warn('[googleCalendar] job sync failed', { leadId, jobId, status: statusOf(e), msg: e && e.message });
     }
   }
 );
@@ -254,5 +324,5 @@ exports.googleCalendarReconcile = onSchedule(
   }
 );
 
-module.exports._internal = { setup, reconcile, syncLead, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
+module.exports._internal = { setup, reconcile, syncLead, syncJob, syncSwappedJobs, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
   setClient: (c) => { _testClient = c; } };
