@@ -3582,7 +3582,8 @@
           if (!result.proceed) {
             if (result.openLeadId) {
               // Rep chose to open the existing lead — navigate there.
-              window.location.href = `/pro/customer.html?id=${encodeURIComponent(result.openLeadId)}`;
+              // "Add a job to them" lands on the add-job sheet (customer-jobs.js).
+              window.location.href = `/pro/customer.html?id=${encodeURIComponent(result.openLeadId)}${result.addJob ? '#addJob' : ''}`;
             }
             return null;
           }
