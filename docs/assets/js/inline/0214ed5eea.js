@@ -5,5 +5,7 @@ window._captureContactLead = async (data) => {
     source: 'homepage'
   }, data || {}));
   if (!res.ok) console.warn('Lead capture failed:', res.reason);
+  // Full result for the photo step (res.photoToken — intake-extras.js).
+  window._lastLeadResult = res;
   return !!res.ok;
 };

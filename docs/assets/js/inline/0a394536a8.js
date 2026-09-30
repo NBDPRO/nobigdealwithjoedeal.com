@@ -27,6 +27,19 @@
       payload[k] = (v || '').toString().trim();
     }
 
+    // The form is novalidate and nothing checked its "required" fields, so a
+    // missing one reached the gateway and came back as a bare failure
+    // (2026-09-30). Same rules as every public form: a 10-digit phone and a
+    // street address (number + street).
+    const phoneOk = (payload.phone || '').replace(/\D/g, '').replace(/^1/, '').length === 10;
+    const addr = payload.address || '';
+    const addressOk = addr.length >= 6 && /\d/.test(addr) && /[a-z]/i.test(addr);
+    if (!payload.nomineeName || !phoneOk || !addressOk || !payload.story) {
+      out.className = 'form-result error';
+      out.textContent = 'Please fill in the homeowner\'s name, a 10-digit phone number, the street address, and their story.';
+      return;
+    }
+
     btn.disabled = true;
     btn.textContent = 'Submitting…';
 

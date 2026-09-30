@@ -144,12 +144,29 @@ async function submitForm(){
   // truthiness check, so "555" or a typo'd 9-digit number reached Joe as a lead
   // he could not call back.
   const phoneOk = !!phone && phone.replace(/\D/g, '').replace(/^1/, '').length === 10;
-  if(!first || !phoneOk){
+  // Address is required on every service form (2026-09-30): a number and a
+  // street, not just a ZIP.
+  const addressEl = document.getElementById('fieldAddress');
+  const addressOk = !!address && address.length >= 6 && /\d/.test(address) && /[a-z]/i.test(address);
+  if(!first || !phoneOk || !addressOk){
     const invalid = [];
     if(!first) invalid.push(firstEl);
     if(!phoneOk) invalid.push(phoneEl);
-    _formShowError('Please enter your first name and a 10-digit phone number so Joe can reach you.', invalid);
+    if(!addressOk) invalid.push(addressEl);
+    _formShowError('Please enter your first name, a 10-digit phone number, and your street address so Joe can reach you.', invalid);
     return;
+  }
+  // Scheduling choice (required) + photos and the rest — intake-extras.js.
+  let intake = { fields: {}, files: [] };
+  if (window.NBDIntake) {
+    intake = window.NBDIntake.read(document.getElementById('formFields'), 'hp');
+    if (intake.error) {
+      const fsEl = intake.el;
+      if (fsEl && fsEl.classList) fsEl.classList.add('nbd-intake-invalid');
+      _formShowError(intake.error, []);
+      if (fsEl && fsEl.scrollIntoView) fsEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
   }
   _formClearError();
 
@@ -165,6 +182,8 @@ async function submitForm(){
   body.append('address', address || '(not provided)');
   body.append('service', service || '(not selected)');
   body.append('message', message || '(no message)');
+  body.append('scheduling', intake.fields.scheduling === 'calendar' ? 'Booking a time on the calendar' : 'Contact me to coordinate');
+  if (intake.files.length) body.append('photos', intake.files.length + ' photo(s) — attached in the CRM');
   body.append('_subject', `New Estimate Request — ${service || 'General'} — ${first} ${last}`);
   body.append('_captcha', 'false');
   body.append('_template', 'table');
@@ -179,7 +198,7 @@ async function submitForm(){
     try {
       captured = await window._captureContactLead({
         firstName: first, lastName: last, phone, email,
-        address, service, message
+        address, service, message, ...intake.fields
       });
     } catch(err){
       captured = false;
@@ -198,6 +217,15 @@ async function submitForm(){
     // confirmation instead of the vanished form.
     success.setAttribute('tabindex', '-1');
     success.focus();
+    // Calendar button (if they chose to book) + photo upload with the
+    // submission's one-time token.
+    if (window.NBDIntake) {
+      const res = window._lastLeadResult || {};
+      window.NBDIntake.afterSubmit(success, {
+        prefix: 'hp', fields: intake.fields, files: intake.files, photoToken: res.photoToken || null,
+        firstName: first, lastName: last, email, phone, address, service
+      });
+    }
   } else {
     btn.textContent = 'Get My Free Estimate →';
     btn.disabled = false;

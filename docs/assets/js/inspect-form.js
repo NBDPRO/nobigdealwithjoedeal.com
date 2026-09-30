@@ -11,8 +11,11 @@
  *    window.submitPublicLead('inspect', payload), and swap the form for
  *    a success message. On error, re-enable the button and show an
  *    inline alert so the user can retry or call Joe directly.
- *  - photoNames is sent as a comma-joined string (the server allowlist
- *    treats it as a single string field with maxLen 2000).
+ *  - Photos (2026-09-30) are UPLOADED, not just named: intake-extras.js
+ *    reads them, the gateway answers with a one-time photoToken, and
+ *    NBDIntake.afterSubmit sends each one (functions/public-lead-photos.js).
+ *    The same block adds the REQUIRED scheduling choice, best time,
+ *    insurance and how-heard.
  *  - Name, address and a 10-digit US mobile number are checked BEFORE the
  *    request (2026-09-13). The form is `novalidate` and this file used to post
  *    blind, so a missing phone reached the gateway, which answers a bare 400
@@ -46,23 +49,11 @@
     var fd = new FormData(form);
     var out = {};
     fd.forEach(function (v, k) {
-      if (k === 'photos') return; // files handled separately
+      // The intake block's own inputs (scheduling radios) are read by
+      // NBDIntake.read, not posted by name.
+      if (k === 'photos' || /^ins[A-Z]/.test(k)) return;
       out[k] = typeof v === 'string' ? v.trim() : v;
     });
-    var photoInput = form.querySelector('input[type=file][name=photos]');
-    // Send as a string: the server's optional-field allowlist drops any
-    // value that isn't a string (typeof !== 'string' → skipped), so a
-    // numeric photoCount would silently never persist on the lead.
-    var photoFiles = photoInput && photoInput.files ? photoInput.files.length : 0;
-    out.photoCount = String(photoFiles);
-    if (photoFiles) {
-      // Server allowlist treats photoNames as a single string field —
-      // join (and cap to the 2000-char maxLen with some margin).
-      out.photoNames = Array.prototype.map
-        .call(photoInput.files, function (f) { return f.name; })
-        .join(', ')
-        .slice(0, 1900);
-    }
     out.source = '/inspect';
     return out;
   }
@@ -77,7 +68,8 @@
   function invalidFields() {
     var checks = [
       ['f-name', function (v) { return v.trim().length > 0; }],
-      ['f-address', function (v) { return v.trim().length > 0; }],
+      // A number and a street, not just a town or ZIP (2026-09-30).
+      ['f-address', function (v) { v = v.trim(); return v.length >= 6 && /\d/.test(v) && /[a-z]/i.test(v); }],
       ['f-phone', isUsPhone]
     ];
     var bad = [];
@@ -99,17 +91,18 @@
     return 'Please add your name, the property address and a 10-digit mobile number so Joe can reach you.';
   }
 
-  // photoCount is a string (see gatherFormData) — '0' when no file was
-  // chosen, so this form never silently implies the rep already has photos
-  // that were, in fact, dropped on the floor (the file input's bytes are
-  // never sent — only its filenames/count, as photoNames/photoCount text
-  // fields; see gatherFormData's own comment).
-  function showSuccess(photoCount) {
+  // Hides the form, shows the confirmation, then (intake-extras.js) the
+  // calendar button and the photo upload for this submission.
+  function showSuccess(intake, res, data) {
     var form = document.getElementById('inspectForm');
     var ok = document.getElementById('inspectSuccess');
-    var note = document.getElementById('inspectPhotoNote');
     if (form) form.style.display = 'none';
-    if (note) note.hidden = !(Number(photoCount) > 0);
+    if (ok && window.NBDIntake) {
+      window.NBDIntake.afterSubmit(ok, {
+        prefix: 'ins', quietContact: true, fields: intake.fields, files: intake.files, photoToken: (res && res.photoToken) || null,
+        name: data.name, email: data.email, phone: data.phone, address: data.address
+      });
+    }
     if (ok) {
       ok.classList.add('visible');
       try { ok.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
@@ -147,12 +140,23 @@
         try { bad[0].focus(); } catch (e) {}
         return;
       }
+      // Scheduling choice (required) + photos and the rest.
+      var intake = { fields: {}, files: [] };
+      if (window.NBDIntake) {
+        intake = window.NBDIntake.read(form, 'ins');
+        if (intake.error) {
+          if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
+          showError(btn, intake.error);
+          return;
+        }
+      }
       var prior = document.getElementById('inspectFormError');
       if (prior) prior.remove();
 
       if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
 
       var data = gatherFormData(form);
+      Object.keys(intake.fields).forEach(function (k) { data[k] = intake.fields[k]; });
 
       if (typeof window.submitPublicLead !== 'function') {
         // public-lead-submit.js failed to load — fail loud so we can
@@ -164,7 +168,7 @@
 
       window.submitPublicLead('inspect', data).then(function (res) {
         if (res && res.ok) {
-          showSuccess(data.photoCount);
+          showSuccess(intake, res, data);
         } else {
           // The gateway client returns the server's message as `res.reason`
           // (not `res.error`), so the real rejection text was never surfaced —
