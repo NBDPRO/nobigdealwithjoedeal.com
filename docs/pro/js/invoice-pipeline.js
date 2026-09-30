@@ -973,7 +973,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // Tenant key (mirrors /expenses): lets same-company staff read team
         // invoices and is required by the hardened /invoices create rule. Solo
         // operators key by uid (companyId == uid convention).
-        companyId: window._userClaims?.companyId || window._auth?.currentUser?.uid || null
+        companyId: window._userClaims?.companyId || window._auth?.currentUser?.uid || null,
+        // Multi-job (2026-09-30): the job this invoice bills — the estimate's
+        // own job if it names one, else the job on the customer's card right
+        // now. money-paper.js marks exactly this job paid in full, and a later
+        // job taking over the card can never be marked paid by this invoice.
+        jobId: (est.jobId && /^[A-Za-z0-9_-]{1,40}$/.test(String(est.jobId)) ? String(est.jobId) : null)
+          || (lead && typeof lead.activeJobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(lead.activeJobId) ? lead.activeJobId : null)
       };
 
       // Backstop — refuse to persist a zero invoice, whatever produced it.
