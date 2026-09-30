@@ -154,7 +154,7 @@ function _leadModalReset(){
   // EntityResolver.openQuickCreate) — reset it back to New on every dismiss.
   const st=document.getElementById('lStage'); if(st) st.value='new';
   // Clear insurance/finance/job fields
-  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   // The arrival window rides with #lScheduledDate — back to "All day".
   if (window.NBDScheduleWindowUI) window.NBDScheduleWindowUI.reset('l');
   ['lClaimFiledBy','lSupplementStatus','lLoanStatus'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
@@ -199,7 +199,7 @@ const _leadModal = document.getElementById('leadModal');
 const _LEAD_TYPED_FIELDS = [
   'lFname','lLname','lAddr','lPhone','lEmail','lNotes','lJobValue','lLeadCost','lFollowUp',
   'lInsCarrier','lReferralCode','lClaimNumber','lPolicyNumber','lDateOfLoss','lCarrierDecisionAt','lEstimateAmount','lDeductible',
-  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'
+  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lCrew'
 ];
 function _leadFormHasContent(){
   return _LEAD_TYPED_FIELDS.some(id => {
@@ -314,6 +314,15 @@ async function saveLead(){
   // time or a last day before the first is refused here, not saved as a
   // window the calendar feed and the portal then have to guess around.
   const _schedWinUI = window.NBDScheduleWindowUI;
+  // Planned week (2026-09-29): a real day replaces it; with no day, a picked
+  // week is kept as its Monday. OMITTED when the input never loaded (a stale
+  // cached page), so a guessed null cannot wipe a plan set elsewhere.
+  const _swEl = document.getElementById('lScheduledWeek');
+  const _weekPatch = !_swEl ? {} : {
+    scheduledWeek: (document.getElementById('lScheduledDate')?.value)
+      ? null
+      : ((_swEl.value && window.NBDScheduleWindow && window.NBDScheduleWindow.mondayOf(_swEl.value)) || null),
+  };
   const _schedWinErr = _schedWinUI ? _schedWinUI.validate('l') : null;
   if (_schedWinErr) { showFormError(_schedWinErr, document.getElementById('lSchedStart')); return; }
 
@@ -415,6 +424,7 @@ async function saveLead(){
       // entirely when the controls never loaded (a stale cached page), the
       // same rule as `trades` above: a guessed null would wipe a real window.
       ...(_schedWinUI ? _schedWinUI.read('l') : {}),
+      ..._weekPatch,
       crew: document.getElementById('lCrew')?.value?.trim()||'',
       // 2026-09-15 (Paperwork Filing) — gate fields for REQUIRED_FIELDS_BY_TYPE
       // (crm-stages.js). '' when unchecked, never false/0 — missingRequiredFields
