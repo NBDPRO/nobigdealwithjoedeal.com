@@ -153,3 +153,59 @@ exports.getDocumentHtml = onCall(
     }
   }
 );
+
+// ─── Filed PDFs (2026-09-30) ─────────────────────────────────────
+// money-paper.js files NBD-500 invoices and NBD-510 receipts as PDFs under
+// documents/{ownerUid}/{leadId}/ with a Documents-tab row carrying `pdfPath`.
+// This hands the Documents tab a SHORT-LIVED signed link to that PDF, after
+// the same lead check getDocumentHtml makes. Unlike HTML, a PDF opened from
+// storage.googleapis.com does not run as a page on that origin, so a signed
+// URL is the right tool here; it lives 10 minutes and is minted per click, so
+// the row never stores a link that can leak or go stale.
+exports.getDocumentPdfUrl = onCall(
+  {
+    region: 'us-central1',
+    cors: CORS_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 30,
+    memory: '256MiB',
+  },
+  async (request) => {
+    const uid = request.auth && request.auth.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Not authenticated');
+    await callableRateLimit(request, 'getDocumentPdfUrl', 60, 60_000);
+
+    const d = request.data || {};
+    const leadId = typeof d.leadId === 'string' ? d.leadId : null;
+    const docId = typeof d.docId === 'string' ? d.docId : null;
+    if (!leadId || !docId) throw new HttpsError('invalid-argument', 'leadId and docId required');
+
+    const db = getFirestore();
+    const leadSnap = await db.doc(`leads/${leadId}`).get();
+    if (!leadSnap.exists) throw new HttpsError('not-found', 'Lead not found');
+    if (!(await isAuthorized(db, request.auth.token || {}, uid, leadSnap.data() || {}))) {
+      throw new HttpsError('permission-denied', 'Not your lead');
+    }
+    const docSnap = await db.doc(`leads/${leadId}/documents/${docId}`).get();
+    if (!docSnap.exists) throw new HttpsError('not-found', 'Document not found');
+    const pdfPath = (docSnap.data() || {}).pdfPath || null;
+    if (!pdfPath) throw new HttpsError('failed-precondition', 'This document has no PDF on file');
+    // Same confinement as getDocumentHtml: a client can write a documents row,
+    // so pdfPath must sit under THIS lead's own documents/ prefix and be a PDF.
+    if (!/^documents\/[^/]+\/[^/]+\/[^/]+\.pdf$/.test(pdfPath) || pdfPath.split('/')[2] !== leadId) {
+      logger.error('[getDocumentPdfUrl] pdfPath outside lead prefix', { leadId, docId, pdfPath });
+      throw new HttpsError('failed-precondition', 'Document path is not readable');
+    }
+    try {
+      const file = getStorage().bucket().file(pdfPath);
+      const [exists] = await file.exists();
+      if (!exists) throw new HttpsError('not-found', 'Document file is no longer stored');
+      const [url] = await file.getSignedUrl({ action: 'read', expires: Date.now() + 10 * 60 * 1000 });
+      return { url };
+    } catch (e) {
+      if (e instanceof HttpsError) throw e;
+      logger.error('[getDocumentPdfUrl] sign failed', { leadId, docId, err: e.message });
+      throw new HttpsError('internal', 'Could not open the document');
+    }
+  }
+);

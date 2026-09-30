@@ -29,6 +29,15 @@
     {{#if summary.body}}<p class="hero-sub">{{summary.body}}</p>{{/if}}
   </div>
 
+  {{!-- Photo plate (Jo's Sep 10 rule; money-paper.js picks the cover photo,
+       else the newest After photo). Absent → nothing printed. --}}
+  {{#if photoPlate}}
+  <figure class="avoid-break" style="margin: 0 0 var(--s-5); text-align:center;">
+    <img src="{{photoPlate.url}}" alt="Project photo" style="max-width:100%; max-height:3.4in; object-fit:cover; border-radius:4pt;">
+    {{#if photoPlate.caption}}<figcaption class="meta" style="margin-top:4pt;">{{photoPlate.caption}}</figcaption>{{/if}}
+  </figure>
+  {{/if}}
+
   <h2>Line Items</h2>
   <table class="estimate-lines">
     <thead>
