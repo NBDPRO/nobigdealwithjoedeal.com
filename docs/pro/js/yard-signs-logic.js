@@ -11,7 +11,15 @@
  * A sign doc (yardSigns/{id}):
  *   { userId, companyId, leadId, address, lat, lng, photoPath,
  *     placedAt, dueAt, durationDays, status: 'out'|'picked_up'|'missing',
- *     pickedUpAt, pickupPhotoPath, extensions, note, createdAt, updatedAt }
+ *     pickedUpAt, pickupPhotoPath, extensions, note, createdAt, updatedAt,
+ *     deleted, deletedAt }
+ *
+ * 'scheduled' (2026-09-30) is DERIVED, never stored: a sign logged ahead of
+ * time keeps status 'out' with a future placedAt. That way the Firestore
+ * rules and the server's daily pickup push (status == 'out', keyed on dueAt)
+ * need no change, and the sign turns into an ordinary 'out' sign on the
+ * morning it goes in the yard. A removed sign is soft-deleted
+ * (deleted: true); every reader skips it.
  */
 (function (root) {
   'use strict';
@@ -39,11 +47,13 @@
     return startOfDay(placedAt) + n * DAY;
   }
 
-  // 'picked_up' | 'missing' | 'overdue' | 'due_today' | 'due_soon' | 'out'
+  // 'picked_up' | 'missing' | 'scheduled' | 'overdue' | 'due_today' | 'due_soon' | 'out'
   function statusOf(sign, now) {
     if (!sign) return 'out';
     if (sign.status === 'picked_up' || sign.status === 'missing') return sign.status;
     const today = startOfDay(now == null ? Date.now() : now);
+    const placed = ms(sign.placedAt) ? startOfDay(sign.placedAt) : 0;
+    if (placed && placed > today) return 'scheduled';
     const due = startOfDay(sign.dueAt);
     if (!due) return 'out';
     if (due < today) return 'overdue';
@@ -52,8 +62,8 @@
     return 'out';
   }
 
-  const COLOR = { overdue: '#dc2626', due_today: '#ea580c', due_soon: '#d97706', out: '#16a34a', picked_up: '#6b7280', missing: '#6b7280' };
-  const LABEL = { overdue: 'Overdue', due_today: 'Due today', due_soon: 'Due soon', out: 'Out', picked_up: 'Picked up', missing: 'Missing' };
+  const COLOR = { overdue: '#dc2626', due_today: '#ea580c', due_soon: '#d97706', out: '#16a34a', scheduled: '#3b82f6', picked_up: '#6b7280', missing: '#6b7280' };
+  const LABEL = { overdue: 'Overdue', due_today: 'Due today', due_soon: 'Due soon', out: 'Out', scheduled: 'Scheduled', picked_up: 'Picked up', missing: 'Missing' };
 
   function daysBetween(a, b) { return Math.round((startOfDay(b) - startOfDay(a)) / DAY); }
 
@@ -62,6 +72,10 @@
     const s = statusOf(sign, now);
     if (s === 'picked_up') return 'Picked up';
     if (s === 'missing') return 'Marked missing';
+    if (s === 'scheduled') {
+      const g = daysBetween(now == null ? Date.now() : now, sign.placedAt);
+      return 'Goes out ' + (g === 1 ? 'tomorrow' : 'in ' + g + ' days');
+    }
     const d = daysBetween(now == null ? Date.now() : now, sign.dueAt);
     if (d === 0) return 'Pickup due today';
     if (d < 0) return (-d) + ' day' + (d === -1 ? '' : 's') + ' overdue';
@@ -79,7 +93,7 @@
   // Today's pickup list: overdue first, then due today, ordered as a
   // nearest-next drive from `start` (Jo's position) when known.
   function pickupList(signs, now, start) {
-    const due = (signs || []).filter((s) => { const st = statusOf(s, now); return st === 'overdue' || st === 'due_today'; });
+    const due = (signs || []).filter((s) => { if (!s || s.deleted) return false; const st = statusOf(s, now); return st === 'overdue' || st === 'due_today'; });
     if (!start || !isFinite(start.lat)) return due.sort((a, b) => ms(a.dueAt) - ms(b.dueAt));
     const out = [], left = due.slice();
     let here = start;
@@ -109,6 +123,7 @@
     if (!here || !at) return null;
     let best = null, bd = Infinity;
     (signs || []).forEach((s) => {
+      if (!s || s.deleted) return;
       const placed = ms(s.placedAt);
       const ended = s.status === 'picked_up' ? ms(s.pickedUpAt) : Infinity;
       if (!placed || at < placed || at > ended + 3 * DAY) return; // a scan can lag the pickup a little
@@ -124,11 +139,13 @@
   }
 
   function summary(signs, now) {
-    const c = { out: 0, dueSoon: 0, dueToday: 0, overdue: 0, pickedUp: 0, missing: 0 };
+    const c = { out: 0, dueSoon: 0, dueToday: 0, overdue: 0, pickedUp: 0, missing: 0, scheduled: 0 };
     (signs || []).forEach((s) => {
+      if (!s || s.deleted) return;
       const st = statusOf(s, now);
       if (st === 'picked_up') c.pickedUp++;
       else if (st === 'missing') c.missing++;
+      else if (st === 'scheduled') c.scheduled++;
       else {
         c.out++;
         if (st === 'overdue') c.overdue++;

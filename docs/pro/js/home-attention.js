@@ -43,7 +43,7 @@
   function signsDue(signs, now) {
     const today = startOfDay(now == null ? Date.now() : now);
     return (signs || []).filter((s) => {
-      if (!s || s.status === 'picked_up' || s.status === 'missing') return false;
+      if (!s || s.deleted || s.status === 'picked_up' || s.status === 'missing') return false;
       const due = toMs(s.dueAt);
       return due > 0 && startOfDay(due) <= today;
     }).length;

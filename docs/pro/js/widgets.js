@@ -481,7 +481,10 @@ const WIDGETS = [
           window.where('userId', '==', uid), window.where('status', '==', 'out')));
         const now = Date.now();
         let out = 0, due = 0;
-        snap.forEach(d => { out++; const v = d.data(); const t = v.dueAt && v.dueAt.toMillis ? v.dueAt.toMillis() : Number(v.dueAt) || 0;
+        const msOf = (x) => x && x.toMillis ? x.toMillis() : Number(x) || 0;
+        // Skip removed signs, and signs logged ahead of time (placedAt in the
+        // future) — neither is out in a yard (2026-09-30).
+        snap.forEach(d => { const v = d.data(); if (v.deleted || msOf(v.placedAt) > now) return; out++; const t = msOf(v.dueAt);
           if (t && t <= now + 86400000) due++; });
         el.innerHTML = '<div class="w-big-num">' + out + '</div><div class="w-sub">' + (out === 1 ? 'sign' : 'signs') + ' out'
           + (due ? ' · <strong>' + due + ' due for pickup</strong>' : '') + '</div>';

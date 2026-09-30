@@ -41,7 +41,8 @@
   function render(signs) {
     const lg = L();
     const now = Date.now();
-    const live = signs.filter((s) => lg.statusOf(s, now) !== 'picked_up')
+    // A removed sign (deleted, 2026-09-30) is not this customer's sign.
+    const live = signs.filter((s) => s && !s.deleted && lg.statusOf(s, now) !== 'picked_up')
       .sort((a, b) => lg.ms(b.placedAt) - lg.ms(a.placedAt));
     const s = live[0];
     const old = document.getElementById('yardSignChip');
@@ -54,7 +55,7 @@
     chip.className = 'ys-chip';
     chip.style.cssText = 'display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px;letter-spacing:.02em;text-decoration:none;border:1px solid ' + color + ';color:' + color + ';';
     chip.title = 'Yard sign placed ' + new Date(lg.ms(s.placedAt)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    chip.innerHTML = '🪧 ' + esc(st === 'missing' ? 'Sign missing' : 'Sign out · ' + lg.dueText(s, now));
+    chip.innerHTML = '🪧 ' + esc(st === 'missing' ? 'Sign missing' : st === 'scheduled' ? 'Sign scheduled · ' + lg.dueText(s, now) : 'Sign out · ' + lg.dueText(s, now));
     if (!old) {
       const anchor = document.getElementById('daysInStageBadge') || document.getElementById('customerStage');
       if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(chip, anchor.nextSibling);
