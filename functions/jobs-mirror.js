@@ -58,10 +58,59 @@ async function mirrorLead(db, leadId, lead) {
   }
   const patch = J.mirrorPatch(lead, snap.data());
   const fields = Object.keys(patch);
-  if (!fields.length) return { inSync: activeId };
-  await jobRef.update(Object.assign({}, patch, { mirroredAt: FieldValue.serverTimestamp() }));
-  return { updated: activeId, fields };
+  if (fields.length) await jobRef.update(Object.assign({}, patch, { mirroredAt: FieldValue.serverTimestamp() }));
+  // Stage 2b: the active job just finished (closed + paid in full, or lost)
+  // and another job is open → that job takes over the customer's card.
+  const promoted = await promoteIfDone(db, leadId, lead, Object.assign({ id: activeId }, snap.data(), patch));
+  if (promoted) return { promoted, updated: fields.length ? activeId : undefined };
+  return fields.length ? { updated: activeId, fields } : { inSync: activeId };
 }
+
+/**
+ * If the customer's active job is done and another job is still open, make
+ * the OLDEST open job the active one (Jo, J3). One read of the jobs list,
+ * and only when the active job is not open. → promoted job id | null.
+ */
+async function promoteIfDone(db, leadId, lead, activeJob) {
+  const eff = Object.assign({}, activeJob);
+  J.JOB_FIELDS.forEach((f) => { if (lead[f] !== undefined) eff[f] = lead[f]; });
+  if (J.isOpen(eff)) return null;                       // cheap exit: nothing to do
+  const leadRef = db.collection('leads').doc(String(leadId));
+  const all = await leadRef.collection('jobs').get();
+  const jobs = all.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+  const next = J.pickPromotion(lead, jobs);
+  if (!next) return null;
+  await leadRef.update(Object.assign(J.promotionPatch(next), { updatedAt: FieldValue.serverTimestamp() }));
+  logger.info('[jobsMirror] next job promoted to the customer card', { leadId, from: lead.activeJobId, to: next.id });
+  return next.id;
+}
+
+/**
+ * A job changed (a new job added, paidInFull set by the invoice trigger, a
+ * non-active job moved) → run the same promotion check from the job side.
+ */
+async function onJobChanged(db, leadId) {
+  if (process.env.JOBS_MIRROR_ENABLED !== 'true') return { skipped: 'disabled' };
+  const leadSnap = await db.collection('leads').doc(String(leadId)).get();
+  if (!leadSnap.exists) return { skipped: 'no lead' };
+  const lead = leadSnap.data();
+  if (!lead.activeJobId) return { skipped: 'no active job' };
+  const act = await db.collection('leads').doc(String(leadId)).collection('jobs').doc(String(lead.activeJobId)).get();
+  if (!act.exists) return { skipped: 'active job missing' };
+  const promoted = await promoteIfDone(db, leadId, lead, Object.assign({ id: act.id }, act.data()));
+  return promoted ? { promoted } : { noop: true };
+}
+
+exports.jobsOnJobWrite = onDocumentWritten(
+  { document: 'leads/{leadId}/jobs/{jobId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 30 },
+  async (event) => {
+    try {
+      await onJobChanged(getFirestore(), event.params.leadId);
+    } catch (e) {
+      logger.error('[jobsOnJobWrite] failed', { leadId: event.params.leadId, jobId: event.params.jobId, err: e && e.message });
+    }
+  }
+);
 
 exports.jobsMirrorOnLead = onDocumentWritten(
   { document: 'leads/{leadId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 30 },
@@ -77,4 +126,4 @@ exports.jobsMirrorOnLead = onDocumentWritten(
   }
 );
 
-exports._internal = { mirrorLead };
+exports._internal = { mirrorLead, promoteIfDone, onJobChanged };

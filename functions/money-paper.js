@@ -231,6 +231,23 @@ function transitions(before, after) {
 }
 
 /** One invoice write → whatever it needs. Exported for tests with fake deps. */
+/** Set paidInFull on the job this invoice paid for. → the job id | null. */
+async function markJobPaid(db, inv) {
+  const leadRef = db.collection('leads').doc(String(inv.leadId));
+  let jobId = typeof inv.jobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(inv.jobId) ? inv.jobId : null;
+  if (!jobId) {
+    const ls = await leadRef.get();
+    const a = ls.exists ? ls.data().activeJobId : null;
+    jobId = typeof a === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(a) ? a : null;
+  }
+  if (!jobId) return null;
+  const jobRef = leadRef.collection('jobs').doc(jobId);
+  const js = await jobRef.get();
+  if (!js.exists || js.data().paidInFull === true) return js.exists ? jobId : null;
+  await jobRef.update({ paidInFull: true, paidInFullAt: FieldValue.serverTimestamp() });
+  return jobId;
+}
+
 async function handle(invoiceId, after, deps, before) {
   if (process.env.NBD_MONEY_PAPER === 'off') return { skipped: 'killswitch' };
   const d = P.decide(after, { ownerUid: OWNER });
@@ -242,6 +259,14 @@ async function handle(invoiceId, after, deps, before) {
     if (!t.becamePaid) { d.fileReceipt = false; d.markOob = false; }
   }
   const out = {};
+  // Multi-job stage 2b: an invoice paid in full ON THIS WRITE marks its job
+  // paid (the invoice's own jobId, else the customer's active job). A job is
+  // done only when closed out AND paid in full (Jo, J3); jobsOnJobWrite then
+  // moves the customer's card to their next open job.
+  if (before !== undefined && after && transitions(before, after).becamePaid
+      && (after.companyId || after.userId) === OWNER && after.leadId) {
+    out.jobPaid = await markJobPaid(deps.db, after).catch((e) => { logger.warn('[moneyPaper] job paid mark failed', { invoiceId, err: e && e.message }); return null; });
+  }
   if (!d.fileInvoice && !d.fileReceipt && !d.markOob
       && !(after && after.paper && ['invoice', 'receipt'].some((k) => retriable(after.paper[k], deps.now())))) {
     return out;
@@ -269,4 +294,4 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
   }
 );
 
-exports._internal = { handle, payQr, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, payQr, markJobPaid, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };

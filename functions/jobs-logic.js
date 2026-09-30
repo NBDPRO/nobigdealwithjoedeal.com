@@ -122,4 +122,41 @@ function isOpen(job) {
   return !(closed && j.paidInFull === true);
 }
 
-module.exports = { JOB_FIELDS, FIRST_JOB_ID, titleFor, firstJobFromLead, mirrorPatch, isOpen, same };
+const msOf = (t) => (t && typeof t.toMillis === 'function') ? t.toMillis()
+  : (t instanceof Date ? t.getTime() : (typeof t === 'number' ? t : (Date.parse(t) || 0)));
+
+/**
+ * Stage 2b: should the customer's card move to another job? Jo (J3): the
+ * card shows the next job once the current one is closed out AND paid in
+ * full (or lost). The ACTIVE job is judged on the LEAD's live fields (the
+ * mirror may lag) plus the job's own paidInFull. → the job to promote (the
+ * OLDEST open other job) or null.
+ */
+function pickPromotion(lead, jobs) {
+  const l = lead || {};
+  const list = (jobs || []).filter((j) => j && j.id);
+  const active = list.find((j) => j.id === l.activeJobId);
+  if (!active) return null;
+  const effective = Object.assign({}, active);
+  JOB_FIELDS.forEach((f) => { if (l[f] !== undefined) effective[f] = l[f]; });
+  if (isOpen(effective)) return null;
+  const open = list.filter((j) => j.id !== active.id && isOpen(j))
+    .sort((a, b) => msOf(a.createdAt) - msOf(b.createdAt));
+  return open[0] || null;
+}
+
+/**
+ * The lead patch that makes `job` the active one: every per-job field set
+ * from the job (null where the job has none, so the previous job's claim,
+ * schedule etc. do not linger on the card) + activeJobId. The mirror then
+ * finds lead and job equal and writes nothing.
+ */
+function promotionPatch(job) {
+  const j = job || {};
+  const patch = {};
+  JOB_FIELDS.forEach((f) => { patch[f] = j[f] === undefined ? null : j[f]; });
+  patch.activeJobId = j.id;
+  return patch;
+}
+
+module.exports = { JOB_FIELDS, FIRST_JOB_ID, titleFor, firstJobFromLead, mirrorPatch, isOpen, same, pickPromotion, promotionPatch };
