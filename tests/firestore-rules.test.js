@@ -66,6 +66,14 @@ async function run() {
     // Original fixture
     // §40 Stripe ledger rows (written only by the admin SDK in production).
     await setDoc(doc(db, 'stripeLedger/ch_zz40'), { companyId: 'owner40', userId: 'owner40', kind: 'charge', amountCents: 145000, status: 'succeeded' });
+    // §41 signed-document lock: a lead owned by owner41 in tenant owner41.
+    await setDoc(doc(db, 'leads/lead41'), { userId: 'owner41', companyId: 'owner41', firstName: 'ZZ_QA', lastName: 'Lock' });
+    const signedAt41 = new Date('2026-09-20T15:00:00Z');
+    await setDoc(doc(db, 'leads/lead41/documents/signed41'), { name: 'contract.html', status: 'signed', signedAt: signedAt41, userId: 'owner41' });
+    await setDoc(doc(db, 'leads/lead41/documents/signed41b'), { name: 'contract.html', status: 'signed', signedAt: signedAt41, userId: 'owner41' });
+    await setDoc(doc(db, 'leads/lead41/documents/legacy41'), { name: 'old-contract.html', signedAt: signedAt41, userId: 'owner41' });
+    await setDoc(doc(db, 'leads/lead41/documents/draft41'), { name: 'proposal.html', status: 'draft', userId: 'owner41' });
+    await setDoc(doc(db, 'leads/lead41/documents/draft41b'), { name: 'scratch.html', status: 'draft', userId: 'owner41' });
     await setDoc(doc(db, 'users/alice'), { firstName: 'Alice', role: 'member' });
     await setDoc(doc(db, 'subscriptions/alice'), { plan: 'free', status: 'inactive' });
     await setDoc(doc(db, 'leads/leadA'), { userId: 'alice', name: 'Alice Lead' });
@@ -1096,8 +1104,13 @@ async function run() {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     for (const sub of ['documents', 'warrantyClaims']) {
+      // An UNSIGNED document (2026-09-29). This block tests WHO may hard-delete
+      // (decision A's role tiers). A signed row is now locked outright — Jo's
+      // later decision the same night: archive only, never hard-deleted, never
+      // edited — which §41 covers. With a signed fixture here the tiers could
+      // no longer be observed.
       const row = sub === 'documents'
-        ? { name: 'contract.html', status: 'signed', uploadedBy: 'alice' }
+        ? { name: 'contract.html', status: 'sent', uploadedBy: 'alice' }
         : { status: 'resolved', reason: 'workmanship' };
       for (const id of ['del-owner', 'del-mgr', 'del-ca']) {
         await setDoc(doc(db, 'leads/leadA2/' + sub + '/' + id), row);
@@ -1610,8 +1623,10 @@ async function run() {
       await setDoc(doc(db, 'notifications/s34-' + u), { userId: u, read: false });
     }
     // Staff fixtures on the rep's lead, for the other-roles-unchanged block.
-    await setDoc(doc(db, 'leads/leadRX/documents/s34-ca'), { name: 'ca.html', status: 'signed' });
-    await setDoc(doc(db, 'leads/leadRX/documents/s34-mgr'), { name: 'mgr.html', status: 'signed' });
+    // Unsigned ('sent', 2026-09-29): these probe ROLE rights. A signed row is
+    // locked for every role (§41), which would mask what the role may do.
+    await setDoc(doc(db, 'leads/leadRX/documents/s34-ca'), { name: 'ca.html', status: 'sent' });
+    await setDoc(doc(db, 'leads/leadRX/documents/s34-mgr'), { name: 'mgr.html', status: 'sent' });
     // A companies doc that names the viewer as ownerId (e.g. one squatted
     // before this change), for the update/delete denials.
     await setDoc(doc(db, 'companies/s34-vxco'), { ownerId: 'vx', plan: 'free', name: 'V Co' });
@@ -1952,6 +1967,48 @@ async function run() {
   console.log('  40: ' + s40Pass + ' stripe-ledger checks passed, ' + s40Fail.length + ' failed');
   if (s40Fail.length) {
     throw new Error('40 stripeLedger: ' + s40Fail.length + ' check(s) went the wrong way:\n    ' + s40Fail.join('\n    '));
+  }
+
+  // ─── 41. A signed document is locked (Jo, 2026-09-25; built 2026-09-29) ───
+  // Nobody edits its content or status; only sharedWithHomeowner may change,
+  // and only the lead owner or a company_admin may archive it. No client
+  // hard-deletes it. The draft → signed transition itself stays open.
+  const s41Fail = []; let s41Pass = 0;
+  async function x41(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s41Pass++;
+    } catch (e) { s41Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own41 = env.authenticatedContext('owner41', { role: 'company_admin', companyId: 'owner41' }).firestore();
+  const ca41 = env.authenticatedContext('ca41', { role: 'company_admin', companyId: 'owner41' }).firestore();
+  const mgr41 = env.authenticatedContext('mgr41', { role: 'manager', companyId: 'owner41' }).firestore();
+  const vw41 = env.authenticatedContext('vw41', { role: 'viewer', companyId: 'owner41' }).firestore();
+  const d41 = (ctx, id) => doc(ctx, 'leads/lead41/documents/' + id);
+  await x41('owner edits a signed contract\'s content', 'deny', updateDoc(d41(own41, 'signed41'), { name: 'forged.html' }));
+  await x41('owner flips a signed contract back to draft', 'deny', updateDoc(d41(own41, 'signed41'), { status: 'draft' }));
+  await x41('owner rewrites the signers', 'deny', updateDoc(d41(own41, 'signed41'), { signedSigners: [{ role: 'homeowner' }] }));
+  await x41('manager edits a signed contract', 'deny', updateDoc(d41(mgr41, 'signed41'), { name: 'forged.html' }));
+  await x41('a legacy row signed before the status field (signedAt only) is locked too', 'deny', updateDoc(d41(own41, 'legacy41'), { name: 'forged.html' }));
+  await x41('owner shows a signed contract to the homeowner', 'allow', updateDoc(d41(own41, 'signed41'), { sharedWithHomeowner: true, updatedAt: '2026-09-29T00:00:00Z' }));
+  await x41('manager toggles homeowner sharing (visibility, not content)', 'allow', updateDoc(d41(mgr41, 'signed41'), { sharedWithHomeowner: false }));
+  await x41('sharing + a content change in one write', 'deny', updateDoc(d41(own41, 'signed41'), { sharedWithHomeowner: true, name: 'forged.html' }));
+  await x41('manager archives a signed contract', 'deny', updateDoc(d41(mgr41, 'signed41'), { deleted: true, deletedAt: '2026-09-29T00:00:00Z' }));
+  await x41('archive + a content change in one write', 'deny', updateDoc(d41(own41, 'signed41'), { deleted: true, name: 'forged.html' }));
+  await x41('same-company company_admin (not the owner) archives it', 'allow', updateDoc(d41(ca41, 'signed41'), { deleted: true, deletedAt: '2026-09-29T00:00:00Z' }));
+  await x41('owner archives a signed contract', 'allow', updateDoc(d41(own41, 'signed41b'), { deleted: true, deletedAt: '2026-09-29T00:00:00Z' }));
+  await x41('owner un-archives it', 'allow', updateDoc(d41(own41, 'signed41b'), { deleted: false }));
+  await x41('owner hard-deletes a signed contract', 'deny', deleteDoc(d41(own41, 'signed41b')));
+  await x41('company_admin hard-deletes a signed contract', 'deny', deleteDoc(d41(ca41, 'legacy41')));
+  await x41('viewer touches a signed contract', 'deny', updateDoc(d41(vw41, 'signed41'), { sharedWithHomeowner: true }));
+  // The signing transition itself (onPersistFinalized) and ordinary drafts.
+  await x41('a draft is still editable', 'allow', updateDoc(d41(own41, 'draft41'), { name: 'proposal-v2.html' }));
+  await x41('draft → signed (in-person signing) still works', 'allow', updateDoc(d41(mgr41, 'draft41'), { status: 'signed', signedAt: new Date('2026-09-29T16:00:00Z'), signedSigners: [{ role: 'homeowner', label: null, signedAt: null }] }));
+  await x41('...and right after, it is locked', 'deny', updateDoc(d41(mgr41, 'draft41'), { name: 'changed-after-signing.html' }));
+  await x41('owner hard-deletes an unsigned draft (unchanged)', 'allow', deleteDoc(d41(own41, 'draft41b')));
+  console.log('  41: ' + s41Pass + ' signed-document lock checks passed, ' + s41Fail.length + ' failed');
+  if (s41Fail.length) {
+    throw new Error('41 signed-document lock: ' + s41Fail.length + ' check(s) went the wrong way:\n    ' + s41Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');
