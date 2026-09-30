@@ -71,10 +71,10 @@ ok('the active job → the lead', JS.routeFor(lead(), 'j1').target === 'lead');
 ok('no job id (a plain lead card) → the lead', JS.routeFor(lead(), null).target === 'lead');
 ok('another job → that job', JS.routeFor(lead(), 'j2').target === 'job' && JS.routeFor(lead(), 'j2').jobId === 'j2');
 
-console.log('\n4. nothing renders it yet (stage 1 = data layer only)');
+console.log('\n4. the dashboard loads it (stage 2a renders one card per open job)');
 const fs = require('fs');
 const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'dashboard.html'), 'utf8');
-ok('jobs-store.js is not loaded by the dashboard yet', !/jobs-store\.js/.test(html));
+ok('jobs-store.js is loaded, before crm-pipeline.js', /jobs-store\.js\?v=\d+[\s\S]*crm-pipeline\.js\?v=\d+/.test(html));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

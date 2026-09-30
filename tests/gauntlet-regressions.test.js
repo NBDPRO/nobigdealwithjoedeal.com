@@ -1075,8 +1075,10 @@ console.log('\nCRM custom-pipeline + kanban correctness (lead-lifecycle sweep)')
     /const isDrag = !!opts\.isDrag/.test(sw)
     && /const _curCol = \(isDrag && typeof window\.resolveColumn/.test(sw),
     'the column-collapse comparison must be gated on isDrag or an explicit distinct-stage move sharing a column with the current stage would silently no-op');
+  // 2026-09-30 (multi-job stage 2a): each drop may also carry the dragged
+  // card's jobId; isDrag:true must still be passed at BOTH drop sites.
   assert('both kanban drop handlers (new-system + legacy) pass isDrag:true',
-    (cp.match(/moveCard\(draggedId,\s*\w+,\s*\{\s*isDrag:\s*true\s*\}\)/g) || []).length === 2,
+    (cp.match(/moveCard\(draggedId,\s*\w+,\s*\{\s*isDrag:\s*true(,\s*jobId:\s*[\w.|\s]+)?\s*\}\)/g) || []).length === 2,
     'a drag call site missing isDrag:true would wrongly apply exact-match comparison and rewrite the real stage on a same-column re-drop');
   const dbm = read('docs/pro/js/dashboard-bootstrap.module.js');
   assert('global window.drop (board-level delegated drop) passes isDrag:true',
@@ -1086,14 +1088,20 @@ console.log('\nCRM custom-pipeline + kanban correctness (lead-lifecycle sweep)')
     'a retried drag must stay column-NOOP-safe and a retried explicit move must stay exact-match');
   // Explicit-stage call sites must NOT pass isDrag — verify the delegate,
   // list-view select, context-menu submenu, and Close-Job chip all default.
+  // 2026-09-30 (multi-job stage 2a): these may pass a third argument that
+  // carries ONLY the card's jobId — never isDrag.
+  const onlyJobArg = '(,\\s*[\\w.]+\\s*\\?\\s*\\{\\s*jobId:\\s*[\\w.]+\\s*\\}\\s*:\\s*undefined)?\\)';
   assert('the move-card delegate (prev/next arrows) does not pass isDrag',
-    /'move-card':\s*\(el\)\s*=>\s*typeof moveCard === 'function' && moveCard\(el\.dataset\.id, el\.dataset\.targetStage\)/.test(cp));
+    new RegExp("'move-card':\\s*\\(el\\)\\s*=>\\s*typeof moveCard === 'function' && moveCard\\(el\\.dataset\\.id, el\\.dataset\\.targetStage" + onlyJobArg).test(cp)
+    && !/'move-card':[^\n]*isDrag/.test(cp));
   const clv = read('docs/pro/js/crm-list-view.js');
   assert('list-view stage-select does not pass isDrag',
-    /window\.moveCard\(sel\.dataset\.id, sel\.value\)/.test(clv));
+    new RegExp('window\\.moveCard\\(sel\\.dataset\\.id, sel\\.value' + onlyJobArg).test(clv)
+    && !/window\.moveCard\(sel\.dataset\.id[^\n]*isDrag/.test(clv));
   const kcm = read('docs/pro/js/kanban-context-menu.js');
   assert('right-click "Move to stage…" submenu does not pass isDrag',
-    /window\.moveCard\(lead\.id, opt\.value\)/.test(kcm));
+    new RegExp('window\\.moveCard\\(lead\\.id, opt\\.value' + onlyJobArg).test(kcm)
+    && !/window\.moveCard\(lead\.id, opt\.value[^\n]*isDrag/.test(kcm));
   assert('CRM revenue buckets are ROLE-aware (custom won/lost stages count correctly)',
     /isLost = _lostKeys\.includes\(sk\) \|\| role === 'lost'/.test(cp)
     && /isClosed = \(window\.isJobStage && window\.isJobStage\(sk\)\) \|\| role === 'won' \|\| role === 'job'/.test(cp),

@@ -1422,8 +1422,9 @@ section('Pipeline lean triage list (2026-07-06) — Board/List toggle');
   assert('crm-list-view module exposes CrmListView + call-delegate entry points',
     /window\.CrmListView = \{ isActive, render, clear \}/.test(lv)
     && /window\.crmViewBoard = /.test(lv) && /window\.crmViewList\s*= /.test(lv));
+  // 2026-09-30 (multi-job stage 2a): a job card's select also passes its jobId.
   assert('stage select rides moveCard (history + gating intact)',
-    /window\.moveCard\(sel\.dataset\.id, sel\.value\)/.test(lv));
+    /window\.moveCard\(sel\.dataset\.id, sel\.value(, sel\.dataset\.jobId \? \{ jobId: sel\.dataset\.jobId \} : undefined)?\)/.test(lv));
   assert('mode persists in localStorage and gates body.crm-list-mode',
     /nbd-crm-view-mode/.test(lv) && /crm-list-mode/.test(lv));
 

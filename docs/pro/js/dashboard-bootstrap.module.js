@@ -2997,6 +2997,15 @@
       window._leadsLoaded = true;
       _leadsCacheUid = finalUid;
       console.log('✅ loadLeads: Processed', window._leads.length, 'leads after filtering deleted');
+      // Multi-job (2026-09-30, stage 2a): the customers' jobs, in ONE
+      // collection-group query (jobs-store.js), then a re-render so a
+      // customer with a second open job shows a second card. Never blocks
+      // the first paint; a failed load leaves one card per customer (as before).
+      if (window.NBDJobs && typeof window.NBDJobs.load === 'function') {
+        window.NBDJobs.load()
+          .then(() => { if (typeof renderLeads === 'function') renderLeads(window._leads, window._filteredLeads); })
+          .catch((e) => console.warn('[loadLeads] jobs load failed — one card per customer:', e && (e.code || e.message)));
+      }
       // Wave 13: tell the notification bell + any other listeners that
       // the lead cache just refreshed so they can recompute counts.
       try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'leads' } })); } catch (_) {}
