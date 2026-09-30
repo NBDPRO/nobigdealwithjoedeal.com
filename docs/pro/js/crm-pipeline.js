@@ -695,7 +695,7 @@ function renderLeads(leads, filtered){
         const draggedId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || _dragId;
         if (!draggedId) return;
         const draggedJob = (e.dataTransfer && e.dataTransfer.getData('application/x-nbd-job')) || window._dragJobId || null;
-        moveCard(draggedId, stageKey, draggedJob ? { isDrag: true, jobId: draggedJob } : { isDrag: true });
+        moveCard(draggedId, stageKey, { isDrag: true, jobId: draggedJob || undefined });
         _dragId = null; window._dragJobId = null;
       };
       body.addEventListener('dragover', overHandler);
@@ -761,7 +761,7 @@ function renderLeads(leads, filtered){
         const draggedId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || _dragId;
         if (!draggedId) return;
         const draggedJob = (e.dataTransfer && e.dataTransfer.getData('application/x-nbd-job')) || window._dragJobId || null;
-        moveCard(draggedId, stage, draggedJob ? { isDrag: true, jobId: draggedJob } : { isDrag: true });
+        moveCard(draggedId, stage, { isDrag: true, jobId: draggedJob || undefined });
         _dragId = null; window._dragJobId = null;
       };
       body.addEventListener('dragover', overH);
