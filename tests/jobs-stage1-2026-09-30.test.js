@@ -75,6 +75,35 @@ console.log('\n4. the dashboard loads it (stage 2a renders one card per open job
 const fs = require('fs');
 const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'dashboard.html'), 'utf8');
 ok('jobs-store.js is loaded, before crm-pipeline.js', /jobs-store\.js\?v=\d+[\s\S]*crm-pipeline\.js\?v=\d+/.test(html));
+const custHtml = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'customer.html'), 'utf8');
+ok('the customer page loads jobs-store.js, then customer-jobs.js (stage 2b)', /jobs-store\.js\?v=\d+[\s\S]*customer-jobs\.js\?v=\d+/.test(custHtml));
 
-console.log('\n' + passed + ' passed, ' + failed + ' failed');
-if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+(async () => {
+  console.log('\n5. NBDJobs.add stamps (stage 2b, 2026-09-30)');
+  // jobWriteOk: a job's userId/companyId must equal the lead's, and the rules
+  // read an absent field as ''. Writing companyId:null for a solo owner's lead
+  // (no companyId) would make null != '' and DENY the create.
+  const vm = require('vm');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'jobs-store.js'), 'utf8');
+  async function added(leadDoc) {
+    const writes = [];
+    const w = { db: {}, doc: (...a) => a.slice(1).join('/'), serverTimestamp: () => 'TS', setDoc: async (p, d) => { writes.push([p, d]); } };
+    vm.runInNewContext(src, { window: w, module: undefined });
+    const id = await w.NBDJobs.add(leadDoc, { title: 'Gutter guards', jobValue: 1450 });
+    return { id, path: writes[0][0], job: writes[0][1] };
+  }
+  const solo = await added({ id: 'L1', userId: 'u1', address: '1 A St' });
+  ok('a solo owner\'s lead: userId stamped, NO companyId key at all', solo.job.userId === 'u1' && !('companyId' in solo.job), JSON.stringify(solo.job));
+  const co = await added({ id: 'L2', userId: 'u1', companyId: 'c1' });
+  ok('a company lead: both stamps equal the lead\'s', co.job.userId === 'u1' && co.job.companyId === 'c1');
+  ok('written under leads/{id}/jobs, stage New, the given fields kept', /^leads\/L1\/jobs\/j[a-z0-9]+$/.test(solo.path) && solo.job.stage === 'new' && solo.job.title === 'Gutter guards' && solo.job.jobValue === 1450 && solo.job.origin === 'add_job');
+
+  console.log('\n6. the duplicate prompt offers "Add a job to them"');
+  const dd = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'lead-dedup.js'), 'utf8');
+  const boot = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'dashboard-bootstrap.module.js'), 'utf8');
+  ok('lead-dedup resolves addJob → { openLeadId, addJob: true }', /action === 'addJob'\) return \{ proceed: false, openLeadId: result\.leadId, addJob: true \}/.test(dd));
+  ok('the new-lead save lands on customer.html?id=…#addJob', /result\.addJob \? '#addJob' : ''/.test(boot));
+
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+})().catch((e) => { console.error(e); process.exit(1); });

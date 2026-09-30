@@ -123,6 +123,17 @@
     return byLead;
   }
 
+  /** One customer's jobs (the customer page): leads/{id}/jobs, no index. */
+  async function loadLead(leadId) {
+    const w = root;
+    if (!w || !w.db || !w.getDocs || !w.collection || !leadId) return [];
+    const snap = await w.getDocs(w.collection(w.db, 'leads', String(leadId), 'jobs'));
+    const arr = [];
+    snap.forEach((d) => arr.push(Object.assign({ id: d.id }, d.data())));
+    byLead.set(String(leadId), arr);
+    return forLead(String(leadId));
+  }
+
   function forLead(leadId) {
     return (byLead.get(leadId) || []).slice().sort((a, b) => ms(a.createdAt) - ms(b.createdAt));
   }
@@ -150,9 +161,13 @@
       stage: 'new', stageRole: 'new', title: 'Job',
       property: { address: lead.address || '', lat: Number.isFinite(lead.lat) ? lead.lat : null, lng: Number.isFinite(lead.lng) ? lead.lng : null },
     }, fields || {}, {
-      userId: lead.userId || null, companyId: lead.companyId || null,
       createdAt: w.serverTimestamp(), origin: 'add_job',
     });
+    // Stamps must equal the lead's (jobWriteOk): copy only the ones it HAS.
+    // A null companyId on a solo owner's lead reads as '' in the rules, and
+    // null != '' would deny the create.
+    if (lead.userId) job.userId = lead.userId;
+    if (lead.companyId) job.companyId = lead.companyId;
     await w.setDoc(w.doc(w.db, 'leads', lead.id, 'jobs', id), job);
     const arr = byLead.get(lead.id) || [];
     arr.push(Object.assign({ id }, job, { createdAt: Date.now() }));
@@ -160,7 +175,7 @@
     return id;
   }
 
-  const api = { JOB_FIELDS, isOpen, cardsFor, routeFor, load, forLead, update, add, loadedAt: () => loadedAt };
+  const api = { JOB_FIELDS, isOpen, cardsFor, routeFor, load, loadLead, forLead, update, add, loadedAt: () => loadedAt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDJobs = api;
 })(typeof window !== 'undefined' ? window : null);

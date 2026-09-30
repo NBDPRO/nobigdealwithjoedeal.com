@@ -181,7 +181,7 @@
             <h2 style="font-size:17px; margin:0; color:var(--t,#e8eaf0);">Possible duplicate</h2>
           </div>
           <p style="font-size:13px; color:var(--m,#9aa3b2); margin:0 0 16px; line-height:1.5;">
-            We found ${matches.length} ${matches.length === 1 ? 'lead' : 'leads'} that look like the same customer. Open the existing one, or save anyway if this is a separate household.
+            We found ${matches.length} ${matches.length === 1 ? 'lead' : 'leads'} that look like the same customer. Open the existing one, add a new job to them (a customer can have more than one), or save anyway if this is a separate household.
           </p>
           <div id="nbd-dedup-matches" style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px;">
             ${matches.slice(0, 3).map(({ lead, confidence, reason }) => {
@@ -212,6 +212,11 @@
               border:1px solid var(--br,#2a3344); padding:9px 16px;
               border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
               -webkit-tap-highlight-color:transparent;">Cancel</button>
+            <button id="nbd-dedup-addjob" data-lead-id="${escapeAttr(matches[0].lead.id)}" style="
+              background:transparent; color:var(--orange,#A14A22);
+              border:1px solid var(--orange,#A14A22); padding:9px 16px;
+              border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+              -webkit-tap-highlight-color:transparent;">＋ Add a job to them</button>
             <button id="nbd-dedup-create" style="
               background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%);
               color:#fff; border:none; padding:9px 18px; border-radius:8px;
@@ -235,6 +240,12 @@
       overlay.querySelector('#nbd-dedup-cancel').addEventListener('click', () => {
         close();
         resolve({ action: 'cancel' });
+      });
+      // Multi-job (2026-09-30): same customer, new work → a job on the
+      // existing customer instead of a second lead.
+      overlay.querySelector('#nbd-dedup-addjob').addEventListener('click', () => {
+        close();
+        resolve({ action: 'addJob', leadId: matches[0].lead.id });
       });
       overlay.querySelector('#nbd-dedup-create').addEventListener('click', () => {
         close();
@@ -261,12 +272,14 @@
   //   { proceed: true }                            — no dupes, safe to save
   //   { proceed: true,  duplicateOf: <leadId> }    — user said "Create anyway"
   //   { proceed: false, openLeadId: <leadId> }     — user picked an existing lead
+  //   { proceed: false, openLeadId, addJob: true } — "Add a job to them" (top match)
   //   { proceed: false }                           — user cancelled
   async function checkAndPrompt(candidate, existingLeads) {
     const matches = findDuplicates(candidate, existingLeads || window._leads || []);
     if (matches.length === 0) return { proceed: true };
     const result = await promptUser(matches, candidate);
     if (result.action === 'open')   return { proceed: false, openLeadId: result.leadId };
+    if (result.action === 'addJob') return { proceed: false, openLeadId: result.leadId, addJob: true };
     if (result.action === 'create') return { proceed: true,  duplicateOf: result.duplicateOf };
     return { proceed: false }; // cancel
   }
