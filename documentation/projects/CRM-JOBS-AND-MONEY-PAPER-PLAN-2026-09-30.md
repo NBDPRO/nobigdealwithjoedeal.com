@@ -10,6 +10,33 @@ smaller items went out as PRs the same day:
 This note is the plan. Nothing here is built yet. It is based on two read-only
 scoping passes over the code, run from a `main` checkout the same day.
 
+## Jo's answers (2026-09-30, the same session) — these override the recommendations below
+
+- **J1 Referral payout: once per JOB.** Every won job from a referred customer
+  pays the referrer again. This departs from the recommendation. The referral
+  trigger has to key its "already paid" guard on the job, not the lead.
+- **J2 Review request per completed job, never twice within 90 days;
+  anniversary once a year per customer, from the first job.** This is the
+  recommendation.
+- **J3 Cards: the new job REPLACES the customer's card only when the earlier
+  job is paid in full AND closed. Otherwise both jobs are open at the same
+  time, as two cards.** Jo, verbatim: "I really have had two people with two
+  open jobs at the same time."
+  - What this changes: **one card per open job**. A customer with no open job
+    shows one card, for the most recent closed job.
+  - This moves the phase-2 per-job pipeline card to the heart of the feature.
+    Phase 1 (schema, backfill, mirror) still ships first and stays invisible,
+    but the mirror's "active job" is only the lead-level view.
+  - The pipeline has to read jobs before a second concurrent job can exist in
+    the UI. The customer page's "＋ Add job" button ships in the same PR as
+    per-job cards, not before.
+- **P4 Photo plate: the cover photo, else the newest After photo, else no
+  plate.** This is the recommendation.
+- **P1 7-day terms and P3 out-of-band Mark Paid** were already specified by
+  the handoff, so they are taken as decided.
+- **P2 (share the Drive folder)** is still Jo's action. It is optional: filing
+  on the CRM card works without it.
+
 ---
 
 ## Part 1: a customer can have more than one job
