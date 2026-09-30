@@ -271,10 +271,12 @@ console.log('\nDOM/action wiring (source-text)');
   ok('ACTION_HANDLER_MAP registers mark_permit_filed -> _actionMarkPermitFiled', /mark_permit_filed:\s*_actionMarkPermitFiled/.test(dbSrc));
   ok('_actionMarkPermitFiled routes through window.PaperworkWrite.commitPaperworkFiled (the shared chokepoint)',
     /function _actionMarkPermitFiled[\s\S]{0,400}window\.PaperworkWrite\.commitPaperworkFiled/.test(dbSrc));
-  ok('jobStages array includes contract_signed (checkbox visible one stage before the JOB_CREATED gate needs it)',
-    /jobStages\s*=\s*\[[^\]]*'contract_signed'/.test(dbSrc));
-  ok('jobStages array includes collections (Collections-lane gap, fixed alongside)',
-    /jobStages\s*=\s*\[[^\]]*'collections'/.test(dbSrc));
+  // Was: jobStages included contract_signed/collections so the paperwork
+  // checkboxes showed one stage before the JOB_CREATED gate. Since 2026-09-30
+  // #jobFieldsBlock is ALWAYS shown (no mid-form insert when Stage changes),
+  // which covers those stages and every other one.
+  ok('#jobFieldsBlock is always shown by toggleInsuranceFields (checkboxes visible at contract_signed and collections too)',
+    /function toggleInsuranceFields[\s\S]{0,2500}if \(job\) job\.style\.display = 'block';/.test(dbSrc) && !/jobStages\s*=\s*\[/.test(dbSrc));
 }
 {
   const leadsSrc = fs.readFileSync(path.join(PRO_JS, 'crm-leads.js'), 'utf8');

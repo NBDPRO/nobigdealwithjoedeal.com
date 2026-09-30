@@ -376,6 +376,12 @@
       });
     });
 
+    // Position NOW as well (2026-09-30): the tooltip used to sit unplaced, with
+    // no centered class, for two frames after this write, which is a visible
+    // flash, and a slow CI runner sampled the Welcome step inside that gap
+    // (onboarding-tour-anchors @audit). The pass below re-positions once
+    // layout has settled, for anchored steps that need the tooltip's size.
+    positionTooltip(tip, target, step.placement);
     // Re-position after innerHTML write (next tick so layout settles)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => positionTooltip(tip, target, step.placement));

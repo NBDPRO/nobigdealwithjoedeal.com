@@ -131,6 +131,12 @@ function _renderFollowUpRows(box, overdue) {
 
 function renderLeads(leads, filtered){
   const all   = (leads  || window._leads || []);
+  // No subset passed (undefined, or the explicit "unfiltered" null) → keep
+  // any active search applied, computed fresh from THIS render's leads (see
+  // _crmSearchFilter). An explicit array (a filter chip's subset) is used as-is.
+  if ((filtered === undefined || filtered === null) && typeof _crmSearchFilter === 'function') {
+    filtered = _crmSearchFilter(all);
+  }
   let list    = (filtered !== undefined && filtered !== null) ? filtered : all;
   window._filteredLeads = (filtered !== undefined && filtered !== null) ? filtered : null;
 
@@ -2338,14 +2344,33 @@ function kanbanFilter(){
   }
   
   _searchQuery = search;
-  
+
+  // renderLeads writes #crmSearchCount from what it actually renders.
+  renderLeads(window._leads, _crmSearchFilter(window._leads));
+}
+
+// The pipeline search + damage filter as a pure function of the CURRENT
+// inputs. Returns null when neither is set (no narrowing).
+//
+// renderLeads re-applies this itself whenever a caller passes no subset
+// (2026-09-30). The search used to live only in the one array kanbanFilter
+// handed to renderLeads. Every other re-render — the live leads snapshot,
+// the Board/List toggle, a view switch — called renderLeads(leads) bare and
+// silently showed the WHOLE book while the box still read the query. Jo's
+// live session: "1 match", toggle to List → every lead; back to Board → the
+// filter gone.
+function _crmSearchFilter(leads) {
+  const search = (document.getElementById('crmSearch')?.value||'').toLowerCase().trim();
+  const dmg    = (document.getElementById('crmDmgFilter')?.value||'').toLowerCase();
+  if (!search && !dmg) return null;
   // Digit-normalized phone matching: "(513) 555" must find 5135550100
   // no matter how either side is formatted. 3-digit floor so one digit
   // doesn't match the whole board.
   const searchDigits = search.replace(/\D/g, '');
 
   // Filter with email + notes included
-  const filtered = (window._leads||[]).filter(l=>{
+  return (leads||[]).filter(l=>{
+    if (!l) return false;
     const searchStr = [
       l.firstName||'', l.lastName||'', l.address||'',
       l.damageType||'', l.phone||'', l.email||'', l.notes||''
@@ -2357,9 +2382,6 @@ function kanbanFilter(){
     const matchD = !dmg    || (l.damageType||'').toLowerCase()===dmg;
     return matchS && matchD;
   });
-  
-  // renderLeads writes #crmSearchCount from what it actually renders.
-  renderLeads(window._leads, filtered);
 }
 
 
