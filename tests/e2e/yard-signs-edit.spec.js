@@ -160,16 +160,25 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
     await adb.collection('yardSigns').doc(tag + 'N2').set(Object.assign({}, base, { address: '77 Moved Rd ' + tag, lat: null, lng: null, dueAt: new Date(now + 10 * 86400000), note: tag }));
     await safeEvaluate(page, () => window.YardSigns.init());
     const pin = (addr) => page.locator('#ysMap .ys-map-pin[title="' + addr + '"]');
+    // Nearby signs merge into a "🪧 N" cluster when zoomed out (#1919), and the
+    // shared emulator DB holds other specs' signs — and every retry's — at
+    // these same coordinates. Tap the sign's card, as Jo would: the map zooms
+    // in and splits the cluster, so its own pin must then be drawn.
+    const tapCard = (id) => page.locator('.ys-row[data-ys-id="' + id + '"] div[style*="font-weight:700"]').first().click();
+    await tapCard(tag + 'P1');
     await expect(pin('Pinned ' + tag), 'the real pin is drawn even though a no-location sign sorts first').toHaveCount(1, { timeout: 10_000 });
     await expect(page.locator('#signsScroll'), 'the page says which signs are off the map').toContainText("aren't on the map");
     // One tap: N2's address geocodes (stubbed), N1's does not.
     await page.click('[data-ys-action="pin-missing"]');
     await expect.poll(async () => (await adb.collection('yardSigns').doc(tag + 'N2').get()).data().lat, { timeout: 10_000 }).toBe(39.2002);
+    // The result message comes once the flow has redrawn the map; tap after it.
+    await expect.poll(() => safeEvaluate(page, () => window.__toasts.slice()).then((ts) => ts.some((t) => /placed on the map/.test(t) && /could not be found/.test(t))),
+      { message: 'the result is reported', timeout: 10_000 }).toBe(true);
+    await page.waitForTimeout(400);           // past the redraw's own re-fit (150 ms)
+    await tapCard(tag + 'N2');
     await expect(pin('77 Moved Rd ' + tag), 'the newly placed sign shows on the map').toHaveCount(1, { timeout: 10_000 });
     const n1 = (await adb.collection('yardSigns').doc(tag + 'N1').get()).data();
     expect(n1.lat, 'an address that cannot be found is left alone (never pinned at 0,0)').toBeNull();
-    const toasts = await safeEvaluate(page, () => window.__toasts.slice());
-    expect(toasts.some((t) => /placed on the map/.test(t) && /could not be found/.test(t)), 'the result is reported: ' + JSON.stringify(toasts)).toBe(true);
     // The edit sheet no longer treats a null pin as saved.
     await page.click('[data-ys-action="edit"][data-ys-id="' + tag + 'N1"]');
     await expect(page.locator('#ysGps')).toContainText('Pin comes from the address');
