@@ -203,9 +203,18 @@
   }
 
   // Tap a sign's card → bring the map into view, fly to its pin, open it.
+  // The last card tapped: a redraw within a few seconds (the data load that
+  // lands just after a tap) re-applies it instead of re-fitting and losing it.
+  let _focus = null;
+  let _focusTimers = [];
   function focusSign(id) {
     const s = _signs.find((x) => x.id === id);
     if (!s) return;
+    // A newer tap wins: the previous tap's pending zoom / fan-out must not
+    // fire afterwards and drag the map back to the old sign.
+    _focusTimers.forEach(clearTimeout);
+    _focusTimers = [];
+    _focus = { id, at: Date.now() };
     if (!LG().hasPin(s)) { toast('This sign has no map location yet — tap Edit and save its address', 'info'); return; }
     const box = document.getElementById('ysMap');
     const m = _markers[id];
@@ -214,10 +223,25 @@
     // Neighbourhood zoom — close enough to find the house, far enough to see
     // the streets around it; never zooms OUT if the rep is already closer.
     _map.setView([s.lat, s.lng], Math.max(_map.getZoom() || 0, 15), { animate: true });
-    const open = () => { try { m.openPopup(); } catch (_) {} };
+    let shown = false;
+    // Only for the CURRENT tap: the cluster plugin's own listener can fire
+    // late, and opening an older sign's popup would auto-pan the map away.
+    const open = () => { if (shown || !_focus || _focus.id !== id) return; shown = true; try { m.openPopup(); } catch (_) {} };
     // Inside a cluster: zoom/spiderfy just enough to show THIS sign, then open it.
-    if (_layer && typeof _layer.zoomToShowLayer === 'function') setTimeout(() => { try { _layer.zoomToShowLayer(m, open); } catch (_) { open(); } }, 300);
-    else setTimeout(open, 350);
+    if (_layer && typeof _layer.zoomToShowLayer === 'function') {
+      _focusTimers.push(setTimeout(() => { try { _layer.zoomToShowLayer(m, open); } catch (_) { open(); } }, 300));
+      // Signs at the very SAME spot (a sign re-placed at one house) never
+      // split by zooming, and zoomToShowLayer stalls on them — the tap did
+      // nothing. If the sign still isn't out by now, fan its cluster open.
+      _focusTimers.push(setTimeout(() => {
+        if (shown) return;
+        const p = typeof _layer.getVisibleParent === 'function' ? _layer.getVisibleParent(m) : null;
+        if (p && p !== m && typeof p.spiderfy === 'function') {
+          _layer.once('spiderfied', open);
+          try { p.spiderfy(); } catch (_) { open(); }
+        } else open();
+      }, 1500));
+    } else setTimeout(open, 350);
     document.querySelectorAll('.ys-row').forEach((r) => { r.style.outline = r.getAttribute('data-ys-id') === id ? '2px solid var(--orange,#BD5728)' : ''; });
   }
 
@@ -271,7 +295,13 @@
     // The view is often drawn while its page is still being laid out, so the
     // first fit can run against a zero-size box and leave the pins off-screen.
     // Re-fit once the box has its real size.
-    setTimeout(() => { try { _map.invalidateSize(); fitMap(); } catch (_) {} }, 150);
+    setTimeout(() => {
+      try {
+        _map.invalidateSize();
+        if (_focus && Date.now() - _focus.at < 5000 && _markers[_focus.id]) focusSign(_focus.id);
+        else fitMap();
+      } catch (_) {}
+    }, 150);
   }
 
   // ── place / edit sign form ───────────────────────────────────────────
@@ -475,8 +505,11 @@
         s.lat = lat; s.lng = lng; placed++;
       } catch (e) { missed++; }
     }
-    toast(placed + ' placed on the map' + (missed ? ' · ' + missed + ' address' + (missed === 1 ? '' : 'es') + ' could not be found — open Edit and fix the address' : ''), missed ? 'warn' : 'ok');
+    // Redraw first: the message means "they're on the map now". Forget the
+    // last tapped card, so the redraw shows every sign, not the old focus.
+    _focus = null;
     try { render(); } catch (e) { console.warn('[yard-signs] redraw failed', e && e.message); }
+    toast(placed + ' placed on the map' + (missed ? ' · ' + missed + ' address' + (missed === 1 ? '' : 'es') + ' could not be found — open Edit and fix the address' : ''), missed ? 'warn' : 'ok');
   }
 
   async function removeSign(id) {

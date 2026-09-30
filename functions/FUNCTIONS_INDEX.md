@@ -245,7 +245,8 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `leadBridgeContact` / `leadBridgeEstimate` / `leadBridgeFreeRoof` / `leadBridgeInspect` / `leadBridgeStorm` | same five collections | Mirror each high-intent public lead into the tenant's CRM `leads` pipeline (tenant-aware, idempotent) |
 | `leadBridgeThumbtack` | `thumbtack_leads/{leadId}` | Mirror a Thumbtack webhook lead into the CRM pipeline. Source reads `Thumbtack` (not `Website — …`) so marketplace spend is attributed to the channel; Thumbtack **test** deliveries are stored but never bridged |
 | `slack_onLeadWon` | `leads/{leadId}` written | Slack ping on won deal |
-| `onReferralLeadWrite` | `leads/{leadId}` written | Referral-code redemption: attribute a redeemed `redeemReferralCode` to its referrer, then record the $200 bonus as OWED + notify the rep when the referred project reaches a closed stage (idempotent) |
+| `onReferralLeadWrite` | `leads/{leadId}` written | Referral-code redemption: attribute a redeemed `redeemReferralCode` to its referrer, then record the $100 bonus as OWED + notify the rep when the referred project reaches a closed stage — once per JOB since 2026-09-30 (J1; latch on the job doc; a customer's first job paid under the old per-customer rule is never paid again) |
+| `onReferralJobWrite` | `leads/{leadId}/jobs/{jobId}` written | Referral bonus for a referred customer's OTHER (non-active) job when it closes — one more $100 owed per won job (J1); same per-job latch (functions/referral-rewards.js) |
 | `slack_onStormAlert` | `storm_alerts_sent/{id}` created | Slack ping on storm alert |
 | `slack_onAdminGrantAttempt` | `audit_log/{id}` created | Slack ping on admin-grant attempts (was collectively listed as `slackPing`, which no longer exists) |
 | `stormBriefing_onAlertSent` | `storm_alerts_sent/{id}` created | Phase B.2 rep-facing storm briefing (call-order scoring; once per alertId via atomic sentinel) |

@@ -246,12 +246,29 @@ async function handleReferralLeadWrite(event) {
     return;
   }
 
-  // ─── Phase B: credit the bonus when the referred project closes ─
+  // ─── Phase B (multi-job): credit the bonus once per JOB ─────────
+  // Jo (J1, 2026-09-30): every won job from a referred customer pays the
+  // referrer again. The customer's ACTIVE job closing is seen here (its
+  // fields are the lead's); another job closing is seen by
+  // onReferralJobWrite. The latch is on the job doc (creditJob), so re-fires
+  // and our own writes never double-credit.
+  const activeJobId = validJobId(after.activeJobId);
+  if (activeJobId && REFERRED.has(after.referralRewardStatus) && projectClosed(after)) {
+    const wasClosed = !!before && projectClosed(before) && before.activeJobId === after.activeJobId;
+    // Cheap gate: a closed lead is re-written often; only look when it JUST
+    // closed, the active job changed, or the code was just attributed.
+    if (!wasClosed || after.referralRewardStatus === 'pending') {
+      await creditJob(db, leadId, after, activeJobId);
+    }
+    return;
+  }
+
+  // ─── Phase B (legacy, no jobs yet): credit the bonus when the referred project closes ─
   // Runs at most once per lead: referralRewardStatus flips pending→owed, so
   // the re-trigger from our own write no longer matches. The status latch —
   // not a stage-transition check — is the idempotency guard, so a code
   // entered on an already-closed lead still credits exactly once.
-  if (after.referralRewardStatus === 'pending' && projectClosed(after)) {
+  if (!activeJobId && after.referralRewardStatus === 'pending' && projectClosed(after)) {
     const amount = REFERRAL_BONUS_USD;
     try {
       await afterSnap.ref.set({
@@ -316,6 +333,131 @@ async function handleReferralLeadWrite(event) {
     }
   }
 }
+
+// ─── Multi-job: one bonus per won job (Jo, J1, 2026-09-30) ──────────
+// A lead that was attributed to a valid code (Phase A) carries one of these.
+const REFERRED = new Set(['pending', 'owed', 'paid']);
+const FIRST_JOB_ID = 'j1';
+const validJobId = (v) => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v) ? v : null);
+
+/**
+ * PURE. What crediting `jobId` does, given the lead and the job doc:
+ *   { skip: 'already' }       this job already earned its bonus
+ *   { skip: 'legacy', latch } the customer's FIRST job was paid under the old
+ *                             once-per-customer rule (before jobs): latch it
+ *                             so it never pays twice
+ *   { credit: { job, lead } } the job-doc latch + the customer's new balance:
+ *                             a still-unpaid bonus grows by one bonus; a paid
+ *                             one starts a new owed amount (the Referrals
+ *                             "Mark Paid" flow stays per customer)
+ */
+function planJobCredit(lead, jobId, job, amount) {
+  const l = lead || {}, j = job || {};
+  if (j.referralRewardOwedAt) return { skip: 'already' };
+  if (jobId === FIRST_JOB_ID && l.referralRewardOwedAt && !l.referralRewardJobCount) {
+    return { skip: 'legacy', latch: { referralRewardOwedAt: l.referralRewardOwedAt, referralRewardAmount: Number(l.referralRewardAmount) || amount, referralRewardLegacy: true } };
+  }
+  const owedNow = l.referralRewardStatus === 'owed' ? (Number(l.referralRewardAmount) || amount) : 0;
+  return {
+    credit: {
+      job: { referralRewardAmount: amount },
+      lead: { referralRewardStatus: 'owed', referralRewardAmount: owedNow + amount },
+    },
+  };
+}
+
+/** Credit one job's bonus (transactional latch on the job doc), then ledger + bell. */
+async function creditJob(db, leadId, lead, jobId) {
+  const amount = REFERRAL_BONUS_USD;
+  const leadRef = db.collection('leads').doc(String(leadId));
+  const jobRef = leadRef.collection('jobs').doc(String(jobId));
+  let plan;
+  try {
+    plan = await db.runTransaction(async (tx) => {
+      const [ls, js] = await Promise.all([tx.get(leadRef), tx.get(jobRef)]);
+      if (!ls.exists || !js.exists) return { skip: 'missing' };
+      const p = planJobCredit(ls.data(), jobId, js.data(), amount);
+      if (p.skip === 'legacy') tx.update(jobRef, p.latch);
+      if (p.credit) {
+        tx.update(jobRef, Object.assign({ referralRewardOwedAt: FieldValue.serverTimestamp() }, p.credit.job));
+        tx.update(leadRef, Object.assign({
+          referralRewardOwedAt: FieldValue.serverTimestamp(),
+          referralRewardJobCount: FieldValue.increment(1),
+        }, p.credit.lead));
+      }
+      return p;
+    });
+  } catch (e) {
+    logger.error('[referral] job credit failed', { leadId, jobId, err: e && e.message });
+    return { skip: 'error' };
+  }
+  if (!plan.credit) return plan;
+
+  if (lead.referralDocId) {
+    try {
+      const rdocSnap = await db.doc(`referrals/${lead.referralDocId}`).get();
+      const rdoc = rdocSnap.exists ? (rdocSnap.data() || {}) : null;
+      const sameTenant = rdoc && (
+        (rdoc.companyId && lead.companyId) ? rdoc.companyId === lead.companyId
+          : (rdoc.userId && lead.userId) ? rdoc.userId === lead.userId
+            : true
+      );
+      if (rdoc && sameTenant) {
+        await rdocSnap.ref.set({
+          rewards: FieldValue.arrayUnion({ referredLeadId: String(leadId), jobId: String(jobId), amount, status: 'owed', owedAt: new Date() }),
+          rewardsOwedTotal: FieldValue.increment(amount),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else {
+        logger.warn('[referral] skipped ledger credit — referralDocId missing/foreign', { leadId, jobId, referralDocId: lead.referralDocId });
+      }
+    } catch (e) {
+      logger.warn('[referral] referral-doc reward update failed', { leadId, jobId, err: e && e.message });
+    }
+  }
+  try {
+    await db.collection('notifications').add({
+      userId: lead.userId || null,
+      type: 'referral_reward',
+      leadId: String(leadId),
+      title: '🎁 Referral bonus owed',
+      message: `$${amount} referral bonus owed to ${lead.referredByName || 'your referrer'} — a job for ${fullName(lead) || 'a referred customer'} closed. Mark paid once you've sent it.`,
+      read: false,
+      dismissed: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    logger.warn('[referral] reward-notification failed', { leadId, jobId, err: e && e.message });
+  }
+  return plan;
+}
+
+/** A job other than the customer's active one closed → its bonus. */
+async function handleReferralJobWrite(event) {
+  const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+  if (!after || after.referralRewardOwedAt || !projectClosed(after)) return;
+  const { leadId, jobId } = event.params || {};
+  if (!validJobId(jobId)) return;
+  const db = getFirestore();
+  const ls = await db.collection('leads').doc(String(leadId)).get();
+  const lead = ls.exists ? ls.data() : null;
+  if (!lead || !REFERRED.has(lead.referralRewardStatus)) return;   // not a referred customer
+  if (lead.activeJobId === jobId) return;                          // the lead path handles it
+  await creditJob(db, leadId, lead, jobId);
+}
+
+exports.onReferralJobWrite = onDocumentWritten(
+  {
+    region: 'us-central1',
+    document: 'leads/{leadId}/jobs/{jobId}',
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    maxInstances: 20,
+  },
+  handleReferralJobWrite
+);
+
+exports._internal = { planJobCredit, creditJob, handleReferralJobWrite, handleReferralLeadWrite, REFERRAL_BONUS_USD };
 
 exports.onReferralLeadWrite = onDocumentWritten(
   {
