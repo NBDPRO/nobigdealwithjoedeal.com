@@ -210,11 +210,37 @@ function buildEmailHtml({ firstName, dueLeads }) {
 </html>`;
 }
 
+// ─── Multi-job (Jo, J2, 2026-09-30) ─────────────────────────────
+// A review ask per completed JOB, never two asks to one customer within 90
+// days. A customer with no jobs yet keeps the old rule (once, ever).
+const REVIEW_GAP_DAYS = 90;
+const FIRST_JOB_ID = 'j1';
+const validJobId = (v) => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v) ? v : null);
+const lastAskMs = (lead) => Math.max(timestampMillis(lead.reviewRequestedAt), timestampMillis(lead.reviewNudgedAt));
+
+/**
+ * PURE. Is a review ask due for this job?
+ *   jobId null → the customer has no jobs: once per customer, as before.
+ *   Otherwise: not if this job was already nudged or asked; not if this is
+ *   the first job and the customer was asked under the old per-customer rule
+ *   (no reviewJobCount yet); not within 90 days of the customer's last ask.
+ */
+function reviewAskDue(lead, job, jobId, wonMs, now) {
+  const l = lead || {};
+  if (!wonMs || wonMs < now - NUDGE_MAX_DAYS * DAY_MS || wonMs > now - NUDGE_MIN_DAYS * DAY_MS) return false;
+  if (!l.phone && !l.email) return false;           // nothing to send with
+  if (!jobId) return !l.reviewRequested && !timestampMillis(l.reviewNudgedAt);
+  const j = job || {};
+  if (timestampMillis(j.reviewNudgedAt) || timestampMillis(j.reviewRequestedAt)) return false;
+  if (jobId === FIRST_JOB_ID && !l.reviewJobCount && (l.reviewRequested || timestampMillis(l.reviewNudgedAt))) return false;
+  const last = lastAskMs(l);
+  if (last && now - last < REVIEW_GAP_DAYS * DAY_MS) return false;
+  return true;
+}
+
 // ─── Per-user aggregation ────────────────────────────────────────
 async function findReviewDueLeads(db, uid) {
-  const now = Date.now();
-  const minWonMs = now - NUDGE_MAX_DAYS * DAY_MS;
-  const maxWonMs = now - NUDGE_MIN_DAYS * DAY_MS;
+  const now = Date.now();                            // the 3–21 day window lives in reviewAskDue
 
   // Two query lanes, merged + deduped: persisted-role (custom stages
   // included — leads(userId, stageRole) composite) and the legacy key
@@ -246,24 +272,49 @@ async function findReviewDueLeads(db, uid) {
     // string matched but whose persisted role says otherwise.
     if (roles.roleFor(lead) !== roles.ROLE.WON) continue;
 
-    // Nothing to send with — the CRM's one-tap ask needs a phone
-    // (SMS) or an email address.
-    if (!lead.phone && !lead.email) continue;
-
     // Won recently enough? stageStartedAt is stamped by every moveCard;
-    // updatedAt is the pre-rollout fallback.
+    // updatedAt is the pre-rollout fallback. The lead's fields are its
+    // ACTIVE job's; that job's own latch lives on its job doc.
     const wonMs = timestampMillis(lead.stageStartedAt) || timestampMillis(lead.updatedAt);
-    if (!wonMs || wonMs < minWonMs || wonMs > maxWonMs) continue;
-
-    // Idempotency: the rep already sent an ask (client engine stamps
-    // reviewRequested), or this sweep already nudged once.
-    if (lead.reviewRequested) continue;
-    if (timestampMillis(lead.reviewNudgedAt)) continue;
-
-    out.push({ ...lead, wonMs });
+    const jobId = validJobId(lead.activeJobId);
+    let job = null;
+    if (jobId && reviewAskDue(lead, null, jobId, wonMs, now)) {
+      try { const js = await db.collection('leads').doc(lead.id).collection('jobs').doc(jobId).get(); job = js.exists ? js.data() : null; }
+      catch (_) { job = null; }
+    }
+    if (!reviewAskDue(lead, job, jobId, wonMs, now)) continue;
+    out.push({ ...lead, wonMs, jobId, jobTitle: (job && job.title) || null });
   }
-  out.sort((a, b) => b.wonMs - a.wonMs);
-  return out;
+
+  // A customer's OTHER jobs that were won recently (multi-job). One
+  // collection-group read; the single-field COLLECTION_GROUP index on
+  // userId (#1917) serves it.
+  let jobSnap = { docs: [] };
+  if (typeof db.collectionGroup === 'function') {
+    try { jobSnap = await db.collectionGroup('jobs').where('userId', '==', uid).limit(5000).get(); }
+    catch (e) { logger.warn('review_nudge_jobs_read_failed', { uid, err: e.message }); }
+  }
+  for (const d of jobSnap.docs) {
+    const job = d.data() || {};
+    const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+    if (!leadId || roles.roleFor(job) !== roles.ROLE.WON) continue;
+    const wonMs = timestampMillis(job.stageStartedAt) || timestampMillis(job.closedAt);
+    if (!reviewAskDue({ phone: 1 }, job, d.id, wonMs, now)) continue;     // cheap pre-check before reading the lead
+    let lead;
+    try { const ls = await db.collection('leads').doc(leadId).get(); lead = ls.exists ? { id: leadId, ...ls.data() } : null; }
+    catch (_) { lead = null; }
+    if (!lead || lead.deleted || lead.isProspect) continue;
+    if (lead.activeJobId === d.id) continue;                               // covered above
+    if (!reviewAskDue(lead, job, d.id, wonMs, now)) continue;
+    out.push({ ...lead, wonMs, jobId: d.id, jobTitle: job.title || null });
+  }
+
+  // Never two asks to one customer in one sweep: keep their newest win.
+  const byLead = new Map();
+  for (const e of out) { const cur = byLead.get(e.id); if (!cur || e.wonMs > cur.wonMs) byLead.set(e.id, e); }
+  const list = [...byLead.values()];
+  list.sort((a, b) => b.wonMs - a.wonMs);
+  return list;
 }
 
 async function writeReviewActivity(db, leadId, uid) {
@@ -285,24 +336,35 @@ async function writeReviewActivity(db, leadId, uid) {
 // same and dedupe against each other.
 async function writeReviewNotification(db, lead, uid) {
   try {
+    // Deduped per customer — and, for a job, per job: a customer's second job
+    // a year later gets its own bell. The client engine's bells carry no
+    // jobId, so for a job any job-less bell from the last 30 days counts as
+    // this one. Equality-only query (no composite index), checked in memory.
     const existing = await db.collection('notifications')
       .where('userId', '==', uid)
       .where('leadId', '==', lead.id)
       .where('type', '==', 'review_request')
-      .limit(1)
+      .limit(lead.jobId ? 50 : 1)
       .get();
-    if (!existing.empty) return false;
+    if (!lead.jobId) { if (!existing.empty) return false; }
+    else {
+      const recent = Date.now() - 30 * DAY_MS;
+      const dup = existing.docs.some((d) => { const n = d.data() || {}; return n.jobId ? n.jobId === lead.jobId : timestampMillis(n.createdAt) > recent; });
+      if (dup) return false;
+    }
     const customerName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Customer';
-    await db.collection('notifications').add({
+    const note = {
       userId: uid,
       leadId: lead.id,
       type: 'review_request',
       title: '⭐ Request a Review',
-      message: `${customerName}'s project is complete — send a review request?`,
+      message: `${customerName}'s ${lead.jobTitle ? lead.jobTitle + ' job' : 'project'} is complete — send a review request?`,
       read: false,
       dismissed: false,
       createdAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (lead.jobId) note.jobId = lead.jobId;
+    await db.collection('notifications').add(note);
     return true;
   } catch (e) {
     logger.warn('review_nudge_notification_failed', { leadId: lead.id, err: e.message });
@@ -310,13 +372,16 @@ async function writeReviewNotification(db, lead, uid) {
   }
 }
 
-async function markReviewNudged(db, leadId) {
+async function markReviewNudged(db, leadId, jobId) {
   try {
-    await db.doc(`leads/${leadId}`).update({
-      reviewNudgedAt: FieldValue.serverTimestamp(),
-    });
+    const patch = { reviewNudgedAt: FieldValue.serverTimestamp() };
+    // Multi-job: the job's own latch, plus a count so the "asked under the
+    // old per-customer rule" check never mistakes a new-rule ask for one.
+    if (jobId) patch.reviewJobCount = FieldValue.increment(1);
+    await db.doc(`leads/${leadId}`).update(patch);
+    if (jobId) await db.doc(`leads/${leadId}/jobs/${jobId}`).update({ reviewNudgedAt: FieldValue.serverTimestamp() });
   } catch (e) {
-    logger.warn('review_nudge_mark_failed', { leadId, err: e.message });
+    logger.warn('review_nudge_mark_failed', { leadId, jobId, err: e.message });
   }
 }
 
@@ -376,7 +441,7 @@ exports.reviewRequestNudge = onSchedule(
           for (const lead of dueLeads) {
             await writeReviewActivity(db, lead.id, uid);
             if (await writeReviewNotification(db, lead, uid)) notified++;
-            await markReviewNudged(db, lead.id);
+            await markReviewNudged(db, lead.id, lead.jobId || null);
             nudged++;
           }
 
@@ -417,3 +482,5 @@ exports.reviewRequestNudge = onSchedule(
     });
   }
 );
+
+exports._test = { reviewAskDue, findReviewDueLeads, markReviewNudged, writeReviewNotification, REVIEW_GAP_DAYS };
