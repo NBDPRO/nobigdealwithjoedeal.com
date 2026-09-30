@@ -38,6 +38,14 @@
     return isNaN(p) ? 0 : p;
   }
 
+  // Does this object carry a real map pin? isFinite(null) is TRUE in JS (null
+  // coerces to 0), so a sign saved with lat/lng null used to pass as a pin at
+  // 0,0 — and Leaflet THROWS on [null, null], which stopped the whole map from
+  // drawing any pin at all (2026-09-30, Jo: "no yard sign markers").
+  function hasPin(o) {
+    return !!o && typeof o.lat === 'number' && typeof o.lng === 'number' && Number.isFinite(o.lat) && Number.isFinite(o.lng);
+  }
+
   // Local-midnight of a day (pickup is a DAY, not a minute).
   function startOfDay(t) { const d = new Date(ms(t)); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
 
@@ -83,7 +91,7 @@
   }
 
   function haversineMi(a, b) {
-    if (!a || !b || !isFinite(a.lat) || !isFinite(a.lng) || !isFinite(b.lat) || !isFinite(b.lng)) return Infinity;
+    if (!hasPin(a) || !hasPin(b)) return Infinity;
     const R = 3958.8, toR = (x) => x * Math.PI / 180;
     const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
     const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2;
@@ -94,7 +102,7 @@
   // nearest-next drive from `start` (Jo's position) when known.
   function pickupList(signs, now, start) {
     const due = (signs || []).filter((s) => { if (!s || s.deleted) return false; const st = statusOf(s, now); return st === 'overdue' || st === 'due_today'; });
-    if (!start || !isFinite(start.lat)) return due.sort((a, b) => ms(a.dueAt) - ms(b.dueAt));
+    if (!hasPin(start)) return due.sort((a, b) => ms(a.dueAt) - ms(b.dueAt));
     const out = [], left = due.slice();
     let here = start;
     while (left.length) {
@@ -102,7 +110,7 @@
       left.forEach((s, i) => { const d = haversineMi(here, s); if (d < bd) { bd = d; bi = i; } });
       const next = left.splice(bi, 1)[0];
       out.push(next);
-      if (isFinite(next.lat)) here = next;
+      if (hasPin(next)) here = next;
     }
     return out;
   }
@@ -119,7 +127,7 @@
   function attributeLead(lead, signs, maxMi) {
     const limit = maxMi == null ? 1.5 : maxMi;
     const at = ms(lead && lead.createdAt);
-    const here = lead && isFinite(lead.lat) ? { lat: lead.lat, lng: lead.lng } : null;
+    const here = hasPin(lead) ? { lat: lead.lat, lng: lead.lng } : null;
     if (!here || !at) return null;
     let best = null, bd = Infinity;
     (signs || []).forEach((s) => {
@@ -156,7 +164,7 @@
     return c;
   }
 
-  const api = { DAY, DURATIONS, DUE_SOON_DAYS, COLOR, LABEL, ms, startOfDay, dueFrom, statusOf, dueText, daysBetween, haversineMi, pickupList, extendedDue, attributeLead, isYardSignSource, summary };
+  const api = { DAY, DURATIONS, DUE_SOON_DAYS, COLOR, LABEL, hasPin, ms, startOfDay, dueFrom, statusOf, dueText, daysBetween, haversineMi, pickupList, extendedDue, attributeLead, isYardSignSource, summary };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDYardSignLogic = api;
 })(typeof window !== 'undefined' ? window : null);
