@@ -1,5 +1,7 @@
 # NEXT_SESSION — 2026-09-29 (part 2)
 
+> **Update 2026-09-29 (evening):** superseded by [part 3](NEXT_SESSION-2026-09-29-part3.md). Food logging shipped (#1894), and Google Calendar is connected.
+
 The afternoon of 09-29. Jo said "keep sweeping autonomously, you pick the lane
 order". All five lanes from [the morning brief](NEXT_SESSION-2026-09-29.md)
 §3 are closed: four were built and one turned out not to be needed.
