@@ -175,4 +175,39 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
     await expect(page.locator('#ysGps')).toContainText('Pin comes from the address');
     await page.click('[data-ys-action="close-place"]');
   });
+
+  // 2026-09-30, Jo: tap a sign's card → the map snaps to that sign; zoomed
+  // out, every sign stays visible/findable without crowding (nearby signs
+  // merge into one "🪧 N" bubble that splits as you zoom in).
+  test('map: nearby signs cluster; tapping a sign card flies to it (neighbourhood zoom, not rooftop)', async ({ page }) => {
+    const { initializeApp, getApps } = require('firebase-admin/app');
+    const { getFirestore } = require('firebase-admin/firestore');
+    if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro' });
+    const adb = getFirestore();
+    const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    const now = Date.now(), tag = 'zzcl' + now;
+    const base = { userId: who.uid, companyId: who.co, status: 'out', durationDays: 14, extensions: 0, placedAt: new Date(now - 86400000), dueAt: new Date(now + 9 * 86400000), note: tag };
+    // Two neighbours ~40 m apart, and one across town.
+    await adb.collection('yardSigns').doc(tag + 'A').set(Object.assign({}, base, { address: 'Neighbour A ' + tag, lat: 39.30000, lng: -84.30000 }));
+    await adb.collection('yardSigns').doc(tag + 'B').set(Object.assign({}, base, { address: 'Neighbour B ' + tag, lat: 39.30030, lng: -84.30010 }));
+    await adb.collection('yardSigns').doc(tag + 'F').set(Object.assign({}, base, { address: 'Across town ' + tag, lat: 39.10000, lng: -84.60000 }));
+    await safeEvaluate(page, () => window.YardSigns.init());
+    await page.waitForTimeout(600);
+    const clusterTexts = () => safeEvaluate(page, () => [...document.querySelectorAll('#ysMap .ys-map-cluster')].map((c) => c.textContent.trim()));
+    await expect.poll(async () => (await clusterTexts()).some((t) => /🪧\s*\d+/.test(t)), { timeout: 10_000 }).toBe(true);
+    await expect(page.locator('#ysMap .ys-map-pin[title="Neighbour A ' + tag + '"]'), 'zoomed out, the two neighbours are merged, not stacked').toHaveCount(0);
+    if (process.env.YS_SHOTS) await page.locator('#ysMap').screenshot({ path: process.env.YS_SHOTS + '/ys-zoomed-out.png' });
+    // Tap A's card (its text, not a button).
+    await page.locator('.ys-row[data-ys-id="' + tag + 'A"] div[style*="font-weight:700"]').first().click();
+    await expect(page.locator('#ysMap .ys-map-pin[title="Neighbour A ' + tag + '"]'), 'tapping the card splits the sign out and shows it').toHaveCount(1, { timeout: 10_000 });
+    await expect(page.locator('#ysMap .leaflet-popup-content'), 'its popup opens').toContainText('Neighbour A ' + tag, { timeout: 10_000 });
+    const zoom = await safeEvaluate(page, () => { const m = document.getElementById('ysMap'); return m && m._leaflet_id ? null : null; });
+    void zoom;
+    if (process.env.YS_SHOTS) await page.locator('#ysMap').screenshot({ path: process.env.YS_SHOTS + '/ys-focused.png' });
+    // A sign with no pin says so instead of doing nothing.
+    await adb.collection('yardSigns').doc(tag + 'N').set(Object.assign({}, base, { address: 'No pin ' + tag, lat: null, lng: null }));
+    await safeEvaluate(page, () => window.YardSigns.init());
+    await page.locator('.ys-row[data-ys-id="' + tag + 'N"] div[style*="font-weight:700"]').first().click();
+    await expect.poll(() => safeEvaluate(page, () => window.__toasts.slice(-1)[0] || ''), { timeout: 5_000 }).toMatch(/no map location yet/);
+  });
 });

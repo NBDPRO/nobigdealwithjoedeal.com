@@ -25,6 +25,8 @@
   let _loaded = false;
   let _here = null;           // last known position (for pickup order)
   let _map = null, _layer = null;
+  let _markers = {};          // sign id → Leaflet marker (tap a card to fly to it)
+  let _fitPts = [];           // the pins the map was last fitted to
   let _showHistory = false;
   const _photoUrl = {};       // storagePath → download URL
 
@@ -111,7 +113,7 @@
     const nLeads = (credit[s.id] || []).length;
     const scheduled = st === 'scheduled';
     const live = st !== 'picked_up' && st !== 'missing' && !scheduled;
-    return '<div class="ys-row" data-ys-id="' + esc(s.id) + '" style="display:flex;gap:12px;align-items:center;background:var(--s2,#1a1d23);border:1px solid var(--br,#2a2e37);border-left:4px solid ' + L.COLOR[st] + ';border-radius:10px;padding:10px 12px;margin-bottom:8px;">' +
+    return '<div class="ys-row" data-ys-id="' + esc(s.id) + '" title="' + (L.hasPin(s) ? 'Show this sign on the map' : 'No map location yet — tap Edit to add its address') + '" style="cursor:pointer;display:flex;gap:12px;align-items:center;background:var(--s2,#1a1d23);border:1px solid var(--br,#2a2e37);border-left:4px solid ' + L.COLOR[st] + ';border-radius:10px;padding:10px 12px;margin-bottom:8px;">' +
       '<div data-ys-photo="' + esc(s.photoPath || '') + '" style="width:56px;height:56px;flex:none;border-radius:8px;background:var(--s,#12223D);display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;">🪧</div>' +
       '<div style="min-width:0;flex:1;">' +
         '<div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.address || leadName(lead) || 'Yard sign') + '</div>' +
@@ -190,6 +192,35 @@
     }
   }
 
+  // One sign → street-level-ish zoom 15 centred on it; several → all in view
+  // with padding, capped at 15 so the pins keep their neighbourhood around
+  // them; none → the service area (or where the rep is).
+  function fitMap() {
+    if (!_map) return;
+    if (_fitPts.length === 1) _map.setView(_fitPts[0], 15);
+    else if (_fitPts.length) _map.fitBounds(window.L.latLngBounds(_fitPts), { padding: [36, 36], maxZoom: 15 });
+    else _map.setView(_here ? [_here.lat, _here.lng] : [39.1, -84.5], _here ? 13 : 9);
+  }
+
+  // Tap a sign's card → bring the map into view, fly to its pin, open it.
+  function focusSign(id) {
+    const s = _signs.find((x) => x.id === id);
+    if (!s) return;
+    if (!LG().hasPin(s)) { toast('This sign has no map location yet — tap Edit and save its address', 'info'); return; }
+    const box = document.getElementById('ysMap');
+    const m = _markers[id];
+    if (!_map || !box || !m) return;
+    try { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+    // Neighbourhood zoom — close enough to find the house, far enough to see
+    // the streets around it; never zooms OUT if the rep is already closer.
+    _map.setView([s.lat, s.lng], Math.max(_map.getZoom() || 0, 15), { animate: true });
+    const open = () => { try { m.openPopup(); } catch (_) {} };
+    // Inside a cluster: zoom/spiderfy just enough to show THIS sign, then open it.
+    if (_layer && typeof _layer.zoomToShowLayer === 'function') setTimeout(() => { try { _layer.zoomToShowLayer(m, open); } catch (_) { open(); } }, 300);
+    else setTimeout(open, 350);
+    document.querySelectorAll('.ys-row').forEach((r) => { r.style.outline = r.getAttribute('data-ys-id') === id ? '2px solid var(--orange,#BD5728)' : ''; });
+  }
+
   function drawMap(list) {
     const box = document.getElementById('ysMap');
     if (!box || !window.L) return;
@@ -198,7 +229,28 @@
     const pts = list.filter((s) => L.hasPin(s));
     _map = window.L.map(box, { zoomControl: true, attributionControl: false });
     window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_map);
-    _layer = window.L.layerGroup().addTo(_map);
+    // Nearby signs merge into one bubble ("🪧 3") that splits as you zoom in —
+    // every sign stays findable zoomed out, without pins piling up (Jo,
+    // 2026-09-30). Its ring takes the MOST URGENT colour inside it, so an
+    // overdue sign never hides in a green cluster. Plain layer if the plugin
+    // is missing.
+    const RANK = { overdue: 5, due_today: 4, due_soon: 3, out: 2, scheduled: 1 };
+    _layer = (typeof window.L.markerClusterGroup === 'function'
+      ? window.L.markerClusterGroup({
+          maxClusterRadius: 36, showCoverageOnHover: false, spiderfyOnMaxZoom: true, zoomToBoundsOnClick: true,
+          iconCreateFunction: (cluster) => {
+            let worst = 'scheduled';
+            cluster.getAllChildMarkers().forEach((mk) => { const st = mk.options.ysStatus; if ((RANK[st] || 0) > (RANK[worst] || 0)) worst = st; });
+            return window.L.divIcon({
+              className: 'ys-map-cluster',
+              html: '<div style="min-width:46px;height:40px;padding:0 10px;border-radius:20px;white-space:nowrap;background:#fff;border:3px solid ' + (L.COLOR[worst] || '#16a34a') + ';display:flex;align-items:center;justify-content:center;gap:2px;font-size:15px;font-weight:800;color:#111;box-shadow:0 1px 5px rgba(0,0,0,.5);">🪧 ' + cluster.getChildCount() + '</div>',
+              iconSize: [58, 40], iconAnchor: [29, 20],
+            });
+          },
+        })
+      : window.L.layerGroup()).addTo(_map);
+    _markers = {};
+    _fitPts = pts.map((s) => [s.lat, s.lng]);
     pts.forEach((s) => {
       const st = L.statusOf(s);
       // A yard-sign icon ringed in its status colour (green out, amber due
@@ -208,16 +260,18 @@
         html: '<div style="width:30px;height:30px;border-radius:50%;background:#fff;border:3px solid ' + L.COLOR[st] + ';display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 1px 4px rgba(0,0,0,.45);">🪧</div>',
         iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14],
       });
-      const m = window.L.marker([s.lat, s.lng], { icon, title: s.address || 'Yard sign', riseOnHover: true });
+      const m = window.L.marker([s.lat, s.lng], { icon, title: s.address || 'Yard sign', riseOnHover: true, ysStatus: st });
       const div = document.createElement('div');
       const t = document.createElement('b'); t.textContent = s.address || 'Yard sign'; div.appendChild(t);
       const d = document.createElement('div'); d.textContent = L.LABEL[st] + ' · ' + L.dueText(s); div.appendChild(d);
       m.bindPopup(div);
-      try { m.addTo(_layer); } catch (e) { console.warn('[yard-signs] pin skipped', s.id, e && e.message); }
+      try { m.addTo(_layer); _markers[s.id] = m; } catch (e) { console.warn('[yard-signs] pin skipped', s.id, e && e.message); }
     });
-    if (pts.length) _map.fitBounds(window.L.latLngBounds(pts.map((s) => [s.lat, s.lng])).pad(0.25), { maxZoom: 15 });
-    else _map.setView(_here ? [_here.lat, _here.lng] : [39.1, -84.5], _here ? 13 : 9);
-    setTimeout(() => { try { _map.invalidateSize(); } catch (_) {} }, 150);
+    fitMap();
+    // The view is often drawn while its page is still being laid out, so the
+    // first fit can run against a zero-size box and leave the pins off-screen.
+    // Re-fit once the box has its real size.
+    setTimeout(() => { try { _map.invalidateSize(); fitMap(); } catch (_) {} }, 150);
   }
 
   // ── place / edit sign form ───────────────────────────────────────────
@@ -488,7 +542,11 @@
     window._NBD_YS_DELEGATE = true;
     document.addEventListener('click', (ev) => {
       const t = ev.target.closest && ev.target.closest('[data-ys-action],[data-ys-days]');
-      if (!t) return;
+      if (!t) {
+        const row = ev.target.closest && ev.target.closest('.ys-row');
+        if (row && !ev.target.closest('a,button,input,select,textarea')) focusSign(row.getAttribute('data-ys-id'));
+        return;
+      }
       if (t.dataset.ysDays && _form) { _form.days = +t.dataset.ysDays; _form.custom = ''; const c = document.getElementById('ysCustom'); if (c) c.value = ''; updateDue(); return; }
       const a = t.dataset.ysAction, id = t.dataset.ysId;
       if (a === 'open-place') openPlace();
@@ -516,5 +574,5 @@
     });
   }
 
-  window.YardSigns = { __v: 1, init, render, list: () => _signs.slice(), _setData: (x) => { _signs = x || []; _loaded = true; } };
+  window.YardSigns = { __v: 1, init, render, focusSign, list: () => _signs.slice(), _setData: (x) => { _signs = x || []; _loaded = true; } };
 })();
