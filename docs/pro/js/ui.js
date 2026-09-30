@@ -511,11 +511,21 @@ function shouldIgnoreShortcut() {
   
   const tagName = activeEl.tagName.toLowerCase();
   return (
-    tagName === 'input' || 
-    tagName === 'textarea' || 
+    tagName === 'input' ||
+    tagName === 'textarea' ||
+    // A focused <select> takes letters to jump to an option (Stage, Job
+    // Type); they must not also fire C / E.
+    tagName === 'select' ||
     activeEl.contentEditable === 'true' ||
     activeEl.isContentEditable
   );
+}
+
+// No single-letter shortcuts while any modal/dialog is open (2026-09-30: "e"
+// opened New Estimate over the Edit Lead modal). Kept separate from
+// shouldIgnoreShortcut so "?" still works inside a modal.
+function anyModalOpen() {
+  return !!(window.nbdModal && typeof window.nbdModal.anyOpen === 'function' && window.nbdModal.anyOpen());
 }
 
 // Global keyboard shortcuts handler
@@ -542,7 +552,10 @@ document.addEventListener('keydown', (e) => {
   }
   
   // Don't process other shortcuts if typing in input or if modal is open
-  if (shouldIgnoreShortcut() || isCmdPaletteOpen || isShortcutsPanelOpen) {
+  // Modifier chords are never ours here: Ctrl+C (copy) used to open New Lead
+  // and Ctrl/Cmd+E New Estimate. (Ctrl/Cmd+K is command-palette.js's own listener.)
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (shouldIgnoreShortcut() || anyModalOpen() || isCmdPaletteOpen || isShortcutsPanelOpen) {
     return;
   }
   

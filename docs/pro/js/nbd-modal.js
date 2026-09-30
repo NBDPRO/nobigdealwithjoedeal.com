@@ -200,5 +200,23 @@
     });
   }
 
-  window.nbdModal = { open: open, close: close, confirm: confirm };
+  // Is ANY modal/dialog showing? Global single-letter hotkeys (n / e / c …)
+  // must stay off while one is: on 2026-09-30 keystrokes typed in the Edit
+  // Lead modal, with focus off an input, fired "e" and opened New Estimate
+  // over it. Covers nbdModal-managed and self-managed .modal-bg, native
+  // <dialog open>, and any visible aria-modal overlay (shortcuts panel,
+  // command palette, estimate chooser …).
+  function anyOpen() {
+    if (document.querySelector('.modal-bg.open, dialog[open]')) return true;
+    var list = document.querySelectorAll('[aria-modal="true"], [role="dialog"]');
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (el.hidden) continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.display !== 'none' && cs.visibility !== 'hidden' && el.getClientRects().length) return true;
+    }
+    return false;
+  }
+
+  window.nbdModal = { open: open, close: close, confirm: confirm, anyOpen: anyOpen };
 })();

@@ -44,8 +44,8 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=5" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=5" as="script">
+<link rel="preload" href="js/crm-leads.js?v=6" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=6" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=2" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=6" as="script">
@@ -109,7 +109,7 @@
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
      the header comment of js/nbd-modal.js. -->
-<script src="js/nbd-modal.js?v=1"></script>
+<script src="js/nbd-modal.js?v=2"></script>
 <!-- LAZY: Leaflet + plugins (~225KB JS) load via the `mapvendor` bundle
      (script-loader.js, 2026-08-07) — triggered by the map/draw/d2d/storm
      views and the two map-drawing home widgets. Consumers already tolerate
@@ -123,7 +123,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=19"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=20"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -5333,7 +5333,7 @@
         <!-- Kentucky insurance jobs (KRS 367.626, 2026-09-27): the date the
              carrier's WRITTEN coverage decision reached the homeowner. The
              online payment link unlocks 5 business days after it. -->
-        <div class="mfield"><label>Carrier decision received</label><input type="date" id="lCarrierDecisionAt" title="Date the insurer's written coverage decision arrived. Kentucky insurance jobs: payment can be asked for 5 business days later (KRS 367.626)."></div>
+        <div class="mfield"><label for="lCarrierDecisionAt">Carrier decision</label><input type="date" id="lCarrierDecisionAt" title="Date the insurer's written coverage decision arrived. Kentucky insurance jobs: payment can be asked for 5 business days later (KRS 367.626)."></div>
       </div>
       <div class="mrow">
         <div class="mfield"><label>Estimate Amount ($)</label><input type="number" id="lEstimateAmount" placeholder="18500" min="0"></div>
@@ -5389,7 +5389,7 @@
     </div>
 
     <!-- JOB DETAIL FIELDS (post-contract) -->
-    <div id="jobFieldsBlock" style="display:none;border:1px solid var(--br);border-radius:8px;padding:12px;margin:8px 0;background:rgba(22,163,74,.04);">
+    <div id="jobFieldsBlock" style="display:block;border:1px solid var(--br);border-radius:8px;padding:12px;margin:8px 0;background:rgba(22,163,74,.04);">
       <div style="font-size:10px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--green);margin-bottom:8px;font-weight:600;">Job Details</div>
       <div class="mrow">
         <div class="mfield"><label>Scheduled Date</label><input type="date" id="lScheduledDate"></div>
@@ -6653,8 +6653,8 @@
      crm-leads.js (saveLead reads them) and smart-calendar.js. -->
 <script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/schedule-window-ui.js?v=1"></script>
-<script defer src="js/crm-leads.js?v=5"></script>
-<script defer src="js/crm-pipeline.js?v=5"></script>
+<script defer src="js/crm-leads.js?v=6"></script>
+<script defer src="js/crm-pipeline.js?v=6"></script>
 <script defer src="js/crm-snooze.js?v=2"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6668,7 +6668,7 @@
 <script defer src="js/tasks.js?v=6"></script>
 <script defer src="js/notif-bell.js?v=3"></script>
 <script defer src="js/buying-intent-strike.js?v=2"></script>
-<script defer src="js/lead-dedup.js?v=2"></script>
+<script defer src="js/lead-dedup.js?v=3"></script>
 <script defer src="js/dup-review.js?v=1"></script>
 <script defer src="js/global-search.js?v=2"></script>
 <script defer src="js/bottleneck-widget.js?v=2"></script>
@@ -6705,7 +6705,7 @@
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
 <script defer src="js/collected-revenue.js?v=1"></script>
 <script defer src="js/widgets.js?v=10"></script>
-<script defer src="js/ui.js?v=7"></script>
+<script defer src="js/ui.js?v=8"></script>
 <script defer src="js/demo.js?v=4"></script>
 <script defer src="js/icons.js?v=4"></script>
 <script defer src="js/nbd-comms.js?v=3"></script>
@@ -6768,7 +6768,7 @@
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
      the Close Board deal room all read it. -->
-<script defer src="js/ky-insurance-law.js?v=1"></script>
+<script defer src="js/ky-insurance-law.js?v=2"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->
@@ -6827,7 +6827,7 @@
 <script defer src="js/lead-source-roi.js?v=2"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
 <script defer src="js/forecasting.js?v=2"></script>
-<script defer src="js/onboarding-tour.js?v=3"></script>
+<script defer src="js/onboarding-tour.js?v=4"></script>
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>

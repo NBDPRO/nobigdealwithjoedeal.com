@@ -314,19 +314,15 @@
     if (ins) ins.style.display = (jt === 'insurance' || jt === '') ? (document.getElementById('lInsCarrier')?.value ? 'block' : (jt === 'insurance' ? 'block' : 'none')) : 'none';
     if (ins && jt === 'insurance') ins.style.display = 'block';
     if (fin) fin.style.display = jt === 'finance' ? 'block' : 'none';
-    // Show job fields if stage is post-contract
-    const stageVal = document.getElementById('lStage')?.value || '';
-    // 2026-09-15 (Paperwork Filing): added 'contract_signed' — the rep must be
-    // able to check contractFiledAt HERE, one stage before the JOB_CREATED
-    // gate that requires it, or the checkbox is invisible exactly when it's
-    // needed. Also added 'collections' — missing since the Collections lane
-    // (2026-09-15 earlier the same day), which left #jobFieldsBlock (and its
-    // scheduledDate/jobValue fields) invisible for a lead already sitting
-    // there; same VIEW_JOBS membership as every other stage in this array.
-    // 'warranty_claim' added 2026-09-15 (Warranty Claim lane, same VIEW_JOBS-
-    // membership reasoning as 'collections' above).
-    const jobStages = ['contract_signed','job_created','permit_pulled','materials_ordered','materials_delivered','crew_scheduled','install_in_progress','install_complete','final_photos','deductible_collected','final_payment','collections','closed','warranty_claim'];
-    if (job) job.style.display = jobStages.includes(stageVal) ? 'block' : 'none';
+    // Job Details (Scheduled Date, crew, arrival window, week, paperwork) is
+    // ALWAYS shown (2026-09-30). It used to appear only once the stage reached
+    // contract_signed or later, and it was inserted mid-form the moment the
+    // Stage select changed. Everything below it jumped, so the next click
+    // landed on the wrong field (Jo's live CRM session). It also hid
+    // Scheduled Date for an inspection or repair booked before a contract,
+    // while the customer page's Edit Customer always showed it. Saving never
+    // depended on visibility: saveLead reads these fields regardless.
+    if (job) job.style.display = 'block';
     // Smart stage dropdown — hide irrelevant track optgroups based on jobType
     filterStageDropdownByJobType(jt);
     // Sub-type + trades row: visible only when a job type is set
@@ -2486,9 +2482,18 @@
   };
 
   document.addEventListener('keydown', (e) => {
-    // Don't trigger if user is typing in input/textarea
-    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-    
+    // Don't trigger if user is typing in any form control. SELECT was
+    // missing: typing a letter to pick a Stage option fired "e" → New
+    // Estimate. contentEditable covers the rich-text notes.
+    const t = e.target || {};
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable) return;
+    // A modifier chord is the browser's or another handler's (Ctrl+N, Cmd+E…).
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // No single-letter hotkeys while a modal/dialog is open (2026-09-30: "e"
+    // opened New Estimate over the Edit Lead modal). Esc stays live — the
+    // modal's own handler closes it.
+    if (e.key !== 'Escape' && window.nbdModal && typeof window.nbdModal.anyOpen === 'function' && window.nbdModal.anyOpen()) return;
+
     // ESC - Close modals. leadModal / cardDetailModal / taskModal are now
     // nbdModal-managed on dashboard.html, so nbdModal's own Esc handler closes
     // the top one (restoring focus) and fires its onClose cleanup — running

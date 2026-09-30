@@ -97,6 +97,12 @@
     return norm.split(' ').slice(0, 2).join(' ');
   }
 
+  // Last 5-digit ZIP in the address ('' if none).
+  function zipOf(addr) {
+    const m = String(addr || '').match(/\b(\d{5})(?:-\d{4})?\b(?!.*\b\d{5}\b)/);
+    return m ? m[1] : '';
+  }
+
   // ─── Match scoring ──────────────────────────────────────────────
   // Returns an array of { lead, confidence: 'high'|'medium', reason }
   // entries, sorted highest-confidence first.
@@ -129,9 +135,21 @@
         matches.push({ lead, confidence: 'high', reason: 'Same address' });
         continue;
       }
-      if (cFirst && cLast && cFirst === lFirst && cLast === lLast
-          && cPrefix && cPrefix === lPrefix) {
-        matches.push({ lead, confidence: 'medium', reason: 'Same name on the same street' });
+      if (cFirst && cLast && cFirst === lFirst && cLast === lLast) {
+        if (cPrefix && cPrefix === lPrefix) {
+          matches.push({ lead, confidence: 'medium', reason: 'Same name on the same street' });
+        } else if (!cAddr || !lAddr) {
+          // 2026-09-30 (Rose Mitchell): a Thumbtack card carries only
+          // "Mason, OH 45040" and a proxy phone, so neither the address nor
+          // the phone could ever match, and the same homeowner was added a
+          // second time. Same full name where either side has NO street is
+          // treated as a likely duplicate (Jo: no duplicate customers).
+          matches.push({ lead, confidence: 'medium', reason: 'Same name — one of them has no street address' });
+        } else if (zipOf(candidate.address) && zipOf(candidate.address) === zipOf(lead.address)) {
+          // Same name in the same ZIP, different street: often the same
+          // customer at a second property (Brian McGlynn, Larry Cunningham).
+          matches.push({ lead, confidence: 'medium', reason: 'Same name in the same ZIP' });
+        }
       }
     }
     matches.sort((a, b) => (a.confidence === 'high' ? -1 : 1) - (b.confidence === 'high' ? -1 : 1));
