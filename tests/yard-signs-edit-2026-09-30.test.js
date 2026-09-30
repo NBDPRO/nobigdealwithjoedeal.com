@@ -61,6 +61,13 @@ ok('the nearest REMOVED sign gets no credit', L.attributeLead(lead, signs, 20).s
 ok('a future-dated sign gets no credit for a lead that came before it went out',
   L.attributeLead({ lat: 39.1, lng: -84.5, createdAt: D(2026, 10, 1) }, [{ id: 'f', lat: 39.1, lng: -84.5, placedAt: goesOut, status: 'out' }]) === null);
 
+console.log('\n3b. a real map pin (Jo, 2026-09-30: no markers on the map)');
+ok('a sign saved with lat/lng null has NO pin (isFinite(null) is true — the bug)', L.hasPin({ lat: null, lng: null }) === false && isFinite(null) === true);
+ok('a real pin is a pin', L.hasPin({ lat: 39.19, lng: -84.57 }) === true);
+ok('strings, NaN and a half pin are not pins', !L.hasPin({ lat: '39', lng: '-84' }) && !L.hasPin({ lat: NaN, lng: 1 }) && !L.hasPin({ lat: 39 }) && !L.hasPin(null));
+ok('distance to a no-pin sign is Infinity, not a trip to 0,0', L.haversineMi({ lat: 39, lng: -84 }, { lat: null, lng: null }) === Infinity);
+ok('the pickup route ignores a no-pin start', Array.isArray(L.pickupList([], Date.now(), { lat: null, lng: null })));
+
 console.log('\n4. every reader skips a removed sign (source wiring)');
 const js = (f) => fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', f), 'utf8');
 ok('the Yard Signs view loads without removed signs', /if \(!x\.deleted\) _signs\.push/.test(js('yard-signs.js')));

@@ -141,4 +141,38 @@ test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard
     const del = await safeEvaluate(page, async (id) => { const d = await window.getDoc(window.doc(window.db, 'yardSigns', id)); return d.exists() ? d.data().deleted : 'hard-deleted'; }, s0.id);
     expect(del, 'soft-deleted, not hard-deleted').toBe(true);
   });
+
+  // 2026-09-30, Jo: "no yard sign markers … for the map". A sign saved with
+  // lat/lng null passed the old isFinite() check (isFinite(null) is true) and
+  // Leaflet threw on it, so every pin after it — often all of them — was
+  // never drawn. The real data had two such signs.
+  test('map: a sign with no location never blanks the map; one tap pins it from its address', async ({ page }) => {
+    const { initializeApp, getApps } = require('firebase-admin/app');
+    const { getFirestore } = require('firebase-admin/firestore');
+    if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro' });
+    const adb = getFirestore();
+    const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    const now = Date.now(), tag = 'zzmap' + now;
+    const base = { userId: who.uid, companyId: who.co, status: 'out', durationDays: 14, extensions: 0, placedAt: new Date(now - 86400000) };
+    // The no-location sign is due FIRST, so the old code hit it before any pin.
+    await adb.collection('yardSigns').doc(tag + 'N1').set(Object.assign({}, base, { address: '999 Nowhere ' + tag, lat: null, lng: null, dueAt: new Date(now + 2 * 86400000), note: tag }));
+    await adb.collection('yardSigns').doc(tag + 'P1').set(Object.assign({}, base, { address: 'Pinned ' + tag, lat: 39.1956, lng: -84.5778, dueAt: new Date(now + 9 * 86400000), note: tag }));
+    await adb.collection('yardSigns').doc(tag + 'N2').set(Object.assign({}, base, { address: '77 Moved Rd ' + tag, lat: null, lng: null, dueAt: new Date(now + 10 * 86400000), note: tag }));
+    await safeEvaluate(page, () => window.YardSigns.init());
+    const pin = (addr) => page.locator('#ysMap .ys-map-pin[title="' + addr + '"]');
+    await expect(pin('Pinned ' + tag), 'the real pin is drawn even though a no-location sign sorts first').toHaveCount(1, { timeout: 10_000 });
+    await expect(page.locator('#signsScroll'), 'the page says which signs are off the map').toContainText("aren't on the map");
+    // One tap: N2's address geocodes (stubbed), N1's does not.
+    await page.click('[data-ys-action="pin-missing"]');
+    await expect.poll(async () => (await adb.collection('yardSigns').doc(tag + 'N2').get()).data().lat, { timeout: 10_000 }).toBe(39.2002);
+    await expect(pin('77 Moved Rd ' + tag), 'the newly placed sign shows on the map').toHaveCount(1, { timeout: 10_000 });
+    const n1 = (await adb.collection('yardSigns').doc(tag + 'N1').get()).data();
+    expect(n1.lat, 'an address that cannot be found is left alone (never pinned at 0,0)').toBeNull();
+    const toasts = await safeEvaluate(page, () => window.__toasts.slice());
+    expect(toasts.some((t) => /placed on the map/.test(t) && /could not be found/.test(t)), 'the result is reported: ' + JSON.stringify(toasts)).toBe(true);
+    // The edit sheet no longer treats a null pin as saved.
+    await page.click('[data-ys-action="edit"][data-ys-id="' + tag + 'N1"]');
+    await expect(page.locator('#ysGps')).toContainText('Pin comes from the address');
+    await page.click('[data-ys-action="close-place"]');
+  });
 });

@@ -155,10 +155,17 @@
       (today.length ? '<div style="background:color-mix(in srgb, #ea580c 10%, transparent);border:1px solid #ea580c;border-radius:10px;padding:12px 14px;margin-bottom:14px;">' +
         '<div style="font-weight:800;margin-bottom:6px;">🚚 Pick up today' + (_here ? ' — in driving order' : '') + '</div>' +
         today.map((s, i) => '<div style="font-size:13px;padding:2px 0;">' + (i + 1) + '. ' + esc(s.address || 'Sign') + ' <span style="color:' + L.COLOR[L.statusOf(s)] + ';font-weight:700;">· ' + esc(L.dueText(s)) + '</span>' +
-          (isFinite(s.lat) ? ' · <a href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(s.lat + ',' + s.lng) + '" target="_blank" rel="noopener">Directions</a>' : '') + '</div>').join('') +
+          (L.hasPin(s) ? ' · <a href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(s.lat + ',' + s.lng) + '" target="_blank" rel="noopener">Directions</a>' : '') + '</div>').join('') +
         (_here ? '' : '<button type="button" class="btn btn-ghost btn-sm" data-ys-action="order-route" style="margin-top:6px;">📍 Order by where I am</button>') +
       '</div>' : '') +
-      '<div id="ysMap" style="height:320px;border-radius:12px;border:1px solid var(--br,#2a2e37);margin-bottom:14px;"></div>' +
+      '<div id="ysMap" style="height:320px;border-radius:12px;border:1px solid var(--br,#2a2e37);margin-bottom:6px;"></div>' +
+      (function () {
+        const off = active.concat(scheduled).filter((s) => !L.hasPin(s));
+        if (!off.length) return '<div style="margin-bottom:14px;"></div>';
+        return '<div style="font-size:12px;color:var(--m);margin-bottom:14px;">' + off.length + ' sign' + (off.length === 1 ? ' isn\'t' : 's aren\'t') + ' on the map (no location saved: ' +
+          off.slice(0, 3).map((s) => esc(s.address || 'no address')).join(', ') + (off.length > 3 ? ', …' : '') + ').' +
+          (isViewer() ? '' : ' <button type="button" class="btn btn-ghost btn-sm" data-ys-action="pin-missing" style="margin-left:6px;">📍 Put them on the map</button>') + '</div>';
+      })() +
       '<h3 class="rr-h" style="font-size:13px;text-transform:uppercase;color:var(--m);margin:10px 0 8px;">Out now (' + active.length + ')</h3>' +
       (active.length ? active.map((s) => signRow(s, credit)).join('') : '<div style="padding:18px;border:1px dashed var(--br);border-radius:10px;color:var(--m);text-align:center;">No signs out. Tap <b>＋ Place sign</b> at the next yard — GPS, a photo, and the pickup date take about ten seconds.</div>') +
       (scheduled.length ? '<h3 class="rr-h" style="font-size:13px;text-transform:uppercase;color:var(--m);margin:16px 0 8px;">Scheduled to go out (' + scheduled.length + ')</h3>' +
@@ -187,19 +194,26 @@
     const box = document.getElementById('ysMap');
     if (!box || !window.L) return;
     if (_map) { try { _map.remove(); } catch (_) {} _map = null; }
-    const pts = list.filter((s) => isFinite(s.lat) && isFinite(s.lng));
+    const L = LG();
+    const pts = list.filter((s) => L.hasPin(s));
     _map = window.L.map(box, { zoomControl: true, attributionControl: false });
     window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_map);
     _layer = window.L.layerGroup().addTo(_map);
-    const L = LG();
     pts.forEach((s) => {
       const st = L.statusOf(s);
-      const m = window.L.circleMarker([s.lat, s.lng], { radius: 9, color: '#fff', weight: 2, fillColor: L.COLOR[st], fillOpacity: 0.95 });
+      // A yard-sign icon ringed in its status colour (green out, amber due
+      // soon, orange due today, red overdue, blue scheduled).
+      const icon = window.L.divIcon({
+        className: 'ys-map-pin',
+        html: '<div style="width:30px;height:30px;border-radius:50%;background:#fff;border:3px solid ' + L.COLOR[st] + ';display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 1px 4px rgba(0,0,0,.45);">🪧</div>',
+        iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14],
+      });
+      const m = window.L.marker([s.lat, s.lng], { icon, title: s.address || 'Yard sign', riseOnHover: true });
       const div = document.createElement('div');
       const t = document.createElement('b'); t.textContent = s.address || 'Yard sign'; div.appendChild(t);
       const d = document.createElement('div'); d.textContent = L.LABEL[st] + ' · ' + L.dueText(s); div.appendChild(d);
       m.bindPopup(div);
-      m.addTo(_layer);
+      try { m.addTo(_layer); } catch (e) { console.warn('[yard-signs] pin skipped', s.id, e && e.message); }
     });
     if (pts.length) _map.fitBounds(window.L.latLngBounds(pts.map((s) => [s.lat, s.lng])).pad(0.25), { maxZoom: 15 });
     else _map.setView(_here ? [_here.lat, _here.lng] : [39.1, -84.5], _here ? 13 : 9);
@@ -250,7 +264,7 @@
       '<label style="display:block;font-size:12px;margin:12px 0 4px;">Address</label>' +
       '<input id="ysAddr" type="text" maxlength="200" placeholder="Fills from the customer, or type it" style="width:100%;" value="' + esc(sign ? sign.address || '' : '') + '">' +
       '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;"><button type="button" class="btn btn-ghost btn-sm" data-ys-action="gps">📍 Use my location</button><span id="ysGps" style="font-size:11px;color:var(--m);">' +
-        (sign && isFinite(sign.lat) ? 'Pin saved — tap only if you are standing at the sign' : 'Pin comes from the address — tap only if you are standing at the sign') + '</span></div>' +
+        (sign && LG().hasPin(sign) ? 'Pin saved — tap only if you are standing at the sign' : 'Pin comes from the address — tap only if you are standing at the sign') + '</span></div>' +
       '<label style="display:block;font-size:12px;margin:12px 0 4px;" for="ysPlaceOn">Placing on</label>' +
       '<input id="ysPlaceOn" type="date" value="' + esc(_form.placeOn) + '" style="width:100%;">' +
       '<label style="display:block;font-size:12px;margin:12px 0 4px;">Pick it up after</label>' +
@@ -304,14 +318,17 @@
   // when its address did not change; else the customer's pin when the
   // address IS the customer's; else geocode what was typed.
   async function resolvePin(addr, lead) {
-    if (_form.gps && isFinite(_form.lat)) return { lat: _form.lat, lng: _form.lng };
-    if (_form.mode === 'edit' && addr === _form.origAddr && isFinite(_form.lat)) return { lat: _form.lat, lng: _form.lng };
-    const leadPin = lead && isFinite(lead.lat) && isFinite(lead.lng) ? { lat: lead.lat, lng: lead.lng } : null;
+    const P = LG().hasPin;
+    if (_form.gps && P(_form)) return { lat: _form.lat, lng: _form.lng };
+    // An edited sign keeps its pin only if it HAS one: a sign saved with no
+    // location is geocoded from its address on the next save.
+    if (_form.mode === 'edit' && addr === _form.origAddr && P(_form)) return { lat: _form.lat, lng: _form.lng };
+    const leadPin = P(lead) ? { lat: lead.lat, lng: lead.lng } : null;
     if (leadPin && (!addr || addr === String(lead.address || '').trim())) return leadPin;
     if (addr && typeof window.geocode === 'function') {
       try {
         const g = await window.geocode(addr, { quiet: true });
-        if (g && isFinite(+g.lat) && isFinite(+g.lon)) return { lat: +g.lat, lng: +g.lon };
+        if (g && Number.isFinite(+g.lat) && Number.isFinite(+g.lon) && g.lat !== null && g.lon !== null) return { lat: +g.lat, lng: +g.lon };
       } catch (_) { /* fall through */ }
     }
     return leadPin || { lat: null, lng: null };
@@ -329,7 +346,7 @@
     if (!(dueAt > placedAt)) { toast('The pickup date has to be after the day it goes out', 'error'); return; }
     btn.disabled = true;
     const pin = await resolvePin(addr, lead);
-    if (!addr && !isFinite(pin.lat)) { btn.disabled = false; toast('Add an address or use your location', 'error'); return; }
+    if (!addr && !LG().hasPin(pin)) { btn.disabled = false; toast('Add an address or use your location', 'error'); return; }
     const file = (document.getElementById('ysPhoto') || {}).files;
     let photoPath = null;
     if (file && file[0]) {
@@ -339,8 +356,8 @@
     const fields = {
       leadId: leadId || null,
       address: addr.slice(0, 200),
-      lat: isFinite(pin.lat) ? pin.lat : null,
-      lng: isFinite(pin.lng) ? pin.lng : null,
+      lat: LG().hasPin(pin) ? pin.lat : null,
+      lng: LG().hasPin(pin) ? pin.lng : null,
       placedAt: new Date(placedAt),
       dueAt: new Date(dueAt),
       durationDays: days,
@@ -383,6 +400,29 @@
     const d = (t) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     toast(editing ? 'Sign updated' : (future ? 'Sign scheduled for ' + d(placedAt) + ' — pickup ' + d(dueAt) : 'Sign placed — pickup reminder ' + d(dueAt)), 'ok');
     try { render(); } catch (e) { console.warn('[yard-signs] redraw after save failed', e && e.message); }
+  }
+
+  // Geocode every live sign that has an address but no pin, and save the pin
+  // (one tap; Jo's own signs, same write as the edit sheet's save).
+  async function pinMissing(btn) {
+    if (isViewer() || typeof window.geocode !== 'function') { toast('Address lookup is not available here', 'error'); return; }
+    const L = LG();
+    const todo = _signs.filter((s) => { const st = L.statusOf(s); return st !== 'picked_up' && st !== 'missing' && !L.hasPin(s) && s.address; });
+    if (!todo.length) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Finding them…'; }
+    let placed = 0, missed = 0;
+    for (const s of todo) {
+      let g = null;
+      try { g = await window.geocode(s.address, { quiet: true }); } catch (_) { g = null; }
+      const lat = g ? +g.lat : NaN, lng = g ? +g.lon : NaN;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) { missed++; continue; }
+      try {
+        await window.updateDoc(window.doc(window.db, COL, s.id), { lat, lng, updatedAt: window.serverTimestamp() });
+        s.lat = lat; s.lng = lng; placed++;
+      } catch (e) { missed++; }
+    }
+    toast(placed + ' placed on the map' + (missed ? ' · ' + missed + ' address' + (missed === 1 ? '' : 'es') + ' could not be found — open Edit and fix the address' : ''), missed ? 'warn' : 'ok');
+    try { render(); } catch (e) { console.warn('[yard-signs] redraw failed', e && e.message); }
   }
 
   async function removeSign(id) {
@@ -454,6 +494,7 @@
       if (a === 'open-place') openPlace();
       else if (a === 'edit') openPlace(id);
       else if (a === 'remove') removeSign(id);
+      else if (a === 'pin-missing') pinMissing(t);
       else if (a === 'close-place') closePlace();
       else if (a === 'gps') doGps();
       else if (a === 'save-place') savePlace(t);
