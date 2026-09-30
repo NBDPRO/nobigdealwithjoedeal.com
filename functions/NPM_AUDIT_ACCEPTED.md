@@ -40,7 +40,11 @@ the pin is non-obvious and must not be reverted casually.
 - Chain: `google-gax → rimraf → glob → minimatch → brace-expansion`,
   locked at `brace-expansion@2.1.2`.
 
-**Why the pin is a pair.** The pin now reads `5.0.9`
+**Why the pin is a pair.** The pin now reads `5.0.12`
+(2026-09-30: GHSA-6j4f-fj2g-mc7p and GHSA-qhr7-859c-m2p7, both HIGH, plus
+GHSA-q2hr-2g5m-vwhr, MODERATE, extended the range to `< 5.0.12`. Same
+export shape and deps as 5.0.9. The lock entry was spliced by hand: version,
+resolved and integrity only.) Before that it read `5.0.9`
 (2026-08-05: GHSA-rgw5-rvv9-x895 extended the vulnerable range to
 `4.0.0–5.0.8`, so the original `5.0.8` pin itself became the finding).
 There is still no patched 2.x/3.x/4.x backport. And `5.x` changed its
