@@ -2567,7 +2567,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=14"></script>
+<script defer src="js/script-loader.js?v=15"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2607,7 +2607,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      Reads leads/{leadId}/documents and publishes window.loadDocuments, which
      the bootstrap calls from loadCustomerData once the lead resolves. Must
      load before the upload modules that call NBDCustomerDocs.refresh(). -->
-<script defer src="js/customer-documents.js?v=4"></script>
+<script defer src="js/customer-documents.js?v=5"></script>
 <script defer src="js/customer-signed-doc-upload.js?v=3"></script>
 <script defer src="js/customer-portal.js?v=4"></script>
 <script defer src="js/clipboard-fix.js?v=2"></script>
@@ -2652,7 +2652,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      coarse claimStatus via window.ClaimCore.claimStatusFromStage. -->
 <!-- Arrival-window / meeting date math (2026-09-29), pure. Before claim-core.js
      (the Adjuster Meeting cell) and insurance-claim.js, which format with it. -->
-<script defer src="js/schedule-window.js?v=1"></script>
+<script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/claim-core.js?v=4"></script>
 <script defer src="js/insurance-claim.js?v=6"></script>
 <script defer src="js/offline-manager.js?v=6"></script>
@@ -2856,6 +2856,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
           <div id="editSchedPreview" aria-live="polite" style="font-size:12px;color:var(--m);margin-top:6px;min-height:1em;"></div>
         </div>
       </div>
+      <!-- 2026-09-29: plan to a WEEK before the day is known. Saved as
+           lead.scheduledWeek (that week's Monday) only while Scheduled Date
+           is empty; a date replaces it. customer-edit-modal.js. -->
+      <div>
+        <label for="editScheduledWeek" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Week of <span style="text-transform:none;letter-spacing:0;font-weight:500;">(if no exact day yet)</span></label>
+        <input id="editScheduledWeek" type="date" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;" />
+        <div style="font-size:12px;color:var(--m);margin-top:4px;">Pick any day that week. The homeowner sees "the week of…" until you set a Scheduled Date.</div>
+      </div>
       <div>
         <label for="editJobValue" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Job Value</label>
         <!-- type="number" is load-bearing, not cosmetic: as a free text
@@ -2880,7 +2888,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/schedule-window-ui.js?v=1"></script>
 <!-- Double-booking warning under the schedule picker (Google Calendar free/busy). -->
 <script defer src="js/google-calendar-ui.js?v=1"></script>
-<script defer src="js/customer-edit-modal.js?v=4"></script>
+<script defer src="js/customer-edit-modal.js?v=5"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      Voice Intelligence mount (C4)

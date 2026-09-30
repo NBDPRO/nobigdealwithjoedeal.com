@@ -53,6 +53,15 @@ service firebase.storage {
         && request.resource.contentType.matches('text/html; ?charset=.+|text/html');
     }
 
+    // The EXISTING object is a signed record (customMetadata signed: 'true').
+    // Null-safe for a new upload (no resource) and for objects with no custom
+    // metadata at all.
+    function storedObjectIsSigned() {
+      return resource != null
+        && resource.metadata != null
+        && resource.metadata.get('signed', '') == 'true';
+    }
+
     // ── PHOTOS ─────────────────────────────────────────
     // Path: photos/{uid}/{file}
     match /photos/{uid}/{allPaths=**} {
@@ -105,12 +114,20 @@ service firebase.storage {
     // upload silently failed (the generator swallows the storage error) so
     // htmlPath pointed at a nonexistent object, breaking both re-open and
     // remote signing. Owner-only HTML, same shape as portals/.
+    // 2026-09-29 — a SIGNED document's HTML is locked (Jo, 2026-09-25: a
+    // signed contract is never changed). In-person signing
+    // (document-generator.js onPersistFinalized) uploads the signed HTML over
+    // the draft with customMetadata { signed: 'true' }; after that no client
+    // overwrites or deletes the object. The file name is not the Firestore
+    // doc id, so the tag on the object itself is what carries "signed" here.
+    // Admin-SDK paths (lead-deletion cleanup) are unaffected.
     match /documents/{uid}/{allPaths=**} {
       allow read: if isOwner(uid) || isAdmin();
       allow write: if ownerWrites(uid)
         && request.resource.size < 5 * 1024 * 1024
-        && isHtmlOnly();
-      allow delete: if ownerWrites(uid) || isAdmin();
+        && isHtmlOnly()
+        && !storedObjectIsSigned();
+      allow delete: if (ownerWrites(uid) || isAdmin()) && !storedObjectIsSigned();
     }
 
     // ── E-SIGN ENVELOPES ───────────────────────────────
@@ -128,14 +145,20 @@ service firebase.storage {
     // where permanent download tokens made every object URL-public and
     // bypassed these rules entirely. Do not "simplify" this by handing the
     // signer a download URL.
+    // 2026-09-29: signed.pdf is written ONLY by the function (admin SDK) and
+    // is the signed record — no client writes or deletes it (the lock). The
+    // rep's own source.pdf keeps its rules.
     match /esign/{uid}/{allPaths=**} {
       allow read: if isOwner(uid) || isAdmin();
+      // (allPaths is a path, not a string — the object's full name is.)
       allow write: if ownerWrites(uid)
-        && request.resource.size < 25 * 1024 * 1024
         && request.resource != null
+        && !request.resource.name.matches('.*/signed[.]pdf')
+        && request.resource.size < 25 * 1024 * 1024
         && request.resource.contentType != null
         && request.resource.contentType.matches('application/pdf');
-      allow delete: if ownerWrites(uid) || isAdmin();
+      allow delete: if (ownerWrites(uid) || isAdmin())
+        && !(resource != null && resource.name.matches('.*/signed[.]pdf'));
     }
 
     // ── DEAL ROOMS ─────────────────────────────────────

@@ -140,6 +140,44 @@ console.log('\n3d. the homeowner portal says "the week of…" until there is a d
   ok('rules shape-check scheduledWeek like the other schedule dates', /&& _ymdOk\('scheduledWeek'\)/.test(rules));
 }
 
+console.log('\n3e. weeks everywhere — the iPhone feed, the customer page, the lead editor');
+{
+  ok('mondayOf lives in the shared schedule-window (both copies)', W.mondayOf('2026-10-08') === '2026-10-05' && W.mondayOf('2026-10-11') === '2026-10-05' && W.mondayOf('nope') === null);
+  ok('browser and server schedule-window copies are byte-identical',
+    fs.readFileSync(path.join(JS, 'schedule-window.js'), 'utf8') === fs.readFileSync(path.join(ROOT, 'functions', 'schedule-window.js'), 'utf8'));
+  const F = require(path.join(ROOT, 'functions', 'calendar-feed-logic.js'));
+  const lead = { id: 'LW9', firstName: 'ZZ_QA', lastName: 'Feed', stage: 'contract_signed', scheduledWeek: '2026-10-07' };
+  const ics = F.buildCalendar({ leads: [lead], appointments: [], nowMs: Date.parse('2026-09-29T00:00:00Z') });
+  ok('the .ics feed shows the week as an all-day Mon–Fri event (DTEND is the exclusive Saturday)',
+    /DTSTART;VALUE=DATE:20261005/.test(ics) && /DTEND;VALUE=DATE:20261010/.test(ics) && /SUMMARY:Week of: ZZ_QA Feed/.test(ics));
+  ok('...free (TRANSP:TRANSPARENT), under the job\'s own UID so the day replaces it in place',
+    /TRANSP:TRANSPARENT/.test(ics) && /UID:lead-LW9@/.test(ics));
+  const dayIcs = F.buildCalendar({ leads: [Object.assign({}, lead, { scheduledDate: '2026-10-08' })], appointments: [], nowMs: 0 });
+  ok('once a day is set the feed shows the day, not the week, same UID', /UID:lead-LW9@/.test(dayIcs) && !/Week of/.test(dayIcs) && /20261008/.test(dayIcs));
+  const G = require(path.join(ROOT, 'functions', 'google-calendar-logic.js'));
+  ok('Google and the feed share one week event (normalizeLeadWeek)',
+    G.desiredEventsForLead(lead)[0].start.date === F.normalizeLeadWeek(lead).date && /FEED\.normalizeLeadWeek\(doc\)/.test(fs.readFileSync(path.join(ROOT, 'functions', 'google-calendar-logic.js'), 'utf8')));
+
+  const cust = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'customer.html'), 'utf8');
+  const cem = strip(fs.readFileSync(path.join(JS, 'customer-edit-modal.js'), 'utf8'));
+  ok('customer page Edit modal has a Week of field', /id="editScheduledWeek" type="date"/.test(cust));
+  ok('...filled only when there is no exact day', /_sw\.value = lead\.scheduledDate \? '' : \(lead\.scheduledWeek \|\| ''\)/.test(cem));
+  ok('...a day clears the week; no day saves the picked week as its Monday',
+    /if \(updates\.scheduledDate\) updates\.scheduledWeek = null;/.test(cem) && /_W\.mondayOf\(_swEl\.value\)/.test(cem));
+  const dash = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'dashboard.html'), 'utf8');
+  const leads = strip(fs.readFileSync(path.join(JS, 'crm-leads.js'), 'utf8'));
+  const bridge = fs.readFileSync(path.join(JS, 'crm-portal-bridge.js'), 'utf8');
+  ok('lead editor has a Week of field', /id="lScheduledWeek"/.test(dash));
+  ok('...saved with the same rule, and OMITTED when the input never loaded (stale page)',
+    /const _weekPatch = !_swEl \? \{\} : \{/.test(leads) && /\.\.\._weekPatch,/.test(leads));
+  ok('...filled on open (week only when there is no day), cleared for a new lead and counted as typed',
+    /setV\('lScheduledWeek', l\.scheduledDate \? '' : \(l\.scheduledWeek \|\| ''\)\)/.test(bridge)
+      && (leads.match(/'lScheduledWeek'/g) || []).length >= 2);
+  ok('cache versions bumped for every changed file',
+    /schedule-window\.js\?v=2/.test(cust) && /schedule-window\.js\?v=2/.test(dash) && /customer-edit-modal\.js\?v=5/.test(cust)
+      && /crm-leads\.js\?v=5/.test(dash) && /crm-portal-bridge\.js\?v=6/.test(dash));
+}
+
 console.log('\n4. wiring');
 {
   const dash = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'dashboard.html'), 'utf8');

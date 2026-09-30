@@ -428,6 +428,34 @@ async function run() {
   // Platform admin still deletes a viewer's object (support context, unchanged).
   await assertSucceeds(deleteObject(ref(admin, 'photos/vic/seeded-r.jpg')));
 
+  // ── Signed documents are locked (2026-09-29, Jo: a signed contract is
+  //    never changed). In-person signing uploads the signed HTML with
+  //    customMetadata { signed: 'true' }; after that no client overwrites or
+  //    deletes it. An unsigned draft keeps its normal rights.
+  const signedPath = 'documents/alice/lead42/doc-signed.html';
+  await assertSucceeds(uploadBytes(ref(alice, signedPath), buf(1024), { contentType: 'text/html' }));             // the draft
+  await assertSucceeds(uploadBytes(ref(alice, signedPath), buf(1024),                                             // signing: draft → signed
+    { contentType: 'text/html', customMetadata: { signed: 'true' } }));
+  await assertFails(uploadBytes(ref(alice, signedPath), buf(1024), { contentType: 'text/html' }));                // overwrite a signed record
+  await assertFails(uploadBytes(ref(alice, signedPath), buf(1024),                                                // ...even re-tagged as signed
+    { contentType: 'text/html', customMetadata: { signed: 'true' } }));
+  await assertFails(deleteObject(ref(alice, signedPath)));                                                        // owner delete
+  await assertFails(deleteObject(ref(admin, signedPath)));                                                        // platform admin delete
+  await assertSucceeds(getBytes(ref(alice, signedPath)));                                                         // still readable
+  await assertSucceeds(uploadBytes(ref(alice, 'documents/alice/lead42/docABC.html'), buf(1024), { contentType: 'text/html' })); // unsigned overwrite
+  await assertSucceeds(deleteObject(ref(alice, 'documents/alice/lead42/docABC.html')));                          // unsigned delete
+  // e-sign: the rep's source.pdf as before; signed.pdf is the function's alone.
+  await assertSucceeds(uploadBytes(ref(alice, 'esign/alice/lead42/env1/source.pdf'), buf(1024), { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(alice, 'esign/alice/lead42/env1/signed.pdf'), buf(1024), { contentType: 'application/pdf' }));
+  // The function writes the real signed.pdf (admin SDK — rules off here).
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await uploadBytes(ref(ctx.storage(), 'esign/alice/lead42/env1/signed.pdf'), buf(1024), { contentType: 'application/pdf' });
+  });
+  await assertFails(deleteObject(ref(alice, 'esign/alice/lead42/env1/signed.pdf')));
+  await assertFails(uploadBytes(ref(alice, 'esign/alice/lead42/env1/signed.pdf'), buf(1024), { contentType: 'application/pdf' })); // overwrite
+  await assertSucceeds(deleteObject(ref(alice, 'esign/alice/lead42/env1/source.pdf')));
+  console.log('  signed-document lock: 15 storage checks passed');
+
   console.log('✓ All storage rules tests passed');
   await env.cleanup();
 }

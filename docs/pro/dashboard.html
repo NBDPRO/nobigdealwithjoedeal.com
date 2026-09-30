@@ -44,11 +44,11 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=4" as="script">
+<link rel="preload" href="js/crm-leads.js?v=5" as="script">
 <link rel="preload" href="js/crm-pipeline.js?v=5" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=2" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=5" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=6" as="script">
 <link rel="preload" href="js/crm.js?v=34" as="script">
 <link rel="preload" href="js/maps.js?v=11" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -104,7 +104,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=14"></script>
+<script src="js/script-loader.js?v=15"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -5418,6 +5418,11 @@
         </div>
         <div id="lSchedPreview" aria-live="polite" style="font-size:12px;color:var(--m);margin-top:4px;min-height:1em;"></div>
       </div>
+      <!-- 2026-09-29: plan to a WEEK before the day is known (lead.scheduledWeek,
+           that week's Monday). Saved only while Scheduled Date is empty. -->
+      <div class="mrow">
+        <div class="mfield"><label for="lScheduledWeek">Week of (no day yet)</label><input type="date" id="lScheduledWeek" title="Any day that week — saves as the week"></div>
+      </div>
       <!-- 2026-09-15 (Paperwork Filing): gate REQUIRED_FIELDS_BY_TYPE's
            JOB_CREATED / MATERIALS_ORDERED / CLOSED checkpoints. Contract and
            Warranty Cert are auto-checked by document-generator.js /
@@ -6646,9 +6651,9 @@
 <!-- Arrival window on a lead (2026-09-29, calendar hub Phase 0): the pure
      date math, then the lead-modal controls beside #lScheduledDate. Before
      crm-leads.js (saveLead reads them) and smart-calendar.js. -->
-<script defer src="js/schedule-window.js?v=1"></script>
+<script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/schedule-window-ui.js?v=1"></script>
-<script defer src="js/crm-leads.js?v=4"></script>
+<script defer src="js/crm-leads.js?v=5"></script>
 <script defer src="js/crm-pipeline.js?v=5"></script>
 <script defer src="js/crm-snooze.js?v=2"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
@@ -6657,7 +6662,7 @@
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=3"></script>
 <script defer src="js/push-actions.js?v=1"></script>
-<script defer src="js/crm-portal-bridge.js?v=5"></script>
+<script defer src="js/crm-portal-bridge.js?v=6"></script>
 <script defer src="js/crm.js?v=34"></script>
 <script defer src="js/crm-list-view.js?v=7"></script>
 <script defer src="js/tasks.js?v=6"></script>

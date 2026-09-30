@@ -90,6 +90,15 @@
     return p ? ymdOfDay(p.day + n) : null;
   }
 
+  // The Monday of the week holding ymd (Mon–Sun weeks), or null. A job
+  // planned to a week stores this as lead.scheduledWeek (2026-09-29).
+  function mondayOf(ymd) {
+    var p = parseYmd(ymd);
+    if (!p) return null;
+    var dow = new Date(p.day * DAY_MS).getUTCDay();   // 0 = Sunday
+    return ymdOfDay(p.day - ((dow + 6) % 7));
+  }
+
   // 'HH:MM' → minutes after midnight, or null.
   function parseHm(s) {
     var mt = HM_RE.exec(typeof s === 'string' ? s : '');
@@ -293,6 +302,7 @@
     MAX_PROJECT_DAYS: MAX_PROJECT_DAYS,
     parseYmd: parseYmd,
     addDays: addDays,
+    mondayOf: mondayOf,
     check: check,
     normalize: normalize,
     fmtTime12: fmtTime12,
