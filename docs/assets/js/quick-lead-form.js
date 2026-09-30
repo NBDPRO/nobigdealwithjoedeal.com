@@ -6,7 +6,10 @@
  * so the lead lands in Joe's pipeline with context, no navigation required.
  *
  * Usage: <div data-nbd-quick-form data-service="Hail Damage" data-city="Mason"></div>
- * Only firstName + phone are required (phone is the lead); address optional.
+ * Required (2026-09-30, Jo): first name, a 10-digit phone, the street address,
+ * and a scheduling choice (book a time now / please contact me). Email is
+ * optional. Photos, best time, insurance and how-heard come from
+ * intake-extras.js, lazy-loaded like the gateway client.
  */
 (function () {
   'use strict';
@@ -29,6 +32,18 @@
     });
   }
 
+  // Lazy-load the shared intake block (scheduling choice, photos, …).
+  function ensureIntake() {
+    if (window.NBDIntake) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var s = document.createElement('script');
+      s.src = '/assets/js/intake-extras.js?v=1';
+      s.onload = resolve;
+      s.onerror = function () { resolve(); }; // form still works without it
+      document.head.appendChild(s);
+    });
+  }
+
   function render(host) {
     var service = host.getAttribute('data-service') || '';
     var city = host.getAttribute('data-city') || '';
@@ -47,7 +62,9 @@
           '<label class="qlf-field"><span>First name *</span><input id="' + uid + '-fn" type="text" name="given-name" autocomplete="given-name" required></label>' +
           '<label class="qlf-field"><span>Mobile phone *</span><input id="' + uid + '-ph" type="tel" name="tel" autocomplete="tel" inputmode="tel" required></label>' +
         '</div>' +
-        '<label class="qlf-field"><span>Property address <em>(optional)</em></span><input id="' + uid + '-ad" type="text" name="street-address" autocomplete="street-address"></label>' +
+        '<label class="qlf-field"><span>Street address *</span><input id="' + uid + '-ad" type="text" name="street-address" autocomplete="street-address" placeholder="123 Main St, City" required></label>' +
+        '<label class="qlf-field"><span>Email <em>(optional)</em></span><input id="' + uid + '-em" type="email" name="email" autocomplete="email" inputmode="email"></label>' +
+        '<div data-nbd-intake="' + uid + 'i"></div>' +
         // Honeypot — the gateway drops any submission that fills this. Named
         // nbd_hp, NOT "website": that name matches browser URL-autofill
         // heuristics, and an autofilled honeypot silently drops a real lead.
@@ -60,29 +77,55 @@
     var err = document.getElementById(uid + '-err');
     var ok = document.getElementById(uid + '-ok');
     var btn = document.getElementById(uid + '-btn');
+    ensureIntake();
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       err.textContent = ''; ok.textContent = '';
       var firstName = document.getElementById(uid + '-fn').value.trim();
       var phone = document.getElementById(uid + '-ph').value.trim();
-      if (!firstName || !phone) { err.textContent = 'Please add your first name and phone.'; return; }
+      var address = document.getElementById(uid + '-ad').value.trim();
+      var email = document.getElementById(uid + '-em').value.trim();
+      // Shared public-form phone rule: digits only, leading 1 dropped, exactly 10.
+      var phoneOk = phone.replace(/\D/g, '').replace(/^1/, '').length === 10;
+      var addressOk = address.length >= 6 && /\d/.test(address) && /[a-z]/i.test(address);
+      if (!firstName || !phoneOk || !addressOk) {
+        err.textContent = 'Please add your first name, a 10-digit phone number, and your street address.';
+        return;
+      }
+      var intake = { fields: {}, files: [] };
+      if (window.NBDIntake) {
+        intake = window.NBDIntake.read(form, uid + 'i');
+        if (intake.error) {
+          if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
+          err.textContent = intake.error;
+          return;
+        }
+      }
       btn.disabled = true; btn.textContent = 'Sending…';
       ensureGateway().then(function () {
-        return window.submitPublicLead('contact', {
+        return window.submitPublicLead('contact', Object.assign({
           firstName: firstName,
           phone: phone,
-          address: document.getElementById(uid + '-ad').value.trim(),
+          address: address,
+          email: email,
           service: service,
           message: (service || city) ? ('Page: ' + [service, city].filter(Boolean).join(' — ')) : '',
           nbd_hp: document.getElementById(uid + '-hp').value, // honeypot
           source: 'page-form:' + (window.location.pathname || '')
-        });
+        }, intake.fields));
       }).then(function (out) {
         if (!out || !out.ok) throw new Error((out && out.reason) || 'failed');
-        form.reset();
         ok.textContent = 'Got it! Joe will reach out shortly — usually same day.';
         btn.textContent = 'Sent ✓';
+        if (window.NBDIntake) {
+          window.NBDIntake.afterSubmit(ok.parentNode, {
+            prefix: uid + 'i', fields: intake.fields, files: intake.files, photoToken: out.photoToken || null,
+            firstName: firstName, phone: phone, email: email, address: address, service: service
+          }).then(function () { form.reset(); });
+        } else {
+          form.reset();
+        }
       }).catch(function (e2) {
         err.textContent = 'Could not send — please call or text (859) 420-7382. (' + (e2.message || 'error') + ')';
         btn.disabled = false; btn.textContent = 'Send — Joe calls you back';

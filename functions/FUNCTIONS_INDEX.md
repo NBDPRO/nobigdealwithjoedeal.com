@@ -105,6 +105,7 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `getPortalDocumentHtml` | onRequest | Portal token; re-derives getHomeownerPortalView's exact generated/sharedWithHomeowner visibility gate server-side per docId (a client can't widen access by guessing one), lead-prefix confinement + 5 MB cap mirroring `getDocumentHtml`'s (documents shelf, 2026-09-16) |
 | `getEstimateForView` | onRequest | Portal token validation; stamps first/last-viewed engagement fields. 2026-09-25: the estimate must also be the token's tenant's (portal-authz.js) |
 | `uploadHomeownerPhoto` | onRequest | Portal token; 10 photos/lead/day, 8 MB cap, jpeg/png/webp only |
+| `uploadPublicLeadPhoto` | onRequest | One-time grant minted by `submitPublicLead` (SHA-256-keyed, 60 min, 10 photos, reserved in a transaction) + per-IP 30/10 min; decoded and re-encoded by sharp (EXIF/GPS dropped, ≤2560px); stored under `homeowner-uploads/` on the bridged CRM lead (2026-09-30) |
 | `sendPortalMessage` | onRequest | Portal token; 30 msgs/token/day, 2000-char cap, per-IP limit |
 | `getPortalMessages` | onRequest | Portal token; latest 50 messages, marks rep messages read |
 | `requestCallback` | onRequest | Portal token; 3 requests/token/day, 280-char note cap, slot whitelist |

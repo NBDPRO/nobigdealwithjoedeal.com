@@ -197,11 +197,15 @@
           });
         }
       } catch (e) {}
-      return { ok: true, id: data.id || null };
+      // photoToken (2026-09-30): a one-time grant to attach photos to this
+      // submission (intake-extras.js uploads them). Only present when asked.
+      return { ok: true, id: data.id || null, photoToken: data.photoToken || null };
     } catch (e) {
       return { ok: false, reason: 'Network error: ' + (e.message || 'unknown') };
     }
   }
 
   window.submitPublicLead = submitPublicLead;
+  // Same functions origin, for the photo upload endpoint (intake-extras.js).
+  window.nbdPublicFunctionsBase = baseUrl;
 })();

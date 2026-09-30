@@ -1,19 +1,21 @@
 /**
  * tests/inspect-photo-disclosure-2026-09-16.test.js
  *
- * docs/inspect.html's photo input (docs/assets/js/inspect-form.js's
- * gatherFormData) never actually sends the chosen files — only their count
- * and filenames as text fields (`if (k === 'photos') return; // files
- * handled separately`), and public-lead-submit.js has no separate upload
- * path either. A homeowner who attached photos and saw the success message
- * had no way to know Joe never received them — the message said nothing
- * about photos at all, so "Got it — thanks!" reads as if everything they
- * submitted, including the pictures, went through.
+ * ORIGINAL (2026-09-16): /inspect's photo input never sent the files, only
+ * their count and names, and the success panel said nothing, so a homeowner
+ * believed Joe had their pictures. The fix then was a "photos were not sent,
+ * text them" line.
  *
- * Fix: a disclosure line in the success panel, shown ONLY when the
- * homeowner actually attached at least one photo, telling them to text the
- * photos separately. Gated on photoCount so a submission with zero photos
- * (the common case) never shows an irrelevant note.
+ * SUPERSEDED (2026-09-30, intake-forms overhaul): photos are now really
+ * sent. The gateway returns a one-time photoToken and NBDIntake.afterSubmit
+ * uploads each photo to uploadPublicLeadPhoto. The invariant this file has
+ * always guarded is kept, now tested on BEHAVIOUR (vm-sandboxed
+ * intake-extras.js with a stub DOM + fetch): the homeowner is never told
+ * photos arrived when they did not.
+ *   - every upload OK      → "✓ N photos attached"
+ *   - an upload fails      → says how many did not upload + the text-us line
+ *   - no photoToken        → "could not be attached" + the text-us line
+ *   - no photos chosen     → no photo line at all
  *
  * Zero deps. Run: node tests/inspect-photo-disclosure-2026-09-16.test.js
  */
@@ -32,62 +34,99 @@ function ok(name, cond, detail) {
   else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail ? '\n      ' + detail : '')); }
 }
 
-console.log('inspect.html — photo-not-actually-sent disclosure\n');
+console.log('inspect / intake — never claim photos arrived when they did not\n');
 
-const HTML = read('docs/inspect.html');
+const SRC = read('docs/assets/js/intake-extras.js');
 const JS = read('docs/assets/js/inspect-form.js');
+const HTML = read('docs/inspect.html');
 
-group('the confirmed bug still holds: photos are never actually transmitted', () => {
-  const decommented = JS.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
-  ok('gatherFormData explicitly drops the photos field from the payload',
-    /if \(k === 'photos'\) return;/.test(decommented));
-  ok('only photoCount/photoNames (text) are sent, never file bytes',
-    /out\.photoCount = String\(photoFiles\)/.test(decommented) && /out\.photoNames = /.test(decommented));
-  const PUBLIC_SUBMIT = read('docs/assets/js/public-lead-submit.js');
-  ok('public-lead-submit.js has no separate photo upload path (Storage, FormData with files, etc.)',
-    !/photo/i.test(PUBLIC_SUBMIT) && !/Storage/i.test(PUBLIC_SUBMIT));
-});
+// Minimal DOM: afterSubmit builds one wrapper, sets innerHTML, then finds the
+// status line by attribute and updates textContent/innerHTML.
+function makeSandbox(fetchImpl) {
+  const opened = [];
+  function el() {
+    const e = { _html: '', textContent: '', className: '', children: [], status: null };
+    Object.defineProperty(e, 'innerHTML', {
+      get() { return this._html; },
+      set(v) { this._html = String(v); if (/data-nbd-photo-status/.test(v)) this.status = el(); },
+    });
+    e.appendChild = (c) => { e.children.push(c); return c; };
+    e.querySelector = (sel) => (sel === '[data-nbd-photo-status]' ? e.status : null);
+    return e;
+  }
+  const document = {
+    readyState: 'complete', createElement: () => el(),
+    querySelectorAll: () => [], addEventListener() {}, getElementById: () => null,
+    querySelector: () => null,
+  };
+  document.head = { appendChild() {} };
+  const baseCreate = document.createElement;
+  document.createElement = (tag) => Object.assign(baseCreate(tag), { setAttribute() {} });
+  class FakeImage { set src(_) { setTimeout(() => this.onerror && this.onerror(), 0); } }
+  class FakeReader { readAsDataURL() { this.result = 'data:image/jpeg;base64,AAAA'; setTimeout(() => this.onload(), 0); } }
+  const window = { nbdPublicFunctionsBase: () => 'https://fn.test', open: (u) => opened.push(u) };
+  const ctx = {
+    window, document, Image: FakeImage, FileReader: FakeReader,
+    URL: Object.assign(function () {}, { createObjectURL: () => 'blob:x', revokeObjectURL() {} }),
+    URLSearchParams, fetch: fetchImpl, setTimeout, Promise, console,
+  };
+  vm.createContext(ctx);
+  vm.runInContext(SRC, ctx, { filename: 'intake-extras.js' });
+  return { NBD: window.NBDIntake, opened, el };
+}
 
-function group(name, fn) { console.log('\n' + name); fn(); }
+const resp = (okFlag, body) => ({ ok: okFlag, json: async () => body || {} });
+const statusText = (box) => { const w = box.children[0]; const s = w && w.status; return s ? (s._html || s.textContent) : '(no photo line)'; };
 
-group('markup: the disclosure exists, starts hidden, mentions the contact number already on the page', () => {
-  ok('#inspectPhotoNote exists inside #inspectSuccess',
-    /id="inspectSuccess"[\s\S]{0,400}id="inspectPhotoNote"/.test(HTML));
-  ok('starts hidden — must not show for the common no-photo submission', /id="inspectPhotoNote"[^>]*\bhidden\b/.test(HTML));
-  ok('tells the homeowner photos were not sent (not vague marketing copy)',
-    /id="inspectPhotoNote"[^>]*>[^<]*doesn(?:&rsquo;|')t send photo attachments/i.test(HTML));
-  ok('points to the SAME phone number already used elsewhere on this page for direct contact',
-    /id="inspectPhotoNote"[\s\S]{0,200}\(859\) 420-7382/.test(HTML));
-});
-
-group('logic: showSuccess() only reveals the note when photos were actually attached', () => {
-  const start = JS.indexOf('function showSuccess(');
-  ok('showSuccess is present', start >= 0);
-  const bodyStart = JS.indexOf('{', start);
-  let depth = 0, i = bodyStart;
-  for (; i < JS.length; i++) { if (JS[i] === '{') depth++; else if (JS[i] === '}') { depth--; if (depth === 0) break; } }
-  const fnSrc = JS.slice(start, i + 1);
-
-  const made = (id) => ({ hidden: undefined, style: {}, classList: { add() {} }, scrollIntoView() {}, id });
-  function run(photoCount) {
-    const els = { inspectForm: made('inspectForm'), inspectSuccess: made('inspectSuccess'), inspectPhotoNote: made('inspectPhotoNote') };
-    const ctx = { document: { getElementById: (id) => els[id] || null }, Number };
-    vm.createContext(ctx);
-    vm.runInContext(fnSrc + '\nthis.__showSuccess = showSuccess;', ctx);
-    ctx.__showSuccess(photoCount);
-    return els.inspectPhotoNote.hidden;
+(async () => {
+  // 1. All uploads succeed.
+  {
+    const calls = [];
+    const S = makeSandbox(async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return resp(true, { success: true }); });
+    const box = S.el();
+    await S.NBD.afterSubmit(box, { prefix: 'ins', quietContact: true, fields: { scheduling: 'contact_me' }, files: [{ name: 'a.jpg' }, { name: 'b.jpg' }], photoToken: 't'.repeat(48) });
+    ok('every photo is POSTed to uploadPublicLeadPhoto with the one-time token', calls.length === 2 && calls.every((c) => c.url === 'https://fn.test/uploadPublicLeadPhoto' && c.body.token === 't'.repeat(48) && /^data:image\//.test(c.body.dataUrl)), JSON.stringify(calls.map((c) => c.url)));
+    ok('success says exactly how many photos were attached', /✓ 2 photos attached/.test(statusText(box)), statusText(box));
+  }
+  // 2. One upload fails.
+  {
+    let n = 0;
+    const S = makeSandbox(async () => (++n === 2 ? resp(false, { error: 'That photo is too large (8 MB max).' }) : resp(true)));
+    const box = S.el();
+    await S.NBD.afterSubmit(box, { prefix: 'ins', fields: { scheduling: 'contact_me' }, files: [{ name: 'a.jpg' }, { name: 'b.jpg' }], photoToken: 't'.repeat(48) });
+    const t = statusText(box);
+    ok('a failed upload is disclosed, never reported as attached', /1 photo attached; 1 did not upload/.test(t) && !/✓/.test(t), t);
+    ok('…and points the homeowner to texting the photos', /text/i.test(t) && /420-7382/.test(t), t);
+  }
+  // 3. A network error on every upload.
+  {
+    const S = makeSandbox(async () => { throw new Error('offline'); });
+    const box = S.el();
+    await S.NBD.afterSubmit(box, { fields: { scheduling: 'contact_me' }, files: [{ name: 'a.jpg' }], photoToken: 't'.repeat(48) });
+    ok('a network failure is disclosed with the text-us line', /did not upload/.test(statusText(box)) && /420-7382/.test(statusText(box)), statusText(box));
+  }
+  // 4. No token came back (old gateway, mint failure).
+  {
+    const calls = [];
+    const S = makeSandbox(async (u) => { calls.push(u); return resp(true); });
+    const box = S.el();
+    await S.NBD.afterSubmit(box, { fields: { scheduling: 'contact_me' }, files: [{ name: 'a.jpg' }], photoToken: null });
+    ok('no photoToken → nothing is uploaded and the homeowner is told the photos were not attached', calls.length === 0 && /could not be attached/.test(statusText(box)) && /420-7382/.test(statusText(box)), statusText(box));
+  }
+  // 5. No photos chosen — the common case.
+  {
+    const S = makeSandbox(async () => resp(true));
+    const box = S.el();
+    await S.NBD.afterSubmit(box, { fields: { scheduling: 'contact_me' }, files: [], photoToken: null });
+    ok('no photos chosen → no photo line at all', statusText(box) === '(no photo line)', statusText(box));
   }
 
-  ok('photoCount "0" (no photos attached) -> note stays hidden', run('0') === true);
-  ok('photoCount undefined (defensive) -> note stays hidden', run(undefined) === true);
-  ok('photoCount "1" -> note is revealed', run('1') === false);
-  ok('photoCount "3" -> note is revealed', run('3') === false);
-});
+  // Wiring on /inspect.
+  ok('/inspect no longer sends file names as if they were photos', !/photoNames/.test(JS.replace(/\/\/.*$/gm, '')));
+  ok('/inspect hands the submission\'s photoToken to afterSubmit', /photoToken: \(res && res\.photoToken\) \|\| null/.test(JS));
+  ok('the old "photos were not sent" note is gone from /inspect', !/inspectPhotoNote/.test(HTML) && !/inspectPhotoNote/.test(JS));
+  ok('/inspect loads the shared intake block', /<div data-nbd-intake="ins"/.test(HTML) && /intake-extras\.js/.test(HTML));
 
-group('wiring: showSuccess is actually called WITH the submission\'s photoCount, not bare', () => {
-  const decommented = JS.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
-  ok('the success callback passes data.photoCount through', /showSuccess\(data\.photoCount\)/.test(decommented));
-});
-
-console.log('\n' + passed + ' passed, ' + failed + ' failed');
-if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+})().catch((e) => { console.error(e); process.exit(1); });

@@ -300,6 +300,14 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     await page.fill('#qFirst', 'Micro');
     await page.fill('#qLast', `Site${stamp}`);
     await page.fill('#qPhone', '513' + String(stamp + 1).slice(-7));
+    // Since the 2026-09-30 intake overhaul every form requires a street
+    // address and a scheduling choice. A microsite has no calendar, so
+    // "please contact me" is the only option, and it names the TENANT.
+    await page.fill('#qAddress', '12 Test Ln, Dayton, OH');
+    const contactMe = page.locator('input[name="tqScheduling"][value="contact_me"]');
+    await expect(page.locator('input[name="tqScheduling"][value="calendar"]'), 'microsite offers no NBD calendar').toHaveCount(0);
+    await expect(page.locator('#qIntake'), 'intake block speaks for the tenant, not Joe').not.toContainText(/Joe/);
+    await contactMe.check();
     await page.click('#qSubmit');
     await expect(page.locator('#formOk'), 'quote form confirms').toContainText(/reach out shortly/i, { timeout: 20_000 });
 
@@ -315,6 +323,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     }, { label: 'bridged microsite lead in CRM', timeout: 45_000 });
     expect(bridged.userId, 'bridged lead routed to the tenant OWNER').toBe(STRANGER.uid);
     expect(bridged.companyId).toBe(STRANGER.uid);
+    expect(bridged.schedulingPreference, 'the scheduling choice reached the CRM lead').toBe('contact_me');
 
     // The NOTIFICATION half (2026-07-06, punch item 6): the leadAlert
     // trigger's outbox ledger records WHO the alert targeted. Delivery

@@ -125,25 +125,50 @@
   function wireForm(cfg) {
     var form = $('quoteForm');
     if (!form) return;
+    // Intake block in the contractor's own words: their name and phone, no
+    // NBD calendar (a microsite has no booking link, so the required
+    // scheduling choice is "please contact me").
+    var intakeBox = $('qIntake');
+    var cPhone = (cfg.contact && cfg.contact.phone) || '';
+    var cTel = cPhone.replace(/[^0-9+]/g, '');
+    if (intakeBox && window.NBDIntake) {
+      intakeBox.innerHTML = window.NBDIntake.html('tq', {
+        who: cfg.displayName || cfg.name || 'We',
+        phoneTel: cTel || null, phoneDisplay: cPhone || null, calUrl: null
+      });
+    }
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
       var errEl = $('formErr'); var okEl = $('formOk');
       errEl.textContent = ''; okEl.textContent = '';
       var firstName = $('qFirst').value.trim();
       var phone = $('qPhone').value.trim();
-      if (!firstName || !phone) { errEl.textContent = 'Name and phone are required.'; return; }
+      var address = $('qAddress').value.trim();
+      // Shared public-form rules: a 10-digit phone and a street address.
+      var phoneOk = phone.replace(/\D/g, '').replace(/^1/, '').length === 10;
+      var addressOk = address.length >= 6 && /\d/.test(address) && /[a-z]/i.test(address);
+      if (!firstName || !phoneOk || !addressOk) { errEl.textContent = 'Please add your first name, a 10-digit phone number, and your street address.'; return; }
+      var intake = { fields: {}, files: [] };
+      if (window.NBDIntake) {
+        intake = window.NBDIntake.read(form, 'tq');
+        if (intake.error) {
+          if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
+          errEl.textContent = intake.error;
+          return;
+        }
+      }
       var btn = $('qSubmit');
       btn.disabled = true; btn.textContent = 'Sending…';
       try {
         if (typeof window.submitPublicLead !== 'function') {
           throw new Error('form gateway not loaded — please call instead');
         }
-        var out = await window.submitPublicLead('contact', {
+        var out = await window.submitPublicLead('contact', Object.assign({
           firstName: firstName,
           lastName: $('qLast').value.trim(),
           phone: phone,
           email: $('qEmail').value.trim(),
-          address: $('qAddress').value.trim(),
+          address: address,
           service: $('qService').value,
           message: $('qMessage').value.trim(),
           nbd_hp: $('qHoneypot').value, // honeypot — humans leave it empty
@@ -153,11 +178,17 @@
           // during the deploy-skew window.
           siteKey: cfg.siteKey || cfg.companyId,
           source: 'tenant-site:' + (cfg.siteKey || cfg.companyId)
-        });
+        }, intake.fields));
         if (!out || !out.ok) throw new Error((out && out.reason) || 'submission failed');
-        form.reset();
         okEl.textContent = "Got it! " + (cfg.displayName || cfg.name) + " will reach out shortly.";
         btn.textContent = 'Sent ✓';
+        if (window.NBDIntake) {
+          await window.NBDIntake.afterSubmit(okEl.parentNode, {
+            prefix: 'tq', fields: intake.fields, files: intake.files, photoToken: out.photoToken || null,
+            firstName: firstName, phone: phone, address: address
+          });
+        }
+        form.reset();
       } catch (err) {
         errEl.textContent = 'Could not send your request — ' + (err.message || 'try again') +
           (cfg.contact && cfg.contact.phone ? '. Or call ' + cfg.contact.phone + '.' : '.');

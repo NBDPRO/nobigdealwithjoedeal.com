@@ -232,6 +232,20 @@ const PUBLIC_LEAD_OPTIONAL_DEFAULTS = [
   'referralCode'
 ];
 
+// Intake answers every SERVICE-REQUEST form now asks (2026-09-30, Jo: "make
+// sure we do capture all info needed"). Enum-checked after the optional loop
+// (see INTAKE_ENUMS); free-text ones are length-capped like any optional.
+const INTAKE_OPTIONAL = ['scheduling', 'bestTime', 'insuranceClaim', 'howHeard'];
+const INTAKE_MAXLEN = { scheduling: 20, bestTime: 60, insuranceClaim: 20, howHeard: 100 };
+const INTAKE_ENUMS = {
+  scheduling: ['calendar', 'contact_me'],
+  insuranceClaim: ['yes', 'no', 'not_sure'],
+};
+// Kinds that are a homeowner asking for work (not a list signup): these carry
+// the intake answers, may attach photos (public-lead-photos.js), and are
+// flagged when they arrive without an address.
+const SERVICE_KINDS = ['contact', 'estimate', 'inspect', 'free_roof'];
+
 const PUBLIC_LEAD_KINDS = {
   guide: {
     collection: 'guide_leads',
@@ -339,6 +353,12 @@ const PUBLIC_LEAD_KINDS = {
 // are ~12 chars; the redemption trigger validates + uppercases). Without a
 // per-key maxLen the optional-field loop would fall back to the generic 500.
 for (const spec of Object.values(PUBLIC_LEAD_KINDS)) { spec.maxLen.referralCode = 32; }
+for (const k of SERVICE_KINDS) {
+  const spec = PUBLIC_LEAD_KINDS[k];
+  spec.optional = spec.optional.concat(INTAKE_OPTIONAL.filter((f) => !spec.optional.includes(f)));
+  Object.assign(spec.maxLen, INTAKE_MAXLEN);
+  spec.numOptional = Object.assign({}, spec.numOptional || {}, { photoCount: { min: 0, max: 10 } });
+}
 
 const { verifyTurnstile } = require('../integrations/turnstile');
 const { SECRETS: INT_SECRETS } = require('../integrations/_shared');
@@ -513,6 +533,15 @@ exports.submitPublicLead = onRequest(
       data[key] = n;
     }
     if (data.lat === 0 && data.lon === 0) { delete data.lat; delete data.lon; }
+    // Enum-valued intake answers: anything off-list is dropped, never stored.
+    for (const [k, allowed] of Object.entries(INTAKE_ENUMS)) {
+      if (data[k] != null && !allowed.includes(data[k])) delete data[k];
+    }
+    // Address is required on every service form (2026-09-30). The pages
+    // enforce it; the server FLAGS a missing one instead of refusing, so a
+    // stale cached page (or a tenant microsite not yet updated) never loses a
+    // homeowner's lead. Tighten to a hard requirement once caches have turned.
+    if (SERVICE_KINDS.includes(kind) && !data.address) data.missingAddress = true;
 
     // Trust-but-tag: server-only fields the client can't spoof.
     data.ip = clientIp(req);
@@ -585,10 +614,23 @@ exports.submitPublicLead = onRequest(
         turnstileTokenPresent: !!(body && body.turnstileToken),
         turnstileConfigured: turnstile.configured === true
       });
-      res.status(200).json({ success: true, id: ref.id });
+      // Photos (2026-09-30): a one-time upload grant for this submission, only
+      // when the page says the homeowner picked photos. Never blocks the lead.
+      let photoToken = null;
+      if (SERVICE_KINDS.includes(kind) && (body.wantsPhotos === true || body.wantsPhotos === 'true')) {
+        try {
+          photoToken = await require('../public-lead-photos')._internal.mintPhotoGrant(getFirestore(), {
+            collection: spec.collection, publicId: ref.id, companyId: data.companyId || null,
+          });
+        } catch (e) { logger.warn('submitPublicLead: photo grant failed', { kind, err: e.message }); }
+      }
+      res.status(200).json(Object.assign({ success: true, id: ref.id }, photoToken ? { photoToken } : {}));
     } catch (e) {
       logger.error('submitPublicLead error', { kind, err: e.message });
       res.status(500).json({ error: 'Submission failed' });
     }
   }
 );
+
+// Test seam (2026-09-30): the per-kind field specs, read-only use in tests.
+exports._publicLeadSpec = { PUBLIC_LEAD_KINDS, SERVICE_KINDS, INTAKE_OPTIONAL, INTAKE_ENUMS };

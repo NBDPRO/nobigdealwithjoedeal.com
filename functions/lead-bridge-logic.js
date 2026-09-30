@@ -169,7 +169,14 @@ function mapPublicLeadToLead(args) {
     const c = String(data.concern || '').toLowerCase();
     notesParts.push('Storm Alert signup — concern: ' + (STORM_CONCERN_LABEL[c] || c || 'unspecified'));
   }
-  if (data.photoCount) notesParts.push('Homeowner has ' + data.photoCount + ' photo(s) to share');
+  if (data.photoCount) notesParts.push('Homeowner attached ' + data.photoCount + ' photo(s) — see Photos');
+  // Intake answers (2026-09-30).
+  if (data.scheduling === 'calendar') notesParts.push('Scheduling: booking a time on the calendar');
+  else if (data.scheduling === 'contact_me') notesParts.push('Scheduling: asked to be contacted to set a time');
+  if (data.bestTime) notesParts.push('Best time to reach: ' + String(data.bestTime));
+  if (data.insuranceClaim) notesParts.push('Insurance claim: ' + ({ yes: 'yes', no: 'no', not_sure: 'not sure' }[data.insuranceClaim] || String(data.insuranceClaim)));
+  if (data.howHeard) notesParts.push('Heard about us: ' + String(data.howHeard));
+  if (data.missingAddress) notesParts.push('⚠ No address given — ask for it');
   // Estimator context — so the pipeline card shows what the homeowner
   // actually asked for, not just a name and address. Fields are present
   // only post-M-04 allowlist expansion; older docs simply add no line.
@@ -212,6 +219,7 @@ function mapPublicLeadToLead(args) {
     // (integrations/calcom-logic.js).
     sourcePage: String(data.source || ''),
   };
+  if (data.scheduling === 'calendar' || data.scheduling === 'contact_me') doc.schedulingPreference = data.scheduling;
 
   // Coordinates (2026-09-06). The /estimate wizard geocodes the address at
   // step 1 and the gateway now persists lat/lon on the public lead; carry

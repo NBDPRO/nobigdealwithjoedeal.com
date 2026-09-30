@@ -12,7 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/sites/t/site.css">
 <script defer src="/assets/js/public-lead-submit.js"></script>
-<script defer src="/sites/t/site.js?v=2"></script>
+<script defer src="/assets/js/intake-extras.js?v=1"></script>
+<script defer src="/sites/t/site.js?v=3"></script>
 </head>
 <body>
 
@@ -65,9 +66,9 @@
       </div>
       <div class="t-row">
         <label>Phone *<input id="qPhone" name="tel" type="tel" autocomplete="tel" inputmode="tel" required></label>
-        <label>Email<input id="qEmail" name="email" type="email" autocomplete="email"></label>
+        <label>Email <span class="t-opt">(optional)</span><input id="qEmail" name="email" type="email" autocomplete="email"></label>
       </div>
-      <label>Address<input id="qAddress" name="street-address" type="text" autocomplete="street-address"></label>
+      <label>Street address *<input id="qAddress" name="street-address" type="text" autocomplete="street-address" placeholder="123 Main St, City" required></label>
       <label>Service needed
         <select id="qService"><option value="">Choose one (optional)</option></select>
       </label>
@@ -75,6 +76,9 @@
       <!-- Honeypot: the gateway drops any submission that fills this. Named
            nbd_hp, not "website" — that name matches browser URL-autofill
            heuristics, and an autofilled honeypot silently drops a real lead. -->
+      <!-- Scheduling choice (required), photos, best time, insurance, how heard:
+           filled by site.js with THIS contractor's name and phone (intake-extras.js). -->
+      <div id="qIntake"></div>
       <input id="qHoneypot" name="nbd_hp" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" class="t-hp">
       <button class="t-btn t-btn-solid" type="submit" id="qSubmit">Send my request</button>
     </form>

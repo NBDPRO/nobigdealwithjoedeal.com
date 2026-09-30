@@ -1773,13 +1773,13 @@ footer.foot a,.review-footer a{color:#bd5728!important}
                 <input type="tel" id="fieldPhone" placeholder="(859) 555-1234" autocomplete="tel" inputmode="tel" required>
               </div>
               <div class="form-group">
-                <label for="fieldEmail">Email</label>
+                <label for="fieldEmail">Email <span class="form-optional">(optional)</span></label>
                 <input type="email" id="fieldEmail" placeholder="your@email.com" autocomplete="email" inputmode="email">
               </div>
             </div>
             <div class="form-group">
-              <label for="fieldAddress">Address / Zip Code</label>
-              <input type="text" id="fieldAddress" placeholder="Your address or zip code" autocomplete="street-address">
+              <label for="fieldAddress">Street address <span class="req">*</span></label>
+              <input type="text" id="fieldAddress" placeholder="123 Main St, Mason, OH" autocomplete="street-address" required>
             </div>
             <div class="form-group">
               <label for="fieldService">Service Needed</label>
@@ -1799,6 +1799,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
               <label for="fieldMessage">Tell Me About Your Project</label>
               <textarea id="fieldMessage" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
             </div>
+            <!-- Scheduling choice (required), photos, best time, insurance, how heard — js/intake-extras.js -->
+            <div data-nbd-intake="hp"></div>
             <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="fieldNbdHp">Leave blank</label><input type="text" id="fieldNbdHp" tabindex="-1" autocomplete="off"></div>
             <p id="formError" class="form-error" role="alert" hidden></p>
             <button class="form-submit" id="leadFormSubmit">Get My Free Estimate →</button>
@@ -2030,6 +2032,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
      (C-3); submissions route through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/intake-extras.js?v=1"></script>
 <script defer  src="/assets/js/inline/0214ed5eea.js"></script>
 <script defer  src="/assets/js/inline/72f02d79d0.js"></script>
 
