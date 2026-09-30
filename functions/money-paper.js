@@ -61,6 +61,18 @@ function stripeClient() {
   return _stripe;
 }
 
+// data:image/png;base64 QR for an https link, or null.
+async function payQr(url) {
+  if (!/^https:\/\//i.test(String(url || ''))) return null;
+  try {
+    const QRCode = require('qrcode');
+    return await QRCode.toDataURL(String(url), { errorCorrectionLevel: 'M', margin: 1, width: 360 });
+  } catch (e) {
+    logger.warn('[moneyPaper] QR skipped', { err: e && e.message });
+    return null;
+  }
+}
+
 async function realRender(templateKey, payload, companyId) {
   const R = require('./render-pdf');
   const { html, company, tmplCfg, docNumber } = await R.buildDocHtml(templateKey, payload, companyId);
@@ -139,6 +151,10 @@ async function fileOne(deps, invRef, invoiceId, kind) {
     const payload = kind === 'invoice'
       ? P.invoicePayload(inv, lead, c.id, nowMs, plate)
       : P.receiptPayload(inv, lead, c.id, nowMs, plate);
+    // QR of the Stripe pay link (Jo OK'd the qrcode package 2026-09-30), so a
+    // printed or emailed invoice can be paid from a phone camera. Best-effort:
+    // no QR is better than no invoice.
+    if (kind === 'invoice' && payload.payUrl) payload.payQr = await (deps.qr || payQr)(payload.payUrl);
     const pdf = await render(kind, payload, inv.companyId || OWNER);
     const ownerUid = String(lead.userId || inv.userId || OWNER);
     const pdfPath = P.pdfPathFor(ownerUid, leadId, c.id);
@@ -253,4 +269,4 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
   }
 );
 
-exports._internal = { handle, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, payQr, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
