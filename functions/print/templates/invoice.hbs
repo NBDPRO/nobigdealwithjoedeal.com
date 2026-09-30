@@ -77,6 +77,13 @@
 {{#if payUrl}}
 <section class="avoid-break" style="margin-top: var(--s-4); text-align: center;">
   <a href="{{payUrl}}" style="display:inline-block;padding: 12pt 28pt; background: var(--nbd-orange); color:#fff; font-family:'Barlow Condensed', sans-serif; font-weight:800; font-size: 16pt; letter-spacing: 0.08em; text-transform:uppercase; border-radius: 4pt; text-decoration: none;">Pay this invoice online</a>
+  {{!-- QR of the same link (money-paper.js payQr) — a printed invoice pays from a phone camera. --}}
+  {{#if payQr}}
+  <div style="margin-top: var(--s-3);">
+    <img src="{{payQr}}" alt="QR code: pay this invoice online" style="width:1.25in; height:1.25in;">
+    <div class="meta" style="margin-top:2pt;">Scan to pay</div>
+  </div>
+  {{/if}}
 </section>
 {{/if}}
 

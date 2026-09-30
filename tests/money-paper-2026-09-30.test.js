@@ -283,6 +283,25 @@ const docsOf = (db) => [...db.store.keys()].filter((k) => k.startsWith('leads/L1
       && T({ stripeInvoiceId: 'in_1', stripeHostedUrl: 'u' }, { stripeInvoiceId: 'in_2', stripeHostedUrl: 'v' }).newStripeInvoice === true);
   }
 
+  console.log('\n13. QR code of the pay link on the invoice (qrcode package, Jo OK 2026-09-30)');
+  {
+    const qr = await MP._internal.payQr('https://invoice.stripe.com/i/acct_x/test_abc');
+    const png = qr && Buffer.from(qr.split(',')[1] || '', 'base64');
+    ok('a real PNG data URI for an https pay link', /^data:image\/png;base64,/.test(qr || '') && png && png.slice(1, 4).toString() === 'PNG' && png.length > 300, (qr || '').slice(0, 40));
+    ok('a non-https link gets no QR', (await MP._internal.payQr('http://x')) === null && (await MP._internal.payQr('')) === null);
+    const db = makeDb(), bucket = makeBucket(), stripe = makeStripe();
+    await seed(db, 'Q1', { stripeInvoiceId: 'in_Q', stripeHostedUrl: 'https://invoice.stripe.com/i/Q' });
+    const seen = {};
+    const d = deps(db, bucket, stripe, async (kind, payload) => { seen[kind] = payload; return Buffer.from('%PDF'); });
+    d.qr = async (u) => 'data:image/png;base64,FAKE:' + u;
+    await handle('Q1', await inv(db, 'Q1'), d);
+    ok('the invoice render gets payQr for its own pay link', seen.invoice && seen.invoice.payQr === 'data:image/png;base64,FAKE:https://invoice.stripe.com/i/Q');
+    const tpl = fs.readFileSync(path.join(FN, 'print', 'templates', 'invoice.hbs'), 'utf8');
+    ok('invoice.hbs prints the QR beside the pay button', /\{\{#if payQr\}\}[\s\S]*<img src="\{\{payQr\}\}"[\s\S]*Scan to pay/.test(tpl));
+    const pkg = require(path.join(FN, 'package.json'));
+    ok('qrcode is a runtime dependency', !!(pkg.dependencies && pkg.dependencies.qrcode));
+  }
+
   console.log('\n11. cover subtitle (a `sub` helper shadowed the partial param → "NaN" on every server PDF since #362)');
   {
     const Handlebars = require(path.join(FN, 'node_modules', 'handlebars'));
