@@ -111,7 +111,10 @@ async function run() {
     await setDoc(doc(db, 'leads/leadA/documents/docCA'),        { userId: 'alice', name: 'Void Draft.html', status: 'draft' });
     await setDoc(doc(db, 'leads/leadA/warrantyClaims/claimCA'), { status: 'denied', reason: 'goodwill' });
     await setDoc(doc(db, 'leads/leadVA'),               { userId: 'vica', companyId: 'co-a', name: 'Viewer-owned Lead' });
-    await setDoc(doc(db, 'leads/leadVA/documents/docV'), { name: 'Viewer Contract.html', status: 'signed' });
+    // Unsigned ('sent', 2026-09-29): these checks probe WHO may edit/delete by
+    // role and tenant. A signed row is locked for everyone (firestore-rules
+    // §41), which would mask the tiers.
+    await setDoc(doc(db, 'leads/leadVA/documents/docV'), { name: 'Viewer Contract.html', status: 'sent' });
     await setDoc(doc(db, 'leads/leadA/ai_drafts/draftA'),{ userId: 'alice', companyId: 'co-a', status: 'pending', draftText: 'Joe handles pricing personally — want a free inspection?', customerPhone: '+15555550100' });
     await setDoc(doc(db, 'leads/leadA/signatures/Homeowner'),{ userId: 'alice', role: 'Homeowner', png: 'data:image/png;base64,iVBORw0KGgo=' });
     await setDoc(doc(db, 'measurements/measA'),        { ownerId: 'alice', companyId: 'co-a', leadId: 'leadA', status: 'ready' });
