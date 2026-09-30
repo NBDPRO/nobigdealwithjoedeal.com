@@ -168,6 +168,22 @@ service cloud.firestore {
     // stage itself is possible but is real added complexity + read cost for
     // a case client-side validation already covers (missingRequiredFields);
     // this closes the actual forgery gap without it.
+    // A job doc (leads/{leadId}/jobs/{jobId}, 2026-09-30): the lead's own
+    // stage / paperwork / schedule shape checks, plus the ownership stamps the
+    // collection-group read trusts must equal the PARENT lead's — so a writer
+    // cannot plant a job that another tenant's query would return.
+    function jobWriteOk(leadId) {
+      let lead = get(/databases/$(database)/documents/leads/$(leadId)).data;
+      let d = request.resource.data;
+      let valueOk = !('jobValue' in d) || d.jobValue == null
+        || ((d.jobValue is int || d.jobValue is float) && d.jobValue >= 0 && d.jobValue < 100000000);
+      let titleOk = !('title' in d) || (d.title is string && d.title.size() <= 120);
+      return stageWriteOk() && paperworkFieldsOk() && scheduleWindowOk()
+        && d.get('userId', '') == lead.get('userId', '')
+        && d.get('companyId', '') == lead.get('companyId', '')
+        && valueOk && titleOk;
+    }
+
     function stageWriteOk() {
       let newRole = request.resource.data.get('stageRole', null);
       let roleOk = newRole == null || newRole in ['new', 'active', 'job', 'won', 'lost'];
@@ -666,14 +682,25 @@ service cloud.firestore {
       // leads/{id} is the CUSTOMER; each piece of work is a job here
       // (functions/jobs-logic.js). Phase 1: the server writes these, by
       // mirroring the lead's own fields into its active job
-      // (functions/jobs-mirror.js), so a client may READ them (same set as
-      // the lead's other subcollections) and write NONE. Phase 2 opens
-      // client writes with a shape check when the pipeline moves to jobs.
+      // (functions/jobs-mirror.js).
+      // Stage 1 (2026-09-30): a client may also WRITE a job — the same set
+      // that may write the lead's other subcollections (owner, or same-company
+      // staff; never a viewer) — with the lead's own shape checks, and the
+      // job must carry its lead's owner + tenant (the collection-group read
+      // below trusts those two fields). The ACTIVE job's edits still go
+      // through the lead (jobs-store.js routes them); these writes are for a
+      // customer's other jobs. Hard delete: owner or company_admin.
       match /jobs/{jobId} {
         allow read: if isAuth() && (isAdmin()
           || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
           || parentLeadInMyCompany(leadId));
-        allow write: if false;
+        allow create, update: if isAuth() && notViewer()
+          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+              || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
+          && jobWriteOk(leadId);
+        allow delete: if isAuth() && notViewer()
+          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+              || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
       }
 
       // ── DRAWINGS (roof measurements, sketches) ────────
@@ -2275,6 +2302,24 @@ service cloud.firestore {
         || isAdmin()
         || (isCompanyReader() && myCompanyId() == companyId));
       allow write: if false;
+    }
+
+    // ── JOBS, collection-group reads (2026-09-30) ─────
+    // The pipeline loads a company's jobs in ONE query
+    // (collectionGroup('jobs').where('companyId'|'userId', '==', …)) instead
+    // of one read per customer. A collection-group query only matches a
+    // recursive rule, so this grants READ ONLY, on the job's own ownership
+    // stamps — which jobWriteOk() forces to equal the parent lead's, and the
+    // server mirror (functions/jobs-mirror.js) keeps in step. Same audience
+    // as the nested rule: the owner, a company reader of the job's tenant, or
+    // a platform admin. The only 'jobs' collection in the database is the one
+    // under /leads.
+    match /{path=**}/jobs/{jobId} {
+      allow read: if isAuth() && (isAdmin()
+        || resource.data.get('userId', '') == request.auth.uid
+        || (isCompanyReader()
+            && request.auth.token.get('companyId', '') != ''
+            && resource.data.get('companyId', '') == request.auth.token.get('companyId', '')));
     }
 
     // ── DEFAULT DENY ─────────────────────────────────

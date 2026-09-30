@@ -881,6 +881,26 @@
         { "order": "DESCENDING", "queryScope": "COLLECTION" },
         { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" }
       ]
+    },
+    {
+      "_comment": "Jobs under a lead (2026-09-30): the pipeline loads a tenant's jobs in one collectionGroup('jobs').where('companyId','==') query (docs/pro/js/jobs-store.js). Equality-only, so a single-field COLLECTION_GROUP index serves it; COLLECTION asc/desc kept so default single-parent indexing is preserved.",
+      "collectionGroup": "jobs",
+      "fieldPath": "companyId",
+      "indexes": [
+        { "order": "ASCENDING",  "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "Jobs under a lead (2026-09-30): the pipeline loads a tenant's jobs in one collectionGroup('jobs').where('userId','==') query (docs/pro/js/jobs-store.js). Equality-only, so a single-field COLLECTION_GROUP index serves it; COLLECTION asc/desc kept so default single-parent indexing is preserved.",
+      "collectionGroup": "jobs",
+      "fieldPath": "userId",
+      "indexes": [
+        { "order": "ASCENDING",  "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" }
+      ]
     }
   ]
 }

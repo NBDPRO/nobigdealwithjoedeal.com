@@ -55,7 +55,7 @@ async function run() {
   const solo   = env.authenticatedContext('solo1',  {}).firestore();
   const anon  = env.unauthenticatedContext().firestore();
 
-  const { setDoc, doc, getDoc, updateDoc, deleteDoc, deleteField } = require('firebase/firestore');
+  const { setDoc, doc, getDoc, updateDoc, deleteDoc, deleteField, collectionGroup } = require('firebase/firestore');
 
   // ─── Seed ALL state in a single withSecurityRulesDisabled call.
   // Multiple calls conflict on Firestore settings in v10+ of the
@@ -2050,10 +2050,7 @@ async function run() {
   await x42('owner reads the lead\'s job', 'allow', getDoc(doc(own42, 'leads/lead42/jobs/j1')));
   await x42('same-company manager reads it', 'allow', getDoc(doc(mgr42, 'leads/lead42/jobs/j1')));
   await x42('another tenant reads it', 'deny', getDoc(doc(bob, 'leads/lead42/jobs/j1')));
-  await x42('owner creates a job (server-only in phase 1)', 'deny', setDoc(doc(own42, 'leads/lead42/jobs/j2'), { stage: 'new' }));
-  await x42('owner edits a job', 'deny', updateDoc(doc(own42, 'leads/lead42/jobs/j1'), { jobValue: 1 }));
-  await x42('manager edits a job', 'deny', updateDoc(doc(mgr42, 'leads/lead42/jobs/j1'), { stage: 'closed' }));
-  await x42('owner deletes a job', 'deny', deleteDoc(doc(own42, 'leads/lead42/jobs/j1')));
+  // (Job WRITES opened in stage 1 — see §43.)
   await x42('owner re-points activeJobId', 'deny', updateDoc(doc(own42, 'leads/lead42'), { activeJobId: 'j9' }));
   await x42('owner removes activeJobId', 'deny', updateDoc(doc(own42, 'leads/lead42'), { activeJobId: deleteField() }));
   await x42('owner edits the lead, re-saving the same activeJobId', 'allow', updateDoc(doc(own42, 'leads/lead42'), { firstName: 'Zed', activeJobId: 'j1' }));
@@ -2064,6 +2061,56 @@ async function run() {
   console.log('  42: ' + s42Pass + ' jobs-phase-1 checks passed, ' + s42Fail.length + ' failed');
   if (s42Fail.length) {
     throw new Error('42 jobs phase 1: ' + s42Fail.length + ' check(s) went the wrong way:\n    ' + s42Fail.join('\n    '));
+  }
+
+  // ─── 43. Jobs, stage 1 (2026-09-30): clients WRITE a customer's jobs (owner or
+  // same-company staff; never a viewer; the job must carry its lead's owner +
+  // tenant; the lead's shape checks), and a tenant loads its jobs with ONE
+  // collection-group query that returns nobody else's.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'leads/lead43'), { userId: 'own43', companyId: 'co43', stage: 'closed', activeJobId: 'j1' });
+    await setDoc(doc(db, 'leads/lead43/jobs/j1'), { stage: 'closed', userId: 'own43', companyId: 'co43' });
+    await setDoc(doc(db, 'leads/lead43other/jobs/j1'), { stage: 'new', userId: 'someoneElse', companyId: 'coOther' });
+    await setDoc(doc(db, 'leads/lead43other'), { userId: 'someoneElse', companyId: 'coOther', stage: 'new' });
+  });
+  const s43Fail = []; let s43Pass = 0;
+  async function x43(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s43Pass++;
+    } catch (e) { s43Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own43 = env.authenticatedContext('own43', { role: 'sales_rep', companyId: 'co43' }).firestore();
+  const mgr43 = env.authenticatedContext('mgr43', { role: 'manager', companyId: 'co43' }).firestore();
+  const vw43 = env.authenticatedContext('vw43', { role: 'viewer', companyId: 'co43' }).firestore();
+  const rep43 = env.authenticatedContext('rep43', { role: 'sales_rep', companyId: 'co43' }).firestore();
+  const j43 = (ctx, id) => doc(ctx, 'leads/lead43/jobs/' + id);
+  const good = { stage: 'new', stageRole: 'new', title: 'Caulk + sealant', jobValue: 180, userId: 'own43', companyId: 'co43' };
+  // writes
+  await x43('owner adds a second job to the customer', 'allow', setDoc(j43(own43, 'j2'), good));
+  await x43('same-company manager adds one', 'allow', setDoc(j43(mgr43, 'j3'), good));
+  await x43('a viewer adds one', 'deny', setDoc(j43(vw43, 'j4'), good));
+  await x43('another rep (not the owner, not staff) adds one', 'deny', setDoc(j43(rep43, 'j4'), good));
+  await x43('another tenant adds one', 'deny', setDoc(j43(bob, 'j4'), good));
+  await x43('a job stamped with another tenant', 'deny', setDoc(j43(own43, 'j5'), Object.assign({}, good, { companyId: 'coOther' })));
+  await x43('a job with no owner stamp', 'deny', setDoc(j43(own43, 'j6'), { stage: 'new' }));
+  await x43('a garbage stage role', 'deny', setDoc(j43(own43, 'j7'), Object.assign({}, good, { stageRole: 'hacked' })));
+  await x43('a negative job value', 'deny', setDoc(j43(own43, 'j8'), Object.assign({}, good, { jobValue: -5 })));
+  await x43('owner moves the second job along', 'allow', updateDoc(j43(own43, 'j2'), { stage: 'contract_signed', stageRole: 'job' }));
+  await x43('owner re-stamps a job to another tenant', 'deny', updateDoc(j43(own43, 'j2'), { companyId: 'coOther' }));
+  await x43('manager hard-deletes a job', 'deny', deleteDoc(j43(mgr43, 'j3')));
+  await x43('owner hard-deletes a job', 'allow', deleteDoc(j43(own43, 'j3')));
+  // collection-group reads
+  await x43('manager loads the tenant\'s jobs in one query', 'allow', getDocs(query(collectionGroup(mgr43, 'jobs'), where('companyId', '==', 'co43'))));
+  await x43('viewer loads them too (read-only role)', 'allow', getDocs(query(collectionGroup(vw43, 'jobs'), where('companyId', '==', 'co43'))));
+  await x43('a rep loads their OWN jobs', 'allow', getDocs(query(collectionGroup(own43, 'jobs'), where('userId', '==', 'own43'))));
+  await x43('a rep asks for the whole company\'s jobs', 'deny', getDocs(query(collectionGroup(own43, 'jobs'), where('companyId', '==', 'co43'))));
+  await x43('another tenant asks for co43\'s jobs', 'deny', getDocs(query(collectionGroup(bob, 'jobs'), where('companyId', '==', 'co43'))));
+  await x43('an unfiltered collection-group read', 'deny', getDocs(collectionGroup(mgr43, 'jobs')));
+  console.log('  43: ' + s43Pass + ' jobs-stage-1 checks passed, ' + s43Fail.length + ' failed');
+  if (s43Fail.length) {
+    throw new Error('43 jobs stage 1: ' + s43Fail.length + ' check(s) went the wrong way:\n    ' + s43Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');
