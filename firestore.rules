@@ -408,6 +408,10 @@ service cloud.firestore {
           // admin-SDK-only; the sole client write is the rep's Mark Paid / Mark
           // Unpaid toggle (owed<->paid), carved out below. See onReferralLeadWrite.
           && didNotChange(['userId', 'companyId'])
+          // activeJobId names the job the lead's fields describe
+          // (functions/jobs-mirror.js). Server-owned in phase 1: a client
+          // re-saving the same value is fine, changing it is not.
+          && didNotChange(['activeJobId'])
           // customerId is the key the PUBLIC referral resolver matches on, so
           // a lead whose customerId can be repointed can be aimed at another
           // tenant's customer. Write-once rather than frozen because the
@@ -439,7 +443,10 @@ service cloud.firestore {
             || (request.auth.token.get('companyId', '') == ''
                 && request.resource.data.companyId == request.auth.uid))
         // The lead modal's Add Lead carries the window too (2026-09-29).
-        && scheduleWindowOk();
+        && scheduleWindowOk()
+        // The first job is made by the server (jobs-mirror.js), never claimed
+        // by the client.
+        && !('activeJobId' in request.resource.data);
 
       // D3: flat-path subcollections — the measurementWebhook +
       // esignWebhook auto-append activity here via admin SDK. Rules
@@ -653,6 +660,20 @@ service cloud.firestore {
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
+      }
+
+      // ── JOBS (2026-09-30, a customer can have more than one job) ──
+      // leads/{id} is the CUSTOMER; each piece of work is a job here
+      // (functions/jobs-logic.js). Phase 1: the server writes these, by
+      // mirroring the lead's own fields into its active job
+      // (functions/jobs-mirror.js), so a client may READ them (same set as
+      // the lead's other subcollections) and write NONE. Phase 2 opens
+      // client writes with a shape check when the pipeline moves to jobs.
+      match /jobs/{jobId} {
+        allow read: if isAuth() && (isAdmin()
+          || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+          || parentLeadInMyCompany(leadId));
+        allow write: if false;
       }
 
       // ── DRAWINGS (roof measurements, sketches) ────────

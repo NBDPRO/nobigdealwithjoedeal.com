@@ -441,6 +441,10 @@ exports.getStripeOverview       = stripeLedger.getStripeOverview;
 // payoff marks the open Stripe invoice paid out of band. See money-paper.js.
 exports.moneyPaperOnInvoice = require('./money-paper').moneyPaperOnInvoice;
 
+// A customer can have more than one job (handoff 2026-09-30 #1), phase 1:
+// mirror each lead's job fields into leads/{id}/jobs/{activeJobId}.
+exports.jobsMirrorOnLead = require('./jobs-mirror').jobsMirrorOnLead;
+
 // Google Calendar sync (2026-09-29, calendar hub Phase 2): CRM jobs + adjuster
 // meetings → an "NBD Jobs" calendar the service account owns and shares with
 // Jo; free/busy for the double-booking warning. Inert until set up.
