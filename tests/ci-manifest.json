@@ -150,6 +150,7 @@
     "stripe-crm-invoice-2026-09-29.test.js",
     "money-paper-2026-09-30.test.js",
     "jobs-phase1-2026-09-30.test.js",
+    "jobs-stage1-2026-09-30.test.js",
     "stripe-ledger-ui-2026-09-29.test.js",
     "daily-success-sync-2026-09-29.test.js",
     "workout-coach-2026-09-29.test.js",
