@@ -237,6 +237,10 @@ Google events were keyed per LEAD, so a second job's date had nowhere to go.
   nothing writes; the app writes `adjusterMeetingStart`, `adjusterName`,
   `adjusterPhone`. Fixed in both copies, so the mirror carries them and a
   promotion no longer leaves the old claim's adjuster on the card.
-- Not yet per job: the .ics subscribe feed (its UIDs and links are per lead).
+- The .ics subscribe feed is per job too (follow-up PR, same day): a
+  customer's other job is fed in as the lead with that job's fields laid over
+  it, id `leadId/jobId` (its own UID, `lead-<leadId>/<jobId>`), titled
+  "Name — <job title>". The jobs read has its own try/catch, so a failure
+  serves the customers' events instead of 503-ing the whole feed.
 - Tests: [google-calendar-sync](../../tests/google-calendar-sync-2026-09-29.test.js)
   §7 (57 checks); break-tested ids, busy, overlay and the promotion swap.
