@@ -218,7 +218,7 @@
       return '<tr class="crm-list-row" data-id="' + _esc(l.id) + '">'
         + '<td class="cl-name"><a href="/pro/customer?id=' + encodeURIComponent(l.id) + '">' + _esc(_name(l)) + '</a>'
         +   '<div class="cl-addr">' + _esc(l.address || '') + '</div></td>'
-        + '<td class="cl-stage"><select class="cl-stage-select" data-id="' + _esc(l.id) + '" aria-label="Stage">' + opts + '</select></td>'
+        + '<td class="cl-stage"><select class="cl-stage-select" data-id="' + _esc(l.id) + '"' + (l._jobId ? ' data-job-id="' + _esc(l._jobId) + '"' : '') + ' aria-label="Stage">' + opts + '</select></td>'
         + '<td class="cl-value">' + (val > 0 ? '$' + val.toLocaleString() : '—') + '</td>'
         + '<td class="cl-age">' + (ageD == null ? '—' : ageD + 'd') + '</td>'
         + '<td class="cl-activity">' + (actD == null ? '—' : (actD === 0 ? 'today' : actD + 'd ago')) + '</td>'
@@ -251,7 +251,7 @@
     // so a gated/cancelled move snaps the select back to truth.
     wrap.querySelectorAll('.cl-stage-select').forEach((sel) => {
       sel.addEventListener('change', () => {
-        if (typeof window.moveCard === 'function') window.moveCard(sel.dataset.id, sel.value);
+        if (typeof window.moveCard === 'function') window.moveCard(sel.dataset.id, sel.value, sel.dataset.jobId ? { jobId: sel.dataset.jobId } : undefined);
       });
     });
   }
@@ -305,12 +305,12 @@
       const stale = actD != null && actD >= 7 ? ' cl-card-stale' : '';
       const btn = (cls, href, icon, label, extra) =>
         '<a class="cl-card-btn ' + cls + '" href="' + _esc(href) + '"' + (extra || '') + '>' + icon + '<span>' + label + '</span></a>';
-      return '<div class="cl-card" data-id="' + _esc(l.id) + '" data-phone="' + _esc(phone) + '" data-stage="' + _esc(sk) + '"'
+      return '<div class="cl-card" data-id="' + _esc(l.id) + '"' + (l._jobId ? ' data-job-id="' + _esc(l._jobId) + '"' : '') + ' data-phone="' + _esc(phone) + '" data-stage="' + _esc(sk) + '"'
         + ' data-next="' + _esc(swipe.next || '') + '" data-next-msg="' + _esc(swipe.msg) + '">'
         + '<div class="cl-card-top"><a class="cl-card-name" href="' + open + '">' + _esc(_name(l)) + '</a>'
         +   (val > 0 ? '<span class="cl-card-val">$' + val.toLocaleString() + '</span>' : '') + '</div>'
         + (addr ? '<div class="cl-card-addr">' + _esc(addr) + '</div>' : '')
-        + '<div class="cl-card-meta"><select class="cl-stage-select" data-id="' + _esc(l.id) + '" aria-label="Stage">' + opts + '</select>'
+        + '<div class="cl-card-meta"><select class="cl-stage-select" data-id="' + _esc(l.id) + '"' + (l._jobId ? ' data-job-id="' + _esc(l._jobId) + '"' : '') + ' aria-label="Stage">' + opts + '</select>'
         +   (touch ? '<span class="cl-card-touch' + stale + '">' + touch + '</span>' : '') + '</div>'
         + '<div class="cl-card-actions">'
         +   (phone ? btn('cl-call', 'tel:' + phone, '📞', 'Call') + btn('cl-text', 'sms:' + phone, '💬', 'Text') : '')
@@ -332,7 +332,7 @@
     });
     wrap.querySelectorAll('.cl-stage-select').forEach((sel) => {
       sel.addEventListener('change', () => {
-        if (typeof window.moveCard === 'function') window.moveCard(sel.dataset.id, sel.value);
+        if (typeof window.moveCard === 'function') window.moveCard(sel.dataset.id, sel.value, sel.dataset.jobId ? { jobId: sel.dataset.jobId } : undefined);
       });
     });
     wrap.querySelectorAll('.cl-card').forEach((card) => _wireSwipe(card, labelFor));
@@ -385,6 +385,10 @@
         }
         if (typeof window.moveCard === 'function') {
           const id = card.getAttribute('data-id');
+          const jobId = card.getAttribute('data-job-id');
+          // Another of the customer's jobs: moveCard moves that job and posts
+          // its own toast; the lead-stage confirmation below does not apply.
+          if (jobId) { window.moveCard(id, next, { jobId }); return; }
           // moveCard returns nothing and a stage gate can cancel it, so only
           // confirm once the lead actually reads the new stage.
           Promise.resolve(window.moveCard(id, next)).then(() => {

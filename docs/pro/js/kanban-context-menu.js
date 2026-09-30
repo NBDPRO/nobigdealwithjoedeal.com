@@ -43,9 +43,18 @@
   let touchStart = null;
 
   // ─── Helpers ─────────────────────────────────────────────────────
-  function findLead(leadId) {
+  // jobId (multi-job stage 2a): a card for one of the customer's OTHER jobs
+  // resolves to that job's card view (its own stage), so the "current" tick
+  // and "Move to stage" act on the job, not on the customer's active job.
+  function findLead(leadId, jobId) {
     if (!Array.isArray(window._leads)) return null;
-    return window._leads.find(l => l && l.id === leadId) || null;
+    const lead = window._leads.find(l => l && l.id === leadId) || null;
+    if (!lead || !jobId || jobId === lead.activeJobId || !window.NBDJobs) return lead;
+    const card = (window.NBDJobs.cardsFor(lead, window.NBDJobs.forLead(lead.id)) || []).find(c => c._jobId === jobId);
+    if (!card) return lead;
+    const norm = window.normalizeStage;
+    card._stageKey = norm ? norm(card.stage || 'new') : card.stage;
+    return card;
   }
 
   function escapeHtml(s) {
@@ -109,7 +118,7 @@
         icon: isCurrent ? '✓' : (meta.icon || '•'),
         label: opt.label + (isCurrent ? '  (current)' : ''),
         disabled: isCurrent,
-        onSelect: isCurrent ? null : () => window.moveCard && window.moveCard(lead.id, opt.value),
+        onSelect: isCurrent ? null : () => window.moveCard && window.moveCard(lead.id, opt.value, lead._jobId ? { jobId: lead._jobId } : undefined),
       };
     });
     return items;
@@ -475,7 +484,7 @@
     if (!card) return;
     const id = card.getAttribute('data-id');
     if (!id) return;
-    const lead = findLead(id);
+    const lead = findLead(id, card.getAttribute('data-job-id'));
     if (!lead) return;
     ev.preventDefault();
     buildMenu(lead, ev.clientX, ev.clientY);
@@ -490,8 +499,9 @@
     if (!t) return;
     touchStart = { x: t.clientX, y: t.clientY };
     if (touchTimer) clearTimeout(touchTimer);
+    const jobId = card.getAttribute('data-job-id');
     touchTimer = setTimeout(() => {
-      const lead = findLead(id);
+      const lead = findLead(id, jobId);
       if (!lead) return;
       // Suppress the click that would normally fire after the
       // touchend so the long-press doesn't ALSO open the card.
@@ -546,8 +556,8 @@
 
   window.KanbanContextMenu = {
     __sentinel: 'nbd-kanban-ctx-v1',
-    open: (leadId, x, y) => {
-      const lead = findLead(leadId);
+    open: (leadId, x, y, jobId) => {
+      const lead = findLead(leadId, jobId);
       if (!lead) return;
       buildMenu(lead, x || 100, y || 100);
     },

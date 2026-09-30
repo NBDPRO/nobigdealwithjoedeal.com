@@ -129,6 +129,29 @@ function _renderFollowUpRows(box, overdue) {
   if (more) more.addEventListener('click', () => { _fuShowAll = true; _renderFollowUpRows(box, overdue); });
 }
 
+// Customers → pipeline cards. Without jobs-store.js (or before its first load)
+// every customer is its own single card, exactly as before multi-job.
+function _expandJobCards(list) {
+  const J = window.NBDJobs;
+  if (!J || typeof J.cardsFor !== 'function' || !J.loadedAt || !J.loadedAt()) return list;
+  const norm = window.normalizeStage;
+  const roleOf = window.stageRole;
+  const out = [];
+  for (const l of list) {
+    const cards = J.cardsFor(l, J.forLead(l.id));
+    for (const c of cards) {
+      if (c !== l && c._jobId) {
+        // The copy still carries the customer's stamped stage keys; restamp
+        // them from THIS job's stage so bucketing + filters see the job.
+        c._stageKey = norm ? norm(c.stage || 'new') : (c.stage || 'new');
+        c._stageRole = c.stageRole || (typeof roleOf === 'function' ? roleOf(c._stageKey) : undefined);
+      }
+      out.push(c);
+    }
+  }
+  return out;
+}
+
 function renderLeads(leads, filtered){
   const all   = (leads  || window._leads || []);
   // No subset passed (undefined, or the explicit "unfiltered" null) → keep
@@ -216,6 +239,15 @@ function renderLeads(leads, filtered){
   }
   // Owners, admins, managers see all leads (no filter)
 
+  // ── One card per OPEN job (2026-09-30, multi-job stage 2a) ──
+  // A customer with a second job still open shows two cards (Jo J3); see
+  // docs/pro/js/jobs-store.js cardsFor. The ACTIVE job's card IS the lead
+  // object, so a customer with one job renders exactly as before. Done HERE —
+  // after prospect/snooze/rep scoping (customer-level) and before the track
+  // filters below (job-level: each card is filtered on its own job type and
+  // stage). window._filteredLeads stays LEADS (set above), never cards.
+  list = _expandJobCards(list);
+
   // ── Per-pipeline filter: only show leads that belong to the active track ──
   // Simple view: show all leads (no filter)
   // Insurance view: show insurance + unset jobType leads (NBD defaults to insurance)
@@ -255,7 +287,8 @@ function renderLeads(leads, filtered){
   if (filtered !== undefined && filtered !== null) {
     const countSpan = document.getElementById('crmSearchCount');
     if (countSpan) {
-      const shown = list.length;
+      // Customers, not cards: a customer with two open jobs is one match.
+      const shown = new Set(list.map((c) => c.id)).size;
       const hiddenN = Math.max(0, filtered.length - shown);
       countSpan.textContent = `${shown} match${shown === 1 ? '' : 'es'}`
         + (hiddenN ? ` · ${hiddenN} hidden (prospects, snoozed, or another pipeline tab)` : '');
@@ -632,7 +665,7 @@ function renderLeads(leads, filtered){
       wireKanbanCardListeners(body);
       // attach drag events to cards
       body.querySelectorAll('.k-card').forEach(card=>{
-        card.addEventListener('dragstart', e=>{ _dragId=card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', card.dataset.id); });
+        card.addEventListener('dragstart', e=>{ _dragId=card.dataset.id; window._dragJobId = card.dataset.jobId || null; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', card.dataset.id); e.dataTransfer.setData('application/x-nbd-job', card.dataset.jobId || ''); });
         card.addEventListener('dragend',   e=>{ card.classList.remove('dragging'); });
       });
       // Clean up previous drag listeners before adding new ones (prevents memory leak)
@@ -661,8 +694,9 @@ function renderLeads(leads, filtered){
         body.classList.remove('drag-over');
         const draggedId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || _dragId;
         if (!draggedId) return;
-        moveCard(draggedId, stageKey, { isDrag: true });
-        _dragId = null;
+        const draggedJob = (e.dataTransfer && e.dataTransfer.getData('application/x-nbd-job')) || window._dragJobId || null;
+        moveCard(draggedId, stageKey, draggedJob ? { isDrag: true, jobId: draggedJob } : { isDrag: true });
+        _dragId = null; window._dragJobId = null;
       };
       body.addEventListener('dragover', overHandler);
       body.addEventListener('dragleave', leaveHandler);
@@ -709,7 +743,7 @@ function renderLeads(leads, filtered){
       // every card was non-interactive (only drag worked).
       wireKanbanCardListeners(body);
       body.querySelectorAll('.k-card').forEach(card=>{
-        card.addEventListener('dragstart', e=>{ _dragId=card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', card.dataset.id); });
+        card.addEventListener('dragstart', e=>{ _dragId=card.dataset.id; window._dragJobId = card.dataset.jobId || null; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', card.dataset.id); e.dataTransfer.setData('application/x-nbd-job', card.dataset.jobId || ''); });
         card.addEventListener('dragend',   e=>{ card.classList.remove('dragging'); });
       });
       // Clean up previous drag listeners (prevents memory leak on re-render)
@@ -726,8 +760,9 @@ function renderLeads(leads, filtered){
         body.classList.remove('drag-over');
         const draggedId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || _dragId;
         if (!draggedId) return;
-        moveCard(draggedId, stage, { isDrag: true });
-        _dragId = null;
+        const draggedJob = (e.dataTransfer && e.dataTransfer.getData('application/x-nbd-job')) || window._dragJobId || null;
+        moveCard(draggedId, stage, draggedJob ? { isDrag: true, jobId: draggedJob } : { isDrag: true });
+        _dragId = null; window._dragJobId = null;
       };
       body.addEventListener('dragover', overH);
       body.addEventListener('dragleave', leaveH);
@@ -1369,6 +1404,9 @@ function buildCard(l){
   // escHtml before interpolation. An attacker-controlled lead field can
   // therefore never break out of an attribute or inject a handler.
   const safeId = escHtml(l.id);
+  // A non-active job's card (multi-job stage 2a): its moves must write THAT
+  // job, so the job id rides on the card and on the ◀▶ arrows.
+  const jobAttr = l._jobId ? ' data-job-id="' + escHtml(l._jobId) + '"' : '';
   const firstName = escHtml(nameRaw.split(' ')[0] || '');
   const showSmsBtn = ['new','contacted','inspected'].includes(_sk) && phone;
 
@@ -1467,7 +1505,7 @@ function buildCard(l){
     ? `<span class="kc-tag" style="background:rgba(194,65,20,.14);color:#c2410c;border-color:#c2410c;" title="This lead has an open warranty claim">🛟 Open Claim</span>`
     : '';
 
-  let html = `<div class="k-card nbd-kc-main ${stageAgingClass}" draggable="true" data-id="${safeId}" data-action="card-click">
+  let html = `<div class="k-card nbd-kc-main ${stageAgingClass}" draggable="true" data-id="${safeId}"${jobAttr} data-action="card-click">
     <div class="k-card-checkbox nbd-kc-stop" data-action="toggle-select" data-id="${safeId}">
       <span class="k-card-checkbox-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M4 10.5l4 4 8-9"/></svg></span>
     </div>
@@ -1529,8 +1567,8 @@ function buildCard(l){
       <button type="button" class="${taskBadgeClass}" data-action="open-tasks" data-id="${safeId}" title="${totalT ? 'View ' + totalT + ' task' + (totalT===1?'':'s') : 'Add a task'}" aria-label="${totalT ? 'View tasks' : 'Add a task'}">${taskBadgeLabel}</button>
       <div class="kc-actions">
         <div class="kc-move">
-          ${prevS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="← ${escHtml(prevLabel)}" aria-label="Move to previous stage: ${escHtml(prevLabel)}" data-action="move-card" data-id="${safeId}" data-target-stage="${escHtml(prevS)}">◀</button>` : '<span style="width:18px;"></span>'}
-          ${nextS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="→ ${escHtml(nextLabel)}" aria-label="Move to next stage: ${escHtml(nextLabel)}" data-action="move-card" data-id="${safeId}" data-target-stage="${escHtml(nextS)}">▶</button>` : '<span style="width:18px;"></span>'}
+          ${prevS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="← ${escHtml(prevLabel)}" aria-label="Move to previous stage: ${escHtml(prevLabel)}" data-action="move-card" data-id="${safeId}"${jobAttr} data-target-stage="${escHtml(prevS)}">◀</button>` : '<span style="width:18px;"></span>'}
+          ${nextS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="→ ${escHtml(nextLabel)}" aria-label="Move to next stage: ${escHtml(nextLabel)}" data-action="move-card" data-id="${safeId}"${jobAttr} data-target-stage="${escHtml(nextS)}">▶</button>` : '<span style="width:18px;"></span>'}
         </div>
         <!-- T2: action-bar consolidation. The four icon buttons (SMS,
              email, edit, delete) all duplicated functionality already
@@ -1892,6 +1930,47 @@ function _stageWriteMod() {
   return _stageWriteModPromise;
 }
 
+// Move one of a customer's NON-active jobs to newStage. Same gates the lead
+// path applies that make sense per job (viewer, same-stage no-op, required
+// fields for the destination), written through NBDJobs.update to
+// leads/{id}/jobs/{jobId}. → true when the move committed.
+async function _moveJobCard(lead, jobId, newStage, isDrag) {
+  const J = window.NBDJobs;
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return false;
+  const card = (J.cardsFor(lead, J.forLead(lead.id)) || []).find((c) => c._jobId === jobId)
+    || Object.assign({}, lead, (J.forLead(lead.id) || []).find((j) => j.id === jobId) || {}, { _jobId: jobId });
+  const norm = window.normalizeStage || ((x) => x);
+  const fromKey = norm(card.stage || 'new');
+  const toKey = norm(newStage);
+  if (fromKey === toKey) return false;
+  if (typeof window.missingRequiredFields === 'function') {
+    const missing = window.missingRequiredFields(Object.assign({}, card, { stage: newStage })) || [];
+    if (missing.length) {
+      const lbl = (f) => (typeof window.requiredFieldLabel === 'function' ? window.requiredFieldLabel(f) : f);
+      if (typeof showToast === 'function') showToast('To move this job, fill in: ' + missing.map(lbl).join(', ') + '.', 'error');
+      return false;
+    }
+  }
+  const role = typeof window.stageRole === 'function' ? window.stageRole(toKey) : undefined;
+  const now = new Date();
+  const patch = { stage: newStage, stageStartedAt: now };
+  if (role) patch.stageRole = role;
+  if (typeof window.arrayUnion === 'function') {
+    patch.stageHistory = window.arrayUnion({ from: card.stage || null, to: newStage, at: now.toISOString(), by: (window._user && window._user.uid) || null, drag: !!isDrag });
+  }
+  if (role === 'won' && toKey === 'closed') patch.closedAt = now;
+  try {
+    await J.update(lead, jobId, patch);
+    if (typeof showToast === 'function') showToast('Job moved', 'ok');
+    renderLeads(window._leads, window._filteredLeads);
+    return true;
+  } catch (e) {
+    console.warn('[moveJobCard] failed', e && e.code, e && e.message);
+    if (typeof showToast === 'function') showToast('Could not move that job — try again', 'error');
+    return false;
+  }
+}
+
 async function moveCard(id, newStage, opts){
   // isDrag: true ONLY for the 3 genuine drag-and-drop call sites, where
   // `newStage` is a COLUMN key the card was physically dropped on — several
@@ -1910,6 +1989,12 @@ async function moveCard(id, newStage, opts){
   const isDrag = !!(opts && opts.isDrag);
   const lead = (window._leads||[]).find(l=>l.id===id);
   if(!lead) return;
+  // Multi-job (stage 2a): a card for one of the customer's OTHER jobs moves
+  // that job, never the customer's active job. The active job's card carries
+  // no jobId (or the active id) and takes the path below, unchanged.
+  if (opts && opts.jobId && opts.jobId !== lead.activeJobId && window.NBDJobs) {
+    return _moveJobCard(lead, String(opts.jobId), newStage, isDrag);
+  }
   // Prevent concurrent moves on the same card
   if(lead._pending){ if(typeof showToast==='function') showToast('Move in progress...','info'); return; }
 
@@ -2406,7 +2491,7 @@ function wireKanbanCardListeners(container) {
     'card-click':   (el, ev) => typeof handleCardClick === 'function' && handleCardClick(el.dataset.id, ev),
     'toggle-select':(el)     => typeof toggleCardSelection === 'function' && toggleCardSelection(el.dataset.id),
     'open-tasks':   (el, ev) => typeof openTaskModal === 'function' && openTaskModal(el.dataset.id, ev),
-    'move-card':    (el)     => typeof moveCard === 'function' && moveCard(el.dataset.id, el.dataset.targetStage),
+    'move-card':    (el)     => typeof moveCard === 'function' && moveCard(el.dataset.id, el.dataset.targetStage, el.dataset.jobId ? { jobId: el.dataset.jobId } : undefined),
     'edit-lead':    (el)     => typeof editLead === 'function' && editLead(el.dataset.id),
     'delete-lead':  (el)     => typeof deleteLead === 'function' && deleteLead(el.dataset.id),
     'booking-sms':  (el)     => typeof sendBookingSMS === 'function' && sendBookingSMS(el.dataset.id, el.dataset.phone, el.dataset.firstName),
@@ -2423,7 +2508,8 @@ function wireKanbanCardListeners(container) {
     'card-overflow':(el, ev)  => {
       if (!window.KanbanContextMenu || typeof window.KanbanContextMenu.open !== 'function') return;
       const r = el.getBoundingClientRect();
-      window.KanbanContextMenu.open(el.dataset.id, r.right, r.bottom);
+      const cardEl = el.closest && el.closest('.k-card');
+      window.KanbanContextMenu.open(el.dataset.id, r.right, r.bottom, (cardEl && cardEl.dataset.jobId) || undefined);
     },
     // 2026-09-15: the next-best-action chip — was display-only, now runs
     // the SAME runLeadAction() the edit modal's Next Actions panel calls
