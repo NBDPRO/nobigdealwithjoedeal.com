@@ -542,6 +542,25 @@
     };
   }
 
+  // A customer's OTHER scheduled jobs (multi-job, 2026-09-30; the server sends
+  // view.progress.otherJobs, see functions/portal.js otherJobsFor). Same
+  // honesty rules as the main line: a day that has passed says nothing, a
+  // lapsed week says nothing. → [{title, when, text, date, win}].
+  function _otherJobLines(jobs, todayYmd) {
+    const out = [];
+    (Array.isArray(jobs) ? jobs : []).forEach(function (j) {
+      if (!j || typeof j.title !== 'string' || !j.title) return;
+      const s = _scheduleLine(j.scheduledDate, todayYmd);
+      if (s) {
+        if (s.when !== 'past') out.push({ title: j.title, when: s.when, text: s.text, date: j.scheduledDate, win: j.scheduleWindow || null });
+        return;
+      }
+      const w = _weekLine(j.scheduledWeek, todayYmd);
+      if (w) out.push({ title: j.title, when: 'week', text: w.text.replace('Your project is scheduled', 'Scheduled'), date: null, win: null });
+    });
+    return out;
+  }
+
   // The arrival window after the date (2026-09-29): "· arriving around
   // 7:00 am · 2-day job" / "· 2:30–3:30 pm". The server sends the window's
   // three fields raw (functions/portal.js scheduleWindowFor); the wording and
@@ -759,6 +778,13 @@
               + '<div class="progress-schedule-note">' + esc(week.note) + '</div>'
             + '</div>'
           : '';
+      // "Also scheduled — Gutter guards: Crew arrives Monday, October 12"
+      const otherHtml = _otherJobLines(p.otherJobs, _localToday()).map(function (o) {
+        const win = o.date ? _scheduleWindowSuffix(o.date, o.win, o.when) : '';
+        return '<div class="progress-schedule" data-when="' + esc(o.when) + '" data-other-job>'
+          + '<span aria-hidden="true">📅</span> Also scheduled — <strong>' + esc(o.title) + '</strong>: ' + esc(o.text) + esc(win)
+          + '</div>';
+      }).join('');
       parts.push(
         '<div class="card progress-card">' +
           '<div class="card-label">Where We Are</div>' +
@@ -768,6 +794,7 @@
             steps +
           '</div>' +
           schedHtml +
+          otherHtml +
           nextHtml +
         '</div>'
       );
