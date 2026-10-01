@@ -154,8 +154,8 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=12',
-      'js/document-generator-templates.js?v=9',
+      'js/document-generator.js?v=13',
+      'js/document-generator-templates.js?v=10',
       'js/doc-preflight.js?v=2',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same

@@ -90,7 +90,9 @@ ok('Oaks: getSharedCSS renders Oaks charcoal #333333', /#333333/i.test(dgOAK.get
 ok('Oaks: getSharedCSS does NOT render NBD navy', !/#1A3057/i.test(dgOAK.getSharedCSS()));
 
 console.log('\nDOCGEN BRAND — _logoSrc() + _docPrefix() (Phase B-2)');
-ok('NBD: logo falls back to nbd-logo.png', /nbd-logo\.png$/.test(dgNBD._logoSrc()));
+// The NAVY lockup (2026-09-30): nbd-logo.png is white-on-transparent for the
+// site's dark headers and "NO BIG" vanishes on a white page.
+ok('NBD: logo falls back to the navy nbd-logo-light-bg.png (readable on paper)', /nbd-logo-light-bg\.png$/.test(dgNBD._logoSrc()));
 ok('NBD: docPrefix = NBD (byte-identical)', dgNBD._docPrefix() === 'NBD');
 ok('Oaks: logo = tenant logoUrl', dgOAK._logoSrc() === 'https://nobigdealwithjoedeal.com/sites/oaks/logo-orange.svg');
 ok('Oaks: docPrefix = OAK', dgOAK._docPrefix() === 'OAK');

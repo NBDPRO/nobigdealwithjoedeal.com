@@ -203,7 +203,10 @@ window.NBDDocGen = {
     if (!this._nbdGate().isNbd) return '';
     return (typeof window !== 'undefined' && window.NBD_LOGO_DATA_URI)
       ? window.NBD_LOGO_DATA_URI
-      : this._assetOrigin() + '/assets/images/nbd-logo.png';
+      // Navy-on-white (2026-09-30): nbd-logo.png is the SITE lockup, recoloured
+      // white for dark headers (#1572) — on paper "NO BIG" vanishes. Same choice
+      // portal.html made; the inline data URI is the navy print master already.
+      : this._assetOrigin() + '/assets/images/nbd-logo-light-bg.png';
   },
 
   /**

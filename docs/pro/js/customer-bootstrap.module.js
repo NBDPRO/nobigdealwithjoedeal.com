@@ -3692,7 +3692,7 @@ window.generateCertFromEstimate = async function(estimateId) {
 </style><link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 </head><body>
 <div class="cert">
-  <img src="/assets/images/nbd-logo.png" alt="No Big Deal Home Solutions" style="height:64px;width:auto;display:block;margin:0 auto 10px;" loading="lazy" decoding="async" />
+  <img src="/assets/images/nbd-logo-light-bg.png" alt="No Big Deal Home Solutions" style="height:64px;width:auto;display:block;margin:0 auto 10px;" loading="lazy" decoding="async" />
   <div class="logo">NBD</div>
   <div class="logo-sub">No Big Deal Home Solutions</div>
   <h1>WARRANTY CERTIFICATE</h1>
