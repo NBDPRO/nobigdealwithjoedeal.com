@@ -347,6 +347,32 @@ variable **names**, never numbers or transcript text.
 - **Tools** (transfer / hang-up) are still unverified: neither call reached a
   turn where they'd fire.
 
+## 12. Greet-by-name root cause (2026-09-30, read-only)
+
+A third call since the 09-28 fixes (09-30 13:29Z, pathway v17, prod agent
+0.6.2) **did run the Initialization step** ("Custom Code Execution: Success")
+and Thursday again spoke first — yet `thursdaycallerlookup` logged **no
+request**, while `thursdaywebhook` logged the call (positive control).
+
+- **Cause:** the snippet returns "unknown caller" early when it has no number
+  (`if (!from || !token) return unknown`), and it never gets one. Bland hands
+  custom code ONLY the variables declared in the step's **Reference Variables**
+  (docs: Custom Code Node — dynamic variables like `{{from}}`). Version 0.6.2
+  declares none (`step.variables: {}`), so the request body held only
+  `persona_id` / `persona_version_id` — logged as the step's "Request Data".
+  The call itself does carry `from` / `phone_number` / `short_from`.
+- The snippet's URL is right (it matches the deployed function URL), and the
+  token is read from Bland's env (`env.THURSDAY_LOOKUP_TOKEN`), so once
+  `from` arrives the request should go out. If it still doesn't, the token
+  isn't bound to the snippet's env — next suspect.
+- **Fix (builder, Jo's account):** agent → Initialization → Reference
+  Variables → add a dynamic variable `from` = `{{from}}` → save the snippet →
+  publish to **staging** → one test call that stays on the line → check
+  `thursdaycallerlookup` logs for that minute → promote. No pathway edit (it is
+  compiled from the agent).
+- The 09-30 call's first line finished at 10.3 s (4.3 / 4.5 s before) and the
+  caller again hung up without speaking; one sample, not yet a trend.
+
 ## 6. Coordination notes
 
 - **#1780** (viewer-refusing callables) adds `tests/viewer-callables.test.js`. It requires every exported callable and HTTP function to carry a verdict.

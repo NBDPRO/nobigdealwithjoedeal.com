@@ -987,8 +987,10 @@ section('NBDDocGen branding: logo resolves in viewer context, orange/navy theme'
   // templates.js (20 of 24 templates) gets the same fix.
   assert('templates.js: ORIGIN constant computed at IIFE load',
     /const ORIGIN\s*=\s*\(function\s*\(\)\s*\{[\s\S]{0,400}window\.location\.origin/.test(templates));
-  assert('templates.js: LOGO_URL prefers NBD_LOGO_DATA_URI, falls back to ORIGIN + /assets/images/nbd-logo.png',
-    /(?:const|let) LOGO_URL\s*=[\s\S]{0,200}window\.NBD_LOGO_DATA_URI[\s\S]{0,200}ORIGIN\s*\+\s*['"]\/assets\/images\/nbd-logo\.png['"]/.test(templates));
+  // 2026-09-30: the fallback is the NAVY lockup — nbd-logo.png is white-on-
+  // transparent for the site's dark headers, and "NO BIG" vanishes on paper.
+  assert('templates.js: LOGO_URL prefers NBD_LOGO_DATA_URI, falls back to ORIGIN + /assets/images/nbd-logo-light-bg.png',
+    /(?:const|let) LOGO_URL\s*=[\s\S]{0,200}window\.NBD_LOGO_DATA_URI[\s\S]{0,350}ORIGIN\s*\+\s*['"]\/assets\/images\/nbd-logo-light-bg\.png['"]/.test(templates));
   // 2026-05-18: letterhead and intro-hero now render <img> tags backed
   // by NBD_LOGO_DATA_URI (the real brand image), replacing the earlier
   // hand-drawn SVG recreations. img-src + data: passes CSP cleanly.

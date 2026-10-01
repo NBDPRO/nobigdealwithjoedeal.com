@@ -98,7 +98,9 @@
   // failed to load. The SVG monogram inside each <object> is the final fallback.
   let LOGO_URL = (typeof window !== 'undefined' && window.NBD_LOGO_DATA_URI)
     ? window.NBD_LOGO_DATA_URI
-    : ORIGIN + '/assets/images/nbd-logo.png';
+    // The navy lockup: nbd-logo.png is white-on-transparent for the site's dark
+    // headers, and "NO BIG" disappears on paper (2026-09-30).
+    : ORIGIN + '/assets/images/nbd-logo-light-bg.png';
   // Derive the MIME from the data URI itself so a JPEG/PNG/SVG swap
   // in nbd-logo-asset.js doesn't need a parallel edit here.
   let LOGO_TYPE = (typeof window !== 'undefined' && window.NBD_LOGO_DATA_URI)
