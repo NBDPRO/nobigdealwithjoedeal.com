@@ -125,6 +125,37 @@ ok('the customer page loads jobs-store.js, then customer-jobs.js (stage 2b)', /j
     ok('the money tiles repaint once the jobs have loaded', /window\.NBDJobs\.load\(\)[\s\S]{0,700}window\.renderKPIRow\(\)[\s\S]{0,200}window\.renderWidgetHome\(\)/.test(read('dashboard-bootstrap.module.js')));
   }
 
+  console.log('\n8. Ask Joe + the forecast count every JOB too (2026-09-30)');
+  {
+    // One customer, two open jobs: the roof ($9,000, the card) and gutter
+    // guards ($1,450). Before: Ask Joe and the forecast saw $9,000.
+    const norm = (s) => String(s || '').toLowerCase();
+    const roleOf = (k) => ({ closed: 'won', lost: 'lost' }[k] || 'active');
+    const cust = { id: 'A', firstName: 'Pat', lastName: 'Q', activeJobId: 'j1', stage: 'inspected', _stageKey: 'inspected', jobValue: 9000 };
+    const jobsOf = () => [{ id: 'j1', stage: 'inspected' }, { id: 'j2', title: 'Gutter guards', stage: 'contacted', jobValue: 1450 }];
+    const NBDJobs = { recordsFor: (ls) => JS.records(ls, jobsOf, norm, roleOf) };
+    const pro = (f) => fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', f), 'utf8').replace(/\r\n/g, '\n');
+
+    const ai = pro('ai.js');
+    const a = ai.indexOf('function buildJoeContext('), b = ai.indexOf('function buildJoeSystemPrompt(');
+    const ctxW = { _leads: [cust], NBDJobs };
+    const sb = { window: ctxW, Date, Set, Object, parseFloat, String };
+    vm.runInNewContext(ai.slice(a, b) + '\nthis.__ctx = buildJoeContext();', sb);
+    ok('Ask Joe: pipeline value is both jobs ($10,450), still ONE customer', sb.__ctx.pipelineValue === 10450 && sb.__ctx.totalLeads === 1 && sb.__ctx.activeLeads === 1, JSON.stringify([sb.__ctx.pipelineValue, sb.__ctx.totalLeads]));
+    ok('Ask Joe: the top list names the second job', /Pat Q — Gutter guards \(contacted,.*\$1,450/.test(sb.__ctx.topLeads), sb.__ctx.topLeads);
+
+    const fw = { _leads: [cust], NBDJobs };
+    vm.runInNewContext(pro('forecasting.js'), { window: fw, document: { addEventListener() {} }, Date, Math, Object, Set });
+    const f = fw.Forecasting.compute();
+    ok('forecast: unweighted open pipeline is both jobs ($10,450)', f.unweighted === 10450, String(f.unweighted));
+    ok('forecast: the gutter job ranks on its own, named', f.topDeals.some((d) => d.name === 'Pat Q — Gutter guards' && d.value === 1450), JSON.stringify(f.topDeals.map((d) => d.name)));
+
+    const aj = pro('ask-joe-proactive.js');
+    ok('daily briefing: pipeline value and jobs-in-production read the job records',
+      /const recs = \(window\.NBDJobs && typeof window\.NBDJobs\.recordsFor === 'function'\) \? window\.NBDJobs\.recordsFor\(leads\) : leads;\s*const activeJobs = recs\.filter/.test(aj)
+      && /briefing\.stats\.pipelineValue = recs\.reduce/.test(aj));
+  }
+
   console.log('\n6. the duplicate prompt offers "Add a job to them"');
   const dd = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'lead-dedup.js'), 'utf8');
   const boot = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'dashboard-bootstrap.module.js'), 'utf8');

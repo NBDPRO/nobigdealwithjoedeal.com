@@ -349,7 +349,10 @@
       'final_photos', 'job_created', 'permit_pulled',
       'materials_ordered', 'materials_delivered', 'deductible_collected'
     ]);
-    const activeJobs = leads.filter(lead => {
+    // Jobs in production and pipeline money count every JOB — a customer's
+    // second job is its own (jobs-store.js recordsFor).
+    const recs = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(leads) : leads;
+    const activeJobs = recs.filter(lead => {
       const k = _stageKey(lead);
       if (_ACTIVE_JOB_KEYS.has(k)) return true;
       // 2026-09-15 (Kanban filter unification) — role-aware safety net, same
@@ -365,7 +368,7 @@
     briefing.stats.activeJobs = activeJobs.length;
 
     // Pipeline value
-    briefing.stats.pipelineValue = leads.reduce((sum, lead) => {
+    briefing.stats.pipelineValue = recs.reduce((sum, lead) => {
       if (_isTerminal(lead)) return sum;
       return sum + (Number(lead.jobValue) || 0);
     }, 0);

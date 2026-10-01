@@ -65,8 +65,13 @@ function buildJoeContext() {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(l.followUp));
     return (m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(l.followUp)) <= today;
   });
-  const pipeVal = active.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);
-  const closedRev = closed.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);
+  // Money counts every JOB (a customer's second job's value is its own —
+  // jobs-store.js recordsFor); customer counts and follow-ups stay on leads.
+  const recs = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(leads) : leads;
+  const activeJobs = recs.filter(l => !_terminal.has(l.stage || ''));
+  const closedJobs = recs.filter(l => l.stage === 'closed' || l.stage === 'Complete');
+  const pipeVal = activeJobs.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);
+  const closedRev = closedJobs.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);
 
   // Stage breakdown
   const byStage = {};
@@ -74,10 +79,10 @@ function buildJoeContext() {
   const stageStr = Object.entries(byStage).map(([k,v])=>`${k}:${v}`).join(', ');
 
   // Top leads to call out
-  const topLeads = active
+  const topLeads = activeJobs.slice()
     .sort((a,b)=>parseFloat(b.jobValue||0)-parseFloat(a.jobValue||0))
     .slice(0,5)
-    .map(l=>`${l.firstName||''} ${l.lastName||''} (${l.stage}, ${l.damageType||'unknown damage'}, $${parseFloat(l.jobValue||0).toLocaleString()}, ${l.claimStatus||'no claim'})`)
+    .map(l=>`${l.firstName||''} ${l.lastName||''}${l._jobTitle ? ' — ' + l._jobTitle : ''} (${l.stage},${l.damageType||'unknown damage'}, $${parseFloat(l.jobValue||0).toLocaleString()}, ${l.claimStatus||'no claim'})`)
     .join('; ');
 
   // Overdue follow-ups
