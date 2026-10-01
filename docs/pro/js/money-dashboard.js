@@ -578,7 +578,7 @@
       card('31–60 Days', fmt(m.agingCents.d31_60), 'past due', 'var(--orange,#BD5728)'),
       card('60+ Days', fmt(m.agingCents.d61_plus), 'past due', 'var(--red,#dc2626)'),
     ]);
-    html += '<div style="background:var(--s,#12223D);border:1px solid var(--br,rgba(255,255,255,.08));border-radius:12px;padding:16px;margin-bottom:20px;">';
+    html += '<div class="ui-card" style="margin-bottom:20px;">';
     if (!overdue.length) {
       html += '<div class="nbd-empty" style="padding:14px"><div class="ne-icon">✅</div><div class="ne-msg">Nothing overdue</div><div class="ne-sub">Every outstanding invoice is still inside its terms.</div></div>';
     } else {
@@ -627,7 +627,7 @@
 
     // Two-column: top suppliers + 1099
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">';
-    html += '<div style="background:var(--s,#12223D);border:1px solid var(--br,rgba(255,255,255,.08));border-radius:12px;padding:16px;">' +
+    html += '<div class="ui-card">' +
       '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">Top Suppliers — ' + m.year + '</h3>';
     if (!m.topSuppliers.length) html += '<div class="nbd-empty" style="padding:14px"><div class="ne-icon">🧾</div><div class="ne-msg">No spend logged yet</div><div class="ne-sub">Log expenses in the Expenses view and they roll up here.</div></div>';
     else {
@@ -639,7 +639,7 @@
       });
     }
     html += '</div>';
-    html += '<div style="background:var(--s,#12223D);border:1px solid var(--br,rgba(255,255,255,.08));border-radius:12px;padding:16px;">' +
+    html += '<div class="ui-card">' +
       '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">1099 Worklist — ' + m.year + '</h3>' +
       '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:40px;font-weight:800;color:' + (m.due1099 ? 'var(--orange,#BD5728)' : 'var(--t,#fff)') + ';">' + m.due1099 + '</div>' +
       '<div style="font-size:12px;color:var(--m,#9ca3af);">supplier(s) need a 1099-NEC · ' + fmt(m.due1099Cents) + ' in service payments</div>' +

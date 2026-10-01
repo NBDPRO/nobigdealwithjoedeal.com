@@ -107,7 +107,7 @@
       // renderCostPanel('profitPanel') runs during the customer render, so it
       // cannot be lazy there. Same cache key on both pages.
       'js/profit-tracker.js?v=3',
-      'js/expenses.js?v=4',
+      'js/expenses.js?v=5',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=2'
@@ -119,7 +119,7 @@
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=1',
-      'js/money-dashboard.js?v=5'
+      'js/money-dashboard.js?v=6'
     ],
     repos: [
       'js/rep-os.js?v=2'
