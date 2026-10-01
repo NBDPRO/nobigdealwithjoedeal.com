@@ -290,5 +290,21 @@ ok(real.files > 200, `scanned a real tree (${real.files} files) — an empty wal
 ok(real.findings.length === 0, `zero prohibited claim framings in public docs/ (found ${real.findings.length})`);
 for (const f of real.findings.slice(0, 40)) console.log(`      ${f.file} [${f.rule}] ${f.sentence}`);
 
+// ── 5. The Ask Joe system prompt (2026-10-01, found by the Repo Lab review) ─
+// The CRM is out of the tree scan's scope, but Ask Joe COACHES contractors,
+// so its prompt is held to the same rules: it said Joe knew "adjuster
+// negotiations" and offered to write a "letter to adjuster".
+console.log('\n5. Ask Joe system prompt');
+{
+  const ai = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'ai.js'), 'utf8');
+  const a = ai.indexOf('function buildJoeSystemPrompt(');
+  const prompt = ai.slice(a, ai.indexOf('\n}', a));
+  ok(a > 0 && prompt.length > 500, 'found the prompt');
+  ok(!/adjuster negotiations|letter to (the )?adjuster/i.test(prompt), 'no "adjuster negotiations" / "letter to adjuster"');
+  ok(/The insurance claim belongs to the homeowner/.test(prompt) && /KRS 367\.620/.test(prompt) && /unlicensed public adjusting/.test(prompt), 'states the homeowner owns the claim, the KY statute and the OH public-adjuster rule');
+  ok(/Never coach a contractor to negotiate the claim/.test(prompt) && /assignment of benefits/.test(prompt) && /deductible/.test(prompt), 'never coaches negotiating, AOB, or deductible waivers');
+  ok(/Numbers come ONLY from the context above/.test(prompt), 'numbers come only from the member context (no invented figures)');
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('\nFailures:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1); }

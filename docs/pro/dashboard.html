@@ -104,7 +104,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=24"></script>
+<script src="js/script-loader.js?v=26"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -753,6 +753,7 @@
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="money" id="nav-money"><span class="ni-icon">💵</span>Money</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="refrewards" id="nav-refrewards"><span class="ni-icon">🎁</span>Referrals</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="signs" id="nav-signs"><span class="ni-icon">🪧</span>Yard Signs</div>
+      <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="winback" id="nav-winback"><span class="ni-icon">🤝</span>Past Customers</div>
       <div class="ni" role="button" tabindex="0" data-action="windowOpen" data-target="/pro/daily-success/" id="nav-daily"><span class="ni-icon">📅</span>Success Tracker</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="storm" id="nav-storm"><span class="ni-icon">⛈️</span>Storm Watch</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="closeboard" id="nav-closeboard"><span class="ni-icon">📋</span>Close Board</div>
@@ -2341,6 +2342,9 @@
   <!-- Yard Signs: template-hydrated mount; yard-signs.js (lazy 'signs' bundle) renders the map + list into .view-scroll on init. -->
   <div class="view" id="view-signs" data-view-template="tpl-view-signs"></div>
   <template id="tpl-view-signs"><div class="view-scroll" id="signsScroll"></div></template>
+  <!-- Past Customers (win-back): template-hydrated mount; winback.js (lazy 'winback' bundle) renders the list into .view-scroll on init. -->
+  <div class="view" id="view-winback" data-view-template="tpl-view-winback"></div>
+  <template id="tpl-view-winback"><div class="view-scroll" id="winbackScroll"></div></template>
   <template id="tpl-view-closeboard">
     <div class="view-scroll">
       <div class="page-hdr">
@@ -5745,7 +5749,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=6"></script>
+<script defer src="js/dashboard-state.js?v=7"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=5"></script>
@@ -5782,7 +5786,7 @@
 <script defer src="js/estimate-preview.js?v=2"></script>
 <script defer src="js/dashboard-widgets.js?v=6"></script>
 <script defer src="js/dashboard-ui.js?v=9"></script>
-<script defer src="js/dashboard-actions.js?v=13"></script>
+<script defer src="js/dashboard-actions.js?v=14"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -5985,6 +5989,9 @@
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="signs" data-close-more>
     <span class="mm-item-icon">🪧</span>Yard Signs
+  </div>
+  <div class="mm-item" data-action="mobileNav" data-target="winback" data-close-more>
+    <span class="mm-item-icon">🤝</span>Past Customers
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="money" data-close-more>
     <span class="mm-item-icon">💵</span>Money
@@ -6775,7 +6782,7 @@
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->
 
-<script defer src="js/ai.js?v=7"></script>
+<script defer src="js/ai.js?v=8"></script>
 <script defer src="js/review-engine.js?v=5"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
 <script defer src="js/company-profile.js?v=4"></script>
@@ -6833,7 +6840,7 @@
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>
-<script defer src="js/mobile-nav-customizer.js?v=4"></script>
+<script defer src="js/mobile-nav-customizer.js?v=5"></script>
 <script defer src="js/connection-status-btn.js?v=3"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
      based on the user's claims. Lazy-loading would hide the nav entry

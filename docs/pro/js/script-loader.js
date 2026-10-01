@@ -119,7 +119,7 @@
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=1',
-      'js/money-dashboard.js?v=4'
+      'js/money-dashboard.js?v=5'
     ],
     repos: [
       'js/rep-os.js?v=2'
@@ -129,6 +129,12 @@
     signs: [
       'js/yard-signs-logic.js?v=3',
       'js/yard-signs.js?v=4'
+    ],
+    // Past Customers win-back list (2026-10-01): pure rules + drafts first,
+    // then the view. Nothing is sent without the rep tapping Send.
+    winback: [
+      'js/winback-logic.js?v=1',
+      'js/winback.js?v=1'
     ],
     decision: [
       'js/decision-engine.js?v=2'
@@ -400,6 +406,7 @@
     expenses:    ['expenses'],
     money:       ['money'],
     signs:       ['mapvendor', 'signs'],
+    winback:     ['winback'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     aitree:      ['decision'],

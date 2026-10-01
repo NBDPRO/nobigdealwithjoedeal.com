@@ -352,6 +352,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     if (x && x.classList.contains('active') && window.Expenses) { try { window.Expenses.init(); } catch (_) {} }
     const ys = document.getElementById('view-signs');
     if (ys && ys.classList.contains('active') && window.YardSigns) { try { window.YardSigns.init(); } catch (_) {} }
+    const wb = document.getElementById('view-winback');
+    if (wb && wb.classList.contains('active') && window.NBDWinback) { try { window.NBDWinback.init(); } catch (_) {} }
   });
 }
 
@@ -566,6 +568,7 @@ function goTo(name, params = {}) {
   if(name==='expenses')   { _lazyPreload.then(() => { if (window.Expenses)    window.Expenses.init();    }); }
   if(name==='money')      { _lazyPreload.then(() => { if (window.MoneyDashboard) window.MoneyDashboard.init(); }); }
   if(name==='signs')      { _lazyPreload.then(() => { if (window.YardSigns)   window.YardSigns.init();   }); }
+  if(name==='winback')    { _lazyPreload.then(() => { if (window.NBDWinback)  window.NBDWinback.init();  }); }
   if(name==='refrewards') { if (window.ReferralRewards) window.ReferralRewards.render(); }
   if(name==='repos')      { _lazyPreload.then(() => { if (window.RepOS)       window.RepOS.init();       }); }
   if(name==='talk-tank')  { _lazyPreload.then(() => { if (window.TalkTank)  window.TalkTank.init();  }); }

@@ -57,6 +57,18 @@ or recon-heavy session **writes its findings back**:
   (see `documentation/runbooks/PUBLISH-PROJECT.md`).
 - Money math stays in cents; estimates read `window.NBD_ESTIMATE_CONFIG`.
 
+## Code taste (not CI-enforced — borrowed from Ponytail, 2026-10-01 Repo Lab)
+
+- Native element or the standard library before any library
+  (`<input type="date">` over a picker, CSS transitions over an animation
+  library). A new dependency has to earn its place — and the CSP blocks CDNs,
+  so anything added gets vendored under `docs/` anyway.
+- No abstraction nobody asked for; the smallest change that fully solves it.
+- "Less code" never means cutting validation, accessibility, escaping or
+  security checks.
+- AI prompts treat customer/caller/web text as **data**, never instructions,
+  and never invent numbers the context didn't supply.
+
 ## Editing files on Windows (not CI-enforced — the gate is you)
 
 - **Never `sed -i` across a glob of repo files.** Git Bash's GNU sed
