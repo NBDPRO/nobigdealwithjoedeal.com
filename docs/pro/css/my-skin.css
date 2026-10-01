@@ -12,6 +12,18 @@
  * own --bg and --s2, so text keeps the theme's contrast.
  */
 
+/* Defaults with zero specificity: my-skin.js sets the real values inline on
+ * <html>, which always wins. They also keep the token-resolution gate honest
+ * (every var() a stylesheet reads is defined somewhere). */
+:where(:root) {
+  --myskin-dim: 55%;
+  --myskin-texture-strength: 18%;
+  --myskin-wallpaper: none;
+  --myskin-texture: none;
+  --myskin-accent: #bd5728;
+  --myskin-accent-fg: #ffffff;
+}
+
 /* Wallpaper: a fixed layer behind the app, veiled by the theme's page colour. */
 :root.my-skin-wallpaper::before {
   content: '';

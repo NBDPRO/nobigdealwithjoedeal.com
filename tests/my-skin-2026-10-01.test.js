@@ -130,9 +130,13 @@ console.log('\n4. CSS gating, panel, page wiring');
     }
     sels.push(cur.trim());
   });
-  const gated = (s) => /^:root(:not\(\[data-motion="reduce"\]\))?\.my-skin|^:root\.my-skin|^\.myskin-|^:root:not\(\[data-motion="reduce"\]\) \.myskin-/.test(s);
+  // ':where(:root)' holds only zero-specificity --myskin-* defaults (checked below).
+  const gated = (s) => s === ':where(:root)' || /^:root(:not\(\[data-motion="reduce"\]\))?\.my-skin|^:root\.my-skin|^\.myskin-|^:root:not\(\[data-motion="reduce"\]\) \.myskin-/.test(s);
   ok('positive control: selectors parsed', sels.length > 20, sels.length + ' selectors');
   ok('every rule is gated on a my-skin html class or a .myskin- element', sels.every(gated), JSON.stringify(sels.filter((s) => !gated(s))));
+  const defaults = (C.match(/:where\(:root\)\s*\{([^}]*)\}/) || [])[1] || '';
+  ok('the :where(:root) block only defines --myskin-* variables',
+    !!defaults && defaults.split(';').map((d) => d.trim()).filter(Boolean).every((d) => /^--myskin-[a-z-]+\s*:/.test(d)));
   ok('the accent override is !important (survives theme repaints)', /:root\.my-skin-accent\s*\{[^}]*--orange:\s*var\(--myskin-accent\)\s*!important/.test(C));
   ok('the mascot ignores pointer events and sits under the nav (z 1800 < 1900)', /\.myskin-mascot\s*\{[^}]*pointer-events:\s*none[^}]*z-index:\s*1800/.test(C));
   ok('the mascot only animates when motion is allowed', /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*:root:not\(\[data-motion="reduce"\]\) \.myskin-mascot/.test(C));
