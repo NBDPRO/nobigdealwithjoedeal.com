@@ -44,6 +44,13 @@ function ok(name, cond, detail) {
   const missing = ids.filter((id) => { const i = ENGINE.indexOf(`'${id}': {`); return i < themesAt || i > themesEnd; });
   ok('all ids found inside THEMES', missing.length === 0, JSON.stringify(missing));
 
+  const duo = ['duo-machine-red', 'duo-hyper-cobalt', 'duo-aubergine', 'duo-ghost-green', 'duo-neon-orange'];
+  ok("the Duo pack (Jo's palettes) is registered under a real duo category",
+    /key: 'duo'/.test(ENGINE) && duo.every((id) => {
+      const i = ENGINE.indexOf(`'${id}': {`);
+      return i > themesAt && i < themesEnd && /category: 'duo'/.test(ENGINE.slice(i, i + 200));
+    }));
+
   console.log('\n3. tiles are inert, small and faint');
   for (const id of ids) {
     const s = gen.TILES[id].svg;
