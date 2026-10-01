@@ -110,5 +110,17 @@ console.log('\n9. the homeowner-view token is cached for the session only');
     && !/localStorage\.setItem\(cacheKey/.test(src) && /for \(const k of \[legacyKey, cacheKey\]\)/.test(src));
 }
 
+console.log('\n10. review requests honour STOP and unsubscribe (found 2026-10-01 while mapping win-back)');
+{
+  const src = code('docs/pro/js/review-engine.js');
+  ok('no raw sms: or mailto: link — those opened the phone app and skipped the server opt-out checks', !/sms:\$\{|window\.open\(`sms:/.test(src) && !/mailto:\$\{/.test(src));
+  ok('the SMS goes through NBDComms.sendSMS and is logged only when it was not refused',
+    /await window\.NBDComms\.sendSMS\(\{ to: phone, message, leadId, source: 'review_request'/.test(src) && /if \(!res \|\| res\.success === false\) return;[^\n]*\n\s*logReviewRequest\(leadId, 'sms'\)/.test(src));
+  ok('the email goes through NBDComms.sendEmail as commercial mail (unsubscribe gate + footer server-side)',
+    /await window\.NBDComms\.sendEmail\(\{ to: lead\.email, subject, html, leadId, kind: 'review_request' \}\)/.test(src));
+  const S = require(path.join(ROOT, 'functions', 'email-suppression.js'));
+  ok("'review_request' is NOT transactional, so the server applies the unsubscribe register", S.resolveCategory({ kind: 'review_request' }) === S.CATEGORY.COMMERCIAL);
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
