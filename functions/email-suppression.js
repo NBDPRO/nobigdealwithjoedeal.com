@@ -387,6 +387,7 @@ const SEND_PATHS = Object.freeze({
   'review-request-nudge.js': 'internal',      // rep digest
   'storm-watch.js': 'internal',               // Joe's storm alert
   'lead-digest.js': 'internal',               // Joe's morning digest
+  'morning-brief.js': 'internal',             // owner's 06:45 appointment brief
   'weekly-digest.js': 'internal',             // rep digest
   'marketing-report.js': 'internal',          // Joe's monthly report
   'verify-functions.js': 'internal',          // Joe's new-lead alert
