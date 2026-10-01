@@ -129,7 +129,7 @@
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
 <link rel="stylesheet" href="css/dashboard-app.css?v=7">
-<link rel="stylesheet" href="css/ui-primitives.css?v=1">
+<link rel="stylesheet" href="css/ui-primitives.css?v=2">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=4" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
@@ -879,19 +879,19 @@
         </div>
         <div class="panel-body">
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
-            <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="crm" class="hov-blue">
+            <div data-action="goTo" data-target="crm" class="hov-blue ui-panel" style="padding:12px;cursor:pointer;transition:border-color .15s;">
               <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">New Leads</div>
               <div style="font-size:24px;font-weight:700;color:var(--blue);" id="weekNewLeads">0</div>
             </div>
-            <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="est" class="hov-gold">
+            <div data-action="goTo" data-target="est" class="hov-gold ui-panel" style="padding:12px;cursor:pointer;transition:border-color .15s;">
               <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Estimates Created</div>
               <div style="font-size:24px;font-weight:700;color:var(--gold);" id="weekEstimates">0</div>
             </div>
-            <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="crm" class="hov-green">
+            <div data-action="goTo" data-target="crm" class="hov-green ui-panel" style="padding:12px;cursor:pointer;transition:border-color .15s;">
               <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;" title="Job value of leads added this week — pipeline, not collected money">Pipeline Added</div>
               <div style="font-size:24px;font-weight:700;color:var(--green);" id="weekRevenue">$0</div>
             </div>
-            <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="crm" class="hov-purple">
+            <div data-action="goTo" data-target="crm" class="hov-purple ui-panel" style="padding:12px;cursor:pointer;transition:border-color .15s;">
               <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Tasks Completed</div>
               <div style="font-size:24px;font-weight:700;color:var(--purple);" id="weekTasks">0</div>
             </div>
@@ -1092,7 +1092,7 @@
         </div>
         <div id="propCard" class="dn">
           <div class="slabel2">Property Info</div>
-          <div style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px;margin-bottom:10px;" id="propCardInner"></div>
+          <div class="ui-panel" id="propCardInner" style="padding:10px;margin-bottom:10px;"></div>
         </div>
 
         <!-- MAP LAYERS -->
@@ -1533,7 +1533,7 @@
       <div class="page-hdr">
         <div><div class="page-title" id="estBuilderTitle">New Estimate</div></div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <select id="estPreset" data-on-change="applyEstimatePreset" style="padding:6px 10px;font-size:11px;border-radius:4px;background:var(--s2);border:1px solid var(--br);color:var(--t);">
+          <select class="ui-input" id="estPreset" data-on-change="applyEstimatePreset" style="padding:6px 10px;font-size:11px;color:var(--t);">
             <option value="">Presets…</option>
             <option value="standard">Standard Reroof</option>
             <option value="storm">Storm Claim</option>
@@ -1627,7 +1627,7 @@
               </label>
               <label style="display:flex;align-items:center;gap:8px;">
                 <span>Tear-off layers:</span>
-                <select id="estTearOff" data-on-change="calcTierPrices" style="padding:3px 8px;border-radius:4px;background:var(--s2);border:1px solid var(--br);color:var(--t);">
+                <select class="ui-input" id="estTearOff" data-on-change="calcTierPrices" style="padding:3px 8px;color:var(--t);">
                   <option value="1" selected>1 layer</option>
                   <option value="2">2 layers (+$50/SQ)</option>
                   <option value="3">3 layers (+$100/SQ)</option>
@@ -1687,7 +1687,7 @@
               </label>
               <label style="display:flex;align-items:center;gap:6px;">
                 <span>Gutter LF:</span>
-                <input type="number" id="estGutterLF" min="0" placeholder="0" data-on-input="calcTierPrices" style="width:70px;padding:3px 6px;border-radius:4px;background:var(--s2);border:1px solid var(--br);color:var(--t);">
+                <input class="ui-input" type="number" id="estGutterLF" min="0" placeholder="0" data-on-input="calcTierPrices" style="width:70px;padding:3px 6px;color:var(--t);">
               </label>
             </div>
             <!-- EBv2 insurance overlay: hidden until Mode=Insurance.
@@ -2239,9 +2239,9 @@
         </div>
         <div style="position:relative;flex:1;min-width:180px;max-width:320px;">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--m);pointer-events:none;"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg>
-          <input type="text" id="photoSearchInput" placeholder="Search jobs by name or address..." data-on-input="filterPhotoLeads" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:8px 10px 8px 30px;font-size:12px;color:var(--t);font-family:inherit;">
+          <input class="ui-input" type="text" id="photoSearchInput" placeholder="Search jobs by name or address..." data-on-input="filterPhotoLeads" style="width:100%;padding:8px 10px 8px 30px;font-size:12px;color:var(--t);font-family:inherit;">
         </div>
-        <select id="photoLeadSelect" data-on-change="nbdSelectPhotoLead" style="background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:8px 10px;font-size:11px;color:var(--t);max-width:220px;">
+        <select class="ui-input" id="photoLeadSelect" data-on-change="nbdSelectPhotoLead" style="padding:8px 10px;font-size:11px;color:var(--t);max-width:220px;">
           <option value="">Select a property...</option>
         </select>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--s2);border:1px solid var(--br);border-radius:5px;cursor:pointer;white-space:nowrap;font-size:11px;color:var(--m);">
@@ -2294,7 +2294,7 @@
   <!-- ══ INSPECTION REPORT BUILDER OVERLAY (works from any view) ══ -->
   <div id="inspectionBuilderOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9990;background:var(--bg,var(--bg));overflow-y:auto;">
     <div style="max-width:900px;margin:0 auto;padding:20px;">
-      <button data-action="call" data-fn="closeInspectionBuilder" style="position:fixed;top:16px;right:20px;z-index:9991;background:var(--s2);border:1px solid var(--br);color:var(--t);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">✕ Close Builder</button>
+      <button class="ui-panel" data-action="call" data-fn="closeInspectionBuilder" style="position:fixed;top:16px;right:20px;z-index:9991;color:var(--t);padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;">✕ Close Builder</button>
       <div id="inspectionBuilderContainer" style="padding:16px 0;"></div>
     </div>
   </div>
@@ -2981,7 +2981,7 @@
             </div>
             <div class="sf-row">
               <div class="sf"><label>Role</label>
-                <select id="settingsRole" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px 12px;font-family:inherit;font-size:13px;color:var(--t);outline:none;">
+                <select class="ui-input" id="settingsRole" style="width:100%;padding:10px 12px;font-family:inherit;font-size:13px;color:var(--t);outline:none;">
                   <option>Owner / Operator</option>
                   <option>Sales Rep</option>
                   <option>Project Manager</option>
@@ -3113,7 +3113,7 @@
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">CRM</div><div class="panel-title">Pipeline Preferences</div></div></div>
           <div class="panel-body">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:10px;">
+            <div class="ui-panel" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:10px;">
               <div>
                 <div class="h-13-mb2">Secondary Toolbar</div>
                 <div class="meta-11">Quick nav to Estimates, Photos, Docs, Map</div>
@@ -3125,7 +3125,7 @@
             </div>
 
             <!-- Card Density -->
-            <div style="padding:12px 14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:10px;">
+            <div class="ui-panel" style="padding:12px 14px;margin-bottom:10px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                 <div>
                   <div class="h-13-mb2">Card Density</div>
@@ -3141,7 +3141,7 @@
 
             <!-- Default Pipeline View (2026-09-24): per device on purpose, so
                  a phone can default to List while the desktop keeps Board. -->
-            <div style="padding:12px 14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:10px;">
+            <div class="ui-panel" style="padding:12px 14px;margin-bottom:10px;">
               <div style="margin-bottom:10px;">
                 <div class="h-13-mb2">Default Pipeline View</div>
                 <div class="meta-11">Auto opens List on a phone and Board on a computer. Saved on this device.</div>
@@ -3154,7 +3154,7 @@
             </div>
 
             <!-- Bold-hierarchy toggle -->
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:8px;">
+            <div class="ui-panel" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:8px;">
               <div>
                 <div class="h-13-mb2">Bold Name &amp; Value</div>
                 <div class="meta-11">Promotes the lead name and dollar amount; mutes everything else</div>
@@ -3169,7 +3169,7 @@
                  Off by default — feedback was that the auto-shrink during
                  column scroll felt twitchy. Available for users who want
                  the extra column height when actively browsing. -->
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">
+            <div class="ui-panel" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;">
               <div>
                 <div class="h-13-mb2">Auto-collapse header on scroll</div>
                 <div class="meta-11">Tightens the header while you're actively scrolling or dragging cards. Off by default.</div>
@@ -3216,7 +3216,7 @@
           <div class="panel-hdr"><div><div class="panel-label">Display Mode</div><div class="panel-title">Light · Dark · Auto</div></div></div>
           <div class="panel-body">
             <div style="font-size:11px;color:var(--m);margin-bottom:10px;">Every theme renders in the mode you choose. Auto follows your device setting.</div>
-            <div id="te-mode-toggle" style="display:inline-flex;background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:3px;gap:2px;">
+            <div class="ui-panel" id="te-mode-toggle" style="display:inline-flex;padding:3px;gap:2px;">
               <button class="te-mode-btn" data-action="call" data-fn="nbdSetModePref" data-arg="light" data-mode-val="light" style="padding:7px 14px;border-radius:6px;background:transparent;border:none;color:var(--m);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;">☀️ Light</button>
               <button class="te-mode-btn" data-action="call" data-fn="nbdSetModePref" data-arg="dark" data-mode-val="dark" style="padding:7px 14px;border-radius:6px;background:transparent;border:none;color:var(--m);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;">🌙 Dark</button>
               <button class="te-mode-btn" data-action="call" data-fn="nbdSetModePref" data-arg="auto" data-mode-val="auto" style="padding:7px 14px;border-radius:6px;background:transparent;border:none;color:var(--m);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;">⚙️ Auto</button>
@@ -3374,7 +3374,7 @@
 
               <div class="mb-14">
                 <label class="eyebrow">Theme Name</label>
-                <input type="text" id="tbName" placeholder="My Custom Theme" maxlength="30" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 12px;color:var(--t);font-family:inherit;font-size:13px;">
+                <input class="ui-input" type="text" id="tbName" placeholder="My Custom Theme" maxlength="30" style="width:100%;padding:10px 12px;color:var(--t);font-family:inherit;font-size:13px;">
               </div>
 
               <div class="flex-g8">
@@ -3676,7 +3676,7 @@
             <div class="sf-row">
               <div class="sf">
                 <label>Focus Category</label>
-                <select id="ds-cat" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:4px;padding:8px 10px;color:var(--t);font-size:13px;width:100%;outline:none;">
+                <select class="ui-input" id="ds-cat" style="width:100%;padding:8px 10px;color:var(--t);font-size:13px;width:100%;outline:none;">
                   <option value="Roofing Sales">Roofing Sales</option>
                   <option value="Storm Restoration">Storm Restoration</option>
                   <option value="General Contractor">General Contractor</option>
@@ -3686,13 +3686,13 @@
               </div>
               <div class="sf">
                 <label>Deadline</label>
-                <input type="date" id="ds-deadline" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:4px;padding:8px 10px;color:var(--t);font-size:13px;outline:none;">
+                <input class="ui-input" type="date" id="ds-deadline" style="width:100%;padding:8px 10px;color:var(--t);font-size:13px;outline:none;">
               </div>
             </div>
             <div class="sf" style="margin-top:10px;">
               <label>Target / Goal Statement</label>
-              <input type="text" id="ds-target" placeholder="e.g. Close $500K in storm claims by end of Q2"
-                style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:4px;padding:8px 10px;color:var(--t);font-size:13px;outline:none;">
+              <input class="ui-input" type="text" id="ds-target" placeholder="e.g. Close $500K in storm claims by end of Q2"
+                style="width:100%;padding:8px 10px;color:var(--t);font-size:13px;outline:none;">
             </div>
           </div>
         </div>
@@ -3715,8 +3715,8 @@
           <div class="panel-body">
             <div class="sf">
               <label>Your reward for hitting all floors</label>
-              <input type="text" id="ds-goose" placeholder="e.g. 30 min of guilt-free screen time"
-                style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:4px;padding:8px 10px;color:var(--t);font-size:13px;outline:none;">
+              <input class="ui-input" type="text" id="ds-goose" placeholder="e.g. 30 min of guilt-free screen time"
+                style="width:100%;padding:8px 10px;color:var(--t);font-size:13px;outline:none;">
             </div>
             <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
               <label class="ob-toggle" style="position:relative;width:38px;height:20px;flex-shrink:0;">
@@ -4089,7 +4089,7 @@
           <div class="panel-hdr"><div><div class="panel-label">Your Team</div><div class="panel-title">Team Members</div></div></div>
           <div class="panel-body">
             <!-- Owner card (always shows) -->
-            <div style="padding:16px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:12px;">
+            <div class="ui-panel" style="padding:16px;margin-bottom:12px;">
               <div style="display:flex;align-items:center;gap:12px;">
                 <div style="width:44px;height:44px;border-radius:22px;background:var(--orange);color:var(--accent-fg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;" id="teamOwnerInitials">JD</div>
                 <div class="f1">
@@ -4118,11 +4118,11 @@
               <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
                 <div class="f1" style="flex:1 1 220px;min-width:0;">
                   <label style="font-size:10px;color:var(--m);display:block;margin-bottom:4px;">Email Address</label>
-                  <input type="email" id="inviteRepEmail" placeholder="rep@email.com" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 12px;color:var(--t);font-family:inherit;font-size:13px;">
+                  <input class="ui-input" type="email" id="inviteRepEmail" placeholder="rep@email.com" style="width:100%;padding:10px 12px;color:var(--t);font-family:inherit;font-size:13px;">
                 </div>
                 <div>
                   <label style="font-size:10px;color:var(--m);display:block;margin-bottom:4px;">Role</label>
-                  <select id="inviteRepRole" style="background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 12px;color:var(--t);font-family:inherit;font-size:12px;">
+                  <select class="ui-input" id="inviteRepRole" style="padding:10px 12px;color:var(--t);font-family:inherit;font-size:12px;">
                     <option value="sales_rep">Sales Rep</option>
                     <option value="manager">Manager</option>
                     <option value="viewer">Viewer</option>
@@ -4152,19 +4152,19 @@
           <div class="panel-hdr"><div><div class="panel-label">Access Control</div><div class="panel-title">Role Permissions</div></div></div>
           <div class="panel-body">
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
-              <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:14px;">
+              <div class="ui-panel" style="padding:14px;">
                 <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:6px;">Owner / Admin</div>
                 <div style="font-size:11px;color:var(--m);line-height:1.5;">Full access. Billing, team management, all leads, all data, all settings.</div>
               </div>
-              <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:14px;">
+              <div class="ui-panel" style="padding:14px;">
                 <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:6px;">Manager</div>
                 <div style="font-size:11px;color:var(--m);line-height:1.5;">See all reps' leads. Assign territories. View reports. Cannot manage billing.</div>
               </div>
-              <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:14px;">
+              <div class="ui-panel" style="padding:14px;">
                 <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:6px;">Sales Rep</div>
                 <div style="font-size:11px;color:var(--m);line-height:1.5;">Own leads only. D2D, estimates, photos, documents. Scoped to assigned territory.</div>
               </div>
-              <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:14px;">
+              <div class="ui-panel" style="padding:14px;">
                 <div style="font-size:12px;font-weight:700;color:var(--m);margin-bottom:6px;">Viewer</div>
                 <div style="font-size:11px;color:var(--m);line-height:1.5;">Read-only access to pipeline + reports. No editing, no lead creation.</div>
               </div>
@@ -4213,7 +4213,7 @@
           <div class="panel-body">
             <p class="meta-12-mb14">NBD Pro supports three login methods. You can enable or disable each one.</p>
 
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:10px;">
+            <div class="ui-panel" style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:10px;">
               <div>
                 <div class="heading-13">Email + Password</div>
                 <div class="meta-11">Standard Firebase Auth login</div>
@@ -4221,7 +4221,7 @@
               <span style="font-size:10px;font-weight:700;padding:4px 10px;background:rgba(46,204,138,.15);color:var(--green);border-radius:3px;letter-spacing:.08em;">✓ ENABLED</span>
             </div>
 
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:10px;">
+            <div class="ui-panel" style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:10px;">
               <div>
                 <div class="heading-13">Access Code</div>
                 <div class="meta-11">Hidden. Admins can reveal the active code from the Team Manager.</div>
@@ -4229,7 +4229,7 @@
               <span style="font-size:10px;font-weight:700;padding:4px 10px;background:rgba(46,204,138,.15);color:var(--green);border-radius:3px;letter-spacing:.08em;" id="accessCodeStatus">✓ ENABLED</span>
             </div>
 
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">
+            <div class="ui-panel" style="display:flex;justify-content:space-between;align-items:center;padding:14px;">
               <div>
                 <div class="heading-13">Demo / Try It Mode</div>
                 <div class="meta-11">Read-only sandbox on landing page</div>
@@ -4313,17 +4313,17 @@
                  --accent-fg (the ink for an --orange fill) made them white-on-cream,
                  1.11:1, in light mode (sibling of the Team tab's views#7, 2026-09-25). -->
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;" id="billingUsageMeters">
-              <div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">
+              <div class="ui-panel" style="padding:12px;">
                 <div style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Leads</div>
                 <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--t);" id="billingLeadsUsed">—</div>
                 <div style="height:4px;background:var(--br);border-radius:2px;margin-top:6px;overflow:hidden;"><div id="billingLeadsBar" style="height:100%;background:var(--orange);border-radius:2px;width:0%;transition:width .3s;"></div></div>
               </div>
-              <div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">
+              <div class="ui-panel" style="padding:12px;">
                 <div style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Reports</div>
                 <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--t);" id="billingReportsUsed">—</div>
                 <div style="height:4px;background:var(--br);border-radius:2px;margin-top:6px;overflow:hidden;"><div id="billingReportsBar" style="height:100%;background:var(--orange);border-radius:2px;width:0%;transition:width .3s;"></div></div>
               </div>
-              <div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">
+              <div class="ui-panel" style="padding:12px;">
                 <div style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">AI Calls</div>
                 <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--t);" id="billingAIUsed">—</div>
                 <div style="height:4px;background:var(--br);border-radius:2px;margin-top:6px;overflow:hidden;"><div id="billingAIBar" style="height:100%;background:var(--orange);border-radius:2px;width:0%;transition:width .3s;"></div></div>
@@ -4346,17 +4346,17 @@
           <div class="panel-body">
             <p class="meta-12-mb14">Anthropic API charges pass through directly to your key. We don't mark up AI calls.</p>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-              <div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;text-align:center;">
+              <div class="ui-panel" style="padding:12px;text-align:center;">
                 <div style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;">This Month</div>
                 <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:var(--t);" id="aiUsageMonth">—</div>
                 <div style="font-size:9px;color:var(--m);">API calls</div>
               </div>
-              <div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;text-align:center;">
+              <div class="ui-panel" style="padding:12px;text-align:center;">
                 <div style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;">Cost</div>
                 <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:var(--orange);" id="aiUsageCost">$0.00</div>
                 <div style="font-size:9px;color:var(--m);">Estimated</div>
               </div>
-              <div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;text-align:center;">
+              <div class="ui-panel" style="padding:12px;text-align:center;">
                 <div style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;">Tokens</div>
                 <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:var(--t);" id="aiUsageTokens">—</div>
                 <div style="font-size:9px;color:var(--m);">In + Out</div>
@@ -4409,7 +4409,7 @@
           <div class="panel-body">
             <p class="meta-12-mb14">Pick one default mode. Critical-only is recommended — keeps interruptions under 4/day.</p>
 
-            <label style="display:flex;gap:12px;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:8px;cursor:pointer;">
+            <label class="ui-panel" style="display:flex;gap:12px;padding:14px;margin-bottom:8px;cursor:pointer;">
               <input type="radio" name="notifMode" value="critical" id="notifCritical" checked style="margin-top:3px;">
               <div>
                 <div class="heading-13">Critical Only (Recommended)</div>
@@ -4417,7 +4417,7 @@
               </div>
             </label>
 
-            <label style="display:flex;gap:12px;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:8px;cursor:pointer;">
+            <label class="ui-panel" style="display:flex;gap:12px;padding:14px;margin-bottom:8px;cursor:pointer;">
               <input type="radio" name="notifMode" value="digest" id="notifDigest" style="margin-top:3px;">
               <div>
                 <div class="heading-13">Scheduled Digests</div>
@@ -4425,7 +4425,7 @@
               </div>
             </label>
 
-            <label style="display:flex;gap:12px;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:7px;cursor:pointer;">
+            <label class="ui-panel" style="display:flex;gap:12px;padding:14px;cursor:pointer;">
               <input type="radio" name="notifMode" value="firehose" id="notifFirehose" style="margin-top:3px;">
               <div>
                 <div class="heading-13">Real-Time Firehose</div>
@@ -4675,7 +4675,7 @@
             <div class="panel-title">Team Members</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
-            <input id="adminRosterFilter" placeholder="Filter by name, email, role..." style="font-size:11px;padding:6px 10px;background:var(--s2);border:1px solid var(--br);border-radius:4px;color:var(--t);width:220px;"/>
+            <input class="ui-input" id="adminRosterFilter" placeholder="Filter by name, email, role..."/ style="font-size:11px;padding:6px 10px;color:var(--t);width:220px;">
           </div>
         </div>
         <div class="panel-body" style="padding:0;">
@@ -4729,15 +4729,15 @@
       <div style="display:grid;gap:12px;">
         <div>
           <label class="eyebrow-9">Email</label>
-          <input id="adminNewEmail" type="email" placeholder="rep@company.com" style="width:100%;font-size:13px;padding:10px;background:var(--s2);border:1px solid var(--br);border-radius:5px;color:var(--t);"/>
+          <input class="ui-input" id="adminNewEmail" type="email" placeholder="rep@company.com"/ style="width:100%;font-size:13px;padding:10px;color:var(--t);">
         </div>
         <div>
           <label class="eyebrow-9">Display Name</label>
-          <input id="adminNewName" type="text" placeholder="Jane Doe" style="width:100%;font-size:13px;padding:10px;background:var(--s2);border:1px solid var(--br);border-radius:5px;color:var(--t);"/>
+          <input class="ui-input" id="adminNewName" type="text" placeholder="Jane Doe"/ style="width:100%;font-size:13px;padding:10px;color:var(--t);">
         </div>
         <div>
           <label class="eyebrow-9">Role</label>
-          <select id="adminNewRole" style="width:100%;font-size:13px;padding:10px;background:var(--s2);border:1px solid var(--br);border-radius:5px;color:var(--t);">
+          <select class="ui-input" id="adminNewRole" style="width:100%;font-size:13px;padding:10px;color:var(--t);">
             <option value="sales_rep">Sales Rep — create leads, log knocks</option>
             <option value="manager">Manager — see all team leads + reports</option>
             <option value="viewer">Viewer — read-only</option>
@@ -4770,7 +4770,7 @@
       <div style="display:grid;gap:14px;">
         <div>
           <label class="eyebrow-9">Role</label>
-          <select id="adminEditRole" style="width:100%;font-size:13px;padding:10px;background:var(--s2);border:1px solid var(--br);border-radius:5px;color:var(--t);">
+          <select class="ui-input" id="adminEditRole" style="width:100%;font-size:13px;padding:10px;color:var(--t);">
             <option value="sales_rep">Sales Rep</option>
             <option value="manager">Manager</option>
             <option value="viewer">Viewer</option>
@@ -4920,7 +4920,7 @@
         <div class="panel-hdr"><div><div class="panel-label">Your Booking Link</div><div class="panel-title">Share With Homeowners</div></div></div>
         <div class="panel-body">
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-            <input type="text" id="calBookingUrl" value="" readonly placeholder="Set your Cal.com username below to generate your link" style="flex:1;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
+            <input class="ui-input" type="text" id="calBookingUrl" value="" readonly placeholder="Set your Cal.com username below to generate your link" style="flex:1;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             <button class="btn btn-orange" style="padding:10px 16px;font-size:12px;white-space:nowrap;" data-action="call" data-fn="copyCalLink">📋 Copy Link</button>
           </div>
           <div class="fwgap-8">
@@ -4941,7 +4941,7 @@
             Puts every appointment and every scheduled job straight into the Calendar app on your phone, refreshing on its own. Anyone with this link can read your schedule — rotate it if it gets out.
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-            <input type="text" id="calFeedUrl" value="" readonly placeholder="Tap &quot;Create my link&quot; to generate your feed" style="flex:1;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
+            <input class="ui-input" type="text" id="calFeedUrl" value="" readonly placeholder="Tap &quot;Create my link&quot; to generate your feed" style="flex:1;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             <button type="button" class="btn btn-orange" id="calFeedCreate" style="padding:10px 16px;font-size:12px;white-space:nowrap;">Create my link</button>
           </div>
           <div class="fwgap-8">
@@ -4966,11 +4966,11 @@
           <div class="sf-row">
             <div class="sf" style="flex:2;">
               <label class="eyebrow">Cal.com Username</label>
-              <input type="text" id="calUsername" placeholder="your-cal-username" value="" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);" data-on-input="updateCalEmbed">
+              <input class="ui-input" type="text" id="calUsername" placeholder="your-cal-username" value="" data-on-input="updateCalEmbed" style="width:100%;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             </div>
             <div class="sf" style="flex:2;">
               <label class="eyebrow">Event Type Slug</label>
-              <input type="text" id="calEventSlug" placeholder="roof-inspection" value="" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);" data-on-input="updateCalEmbed">
+              <input class="ui-input" type="text" id="calEventSlug" placeholder="roof-inspection" value="" data-on-input="updateCalEmbed" style="width:100%;padding:10px 14px;font-family:inherit;font-size:13px;color:var(--t);">
             </div>
             <div class="sf" style="flex:1;display:flex;align-items:flex-end;">
               <button class="btn btn-orange" style="width:100%;padding:10px;font-size:12px;" data-action="call" data-fn="saveCalSettings">Save</button>
@@ -5032,21 +5032,21 @@
       <div>
         <label class="eyebrow">Address *</label>
         <div class="ac-wrap">
-          <input type="text" id="qaAddr" placeholder="123 Main St, Goshen OH..."
-            style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;"
-            autocomplete="off" autocorrect="off" autocapitalize="words">
+          <input class="ui-input" type="text" id="qaAddr" placeholder="123 Main St, Goshen OH..."
+           
+            autocomplete="off" autocorrect="off" autocapitalize="words" style="width:100%;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;">
           <div class="ac-drop dn" id="ac-qaAddr"></div>
         </div>
       </div>
       <div>
         <label class="eyebrow">Phone</label>
-        <input type="tel" id="qaPhone" placeholder="(513) 555-0100"
-          style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;">
+        <input class="ui-input" type="tel" id="qaPhone" placeholder="(513) 555-0100"
+          style="width:100%;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;">
       </div>
       <div>
         <label class="eyebrow">Damage Type</label>
-        <select id="qaDamage"
-          style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;appearance:none;">
+        <select class="ui-input" id="qaDamage"
+          style="width:100%;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;appearance:none;">
           <option value="Roof - Hail">Roof — Hail</option>
           <option value="Roof - Wind">Roof — Wind</option>
           <option value="Roof - Hail & Wind">Roof — Hail &amp; Wind</option>
@@ -5057,8 +5057,8 @@
       </div>
       <div>
         <label class="eyebrow">Source</label>
-        <select id="qaSource"
-          style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;appearance:none;">
+        <select class="ui-input" id="qaSource"
+          style="width:100%;padding:14px;font-family:inherit;font-size:16px;color:var(--t);outline:none;appearance:none;">
           <!-- Canonical source vocabulary. MUST stay in sync with the Add/Edit
                Lead select and SOURCE_ALIASES in lead-source-roi.js: a stored
                value missing from this list renders the select BLANK, and
@@ -5126,7 +5126,7 @@
     </div>
     <input type="file" id="qmFileInput" accept="application/pdf,.pdf" class="dn">
 
-    <div id="qmStatus" style="display:none;margin-top:14px;background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;">
+    <div class="ui-panel" id="qmStatus" style="display:none;margin-top:14px;padding:12px;">
       <div id="qmStatusText" style="font-size:12px;color:var(--t);line-height:1.5;"></div>
     </div>
 

@@ -58,6 +58,24 @@
   margin-bottom: 6px;
 }
 
+/* Panel and field surfaces. Only the skin trio lives here: background,
+ * border, radius (and the Shape preset's elevation). Padding and margins
+ * stay with each element because they're layout, not skin. The radius
+ * comes from the Shape role tokens (dashboard-app.css), so Settings >
+ * Appearance > Shape now reaches these surfaces too. At the default shape
+ * that's 8px for panels (some were 7px) and 6px for fields (some 4–5px). */
+.ui-panel {
+  background: var(--s2);
+  border: 1px solid var(--br);
+  border-radius: var(--r-card, 8px);
+  box-shadow: var(--elevation-card, none);
+}
+.ui-input {
+  background: var(--s2);
+  border: 1px solid var(--br);
+  border-radius: var(--r-input, 6px);
+}
+
 /* Compact select/input (pipeline bulk-edit bar). */
 .ui-field-sm {
   background: var(--s3);

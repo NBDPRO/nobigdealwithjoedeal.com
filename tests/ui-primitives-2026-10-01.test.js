@@ -9,6 +9,12 @@
  * inline colours to .is-on + aria-pressed, so a skin can restyle both states.
  * These checks keep it that way.
  *
+ * Batch 2: 56 panel and field surfaces (background var(--s2) + border
+ * var(--br) + a 4–8px radius) moved to .ui-panel / .ui-input, which read the
+ * Shape role tokens (--r-card / --r-input / --elevation-card), so Settings >
+ * Appearance > Shape reaches them. The same diff showed border-radius as the
+ * ONLY changed property, on 40 elements (7→8px panels, 4–7→6px fields).
+ *
  * Zero deps. Run: node tests/ui-primitives-2026-10-01.test.js
  */
 'use strict';
@@ -60,6 +66,27 @@ console.log('\nUI PRIMITIVES — the markup');
   const bulk = ['bulkStageSelect', 'bulkCarrierSelect', 'bulkDamageSelect', 'bulkSourceSelect', 'bulkJobTypeSelect']
     .map((id) => (html.match(new RegExp('<select\\b[^>]*\\bid="' + id + '"[^>]*>')) || [''])[0]);
   ok('bulk-edit selects use .ui-field-sm with no inline style', bulk.every((t) => /\bui-field-sm\b/.test(t) && !/\sstyle=/.test(t)));
+}
+
+console.log('\nUI PRIMITIVES — panels and fields (batch 2)');
+{
+  ok('.ui-panel takes its radius and elevation from the Shape role tokens',
+    /border-radius:\s*var\(--r-card/.test(rule('.ui-panel')) && /box-shadow:\s*var\(--elevation-card/.test(rule('.ui-panel')));
+  ok('.ui-input takes its radius from the Shape role token',
+    /border-radius:\s*var\(--r-input/.test(rule('.ui-input')));
+  // The trio (s2 background + br border + radius) must not creep back inline.
+  const back = [];
+  const RE = /<([a-zA-Z]+)\b[^<>]*\sstyle="([^"]*)"[^<>]*>/g; let m;
+  while ((m = RE.exec(html))) {
+    const st = m[2].replace(/\s+/g, '');
+    if (st.includes('background:var(--s2)') && st.includes('border:1pxsolidvar(--br)') && /border-radius:\d+px/.test(st)) {
+      const field = /^(input|select|textarea)$/i.test(m[1]);
+      const r = +st.match(/border-radius:(\d+)px/)[1];
+      if ((field && r >= 4 && r <= 7) || (!field && (r === 7 || r === 8))) back.push(html.slice(0, m.index).split('\n').length);
+    }
+  }
+  ok('no inline s2 panel/field surface left in dashboard.html', back.length === 0,
+    'dashboard.html lines ' + back.slice(0, 6).join(', ') + ' — add class="ui-panel" (or ui-input on a field) and drop background/border/border-radius from the style');
 }
 
 console.log('\nUI PRIMITIVES — the JS toggles state, never paints it');
