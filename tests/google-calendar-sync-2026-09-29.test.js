@@ -273,6 +273,57 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     ok('index.js exports onJobCalendarWrite', /exports\.onJobCalendarWrite\s*=/.test(idx));
   }
 
+  console.log('\n8. yard-sign pickups (Jo, 2026-09-29 §6.2: pickups go to Google too)');
+  {
+    const NOW = Date.parse('2026-10-05T16:00:00Z');                    // noon, Mon Oct 5, New York
+    const S = (id, f) => Object.assign({ id, companyId: 'OWNER', userId: 'OWNER', status: 'out', address: id + ' Sign Ln, Mason, OH', placedAt: '2026-09-28T16:00:00Z', durationDays: 14 }, f);
+    const e = G.desiredEventForSign(S('s1', { dueAt: '2026-10-12T04:00:00Z' }), NOW);   // midnight Oct 12, New York
+    ok('a sign out → an all-day pickup reminder on its New York pickup day', e && e.start.date === '2026-10-12' && e.end.date === '2026-10-13', JSON.stringify(e && e.start));
+    ok('...FREE: a to-do, never a busy slot (Cal.com and the double-booking check ignore it)', e.transparency === 'transparent' && G.jobsBusy([e], null, () => 0).length === 0);
+    ok('...named with the address, placed at it, tagged as a yard sign', /^🪧 Pick up yard sign — s1 Sign Ln/.test(e.summary) && e.location === 's1 Sign Ln, Mason, OH'
+      && e.extendedProperties.private.nbdKind === 'yardsign' && e.extendedProperties.private.nbdSignId === 's1' && e.extendedProperties.private.nbdManaged === '1');
+    ok('...a valid Google id ([a-v0-9]; never a lead or job id)', /^[a-v0-9]{5,1024}$/.test(e.id) && e.id !== G.eventIdFor('job', 's1') && e.id !== G.eventIdFor('adjuster', 's1'));
+    ok('the day is New York\'s, not UTC\'s (11:30 pm Oct 11 local is Oct 11)', G.desiredEventForSign(S('s2', { dueAt: '2026-10-12T03:30:00Z' }), NOW).start.date === '2026-10-11');
+    const late = G.desiredEventForSign(S('s3', { dueAt: '2026-10-01T04:00:00Z' }), NOW);
+    ok('still out after its pickup day → the reminder sits on TODAY, marked overdue', late.start.date === '2026-10-05' && /overdue since 2026-10-01/.test(late.summary), late.summary);
+    ok('picked up / missing / removed / no date → no reminder', ['picked_up', 'missing'].every((st) => G.desiredEventForSign(S('s4', { status: st, dueAt: '2026-10-12T04:00:00Z' }), NOW) === null)
+      && G.desiredEventForSign(S('s4', { deleted: true, dueAt: '2026-10-12T04:00:00Z' }), NOW) === null && G.desiredEventForSign(S('s4', {}), NOW) === null);
+    ok('a Firestore Timestamp dueAt reads the same as an ISO string', G.desiredEventForSign(S('s5', { dueAt: { toMillis: () => Date.parse('2026-10-12T04:00:00Z') } }), NOW).start.date === '2026-10-12');
+    ok('sign trigger gate: a note is ignored; an extension (new dueAt) or a pickup is not',
+      G.signCalendarFieldsChanged({ notes: 'a', dueAt: { seconds: 5 } }, { notes: 'b', dueAt: { _seconds: 5 } }) === false
+      && G.signCalendarFieldsChanged({ dueAt: { seconds: 5 } }, { dueAt: { seconds: 6 } }) === true && G.signCalendarFieldsChanged({ status: 'out' }, { status: 'picked_up' }) === true);
+
+    // The trigger path, then a reconcile that must NOT wipe them.
+    const g8 = fakeGoogle();
+    M._internal.setClient(g8.client);
+    const due = new Date(Date.now() + 6 * 86400000).toISOString();
+    await M._internal.syncSign('cal8', 'Y1', S('Y1', { dueAt: due }));
+    ok('placing a sign puts its reminder on the calendar', g8.live('cal8').length === 1 && /Y1 Sign Ln/.test(g8.live('cal8')[0].summary));
+    await M._internal.syncSign('cal8', 'Y1', S('Y1', { dueAt: due, status: 'picked_up' }));
+    ok('picking it up removes the reminder', g8.live('cal8').length === 0);
+    await M._internal.syncSign('cal8', 'Y2', { companyId: 'someone-else', userId: 'someone-else', status: 'out', dueAt: due, address: 'Other' });
+    ok('another company\'s sign never reaches Jo\'s calendar', g8.live('cal8').length === 0);
+    const db8 = fakeDb({
+      'leads/A8': L('Signjob', { scheduledDate: future(3) }),
+      'yardSigns/Y3': S('Y3', { dueAt: due }),
+      'yardSigns/Y4': S('Y4', { dueAt: due, status: 'picked_up' }),
+      'yardSigns/Y5': { companyId: 'someone-else', userId: 'someone-else', status: 'out', dueAt: due, address: 'Other' },
+    });
+    await M._internal.syncSign('cal8', 'Y3', db8._docs['yardSigns/Y3']);
+    const r8 = await M._internal.reconcile(db8, 'cal8');
+    const t8 = g8.live('cal8').map((x) => x.summary).join(' | ');
+    ok('reconcile keeps the live sign\'s reminder next to the job (it would delete anything it does not want)', g8.live('cal8').length === 2 && /Y3 Sign Ln/.test(t8) && /Signjob/.test(t8) && r8.signs === 2, t8);
+    const r9 = await M._internal.reconcile(db8, 'cal8');
+    ok('a second reconcile changes nothing', r9.upserted === 0 && r9.deleted === 0, JSON.stringify(r9));
+    M._internal.setClient(g.client);
+
+    const src = fs.readFileSync(path.join(__dirname, '..', 'functions', 'google-calendar.js'), 'utf8');
+    ok('the sign trigger returns early for other tenants, unchanged fields, and before setup',
+      /exports\.onYardSignCalendarWrite = onDocumentWritten\(\s*\{ document: 'yardSigns\/\{signId\}'[\s\S]{0,400}if \(!isOwnerLead\(before\) && !isOwnerLead\(after\)\) return;[\s\S]{0,120}!G\.signCalendarFieldsChanged\(before, after\)\) return;[\s\S]{0,200}if \(!cfg \|\| !cfg\.calendarId\) return;/.test(src));
+    const idx = fs.readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
+    ok('index.js exports onYardSignCalendarWrite', /exports\.onYardSignCalendarWrite\s*=/.test(idx));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

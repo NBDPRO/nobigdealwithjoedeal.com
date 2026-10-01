@@ -59,7 +59,7 @@
     const sa = s.serviceAccount ? '<code class="gcal-code" id="gcalSa">' + esc(s.serviceAccount) + '</code> <button type="button" class="btn btn-ghost gcal-small" id="gcalCopySa">Copy</button>' : '';
     if (!s.configured) {
       body.innerHTML =
-        '<div class="gcal-muted">Puts every scheduled job and adjuster meeting on an <b>NBD Jobs</b> calendar in your Google account — your phone, Google Calendar, and Cal.com\'s double-booking check all see it. Changes in the CRM show up within seconds.</div>' +
+        '<div class="gcal-muted">Puts every scheduled job, adjuster meeting and yard-sign pickup on an <b>NBD Jobs</b> calendar in your Google account — your phone, Google Calendar, and Cal.com\'s double-booking check all see it. Changes in the CRM show up within seconds.</div>' +
         '<div class="gcal-row"><input type="email" id="gcalEmail" class="gcal-input" placeholder="Your Google account email" autocomplete="email" value="' + esc(s.sharedWith || '') + '">' +
         '<button type="button" class="btn btn-orange" id="gcalSetup">Connect Google Calendar</button></div>' +
         (s.disabled ? '<div class="gcal-warn">The sync is switched off on the server right now.</div>' : '');

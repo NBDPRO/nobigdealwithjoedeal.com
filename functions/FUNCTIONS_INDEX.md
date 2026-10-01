@@ -235,6 +235,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `onNewLead` | `leads/{leadId}` created | Push notification to assigned rep |
 | `onLeadCalendarWrite` | `leads/{leadId}` written | Google Calendar — updates that lead's "NBD Jobs" events (job + adjuster meeting) when a field the calendar shows changes; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onJobCalendarWrite` | `leads/{leadId}/jobs/{jobId}` written | Google Calendar — multi-job: a customer's OTHER (non-active) job gets its own "NBD Jobs" events, keyed per job, titled with the job; the active job's events stay the lead's; platform tenant only; no-op until set up (functions/google-calendar.js) |
+| `onYardSignCalendarWrite` | `yardSigns/{signId}` written | Google Calendar — a yard sign's pickup reminder: one all-day FREE "🪧 Pick up yard sign" event on its New York pickup day (overdue → rolled to today by the nightly reconcile), removed on pickup / missing / remove; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onClaimStageChange` | `leads/{leadId}` updated | Push notification on claim-stage transitions |
 | `onAiDraftApproved` | `leads/{leadId}/ai_drafts/{draftId}` updated | Sends approved AI-drafted SMS via Twilio (pending→approved transition only; idempotent) |
 | `estimateEmail` | `estimate_leads/{id}` created | Emails homeowner their estimate on `email_estimate_request`; LIVE by default (2026-07-18), `ESTIMATE_EMAIL_ENABLED=false` forces DRY-RUN |

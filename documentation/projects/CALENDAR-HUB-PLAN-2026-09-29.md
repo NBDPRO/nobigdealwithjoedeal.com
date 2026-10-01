@@ -244,3 +244,24 @@ Google events were keyed per LEAD, so a second job's date had nowhere to go.
   serves the customers' events instead of 503-ing the whole feed.
 - Tests: [google-calendar-sync](../../tests/google-calendar-sync-2026-09-29.test.js)
   §7 (57 checks); break-tested ids, busy, overlay and the promotion swap.
+
+## Update 2026-09-30 (late) — yard-sign pickups go to Google (§6 answer 2)
+
+- **`onYardSignCalendarWrite`** (`yardSigns/{signId}`): a sign that is out
+  (or scheduled) gets one all-day **FREE** event, "🪧 Pick up yard sign —
+  <address>", on its New York pickup day. It's a to-do, so it never blocks
+  Cal.com or trips the double-booking warning.
+- Picked up, missing, removed or dateless → the event goes away.
+- An overdue sign's reminder sits on **today**, "(overdue since …)". The
+  nightly reconcile moves it each morning, so it never strands on a past day.
+- The id is `nbds` + hex(signId), because Google ids allow only `[a-v0-9]`.
+- The reconcile reads owner signs too. That is required, because `planSync`
+  deletes every managed event it doesn't want. Break-tested: dropping signs
+  from the reconcile wipes the reminder.
+- **Not done, deliberately:** "follow-ups when they carry a time". Lead
+  follow-ups are date-only, so nothing qualifies. D2D knocks do carry
+  `followUpDate` + `followUpTime`, but a re-knock writes a NEW knock doc and
+  leaves the old follow-up behind. Pushing them needs a "latest knock per
+  address wins" rule first, or Google fills with stale follow-ups. That's a
+  decision for Jo.
+- Tests: §8 of the same suite (16 checks).

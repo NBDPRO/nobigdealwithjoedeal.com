@@ -176,6 +176,67 @@ function planSync(desired, existing) {
   return { upserts, deletes, same };
 }
 
+// ── yard-sign pickups (Jo, 2026-09-29 §6.2: pickups go to Google too) ──────
+// One all-day reminder on the pickup day, FREE (a to-do, not a slot: it never
+// blocks Cal.com or trips the double-booking warning). Keyed per sign; 's'
+// because Google ids allow only [a-v0-9].
+const DASHBOARD_URL = 'https://nobigdealwithjoedeal.com/pro/dashboard.html';
+function signEventId(signId) { return 'nbds' + Buffer.from(String(signId), 'utf8').toString('hex'); }
+function msOf(v) {
+  if (v == null || v === '') return NaN;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return Date.parse(v);
+  const s = v.seconds != null ? v.seconds : v._seconds;
+  return s != null ? s * 1000 : NaN;
+}
+/** The New York calendar day of an instant, 'YYYY-MM-DD'. */
+function nyDate(ms) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+}
+/**
+ * A yard sign → its pickup reminder, or null (removed, picked up, missing, no
+ * date). Still out past its pickup day → the reminder sits on TODAY, marked
+ * overdue (the nightly reconcile moves it each morning), so it never strands
+ * on a day Jo has already scrolled past.
+ */
+function desiredEventForSign(sign, nowMs) {
+  if (!sign || !sign.id || sign.deleted === true) return null;
+  if (sign.status === 'picked_up' || sign.status === 'missing') return null;
+  const due = msOf(sign.dueAt);
+  if (!isFinite(due)) return null;
+  const dueDate = nyDate(due);
+  const today = nyDate(nowMs == null ? Date.now() : nowMs);
+  const overdue = dueDate < today;
+  const date = overdue ? today : dueDate;
+  const addr = String(sign.address || '').trim();
+  const lines = [];
+  const placed = msOf(sign.placedAt);
+  if (isFinite(placed)) lines.push('Placed ' + nyDate(placed) + (sign.durationDays ? ' · ' + sign.durationDays + ' days' : ''));
+  lines.push('Mark it picked up (or extend it) in NBD Pro → Yard Signs: ' + DASHBOARD_URL);
+  lines.push('(Managed by NBD Pro — change it in the CRM; edits here are overwritten.)');
+  const out = {
+    id: signEventId(sign.id),
+    summary: '🪧 Pick up yard sign' + (overdue ? ' (overdue since ' + dueDate + ')' : '') + (addr ? ' — ' + addr : ''),
+    location: addr || undefined,
+    description: lines.join('\n'),
+    start: { date },
+    end: { date: FEED.nextDate(date) },
+    transparency: 'transparent',
+    extendedProperties: { private: { nbdManaged: '1', nbdKind: 'yardsign', nbdSignId: String(sign.id) } },
+    source: { title: 'NBD Pro', url: DASHBOARD_URL },
+  };
+  if (!out.location) delete out.location;
+  return out;
+}
+const SIGN_WATCHED = ['dueAt', 'placedAt', 'durationDays', 'status', 'deleted', 'address', 'userId', 'companyId'];
+function signCalendarFieldsChanged(before, after) {
+  const a = before || {}, b = after || {};
+  const norm = (k, v) => (k === 'dueAt' || k === 'placedAt') ? (isFinite(msOf(v)) ? msOf(v) : null) : (v === undefined ? null : v);
+  return SIGN_WATCHED.some((k) => JSON.stringify(norm(k, a[k])) !== JSON.stringify(norm(k, b[k])));
+}
+
 /** Did a lead write change anything the calendar shows? (cheap trigger gate) */
 const WATCHED = ['scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledDurationMin', 'scheduledEndDate', 'adjusterMeetingDate',
   'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'firstName', 'lastName', 'address', 'deleted', 'stage', 'phone',
@@ -243,4 +304,5 @@ module.exports = {
   TZ, eventIdFor, toGoogleEvent, desiredEventsForLead, allIdsForLead, eventSignature, planSync,
   calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED, weekEventFor,
   desiredEventsForJob, allIdsForJob, jobCalendarFieldsChanged, JOB_WATCHED,
+  signEventId, desiredEventForSign, signCalendarFieldsChanged, nyDate,
 };

@@ -126,6 +126,13 @@ async function syncSwappedJobs(db, calendarId, leadId, lead, jobIds) {
   return out;
 }
 
+/** One yard sign → its pickup reminder (or none). */
+async function syncSign(calendarId, signId, sign) {
+  const want = isOwnerLead(sign) ? G.desiredEventForSign(Object.assign({}, sign, { id: signId })) : null;
+  if (want) { await upsertEvent(calendarId, want); return { upserted: 1, removed: 0 }; }
+  return { upserted: 0, removed: (await deleteEvent(calendarId, G.signEventId(signId))) ? 1 : 0 };
+}
+
 /** Make Google match the CRM: every owner lead from 30 days back. */
 async function reconcile(db, calendarId) {
   const sinceMs = Date.now() - 30 * 86400000;
@@ -156,11 +163,21 @@ async function reconcile(db, calendarId) {
     const l = leads.get(leadId);
     if (l) G.desiredEventsForJob(l, job).forEach(keep);
   }
+  // Yard-sign pickups. They MUST be in `desired`: planSync deletes every
+  // managed event nobody wants, so a sign left out here would be wiped nightly.
+  const [sa, sb] = await Promise.all([
+    db.collection('yardSigns').where('companyId', '==', OWNER).get(),
+    db.collection('yardSigns').where('userId', '==', OWNER).get(),
+  ]);
+  const signs = new Map();
+  [sa, sb].forEach((s) => s.forEach((d) => signs.set(d.id, Object.assign({}, d.data(), { id: d.id }))));
+  const nowMs = Date.now();
+  for (const s of signs.values()) { const e = G.desiredEventForSign(s, nowMs); if (e) keep(e); }
   const existing = await listManaged(calendarId, sinceMs);
   const plan = G.planSync(desired, existing);
   for (const e of plan.upserts) await upsertEvent(calendarId, e);
   for (const id of plan.deletes) await deleteEvent(calendarId, id);
-  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leads.size, jobs: jobs.size };
+  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leads.size, jobs: jobs.size, signs: signs.size };
 }
 
 // ── owner gate (same shape as stripe-ledger.js) ───────────────────────────
@@ -311,6 +328,29 @@ exports.onJobCalendarWrite = onDocumentWritten(
   }
 );
 
+// A yard sign placed, moved, extended, picked up or removed → its pickup
+// reminder (Jo, 2026-09-29: pickups go to Google too).
+exports.onYardSignCalendarWrite = onDocumentWritten(
+  { document: 'yardSigns/{signId}', region: 'us-central1', timeoutSeconds: 60, retry: false },
+  async (event) => {
+    if (disabled()) return;
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    if (!isOwnerLead(before) && !isOwnerLead(after)) return;          // another tenant's sign
+    if (before && after && !G.signCalendarFieldsChanged(before, after)) return;
+    const db = getFirestore();
+    const cfg = await loadConfig(db);
+    if (!cfg || !cfg.calendarId) return;
+    const { signId } = event.params;
+    try {
+      const r = await syncSign(cfg.calendarId, signId, after);
+      logger.info('[googleCalendar] sign synced', { signId, ...r });
+    } catch (e) {
+      logger.warn('[googleCalendar] sign sync failed', { signId, status: statusOf(e), msg: e && e.message });
+    }
+  }
+);
+
 exports.googleCalendarReconcile = onSchedule(
   { schedule: 'every day 05:45', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '512MiB' },
   async () => {
@@ -324,5 +364,5 @@ exports.googleCalendarReconcile = onSchedule(
   }
 );
 
-module.exports._internal = { setup, reconcile, syncLead, syncJob, syncSwappedJobs, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
+module.exports._internal = { setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
   setClient: (c) => { _testClient = c; } };
