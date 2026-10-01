@@ -378,7 +378,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - uses: actions/setup-java@v6.0.0
+      - uses: actions/setup-java@v6.0.1
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -503,7 +503,7 @@ jobs:
           node-version: '22'
       # Firestore emulator runs on the JVM; firebase-tools needs a modern JDK
       # (same setup as the @stranger E2E shard that boots the functions emulator).
-      - uses: actions/setup-java@v6.0.0
+      - uses: actions/setup-java@v6.0.1
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -846,7 +846,7 @@ jobs:
           node-version: '22'
       # The Firestore emulator runs on the JVM; firebase-tools 15+ (the tests
       # devDependency) requires JDK 21 — same setup as firebase-deploy.yml.
-      - uses: actions/setup-java@v6.0.0
+      - uses: actions/setup-java@v6.0.1
         with:
           distribution: 'temurin'
           java-version: '21'
