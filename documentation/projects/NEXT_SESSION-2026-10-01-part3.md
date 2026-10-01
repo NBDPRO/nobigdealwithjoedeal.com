@@ -54,7 +54,7 @@ Microsoft Clarity. Everything below is merged unless marked.
 | #1965 | My Skin |
 | #1966 | Clay, Liquid Glass, Skeuo, Spatial surface styles |
 | #1967 | Theme art: construction, sci-fi and nature packs, plus the Duo themes (verify merged) |
-| this PR | Theme art: luxury, mood, seasonal and sports packs (81 tiles total) |
+| this PR | Theme art: luxury, mood, seasonal and sports packs (82 tiles total), plus the **Maximal** skin: rotating card colours, hard shadows, confetti art |
 | #1968 | Microsoft Clarity, inert (verify merged) |
 
 ## §2 Verify next session
@@ -76,8 +76,7 @@ Microsoft Clarity. Everything below is merged unless marked.
 
 ## §4 Next lanes
 
-1. **Maximalism** as a full skin pack (Jo's list). It's more a skin than a
-   shape.
+1. ~~Maximalism~~: shipped as the Maximal skin (this PR).
 2. **Ask Joe / Thursday answer checks.** A small golden-question set for
    Kentucky claim wording and the deposit rule. Nothing catches drift today.
 3. More `ui-primitives` conversions on JS-rendered screens.

@@ -257,6 +257,15 @@ export const TILES = {
   'easter': { size: [80, 80], svg: svg(80, 80, `<g fill='rgba(156,39,176,.07)'><ellipse cx='20' cy='20' rx='6' ry='8'/></g><g fill='rgba(42,8,56,.05)'><ellipse cx='60' cy='60' rx='5' ry='7'/></g>`) },
   'halloween': { size: [200, 200], svg: svg(200, 200, `<g fill='none' stroke='rgba(255,240,216,.06)' stroke-width='1'><path d='M0 0L80 40M0 0L60 70M0 0L30 80M0 0L80 10'/><path d='M20 10Q30 20 26 32Q40 30 50 38M40 20Q50 34 46 48Q62 44 70 52'/></g>`) },
 
+  // ── Maximal skin: Memphis-style confetti (squiggles, triangles, dots) ──
+  'maximal': { size: [200, 200], svg: svg(200, 200,
+    `<path d='M20 40q10-12 20 0t20 0t20 0' fill='none' stroke='rgba(255,95,162,.22)' stroke-width='3' stroke-linecap='round'/>` +
+    `<path d='M140 30l14 24h-28z' fill='rgba(95,200,255,.16)'/>` +
+    `<circle cx='60' cy='130' r='7' fill='rgba(255,210,63,.18)'/>` +
+    `<rect x='130' y='120' width='16' height='16' rx='2' transform='rotate(20 138 128)' fill='none' stroke='rgba(77,255,184,.18)' stroke-width='2.5'/>` +
+    `<path d='M90 170q8-10 16 0t16 0' fill='none' stroke='rgba(196,155,255,.2)' stroke-width='3' stroke-linecap='round'/>` +
+    `<g fill='rgba(255,247,232,.12)'><circle cx='100' cy='80' r='2'/><circle cx='180' cy='90' r='2'/><circle cx='30' cy='100' r='2'/></g>`) },
+
   // ── Sports pack ───────────────────────────────────────────────────────────
   'racing-red': { size: [160, 80], svg: svg(160, 80, `<g stroke='rgba(220,38,38,.12)' stroke-width='1.6' stroke-linecap='round'><path d='M10 20H70M40 40H130M90 62H150'/></g>`) },
   'stadium-lights': { size: [240, 240], svg: svg(240, 240, `<path d='M120 0L60 240H180Z' fill='rgba(248,250,252,.025)'/><circle cx='120' cy='6' r='4' fill='rgba(248,250,252,.12)'/>`) },

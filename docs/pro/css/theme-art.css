@@ -734,6 +734,16 @@
   background: transparent;
 }
 
+:root[data-theme="maximal"] {
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cpath d='M20 40q10-12 20 0t20 0t20 0' fill='none' stroke='rgba(255,95,162,.22)' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M140 30l14 24h-28z' fill='rgba(95,200,255,.16)'/%3E%3Ccircle cx='60' cy='130' r='7' fill='rgba(255,210,63,.18)'/%3E%3Crect x='130' y='120' width='16' height='16' rx='2' transform='rotate(20 138 128)' fill='none' stroke='rgba(77,255,184,.18)' stroke-width='2.5'/%3E%3Cpath d='M90 170q8-10 16 0t16 0' fill='none' stroke='rgba(196,155,255,.2)' stroke-width='3' stroke-linecap='round'/%3E%3Cg fill='rgba(255,247,232,.12)'%3E%3Ccircle cx='100' cy='80' r='2'/%3E%3Ccircle cx='180' cy='90' r='2'/%3E%3Ccircle cx='30' cy='100' r='2'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  background-attachment: fixed;
+}
+:root[data-theme="maximal"] body {
+  background: transparent;
+}
+
 :root[data-theme="racing-red"] {
   background-color: var(--bg);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='80' viewBox='0 0 160 80'%3E%3Cg stroke='rgba(220,38,38,.12)' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M10 20H70M40 40H130M90 62H150'/%3E%3C/g%3E%3C/svg%3E");
@@ -888,6 +898,7 @@
   :root[data-theme="christmas"],
   :root[data-theme="easter"],
   :root[data-theme="halloween"],
+  :root[data-theme="maximal"],
   :root[data-theme="racing-red"],
   :root[data-theme="stadium-lights"],
   :root[data-theme="champion-gold"],
