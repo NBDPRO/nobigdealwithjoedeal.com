@@ -456,6 +456,7 @@ exports.getGoogleCalendarStatus = googleCalendar.getGoogleCalendarStatus;
 exports.getBusyTimes            = googleCalendar.getBusyTimes;
 exports.onLeadCalendarWrite     = googleCalendar.onLeadCalendarWrite;
 exports.onJobCalendarWrite      = googleCalendar.onJobCalendarWrite;
+exports.onYardSignCalendarWrite = googleCalendar.onYardSignCalendarWrite;
 exports.googleCalendarReconcile = googleCalendar.googleCalendarReconcile;
 
 // Automated Firestore daily backup + retention. Needs a one-time bucket + IAM
