@@ -38,6 +38,20 @@ Thumbs.db
 .env
 .env.local
 .env.production
+# Every other env / key / credential shape (security checklist 2026-10-01 —
+# the three names above left .env.staging, functions/.env.dev, key files and
+# service-account JSON one `git add -A` away from a public repo). The one
+# tracked env file holds only non-secret on/off switches and stays tracked.
+.env.*
+!.env.*.example
+!functions/.env.nobigdeal-pro
+*.pem
+*.key
+*.p12
+*.pfx
+**/service-account*.json
+**/*credentials*.json
+**/.runtimeconfig.json
 # Firebase Functions secret overrides. ci.yml generates functions/.secret.local
 # from the defineSecret() calls so the emulator can boot without Secret Manager
 # access, and the local QA runbook has you do the same by hand — so this file

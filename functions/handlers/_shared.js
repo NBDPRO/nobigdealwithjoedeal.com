@@ -165,6 +165,13 @@ const OWNER_EMAILS = new Set([
 function isOwnerCaller(token) {
   if (!token) return false;
   if (token.owner === true) return true;
+  // The email fallback trusts the address only once Google has VERIFIED it
+  // (security checklist 2026-10-01). Self-registration is open, and one of
+  // the OWNER_EMAILS had no Firebase account: anyone could sign up with it,
+  // unverified, and pass this check (unmatched-SMS inbox, uncapped seats,
+  // usage-cap bypass, the E2E password). Jo's real account carries the
+  // owner claim, so the line above still admits it.
+  if (token.email_verified !== true) return false;
   const email = typeof token.email === 'string' ? token.email.trim().toLowerCase() : '';
   return !!email && OWNER_EMAILS.has(email);
 }

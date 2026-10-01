@@ -40,11 +40,14 @@ service firebase.storage {
         && request.resource.contentType != null
         && request.resource.contentType.matches('image/(jpeg|png|webp|heic|heif|avif|gif)');
     }
+    // Raster images only (security checklist 2026-10-01): 'image/.+' admitted
+    // image/svg+xml, which can carry script and runs it when opened from its
+    // download URL. Same image list as isImage().
     function isDocType() {
       return request.resource != null
         && request.resource.contentType != null
         && request.resource.contentType.matches(
-             'application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\..+|text/plain|text/csv|image/.+'
+             'application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\..+|text/plain|text/csv|image/(jpeg|png|webp|heic|heif|avif|gif)'
            );
     }
     function isHtmlOnly() {

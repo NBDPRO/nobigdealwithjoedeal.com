@@ -362,6 +362,15 @@ exports.sendEmail = onRequest(
       res.status(403).json({ error: 'Your account role cannot send email' });
       return;
     }
+    // A verified email first (security checklist 2026-10-01). Sign-up is open
+    // and provisions a company at once, so an unverified throwaway account
+    // could send 200 HTML emails a day from the company domain — a phishing
+    // relay. The billable SMS, AI, invite and Stripe paths already require
+    // this; this sender did not. 403 + a code the client can explain.
+    if (decoded.email_verified !== true) {
+      res.status(403).json({ error: 'Verify your email address before sending email from NBD Pro.', code: 'email_unverified' });
+      return;
+    }
 
     const { to, subject, body, html, replyTo, attachments, leadId } = req.body;
 

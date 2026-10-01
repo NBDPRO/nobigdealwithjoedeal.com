@@ -54,7 +54,7 @@ const CORS_ORIGINS = [
 const MAX_REFERRALS_PER_SOURCE_PER_DAY = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function validEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '')); }
+function validEmail(s) { return /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(String(s || '')); }
 function digitsOnly(s) { return String(s || '').replace(/\D/g, ''); }
 
 function ok(res, body)   { res.status(200).json(body); }
@@ -96,12 +96,17 @@ exports.submitReferral = onRequest(
 
     const body = req.body || {};
     const ref = String(body.ref || '').trim().toUpperCase();
-    const firstName = String(body.firstName || '').trim().slice(0, 80);
-    const lastName  = String(body.lastName  || '').trim().slice(0, 80);
-    const phone     = String(body.phone     || '').trim();
-    const email     = String(body.email     || '').trim();
-    const address   = String(body.address   || '').trim().slice(0, 200);
-    const notes     = String(body.notes     || '').trim().slice(0, 600);
+    // Public input lands on a CRM lead: angle brackets stripped and every
+    // field length-capped server-side, the same as submitPublicLead
+    // (security checklist 2026-10-01 — phone and email were stored raw, any
+    // length, and the email check let '<' / '>' through).
+    const noAngle = (s) => String(s || '').replace(/[<>]/g, '').trim();
+    const firstName = noAngle(body.firstName).slice(0, 80);
+    const lastName  = noAngle(body.lastName).slice(0, 80);
+    const phone     = noAngle(body.phone).slice(0, 40);
+    const email     = String(body.email || '').trim().slice(0, 254);
+    const address   = noAngle(body.address).slice(0, 200);
+    const notes     = noAngle(body.notes).slice(0, 600);
 
     // Source customer identifier — accept either NBD-0001 customerId
     // OR a raw lead doc id (rare but used in shared previews). Both

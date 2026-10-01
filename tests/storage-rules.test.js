@@ -102,6 +102,19 @@ async function run() {
     { contentType: 'text/html' }
   ));
 
+  // 7b. (2026-10-01) alice CANNOT upload an SVG to docs/alice/ — it can carry
+  // script that runs from its download URL; a raster image still goes.
+  await assertFails(uploadBytes(
+    ref(alice, 'docs/alice/logo.svg'),
+    buf(1024),
+    { contentType: 'image/svg+xml' }
+  ));
+  await assertSucceeds(uploadBytes(
+    ref(alice, 'docs/alice/scan.png'),
+    buf(1024),
+    { contentType: 'image/png' }
+  ));
+
   // 8. alice can upload HTML to portals/alice/
   await assertSucceeds(uploadBytes(
     ref(alice, 'portals/alice/lead42.html'),

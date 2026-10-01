@@ -162,7 +162,9 @@ function makeWorld(opts) {
       getAuth: () => ({
         verifyIdToken: async () => {
           events.push('auth');
-          return Object.assign({ uid: 'rep-a', companyId: 'co-a', role: 'sales_rep' }, opts.token || {});
+          // email_verified: sendEmail refuses unverified senders since 2026-10-01
+          // (security checklist); the suite's rep is a real, verified one.
+          return Object.assign({ uid: 'rep-a', companyId: 'co-a', role: 'sales_rep', email_verified: true }, opts.token || {});
         },
       }),
     },
@@ -403,6 +405,12 @@ async function sendEmail(opts, body) {
   {
     const { res } = await sendEmail({ token: { role: 'viewer' }, docs: SUPPRESSED_A });
     ok('role refusal still wins first (viewer → 403 role message)', res.statusCode === 403 && /role cannot send/.test(res.body.error));
+  }
+  {
+    // 2026-10-01 security checklist: an unverified account is not a sender
+    // (it was a 200/day relay from the company domain), transactional or not.
+    const { res, w } = await sendEmail({ token: { email_verified: false }, body: { kind: 'invoice' } });
+    ok('an unverified sender → 403 email_unverified, nothing sent', res.statusCode === 403 && res.body.code === 'email_unverified' && w.sends.length === 0);
   }
 
   // ═══ C. funnel-recovery ════════════════════════════════════════════════

@@ -2089,11 +2089,15 @@ window.shareEstimateViewLink = async function(estId) {
   try {
     // Also drop the legacy unpartitioned key if present, so the cache
     // doesn't keep a stale entry tied to a previous device user.
+    // 2026-10-01 (security checklist): the cache lives in sessionStorage, not
+    // localStorage. The token is a 30-day bearer credential for the homeowner
+    // view; a persistent copy is readable by any script on the origin for a
+    // month. Old localStorage copies (both key shapes) are dropped on read.
     const legacyKey = 'nbd_view_token_' + leadId;
-    if (localStorage.getItem(legacyKey)) {
-      try { localStorage.removeItem(legacyKey); } catch (_) {}
+    for (const k of [legacyKey, cacheKey]) {
+      try { if (localStorage.getItem(k)) localStorage.removeItem(k); } catch (_) {}
     }
-    const raw = localStorage.getItem(cacheKey);
+    const raw = sessionStorage.getItem(cacheKey);
     if (raw) {
       const cached = JSON.parse(raw);
       if (cached.token && cached.expiresAt && cached.expiresAt > Date.now() + 60_000) {
@@ -2116,7 +2120,7 @@ window.shareEstimateViewLink = async function(estId) {
       token = result?.data?.token;
       const expiresAt = result?.data?.expiresAt;
       if (token && expiresAt) {
-        try { localStorage.setItem(cacheKey, JSON.stringify({ token, expiresAt })); } catch (_) {}
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ token, expiresAt })); } catch (_) {}
       }
     } catch (e) {
       if (typeof showToast === 'function') showToast('Could not mint share link: ' + (e.message || 'try again'), 'error');

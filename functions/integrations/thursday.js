@@ -168,7 +168,7 @@ exports.thursdayWebhook = onRequest(
     }
     const cfg = await loadConfig(T.NBD_OWNER_UID);
     if (!T.isThursdayCall(call, cfg.agentNumber)) {
-      logger.info('thursdayWebhook: not a Thursday inbound call — ignored', { callId: call.callId, to: call.to, inbound: call.inbound });
+      logger.info('thursdayWebhook: not a Thursday inbound call — ignored', { callId: call.callId, toLast4: String(call.to || '').replace(/\D/g, '').slice(-4), inbound: call.inbound });
       res.status(200).json({ ok: true, ignored: 'not-thursday' });
       return;
     }

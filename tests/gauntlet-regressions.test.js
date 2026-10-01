@@ -200,7 +200,7 @@ console.log('\nInvite/claim hardening (Phase-3 QA sweep)');
     'a second inline query would bring back the parent-path trust the shared lookup removes');
   assert('claimInvite refuses an ambiguous cross-tenant invite',
     /tenantIds\.length > 1\) return Object\.assign\(base, \{ status: 'ambiguous'/.test(lookupSrc)
-    && /lookup\.status === 'ambiguous'[\s\S]{0,200}reason: 'ambiguous_invite'/.test(src),
+    && /lookup\.status === 'ambiguous'[\s\S]{0,320}reason: 'ambiguous_invite'/.test(src),   // 320: the log line masks the email since 2026-10-01
     'two tenants inviting the same email must not silently claim one — cross-tenant leak + lockout');
   // Email-verify wall reads the authoritative Auth record, not just the token,
   // so a just-verified rep with a stale ID token is not stranded.
