@@ -210,6 +210,8 @@
         daysPastDue: daysPastDue,
         bucket: bucket,
         inCollections: !!lead && (lead._stageKey || lead.stage) === 'collections',
+        // Set by invoice-reminder.js on a real send (2026-10-01).
+        lastReminderAt: inv.lastReminderAt || null,
       });
     });
     collectionsQueue.sort(function (a, b) { return b.daysPastDue - a.daysPastDue; });
@@ -382,8 +384,16 @@
           : (q.leadId && q.id)
             ? '<button type="button" class="btn btn-orange btn-sm" data-action="module" data-target="MoneyDashboard.moveToCollections" data-arg="' + esc(q.id) + '" style="font-size:11px;padding:4px 10px;">Move to Collections</button>'
             : '';
+        // One-tap payment reminder (invoice-reminder.js): the rep sees and
+        // edits the message, then taps Text or Email — nothing auto-sends.
+        if (q.id && window.NBDInvoiceReminder) {
+          actionHtml = '<button type="button" class="btn btn-ghost btn-sm" data-action="module" data-target="NBDInvoiceReminder.open" data-arg="' + esc(q.id) + '" style="font-size:12px;padding:6px 12px;min-height:44px;">Remind</button> ' + actionHtml;
+        }
         var dueJS = q.dueDate ? toJSDate(q.dueDate) : null;
-        var dueLabel = dueJS ? 'due ' + dueJS.toLocaleDateString() : 'no due date';
+        var remJS = q.lastReminderAt ? toJSDate(q.lastReminderAt) : null;
+        var remDays = remJS ? Math.max(0, Math.floor((Date.now() - remJS.getTime()) / 86400000)) : null;
+        var dueLabel = (dueJS ? 'due ' + dueJS.toLocaleDateString() : 'no due date')
+          + (remDays != null ? ' · reminded ' + (remDays === 0 ? 'today' : remDays + 'd ago') : '');
         html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--br,rgba(255,255,255,.06));flex-wrap:wrap;">' +
           '<div style="min-width:140px;">' + nameHtml + '<div style="font-size:11px;color:var(--m,#9ca3af);">' + dueLabel + '</div></div>' +
           '<div style="font-size:12px;font-weight:700;color:' + badgeColor + ';white-space:nowrap;">' + q.daysPastDue + 'd overdue</div>' +
