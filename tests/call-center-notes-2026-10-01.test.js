@@ -119,6 +119,15 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('the test list clears after it runs', db.docs.get(CONFIG).transcribeOnly.length === 0);
   ok('audio seconds counted for the day', db.docs.get(CONFIG).audioSecUsed === 95 && db.docs.get(CONFIG).audioSecDay === '2026-10-01');
 
+  console.log('\n5b. An old (backlog) call: notes + timeline, no stale task');
+  stub(BUSINESS);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_old'] }, [COLLECTION + '/cube_old']: call('cube_old', { leadId: 'L1', startedAtMs: NOW - 60 * 24 * 3600e3 }), 'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  r = await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('old call is noted with its timeline entry', db.docs.get(COLLECTION + '/cube_old').status === 'noted' && !!db.docs.get('leads/L1/activity/cube-cube_old'));
+  ok('old call makes no follow-up task', !db.docs.has('leads/L1/tasks/cube-cube_old') && r.tasks === 0);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_1'] }, [COLLECTION + '/cube_1']: call('cube_1', { leadId: 'L1' }), 'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+
   console.log('\n6. Re-run never un-ticks a done task');
   db.docs.set('leads/L1/tasks/cube-cube_1', Object.assign({}, db.docs.get('leads/L1/tasks/cube-cube_1'), { done: true }));
   db.docs.set(COLLECTION + '/cube_1', Object.assign({}, db.docs.get(COLLECTION + '/cube_1'), { status: 'stored' }));

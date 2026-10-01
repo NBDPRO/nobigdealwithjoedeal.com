@@ -319,7 +319,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         const full = Object.assign({}, call, { durationSec: Number(t.durationSec) || 0 });
         await db.doc('leads/' + call.leadId + '/activity/cube-' + call.id)
           .set(Object.assign(L.buildCallActivity({ call: full, notes, ownerUid: OWNER }), { createdAt: FieldValue.serverTimestamp() }));
-        const task = L.buildFollowUpTask({ call: full, notes, leadId: call.leadId, ownerUid: OWNER, todayYmd: today });
+        const task = L.buildFollowUpTask({ call: full, notes, leadId: call.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
         // create(): a re-run must never un-tick a task Jo already completed.
         if (task && await createIfAbsent(db.doc('leads/' + call.leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
       }
@@ -462,7 +462,7 @@ async function callAction({ db, auth, data, nowMs }) {
       await db.doc('leads/' + leadId + '/activity/cube-' + id)
         .set(Object.assign(L.buildCallActivity({ call, notes, ownerUid: owner }), { createdAt: FieldValue.serverTimestamp() }));
       const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-      const task = L.buildFollowUpTask({ call, notes, leadId, ownerUid: owner, todayYmd: today });
+      const task = L.buildFollowUpTask({ call, notes, leadId, ownerUid: owner, todayYmd: today, nowMs });
       if (task) await createIfAbsent(db.doc('leads/' + leadId + '/tasks/cube-' + id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
     }
     return { ok: true, leadId, phoneAdded: !!patch };

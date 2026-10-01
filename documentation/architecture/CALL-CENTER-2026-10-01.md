@@ -222,6 +222,19 @@ escaping).
   call personal, `runTranscribe` deletes the Storage object and sets
   `storagePath: null, audioRemoved: 'personal'`. The original stays in Jo's
   Drive, so a misjudged call can still be recovered there.
+- **The one-call test (the same afternoon).** It ran on a 63 s customer
+  call from Jul 9. The summary was right. Of the promises, two were Jo's
+  (arrive Mon 10–12, install and haul trash) and one was the customer's
+  (review the emailed document). It also created **one stale task**, dated
+  Jul 14, which led to the 14-day rule below.
+- **14-day task window** (`TASK_WINDOW_MS`):
+  - Only calls from the last 14 days create follow-up tasks, whether the
+    task comes from transcription or from attaching a call.
+  - In the sweep, the "no customer on file" item only counts recent calls.
+  - Backlog calls still get their notes and timeline entry.
+  - Break-tested.
+- **"Yes, turn it on"** set `CALL_CENTER_TRANSCRIBE_ENABLED=true`.
+- **"Yes, both times"** set `CALL_CENTER_SWEEP_ENABLED=true`.
 
 ## Next stages
 

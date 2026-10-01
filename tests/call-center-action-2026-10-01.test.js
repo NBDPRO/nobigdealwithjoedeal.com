@@ -35,7 +35,7 @@ function fakeDb(seed) {
 }
 const OWN = 'owner1';
 const seed = () => ({
-  [COLLECTION + '/cube_AAAAA1']: { userId: OWN, companyId: 'co1', phoneDigits: '5135550100', contactName: 'Example Claims', bucket: 'insurance', status: 'noted', summary: 'Adjuster visit Tuesday.', promises: [{ who: 'jo', text: 'Send photos to the adjuster', due: '2026-10-03' }], followUpDate: '2026-10-03', urgent: false, direction: 'inbound' },
+  [COLLECTION + '/cube_AAAAA1']: { userId: OWN, companyId: 'co1', phoneDigits: '5135550100', contactName: 'Example Claims', bucket: 'insurance', status: 'noted', startedAtMs: Date.parse('2026-09-29T15:00:00Z'), summary: 'Adjuster visit Tuesday.', promises: [{ who: 'jo', text: 'Send photos to the adjuster', due: '2026-10-03' }], followUpDate: '2026-10-03', urgent: false, direction: 'inbound' },
   [COLLECTION + '/cube_BBBBB2']: { userId: OWN, companyId: 'co1', phoneDigits: '5135550199', status: 'stored', bucket: 'unknown' },
   'leads/L1': { userId: OWN, companyId: 'co1', firstName: 'Pat', phone: '(513) 555-0111' },
   'leads/L2': { userId: OWN, companyId: 'co1', firstName: 'Sam', phone: '' },
@@ -86,6 +86,9 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('re-attach never un-ticks the task', db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').done === true);
   await run(db, owner, { id: 'cube_BBBBB2', action: 'attach', leadId: 'L2' });
   ok('a not-yet-noted call files with no timeline or task (transcribe adds them later)', db.docs.get(COLLECTION + '/cube_BBBBB2').leadId === 'L2' && !db.docs.has('leads/L2/activity/cube-cube_BBBBB2') && !db.docs.has('leads/L2/tasks/cube-cube_BBBBB2'));
+  db.docs.set(COLLECTION + '/cube_CCCCC3', { userId: OWN, companyId: 'co1', phoneDigits: '5135550177', status: 'noted', startedAtMs: Date.parse('2026-07-01T15:00:00Z'), summary: 'Old call.', promises: [{ who: 'jo', text: 'Old promise', due: '2026-07-02' }] });
+  await run(db, owner, { id: 'cube_CCCCC3', action: 'attach', leadId: 'L1' });
+  ok('attaching an OLD noted call files the timeline entry but no stale task', !!db.docs.get('leads/L1/activity/cube-cube_CCCCC3') && !db.docs.has('leads/L1/tasks/cube-cube_CCCCC3'));
   ok('empty phone filled with the caller\'s number', db.docs.get('leads/L2').phone === '(513) 555-0199');
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
