@@ -23,6 +23,7 @@ const TAB_REGISTRY = [
   { id: 'job-templates', icon: '🧰', label: 'Job Templates', action: 'job-templates', category: 'Tools' },
   { id: 'draw',       icon: '✏️', label: 'Draw',         action: 'draw',       category: 'Tools' },
   { id: 'signs',      icon: '🪧', label: 'Yard Signs',  action: 'signs',      category: 'Tools' },
+  { id: 'winback',    icon: '🤝', label: 'Past Customers', action: 'winback', category: 'Tools' },
   { id: 'schedule',   icon: '🗓️', label: 'Schedule',    action: 'schedule',   category: 'Tools' },
   { id: 'training',   icon: '🎯', label: 'Training',    action: 'training',   category: 'Tools' },
   { id: 'academy',    icon: '🎓', label: 'Academy',     action: 'academy',    category: 'Tools' },

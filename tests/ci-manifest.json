@@ -157,6 +157,7 @@
     "claim-panel-logic-2026-09-30.test.js",
     "security-checklist-2026-10-01.test.js",
     "invoice-reminder-2026-10-01.test.js",
+    "winback-2026-10-01.test.js",
     "stripe-ledger-ui-2026-09-29.test.js",
     "daily-success-sync-2026-09-29.test.js",
     "workout-coach-2026-09-29.test.js",
