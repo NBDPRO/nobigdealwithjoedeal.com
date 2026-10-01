@@ -114,6 +114,13 @@ console.log('\n3. my-skin.js privacy contract');
   ok('no inline handlers or innerHTML', !/innerHTML\s*=|\.on(click|change|input)\s*=/.test(J.replace(/im\.onload|im\.onerror/g, '')));
   ok('the mascot is decorative (alt="", aria-hidden)', /mascot\.alt = ''/.test(J) && /aria-hidden', 'true'/.test(J));
   ok('object URLs are revoked when replaced', /URL\.revokeObjectURL\(urls\[slot\]\)/.test(J));
+  // A boot read during a connection cycle can return Firestore's EMPTY local
+  // cache (seen as a flaky "skin missing after reload" on main CI, 2026-10-01).
+  ok('the live listener skips an empty cached snapshot and waits for the server copy',
+    /window\.onSnapshot\(ref,/.test(J) && /metadata\.fromCache && !data\.mySkin\) return;/.test(J));
+  ok('without onSnapshot, an empty cached getDoc is retried', /function readWithRetry/.test(J) && /fromCache && !data\.mySkin && n < 5/.test(J));
+  ok('a snapshot never undoes an edit in progress', /Date\.now\(\) - localEditAt < 3000/.test(J) && /function saveSoon\(\) \{ localEditAt = Date\.now\(\)/.test(J));
+  ok('images are refetched only when a slot actually changed', /slotKey\(next\) !== slotKey\(cfg\)/.test(J));
 }
 
 console.log('\n4. CSS gating, panel, page wiring');

@@ -117,15 +117,31 @@
     // next frame. Only when clamped near 0 — a legacy menu link that smooth-
     // scrolls to a section is never at 0, so it is never overridden.
     var target = savedScrollY;
-    if (target > 2 && window.requestAnimationFrame) {
-      window.requestAnimationFrame(function () {
-        if ((window.pageYOffset || 0) > 2) return;
+    if (target > 2) {
+      // CI's Linux WebKit (2026-10-01) still landed at 0 on every retry of
+      // some runs: the un-pinned page can lay out after the next frame, so one
+      // re-apply is not enough. Re-check on the next frame and twice more as
+      // layout settles. Still only when clamped near 0, and never after the
+      // reader starts scrolling themselves.
+      var userMoved = false;
+      var markMoved = function () { userMoved = true; };
+      window.addEventListener('touchstart', markMoved, { passive: true, once: true });
+      window.addEventListener('wheel', markMoved, { passive: true, once: true });
+      var reapply = function () {
+        if (userMoved || (window.pageYOffset || 0) > 2) return;
         var pb = root.style.scrollBehavior;
         root.style.scrollBehavior = 'auto';
         window.scrollTo(0, target);
         void root.offsetHeight;
         root.style.scrollBehavior = pb;
-      });
+      };
+      if (window.requestAnimationFrame) window.requestAnimationFrame(reapply);
+      setTimeout(reapply, 60);
+      setTimeout(function () {
+        reapply();
+        window.removeEventListener('touchstart', markMoved);
+        window.removeEventListener('wheel', markMoved);
+      }, 250);
     }
   }
 
