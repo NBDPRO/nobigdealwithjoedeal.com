@@ -104,3 +104,43 @@ Next lane:
 
 This is a production data write, so it waits for Jo's confirm on the screen
 itself.
+
+## 5. Update, same day: "Sort my customers" shipped
+
+- **`suggestJobType(lead)`** lives in `docs/pro/js/crm-stages.js` and is
+  exposed as `window.suggestJobType`. It returns `{type, reason, strength}`
+  or `null`, and never writes.
+  - **Strong:** what `inferJobType` already reads: a carrier, a claim or
+    policy number, a claim status other than "No Claim", an adjuster or a
+    date of loss, a real loan (`loanAmount` > 0, since 8 real leads carry 0),
+    a warranty claim, or a claim / finance / service / cash stage.
+  - **Likely:** the request's own words.
+    - Thumbtack `Category:` / `Project type:` or `damageType`: a repair,
+      maintenance or cleaning request → Service; an install or replacement
+      → Cash.
+    - Storm words → Insurance, unless the request says "not covered".
+    - Failing those, the price: $5k or more → Cash, under $2.5k → Service.
+- **What a read-only count of the 118 untyped customers showed:**
+  - 89 are Thumbtack requests: drywall 21, roof repair 20, siding 15,
+    gutters 7.
+  - 13 say "Insurance claim coverage: No".
+  - The new suggester places 107. That is 86 Service, 13 Cash and 8
+    Insurance; 11 have no clues. `inferJobType` alone placed 4.
+- **`docs/pro/js/sort-customers.js`** + `css/sort-customers.css`:
+  - The banner over the board (`#sortCustomersWrap`, refreshed at the end of
+    `renderLeads`) reads "N customers have no job type".
+  - The screen has filters (Suggested / No clues / All), a per-row picker
+    preselected to the suggestion, and "Set everyone shown to…".
+  - **Save** writes only the picked rows: `jobType` + `updatedAt` in chunked
+    writeBatches, then a best-effort `type_change` timeline note per lead
+    (the same note `changeLeadType` writes).
+  - Only leads the user may edit are listed. Viewers see nothing.
+- **New leads must pick a type.** `saveLead` in `crm-leads.js` refuses a new
+  lead with no type; editing an old untyped lead still saves. The "Not Set"
+  option now reads "Pick a type…".
+- **Tests:**
+  - `tests/suggest-job-type-2026-10-01.test.js`: 34 checks.
+  - `tests/e2e/sort-customers.spec.js` (@shard2, 390px). Break-tested: a
+    no-op Save turns it red.
+  - `crm-handoff-ui.spec.js` now picks a type.
+- **Production write:** none was made by this work. Jo sorts on the screen.

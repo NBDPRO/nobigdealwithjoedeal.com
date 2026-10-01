@@ -774,6 +774,10 @@ function renderLeads(leads, filtered){
   // Surface the leads that were kept off the board because their stage is
   // hidden — otherwise their count + $ silently vanish from the pipeline.
   renderHiddenStageChip(_hiddenStageLeads);
+  // "N customers have no job type — Sort them" (sort-customers.js).
+  if (window.NBDSortCustomers && typeof window.NBDSortCustomers.refresh === 'function') {
+    try { window.NBDSortCustomers.refresh(); } catch (e) { console.warn('[sort-customers] banner failed', e); }
+  }
 }
 
 // ── Hidden-stage leads chip (board-level affordance) ──────────────

@@ -288,6 +288,15 @@ async function saveLead(){
   const fname=fnameEl.value.trim();
   const addr=addrEl.value.trim();
   if(!fname||!addr){showFormError('Name and address required.', !fname ? fnameEl : addrEl);return;}
+  // A NEW lead must say what kind of job it is (Jo, 2026-10-01: 118 untyped
+  // customers made every board but All look empty). Edits of an older,
+  // untyped lead still save; "Sort my customers" handles those.
+  const jobTypeEl = document.getElementById('lJobType');
+  const isNewLead = !(document.getElementById('lEditId')?.value);
+  if (isNewLead && jobTypeEl && !jobTypeEl.value) {
+    showFormError('Pick a job type: Insurance, Cash, Finance, Warranty or Service.', jobTypeEl);
+    return;
+  }
 
   // Email + phone validation. The native <input type="email"> validation
   // is bypassed when this function is called via the Save button's

@@ -22,7 +22,7 @@
     VIEW_SIMPLE, VIEW_INSURANCE, VIEW_CASH, VIEW_FINANCE, VIEW_WARRANTY, VIEW_SERVICE, VIEW_JOBS, VIEW_JOBS_BOARD,
     normalizeStage, stageLabel, stageColor, resolveColumn, partitionLeadsByColumn,
     stageRole, isWonStage, isLostStage, isJobStage, isTerminalStage, ROLE, resolvePipelineConfig,
-    stageOptionsForType, inferJobType, JOB_TYPES, JOB_TYPE_META, jobTypeLabel,
+    stageOptionsForType, inferJobType, suggestJobType, JOB_TYPES, JOB_TYPE_META, jobTypeLabel,
     SUB_TYPES, subTypeOptionsFor, subTypeLabel,
     TRADES, tradeLabel, tradesLabel,
     STAGE_ACTIONS, actionsForStage, preferredActionFor,
@@ -233,6 +233,7 @@
   window.addEventListener('nbd:company-profile-loaded', () => { applyPipelineConfig(); });
   window.stageOptionsForType = stageOptionsForType;
   window.inferJobType = inferJobType;
+  window.suggestJobType = suggestJobType; // "Sort my customers" (sort-customers.js)
   window.JOB_TYPES = JOB_TYPES;
   window._dragId = _dragId;
   window._filteredLeads = _filteredLeads;

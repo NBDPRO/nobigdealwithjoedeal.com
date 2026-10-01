@@ -158,6 +158,8 @@ test.describe.serial('CRM handoff 2026-09-30 — hotkeys, job block, search, dou
     await page.fill('#lFname', 'ZZDS');
     await page.fill('#lLname', String(stamp));
     await page.fill('#lAddr', '9 Double St, Mason, OH 45040');
+    // New leads must pick a job type (2026-10-01).
+    await page.selectOption('#lJobType', 'cash');
     // Both buttons in the same task, before the first save can finish.
     await safeEvaluate(page, () => { document.getElementById('leadModalSave').click(); document.getElementById('leadSaveBtn').click(); document.getElementById('leadModalSave').click(); });
     await page.waitForTimeout(4_000);
