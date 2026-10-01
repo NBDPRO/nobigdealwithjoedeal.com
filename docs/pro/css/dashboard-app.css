@@ -4851,6 +4851,24 @@ body {
     min-height:0!important;
     overflow:hidden!important;
   }
+  /* The four embedded tool pages (API Analytics, AI Tree, Understand,
+     Project Codex) are an <iframe style="height:100%">. Under the blanket
+     display:block above that percentage has nothing to resolve against, so
+     the frame fell back to the browser default: 150px tall, the page a sliver
+     (Jo, 2026-09-30: "the api analytics page seems extremely broken"). Same
+     flex treatment as the map, and the frame fills the view. */
+  #view-aiusage.active, #view-aitree.active, #view-understand.active, #view-projectcodex.active{
+    display:flex!important;
+    flex-direction:column!important;
+    min-height:0!important;
+    overflow:hidden!important;
+    padding:0!important;
+  }
+  #view-aiusage.active > iframe, #view-aitree.active > iframe, #view-understand.active > iframe, #view-projectcodex.active > iframe{
+    flex:1 1 auto!important;
+    height:auto!important;
+    min-height:0!important;
+  }
   /* Bottom clearance for the #mobile-nav bar (62px + safe-area).
      MERGE RESOLUTION (overlap-sweep × FAB gating): this branch raised the
      generic clearance to 150px on the premise that the ⋯ field-tools

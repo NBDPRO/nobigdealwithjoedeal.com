@@ -38,7 +38,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);min-
 body::before{content:'';position:fixed;top:0;right:0;bottom:0;left:0;background-image:linear-gradient(rgba(78,155,245,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(78,155,245,.015) 1px,transparent 1px);background-size:48px 48px;pointer-events:none}
 
 /* TOPBAR */
-.topbar{height:56px;background:rgba(5,6,8,.97);border-bottom:1px solid var(--border);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);position:sticky;top:0;z-index:200;display:flex;align-items:center;padding:0 24px;gap:16px}
+.topbar{min-height:56px;flex-wrap:wrap;padding-top:8px!important;padding-bottom:8px!important;background:rgba(5,6,8,.97);border-bottom:1px solid var(--border);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);position:sticky;top:0;z-index:200;display:flex;align-items:center;padding:0 24px;gap:16px}
 .tb-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
 .tb-mark{width:32px;height:32px;background:var(--orange);border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:16px;color:#fff}
 .tb-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;letter-spacing:2px;color:var(--text)}
@@ -52,6 +52,11 @@ body::before{content:'';position:fixed;top:0;right:0;bottom:0;left:0;background-
    the overflow onto the a.tb-link children (scrollWidth stays 738px). Wrapping
    is the only thing that actually removes it. */
 .tb-links{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto;align-items:center}
+/* Inside the dashboard (an iframe), the dashboard's own nav is already on
+   screen: this one only duplicated it and wrapped over the title on a phone.
+   pro-analytics-gate.js sets the class. */
+html.nbd-embedded .topbar{display:none}
+html.nbd-embedded .container{padding-top:16px}
 .tb-link{padding:5px 12px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px;text-decoration:none;transition:all var(--dur) var(--ease);letter-spacing:.5px}
 .tb-link:hover{border-color:var(--orange);color:var(--orange)}
 .tb-link.active{background:var(--orange-d);border-color:rgba(189,87,40,.4);color:var(--orange)}
@@ -97,7 +102,7 @@ body::before{content:'';position:fixed;top:0;right:0;bottom:0;left:0;background-
 .chart-val{font-family:'DM Mono',monospace;font-size:8px;color:var(--text3)}
 .chart-bar{width:100%;border-radius:3px 3px 0 0;transition:height .4s var(--ease);min-height:2px;position:relative}
 .chart-bar:hover{opacity:1!important;filter:brightness(1.3)}
-.chart-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--text3)}
+.chart-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--text3);white-space:nowrap;min-height:10px}
 
 /* TABLE */
 .tbl{width:100%;border-collapse:collapse}
@@ -239,9 +244,9 @@ body::before{content:'';position:fixed;top:0;right:0;bottom:0;left:0;background-
     <div class="card-head"><div class="card-title">📋 Anthropic Pricing Reference</div></div>
     <div class="card-body">
       <div class="pricing">
-        <div class="price-card"><div class="price-model" style="color:var(--blue)">Claude Opus 4</div><div class="price-row">Input: <span class="price-val">$15 / 1M tokens</span></div><div class="price-row">Output: <span class="price-val">$75 / 1M tokens</span></div></div>
+        <div class="price-card"><div class="price-model" style="color:var(--green)">Claude Haiku 4.5</div><div class="price-row">Input: <span class="price-val">$1 / 1M tokens</span></div><div class="price-row">Output: <span class="price-val">$5 / 1M tokens</span></div></div>
         <div class="price-card"><div class="price-model" style="color:var(--orange)">Claude Sonnet 4</div><div class="price-row">Input: <span class="price-val">$3 / 1M tokens</span></div><div class="price-row">Output: <span class="price-val">$15 / 1M tokens</span></div></div>
-        <div class="price-card"><div class="price-model" style="color:var(--green)">Claude Haiku 3.5</div><div class="price-row">Input: <span class="price-val">$0.80 / 1M tokens</span></div><div class="price-row">Output: <span class="price-val">$4 / 1M tokens</span></div></div>
+        <div class="price-card"><div class="price-model" style="color:var(--blue)">Claude Opus 4.5–4.8</div><div class="price-row">Input: <span class="price-val">$5 / 1M tokens</span></div><div class="price-row">Output: <span class="price-val">$25 / 1M tokens</span></div></div>
       </div>
     </div>
   </div>
