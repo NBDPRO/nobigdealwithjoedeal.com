@@ -60,9 +60,15 @@ function _pipelineFor(lead) {
   const view = resolved.views[jobType] || resolved.views.insurance || { stages: [] };
   let pipeline = (view.stages || []).slice();
   if (jobType !== 'warranty' && jobType !== 'service') {
+    // The track boards carry Installing + Closed columns themselves
+    // (2026-10-01): take those out first so the full job sequence goes in
+    // once, in order (else the ladder read Contract Signed → Installing →
+    // Closed → Job Created …). Same rule as dashboard-bootstrap's picker.
+    const jobsAll = ((resolved.views.jobs && resolved.views.jobs.stages) || []).filter(k => k !== 'contract_signed');
+    pipeline = pipeline.filter(k => !jobsAll.includes(k));
     const at = pipeline.indexOf('contract_signed');
     if (at !== -1) {
-      const jobs = ((resolved.views.jobs && resolved.views.jobs.stages) || []).filter(k => !pipeline.includes(k));
+      const jobs = jobsAll.slice();
       // Insert the job track AFTER any stages the tenant placed after Contract
       // Signed (the pipeline builder adds custom stages there, before Lost) —
       // i.e. at the first lost-role stage — not immediately after Contract
