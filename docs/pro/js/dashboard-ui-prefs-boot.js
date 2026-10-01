@@ -378,7 +378,8 @@ function nbdSoundsSetEnabled(on)   { if (window.ThemeSounds)   window.ThemeSound
 // to before this feature existed. See shape-preboot.js for the pre-paint
 // stamp that avoids a flash on load.
 var NBD_SHAPE_STYLE_KEY = 'nbd_shape_style';
-var NBD_SHAPE_STYLES = ['sharp', 'linear', 'pressed', 'soft', 'elevated', 'fluent', 'glass', 'tonal'];
+// clay / liquid / skeuo / spatial restyle the surface itself (css/shape-styles.css, 2026-10-01).
+var NBD_SHAPE_STYLES = ['sharp', 'linear', 'pressed', 'soft', 'elevated', 'fluent', 'glass', 'tonal', 'clay', 'liquid', 'skeuo', 'spatial'];
 // save=false is the hydrate-from-Firestore path (see _nbdHydratePrefFromFirestore
 // below) — applies the remote value without echoing it straight back to
 // Firestore and without toasting a change the user didn't just make.

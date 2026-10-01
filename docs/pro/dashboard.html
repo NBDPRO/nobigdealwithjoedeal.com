@@ -22,6 +22,7 @@
      Same content (80 themes + trial-banner CSS) the inline <style id="theme-system">
      used to carry. Customer/vault/login already loaded the file; dashboard now joins. -->
 <link rel="stylesheet" href="css/theme-system.css?v=9">
+<link rel="stylesheet" href="css/theme-art.css?v=1">
 <style id="theme-system-noop">
 /* Theme variables now live in css/theme-system.css. This stub keeps the
    #theme-system id reachable for any DOM lookup that still expects a
@@ -104,7 +105,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=29"></script>
+<script src="js/script-loader.js?v=30"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -135,6 +136,8 @@
 <link rel="stylesheet" href="css/kanban-force.css?v=4" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
 <link rel="stylesheet" href="css/theme-bridge.css?v=2" id="nbd-theme-bridge-link">
+<!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
+<link rel="stylesheet" href="css/shape-styles.css?v=1">
 
 <style id="crm-var-bridge">
 /* Bridge CRM --orange → --ac for unified theme system */
@@ -154,7 +157,7 @@
   <style>@keyframes nbd-load-bar{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>
 </div>
 <script src="js/dashboard-loader-fadeout.js?v=1"></script>
-<script src="js/dashboard-ui-prefs-boot.js?v=4"></script>
+<script src="js/dashboard-ui-prefs-boot.js?v=5"></script>
 <!-- ═══════════════════════════════════════════════════════════════
      NBD PRO UNIVERSAL NAV BAR v1.0
      Drop this block into any NBD Pro tool page.
@@ -3428,8 +3431,12 @@
                 <button class="btn btn-ghost shape-style-btn" data-shape="fluent" data-action="call" data-fn="nbdSetShapeStyle" data-arg="fluent">Mica</button>
                 <button class="btn btn-ghost shape-style-btn" data-shape="glass" data-action="call" data-fn="nbdSetShapeStyle" data-arg="glass">Glass</button>
                 <button class="btn btn-ghost shape-style-btn" data-shape="tonal" data-action="call" data-fn="nbdSetShapeStyle" data-arg="tonal">Tonal</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="clay" data-action="call" data-fn="nbdSetShapeStyle" data-arg="clay">Clay</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="liquid" data-action="call" data-fn="nbdSetShapeStyle" data-arg="liquid">Liquid Glass</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="skeuo" data-action="call" data-fn="nbdSetShapeStyle" data-arg="skeuo">Skeuo</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="spatial" data-action="call" data-fn="nbdSetShapeStyle" data-arg="spatial">Spatial</button>
               </div>
-              <div style="font-size:11px;color:var(--m);margin-top:8px;">Changes button, card, input, and modal corners and shadow — never color. "Sharp" is today's default look.</div>
+              <div style="font-size:11px;color:var(--m);margin-top:8px;">Changes how buttons, cards, inputs and sheets feel — corners, depth, glass, clay, material — never color. "Sharp" is today's default look.</div>
             </div>
           </div>
         </div>
