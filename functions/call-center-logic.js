@@ -187,8 +187,30 @@ function daysBefore(ymd, n) {
   return SW.addDays(ymd, -n);
 }
 
+// Cube ACR writes a ~160-byte sidecar next to each recording, same name,
+// .json: {"duration":"21504","loc":"<lat;lng>","callee":"+1…","addr":"<street
+// address>","direction":"Incoming"}. ONLY the duration is read. "loc" and
+// "addr" are where Jo's phone was during the call — never stored.
+const SHORT_CALL_SEC = 15;
+
+function sidecarNameFor(recordingName) {
+  return String(recordingName || '').replace(/\.[A-Za-z0-9]+$/, '.json');
+}
+
+/** Sidecar JSON text → { durationSec } or null. Nothing else is kept. */
+function parseSidecar(text) {
+  let j;
+  try { j = JSON.parse(String(text || '')); } catch (_) { return null; }
+  if (!j || typeof j !== 'object') return null;
+  const ms = Number(j.duration);
+  if (!Number.isFinite(ms) || ms < 0 || ms > 24 * 3600 * 1000) return null;
+  return { durationSec: Math.round(ms / 1000) };
+}
+
 /** The Firestore doc for one call (before transcription). */
-function buildCallDoc({ ownerUid, file, parsed, match, bucket, storedPath, nowMs }) {
+function buildCallDoc({ ownerUid, file, parsed, match, bucket, storedPath, nowMs, durationSec }) {
+  const dur = Number.isFinite(durationSec) ? durationSec : null;
+  const short = dur != null && dur < SHORT_CALL_SEC;
   return {
     userId: ownerUid,
     companyId: ownerUid,
@@ -208,7 +230,9 @@ function buildCallDoc({ ownerUid, file, parsed, match, bucket, storedPath, nowMs
     leadId: (match && match.leadId) || null,
     alternateLeadIds: (match && match.alternates) || [],
     storagePath: storedPath || null,
-    status: storedPath ? 'stored' : 'listed',
+    durationSec: dur,
+    // A missed call / hang-up: audio kept, never transcribed.
+    status: !storedPath ? 'listed' : (short ? 'short' : 'stored'),
     transcript: null,
     summary: null,
     actionItems: [],
@@ -354,7 +378,102 @@ function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd }) {
   };
 }
 
+// ── Stage 3: the "you said you'd…" sweep (2026-10-01) ────────────────────
+//
+// Twice a day (07:15 and 15:15 ET) one email to Jo listing what his calls
+// say is still owed. Sources: noted phone_calls from the last 30 days and
+// the one follow-up task each may have (leads/{id}/tasks/cube-{callId}).
+//   due      — a task Jo hasn't ticked, due today or earlier
+//   no file  — a call with no CRM customer where Jo promised something or a
+//              follow-up date has come (insurance lines, new numbers)
+//   urgent   — an urgent call in the last 36 h whose task isn't done
+// A call Jo marked handled (handledAtMs) never shows. Nothing open → no email.
+
+const SWEEP_LOOKBACK_MS = 30 * 24 * 3600 * 1000;
+const URGENT_WINDOW_MS = 36 * 3600 * 1000;
+const SWEEP_MAX_ITEMS = 30;
+
+function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
+  const tasks = tasksByCallId instanceof Map ? tasksByCallId : new Map(Object.entries(tasksByCallId || {}));
+  const out = [];
+  for (const c of calls || []) {
+    if (!c || c.status !== 'noted' || c.handledAtMs) continue;
+    if ((Number(c.startedAtMs) || 0) < nowMs - SWEEP_LOOKBACK_MS) continue;
+    const mine = (Array.isArray(c.promises) ? c.promises : []).filter((p) => p && p.who === 'jo');
+    const task = c.leadId ? tasks.get(c.id) : null;
+    const who = c.contactName || (c.phoneDigits ? '(' + c.phoneDigits.slice(0, 3) + ') ' + c.phoneDigits.slice(3, 6) + '-' + c.phoneDigits.slice(6) : 'Unknown number');
+    const base = { callId: c.id, leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text) };
+    if (task) {
+      if (task.done === true) continue;
+      const urgentNow = c.urgent && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS;
+      if (urgentNow) out.push(Object.assign(base, { kind: 'urgent', due: task.dueDate || todayYmd }));
+      else if (task.dueDate && task.dueDate <= todayYmd) out.push(Object.assign(base, { kind: 'due', due: task.dueDate }));
+      continue;
+    }
+    if (!c.leadId) {
+      const dues = mine.map((p) => p.due).filter(Boolean).concat(c.followUpDate ? [c.followUpDate] : []).sort();
+      const due = dues[0] || null;
+      const urgentNow = c.urgent && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS;
+      if (urgentNow) out.push(Object.assign(base, { kind: 'urgent', due: due || todayYmd }));
+      else if (mine.length && (!due || due <= todayYmd)) out.push(Object.assign(base, { kind: 'nofile', due: due || todayYmd }));
+      else if (!mine.length && due && due <= todayYmd) out.push(Object.assign(base, { kind: 'nofile', due }));
+    }
+  }
+  const rank = { urgent: 0, due: 1, nofile: 2 };
+  return out.sort((a, b) => rank[a.kind] - rank[b.kind] || String(a.due).localeCompare(String(b.due)) || (a.startedAtMs || 0) - (b.startedAtMs || 0))
+    .slice(0, SWEEP_MAX_ITEMS);
+}
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** The sweep email. Internal (Jo only); every value escaped. */
+function buildSweepEmail({ items, todayYmd, slot }) {
+  const n = items.length;
+  const subject = (items.some((i) => i.kind === 'urgent') ? '🚨 ' : '') + 'Calls: ' + n + ' thing' + (n === 1 ? '' : 's') + ' you said you\'d do' + (slot === 'pm' ? ' (afternoon check)' : '');
+  const label = { urgent: 'Urgent', due: 'Due', nofile: 'No customer on file' };
+  const link = (i) => i.leadId ? 'https://nobigdealwithjoedeal.com/pro/customer.html?id=' + encodeURIComponent(i.leadId) : 'https://nobigdealwithjoedeal.com/pro/dashboard.html#calls';
+  const when = (ms) => ms ? new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const html = '<div style="font-family:Arial,sans-serif;max-width:620px;color:#111">' +
+    '<h2 style="margin:0 0 6px">' + escHtml(subject) + '</h2>' +
+    '<p style="margin:0 0 14px;color:#555;font-size:13px">From your recorded calls, ' + escHtml(todayYmd) + '. Tick the task (or mark the call handled) and it drops off.</p>' +
+    items.map((i) => '<div style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:0 0 10px">' +
+      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:' + (i.kind === 'urgent' ? '#b91c1c' : '#c2410c') + '">' + escHtml(label[i.kind]) + (i.due ? ' · ' + escHtml(i.due) : '') + '</div>' +
+      '<div style="font-weight:700;margin:2px 0"><a href="' + escHtml(link(i)) + '" style="color:#111">' + escHtml(i.who) + '</a> <span style="font-weight:400;color:#666;font-size:12px">' + escHtml(when(i.startedAtMs)) + '</span></div>' +
+      (i.promises.length ? '<ul style="margin:4px 0 4px 18px;padding:0;font-size:14px">' + i.promises.map((p) => '<li>' + escHtml(p) + '</li>').join('') + '</ul>' : '') +
+      (i.summary ? '<div style="font-size:13px;color:#444">' + escHtml(i.summary) + '</div>' : '') +
+      '</div>').join('') + '</div>';
+  const text = subject + '\n\n' + items.map((i) => '- [' + label[i.kind] + (i.due ? ' ' + i.due : '') + '] ' + i.who + ': ' +
+    (i.promises.length ? i.promises.join('; ') : i.summary) + '\n  ' + link(i)).join('\n');
+  return { subject, html, text };
+}
+
+/**
+ * Attaching a call to a customer: put the caller's number on the lead so
+ * the NEXT call from it matches by itself. Fill blanks only — never
+ * overwrite a number Jo typed (Thumbtack proxy numbers stay). Returns the
+ * patch, or null when the number is already there / there's no room.
+ */
+function phonePatchForLead(lead, phoneDigits) {
+  const d = phoneDigits10(phoneDigits);
+  if (d.length !== 10 || !lead) return null;
+  const have = [lead.phoneDigits, lead.phone, lead.phone2, lead.altPhone, lead.mobilePhone, lead.secondaryPhone].map(phoneDigits10);
+  if (have.includes(d)) return null;
+  const pretty = '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
+  if (!phoneDigits10(lead.phone)) return { phone: pretty, phoneDigits: d };
+  if (!phoneDigits10(lead.altPhone)) return { altPhone: pretty };
+  return null;
+}
+
 module.exports = {
+  SHORT_CALL_SEC,
+  sidecarNameFor,
+  parseSidecar,
+  phonePatchForLead,
+  collectSweepItems,
+  buildSweepEmail,
+  SWEEP_MAX_ITEMS,
   GROQ_MAX_BYTES,
   DAY_AUDIO_SEC_CAP,
   estimateAudioSec,

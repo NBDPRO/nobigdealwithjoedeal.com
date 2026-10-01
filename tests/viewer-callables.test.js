@@ -450,7 +450,7 @@ const VERDICTS = {
   // 2026-09-27): the recording stream reads only; the inbox action refuses
   // a viewer in its own loadCallForCaller({ write: true }) before any write,
   // proven by tests/thursday-pipeline.integration.test.js ("viewer refused").
-  getThursdayRecording: 'read', thursdayCallAction: 'already',
+  getThursdayRecording: 'read', thursdayCallAction: 'already', callCenterAction: 'already',
   // HTTP functions
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',

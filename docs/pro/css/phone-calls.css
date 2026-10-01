@@ -18,3 +18,35 @@
 .pc-promise-who { display: inline-block; min-width: 38px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--m); }
 .pc-promise-jo .pc-promise-who { color: var(--orange, #e8720c); }
 .pc-follow { margin-top: 6px; }
+/* Call Center view (js/call-center-view.js, #/calls). */
+.cc-wrap { padding: 16px; max-width: 900px; }
+.cc-title { margin: 0; font-size: 24px; }
+.cc-sub { margin: 4px 0 12px; font-size: 13px; color: var(--m); }
+.cc-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.cc-search {
+  min-height: 44px; width: 100%; box-sizing: border-box; padding: 0 12px; border-radius: 8px; font: inherit;
+  background: var(--s2, rgba(255,255,255,.05)); color: var(--t, inherit); border: 1px solid var(--br, rgba(255,255,255,.15));
+}
+.cc-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.cc-tab {
+  min-height: 44px; padding: 0 14px; border-radius: 999px; cursor: pointer; font: inherit; font-weight: 700;
+  background: var(--s2, rgba(255,255,255,.05)); color: var(--t, inherit); border: 1px solid var(--br, rgba(255,255,255,.15));
+}
+.cc-tab.is-on { background: var(--orange, #e8720c); border-color: var(--orange, #e8720c); color: var(--accent-fg, #fff); }
+.cc-count { font-weight: 400; opacity: .85; }
+.cc-chip {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; margin: 0 4px 4px 0;
+  background: var(--s3, rgba(255,255,255,.08)); color: var(--m, #9ca3af);
+}
+.cc-chip-urgent { background: #7f1d1d; color: #fecaca; }
+.cc-chip-warn { background: #78350f; color: #fde68a; }
+.cc-chip-done { background: #14532d; color: #bbf7d0; }
+.cc-chip-insurance { background: #3b0764; color: #e9d5ff; }
+.cc-card.is-handled { opacity: .75; }
+.cc-link { display: inline-flex; align-items: center; text-decoration: none; }
+.cc-attach { margin-top: 10px; }
+.cc-attach-row { display: flex; gap: 8px; margin-top: 4px; }
+.cc-attach-row .cc-search { flex: 1 1 auto; }
+.cc-empty { padding: 28px 12px; text-align: center; color: var(--m); font-size: 14px; }
+@media (max-width: 480px) { .cc-wrap { padding: 12px; } .cc-attach-row { flex-direction: column; } }
