@@ -380,7 +380,7 @@ function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd }) {
 
 // ── Stage 3: the "you said you'd…" sweep (2026-10-01) ────────────────────
 //
-// Twice a day (07:15 and 15:15 ET) one email to Jo listing what his calls
+// Twice a day (07:15 and 15:15 ET) one email to Jo listing what Jo's calls
 // say is still owed. Sources: noted phone_calls from the last 30 days and
 // the one follow-up task each may have (leads/{id}/tasks/cube-{callId}).
 //   due      — a task Jo hasn't ticked, due today or earlier
