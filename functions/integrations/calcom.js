@@ -102,18 +102,26 @@ exports.calcomWebhook = onRequest(
     const db = getFirestore();
     let repUid = null;
     let repCompanyId = null;
-    if (organizerUsername) {
-      const q = await db.collection('users').where('calcomUsername', '==', organizerUsername).limit(1).get();
-      if (!q.empty) {
-        repUid = q.docs[0].id;
-        repCompanyId = q.docs[0].data().companyId || null;
-      }
-    }
-    if (!repUid && organizerEmail) {
+    // The organizer's EMAIL first (security checklist 2026-10-01). Any user
+    // can write their own users/{uid}.calcomUsername, so matching on it first
+    // let one account claim another tenant's public Cal.com username and
+    // receive that tenant's bookings (name, email, phone) as its own leads.
+    // An Auth email is not self-assignable that way. The username is the
+    // fallback, and only when exactly ONE account carries it.
+    if (organizerEmail) {
       try {
         const u = await getAuth().getUserByEmail(organizerEmail);
         repUid = u.uid;
       } catch (e) { /* no matching user */ }
+    }
+    if (!repUid && organizerUsername) {
+      const q = await db.collection('users').where('calcomUsername', '==', organizerUsername).limit(2).get();
+      if (q.size === 1) {
+        repUid = q.docs[0].id;
+        repCompanyId = q.docs[0].data().companyId || null;
+      } else if (q.size > 1) {
+        logger.warn('[calcom] username claimed by more than one account; booking left unassigned', { bookingUid: payload.uid || null });
+      }
     }
     if (repUid && !repCompanyId) {
       // Matched via Auth email (or the username lookup's doc had no

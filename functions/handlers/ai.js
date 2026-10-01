@@ -17,7 +17,27 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 
-const { httpRateLimit } = require('../integrations/upstash-ratelimit');
+const { httpRateLimit, enforceRateLimit } = require('../integrations/upstash-ratelimit');
+
+// Whole-endpoint daily caps for the two UNAUTHENTICATED AI endpoints
+// (security checklist 2026-10-01). Their per-IP caps don't bound spend: a
+// caller rotating IPs could run the Anthropic bill up indefinitely, and the
+// kill switch needs a human. One fixed key = one counter for everyone.
+// Override with PUBLIC_AI_DAILY_CAP (env). A limiter-store failure refuses
+// (503): for a public paid endpoint, unknown spend is "no".
+async function publicAiDailyCap(res, name) {
+  const parsed = Number(process.env.PUBLIC_AI_DAILY_CAP);
+  const cap = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 300;
+  try {
+    await enforceRateLimit(name + ':global', 'GLOBAL_DAILY', cap, 86_400_000);
+    return true;
+  } catch (e) {
+    if (e && e.rateLimited) { res.status(429).json({ error: 'Busy right now — please try again tomorrow.' }); return false; }
+    logger.error('[publicAi] daily cap check failed', { name, msg: e && e.message });
+    res.status(503).json({ error: 'AI temporarily unavailable' });
+    return false;
+  }
+}
 // Declarative per-route policy (rate-limit-policy.js ROUTES table) — the
 // wrapper enforces per-IP AND per-uid ceilings before the handler runs.
 // claudeProxy is the wiring pilot (2026-08-10): its uid namespace/limit are
@@ -355,6 +375,7 @@ exports.publicVisualizerAI = onRequest(
     // Per-IP cap — 5 visualizer calls / hour from a single IP. Each call is
     // a ~$0.01 Haiku request; 5/hour caps cost per IP at ~$0.05/hour worst case.
     if (!(await httpRateLimit(req, res, 'publicVisualizerAI:ip', 5, 3_600_000))) return;
+    if (!(await publicAiDailyCap(res, 'publicVisualizerAI'))) return;
 
     try {
       const { imageBase64, mediaType, selectionsText, notes } = req.body || {};
@@ -471,6 +492,7 @@ exports.publicFunnelAI = onRequest(
     // Per-IP cap — 10 calls / hour. A full funnel completion is <=2 calls
     // (estimate JSON + note); the headroom covers a couple of retries.
     if (!(await httpRateLimit(req, res, 'publicFunnelAI:ip', 10, 3_600_000))) return;
+    if (!(await publicAiDailyCap(res, 'publicFunnelAI'))) return;
 
     try {
       const { prompt, maxTokens } = req.body || {};

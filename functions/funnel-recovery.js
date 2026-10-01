@@ -353,7 +353,7 @@ exports.runAbandonRecovery = onSchedule(
       if (!enabled) {
         logger.info('funnel_recovery_dry_run', {
           funnelId: doc.id,
-          email: data.email,
+          email: require('./email-suppression').maskEmail(data.email),   // no PII in logs (2026-10-01)
           firstName,
           age_min: Math.round((now - data.createdAt.toMillis()) / 60000),
         });
@@ -451,7 +451,7 @@ exports.runAbandonRecovery = onSchedule(
           // that it needs a human to reconcile against Resend's own log.
           logger.error('funnel_recovery_stamp_failed_after_send', {
             funnelId: doc.id,
-            email: data.email,
+            email: require('./email-suppression').maskEmail(data.email),
             error: stampErr && stampErr.message,
           });
         }

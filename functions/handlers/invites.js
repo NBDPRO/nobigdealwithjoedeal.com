@@ -139,7 +139,7 @@ exports.claimInvite = onCall(
     // or whether a second one exists.
     if (lookup.status === 'ambiguous') {
       logger.warn('claimInvite: ambiguous cross-tenant invite — refusing', {
-        email, companies: lookup.companyIds, truncated: lookup.truncated,
+        email: require('../email-suppression').maskEmail(email), companies: lookup.companyIds, truncated: lookup.truncated,
       });
       return { claimed: false, reason: 'ambiguous_invite' };
     }
