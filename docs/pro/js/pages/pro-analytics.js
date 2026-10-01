@@ -14,13 +14,16 @@
  */
 import { getFirestore, collection, query, where, orderBy, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-// Anthropic pricing per 1M tokens
+// Anthropic's published base rates per 1M tokens (claude.com/pricing, checked
+// 2026-09-30). Haiku 4.5 is $1/$5 — the page priced it at Haiku 3.5's
+// $0.80/$4, so every cost read ~20% low (nearly all usage is Haiku 4.5).
 const PRICING = {
-  'claude-opus-4-6':          { input: 15,   output: 75 },
-  'claude-sonnet-4-6':        { input: 3,    output: 15 },
-  'claude-haiku-4-5-20251001': { input: 0.80, output: 4 },
-  // Fallback for unknown models
-  'default':                   { input: 3,    output: 15 }
+  'claude-haiku-4-5-20251001': { input: 1,  output: 5 },
+  'claude-sonnet-4-20250514':  { input: 3,  output: 15 },
+  'claude-sonnet-4-6':         { input: 3,  output: 15 },
+  'claude-opus-4-6':           { input: 5,  output: 25 },
+  // Any other model: an estimate at Sonnet rates.
+  'default':                   { input: 3,  output: 15 }
 };
 
 let range = 'today';
@@ -128,7 +131,11 @@ function render() {
 
   document.getElementById('lCost').textContent = 'Cost · ' + label;
   document.getElementById('vCost').textContent = totalCost < 1 ? '$' + totalCost.toFixed(4) : '$' + totalCost.toFixed(2);
-  const projected = range === 'today' ? totalCost * 30 : range === '7d' ? (totalCost / 7) * 30 : totalCost;
+  // "Today × 30" swung from tiny at 9 am to huge after a busy evening: project
+  // Today from the last 7 days' daily average instead.
+  const week = allDocs.filter(d => d.ts >= getRangeStart('7d'));
+  const weekCost = week.reduce((s, d) => s + costForDoc(d), 0);
+  const projected = (range === 'today' || range === '7d') ? (weekCost / 7) * 30 : totalCost;
   document.getElementById('mCost').textContent = range !== 'all' ? 'Projected 30d: $' + projected.toFixed(2) : 'Lifetime total';
 
   document.getElementById('vAvg').textContent = avgTokens.toLocaleString();
@@ -151,33 +158,43 @@ function renderChart(docs) {
   const el = document.getElementById('chart');
   if (!docs.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📈</div><div class="empty-title">No Data Yet</div><div class="empty-desc">API requests will appear here once the proxy is in use.</div></div>'; return; }
 
-  // Bucket by time period
-  const buckets = {};
-  const now = new Date();
-
-  docs.forEach(d => {
-    let key;
-    if (range === 'today') {
-      key = d.ts.getHours() + ':00';
-    } else if (range === '7d') {
-      key = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.ts.getDay()] + ' ' + (d.ts.getMonth()+1) + '/' + d.ts.getDate();
-    } else if (range === '30d') {
-      key = (d.ts.getMonth()+1) + '/' + d.ts.getDate();
-    } else {
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      key = months[d.ts.getMonth()] + ' ' + d.ts.getFullYear();
-    }
-    buckets[key] = (buckets[key] || 0) + 1;
-  });
-
-  const entries = Object.entries(buckets);
+  // Continuous, oldest → newest: every hour / day / month in the range gets a
+  // bar, so quiet stretches show as gaps instead of vanishing. (Bars used to
+  // follow the query's newest-first order — time ran right to left.)
+  const entries = chartBuckets(docs, range, new Date());
   const max = Math.max(...entries.map(e => e[1]), 1);
+  // A phone fits ~8 readable labels; show every Nth, the rest blank.
+  const every = Math.max(1, Math.ceil(entries.length / (el.clientWidth && el.clientWidth < 600 ? 7 : 16)));
 
-  el.innerHTML = entries.map(([label, count]) => {
+  el.innerHTML = entries.map(([label, count], i) => {
     const pct = (count / max * 100);
-    return `<div class="chart-bar-wrap"><div class="chart-val">${count}</div><div style="flex:1;display:flex;align-items:flex-end;width:100%"><div class="chart-bar" style="height:${pct}%;background:var(--blue);opacity:.7;width:100%" title="${count} requests · ${label}"></div></div><div class="chart-label">${label}</div></div>`;
+    const shown = (i % every === 0 || i === entries.length - 1) ? label : '';
+    return `<div class="chart-bar-wrap"><div class="chart-val">${count || ''}</div><div style="flex:1;display:flex;align-items:flex-end;width:100%"><div class="chart-bar" style="height:${pct}%;background:var(--blue);opacity:.7;width:100%" title="${count} requests · ${label}"></div></div><div class="chart-label">${shown}</div></div>`;
   }).join('');
 }
+
+/** [[label, count], …] oldest → newest, one per hour (today) / day (7d, 30d) /
+ *  month (all), including empty ones. Exported for the unit test. */
+function chartBuckets(docs, r, now) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const keys = [];
+  const keyOf = (t) => r === 'today' ? t.getHours() + ':00'
+    : r === 'all' ? months[t.getMonth()] + ' ' + t.getFullYear()
+    : (t.getMonth() + 1) + '/' + t.getDate();
+  if (r === 'today') {
+    for (let h = 0; h <= now.getHours(); h++) keys.push(h + ':00');
+  } else if (r === '7d' || r === '30d') {
+    const n = r === '7d' ? 7 : 30;
+    for (let i = n - 1; i >= 0; i--) { const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i); keys.push(keyOf(t)); }
+  } else {
+    const first = docs.reduce((m, d) => (d.ts < m ? d.ts : m), now);
+    for (let t = new Date(first.getFullYear(), first.getMonth(), 1); t <= now; t = new Date(t.getFullYear(), t.getMonth() + 1, 1)) keys.push(keyOf(t));
+  }
+  const counts = Object.fromEntries(keys.map((k) => [k, 0]));
+  docs.forEach((d) => { const k = keyOf(d.ts); if (k in counts) counts[k]++; });
+  return keys.map((k) => [k, counts[k]]);
+}
+window.__NBD_ANALYTICS_TEST = { chartBuckets, costForDoc, PRICING };
 
 function renderFeatures(docs) {
   const el = document.getElementById('featureBody');

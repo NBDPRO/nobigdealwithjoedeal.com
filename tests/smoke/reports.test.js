@@ -164,4 +164,48 @@ section('Rep report: "Revenue per Door" is a true per-UNIQUE-door figure');
     /fmtNumber\(revenuePerKnock\.doors\)\} doors/.test(rep));
 }
 
+section('CRM API Analytics (2026-09-30, Jo: "the api analytics page seems extremely broken")');
+{
+  // 1. On a phone the dashboard's AI Usage view (an iframe) was 150px tall:
+  //    the blanket mobile `.view.active{display:block}` left its height:100%
+  //    nothing to resolve against. The four embedded views get the map's flex fix.
+  const css = read(path.join(ROOT, 'docs/pro/css/dashboard-app.css'));
+  assert('embedded tool views are flex columns on phones, and the frame fills them',
+    /#view-aiusage\.active, #view-aitree\.active, #view-understand\.active, #view-projectcodex\.active\{\s*display:flex!important;/.test(css)
+    && /#view-aiusage\.active > iframe[^{]*\{\s*flex:1 1 auto!important;\s*height:auto!important;/.test(css));
+  // 2. Embedded, the page drops its own (duplicate) top nav; standalone, the
+  //    bar grows with its wrapped links instead of covering the title.
+  const page = read(path.join(ROOT, 'docs/pro/analytics.html'));
+  const gate = read(path.join(PRO_JS, 'pages/pro-analytics-gate.js'));
+  assert('framed → html.nbd-embedded hides the page nav', /window\.self !== window\.top\) document\.documentElement\.classList\.add\('nbd-embedded'\)/.test(gate) && /html\.nbd-embedded \.topbar\{display:none\}/.test(page));
+  assert('the standalone top bar is not a fixed 56px (wrapped links covered the title)', /\.topbar\{min-height:56px;flex-wrap:wrap;/.test(page) && !/\.topbar\{height:56px/.test(page));
+  // 3. Haiku 4.5 at its published $1/$5 (was Haiku 3.5's $0.80/$4) — page,
+  //    pricing card, and the server's vision spend constants.
+  const js = read(path.join(PRO_JS, 'pages/pro-analytics.js'));
+  assert('page prices Haiku 4.5 at $1 / $5 per 1M', /'claude-haiku-4-5-20251001': \{ input: 1,  output: 5 \}/.test(js) && !/input: 0\.80/.test(js));
+  assert('the pricing card shows Haiku 4.5 at $1 / $5, not Haiku 3.5', /Claude Haiku 4\.5<\/div><div class="price-row">Input: <span class="price-val">\$1 \/ 1M tokens/.test(page) && !/Haiku 3\.5/.test(page));
+  for (const f of ['photo-vision.js', 'receipt-vision.js']) {
+    const src = read(path.join(FUNCTIONS, f));
+    assert(f + ' records vision spend at $1 / $5 per 1M', /COST_INPUT_PER_TOKEN\s+= 1\.00 \/ 1_000_000/.test(src) && /COST_OUTPUT_PER_TOKEN = 5\.00 \/ 1_000_000/.test(src));
+  }
+  // 4. The chart: every bucket in the range, oldest → newest (it ran newest-
+  //    first and skipped empty days). Run the real function.
+  const vm = require('vm');
+  const lf = js.replace(/\r\n/g, '\n');
+  const start = lf.indexOf('function chartBuckets(');
+  const end = lf.indexOf('\n}\n', start);
+  assert('chartBuckets is a top-level function the test can lift', start >= 0 && end > start);
+  const ctx2 = { Date, Object };
+  vm.createContext(ctx2);
+  vm.runInContext(lf.slice(start, end + 3) + '\nthis.__cb = chartBuckets;', ctx2);
+  const now = new Date(2026, 8, 30, 15, 30);
+  const at = (d, h) => ({ ts: new Date(2026, 8, d, h) });
+  const day30 = ctx2.__cb([at(30, 9), at(28, 10), at(28, 11), at(2, 8)], '30d', now);
+  assert('30 days → 30 bars, 9/1 … 9/30, empty days kept as 0',
+    day30.length === 30 && day30[0][0] === '9/1' && day30[29][0] === '9/30'
+    && day30.find((e) => e[0] === '9/28')[1] === 2 && day30.find((e) => e[0] === '9/29')[1] === 0 && day30.find((e) => e[0] === '9/2')[1] === 1);
+  const today = ctx2.__cb([at(30, 9), at(30, 9), at(30, 14)], 'today', now);
+  assert('today → one bar per hour up to now, in order', today.length === 16 && today[0][0] === '0:00' && today[15][0] === '15:00' && today[9][1] === 2);
+}
+
 };

@@ -63,10 +63,11 @@ const CORS_ORIGINS = [
 const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 400; // suggestion JSON fits in ~150 tokens; 400 = headroom
 
-// Anthropic pricing for Haiku 4.5 (verified 2026-05): $0.80/M input,
-// $4.00/M output. Per-token costs in USD.
-const COST_INPUT_PER_TOKEN  = 0.80 / 1_000_000;
-const COST_OUTPUT_PER_TOKEN = 4.00 / 1_000_000;
+// Anthropic pricing for Haiku 4.5: $1/M input, $5/M output (claude.com/pricing,
+// checked 2026-09-30; the earlier $0.80/$4 were Haiku 3.5's rates, so the
+// recorded vision spend read ~20% low). Per-token costs in USD.
+const COST_INPUT_PER_TOKEN  = 1.00 / 1_000_000;
+const COST_OUTPUT_PER_TOKEN = 5.00 / 1_000_000;
 
 // Hard caps from user product decision.
 const PER_LEAD_USD_CAP         = 10.00;

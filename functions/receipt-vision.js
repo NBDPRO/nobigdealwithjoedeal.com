@@ -46,9 +46,10 @@ const CORS_ORIGINS = [
 const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 1500; // line-item receipts need more headroom than photo tags
 
-// Haiku 4.5 pricing (verified 2026-05): $0.80/M in, $4.00/M out.
-const COST_INPUT_PER_TOKEN  = 0.80 / 1_000_000;
-const COST_OUTPUT_PER_TOKEN = 4.00 / 1_000_000;
+// Haiku 4.5 pricing: $1/M in, $5/M out (claude.com/pricing, checked 2026-09-30;
+// $0.80/$4 were Haiku 3.5's rates).
+const COST_INPUT_PER_TOKEN  = 1.00 / 1_000_000;
+const COST_OUTPUT_PER_TOKEN = 5.00 / 1_000_000;
 
 // Per-user monthly vision spend cap — shared with photo-vision (same budget).
 const PER_USER_MONTHLY_USD_CAP = 50.00;
