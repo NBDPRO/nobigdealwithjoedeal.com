@@ -297,6 +297,26 @@ function desiredKnockEvents(knocks, localToUtcMs) {
   for (const k of latestKnockPerDoor(knocks).values()) { const e = desiredEventForKnock(k, localToUtcMs); if (e) out.push(e); }
   return out;
 }
+/**
+ * The morning follow-up push uses the same rule (Jo, 2026-09-30: "only the
+ * latest knock"): of `candidates` (knocks with a follow-up due), keep the ones
+ * that are still the newest knock at their door, judged against `all` knocks
+ * at those doors within the SAME company (two companies can knock one door).
+ * A candidate with no address has no door to compare, so it is kept.
+ */
+function keepNewestPerDoor(candidates, all) {
+  const tenant = (k) => String((k && (k.companyId || k.userId)) || '');
+  const byTenant = new Map();
+  for (const k of [].concat(all || [], candidates || [])) {
+    if (!k) continue;
+    const t = tenant(k);
+    if (!byTenant.has(t)) byTenant.set(t, new Map());
+    byTenant.get(t).set(String(k.id), k);              // de-dupe: a candidate is also in `all`
+  }
+  const newestIds = new Set();
+  for (const ks of byTenant.values()) for (const k of latestKnockPerDoor([...ks.values()]).values()) newestIds.add(String(k.id));
+  return (candidates || []).filter((k) => k && (!knockAddrKey(k.address) || newestIds.has(String(k.id))));
+}
 const KNOCK_WATCHED = ['followUpDate', 'followUpTime', 'address', 'homeowner', 'phone', 'disposition', 'createdAt', 'userId', 'companyId'];
 function knockCalendarFieldsChanged(before, after) {
   const a = before || {}, b = after || {};
@@ -372,5 +392,5 @@ module.exports = {
   calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED, weekEventFor,
   desiredEventsForJob, allIdsForJob, jobCalendarFieldsChanged, JOB_WATCHED,
   signEventId, desiredEventForSign, signCalendarFieldsChanged, nyDate,
-  knockAddrKey, knockEventId, latestKnockPerDoor, desiredEventForKnock, desiredKnockEvents, knockCalendarFieldsChanged,
+  knockAddrKey, knockEventId, latestKnockPerDoor, desiredEventForKnock, desiredKnockEvents, knockCalendarFieldsChanged, keepNewestPerDoor,
 };

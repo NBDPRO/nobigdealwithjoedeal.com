@@ -381,6 +381,22 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     ok('index.js exports onKnockCalendarWrite', /exports\.onKnockCalendarWrite\s*=/.test(idx));
   }
 
+  console.log('\n10. the morning follow-up push: only the newest knock at a door (Jo, 2026-09-30)');
+  {
+    const K = (id, f) => Object.assign({ id, companyId: 'CO', userId: 'rep1', address: '12 Knock Ln, Mason, OH' }, f);
+    const old = K('old', { createdAt: 100, followUpDate: 'today' });
+    const reknock = K('new', { createdAt: 200, disposition: 'not_interested', address: '12 KNOCK LN, Mason, OH' });
+    ok('a door re-knocked since → its old follow-up is skipped', G.keepNewestPerDoor([old], [old, reknock]).length === 0);
+    ok('the newest knock\'s own follow-up still reminds', G.keepNewestPerDoor([reknock], [old, reknock]).length === 1);
+    ok('no re-knock → the follow-up reminds (and the candidate need not be in `all`)', G.keepNewestPerDoor([old], []).length === 1);
+    const otherCo = K('x', { createdAt: 300, companyId: 'OTHER', userId: 'repX' });
+    ok('another company knocking the same door later does NOT silence this company\'s follow-up', G.keepNewestPerDoor([old], [old, otherCo]).length === 1);
+    const teammate = K('t', { createdAt: 300, userId: 'rep2' });
+    ok('a teammate\'s later knock at the door does (same company, newest wins)', G.keepNewestPerDoor([old], [old, teammate]).length === 0);
+    ok('a knock with no address has no door to compare → kept', G.keepNewestPerDoor([K('na', { address: '' })], [teammate]).length === 1);
+    ok('two doors, one re-knocked → only the other reminds', JSON.stringify(G.keepNewestPerDoor([old, K('b', { address: '9 Other Rd', createdAt: 50 })], [old, reknock]).map((k) => k.id)) === '["b"]');
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

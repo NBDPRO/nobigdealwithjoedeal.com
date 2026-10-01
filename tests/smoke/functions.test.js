@@ -1176,6 +1176,11 @@ section('Push schedulers read shapes that are actually written (2026-09-05)');
     /collection\(\s*['"]knocks['"]\s*\)/.test(push));
   assert('onFollowUpDue filters on followUpDate, the field the tracker writes',
     /['"]followUpDate['"]/.test(push));
+  assert('onFollowUpDue reminds only on the newest knock at a door (keepNewestPerDoor), and on everything due if that lookup fails',
+    /\.where\('address', 'in', addrs\.slice\(i, i \+ 30\)\)/.test(push)
+    && /due = require\('\.\/google-calendar-logic'\)\.keepNewestPerDoor\(dueKnocks, all\);/.test(push)
+    && /catch \(e\) \{\s*logger\.warn\('\[Push\] newest-knock check failed[\s\S]{0,120}?due = dueKnocks;/.test(push)
+    && /for \(const k of due\) \{/.test(push));
   assert('the phantom leads.d2dKnocks[] model is gone from executable code',
     !/d2dKnocks/.test(push));
   assert('the phantom knock.autoFollowUp field is gone from executable code',

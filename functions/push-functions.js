@@ -482,19 +482,46 @@ exports.onFollowUpDue = onSchedule(
       // One push per REP, not one per knock. A rep working a route can
       // easily have several due the same morning, and N buzzes for N knocks
       // is how a useful reminder becomes a muted one.
-      const byRep = new Map(); // uid -> [{ id, address, homeowner }]
+      const dueKnocks = [];
       snap.forEach((doc) => {
         const k = doc.data();
         if (etYmd(k.followUpDate) !== todayEt) return;
+        dueKnocks.push(Object.assign({}, k, { id: doc.id }));
+      });
+
+      // Only the newest knock at a door counts (Jo, 2026-09-30: "only the
+      // latest knock"). A re-knock writes a NEW knock doc and leaves the old
+      // one's followUpDate behind, so without this a door re-knocked as "not
+      // interested" still buzzed the rep on the old follow-up day. Same rule
+      // as the calendar (google-calendar-logic keepNewestPerDoor). If the
+      // lookup fails, remind on everything due — a stale reminder beats a
+      // lost one.
+      let due = dueKnocks;
+      try {
+        const addrs = [...new Set(dueKnocks.map((k) => k.address).filter(Boolean))];
+        const all = [];
+        for (let i = 0; i < addrs.length; i += 30) {
+          const s = await db.collection('knocks').where('address', 'in', addrs.slice(i, i + 30)).get();
+          s.forEach((d) => all.push(Object.assign({}, d.data(), { id: d.id })));
+        }
+        due = require('./google-calendar-logic').keepNewestPerDoor(dueKnocks, all);
+        if (due.length !== dueKnocks.length) logger.info('[Push] superseded follow-ups skipped', { skipped: dueKnocks.length - due.length });
+      } catch (e) {
+        logger.warn('[Push] newest-knock check failed; reminding on all due', { msg: e && e.message });
+        due = dueKnocks;
+      }
+
+      const byRep = new Map(); // uid -> [{ id, address, homeowner }]
+      for (const k of due) {
         const uid = k.userId || k.repId;
-        if (!uid) return;
+        if (!uid) continue;
         if (!byRep.has(uid)) byRep.set(uid, []);
         byRep.get(uid).push({
-          id: doc.id,
+          id: k.id,
           address: k.address || '',
           homeowner: k.homeowner || '',
         });
-      });
+      }
 
       const sends = [...byRep.entries()].map(([uid, items]) => (async () => {
         const enabled = await isNotificationEnabled(uid, 'followUpDue');
