@@ -237,6 +237,73 @@ function signCalendarFieldsChanged(before, after) {
   return SIGN_WATCHED.some((k) => JSON.stringify(norm(k, a[k])) !== JSON.stringify(norm(k, b[k])));
 }
 
+// ── D2D knock follow-ups with a time (Jo, 2026-09-30: "only the latest knock") ─
+// A re-knock writes a NEW knock doc and leaves the old one's follow-up behind,
+// so the calendar shows ONE follow-up per door: the newest knock's, and only
+// when it carries both a date and a time (Jo §6.2: "follow-ups when they carry
+// a time"). The newest knock without a timed follow-up clears the door's event.
+// Keyed by the door (the tracker's own normalizeAddress), so a re-knock moves
+// the event in place. Knocks with no address are skipped (no door to key on).
+const KNOCK_MIN = 30;
+function knockAddrKey(addr) { return String(addr || '').toLowerCase().trim().replace(/\s+/g, ' '); }
+function knockEventId(addrKey) { return 'nbdk' + require('crypto').createHash('sha1').update(String(addrKey), 'utf8').digest('hex'); }
+/** Newest knock per door → Map(addrKey → knock). Ties: the larger doc id. */
+function latestKnockPerDoor(knocks) {
+  const out = new Map();
+  for (const k of knocks || []) {
+    if (!k) continue;
+    const key = knockAddrKey(k.address);
+    if (!key) continue;
+    const t = msOf(k.createdAt), cur = out.get(key);
+    const ct = cur ? msOf(cur.createdAt) : -Infinity;
+    const tt = isFinite(t) ? t : -Infinity;
+    if (!cur || tt > ct || (tt === ct && String(k.id) > String(cur.id))) out.set(key, k);
+  }
+  return out;
+}
+/** The newest knock at a door → its follow-up event, or null. localToUtcMs from schedule-window.js. */
+function desiredEventForKnock(knock, localToUtcMs) {
+  if (!knock) return null;
+  const key = knockAddrKey(knock.address);
+  const time = String(knock.followUpTime || '').trim();
+  const due = msOf(knock.followUpDate);
+  if (!key || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) || !isFinite(due)) return null;
+  const date = nyDate(due);
+  const startMs = localToUtcMs(date, time, TZ);
+  if (typeof startMs !== 'number' || !isFinite(startMs)) return null;   // null on a bad date/time (isFinite(null) is true)
+  const who = String(knock.homeowner || '').trim();
+  const addr = String(knock.address).trim();
+  const lines = [];
+  if (knock.disposition) lines.push('Last knock: ' + String(knock.disposition).replace(/_/g, ' '));
+  if (knock.phone) lines.push('Phone: ' + knock.phone);
+  lines.push('Door-to-door follow-up — open NBD Pro → D2D: ' + DASHBOARD_URL + '?tab=d2d');
+  lines.push('(Managed by NBD Pro — the newest knock at this door decides it; edits here are overwritten.)');
+  return {
+    id: knockEventId(key),
+    summary: '📞 Follow up — ' + (who ? who + ' · ' : '') + addr,
+    location: addr,
+    description: lines.join('\n'),
+    start: { dateTime: new Date(startMs).toISOString(), timeZone: TZ },
+    end: { dateTime: new Date(startMs + KNOCK_MIN * 60000).toISOString(), timeZone: TZ },
+    // A set time is a commitment: BUSY, like every other timed event here.
+    transparency: 'opaque',
+    extendedProperties: { private: { nbdManaged: '1', nbdKind: 'knock', nbdKnockId: String(knock.id || '') } },
+    source: { title: 'NBD Pro', url: DASHBOARD_URL + '?tab=d2d' },
+  };
+}
+/** Every door's follow-up event from a set of knocks (newest per door wins). */
+function desiredKnockEvents(knocks, localToUtcMs) {
+  const out = [];
+  for (const k of latestKnockPerDoor(knocks).values()) { const e = desiredEventForKnock(k, localToUtcMs); if (e) out.push(e); }
+  return out;
+}
+const KNOCK_WATCHED = ['followUpDate', 'followUpTime', 'address', 'homeowner', 'phone', 'disposition', 'createdAt', 'userId', 'companyId'];
+function knockCalendarFieldsChanged(before, after) {
+  const a = before || {}, b = after || {};
+  const norm = (k, v) => (k === 'followUpDate' || k === 'createdAt') ? (isFinite(msOf(v)) ? msOf(v) : null) : (v === undefined ? null : v);
+  return KNOCK_WATCHED.some((k) => JSON.stringify(norm(k, a[k])) !== JSON.stringify(norm(k, b[k])));
+}
+
 /** Did a lead write change anything the calendar shows? (cheap trigger gate) */
 const WATCHED = ['scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledDurationMin', 'scheduledEndDate', 'adjusterMeetingDate',
   'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'firstName', 'lastName', 'address', 'deleted', 'stage', 'phone',
@@ -305,4 +372,5 @@ module.exports = {
   calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED, weekEventFor,
   desiredEventsForJob, allIdsForJob, jobCalendarFieldsChanged, JOB_WATCHED,
   signEventId, desiredEventForSign, signCalendarFieldsChanged, nyDate,
+  knockAddrKey, knockEventId, latestKnockPerDoor, desiredEventForKnock, desiredKnockEvents, knockCalendarFieldsChanged,
 };

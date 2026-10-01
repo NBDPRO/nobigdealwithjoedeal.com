@@ -133,6 +133,24 @@ async function syncSign(calendarId, signId, sign) {
   return { upserted: 0, removed: (await deleteEvent(calendarId, G.signEventId(signId))) ? 1 : 0 };
 }
 
+/**
+ * One door's follow-up (D2D): read every knock at that address, let the
+ * newest one decide. The trigger matches the address exactly; spelling
+ * variants of one door ("123 Main St" / "123 main st") are merged by the
+ * nightly reconcile, which keys every owner knock through knockAddrKey.
+ */
+async function syncKnockDoor(db, calendarId, address) {
+  const key = G.knockAddrKey(address);
+  if (!key) return { upserted: 0, removed: 0 };
+  const snap = await db.collection('knocks').where('address', '==', address).get();
+  const knocks = [];
+  snap.forEach((d) => { const k = Object.assign({}, d.data(), { id: d.id }); if (isOwnerLead(k)) knocks.push(k); });
+  const latest = G.latestKnockPerDoor(knocks).get(key);
+  const want = latest ? G.desiredEventForKnock(latest, require('./schedule-window').localToUtcMs) : null;
+  if (want) { await upsertEvent(calendarId, want); return { upserted: 1, removed: 0 }; }
+  return { upserted: 0, removed: (await deleteEvent(calendarId, G.knockEventId(key))) ? 1 : 0 };
+}
+
 /** Make Google match the CRM: every owner lead from 30 days back. */
 async function reconcile(db, calendarId) {
   const sinceMs = Date.now() - 30 * 86400000;
@@ -173,11 +191,19 @@ async function reconcile(db, calendarId) {
   [sa, sb].forEach((s) => s.forEach((d) => signs.set(d.id, Object.assign({}, d.data(), { id: d.id }))));
   const nowMs = Date.now();
   for (const s of signs.values()) { const e = G.desiredEventForSign(s, nowMs); if (e) keep(e); }
+  // D2D follow-ups with a time — the newest knock per door (same reason: must be in `desired`).
+  const [ka, kb] = await Promise.all([
+    db.collection('knocks').where('companyId', '==', OWNER).get(),
+    db.collection('knocks').where('userId', '==', OWNER).get(),
+  ]);
+  const knocks = new Map();
+  [ka, kb].forEach((s) => s.forEach((d) => knocks.set(d.id, Object.assign({}, d.data(), { id: d.id }))));
+  G.desiredKnockEvents([...knocks.values()], require('./schedule-window').localToUtcMs).forEach(keep);
   const existing = await listManaged(calendarId, sinceMs);
   const plan = G.planSync(desired, existing);
   for (const e of plan.upserts) await upsertEvent(calendarId, e);
   for (const id of plan.deletes) await deleteEvent(calendarId, id);
-  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leads.size, jobs: jobs.size, signs: signs.size };
+  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leads.size, jobs: jobs.size, signs: signs.size, knocks: knocks.size };
 }
 
 // ── owner gate (same shape as stripe-ledger.js) ───────────────────────────
@@ -351,6 +377,30 @@ exports.onYardSignCalendarWrite = onDocumentWritten(
   }
 );
 
+// A D2D knock saved, edited or deleted → that door's follow-up (the newest
+// knock at the door decides; Jo, 2026-09-30). An address edit re-syncs both doors.
+exports.onKnockCalendarWrite = onDocumentWritten(
+  { document: 'knocks/{knockId}', region: 'us-central1', timeoutSeconds: 60, retry: false },
+  async (event) => {
+    if (disabled()) return;
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    if (!isOwnerLead(before) && !isOwnerLead(after)) return;          // another tenant's knock
+    if (before && after && !G.knockCalendarFieldsChanged(before, after)) return;
+    const db = getFirestore();
+    const cfg = await loadConfig(db);
+    if (!cfg || !cfg.calendarId) return;
+    const addrs = [...new Set([before && before.address, after && after.address].filter((a) => G.knockAddrKey(a)))];
+    try {
+      const r = {};
+      for (const a of addrs) r[G.knockAddrKey(a)] = await syncKnockDoor(db, cfg.calendarId, a);
+      logger.info('[googleCalendar] knock door synced', { knockId: event.params.knockId, doors: Object.keys(r).length });
+    } catch (e) {
+      logger.warn('[googleCalendar] knock sync failed', { knockId: event.params.knockId, status: statusOf(e), msg: e && e.message });
+    }
+  }
+);
+
 exports.googleCalendarReconcile = onSchedule(
   { schedule: 'every day 05:45', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '512MiB' },
   async () => {
@@ -364,5 +414,5 @@ exports.googleCalendarReconcile = onSchedule(
   }
 );
 
-module.exports._internal = { setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
+module.exports._internal = { setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, syncKnockDoor, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
   setClient: (c) => { _testClient = c; } };

@@ -258,10 +258,33 @@ Google events were keyed per LEAD, so a second job's date had nowhere to go.
 - The reconcile reads owner signs too. That is required, because `planSync`
   deletes every managed event it doesn't want. Break-tested: dropping signs
   from the reconcile wipes the reminder.
-- **Not done, deliberately:** "follow-ups when they carry a time". Lead
+- **Superseded the same night — see the next update.** "Follow-ups when they carry a time": Lead
   follow-ups are date-only, so nothing qualifies. D2D knocks do carry
   `followUpDate` + `followUpTime`, but a re-knock writes a NEW knock doc and
   leaves the old follow-up behind. Pushing them needs a "latest knock per
   address wins" rule first, or Google fills with stale follow-ups. That's a
   decision for Jo.
 - Tests: §8 of the same suite (16 checks).
+
+## Update 2026-09-30 (night) — timed D2D follow-ups, the newest knock per door
+
+Jo, 2026-09-30: "yes only the latest knock".
+
+- **`onKnockCalendarWrite`** (`knocks/{knockId}`): the newest knock at a door
+  decides that door's follow-up. "Newest" means the largest `createdAt`.
+  - If the newest knock carries a follow-up date **and** a time, the door gets
+    a 30-minute **BUSY** "📞 Follow up — <homeowner> · <address>" event at that
+    New York time.
+  - If the newest knock has no timed follow-up, the event goes away. A
+    superseded follow-up never resurfaces.
+- **Keyed per door:** `nbdk` + sha1 of the tracker's own `normalizeAddress`
+  (lowercase, trim, collapsed spaces). A re-knock moves the event in place.
+- **Spelling variants:** the trigger reads knocks by exact address, so the
+  nightly reconcile is what merges spelling variants of one door.
+- An address edit re-syncs both doors.
+- Address-less (GPS-only) knocks are skipped.
+- Date-only follow-ups stay off Google, per §6.2. They still get the morning
+  push (`onFollowUpDue`).
+- The reconcile reads owner knocks too (same `planSync` reason as the signs).
+- Tests: §9 (16 checks). Break-tested: flipping "newest" reddens 6 checks,
+  and dropping knocks from the reconcile reddens the reconcile check.
