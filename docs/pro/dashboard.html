@@ -129,6 +129,7 @@
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
 <link rel="stylesheet" href="css/dashboard-app.css?v=7">
+<link rel="stylesheet" href="css/ui-primitives.css?v=1">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=4" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
@@ -1978,7 +1979,7 @@
       <div id="bulkActionBar" style="display:none;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:8px 14px;margin-top:8px;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap;">
         <span id="bulkSelectedCount" style="color:var(--orange);font-weight:600;">0 selected</span>
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="selectAllVisibleLeads">☑ Select all visible</button>
-        <select id="bulkStageSelect" style="background:var(--s3);border:1px solid var(--br);border-radius:4px;padding:5px 8px;font-size:11px;color:var(--t);">
+        <select class="ui-field-sm" id="bulkStageSelect">
           <option value="">Move to stage...</option>
           <!-- Populated dynamically, fallback options below -->
           <option value="new">New Lead</option>
@@ -1992,7 +1993,7 @@
           <option value="lost">Lost</option>
         </select>
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="bulkMoveStage">▶ Move</button>
-        <select id="bulkCarrierSelect" style="background:var(--s3);border:1px solid var(--br);border-radius:4px;padding:5px 8px;font-size:11px;color:var(--t);">
+        <select class="ui-field-sm" id="bulkCarrierSelect">
           <option value="">Set carrier...</option>
           <option value="State Farm">State Farm</option>
           <option value="Allstate">Allstate</option>
@@ -2006,7 +2007,7 @@
           <option value="Other">Other</option>
         </select>
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="bulkAssignCarrier">▶ Apply</button>
-        <select id="bulkDamageSelect" style="background:var(--s3);border:1px solid var(--br);border-radius:4px;padding:5px 8px;font-size:11px;color:var(--t);">
+        <select class="ui-field-sm" id="bulkDamageSelect">
           <option value="">Set damage...</option>
           <option value="Roof - Hail">Roof - Hail</option>
           <option value="Roof - Wind">Roof - Wind</option>
@@ -2021,7 +2022,7 @@
              "all 50 imported leads should be tagged 'Spring Hailstorm'".
              The custom text input lets reps tag a campaign that's not
              in the preset list without first adding it. -->
-        <select id="bulkSourceSelect" style="background:var(--s3);border:1px solid var(--br);border-radius:4px;padding:5px 8px;font-size:11px;color:var(--t);">
+        <select class="ui-field-sm" id="bulkSourceSelect">
           <!-- Canonical vocabulary, same list as qaSource and the Add/Edit
                Lead select. This one used to offer BOTH "Door Knock" and
                "Door-to-Door" as if they were different things, plus Web Lead /
@@ -2047,7 +2048,7 @@
         <button class="btn btn-ghost btn-11" data-action="call" data-fn="bulkAssignSource">▶ Apply</button>
         <!-- Wave 32: jobType bulk-edit. Routes leads into the
              insurance / cash / finance pipeline view filters. -->
-        <select id="bulkJobTypeSelect" style="background:var(--s3);border:1px solid var(--br);border-radius:4px;padding:5px 8px;font-size:11px;color:var(--t);">
+        <select class="ui-field-sm" id="bulkJobTypeSelect">
           <option value="">Set job type...</option>
           <option value="insurance">Insurance</option>
           <option value="cash">Cash</option>
@@ -3132,9 +3133,9 @@
                 </div>
               </div>
               <div id="kanbanDensityGroup" style="display:flex;gap:6px;">
-                <button type="button" class="kdens-btn" data-density="compact"  data-action="call" data-fn="setKanbanDensity" data-arg="compact"  style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--br);background:var(--s);color:var(--m);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s;">Compact</button>
-                <button type="button" class="kdens-btn" data-density="comfortable" data-action="call" data-fn="setKanbanDensity" data-arg="comfortable" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--br);background:var(--s);color:var(--m);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s;">Comfortable</button>
-                <button type="button" class="kdens-btn" data-density="spacious" data-action="call" data-fn="setKanbanDensity" data-arg="spacious" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--br);background:var(--s);color:var(--m);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s;">Spacious</button>
+                <button type="button" class="kdens-btn ui-seg" data-density="compact"  data-action="call" data-fn="setKanbanDensity" data-arg="compact" >Compact</button>
+                <button type="button" class="kdens-btn ui-seg" data-density="comfortable" data-action="call" data-fn="setKanbanDensity" data-arg="comfortable">Comfortable</button>
+                <button type="button" class="kdens-btn ui-seg" data-density="spacious" data-action="call" data-fn="setKanbanDensity" data-arg="spacious">Spacious</button>
               </div>
             </div>
 
@@ -3146,9 +3147,9 @@
                 <div class="meta-11">Auto opens List on a phone and Board on a computer. Saved on this device.</div>
               </div>
               <div id="crmViewDefaultGroup" style="display:flex;gap:6px;">
-                <button type="button" class="cview-default-btn" data-view-default="auto" data-action="call" data-fn="crmViewAuto" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--br);background:var(--s);color:var(--m);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s;">Auto</button>
-                <button type="button" class="cview-default-btn" data-view-default="board" data-action="call" data-fn="crmViewBoard" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--br);background:var(--s);color:var(--m);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s;">Board</button>
-                <button type="button" class="cview-default-btn" data-view-default="list" data-action="call" data-fn="crmViewList" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--br);background:var(--s);color:var(--m);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s;">List</button>
+                <button type="button" class="cview-default-btn ui-seg" data-view-default="auto" data-action="call" data-fn="crmViewAuto">Auto</button>
+                <button type="button" class="cview-default-btn ui-seg" data-view-default="board" data-action="call" data-fn="crmViewBoard">Board</button>
+                <button type="button" class="cview-default-btn ui-seg" data-view-default="list" data-action="call" data-fn="crmViewList">List</button>
               </div>
             </div>
 
@@ -5785,7 +5786,7 @@
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=2"></script>
 <script defer src="js/dashboard-widgets.js?v=6"></script>
-<script defer src="js/dashboard-ui.js?v=9"></script>
+<script defer src="js/dashboard-ui.js?v=10"></script>
 <script defer src="js/dashboard-actions.js?v=14"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
@@ -6058,9 +6059,9 @@
               <span style="font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--m);">Density</span>
             </div>
             <div style="display:flex; gap:6px;">
-              <button type="button" class="npm-comfort-btn" data-comfort="density" data-value="compact" data-action="call" data-fn="nbdComfortSet" data-arg="density" data-arg2="compact" style="flex:1; padding:9px 8px; border-radius:6px; border:1px solid var(--br); background:var(--s); color:var(--m); font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; transition:all .15s;">Compact</button>
-              <button type="button" class="npm-comfort-btn" data-comfort="density" data-value="comfortable" data-action="call" data-fn="nbdComfortSet" data-arg="density" data-arg2="comfortable" style="flex:1; padding:9px 8px; border-radius:6px; border:1px solid var(--br); background:var(--s); color:var(--m); font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; transition:all .15s;">Default</button>
-              <button type="button" class="npm-comfort-btn" data-comfort="density" data-value="spacious" data-action="call" data-fn="nbdComfortSet" data-arg="density" data-arg2="spacious" style="flex:1; padding:9px 8px; border-radius:6px; border:1px solid var(--br); background:var(--s); color:var(--m); font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; transition:all .15s;">Spacious</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="density" data-value="compact" data-action="call" data-fn="nbdComfortSet" data-arg="density" data-arg2="compact">Compact</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="density" data-value="comfortable" data-action="call" data-fn="nbdComfortSet" data-arg="density" data-arg2="comfortable">Default</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="density" data-value="spacious" data-action="call" data-fn="nbdComfortSet" data-arg="density" data-arg2="spacious">Spacious</button>
             </div>
             <div style="font-size:10px; color:var(--m); margin-top:6px; line-height:1.4;">Card padding + gaps. Affects kanban + dashboard widgets.</div>
           </div>
@@ -6072,9 +6073,9 @@
               <span style="font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--m);">Text size</span>
             </div>
             <div style="display:flex; gap:6px;">
-              <button type="button" class="npm-comfort-btn" data-comfort="size" data-value="small" data-action="call" data-fn="nbdComfortSet" data-arg="size" data-arg2="small" style="flex:1; padding:9px 8px; border-radius:6px; border:1px solid var(--br); background:var(--s); color:var(--m); font-family:inherit; font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; transition:all .15s;">A · Small</button>
-              <button type="button" class="npm-comfort-btn" data-comfort="size" data-value="medium" data-action="call" data-fn="nbdComfortSet" data-arg="size" data-arg2="medium" style="flex:1; padding:9px 8px; border-radius:6px; border:1px solid var(--br); background:var(--s); color:var(--m); font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; transition:all .15s;">A · Default</button>
-              <button type="button" class="npm-comfort-btn" data-comfort="size" data-value="large" data-action="call" data-fn="nbdComfortSet" data-arg="size" data-arg2="large" style="flex:1; padding:9px 8px; border-radius:6px; border:1px solid var(--br); background:var(--s); color:var(--m); font-family:inherit; font-size:13px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; transition:all .15s;">A · Large</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall ui-seg-text-sm" data-comfort="size" data-value="small" data-action="call" data-fn="nbdComfortSet" data-arg="size" data-arg2="small">A · Small</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="size" data-value="medium" data-action="call" data-fn="nbdComfortSet" data-arg="size" data-arg2="medium">A · Default</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall ui-seg-text-lg" data-comfort="size" data-value="large" data-action="call" data-fn="nbdComfortSet" data-arg="size" data-arg2="large">A · Large</button>
             </div>
             <div style="font-size:10px; color:var(--m); margin-top:6px; line-height:1.4;">Scales every text element via root font-size. Easier on the eyes during long sessions.</div>
           </div>
@@ -6085,14 +6086,14 @@
               <span class="fs-14" aria-hidden="true">⚙️</span>
               <span style="font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--m);">Preferences</span>
             </div>
-            <label class="npm-comfort-row" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--s2); border:1px solid var(--br); border-radius:6px; margin-bottom:6px; cursor:pointer; font-size:12px;">
+            <label class="npm-comfort-row ui-row">
               <div>
                 <div class="fw-bold-t">Reduce motion</div>
                 <div class="meta-10-mt2">Disable pulse + slide animations.</div>
               </div>
               <input type="checkbox" id="npm-reduce-motion" data-on-change="nbdComfortSetMotion" data-on-pass="checked" style="width:18px; height:18px; cursor:pointer; accent-color:var(--orange);">
             </label>
-            <label class="npm-comfort-row" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--s2); border:1px solid var(--br); border-radius:6px; margin-bottom:6px; cursor:pointer; font-size:12px;">
+            <label class="npm-comfort-row ui-row">
               <div>
                 <div class="fw-bold-t">Professional mode</div>
                 <div class="meta-10-mt2">Hide decorative emojis. Clean text-only look.</div>
@@ -6105,7 +6106,7 @@
                  Single CSS variable override propagates to every
                  surface that uses status color (engagement tier,
                  stale-share alerts, snooze pills, etc.) -->
-            <label class="npm-comfort-row" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--s2); border:1px solid var(--br); border-radius:6px; margin-bottom:6px; cursor:pointer; font-size:12px;">
+            <label class="npm-comfort-row ui-row">
               <div>
                 <div class="fw-bold-t">Color-blind safe</div>
                 <div class="meta-10-mt2">Swap red/green to blue/orange for deuteranopia + protanopia.</div>
@@ -6118,7 +6119,7 @@
                  Uses simple 7am/7pm thresholds — no geolocation
                  needed; sunset varies but the time bucket roughly
                  tracks "office light" / "ambient dark". -->
-            <label class="npm-comfort-row" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--s2); border:1px solid var(--br); border-radius:6px; margin-bottom:6px; cursor:pointer; font-size:12px;">
+            <label class="npm-comfort-row ui-row">
               <div>
                 <div class="fw-bold-t">Auto theme by time</div>
                 <div class="meta-10-mt2">Light theme during the day, dark after 7 PM.</div>
@@ -6130,14 +6131,14 @@
                  When enabled, hold the key anywhere on the page to
                  dictate; release to insert the AI-cleaned text into
                  whatever input is focused. -->
-            <label class="npm-comfort-row" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--s2); border:1px solid var(--br); border-radius:6px; margin-bottom:6px; cursor:pointer; font-size:12px;">
+            <label class="npm-comfort-row ui-row">
               <div>
                 <div class="fw-bold-t">🎤 Hold-to-talk hotkey</div>
                 <div class="meta-10-mt2">Hold a key anywhere to dictate. Release to insert.</div>
               </div>
               <input type="checkbox" id="npm-whisper-hotkey" data-on-change="nbdComfortSetWhisperHotkey" data-on-pass="checked" style="width:18px; height:18px; cursor:pointer; accent-color:var(--orange);">
             </label>
-            <div id="npm-whisper-hotkey-config" style="display:none; padding:10px 12px; background:var(--s2); border:1px solid var(--br); border-radius:6px; margin-bottom:6px;">
+            <div class="ui-row-box" id="npm-whisper-hotkey-config" style="display:none;">
               <div style="font-size:10px; color:var(--m); margin-bottom:6px;">Hotkey (function keys recommended):</div>
               <select id="npm-whisper-hotkey-key" data-on-change="nbdComfortSetWhisperKey" style="width:100%; padding:7px 10px; background:var(--bg); color:var(--t); border:1px solid var(--br); border-radius:5px; font-family:inherit; font-size:12px; cursor:pointer;">
                 <option value="F2">F2 (default)</option>
@@ -6673,7 +6674,7 @@
 <script defer src="js/push-actions.js?v=1"></script>
 <script defer src="js/crm-portal-bridge.js?v=6"></script>
 <script defer src="js/crm.js?v=34"></script>
-<script defer src="js/crm-list-view.js?v=8"></script>
+<script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=6"></script>
 <script defer src="js/notif-bell.js?v=3"></script>
 <script defer src="js/buying-intent-strike.js?v=2"></script>

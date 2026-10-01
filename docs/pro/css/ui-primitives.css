@@ -1,0 +1,69 @@
+/* ui-primitives.css — shared shapes the rep dashboard used to inline.
+ *
+ * Reskin plan step 2 (documentation/projects/RESKIN-PLAN-2026-10-01.md): a
+ * skin can only restyle what reaches a class or a token, so repeated inline
+ * style attributes move here, declaration for declaration. The default look
+ * is unchanged; a theme restyles these from its scoped block, e.g.
+ * :root[data-theme="liveops"] .ui-seg.is-on { … }.
+ *
+ * State lives in classes too: JS toggles .is-on (and aria-pressed) rather
+ * than painting colours inline, so a skin owns the active look as well.
+ */
+
+/* Segmented choice buttons (Card Density, Default Pipeline View, Comfort). */
+.ui-seg {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--br);
+  background: var(--s);
+  color: var(--m);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .15s;
+}
+.ui-seg.ui-seg-tall { padding: 9px 8px; }
+/* The Comfort "Text size" choices preview their own size. */
+.ui-seg.ui-seg-text-sm { font-size: 10px; }
+.ui-seg.ui-seg-text-lg { font-size: 13px; }
+.ui-seg.is-on {
+  background: var(--orange);
+  color: var(--accent-fg, #fff);
+  border-color: var(--orange);
+}
+
+/* Settings toggle row: label left, control right. */
+.ui-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--s2);
+  border: 1px solid var(--br);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+/* Same box as .ui-row without the row layout (a panel that opens under one). */
+.ui-row-box {
+  padding: 10px 12px;
+  background: var(--s2);
+  border: 1px solid var(--br);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+/* Compact select/input (pipeline bulk-edit bar). */
+.ui-field-sm {
+  background: var(--s3);
+  border: 1px solid var(--br);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--t);
+}
