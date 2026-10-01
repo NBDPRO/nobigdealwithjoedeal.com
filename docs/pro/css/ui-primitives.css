@@ -86,6 +86,15 @@
   border-radius: var(--r-input, 6px);
 }
 
+/* Money and Expenses section card (money-dashboard.js, expenses.js). The
+ * fallbacks match what those builders inlined; the radius stays 12px. */
+.ui-card {
+  background: var(--s, #12223D);
+  border: 1px solid var(--br, rgba(255,255,255,.08));
+  border-radius: 12px;
+  padding: 16px;
+}
+
 /* Customer page (customer.html, batch 3). That page doesn't load
  * dashboard-app.css, so these keep their own literal radii. */
 /* Document-template tile (Documents tab). Hover lives on .doc-template-card. */

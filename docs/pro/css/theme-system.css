@@ -389,7 +389,8 @@
 
 /* Cards: translucent surface + thin cyan edge + soft outer glow */
 :root[data-theme="liveops"]:not([data-mode="light"]) .w-card,
-:root[data-theme="liveops"]:not([data-mode="light"]) .stat-card {
+:root[data-theme="liveops"]:not([data-mode="light"]) .stat-card,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-card {
   background: rgba(13,20,56,.72);
   background: linear-gradient(180deg, color-mix(in srgb, var(--s3) 58%, transparent), color-mix(in srgb, var(--s) 72%, transparent));
   border: 1px solid var(--lo-edge);
@@ -401,7 +402,8 @@
 }
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   :root[data-theme="liveops"]:not([data-mode="light"]) .w-card,
-  :root[data-theme="liveops"]:not([data-mode="light"]) .stat-card {
+  :root[data-theme="liveops"]:not([data-mode="light"]) .stat-card,
+  :root[data-theme="liveops"]:not([data-mode="light"]) .ui-card {
     -webkit-backdrop-filter: blur(12px) saturate(135%);
     backdrop-filter: blur(12px) saturate(135%);
   }

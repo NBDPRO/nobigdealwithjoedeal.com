@@ -104,6 +104,21 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
   ok('.ui-tile and .ui-field are defined', /background:\s*var\(--s2\)/.test(rule('.ui-tile')) && /background:\s*var\(--s\)/.test(rule('.ui-field')));
 }
 
+console.log('\nUI PRIMITIVES — Money and Expenses cards (JS-built)');
+{
+  // Equivalence was checked in context: an old inline card and a .ui-card
+  // inside #view-money / #view-expenses .view-scroll computed identically
+  // in 4 themes at 1280 and 390px (a 1px control pair did differ).
+  const OLD = 'background:var(--s,#12223D);border:1px solid var(--br,rgba(255,255,255,.08));border-radius:12px;padding:16px;';
+  for (const f of ['docs/pro/js/money-dashboard.js', 'docs/pro/js/expenses.js']) {
+    const s = read(f);
+    ok(`${f.split('/').pop()}: section cards use .ui-card`, /<div class="ui-card"/.test(s));
+    ok(`${f.split('/').pop()}: no inline copy of the card surface left`, !s.includes(OLD),
+      'use <div class="ui-card"> (keep only margins inline)');
+  }
+  ok('.ui-card keeps the 12px radius and token surface', /border-radius:\s*12px/.test(rule('.ui-card')) && /background:\s*var\(--s,/.test(rule('.ui-card')));
+}
+
 console.log('\nUI PRIMITIVES — the JS toggles state, never paints it');
 {
   const ui = stripComments(read('docs/pro/js/dashboard-ui.js'));
