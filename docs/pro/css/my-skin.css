@@ -1,0 +1,137 @@
+/* my-skin.css — "My Skin": the user's own wallpaper, card texture, mascot and
+ * accent, painted only on their own screen (my-skin.js, 2026-10-01).
+ *
+ * Everything keys off classes my-skin.js puts on <html> (NBDMySkinLogic.
+ * htmlClasses): nothing here applies unless the user turned My Skin on and
+ * has something to show. Values arrive as custom properties:
+ *   --myskin-wallpaper / --myskin-texture   url("blob:…") or none
+ *   --myskin-dim                            how much page colour covers the wallpaper
+ *   --myskin-texture-strength               how much texture shows through cards
+ *   --myskin-accent / --myskin-accent-fg    a contrast-checked custom accent
+ * It works over any colour theme: the dim veil and card tint use that theme's
+ * own --bg and --s2, so text keeps the theme's contrast.
+ */
+
+/* Wallpaper: a fixed layer behind the app, veiled by the theme's page colour. */
+:root.my-skin-wallpaper::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--bg) var(--myskin-dim), transparent), color-mix(in srgb, var(--bg) var(--myskin-dim), transparent)),
+    var(--myskin-wallpaper);
+  background-size: cover, cover;
+  background-position: center, center;
+}
+:root.my-skin-wallpaper body {
+  background: transparent !important;
+}
+/* Chrome turns to frosted glass so the wallpaper reads through it. */
+:root.my-skin-wallpaper header,
+:root.my-skin-wallpaper .sidebar,
+:root.my-skin-wallpaper .breadcrumb-container {
+  background: color-mix(in srgb, var(--s) 80%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+}
+:root.my-skin-wallpaper #mobile-nav {
+  background: color-mix(in srgb, var(--s) 86%, transparent) !important;
+}
+
+/* Card texture: the card's own surface colour over the user's tile, so the
+ * texture shows only as much as the strength slider allows. */
+:root.my-skin-texture :is(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card) {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--s2) calc(100% - var(--myskin-texture-strength)), transparent), color-mix(in srgb, var(--s2) calc(100% - var(--myskin-texture-strength)), transparent)),
+    var(--myskin-texture) !important;
+  background-size: auto, 160px 160px !important;
+  background-repeat: no-repeat, repeat !important;
+}
+
+/* Accent: !important so a theme repaint (ThemeEngine writes --orange inline)
+ * can't undo it while My Skin is on. my-skin.js only sets the class after
+ * NBDMySkinLogic.accentCheck passes. */
+:root.my-skin-accent {
+  --orange: var(--myskin-accent) !important;
+  --ob: var(--myskin-accent) !important;
+  --accent-fg: var(--myskin-accent-fg) !important;
+}
+
+/* Mascot: decoration only (aria-hidden, no pointer events), above the page
+ * but under the bottom nav, the FAB dial, sheets and toasts. */
+.myskin-mascot {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 70px);
+  width: 72px;
+  max-height: 96px;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 1800;
+  user-select: none;
+}
+:root.my-skin-mascot-left .myskin-mascot { left: 8px; }
+:root.my-skin-mascot-right .myskin-mascot { right: 8px; }
+@media (min-width: 1024px) {
+  .myskin-mascot { bottom: 16px; width: 104px; max-height: 140px; }
+  :root.my-skin-mascot-left .myskin-mascot { left: 16px; }
+  :root.my-skin-mascot-right .myskin-mascot { right: 16px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .myskin-mascot { animation: myskin-rise .6s cubic-bezier(.2,.8,.2,1) both; }
+}
+@keyframes myskin-rise {
+  from { transform: translateY(40%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* ── Settings > Appearance > My Skin panel ─────────────────────────────── */
+.myskin-note { font-size: 12px; color: var(--m); margin: 0 0 14px; line-height: 1.45; }
+.myskin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--t);
+}
+.myskin-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--orange); }
+.myskin-slot {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--br);
+}
+.myskin-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px solid var(--br);
+  background: var(--s3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.myskin-thumb-img { width: 100%; height: 100%; object-fit: cover; }
+.myskin-slot[data-myskin-slot="mascot"] .myskin-thumb-img { object-fit: contain; }
+.myskin-thumb-empty { font-size: 10px; color: var(--m); text-align: center; padding: 4px; }
+.myskin-slot-title { font-size: 13px; font-weight: 700; color: var(--t); }
+.myskin-slot-help { font-size: 11px; color: var(--m); margin: 2px 0 8px; line-height: 1.4; }
+.myskin-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.myskin-btn { min-height: 44px; justify-content: center; }
+.myskin-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.myskin-pick:focus-within { outline: 2px solid var(--orange); outline-offset: 2px; }
+.myskin-status { font-size: 11px; color: var(--m); }
+.myskin-range { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; margin: 12px 0; font-size: 13px; color: var(--t); }
+.myskin-range input[type="range"] { grid-column: 1 / -1; width: 100%; min-height: 44px; accent-color: var(--orange); }
+.myskin-range output { font-size: 12px; color: var(--m); }
+.myskin-select { min-height: 44px; }
+.myskin-accent { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--t); }
+.myskin-accent input[type="color"] { width: 52px; height: 44px; padding: 2px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); }
