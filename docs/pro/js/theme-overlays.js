@@ -104,8 +104,15 @@
 
       if (!overlayConfig || !overlayConfig.type) return;
 
+      // Self-gated overlays (shader-gradient) run on phones and handle
+      // reduced motion themselves — one static frame instead of nothing —
+      // because they ARE the theme's wallpaper, not decoration on top of it.
+      // They stay cheap: reduced-resolution render, 30fps cap, paused when
+      // the tab is hidden.
+      const selfGated = !!this.selfGatedOverlays[overlayConfig.type];
+
       // Mobile optimization
-      if (window.innerWidth < this.minScreenWidth) {
+      if (!selfGated && window.innerWidth < this.minScreenWidth) {
         console.log('[ThemeOverlays] Mobile detected, skipping overlay');
         return;
       }
@@ -114,7 +121,7 @@
       // own Comfort-tab toggle (data-motion="reduce" on <html>) are two
       // independent signals; neither implies the other, so both are
       // checked. Previously neither was checked anywhere in this file.
-      if (this.prefersReducedMotion()) {
+      if (!selfGated && this.prefersReducedMotion()) {
         console.log('[ThemeOverlays] Reduced motion preferred, skipping overlay');
         return;
       }
@@ -137,6 +144,13 @@
         this.animationId = null;
       }
       this._loopCallback = null;
+
+      // Per-overlay teardown (shader-gradient: resize listener, GL context,
+      // the container z-index it lowered). Runs before the child sweep below.
+      if (typeof this._overlayCleanup === 'function') {
+        try { this._overlayCleanup(); } catch (_) {}
+      }
+      this._overlayCleanup = null;
 
       this.particles = [];
       this.frameCount = 0;
@@ -174,6 +188,94 @@
       try { osPref = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
       const appPref = document.documentElement.getAttribute('data-motion') === 'reduce';
       return !!(osPref || appPref);
+    },
+
+    // ==================== SHADER GRADIENT HELPERS ====================
+    // Overlay types that bypass the phone-width and reduced-motion skips in
+    // apply() because they gate themselves (see 'shader-gradient').
+    selfGatedOverlays: { 'shader-gradient': true },
+
+    // Resolve a colour stop to [r,g,b] in 0..1. Accepts '#rrggbb' / '#rgb'
+    // or a custom-property name ('--bg') read from the ACTIVE theme, so a
+    // theme can point its wallpaper at its own tokens.
+    shaderColor(value, fallback) {
+      let v = value;
+      if (typeof v === 'string' && v.indexOf('--') === 0) {
+        try { v = getComputedStyle(document.documentElement).getPropertyValue(v).trim(); } catch (_) { v = ''; }
+      }
+      const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(v || '').trim());
+      if (!m) return fallback || [0.03, 0.04, 0.14];
+      let h = m[1];
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    },
+
+    shaderRgb(c) {
+      return 'rgb(' + c.map((x) => Math.round(x * 255)).join(',') + ')';
+    },
+
+    // Non-WebGL fallback: a static CSS layered radial gradient in the same
+    // stops, so the theme keeps its wallpaper on GPUs/browsers with WebGL
+    // disabled (and after a lost context).
+    shaderFallback(container, stops) {
+      const [c0, c1, c2, c3] = stops.map((c) => this.shaderRgb(c));
+      const div = document.createElement('div');
+      div.className = 'te-shader-fallback';
+      div.style.cssText =
+        'position:absolute;inset:0;pointer-events:none;' +
+        'background:' +
+        'radial-gradient(70% 55% at 18% 12%,' + c1 + ' 0%,transparent 70%),' +
+        'radial-gradient(60% 50% at 85% 30%,' + c2 + ' 0%,transparent 70%),' +
+        'radial-gradient(65% 55% at 60% 95%,' + c3 + ' 0%,transparent 72%),' +
+        c0 + ';';
+      container.appendChild(div);
+      return div;
+    },
+
+    // Hand-written fragment shader (no third-party code): two-level
+    // domain-warped value-noise fbm slowly drifts a 4-stop gradient, with a
+    // soft vignette back to the base colour and a faint STATIC grain to kill
+    // banding. Rendered at reduced resolution and CSS-upscaled — the noise
+    // is low-frequency, so the upscale is invisible.
+    shaderSource: {
+      vert:
+        'attribute vec2 aPos;' +
+        'void main(){gl_Position=vec4(aPos,0.0,1.0);}',
+      frag: [
+        '#ifdef GL_FRAGMENT_PRECISION_HIGH',
+        'precision highp float;',
+        '#else',
+        'precision mediump float;',
+        '#endif',
+        'uniform vec2 uRes;',
+        'uniform float uTime;',
+        'uniform vec3 uC0;',
+        'uniform vec3 uC1;',
+        'uniform vec3 uC2;',
+        'uniform vec3 uC3;',
+        'uniform float uGrain;',
+        'float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}',
+        'float vnoise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);',
+        '  return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);}',
+        'float fbm(vec2 p){float v=0.0;float a=0.5;mat2 m=mat2(1.6,1.2,-1.2,1.6);',
+        '  for(int i=0;i<4;i++){v+=a*vnoise(p);p=m*p;a*=0.5;}return v;}',
+        'void main(){',
+        '  vec2 uv=gl_FragCoord.xy/uRes;',
+        '  vec2 p=vec2(uv.x*(uRes.x/uRes.y),uv.y);',
+        '  float t=uTime*0.035;',
+        '  vec2 q=vec2(fbm(p*1.1+vec2(0.0,t)),fbm(p*1.1+vec2(5.2,-t*0.8)));',
+        '  float n=fbm(p*1.3+1.7*q+vec2(t*0.6,-t*0.3));',
+        '  float m=fbm(p*0.9-1.3*q+vec2(-t*0.4,t*0.5)+3.7);',
+        '  vec3 col=uC0;',
+        '  col=mix(col,uC1,smoothstep(0.28,0.78,n));',
+        '  col=mix(col,uC2,smoothstep(0.42,0.82,m)*0.85);',
+        '  col=mix(col,uC3,smoothstep(0.30,0.62,n*m*1.5)*0.75);',
+        '  float vig=smoothstep(1.3,0.3,length(uv-vec2(0.5,0.55)));',
+        '  col=mix(uC0,col,0.65+0.35*vig);',
+        '  col+=(hash(floor(gl_FragCoord.xy))-0.5)*uGrain;',
+        '  gl_FragColor=vec4(col,1.0);',
+        '}'
+      ].join('\n')
     },
 
     // ==================== UTILITY HELPERS ====================
@@ -215,6 +317,170 @@
 
     // ==================== OVERLAY LIBRARY ====================
     overlayLibrary: {
+
+      // WEBGL WALLPAPER
+      //
+      // 'shader-gradient' (2026-10-01, Live Ops theme): a full-viewport
+      // slowly-moving noise gradient behind the app. Config:
+      //   colors: 4 stops — '#hex' or a token name ('--bg'); [0] is the base
+      //   speed:  time multiplier (default 1)
+      //   scale:  render-resolution factor vs CSS px (default 0.5)
+      //   grain:  static grain amplitude (default 0.018)
+      //   darkOnly: skip entirely when the app resolves to light mode
+      // Gates: reduced motion → ONE static frame, no loop; hidden tab →
+      // the engine's visibilitychange handler cancels the rAF loop, and the
+      // frame callback itself also bails on document.hidden; 30fps cap is
+      // time-based (not frame-parity) so 120Hz screens don't double it;
+      // no WebGL / shader compile failure / lost context → static CSS
+      // gradient in the same stops.
+      'shader-gradient'(container, config) {
+        const self = this;
+        const html = document.documentElement;
+        if (config.darkOnly && html.getAttribute('data-mode') === 'light') return;
+
+        const fallbackStops = [[0.027, 0.043, 0.141], [0.08, 0.16, 0.47], [0.19, 0.1, 0.43], [0.04, 0.24, 0.36]];
+        const raw = Array.isArray(config.colors) ? config.colors : [];
+        const stops = [0, 1, 2, 3].map((i) => self.shaderColor(raw[i], fallbackStops[i]));
+        const reduced = self.prefersReducedMotion();
+        const speed = typeof config.speed === 'number' ? config.speed : 1;
+        const scale = Math.min(1, Math.max(0.25, config.scale || 0.5));
+        const grain = typeof config.grain === 'number' ? config.grain : 0.018;
+
+        // Paint BEHIND the app: the shared container is z-index 0, which
+        // stacks above in-flow content; a full-bleed opaque wallpaper must
+        // sit at -1. Restored in cleanup so other overlays are unchanged.
+        const prevZ = container.style.zIndex;
+        container.style.zIndex = '-1';
+        html.classList.add('te-wallpaper-on');
+
+        let fallbackEl = null;
+        let canvas = document.createElement('canvas');
+        canvas.className = 'te-shader';
+        canvas.setAttribute('aria-hidden', 'true');
+        canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;';
+        container.appendChild(canvas);
+
+        const goFallback = () => {
+          if (canvas) { canvas.remove(); canvas = null; }
+          if (!fallbackEl) fallbackEl = self.shaderFallback(container, stops);
+        };
+
+        let gl = null;
+        try {
+          const opts = { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
+          gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+        } catch (_) { gl = null; }
+
+        let onResize = null;
+        // Set on teardown. loseContext() below fires 'webglcontextlost'
+        // asynchronously on THIS canvas — by then a newer overlay may own the
+        // container and the rAF loop, so the handler must not touch either.
+        let disposed = false;
+        self._overlayCleanup = () => {
+          disposed = true;
+          if (onResize) window.removeEventListener('resize', onResize);
+          if (gl) {
+            try { const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); } catch (_) {}
+          }
+          container.style.zIndex = prevZ || '0';
+          html.classList.remove('te-wallpaper-on');
+        };
+
+        if (!gl) { goFallback(); return; }
+
+        const compile = (type, src) => {
+          const sh = gl.createShader(type);
+          gl.shaderSource(sh, src);
+          gl.compileShader(sh);
+          if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+            console.warn('[ThemeOverlays] shader compile failed:', gl.getShaderInfoLog(sh));
+            return null;
+          }
+          return sh;
+        };
+        const vs = compile(gl.VERTEX_SHADER, self.shaderSource.vert);
+        const fs = compile(gl.FRAGMENT_SHADER, self.shaderSource.frag);
+        const prog = vs && fs ? gl.createProgram() : null;
+        if (prog) {
+          gl.attachShader(prog, vs);
+          gl.attachShader(prog, fs);
+          gl.linkProgram(prog);
+        }
+        if (!prog || !gl.getProgramParameter(prog, gl.LINK_STATUS)) { goFallback(); return; }
+        gl.useProgram(prog);
+
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        const aPos = gl.getAttribLocation(prog, 'aPos');
+        gl.enableVertexAttribArray(aPos);
+        gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+        const uRes = gl.getUniformLocation(prog, 'uRes');
+        const uTime = gl.getUniformLocation(prog, 'uTime');
+        gl.uniform3fv(gl.getUniformLocation(prog, 'uC0'), stops[0]);
+        gl.uniform3fv(gl.getUniformLocation(prog, 'uC1'), stops[1]);
+        gl.uniform3fv(gl.getUniformLocation(prog, 'uC2'), stops[2]);
+        gl.uniform3fv(gl.getUniformLocation(prog, 'uC3'), stops[3]);
+        gl.uniform1f(gl.getUniformLocation(prog, 'uGrain'), grain);
+
+        // Time starts mid-flow so the static (reduced-motion) frame is a
+        // composed picture, not the noise field's origin.
+        let t = 40;
+        const sizeCanvas = () => {
+          if (!canvas) return;
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const w = Math.max(1, Math.round(window.innerWidth * dpr * scale));
+          const h = Math.max(1, Math.round(window.innerHeight * dpr * scale));
+          if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+          }
+          gl.viewport(0, 0, w, h);
+          gl.uniform2f(uRes, w, h);
+        };
+        const draw = () => {
+          if (!canvas || gl.isContextLost()) return;
+          gl.uniform1f(uTime, t);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+        };
+
+        canvas.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault();
+          if (disposed) return; // our own teardown released it
+          if (self.animationId) { cancelAnimationFrame(self.animationId); self.animationId = null; }
+          self._loopCallback = null;
+          goFallback();
+        });
+
+        let resizeTimer = null;
+        onResize = () => {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => { if (!disposed) { sizeCanvas(); draw(); } }, 150);
+        };
+        window.addEventListener('resize', onResize);
+
+        sizeCanvas();
+
+        // Reduced motion: ONE static frame, no animation loop at all.
+        if (reduced) {
+          draw();
+          return;
+        }
+
+        let last = performance.now();
+        const FRAME_MS = 1000 / 30;
+        draw();
+        self.animationLoop(() => {
+          if (document.hidden) return;
+          const now = performance.now();
+          const dt = now - last;
+          if (dt < FRAME_MS - 1) return; // 30fps cap regardless of refresh rate
+          last = now;
+          t += Math.min(dt, 100) / 1000 * speed; // no jump after a pause
+          draw();
+        });
+      },
 
       // CSS-ONLY OVERLAYS
 

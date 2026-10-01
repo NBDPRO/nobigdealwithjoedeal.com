@@ -513,6 +513,57 @@
       specialClass: null
     },
 
+    // Live Ops (2026-10-01) — Jo's "AI Business OS" look: deep indigo-navy
+    // space, a slowly moving WebGL gradient wallpaper (theme-overlays.js
+    // 'shader-gradient'), translucent cards with thin cyan glow edges and
+    // uppercase spaced labels. Colours mirror the :root[data-theme="liveops"]
+    // token line in theme-system.css (engine bg → --s, surface → --s2,
+    // surface2 → --s3, outerBg → --bg). The card glow CSS is scoped to
+    // [data-theme="liveops"] at the end of theme-system.css.
+    'liveops': {
+      name: 'Live Ops',
+      category: 'professional',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#070b24',
+        bg: '#0d1438',
+        surface: '#121c4a',
+        surface2: '#18245c',
+        text: '#e8eeff',
+        muted: '#9fb0e0',
+        border: 'rgba(56,225,255,.16)',
+        accent: '#38e1ff',
+        accentBg: 'rgba(56,225,255,.16)',
+        accentHover: '#7aeeff',
+        green: '#34f0b4',
+        red: '#ff5d7a',
+        gold: '#ffcf4a',
+        blue: '#5b8cff',
+        purple: '#a78bfa',
+        paper: '#121c4a',
+        rule: 'rgba(56,225,255,.12)'
+      },
+      // Stops stay dark (max relative luminance well under --m's AA budget)
+      // so muted text that sits straight on the wallpaper still reads.
+      overlay: {
+        type: 'shader-gradient',
+        colors: ['#070b24', '#1a3594', '#36208a', '#0a4462'],
+        speed: 1,
+        scale: 0.5,
+        grain: 0.01,
+        darkOnly: true
+      },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '14px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: 'glow',
+      specialClass: 'liveops-theme'
+    },
+
     // NATURE & ELEMENTS (12)
     'forest': {
       name: 'Forest',
