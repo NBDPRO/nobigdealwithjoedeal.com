@@ -17,6 +17,15 @@
  *                 cyberpunk, hologram, quantum, starship, neon-rain, terminal
  *   nature:       forest, ocean, desert, aurora, volcano, glacier, thunderstorm,
  *                 sunset, canyon, coral-reef, tundra, rainforest, underwater, volcanic
+ *   luxury:       crimson, gold, rose, diamond, marble, velvet, champagne, onyx,
+ *                 metal, liquid, frosted
+ *   mood:         dark-academia, cottagecore, brutalist, art-deco, noir, grunge,
+ *                 vapor-room, blood-moon, candlelit, copper, deep-focus, ember,
+ *                 midnight-oil, ink, typewriter, sakura
+ *   seasonal:     pumpkin-patch, snowfall, spring-bloom, summer-heat, fourth-of-july,
+ *                 storm-season, christmas, easter, halloween
+ *   sports:       racing-red, stadium-lights, champion-gold, endzone, fast-break,
+ *                 knockout, checkered-flag, trophy
  * Themes named after real products or franchises stay colour-only here; a
  * user can put licensed art on their own screen with My Skin.
  *
@@ -196,6 +205,76 @@ export const TILES = {
   // Volcanic: glowing fissures.
   'volcanic': { size: [180, 180], svg: svg(180, 180,
     `<path d='M0 90L40 80L60 110L100 104L130 140L180 130M60 110L70 180M100 104L120 60L180 40M120 60L100 0' fill='none' stroke='rgba(255,61,0,.14)' stroke-width='1.6'/>`) },
+
+  // ── Luxury pack ───────────────────────────────────────────────────────────
+  'crimson': { size: [48, 48], svg: svg(48, 48, `<path d='M24 2L46 24L24 46L2 24Z' fill='none' stroke='rgba(220,38,38,.12)' stroke-width='1'/><circle cx='24' cy='24' r='2' fill='rgba(253,228,228,.08)'/>`) },
+  'gold': { size: [24, 24], svg: svg(24, 24, `<path d='M0 24L24 0' stroke='rgba(234,179,8,.10)' stroke-width='1'/>`) },
+  'rose': { size: [160, 160], svg: svg(160, 160, `<g fill='rgba(244,63,94,.08)'>` + scatter(5, 7, 160, 160, (x, y, k) => `<ellipse cx='${x}' cy='${y}' rx='${r1(5 + k * 4)}' ry='${r1(2.5 + k * 2)}' transform='rotate(${Math.round(k * 180)} ${x} ${y})'/>`) + `</g>`) },
+  'diamond': { size: [60, 52], svg: svg(60, 52, `<path d='M0 26L15 0H45L60 26L45 52H15ZM15 0L30 26L45 0M0 26H60M15 52L30 26L45 52' fill='none' stroke='rgba(167,139,250,.10)' stroke-width='.8'/>`) },
+  'marble': { size: [260, 260], svg: svg(260, 260,
+    `<filter id='m' x='0' y='0'><feTurbulence type='turbulence' baseFrequency='.012 .03' numOctaves='3' seed='3' stitchTiles='stitch'/>` +
+    `<feColorMatrix values='0 0 0 0 .89  0 0 0 0 .91  0 0 0 0 .94  0 0 0 .13 0'/></filter>` +
+    `<rect width='260' height='260' filter='url(#m)'/>`) },
+  'velvet': { size: [160, 160], svg: svg(160, 160,
+    `<filter id='v' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='.02' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .66  0 0 0 0 .33  0 0 0 0 .97  0 0 0 .09 0'/></filter>` +
+    `<rect width='160' height='160' filter='url(#v)'/>`) },
+  'champagne': { size: [140, 200], svg: svg(140, 200, scatter(9, 16, 140, 200, (x, y, k) => `<circle cx='${x}' cy='${y}' r='${r1(1 + k * 2.5)}' fill='none' stroke='rgba(251,191,36,.13)' stroke-width='.8'/>`)) },
+  'onyx': { size: [240, 240], svg: svg(240, 240, `<path d='M-10 60C60 40 120 120 250 90M-10 190C80 170 140 220 250 200' fill='none' stroke='rgba(245,245,245,.05)' stroke-width='1.2'/>`) },
+  'metal': { size: [200, 60], svg: svg(200, 60,
+    `<filter id='b' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='.002 .9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .94  0 0 0 0 .94  0 0 0 0 .96  0 0 0 .08 0'/></filter>` +
+    `<rect width='200' height='60' filter='url(#b)'/>`) },
+  'liquid': { size: [160, 70], svg: svg(160, 70, `<g fill='none' stroke-width='1.2'><path d='${wave(20, 10, 160)}' stroke='rgba(120,200,232,.12)'/><path d='${wave(50, 7, 160)}' stroke='rgba(232,244,255,.06)'/></g>`) },
+  'frosted': { size: [120, 120], svg: svg(120, 120, `<g stroke='rgba(26,30,60,.07)' stroke-width='1' fill='none'><path d='M60 30V90M34 45L86 75M34 75L86 45'/><path d='M60 30l-6 8M60 30l6 8M60 90l-6-8M60 90l6-8'/></g>`) },
+
+  // ── Mood pack ─────────────────────────────────────────────────────────────
+  'dark-academia': { size: [80, 32], svg: svg(80, 32, `<path d='M0 31.5H80' stroke='rgba(184,134,11,.10)' stroke-width='1'/>`) },
+  'cottagecore': { size: [90, 90], svg: svg(90, 90, `<g fill='rgba(134,168,115,.12)'><circle cx='20' cy='20' r='3'/><circle cx='26' cy='20' r='3'/><circle cx='23' cy='15' r='3'/><circle cx='23' cy='25' r='3'/><circle cx='65' cy='62' r='2.4'/><circle cx='70' cy='62' r='2.4'/><circle cx='67.5' cy='58' r='2.4'/><circle cx='67.5' cy='66' r='2.4'/></g><g fill='rgba(232,228,220,.10)'><circle cx='23' cy='20' r='1.6'/><circle cx='67.5' cy='62' r='1.3'/></g>`) },
+  'brutalist': { size: [64, 64], svg: svg(64, 64, `<path d='M.5 0V64M0 .5H64' stroke='rgba(20,20,20,.14)' stroke-width='1'/><rect x='4' y='4' width='10' height='10' fill='rgba(20,20,20,.05)'/>`) },
+  'art-deco': { size: [80, 40], svg: svg(80, 40, `<g fill='none' stroke='rgba(212,160,87,.12)' stroke-width='1'>` + [8, 16, 24, 32].map((r) => `<path d='M${40 - r} 40A${r} ${r} 0 0 1 ${40 + r} 40'/><path d='M${-r} 40A${r} ${r} 0 0 1 ${r} 40'/><path d='M${80 - r} 40A${r} ${r} 0 0 1 ${80 + r} 40'/>`).join('') + `</g>`) },
+  'noir': { size: [60, 60], svg: svg(60, 60, `<path d='M0 60L60 0V12L12 60ZM0 24V36L36 0H24Z' fill='rgba(245,245,245,.025)'/>`) },
+  'grunge': { size: [200, 200], svg: svg(200, 200,
+    `<filter id='r' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='.5' numOctaves='3' seed='9' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .64  0 0 0 0 .56  0 0 0 0 .25  0 0 0 .12 -.02'/></filter>` +
+    `<rect width='200' height='200' filter='url(#r)'/>`) },
+  'vapor-room': { size: [60, 60], svg: svg(60, 60, `<path d='M.5 0V60M0 .5H60' stroke='rgba(232,121,249,.10)' stroke-width='1'/>`) },
+  'blood-moon': { size: [220, 220], svg: svg(220, 220, scatter(13, 22, 220, 220, (x, y, k) => `<circle cx='${x}' cy='${y}' r='${k > .9 ? 1.2 : .6}' fill='rgba(255,232,236,.12)'/>`) + `<circle cx='170' cy='50' r='18' fill='rgba(232,0,26,.07)'/>`) },
+  'candlelit': { size: [180, 180], svg: svg(180, 180, scatter(17, 10, 180, 180, (x, y, k) => `<circle cx='${x}' cy='${y}' r='${r1(6 + k * 10)}' fill='rgba(232,130,10,.035)'/>`)) },
+  'copper': { size: [40, 40], svg: svg(40, 40, `<g fill='none' stroke='rgba(184,115,51,.11)' stroke-width='1'><circle cx='10' cy='10' r='7'/><circle cx='30' cy='30' r='7'/><circle cx='30' cy='10' r='4'/><circle cx='10' cy='30' r='4'/></g>`) },
+  'deep-focus': { size: [24, 24], svg: svg(24, 24, `<circle cx='12' cy='12' r='.9' fill='rgba(13,148,136,.22)'/>`) },
+  'ember': { size: [160, 200], svg: svg(160, 200, scatter(29, 16, 160, 200, (x, y, k) => `<circle cx='${x}' cy='${y}' r='${r1(.6 + k * 1.4)}' fill='rgba(255,69,0,${k > .7 ? .2 : .12})'/>`)) },
+  'midnight-oil': { size: [120, 36], svg: svg(120, 36, `<path d='M0 35.5H120' stroke='rgba(212,144,10,.08)' stroke-width='1'/><path d='M14.5 0V36' stroke='rgba(212,144,10,.06)' stroke-width='1'/>`) },
+  'ink': { size: [200, 200], svg: svg(200, 200, `<g fill='rgba(15,10,4,.07)'>` + scatter(41, 9, 200, 200, (x, y, k) => `<circle cx='${x}' cy='${y}' r='${r1(1 + k * 4)}'/>`) + `</g>`) },
+  'typewriter': { size: [80, 28], svg: svg(80, 28, `<path d='M0 27.5H80' stroke='rgba(26,18,8,.08)' stroke-width='1'/>`) },
+  'sakura': { size: [160, 160], svg: svg(160, 160, `<g fill='rgba(232,52,108,.09)'>` + scatter(61, 8, 160, 160, (x, y, k) => `<ellipse cx='${x}' cy='${y}' rx='${r1(4 + k * 3)}' ry='${r1(2.2 + k * 1.5)}' transform='rotate(${Math.round(k * 160)} ${x} ${y})'/>`) + `</g>`) },
+
+  // ── Seasonal pack ─────────────────────────────────────────────────────────
+  'pumpkin-patch': { size: [180, 120], svg: svg(180, 120, `<path d='${wave(90, 14, 180)}' fill='none' stroke='rgba(134,168,115,.10)' stroke-width='1.4'/><g fill='rgba(249,115,22,.10)'><ellipse cx='40' cy='98' rx='12' ry='9'/><ellipse cx='130' cy='84' rx='9' ry='7'/></g>`) },
+  'snowfall': { size: [180, 180], svg: svg(180, 180, scatter(67, 26, 180, 180, (x, y, k) => `<circle cx='${x}' cy='${y}' r='${k > .8 ? 1.6 : .9}' fill='rgba(241,245,249,.14)'/>`)) },
+  'spring-bloom': { size: [160, 160], svg: svg(160, 160, `<g fill='rgba(249,168,212,.10)'>` + scatter(71, 7, 160, 160, (x, y, k) => `<ellipse cx='${x}' cy='${y}' rx='${r1(4 + k * 3)}' ry='${r1(2 + k * 1.5)}' transform='rotate(${Math.round(k * 170)} ${x} ${y})'/>`) + `</g>`) },
+  'summer-heat': { size: [160, 60], svg: svg(160, 60, `<g fill='none' stroke='rgba(251,191,36,.08)' stroke-width='1.2'><path d='${wave(15, 4, 160)}'/><path d='${wave(35, 5, 160)}'/><path d='${wave(55, 4, 160)}'/></g>`) },
+  'fourth-of-july': { size: [120, 80], svg: svg(120, 80, `<g fill='rgba(245,245,245,.08)'><path d='M20 12l2.4 5 5.4.6-4 3.7 1.1 5.3-4.9-2.7-4.9 2.7 1.1-5.3-4-3.7 5.4-.6z'/></g><g fill='rgba(239,68,68,.06)'><rect y='48' width='120' height='6'/><rect y='66' width='120' height='6'/></g>`) },
+  'storm-season': { size: [160, 200], svg: svg(160, 200, `<g stroke='rgba(226,232,240,.08)' stroke-width='1' stroke-linecap='round'>` + scatter(79, 18, 160, 200, (x, y, k) => `<path d='M${x} ${y}l-6 ${r1(14 + k * 12)}'/>`) + `</g>`) },
+  'christmas': { size: [180, 180], svg: svg(180, 180, scatter(83, 18, 180, 180, (x, y, k) => `<circle cx='${x}' cy='${y}' r='${k > .85 ? 1.5 : .8}' fill='rgba(245,255,248,.12)'/>`) + `<path d='M140 30l2 5h5l-4 3 1.5 5-4.5-3-4.5 3 1.5-5-4-3h5z' fill='rgba(229,57,53,.12)'/>`) },
+  'easter': { size: [80, 80], svg: svg(80, 80, `<g fill='rgba(156,39,176,.07)'><ellipse cx='20' cy='20' rx='6' ry='8'/></g><g fill='rgba(42,8,56,.05)'><ellipse cx='60' cy='60' rx='5' ry='7'/></g>`) },
+  'halloween': { size: [200, 200], svg: svg(200, 200, `<g fill='none' stroke='rgba(255,240,216,.06)' stroke-width='1'><path d='M0 0L80 40M0 0L60 70M0 0L30 80M0 0L80 10'/><path d='M20 10Q30 20 26 32Q40 30 50 38M40 20Q50 34 46 48Q62 44 70 52'/></g>`) },
+
+  // ── Maximal skin: Memphis-style confetti (squiggles, triangles, dots) ──
+  'maximal': { size: [200, 200], svg: svg(200, 200,
+    `<path d='M20 40q10-12 20 0t20 0t20 0' fill='none' stroke='rgba(255,95,162,.22)' stroke-width='3' stroke-linecap='round'/>` +
+    `<path d='M140 30l14 24h-28z' fill='rgba(95,200,255,.16)'/>` +
+    `<circle cx='60' cy='130' r='7' fill='rgba(255,210,63,.18)'/>` +
+    `<rect x='130' y='120' width='16' height='16' rx='2' transform='rotate(20 138 128)' fill='none' stroke='rgba(77,255,184,.18)' stroke-width='2.5'/>` +
+    `<path d='M90 170q8-10 16 0t16 0' fill='none' stroke='rgba(196,155,255,.2)' stroke-width='3' stroke-linecap='round'/>` +
+    `<g fill='rgba(255,247,232,.12)'><circle cx='100' cy='80' r='2'/><circle cx='180' cy='90' r='2'/><circle cx='30' cy='100' r='2'/></g>`) },
+
+  // ── Sports pack ───────────────────────────────────────────────────────────
+  'racing-red': { size: [160, 80], svg: svg(160, 80, `<g stroke='rgba(220,38,38,.12)' stroke-width='1.6' stroke-linecap='round'><path d='M10 20H70M40 40H130M90 62H150'/></g>`) },
+  'stadium-lights': { size: [240, 240], svg: svg(240, 240, `<path d='M120 0L60 240H180Z' fill='rgba(248,250,252,.025)'/><circle cx='120' cy='6' r='4' fill='rgba(248,250,252,.12)'/>`) },
+  'champion-gold': { size: [60, 30], svg: svg(60, 30, `<path d='M0 25L30 5L60 25' fill='none' stroke='rgba(234,179,8,.12)' stroke-width='1.2'/>`) },
+  'endzone': { size: [120, 60], svg: svg(120, 60, `<rect width='120' height='30' fill='rgba(22,163,74,.05)'/><path d='M0 .5H120' stroke='rgba(212,241,212,.08)' stroke-width='1'/><g stroke='rgba(212,241,212,.08)' stroke-width='1'><path d='M30 0v4M60 0v4M90 0v4'/></g>`) },
+  'fast-break': { size: [200, 200], svg: svg(200, 200, `<g fill='none' stroke='rgba(249,115,22,.11)' stroke-width='1.4'><circle cx='100' cy='100' r='40'/><path d='M100 0V200'/></g>`) },
+  'knockout': { size: [80, 60], svg: svg(80, 60, `<g stroke='rgba(220,38,38,.10)' stroke-width='2'><path d='M0 15H80M0 30H80M0 45H80'/></g>`) },
+  'checkered-flag': { size: [40, 40], svg: svg(40, 40, `<path d='M0 0H20V20H0ZM20 20H40V40H20Z' fill='rgba(245,245,245,.045)'/>`) },
+  'trophy': { size: [80, 80], svg: svg(80, 80, `<path d='M40 18l3.5 7.4 8 .9-6 5.5 1.7 7.9-7.2-4.1-7.2 4.1 1.7-7.9-6-5.5 8-.9z' fill='rgba(212,160,87,.10)'/>`) },
 };
 
 export function buildCss() {

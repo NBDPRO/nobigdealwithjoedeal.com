@@ -644,6 +644,46 @@
       specialClass: null
     },
 
+    // Maximal (2026-10-01, Jo's style list: "maximalism") — deep violet,
+    // cards edged in rotating colours with hard offset shadows, a rainbow
+    // header rule, confetti theme art. Colours mirror the
+    // :root[data-theme="maximal"] token line; treatment scoped at the end of
+    // theme-system.css.
+    'maximal': {
+      name: 'Maximal',
+      category: 'mood',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#140a2e',
+        bg: '#1f1147',
+        surface: '#2a1660',
+        surface2: '#34207a',
+        text: '#fff7e8',
+        muted: '#d9c8ff',
+        border: 'rgba(255,95,162,.45)',
+        accent: '#ffd23f',
+        accentBg: 'rgba(255,210,63,.18)',
+        accentHover: '#ffe27a',
+        green: '#4dffb8',
+        red: '#ff7a85',
+        gold: '#ffd23f',
+        blue: '#5fc8ff',
+        purple: '#c49bff',
+        paper: '#2a1660',
+        rule: 'rgba(255,95,162,.3)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '14px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+
     // DUO (2026-10-01): two-colour palettes from Jo's idea screenshots
     // (IMG_4999–5005). One strong accent on one ground, nothing else.
     'duo-machine-red': {

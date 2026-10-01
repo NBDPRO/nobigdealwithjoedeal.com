@@ -61,6 +61,8 @@ const SKINS = [
     expectSel: ['.w-card', '.ui-panel', '.ui-seg.is-on', ':focus-visible'] },
   { id: 'jobsite', name: 'Jobsite', mode: 'dark', header: '/* ══ Jobsite treatment', notMode: 'light',
     expectSel: ['.w-card', '.ui-card', '.w-card-title', 'header'] },
+  { id: 'maximal', name: 'Maximal', mode: 'dark', header: '/* ══ Maximal treatment', notMode: 'light',
+    expectSel: ['.w-card', '.k-card', '.btn-orange', 'header'] },
 ];
 
 for (const S of SKINS) {
