@@ -381,6 +381,50 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     ok('index.js exports onKnockCalendarWrite', /exports\.onKnockCalendarWrite\s*=/.test(idx));
   }
 
+  console.log('\n10. the morning follow-up push: only the newest knock at a door (Jo, 2026-09-30)');
+  {
+    const K = (id, f) => Object.assign({ id, companyId: 'CO', userId: 'rep1', address: '12 Knock Ln, Mason, OH' }, f);
+    const old = K('old', { createdAt: 100, followUpDate: 'today' });
+    const reknock = K('new', { createdAt: 200, disposition: 'not_interested', address: '12 KNOCK LN, Mason, OH' });
+    ok('a door re-knocked since → its old follow-up is skipped', G.keepNewestPerDoor([old], [old, reknock]).length === 0);
+    ok('the newest knock\'s own follow-up still reminds', G.keepNewestPerDoor([reknock], [old, reknock]).length === 1);
+    ok('no re-knock → the follow-up reminds (and the candidate need not be in `all`)', G.keepNewestPerDoor([old], []).length === 1);
+    const otherCo = K('x', { createdAt: 300, companyId: 'OTHER', userId: 'repX' });
+    ok('another company knocking the same door later does NOT silence this company\'s follow-up', G.keepNewestPerDoor([old], [old, otherCo]).length === 1);
+    const teammate = K('t', { createdAt: 300, userId: 'rep2' });
+    ok('a teammate\'s later knock at the door does (same company, newest wins)', G.keepNewestPerDoor([old], [old, teammate]).length === 0);
+    ok('a knock with no address has no door to compare → kept', G.keepNewestPerDoor([K('na', { address: '' })], [teammate]).length === 1);
+    ok('two doors, one re-knocked → only the other reminds', JSON.stringify(G.keepNewestPerDoor([old, K('b', { address: '9 Other Rd', createdAt: 50 })], [old, reknock]).map((k) => k.id)) === '["b"]');
+  }
+
+  console.log('\n11. the D2D tracker\'s own badge + Follow-ups Due list: the newest knock per door');
+  {
+    const vm = require('vm');
+    const core = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'd2d-tracker-core-2026b.js'), 'utf8');
+    const lift = (name) => {
+      const start = core.indexOf('function ' + name + '(');
+      if (start < 0) throw new Error('missing ' + name);
+      let i = core.indexOf('{', start), depth = 0;
+      for (; i < core.length; i++) { if (core[i] === '{') depth++; else if (core[i] === '}' && --depth === 0) break; }
+      return core.slice(start, i + 1);
+    };
+    const sb = { Date, Map, Set, String, Number, isFinite, isNaN };
+    vm.createContext(sb);
+    vm.runInContext(['toDate', 'normalizeAddress', 'doorKey', 'newestKnockIds', 'followUpsDueOf'].map(lift).join('\n') + '\nthis.due = followUpsDueOf;', sb);
+    const NOW = new Date('2026-10-05T16:00:00Z');
+    const K = (id, f) => Object.assign({ id, address: '12 Knock Ln, Mason, OH' }, f);
+    const old = K('old', { createdAt: new Date('2026-09-20T15:00:00Z'), followUpDate: new Date('2026-09-25T04:00:00Z'), disposition: 'callback' });
+    const reknock = K('new', { createdAt: new Date('2026-10-01T15:00:00Z'), disposition: 'not_interested', address: '12 knock ln,  mason, oh' });
+    const ids = (a) => JSON.stringify(sb.due(a, NOW).map((k) => k.id));
+    ok('a door re-knocked as "not interested" → its old past-due follow-up leaves the list/badge', ids([old, reknock]) === '[]', ids([old, reknock]));
+    ok('not re-knocked → still due', ids([old]) === '["old"]');
+    ok('the newest knock\'s own past-due follow-up is due', ids([old, K('new2', { createdAt: new Date('2026-10-01T15:00:00Z'), followUpDate: new Date('2026-10-03T04:00:00Z') })]) === '["new2"]');
+    ok('a future follow-up and a converted knock are not due', ids([K('f', { createdAt: new Date(1), followUpDate: new Date('2026-10-09T04:00:00Z') }), K('c', { address: '9 Other Rd', createdAt: new Date(1), followUpDate: new Date(2), convertedToLead: true })]) === '[]');
+    ok('Firestore Timestamps ({toDate}) read the same', ids([K('ts', { createdAt: { toDate: () => new Date(5) }, followUpDate: { toDate: () => new Date(6) } })]) === '["ts"]');
+    ok('the badge and the dashboard metric both read it', /function updateNavBadge\(\) \{\s*const followUpsDue = followUpsDueOf\(state\.knocks\);/.test(core)
+      && /const followUpsDue = followUpsDueOf\(state\.knocks\);\s*return \{/.test(core) && !/state\.knocks\.filter\(k => \{\s*const fup = toDate\(k\.followUpDate\);/.test(core));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

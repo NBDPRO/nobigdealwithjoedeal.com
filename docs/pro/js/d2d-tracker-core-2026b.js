@@ -2685,11 +2685,35 @@
   // ============================================================================
   // NAV BADGE (follow-ups due)
   // ============================================================================
-  function updateNavBadge() {
-    const followUpsDue = state.knocks.filter(k => {
+  // Only the newest knock at a door owns its follow-up (Jo, 2026-09-30:
+  // "only the latest knock"). A re-knock writes a NEW knock and leaves the
+  // old one's followUpDate behind, so the badge and the Follow-ups Due list
+  // kept counting doors already re-knocked ("not interested" included) —
+  // forever, since a past-due date never stops being due. Same rule as the
+  // calendar and the 8am push (functions/google-calendar-logic.js).
+  function newestKnockIds(knocks) {
+    const best = new Map();
+    for (const k of knocks || []) {
+      if (!k) continue;
+      const door = doorKey(k);
+      const d = toDate(k.createdAt);
+      const t = d ? d.getTime() : 0;
+      const cur = best.get(door);
+      if (!cur || t > cur.t || (t === cur.t && String(k.id) > String(cur.id))) best.set(door, { id: k.id, t });
+    }
+    return new Set([...best.values()].map((v) => String(v.id)));
+  }
+  function followUpsDueOf(knocks, now) {
+    const newest = newestKnockIds(knocks);
+    const at = now || new Date();
+    return (knocks || []).filter((k) => {
       const fup = toDate(k.followUpDate);
-      return fup && fup <= new Date() && !k.convertedToLead;
+      return fup && fup <= at && !k.convertedToLead && newest.has(String(k.id));
     });
+  }
+
+  function updateNavBadge() {
+    const followUpsDue = followUpsDueOf(state.knocks);
     const navEl = document.getElementById('nav-d2d');
     if (!navEl) return;
     let badge = navEl.querySelector('.d2d-badge');
@@ -2747,10 +2771,7 @@
       if (found) { streak++; checkDate.setDate(checkDate.getDate() - 1); }
     }
 
-    const followUpsDue = state.knocks.filter(k => {
-      const fup = toDate(k.followUpDate);
-      return fup && fup <= new Date() && !k.convertedToLead;
-    });
+    const followUpsDue = followUpsDueOf(state.knocks);
 
     return {
       today: today.length,
