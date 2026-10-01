@@ -683,6 +683,73 @@ export function inferJobType(lead) {
   return null;
 }
 
+/**
+ * suggestJobType(lead) — a job type for a lead that has NONE, with the
+ * reason, for the "Sort my customers" screen (2026-10-01). Never writes;
+ * Jo confirms. Returns { type, reason, strength: 'strong'|'likely' } or null
+ * ("no clues — your call").
+ *
+ * Read-only production count (118 untyped live customers): 89 are Thumbtack
+ * requests whose notes carry "Category: Roof Repair or Maintenance" /
+ * "Drywall Repair and Texturing" / "Siding Repair" / "Gutter Repair", and
+ * 13 say "Insurance claim coverage: No, the project is not covered". Only 3
+ * have a carrier, so inferJobType alone typed 4 of 118. Order:
+ *   1. anything inferJobType already sees (carrier, claim, loan, stage)
+ *   2. warranty claim on file / service stages
+ *   3. the request text says insurance yes / storm damage (unless it says
+ *      "not covered")
+ *   4. the request text: repair / maintenance / cleaning → service;
+ *      install / replace / new roof → cash
+ *   5. a priced job: ≥ $5k → cash, under $2.5k → service
+ */
+export function suggestJobType(lead) {
+  if (!lead) return null;
+  const stage = normalizeStage(lead.stage);
+  const claimStatus = String(lead.claimStatus || '').trim();
+  const strong = (type, reason) => ({ type, reason, strength: 'strong' });
+  const likely = (type, reason) => ({ type, reason, strength: 'likely' });
+
+  if (lead.insCarrier || lead.insuranceCarrier) return strong('insurance', 'Carrier on file');
+  if (lead.claimNumber || lead.policyNumber) return strong('insurance', 'Claim or policy number on file');
+  if (lead.adjusterName || lead.dateOfLoss) return strong('insurance', 'Adjuster or date of loss on file');
+  if (claimStatus && !/^no claim$/i.test(claimStatus)) return strong('insurance', 'Claim status: ' + claimStatus);
+  if ([S.CLAIM_FILED, S.ADJUSTER_SCHEDULED, S.ADJUSTER_DONE, S.SCOPE_RECEIVED, S.SUPPLEMENT_REQ, S.SUPPLEMENT_APPROVED].includes(stage)) {
+    return strong('insurance', 'Stage is ' + (STAGE_META[stage]?.label || stage));
+  }
+  if (Number(lead.loanAmount) > 0 || lead.financeCompany || lead.preQualLink || lead.softPullStatus) return strong('finance', 'Loan or lender on file');
+  if ([S.PREQUAL_SENT, S.LOAN_APPROVED].includes(stage)) return strong('finance', 'Stage is ' + (STAGE_META[stage]?.label || stage));
+  if (lead.openWarrantyClaimId || [S.WARRANTY_CLAIM, S.WARRANTY_SCHEDULED, S.WARRANTY_REPAIRED].includes(stage)) return strong('warranty', 'Warranty claim on file');
+  if ([S.SERVICE_QUOTED, S.SERVICE_APPROVED].includes(stage)) return strong('service', 'Stage is ' + (STAGE_META[stage]?.label || stage));
+  if ([S.ESTIMATE_SENT_CASH, S.NEGOTIATING].includes(stage)) return strong('cash', 'Stage is ' + (STAGE_META[stage]?.label || stage));
+
+  const text = [lead.damageType, lead.scopeOfWork, lead.subType, typeof lead.notes === 'string' ? lead.notes : '']
+    .filter(Boolean).join(' \n ').replace(/&#0?39;/g, "'");
+  // The request's own words: a Thumbtack "Category:" / "Project type:" line
+  // first, then the damage type, then the rest of the notes.
+  const pick = (re) => { const m = re.exec(text); return m ? m[1].trim().replace(/\s+/g, ' ').slice(0, 60) : ''; };
+  const request = pick(/Category:\s*([^·\n]+)/i) || pick(/Project type:\s*([^·\n]+)/i) || String(lead.damageType || '').trim();
+  const notCovered = /not\s+covered|not\s+an\s+insurance\s+claim|insurance[^·\n]{0,20}:\s*no\b/i.test(text);
+
+  if (!notCovered && /insurance[^·\n]{0,25}:\s*yes|will be an insurance claim|insurance claim|filed a claim|adjuster/i.test(text)) {
+    return likely('insurance', 'Request mentions an insurance claim');
+  }
+  if (!notCovered && /\b(hail|storm|wind(?:storm)?|tornado|tree (?:fell|hit|branch))\b/i.test(text)) {
+    return likely('insurance', 'Storm damage' + (request ? ': ' + request : ''));
+  }
+  const reqText = request || text;
+  if (/\b(install(?:ation)?|replace(?:ment)?|new roof|re-?roof(?:ing)?)\b/i.test(reqText) && !/repair or replace|repair\/replace/i.test(reqText)) {
+    return likely('cash', (notCovered ? 'Not an insurance claim · ' : '') + (request || 'Replacement or install'));
+  }
+  if (/\b(repair|maint(?:enance)?|clean(?:ing)?|patch|fix|leak|handyman|drywall|inspection|seal|caulk)\b/i.test(reqText)) {
+    return likely('service', (notCovered ? 'Not an insurance claim · ' : '') + (request || 'Repair request'));
+  }
+  const value = Number(lead.jobValue) || 0;
+  if (value >= 5000) return likely('cash', 'Priced at $' + Math.round(value).toLocaleString('en-US'));
+  if (value > 0 && value < 2500) return likely('service', 'Priced at $' + Math.round(value).toLocaleString('en-US'));
+  if (notCovered) return likely('cash', 'Not an insurance claim');
+  return null;
+}
+
 // ─────────────────────────────────────────────
 // TAG CLASS (backward compat for CSS)
 // ─────────────────────────────────────────────
