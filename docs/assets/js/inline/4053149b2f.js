@@ -791,6 +791,15 @@ async function skipOtpAndRequestCall(btn) {
     return;
   }
 
+  var _intake = _readIntake();
+  if (_intake.error) {
+    status.className = 'otp-skip-status error';
+    status.textContent = _intake.error;
+    _intakeError(_intake);
+    return;
+  }
+  _intakeError(null);
+
   _otpSkipBusy = true;
   btn.disabled = true;
   btn.textContent = 'Sending…';
@@ -838,6 +847,7 @@ async function skipOtpAndRequestCall(btn) {
     tcpaConsent: consent,
     requestType: 'otp_skipped_call_request'
   };
+  Object.assign(leadData, _intake.fields);
 
   // Same awaited-with-one-retry contract as submitAndGetEstimate.
   var saved = false;
@@ -869,6 +879,7 @@ async function skipOtpAndRequestCall(btn) {
     btn.textContent = 'Request sent ✓';
     status.className = 'otp-skip-status';
     status.textContent = 'Got it — Joe will call you at ' + funnelData.phone + '. No code needed.';
+    if (window.NBDIntake && saved) window.NBDIntake.afterSubmit(status.parentNode, Object.assign(_intakeInfo(_intake), { quietContact: true }));
     trackEvent('otp_skip_call_request', { service: funnelData.service });
   } else {
     btn.disabled = false;
@@ -876,6 +887,48 @@ async function skipOtpAndRequestCall(btn) {
     status.className = 'otp-skip-status error';
     status.textContent = 'Couldn’t send just now — call or text Joe at (859) 420-7382.';
   }
+}
+
+/* ── Shared intake block (2026-09-30, Jo: every service form asks the same) ──
+   REQUIRED scheduling choice (book a time now, or "please contact me"), best
+   time, insurance claim, how they heard, photos — intake-extras.js. If the
+   block never loaded, the lead is never blocked on it. */
+function _mountIntake() {
+  var box = document.getElementById('estIntake');
+  if (!box) return true;
+  if (box.childElementCount) return true;
+  if (!window.NBDIntake) return false;
+  box.innerHTML = window.NBDIntake.html('estI');
+  return true;
+}
+if (!_mountIntake()) {
+  var _intakeTries = 0;
+  var _intakeTimer = setInterval(function () { if (_mountIntake() || ++_intakeTries > 40) clearInterval(_intakeTimer); }, 250);
+}
+function _readIntake() {
+  var box = document.getElementById('estIntake');
+  if (!window.NBDIntake || !box || !box.childElementCount) return { fields: {}, files: [] };
+  return window.NBDIntake.read(box, 'estI');
+}
+// Same convention as the other fields: .input-group.has-error shows .error-msg.
+function _intakeError(r) {
+  var grp = document.getElementById('estIntakeGroup');
+  var err = document.getElementById('estIntake-err');
+  var sched = document.getElementById('estISched');
+  var msg = (r && r.error) || '';
+  if (err) err.textContent = msg;
+  if (grp) grp.classList.toggle('has-error', !!msg);
+  if (sched) sched.classList.toggle('nbd-intake-invalid', !!msg && (!r.el || r.el === sched));
+  if (msg) { try { (r.el || err).scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {} }
+}
+// Picking a scheduling option clears the "choose one" message.
+document.addEventListener('change', function (e) {
+  if (e.target && e.target.name === 'estIScheduling') _intakeError(null);
+});
+function _intakeInfo(intake) {
+  return { prefix: 'estI', fields: intake.fields, files: intake.files, photoToken: window._lastPhotoToken || null,
+    firstName: funnelData.firstName, lastName: funnelData.lastName, phone: funnelData.phone, email: funnelData.email,
+    address: funnelData.address, service: funnelData.service };
 }
 
 /* ── Form Validation ── */
@@ -918,6 +971,10 @@ document.getElementById('emailAddress').addEventListener('blur', function () {
 /* ── Submit & Get Estimate ── */
 async function submitAndGetEstimate() {
   const btn = document.getElementById('btnSubmit');
+  // The scheduling choice is required — checked before the loading screen.
+  const _intake = _readIntake();
+  if (_intake.error) { _intakeError(_intake); return; }
+  _intakeError(null);
   btn.disabled = true;
   btn.textContent = 'Processing...';
 
@@ -978,6 +1035,7 @@ async function submitAndGetEstimate() {
     tcpaConsent: document.getElementById('tcpaConsent').checked,
     ballpark: funnelData.ballpark
   };
+  Object.assign(leadData, _intake.fields);
 
   // Awaited with one retry — this used to be fire-and-forget, so a failed
   // CRM write still showed the success screen and the lead vanished
@@ -1016,6 +1074,8 @@ async function submitAndGetEstimate() {
   // Either channel landing means Joe has the lead; only if BOTH failed does
   // the results screen show the call-Joe fallback banner.
   window._leadDeliveryFailed = !_leadSaved && !_joeNotified;
+  // Calendar button (when they chose to book) + their photos, on the results screen.
+  if (window.NBDIntake && _leadSaved) window.NBDIntake.afterSubmit(document.getElementById('estIntakeAfter'), _intakeInfo(_intake));
 
   // Real roof measurement. The server measures this property from aerial
   // imagery the moment the CRM lead is created; this only READS the result,

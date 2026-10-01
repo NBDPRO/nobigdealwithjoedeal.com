@@ -863,6 +863,11 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       <div class="error-msg" id="emailAddress-err" role="alert" aria-live="assertive">Valid email required</div>
     </div>
 
+    <!-- Shared intake block (2026-09-30): REQUIRED scheduling choice, best time,
+         insurance, how-heard, photos. Markup from intake-extras.js NBDIntake.html. -->
+    <div id="estIntake" data-nbd-intake="estI"></div>
+    <div class="input-group" id="estIntakeGroup"><div class="error-msg" id="estIntake-err" role="alert" aria-live="assertive"></div></div>
+
     <div class="tcpa-check">
       <input type="checkbox" id="tcpaConsent">
       <label for="tcpaConsent">I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions. Message &amp; data rates may apply. Reply STOP to opt out. <a href="/privacy">Privacy Policy</a></label>
@@ -920,6 +925,9 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
         <div class="rm-disc">*Illustration, not an offer of credit: 10-year term at the Acorn Finance marketplace's published 11.49&#8211;19.99% APR range. Your rate and term come from the lender you choose &#8212; checking is a soft pull that never touches your score.</div>
       </div>
     </div>
+
+    <!-- The calendar button / photo upload result (intake-extras afterSubmit). -->
+    <div id="estIntakeAfter"></div>
 
     <div class="detail-grid">
       <div class="detail-item"><div class="detail-label">Estimated Roof Size</div><div class="detail-value" id="detailSize">&#8212;</div></div>
@@ -1026,6 +1034,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
      layer (C-3); submissions go through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/intake-extras.js?v=1"></script>
 <script type="module" src="/assets/js/inline/f95015cb84.module.js"></script>
 
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
