@@ -115,11 +115,14 @@ async function runIngest({ db, bucket, live, nowMs }) {
     files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     let finishedDay = true;
     // One batched read per day folder for "already filed?".
+    // Sidecars (.json, Cube ACR's per-call metadata) by name: duration only.
+    const sidecars = new Map(files.filter((f) => /\.json$/i.test(f.name || '')).map((f) => [f.name, f]));
     const refs = files.map((f) => db.collection(COLLECTION).doc(L.callDocId(f.id)));
     const have = new Set();
     if (refs.length) (await db.getAll(...refs)).forEach((s) => { if (s.exists) have.add(s.id); });
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
+      if (sidecars.has(f.name)) continue; // read alongside its recording
       const parsed = L.parseCubeAcrName(f.name);
       if (!parsed) { counts.skipped++; continue; }
       counts.seen++;
@@ -136,8 +139,14 @@ async function runIngest({ db, bucket, live, nowMs }) {
         if (Number(f.size) > MAX_BYTES) throw new Error('too_large');
         const path = L.storagePath(OWNER, parsed.ymd, f.id, parsed.ext);
         const bytes = await download(f.id);
+        let durationSec = null;
+        const side = sidecars.get(L.sidecarNameFor(f.name));
+        if (side) {
+          try { const meta = L.parseSidecar((await download(side.id)).toString('utf8')); if (meta) durationSec = meta.durationSec; } catch (_) { /* duration is optional */ }
+        }
+        if (durationSec != null && durationSec < L.SHORT_CALL_SEC) counts.short = (counts.short || 0) + 1;
         await bucket.file(path).save(bytes, { contentType: parsed.ext === 'm4a' ? 'audio/mp4' : (f.mimeType || 'application/octet-stream'), resumable: false, metadata: { cacheControl: 'private, max-age=0' } });
-        await docRef.set(Object.assign(L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs }), { createdAt: FieldValue.serverTimestamp() }));
+        await docRef.set(Object.assign(L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs, durationSec }), { createdAt: FieldValue.serverTimestamp() }));
         counts.stored++;
       } catch (e) {
         counts.failed++;
@@ -251,11 +260,11 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   let candidates = [];
   if (allowIds.length) {
     const snaps = await db.getAll(...allowIds.map((id) => db.collection(COLLECTION).doc(id)));
-    candidates = snaps.filter((s) => s.exists).map((s) => Object.assign({ id: s.id }, s.data()));
+    candidates = snaps.filter((s) => s.exists).map((s) => Object.assign({}, s.data(), { id: s.id }));
   } else {
     const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'stored')
       .orderBy('startedAtMs', 'desc').limit(TRANSCRIBE_PER_RUN * 3).get();
-    q.forEach((d) => candidates.push(Object.assign({ id: d.id }, d.data())));
+    q.forEach((d) => candidates.push(Object.assign({}, d.data(), { id: d.id })));
   }
   const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: TRANSCRIBE_PER_RUN, secLeft });
   const out = { state: allowIds.length ? 'test' : 'live', picked: pick.length, noted: 0, personal: 0, failed: 0, tasks: 0, audioSec: 0 };
@@ -328,9 +337,136 @@ exports.callCenterTranscribe = onSchedule(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════════
+// Stage 3 — the "you said you'd…" sweep (2026-10-01)
+// ═══════════════════════════════════════════════════════════════════════
+// 07:15 and 15:15 ET: one email to Jo (users/{owner}.email) listing open
+// promises from his calls (call-center-logic.js collectSweepItems). Nothing
+// open → nothing sent. DRY-RUN (logs counts) unless
+// CALL_CENTER_SWEEP_ENABLED=true. Internal mail only — never a homeowner.
+
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+const EMAIL_FROM = defineSecret('EMAIL_FROM');
+const sweepEnabled = () => process.env.CALL_CENTER_SWEEP_ENABLED === 'true';
+
+async function runSweep({ db, live, nowMs, send, slot }) {
+  const user = await db.collection('users').doc(OWNER).get();
+  const email = user.exists ? String((user.data() || {}).email || '') : '';
+  const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const calls = [];
+  const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'noted')
+    .orderBy('startedAtMs', 'desc').limit(300).get();
+  q.forEach((d) => calls.push(Object.assign({}, d.data(), { id: d.id })));
+  const withLead = calls.filter((c) => c.leadId);
+  const tasksByCallId = new Map();
+  if (withLead.length) {
+    const snaps = await db.getAll(...withLead.map((c) => db.doc('leads/' + c.leadId + '/tasks/cube-' + c.id)));
+    snaps.forEach((s, i) => { if (s.exists) tasksByCallId.set(withLead[i].id, s.data()); });
+  }
+  const items = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
+  const counts = { items: items.length, urgent: items.filter((i) => i.kind === 'urgent').length, due: items.filter((i) => i.kind === 'due').length, nofile: items.filter((i) => i.kind === 'nofile').length };
+  if (!items.length) return Object.assign({ state: 'nothing' }, counts);
+  if (!live) return Object.assign({ state: 'dry_run' }, counts);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Object.assign({ state: 'no_email' }, counts);
+  const mail = L.buildSweepEmail({ items, todayYmd: today, slot });
+  await send({ to: email, subject: mail.subject, html: mail.html, text: mail.text });
+  return Object.assign({ state: 'sent' }, counts);
+}
+
+exports.callCenterSweep = onSchedule(
+  { schedule: '15 7,15 * * *', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '512MiB', maxInstances: 1, secrets: [RESEND_API_KEY, EMAIL_FROM] },
+  async () => {
+    try {
+      const nowMs = Date.now();
+      const hour = Number(new Date(nowMs).toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+      const r = await runSweep({
+        db: getFirestore(), live: sweepEnabled(), nowMs, slot: hour >= 12 ? 'pm' : 'am',
+        send: async (m) => {
+          const key = secretValue(RESEND_API_KEY);
+          if (!key) throw new Error('no-resend-key');
+          const { Resend } = require('resend');
+          const { resendRejected, resendErrorMessage } = require('./resend-guard');
+          // Email category: INTERNAL — Jo's own reminder, never a homeowner.
+          const resp = await new Resend(key).emails.send({ from: secretValue(EMAIL_FROM) || 'NBD Pro <noreply@nobigdealwithjoedeal.com>', to: m.to, subject: m.subject, html: m.html, text: m.text });
+          if (resendRejected(resp)) throw new Error('resend: ' + resendErrorMessage(resp));
+        },
+      });
+      logger.info('[callCenterSweep]', r);
+    } catch (e) {
+      logger.warn('[callCenterSweep] failed', { err: e && e.message });
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════
+// callCenterAction — the Call Center screen's writes (phone_calls is
+// server-written only). Same audience as thursdayCallAction: the call's
+// owner, an admin, or company_admin / manager of the call's company;
+// viewers and sales reps are refused.
+//   handled / unhandled  — drop a call off (or back onto) the sweep
+//   attach {leadId}      — file the call on a customer in the same tenant:
+//                          leadId + bucket 'customer', the caller's number
+//                          onto the lead (blanks only), and — if the call is
+//                          already noted — the timeline entry + follow-up task
+// ═══════════════════════════════════════════════════════════════════════
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const COMPANY_STAFF = ['company_admin', 'manager'];
+
+async function callAction({ db, auth, data, nowMs }) {
+  if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const id = String((data && data.id) || '');
+  if (!/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  const ref = db.collection(COLLECTION).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Call not found.');
+  const call = Object.assign({}, snap.data(), { id });
+  const token = auth.token || {};
+  const role = String(token.role || '');
+  if (role === 'viewer') throw new HttpsError('permission-denied', 'Your role is view-only.');
+  const sameCompany = !!(token.companyId && call.companyId && token.companyId === call.companyId);
+  if (!(role === 'admin' || auth.uid === call.userId || (sameCompany && COMPANY_STAFF.includes(role)))) {
+    throw new HttpsError('permission-denied', 'Not your call.');
+  }
+  const action = String((data && data.action) || '');
+  if (action === 'handled' || action === 'unhandled') {
+    await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
+    return { ok: true };
+  }
+  if (action === 'attach') {
+    const leadId = String((data && data.leadId) || '');
+    if (!leadId || leadId.includes('/')) throw new HttpsError('invalid-argument', 'Bad lead id.');
+    const ls = await db.doc('leads/' + leadId).get();
+    const lead = ls.exists ? ls.data() : null;
+    if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
+    const tenantOk = (lead.companyId && lead.companyId === call.companyId) || (lead.userId && lead.userId === call.userId);
+    if (!tenantOk) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+    await ref.set({ leadId, bucket: 'customer', alternateLeadIds: [], attachedBy: auth.uid, attachedAtMs: nowMs }, { merge: true });
+    const patch = L.phonePatchForLead(lead, call.phoneDigits);
+    if (patch) await db.doc('leads/' + leadId).set(Object.assign(patch, { updatedAt: FieldValue.serverTimestamp() }), { merge: true });
+    if (call.status === 'noted') {
+      const notes = { summary: call.summary || '', promises: call.promises || [], followUpDate: call.followUpDate || null, urgent: !!call.urgent };
+      const owner = call.userId || OWNER;
+      await db.doc('leads/' + leadId + '/activity/cube-' + id)
+        .set(Object.assign(L.buildCallActivity({ call, notes, ownerUid: owner }), { createdAt: FieldValue.serverTimestamp() }));
+      const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+      const task = L.buildFollowUpTask({ call, notes, leadId, ownerUid: owner, todayYmd: today });
+      if (task) await createIfAbsent(db.doc('leads/' + leadId + '/tasks/cube-' + id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
+    }
+    return { ok: true, leadId, phoneAdded: !!patch };
+  }
+  throw new HttpsError('invalid-argument', 'Unknown action.');
+}
+
+exports.callCenterAction = onCall(
+  { region: 'us-central1', enforceAppCheck: true, memory: '256MiB', timeoutSeconds: 30, maxInstances: 10 },
+  (request) => callAction({ db: getFirestore(), auth: request.auth, data: request.data, nowMs: Date.now() })
+);
+
 exports._test = {
   runIngest,
   runTranscribe,
+  runSweep,
+  callAction,
   setClient(c) { _testClient = c; },
   setDeps(x) { _deps = x; },
   OWNER, COLLECTION, CONFIG,

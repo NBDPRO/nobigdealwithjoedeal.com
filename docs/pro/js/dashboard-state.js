@@ -65,6 +65,8 @@ const routeConfig = {
   'aiusage':      { label: 'AI Usage',          parent: null },
   // Talk Tank — unified voice-capture inbox (#/talk-tank)
   'talk-tank':    { label: 'Talk Tank',         parent: null },
+  // Call Center — recorded phone calls (#/calls)
+  'calls':        { label: 'Call Center',       parent: null },
   // 2026-09-02: the W160 class recurred. These three views shipped in
   // 2026-06/07 (#783, #786, #897) with sidebar + mobile-More entries and
   // goTo() init branches but no route, so #/expenses, #/money and

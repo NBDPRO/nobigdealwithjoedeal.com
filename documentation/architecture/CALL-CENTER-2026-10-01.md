@@ -150,6 +150,67 @@ promises, the follow-up date and an Urgent chip.
 personal-call privacy rule was break-tested. The card E2E also asserts that
 the notes render.
 
+## Stage 3: the Call Center screen, the reminder sweep, sidecars (built 2026-10-01)
+
+**First production dry run (counts only), 2026-10-01 13:52 UTC**
+- 77 day folders hold **477 recordings** from the last 90 days.
+- By bucket:
+  - 51 customer
+  - 3 insurance
+  - 328 contact (saved in the phone, not in the CRM)
+  - 95 unknown
+- The run also "skipped" 477 files. They turned out to be Cube's per-call
+  sidecars (below), which are now read rather than counted as skips.
+
+**Sidecars.** Each recording has a `<same name>.json` alongside it:
+`{"duration":"<ms>","loc":"<lat;lng>","callee":"+1…","addr":"<street address>","direction":"…"}`.
+- `parseSidecar` keeps **only the duration**.
+- `loc` and `addr` are where Jo's phone was during the call. They are
+  never stored, and the ingest test proves it.
+- Calls under 15 s (missed calls, hang-ups) are stored as `status: 'short'`
+  and never transcribed.
+
+**Call Center view (`#/calls`)**
+- Code: `docs/pro/js/call-center-view.js`, lazy bundle `callcenter`,
+  sidebar plus the phone More drawer.
+- **Filters:** Needs attention, All, Customers, Insurance, Contacts, Unknown.
+  "Needs attention" means not handled, not personal, and at least one of: Jo
+  promised something, a follow-up is due, it is urgent, or there is no
+  customer on file.
+- **Search:** name, number digits, summary, transcript.
+- **Per call:** Play (getBlob into a `blob:` URL), Open customer,
+  ✓ Handled / Not handled, Attach to customer… (a datalist of leads), and
+  + New lead (`_saveLead`, then attach).
+- The nav badge shows the "needs attention" count.
+- Tested by `tests/e2e/call-center-view.spec.js` (@shard2, 390px).
+
+**`callCenterAction` (onCall, App Check)** is the screen's only write path,
+because `phone_calls` is server-written.
+- **Who may use it:** the call's owner, an admin, or a same-company
+  company_admin or manager. Viewers and sales reps are refused.
+- **`attach`:**
+  - checks the lead is in the same tenant;
+  - files the call on it;
+  - puts the caller's number on the lead, filling blanks only
+    (`phonePatchForLead`), so the next call from that number matches by
+    itself;
+  - for a noted call, writes the timeline entry and a create-only follow-up
+    task.
+- Tested by `tests/call-center-action-2026-10-01.test.js` (23 checks).
+
+**`callCenterSweep`** runs at 07:15 and 15:15 ET and sends one INTERNAL
+email to Jo, listing:
+- open cube tasks due today or earlier;
+- urgent calls from the last 36 h;
+- calls with no customer on file where Jo promised something or a
+  follow-up date has come.
+
+Handled calls are skipped, and nothing open means no email. It stays DRY-RUN
+unless `CALL_CENTER_SWEEP_ENABLED=true`. It is registered in
+`email-suppression.js` SEND_PATHS as internal. Tested by
+`tests/call-center-sweep-2026-10-01.test.js` (15 checks, including
+escaping).
+
 ## Stage 4: texts (built 2026-10-01)
 
 **Source.** Jo's phone is Android (Cube ACR is Android-only), so texts come
@@ -202,9 +263,8 @@ never as HTML.
 
 ## Next stages
 
-- **Call Center screen.** One list of every call, with bucket filters,
-  search, and "make a lead" from an `unknown` or `contact` call.
-- **Sweep.** Open promises Jo made join the morning brief, plus an
-  afternoon pass.
+- **Personal calls' audio.** The transcript of a personal call is dropped,
+  but its audio copy stays in Storage (the original is still in Jo's Drive).
+  Ask Jo whether the CRM should drop its copy too.
 - **Texts.** An Android SMS forwarder posts to a secret-keyed endpoint. The
   same sort-don't-filter buckets apply.

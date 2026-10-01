@@ -394,6 +394,7 @@ const SEND_PATHS = Object.freeze({
   'handlers/invites.js': 'internal',          // team invite (account mail)
   'integrations/email-queue-worker.js': 'internal', // queue: dunning/erasure/health → account holders
   'integrations/thursday.js': 'internal',   // Thursday call alert → Joe's own inbox
+  'call-center.js': 'internal',             // callCenterSweep: "you said you'd" reminder → owner
 });
 
 module.exports = {

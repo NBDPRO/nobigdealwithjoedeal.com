@@ -387,6 +387,10 @@
     // storm/closeboard/expenses/money/repos below.
     talktank: [
       'js/talk-tank.js?v=1'
+    ],
+    // Call Center (2026-10-01): one view, goTo('calls') only.
+    callcenter: [
+      'js/call-center-view.js?v=1'
     ]
   };
 
@@ -409,6 +413,7 @@
     winback:     ['winback'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
+    calls:       ['callcenter'],
     aitree:      ['decision'],
     understand:  ['decision'],
     reports:     ['reports'],

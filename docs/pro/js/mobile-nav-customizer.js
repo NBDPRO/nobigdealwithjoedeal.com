@@ -34,6 +34,7 @@ const TAB_REGISTRY = [
   // Sidebar-only until the 2026-09-25 phone audit (views#1) — no way in on a phone.
   { id: 'reports',    icon: '📈', label: 'Reports',     action: 'reports',    category: 'Insights' },
   { id: 'talk-tank',  icon: '🎙️', label: 'Talk Tank',   action: 'talk-tank',  category: 'Insights' },
+  { id: 'calls',      icon: '📞', label: 'Call Center', action: 'calls',      category: 'Insights' },
   { id: 'refrewards', icon: '🎁', label: 'Referrals',   action: 'refrewards', category: 'Insights' },
   { id: 'joe',        icon: '🤖', label: 'Ask Joe',     action: 'joe',        category: 'System' },
   { id: 'settings',   icon: '⚙️', label: 'Settings',    action: 'settings',   category: 'System' },
