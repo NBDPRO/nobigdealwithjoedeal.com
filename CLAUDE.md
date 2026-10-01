@@ -12,6 +12,8 @@ suite. Strict CSP: no inline scripts, no inline handlers
 
 - `documentation/INDEX.md` — the knowledge-base home note (Obsidian vault)
 - `documentation/QUICK_START.md` — orientation
+- `DESIGN.md` — the visual system (three surfaces, tokens, components, the
+  UI rules CI enforces); read it before any page or screen change
 - The current `documentation/projects/NEXT_SESSION-*.md` — the standing
   handoff brief; check INDEX.md's "Session handoffs" line for which is current
 
