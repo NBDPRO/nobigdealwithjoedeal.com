@@ -284,17 +284,134 @@
     };
   }
 
+  // ── Month close (2026-10-01) ────────────────────────────────────────
+  // Jo's idea triage: "Bookkeeper agent: on the 1st, categorize receipts and
+  // close the month" — built Jo's way: an in-app checklist for the PREVIOUS
+  // calendar month (America/New_York, the house convention etYear uses).
+  // Nothing automatic, nothing sent. monthClose() is pure (exported for
+  // tests/month-close-2026-10-01.test.js); render lives in monthCloseHtml().
+  //
+  //   collectedCents — paymentsOf() (the same per-payment ledger + refunds
+  //                    computePnL and collected-revenue.js use), each entry
+  //                    by its own date; deleted invoices skipped exactly as
+  //                    NBDRevenue.collectedBetween skips them.
+  //   expensesCents  — amountCents + taxCents (the computePnL "Spent" rule),
+  //                    falling back to a legacy dollar `amount` field.
+  var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  // { y, m (1-12), d } of a date in America/New_York; null when invalid.
+  function etParts(v) {
+    var d = (v && typeof v.getTime === 'function') ? v : toJSDate(v);
+    if (!d || isNaN(d.getTime())) return null;
+    var s = d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    return { y: Number(s.slice(0, 4)), m: Number(s.slice(5, 7)), d: Number(s.slice(8, 10)), iso: s.slice(0, 10) };
+  }
+  function monthKeyOf(v) { var p = etParts(v); return p ? p.iso.slice(0, 7) : null; }
+  function prevMonthOf(now) {
+    var p = etParts(now) || etParts(new Date());
+    var y = p.m === 1 ? p.y - 1 : p.y, m = p.m === 1 ? 12 : p.m - 1;
+    return { key: y + '-' + (m < 10 ? '0' : '') + m, label: MONTH_NAMES[m - 1] + ' ' + y, monthName: MONTH_NAMES[m - 1], dayOfMonth: p.d };
+  }
+  // Expense money in cents: amountCents (+ taxCents), legacy dollar `amount`.
+  function expenseCentsOf(e) {
+    var base = (e.amountCents != null && e.amountCents !== '')
+      ? (parseInt(e.amountCents, 10) || 0)
+      : Math.round((parseFloat(e.amount) || 0) * 100);
+    return base + (parseInt(e.taxCents, 10) || 0);
+  }
+  function isUncategorized(cat) {
+    var c = String(cat == null ? '' : cat).trim().toLowerCase();
+    return !c || c === 'uncategorized' || c === 'other';
+  }
+  // Receipt fields: expenses.js writes receiptStoragePath; tolerate the other
+  // shapes an import or older doc might carry. Mileage needs no receipt (same
+  // exemption as the Expenses view's "without a receipt" nudge).
+  function hasReceipt(e) {
+    if (e.category === 'mileage') return true;
+    return !!(e.receiptStoragePath || e.receiptUrl || e.receiptPath || e.receiptDocRef ||
+      (Array.isArray(e.attachments) && e.attachments.length));
+  }
+  function expenseLabel(e) {
+    return String(e.supplier || e.vendor || e.description || e.note || e.category || 'Expense').trim().slice(0, 80) || 'Expense';
+  }
+  var UNPAID_DONE = { paid: 1, draft: 1, cancelled: 1, canceled: 1, void: 1, voided: 1 };
+
+  function monthClose(data, now) {
+    data = data || {};
+    var pm = prevMonthOf(now ? toJSDate(now) : new Date());
+    var key = pm.key;
+    var invoices = data.invoices || [], expenses = data.expenses || [];
+
+    var collectedCents = 0;
+    invoices.forEach(function (inv) {
+      if (!inv || inv.deleted === true) return;
+      paymentsOf(inv).forEach(function (p) {
+        if (monthKeyOf(p.at) === key) collectedCents += Math.round((parseFloat(p.amount) || 0) * 100);
+      });
+    });
+
+    var expensesCents = 0, directCents = 0, overheadCents = 0, byCat = {};
+    var uncategorized = [], untied = [], noReceipt = [];
+    expenses.forEach(function (e) {
+      if (!e || e.deleted === true) return;
+      var p = etParts(e.date);
+      if (!p || p.iso.slice(0, 7) !== key) return;
+      var c = expenseCentsOf(e);
+      expensesCents += c;
+      var direct = e.costType === 'direct';
+      if (direct) directCents += c; else overheadCents += c;
+      var catKey = isUncategorized(e.category) ? 'uncategorized' : String(e.category);
+      byCat[catKey] = (byCat[catKey] || 0) + c;
+      var item = { id: e.id || null, label: expenseLabel(e), amountCents: c, date: p.iso, leadId: e.leadId || null };
+      if (isUncategorized(e.category)) uncategorized.push(item);
+      if (direct && !e.leadId) untied.push(item);
+      if (!hasReceipt(e)) noReceipt.push(item);
+    });
+
+    // Invoices that went out last month and still carry a balance. Sent date
+    // = sentAt (stamped when an invoice leaves draft), else createdAt for a
+    // non-draft doc that predates sentAt.
+    var unpaid = [];
+    invoices.forEach(function (inv) {
+      if (!inv || inv.deleted === true) return;
+      var st = String(inv.status || '').toLowerCase();
+      if (UNPAID_DONE[st]) return;
+      var p = etParts(inv.sentAt != null ? inv.sentAt : inv.createdAt);
+      if (!p || p.iso.slice(0, 7) !== key) return;
+      var balC = Math.round((parseFloat(inv.balanceDue != null ? inv.balanceDue : inv.total) || 0) * 100);
+      if (balC <= 0) return;
+      unpaid.push({ id: inv.id || null, label: String(inv.customerName || inv.invoiceNumber || 'Invoice').slice(0, 80), amountCents: balC, date: p.iso, leadId: inv.leadId || null });
+    });
+
+    function byDate(a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }
+    [uncategorized, untied, noReceipt, unpaid].forEach(function (l) { l.sort(byDate); });
+    var categories = Object.keys(byCat).map(function (k) { return { category: k, cents: byCat[k] }; })
+      .sort(function (a, b) { return b.cents - a.cents; }).slice(0, 5);
+    var closes = data.monthCloses || {};
+    var closed = closes[key] || null;
+    return {
+      monthKey: key, monthLabel: pm.label, monthName: pm.monthName, dayOfMonth: pm.dayOfMonth,
+      collectedCents: collectedCents, expensesCents: expensesCents, netCents: collectedCents - expensesCents,
+      directCents: directCents, overheadCents: overheadCents, categories: categories,
+      uncategorized: uncategorized, untiedDirect: untied, missingReceipts: noReceipt, unpaidInvoices: unpaid,
+      closed: !!closed, closedInfo: closed,
+      // Prominent (open) during the first 10 days of the month while still
+      // open; a closed month or a late one collapses to a small line.
+      prominent: !closed && pm.dayOfMonth <= 10,
+    };
+  }
+
   // ── Data fetch ──────────────────────────────────────────────────────
   async function fetchData() {
     var db = window.db || window._db, u = uid();
-    var out = { leads: window._leads || [], expenses: [], invoices: [], suppliers: [], year: new Date().getFullYear() };
+    var out = { leads: window._leads || [], expenses: [], invoices: [], suppliers: [], monthCloses: {}, year: new Date().getFullYear() };
     if (!db || !u || !window.getDocs) return out;
     var col = window.collection, q = window.query, where = window.where, getDocs = window.getDocs;
     var staff = isStaff() && claims().companyId;
     var jobs = [
       // expenses + suppliers: staff -> companyId, else userId (rule-safe)
       getDocs(staff ? q(col(db, 'expenses'), where('companyId', '==', companyId())) : q(col(db, 'expenses'), where('userId', '==', u)))
-        .then(function (s) { out.expenses = s.docs.map(function (d) { return d.data(); }); }).catch(function () {}),
+        // `id` kept so the month-close tidy-up lists can name each expense.
+        .then(function (s) { out.expenses = s.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }); }).catch(function () {}),
       getDocs(staff ? q(col(db, 'suppliers'), where('companyId', '==', companyId())) : q(col(db, 'suppliers'), where('userId', '==', u)))
         .then(function (s) { out.suppliers = s.docs.map(function (d) { return d.data(); }); }).catch(function () {}),
       // invoices: staff -> companyId (team-wide A/R, matches the invoice
@@ -305,6 +422,15 @@
       getDocs(staff ? q(col(db, 'invoices'), where('companyId', '==', companyId())) : q(col(db, 'invoices'), where('createdBy', '==', u)))
         .then(function (s) { out.invoices = s.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }); }).catch(function () {}),
     ];
+    // Month-close marks live on the user's own settings doc
+    // (userSettings/{uid}: owner read/write in firestore.rules).
+    if (window.getDoc && window.doc) {
+      jobs.push(window.getDoc(window.doc(db, 'userSettings', u))
+        .then(function (snap) {
+          var d = snap && typeof snap.data === 'function' ? snap.data() : null;
+          if (d && d.monthCloses && typeof d.monthCloses === 'object') out.monthCloses = d.monthCloses;
+        }).catch(function () {}));
+    }
     await Promise.all(jobs);
     return out;
   }
@@ -325,6 +451,87 @@
     return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">' + cards.join('') + '</div>';
   }
 
+  // ── Month-close card ────────────────────────────────────────────────
+  // Native <details> for every collapse (no JS, CSP-clean). Every value that
+  // reaches innerHTML goes through esc(); hrefs are encodeURIComponent'd too.
+  function catLabel(k) {
+    if (k === 'uncategorized') return 'Uncategorized';
+    var EC = window.ExpenseConfig;
+    if (EC && typeof EC.labelFor === 'function') { try { var l = EC.labelFor(k); if (l) return l; } catch (_) {} }
+    return String(k).replace(/_/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
+  }
+  function closeItemHtml(it, kind) {
+    // Expenses are fixed in the Expenses view (category, job, receipt); an
+    // unpaid invoice is chased from its customer page.
+    var href = kind === 'invoice'
+      ? (it.leadId ? '/pro/customer.html?id=' + encodeURIComponent(it.leadId) : '')
+      : '#/expenses';
+    var name = '<span style="color:var(--t);font-weight:600;overflow-wrap:anywhere;">' + esc(it.label) + '</span>';
+    return '<li style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--br);min-height:44px;">' +
+      '<div style="min-width:0;flex:1 1 160px;">' +
+        (href ? '<a href="' + esc(href) + '" style="text-decoration:none;display:inline-block;min-height:24px;">' + name + '</a>' : name) +
+        '<div style="font-size:11px;color:var(--m);">' + esc(it.date) + '</div></div>' +
+      '<div style="font-size:13px;font-weight:700;color:var(--t);white-space:nowrap;">' + esc(fmt(it.amountCents)) + '</div></li>';
+  }
+  function closeListHtml(items, one, many, kind, fixHint) {
+    if (!items.length) return '';
+    var n = items.length;
+    var shown = items.slice(0, 25);
+    var html = '<details style="border-top:1px solid var(--br);">' +
+      '<summary style="cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--gold);">' +
+        esc(n + ' ' + (n === 1 ? one : many)) + '</summary>' +
+      '<div style="font-size:11px;color:var(--m);margin:0 0 4px;">' + esc(fixHint) + '</div>' +
+      '<ul style="list-style:none;margin:0;padding:0;">';
+    shown.forEach(function (it) { html += closeItemHtml(it, kind); });
+    html += '</ul>';
+    if (n > shown.length) html += '<div style="font-size:11px;color:var(--m);padding:6px 0;">' + esc('+' + (n - shown.length) + ' more') + '</div>';
+    return html + '</details>';
+  }
+  function monthCloseHtml(mc) {
+    if (!mc) return '';
+    var netColor = mc.netCents >= 0 ? 'var(--green)' : 'var(--red)';
+    var shell = 'background:var(--s);border:1px solid var(--br);border-radius:12px;padding:12px 16px;margin-bottom:20px;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;';
+    var summaryText = mc.closed
+      ? mc.monthName + ' closed ✓'
+      : 'Close ' + mc.monthLabel;
+    var summaryStyle = mc.prominent
+      ? 'cursor:pointer;min-height:44px;display:flex;align-items:center;font-family:\'Barlow Condensed\',sans-serif;font-size:20px;font-weight:800;color:var(--t);'
+      : 'cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:13px;font-weight:700;color:' + (mc.closed ? 'var(--green)' : 'var(--orange)') + ';';
+    var html = '<details id="nbd-month-close" data-month="' + esc(mc.monthKey) + '"' + (mc.prominent ? ' open' : '') +
+      ' style="' + shell + (mc.prominent ? 'border-top:2px solid var(--orange);' : '') + '">' +
+      '<summary style="' + summaryStyle + '">' + esc(summaryText) + '</summary>';
+    var big = function (label, cents, color) {
+      return '<div style="flex:1 1 90px;min-width:0;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--m);">' + esc(label) + '</div>' +
+        '<div style="font-size:20px;font-weight:800;color:' + color + ';white-space:nowrap;">' + esc(fmt(cents)) + '</div></div>';
+    };
+    html += '<div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin:6px 0 4px;">' +
+      big('Collected', mc.collectedCents, 'var(--green)') +
+      big('Expenses', mc.expensesCents, 'var(--orange)') +
+      big('Net', mc.netCents, netColor) + '</div>' +
+      '<div style="font-size:11px;color:var(--m);margin-bottom:10px;">' + esc(mc.monthLabel + ' · collected money only (payments received, refunds taken off) · expenses incl. tax') + '</div>';
+    if (mc.categories.length) {
+      html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--m);margin-bottom:4px;">Where it went</div><ul style="list-style:none;margin:0 0 10px;padding:0;">';
+      mc.categories.forEach(function (c) {
+        html += '<li style="display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--t);padding:3px 0;"><span style="min-width:0;overflow-wrap:anywhere;">' + esc(catLabel(c.category)) + '</span><span style="font-weight:700;white-space:nowrap;">' + esc(fmt(c.cents)) + '</span></li>';
+      });
+      html += '</ul>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--m);margin-bottom:10px;">' + esc('No expenses logged for ' + mc.monthLabel + '.') + '</div>';
+    }
+    var tidy = closeListHtml(mc.uncategorized, 'expense needs a category', 'expenses need a category', 'expense', 'Open Expenses and pick a category.') +
+      closeListHtml(mc.untiedDirect, 'direct cost isn\'t tied to a job', 'direct costs aren\'t tied to a job', 'untied', 'Open Expenses and choose the customer this cost belongs to.') +
+      closeListHtml(mc.missingReceipts, 'missing receipt', 'missing receipts', 'expense', 'Attach a photo or PDF in Expenses (recommended, never required).') +
+      closeListHtml(mc.unpaidInvoices, 'invoice from last month still unpaid', 'invoices from last month still unpaid', 'invoice', 'Open the customer to chase it — nothing is sent from here.');
+    html += tidy || '<div style="font-size:12px;color:var(--green);padding:6px 0;border-top:1px solid var(--br);">Nothing to tidy up.</div>';
+    if (mc.closed) {
+      html += '<div style="font-size:12px;color:var(--green);font-weight:700;padding-top:10px;">' + esc(mc.monthName + ' closed ✓') + '</div>';
+    } else {
+      html += '<div style="padding-top:12px;"><button type="button" class="btn btn-orange" data-action="module" data-target="MoneyDashboard.markMonthClosed" data-arg="' + esc(mc.monthKey) + '" style="min-height:44px;max-width:100%;white-space:normal;">' +
+        esc('Looks good — mark ' + mc.monthName + ' closed') + '</button></div>';
+    }
+    return html + '</details>';
+  }
+
   // Last-rendered collections queue, keyed for moveToCollections() below —
   // the delegated data-action="module" click only carries the invoice id,
   // so this is how the handler recovers the leadId/inCollections it needs
@@ -340,6 +547,9 @@
     var html = '';
     html += '<div style="margin-bottom:18px;"><h2 style="margin:0;font-family:\'Barlow Condensed\',sans-serif;font-size:26px;font-weight:800;color:var(--t,#fff);">💵 Money — ' + m.year + '</h2>' +
       '<div style="font-size:12px;color:var(--m,#9ca3af);margin-top:2px;">' + (isStaff() && claims().companyId ? 'Team-wide' : 'Your books') + ' · live snapshot</div></div>';
+
+    // Close last month (2026-10-01) — checklist card, near the top.
+    html += monthCloseHtml(m.monthClose);
 
     // Cash (this year)
     html += '<div style="font-size:12px;font-weight:700;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Cash — ' + m.year + ' (collected vs spent)</div>';
@@ -495,13 +705,57 @@
     }
   }
 
+  // "Looks good — mark September closed". Stores the close (with the totals
+  // Jo saw) on userSettings/{uid}.monthCloses[YYYY-MM] — merge:true so other
+  // months and other settings fields are untouched. Nothing else is written
+  // or sent. Re-renders from the last fetched data, no refetch.
+  var _lastData = null;
+  async function markMonthClosed(monthKey) {
+    var u = uid(), db = window.db || window._db;
+    if (!/^\d{4}-\d{2}$/.test(String(monthKey || ''))) return false;
+    if (!u || !db || !window.setDoc || !window.doc) {
+      if (typeof showToast === 'function') showToast('Not signed in — could not save the close.', 'error');
+      return false;
+    }
+    var mc = _lastData ? monthClose(_lastData, new Date()) : null;
+    var entry = {
+      closedAt: typeof window.serverTimestamp === 'function' ? window.serverTimestamp() : new Date(),
+      collectedCents: mc && mc.monthKey === monthKey ? mc.collectedCents : null,
+      expensesCents: mc && mc.monthKey === monthKey ? mc.expensesCents : null,
+      netCents: mc && mc.monthKey === monthKey ? mc.netCents : null,
+    };
+    var patch = { monthCloses: {} };
+    patch.monthCloses[monthKey] = entry;
+    try {
+      await window.setDoc(window.doc(db, 'userSettings', u), patch, { merge: true });
+    } catch (e) {
+      console.warn('[money] mark month closed failed', e && e.code);
+      if (typeof showToast === 'function') showToast('Could not save — try again.', 'error');
+      return false;
+    }
+    if (_lastData) {
+      _lastData.monthCloses = Object.assign({}, _lastData.monthCloses || {});
+      _lastData.monthCloses[monthKey] = { closedAt: new Date(), collectedCents: entry.collectedCents, expensesCents: entry.expensesCents, netCents: entry.netCents };
+      try { renderData(_lastData); } catch (e) { console.warn('[money] re-render failed', e); }
+    }
+    if (typeof showToast === 'function') showToast((mc ? mc.monthName : 'Month') + ' closed ✓', 'success');
+    return true;
+  }
+
+  function renderData(data) {
+    var m = computePnL(data);
+    m.monthClose = monthClose(data, new Date());
+    render(m);
+  }
+
   var _loaded = false;
   async function refreshAndRender() {
     var scroll = document.querySelector('#view-money .view-scroll');
     if (scroll && !_loaded) scroll.innerHTML = '<div style="padding:40px;text-align:center;color:var(--m,#9ca3af);">Loading your books…</div>';
     var data = await fetchData();
     _loaded = true;
-    try { render(computePnL(data)); }
+    _lastData = data;
+    try { renderData(data); }
     catch (e) { console.warn('[money] render failed', e); if (scroll) scroll.innerHTML = '<div style="padding:40px;text-align:center;color:var(--m,#9ca3af);">Could not load the money dashboard.</div>'; }
   }
   function init() { refreshAndRender(); }
@@ -512,5 +766,9 @@
     refresh: refreshAndRender,
     computePnL: computePnL, // pure — exported for unit tests
     moveToCollections: moveToCollections, // Collections queue's data-action="module" target
+    monthClose: monthClose, // pure — previous ET calendar month's close checklist
+    monthCloseHtml: monthCloseHtml, // the card's markup (exported for tests)
+    markMonthClosed: markMonthClosed, // month-close button's data-action="module" target
+    _setLastData: function (d) { _lastData = d; }, // test hook
   };
 })();
