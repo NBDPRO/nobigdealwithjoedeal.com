@@ -1,6 +1,31 @@
 {
   "indexes": [
     {
+      "collectionGroup": "phone_texts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "sentAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "phone_texts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "sentAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "phone_texts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "leadId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "sentAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "phone_calls",
       "queryScope": "COLLECTION",
       "fields": [

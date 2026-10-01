@@ -489,6 +489,21 @@ async function run() {
   await check('phone_calls: owner cannot edit a call',         'deny',  updateDoc(doc(alice, 'phone_calls/cube_A1'), { leadId: 'x' }));
   await check('phone_calls: owner cannot create a call',       'deny',  setDoc(doc(alice,    'phone_calls/cube_fake'), { userId: 'alice', companyId: 'co-a' }));
 
+  // TEXT INBOX (2026-10-01) — phone_texts: Jo's texts from the phone's SMS
+  // backup (numbers, names, bodies). Same readers as phone_calls; no client writes.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'phone_texts/sms_A1'), { userId: 'alice', companyId: 'co-a', phoneDigits: '5135550100', body: 'see you Tuesday', sentAtMs: 1 });
+  });
+  await check('phone_texts: owner reads own text',             'allow', getDoc(doc(alice,  'phone_texts/sms_A1')));
+  await check('phone_texts: same-tenant manager reads',        'allow', getDoc(doc(eveMgr, 'phone_texts/sms_A1')));
+  await check('phone_texts: same-tenant sales_rep denied',     'deny',  getDoc(doc(dave,   'phone_texts/sms_A1')));
+  await check('phone_texts: B reads A text',                   'deny',  getDoc(doc(bob,    'phone_texts/sms_A1')));
+  await check('phone_texts: anon reads A text',                'deny',  getDoc(doc(anon,   'phone_texts/sms_A1')));
+  await check('phone_texts: manager companyId query',          'allow', tget(tq(tcol(eveMgr, 'phone_texts'), tw('companyId', '==', 'co-a'))));
+  await check('phone_texts: B manager queries co-a',           'deny',  tget(tq(tcol(bobMgr, 'phone_texts'), tw('companyId', '==', 'co-a'))));
+  await check('phone_texts: owner cannot edit a text',         'deny',  updateDoc(doc(alice, 'phone_texts/sms_A1'), { body: 'x' }));
+  await check('phone_texts: owner cannot create a text',       'deny',  setDoc(doc(alice,    'phone_texts/sms_fake'), { userId: 'alice', companyId: 'co-a' }));
+
   // ═══════════════════════════════════════════════════════════
   // Z. A HARD-DELETED LEAD vs A STRANGER WHO RE-CREATES ITS ID (2026-09-25)
   // Every rule under leads/{leadId}/... decides "owner" by reading the

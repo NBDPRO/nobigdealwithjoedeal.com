@@ -708,6 +708,10 @@ exports.callCenterIngest = require('./call-center').callCenterIngest;
 // CALL_CENTER_TRANSCRIBE_ENABLED=true, except the ids Jo lists on
 // integrations/callCenter.transcribeOnly (the one-call test).
 exports.callCenterTranscribe = require('./call-center').callCenterTranscribe;
+// Text Inbox (Call Center stage 4): Jo's texts from the SMS Backup & Restore
+// Drive backup → phone_texts (lead matched by phone, short codes never
+// stored). DRY-RUN (counts) unless TEXT_INBOX_ENABLED=true.
+exports.textInboxIngest = require('./text-inbox').textInboxIngest;
 
 // ═══════════════════════════════════════════════════════════════
 // REFERRAL CAPTURE — public POST from /refer.html

@@ -33,6 +33,8 @@
 
   var FUNCTIONS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
   var calls = [];
+  // Texts from Jo's phone (functions/text-inbox.js → phone_texts), 2026-10-01.
+  var texts = [];
   var blobUrls = {};
 
   function esc(s) {
@@ -196,15 +198,48 @@
     '</div>';
   }
 
+  async function fetchTexts(leadId) {
+    var db = window.db, uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    if (!db || !uid || !window.orderBy || !window.limit) return [];
+    try {
+      var q = window.query(window.collection(db, 'phone_texts'), window.where('leadId', '==', leadId), window.where('userId', '==', uid),
+        window.orderBy('sentAtMs', 'desc'), window.limit(80));
+      var snap = await window.getDocs(q);
+      return snap.docs.map(function (d) { return Object.assign({}, d.data(), { _id: d.id }); }).reverse();
+    } catch (e) {
+      console.warn('[calls] texts read failed', e && e.code);
+      return [];
+    }
+  }
+
+  // The phone's text thread with this customer, oldest → newest, newest in view.
+  function renderTexts() {
+    if (!texts.length) return '';
+    var lastDay = '';
+    var rows = texts.map(function (t) {
+      var d = t.sentAtMs ? new Date(t.sentAtMs) : null;
+      var day = d ? d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      var sep = day && day !== lastDay ? '<div class="pt-day">' + esc(day) + '</div>' : '';
+      lastDay = day || lastDay;
+      return sep + '<div class="pt-msg pt-' + (t.direction === 'outbound' ? 'out' : 'in') + '">' +
+        '<div class="pt-body">' + esc(t.body || '') + '</div>' +
+        '<div class="pt-time">' + esc(d ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '') + (t.group ? ' · group' : '') + '</div></div>';
+    }).join('');
+    return '<details class="panel pt-panel" open><summary class="pt-summary">💬 Texts from your phone <span class="pc-meta">' + texts.length + (texts.length >= 80 ? '+ (newest 80)' : '') + '</span></summary>' +
+      '<div class="pt-thread" data-pt-thread>' + rows + '</div></details>';
+  }
+
   function render() {
     var el = root();
     if (!el) return;
-    if (typeof window.nbdNavCount === 'function') window.nbdNavCount('navCountCalls', calls.length);
-    if (!calls.length) {
+    if (typeof window.nbdNavCount === 'function') window.nbdNavCount('navCountCalls', calls.length + (texts.length ? 1 : 0));
+    if (!calls.length && !texts.length) {
       el.innerHTML = '<div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">No calls yet. Calls Thursday answers, and calls recorded on your phone, show up here with the recording.</div>';
       return;
     }
-    el.innerHTML = calls.map(renderCall).join('');
+    el.innerHTML = renderTexts() + calls.map(renderCall).join('');
+    var th = el.querySelector('[data-pt-thread]');
+    if (th) th.scrollTop = th.scrollHeight;
   }
 
   function status(callId, text) {
@@ -294,7 +329,9 @@
   async function load() {
     var leadId = window._customerId;
     if (!leadId) return;
-    calls = await fetchCalls(leadId);
+    var both = await Promise.all([fetchCalls(leadId), fetchTexts(leadId)]);
+    calls = both[0];
+    texts = both[1];
     render();
   }
 
