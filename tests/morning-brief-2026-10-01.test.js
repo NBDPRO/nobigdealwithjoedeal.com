@@ -312,7 +312,8 @@ const quietLog = () => { const lines = []; return { lines, info: (m, d) => lines
     const md = fs.readFileSync(path.join(FN, 'FUNCTIONS_INDEX.md'), 'utf8');
     ok('FUNCTIONS_INDEX.md documents morningBrief', /\| `morningBrief` \| daily 06:45 ET \|/.test(md));
     const envFile = path.join(FN, '.env.nobigdeal-pro');
-    ok('the flag is NOT turned on in functions/.env.nobigdeal-pro (Jo turns it on)', !fs.existsSync(envFile) || !/MORNING_BRIEF_ENABLED/.test(fs.readFileSync(envFile, 'utf8')));
+    // Jo turned it on 2026-10-01; the literal must stay 'true' (anything else is dry-run).
+    ok('the flag is on in functions/.env.nobigdeal-pro (Jo, 2026-10-01)', fs.existsSync(envFile) && /^MORNING_BRIEF_ENABLED=true\r?$/m.test(fs.readFileSync(envFile, 'utf8')));
     const logic = fs.readFileSync(path.join(FN, 'morning-brief-logic.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
     ok('the logic module does no I/O (no firebase / resend / fetch)', !/firebase|resend|fetch\(|https?\.request/i.test(logic.replace(/https:\/\/[^'"`\s]+/g, '')));
   }
