@@ -101,6 +101,44 @@ and `crm-theme-contract.test.js` guard this.
   - 640 and 480px also recur.
   - Phones are tested at **412 and 360px**.
 
+## Appearance engine (how reskins work)
+
+The rep dashboard's look is set by four settings on `<html>`, each
+independent of the others:
+
+| Setting | Controls | Set by |
+|---|---|---|
+| `data-theme` | Colors (the token line in `theme-system.css`, plus the theme's registry entry in `theme-engine.js`) | `ThemeEngine.apply()` |
+| `data-density` | Spacing | prefs boot |
+| `data-shape` | Corner radius, elevation, motion character | `shape-preboot.js` before paint; `dashboard-ui-prefs-boot.js` |
+| `data-motion="reduce"` | The app's own reduced-motion switch, alongside the OS setting | Comfort tab |
+
+**Wallpapers and effects** are overlay types in `docs/pro/js/theme-overlays.js`
+(`overlayLibrary`). A theme names one in its registry entry
+(`overlay: { type, … }`). Every overlay must:
+
+1. honor reduced motion (draw one still frame, no loop);
+2. pause while the tab is hidden;
+3. cap its frame rate;
+4. fall back to static CSS when its tech isn't available.
+
+`shader-gradient` (WebGL, 2026-10-01) is the reference implementation.
+
+**A full reskin** is three pieces:
+
+1. a theme registry entry;
+2. its token line;
+3. a CSS block scoped to `:root[data-theme="<id>"]`, for glass, glow, label
+   style and so on.
+
+Never restyle another theme from that block. The pilot is **Live Ops**
+(`liveops`): an indigo/cyan WebGL wallpaper, frosted glowing cards and
+uppercase mono labels. The plan is in
+`documentation/projects/RESKIN-PLAN-2026-10-01.md`.
+
+The CSP blocks CDNs, so any animation or graphics library is vendored under
+`docs/`. Prefer hand-written WebGL or CSS (see `CLAUDE.md` "Code taste").
+
 ## Components (reuse; don't fork)
 
 - **Marketing:**
