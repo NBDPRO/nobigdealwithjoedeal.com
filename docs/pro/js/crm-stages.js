@@ -298,6 +298,9 @@ Object.keys(STAGE_META).forEach(k => { STAGE_META[k].role = stageRole(k); });
  */
 export const VIEW_SIMPLE = [
   S.NEW,
+  // 2026-10-01 (board-logic audit): 12 live customers sat at Contacted and
+  // showed as New on the All board, which reads as "never called".
+  S.CONTACTED,
   S.INSPECTED,
   S.ESTIMATE_SUBMITTED,
   S.CONTRACT_SIGNED,
@@ -322,6 +325,12 @@ export const VIEW_INSURANCE = [
   S.SUPPLEMENT_REQ,
   S.SUPPLEMENT_APPROVED,
   S.CONTRACT_SIGNED,
+  // 2026-10-01 (board-logic audit): a signed deal keeps moving after the
+  // contract. Without these two columns every installing, complete, paid and
+  // closed job on this board piled into Contract Signed. Same pair the All
+  // board has; resolveColumn folds the finer job stages into them.
+  S.INSTALL_IN_PROGRESS,
+  S.CLOSED,
   S.LOST,
 ];
 
@@ -335,6 +344,12 @@ export const VIEW_CASH = [
   S.ESTIMATE_SENT_CASH,
   S.NEGOTIATING,
   S.CONTRACT_SIGNED,
+  // 2026-10-01 (board-logic audit): a signed deal keeps moving after the
+  // contract. Without these two columns every installing, complete, paid and
+  // closed job on this board piled into Contract Signed. Same pair the All
+  // board has; resolveColumn folds the finer job stages into them.
+  S.INSTALL_IN_PROGRESS,
+  S.CLOSED,
   S.LOST,
 ];
 
@@ -348,6 +363,12 @@ export const VIEW_FINANCE = [
   S.PREQUAL_SENT,
   S.LOAN_APPROVED,
   S.CONTRACT_SIGNED,
+  // 2026-10-01 (board-logic audit): a signed deal keeps moving after the
+  // contract. Without these two columns every installing, complete, paid and
+  // closed job on this board piled into Contract Signed. Same pair the All
+  // board has; resolveColumn folds the finer job stages into them.
+  S.INSTALL_IN_PROGRESS,
+  S.CLOSED,
   S.LOST,
 ];
 
@@ -497,7 +518,30 @@ export function resolveColumn(stageKey, viewStages) {
   if (normalized === S.PREQUAL_SENT && viewStages.includes(S.ESTIMATE_SUBMITTED)) return S.ESTIMATE_SUBMITTED;
   if (normalized === S.LOAN_APPROVED && viewStages.includes(S.CONTRACT_SIGNED)) return S.CONTRACT_SIGNED;
 
-  // Fallback: first column
+  // ── Same step, another track's name for it (2026-10-01 board audit) ─────
+  // Before this, any stage a board had no column for fell into its FIRST
+  // column: a cash board showed 4 insurance-style estimates as New, the
+  // service board showed estimates and even signed contracts as New, and the
+  // All board showed service quotes as New. Each family lists the stages that
+  // mean the same step in different tracks, then the columns to try in order.
+  const FAMILIES = [
+    { members: [S.ESTIMATE_SUBMITTED, S.ESTIMATE_SENT_CASH, S.NEGOTIATING, S.SCOPE_RECEIVED,
+                S.SUPPLEMENT_REQ, S.SUPPLEMENT_APPROVED, S.SERVICE_QUOTED, S.PREQUAL_SENT],
+      targets: [S.ESTIMATE_SUBMITTED, S.ESTIMATE_SENT_CASH, S.SERVICE_QUOTED, S.PREQUAL_SENT, S.NEGOTIATING, S.INSPECTED] },
+    { members: [S.CLAIM_FILED, S.ADJUSTER_SCHEDULED, S.ADJUSTER_DONE],
+      targets: [S.INSPECTED] },
+    { members: [S.CONTRACT_SIGNED, S.SERVICE_APPROVED, S.LOAN_APPROVED],
+      targets: [S.CONTRACT_SIGNED, S.SERVICE_APPROVED, S.LOAN_APPROVED, S.INSTALL_IN_PROGRESS, S.WARRANTY_SCHEDULED] },
+    { members: [S.WARRANTY_SCHEDULED, S.WARRANTY_REPAIRED],
+      targets: [S.WARRANTY_SCHEDULED, S.WARRANTY_REPAIRED, S.INSTALL_IN_PROGRESS, S.CLOSED] },
+  ];
+  for (const fam of FAMILIES) {
+    if (!fam.members.includes(normalized)) continue;
+    const hit = fam.targets.find(t => viewStages.includes(t));
+    if (hit) return hit;
+  }
+
+  // Fallback: first column (only a stage with no equivalent at all lands here)
   return viewStages[0];
 }
 
@@ -570,6 +614,10 @@ export function stageOptionsForType(jobType) {
       stages.splice(jobIdx + 1, 0, ...VIEW_JOBS);
     }
   }
+  // The track boards now carry Installing + Closed columns themselves
+  // (2026-10-01), which VIEW_JOBS also lists: keep each stage once, at its
+  // first (pipeline-order) position.
+  stages = stages.filter((k, i) => stages.indexOf(k) === i);
   return stages.map(key => ({
     value: key,
     label: STAGE_META[key]?.label || key,

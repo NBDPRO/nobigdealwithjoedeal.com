@@ -184,15 +184,19 @@
     // current-stage marker never matching, and hidden stages still offered.
     window.stageOptionsForType = function (jobType) {
       const view = resolved.views[jobType] || resolved.views.insurance || { stages: [] };
-      const keys = (view.stages || []).slice();
+      let keys = (view.stages || []).slice();
       // Warranty + Service terminate on their own; every other track converges
       // into the job board after contract_signed (mirrors the default helper).
       if (jobType !== 'warranty' && jobType !== 'service') {
+        // The track boards carry Installing + Closed columns themselves
+        // (2026-10-01). Take the board's own job columns out first, then lay
+        // the full job sequence in after Contract Signed: otherwise Installing
+        // and Closed sat AFTER the finer job steps and "next after Installing"
+        // read Closed (caught by phone-pipeline.spec's swipe check).
+        const jobs = ((resolved.views.jobs && resolved.views.jobs.stages) || []).filter(k => k !== 'contract_signed');
+        keys = keys.filter(k => !jobs.includes(k));
         const at = keys.indexOf('contract_signed');
-        if (at !== -1) {
-          const jobs = ((resolved.views.jobs && resolved.views.jobs.stages) || []).filter(k => !keys.includes(k));
-          keys.splice(at + 1, 0, ...jobs);
-        }
+        if (at !== -1) keys.splice(at + 1, 0, ...jobs);
       }
       return keys
         .filter(k => !(resolved.stageMeta[k] && resolved.stageMeta[k].hidden))
