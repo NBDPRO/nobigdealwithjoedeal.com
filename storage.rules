@@ -344,6 +344,24 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // ── MY SKIN (personal appearance images) ───────────
+    // Path: skins/{uid}/{slot}, slot one of wallpaper | texture | mascot.
+    // Each user's own pictures for their own screen (my-skin.js, 2026-10-01).
+    // Strictly personal: only the user reads or writes them. No admin read,
+    // no team read, and the CRM reads them with getBlob() under these rules
+    // (never a token download URL). Not tenant data, so a 'viewer' may style
+    // their own screen. The client re-encodes through a canvas first, so only
+    // jpeg/png/webp arrive, capped at 4MB.
+    match /skins/{uid}/{slot} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && slot in ['wallpaper', 'texture', 'mascot']
+        && request.resource.size < 4 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if isOwner(uid);
+    }
+
     // ── DEFAULT DENY ──────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;

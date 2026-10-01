@@ -469,6 +469,28 @@ async function run() {
   await assertSucceeds(deleteObject(ref(alice, 'esign/alice/lead42/env1/source.pdf')));
   console.log('  signed-document lock: 15 storage checks passed');
 
+  // ── My Skin (2026-10-01): skins/{uid}/{slot} is strictly personal. ──
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/wallpaper'), buf(2048), { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/mascot'), buf(2048), { contentType: 'image/png' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/texture'), buf(2048), { contentType: 'image/webp' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/wallpaper'), buf(4096), { contentType: 'image/jpeg' })); // replace
+  await assertSucceeds(getBytes(ref(alice, 'skins/alice/wallpaper')));
+  await assertFails(getBytes(ref(bob, 'skins/alice/wallpaper')));                 // another user
+  await assertFails(getBytes(ref(admin, 'skins/alice/wallpaper')));               // even a platform admin
+  await assertFails(getBytes(ref(anon, 'skins/alice/wallpaper')));
+  await assertFails(uploadBytes(ref(bob, 'skins/alice/wallpaper'), buf(2048), { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/avatar'), buf(2048), { contentType: 'image/png' }));        // unknown slot
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/x/wallpaper'), buf(2048), { contentType: 'image/png' }));   // nested path
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/mascot'), buf(2048), { contentType: 'image/svg+xml' }));    // script-capable
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/mascot'), buf(2048), { contentType: 'image/gif' }));        // not re-encoded
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/mascot'), buf(2048)));                                      // no content type
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/wallpaper'), buf(4 * 1024 * 1024 + 1), { contentType: 'image/jpeg' })); // over 4MB
+  await assertSucceeds(uploadBytes(ref(vic, 'skins/vic/wallpaper'), buf(2048), { contentType: 'image/jpeg' }));    // a viewer styles their own screen
+  await assertFails(deleteObject(ref(bob, 'skins/alice/mascot')));
+  await assertFails(deleteObject(ref(admin, 'skins/alice/mascot')));
+  await assertSucceeds(deleteObject(ref(alice, 'skins/alice/mascot')));
+  console.log('  my-skin: 19 storage checks passed');
+
   console.log('✓ All storage rules tests passed');
   await env.cleanup();
 }

@@ -131,10 +131,13 @@
      /pro/css revalidation policy instead of shipping in every HTML load. -->
 <link rel="stylesheet" href="css/dashboard-app.css?v=7">
 <link rel="stylesheet" href="css/ui-primitives.css?v=4">
+<link rel="stylesheet" href="css/my-skin.css?v=1">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=4" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
 <link rel="stylesheet" href="css/theme-bridge.css?v=2" id="nbd-theme-bridge-link">
+<!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
+<link rel="stylesheet" href="css/shape-styles.css?v=1">
 
 <style id="crm-var-bridge">
 /* Bridge CRM --orange → --ac for unified theme system */
@@ -154,7 +157,7 @@
   <style>@keyframes nbd-load-bar{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>
 </div>
 <script src="js/dashboard-loader-fadeout.js?v=1"></script>
-<script src="js/dashboard-ui-prefs-boot.js?v=4"></script>
+<script src="js/dashboard-ui-prefs-boot.js?v=5"></script>
 <!-- ═══════════════════════════════════════════════════════════════
      NBD PRO UNIVERSAL NAV BAR v1.0
      Drop this block into any NBD Pro tool page.
@@ -3428,8 +3431,12 @@
                 <button class="btn btn-ghost shape-style-btn" data-shape="fluent" data-action="call" data-fn="nbdSetShapeStyle" data-arg="fluent">Mica</button>
                 <button class="btn btn-ghost shape-style-btn" data-shape="glass" data-action="call" data-fn="nbdSetShapeStyle" data-arg="glass">Glass</button>
                 <button class="btn btn-ghost shape-style-btn" data-shape="tonal" data-action="call" data-fn="nbdSetShapeStyle" data-arg="tonal">Tonal</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="clay" data-action="call" data-fn="nbdSetShapeStyle" data-arg="clay">Clay</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="liquid" data-action="call" data-fn="nbdSetShapeStyle" data-arg="liquid">Liquid Glass</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="skeuo" data-action="call" data-fn="nbdSetShapeStyle" data-arg="skeuo">Skeuo</button>
+                <button class="btn btn-ghost shape-style-btn" data-shape="spatial" data-action="call" data-fn="nbdSetShapeStyle" data-arg="spatial">Spatial</button>
               </div>
-              <div style="font-size:11px;color:var(--m);margin-top:8px;">Changes button, card, input, and modal corners and shadow — never color. "Sharp" is today's default look.</div>
+              <div style="font-size:11px;color:var(--m);margin-top:8px;">Changes how buttons, cards, inputs and sheets feel — corners, depth, glass, clay, material — never color. "Sharp" is today's default look.</div>
             </div>
           </div>
         </div>
@@ -3449,6 +3456,68 @@
                 <button class="btn btn-ghost material-style-btn" data-material="golden-hour" data-action="call" data-fn="nbdSetMaterial" data-arg="golden-hour">Golden Hour</button>
               </div>
               <div style="font-size:11px;color:var(--m);margin-top:8px;">Restyles the pipeline board's stage-aging accent — Shop Copy: torn carbon-copy edges + stencil headers. Golden Hour: warm light as urgency, calm at rest. Never changes your color theme.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- My Skin (2026-10-01): the user's own wallpaper, card texture, mascot
+             and accent, on their own screen only. Images live in private
+             storage (skins/{uid}/…, storage.rules); my-skin.js wires this
+             panel with delegated listeners and fills it whenever it mounts. -->
+        <div class="panel mb-md" id="myskinPanel">
+          <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">My Skin</div></div></div>
+          <div class="panel-body">
+            <p class="myskin-note">Your own pictures as the CRM's background, card texture and a corner mascot. Only you see them: they stay in your private storage, never on the website, in customer documents or on anyone else's account. Works on top of any color theme.</p>
+            <label class="myskin-row" for="myskinEnabled"><span>Use My Skin</span><input type="checkbox" id="myskinEnabled"></label>
+
+            <div class="myskin-slot" data-myskin-slot="wallpaper">
+              <div class="myskin-thumb"><img class="myskin-thumb-img" alt="Your wallpaper" hidden><span class="myskin-thumb-empty">None</span></div>
+              <div>
+                <div class="myskin-slot-title">Wallpaper</div>
+                <div class="myskin-slot-help">The full background. It's dimmed so text stays readable.</div>
+                <div class="myskin-actions">
+                  <label class="btn btn-ghost btn-sm myskin-btn myskin-pick">Choose picture<input type="file" class="myskin-file" accept="image/*" data-myskin-file="wallpaper"></label>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-remove="wallpaper" disabled>Remove</button>
+                  <span class="myskin-status" aria-live="polite"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="myskin-slot" data-myskin-slot="texture">
+              <div class="myskin-thumb"><img class="myskin-thumb-img" alt="Your card texture" hidden><span class="myskin-thumb-empty">None</span></div>
+              <div>
+                <div class="myskin-slot-title">Card texture</div>
+                <div class="myskin-slot-help">A small repeating pattern under cards: bricks, wood, steel.</div>
+                <div class="myskin-actions">
+                  <label class="btn btn-ghost btn-sm myskin-btn myskin-pick">Choose picture<input type="file" class="myskin-file" accept="image/*" data-myskin-file="texture"></label>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-remove="texture" disabled>Remove</button>
+                  <span class="myskin-status" aria-live="polite"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="myskin-slot" data-myskin-slot="mascot">
+              <div class="myskin-thumb"><img class="myskin-thumb-img" alt="Your mascot" hidden><span class="myskin-thumb-empty">None</span></div>
+              <div>
+                <div class="myskin-slot-title">Mascot</div>
+                <div class="myskin-slot-help">A character in the bottom corner. A PNG with a see-through background looks best.</div>
+                <div class="myskin-actions">
+                  <label class="btn btn-ghost btn-sm myskin-btn myskin-pick">Choose picture<input type="file" class="myskin-file" accept="image/*" data-myskin-file="mascot"></label>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-remove="mascot" disabled>Remove</button>
+                  <select id="myskinSide" class="btn btn-ghost btn-sm myskin-select" aria-label="Mascot corner"><option value="left">Bottom left</option><option value="right">Bottom right</option></select>
+                  <span class="myskin-status" aria-live="polite"></span>
+                </div>
+              </div>
+            </div>
+
+            <label class="myskin-range" for="myskinDim"><span>Wallpaper dim</span><output id="myskinDimOut" for="myskinDim">55%</output><input type="range" id="myskinDim" min="0" max="85" step="1" value="55"></label>
+            <label class="myskin-range" for="myskinTexture"><span>Texture strength</span><output id="myskinTextureOut" for="myskinTexture">18%</output><input type="range" id="myskinTexture" min="0" max="40" step="1" value="18"></label>
+
+            <div class="myskin-accent">
+              <label for="myskinAccent">Accent color</label>
+              <input type="color" id="myskinAccent" value="#bd5728">
+              <button type="button" class="btn btn-ghost btn-sm myskin-btn" id="myskinAccentReset">Use theme accent</button>
+              <span class="myskin-status" id="myskinAccentNote" aria-live="polite">Using the theme's accent.</span>
             </div>
           </div>
         </div>
@@ -6716,6 +6785,8 @@
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
 <script defer src="js/collected-revenue.js?v=1"></script>
 <script defer src="js/widgets.js?v=11"></script>
+<script defer src="js/my-skin-logic.js?v=1"></script>
+<script defer src="js/my-skin.js?v=1"></script>
 <script defer src="js/ui.js?v=8"></script>
 <script defer src="js/demo.js?v=4"></script>
 <script defer src="js/icons.js?v=4"></script>
