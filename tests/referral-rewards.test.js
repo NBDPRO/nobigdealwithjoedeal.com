@@ -135,7 +135,11 @@ async function run() {
     userId: REP, companyId: REP, firstName: 'Pat', lastName: 'Newcomer',
     stage: 'new', redeemReferralCode: 'JOHN-AB12',
   });
-  const attributed = await waitUntil(() => getDoc('leads', 'ref_friend'), (l) => l && l.referralAttributedAt);
+  // The FIRST trigger invocation pays the functions emulator's cold start
+  // (it loads the whole functions bundle), which took longer than 15 s — so
+  // the six attribution checks failed while the trigger was still booting and
+  // the next wait then saw its writes. 60 s here; every later wait is warm.
+  const attributed = await waitUntil(() => getDoc('leads', 'ref_friend'), (l) => l && l.referralAttributedAt, 60000);
   ok('lead attributed (referralAttributedAt set)', !!(attributed && attributed.referralAttributedAt));
   ok('reward status = pending', attributed && attributed.referralRewardStatus === 'pending');
   ok('linked to referrer lead', attributed && attributed.referrerLeadId === 'ref_referrer');
