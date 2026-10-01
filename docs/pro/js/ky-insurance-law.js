@@ -187,15 +187,75 @@
    */
   function isInsurance(ctx) {
     ctx = ctx || {};
-    var jt = _str(ctx.jobType).trim().toLowerCase();
-    var mode = _str(ctx.mode || ctx.jobMode).trim().toLowerCase();
-    if (jt === 'insurance' || mode === 'insurance') return true;
+    if (normJobType(ctx.jobType) === 'insurance' || normJobType(ctx.mode || ctx.jobMode) === 'insurance') return true;
     if (ctx.isInsurance === true || ctx.isInsuranceJob === true || ctx.insuranceClaim === true || ctx.insurance === true) return true;
-    if (_present(ctx.claimNumber)) return true;
-    if (_present(ctx.insuranceCarrier) || _present(ctx.insCarrier) || _present(ctx.insuranceCompany)) return true;
+    if (_hasClaimIdentity(ctx)) return true;
     var ins = ctx.insurance;
     if (ins && typeof ins === 'object' && (_present(ins.claimNumber) || _present(ins.carrier))) return true;
     return false;
+  }
+
+  // ── The shared "is this an insurance job?" check (Jo, 2026-09-30) ─────────
+  // One place defines the job types and the claim signals. Each consumer
+  // applies its own policy on top:
+  //   - isInsurance (above, Kentucky law): ANY signal → insurance. Over-
+  //     inclusive on purpose — the law's protections must never be skipped.
+  //   - claimPanelMode (below, the customer page's claim panel): the job TYPE
+  //     decides when it is set; the signals only decide while it is unset.
+  //   - crm-stages inferJobType reads the type through normJobType too.
+  var JOB_TYPES = ['insurance', 'cash', 'finance', 'warranty', 'service'];
+  /** 'Insurance ' → 'insurance'; anything not a known type → ''. */
+  function normJobType(v) {
+    var s = _str(v).trim().toLowerCase();
+    return JOB_TYPES.indexOf(s) !== -1 ? s : '';
+  }
+  // The insurance track's own pipeline stages (crm-stages.js S.* values).
+  var INSURANCE_STAGES = ['claim_filed', 'adjuster_meeting_scheduled', 'adjuster_inspection_done',
+    'scope_received', 'supplement_requested', 'supplement_approved'];
+  function _hasClaimIdentity(o) {
+    return _present(o.claimNumber) || _present(o.insuranceCarrier) || _present(o.insCarrier) || _present(o.insuranceCompany);
+  }
+  /** A claim status that says something ('No Claim' and blanks say nothing). */
+  function _claimStatusOf(lead) {
+    var s = _str(lead && lead.claimStatus).trim();
+    return (s && s.toLowerCase() !== 'no claim' && _present(s)) ? s : '';
+  }
+  /**
+   * Everything on a lead (or one job's view of it) that points at an
+   * insurance claim. Each field is the evidence, or '' / false.
+   */
+  function claimSignals(lead) {
+    lead = lead || {};
+    var stage = _str(lead._stageKey || lead.stage).trim().toLowerCase();
+    return {
+      carrier: _present(lead.insCarrier) ? _str(lead.insCarrier).trim() : (_present(lead.insuranceCarrier) ? _str(lead.insuranceCarrier).trim() : ''),
+      claimNumber: _present(lead.claimNumber) ? _str(lead.claimNumber).trim() : '',
+      claimStatus: _claimStatusOf(lead),
+      claimStage: _str(lead.claimStage).trim(),           // the panel's own progress, once advanced
+      insuranceStage: INSURANCE_STAGES.indexOf(stage) !== -1
+    };
+  }
+  function hasClaimSignals(lead) {
+    var s = claimSignals(lead);
+    return !!(s.carrier || s.claimNumber || s.claimStatus || s.claimStage || s.insuranceStage);
+  }
+  /**
+   * The customer page's Insurance Claim panel, decided for the job on the card:
+   *   'full'    insurance job — or no type yet, but the job shows claim signs
+   *   'summary' a cash / finance / service / warranty job with a claim on file
+   *             (e.g. denied, then paid cash): one read-only line, no Advance
+   *   'hidden'  a cash / finance / service / warranty job with no claim
+   *   'prompt'  no type and no claim signs: ask "Insurance job?" instead
+   */
+  function claimPanelMode(lead) {
+    var jt = normJobType(lead && lead.jobType);
+    if (jt === 'insurance') return 'full';
+    var any = hasClaimSignals(lead);
+    if (jt) {
+      var s = claimSignals(lead);
+      return (s.claimNumber || s.claimStatus || s.claimStage || s.carrier) ? 'summary' : 'hidden';
+    }
+    return any ? 'full' : 'prompt';
   }
 
   /**
@@ -596,6 +656,11 @@
     stateFromZip: stateFromZip,
     stateFromAddress: stateFromAddress,
     isInsurance: isInsurance,
+    JOB_TYPES: JOB_TYPES.slice(),
+    normJobType: normJobType,
+    claimSignals: claimSignals,
+    hasClaimSignals: hasClaimSignals,
+    claimPanelMode: claimPanelMode,
     classify: classify,
     classifyLead: classifyLead,
     DEFAULT_TIME_ZONE: DEFAULT_TIME_ZONE,

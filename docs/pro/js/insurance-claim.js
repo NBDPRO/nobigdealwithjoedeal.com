@@ -184,6 +184,50 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     }
   }
 
+  const _BOX = 'background: var(--s,#12223D); border: 1px solid var(--br,rgba(255,255,255,.08)); border-radius: 8px; padding: 12px 16px; font-size: 13px;';
+
+  /**
+   * A cash / finance / service / warranty job with a claim on file (e.g.
+   * denied, then paid cash): one read-only line — no workflow, no Advance.
+   */
+  function _claimSummaryLine(lead, status) {
+    const S = (window.NBDJurisdiction && window.NBDJurisdiction.claimSignals) ? window.NBDJurisdiction.claimSignals(lead) : {};
+    const stageLabel = (CLAIM_STAGES.find((s) => s.id === S.claimStage) || {}).label || '';
+    const parts = [S.claimStatus || stageLabel, S.claimNumber ? '#' + S.claimNumber : '', S.carrier || status.insuranceCarrier || ''].filter(Boolean);
+    return '<div class="claim-summary-line" style="' + _BOX + ' color: var(--m,#9ca3af);">' +
+      '<strong style="color: var(--t);">Claim on file:</strong> ' + _icEsc(parts.join(' · ') || 'yes') +
+      ' <span style="opacity:.8;">— this is a ' + _icEsc(String(lead.jobType || '').toLowerCase()) + ' job, so the claim workflow is hidden.</span></div>';
+  }
+
+  /**
+   * No job type and nothing that points at a claim: ask, instead of showing
+   * an 11-step insurance workflow that may not apply. One tap sets the type
+   * (viewers see the question without the buttons).
+   */
+  function _jobTypePrompt(leadId) {
+    const viewer = !!(window.NBDRole && typeof window.NBDRole.isViewer === 'function' && window.NBDRole.isViewer());
+    const types = [['insurance', 'Insurance'], ['cash', 'Cash'], ['finance', 'Finance'], ['service', 'Service'], ['warranty', 'Warranty']];
+    const btn = 'border: 1px solid var(--br,rgba(255,255,255,.15)); background: transparent; color: var(--t); border-radius: 999px; padding: 10px 16px; min-height: 44px; font-size: 13px; cursor: pointer;';
+    return '<div class="claim-type-prompt" style="' + _BOX + '">' +
+      '<div style="color: var(--t); font-weight: 600; margin-bottom: ' + (viewer ? '0' : '10px') + ';">Insurance job? <span style="color: var(--m,#9ca3af); font-weight: 400;">The job type isn\'t set.</span></div>' +
+      (viewer ? '' : '<div style="display: flex; flex-wrap: wrap; gap: 8px;">' + types.map(([v, l]) =>
+        '<button type="button" data-ic-action="settype" data-ic-id="' + _icEsc(leadId) + '" data-ic-type="' + v + '" style="' + btn + '">' + l + '</button>').join('') + '</div>') +
+      '</div>';
+  }
+
+  /** Set a lead's job type from the prompt, then re-decide the panel. */
+  async function setJobType(leadId, jobType) {
+    const K = window.NBDJurisdiction;
+    const jt = K && K.normJobType ? K.normJobType(jobType) : '';
+    if (!jt) return false;
+    if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return false;
+    await window.updateDoc(window.doc(window.db, 'leads', leadId), { jobType: jt, updatedAt: window.serverTimestamp() });
+    // The page's in-memory copy, so other panels read the new type without a reload.
+    const cur = window._currentLead;
+    if (cur && (cur.id === leadId || cur.leadId === leadId)) cur.jobType = jt;
+    return true;
+  }
+
   /**
    * Render visual claim workflow UI
    * @param {string} containerId - HTML element ID for rendering
@@ -205,6 +249,17 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
 
       const lead = leadSnap.data();
       const status = getClaimStatus(lead);
+      // Which panel this job gets (Jo, 2026-09-30) — the shared check in
+      // ky-insurance-law.js claimPanelMode. It used to render the full 11-step
+      // workflow on EVERY customer: 160 of 166 live ones were cash / service /
+      // untyped and read "Step 1 of 11, Initial Inspection". Without the
+      // module, the old full panel (never a hidden one by accident).
+      const K = window.NBDJurisdiction;
+      const mode = (K && typeof K.claimPanelMode === 'function') ? K.claimPanelMode(lead) : 'full';
+      container.hidden = (mode === 'hidden');
+      if (mode === 'hidden') { container.innerHTML = ''; return; }
+      if (mode === 'summary') { container.innerHTML = _claimSummaryLine(lead, status); return; }
+      if (mode === 'prompt') { container.innerHTML = _jobTypePrompt(leadId); return; }
       const currentIndex = CLAIM_STAGES.findIndex(s => s.id === status.currentStageId);
       // "Tue, Oct 6 · 10:00 am" — schedule-window.js loads before this file;
       // the raw values if it did not. Escaped at the sink below either way.
@@ -449,7 +504,8 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     renderClaimWorkflow,
     renderClaimChecklist,
     updateChecklistItem,
-    getClaimSummaryHTML
+    getClaimSummaryHTML,
+    setJobType
   };
 
 })();
@@ -458,4 +514,30 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
 // advanced the claim TWICE — there is no way back), then a toast either
 // way (2026-09-25: it was silent, so the only feedback was the tiles
 // repainting somewhere above the button).
+// "Insurance job?" prompt (2026-09-30): one tap sets the job type, then the
+// panel re-decides (an Insurance tap opens the full workflow in place).
+(function () {
+  if (window.__NBD_IC_SETTYPE) return;
+  window.__NBD_IC_SETTYPE = true;
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest && ev.target.closest('[data-ic-action="settype"]');
+    if (!t || t.disabled || !window.InsuranceClaim) return;
+    var box = t.closest('.claim-type-prompt');
+    var btns = box ? box.querySelectorAll('button') : [t];
+    Array.prototype.forEach.call(btns, function (b) { b.disabled = true; });
+    var leadId = t.dataset.icId, type = t.dataset.icType;
+    window.InsuranceClaim.setJobType(leadId, type).then(function (ok) {
+      if (ok) {
+        if (typeof window.showToast === 'function') window.showToast('Job type set: ' + t.textContent, 'success');
+        window.InsuranceClaim.renderClaimWorkflow('insuranceClaimWorkflow', leadId);
+      } else {
+        Array.prototype.forEach.call(btns, function (b) { b.disabled = false; });
+      }
+    }).catch(function () {
+      Array.prototype.forEach.call(btns, function (b) { b.disabled = false; });
+      if (typeof window.showToast === 'function') window.showToast('Could not set the job type', 'error');
+    });
+  });
+})();
+
 (function(){if(_NBD_IC_DELEGATE)return;_NBD_IC_DELEGATE=true;document.addEventListener('click',function(ev){var t=ev.target.closest&&ev.target.closest('[data-ic-action]');if(!t)return;if(t.dataset.icAction==='advance'&&window.InsuranceClaim&&window.InsuranceClaim.advanceClaimStage){if(t.disabled)return;t.disabled=true;var leadId=t.dataset.icId;var next=t.dataset.icNext||'';var notesEl=document.getElementById('claim-notes-'+leadId);var notes=notesEl?notesEl.value.trim():'';window.InsuranceClaim.advanceClaimStage(leadId,notes).then(function(ok){t.disabled=false;if(ok&&window.InsuranceClaim&&window.InsuranceClaim.renderClaimWorkflow)window.InsuranceClaim.renderClaimWorkflow('insuranceClaimWorkflow',leadId);if(ok&&window.ClaimPanel&&window.ClaimPanel.refresh)window.ClaimPanel.refresh();if(typeof window.showToast==='function'){if(ok)window.showToast('Claim moved to '+(next||'the next stage'),'success');else window.showToast('Could not advance the claim','error');}});}});document.addEventListener('change',function(ev){var c=ev.target.closest&&ev.target.closest('[data-ic-check]');if(!c)return;if(window.InsuranceClaim&&window.InsuranceClaim.updateChecklistItem){window.InsuranceClaim.updateChecklistItem(c.dataset.icLead,c.dataset.icStage,c.dataset.icItem,c.checked);}});})();

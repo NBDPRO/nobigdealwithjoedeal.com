@@ -607,7 +607,13 @@ export function jobTypeLabel(jobType) {
  * Infer job type from a lead's data
  */
 export function inferJobType(lead) {
-  if (lead.jobType) return lead.jobType;
+  // Through the shared normalizer (ky-insurance-law.js normJobType): one job
+  // was stored as 'Insurance', which matched none of the lowercase checks.
+  const K = (typeof window !== 'undefined') ? window.NBDJurisdiction : null;
+  // A type outside the five known ones is still returned (lowercased), as before.
+  const raw = String(lead.jobType || '').trim().toLowerCase();
+  const jt = ((K && typeof K.normJobType === 'function') ? K.normJobType(raw) : '') || raw;
+  if (jt) return jt;
   // Check insurance indicators
   if (lead.insCarrier || lead.insuranceCarrier || lead.claimNumber ||
       lead.claimStatus === 'Filed' || lead.claimStatus === 'Approved') {

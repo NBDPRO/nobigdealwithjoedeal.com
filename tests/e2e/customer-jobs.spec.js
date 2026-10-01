@@ -136,3 +136,39 @@ test.describe.serial('Customer page: jobs + add job @shard2', () => {
     if (process.env.CJ_SHOTS) await page.locator('#jobsPanel').screenshot({ path: process.env.CJ_SHOTS + '/cj-panel-phone.png' });
   });
 });
+
+// The Insurance Claim panel is decided per job (Jo, 2026-09-30; the shared
+// check is ky-insurance-law.js claimPanelMode). Phone width, real taps.
+test.describe.serial('Customer page: the claim panel follows the job type @shard2', () => {
+  test('untyped → "Insurance job?"; a tap on Cash writes the type and hides the panel; a cash job with a denied claim gets one line', async ({ page }) => {
+    const creds = requireTestUser();
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
+    await page.route(/nominatim\.openstreetmap\.org/, (route) => route.fulfill({ contentType: 'application/json', body: '[]', headers: { 'Access-Control-Allow-Origin': '*' } }));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user, null, { timeout: 20_000 });
+    const s = Date.now();
+    const untyped = await safeEvaluate(page, (st) => window._saveLead({ firstName: 'ZZCP', lastName: 'Untyped' + st, address: '3 Claim Ct, Mason, OH 45040', phone: '5135557' + String(st).slice(-3), stage: 'new', e2eTestData: true }), s);
+    const denied = await safeEvaluate(page, (st) => window._saveLead({ firstName: 'ZZCP', lastName: 'Denied' + st, address: '4 Claim Ct, Mason, OH 45040', phone: '5135558' + String(st).slice(-3), stage: 'new', e2eTestData: true }), s);
+    const db = adb();
+    await db.doc('leads/' + untyped).update({ jobType: null });
+    await db.doc('leads/' + denied).update({ jobType: 'cash', claimStatus: 'Denied', claimNumber: 'ZZ-' + s });
+
+    await openCustomer(page, untyped);
+    const panel = page.locator('#insuranceClaimWorkflow');
+    await expect(panel.locator('.claim-type-prompt'), 'untyped → the question, not an 11-step workflow').toBeVisible({ timeout: 20_000 });
+    await expect(panel).not.toContainText('Insurance Claim Progress');
+    const pb = await panel.boundingBox();
+    expect(pb && pb.x >= 0 && pb.x + pb.width <= 390, 'the prompt fits a 390px screen: ' + JSON.stringify(pb)).toBe(true);
+    const cash = panel.locator('[data-ic-type="cash"]');
+    const cb = await cash.boundingBox();
+    expect(cb && cb.height >= 44, 'a thumb-size button: ' + JSON.stringify(cb)).toBe(true);
+    await cash.click();
+    await expect(panel, 'a cash job with no claim → the panel is gone').toBeHidden({ timeout: 10_000 });
+    expect((await db.doc('leads/' + untyped).get()).data().jobType, 'the type is on the lead').toBe('cash');
+
+    await openCustomer(page, denied);
+    await expect(panel.locator('.claim-summary-line'), 'cash + denied claim → one read-only line').toContainText('Denied', { timeout: 20_000 });
+    await expect(panel.locator('[data-ic-action="advance"]')).toHaveCount(0);
+  });
+});
