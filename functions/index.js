@@ -680,6 +680,21 @@ exports.enforceLapsedSeats = lapseEnforcement.enforceLapsedSeats;
 exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudge;
 
 // ═══════════════════════════════════════════════════════════════
+// MORNING BRIEF — 06:45 ET appointment brief for the owner
+// ═══════════════════════════════════════════════════════════════
+//
+// One email to the platform owner (NBD_OWNER_UID) — never a homeowner —
+// listing today's appointments (Cal.com bookings, job days incl. the middle
+// days of multi-day projects, other jobs, adjuster meetings) with the CRM's
+// property history: stage, job type, other jobs, last activity, open
+// balance, storm history already on file. Nothing today → nothing sent.
+//
+// Per-user opt-out: users/{owner}.morningBriefEnabled === false.
+// Ships DRY-RUN by default. Set MORNING_BRIEF_ENABLED=true on the
+// morningBrief Cloud Run revision to go live.
+exports.morningBrief = require('./morning-brief').morningBrief;
+
+// ═══════════════════════════════════════════════════════════════
 // REFERRAL CAPTURE — public POST from /refer.html
 // ═══════════════════════════════════════════════════════════════
 //

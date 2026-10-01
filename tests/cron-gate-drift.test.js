@@ -77,8 +77,9 @@ ok('every registered gate is actually checked by some function (no stale entries
   staleInRegistry.length === 0, JSON.stringify(staleInRegistry));
 
 // 14 → 15 on 2026-09-30: JOBS_MIRROR_ENABLED (multi-job phase 1, ships off).
-ok('the registry has exactly 15 gates (update this pin deliberately if that changes)',
-  CRON_GATES.length === 15, String(CRON_GATES.length));
+// 15 → 16 on 2026-10-01: MORNING_BRIEF_ENABLED (06:45 owner brief, ships off).
+ok('the registry has exactly 16 gates (update this pin deliberately if that changes)',
+  CRON_GATES.length === 16, String(CRON_GATES.length));
 
 for (const g of CRON_GATES) {
   const files2 = foundInFile.get(g.name);
