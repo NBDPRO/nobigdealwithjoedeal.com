@@ -101,7 +101,10 @@
     let openCount = 0;
     const ranked = [];
 
-    for (const lead of leads) {
+    // The empirical win rates stay per customer; the forecast sums every JOB
+    // (a customer's second job's value is its own — jobs-store.js recordsFor).
+    const recs = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(leads) : leads;
+    for (const lead of recs) {
       const value = toNum(lead.jobValue);
       const stageKey = lead._stageKey || lead.stage || 'new';
       const prior = STAGE_PROB[stageKey] != null ? STAGE_PROB[stageKey] : 0.10;
@@ -123,7 +126,7 @@
 
       ranked.push({
         id:     lead.id,
-        name:   `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.address || 'Lead',
+        name:   (`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.address || 'Lead') + (lead._jobTitle ? ' — ' + lead._jobTitle : ''),
         stage:  stageKey,
         value,
         prob,

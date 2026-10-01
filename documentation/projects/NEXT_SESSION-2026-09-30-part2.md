@@ -80,6 +80,15 @@ All of it is merged and deployed.
 
 ## §3 Next lanes
 
+> **Update 2026-09-30 (late): most of this list has shipped.**
+> - Expenses carry `jobId` (#1932).
+> - The Jobs panel shows each job's own costs and margin (#1937).
+> - Ask Joe's context, the daily briefing and the forecast count every job (#1939).
+> - The referral emulator suite waits out the cold start (#1931).
+> - The navy print logo is in (#1933).
+>
+> Still per customer, deliberately: Money dashboard and analytics margin (revenue paired with the customer's costs), and lead-source ROI (customer counts plus collected cash per lead). Still open: D2D revenue per door, and the server-side street-address requirement (wait out the week of cache turnover).
+
 - **Multi-job leftovers, all minor:**
   - The profit tracker and the expenses-based margin are per customer,
     because expenses are keyed by `leadId`. Per-job costs would need

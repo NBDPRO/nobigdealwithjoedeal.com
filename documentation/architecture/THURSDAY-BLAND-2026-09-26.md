@@ -375,6 +375,11 @@ request**, while `thursdaywebhook` logged the call (positive control).
 
 ## 6. Coordination notes
 
+> **Update 2026-09-30: all three items below are resolved on main.** Checked against the code, not the notes:
+> - the viewer verdicts are in `tests/viewer-callables.test.js` (`thursdayCallAction: 'already'`, `getThursdayRecording: 'read'`, the webhook and caller lookup `'public'`);
+> - Voice Intel reads the key it binds (#1786);
+> - Thumbtack leads alert through the `leads/{id}` trigger (#1784, `functions/lead-alert.js`).
+
 - **#1780** (viewer-refusing callables) adds `tests/viewer-callables.test.js`. It requires every exported callable and HTTP function to carry a verdict.
   - Whichever of #1780 and this work merges **last** must add these verdicts:
     - `thursdayCallAction`: **refused**. It already refuses viewers inline.
