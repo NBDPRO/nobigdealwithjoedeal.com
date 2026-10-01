@@ -695,6 +695,16 @@ exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudg
 exports.morningBrief = require('./morning-brief').morningBrief;
 
 // ═══════════════════════════════════════════════════════════════
+// CALL CENTER — Cube ACR recordings (Drive) → phone_calls, every 30 min
+// ═══════════════════════════════════════════════════════════════
+// Lists the "Cube ACR" folder Jo shared with the functions' service account,
+// files each new recording on the owner tenant (lead matched by phone,
+// bucketed customer / insurance / contact / unknown), audio into private
+// Storage calls/{owner}/cube-acr/. Ships DRY-RUN (counts only) until
+// CALL_CENTER_INGEST_ENABLED=true on the callCenterIngest revision.
+exports.callCenterIngest = require('./call-center').callCenterIngest;
+
+// ═══════════════════════════════════════════════════════════════
 // REFERRAL CAPTURE — public POST from /refer.html
 // ═══════════════════════════════════════════════════════════════
 //

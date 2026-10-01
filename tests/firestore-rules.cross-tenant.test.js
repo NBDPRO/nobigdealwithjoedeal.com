@@ -473,6 +473,22 @@ async function run() {
   await check('thursday_config: B reads co-a',                 'deny',  getDoc(doc(bob,    'thursday_config/co-a')));
   await check('thursday_config: co_admin cannot write',        'deny',  setDoc(doc(aliceCA,'thursday_config/co-a'), { smsEnabled: true }));
 
+  // CALL CENTER (2026-10-01) — phone_calls: Jo's Cube ACR recordings (callers'
+  // numbers, contact names, later transcripts). Same read set as
+  // thursday_calls; server-written only.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'phone_calls/cube_A1'), { userId: 'alice', companyId: 'co-a', phoneDigits: '5135550100', startedAtMs: 1 });
+  });
+  await check('phone_calls: owner reads own call',             'allow', getDoc(doc(alice,  'phone_calls/cube_A1')));
+  await check('phone_calls: same-tenant manager reads',        'allow', getDoc(doc(eveMgr, 'phone_calls/cube_A1')));
+  await check('phone_calls: same-tenant sales_rep denied',     'deny',  getDoc(doc(dave,   'phone_calls/cube_A1')));
+  await check('phone_calls: B reads A call',                   'deny',  getDoc(doc(bob,    'phone_calls/cube_A1')));
+  await check('phone_calls: anon reads A call',                'deny',  getDoc(doc(anon,   'phone_calls/cube_A1')));
+  await check('phone_calls: manager companyId query',          'allow', tget(tq(tcol(eveMgr, 'phone_calls'), tw('companyId', '==', 'co-a'))));
+  await check('phone_calls: B manager queries co-a',           'deny',  tget(tq(tcol(bobMgr, 'phone_calls'), tw('companyId', '==', 'co-a'))));
+  await check('phone_calls: owner cannot edit a call',         'deny',  updateDoc(doc(alice, 'phone_calls/cube_A1'), { leadId: 'x' }));
+  await check('phone_calls: owner cannot create a call',       'deny',  setDoc(doc(alice,    'phone_calls/cube_fake'), { userId: 'alice', companyId: 'co-a' }));
+
   // ═══════════════════════════════════════════════════════════
   // Z. A HARD-DELETED LEAD vs A STRANGER WHO RE-CREATES ITS ID (2026-09-25)
   // Every rule under leads/{leadId}/... decides "owner" by reading the

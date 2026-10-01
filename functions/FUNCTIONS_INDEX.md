@@ -221,6 +221,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `enforceLapsedSeats` | daily 09:00 | Pillar 4 — deactivates members past their seat lapse grace window (lapse-enforcement.js) |
 | `reviewRequestNudge` | daily 08:15 ET | Google-review request nudge emails for recently-won jobs (review-request-nudge.js) |
 | `morningBrief` | daily 06:45 ET | Today's appointments (Cal.com bookings, job days, other jobs, adjuster meetings) with CRM property history → ONE email to the owner (`NBD_OWNER_UID`), never a homeowner; nothing today → no send; opt-out `users/{owner}.morningBriefEnabled === false`; DRY-RUN unless `MORNING_BRIEF_ENABLED=true` (morning-brief.js / morning-brief-logic.js) |
+| `callCenterIngest` | every 30 min ET | Lists the "Cube ACR" Drive folder Jo shared with the functions service account (drive.readonly) and files each new call recording as `phone_calls/cube_<driveId>` on the owner tenant: lead matched by phone, bucket customer / insurance / contact / unknown, audio to private Storage `calls/{owner}/cube-acr/`; 90-day first backfill, 40 files a run, cursor + counts on `integrations/callCenter` (`paused: true` stops it); DRY-RUN (counts only) unless `CALL_CENTER_INGEST_ENABLED=true` (call-center.js / call-center-logic.js) |
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 

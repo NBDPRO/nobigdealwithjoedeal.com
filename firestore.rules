@@ -2306,6 +2306,15 @@ service cloud.firestore {
         || (isCompanyReader() && sameCompanyAsResource());
       allow write: if false;
     }
+    // Call Center (call-center.js): Jo's phone-call recordings filed from
+    // Cube ACR. Server-written only; reads mirror thursday_calls. Audio lives
+    // in Storage calls/{uid}/cube-acr/ (owner-only read, server-only write).
+    match /phone_calls/{docId} {
+      allow read: if isOwner(resource.data.userId)
+        || isAdmin()
+        || (isCompanyReader() && sameCompanyAsResource());
+      allow write: if false;
+    }
     // Per-tenant Thursday settings (notification destinations, SMS flag).
     // Written only by scripts/thursday-config.js; the CRM reads it to decide
     // whether to show the Thursday inbox widget.
