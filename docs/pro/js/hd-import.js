@@ -453,6 +453,9 @@
     for (const r of todo) {
       try {
         const d = expenseDoc(r, ctx);
+        // Multi-job (2026-09-30): the job on the matched customer's card.
+        const lead = d.leadId ? (window._leads || []).find((x) => x && x.id === d.leadId) : null;
+        d.jobId = lead && typeof lead.activeJobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(lead.activeJobId) ? lead.activeJobId : null;
         d.createdAt = window.serverTimestamp();
         d.createdBy = uid;
         d.updatedAt = window.serverTimestamp();
