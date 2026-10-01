@@ -15,6 +15,12 @@
  *     which go through the thursdayCallAction callable (viewers are refused
  *     there; the buttons are hidden for them here too).
  *
+ * Phone calls (2026-10-01): Jo's own calls recorded by Cube ACR and filed by
+ * functions/call-center.js into phone_calls (matched to this lead by phone
+ * number) list here too, newest first alongside Thursday's. Their audio sits
+ * in Storage calls/{owner}/cube-acr/ (owner-only read) and plays through
+ * getBlob → blob: URL, never a download link.
+ *
  * No inline handlers (CSP script-src-attr 'none'): one delegated listener.
  */
 (function () {
@@ -69,20 +75,31 @@
       scopes.push([window.where('leadId', '==', leadId), window.where('companyId', '==', c.companyId)]);
     }
     var byId = {};
-    for (var i = 0; i < scopes.length; i++) {
-      try {
-        var q = window.query.apply(null, [window.collection(db, 'thursday_calls')].concat(scopes[i]));
-        var snap = await window.getDocs(q);
-        snap.docs.forEach(function (d) { byId[d.id] = Object.assign({ _id: d.id }, d.data()); });
-      } catch (e) {
-        console.warn('[calls] read failed', e && e.code);
+    var sources = [['thursday_calls', 'thursday'], ['phone_calls', 'phone']];
+    for (var k = 0; k < sources.length; k++) {
+      for (var i = 0; i < scopes.length; i++) {
+        try {
+          var q = window.query.apply(null, [window.collection(db, sources[k][0])].concat(scopes[i]));
+          var snap = await window.getDocs(q);
+          snap.docs.forEach(function (d) { byId[sources[k][1] + ':' + d.id] = Object.assign({ _id: d.id, _kind: sources[k][1] }, d.data()); });
+        } catch (e) {
+          console.warn('[calls] read failed', sources[k][0], e && e.code);
+        }
       }
     }
     return Object.keys(byId).map(function (k) { return byId[k]; }).sort(function (a, b) {
-      var ta = toDate(a.startedAt) || toDate(a.createdAt) || new Date(0);
-      var tb = toDate(b.startedAt) || toDate(b.createdAt) || new Date(0);
-      return tb - ta;
+      return callTime(b) - callTime(a);
     });
+  }
+
+  function callTime(c) {
+    if (c._kind === 'phone') return Number(c.startedAtMs) || 0;
+    var d = toDate(c.startedAt) || toDate(c.createdAt);
+    return d ? d.getTime() : 0;
+  }
+  function fmtPhone(d) {
+    var s = String(d || '');
+    return /^\d{10}$/.test(s) ? '(' + s.slice(0, 3) + ') ' + s.slice(3, 6) + '-' + s.slice(6) : s;
   }
 
   function chip(text, bg, fg) {
@@ -95,7 +112,33 @@
     job_seeker: 'Job seeker', spam: 'Spam', test: 'Test', silent: 'Silent', unknown: 'Needs review',
   };
 
+  // A Cube ACR call: Jo's own phone, either direction.
+  function renderPhoneCall(c) {
+    var id = 'phone:' + c._id;
+    var when = c.startedAtMs ? new Date(c.startedAtMs) : null;
+    var dir = c.direction === 'outbound' ? '↗ Outgoing' : c.direction === 'inbound' ? '↙ Incoming' : 'Call';
+    var chips = chip(dir, 'var(--s3,rgba(255,255,255,.08))', 'var(--m,#9ca3af)');
+    if ((c.alternateLeadIds || []).length) chips += chip('Number on ' + (c.alternateLeadIds.length + 1) + ' customers', '#78350f', '#fde68a');
+    var who = c.contactName || fmtPhone(c.phoneDigits) || 'Phone call';
+    var summary = c.summary || (c.transcript ? '' : 'Recorded on your phone. Transcript and notes come next.');
+    // Styled by css/phone-calls.css (no inline style attributes).
+    return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
+      '<div class="pc-head">' +
+        '<div class="pc-who">📱 ' + esc(who) + '</div>' +
+        '<div class="pc-meta">' + esc(when ? when.toLocaleString() : '') + '</div>' +
+      '</div>' +
+      '<div class="pc-chips">' + chips + '</div>' +
+      (summary ? '<div class="pc-summary">' + esc(summary) + '</div>' : '') +
+      (c.storagePath ? '<div class="pc-actions"><button type="button" class="btn pc-play" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button></div>' : '') +
+      '<div class="pc-audio" data-calls-audio="' + esc(id) + '"></div>' +
+      (c.transcript ? '<details class="pc-transcript"><summary>Transcript</summary>' +
+        '<div class="pc-transcript-body">' + esc(c.transcript) + '</div></details>' : '') +
+      '<div class="pc-meta pc-status" data-calls-status="' + esc(id) + '"></div>' +
+    '</div>';
+  }
+
   function renderCall(c) {
+    if (c._kind === 'phone') return renderPhoneCall(c);
     var when = toDate(c.startedAt) || toDate(c.createdAt);
     var ex = c.extraction || {};
     var callId = c.callId || String(c._id || '').replace(/^bland_calls__/, '');
@@ -150,7 +193,7 @@
     if (!el) return;
     if (typeof window.nbdNavCount === 'function') window.nbdNavCount('navCountCalls', calls.length);
     if (!calls.length) {
-      el.innerHTML = '<div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">No calls yet. When Thursday answers a call from this customer it shows up here with the summary, transcript and recording.</div>';
+      el.innerHTML = '<div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">No calls yet. Calls Thursday answers, and calls recorded on your phone, show up here with the recording.</div>';
       return;
     }
     el.innerHTML = calls.map(renderCall).join('');
@@ -164,6 +207,19 @@
   async function play(callId) {
     var slot = document.querySelector('[data-calls-audio="' + CSS.escape(callId) + '"]');
     if (!slot) return;
+    if (!blobUrls[callId] && callId.indexOf('phone:') === 0) {
+      status(callId, 'Loading recording…');
+      try {
+        var pc = calls.find(function (c) { return c._kind === 'phone' && 'phone:' + c._id === callId; });
+        var st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+        var blob = await st.getBlob(st.ref(window.storage, pc.storagePath));
+        blobUrls[callId] = URL.createObjectURL(blob);
+        status(callId, '');
+      } catch (e) {
+        status(callId, 'Could not load the recording' + (e && e.message ? ': ' + e.message : '') + '.');
+        return;
+      }
+    }
     if (!blobUrls[callId]) {
       status(callId, 'Loading recording…');
       try {

@@ -24,6 +24,8 @@ const CRON_GATES = [
   { name: 'LEAD_ACK_SMS_ENABLED', polarity: 'enabled', file: 'lead-alert.js' },
   { name: 'LEAD_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'lead-followup.js' },
   { name: 'MORNING_BRIEF_ENABLED', polarity: 'enabled', file: 'morning-brief.js' },
+  // Call Center ingest: dry-run (list + count) until Jo says go.
+  { name: 'CALL_CENTER_INGEST_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   { name: 'REVIEW_NUDGE_ENABLED', polarity: 'enabled', file: 'review-request-nudge.js' },
   { name: 'STORM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-watch.js' },
   { name: 'VISUALIZER_IMAGEGEN_ENABLED', polarity: 'enabled', file: 'visualizer-image-gen.js' },
