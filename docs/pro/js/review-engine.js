@@ -106,15 +106,22 @@
     const firstName = lead.firstName || lead.fname || '';
     const phone = lead.phone.replace(/\D/g, '');
 
-    const body = encodeURIComponent(
-      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nThank you! — ${brandSignOff()}`
-    );
+    const message =
+      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nThank you! — ${brandSignOff()}`;
 
-    window.open(`sms:${phone}?body=${body}`, '_self');
-
-    // Log the review request
+    // Through the platform sender, not a raw sms: link (2026-10-01). The raw
+    // link opened the phone's Messages app and skipped the server's STOP
+    // register, so a homeowner who had opted out could still get a review
+    // ask. NBDComms.sendSMS checks the opt-out list server-side first (403
+    // opted_out) and only then may hand off to the device on a quota error.
+    if (!window.NBDComms || typeof window.NBDComms.sendSMS !== 'function') {
+      if (typeof showToast === 'function') showToast('Texting is not available right now — try again in a moment.', 'error');
+      return;
+    }
+    const res = await window.NBDComms.sendSMS({ to: phone, message, leadId, source: 'review_request', sourceRef: leadId });
+    if (!res || res.success === false) return;   // refused (e.g. opted out): NBDComms showed why
     logReviewRequest(leadId, 'sms');
-    if (typeof showToast === 'function') showToast('Review request SMS opened', 'ok');
+    if (typeof showToast === 'function') showToast(res.mode === 'queued' ? 'Offline — the review request is queued.' : 'Review request sent', 'ok');
   }
 
   /**
@@ -127,13 +134,28 @@
     const reviewLink = await getReviewLink();
     const name = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim();
 
-    const subject = encodeURIComponent(`How did we do? — ${brandName()}`);
-    const body = encodeURIComponent(
-      `Hi ${name || 'there'},\n\nThank you for choosing ${brandName()} for your project! We truly enjoyed working with you.\n\nIf you have a moment, we'd be incredibly grateful for a Google review. It helps other homeowners find trustworthy contractors:\n\n${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nIf there's anything we could have done better, please let us know directly — we're always improving.\n\nThank you!\n${brandSignOff()}\n${brandPhone()}`
-    );
+    const subject = `How did we do? — ${brandName()}`;
+    const text =
+      `Hi ${name || 'there'},\n\nThank you for choosing ${brandName()} for your project! We truly enjoyed working with you.\n\nIf you have a moment, we'd be incredibly grateful for a Google review. It helps other homeowners find trustworthy contractors:\n\n${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nIf there's anything we could have done better, please let us know directly — we're always improving.\n\nThank you!\n${brandSignOff()}\n${brandPhone()}`;
 
-    window.location.href = `mailto:${lead.email || ''}?subject=${subject}&body=${body}`;
+    if (!lead.email) {
+      if (typeof showToast === 'function') showToast('No email address for this lead', 'error');
+      return;
+    }
+    // Through the platform sender (2026-10-01): a review ask is commercial
+    // mail, so the server checks the unsubscribe register and adds the footer.
+    // The old raw mailto: skipped both. kind 'review_request' is not on the
+    // transactional allowlist, on purpose.
+    if (!window.NBDComms || typeof window.NBDComms.sendEmail !== 'function') {
+      if (typeof showToast === 'function') showToast('Email is not available right now — try again in a moment.', 'error');
+      return;
+    }
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const html = '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>';
+    const res = await window.NBDComms.sendEmail({ to: lead.email, subject, html, leadId, kind: 'review_request' });
+    if (!res || res.success === false) return;   // refused (e.g. unsubscribed): NBDComms showed why
     logReviewRequest(leadId, 'email');
+    if (typeof showToast === 'function') showToast(res.mode === 'mailto' ? 'Opened in your mail app' : 'Review request emailed', 'ok');
   }
 
   /**
@@ -347,10 +369,16 @@
 
     const firstName = lead.firstName || lead.fname || '';
     const phone = lead.phone.replace(/\D/g, '');
-    const body = encodeURIComponent(
-      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $100 bonus when their project closes. Win-win!`
-    );
-    window.open(`sms:${phone}?body=${body}`, '_self');
+    const message =
+      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $100 bonus when their project closes. Win-win!`;
+    // Platform sender, same as the review ask above (2026-10-01): the raw sms:
+    // link skipped the server's STOP register.
+    if (!window.NBDComms || typeof window.NBDComms.sendSMS !== 'function') {
+      if (typeof showToast === 'function') showToast('Texting is not available right now — try again in a moment.', 'error');
+      return;
+    }
+    const res = await window.NBDComms.sendSMS({ to: phone, message, leadId, source: 'referral_code', sourceRef: leadId });
+    if (res && res.success !== false && typeof showToast === 'function') showToast(res.mode === 'queued' ? 'Offline — the referral text is queued.' : 'Referral code sent', 'ok');
   }
 
   // Referral attribution + the $100-bonus crediting-on-close moved SERVER-SIDE
