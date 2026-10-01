@@ -34,6 +34,7 @@ const calls = [
   call('f', { leadId: null, promises: [{ who: 'them', text: 'They will call back' }] }),                     // only their promise → nothing
   call('g', { leadId: 'L4', urgent: true, startedAtMs: NOW - 5 * H, promises: [{ who: 'jo', text: 'Tarp the roof', due: '2026-10-06' }] }), // urgent, recent
   call('h', { leadId: 'L5', handledAtMs: NOW - H, promises: [{ who: 'jo', text: 'x', due: '2026-10-01' }] }), // handled → nothing
+  call('k', { leadId: null, startedAtMs: NOW - 20 * 24 * H, promises: [{ who: 'jo', text: 'backlog promise' }] }), // no file, > 14 days → nothing
   call('i', { leadId: null, startedAtMs: NOW - 40 * 24 * H, promises: [{ who: 'jo', text: 'old' }] }),       // > 30 days → nothing
   call('j', { status: 'personal', leadId: null, promises: [{ who: 'jo', text: 'personal' }] }),               // personal → nothing
 ];
@@ -50,6 +51,7 @@ ok('exactly the owed items, urgent first then by due date', ids === 'g:urgent,a:
 ok('a ticked task never shows', !items.some((i) => i.callId === 'c'));
 ok('a future task waits', !items.some((i) => i.callId === 'b'));
 ok('handled, personal and >30-day calls never show', !items.some((i) => ['h', 'i', 'j'].includes(i.callId)));
+ok('a no-customer call older than 14 days never shows (backlog)', !items.some((i) => i.callId === 'k'));
 ok('only Jo\'s own promises are listed', items.find((i) => i.callId === 'a').promises.join() === 'Send the quote');
 ok('a bare number reads as a phone number', items.find((i) => i.callId === 'e').who === '(513) 555-0100');
 ok('capped', L.collectSweepItems({ calls: Array.from({ length: 50 }, (_, k) => call('n' + k, { leadId: null, promises: [{ who: 'jo', text: 't' }] })), tasksByCallId: new Map(), nowMs: NOW, todayYmd: TODAY }).length === L.SWEEP_MAX_ITEMS);

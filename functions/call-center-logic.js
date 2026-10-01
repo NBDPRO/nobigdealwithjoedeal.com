@@ -353,7 +353,14 @@ function buildCallActivity({ call, notes, ownerUid }) {
  * Jo promised something or a follow-up date came out of it. Shape matches
  * Thursday's (docs/pro/js/tasks.js readers).
  */
-function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd }) {
+// Only a RECENT call makes a task (Jo, 2026-10-01): the 90-day backlog would
+// otherwise flood the task list with long-past "overdue" promises. Older
+// calls still get their notes + timeline entry. The first test call (Jul 9)
+// made one such stale task; this is why.
+const TASK_WINDOW_MS = 14 * 24 * 3600 * 1000;
+
+function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd, nowMs }) {
+  if (Number.isFinite(nowMs) && (Number(call.startedAtMs) || 0) < nowMs - TASK_WINDOW_MS) return null;
   const mine = notes.promises.filter((p) => p.who === 'jo');
   if (!mine.length && !notes.followUpDate) return null;
   const who = call.contactName || 'customer';
@@ -410,7 +417,8 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
       else if (task.dueDate && task.dueDate <= todayYmd) out.push(Object.assign(base, { kind: 'due', due: task.dueDate }));
       continue;
     }
-    if (!c.leadId) {
+    // No customer on file: only recent calls (same window as tasks).
+    if (!c.leadId && (Number(c.startedAtMs) || 0) >= nowMs - TASK_WINDOW_MS) {
       const dues = mine.map((p) => p.due).filter(Boolean).concat(c.followUpDate ? [c.followUpDate] : []).sort();
       const due = dues[0] || null;
       const urgentNow = c.urgent && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS;
@@ -467,6 +475,7 @@ function phonePatchForLead(lead, phoneDigits) {
 }
 
 module.exports = {
+  TASK_WINDOW_MS,
   SHORT_CALL_SEC,
   sidecarNameFor,
   parseSidecar,
