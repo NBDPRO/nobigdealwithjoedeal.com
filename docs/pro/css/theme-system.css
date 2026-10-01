@@ -32,6 +32,14 @@
    deep indigo-navy, cyan glow edges, uppercase eyebrows. Opt-in; the default
    stays nbd-original. Glow treatment for cards lives at the end of this file. */
 :root[data-theme="liveops"] { --orange:#38e1ff;--ob:#7aeeff;--og:rgba(56,225,255,.16);--bg:#070b24;--s:#0d1438;--s2:#121c4a;--s3:#18245c;--br:rgba(56,225,255,.16);--t:#e8eeff;--m:#9fb0e0;--blue:#5b8cff;--green:#34f0b4;--purple:#a78bfa;--red:#ff5d7a;--gold:#ffcf4a;--paper:#121c4a;--ink:#e8eeff;--rule:rgba(56,225,255,.12); }
+/* Daylight (2026-10-01): for reading a phone on a roof in full sun. Near-black
+   ink on white, heavy edges, the deep brand orange. Opt-in; light-native. The
+   sun treatment lives at the end of this file. */
+:root[data-theme="daylight"] { --orange:#a14a22;--ob:#8a3d1b;--og:rgba(161,74,34,.12);--bg:#eef0f3;--s:#ffffff;--s2:#ffffff;--s3:#e4e7ec;--br:rgba(11,15,20,.55);--t:#0b0f14;--m:#2b3440;--blue:#1747b5;--green:#0d6b35;--purple:#5b2bb5;--red:#b3261e;--gold:#7a5900;--paper:#ffffff;--ink:#0b0f14;--rule:rgba(11,15,20,.25); }
+/* Jobsite (2026-10-01): slate, copper and a faint diagonal hatch, like steel
+   plate and flashing. Condensed uppercase card titles. Opt-in; dark-native.
+   The jobsite treatment lives at the end of this file. */
+:root[data-theme="jobsite"] { --orange:#c47a3d;--ob:#d9a06b;--og:rgba(196,122,61,.16);--bg:#1b1f24;--s:#22272d;--s2:#262b31;--s3:#2f353d;--br:#3a4048;--t:#ece7df;--m:#b4ab9f;--blue:#7aa7d9;--green:#9cc983;--purple:#b39ddb;--red:#e5735c;--gold:#f2c230;--paper:#262b31;--ink:#ece7df;--rule:#3f454d; }
 :root[data-theme="lightsaber"] { --orange:#00e5ff;--ob:#40f0ff;--og:rgba(0,229,255,.35);--bg:#000508;--s:#000d14;--s2:#001820;--s3:#00222e;--br:rgba(0,229,255,.1);--t:#e0f8ff;--m:#60b8c8;--blue:#00e5ff;--green:#69f0ae;--purple:#ce93d8;--red:#ff5252;--gold:#ffff00;--paper:#001820;--ink:#e0f8ff;--rule:rgba(0,229,255,.12); }
 :root[data-theme="pokemon"] { --orange:#ffcc02;--ob:#ffe040;--og:rgba(255,204,2,.35);--bg:#12223D;--s:#16213e;--s2:#0f3460;--s3:#163480;--br:rgba(255,204,2,.1);--t:#f0f0ff;--m:#9090c8;--blue:#0a84ff;--green:#4caf50;--purple:#9c27b0;--red:#e53935;--gold:#ffcc02;--paper:#0f3460;--ink:#f0f0ff;--rule:rgba(255,204,2,.12); }
 :root[data-theme="mario"] { --orange:#e52222;--ob:#ff3333;--og:rgba(229,34,34,.3);--bg:#1a0800;--s:#2e1200;--s2:#421c00;--s3:#562600;--br:rgba(229,34,34,.1);--t:#fff8e0;--m:#b09060;--blue:#2196f3;--green:#4caf50;--purple:#9c27b0;--red:#e52222;--gold:#ffd600;--paper:#421c00;--ink:#fff8e0;--rule:rgba(229,34,34,.12); }
@@ -131,6 +139,7 @@
 :root[data-theme="typewriter"],
 :root[data-theme="ink"],
 :root[data-theme="sakura"],
+:root[data-theme="daylight"],
 :root[data-theme="presentation"]{
   --accent-fg:#fff;
   --accent-ring:rgba(0,0,0,.25);
@@ -155,6 +164,7 @@
 :root[data-theme="aurora"]   { --accent-fg:#020810; --accent-ring:rgba(0,0,0,.40);     }
 :root[data-theme="lightsaber"]{ --accent-fg:#000508; --accent-ring:rgba(0,0,0,.45);    }
 :root[data-theme="liveops"]   { --accent-fg:#06102e; --accent-ring:rgba(0,0,0,.45);    }
+:root[data-theme="jobsite"]   { --accent-fg:#14171b; --accent-ring:rgba(0,0,0,.45);    }
 :root[data-theme="matrix"]   { --accent-fg:#000300; --accent-ring:rgba(0,0,0,.55);     }
 :root[data-theme="underwater"]{ --accent-fg:#000c14; --accent-ring:rgba(0,0,0,.45);    }
 /* ══ Wave 5e (A.5) — second-pass theme contrast audit ══════════════
@@ -508,4 +518,121 @@
 :root[data-theme="liveops"][data-motion="reduce"] .w-card,
 :root[data-theme="liveops"][data-motion="reduce"] .stat-card {
   transition: none;
+}
+
+/* ══ Daylight sun treatment (2026-10-01) ═════════════════════════════════
+   Every selector starts with LD = :root[data-theme="daylight"]:not([data-mode="dark"])
+   (tests/theme-daylight-2026-10-01.test.js holds that line). Glare washes out
+   thin greys and soft shadows, so: 2px ink edges instead of shadows, labels in
+   full ink, fields with a visible frame, a thick focus ring. No wallpaper, no
+   animation. Only colour, border and weight change, never layout or size. */
+:root[data-theme="daylight"]:not([data-mode="dark"]) .w-card,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .stat-card,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-card,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-panel,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .panel,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .k-card,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .cl-card {
+  border: 2px solid var(--t);
+  box-shadow: none;
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-row,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-row-box,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-tile {
+  border: 2px solid var(--t);
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-input,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-field,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-field-sm {
+  border: 2px solid var(--m);
+  color: var(--t);
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-seg {
+  border: 2px solid var(--t);
+  color: var(--t);
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ui-seg.is-on {
+  border-color: var(--t);
+  color: var(--accent-fg);
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .w-card-title,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .eyebrow,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .eyebrow-9,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .stat-lbl,
+:root[data-theme="daylight"]:not([data-mode="dark"]) .panel-label {
+  color: var(--t);
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .btn-orange {
+  border: 2px solid var(--t);
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .btn-ghost {
+  border: 2px solid var(--t);
+  color: var(--t);
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) .ni.active {
+  color: var(--t);
+  font-weight: 800;
+  border-left-color: var(--orange);
+}
+:root[data-theme="daylight"]:not([data-mode="dark"]) :focus-visible {
+  outline: 3px solid var(--t);
+  outline-offset: 2px;
+}
+
+/* ══ Jobsite treatment (2026-10-01) ══════════════════════════════════════
+   Every selector starts with LJ = :root[data-theme="jobsite"]:not([data-mode="light"])
+   (tests/theme-daylight-2026-10-01.test.js holds that line). A static hatch on
+   the page (no wallpaper engine, no animation), squared-off cards with a
+   pressed-steel edge, a copper rule under the header, condensed uppercase
+   titles. Only colour, border, radius, shadow and type change, never layout. */
+:root[data-theme="jobsite"]:not([data-mode="light"]) {
+  background-color: #1b1f24;
+  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 2px, transparent 2px 9px);
+}
+:root[data-theme="jobsite"]:not([data-mode="light"]) body {
+  background: transparent;
+}
+:root[data-theme="jobsite"]:not([data-mode="light"]) header {
+  border-bottom: 3px solid var(--orange);
+}
+:root[data-theme="jobsite"]:not([data-mode="light"]) .w-card,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .stat-card,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-card,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-panel,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .k-card,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .cl-card {
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 2px 0 #0f1215;
+}
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-tile,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-row,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-row-box,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-seg,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-input,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-field,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-field-sm {
+  border-radius: 4px;
+}
+:root[data-theme="jobsite"]:not([data-mode="light"]) .w-card-title,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .eyebrow,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .eyebrow-9,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .stat-lbl,
+:root[data-theme="jobsite"]:not([data-mode="light"]) .panel-label {
+  font-family: 'Barlow Condensed', 'Barlow', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--ob);
+}
+:root[data-theme="jobsite"]:not([data-mode="light"]) .ui-seg {
+  font-family: 'Barlow Condensed', 'Barlow', sans-serif;
+  letter-spacing: .1em;
+}
+:root[data-theme="jobsite"]:not([data-mode="light"]) .btn-orange {
+  border-radius: 4px;
+  font-family: 'Barlow Condensed', 'Barlow', sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
