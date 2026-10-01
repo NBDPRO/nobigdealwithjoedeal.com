@@ -128,7 +128,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "firebase": "^12.18.0",
     "firebase-tools": "^15.28.2",
     "puppeteer-core": "^25.4.0"
