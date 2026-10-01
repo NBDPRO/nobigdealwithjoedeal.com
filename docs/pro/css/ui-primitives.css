@@ -10,6 +10,16 @@
  * than painting colours inline, so a skin owns the active look as well.
  */
 
+/* Shape role tokens, as fallbacks only. dashboard-app.css owns them (and
+   Settings > Appearance > Shape overrides them there); :where() has zero
+   specificity, so these apply only on a page that doesn't load it, such as
+   customer.html. Same values as the dashboard defaults. */
+:where(:root) {
+  --r-card: 8px;
+  --r-input: 6px;
+  --elevation-card: none;
+}
+
 /* Segmented choice buttons (Card Density, Default Pipeline View, Comfort). */
 .ui-seg {
   flex: 1;
@@ -74,6 +84,29 @@
   background: var(--s2);
   border: 1px solid var(--br);
   border-radius: var(--r-input, 6px);
+}
+
+/* Customer page (customer.html, batch 3). That page doesn't load
+ * dashboard-app.css, so these keep their own literal radii. */
+/* Document-template tile (Documents tab). Hover lives on .doc-template-card. */
+.ui-tile {
+  padding: 14px;
+  background: var(--s2);
+  border-radius: 10px;
+  border: 1px solid var(--br);
+  cursor: pointer;
+  transition: border-color var(--t-mid), transform var(--t-fast);
+}
+/* Full-width form field (Edit Customer sheet). */
+.ui-field {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--s);
+  border: 1px solid var(--br);
+  border-radius: 8px;
+  color: var(--t);
+  font-size: 14px;
+  box-sizing: border-box;
 }
 
 /* Compact select/input (pipeline bulk-edit bar). */

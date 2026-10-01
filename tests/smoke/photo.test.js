@@ -800,7 +800,7 @@ section('doc-template cards: per-card ⓘ blank-preview button');
   // routing to _previewBlankDoc. The CSS guarantees position:relative
   // on the card and absolute on the button so the icon stays in the
   // top-right without disturbing existing card layout.
-  const cardCount = (customer.match(/class="doc-template-card"/g) || []).length;
+  const cardCount = (customer.match(/class="doc-template-card(?: [^"]*)?"/g) || []).length;
   const btnCount  = (customer.match(/class="dt-preview-btn"/g) || []).length;
   assert('one dt-preview-btn per doc-template-card (currently 15)',
     cardCount > 0 && btnCount === cardCount);
@@ -1340,7 +1340,7 @@ section('customer.html: every inline event handler migrated to data-action deleg
   // ── Doc-template card grid still has its 16 wirings ──
   // 16, not 15: +1 for storm_history_report (2026-09-09) — the free
   // NOAA/NWS 5-year storm history doc.
-  const cardCount = (customer.match(/class="doc-template-card"[^>]*data-action="generateCustomerDoc"/g) || []).length;
+  const cardCount = (customer.match(/class="doc-template-card(?: [^"]*)?"[^>]*data-action="generateCustomerDoc"/g) || []).length;
   assert('all 16 doc-template cards still wired (regression guard)',
     cardCount === 16,
     'expected 16 doc-template-card data-action wirings, got ' + cardCount);
