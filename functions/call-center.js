@@ -196,7 +196,8 @@ exports.callCenterIngest = onSchedule(
 //   leads/{id}/activity/cube-{id}   the customer timeline entry
 //   leads/{id}/tasks/cube-{id}      ONE follow-up task, only when Jo promised
 //                                   something or a follow-up date came out
-// A call the model calls "personal" keeps no transcript and files nothing.
+// A call the model calls "personal" keeps no transcript, files nothing, and
+// its CRM audio copy is deleted (the original stays in Jo's Drive).
 //
 // Gate: CALL_CENTER_TRANSCRIBE_ENABLED=true runs the backlog (newest first,
 // 12 a run, ≤ 6 h audio a day). With the gate OFF, only the ids on
@@ -291,7 +292,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       await callRef.set({
         status: personal ? 'personal' : 'noted',
         transcript: personal ? null : String(t.text || '').slice(0, 100000),
-        durationSec: Number(t.durationSec) || null,
+        durationSec: Number(t.durationSec) || Number(call.durationSec) || null,
         summary: notes.summary,
         callType: notes.callType,
         promises: notes.promises,
@@ -299,7 +300,19 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         urgent: notes.urgent,
         notedAtMs: nowMs,
       }, { merge: true });
-      if (personal) { out.personal++; continue; }
+      if (personal) {
+        // Jo, 2026-10-01: a personal call keeps no CRM copy of its audio
+        // either. The original recording stays in Jo's own Drive, so a
+        // misjudged call is still recoverable there.
+        try {
+          await bucket.file(call.storagePath).delete({ ignoreNotFound: true });
+          await callRef.set({ storagePath: null, audioRemoved: 'personal' }, { merge: true });
+        } catch (e) {
+          logger.warn('call_center_personal_audio_delete_failed', { id: call.id, err: e && e.message });
+        }
+        out.personal++;
+        continue;
+      }
       out.noted++;
 
       if (call.leadId) {
@@ -341,7 +354,7 @@ exports.callCenterTranscribe = onSchedule(
 // Stage 3 — the "you said you'd…" sweep (2026-10-01)
 // ═══════════════════════════════════════════════════════════════════════
 // 07:15 and 15:15 ET: one email to Jo (users/{owner}.email) listing open
-// promises from his calls (call-center-logic.js collectSweepItems). Nothing
+// promises from Jo's calls (call-center-logic.js collectSweepItems). Nothing
 // open → nothing sent. DRY-RUN (logs counts) unless
 // CALL_CENTER_SWEEP_ENABLED=true. Internal mail only — never a homeowner.
 

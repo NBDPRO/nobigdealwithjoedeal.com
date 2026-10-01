@@ -261,10 +261,21 @@ never as HTML.
    `717435841570-compute@developer.gserviceaccount.com` as a Viewer.
 3. The dry run reports counts; then set `TEXT_INBOX_ENABLED=true`.
 
+## Jo's go-aheads (2026-10-01)
+
+- **Copying:** "Yes, all 90 days" turned the ingest on
+  (`CALL_CENTER_INGEST_ENABLED=true` in `functions/.env.nobigdeal-pro`).
+- **Transcripts:** "Yes, test one call" means one recent customer call goes
+  on `integrations/callCenter.transcribeOnly` first. The backlog gate stays
+  off until Jo has seen that call's notes.
+- **Personal calls:** "Delete the CRM copy" means that once the model marks a
+  call personal, `runTranscribe` deletes the Storage object and sets
+  `storagePath: null, audioRemoved: 'personal'`. The original stays in Jo's
+  Drive, so a misjudged call can still be recovered there.
+
 ## Next stages
 
-- **Personal calls' audio.** The transcript of a personal call is dropped,
-  but its audio copy stays in Storage (the original is still in Jo's Drive).
-  Ask Jo whether the CRM should drop its copy too.
-- **Texts.** An Android SMS forwarder posts to a secret-keyed endpoint. The
-  same sort-don't-filter buckets apply.
+- **Texts into the sweep.** Have the model read each customer's day of texts
+  for promises, and feed those into the same "you said you'd…" email.
+- **MMS photos.** Today they only count as "[n photos]". Copying them would
+  mean EXIF-stripping them first (they could land on a lead's photos).

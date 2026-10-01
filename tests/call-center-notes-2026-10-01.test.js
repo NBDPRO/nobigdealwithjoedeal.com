@@ -51,7 +51,8 @@ function fakeDb(seed) {
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
   };
 }
-const bucket = { file: () => ({ download: async () => [Buffer.from('audio')] }) };
+const deleted = [];
+const bucket = { file: (p) => ({ download: async () => [Buffer.from('audio')], delete: async () => { deleted.push(p); } }) };
 const NOW = Date.parse('2026-10-01T16:00:00Z');
 const call = (id, extra) => Object.assign({ userId: OWNER, companyId: OWNER, status: 'stored', storagePath: 'calls/' + OWNER + '/cube-acr/2026-09-30/' + id + '.m4a', sizeBytes: 400000, startedAtMs: NOW - 3600e3, direction: 'inbound', contactName: 'Pat Example' }, extra);
 
@@ -136,6 +137,8 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
   const pd = db.docs.get(COLLECTION + '/cube_p');
   ok('personal: no transcript kept, status personal', pd.status === 'personal' && pd.transcript === null && pd.summary === 'Personal call.');
+  ok('personal: the CRM audio copy is deleted and the path cleared', deleted.some((p) => /cube_p\.m4a$/.test(p)) && pd.storagePath === null && pd.audioRemoved === 'personal');
+  ok('business calls keep their audio', !deleted.some((p) => /cube_u\.m4a$/.test(p)) && !!db.docs.get(COLLECTION + '/cube_u').storagePath);
   ok('personal: nothing filed on the lead', !db.docs.has('leads/L1/activity/cube-cube_p') && !db.docs.has('leads/L1/tasks/cube-cube_p'));
   ok('unmatched call: noted, no lead writes', db.docs.get(COLLECTION + '/cube_u').status === 'noted');
   ok('over Groq\'s 25 MB → too_large, not sent', db.docs.get(COLLECTION + '/cube_big').status === 'too_large' && calls.transcribe === 2);
