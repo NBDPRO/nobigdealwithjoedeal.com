@@ -10,8 +10,8 @@ Jo said:
 
 ## What the code already had
 
-The Repo Lab (the REPO-LAB-2026-10-01 audit note, landing in #1952) and this
-pilot found that much of the foundation was already
+The Repo Lab ([REPO-LAB-2026-10-01](../audit/REPO-LAB-2026-10-01.md)) and
+this pilot found that much of the foundation was already
 built:
 
 - About 60 color themes (`theme-system.css` and the `theme-engine.js`
