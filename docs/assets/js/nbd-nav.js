@@ -103,11 +103,30 @@
     var root = document.documentElement;
     var prevBehavior = root.style.scrollBehavior;
     root.style.scrollBehavior = 'auto';
+    // While pinned, the page is one viewport tall. If WebKit has not laid out
+    // the un-pinned body yet, the restore is clamped to 0 and the reader lands
+    // at the top (CI mobile-webkit, first attempts: 1200 → 0). Force the
+    // un-pinned layout first.
+    void document.body.offsetHeight;
     window.scrollTo(0, savedScrollY);
     // Commit the jump before smooth scrolling is restored, or the browser can
     // coalesce the two style changes and animate anyway.
     void root.offsetHeight;
     root.style.scrollBehavior = prevBehavior;
+    // Belt and braces: if it STILL landed at the very top, re-apply once on the
+    // next frame. Only when clamped near 0 — a legacy menu link that smooth-
+    // scrolls to a section is never at 0, so it is never overridden.
+    var target = savedScrollY;
+    if (target > 2 && window.requestAnimationFrame) {
+      window.requestAnimationFrame(function () {
+        if ((window.pageYOffset || 0) > 2) return;
+        var pb = root.style.scrollBehavior;
+        root.style.scrollBehavior = 'auto';
+        window.scrollTo(0, target);
+        void root.offsetHeight;
+        root.style.scrollBehavior = pb;
+      });
+    }
   }
 
   /* ── Drawer ─────────────────────────────────────────────────────────── */
