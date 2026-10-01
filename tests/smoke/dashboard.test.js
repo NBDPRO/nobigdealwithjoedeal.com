@@ -1882,15 +1882,15 @@ section('Phase C.4 mobile-nav — bottom-nav and More-drawer items');
   const mnCount = (dash.match(/data-action="mobileNav"\s+data-target="[a-z]+"/g) || []).length;
   // (Yard Signs added 2026-09-29. Schedule added 2026-09-29 evening: the
   // Google Calendar panel lives there and Jo could not find the view.)
-  // (Past Customers / win-back added 2026-10-01.)
-  assert('mobileNav conversions: 29 (3 bottom-nav + 26 more-drawer)',
-    mnCount === 29,
-    'expected 29 mobileNav data-actions; got ' + mnCount);
+  // (Past Customers / win-back added 2026-10-01. Call Center added 2026-10-01.)
+  assert('mobileNav conversions: 30 (3 bottom-nav + 27 more-drawer)',
+    mnCount === 30,
+    'expected 30 mobileNav data-actions; got ' + mnCount);
 
   const closeMoreCount = (dash.match(/data-action="mobileNav"\s+data-target="[a-z]+"\s+data-close-more/g) || []).length;
-  assert('26 mobileNav items carry data-close-more (More-drawer items)',
-    closeMoreCount === 26,
-    'expected 26 data-close-more flags; got ' + closeMoreCount);
+  assert('27 mobileNav items carry data-close-more (More-drawer items)',
+    closeMoreCount === 27,
+    'expected 27 data-close-more flags; got ' + closeMoreCount);
 
   // C.4 finale: every mobileNav handler is delegated (no inline onclicks).
   const remaining = (dash.match(/onclick="mobileNav\(/g) || []).length;

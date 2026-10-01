@@ -26,10 +26,14 @@ const FOLDER = 'application/vnd.google-apps.folder';
 function fakeDrive({ shared = true, failIds = [] } = {}) {
   const tree = {
     root: [{ id: 'd28', name: '2026-09-28', mimeType: FOLDER }, { id: 'd30', name: '2026-09-30', mimeType: FOLDER }, { id: 'old', name: '2025-01-01', mimeType: FOLDER }],
-    d28: [{ id: 'f1', name: '2026-09-28 10-00-00 (phone) Pat Example NBD Customer (+1 812-555-0113) ↗.m4a', size: '1000', mimeType: 'audio/mpeg' }],
+    d28: [
+      { id: 'f1', name: '2026-09-28 10-00-00 (phone) Pat Example NBD Customer (+1 812-555-0113) ↗.m4a', size: '1000', mimeType: 'audio/mpeg' },
+      { id: 's1', name: '2026-09-28 10-00-00 (phone) Pat Example NBD Customer (+1 812-555-0113) ↗.json', size: '170', mimeType: 'application/json' },
+    ],
     d30: [
       { id: 'f2', name: '2026-09-30 15-47-26 (phone) Example Property Claims (1 877-555-9386) ↗.m4a', size: '2000', mimeType: 'audio/mpeg' },
       { id: 'f3', name: '2026-09-30 17-12-33 (phone) +1 800-555-1370 ↙.m4a', size: '3000', mimeType: 'audio/mpeg' },
+      { id: 's3', name: '2026-09-30 17-12-33 (phone) +1 800-555-1370 ↙.json', size: '150', mimeType: 'application/json' },
       { id: 'n1', name: 'desktop.ini', size: '10', mimeType: 'text/plain' },
     ],
     old: [{ id: 'f0', name: '2025-01-01 10-00-00 (phone) +1 513-555-0100 ↙.m4a', size: '1', mimeType: 'audio/mpeg' }],
@@ -42,6 +46,8 @@ function fakeDrive({ shared = true, failIds = [] } = {}) {
       if (o.params && o.params.alt === 'media') {
         const id = decodeURIComponent(o.url.split('/files/')[1]);
         if (failIds.includes(id)) { const e = new Error('boom'); e.code = 500; throw e; }
+        const SIDE = { s1: '{"duration":"21504","loc":"39.1;-84.2","callee":"+18125550113","addr":"1 Secret Ln, Mason, OH","direction":"Outgoing"}', s3: '{"duration":"8000","loc":"39.1;-84.2","addr":"1 Secret Ln"}' };
+        if (SIDE[id]) return { data: new TextEncoder().encode(SIDE[id]).buffer };
         return { data: new Uint8Array([1, 2, 3]).buffer };
       }
       const q = o.params.q;
@@ -107,6 +113,11 @@ const callDocs = (db) => [...db.docs.keys()].filter((k) => k.startsWith(COLLECTI
   const d1 = db.docs.get(COLLECTION + '/cube_f1');
   ok('customer call matched to its lead, tenant-stamped', d1 && d1.leadId === 'lead1' && d1.userId === OWNER && d1.bucket === 'customer' && d1.direction === 'outbound');
   ok('audio under private calls/{owner}/cube-acr/', [...bucket.saved.keys()].every((k) => k.startsWith('calls/' + OWNER + '/cube-acr/')));
+  ok('sidecar duration read (21.5 s → 22)', d1.durationSec === 22 && d1.status === 'stored');
+  const d3 = db.docs.get(COLLECTION + '/cube_f3');
+  ok('a 8 s call is marked short (kept, never transcribed)', d3.durationSec === 8 && d3.status === 'short');
+  ok('the sidecar\'s location and address are never stored', ![...db.docs.values()].some((v) => /Secret Ln|39\.1;/.test(JSON.stringify(v))));
+  ok('sidecars are not filed as calls', !db.docs.has(COLLECTION + '/cube_s1') && !db.docs.has(COLLECTION + '/cube_s3'));
   ok('m4a stored as audio/mp4', [...bucket.saved.values()].every((v) => v.opts.contentType === 'audio/mp4'));
   ok('cursor advances to the last filed day', db.docs.get(CONFIG).cursorYmd === '2026-09-30');
 

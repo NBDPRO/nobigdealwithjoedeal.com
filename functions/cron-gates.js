@@ -28,6 +28,8 @@ const CRON_GATES = [
   { name: 'CALL_CENTER_INGEST_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   // Call Center transcripts + AI notes: OFF until Jo OKs a one-call test.
   { name: 'CALL_CENTER_TRANSCRIBE_ENABLED', polarity: 'enabled', file: 'call-center.js' },
+  // Call Center "you said you'd" reminder email: dry-run until Jo says go.
+  { name: 'CALL_CENTER_SWEEP_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   { name: 'REVIEW_NUDGE_ENABLED', polarity: 'enabled', file: 'review-request-nudge.js' },
   { name: 'STORM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-watch.js' },
   { name: 'VISUALIZER_IMAGEGEN_ENABLED', polarity: 'enabled', file: 'visualizer-image-gen.js' },

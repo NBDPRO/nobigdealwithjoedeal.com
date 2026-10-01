@@ -120,7 +120,7 @@
     var chips = chip(dir, 'var(--s3,rgba(255,255,255,.08))', 'var(--m,#9ca3af)');
     if ((c.alternateLeadIds || []).length) chips += chip('Number on ' + (c.alternateLeadIds.length + 1) + ' customers', '#78350f', '#fde68a');
     var who = c.contactName || fmtPhone(c.phoneDigits) || 'Phone call';
-    var summary = c.summary || (c.transcript ? '' : 'Recorded on your phone. Notes appear here once it is transcribed.');
+    var summary = c.summary || (c.transcript ? '' : c.status === 'short' ? 'Short call (under 15 seconds).' : 'Recorded on your phone. Notes appear here once it is transcribed.');
     if (c.urgent) chips += chip('Urgent', '#7f1d1d', '#fecaca');
     // AI notes (functions/call-center.js stage 2): who promised what.
     var promises = Array.isArray(c.promises) ? c.promises : [];

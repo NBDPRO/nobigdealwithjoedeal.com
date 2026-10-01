@@ -708,6 +708,12 @@ exports.callCenterIngest = require('./call-center').callCenterIngest;
 // CALL_CENTER_TRANSCRIBE_ENABLED=true, except the ids Jo lists on
 // integrations/callCenter.transcribeOnly (the one-call test).
 exports.callCenterTranscribe = require('./call-center').callCenterTranscribe;
+// Stage 3: "you said you'd…" email to the owner at 07:15 + 15:15 ET (open
+// promises from calls). DRY-RUN unless CALL_CENTER_SWEEP_ENABLED=true.
+exports.callCenterSweep = require('./call-center').callCenterSweep;
+// The Call Center screen's writes (handled / attach) — phone_calls is
+// server-written only. Owner, admin, same-company admin/manager.
+exports.callCenterAction = require('./call-center').callCenterAction;
 
 // ═══════════════════════════════════════════════════════════════
 // REFERRAL CAPTURE — public POST from /refer.html
