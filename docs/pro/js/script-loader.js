@@ -315,7 +315,7 @@
     // loadBundle() calls window._nbdInitThemeStack (dashboard-ui.js owns the
     // init sequence; the hook is idempotent).
     theme: [
-      'js/theme-engine.js?v=4',
+      'js/theme-engine.js?v=5',
       'js/theme-overlays.js?v=3',
       'js/theme-sounds.js?v=1',
       'js/theme-achievements.js?v=1',

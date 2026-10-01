@@ -564,6 +564,85 @@
       specialClass: 'liveops-theme'
     },
 
+    // Daylight (2026-10-01) — for reading a phone on a roof in full sun:
+    // near-black ink on white, heavy 2px edges instead of shadows, the deep
+    // brand orange (#A14A22, 6.3:1 on white). Colours mirror the
+    // :root[data-theme="daylight"] token line in theme-system.css; the sun
+    // treatment is scoped to [data-theme="daylight"] at the end of that file.
+    'daylight': {
+      name: 'Daylight',
+      category: 'professional',
+      locked: false,
+      unlockCondition: null,
+      mode: 'light',
+      colors: {
+        outerBg: '#eef0f3',
+        bg: '#ffffff',
+        surface: '#ffffff',
+        surface2: '#e4e7ec',
+        text: '#0b0f14',
+        muted: '#2b3440',
+        border: 'rgba(11,15,20,.55)',
+        accent: '#a14a22',
+        accentBg: 'rgba(161,74,34,.12)',
+        accentHover: '#8a3d1b',
+        green: '#0d6b35',
+        red: '#b3261e',
+        gold: '#7a5900',
+        blue: '#1747b5',
+        purple: '#5b2bb5',
+        paper: '#ffffff',
+        rule: 'rgba(11,15,20,.25)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '10px',
+      borderStyle: 'solid',
+      transition: '0.15s ease',
+      cardEffect: null,
+      specialClass: 'light-theme'
+    },
+
+    // Jobsite (2026-10-01) — slate, copper and a faint diagonal hatch, like
+    // steel plate and flashing; condensed uppercase card titles. Colours mirror
+    // the :root[data-theme="jobsite"] token line in theme-system.css; the
+    // treatment is scoped to [data-theme="jobsite"] at the end of that file.
+    'jobsite': {
+      name: 'Jobsite',
+      category: 'professional',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#1b1f24',
+        bg: '#22272d',
+        surface: '#262b31',
+        surface2: '#2f353d',
+        text: '#ece7df',
+        muted: '#b4ab9f',
+        border: '#3a4048',
+        accent: '#c47a3d',
+        accentBg: 'rgba(196,122,61,.16)',
+        accentHover: '#d9a06b',
+        green: '#9cc983',
+        red: '#e5735c',
+        gold: '#f2c230',
+        blue: '#7aa7d9',
+        purple: '#b39ddb',
+        paper: '#262b31',
+        rule: '#3f454d'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '4px',
+      borderStyle: 'solid',
+      transition: '0.15s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+
     // NATURE & ELEMENTS (12)
     'forest': {
       name: 'Forest',

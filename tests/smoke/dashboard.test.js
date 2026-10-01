@@ -1154,7 +1154,8 @@ section('Wave 5b — Gradient flatten + bulk accent-fg migration');
 {
   const dash = readDashboardStyles(); // html + extracted css (Rock 4 Phase 2b-d)
   // 1. .btn-orange no longer uses a linear-gradient for its base fill.
-  const btnStart = dash.indexOf('.btn-orange {');
+  // The BASE rule starts its own line; theme-scoped overrides (":root[data-theme=…] .btn-orange {") don't.
+  const btnStart = dash.search(/(^|\n)\.btn-orange \{/);
   const btnBlock = dash.slice(btnStart, btnStart + 600);
   assert('.btn-orange base background is solid (no linear-gradient)',
     /\.btn-orange\s*\{\s*background:\s*var\(--orange\)/.test(btnBlock),
