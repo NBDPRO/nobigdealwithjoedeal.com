@@ -89,6 +89,17 @@
     document.body.classList.add(BODY_CLASS);
   }
 
+  // Jump with NO animation. The inline scroll-behavior:auto swap below is not
+  // always honoured: CI's Linux WebKit (2026-10-01) caught the restore
+  // mid-glide at 55 and 468 on the way back to 1200. An explicit
+  // behavior:'instant' overrides any CSS scroll-behavior; browsers without
+  // scrollTo(options) take the plain two-number form.
+  function jumpTo(y) {
+    try { window.scrollTo({ top: y, left: 0, behavior: 'instant' }); }
+    catch (e) { window.scrollTo(0, y); }
+    if (Math.abs((window.pageYOffset || 0) - y) > 2) window.scrollTo(0, y);
+  }
+
   function unlockScroll() {
     if (!document.body.classList.contains(BODY_CLASS)) return;
     document.body.classList.remove(BODY_CLASS);
@@ -108,7 +119,7 @@
     // at the top (CI mobile-webkit, first attempts: 1200 → 0). Force the
     // un-pinned layout first.
     void document.body.offsetHeight;
-    window.scrollTo(0, savedScrollY);
+    jumpTo(savedScrollY);
     // Commit the jump before smooth scrolling is restored, or the browser can
     // coalesce the two style changes and animate anyway.
     void root.offsetHeight;
@@ -131,7 +142,7 @@
         if (userMoved || (window.pageYOffset || 0) > 2) return;
         var pb = root.style.scrollBehavior;
         root.style.scrollBehavior = 'auto';
-        window.scrollTo(0, target);
+        jumpTo(target);
         void root.offsetHeight;
         root.style.scrollBehavior = pb;
       };
