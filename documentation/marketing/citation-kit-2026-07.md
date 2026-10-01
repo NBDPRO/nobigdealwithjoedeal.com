@@ -74,6 +74,18 @@ Interior Drywall & Ceiling Repair · Fire, Water & Smoke Damage Restoration
 
 ## Where to paste it (claim links, in priority order)
 
+> **Update 2026-10-01.** Jo's idea-screenshot triage pointed at the same "list
+> your business so AI recommends you" play. This table already had most of it.
+> **Foursquare (12) and Yellow Pages (13) are new.** The rest is still Jo's
+> clicks:
+> - Bing Places, Apple Business Connect, Nextdoor and BBB, if not already
+>   claimed.
+> - The still-unclaimed Yelp page.
+>
+> Keep the identity block above **identical** on every one (name, address,
+> phone). Consistency across citations is what the AI and maps aggregators
+> check.
+
 | # | Directory | Where | Notes |
 |---|---|---|---|
 | 1 | GAF contractor locator | gaf.com/en-us/roofing-contractors → claim via your GAF account | Verify cert #1162011 shows **System Plus** and the website URL is set |
@@ -87,6 +99,8 @@ Interior Drywall & Ceiling Repair · Fire, Water & Smoke Damage Restoration
 | 9 | Clermont County Chamber | Membership = directory link | Goshen home turf |
 | 10 | Supplier locators | Ask SRS / ABC / Beacon rep | Dealer-locator links where offered |
 | 11 | Bing Webmaster Tools | bing.com/webmasters | *(added 2026-08-17)* "Import from Google Search Console" + submit sitemap.xml — indexing, not a citation, but Bing feeds ChatGPT search |
+| 12 | Foursquare | foursquare.com/add-place → "Claim this business" (business.foursquare.com) | *(added 2026-10-01, from Jo's idea screenshots IMG_4756)* Free. Foursquare's places data feeds Apple Maps, Uber, Snap and many AI/data aggregators — one claim reaches a lot of downstream maps |
+| 13 | Yellow Pages / YP.com | yellowpages.com → "Free Listing" (adsolutions.yp.com) | *(added 2026-10-01, IMG_4755)* Free listing only; YP sells ads hard on the follow-up call — decline. Mostly a trust/consistency citation (same NAP as above) |
 
 **sameAs append rule (added 2026-08-17):** every time a listing above goes live,
 have the next Claude session append the live profile URL to the `sameAs` arrays in
