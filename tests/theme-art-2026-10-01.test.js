@@ -36,6 +36,7 @@ function ok(name, cond, detail) {
   console.log('\n1. generator ↔ file');
   ok('theme-art.css is exactly the generator output (run node scripts/build-theme-art.mjs)', CSS === gen.buildCss());
   ok('the sci-fi and nature packs are complete', ['matrix','neon','synthwave','vaporwave','deep-space','galaxy','plasma','cyberpunk','hologram','quantum','starship','neon-rain','terminal','forest','ocean','desert','aurora','volcano','glacier','thunderstorm','sunset','canyon','coral-reef','tundra','rainforest','underwater','volcanic'].every((id) => ids.includes(id)));
+  ok('the luxury, mood, seasonal and sports packs are complete', ['crimson','gold','rose','diamond','marble','velvet','champagne','onyx','metal','liquid','frosted','dark-academia','cottagecore','brutalist','art-deco','noir','grunge','vapor-room','blood-moon','candlelit','copper','deep-focus','ember','midnight-oil','ink','typewriter','sakura','pumpkin-patch','snowfall','spring-bloom','summer-heat','fourth-of-july','storm-season','christmas','easter','halloween','racing-red','stadium-lights','champion-gold','endzone','fast-break','knockout','checkered-flag','trophy'].every((id) => ids.includes(id)));
   ok('no art for themes named after real products (iOS, Android, Windows)', !['ios','ios26','android','windows'].some((id) => ids.includes(id)));
   ok('the construction pack is complete', ['blueprint', 'hard-hat', 'concrete', 'copper-pipe', 'safety-orange', 'crane', 'diesel', 'sawdust', 'brick', 'toolbox'].every((id) => ids.includes(id)));
 

@@ -92,6 +92,17 @@ function ok(name, cond, detail) {
   ok('the cash dropdown still offers every job stage after Contract Signed',
     M.VIEW_JOBS.every((k) => stageOptionsForType('cash').some((o) => o.value === k)));
 
+  // The tenant-aware pickers (dashboard + customer page) build the same ladder
+  // from the resolved config. They must strip the board's own job columns
+  // before laying in the full job sequence, or Installing/Closed sit after
+  // the finer job steps and "next after Installing" reads Closed.
+  const fs = require('fs');
+  const dash = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/dashboard-bootstrap.module.js'), 'utf8');
+  const cust = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/customer-bootstrap.module.js'), 'utf8');
+  ok('dashboard stage picker strips the board\'s job columns before splicing the job sequence',
+    /keys = keys\.filter\(k => !jobs\.includes\(k\)\)/.test(dash) && !/filter\(k => !keys\.includes\(k\)\)/.test(dash));
+  ok('customer page ladder does the same', /pipeline = pipeline\.filter\(k => !jobsAll\.includes\(k\)\)/.test(cust));
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })();

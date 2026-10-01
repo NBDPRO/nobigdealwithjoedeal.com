@@ -202,7 +202,7 @@ group('Scroll lock: the reported symptom', () => {
   assert('JS saves the scroll offset before locking',
     /savedScrollY\s*=\s*window\.pageYOffset/.test(navJs));
   assert('JS restores the scroll offset on close (or the page jumps to the top)',
-    /window\.scrollTo\(0,\s*savedScrollY\)/.test(navJs));
+    /jumpTo\(savedScrollY\)/.test(navJs) && /function jumpTo\(y\)/.test(navJs));
 
   /* The close path must not be guarded on a state transition. Three pages
      ship a legacy closeMobileNav() bound to the <a> itself; a target-phase
@@ -220,7 +220,7 @@ group('Scroll lock: the reported symptom', () => {
      glide lands them somewhere they never chose. CI caught it mid-animation
      reading 410 and 68 against a saved offset of ~1200. */
   assert('the scroll restore is forced instant, not smooth',
-    /scrollBehavior = 'auto'/.test(navJs) && /window\.scrollTo\(0, savedScrollY\)/.test(navJs));
+    /scrollBehavior = 'auto'/.test(navJs) && /behavior: 'instant'/.test(navJs) && /jumpTo\(savedScrollY\)/.test(navJs));
 });
 
 group('The open animation must not move a full-viewport sheet', () => {

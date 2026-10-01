@@ -40,22 +40,61 @@
     catch (e) { return false; }
   }
 
+  // A boot read can come back from Firestore's EMPTY local cache while the
+  // connection is still coming up (a getDoc during a connection cycle returns
+  // cached data silently). That showed up as a skin that only sometimes came
+  // back after a reload. So: on the dashboard, a live listener that ignores
+  // an empty cached snapshot and applies the server copy when it lands (and
+  // keeps the skin in step across devices); elsewhere, getDoc retried while
+  // the answer is an empty cache read.
+  var localEditAt = 0;      // a local change wins over snapshots for a few seconds
+  function slotKey(c) {
+    return L().SLOT_NAMES.map(function (s) { var x = c && c.slots[s]; return x ? x.path + '@' + x.v : ''; }).join('|');
+  }
+  function apply(data) {
+    var next = L().normalize(data && data.mySkin);
+    var refetch = !cfg || slotKey(next) !== slotKey(cfg);
+    cfg = next;
+    return (refetch ? fetchAll() : Promise.resolve(paint())).then(renderPanel);
+  }
+  function dataOf(snap) {
+    var ok = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap.exists);
+    return ok && typeof snap.data === 'function' ? (snap.data() || {}) : {};
+  }
+  function readWithRetry(ref, n) {
+    return window.getDoc(ref).then(function (snap) {
+      var data = dataOf(snap);
+      if (snap && snap.metadata && snap.metadata.fromCache && !data.mySkin && n < 5) {
+        return new Promise(function (r) { setTimeout(r, 1500); }).then(function () { return readWithRetry(ref, n + 1); });
+      }
+      return data;
+    });
+  }
   function load() {
     uid = window._user.uid;
-    return window.getDoc(window.doc(window.db, 'userSettings', uid)).then(function (snap) {
-      var data = snap && typeof snap.data === 'function' ? (snap.data() || {}) : {};
-      cfg = L().normalize(data.mySkin);
-      return fetchAll();
+    var ref = window.doc(window.db, 'userSettings', uid);
+    if (typeof window.onSnapshot !== 'function') return readWithRetry(ref, 0).then(apply);
+    return new Promise(function (resolve) {
+      var settled = false;
+      var done = function () { if (!settled) { settled = true; resolve(); } };
+      window.onSnapshot(ref, function (snap) {
+        var data = dataOf(snap);
+        if (snap.metadata && snap.metadata.fromCache && !data.mySkin) return;   // wait for the server copy
+        if (Date.now() - localEditAt < 3000) { done(); return; }             // don't undo an edit in progress
+        apply(data).then(done, done);
+      }, done);
+      setTimeout(done, 15000);
     });
   }
 
   function save() {
+    localEditAt = Date.now();
     if (!uid || !cfg) return Promise.resolve();
     var out = { enabled: cfg.enabled, dim: cfg.dim, texture: cfg.texture, accent: cfg.accent, side: cfg.side, slots: cfg.slots };
     return window.setDoc(window.doc(window.db, 'userSettings', uid), { mySkin: out }, { merge: true })
       .catch(function () { toast('Couldn’t save My Skin. Check your connection.', 'error'); });
   }
-  function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 600); }
+  function saveSoon() { localEditAt = Date.now(); clearTimeout(saveTimer); saveTimer = setTimeout(save, 600); }
 
   // ── images ────────────────────────────────────────────────────────────
   function setUrl(slot, blob) {
