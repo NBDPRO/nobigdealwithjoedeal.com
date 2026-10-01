@@ -472,6 +472,28 @@
   text-shadow: 0 0 22px rgba(56,225,255,.28);
 }
 
+/* Shared primitives (ui-primitives.css): panels, rows and fields take the
+   soft cyan edge; the active segmented choice glows like the nav item. */
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-panel,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-row,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-row-box,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-input,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-field-sm {
+  border-color: var(--lo-edge-soft);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-input:focus,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-field-sm:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 1px var(--orange), 0 0 12px -2px var(--lo-glow);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-seg {
+  font-family: var(--lo-mono);
+  letter-spacing: .1em;
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-seg.is-on {
+  box-shadow: 0 0 14px -4px var(--lo-glow), 0 0 0 1px var(--lo-edge);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="liveops"]:not([data-mode="light"]) .w-card,
   :root[data-theme="liveops"]:not([data-mode="light"]) .stat-card {

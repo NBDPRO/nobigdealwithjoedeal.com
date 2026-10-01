@@ -78,3 +78,15 @@ can only restyle what reaches a class or token.
 - Tools: no new paid tool is needed. Repo Lab ranks Impeccable as the
   design skill worth trialling, skill only with its hook off, for
   critique and polish passes.
+
+## Update 2026-10-01 (later)
+
+- Step 1 shipped (#1953).
+- Step 2 started:
+  - `docs/pro/css/ui-primitives.css` took 79 dashboard surfaces off inline
+    styles, with a computed-style diff as proof;
+  - the inline-style ratchet (#1955) keeps the count falling;
+  - Live Ops styles the primitives.
+  - Next: `customer.html` and the JS-rendered widgets.
+- Step 4: Daylight and Jobsite are mocked up on the Home screen (the "NBD Pro
+  skin candidates" canvas) for Jo to pick.

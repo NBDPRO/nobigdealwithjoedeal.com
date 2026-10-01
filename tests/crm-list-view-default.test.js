@@ -31,9 +31,15 @@ function load({ phone, saved }) {
   const store = {};
   if (saved) store['nbd-crm-view-mode'] = saved;
   const bodyClasses = new Set();
-  const pickers = ['auto', 'board', 'list'].map((v) => ({
-    style: {}, getAttribute: (k) => (k === 'data-view-default' ? v : null),
-  }));
+  const pickers = ['auto', 'board', 'list'].map((v) => {
+    const cls = new Set(); const attrs = { 'data-view-default': v };
+    return {
+      style: {}, cls,
+      classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)) },
+      getAttribute: (k) => (k in attrs ? attrs[k] : null),
+      setAttribute: (k, val) => { attrs[k] = String(val); },
+    };
+  });
   const win = {
     localStorage: {
       getItem: (k) => (k in store ? store[k] : null),
@@ -53,7 +59,8 @@ function load({ phone, saved }) {
   };
   win.window = win;
   vm.runInNewContext(SRC, win, { filename: 'crm-list-view.js' });
-  const lit = () => pickers.filter((p) => p.style.background === 'var(--orange)').map((p) => p.getAttribute('data-view-default'));
+  // The active look is .ui-seg.is-on in ui-primitives.css; aria-pressed must agree.
+  const lit = () => pickers.filter((p) => p.cls.has('is-on') && p.getAttribute('aria-pressed') === 'true').map((p) => p.getAttribute('data-view-default'));
   return { win, store, listMode: () => bodyClasses.has('crm-list-mode'), lit };
 }
 

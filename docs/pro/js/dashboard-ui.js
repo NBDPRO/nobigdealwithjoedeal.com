@@ -1749,9 +1749,8 @@ function setKanbanDensity(d) {
   // Reflect active state in the picker buttons.
   document.querySelectorAll('.kdens-btn').forEach(b => {
     const active = b.dataset.density === d;
-    b.style.background = active ? 'var(--orange)' : 'var(--s)';
-    b.style.color = active ? 'var(--accent-fg,#fff)' : 'var(--m)';
-    b.style.borderColor = active ? 'var(--orange)' : 'var(--br)';
+    b.classList.toggle('is-on', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
   _syncDensityToggleLabel(d);
 }
@@ -1926,15 +1925,9 @@ function nbdComfortRefresh() {
     let active = false;
     if (kind === 'density') active = (val === density);
     else if (kind === 'size') active = (val === size);
-    if (active) {
-      b.style.background = 'var(--orange)';
-      b.style.color = 'var(--accent-fg,#fff)';
-      b.style.borderColor = 'var(--orange)';
-    } else {
-      b.style.background = 'var(--s)';
-      b.style.color = 'var(--m)';
-      b.style.borderColor = 'var(--br)';
-    }
+    // Active look lives in ui-primitives.css (.ui-seg.is-on) so skins own it.
+    b.classList.toggle('is-on', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
 
   const motionEl = document.getElementById('npm-reduce-motion');

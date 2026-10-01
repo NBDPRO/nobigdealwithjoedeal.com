@@ -311,7 +311,9 @@ ok('reduced-motion block present (OS pref + app toggle)', /@media \(prefers-redu
 // Nothing else in the file mentions liveops beyond the token line, the accent-fg line and the block.
 const outside = CSS.slice(0, blockAt === -1 ? CSS.length : blockAt).split('\n').filter((l) => /liveops/.test(l) && !/^\s*\/\*|^\s{2,}\S/.test(l) && !/^Jo:|^\s*deep indigo/.test(l));
 ok('outside the block, liveops appears only on its token + accent-fg lines', outside.length === 2, JSON.stringify(outside));
-ok('dashboard.html busts the theme-system.css cache', /css\/theme-system\.css\?v=5"/.test(read('docs/pro/dashboard.html')));
+// At least the version Live Ops shipped with; later edits to the file bump it further.
+ok('dashboard.html busts the theme-system.css cache',
+  +((read('docs/pro/dashboard.html').match(/css\/theme-system\.css\?v=(\d+)"/) || [])[1] || 0) >= 5);
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

@@ -65,13 +65,12 @@
     let saved = null;
     try { saved = localStorage.getItem(LS_KEY); } catch (_) {}
     const pref = saved === 'list' || saved === 'board' ? saved : 'auto';
-    // Same inline active styling as the Card Density picker beside it
-    // (dashboard-ui.js setKanbanDensity).
+    // Same active state as the Card Density picker beside it
+    // (dashboard-ui.js setKanbanDensity): .ui-seg.is-on in ui-primitives.css.
     document.querySelectorAll('.cview-default-btn').forEach((btn) => {
       const on = btn.getAttribute('data-view-default') === pref;
-      btn.style.background = on ? 'var(--orange)' : 'var(--s)';
-      btn.style.color = on ? 'var(--accent-fg,#fff)' : 'var(--m)';
-      btn.style.borderColor = on ? 'var(--orange)' : 'var(--br)';
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
   }
 
