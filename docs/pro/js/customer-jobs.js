@@ -53,6 +53,39 @@
     return p;
   }
 
+  /**
+   * PURE. Direct costs per job, in cents (multi-job, 2026-09-30). An expense
+   * carries the job it was logged against (#1932); one logged before that, or
+   * naming a job this customer no longer has, counts toward the FIRST job.
+   * Same basis as the Analytics margin: DIRECT costs only, amountCents.
+   * jobs: oldest first (jobs-store forLead order).
+   */
+  function costsByJob(jobs, expenses) {
+    const out = {};
+    const list = jobs || [];
+    if (!list.length) return out;
+    const ids = new Set(list.map((j) => j.id));
+    const first = list[0].id;
+    for (const e of expenses || []) {
+      if (!e || e.costType !== 'direct') continue;
+      const c = parseInt(e.amountCents, 10) || 0;
+      if (!c) continue;
+      const jid = e.jobId && ids.has(e.jobId) ? e.jobId : first;
+      out[jid] = (out[jid] || 0) + c;
+    }
+    return out;
+  }
+  let _costs = null;   // { jobId: cents } once the customer's expenses load
+
+  /** "costs $1,200 · 38% margin" for one job, or '' when it has no costs. */
+  function costLine(valueDollars, cents) {
+    if (!(cents > 0)) return '';
+    const v = Number(valueDollars) || 0;
+    const parts = ['costs $' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })];
+    if (v > 0) parts.push(Math.round(((v * 100 - cents) / (v * 100)) * 100) + '% margin');
+    return parts.join(' · ');
+  }
+
   function render(l, jobs) {
     const p = panel();
     if (!p) return;
@@ -60,9 +93,12 @@
       const eff = j.id === l.activeJobId ? Object.assign({}, j, pickLead(l)) : j;
       const st = standing(l, j);
       const addr = j.property && j.property.address && j.property.address !== l.address ? '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:2px;">📍 ' + esc(j.property.address) + '</div>' : '';
+      const cost = _costs ? costLine(eff.jobValue, _costs[j.id]) : '';
       return '<div class="cj-row" data-cj-job="' + esc(j.id) + '" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--br,rgba(255,255,255,.08));">'
         + '<div style="min-width:0;"><div style="font-weight:700;font-size:13px;">' + esc(j.title || 'Job') + '</div>'
-        + '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:2px;">' + esc(stageText(eff.stage)) + (money(eff.jobValue) ? ' · ' + esc(money(eff.jobValue)) : '') + '</div>' + addr + '</div>'
+        + '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:2px;">' + esc(stageText(eff.stage)) + (money(eff.jobValue) ? ' · ' + esc(money(eff.jobValue)) : '') + '</div>'
+        + (cost ? '<div class="cj-cost" style="font-size:11px;color:var(--m,#9ca3af);margin-top:2px;">' + esc(cost) + '</div>' : '')
+        + addr + '</div>'
         + '<span class="cj-badge" data-cj-standing="' + st.key + '" style="flex:none;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;border:1px solid ' + st.color + ';color:' + st.color + ';white-space:nowrap;">' + esc(st.text) + '</span>'
         + '</div>';
     }).join('');
@@ -170,7 +206,22 @@
     try { jobs = await J().loadLead(l.id); } catch (_) { return true; }
     render(l, jobs);
     if (location.hash === '#addJob') openAdd();
+    loadCosts(l, jobs);
     return true;
+  }
+
+  // The customer's expenses, role-scoped like the cost panel (profit-tracker
+  // _fetchLeadExpenses): staff read the tenant's, everyone else their own.
+  // Best-effort — the panel renders without costs if this fails.
+  async function loadCosts(l, jobs) {
+    try {
+      const c = window._userClaims || {};
+      const staff = ['company_admin', 'manager', 'admin'].includes(c.role || '') && !!c.companyId;
+      const scope = staff ? window.where('companyId', '==', c.companyId) : window.where('userId', '==', window._user.uid);
+      const snap = await window.getDocs(window.query(window.collection(window.db, 'expenses'), scope, window.where('leadId', '==', l.id)));
+      _costs = costsByJob(jobs, snap.docs.map((d) => d.data()));
+      render(l, J().forLead(l.id));
+    } catch (_) { /* no costs line */ }
   }
   let tries = 0;
   const timer = setInterval(() => {
@@ -178,5 +229,5 @@
     load().then((ok) => { if (ok || tries > 30) clearInterval(timer); });
   }, 1000);
 
-  window.NBDCustomerJobs = { _standing: standing, _buildJob: buildJob, _render: render, openAdd };
+  window.NBDCustomerJobs = { _standing: standing, _buildJob: buildJob, _render: render, _costsByJob: costsByJob, _costLine: costLine, openAdd };
 })();

@@ -37,6 +37,33 @@ async function openCustomer(page, id, hash) {
 }
 
 test.describe.serial('Customer page: jobs + add job @shard2', () => {
+  test('each job shows its own direct costs and margin; an older job-less expense counts toward the first job', async ({ page }) => {
+    const creds = requireTestUser();
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
+    await page.route(/nominatim\.openstreetmap\.org/, (route) => route.fulfill({ contentType: 'application/json', body: '[]', headers: { 'Access-Control-Allow-Origin': '*' } }));
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user, null, { timeout: 20_000 });
+    const s = Date.now();
+    const id = await safeEvaluate(page, (st) => window._saveLead({ firstName: 'ZZCC', lastName: 'Costs' + st, address: '9 Cost Ct, Mason, OH 45040', phone: '5135556' + String(st).slice(-3), stage: 'closed', jobValue: 900, e2eTestData: true }), s);
+    const db = adb();
+    const lead = (await db.doc('leads/' + id).get()).data();
+    const own = {};
+    if (lead.userId) own.userId = lead.userId;
+    if (lead.companyId) own.companyId = lead.companyId;
+    await db.doc('leads/' + id + '/jobs/j1').set(Object.assign({ stage: 'closed', stageRole: 'won', jobValue: 900, title: 'Roof repair', createdAt: new Date(1000) }, own));
+    await db.doc('leads/' + id + '/jobs/j2').set(Object.assign({ stage: 'new', stageRole: 'new', jobValue: 1450, title: 'Gutter guards', createdAt: new Date(2000) }, own));
+    await db.doc('leads/' + id).update({ activeJobId: 'j1' });
+    const exp = (extra) => Object.assign({ userId: lead.userId, companyId: lead.companyId || lead.userId, leadId: id, category: 'materials', costType: 'direct', amountCents: 0, date: new Date(), supplier: 'ZZCC ' + s, e2eTestData: true }, extra);
+    await db.collection('expenses').add(exp({ jobId: 'j2', amountCents: 50000 }));            // $500 on the gutter job
+    await db.collection('expenses').add(exp({ amountCents: 10000 }));                         // $100, logged before jobs → the first job
+    await db.collection('expenses').add(exp({ jobId: 'j2', costType: 'overhead', category: 'vehicle_fuel', amountCents: 99900 })); // overhead: not a job cost
+
+    await openCustomer(page, id);
+    const row = (jid) => page.locator('#jobsPanel [data-cj-job="' + jid + '"] .cj-cost');
+    await expect(row('j2'), 'the gutter job: its own $500 direct cost, margin on $1,450').toHaveText('costs $500 · 66% margin', { timeout: 20_000 });
+    await expect(row('j1'), 'the roof repair: the older job-less $100').toHaveText('costs $100 · 89% margin');
+  });
+
   test('Jobs panel lists the job; ＋ Add job writes a second open job through the rules; #addJob opens the sheet', async ({ page }) => {
     const creds = requireTestUser();
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
