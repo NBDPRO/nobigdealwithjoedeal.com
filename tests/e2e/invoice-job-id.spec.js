@@ -59,5 +59,18 @@ test.describe.serial('Invoice → job @shard2', () => {
     expect(a.jobId, 'no job on the estimate → the job on the customer\'s card (gutters)').toBe('j2');
     expect(b.jobId, 'the estimate names the roof job → the roof').toBe('j1');
     expect(a.total, 'the invoice is otherwise the same').toBe(1450);
+
+    // An expense logged for this customer carries the job on the card too
+    // (multi-job, 2026-09-30), so margin can later go per job.
+    await safeEvaluate(page, () => window.ScriptLoader.loadBundle('expenses'));
+    await safeWaitForFunction(page, () => window.Expenses && typeof window.Expenses.createExpense === 'function', null, { timeout: 15_000 });
+    const supplier = 'ZZIJ supply ' + s;
+    const today = new Date().toISOString().slice(0, 10);
+    const okExp = await safeEvaluate(page, (a) => window.Expenses.createExpense({ amount: '50', date: a.today, supplier: a.supplier, category: 'materials', leadId: a.id, note: '[E2E] job id', source: 'manual' }), { today, supplier, id });
+    expect(okExp, 'expense saved').toBeTruthy();
+    const exp = (await db.collection('expenses').where('supplier', '==', supplier).get()).docs.map((d) => d.data());
+    expect(exp.length).toBe(1);
+    expect(exp[0].leadId).toBe(id);
+    expect(exp[0].jobId, 'the expense names the job on the customer\'s card').toBe('j2');
   });
 });

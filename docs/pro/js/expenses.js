@@ -31,6 +31,13 @@
     var r = claims().role;
     return r === 'company_admin' || r === 'manager' || r === 'admin';
   }
+  // The job on this customer's card right now (multi-job), or null.
+  function jobIdForLead(leadId) {
+    if (!leadId) return null;
+    var l = (window._leads || []).find(function (x) { return x && x.id === leadId; });
+    var j = l && l.activeJobId;
+    return typeof j === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(j) ? j : null;
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -412,6 +419,9 @@
       userId: u,
       companyId: claims().companyId || u,
       leadId: form.leadId || null,
+      // Multi-job (2026-09-30): the job this cost belongs to — the job on the
+      // customer's card when it's logged — so margin can later go per job.
+      jobId: jobIdForLead(form.leadId),
       category: category,
       costType: costType,
       supplier: (form.supplier || '').trim().slice(0, 120),
