@@ -1,0 +1,16 @@
+/* phone-calls.css — Cube ACR phone-call cards in the customer page's Calls
+   section (js/customer-calls.js renderPhoneCall, 2026-10-01). */
+.pc-card { margin-bottom: 12px; padding: 14px 16px; }
+.pc-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pc-who { font-weight: 700; }
+.pc-meta { font-size: 12px; color: var(--m); }
+.pc-chips { margin: 6px 0; }
+.pc-summary { font-size: 14px; line-height: 1.45; }
+.pc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pc-play { min-height: 44px; }
+.pc-audio { margin-top: 8px; }
+.pc-audio audio { width: 100%; }
+.pc-transcript { margin-top: 8px; }
+.pc-transcript summary { cursor: pointer; font-size: 12px; color: var(--m); min-height: 44px; display: flex; align-items: center; }
+.pc-transcript-body { white-space: pre-wrap; font-size: 13px; line-height: 1.5; margin-top: 6px; max-height: 320px; overflow-y: auto; }
+.pc-status { margin-top: 6px; }

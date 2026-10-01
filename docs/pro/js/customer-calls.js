@@ -121,18 +121,19 @@
     if ((c.alternateLeadIds || []).length) chips += chip('Number on ' + (c.alternateLeadIds.length + 1) + ' customers', '#78350f', '#fde68a');
     var who = c.contactName || fmtPhone(c.phoneDigits) || 'Phone call';
     var summary = c.summary || (c.transcript ? '' : 'Recorded on your phone. Transcript and notes come next.');
-    return '<div class="panel" style="margin-bottom:12px;padding:14px 16px;" data-call-card="' + esc(id) + '">' +
-      '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">' +
-        '<div style="font-weight:700;">📱 ' + esc(who) + '</div>' +
-        '<div style="font-size:12px;color:var(--m);">' + esc(when ? when.toLocaleString() : '') + '</div>' +
+    // Styled by css/phone-calls.css (no inline style attributes).
+    return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
+      '<div class="pc-head">' +
+        '<div class="pc-who">📱 ' + esc(who) + '</div>' +
+        '<div class="pc-meta">' + esc(when ? when.toLocaleString() : '') + '</div>' +
       '</div>' +
-      '<div style="margin:6px 0;">' + chips + '</div>' +
-      (summary ? '<div style="font-size:14px;line-height:1.45;">' + esc(summary) + '</div>' : '') +
-      (c.storagePath ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"><button type="button" class="btn" style="min-height:44px;" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button></div>' : '') +
-      '<div data-calls-audio="' + esc(id) + '" style="margin-top:8px;"></div>' +
-      (c.transcript ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--m);">Transcript</summary>' +
-        '<div style="white-space:pre-wrap;font-size:13px;line-height:1.5;margin-top:6px;max-height:320px;overflow-y:auto;">' + esc(c.transcript) + '</div></details>' : '') +
-      '<div data-calls-status="' + esc(id) + '" style="font-size:12px;color:var(--m);margin-top:6px;"></div>' +
+      '<div class="pc-chips">' + chips + '</div>' +
+      (summary ? '<div class="pc-summary">' + esc(summary) + '</div>' : '') +
+      (c.storagePath ? '<div class="pc-actions"><button type="button" class="btn pc-play" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button></div>' : '') +
+      '<div class="pc-audio" data-calls-audio="' + esc(id) + '"></div>' +
+      (c.transcript ? '<details class="pc-transcript"><summary>Transcript</summary>' +
+        '<div class="pc-transcript-body">' + esc(c.transcript) + '</div></details>' : '') +
+      '<div class="pc-meta pc-status" data-calls-status="' + esc(id) + '"></div>' +
     '</div>';
   }
 

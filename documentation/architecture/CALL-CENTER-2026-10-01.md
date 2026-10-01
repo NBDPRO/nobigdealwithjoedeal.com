@@ -97,8 +97,9 @@ customers" chip.
 
 1. In Drive, share **Documents › Cube ACR** with
    `717435841570-compute@developer.gserviceaccount.com` as a **Viewer**.
-2. Enable the **Google Drive API** on project nobigdeal-pro. It was off as of
-   2026-10-01; only the Calendar API was on.
+2. ~~Enable the **Google Drive API** on project nobigdeal-pro.~~ **Done
+   2026-10-01** on Jo's say-so (`gcloud services enable drive.googleapis.com`).
+   Step 1 is done too: the service account is a Viewer on the folder.
 3. Deploy, then read `integrations/callCenter.lastRun`. A dry run reports the
    folder count and the per-bucket counts.
 4. Set `CALL_CENTER_INGEST_ENABLED=true` on the `callCenterIngest` revision.
