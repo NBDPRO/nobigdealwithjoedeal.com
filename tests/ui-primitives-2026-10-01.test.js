@@ -89,6 +89,21 @@ console.log('\nUI PRIMITIVES — panels and fields (batch 2)');
     'dashboard.html lines ' + back.slice(0, 6).join(', ') + ' — add class="ui-panel" (or ui-input on a field) and drop background/border/border-radius from the style');
 }
 
+console.log('\nUI PRIMITIVES — customer.html (batch 3)');
+{
+  const cust = read('docs/pro/customer.html');
+  ok('customer.html links ui-primitives.css', /<link rel="stylesheet" href="css\/ui-primitives\.css\?v=\d+">/.test(cust));
+  const tiles = cust.match(/<div class="doc-template-card[^"]*"[^>]*>/g) || [];
+  ok('16 document-template tiles use .ui-tile with no inline style',
+    tiles.length === 16 && tiles.every((t) => /\bui-tile\b/.test(t) && !/\sstyle=/.test(t)), 'found ' + tiles.length);
+  const fields = ['editFirstName', 'editLastName', 'editPhone', 'editEmail', 'editAddress', 'editDamageType', 'editScope', 'editScheduledDate']
+    .map((id) => (cust.match(new RegExp('<(?:input|select|textarea)\\b[^>]*\\bid="' + id + '"[^>]*>')) || [''])[0]);
+  ok('Edit Customer fields use .ui-field and keep no surface styles inline',
+    fields.every((t) => /\bui-field\b/.test(t) && !/style="[^"]*(background|border|border-radius):/.test(t)),
+    'add class="ui-field" and drop the shared declarations from the style');
+  ok('.ui-tile and .ui-field are defined', /background:\s*var\(--s2\)/.test(rule('.ui-tile')) && /background:\s*var\(--s\)/.test(rule('.ui-field')));
+}
+
 console.log('\nUI PRIMITIVES — the JS toggles state, never paints it');
 {
   const ui = stripComments(read('docs/pro/js/dashboard-ui.js'));

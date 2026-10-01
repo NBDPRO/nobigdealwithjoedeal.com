@@ -51,7 +51,7 @@ group('No mouse-only controls remain', () => {
   // NOAA/NWS 5-year storm history doc. Same count pinned in
   // tests/smoke/photo.test.js — keep both in sync.
   assert('the doc-template card wiring count is still 16 (smoke pins this)',
-    (HTML.match(/class="doc-template-card"[^>]*data-action="generateCustomerDoc"/g) || []).length === 16);
+    (HTML.match(/class="doc-template-card(?: [^"]*)?"[^>]*data-action="generateCustomerDoc"/g) || []).length === 16);
 
   assert('focused controls are visible',
     /\[data-action\]\[tabindex="0"\]:focus-visible \{[\s\S]{0,120}outline:/.test(HTML),

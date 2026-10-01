@@ -87,7 +87,7 @@ learn / grow / improve"). Everything below is merged unless it says otherwise.
 
 ## §4 Next lanes
 
-1. **ui-primitives batch 3: `customer.html`.** It has 85 skin-blocking sites
+1. ~~**ui-primitives batch 3: `customer.html`.**~~ Started 10-01 (the customer-page batch PR): the 16 document tiles and 13 Edit Customer fields are now `.ui-tile` / `.ui-field`, ceiling 343→315; `:where(:root)` supplies the Shape-token fallbacks there. The remaining sites: It has 85 skin-blocking sites
    on a different radius family (10px `--s2` panels, 8px `--s` cards). It
    doesn't load `dashboard-app.css`, so the role tokens fall back.
 2. **JS-rendered surfaces.** Start with the most-used widgets and the

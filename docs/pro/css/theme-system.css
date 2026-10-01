@@ -478,10 +478,13 @@
 :root[data-theme="liveops"]:not([data-mode="light"]) .ui-row,
 :root[data-theme="liveops"]:not([data-mode="light"]) .ui-row-box,
 :root[data-theme="liveops"]:not([data-mode="light"]) .ui-input,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-tile,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-field,
 :root[data-theme="liveops"]:not([data-mode="light"]) .ui-field-sm {
   border-color: var(--lo-edge-soft);
 }
 :root[data-theme="liveops"]:not([data-mode="light"]) .ui-input:focus,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-field:focus,
 :root[data-theme="liveops"]:not([data-mode="light"]) .ui-field-sm:focus {
   border-color: var(--orange);
   box-shadow: 0 0 0 1px var(--orange), 0 0 12px -2px var(--lo-glow);
