@@ -211,10 +211,19 @@ unless `CALL_CENTER_SWEEP_ENABLED=true`. It is registered in
 `tests/call-center-sweep-2026-10-01.test.js` (15 checks, including
 escaping).
 
+## Jo's go-aheads (2026-10-01)
+
+- **Copying:** "Yes, all 90 days" turned the ingest on
+  (`CALL_CENTER_INGEST_ENABLED=true` in `functions/.env.nobigdeal-pro`).
+- **Transcripts:** "Yes, test one call" means one recent customer call goes
+  on `integrations/callCenter.transcribeOnly` first. The backlog gate stays
+  off until Jo has seen that call's notes.
+- **Personal calls:** "Delete the CRM copy" means that once the model marks a
+  call personal, `runTranscribe` deletes the Storage object and sets
+  `storagePath: null, audioRemoved: 'personal'`. The original stays in Jo's
+  Drive, so a misjudged call can still be recovered there.
+
 ## Next stages
 
-- **Personal calls' audio.** The transcript of a personal call is dropped,
-  but its audio copy stays in Storage (the original is still in Jo's Drive).
-  Ask Jo whether the CRM should drop its copy too.
 - **Texts.** An Android SMS forwarder posts to a secret-keyed endpoint. The
   same sort-don't-filter buckets apply.
