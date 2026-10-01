@@ -196,7 +196,8 @@ console.log('\nask-joe-proactive.js — wiring (source-text)');
   ok('_TERMINAL_STAGE_KEYS is now JUST the un-mappable legacy alias (\'won\' has no LEGACY_MAP entry) — not a duplicate of the canonical set',
     /const _TERMINAL_STAGE_KEYS = new Set\(\['won'\]\);/.test(src));
   ok('_isTerminal calls window.isTerminalStage', /window\.isTerminalStage === 'function' && window\.isTerminalStage\(k\)/.test(src));
-  const activeJobsStart = src.indexOf('const activeJobs = leads.filter');
+  // Multi-job (2026-09-30): the filter runs over the job records (recs), not the leads.
+  const activeJobsStart = src.indexOf('const activeJobs = recs.filter');
   const activeJobsFn = activeJobsStart >= 0 ? src.slice(activeJobsStart, activeJobsStart + 1000) : '';
   ok('activeJobs found _ACTIVE_JOB_KEYS filter block', activeJobsStart >= 0);
   ok('_ACTIVE_JOB_KEYS keeps its ORIGINAL narrower membership (does NOT call window.isJobStage, which would wrongly include final_payment/collections/closed as "active production")',
