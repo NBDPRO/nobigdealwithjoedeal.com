@@ -353,7 +353,11 @@ async function run() {
   await db.doc(`leads/${leadId6}`).delete();
   await db.doc(`leads/${leadId7}`).delete();
 
-  const gone1 = await staysGone(db.doc(`appointments/${bookingId}`));
+  // The FIRST check after the deletes above, which fire ~8 cleanup triggers at
+  // once on a cold functions emulator: give it the cold start (60s, as #1931
+  // did for the referral suite). It failed once on main at 25s (2026-10-01,
+  // a docs-only commit) while every later check — run after it — passed.
+  const gone1 = await staysGone(db.doc(`appointments/${bookingId}`), 60000);
   ok('appointment linked to a hard-deleted lead is deleted', gone1);
 
   const gone1b = await staysGone(db.doc(`appointments/${bookingId1b}`));
