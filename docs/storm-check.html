@@ -477,6 +477,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <input type="tel" class="sc-input" id="sc-phone" aria-label="Mobile phone" placeholder="(859) 555-1234" autocomplete="tel" inputmode="tel">
       <span class="sc-label">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--gray)">(optional)</span></span>
       <input type="email" class="sc-input" id="sc-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email">
+      <div id="sc-intake"></div>
       <label class="sc-consent"><input type="checkbox" id="sc-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
       <div class="sc-err" id="sc-contact-err"></div>
       <div class="sc-btns"><button class="sc-back" data-step="4">← Back</button><button class="sc-next" id="sc-submit" data-action="submit">See if it's worth a claim →</button></div>
@@ -494,6 +495,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <div class="sc-result-icon">🏠</div>
       <div class="sc-result-headline" id="sc-result-headline"></div>
       <div class="sc-warn" id="sc-result-warn"></div>
+      <div id="sc-intake-after"></div>
       <div class="sc-result-data" id="sc-result-data" style="display:none"></div>
       <div class="sc-result-detail" id="sc-result-detail"></div>
       <div class="sc-take"><b>Joe's take</b><span id="sc-result-take"></span></div>
@@ -515,6 +517,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <!-- /nbd:partial footer-slim -->
 
 <script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/intake-extras.js?v=1"></script>
 <script defer src="/assets/js/storm-check.js"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <div class="mobile-cta-strip" aria-label="Quick contact options">

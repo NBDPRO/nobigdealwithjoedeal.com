@@ -299,12 +299,37 @@
     } catch (e) { return Promise.resolve(fb); }
   }
 
+  /* ── shared intake block (2026-09-30, Jo: every service form asks the same):
+     REQUIRED scheduling choice, best time, insurance, how-heard, photos —
+     intake-extras.js. If the block never loaded, the lead is never blocked. ── */
+  var IP = 'rsI';
+  function mountIntake() {
+    var box = $('rs-intake');
+    if (!box || box.childElementCount) return true;
+    if (!window.NBDIntake) return false;
+    box.innerHTML = window.NBDIntake.html(IP);
+    return true;
+  }
+  function readIntake() {
+    var box = $('rs-intake');
+    if (!window.NBDIntake || !box || !box.childElementCount) return { fields: {}, files: [] };
+    return window.NBDIntake.read(box, IP);
+  }
+  function afterIntake(res, boxId) {
+    if (!window.NBDIntake || !S.intake || !(res && res.ok)) return;
+    window.NBDIntake.afterSubmit($(boxId), { prefix: IP, fields: S.intake.fields, files: S.intake.files, photoToken: res.photoToken || null,
+      firstName: S.firstName || '', phone: S.phone || '', email: S.email || '', address: S.address || '', service: 'Roof inspection' });
+  }
+
   /* ── submit (unlock report) ── */
   function submitLead() {
     var fn = $('rs-firstName').value.trim(), ph = $('rs-phone').value.trim(),
         em = $('rs-email').value.trim(), consent = $('rs-consent').checked;
     if (!fn || ph.replace(/\D/g, '').replace(/^1/, '').length !== 10) { $('rs-contact-err').textContent = 'Please add your name and a 10-digit phone.'; return; }
     if (!consent) { $('rs-contact-err').textContent = 'Please check the consent box so Joe can reach you.'; return; }
+    var intake = readIntake();
+    if (intake.error) { $('rs-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
+    S.intake = intake;
     $('rs-contact-err').textContent = '';
     S.firstName = fn; S.phone = ph; S.email = em;
     var btn = $('rs-submit'); btn.disabled = true; btn.textContent = 'Building…';
@@ -316,6 +341,7 @@
     // gates on a stored record (TCPA fix, 2026-09-04; see #1377).
     var payload = { name: fn, phone: ph, address: S.address || $('rs-address').value.trim(), source: '/roof-score', story: story, tcpaConsent: consent === true };
     if (em) payload.email = em;
+    Object.assign(payload, S.intake.fields);
     var capture = (typeof window.submitPublicLead === 'function')
       ? window.submitPublicLead('inspect', payload)
       : Promise.resolve({ ok: false });
@@ -326,6 +352,7 @@
       var lead = res[0], take = res[1];
       S.submitted = !!(lead && lead.ok);
       renderReport(take, lead);
+      afterIntake(lead, 'rs-intake-after');
     });
   }
   function renderReport(take, lead) {
@@ -362,6 +389,7 @@
   /* ── delegated clicks (CSP-safe, no inline handlers) ── */
   function wire() {
     wireAddress(); wirePhone();
+    if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }
     document.addEventListener('click', function (e) {
       var ac = e.target.closest('.sc-ac-item[data-idx]'); if (ac) { pickAddr(+ac.dataset.idx); return; }
       var tile = e.target.closest('.sc-tile[data-value]');
