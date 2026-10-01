@@ -104,7 +104,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=19"></script>
+<script src="js/script-loader.js?v=20"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -123,7 +123,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=22"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=23"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -5748,7 +5748,7 @@
 <script defer src="js/dashboard-state.js?v=6"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
-<script defer src="js/dashboard-api.js?v=4"></script>
+<script defer src="js/dashboard-api.js?v=5"></script>
 <!-- Durable offline photo queue. Loaded EAGERLY and ahead of the lazy
      `photos` bundle on purpose: photo-engine.js only arrives when the rep
      opens a photos view, but a photo queued before a bfcache reload has to
@@ -6655,7 +6655,7 @@
 <script defer src="js/schedule-window-ui.js?v=1"></script>
 <script defer src="js/crm-leads.js?v=6"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
-<script defer src="js/jobs-store.js?v=3"></script>
+<script defer src="js/jobs-store.js?v=4"></script>
 <script defer src="js/crm-pipeline.js?v=7"></script>
 <script defer src="js/crm-snooze.js?v=2"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
@@ -6706,7 +6706,7 @@
 <script defer src="js/stale-shares-widget.js?v=2"></script>
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
 <script defer src="js/collected-revenue.js?v=1"></script>
-<script defer src="js/widgets.js?v=10"></script>
+<script defer src="js/widgets.js?v=11"></script>
 <script defer src="js/ui.js?v=8"></script>
 <script defer src="js/demo.js?v=4"></script>
 <script defer src="js/icons.js?v=4"></script>
@@ -6787,7 +6787,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=6"></script>
+<script defer src="js/analytics-kpi.js?v=7"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->

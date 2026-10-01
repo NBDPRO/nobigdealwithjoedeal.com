@@ -5654,15 +5654,18 @@ section('Metrics audit F1-F9: one honest definition per number');
     /toJSDate\(l\.stageStartedAt \|\| l\.updatedAt\)/.test(kpi));
   assert('F3: rep report has a stageStartedAt-first stageDate helper',
     /const stageDate = \(lead\) => toDate\(lead\.stageStartedAt \|\| lead\.updatedAt \|\| lead\.createdAt\)/.test(rep));
+  // Multi-job (2026-09-30): over every job's record (`recs`) — same stageDate rule.
   assert('F3: rep report core KPIs decide won/lost by stageDate',
-    /const decidedInRange = leads\.filter\(l =>\s*inRange\(stageDate\(l\)/.test(rep));
+    /const decidedInRange = (leads|recs)\.filter\(l =>\s*inRange\(stageDate\(l\)/.test(rep));
 
   // F4 — leaderboard attributes by the lead's OWNER, and the viewer's knock
   // count lands on the viewer's own row (not "first rep in object order").
   const lb = api.slice(api.indexOf('async function renderLeaderboard'),
                        api.indexOf('async function renderLeaderboard') + 4200);
+  // Multi-job (2026-09-30): rows via rep(l.userId || '(unknown)') for both the
+  // customer count and the per-job wins — still keyed by the OWNER uid.
   assert('F4: leaderboard groups by lead.userId (owner), not display name',
-    /const owner = l\.userId \|\| '\(unknown\)'/.test(lb)
+    (/const owner = l\.userId \|\| '\(unknown\)'/.test(lb) || (lb.match(/rep\(l\.userId \|\| '\(unknown\)'\)/g) || []).length === 2)
     && !/const n = l\.repName \|\| window\._user/.test(lb));
   assert('F4: viewer\'s knocks land on the viewer\'s own row',
     /reps\[uid\]\.knocks = knockCount/.test(lb));

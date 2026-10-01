@@ -86,6 +86,45 @@
   function pick(lead) { const o = {}; JOB_FIELDS.forEach((f) => { if (lead[f] !== undefined) o[f] = lead[f]; }); return o; }
 
   /**
+   * PURE. Every job of these customers as a card-shaped record — for MONEY
+   * totals (pipeline value, booked value, average deal, leaderboard revenue),
+   * where a customer's second job's value is its own (Jo, 2026-09-30). The
+   * lead stands for its active job; each other job — open, won or lost — is
+   * the lead with that job's fields laid over it and its stamped stage keys
+   * redone from the job's stage (same as the pipeline's cards). A customer
+   * with no jobs counts once, as the lead. Counts of CUSTOMERS (leads
+   * created, sources, follow-ups) must keep using the leads themselves.
+   */
+  function records(leads, jobsOf, norm, roleOf) {
+    const out = [];
+    for (const l of leads || []) {
+      if (!l) continue;
+      const jobs = (jobsOf && l.id ? jobsOf(l.id) : []) || [];
+      if (!jobs.length) { out.push(l); continue; }
+      // The card's job not among them (no pointer yet): the lead still counts once.
+      if (!jobs.some((j) => j.id === l.activeJobId)) out.push(l);
+      for (const j of jobs) {
+        if (j.id === l.activeJobId) { out.push(l); continue; }
+        const c = Object.assign({}, l);
+        JOB_FIELDS.forEach((f) => { c[f] = j[f] === undefined ? null : j[f]; });
+        c._jobId = j.id;
+        c._cardKey = l.id + ':' + j.id;
+        c._jobTitle = j.title || null;
+        c._stageKey = norm ? norm(c.stage || 'new') : (c.stage || 'new');
+        c._stageRole = c.stageRole || (typeof roleOf === 'function' ? roleOf(c._stageKey) : undefined);
+        out.push(c);
+      }
+    }
+    return out;
+  }
+
+  /** records() over the loaded jobs; the leads as-is until jobs have loaded. */
+  function recordsFor(leads) {
+    if (!loadedAt) return (leads || []).slice();
+    return records(leads, forLead, root && root.normalizeStage, root && root.stageRole);
+  }
+
+  /**
    * PURE. Where an edit to (lead, jobId) must be written:
    *   { target: 'lead' }  the active job (or no jobs yet): write the lead
    *   { target: 'job', jobId }  another job: write leads/{id}/jobs/{jobId}
@@ -175,7 +214,7 @@
     return id;
   }
 
-  const api = { JOB_FIELDS, isOpen, cardsFor, routeFor, load, loadLead, forLead, update, add, loadedAt: () => loadedAt };
+  const api = { JOB_FIELDS, isOpen, cardsFor, routeFor, records, recordsFor, load, loadLead, forLead, update, add, loadedAt: () => loadedAt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDJobs = api;
 })(typeof window !== 'undefined' ? window : null);

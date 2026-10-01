@@ -75,15 +75,20 @@ async function renderLeaderboard(){
     return WON.includes(l._stageKey || l.stage || '');
   };
   const reps = {};
+  const rep = (owner) => reps[owner] || (reps[owner] = { owner, name: '', leads: 0, won: 0, revenue: 0, knocks: 0 });
+  // Customers counted once each; wins and revenue per JOB (multi-job,
+  // 2026-09-30: a customer's second won job is its own deal).
   leads.filter(l => !l.deleted).forEach(l => {
-    const owner = l.userId || '(unknown)';
-    if (!reps[owner]) reps[owner] = { owner, name: '', leads: 0, won: 0, revenue: 0, knocks: 0 };
-    if (!reps[owner].name && l.repName) reps[owner].name = l.repName;
-    reps[owner].leads++;
-    if (wonRole(l)) {
-      reps[owner].won++;
-      reps[owner].revenue += parseFloat(l.jobValue) || 0;
-    }
+    const r = rep(l.userId || '(unknown)');
+    if (!r.name && l.repName) r.name = l.repName;
+    r.leads++;
+  });
+  const _recs = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(leads) : leads;
+  _recs.filter(l => !l.deleted).forEach(l => {
+    if (!wonRole(l)) return;
+    const r = rep(l.userId || '(unknown)');
+    r.won++;
+    r.revenue += parseFloat(l.jobValue) || 0;
   });
   // Teammate names from the company roster (team-names.js). Without it a rep
   // whose leads carry no repName showed as "Teammate Y6HCf6" — a uid fragment
