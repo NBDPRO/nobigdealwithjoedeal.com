@@ -136,6 +136,18 @@ Never restyle another theme from that block. The pilot is **Live Ops**
 uppercase mono labels. The plan is in
 `documentation/projects/RESKIN-PLAN-2026-10-01.md`.
 
+**My Skin** (2026-10-01) layers a user's *own* pictures over any theme: a
+wallpaper, a card texture, a corner mascot and an optional accent.
+- Images live in `skins/{uid}/{slot}`, which only that user can read
+  (`storage.rules`).
+- They're re-encoded through a canvas on upload and read with `getBlob`.
+  They are never a token URL, never in the repo and never shown to anyone
+  else.
+- This is how licensed or personal art (game characters, a team logo) gets
+  on someone's screen without the product shipping it.
+- Code: `my-skin-logic.js` (pure rules), `my-skin.js` (I/O) and
+  `my-skin.css`, which is all gated on `html.my-skin*` classes.
+
 The CSP blocks CDNs, so any animation or graphics library is vendored under
 `docs/`. Prefer hand-written WebGL or CSS (see `CLAUDE.md` "Code taste").
 
