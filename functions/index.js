@@ -703,6 +703,11 @@ exports.morningBrief = require('./morning-brief').morningBrief;
 // Storage calls/{owner}/cube-acr/. Ships DRY-RUN (counts only) until
 // CALL_CENTER_INGEST_ENABLED=true on the callCenterIngest revision.
 exports.callCenterIngest = require('./call-center').callCenterIngest;
+// Stage 2: Groq Whisper transcript + Claude Haiku notes (summary, promises,
+// follow-up date) → customer timeline + one follow-up task. OFF unless
+// CALL_CENTER_TRANSCRIBE_ENABLED=true, except the ids Jo lists on
+// integrations/callCenter.transcribeOnly (the one-call test).
+exports.callCenterTranscribe = require('./call-center').callCenterTranscribe;
 
 // ═══════════════════════════════════════════════════════════════
 // REFERRAL CAPTURE — public POST from /refer.html

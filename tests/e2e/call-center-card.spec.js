@@ -60,6 +60,8 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     const base = { userId: uid, companyId: lead.companyId || uid, source: 'cube-acr', ymd: '2026-09-30', savedContact: true, tags: ['customer'], bucket: 'customer', alternateLeadIds: [], status: 'stored', transcript: null, summary: null, actionItems: [], createdAtMs: s };
     await db.doc('phone_calls/cube_zzcc' + s).set(Object.assign({}, base, {
       leadId: id, phoneDigits: phone, contactName: 'ZZCC Caller', direction: 'inbound', startedAtMs: Date.parse('2026-09-30T21:06:55Z'), storagePath: path,
+      status: 'noted', summary: 'Gutter leaking again; Jo will send a quote.', followUpDate: '2026-10-02', urgent: true,
+      promises: [{ who: 'jo', text: 'Send the gutter repair quote', due: '2026-10-02' }, { who: 'them', text: 'Leave the gate open', due: null }],
     }));
     await db.doc('phone_calls/cube_zzcc' + s + 'x').set(Object.assign({}, base, {
       leadId: other, phoneDigits: '5135559999', contactName: 'ZZCC Someone Else', direction: 'outbound', startedAtMs: Date.parse('2026-09-30T22:00:00Z'), storagePath: null,
@@ -70,6 +72,12 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     await card.waitFor({ state: 'attached', timeout: 30_000 });
     await expect(card).toContainText('ZZCC Caller');
     await expect(card).toContainText('Incoming');
+    // Stage 2 AI notes: summary, who promised what, follow-up, urgent.
+    await expect(card).toContainText('Gutter leaking again');
+    await expect(card.locator('.pc-promise-jo')).toContainText('Send the gutter repair quote');
+    await expect(card.locator('.pc-promise-them')).toContainText('Leave the gate open');
+    await expect(card).toContainText('Follow up 2026-10-02');
+    await expect(card).toContainText('Urgent');
     expect(await page.locator('#callsList').innerText(), 'another customer\'s call stays off this card').not.toContain('Someone Else');
 
     // Play: getBlob → blob: <audio>; the bytes are the ones the ingest stored.

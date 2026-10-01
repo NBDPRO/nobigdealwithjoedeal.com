@@ -160,6 +160,7 @@
     "suggest-job-type-2026-10-01.test.js",
     "call-center-logic-2026-10-01.test.js",
     "call-center-ingest-2026-10-01.test.js",
+    "call-center-notes-2026-10-01.test.js",
     "month-close-2026-10-01.test.js",
     "kanban-board-logic-2026-10-01.test.js",
     "clarity-2026-10-01.test.js",

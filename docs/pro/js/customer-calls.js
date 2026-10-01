@@ -120,7 +120,15 @@
     var chips = chip(dir, 'var(--s3,rgba(255,255,255,.08))', 'var(--m,#9ca3af)');
     if ((c.alternateLeadIds || []).length) chips += chip('Number on ' + (c.alternateLeadIds.length + 1) + ' customers', '#78350f', '#fde68a');
     var who = c.contactName || fmtPhone(c.phoneDigits) || 'Phone call';
-    var summary = c.summary || (c.transcript ? '' : 'Recorded on your phone. Transcript and notes come next.');
+    var summary = c.summary || (c.transcript ? '' : 'Recorded on your phone. Notes appear here once it is transcribed.');
+    if (c.urgent) chips += chip('Urgent', '#7f1d1d', '#fecaca');
+    // AI notes (functions/call-center.js stage 2): who promised what.
+    var promises = Array.isArray(c.promises) ? c.promises : [];
+    var promisesHtml = promises.length ? '<ul class="pc-promises">' + promises.map(function (p) {
+      return '<li class="pc-promise pc-promise-' + (p.who === 'jo' ? 'jo' : 'them') + '"><span class="pc-promise-who">' + (p.who === 'jo' ? 'You' : 'They') + '</span> ' +
+        esc(p.text) + (p.due ? ' <span class="pc-meta">by ' + esc(p.due) + '</span>' : '') + '</li>';
+    }).join('') + '</ul>' : '';
+    if (c.followUpDate) promisesHtml += '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>';
     // Styled by css/phone-calls.css (no inline style attributes).
     return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
       '<div class="pc-head">' +
@@ -128,7 +136,7 @@
         '<div class="pc-meta">' + esc(when ? when.toLocaleString() : '') + '</div>' +
       '</div>' +
       '<div class="pc-chips">' + chips + '</div>' +
-      (summary ? '<div class="pc-summary">' + esc(summary) + '</div>' : '') +
+      (summary ? '<div class="pc-summary">' + esc(summary) + '</div>' : '') + promisesHtml +
       (c.storagePath ? '<div class="pc-actions"><button type="button" class="btn pc-play" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button></div>' : '') +
       '<div class="pc-audio" data-calls-audio="' + esc(id) + '"></div>' +
       (c.transcript ? '<details class="pc-transcript"><summary>Transcript</summary>' +

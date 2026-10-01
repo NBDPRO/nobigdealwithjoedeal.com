@@ -103,18 +103,58 @@ customers" chip.
 3. Deploy, then read `integrations/callCenter.lastRun`. A dry run reports the
    folder count and the per-bucket counts.
 4. Set `CALL_CENTER_INGEST_ENABLED=true` on the `callCenterIngest` revision.
+5. **Transcripts:** with Jo's OK, put one call id on
+   `integrations/callCenter.transcribeOnly` and read the result. Then set
+   `CALL_CENTER_TRANSCRIBE_ENABLED=true` on `callCenterTranscribe`.
+
+## Stage 2: transcripts and AI notes (built 2026-10-01)
+
+`callCenterTranscribe` runs every 30 minutes.
+
+**Transcription**
+- It uses **Groq Whisper-large-v3-turbo**, through the same helper and key
+  that Voice Intelligence uses (`transcribeGroqBuffer`).
+- This replaced the Speech-to-Text plan: Groq needs no new Google API and its
+  free tier covers this volume (25 MB a file, 8 h of audio a day).
+- **Limits:** we cap at 6 h a day, at most 12 calls a run, newest first, and
+  3 tries per call. Anything over 25 MB is marked `too_large`.
+
+**Notes**
+- **Claude Haiku** (`NOTES_SYSTEM` in `call-center-logic.js`) returns the
+  call type, a summary, who promised what (with ISO dates), a follow-up date
+  and an urgent flag.
+- `sanitizeNotes` drops anything malformed rather than trusting it.
+
+**Where results go**
+- The `phone_calls` doc gets `status: 'noted'` plus the transcript and notes.
+- The customer timeline gets `leads/{id}/activity/cube-{id}`.
+- The lead gets **one** task, `leads/{id}/tasks/cube-{id}`, only when Jo
+  promised something or a follow-up date came out of the call. It is
+  created with `create()` only, so a re-run never un-ticks a done task.
+
+**Personal calls:** if the model calls one "personal", no transcript is
+kept, the summary is just "Personal call.", and nothing is filed on any lead.
+Jo records every call, family ones included.
+
+**Gating**
+- With `CALL_CENTER_TRANSCRIBE_ENABLED=true`, the backlog runs.
+- With the gate off, only the ids listed in
+  `integrations/callCenter.transcribeOnly` run. That list is Jo's one-call
+  test, and it clears itself after the run.
+- The AI kill switch also stops it.
+
+**Customer card:** the card shows the summary, a "You / They" list of
+promises, the follow-up date and an Urgent chip.
+
+**Tests:** `tests/call-center-notes-2026-10-01.test.js` has 31 checks; the
+personal-call privacy rule was break-tested. The card E2E also asserts that
+the notes render.
 
 ## Next stages
 
-- **Transcription.** Google Speech-to-Text v2 (chirp) batch on the `gs://`
-  object. It needs the Speech API enabled. Test it on one call with Jo's OK
-  before the backlog runs. Cost is roughly 1–2¢ a minute.
-- **AI notes.** Claude, using the existing key, writes a summary, action
-  items, promised follow-ups and a next date, and adds a timeline note on the
-  lead.
 - **Call Center screen.** One list of every call, with bucket filters,
   search, and "make a lead" from an `unknown` or `contact` call.
-- **Sweep.** Open action items join the morning brief, plus an afternoon
-  pass.
+- **Sweep.** Open promises Jo made join the morning brief, plus an
+  afternoon pass.
 - **Texts.** An Android SMS forwarder posts to a secret-keyed endpoint. The
   same sort-don't-filter buckets apply.

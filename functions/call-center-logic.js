@@ -216,7 +216,155 @@ function buildCallDoc({ ownerUid, file, parsed, match, bucket, storedPath, nowMs
   };
 }
 
+// ── Stage 2: transcript → notes (2026-10-01) ─────────────────────────────
+
+// Groq's free tier: 8 h of audio a day, 25 MB a file. The ingest pass
+// keeps well inside both.
+const GROQ_MAX_BYTES = 25 * 1024 * 1024;
+const DAY_AUDIO_SEC_CAP = 6 * 3600;
+// Cube ACR's m4a runs ~4 KB/s; good enough to budget before Groq says.
+function estimateAudioSec(sizeBytes) {
+  return Math.max(1, Math.round((Number(sizeBytes) || 0) / 4000));
+}
+
+/**
+ * Which stored calls to transcribe this run. An allow-list (Jo's one-call
+ * test) works with the gate OFF and ignores everything else; with the gate
+ * ON, newest first, within the per-run count and the day's audio budget.
+ */
+function pickToTranscribe(calls, { live, allowIds, maxCount, secLeft }) {
+  const allow = Array.isArray(allowIds) ? allowIds.filter(Boolean) : [];
+  const ready = (calls || []).filter((c) => c && c.status === 'stored' && c.storagePath && (Number(c.transcribeAttempts) || 0) < 3);
+  if (allow.length) return ready.filter((c) => allow.includes(c.id)).slice(0, maxCount);
+  if (!live) return [];
+  const out = [];
+  let left = Number(secLeft) || 0;
+  for (const c of ready.slice().sort((a, b) => (b.startedAtMs || 0) - (a.startedAtMs || 0))) {
+    if (out.length >= maxCount) break;
+    const est = estimateAudioSec(c.sizeBytes);
+    if (est > left) continue;
+    left -= est;
+    out.push(c);
+  }
+  return out;
+}
+
+const CALL_TYPES = ['customer', 'insurance', 'supplier', 'sub', 'lead', 'personal', 'spam', 'other'];
+
+const NOTES_SYSTEM = [
+  'You read transcripts of phone calls made or taken by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati area.',
+  'Return ONE JSON object and nothing else:',
+  '{"call_type": one of ' + JSON.stringify(CALL_TYPES) + ',',
+  ' "summary": "2-3 plain sentences: who, what about, what was decided",',
+  ' "promises": [{"who": "jo" | "them", "text": "a concrete thing someone said they would do, imperative, under 120 chars", "due": "YYYY-MM-DD" or null}],',
+  ' "follow_up_date": "YYYY-MM-DD" or null (when Jo should next reach out, if the call implies one),',
+  ' "urgent": true | false (an active leak, safety issue, or a hard deadline within 48 hours)}',
+  'Rules: only promises actually made on the call, at most 6. Resolve relative dates ("Thursday", "next week") against the call date given. ',
+  'A call about family, friends or anything not business is "personal": then summary is "Personal call." and promises is [].',
+  'Never invent prices, names or dates that were not said.',
+].join('\n');
+
+function buildNotesPrompt({ call, transcript, leadName }) {
+  const when = call.startedAtMs ? new Date(call.startedAtMs).toLocaleString('en-US', { timeZone: 'America/New_York' }) : 'unknown';
+  return [
+    'Call date (Eastern): ' + when,
+    'Direction: ' + (call.direction === 'outbound' ? 'Jo called them' : call.direction === 'inbound' ? 'They called Jo' : 'unknown'),
+    'Other party (from Jo\'s phone contacts): ' + (call.contactName || 'not a saved contact'),
+    leadName ? 'CRM customer this number belongs to: ' + leadName : 'Not matched to a CRM customer.',
+    '',
+    'Transcript:',
+    String(transcript || '').slice(0, 60000),
+  ].join('\n');
+}
+
+function ymdOrNull(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const t = Date.parse(s + 'T12:00:00Z');
+  return Number.isFinite(t) ? s : null;
+}
+function clip(s, n) {
+  const t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+
+/** The model's JSON → the stored shape. Anything malformed is dropped, never trusted. */
+function sanitizeNotes(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const callType = CALL_TYPES.includes(r.call_type) ? r.call_type : 'other';
+  const personal = callType === 'personal';
+  const promises = personal ? [] : (Array.isArray(r.promises) ? r.promises : [])
+    .filter((p) => p && typeof p.text === 'string' && p.text.trim())
+    .slice(0, 6)
+    .map((p) => ({ who: p.who === 'jo' ? 'jo' : 'them', text: clip(p.text, 160), due: ymdOrNull(p.due) }));
+  return {
+    callType,
+    summary: personal ? 'Personal call.' : clip(r.summary || '', 700),
+    promises,
+    followUpDate: personal ? null : ymdOrNull(r.follow_up_date),
+    urgent: !personal && r.urgent === true,
+  };
+}
+
+/** leads/{id}/activity/cube-{docId} — the customer timeline entry. */
+function buildCallActivity({ call, notes, ownerUid }) {
+  return {
+    userId: ownerUid,
+    companyId: ownerUid,
+    type: 'call',
+    direction: call.direction || null,
+    source: 'cube-acr',
+    label: (call.direction === 'outbound' ? 'You called' : call.direction === 'inbound' ? 'They called' : 'Phone call') +
+      (call.contactName ? ' · ' + call.contactName : ''),
+    summary: notes.summary,
+    promises: notes.promises,
+    followUpDate: notes.followUpDate,
+    durationSec: Number(call.durationSec) || 0,
+    phoneCallId: call.id,
+  };
+}
+
+/**
+ * leads/{id}/tasks/cube-{docId} — ONE follow-up task per call, only when
+ * Jo promised something or a follow-up date came out of it. Shape matches
+ * Thursday's (docs/pro/js/tasks.js readers).
+ */
+function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd }) {
+  const mine = notes.promises.filter((p) => p.who === 'jo');
+  if (!mine.length && !notes.followUpDate) return null;
+  const who = call.contactName || 'customer';
+  const first = mine[0];
+  const title = clip(first ? first.text + ' (' + who + ')' : 'Follow up with ' + who, 200);
+  const dues = mine.map((p) => p.due).filter(Boolean).concat(notes.followUpDate ? [notes.followUpDate] : []).sort();
+  return {
+    leadId,
+    userId: ownerUid,
+    title,
+    text: title,
+    notes: [
+      notes.summary ? 'Call: ' + notes.summary : '',
+      mine.length ? 'You said you would:\n' + mine.map((p) => '• ' + p.text + (p.due ? ' (by ' + p.due + ')' : '')).join('\n') : '',
+    ].filter(Boolean).join('\n\n'),
+    dueDate: dues[0] || todayYmd,
+    priority: notes.urgent ? 'high' : 'normal',
+    done: false,
+    source: 'cube-acr',
+    phoneCallId: call.id,
+    createdBy: 'Call Center (AI notes)',
+  };
+}
+
 module.exports = {
+  GROQ_MAX_BYTES,
+  DAY_AUDIO_SEC_CAP,
+  estimateAudioSec,
+  pickToTranscribe,
+  NOTES_SYSTEM,
+  buildNotesPrompt,
+  sanitizeNotes,
+  buildCallActivity,
+  buildFollowUpTask,
+  CALL_TYPES,
   parseCubeAcrName,
   dayFolderDate,
   buildPhoneIndex,
