@@ -156,6 +156,7 @@
     "jobs-stage1-2026-09-30.test.js",
     "claim-panel-logic-2026-09-30.test.js",
     "security-checklist-2026-10-01.test.js",
+    "morning-brief-2026-10-01.test.js",
     "invoice-reminder-2026-10-01.test.js",
     "stripe-ledger-ui-2026-09-29.test.js",
     "daily-success-sync-2026-09-29.test.js",

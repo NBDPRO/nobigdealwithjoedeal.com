@@ -433,7 +433,9 @@ const RUNNABLE = ['node', 'smoke'];
 //               (smoke; full payment never moves a lead backward). MEASURED via --check.
 //   2026-09-28  209/70/302 -> 209/71/303, tests/followup-local-day.test.js
 //               (smoke; follow-up dates are local days). MEASURED via --check.
-const FLOORS = { node: 267, smoke: 71, disk: 361 };
+//   2026-10-01  267/71/361 -> 268/71/362, tests/morning-brief-2026-10-01.test.js
+//               (node; 06:45 ET owner appointment brief, functions/morning-brief.js).
+const FLOORS = { node: 268, smoke: 71, disk: 362 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
