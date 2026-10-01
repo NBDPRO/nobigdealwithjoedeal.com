@@ -198,5 +198,9 @@ The CSP blocks CDNs, so any animation or graphics library is vendored under
 - Checked at 412px or less, in `nbd-original` and one light theme, if it's
   a dashboard screen.
 - Uses an existing component class rather than a near-copy.
+- Adds no inline `style="…"` attributes. `tests/inline-style-ratchet-2026-10-01.test.js`
+  caps the count so it only goes down, which is how screens become skinnable.
+  A red theme gate prints the line to change and the fix
+  (`theme-qa` suggests a passing shade; `crm-theme-contract` names the token).
 - The gates in `CLAUDE.md` pass (partials, site integrity, inline-script
   check, plus the visual and phone specs if they cover the page).

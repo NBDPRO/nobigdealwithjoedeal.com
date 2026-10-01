@@ -61,12 +61,45 @@ const { parseHex, contrastRatio, generateCSSVariables, getNativeMode, THEMES, se
 
 const AA_BODY = 4.5, AA_UI = 3.0;
 let passed = 0, failed = 0; const fails = [];
-function ok(name, cond) { if (cond) { passed++; } else { failed++; fails.push(name); console.log('  ✗ ' + name); } }
+function ok(name, cond, fix) { if (cond) { passed++; } else { failed++; fails.push(name); console.log('  ✗ ' + name + (fix ? '\n      fix: ' + fix : '')); } }
+
+// A failing contrast pair says what to change, not just that it failed
+// (the shadcn/lint idea, Repo Lab 2026-10-01): the measured ratio, both
+// colours, and the nearest shade of the foreground that clears the bar,
+// found by walking it toward white or black, whichever gains contrast.
+const hex2 = (n) => Math.round(n).toString(16).padStart(2, '0');
+function nearestPassing(fg, bg, min) {
+  const f = parseHex(fg);
+  if (!f || !parseHex(bg)) return null;
+  const towardWhite = contrastRatio('#ffffff', bg) > contrastRatio('#000000', bg);
+  const end = towardWhite ? 255 : 0;
+  for (let t = 0.01; t <= 1.0001; t += 0.01) {
+    const c = '#' + [f.r, f.g, f.b].map((x) => hex2(x + (end - x) * t)).join('');
+    if (contrastRatio(c, bg) >= min) return c;
+  }
+  return null;
+}
+function contrast(name, fgVar, fg, bgVar, bg, min) {
+  const r = contrastRatio(fg, bg);
+  const pass = r >= min - 0.01;
+  const nudge = pass ? null : nearestPassing(fg, bg, min);
+  ok(name, pass, `${r.toFixed(2)}:1 for --${fgVar} ${fg} on --${bgVar} ${bg}, needs ${min}:1` +
+    (nudge ? ` — try --${fgVar}: ${nudge}` : ' — no shade of this hue clears it; change --' + bgVar));
+}
 
 // sanity: the extracted pipeline works
 ok('engine pipeline extracted', [parseHex, contrastRatio, generateCSSVariables, getNativeMode].every(f => typeof f === 'function'));
 ok('THEMES registry evaluated', THEMES && typeof THEMES === 'object');
 ok('contrast(white,black) ≈ 21', Math.abs(contrastRatio('#fff', '#000') - 21) < 0.2);
+// The fix hint is only useful if the shade it suggests really passes.
+{
+  const s = nearestPassing('#aaaaaa', '#ffffff', AA_BODY);
+  ok('fix hint: a too-light grey on white is walked darker until it clears AA',
+    !!s && contrastRatio(s, '#ffffff') >= AA_BODY && parseHex(s).r < 0xaa);
+  const d = nearestPassing('#444444', '#111111', AA_BODY);
+  ok('fix hint: a too-dark grey on near-black is walked lighter until it clears AA',
+    !!d && contrastRatio(d, '#111111') >= AA_BODY && parseHex(d).r > 0x44);
+}
 
 // pull the `--var: value;` pairs out of a rendered CSS block
 function parseVars(css) {
@@ -96,12 +129,12 @@ for (const id of Object.keys(THEMES)) {
     // primary body text (--t) — the gap F-2 flagged: must clear AA on the card
     // surface (--s2) AND the page bg (--bg). --t is emitted raw (never tuned),
     // so this is a real tripwire, not a tautology.
-    if (parseHex(v.t) && parseHex(v.s2)) ok(`[${tag}] body text --t AA on card`, contrastRatio(v.t, v.s2) >= AA_BODY - 0.01);
-    if (parseHex(v.t) && parseHex(v.bg)) ok(`[${tag}] body text --t AA on bg`, contrastRatio(v.t, v.bg) >= AA_BODY - 0.01);
+    if (parseHex(v.t) && parseHex(v.s2)) contrast(`[${tag}] body text --t AA on card`, 't', v.t, 's2', v.s2, AA_BODY);
+    if (parseHex(v.t) && parseHex(v.bg)) contrast(`[${tag}] body text --t AA on bg`, 't', v.t, 'bg', v.bg, AA_BODY);
     // muted (--m) on card surface
-    if (parseHex(v.m) && parseHex(v.s2)) ok(`[${tag}] muted --m AA on card`, contrastRatio(v.m, v.s2) >= AA_BODY - 0.01);
+    if (parseHex(v.m) && parseHex(v.s2)) contrast(`[${tag}] muted --m AA on card`, 'm', v.m, 's2', v.s2, AA_BODY);
     // accent (--orange) at UI 3:1 on bg
-    if (parseHex(v.orange) && parseHex(v.bg)) ok(`[${tag}] accent --orange UI on bg`, contrastRatio(v.orange, v.bg) >= AA_UI - 0.01);
+    if (parseHex(v.orange) && parseHex(v.bg)) contrast(`[${tag}] accent --orange UI on bg`, 'orange', v.orange, 'bg', v.bg, AA_UI);
     // accent-fg (label painted ON the --orange fill) MUST be present and clear
     // UI 3:1 — the B-1/P-2 fix: pale/desaturated-light accents must flip the fg
     // to dark ink so the quick-add ADD button / CTA labels never render
@@ -111,7 +144,7 @@ for (const id of Object.keys(THEMES)) {
     ok(`[${tag}] accent-fg present & UI on accent`,
       parseHex(v['accent-fg']) && parseHex(v.orange) && contrastRatio(v['accent-fg'], v.orange) >= AA_UI - 0.01);
     // card ink on card paper
-    if (parseHex(v.ink) && parseHex(v.paper)) ok(`[${tag}] card ink AA on paper`, contrastRatio(v.ink, v.paper) >= AA_BODY - 0.01);
+    if (parseHex(v.ink) && parseHex(v.paper)) contrast(`[${tag}] card ink AA on paper`, 'ink', v.ink, 'paper', v.paper, AA_BODY);
   }
 }
 // Tight, eval-based count — every registered key with a colors block was
@@ -136,9 +169,9 @@ for (const id of Object.keys(cssThemes)) {
   ok(`[css:${id}] has required vars`, missing.length === 0);
   if (missing.length) continue;
   // only check resolvable hex values (some use var() refs e.g. --paper:var(--s3))
-  if (parseHex(v.t) && parseHex(v.s2)) ok(`[css:${id}] body text AA on card`, contrastRatio(v.t, v.s2) >= AA_BODY - 0.01);
-  if (parseHex(v.t) && parseHex(v.bg)) ok(`[css:${id}] body text AA on bg`, contrastRatio(v.t, v.bg) >= AA_BODY - 0.01);
-  if (parseHex(v.m) && parseHex(v.s2)) ok(`[css:${id}] muted AA on card`, contrastRatio(v.m, v.s2) >= AA_BODY - 0.01);
+  if (parseHex(v.t) && parseHex(v.s2)) contrast(`[css:${id}] body text AA on card`, 't', v.t, 's2', v.s2, AA_BODY);
+  if (parseHex(v.t) && parseHex(v.bg)) contrast(`[css:${id}] body text AA on bg`, 't', v.t, 'bg', v.bg, AA_BODY);
+  if (parseHex(v.m) && parseHex(v.s2)) contrast(`[css:${id}] muted AA on card`, 'm', v.m, 's2', v.s2, AA_BODY);
 }
 ok('parsed the static CSS registry (>=60 themes)', cssCount >= 60);
 
