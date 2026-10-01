@@ -80,6 +80,10 @@ test.describe.serial('CRM handoff 2026-09-30 — hotkeys, job block, search, dou
     await expect(page.locator('#leadModal')).toHaveClass(/open/, { timeout: 5_000 });
     await expect(page.locator('#jobFieldsBlock'), 'Job Details (Scheduled Date) visible on a new lead').toBeVisible();
     await expect(page.locator('#lScheduledDate')).toBeVisible();
+    // Web fonts (Barlow, via Google Fonts) finishing mid-test grew every block
+    // by 1–2 px between the two measurements — a false "Notes jumped 3–7 px"
+    // on first attempts in 4 of 8 main runs (never on a retry, fonts cached).
+    await safeEvaluate(page, () => document.fonts && document.fonts.ready.then(() => true));
     // Position of Notes relative to the top of the modal card: immune to scroll.
     const y = () => safeEvaluate(page, () => {
       const card = document.querySelector('#leadModal .modal');
