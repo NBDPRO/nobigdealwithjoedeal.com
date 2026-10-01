@@ -28,6 +28,10 @@
 :root[data-theme="glow"] { --orange:#ff6d00;--ob:#ff8f00;--og:rgba(255,109,0,.4);--bg:#050200;--s:#0e0600;--s2:#180c00;--s3:#221200;--br:rgba(255,109,0,.12);--t:#fff3e0;--m:#b08060;--blue:#ff9800;--green:#ffc107;--purple:#ff6d00;--red:#ff3d00;--gold:#ff6d00;--paper:#180c00;--ink:#fff3e0;--rule:rgba(255,109,0,.15); }
 :root[data-theme="batman"] { --orange:#f5c518;--ob:#ffd700;--og:rgba(245,197,24,.28);--bg:#080808;--s:#111115;--s2:#1a1a20;--s3:#22222a;--br:rgba(245,197,24,.1);--t:#e8e8f0;--m:#80808a;--blue:#f5c518;--green:#4caf50;--purple:#9c27b0;--red:#f44336;--gold:#f5c518;--paper:#1a1a20;--ink:#e8e8f0;--rule:rgba(245,197,24,.12); }
 :root[data-theme="darth-vader"] { --orange:#cc0000;--ob:#ff1a1a;--og:rgba(204,0,0,.3);--bg:#000000;--s:#080808;--s2:#101010;--s3:#181818;--br:rgba(204,0,0,.1);--t:#e0e0e0;--m:#666666;--blue:#cc0000;--green:#4caf50;--purple:#9c27b0;--red:#cc0000;--gold:#ffd600;--paper:#101010;--ink:#e0e0e0;--rule:rgba(204,0,0,.12); }
+/* Live Ops (2026-10-01, Jo: "love the look … nice and glowy with good color") —
+   deep indigo-navy, cyan glow edges, uppercase eyebrows. Opt-in; the default
+   stays nbd-original. Glow treatment for cards lives at the end of this file. */
+:root[data-theme="liveops"] { --orange:#38e1ff;--ob:#7aeeff;--og:rgba(56,225,255,.16);--bg:#070b24;--s:#0d1438;--s2:#121c4a;--s3:#18245c;--br:rgba(56,225,255,.16);--t:#e8eeff;--m:#9fb0e0;--blue:#5b8cff;--green:#34f0b4;--purple:#a78bfa;--red:#ff5d7a;--gold:#ffcf4a;--paper:#121c4a;--ink:#e8eeff;--rule:rgba(56,225,255,.12); }
 :root[data-theme="lightsaber"] { --orange:#00e5ff;--ob:#40f0ff;--og:rgba(0,229,255,.35);--bg:#000508;--s:#000d14;--s2:#001820;--s3:#00222e;--br:rgba(0,229,255,.1);--t:#e0f8ff;--m:#60b8c8;--blue:#00e5ff;--green:#69f0ae;--purple:#ce93d8;--red:#ff5252;--gold:#ffff00;--paper:#001820;--ink:#e0f8ff;--rule:rgba(0,229,255,.12); }
 :root[data-theme="pokemon"] { --orange:#ffcc02;--ob:#ffe040;--og:rgba(255,204,2,.35);--bg:#12223D;--s:#16213e;--s2:#0f3460;--s3:#163480;--br:rgba(255,204,2,.1);--t:#f0f0ff;--m:#9090c8;--blue:#0a84ff;--green:#4caf50;--purple:#9c27b0;--red:#e53935;--gold:#ffcc02;--paper:#0f3460;--ink:#f0f0ff;--rule:rgba(255,204,2,.12); }
 :root[data-theme="mario"] { --orange:#e52222;--ob:#ff3333;--og:rgba(229,34,34,.3);--bg:#1a0800;--s:#2e1200;--s2:#421c00;--s3:#562600;--br:rgba(229,34,34,.1);--t:#fff8e0;--m:#b09060;--blue:#2196f3;--green:#4caf50;--purple:#9c27b0;--red:#e52222;--gold:#ffd600;--paper:#421c00;--ink:#fff8e0;--rule:rgba(229,34,34,.12); }
@@ -150,6 +154,7 @@
 :root[data-theme="blueprint-art"]{ --accent-fg:#001428; --accent-ring:rgba(0,0,0,.45); }
 :root[data-theme="aurora"]   { --accent-fg:#020810; --accent-ring:rgba(0,0,0,.40);     }
 :root[data-theme="lightsaber"]{ --accent-fg:#000508; --accent-ring:rgba(0,0,0,.45);    }
+:root[data-theme="liveops"]   { --accent-fg:#06102e; --accent-ring:rgba(0,0,0,.45);    }
 :root[data-theme="matrix"]   { --accent-fg:#000300; --accent-ring:rgba(0,0,0,.55);     }
 :root[data-theme="underwater"]{ --accent-fg:#000c14; --accent-ring:rgba(0,0,0,.45);    }
 /* ══ Wave 5e (A.5) — second-pass theme contrast audit ══════════════
@@ -321,4 +326,181 @@
      47 uses of var(--h,#fff) rendered white-on-white in light mode — the
      --h token was never defined anywhere). */
   --h: var(--t);
+}
+
+/* ══ Live Ops glow treatment (2026-10-01) ═════════════════════════════════
+   Scoped ONLY to the opt-in Live Ops theme, and only in dark mode (a light
+   preference gets the engine's derived light palette and none of this).
+   Every selector below starts with LO = :root[data-theme="liveops"]:not([data-mode="light"])
+   (tests/theme-liveops-2026-10-01.test.js holds that line).
+   Layers, back to front:
+     1. html carries a static indigo gradient (works with overlays OFF / no JS)
+     2. theme-overlays.js 'shader-gradient' canvas at z-index -1 paints the
+        slowly moving WebGL wallpaper over it
+     3. body + chrome go transparent / glassy so the wallpaper shows through
+     4. cards: translucent surface, 1px cyan edge, soft outer glow
+   Panels (.panel) only get the border tint — they're everywhere, keep calm.
+   No animated pulses anywhere; transitions drop under reduced motion. */
+:root[data-theme="liveops"]:not([data-mode="light"]) {
+  --lo-edge: rgba(56,225,255,.24);
+  --lo-edge-soft: rgba(56,225,255,.12);
+  --lo-glow: rgba(56,225,255,.22);
+  --lo-label: #8fdcff;
+  --lo-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+  background-color: #070b24;
+  background-image:
+    radial-gradient(70% 55% at 18% 8%, rgba(26,53,148,.8) 0%, transparent 70%),
+    radial-gradient(60% 50% at 88% 28%, rgba(54,32,138,.7) 0%, transparent 70%),
+    radial-gradient(65% 55% at 55% 100%, rgba(10,68,98,.7) 0%, transparent 72%);
+  background-attachment: fixed;
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) body {
+  background: transparent;
+}
+
+/* Chrome: glass over the wallpaper */
+:root[data-theme="liveops"]:not([data-mode="light"]) header {
+  background: rgba(7,11,36,.62);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  border-bottom-color: var(--lo-edge-soft);
+  box-shadow: 0 1px 0 rgba(56,225,255,.05), 0 10px 30px -18px rgba(0,0,0,.8);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .sidebar {
+  background: rgba(9,14,46,.55);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  backdrop-filter: blur(16px) saturate(130%);
+  border-right-color: var(--lo-edge-soft);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .ni.active {
+  background: linear-gradient(90deg, rgba(56,225,255,.16), rgba(56,225,255,.02));
+  box-shadow: inset 0 0 0 1px rgba(56,225,255,.10);
+  text-shadow: 0 0 12px rgba(56,225,255,.45);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .breadcrumb-container {
+  background: rgba(7,11,36,.35);
+  border-bottom-color: var(--lo-edge-soft);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) #mobile-nav {
+  background: rgba(7,11,36,.72);
+  border-top-color: var(--lo-edge-soft);
+  box-shadow: 0 -10px 30px -18px rgba(56,225,255,.35);
+}
+
+/* Cards: translucent surface + thin cyan edge + soft outer glow */
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-card,
+:root[data-theme="liveops"]:not([data-mode="light"]) .stat-card {
+  background: rgba(13,20,56,.72);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--s3) 58%, transparent), color-mix(in srgb, var(--s) 72%, transparent));
+  border: 1px solid var(--lo-edge);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(122,238,255,.10),
+    0 0 22px -6px var(--lo-glow),
+    0 14px 34px -18px rgba(0,0,0,.75);
+}
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  :root[data-theme="liveops"]:not([data-mode="light"]) .w-card,
+  :root[data-theme="liveops"]:not([data-mode="light"]) .stat-card {
+    -webkit-backdrop-filter: blur(12px) saturate(135%);
+    backdrop-filter: blur(12px) saturate(135%);
+  }
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-card:hover,
+:root[data-theme="liveops"]:not([data-mode="light"]) .stat-card:hover {
+  border-color: rgba(56,225,255,.42);
+  box-shadow:
+    inset 0 1px 0 rgba(122,238,255,.14),
+    0 0 30px -4px rgba(56,225,255,.34),
+    0 16px 36px -18px rgba(0,0,0,.8);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-card-hdr {
+  border-bottom-color: var(--lo-edge-soft);
+}
+
+/* Gauges + bars glow (win-rate ring is an inline <svg> straight in the body) */
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-card-body > svg {
+  filter: drop-shadow(0 0 7px rgba(56,225,255,.45));
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-bar-fill {
+  box-shadow: 0 0 10px rgba(56,225,255,.55);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-activity-dot {
+  box-shadow: 0 0 8px rgba(56,225,255,.6);
+}
+
+/* Pipeline cards (board .k-card, phone list .cl-card): edge + faint glow
+   only — dozens on screen, so no backdrop blur */
+:root[data-theme="liveops"]:not([data-mode="light"]) .k-card,
+:root[data-theme="liveops"]:not([data-mode="light"]) .cl-card {
+  border-color: rgba(56,225,255,.18);
+  box-shadow: 0 0 14px -6px rgba(56,225,255,.30), 0 6px 18px -12px rgba(0,0,0,.7);
+}
+
+/* Panels: border tint only */
+:root[data-theme="liveops"]:not([data-mode="light"]) .panel {
+  border-color: var(--lo-edge-soft);
+}
+
+/* Eyebrows / labels: uppercase, spaced, monospace-ish */
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-card-title,
+:root[data-theme="liveops"]:not([data-mode="light"]) .eyebrow,
+:root[data-theme="liveops"]:not([data-mode="light"]) .eyebrow-9,
+:root[data-theme="liveops"]:not([data-mode="light"]) .eyebrow-9i,
+:root[data-theme="liveops"]:not([data-mode="light"]) .panel-label,
+:root[data-theme="liveops"]:not([data-mode="light"]) .stat-lbl,
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-sub {
+  font-family: var(--lo-mono);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-card-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--lo-label);
+}
+
+/* KPI values: faint glow in their own colour */
+:root[data-theme="liveops"]:not([data-mode="light"]) .w-big-num {
+  text-shadow: 0 0 18px rgba(56,225,255,.45);
+  text-shadow: 0 0 18px color-mix(in srgb, currentColor 55%, transparent);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .stat-val {
+  filter: drop-shadow(0 0 10px rgba(56,225,255,.35));
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .page-title {
+  text-shadow: 0 0 22px rgba(56,225,255,.28);
+}
+
+/* Shared primitives (ui-primitives.css): panels, rows and fields take the
+   soft cyan edge; the active segmented choice glows like the nav item. */
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-panel,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-row,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-row-box,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-input,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-field-sm {
+  border-color: var(--lo-edge-soft);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-input:focus,
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-field-sm:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 1px var(--orange), 0 0 12px -2px var(--lo-glow);
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-seg {
+  font-family: var(--lo-mono);
+  letter-spacing: .1em;
+}
+:root[data-theme="liveops"]:not([data-mode="light"]) .ui-seg.is-on {
+  box-shadow: 0 0 14px -4px var(--lo-glow), 0 0 0 1px var(--lo-edge);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="liveops"]:not([data-mode="light"]) .w-card,
+  :root[data-theme="liveops"]:not([data-mode="light"]) .stat-card {
+    transition: none;
+  }
+}
+:root[data-theme="liveops"][data-motion="reduce"] .w-card,
+:root[data-theme="liveops"][data-motion="reduce"] .stat-card {
+  transition: none;
 }

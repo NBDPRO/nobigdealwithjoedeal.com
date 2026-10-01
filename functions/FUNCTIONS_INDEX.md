@@ -191,7 +191,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runMigrations` | onCall | `role === 'admin'` (see ADMIN note) | Manual versioned-migration trigger (was mislabeled "scheduler-triggered" in the previous index) |
 | `migrationsTick` | scheduled (every 24h) | n/a (server-only) | Idempotent daily migration cron (also listed in SCHEDULED) |
 
-## SCHEDULED CRONS (server-only, no client traffic) — 27
+## SCHEDULED CRONS (server-only, no client traffic) — 28
 | Export | Schedule | Purpose |
 |---|---|---|
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
@@ -220,6 +220,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `backupFreshnessCron` | daily 06:00 ET | **The alarm for the above.** Emails if no `overall_export_metadata` newer than 26h is in the backup bucket. No enable-gate on purpose (backup-freshness.js) |
 | `enforceLapsedSeats` | daily 09:00 | Pillar 4 — deactivates members past their seat lapse grace window (lapse-enforcement.js) |
 | `reviewRequestNudge` | daily 08:15 ET | Google-review request nudge emails for recently-won jobs (review-request-nudge.js) |
+| `morningBrief` | daily 06:45 ET | Today's appointments (Cal.com bookings, job days, other jobs, adjuster meetings) with CRM property history → ONE email to the owner (`NBD_OWNER_UID`), never a homeowner; nothing today → no send; opt-out `users/{owner}.morningBriefEnabled === false`; DRY-RUN unless `MORNING_BRIEF_ENABLED=true` (morning-brief.js / morning-brief-logic.js) |
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 

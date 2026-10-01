@@ -23,6 +23,7 @@ const CRON_GATES = [
   { name: 'HEALTH_DIGEST_ENABLED', polarity: 'enabled', file: 'health-digest.js' },
   { name: 'LEAD_ACK_SMS_ENABLED', polarity: 'enabled', file: 'lead-alert.js' },
   { name: 'LEAD_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'lead-followup.js' },
+  { name: 'MORNING_BRIEF_ENABLED', polarity: 'enabled', file: 'morning-brief.js' },
   { name: 'REVIEW_NUDGE_ENABLED', polarity: 'enabled', file: 'review-request-nudge.js' },
   { name: 'STORM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-watch.js' },
   { name: 'VISUALIZER_IMAGEGEN_ENABLED', polarity: 'enabled', file: 'visualizer-image-gen.js' },
