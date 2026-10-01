@@ -39,6 +39,8 @@ window._saveLead = async (data) => {
     console.warn('Lead save failed:', res.reason);
     return null;
   }
+  // One-time grant to attach this submission's photos (intake-extras.js).
+  window._lastPhotoToken = res.photoToken || null;
   return res.id;
 };
 

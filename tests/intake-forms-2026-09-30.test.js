@@ -156,6 +156,25 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
     const ieRaw = read('docs/assets/js/intake-extras.js');
     ok('no-calendar pages get a contact-me-only scheduling error', /hasCal \?/.test(ieRaw) && /Please check “Please contact me to coordinate scheduling”/.test(ieRaw));
     ok('/inspect suppresses the duplicate "will reach out" line', /quietContact: true/.test(read('docs/assets/js/inspect-form.js')) && /!i\.quietContact/.test(ieRaw));
+
+    // The Instant Estimate wizard (follow-up, same day): the same block on its
+    // contact step; both submit paths require the choice and send the answers.
+    const estHtml = read('docs/estimate.html');
+    const wiz = strip(read('docs/assets/js/inline/4053149b2f.js'));
+    const estMod = strip(read('docs/assets/js/inline/f95015cb84.module.js'));
+    ok('/estimate loads the block and hosts it on the contact step (before the consent box)',
+      /<script defer src="\/assets\/js\/intake-extras\.js\?v=\d+"><\/script>/.test(estHtml)
+      && estHtml.indexOf('id="estIntake"') > estHtml.indexOf('id="emailAddress"') && estHtml.indexOf('id="estIntake"') < estHtml.indexOf('id="tcpaConsent"'));
+    ok('...and a results-screen host for the calendar button / photo result', /id="estIntakeAfter"/.test(estHtml));
+    ok('the verified path refuses to submit without a scheduling choice — before the loading screen',
+      /async function submitAndGetEstimate\(\) \{[\s\S]{0,300}const _intake = _readIntake\(\);\s*if \(_intake\.error\) \{ _intakeError\(_intake\); return; \}[\s\S]{0,200}btn\.disabled = true;/.test(wiz));
+    ok('the "just call me" path refuses too', /async function skipOtpAndRequestCall\(btn\) \{[\s\S]{0,1200}var _intake = _readIntake\(\);\s*if \(_intake\.error\) \{/.test(wiz));
+    ok('both paths send the answers', (wiz.match(/Object\.assign\(leadData, _intake\.fields\);/g) || []).length === 2);
+    ok('both paths run afterSubmit (calendar / photos) only once the lead is saved',
+      /if \(window\.NBDIntake && _leadSaved\) window\.NBDIntake\.afterSubmit\(document\.getElementById\('estIntakeAfter'\)/.test(wiz)
+      && /if \(window\.NBDIntake && saved\) window\.NBDIntake\.afterSubmit\(status\.parentNode/.test(wiz));
+    ok('a block that never loaded never blocks the lead', /if \(!window\.NBDIntake \|\| !box \|\| !box\.childElementCount\) return \{ fields: \{\}, files: \[\] \};/.test(wiz));
+    ok('the photo grant reaches the wizard', /window\._lastPhotoToken = res\.photoToken \|\| null;/.test(estMod) && /photoToken: window\._lastPhotoToken \|\| null/.test(wiz));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
