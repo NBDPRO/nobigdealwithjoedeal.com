@@ -74,7 +74,8 @@ const routeConfig = {
   'expenses':     { label: 'Expenses',          parent: null },
   'money':        { label: 'Money',             parent: null },
   'refrewards':   { label: 'Referrals',         parent: null },
-  'signs':        { label: 'Yard Signs',        parent: null }
+  'signs':        { label: 'Yard Signs',        parent: null },
+  'winback':      { label: 'Past Customers',    parent: null }
 };
 
 /**
