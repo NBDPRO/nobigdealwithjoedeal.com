@@ -175,6 +175,25 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
       && /if \(window\.NBDIntake && saved\) window\.NBDIntake\.afterSubmit\(status\.parentNode/.test(wiz));
     ok('a block that never loaded never blocks the lead', /if \(!window\.NBDIntake \|\| !box \|\| !box\.childElementCount\) return \{ fields: \{\}, files: \[\] \};/.test(wiz));
     ok('the photo grant reaches the wizard', /window\._lastPhotoToken = res\.photoToken \|\| null;/.test(estMod) && /photoToken: window\._lastPhotoToken \|\| null/.test(wiz));
+
+    // The storm tools + roof score (same day): each posts an 'inspect' service
+    // lead, so each asks the block, refuses without the choice, sends the
+    // answers, and runs afterSubmit only once the lead is saved.
+    for (const [page, js, P, err] of [['storm-check', 'storm-check.js', 'sc', 'sc-contact-err'], ['storm-report', 'storm-report-page.js', 'sr', 'sr-gate-err'], ['roof-score', 'roof-score.js', 'rs', 'rs-contact-err']]) {
+      const html = read('docs/' + page + '.html');
+      const src = strip(read('docs/assets/js/' + js));
+      ok('/' + page + ': loads the block and hosts it before the consent box, with a result host',
+        /<script defer src="\/assets\/js\/intake-extras\.js\?v=\d+"><\/script>/.test(html)
+        && html.indexOf('id="' + P + '-intake"') > 0 && html.indexOf('id="' + P + '-intake"') < html.indexOf('id="' + P + '-consent"')
+        && html.indexOf('id="' + P + '-intake-after"') > 0);
+      ok('/' + page + ': refuses without a scheduling choice (in its own error line), sends the answers, afterSubmit after a save',
+        new RegExp("var intake = readIntake\\(\\);\\s*if \\(intake\\.error\\) \\{ \\$\\('" + err + "'\\)\\.textContent = intake\\.error;").test(src)
+        && /Object\.assign\(payload, S\.intake\.fields\);/.test(src)
+        && /if \(!window\.NBDIntake \|\| !S\.intake \|\| !\(res && res\.ok\)\) return;/.test(src)
+        && new RegExp("afterIntake\\((lead|res), '" + P + "-intake-after'\\)").test(src));
+    }
+    ok('a sign-up (storm alerts, the free guide) is NOT asked to schedule',
+      !/intake-extras\.js/.test(read('docs/storm-alerts.html')) && !/intake-extras\.js/.test(read('docs/sites/free-guide/index.html')));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

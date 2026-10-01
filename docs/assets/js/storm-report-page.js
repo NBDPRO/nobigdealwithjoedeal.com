@@ -81,11 +81,37 @@
   }
   function chip(t) { return '<span class="sr-chip">' + t + '</span>'; }
 
+  /* ── shared intake block (2026-09-30, Jo: every service form asks the same):
+     REQUIRED scheduling choice, best time, insurance, how-heard, photos —
+     intake-extras.js. If the block never loaded, the lead is never blocked. ── */
+  var IP = 'srI';
+  function mountIntake() {
+    var box = $('sr-intake');
+    if (!box || box.childElementCount) return true;
+    if (!window.NBDIntake) return false;
+    box.innerHTML = window.NBDIntake.html(IP);
+    return true;
+  }
+  function readIntake() {
+    var box = $('sr-intake');
+    if (!window.NBDIntake || !box || !box.childElementCount) return { fields: {}, files: [] };
+    return window.NBDIntake.read(box, IP);
+  }
+  function afterIntake(res, boxId) {
+    if (!window.NBDIntake || !S.intake || !(res && res.ok)) return;
+    window.NBDIntake.afterSubmit($(boxId), { prefix: IP, fields: S.intake.fields, files: S.intake.files, photoToken: res.photoToken || null,
+      firstName: S.firstName || '', phone: S.phone || '', email: S.email || '', address: S.address || '', service: 'Roof inspection' });
+  }
+
   /* ── gate -> capture -> full report ── */
   function unlock() {
     var fn = $('sr-firstName').value.trim(), ph = $('sr-phone').value.trim(), em = $('sr-email').value.trim();
     if (!fn || ph.replace(/\D/g, '').replace(/^1/, '').length !== 10) { $('sr-gate-err').textContent = 'Please add your name and a 10-digit phone.'; return; }
     if (!$('sr-consent').checked) { $('sr-gate-err').textContent = 'Please check the box so Joe can send your report.'; return; }
+    var intake = readIntake();
+    if (intake.error) { $('sr-gate-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
+    S.intake = intake;
+    S.firstName = fn; S.phone = ph; S.email = em;
     $('sr-gate-err').textContent = '';
     var btn = $('sr-unlock'); btn.disabled = true; btn.textContent = 'Building your report…';
     var c = S.data.counts || {};
@@ -95,8 +121,9 @@
     // gates on a stored record (TCPA fix, 2026-09-04; see #1377).
     var payload = { name: fn, phone: ph, address: S.address, source: '/storm-report', story: story, tcpaConsent: $('sr-consent').checked === true };
     if (em) payload.email = em;
+    Object.assign(payload, S.intake.fields);
     var cap = (typeof window.submitPublicLead === 'function') ? window.submitPublicLead('inspect', payload) : Promise.resolve({ ok: false });
-    cap.then(function (res) { renderReport(res && res.ok); });
+    cap.then(function (res) { renderReport(res && res.ok); afterIntake(res, 'sr-intake-after'); });
     if (window.gtag) window.gtag('event', 'storm_report_unlock');
   }
   function verdict() {
@@ -158,6 +185,7 @@
   function wirePhone() { var el = $('sr-phone'); if (!el) return; el.addEventListener('input', function () { var v = this.value.replace(/\D/g, '').slice(0, 10); if (v.length >= 7) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3, 6) + '-' + v.slice(6); else if (v.length >= 4) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3); else this.value = v; }); }
   function wire() {
     wireAddress(); wirePhone();
+    if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }
     document.addEventListener('click', function (e) {
       var ac = e.target.closest('.sr-ac-item[data-idx]'); if (ac) { pickAddr(+ac.dataset.idx); return; }
       var act = e.target.closest('[data-action]'); if (!act) return;
