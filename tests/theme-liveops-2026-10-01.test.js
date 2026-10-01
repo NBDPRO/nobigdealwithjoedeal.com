@@ -104,7 +104,7 @@ if (entry) {
   const worstCard = Math.min(...stops.map((s) => contrastRatio(C.muted, mixHex(tok.s, s, 0.28))));
   ok(`muted text holds AA on a translucent card over the brightest stop (${worstCard.toFixed(2)}:1)`, worstCard >= AA);
 }
-ok('engine bundle version bumped in script-loader', /'js\/theme-engine\.js\?v=4'/.test(read('docs/pro/js/script-loader.js'))
+ok('engine bundle version bumped in script-loader', +((read('docs/pro/js/script-loader.js').match(/'js\/theme-engine\.js\?v=(\d+)'/) || [])[1] || 0) >= 4
   && /'js\/theme-overlays\.js\?v=3'/.test(read('docs/pro/js/script-loader.js')));
 
 // ── 3. shader-gradient behaviour in a stub DOM ───────────────────────────
@@ -295,7 +295,9 @@ function selectorsOf(cssText) {
 }
 const unscoped = (sels) => sels.filter((s) => !s.startsWith(SCOPE));
 const blockAt = CSS.indexOf('/* ══ Live Ops glow treatment');
-const block = blockAt === -1 ? '' : CSS.slice(blockAt);
+// The block runs to the next "/* ══" section header (Daylight follows it), else to the end.
+const blockEnd = blockAt === -1 ? -1 : CSS.indexOf('/* ══', blockAt + 5);
+const block = blockAt === -1 ? '' : CSS.slice(blockAt, blockEnd === -1 ? CSS.length : blockEnd);
 const sels = selectorsOf(block);
 ok('glow block present at the end of theme-system.css', blockAt !== -1);
 ok('positive control: the parser sees the card/panel/label selectors',
