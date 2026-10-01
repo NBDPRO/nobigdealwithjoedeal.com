@@ -35,6 +35,8 @@ function ok(name, cond, detail) {
 
   console.log('\n1. generator ↔ file');
   ok('theme-art.css is exactly the generator output (run node scripts/build-theme-art.mjs)', CSS === gen.buildCss());
+  ok('the sci-fi and nature packs are complete', ['matrix','neon','synthwave','vaporwave','deep-space','galaxy','plasma','cyberpunk','hologram','quantum','starship','neon-rain','terminal','forest','ocean','desert','aurora','volcano','glacier','thunderstorm','sunset','canyon','coral-reef','tundra','rainforest','underwater','volcanic'].every((id) => ids.includes(id)));
+  ok('no art for themes named after real products (iOS, Android, Windows)', !['ios','ios26','android','windows'].some((id) => ids.includes(id)));
   ok('the construction pack is complete', ['blueprint', 'hard-hat', 'concrete', 'copper-pipe', 'safety-orange', 'crane', 'diesel', 'sawdust', 'brick', 'toolbox'].every((id) => ids.includes(id)));
 
   console.log('\n2. every art id is a registered theme');
