@@ -1,6 +1,22 @@
 {
   "indexes": [
     {
+      "collectionGroup": "phone_calls",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "startedAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "phone_calls",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "startedAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "thursday_calls",
       "queryScope": "COLLECTION",
       "fields": [

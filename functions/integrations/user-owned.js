@@ -139,6 +139,9 @@ const FLAT_USER_COLLECTIONS = [
   // Thursday call log (integrations/thursday.js) — callers' names, numbers,
   // transcripts. Owner-keyed on userId; erase/export with the account.
   { name: 'thursday_calls', ownerField: 'userId' },
+  // Call Center (call-center.js) — Cube ACR recordings: callers' numbers,
+  // contact names, later transcripts. Owner-keyed on userId.
+  { name: 'phone_calls', ownerField: 'userId' },
 ];
 
 // ─── COLLECTION-GROUPS WITH userId STAMPS ───────────────────
