@@ -7,8 +7,14 @@ smaller items went out as PRs the same day:
 - #1908: yard signs.
 - #1909: the duplicate check.
 
-This note is the plan. Nothing here is built yet. It is based on two read-only
-scoping passes over the code, run from a `main` checkout the same day.
+> **Status (corrected 2026-09-30, evening): BUILT.** Part 2 (money paper,
+> #1912/#1913) and Part 1 phases 1–2 (#1914–#1929) are merged and deployed.
+> The PR-by-PR list is in [NEXT_SESSION-2026-09-30-part2](NEXT_SESSION-2026-09-30-part2.md) §1.
+> What's still open: Drive filing waits on Jo's folder share; profit/margin
+> stay per customer (expenses are keyed by lead); the navy print logo.
+
+This note began as the plan, written from two read-only scoping passes over
+the code on a `main` checkout the same day.
 
 ## Jo's answers (2026-09-30, the same session) — these override the recommendations below
 
