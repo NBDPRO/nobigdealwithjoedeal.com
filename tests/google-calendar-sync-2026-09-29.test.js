@@ -324,6 +324,63 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     ok('index.js exports onYardSignCalendarWrite', /exports\.onYardSignCalendarWrite\s*=/.test(idx));
   }
 
+  console.log('\n9. D2D follow-ups with a time — the newest knock per door (Jo, 2026-09-30)');
+  {
+    const SW = require(path.join(__dirname, '..', 'functions', 'schedule-window.js'));
+    const K = (id, f) => Object.assign({ id, companyId: 'OWNER', userId: 'OWNER', address: '12 Knock Ln, Mason, OH', homeowner: 'ZZ_QA Door', disposition: 'callback' }, f);
+    const day = (ymd) => ymd + 'T04:00:00.000Z';                       // local midnight, New York (EDT)
+    const ev = G.desiredEventForKnock(K('k1', { createdAt: 1, followUpDate: day('2026-10-08'), followUpTime: '17:30' }), SW.localToUtcMs);
+    ok('a knock with a follow-up date AND time → a 30-minute event at 5:30 pm New York', ev && ev.start.dateTime === '2026-10-08T21:30:00.000Z'
+      && Date.parse(ev.end.dateTime) - Date.parse(ev.start.dateTime) === 30 * 60000, JSON.stringify(ev && ev.start));
+    ok('...BUSY (a set time is a commitment), named with the homeowner and door', ev.transparency === 'opaque' && /^📞 Follow up — ZZ_QA Door · 12 Knock Ln/.test(ev.summary) && ev.extendedProperties.private.nbdKind === 'knock');
+    ok('...a valid Google id, the same for every spelling of the door', /^[a-v0-9]{5,1024}$/.test(ev.id) && ev.id === G.knockEventId(G.knockAddrKey('  12 KNOCK  Ln, Mason, OH ')));
+    ok('a date with no time, or a bad time → nothing (Jo: only follow-ups that carry a time)',
+      G.desiredEventForKnock(K('k2', { followUpDate: day('2026-10-08') }), SW.localToUtcMs) === null
+      && G.desiredEventForKnock(K('k3', { followUpDate: day('2026-10-08'), followUpTime: '25:00' }), SW.localToUtcMs) === null
+      && G.desiredEventForKnock(K('k4', { followUpTime: '09:00' }), SW.localToUtcMs) === null);
+    const old = K('k5', { createdAt: 100, followUpDate: day('2026-10-08'), followUpTime: '17:30' });
+    const reknockTimed = K('k6', { createdAt: 200, followUpDate: day('2026-10-10'), followUpTime: '10:00', address: '12 knock ln, mason, oh' });
+    const evs = G.desiredKnockEvents([old, reknockTimed], SW.localToUtcMs);
+    ok('re-knocked with a new timed follow-up → ONE event, the newest knock\'s (Oct 10, 10:00)', evs.length === 1 && evs[0].start.dateTime === '2026-10-10T14:00:00.000Z', JSON.stringify(evs.map((e) => e.start)));
+    const reknockNone = K('k7', { createdAt: 300, disposition: 'not_interested' });
+    ok('re-knocked with no timed follow-up → the door\'s event is gone (the old one never resurfaces)', G.desiredKnockEvents([old, reknockTimed, reknockNone], SW.localToUtcMs).length === 0);
+    ok('a Firestore Timestamp createdAt decides "newest" the same way', G.latestKnockPerDoor([K('a', { createdAt: { seconds: 5 } }), K('b', { createdAt: { toMillis: () => 9000 } })]).get(G.knockAddrKey('12 Knock Ln, Mason, OH')).id === 'b');
+    ok('an address-less knock is skipped', G.desiredKnockEvents([K('k8', { address: '', followUpDate: day('2026-10-08'), followUpTime: '09:00' })], SW.localToUtcMs).length === 0);
+    ok('knock trigger gate: notes ignored; a new time, date or re-dated createdAt is not',
+      G.knockCalendarFieldsChanged({ notes: 'a', followUpTime: '09:00' }, { notes: 'b', followUpTime: '09:00' }) === false
+      && G.knockCalendarFieldsChanged({ followUpTime: '09:00' }, { followUpTime: '10:00' }) === true
+      && G.knockCalendarFieldsChanged({ followUpDate: { seconds: 1 } }, { followUpDate: { seconds: 2 } }) === true);
+
+    // Trigger path, then the reconcile.
+    const g9 = fakeGoogle();
+    M._internal.setClient(g9.client);
+    const fut = (d) => new Date(Date.parse(future(d) + 'T04:00:00Z')).toISOString();
+    const db9 = fakeDb({
+      'knocks/A1': K('A1', { createdAt: 100, followUpDate: fut(3), followUpTime: '17:30' }),
+      'knocks/X1': { companyId: 'someone-else', userId: 'someone-else', address: '9 Other Rd', createdAt: 1, followUpDate: fut(3), followUpTime: '09:00' },
+    });
+    await M._internal.syncKnockDoor(db9, 'cal9', '12 Knock Ln, Mason, OH');
+    ok('a knock with a timed follow-up lands on the calendar', g9.live('cal9').length === 1 && /12 Knock Ln/.test(g9.live('cal9')[0].summary));
+    db9._docs['knocks/A2'] = K('A2', { createdAt: 200, disposition: 'not_interested' });
+    await M._internal.syncKnockDoor(db9, 'cal9', '12 Knock Ln, Mason, OH');
+    ok('re-knocking the door with no follow-up removes it', g9.live('cal9').length === 0);
+    await M._internal.syncKnockDoor(db9, 'cal9', '9 Other Rd');
+    ok('another company\'s knock never reaches Jo\'s calendar', g9.live('cal9').length === 0);
+    db9._docs['knocks/A3'] = K('A3', { createdAt: 300, followUpDate: fut(5), followUpTime: '11:00', address: '12 KNOCK LN, Mason, OH' });
+    const r9 = await M._internal.reconcile(db9, 'cal9');
+    const live9 = g9.live('cal9');
+    ok('reconcile: one event for the door across spellings — the newest knock\'s 11:00', live9.length === 1 && live9[0].start.dateTime === new Date(SW.localToUtcMs(future(5), '11:00', 'America/New_York')).toISOString() && r9.knocks === 3, JSON.stringify(live9.map((e) => e.start)));
+    const r10 = await M._internal.reconcile(db9, 'cal9');
+    ok('a second reconcile changes nothing', r10.upserted === 0 && r10.deleted === 0, JSON.stringify(r10));
+    M._internal.setClient(g.client);
+
+    const src = fs.readFileSync(path.join(__dirname, '..', 'functions', 'google-calendar.js'), 'utf8');
+    ok('the knock trigger returns early for other tenants, unchanged fields, and before setup; re-syncs both doors on an address edit',
+      /exports\.onKnockCalendarWrite = onDocumentWritten\(\s*\{ document: 'knocks\/\{knockId\}'[\s\S]{0,400}if \(!isOwnerLead\(before\) && !isOwnerLead\(after\)\) return;[\s\S]{0,120}!G\.knockCalendarFieldsChanged\(before, after\)\) return;[\s\S]{0,200}if \(!cfg \|\| !cfg\.calendarId\) return;\s*const addrs = \[\.\.\.new Set\(\[before && before\.address, after && after\.address\]/.test(src));
+    const idx = fs.readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
+    ok('index.js exports onKnockCalendarWrite', /exports\.onKnockCalendarWrite\s*=/.test(idx));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
