@@ -157,6 +157,7 @@
     "claim-panel-logic-2026-09-30.test.js",
     "security-checklist-2026-10-01.test.js",
     "month-close-2026-10-01.test.js",
+    "inline-style-ratchet-2026-10-01.test.js",
     "invoice-reminder-2026-10-01.test.js",
     "winback-2026-10-01.test.js",
     "stripe-ledger-ui-2026-09-29.test.js",

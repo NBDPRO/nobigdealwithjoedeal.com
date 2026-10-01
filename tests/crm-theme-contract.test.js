@@ -43,10 +43,30 @@ const read = (rel) => fs.readFileSync(P(rel), 'utf8');
 
 let passed = 0, failed = 0;
 const fails = [];
-function ok(name, cond, detail) {
+function ok(name, cond, detail, fix) {
   if (cond) { passed++; console.log('  ✓ ' + name); }
-  else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail ? ' — ' + detail : '')); }
+  else {
+    failed++; fails.push(name);
+    console.log('  ✗ ' + name + (detail ? ' — ' + detail : '') + (fix ? '\n      fix: ' + fix : ''));
+  }
 }
+
+// The repo-wide scans below report file:line and the replacement, so a red
+// run says what to change (the shadcn/lint idea, Repo Lab 2026-10-01).
+// Lines whose only match sits in a // comment still count: the scans have
+// always been whole-file, and a comment quoting the bad form is rare enough
+// to fix by rewording.
+const JS_DIR = P('docs/pro/js');
+const jsFiles = () => fs.readdirSync(JS_DIR).filter((f) => f.endsWith('.js'));
+function hits(re, files, dir) {
+  const out = [];
+  for (const f of files) {
+    const lines = fs.readFileSync(path.join(dir || JS_DIR, f), 'utf8').split(/\r?\n/);
+    lines.forEach((l, i) => { if (re.test(l)) out.push(f + ':' + (i + 1)); });
+  }
+  return out;
+}
+const firstFew = (list) => list.slice(0, 6).join(', ') + (list.length > 6 ? ` (+${list.length - 6} more)` : '');
 
 console.log('CRM THEME CONTRACT — batch 1 invariants');
 
@@ -122,12 +142,14 @@ ok('theme-system defines --h (heading dialect alias)',
   ];
   const bad = [];
   for (const rel of surfaces) {
-    const s = read(rel);
-    for (const hex of ['#cab8ff', '#5eead4', '#a890e8', '#a5b4fc']) {
-      if (s.includes(hex)) bad.push(rel + ':' + hex);
-    }
+    read(rel).split(/\r?\n/).forEach((l, i) => {
+      for (const hex of ['#cab8ff', '#5eead4', '#a890e8', '#a5b4fc']) {
+        if (l.includes(hex)) bad.push(rel + ':' + (i + 1) + ' ' + hex);
+      }
+    });
   }
-  ok('no dark-tuned pastel text literals on themed surfaces', bad.length === 0, bad.slice(0, 3).join(', '));
+  ok('no dark-tuned pastel text literals on themed surfaces', bad.length === 0, firstFew(bad),
+    'use a theme token instead: var(--t) for text, var(--m) muted, var(--blue)/var(--green)/var(--gold) for status tints');
 }
 
 // 4. RAF rule
@@ -300,12 +322,10 @@ ok('collapsed sidebar rail is scrollable',
 {
   const GUESSED = /var\(--(?:h|text|surface|muted|accent|accent-weak)\s*,\s*(?:#[0-9a-fA-F]{3,6}|rgba\()/;
   const ALLOW = new Set(['portal.js', 'before-after-slider.js']);
-  const jsDir = P('docs/pro/js');
-  const offenders = fs.readdirSync(jsDir)
-    .filter((f) => f.endsWith('.js') && !ALLOW.has(f))
-    .filter((f) => GUESSED.test(fs.readFileSync(path.join(jsDir, f), 'utf8')));
+  const offenders = hits(GUESSED, jsFiles().filter((f) => !ALLOW.has(f)));
   ok('no rep-side JS renders a guessed compat token with a hardcoded color fallback',
-    offenders.length === 0, offenders.join(', '));
+    offenders.length === 0, firstFew(offenders),
+    'use the canonical token with no literal fallback: --h/--text → var(--t), --surface → var(--s), --muted → var(--m), --accent → var(--orange), --accent-weak → color-mix(in srgb, var(--orange) 15%, transparent)');
 }
 
 // 12. Base overlay/toast z-index tier is TOKEN-WIRED (audit "z-index wiring").
@@ -319,12 +339,10 @@ ok('collapsed sidebar rail is scrollable',
 //     never-demote banner rule is a deliberate ladder decision, not a swap.)
 {
   const BARE = /z-index:\s*1000[0-2](?![0-9])/;
-  const jsDir = P('docs/pro/js');
-  const bare = fs.readdirSync(jsDir)
-    .filter((f) => f.endsWith('.js'))
-    .filter((f) => BARE.test(fs.readFileSync(path.join(jsDir, f), 'utf8')));
+  const bare = hits(BARE, jsFiles());
   ok('no JS renders a bare base-tier z-index (10000/10001/10002 must use the token)',
-    bare.length === 0, bare.join(', '));
+    bare.length === 0, firstFew(bare),
+    'z-index:10000 → z-index:var(--z-overlay,10000); 10001 → var(--z-overlay-top,10001); 10002 → var(--z-toast,10002)');
 }
 
 // 13. Orange accent bypass (audit "~219 raw hexes bypass theme accents").
@@ -338,12 +356,10 @@ ok('collapsed sidebar rail is scrollable',
 //     here — this guards only the clear `PROP:#BD5728` drift.
 {
   const BAREHEX = /:\s*#BD5728\b/i;
-  const jsDir = P('docs/pro/js');
-  const bare = fs.readdirSync(jsDir)
-    .filter((f) => f.endsWith('.js'))
-    .filter((f) => BAREHEX.test(fs.readFileSync(path.join(jsDir, f), 'utf8')));
+  const bare = hits(BAREHEX, jsFiles());
   ok('no JS renders a bare property-value #BD5728 (orange must track the theme accent)',
-    bare.length === 0, bare.join(', '));
+    bare.length === 0, firstFew(bare),
+    'color:#BD5728 → color:var(--orange,#BD5728) (same for background, border and fill)');
 }
 
 console.log('\n──────────────────────────────────────────────────');
