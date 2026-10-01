@@ -142,10 +142,17 @@ group('The portal policy is the global policy, differing only in framing', () =>
     assert('the ' + label + ' policy exists on both rules', !!g && !!p);
     if (!g || !p) return;
     const normalised = String(p).replace("frame-ancestors 'self'", "frame-ancestors 'none'");
+    // Second deliberate difference (2026-10-01): the global rule admits
+    // Microsoft Clarity for the public marketing pages; the homeowner portal
+    // shows customer details and must never be session-recorded, so its CSP
+    // deliberately does NOT admit the Clarity hosts. Compare with them removed
+    // from the global side.
+    const CLARITY = / https:\/\/(www|scripts|\*)\.clarity\.ms| https:\/\/c\.bing\.com/g;
+    assert('the ' + label + ' portal policy never admits Microsoft Clarity', !/clarity\.ms|c\.bing\.com/.test(String(p)));
     assert('the ' + label + ' policy matches the global one once framing is normalised',
-      normalised === g,
+      normalised === String(g).replace(CLARITY, ''),
       'the portal policy has drifted from the global one in more than '
-      + 'frame-ancestors — re-derive it rather than hand-editing');
+      + 'frame-ancestors (and the deliberate Clarity exclusion) — re-derive it rather than hand-editing');
   });
 });
 
