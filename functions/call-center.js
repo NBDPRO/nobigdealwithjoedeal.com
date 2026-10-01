@@ -175,8 +175,163 @@ exports.callCenterIngest = onSchedule(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════════
+// Stage 2 — transcript + AI notes (2026-10-01)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Every 30 minutes: take stored calls, transcribe with Groq Whisper (the key
+// and helper Voice Intelligence already use: free tier, 8 h audio/day), have
+// Claude Haiku write the notes (summary, who promised what, a follow-up
+// date), and file them:
+//   phone_calls/{id}          status 'noted' + transcript + notes
+//   leads/{id}/activity/cube-{id}   the customer timeline entry
+//   leads/{id}/tasks/cube-{id}      ONE follow-up task, only when Jo promised
+//                                   something or a follow-up date came out
+// A call the model calls "personal" keeps no transcript and files nothing.
+//
+// Gate: CALL_CENTER_TRANSCRIBE_ENABLED=true runs the backlog (newest first,
+// 12 a run, ≤ 6 h audio a day). With the gate OFF, only the ids on
+// integrations/callCenter.transcribeOnly run — Jo's one-call test.
+// The AI kill switch (integrations/killswitch) stops it too.
+
+const { defineSecret } = require('firebase-functions/params');
+const { SECRETS, secretValue } = require('./integrations/_shared');
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const NOTES_MODEL = 'claude-haiku-4-5-20251001';
+const TRANSCRIBE_PER_RUN = 12;
+const transcribeEnabled = () => process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true';
+
+let _deps = null;
+function deps() {
+  if (_deps) return _deps;
+  const { transcribeGroqBuffer } = require('./integrations/voice-intelligence');
+  return {
+    transcribe: (buffer, ext) => transcribeGroqBuffer({ buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg', filename: 'call.' + (ext || 'm4a'), timeoutMs: 300_000 }),
+    notes: claudeNotes,
+  };
+}
+
+async function claudeNotes({ system, prompt }) {
+  const key = secretValue(ANTHROPIC_API_KEY);
+  if (!key) throw new Error('anthropic-not-configured');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
+    body: JSON.stringify({ model: NOTES_MODEL, max_tokens: 900, system, messages: [{ role: 'user', content: prompt }] }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error('anthropic ' + res.status + ': ' + String((data && data.error && data.error.message) || '').slice(0, 200));
+  const text = ((data && data.content) || []).map((c) => (c && c.type === 'text' ? c.text : '')).join('').trim();
+  const m = /\{[\s\S]*\}/.exec(text);
+  if (!m) throw new Error('notes: no JSON');
+  return JSON.parse(m[0]);
+}
+
+async function createIfAbsent(ref, data) {
+  try { await ref.create(data); return true; } catch (e) {
+    if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) return false;
+    throw e;
+  }
+}
+
+/** One transcription pass. Exported for the integration test (stubbed deps). */
+async function runTranscribe({ db, bucket, live, nowMs }) {
+  const ref = db.doc(CONFIG);
+  const snap = await ref.get();
+  const cfg = snap.exists ? snap.data() : {};
+  if (cfg.paused === true) return { state: 'paused' };
+  const allowIds = Array.isArray(cfg.transcribeOnly) ? cfg.transcribeOnly : [];
+  if (!live && !allowIds.length) return { state: 'off' };
+
+  const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const usedSec = (cfg.audioSecDay === today && Number(cfg.audioSecUsed)) || 0;
+  const secLeft = L.DAY_AUDIO_SEC_CAP - usedSec;
+
+  let candidates = [];
+  if (allowIds.length) {
+    const snaps = await db.getAll(...allowIds.map((id) => db.collection(COLLECTION).doc(id)));
+    candidates = snaps.filter((s) => s.exists).map((s) => Object.assign({ id: s.id }, s.data()));
+  } else {
+    const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'stored')
+      .orderBy('startedAtMs', 'desc').limit(TRANSCRIBE_PER_RUN * 3).get();
+    q.forEach((d) => candidates.push(Object.assign({ id: d.id }, d.data())));
+  }
+  const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: TRANSCRIBE_PER_RUN, secLeft });
+  const out = { state: allowIds.length ? 'test' : 'live', picked: pick.length, noted: 0, personal: 0, failed: 0, tasks: 0, audioSec: 0 };
+  const d = deps();
+
+  for (const call of pick) {
+    const callRef = db.collection(COLLECTION).doc(call.id);
+    try {
+      if ((Number(call.sizeBytes) || 0) > L.GROQ_MAX_BYTES) {
+        await callRef.set({ status: 'too_large' }, { merge: true });
+        continue;
+      }
+      const [buf] = await bucket.file(call.storagePath).download();
+      const t = await d.transcribe(buf, String(call.storagePath).split('.').pop());
+      out.audioSec += Number(t.durationSec) || L.estimateAudioSec(call.sizeBytes);
+
+      let leadName = '';
+      if (call.leadId) {
+        const ls = await db.doc('leads/' + call.leadId).get();
+        if (ls.exists) { const l = ls.data(); leadName = ((l.firstName || '') + ' ' + (l.lastName || '')).trim(); }
+      }
+      const notes = L.sanitizeNotes(await d.notes({ system: L.NOTES_SYSTEM, prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName }) }));
+      const personal = notes.callType === 'personal';
+      await callRef.set({
+        status: personal ? 'personal' : 'noted',
+        transcript: personal ? null : String(t.text || '').slice(0, 100000),
+        durationSec: Number(t.durationSec) || null,
+        summary: notes.summary,
+        callType: notes.callType,
+        promises: notes.promises,
+        followUpDate: notes.followUpDate,
+        urgent: notes.urgent,
+        notedAtMs: nowMs,
+      }, { merge: true });
+      if (personal) { out.personal++; continue; }
+      out.noted++;
+
+      if (call.leadId) {
+        const full = Object.assign({}, call, { durationSec: Number(t.durationSec) || 0 });
+        await db.doc('leads/' + call.leadId + '/activity/cube-' + call.id)
+          .set(Object.assign(L.buildCallActivity({ call: full, notes, ownerUid: OWNER }), { createdAt: FieldValue.serverTimestamp() }));
+        const task = L.buildFollowUpTask({ call: full, notes, leadId: call.leadId, ownerUid: OWNER, todayYmd: today });
+        // create(): a re-run must never un-tick a task Jo already completed.
+        if (task && await createIfAbsent(db.doc('leads/' + call.leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
+      }
+    } catch (e) {
+      out.failed++;
+      await callRef.set({ transcribeAttempts: (Number(call.transcribeAttempts) || 0) + 1, transcribeError: String((e && e.message) || e).slice(0, 300) }, { merge: true }).catch(() => {});
+      logger.warn('call_center_transcribe_failed', { id: call.id, err: e && e.message });
+    }
+  }
+
+  const patch = { audioSecDay: today, audioSecUsed: usedSec + out.audioSec, lastTranscribeAtMs: nowMs, lastTranscribe: out };
+  // The one-call test runs once: clear the ids it handled.
+  if (allowIds.length) patch.transcribeOnly = allowIds.filter((id) => !pick.some((c) => c.id === id));
+  await ref.set(patch, { merge: true });
+  return out;
+}
+
+exports.callCenterTranscribe = onSchedule(
+  { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', secrets: [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY] },
+  async () => {
+    try {
+      if (await require('./integrations/killswitch').isAiDisabled()) { logger.info('[callCenterTranscribe] AI kill switch on'); return; }
+      const r = await runTranscribe({ db: getFirestore(), bucket: getStorage().bucket(), live: transcribeEnabled(), nowMs: Date.now() });
+      logger.info('[callCenterTranscribe]', r);
+    } catch (e) {
+      logger.warn('[callCenterTranscribe] failed', { err: e && e.message });
+    }
+  }
+);
+
 exports._test = {
   runIngest,
+  runTranscribe,
   setClient(c) { _testClient = c; },
+  setDeps(x) { _deps = x; },
   OWNER, COLLECTION, CONFIG,
 };
