@@ -1546,6 +1546,10 @@ service cloud.firestore {
     // pending item to approved / dismissed, stamp who and when, and edit the
     // text before approving. Nothing else on the item can change, and a
     // decided item stays decided.
+    // Bot keys (hashed) and the bot audit trail — server only (agent-mcp.js).
+    match /agent_keys/{keyId}   { allow read, write: if false; }
+    match /agent_audit/{auditId} { allow read, write: if false; }
+
     match /agent_inbox/{itemId} {
       allow read: if isAdmin()
         || (resource.data.companyId == request.auth.uid && notViewer())

@@ -1,0 +1,18 @@
+/* Fill dates of loss (dol-fill.js, 2026-10-02). */
+.dol-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .7); display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px 12px; }
+.dol-modal { width: 100%; max-width: 640px; background: var(--s); border: 1px solid var(--br); border-radius: 12px; padding: 16px; color: var(--t); }
+.dol-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.dol-h { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; }
+.dol-sub { font-size: 12px; color: var(--m); margin-top: 2px; }
+.dol-close { min-width: 44px; min-height: 44px; background: transparent; border: 0; color: var(--t); font-size: 20px; cursor: pointer; }
+.dol-note { font-size: 12px; color: var(--m); line-height: 1.5; margin: 8px 0 10px; }
+.dol-row { border: 1px solid var(--br); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--s2); }
+.dol-name { font-weight: 800; font-size: 15px; }
+.dol-meta { font-size: 11px; color: var(--m); margin: 2px 0 8px; overflow-wrap: anywhere; }
+.dol-pick { display: block; width: 100%; min-height: 44px; margin-bottom: 6px; padding: 6px 10px; text-align: left; border-radius: 8px; border: 1px solid var(--br); background: var(--s); color: var(--t); font: inherit; font-size: 14px; cursor: pointer; }
+.dol-pick.is-top { border-color: var(--orange, #BD5728); box-shadow: inset 0 0 0 1px var(--orange, #BD5728); font-weight: 700; }
+.dol-own { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.dol-date { flex: 1 1 140px; min-height: 44px; padding: 0 10px; background: var(--s); color: var(--t); border: 1px solid var(--br); border-radius: 8px; font: inherit; }
+.dol-btn { flex: 0 0 auto; min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--br); background: transparent; color: var(--t); font: inherit; font-weight: 700; cursor: pointer; }
+.dol-done { color: var(--green, #22c55e); font-weight: 700; font-size: 13px; }
+.dol-muted { color: var(--m); font-size: 12px; margin-bottom: 4px; }
