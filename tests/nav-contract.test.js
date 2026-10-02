@@ -318,6 +318,16 @@ group('Drawer close paths: every way out of the sheet', () => {
   ]) assert(label, re.test(navJs));
 });
 
+// Exact restore (2026-10-02): a close that navigates nowhere (hamburger,
+// Escape, tap outside) re-applies ANY drift; only a drawer-link close keeps
+// the near-0-only rule so a link's own smooth scroll to a section is never
+// fought. CI mobile WebKit landed 55-72 px off with the near-0-only rule.
+console.log('\nExact scroll restore');
+assert('a drawer link marks its close as navigational', /closest\('a'\)\) \{ closingViaLink = true; setOpen\(false\); \}/.test(navJs));
+assert('unlockScroll reads and clears the link flag', /var exact = !closingViaLink;\s*closingViaLink = false;/.test(navJs));
+assert('re-apply is exact (any drift) unless a link closed it', /if \(exact \? Math\.abs\(at - target\) <= 2 : at > 2\) return;/.test(navJs));
+assert('the reader scrolling themselves always wins', /if \(userMoved\) return;/.test(navJs));
+
 console.log('\n' + '─'.repeat(50));
 console.log(passed + ' passed, ' + failed + ' failed');
 if (failed) process.exit(1);
