@@ -3405,6 +3405,8 @@
   }
 
   function render() {
+    // Tier shingle lock on EVERY scope path (V3 E2E 2026-10-02).
+    if (_v2EnforceTierShingles(state.tier)) state._reopenedClean = false;
     renderCatalog();
     renderScope();
     renderPhotos();
@@ -3413,6 +3415,10 @@
     // write to localStorage. Firestore backup fires on a slower
     // cadence so network blips don't cost the rep their work.
     saveDraftDebounced();
+    // V3 step layer (estimate-v3-wizard.js) repaints its bar + cards.
+    if (window.EstimateV3 && typeof window.EstimateV3.onRender === 'function') {
+      try { window.EstimateV3.onRender(); } catch (e) { console.warn('[v3] onRender failed:', e); }
+    }
   }
 
   // ═════════════════════════════════════════════════════════
@@ -5061,6 +5067,11 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
     // on Review (scope + total + save/export, the "look at it" step); a
     // fresh estimate starts at Setup. Desktop ignores the attribute.
     setMobileStep(opts.estimateId ? 3 : 1);
+    // V3 (2026-10-02): the step-by-step layer opens by default on top of
+    // this modal; "Full editor" in the header drops back to this layout.
+    if (window.EstimateV3 && typeof window.EstimateV3.onOpen === 'function') {
+      try { window.EstimateV3.onOpen({ reopened: !!opts.estimateId }); } catch (e) { console.warn('[v3] onOpen failed:', e); }
+    }
     // A previous session's pending undo / open row editor belong to it.
     _dismissUndo();
     _rowEdit = null;
@@ -5213,6 +5224,9 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
     // numbers (and the recomputed total) show immediately.
     applyImportedMeasurements: (imp) => { applyImportedMeasurements(imp || {}); render(); },
     getState: () => state,
+    // Per-tier totals for the V3 Package cards — the same numbers the
+    // homeowner presentation compares (an absent tier reads null).
+    tierTotals: () => triTierTotals(effectiveEstimate()),
     // Test seam — pure builders + reopen helpers, exercised by
     // tests/estimate-v2-payload.test.js.
     _test: {

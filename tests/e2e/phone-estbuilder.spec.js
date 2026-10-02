@@ -72,6 +72,14 @@ async function openBuilder(page, arg) {
   await expect(page.locator('#estV2Modal.open')).toBeVisible({ timeout: 15_000 });
   await safeWaitForFunction(page, () => !!(window.NBD_XACT_CATALOG && window.EstimateV2UI), { timeout: 15_000 });
   await page.waitForTimeout(400);
+  // V3 (2026-10-02) opens by default; this spec covers the V2 editor, which
+  // stays one tap away behind "Full editor" (estimate-v3-wizard.js).
+  const toFull = page.locator('#estV2Modal.v3-on #v3Toggle');
+  if (await toFull.count()) {
+    await toFull.click();
+    await expect(page.locator('#estV2Modal.v3-on')).toHaveCount(0);
+    await page.waitForTimeout(200);
+  }
 }
 
 // The control's centre, hit-tested: what a thumb landing there would touch.
