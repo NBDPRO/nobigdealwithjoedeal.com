@@ -142,11 +142,26 @@
       return {
         key: receiptKey(date, g(r, 'Store Number'), g(r, 'Transaction ID'), g(r, 'Order Number')),
         desc: g(r, 'SKU Description').replace(/�/g, ''),
+        // The store SKU feeds the price book (price-book.js, 2026-10-02).
+        sku: g(r, 'SKU Number').replace(/[^A-Za-z0-9-]/g, ''),
         qty: parseFloat(g(r, 'Quantity')) || 0,
         dept: g(r, 'Department Name').toUpperCase(),
         cents: Math.max(0, cents(g(r, 'Net Unit Price') || g(r, 'Extended Retail (before discount)'))),
+        unitCents: unitCentsOf(g(r, 'Unit price'), g(r, 'Net Unit Price'), g(r, 'Extended Retail (before discount)'), parseFloat(g(r, 'Quantity')) || 0),
       };
     }).filter((x) => x.key && x.desc);
+  }
+
+  // One item's price for the price book. The export's own "Unit price" wins.
+  // Without it: "Net Unit Price" equal to the line's extended amount on a
+  // multi-quantity line is a LINE total (seen in exports), so divide by the
+  // quantity; otherwise Net Unit Price is per unit; last resort extended / qty.
+  function unitCentsOf(unit, net, ext, qty) {
+    const u = cents(unit), n = cents(net), e = cents(ext), q = qty > 0 ? qty : 1;
+    if (u > 0) return u;
+    if (n > 0 && e > 0 && q > 1 && n === e) return Math.round(n / q);
+    if (n > 0) return n;
+    return e > 0 ? Math.round(e / q) : 0;
   }
 
   function attachDetails(receipts, lines) {
@@ -155,7 +170,7 @@
     lines.forEach((l) => {
       const r = by[l.key];
       if (!r) return;
-      r.items.push({ desc: l.desc, qty: l.qty, dept: l.dept, cents: l.cents });
+      r.items.push({ desc: l.desc, sku: l.sku || '', qty: l.qty, dept: l.dept, cents: l.cents, unitCents: l.unitCents || 0 });
       r.departments[l.dept || 'OTHER'] = (r.departments[l.dept || 'OTHER'] || 0) + l.cents;
     });
     return receipts;
@@ -470,7 +485,15 @@
     }
     await saveAliases(aliases);
     _state.aliases = aliases;
-    if (window.showToast) window.showToast('Imported ' + ok + ' Home Depot purchase' + (ok === 1 ? '' : 's') + (fail ? ' · ' + fail + ' failed' : ''), fail ? 'error' : 'ok');
+    // Price book (2026-10-02): what each SKU actually cost, from the receipts
+    // just saved. Never blocks or fails the import (record() swallows errors).
+    let pbLine = '';
+    if (window.NBDPriceBook && typeof window.NBDPriceBook.record === 'function') {
+      const saved = todo.filter((r) => r.already);
+      const pb = await window.NBDPriceBook.record(window.NBDPriceBook.purchasesFromHdReceipts(saved));
+      if (pb && pb.added) pbLine = ' · ' + pb.added + ' price' + (pb.added === 1 ? '' : 's') + ' added to the price book';
+    }
+    if (window.showToast) window.showToast('Imported ' + ok + ' Home Depot purchase' + (ok === 1 ? '' : 's') + pbLine + (fail ? ' · ' + fail + ' failed' : ''), fail ? 'error' : 'ok');
     if (window.Expenses && typeof window.Expenses.refresh === 'function') window.Expenses.refresh();
     close();
   }
@@ -498,7 +521,7 @@
   window.NBDHdImport = {
     open, close,
     // pure — exported for tests
-    parseCsv, kindOf, parseSummary, parseDetails, attachDetails, suggestCategory, matchJob, plan, expenseDoc, receiptKey,
+    parseCsv, kindOf, parseSummary, parseDetails, unitCentsOf, attachDetails, suggestCategory, matchJob, plan, expenseDoc, receiptKey,
     SOURCE,
   };
 })();

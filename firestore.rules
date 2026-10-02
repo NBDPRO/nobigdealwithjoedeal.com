@@ -1527,6 +1527,18 @@ service cloud.firestore {
     // which every sign-out purges. Jo: one company-wide library, the owner and
     // company admins edit, everyone in the company reads. Identical access to
     // catalogCosts on purpose — same tenant, same editors.
+    // The company's price book (price-book.js, 2026-10-02): what it actually
+    // paid per store SKU, learned from receipts (Home Depot import) and later
+    // manual entries. COST data, so the same tenant scoping and the same
+    // owner / company_admin write split as catalogCosts — a sales_rep reads
+    // it (the materials list shows last-paid prices) but cannot rewrite it.
+    match /priceBook/{companyId} {
+      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow write: if isAdmin()
+        || (companyId == request.auth.uid && notViewer())
+        || (isCompanyAdmin() && companyId == myCompanyId());
+    }
+
     match /productLibrary/{companyId} {
       allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
       allow write: if isAdmin()

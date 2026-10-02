@@ -2122,6 +2122,36 @@ async function run() {
     throw new Error('43 jobs stage 1: ' + s43Fail.length + ' check(s) went the wrong way:\n    ' + s43Fail.join('\n    '));
   }
 
+  // ─── 44. priceBook/{companyId} — what the company paid, per store SKU ───
+  // (2026-10-02). Cost data: same scoping and write split as catalogCosts.
+  const s44Fail = []; let s44Pass = 0;
+  async function x44(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s44Pass++;
+    } catch (e) { s44Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const rep44   = env.authenticatedContext('rep44',  { role: 'sales_rep', companyId: 'co-44' }).firestore();
+  const cadm44  = env.authenticatedContext('cadm44', { role: 'company_admin', companyId: 'co-44' }).firestore();
+  const own44   = env.authenticatedContext('co-44',  { companyId: 'co-44' }).firestore();
+  const view44  = env.authenticatedContext('vw44',   { role: 'viewer', companyId: 'co-44' }).firestore();
+  const other44 = env.authenticatedContext('oth44',  { role: 'company_admin', companyId: 'co-other44' }).firestore();
+  const solo44  = env.authenticatedContext('solo44', {}).firestore();
+  const BOOK = { items: { homedepot_100318 : { store: 'homedepot', sku: '100318', lastPaidCents: 3498, lastPaidDate: '2026-09-28', history: [] } } };
+  await x44('owner (uid = company key) writes the book', 'allow', setDoc(doc(own44, 'priceBook/co-44'), BOOK));
+  await x44('company_admin writes it', 'allow', setDoc(doc(cadm44, 'priceBook/co-44'), BOOK, { merge: true }));
+  await x44('sales rep reads it', 'allow', getDoc(doc(rep44, 'priceBook/co-44')));
+  await x44('viewer reads it', 'allow', getDoc(doc(view44, 'priceBook/co-44')));
+  await x44('sales rep writes it', 'deny', setDoc(doc(rep44, 'priceBook/co-44'), BOOK, { merge: true }));
+  await x44('viewer writes it', 'deny', setDoc(doc(view44, 'priceBook/co-44'), BOOK, { merge: true }));
+  await x44('another company reads it', 'deny', getDoc(doc(other44, 'priceBook/co-44')));
+  await x44('another company writes it', 'deny', setDoc(doc(other44, 'priceBook/co-44'), BOOK));
+  await x44('solo owner writes their own (uid key)', 'allow', setDoc(doc(solo44, 'priceBook/solo44'), BOOK));
+  console.log('  44: ' + s44Pass + ' price-book checks passed, ' + s44Fail.length + ' failed');
+  if (s44Fail.length) {
+    throw new Error('44 priceBook: ' + s44Fail.length + ' check(s) went the wrong way:\n    ' + s44Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }
