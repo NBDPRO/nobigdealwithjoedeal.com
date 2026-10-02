@@ -57,6 +57,18 @@ async function companyDocs(collection, companyId, fields) {
 }
 
 async function runTool(name, args, key) {
+  // Personal scope: the key owner's own tracker and nothing else. A personal
+  // key can never reach a CRM tool, and a CRM key never reaches these
+  // (botAllows already splits the lists; this is the second lock).
+  if (L.isPersonalTool(name) || key.scope === 'personal') {
+    if (key.scope !== 'personal' || !key.ownerUid || !L.isPersonalTool(name)) return L.toolErr('This key cannot use that tool.');
+    const s = await db().collection('userSettings').doc(key.ownerUid).get();
+    const d = s.exists ? (s.data() || {}) : {};
+    if (name === 'my_today') return L.toolText(L.personalToday(d.dsSnapshot, Date.now()));
+    if (name === 'my_week') return L.toolText(L.personalWeek(d.dsSnapshot, Date.now()));
+    if (name === 'my_reviews') return L.toolText({ reviews: L.personalReviews(d.dsReviews, args.limit) });
+    return L.toolErr('unknown tool');
+  }
   const company = key.companyId;
   const today = nyToday();
   if (name === 'crm_summary') return L.toolText(L.summary(await companyLeads(company), today));
@@ -211,7 +223,10 @@ exports.crmMcp = onRequest(
     const snap = await db().collection('agent_keys').doc(id).get();
     const k = snap.exists ? snap.data() : null;
     if (!k || k.active !== true || !L.BOTS[k.botId]) { res.status(401).json(L.rpcError(null, -32001, 'Key not recognised or revoked')); return; }
-    const key = { id, botId: k.botId, companyId: k.companyId };
+    // A personal bot's key must be a personal key with an owner, and a CRM
+    // bot's key must not be — a mismatched doc is refused outright.
+    if (L.isPersonalBot(k.botId) !== (k.scope === 'personal') || (k.scope === 'personal' && !k.ownerUid)) { res.status(401).json(L.rpcError(null, -32001, 'Key not recognised or revoked')); return; }
+    const key = { id, botId: k.botId, companyId: k.companyId, scope: k.scope === 'personal' ? 'personal' : 'crm', ownerUid: k.scope === 'personal' ? k.ownerUid : null };
     const rl = await enforceRateLimit('agentMcp', id, CALLS_PER_HOUR, 3600000).catch((e) => ({ allowed: false, err: e }));
     if (rl && rl.allowed === false) { res.set('Retry-After', '600'); res.status(429).json(L.rpcError(null, -32002, 'Rate limit — slow down')); return; }
     snap.ref.update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
@@ -241,25 +256,36 @@ function requireKeyAdmin(request) {
 exports.createAgentKey = onCall(
   { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' },
   async (request) => {
-    const { uid, company } = requireKeyAdmin(request);
     const botId = String((request.data && request.data.botId) || '');
     if (!Object.prototype.hasOwnProperty.call(L.BOTS, botId)) throw new HttpsError('invalid-argument', 'Unknown bot (Nova never gets an NBD key).');
+    // A personal key reads only the signed-in person's own tracker, so the
+    // person makes it for themselves; CRM keys stay owner / admin only.
+    const personal = L.isPersonalBot(botId);
+    let uid, company;
+    if (personal) {
+      if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+      uid = request.auth.uid; company = (request.auth.token || {}).companyId || uid;
+    } else ({ uid, company } = requireKeyAdmin(request));
     const raw = 'nbdk_' + crypto.randomBytes(30).toString('base64url');
     const id = sha256(raw);
-    await db().collection('agent_keys').doc(id).set({ botId, botName: L.BOTS[botId].name, companyId: company, active: true, prefix: raw.slice(0, 9), createdAt: FieldValue.serverTimestamp(), createdBy: uid });
-    return { key: raw, url: MCP_URL, botName: L.BOTS[botId].name, tools: L.BOTS[botId].tools };
+    const doc = { botId, botName: L.BOTS[botId].name, companyId: company, active: true, prefix: raw.slice(0, 9), createdAt: FieldValue.serverTimestamp(), createdBy: uid };
+    if (personal) Object.assign(doc, { scope: 'personal', ownerUid: uid });
+    await db().collection('agent_keys').doc(id).set(doc);
+    return { key: raw, url: MCP_URL, botName: L.BOTS[botId].name, tools: L.BOTS[botId].tools, personal };
   }
 );
 
 exports.listAgentKeys = onCall(
   { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' },
   async (request) => {
-    const { company } = requireKeyAdmin(request);
+    const { uid, company } = requireKeyAdmin(request);
     const snap = await db().collection('agent_keys').where('companyId', '==', company).get();
     return {
       url: MCP_URL,
-      bots: Object.keys(L.BOTS).map((id) => ({ botId: id, name: L.BOTS[id].name, tools: L.BOTS[id].tools, firstWave: L.FIRST_WAVE.indexOf(id) !== -1 })),
-      keys: snap.docs.map((d) => { const k = d.data(); return { id: d.id, botId: k.botId, botName: k.botName, active: !!k.active, prefix: k.prefix, createdAt: L.ms(k.createdAt) || null, lastUsedAt: L.ms(k.lastUsedAt) || null }; }),
+      bots: Object.keys(L.BOTS).map((id) => ({ botId: id, name: L.BOTS[id].name, tools: L.BOTS[id].tools, firstWave: L.FIRST_WAVE.indexOf(id) !== -1, personal: L.isPersonalBot(id) })),
+      // Someone else's personal keys are theirs alone — never listed to an admin.
+      keys: snap.docs.filter((d) => { const k = d.data(); return k.scope !== 'personal' || k.ownerUid === uid; })
+        .map((d) => { const k = d.data(); return { id: d.id, botId: k.botId, botName: k.botName, active: !!k.active, prefix: k.prefix, personal: k.scope === 'personal', createdAt: L.ms(k.createdAt) || null, lastUsedAt: L.ms(k.lastUsedAt) || null }; }),
     };
   }
 );
@@ -272,6 +298,7 @@ exports.revokeAgentKey = onCall(
     const ref = db().collection('agent_keys').doc(id);
     const s = await ref.get();
     if (!s.exists || s.data().companyId !== company) throw new HttpsError('not-found', 'No such key.');
+    if (s.data().scope === 'personal' && s.data().ownerUid !== uid) throw new HttpsError('not-found', 'No such key.');
     await ref.update({ active: false, revokedAt: FieldValue.serverTimestamp(), revokedBy: uid });
     return { ok: true };
   }

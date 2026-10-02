@@ -83,7 +83,7 @@ ok('the widget streak (nbd_streak) uses the new rule', /window\.NBDReview\.floor
 const idx = read('docs/pro/daily-success/index.html');
 const at = (s) => idx.indexOf(s);
 ok('review-logic loads before app.js; review-ui after the food card; css linked',
-  at('js/review-logic.js?v=1') > -1 && at('js/review-logic.js?v=1') < at('/js/app.js"') && at('js/review-ui.js?v=1') > at('js/food-log.js?v=1') && at('css/review.css?v=1') > -1);
+  at('js/review-logic.js?v=') > -1 && at('js/review-logic.js?v=') < at('/js/app.js"') && at('js/review-ui.js?v=') > at('js/food-log.js?v=') && at('css/review.css?v=') > -1);
 ok('reviews ride the userSettings sync (survive sign-out)', /\{ key: 'nbd_ds_reviews',\s+field: 'dsReviews' \}/.test(read('docs/pro/daily-success/ds-firebase-sync.js')));
 const ui = read('docs/pro/daily-success/js/review-ui.js');
 ok('every typed value reaching the sheet is escaped', /value="' \+ esc\(saved\.scary/.test(ui) && />' \+ esc\(saved\.kept/.test(ui) && /esc\(r\.label\)/.test(ui) && /esc\(x\.last\.scary\)/.test(ui) && !/innerHTML\s*=\s*[^;]*\+\s*saved\.(kept|bailed|scary)\b/.test(ui));

@@ -64,6 +64,31 @@
     };
   }
 
+  // ── publish for the personal bots (Build 3) ───────────────────────────
+  // What the screen shows, written to nbd_ds_snapshot → userSettings
+  // .dsSnapshot, where Jo's personal Coach / Finance Board key reads it.
+  // Unchanged → not re-written (the signature skips the timestamp).
+  const SNAP = 'nbd_ds_snapshot';
+  function publish() {
+    try {
+      const x = snapshot();
+      const saved = x.s.weeks[today()] || {};
+      const card = R().scorecardText({
+        from: x.week.from, to: x.week.to, floors: x.fl.length ? x.week : null, taxMoved: !!saved.taxMoved, streak: x.streak,
+        weight: x.weight, goal: x.goal,
+        lastScary: x.last && x.last.scary ? { text: x.last.scary, done: typeof saved.lastDone === 'boolean' ? saved.lastDone : null } : null,
+        kept: saved.kept, bailed: saved.bailed, scary: saved.scary, scaryDue: saved.scaryDue,
+      });
+      const doc = R().snapshotDoc({ floors: x.fl, byDayToday: R().metByDay(allPages(), x.fl).get(today()), todayDk: today(),
+        streak: x.streak, week: x.week, trend: x.t, rule: x.weight, goal: x.goal, scorecard: card }, Date.now());
+      const prev = readJson(SNAP, null);
+      if (prev && prev.sig === doc.sig) return false;
+      localStorage.setItem(SNAP, JSON.stringify(doc));
+      if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(SNAP);
+      return true;
+    } catch (_) { return false; /* the tracker works without it */ }
+  }
+
   // ── dashboard card ─────────────────────────────────────────────────────
   function cardHtml() {
     if (!R()) return '';
@@ -190,6 +215,7 @@
     box.innerHTML = cardHtml();
     main.insertBefore(box, main.firstChild);
     paintGoalBars(box);
+    publish();
   }
   function hook() {
     const origDash = window.renderDash;
@@ -225,5 +251,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDReviewUI = { cardHtml, open, close, scorecard, refresh };
+  window.NBDReviewUI = { cardHtml, open, close, scorecard, refresh, publish };
 })();

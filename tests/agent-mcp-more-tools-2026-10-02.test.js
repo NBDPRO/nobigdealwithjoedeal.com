@@ -117,7 +117,8 @@ ok('bulk "checked only" takes verified notes + reminders, never reports', JSON.s
 ok('bulk "all" still takes every note + reminder', A.bulkIds(items, false).length === 3);
 ok('a Quinn flag reads as a flag, with her note', /ai-flag/.test(ai) && /⚠ flagged by/.test(ai) && /ai-qnote/.test(ai) && /it\.quinnNote/.test(ai));
 ok('the checked button only shows when it differs from Add all', /checked < 1 \|\| checked === notesAndReminders/.test(ai));
-ok('dashboard loads the new inbox files', /js\/agent-inbox\.js\?v=3/.test(read('docs/pro/dashboard.html')) && /css\/agent-inbox\.css\?v=3/.test(read('docs/pro/dashboard.html')));
+const vOf = (re) => Number((read('docs/pro/dashboard.html').match(re) || [])[1]);
+ok('dashboard loads the new inbox files (v3 or later)', vOf(/js\/agent-inbox\.js\?v=(\d+)/) >= 3 && vOf(/css\/agent-inbox\.css\?v=(\d+)/) >= 3);
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

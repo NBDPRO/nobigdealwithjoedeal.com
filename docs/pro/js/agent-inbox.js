@@ -164,19 +164,25 @@
   function connHtml(data, fresh) {
     const keysByBot = {};
     (data.keys || []).filter((k) => k.active).forEach((k) => { (keysByBot[k.botId] = keysByBot[k.botId] || []).push(k); });
+    const serverName = fresh && fresh.personal ? 'Jo Tracker' : 'NBD CRM';
     const freshHtml = fresh ? '<div class="ai-key-fresh"><div class="ai-kind">New key for ' + esc(fresh.botName) + ' — copy it now, it is shown once</div>' +
       '<code class="ai-key" id="aiFreshKey">' + esc(fresh.key) + '</code>' +
       '<button type="button" class="ai-btn" data-ai-act="copykey">Copy key</button>' +
-      '<div class="ai-meta">In Grok Bot, ask ' + esc(fresh.botName) + ' to add an MCP server named “NBD CRM” at <b>' + esc(fresh.url) + '</b> with the header <b>Authorization: Bearer &lt;key&gt;</b>, and paste the key into its secure box — never into the chat.</div></div>' : '';
-    return freshHtml + '<div class="ai-meta">Address: ' + esc(data.url || '') + '</div>' +
-      (data.bots || []).map((b) => {
+      '<div class="ai-meta">In Grok Bot, ask ' + esc(fresh.botName) + ' to add an MCP server named “' + serverName + '” at <b>' + esc(fresh.url) + '</b> through its mcp-remote wrapper with the header <b>Authorization: Bearer &lt;key&gt;</b>, and paste the key into its secure box — never into the chat.' +
+      (fresh.personal ? ' This key reads only your own tracker — never the CRM.' : '') + '</div></div>' : '';
+    const row = (b) => {
         const ks = keysByBot[b.botId] || [];
         return '<div class="ai-conn-row"><div><div class="ai-kind">' + esc(b.name) + (b.firstWave ? ' <span class="ai-ok">· first wave</span>' : '') + '</div>' +
           '<div class="ai-meta">' + esc(b.tools.join(', ')) + '</div>' +
           ks.map((k) => '<div class="ai-meta">Key ' + esc(k.prefix) + '… · last used ' + esc(k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : 'never') +
             ' <button type="button" class="ai-link" data-ai-act="revoke" data-ai-id="' + esc(k.id) + '">Revoke</button></div>').join('') + '</div>' +
           '<button type="button" class="ai-btn" data-ai-act="mkkey" data-ai-id="' + esc(b.botId) + '">' + (ks.length ? 'New key' : 'Create key') + '</button></div>';
-      }).join('');
+    };
+    const bots = data.bots || [];
+    const personal = bots.filter((b) => b.personal);
+    return freshHtml + '<div class="ai-meta">Address: ' + esc(data.url || '') + '</div>' +
+      bots.filter((b) => !b.personal).map(row).join('') +
+      (personal.length ? '<div class="ai-kind ai-conn-sec">Personal — reads only your own tracker, never the CRM</div>' + personal.map(row).join('') : '');
   }
 
   async function paintConn(fresh) {
