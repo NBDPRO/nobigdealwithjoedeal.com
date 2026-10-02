@@ -1,0 +1,112 @@
+name: Public-invoker watch
+
+# ─────────────────────────────────────────────────────────────
+# WHY THIS EXISTS
+# ─────────────────────────────────────────────────────────────
+# Gen2 Cloud Functions run on Cloud Run, which checks IAM BEFORE any code
+# runs. A function the browser calls (onRequest or onCall) needs
+# allUsers → roles/run.invoker; its handler then does the real auth. A
+# service that loses that binding answers 403 to every browser request, and
+# its own logs stay silent because the handler never runs.
+#
+# On 2026-10-02 four had lost it, and nothing noticed:
+#   - cspReport: 261 of 261 reports in a week were refused;
+#   - sendEmail and sendSMS;
+#   - extractReceiptData, the Expenses receipt scan.
+# See documentation/audit/PUBLIC-INVOKER-SWEEP-2026-10-02.md. The onRequest
+# ones now declare invoker:'public' in code. A callable can't (onCall ignores
+# it), so only a check like this one would see it go missing again.
+#
+# Weekly, READ-ONLY (services.list + services.getIamPolicy): every
+# browser-facing function must still grant allUsers run.invoker. One that
+# doesn't turns the run red, which emails the repo owner, with the exact fix
+# in the summary. The check never changes a policy.
+#
+# Output is function names only (this repo and its run logs are public).
+#
+# ─────────────────────────────────────────────────────────────
+# SECRET (shared with firebase-deploy.yml — no new setup needed)
+# ─────────────────────────────────────────────────────────────
+# FIREBASE_SERVICE_ACCOUNT: the deploy account, which already sets these
+# bindings on deploy, so it can read them. Unset → a "skipped" notice, not a
+# failure (same convention as address-audit.yml).
+
+on:
+  schedule:
+    # 12:20 UTC Mondays, just before the page-speed watch (12:40).
+    - cron: '20 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    name: Every browser-facing function is still public
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NBD_PROJECT: nobigdeal-pro
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the service-account secret is configured
+        id: gate
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$SA" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "### Public-invoker watch: skipped (FIREBASE_SERVICE_ACCOUNT is not set)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::FIREBASE_SERVICE_ACCOUNT is not set — skipping (not a failure)."
+          fi
+
+      - name: Set up Node
+        if: steps.gate.outputs.configured == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      # Written via an env var, never shell interpolation: keeps the secret
+      # out of the log.
+      - name: Write service-account JSON to a temp file
+        if: steps.gate.outputs.configured == 'true'
+        id: sa
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          SA_FILE="$RUNNER_TEMP/nbd-invoker-sa.json"
+          printf '%s' "$SA_JSON" > "$SA_FILE"
+          if [ ! -s "$SA_FILE" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT resolved to empty."
+            exit 1
+          fi
+          echo "sa_path=$SA_FILE" >> "$GITHUB_OUTPUT"
+
+      # The checker loads functions/index.js to learn which exports are
+      # onRequest / onCall, and uses google-auth-library from functions/.
+      - name: Install functions deps
+        if: steps.gate.outputs.configured == 'true'
+        run: |
+          cd functions
+          npm ci --silent || npm install --silent --no-audit --no-fund
+
+      # Exit 1 = a function is not public (red, emails the owner). Exit 2 =
+      # couldn't check (credentials or API): a warning, never a false alarm.
+      - name: Check every browser-facing function
+        if: steps.gate.outputs.configured == 'true'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.sa.outputs.sa_path }}
+        run: |
+          set +e
+          node scripts/check-public-invoker.mjs
+          code=$?
+          if [ "$code" = "2" ]; then
+            echo "::warning::Could not read the IAM policies this week (see the summary). Not a finding."
+            exit 0
+          fi
+          exit $code

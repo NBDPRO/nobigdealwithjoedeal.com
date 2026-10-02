@@ -134,9 +134,19 @@ function pickNewestBackup(files) {
     .sort((a, b) => String(b.name).localeCompare(String(a.name)))[0] || null;
 }
 
-/** Where to read from: 3 days of overlap before the cursor (dedupe makes it free). */
-function sinceFor(cursorMs, nowMs, backfillDays) {
-  const floor = nowMs - (backfillDays || 90) * 24 * 3600 * 1000;
+// How far back texts go (Jo, 2026-10-02: "yes texts back to 2026 too", the
+// same floor as calls in call-center-logic.js HISTORY_FROM). Midnight
+// Eastern on 2026-01-01; January is EST, UTC-5. A backup holds Jo's whole
+// texting history, and nothing older than this is ever read.
+const HISTORY_FROM_MS = Date.parse('2026-01-01T05:00:00Z');
+
+/**
+ * Where to read from: the history floor on the first run; after that, 3
+ * days of overlap before the cursor (dedupe makes it free), never earlier
+ * than the floor. (nowMs is kept for the callers' signature.)
+ */
+function sinceFor(cursorMs, nowMs) {
+  const floor = HISTORY_FROM_MS;
   return cursorMs ? Math.max(floor, cursorMs - 3 * 24 * 3600 * 1000) : floor;
 }
 
@@ -250,5 +260,6 @@ module.exports = {
   textDocId,
   pickNewestBackup,
   sinceFor,
+  HISTORY_FROM_MS,
   buildTextDoc,
 };
