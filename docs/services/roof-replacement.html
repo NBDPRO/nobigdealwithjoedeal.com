@@ -446,6 +446,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 }
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-readability.css">
+<link rel="stylesheet" href="/assets/css/roof-3d.css">
+<script type="module" src="/assets/js/roof-3d.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/project-cards.css?v=1">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
@@ -850,6 +852,41 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- CODE-CORRECT ROOF, CUT AWAY (2026-10-02) — static diagram first;
+     js/roof-3d.js adds a spinnable 3D gable on tap (Three.js vendored, tap-to-load). -->
+<section class="section roof3d-section" id="code-correct-roof" aria-labelledby="code-correct-roof-h">
+  <span class="section-label">Layer by Layer</span>
+  <h2 class="section-title" id="code-correct-roof-h">Every Code Item.<br>Even the Ones Most Roofers Skip.</h2>
+  <div class="roof3d" data-roof3d>
+    <figure class="roof3d-figure">
+      <div class="roof3d-stage" data-roof3d-stage>
+        <img class="roof3d-svg" src="/assets/images/roof-layers.svg" width="1200" height="620" loading="lazy" decoding="async"
+             alt="A gable roof cut away layer by layer: roof deck, drip edge at the eaves and rakes, ice and water shield, synthetic underlayment, starter strip, shingles, new pipe boots, step and counter flashing at the chimney, ridge vent and cap, and soffit intake vents.">
+      </div>
+      <div class="roof3d-controls">
+        <button type="button" class="roof3d-start" data-roof3d-start>See it in 3D</button>
+        <label class="roof3d-explode">Pull the layers apart
+          <input type="range" min="0" max="100" value="0" data-roof3d-explode aria-label="Pull the roof layers apart">
+        </label>
+        <span class="roof3d-hint">Drag to turn it. Tap a number to find that part.</span>
+      </div>
+      <figcaption class="roof3d-caption"><span class="roof3d-code">CODE</span> Required by the Ohio and Kentucky residential codes. Plenty of roofs get these skipped; every NBD roof gets them. Also code: kick-out flashing wherever a roof edge runs into a wall.</figcaption>
+    </figure>
+    <ol class="roof3d-legend">
+      <li data-roof3d-item="deck"><span class="roof3d-n">1</span><span class="roof3d-t"><strong>Roof deck</strong><span>Inspected; rotted boards replaced</span></span></li>
+      <li data-roof3d-item="drip"><span class="roof3d-n">2</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Drip edge</strong><span>Metal at every eave and rake</span></span></li>
+      <li data-roof3d-item="ice"><span class="roof3d-n">3</span><span class="roof3d-t"><strong>Ice &amp; water shield</strong><span>Along the eaves</span></span></li>
+      <li data-roof3d-item="under"><span class="roof3d-n">4</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Synthetic underlayment</strong><span>Over the whole deck</span></span></li>
+      <li data-roof3d-item="starter"><span class="roof3d-n">5</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Starter strip</strong><span>Seals the first course at the eave</span></span></li>
+      <li data-roof3d-item="shingles"><span class="roof3d-n">6</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Shingles</strong><span>GAF or TAMKO, nailed to the manufacturer’s pattern</span></span></li>
+      <li data-roof3d-item="boot"><span class="roof3d-n">7</span><span class="roof3d-t"><strong>New pipe boots</strong><span>On every plumbing vent</span></span></li>
+      <li data-roof3d-item="flash"><span class="roof3d-n">8</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Step + counter flashing</strong><span>Wherever the roof meets a chimney or wall</span></span></li>
+      <li data-roof3d-item="ridge"><span class="roof3d-n">9</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Ridge vent + ridge cap</strong><span>Hot attic air out at the peak</span></span></li>
+      <li data-roof3d-item="soffit"><span class="roof3d-n">10</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Soffit intake vents</strong><span>Fresh air in at the eaves, so the attic breathes</span></span></li>
+    </ol>
   </div>
 </section>
 
