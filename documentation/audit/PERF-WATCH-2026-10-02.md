@@ -75,3 +75,49 @@ The same triage marked **DESIGN.md** as USE ("the repo has no DESIGN.md").
 That was out of date: it was added in #1946 and is referenced from
 `CLAUDE.md`. Nothing was rebuilt. The font-preload rule was added to it
 instead.
+
+## First CI run + the homepage hero (later 2026-10-02)
+
+**First run of the workflow** (dispatched by hand, run 36993648913): green,
+all five pages within budget. The homepage was the slowest: score 87, LCP
+3,956 ms. /book's CLS read 0.000 live, so the font-preload fix is working.
+
+**What the homepage's LCP actually is.** Lighthouse names `div.hero-bg`, the
+drone photo under the navy gradient, as the LCP element. It was already
+preloaded with `fetchpriority="high"` and has a 800 px phone variant.
+Local runs (5 per variant, median, against a gzip-serving copy of `docs/`)
+tested three suspects:
+
+| Variant | LCP | Style + layout |
+|---|---|---|
+| baseline | 3,239 ms | 826 ms |
+| `content-visibility:auto` below the hero | 3,238 ms | 496 ms |
+| no Google Analytics script | 3,238 ms | 809 ms |
+| hero 640w q50 (38 KB) | 2,744 ms | 816 ms |
+| **hero 800w q30 (43 KB), shipped** | **2,761 ms** | 822 ms |
+
+In Lighthouse's simulated slow 4G, LCP is bound by the hero image's
+**bytes**, not by CPU or analytics. Every LCP value sat on the same
+millisecond until the image shrank.
+
+- `content-visibility` cut layout by 40%, but it didn't move LCP. It is not
+  shipped: on iPhone Safari (no scroll anchoring) it risks jumps when
+  scrolling up after an in-page link. It's worth revisiting only with
+  per-section measured sizes.
+- Analytics stays as it is.
+
+**Shipped:** both hero `.webp` files re-encoded.
+- Phone 800w: 79,542 → 43,388 B (q30).
+- Desktop 1600w: 296,478 → 217,316 B (q40). Desktop shows more of the photo
+  on the right, where the gradient lightens, so it gets a quality margin.
+
+Screenshots at iPhone 390 px (3x) and desktop 1440 px (2x) are
+indistinguishable under the overlay. Both files are EXIF-free.
+
+The `.jpg` is untouched on purpose: it is the **social share image**
+(`og:image` on about 15 pages), and link previews show it with no overlay.
+
+**Not fixed:** the remaining 2.76 s is the document, CSS and font bytes
+sharing the same simulated link. The next lever is the 46 KB Dancing Script
+font that the hero tagline needs. Subsetting it to the tagline's glyphs
+needs `fonttools`, which isn't installed here.
