@@ -215,7 +215,7 @@
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=5',
+      'js/product-library.js?v=6',
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=7',
       'js/estimate-catalog-xactimate.js?v=3',

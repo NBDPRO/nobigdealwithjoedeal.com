@@ -147,6 +147,34 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
       && /text-transform:\s*uppercase/.test(rule('.ui-label')) && /letter-spacing:\s*\.08em/.test(rule('.ui-label')));
 }
 
+console.log('\nUI PRIMITIVES — product editor modal (JS-built, 2026-10-02)');
+{
+  // Proven in context: signed in on the emulator, the estimates bundle
+  // loaded, window._productLib.openModal() in add and edit mode at 1280 and
+  // 390 px. Zero computed-style diff on all 135 modal elements; a marker on
+  // the five classes reached 48 rendered elements (the per-tier inputs
+  // repeat), proving the edited file was the one served.
+  const src = read('docs/pro/js/product-library.js');
+  const body = src.slice(src.indexOf('  function openModal('), src.indexOf('  function closeModal('));
+  for (const [cls, n] of [['ui-label-sm', 11], ['ui-input-box', 11], ['ui-input-sm', 8], ['ui-hint', 8], ['ui-label-strong', 2]]) {
+    const uses = (body.match(new RegExp('class="[^"]*\\b' + cls + '\\b[^"]*"', 'g')) || []).length;
+    ok('product modal: .' + cls + ' on ' + n + ' elements', uses === n, 'found ' + uses);
+  }
+  ok('product modal: no field surface left inline (background:var(--s2) on an input)',
+    !/<(input|select|textarea)\b[^>]*style="[^"]*background:var\(--s2\)/.test(body));
+  ok('the 11 full-size fields wear the shared .ui-input surface plus .ui-input-box',
+    (body.match(/class="ui-input ui-input-box"/g) || []).length === 11);
+  // .ui-input is shared (about 10 dashboard fields) and Shape-driven: a
+  // second .ui-input rule with width/padding/a fixed radius would restyle
+  // every one of them. Size lives on .ui-input-box instead (2026-10-02, caught
+  // before it shipped).
+  const css = read('docs/pro/css/ui-primitives.css');
+  ok('.ui-input is defined exactly once and keeps the Shape radius token',
+    (css.match(/^\.ui-input\s*\{/gm) || []).length === 1 && /border-radius:\s*var\(--r-input/.test(rule('.ui-input')) && !/width:/.test(rule('.ui-input')));
+  ok('.ui-input-box carries only the size; .ui-input-sm keeps its own 4px surface',
+    /width:\s*100%/.test(rule('.ui-input-box')) && !/background/.test(rule('.ui-input-box')) && /border-radius:\s*4px/.test(rule('.ui-input-sm')));
+}
+
 console.log('\nUI PRIMITIVES — Money and Expenses cards (JS-built)');
 {
   // Equivalence was checked in context: an old inline card and a .ui-card

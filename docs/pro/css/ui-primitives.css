@@ -130,6 +130,13 @@
 .ui-pill { padding: 6px 10px; min-height: 36px; border: 1px solid var(--br); border-radius: 999px; background: transparent; color: var(--t); font-size: 12px; cursor: pointer; }
 /* Plain (not small-caps) label above a field. */
 .ui-label-plain { font-size: 11px; color: var(--m); font-weight: 600; display: block; margin-bottom: 4px; }
+/* Modal form fields (product editor). The surface is the shared .ui-input
+   above (Shape presets restyle it); .ui-input-box adds the size. */
+.ui-input-box { width: 100%; padding: 8px 10px; font-size: 13px; box-sizing: border-box; color: var(--t); }
+.ui-input-sm { width: 100%; padding: 6px; background: var(--s2); border: 1px solid var(--br); border-radius: 4px; font-size: 13px; box-sizing: border-box; color: var(--t); }
+.ui-label-sm { display: block; font-size: 11px; font-weight: 600; color: var(--m); margin-bottom: 3px; }
+.ui-label-strong { display: block; font-size: 12px; font-weight: 700; color: var(--t); margin-bottom: 8px; }
+.ui-hint { font-size: 10px; color: var(--m); }
 /* Full-width form field (Edit Customer sheet). */
 .ui-field {
   width: 100%;

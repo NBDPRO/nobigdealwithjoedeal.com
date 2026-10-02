@@ -784,54 +784,54 @@
           <!-- Row 1: Name, Manufacturer -->
           <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Product Name *</label>
-              <input id="pm-name" type="text" value="${escapeHtml(p?.name || '')}" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);" required>
+              <label class="ui-label-sm">Product Name *</label>
+              <input class="ui-input ui-input-box" id="pm-name" type="text" value="${escapeHtml(p?.name || '')}" required>
             </div>
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Manufacturer</label>
-              <input id="pm-manufacturer" type="text" value="${escapeHtml(p?.manufacturer || '')}" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);">
+              <label class="ui-label-sm">Manufacturer</label>
+              <input class="ui-input ui-input-box" id="pm-manufacturer" type="text" value="${escapeHtml(p?.manufacturer || '')}">
             </div>
           </div>
 
           <!-- Row 2: Category, Unit, SKU -->
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Category</label>
-              <select id="pm-category" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);">${catOptions}</select>
+              <label class="ui-label-sm">Category</label>
+              <select class="ui-input ui-input-box" id="pm-category">${catOptions}</select>
             </div>
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Unit</label>
-              <select id="pm-unit" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);">${unitOptions}</select>
+              <label class="ui-label-sm">Unit</label>
+              <select class="ui-input ui-input-box" id="pm-unit">${unitOptions}</select>
             </div>
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">SKU</label>
-              <input id="pm-sku" type="text" value="${escapeHtml(p?.sku || '')}" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);">
+              <label class="ui-label-sm">SKU</label>
+              <input class="ui-input ui-input-box" id="pm-sku" type="text" value="${escapeHtml(p?.sku || '')}">
             </div>
           </div>
 
           <!-- Description -->
           <div>
-            <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Description</label>
-            <textarea id="pm-description" rows="2" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical;color:var(--t);">${escapeHtml(p?.description || '')}</textarea>
+            <label class="ui-label-sm">Description</label>
+            <textarea class="ui-input ui-input-box" id="pm-description" rows="2" style="resize:vertical;">${escapeHtml(p?.description || '')}</textarea>
           </div>
 
           <!-- Tier Pricing -->
           <div>
-            <label style="display:block;font-size:12px;font-weight:700;color:var(--t);margin-bottom:8px;">Pricing (Good / Better / Best)</label>
+            <label class="ui-label-strong">Pricing (Good / Better / Best)</label>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
               ${TIERS.map(t => `
                 <div style="background:${TIER_COLORS[t]}08;border:1px solid ${TIER_COLORS[t]}30;border-radius:8px;padding:10px;">
                   <div style="font-size:11px;font-weight:600;color:${TIER_COLORS[t]};text-transform:uppercase;margin-bottom:6px;text-align:center;">${TIER_LABELS[t]}</div>
                   <div style="margin-bottom:6px;">
-                    <label style="font-size:10px;color:var(--m);">Sell Price</label>
-                    <input id="pm-sell-${t}" type="number" step="0.01" value="${p?.pricing?.[t]?.sell || 0}" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                    <label class="ui-hint">Sell Price</label>
+                    <input class="ui-input-sm" id="pm-sell-${t}" type="number" step="0.01" value="${p?.pricing?.[t]?.sell || 0}">
                   </div>
                   <div>
-                    <label style="font-size:10px;color:var(--m);">Material Cost</label>
+                    <label class="ui-hint">Material Cost</label>
                     <!-- Blank, not 0, when unset: an empty box reads as "tell
                          me your cost", a 0 reads as "your cost is nothing"
                          and prices the tier at a 100% margin. -->
-                    <input id="pm-cost-${t}" type="number" step="0.01" value="${hasCost(p, t) ? p.pricing[t].cost : ''}" placeholder="your cost" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                    <input class="ui-input-sm" id="pm-cost-${t}" type="number" step="0.01" value="${hasCost(p, t) ? p.pricing[t].cost : ''}" placeholder="your cost">
                   </div>
                   <div id="pm-margin-${t}" style="text-align:center;margin-top:6px;font-size:11px;font-weight:700;"></div>
                 </div>
@@ -842,31 +842,31 @@
 
           <!-- Labor -->
           <div>
-            <label style="display:block;font-size:12px;font-weight:700;color:var(--t);margin-bottom:8px;">Labor</label>
+            <label class="ui-label-strong">Labor</label>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
               <div>
-                <label style="font-size:10px;color:var(--m);">Per Unit Cost</label>
-                <input id="pm-labor-perunit" type="number" step="0.01" value="${p?.labor?.perUnit || 0}" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                <label class="ui-hint">Per Unit Cost</label>
+                <input class="ui-input-sm" id="pm-labor-perunit" type="number" step="0.01" value="${p?.labor?.perUnit || 0}">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--m);">Rate / Man-Hour</label>
-                <input id="pm-labor-rate" type="number" step="0.01" value="${p?.labor?.ratePerManHour || 0}" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                <label class="ui-hint">Rate / Man-Hour</label>
+                <input class="ui-input-sm" id="pm-labor-rate" type="number" step="0.01" value="${p?.labor?.ratePerManHour || 0}">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--m);">Crew Size</label>
-                <input id="pm-labor-crew" type="number" step="1" value="${p?.labor?.crewSize || 0}" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                <label class="ui-hint">Crew Size</label>
+                <input class="ui-input-sm" id="pm-labor-crew" type="number" step="1" value="${p?.labor?.crewSize || 0}">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--m);">Hours / Unit</label>
-                <input id="pm-labor-hours" type="number" step="0.01" value="${p?.labor?.hoursPerUnit || 0}" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                <label class="ui-hint">Hours / Unit</label>
+                <input class="ui-input-sm" id="pm-labor-hours" type="number" step="0.01" value="${p?.labor?.hoursPerUnit || 0}">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--m);">Overhead Mult.</label>
-                <input id="pm-labor-overhead" type="number" step="0.01" value="${p?.labor?.overheadMultiplier || laborDefaults().overheadMultiplier}" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                <label class="ui-hint">Overhead Mult.</label>
+                <input class="ui-input-sm" id="pm-labor-overhead" type="number" step="0.01" value="${p?.labor?.overheadMultiplier || laborDefaults().overheadMultiplier}">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--m);">Profit Margin %</label>
-                <input id="pm-labor-profit" type="number" step="1" value="${p?.labor?.profitMarginPct || laborDefaults().profitMarginPct}" style="width:100%;padding:6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;font-size:13px;box-sizing:border-box;color:var(--t);">
+                <label class="ui-hint">Profit Margin %</label>
+                <input class="ui-input-sm" id="pm-labor-profit" type="number" step="1" value="${p?.labor?.profitMarginPct || laborDefaults().profitMarginPct}">
               </div>
             </div>
           </div>
@@ -874,30 +874,30 @@
           <!-- Colors, Warranty, Tags -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Colors (comma-separated)</label>
-              <input id="pm-colors" type="text" value="${escapeHtml((p?.colors || []).join(', '))}" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);" placeholder="Charcoal, Weathered Wood, ...">
+              <label class="ui-label-sm">Colors (comma-separated)</label>
+              <input class="ui-input ui-input-box" id="pm-colors" type="text" value="${escapeHtml((p?.colors || []).join(', '))}" placeholder="Charcoal, Weathered Wood, ...">
             </div>
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Warranty</label>
-              <input id="pm-warranty" type="text" value="${escapeHtml(p?.warranty || '')}" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);">
+              <label class="ui-label-sm">Warranty</label>
+              <input class="ui-input ui-input-box" id="pm-warranty" type="text" value="${escapeHtml(p?.warranty || '')}">
             </div>
           </div>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Tags (comma-separated)</label>
-              <input id="pm-tags" type="text" value="${escapeHtml((p?.tags || []).join(', '))}" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);">
+              <label class="ui-label-sm">Tags (comma-separated)</label>
+              <input class="ui-input ui-input-box" id="pm-tags" type="text" value="${escapeHtml((p?.tags || []).join(', '))}">
             </div>
             <div>
-              <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Default Qty</label>
-              <input id="pm-defaultqty" type="number" value="${p?.defaultQty || 1}" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;color:var(--t);">
+              <label class="ui-label-sm">Default Qty</label>
+              <input class="ui-input ui-input-box" id="pm-defaultqty" type="number" value="${p?.defaultQty || 1}">
             </div>
           </div>
 
           <!-- Notes -->
           <div>
-            <label style="display:block;font-size:11px;font-weight:600;color:var(--m);margin-bottom:3px;">Notes</label>
-            <textarea id="pm-notes" rows="2" style="width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical;color:var(--t);">${escapeHtml(p?.notes || '')}</textarea>
+            <label class="ui-label-sm">Notes</label>
+            <textarea class="ui-input ui-input-box" id="pm-notes" rows="2" style="resize:vertical;">${escapeHtml(p?.notes || '')}</textarea>
           </div>
 
           <!-- Actions -->
