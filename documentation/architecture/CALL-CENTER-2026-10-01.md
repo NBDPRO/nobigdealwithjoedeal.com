@@ -286,9 +286,41 @@ never as HTML.
 - **"Yes, turn it on"** set `CALL_CENTER_TRANSCRIBE_ENABLED=true`.
 - **"Yes, both times"** set `CALL_CENTER_SWEEP_ENABLED=true`.
 
+## Text notes: texted promises join the sweep (built 2026-10-01)
+
+**`textInboxNotes`** (`functions/text-inbox.js`) runs every hour.
+- It groups the last 3 days of `phone_texts` into **conversation-days**
+  (one number, one Eastern day). Group texts are skipped, because it is
+  unclear who promised what.
+- A day is noted once it has been **quiet for 2 h**.
+- It is re-noted only when its signature (the set of messages) changes. At
+  most 30 days are noted per run.
+
+**The notes**
+- Claude Haiku reads the day as `Jo:` / `Them:` lines.
+- `TEXT_NOTES_SYSTEM` and `buildTextNotesPrompt` are in
+  `text-inbox-logic.js`.
+- The output goes through the calls' `sanitizeNotes`.
+
+**Where results go**
+- `phone_text_days/txt_<digits>_<ymd>` (`channel: 'text'`). Its readers
+  mirror `phone_texts`, and clients cannot write.
+- A customer timeline entry at `leads/{id}/activity/sms-{dayId}`.
+- For days within 14 days, one create-only task at
+  `leads/{id}/tasks/sms-{dayId}` when Jo promised something.
+- Personal days keep "Personal texts." and file nothing.
+
+**`callCenterSweep`** now reads noted text days alongside calls. It looks
+up their `sms-` tasks, and the email marks those items "texts".
+
+It runs DRY-RUN (counts only) unless `TEXT_NOTES_ENABLED=true`, and the AI
+kill switch also stops it. Turn it on after texts are flowing
+(`TEXT_INBOX_ENABLED`) and Jo says go.
+
+Tests: `tests/text-notes-2026-10-01.test.js` has 14 checks, break-tested on
+the signature skip. There are 6 rules checks.
+
 ## Next stages
 
-- **Texts into the sweep.** Have the model read each customer's day of texts
-  for promises, and feed those into the same "you said you'd…" email.
 - **MMS photos.** Today they only count as "[n photos]". Copying them would
   mean EXIF-stripping them first (they could land on a lead's photos).

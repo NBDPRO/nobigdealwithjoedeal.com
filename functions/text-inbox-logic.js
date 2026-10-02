@@ -160,7 +160,89 @@ function buildTextDoc({ ownerUid, msg, match, bucket, fileId, nowMs }) {
   };
 }
 
+// ── Text notes (2026-10-01) ──────────────────────────────────────────────
+//
+// Texts are read a CONVERSATION-DAY at a time: every text with one number on
+// one Eastern calendar day. A day is noted once it has gone quiet for two
+// hours (the back-and-forth has settled), and again only if new texts land
+// that day (the signature changes). Notes use the call notes' shape and
+// sanitizer, so the sweep email treats a texted promise exactly like a spoken
+// one.
+
+const QUIET_MS = 2 * 3600 * 1000;
+
+function etYmd(ms) {
+  return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+/**
+ * phone_texts rows → conversation-days ready to note (quiet for QUIET_MS),
+ * newest first. Each: { id, phoneDigits, ymd, leadId, contactName, lastAtMs,
+ * sig, messages }. Group texts are skipped (several people, unclear who
+ * promised what).
+ */
+function groupTextDays(texts, { nowMs, quietMs = QUIET_MS } = {}) {
+  const byKey = new Map();
+  for (const t of texts || []) {
+    if (!t || !t.phoneDigits || !t.sentAtMs || t.group) continue;
+    const ymd = etYmd(t.sentAtMs);
+    const key = t.phoneDigits + '_' + ymd;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(t);
+  }
+  const out = [];
+  for (const [key, msgs] of byKey) {
+    msgs.sort((a, b) => a.sentAtMs - b.sentAtMs);
+    const last = msgs[msgs.length - 1];
+    if (nowMs - last.sentAtMs < quietMs) continue; // still talking
+    const sig = crypto.createHash('sha1').update(msgs.map((m) => m.id || m.sentAtMs + m.direction).join('|')).digest('hex').slice(0, 16);
+    out.push({
+      id: 'txt_' + key.replace(/-/g, ''),
+      phoneDigits: msgs[0].phoneDigits,
+      ymd: etYmd(last.sentAtMs),
+      leadId: msgs.map((m) => m.leadId).filter(Boolean).pop() || null,
+      contactName: msgs.map((m) => m.contactName).filter(Boolean).pop() || '',
+      lastAtMs: last.sentAtMs,
+      sig,
+      messages: msgs,
+    });
+  }
+  return out.sort((a, b) => b.lastAtMs - a.lastAtMs);
+}
+
+const TEXT_NOTES_SYSTEM = [
+  'You read one day of text messages between Jo, who runs No Big Deal Home Solutions (a small roofing / gutters / siding contractor near Cincinnati), and one other person.',
+  'Return ONE JSON object and nothing else:',
+  '{"call_type": one of ["customer","insurance","supplier","sub","lead","personal","spam","other"],',
+  ' "summary": "1-2 plain sentences: what the texts were about and what was decided",',
+  ' "promises": [{"who": "jo" | "them", "text": "a concrete thing someone said they would do, imperative, under 120 chars", "due": "YYYY-MM-DD" or null}],',
+  ' "follow_up_date": "YYYY-MM-DD" or null,',
+  ' "urgent": true | false (an active leak, safety issue, or a hard deadline within 48 hours)}',
+  'Rules: only promises actually made in these texts, at most 6. Resolve relative dates against the dates shown.',
+  'Texts about family, friends or anything not business are "personal": summary "Personal texts." and promises [].',
+  'Never invent prices, names or dates that were not written.',
+].join('\n');
+
+function buildTextNotesPrompt({ day, leadName }) {
+  const lines = day.messages.map((m) => {
+    const t = new Date(m.sentAtMs).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+    return '[' + t + '] ' + (m.direction === 'outbound' ? 'Jo' : 'Them') + ': ' + String(m.body || '').slice(0, 2000);
+  });
+  return [
+    'Date (Eastern): ' + day.ymd,
+    'Other person (from Jo\'s phone contacts): ' + (day.contactName || 'not a saved contact'),
+    leadName ? 'CRM customer this number belongs to: ' + leadName : 'Not matched to a CRM customer.',
+    '',
+    'Texts:',
+    lines.join('\n').slice(0, 30000),
+  ].join('\n');
+}
+
 module.exports = {
+  QUIET_MS,
+  groupTextDays,
+  TEXT_NOTES_SYSTEM,
+  buildTextNotesPrompt,
   unescapeXml,
   parseAttrs,
   isShortCode,

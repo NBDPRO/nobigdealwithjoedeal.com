@@ -718,6 +718,10 @@ exports.callCenterAction = require('./call-center').callCenterAction;
 // Drive backup → phone_texts (lead matched by phone, short codes never
 // stored). DRY-RUN (counts) unless TEXT_INBOX_ENABLED=true.
 exports.textInboxIngest = require('./text-inbox').textInboxIngest;
+// Text notes: one AI note per settled conversation-day → phone_text_days,
+// the customer timeline and a follow-up task; the sweep reads them too.
+// DRY-RUN unless TEXT_NOTES_ENABLED=true.
+exports.textInboxNotes = require('./text-inbox').textInboxNotes;
 
 // ═══════════════════════════════════════════════════════════════
 // REFERRAL CAPTURE — public POST from /refer.html

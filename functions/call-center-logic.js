@@ -409,7 +409,7 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
     const mine = (Array.isArray(c.promises) ? c.promises : []).filter((p) => p && p.who === 'jo');
     const task = c.leadId ? tasks.get(c.id) : null;
     const who = c.contactName || (c.phoneDigits ? '(' + c.phoneDigits.slice(0, 3) + ') ' + c.phoneDigits.slice(3, 6) + '-' + c.phoneDigits.slice(6) : 'Unknown number');
-    const base = { callId: c.id, leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text) };
+    const base = { callId: c.id, channel: c.channel === 'text' ? 'text' : 'call', leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text) };
     if (task) {
       if (task.done === true) continue;
       const urgentNow = c.urgent && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS;
@@ -448,7 +448,7 @@ function buildSweepEmail({ items, todayYmd, slot }) {
     '<p style="margin:0 0 14px;color:#555;font-size:13px">From your recorded calls, ' + escHtml(todayYmd) + '. Tick the task (or mark the call handled) and it drops off.</p>' +
     items.map((i) => '<div style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:0 0 10px">' +
       '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:' + (i.kind === 'urgent' ? '#b91c1c' : '#c2410c') + '">' + escHtml(label[i.kind]) + (i.due ? ' · ' + escHtml(i.due) : '') + '</div>' +
-      '<div style="font-weight:700;margin:2px 0"><a href="' + escHtml(link(i)) + '" style="color:#111">' + escHtml(i.who) + '</a> <span style="font-weight:400;color:#666;font-size:12px">' + escHtml(when(i.startedAtMs)) + '</span></div>' +
+      '<div style="font-weight:700;margin:2px 0"><a href="' + escHtml(link(i)) + '" style="color:#111">' + escHtml(i.who) + '</a> <span style="font-weight:400;color:#666;font-size:12px">' + escHtml((i.channel === 'text' ? 'texts · ' : '') + when(i.startedAtMs)) + '</span></div>' +
       (i.promises.length ? '<ul style="margin:4px 0 4px 18px;padding:0;font-size:14px">' + i.promises.map((p) => '<li>' + escHtml(p) + '</li>').join('') + '</ul>' : '') +
       (i.summary ? '<div style="font-size:13px;color:#444">' + escHtml(i.summary) + '</div>' : '') +
       '</div>').join('') + '</div>';
