@@ -12,7 +12,7 @@
 .pb-desc { font-size: 14px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .pb-price { font-size: 16px; font-weight: 800; text-align: right; white-space: nowrap; }
 .pb-meta { font-size: 11px; color: var(--m); }
-.pb-meta a { color: var(--orange, #BD5728); }
+.pb-meta a { color: var(--orange, #BD5728); display: inline-block; padding: 12px 4px; margin: -12px 0; }
 .pb-trend-up { color: var(--red, #dc2626); }
 .pb-trend-down { color: var(--green, #22c55e); }
 .pb-store { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: var(--s2); border: 1px solid var(--br); margin-right: 6px; }
