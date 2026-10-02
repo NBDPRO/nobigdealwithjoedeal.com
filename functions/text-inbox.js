@@ -144,4 +144,104 @@ exports.textInboxIngest = onSchedule(
   }
 );
 
-exports._test = { runTextIngest, setClient(c) { _testClient = c; }, OWNER, COLLECTION, CONFIG };
+// ═══════════════════════════════════════════════════════════════════════
+// Text notes (2026-10-01): one AI note per conversation-day
+// ═══════════════════════════════════════════════════════════════════════
+// Every hour: group the last 3 days of phone_texts into conversation-days
+// (one number, one Eastern day; group texts skipped), and for each day that
+// has gone quiet for 2 h and changed since it was last noted, have Claude
+// Haiku write the same notes calls get (summary, who promised what,
+// follow-up, urgent). Filed as phone_text_days/{txt_<digits>_<ymd>}; for a
+// customer, a timeline entry leads/{id}/activity/sms-{dayId} and — for days
+// in the last 14 — ONE create-only follow-up task leads/{id}/tasks/sms-{dayId}
+// when Jo promised something. Personal days keep no summary detail and file
+// nothing. The "you said you'd…" sweep reads these alongside calls.
+// DRY-RUN (counts only) unless TEXT_NOTES_ENABLED=true; AI kill switch too.
+
+const { defineSecret } = require('firebase-functions/params');
+const { FieldValue } = require('firebase-admin/firestore');
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const DAYS = 'phone_text_days';
+const NOTES_PER_RUN = 30;
+const notesEnabled = () => process.env.TEXT_NOTES_ENABLED === 'true';
+let _notesFn = null;
+
+async function createIfAbsent(ref, data) {
+  try { await ref.create(data); return true; } catch (e) {
+    if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) return false;
+    throw e;
+  }
+}
+
+async function runTextNotes({ db, live, nowMs }) {
+  const rows = [];
+  const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('sentAtMs', '>=', nowMs - 3 * 24 * 3600 * 1000)
+    .orderBy('sentAtMs', 'desc').limit(3000).get();
+  q.forEach((d) => rows.push(Object.assign({}, d.data(), { id: d.id })));
+  const days = T.groupTextDays(rows, { nowMs });
+  const refs = days.map((d) => db.collection(DAYS).doc(d.id));
+  const have = new Map();
+  if (refs.length) (await db.getAll(...refs)).forEach((s) => { if (s.exists) have.set(s.id, s.data()); });
+  const todo = days.filter((d) => !have.has(d.id) || have.get(d.id).sig !== d.sig).slice(0, NOTES_PER_RUN);
+  const out = { days: days.length, pending: todo.length, noted: 0, personal: 0, tasks: 0, failed: 0 };
+  if (!live) return Object.assign({ state: 'dry_run' }, out);
+
+  const notesFn = _notesFn || require('./call-center').claudeNotes;
+  const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  for (const day of todo) {
+    try {
+      let leadName = '';
+      if (day.leadId) {
+        const ls = await db.doc('leads/' + day.leadId).get();
+        if (ls.exists) { const l = ls.data(); leadName = ((l.firstName || '') + ' ' + (l.lastName || '')).trim(); }
+      }
+      const notes = CC.sanitizeNotes(await notesFn({ system: T.TEXT_NOTES_SYSTEM, prompt: T.buildTextNotesPrompt({ day, leadName }) }));
+      const personal = notes.callType === 'personal';
+      if (personal) notes.summary = 'Personal texts.';
+      await db.collection(DAYS).doc(day.id).set({
+        userId: OWNER, companyId: OWNER, channel: 'text',
+        status: personal ? 'personal' : 'noted',
+        leadId: day.leadId, contactName: day.contactName, phoneDigits: day.phoneDigits, ymd: day.ymd,
+        startedAtMs: day.lastAtMs, sig: day.sig, messageCount: day.messages.length,
+        summary: notes.summary, callType: notes.callType, promises: notes.promises,
+        followUpDate: notes.followUpDate, urgent: notes.urgent, notedAtMs: nowMs,
+      }, { merge: true });
+      if (personal) { out.personal++; continue; }
+      out.noted++;
+      if (day.leadId) {
+        await db.doc('leads/' + day.leadId + '/activity/sms-' + day.id).set({
+          userId: OWNER, companyId: OWNER, type: 'text', source: 'sms-backup',
+          label: 'Texts' + (day.contactName ? ' · ' + day.contactName : '') + ' (' + day.messages.length + ')',
+          summary: notes.summary, promises: notes.promises, followUpDate: notes.followUpDate,
+          phoneTextDayId: day.id, createdAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        const task = CC.buildFollowUpTask({ call: { id: day.id, contactName: day.contactName, startedAtMs: day.lastAtMs }, notes, leadId: day.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
+        if (task) {
+          Object.assign(task, { source: 'sms-backup', phoneTextDayId: day.id, createdBy: 'Text Inbox (AI notes)' });
+          delete task.phoneCallId;
+          if (await createIfAbsent(db.doc('leads/' + day.leadId + '/tasks/sms-' + day.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
+        }
+      }
+    } catch (e) {
+      out.failed++;
+      logger.warn('text_notes_failed', { id: day.id, err: e && e.message });
+    }
+  }
+  await db.doc(CONFIG).set({ lastNotesAtMs: nowMs, lastNotes: out }, { merge: true });
+  return Object.assign({ state: 'noted' }, out);
+}
+
+exports.textInboxNotes = onSchedule(
+  { schedule: 'every 60 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '512MiB', maxInstances: 1, secrets: [ANTHROPIC_API_KEY] },
+  async () => {
+    try {
+      if (await require('./integrations/killswitch').isAiDisabled()) { logger.info('[textInboxNotes] AI kill switch on'); return; }
+      const r = await runTextNotes({ db: getFirestore(), live: notesEnabled(), nowMs: Date.now() });
+      logger.info('[textInboxNotes]', r);
+    } catch (e) {
+      logger.warn('[textInboxNotes] failed', { err: e && e.message });
+    }
+  }
+);
+
+exports._test = { runTextIngest, runTextNotes, setNotes(fn) { _notesFn = fn; }, setClient(c) { _testClient = c; }, OWNER, COLLECTION, CONFIG, DAYS };

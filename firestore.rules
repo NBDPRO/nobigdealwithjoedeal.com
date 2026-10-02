@@ -2323,6 +2323,14 @@ service cloud.firestore {
         || (isCompanyReader() && sameCompanyAsResource());
       allow write: if false;
     }
+    // Text notes per conversation-day (text-inbox.js textInboxNotes).
+    // Server-written only; same readers as phone_texts.
+    match /phone_text_days/{docId} {
+      allow read: if isOwner(resource.data.userId)
+        || isAdmin()
+        || (isCompanyReader() && sameCompanyAsResource());
+      allow write: if false;
+    }
     // Per-tenant Thursday settings (notification destinations, SMS flag).
     // Written only by scripts/thursday-config.js; the CRM reads it to decide
     // whether to show the Thursday inbox widget.
