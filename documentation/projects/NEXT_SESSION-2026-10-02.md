@@ -129,6 +129,34 @@ overwrite a newer one.
 - **Roof diagram:** confirm the CODE wording before ads.
 - Citations (from part 3).
 
+## §2b Later the same session (after this note first merged)
+
+- #1994 and #1995 merged.
+  - **#1995 caught a real trap:** without `PLAYWRIGHT_BASE_URL`, a local
+    Playwright run tests the **live site**. See the authed-e2e memory note.
+  - After it merged, the nav-drawer test passed on #1997, #1998 and #1999.
+- **Customer page primitives, batches 4–6** (#1997, #1998, #1999):
+  - `customer.html` went from 315 to 207 inline styles. The new classes are
+    `.ui-tile-icon`/`-title`/`-sub`, `.ui-label`, `.ui-page`,
+    `.ui-btn-sm`, `.ui-ico-14`/`-13`, `.ui-note`, `.ui-count`,
+    `.ui-modal-title`, `.ui-sec-title`, `.ui-choice`, `.ui-pill` and
+    `.ui-label-plain`.
+  - Each batch shows zero computed-style diff on all 758 elements at
+    1280/390 px, plus a positive control.
+  - **The proof tool isn't committed.** Recipe: serve the docs tree,
+    Playwright with JS off, expand every `<template>`, and dump
+    `getComputedStyle` for every element. Run it twice on the same tree to
+    show 0 differences before trusting a zero.
+  - The rest of `customer.html` is one-off layout a skin doesn't need.
+    Three estimate-header buttons sit under `!important` rules
+    (`.est-head-actions > .btn`, `nbd-mobile.css`).
+- **The claim-wording deploy was verified live:** the homepage and the
+  Batavia, Mason and Miamisburg pages carry none of the old phrases and
+  include the new ones.
+- **The roof 3D view was verified live** in real Chrome at 390 and 1280 px:
+  the canvas draws and there are no console errors.
+- **Thursday 0.7.0 is still on staging,** waiting on Jo's test.
+
 ## §3 Next lanes
 
 - **Schedule: draw Google's busy blocks on the Schedule view** (calendar hub
@@ -141,8 +169,14 @@ overwrite a newer one.
 - **Optional: run the Ask Joe eval weekly.** A scheduled workflow would
   need the key as a repo secret (Jo's call). Otherwise run it by hand after
   any change to the rules, the prompt or the model.
-- **More `ui-primitives` conversions** on JS-rendered CRM screens (from
-  part 3).
+- **Reskin, next pool: the JS-rendered screens.**
+  - `docs/pro/js` holds 4,139 inline styles in 145 files. The biggest are
+    `vault-page.js` (208), `expenses.js` (143), `invoice-pipeline.js`
+    and `widgets.js` (140 each), `product-library.js` (137) and
+    `storm-center.js` (111).
+  - These need an **in-context** proof: render the screen with seeded data
+    on the emulator, then compare computed styles before and after. The
+    static JS-off page doesn't contain them.
 - **Search Console re-read around 2026-10-30:** the Mason cluster and the
   shingle-comparison near-misses.
 - **Nav-drawer WebKit flake (#1995):**
