@@ -53,6 +53,11 @@
       || String(a.bot || '').localeCompare(String(b.bot || '')));
   }
 
+  /** Ids a bulk add takes (pure): notes + reminders, or only the ones Quinn checked. */
+  function bulkIds(items, onlyChecked) {
+    return sortItems(items).filter((i) => (i.kind === 'note' || i.kind === 'reminder') && (!onlyChecked || i.verified === true)).map((i) => i.id);
+  }
+
   /** The CRM write an approval makes (pure; null for a report). */
   function writeFor(item, uid, email, edited) {
     const text = String(edited != null ? edited : item.text || '').trim().slice(0, 2000);
@@ -90,10 +95,15 @@
     const id = esc(it.id);
     const who = it.leadId ? '<span class="ai-cust">' + esc(leadName(it.leadId)) + '</span>' : '';
     const due = it.kind === 'reminder' && it.dueDate ? '<span class="ai-due">due ' + esc(it.dueDate) + '</span>' : '';
-    const verified = it.verified ? '<span class="ai-ok">✓ checked by ' + esc(it.verifiedBy || 'Quinn') + '</span>' : '<span class="ai-unv">unverified</span>';
+    // Quinn either checks an item (verified) or flags it with what is wrong
+    // (verified false + quinnNote) — a flag must read as a flag, not "unverified".
+    const flagged = !it.verified && it.quinnNote;
+    const verified = it.verified ? '<span class="ai-ok">✓ checked by ' + esc(it.verifiedBy || 'Quinn') + '</span>'
+      : flagged ? '<span class="ai-flag">⚠ flagged by ' + esc(it.verifiedBy || 'Quinn') + '</span>' : '<span class="ai-unv">unverified</span>';
     return '<div class="ai-item" id="aiItem-' + id + '">' +
       '<div class="ai-top"><span class="ai-kind">' + esc(KINDS[it.kind] || it.kind) + '</span>' + who + due + '</div>' +
       '<div class="ai-meta">from ' + esc(it.bot || 'Agent') + ' · ' + verified + '</div>' +
+      (it.quinnNote ? '<div class="ai-qnote">' + esc((it.verified ? 'Quinn: ' : '⚠ Quinn: ') + it.quinnNote) + '</div>' : '') +
       (it.title ? '<div class="ai-title">' + esc(it.title) + '</div>' : '') +
       '<textarea class="ai-text" id="aiText-' + id + '" rows="3" maxlength="2000">' + esc(it.text || '') + '</textarea>' +
       '<div class="ai-actions"><button type="button" class="ai-btn" data-ai-act="dismiss" data-ai-id="' + id + '">Toss</button>' +
@@ -110,6 +120,10 @@
     if (head) head.textContent = pend.length ? pend.length + ' waiting' : 'All clear';
     const bulk = document.getElementById('aiBulk');
     if (bulk) { bulk.hidden = notesAndReminders < 2; bulk.textContent = 'Add all ' + notesAndReminders + ' notes & reminders'; }
+    const checked = bulkIds(pend, true).length;
+    const bulkOk = document.getElementById('aiBulkChecked');
+    // Only worth a second button when it differs from "Add all".
+    if (bulkOk) { bulkOk.hidden = checked < 1 || checked === notesAndReminders; bulkOk.textContent = '✓ Add the ' + checked + ' Quinn checked'; }
     list.innerHTML = pend.length ? pend.map(rowHtml).join('')
       : '<div class="ai-empty">Nothing waiting. When the bots file notes, reminders or reports, they show up here for you to add to the CRM or toss.</div>';
   }
@@ -123,6 +137,7 @@
       '<div class="ai-head"><div><h2 class="ai-h" id="aiTitle">🤖 Agent inbox</h2><div class="ai-sub" id="aiCount">Loading…</div></div>' +
       '<button type="button" class="ai-close" data-ai-act="close" aria-label="Close">✕</button></div>' +
       '<p class="ai-note">Your bot team files notes, reminders and reports here. Nothing reaches a customer — adding an item only writes it to the customer’s card. Edit before adding.</p>' +
+      '<button type="button" class="ai-btn is-primary ai-bulk" id="aiBulkChecked" data-ai-act="bulkChecked" hidden></button>' +
       '<button type="button" class="ai-btn is-primary ai-bulk" id="aiBulk" data-ai-act="bulk" hidden></button>' +
       '<div id="aiList"></div>' +
       '<details class="ai-conn" id="aiConn"><summary class="ai-conn-sum" data-ai-act="conn">🔌 Connect bots (keys)</summary><div id="aiConnBody"></div></details>' +
@@ -202,8 +217,8 @@
     } finally { _busy = false; }
   }
 
-  async function bulk() {
-    const ids = sortItems(_items).filter((i) => i.kind === 'note' || i.kind === 'reminder').map((i) => i.id);
+  async function bulk(onlyChecked) {
+    const ids = bulkIds(_items, onlyChecked);
     let ok = 0;
     for (const id of ids) { if (await decide(id, true)) ok++; }
     paint();
@@ -216,7 +231,8 @@
     if (!t) { if (ev.target && ev.target.id === 'aiOverlay') close(); return; }
     const act = t.dataset.aiAct, id = t.dataset.aiId;
     if (act === 'close') return close();
-    if (act === 'bulk') return bulk();
+    if (act === 'bulk') return bulk(false);
+    if (act === 'bulkChecked') return bulk(true);
     if (act === 'conn') { const d = document.getElementById('aiConn'); if (d && !d.open) setTimeout(() => paintConn(null), 0); return; }
     if (act === 'mkkey') {
       t.disabled = true;
@@ -263,5 +279,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDAgentInbox = { open, close, sortItems, writeFor, KINDS, COLL };
+  window.NBDAgentInbox = { open, close, sortItems, writeFor, bulkIds, KINDS, COLL };
 })();
