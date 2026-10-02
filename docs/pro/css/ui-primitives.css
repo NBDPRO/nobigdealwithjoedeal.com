@@ -119,6 +119,17 @@
 .ui-ico-13 { width: 13px; height: 13px; vertical-align: middle; }
 /* One-line muted note under a heading. */
 .ui-note { font-size: 11px; color: var(--m); }
+/* Count badge on a tab (shown by JS; display stays inline as state). */
+.ui-count { background: var(--s3, rgba(255,255,255,.08)); color: var(--m, #9ca3af); font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; font-weight: 700; }
+/* Modal heading and in-panel section title (display face). */
+.ui-modal-title { margin-bottom: 20px; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; }
+.ui-sec-title { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; color: var(--t); margin-bottom: 6px; }
+/* Large choice card (a button that picks a path). */
+.ui-choice { text-align: left; background: var(--s2); border: 1px solid var(--br); border-radius: 12px; padding: 18px; cursor: pointer; color: var(--t); font-family: inherit; transition: border-color .15s, transform .08s; }
+/* Outline pill button. */
+.ui-pill { padding: 6px 10px; min-height: 36px; border: 1px solid var(--br); border-radius: 999px; background: transparent; color: var(--t); font-size: 12px; cursor: pointer; }
+/* Plain (not small-caps) label above a field. */
+.ui-label-plain { font-size: 11px; color: var(--m); font-weight: 600; display: block; margin-bottom: 4px; }
 /* Full-width form field (Edit Customer sheet). */
 .ui-field {
   width: 100%;

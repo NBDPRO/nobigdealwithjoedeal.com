@@ -130,6 +130,17 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
     const uses = (cust.match(new RegExp('class="[^"]*\\b' + cls + '\\b[^"]*"', 'g')) || []).length;
     ok('.' + cls + ' on ' + n + ' customer-page elements, none left inline', uses === n && !cust.includes('style="' + gone), 'found ' + uses);
   }
+  // Batch 6 (2026-10-02): skinnable surfaces. Zero computed-style diff; a
+  // marker property on all six classes reached exactly 16 elements.
+  for (const [cls, n] of [['ui-count', 4], ['ui-modal-title', 3], ['ui-choice', 2], ['ui-pill', 2], ['ui-label-plain', 3], ['ui-sec-title', 2]]) {
+    const uses = (cust.match(new RegExp('class="[^"]*\\b' + cls + '\\b[^"]*"', 'g')) || []).length;
+    ok('.' + cls + ' on ' + n + ' customer-page elements', uses === n, 'found ' + uses);
+  }
+  // The jump-nav count badges are shown by nbdNavCount() setting
+  // style.display, so their hidden state stays inline; only the look moved.
+  const badges = cust.match(/<[a-z]+[^>]*id="navCount[A-Za-z]+"[^>]*>/g) || [];
+  ok('the 4 nav count badges keep display:none inline and take .ui-count for the look',
+    badges.length === 4 && badges.every((t) => /class="[^"]*\bui-count\b/.test(t) && /style="display:none;"/.test(t)), 'found ' + badges.length);
   ok('no tag carries two class attributes', !/<[a-z][^>]*\sclass="[^"]*"[^>]*\sclass="/.test(cust));
   ok('.ui-tile-icon/-title/-sub and .ui-label are defined, declaration for declaration',
     /font-size:\s*20px/.test(rule('.ui-tile-icon')) && /font-weight:\s*700/.test(rule('.ui-tile-title')) && /margin-top:\s*2px/.test(rule('.ui-tile-sub'))

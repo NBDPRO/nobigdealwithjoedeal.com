@@ -35,7 +35,7 @@ const EXEMPT = {
 const CEILING = {
   'docs/pro/js': 4139,
   'docs/pro/dashboard.html': 826,
-  'docs/pro/customer.html': 219,
+  'docs/pro/customer.html': 207,
 };
 
 let passed = 0, failed = 0; const fails = [];
