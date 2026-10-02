@@ -159,7 +159,10 @@ exports.claudeProxy = onRequest(
       // ── Input validation + H-07 size caps ──
       // Run BEFORE any Firestore write so a 400/413 path is free
       // of side effects.
-      const { model, max_tokens, messages, system, temperature } = req.body || {};
+      const { model, max_tokens, messages, system, temperature, toolset } = req.body || {};
+      // Ask Joe actions (2026-10-02): a NAMED server-side tool list — never
+      // tool definitions from the browser. Unknown names are ignored.
+      const tools = require('../ask-joe-tools').toolsFor(toolset);
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: 'messages array required' });
         return;
@@ -205,7 +208,8 @@ exports.claudeProxy = onRequest(
       const companyCap = CLAUDE_COMPANY_BUDGET[plan] ?? CLAUDE_COMPANY_BUDGET_DEFAULT;
 
       const reservation = Math.min(
-        safeMaxTokens + estimateInputTokens(messages, safeSystem),
+        safeMaxTokens + estimateInputTokens(messages, safeSystem)
+          + (tools ? Math.ceil(JSON.stringify(tools).length / 4) : 0),
         CLAUDE_RESERVATION_MAX
       );
       const reserveResult = await reserveClaudeBudget(
@@ -238,6 +242,7 @@ exports.claudeProxy = onRequest(
       const anthropicBody = { model: safeModel, max_tokens: safeMaxTokens, messages };
       if (safeSystem !== undefined) anthropicBody.system = safeSystem;
       if (safeTemperature !== undefined) anthropicBody.temperature = safeTemperature;
+      if (tools) anthropicBody.tools = tools;
 
       let response, data;
       try {
