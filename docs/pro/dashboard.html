@@ -5582,9 +5582,11 @@
       <div class="mfield">
         <label>Guarantee Tier</label>
         <select id="wcTier" class="w-full" data-on-change="updateCertPreview">
-          <option value="standard">Standard — NBD Lifetime Pledge</option>
+          <option value="economy">Economy — 1-Year Labor Warranty (no system warranty)</option>
+          <option value="standard" selected>Standard — NBD Lifetime Pledge</option>
           <option value="preferred">Preferred — Lifetime + Transferable to One Owner</option>
           <option value="elite">Elite — Lifetime + Fully Transferable + Annual Inspection</option>
+          <option value="beyond">Beyond — Elite terms + TAMKO HailGuard Hail Warranty</option>
         </select>
       </div>
       <div class="mfield">
@@ -6822,7 +6824,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=8"></script>
+<script defer src="js/invoice-pipeline.js?v=9"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -6914,7 +6916,7 @@
      estimate-config, review-engine, property-intel stay eager. Engine assembly
      is gated by tests/e2e/estimate-engine.spec.js. -->
 <!-- W147: Estimate analytics summary band on the Estimates view. -->
-<script defer src="js/estimate-analytics.js?v=2"></script>
+<script defer src="js/estimate-analytics.js?v=3"></script>
 <!-- W153: Reports view performance dashboard — KPI tiles +
      period-over-period comparison + conversion funnel. -->
 <script defer src="js/reports-dashboard.js?v=2"></script>

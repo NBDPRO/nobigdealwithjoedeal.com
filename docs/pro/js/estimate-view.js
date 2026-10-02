@@ -21,7 +21,14 @@
   function tierLabel(key) {
     const cfg = window.NBD_ESTIMATE_CONFIG;
     if (cfg && typeof cfg.tierLabel === 'function') return cfg.tierLabel(key);
-    return ({ good: 'Standard', better: 'Preferred', best: 'Elite' })[key] || key;
+    return ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[key] || key;
+  }
+  // Every tier, cheapest first (five since 2026-10-02) — same config-or-copy
+  // rule as tierLabel above.
+  function tierOrder() {
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    if (cfg && Array.isArray(cfg.TIER_ORDER)) return cfg.TIER_ORDER.slice();
+    return ['economy', 'good', 'better', 'best', 'beyond'];
   }
 
   function escHtml(s) {
@@ -207,10 +214,6 @@
       } catch (e) { /* chrome is best-effort */ }
     }
 
-    const tierName = est.tierName ||
-      (est.tier === 'best' ? 'Best — Lifetime' :
-       est.tier === 'better' ? 'Better — 30-Year Architectural' :
-       est.tier === 'good' ? 'Good — Builder Grade' : 'Estimate');
     const total = est.grandTotal || est.total || 0;
     const lines = Array.isArray(est.lines) ? est.lines : [];
     const tiers = est.tiers || null;
@@ -241,15 +244,16 @@
     }
 
     // Tier comparison cards if the estimate carries a tiers object
-    if (tiers && (tiers.good || tiers.better || tiers.best)) {
+    // Five tiers (2026-10-02): every tier in TIER_ORDER the estimate carries.
+    if (tiers && tierOrder().some(function (k) { return tiers[k]; })) {
       html += '<div class="ev-section-title">Choose your tier</div>';
-      ['good', 'better', 'best'].forEach(function (k) {
+      tierOrder().forEach(function (k) {
         const t = tiers[k];
         if (!t) return;
         const featured = (k === est.tier);
         const tName = tierLabel(k);
         html += '<div class="ev-tier-card' + (featured ? ' featured' : '') + '">';
-        html +=   '<div class="ev-tier-name">' + tName + '</div>';
+        html +=   '<div class="ev-tier-name">' + escHtml(tName) + '</div>';
         html +=   '<div class="ev-tier-total">' + money(t.grandTotal || t.total || 0) + '</div>';
         html += '</div>';
       });

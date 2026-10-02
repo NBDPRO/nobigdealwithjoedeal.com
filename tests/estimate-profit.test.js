@@ -215,7 +215,9 @@ function loadIIFE(file, pre) {
   EST.grandTotal = 21500; EST.selectedTier = 'better'; EST.taxRate = 0.075; EST.deposit = 10750;
   await IP.createInvoiceFromEstimate('est1');
   ok('per-SQ invoice total = locked grandTotal (21500, not the $500 rows sum)', near(captured.total, 21500));
-  ok('per-SQ invoice is a single summary line naming the tier', captured.items.length === 1 && /Better tier/.test(captured.items[0].description));
+  // Five tiers (2026-10-02): the line names the CUSTOMER tier (better →
+  // "Preferred"), never the raw internal key ("Better").
+  ok('per-SQ invoice is a single summary line naming the tier', captured.items.length === 1 && /Preferred tier/.test(captured.items[0].description) && !/Better/.test(captured.items[0].description));
   ok('per-SQ invoice subtotal+tax foots to grandTotal (21500)', near(captured.subtotal + captured.tax, 21500));
   ok('per-SQ invoice: the rule\'s 50% of the locked $21,500 (10750)', near(captured.depositAmount, 10750));
 

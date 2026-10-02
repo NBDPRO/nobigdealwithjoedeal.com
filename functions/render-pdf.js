@@ -681,7 +681,9 @@ async function buildDocHtml(templateKey, payload, companyId) {
   const html = layoutCompiled({
     title:           tmplCfg.docType,
     docType:         tmplCfg.docType,
-    seal:            tmplCfg.seal,
+    // An Economy-tier warranty is a 1-year labor warranty (Jo, 2026-10-02):
+    // its chrome must not stamp "Lifetime Pledge".
+    seal:            (templateKey === 'warranty' && payload.isEconomy) ? 'Labor Warranty' : tmplCfg.seal,
     docNumber:       docNumberForChrome,
     designSystemCss: loadDesignSystemCss(),
     brandVars:       brandVars,

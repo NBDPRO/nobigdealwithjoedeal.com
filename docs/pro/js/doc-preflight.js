@@ -476,11 +476,31 @@
   // (document-generator.js renderWarrantyBadge) now prints Lifetime
   // workmanship for every tier (estimate-config.js TIER_DISPLAY); only
   // transferability/inspection and manufacturer coverage vary by tier.
+  // Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
+  // shingle maker's standard limited warranty, NO system warranty; Beyond is
+  // Best's terms + TAMKO's HailGuard hail warranty.
   var WARRANTY_TIER_OPTIONS = [
+    { value: 'economy', label: 'Economy — 1-Year Labor + Mfr Standard Limited (no system warranty)' },
     { value: 'good',   label: 'Good — Lifetime Workmanship + Standard Mfr' },
     { value: 'better', label: 'Better — Lifetime Workmanship + Enhanced Mfr (transferable)' },
-    { value: 'best',   label: 'Best — Lifetime Workmanship + Premium Mfr (fully transferable + inspection)' }
+    { value: 'best',   label: 'Best — Lifetime Workmanship + Premium Mfr (fully transferable + inspection)' },
+    { value: 'beyond', label: 'Beyond — Lifetime Workmanship + TAMKO HailGuard hail warranty (fully transferable + inspection)' }
   ];
+
+  // The tier's workmanship sentence: estimate-config.js tierWarrantyText when
+  // loaded (it isn't on customer.html), else this copy of it. An unknown tier
+  // gets the plain lifetime sentence with no transfer/inspection perks.
+  function tierWarrantySentence(tier) {
+    var cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+    if (cfg && typeof cfg.tierWarrantyText === 'function') return cfg.tierWarrantyText(tier);
+    return ({
+      economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
+      good:    'Lifetime workmanship warranty; does not transfer on sale of property.',
+      better:  'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
+      best:    'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.',
+      beyond:  'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
+    })[tier] || 'Lifetime workmanship warranty.';
+  }
 
   var DOC_SCHEMAS = {
 
@@ -1555,7 +1575,7 @@
       '.dpf-photo-cell.selected .dpf-photo-check{background:var(--orange,#BD5728);}',
       '.dpf-photo-phase{position:absolute;bottom:4px;left:4px;right:4px;background:rgba(0,0,0,.75);color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:2px 5px;border-radius:3px;text-align:center;}',
       '.dpf-photo-empty{grid-column:1/-1;padding:20px;text-align:center;color:var(--m,#6B7280);font-size:12px;border:1px dashed var(--br,rgba(255,255,255,.09));border-radius:6px;}',
-      '.dpf-warranty-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}',
+      '.dpf-warranty-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}',
       '.dpf-warranty-card{padding:14px 12px;border:2px solid var(--br,rgba(255,255,255,.09));border-radius:10px;background:var(--s,#111418);cursor:pointer;transition:all .15s;text-align:center;}',
       '.dpf-warranty-card:hover{border-color:var(--orange,#BD5728);}',
       '.dpf-warranty-card.selected{border-color:var(--orange,#BD5728);background:color-mix(in srgb, var(--orange) 6%, transparent);}',
@@ -1906,10 +1926,13 @@
         '</div></div></div>';
     }
     // GBB audit, 2026-09-09: was 5/10/20-year — see WARRANTY_TIER_OPTIONS above.
+    // Five tiers since 2026-10-02 — Economy is 1-year labor, never lifetime.
     var tiers = [
+      { id: 'economy', name: 'Economy', tag: '1-Year Labor',              desc: '1-year workmanship (labor) warranty. Shingle manufacturer\'s standard limited warranty; no system warranty.' },
       { id: 'good',   name: 'Good',   tag: 'Lifetime Workmanship',        desc: 'Lifetime workmanship warranty, non-transferable. Standard manufacturer coverage.' },
       { id: 'better', name: 'Better', tag: 'Lifetime + Enhanced Mfr',     desc: 'Lifetime workmanship, transferable to 1 subsequent owner. Enhanced manufacturer coverage.' },
-      { id: 'best',   name: 'Best',   tag: 'Lifetime + Premium Mfr',      desc: 'Lifetime workmanship, fully transferable + annual inspection. Premium manufacturer coverage.' }
+      { id: 'best',   name: 'Best',   tag: 'Lifetime + Premium Mfr',      desc: 'Lifetime workmanship, fully transferable + annual inspection. Premium manufacturer coverage.' },
+      { id: 'beyond', name: 'Beyond', tag: 'Lifetime + HailGuard Hail',   desc: 'Lifetime workmanship, fully transferable + annual inspection. TAMKO HailGuard shingles with TAMKO\'s hail warranty.' }
     ];
     var cur = (value || 'better').toLowerCase();
     var cards = tiers.map(function (t) {
@@ -2913,9 +2936,9 @@
     // printing a promise. warrantyTier is '' here, so neither bridge fires.
     if (data.warranty == null && typeof data.workmanshipWarranty === 'string') data.warranty = data.workmanshipWarranty || null;
     if (data.warranty == null && data.warrantyTier) {                                                                // contract (renderer's "5 · Warranty"
-      var _wCfg = window.NBD_ESTIMATE_CONFIG;                                                                          // section is dropped entirely when
-      var _wTxt = (_wCfg && typeof _wCfg.tierWarrantyText === 'function')                                              // warranty is null/empty). Mirrors
-        ? _wCfg.tierWarrantyText(data.warrantyTier) : 'Lifetime workmanship warranty.';                                // renderWarrantyBadge's composition
+      // section is dropped entirely when warranty is null/empty). Mirrors
+      // renderWarrantyBadge's composition. Five tiers since 2026-10-02.
+      var _wTxt = tierWarrantySentence(data.warrantyTier);
       var _wMfg = window.NBDDocGen && window.NBDDocGen.MANUFACTURER_COVERAGE && window.NBDDocGen.MANUFACTURER_COVERAGE[data.warrantyTier]; // (2026-09-09 GBB
       data.warranty = _wMfg ? (_wTxt + ' ' + _wMfg.level + ' manufacturer coverage — ' + _wMfg.note) : _wTxt;          // tier consolidation, #1529)
     }
@@ -2938,16 +2961,7 @@
     // dashboard.html), so this needs the same local fallback pattern used
     // elsewhere (_v2TierLabel() etc.) rather than assuming the config global.
     if (data.warranty == null && data.warrantyTier) {
-      var _cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
-      if (_cfg && typeof _cfg.tierWarrantyText === 'function') {
-        data.warranty = _cfg.tierWarrantyText(data.warrantyTier);
-      } else {
-        data.warranty = ({
-          good:   'Lifetime workmanship warranty; does not transfer on sale of property.',
-          better: 'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
-          best:   'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.'
-        })[data.warrantyTier] || 'Lifetime workmanship warranty.';
-      }
+      data.warranty = tierWarrantySentence(data.warrantyTier);
     }
 
     // Currency display version of totalPrice when supplied as number

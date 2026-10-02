@@ -162,9 +162,9 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=13',
-      'js/document-generator-templates.js?v=10',
-      'js/doc-preflight.js?v=2',
+      'js/document-generator.js?v=14',
+      'js/document-generator-templates.js?v=11',
+      'js/doc-preflight.js?v=3',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -228,7 +228,7 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=4',
+      'js/estimate-finalization.js?v=5',
       'js/estimate-v2-ui.js?v=16',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=2',
@@ -304,7 +304,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=5'
+      'js/warranty-cert.js?v=6'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/

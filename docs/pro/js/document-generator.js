@@ -339,10 +339,15 @@ window.NBDDocGen = {
    * Manufacturer warranty language was deliberately left untouched by the
    * 2026-09-08 claims-audit session and stays that way here.
    */
+  // Five tiers (Jo, 2026-10-02): Economy = the shingle maker's standard
+  // limited warranty, NO system warranty; Beyond = TAMKO HailGuard, whose
+  // hail warranty is TAMKO's (manufacturer terms apply).
   MANUFACTURER_COVERAGE: {
+    economy: { level: 'Standard Limited', note: 'The shingle manufacturer\'s standard limited warranty applies; no system warranty is included.' },
     good: { level: 'Standard', note: 'Manufacturer warranties vary by material.' },
     better: { level: 'Enhanced', note: 'Enhanced manufacturer coverage on select products.' },
-    best: { level: 'Premium', note: 'Maximum manufacturer coverage on premium materials.' }
+    best: { level: 'Premium', note: 'Maximum manufacturer coverage on premium materials.' },
+    beyond: { level: 'Premium + Hail', note: 'TAMKO HailGuard shingles carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' }
   },
 
   /**
@@ -2205,25 +2210,32 @@ window.NBDDocGen = {
 
   /**
    * Render warranty badge and details
-   * @param {string} tier - Warranty tier (good, better, best)
+   * @param {string} tier - Warranty tier (economy, good, better, best, beyond)
    * @returns {string} HTML
    */
   renderWarrantyBadge(tier = 'better') {
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
     const label = (cfg && typeof cfg.tierLabel === 'function')
       ? cfg.tierLabel(tier)
-      : ({ good: 'Standard', better: 'Preferred', best: 'Elite' })[tier] || tier;
+      : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[tier] || tier;
     const warrantyText = (cfg && typeof cfg.tierWarrantyText === 'function')
       ? cfg.tierWarrantyText(tier)
-      : 'Lifetime workmanship warranty.';
+      : (tier === 'economy'
+        ? '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.'
+        : 'Lifetime workmanship warranty.');
     const mfg = this.MANUFACTURER_COVERAGE[tier] || this.MANUFACTURER_COVERAGE.better;
+    // Economy's workmanship is 1 year, not lifetime (2026-10-02).
+    const yrs = tier === 'economy'
+      ? ((cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY.economy && cfg.TIER_DISPLAY.economy.warranty.workmanshipYears) || 1)
+      : 0;
+    const work = yrs ? (yrs + '-Year Workmanship') : 'Lifetime Workmanship';
 
     return `
       <div class="warranty-badge">
-        ${label}: Lifetime Workmanship + ${mfg.level} Manufacturer
+        ${label}: ${work} + ${mfg.level} Manufacturer
       </div>
       <div class="warranty-details">
-        <div><strong>Lifetime Workmanship Warranty + ${mfg.level} Manufacturer Warranty</strong></div>
+        <div><strong>${work} Warranty + ${mfg.level} Manufacturer Warranty</strong></div>
         <div style="margin-top: 0.08in;">${warrantyText} ${mfg.note}</div>
       </div>
     `;
@@ -3395,7 +3407,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}${f.required?'<span style="color:var(--orange,#bd5728);">*</span>':''}</label>
           <textarea id="${id}" rows="3" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;resize:vertical;font-family:inherit;" placeholder="${f.label}"></textarea></div>`;
       } else if (f.type === 'select') {
-        const opts = (f.options||[]).map(o => `<option value="${o}">${o.charAt(0).toUpperCase()+o.slice(1)}</option>`).join('');
+        const opts = (f.options||[]).map(o => `<option value="${o}"${f.default === o ? ' selected' : ''}>${o.charAt(0).toUpperCase()+o.slice(1)}</option>`).join('');
         fieldsHTML += `<div style="margin-bottom:14px;"><label style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">${f.label}</label>
           <select id="${id}" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;">${opts}</select></div>`;
       } else {
@@ -3516,6 +3528,14 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
    * @param {string} type - Document type
    * @returns {array} Field definitions
    */
+  // Every tier, cheapest first (five since 2026-10-02) — from the shared
+  // config, with an inline copy for a page that didn't load it. The warranty
+  // pickers below default to 'good' (their first option before Economy).
+  _tierOptions() {
+    const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+    return (cfg && Array.isArray(cfg.TIER_ORDER)) ? cfg.TIER_ORDER.slice() : ['economy', 'good', 'better', 'best', 'beyond'];
+  },
+
   getFormFieldsForDocumentType(type) {
     const commonFields = [
       { name: 'homeownerName', label: 'Homeowner Name', required: true },
@@ -3536,7 +3556,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         ...commonFields,
         { name: 'projectDescription', label: 'Project Description', required: true, type: 'textarea' },
         { name: 'totalPrice', label: 'Total Price', required: true },
-        { name: 'warrantyTier', label: 'Warranty Tier', required: true, type: 'select', options: ['good', 'better', 'best'] }
+        { name: 'warrantyTier', label: 'Warranty Tier', required: true, type: 'select', options: this._tierOptions(), default: 'good' }
       ],
       contract: [
         ...commonFields,
@@ -3544,7 +3564,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         { name: 'projectDescription', label: 'Scope of Work', required: true, type: 'textarea' },
         { name: 'startDate', label: 'Start Date', required: true },
         { name: 'estimatedCompletion', label: 'Estimated Completion', required: true },
-        { name: 'warrantyTier', label: 'Warranty Tier', required: true, type: 'select', options: ['good', 'better', 'best'] }
+        { name: 'warrantyTier', label: 'Warranty Tier', required: true, type: 'select', options: this._tierOptions(), default: 'good' }
       ],
       inspectionHomeowner: [
         ...commonFields,
@@ -3562,7 +3582,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
       ],
       warranty_certificate: [
         ...commonFields,
-        { name: 'warrantyTier', label: 'Warranty Tier', required: true, type: 'select', options: ['good', 'better', 'best'] },
+        { name: 'warrantyTier', label: 'Warranty Tier', required: true, type: 'select', options: this._tierOptions(), default: 'good' },
         { name: 'workPerformed', label: 'Work Performed', required: true, type: 'textarea' },
         { name: 'issueDate', label: 'Issue Date', required: false }
       ],
@@ -3595,7 +3615,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         { name: 'startDate', label: 'Start Date', required: true },
         { name: 'completionDate', label: 'Completion Date', required: true },
         { name: 'inspectorName', label: 'Inspector / Crew Lead', required: false },
-        { name: 'warrantyTier', label: 'Warranty Tier', required: false, type: 'select', options: ['good', 'better', 'best'] }
+        { name: 'warrantyTier', label: 'Warranty Tier', required: false, type: 'select', options: this._tierOptions(), default: 'good' }
       ],
       change_order: [
         ...commonFields,

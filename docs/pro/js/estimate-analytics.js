@@ -9,7 +9,7 @@
  *   - Close rate (signed / sent), with absolute counts
  *   - Average ticket per signed estimate
  *   - View → sign conversion (signed / viewed)
- *   - Tier breakdown of signed estimates (Good / Better / Best %)
+ *   - Tier breakdown of signed estimates (Economy / Good / Better / Best / Beyond %)
  *   - Time-to-sign (median days from sentAt → signedAt)
  *   - Top 3 leaderboard: highest-grandTotal signed estimates
  *
@@ -24,6 +24,19 @@
  */
 (function () {
   'use strict';
+
+  // Every tier, cheapest first (five since 2026-10-02) — estimate-config.js
+  // TIER_ORDER, with a copy for a page that didn't load it.
+  function _tierOrder() {
+    const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+    return (cfg && Array.isArray(cfg.TIER_ORDER)) ? cfg.TIER_ORDER.slice() : ['economy', 'good', 'better', 'best', 'beyond'];
+  }
+  // Rep-facing dashboard: the internal Good/Better/Best names it always
+  // showed, plus the two new tiers.
+  function _tierName(k) {
+    return ({ economy: 'Economy', good: 'Good', better: 'Better', best: 'Best', beyond: 'Beyond' })[k] || k;
+  }
+  const TIER_MIX_COLORS = { economy: '#a8a29e', good: '#3b82f6', better: '#9b6dff', best: '#10b981', beyond: '#0e7490' };
   if (window.NBDEstimateAnalytics
       && window.NBDEstimateAnalytics.__sentinel === 'nbd-est-analytics-v1') return;
 
@@ -68,7 +81,8 @@
       lost:         0,
       signedTotal:  0,
       signedTickets: [],
-      tierCounts:   { good: 0, better: 0, best: 0 },
+      // Five tiers since 2026-10-02 (TIER_ORDER), each counted.
+      tierCounts:   _tierOrder().reduce((m, k) => { m[k] = 0; return m; }, {}),
       timeToSignDays: [],
       topSigned:    [],
     };
@@ -101,7 +115,7 @@
         if (viewedMs) out.signedViewed++;
         out.signedTotal += grandTotal;
         out.signedTickets.push(grandTotal);
-        if (tier === 'good' || tier === 'better' || tier === 'best') {
+        if (Object.prototype.hasOwnProperty.call(out.tierCounts, tier)) {
           out.tierCounts[tier]++;
         }
         if (sentMs && signedMs && signedMs > sentMs) {
@@ -170,26 +184,22 @@
         (sub ? '<div style="font-size:10px;color:var(--m, #888);margin-top:3px;">' + _esc(sub) + '</div>' : '') +
       '</div>';
 
-    // Tier mix bar — proportional fill of the three colors so
+    // Tier mix bar — proportional fill per tier (five since 2026-10-02) so
     // a "70% Better" mix is obvious at a glance.
-    const totalTiered = s.tierCounts.good + s.tierCounts.better + s.tierCounts.best;
+    const _mix = _tierOrder().map(k => ({ key: k, n: s.tierCounts[k] || 0, color: TIER_MIX_COLORS[k] || '#888' }));
+    const totalTiered = _mix.reduce((a, t) => a + t.n, 0);
     let tierBar = '';
     if (totalTiered > 0) {
-      const goodPct = (s.tierCounts.good / totalTiered) * 100;
-      const betterPct = (s.tierCounts.better / totalTiered) * 100;
-      const bestPct = (s.tierCounts.best / totalTiered) * 100;
+      _mix.forEach(t => { t.pct = (t.n / totalTiered) * 100; t.name = _tierName(t.key); });
       tierBar =
         '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:7px;padding:10px 12px;flex:2;min-width:240px;">' +
           '<div style="font-size:10px;color:var(--m, #888);letter-spacing:0.08em;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Signed tier mix</div>' +
           '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg, #0a0c0f);margin-bottom:6px;">' +
-            (goodPct ? '<div style="width:' + goodPct + '%;background:#3b82f6;" title="Good"></div>' : '') +
-            (betterPct ? '<div style="width:' + betterPct + '%;background:#9b6dff;" title="Better"></div>' : '') +
-            (bestPct ? '<div style="width:' + bestPct + '%;background:#10b981;" title="Best"></div>' : '') +
+            _mix.map(t => t.pct ? '<div style="width:' + t.pct + '%;background:' + t.color + ';" title="' + _esc(t.name) + '"></div>' : '').join('') +
           '</div>' +
-          '<div style="display:flex;gap:8px;font-size:10px;color:var(--m, #888);font-variant-numeric:tabular-nums;">' +
-            '<span><span style="color:#3b82f6;">●</span> Good ' + Math.round(goodPct) + '%</span>' +
-            '<span><span style="color:#9b6dff;">●</span> Better ' + Math.round(betterPct) + '%</span>' +
-            '<span><span style="color:#10b981;">●</span> Best ' + Math.round(bestPct) + '%</span>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--m, #888);font-variant-numeric:tabular-nums;">' +
+            _mix.filter(t => t.n > 0 || ['good', 'better', 'best'].indexOf(t.key) !== -1)
+              .map(t => '<span><span style="color:' + t.color + ';">●</span> ' + _esc(t.name) + ' ' + Math.round(t.pct) + '%</span>').join('') +
           '</div>' +
         '</div>';
     }
