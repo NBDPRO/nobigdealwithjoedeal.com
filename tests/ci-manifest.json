@@ -164,6 +164,7 @@
     "call-center-ingest-2026-10-01.test.js",
     "call-center-notes-2026-10-01.test.js",
     "five-tier-crm-2026-10-02.test.js",
+    "schedule-busy-blocks-2026-10-02.test.js",
     "crm-search-not-sticky-2026-10-02.test.js",
     "public-invoker-2026-10-02.test.js",
     "text-inbox-logic-2026-10-01.test.js",
