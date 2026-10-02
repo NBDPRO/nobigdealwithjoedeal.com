@@ -3843,7 +3843,7 @@
   //   Weather — NOAA NEXRAD radar overlay
   //   Heat    — knock density heatmap
   // ════════════════════════════════════════════════════════════
-  let d2dLayerState = { knocks: true, customers: false, weather: false, heat: false, territory: false, score: false };
+  let d2dLayerState = { knocks: true, customers: false, weather: false, heat: false, territory: false, score: false, storms: false };
   let _layerPanelOpen = false; // panel collapsed by default behind the "Layers" toggle (frees the map)
   let d2dCustomerMarkers = [];
   let d2dStormLayer = null;
@@ -4071,7 +4071,9 @@
       { key: 'weather',   icon: '⛈️', label: 'Radar' },
       { key: 'heat',      icon: '🔥', label: 'Heat' },
       { key: 'score',     icon: '🎯', label: 'Score' },
-      { key: 'territory', icon: '🗺️', label: 'Zone' }
+      { key: 'territory', icon: '🗺️', label: 'Zone' },
+      // Storm Watch (2026-10-02): NWS hail / wind / tornado reports, d2d-storm-layer.js.
+      { key: 'storms',    icon: '🌩️', label: 'Storms' }
     ];
 
     layers.forEach(ly => {
@@ -4199,6 +4201,12 @@
   function toggleLayer(key) {
     d2dLayerState[key] = !d2dLayerState[key];
     switch (key) {
+      case 'storms':
+        if (window.NBDD2DStorms) {
+          if (d2dLayerState.storms) window.NBDD2DStorms.show(state.d2dMap);
+          else window.NBDD2DStorms.hide(state.d2dMap);
+        }
+        break;
       case 'knocks':
         if (d2dLayerState.knocks) {
           state.d2dMap.addLayer(state.d2dCluster);
@@ -4943,5 +4951,8 @@
   state.sendFollowUpSMS = sendFollowUpSMS;
   state.sendFollowUpEmail = sendFollowUpEmail;
   state.initD2D = initD2D;
+  // Storm Watch deep link (d2d-storm-layer.js) turns the Storms layer on.
+  state.toggleLayer = (k) => { toggleLayer(k); updateLayerPanel(); };
+  state.isLayerOn = (k) => !!d2dLayerState[k];
 
 })();
