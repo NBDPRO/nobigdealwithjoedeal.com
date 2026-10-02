@@ -35,6 +35,19 @@ function silentWav() {
   return buf;
 }
 
+
+// Test customers are written with the admin SDK, not window._saveLead: the
+// specs test the call UI, and two back-to-back _saveLead commits on a busy
+// emulator flaked with ALREADY_EXISTS (2026-10-02, then every retry timed out).
+async function seedLead(page, db, fields) {
+  const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+  const now = new Date();
+  const ref = await db.collection('leads').add(Object.assign({
+    userId: who.uid, companyId: who.co, deleted: false, e2eTestData: true, source: 'E2E', createdAt: now, updatedAt: now,
+  }, fields, { phoneDigits: String(fields.phone || '').replace(/\D/g, '').slice(-10) }));
+  return ref.id;
+}
+
 test.describe.serial('Call Center → customer card @shard2', () => {
   test('a Cube ACR call lists on its customer and plays from private Storage', async ({ page }) => {
     test.setTimeout(120_000);
@@ -44,12 +57,12 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     await page.route(/nominatim\.openstreetmap\.org/, (route) => route.fulfill({ contentType: 'application/json', body: '[]', headers: { 'Access-Control-Allow-Origin': '*' } }));
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
-    await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user, null, { timeout: 20_000 });
+    await safeWaitForFunction(page, () => !!window._user && !!window._user.uid, null, { timeout: 20_000 });
 
     const s = Date.now();
     const phone = '5135554' + String(s).slice(-3);
-    const id = await safeEvaluate(page, (a) => window._saveLead({ firstName: 'ZZCC', lastName: 'Caller' + a.s, address: '9 Ring Rd, Mason, OH 45040', phone: a.phone, stage: 'new', jobType: 'cash', e2eTestData: true }), { s, phone });
-    const other = await safeEvaluate(page, (a) => window._saveLead({ firstName: 'ZZCC', lastName: 'Other' + a.s, address: '10 Ring Rd, Mason, OH 45040', phone: '5135559999', stage: 'new', jobType: 'cash', e2eTestData: true }), { s });
+    const id = await seedLead(page, admin().db, { firstName: 'ZZCC', lastName: 'Caller' + s, address: '9 Ring Rd, Mason, OH 45040', phone, stage: 'new', jobType: 'cash' });
+    const other = await seedLead(page, admin().db, { firstName: 'ZZCC', lastName: 'Other' + s, address: '10 Ring Rd, Mason, OH 45040', phone: '5135559999', stage: 'new', jobType: 'cash' });
     expect(id && other, 'leads saved').toBeTruthy();
 
     const { db, bucket } = admin();
