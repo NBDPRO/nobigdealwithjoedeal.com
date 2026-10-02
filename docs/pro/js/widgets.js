@@ -151,8 +151,8 @@ const WIDGETS = [
       el.innerHTML = `
         <div class="w-big-num">$${total >= 1000 ? (total/1000).toFixed(1)+'k' : total.toFixed(0)}</div>
         <div class="w-sub">Total Pipeline Value</div>
-        <div style="display:flex;border-radius:4px;overflow:hidden;margin-top:10px;gap:1px;">${stageBar || '<div style="flex:1;background:var(--br);height:8px;"></div>'}</div>
-        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:var(--m);">
+        <div class="wg-segs">${stageBar || '<div class="wg-seg"></div>'}</div>
+        <div class="wg-axis">
           <span>${leads.filter(_inPlay).length} in play</span><span>${leads.filter(l=>_roleOf(l)==='won').length} won</span>
         </div>`;
     }},
@@ -188,7 +188,7 @@ const WIDGETS = [
       const circumference = 2 * Math.PI * 36;
       const offset = circumference - (rate / 100) * circumference;
       el.innerHTML = `
-        <svg width="84" height="84" style="display:block;margin:0 auto 8px;">
+        <svg width="84" height="84" class="wg-svg-center">
           <circle cx="42" cy="42" r="36" stroke="var(--br)" stroke-width="6" fill="none"/>
           <circle cx="42" cy="42" r="36" stroke="var(--orange)" stroke-width="6" fill="none"
             stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" transform="rotate(-90 42 42)" stroke-linecap="round"/>
@@ -258,10 +258,10 @@ const WIDGETS = [
       // text gives the user a way to customize without us having to
       // build a whole settings panel.
       el.innerHTML = `
-        <div class="w-big-num" style="color:var(--green);">${revText}</div>
-        <div class="w-sub">Revenue This Month <span style="opacity:.7">· collected</span>${thisMonth.length ? ' <span style="opacity:.7">· ' + thisMonth.length + ' closed</span>' : ''}</div>
+        <div class="w-big-num wg-green">${revText}</div>
+        <div class="w-sub">Revenue This Month <span class="wg-o7">· collected</span>${thisMonth.length ? ' <span class="wg-o7">· ' + thisMonth.length + ' closed</span>' : ''}</div>
         <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%"></div></div>
-        <div class="w-goal-edit" data-w-stop="1" title="Click to change your monthly goal" style="font-size:9px;color:var(--m);text-align:right;margin-top:3px;cursor:pointer;user-select:none;">${pct.toFixed(0)}% of $${(goal/1000).toFixed(0)}k goal ✎</div>`;
+        <div class="w-goal-edit wg-edit-link" data-w-stop="1" title="Click to change your monthly goal">${pct.toFixed(0)}% of $${(goal/1000).toFixed(0)}k goal ✎</div>`;
       const goalEl = el.querySelector('.w-goal-edit');
       if (goalEl) {
         goalEl.addEventListener('click', () => {
@@ -319,9 +319,9 @@ const WIDGETS = [
         const ago = _timeAgo(l.updatedAt || l.createdAt);
         return `<div class="w-activity-row">
           <div class="w-activity-dot" style="background:${(()=>{const b=_bucketOf(l);const s=_normStage(l);return b==='Won'?'var(--green)':s==='lost'?'#EF4444':'var(--orange)';})()}"></div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:11px;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(_leadName(l, 'Lead'))}</div>
-            <div style="font-size:10px;color:var(--m);">${esc(_stageText(l))} • ${esc(ago)}</div>
+          <div class="wg-grow wg-min0">
+            <div class="wg-name">${esc(_leadName(l, 'Lead'))}</div>
+            <div class="wg-meta">${esc(_stageText(l))} • ${esc(ago)}</div>
           </div>
         </div>`;
       }).join('');
@@ -336,11 +336,11 @@ const WIDGETS = [
         const last = _toMs(l.updatedAt||l.createdAt);
         return last > 0 && (now - last) > 7*24*60*60*1000;
       }).sort((a,b) => _toMs(a.updatedAt||a.createdAt) - _toMs(b.updatedAt||b.createdAt)).slice(0,5);
-      if(!stale.length) { el.innerHTML = '<div class="w-empty" style="color:var(--green);">No stale leads — nice work!</div>'; return; }
-      el.innerHTML = `<div style="font-size:10px;color:var(--red);margin-bottom:6px;font-weight:700;">${stale.length} leads need attention</div>` +
+      if(!stale.length) { el.innerHTML = '<div class="w-empty wg-green">No stale leads — nice work!</div>'; return; }
+      el.innerHTML = `<div class="wg-red-head">${stale.length} leads need attention</div>` +
         stale.map(l => {
           const days = Math.floor((now - _toMs(l.updatedAt||l.createdAt)) / 86400000);
-          return `<div class="w-lead-row"><div class="w-lead-name">${esc(_leadName(l, 'Lead'))}</div><div style="color:var(--red);font-size:10px;">${days > 0 ? days+'d ago' : 'today'}</div></div>`;
+          return `<div class="w-lead-row"><div class="w-lead-name">${esc(_leadName(l, 'Lead'))}</div><div class="wg-red-10">${days > 0 ? days+'d ago' : 'today'}</div></div>`;
         }).join('');
     }},
 
@@ -352,21 +352,21 @@ const WIDGETS = [
       });
       const total = leads.reduce((s,l) => s + _leadValue(l), 0);
       el.innerHTML = `
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-          <span class="w-big-num" style="font-size:22px;">${leads.length}</span>
-          <span style="font-size:11px;color:var(--green);font-weight:700;">$${total>=1000?(total/1000).toFixed(1)+'k':total.toFixed(0)} closeable</span>
+        <div class="wg-between wg-mb8">
+          <span class="w-big-num wg-fs22">${leads.length}</span>
+          <span class="wg-green-sm">$${total>=1000?(total/1000).toFixed(1)+'k':total.toFixed(0)} closeable</span>
         </div>` +
         leads.slice(0,4).map(l => `<div class="w-lead-row">
           <div class="w-lead-name">${esc(_leadName(l, 'Lead'))}</div>
-          <div style="color:var(--orange);font-size:10px;font-weight:700;">$${_leadValue(l).toLocaleString()}</div>
+          <div class="wg-orange-10">$${_leadValue(l).toLocaleString()}</div>
         </div>`).join('');
     }},
 
   // ═══ OPERATIONS ═══
   {id:'weather-radar', name:'Weather Radar', icon:'🌧️', cat:'Operations', size:'md',
     render(el){
-      el.innerHTML = `<div id="w-radar-map" style="height:160px;border-radius:6px;overflow:hidden;"></div>
-        <div style="font-size:9px;color:var(--m);margin-top:4px;text-align:center;">Live NEXRAD radar • Updates every 10 min</div>`;
+      el.innerHTML = `<div id="w-radar-map" class="wg-map wg-map-160"></div>
+        <div class="wg-foot wg-center">Live NEXRAD radar • Updates every 10 min</div>`;
       setTimeout(() => _withLeaflet(() => {
         if(!document.getElementById('w-radar-map')) return; // widget re-rendered while loading
         if(_wRadarMap){try{_wRadarMap.remove();}catch(e){}}
@@ -390,15 +390,15 @@ const WIDGETS = [
       } catch (e) { cached = null; }
       if (cached && cached.length) {
         el.innerHTML = cached.slice(0,3).map(a => `
-          <div style="padding:6px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:5px;margin-bottom:4px;font-size:10px;">
-            <div style="font-weight:700;color:var(--red);">${esc(a.event || 'Weather alert')}</div>
-            <div style="color:var(--m);margin-top:2px;">${esc(String(a.headline || '').substring(0,80))}</div>
+          <div class="wg-alert">
+            <div class="wg-red-bold">${esc(a.event || 'Weather alert')}</div>
+            <div class="wg-muted wg-mt2">${esc(String(a.headline || '').substring(0,80))}</div>
           </div>`).join('');
       } else {
-        el.innerHTML = `<div class="w-empty" style="font-size:11px;">
-          <div style="font-size:20px;margin-bottom:6px;">🛡️</div>
+        el.innerHTML = `<div class="w-empty wg-fs11">
+          <div class="wg-icon20">🛡️</div>
           ${cached ? 'No active alerts in your area.' : 'Check alerts for your area.'}<br>
-          <button class="w-mini-btn" data-w-goto="storm" style="margin-top:6px;">Open Storm Center →</button>
+          <button class="w-mini-btn wg-mt6" data-w-goto="storm">Open Storm Center →</button>
         </div>`;
       }
     }},
@@ -411,15 +411,15 @@ const WIDGETS = [
       let calUser = (window._currentRep && window._currentRep.calcomUsername) || '';
       if (!calUser) { try { calUser = (JSON.parse(localStorage.getItem('nbd_cal_settings') || '{}') || {}).username || ''; } catch (e) { calUser = ''; } }
       if(!calUser) {
-        el.innerHTML = '<div class="w-empty"><div style="font-size:20px;margin-bottom:6px;">📅</div>Connect Cal.com in Settings to see today\'s appointments</div>';
+        el.innerHTML = '<div class="w-empty"><div class="wg-icon20">📅</div>Connect Cal.com in Settings to see today\'s appointments</div>';
         return;
       }
       el.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:11px;font-weight:700;color:var(--t);">Today</span>
+        <div class="wg-between-c wg-mb8">
+          <span class="wg-title-sm">Today</span>
           <button class="w-mini-btn" data-w-goto="schedule">Open Calendar →</button>
         </div>
-        <div class="w-empty" style="font-size:11px;">Your Cal.com bookings and today's events are on your Schedule.</div>`;
+        <div class="w-empty wg-fs11">Your Cal.com bookings and today's events are on your Schedule.</div>`;
     }},
 
   {id:'task-checklist', name:'Task Checklist', icon:'✅', cat:'Operations', size:'md',
@@ -430,8 +430,8 @@ const WIDGETS = [
           <input type="checkbox" ${t.d?'checked':''} data-w-change="toggleTask" data-w-idx="${i}">
           <span style="${t.d?'text-decoration:line-through;opacity:.5;':''}font-size:12px;color:var(--t);">${esc(t.t)}</span>
         </label>`).join('') + `</div>
-        <div style="margin-top:6px;display:flex;gap:4px;">
-          <input type="text" id="w-task-input" placeholder="Add task..." style="flex:1;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:5px 8px;font-size:11px;color:var(--t);font-family:inherit;">
+        <div class="wg-row4 wg-mt6">
+          <input type="text" id="w-task-input" placeholder="Add task..." class="wg-input-flex-sm">
           <button class="w-mini-btn" data-w-action="addTask">+</button>
         </div>`;
     }},
@@ -439,15 +439,15 @@ const WIDGETS = [
   {id:'quick-estimate', name:'Quick Estimate', icon:'🧮', cat:'Operations', size:'sm',
     render(el){
       el.innerHTML = `
-        <div style="margin-bottom:6px;">
-          <label style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.08em;">Sq Ft</label>
-          <input type="number" id="w-qe-sqft" placeholder="2000" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:6px 8px;font-size:13px;color:var(--t);font-family:inherit;margin-top:2px;" data-w-input="quickEst">
+        <div class="wg-mb6">
+          <label class="wg-cap-label">Sq Ft</label>
+          <input type="number" id="w-qe-sqft" placeholder="2000" class="wg-input-sm" data-w-input="quickEst">
         </div>
-        <div style="margin-bottom:6px;">
-          <label style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.08em;">$/sq</label>
-          <input type="number" id="w-qe-rate" placeholder="350" value="350" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:6px 8px;font-size:13px;color:var(--t);font-family:inherit;margin-top:2px;" data-w-input="quickEst">
+        <div class="wg-mb6">
+          <label class="wg-cap-label">$/sq</label>
+          <input type="number" id="w-qe-rate" placeholder="350" value="350" class="wg-input-sm" data-w-input="quickEst">
         </div>
-        <div id="w-qe-result" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--orange);text-align:center;padding:6px 0;">$0</div>`;
+        <div id="w-qe-result" class="wg-streak">$0</div>`;
     }},
 
   // 'material-watch' (Material Price Watch) REMOVED.
@@ -540,15 +540,15 @@ const WIDGETS = [
         .slice(0, 3);
 
       if (!reps.length) {
-        el.innerHTML = '<div style="padding:10px 0;font-size:11px;color:var(--m);">'
+        el.innerHTML = '<div class="wg-empty-line">'
           + 'No closed jobs yet — reps appear here once deals start closing.</div>';
         return;
       }
       el.innerHTML = reps.map((r,i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<reps.length-1?'border-bottom:1px solid var(--br);':''}">
-          <span style="font-size:14px;">${i===0?'🥇':i===1?'🥈':'🥉'}</span>
-          <div style="flex:1;"><div style="font-size:11px;font-weight:700;color:var(--t);">${esc(r.name)}</div></div>
-          <div style="text-align:right;"><div style="font-size:12px;font-weight:700;color:var(--orange);">$${(r.rev/1000).toFixed(1)}k</div><div style="font-size:9px;color:var(--m);">${r.deals} deals</div></div>
+          <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>
+          <div class="wg-grow"><div class="wg-title-sm">${esc(r.name)}</div></div>
+          <div class="wg-right"><div class="wg-orange-12">$${(r.rev/1000).toFixed(1)}k</div><div class="wg-tiny">${r.deals} deals</div></div>
         </div>`).join('');
     }},
 
@@ -556,14 +556,14 @@ const WIDGETS = [
   {id:'quick-add-lead', name:'Quick Add Lead', icon:'➕', cat:'Tools & Quick Actions', size:'md',
     render(el){
       el.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <input type="text" id="w-ql-name" placeholder="Homeowner name" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:8px 10px;font-size:12px;color:var(--t);font-family:inherit;">
-          <input type="text" id="w-ql-addr" placeholder="Property address" style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:8px 10px;font-size:12px;color:var(--t);font-family:inherit;">
-          <div style="display:flex;gap:6px;">
-            <select id="w-ql-damage" style="flex:1;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:8px;font-size:11px;color:var(--t);font-family:inherit;">
+        <div class="wg-col6">
+          <input type="text" id="w-ql-name" placeholder="Homeowner name" class="wg-input">
+          <input type="text" id="w-ql-addr" placeholder="Property address" class="wg-input">
+          <div class="wg-row6">
+            <select id="w-ql-damage" class="wg-select">
               <option value="Roof - Hail">Roof - Hail</option><option value="Roof - Wind">Roof - Wind</option><option value="Siding - Hail">Siding - Hail</option><option value="Siding - Wind">Siding - Wind</option><option value="Full Exterior">Full Exterior</option>
             </select>
-            <button class="btn btn-orange" style="padding:8px 16px;font-size:11px;" data-w-action="quickAddLead">Add →</button>
+            <button class="btn btn-orange wg-btn-p816" data-w-action="quickAddLead">Add →</button>
           </div>
         </div>`;
     }},
@@ -571,17 +571,17 @@ const WIDGETS = [
   {id:'quick-draw', name:'Quick Draw', icon:'✏️', cat:'Tools & Quick Actions', size:'sm',
     render(el){
       el.innerHTML = `
-        <input type="text" id="w-qd-addr" placeholder="Address to measure..." style="width:100%;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:8px 10px;font-size:12px;color:var(--t);font-family:inherit;margin-bottom:8px;">
-        <button class="btn btn-orange" style="width:100%;padding:10px;font-size:12px;justify-content:center;" data-w-action="quickDraw">📏 Open Drawing Tool</button>`;
+        <input type="text" id="w-qd-addr" placeholder="Address to measure..." class="wg-input wg-mb8">
+        <button class="btn btn-orange wg-btn-full" data-w-action="quickDraw">📏 Open Drawing Tool</button>`;
     }},
 
   {id:'ask-joe-mini', name:'Ask Joe', icon:'🤠', cat:'Tools & Quick Actions', size:'md',
     render(el){
       el.innerHTML = `
-        <div id="w-joe-response" style="font-size:12px;color:var(--m);min-height:40px;margin-bottom:8px;max-height:120px;overflow-y:auto;">Ask Joe anything about sales, claims, or your pipeline.</div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="w-joe-input" placeholder="Ask Joe..." style="flex:1;background:var(--s2);border:1px solid var(--br);border-radius:5px;padding:8px 10px;font-size:12px;color:var(--t);font-family:inherit;" data-w-keydown="askJoe">
-          <button class="btn btn-orange" style="padding:8px 12px;font-size:11px;" data-w-action="askJoe">Ask</button>
+        <div id="w-joe-response" class="wg-joe-out">Ask Joe anything about sales, claims, or your pipeline.</div>
+        <div class="wg-row6">
+          <input type="text" id="w-joe-input" placeholder="Ask Joe..." class="wg-input-flex" data-w-keydown="askJoe">
+          <button class="btn btn-orange wg-btn-p812" data-w-action="askJoe">Ask</button>
         </div>`;
     }},
 
@@ -592,15 +592,15 @@ const WIDGETS = [
       el.innerHTML = ests.map(e => `
         <div class="w-lead-row" data-w-goto="est">
           <div class="w-lead-name">${esc(e.address || e.addr || 'Estimate')}</div>
-          <div style="font-size:10px;color:var(--orange);font-weight:700;">${e.total ? '$'+parseFloat(e.total).toLocaleString() : '—'}</div>
+          <div class="wg-orange-10">${e.total ? '$'+parseFloat(e.total).toLocaleString() : '—'}</div>
         </div>`).join('');
     }},
 
   {id:'recent-docs', name:'Recent Documents', icon:'📄', cat:'Tools & Quick Actions', size:'sm',
     render(el){
       el.innerHTML = `
-        <div class="w-lead-row" data-w-goto="docs"><div class="w-lead-name">Template Library</div><div style="font-size:10px;color:var(--m);">24 templates</div></div>
-        <button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:11px;padding:7px;justify-content:center;" data-w-goto="docs">Open Template Library →</button>`;
+        <div class="w-lead-row" data-w-goto="docs"><div class="w-lead-name">Template Library</div><div class="wg-meta">24 templates</div></div>
+        <button class="btn btn-ghost wg-btn-full-sm" data-w-goto="docs">Open Template Library →</button>`;
     }},
 
   {id:'booking-link', name:'Booking Link', icon:'🔗', cat:'Tools & Quick Actions', size:'sm',
@@ -609,10 +609,10 @@ const WIDGETS = [
       const url = cal.username ? `https://cal.com/${cal.username}/${cal.eventSlug||'roof-inspection'}` : '';
       if(!url) { el.innerHTML = '<div class="w-empty">Set up Cal.com first</div>'; return; }
       el.innerHTML = `
-        <div style="font-size:11px;color:var(--m);margin-bottom:8px;word-break:break-all;">${url}</div>
-        <div style="display:flex;gap:4px;">
-          <button class="w-mini-btn" style="flex:1;" data-w-action="copyToClipboard" data-w-id="${url}">📋 Copy</button>
-          <button class="w-mini-btn" style="flex:1;" data-w-action="smsBookLink" data-w-id="${url}">💬 SMS</button>
+        <div class="wg-link-text">${url}</div>
+        <div class="wg-row4">
+          <button class="w-mini-btn wg-grow" data-w-action="copyToClipboard" data-w-id="${url}">📋 Copy</button>
+          <button class="w-mini-btn wg-grow" data-w-action="smsBookLink" data-w-id="${url}">💬 SMS</button>
         </div>`;
     }},
 
@@ -623,8 +623,8 @@ const WIDGETS = [
       const goal = cfg.northStar || 'Set your North Star in Settings → Daily OS';
       const deadline = cfg.northStarDeadline || '';
       el.innerHTML = `
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:var(--orange);text-transform:uppercase;line-height:1.3;margin-bottom:6px;">${esc(goal)}</div>
-        ${deadline ? `<div style="font-size:10px;color:var(--m);">Deadline: ${esc(deadline)}</div>` : ''}`;
+        <div class="wg-headline">${esc(goal)}</div>
+        ${deadline ? `<div class="wg-meta">Deadline: ${esc(deadline)}</div>` : ''}`;
     }},
 
   {id:'daily-floors', name:'Daily Floors', icon:'📏', cat:'Motivation & Tracking', size:'md',
@@ -636,25 +636,25 @@ const WIDGETS = [
       el.innerHTML = floors.map((f,i) => {
         const val = progress[i] || 0;
         const pct = f.target > 0 ? Math.min(100, val/f.target*100) : 0;
-        return `<div style="margin-bottom:8px;">
-          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;">
-            <span style="font-weight:700;color:var(--t);">${esc(f.label)}</span>
+        return `<div class="wg-mb8">
+          <div class="wg-between wg-fs10 wg-mb3">
+            <span class="wg-bold">${esc(f.label)}</span>
             <span style="color:${pct>=100?'var(--green)':'var(--m)'};">${val} / ${f.target}</span>
           </div>
           <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%;${pct>=100?'background:var(--green);':''}"></div></div>
         </div>`;
-      }).join('') + `<button class="w-mini-btn" style="width:100%;margin-top:4px;" data-w-action="openDailyTracker">Open Daily Tracker →</button>`;
+      }).join('') + `<button class="w-mini-btn wg-w100 wg-mt4" data-w-action="openDailyTracker">Open Daily Tracker →</button>`;
     }},
 
   {id:'streak-counter', name:'Streak Counter', icon:'🔥', cat:'Motivation & Tracking', size:'sm',
     render(el){
       const streak = parseInt(localStorage.getItem('nbd_streak') || '0');
       el.innerHTML = `
-        <div style="text-align:center;">
-          <div style="font-size:42px;line-height:1;">${streak > 0 ? '🔥' : '❄️'}</div>
-          <div class="w-big-num" style="font-size:36px;">${streak}</div>
+        <div class="wg-center">
+          <div class="wg-big">${streak > 0 ? '🔥' : '❄️'}</div>
+          <div class="w-big-num wg-fs36">${streak}</div>
           <div class="w-sub">${streak === 1 ? 'day streak' : 'day streak'}</div>
-          <div style="font-size:9px;color:var(--m);margin-top:4px;">${streak >= 7 ? 'Unstoppable!' : streak >= 3 ? 'Keep it going!' : 'Build momentum!'}</div>
+          <div class="wg-foot">${streak >= 7 ? 'Unstoppable!' : streak >= 3 ? 'Keep it going!' : 'Build momentum!'}</div>
         </div>`;
     }},
 
@@ -675,8 +675,8 @@ const WIDGETS = [
       const today = new Date().getDate();
       const q = quotes[today % quotes.length];
       el.innerHTML = `
-        <div style="font-size:13px;font-style:italic;color:var(--t);line-height:1.5;margin-bottom:8px;">"${q.q}"</div>
-        <div style="font-size:10px;color:var(--orange);font-weight:700;text-align:right;">— ${q.a}</div>`;
+        <div class="wg-quote">"${q.q}"</div>
+        <div class="wg-orange-10 wg-right">— ${q.a}</div>`;
     }},
 
   {id:'golden-goose', name:'Golden Goose', icon:'🪿', cat:'Motivation & Tracking', size:'sm',
@@ -688,10 +688,10 @@ const WIDGETS = [
       const floors = cfg.floors || [];
       const allHit = floors.length > 0 && floors.every((f,i) => (progress[i]||0) >= f.target);
       el.innerHTML = `
-        <div style="text-align:center;">
-          <div style="font-size:36px;">${allHit ? '🪿✨' : '🪿'}</div>
+        <div class="wg-center">
+          <div class="wg-fs36">${allHit ? '🪿✨' : '🪿'}</div>
           <div style="font-size:12px;font-weight:700;color:${allHit?'var(--green)':'var(--t)'};margin:6px 0;">${allHit ? 'UNLOCKED!' : 'Hit all floors to unlock'}</div>
-          <div style="font-size:11px;color:var(--orange);font-style:italic;">${esc(reward)}</div>
+          <div class="wg-quote-by">${esc(reward)}</div>
         </div>`;
     }},
 
@@ -706,10 +706,10 @@ const WIDGETS = [
       const colors = ['var(--orange)','var(--blue)','var(--green)','#A855F7','var(--gold)','#EC4899','#06B6D4'];
       el.innerHTML = entries.slice(0,5).map(([ name, count], i) => {
         const pct = (count/total*100).toFixed(0);
-        return `<div style="margin-bottom:6px;">
-          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;">
-            <span style="color:var(--t);font-weight:600;">${esc(name)}</span>
-            <span style="color:var(--m);">${count} (${pct}%)</span>
+        return `<div class="wg-mb6">
+          <div class="wg-between wg-fs10 wg-mb2">
+            <span class="wg-strong">${esc(name)}</span>
+            <span class="wg-muted">${count} (${pct}%)</span>
           </div>
           <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%;background:${colors[i%colors.length]};"></div></div>
         </div>`;
@@ -733,13 +733,13 @@ const WIDGETS = [
       }
       const max = Math.max(...months.map(m=>m.count), 1);
       el.innerHTML = `
-        <div style="display:flex;align-items:flex-end;gap:6px;height:100px;">
+        <div class="wg-bars">
           ${months.map(m => {
             const h = Math.max(8, m.count/max*90);
-            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <span style="font-size:9px;color:var(--t);font-weight:700;">${m.count}</span>
+            return `<div class="wg-bar-col">
+              <span class="wg-bar-val">${m.count}</span>
               <div style="width:100%;height:${h}px;background:var(--orange);border-radius:3px 3px 0 0;"></div>
-              <span style="font-size:8px;color:var(--m);">${m.label}</span>
+              <span class="wg-bar-lbl">${m.label}</span>
             </div>`;
           }).join('')}
         </div>`;
@@ -753,16 +753,16 @@ const WIDGETS = [
       const entries = Object.entries(sources).sort((a,b) => b[1]-a[1]).slice(0,4);
       if(!entries.length) { el.innerHTML = '<div class="w-empty">No source data yet</div>'; return; }
       el.innerHTML = entries.map(([s,c]) => `
-        <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--br);font-size:11px;">
-          <span style="color:var(--t);font-weight:600;">${esc(s)}</span>
-          <span style="color:var(--orange);font-weight:700;">${c}</span>
+        <div class="wg-kv-row">
+          <span class="wg-strong">${esc(s)}</span>
+          <span class="wg-orange-bold">${c}</span>
         </div>`).join('');
     }},
 
   {id:'territory-mini', name:'Territory Heat Map', icon:'🗺️', cat:'Data & Analytics', size:'lg',
     render(el){
-      el.innerHTML = `<div id="w-mini-heat" style="height:180px;border-radius:6px;overflow:hidden;"></div>
-        <button class="w-mini-btn" style="width:100%;margin-top:6px;" data-w-goto="map">Open Full Map →</button>`;
+      el.innerHTML = `<div id="w-mini-heat" class="wg-map wg-map-180"></div>
+        <button class="w-mini-btn wg-w100 wg-mt6" data-w-goto="map">Open Full Map →</button>`;
       setTimeout(() => _withLeaflet(() => {
         if(!document.getElementById('w-mini-heat')) return; // widget re-rendered while loading
         if(_wMiniHeat){try{_wMiniHeat.remove();}catch(e){}}
@@ -1004,12 +1004,12 @@ function _thuRow(c) {
   const town = ex.town || c.town || '';
   const unread = !c.reviewed;
   let html = '<div class="w-lead-row" data-w-action="thuToggle" data-w-id="' + esc(id) + '" style="display:block;cursor:pointer;' + (unread ? 'border-left:3px solid var(--orange);padding-left:8px;' : 'opacity:.8;') + '">' +
-    '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">' +
-      '<div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:' + (unread ? '700' : '500') + ';font-size:12px;color:var(--t);">' + esc(who) + (town ? ' <span style="color:var(--m);font-weight:400;">· ' + esc(town) + '</span>' : '') + '</div>' +
-      '<div style="font-size:10px;color:var(--m);white-space:nowrap;">' + esc(_timeAgo(c.startedAt || c.createdAt)) + '</div>' +
+    '<div class="wg-between-c8">' +
+      '<div style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:' + (unread ? '700' : '500') + ';font-size:12px;color:var(--t);">' + esc(who) + (town ? ' <span class="wg-muted-normal">· ' + esc(town) + '</span>' : '') + '</div>' +
+      '<div class="wg-meta wg-nowrap">' + esc(_timeAgo(c.startedAt || c.createdAt)) + '</div>' +
     '</div>' +
-    '<div style="margin-top:2px;">' + badges + '</div>' +
-    '<div style="font-size:11px;color:var(--m);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(c.issue || (c.call && c.call.summary) || '') + '</div>' +
+    '<div class="wg-mt2">' + badges + '</div>' +
+    '<div class="wg-sub-clip">' + esc(c.issue || (c.call && c.call.summary) || '') + '</div>' +
   '</div>';
   if (_thuOpenId === id) html += _thuDetail(c, id);
   return html;
@@ -1019,7 +1019,7 @@ function _thuDetail(c, id) {
   const ex = c.extraction || {};
   const action = c.route && c.route.action;
   const viewer = _thuIsViewer();
-  const btn = (act, label, extra, primary) => '<button type="button" class="' + (primary ? 'btn btn-orange' : 'w-mini-btn') + '" style="font-size:11px;padding:6px 10px;" data-w-action="' + act + '" data-w-id="' + esc(id) + '"' + (extra || '') + '>' + label + '</button>';
+  const btn = (act, label, extra, primary) => '<button type="button" class="' + (primary ? 'btn btn-orange' : 'w-mini-btn') + ' wg-btn-p610" data-w-action="' + act + '" data-w-id="' + esc(id) + '"' + (extra || '') + '>' + label + '</button>';
   const facts = [];
   const phone = ex.callback_number ? ex.callback_number.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : (c.from || '');
   if (phone) facts.push('📱 <a href="tel:' + esc(String(phone).replace(/[^\d+]/g, '')) + '" data-w-stop="1">' + esc(phone) + '</a>');
@@ -1045,20 +1045,20 @@ function _thuDetail(c, id) {
   if (_thuOpenId === id && _thuSearch !== null && _thuSearch !== undefined && _thuSearch !== '' ) {
     const q = _thuSearch.trim().toLowerCase();
     const hits = !q ? [] : (window._leads || []).filter(l => !l.deleted && ((l.firstName || '') + ' ' + (l.lastName || '') + ' ' + (l.name || '') + ' ' + (l.address || '')).toLowerCase().indexOf(q) !== -1).slice(0, 6);
-    attach = hits.map(l => btn('thuAttach', esc(((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.address || 'Lead') + ' <span style="opacity:.6">' + esc((l.address || '').slice(0, 30)) + '</span>', ' data-lead-id="' + esc(l.id) + '"')).join('');
+    attach = hits.map(l => btn('thuAttach', esc(((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.address || 'Lead') + ' <span class="wg-o6">' + esc((l.address || '').slice(0, 30)) + '</span>', ' data-lead-id="' + esc(l.id) + '"')).join('');
   }
   const transcript = (c.call && c.call.transcript) || '';
-  return '<div data-w-stop="1" style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px;margin:4px 0 8px;font-size:12px;cursor:default;">' +
-    (c.call && c.call.summary ? '<div style="margin-bottom:6px;">' + esc(c.call.summary) + '</div>' : '') +
-    (facts.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;color:var(--m);font-size:11px;margin-bottom:8px;">' + facts.join('') + '</div>' : '') +
-    '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + acts.join('') + '</div>' +
+  return '<div data-w-stop="1" class="wg-panel">' +
+    (c.call && c.call.summary ? '<div class="wg-mb6">' + esc(c.call.summary) + '</div>' : '') +
+    (facts.length ? '<div class="wg-facts">' + facts.join('') + '</div>' : '') +
+    '<div class="wg-wrap6">' + acts.join('') + '</div>' +
     '<div id="thu-attach-' + esc(id) + '" style="display:' + (_thuSearch !== '' && _thuOpenId === id ? 'block' : 'none') + ';margin-top:8px;">' +
-      '<input type="text" placeholder="Search leads by name or address…" data-w-input="thuSearch" data-w-id="' + esc(id) + '" value="' + esc(_thuSearch || '') + '" style="width:100%;background:var(--bg);border:1px solid var(--br);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--t);font-family:inherit;box-sizing:border-box;">' +
-      '<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">' + attach + '</div>' +
+      '<input type="text" placeholder="Search leads by name or address…" data-w-input="thuSearch" data-w-id="' + esc(id) + '" value="' + esc(_thuSearch || '') + '" class="wg-search">' +
+      '<div class="wg-col4 wg-mt6">' + attach + '</div>' +
     '</div>' +
-    '<div id="thu-audio-' + esc(id) + '" style="margin-top:6px;"></div>' +
-    '<div id="thu-status-' + esc(id) + '" style="font-size:11px;color:var(--m);margin-top:4px;"></div>' +
-    (transcript ? '<details style="margin-top:6px;"><summary style="cursor:pointer;color:var(--m);font-size:11px;">Transcript</summary><div style="white-space:pre-wrap;max-height:240px;overflow-y:auto;margin-top:4px;line-height:1.45;">' + esc(transcript) + '</div></details>' : '') +
+    '<div id="thu-audio-' + esc(id) + '" class="wg-mt6"></div>' +
+    '<div id="thu-status-' + esc(id) + '" class="wg-sub"></div>' +
+    (transcript ? '<details class="wg-mt6"><summary class="wg-summary">Transcript</summary><div class="wg-transcript">' + esc(transcript) + '</div></details>' : '') +
   '</div>';
 }
 
@@ -1072,9 +1072,9 @@ function _thuDraw(el) {
     el.innerHTML = '<div class="w-empty">No calls yet. When Thursday answers (513) 940-5589, each call lands here with a summary, the recording, and a lead or task.</div>';
     return;
   }
-  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:10px;color:var(--m);">' +
-      '<span>' + (unread ? '<b style="color:var(--orange);">' + unread + ' new</b> · ' : '') + _thuCalls.length + ' recent</span>' +
-      (hiddenCount || _thuShowAll ? '<button type="button" class="w-mini-btn" style="font-size:10px;" data-w-action="thuShowAll">' + (_thuShowAll ? 'Hide spam/silent' : 'Show ' + hiddenCount + ' spam/silent') + '</button>' : '') +
+  el.innerHTML = '<div class="wg-between-c wg-mb6 wg-meta">' +
+      '<span>' + (unread ? '<b class="wg-orange">' + unread + ' new</b> · ' : '') + _thuCalls.length + ' recent</span>' +
+      (hiddenCount || _thuShowAll ? '<button type="button" class="w-mini-btn wg-fs10" data-w-action="thuShowAll">' + (_thuShowAll ? 'Hide spam/silent' : 'Show ' + hiddenCount + ' spam/silent') + '</button>' : '') +
     '</div>' + list.map(_thuRow).join('');
 }
 
@@ -1236,9 +1236,9 @@ function renderWidgetHome() {
   const addCard = document.createElement('div');
   addCard.className = 'w-card w-sm w-add-card';
   addCard.onclick = () => window.NBDWidgets.openPicker();
-  addCard.innerHTML = `<div style="text-align:center;padding:20px 0;cursor:pointer;">
-    <div style="font-size:28px;opacity:.4;">＋</div>
-    <div style="font-size:11px;color:var(--m);margin-top:4px;">Add Widget</div>
+  addCard.innerHTML = `<div class="wg-add">
+    <div class="wg-add-plus">＋</div>
+    <div class="wg-sub">Add Widget</div>
   </div>`;
   grid.appendChild(addCard);
 }
@@ -1253,10 +1253,10 @@ function openWidgetPicker() {
     <div class="w-picker">
       <div class="w-picker-hdr">
         <div>
-          <div style="font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);">Customize Home</div>
-          <div style="font-size:18px;font-weight:800;color:var(--t);">Widget Library</div>
+          <div class="wg-kicker">Customize Home</div>
+          <div class="wg-num">Widget Library</div>
         </div>
-        <button style="background:none;border:none;color:var(--m);font-size:20px;cursor:pointer;" data-w-action="closePicker">✕</button>
+        <button class="wg-close" data-w-action="closePicker">✕</button>
       </div>
       <div class="w-picker-body">`;
 
@@ -1276,8 +1276,8 @@ function openWidgetPicker() {
 
   html += `</div>
       <div class="w-picker-footer">
-        <button class="btn btn-ghost" style="font-size:11px;padding:8px 14px;" data-w-action="resetDefaults">Reset to Defaults</button>
-        <button class="btn btn-orange" style="font-size:12px;padding:8px 20px;" data-w-action="closePicker">Done</button>
+        <button class="btn btn-ghost wg-btn-p814" data-w-action="resetDefaults">Reset to Defaults</button>
+        <button class="btn btn-orange wg-btn-p820" data-w-action="closePicker">Done</button>
       </div>
     </div>
   </div>`;
@@ -1389,7 +1389,7 @@ _wAskJoe = function() {
   const q = input.value.trim();
   input.value = '';
   const resp = document.getElementById('w-joe-response');
-  if(resp) resp.innerHTML = '<div style="color:var(--orange);">Thinking...</div>';
+  if(resp) resp.innerHTML = '<div class="wg-orange">Thinking...</div>';
   // If Joe AI is available, use it
   if(window.sendJoeMessage) {
     // Redirect to full Joe
@@ -1399,7 +1399,7 @@ _wAskJoe = function() {
       if(joeInput) { joeInput.value = q; sendJoeMessage(); }
     }, 200);
   } else {
-    if(resp) resp.innerHTML = '<div style="color:var(--m);">Open Ask Joe for full AI chat →</div>';
+    if(resp) resp.innerHTML = '<div class="wg-muted">Open Ask Joe for full AI chat →</div>';
   }
 };
 

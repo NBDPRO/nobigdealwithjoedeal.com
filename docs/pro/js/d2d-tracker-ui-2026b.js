@@ -56,7 +56,7 @@
         state.currentKnockEntry.photoFiles.forEach((f, i) => {
           const reader = new FileReader();
           reader.onload = (ev) => {
-            preview.innerHTML += `<img src="${ev.target.result}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:2px solid var(--green);margin:2px;">`;
+            preview.innerHTML += `<img src="${ev.target.result}" class="dk-thumb">`;
           };
           reader.readAsDataURL(f);
         });
@@ -85,7 +85,7 @@
         }
         const playback = document.getElementById('d2d-voice-playback');
         if (playback) {
-          playback.innerHTML = `<audio controls src="${URL.createObjectURL(state.voiceBlob)}" style="height:32px;width:100%;margin-top:4px;"></audio>`;
+          playback.innerHTML = `<audio controls src="${URL.createObjectURL(state.voiceBlob)}" class="dk-audio"></audio>`;
         }
         window.showToast?.('Voice memo recorded', 'success');
       };
@@ -138,7 +138,7 @@
     const body = document.createElement('div');
     // (Former `padding:var(--s2)` dropped — --s2 is a COLOR token, so the
     // declaration always computed to 0. The .d2d-modal card already pads.)
-    body.innerHTML = '<p style="color:var(--m);font-size:12px;margin-bottom:12px;">Choose a template:</p>';
+    body.innerHTML = '<p class="dk-hint">Choose a template:</p>';
 
     // Per-template option button. Click handler is attached
     // programmatically so closure captures `knock` + `key` directly
@@ -166,8 +166,8 @@
       const _e = state.esc || ((s) => String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
-      opt.innerHTML = '<div style="font-weight:600;font-size:13px;color:var(--t);">' + _e(tmpl.label) + '</div>'
-        + '<div style="font-size:11px;color:var(--m);margin-top:4px;">' + _e(_preview.substring(0, 80)) + '...</div>';
+      opt.innerHTML = '<div class="dk-title">' + _e(tmpl.label) + '</div>'
+        + '<div class="dk-sub">' + _e(_preview.substring(0, 80)) + '...</div>';
       opt.addEventListener('mouseenter', () => { opt.style.borderColor = 'var(--blue)'; });
       opt.addEventListener('mouseleave', () => { opt.style.borderColor = 'var(--br)'; });
       opt.addEventListener('click', () => {
@@ -290,7 +290,7 @@
     modal.className = 'd2d-modal';
     modal.innerHTML = `
       <div class="d2d-modal-hdr">
-        <div class="d2d-modal-title">Knock #${attemptNum}/${MAX_ATTEMPTS}${!state.isOnline ? ' <span style="color:var(--gold)">⚡ Offline</span>' : ''}</div>
+        <div class="d2d-modal-title">Knock #${attemptNum}/${MAX_ATTEMPTS}${!state.isOnline ? ' <span class="dk-c-gold">⚡ Offline</span>' : ''}</div>
         <button class="d2d-modal-close" data-d2d-action="closeQuickKnock">×</button>
       </div>
       <div class="d2d-modal-body">
@@ -306,7 +306,7 @@
           </div>
         </div>
 
-        <div class="d2d-field-label" style="margin-top:12px;">Select Disposition:</div>
+        <div class="d2d-field-label dk-mt12">Select Disposition:</div>
         ${[
           { title: 'Hot & Warm', icon: '🔥', keys: ['appointment', 'ins_has_claim', 'ins_needs_file', 'storm_damage', 'interested', 'come_back', 'callback'] },
           { title: 'Follow-up (no answer)', icon: '🔁', keys: ['revisit', 'not_home', 'left_material'] },
@@ -326,12 +326,12 @@
 
         <!-- Insurance carrier -->
         <div id="d2d-ins-section" class="d2d-ins-section">
-          <label class="d2d-field-label" style="font-weight:600;">Insurance Details</label>
+          <label class="d2d-field-label dk-w600">Insurance Details</label>
           <select id="d2d-qk-carrier" class="d2d-input d2d-select">
             <option value="">Select Carrier...</option>
             ${CARRIERS.map(c => `<option value="${c}">${c}</option>`).join('')}
           </select>
-          <input type="text" id="d2d-qk-claim" class="d2d-input" placeholder="Claim # (optional)" style="margin-top:8px;">
+          <input type="text" id="d2d-qk-claim" class="d2d-input dk-mt8" placeholder="Claim # (optional)">
         </div>
 
         <details class="d2d-details">
@@ -350,11 +350,11 @@
               <input type="email" id="d2d-qk-email" class="d2d-input" value="${esc(state.currentKnockEntry.email)}" placeholder="john@example.com">
             </div>
             <div class="d2d-field-row">
-              <div class="d2d-field" style="flex:1;">
+              <div class="d2d-field dk-grow">
                 <label class="d2d-field-label">Follow-up Date</label>
                 <input type="date" id="d2d-qk-followup" class="d2d-input">
               </div>
-              <div class="d2d-field" style="flex:1;">
+              <div class="d2d-field dk-grow">
                 <label class="d2d-field-label">Follow-up Time</label>
                 <input type="time" id="d2d-qk-followup-time" class="d2d-input">
               </div>
@@ -364,8 +364,8 @@
               <textarea id="d2d-qk-notes" class="d2d-textarea" placeholder="Add any notes..."></textarea>
             </div>
             <div class="d2d-media-btns">
-              <button class="d2d-action-btn" style="flex:1;background:var(--orange);" data-d2d-action="capturePhoto">📷 Photo</button>
-              <button class="d2d-action-btn" style="flex:1;background:var(--blue);" id="d2d-voice-btn" data-d2d-action="startVoice">🎙️ Voice Memo</button>
+              <button class="d2d-action-btn dk-grow dk-bg-orange" data-d2d-action="capturePhoto">📷 Photo</button>
+              <button class="d2d-action-btn dk-grow dk-bg-blue" id="d2d-voice-btn" data-d2d-action="startVoice">🎙️ Voice Memo</button>
             </div>
             <div id="d2d-photo-preview" class="d2d-photo-grid"></div>
             <div id="d2d-voice-playback"></div>
@@ -735,19 +735,19 @@
     modal.className = 'd2d-modal';
     modal.style.maxWidth = '360px';
     modal.innerHTML = `
-      <div class="d2d-modal-body" style="text-align:center;padding:28px 20px;">
-        <div style="font-size:36px;margin-bottom:10px;">🔥</div>
-        <div style="font-size:15px;font-weight:700;color:var(--t);margin-bottom:6px;">Hot Lead Detected</div>
-        <div style="font-size:13px;color:var(--m);margin-bottom:20px;">"${esc(dispoLabel)}" — convert this knock into a CRM lead so it shows up in your pipeline?</div>
-        <div style="display:flex;gap:10px;">
-          <button class="btn btn-green" style="flex:1;justify-content:center;padding:12px;" data-d2d-action="convertToLeadAndDismissPrompt" data-d2d-id="${knockId}">
+      <div class="d2d-modal-body dk-prompt">
+        <div class="dk-prompt-icon">🔥</div>
+        <div class="dk-prompt-title">Hot Lead Detected</div>
+        <div class="dk-prompt-sub">"${esc(dispoLabel)}" — convert this knock into a CRM lead so it shows up in your pipeline?</div>
+        <div class="dk-row10">
+          <button class="btn btn-green dk-btn-grow dk-btn-tall" data-d2d-action="convertToLeadAndDismissPrompt" data-d2d-id="${knockId}">
             ✅ Convert Now
           </button>
-          <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;" data-d2d-action="convertToLeadWithEditAndDismissPrompt" data-d2d-id="${knockId}">
+          <button class="btn btn-ghost dk-btn-grow dk-btn-tall" data-d2d-action="convertToLeadWithEditAndDismissPrompt" data-d2d-id="${knockId}">
             ✏️ Edit First
           </button>
         </div>
-        <button style="margin-top:12px;background:none;border:none;color:var(--m);font-size:12px;cursor:pointer;text-decoration:underline;" data-d2d-action="dismissConvertPrompt">Skip for now</button>
+        <button class="dk-link-btn" data-d2d-action="dismissConvertPrompt">Skip for now</button>
       </div>
     `;
 
@@ -827,7 +827,7 @@
         <div class="d2d-detail-section">
           <label class="d2d-detail-label">🏠 Property</label>
           <div id="d2d-pi-${safeId}" class="d2d-pi-wrap">
-            <button class="d2d-action-btn" style="background:var(--s2);color:var(--t);border:1px solid var(--br);width:100%;justify-content:center;" data-d2d-action="loadPropertyIntel" data-d2d-id="${safeId}">🏠 Load owner &amp; roof intel</button>
+            <button class="d2d-action-btn dk-bg-plain dk-full" data-d2d-action="loadPropertyIntel" data-d2d-id="${safeId}">🏠 Load owner &amp; roof intel</button>
           </div>
         </div>
 
@@ -850,13 +850,13 @@
 
         <div class="d2d-detail-actions">
           ${!knock.convertedToLead ? `
-            <button class="d2d-action-btn" style="background:var(--green,#2ECC8A);" data-d2d-action="convertToLead" data-d2d-id="${safeId}" aria-label="Convert knock to lead">✓ Convert to Lead</button>
+            <button class="d2d-action-btn dk-bg-green" data-d2d-action="convertToLead" data-d2d-id="${safeId}" aria-label="Convert knock to lead">✓ Convert to Lead</button>
           ` : `
-            <button class="d2d-action-btn" disabled style="background:var(--br);color:var(--m);" aria-label="Already converted to lead">✓ Lead Created</button>
+            <button class="d2d-action-btn dk-bg-muted" disabled aria-label="Already converted to lead">✓ Lead Created</button>
           `}
-          <button class="d2d-action-btn" style="background:var(--orange);" data-d2d-action="openQuickKnock" data-d2d-args='{"address":"${esc(knock.address)}","lat":${Number(knock.lat) || 'null'},"lng":${Number(knock.lng) || 'null'}}' aria-label="Re-knock this address">↻ Re-Knock</button>
-          ${knock.phone ? `<button class="d2d-action-btn" style="background:var(--blue);" data-d2d-action="openSMSChooser" data-d2d-id="${safeId}" aria-label="Send SMS follow-up">📱 Follow Up</button>` : ''}
-          <button class="d2d-action-btn" style="background:var(--red,#E05252);" data-d2d-action="deleteKnock" data-d2d-id="${safeId}" aria-label="Delete this knock">🗑️ Delete</button>
+          <button class="d2d-action-btn dk-bg-orange" data-d2d-action="openQuickKnock" data-d2d-args='{"address":"${esc(knock.address)}","lat":${Number(knock.lat) || 'null'},"lng":${Number(knock.lng) || 'null'}}' aria-label="Re-knock this address">↻ Re-Knock</button>
+          ${knock.phone ? `<button class="d2d-action-btn dk-bg-blue" data-d2d-action="openSMSChooser" data-d2d-id="${safeId}" aria-label="Send SMS follow-up">📱 Follow Up</button>` : ''}
+          <button class="d2d-action-btn dk-bg-red" data-d2d-action="deleteKnock" data-d2d-id="${safeId}" aria-label="Delete this knock">🗑️ Delete</button>
         </div>
       </div>
     `;
@@ -919,14 +919,14 @@
 
     // .stab-btn = the design-system underline tab (settings/storm vocabulary).
     // flex:1 + 44px tap target kept inline (layout, not button chrome).
-    const tabBtn = (id, label, icon) => `<button class="stab-btn${currentTab === id ? ' stab-active' : ''}" data-d2d-action="setTab" data-d2d-id="${id}" style="flex:1;min-width:0;padding:10px 6px;min-height:44px;-webkit-tap-highlight-color:transparent;">${icon} ${label}</button>`;
+    const tabBtn = (id, label, icon) => `<button class="stab-btn${currentTab === id ? ' stab-active' : ''} dk-tab" data-d2d-action="setTab" data-d2d-id="${id}">${icon} ${label}</button>`;
 
     let html = `
-      <div style="padding:12px 14px;">
+      <div class="dk-pad">
 
-        ${!state.isOnline ? `<div style="background:color-mix(in srgb, var(--gold, #EAB308) 20%, var(--s));padding:12px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--t);border-left:4px solid var(--gold);">⚡ Offline — ${state.offlineQueue.length} queued</div>` : ''}
+        ${!state.isOnline ? `<div class="dk-banner-gold">⚡ Offline — ${state.offlineQueue.length} queued</div>` : ''}
 
-        ${weatherAlerts.length > 0 ? `<div style="background:color-mix(in srgb, var(--red, #E05252) 15%, var(--s));padding:12px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;border-left:4px solid var(--red);"><strong style="color:var(--t);">⛈️ Storm Alert:</strong> <span style="color:var(--m);">${esc(weatherAlerts[0].event)} — knock now!</span></div>` : ''}
+        ${weatherAlerts.length > 0 ? `<div class="dk-banner-red"><strong class="dk-c-text">⛈️ Storm Alert:</strong> <span class="dk-c-muted">${esc(weatherAlerts[0].event)} — knock now!</span></div>` : ''}
 
         <!-- Revenue Banner -->
         <div class="d2d-revenue-banner">
@@ -961,7 +961,7 @@
         </div>
 
         <!-- Tab Bar -->
-        <div style="display:flex;margin-bottom:12px;border-bottom:2px solid var(--br);">
+        <div class="dk-tabs">
           ${tabBtn('feed', 'Feed', '📋')}
           ${tabBtn('routes', 'Routes', '🗺️')}
           ${tabBtn('gamify', 'Challenges', '🏆')}
@@ -993,7 +993,7 @@
                   <span class="d2d-team-ago">${isLive ? (mins < 1 ? 'now' : mins + 'm') : ''}</span>
                 </div>`;
               }).join('')}
-            </div>` : '<div class="d2d-aq-sub" style="margin-top:6px;">No team knocks yet today.</div>'}
+            </div>` : '<div class="d2d-aq-sub dk-mt6">No team knocks yet today.</div>'}
           </div>`;
       }
       html += `
@@ -1001,22 +1001,22 @@
         <!-- Follow-ups Due — Full Interactive List -->
         ${metrics.followUpsDue.length > 0 ? `
           <div class="d2d-followups-banner">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="dk-head-row">
               <div class="d2d-followups-title">📋 ${metrics.followUpsDue.length} Follow-up${metrics.followUpsDue.length !== 1 ? 's' : ''} Due</div>
               <button class="btn btn-ghost btn-sm" data-d2d-action="dismissFollowupsBanner">Dismiss</button>
             </div>
-            <div class="d2d-followups-list" style="max-height:300px;overflow-y:auto;">
+            <div class="d2d-followups-list dk-scroll">
               ${metrics.followUpsDue.map(k => {
                 const dispo = DISPOSITIONS[k.disposition];
                 const fDate = k.followUpDate ? new Date(k.followUpDate instanceof Date ? k.followUpDate : (k.followUpDate.seconds ? k.followUpDate.seconds * 1000 : k.followUpDate)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
                 return `
-                <div class="d2d-followup-item" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:6px;margin-bottom:4px;cursor:pointer;" data-d2d-action="openKnockDetail" data-d2d-id="${esc(k.id)}">
-                  <div style="font-size:18px;flex-shrink:0;">${dispo?.icon || '📋'}</div>
-                  <div style="flex:1;min-width:0;">
-                    <div style="font-size:12px;font-weight:600;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(k.address?.substring(0, 50) || 'No address')}</div>
-                    <div style="font-size:10px;color:var(--m);margin-top:2px;">${dispo?.label || ''} ${fDate ? '· Due ' + fDate : ''} ${k.homeowner ? '· ' + esc(k.homeowner) : ''}</div>
+                <div class="d2d-followup-item dk-followup" data-d2d-action="openKnockDetail" data-d2d-id="${esc(k.id)}">
+                  <div class="dk-icon">${dispo?.icon || '📋'}</div>
+                  <div class="dk-grow dk-min0">
+                    <div class="dk-name">${esc(k.address?.substring(0, 50) || 'No address')}</div>
+                    <div class="dk-meta">${dispo?.label || ''} ${fDate ? '· Due ' + fDate : ''} ${k.homeowner ? '· ' + esc(k.homeowner) : ''}</div>
                   </div>
-                  <div style="display:flex;gap:4px;flex-shrink:0;">
+                  <div class="dk-row4">
                     ${k.phone ? `<button class="btn btn-ghost btn-sm" data-d2d-action="callPhone" data-d2d-id="${esc(k.phone)}" data-d2d-stop="1">📞</button>` : ''}
                     <button class="btn btn-orange btn-sm" data-d2d-action="openQuickKnock" data-d2d-args='{"address":"${esc(k.address || '')}","lat":${Number(k.lat) || 'null'},"lng":${Number(k.lng) || 'null'}}' data-d2d-stop="1">↻</button>
                   </div>
@@ -1029,27 +1029,27 @@
         <!-- Metrics Grid -->
         <div class="d2d-metrics-grid">
           <div class="d2d-metric-card">
-            <div class="d2d-metric-val" style="color:var(--blue, #4A9EFF);">${metrics.today}</div>
+            <div class="d2d-metric-val dk-c-blue">${metrics.today}</div>
             <div class="d2d-metric-lbl">Today</div>
           </div>
           <div class="d2d-metric-card">
-            <div class="d2d-metric-val" style="color:var(--blue, #4A9EFF);">${metrics.week}</div>
+            <div class="d2d-metric-val dk-c-blue">${metrics.week}</div>
             <div class="d2d-metric-lbl">Week</div>
           </div>
           <div class="d2d-metric-card">
-            <div class="d2d-metric-val" style="color:var(--green, #2ECC8A);">${metrics.appointments}</div>
+            <div class="d2d-metric-val dk-c-green">${metrics.appointments}</div>
             <div class="d2d-metric-lbl">Appts</div>
           </div>
           <div class="d2d-metric-card">
-            <div class="d2d-metric-val" style="color:var(--gold, #EAB308);">${metrics.conversionRate}%</div>
+            <div class="d2d-metric-val dk-c-gold">${metrics.conversionRate}%</div>
             <div class="d2d-metric-lbl">Conv</div>
           </div>
           <div class="d2d-metric-card">
-            <div class="d2d-metric-val" style="color:var(--orange, #BD5728);">${revenue.totalDoorsKnocked > 0 ? '$' + revenue.expectedPerDoor.toLocaleString() : '—'}</div>
+            <div class="d2d-metric-val dk-c-orange">${revenue.totalDoorsKnocked > 0 ? '$' + revenue.expectedPerDoor.toLocaleString() : '—'}</div>
             <div class="d2d-metric-lbl">Exp/Door</div>
           </div>
           <div class="d2d-metric-card">
-            <div class="d2d-metric-val" style="color:var(--purple,#9B6DFF);">${revenue.avgDealSize > 0 ? '$' + revenue.avgDealSize.toLocaleString() : '—'}</div>
+            <div class="d2d-metric-val dk-c-purple">${revenue.avgDealSize > 0 ? '$' + revenue.avgDealSize.toLocaleString() : '—'}</div>
             <div class="d2d-metric-lbl">Avg Deal</div>
           </div>
         </div>
@@ -1147,24 +1147,24 @@
                       ${knock.insCarrier ? `<span>🏢 ${esc(knock.insCarrier)}</span>` : ''}
                     </div>
                   </div>
-                  <div style="display:flex;gap:6px;align-items:center;">
-                    ${knock.photoUrls?.length ? '<span style="font-size:12px;">📷</span>' : ''}
-                    ${knock.voiceUrl ? '<span style="font-size:12px;">🎙️</span>' : ''}
-                    <span style="font-size:20px;">${dispo?.icon || ''}</span>
-                    <div style="text-align:right;">
-                      <div style="font-size:11px;font-weight:600;color:var(--t);">${dispo?.label || ''}</div>
+                  <div class="dk-row6">
+                    ${knock.photoUrls?.length ? '<span class="dk-fs12">📷</span>' : ''}
+                    ${knock.voiceUrl ? '<span class="dk-fs12">🎙️</span>' : ''}
+                    <span class="dk-fs20">${dispo?.icon || ''}</span>
+                    <div class="dk-right">
+                      <div class="dk-label">${dispo?.label || ''}</div>
                       <div class="d2d-knock-time">${timeAgo(knock.createdAt)}</div>
                     </div>
                   </div>
                 </div>
-                ${knock.notes ? `<div style="font-size:12px;color:var(--m);margin-top:6px;padding-top:6px;border-top:1px solid var(--br);">${esc(knock.notes.substring(0, 80))}</div>` : ''}
+                ${knock.notes ? `<div class="dk-foot">${esc(knock.notes.substring(0, 80))}</div>` : ''}
                 ${!knock.convertedToLead && HOT_DISPOSITIONS.includes(knock.disposition) ? `
-                  <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--br);display:flex;gap:6px;" data-d2d-stop-self="1">
-                    <button class="btn btn-green btn-sm" style="flex:1;justify-content:center;" data-d2d-action="convertToLead" data-d2d-id="${knock.id}" data-d2d-stop="1">✅ Convert to Lead</button>
+                  <div class="dk-actions" data-d2d-stop-self="1">
+                    <button class="btn btn-green btn-sm dk-btn-grow" data-d2d-action="convertToLead" data-d2d-id="${knock.id}" data-d2d-stop="1">✅ Convert to Lead</button>
                     <button class="btn btn-ghost btn-sm" data-d2d-action="convertToLeadWithEdit" data-d2d-id="${knock.id}" data-d2d-stop="1">✏️</button>
                   </div>
                 ` : ''}
-                ${knock.convertedToLead ? `<div style="margin-top:6px;font-size:11px;color:var(--green,#2ECC8A);font-weight:600;">✓ In CRM Pipeline</div>` : ''}
+                ${knock.convertedToLead ? `<div class="dk-ok-note">✓ In CRM Pipeline</div>` : ''}
               </div>
             `;
           }).join('')}
@@ -1181,16 +1181,16 @@
 
       html += `
         <div class="d2d-routes-section">
-          ${gh && gh.conversions > 0 ? `<div class="d2d-golden-hours" style="margin-bottom:12px;">🕐 Best time to knock: <strong>${fmtHr(gh.start)}–${fmtHr(gh.end)}</strong> — your warmest window</div>` : ''}
+          ${gh && gh.conversions > 0 ? `<div class="d2d-golden-hours dk-mb12">🕐 Best time to knock: <strong>${fmtHr(gh.start)}–${fmtHr(gh.end)}</strong> — your warmest window</div>` : ''}
           <div class="d2d-route-actions">
-            <button class="d2d-action-btn" style="flex:1;background:var(--blue);" data-d2d-action="calcRoute">🗺️ Calculate Walking Route</button>
-            ${route.length > 0 ? `<button class="d2d-action-btn" style="background:var(--green);" data-d2d-action="navRoute" title="Open turn-by-turn in your map app">🧭 Navigate</button>` : ''}
-            ${route.length > 0 ? `<button class="d2d-action-btn" style="background:var(--s2);color:var(--t);border:1px solid var(--br);" data-d2d-action="clearRoute">Clear</button>` : ''}
+            <button class="d2d-action-btn dk-grow dk-bg-blue" data-d2d-action="calcRoute">🗺️ Calculate Walking Route</button>
+            ${route.length > 0 ? `<button class="d2d-action-btn dk-bg-green" data-d2d-action="navRoute" title="Open turn-by-turn in your map app">🧭 Navigate</button>` : ''}
+            ${route.length > 0 ? `<button class="d2d-action-btn dk-bg-plain" data-d2d-action="clearRoute">Clear</button>` : ''}
           </div>
           ${route.length > 0 ? `
             <div class="d2d-section-title">Optimized Route (${route.length} stops)</div>
             ${route._stats && route._stats.totalMiles > 0 ? `
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+              <div class="dk-grid3">
                 <div class="d2d-metric-card">
                   <div class="d2d-metric-val">${route._stats.stopCount}</div>
                   <div class="d2d-metric-lbl">Stops</div>
@@ -1214,12 +1214,12 @@
                 </div>
               `).join('')}
             </div>
-          ` : `<div class="nbd-empty" style="padding:20px;"><div class="ne-sub">Hit "Calculate" to find the best route through your unvisited doors (Not Home / Come Back)</div></div>`}
+          ` : `<div class="nbd-empty dk-empty-sm"><div class="ne-sub">Hit "Calculate" to find the best route through your unvisited doors (Not Home / Come Back)</div></div>`}
         </div>
 
         <div class="d2d-streets-section">
           <div class="d2d-section-title">🏘️ Street Sequences</div>
-          ${streets.length === 0 ? '<div class="nbd-empty" style="padding:20px;"><div class="ne-sub">No streets with enough data yet</div></div>' : streets.map(([street, doors]) => {
+          ${streets.length === 0 ? '<div class="nbd-empty dk-empty-sm"><div class="ne-sub">No streets with enough data yet</div></div>' : streets.map(([street, doors]) => {
             const knocked = doors.filter(d => d.knocked).length;
             const total = doors.length;
             const pct = Math.round(knocked / total * 100);
@@ -1274,15 +1274,15 @@
           <div class="d2d-section-title">💰 Monthly Projection</div>
           <div class="d2d-projection-grid">
             <div class="d2d-metric-card">
-              <div class="d2d-metric-val" style="color:var(--blue);">${gamify.projectedKnocks}</div>
+              <div class="d2d-metric-val dk-c-blue">${gamify.projectedKnocks}</div>
               <div class="d2d-metric-lbl">Proj. Knocks</div>
             </div>
             <div class="d2d-metric-card">
-              <div class="d2d-metric-val" style="color:var(--green);">${gamify.projectedAppts}</div>
+              <div class="d2d-metric-val dk-c-green">${gamify.projectedAppts}</div>
               <div class="d2d-metric-lbl">Proj. Appts</div>
             </div>
             <div class="d2d-metric-card">
-              <div class="d2d-metric-val" style="color:var(--orange);">$${gamify.projectedRevenue.toLocaleString()}</div>
+              <div class="d2d-metric-val dk-c-orange">$${gamify.projectedRevenue.toLocaleString()}</div>
               <div class="d2d-metric-lbl">Proj. Revenue</div>
             </div>
           </div>
@@ -1308,7 +1308,7 @@
         <!-- AI Sales Coach -->
         <div class="d2d-block">
           <div class="d2d-block-title">🧠 AI Sales Coach</div>
-          <button class="d2d-action-btn" style="background:var(--purple,#9B6DFF);width:100%;justify-content:center;" data-d2d-action="runCoach">🧠 Get today's game plan</button>
+          <button class="d2d-action-btn dk-bg-purple dk-full" data-d2d-action="runCoach">🧠 Get today's game plan</button>
           <div id="d2d-coach-out" class="d2d-coach-out"></div>
         </div>
 
@@ -1319,13 +1319,13 @@
             <div class="d2d-aq-head">
               <div><span class="d2d-aq-big">${aqPct}%</span> <span class="d2d-aq-sub">${aq.verified}/${aq.totalDoors} doors verified</span></div>
               <div class="d2d-aq-actions">
-                ${aq.needsReview > 0 ? `<button class="d2d-action-btn" style="background:var(--orange);" data-d2d-action="reverifyPending">🔁 Re-verify ${Math.min(aq.needsReview, 25)}</button>` : '<span class="d2d-aq-clean">✓ All clear</span>'}
-                ${(() => { const c = window._userClaims || {}; const admin = c.owner === true || c.role === 'admin' || c.role === 'company_admin' || window._role === 'admin'; return admin ? `<button class="d2d-action-btn" style="background:var(--purple,#9B6DFF);" data-d2d-action="reverifyTeam" title="Re-verify the whole team's addresses (owner/admin)">🏢 Team</button>` : ''; })()}
+                ${aq.needsReview > 0 ? `<button class="d2d-action-btn dk-bg-orange" data-d2d-action="reverifyPending">🔁 Re-verify ${Math.min(aq.needsReview, 25)}</button>` : '<span class="d2d-aq-clean">✓ All clear</span>'}
+                ${(() => { const c = window._userClaims || {}; const admin = c.owner === true || c.role === 'admin' || c.role === 'company_admin' || window._role === 'admin'; return admin ? `<button class="d2d-action-btn dk-bg-purple" data-d2d-action="reverifyTeam" title="Re-verify the whole team's addresses (owner/admin)">🏢 Team</button>` : ''; })()}
               </div>
             </div>
             <div class="d2d-aq-bar"><div class="d2d-aq-fill" style="width:${aqPct}%;"></div></div>
             ${aq.needsReview > 0 ? `
-              <div class="d2d-aq-sub" style="margin-top:8px;">${aq.needsReview} address${aq.needsReview !== 1 ? 'es' : ''} need review${!state.isOnline ? ' · reconnect to re-verify' : ''}</div>
+              <div class="d2d-aq-sub dk-mt8">${aq.needsReview} address${aq.needsReview !== 1 ? 'es' : ''} need review${!state.isOnline ? ' · reconnect to re-verify' : ''}</div>
               <div class="d2d-aq-list">
                 ${aq.reviewList.slice(0, 12).map(k => {
                   const m = CONF_META[k.addrConfidence] || { c: 'var(--m)', t: '⚪ Unchecked' };
@@ -1378,7 +1378,7 @@
 
         <!-- Neighborhood Scores -->
         ${Object.keys(state.neighborhoodScores).length > 0 ? `
-          <div class="d2d-section-title" style="margin-top:14px;">🏘️ Top Neighborhoods</div>
+          <div class="d2d-section-title dk-mt14">🏘️ Top Neighborhoods</div>
           <div class="d2d-hood-list">
             ${Object.values(state.neighborhoodScores).sort((a, b) => b.score - a.score).slice(0, 5).map(n => {
               const col = n.score >= 70 ? 'var(--green)' : n.score >= 40 ? 'var(--gold)' : 'var(--red)';
