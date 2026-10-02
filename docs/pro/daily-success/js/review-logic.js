@@ -163,6 +163,9 @@
       weight: x.trend ? { latest: x.trend.latest, avg7: x.trend.avg7, change7: x.trend.change7, verdict: x.rule ? x.rule.verdict : null, text: x.rule ? x.rule.text : '' } : null,
       goal: x.goal ? { now: x.goal.now, goal: x.goal.goal, left: x.goal.left } : null,
       scorecard: String(x.scorecard || '').slice(0, 2500),
+      // Build 2: the Finance Board's view of the money plan (money-logic
+      // boardView — totals, plan lines, payoff; nicknames only).
+      money: x.money || null,
     };
     const sig = JSON.stringify(body);
     return Object.assign({ asOf: nowMs, sig }, body);
