@@ -77,8 +77,12 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     }
     const manualToday = dayItems.untimed;
 
+    // Each paint gets a number so a slow Google answer for an earlier paint
+    // never lands on a newer one (the refresh button repaints).
+    const paintSeq = host.dataset.scSeq = String((+host.dataset.scSeq || 0) + 1);
     if (!appts.length && !manualToday.length) {
       host.innerHTML = _emptyState('No appointments today. Time to knock some doors. 🚪');
+      _attachBusy(host, [], paintSeq).catch((e) => console.warn('[smart-cal] busy attach failed:', e?.message || e));
       return;
     }
 
@@ -97,6 +101,49 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     _attachForecasts(host, appts, manualToday).catch((e) => {
       console.warn('[smart-cal] forecast attach failed:', e?.message || e);
     });
+    // Busy blocks off Jo's own Google calendar (calendar hub Phase 3) — also
+    // after the first paint, for the same reason.
+    _attachBusy(host, appts, paintSeq).catch((e) => {
+      console.warn('[smart-cal] busy attach failed:', e?.message || e);
+    });
+  }
+
+  // ── Google busy blocks ──────────────────────────────────────
+  // Untitled "busy" time from Jo's main calendar (shared free/busy with the
+  // CRM's service account) that no timeline entry already covers — a dentist
+  // visit, a kid's game — so the day's real gaps show. Owner / admin only;
+  // nothing at all when the calendar isn't shared or Google is unreachable.
+  async function _attachBusy(host, appts, paintSeq) {
+    const G = window.NBDGoogleCalendarUI;
+    if (!G || typeof G.busyBetween !== 'function' || typeof G.freeBusyGaps !== 'function') return;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    const r = await G.busyBetween(start.getTime(), end.getTime());
+    if (!r || host.dataset.scSeq !== paintSeq || !host.isConnected) return;
+    const entries = (appts || []).map((a) => ({ startMs: _toMs(a.startTime), endMs: _toMs(a.endTime) }));
+    const gaps = G.freeBusyGaps(r, entries);
+    if (!gaps.length) return;
+    const tl = host.querySelector('[data-sc-timeline]');
+    if (tl) {
+      for (const b of gaps) {
+        const row = document.createElement('div');
+        row.innerHTML = _renderBusyRow(b, start.getTime(), end.getTime());
+        const el = row.firstElementChild;
+        const next = Array.from(tl.querySelectorAll('[data-sc-start]')).find((n) => Number(n.dataset.scStart) > b.startMs);
+        tl.insertBefore(el, next || null);
+      }
+    } else {
+      host.insertAdjacentHTML('beforeend',
+        '<div class="sc-busy-list"><div class="sc-busy-head">On your Google calendar</div>' +
+        gaps.map((b) => _renderBusyRow(b, start.getTime(), end.getTime())).join('') + '</div>');
+    }
+  }
+
+  function _renderBusyRow(b, dayStartMs, dayEndMs) {
+    const allDay = b.startMs <= dayStartMs && b.endMs >= dayEndMs;
+    const when = allDay ? 'All day' : (_fmtTime(Math.max(b.startMs, dayStartMs)) + '–' + _fmtTime(Math.min(b.endMs, dayEndMs)));
+    return '<div class="sc-busy" data-sc-busy><span class="sc-busy-time">' + _esc(when) + '</span>' +
+      '<span class="sc-busy-lbl">Busy · your Google calendar</span></div>';
   }
 
   // ── data fetch ──────────────────────────────────────────────
@@ -397,7 +444,7 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       rows.push(_renderApptRow(appts[i]));
       if (i < segments.length) rows.push(_renderSegmentRow(segments[i]));
     }
-    return head + `<div style="display:flex;flex-direction:column;gap:0;margin-top:14px;">${rows.join('')}</div>`;
+    return head + `<div data-sc-timeline style="display:flex;flex-direction:column;gap:0;margin-top:14px;">${rows.join('')}</div>`;
   }
 
   function _renderSummaryHeader(s) {
@@ -438,7 +485,7 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       ? `<button data-sc-action="openCardDetail" data-sc-id="${_esc(a._leadId)}" style="background:none;border:none;color:var(--orange);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;">Open lead →</button>`
       : '';
     return `
-      <div style="display:grid;grid-template-columns:88px 1fr auto;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">
+      <div data-sc-start="${_toMs(a.startTime)}" style="display:grid;grid-template-columns:88px 1fr auto;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">
         <div>
           <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--t);">${_esc(start)}</div>
           <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--m);">${_esc(end)}</div>
@@ -732,7 +779,7 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   };
   // Schedule-row helpers, exposed for tests/schedule-events-2026-09-28.test.js.
   window.NBDSchedule = {
-    todaysEvents: _todaysEvents, renderApptRow: _renderApptRow,
+    todaysEvents: _todaysEvents, renderApptRow: _renderApptRow, renderBusyRow: _renderBusyRow, attachBusy: _attachBusy,
     // tests/calendar-phase0-2026-09-29.test.js
     leadDayItems: _leadDayItems, renderManualScheduled: _renderManualScheduled,
   };
