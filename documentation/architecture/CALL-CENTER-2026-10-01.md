@@ -408,3 +408,29 @@ hour". Groq caps audio per **hour** as well as per day.
 
 Tests: `call-center-notes` §8. Break-tested: with the rate-limit branch
 disabled, all three run-level checks go red.
+
+## Update 2026-10-02: call history starts 2026-01-01 (Jo's decision)
+
+Jo: "I only want call history to go back as far as the beginning of 2026 …
+I thought about doing all my history but I don't want to bloat the CRM or
+confuse myself with unnecessary info."
+
+- **The floor is a fixed date**, `HISTORY_FROM = '2026-01-01'`
+  (`call-center-logic.js`). It replaced the first run's 90-day backlog, which
+  only reached back to 2026-07-03. `historyFloor()` lets `backfillFrom` in
+  `integrations/callCenter` move the floor **later**, but never before 2026.
+- **One-time rescan:** the cursor was already at the latest day, so the older
+  day folders would never have been read. `scanCursor()` restarts the scan at
+  the floor whenever `floorApplied` (written by live runs only) differs from
+  the current floor. After that one pass, the cursor resumes normally.
+  Already-filed calls are skipped by doc id, so the rescan costs only Drive
+  listings.
+- **Pace:** 40 files per half-hour run. Older calls are transcribed
+  newest-first under the same 7.5 h/day Groq cap. They can't create
+  follow-up tasks (14-day rule) or enter the "you said you'd" sweep
+  (30 days), so the January–July backlog adds history, not to-dos.
+- **Texts are unchanged:** their first run reads 90 days and never anything
+  older. That is still Jo's call to align with calls.
+
+Tests: `call-center-ingest` §7 (9 checks). Break-tested: without the rescan
+January is never reached; with a 2025 floor the 2025 folder is read.

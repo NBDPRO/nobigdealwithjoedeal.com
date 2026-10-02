@@ -187,6 +187,33 @@ function daysBefore(ymd, n) {
   return SW.addDays(ymd, -n);
 }
 
+// How far back call history goes (Jo, 2026-10-02): "I only want call history
+// to go back as far as the beginning of 2026 … I don't want to bloat the CRM
+// or confuse myself with unnecessary info." A fixed date, not "N days before
+// the first run". It replaced the 90-day backlog, which only reached July 3.
+const HISTORY_FROM = '2026-01-01';
+
+/**
+ * The oldest day folder the ingest may read. A config override can only
+ * move it LATER; nothing before HISTORY_FROM is ever read.
+ */
+function historyFloor(cfgFrom) {
+  const f = /^\d{4}-\d{2}-\d{2}$/.test(String(cfgFrom || '')) ? String(cfgFrom) : HISTORY_FROM;
+  return f < HISTORY_FROM ? HISTORY_FROM : f;
+}
+
+/**
+ * Where this run's scan starts. Normally the saved cursor. When the floor
+ * differs from the one the cursor was built under (floorApplied), the cursor
+ * restarts at the new floor once, so the days between it and the old
+ * backlog get read. Already-filed calls are skipped by doc id, so the rescan
+ * costs only Drive listings.
+ */
+function scanCursor(cfg, floor) {
+  const c = cfg || {};
+  return c.floorApplied === floor ? (c.cursorYmd || null) : null;
+}
+
 // Cube ACR writes a ~160-byte sidecar next to each recording, same name,
 // .json: {"duration":"21504","loc":"<lat;lng>","callee":"+1…","addr":"<street
 // address>","direction":"Incoming"}. ONLY the duration is read. "loc" and
@@ -520,6 +547,9 @@ module.exports = {
   storagePath,
   foldersToScan,
   daysBefore,
+  HISTORY_FROM,
+  historyFloor,
+  scanCursor,
   buildCallDoc,
   CARRIER_RE,
 };
