@@ -94,6 +94,8 @@
       policyNumber: lead.policyNumber || '',
       policyHolder: lead.policyHolder || '',
       dateOfLoss: lead.dateOfLoss || '',
+      // 'storm_report_suggested' (dol-fill.js) | 'entered' | '' (older leads).
+      dateOfLossSource: lead.dateOfLossSource || '',
       dateDiscovered: lead.dateDiscovered || '',
       typeOfLoss: lead.damageType || '',
       deductible: (lead.deductibleOrOwedByHO != null && lead.deductibleOrOwedByHO !== '') ? Number(lead.deductibleOrOwedByHO)
@@ -135,6 +137,14 @@
     var W = window.NBDScheduleWindow;
     var t = W && W.formatWindow ? W.formatWindow({ scheduledDate: m.date, scheduledStart: m.start || null }) : '';
     return esc(t || (m.date + (m.start ? ' ' + m.start : '')));
+  }
+
+  // A date picked from NWS storm reports (Fill dates of loss) is a lead to
+  // confirm, never a fact — say so wherever the date shows.
+  function dolLabel(c) {
+    if (!c.dateOfLoss) return '—';
+    return esc(c.dateOfLoss) + (c.dateOfLossSource === 'storm_report_suggested'
+      ? ' <span class="dol-suggested">· suggested from storm reports — confirm with the homeowner or adjuster</span>' : '');
   }
 
   function factCell(label, value) {
@@ -194,7 +204,7 @@
         factCell('Claim Filed By', dt(c.filedBy)) +
         factCell('Policy Number', dt(c.policyNumber)) +
         factCell('Policy Holder', dt(c.policyHolder)) +
-        factCell('Date of Loss', dt(c.dateOfLoss)) +
+        factCell('Date of Loss', dolLabel(c)) +
         factCell('Date Damage Discovered', dt(c.dateDiscovered)) +
         factCell('Estimate Amount', money(c.estimateAmount)) +
         factCell('Approved Amount', money(c.approvedAmount)) +
@@ -279,6 +289,8 @@
             selectField('Filed By', 'clmFiledBy', [['', 'Not Filed'], ['homeowner', 'Homeowner'], ['contractor', 'Contractor (NBD)'], ['agent', 'Insurance Agent']], c.filedBy)) +
         row(field('Policy Number', 'clmPolicyNumber', 'text', c.policyNumber, 'POL-9988776'),
             field('Policy Holder', 'clmPolicyHolder', 'text', c.policyHolder, 'Name on the policy')) +
+        '<input type="hidden" id="clmDateOfLossWas" value="' + esc(c.dateOfLoss || '') + '">' +
+        '<input type="hidden" id="clmDateOfLossSrc" value="' + esc(c.dateOfLossSource || '') + '">' +
         row(field('Date of Loss', 'clmDateOfLoss', 'date', c.dateOfLoss, ''),
             field('Date Damage Discovered', 'clmDateDiscovered', 'date', c.dateDiscovered, '')) +
         row(field('Type of Loss', 'clmTypeOfLoss', 'text', c.typeOfLoss, 'Wind, Hail…'),
@@ -359,6 +371,9 @@
         policyNumber: val('clmPolicyNumber'),
         policyHolder: val('clmPolicyHolder'),
         dateOfLoss: val('clmDateOfLoss'),
+        // Changed here → Jo entered it; untouched → keep where it came from.
+        dateOfLossSource: val('clmDateOfLoss') !== val('clmDateOfLossWas')
+          ? (val('clmDateOfLoss') ? 'entered' : '') : val('clmDateOfLossSrc'),
         dateDiscovered: val('clmDateDiscovered'),
         damageType: val('clmTypeOfLoss'),
         supplementStatus: val('clmSupplementStatus'),

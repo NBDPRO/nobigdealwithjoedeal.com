@@ -184,3 +184,6 @@
 .ui-list-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--br); }
 .ui-kv { display: flex; justify-content: space-between; font-size: 13px; color: var(--t); }
 .ui-card-head { margin: 0 0 12px; font-size: 14px; color: var(--t); }
+
+/* A date of loss picked from NWS storm reports — to confirm (claim-core.js). */
+.dol-suggested { color: var(--gold, #f59e0b); font-size: 11px; font-weight: 600; }
