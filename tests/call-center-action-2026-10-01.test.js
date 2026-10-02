@@ -91,6 +91,19 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('attaching an OLD noted call files the timeline entry but no stale task', !!db.docs.get('leads/L1/activity/cube-cube_CCCCC3') && !db.docs.has('leads/L1/tasks/cube-cube_CCCCC3'));
   ok('empty phone filled with the caller\'s number', db.docs.get('leads/L2').phone === '(513) 555-0199');
 
+  console.log('\n5. notpersonal');
+  db = fakeDb(seed());
+  db.docs.set(COLLECTION + '/cube_PPPPP4', { userId: OWN, companyId: 'co1', status: 'personal', storagePath: null, audioRemoved: 'personal', driveFileId: 'DRV123', fileName: 'x ↗.m4a', ymd: '2026-09-30', summary: 'Personal call.', callType: 'personal' });
+  const saved = [];
+  M._test.setActionDeps({ download: async (id) => Buffer.from('audio:' + id), bucket: { file: (p) => ({ save: async (b) => { saved.push([p, String(b)]); } }) } });
+  ok('only a personal call can be redone', (await run(db, owner, { id: 'cube_AAAAA1', action: 'notpersonal' })).e.code === 'failed-precondition');
+  ok('a viewer cannot redo it', (await run(db, { uid: 'v', token: { role: 'viewer', companyId: 'co1' } }, { id: 'cube_PPPPP4', action: 'notpersonal' })).e.code === 'permission-denied');
+  const np = await run(db, owner, { id: 'cube_PPPPP4', action: 'notpersonal' });
+  const pd = db.docs.get(COLLECTION + '/cube_PPPPP4');
+  ok('re-copied from Drive into the private calls path', np.r && np.r.requeued && saved.length === 1 && saved[0][0] === 'calls/' + OWN + '/cube-acr/2026-09-30/cube_DRV123.m4a' && saved[0][1] === 'audio:DRV123');
+  ok('back in the queue, marked not-personal', pd.status === 'stored' && pd.storagePath === saved[0][0] && pd.notPersonal === true && pd.audioRemoved === null && pd.transcribeAttempts === 0);
+  M._test.setActionDeps({});
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);

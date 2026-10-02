@@ -286,6 +286,26 @@ never as HTML.
 - **"Yes, turn it on"** set `CALL_CENTER_TRANSCRIBE_ENABLED=true`.
 - **"Yes, both times"** set `CALL_CENTER_SWEEP_ENABLED=true`.
 
+## "It wasn't personal" (2026-10-01)
+
+Personal calls lose their CRM audio and their notes, so a misjudged business
+call needs a way back. The Call Center screen shows **It wasn't personal** on
+any call marked personal. It calls `callCenterAction` with `notpersonal`,
+which:
+- re-copies the recording from Jo's Drive using the call's `driveFileId`
+  (the original never left), into the same private `calls/` path;
+- sets `status: 'stored'` and `notPersonal: true`, and resets the attempts,
+  so the call goes back into the transcription queue.
+
+On the next pass, `runTranscribe` overrides any "personal" verdict on a
+`notPersonal` call and files it as business. That override was
+break-tested. Only a call already marked personal can be redone, and
+viewers are refused.
+
+Tests: the action suite has the precondition, viewer, re-copy and requeue
+checks. The notes suite checks the override. The view E2E checks that the
+button sends the action.
+
 ## Next stages
 
 - **Texts into the sweep.** Have the model read each customer's day of texts
