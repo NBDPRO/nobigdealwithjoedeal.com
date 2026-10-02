@@ -85,7 +85,7 @@
       'js/sales-training.js?v=2'
     ],
     storm: [
-      'js/storm-center.js?v=3',
+      'js/storm-center.js?v=4',
       'js/storm-integration.js?v=2',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
