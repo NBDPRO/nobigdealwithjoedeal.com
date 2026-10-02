@@ -113,7 +113,7 @@
       'js/hd-import.js?v=3',
       // The company price book (2026-10-02) — hd-import.js records each
       // receipt's SKU prices into it; loads after, read at call time.
-      'js/price-book.js?v=1'
+      'js/price-book.js?v=2'
     ],
     // Money / P&L capstone — self-contained (reads doc fields directly, no
     // ExpenseConfig dependency), so it's a single-module bundle.
@@ -218,7 +218,11 @@
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=6',
+      'js/product-library.js?v=7',
+      // Price book viewer (2026-10-02): the Product Library's "Price book"
+      // button. Same file the expenses bundle loads for the HD import.
+      'css/price-book.css?v=1',
+      'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=8',
       'js/estimate-catalog-xactimate.js?v=3',
@@ -292,7 +296,7 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=9',
+      'js/d2d-tracker-core-2026b.js?v=10',
       'js/d2d-tracker-ui-2026b.js?v=5',
       'js/d2d-tracker-2026b.js?v=3'
     ],
