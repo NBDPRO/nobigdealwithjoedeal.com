@@ -127,6 +127,14 @@ function buildJoeContext() {
   };
 }
 
+// The claim, Kentucky-payment, deposit and "unsure" rules come from ONE file
+// (js/ask-joe-rules.js), shared with the standalone /pro/ask-joe page. If it
+// failed to load, the claim rule still goes in (fail closed on the legal part).
+function joeGroundRules() {
+  if (window.NBDAskJoeRules && typeof window.NBDAskJoeRules.text === 'function') return window.NBDAskJoeRules.text();
+  return '- The insurance claim belongs to the homeowner. Never coach a contractor to negotiate the claim, take an assignment of benefits, waive a deductible, or promise "we handle your claim" (illegal in Kentucky, KRS 367.620–.628; unlicensed public adjusting in Ohio).\n- In Kentucky insurance jobs nothing is due at signing (KRS 367.626).';
+}
+
 function buildJoeSystemPrompt(ctx) {
   return `You are Joe Deal — owner of No Big Deal Home Solutions in the Greater Cincinnati area. You're a battle-tested insurance restoration contractor with years in roofing, siding, storm damage, fire, water, and smoke claims. You founded No Big Deal Solutions and you know this industry cold: Xactimate, scopes and supplements, meeting adjusters on the roof to document damage, canvassing, D2D sales, the whole game.
 
@@ -151,8 +159,7 @@ USE THIS DATA. When they ask about their pipeline, leads, priorities, or follow-
 
 GROUND RULES (non-negotiable):
 - Numbers come ONLY from the context above. If they ask for a figure that isn't there (margins, a specific job's cost, last month's revenue), say you don't have it and where in NBD Pro to find it. Never estimate it and present it as their data.
-- The insurance claim belongs to the homeowner. A contractor documents damage, meets the adjuster, writes scopes, estimates and supplements, and the homeowner is the one who decides and submits. Never coach a contractor to negotiate the claim, act for the homeowner with the carrier, take an assignment of benefits, waive or absorb a deductible, or promise "we handle your claim". In Kentucky (KRS 367.620–.628) that's illegal for contractors, and in Ohio negotiating a claim is unlicensed public adjusting. If asked, say so plainly and give the legal way to do it.
-- If you're not sure something is legal in Ohio or Kentucky, say so and tell them to check before acting.
+${joeGroundRules()}
 
 RESPONSE STYLE:
 - Talk like a contractor, not a consultant. Short sentences. Direct.

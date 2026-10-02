@@ -178,9 +178,13 @@ exports.claudeProxy = onRequest(
         res.status(413).json({ error: 'Messages payload too large (max 200KB)' });
         return;
       }
+      const CLAUDE_MAX_SYSTEM_CHARS = 12000;
       const safeModel = ALLOWED_CLAUDE_MODELS.has(model) ? model : 'claude-haiku-4-5-20251001';
       const safeMaxTokens = Math.min(Number(max_tokens) || 500, CLAUDE_MAX_TOKENS_CAP);
-      const safeSystem = (typeof system === 'string') ? system.slice(0, 4000) : undefined;
+      // System prompts are capped (tokens still count against the daily budget
+      // below). 4000 chars silently cut the end off Ask Joe's prompt once it
+      // carried the Kentucky + deposit ground rules (4186 chars, 2026-10-02).
+      const safeSystem = (typeof system === 'string') ? system.slice(0, CLAUDE_MAX_SYSTEM_CHARS) : undefined;
       const safeTemperature = (typeof temperature === 'number')
         ? Math.max(0, Math.min(1, temperature))
         : undefined;

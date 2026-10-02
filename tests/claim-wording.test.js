@@ -294,16 +294,79 @@ for (const f of real.findings.slice(0, 40)) console.log(`      ${f.file} [${f.ru
 // The CRM is out of the tree scan's scope, but Ask Joe COACHES contractors,
 // so its prompt is held to the same rules: it said Joe knew "adjuster
 // negotiations" and offered to write a "letter to adjuster".
-console.log('\n5. Ask Joe system prompt');
+console.log('\n5. Ask Joe system prompt (built for real, 2026-10-02)');
 {
-  const ai = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'ai.js'), 'utf8');
-  const a = ai.indexOf('function buildJoeSystemPrompt(');
-  const prompt = ai.slice(a, ai.indexOf('\n}', a));
-  ok(a > 0 && prompt.length > 500, 'found the prompt');
-  ok(!/adjuster negotiations|letter to (the )?adjuster/i.test(prompt), 'no "adjuster negotiations" / "letter to adjuster"');
-  ok(/The insurance claim belongs to the homeowner/.test(prompt) && /KRS 367\.620/.test(prompt) && /unlicensed public adjusting/.test(prompt), 'states the homeowner owns the claim, the KY statute and the OH public-adjuster rule');
-  ok(/Never coach a contractor to negotiate the claim/.test(prompt) && /assignment of benefits/.test(prompt) && /deductible/.test(prompt), 'never coaches negotiating, AOB, or deductible waivers');
-  ok(/Numbers come ONLY from the context above/.test(prompt), 'numbers come only from the member context (no invented figures)');
+  // Build the ACTUAL prompts, not a regex over source text: load the shared
+  // rules (js/ask-joe-rules.js) and the deposit rule into a window, run
+  // ai.js's joeGroundRules + buildJoeSystemPrompt with a member context, and
+  // test the string a model would receive. Same for the standalone page.
+  const vm = require('vm');
+  const read = (p) => fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', p), 'utf8');
+  const win = {};
+  const ctx = vm.createContext({ window: win, console });
+  vm.runInContext(read('deposit-rule.js'), ctx);
+  vm.runInContext(read('ask-joe-rules.js'), ctx);
+  const ai = read('ai.js');
+  const g = ai.indexOf('function joeGroundRules(');
+  const b = ai.indexOf('function buildJoeSystemPrompt(');
+  vm.runInContext(ai.slice(g, ai.indexOf('\n}', g) + 2) + '\n' + ai.slice(b, ai.indexOf('\n}', b) + 2) + '\nwindow.__build = buildJoeSystemPrompt;', ctx);
+  const member = { name: 'Pat', company: 'Example Roofing', totalLeads: 40, activeLeads: 12, pipelineValue: 182000, closedRevenue: 96000, collectedRevenue: 71000, overdueCount: 3, stageBreakdown: 'new 5, inspected 4', topLeads: 'A ($21,000)', overdueFollowUps: 'B, C', tasksDueToday: 2, totalEstimates: 18 };
+  const prompt = win.__build(member);
+  const checks = (p, label) => {
+    ok(!/adjuster negotiations|letter to (the )?adjuster/i.test(p), label + ': no "adjuster negotiations" / "letter to adjuster"');
+    ok(/The insurance claim belongs to the homeowner/.test(p) && /KRS 367\.620/.test(p) && /unlicensed public adjusting/.test(p), label + ': the homeowner owns the claim, the KY statute, the OH public-adjuster rule');
+    ok(/Never coach a contractor to negotiate the claim/.test(p) && /assignment of benefits or a direction-to-pay/.test(p) && /waive or absorb a deductible/.test(p), label + ': never coaches negotiating, AOB / direction-to-pay, or deductible waivers');
+    ok(/NOTHING is due at signing[\s\S]*KRS 367\.626/.test(p) && /5-business-day cancellation window/.test(p), label + ': Kentucky insurance jobs: nothing due at signing until the decision + 5 business days');
+    ok(/more than \$100/.test(p) && /KRS 367\.628/.test(p) && /claims specialist/.test(p), label + ': KY: no rebates / discounts / anything over $100; no "claims specialist"');
+    ok(/Cash jobs under \$2,000: no deposit/.test(p) && /50% deposit at contract signing/.test(p) && /deductible is due at signing/.test(p) && /ACV payment/.test(p), label + ': quotes the deposit rule (cash < $2k none, $2k+ 50%, insurance deductible + ACV)');
+  };
+  checks(prompt, 'CRM Ask Joe');
+  ok(/Numbers come ONLY from the context above/.test(prompt) && /Pat/.test(prompt) && /\$71,000/.test(prompt), 'CRM Ask Joe: member numbers in, invented numbers out');
+  // The AI proxy cuts system prompts at a named cap; at the old 4000 the
+  // ground rules made the prompt 4186 chars and its end was silently cut.
+  const capSrc = fs.readFileSync(path.join(ROOT, 'functions', 'handlers', 'ai.js'), 'utf8');
+  const cap = Number((/CLAUDE_MAX_SYSTEM_CHARS = (\d+)/.exec(capSrc) || [])[1]);
+  ok(/system\.slice\(0, CLAUDE_MAX_SYSTEM_CHARS\)/.test(capSrc) && cap >= 8000, 'the proxy caps system prompts at a named limit (' + cap + ')');
+  // A busy member: long lead lists and stage breakdowns. No ground rule may be cut.
+  const heavy = win.__build(Object.assign({}, member, { stageBreakdown: 'x'.repeat(600), topLeads: 'y'.repeat(900), overdueFollowUps: 'z'.repeat(900) }));
+  ok(heavy.length < cap, 'a heavy member prompt (' + heavy.length + ' chars) still fits the cap, so no ground rule is cut');
+  // The deposit line follows deposit-rule.js: change the config, the prompt follows.
+  win.NBD_ESTIMATE_CONFIG = { DEPOSIT_RULE: { CASH_DEPOSIT_PCT: 40 } };
+  ok(/40% deposit at contract signing/.test(win.__build(member)), 'the deposit line follows deposit-rule.js config (40% → "40%")');
+  delete win.NBD_ESTIMATE_CONFIG;
+  // Rules file missing → the legal floor still goes in (fail closed).
+  const saved = win.NBDAskJoeRules; delete win.NBDAskJoeRules;
+  const bare = win.__build(member);
+  ok(/The insurance claim belongs to the homeowner/.test(bare) && /KRS 367\.626/.test(bare), 'rules file missing: the claim + KY-payment floor is still in the prompt');
+  win.NBDAskJoeRules = saved;
+
+  // The standalone /pro/ask-joe page builds its prompt inline in a handler;
+  // run that expression with the same window.
+  const main = read('pages/ask-joe-main.js');
+  const r0 = main.indexOf('const _rules =');
+  const r1 = main.indexOf(';', main.indexOf('const _systemPrompt =')) + 1;
+  const standalone = vm.runInContext('(function(){ ' + main.slice(r0, r1) + ' return _systemPrompt; })()', ctx);
+  checks(standalone, 'standalone /pro/ask-joe');
+  const page = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'ask-joe.html'), 'utf8');
+  ok(page.indexOf('js/deposit-rule.js') > 0 && page.indexOf('js/ask-joe-rules.js') > page.indexOf('js/deposit-rule.js') && page.indexOf('js/pages/ask-joe-main.js') > page.indexOf('js/ask-joe-rules.js'), 'standalone page loads deposit-rule → ask-joe-rules → ask-joe-main, in that order');
+  const dash = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'dashboard.html'), 'utf8');
+  ok(dash.indexOf('js/ask-joe-rules.js') > dash.indexOf('js/deposit-rule.js') && dash.indexOf('js/ai.js') > dash.indexOf('js/ask-joe-rules.js'), 'dashboard loads deposit-rule → ask-joe-rules → ai.js');
+
+  // The golden-answer checker (scripts/eval-ask-joe.mjs) grades real model
+  // answers; prove it fails a bad one and passes a good one.
+  const E = require(path.join(ROOT, 'scripts', 'eval-ask-joe-logic.js'));
+  ok(E.GOLDEN.length >= 6, 'golden question set (' + E.GOLDEN.length + ')');
+  const bad = E.grade(E.GOLDEN.find((q) => q.id === 'handle-claim'), "Sure! We'll handle your claim with the insurance company and negotiate the best payout for you.");
+  ok(!bad.pass && bad.misses.length > 0, 'checker FAILS "we\'ll handle your claim … negotiate"');
+  const good = E.grade(E.GOLDEN.find((q) => q.id === 'handle-claim'), "The claim is yours to file and decide. I'll document the damage, write the estimate and meet the adjuster on the roof after you file.");
+  ok(good.pass, 'checker passes a lawful answer', JSON.stringify(good.misses));
+  const dep = E.grade(E.GOLDEN.find((q) => q.id === 'cash-5k-deposit'), 'On a $5,000 cash job the deposit is 50% at signing — $2,500 — and the balance on completion.');
+  ok(dep.pass, 'checker passes the right cash deposit', JSON.stringify(dep.misses));
+  const depBad = E.grade(E.GOLDEN.find((q) => q.id === 'cash-5k-deposit'), 'Most contractors take a third down, so about $1,650.');
+  ok(!depBad.pass, 'checker fails an improvised deposit');
+  const ky = E.grade(E.GOLDEN.find((q) => q.id === 'ky-deposit'), 'In Kentucky nothing is due at signing on an insurance job. The deductible comes after the insurer\'s written decision and the 5-business-day cancellation window.');
+  ok(ky.pass, 'checker passes the KY nothing-at-signing answer', JSON.stringify(ky.misses));
+  ok(!E.grade(E.GOLDEN.find((q) => q.id === 'ky-deposit'), 'Collect the deductible at signing like normal.').pass, 'checker fails "collect the deductible at signing" for Kentucky');
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
