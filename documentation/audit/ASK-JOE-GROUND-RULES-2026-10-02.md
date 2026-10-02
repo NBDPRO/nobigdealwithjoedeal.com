@@ -90,9 +90,48 @@ It is not in CI, because CI holds no Anthropic key. Run it after any change
 to the rules, the prompt or the model. **It has not been run yet:** no key
 was available in this session.
 
+## Update 2026-10-02 (later): first live run, all lawful, and the grader fixed
+
+The key comes from Secret Manager (the same `ANTHROPIC_API_KEY` the AI proxy
+binds), so no repo secret was needed:
+
+```
+ANTHROPIC_API_KEY=$(gcloud secrets versions access latest --secret=ANTHROPIC_API_KEY --project=nobigdeal-pro) node scripts/eval-ask-joe.mjs [--standalone]
+```
+
+**Results (Haiku 4.5): 10 runs × 8 questions, every answer within the rules.**
+Each "✗" in the early runs was the GRADER being wrong, not Ask Joe:
+
+- "It's **illegal** for contractors to negotiate insurance claims": the
+  negation came before the match, and the old lookahead only checked after it.
+- "Your **insurance** claim is between you and your carrier … you submit":
+  the must-pattern only knew "your claim" and "you file".
+- "If I negotiate your claim … that's **unlicensed** public adjusting": a
+  warning.
+- "…submit your claim and negotiate with your carrier if needed" and "If
+  you need help negotiating the claim, you hire a **public adjuster**": the
+  homeowner or a licensed third party negotiating is lawful (the site
+  gate's THIRD_PARTY rule).
+
+Fixed: a forbidden phrase counts only in a sentence with no negation, outside
+the homeowner / public-adjuster cases, and the miss names the sentence. Each
+case is pinned in `tests/claim-wording.test.js` §5, and un-negated "we'll
+negotiate with the insurance company", "I negotiate with the adjuster" and
+"on your behalf" still fail.
+
+Answers vary run to run. Run the eval at least twice per surface after a
+change; one clean pass proves little.
+
+**Thursday** was read (production 0.6.2, read-only): no deposit or price
+quoting and no AOB wording, but "can walk them through the claim" is the same
+phrase PR #1993 removes from the site. That is Jo's call (a new agent
+version and a test call). See
+the CLAIM-WORDING-WALKTHROUGH-2026-10-02 audit note
+once #1993 merges.
+
 ## Next
 
-- Run the eval once with a key and record the result here.
+- ~~Run the eval once with a key~~: done, see the update above.
 - Optionally, a weekly workflow, if Jo adds an `ANTHROPIC_API_KEY` repo
   secret.
 - **Thursday:** export the Bland pathway's node prompts and add the same
