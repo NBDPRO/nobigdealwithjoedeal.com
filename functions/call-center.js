@@ -35,7 +35,6 @@ const COLLECTION = 'phone_calls';
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FOLDER_NAME = 'Cube ACR';
-const BACKFILL_DAYS = 90;          // first run reaches back this far
 const MAX_FILES_PER_RUN = 40;      // keeps one run well inside the timeout
 const MAX_BYTES = 80 * 1024 * 1024;
 const enabled = () => process.env.CALL_CENTER_INGEST_ENABLED === 'true';
@@ -100,14 +99,16 @@ async function runIngest({ db, bucket, live, nowMs }) {
   if (!root) return { state: 'not_shared' };
   if (typeof root === 'object') return { state: 'ambiguous_folder', count: root.ambiguous };
 
-  const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  const floor = cfg.backfillFrom || L.daysBefore(today, BACKFILL_DAYS);
+  // History starts 2026-01-01 and never earlier (L.HISTORY_FROM). If the floor
+  // moved since the cursor was built, the scan restarts at it once.
+  const floor = L.historyFloor(cfg.backfillFrom);
+  const startCursor = L.scanCursor(cfg, floor);
   const days = await listAll("'" + root + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id, name');
-  const scan = L.foldersToScan(days, cfg.cursorYmd || null, floor);
+  const scan = L.foldersToScan(days, startCursor, floor);
 
   const index = L.buildPhoneIndex(await ownerLeads(db));
   const counts = { folders: scan.length, seen: 0, fresh: 0, stored: 0, skipped: 0, failed: 0, buckets: {} };
-  let cursor = cfg.cursorYmd || null;
+  let cursor = startCursor;
   let budget = MAX_FILES_PER_RUN;
 
   for (const day of scan) {
@@ -163,6 +164,8 @@ async function runIngest({ db, bucket, live, nowMs }) {
   await ref.set({
     folderId: root,
     cursorYmd: live ? cursor : (cfg.cursorYmd || null),
+    // Recorded only by a live run, so a dry run never uses up the rescan.
+    floorApplied: live ? floor : (cfg.floorApplied || null),
     lastRunAtMs: nowMs,
     lastRun: Object.assign({ live }, counts),
   }, { merge: true });

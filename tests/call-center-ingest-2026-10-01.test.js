@@ -146,6 +146,55 @@ const callDocs = (db) => [...db.docs.keys()].filter((k) => k.startsWith(COLLECTI
   r = await runIngest({ db, bucket: fakeBucket(), live: true, nowMs: NOW });
   ok('paused config stops the run', r.state === 'paused' && callDocs(db).length === 0);
 
+  console.log('\n7. History starts 2026-01-01 (Jo, 2026-10-02: "only … as far as the beginning of 2026")');
+  const L = require('../functions/call-center-logic.js');
+  ok('the floor is 2026-01-01 by default, and junk falls back to it', L.historyFloor(undefined) === '2026-01-01' && L.historyFloor('soon') === '2026-01-01');
+  ok('an override can move it LATER but never earlier', L.historyFloor('2026-03-01') === '2026-03-01' && L.historyFloor('2025-06-01') === '2026-01-01');
+  ok('the cursor is kept only when it was built under this floor',
+    L.scanCursor({ cursorYmd: '2026-09-30', floorApplied: '2026-01-01' }, '2026-01-01') === '2026-09-30'
+      && L.scanCursor({ cursorYmd: '2026-09-30' }, '2026-01-01') === null
+      && L.scanCursor({ cursorYmd: '2026-09-30', floorApplied: '2026-07-03' }, '2026-01-01') === null);
+  // Live state at deploy: the 90-day backlog's cursor is at the latest day and
+  // there is no floorApplied. One run must go back to January, skip what it
+  // already has, and never touch 2025.
+  const histTree = {
+    root: [
+      { id: 'y25', name: '2025-12-31', mimeType: FOLDER },
+      { id: 'jan', name: '2026-01-02', mimeType: FOLDER },
+      { id: 'sep', name: '2026-09-30', mimeType: FOLDER },
+    ],
+    y25: [{ id: 'h0', name: '2025-12-31 09-00-00 (phone) +1 513-555-0101 ↙.m4a', size: '100', mimeType: 'audio/mpeg' }],
+    jan: [{ id: 'h1', name: '2026-01-02 09-00-00 (phone) +1 513-555-0102 ↙.m4a', size: '100', mimeType: 'audio/mpeg' }],
+    sep: [{ id: 'h2', name: '2026-09-30 09-00-00 (phone) +1 513-555-0103 ↙.m4a', size: '100', mimeType: 'audio/mpeg' }],
+  };
+  const histDrive = () => {
+    const listed = [];
+    return { listed, request: async (o) => {
+      if (o.params && o.params.alt === 'media') return { data: new Uint8Array([1, 2, 3]).buffer };
+      const q = o.params.q;
+      if (/^name = 'Cube ACR'/.test(q)) return { data: { files: [{ id: 'root', name: 'Cube ACR' }] } };
+      const parent = /^'([^']+)' in parents/.exec(q)[1];
+      if (parent !== 'root') listed.push(parent);
+      return { data: { files: (histTree[parent] || []).filter((f) => !/mimeType = /.test(q) || f.mimeType === FOLDER) } };
+    } };
+  };
+  db = fakeDb(leads);
+  await db.doc(CONFIG).set({ cursorYmd: '2026-09-30', folderId: 'root' });
+  await db.doc(COLLECTION + '/' + L.callDocId('h2')).set({ status: 'noted' }); // already filed by the old backlog
+  let hd = histDrive();
+  setClient(hd);
+  r = await runIngest({ db, bucket: fakeBucket(), live: false, nowMs: NOW });
+  ok('a dry run does not use up the one-time rescan', !db.docs.get(CONFIG).floorApplied && db.docs.get(CONFIG).cursorYmd === '2026-09-30');
+  hd = histDrive(); setClient(hd);
+  r = await runIngest({ db, bucket: fakeBucket(), live: true, nowMs: NOW });
+  ok('the first live run under the new floor reaches back to January', db.docs.has(COLLECTION + '/' + L.callDocId('h1')) && hd.listed.includes('jan'), JSON.stringify(r));
+  ok('...never reads 2025', !hd.listed.includes('y25') && !db.docs.has(COLLECTION + '/' + L.callDocId('h0')));
+  ok('...leaves a call it already had alone (no re-download)', db.docs.get(COLLECTION + '/' + L.callDocId('h2')).status === 'noted' && r.stored === 1, JSON.stringify(r));
+  ok('...and records the floor, with the cursor back at the latest day', db.docs.get(CONFIG).floorApplied === '2026-01-01' && db.docs.get(CONFIG).cursorYmd === '2026-09-30');
+  hd = histDrive(); setClient(hd);
+  r = await runIngest({ db, bucket: fakeBucket(), live: true, nowMs: NOW + 1800e3 });
+  ok('the next run resumes from the cursor (January is not re-listed)', !hd.listed.includes('jan') && hd.listed.includes('sep'), JSON.stringify(hd.listed));
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);
