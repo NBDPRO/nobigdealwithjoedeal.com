@@ -110,7 +110,10 @@
       'js/expenses.js?v=6',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
-      'js/hd-import.js?v=2'
+      'js/hd-import.js?v=3',
+      // The company price book (2026-10-02) — hd-import.js records each
+      // receipt's SKU prices into it; loads after, read at call time.
+      'js/price-book.js?v=1'
     ],
     // Money / P&L capstone — self-contained (reads doc fields directly, no
     // ExpenseConfig dependency), so it's a single-module bundle.
