@@ -167,6 +167,7 @@
     "call-center-notes-2026-10-01.test.js",
     "five-tier-crm-2026-10-02.test.js",
     "estimate-v3-wizard-2026-10-02.test.js",
+    "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
     "crm-search-not-sticky-2026-10-02.test.js",
