@@ -290,6 +290,28 @@
       });
     });
 
+    // ── Storm / insurance jobs with no date of loss (dol-fill.js, 2026-10-02) ──
+    // One quiet row with the count; tapping it opens "Fill dates of loss".
+    // The id carries the count, so a dismissed row comes back only when the
+    // number changes.
+    if (window.NBDDolFill && typeof window.NBDDolFill.needsDol === 'function') {
+      const missing = leads.filter(window.NBDDolFill.needsDol).length;
+      if (missing) {
+        items.push({
+          id: 'dol-missing:' + missing,
+          type: 'dol-missing',
+          severity: 'low',
+          icon: '🌩',
+          title: 'Dates of loss missing',
+          text: missing + ' storm / insurance job' + (missing === 1 ? ' has' : 's have') + ' no date of loss — tap to fill from storm reports',
+          sub: '',
+          ts: sod,
+          href: null,
+          onClick: () => window.NBDDolFill.open(),
+        });
+      }
+    }
+
     // ── Stale estimates (sent but no response) ──
     const staleCutoff = new Date(now.getTime() - STALE_ESTIMATE_DAYS * 24 * 60 * 60 * 1000);
     estimates.forEach(est => {
