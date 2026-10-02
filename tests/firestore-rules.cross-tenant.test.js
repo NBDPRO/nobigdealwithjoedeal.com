@@ -503,6 +503,16 @@ async function run() {
   await check('phone_texts: B manager queries co-a',           'deny',  tget(tq(tcol(bobMgr, 'phone_texts'), tw('companyId', '==', 'co-a'))));
   await check('phone_texts: owner cannot edit a text',         'deny',  updateDoc(doc(alice, 'phone_texts/sms_A1'), { body: 'x' }));
   await check('phone_texts: owner cannot create a text',       'deny',  setDoc(doc(alice,    'phone_texts/sms_fake'), { userId: 'alice', companyId: 'co-a' }));
+  // phone_text_days: AI notes per conversation-day; same readers, no client writes.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'phone_text_days/txt_A1'), { userId: 'alice', companyId: 'co-a', status: 'noted', summary: 's', startedAtMs: 1 });
+  });
+  await check('phone_text_days: owner reads own',              'allow', getDoc(doc(alice,  'phone_text_days/txt_A1')));
+  await check('phone_text_days: same-tenant manager reads',    'allow', getDoc(doc(eveMgr, 'phone_text_days/txt_A1')));
+  await check('phone_text_days: same-tenant sales_rep denied', 'deny',  getDoc(doc(dave,   'phone_text_days/txt_A1')));
+  await check('phone_text_days: B reads A',                    'deny',  getDoc(doc(bob,    'phone_text_days/txt_A1')));
+  await check('phone_text_days: owner cannot edit',            'deny',  updateDoc(doc(alice, 'phone_text_days/txt_A1'), { summary: 'x' }));
+  await check('phone_text_days: owner cannot create',          'deny',  setDoc(doc(alice,    'phone_text_days/txt_fake'), { userId: 'alice', companyId: 'co-a' }));
 
   // ═══════════════════════════════════════════════════════════
   // Z. A HARD-DELETED LEAD vs A STRANGER WHO RE-CREATES ITS ID (2026-09-25)

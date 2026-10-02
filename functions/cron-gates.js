@@ -32,6 +32,8 @@ const CRON_GATES = [
   { name: 'CALL_CENTER_SWEEP_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   // Text Inbox ingest (SMS Backup & Restore → phone_texts): dry-run until Jo says go.
   { name: 'TEXT_INBOX_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
+  // Text notes (AI per conversation-day): dry-run until texts flow and Jo says go.
+  { name: 'TEXT_NOTES_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   { name: 'REVIEW_NUDGE_ENABLED', polarity: 'enabled', file: 'review-request-nudge.js' },
   { name: 'STORM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-watch.js' },
   { name: 'VISUALIZER_IMAGEGEN_ENABLED', polarity: 'enabled', file: 'visualizer-image-gen.js' },

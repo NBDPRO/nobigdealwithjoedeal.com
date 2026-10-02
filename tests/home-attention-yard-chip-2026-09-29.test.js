@@ -83,5 +83,34 @@ console.log('\n4. wiring');
   ok('no inline handlers (CSP)', !/\son[a-z]+=/.test(ha) && !/\son[a-z]+=/.test(chip));
 }
 
+{
+  // 📞 Calls that need you (2026-10-02). callNeedsYou is THE rule; the Call
+  // Center's default tab delegates to it. On production the old rule flagged
+  // 439 of 488 calls (every call without a customer) — the new one 49.
+  console.log('\nCalls that need you');
+  const NOW = Date.parse('2026-10-02T15:00:00Z');
+  const H = 3600e3, D = 24 * H;
+  const call = (x) => Object.assign({ startedAtMs: NOW - 2 * D, status: 'noted', leadId: 'L1', bucket: 'customer', promises: [] }, x);
+  const need = (x) => HA.callNeedsYou(call(x), NOW);
+  ok('a promise Jo made → needs you', need({ promises: [{ who: 'jo', text: 'send quote' }] }));
+  ok('only THEIR promise → not', !need({ promises: [{ who: 'them', text: 'pay' }] }));
+  ok('urgent → needs you', need({ urgent: true }));
+  ok('follow-up date today or past → needs you', need({ followUpDate: '2026-10-02' }) && need({ followUpDate: '2026-09-30' }) && !need({ followUpDate: '2026-10-09' }));
+  ok('a customer call with nothing owed → not', !need({}));
+  ok('insurance line, no customer → needs you', need({ leadId: null, bucket: 'insurance' }));
+  ok('unknown number, no customer → needs you (maybe a lead)', need({ leadId: null, bucket: 'unknown' }));
+  ok('a MISSED (short) call from an unknown number → needs you; a short outgoing one → not', need({ leadId: null, bucket: 'unknown', status: 'short', direction: 'inbound' }) && !need({ leadId: null, bucket: 'unknown', status: 'short', direction: 'outbound' }));
+  ok('a saved contact with no customer and no promise → not (the 223-call backlog)', !need({ leadId: null, bucket: 'contact' }));
+  ok('…but with a promise Jo made → needs you', need({ leadId: null, bucket: 'contact', promises: [{ who: 'jo', text: 'x' }] }));
+  ok('handled or personal → never', !need({ handledAtMs: NOW, urgent: true }) && !need({ status: 'personal', urgent: true }));
+  ok('older than 14 days → never (backlog)', !need({ startedAtMs: NOW - 15 * D, urgent: true, promises: [{ who: 'jo', text: 'x' }] }) && need({ startedAtMs: NOW - 13 * D, promises: [{ who: 'jo', text: 'x' }] }));
+  ok('count helper', HA.callsNeedingYou([call({ urgent: true }), call({}), call({ leadId: null, bucket: 'unknown' })], NOW) === 2);
+  ok('strip shows the calls item, singular and plural, to the Call Center', /data-target="calls">📞 1 call needs you</.test(HA.stripHtml({ calls: 1 })) && /📞 49 calls need you/.test(HA.stripHtml({ calls: 49 })) && HA.stripHtml({ calls: 0 }) === '');
+  const ccv = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'call-center-view.js'), 'utf8');
+  ok('the Call Center view delegates to the same rule', /NBDHomeAttention\.callNeedsYou\(c, Date\.now\(\)\)/.test(ccv));
+  const haSrc = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'home-attention.js'), 'utf8');
+  ok('Home reads only the owner\'s own calls, newest 200', /collection\(w\.db, 'phone_calls'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(200\)/.test(haSrc));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

@@ -294,6 +294,7 @@ Map of content for the `documentation/` corpus (~115 files) plus the other place
 - [gbp-post-kit-2026-08-28](marketing/gbp-post-kit-2026-08-28.md) — 4 ready-to-paste GBP updates + 2 Facebook variants + branded posters (in `marketing/gbp-kit-2026-08-28/`), built from published /our-work jobs — **posts 3 + 4 went live 2026-08-31; 1 + 2 and both Facebook variants still pending** (see the posting log)
 - [ourwork-candidate-pipeline-2026-08-28](marketing/ourwork-candidate-pipeline-2026-08-28.md) — ranked publish queue from the all-company Drive sweep (MLR/JKRC/ORC/SPR archives + SD rolls); customer detail deliberately kept in gitignored `.local/`
 - [rush-week-2026-08](marketing/rush-week-2026-08.md) — the sequenced off-site placement sprint (baseline, manufacturer claims, Bing/IndexNow, pitch templates, Reader Questions pipeline) — **work from this one**
+- [SEARCH-CONSOLE-NEAR-MISS-2026-10-02](marketing/SEARCH-CONSOLE-NEAR-MISS-2026-10-02.md) — Search Console (not Semrush, Jo 2026-10-02) near-miss read: 43 queries at positions 4–20 in five clusters (shingle comparisons lead), Mason on page 3–4 despite the most content (competition, not pages), the GAF vs TAMKO retitle; one week of data, so re-run ~10-30
 - [local-seo-playbook-2026-07](marketing/local-seo-playbook-2026-07.md) · [citation-kit-2026-07](marketing/citation-kit-2026-07.md) — strategy + paste-ready copy (both carry 2026-08-17 addenda)
 - [gaf-tamko-rebrand-plan](rebrand/gaf-tamko-rebrand-plan.md) · [gaf-tamko-BUILD-BRIEF](rebrand/gaf-tamko-BUILD-BRIEF.md)
 
