@@ -20,6 +20,10 @@
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/images/home-icon-512.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
+<!-- Preload the two above-the-fold fonts (as index.html does): without this the
+     swap reflowed section.tools, CLS 0.118 > 0.1 (perf-watch, 2026-10-02). -->
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
 <style>
 :root{
