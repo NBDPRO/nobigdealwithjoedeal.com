@@ -37,7 +37,7 @@ which covers #2001–#2013.
     merges main, unions the manifest, re-reads FLOORS from `--check`, bumps
     `?v` past main, re-pins and pushes.
 
-## §1 What shipped or is shipping (#2014–#2025)
+## §1 What shipped or is shipping (#2014–#2030)
 
 - **#2014** Expenses screens: inline styles moved to `ui-primitives`.
   Zero computed-style diff across 273 elements at 1280 and 390.
@@ -64,7 +64,25 @@ which covers #2001–#2013.
     one tap per customer.
   - Saved as `dateOfLossSource: storm_report_suggested`, to be confirmed
     with the homeowner or adjuster.
-- **#2011** V3 one-thumb wizard: still merging at time of writing.
+- **#2027** Ask Joe `add_note` (confirm card, writes a normal card note)
+  and `agent_inbox_summary` (what the bots filed, read-only).
+- **#2028** Claim panel labels a storm-report date of loss "suggested —
+  confirm with the homeowner or adjuster"; editing it re-labels it
+  `entered`.
+- **#2029** Reskin: Storm Center → `stc-*` in `css/storm-center.css`
+  (79 sites, 716 elements zero diff). The `sc-` prefix belongs to
+  `sort-customers.css`.
+- **#2030** Reskin: home widgets + picker → `wg-*` in
+  `css/widgets-home.css` (124 sites, 1,024 elements zero diff, plus a
+  per-conversion pair check that covers unrendered branches).
+  - Button overrides need the `body[data-nbd-size] .btn` scope, or the
+    size rule (0,2,1) wins.
+- **#2011** V3 one-thumb wizard: still merging at time of writing
+  (re-merged four times as the others landed).
+- **Merge-day gotcha:** the HTML conflict resolver once dropped a whole
+  `<link>` line (ask-joe-actions.css) when merging main into #2020.
+  After every re-merge, diff the `?v=` lines of dashboard.html and
+  customer.html against main and look for REMOVED lines.
 
 ## §2 Jo's open items
 
@@ -96,9 +114,14 @@ which covers #2001–#2013.
   - add Tucker, Dana, Frank, Priya and Theo (their tool lists are already
     defined in `agent-mcp-logic.js`);
   - watch `agent_audit` and the inbox quality.
-- **Reskin, the JS-built screens:** `vault-page.js`, `invoice-pipeline.js`,
-  `widgets.js`, `storm-center.js`, using the in-context computed-style
-  proof.
+- **Reskin, the JS-built screens:** `storm-center.js` and `widgets.js`
+  are done (#2029, #2030). Next is `vault-page.js` (207 sites).
+  - Skip `invoice-pipeline.js`'s panel and list: they are mounted nowhere.
+  - `buildInvoiceHtml` is the email body and must stay inline.
+  - Its detail modal and record-payment modal are fair game.
+  - Proof harness: a scratch `zz-*.spec.js` that dumps the screen's
+    computed styles, run before and after, plus the pair check for any
+    branch the render doesn't reach.
 - **Price book phase 2:** store SKUs, links and photos on products, once
   Jo answers.
 - **Bulk texting stays parked.** Jo prefers notes and reminders. If it ever
