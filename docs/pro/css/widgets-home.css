@@ -1,0 +1,101 @@
+/* Dashboard home widgets (js/widgets.js) and the widget picker — layout moved
+   out of inline style attributes so a theme can restyle the home screen
+   (reskin, 2026-10-02). Values are the old inline ones exactly; computed
+   widths, bar heights and per-item colours stay inline. Generated from the
+   conversion map; a raised selector out-ranks a component rule (.btn under
+   body[data-nbd-size], .w-big-num, .w-empty, .w-mini-btn) the way the inline
+   style did. */
+.wg-mb6 { margin-bottom: 6px; }
+.wg-meta { font-size: 10px; color: var(--m); }
+.wg-o7 { opacity: .7; }
+.wg-o6 { opacity: .6; }
+.wg-strong { color: var(--t); font-weight: 600; }
+.wg-cap-label { font-size: 9px; color: var(--m); text-transform: uppercase; letter-spacing: .08em; }
+.wg-input { width: 100%; background: var(--s2); border: 1px solid var(--br); border-radius: 5px; padding: 8px 10px; font-size: 12px; color: var(--t); font-family: inherit; }
+.wg-input-sm { width: 100%; background: var(--s2); border: 1px solid var(--br); border-radius: 5px; padding: 6px 8px; font-size: 13px; color: var(--t); font-family: inherit; margin-top: 2px; }
+.wg-search { width: 100%; background: var(--bg); border: 1px solid var(--br); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: var(--t); font-family: inherit; box-sizing: border-box; }
+.wg-input-flex { flex: 1; background: var(--s2); border: 1px solid var(--br); border-radius: 5px; padding: 8px 10px; font-size: 12px; color: var(--t); font-family: inherit; }
+.wg-input-flex-sm { flex: 1; background: var(--s2); border: 1px solid var(--br); border-radius: 5px; padding: 5px 8px; font-size: 11px; color: var(--t); font-family: inherit; }
+.wg-select { flex: 1; background: var(--s2); border: 1px solid var(--br); border-radius: 5px; padding: 8px; font-size: 11px; color: var(--t); font-family: inherit; }
+.wg-center { text-align: center; }
+.wg-fs36 { font-size: 36px; }
+.wg-icon20 { font-size: 20px; margin-bottom: 6px; }
+.wg-sub { font-size: 11px; color: var(--m); margin-top: 4px; }
+.wg-fs11 { font-size: 11px; }
+.wg-row6 { display: flex; gap: 6px; }
+.wg-green { color: var(--green); }
+.wg-grow { flex: 1; }
+.wg-svg-center { display: block; margin: 0 auto 8px; }
+.wg-summary { cursor: pointer; color: var(--m); font-size: 11px; }
+.wg-bold { font-weight: 700; color: var(--t); }
+.wg-bar-val { font-size: 9px; color: var(--t); font-weight: 700; }
+.wg-bar-lbl { font-size: 8px; color: var(--m); }
+.wg-fs22 { font-size: 22px; }
+.wg-fs14 { font-size: 14px; }
+.wg-title-sm { font-size: 11px; font-weight: 700; color: var(--t); }
+.wg-green-sm { font-size: 11px; color: var(--green); font-weight: 700; }
+.wg-orange-bold { color: var(--orange); font-weight: 700; }
+.wg-muted-normal { color: var(--m); font-weight: 400; }
+.wg-muted { color: var(--m); }
+.wg-transcript { white-space: pre-wrap; max-height: 240px; overflow-y: auto; margin-top: 4px; line-height: 1.45; }
+.wg-right { text-align: right; }
+.wg-add { text-align: center; padding: 20px 0; cursor: pointer; }
+.wg-alert { padding: 6px; background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2); border-radius: 5px; margin-bottom: 4px; font-size: 10px; }
+.wg-empty-line { padding: 10px 0; font-size: 11px; color: var(--m); }
+.wg-mt6 { margin-top: 6px; }
+.wg-mt2 { margin-top: 2px; }
+.wg-mb8 { margin-bottom: 8px; }
+.wg-red-bold { font-weight: 700; color: var(--red); }
+.wg-name { font-weight: 600; font-size: 11px; color: var(--t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wg-kicker { font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--orange); }
+.wg-edit-link { font-size: 9px; color: var(--m); text-align: right; margin-top: 3px; cursor: pointer; user-select: none; }
+.wg-foot { font-size: 9px; color: var(--m); margin-top: 4px; }
+.wg-tiny { font-size: 9px; color: var(--m); }
+.wg-big { font-size: 42px; line-height: 1; }
+.wg-add-plus { font-size: 28px; opacity: .4; }
+.wg-num { font-size: 18px; font-weight: 800; color: var(--t); }
+.wg-quote { font-size: 13px; font-style: italic; color: var(--t); line-height: 1.5; margin-bottom: 8px; }
+.wg-orange-12 { font-size: 12px; font-weight: 700; color: var(--orange); }
+.wg-joe-out { font-size: 12px; color: var(--m); min-height: 40px; margin-bottom: 8px; max-height: 120px; overflow-y: auto; }
+.wg-quote-by { font-size: 11px; color: var(--orange); font-style: italic; }
+.wg-sub-clip { font-size: 11px; color: var(--m); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wg-link-text { font-size: 11px; color: var(--m); margin-bottom: 8px; word-break: break-all; }
+.wg-red-head { font-size: 10px; color: var(--red); margin-bottom: 6px; font-weight: 700; }
+.wg-orange-10 { color: var(--orange); font-size: 10px; font-weight: 700; }
+.wg-streak { font-family: 'Barlow Condensed',sans-serif; font-size: 22px; font-weight: 800; color: var(--orange); text-align: center; padding: 6px 0; }
+.wg-headline { font-family: 'Barlow Condensed',sans-serif; font-size: 16px; font-weight: 800; color: var(--orange); text-transform: uppercase; line-height: 1.3; margin-bottom: 6px; }
+.wg-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wg-seg { flex: 1; background: var(--br); height: 8px; }
+.wg-kv-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--br); font-size: 11px; }
+.wg-axis { display: flex; justify-content: space-between; margin-top: 6px; font-size: 9px; color: var(--m); }
+.wg-between-c8 { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.wg-row4 { display: flex; gap: 4px; }
+.wg-wrap6 { display: flex; flex-wrap: wrap; gap: 6px; }
+.wg-facts { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--m); font-size: 11px; margin-bottom: 8px; }
+.wg-col6 { display: flex; flex-direction: column; gap: 6px; }
+.wg-segs { display: flex; border-radius: 4px; overflow: hidden; margin-top: 10px; gap: 1px; }
+.wg-bars { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
+.wg-red-10 { color: var(--red); font-size: 10px; }
+.wg-orange { color: var(--orange); }
+.wg-panel { background: var(--s2); border: 1px solid var(--br); border-radius: 8px; padding: 10px; margin: 4px 0 8px; font-size: 12px; cursor: default; }
+.btn.wg-btn-full, body[data-nbd-size] .btn.wg-btn-full { width: 100%; padding: 10px; font-size: 12px; justify-content: center; }
+.btn.wg-btn-full-sm, body[data-nbd-size] .btn.wg-btn-full-sm { width: 100%; margin-top: 6px; font-size: 11px; padding: 7px; justify-content: center; }
+.btn.wg-btn-p816, body[data-nbd-size] .btn.wg-btn-p816 { padding: 8px 16px; font-size: 11px; }
+.btn.wg-btn-p812, body[data-nbd-size] .btn.wg-btn-p812 { padding: 8px 12px; font-size: 11px; }
+.btn.wg-btn-p820, body[data-nbd-size] .btn.wg-btn-p820 { font-size: 12px; padding: 8px 20px; }
+.btn.wg-btn-p814, body[data-nbd-size] .btn.wg-btn-p814 { font-size: 11px; padding: 8px 14px; }
+.wg-btn-p610, body[data-nbd-size] .btn.wg-btn-p610 { font-size: 11px; padding: 6px 10px; }
+.wg-fs10 { font-size: 10px; }
+.wg-close { background: none; border: none; color: var(--m); font-size: 20px; cursor: pointer; }
+.wg-map { border-radius: 6px; overflow: hidden; }
+.wg-map-180 { height: 180px; }
+.wg-map-160 { height: 160px; }
+.wg-min0 { min-width: 0; }
+.wg-nowrap { white-space: nowrap; }
+.wg-between { display: flex; justify-content: space-between; }
+.wg-between-c { display: flex; justify-content: space-between; align-items: center; }
+.wg-mb3 { margin-bottom: 3px; }
+.wg-mb2 { margin-bottom: 2px; }
+.wg-col4 { display: flex; flex-direction: column; gap: 4px; }
+.wg-w100 { width: 100%; }
+.wg-mt4 { margin-top: 4px; }
