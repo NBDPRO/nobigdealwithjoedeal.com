@@ -44,6 +44,8 @@ const CRON_GATES = [
   { name: 'MONTHLY_OVERHEAD_ALERT_DISABLED', polarity: 'disabled', file: 'monthly-overhead-alert.js' },
   { name: 'STRIPE_LEDGER_DISABLED', polarity: 'disabled', file: 'stripe-ledger.js' },
   { name: 'GOOGLE_CALENDAR_SYNC_DISABLED', polarity: 'disabled', file: 'google-calendar.js' },
+  // Not a cron: the Grok Bot team's CRM connection (crmMcp). ON unless set.
+  { name: 'AGENT_MCP_DISABLED', polarity: 'disabled', file: 'agent-mcp.js' },
 ];
 
 /**
