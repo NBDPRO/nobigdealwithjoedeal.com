@@ -63,9 +63,10 @@ const preferredPct = Math.round((better / good - 1) * 100);
 const elitePct = Math.round((best / good - 1) * 100);
 
 group('The computed premiums are what this suite expects to find in copy (sanity, not the assertion itself)', () => {
-  assert('Preferred premium computes to 9% at current rates', preferredPct === 9,
+  // 2026-10-02 repricing: 660/550 - 1 = 20%, 770/550 - 1 = 40% (were 9/21 at 545/595/660).
+  assert('Preferred premium computes to 20% at current rates', preferredPct === 20,
     'got ' + preferredPct + '% from ' + better + '/' + good);
-  assert('Elite premium computes to 21% at current rates', elitePct === 21,
+  assert('Elite premium computes to 40% at current rates', elitePct === 40,
     'got ' + elitePct + '% from ' + best + '/' + good);
 });
 
