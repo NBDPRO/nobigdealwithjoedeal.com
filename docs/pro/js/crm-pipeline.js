@@ -2416,9 +2416,11 @@ function kanbanFilter(){
   const search = (searchInput?.value||'').toLowerCase().trim();
   const dmg    = (document.getElementById('crmDmgFilter')?.value||'').toLowerCase();
   
-  // Persist search state
-  if(search) localStorage.setItem('nbd_crm_search', search);
-  else localStorage.removeItem('nbd_crm_search');
+  // The search is NOT saved (Jo, 2026-10-02: "it sticks even when I refresh
+  // or come back to CRM page"). It used to go to localStorage, which outlives
+  // the session, contrary to prefs-sync.js's "session-local" note. It now
+  // lives only in the box; a leftover from the old behaviour is dropped.
+  try { localStorage.removeItem('nbd_crm_search'); } catch (_) {}
   
   // Show/hide clear button
   const clearBtn = document.getElementById('crmSearchClear');

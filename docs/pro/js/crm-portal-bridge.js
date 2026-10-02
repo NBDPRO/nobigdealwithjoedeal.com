@@ -476,15 +476,13 @@ async function commitBulkLeadOp(ids, applyToBatch) {
 }
 
 
+// Kept under its old name for the two boot-path callers. It no longer
+// RESTORES anything (Jo, 2026-10-02: a search must not stick across a
+// refresh); it only drops the value the old code saved, so a device that
+// still holds one starts clean. renderLeads re-applies whatever is in the
+// box itself, so a live data refresh mid-session keeps the current search.
 function restoreCrmSearch(){
-  const saved = localStorage.getItem('nbd_crm_search');
-  if(saved){
-    const searchInput = document.getElementById('crmSearch');
-    if(searchInput){
-      searchInput.value = saved;
-      kanbanFilter();
-    }
-  }
+  try { localStorage.removeItem('nbd_crm_search'); } catch (_) {}
 }
 
 function scrollToFollowUps(){

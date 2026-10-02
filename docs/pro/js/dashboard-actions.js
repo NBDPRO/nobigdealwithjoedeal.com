@@ -393,6 +393,18 @@ function goTo(name, params = {}) {
   if (name !== 'crm' && window._bulkMode && _nbdReg && typeof _nbdReg.exitBulkMode === 'function') {
     _nbdReg.exitBulkMode();
   }
+  // Leaving the Pipeline clears its text search, so coming back shows every
+  // card (Jo, 2026-10-02: "it will have last search still in search box").
+  // kanbanFilter re-renders with the empty box, which also drops the filtered
+  // subset goTo('crm') would otherwise re-paint. Only when there IS a search,
+  // so an ordinary view switch costs nothing.
+  if (name !== 'crm') {
+    const _crmSearchEl = document.getElementById('crmSearch');
+    if (_crmSearchEl && _crmSearchEl.value) {
+      _crmSearchEl.value = '';
+      if (typeof window.kanbanFilter === 'function') { try { window.kanbanFilter(); } catch (_) {} }
+    }
+  }
 
   // Update URL hash (without triggering hashchange event)
   if (!params.skipHash) {

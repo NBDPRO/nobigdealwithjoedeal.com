@@ -177,7 +177,7 @@ console.log('\n3e. weeks everywhere — the iPhone feed, the customer page, the 
     /schedule-window\.js\?v=2/.test(cust) && /schedule-window\.js\?v=2/.test(dash) && /customer-edit-modal\.js\?v=5/.test(cust)
       // A floor, not an exact pin: a later change bumping crm-leads.js again
       // (the 2026-09-30 CRM handoff → v=6) still satisfies "bumped for this one".
-      && +((dash.match(/crm-leads\.js\?v=(\d+)/) || [])[1] || 0) >= 5 && /crm-portal-bridge\.js\?v=6/.test(dash));
+      && +((dash.match(/crm-leads\.js\?v=(\d+)/) || [])[1] || 0) >= 5 && +((dash.match(/crm-portal-bridge\.js\?v=(\d+)/) || [])[1] || 0) >= 6);
 }
 
 console.log('\n4. wiring');

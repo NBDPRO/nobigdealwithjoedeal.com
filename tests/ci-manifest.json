@@ -163,6 +163,7 @@
     "call-center-logic-2026-10-01.test.js",
     "call-center-ingest-2026-10-01.test.js",
     "call-center-notes-2026-10-01.test.js",
+    "crm-search-not-sticky-2026-10-02.test.js",
     "text-inbox-logic-2026-10-01.test.js",
     "text-inbox-ingest-2026-10-01.test.js",
     "text-notes-2026-10-01.test.js",

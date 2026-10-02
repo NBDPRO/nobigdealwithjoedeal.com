@@ -31,7 +31,9 @@
  *   - nbd_crm_show_snoozed     show snoozed toggle (Wave 35)
  *
  * NOT synced (per-device by design):
- *   - nbd_crm_search           search query — session-local
+ *   - nbd_crm_search           no longer written (2026-10-02): the pipeline
+ *                              search lives only in its box and clears on
+ *                              refresh and on leaving the Pipeline
  *   - nbd_crm_followup_hidden  alert dismissal — per-device
  *   - any other key not in the allowlist
  *
