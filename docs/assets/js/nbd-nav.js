@@ -31,6 +31,24 @@
   var MOBILE_MAX = 1024; // matches the CSS breakpoint that hides .nav-links
 
   var savedScrollY = 0;
+
+  /* Opt-in trace for CI. tests/e2e/nav-drawer.spec.js sets
+     window.__NBD_NAV_TRACE = [] before the page loads and prints it when the
+     scroll restore misses; CI's mobile WebKit is the only place the
+     1200 → 0 landing has ever reproduced. Off (one falsy check) for every
+     real visitor. */
+  function trace(ev, data) {
+    var t = window.__NBD_NAV_TRACE;
+    if (!t || typeof t.push !== 'function' || t.length > 300) return;
+    var o = {
+      ev: ev,
+      t: Math.round((window.performance && window.performance.now && window.performance.now()) || 0),
+      y: Math.round(window.pageYOffset || 0),
+      h: document.documentElement.scrollHeight
+    };
+    if (data) for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) o[k] = data[k];
+    t.push(o);
+  }
   // True while a drawer LINK is closing the drawer: that link may be scrolling
   // to a section on purpose, so the restore must not fight it (see unlockScroll).
   var closingViaLink = false;
@@ -90,6 +108,7 @@
     savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
     document.body.style.top = '-' + savedScrollY + 'px';
     document.body.classList.add(BODY_CLASS);
+    trace('lock', { saved: savedScrollY });
   }
 
   // Jump with NO animation. The inline scroll-behavior:auto swap below is not
@@ -104,7 +123,8 @@
   }
 
   function unlockScroll() {
-    if (!document.body.classList.contains(BODY_CLASS)) return;
+    if (!document.body.classList.contains(BODY_CLASS)) { trace('unlock-skip'); return; }
+    trace('unlock', { saved: savedScrollY, viaLink: closingViaLink });
     document.body.classList.remove(BODY_CLASS);
     document.body.style.top = '';
 
@@ -123,6 +143,7 @@
     // un-pinned layout first.
     void document.body.offsetHeight;
     jumpTo(savedScrollY);
+    trace('jump', { target: savedScrollY });
     // Commit the jump before smooth scrolling is restored, or the browser can
     // coalesce the two style changes and animate anyway.
     void root.offsetHeight;
@@ -146,11 +167,12 @@
       // layout settles. Still only when clamped near 0, and never after the
       // reader starts scrolling themselves.
       var userMoved = false;
-      var markMoved = function () { userMoved = true; };
+      var markMoved = function (e) { userMoved = true; trace('user-moved', { type: e && e.type }); };
       window.addEventListener('touchstart', markMoved, { passive: true, once: true });
       window.addEventListener('wheel', markMoved, { passive: true, once: true });
       var reapply = function () {
         var at = window.pageYOffset || 0;
+        trace('reapply', { target: target, exact: exact, userMoved: userMoved });
         if (userMoved) return;
         if (exact ? Math.abs(at - target) <= 2 : at > 2) return;
         var pb = root.style.scrollBehavior;
@@ -255,6 +277,7 @@
       // Stops any surviving document-level delegate (blog-nav.js) from seeing
       // this click and toggling the drawer a second time.
       e.stopPropagation();
+      trace('hb-click', { wasOpen: isOpen() });
       setOpen(!isOpen());
     });
 
@@ -300,6 +323,9 @@
     window.addEventListener('scroll', function () {
       if (!isOpen()) syncHeaderHeight();
     }, supportsPassive() ? { passive: true } : false);
+    if (window.__NBD_NAV_TRACE) {
+      window.addEventListener('scroll', function () { trace('scroll'); }, supportsPassive() ? { passive: true } : false);
+    }
 
     // Back/forward restores a cached page with the drawer still open and the
     // body still pinned. Reset to a known-good state on every show.
