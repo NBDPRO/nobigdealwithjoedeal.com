@@ -175,6 +175,7 @@
     "agent-mcp-2026-10-02.test.js",
     "agent-mcp-more-tools-2026-10-02.test.js",
     "agent-personal-keys-2026-10-02.test.js",
+    "agent-mcp-roles-v2-2026-10-02.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",

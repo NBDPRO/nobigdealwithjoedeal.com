@@ -16,7 +16,7 @@
  */
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const SERVER_INFO = { name: 'nbd-crm', version: '1.0.0' };
+const SERVER_INFO = { name: 'nbd-crm', version: '1.1.0' };
 const MAX_TEXT = 2000;
 const MAX_LIST = 50;
 
@@ -74,6 +74,30 @@ const TOOLS = {
       limit: { type: 'integer', minimum: 1, maximum: MAX_LIST },
     }, additionalProperties: false },
   },
+  rules_reference: {
+    description: 'NBD\'s rules to check anything against: the five roof tiers (retail $/SQ, warranty wording, shingle limits), workmanship warranty years by job type, the deposit rule, the Kentucky insurance-job lines (what we never say or do), and house rules (crews are independent subs; "revenue" means collected money). Read only. Retail prices here are public; cost figures never are.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  post_job: {
+    description: 'Customers whose job is finished (installed / final payment / closed), newest first: days since completion, invoice balance still owed, whether a review was requested, warranty certificate tier, and whether the 1-year anniversary touch went out. For after-the-job care: final payment, review asks, referrals, warranty check-ins. No phone or email.',
+    inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 730, description: 'Only jobs finished in the last N days (default 120)' }, limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
+  },
+  lead_sources: {
+    description: 'Where customers came from over the last N days (default 90): leads per source (Door Knock, Storm Canvass, Referral, Website, Google, Thumbtack…), how many are won / lost / still open, win rate, and marketing spend per source with cost per lead where expenses are tagged. Counts only — no customer names.',
+    inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 730 } }, additionalProperties: false },
+  },
+  job_profit: {
+    description: 'Per finished job: money COLLECTED on its invoices (refunds off) minus the DIRECT costs logged against it (materials, subs, labor, dumpster, permits, disposal — tax included), giving profit and margin. Jobs still being paid show low until the final payment lands. Internal only — never put these cost or margin figures anywhere public.',
+    inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 730, description: 'Jobs finished in the last N days (default 180)' }, limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
+  },
+  storm_near_customers: {
+    description: 'Hail / wind / tornado reports from the NWS storm feed (stormWatch) in the last N days (default 14), each with the customers whose address lies within R miles (default 3). For storm response: knock plans, checking a date of loss, proof for an adjuster meeting. Names + addresses only.',
+    inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 60 }, miles: { type: 'number', minimum: 0.5, maximum: 10 } }, additionalProperties: false },
+  },
+  team_activity: {
+    description: 'What each bot on the NBD team did over the last N days (default 7): tool calls, filings, and how Jo decided them — approved, tossed, still waiting — plus Quinn\'s checked / flagged counts. Use it to coach the team: a bot whose filings Jo keeps tossing needs a different approach. Personal bots are not included.',
+    inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 30 } }, additionalProperties: false },
+  },
   // ── Personal scope (Jo's own tracker; personal keys only) ─────────────
   my_today: {
     description: 'Jo\'s day in his personal tracker: today\'s floors (his daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it), and his latest weight. Read only.',
@@ -102,14 +126,14 @@ const FILE = ['file_note', 'file_reminder', 'file_report'];
 // ── Bots → tools ───────────────────────────────────────────────────────
 // Nova is deliberately absent: no NBD key can be made for her.
 const BOTS = {
-  cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'collected_revenue', 'inbox_pending', 'file_report'] },
-  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status'], FILE) },
-  quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'inbox_pending', 'verify_item', 'file_report']) },
-  tucker: { name: 'Tucker · Customer Care', tools: ['list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'file_note', 'file_reminder'] },
-  dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'file_report'] },
-  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'estimates_status', 'file_report'] },
-  priya:  { name: 'Priya · Product Manager', tools: ['file_report'] },
-  theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'file_report'] },
+  cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'collected_revenue', 'lead_sources', 'inbox_pending', 'team_activity', 'file_report'] },
+  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'storm_near_customers', 'rules_reference'], FILE) },
+  quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'rules_reference', 'storm_near_customers', 'inbox_pending', 'verify_item', 'file_report']) },
+  tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'file_note', 'file_reminder'] },
+  dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report'] },
+  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'file_report'] },
+  priya:  { name: 'Priya · Product Manager', tools: ['team_activity', 'file_report'] },
+  theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'lead_sources', 'file_report'] },
   // Personal side (Jo, 2026-10-02): these read ONLY the key owner's own
   // tracker (userSettings/{ownerUid}.dsSnapshot / dsReviews) — never the CRM.
   // Their keys are made with scope 'personal' and checked on every call.
@@ -121,9 +145,17 @@ function isPersonalBot(botId) { return Object.prototype.hasOwnProperty.call(BOTS
 function isPersonalTool(name) { return PERSONAL_TOOLS.indexOf(name) !== -1; }
 const FIRST_WAVE = ['cos', 'marcus', 'quinn'];
 
+// MCP tool annotations: every tool is read-only except the three filings
+// and Quinn's check, which only add to / mark Jo's Agent inbox — none is
+// destructive, and none reaches anything outside the CRM.
+const WRITES = ['file_note', 'file_reminder', 'file_report', 'verify_item'];
+function annotationsFor(name) {
+  const w = WRITES.indexOf(name) !== -1;
+  return { readOnlyHint: !w, destructiveHint: false, idempotentHint: !w, openWorldHint: false };
+}
 function toolsForBot(botId) {
   const b = Object.prototype.hasOwnProperty.call(BOTS, botId) ? BOTS[botId] : null;
-  return b ? b.tools.map((n) => Object.assign({ name: n }, TOOLS[n])) : [];
+  return b ? b.tools.map((n) => Object.assign({ name: n }, TOOLS[n], { annotations: annotationsFor(n) })) : [];
 }
 function botAllows(botId, tool) {
   const b = Object.prototype.hasOwnProperty.call(BOTS, botId) ? BOTS[botId] : null;
@@ -251,6 +283,173 @@ function estimatesStatus(estimates, deals, leads, args, nowMs) {
       && Date.parse(r.proposal.last_viewed || r.proposal.sent || '1970-01-01') < cut);
   }
   return out.sort((x, y) => String(y.made || '').localeCompare(String(x.made || ''))).slice(0, clampLimit(a.limit));
+}
+
+// ── Rules reference (Quinn + anyone writing copy) ──────────────────────
+// Mirrors docs/pro/js/estimate-config.js (TIER_RATES, TIER_DISPLAY,
+// WORKMANSHIP_WARRANTY, DEPOSIT_RULE) — tests/agent-mcp-roles-v2 loads that
+// file and fails on any drift. Kentucky lines come from the server's own
+// copy of the jurisdiction module.
+const TIERS = [
+  { key: 'economy', label: 'Economy', ratePerSq: 440, warranty: '1-year workmanship plus the shingle maker\'s limited warranty; no system warranty; not transferable', crmOnly: true, notes: 'Never 3-tab shingles.' },
+  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: 'Lifetime system warranty; not transferable' },
+  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: 'Lifetime system warranty; transferable to one later owner within 30 days of sale' },
+  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: 'Lifetime system warranty; fully transferable; annual inspection' },
+  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: 'Elite warranty plus TAMKO\'s hail warranty', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
+];
+const WORKMANSHIP_YEARS = { gutter_system: 5, guard_only: 2, install_default: 2, repair: 1, none: 0 };
+const DEPOSIT = { cashNoDepositUnderCents: 200000, cashDepositPct: 50, insurance: 'Kentucky insurance job: nothing due at signing; deductible + ACV due after the carrier\'s written decision and the 5-business-day cancellation window.' };
+let KY = null;
+try { KY = require('./ky-insurance-law'); } catch (_) { KY = null; }
+function rulesReference() {
+  const msg = (KY && KY.MSG) || {};
+  return {
+    tiers: TIERS.map((t) => Object.assign({}, t)),
+    tier_note: 'Per-SQ retail rates exclude delivery and add-ons. Economy and Beyond are CRM-only (not on the public site). Older jobs keep the year and "priced in <year>" context.',
+    workmanship_warranty_years: Object.assign({}, WORKMANSHIP_YEARS),
+    repair_warranty_note: 'Repairs carry 1 year only when the rep ticks the box.',
+    deposit: { cash_under_2000: 'no deposit', cash_2000_and_up: DEPOSIT.cashDepositPct + '% at signing', insurance: DEPOSIT.insurance },
+    kentucky_insurance_jobs: {
+      never_say: ['we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you'],
+      never_do: ['Assignment of Benefits or Direction to Pay', 'take payment before the carrier\'s written decision + 5 business days (emergency tarp/repair excepted)', 'give the insured more than $100 in value'],
+      say_instead: 'We document the damage and meet the adjuster; the claim stays the homeowner\'s.',
+      crm_messages: { depositHold: msg.depositHold || null, payLinkHeld: msg.payLinkHeld || null, aobRetired: msg.aobRetired || null },
+    },
+    house_rules: [
+      'Crews are independent subcontractors carrying their own insurance; never write "in-house crews" or W-2 employees. Jo is on every roof; no salespeople.',
+      '"Revenue" means money collected (payments by date received). Estimates, contracts and pipeline are projected.',
+      'Never publish cost, contractor price or margin figures anywhere public. Retail prices are fine.',
+      'Two emails on purpose: jd@ for marketing, info@ for documents and Zelle. Never merge them.',
+    ],
+  };
+}
+
+// ── Finished jobs / sources / profit / storms ──────────────────────────
+const SR = (() => { try { return require('./stage-roles'); } catch (_) { return null; } })();
+function roleOf(l) { return SR && typeof SR.roleFor === 'function' ? SR.roleFor(l) : (CLOSED.test(String(l.stage || '')) ? 'won' : 'active'); }
+function completedMs(l) { return ms(l.completedAt) || ms(l.installCompletedAt) || ms(l.stageStartedAt) || ms(l.updatedAt); }
+function balanceByLead(invoices) {
+  const out = {};
+  (invoices || []).forEach((inv) => {
+    if (!inv || !inv.leadId || inv.deleted === true || inv.status === 'void' || inv.status === 'paid') return;
+    const b = parseFloat(inv.balanceDue);
+    if (b > 0) out[inv.leadId] = Math.round(((out[inv.leadId] || 0) + b) * 100) / 100;
+  });
+  return out;
+}
+function postJob(leads, invoices, nowMs, args) {
+  const a = args || {};
+  const cut = nowMs - (Math.min(Math.max(Math.floor(Number(a.days)) || 120, 1), 730)) * 86400000;
+  const owed = balanceByLead(invoices);
+  return activeLeads(leads).filter((l) => roleOf(l) === 'won' && completedMs(l) >= cut)
+    .sort((x, y) => completedMs(y) - completedMs(x)).slice(0, clampLimit(a.limit)).map((l) => {
+      const done = completedMs(l);
+      return Object.assign(minimalLead(l), {
+        finished: done ? new Date(done).toISOString().slice(0, 10) : null,
+        days_since: done ? Math.floor((nowMs - done) / 86400000) : null,
+        balance_owed: owed[l.id] || 0,
+        review_requested: l.reviewRequested === true || !!ms(l.reviewRequestedAt),
+        warranty_tier: (l.warranty && (l.warranty.tierLabel || l.warranty.tier)) || null,
+        anniversary_touch_sent: !!ms(l.anniversaryTouchedAt),
+      });
+    });
+}
+function leadSources(leads, expenses, nowMs, days) {
+  const d = Math.min(Math.max(Math.floor(Number(days)) || 90, 7), 730);
+  const cut = nowMs - d * 86400000;
+  const rows = {};
+  const row = (k) => (rows[k] = rows[k] || { source: k, leads: 0, won: 0, lost: 0, open: 0, spend: 0 });
+  activeLeads(leads).forEach((l) => {
+    const t = ms(l.createdAt) || ms(l.updatedAt);
+    if (!t || t < cut) return;
+    const r = row(String(l.source || '').trim() || 'Unknown'); r.leads++;
+    const role = roleOf(l);
+    if (role === 'won') r.won++; else if (role === 'lost') r.lost++; else r.open++;
+  });
+  (expenses || []).forEach((e) => {
+    if (!e || !e.marketingSource || e.deleted === true) return;
+    const t = Date.parse(e.date) || ms(e.createdAt);
+    if (!t || t < cut) return;
+    row(String(e.marketingSource).trim()).spend += (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
+  });
+  const out = Object.values(rows).map((r) => ({
+    source: r.source, leads: r.leads, won: r.won, lost: r.lost, open: r.open,
+    win_rate: (r.won + r.lost) ? Math.round(r.won / (r.won + r.lost) * 100) : null,
+    spend: r.spend ? r.spend / 100 : 0,
+    cost_per_lead: r.spend && r.leads ? Math.round(r.spend / r.leads) / 100 : null,
+  })).sort((x, y) => y.leads - x.leads);
+  return { days: d, sources: out, note: 'win_rate = won ÷ decided (won + lost). Spend counts expenses tagged with a marketing source.' };
+}
+const DIRECT = 'direct';
+function jobProfit(leads, invoices, expenses, nowMs, args) {
+  const a = args || {};
+  const cut = nowMs - (Math.min(Math.max(Math.floor(Number(a.days)) || 180, 7), 730)) * 86400000;
+  const got = {}, cost = {};
+  (invoices || []).forEach((inv) => {
+    if (!inv || !inv.leadId || inv.deleted === true || inv.e2eTestData) return;
+    paymentsOf(inv).forEach((p) => { got[inv.leadId] = (got[inv.leadId] || 0) + Math.round(p.amount * 100); });
+  });
+  (expenses || []).forEach((e) => {
+    if (!e || !e.leadId || e.deleted === true || e.costType !== DIRECT) return;
+    cost[e.leadId] = (cost[e.leadId] || 0) + (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
+  });
+  const jobs = activeLeads(leads).filter((l) => roleOf(l) === 'won' && completedMs(l) >= cut).map((l) => {
+    const c = got[l.id] || 0, k = cost[l.id] || 0;
+    return { lead_id: l.id, name: minimalLead(l).name, finished: new Date(completedMs(l)).toISOString().slice(0, 10),
+      collected: c / 100, direct_costs: k / 100, profit: (c - k) / 100, margin_pct: c > 0 ? Math.round((c - k) / c * 100) : null,
+      costs_logged: k > 0 };
+  }).sort((x, y) => String(y.finished).localeCompare(String(x.finished))).slice(0, clampLimit(a.limit));
+  const tc = jobs.reduce((s, j) => s + Math.round(j.collected * 100), 0), tk = jobs.reduce((s, j) => s + Math.round(j.direct_costs * 100), 0);
+  return { jobs, totals: { collected: tc / 100, direct_costs: tk / 100, profit: (tc - tk) / 100, margin_pct: tc > 0 ? Math.round((tc - tk) / tc * 100) : null },
+    note: 'INTERNAL. Collected money minus direct job costs. A job with no costs logged (costs_logged false) overstates profit until its receipts are added.' };
+}
+function haversineMi(la1, lo1, la2, lo2) {
+  const R = 3958.8, toR = (x) => x * Math.PI / 180;
+  const dLa = toR(la2 - la1), dLo = toR(lo2 - lo1);
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(toR(la1)) * Math.cos(toR(la2)) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function stormNearCustomers(events, leads, nowMs, args) {
+  const a = args || {};
+  const days = Math.min(Math.max(Math.floor(Number(a.days)) || 14, 1), 60);
+  const miles = Math.min(Math.max(Number(a.miles) || 3, 0.5), 10);
+  const cut = nowMs - days * 86400000;
+  const located = activeLeads(leads).filter((l) => Number.isFinite(Number(l.lat)) && Number.isFinite(Number(l.lng)) && (Number(l.lat) || Number(l.lng)));
+  const out = (events || []).filter((e) => e && Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lon)) && (Date.parse(e.valid) || ms(e.processedAt)) >= cut)
+    .sort((x, y) => (Date.parse(y.valid) || ms(y.processedAt)) - (Date.parse(x.valid) || ms(x.processedAt)))
+    .slice(0, 25).map((e) => {
+      const near = located.map((l) => ({ l, d: haversineMi(Number(e.lat), Number(e.lon), Number(l.lat), Number(l.lng)) }))
+        .filter((x) => x.d <= miles).sort((x, y) => x.d - y.d);
+      return { kind: String(e.kind || ''), size: e.mag != null ? Number(e.mag) : null, where: [e.city, e.county, e.st].filter(Boolean).join(', '),
+        when: String(e.valid || ''), report: String(e.typetext || ''),
+        customers_within: near.length, customers: near.slice(0, 15).map((x) => ({ lead_id: x.l.id, name: minimalLead(x.l).name, address: String(x.l.address || ''), stage: String(x.l.stage || ''), miles: Math.round(x.d * 10) / 10 })) };
+    });
+  return { days, miles, events: out, customers_without_location: activeLeads(leads).length - located.length,
+    note: 'NWS local storm reports (area reports, not per-roof proof). Never promise a homeowner their claim will be paid.' };
+}
+
+// ── Team activity (CoS) ────────────────────────────────────────────────
+// audits: agent_audit docs {botId, tool, ok, at}; items: agent_inbox docs
+// {botId, bot, kind, status, verified, quinnNote, createdAt}. Personal bots
+// are never reported to the business side.
+function teamActivity(audits, items, nowMs, days) {
+  const d = Math.min(Math.max(Math.floor(Number(days)) || 7, 1), 30);
+  const cut = nowMs - d * 86400000;
+  const rows = {};
+  const row = (id) => (rows[id] = rows[id] || { bot: BOTS[id] ? BOTS[id].name : id, calls: 0, failed_calls: 0, filed: 0, approved: 0, tossed: 0, waiting: 0, quinn_checked: 0, quinn_flagged: 0 });
+  (audits || []).forEach((a) => {
+    if (!a || !BOTS[a.botId] || isPersonalBot(a.botId) || ms(a.at) < cut) return;
+    const r = row(a.botId); r.calls++; if (a.ok === false) r.failed_calls++;
+  });
+  (items || []).forEach((i) => {
+    if (!i || !BOTS[i.botId] || isPersonalBot(i.botId) || ms(i.createdAt) < cut) return;
+    const r = row(i.botId); r.filed++;
+    if (i.status === 'approved') r.approved++; else if (i.status === 'dismissed') r.tossed++; else r.waiting++;
+    if (i.verified === true) r.quinn_checked++; else if (i.quinnNote) r.quinn_flagged++;
+  });
+  const out = Object.keys(BOTS).filter((id) => !isPersonalBot(id)).map((id) => Object.assign({ bot_id: id }, row(id)));
+  out.forEach((r) => { const decided = r.approved + r.tossed; r.approval_rate = decided ? Math.round(r.approved / decided * 100) : null; });
+  return { days: d, bots: out, note: 'approval_rate = approved ÷ (approved + tossed). Silent bots (0 calls) may need a nudge or a different cadence.' };
 }
 
 // ── Personal tracker (snapshot the tracker publishes; nothing recomputed) ──
@@ -441,4 +640,6 @@ module.exports = {
   claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews,
+  teamActivity, annotationsFor, WRITES,
+  TIERS, WORKMANSHIP_YEARS, DEPOSIT, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
 };
