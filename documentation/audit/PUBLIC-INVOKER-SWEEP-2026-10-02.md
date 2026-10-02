@@ -39,7 +39,10 @@ enforces its own auth.
 - **`extractReceiptData` is not fixable in code.** firebase-functions reads
   `invoker` only for `onRequest`, and the Firebase CLI makes a callable
   public only when the function is **created**. It needs a one-off grant,
-  which is a production IAM write, so it waits for Jo's OK:
+  which is a production IAM write. **Done 2026-10-02 with Jo's OK** ("yes
+  run it"). Read back: `allUsers` → `run.invoker`. Verified: an unauthenticated
+  POST now gets the handler's own `401 UNAUTHENTICATED` JSON instead of Cloud
+  Run's 403 HTML page. The command, for the record:
 
   ```bash
   gcloud run services add-iam-policy-binding extractreceiptdata --region us-central1 --project nobigdeal-pro --member=allUsers --role=roles/run.invoker
