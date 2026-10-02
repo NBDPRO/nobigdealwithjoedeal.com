@@ -53,11 +53,14 @@
   }
   function leadName(l) { return l ? (((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer') : ''; }
 
+  // THE rule lives in home-attention.js (callNeedsYou), shared with the Home
+  // strip so the two never disagree. The fallback is only for a page without it.
   function needsAttention(c) {
+    if (window.NBDHomeAttention && typeof window.NBDHomeAttention.callNeedsYou === 'function') return window.NBDHomeAttention.callNeedsYou(c, Date.now());
     if (c.handledAtMs || c.status === 'personal') return false;
     var mine = (c.promises || []).some(function (p) { return p && p.who === 'jo'; });
     var dueNow = c.followUpDate && c.followUpDate <= todayYmd();
-    return !!(mine || dueNow || c.urgent || !c.leadId);
+    return !!(mine || dueNow || c.urgent);
   }
 
   var FILTERS = [
@@ -165,7 +168,7 @@
     var active = FILTERS.filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
     var rows = state.calls.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
-      '<p class="cc-sub">Calls recorded on your phone, filed every 30 minutes. AI notes list who promised what.</p></div>' +
+      '<p class="cc-sub">Calls recorded on your phone, filed every 30 minutes. AI notes list who promised what. "Needs attention" covers the last 14 days.</p></div>' +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist">' + FILTERS.map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +

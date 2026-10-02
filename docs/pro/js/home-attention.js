@@ -6,6 +6,17 @@
  *   💳 Stripe payments that need a customer   → Money (the Stripe panel's
  *      review list, stripeLedger needsReview:true)
  *   🪧 Yard signs due for pickup today / late  → Yard Signs
+ *   📞 Phone calls that need you (2026-10-02)   → Call Center
+ *
+ * callNeedsYou() is THE "needs attention" rule — call-center-view.js uses
+ * this same function for its default tab, so Home and the Call Center can
+ * never disagree. Recent calls only (14 days, the task window): the 90-day
+ * backlog holds hundreds of saved-contact calls that would otherwise read
+ * "300 calls need you". A call needs you when it is not handled / personal
+ * and is urgent, carries a promise Jo made, has a follow-up date that has
+ * come, or is an insurance line / unknown number with no customer on file
+ * (a missed call from an unknown number counts: it may be a lead). A saved
+ * contact with no customer only counts through a promise.
  *
  * Both lists already exist on their own views; Jo asked for the Stripe one
  * to surface on Home (2026-09-29) so a payment never sits unassigned because
@@ -52,15 +63,32 @@
     return (rows || []).filter((r) => r && r.needsReview === true && r.kind !== 'platform_subscription').length;
   }
 
+  const CALL_WINDOW = 14 * DAY;
+  const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  function callNeedsYou(c, now) {
+    const t = now == null ? Date.now() : now;
+    if (!c || c.handledAtMs || c.status === 'personal') return false;
+    if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
+    if (c.urgent === true) return true;
+    if ((c.promises || []).some((p) => p && p.who === 'jo')) return true;
+    if (c.followUpDate && c.followUpDate <= etYmd(t)) return true;
+    if (c.leadId) return false;
+    if (c.bucket === 'insurance') return true;
+    if (c.bucket === 'unknown') return c.status !== 'short' || c.direction === 'inbound';
+    return false;
+  }
+  function callsNeedingYou(rows, now) { return (rows || []).filter((c) => callNeedsYou(c, now)).length; }
+
   function stripHtml(counts) {
     const c = counts || {};
     const items = [];
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
+    if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + ' call' + (c.calls === 1 ? '' : 's') + ' need' + (c.calls === 1 ? 's' : '') + ' you</button>');
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -74,7 +102,7 @@
 
   async function count() {
     const u = uid(), c = claims();
-    const out = { stripe: 0, signs: 0 };
+    const out = { stripe: 0, signs: 0, calls: 0 };
     const tenant = tenantOf(c, u);
     const jobs = [];
     if (canSeeStripe(c, u) && tenant) {
@@ -85,6 +113,11 @@
     const col = w.collection(w.db, 'yardSigns');
     jobs.push(w.getDocs(staff ? w.query(col, w.where('companyId', '==', c.companyId)) : w.query(col, w.where('userId', '==', u)))
       .then((snap) => { out.signs = signsDue(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
+    // Calls: the owner's own (phone_calls rules: owner always reads own).
+    if (u && w.orderBy && w.limit) {
+      jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(200)))
+        .then((snap) => { out.calls = callsNeedingYou(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
+    }
     await Promise.all(jobs);
     return out;
   }
