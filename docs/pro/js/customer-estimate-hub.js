@@ -299,6 +299,8 @@
         ? '<button type="button" class="ceh-btn" disabled>★ Primary</button>'
         : '<button type="button" class="ceh-btn" data-ceh-act="primary" data-ceh-id="' + id + '">☆ Make primary</button>') +
       '<button type="button" class="ceh-btn" data-ceh-act="duplicate" data-ceh-id="' + id + '">⎘ Copy</button>' +
+      // Recommended buy list from this estimate (materials-list.js, 2026-10-02).
+      (Array.isArray(est.rows) && est.rows.length && window.NBDMaterials ? '<button type="button" class="ceh-btn" data-ceh-act="materials" data-ceh-id="' + id + '">🧾 Materials</button>' : '') +
       '<button type="button" class="ceh-btn" data-ceh-act="assign" data-ceh-id="' + id + '">👤 Assign</button>' +
       // Labelled for what it DOES. This button read "🗄 Archive" — an archive
       // box, the universal "filed away, still there" affordance — while
@@ -564,6 +566,11 @@
       case 'edit':      openBuilder(id); break;
       case 'primary':   makePrimary(id); break;
       case 'duplicate': doDuplicate(id); break;
+      case 'materials': {
+        const est = getEstimates().find(function (e) { return e && e.id === id; });
+        if (est && window.NBDMaterials) window.NBDMaterials.open(est, getLead());
+        break;
+      }
       case 'assign':    withEstimates('assignEstimateAction', [id]); break;
       case 'archive':   withEstimates('deleteEstimateAction', [id]); break;
       case 'new':       newEstimate(); break;
