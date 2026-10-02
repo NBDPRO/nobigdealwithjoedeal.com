@@ -1,0 +1,18 @@
+/* Price book viewer (price-book.js, 2026-10-02) — what the company actually
+   paid per store SKU. Internal only: these are cost figures. */
+.pb-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .7); display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px 12px; }
+.pb-modal { width: 100%; max-width: 760px; background: var(--s); border: 1px solid var(--br); border-radius: 12px; padding: 18px; color: var(--t); }
+.pb-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px; }
+.pb-title { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; }
+.pb-close { min-width: 44px; min-height: 44px; background: transparent; border: 0; color: var(--t); font-size: 20px; cursor: pointer; }
+.pb-sub { font-size: 12px; color: var(--m); margin: 0 0 12px; }
+.pb-search { width: 100%; min-height: 44px; padding: 10px 12px; background: var(--s2); border: 1px solid var(--br); border-radius: 8px; color: var(--t); font-size: 15px; box-sizing: border-box; margin-bottom: 10px; }
+.pb-empty { padding: 28px 8px; text-align: center; color: var(--m); font-size: 13px; line-height: 1.6; }
+.pb-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-top: 1px solid var(--br); }
+.pb-desc { font-size: 14px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.pb-price { font-size: 16px; font-weight: 800; text-align: right; white-space: nowrap; }
+.pb-meta { font-size: 11px; color: var(--m); }
+.pb-meta a { color: var(--orange, #BD5728); display: inline-block; padding: 12px 4px; margin: -12px 0; }
+.pb-trend-up { color: var(--red, #dc2626); }
+.pb-trend-down { color: var(--green, #22c55e); }
+.pb-store { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: var(--s2); border: 1px solid var(--br); margin-right: 6px; }
