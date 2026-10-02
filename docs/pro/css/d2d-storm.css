@@ -1,0 +1,11 @@
+/* Storm Watch legend on the D2D map (d2d-storm-layer.js, 2026-10-02). */
+.d2d-storm-legend { background: var(--s); color: var(--t); border: 1px solid var(--br); border-radius: 10px; padding: 8px 10px; font-size: 12px; max-width: 280px; box-shadow: 0 2px 10px rgba(0, 0, 0, .35); }
+.d2d-storm-chips { display: flex; gap: 6px; margin-bottom: 6px; }
+.d2d-storm-chip { flex: 1; min-height: 44px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--br); background: transparent; color: var(--m); font: inherit; font-weight: 700; font-size: 12px; cursor: pointer; }
+.d2d-storm-chip.is-on { border-color: var(--orange, #BD5728); color: var(--t); background: color-mix(in srgb, var(--orange, #BD5728) 20%, transparent); }
+.d2d-storm-key { line-height: 1.8; }
+.d2d-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 1px solid #111827; vertical-align: middle; margin: 0 3px 0 6px; }
+.d2d-dot.is-hail { background: #3b82f6; }
+.d2d-dot.is-wind { background: #22c55e; }
+.d2d-dot.is-tornado { background: #ef4444; }
+.d2d-storm-src { font-size: 10px; color: var(--m); margin-top: 2px; }
