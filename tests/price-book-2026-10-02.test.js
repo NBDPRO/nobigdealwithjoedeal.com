@@ -101,5 +101,21 @@ console.log('D. cost data stays private');
   ok('price-book.js carries no seeded prices (no cents literals in data)', !/lastPaidCents:\s*\d/.test(read('docs/pro/js/price-book.js')));
 }
 
+console.log('E. viewer');
+{
+  const items = {
+    homedepot_1: { store: 'homedepot', sku: '1', desc: 'Drip edge <b>10 ft</b>', lastPaidCents: 768, lastPaidDate: '2026-09-26', timesBought: 3, history: [{ cents: 768, date: '2026-09-26' }, { cents: 700, date: '2026-05-01' }] },
+    lowes_9: { store: 'lowes', sku: '9', desc: 'Roof cement', lastPaidCents: 899, lastPaidDate: '2026-08-01', timesBought: 1, history: [{ cents: 899, date: '2026-08-01' }] },
+  };
+  const rows = P.viewRows(items, '');
+  ok('newest purchase first, with the change since the last buy', rows[0].key === 'homedepot_1' && rows[0].delta === 68 && rows[1].delta === null);
+  ok('search matches description, SKU or store name', P.viewRows(items, 'cement').length === 1 && P.viewRows(items, "lowe's").length === 1 && P.viewRows(items, 'zzz').length === 0);
+  const src = read('docs/pro/js/price-book.js');
+  ok('every value painted into the list goes through esc()', /esc\(r\.desc \|\| r\.sku\)/.test(src) && /SKU ' \+ esc\(r\.sku\)/.test(src));
+  ok('store links are search URLs the rep opens — never fetched', /homedepot: \(sku\) => 'https:\/\/www\.homedepot\.com\/s\/' \+ encodeURIComponent\(sku\)/.test(src) && !/fetch\(/.test(src));
+  ok('Product Library header has the Price book button (class, no inline style)', /<button type="button" class="btn btn-ghost" data-pb-action="open"[^>]*>💲 Price book<\/button>/.test(read('docs/pro/js/product-library.js')));
+  ok('the estimates bundle (Product Library) loads the viewer + its CSS', /'js\/product-library\.js\?v=\d+',[\s\S]{0,300}'css\/price-book\.css\?v=\d+',\s*'js\/price-book\.js\?v=\d+'/.test(read('docs/pro/js/script-loader.js')));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

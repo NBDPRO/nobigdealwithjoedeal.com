@@ -692,6 +692,7 @@
           <div style="display:flex;gap:8px;">${editable ? `
             <button data-pl-action="addProduct" style="padding:8px 16px;background:var(--orange,#BD5728);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">+ Add Product</button>
 ` : ''}
+            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>
             <button data-pl-action="exportCSV" style="padding:8px 14px;background:#10b981;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:13px;">Export CSV</button>
             ${editable ? `<button data-pl-action="resetDefaults" style="padding:8px 14px;background:#ef4444;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:13px;">Reset</button>` : ''}
           </div>
