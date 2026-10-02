@@ -61,6 +61,30 @@ ok('sendEmail still verifies the caller (401 without a valid ID token)', /res\.s
 ok('sendSMS still verifies the caller (401 without a valid ID token)', /res\.status\(401\)/.test(read('sms-functions.js')) && /verifyIdToken/.test(read('sms-functions.js')));
 ok('cspReport keeps its per-IP rate limit', /httpRateLimit\(req, res, 'cspReport:ip'/.test(read('handlers/monitoring.js')));
 
+// The weekly watch (scripts/check-public-invoker.mjs, invoker-watch.yml):
+// its pure rules, against the REAL export list.
+console.log('\nPUBLIC INVOKER WATCH — the rules the weekly check applies');
+{
+  const L = require(path.join(__dirname, '..', 'scripts', 'public-invoker-logic.js'));
+  const list = L.browserFacing(fns);
+  const names = new Set(list.map((f) => f.name));
+  ok('every onRequest and onCall export is checked; schedules and triggers are not',
+    list.length > 100 && ['cspReport', 'sendEmail', 'sendSMS', 'extractReceiptData', 'callCenterAction'].every((n) => names.has(n))
+      && !names.has('callCenterTranscribe') && !names.has('callCenterIngest'), 'count ' + list.length);
+  ok('a callable is classified as callable (its fix is a one-off grant, not code)',
+    list.find((f) => f.name === 'extractReceiptData').kind === 'callable' && /onCall ignores invoker/.test(L.fixFor(list.find((f) => f.name === 'extractReceiptData'))));
+  ok('service names are the lower-cased function names', list.find((f) => f.name === 'sendSMS').service === 'sendsms');
+  const pub = { bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] };
+  ok('isPublic: allUsers run.invoker yes; another role, another member or nothing, no',
+    L.isPublic(pub) && !L.isPublic({ bindings: [{ role: 'roles/run.admin', members: ['allUsers'] }] })
+      && !L.isPublic({ bindings: [{ role: 'roles/run.invoker', members: ['serviceAccount:x'] }] }) && !L.isPublic({}) && !L.isPublic(null));
+  const fx = [{ name: 'a', service: 'a', kind: 'https' }, { name: 'b', service: 'b', kind: 'callable' }, { name: 'c', service: 'c', kind: 'https' }, { name: 'd', service: 'd', kind: 'https' }];
+  const v = L.judge(fx, { a: { policy: pub }, b: { policy: {} }, c: { error: 'HTTP 403 permission denied' }, d: { missingService: true } });
+  ok('judge: missing binding → notPublic; an API error is an ERROR, never "not public"; an undeployed function is neither',
+    !v.ok && v.notPublic.map((f) => f.name).join() === 'b' && v.errors.map((f) => f.name).join() === 'c' && v.missingService.map((f) => f.name).join() === 'd');
+  ok('judge: all public → ok', L.judge([fx[0]], { a: { policy: pub } }).ok === true);
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 process.exit(0);
