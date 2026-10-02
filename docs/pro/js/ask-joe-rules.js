@@ -31,7 +31,7 @@
 
   var KY_PAY = 'Kentucky insurance jobs: NOTHING is due at signing — no deposit, no deductible, no down payment — until the insurer’s written coverage decision AND the 5-business-day cancellation window have passed (KRS 367.626). Emergency tarp or repair work can be billed on its own invoice.';
 
-  var KY_VALUE = 'Kentucky insurance jobs: never offer the homeowner a deductible rebate, a discount against the fee, or anything worth more than $100 (gift cards, cash, referral fees included) (KRS 367.628). And never call anyone a "claims specialist" or "insurance expert".';
+  var KY_VALUE = 'Kentucky insurance jobs: never offer the homeowner a deductible rebate, a discount against the fee, or anything worth more than $100 (gift cards, cash, referral fees included) (KRS 367.628). And never present NBD as a specialist or expert in insurance claims.';
 
   var FALLBACK_DEPOSIT = 'Cash jobs under $2,000: no deposit — payment in full on completion. Cash jobs of $2,000 or more: 50% deposit at contract signing, balance on completion. Insurance claims: the homeowner’s deductible is due at signing and the insurance ACV payment (the carrier’s first check) is due as soon as the carrier releases it; the balance is due on completion. Kentucky insurance claims: nothing is due at signing; the deductible and the ACV payment are due after the insurer’s written coverage decision and the 5-business-day cancellation window. The deductible is the homeowner’s responsibility and is never waived or reduced.';
 

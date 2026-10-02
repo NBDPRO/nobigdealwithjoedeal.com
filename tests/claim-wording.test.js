@@ -317,7 +317,7 @@ console.log('\n5. Ask Joe system prompt (built for real, 2026-10-02)');
     ok(/The insurance claim belongs to the homeowner/.test(p) && /KRS 367\.620/.test(p) && /unlicensed public adjusting/.test(p), label + ': the homeowner owns the claim, the KY statute, the OH public-adjuster rule');
     ok(/Never coach a contractor to negotiate the claim/.test(p) && /assignment of benefits or a direction-to-pay/.test(p) && /waive or absorb a deductible/.test(p), label + ': never coaches negotiating, AOB / direction-to-pay, or deductible waivers');
     ok(/NOTHING is due at signing[\s\S]*KRS 367\.626/.test(p) && /5-business-day cancellation window/.test(p), label + ': Kentucky insurance jobs: nothing due at signing until the decision + 5 business days');
-    ok(/more than \$100/.test(p) && /KRS 367\.628/.test(p) && /claims specialist/.test(p), label + ': KY: no rebates / discounts / anything over $100; no "claims specialist"');
+    ok(/more than \$100/.test(p) && /KRS 367\.628/.test(p) && /never present NBD as a specialist or expert in insurance claims/.test(p), label + ': KY: no rebates / discounts / anything over $100; no "claims specialist"');
     ok(/Cash jobs under \$2,000: no deposit/.test(p) && /50% deposit at contract signing/.test(p) && /deductible is due at signing/.test(p) && /ACV payment/.test(p), label + ': quotes the deposit rule (cash < $2k none, $2k+ 50%, insurance deductible + ACV)');
   };
   checks(prompt, 'CRM Ask Joe');
