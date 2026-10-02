@@ -35,7 +35,9 @@ console.log('A. server tool list');
 {
   const T = require(path.join(ROOT, 'functions', 'ask-joe-tools.js'));
   const tools = T.toolsFor('joe-actions-v1');
-  ok('joe-actions-v1 has the five tools', Array.isArray(tools) && tools.map((t) => t.name).join() === 'find_customer,get_schedule,send_text,add_reminder,move_stage');
+  // + add_note and agent_inbox_summary (2026-10-02: Jo prefers notes and
+  // reminders in the CRM over texting).
+  ok('joe-actions-v1 has the seven tools', Array.isArray(tools) && tools.map((t) => t.name).join() === 'find_customer,get_schedule,send_text,add_reminder,add_note,agent_inbox_summary,move_stage');
   ok('every tool has a JSON schema with required fields', tools.every((t) => t.input_schema && t.input_schema.type === 'object' && Array.isArray(t.input_schema.required)));
   ok('unknown / absent / prototype names give no tools', T.toolsFor('x') === null && T.toolsFor(undefined) === null && T.toolsFor('__proto__') === null && T.toolsFor('constructor') === null);
   ok('no bulk / list texting tool exists yet (needs the consent gate)', !tools.some((t) => /bulk|list|campaign|blast/i.test(t.name)));
@@ -140,6 +142,19 @@ console.log('D. execute');
   ok('undo moves it back through moveCard', r.ok && moves[1][0] === 'L1' && moves[1][1] === 'negotiating');
   r = await W({}, { moveCard: async () => false }).execute(sc);
   ok('a refused / cancelled move is reported as not moved', !r.ok && /Not moved/.test(r.text));
+
+  console.log('D2. notes + the bot inbox');
+  writes.length = 0;
+  r = await W({ success: true, mode: 'platform' }, fb).execute({ id: 'c4', name: 'add_note', input: { lead_id: 'L1', text: 'Wants the HailGuard upgrade priced.' } });
+  const nw = writes[0];
+  ok('add_note writes a card note (top-level notes, the card\'s own shape)', r.ok && nw && nw.col === 'notes' && nw.data.leadId === 'L1' && nw.data.userId === 'u1' && nw.data.text === 'Wants the HailGuard upgrade priced.' && nw.data.source === 'ask_joe', JSON.stringify(nw));
+  ok('an empty note is refused before anything is written', !!W({}).describe('add_note', { lead_id: 'L1', text: '  ' }).error);
+  ok('add_note is an action (confirm card), the inbox summary is a read', W({}).isAction('add_note') && W({}).isRead('agent_inbox_summary'));
+  const inboxDocs = [{ bot: 'Marcus · NBD Ops', kind: 'note', leadId: 'L1', text: 'quiet since June', verified: true, createdAt: { seconds: 2 } }, { bot: 'Marcus · NBD Ops', kind: 'reminder', leadId: 'L1', dueDate: '2026-10-09', text: 'call', createdAt: { seconds: 3 } }, { bot: 'Theo · Venture Scout', kind: 'report', text: 'storms', createdAt: { seconds: 1 } }];
+  const sumW = W({}, { db: {}, collection: () => 'c', where: () => 'w', query: () => 'q', getDocs: async () => ({ docs: inboxDocs.map((d) => ({ data: () => d })) }) });
+  const sum = JSON.parse(await sumW.runRead('agent_inbox_summary', {}));
+  ok('inbox summary: counts by bot and kind, newest first, customer names', sum.waiting === 3 && sum.by_bot['Marcus · NBD Ops'].notes === 1 && sum.by_bot['Marcus · NBD Ops'].reminders === 1 && sum.by_bot['Theo · Venture Scout'].reports === 1 && sum.newest[0].kind === 'reminder' && sum.newest[0].customer === 'Maria Lopez', JSON.stringify(sum));
+  ok('the system prompt steers "note that / remind me" to notes and reminders', /Jo prefers NOTES and REMINDERS/.test(read('docs/pro/js/ask-joe-actions.js')));
 
   console.log('E. ai.js wiring');
   const ai = read('docs/pro/js/ai.js');
