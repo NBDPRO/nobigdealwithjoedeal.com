@@ -84,6 +84,7 @@
       { "_comment": "Close Board deal acceptance (1a). /deal/<token> serves the interactive deal-room HTML FIRST-PARTY so the homeowner's ACCEPT POST to /api/deal-accept is same-origin (a raw Storage URL would CORS-block it). Token-authed, no login. See functions/deal-acceptance.js.",
         "source": "/deal/**", "function": { "functionId": "getDealRoom", "region": "us-central1" } },
       { "source": "/api/deal-accept", "function": { "functionId": "submitDealAcceptance", "region": "us-central1" } },
+      { "source": "/api/deal-read", "function": { "functionId": "dealRoomReadPing", "region": "us-central1" } },
       { "_comment": "Inspection report sharing. /report/<token> serves a saved inspection report HTML first-party, token-authed, no login. See functions/report-sharing.js.",
         "source": "/report/**", "function": { "functionId": "getSharedReport", "region": "us-central1" } },
       { "_comment": "Read-only per-rep calendar feed. /calendar/<token>.ics serves text/calendar so the iPhone Calendar app can subscribe; token-authed, no login, one active token per rep (minting rotates). The .ics suffix is what makes iOS treat it as a calendar. See functions/calendar-feed.js.",

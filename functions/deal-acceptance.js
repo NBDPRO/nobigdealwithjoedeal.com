@@ -40,6 +40,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { fillLeadInstallDate } = require('./deal-install-date');
+const DV = require('./deal-view-logic');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -48,6 +49,7 @@ const CORS_ORIGINS = [
 ];
 const DEAL_URL_BASE = 'https://nobigdealwithjoedeal.com/deal/';
 const SUBMIT_PATH = '/api/deal-accept'; // same-origin hosting rewrite → submitDealAcceptance
+const READ_PATH = '/api/deal-read';     // same-origin hosting rewrite → dealRoomReadPing (2026-10-02)
 
 // Five tiers since 2026-10-02 (Jo): Economy and Beyond join Good/Better/Best.
 // Same order as docs/pro/js/estimate-config.js TIER_ORDER.
@@ -206,8 +208,17 @@ exports.getDealRoom = onRequest(
     // set(merge) — the doc is confirmed to exist above, and update() throws
     // (caught below) instead of silently recreating it if it's deleted in the
     // narrow window between that check and this write.
-    db.doc(`deal_accept_tokens/${token}`).update({ viewedAt: FieldValue.serverTimestamp() }).catch(() => {});
-    db.doc(`deal_rooms/${tok.dealId}`).update({ status: 'viewed', viewedAt: FieldValue.serverTimestamp() }).catch(() => {});
+    //
+    // Views (2026-10-02, "opened 3 times, 12 min"): a link-preview fetcher
+    // (iMessage, Messenger, Slack…) opens the link the moment it is texted —
+    // it gets the page but counts as nothing and pings no one.
+    const isBot = DV.isPreviewBot(req.get('user-agent'));
+    if (!isBot) {
+      db.doc(`deal_accept_tokens/${token}`).update({ viewedAt: FieldValue.serverTimestamp() }).catch(() => {});
+      db.doc(`deal_rooms/${tok.dealId}`).update({ status: 'viewed', viewedAt: FieldValue.serverTimestamp(),
+        viewCount: FieldValue.increment(1), lastViewedAt: FieldValue.serverTimestamp() }).catch(() => {});
+      notifyDealView(db, tok, dealRoomSnap.data() || {}).catch((e) => logger.warn('[getDealRoom] view notify failed', { msg: e && e.message }));
+    }
 
     let html = '';
     try {
@@ -231,6 +242,7 @@ exports.getDealRoom = onRequest(
     const escAttr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     const inject = `<meta name="nbd-deal-token" content="${escAttr(token)}">`
       + `<meta name="nbd-deal-submit" content="${escAttr(SUBMIT_PATH)}">`
+      + `<meta name="nbd-deal-read" content="${escAttr(READ_PATH)}">`
       + `<script>window.__NBD_DEAL_TOKEN=${JSON.stringify(token)};window.__NBD_DEAL_SUBMIT_URL=${JSON.stringify(SUBMIT_PATH)};</script>`;
     html = html.includes('</head>') ? html.replace('</head>', inject + '</head>') : inject + html;
 
@@ -387,3 +399,70 @@ exports.submitDealAcceptance = onRequest(
 );
 
 module.exports = exports;
+
+// ═══════════════════════════════════════════════════════════════
+// Proposal views (2026-10-02): tell the rep when the homeowner opens the deal
+// (first open, then a re-open 6+ h after the last heads-up), and record time
+// on page. Rules: deal-view-logic.js.
+// ═══════════════════════════════════════════════════════════════
+async function notifyDealView(db, tok, room) {
+  const now = Date.now();
+  if (!DV.shouldNotifyView(room, now)) return;
+  const ownerUid = tok.ownerUid || room.userId;
+  if (!ownerUid) return;
+  // Claim the heads-up first so two near-simultaneous opens send one.
+  const ref = db.doc(`deal_rooms/${tok.dealId}`);
+  const claimed = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists || !DV.shouldNotifyView(snap.data() || {}, now)) return null;
+    tx.update(ref, { lastViewNotifiedAt: FieldValue.serverTimestamp() });
+    return snap.data() || {};
+  });
+  if (!claimed) return;
+  const viewNumber = (Number(claimed.viewCount) || 0) + 1;
+  const msg = DV.viewMessage(claimed.customerName || room.customerName, viewNumber, claimed.readSeconds);
+  await db.collection('notifications').add({
+    userId: ownerUid,
+    type: 'deal_viewed',
+    leadId: tok.leadId || claimed.leadId || null,
+    title: msg.title,
+    message: msg.body,
+    priority: 'normal',
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  try {
+    const push = require('./push-functions');
+    await push.sendCustomNotification(ownerUid, msg.title, msg.body, { type: 'deal_viewed', leadId: String(tok.leadId || claimed.leadId || '') });
+  } catch (e) { logger.warn('[dealView] push failed', { msg: e && e.message }); }
+}
+
+exports.dealRoomReadPing = onRequest(
+  {
+    region: 'us-central1',
+    invoker: 'public',
+    maxInstances: 20,
+    concurrency: 40,
+    timeoutSeconds: 10,
+    memory: '256MiB',
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') { res.status(405).end(); return; }
+    if (!(await httpRateLimit(req, res, 'dealread-ping:ip', 60, 60_000))) return;
+    // sendBeacon posts text/plain; fetch keepalive posts JSON. Accept both.
+    let b = req.body || {};
+    if (typeof b === 'string') { try { b = JSON.parse(b); } catch (_) { b = {}; } }
+    if (Buffer.isBuffer(b)) { try { b = JSON.parse(b.toString('utf8')); } catch (_) { b = {}; } }
+    const token = typeof b.token === 'string' ? b.token : '';
+    const seconds = DV.clampReadSeconds(b.seconds);
+    if (!/^[A-Za-z0-9]{10,64}$/.test(token) || !seconds) { res.status(204).end(); return; }
+    if (DV.isPreviewBot(req.get('user-agent'))) { res.status(204).end(); return; }
+    const db = getFirestore();
+    const tokSnap = await db.doc(`deal_accept_tokens/${token}`).get();
+    const tok = tokSnap.exists ? tokSnap.data() : null;
+    if (!tok || !tok.dealId) { res.status(204).end(); return; }
+    // update() never recreates a removed deal room (same rule as getDealRoom).
+    await db.doc(`deal_rooms/${tok.dealId}`).update({ readSeconds: FieldValue.increment(seconds) }).catch(() => {});
+    res.status(204).end();
+  }
+);
