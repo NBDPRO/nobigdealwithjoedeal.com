@@ -175,6 +175,27 @@ console.log('\nUI PRIMITIVES — product editor modal (JS-built, 2026-10-02)');
     /width:\s*100%/.test(rule('.ui-input-box')) && !/background/.test(rule('.ui-input-box')) && /border-radius:\s*4px/.test(rule('.ui-input-sm')));
 }
 
+console.log('\nUI PRIMITIVES — Close Board (JS-built, 2026-10-02)');
+{
+  // Proven in context: signed in on the emulator, goTo('closeboard'), each of
+  // the active / create / analytics tabs at 1280 and 390 px with animations
+  // frozen. Zero computed-style diff (30 / 61 / 60 elements). A marker on the
+  // five classes reached 4 / 15 / 8 elements, every site accounted for.
+  const src = read('docs/pro/js/close-board.js');
+  const crm = src.slice(src.indexOf('  function render() {'), src.indexOf('  window.CloseBoard = {'));
+  for (const [cls, n] of [['ui-stat', 4], ['ui-stat-box', 4], ['ui-field-md', 4], ['ui-field-xs', 3], ['ui-caps-label', 4]]) {
+    const uses = (crm.match(new RegExp('class="[^"]*\\b' + cls + '(?![\\w-])[^"]*"', 'g')) || []).length;
+    ok('close board: .' + cls + ' on ' + n + ' elements', uses === n, 'found ' + uses);
+  }
+  // The homeowner-facing deal page is a standalone HTML document with no
+  // stylesheet; it must keep inlining its styles.
+  const page = src.slice(src.indexOf('<!DOCTYPE html>'), src.indexOf('  function render() {'));
+  ok('close board: the standalone homeowner page uses none of the CRM classes',
+    page.length > 1000 && !/class="[^"]*\bui-(stat|stat-box|field-md|field-xs|caps-label)\b/.test(page));
+  ok('.ui-stat / .ui-stat-box / .ui-field-md / .ui-field-xs / .ui-caps-label are defined once each',
+    ['.ui-stat', '.ui-stat-box', '.ui-field-md', '.ui-field-xs', '.ui-caps-label'].every((c) => (read('docs/pro/css/ui-primitives.css').match(new RegExp('^\\' + c + '\\s*\\{', 'gm')) || []).length === 1));
+}
+
 console.log('\nUI PRIMITIVES — Money and Expenses cards (JS-built)');
 {
   // Equivalence was checked in context: an old inline card and a .ui-card

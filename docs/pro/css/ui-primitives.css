@@ -137,6 +137,14 @@
 .ui-label-sm { display: block; font-size: 11px; font-weight: 600; color: var(--m); margin-bottom: 3px; }
 .ui-label-strong { display: block; font-size: 12px; font-weight: 700; color: var(--t); margin-bottom: 8px; }
 .ui-hint { font-size: 10px; color: var(--m); }
+/* Stat tiles: a strip of equal tiles (.ui-stat) and a grid tile (.ui-stat-box)
+   (Close Board header and analytics). */
+.ui-stat { flex: 1; min-width: 100px; background: var(--s2); border: 1px solid var(--br); border-radius: 10px; padding: 12px; text-align: center; }
+.ui-stat-box { background: var(--s2); border: 1px solid var(--br); border-radius: 10px; padding: 14px; text-align: center; }
+/* Stacked form inputs under a .ui-caps-label (Close Board create form). */
+.ui-field-md { width: 100%; padding: 10px; background: var(--s); border: 1px solid var(--br); border-radius: 8px; color: var(--t); font-size: 13px; margin-top: 4px; box-sizing: border-box; }
+.ui-field-xs { width: 100%; padding: 8px; background: var(--s); border: 1px solid var(--br); border-radius: 6px; color: var(--t); font-size: 13px; margin-top: 3px; box-sizing: border-box; }
+.ui-caps-label { font-size: 11px; font-weight: 600; color: var(--m); text-transform: uppercase; letter-spacing: .06em; }
 /* Full-width form field (Edit Customer sheet). */
 .ui-field {
   width: 100%;
