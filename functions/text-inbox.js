@@ -12,8 +12,9 @@
  *
  *   - newest backup only (each is a full copy); skipped when it's the same
  *     file + modifiedTime as last run
- *   - reads texts newer than the cursor minus 3 days (90 days on the first
- *     run); doc ids are content hashes, so overlap never duplicates
+ *   - reads texts newer than the cursor minus 3 days (from 2026-01-01 on the
+ *     first run, never earlier: T.HISTORY_FROM_MS); doc ids are content
+ *     hashes, so overlap never duplicates
  *   - cursor + counts (no names, numbers or bodies) on integrations/textInbox
  *   - integrations/textInbox.paused === true stops it
  *
@@ -35,7 +36,6 @@ const COLLECTION = 'phone_texts';
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FOLDER_NAME = 'SMSBackupRestore';
-const BACKFILL_DAYS = 90;
 const MAX_BYTES = 250 * 1024 * 1024;
 const BATCH = 400;
 const enabled = () => process.env.TEXT_INBOX_ENABLED === 'true';
@@ -100,7 +100,7 @@ async function runTextIngest({ db, live, nowMs }) {
   if (live && cfg.lastFileId === newest.id && cfg.lastFileModified === newest.modifiedTime) return { state: 'unchanged' };
   if (Number(newest.size) > MAX_BYTES) return { state: 'too_large' };
 
-  const since = T.sinceFor(cfg.cursorMs || null, nowMs, BACKFILL_DAYS);
+  const since = T.sinceFor(cfg.cursorMs || null, nowMs);
   const { messages, skipped } = T.parseSmsBackup(await downloadText(newest.id), { sinceMs: since });
   const index = CC.buildPhoneIndex(await ownerLeads(db));
   const counts = { parsed: messages.length, fresh: 0, stored: 0, buckets: {}, skippedShortCodes: skipped.shortCode, skippedOther: skipped.otherType + skipped.noNumber };
