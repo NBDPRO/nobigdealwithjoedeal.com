@@ -1998,7 +1998,8 @@ async function loadEstimates(leadId) {
       // a 'better' chip on a gutter quote was a default, not a choice.
       const tier = (window.NBDCustomerEstimateRows?.tierApplies?.(est) === false)
         ? '' : String(est.tier || est.tierName || '');
-      const tierColor = tier==='best'?'var(--green)':tier==='better'?'#9B6DFF':'var(--orange)';
+      // Five tiers (2026-10-02): Economy muted, Beyond teal; Good keeps orange.
+      const tierColor = tier==='beyond'?'#0e7490':tier==='best'?'var(--green)':tier==='better'?'#9B6DFF':tier==='economy'?'var(--m)':'var(--orange)';
       const tierLabel = tier ? `<span style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${tierColor};border:1px solid ${tierColor};padding:1px 6px;border-radius:3px;margin-left:6px;">${esc(tier)}</span>` : '';
       const dateStr = est.createdAt?.toDate ? est.createdAt.toDate().toLocaleDateString() : '—';
       const isPrimary = primaryId && String(est.id) === String(primaryId);
@@ -3652,9 +3653,21 @@ window.generateCertFromEstimate = async function(estimateId) {
   const _tierKey = _jobW ? '' : (_jw ? _jw.wordingTier : String(est.tier || est.tierName || '').toLowerCase());
   const _cfg = window.NBD_ESTIMATE_CONFIG;
   const tierLabelStr = (_cfg && typeof _cfg.tierLabel === 'function')
-    ? _cfg.tierLabel(_tierKey) : ({ good: 'Standard', better: 'Preferred', best: 'Elite' })[_tierKey] || '';
+    ? _cfg.tierLabel(_tierKey) : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[_tierKey] || '';
   const warrantyBlurb = (_cfg && typeof _cfg.tierWarrantyBlurb === 'function')
     ? _cfg.tierWarrantyBlurb(_tierKey) : '';
+  // Five tiers (Jo, 2026-10-02): an Economy roof is a 1-YEAR labor warranty +
+  // the shingle maker's standard limited warranty, NO system warranty — this
+  // certificate must not say lifetime for it. Beyond adds TAMKO's HailGuard
+  // hail warranty. TIER_DISPLAY when loaded, else the same facts by key.
+  const _tierW = (_cfg && _cfg.TIER_DISPLAY && _cfg.TIER_DISPLAY[_tierKey] && _cfg.TIER_DISPLAY[_tierKey].warranty)
+    || ({ economy: { workmanshipYears: 1 }, beyond: { hailWarranty: true } })[_tierKey] || {};
+  const _tierYears = Number(_tierW.workmanshipYears) > 0 ? Number(_tierW.workmanshipYears) : 0;
+  const _roofPeriod = _tierYears ? _tierYears + '-Year Workmanship (Labor)' : 'Lifetime Workmanship';
+  const _roofBody = _tierYears
+    ? 'This warranty covers defects in workmanship for ' + (_tierYears === 1 ? 'one (1) year' : _tierYears + ' years') + ' from the completion date. The shingles carry the manufacturer\'s standard limited warranty; no system warranty is included.'
+    : 'This warranty covers defects in workmanship for the lifetime of the installation.'
+      + (_tierW.hailWarranty ? ' The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' : '');
 
   // Accent is a literal here, not var(--orange): this popup links only
   // nbd-mobile.css, which never DECLARES --orange (it only reads it with a
@@ -3713,11 +3726,11 @@ window.generateCertFromEstimate = async function(estimateId) {
     <div class="row"><span class="label">Work Performed</span><span class="value">${esc(est.title || (_jobW && est.name) || 'Roofing Installation')}</span></div>
     <div class="row"><span class="label">Completion Date</span><span class="value">${installDay.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</span></div>
     ${tierLabelStr ? `<div class="row"><span class="label">Guarantee Tier</span><span class="value">${esc(tierLabelStr)}</span></div>` : ''}
-    <div class="row"><span class="label">Warranty Period</span><span class="value">${_jobW ? esc(_jobW.years ? _jobW.years + '-Year Workmanship' : 'As stated below') : 'Lifetime Workmanship'}</span></div>
-    ${warrantyBlurb ? `<div class="row"><span class="label">Transferability</span><span class="value">${esc(warrantyBlurb)}</span></div>` : ''}
+    <div class="row"><span class="label">Warranty Period</span><span class="value">${_jobW ? esc(_jobW.years ? _jobW.years + '-Year Workmanship' : 'As stated below') : esc(_roofPeriod)}</span></div>
+    ${warrantyBlurb ? `<div class="row"><span class="label">${_tierYears ? 'Coverage' : 'Transferability'}</span><span class="value">${esc(warrantyBlurb)}</span></div>` : ''}
     <div class="row"><span class="label">Certificate #</span><span class="value">NBD-${estimateId.slice(0,8).toUpperCase()}</span></div>
   </div>
-  <p style="font-size:12px;color:#666;line-height:1.7;margin:20px 0;">This certificate warrants that all work performed by No Big Deal Home Solutions at the above property was completed using industry-standard materials and craftsmanship. ${_jobW ? esc(_jobW.text) + ' Defects in the workmanship it covers, appearing within that period, will be repaired at no cost to you.' : 'This warranty covers defects in workmanship for the lifetime of the installation.'}</p>
+  <p style="font-size:12px;color:#666;line-height:1.7;margin:20px 0;">This certificate warrants that all work performed by No Big Deal Home Solutions at the above property was completed using industry-standard materials and craftsmanship. ${_jobW ? esc(_jobW.text) + ' Defects in the workmanship it covers, appearing within that period, will be repaired at no cost to you.' : esc(_roofBody)}</p>
   <div class="footer">
     <div class="sig"><div class="sig-line">Contractor Signature</div></div>
     <div class="sig"><div class="sig-line">Date Issued: ${new Date().toLocaleDateString()}</div></div>

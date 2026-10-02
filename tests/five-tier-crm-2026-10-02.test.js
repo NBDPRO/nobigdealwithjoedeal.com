@@ -172,5 +172,12 @@ ok('estimate-rows labels all five, both copies identical', /economy: 'Economy'/.
   }
 }
 
+console.log('\n8. Homeowner portal warranty card');
+{
+  const pj = read('docs/pro/js/portal.js');
+  ok('an Economy card never falls back to the Lifetime Pledge title',
+    /const pledgeTitle = w\.tier === 'economy'\s*\? 'Economy — 1-Year Labor Warranty'/.test(pj) && /esc\(w\.tierLabel \|\| pledgeTitle\)/.test(pj));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

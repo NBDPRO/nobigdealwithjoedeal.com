@@ -14,8 +14,15 @@
     - Signature block at the foot of the doc with two lines
 
   Required template variables:
-    owner, address, dateFormatted, work, tier (standard|preferred|elite),
-    tierLabel, tierLabelLong, tierTerms, certNumber, isElite, isPreferred
+    owner, address, dateFormatted, work,
+    tier (economy|standard|preferred|elite|beyond),
+    tierLabel, tierLabelLong, tierTerms, certNumber, isElite, isPreferred,
+    isEconomy, isBeyond
+
+  Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
+  shingle manufacturer's standard limited warranty, no system warranty — it
+  never prints the Lifetime Pledge. Beyond is Elite's terms (isElite is true)
+  plus TAMKO's HailGuard hail warranty.
 --}}
 
 {{!-- D-2.5: shared cover-page partial. Brand-consistent across every
@@ -25,7 +32,16 @@
      company.isNbd — NBD keeps the exact "NBD Lifetime Pledge" wording
      byte-identical; a stranger tenant renders the neutral "Lifetime Pledge"
      so the cert never advertises NBD to another company's homeowner. --}}
-{{#if company.isNbd}}
+{{#if isEconomy}}
+{{> coverPage
+  eyebrow="Warranty Certificate · 1-Year Labor Warranty"
+  tagline="Backed by our<br>name on the line."
+  sub="This certificate is the homeowner's record that the installation on the property below carries a one-year labor (workmanship) warranty from the installation date. The shingles carry the manufacturer's standard limited warranty; no system warranty is included. Keep it with your important home documents."
+  preparedFor=preparedFor
+  preparedBy=preparedBy
+  projectMeta=projectMeta
+}}
+{{else if company.isNbd}}
 {{> coverPage
   eyebrow="Warranty Certificate · Lifetime Pledge"
   tagline="Backed by our<br>name on the line."
@@ -46,7 +62,11 @@
 {{/if}}
 
 <div style="display:flex; align-items:center; gap:12pt; margin: var(--s-6) 0 var(--s-5); page-break-before: always; break-before: page;">
+  {{#if isEconomy}}
+  <span class="badge tier-{{tier}}">{{tier}} · 1-Year Labor Warranty</span>
+  {{else}}
   <span class="badge tier-{{tier}}">{{tier}} · {{#if company.seal}}{{company.seal}} {{/if}}Lifetime Pledge</span>
+  {{/if}}
   <span class="eyebrow muted">Certificate {{certNumber}}</span>
 </div>
 
@@ -79,8 +99,13 @@
 </div>
 
 <div class="feature-grid">
+  {{#if isEconomy}}
+  <div class="feature">1-year labor warranty from the installation date</div>
+  <div class="feature">Shingle manufacturer's standard limited warranty (no system warranty)</div>
+  {{else}}
   <div class="feature">{{#if company.seal}}{{company.seal}} {{/if}}Lifetime Pledge — no expiration on labor warranty</div>
   <div class="feature">{{#if manufacturerWarrantyFeature}}{{manufacturerWarrantyFeature}}{{else}}GAF Timberline lifetime manufacturer shingle warranty{{/if}}</div>
+  {{/if}}
   {{#if isPreferred}}<div class="feature">Transferable to new owner on sale of property</div>{{/if}}
   {{#if isElite}}<div class="feature">Annual courtesy inspection included</div>{{/if}}
   {{#if isElite}}<div class="feature">Fully transferable — follows the property through all subsequent owners</div>{{/if}}
@@ -88,7 +113,7 @@
   {{#if company.isNbd}}<div class="feature">Recorded on file at NBD Home Solutions</div>{{else}}<div class="feature">Recorded on file at {{company.footerName}}</div>{{/if}}
 </div>
 
-<p class="meta" style="margin-top:18pt; line-height:1.6;">This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than {{company.footerName}}. The {{#if manufacturer}}{{manufacturer}}{{else}}GAF{{/if}} manufacturer shingle warranty is a separate warranty provided directly by {{#if manufacturer}}{{manufacturer}}{{else}}GAF{{/if}} and is not administered by {{company.footerName}}.</p>
+<p class="meta" style="margin-top:18pt; line-height:1.6;">This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than {{company.footerName}}. {{#if isEconomy}}The shingle manufacturer's standard limited warranty is a separate warranty provided directly by the manufacturer and is not administered by {{company.footerName}}.{{else}}The {{#if manufacturer}}{{manufacturer}}{{else}}GAF{{/if}} manufacturer shingle warranty{{#if isBeyond}} (including the HailGuard hail warranty){{/if}} is a separate warranty provided directly by {{#if manufacturer}}{{manufacturer}}{{else}}GAF{{/if}} and is not administered by {{company.footerName}}.{{/if}}</p>
 
 <div class="sig-block">
   <h2 style="margin-top:0;">Signatures</h2>

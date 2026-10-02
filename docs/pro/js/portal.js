@@ -1215,7 +1215,14 @@
       const w = view.warranty;
       const tierAccent = w.tier === 'elite' ? '#111'
                        : w.tier === 'preferred' ? '#1a3260'
+                       : w.tier === 'beyond' ? '#0f5257'
+                       : w.tier === 'economy' ? '#5b5f66'
                        : '#A14A22';
+      // Economy is a 1-YEAR labor warranty (Jo, 2026-10-02), never the
+      // Lifetime Pledge — even when an older card carries no saved label.
+      const pledgeTitle = w.tier === 'economy'
+        ? 'Economy — 1-Year Labor Warranty'
+        : (isNbdCompany ? 'NBD Lifetime Pledge' : companyName + ' Lifetime Pledge');
       const installLabel = w.installDate
         ? new Date(w.installDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
         : '—';
@@ -1240,7 +1247,7 @@
           '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">' +
             '<div>' +
               '<div class="card-label" style="color:var(--accent,#A14A22);">🛡️ Digital Warranty Card</div>' +
-              '<div class="card-title" style="margin-top:2px;">' + esc(w.tierLabel || (isNbdCompany ? 'NBD Lifetime Pledge' : companyName + ' Lifetime Pledge')) + '</div>' +
+              '<div class="card-title" style="margin-top:2px;">' + esc(w.tierLabel || pledgeTitle) + '</div>' +
             '</div>' +
             '<div style="background:' + tierAccent + ';color:#fff;font-family:\'Barlow Condensed\',sans-serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:3px;white-space:nowrap;">' + esc(w.tier || 'standard') + '</div>' +
           '</div>' +

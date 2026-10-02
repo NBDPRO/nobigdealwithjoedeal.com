@@ -45,7 +45,39 @@
   function _tierLabel(key) {
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
     if (cfg && typeof cfg.tierLabel === 'function') return cfg.tierLabel(key).toUpperCase();
-    return ({ good: 'STANDARD', better: 'PREFERRED', best: 'ELITE' })[key] || String(key).toUpperCase();
+    return ({ economy: 'ECONOMY', good: 'STANDARD', better: 'PREFERRED', best: 'ELITE', beyond: 'BEYOND' })[key] || String(key).toUpperCase();
+  }
+
+  // Every tier, cheapest first (five since 2026-10-02). Read from the config;
+  // the inline copy only serves a page that didn't load estimate-config.js.
+  function _tierOrder() {
+    const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+    if (cfg && Array.isArray(cfg.TIER_ORDER)) return cfg.TIER_ORDER.slice();
+    return ['economy', 'good', 'better', 'best', 'beyond'];
+  }
+
+  // Tier-card subtitle: material differentiator + warranty phrase. Economy is
+  // a 1-year LABOR warranty (never "lifetime"); Beyond is HailGuard + TAMKO's
+  // hail warranty. The warranty half comes from TIER_DISPLAY when loaded.
+  const _TIER_MATERIAL = {
+    economy: 'Economy Architectural',
+    good:    'Standard Materials',
+    better:  'Upgraded Materials',
+    best:    'Impact-Rated',
+    beyond:  'TAMKO HailGuard'
+  };
+  function _tierCardSub(key) {
+    const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+    const disp = cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[key];
+    const w = disp ? disp.warranty : ({
+      economy: { workmanshipYears: 1 },
+      beyond:  { hailWarranty: true }
+    })[key] || {};
+    let warranty;
+    if (w.workmanshipYears) warranty = w.workmanshipYears + '-Year Labor Warranty';
+    else if (w.hailWarranty) warranty = 'Lifetime Warranty + Hail Warranty';
+    else warranty = 'Lifetime Warranty';
+    return (_TIER_MATERIAL[key] || 'Custom Scope') + ' · ' + warranty;
   }
 
   // Job-type workmanship warranty of the estimate being formatted
@@ -839,13 +871,19 @@ ${footer}
       // two subs didn't even state a duration. Every tier is lifetime
       // workmanship now (estimate-config.js TIER_DISPLAY) — the material
       // differentiator half matches TIER_RATES' own comments there.
-      const tierDefs = [
-        { key: 'good',   label: _tierLabel('good'),   sub: 'Standard Materials · Lifetime Warranty', color: '#6b7280' },
-        { key: 'better', label: _tierLabel('better'), sub: 'Upgraded Materials · Lifetime Warranty', color: '#3b82f6' },
-        { key: 'best',   label: _tierLabel('best'),   sub: 'Impact-Rated · Lifetime Warranty', color: _acc }
-      ];
+      // Five tiers since 2026-10-02: every tier in TIER_ORDER that the data
+      // carries gets a card; Economy says 1-year labor, Beyond says HailGuard.
+      // The grid wraps (auto-fit) so five cards print 3 + 2 on a letter page
+      // instead of squeezing five big prices into one row.
+      const _tierColors = { economy: '#57534e', good: '#6b7280', better: '#3b82f6', best: _acc, beyond: '#7c3aed' };
+      const tierDefs = _tierOrder().map(key => ({
+        key,
+        label: _tierLabel(key),
+        sub: _tierCardSub(key),
+        color: _tierColors[key] || '#6b7280'
+      }));
       tierCards = `
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:24px 0;">
           ${tierDefs.map(t => {
             const tierEst = tiers[t.key];
             if (!tierEst) return '';
