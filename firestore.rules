@@ -1539,6 +1539,27 @@ service cloud.firestore {
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
+    // Agent inbox (2026-10-02): what the Grok Bot team FILES through the NBD
+    // CRM connection — notes, reminders, reports — for the owner to review.
+    // Items are created server-side only (the connection's function, admin
+    // SDK). The owner / company_admin reads them and may only DECIDE: flip a
+    // pending item to approved / dismissed, stamp who and when, and edit the
+    // text before approving. Nothing else on the item can change, and a
+    // decided item stays decided.
+    match /agent_inbox/{itemId} {
+      allow read: if isAdmin()
+        || (resource.data.companyId == request.auth.uid && notViewer())
+        || (isCompanyAdmin() && resource.data.companyId == myCompanyId());
+      allow update: if (isAdmin()
+          || (resource.data.companyId == request.auth.uid && notViewer())
+          || (isCompanyAdmin() && resource.data.companyId == myCompanyId()))
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'dismissed']
+        && request.resource.data.decidedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'result', 'text']);
+      allow create, delete: if false;
+    }
+
     match /productLibrary/{companyId} {
       allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
       allow write: if isAdmin()
