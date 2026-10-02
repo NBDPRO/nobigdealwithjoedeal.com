@@ -30,6 +30,7 @@
 .ai-conn-sum { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
 .ai-conn-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--br); }
 .ai-conn-row .ai-btn { flex: 0 0 auto; padding: 0 14px; }
+.ai-conn-sec { margin-top: 14px; padding-top: 10px; border-top: 2px solid var(--br); }
 .ai-key-fresh { border: 1px solid var(--orange, #BD5728); border-radius: 10px; padding: 10px; margin: 8px 0; }
 .ai-key { display: block; margin: 6px 0; padding: 8px; background: var(--s2); border-radius: 6px; font-size: 12px; word-break: break-all; }
 .ai-link { background: none; border: 0; color: var(--red, #dc2626); font: inherit; font-size: 11px; cursor: pointer; text-decoration: underline; min-height: 44px; }

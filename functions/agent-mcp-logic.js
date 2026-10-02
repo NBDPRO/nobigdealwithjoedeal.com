@@ -74,6 +74,19 @@ const TOOLS = {
       limit: { type: 'integer', minimum: 1, maximum: MAX_LIST },
     }, additionalProperties: false },
   },
+  // ── Personal scope (Jo's own tracker; personal keys only) ─────────────
+  my_today: {
+    description: 'Jo\'s day in his personal tracker: today\'s floors (his daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it), and his latest weight. Read only.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  my_week: {
+    description: 'Jo\'s week from his tracker: each floor out of 7, full days, the $5-per-miss tax and whether he moved it to savings, the weigh-in rule (7-day average vs last week; not down 0.5 lb → cut 200 calories), the goal weight, and the plain-text weekly scorecard. Read only.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  my_reviews: {
+    description: 'Jo\'s saved Sunday reviews, newest first: floors %, miss tax moved or not, last week\'s hard thing done or not, what he kept, where he bailed, and this week\'s hard thing with its deadline. Hold him to them. Read only.',
+    inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 12 } }, additionalProperties: false },
+  },
   collected_revenue: {
     description: 'Money actually COLLECTED (invoice payments by the date they arrived, refunds subtracted) between two dates. This is the only figure to call "revenue". Defaults to this month. Returns totals, by month, and the top customers by collected amount.',
     inputSchema: { type: 'object', properties: {
@@ -97,7 +110,15 @@ const BOTS = {
   frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'estimates_status', 'file_report'] },
   priya:  { name: 'Priya · Product Manager', tools: ['file_report'] },
   theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'file_report'] },
+  // Personal side (Jo, 2026-10-02): these read ONLY the key owner's own
+  // tracker (userSettings/{ownerUid}.dsSnapshot / dsReviews) — never the CRM.
+  // Their keys are made with scope 'personal' and checked on every call.
+  coach:  { name: 'Coach · Personal', scope: 'personal', tools: ['my_today', 'my_week', 'my_reviews'] },
+  board:  { name: 'Finance Board · Personal', scope: 'personal', tools: ['my_week', 'my_reviews'] },
 };
+const PERSONAL_TOOLS = ['my_today', 'my_week', 'my_reviews'];
+function isPersonalBot(botId) { return Object.prototype.hasOwnProperty.call(BOTS, botId) && BOTS[botId].scope === 'personal'; }
+function isPersonalTool(name) { return PERSONAL_TOOLS.indexOf(name) !== -1; }
 const FIRST_WAVE = ['cos', 'marcus', 'quinn'];
 
 function toolsForBot(botId) {
@@ -232,6 +253,57 @@ function estimatesStatus(estimates, deals, leads, args, nowMs) {
   return out.sort((x, y) => String(y.made || '').localeCompare(String(x.made || ''))).slice(0, clampLimit(a.limit));
 }
 
+// ── Personal tracker (snapshot the tracker publishes; nothing recomputed) ──
+// The tracker writes userSettings/{uid}.dsSnapshot on every dashboard paint
+// (review-ui.js). The server only reads and trims it, so a bot sees exactly
+// what Jo's screen shows. Strings are length-capped; unknown keys dropped.
+const cap = (s, n) => String(s == null ? '' : s).slice(0, n);
+const numOr = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : null);
+function snapshotAge(snap, nowMs) {
+  const at = numOr(snap && snap.asOf);
+  return at ? Math.max(0, Math.round((nowMs - at) / 3600000)) : null;
+}
+function personalToday(snap, nowMs) {
+  const s = snap || {};
+  if (!s.asOf) return { note: 'The tracker has not published yet — Jo needs to open it once (Daily tracker → dashboard).' };
+  const t = s.today || {};
+  return {
+    as_of_hours_ago: snapshotAge(s, nowMs), day: cap(t.dk, 10),
+    floors: (Array.isArray(t.floors) ? t.floors : []).slice(0, 12).map((f) => ({ floor: cap(f.label, 60), met: f.met === true })),
+    all_met: t.allMet === true,
+    streak: s.streak ? { days: numOr(s.streak.count) || 0, missed_yesterday: s.streak.warned === true, ended: s.streak.broken === true } : null,
+    weight: s.weight ? { latest: numOr(s.weight.latest), avg7: numOr(s.weight.avg7) } : null,
+  };
+}
+function personalWeek(snap, nowMs) {
+  const s = snap || {};
+  if (!s.asOf) return { note: 'The tracker has not published yet — Jo needs to open it once.' };
+  const w = s.week || {};
+  return {
+    as_of_hours_ago: snapshotAge(s, nowMs), from: cap(w.from, 10), to: cap(w.to, 10),
+    floors_pct: numOr(w.pct), full_days: numOr(w.fullDays),
+    floors: (Array.isArray(w.rows) ? w.rows : []).slice(0, 12).map((r) => ({ floor: cap(r.label, 60), hit: numOr(r.hit), of: numOr(r.of) })),
+    miss_tax_dollars: numOr(w.missTaxCents) != null ? Number(w.missTaxCents) / 100 : null,
+    weigh_in: s.weight ? { change_7d: numOr(s.weight.change7), verdict: cap(s.weight.verdict, 12), rule: cap(s.weight.text, 240) } : null,
+    goal: s.goal ? { now: numOr(s.goal.now), goal: numOr(s.goal.goal), to_go: numOr(s.goal.left) } : null,
+    scorecard: cap(s.scorecard, 2500),
+  };
+}
+function personalReviews(reviews, limit) {
+  const weeks = (reviews && typeof reviews.weeks === 'object' && reviews.weeks) || {};
+  const n = Math.min(Math.max(Math.floor(Number(limit)) || 4, 1), 12);
+  return Object.keys(weeks).filter(isYmd).sort().reverse().slice(0, n).map((dk) => {
+    const r = weeks[dk] || {};
+    return {
+      week_ending: dk, floors_pct: numOr(r.pct), full_days: numOr(r.fullDays),
+      miss_tax_dollars: numOr(r.missTaxCents) != null ? Number(r.missTaxCents) / 100 : null, moved_to_savings: r.taxMoved === true,
+      last_hard_thing_done: r.lastDone === true ? true : r.lastDone === false ? false : null,
+      kept: cap(r.kept, 600), bailed: cap(r.bailed, 600), hard_thing: cap(r.scary, 200), hard_thing_due: isYmd(r.scaryDue) ? r.scaryDue : null,
+      weight_change: numOr(r.weightChange),
+    };
+  });
+}
+
 // ── Collected revenue ──────────────────────────────────────────────────
 // Same ledger as docs/pro/js/collected-revenue.js paymentsOf (payments[] +
 // synthetic remainder, else one lump; refunds negative on their own date).
@@ -346,6 +418,12 @@ function initializeResult(params, botId) {
   const asked = params && params.protocolVersion;
   const protocolVersion = PROTOCOL_VERSIONS.indexOf(asked) !== -1 ? asked : PROTOCOL_VERSIONS[0];
   const bot = BOTS[botId];
+  if (bot && bot.scope === 'personal') {
+    return {
+      protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: SERVER_INFO,
+      instructions: 'Jo\'s personal tracker for ' + bot.name + '. You can read his own floors, streak, week, weigh-in rule and Sunday reviews — nothing from the business CRM, and nothing you can change. Hold him to what he wrote, with numbers; no therapy-speak.',
+    };
+  }
   return {
     protocolVersion,
     capabilities: { tools: { listChanged: false } },
@@ -362,4 +440,5 @@ module.exports = {
   toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, validateFiling,
   claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
+  PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews,
 };

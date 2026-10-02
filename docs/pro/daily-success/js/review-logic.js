@@ -144,7 +144,31 @@
     return keys.length ? Object.assign({ dk: keys[keys.length - 1] }, reviews[keys[keys.length - 1]]) : null;
   }
 
-  const api = { addDays, metByDay, dayStatus, floorStreak, weekWindow, weekFloors, weightRule, goalProgress, scorecardText, reviewDue, lastReview };
+  /**
+   * The snapshot the tracker publishes for Jo's personal bots (Build 3):
+   * userSettings.dsSnapshot. Only what the screen already shows — floors,
+   * streak, week, weigh-in rule, goal, scorecard. `sig` is the change
+   * signature (everything but the timestamp) so an unchanged day isn't
+   * re-written on every paint.
+   */
+  function snapshotDoc(p, nowMs) {
+    const x = p || {};
+    const todaySet = x.byDayToday || new Set();
+    const floors = (x.floors || []).map((f) => ({ label: String(f.label || '').slice(0, 60), met: todaySet.has(f.id) }));
+    const body = {
+      today: { dk: x.todayDk || null, floors, allMet: floors.length > 0 && floors.every((f) => f.met) },
+      streak: x.streak ? { count: x.streak.count, warned: !!x.streak.warned, broken: !!x.streak.broken } : null,
+      week: x.week ? { from: x.week.from, to: x.week.to, pct: x.week.pct, fullDays: x.week.fullDays, misses: x.week.misses, missTaxCents: x.week.missTaxCents,
+        rows: x.week.rows.map((r) => ({ label: String(r.label || '').slice(0, 60), hit: r.hit, of: r.of })) } : null,
+      weight: x.trend ? { latest: x.trend.latest, avg7: x.trend.avg7, change7: x.trend.change7, verdict: x.rule ? x.rule.verdict : null, text: x.rule ? x.rule.text : '' } : null,
+      goal: x.goal ? { now: x.goal.now, goal: x.goal.goal, left: x.goal.left } : null,
+      scorecard: String(x.scorecard || '').slice(0, 2500),
+    };
+    const sig = JSON.stringify(body);
+    return Object.assign({ asOf: nowMs, sig }, body);
+  }
+
+  const api = { snapshotDoc, addDays, metByDay, dayStatus, floorStreak, weekWindow, weekFloors, weightRule, goalProgress, scorecardText, reviewDue, lastReview };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.NBDReview = api;
 })();
