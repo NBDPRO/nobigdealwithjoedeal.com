@@ -445,6 +445,8 @@ const VERDICTS = {
   sendEstimateForSignature: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
   setSiteSlug: 'role-gated', trackUsage: 'refused', transcribeVoiceMemo: 'refused',
   updateUserRole: 'role-gated', validateAccessCode: 'public', verifyCode: 'public',
+  // Bot keys (agent-mcp.js requireKeyAdmin refuses viewer / sales_rep).
+  createAgentKey: 'role-gated', listAgentKeys: 'role-gated', revokeAgentKey: 'role-gated',
   voidEsignEnvelope: 'refused',
   // Thursday (Bland receptionist, #1783/#1787, classified when #1780 landed
   // 2026-09-27): the recording stream reads only; the inbox action refuses
@@ -465,7 +467,7 @@ const VERDICTS = {
   saveFunnelProgress: 'public', sendD2DSMS: 'refused', sendEmail: 'already', sendPortalMessage: 'public',
   sendQueuedSMS: 'refused', sendSMS: 'refused', setStorageCors: 'role-gated', shareSSR: 'public',
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
-  submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', submitEsignEnvelope: 'public',
+  submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
   submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', submitReferral: 'public', submitSignature: 'public', swathWebhook: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
   // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup
