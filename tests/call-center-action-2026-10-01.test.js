@@ -91,6 +91,15 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('attaching an OLD noted call files the timeline entry but no stale task', !!db.docs.get('leads/L1/activity/cube-cube_CCCCC3') && !db.docs.has('leads/L1/tasks/cube-cube_CCCCC3'));
   ok('empty phone filled with the caller\'s number', db.docs.get('leads/L2').phone === '(513) 555-0199');
 
+  console.log('\n4b. A day of texts (txt_…)');
+  db = fakeDb(seed());
+  db.docs.set('phone_text_days/txt_5135550100_20261001', { userId: OWN, companyId: 'co1', status: 'noted', promises: [{ who: 'jo', text: 'Send the quote' }], startedAtMs: NOW });
+  await run(db, owner, { id: 'txt_5135550100_20261001', action: 'handled' });
+  ok('Handled works on a day of texts (phone_text_days)', db.docs.get('phone_text_days/txt_5135550100_20261001').handledAtMs === NOW);
+  ok('attach is refused for texts (the text ingest matches them)', (await run(db, owner, { id: 'txt_5135550100_20261001', action: 'attach', leadId: 'L1' })).e.code === 'invalid-argument');
+  ok('another tenant cannot touch a text day', (await run(db, { uid: 'm2', token: { role: 'manager', companyId: 'co2' } }, { id: 'txt_5135550100_20261001', action: 'handled' })).e.code === 'permission-denied');
+  ok('a malformed txt id is refused', (await run(db, owner, { id: 'txt_../x', action: 'handled' })).e.code === 'invalid-argument');
+
   console.log('\n5. notpersonal');
   db = fakeDb(seed());
   db.docs.set(COLLECTION + '/cube_PPPPP4', { userId: OWN, companyId: 'co1', status: 'personal', storagePath: null, audioRemoved: 'personal', driveFileId: 'DRV123', fileName: 'x ↗.m4a', ymd: '2026-09-30', summary: 'Personal call.', callType: 'personal' });

@@ -145,6 +145,9 @@ const FLAT_USER_COLLECTIONS = [
   // Text Inbox (text-inbox.js) — Jo's texts from the phone backup: numbers,
   // contact names, message bodies. Owner-keyed on userId.
   { name: 'phone_texts', ownerField: 'userId' },
+  // Text notes per conversation-day (text-inbox.js textInboxNotes): summaries
+  // and promises from Jo's texts. Owner-keyed on userId.
+  { name: 'phone_text_days', ownerField: 'userId' },
 ];
 
 // ─── COLLECTION-GROUPS WITH userId STAMPS ───────────────────

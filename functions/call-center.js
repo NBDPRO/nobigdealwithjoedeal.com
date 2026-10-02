@@ -221,6 +221,7 @@ function deps() {
   };
 }
 
+// Shared with text-inbox.js (textInboxNotes binds its own ANTHROPIC_API_KEY).
 async function claudeNotes({ system, prompt }) {
   const key = secretValue(ANTHROPIC_API_KEY);
   if (!key) throw new Error('anthropic-not-configured');
@@ -373,10 +374,14 @@ async function runSweep({ db, live, nowMs, send, slot }) {
   const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'noted')
     .orderBy('startedAtMs', 'desc').limit(300).get();
   q.forEach((d) => calls.push(Object.assign({}, d.data(), { id: d.id })));
+  // Texts (textInboxNotes): a texted promise counts like a spoken one.
+  const tq = await db.collection('phone_text_days').where('userId', '==', OWNER).where('status', '==', 'noted')
+    .orderBy('startedAtMs', 'desc').limit(300).get();
+  tq.forEach((d) => calls.push(Object.assign({}, d.data(), { id: d.id, channel: 'text' })));
   const withLead = calls.filter((c) => c.leadId);
   const tasksByCallId = new Map();
   if (withLead.length) {
-    const snaps = await db.getAll(...withLead.map((c) => db.doc('leads/' + c.leadId + '/tasks/cube-' + c.id)));
+    const snaps = await db.getAll(...withLead.map((c) => db.doc('leads/' + c.leadId + '/tasks/' + (c.channel === 'text' ? 'sms-' : 'cube-') + c.id)));
     snaps.forEach((s, i) => { if (s.exists) tasksByCallId.set(withLead[i].id, s.data()); });
   }
   const items = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
@@ -434,8 +439,10 @@ let deps_ = {};
 async function callAction({ db, auth, data, nowMs }) {
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const id = String((data && data.id) || '');
-  if (!/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
-  const ref = db.collection(COLLECTION).doc(id);
+  // cube_… = a phone call; txt_… = a day of texts (phone_text_days, 2026-10-02).
+  const isText = /^txt_[0-9_]{10,40}$/.test(id);
+  if (!isText && !/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  const ref = db.collection(isText ? 'phone_text_days' : COLLECTION).doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Call not found.');
   const call = Object.assign({}, snap.data(), { id });
@@ -451,6 +458,8 @@ async function callAction({ db, auth, data, nowMs }) {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
     return { ok: true };
   }
+  // Texts are matched to customers by the text ingest itself; only Handled applies.
+  if (isText) throw new HttpsError('invalid-argument', 'Only Handled applies to texts.');
   if (action === 'attach') {
     const leadId = String((data && data.leadId) || '');
     if (!leadId || leadId.includes('/')) throw new HttpsError('invalid-argument', 'Bad lead id.');
@@ -494,6 +503,8 @@ exports.callCenterAction = onCall(
   { region: 'us-central1', enforceAppCheck: true, memory: '256MiB', timeoutSeconds: 30, maxInstances: 10 },
   (request) => callAction({ db: getFirestore(), auth: request.auth, data: request.data, nowMs: Date.now() })
 );
+
+exports.claudeNotes = claudeNotes;
 
 exports._test = {
   runIngest,

@@ -31,6 +31,9 @@
   var MOBILE_MAX = 1024; // matches the CSS breakpoint that hides .nav-links
 
   var savedScrollY = 0;
+  // True while a drawer LINK is closing the drawer: that link may be scrolling
+  // to a section on purpose, so the restore must not fight it (see unlockScroll).
+  var closingViaLink = false;
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
@@ -124,10 +127,18 @@
     // coalesce the two style changes and animate anyway.
     void root.offsetHeight;
     root.style.scrollBehavior = prevBehavior;
-    // Belt and braces: if it STILL landed at the very top, re-apply once on the
-    // next frame. Only when clamped near 0 — a legacy menu link that smooth-
-    // scrolls to a section is never at 0, so it is never overridden.
+    // Belt and braces: re-check as layout settles and re-apply if the restore
+    // did not stick.
+    //  - Closed by the hamburger, Escape or a tap outside (nothing navigates):
+    //    the reader must land EXACTLY where they were, so any drift is
+    //    corrected. CI's mobile WebKit (2026-10-02) still landed 55-72 px off
+    //    on some runs — the old near-0-only check let those through, about 1
+    //    Public-surface run in 10.
+    //  - Closed by a drawer link: that link may be smooth-scrolling to a
+    //    section, so only the clamped-to-the-top failure is corrected.
     var target = savedScrollY;
+    var exact = !closingViaLink;
+    closingViaLink = false;
     if (target > 2) {
       // CI's Linux WebKit (2026-10-01) still landed at 0 on every retry of
       // some runs: the un-pinned page can lay out after the next frame, so one
@@ -139,7 +150,9 @@
       window.addEventListener('touchstart', markMoved, { passive: true, once: true });
       window.addEventListener('wheel', markMoved, { passive: true, once: true });
       var reapply = function () {
-        if (userMoved || (window.pageYOffset || 0) > 2) return;
+        var at = window.pageYOffset || 0;
+        if (userMoved) return;
+        if (exact ? Math.abs(at - target) <= 2 : at > 2) return;
         var pb = root.style.scrollBehavior;
         root.style.scrollBehavior = 'auto';
         jumpTo(target);
@@ -249,7 +262,7 @@
     // on across a same-document hash navigation and the page is frozen.
     mn.addEventListener('click', function (e) {
       var t = e.target;
-      if (t && t.closest && t.closest('a')) setOpen(false);
+      if (t && t.closest && t.closest('a')) { closingViaLink = true; setOpen(false); }
     });
 
     // Tap outside the drawer closes it.
