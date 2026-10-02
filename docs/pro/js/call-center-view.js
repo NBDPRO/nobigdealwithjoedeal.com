@@ -131,6 +131,9 @@
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
+      if (c.status === 'personal') {
+        actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
+      }
       if (!c.leadId) {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>' +
           '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(c.id) + '">Attach to customer…</button>';
@@ -230,9 +233,11 @@
         if (action === 'handled') c.handledAtMs = Date.now();
         if (action === 'unhandled') c.handledAtMs = null;
         if (action === 'attach' && r && r.leadId) { c.leadId = r.leadId; c.bucket = 'customer'; c.alternateLeadIds = []; }
+        if (action === 'notpersonal' && r && r.requeued) { c.status = 'stored'; c.notPersonal = true; c.summary = null; }
       }
       delete state.busy[id];
       render();
+      if (action === 'notpersonal') status(id, 'Got it. The recording is back and the notes will be redone within about 30 minutes.');
       if (action === 'attach') status(id, 'Filed on the customer' + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
       return r;
     } catch (e) {
@@ -308,7 +313,7 @@
     var a = b.getAttribute('data-cc'), id = b.getAttribute('data-id');
     if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; render(); }
     else if (a === 'play') play(id);
-    else if (a === 'handled' || a === 'unhandled') act(id, a);
+    else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'attachopen') openAttach(id);
     else if (a === 'attach') {
       var leadId = pickedLeadId(id);

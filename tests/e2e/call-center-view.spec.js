@@ -46,7 +46,7 @@ test.describe.serial('Call Center view @shard2', () => {
       let body = {};
       try { body = JSON.parse(route.request().postData() || '{}').data || {}; } catch (_) {}
       actions.push(body);
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, leadId: body.leadId || null, phoneAdded: true } }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, leadId: body.leadId || null, phoneAdded: true, requeued: body.action === 'notpersonal' } }) });
     });
     await page.route(/cloudfunctions\.net|\.run\.app/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":{}}' }));
     await page.setViewportSize({ width: 390, height: 844 });
@@ -65,6 +65,7 @@ test.describe.serial('Call Center view @shard2', () => {
            summary: 'Gutter leaking; Jo will send the quote.', promises: [{ who: 'jo', text: 'Send the gutter quote', due: '2026-10-02' }], transcript: 'zzcv transcript words' },
       b: { leadId: null, bucket: 'insurance', contactName: 'ZZCV Example Claims', phoneDigits: '8775550100', direction: 'outbound', startedAtMs: s - 2000, status: 'noted', storagePath: null, summary: 'Claim number given.', promises: [] },
       c: { leadId: null, bucket: 'unknown', contactName: '', phoneDigits: '5135550142', direction: 'inbound', startedAtMs: s - 3000, status: 'stored', storagePath: null },
+      p: { leadId: null, bucket: 'contact', contactName: 'ZZCV Misjudged', phoneDigits: '5135550188', direction: 'outbound', startedAtMs: s - 5000, status: 'personal', storagePath: null, summary: 'Personal call.', promises: [], driveFileId: 'drvzz' },
       d: { leadId, bucket: 'customer', contactName: 'ZZCV Cust', phoneDigits: '5135557001', direction: 'outbound', startedAtMs: s - 4000, status: 'noted', storagePath: null, summary: 'Quick check-in. Nothing owed.', promises: [] },
     };
     for (const [k, v] of Object.entries(docs)) await db.doc('phone_calls/cube_zzcv' + s + k).set(Object.assign({}, base, v));
@@ -129,6 +130,13 @@ test.describe.serial('Call Center view @shard2', () => {
     await page.locator('#view-calls [data-cc="filter"][data-arg="attention"]').click();
     await expect(card('a')).toHaveCount(0);
 
+    // A call the AI called personal: "It wasn't personal" sends notpersonal.
+    await page.locator('#view-calls [data-cc="filter"][data-arg="all"]').click();
+    await card('p').locator('[data-cc="notpersonal"]').click();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_zzcv' + s + 'p' && x.action === 'notpersonal'), { timeout: 10_000 }).toBe(true);
+    await expect(card('p').locator('[data-cc-status]')).toContainText('notes will be redone');
+    await page.locator('#view-calls [data-cc="filter"][data-arg="attention"]').click();
+
     // Attach the unknown number to the customer.
     await card('c').locator('[data-cc="attachopen"]').click();
     const input = page.locator('#ccAttach-cube_zzcv' + s + 'c');
@@ -139,7 +147,7 @@ test.describe.serial('Call Center view @shard2', () => {
     await expect(card('c')).toHaveCount(0);
 
     // Cleanup.
-    for (const k of ['a', 'b', 'c', 'd', 'x']) await db.doc('phone_calls/cube_zzcv' + s + k).delete().catch(() => {});
+    for (const k of ['a', 'b', 'c', 'd', 'p', 'x']) await db.doc('phone_calls/cube_zzcv' + s + k).delete().catch(() => {});
     await bucket.file(path).delete().catch(() => {});
   });
 });

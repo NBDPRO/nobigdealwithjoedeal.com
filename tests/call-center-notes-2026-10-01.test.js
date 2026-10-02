@@ -128,6 +128,15 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_1'] }, [COLLECTION + '/cube_1']: call('cube_1', { leadId: 'L1' }), 'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
   await runTranscribe({ db, bucket, live: false, nowMs: NOW });
 
+  console.log('\n5c. A call Jo marked not-personal stays business');
+  stub(() => ({ call_type: 'personal', summary: 'family', promises: [] }));
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_np'] }, [COLLECTION + '/cube_np']: call('cube_np', { leadId: null, notPersonal: true }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('the model\'s personal verdict is overridden: noted, transcript kept, audio kept', db.docs.get(COLLECTION + '/cube_np').status === 'noted' && !!db.docs.get(COLLECTION + '/cube_np').transcript && !deleted.some((p) => /cube_np/.test(p)));
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_1'] }, [COLLECTION + '/cube_1']: call('cube_1', { leadId: 'L1' }), 'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  stub(BUSINESS);
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+
   console.log('\n6. Re-run never un-ticks a done task');
   db.docs.set('leads/L1/tasks/cube-cube_1', Object.assign({}, db.docs.get('leads/L1/tasks/cube-cube_1'), { done: true }));
   db.docs.set(COLLECTION + '/cube_1', Object.assign({}, db.docs.get(COLLECTION + '/cube_1'), { status: 'stored' }));
