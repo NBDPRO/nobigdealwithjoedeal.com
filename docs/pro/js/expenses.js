@@ -722,8 +722,8 @@
         '<h3 style="margin:0 0 4px;font-size:14px;color:var(--t,#fff);">📣 Lead Spend</h3>' +
         '<div style="font-size:11px;color:var(--m,#9ca3af);margin-bottom:12px;">What it costs to generate a lead — per-lead marketplace fees plus the marketing/advertising you log by hand.</div>' +
         '<div style="margin-bottom:14px;">' +
-          '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t,#fff);">' +
-          '<span>Lead / Acquisition Cost <span style="font-size:10px;color:var(--m,#9ca3af);">(job cost — Thumbtack auto-captured)</span></span>' +
+          '<div class="ui-kv">' +
+          '<span>Lead / Acquisition Cost <span class="ui-hint">(job cost — Thumbtack auto-captured)</span></span>' +
           '<span style="font-weight:700;">' + money(ls.leadCents) + '</span></div>' +
           bar(leadPct, 'var(--green,#16a34a)') +
           (ls.leadCount
@@ -734,8 +734,8 @@
             : '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:4px;">No per-lead cost captured yet.</div>') +
         '</div>' +
         '<div>' +
-          '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t,#fff);">' +
-          '<span>Marketing &amp; Advertising <span style="font-size:10px;color:var(--m,#9ca3af);">(overhead — logged by hand, e.g. Yelp/Angi invoices)</span></span>' +
+          '<div class="ui-kv">' +
+          '<span>Marketing &amp; Advertising <span class="ui-hint">(overhead — logged by hand, e.g. Yelp/Angi invoices)</span></span>' +
           '<span style="font-weight:700;">' + money(ls.marketingCents) + '</span></div>' +
           bar(mktPct, 'var(--blue,#3b82f6)') +
         '</div>' +
@@ -757,21 +757,21 @@
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px;">';
     // Supplier spend (the explicit ask)
     html += '<div class="ui-card">' +
-      '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">Spend by Supplier</h3>';
+      '<h3 class="ui-card-head">Spend by Supplier</h3>';
     agg.suppliers.slice(0, 8).forEach(function (s) {
       html += '<div style="margin-bottom:10px;">' +
-        '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t,#fff);">' +
+        '<div class="ui-kv">' +
         '<span>' + esc(s.supplier) + '</span><span style="font-weight:700;">' + money(s.cents) + '</span></div>' +
-        '<div style="font-size:11px;color:var(--m,#9ca3af);">' + s.pct.toFixed(0) + '% of total</div>' +
+        '<div class="ui-note">' + s.pct.toFixed(0) + '% of total</div>' +
         bar(s.pct, accent) + '</div>';
     });
     html += '</div>';
     // Category breakdown
     html += '<div class="ui-card">' +
-      '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">Spend by Category</h3>';
+      '<h3 class="ui-card-head">Spend by Category</h3>';
     agg.categories.forEach(function (cat) {
       html += '<div style="margin-bottom:10px;">' +
-        '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t,#fff);">' +
+        '<div class="ui-kv">' +
         '<span>' + esc(cat.label) + '</span><span style="font-weight:700;">' + money(cat.cents) + '</span></div>' +
         bar(cat.pct, 'var(--blue,#3b82f6)') + '</div>';
     });
@@ -782,7 +782,7 @@
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
     if (jobIds.length) {
       html += '<div class="ui-card" style="margin-bottom:20px;">' +
-        '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">Cost &amp; Margin by Job</h3>';
+        '<h3 class="ui-card-head">Cost &amp; Margin by Job</h3>';
       jobIds.map(function (jid) {
         var jb = agg.byJob[jid];
         var lead = leadById(jid);
@@ -805,12 +805,12 @@
         if (va) {
           var over = va.varianceCents > 0;
           var vColor = over ? 'var(--red,#dc2626)' : 'var(--green,#16a34a)';
-          vaTxt = '<div style="font-size:11px;color:var(--m,#9ca3af);">est ' + money(va.estCents) + ' · ' +
+          vaTxt = '<div class="ui-note">est ' + money(va.estCents) + ' · ' +
             '<span style="color:' + vColor + ';font-weight:700;">' + (over ? '+' : '') + money(Math.abs(va.varianceCents)) + (over ? ' over' : ' under') + '</span></div>';
         }
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.06));">' +
           '<div style="min-width:0;"><div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(leadName(row.lead)) + '</div>' +
-          '<div style="font-size:11px;color:var(--m,#9ca3af);">' + row.jb.count + (row.jb.count === 1 ? ' expense · ' : ' expenses · ') + money(row.jb.directCents) + ' direct</div>' + vaTxt + '</div>' +
+          '<div class="ui-note">' + row.jb.count + (row.jb.count === 1 ? ' expense · ' : ' expenses · ') + money(row.jb.directCents) + ' direct</div>' + vaTxt + '</div>' +
           '<div style="text-align:right;white-space:nowrap;"><div style="font-size:14px;font-weight:700;color:var(--t,#fff);">' + money(row.jb.cents) + '</div>' +
           '<div style="font-size:11px;font-weight:700;color:' + mColor + ';">' + budgetBadge + marginTxt + '</div></div></div>';
       });
@@ -822,12 +822,12 @@
     // A1b: Recurring templates + one-tap "Due" chips
     if (_recurring.length) {
       html += '<div class="ui-card" style="margin-bottom:20px;">' +
-        '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">🔁 Recurring</h3>';
+        '<h3 class="ui-card-head">🔁 Recurring</h3>';
       _recurring.slice().sort(function (a, b) { return (toDate(a.nextDueDate) || 0) - (toDate(b.nextDueDate) || 0); }).forEach(function (t) {
         var due = isDue(t);
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.06));">' +
+        html += '<div class="ui-list-row">' +
           '<div style="min-width:0;"><div style="font-size:13px;color:var(--t,#fff);">' + esc(t.name || 'Recurring') + ' · ' + money(t.amountCents) + '</div>' +
-          '<div style="font-size:11px;color:var(--m,#9ca3af);">' + esc(t.frequency || 'monthly') + ' · ' + (t.status !== 'active' ? 'paused' : 'next ' + esc(fmtDate(t.nextDueDate))) + '</div></div>' +
+          '<div class="ui-note">' + esc(t.frequency || 'monthly') + ' · ' + (t.status !== 'active' ? 'paused' : 'next ' + esc(fmtDate(t.nextDueDate))) + '</div></div>' +
           '<div style="white-space:nowrap;">' +
             (due ? '<button type="button" class="btn btn-orange btn-sm" data-exp-action="add-recurring" data-rec-id="' + esc(t.id) + '">Due — Add</button> ' : '') +
             '<button data-exp-action="del-recurring" data-rec-id="' + esc(t.id) + '" title="Delete template" style="background:none;border:none;color:var(--red,#dc2626);cursor:pointer;font-size:13px;">✕</button>' +
@@ -852,9 +852,9 @@
         var ytd = supplierYtdCents(s.displayName, taxYear, _expenses);
         var flag = needs1099(s, taxYear, _expenses);
         var tc = TAX_CLASS_BY_KEY[s.taxClassification];
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.06));">' +
+        html += '<div class="ui-list-row">' +
           '<div style="min-width:0;"><div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.displayName) + '</div>' +
-          '<div style="font-size:11px;color:var(--m,#9ca3af);">' + esc(tc ? tc.label : s.taxClassification || '') + ' · W-9: ' + esc(s.w9Status || 'not_requested') + (s.is1099Eligible ? ' · 1099-eligible' : ' · exempt') + '</div></div>' +
+          '<div class="ui-note">' + esc(tc ? tc.label : s.taxClassification || '') + ' · W-9: ' + esc(s.w9Status || 'not_requested') + (s.is1099Eligible ? ' · 1099-eligible' : ' · exempt') + '</div></div>' +
           '<div style="text-align:right;white-space:nowrap;"><div style="font-size:13px;font-weight:700;color:var(--t,#fff);">' + money(ytd) + ' YTD</div>' +
           (flag ? '<div style="font-size:11px;font-weight:700;color:var(--orange,#BD5728);">⚑ 1099 due</div>' : '') +
           '</div>' +
@@ -873,11 +873,11 @@
       (noReceipt ? '<div style="font-size:11px;color:var(--gold,#eab308);margin-bottom:10px;">📎 ' + noReceipt + ' expense' + (noReceipt === 1 ? '' : 's') + ' without a receipt — attaching a photo or PDF is recommended (taxes, disputes, warranty claims).</div>' : '<div style="margin-bottom:8px;"></div>');
     _expenses.slice(0, 60).forEach(function (e) {
       var lead = e.leadId ? leadById(e.leadId) : null;
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.06));">' +
+      html += '<div class="ui-list-row">' +
         '<div style="min-width:0;flex:1;">' +
         '<div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.supplier || 'Unknown') +
-        ' <span style="font-size:10px;color:var(--m,#9ca3af);">· ' + esc(EC() ? EC().labelFor(e.category) : e.category) + '</span></div>' +
-        '<div style="font-size:11px;color:var(--m,#9ca3af);">' + esc(fmtDate(e.date)) + (lead ? ' · ' + esc(leadName(lead)) : '') + (e.note ? ' · ' + esc(e.note) : '') + (e.source === 'ocr' ? ' · scanned' : e.source === 'import_homedepot' ? ' · Home Depot import' : '') + '</div></div>' +
+        ' <span class="ui-hint">· ' + esc(EC() ? EC().labelFor(e.category) : e.category) + '</span></div>' +
+        '<div class="ui-note">' + esc(fmtDate(e.date)) + (lead ? ' · ' + esc(leadName(lead)) : '') + (e.note ? ' · ' + esc(e.note) : '') + (e.source === 'ocr' ? ' · scanned' : e.source === 'import_homedepot' ? ' · Home Depot import' : '') + '</div></div>' +
         (e.needsReview ? '<span title="AI scan — review the amount/vendor" style="color:var(--gold,#eab308);font-size:13px;">⚠</span>' : '') +
         (e.receiptStoragePath
           ? '<button data-exp-action="receipt" data-exp-path="' + esc(e.receiptStoragePath) + '" title="View receipt" style="background:none;border:none;cursor:pointer;font-size:15px;">📎</button>'
@@ -888,7 +888,7 @@
         // $1,322.21 total). The tax is named on a second line.
         '<div style="text-align:right;white-space:nowrap;"><div style="font-size:14px;font-weight:700;color:var(--t,#fff);">' +
           money((parseInt(e.amountCents, 10) || 0) + (parseInt(e.taxCents, 10) || 0)) + '</div>' +
-          ((parseInt(e.taxCents, 10) || 0) > 0 ? '<div style="font-size:10px;color:var(--m,#9ca3af);">incl. ' + money(e.taxCents) + ' tax</div>' : '') +
+          ((parseInt(e.taxCents, 10) || 0) > 0 ? '<div class="ui-hint">incl. ' + money(e.taxCents) + ' tax</div>' : '') +
         '</div>' +
         '<button data-exp-action="delete" data-exp-id="' + esc(e.id) + '" title="Delete" style="background:none;border:none;color:var(--red,#dc2626);cursor:pointer;font-size:14px;">✕</button>' +
         '</div>';
@@ -908,7 +908,7 @@
     return '<div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:2px;border-top:2px solid ' + color + ';">' +
       '<div class="stat-lbl" style="margin-top:0;text-transform:uppercase;letter-spacing:.05em;">' + esc(label) + '</div>' +
       '<div class="stat-val" style="font-weight:800;color:' + color + ';-webkit-text-fill-color:' + color + ';margin:2px 0;">' + value + '</div>' +
-      '<div style="font-size:10px;color:var(--m,#9ca3af);">' + esc(sub) + '</div></div>';
+      '<div class="ui-hint">' + esc(sub) + '</div></div>';
   }
 
   // ── entry form (modal) ──────────────────────────────────────────────
@@ -922,8 +922,6 @@
       return '<option value="' + esc(l.id) + '">' + esc(leadName(l)) + '</option>';
     }).join('');
     var today = ymdLocal(new Date());
-    var fld = 'width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;box-sizing:border-box;';
-    var lbl = 'font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;';
 
     // Canonical modal pair (dashboard-app.css): .modal-bg backdrop at
     // var(--z-overlay) + .modal card; open/close is ONLY the .open class
@@ -936,25 +934,25 @@
         '<button type="button" class="modal-close" data-exp-action="close-form" title="Close">✕</button>' +
         '<h3 style="margin:0 0 16px;color:var(--t,#fff);font-size:18px;">Log Expense</h3>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
-          '<div><label style="' + lbl + '">Amount ($)</label><input id="expAmount" type="number" step="0.01" min="0" inputmode="decimal" autofocus style="' + fld + '"></div>' +
-          '<div><label style="' + lbl + '">Date</label><input id="expDate" type="date" value="' + today + '" style="' + fld + '"></div>' +
-          '<div><label style="' + lbl + '">Sales Tax ($)</label><input id="expTax" type="number" step="0.01" min="0" inputmode="decimal" style="' + fld + '"></div>' +
-          '<div><label style="' + lbl + '">Category</label><select id="expCategory" style="' + fld + '">' + cats + '</select></div>' +
+          '<div><label class="ui-label-caps">Amount ($)</label><input id="expAmount" type="number" step="0.01" min="0" inputmode="decimal" autofocus class="ui-input-lg"></div>' +
+          '<div><label class="ui-label-caps">Date</label><input id="expDate" type="date" value="' + today + '" class="ui-input-lg"></div>' +
+          '<div><label class="ui-label-caps">Sales Tax ($)</label><input id="expTax" type="number" step="0.01" min="0" inputmode="decimal" class="ui-input-lg"></div>' +
+          '<div><label class="ui-label-caps">Category</label><select id="expCategory" class="ui-input-lg">' + cats + '</select></div>' +
         '</div>' +
-        '<div id="expMileageRow" style="display:none;margin-top:12px;"><label style="' + lbl + '">Miles</label>' +
-          '<input id="expMiles" type="number" step="0.1" min="0" inputmode="decimal" style="' + fld + '">' +
+        '<div id="expMileageRow" style="display:none;margin-top:12px;"><label class="ui-label-caps">Miles</label>' +
+          '<input id="expMiles" type="number" step="0.1" min="0" inputmode="decimal" class="ui-input-lg">' +
           '<div id="expMileageHint" style="font-size:11px;color:var(--m,#9ca3af);margin-top:4px;"></div></div>' +
-        '<div id="expSourceRow" style="display:none;margin-top:12px;"><label style="' + lbl + '">Lead Source / Campaign</label>' +
-          '<input id="expSource" type="text" maxlength="60" placeholder="e.g. Door-to-Door, Google, Storm" style="' + fld + '"></div>' +
-        '<div style="margin-top:12px;"><label style="' + lbl + '">Supplier / Vendor</label><input id="expSupplier" type="text" maxlength="120" list="expSupplierList" placeholder="e.g. ABC Supply" style="' + fld + '">' +
+        '<div id="expSourceRow" style="display:none;margin-top:12px;"><label class="ui-label-caps">Lead Source / Campaign</label>' +
+          '<input id="expSource" type="text" maxlength="60" placeholder="e.g. Door-to-Door, Google, Storm" class="ui-input-lg"></div>' +
+        '<div style="margin-top:12px;"><label class="ui-label-caps">Supplier / Vendor</label><input id="expSupplier" type="text" maxlength="120" list="expSupplierList" placeholder="e.g. ABC Supply" class="ui-input-lg">' +
           '<datalist id="expSupplierList">' + _suppliers.map(function (s) { return '<option value="' + esc(s.displayName) + '">'; }).join('') + '</datalist></div>' +
-        '<div style="margin-top:12px;"><label style="' + lbl + '">Job (optional)</label><select id="expLead" style="' + fld + '">' + leadOpts + '</select></div>' +
-        '<div style="margin-top:12px;"><label style="' + lbl + '">Note (optional)</label><input id="expNote" type="text" maxlength="500" style="' + fld + '"></div>' +
-        '<div style="margin-top:12px;"><label style="' + lbl + '">Repeat (optional)</label><select id="expRepeat" style="' + fld + '"><option value="none">One-time</option>' +
+        '<div style="margin-top:12px;"><label class="ui-label-caps">Job (optional)</label><select id="expLead" class="ui-input-lg">' + leadOpts + '</select></div>' +
+        '<div style="margin-top:12px;"><label class="ui-label-caps">Note (optional)</label><input id="expNote" type="text" maxlength="500" class="ui-input-lg"></div>' +
+        '<div style="margin-top:12px;"><label class="ui-label-caps">Repeat (optional)</label><select id="expRepeat" class="ui-input-lg"><option value="none">One-time</option>' +
           FREQUENCIES.map(function (f) { return '<option value="' + f.key + '">' + f.label + '</option>'; }).join('') + '</select></div>' +
-        '<div style="margin-top:12px;"><label style="' + lbl + '">Receipt (image / PDF, optional)</label>' +
+        '<div style="margin-top:12px;"><label class="ui-label-caps">Receipt (image / PDF, optional)</label>' +
           '<div style="display:flex;gap:8px;align-items:center;">' +
-            '<input id="expFile" type="file" accept="image/*,application/pdf" style="' + fld + 'flex:1;">' +
+            '<input id="expFile" type="file" accept="image/*,application/pdf" class="ui-input-lg" style="flex:1;">' +
             '<button data-exp-action="scan" type="button" class="btn btn-ghost" style="white-space:nowrap;">📷 Scan with AI</button>' +
           '</div>' +
           '<div id="expScanStatus" style="font-size:11px;color:var(--m,#9ca3af);margin-top:6px;min-height:14px;"></div>' +
@@ -1154,8 +1152,6 @@
   // A5: add-supplier modal (NO tax-ID field — tracking only).
   function openSupplierForm() {
     if (document.getElementById('supFormOverlay')) return;
-    var fld = 'width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;box-sizing:border-box;';
-    var lbl = 'font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;';
     var classOpts = TAX_CLASSES.map(function (t) { return '<option value="' + t.key + '">' + esc(t.label) + (t.eligible ? '' : ' — exempt') + '</option>'; }).join('');
     var w9Opts = [['not_requested', 'Not requested'], ['requested', 'Requested'], ['received', 'Received'], ['verified', 'Verified']]
       .map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('');
@@ -1167,15 +1163,15 @@
       '<div class="modal" style="max-width:440px;">' +
         '<button type="button" class="modal-close" data-exp-action="close-supplier" title="Close">✕</button>' +
         '<h3 style="margin:0 0 16px;color:var(--t,#fff);font-size:18px;">Add Supplier</h3>' +
-        '<div style="margin-bottom:12px;"><label style="' + lbl + '">Supplier / Vendor name</label><input id="supName" type="text" maxlength="120" placeholder="e.g. Crew Co" autofocus style="' + fld + '"></div>' +
-        '<div style="margin-bottom:12px;"><label style="' + lbl + '">Legal name (for the 1099)</label><input id="supLegal" type="text" maxlength="120" style="' + fld + '"></div>' +
+        '<div style="margin-bottom:12px;"><label class="ui-label-caps">Supplier / Vendor name</label><input id="supName" type="text" maxlength="120" placeholder="e.g. Crew Co" autofocus class="ui-input-lg"></div>' +
+        '<div style="margin-bottom:12px;"><label class="ui-label-caps">Legal name (for the 1099)</label><input id="supLegal" type="text" maxlength="120" class="ui-input-lg"></div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
-          '<div><label style="' + lbl + '">Tax classification (from W-9)</label><select id="supClass" style="' + fld + '">' + classOpts + '</select></div>' +
-          '<div><label style="' + lbl + '">W-9 status</label><select id="supW9" style="' + fld + '">' + w9Opts + '</select></div>' +
+          '<div><label class="ui-label-caps">Tax classification (from W-9)</label><select id="supClass" class="ui-input-lg">' + classOpts + '</select></div>' +
+          '<div><label class="ui-label-caps">W-9 status</label><select id="supW9" class="ui-input-lg">' + w9Opts + '</select></div>' +
         '</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">' +
-          '<div><label style="' + lbl + '">Phone</label><input id="supPhone" type="tel" maxlength="40" style="' + fld + '"></div>' +
-          '<div><label style="' + lbl + '">Email</label><input id="supEmail" type="email" maxlength="120" style="' + fld + '"></div>' +
+          '<div><label class="ui-label-caps">Phone</label><input id="supPhone" type="tel" maxlength="40" class="ui-input-lg"></div>' +
+          '<div><label class="ui-label-caps">Email</label><input id="supEmail" type="email" maxlength="120" class="ui-input-lg"></div>' +
         '</div>' +
         '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:10px;">1099-eligibility is derived from the tax classification. No SSN/EIN is stored — keep tax IDs in your tax software.</div>' +
         '<button type="button" class="btn btn-orange" data-exp-action="save-supplier" style="width:100%;margin-top:16px;justify-content:center;">Save Supplier</button>' +
