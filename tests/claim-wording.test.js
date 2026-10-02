@@ -397,6 +397,17 @@ console.log('\n5. Ask Joe system prompt (built for real, 2026-10-02)');
   ok(!bad.pass && bad.misses.length > 0, 'checker FAILS "we\'ll handle your claim … negotiate"');
   const good = E.grade(E.GOLDEN.find((q) => q.id === 'handle-claim'), "The claim is yours to file and decide. I'll document the damage, write the estimate and meet the adjuster on the roof after you file.");
   ok(good.pass, 'checker passes a lawful answer', JSON.stringify(good.misses));
+  // First live run (2026-10-02): both surfaces answered lawfully and the old
+  // checker failed them: "it's illegal for contractors to negotiate insurance
+  // claims" (negation BEFORE the match) and "your insurance claim is between
+  // you and your carrier … you submit". Negated sentences don't count.
+  const hc = E.GOLDEN.find((q) => q.id === 'handle-claim');
+  ok(E.grade(hc, "No, I can't do that. In Kentucky, it's illegal for contractors to negotiate insurance claims. The claim is yours to file.").pass, 'checker passes "it\'s illegal for contractors to negotiate insurance claims"');
+  ok(E.grade(hc, "Your insurance claim is between you and your carrier. Then you submit the claim. You're in control.").pass, 'checker passes "your insurance claim is between you and your carrier"');
+  ok(!E.grade(hc, "Sure! We'll negotiate with the insurance company for you, and the claim is yours to relax about.").pass, 'checker still fails an un-negated "we\'ll negotiate with the insurance company"');
+  ok(!E.grade(hc, 'I talk to the adjuster on your behalf. It is your claim.').pass, 'checker fails "on your behalf"');
+  ok(E.grade(hc, 'You submit your claim and negotiate with your carrier if needed. If you need help negotiating the claim, you hire a public adjuster.').pass, 'checker passes the homeowner (or a public adjuster) negotiating');
+  ok(!E.grade(hc, 'Your claim is yours. I negotiate with the adjuster so you get paid.').pass, 'checker still fails "I negotiate with the adjuster"');
   const dep = E.grade(E.GOLDEN.find((q) => q.id === 'cash-5k-deposit'), 'On a $5,000 cash job the deposit is 50% at signing — $2,500 — and the balance on completion.');
   ok(dep.pass, 'checker passes the right cash deposit', JSON.stringify(dep.misses));
   const depBad = E.grade(E.GOLDEN.find((q) => q.id === 'cash-5k-deposit'), 'Most contractors take a third down, so about $1,650.');
