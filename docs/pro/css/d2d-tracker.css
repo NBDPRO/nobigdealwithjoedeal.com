@@ -1,0 +1,64 @@
+/* D2D knock tracker (js/d2d-tracker-ui-2026b.js) — tabs, knock modal, knock
+   detail, follow-ups and the SMS chooser. Layout moved out of inline style
+   attributes so a theme can restyle the field screen (reskin, 2026-10-02).
+   Values are the old inline ones exactly; per-disposition colours and the
+   address-confirm hidden state stay inline. Generated from the conversion map;
+   a raised selector out-ranks a component rule the way the inline style did. */
+.dk-audio { height: 32px; width: 100%; margin-top: 4px; }
+.dk-link-btn { margin-top: 12px; background: none; border: none; color: var(--m); font-size: 12px; cursor: pointer; text-decoration: underline; }
+.dk-btn-grow.dk-btn-grow, body[data-nbd-size] .btn.dk-btn-grow { flex: 1; justify-content: center; }
+.dk-bg-blue.dk-bg-blue { background: var(--blue); }
+.dk-bg-muted.dk-bg-muted { background: var(--br); color: var(--m); }
+.dk-bg-green.dk-bg-green { background: var(--green,#2ECC8A); }
+.dk-bg-orange.dk-bg-orange { background: var(--orange); }
+.dk-bg-purple.dk-bg-purple { background: var(--purple,#9B6DFF); }
+.dk-bg-red.dk-bg-red { background: var(--red,#E05252); }
+.dk-bg-plain.dk-bg-plain { background: var(--s2); color: var(--t); border: 1px solid var(--br); }
+.dk-tab.dk-tab { flex: 1; min-width: 0; padding: 10px 6px; min-height: 44px; -webkit-tap-highlight-color: transparent; }
+.dk-banner-gold { background: color-mix(in srgb, var(--gold, #EAB308) 20%, var(--s)); padding: 12px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: var(--t); border-left: 4px solid var(--gold); }
+.dk-banner-red { background: color-mix(in srgb, var(--red, #E05252) 15%, var(--s)); padding: 12px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; border-left: 4px solid var(--red); }
+.dk-row10 { display: flex; gap: 10px; }
+.dk-row4 { display: flex; gap: 4px; flex-shrink: 0; }
+.dk-row6 { display: flex; gap: 6px; align-items: center; }
+.dk-head-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dk-tabs { display: flex; margin-bottom: 12px; border-bottom: 2px solid var(--br); }
+.dk-grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 10px; }
+.dk-meta { font-size: 10px; color: var(--m); margin-top: 2px; }
+.dk-sub { font-size: 11px; color: var(--m); margin-top: 4px; }
+.dk-label { font-size: 11px; font-weight: 600; color: var(--t); }
+.dk-foot { font-size: 12px; color: var(--m); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--br); }
+.dk-name { font-size: 12px; font-weight: 600; color: var(--t); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-prompt-sub { font-size: 13px; color: var(--m); margin-bottom: 20px; }
+.dk-prompt-title { font-size: 15px; font-weight: 700; color: var(--t); margin-bottom: 6px; }
+.dk-icon { font-size: 18px; flex-shrink: 0; }
+.dk-prompt-icon { font-size: 36px; margin-bottom: 10px; }
+.dk-title { font-weight: 600; font-size: 13px; color: var(--t); }
+.dk-ok-note { margin-top: 6px; font-size: 11px; color: var(--green,#2ECC8A); font-weight: 600; }
+.dk-actions { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--br); display: flex; gap: 6px; }
+.dk-pad { padding: 12px 14px; }
+.dk-right { text-align: right; }
+.dk-mt6.dk-mt6 { margin-top: 6px; }
+.dk-mt8.dk-mt8 { margin-top: 8px; }
+.dk-mt12.dk-mt12 { margin-top: 12px; }
+.dk-mt14 { margin-top: 14px; }
+.dk-grow.dk-grow { flex: 1; }
+.dk-followup.dk-followup { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--s); border: 1px solid var(--br); border-radius: 6px; margin-bottom: 4px; cursor: pointer; }
+.dk-scroll.dk-scroll { max-height: 300px; overflow-y: auto; }
+.dk-mb12.dk-mb12 { margin-bottom: 12px; }
+.dk-c-blue.dk-c-blue { color: var(--blue, #4A9EFF); }
+.dk-c-gold.dk-c-gold { color: var(--gold, #EAB308); }
+.dk-c-green.dk-c-green { color: var(--green, #2ECC8A); }
+.dk-c-orange.dk-c-orange { color: var(--orange, #BD5728); }
+.dk-c-purple.dk-c-purple { color: var(--purple,#9B6DFF); }
+.dk-prompt.dk-prompt { text-align: center; padding: 28px 20px; }
+.dk-empty-sm.dk-empty-sm { padding: 20px; }
+.dk-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 2px solid var(--green); margin: 2px; }
+.dk-w600.dk-w600 { font-weight: 600; }
+.dk-hint { color: var(--m); font-size: 12px; margin-bottom: 12px; }
+.dk-c-muted { color: var(--m); }
+.dk-fs12 { font-size: 12px; }
+.dk-fs20 { font-size: 20px; }
+.dk-c-text { color: var(--t); }
+.dk-btn-tall.dk-btn-tall, body[data-nbd-size] .btn.dk-btn-tall { padding: 12px; }
+.dk-full.dk-full { width: 100%; justify-content: center; }
+.dk-min0 { min-width: 0; }
