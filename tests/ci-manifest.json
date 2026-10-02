@@ -166,6 +166,7 @@
     "call-center-ingest-2026-10-01.test.js",
     "call-center-notes-2026-10-01.test.js",
     "five-tier-crm-2026-10-02.test.js",
+    "dol-suggested-badge-2026-10-02.test.js",
     "agent-inbox-2026-10-02.test.js",
     "agent-mcp-2026-10-02.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
