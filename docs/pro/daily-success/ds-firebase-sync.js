@@ -42,6 +42,7 @@ const SETTINGS = [
   { key: 'nbd_gt',          field: 'dsGoalTargets' },
   { key: 'nbd_ds_coach',    field: 'dsCoach' },        // Workout Coach: rotation / freshness / equipment
   { key: 'nbd_ds_food',     field: 'dsFood' },         // Food card: favorites + protein / calorie targets
+  { key: 'nbd_ds_reviews',  field: 'dsReviews' },      // Sunday review: weekly records + goal weight
 ];
 const WKEY = 'nbd_ds_workouts'; // Workout Coach sessions (users/{uid}/ds_workouts)
 

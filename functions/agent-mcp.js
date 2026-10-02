@@ -47,6 +47,15 @@ async function companyLeads(companyId) {
   return Object.values(byId);
 }
 
+// Every doc of a collection owned by the company under any of its owner
+// fields (solo accounts own by uid, team accounts by companyId), de-duplicated.
+async function companyDocs(collection, companyId, fields) {
+  const snaps = await Promise.all(fields.map((f) => db().collection(collection).where(f, '==', companyId).limit(5000).get()));
+  const byId = {};
+  snaps.forEach((s) => s.docs.forEach((d) => { byId[d.id] = Object.assign({ id: d.id }, d.data()); }));
+  return Object.values(byId);
+}
+
 async function runTool(name, args, key) {
   const company = key.companyId;
   const today = nyToday();
@@ -113,6 +122,22 @@ async function runTool(name, args, key) {
     }, v.item));
     await bellNotice(company, key.botId, bot.name, day).catch((e) => logger.warn('[crmMcp] bell notice failed', { msg: e.message }));
     return L.toolText({ filed: true, item_id: ref.id, kind: v.item.kind, note: 'In Jo\'s Agent inbox. Nothing was sent to anyone.' });
+  }
+
+  if (name === 'estimates_status') {
+    const [leads, estimates, deals] = await Promise.all([
+      companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']),
+    ]);
+    return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now()),
+      note: 'total_customer_facing is what the homeowner sees. Cost and margin are never shared here.' });
+  }
+
+  if (name === 'collected_revenue') {
+    const from = args.from ? String(args.from) : today.slice(0, 8) + '01';
+    const to = args.to ? String(args.to) : today;
+    if (!L.isYmd(from) || !L.isYmd(to) || from > to) return L.toolErr('from/to must be YYYY-MM-DD with from <= to');
+    const [leads, invoices] = await Promise.all([companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy'])]);
+    return L.toolText(L.collectedRevenue(invoices, leads, from, to, TZ));
   }
 
   if (name === 'inbox_pending') {
