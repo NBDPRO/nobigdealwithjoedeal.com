@@ -384,7 +384,7 @@
   // economy-grade architectural (never a 3-tab); Beyond is TAMKO HailGuard
   // only, the one shingle with a manufacturer hail warranty.
   CATALOG['shingle-economy'] = Object.assign({}, CATALOG['shingle-good'], {
-    code: 'RFG-SHNG', name: 'Architectural Shingles — Economy Grade (never 3-tab)'
+    code: 'RFG-SHNG', name: 'Architectural Shingles — Economy Grade'
   });
   CATALOG['shingle-beyond'] = Object.assign({}, CATALOG['shingle-best'], {
     code: 'RFG-IMPCT', name: 'TAMKO HailGuard Class 4 (manufacturer hail warranty)'

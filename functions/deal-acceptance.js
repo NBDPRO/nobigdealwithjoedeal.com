@@ -49,7 +49,9 @@ const CORS_ORIGINS = [
 const DEAL_URL_BASE = 'https://nobigdealwithjoedeal.com/deal/';
 const SUBMIT_PATH = '/api/deal-accept'; // same-origin hosting rewrite → submitDealAcceptance
 
-const VALID_TIERS = ['good', 'better', 'best'];
+// Five tiers since 2026-10-02 (Jo): Economy and Beyond join Good/Better/Best.
+// Same order as docs/pro/js/estimate-config.js TIER_ORDER.
+const VALID_TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 // A deal past acceptance. Every Text / Email / Copy on the Close Board mints a
 // fresh token and the older ones stay pending, so a deal commonly has several
 // live links. Before 2026-09-28 only the TOKEN's status was checked: after the
@@ -119,11 +121,8 @@ exports.createDealAcceptToken = onCall(
     // Snapshot the tier prices server-side so the recorded acceptance price
     // can't be tampered with via the (unauthenticated) accept payload.
     const tiers = deal.tiers || {};
-    const tierPrices = {
-      good: Number(tiers.good && tiers.good.price) || 0,
-      better: Number(tiers.better && tiers.better.price) || 0,
-      best: Number(tiers.best && tiers.best.price) || 0,
-    };
+    const tierPrices = {};
+    VALID_TIERS.forEach((t) => { tierPrices[t] = Number(tiers[t] && tiers[t].price) || 0; });
 
     const now = Date.now();
     const ttlDays = 14;
@@ -329,6 +328,12 @@ exports.submitDealAcceptance = onRequest(
           const e = new Error('done'); e._http = 409; e._msg = ALREADY_ACCEPTED_MSG; throw e;
         }
         const price = (t.tierPrices && t.tierPrices[tier]) || 0;
+        // A package with no price on this deal is refused, never recorded as a
+        // $0 acceptance (a tier the rep didn't price, or a link minted before
+        // the tier existed).
+        if (!(price > 0)) {
+          const e = new Error('unpriced'); e._http = 400; e._msg = 'That package isn’t priced on this deal. Choose another or ask your rep.'; throw e;
+        }
         tx.update(tokRef, { status: 'accepted', acceptedAt: FieldValue.serverTimestamp() });
         // update(), not set(merge) — the existence check above means this must
         // modify an existing doc, never create one.

@@ -30,6 +30,11 @@
 
 'use strict';
 
+// Five roof tiers since 2026-10-02 (Jo): Economy and Beyond join Good/Better/
+// Best (docs/pro/js/estimate-config.js TIER_ORDER / TIER_DISPLAY labels). The
+// portal used to loop good/better/best only, dropping the other two prices.
+const PORTAL_TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
+
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { Timestamp, getFirestore } = require('firebase-admin/firestore');
@@ -1083,7 +1088,7 @@ exports.getHomeownerPortalView = onRequest(
         // template estimates saved before the fix — see its comment).
         tierName:        tierApplies(latest)
           ? (latest.tierName
-            || ({ good: 'Standard', better: 'Preferred', best: 'Elite' }[latest.tier])
+            || ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' }[latest.tier])
             || null)
           : null,
         signatureStatus: latest.signatureStatus || 'none',
@@ -2596,7 +2601,7 @@ exports.getEstimateForView = onRequest(
       : (est.tiers && typeof est.tiers === 'object') ? est.tiers : null;
     if (rawTiers) {
       safeTiers = {};
-      for (const k of ['good', 'better', 'best']) {
+      for (const k of PORTAL_TIERS) {
         const t = rawTiers[k];
         const v = (t && typeof t === 'object') ? (t.grandTotal ?? t.total) : t;
         if (v != null && Number.isFinite(Number(v))) safeTiers[k] = { grandTotal: Number(v) };

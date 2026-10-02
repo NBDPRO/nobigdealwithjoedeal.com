@@ -1238,7 +1238,10 @@
     if (!box) return;
     const rawSqft = Number(meas && meas.rawSqft) || 0;
     const sq = rawSqft > 0 ? (rawSqft * 1.17 / 100) : 0; // 1.17 waste factor → squares
-    const est = sq > 0 ? Math.max(2500, Math.round((sq * 595) / 25) * 25) : null; // 595 $/SQ (better tier)
+    // Better tier's $/SQ from estimate-config.js (was a literal 595 that
+    // outlived the 2026-10-02 repricing).
+    const _betterRate = (window.NBD_ESTIMATE_CONFIG && window.NBD_ESTIMATE_CONFIG.TIER_RATES && window.NBD_ESTIMATE_CONFIG.TIER_RATES.better) || 660;
+    const est = sq > 0 ? Math.max(2500, Math.round((sq * _betterRate) / 25) * 25) : null;
     const rows = [];
     if (sq > 0) rows.push(['Roof', sq.toFixed(1) + ' squares']);
     if (meas && meas.pitch) rows.push(['Pitch', esc(String(meas.pitch))]);

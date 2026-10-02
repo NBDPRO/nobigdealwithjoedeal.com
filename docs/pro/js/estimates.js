@@ -28,7 +28,7 @@ const _NBD_CFG = (typeof window !== 'undefined' && window.NBD_ESTIMATE_CONFIG) |
 if (!_NBD_CFG && typeof console !== 'undefined') {
   try { console.warn('[estimates.js] NBD_ESTIMATE_CONFIG missing — using inline fallbacks. Check that estimate-config.js loaded before estimates.js.'); } catch (_) {}
 }
-const TIER_RATES        = (_NBD_CFG && _NBD_CFG.TIER_RATES)         || { good: 545, better: 595, best: 660 };
+const TIER_RATES        = (_NBD_CFG && _NBD_CFG.TIER_RATES)         || { economy: 440, good: 550, better: 660, best: 770, beyond: 880 };
 const JOB_MINIMUM_CENTS = (_NBD_CFG && _NBD_CFG.JOB_MINIMUM_CENTS)  || 250000; // $2,500
 const ROUND_TO_CENTS    = (_NBD_CFG && _NBD_CFG.ROUND_TO_CENTS)     || 2500;   // Nearest $25
 
@@ -39,7 +39,7 @@ const ROUND_TO_CENTS    = (_NBD_CFG && _NBD_CFG.ROUND_TO_CENTS)     || 2500;   /
 // (TIER_RATES above) never change; every customer-facing render below reads
 // this instead of inventing its own label.
 const TIER_DISPLAY = (_NBD_CFG && _NBD_CFG.TIER_DISPLAY)
-  || { good: { label: 'Standard' }, better: { label: 'Preferred' }, best: { label: 'Elite' } };
+  || { economy: { label: 'Economy' }, good: { label: 'Standard' }, better: { label: 'Preferred' }, best: { label: 'Elite' }, beyond: { label: 'Beyond' } };
 function tierLabel(tier) {
   return (TIER_DISPLAY[tier] && TIER_DISPLAY[tier].label) || tier;
 }

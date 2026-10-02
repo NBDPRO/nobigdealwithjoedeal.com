@@ -195,7 +195,9 @@ console.log('\nSOURCE CONTRACT — the real file actually has the existence chec
 
   const submitBody = src.slice(submitStart);
   const txStart = submitBody.indexOf('info = await db.runTransaction(async (tx) => {');
-  const txBody = txStart >= 0 ? submitBody.slice(txStart, txStart + 2200) : '';
+  // 3000 (was 2200): the 2026-10-02 unpriced-package guard sits inside the
+  // transaction too, ahead of the deal_rooms write.
+  const txBody = txStart >= 0 ? submitBody.slice(txStart, txStart + 3000) : '';
   ok('submitDealAcceptance\'s transaction reads the deal_rooms doc before writing',
     /const dealRoomSnap = await tx\.get\(dealRoomRef\)/.test(txBody) && /if \(!dealRoomSnap\.exists\)/.test(txBody));
   ok('submitDealAcceptance\'s deal_rooms write is tx.update(), not tx.set(merge) (the pre-fix bug shape)',

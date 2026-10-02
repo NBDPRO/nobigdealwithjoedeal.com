@@ -3,7 +3,8 @@
  *
  * Locks in the spec'd pricing math from
  * memory/site_wide_spec_20260410.md:
- *   - per-SQ flat rates Good/Better/Best ($545/$595/$660)
+ *   - per-SQ flat rates Economy/Good/Better/Best/Beyond ($440/$550/$660/$770/$880,
+ *     five tiers since 2026-10-02; were $545/$595/$660)
  *   - $2,500 minimum job charge below ~4.5 SQ
  *   - $25 rounding
  *   - county tax (Hamilton 7.80, Butler 7.25, Warren 6.75, Clermont 7.25,
@@ -34,14 +35,20 @@ console.log('\nestimate-builder-v2 pricing engine');
 console.log('──────────────────────────────────────────────────');
 
 // ── Tier rates ──
-test('TIER_RATES: Good = $545/SQ', () => {
-  eq(EBv2.TIER_RATES.good, 545);
+test('TIER_RATES: Economy = $440/SQ', () => {
+  eq(EBv2.TIER_RATES.economy, 440);
 });
-test('TIER_RATES: Better = $595/SQ', () => {
-  eq(EBv2.TIER_RATES.better, 595);
+test('TIER_RATES: Good = $550/SQ', () => {
+  eq(EBv2.TIER_RATES.good, 550);
 });
-test('TIER_RATES: Best = $660/SQ', () => {
-  eq(EBv2.TIER_RATES.best, 660);
+test('TIER_RATES: Better = $660/SQ', () => {
+  eq(EBv2.TIER_RATES.better, 660);
+});
+test('TIER_RATES: Best = $770/SQ', () => {
+  eq(EBv2.TIER_RATES.best, 770);
+});
+test('TIER_RATES: Beyond = $880/SQ', () => {
+  eq(EBv2.TIER_RATES.beyond, 880);
 });
 
 // ── Constants ──
@@ -105,17 +112,17 @@ test('extraPipeBootCharge: 7 pipes → $255 (3 extra)', () => {
 });
 
 // ── End-to-end calculations via calculateEstimate ──
-test('39 SQ Better tier ≈ $23,900 (rawSqft pre-baked, waste=1)', () => {
+test('39 SQ Better tier ≈ $26,600 (rawSqft pre-baked, waste=1)', () => {
   const r = EBv2.calculateEstimate({
     method: 'per-sq', tier: 'better', mode: 'insurance',
     rawSqft: 3900, pitch: '6/12', wasteFactorOverride: 1.0
   });
-  // 39 × $595 = $23,205. Insurance hides tax.
-  // Base + dumpFee default ($550) = $23,755. C-1 fail-safe: no county set →
-  // DEFAULT_PERMIT_COST $150 (was a silent $0) = $23,905.
+  // 39 × $660 = $25,740 (Better since 2026-10-02; was $595). Insurance hides tax.
+  // Base + dumpFee default ($550) = $26,290. C-1 fail-safe: no county set →
+  // DEFAULT_PERMIT_COST $150 (was a silent $0) = $26,440.
   // + material delivery $150 (flat per job; Jo 2026-09-27, was $412.50)
-  // = $24,055 → rounds to $24,050.
-  near(r.total, 24050, 30, 'insurance Better total');
+  // = $26,590 → rounds to $26,600.
+  near(r.total, 26600, 30, 'insurance Better total');
 });
 test('C-1: blank/unknown jurisdiction → default permit $150, not $0 (per-SQ)', () => {
   const base = { method: 'per-sq', tier: 'better', mode: 'insurance', rawSqft: 3900, pitch: '6/12', wasteFactorOverride: 1.0 };
@@ -153,7 +160,7 @@ test('Cash mode applies county tax; insurance mode hides it', () => {
 test('Below 4.5 SQ enforces $2,500 minimum', () => {
   const r = EBv2.calculateEstimate({
     method: 'per-sq', tier: 'good', mode: 'insurance',
-    rawSqft: 200, pitch: '4/12' // 2 SQ × $545 = $1,090 → bumps to $2,500
+    rawSqft: 200, pitch: '4/12' // 2 SQ × $550 = $1,100 → bumps to $2,500
   });
   if (r.total < 2500) throw new Error('expected ≥2500, got ' + r.total);
 });
@@ -230,7 +237,7 @@ test('calculateEstimate: cash mode includes 50% deposit + remainder', () => {
     method: 'per-sq', tier: 'better', mode: 'cash',
     rawSqft: 3000, pitch: '6/12', wasteFactorOverride: 1.0
   });
-  // 30 SQ × $595 = $17,850 base + tax + minor add-ons
+  // 30 SQ × $660 = $19,800 base + tax + minor add-ons
   eq(r.depositPct, 50, 'depositPct');
   near(r.deposit + r.depositRemainder, r.total, 0.01, 'deposit + remainder == total');
 });
@@ -320,7 +327,7 @@ test('adder: per-SQ adder rates are config-backed (match estimate-config)', () =
 // config = default · companyProfile.pricing = shop override · localStorage ≠ pricing.
 test('rates: config defaults win when no companyProfile (Node path)', () => {
   const r = EBv2.calculatePerSq({ tier:'better', mode:'insurance', rawSqft:2000, pitch:'8/12', wasteFactorOverride:1.0 });
-  near(r.rate, 595, 0.5, 'tier rate from config');
+  near(r.rate, 660, 0.5, 'tier rate from config');
   near(r.addOns.steep, 20*25, 0.5, 'steep from config $25');
 });
 test('rates: companyProfile.pricing OVERRIDES config (shop-wide)', () => {
@@ -338,7 +345,7 @@ test('rates: companyProfile PARTIAL override leaves other rates on config', () =
     const r = EBv2.calculatePerSq({ tier:'better', mode:'insurance', rawSqft:2000, pitch:'12/12', wasteFactorOverride:1.0 });
     near(r.addOns.steep, 20*40, 0.5, 'steep overridden $40');
     near(r.addOns.verySteep, 20*45, 0.5, 'very-steep stays config $45');
-    near(r.rate, 595, 0.5, 'tier rate stays config $595');
+    near(r.rate, 660, 0.5, 'tier rate stays config $660');
   } finally { delete global.window; }
 });
 test('rates: stale localStorage snapshot CANNOT override ADD-ON prices (L-1 kill)', () => {
@@ -359,7 +366,7 @@ test('rates: blank/garbage companyProfile value is IGNORED, not a silent $0', ()
     const r = EBv2.calculatePerSq({ tier:'better', mode:'insurance', rawSqft:2000, pitch:'12/12', wasteFactorOverride:1.0 });
     near(r.addOns.steep,     20*25, 0.5, "blank steep '' ignored → config $25");
     near(r.addOns.verySteep, 20*45, 0.5, 'null very-steep ignored → config $45');
-    near(r.rate,             595,   0.5, "garbage tier rate 'abc' ignored → config $595");
+    near(r.rate,             660,   0.5, "garbage tier rate 'abc' ignored → config $660");
   } finally { delete global.window; }
 });
 test('rates: explicit companyProfile 0 IS honored (free add-on)', () => {

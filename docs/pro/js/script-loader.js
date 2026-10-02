@@ -92,7 +92,7 @@
       'js/storm-outlook.js?v=1'
     ],
     closeboard: [
-      'js/close-board.js?v=4'
+      'js/close-board.js?v=5'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -217,10 +217,10 @@
       'js/catalog-costs.js?v=3',
       'js/product-library.js?v=6',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=7',
+      'js/estimate-builder-v2.js?v=8',
       'js/estimate-catalog-xactimate.js?v=3',
-      'js/estimate-logic-engine.js?v=6',
-      'js/estimates.js?v=9',
+      'js/estimate-logic-engine.js?v=7',
+      'js/estimates.js?v=10',
       // Rock 2 PR 6: the New-Estimate front door (chooser) split out of
       // estimates.js. Loads after it — showNewEstimateChooser falls back to
       // estimates.js's showEstimateTypeSelector when V2 is missing.
@@ -229,7 +229,7 @@
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
       'js/estimate-finalization.js?v=4',
-      'js/estimate-v2-ui.js?v=16',
+      'js/estimate-v2-ui.js?v=17',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=2',
       // Job templates ride the estimates bundle: data is inert, the engine
@@ -289,7 +289,7 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=8',
+      'js/d2d-tracker-core-2026b.js?v=9',
       'js/d2d-tracker-ui-2026b.js?v=5',
       'js/d2d-tracker-2026b.js?v=3'
     ],

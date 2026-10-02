@@ -107,7 +107,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=37"></script>
+<script src="js/script-loader.js?v=38"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -126,7 +126,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=25"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=26"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -5861,7 +5861,7 @@
      because this file was only ever loaded on customer.html, so the dashboard
      silently ran the fallbacks. Dependency-free and already unit-tested
      (tests/customer-estimate-rows.test.js). -->
-<script defer src="js/customer-estimate-rows.js?v=2"></script>
+<script defer src="js/customer-estimate-rows.js?v=3"></script>
 <script defer src="js/customer-estimate-hub.js?v=3"></script>
 <script defer src="js/customer-photo-hub.js?v=2"></script>
 <!-- Mobile job-detail Voice Intel tab. voice-intelligence.js's initVoiceIntel
@@ -6858,7 +6858,7 @@
 <script defer src="js/voicemail.js?v=2"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
-<script defer src="js/estimate-config.js?v=4"></script>
+<script defer src="js/estimate-config.js?v=5"></script>
 <!-- deposit-rule.js (2026-09-25): the ONE deposit rule every quote, contract,
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
