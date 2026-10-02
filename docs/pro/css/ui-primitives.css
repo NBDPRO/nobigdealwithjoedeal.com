@@ -176,3 +176,11 @@
   font-size: 11px;
   color: var(--t);
 }
+
+/* Expenses screen (2026-10-02): form inputs + their small-caps labels, list
+   rows, key/value lines and card headings (expenses.js). */
+.ui-input-lg { width: 100%; padding: 10px; background: var(--s2); border: 1px solid var(--br); border-radius: 8px; color: var(--t); font-size: 14px; box-sizing: border-box; }
+.ui-label-caps { font-size: 11px; color: var(--m); text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 4px; }
+.ui-list-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--br); }
+.ui-kv { display: flex; justify-content: space-between; font-size: 13px; color: var(--t); }
+.ui-card-head { margin: 0 0 12px; font-size: 14px; color: var(--t); }
