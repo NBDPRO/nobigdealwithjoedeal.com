@@ -331,6 +331,11 @@ async function verifyAuth(req) {
  */
 exports.sendEmail = onRequest(
   {
+    // Declared, not defaulted (2026-10-02): the live service had lost its
+    // allUsers run.invoker binding, so Cloud Run would 403 every browser POST
+    // before this handler ran (a Firebase ID token is not an IAM credential).
+    // Auth is enforced below; declaring it makes every deploy re-apply it.
+    invoker: 'public',
     cors: CORS_ORIGINS,
     secrets: [RESEND_API_KEY, EMAIL_FROM],
     maxInstances: 20,

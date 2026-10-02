@@ -31,6 +31,10 @@ const { httpRateLimit } = require('../integrations/upstash-ratelimit');
 exports.cspReport = onRequest(
   {
     region: 'us-central1',
+    // Declared, not defaulted (2026-10-02): the live service had no allUsers
+    // run.invoker binding, so all 261 reports in a week were 403'd by Cloud
+    // Run before reaching this handler. CSP monitoring was blind.
+    invoker: 'public',
     cors: false,
     maxInstances: 5,
     concurrency: 80,
