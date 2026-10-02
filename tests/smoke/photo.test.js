@@ -780,7 +780,7 @@ section('customer.html: blank-preview escape hatch on prereq warning');
   assert('blank-preview data flags _isBlankPreview = true',
     /out\._isBlankPreview\s*=\s*true/.test(customer));
   assert('prereq modal renders "Preview blank template" button',
-    /class="nbd-preq-preview"[\s\S]{0,300}Preview blank template/.test(customer));
+    /class="nbd-preq-preview(?: [^"]*)?"[\s\S]{0,300}Preview blank template/.test(customer));
   assert('preview button wires to _previewBlankDoc(type)',
     /nbd-preq-preview['"]\s*\)\.addEventListener\(\s*['"]click['"][\s\S]{0,200}window\._previewBlankDoc\(\s*type\s*\)/.test(customer));
   assert('_previewBlankDoc bypasses prereq check (no checkPrerequisites call inside)',
