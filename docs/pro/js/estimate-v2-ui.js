@@ -72,7 +72,10 @@
   // never a 3-tab. On a switch INTO one of those tiers the scope's shingle
   // lines are swapped to the allowed one (and the rep is told), so the lock
   // can never be met by leaving a wrong shingle in place.
-  const _V2_TIER_SWAP = { beyond: { to: 'RFG 240-TAMKO-HAIL', when: () => true }, economy: { to: 'RFG 240-TAMKO-HERITAGE', when: (it) => it.sub === 'shingles-3tab' } };
+  // Economy also drops HailGuard (it IS the Beyond product — an Economy
+  // quote listing it would contradict its own price); any other
+  // architectural is Jo's pick and stays.
+  const _V2_TIER_SWAP = { beyond: { to: 'RFG 240-TAMKO-HAIL', when: () => true }, economy: { to: 'RFG 240-TAMKO-HERITAGE', when: (it) => it.sub === 'shingles-3tab' || it.code === 'RFG 240-TAMKO-HAIL' } };
   function _v2EnforceTierShingles(tier) {
     const cfg = window.NBD_ESTIMATE_CONFIG;
     const swap = _V2_TIER_SWAP[tier];

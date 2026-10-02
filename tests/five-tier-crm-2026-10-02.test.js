@@ -135,6 +135,11 @@ ok('saved prices carry every tier', /_v2Tiers\(\)\.forEach\(k => \{ if \(tiers\[
   ctx.state.scope = [{ code: 'RFG 240-GAF-HDZ' }];
   ctx.enforce('economy');
   ok("...and leaves Jo's architectural pick alone", ctx.state.scope[0].code === 'RFG 240-GAF-HDZ');
+  // Beyond → Economy (seen in a real browser run): HailGuard is the Beyond
+  // product and must not ride along onto an Economy quote.
+  ctx.state.scope = [{ code: 'RFG 240-TAMKO-HAIL' }];
+  ctx.enforce('economy');
+  ok('Beyond → Economy swaps HailGuard to TAMKO Heritage', ctx.state.scope[0].code === 'RFG 240-TAMKO-HERITAGE');
 }
 
 console.log('\n7. Deal room + server');
