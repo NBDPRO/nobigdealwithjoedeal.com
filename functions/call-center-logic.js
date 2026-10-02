@@ -245,7 +245,9 @@ function buildCallDoc({ ownerUid, file, parsed, match, bucket, storedPath, nowMs
 // Groq's free tier: 8 h of audio a day, 25 MB a file. The ingest pass
 // keeps well inside both.
 const GROQ_MAX_BYTES = 25 * 1024 * 1024;
-const DAY_AUDIO_SEC_CAP = 6 * 3600;
+// 7.5 h (Jo, 2026-10-01: "raise it to 7.5 hours"), half an hour under Groq's
+// 8 h free-tier ceiling so dictation and Voice Intelligence still have room.
+const DAY_AUDIO_SEC_CAP = 7.5 * 3600;
 // Cube ACR's m4a runs ~4 KB/s; good enough to budget before Groq says.
 function estimateAudioSec(sizeBytes) {
   return Math.max(1, Math.round((Number(sizeBytes) || 0) / 4000));

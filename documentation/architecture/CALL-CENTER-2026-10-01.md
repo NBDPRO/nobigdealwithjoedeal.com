@@ -116,7 +116,7 @@ customers" chip.
   that Voice Intelligence uses (`transcribeGroqBuffer`).
 - This replaced the Speech-to-Text plan: Groq needs no new Google API and its
   free tier covers this volume (25 MB a file, 8 h of audio a day).
-- **Limits:** we cap at 6 h a day, at most 12 calls a run, newest first, and
+- **Limits:** we cap at 7.5 h a day (raised from 6 h on 2026-10-01, Jo), at most 12 calls a run, newest first, and
   3 tries per call. Anything over 25 MB is marked `too_large`.
 
 **Notes**
