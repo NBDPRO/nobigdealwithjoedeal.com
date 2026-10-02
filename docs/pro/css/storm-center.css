@@ -1,0 +1,73 @@
+/* Storm Center (js/storm-center.js) — the screen's layout, moved out of inline
+   style attributes so a theme can restyle it (reskin, 2026-10-02). Values are
+   the old inline ones exactly; per-severity colours stay inline because they
+   are computed per alert. Compound selectors (.btn.sc-*, .stat-card.sc-*)
+   outrank the base component rules the way the inline styles did. */
+.stc-head { padding: 16px 20px 0; }
+.stc-head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.stc-title { font-size: 22px; font-weight: 800; font-family: 'Barlow Condensed', sans-serif; color: var(--t); letter-spacing: .02em; }
+.stc-subtitle { font-size: 12px; color: var(--m); margin-top: 2px; }
+.stc-stats { display: flex; gap: 10px; margin-bottom: 14px; overflow-x: auto; }
+.stat-card.stc-stat { flex: 1; min-width: 120px; }
+.stat-card.stc-stat-wide { min-width: 150px; }
+.stc-tabs { display: flex; gap: 0; margin-bottom: 14px; overflow-x: auto; border-bottom: 2px solid var(--br); }
+.stc-map { width: 100%; height: 280px; border-top: 1px solid var(--br); border-bottom: 1px solid var(--br); }
+.stc-body { padding: 0 20px 20px; }
+.stc-section { margin-top: 14px; }
+.stc-sec-head { font-size: 13px; font-weight: 700; color: var(--t); margin-bottom: 10px; font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: .06em; }
+
+/* Alert and zone cards */
+.stc-card { background: var(--s2); border: 1px solid var(--br); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+.stc-card.stc-click { cursor: pointer; }
+.stc-card-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.stc-grow { flex: 1; }
+.stc-card-title { font-size: 14px; font-weight: 700; color: var(--t); }
+.stc-card-sub { font-size: 11px; color: var(--m); margin-top: 3px; }
+.stc-tags { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.stc-tags.stc-tags-tight { gap: 6px; }
+.stc-tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; }
+.stc-tag.stc-tag-plain { background: var(--s); border: 1px solid var(--br); color: var(--t); }
+.stc-card-aside { text-align: right; flex-shrink: 0; }
+.stc-meta { font-size: 10px; color: var(--m); }
+.stc-meta.stc-meta-2 { margin-top: 2px; }
+.btn.stc-mt8 { margin-top: 8px; }
+.stc-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+
+/* Canvass plan */
+.stc-plan { background: var(--s2); border: 1px solid var(--br); border-radius: 10px; padding: 16px; margin-top: 14px; }
+.stc-plan-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.stc-plan-title { font-size: 15px; font-weight: 700; color: var(--t); }
+.stc-window { background: var(--s); border: 1px solid var(--br); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.stc-window-label { font-size: 11px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.stc-window-val { font-size: 14px; font-weight: 600; color: var(--t); }
+.stc-window-sub { font-size: 11px; color: var(--m); margin-top: 2px; }
+.stc-window-note { font-size: 11px; color: var(--green); margin-top: 2px; }
+.stc-proj { display: flex; gap: 8px; margin-bottom: 10px; }
+.stat-card.stc-proj-tile { flex: 1; padding: 10px 12px; }
+.stc-sub-head { font-size: 11px; font-weight: 700; color: var(--t); text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 8px; }
+.stc-sub-head.stc-sub-14 { margin-top: 14px; }
+.stc-sub-head.stc-sub-16 { margin-top: 16px; }
+.stc-sub-head.stc-sub-0 { margin: 0 0 8px; }
+.stc-step { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--br); }
+.stc-step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--orange); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.stc-step-text { font-size: 12px; color: var(--t); }
+.stc-tp { background: var(--s); border: 1px solid var(--br); border-radius: 8px; padding: 10px; margin-bottom: 6px; }
+.stc-tp-type { font-size: 9px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+.stc-tp-text { font-size: 12px; color: var(--t); line-height: 1.4; }
+.stc-team { display: flex; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--br); }
+.stc-team-item { font-size: 11px; color: var(--m); }
+.stc-strong { color: var(--t); }
+/* #view-storm: body[data-nbd-size] .btn sets padding at (0,2,1). */
+#view-storm .btn.stc-cta { width: 100%; justify-content: center; margin-top: 12px; padding: 12px; }
+
+/* Analytics */
+.stc-grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+.stc-hist { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--br); }
+.stc-fs18, .stat-val.stc-fs18 { font-size: 18px; }
+.stc-hist-name { font-size: 12px; font-weight: 600; color: var(--t); }
+.stc-hist-rev { font-size: 12px; font-weight: 700; color: var(--green); }
+.stc-hist-proj { font-size: 9px; font-weight: 500; color: var(--m); }
+.nbd-empty.stc-empty-sm { padding: 20px; }
+.stc-carriers { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.stc-carrier { background: var(--s2); border: 1px solid var(--br); border-radius: 8px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; }
+.stc-carrier-name { font-size: 11px; color: var(--t); }
