@@ -1464,7 +1464,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 }
 
 </style>
-<link rel="stylesheet" href="css/ui-primitives.css?v=6">
+<link rel="stylesheet" href="css/ui-primitives.css?v=7">
 <link rel="stylesheet" href="css/my-skin.css?v=1">
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/customer">
 <link rel="stylesheet" href="css/photo-editor.css?v=4">
@@ -1671,12 +1671,12 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
        (#projectTimeline); the badge sat there and counted work behind a
        different pill. -->
   <nav class="jump-nav" id="tabBar" aria-label="Customer record sections">
-    <a href="#overviewTab">Overview <span class="nav-count" id="navCountTasks" title="Open tasks" style="display:none;background:var(--s3,rgba(255,255,255,.08));color:var(--m,#9ca3af);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
+    <a href="#overviewTab">Overview <span class="nav-count ui-count" id="navCountTasks" title="Open tasks" style="display:none;"></span></a>
     <a href="#timelineTab">Timeline</a>
-    <a href="#photosTab">Photos <span class="nav-count" id="navCountPhotos" style="display:none;background:var(--s3,rgba(255,255,255,.08));color:var(--m,#9ca3af);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
-    <a href="#documentsTab">Files <span class="nav-count" id="navCountDocs" style="display:none;background:var(--s3,rgba(255,255,255,.08));color:var(--m,#9ca3af);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
+    <a href="#photosTab">Photos <span class="nav-count ui-count" id="navCountPhotos" style="display:none;"></span></a>
+    <a href="#documentsTab">Files <span class="nav-count ui-count" id="navCountDocs" style="display:none;"></span></a>
     <a href="#messagesTab">Messages <span id="msgUnreadBadge" style="display:none;background:var(--orange, #A14A22);color:var(--accent-fg);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
-    <a href="#callsTab">Calls <span class="nav-count" id="navCountCalls" title="Thursday calls" style="display:none;background:var(--s3,rgba(255,255,255,.08));color:var(--m,#9ca3af);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700;"></span></a>
+    <a href="#callsTab">Calls <span class="nav-count ui-count" id="navCountCalls" title="Thursday calls" style="display:none;"></span></a>
     <a href="#voiceTab">Voice Intel</a>
     <a href="#contactTab">Contact</a>
   </nav>
@@ -2396,7 +2396,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- DOCUMENT UPLOAD MODAL -->
 <div id="docUploadModal" class="modal-bg" role="dialog" aria-modal="true">
   <div class="modal-content" style="max-width:600px;">
-    <h3 style="margin-bottom:20px;font-family:'Barlow Condensed',sans-serif;font-size:20px;">
+    <h3 class="ui-modal-title">
       📄 Upload Documents
     </h3>
 
@@ -2448,7 +2448,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- NOTES MODAL -->
 <div id="notesModal" class="modal-bg" role="dialog" aria-modal="true">
   <div class="modal-content" style="max-width:600px;">
-    <h3 style="margin-bottom:20px;font-family:'Barlow Condensed',sans-serif;font-size:20px;">
+    <h3 class="ui-modal-title">
       📝 Add Note
     </h3>
     
@@ -2480,13 +2480,13 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- ESTIMATE MODAL -->
 <div id="estimateModal" class="modal-bg" role="dialog" aria-modal="true">
   <div class="modal-content" style="max-width:700px;">
-    <h3 style="margin-bottom:20px;font-family:'Barlow Condensed',sans-serif;font-size:20px;">
+    <h3 class="ui-modal-title">
       📋 Create Estimate
     </h3>
     
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
       <div>
-        <label for="estimateType" style="font-size:11px;color:var(--m);font-weight:600;display:block;margin-bottom:4px;">ESTIMATE TYPE</label>
+        <label class="ui-label-plain" for="estimateType">ESTIMATE TYPE</label>
         <select id="estimateType" style="
           width:100%;
           padding:8px;
@@ -2503,7 +2503,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       </div>
       
       <div>
-        <label for="estimateAmount" style="font-size:11px;color:var(--m);font-weight:600;display:block;margin-bottom:4px;">ESTIMATE AMOUNT</label>
+        <label class="ui-label-plain" for="estimateAmount">ESTIMATE AMOUNT</label>
         <input type="number" id="estimateAmount" placeholder="0.00" aria-label="Estimate amount in dollars" style="
           width:100%;
           padding:8px;
@@ -2517,7 +2517,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
     </div>
     
     <div style="margin-bottom:16px;">
-      <label for="estimateNotes" style="font-size:11px;color:var(--m);font-weight:600;display:block;margin-bottom:4px;">DESCRIPTION / NOTES</label>
+      <label class="ui-label-plain" for="estimateNotes">DESCRIPTION / NOTES</label>
       <textarea id="estimateNotes" placeholder="Optional estimate notes..." style="
         width:100%;
         min-height:80px;
@@ -2731,14 +2731,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       <button data-action="closePhotoReportPicker" style="background:none;border:none;color:var(--m);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;">×</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-      <button type="button" class="prp-card" data-prp-preset="homeowner" style="text-align:left;background:var(--s2);border:1px solid var(--br);border-radius:12px;padding:18px;cursor:pointer;color:var(--t);font-family:inherit;transition:border-color .15s,transform .08s;">
+      <button type="button" class="prp-card ui-choice" data-prp-preset="homeowner">
         <div style="font-size:28px;margin-bottom:10px;">👋</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--t);margin-bottom:6px;">Homeowner</div>
+        <div class="ui-sec-title">Homeowner</div>
         <div style="font-size:12px;color:var(--m);line-height:1.45;">Visual story · friendly captions · before/after focus. The PDF you email the homeowner.</div>
       </button>
-      <button type="button" class="prp-card" data-prp-preset="adjuster" style="text-align:left;background:var(--s2);border:1px solid var(--br);border-radius:12px;padding:18px;cursor:pointer;color:var(--t);font-family:inherit;transition:border-color .15s,transform .08s;">
+      <button type="button" class="prp-card ui-choice" data-prp-preset="adjuster">
         <div style="font-size:28px;margin-bottom:10px;">📋</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--t);margin-bottom:6px;">Adjuster</div>
+        <div class="ui-sec-title">Adjuster</div>
         <div style="font-size:12px;color:var(--m);line-height:1.45;">Dense metadata · numbered photos · capture dates. The PDF you attach to a claim.</div>
       </button>
     </div>
@@ -2842,8 +2842,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
         <div data-schedwin="edit" data-schedwin-date="editScheduledDate" data-schedwin-mode="allday" style="margin-top:8px;">
           <div role="group" aria-label="Arrival window" style="display:flex;flex-wrap:wrap;gap:6px;">
             <button type="button" data-schedwin-preset="allday" aria-pressed="true" style="padding:6px 10px;min-height:36px;border:1px solid var(--orange,#BD5728);border-radius:999px;background:var(--orange,#BD5728);color:#fff;font-size:12px;cursor:pointer;">All day / no time</button>
-            <button type="button" data-schedwin-preset="project" aria-pressed="false" style="padding:6px 10px;min-height:36px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Full project</button>
-            <button type="button" data-schedwin-preset="repair" aria-pressed="false" style="padding:6px 10px;min-height:36px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Repair / inspection</button>
+            <button class="ui-pill" type="button" data-schedwin-preset="project" aria-pressed="false">Full project</button>
+            <button class="ui-pill" type="button" data-schedwin-preset="repair" aria-pressed="false">Repair / inspection</button>
           </div>
           <div data-schedwin-fields hidden style="display:none;">
             <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">

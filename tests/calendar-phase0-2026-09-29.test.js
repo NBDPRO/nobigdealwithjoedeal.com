@@ -352,7 +352,7 @@ function runE() {
   ok('customer Edit modal has a Scheduled Date input + window block', /id="editScheduledDate" type="date"/.test(cust) && cBlock && /data-schedwin-date="editScheduledDate"/.test(cBlock));
   for (const [name, b, p] of [['dashboard', dBlock, 'l'], ['customer', cBlock, 'edit']]) {
     ok(name + ': the three presets, as buttons that never submit',
-      ['allday', 'project', 'repair'].every((m) => new RegExp('<button type="button" data-schedwin-preset="' + m + '"').test(b)));
+      ['allday', 'project', 'repair'].every((m) => new RegExp('<button (class="[^"]*" )?type="button" data-schedwin-preset="' + m + '"').test(b)));
     ok(name + ': preset labels are Jo\'s words', />All day \/ no time</.test(b) && />Full project</.test(b) && />Repair \/ inspection</.test(b));
     ok(name + ': start / days / length / preview ids', ['SchedStart', 'SchedDays', 'SchedDuration', 'SchedPreview'].every((s) => b.indexOf('id="' + p + s + '"') > -1));
     ok(name + ': no inline handlers in the block (CSP script-src-attr none)', !/\son[a-z]+=/i.test(b));
