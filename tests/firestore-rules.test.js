@@ -2152,6 +2152,49 @@ async function run() {
     throw new Error('44 priceBook: ' + s44Fail.length + ' check(s) went the wrong way:\n    ' + s44Fail.join('\n    '));
   }
 
+  // ─── 45. agent_inbox — the bot team's filings (2026-10-02) ───
+  // Server-created only; the owner / company_admin reads and DECIDES
+  // (pending → approved | dismissed), may edit the text, nothing else.
+  const s45Fail = []; let s45Pass = 0;
+  async function x45(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s45Pass++;
+    } catch (e) { s45Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own45   = env.authenticatedContext('co-45',  { companyId: 'co-45' }).firestore();
+  const cadm45  = env.authenticatedContext('cadm45', { role: 'company_admin', companyId: 'co-45' }).firestore();
+  const rep45   = env.authenticatedContext('rep45',  { role: 'sales_rep', companyId: 'co-45' }).firestore();
+  const view45  = env.authenticatedContext('vw45',   { role: 'viewer', companyId: 'co-45' }).firestore();
+  const other45 = env.authenticatedContext('oth45',  { role: 'company_admin', companyId: 'co-other45' }).firestore();
+  const ITEM = (extra) => Object.assign({ companyId: 'co-45', bot: 'Marcus · NBD Ops', kind: 'reminder', leadId: 'lead45', title: 'Stale lead', text: 'Call back about the gutter quote', dueDate: '2026-10-09', status: 'pending', verified: true }, extra || {});
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'agent_inbox/a1'), ITEM());
+    await setDoc(doc(db, 'agent_inbox/a2'), ITEM());
+    await setDoc(doc(db, 'agent_inbox/a3'), ITEM({ status: 'approved' }));
+    await setDoc(doc(db, 'agent_inbox/a4'), ITEM());
+  });
+  const decide = (uid, extra) => Object.assign({ status: 'approved', decidedAt: new Date(), decidedBy: uid, result: 'task:t1' }, extra || {});
+  await x45('owner lists the company\'s pending items', 'allow', getDocs(query(collection(own45, 'agent_inbox'), where('companyId', '==', 'co-45'), where('status', '==', 'pending'))));
+  await x45('company_admin reads an item', 'allow', getDoc(doc(cadm45, 'agent_inbox/a1')));
+  await x45('a sales rep cannot read the inbox', 'deny', getDoc(doc(rep45, 'agent_inbox/a1')));
+  await x45('a viewer cannot read the inbox', 'deny', getDoc(doc(view45, 'agent_inbox/a1')));
+  await x45('another company cannot read it', 'deny', getDoc(doc(other45, 'agent_inbox/a1')));
+  await x45('owner approves a pending item (with edited text)', 'allow', updateDoc(doc(own45, 'agent_inbox/a1'), decide('co-45', { text: 'Edited by Jo' })));
+  await x45('company_admin dismisses one', 'allow', updateDoc(doc(cadm45, 'agent_inbox/a2'), decide('cadm45', { status: 'dismissed', result: null })));
+  await x45('a decided item cannot be decided again', 'deny', updateDoc(doc(own45, 'agent_inbox/a3'), decide('co-45', { status: 'dismissed' })));
+  await x45('the decision must be stamped with the decider', 'deny', updateDoc(doc(own45, 'agent_inbox/a4'), decide('someone-else')));
+  await x45('cannot rewrite who filed it / what it is', 'deny', updateDoc(doc(own45, 'agent_inbox/a4'), decide('co-45', { bot: 'Jo', kind: 'note' })));
+  await x45('cannot set an unknown status', 'deny', updateDoc(doc(own45, 'agent_inbox/a4'), decide('co-45', { status: 'sent' })));
+  await x45('a sales rep cannot decide', 'deny', updateDoc(doc(rep45, 'agent_inbox/a4'), decide('rep45')));
+  await x45('nobody creates items from the client (server only)', 'deny', setDoc(doc(own45, 'agent_inbox/x9'), ITEM()));
+  await x45('nobody deletes items from the client', 'deny', deleteDoc(doc(own45, 'agent_inbox/a4')));
+  console.log('  45: ' + s45Pass + ' agent-inbox checks passed, ' + s45Fail.length + ' failed');
+  if (s45Fail.length) {
+    throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }
