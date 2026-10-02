@@ -328,6 +328,15 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         if (task && await createIfAbsent(db.doc('leads/' + call.leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
       }
     } catch (e) {
+      // Groq's hourly/daily rate limit is about the account, not this call:
+      // no strike, and stop the run (every later call would be refused too).
+      // The next half-hourly run picks up where this one stopped.
+      if (L.isRateLimited(e)) {
+        out.rateLimited = true;
+        await callRef.set({ transcribeError: String((e && e.message) || e).slice(0, 300), rateLimitedAtMs: nowMs }, { merge: true }).catch(() => {});
+        logger.info('call_center_transcribe_rate_limited', { id: call.id, noted: out.noted });
+        break;
+      }
       out.failed++;
       await callRef.set({ transcribeAttempts: (Number(call.transcribeAttempts) || 0) + 1, transcribeError: String((e && e.message) || e).slice(0, 300) }, { merge: true }).catch(() => {});
       logger.warn('call_center_transcribe_failed', { id: call.id, err: e && e.message });

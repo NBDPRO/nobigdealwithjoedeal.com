@@ -168,6 +168,32 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   const fd = db.docs.get(COLLECTION + '/cube_f');
   ok('a failure counts an attempt and keeps the call stored for retry', r.failed === 1 && fd.status === 'stored' && fd.transcribeAttempts === 1 && /model down/.test(fd.transcribeError));
 
+  console.log('\n8. Groq rate limit (2026-10-02: six calls dropped for good by a busy hour)');
+  // The real error shape from voice-intelligence.js transcribeGroqBuffer.
+  const rateErr = () => { const e = new Error('Groq rejected: Rate limit reached for model `whisper-large-v3-turbo` in organization `org_x` service tier `on_demand` on seconds of audio per hour (ASH)'); e.status = 429; return e; };
+  calls = { transcribe: 0, notes: 0, prompts: [] };
+  setDeps({ transcribe: async () => { calls.transcribe++; throw rateErr(); }, notes: async () => BUSINESS() });
+  db = fakeDb({
+    [COLLECTION + '/cube_r1']: call('cube_r1', { leadId: null, startedAtMs: NOW - 10e3, transcribeAttempts: 2 }),
+    [COLLECTION + '/cube_r2']: call('cube_r2', { leadId: null, startedAtMs: NOW - 20e3 }),
+    [COLLECTION + '/cube_r3']: call('cube_r3', { leadId: null, startedAtMs: NOW - 30e3 }),
+  });
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  const r1 = db.docs.get(COLLECTION + '/cube_r1');
+  ok('a rate limit is no strike: attempts unchanged, still stored, error kept', r1.status === 'stored' && r1.transcribeAttempts === 2 && /Rate limit/.test(r1.transcribeError), JSON.stringify(r1));
+  ok('...and the run stops at once (the next calls would be refused too)', calls.transcribe === 1 && r.rateLimited === true && r.failed === 0, JSON.stringify(r));
+  ok('...the untried calls are untouched for the next run', !db.docs.get(COLLECTION + '/cube_r2').transcribeError && !db.docs.get(COLLECTION + '/cube_r3').transcribeError);
+  ok('isRateLimited: 429 status, the stored message, and a real failure',
+    L.isRateLimited(rateErr()) && L.isRateLimited('Groq rejected: Rate limit reached for model x') && !L.isRateLimited(new Error('model down')) && !L.isRateLimited('The operation was aborted due to timeout') && !L.isRateLimited(null));
+  // A call already at 3 strikes whose last error was a rate limit is picked
+  // again (recovers the ones dropped before this fix); a real 3rd failure is not.
+  const pickList = [
+    { id: 'victim', status: 'stored', storagePath: 'p', sizeBytes: 4000, startedAtMs: 3, transcribeAttempts: 3, transcribeError: 'Groq rejected: Rate limit reached for model `whisper-large-v3-turbo`' },
+    { id: 'broken', status: 'stored', storagePath: 'p', sizeBytes: 4000, startedAtMs: 2, transcribeAttempts: 3, transcribeError: 'model down' },
+  ];
+  ok('a 3-strike call whose last error was a rate limit is picked again; a real 3-strike failure is not',
+    L.pickToTranscribe(pickList, { live: true, allowIds: [], maxCount: 5, secLeft: 1e6 }).map((c) => c.id).join() === 'victim');
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);
