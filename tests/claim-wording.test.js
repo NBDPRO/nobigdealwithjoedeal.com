@@ -114,6 +114,28 @@ const RULES = [
   { id: 'help-file-claim', why: '(1)(a)1 contractor helps file / assists with the claim',
     re: /\b(help|helps|helping|assist|assists|assisting)( you| homeowners| them| the homeowner)?( to)? (file|filing)\b|\b(help|helps|helping|assist|assists|assisting|assistance) (with|in) (filing|(your|the|a|their) (insurance )?claims?)\b/i,
     ctx: true, unless: THIRD_PARTY },
+  // 2026-10-02: the claim word without a "handle" verb still slipped through.
+  // "walk you through the (entire) claim process from filing through final
+  // payment" is claim guidance (claim-assistance above) in other words, and
+  // ran on 8 hail/storm pages; "You focus on your deductible; we handle the
+  // rest" sat on the HOMEPAGE FAQ; "I … can request a re-inspection" acts
+  // for the insured (the homeowner asks the carrier — advice that YOU can is
+  // fine); "I stay involved through adjuster visits" and "someone who knows
+  // the insurance side" sell claim involvement / insurance expertise.
+  // Explaining is fine: "walk you through whether a claim makes sense" and
+  // "what a claim looks like" don't match.
+  { id: 'walk-through-claim', why: '(1)(a)1 advertise to represent (guiding the insured through the claim)',
+    re: /\b(walk|walks|walking|guide|guides|guiding|take|takes|taking) (you|them|homeowners|the homeowner|families)( all the way)? through (the |your |their )?(entire |whole |full )?(insurance )?claims?\b/i },
+  { id: 'through-the-claim', why: '(1)(a)1 advertise to represent (carrying the insured through the claim)',
+    re: /\b(get|gets|getting|got|see|sees|seeing) ([\w.-]+ )?(homeowners|you|them|families|customers) through (the|your|their) (insurance )?claims?\b/i },
+  { id: 'handle-the-rest', why: '(1)(a)1 represent on the claim (everything but the deductible)',
+    re: /\b(we|I|Joe)('ll| will)? (handle|take care of) (the rest|everything else)\b/i, ctx: /\b(claims?|insur\w*|adjusters?|carriers?|deductibles?)\b/i, near: true },
+  { id: 'contractor-reinspection', why: '(1)(a)1 act for the insured with the carrier',
+    re: /\b(I|we|Joe)\b[^.;]{0,100}\b(can|will|'ll) (request|demand|order) (a |another )?re-?inspections?\b/i },
+  { id: 'stay-involved', why: '(1)(a)1 represent on the claim',
+    re: /\b(I|we|Joe)( stay| stays| remain| remains| keep| keeps) involved\b/i, ctx: true },
+  { id: 'insurance-side', why: '(1)(a)2 market insurance expertise',
+    re: /\bknows? the insurance side\b/i },
 ];
 
 function decode(s) {
@@ -207,6 +229,12 @@ const BAD = {
   'public-adjuster-would': 'I build claims files with the same level of detail a public adjuster would prepare.',
   'claim-assistance': '✓ Insurance claim filing assistance from first call through final payment',
   'help-file-claim': "I'll inspect and document the damage and help you file if there's a legitimate claim.",
+  'walk-through-claim': "Call Joe. I'll do a free inspection, document everything, and walk you through the claim process from filing through final payment.",
+  'through-the-claim': 'An honest, no-pressure approach to getting Batavia homeowners through the claim process.',
+  'handle-the-rest': "You focus on your deductible; we handle the rest.",
+  'contractor-reinspection': "I've found insurance-grade damage that initial adjusters missed and can request a re-inspection or supplement that changes the outcome.",
+  'stay-involved': 'I stay involved through adjuster visits and supplement documentation to keep things moving.',
+  'insurance-side': "Having someone who knows the insurance side as well as the roofing side makes a significant difference in claim outcomes.",
 };
 for (const r of RULES) {
   const fx = BAD[r.id] || 'NO FIXTURE';
@@ -251,6 +279,15 @@ const GOOD = [
   'Read the claim-filing guide before you call your insurer.',
   'If a shingle defect shows up, I handle the GAF warranty claim support paperwork.',
   'A public adjuster can help you file and argue the claim; I stick to the documentation.',
+  // 2026-10-02 rules: explaining, and advice the homeowner acts on, pass.
+  "I'll get on your roof, tell you what you actually have, and walk you through whether a claim makes sense.",
+  "I'll walk you through what a claim looks like for your specific situation.",
+  "I'll walk your roof, look at your exposure, and talk through your options.",
+  'You can request a reinspection in writing, and many policies include an appraisal clause.',
+  'Once you get through the claim, the build itself takes a day.',
+  'You file the claim with your carrier; once you have, I meet the adjuster on the roof.',
+  'I meet the adjuster on the roof after you file and send a supplement (my updated estimate) for anything the first scope missed.',
+  'We tear off, dry in, and handle the rest of the build in one day.',
 ];
 for (const g of GOOD) ok(checkSentence(g).length === 0, `passes: "${g.slice(0, 70)}"${checkSentence(g).length ? ' — fired ' + checkSentence(g).join(',') : ''}`);
 // Windowed context: advocacy talk about a third party, or far from any claim, passes.
