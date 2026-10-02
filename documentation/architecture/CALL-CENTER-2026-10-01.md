@@ -174,9 +174,22 @@ the notes render.
 - Code: `docs/pro/js/call-center-view.js`, lazy bundle `callcenter`,
   sidebar plus the phone More drawer.
 - **Filters:** Needs attention, All, Customers, Insurance, Contacts, Unknown.
-  "Needs attention" means not handled, not personal, and at least one of: Jo
-  promised something, a follow-up is due, it is urgent, or there is no
-  customer on file.
+  - **Original rule:** "Needs attention" meant not handled, not personal, and
+    at least one of: Jo promised something, a follow-up is due, it is
+    urgent, or there is no customer on file.
+  - **Superseded 2026-10-02:** that rule flagged 439 of 488 calls, because
+    every saved-contact call in the backlog counted. The rule is now
+    `callNeedsYou` in `docs/pro/js/home-attention.js`, shared with the new
+    📞 item on the Home "needs you" strip.
+  - **The new rule:** the call is from the last 14 days, not handled and not
+    personal, and is urgent, carries a promise Jo made, has a follow-up date
+    that has come, or is an insurance line or unknown number with no
+    customer on file.
+  - An unknown number counts even as a missed (short) inbound call. A saved
+    contact only counts through a promise.
+  - On production it flags **49**: 16 promises, 31 unknown numbers, and 2
+    insurance lines.
+  - Tests are in `tests/home-attention-yard-chip-2026-09-29.test.js`.
 - **Search:** name, number digits, summary, transcript.
 - **Per call:** Play (getBlob into a `blob:` URL), Open customer,
   ✓ Handled / Not handled, Attach to customer… (a datalist of leads), and
