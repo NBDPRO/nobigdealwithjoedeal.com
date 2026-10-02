@@ -135,7 +135,7 @@
     deal_accepted: '🎉', remote_signature: '✍️', homeowner_upload: '📎',
     callback_request: '📞', homeowner_callback: '📞', customer_rating: '⭐',
     portal_message_in: '💬', portal_message: '💬', portal_message_out: '💬',
-    agent_inbox: '🤖',
+    agent_inbox: '🤖', call_watch: '📞',
   };
   function serverIcon(type) { return SERVER_NOTIF_ICONS[type] || '🔔'; }
   function serverSeverity(n) {
@@ -167,7 +167,9 @@
       sub:        ts ? relativeTime(ts) : '',
       ts:         ts,
       // The bot team's filings open the Agent inbox (agent-inbox.js).
+      // The every-2-hours call check opens the Call Center (call-watch.js).
       href:       n.type === 'agent_inbox' ? '/pro/dashboard.html?agentInbox=1'
+        : n.type === 'call_watch' ? '/pro/dashboard.html#/calls'
         : (leadOk ? `/pro/dashboard.html?tab=crm&lead=${encodeURIComponent(n.leadId)}` : null),
     };
   }
