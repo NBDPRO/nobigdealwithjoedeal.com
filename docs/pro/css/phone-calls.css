@@ -50,3 +50,13 @@
 .cc-attach-row .cc-search { flex: 1 1 auto; }
 .cc-empty { padding: 28px 12px; text-align: center; color: var(--m); font-size: 14px; }
 @media (max-width: 480px) { .cc-wrap { padding: 12px; } .cc-attach-row { flex-direction: column; } }
+/* Texts from Jo's phone (phone_texts) — chat thread in the Calls section. */
+.pt-panel { margin-bottom: 12px; padding: 10px 12px; }
+.pt-summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; gap: 8px; }
+.pt-thread { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; padding: 6px 2px; }
+.pt-day { align-self: center; font-size: 11px; color: var(--m); margin: 6px 0 2px; }
+.pt-msg { max-width: 82%; padding: 7px 10px; border-radius: 14px; font-size: 14px; line-height: 1.4; }
+.pt-in { align-self: flex-start; background: var(--s3, rgba(255,255,255,.08)); border-bottom-left-radius: 4px; }
+.pt-out { align-self: flex-end; background: var(--orange, #e8720c); color: var(--accent-fg, #fff); border-bottom-right-radius: 4px; }
+.pt-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.pt-time { font-size: 10px; opacity: .75; margin-top: 2px; text-align: right; }

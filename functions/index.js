@@ -714,6 +714,10 @@ exports.callCenterSweep = require('./call-center').callCenterSweep;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;
+// Text Inbox (Call Center stage 4): Jo's texts from the SMS Backup & Restore
+// Drive backup → phone_texts (lead matched by phone, short codes never
+// stored). DRY-RUN (counts) unless TEXT_INBOX_ENABLED=true.
+exports.textInboxIngest = require('./text-inbox').textInboxIngest;
 
 // ═══════════════════════════════════════════════════════════════
 // REFERRAL CAPTURE — public POST from /refer.html

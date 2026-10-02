@@ -211,6 +211,56 @@ unless `CALL_CENTER_SWEEP_ENABLED=true`. It is registered in
 `tests/call-center-sweep-2026-10-01.test.js` (15 checks, including
 escaping).
 
+## Stage 4: texts (built 2026-10-01)
+
+**Source.** Jo's phone is Android (Cube ACR is Android-only), so texts come
+from **SMS Backup & Restore** (free).
+- Its scheduled backup writes `sms-<YYYYMMDDHHMMSS>.xml` to the Drive folder
+  `SMSBackupRestore`. Each file holds every text, received and sent,
+  including MMS.
+- This captures Jo's replies too, which an SMS forwarder can't. It also needs
+  no new number and no public endpoint.
+
+**`textInboxIngest`** (`functions/text-inbox.js`) runs every 30 minutes.
+- **Which file:** only the newest `sms-*.xml`. `calls-*.xml` call-log
+  backups are ignored. The same file with the same `modifiedTime` is a
+  no-op.
+- **How far back:** texts newer than the cursor minus 3 days, or the last 90
+  days on the first run.
+- **No duplicates:** doc ids are content hashes, so the overlap between full
+  backups never duplicates a text.
+- **Where results go:** `phone_texts` docs, matched to the lead by phone and
+  bucketed like calls.
+- **Short codes** (5–6 digit senders: 2FA codes, bank and delivery alerts)
+  are **never stored**. This was break-tested.
+- **Status doc:** counts only, on `integrations/textInbox`. Setting
+  `paused: true` stops it.
+- **Gate:** DRY-RUN unless `TEXT_INBOX_ENABLED=true`.
+
+**Parser.** `functions/text-inbox-logic.js` is a dependency-free regex scan
+over `<sms …/>` and `<mms>…<parts>`.
+- It decodes entities, including emoji character references.
+- MMS dates are in seconds; it converts them.
+- Group MMS is flagged.
+- Photos become "[n photos]"; the images themselves aren't copied yet.
+
+**Rules.** `phone_texts` has the same readers as `phone_calls`, and no
+client writes (9 cross-tenant checks). Indexes: `userId|companyId +
+sentAtMs`, and `leadId + userId + sentAtMs`. Registered for erasure and
+export.
+
+**Customer page.** The Calls section shows "💬 Texts from your phone": a
+chat thread, oldest to newest, with the newest 80 in view. Covered by the
+card E2E, which checks that a text containing `<b>` renders as text and
+never as HTML.
+
+**Turning it on (Jo-side)**
+1. Install **SMS Backup & Restore** and back up Messages to **Google Drive**
+   on a schedule (hourly, or as often as it allows).
+2. Share the Drive folder **SMSBackupRestore** with
+   `717435841570-compute@developer.gserviceaccount.com` as a Viewer.
+3. The dry run reports counts; then set `TEXT_INBOX_ENABLED=true`.
+
 ## Jo's go-aheads (2026-10-01)
 
 - **Copying:** "Yes, all 90 days" turned the ingest on
@@ -238,5 +288,7 @@ escaping).
 
 ## Next stages
 
-- **Texts.** An Android SMS forwarder posts to a secret-keyed endpoint. The
-  same sort-don't-filter buckets apply.
+- **Texts into the sweep.** Have the model read each customer's day of texts
+  for promises, and feed those into the same "you said you'd…" email.
+- **MMS photos.** Today they only count as "[n photos]". Copying them would
+  mean EXIF-stripping them first (they could land on a lead's photos).

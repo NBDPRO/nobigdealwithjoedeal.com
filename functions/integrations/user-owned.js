@@ -142,6 +142,9 @@ const FLAT_USER_COLLECTIONS = [
   // Call Center (call-center.js) — Cube ACR recordings: callers' numbers,
   // contact names, later transcripts. Owner-keyed on userId.
   { name: 'phone_calls', ownerField: 'userId' },
+  // Text Inbox (text-inbox.js) — Jo's texts from the phone backup: numbers,
+  // contact names, message bodies. Owner-keyed on userId.
+  { name: 'phone_texts', ownerField: 'userId' },
 ];
 
 // ─── COLLECTION-GROUPS WITH userId STAMPS ───────────────────

@@ -66,6 +66,11 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     await db.doc('phone_calls/cube_zzcc' + s + 'x').set(Object.assign({}, base, {
       leadId: other, phoneDigits: '5135559999', contactName: 'ZZCC Someone Else', direction: 'outbound', startedAtMs: Date.parse('2026-09-30T22:00:00Z'), storagePath: null,
     }));
+    // Texts from the phone backup (phone_texts), this customer and another.
+    const tbase = { userId: uid, companyId: lead.companyId || uid, source: 'sms-backup', kind: 'sms', group: false, bucket: 'customer', alternateLeadIds: [], createdAtMs: s };
+    await db.doc('phone_texts/sms_zzcc' + s + 'a').set(Object.assign({}, tbase, { leadId: id, phoneDigits: phone, direction: 'inbound', sentAtMs: Date.parse('2026-09-30T14:00:00Z'), body: 'ZZCC can you come Tuesday?' }));
+    await db.doc('phone_texts/sms_zzcc' + s + 'b').set(Object.assign({}, tbase, { leadId: id, phoneDigits: phone, direction: 'outbound', sentAtMs: Date.parse('2026-09-30T14:05:00Z'), body: 'ZZCC yes, 10am <b>sharp</b>' }));
+    await db.doc('phone_texts/sms_zzcc' + s + 'x').set(Object.assign({}, tbase, { leadId: other, phoneDigits: '5135559999', direction: 'inbound', sentAtMs: Date.parse('2026-09-30T15:00:00Z'), body: 'ZZCC not this customer' }));
 
     await page.goto('/pro/customer.html?id=' + encodeURIComponent(id));
     const card = page.locator('[data-call-card="phone:cube_zzcc' + s + '"]');
@@ -79,6 +84,15 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     await expect(card).toContainText('Follow up 2026-10-02');
     await expect(card).toContainText('Urgent');
     expect(await page.locator('#callsList').innerText(), 'another customer\'s call stays off this card').not.toContain('Someone Else');
+
+    // Texts thread: this customer's texts, inbound left / outbound right,
+    // escaped; never another customer's.
+    const thread = page.locator('#callsList [data-pt-thread]');
+    await expect(thread).toBeVisible();
+    await expect(thread.locator('.pt-in .pt-body')).toHaveText('ZZCC can you come Tuesday?');
+    await expect(thread.locator('.pt-out .pt-body')).toHaveText('ZZCC yes, 10am <b>sharp</b>');
+    expect(await thread.locator('b').count(), 'message text is escaped, never HTML').toBe(0);
+    await expect(page.locator('#callsList')).not.toContainText('not this customer');
 
     // Play: getBlob → blob: <audio>; the bytes are the ones the ingest stored.
     await card.scrollIntoViewIfNeeded().catch(() => {});
