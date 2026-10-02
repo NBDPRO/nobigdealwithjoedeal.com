@@ -113,8 +113,85 @@
     }
   }
 
+  // ── Viewer (Product Library → "Price book") ──────────────────────────
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = (c) => '$' + (Number(c) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // A store's own search page for the SKU (a link, never a fetch).
+  const STORE_SEARCH = {
+    homedepot: (sku) => 'https://www.homedepot.com/s/' + encodeURIComponent(sku),
+    lowes: (sku) => 'https://www.lowes.com/search?searchTerm=' + encodeURIComponent(sku),
+    menards: (sku) => 'https://www.menards.com/main/search.html?search=' + encodeURIComponent(sku),
+  };
+
+  /**
+   * Entries → display rows (pure): search on description / SKU / store,
+   * newest purchase first, with the change since the previous purchase.
+   */
+  function viewRows(items, query) {
+    const q = String(query || '').trim().toLowerCase();
+    return Object.keys(items || {}).map((k) => {
+      const e = items[k] || {};
+      const h = Array.isArray(e.history) ? e.history : [];
+      const prev = h[1] ? h[1].cents : null;
+      const delta = (prev != null && e.lastPaidCents != null) ? e.lastPaidCents - prev : null;
+      return { key: k, store: e.store || '', sku: e.sku || '', desc: e.desc || '', cents: e.lastPaidCents, date: e.lastPaidDate || '', times: e.timesBought || h.length, delta };
+    }).filter((r) => !q || (r.desc + ' ' + r.sku + ' ' + (STORES[r.store] || r.store)).toLowerCase().indexOf(q) !== -1)
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.desc < b.desc ? -1 : 1)));
+  }
+
+  function rowHtml(r) {
+    const link = STORE_SEARCH[r.store] ? ' · <a href="' + esc(STORE_SEARCH[r.store](r.sku)) + '" target="_blank" rel="noopener noreferrer">open at the store</a>' : '';
+    const trend = r.delta ? ' <span class="' + (r.delta > 0 ? 'pb-trend-up' : 'pb-trend-down') + '">' + (r.delta > 0 ? '▲ ' : '▼ ') + esc(money(Math.abs(r.delta))) + '</span>' : '';
+    return '<div class="pb-row">' +
+      '<div class="pb-desc"><span class="pb-store">' + esc(STORES[r.store] || r.store) + '</span>' + esc(r.desc || r.sku) + '</div>' +
+      '<div class="pb-price">' + esc(money(r.cents)) + trend + '</div>' +
+      '<div class="pb-meta">SKU ' + esc(r.sku) + ' · last paid ' + esc(r.date) + ' · bought ' + esc(r.times) + '×' + link + '</div>' +
+      '</div>';
+  }
+
+  let _items = null;
+  function paint() {
+    const list = document.getElementById('pbList');
+    if (!list) return;
+    if (_items === null) { list.innerHTML = '<div class="pb-empty">Loading…</div>'; return; }
+    const q = (document.getElementById('pbSearch') || {}).value || '';
+    const rows = viewRows(_items, q);
+    list.innerHTML = rows.length ? rows.map(rowHtml).join('')
+      : (Object.keys(_items).length ? '<div class="pb-empty">Nothing matches that search.</div>'
+        : '<div class="pb-empty">No prices yet. Import your Home Depot Pro Xtra purchases (Expenses → Import Home Depot) and every SKU you bought shows up here with what you paid.</div>');
+  }
+
+  async function open() {
+    close();
+    const ov = document.createElement('div');
+    ov.className = 'pb-overlay';
+    ov.id = 'pbOverlay';
+    ov.innerHTML = '<div class="pb-modal" role="dialog" aria-modal="true" aria-labelledby="pbTitle">' +
+      '<div class="pb-head"><h2 class="pb-title" id="pbTitle">💲 Price book</h2><button type="button" class="pb-close" data-pb-action="close" aria-label="Close">✕</button></div>' +
+      '<p class="pb-sub">What you actually paid, per store SKU, from your receipts. Internal only.</p>' +
+      '<input type="search" class="pb-search" id="pbSearch" placeholder="Search item, SKU or store" autocomplete="off">' +
+      '<div id="pbList"></div></div>';
+    document.body.appendChild(ov);
+    _items = null; paint();
+    try { _items = await load(); } catch (e) { _items = {}; console.warn('[price-book] load failed:', (e && (e.code || e.message)) || e); }
+    paint();
+  }
+  function close() { const o = document.getElementById('pbOverlay'); if (o) o.remove(); }
+
+  if (!window._NBD_PB_DELEGATE) {
+    window._NBD_PB_DELEGATE = true;
+    document.addEventListener('click', (ev) => {
+      const t = ev.target.closest && ev.target.closest('[data-pb-action]');
+      if (t) { if (t.dataset.pbAction === 'open') open(); else if (t.dataset.pbAction === 'close') close(); return; }
+      if (ev.target && ev.target.id === 'pbOverlay') close();
+    });
+    document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'pbSearch') paint(); });
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && document.getElementById('pbOverlay')) close(); });
+  }
+
   window.NBDPriceBook = {
     COLLECTION, STORES, HISTORY_MAX,
     keyFor, mergePurchases, purchasesFromHdReceipts, load, record,
+    open, close, viewRows,
   };
 })();
