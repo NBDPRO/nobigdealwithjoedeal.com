@@ -55,3 +55,31 @@ nested list. Read naively, that makes 205 of 223 services look non-public.
 The first pass here did exactly that, and checking two "missing" callables
 by hand caught it. Use `--format=json` and parse it, and report any gcloud
 error as an error rather than as "not public".
+
+## Weekly watch (added later 2026-10-02)
+
+The code fix covers the three onRequest functions. A callable can still lose
+its binding silently, as `extractReceiptData` did. So
+`.github/workflows/invoker-watch.yml` runs every Monday at 12:20 UTC, and on
+demand:
+
+- `scripts/check-public-invoker.mjs` loads `functions/index.js` to list every
+  onRequest and onCall export. It reads each Cloud Run policy with GETs only,
+  using the deploy service account.
+- It turns **red** (an email to the repo owner) when one isn't public, and
+  prints the exact fix.
+- When it can't read the policies, that is a warning, never a false alarm.
+  An API error is reported as an error, not as "not public": the lesson
+  from the value()-format pitfall above.
+- Pure rules: `scripts/public-invoker-logic.js`. Its tests live in
+  `tests/public-invoker-2026-10-02.test.js` and were break-tested (counting
+  an error as "not public" goes red).
+- First live run (local, read-only, before #2005 deployed): 137 checked,
+  134 public, and the 3 that #2005 fixes flagged. `extractReceiptData` was
+  public after Jo's grant.
+
+Run it by hand:
+
+```bash
+node scripts/check-public-invoker.mjs
+```
