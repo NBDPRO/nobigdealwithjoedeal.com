@@ -107,7 +107,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=37"></script>
+<script src="js/script-loader.js?v=38"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -126,7 +126,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=25"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=26"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -3555,17 +3555,21 @@
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">V2 Engine · Per-SQ Mode</div><div class="panel-title">Tier Rates</div></div></div>
           <div class="panel-body">
-            <p class="meta-12-mb16">Flat per-square pricing used when V2 Estimate Builder is in Per-SQ mode. Locked contractor pricing from the April 2026 price review.</p>
+            <p class="meta-12-mb16">Flat per-square pricing used when V2 Estimate Builder is in Per-SQ mode. Five tiers since October 2026: Economy and Beyond are in-person options (Beyond is TAMKO HailGuard only).</p>
             <div class="sf-row">
-              <div class="sf"><label>Good Tier ($/SQ)</label><input type="number" id="v2rateGood" value="545" step="5"></div>
-              <div class="sf"><label>Better Tier ($/SQ)</label><input type="number" id="v2rateBetter" value="595" step="5"></div>
-              <div class="sf"><label>Best Tier ($/SQ)</label><input type="number" id="v2rateBest" value="660" step="5"></div>
+              <div class="sf"><label>Economy Tier ($/SQ)</label><input type="number" id="v2rateEconomy" value="440" step="5"></div>
+              <div class="sf"><label>Good Tier ($/SQ)</label><input type="number" id="v2rateGood" value="550" step="5"></div>
+              <div class="sf"><label>Better Tier ($/SQ)</label><input type="number" id="v2rateBetter" value="660" step="5"></div>
+              <div class="sf"><label>Best Tier ($/SQ)</label><input type="number" id="v2rateBest" value="770" step="5"></div>
+              <div class="sf"><label>Beyond Tier ($/SQ)</label><input type="number" id="v2rateBeyond" value="880" step="5"></div>
             </div>
             <h4 style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--m);margin:14px 0 6px;">Internal · Cost Basis per SQ</h4>
             <div class="sf-row">
-              <div class="sf"><label>Good Cost ($/SQ)</label><input type="number" id="v2costGood" value="340" step="5"></div>
-              <div class="sf"><label>Better Cost ($/SQ)</label><input type="number" id="v2costBetter" value="385" step="5"></div>
-              <div class="sf"><label>Best Cost ($/SQ)</label><input type="number" id="v2costBest" value="430" step="5"></div>
+              <div class="sf"><label>Economy Cost ($/SQ)</label><input type="number" id="v2costEconomy" value="0" step="5"></div>
+              <div class="sf"><label>Good Cost ($/SQ)</label><input type="number" id="v2costGood" value="0" step="5"></div>
+              <div class="sf"><label>Better Cost ($/SQ)</label><input type="number" id="v2costBetter" value="0" step="5"></div>
+              <div class="sf"><label>Best Cost ($/SQ)</label><input type="number" id="v2costBest" value="0" step="5"></div>
+              <div class="sf"><label>Beyond Cost ($/SQ)</label><input type="number" id="v2costBeyond" value="0" step="5"></div>
             </div>
             <div class="sf-row">
               <div class="sf"><label>Minimum Job Charge (Per-SQ)</label><input type="number" id="v2minJob" value="2500" step="50"></div>
@@ -5578,9 +5582,11 @@
       <div class="mfield">
         <label>Guarantee Tier</label>
         <select id="wcTier" class="w-full" data-on-change="updateCertPreview">
-          <option value="standard">Standard — NBD Lifetime Pledge</option>
+          <option value="economy">Economy — 1-Year Labor Warranty (no system warranty)</option>
+          <option value="standard" selected>Standard — NBD Lifetime Pledge</option>
           <option value="preferred">Preferred — Lifetime + Transferable to One Owner</option>
           <option value="elite">Elite — Lifetime + Fully Transferable + Annual Inspection</option>
+          <option value="beyond">Beyond — Elite terms + TAMKO HailGuard Hail Warranty</option>
         </select>
       </div>
       <div class="mfield">
@@ -5857,7 +5863,7 @@
      because this file was only ever loaded on customer.html, so the dashboard
      silently ran the fallbacks. Dependency-free and already unit-tested
      (tests/customer-estimate-rows.test.js). -->
-<script defer src="js/customer-estimate-rows.js?v=2"></script>
+<script defer src="js/customer-estimate-rows.js?v=3"></script>
 <script defer src="js/customer-estimate-hub.js?v=3"></script>
 <script defer src="js/customer-photo-hub.js?v=2"></script>
 <!-- Mobile job-detail Voice Intel tab. voice-intelligence.js's initVoiceIntel
@@ -6818,7 +6824,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=8"></script>
+<script defer src="js/invoice-pipeline.js?v=9"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -6854,7 +6860,7 @@
 <script defer src="js/voicemail.js?v=2"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
-<script defer src="js/estimate-config.js?v=4"></script>
+<script defer src="js/estimate-config.js?v=5"></script>
 <!-- deposit-rule.js (2026-09-25): the ONE deposit rule every quote, contract,
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
@@ -6910,7 +6916,7 @@
      estimate-config, review-engine, property-intel stay eager. Engine assembly
      is gated by tests/e2e/estimate-engine.spec.js. -->
 <!-- W147: Estimate analytics summary band on the Estimates view. -->
-<script defer src="js/estimate-analytics.js?v=2"></script>
+<script defer src="js/estimate-analytics.js?v=3"></script>
 <!-- W153: Reports view performance dashboard — KPI tiles +
      period-over-period comparison + conversion funnel. -->
 <script defer src="js/reports-dashboard.js?v=2"></script>

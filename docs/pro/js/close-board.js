@@ -57,7 +57,12 @@
   function tierDisplayLabel(key) {
     const cfg = window.NBD_ESTIMATE_CONFIG;
     if (cfg && typeof cfg.tierLabel === 'function') return cfg.tierLabel(key);
-    return ({ good: 'Standard', better: 'Preferred', best: 'Elite' })[key] || key;
+    return ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[key] || key;
+  }
+  // Five tiers, cheapest first (estimate-config.js TIER_ORDER, 2026-10-02).
+  function dealTiers() {
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    return (cfg && Array.isArray(cfg.TIER_ORDER)) ? cfg.TIER_ORDER.slice() : ['economy', 'good', 'better', 'best', 'beyond'];
   }
 
   // Per-tier warranty differentiator (all tiers are lifetime workmanship —
@@ -66,7 +71,7 @@
   function tierDisplayWarrantyBlurb(key) {
     const cfg = window.NBD_ESTIMATE_CONFIG;
     if (cfg && typeof cfg.tierWarrantyBlurb === 'function') return cfg.tierWarrantyBlurb(key);
-    return ({ good: 'Non-transferable', better: 'Transferable to 1 subsequent owner', best: 'Fully transferable + annual inspection' })[key] || '';
+    return ({ economy: '1-year labor warranty', good: 'Non-transferable', better: 'Transferable to 1 subsequent owner', best: 'Fully transferable + annual inspection', beyond: 'Fully transferable + annual inspection + hail warranty' })[key] || '';
   }
 
   // Per-tier card copy (2026-09-25). The cards promised scope no tier price
@@ -78,10 +83,20 @@
   // decking) get their own priced lines, never a tier card
   // (documentation/projects/UPGRADES-ADDONS-DESIGN-2026-09-25.md).
   const TIER_DESCRIPTIONS = Object.freeze({
+    economy: 'Economy-grade architectural shingle (never a 3-tab). Scope exactly as written in your estimate.',
     good:   'Standard shingle line. Scope exactly as written in your estimate.',
     better: 'Upgraded shingle line. Scope exactly as written in your estimate.',
-    best:   'Top shingle line. Scope exactly as written in your estimate.'
+    best:   'Top shingle line. Scope exactly as written in your estimate.',
+    beyond: 'TAMKO HailGuard — the only shingle with a manufacturer hail warranty. Scope exactly as written in your estimate.'
   });
+  // An empty { tierKey: {label, price, description, lineItems} } map.
+  function blankTiers(priceFor) {
+    const out = {};
+    dealTiers().forEach(t => {
+      out[t] = { label: tierDisplayLabel(t), price: (priceFor ? priceFor(t) : 0) || 0, lineItems: [], description: TIER_DESCRIPTIONS[t] };
+    });
+    return out;
+  }
 
   // ============================================================================
   // STATE
@@ -416,11 +431,7 @@
       estimateId: opts.estimateId || null,
 
       // Pricing tiers
-      tiers: opts.tiers || {
-        good: { label: tierDisplayLabel('good'), price: 0, lineItems: [], description: TIER_DESCRIPTIONS.good },
-        better: { label: tierDisplayLabel('better'), price: 0, lineItems: [], description: TIER_DESCRIPTIONS.better },
-        best: { label: tierDisplayLabel('best'), price: 0, lineItems: [], description: TIER_DESCRIPTIONS.best }
-      },
+      tiers: opts.tiers || blankTiers(),
 
       // Product details
       selectedProducts: opts.selectedProducts || [],
@@ -570,26 +581,7 @@
 
   function createFromEstimate(estimateData, leadData) {
     // Pull pricing from current estimate
-    const tiers = {
-      good: {
-        label: tierDisplayLabel('good'),
-        price: estimateData?.prices?.good || 0,
-        description: TIER_DESCRIPTIONS.good,
-        lineItems: []
-      },
-      better: {
-        label: tierDisplayLabel('better'),
-        price: estimateData?.prices?.better || 0,
-        description: TIER_DESCRIPTIONS.better,
-        lineItems: []
-      },
-      best: {
-        label: tierDisplayLabel('best'),
-        price: estimateData?.prices?.best || 0,
-        description: TIER_DESCRIPTIONS.best,
-        lineItems: []
-      }
-    };
+    const tiers = blankTiers(t => estimateData?.prices?.[t]);
 
     // Pull line items if available
     if (typeof window.getLineItems === 'function') {
@@ -598,9 +590,7 @@
       // ice & water, hip caps, pipe boots, decking and gutters from the lower
       // tiers — the data twin of the card copy TIER_DESCRIPTIONS replaced. The
       // tier price never removed that scope, so no tier's list may either.
-      tiers.good.lineItems = items.slice();
-      tiers.better.lineItems = items.slice();
-      tiers.best.lineItems = items.slice();
+      dealTiers().forEach(t => { tiers[t].lineItems = items.slice(); });
     }
 
     // Get product names from library
@@ -663,9 +653,16 @@
   }
 
   function generateDealPageHTML(deal) {
-    const goodPay = calcMonthlyPayment(deal.tiers.good.price, 7.99, 60);
-    const betterPay = calcMonthlyPayment(deal.tiers.better.price, 7.99, 60);
-    const bestPay = calcMonthlyPayment(deal.tiers.best.price, 7.99, 60);
+    // Every tier the rep PRICED, cheapest first (five since 2026-10-02). An
+    // unpriced tier never shows — it would be a $0 package the homeowner
+    // could pick (deal-acceptance.js now refuses that too). A three-tier deal
+    // saved before 2026-10-02 renders exactly as before.
+    const _dt = deal.tiers || {};
+    const pricedTiers = dealTiers().filter(t => _dt[t] && Number(_dt[t].price) > 0);
+    const _payFor = {};
+    pricedTiers.forEach(t => { _payFor[t] = calcMonthlyPayment(_dt[t].price, 7.99, 60); });
+    const _recommended = pricedTiers.indexOf('better') !== -1 ? 'better' : null;
+    const _stars = { economy: '○', good: '☆', better: '★★', best: '★★★', beyond: '★★★★' };
     const BRAND = _dealBrand();
     // Deposit per tier (2026-09-25) — deposit-rule.js, the same answer the
     // quote, contract and invoice give: cash under $2,000 none, $2,000+ 50%
@@ -682,7 +679,7 @@
       const p = _tierPlan(price);
       return p ? `<div class="tier-deposit">${esc(p.label)}: <strong>${esc(p.valueText)}</strong></div>` : '';
     };
-    const _insPlan = _tierPlan(deal.tiers.better.price) || _tierPlan(deal.tiers.good.price) || _tierPlan(deal.tiers.best.price);
+    const _insPlan = ['better', 'good', 'best', 'economy', 'beyond'].map(t => _dt[t] && _tierPlan(_dt[t].price)).find(Boolean) || null;
 
     // Kentucky SB 153 (2026-09-27). The homeowner signs and ACCEPTS here, so
     // for a Kentucky insurance deal (or an insurance deal whose state cannot
@@ -800,30 +797,15 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 <div class="container">
   <div class="section-title">Choose Your Roof Package</div>
   <div class="tier-cards">
-    <div class="tier" id="tier-good" data-deal-tier="good">
-      <div class="tier-name">☆ ${esc(tierDisplayLabel('good'))}</div>
-      <div class="tier-price">${fmtCurrency(deal.tiers.good.price)}</div>
-      <div class="tier-monthly">or ~${fmtCurrency(goodPay)}/mo with financing</div>
-      <div class="tier-desc">${esc(deal.tiers.good.description)}</div>
-      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyBlurb('good'))}</div>
-      ${depositLine(deal.tiers.good.price)}
-    </div>
-    <div class="tier recommended" id="tier-better" data-deal-tier="better">
-      <div class="tier-name">★★ ${esc(tierDisplayLabel('better'))}</div>
-      <div class="tier-price">${fmtCurrency(deal.tiers.better.price)}</div>
-      <div class="tier-monthly">or ~${fmtCurrency(betterPay)}/mo with financing</div>
-      <div class="tier-desc">${esc(deal.tiers.better.description)}</div>
-      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyBlurb('better'))}</div>
-      ${depositLine(deal.tiers.better.price)}
-    </div>
-    <div class="tier" id="tier-best" data-deal-tier="best">
-      <div class="tier-name">★★★ ${esc(tierDisplayLabel('best'))}</div>
-      <div class="tier-price">${fmtCurrency(deal.tiers.best.price)}</div>
-      <div class="tier-monthly">or ~${fmtCurrency(bestPay)}/mo with financing</div>
-      <div class="tier-desc">${esc(deal.tiers.best.description)}</div>
-      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyBlurb('best'))}</div>
-      ${depositLine(deal.tiers.best.price)}
-    </div>
+    ${pricedTiers.map(t => `
+    <div class="tier${t === _recommended ? ' recommended' : ''}" id="tier-${t}" data-deal-tier="${t}">
+      <div class="tier-name">${_stars[t] || ''} ${esc(tierDisplayLabel(t))}</div>
+      <div class="tier-price">${fmtCurrency(_dt[t].price)}</div>
+      <div class="tier-monthly">or ~${fmtCurrency(_payFor[t])}/mo with financing</div>
+      <div class="tier-desc">${esc(_dt[t].description || TIER_DESCRIPTIONS[t] || '')}</div>
+      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyBlurb(t))}</div>
+      ${depositLine(_dt[t].price)}
+    </div>`).join('')}
   </div>
 
   ${deal.insuranceClaim ? `
@@ -871,7 +853,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     // Data island, not executable script — CSP does not block JSON blocks.
     // Escape < so lead-sourced strings can never close the tag early.
     JSON.stringify({
-      prices: { good: deal.tiers.good.price, better: deal.tiers.better.price, best: deal.tiers.best.price },
+      prices: Object.fromEntries(pricedTiers.map(t => [t, _dt[t].price])),
       rates: FINANCING_RATES,
     }).replace(/</g, '\\u003c')
   }</script>
@@ -1356,19 +1338,12 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
         </div>
 
         <div style="font-size:12px;font-weight:700;color:var(--t);margin:14px 0 8px;">Pricing Tiers</div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <div style="flex:1;">
-            <label style="font-size:10px;color:var(--m);">Good ($)</label>
-            <input class="ui-field-xs" id="cb-good" type="number" placeholder="8000">
-          </div>
-          <div style="flex:1;">
-            <label style="font-size:10px;color:var(--m);">Better ($)</label>
-            <input class="ui-field-xs" id="cb-better" type="number" placeholder="11000">
-          </div>
-          <div style="flex:1;">
-            <label style="font-size:10px;color:var(--m);">Best ($)</label>
-            <input class="ui-field-xs" id="cb-best" type="number" placeholder="15000">
-          </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          ${dealTiers().map(t => `
+          <div style="flex:1 1 30%;min-width:90px;">
+            <label style="font-size:10px;color:var(--m);">${({ economy: 'Economy', good: 'Good', better: 'Better', best: 'Best', beyond: 'Beyond' })[t] || t} ($)</label>
+            <input class="ui-field-xs" id="cb-${t}" type="number" inputmode="decimal" placeholder="${({ economy: '6500', good: '8000', better: '11000', best: '15000', beyond: '17500' })[t] || ''}">
+          </div>`).join('')}
         </div>
 
         <div style="margin-bottom:10px;">
@@ -1454,9 +1429,8 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     const phone = document.getElementById('cb-phone')?.value?.trim();
     const email = document.getElementById('cb-email')?.value?.trim();
     const addr = document.getElementById('cb-addr')?.value?.trim();
-    const good = parseFloat(document.getElementById('cb-good')?.value) || 0;
-    const better = parseFloat(document.getElementById('cb-better')?.value) || 0;
-    const best = parseFloat(document.getElementById('cb-best')?.value) || 0;
+    const tierPrice = {};
+    dealTiers().forEach(t => { tierPrice[t] = parseFloat(document.getElementById('cb-' + t)?.value) || 0; });
     const isInsurance = document.getElementById('cb-insurance')?.checked;
     const carrier = document.getElementById('cb-carrier')?.value?.trim();
     const deductible = parseFloat(document.getElementById('cb-deductible')?.value) || 0;
@@ -1465,7 +1439,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       if (window.showToast) window.showToast('Customer name is required', 'error');
       return;
     }
-    if (good === 0 && better === 0 && best === 0) {
+    if (!dealTiers().some(t => tierPrice[t] > 0)) {
       if (window.showToast) window.showToast('Enter at least one tier price', 'error');
       return;
     }
@@ -1475,11 +1449,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       customerPhone: phone,
       customerEmail: email,
       address: addr,
-      tiers: {
-        good: { label: tierDisplayLabel('good'), price: good, description: TIER_DESCRIPTIONS.good, lineItems: [] },
-        better: { label: tierDisplayLabel('better'), price: better, description: TIER_DESCRIPTIONS.better, lineItems: [] },
-        best: { label: tierDisplayLabel('best'), price: best, description: TIER_DESCRIPTIONS.best, lineItems: [] }
-      },
+      tiers: blankTiers(t => tierPrice[t]),
       insuranceClaim: isInsurance,
       insuranceCarrier: carrier,
       deductible

@@ -494,16 +494,31 @@
     // at all. Colors/label pulled from the shared config; the tier-specific
     // fallback below matches it exactly if the config fails to load.
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
-    const _fallbackWarranty = { good: { transferable: false }, better: { transferable: true, transferWindowDays: 30 }, best: { transferable: true, inspection: true } };
-    const label = (cfg && typeof cfg.tierLabel === 'function') ? cfg.tierLabel(d.warrantyTier) : ({ good: 'Standard', better: 'Preferred', best: 'Elite' })[d.warrantyTier] || d.warrantyTier;
+    // Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
+    // shingle maker's standard limited warranty, NO system warranty; Beyond is
+    // Elite's terms + TAMKO's HailGuard hail warranty. The fallback copies
+    // TIER_DISPLAY for a page that didn't load the config.
+    const _fallbackWarranty = {
+      economy: { workmanshipYears: 1, systemWarranty: false, transferable: false },
+      good: { transferable: false }, better: { transferable: true, transferWindowDays: 30 }, best: { transferable: true, inspection: true },
+      beyond: { transferable: true, inspection: true, hailWarranty: true }
+    };
+    const label = (cfg && typeof cfg.tierLabel === 'function') ? cfg.tierLabel(d.warrantyTier) : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[d.warrantyTier] || d.warrantyTier;
     const w = (cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[d.warrantyTier] && cfg.TIER_DISPLAY[d.warrantyTier].warranty)
       || _fallbackWarranty[d.warrantyTier] || {};
-    const tierColors = { good: '#cd7f32', better: '#808080', best: '#DAA520' };
-    const tierBgs = { good: '#fdf4e8', better: '#f0f0f0', best: '#fefce8' };
-    const t = { label: String(label).toUpperCase(), color: tierColors[d.warrantyTier] || tierColors.best, bg: tierBgs[d.warrantyTier] || tierBgs.best };
-    d.expirationDate = 'No expiration — lifetime coverage';
+    const tierColors = { economy: '#57534e', good: '#cd7f32', better: '#808080', best: '#DAA520', beyond: '#5b21b6' };
+    const tierBgs = { economy: '#f5f5f4', good: '#fdf4e8', better: '#f0f0f0', best: '#fefce8', beyond: '#f5f3ff' };
+    // An unknown/legacy tier gets the neutral Preferred colours — never Best's
+    // gold, which read as the top tier on a cert nobody sold at that level.
+    const t = { label: String(label).toUpperCase(), color: tierColors[d.warrantyTier] || tierColors.better, bg: tierBgs[d.warrantyTier] || tierBgs.better };
+    const termYears = Number(w.workmanshipYears) > 0 ? Number(w.workmanshipYears) : 0;
+    d.expirationDate = termYears
+      ? termYears + (termYears === 1 ? ' year' : ' years') + ' from issue date'
+      : 'No expiration — lifetime coverage';
 
-    let warrantyText = 'Our team guarantees the quality of installation for the lifetime of this roof. If any defect in workmanship causes a leak or failure, we will repair it at no cost to you.';
+    let warrantyText = termYears
+      ? 'Our team guarantees the quality of installation for ' + (termYears === 1 ? 'one (1) year' : termYears + ' years') + ' from the issue date. If any defect in workmanship causes a leak or failure within that period, we will repair it at no cost to you.'
+      : 'Our team guarantees the quality of installation for the lifetime of this roof. If any defect in workmanship causes a leak or failure, we will repair it at no cost to you.';
     if (w.inspection) warrantyText += ' Includes priority service response and annual courtesy inspections.';
     // Transferability is tier-driven by default; the rep-selected checkbox
     // (d.transferable) can only ADD transferability on top of the tier's
@@ -511,6 +526,19 @@
     const isTransferable = w.transferable || d.transferable;
     if (isTransferable && w.transferWindowDays) warrantyText += ' This coverage is transferable to one subsequent owner within ' + w.transferWindowDays + ' days of sale.';
     else if (isTransferable) warrantyText += ' This coverage is fully transferable and follows the property through all subsequent owners.';
+    // Material warranty sentence. Economy: the maker's standard limited
+    // warranty, never a system warranty — and not the resolver's sentence,
+    // which can say "Limited Lifetime". Beyond: TAMKO HailGuard's hail warranty.
+    const _mfgRes = resolveDocManufacturer(d.estimateLineItems).manufacturerWarranty;
+    const mfgSentence = termYears
+      ? 'the shingle manufacturer\'s standard limited warranty (no system warranty is included)'
+      : (w.hailWarranty && !/HAIL/i.test(_mfgRes)
+        ? 'TAMKO\'s HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)'
+        : _mfgRes);
+    const badgeText = termYears
+      ? termYears + '-YEAR WORKMANSHIP (LABOR) WARRANTY — ' + t.label + ' TIER'
+      : 'LIFETIME WORKMANSHIP WARRANTY — ' + t.label + ' TIER';
+    const coverageText = termYears ? termYears + '-Year Workmanship (Labor)' : 'Lifetime Workmanship';
 
     // Job-type warranty (2026-09-25). A Job Template estimate's warranty is
     // set by its job type (5 yr gutter system, 2 yr install, 1 yr repair only
@@ -563,18 +591,18 @@
           <p class="cert-name">${esc(d.homeownerName)}</p>
           <p style="color:#555;">${esc(d.address)}</p>
           ${job ? `<div class="tier-badge">${job.badge}</div>
-          <p style="max-width:520px;margin:0 auto;font-size:14px;color:#444;">${job.body}</p>` : `<div class="tier-badge">LIFETIME WORKMANSHIP WARRANTY — ${t.label} TIER</div>
+          <p style="max-width:520px;margin:0 auto;font-size:14px;color:#444;">${job.body}</p>` : `<div class="tier-badge">${esc(badgeText)}</div>
           <p style="max-width:520px;margin:0 auto;font-size:14px;color:#444;">${warrantyText}</p>
           <p style="font-size:14px;color:#444;margin-top:8px;">
-            Additionally, the roofing materials carry ${esc(resolveDocManufacturer(d.estimateLineItems).manufacturerWarranty)}.</p>`}
+            Additionally, the roofing materials carry ${esc(mfgSentence)}.</p>`}
         </div>
         <dl class="cert-details">
           <div><dt>Certificate #</dt><dd>${esc(d.certificateNumber)}</dd></div>
           <div><dt>Issue Date</dt><dd>${esc(d.issueDate)}</dd></div>
-          <div><dt>Coverage</dt><dd>${job ? job.coverage : 'Lifetime Workmanship'}</dd></div>
+          <div><dt>Coverage</dt><dd>${job ? job.coverage : coverageText}</dd></div>
           <div><dt>Expiration</dt><dd>${esc(job ? job.expiration : d.expirationDate)}</dd></div>
           ${d.workPerformed ? `<div><dt>Work Performed</dt><dd>${esc(d.workPerformed)}</dd></div>` : ''}
-          ${job ? '' : `<div><dt>Warranty Tier</dt><dd>${t.label}</dd></div>`}
+          ${job ? '' : `<div><dt>Warranty Tier</dt><dd>${esc(t.label)}</dd></div>`}
         </dl>
         ${d.coverageDetails ? `<p style="max-width:520px;margin:16px auto 0;font-size:13px;color:#555;text-align:center;">${esc(d.coverageDetails)}</p>` : ''}
         <div class="cert-seal">&#10003;</div>

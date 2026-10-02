@@ -8,8 +8,27 @@
 var WC_TIER_DESCS = WC_TIER_DESCS || {
   standard: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Does not transfer on sale of property.',
   preferred: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Transferable to one subsequent owner within 30 days of sale.',
-  elite: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Fully transferable — follows the property through all subsequent owners. Annual courtesy inspection included.'
+  elite: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Fully transferable — follows the property through all subsequent owners. Annual courtesy inspection included.',
+  // Five tiers (Jo, 2026-10-02). Economy is a 1-YEAR labor warranty plus the
+  // shingle manufacturer's standard limited warranty — never lifetime, never
+  // a system warranty. Beyond is Elite's workmanship terms on TAMKO HailGuard,
+  // the one shingle with a manufacturer hail warranty.
+  economy: 'NBD will return and correct any labor-related defect at no charge for one (1) year from the installation date. The shingles carry the manufacturer\'s standard limited warranty, provided directly by the manufacturer. No system warranty is included. Does not transfer on sale of property.',
+  beyond: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Fully transferable — follows the property through all subsequent owners. Annual courtesy inspection included. The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).'
 };
+
+// Per-cert-tier wording flags, shared by the server payload and the legacy
+// html fallback. Unknown values read as Standard (the select's default), so a
+// stray key never prints Elite/Beyond terms.
+function _wcTierFlags(tier) {
+  return {
+    isEconomy:   tier === 'economy',
+    isBeyond:    tier === 'beyond',
+    // Beyond carries Elite's workmanship terms (transferable + inspection).
+    isElite:     tier === 'elite' || tier === 'beyond',
+    isPreferred: tier === 'preferred'
+  };
+}
 
 // Step 17: track the lead id that opened the wizard so the generator
 // can persist the warranty payload back onto the lead doc. Previously
@@ -75,9 +94,11 @@ function updateCertPreview() {
   // option read "Standard — NBD Lifetime Pledge" for EVERY tenant's rep. Name
   // the pledge the way generateWarrantyCertPDF prints it (NBD unchanged).
   const seal = isNbd ? 'NBD' : (_b.seal || _b.legalName || '');
+  // (Found by value: Economy sits above Standard since the five-tier change.)
   const sel = document.getElementById('wcTier');
-  if (sel && sel.options && sel.options[0] && sel.options[0].value === 'standard') {
-    sel.options[0].textContent = 'Standard — ' + (seal ? seal + ' Lifetime Pledge' : 'Lifetime Pledge');
+  const stdOpt = sel && sel.options ? Array.prototype.find.call(sel.options, o => o && o.value === 'standard') : null;
+  if (stdOpt) {
+    stdOpt.textContent = 'Standard — ' + (seal ? seal + ' Lifetime Pledge' : 'Lifetime Pledge');
   }
   // Same for the modal's eyebrow ("NBD Guarantee" above the title).
   const eyebrow = document.getElementById('wcEyebrow');
@@ -132,19 +153,33 @@ async function generateWarrantyCertPDF() {
   const pledgeName = brandSeal ? (brandSeal + ' Lifetime Pledge') : 'Lifetime Pledge';
 
   const tierLabels = {
+    // Economy is NOT the Lifetime Pledge — its label never names it.
+    economy: 'Economy — 1-Year Labor Warranty',
     standard: 'Standard — ' + pledgeName,
     preferred: 'Preferred — ' + pledgeName + ' (Transferable to One Owner)',
-    elite: 'Elite — ' + pledgeName + ' (Fully Transferable + Annual Inspection)'
+    elite: 'Elite — ' + pledgeName + ' (Fully Transferable + Annual Inspection)',
+    beyond: 'Beyond — ' + pledgeName + ' (Fully Transferable + Annual Inspection + TAMKO HailGuard Hail Warranty)'
   };
-  const tierLabel = tierLabels[tier];
+  const tierLabel = tierLabels[tier] || tierLabels.standard;
   // WC_TIER_DESCS embeds the literal subject 'NBD'; keep it verbatim for NBD,
   // swap in the tenant's seal/legal name otherwise.
+  const _rawDesc = WC_TIER_DESCS[tier] || WC_TIER_DESCS.standard;
   const tierDesc = isNbd
-    ? WC_TIER_DESCS[tier]
-    : String(WC_TIER_DESCS[tier] || '').replace(/\bNBD\b/g, brandSeal || 'We');
+    ? _rawDesc
+    : String(_rawDesc || '').replace(/\bNBD\b/g, brandSeal || 'We');
 
-  const isElite = tier === 'elite';
-  const isPreferred = tier === 'preferred';
+  const { isElite, isPreferred, isEconomy, isBeyond } = _wcTierFlags(tier);
+  // Legacy-fallback wording that differs by tier. Economy: a 1-year labor
+  // warranty + the manufacturer's standard limited warranty, no system
+  // warranty. Beyond: the HailGuard hail warranty is TAMKO's.
+  const certTitle = isEconomy ? 'Warranty Certificate' : 'Lifetime Warranty Certificate';
+  // (Escaped where it is printed — escCert is declared further down.)
+  const termFeature = isEconomy ? '1-year labor warranty from the installation date' : (pledgeName + ' — no expiration');
+  const mfgFeature = isEconomy
+    ? 'Shingle manufacturer’s standard limited warranty (no system warranty)'
+    : (isBeyond ? 'TAMKO HailGuard hail warranty on the shingles (manufacturer terms apply)' : 'GAF Timberline lifetime manufacturer shingle warranty');
+  const mfgName = isBeyond ? 'TAMKO' : (isEconomy ? 'shingle' : 'GAF');
+  const sealWord = isEconomy ? '1-Year<br>Labor<br>Warranty' : 'Lifetime<br>Guarantee';
 
   // D-1: try the new server-side Puppeteer renderer first. It returns
   // a real vector PDF (not a html2canvas screenshot) using the shared
@@ -154,7 +189,7 @@ async function generateWarrantyCertPDF() {
     const ok = await _tryServerRender({
       owner, addr, date, tier, work, dateFormatted, certNum,
       tierLabel, tierLabelLong: tierLabel, tierTerms: tierDesc,
-      isElite, isPreferred
+      isElite, isPreferred, isEconomy, isBeyond
     });
     if (ok) return; // server render succeeded — bail before the legacy path runs
   } catch (e) {
@@ -182,7 +217,7 @@ async function generateWarrantyCertPDF() {
     .cert-type{font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#999;margin-bottom:4px;}
     .cert-title{font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:#111;}
     .cert-num{font-size:11px;color:#888;margin-top:4px;}
-    .tier-badge{display:inline-block;background:${isElite?'#111':isPreferred?'#1a3260':'#BD5728'};color:#fff;font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:6px 18px;border-radius:3px;margin-bottom:24px;}
+    .tier-badge{display:inline-block;background:${isBeyond?'#5b21b6':isElite?'#111':isPreferred?'#1a3260':isEconomy?'#57534e':'#BD5728'};color:#fff;font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:6px 18px;border-radius:3px;margin-bottom:24px;}
     h2{font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.18em;color:#111;margin:22px 0 12px;padding-bottom:5px;border-bottom:2px solid #BD5728;}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-bottom:8px;}
     .field label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#999;display:block;margin-bottom:3px;}
@@ -235,8 +270,8 @@ async function generateWarrantyCertPDF() {
   </div>
 
   <div class="features">
-    <div class="feature"><div class="feature-dot"></div>${escCert(pledgeName)} — no expiration</div>
-    <div class="feature"><div class="feature-dot"></div>GAF Timberline lifetime manufacturer shingle warranty</div>
+    <div class="feature"><div class="feature-dot"></div>${escCert(termFeature)}</div>
+    <div class="feature"><div class="feature-dot"></div>${escCert(mfgFeature)}</div>
     ${isPreferred||isElite ? '<div class="feature"><div class="feature-dot"></div>Transferable to new owner on sale</div>' : ''}
     ${isElite ? '<div class="feature"><div class="feature-dot"></div>Annual courtesy inspection included</div>' : ''}
     ${isElite ? '<div class="feature"><div class="feature-dot"></div>Fully transferable — follows the property</div>' : ''}
@@ -244,7 +279,7 @@ async function generateWarrantyCertPDF() {
     <div class="feature"><div class="feature-dot"></div>${isNbd ? 'Recorded on file at NBD Home Solutions' : ('Recorded on file at ' + escCert(_b.legalName))}</div>
   </div>
 
-  <p style="font-size:11px;color:#666;margin-top:16px;line-height:1.7;">This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}. The GAF manufacturer shingle warranty is a separate warranty provided directly by GAF and is not administered by ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}.</p>
+  <p style="font-size:11px;color:#666;margin-top:16px;line-height:1.7;">This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}. The ${mfgName} manufacturer shingle warranty${isBeyond ? ' (including the HailGuard hail warranty)' : ''} is a separate warranty provided directly by ${isEconomy ? 'the shingle manufacturer' : mfgName} and is not administered by ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}.</p>
 
   <h2>Signatures</h2>
   <div class="sig-section">
@@ -266,7 +301,7 @@ async function generateWarrantyCertPDF() {
       <div>${isNbd ? 'nobigdealwithjoedeal.com · (859) 420-7382 · Greater Cincinnati, OH' : escCert([_bc.website, _bc.phone, _bc.address].filter(Boolean).join(' · '))}</div>
       <div style="margin-top:2px;">Certificate No. ${certNum} · Keep this document with your permanent home records</div>
     </div>
-    <div class="seal">${isNbd ? 'NBD<br>Lifetime<br>Guarantee' : (brandSeal ? (escCert(brandSeal) + '<br>Lifetime<br>Guarantee') : 'Lifetime<br>Guarantee')}</div>
+    <div class="seal">${isNbd ? 'NBD<br>' + sealWord : (brandSeal ? (escCert(brandSeal) + '<br>' + sealWord) : sealWord)}</div>
   </div>
 
   </body></html>`;
@@ -286,7 +321,7 @@ async function generateWarrantyCertPDF() {
       : _certFileBase;
     window.NBDDocViewer.open({
       html: html,
-      title: 'Lifetime Warranty Certificate' + (customerName ? ' — ' + customerName : ''),
+      title: certTitle + (customerName ? ' — ' + customerName : ''),
       // FILENAME only — tenant-resolved, never 'NBD' for a non-platform tenant.
       // `_certPrefix` above still mints the certificate NUMBER; that is a
       // persisted, homeowner-visible identifier and is deliberately NOT changed
@@ -417,8 +452,15 @@ async function _tryServerRender(payload) {
       certNumber:     payload.certNum,
       isElite:        payload.isElite,
       isPreferred:    payload.isPreferred,
-      manufacturer:                _wMfg.manufacturer,
-      manufacturerWarrantyFeature: _wMfg.manufacturerWarrantyFeature,
+      // Five tiers (2026-10-02): warranty.hbs swaps the Lifetime Pledge copy
+      // for 1-year labor wording on Economy, and names TAMKO HailGuard's hail
+      // warranty on Beyond (the shingle is HailGuard by rule, so TAMKO).
+      isEconomy:      !!payload.isEconomy,
+      isBeyond:       !!payload.isBeyond,
+      manufacturer:                payload.isBeyond ? 'TAMKO' : _wMfg.manufacturer,
+      manufacturerWarrantyFeature: (payload.isBeyond && !/HAIL/i.test(_wMfg.manufacturerWarrantyFeature || ''))
+        ? 'TAMKO HailGuard hail warranty on the shingles (manufacturer terms apply)'
+        : _wMfg.manufacturerWarrantyFeature,
       // D-2.5 cover fields
       preparedFor,
       preparedBy,
@@ -437,7 +479,7 @@ async function _tryServerRender(payload) {
   if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
     window.NBDDocViewer.open({
       url:      data.url,
-      title:    'Lifetime Warranty Certificate' + (payload.owner ? ' — ' + payload.owner : ''),
+      title:    (payload.isEconomy ? 'Warranty Certificate' : 'Lifetime Warranty Certificate') + (payload.owner ? ' — ' + payload.owner : ''),
       filename: data.filename || filename,
     });
   } else {

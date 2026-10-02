@@ -183,7 +183,7 @@ console.log('\nUI PRIMITIVES — Close Board (JS-built, 2026-10-02)');
   // five classes reached 4 / 15 / 8 elements, every site accounted for.
   const src = read('docs/pro/js/close-board.js');
   const crm = src.slice(src.indexOf('  function render() {'), src.indexOf('  window.CloseBoard = {'));
-  for (const [cls, n] of [['ui-stat', 4], ['ui-stat-box', 4], ['ui-field-md', 4], ['ui-field-xs', 3], ['ui-caps-label', 4]]) {
+  for (const [cls, n] of [['ui-stat', 4], ['ui-stat-box', 4], ['ui-field-md', 4], ['ui-field-xs', 1], ['ui-caps-label', 4]]) {
     const uses = (crm.match(new RegExp('class="[^"]*\\b' + cls + '(?![\\w-])[^"]*"', 'g')) || []).length;
     ok('close board: .' + cls + ' on ' + n + ' elements', uses === n, 'found ' + uses);
   }

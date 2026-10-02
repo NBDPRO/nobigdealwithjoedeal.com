@@ -62,14 +62,15 @@ const PRICING = {
   // $/square installed (1 square = 100 sq ft of roof)
   roof: {
     // Asphalt is locked to the CRM spec (source: docs/pro/js/estimate-config.js):
-    // TIER_RATES $545 / $595 / $660 per square (good/better/best) with the
-    // CRM's pitch-based waste factor (1.12 low-slope … 1.25 steep) baked in.
-    // Each range spans rate×1.12 .. rate×1.25:
-    //   good   545×1.12=610  .. 545×1.25=681  → [610, 680]
-    //   better 595×1.12=666  .. 595×1.25=744  → [665, 745]
-    //   best   660×1.12=739  .. 660×1.25=825  → [740, 825]
+    // TIER_RATES $550 / $660 / $770 per square (good/better/best — repriced
+    // 2026-10-02; the CRM-only economy/beyond tiers are never shown here) with
+    // the CRM's pitch-based waste factor (1.12 low-slope … 1.25 steep) baked in.
+    // Each range spans rate×1.12 .. rate×1.25, to the nearest $5 (half up):
+    //   good   550×1.12=616    .. 550×1.25=687.5  → [615, 690]
+    //   better 660×1.12=739.2  .. 660×1.25=825    → [740, 825]
+    //   best   770×1.12=862.4  .. 770×1.25=962.5  → [860, 965]
     // Do not edit without updating the locked CRM spec too.
-    asphalt: { good: [610, 680],  better: [665, 745],  best: [740, 825] },
+    asphalt: { good: [615, 690],  better: [740, 825],  best: [860, 965] },
     // Metal/flat are market-rate placeholders — NOT CRM-locked.
     metal:   { good: [900, 1100], better: [1100, 1400], best: [1400, 1800] },
     flat:    { good: [400, 500],  better: [500, 650],  best: [650, 850] }
@@ -630,11 +631,11 @@ function priceRangeForFunnel(size) {
     var g = PRICING.gutters[mat] || PRICING.gutters.seamless;
     return { min: roundTo25(g[0] * lf), max: roundTo25(g[1] * lf) };
   }
-  // Default (service not picked): Jo 2026-09-27 — $13,300–$18,600, the
+  // Default (service not picked): Jo 2026-09-27 — $14,800–$20,600, the
   // Preferred ("better") asphalt range above on a typical 20–25 square home
-  // ($665 x 20 .. $745 x 25, to the nearest $100), the same headline the
+  // ($740 x 20 .. $825 x 25, to the nearest $100), the same headline the
   // roof cost guide publishes. Not part of the locked CRM spec.
-  return { min: 13300, max: 18600 };
+  return { min: 14800, max: 20600 };
 }
 
 // Phone number formatting

@@ -44,13 +44,66 @@
   'use strict';
 
   const CFG = Object.freeze({
-    // Per-SQ flat tier rates (locked spec, 2026-04-10).
-    // Customer price = SQ × TIER_RATE + add-ons + tax (cash mode).
+    // Per-SQ flat tier rates. Customer price = SQ × TIER_RATE + add-ons + tax
+    // (cash mode). FIVE tiers since 2026-10-02 (Jo): Economy and Beyond join
+    // Good/Better/Best, and the three existing rates moved up (were
+    // 545/595/660). Economy and Beyond are sold in person — CRM only; the
+    // public site keeps three tiers whose prices follow these.
     TIER_RATES: Object.freeze({
-      good:   545,   // Standard system + standard accessories
-      better: 595,   // Upgraded materials + system warranty
-      best:   660    // Impact-rated + 20yr workmanship warranty package
+      economy: 440,  // Jo's choice of economy-grade architectural (never 3-tab); 1-yr labor
+      good:    550,  // Standard system + standard accessories
+      better:  660,  // Upgraded materials + system warranty
+      best:    770,  // Impact-rated + workmanship warranty package
+      beyond:  880   // TAMKO HailGuard ONLY (the one shingle with a hail warranty)
     }),
+
+    // Every tier, cheapest first. Loop over THIS — never a hand-written
+    // ['good','better','best'] (2026-10-02: ~40 places assumed three).
+    TIER_ORDER: Object.freeze(['economy', 'good', 'better', 'best', 'beyond']),
+
+    // Catalog products (product-data.js, the xactimate catalog) carry
+    // pricing for good/better/best only. Economy prices materials off the
+    // Good column and Beyond off Best — without this, the line-item engine
+    // priced an Economy/Beyond estimate's materials at $0 (resolveMaterial
+    // returns cost 0 / sell 0 for a missing tier column).
+    PRODUCT_TIER: Object.freeze({ economy: 'good', good: 'good', better: 'better', best: 'best', beyond: 'best' }),
+    productTier: function (tier) {
+      return CFG.PRODUCT_TIER[tier] || 'better';
+    },
+    isTier: function (tier) {
+      return CFG.TIER_ORDER.indexOf(tier) !== -1;
+    },
+
+    // Shingle rules per tier (Jo, 2026-10-02). A shingle is a catalog item
+    // whose sub starts with "shingles-".
+    //   beyond:  TAMKO HailGuard ONLY — "they're the only shingle that offers
+    //            a hail warranty, so we've gotta lock that".
+    //   economy: Jo's pick, but NEVER a 3-tab ("I will not use a three tab").
+    // checkTierShingles(tier, items) → { ok, problems: [string] }. items are
+    // catalog entries ({ code, name, sub }). Used by the builder (on tier
+    // switch, on add, and before save) and by the server copy.
+    TIER_SHINGLE_RULES: Object.freeze({
+      beyond:  Object.freeze({ onlyCodes: Object.freeze(['RFG 240-TAMKO-HAIL']), onlyName: 'TAMKO HailGuard' }),
+      economy: Object.freeze({ forbidSubs: Object.freeze(['shingles-3tab']) })
+    }),
+    isShingleItem: function (item) {
+      return !!item && /^shingles-/.test(String(item.sub || ''));
+    },
+    checkTierShingles: function (tier, items) {
+      var rule = CFG.TIER_SHINGLE_RULES[tier];
+      var problems = [];
+      if (!rule) return { ok: true, problems: problems };
+      (items || []).forEach(function (it) {
+        if (!CFG.isShingleItem(it)) return;
+        if (rule.onlyCodes && rule.onlyCodes.indexOf(it.code) === -1) {
+          problems.push((it.name || it.code) + ' is not allowed on ' + CFG.tierLabel(tier) + ' — ' + CFG.tierLabel(tier) + ' is ' + rule.onlyName + ' only.');
+        }
+        if (rule.forbidSubs && rule.forbidSubs.indexOf(it.sub) !== -1) {
+          problems.push((it.name || it.code) + ' is a 3-tab — ' + CFG.tierLabel(tier) + ' never uses a 3-tab shingle.');
+        }
+      });
+      return { ok: problems.length === 0, problems: problems };
+    },
 
     // Job minimum: kicks in below ~4.5 SQ. Both unit forms exposed
     // so each engine reads the unit it already uses without the
@@ -165,6 +218,13 @@
     // TIER_DISPLAY instead of hardcoding its own label/warranty text.
     // Rep-facing/internal tool UI may keep saying Good/Better/Best.
     TIER_DISPLAY: Object.freeze({
+      // Economy (Jo, 2026-10-02): "only one year labor warranty, and then
+      // just the limited warranty from the shingle package itself — no
+      // system warranty." NOT the lifetime ladder the other tiers share.
+      economy: Object.freeze({
+        label: 'Economy',
+        warranty: Object.freeze({ workmanshipYears: 1, systemWarranty: false, transferable: false, transferWindowDays: 0, inspection: false })
+      }),
       good: Object.freeze({
         label: 'Standard',
         warranty: Object.freeze({ transferable: false, transferWindowDays: 0, inspection: false })
@@ -176,6 +236,12 @@
       best: Object.freeze({
         label: 'Elite',
         warranty: Object.freeze({ transferable: true, transferWindowDays: 0, inspection: true })
+      }),
+      // Beyond: Elite's workmanship terms, on TAMKO HailGuard — the only
+      // shingle with a manufacturer hail warranty.
+      beyond: Object.freeze({
+        label: 'Beyond',
+        warranty: Object.freeze({ transferable: true, transferWindowDays: 0, inspection: true, hailWarranty: true })
       })
     }),
 
@@ -197,6 +263,9 @@
       var t = CFG.TIER_DISPLAY[tier];
       if (!t) return 'Lifetime workmanship warranty.';
       var w = t.warranty;
+      if (w.workmanshipYears) {
+        return w.workmanshipYears + '-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.';
+      }
       var parts = ['Lifetime workmanship warranty'];
       if (!w.transferable) {
         parts.push('does not transfer on sale of property');
@@ -206,6 +275,7 @@
         parts.push('fully transferable — follows the property through all subsequent owners');
       }
       if (w.inspection) parts.push('annual courtesy inspection included');
+      if (w.hailWarranty) parts.push('plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply)');
       return parts.join('; ') + '.';
     },
 
@@ -216,6 +286,8 @@
       var t = CFG.TIER_DISPLAY[tier];
       if (!t) return '';
       var w = t.warranty;
+      if (w.workmanshipYears) return w.workmanshipYears + '-year labor warranty';
+      if (w.hailWarranty) return 'Fully transferable + annual inspection + hail warranty';
       if (!w.transferable) return 'Non-transferable';
       if (w.transferWindowDays) return 'Transferable to 1 subsequent owner';
       return w.inspection ? 'Fully transferable + annual inspection' : 'Fully transferable';
@@ -275,7 +347,13 @@
     // Source-of-truth marker — engines log this to Sentry on
     // load so we can correlate "classic engine ran but V2 config
     // didn't load" cases if they ever happen.
-    _version: '2026-09-25',
+    _version: '2026-10-02',
+    // Tier-rate generation. A device's saved Settings tier rates are honoured
+    // only if saved under THIS version, so a device that once saved
+    // 545/595/660 falls back to the rates above instead of quietly quoting
+    // the old prices (estimate-builder-v2.js loadSettings). Bump it whenever
+    // TIER_RATES change.
+    _ratesVersion: '2026-10-02',
     _loadedFrom: 'estimate-config.js'
   });
 

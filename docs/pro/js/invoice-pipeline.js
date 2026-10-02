@@ -825,7 +825,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         tax = total - subtotal;
         subtotal = Math.round(subtotal * 100) / 100;
         tax = Math.round(tax * 100) / 100;
-        const tierLabel = String(est.selectedTier || est.tier || '').replace(/^./, c => c.toUpperCase());
+        // Customer-facing name (Economy/Standard/Preferred/Elite/Beyond) from
+        // the shared config — the invoice printed the raw key ("Good tier").
+        const _tierKey = String(est.selectedTier || est.tier || '');
+        const _icfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+        const tierLabel = (_icfg && typeof _icfg.tierLabel === 'function')
+          ? _icfg.tierLabel(_tierKey)
+          : (({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[_tierKey]
+            || _tierKey.replace(/^./, c => c.toUpperCase()));
         items = [{
           description: 'Roofing system' + (tierLabel ? ' — ' + tierLabel + ' tier' : ''),
           quantity: 1,

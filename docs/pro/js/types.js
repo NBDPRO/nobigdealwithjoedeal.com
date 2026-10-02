@@ -274,8 +274,9 @@
  * @property {string=} address
  *   Property address — denormalized from /leads for speed.
  *
- * @property {('good'|'better'|'best'|string)=} tier
- *   Pricing tier picked. $545 / $595 / $660 per-SQ in the V2 engine.
+ * @property {('economy'|'good'|'better'|'best'|'beyond'|string)=} tier
+ *   Pricing tier picked. $440 / $550 / $660 / $770 / $880 per-SQ in the V2
+ *   engine (five tiers since 2026-10-02; Beyond = TAMKO HailGuard only).
  *
  * @property {number=} grandTotalCents
  *   Final price including tax + adjustments, integer cents.

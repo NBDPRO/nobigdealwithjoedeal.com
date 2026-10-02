@@ -269,7 +269,9 @@ section('Phase 3: homeowner presentation mode (Good/Better/Best)');
   // state.tier through getCurrentEstimate as a pure compute and always
   // restores; the current tier keeps the replay-aware truthful total.
   assert('triTierTotals prefers per-SQ prices and restores tier after swap',
-    /function triTierTotals\(current\)[\s\S]{0,200}current\.prices[\s\S]{0,900}state\.tier = orig;/.test(src));
+    // Five tiers since 2026-10-02: the all-null map is _none() over _v2Tiers().
+    /function triTierTotals\(current\)[\s\S]{0,400}current\.prices[\s\S]{0,1400}state\.tier = orig;/.test(src)
+      && /const _none = \(\) => \{ const o = \{\}; _v2Tiers\(\)\.forEach\(t => \{ o\[t\] = null; \}\); return o; \};/.test(src));
   // The current tier still shows the truthful replay-aware total — but it is
   // no longer taken from a DIFFERENT code path than its siblings. That early
   // return (`if (t === orig) { out[t] = current.total; return; }`) meant the
@@ -283,9 +285,9 @@ section('Phase 3: homeowner presentation mode (Good/Better/Best)');
   assert('current tier still shows the truthful effectiveEstimate total',
     /const truth = current\.total;[\s\S]{0,400}out\[orig\] = truth;/.test(src));
   assert('a disagreement between the two sources collapses to a single tier, not a false compare',
-    /Math\.round\(same\) !== Math\.round\(truth\)[\s\S]{0,160}return \{ good: null, better: null, best: null, \[orig\]: truth \};/.test(src));
+    /Math\.round\(same\) !== Math\.round\(truth\)[\s\S]{0,160}return Object\.assign\(_none\(\), \{ \[orig\]: truth \}\);/.test(src));
   assert('tiers that all price identically collapse to one card',
-    /vals\.every\(v => v === vals\[0\]\)[\s\S]{0,160}return \{ good: null, better: null, best: null/.test(src));
+    /vals\.every\(v => v === vals\[0\]\)[\s\S]{0,160}return Object\.assign\(_none\(\), \{ \[orig\]: out\[orig\] \}\);/.test(src));
   // Fewer than 2 priced tiers → single clean card, never a fake compare.
   assert('single-card fallback when tiers cannot be priced',
     /cardOrder\.length >= 2/.test(src) && /Full scope as reviewed with your estimator\./.test(src));

@@ -314,6 +314,9 @@ p:last-child { margin-bottom: 0; }
 .badge.tier-standard  { background: var(--nbd-orange); }
 .badge.tier-preferred { background: #1A3260; }
 .badge.tier-elite     { background: var(--nbd-charcoal); }
+/* Five tiers (2026-10-02): Economy = 1-year labor; Beyond = Elite + HailGuard. */
+.badge.tier-economy   { background: #57534e; }
+.badge.tier-beyond    { background: #5b21b6; }
 .badge.status-paid    { background: var(--nbd-green); }
 .badge.status-due     { background: var(--nbd-amber); }
 .badge.status-past    { background: var(--nbd-red); }
@@ -649,12 +652,23 @@ p:last-child { margin-bottom: 0; }
    D-3: Estimate / Proposal — tier comparison, line table, headline
    ═════════════════════════════════════════════════════════════════ */
 
-/* ── Tier comparison grid (Good / Better / Best) ──────────────── */
+/* ── Tier comparison grid (Economy … Beyond, up to five) ──────── */
+/* Five tiers since 2026-10-02. Five columns on a letter page squeeze the
+   price and feature list into ~1.3in each, so the cards WRAP three to a row
+   (five print 3 + 2, centred; three still print as one row of three). */
 .tier-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--s-3);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  /* row gap leaves room for the "Recommended" flag, which sits 8pt above
+     its card, when that card is on the second row */
+  column-gap: var(--s-3);
+  row-gap: calc(var(--s-3) + 10pt);
   margin: var(--s-4) 0;
+}
+.tier-grid > .tier-card {
+  flex: 0 1 calc((100% - 2 * var(--s-3)) / 3);
+  min-width: 0;
 }
 .tier-card {
   position: relative;

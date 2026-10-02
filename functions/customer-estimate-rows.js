@@ -186,7 +186,7 @@
       // that stays correct in both runtimes. Unknown/future tier keys fall
       // back to the old capitalize-first-letter behavior rather than
       // printing blank.
-      const TIER_LABELS = { good: 'Standard', better: 'Preferred', best: 'Elite' };
+      const TIER_LABELS = { economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' };
       const rawTier = String(est.selectedTier || est.tier || '');
       const tier = TIER_LABELS[rawTier] || rawTier.replace(/^./, function (c) { return c.toUpperCase(); });
       return [shape({
