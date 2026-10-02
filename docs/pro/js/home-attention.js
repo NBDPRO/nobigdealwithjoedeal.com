@@ -6,7 +6,7 @@
  *   💳 Stripe payments that need a customer   → Money (the Stripe panel's
  *      review list, stripeLedger needsReview:true)
  *   🪧 Yard signs due for pickup today / late  → Yard Signs
- *   📞 Phone calls that need you (2026-10-02)   → Call Center
+ *   📞 Phone calls (and days of texts) that need you (2026-10-02) → Call Center
  *
  * callNeedsYou() is THE "needs attention" rule — call-center-view.js uses
  * this same function for its default tab, so Home and the Call Center can
@@ -116,7 +116,11 @@
     // Calls: the owner's own (phone_calls rules: owner always reads own).
     if (u && w.orderBy && w.limit) {
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(200)))
-        .then((snap) => { out.calls = callsNeedingYou(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
+        .then((snap) => { out.calls += callsNeedingYou(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
+      // Days of texts (phone_text_days) count by the same rule: a texted promise
+      // is a promise.
+      jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_text_days'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(100)))
+        .then((snap) => { out.calls += callsNeedingYou(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
     }
     await Promise.all(jobs);
     return out;

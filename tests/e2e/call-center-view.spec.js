@@ -41,7 +41,7 @@ test.describe.serial('Call Center view @shard2', () => {
     test.setTimeout(150_000);
     const creds = requireTestUser();
     const actions = [];
-    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); localStorage.setItem('nbd_push_optin_snoozed_until', String(Date.now() + 3600_000)); } catch (_) {} });
     await page.route(/callCenterAction/, async (route) => {
       let body = {};
       try { body = JSON.parse(route.request().postData() || '{}').data || {}; } catch (_) {}
@@ -69,6 +69,8 @@ test.describe.serial('Call Center view @shard2', () => {
       d: { leadId, bucket: 'customer', contactName: 'ZZCV Cust', phoneDigits: '5135557001', direction: 'outbound', startedAtMs: s - 4000, status: 'noted', storagePath: null, summary: 'Quick check-in. Nothing owed.', promises: [] },
     };
     for (const [k, v] of Object.entries(docs)) await db.doc('phone_calls/cube_zzcv' + s + k).set(Object.assign({}, base, v));
+    // A day of texts (phone_text_days) with a promise Jo made.
+    await db.doc('phone_text_days/txt_5135557' + String(s).slice(-3) + '_20261001').set({ userId: uid, companyId: uid, channel: 'text', status: 'noted', leadId, contactName: 'ZZCV Cust', phoneDigits: '5135557' + String(s).slice(-3), ymd: '2026-10-01', startedAtMs: s - 500, messageCount: 4, summary: 'ZZCV texted about the gutter quote.', promises: [{ who: 'jo', text: 'Text the quote tonight', due: null }], followUpDate: null, urgent: false });
     await db.doc('phone_calls/cube_zzcv' + s + 'x').set(Object.assign({}, base, { userId: 'someone-else', companyId: 'other-co', contactName: 'ZZCV Other Tenant', bucket: 'unknown', startedAtMs: s, status: 'noted' }));
 
     // Reachable from the nav; lazy bundle.
@@ -85,6 +87,18 @@ test.describe.serial('Call Center view @shard2', () => {
     await expect(page.locator('#view-calls')).not.toContainText('ZZCV Other Tenant');
     await expect(card('a').locator('.pc-promise-jo')).toContainText('Send the gutter quote');
     await expect(card('c')).toContainText('(513) 555-0142');
+
+    // A day of texts sits with the calls, and on its own tab.
+    const textCard = page.locator('#view-calls .cc-card.cc-text[data-call-id="txt_5135557' + String(s).slice(-3) + '_20261001"]');
+    await expect(textCard).toBeVisible();
+    await expect(textCard).toContainText('4 texts');
+    await expect(textCard.locator('.pc-promise-jo')).toContainText('Text the quote tonight');
+    await page.locator('#view-calls [data-cc="filter"][data-arg="texts"]').click();
+    await expect(textCard).toBeVisible();
+    await expect(card('a')).toHaveCount(0);
+    await textCard.locator('[data-cc="handled"]').click();
+    await expect.poll(() => actions.some((x) => /^txt_/.test(x.id) && x.action === 'handled'), { timeout: 10_000 }).toBe(true);
+    await page.locator('#view-calls [data-cc="filter"][data-arg="attention"]').click();
 
     // Tabs.
     await page.locator('#view-calls [data-cc="filter"][data-arg="all"]').click();
@@ -148,6 +162,7 @@ test.describe.serial('Call Center view @shard2', () => {
 
     // Cleanup.
     for (const k of ['a', 'b', 'c', 'd', 'p', 'x']) await db.doc('phone_calls/cube_zzcv' + s + k).delete().catch(() => {});
+    await db.doc('phone_text_days/txt_5135557' + String(s).slice(-3) + '_20261001').delete().catch(() => {});
     await bucket.file(path).delete().catch(() => {});
   });
 });
