@@ -373,6 +373,36 @@ request**, while `thursdaywebhook` logged the call (positive control).
 - The 09-30 call's first line finished at 10.3 s (4.3 / 4.5 s before) and the
   caller again hung up without speaking; one sample, not yet a trend.
 
+## 13. Claim wording on the phone: staged as 0.7.0 (2026-10-02, Jo OK'd staging)
+
+Production 0.6.2 answered "Do you work with insurance?" with "Joe has
+seven-plus years in insurance restoration, documents everything, and **can
+walk them through the claim**." That is the phrase the site gate now bans
+(claim-wording round 2, #1993; KRS 367.628 / ORC 3951).
+
+- **Staged as 0.7.0** (staging only; production stays 0.6.2):
+  - The new answer: "Yes. Joe documents the damage, writes the estimate, and
+    meets the adjuster on the roof after they file. The claim stays theirs:
+    never say Joe handles, files or negotiates it. Never say whether it'll be
+    covered."
+  - Built from production's snapshot. The only diff is that sentence in the
+    agent node prompt (`behavior.nodes.1.data.prompt`), so the
+    initialization snippet, tools and settings are carried unchanged.
+  - Staging matched production (0.6.2) before the publish, so nothing
+    unpromoted was overwritten. Read back: staging 0.7.0 has the new line and
+    not the old one.
+  - The base snapshot is backed up under
+    `%TEMP%/thursday-bland-backups/agent-base-0.6.2-*.json`.
+- The rest of her prompt was checked against the Kentucky rules and is clean:
+  no prices, ranges or deposits ("never quote prices"), no AOB, and no "we
+  handle it".
+- **To go live:**
+  1. Jo tests staging: in the Bland builder, test the agent on staging and
+     ask "Do you work with insurance?".
+  2. Then `node scripts/thursday-agent-lookup.js --promote --yes` (it
+     promotes whatever is on staging).
+  3. To roll back: `--rollback=0.6.2 --yes`.
+
 ## 6. Coordination notes
 
 > **Update 2026-09-30: all three items below are resolved on main.** Checked against the code, not the notes:

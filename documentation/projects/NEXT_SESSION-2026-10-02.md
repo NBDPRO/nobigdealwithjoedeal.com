@@ -9,7 +9,7 @@ Jo's asks this stretch:
   most people would leave them out"), which became **3D**;
 - then "keep building".
 
-All 14 PRs below are merged (#1981–#1994).
+PRs #1981–#1993 are merged. #1994 (the Ask Joe grader) and #1995 (nav-drawer flake) had watchers running when this was written; check them first.
 
 ## §0 Read first
 
@@ -110,16 +110,15 @@ overwrite a newer one.
 
 ## §2 Jo's open items
 
-- **Thursday's prompt (new, Jo's call).** Production 0.6.2 answers "Do you
-  work with insurance?" with "…and can walk them through the claim": the
-  phrase #1993 removed from the site.
-  - Suggested line: "Joe documents the damage, writes the estimate, and
-    meets the adjuster on the roof after you file. The claim stays yours."
-  - The change needs a new agent version: builder or
-    `scripts/thursday-agent-lookup.js` → staging → a Jo test call →
-    promote.
-  - Everything else in her prompt checked clean: no prices, no deposits, no
-    AOB.
+- **Thursday 0.7.0 is on STAGING, waiting on Jo's test.** Jo said "yes stage
+  it".
+  - The change replaces "…can walk them through the claim" (the phrase #1993
+    removed from the site) with: documents the damage, writes the estimate,
+    meets the adjuster after they file; the claim stays theirs.
+  - Production is still 0.6.2.
+  - Once Jo says it sounds right:
+    `node scripts/thursday-agent-lookup.js --promote --yes`.
+  - Details: [THURSDAY-BLAND §13](../architecture/THURSDAY-BLAND-2026-09-26.md).
 - **Texts:**
   1. Set up SMS Backup & Restore.
   2. Share the SMSBackupRestore folder with the service account (Viewer).
@@ -146,6 +145,13 @@ overwrite a newer one.
   part 3).
 - **Search Console re-read around 2026-10-30:** the Mason cluster and the
   shingle-comparison near-misses.
-- **Watch main's Public-surface runs** for the nav-drawer WebKit flake.
-  #1988 should have closed it, but a "landed at 0" was seen once on an old
-  base.
+- **Nav-drawer WebKit flake (#1995):**
+  - It failed on #1993 and #1994 (1200 / 1200 / 9 / 40 px off) and passed on
+    re-run.
+  - **Test-side cause found:** the spec's own `scrollTo(0, 1200)` glides
+    under `html{scroll-behavior:smooth}`. #1995 jumps instantly, waits for
+    the page to settle, and prints `nbd-nav.js`'s opt-in trace on any
+    miss. If it still fails, read the trace in the failure message.
+  - **Local E2E gotcha:** set `PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000`
+    OUTSIDE `emulators:exec` (cmd.exe can't take an inline env prefix).
+    Without it the config's default runs the specs against the LIVE site.
