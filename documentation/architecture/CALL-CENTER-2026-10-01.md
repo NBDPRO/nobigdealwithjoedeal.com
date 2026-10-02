@@ -408,3 +408,19 @@ hour". Groq caps audio per **hour** as well as per day.
 
 Tests: `call-center-notes` §8. Break-tested: with the rate-limit branch
 disabled, all three run-level checks go red.
+
+## Update 2026-10-02: texts also start 2026-01-01 (Jo's decision)
+
+Jo: "yes texts back to 2026 too". `sinceFor()` in `text-inbox-logic.js`
+used `now − 90 days`. It now uses a fixed floor, `HISTORY_FROM_MS` (midnight
+Eastern, 2026-01-01). The first run reads from the floor, and later runs
+overlap the cursor by 3 days but never reach before it. An SMS Backup &
+Restore file holds Jo's entire texting history, and nothing older than 2026
+is ever read from it.
+
+Texts aren't live yet (`TEXT_INBOX_ENABLED` is off until Jo sets up the
+backup), so no rescan is needed: the first run simply starts at the floor.
+
+Tests: `text-inbox-logic` §2 (4 checks, including a New Year's Eve 2025 text
+dropped and a 12:30 am Jan 1 text kept, through the real parser).
+Break-tested: putting back the 90-day window turns 3 red.

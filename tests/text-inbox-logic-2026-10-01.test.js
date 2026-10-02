@@ -62,8 +62,21 @@ const files = [{ name: 'calls-20261001120000.xml' }, { name: 'sms-20260930120000
 ok('newest sms backup picked, call-log backups ignored', T.pickNewestBackup(files).name === 'sms-20261001120000.xml');
 ok('no backups → null', T.pickNewestBackup([{ name: 'calls-20261001120000.xml' }]) === null);
 const NOW = Date.parse('2026-10-01T12:00:00Z');
-ok('first run reads 90 days', T.sinceFor(null, NOW, 90) === NOW - 90 * 864e5);
-ok('later runs overlap the cursor by 3 days', T.sinceFor(NOW - 864e5, NOW, 90) === NOW - 4 * 864e5);
+// History starts 2026-01-01 (Jo, 2026-10-02: "yes texts back to 2026 too").
+ok('the floor is midnight Eastern, 2026-01-01', T.HISTORY_FROM_MS === Date.parse('2026-01-01T00:00:00-05:00'));
+ok('first run reads from the floor, not "N days ago"', T.sinceFor(null, NOW) === T.HISTORY_FROM_MS && T.sinceFor(null, Date.parse('2027-06-01T00:00:00Z')) === T.HISTORY_FROM_MS);
+ok('later runs overlap the cursor by 3 days', T.sinceFor(NOW - 864e5, NOW) === NOW - 4 * 864e5);
+ok('...but never reach before the floor, even with an old cursor', T.sinceFor(Date.parse('2025-12-30T00:00:00Z'), NOW) === T.HISTORY_FROM_MS);
+{
+  // Through the real parser: one text at 11pm ET on New Year's Eve, one at
+  // 12:30am ET on New Year's Day.
+  const edge = '<?xml version="1.0"?><smses count="2">'
+    + '<sms protocol="0" address="+15135550100" date="' + Date.parse('2025-12-31T23:00:00-05:00') + '" type="1" body="old" read="1" status="-1" contact_name="Pat Example" />'
+    + '<sms protocol="0" address="+15135550100" date="' + Date.parse('2026-01-01T00:30:00-05:00') + '" type="1" body="new" read="1" status="-1" contact_name="Pat Example" />'
+    + '</smses>';
+  const r = T.parseSmsBackup(edge, { sinceMs: T.sinceFor(null, NOW) });
+  ok('a New Year\'s Eve 2025 text is left out; a 12:30am Jan 1 text is read', r.messages.length === 1 && r.messages[0].body === 'new' && r.skipped.old === 1, JSON.stringify({ n: r.messages.length, skipped: r.skipped }));
+}
 const doc = T.buildTextDoc({ ownerUid: 'U', msg: inb, match: { leadId: 'L1', alternates: [] }, bucket: 'customer', fileId: 'F', nowMs: 1 });
 ok('text doc is tenant-stamped and matched', doc.userId === 'U' && doc.companyId === 'U' && doc.leadId === 'L1' && doc.sentAtMs === inb.dateMs && doc.bucket === 'customer');
 
