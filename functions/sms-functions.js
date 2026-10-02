@@ -505,6 +505,10 @@ async function queuedGateLimit(decoded) {
 
 // sendSMS and sendQueuedSMS: one handler, one configuration.
 const SEND_SMS_OPTS = Object.freeze({
+  // Declared, not defaulted (2026-10-02): live sendSMS had lost its allUsers
+  // run.invoker binding (sendQueuedSMS, same options, still had it), so Cloud
+  // Run would 403 the browser before handleSendSMS verified the ID token.
+  invoker: 'public',
   cors: CORS_ORIGINS,
   secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
   maxInstances: 20,
