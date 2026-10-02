@@ -174,6 +174,21 @@
       [DEAL_STATUS.VIEWED, DEAL_STATUS.ACCEPTED, DEAL_STATUS.SIGNED, DEAL_STATUS.SCHEDULED].includes(d.status)));
   }
 
+  // "👁 Viewed 3× · 12 min" (2026-10-02): getDealRoom counts real opens (not
+  // link-preview bots) and dealRoomReadPing adds time on page. Older deals
+  // have only viewedAt, so they read plain "Viewed".
+  function viewBadge(d) {
+    const n = Number(d && d.viewCount) || 0;
+    const s = Math.floor(Number(d && d.readSeconds) || 0);
+    const read = s >= 60 ? Math.round(s / 60) + ' min' : (s > 0 ? s + ' sec' : '');
+    return '👁 Viewed' + (n > 1 ? ' ' + n + '×' : '') + (read ? ' · ' + read : '');
+  }
+  function viewTitle(d) {
+    const t = d && d.lastViewedAt;
+    const ms = t && typeof t.toMillis === 'function' ? t.toMillis() : (t && t.seconds ? t.seconds * 1000 : 0);
+    return ms ? 'Last opened ' + new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Opened';
+  }
+
   // ============================================================================
   // STORAGE
   // ============================================================================
@@ -857,7 +872,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       rates: FINANCING_RATES,
     }).replace(/</g, '\\u003c')
   }</script>
-<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=1"><\/script>
+<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=2"><\/script>
 </body></html>`;
   }
 
@@ -1294,7 +1309,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
             <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
               <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${STATUS_COLORS[d.status] || 'var(--m)'}20;color:${STATUS_COLORS[d.status] || 'var(--m)'};font-weight:600;text-transform:uppercase;">${esc(d.status)}</span>
               <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--t);">${fmtCurrency(dealValue(d))}</span>
-              ${wasViewed(d) ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--m);">👁 Viewed</span>` : ''}
+              ${wasViewed(d) ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--m);" title="${esc(viewTitle(d))}">${esc(viewBadge(d))}</span>` : ''}
               ${d.sentVia ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--m);">📤 via ${d.sentVia}</span>` : ''}
             </div>
           </div>

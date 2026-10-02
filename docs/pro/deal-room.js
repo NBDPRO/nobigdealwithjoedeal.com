@@ -149,6 +149,30 @@ async function submitDeal() {
   if (overlay) overlay.classList.add('show');
 }
 
+// ── Time on page (2026-10-02): "12 min read" on the rep's Close Board ──
+// Counts only while the page is visible; reports on hide / close with
+// sendBeacon (survives the tab closing). Served via /deal/<token> only — the
+// rep's in-app preview has no token and reports nothing.
+(function () {
+  const token = readMeta('nbd-deal-token') || window.__NBD_DEAL_TOKEN;
+  const url = readMeta('nbd-deal-read');
+  if (!token || !url || !navigator.sendBeacon) return;
+  let visibleSince = document.visibilityState === 'visible' ? Date.now() : 0;
+  let pending = 0;
+  function flush() {
+    if (visibleSince) { pending += (Date.now() - visibleSince) / 1000; visibleSince = 0; }
+    const seconds = Math.floor(pending);
+    if (seconds < 3) return;
+    pending -= seconds;
+    try { navigator.sendBeacon(url, new Blob([JSON.stringify({ token: token, seconds: seconds })], { type: 'text/plain' })); } catch (e) { /* best effort */ }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') flush();
+    else visibleSince = Date.now();
+  });
+  window.addEventListener('pagehide', flush);
+})();
+
 // ── Delegated interactions (replaces the CSP-dead inline handlers) ──
 document.addEventListener('click', function (ev) {
   const tier = ev.target.closest && ev.target.closest('[data-deal-tier]');
