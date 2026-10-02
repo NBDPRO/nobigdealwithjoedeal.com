@@ -1,0 +1,17 @@
+/* Ask Joe action cards (ask-joe-actions.js, 2026-10-02): what Joe is about to
+   do, with Confirm / Cancel — nothing is sent or changed until Confirm. */
+.joe-card { align-self: stretch; margin: 4px 0 4px 44px; padding: 12px 14px; border: 1px solid var(--br); border-left: 3px solid var(--orange, #BD5728); border-radius: 10px; background: var(--s2); color: var(--t); max-width: 520px; }
+.joe-card.is-done { border-left-color: var(--green, #22c55e); }
+.joe-card.is-failed, .joe-card.is-error { border-left-color: var(--red, #dc2626); }
+.joe-card.is-cancelled { opacity: .7; border-left-color: var(--m); }
+.joe-card-title { font-weight: 800; font-size: 15px; }
+.joe-card-sub { font-size: 12px; color: var(--m); margin-top: 2px; }
+.joe-card-quote { margin-top: 8px; padding: 8px 10px; background: var(--s); border-radius: 8px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.joe-card-text { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 10px; min-height: 88px; background: var(--s); color: var(--t); border: 1px solid var(--br); border-radius: 8px; font: inherit; font-size: 15px; resize: vertical; }
+.joe-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+.joe-card-btn { flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid var(--br); background: transparent; color: var(--t); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; touch-action: manipulation; }
+.joe-card-btn.is-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: var(--accent-fg, #fff); }
+.joe-card-status { margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--m); }
+.joe-card-status.is-done { color: var(--green, #22c55e); }
+.joe-card-status.is-failed { color: var(--red, #dc2626); }
+@media (max-width: 600px) { .joe-card { margin-left: 0; } }
