@@ -102,6 +102,22 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
     fields.every((t) => /\bui-field\b/.test(t) && !/style="[^"]*(background|border|border-radius):/.test(t)),
     'add class="ui-field" and drop the shared declarations from the style');
   ok('.ui-tile and .ui-field are defined', /background:\s*var\(--s2\)/.test(rule('.ui-tile')) && /background:\s*var\(--s\)/.test(rule('.ui-field')));
+
+  // Batch 4 (2026-10-02): what was left inline inside those tiles and above
+  // those fields. Zero computed-style diff on all 758 elements at 1280 and
+  // 390 px (JS off, templates expanded); a 1px control on .ui-tile-sub moved
+  // exactly 16 margin-tops.
+  const tileBodies = cust.split('class="doc-template-card').slice(1).map((chunk) => chunk.slice(0, 900));
+  ok('each of the 16 tiles has a .ui-tile-icon, .ui-tile-title and .ui-tile-sub',
+    tileBodies.length === 16 && tileBodies.every((t) => /class="ui-tile-icon"/.test(t) && /class="ui-tile-title"/.test(t) && /class="ui-tile-sub"/.test(t)), 'found ' + tileBodies.length);
+  ok('no tile content style is left inline',
+    !/style="font-size:20px;margin-bottom:6px;"|style="font-size:13px;font-weight:700;color:var\(--t\);"|style="font-size:11px;color:var\(--m\);margin-top:2px;"/.test(cust));
+  const labels = cust.match(/<label for="edit[A-Za-z]+"[^>]*>/g) || [];
+  ok('the 14 Edit Customer labels use .ui-label with no inline style',
+    labels.length === 14 && labels.every((t) => /class="ui-label"/.test(t) && !/\sstyle=/.test(t)), 'found ' + labels.length);
+  ok('.ui-tile-icon/-title/-sub and .ui-label are defined, declaration for declaration',
+    /font-size:\s*20px/.test(rule('.ui-tile-icon')) && /font-weight:\s*700/.test(rule('.ui-tile-title')) && /margin-top:\s*2px/.test(rule('.ui-tile-sub'))
+      && /text-transform:\s*uppercase/.test(rule('.ui-label')) && /letter-spacing:\s*\.08em/.test(rule('.ui-label')));
 }
 
 console.log('\nUI PRIMITIVES — Money and Expenses cards (JS-built)');
