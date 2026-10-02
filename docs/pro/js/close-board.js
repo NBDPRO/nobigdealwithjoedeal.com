@@ -1219,19 +1219,19 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 
         <!-- Stats -->
         <div class="cb-stats-row" style="display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;">
-          <div style="flex:1;min-width:100px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center;">
+          <div class="ui-stat">
             <div style="font-size:22px;font-weight:700;color:var(--blue);">${openCount}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Active Deals</div>
           </div>
-          <div style="flex:1;min-width:100px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center;">
+          <div class="ui-stat">
             <div style="font-size:22px;font-weight:700;color:var(--orange);">${dealRooms.filter(wasViewed).length}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Viewed</div>
           </div>
-          <div style="flex:1;min-width:100px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center;">
+          <div class="ui-stat">
             <div style="font-size:22px;font-weight:700;color:var(--green);">${signed.length}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Signed</div>
           </div>
-          <div style="flex:1;min-width:100px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center;">
+          <div class="ui-stat">
             <div style="font-size:22px;font-weight:700;color:var(--green);">${fmtCurrency(totalValue)}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Closed Value</div>
           </div>
@@ -1337,37 +1337,37 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
         <div style="font-size:14px;font-weight:700;color:var(--t);margin-bottom:12px;">Create New Deal Room</div>
 
         <div style="margin-bottom:10px;">
-          <label style="font-size:11px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Customer Name</label>
-          <input id="cb-name" type="text" placeholder="John Smith" style="width:100%;padding:10px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:13px;margin-top:4px;box-sizing:border-box;">
+          <label class="ui-caps-label">Customer Name</label>
+          <input class="ui-field-md" id="cb-name" type="text" placeholder="John Smith">
         </div>
         <div style="display:flex;gap:8px;margin-bottom:10px;">
           <div style="flex:1;">
-            <label style="font-size:11px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Phone</label>
-            <input id="cb-phone" type="tel" placeholder="(555) 123-4567" style="width:100%;padding:10px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:13px;margin-top:4px;box-sizing:border-box;">
+            <label class="ui-caps-label">Phone</label>
+            <input class="ui-field-md" id="cb-phone" type="tel" placeholder="(555) 123-4567">
           </div>
           <div style="flex:1;">
-            <label style="font-size:11px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Email</label>
-            <input id="cb-email" type="email" placeholder="john@email.com" style="width:100%;padding:10px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:13px;margin-top:4px;box-sizing:border-box;">
+            <label class="ui-caps-label">Email</label>
+            <input class="ui-field-md" id="cb-email" type="email" placeholder="john@email.com">
           </div>
         </div>
         <div style="margin-bottom:10px;">
-          <label style="font-size:11px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Address</label>
-          <input id="cb-addr" type="text" placeholder="123 Main St, Cincinnati, OH" style="width:100%;padding:10px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:13px;margin-top:4px;box-sizing:border-box;">
+          <label class="ui-caps-label">Address</label>
+          <input class="ui-field-md" id="cb-addr" type="text" placeholder="123 Main St, Cincinnati, OH">
         </div>
 
         <div style="font-size:12px;font-weight:700;color:var(--t);margin:14px 0 8px;">Pricing Tiers</div>
         <div style="display:flex;gap:8px;margin-bottom:10px;">
           <div style="flex:1;">
             <label style="font-size:10px;color:var(--m);">Good ($)</label>
-            <input id="cb-good" type="number" placeholder="8000" style="width:100%;padding:8px;background:var(--s);border:1px solid var(--br);border-radius:6px;color:var(--t);font-size:13px;margin-top:3px;box-sizing:border-box;">
+            <input class="ui-field-xs" id="cb-good" type="number" placeholder="8000">
           </div>
           <div style="flex:1;">
             <label style="font-size:10px;color:var(--m);">Better ($)</label>
-            <input id="cb-better" type="number" placeholder="11000" style="width:100%;padding:8px;background:var(--s);border:1px solid var(--br);border-radius:6px;color:var(--t);font-size:13px;margin-top:3px;box-sizing:border-box;">
+            <input class="ui-field-xs" id="cb-better" type="number" placeholder="11000">
           </div>
           <div style="flex:1;">
             <label style="font-size:10px;color:var(--m);">Best ($)</label>
-            <input id="cb-best" type="number" placeholder="15000" style="width:100%;padding:8px;background:var(--s);border:1px solid var(--br);border-radius:6px;color:var(--t);font-size:13px;margin-top:3px;box-sizing:border-box;">
+            <input class="ui-field-xs" id="cb-best" type="number" placeholder="15000">
           </div>
         </div>
 
@@ -1401,19 +1401,19 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     return `
       <div style="margin-top:4px;">
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;">
-          <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;text-align:center;">
+          <div class="ui-stat-box">
             <div style="font-size:28px;font-weight:700;color:var(--t);">${total}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Total Deals</div>
           </div>
-          <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;text-align:center;">
+          <div class="ui-stat-box">
             <div style="font-size:28px;font-weight:700;color:var(--blue);">${sent}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Sent</div>
           </div>
-          <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;text-align:center;">
+          <div class="ui-stat-box">
             <div style="font-size:28px;font-weight:700;color:#ffab00;">${viewed}</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Viewed</div>
           </div>
-          <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;text-align:center;">
+          <div class="ui-stat-box">
             <div style="font-size:28px;font-weight:700;color:var(--green);">${closeRate}%</div>
             <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Close Rate</div>
           </div>
