@@ -720,6 +720,10 @@ exports.callCenterTranscribe = require('./call-center').callCenterTranscribe;
 // Stage 3: "you said you'd…" email to the owner at 07:15 + 15:15 ET (open
 // promises from calls). DRY-RUN unless CALL_CENTER_SWEEP_ENABLED=true.
 exports.callCenterSweep = require('./call-center').callCenterSweep;
+// Every 2 hours, 8 AM-8 PM ET: anything new on the phone that needs Jo, and
+// whether calls/transcripts/Thursday are keeping up (bell + push to Jo only).
+// CALL_WATCH_ENABLED=true sends; otherwise it computes and logs.
+exports.callWatch = require('./call-watch').callWatch;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;
