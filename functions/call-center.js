@@ -200,7 +200,7 @@ exports.callCenterIngest = onSchedule(
 // its CRM audio copy is deleted (the original stays in Jo's Drive).
 //
 // Gate: CALL_CENTER_TRANSCRIBE_ENABLED=true runs the backlog (newest first,
-// 12 a run, ≤ 6 h audio a day). With the gate OFF, only the ids on
+// 12 a run, ≤ 7.5 h audio a day). With the gate OFF, only the ids on
 // integrations/callCenter.transcribeOnly run — Jo's one-call test.
 // The AI kill switch (integrations/killswitch) stops it too.
 
