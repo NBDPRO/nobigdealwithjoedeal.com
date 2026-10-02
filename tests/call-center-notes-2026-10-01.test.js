@@ -79,6 +79,8 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('personal: no summary detail, no promises, no follow-up', p.summary === 'Personal call.' && !p.promises.length && p.followUpDate === null && p.urgent === false);
   ok('garbage in → safe empty notes', L.sanitizeNotes(null).callType === 'other' && L.sanitizeNotes('x').promises.length === 0);
 
+  ok('daily audio cap is 7.5 h, under Groq\'s 8 h free tier', L.DAY_AUDIO_SEC_CAP === 27000 && L.DAY_AUDIO_SEC_CAP < 8 * 3600);
+
   console.log('\n2. Picking');
   const list = [call('a', { id: 'a', startedAtMs: 1 }), call('b', { id: 'b', startedAtMs: 3 }), call('c', { id: 'c', startedAtMs: 2, transcribeAttempts: 3 }), call('d', { id: 'd', status: 'noted' })];
   ok('gate off, no test ids → nothing', L.pickToTranscribe(list, { live: false, allowIds: [], maxCount: 5, secLeft: 1e6 }).length === 0);
@@ -126,6 +128,15 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('old call is noted with its timeline entry', db.docs.get(COLLECTION + '/cube_old').status === 'noted' && !!db.docs.get('leads/L1/activity/cube-cube_old'));
   ok('old call makes no follow-up task', !db.docs.has('leads/L1/tasks/cube-cube_old') && r.tasks === 0);
   db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_1'] }, [COLLECTION + '/cube_1']: call('cube_1', { leadId: 'L1' }), 'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+
+  console.log('\n5c. A call Jo marked not-personal stays business');
+  stub(() => ({ call_type: 'personal', summary: 'family', promises: [] }));
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_np'] }, [COLLECTION + '/cube_np']: call('cube_np', { leadId: null, notPersonal: true }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('the model\'s personal verdict is overridden: noted, transcript kept, audio kept', db.docs.get(COLLECTION + '/cube_np').status === 'noted' && !!db.docs.get(COLLECTION + '/cube_np').transcript && !deleted.some((p) => /cube_np/.test(p)));
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_1'] }, [COLLECTION + '/cube_1']: call('cube_1', { leadId: 'L1' }), 'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  stub(BUSINESS);
   await runTranscribe({ db, bucket, live: false, nowMs: NOW });
 
   console.log('\n6. Re-run never un-ticks a done task');

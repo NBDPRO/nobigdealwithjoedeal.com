@@ -116,7 +116,7 @@ customers" chip.
   that Voice Intelligence uses (`transcribeGroqBuffer`).
 - This replaced the Speech-to-Text plan: Groq needs no new Google API and its
   free tier covers this volume (25 MB a file, 8 h of audio a day).
-- **Limits:** we cap at 6 h a day, at most 12 calls a run, newest first, and
+- **Limits:** we cap at 7.5 h a day (raised from 6 h on 2026-10-01, Jo), at most 12 calls a run, newest first, and
   3 tries per call. Anything over 25 MB is marked `too_large`.
 
 **Notes**
@@ -285,6 +285,26 @@ never as HTML.
   - Break-tested.
 - **"Yes, turn it on"** set `CALL_CENTER_TRANSCRIBE_ENABLED=true`.
 - **"Yes, both times"** set `CALL_CENTER_SWEEP_ENABLED=true`.
+
+## "It wasn't personal" (2026-10-01)
+
+Personal calls lose their CRM audio and their notes, so a misjudged business
+call needs a way back. The Call Center screen shows **It wasn't personal** on
+any call marked personal. It calls `callCenterAction` with `notpersonal`,
+which:
+- re-copies the recording from Jo's Drive using the call's `driveFileId`
+  (the original never left), into the same private `calls/` path;
+- sets `status: 'stored'` and `notPersonal: true`, and resets the attempts,
+  so the call goes back into the transcription queue.
+
+On the next pass, `runTranscribe` overrides any "personal" verdict on a
+`notPersonal` call and files it as business. That override was
+break-tested. Only a call already marked personal can be redone, and
+viewers are refused.
+
+Tests: the action suite has the precondition, viewer, re-copy and requeue
+checks. The notes suite checks the override. The view E2E checks that the
+button sends the action.
 
 ## Text notes: texted promises join the sweep (built 2026-10-01)
 

@@ -200,7 +200,7 @@ exports.callCenterIngest = onSchedule(
 // its CRM audio copy is deleted (the original stays in Jo's Drive).
 //
 // Gate: CALL_CENTER_TRANSCRIBE_ENABLED=true runs the backlog (newest first,
-// 12 a run, ≤ 6 h audio a day). With the gate OFF, only the ids on
+// 12 a run, ≤ 7.5 h audio a day). With the gate OFF, only the ids on
 // integrations/callCenter.transcribeOnly run — Jo's one-call test.
 // The AI kill switch (integrations/killswitch) stops it too.
 
@@ -289,6 +289,9 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         if (ls.exists) { const l = ls.data(); leadName = ((l.firstName || '') + ' ' + (l.lastName || '')).trim(); }
       }
       const notes = L.sanitizeNotes(await d.notes({ system: L.NOTES_SYSTEM, prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName }) }));
+      // Jo said "it wasn't personal" (callCenterAction notpersonal): the
+      // model's personal verdict is overridden; the call is filed as business.
+      if (call.notPersonal === true && notes.callType === 'personal') notes.callType = 'other';
       const personal = notes.callType === 'personal';
       await callRef.set({
         status: personal ? 'personal' : 'noted',
@@ -430,6 +433,9 @@ exports.callCenterSweep = onSchedule(
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const COMPANY_STAFF = ['company_admin', 'manager'];
 
+// Test seam for notpersonal (Drive download + bucket).
+let deps_ = {};
+
 async function callAction({ db, auth, data, nowMs }) {
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const id = String((data && data.id) || '');
@@ -472,6 +478,20 @@ async function callAction({ db, auth, data, nowMs }) {
     }
     return { ok: true, leadId, phoneAdded: !!patch };
   }
+  if (action === 'notpersonal') {
+    // The model called it personal: its CRM audio copy was deleted and no
+    // notes were kept. Re-copy the recording from Jo's Drive (the original
+    // never left) and put the call back in the transcription queue, marked
+    // so the personal verdict can't recur.
+    if (call.status !== 'personal') throw new HttpsError('failed-precondition', 'Only a call marked personal can be redone.');
+    if (!call.driveFileId) throw new HttpsError('failed-precondition', 'No original recording on file.');
+    const ext = String(call.fileName || '').split('.').pop().toLowerCase() || 'm4a';
+    const path = L.storagePath(call.userId || OWNER, call.ymd || 'unknown', call.driveFileId, ext);
+    const bytes = await (deps_.download || download)(call.driveFileId);
+    await (deps_.bucket || getStorage().bucket()).file(path).save(bytes, { contentType: ext === 'm4a' ? 'audio/mp4' : 'application/octet-stream', resumable: false, metadata: { cacheControl: 'private, max-age=0' } });
+    await ref.set({ status: 'stored', storagePath: path, audioRemoved: null, notPersonal: true, summary: null, callType: null, transcribeAttempts: 0, notPersonalBy: auth.uid, notPersonalAtMs: nowMs }, { merge: true });
+    return { ok: true, requeued: true };
+  }
   throw new HttpsError('invalid-argument', 'Unknown action.');
 }
 
@@ -487,6 +507,7 @@ exports._test = {
   runTranscribe,
   runSweep,
   callAction,
+  setActionDeps(x) { deps_ = x || {}; },
   setClient(c) { _testClient = c; },
   setDeps(x) { _deps = x; },
   OWNER, COLLECTION, CONFIG,
