@@ -89,5 +89,6 @@ can only restyle what reaches a class or token.
   - Live Ops styles the primitives.
   - Next: `customer.html` and the JS-rendered widgets.
   - 2026-10-02 (batch 4): the 16 document tiles' contents (`.ui-tile-icon` / `-title` / `-sub`) and the 14 Edit Customer labels (`.ui-label`) left inline styles. customer.html is now 315 → 253 inline styles. Zero computed-style diff on 758 elements at 1280 and 390 px; a 1px control moved exactly 16 margin-tops.
+  - 2026-10-02 (batch 5): `.ui-page` (6 tab bodies), `.ui-btn-sm` (8 buttons), `.ui-ico-14` / `.ui-ico-13` (14 inline icons) and `.ui-note` (6 notes). customer.html is now 253 → 219 inline styles, with zero computed-style diff. Three estimate-header buttons are governed by `!important` rules (`.est-head-actions > .btn`, `nbd-mobile.css`) that beat the inline style too, so a skin has to restyle those there.
 - Step 4: Daylight and Jobsite are mocked up on the Home screen (the "NBD Pro
   skin candidates" canvas) for Jo to pick.

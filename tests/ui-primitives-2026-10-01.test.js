@@ -115,6 +115,22 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
   const labels = cust.match(/<label for="edit[A-Za-z]+"[^>]*>/g) || [];
   ok('the 14 Edit Customer labels use .ui-label with no inline style',
     labels.length === 14 && labels.every((t) => /class="ui-label"/.test(t) && !/\sstyle=/.test(t)), 'found ' + labels.length);
+  // Batch 5 (2026-10-02): tab bodies, small buttons, inline icons, notes.
+  // Zero computed-style diff on 758 elements at 1280/390 px. Control: a 1px
+  // padding change on .ui-btn-sm moved 5 of the 8 buttons; the other 3 sit
+  // under !important rules (.est-head-actions > .btn, nbd-mobile.css) that
+  // also beat the old inline style, so they were and stay governed there.
+  for (const [cls, n, gone] of [
+    ['ui-page', 6, 'max-width:1200px;margin:0 auto;padding:20px;'],
+    ['ui-btn-sm', 8, 'font-size:11px;padding:6px 12px;'],
+    ['ui-ico-14', 7, 'width:14px;height:14px;vertical-align:middle;'],
+    ['ui-ico-13', 7, 'width:13px;height:13px;vertical-align:middle;'],
+    ['ui-note', 6, 'font-size:11px;color:var(--m);"'],
+  ]) {
+    const uses = (cust.match(new RegExp('class="[^"]*\\b' + cls + '\\b[^"]*"', 'g')) || []).length;
+    ok('.' + cls + ' on ' + n + ' customer-page elements, none left inline', uses === n && !cust.includes('style="' + gone), 'found ' + uses);
+  }
+  ok('no tag carries two class attributes', !/<[a-z][^>]*\sclass="[^"]*"[^>]*\sclass="/.test(cust));
   ok('.ui-tile-icon/-title/-sub and .ui-label are defined, declaration for declaration',
     /font-size:\s*20px/.test(rule('.ui-tile-icon')) && /font-weight:\s*700/.test(rule('.ui-tile-title')) && /margin-top:\s*2px/.test(rule('.ui-tile-sub'))
       && /text-transform:\s*uppercase/.test(rule('.ui-label')) && /letter-spacing:\s*\.08em/.test(rule('.ui-label')));
