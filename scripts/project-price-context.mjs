@@ -5,7 +5,7 @@
  * WHY (Joe, 2026-09-27): "we need to price validate everything — some jobs are
  * years old and unrealistic to match today's pricing scale." A 2023 insurance
  * re-roof that landed near $400 a square sits on the same page as today's
- * $610–$825 a square tiers, and a homeowner reading both gets sticker shock
+ * $615–$965 a square tiers, and a homeowner reading both gets sticker shock
  * from the NEW number. The old price and its year stay on the page (they are
  * true); this adds one sentence of context next to them and a link to what
  * that kind of job runs today.
