@@ -110,6 +110,15 @@
 .ui-tile-icon { font-size: 20px; margin-bottom: 6px; }
 .ui-tile-title { font-size: 13px; font-weight: 700; color: var(--t); }
 .ui-tile-sub { font-size: 11px; color: var(--m); margin-top: 2px; }
+/* Customer page tab body: centred column (Activity, Documents, Photos …). */
+.ui-page { max-width: 1200px; margin: 0 auto; padding: 20px; }
+/* Small action button size (pairs with .btn / .btn-orange). */
+.ui-btn-sm { font-size: 11px; padding: 6px 12px; }
+/* Inline stroke icons in buttons and empty states. */
+.ui-ico-14 { width: 14px; height: 14px; vertical-align: middle; }
+.ui-ico-13 { width: 13px; height: 13px; vertical-align: middle; }
+/* One-line muted note under a heading. */
+.ui-note { font-size: 11px; color: var(--m); }
 /* Full-width form field (Edit Customer sheet). */
 .ui-field {
   width: 100%;
