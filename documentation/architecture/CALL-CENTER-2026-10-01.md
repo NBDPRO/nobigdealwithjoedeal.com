@@ -353,6 +353,27 @@ kill switch also stops it. Turn it on after texts are flowing
 Tests: `tests/text-notes-2026-10-01.test.js` has 14 checks, break-tested on
 the signature skip. There are 6 rules checks.
 
+## Texts in the Call Center (2026-10-02)
+
+Days of texts (`phone_text_days`, noted by `textInboxNotes`) now show in the
+Call Center beside the calls, and have a **Texts** tab of their own.
+- **Each card shows** who it was with, the message count, the AI summary,
+  the You/They promises, the follow-up date, Open customer, and
+  ✓ Handled / Not handled.
+- **Handled:** `callCenterAction` accepts `txt_<digits>_<ymd>` ids (same
+  audience), but only for handled / unhandled. `attach` is refused, because
+  the text ingest already matches texts to customers.
+- **"Needs attention" and Home:** both use `callNeedsYou` for text days
+  too. The Home strip adds the owner's newest 100 text days, so a texted
+  promise counts as a promise.
+- **Indexes:** `phone_text_days` by `userId` / `companyId` + `startedAtMs`.
+- **Tests:** action +4, home-attention +1, and a view E2E that seeds a text
+  day, checks the card and tab, and presses Handled.
+- **The E2E snoozes the push prompt.** The "Turn on appointment reminders"
+  prompt slid over the Handled button. The fix is the
+  `nbd_push_optin_snoozed_until` snooze the other specs already use.
+
+
 ## Next stages
 
 - **MMS photos.** Today they only count as "[n photos]". Copying them would

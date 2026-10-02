@@ -214,5 +214,10 @@ The CSP blocks CDNs, so any animation or graphics library is vendored under
   caps the count so it only goes down, which is how screens become skinnable.
   A red theme gate prints the line to change and the fix
   (`theme-qa` suggests a passing shade; `crm-theme-contract` names the token).
+- A marketing page that shows Bebas Neue or Montserrat above the fold
+  preloads them, as `index.html` and `book/index.html` do. A late font swap
+  is a layout shift (`/book` was at CLS 0.118). The weekly page-speed watch
+  (`.github/workflows/perf-watch.yml`) goes red past CLS 0.1. See
+  [PERF-WATCH-2026-10-02](documentation/audit/PERF-WATCH-2026-10-02.md).
 - The gates in `CLAUDE.md` pass (partials, site integrity, inline-script
   check, plus the visual and phone specs if they cover the page).

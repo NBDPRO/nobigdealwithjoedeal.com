@@ -439,8 +439,10 @@ let deps_ = {};
 async function callAction({ db, auth, data, nowMs }) {
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const id = String((data && data.id) || '');
-  if (!/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
-  const ref = db.collection(COLLECTION).doc(id);
+  // cube_… = a phone call; txt_… = a day of texts (phone_text_days, 2026-10-02).
+  const isText = /^txt_[0-9_]{10,40}$/.test(id);
+  if (!isText && !/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  const ref = db.collection(isText ? 'phone_text_days' : COLLECTION).doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Call not found.');
   const call = Object.assign({}, snap.data(), { id });
@@ -456,6 +458,8 @@ async function callAction({ db, auth, data, nowMs }) {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
     return { ok: true };
   }
+  // Texts are matched to customers by the text ingest itself; only Handled applies.
+  if (isText) throw new HttpsError('invalid-argument', 'Only Handled applies to texts.');
   if (action === 'attach') {
     const leadId = String((data && data.leadId) || '');
     if (!leadId || leadId.includes('/')) throw new HttpsError('invalid-argument', 'Bad lead id.');

@@ -69,13 +69,21 @@
     ['customer', 'Customers', function (c) { return !!c.leadId; }],
     ['insurance', 'Insurance', function (c) { return c.bucket === 'insurance' || c.callType === 'insurance'; }],
     ['contact', 'Contacts', function (c) { return !c.leadId && c.bucket === 'contact'; }],
-    ['unknown', 'Unknown', function (c) { return !c.leadId && c.bucket === 'unknown'; }],
+    ['unknown', 'Unknown', function (c) { return !c.leadId && c.bucket === 'unknown' && c.channel !== 'text'; }],
+    // A day of texts with one person (phone_text_days, AI-noted; 2026-10-02).
+    ['texts', 'Texts', function (c) { return c.channel === 'text'; }],
   ];
 
   async function fetchCalls() {
+    var rows = await fetchFrom('phone_calls', 'call');
+    var texts = await fetchFrom('phone_text_days', 'text');
+    return rows.concat(texts).sort(function (a, b) { return (b.startedAtMs || 0) - (a.startedAtMs || 0); });
+  }
+
+  async function fetchFrom(name, channel) {
     var db = window.db, uid = window._user && window._user.uid;
     if (!db || !uid || !window.query) return [];
-    var col = window.collection(db, 'phone_calls');
+    var col = window.collection(db, name);
     var c = claims();
     var qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAtMs', 'desc'), window.limit(LIMIT))];
     if (['company_admin', 'manager', 'viewer'].indexOf(c.role || '') !== -1 && c.companyId) {
@@ -85,10 +93,10 @@
     for (var i = 0; i < qs.length; i++) {
       try {
         var snap = await window.getDocs(qs[i]);
-        snap.docs.forEach(function (d) { byId[d.id] = Object.assign({}, d.data(), { id: d.id }); });
+        snap.docs.forEach(function (d) { byId[d.id] = Object.assign({}, d.data(), { id: d.id, channel: channel }); });
       } catch (e) {
-        console.warn('[call-center] read failed', e && e.code);
-        if (i === 0) state.error = 'Could not load calls (' + ((e && e.code) || 'error') + ').';
+        console.warn('[call-center] read failed', name, e && e.code);
+        if (i === 0 && channel === 'call') state.error = 'Could not load calls (' + ((e && e.code) || 'error') + ').';
       }
     }
     return Object.keys(byId).map(function (k) { return byId[k]; })
@@ -110,7 +118,33 @@
 
   function chip(text, cls) { return '<span class="cc-chip ' + (cls || '') + '">' + esc(text) + '</span>'; }
 
+  // A day of texts: who, how many messages, the AI notes, Handled.
+  function renderTextDay(c, L) {
+    var lead = c.leadId ? L[c.leadId] : null;
+    var who = c.contactName || leadName(lead) || fmtPhone(c.phoneDigits) || 'Unknown number';
+    var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+    var chips = chip('💬 ' + (c.messageCount || 0) + ' text' + (c.messageCount === 1 ? '' : 's')) + (lead ? chip('Customer', 'cc-chip-customer') : '') +
+      (c.urgent ? chip('Urgent', 'cc-chip-urgent') : '') + (c.handledAtMs ? chip('Handled', 'cc-chip-done') : '') + (c.status === 'personal' ? chip('Personal', '') : '');
+    var promises = (c.promises || []).length ? '<ul class="pc-promises">' + c.promises.map(function (p) {
+      return '<li class="pc-promise pc-promise-' + (p.who === 'jo' ? 'jo' : 'them') + '"><span class="pc-promise-who">' + (p.who === 'jo' ? 'You' : 'They') + '</span> ' +
+        esc(p.text) + (p.due ? ' <span class="pc-meta">by ' + esc(p.due) + '</span>' : '') + '</li>';
+    }).join('') + '</ul>' : '';
+    var actions = '';
+    if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
+    if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
+    return '<div class="panel pc-card cc-card cc-text' + (c.handledAtMs ? ' is-handled' : '') + '" data-call-id="' + esc(c.id) + '">' +
+      '<div class="pc-head"><div class="pc-who">' + esc(who) + (c.contactName && c.phoneDigits ? ' <span class="pc-meta">' + esc(fmtPhone(c.phoneDigits)) + '</span>' : '') + '</div>' +
+      '<div class="pc-meta">' + esc(when) + '</div></div>' +
+      '<div class="pc-chips">' + chips + '</div>' +
+      (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
+      (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
+      '<div class="pc-actions">' + actions + '</div>' +
+      '<div class="pc-meta pc-status" data-cc-status="' + esc(c.id) + '"></div>' +
+      '</div>';
+  }
+
   function renderCall(c, L) {
+    if (c.channel === 'text') return renderTextDay(c, L);
     var lead = c.leadId ? L[c.leadId] : null;
     var who = c.contactName || leadName(lead) || fmtPhone(c.phoneDigits) || 'Unknown caller';
     var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
@@ -168,7 +202,7 @@
     var active = FILTERS.filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
     var rows = state.calls.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
-      '<p class="cc-sub">Calls recorded on your phone, filed every 30 minutes. AI notes list who promised what. "Needs attention" covers the last 14 days.</p></div>' +
+      '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p></div>' +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist">' + FILTERS.map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +

@@ -1,0 +1,46 @@
+name: Page-speed watch
+
+# ─────────────────────────────────────────────────────────────
+# WHY THIS EXISTS
+# ─────────────────────────────────────────────────────────────
+# Page speed feeds Google ranking and AI-assistant recommendations, and every
+# perf check so far was a one-off sweep. Jo's idea triage (2026-10-01,
+# "frontend performance dashboard") asked for a trend that catches a
+# regression: a new heavy script, an unsized image, a font that reflows.
+#
+# Weekly, this runs mobile Lighthouse 3 times on each money page of the LIVE
+# site (read-only GETs) and judges the MEDIAN against the budgets in
+# scripts/perf-watch-logic.js. A page over budget turns the run red (which
+# emails the repo owner). A page that could not be measured (network, Chrome)
+# is a notice, never a red — an alarm that cries wolf stops being read (same
+# rule as copycat-watch.yml). The table lands in the run summary.
+#
+# The first local run (2026-10-02) caught /book at CLS 0.118: a web-font
+# swap reflowing the tools section, because /book didn't preload the fonts
+# index.html does. Fixed in the same change.
+
+on:
+  schedule:
+    # 12:40 UTC Mondays — morning Cincinnati time, off the hour.
+    - cron: '40 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    name: Lighthouse the money pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install Lighthouse (pinned major)
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/lh" lighthouse@12
+      - name: Measure
+        env:
+          LIGHTHOUSE_CLI: ${{ runner.temp }}/lh/node_modules/lighthouse/cli/index.js
+        run: node scripts/perf-watch.mjs
