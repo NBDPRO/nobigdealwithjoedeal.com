@@ -19,8 +19,8 @@
   if (typeof window === 'undefined') return;
 
   const TOOLSET = 'joe-actions-v1';
-  const READ_TOOLS = ['find_customer', 'get_schedule'];
-  const ACTION_TOOLS = ['send_text', 'add_reminder', 'move_stage'];
+  const READ_TOOLS = ['find_customer', 'get_schedule', 'agent_inbox_summary'];
+  const ACTION_TOOLS = ['send_text', 'add_reminder', 'add_note', 'move_stage'];
   const MAX_TEXT = 320;
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -136,9 +136,27 @@
     return { date: ymd, day: fmtDay(ymd), items: items.length ? items : [], note: items.length ? undefined : 'Nothing on the schedule that day.' };
   }
 
+  // What the bot team has filed and is waiting on Jo (agent-inbox.js).
+  async function agentInboxSummary() {
+    const c = window._userClaims || {};
+    const key = c.companyId || (window._user && window._user.uid);
+    if (!key || !window.getDocs || !window.query || !window.where) return { error: 'not signed in' };
+    const snap = await window.getDocs(window.query(window.collection(window.db || window._db, 'agent_inbox'), window.where('companyId', '==', key), window.where('status', '==', 'pending')));
+    const items = snap.docs.map((d) => d.data());
+    const byBot = {};
+    items.forEach((i) => {
+      const b = byBot[i.bot || 'Agent'] = byBot[i.bot || 'Agent'] || { notes: 0, reminders: 0, reports: 0 };
+      if (i.kind === 'note') b.notes++; else if (i.kind === 'reminder') b.reminders++; else b.reports++;
+    });
+    const newest = items.slice().sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0)).slice(0, 5)
+      .map((i) => { const l = findLead(i.leadId); return { bot: i.bot, kind: i.kind, customer: l ? leadName(l) : null, due: i.dueDate || null, text: String(i.text || '').slice(0, 140), checked: !!i.verified }; });
+    return { waiting: items.length, by_bot: byBot, newest, note: items.length ? 'Jo reviews these in the Agent inbox (bell 🤖, or the palette).' : 'Nothing waiting.' };
+  }
+
   async function runRead(name, input) {
     try {
-      const r = name === 'find_customer' ? findCustomer(input) : name === 'get_schedule' ? await getSchedule(input) : { error: 'unknown tool' };
+      const r = name === 'find_customer' ? findCustomer(input) : name === 'get_schedule' ? await getSchedule(input)
+        : name === 'agent_inbox_summary' ? await agentInboxSummary() : { error: 'unknown tool' };
       return JSON.stringify(r);
     } catch (e) { return JSON.stringify({ error: (e && e.message) || 'failed' }); }
   }
@@ -161,6 +179,11 @@
       const ph = String(lead.phone || '').replace(/\D/g, '');
       if (ph.length < 10) return { error: who + ' has no phone number on file.' };
       return { title: 'Text ' + who, sub: '••• ' + ph.slice(-4), message: String(i.message || '').slice(0, MAX_TEXT), confirm: 'Send text' };
+    }
+    if (name === 'add_note') {
+      const text = String(i.text || '').trim();
+      if (!text) return { error: 'The note is empty.' };
+      return { title: 'Note on ' + who, sub: 'Goes on the customer card', body: text.slice(0, 1000), confirm: 'Add note' };
     }
     if (name === 'add_reminder') {
       if (!isYmd(i.due_date)) return { error: 'The reminder needs a date.' };
@@ -229,6 +252,18 @@
         if (r && r.success && r.mode === 'sms') return { ok: false, text: 'Opened your Messages app to send it — not sent by the CRM.' };
         return { ok: false, text: 'Not sent: ' + ((r && (r.message || r.error)) || 'unknown error') };
       }
+      if (card.name === 'add_note') {
+        const uid = window._user && window._user.uid;
+        if (!uid || !window.addDoc) return { ok: false, text: 'Not signed in.' };
+        const text = String(card.input.text || '').trim().slice(0, 1000);
+        if (!text) return { ok: false, text: 'The note is empty.' };
+        // Same shape as typing a note on the card (dashboard-actions.js).
+        await window.addDoc(window.collection(window.db || window._db, 'notes'), {
+          leadId: lead.id, userId: uid, text, source: 'ask_joe',
+          createdAt: window.serverTimestamp(), createdBy: (window._user && window._user.email) || 'Ask Joe',
+        });
+        return { ok: true, text: 'Note added to ' + leadName(lead) + '.' };
+      }
       if (card.name === 'add_reminder') {
         const uid = window._user && window._user.uid;
         if (!uid || !window.addDoc) return { ok: false, text: 'Not signed in.' };
@@ -266,7 +301,8 @@
     return '\n\nTOOLS (you can act in the CRM):\n' +
       '- Today is ' + d.toLocaleDateString('en-US', { weekday: 'long' }) + ' ' + ymd + '.\n' +
       '- For any person, call find_customer first and use its lead_id. Never invent an id. If several match, ask which one.\n' +
-      '- send_text, add_reminder and move_stage show the user a confirm card. Say in one short line what you are about to do. Never say it is done until the tool result says so.\n' +
+      '- Jo prefers NOTES and REMINDERS in the CRM over texting people. Use add_note / add_reminder for "note that…" / "remind me…"; agent_inbox_summary answers "what did the bots file?".\n' +
+      '- send_text, add_note, add_reminder and move_stage show the user a confirm card. Say in one short line what you are about to do. Never say it is done until the tool result says so.\n' +
       '- One action per reply. Texting a whole list is not available yet.\n' +
       '- Texts: short, friendly, from Joe. Never promise to handle or negotiate an insurance claim.';
   }
