@@ -426,7 +426,8 @@ section('F7: V2 Builder autosave');
 {
   const src = read(path.join(PRO_JS, 'estimate-v2-ui.js'));
   assert('saveDraftDebounced called from render',
-    /function render\(\)[\s\S]{0,400}saveDraftDebounced\(\)/.test(src));
+    // 600 (was 400): render() now opens with the tier shingle lock (2026-10-02).
+    /function render\(\)[\s\S]{0,600}saveDraftDebounced\(\)/.test(src));
   assert('collectDraft bundles state',
     /function collectDraft\(\)[\s\S]{0,400}scope:\s*state\.scope/.test(src));
   assert('restoreDraft merges local + remote',
