@@ -200,6 +200,41 @@
     return conflictHtml(w, leadId);
   }
 
+  /**
+   * What getBusyTimes says for [fromMs, toMs) — null when this user can't ask
+   * or Google can't be reached (the Schedule view then simply shows nothing
+   * extra; it never waits on Google).
+   */
+  async function busyBetween(fromMs, toMs) {
+    if (!allowed()) return null;
+    try { return await callable('getBusyTimes', { fromMs: fromMs, toMs: toMs }); }
+    catch (_) { return null; }
+  }
+
+  /**
+   * The busy blocks to draw on the Today timeline (pure): Jo's own calendar
+   * only (free/busy — Google shares times, never titles), minus anything the
+   * timeline already shows. A block merged with an NBD Jobs event is that
+   * job's time, which the timeline lists from the lead book, so it is left
+   * out; so is a block overlapping any timeline entry (a Cal.com booking also
+   * sits on Jo's calendar). entries: [{ startMs, endMs }] — an entry with no
+   * end is a point in time.
+   */
+  function freeBusyGaps(r, entries) {
+    if (!r || !r.configured || !r.primaryShared || !r.primaryCalendarId) return [];
+    return (r.blocks || []).filter((b) => {
+      const cals = b.calendars || [];
+      if (cals.indexOf(r.primaryCalendarId) === -1) return false;
+      if (r.jobsCalendarId && cals.indexOf(r.jobsCalendarId) !== -1) return false;
+      return !(entries || []).some((e) => {
+        const s = Number(e.startMs);
+        if (!isFinite(s)) return false;
+        const en = Number(e.endMs) > s ? Number(e.endMs) : s + 1;
+        return s < b.endMs && en > b.startMs;
+      });
+    });
+  }
+
   function onField(ev) {
     const t = ev.target;
     const m = t && t.id && FIELD_RE.exec(t.id);
@@ -237,5 +272,5 @@
   window.addEventListener('hashchange', maybeLoad);
   window.addEventListener('nbd:data-refreshed', maybeLoad);
 
-  window.NBDGoogleCalendarUI = { loadStatus, check, checkRow, _windowFor: windowFor, _windowOf: windowOf, _conflictText: conflictText };
+  window.NBDGoogleCalendarUI = { loadStatus, check, checkRow, busyBetween, freeBusyGaps, _windowFor: windowFor, _windowOf: windowOf, _conflictText: conflictText };
 })();
