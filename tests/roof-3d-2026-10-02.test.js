@@ -43,7 +43,10 @@ const KEYS = ['deck', 'drip', 'ice', 'under', 'starter', 'shingles', 'boot', 'fl
   ok('no script in the SVG', !/<script/i.test(svg));
   const before = svg;
   require('child_process').execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-roof-diagram.js'), path.join(require('os').tmpdir(), 'roof-layers-check.svg')]);
-  ok('the committed SVG is exactly what the generator writes (edit the script, not the SVG)', fs.readFileSync(path.join(require('os').tmpdir(), 'roof-layers-check.svg'), 'utf8') === before);
+  // LF-normalised: a Windows checkout (core.autocrlf) holds the SVG as CRLF
+  // while the generator writes LF; same convention as build-sitemap / llms.
+  const lf = (s) => s.replace(/\r\n/g, '\n');
+  ok('the committed SVG is exactly what the generator writes (edit the script, not the SVG)', lf(fs.readFileSync(path.join(require('os').tmpdir(), 'roof-layers-check.svg'), 'utf8')) === lf(before));
 
   console.log('\n3. The 3D view');
   const js = read('docs/assets/js/roof-3d.js');

@@ -44,12 +44,37 @@ for (const [label, url] of PAGES) {
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
 
+    // nbd-nav.js records lock / unlock / jump / reapply / scroll events into
+    // this array (and only when it exists), so a missed restore on CI's
+    // mobile WebKit says WHY in the failure message (2026-10-02: 1200, 1200,
+    // 9 and 40 px off on the homepage only, never reproducible locally).
+    await page.addInitScript(() => { window.__NBD_NAV_TRACE = []; });
     await page.goto(url);
     // Scroll away from the top: the announcement bar leaves, the sticky nav
     // snaps up, and the header's bottom edge moves. Every hardcoded drawer
     // offset was wrong at one end of that range or the other.
-    await page.evaluate(() => window.scrollTo(0, 1200));
-    await page.waitForTimeout(300);
+    // INSTANT, not scrollTo(0, 1200): the site sets html{scroll-behavior:
+    // smooth}, so the plain form glides (the trace showed y 1, 2, 5, 10 …),
+    // and on a slow CI WebKit the drawer could be opened mid-glide with the
+    // reference point taken from a moving page.
+    await page.evaluate(() => window.scrollTo({ top: 1200, left: 0, behavior: 'instant' }));
+    await page.waitForFunction(() => {
+      const y = Math.round(window.scrollY);
+      const w = window.__navScrollSettle || (window.__navScrollSettle = { y, n: 0 });
+      if (w.y === y) w.n++; else { w.y = y; w.n = 0; }
+      return y > 0 && w.n >= 3;
+    }, null, { polling: 100, timeout: 5000 }).catch(() => {});
+    // Let late content (lazy images, the reviews widget) finish changing the
+    // page height before taking the reference point. WebKit has no scroll
+    // anchoring, so content growing ABOVE the viewport moves the reader
+    // whether or not the drawer was ever opened; that is not the drawer's
+    // restore failing.
+    await page.waitForFunction(() => {
+      const h = document.documentElement.scrollHeight;
+      const w = window.__navSettle || (window.__navSettle = { h, n: 0 });
+      if (w.h === h) w.n++; else { w.h = h; w.n = 0; }
+      return w.n >= 3;
+    }, null, { polling: 150, timeout: 5000 }).catch(() => {});
     const startY = await page.evaluate(() => Math.round(window.scrollY));
 
     const open = async () => {
@@ -121,7 +146,8 @@ for (const [label, url] of PAGES) {
     expect(closed.open).toBe(false);
     expect(closed.locked).toBe(false);
     expect(closed.bodyPos).not.toBe('fixed');
-    expect(Math.abs(closed.y - startY)).toBeLessThanOrEqual(2);
+    const navTrace = await page.evaluate(() => (window.__NBD_NAV_TRACE || []).slice(-60));
+    expect(Math.abs(closed.y - startY), `restore missed (start ${startY}, closed ${closed.y}); nav trace: ${JSON.stringify(navTrace)}`).toBeLessThanOrEqual(2);
 
     /* Three pages still ship a legacy closeMobileNav() bound to the <a>
        itself. A target-phase listener on the link runs before the

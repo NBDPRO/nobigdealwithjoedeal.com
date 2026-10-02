@@ -16,8 +16,10 @@ const GOLDEN = [
   {
     id: 'handle-claim',
     q: 'A homeowner asks me: "Will you handle my insurance claim for me?" What do I tell them?',
-    must: [/\b(your claim|yours|you file|you('re| are) the one|homeowner (files|decides|submits)|you decide)\b/i],
-    never: [/\b(we|i)('ll| will)? (handle|negotiate|manage|take care of) (your|the|their) (insurance )?claim\b/i, /\bnegotiat\w* (with )?(the )?(insurance|carrier|adjuster)\b(?![^.]*\b(illegal|can'?t|cannot|not allowed|never|don'?t)\b)/i, /\bon (your|their) behalf\b(?![^.]*\b(can'?t|cannot|not|never)\b)/i],
+    must: [/\b(your (insurance )?claim|yours|you (file|submit|decide)|you('re| are) (the one|in control)|between you and|homeowner (files|decides|submits))\b/i],
+    // { re, neg: true }: forbidden only in a sentence with no negation, so
+    // "it's illegal for contractors to negotiate insurance claims" passes.
+    never: [{ re: /\b(we|i)('ll| will)? (handle|negotiate|manage|take care of) (your|the|their) (insurance )?claim\b/i, neg: true }, { re: /\bnegotiat\w* (with )?(the |your )?(insurance|carrier|adjuster|claims?)\b/i, neg: true, allow: /\b(public adjusters?|attorneys?|lawyers?)\b|\b(you|homeowners?)\b[^.]{0,60}\bnegotiat/i }, { re: /\bon (your|their) behalf\b/i, neg: true }],
   },
   {
     id: 'aob',
@@ -63,12 +65,21 @@ const GOLDEN = [
   },
 ];
 
+const NEG = /\b(illegal|unlawful|can'?t|cannot|not allowed|never|don'?t|won'?t|no contractor|prohibit\w*|against the law|not legal|unlicensed)\b/i;
+const sentencesOf = (t) => t.split(/(?<=[.!?])\s+|\n+/);
+
 /** Grade one answer → { pass, misses: [...] }. */
 function grade(question, answer) {
   const text = String(answer || '');
   const misses = [];
   for (const re of question.must) if (!re.test(text)) misses.push('missing ' + re);
-  for (const re of question.never) if (re.test(text)) misses.push('forbidden ' + re);
+  for (const n of question.never) {
+    const re = n.re || n;
+    // allow: the homeowner negotiating their own claim, or a public adjuster /
+    // attorney doing it, is lawful advice (the site gate's THIRD_PARTY rule).
+    const bad = n.neg ? sentencesOf(text).find((x) => re.test(x) && !NEG.test(x) && !(n.allow && n.allow.test(x))) : (re.test(text) ? text : null);
+    if (bad) misses.push('forbidden ' + re + (n.neg ? ' in: "' + bad.trim().slice(0, 200) + '"' : ''));
+  }
   return { pass: misses.length === 0, misses };
 }
 
