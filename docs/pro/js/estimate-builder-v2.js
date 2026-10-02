@@ -40,10 +40,16 @@
 
   // Per-SQ flat rates (Joe's contractor pricing)
   const TIER_RATES = (_NBD_CFG && _NBD_CFG.TIER_RATES) || {
-    good:   545,   // Standard system + standard accessories
-    better: 595,   // Upgraded materials + system warranty
-    best:   660    // Impact-rated + 20yr workmanship warranty package
+    economy: 440,  // Economy-grade architectural (never 3-tab), 1-yr labor
+    good:    550,  // Standard system + standard accessories
+    better:  660,  // Upgraded materials + system warranty
+    best:    770,  // Impact-rated + workmanship warranty package
+    beyond:  880   // TAMKO HailGuard only
   };
+  // A device's saved tier rates must carry this to be honoured (loadSettings).
+  const TIER_RATES_VERSION = (_NBD_CFG && _NBD_CFG._ratesVersion) || '2026-10-02';
+  // Every tier, cheapest first (estimate-config.js TIER_ORDER).
+  const TIER_ORDER = (_NBD_CFG && _NBD_CFG.TIER_ORDER) || ['economy', 'good', 'better', 'best', 'beyond'];
 
   // Cost basis per SQ (Internal-view margin calc). SHIPPED AS ZEROS on
   // purpose (2026-08-10): this file is world-readable (docs/ is the hosting
@@ -56,9 +62,11 @@
   // "not configured" — the margin fields come back null and the Internal
   // View shows an em-dash, never a fake 100% margin.
   const DEFAULT_COST_BASIS = {
-    good:   0,
-    better: 0,
-    best:   0
+    economy: 0,
+    good:    0,
+    better:  0,
+    best:    0,
+    beyond:  0
   };
 
   // Add-on COST ratio (Internal-view margin calc, 2026-08-19).
@@ -369,8 +377,29 @@
     }
   };
 
+  // Economy and Beyond shingles (2026-10-02). Copies of the Good / Best
+  // entries' published starter figures under the tier's own name — no new
+  // cost literals (the starter baseline is a counted ledger, see
+  // tests/catalog-cost-privacy.test.js). Economy is Jo's pick of an
+  // economy-grade architectural (never a 3-tab); Beyond is TAMKO HailGuard
+  // only, the one shingle with a manufacturer hail warranty.
+  CATALOG['shingle-economy'] = Object.assign({}, CATALOG['shingle-good'], {
+    code: 'RFG-SHNG', name: 'Architectural Shingles — Economy Grade (never 3-tab)'
+  });
+  CATALOG['shingle-beyond'] = Object.assign({}, CATALOG['shingle-best'], {
+    code: 'RFG-IMPCT', name: 'TAMKO HailGuard Class 4 (manufacturer hail warranty)'
+  });
+
   // Tier → material variant picker
   const TIER_MATERIAL_MAP = {
+    economy: {
+      shingle:     'shingle-economy',
+      underlayment:'underlayment-good',
+      ridgeCap:    'ridge-cap-good',
+      ridgeVent:   'ridge-vent',
+      pipeBoot:    'pipe-boot-standard',
+      nails:       'nails-standard'
+    },
     good: {
       shingle:     'shingle-good',
       underlayment:'underlayment-good',
@@ -389,6 +418,14 @@
     },
     best: {
       shingle:     'shingle-best',
+      underlayment:'underlayment-best',
+      ridgeCap:    'ridge-cap-best',
+      ridgeVent:   'ridge-vent-premium',
+      pipeBoot:    'pipe-boot-premium',
+      nails:       'nails-lumanail'
+    },
+    beyond: {
+      shingle:     'shingle-beyond',
       underlayment:'underlayment-best',
       ridgeCap:    'ridge-cap-best',
       ridgeVent:   'ridge-vent-premium',
@@ -592,9 +629,14 @@
       if (!raw) return getDefaultSettings();
       const saved = JSON.parse(raw);
       const defaults = getDefaultSettings();
+      // Saved tier rates count only when saved under the current rate
+      // generation (estimate-config.js _ratesVersion). 2026-10-02: the five-
+      // tier repricing would otherwise be silently overridden on every device
+      // that ever pressed Save with the old 545/595/660.
+      const savedRates = (saved.tierRatesVersion && saved.tierRatesVersion === TIER_RATES_VERSION) ? (saved.tierRates || {}) : {};
       // Merge conservatively so any new fields always exist
       const merged = Object.assign({}, defaults, saved, {
-        tierRates:   Object.assign({}, defaults.tierRates, saved.tierRates || {}),
+        tierRates:   Object.assign({}, defaults.tierRates, savedRates),
         costBasis:   Object.assign({}, defaults.costBasis, saved.costBasis || {}),
         addonCostRatios: Object.assign({}, defaults.addonCostRatios, saved.addonCostRatios || {}),
         permits:     Object.assign({}, defaults.permits, saved.permits || {}),
@@ -1358,11 +1400,9 @@
    * Works with either method.
    */
   function calculateAllTiers(input) {
-    return {
-      good:   calculateEstimate(Object.assign({}, input, { tier: 'good' })),
-      better: calculateEstimate(Object.assign({}, input, { tier: 'better' })),
-      best:   calculateEstimate(Object.assign({}, input, { tier: 'best' }))
-    };
+    const out = {};
+    TIER_ORDER.forEach(function (t) { out[t] = calculateEstimate(Object.assign({}, input, { tier: t })); });
+    return out;
   }
 
   // ═════════════════════════════════════════════════════════

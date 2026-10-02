@@ -54,7 +54,45 @@
   function _v2TierLabel(key) {
     const cfg = window.NBD_ESTIMATE_CONFIG;
     if (cfg && typeof cfg.tierLabel === 'function') return cfg.tierLabel(key);
-    return ({ good: 'Standard', better: 'Preferred', best: 'Elite' })[key] || key;
+    return ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[key] || key;
+  }
+  // Five tiers, cheapest first (estimate-config.js TIER_ORDER, 2026-10-02).
+  function _v2Tiers() {
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    return (cfg && Array.isArray(cfg.TIER_ORDER)) ? cfg.TIER_ORDER.slice() : ['economy', 'good', 'better', 'best', 'beyond'];
+  }
+  function _v2TierBtnId(t) { return 'v2tier' + t.charAt(0).toUpperCase() + t.slice(1); }
+  // Catalog items currently in scope (for the shingle rules).
+  function _v2ScopeItems() {
+    const cat = window.NBD_XACT_CATALOG;
+    if (!cat || typeof cat.find !== 'function') return [];
+    return (state.scope || []).map(x => cat.find(x.code)).filter(Boolean);
+  }
+  // Shingle rules (Jo, 2026-10-02): Beyond is TAMKO HailGuard ONLY; Economy
+  // never a 3-tab. On a switch INTO one of those tiers the scope's shingle
+  // lines are swapped to the allowed one (and the rep is told), so the lock
+  // can never be met by leaving a wrong shingle in place.
+  const _V2_TIER_SWAP = { beyond: { to: 'RFG 240-TAMKO-HAIL', when: () => true }, economy: { to: 'RFG 240-TAMKO-HERITAGE', when: (it) => it.sub === 'shingles-3tab' } };
+  function _v2EnforceTierShingles(tier) {
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const swap = _V2_TIER_SWAP[tier];
+    if (!swap || !cfg || typeof cfg.isShingleItem !== 'function') return 0;
+    const cat = window.NBD_XACT_CATALOG;
+    if (!cat || typeof cat.find !== 'function' || !cat.find(swap.to)) return 0;
+    let swapped = 0;
+    const seen = new Set();
+    state.scope = (state.scope || []).map(x => {
+      const it = cat.find(x.code);
+      if (!it || !cfg.isShingleItem(it) || it.code === swap.to || !swap.when(it)) return x;
+      swapped++;
+      return Object.assign({}, x, { code: swap.to });
+    }).filter(x => { if (seen.has(x.code)) return false; seen.add(x.code); return true; });
+    if (swapped && typeof window.showToast === 'function') {
+      window.showToast(tier === 'beyond'
+        ? 'Beyond is TAMKO HailGuard only — the shingle line was switched to HailGuard.'
+        : 'Economy never uses a 3-tab — the shingle line was switched to TAMKO Heritage.', 'info');
+    }
+    return swapped;
   }
   // Tier-appropriateness signal (GBB backlog, 2026-09-17). Every catalog
   // entry in estimate-catalog-xactimate.js already self-declares a tier
@@ -69,7 +107,9 @@
   // facing name and would be a confusing mismatch against the raw
   // good/better/best language the tier picker itself uses.
   function _v2TierMismatch(itemTier) {
-    return !!itemTier && itemTier !== 'any' && itemTier !== state.tier;
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const jobTier = (cfg && typeof cfg.productTier === 'function') ? cfg.productTier(state.tier) : state.tier;
+    return !!itemTier && itemTier !== 'any' && itemTier !== jobTier;
   }
   function _v2TierBadgeHtml(itemTier) {
     if (!itemTier || itemTier === 'any') return '';
@@ -617,6 +657,9 @@
       .v2-tabs button.active {
         background:var(--orange,#BD5728); color:var(--accent-fg,#fff);
       }
+      /* Five tiers in one row (2026-10-02): tighter padding + tracking so
+         "ECONOMY" fits a 320px phone; 44px tall for a thumb. */
+      #v2tierTabs button { padding:10px 2px; letter-spacing:.03em; min-height:44px; min-width:0; }
       .v2-cat-tabs {
         display:flex; gap:4px; margin-bottom:10px; flex-wrap:wrap;
       }
@@ -894,9 +937,11 @@
                tiers from inside the modal at all. -->
           <div class="v2-section">Tier</div>
           <div class="v2-tabs" id="v2tierTabs">
+            <button id="v2tierEconomy" type="button" data-action="set-tier" data-arg="economy">Economy</button>
             <button id="v2tierGood"   type="button" data-action="set-tier" data-arg="good">Good</button>
             <button id="v2tierBetter" type="button" class="active" data-action="set-tier" data-arg="better">Better</button>
             <button id="v2tierBest"   type="button" data-action="set-tier" data-arg="best">Best</button>
+            <button id="v2tierBeyond" type="button" data-action="set-tier" data-arg="beyond" title="TAMKO HailGuard only">Beyond</button>
           </div>
 
           <!-- Wave 142: County / jurisdiction selector. Drives permit
@@ -1583,6 +1628,16 @@
     // surface the mismatch immediately instead of silently pricing wrong.
     const cat = window.NBD_XACT_CATALOG;
     const item = cat && typeof cat.find === 'function' ? cat.find(code) : null;
+    // Beyond = HailGuard only; Economy = never a 3-tab. These BLOCK, unlike
+    // the tier-mismatch steer below: they are what the tier is (Jo, 2026-10-02).
+    const _cfgT = window.NBD_ESTIMATE_CONFIG;
+    if (item && _cfgT && typeof _cfgT.checkTierShingles === 'function') {
+      const chk = _cfgT.checkTierShingles(state.tier, [item]);
+      if (!chk.ok) {
+        if (typeof window.showToast === 'function') window.showToast(chk.problems[0], 'error');
+        return;
+      }
+    }
     if (item && _v2TierMismatch(item.tier) && typeof window.showToast === 'function') {
       window.showToast(
         '"' + (item.name || code) + '" is a ' + item.tier + '-tier item — this job is priced ' + state.tier + ' tier',
@@ -2644,7 +2699,7 @@
       // grandTotal all show the SAME number — else they disagree by passThruSum
       // (a smaller resurrection of the V2-2 bug this fix exists to kill).
       if (passThruSum) {
-        ['good', 'better', 'best'].forEach(k => {
+        _v2Tiers().forEach(k => {
           if (tiers[k]) tiers[k].total = (Number(tiers[k].total) || 0) + passThruSum;
         });
       }
@@ -2659,7 +2714,10 @@
         // getCurrentEstimate (_stampDeposit → deposit-rule.js). This line used
         // to be its own "cash 50% / insurance 0%" copy (2026-09-25).
         estimate.tier     = (tiers[state.tier] ? state.tier : 'better');
-        estimate.prices   = { good: tiers.good.total, better: tiers.better.total, best: tiers.best.total };
+        // Every tier's price (five since 2026-10-02) — the deal room, portal
+        // and quote read this map.
+        estimate.prices   = {};
+        _v2Tiers().forEach(k => { if (tiers[k]) estimate.prices[k] = tiers[k].total; });
         estimate.perSqTiers = tiers;        // .total now passThru-inclusive; reused in finalize
         estimate.priceMode  = 'per-sq';
         // Reconcile the Internal View margin to the per-SQ customer total (it was
@@ -2810,13 +2868,13 @@
   // W142 tier change, extracted from the dispatcher so the Phase-3
   // presentation tier cards drive the exact same path as the Setup tabs.
   function setTierChoice(arg) {
-    if (arg !== 'good' && arg !== 'better' && arg !== 'best') return;
+    if (_v2Tiers().indexOf(arg) === -1) return;
     state.tier = arg;
     state._reopenedClean = false;   // 3B: tier change → re-resolve
-    ['v2tierGood', 'v2tierBetter', 'v2tierBest'].forEach(id => {
-      const b = document.getElementById(id);
-      if (b) b.classList.toggle('active',
-        id === ('v2tier' + arg.charAt(0).toUpperCase() + arg.slice(1)));
+    _v2EnforceTierShingles(arg);    // Beyond → HailGuard, Economy → no 3-tab
+    _v2Tiers().forEach(t => {
+      const b = document.getElementById(_v2TierBtnId(t));
+      if (b) b.classList.toggle('active', t === arg);
     });
     render();
     saveDraftDebounced();
@@ -2841,12 +2899,11 @@
   // three price the same, this returns a single tier so the caller renders
   // one honest total instead of a comparison it cannot stand behind.
   function triTierTotals(current) {
+    const _none = () => { const o = {}; _v2Tiers().forEach(t => { o[t] = null; }); return o; };
     if (current.prices && current.prices.good != null) {
-      return {
-        good: current.prices.good,
-        better: current.prices.better,
-        best: current.prices.best
-      };
+      const o = _none();
+      _v2Tiers().forEach(t => { if (current.prices[t] != null) o[t] = current.prices[t]; });
+      return o;
     }
     // Compute ALL THREE from the SAME source, including the current tier.
     //
@@ -2857,8 +2914,8 @@
     // BETTER $725 / BEST $2,500 — "Better" cheaper than "Good", "Good" equal
     // to "Best". Three prices from two engines is not a comparison.
     const orig = state.tier;
-    const out = { good: null, better: null, best: null };
-    ['good', 'better', 'best'].forEach(t => {
+    const out = _none();
+    _v2Tiers().forEach(t => {
       try {
         state.tier = t;
         const e = getCurrentEstimate();
@@ -2879,7 +2936,7 @@
     const truth = current.total;
     const bothNumbers = typeof same === 'number' && typeof truth === 'number';
     if (bothNumbers && Math.round(same) !== Math.round(truth)) {
-      return { good: null, better: null, best: null, [orig]: truth };
+      return Object.assign(_none(), { [orig]: truth });
     }
     if (bothNumbers) out[orig] = truth;
 
@@ -2888,10 +2945,10 @@
     // cards reading the same figure under "fits the budget" /
     // "most popular" / "top-of-the-line" promises the homeowner a choice
     // that does not exist. Collapse to the single total card.
-    const vals = ['good', 'better', 'best']
+    const vals = _v2Tiers()
       .map(t => out[t]).filter(v => typeof v === 'number').map(v => Math.round(v));
     if (vals.length >= 2 && vals.every(v => v === vals[0])) {
-      return { good: null, better: null, best: null, [orig]: out[orig] };
+      return Object.assign(_none(), { [orig]: out[orig] });
     }
     return out;
   }
@@ -2911,12 +2968,15 @@
 
     const tiers = triTierTotals(estimate);
     const BLURB = {
+      economy: 'A new roof for less — 1-year labor warranty.',
       good: 'Solid protection that fits the budget.',
       better: 'Our most popular package — the sweet spot.',
-      best: 'Top-of-the-line materials and warranty.'
+      best: 'Top-of-the-line materials and warranty.',
+      beyond: 'TAMKO HailGuard — the only shingle with a hail warranty.'
     };
-    const LABEL = { good: _v2TierLabel('good'), better: _v2TierLabel('better'), best: _v2TierLabel('best') };
-    const cardOrder = ['good', 'better', 'best'].filter(t => fmt(tiers[t]) !== null);
+    const LABEL = {};
+    _v2Tiers().forEach(t => { LABEL[t] = _v2TierLabel(t); });
+    const cardOrder = _v2Tiers().filter(t => fmt(tiers[t]) !== null);
 
     const cards = cardOrder.length >= 2
       ? cardOrder.map(t =>
@@ -3606,7 +3666,7 @@
       projectLine: (function () {
         const parts = [];
         if (estimate.materialType || customer.material) parts.push(estimate.materialType || customer.material);
-        if (meta && meta.tiers) parts.push(_v2TierLabel('good') + ' / ' + _v2TierLabel('better') + ' / ' + _v2TierLabel('best') + ' comparison');
+        if (meta && meta.tiers) parts.push(_v2Tiers().filter(t => meta.tiers[t]).map(_v2TierLabel).join(' / ') + ' comparison');
         return parts.length ? parts.join(' · ') : null;
       })(),
     };
@@ -3647,7 +3707,7 @@
     // the retail-quote path. Marks the middle tier (Better) as
     // recommended unless a different one is flagged.
     let tierList = null;
-    if (!isSingleQuote && meta.tiers && (meta.tiers.good || meta.tiers.better || meta.tiers.best)) {
+    if (!isSingleQuote && meta.tiers && _v2Tiers().some(t => meta.tiers[t])) {
       const recommended = meta.tiers.recommended || 'better';
       const buildTier = (key, name, subtitle, features) => {
         const src = meta.tiers[key];
@@ -3673,13 +3733,21 @@
       // elsewhere, let alone each other. All three tiers are lifetime
       // workmanship now (estimate-config.js TIER_DISPLAY) — only
       // transferability/inspection vary.
+      // Economy / Beyond (2026-10-02, Jo): Economy is Jo's pick of an
+      // economy-grade architectural (never 3-tab) with a 1-YEAR labor
+      // warranty + the manufacturer's limited warranty, NO system warranty.
+      // Beyond is TAMKO HailGuard only — the one shingle with a hail warranty.
       tierList = [
+        buildTier('economy', _v2TierLabel('economy'), 'Economy-grade architectural shingle · standard install',
+          ['Economy-grade architectural shingle (never a 3-tab)', 'Standard ridge vent + flashing', 'Labor warranty: 1 year', "Shingle manufacturer's standard limited warranty — no system warranty", 'Full tear-off included']),
         buildTier('good',   _v2TierLabel('good'),   '25-yr architectural shingle · standard install',
           ['Owens Corning Oakridge or equivalent', 'Standard ridge vent + flashing', 'Labor warranty: Lifetime (non-transferable)', 'Full tear-off included']),
         buildTier('better', _v2TierLabel('better'), '30-yr architectural · upgraded underlayment',
           ['GAF Timberline HDZ or equivalent', 'Synthetic underlayment upgrade', 'Ice & water shield on eaves + valleys', 'Labor warranty: Lifetime (transferable to 1 subsequent owner)', 'Full tear-off included']),
         buildTier('best',   _v2TierLabel('best'),   'Lifetime designer · full system warranty',
           ['GAF Timberline ULTRA HDZ Lifetime', 'Synthetic underlayment + ice & water full perimeter', 'Premium ridge vent', 'Labor warranty: Lifetime (fully transferable)', 'Full system warranty by GAF', 'Annual courtesy inspection']),
+        buildTier('beyond', _v2TierLabel('beyond'), 'TAMKO HailGuard Class 4 · hail warranty',
+          ['TAMKO HailGuard — the only shingle with a manufacturer hail warranty', 'TAMKO Synthetic Guard + Moisture Guard (required for the hail warranty)', 'TAMKO starter + hip & ridge', 'Labor warranty: Lifetime (fully transferable)', 'Annual courtesy inspection']),
       ].filter(Boolean);
     }
 
@@ -4430,11 +4498,8 @@
         const items = state.scope
           .map(s => { const f = cat.find(s.code); return f ? withSavedCost(f, s) : null; })
           .filter(Boolean);
-        meta.tiers = {
-          good:   window.EstimateLogic.resolveEstimate(items, state.measurements, tierSettings('good')),
-          better: window.EstimateLogic.resolveEstimate(items, state.measurements, tierSettings('better')),
-          best:   window.EstimateLogic.resolveEstimate(items, state.measurements, tierSettings('best'))
-        };
+        meta.tiers = {};
+        _v2Tiers().forEach(t => { meta.tiers[t] = window.EstimateLogic.resolveEstimate(items, state.measurements, tierSettings(t)); });
       }
       // Mark the rep's selected tier so the formatter highlights the matching
       // card by KEY (not float-equality on totals — see estimate-finalization.js).
@@ -4538,6 +4603,18 @@
     if (!estimate) {
       setStatus('Add line items to the scope first.', 'var(--red,#c53030)');
       return;
+    }
+    // Tier shingle lock, re-checked at save (a stale page or a reopened
+    // estimate must not slip a wrong shingle onto Beyond / a 3-tab onto
+    // Economy). Jo, 2026-10-02.
+    const _cfgS = window.NBD_ESTIMATE_CONFIG;
+    if (_cfgS && typeof _cfgS.checkTierShingles === 'function') {
+      const chk = _cfgS.checkTierShingles(state.tier, _v2ScopeItems());
+      if (!chk.ok) {
+        setStatus(chk.problems[0], 'var(--red,#c53030)');
+        if (window.showToast) window.showToast(chk.problems[0], 'error');
+        return;
+      }
     }
 
     // Guard: save function missing (e.g., dashboard not loaded)
@@ -4893,8 +4970,8 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
     });
     // Tier — buttons, not an input. Toggle .active class.
     const tier = state.tier || 'better';
-    ['good', 'better', 'best'].forEach(t => {
-      const b = document.getElementById('v2tier' + t.charAt(0).toUpperCase() + t.slice(1));
+    _v2Tiers().forEach(t => {
+      const b = document.getElementById(_v2TierBtnId(t));
       if (b) b.classList.toggle('active', t === tier);
     });
     // Mirror the customer address into the auto-measure input when
@@ -5078,7 +5155,7 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
       return;
     }
     const p = estimate.prices;
-    if (!(Number(p.good) || Number(p.better) || Number(p.best))) {
+    if (!_v2Tiers().some(t => Number(p[t]))) {
       toast('Enter at least one tier price before creating a deal room.', 'error');
       return;
     }

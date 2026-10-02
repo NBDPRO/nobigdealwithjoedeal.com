@@ -360,7 +360,13 @@
       console.warn('[EstimateLogic] Material not found:', materialId);
       return null;
     }
-    const tierPricing = product.pricing && product.pricing[tier];
+    // Products carry good/better/best pricing only. Economy prices off the
+    // Good column and Beyond off Best (estimate-config.js productTier) — a
+    // raw economy/beyond lookup found no block and priced the material at $0.
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const priceTier = (cfg && typeof cfg.productTier === 'function') ? cfg.productTier(tier)
+      : ({ economy: 'good', beyond: 'best' })[tier] || tier;
+    const tierPricing = product.pricing && product.pricing[priceTier];
     // `cost` is absent until catalog-costs.js hydrates the private half of the
     // catalog (product-data.js publishes retail `sell` only — it is served
     // unauthenticated from a public repo). Number(undefined) is NaN, and NaN

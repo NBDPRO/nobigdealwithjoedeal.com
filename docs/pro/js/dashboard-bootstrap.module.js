@@ -4791,13 +4791,13 @@
   function _paintDeviceEstimateInputs(s) {
     const byId = (id) => document.getElementById(id);
 
-    if (byId('v2rateGood'))   byId('v2rateGood').value   = s.tierRates?.good   ?? 545;
-    if (byId('v2rateBetter')) byId('v2rateBetter').value = s.tierRates?.better ?? 595;
-    if (byId('v2rateBest'))   byId('v2rateBest').value   = s.tierRates?.best   ?? 660;
-
-    if (byId('v2costGood'))   byId('v2costGood').value   = s.costBasis?.good   ?? 0;
-    if (byId('v2costBetter')) byId('v2costBetter').value = s.costBasis?.better ?? 0;
-    if (byId('v2costBest'))   byId('v2costBest').value   = s.costBasis?.best   ?? 0;
+    // Five tiers (2026-10-02). Defaults come from estimate-config.js, never
+    // a literal here (the old 545/595/660 literals outlived the repricing).
+    const _cfgRates = (window.NBD_ESTIMATE_CONFIG && window.NBD_ESTIMATE_CONFIG.TIER_RATES) || {};
+    for (const [t, id] of [['economy', 'Economy'], ['good', 'Good'], ['better', 'Better'], ['best', 'Best'], ['beyond', 'Beyond']]) {
+      if (byId('v2rate' + id)) byId('v2rate' + id).value = s.tierRates?.[t] ?? _cfgRates[t] ?? '';
+      if (byId('v2cost' + id)) byId('v2cost' + id).value = s.costBasis?.[t] ?? 0;
+    }
 
     if (byId('v2minJob'))   byId('v2minJob').value   = s.minJobCharge ?? 2500;
     if (byId('v2minRepair')) byId('v2minRepair').value = s.minRepairCharge ?? 0;
@@ -5264,19 +5264,18 @@
       return isNaN(v) ? fallback : v;
     };
 
+    // Five tiers (2026-10-02); fallbacks from estimate-config.js. The saved
+    // rates carry the config's rate generation so loadSettings honours them
+    // (and drops any saved under an older one).
+    const _cfg = window.NBD_ESTIMATE_CONFIG || {};
+    const _cfgRates = _cfg.TIER_RATES || {};
+    const _tierIds = [['economy', 'Economy'], ['good', 'Good'], ['better', 'Better'], ['best', 'Best'], ['beyond', 'Beyond']];
     const patch = {
-      tierRates: {
-        good:   num('v2rateGood', 545),
-        better: num('v2rateBetter', 595),
-        best:   num('v2rateBest', 660)
-      },
-      costBasis: {
-        // 0 = not configured (EBv2 ships zero defaults on purpose — real
-        // cost basis is tenant data, never published in the public tree)
-        good:   num('v2costGood', 0),
-        better: num('v2costBetter', 0),
-        best:   num('v2costBest', 0)
-      },
+      tierRates: Object.fromEntries(_tierIds.map(([t, id]) => [t, num('v2rate' + id, _cfgRates[t])])),
+      tierRatesVersion: _cfg._ratesVersion || null,
+      // 0 = not configured (EBv2 ships zero defaults on purpose — real
+      // cost basis is tenant data, never published in the public tree)
+      costBasis: Object.fromEntries(_tierIds.map(([t, id]) => [t, num('v2cost' + id, 0)])),
       minJobCharge: num('v2minJob', 2500),
       roundTo: num('v2roundTo', 25),
       minRepairCharge: num('v2minRepair', 0),
