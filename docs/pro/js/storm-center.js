@@ -876,12 +876,12 @@
     const totalRevenue = stormZones.reduce((s, z) => s + estimateZoneRevenue(z).revenue, 0);
 
     let html = `
-      <div style="padding:16px 20px 0;">
+      <div class="stc-head">
         <!-- Header -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div class="stc-head-row">
           <div>
-            <div style="font-size:22px;font-weight:800;font-family:'Barlow Condensed',sans-serif;color:var(--t);letter-spacing:.02em;">⛈️ STORM CENTER</div>
-            <div style="font-size:12px;color:var(--m);margin-top:2px;">Weather intelligence → Revenue pipeline</div>
+            <div class="stc-title">⛈️ STORM CENTER</div>
+            <div class="stc-subtitle">Weather intelligence → Revenue pipeline</div>
           </div>
           <button class="btn btn-orange" data-storm-action="refresh">
             ${isLoading ? '⏳ Loading...' : '🔄 Refresh Alerts'}
@@ -889,16 +889,16 @@
         </div>
 
         <!-- Stats Strip (.stat-card design-system tiles) -->
-        <div style="display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;">
-          <div class="stat-card" style="flex:1;min-width:120px;">
+        <div class="stc-stats">
+          <div class="stat-card stc-stat">
             <div class="stat-icon">📡</div>
             <div><div class="stat-val" style="color:${activeAlerts > 0 ? '#ff6d00' : 'var(--t)'};font-size:22px;">${activeAlerts}</div><div class="stat-lbl">Active Alerts</div></div>
           </div>
-          <div class="stat-card" style="flex:1;min-width:120px;">
+          <div class="stat-card stc-stat">
             <div class="stat-icon">🗺️</div>
             <div><div class="stat-val" style="color:var(--blue);font-size:22px;">${activeZones}</div><div class="stat-lbl">Storm Zones</div></div>
           </div>
-          <div class="stat-card" style="flex:1;min-width:120px;">
+          <div class="stat-card stc-stat">
             <div class="stat-icon">💰</div>
             <div><div class="stat-val" style="color:var(--green);font-size:22px;">$${Math.round(totalRevenue/1000)}k</div><div class="stat-lbl">Pipeline Value</div></div>
           </div>
@@ -910,20 +910,20 @@
               const o = (window.StormOutlook && userLocation)
                 ? window.StormOutlook.summarizeAt(userLocation.lat, userLocation.lng) : null;
               if (!o || !o.text) return '';
-              return `<div class="stat-card" style="flex:1;min-width:150px;">
+              return `<div class="stat-card stc-stat stc-stat-wide">
             <div class="stat-icon">⛈️</div>
             <div><div class="stat-val" style="color:${o.color || 'var(--t)'};font-size:15px;line-height:1.25;">${esc(o.text)}</div><div class="stat-lbl">SPC Outlook Today</div></div>
           </div>`;
             } catch (e) { return ''; }
           })()}
-          <div class="stat-card" style="flex:1;min-width:120px;">
+          <div class="stat-card stc-stat">
             <div class="stat-icon">🚪</div>
             <div><div class="stat-val" style="color:var(--orange);font-size:22px;">${stormZones.reduce((s, z) => s + (Number(z.knockCount) || 0), 0)}</div><div class="stat-lbl">Storm Knocks</div></div>
           </div>
         </div>
 
         <!-- Tabs (.stab-btn underline vocabulary) -->
-        <div style="display:flex;gap:0;margin-bottom:14px;overflow-x:auto;border-bottom:2px solid var(--br);">
+        <div class="stc-tabs">
           ${tabBtn('alerts', 'Live Alerts', '📡')}
           ${tabBtn('zones', 'Storm Zones', '🗺️')}
           ${tabBtn('canvass', 'Canvass Plans', '🚪')}
@@ -932,9 +932,9 @@
       </div>
 
       <!-- Map -->
-      <div id="storm-map" style="width:100%;height:280px;border-top:1px solid var(--br);border-bottom:1px solid var(--br);"></div>
+      <div id="storm-map" class="stc-map"></div>
 
-      <div style="padding:0 20px 20px;">
+      <div class="stc-body">
     `;
 
     // Tab content
@@ -999,19 +999,19 @@
     }
 
     return `
-      <div style="margin-top:14px;">
-        <div style="font-size:13px;font-weight:700;color:var(--t);margin-bottom:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;">
+      <div class="stc-section">
+        <div class="stc-sec-head">
           ${alerts.length} Active Alert${alerts.length !== 1 ? 's' : ''}
         </div>
         ${alerts.map(a => `
-          <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;margin-bottom:10px;border-left:4px solid ${severityColor(a.severity)};">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
-              <div style="flex:1;">
-                <div style="font-size:14px;font-weight:700;color:var(--t);">
+          <div class="stc-card" style="border-left:4px solid ${severityColor(a.severity)};">
+            <div class="stc-card-row">
+              <div class="stc-grow">
+                <div class="stc-card-title">
                   ${eventIcon(a.event)} ${esc(a.event)}
                 </div>
-                <div style="font-size:11px;color:var(--m);margin-top:3px;">${esc(a.areaDesc?.split(';').slice(0, 3).join(', ') || 'Unknown area')}</div>
-                <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                <div class="stc-card-sub">${esc(a.areaDesc?.split(';').slice(0, 3).join(', ') || 'Unknown area')}</div>
+                <div class="stc-tags">
                   <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${severityColor(a.severity)} 13%, transparent);color:${severityColor(a.severity)};font-weight:600;">${a.severity}</span>
                   ${a.hailSize ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, var(--blue) 13%, transparent);color:var(--blue);font-weight:600;">🧊 ${a.hailSize}" Hail</span>` : ''}
                   ${a.windSpeed ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, #ff6d00 13%, transparent);color:#ff6d00;font-weight:600;">💨 ${a.windSpeed}mph</span>` : ''}
@@ -1020,10 +1020,10 @@
                   </span>
                 </div>
               </div>
-              <div style="text-align:right;flex-shrink:0;">
-                <div style="font-size:10px;color:var(--m);">${timeAgo(a.sent)}</div>
-                <div style="font-size:10px;color:var(--m);margin-top:2px;">Expires ${fmtDate(a.expires)}</div>
-                <button class="btn btn-orange btn-sm" data-storm-action="createZone" data-storm-id="${a.id}" style="margin-top:8px;">
+              <div class="stc-card-aside">
+                <div class="stc-meta">${timeAgo(a.sent)}</div>
+                <div class="stc-meta stc-meta-2">Expires ${fmtDate(a.expires)}</div>
+                <button class="btn btn-orange btn-sm stc-mt8" data-storm-action="createZone" data-storm-id="${a.id}">
                   Create Zone
                 </button>
               </div>
@@ -1046,23 +1046,23 @@
     }
 
     return `
-      <div style="margin-top:14px;">
+      <div class="stc-section">
         ${stormZones.map(z => {
           const rev = estimateZoneRevenue(z);
           return `
-            <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;" data-storm-action="openZone" data-storm-id="${z.id}">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div class="stc-card stc-click" data-storm-action="openZone" data-storm-id="${z.id}">
+              <div class="stc-card-row">
                 <div>
-                  <div style="font-size:14px;font-weight:700;color:var(--t);">🌩️ ${esc(z.name)}</div>
-                  <div style="font-size:11px;color:var(--m);margin-top:3px;">Created ${timeAgo(z.createdAt)}</div>
-                  <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                  <div class="stc-card-title">🌩️ ${esc(z.name)}</div>
+                  <div class="stc-card-sub">Created ${timeAgo(z.createdAt)}</div>
+                  <div class="stc-tags stc-tags-tight">
                     <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${z.status === 'active' ? '#ff6d00' : z.status === 'canvassing' ? 'var(--orange)' : 'var(--green)'} 13%, transparent);color:${z.status === 'active' ? '#ff6d00' : z.status === 'canvassing' ? 'var(--orange)' : 'var(--green)'};font-weight:600;text-transform:uppercase;">${esc(z.status)}</span>
-                    <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--t);">🏠 ${z.estimatedRoofs} roofs</span>
-                    <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--t);">🚪 ${Number(z.knockCount) || 0} knocks</span>
+                    <span class="stc-tag stc-tag-plain">🏠 ${z.estimatedRoofs} roofs</span>
+                    <span class="stc-tag stc-tag-plain">🚪 ${Number(z.knockCount) || 0} knocks</span>
                     <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, var(--green) 13%, transparent);color:var(--green);font-weight:600;">${rev.revenueFormatted} pipeline</span>
                   </div>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+                <div class="stc-actions">
                   <button class="btn btn-ghost btn-sm" data-storm-action="generatePlan" data-storm-id="${z.id}" data-storm-stop="1">📋 Plan</button>
                   <button class="btn btn-orange btn-sm" data-storm-action="pushToD2D" data-storm-id="${z.id}" data-storm-stop="1">🚪 Knock</button>
                   <button class="btn btn-ghost btn-sm" data-storm-action="attachProof" data-storm-id="${z.id}" data-storm-stop="1" title="Stamp verified storm evidence onto every lead in this zone for adjuster back-checks">🛡️ Proof</button>
@@ -1092,64 +1092,64 @@
       const plan = z.canvassPlan;
       const rev = estimateZoneRevenue(z);
       return `
-        <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:16px;margin-top:14px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="font-size:15px;font-weight:700;color:var(--t);">📋 ${esc(z.name)}</div>
+        <div class="stc-plan">
+          <div class="stc-plan-head">
+            <div class="stc-plan-title">📋 ${esc(z.name)}</div>
             <span style="font-size:10px;padding:3px 10px;border-radius:10px;background:color-mix(in srgb, ${plan.priority === 'CRITICAL' ? '#ff1744' : plan.priority === 'HIGH' ? '#ff6d00' : 'var(--blue)'} 13%, transparent);color:${plan.priority === 'CRITICAL' ? '#ff1744' : plan.priority === 'HIGH' ? '#ff6d00' : 'var(--blue)'};font-weight:700;">${plan.priority} PRIORITY</span>
           </div>
 
           <!-- Optimal Window -->
-          <div style="background:var(--s);border:1px solid var(--br);border-radius:8px;padding:12px;margin-bottom:10px;">
-            <div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">⏰ Optimal Canvassing Window</div>
-            <div style="font-size:14px;font-weight:600;color:var(--t);">${plan.optimalWindow.label}</div>
-            <div style="font-size:11px;color:var(--m);margin-top:2px;">${plan.optimalWindow.bestHours}</div>
-            <div style="font-size:11px;color:var(--green);margin-top:2px;">${plan.optimalWindow.note}</div>
+          <div class="stc-window">
+            <div class="stc-window-label">⏰ Optimal Canvassing Window</div>
+            <div class="stc-window-val">${plan.optimalWindow.label}</div>
+            <div class="stc-window-sub">${plan.optimalWindow.bestHours}</div>
+            <div class="stc-window-note">${plan.optimalWindow.note}</div>
           </div>
 
           <!-- Revenue Projection (.stat-card tiles) -->
-          <div style="display:flex;gap:8px;margin-bottom:10px;">
-            <div class="stat-card" style="flex:1;padding:10px 12px;">
-              <div><div class="stat-val" style="font-size:18px;">${rev.estimatedRoofs}</div><div class="stat-lbl">Est. Roofs</div></div>
+          <div class="stc-proj">
+            <div class="stat-card stc-proj-tile">
+              <div><div class="stat-val stc-fs18">${rev.estimatedRoofs}</div><div class="stat-lbl">Est. Roofs</div></div>
             </div>
-            <div class="stat-card" style="flex:1;padding:10px 12px;">
+            <div class="stat-card stc-proj-tile">
               <div><div class="stat-val" style="font-size:18px;color:var(--orange);">${rev.damagedRoofs}</div><div class="stat-lbl">Likely Damaged</div></div>
             </div>
-            <div class="stat-card" style="flex:1;padding:10px 12px;">
+            <div class="stat-card stc-proj-tile">
               <div><div class="stat-val" style="font-size:18px;color:var(--green);">${rev.expectedJobs}</div><div class="stat-lbl">Expected Jobs</div></div>
             </div>
-            <div class="stat-card" style="flex:1;padding:10px 12px;">
+            <div class="stat-card stc-proj-tile">
               <div><div class="stat-val" style="font-size:18px;color:var(--green);">${rev.revenueFormatted}</div><div class="stat-lbl" title="Model: roofs × damage probability × close rate × avg job — not collected money">Projected Revenue</div></div>
             </div>
           </div>
 
           <!-- Action Steps -->
-          <div style="font-size:11px;font-weight:700;color:var(--t);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 8px;">📋 Action Plan</div>
+          <div class="stc-sub-head">📋 Action Plan</div>
           ${plan.steps.map(s => `
-            <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--br);">
-              <div style="width:22px;height:22px;border-radius:50%;background:var(--orange);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${s.order}</div>
-              <div style="flex:1;">
-                <div style="font-size:12px;color:var(--t);">${esc(s.action)}</div>
-                <div style="font-size:10px;color:var(--m);margin-top:2px;">${s.duration}</div>
+            <div class="stc-step">
+              <div class="stc-step-num">${s.order}</div>
+              <div class="stc-grow">
+                <div class="stc-step-text">${esc(s.action)}</div>
+                <div class="stc-meta stc-meta-2">${s.duration}</div>
               </div>
             </div>
           `).join('')}
 
           <!-- Talking Points -->
-          <div style="font-size:11px;font-weight:700;color:var(--t);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px;">💬 Talking Points</div>
+          <div class="stc-sub-head stc-sub-14">💬 Talking Points</div>
           ${plan.talkingPoints.map(tp => `
-            <div style="background:var(--s);border:1px solid var(--br);border-radius:8px;padding:10px;margin-bottom:6px;">
-              <div style="font-size:9px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">${tp.type}</div>
-              <div style="font-size:12px;color:var(--t);line-height:1.4;">"${esc(tp.text)}"</div>
+            <div class="stc-tp">
+              <div class="stc-tp-type">${tp.type}</div>
+              <div class="stc-tp-text">"${esc(tp.text)}"</div>
             </div>
           `).join('')}
 
           <!-- Team -->
-          <div style="display:flex;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--br);">
-            <div style="font-size:11px;color:var(--m);">👥 Suggested team: <strong style="color:var(--t);">${plan.suggestedTeamSize} rep${plan.suggestedTeamSize > 1 ? 's' : ''}</strong></div>
-            <div style="font-size:11px;color:var(--m);">📅 Est. completion: <strong style="color:var(--t);">${plan.daysToComplete} day${plan.daysToComplete > 1 ? 's' : ''}</strong></div>
+          <div class="stc-team">
+            <div class="stc-team-item">👥 Suggested team: <strong class="stc-strong">${plan.suggestedTeamSize} rep${plan.suggestedTeamSize > 1 ? 's' : ''}</strong></div>
+            <div class="stc-team-item">📅 Est. completion: <strong class="stc-strong">${plan.daysToComplete} day${plan.daysToComplete > 1 ? 's' : ''}</strong></div>
           </div>
 
-          <button class="btn btn-orange" data-storm-action="pushToD2D" data-storm-id="${z.id}" style="width:100%;justify-content:center;margin-top:12px;padding:12px;">
+          <button class="btn btn-orange stc-cta" data-storm-action="pushToD2D" data-storm-id="${z.id}">
             🚪 Start Knocking This Zone
           </button>
         </div>
@@ -1165,10 +1165,10 @@
     const convRate = totalKnocks > 0 ? Math.round(totalLeads / totalKnocks * 100) : 0;
 
     return `
-      <div style="margin-top:14px;">
-        <div style="font-size:13px;font-weight:700;color:var(--t);margin-bottom:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;">📊 Storm Performance</div>
+      <div class="stc-section">
+        <div class="stc-sec-head">📊 Storm Performance</div>
 
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;">
+        <div class="stc-grid2">
           <div class="stat-card">
             <div class="stat-icon">🗺️</div>
             <div><div class="stat-val">${stormZones.length}</div><div class="stat-lbl">Total Zones</div></div>
@@ -1188,29 +1188,29 @@
         </div>
 
         <!-- Zone History -->
-        <div style="font-size:11px;font-weight:700;color:var(--t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Zone History</div>
-        ${stormZones.length === 0 ? '<div class="nbd-empty" style="padding:20px;"><div class="ne-sub">No zone history yet</div></div>' :
+        <div class="stc-sub-head stc-sub-0">Zone History</div>
+        ${stormZones.length === 0 ? '<div class="nbd-empty stc-empty-sm"><div class="ne-sub">No zone history yet</div></div>' :
           stormZones.map(z => {
             const rev = estimateZoneRevenue(z);
             return `
-              <div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--br);">
-                <div style="font-size:18px;">${eventIcon(z.event)}</div>
-                <div style="flex:1;">
-                  <div style="font-size:12px;font-weight:600;color:var(--t);">${esc(z.name.substring(0, 40))}</div>
-                  <div style="font-size:10px;color:var(--m);">${timeAgo(z.createdAt)} · ${Number(z.knockCount) || 0} knocks · ${Number(z.leadCount) || 0} leads</div>
+              <div class="stc-hist">
+                <div class="stc-fs18">${eventIcon(z.event)}</div>
+                <div class="stc-grow">
+                  <div class="stc-hist-name">${esc(z.name.substring(0, 40))}</div>
+                  <div class="stc-meta">${timeAgo(z.createdAt)} · ${Number(z.knockCount) || 0} knocks · ${Number(z.leadCount) || 0} leads</div>
                 </div>
-                <div style="font-size:12px;font-weight:700;color:var(--green);" title="Projected — storm-zone model, not collected money">${rev.revenueFormatted} <span style="font-size:9px;font-weight:500;color:var(--m);">proj.</span></div>
+                <div class="stc-hist-rev" title="Projected — storm-zone model, not collected money">${rev.revenueFormatted} <span class="stc-hist-proj">proj.</span></div>
               </div>
             `;
           }).join('')
         }
 
         <!-- Carrier Performance -->
-        <div style="font-size:11px;font-weight:700;color:var(--t);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px;">🏢 Carrier Response Times</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;">
+        <div class="stc-sub-head stc-sub-16">🏢 Carrier Response Times</div>
+        <div class="stc-carriers">
           ${Object.entries(CARRIER_RESPONSE).filter(([c]) => c !== 'Other').map(([carrier, days]) => `
-            <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;">
-              <span style="font-size:11px;color:var(--t);">${esc(carrier)}</span>
+            <div class="stc-carrier">
+              <span class="stc-carrier-name">${esc(carrier)}</span>
               <span style="font-size:11px;font-weight:700;color:${days <= 4 ? 'var(--green)' : days <= 6 ? 'var(--orange)' : 'var(--red)'};">${days}d</span>
             </div>
           `).join('')}
