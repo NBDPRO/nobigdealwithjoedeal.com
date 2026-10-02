@@ -88,5 +88,6 @@ can only restyle what reaches a class or token.
   - the inline-style ratchet (#1955) keeps the count falling;
   - Live Ops styles the primitives.
   - Next: `customer.html` and the JS-rendered widgets.
+  - 2026-10-02 (batch 4): the 16 document tiles' contents (`.ui-tile-icon` / `-title` / `-sub`) and the 14 Edit Customer labels (`.ui-label`) left inline styles. customer.html is now 315 → 253 inline styles. Zero computed-style diff on 758 elements at 1280 and 390 px; a 1px control moved exactly 16 margin-tops.
 - Step 4: Daylight and Jobsite are mocked up on the Home screen (the "NBD Pro
   skin candidates" canvas) for Jo to pick.
