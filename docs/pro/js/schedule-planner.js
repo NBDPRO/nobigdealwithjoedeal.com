@@ -17,6 +17,10 @@
  * for #schedPlanPanel and re-renders on hashchange / nbd:data-refreshed. A
  * re-render keeps what Jo typed but has not saved (_drafts), so a background
  * data refresh never wipes a half-planned month.
+ * Picking a day asks Google what is already booked then — the same
+ * double-booking warning as the customer page (google-calendar-ui.js
+ * checkRow → getBusyTimes). Warn, never block (Jo, 2026-09-29). The warning
+ * is kept per row (_warn) so a re-render doesn't drop it.
  * Delegated listeners; every value into innerHTML is escaped.
  */
 (function () {
@@ -34,6 +38,9 @@
   let _all = false, _q = '';
   const _saving = {};
   const _drafts = {};           // lead id → { date, start, days } typed, not saved
+  const _warn = {};             // lead id → the double-booking warning's HTML (escaped by google-calendar-ui)
+  const _warnSeq = {};          // lead id → the latest check, so a slow answer can't overwrite a newer one
+  const _warnTimers = {};
 
   function rowHtml(r, kind) {
     const v = _drafts[r.id] || P().inputsOf(r.lead);
@@ -51,7 +58,8 @@
         '<label>Days<input type="number" class="sp-days" min="1" max="14" inputmode="numeric" value="' + esc(v.days) + '"></label>' +
         '<button type="button" class="btn btn-orange sp-save" data-sp-action="save">Save</button>' +
         (kind === 'scheduled' ? '<button type="button" class="btn btn-ghost sp-clear" data-sp-action="clear" title="Remove the date">Clear</button>' : '') +
-      '</div><div class="sp-msg" aria-live="polite"></div></div>';
+      '</div><div class="sp-conflict gcal-conflict" aria-live="polite">' + (_warn[r.id] || '') + '</div>' +
+      '<div class="sp-msg" aria-live="polite"></div></div>';
   }
 
   function render() {
@@ -95,6 +103,8 @@
     try {
       await window.updateDoc(window.doc(window.db, 'leads', id), out.fields);
       delete _drafts[id];
+      delete _warn[id];
+      _warnSeq[id] = (_warnSeq[id] || 0) + 1;
       const lead = (window._leads || []).find((l) => l && l.id === id);
       if (lead) Object.assign(lead, out.fields);
       toast(clear ? 'Schedule cleared'
@@ -133,6 +143,34 @@
   document.addEventListener('input', keepDraft);
   document.addEventListener('change', keepDraft);
 
+  // A day, start or length changed → ask Google (debounced per row).
+  async function checkBusy(id) {
+    const row = document.querySelector('.sp-row[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    const G = window.NBDGoogleCalendarUI;
+    if (!row || !G || typeof G.checkRow !== 'function') return;
+    const seq = _warnSeq[id] = (_warnSeq[id] || 0) + 1;
+    const html = await G.checkRow({
+      date: row.querySelector('.sp-date').value,
+      start: row.querySelector('.sp-start').value,
+      days: row.querySelector('.sp-days').value,
+    }, id);
+    if (_warnSeq[id] !== seq) return;
+    _warn[id] = html;
+    const live = document.querySelector('.sp-row[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"] .sp-conflict');
+    if (live) live.innerHTML = html;
+  }
+  function onBusyField(ev) {
+    const t = ev.target;
+    if (!t || !t.classList || !(t.classList.contains('sp-date') || t.classList.contains('sp-start') || t.classList.contains('sp-days'))) return;
+    const row = t.closest('.sp-row');
+    const id = row && row.dataset.id;
+    if (!id) return;
+    clearTimeout(_warnTimers[id]);
+    _warnTimers[id] = setTimeout(() => { checkBusy(id); }, 500);
+  }
+  document.addEventListener('input', onBusyField);
+  document.addEventListener('change', onBusyField);
+
   let _qTimer = null;
   document.addEventListener('input', (ev) => {
     if (!ev.target || ev.target.id !== 'spSearch') return;
@@ -160,5 +198,5 @@
   window.addEventListener('hashchange', maybeRender);
   window.addEventListener('nbd:data-refreshed', maybeRender);
 
-  window.NBDSchedulePlannerUI = { render };
+  window.NBDSchedulePlannerUI = { render, _checkBusy: checkBusy };
 })();

@@ -196,5 +196,105 @@ console.log('\n4. wiring');
   ok('no inline handlers (CSP)', !/\son[a-z]+=/.test(ui));
 }
 
+console.log('\n7. the planner warns before double-booking (2026-10-02)');
+(async () => {
+  // Run the REAL google-calendar-ui.js and schedule-planner.js in a vm with a
+  // tiny fake DOM: the planner was the one place a day could be booked with
+  // no look at Google (the customer page and lead modal already warned).
+  const vm = require('vm');
+  const calls = [];
+  let answer = { configured: true, blocks: [] };
+  const listeners = [];
+  const els = {};
+  const mkInput = (v) => ({ value: v });
+  function fakeRow(id, date, start, days) {
+    const conflict = { innerHTML: '' };
+    const inputs = { '.sp-date': mkInput(date), '.sp-start': mkInput(start), '.sp-days': mkInput(days), '.sp-week-in': mkInput(''), '.sp-conflict': conflict };
+    return { dataset: { id }, conflict, inputs, querySelector: (q) => inputs[q] || null, querySelectorAll: () => [] };
+  }
+  const rows = {};
+  const document = {
+    readyState: 'complete',
+    addEventListener: (t, fn) => listeners.push([t, fn]),
+    getElementById: (id) => els[id] || null,
+    querySelector: (q) => {
+      const m = /^\.sp-row\[data-id="([^"]+)"\]( \.sp-conflict)?$/.exec(q);
+      if (!m || !rows[m[1]]) return null;
+      return m[2] ? rows[m[1]].conflict : rows[m[1]];
+    },
+    createElement: () => ({ setAttribute() {}, dataset: {} }),
+  };
+  const win = {
+    __NBD_OWNER_UID: 'OWNER', _user: { uid: 'OWNER' }, _userClaims: {},
+    NBDScheduleWindow: W, NBDSchedulePlanner: P,
+    _functions: {}, _httpsCallable: (_f, name) => async (payload) => { calls.push([name, payload]); return { data: typeof answer === 'function' ? await answer(payload) : answer }; },
+    addEventListener() {},
+  };
+  const ctx = vm.createContext({ window: win, document, location: { hash: '', search: '' }, URLSearchParams, setTimeout, clearTimeout, console, CSS: undefined });
+  ctx.window.document = document;
+  vm.runInContext(fs.readFileSync(path.join(JS, 'google-calendar-ui.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(JS, 'schedule-planner.js'), 'utf8'), ctx);
+  const G = win.NBDGoogleCalendarUI, U = win.NBDSchedulePlannerUI;
+
+  // The window a planner row books (Eastern time).
+  const et = (ms) => new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const allDay = G._windowOf({ date: '2026-10-06' });
+  ok('a day with no time = the working day, 7 am–6 pm', et(allDay.startMs) === '10/6, 7:00 AM' && et(allDay.endMs) === '10/6, 6:00 PM', et(allDay.startMs) + ' → ' + et(allDay.endMs));
+  const proj = G._windowOf({ date: '2026-10-06', start: '08:00', days: 3 });
+  ok('a 3-day project runs to 6 pm on its last day', et(proj.startMs) === '10/6, 8:00 AM' && et(proj.endMs) === '10/8, 6:00 PM', et(proj.endMs));
+  const timed = G._windowOf({ date: '2026-10-06', start: '07:30', days: 1 });
+  ok('an arrival time = that hour', timed.endMs - timed.startMs === 60 * 60000);
+  ok('no day (a week-only plan) → no window, no question', G._windowOf({ date: '' }) === null && G._windowOf({ date: '2026-10' }) === null);
+
+  // The warning text.
+  ok('Google not set up → says nothing', G._conflictText({ configured: false }, allDay) === '' && G._conflictText(null, allDay) === '');
+  ok('nothing booked → a quiet ✓', /Nothing else booked then/.test(G._conflictText({ configured: true, blocks: [] }, allDay)));
+  const hit = G._conflictText({ configured: true, blocks: [{ startMs: allDay.startMs + 3600000, endMs: allDay.startMs + 7200000, titles: ['<img src=x onerror=alert(1)>'] }] }, allDay);
+  ok('a clash names it, escaped, and says you can still save', /^⚠ Already booked then:/.test(hit) && /&lt;img/.test(hit) && !/<img/.test(hit) && /you can still save/.test(hit), hit);
+  ok('a block outside the window is not a clash', /Nothing else booked/.test(G._conflictText({ configured: true, blocks: [{ startMs: allDay.endMs, endMs: allDay.endMs + 3600000 }] }, allDay)));
+  ok('a busy time from Jo\'s own calendar (no title) says "your calendar"', /\(your calendar\)/.test(G._conflictText({ configured: true, blocks: [{ startMs: allDay.startMs, endMs: allDay.endMs }] }, allDay)));
+
+  // checkRow: who may ask, and what it asks.
+  calls.length = 0;
+  ok('a week-only row asks nothing', (await G.checkRow({ date: '', start: '', days: 1 }, 'L1')) === '' && calls.length === 0);
+  answer = { configured: true, blocks: [{ startMs: allDay.startMs, endMs: allDay.startMs + 3600000, titles: ['Roof — Smith'] }] };
+  const html = await G.checkRow({ date: '2026-10-06', start: '', days: '1' }, 'L1');
+  ok('a dated row asks getBusyTimes for its window, leaving out its own job', calls.length === 1 && calls[0][0] === 'getBusyTimes' && calls[0][1].excludeLeadId === 'L1'
+    && calls[0][1].fromMs < allDay.startMs && calls[0][1].toMs > allDay.endMs && /Roof — Smith/.test(html), JSON.stringify(calls));
+  win._user = { uid: 'someone' }; calls.length = 0;
+  ok('not the owner / an admin → no question asked (the callable would refuse anyway)', (await G.checkRow({ date: '2026-10-06' }, 'L1')) === '' && calls.length === 0);
+  win._user = { uid: 'OWNER' };
+  answer = () => { throw new Error('offline'); };
+  ok('Google down → the warning is blank, never an error that blocks the save', (await G.checkRow({ date: '2026-10-06' }, 'L1')) === '');
+
+  // The planner row: a typed day lands a warning under that row.
+  rows.R1 = fakeRow('R1', '2026-10-06', '', '1');
+  answer = { configured: true, blocks: [{ startMs: allDay.startMs, endMs: allDay.endMs, titles: ['Gutters — Jones'] }] };
+  await U._checkBusy('R1');
+  ok('the row shows the clash', /Gutters — Jones/.test(rows.R1.conflict.innerHTML), rows.R1.conflict.innerHTML);
+  // Two quick edits: the slower, older answer must not overwrite the newer one.
+  let release;
+  answer = () => new Promise((r) => { release = () => r({ configured: true, blocks: [{ startMs: allDay.startMs, endMs: allDay.endMs, titles: ['STALE'] }] }); });
+  const first = U._checkBusy('R1');
+  await new Promise((r) => setImmediate(r));
+  const releaseOld = release;
+  rows.R1.inputs['.sp-date'].value = '2026-10-07';
+  answer = { configured: true, blocks: [] };
+  await U._checkBusy('R1');
+  releaseOld(); await first;
+  ok('a slow earlier answer never overwrites the newer one', /Nothing else booked/.test(rows.R1.conflict.innerHTML) && !/STALE/.test(rows.R1.conflict.innerHTML), rows.R1.conflict.innerHTML);
+  rows.R1.inputs['.sp-date'].value = '';
+  await U._checkBusy('R1');
+  ok('clearing the day clears the warning', rows.R1.conflict.innerHTML === '');
+
+  const ui = strip(fs.readFileSync(path.join(JS, 'schedule-planner.js'), 'utf8'));
+  ok('the date, start and days inputs trigger it (debounced), on input and change',
+    /classList\.contains\('sp-date'\)/.test(ui) && /classList\.contains\('sp-start'\)/.test(ui) && /classList\.contains\('sp-days'\)/.test(ui)
+    && /addEventListener\('input', onBusyField\)/.test(ui) && /addEventListener\('change', onBusyField\)/.test(ui) && /setTimeout\(\(\) => \{ checkBusy\(id\); \}, 500\)/.test(ui));
+  ok('a re-render keeps each row\'s warning; a save clears it', /\(_warn\[r\.id\] \|\| ''\)/.test(ui) && /delete _warn\[id\]/.test(ui));
+  const dash = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'dashboard.html'), 'utf8');
+  ok('dashboard loads google-calendar-ui.js (the planner calls it lazily)', /js\/google-calendar-ui\.js\?v=\d+/.test(dash));
+})().catch((e) => { ok('section 7 ran', false, e && e.stack); }).then(() => {
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+});

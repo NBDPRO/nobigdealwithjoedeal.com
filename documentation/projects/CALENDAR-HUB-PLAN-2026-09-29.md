@@ -288,3 +288,29 @@ Jo, 2026-09-30: "yes only the latest knock".
 - The reconcile reads owner knocks too (same `planSync` reason as the signs).
 - Tests: §9 (16 checks). Break-tested: flipping "newest" reddens 6 checks,
   and dropping knocks from the reconcile reddens the reconcile check.
+
+## Update 2026-10-02 — the Plan Jobs panel warns before double-booking
+
+Phase 3's "warn before saving a job on a busy day" covered the customer page
+and the lead modal, but **not the Plan Jobs panel** on the Schedule view. That
+panel is where week-first scheduling actually happens, and it saved a day
+without asking Google.
+
+- `google-calendar-ui.js` now splits the window maths out of the old form
+  reader as `windowOf()`, and the HTML as `conflictText()`. `checkRow(input,
+  leadId)` asks `getBusyTimes` for a typed day, start and length, skipping
+  the row's own job.
+- `schedule-planner.js` asks it 500 ms after a row's date, start or days
+  change, and shows the answer under that row (`.sp-conflict`).
+  - It warns and never blocks, the same as the other two forms.
+  - Week-only plans ask nothing.
+  - A re-render keeps the warning, and a save clears it.
+  - A slower, older answer can't overwrite a newer one.
+- The same stale-answer guard now covers the customer page and lead-modal
+  warning.
+- Tests: `tests/schedule-planner-2026-09-29.test.js` §7 (19 checks) runs the
+  real files in a vm. Break-tested: dropping the stale-answer guard turns the
+  "slow earlier answer" check red.
+
+Still open from Phase 3: drawing Google's busy blocks on the Schedule view
+itself (an overlay). Phase 4 polish is unchanged.
