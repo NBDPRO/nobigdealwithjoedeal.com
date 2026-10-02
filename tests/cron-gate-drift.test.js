@@ -78,8 +78,9 @@ ok('every registered gate is actually checked by some function (no stale entries
 
 // 14 → 15 on 2026-09-30: JOBS_MIRROR_ENABLED (multi-job phase 1, ships off).
 // 15 → 16 on 2026-10-01: MORNING_BRIEF_ENABLED (06:45 owner brief, ships off).
-ok('the registry has exactly 21 gates (update this pin deliberately if that changes)',
-  CRON_GATES.length === 21, String(CRON_GATES.length));
+// 22 (2026-10-02): + AGENT_MCP_DISABLED, the Grok Bot team's CRM connection.
+ok('the registry has exactly 22 gates (update this pin deliberately if that changes)',
+  CRON_GATES.length === 22, String(CRON_GATES.length));
 
 for (const g of CRON_GATES) {
   const files2 = foundInFile.get(g.name);

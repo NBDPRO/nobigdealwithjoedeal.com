@@ -64,6 +64,23 @@ const JOE_ACTIONS_V1 = [
     },
   },
   {
+    name: 'add_note',
+    description: 'Write a note on a customer\'s card (what happened, what they said, what to remember). The user confirms first. Nothing is sent to the customer.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead_id: { type: 'string', description: 'From find_customer.' },
+        text: { type: 'string', description: 'The note, in plain words.' },
+      },
+      required: ['lead_id', 'text'],
+    },
+  },
+  {
+    name: 'agent_inbox_summary',
+    description: 'What the bot team (Chief of Staff, Marcus, Quinn…) has filed in the Agent inbox and is still waiting on Jo: counts by bot and kind, plus the newest few. Read-only.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'move_stage',
     description: 'Move a customer to a different pipeline stage. The user confirms first and can undo it afterwards.',
     input_schema: {

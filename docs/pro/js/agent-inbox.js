@@ -124,12 +124,53 @@
       '<button type="button" class="ai-close" data-ai-act="close" aria-label="Close">✕</button></div>' +
       '<p class="ai-note">Your bot team files notes, reminders and reports here. Nothing reaches a customer — adding an item only writes it to the customer’s card. Edit before adding.</p>' +
       '<button type="button" class="ai-btn is-primary ai-bulk" id="aiBulk" data-ai-act="bulk" hidden></button>' +
-      '<div id="aiList"></div></div>';
+      '<div id="aiList"></div>' +
+      '<details class="ai-conn" id="aiConn"><summary class="ai-conn-sum" data-ai-act="conn">🔌 Connect bots (keys)</summary><div id="aiConnBody"></div></details>' +
+      '</div>';
     document.body.appendChild(ov);
     try { _items = await load(); } catch (e) { _items = []; console.warn('[agent-inbox] load failed:', (e && (e.code || e.message)) || e); }
     paint();
   }
   function close() { const o = document.getElementById('aiOverlay'); if (o) o.remove(); }
+
+  // ── Bot keys (functions/agent-mcp.js) ─────────────────────────────────
+  // One key per bot, shown ONCE when made. Jo pastes it into that bot's
+  // secure box in Grok Bot, with the connection address. Revoke any time.
+  async function callable(name, payload) {
+    if (!window._httpsCallable) {
+      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      window._httpsCallable = mod.httpsCallable;
+    }
+    if (!window._functions) throw new Error('Functions SDK unavailable');
+    const res = await window._httpsCallable(window._functions, name)(payload || {});
+    return res && res.data;
+  }
+
+  function connHtml(data, fresh) {
+    const keysByBot = {};
+    (data.keys || []).filter((k) => k.active).forEach((k) => { (keysByBot[k.botId] = keysByBot[k.botId] || []).push(k); });
+    const freshHtml = fresh ? '<div class="ai-key-fresh"><div class="ai-kind">New key for ' + esc(fresh.botName) + ' — copy it now, it is shown once</div>' +
+      '<code class="ai-key" id="aiFreshKey">' + esc(fresh.key) + '</code>' +
+      '<button type="button" class="ai-btn" data-ai-act="copykey">Copy key</button>' +
+      '<div class="ai-meta">In Grok Bot, ask ' + esc(fresh.botName) + ' to add an MCP server named “NBD CRM” at <b>' + esc(fresh.url) + '</b> with the header <b>Authorization: Bearer &lt;key&gt;</b>, and paste the key into its secure box — never into the chat.</div></div>' : '';
+    return freshHtml + '<div class="ai-meta">Address: ' + esc(data.url || '') + '</div>' +
+      (data.bots || []).map((b) => {
+        const ks = keysByBot[b.botId] || [];
+        return '<div class="ai-conn-row"><div><div class="ai-kind">' + esc(b.name) + (b.firstWave ? ' <span class="ai-ok">· first wave</span>' : '') + '</div>' +
+          '<div class="ai-meta">' + esc(b.tools.join(', ')) + '</div>' +
+          ks.map((k) => '<div class="ai-meta">Key ' + esc(k.prefix) + '… · last used ' + esc(k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : 'never') +
+            ' <button type="button" class="ai-link" data-ai-act="revoke" data-ai-id="' + esc(k.id) + '">Revoke</button></div>').join('') + '</div>' +
+          '<button type="button" class="ai-btn" data-ai-act="mkkey" data-ai-id="' + esc(b.botId) + '">' + (ks.length ? 'New key' : 'Create key') + '</button></div>';
+      }).join('');
+  }
+
+  async function paintConn(fresh) {
+    const body = document.getElementById('aiConnBody');
+    if (!body) return;
+    body.innerHTML = '<div class="ai-meta">Loading…</div>';
+    try { body.innerHTML = connHtml(await callable('listAgentKeys'), fresh); }
+    catch (e) { body.innerHTML = '<div class="ai-meta">Could not load bot keys: ' + esc((e && e.message) || 'error') + '</div>'; }
+  }
 
   async function decide(id, approve) {
     const it = _items.find((x) => x.id === id);
@@ -176,6 +217,25 @@
     const act = t.dataset.aiAct, id = t.dataset.aiId;
     if (act === 'close') return close();
     if (act === 'bulk') return bulk();
+    if (act === 'conn') { const d = document.getElementById('aiConn'); if (d && !d.open) setTimeout(() => paintConn(null), 0); return; }
+    if (act === 'mkkey') {
+      t.disabled = true;
+      try { const r = await callable('createAgentKey', { botId: id }); await paintConn(r); }
+      catch (e) { if (window.showToast) window.showToast('Could not make a key: ' + ((e && e.message) || 'error'), 'error'); t.disabled = false; }
+      return;
+    }
+    if (act === 'revoke') {
+      const sure = typeof window.nbdConfirm === 'function' ? await window.nbdConfirm('Revoke this bot key? The bot loses CRM access until you make a new one.') : true;
+      if (!sure) return;
+      try { await callable('revokeAgentKey', { id }); await paintConn(null); }
+      catch (e) { if (window.showToast) window.showToast('Could not revoke: ' + ((e && e.message) || 'error'), 'error'); }
+      return;
+    }
+    if (act === 'copykey') {
+      const k = document.getElementById('aiFreshKey');
+      try { await navigator.clipboard.writeText(k ? k.textContent : ''); if (window.showToast) window.showToast('Key copied — paste it into the bot’s secure box', 'success'); } catch (_) {}
+      return;
+    }
     if (act === 'approve' || act === 'dismiss') {
       t.disabled = true;
       const done = await decide(id, act === 'approve');

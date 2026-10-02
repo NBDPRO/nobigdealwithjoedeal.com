@@ -120,6 +120,10 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `submitEsignEnvelope` | onRequest | Envelope signing: stamps a FLATTENED signed PDF with pdf-lib, verifies the source digest is unchanged, requires consent, records signer IP + user agent + both SHA-256 digests. Stamps BEFORE the burn so a bad payload cannot grief a real signing. Never overwrites the source |
 | `getDealRoom` | onRequest | Deal acceptance: ~120-bit single-use token, 14-day expiry, served same-origin via `/deal/**` rewrite |
 | `submitDealAcceptance` | onRequest | Deal acceptance: burns token, records tier + signature, notifies rep |
+| `crmMcp` | onRequest | NBD CRM connection for the Grok Bot team: MCP (JSON-RPC) at `/api/mcp`, per-bot hashed keys, minimized reads, files notes/reminders/reports into `agent_inbox`; no send/edit/delete tools; `AGENT_MCP_DISABLED=true` kills it |
+| `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256) |
+| `listAgentKeys` | onCall | The company's bot keys (no secrets) + bot tool lists |
+| `revokeAgentKey` | onCall | Turns one bot key off |
 | `dealRoomReadPing` | onRequest | Deal room time-on-page beacon via `/api/deal-read` rewrite: token-authed, adds clamped seconds to deal_rooms.readSeconds; preview bots ignored |
 | `getSharedReport` | onRequest | Report share: ~120-bit REUSABLE token, 30-day default expiry, per-IP rate limit (view-only) |
 | `getCalendarFeed` | onRequest | Read-only `.ics` feed served at `/calendar/<token>.ics` for the iPhone Calendar app. ~120-bit token, deliberately NO expiry (a subscription that stops refreshing is silent), per-IP + per-token rate limits, `text/calendar`, never an empty 200 — a calendar client reads that as "all events deleted" |

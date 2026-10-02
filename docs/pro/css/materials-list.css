@@ -1,0 +1,27 @@
+/* Recommended materials list (materials-list.js, 2026-10-02). Internal only:
+   the costs are the estimate's assumed material costs. */
+.ml-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .7); display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px 12px; }
+.ml-modal { width: 100%; max-width: 720px; background: var(--s); border: 1px solid var(--br); border-radius: 12px; padding: 18px; color: var(--t); }
+.ml-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ml-title { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
+.ml-close { min-width: 44px; min-height: 44px; background: transparent; border: 0; color: var(--t); font-size: 20px; cursor: pointer; }
+.ml-sub { font-size: 12px; color: var(--m); margin: 4px 0 12px; line-height: 1.5; }
+.ml-group { margin-bottom: 14px; }
+.ml-store { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--orange, #BD5728); padding: 6px 0; border-bottom: 2px solid var(--br); }
+.ml-store-cost { color: var(--m); letter-spacing: 0; }
+.ml-row { display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--br); }
+.ml-buy { font-size: 18px; font-weight: 800; line-height: 1.1; }
+.ml-buy span { display: block; font-size: 11px; font-weight: 600; color: var(--m); }
+.ml-name { font-size: 14px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.ml-meta { font-size: 11px; color: var(--m); font-weight: 400; margin-top: 2px; }
+.ml-cost { font-size: 13px; color: var(--m); white-space: nowrap; }
+.ml-total { text-align: right; font-size: 14px; margin: 8px 0 12px; }
+.ml-actions { display: flex; gap: 8px; }
+.ml-btn { flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid var(--br); background: var(--s2); color: var(--t); font: inherit; font-weight: 700; cursor: pointer; }
+.ml-empty { padding: 24px 8px; text-align: center; color: var(--m); font-size: 13px; line-height: 1.6; }
+@media print {
+  body > *:not(#mlOverlay) { display: none !important; }
+  .ml-overlay { position: static; background: #fff; padding: 0; }
+  .ml-modal { border: 0; color: #000; background: #fff; }
+  .ml-close, .ml-actions { display: none !important; }
+}
