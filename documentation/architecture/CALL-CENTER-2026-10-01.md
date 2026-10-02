@@ -378,3 +378,33 @@ Call Center beside the calls, and have a **Texts** tab of their own.
 
 - **MMS photos.** Today they only count as "[n photos]". Copying them would
   mean EXIF-stripping them first (they could land on a lead's photos).
+
+## Update 2026-10-02: Groq rate limits no longer drop calls
+
+A read-only error sweep found 39 `call_center_transcribe_failed` warnings
+between 08:09 and 11:11 UTC. All of them were Groq's free tier saying "Rate
+limit reached for model `whisper-large-v3-turbo` … seconds of audio per
+hour". Groq caps audio per **hour** as well as per day.
+
+**The bug:** each rejection counted as one of a call's 3 strikes, and
+`pickToTranscribe` skips a call at 3. A busy hour therefore dropped calls
+**for good**. Production at the time, read-only:
+- 172 calls stored;
+- **6 stuck at 3 strikes, every one with a rate-limit error (117 minutes of
+  audio)**;
+- 9 more partway there;
+- 157 never tried.
+
+**The fix:**
+- `L.isRateLimited(err)` matches status 429 or the stored message.
+- On a rate limit, `runTranscribe` records the error and `rateLimitedAtMs`
+  but adds **no strike**, then **stops the run**, because every later call
+  would be refused too. The half-hourly schedule picks up from there.
+- `pickToTranscribe` treats a call whose last error was a rate limit as
+  eligible even at 3 strikes. The 6 dropped calls recover on their own, with
+  no production edits.
+- Real failures still count a strike, and 3 real failures still skip the
+  call.
+
+Tests: `call-center-notes` §8. Break-tested: with the rate-limit branch
+disabled, all three run-level checks go red.

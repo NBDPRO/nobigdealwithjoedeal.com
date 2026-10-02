@@ -253,6 +253,16 @@ function estimateAudioSec(sizeBytes) {
   return Math.max(1, Math.round((Number(sizeBytes) || 0) / 4000));
 }
 
+// Groq's free tier also caps audio per HOUR, and rejects with 429 "Rate
+// limit reached for model …". That is about the account, not the call.
+// Takes an Error (status 429) or the stored transcribeError string.
+function isRateLimited(err) {
+  if (!err) return false;
+  if (typeof err === 'object' && Number(err.status) === 429) return true;
+  const msg = typeof err === 'string' ? err : String(err.message || '');
+  return /rate limit|too many requests|\b429\b/i.test(msg);
+}
+
 /**
  * Which stored calls to transcribe this run. An allow-list (Jo's one-call
  * test) works with the gate OFF and ignores everything else; with the gate
@@ -260,7 +270,12 @@ function estimateAudioSec(sizeBytes) {
  */
 function pickToTranscribe(calls, { live, allowIds, maxCount, secLeft }) {
   const allow = Array.isArray(allowIds) ? allowIds.filter(Boolean) : [];
-  const ready = (calls || []).filter((c) => c && c.status === 'stored' && c.storagePath && (Number(c.transcribeAttempts) || 0) < 3);
+  // Three strikes and a call is skipped, but a strike means the CALL failed.
+  // Groq's free-tier rate limit says nothing about the call, so a call whose
+  // last error was a rate limit stays eligible (2026-10-02: six calls, 117
+  // min of audio, had been dropped for good by a busy hour).
+  const ready = (calls || []).filter((c) => c && c.status === 'stored' && c.storagePath
+    && ((Number(c.transcribeAttempts) || 0) < 3 || isRateLimited(c.transcribeError)));
   if (allow.length) return ready.filter((c) => allow.includes(c.id)).slice(0, maxCount);
   if (!live) return [];
   const out = [];
@@ -489,6 +504,7 @@ module.exports = {
   DAY_AUDIO_SEC_CAP,
   estimateAudioSec,
   pickToTranscribe,
+  isRateLimited,
   NOTES_SYSTEM,
   buildNotesPrompt,
   sanitizeNotes,
