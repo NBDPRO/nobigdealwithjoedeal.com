@@ -36,6 +36,19 @@ function silentWav() {
   return buf;
 }
 
+
+// Test customers are written with the admin SDK, not window._saveLead: the
+// specs test the call UI, and two back-to-back _saveLead commits on a busy
+// emulator flaked with ALREADY_EXISTS (2026-10-02, then every retry timed out).
+async function seedLead(page, db, fields) {
+  const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+  const now = new Date();
+  const ref = await db.collection('leads').add(Object.assign({
+    userId: who.uid, companyId: who.co, deleted: false, e2eTestData: true, source: 'E2E', createdAt: now, updatedAt: now,
+  }, fields, { phoneDigits: String(fields.phone || '').replace(/\D/g, '').slice(-10) }));
+  return ref.id;
+}
+
 test.describe.serial('Call Center view @shard2', () => {
   test('list, filter, search, play, handle, attach', async ({ page }) => {
     test.setTimeout(150_000);
@@ -51,10 +64,11 @@ test.describe.serial('Call Center view @shard2', () => {
     await page.route(/cloudfunctions\.net|\.run\.app/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":{}}' }));
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
-    await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && typeof window.goTo === 'function', null, { timeout: 30_000 });
+    await safeWaitForFunction(page, () => !!window._user && !!window._user.uid && typeof window.goTo === 'function', null, { timeout: 30_000 });
 
     const s = Date.now();
-    const leadId = await safeEvaluate(page, (st) => window._saveLead({ firstName: 'ZZCV', lastName: 'Cust' + st, address: '1 Call Ct, Mason OH 45040', phone: '5135557' + String(st).slice(-3), stage: 'new', jobType: 'cash', e2eTestData: true }), s);
+    const leadId = await seedLead(page, admin().db, { firstName: 'ZZCV', lastName: 'Cust' + s, address: '1 Call Ct, Mason OH 45040', phone: '5135557' + String(s).slice(-3), stage: 'new', jobType: 'cash' });
+    await safeEvaluate(page, async () => { if (typeof window._loadLeads === 'function') await window._loadLeads(); });
     const { db, bucket } = admin();
     const uid = (await db.doc('leads/' + leadId).get()).data().userId;
     const path = 'calls/' + uid + '/cube-acr/2026-09-30/cube_zzcv' + s + 'a.wav';
