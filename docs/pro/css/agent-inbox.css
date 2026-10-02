@@ -1,0 +1,33 @@
+/* Agent inbox (agent-inbox.js, 2026-10-02): the bot team's filed notes,
+   reminders and reports, reviewed by Jo before anything lands on a card. */
+.ai-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .7); display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px 12px; }
+.ai-modal { width: 100%; max-width: 640px; background: var(--s); border: 1px solid var(--br); border-radius: 12px; padding: 16px; color: var(--t); }
+.ai-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.ai-h { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; }
+.ai-sub { font-size: 12px; color: var(--m); margin-top: 2px; }
+.ai-close { min-width: 44px; min-height: 44px; background: transparent; border: 0; color: var(--t); font-size: 20px; cursor: pointer; }
+.ai-note { font-size: 12px; color: var(--m); line-height: 1.5; margin: 8px 0 10px; }
+.ai-bulk { width: 100%; margin-bottom: 10px; }
+.ai-item { border: 1px solid var(--br); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--s2); }
+.ai-top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.ai-kind { font-weight: 800; font-size: 13px; }
+.ai-cust { font-weight: 700; font-size: 14px; }
+.ai-due { font-size: 12px; color: var(--orange, #BD5728); font-weight: 700; }
+.ai-meta { font-size: 11px; color: var(--m); margin-top: 2px; }
+.ai-ok { color: var(--green, #22c55e); }
+.ai-unv { color: var(--gold, #f59e0b); }
+.ai-title { font-size: 13px; font-weight: 700; margin-top: 6px; }
+.ai-text { width: 100%; box-sizing: border-box; margin-top: 6px; padding: 8px 10px; min-height: 64px; background: var(--s); color: var(--t); border: 1px solid var(--br); border-radius: 8px; font: inherit; font-size: 14px; resize: vertical; }
+.ai-actions { display: flex; gap: 8px; margin-top: 8px; }
+.ai-btn { flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid var(--br); background: transparent; color: var(--t); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
+.ai-btn.is-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: var(--accent-fg, #fff); }
+.ai-btn:disabled { opacity: .5; }
+.ai-empty { padding: 24px 8px; text-align: center; color: var(--m); font-size: 13px; line-height: 1.6; }
+/* Bot keys (agent-mcp.js) */
+.ai-conn { margin-top: 12px; border-top: 1px solid var(--br); padding-top: 8px; }
+.ai-conn-sum { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
+.ai-conn-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--br); }
+.ai-conn-row .ai-btn { flex: 0 0 auto; padding: 0 14px; }
+.ai-key-fresh { border: 1px solid var(--orange, #BD5728); border-radius: 10px; padding: 10px; margin: 8px 0; }
+.ai-key { display: block; margin: 6px 0; padding: 8px; background: var(--s2); border-radius: 6px; font-size: 12px; word-break: break-all; }
+.ai-link { background: none; border: 0; color: var(--red, #dc2626); font: inherit; font-size: 11px; cursor: pointer; text-decoration: underline; min-height: 44px; }

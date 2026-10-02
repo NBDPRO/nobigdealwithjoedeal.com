@@ -199,8 +199,11 @@ exports.stormWatch = onSchedule(
     // 1) Joe's alert — always
     const evLines = events.map((ev) =>
       `${eventLabel(ev)} near ${ev.city || ev.county}, ${ev.st} at ${ev.valid}`);
+    // Storm Watch on the D2D map (2026-10-02): the text links straight to the
+    // door-knocking map on the first report, with the Storms layer on.
+    const mapLink = 'https://nobigdealwithjoedeal.com/pro/dashboard.html?storm=' + events[0].lat.toFixed(3) + ',' + events[0].lon.toFixed(3);
     const smsToJoe =
-      `⛈️ NBD Storm Watch: ${evLines.join(' | ')}. ` +
+      `⛈️ NBD Storm Watch — map: ${mapLink} — ${evLines.join(' | ')}. ` +
       `${affected.length} subscriber${affected.length === 1 ? '' : 's'} in range` +
       (textEnabled ? ' — texting them now.' : ' (texting OFF — see email).');
     try {
