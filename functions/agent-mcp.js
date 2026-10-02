@@ -152,6 +152,45 @@ async function runTool(name, args, key) {
     return L.toolText(L.collectedRevenue(invoices, leads, from, to, TZ));
   }
 
+  if (name === 'rules_reference') return L.toolText(L.rulesReference());
+
+  if (name === 'post_job') {
+    const [leads, invoices] = await Promise.all([companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy'])]);
+    return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args) });
+  }
+
+  if (name === 'lead_sources') {
+    const [leads, expenses] = await Promise.all([companyLeads(company), companyDocs('expenses', company, ['companyId', 'userId'])]);
+    return L.toolText(L.leadSources(leads, expenses, Date.now(), args.days));
+  }
+
+  if (name === 'job_profit') {
+    const [leads, invoices, expenses] = await Promise.all([
+      companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
+    ]);
+    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args));
+  }
+
+  if (name === 'storm_near_customers') {
+    // storm_events is the shared NWS feed stormWatch writes (no owner); only
+    // this company's customers are matched against it.
+    const days = Math.min(Math.max(Math.floor(Number(args.days)) || 14, 1), 60);
+    const [leads, ev] = await Promise.all([
+      companyLeads(company),
+      db().collection('storm_events').where('processedAt', '>=', new Date(Date.now() - days * 86400000)).limit(500).get(),
+    ]);
+    return L.toolText(L.stormNearCustomers(ev.docs.map((d) => d.data()), leads, Date.now(), args));
+  }
+
+  if (name === 'team_activity') {
+    // Single-field equality reads (no composite index); dates filtered in logic.
+    const [audits, items] = await Promise.all([
+      db().collection('agent_audit').where('companyId', '==', company).limit(5000).get(),
+      db().collection('agent_inbox').where('companyId', '==', company).limit(5000).get(),
+    ]);
+    return L.toolText(L.teamActivity(audits.docs.map((d) => d.data()), items.docs.map((d) => d.data()), Date.now(), args.days));
+  }
+
   if (name === 'inbox_pending') {
     const snap = await db().collection('agent_inbox').where('companyId', '==', company).where('status', '==', 'pending').limit(L.MAX_LIST).get();
     const items = snap.docs.map((d) => Object.assign({ item_id: d.id }, d.data()))
