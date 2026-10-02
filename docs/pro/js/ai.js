@@ -166,7 +166,8 @@ RESPONSE STYLE:
 - Use bullet points when listing multiple things.
 - Keep responses focused — 100-250 words unless they need something longer like a document.
 - If they ask you to write something (supplement request, scope, a damage-documentation summary the homeowner can send to their carrier) — write the actual thing, not a template.
-- A good answer names the specific lead, number or next step from their data, and ends with what to do today. Sign off with action items when appropriate.`;
+- A good answer names the specific lead, number or next step from their data, and ends with what to do today. Sign off with action items when appropriate.`
+    + (window.NBDJoeActions ? window.NBDJoeActions.systemAddendum() : '');
 }
 
 function updateJoeContextBar(ctx) {
@@ -239,8 +240,20 @@ function initJoeChat() {
 function renderJoeMessages() {
   const el = document.getElementById('joeMessages');
   if(!el) return;
-  el.innerHTML = _joeMessages.map(m => buildJoeBubble(m.role, m.content)).join('');
+  el.innerHTML = _joeMessages.map(joeEntryHtml).join('');
   scrollJoeToBottom();
+}
+
+// One history entry → HTML. Ask Joe actions (2026-10-02): 'card' entries are
+// confirm cards (ask-joe-actions.js), 'tool' entries are tool results (not
+// shown), and an assistant turn may be content blocks — show its text.
+function joeEntryHtml(m) {
+  if (!m) return '';
+  if (m.role === 'card') return window.NBDJoeActions ? window.NBDJoeActions.cardHtml(m) : '';
+  if (m.role === 'tool') return '';
+  const text = typeof m.content === 'string' ? m.content
+    : (window.NBDJoeActions ? window.NBDJoeActions.textOf(m.content) : '');
+  return text ? buildJoeBubble(m.role, text) : '';
 }
 
 // HTML-escape helper — prevents XSS in chat messages.
@@ -280,14 +293,28 @@ function buildJoeBubble(role, content) {
 }
 
 function appendJoeMessage(role, content) {
-  _joeMessages.push({role, content});
+  appendJoeEntry({role, content});
+}
+
+function appendJoeEntry(entry) {
+  _joeMessages.push(entry);
   const el = document.getElementById('joeMessages');
-  if(el) {
+  const html = joeEntryHtml(entry);
+  if(el && html) {
     const div = document.createElement('div');
-    div.innerHTML = buildJoeBubble(role, content);
+    div.innerHTML = html;
     el.appendChild(div.firstChild);
     scrollJoeToBottom();
   }
+  saveJoeChat();
+}
+
+function repaintJoeCard(card) {
+  const old = document.getElementById('joeCard-' + card.id);
+  if (!old) return;
+  const div = document.createElement('div');
+  div.innerHTML = window.NBDJoeActions.cardHtml(card);
+  old.replaceWith(div.firstChild);
   saveJoeChat();
 }
 
@@ -321,20 +348,28 @@ async function sendJoeMessage() {
   inp.value = '';
   inp.style.height = '42px';
 
+  // A confirm card still waiting is answered "cancelled" — the user moved on.
+  joeCancelPendingCard();
   appendJoeMessage('user', text);
   _joeTyping = true;
   var _jSB=document.getElementById("joeSendBtn");if(_jSB)_jSB.disabled=true;
-  showJoeTyping();
 
   const ctx = buildJoeContext();
+  await joeRunLoop(ctx);
+
+  _joeTyping = false;
+  var _jSB=document.getElementById("joeSendBtn");if(_jSB)_jSB.disabled=false;
+  updateJoeContextBar(ctx);
+}
+
+// The model ↔ tools loop (Ask Joe actions, 2026-10-02). Read tools run at
+// once and go straight back; an action stops the loop on a confirm card, and
+// the loop resumes from the card's Confirm / Cancel (joeResolveCard).
+const JOE_MAX_ROUNDS = 4;
+async function joeRunLoop(ctx) {
+  const A = window.NBDJoeActions || null;
   const systemPrompt = buildJoeSystemPrompt(ctx);
-
-  // Build message history for API (last 20 turns for context window)
-  const apiMessages = _joeMessages.slice(-20).map(m=>({
-    role: m.role === 'joe' ? 'assistant' : 'user',
-    content: m.content
-  }));
-
+  showJoeTyping();
   try {
     // Use callClaude proxy (Cloud Function → fallback to localStorage key)
     if (!window.callClaude) {
@@ -349,28 +384,108 @@ async function sendJoeMessage() {
       }
     }
 
-    const data = await window.callClaude({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: apiMessages
-    });
+    for (let round = 0; round < JOE_MAX_ROUNDS; round++) {
+      const apiMessages = A ? A.buildApiMessages(_joeMessages, 20)
+        : _joeMessages.filter(m => typeof m.content === 'string' && (m.role === 'user' || m.role === 'joe')).slice(-20)
+          .map(m => ({ role: m.role === 'joe' ? 'assistant' : 'user', content: m.content }));
+      const req = { model: 'claude-haiku-4-5-20251001', max_tokens: 1024, system: systemPrompt, messages: apiMessages };
+      if (A) req.toolset = A.TOOLSET;
+      const data = await window.callClaude(req);
+      const blocks = Array.isArray(data?.content) ? data.content : [];
+      hideJoeTyping();
+      if (!blocks.length) { appendJoeMessage('joe', 'Sorry, something went wrong. Try again.'); return; }
+      appendJoeEntry({ role: 'joe', content: blocks });
+      const uses = blocks.filter(b => b && b.type === 'tool_use');
+      if (!A || data.stop_reason !== 'tool_use' || !uses.length) return;
 
-    const reply = data?.content?.[0]?.text || 'Sorry, something went wrong. Try again.';
-
+      // Reads run now; the FIRST action becomes a card; any further action
+      // in the same turn is answered "one at a time".
+      const results = [];
+      let action = null;
+      for (const u of uses) {
+        if (A.isRead(u.name)) {
+          results.push({ type: 'tool_result', tool_use_id: u.id, content: await A.runRead(u.name, u.input) });
+        } else if (A.isAction(u.name) && !action) {
+          action = u;
+        } else {
+          results.push({ type: 'tool_result', tool_use_id: u.id, content: 'Only one action at a time — ask again after this one.', is_error: true });
+        }
+      }
+      if (action) {
+        appendJoeEntry({ role: 'card', id: action.id, name: action.name, input: action.input || {}, status: 'pending', partial: results });
+        return; // resumes from the card
+      }
+      appendJoeEntry({ role: 'tool', content: results });
+      showJoeTyping();
+    }
     hideJoeTyping();
-    appendJoeMessage('joe', reply);
-
   } catch(err) {
     hideJoeTyping();
     const errMsg = `Couldn't reach Joe right now. ${err.message || 'Check your connection and try again.'}`;
     appendJoeMessage('joe', errMsg);
   }
-
-  _joeTyping = false;
-  var _jSB=document.getElementById("joeSendBtn");if(_jSB)_jSB.disabled=false;
-  updateJoeContextBar(ctx);
 }
+
+function joePendingCard() {
+  for (let i = _joeMessages.length - 1; i >= 0; i--) {
+    const m = _joeMessages[i];
+    if (m && m.role === 'card') return m.status === 'pending' ? m : null;
+  }
+  return null;
+}
+
+function joeCancelPendingCard() {
+  const card = joePendingCard();
+  if (!card) return;
+  card.status = 'cancelled';
+  card.resultText = 'Cancelled';
+  repaintJoeCard(card);
+  appendJoeEntry({ role: 'tool', content: (card.partial || []).concat([{ type: 'tool_result', tool_use_id: card.id, content: 'The user cancelled this. Nothing was done.' }]) });
+}
+
+// Confirm / Cancel / Undo on a card.
+async function joeResolveCard(cardId, choice) {
+  const A = window.NBDJoeActions;
+  const card = _joeMessages.find(m => m && m.role === 'card' && m.id === cardId);
+  if (!A || !card || _joeTyping) return;
+  if (choice === 'undo') {
+    if (card.status !== 'done' || !card.undo) return;
+    const r = await A.undo(card);
+    card.undo = null;
+    card.resultText = (card.resultText || '') + ' · ' + r.text;
+    repaintJoeCard(card);
+    return;
+  }
+  if (card.status !== 'pending') return;
+  if (choice === 'cancel') {
+    joeCancelPendingCard();
+  } else {
+    const ta = document.getElementById('joeCardText-' + card.id);
+    if (ta) card.editedMessage = ta.value;
+    card.status = 'working';
+    repaintJoeCard(card);
+    const r = await A.execute(card);
+    card.status = r.ok ? 'done' : 'failed';
+    card.resultText = r.text;
+    card.undo = r.undo || null;
+    repaintJoeCard(card);
+    appendJoeEntry({ role: 'tool', content: (card.partial || []).concat([{ type: 'tool_result', tool_use_id: card.id, content: r.text, is_error: !r.ok }]) });
+  }
+  // Let Joe wrap up in a line (or take the next step).
+  _joeTyping = true;
+  var _jSB=document.getElementById("joeSendBtn");if(_jSB)_jSB.disabled=true;
+  const ctx = buildJoeContext();
+  await joeRunLoop(ctx);
+  _joeTyping = false;
+  if(_jSB)_jSB.disabled=false;
+}
+
+// Card buttons — delegated, CSP-safe (no inline handlers).
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest && ev.target.closest('[data-joe-card]');
+  if (!b) return;
+  joeResolveCard(b.dataset.cardId, b.dataset.joeCard);
+});
 
 function joeQuick(msg) {
   const inp = document.getElementById('joeInput');
