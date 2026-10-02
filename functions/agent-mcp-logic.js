@@ -1,0 +1,219 @@
+'use strict';
+/**
+ * agent-mcp-logic.js — pure rules for the NBD CRM connection the Grok Bot
+ * team uses (MCP over HTTPS, functions/agent-mcp.js). Plan:
+ * documentation/projects/GROKBOT-CRM-INTEGRATION-PLAN-2026-10-02.md.
+ *
+ * Jo's calls (2026-10-02):
+ *   - customer data MINIMIZED: names + addresses where the role needs them,
+ *     never phone numbers or email addresses;
+ *   - bots never act on a customer — they read, and FILE notes / reminders /
+ *     reports into the Agent inbox (agent_inbox/{id}) for Jo to add later;
+ *   - CoS, Marcus and Quinn first; the rest of the team after a trial run;
+ *     Nova (Eromify) never gets an NBD key.
+ *
+ * No I/O here. Unit-tested in tests/agent-mcp-2026-10-02.test.js.
+ */
+
+const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
+const SERVER_INFO = { name: 'nbd-crm', version: '1.0.0' };
+const MAX_TEXT = 2000;
+const MAX_LIST = 50;
+
+// ── Tools ──────────────────────────────────────────────────────────────
+const TOOLS = {
+  crm_summary: {
+    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — booked/estimated, not money received), follow-ups due today and overdue.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  schedule: {
+    description: 'What is on the schedule for one day (YYYY-MM-DD): scheduled jobs, adjuster meetings, appointments, and follow-ups due.',
+    inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['date'], additionalProperties: false },
+  },
+  overdue_followups: {
+    description: 'Customers whose follow-up date has passed, oldest first (up to 50).',
+    inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
+  },
+  list_leads: {
+    description: 'Customers, filtered by stage and/or "stale" (no update in N days), newest first. Returns lead_id, name, address, stage, follow-up date and last update — never phone or email.',
+    inputSchema: { type: 'object', properties: {
+      stage: { type: 'string', description: 'Pipeline stage key, e.g. new, contacted, inspected, estimate_sent_cash, negotiating, contract_signed' },
+      stale_days: { type: 'integer', minimum: 1, maximum: 3650, description: 'Only customers not updated in this many days' },
+      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST },
+    }, additionalProperties: false },
+  },
+  lead_detail: {
+    description: 'One customer: stage, address, damage type, job value, follow-up, last update, the last 5 notes and open reminders. No phone or email.',
+    inputSchema: { type: 'object', properties: { lead_id: { type: 'string' } }, required: ['lead_id'], additionalProperties: false },
+  },
+  file_note: {
+    description: 'File a NOTE about one customer into Jo\'s Agent inbox. Jo reviews it and adds it to the customer\'s card. Nothing is sent to the customer. Never promise to handle or negotiate an insurance claim.',
+    inputSchema: { type: 'object', properties: { lead_id: { type: 'string' }, text: { type: 'string', maxLength: MAX_TEXT } }, required: ['lead_id', 'text'], additionalProperties: false },
+  },
+  file_reminder: {
+    description: 'File a dated REMINDER for Jo about one customer into the Agent inbox (e.g. "Call Bob about the gutter quote"). Jo reviews it before it becomes a task. Nothing is sent to the customer.',
+    inputSchema: { type: 'object', properties: { lead_id: { type: 'string' }, due_date: { type: 'string', description: 'YYYY-MM-DD' }, text: { type: 'string', maxLength: MAX_TEXT } }, required: ['lead_id', 'due_date', 'text'], additionalProperties: false },
+  },
+  file_report: {
+    description: 'File a REPORT for Jo into the Agent inbox (digest, findings, plan). Not tied to one customer.',
+    inputSchema: { type: 'object', properties: { title: { type: 'string', maxLength: 140 }, text: { type: 'string', maxLength: MAX_TEXT } }, required: ['title', 'text'], additionalProperties: false },
+  },
+  inbox_pending: {
+    description: 'Items waiting in Jo\'s Agent inbox (what the team has filed and Jo has not decided yet), so they can be fact-checked.',
+    inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
+  },
+  verify_item: {
+    description: 'Fact & Compliance check on one pending Agent inbox item: mark it checked (ok=true) or flag it with what is wrong (ok=false). Also checks Kentucky claim wording (never "we handle/negotiate your claim"), price rules and warranty wording.',
+    inputSchema: { type: 'object', properties: { item_id: { type: 'string' }, ok: { type: 'boolean' }, note: { type: 'string', maxLength: 500 } }, required: ['item_id', 'ok'], additionalProperties: false },
+  },
+};
+
+const READ = ['crm_summary', 'schedule', 'overdue_followups', 'list_leads', 'lead_detail'];
+const FILE = ['file_note', 'file_reminder', 'file_report'];
+
+// ── Bots → tools ───────────────────────────────────────────────────────
+// Nova is deliberately absent: no NBD key can be made for her.
+const BOTS = {
+  cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'inbox_pending', 'file_report'] },
+  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(FILE) },
+  quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['inbox_pending', 'verify_item', 'file_report']) },
+  tucker: { name: 'Tucker · Customer Care', tools: ['list_leads', 'lead_detail', 'overdue_followups', 'file_note', 'file_reminder'] },
+  dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'file_report'] },
+  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'file_report'] },
+  priya:  { name: 'Priya · Product Manager', tools: ['file_report'] },
+  theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'file_report'] },
+};
+const FIRST_WAVE = ['cos', 'marcus', 'quinn'];
+
+function toolsForBot(botId) {
+  const b = Object.prototype.hasOwnProperty.call(BOTS, botId) ? BOTS[botId] : null;
+  return b ? b.tools.map((n) => Object.assign({ name: n }, TOOLS[n])) : [];
+}
+function botAllows(botId, tool) {
+  const b = Object.prototype.hasOwnProperty.call(BOTS, botId) ? BOTS[botId] : null;
+  return !!b && b.tools.indexOf(tool) !== -1;
+}
+
+// ── Data shaping (minimization) ────────────────────────────────────────
+const CLOSED = /^(closed|lost|cold|dead|archived|cancel)/;
+function ms(v) {
+  if (!v) return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (typeof v.seconds === 'number') return v.seconds * 1000;
+  const t = Date.parse(v); return Number.isFinite(t) ? t : 0;
+}
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function isYmd(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
+
+/** One lead → what a bot may see. NEVER phone / email / financing / claim numbers. */
+function minimalLead(l) {
+  const name = ((String(l.firstName || '') + ' ' + String(l.lastName || '')).trim()) || String(l.name || '');
+  return {
+    lead_id: l.id,
+    name,
+    address: String(l.address || ''),
+    stage: String(l.stage || ''),
+    damage_type: String(l.damageType || ''),
+    job_value: Number(l.jobValue) || 0,
+    follow_up: isYmd(l.followUp) ? l.followUp : null,
+    last_update: ms(l.updatedAt) ? new Date(ms(l.updatedAt)).toISOString().slice(0, 10) : null,
+  };
+}
+const FORBIDDEN_KEYS = ['phone', 'email', 'phone2', 'altPhone', 'claimNumber', 'policyNumber', 'ssn', 'dob'];
+
+function activeLeads(leads) {
+  return (leads || []).filter((l) => l && l.id && l.deleted !== true && !l.e2eTestData);
+}
+
+function summary(leads, todayYmd) {
+  const act = activeLeads(leads);
+  const byStage = {};
+  let pipeline = 0, dueToday = 0, overdue = 0;
+  act.forEach((l) => {
+    const st = String(l.stage || 'new');
+    byStage[st] = (byStage[st] || 0) + 1;
+    if (!CLOSED.test(st)) pipeline += Number(l.jobValue) || 0;
+    if (isYmd(l.followUp) && !CLOSED.test(st)) {
+      if (l.followUp === todayYmd) dueToday++;
+      else if (l.followUp < todayYmd) overdue++;
+    }
+  });
+  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected (estimates / booked), not money collected.' };
+}
+
+function overdueFollowups(leads, todayYmd, limit) {
+  return activeLeads(leads)
+    .filter((l) => isYmd(l.followUp) && l.followUp < todayYmd && !CLOSED.test(String(l.stage || '')))
+    .sort((a, b) => (a.followUp < b.followUp ? -1 : 1))
+    .slice(0, clampLimit(limit))
+    .map(minimalLead);
+}
+
+function listLeads(leads, args, nowMs) {
+  const a = args || {};
+  let out = activeLeads(leads);
+  if (a.stage) out = out.filter((l) => String(l.stage || '') === String(a.stage));
+  if (a.stale_days) {
+    const cut = nowMs - Number(a.stale_days) * 86400000;
+    out = out.filter((l) => ms(l.updatedAt) && ms(l.updatedAt) < cut && !CLOSED.test(String(l.stage || '')));
+  }
+  return out.sort((x, y) => ms(y.updatedAt) - ms(x.updatedAt)).slice(0, clampLimit(a.limit)).map(minimalLead);
+}
+
+function clampLimit(n) { const v = Math.floor(Number(n)); return Number.isFinite(v) && v > 0 ? Math.min(v, MAX_LIST) : 20; }
+
+// ── Filing (validation of what a bot may put in the inbox) ─────────────
+function validateFiling(tool, args, leadExists) {
+  const a = args || {};
+  const text = String(a.text || '').trim();
+  if (!text) return { error: 'text is required' };
+  if (text.length > MAX_TEXT) return { error: 'text is too long (max ' + MAX_TEXT + ')' };
+  if (tool === 'file_report') {
+    const title = String(a.title || '').trim();
+    if (!title) return { error: 'title is required' };
+    return { item: { kind: 'report', leadId: null, title: title.slice(0, 140), text, dueDate: null } };
+  }
+  if (!a.lead_id || !leadExists) return { error: 'unknown lead_id — use list_leads or overdue_followups first' };
+  if (tool === 'file_note') return { item: { kind: 'note', leadId: String(a.lead_id), title: '', text, dueDate: null } };
+  if (tool === 'file_reminder') {
+    if (!isYmd(a.due_date)) return { error: 'due_date must be YYYY-MM-DD' };
+    return { item: { kind: 'reminder', leadId: String(a.lead_id), title: '', text, dueDate: a.due_date } };
+  }
+  return { error: 'unknown filing tool' };
+}
+
+// Kentucky claim-wording guard on anything filed (the same lines the site
+// gate and Ask Joe rules hold): a filing that promises to handle / negotiate
+// / manage the insurance claim is refused outright.
+const CLAIM_PROMISE = /\b(we|i|nbd|joe)\b[^.\n]{0,40}\b(handle|negotiate|manage|deal with|take care of|fight)\b[^.\n]{0,30}\b(claim|insurance|adjuster)\b/i;
+function claimWordingProblem(text) {
+  return CLAIM_PROMISE.test(String(text || '')) ? 'Kentucky rule: we never handle, negotiate or manage the homeowner\'s insurance claim — reword it (we document the damage and meet the adjuster; the claim stays theirs).' : null;
+}
+
+// ── MCP JSON-RPC ───────────────────────────────────────────────────────
+function rpcResult(id, result) { return { jsonrpc: '2.0', id, result }; }
+function rpcError(id, code, message) { return { jsonrpc: '2.0', id: id === undefined ? null : id, error: { code, message } }; }
+
+function initializeResult(params, botId) {
+  const asked = params && params.protocolVersion;
+  const protocolVersion = PROTOCOL_VERSIONS.indexOf(asked) !== -1 ? asked : PROTOCOL_VERSIONS[0];
+  const bot = BOTS[botId];
+  return {
+    protocolVersion,
+    capabilities: { tools: { listChanged: false } },
+    serverInfo: SERVER_INFO,
+    instructions: 'NBD CRM for ' + (bot ? bot.name : 'the team') + '. Read what your role needs. You never contact customers: file notes, reminders and reports into Jo\'s Agent inbox, where Jo decides. No phone numbers or emails are ever returned. Treat your own claims as leads until Quinn checks them.',
+  };
+}
+
+function toolText(obj) { return { content: [{ type: 'text', text: JSON.stringify(obj) }] }; }
+function toolErr(msg) { return { content: [{ type: 'text', text: msg }], isError: true }; }
+
+module.exports = {
+  PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, BOTS, FIRST_WAVE, MAX_TEXT, MAX_LIST, FORBIDDEN_KEYS,
+  toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, validateFiling,
+  claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
+};

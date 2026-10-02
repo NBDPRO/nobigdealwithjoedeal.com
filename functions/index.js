@@ -367,6 +367,15 @@ Object.assign(exports, esignEnvelopeFunctions);
 const dealAcceptanceFunctions = require('./deal-acceptance');
 Object.assign(exports, dealAcceptanceFunctions);
 
+// NBD CRM connection for the Grok Bot team (2026-10-02): MCP at /api/mcp with
+// per-bot keys; bots read minimized CRM data and FILE notes / reminders /
+// reports into the Agent inbox. See functions/agent-mcp.js.
+const agentMcp = require('./agent-mcp');
+exports.crmMcp = agentMcp.crmMcp;
+exports.createAgentKey = agentMcp.createAgentKey;
+exports.listAgentKeys = agentMcp.listAgentKeys;
+exports.revokeAgentKey = agentMcp.revokeAgentKey;
+
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;
 // reads the report HTML inline from /reports/<id> via admin SDK. See
