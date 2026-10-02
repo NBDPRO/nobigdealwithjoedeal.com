@@ -405,13 +405,20 @@ function buildIntelligenceBrief(p){
   const sorted = [...pages].sort((a,b) => a.dk > b.dk ? 1 : -1);
   const idx = sorted.findIndex(x => x.id === p.id);
 
-  // Streak calculation
-  let streak = 0;
-  for(let i = idx; i >= 0; i--){
-    const pd = sorted[i].data || {};
-    const met = floors.filter(f => pd['floormet-'+f.id] === '1').length;
-    if(met === floors.length && floors.length > 0) streak++;
-    else break;
+  // Streak calculation — "don't miss twice" (review-logic.js, Jo 2026-10-02):
+  // one missed day warns, two in a row end it; the day in view is never a
+  // miss while it is still in progress.
+  let streak = 0, streakWarned = false, streakBroken = false;
+  if(window.NBDReview){
+    const s = window.NBDReview.floorStreak(pages, floors, p.dk);
+    streak = s.count; streakWarned = s.warned; streakBroken = s.broken;
+  } else {
+    for(let i = idx; i >= 0; i--){
+      const pd = sorted[i].data || {};
+      const met = floors.filter(f => pd['floormet-'+f.id] === '1').length;
+      if(met === floors.length && floors.length > 0) streak++;
+      else break;
+    }
   }
 
   // Workout streak
@@ -458,9 +465,10 @@ function buildIntelligenceBrief(p){
 
   // Coaching insight based on patterns
   let coaching = '';
-  if(streak >= 7) coaching = "You're on a 7+ day floor streak. This is elite consistency — protect it.";
+  if(streakWarned) coaching = "Missed yesterday. Don't miss twice — today keeps the streak alive.";
+  else if(streak >= 7) coaching = "You're on a 7+ day floor streak. This is elite consistency — protect it.";
   else if(streak >= 3) coaching = "3+ day streak rolling. Momentum is building. Don't break the chain.";
-  else if(streak === 0 && idx > 0) coaching = "Streak broken. Today is day one. One floor at a time.";
+  else if(streakBroken || (streak === 0 && idx > 0)) coaching = "Two misses in a row ended the streak. Today is day one. One floor at a time.";
   else coaching = "New page. Set your intention, hit your floors, earn the day.";
 
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
@@ -722,11 +730,14 @@ localStorage.setItem('nbd_floor_progress_'+today,JSON.stringify(progress));
 // Compute and write nbd_streak (what Streak widget reads)
 const sorted=[...pages].sort((a,b)=>a.dk>b.dk?1:-1);
 let streak=0;
+if(window.NBDReview){streak=window.NBDReview.floorStreak(pages,floors,today).count;}
+else{
 for(let i=sorted.length-1;i>=0;i--){
 const p=sorted[i],d=p.data||{};
 const metCount=floors.filter(f=>d['floormet-'+f.id]==='1').length;
 if(metCount===floors.length&&floors.length>0)streak++;
 else break;
+}
 }
 localStorage.setItem('nbd_streak',String(streak));
 
