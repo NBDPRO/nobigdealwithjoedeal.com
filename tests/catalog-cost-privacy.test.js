@@ -1033,9 +1033,15 @@ console.log('──────────────────────�
      nums.length > 0 && nums.every((n) => n === 0));
 
   const boot = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dashboard-bootstrap.module.js'), 'utf8');
-  const fallbacks = [...boot.matchAll(/v2cost(?:Good|Better|Best)'\)?,?\s*(?:\.value\s*=\s*s\.costBasis\?\.\w+\s*\?\?\s*|)(\d+)/g)].map((x) => Number(x[1]));
-  ok('dashboard-bootstrap v2cost* fallbacks are all zero (6 sites: form fill + save)',
-     fallbacks.length >= 6 && fallbacks.every((n) => n === 0));
+  // Five tiers since 2026-10-02: the form fill and the save each loop over the
+  // tiers ('v2cost' + id), so there are 2 loop sites instead of 6 literal ones.
+  // The old literal shape is still matched, so a hard-coded id cannot slip by.
+  const literal = [...boot.matchAll(/v2cost(?:Economy|Good|Better|Best|Beyond)'\)?,?\s*(?:\.value\s*=\s*s\.costBasis\?\.\w+\s*\?\?\s*|)(\d+)/g)].map((x) => Number(x[1]));
+  const fill = [...boot.matchAll(/'v2cost'\s*\+\s*id\)\.value\s*=\s*s\.costBasis\?\.\[t\]\s*\?\?\s*(\d+)/g)].map((x) => Number(x[1]));
+  const save = [...boot.matchAll(/num\('v2cost'\s*\+\s*id,\s*(\d+)\)/g)].map((x) => Number(x[1]));
+  const fallbacks = literal.concat(fill, save);
+  ok('dashboard-bootstrap v2cost* fallbacks are all zero (form fill + save)',
+     fill.length >= 1 && save.length >= 1 && fallbacks.every((n) => n === 0));
 }
 
 // 4g. THE ROTATION LEDGER. This one needs mutation testing more than any layer
