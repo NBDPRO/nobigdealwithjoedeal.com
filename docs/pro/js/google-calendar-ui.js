@@ -123,6 +123,16 @@
     const daysEl = $(prefix + 'SchedDays'), durEl = $(prefix + 'SchedDuration');
     const days = daysEl && daysEl.offsetParent !== null ? Math.max(1, parseInt(daysEl.value, 10) || 1) : 1;
     const dur = durEl && durEl.offsetParent !== null ? parseInt(durEl.value, 10) || 0 : 0;
+    return windowOf({ date, start, days, dur });
+  }
+
+  /** { date, start, days, dur } → the busy window the job would take, or null. */
+  function windowOf(v) {
+    const date = String((v && v.date) || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !SW()) return null;
+    const start = String(v.start || '').slice(0, 5);
+    const days = Math.max(1, parseInt(v.days, 10) || 1);
+    const dur = parseInt(v.dur, 10) || 0;
     const L = SW().localToUtcMs;
     // No time → the working day (7 am–6 pm) is what the job would take.
     const s = L(date, start || '07:00');
@@ -154,16 +164,40 @@
     const w = windowFor(prefix);
     if (!w) { el.innerHTML = ''; return; }
     const leadId = prefix === 'edit' ? (new URLSearchParams(location.search).get('id') || null) : ((($('lEditId') || {}).value) || null);
+    const seq = el.dataset.seq = String((+el.dataset.seq || 0) + 1);
+    const html = await conflictHtml(w, leadId);
+    if (el.dataset.seq === seq) el.innerHTML = html; // a later edit's answer wins
+  }
+
+  /** Ask Google what is booked in window w → the warning's HTML ('' = show nothing). */
+  async function conflictHtml(w, leadId) {
     let r;
-    try { r = await callable('getBusyTimes', { fromMs: w.startMs - 1, toMs: w.endMs + 1, excludeLeadId: leadId }); }
-    catch (_) { el.innerHTML = ''; return; } // never block a save on the warning
-    if (!r || !r.configured) { el.innerHTML = ''; return; }
+    try { r = await callable('getBusyTimes', { fromMs: w.startMs - 1, toMs: w.endMs + 1, excludeLeadId: leadId || null }); }
+    catch (_) { return ''; } // never block a save on the warning
+    return conflictText(r, w);
+  }
+
+  /** A getBusyTimes answer + window → the warning's HTML (pure; every value escaped). */
+  function conflictText(r, w) {
+    if (!r || !r.configured) return '';
     const hits = (r.blocks || []).filter((b) => b.startMs < w.endMs && b.endMs > w.startMs);
-    if (!hits.length) { el.innerHTML = '<span class="gcal-clear">✓ Nothing else booked then</span>'; return; }
-    el.innerHTML = '⚠ Already booked then: ' + hits.slice(0, 3).map((b) => {
+    if (!hits.length) return '<span class="gcal-clear">✓ Nothing else booked then</span>';
+    return '⚠ Already booked then: ' + hits.slice(0, 3).map((b) => {
       const who = b.titles && b.titles.length ? b.titles.join(', ') : 'your calendar';
       return esc(fmt(b.startMs)) + '–' + esc(new Date(b.endMs).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })) + ' (' + esc(who) + ')';
     }).join('; ') + (hits.length > 3 ? ' +' + (hits.length - 3) + ' more' : '') + ' — you can still save.';
+  }
+
+  /**
+   * The Schedule planner's rows (schedule-planner.js) ask the same question
+   * for a typed date / start / days → resolves to the warning's HTML ('' when
+   * there is no exact day, Google isn't set up, or this user can't ask).
+   */
+  async function checkRow(input, leadId) {
+    if (!allowed()) return '';
+    const w = windowOf({ date: input && input.date, start: input && input.start, days: input && input.days, dur: 0 });
+    if (!w) return '';
+    return conflictHtml(w, leadId);
   }
 
   function onField(ev) {
@@ -203,5 +237,5 @@
   window.addEventListener('hashchange', maybeLoad);
   window.addEventListener('nbd:data-refreshed', maybeLoad);
 
-  window.NBDGoogleCalendarUI = { loadStatus, check, _windowFor: windowFor };
+  window.NBDGoogleCalendarUI = { loadStatus, check, checkRow, _windowFor: windowFor, _windowOf: windowOf, _conflictText: conflictText };
 })();
