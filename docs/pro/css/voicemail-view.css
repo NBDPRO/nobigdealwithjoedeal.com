@@ -1,0 +1,24 @@
+/* Voicemail modal (js/voicemail.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.vmx-maxw460px.vmx-maxw460px.vmx-maxw460px { max-width: 460px; }
+.vmx-fs9px-w700-ls16em.vmx-fs9px-w700-ls16em.vmx-fs9px-w700-ls16em { font-size: 9px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--orange); margin-bottom: 4px; }
+.vmx-ffbarlowco-fs20px-w700.vmx-ffbarlowco-fs20px-w700.vmx-ffbarlowco-fs20px-w700 { font-family: 'Barlow Condensed',sans-serif; font-size: 20px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+.vmx-fs11px-cm-mb16px.vmx-fs11px-cm-mb16px.vmx-fs11px-cm-mb16px { font-size: 11px; color: var(--m); margin-bottom: 16px; }
+.vmx-dflex-flecolumn-gap10px.vmx-dflex-flecolumn-gap10px.vmx-dflex-flecolumn-gap10px { display: flex; flex-direction: column; gap: 10px; }
+.vmx-wd100-bgorange-ct.vmx-wd100-bgorange-ct.vmx-wd100-bgorange-ct { width: 100%; background: var(--orange); color: var(--t); border: none; border-radius: 8px; padding: 14px; font-family: 'Barlow Condensed',sans-serif; font-size: 15px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.vmx-wd100-bgs2-ct.vmx-wd100-bgs2-ct.vmx-wd100-bgs2-ct { width: 100%; background: var(--s2); color: var(--t); border: 1px solid var(--br); border-radius: 8px; padding: 14px; font-family: 'Barlow Condensed',sans-serif; font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.vmx-fs10px-cm-tacenter.vmx-fs10px-cm-tacenter.vmx-fs10px-cm-tacenter { font-size: 10px; color: var(--m); text-align: center; margin-top: 2px; }
+.vmx-fs28px-mb8px.vmx-fs28px-mb8px.vmx-fs28px-mb8px { font-size: 28px; margin-bottom: 8px; }
+.vmx-fs13px-w600-ct.vmx-fs13px-w600-ct.vmx-fs13px-w600-ct { font-size: 13px; font-weight: 600; color: var(--t); margin-bottom: 4px; }
+.vmx-fs11px-cm.vmx-fs11px-cm.vmx-fs11px-cm { font-size: 11px; color: var(--m); }
+.vmx-mb8px.vmx-mb8px.vmx-mb8px { margin-bottom: 8px; }
+.vmx-fs9px-ls12em-ttuppercas.vmx-fs9px-ls12em-ttuppercas.vmx-fs9px-ls12em-ttuppercas { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--m); margin-bottom: 4px; }
+.vmx-fs12px-ct-lh15.vmx-fs12px-ct-lh15.vmx-fs12px-ct-lh15 { font-size: 12px; color: var(--t); line-height: 1.5; }
+.vmx-bgrgba1898-bd1pxsolid-r7px.vmx-bgrgba1898-bd1pxsolid-r7px.vmx-bgrgba1898-bd1pxsolid-r7px { background: rgba(189,87,40,.1); border: 1px solid var(--orange); border-radius: 7px; padding: 10px 12px; margin-bottom: 10px; font-size: 12px; color: var(--orange); }
+.vmx-bgs2-bd1pxsolid-r7px.vmx-bgs2-bd1pxsolid-r7px.vmx-bgs2-bd1pxsolid-r7px { background: var(--s2); border: 1px solid var(--br); border-radius: 7px; padding: 12px; margin-bottom: 10px; }
+.vmx-fs13px-ct-lh15.vmx-fs13px-ct-lh15.vmx-fs13px-ct-lh15 { font-size: 13px; color: var(--t); line-height: 1.5; }
+.vmx-fs9px-ls12em-ttuppercas-2.vmx-fs9px-ls12em-ttuppercas-2.vmx-fs9px-ls12em-ttuppercas-2 { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--m); margin-bottom: 6px; }
+.vmx-m0-pad18px-fs12px.vmx-m0-pad18px-fs12px.vmx-m0-pad18px-fs12px { margin: 0; padding-left: 18px; font-size: 12px; color: var(--t); line-height: 1.6; }
+.vmx-bgs2-bd1pxsolid-r7px-2.vmx-bgs2-bd1pxsolid-r7px-2.vmx-bgs2-bd1pxsolid-r7px-2 { background: var(--s2); border: 1px solid var(--br); border-radius: 7px; padding: 8px 12px; margin-bottom: 12px; }
+.vmx-fs11px-cm-curpointer.vmx-fs11px-cm-curpointer.vmx-fs11px-cm-curpointer { font-size: 11px; color: var(--m); cursor: pointer; }
+.vmx-fs12px-ct-lh15-2.vmx-fs12px-ct-lh15-2.vmx-fs12px-ct-lh15-2 { font-size: 12px; color: var(--t); line-height: 1.5; margin-top: 8px; white-space: pre-wrap; }
+.vmx-wd100-bgs2-ct-2.vmx-wd100-bgs2-ct-2.vmx-wd100-bgs2-ct-2 { width: 100%; background: var(--s2); color: var(--t); border: 1px solid var(--br); border-radius: 8px; padding: 12px; font-family: 'Barlow Condensed',sans-serif; font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }

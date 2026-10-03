@@ -86,31 +86,31 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     wrap.id = 'vmModal';
     wrap.onclick = (e) => { if (e.target === wrap) closeModal(); };
     wrap.innerHTML = `
-      <div class="modal" style="max-width:460px;">
+      <div class="modal vmx-maxw460px">
         <button class="modal-close" data-vm-action="close">✕</button>
-        <div style="font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin-bottom:4px;">Voicemail</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Capture &amp; Auto-task</div>
-        <div style="font-size:11px;color:var(--m);margin-bottom:16px;">Record a quick voicemail or upload one forwarded from your phone. AI extracts action items and auto-creates follow-up tasks.</div>
+        <div class="vmx-fs9px-w700-ls16em">Voicemail</div>
+        <div class="vmx-ffbarlowco-fs20px-w700">Capture &amp; Auto-task</div>
+        <div class="vmx-fs11px-cm-mb16px">Record a quick voicemail or upload one forwarded from your phone. AI extracts action items and auto-creates follow-up tasks.</div>
 
-        <div id="vmIntro" style="display:flex;flex-direction:column;gap:10px;">
+        <div id="vmIntro" class="vmx-dflex-flecolumn-gap10px">
           <button id="vmRecordBtn" type="button"
-            style="width:100%;background:var(--orange);color:var(--t);border:none;border-radius:8px;padding:14px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+            class="vmx-wd100-bgorange-ct">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             <span id="vmRecordLabel">Record voicemail</span>
           </button>
           <button id="vmUploadBtn" type="button"
-            style="width:100%;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:8px;padding:14px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+            class="vmx-wd100-bgs2-ct">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Upload audio file
           </button>
           <input id="vmFileInput" type="file" accept="${ACCEPT_ATTR}" style="display:none;">
-          <div style="font-size:10px;color:var(--m);text-align:center;margin-top:2px;">Max 60 seconds · 1.5MB · webm / mp4 / m4a / mp3 / wav / ogg</div>
+          <div class="vmx-fs10px-cm-tacenter">Max 60 seconds · 1.5MB · webm / mp4 / m4a / mp3 / wav / ogg</div>
         </div>
 
         <div id="vmProgress" style="display:none;padding:16px;text-align:center;">
-          <div id="vmProgressIcon" style="font-size:28px;margin-bottom:8px;">⏳</div>
-          <div id="vmProgressLabel" style="font-size:13px;font-weight:600;color:var(--t);margin-bottom:4px;">Working…</div>
-          <div id="vmProgressSub" style="font-size:11px;color:var(--m);"></div>
+          <div id="vmProgressIcon" class="vmx-fs28px-mb8px">⏳</div>
+          <div id="vmProgressLabel" class="vmx-fs13px-w600-ct">Working…</div>
+          <div id="vmProgressSub" class="vmx-fs11px-cm"></div>
         </div>
 
         <div id="vmResult" style="display:none;"></div>
@@ -211,15 +211,15 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       stream.getTracks().forEach(t => t.stop());
       _recording = null;
       const blob = new Blob(chunks, { type: rec.mimeType || mime || 'audio/webm' });
-      if (!blob || blob.size < 1000) { showError('Clip too short.'); resetUI(); return; }
+      if (!blob || blob.size < 1000) { resetUI(); showError('Clip too short.'); return; }
       await processBlob(blob, { source: 'recorded' });
     });
     rec.addEventListener('error', () => {
       clearTimeout(stopTimer);
       stream.getTracks().forEach(t => t.stop());
       _recording = null;
-      showError('Recording error.');
       resetUI();
+      showError('Recording error.');
     });
 
     rec.start();
@@ -258,7 +258,7 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     try {
       audioBase64 = await blobToBase64(blob);
     } catch (e) {
-      showError('Could not read audio.'); resetUI(); return;
+      resetUI(); showError('Could not read audio.'); return;
     }
 
     showProgress('🎧', 'Transcribing & summarizing…', 'Deepgram + Claude');
@@ -276,14 +276,14 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       res = r.data || {};
     } catch (e) {
       const msg = e && (e.message || e.code) || 'Transcription failed';
-      showError(String(msg).includes('rate') ? 'Rate limit — try again in an hour.' : 'Transcription failed.');
       resetUI();
+      showError(String(msg).includes('rate') ? 'Rate limit — try again in an hour.' : 'Transcription failed.');
       return;
     }
 
     if (res.empty || !res.transcript) {
-      showError('No speech detected in the audio.');
       resetUI();
+      showError('No speech detected in the audio.');
       return;
     }
 
@@ -405,36 +405,36 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     r.style.display = 'block';
 
     const aiList = (arr, label) => Array.isArray(arr) && arr.length
-      ? `<div style="margin-bottom:8px;"><div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--m);margin-bottom:4px;">${esc(label)}</div><div style="font-size:12px;color:var(--t);line-height:1.5;">${arr.map(esc).join(' · ')}</div></div>`
+      ? `<div class="vmx-mb8px"><div class="vmx-fs9px-ls12em-ttuppercas">${esc(label)}</div><div class="vmx-fs12px-ct-lh15">${arr.map(esc).join(' · ')}</div></div>`
       : '';
 
     const tasksRow = taskCount > 0
-      ? `<div style="background:rgba(189,87,40,.1);border:1px solid var(--orange);border-radius:7px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--orange);">
+      ? `<div class="vmx-bgrgba1898-bd1pxsolid-r7px">
            ✓ Created ${taskCount} task${taskCount === 1 ? '' : 's'} from action items.
          </div>` : '';
 
     r.innerHTML = `
       ${tasksRow}
-      ${summary.overview ? `<div style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:12px;margin-bottom:10px;">
-        <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--m);margin-bottom:4px;">Overview</div>
-        <div style="font-size:13px;color:var(--t);line-height:1.5;">${esc(summary.overview)}</div>
+      ${summary.overview ? `<div class="vmx-bgs2-bd1pxsolid-r7px">
+        <div class="vmx-fs9px-ls12em-ttuppercas">Overview</div>
+        <div class="vmx-fs13px-ct-lh15">${esc(summary.overview)}</div>
       </div>` : ''}
 
-      ${Array.isArray(summary.actionItems) && summary.actionItems.length ? `<div style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:12px;margin-bottom:10px;">
-        <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--m);margin-bottom:6px;">Action Items</div>
-        <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--t);line-height:1.6;">
+      ${Array.isArray(summary.actionItems) && summary.actionItems.length ? `<div class="vmx-bgs2-bd1pxsolid-r7px">
+        <div class="vmx-fs9px-ls12em-ttuppercas-2">Action Items</div>
+        <ul class="vmx-m0-pad18px-fs12px">
           ${summary.actionItems.map(a => `<li>${esc(a)}</li>`).join('')}
         </ul>
       </div>` : ''}
 
       ${aiList(summary.people, 'People') + aiList(summary.addresses, 'Addresses') + aiList(summary.amounts, 'Amounts') + aiList(summary.dates, 'Dates')}
 
-      <details style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:8px 12px;margin-bottom:12px;">
-        <summary style="font-size:11px;color:var(--m);cursor:pointer;">Full transcript</summary>
-        <div style="font-size:12px;color:var(--t);line-height:1.5;margin-top:8px;white-space:pre-wrap;">${esc(transcript)}</div>
+      <details class="vmx-bgs2-bd1pxsolid-r7px-2">
+        <summary class="vmx-fs11px-cm-curpointer">Full transcript</summary>
+        <div class="vmx-fs12px-ct-lh15-2">${esc(transcript)}</div>
       </details>
 
-      <button data-vm-action="close" style="width:100%;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:8px;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;">Done</button>
+      <button data-vm-action="close" class="vmx-wd100-bgs2-ct-2">Done</button>
     `;
   }
 
