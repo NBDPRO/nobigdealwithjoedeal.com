@@ -130,6 +130,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * $3,000 and the invoice looked untouched. A no-deposit invoice with a
    * partial payment rendered no balance block at all.
    *
+   * While both Deposit due and Balance Due are non-zero, a bold "Total owed"
+   * row (their sum = total − amountPaid) follows and is the emphasised row
+   * (2026-10-02). Footing sums must skip it — it repeats the two above.
+   *
    * @returns {Array<{label:string, amount:number, strong?:boolean}>}
    */
   function paymentSummaryRows(inv) {
@@ -152,7 +156,16 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         : { label: paidC > 0 ? 'Deposit due (remaining)' : 'Deposit due', amount: depLeftC / 100 });
     }
     if (paidC > 0) rows.push({ label: 'Paid to date', amount: paidC / 100 });
-    rows.push({ label: 'Balance Due', amount: Math.max(0, outstandingC - depLeftC) / 100, strong: true });
+    // While part of the deposit is still unpaid, what is owed is split across
+    // two rows (Deposit due + Balance Due), and "Balance Due" alone read as
+    // the whole debt: after a $4,000 Zelle on a $9,240 job it said $4,615
+    // while $5,240 was owed. Jo, 2026-10-02: add a bold Total owed line. It
+    // becomes the emphasised row; Balance Due keeps its meaning (the part due
+    // after the deposit) as a plain row.
+    const balC = Math.max(0, outstandingC - depLeftC);
+    const split = depLeftC > 0 && balC > 0;
+    rows.push({ label: 'Balance Due', amount: balC / 100, strong: !split });
+    if (split) rows.push({ label: 'Total owed', amount: (depLeftC + balC) / 100, strong: true });
     return rows;
   }
 

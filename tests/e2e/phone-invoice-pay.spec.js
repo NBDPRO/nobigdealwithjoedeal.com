@@ -195,6 +195,8 @@ test.describe('phone invoice: record payments, installed iPhone app @shard2', ()
       expect(depLeft, 'deposit remaining = deposit − the Zelle payment').toBe(dep - ZELLE);
       expect(balance, 'Balance Due = total − deposit').toBe(924000 - dep);
       expect(depLeft + balance, 'together: what is still owed').toBe(924000 - ZELLE);
+      // Jo 2026-10-02: the bold Total owed line says it in one number.
+      expect(row(/Total owed:?\s*\$([\d,]+\.\d\d)/), 'Total owed = what is still owed').toBe(924000 - ZELLE);
       const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
       expect(wide, 'the detail does not scroll sideways').toBe(false);
       await page.evaluate(() => { const m = document.getElementById('nbd-invoice-detail-modal'); if (m) m.remove(); });

@@ -443,9 +443,28 @@ test('paymentSummaryRows: rows always foot to total − paid', () => {
   ];
   for (const c of cases) {
     const rows = IP.paymentSummaryRows(c);
-    const due = rows.filter(r => r.label !== 'Paid to date' && r.label !== 'Deposit (paid)').reduce((s, r) => s + r.amount, 0);
+    const due = rows.filter(r => r.label !== 'Paid to date' && r.label !== 'Deposit (paid)' && r.label !== 'Total owed').reduce((s, r) => s + r.amount, 0);
     eq(Math.round(due * 100), Math.round((c.total - (c.amountPaid || 0)) * 100), 'foots for ' + JSON.stringify({ t: c.total, d: c.depositAmount, p: c.amountPaid }));
   }
+});
+test('Total owed: a bold sum while deposit AND balance are both still owed', () => {
+  // Jo 2026-10-02: "Balance Due" alone read as the whole debt mid-deposit.
+  const rows = IP.paymentSummaryRows(partialUnderDeposit);
+  const by = (l) => rows.find(r => r.label === l);
+  eq(by('Deposit due (remaining)').amount, 4450, 'deposit remaining = 7450 − 3000');
+  eq(by('Balance Due').amount, 7430, 'balance due = 14880 − 7450');
+  eq(by('Total owed') && by('Total owed').amount, 11880, 'total owed = total − paid');
+  eq(rows.filter(r => r.strong).map(r => r.label).join('|'), 'Total owed', 'Total owed is the one emphasised row');
+  const before = IP.paymentSummaryRows(depositInvoiceUnpaid);
+  eq(before.find(r => r.label === 'Total owed').amount, 14200, 'before any payment: the whole invoice');
+  // Deposit met, or no deposit: one owed row, no Total owed.
+  const met = IP.paymentSummaryRows(Object.assign({}, partialUnderDeposit, { amountPaid: 9000, balanceDue: 5880, depositPaid: true }));
+  eq(met.some(r => r.label === 'Total owed'), false, 'deposit met → no Total owed');
+  eq(met.filter(r => r.strong).map(r => r.label).join('|'), 'Balance Due', 'Balance Due is emphasised again');
+  const noDep = IP.paymentSummaryRows({ total: 5000, depositAmount: 0, amountPaid: 1200, balanceDue: 3800 });
+  eq(noDep.some(r => r.label === 'Total owed'), false, 'no deposit → no Total owed');
+  const html = IP.buildInvoiceHtml(Object.assign({}, partialUnderDeposit));
+  eq(/Total owed:[\s\S]{0,200}11,880\.00/.test(html), true, 'the emailed invoice carries Total owed $11,880.00');
 });
 test('no-deposit invoice with a partial payment shows paid + balance (was: nothing)', () => {
   const html = IP.buildInvoiceHtml({ total: 5000, depositAmount: 0, amountPaid: 1200, balanceDue: 3800, items: [], invoiceNumber: 'INV-3', customerName: 'X', customerAddress: 'Y' });
