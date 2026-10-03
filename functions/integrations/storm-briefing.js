@@ -129,19 +129,26 @@ function formatLeadLine(lead, index) {
  * Reserve the dedup sentinel atomically. Returns true if THIS invocation
  * is the one that should send the briefing; false if another invocation
  * already won the race.
+ *
+ * A sentinel whose status is 'failed' is re-reservable (2026-10-03): the
+ * failure path below always meant "let a retry pick it up", but this check
+ * treated ANY existing doc as sent, so a failed briefing was never retried.
+ * The next storm_alerts_sent doc for the same alertId now retries it.
  */
 async function _reserveSentinel(db, alertId) {
   const ref = db.doc(`storm_briefings_sent/${alertId}`);
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
-      if (snap.exists) {
+      const prev = snap.exists ? (snap.data() || {}) : null;
+      if (prev && prev.status !== 'failed') {
         throw new Error('already-sent');
       }
       tx.set(ref, {
         alertId,
         reservedAt: FieldValue.serverTimestamp(),
         status: 'reserved',
+        attempts: prev ? (Number(prev.attempts) || 1) + 1 : 1,
       });
     });
     return true;
@@ -281,7 +288,8 @@ exports.stormBriefing_onAlertSent = onDocumentCreated(
       }, { merge: true });
     } catch (e) {
       logger.error('storm-briefing.send_failed', { alertId, err: e.message });
-      // Clear the sentinel so a retry can pick it up
+      // Mark it 'failed' — _reserveSentinel treats a failed sentinel as free,
+      // so the next storm_alerts_sent doc for this alertId retries it.
       await db.doc(`storm_briefings_sent/${alertId}`).set({
         status: 'failed',
         error: e.message,
@@ -292,4 +300,4 @@ exports.stormBriefing_onAlertSent = onDocumentCreated(
 );
 
 // Test surface — pure functions so unit tests don't need the emulator.
-exports._test = { scoreLead, recencyWeight, _composeBriefing, formatLeadLine };
+exports._test = { scoreLead, recencyWeight, _composeBriefing, formatLeadLine, _reserveSentinel };
