@@ -596,6 +596,7 @@ section('CSP: strict-CSP pages have zero inline event handlers');
     'docs/pro/diagnostic.html',
     'docs/pro/understand.html',
     'docs/pro/ai-tree.html',
+    'docs/pro/roof-rep.html',
   ];
   const INLINE_HANDLER_RE = /\son(click|submit|change|input|load|focus|blur|keyup|keydown|mouseover|mouseout|mouseenter|mouseleave|drag|drop|touchstart|touchend)\s*=/;
   for (const p of STRICT_PAGES) {

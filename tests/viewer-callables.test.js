@@ -456,6 +456,8 @@ const VERDICTS = {
   // The Call Center 'Said you'd do' deck list: owner or platform admin only
   // (call-center.js promisesList), so a viewer is refused by role.
   callPromisesList: 'role-gated',
+  // Optional game card: read-only, the caller's OWN records only (game.js).
+  getGameCard: 'self',
   // HTTP functions
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
