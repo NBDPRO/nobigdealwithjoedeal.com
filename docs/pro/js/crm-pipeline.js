@@ -118,9 +118,9 @@ function _renderFollowUpRows(box, overdue) {
     ? `<button type="button" class="fa-deck">One at a time (${overdue.length})</button>` : '';
   box.innerHTML = deckBtn + overdue.slice(0, cap).map(l => `
         <div class="follow-up-alert">
-          <span class="fa-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:middle;"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></span>
+          <span class="fa-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd12px-hei12px-vermiddle"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></span>
           <span class="fa-name">${escHtml(l.firstName||'')} ${escHtml(l.lastName||'')}</span>
-          <span class="fa-addr" style="color:var(--m);font-size:11px;">${escHtml(String(l.address||'').split(',')[0])}</span>
+          <span class="fa-addr cpx-cm-fs11px">${escHtml(String(l.address||'').split(',')[0])}</span>
           <span class="fa-date">${escHtml(_followUpDueText(l.followUp))}</span>
           <button class="fa-btn nbd-fa-edit" data-lead-id="${escHtml(l.id)}">View →</button>
         </div>`).join('')
@@ -827,20 +827,20 @@ function renderHiddenStageChip(leads) {
     const cards = grp.map(l => `
         <div class="follow-up-alert">
           <span class="fa-name">${escHtml(l.firstName || '')} ${escHtml(l.lastName || '')}</span>
-          <span class="fa-addr" style="color:var(--m);font-size:11px;">${escHtml(String(l.address || '').split(',')[0])}</span>
+          <span class="fa-addr cpx-cm-fs11px">${escHtml(String(l.address || '').split(',')[0])}</span>
           <button class="fa-btn nbd-hidden-edit" data-lead-id="${escHtml(l.id)}">View →</button>
         </div>`).join('');
-    return `<div style="margin-bottom:8px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--m);margin:4px 0;">${escHtml(label)} · ${grp.length}</div>
+    return `<div class="cpx-mb8px">
+        <div class="cpx-fs10px-w700-ls08em">${escHtml(label)} · ${grp.length}</div>
         ${cards}
       </div>`;
   }).join('');
 
   wrap.style.display = 'block';
   wrap.innerHTML = `
-    <button type="button" id="hiddenStageChip" title="These leads are on a stage you've hidden from the board. Their $ is excluded from the column totals. Click to view them." style="display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--br);color:var(--t);padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
+    <button type="button" id="hiddenStageChip" title="These leads are on a stage you've hidden from the board. Their $ is excluded from the column totals. Click to view them." class="cpx-dinlinefl-aicenter-gap6px">
       <span>${escHtml(chipLabel)}</span>
-      <span class="hs-caret" style="color:var(--m);">▸</span>
+      <span class="hs-caret cpx-cm">▸</span>
     </button>
     <div id="hiddenStageList" style="display:none;margin-top:8px;">${rowsHtml}</div>`;
 
@@ -993,14 +993,14 @@ function buildCard(l){
   // for discoverability.
   let taskBadgeClass = totalT ? 'kc-task-badge' : 'kc-task-badge empty';
   let taskBadgeLabel = totalT ? `☑ ${doneT}/${totalT}` : '+';
-  if(totalT && overdueT){ taskBadgeClass += ' has-overdue'; taskBadgeLabel = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 14.5v.5"/></svg> ${overdueT} overdue`; }
+  if(totalT && overdueT){ taskBadgeClass += ' has-overdue'; taskBadgeLabel = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 14.5v.5"/></svg> ${overdueT} overdue`; }
   else if(totalT && doneT===totalT) { 
     taskBadgeClass += ' all-done'; 
-    taskBadgeLabel = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-5"/></svg> 100%`;
+    taskBadgeLabel = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><circle cx="10" cy="10" r="7"/><path d="M7 10l2 2 4-5"/></svg> 100%`;
   }
   else if(totalT && completionRate >= 50) {
     taskBadgeClass += ' has-tasks';
-    taskBadgeLabel = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M4 10.5l4 4 8-9"/></svg> ${doneT}/${totalT} (${completionRate}%)`;
+    taskBadgeLabel = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M4 10.5l4 4 8-9"/></svg> ${doneT}/${totalT} (${completionRate}%)`;
   }
   else if(totalT) taskBadgeClass += ' has-tasks';
 
@@ -1112,7 +1112,7 @@ function buildCard(l){
     const ageMs = Date.now() - ms;
     const isFresh = ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000;
     const freshClass = isFresh ? ' kc-shared-fresh' : '';
-    lastSharedBadge = `<span class="kc-tag${freshClass}" style="background:color-mix(in srgb, var(--purple,#a78bfa) 14%, transparent);color:var(--purple,#a78bfa);border-color:rgba(155,109,255,0.45);" title="Portal link last shared via ${escHtml(via)} — ${escHtml(label)}">📤 ${escHtml(via)} ${escHtml(label)}</span>`;
+    lastSharedBadge = `<span class="kc-tag${freshClass} cpx-bgcolormix-cpurple-borrgba1551" title="Portal link last shared via ${escHtml(via)} — ${escHtml(label)}">📤 ${escHtml(via)} ${escHtml(label)}</span>`;
   })();
 
   // ── Wave 58: customer-engagement indicator ──
@@ -1172,7 +1172,7 @@ function buildCard(l){
     const ageMs2 = Date.now() - latestViewMs;
     const isFreshView = ageMs2 >= 0 && ageMs2 < 24 * 60 * 60 * 1000;
     const freshClass2 = isFreshView ? ' kc-viewed-fresh' : '';
-    viewedBadge = `<span class="kc-tag${freshClass2}" style="background:rgba(46,204,138,0.14);color:var(--green,#16a34a);border-color:rgba(46,204,138,0.45);" title="Customer opened the portal — ${escHtml(label)}">👁 viewed ${escHtml(label)}</span>`;
+    viewedBadge = `<span class="kc-tag${freshClass2} cpx-bgrgba4620-cgreen-borrgba4620" title="Customer opened the portal — ${escHtml(label)}">👁 viewed ${escHtml(label)}</span>`;
   })();
 
   // ── Wave 112: smart-follow-up suggestion pill ──
@@ -1259,8 +1259,8 @@ function buildCard(l){
       let trend = '';
       if (typeof prev === 'number') {
         const delta = score - prev;
-        if (delta >= 2) trend = '<span style="color:#10b981;font-weight:700;">↑</span>';
-        else if (delta <= -2) trend = '<span style="color:#ef4444;font-weight:700;">↓</span>';
+        if (delta >= 2) trend = '<span class="cpx-c10b981-w700">↑</span>';
+        else if (delta <= -2) trend = '<span class="cpx-cef4444-w700">↓</span>';
       }
       // Persist the new value (debounced to localStorage so we don't
       // hammer it on every kanban re-render).
@@ -1330,12 +1330,12 @@ function buildCard(l){
       ? l.snoozedReason.trim()
       : '';
     const reasonTail = reason ? ` · ${reason}` : '';
-    snoozeBadge = `<span class="kc-tag" style="background:color-mix(in srgb, var(--purple,#a78bfa) 14%, transparent);color:var(--purple,#a78bfa);border-color:rgba(155,109,255,0.45);" title="Snoozed until ${escHtml(dateLabel)}${reasonTail ? ' — ' + escHtml(reason) : ''}">💤 ${escHtml(dateLabel)}${escHtml(reasonTail)}</span>`;
+    snoozeBadge = `<span class="kc-tag cpx-bgcolormix-cpurple-borrgba1551" title="Snoozed until ${escHtml(dateLabel)}${reasonTail ? ' — ' + escHtml(reason) : ''}">💤 ${escHtml(dateLabel)}${escHtml(reasonTail)}</span>`;
 
     if (typeof window.LeadSnooze.isStaleSnooze === 'function'
         && window.LeadSnooze.isStaleSnooze(l)) {
       const n = l.snoozeCount || 0;
-      staleSnoozeBadge = `<span class="kc-tag" style="background:color-mix(in srgb, var(--gold,#eab308) 18%, transparent);color:var(--gold,#eab308);border-color:rgba(245,158,11,0.45);" title="This lead has been snoozed ${n}+ times — consider a different action.">⚠️ Snoozed ${escHtml(String(n))}×</span>`;
+      staleSnoozeBadge = `<span class="kc-tag cpx-bgcolormix-cgold-borrgba2451" title="This lead has been snoozed ${n}+ times — consider a different action.">⚠️ Snoozed ${escHtml(String(n))}×</span>`;
     }
   })();
 
@@ -1360,7 +1360,7 @@ function buildCard(l){
     if(!l.yearBuilt) return '';
     const age = new Date().getFullYear() - parseInt(l.yearBuilt);
     const cls = age<10?'kct-roof-new':age<20?'kct-roof-mid':age<30?'kct-roof-old':'kct-roof-ancient';
-    return `<span class="kc-tag kct-roof ${cls}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M2 10l8-7 8 7"/><path d="M4 9v7a1 1 0 001 1h10a1 1 0 001-1V9"/></svg> ${age}yr</span>`;
+    return `<span class="kc-tag kct-roof ${cls}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M2 10l8-7 8 7"/><path d="M4 9v7a1 1 0 001 1h10a1 1 0 001-1V9"/></svg> ${age}yr</span>`;
   })();
 
   // R4.3: Phone display normalization. Some leads were imported with
@@ -1403,9 +1403,9 @@ function buildCard(l){
 
   // Sync status indicators
   const syncClass = l._syncing ? 'k-card-syncing' : (l._syncSuccess ? 'k-card-sync-success' : (l._syncError ? 'k-card-sync-error' : ''));
-  const syncIndicator = l._syncing ? '<div class="k-card-sync-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M5 2h10v4l-3 3 3 3v4H5v-4l3-3-3-3V2z"/></svg></div>' : 
-                        l._syncSuccess ? '<div class="k-card-sync-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M4 10.5l4 4 8-9"/></svg></div>' : 
-                        l._syncError ? '<div class="k-card-sync-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 14.5v.5"/></svg></div>' : '';
+  const syncIndicator = l._syncing ? '<div class="k-card-sync-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M5 2h10v4l-3 3 3 3v4H5v-4l3-3-3-3V2z"/></svg></div>' : 
+                        l._syncSuccess ? '<div class="k-card-sync-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M4 10.5l4 4 8-9"/></svg></div>' : 
+                        l._syncError ? '<div class="k-card-sync-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 14.5v.5"/></svg></div>' : '';
 
   // All click behavior is wired by wireKanbanCardListeners() via delegation
   // off the kanban body. Each action is encoded as a data-action attribute
@@ -1511,12 +1511,12 @@ function buildCard(l){
   // (e.g. a bulk-edit or resync bypassing moveCard()'s guard) worth a
   // visible flag rather than a silent dangling pointer.
   const claimBadge = (l.openWarrantyClaimId && l._stageKey !== 'warranty_claim')
-    ? `<span class="kc-tag" style="background:rgba(194,65,20,.14);color:#c2410c;border-color:#c2410c;" title="This lead has an open warranty claim">🛟 Open Claim</span>`
+    ? `<span class="kc-tag cpx-bgrgba1946-cc2410c-borc2410c" title="This lead has an open warranty claim">🛟 Open Claim</span>`
     : '';
 
   let html = `<div class="k-card nbd-kc-main ${stageAgingClass}" draggable="true" data-id="${safeId}"${jobAttr} data-action="card-click">
     <div class="k-card-checkbox nbd-kc-stop" data-action="toggle-select" data-id="${safeId}">
-      <span class="k-card-checkbox-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M4 10.5l4 4 8-9"/></svg></span>
+      <span class="k-card-checkbox-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M4 10.5l4 4 8-9"/></svg></span>
     </div>
     <!-- R6: value gets its own row.
          History: R4 moved value out of the left cluster and into the
@@ -1529,21 +1529,21 @@ function buildCard(l){
          aligned, with no horizontal neighbor to collide with. The
          glow now has 12px of empty space to fade into. Plus we
          tightened the glow itself in the CSS rule (8px not 20px). -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap;">
-      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">${jobTypeBadge}${leadScoreBadge}${stageAgeBadge}</div>
-      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-        ${estCount > 0 ? `<span style="font-size:10px;background:var(--s3);border:1px solid var(--br);border-radius:10px;padding:2px 6px;color:var(--gold);"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg> ${estCount}</span>` : ''}
-        ${photoCount > 0 ? `<span style="font-size:10px;background:var(--s3);border:1px solid var(--br);border-radius:10px;padding:2px 6px;color:var(--blue);"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg> ${photoCount}</span>` : ''}
+    <div class="cpx-dflex-aicenter-jcspacebet">
+      <div class="cpx-dflex-aicenter-gap4px">${jobTypeBadge}${leadScoreBadge}${stageAgeBadge}</div>
+      <div class="cpx-dflex-aicenter-gap4px-2">
+        ${estCount > 0 ? `<span class="cpx-fs10px-bgs3-bd1pxsolid"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg> ${estCount}</span>` : ''}
+        ${photoCount > 0 ? `<span class="cpx-fs10px-bgs3-bd1pxsolid-2"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg> ${photoCount}</span>` : ''}
       </div>
     </div>
-    ${val ? `<div class="kc-val-row" style="text-align:right;margin-bottom:6px;line-height:1;"><span class="kc-val-badge">${val}</span></div>` : ''}
+    ${val ? `<div class="kc-val-row cpx-taright-mb6px-lh1"><span class="kc-val-badge">${val}</span></div>` : ''}
     <div class="kc-name"${l.customerId ? ` data-customer-id="${escHtml(l.customerId)}" title="${escHtml(l.customerId)}"` : ''}>${name}</div>
     ${addr ? `<div class="kc-addr" title="${escHtml(l.address||'')}">${addr}</div>` : ''}
     ${phone ? `<div class="kc-phone-row">
-      <a class="kc-phone-link nbd-kc-stop" href="tel:${phone.replace(/\D/g,'')}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M4 3h3l2 4-2.5 1.5A9 9 0 0011.5 13.5L13 11l4 2v3a1 1 0 01-1 1C8.4 17 3 11.6 3 4a1 1 0 011-1z"/></svg> ${phone}</a>
-      ${daysLabel ? `<span class="kc-days ${daysClass}" style="margin-left:auto;">${daysLabel}</span>` : ''}
-    </div>` : (daysLabel ? `<div style="text-align:right;margin-bottom:4px;"><span class="kc-days ${daysClass}">${daysLabel}</span></div>` : '')}
-    ${email ? `<div class="kc-email-line" title="${email}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><rect x="2" y="4" width="16" height="12" rx="1.5"/><path d="M2 6l8 5 8-5"/></svg> ${email}</div>` : ''}
+      <a class="kc-phone-link nbd-kc-stop" href="tel:${phone.replace(/\D/g,'')}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M4 3h3l2 4-2.5 1.5A9 9 0 0011.5 13.5L13 11l4 2v3a1 1 0 01-1 1C8.4 17 3 11.6 3 4a1 1 0 011-1z"/></svg> ${phone}</a>
+      ${daysLabel ? `<span class="kc-days ${daysClass} cpx-mlauto">${daysLabel}</span>` : ''}
+    </div>` : (daysLabel ? `<div class="cpx-taright-mb4px"><span class="kc-days ${daysClass}">${daysLabel}</span></div>` : '')}
+    ${email ? `<div class="kc-email-line" title="${email}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><rect x="2" y="4" width="16" height="12" rx="1.5"/><path d="M2 6l8 5 8-5"/></svg> ${email}</div>` : ''}
     ${carrier || claimStatus !== 'No Claim' ? `<div class="kc-ins-row">
       ${carrier ? `<span class="kc-carrier">${carrier}</span>` : ''}
       ${claimStatus && claimStatus!=='No Claim' ? `<span class="kc-tag kct-claim">${claimStatus}</span>` : ''}
@@ -1559,12 +1559,12 @@ function buildCard(l){
         return `<span class="kc-tag kct-dmg" title="${escHtml(l.damageType)}">${dc.icon ? dc.icon + ' ' : ''}${escHtml(dc.label)}</span>`;
       })()}
       ${needsBadge ? '' : nextActionChip}
-      ${overdue      ? `<span class="kc-tag kct-due"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;vertical-align:middle;"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 14.5v.5"/></svg> Due</span>` : ''}
+      ${overdue      ? `<span class="kc-tag kct-due"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M10 3L2 17h16L10 3z"/><path d="M10 8v4M10 14.5v.5"/></svg> Due</span>` : ''}
       ${needsBadge}
       ${claimBadge}
       ${roofBadge}
-      ${l.hailHit && l.hailHit.sizeInches ? `<span class="kc-tag kct-dmg" style="background:rgba(255,59,59,.18);color:var(--red,#ef4444);border-color:var(--red,#ef4444);" title="Recent hail near this property">⛈ ${Number(l.hailHit.sizeInches).toFixed(1)}&quot; hail</span>` : ''}
-      ${l.measurementReady ? `<span class="kc-tag" style="background:rgba(46,204,138,.14);color:var(--green,#2ecc8a);border-color:var(--green,#2ecc8a);" title="Aerial measurement — Joe still confirms on site">📐 ${/^[0-9.]{1,8} sq(?: · [0-9]{1,2}\/[0-9]{1,2})?$/.test(String(l.measurementSummary || '')) ? l.measurementSummary : 'Measurement'}</span>` : ''}
+      ${l.hailHit && l.hailHit.sizeInches ? `<span class="kc-tag kct-dmg cpx-bgrgba2555-cred-borred" title="Recent hail near this property">⛈ ${Number(l.hailHit.sizeInches).toFixed(1)}&quot; hail</span>` : ''}
+      ${l.measurementReady ? `<span class="kc-tag cpx-bgrgba4620-cgreen-borgreen" title="Aerial measurement — Joe still confirms on site">📐 ${/^[0-9.]{1,8} sq(?: · [0-9]{1,2}\/[0-9]{1,2})?$/.test(String(l.measurementSummary || '')) ? l.measurementSummary : 'Measurement'}</span>` : ''}
       ${smartFollowupBadge}
       ${lastSharedBadge}
       ${viewedBadge}
@@ -1576,8 +1576,8 @@ function buildCard(l){
       <button type="button" class="${taskBadgeClass}" data-action="open-tasks" data-id="${safeId}" title="${totalT ? 'View ' + totalT + ' task' + (totalT===1?'':'s') : 'Add a task'}" aria-label="${totalT ? 'View tasks' : 'Add a task'}">${taskBadgeLabel}</button>
       <div class="kc-actions">
         <div class="kc-move">
-          ${prevS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="← ${escHtml(prevLabel)}" aria-label="Move to previous stage: ${escHtml(prevLabel)}" data-action="move-card" data-id="${safeId}"${jobAttr} data-target-stage="${escHtml(prevS)}">◀</button>` : '<span style="width:18px;"></span>'}
-          ${nextS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="→ ${escHtml(nextLabel)}" aria-label="Move to next stage: ${escHtml(nextLabel)}" data-action="move-card" data-id="${safeId}"${jobAttr} data-target-stage="${escHtml(nextS)}">▶</button>` : '<span style="width:18px;"></span>'}
+          ${prevS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="← ${escHtml(prevLabel)}" aria-label="Move to previous stage: ${escHtml(prevLabel)}" data-action="move-card" data-id="${safeId}"${jobAttr} data-target-stage="${escHtml(prevS)}">◀</button>` : '<span class="cpx-wd18px"></span>'}
+          ${nextS ? `<button type="button" class="kc-arrow nbd-kc-stop" title="→ ${escHtml(nextLabel)}" aria-label="Move to next stage: ${escHtml(nextLabel)}" data-action="move-card" data-id="${safeId}"${jobAttr} data-target-stage="${escHtml(nextS)}">▶</button>` : '<span class="cpx-wd18px"></span>'}
         </div>
         <!-- T2: action-bar consolidation. The four icon buttons (SMS,
              email, edit, delete) all duplicated functionality already
