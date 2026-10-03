@@ -194,7 +194,7 @@ const tick = () => new Promise((r) => setImmediate(r));
     const mine = PIF.invoicesForLead([paidInv(), owedInv({ companyId: 'other-co' }), owedInv({ leadId: 'L2' }), owedInv({ deleted: true })], leadOf(), 'L1');
     ok('invoicesForLead: another company\'s, another lead\'s and deleted invoices are not this customer\'s', mine.length === 1 && mine[0].status === 'paid');
     ok('invoicesForLead with a jobId: only that job\'s (and un-stamped) invoices', PIF.invoicesForLead([paidInv({ jobId: 'j2' }), owedInv({ jobId: 'j1' })], leadOf(), 'L1', 'j2').length === 1);
-  }
+  } else ok('functions/paid-in-full.js + invoice-owed.js load', false);
 
   // ═══ 3. the morning rep digest (server) ═══════════════════════════════
   console.log('\n3. review-request-nudge: only paid-in-full jobs are due');
@@ -221,13 +221,13 @@ const tick = () => new Promise((r) => setImmediate(r));
     ok('Collections → no ask', !/D/.test(ids), ids);
     ok('the window counts from when it became PAID (last payment 5 days ago), not stage entry 40 days ago', /E/.test(ids), ids);
     ok('another company\'s invoice on the same lead id does not block the ask', /F/.test(ids), ids);
-    const html = RN.buildEmailHtml({ firstName: 'Jo', dueLeads: out.map((l) => Object.assign({}, l)) });
+    const html = typeof RN.buildEmailHtml !== 'function' ? '' : RN.buildEmailHtml({ firstName: 'Jo', dueLeads: out.map((l) => Object.assign({}, l)) });
     ok('the digest says paid in full and its drop-in script carries the referral link', /Paid in full/.test(html) && /referral link/.test(html));
     const failing = makeDb({ 'leads/B': leadOf({ stage: 'final_payment', stageRole: 'won', stageStartedAt: ago(10) }) });
     const rc = failing.collection.bind(failing);
     failing.collection = (c) => (c === 'invoices' ? { where: () => ({ get: async () => { throw new Error('unavailable'); } }) } : rc(c));
     ok('invoices unreadable → fail closed (no ask on a guess)', (await RN.findReviewDueLeads(failing, 'u1')).length === 0);
-  }
+  } else ok('functions/review-request-nudge.js loads', false);
 
   // ═══ 4. the client: bell, message, deck ═══════════════════════════════
   console.log('\n4. client — the bell, the review message with the referral link, the deck');
@@ -278,46 +278,46 @@ const tick = () => new Promise((r) => setImmediate(r));
       const db = makeDb({ 'leads/L1': leadOf({ stage: 'final_photos', stageRole: 'won' }), 'invoices/i1': paidInv() });
       const r = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1', actor: 'payment recorded (zelle)' }, deps);
       const t = db.store.get(TASK);
-      ok('paid in full: the card moves to Final Payment AND the Request Review task is created', r.moved === true && r.to === 'final_payment' && r.reviewTask && r.reviewTask.created === true
+      ok('paid in full: the card moves to Final Payment AND the Request Review task is created', r.moved === true && r.to === 'final_payment' && r.reviewTask && (r.reviewTask || {}).created === true
         && t && t.title === 'Request Review' && t.actionId === 'request_review' && t.done === false && t.stageKey === 'final_payment', JSON.stringify(r.reviewTask));
       ok('…alongside the stage\'s own entry task (Warranty Certificate)', db.store.has('leads/L1/tasks/stage-final_payment-warranty_cert'));
       ok('the spine sends nothing — only the lead, marker, note and tasks were written',
         db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+)$/.test(w[1])), JSON.stringify(db.writes.map((w) => w[1])));
       db.store.set(TASK, Object.assign({}, db.store.get(TASK), { done: true }));
       const again = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1' }, deps);
-      ok('a redelivered payment never reopens a finished task', again.duplicate === true && db.store.get(TASK).done === true && again.reviewTask.created === false);
+      ok('a redelivered payment never reopens a finished task', again.duplicate === true && db.store.get(TASK).done === true && (again.reviewTask || {}).created === false);
     }
     {
       const db = makeDb({ 'leads/L1': leadOf({ stage: 'final_photos', stageRole: 'won' }), 'invoices/i1': paidInv(), 'invoices/i2': owedInv() });
       const r = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1' }, deps);
-      ok('one invoice paid, another still owing → no Request Review task', r.reviewTask && r.reviewTask.created === false && r.reviewTask.reason === 'balance_owed' && !db.store.has(TASK));
+      ok('one invoice paid, another still owing → no Request Review task', r.reviewTask && (r.reviewTask || {}).created === false && (r.reviewTask || {}).reason === 'balance_owed' && !db.store.has(TASK));
     }
     {
       const db = makeDb({ 'leads/L1': leadOf({ stage: 'final_payment', stageRole: 'won' }), 'invoices/i1': paidInv() });
       const r = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1' }, deps);
-      ok('card already dragged to Final Payment, then the money cleared → the task still comes', r.moved === false && r.reviewTask.created === true && db.store.has(TASK));
+      ok('card already dragged to Final Payment, then the money cleared → the task still comes', r.moved === false && (r.reviewTask || {}).created === true && db.store.has(TASK));
     }
     {
       const db = makeDb({ 'leads/L1': leadOf({ stage: 'service_approved', jobType: 'service' }), 'invoices/i1': paidInv() });
       const r = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1' }, deps);
-      ok('a paid repair the spine may not move (service track) → no task until Jo closes it', r.reviewTask.created === false && r.reviewTask.reason === 'not_paid_stage');
+      ok('a paid repair the spine may not move (service track) → no task until Jo closes it', (r.reviewTask || {}).created === false && (r.reviewTask || {}).reason === 'not_paid_stage');
     }
     {
       const db = makeDb({ 'leads/L1': leadOf({ stage: 'final_photos', stageRole: 'won', activeJobId: 'j2' }), 'invoices/i1': paidInv({ jobId: 'j2' }) });
       const r = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1' }, deps);
-      ok('multi-job: the task is per job (a second job gets its own)', r.reviewTask.created === true && r.reviewTask.taskId === 'stage-final_payment-request_review-j2');
+      ok('multi-job: the task is per job (a second job gets its own)', (r.reviewTask || {}).created === true && (r.reviewTask || {}).taskId === 'stage-final_payment-request_review-j2');
     }
     {
       const db = makeDb({ 'leads/L1': leadOf({ stage: 'final_photos', stageRole: 'won', reviewAskDeclined: true }), 'invoices/i1': paidInv() });
       const r = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1' }, deps);
-      ok('"Don\'t ask this one" stands — no task', r.reviewTask.created === false && r.reviewTask.reason === 'declined');
+      ok('"Don\'t ask this one" stands — no task', (r.reviewTask || {}).created === false && (r.reviewTask || {}).reason === 'declined');
     }
     {
       const db = makeDb({ 'leads/L1': leadOf({ stage: 'estimate_sent_cash', primaryEstimateId: 'E1' }) });
       const r = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'booked', sourceId: 'b1' }, Object.assign({ depositDraft: false }, deps));
       ok('other events never make the task', r.reviewTask === undefined);
     }
-  }
+  } else ok('functions/job-spine.js loads', false);
 
   // ═══ 6. recordInPersonSignature ═══════════════════════════════════════
   console.log('\n6. recordInPersonSignature — in-person signing moves the card');
@@ -391,7 +391,7 @@ const tick = () => new Promise((r) => setImmediate(r));
       ok('nothing was sent: only the lead, marker, note, tasks and the draft invoice were written',
         db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+|invoices\/[^/]+)$/.test(w[1])), JSON.stringify(db.writes.map((w) => w[1])));
     }
-  }
+  } else ok('functions/in-person-signing.js loads (recordInPersonSignature exists)', false);
 
   // ═══ 7. the client call after an in-person signing ═══════════════════
   console.log('\n7. document-generator — calls recordInPersonSignature after saving; never blocks');
