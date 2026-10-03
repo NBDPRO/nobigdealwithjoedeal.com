@@ -1,0 +1,15 @@
+/* Lead snooze (js/lead-snooze.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.lsx-dflex-aicenter-gap10px.lsx-dflex-aicenter-gap10px.lsx-dflex-aicenter-gap10px { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lsx-fs24px.lsx-fs24px.lsx-fs24px { font-size: 24px; }
+.lsx-fs17px-m0.lsx-fs17px-m0.lsx-fs17px-m0 { font-size: 17px; margin: 0; }
+.lsx-fs12px-cm-m0014px.lsx-fs12px-cm-m0014px.lsx-fs12px-cm-m0014px { font-size: 12px; color: var(--m); margin: 0 0 14px; line-height: 1.5; }
+.lsx-mb14px.lsx-mb14px.lsx-mb14px { margin-bottom: 14px; }
+.lsx-dblock-fs11px-cm.lsx-dblock-fs11px-cm.lsx-dblock-fs11px-cm { display: block; font-size: 11px; color: var(--m); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+.lsx-ttnone-w500-opa07.lsx-ttnone-w500-opa07.lsx-ttnone-w500-opa07 { text-transform: none; font-weight: 500; opacity: 0.7; }
+.lsx-dflex-flewrap-gap5px.lsx-dflex-flewrap-gap5px.lsx-dflex-flewrap-gap5px { display: flex; flex-wrap: wrap; gap: 5px; }
+.lsx-dflex-flecolumn-gap6px.lsx-dflex-flecolumn-gap6px.lsx-dflex-flecolumn-gap6px { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.lsx-dflex-gap6px-aistretch.lsx-dflex-gap6px-aistretch.lsx-dflex-gap6px-aistretch { display: flex; gap: 6px; align-items: stretch; }
+.lsx-fs10px-cm-w500.lsx-fs10px-cm-w500.lsx-fs10px-cm-w500 { font-size: 10px; color: var(--m); font-weight: 500; }
+.lsx-bt1pxsolid-pad12px-mb14px.lsx-bt1pxsolid-pad12px-mb14px.lsx-bt1pxsolid-pad12px-mb14px { border-top: 1px solid var(--br); padding-top: 12px; margin-bottom: 14px; }
+.lsx-dflex-gap8px.lsx-dflex-gap8px.lsx-dflex-gap8px { display: flex; gap: 8px; }
+.lsx-dflex-jcflexend.lsx-dflex-jcflexend.lsx-dflex-jcflexend { display: flex; justify-content: flex-end; }

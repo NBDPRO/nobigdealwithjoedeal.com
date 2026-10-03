@@ -147,18 +147,18 @@
         'box-shadow:0 20px 60px rgba(0,0,0,0.6);font:inherit;">' +
 
         // Header
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">' +
+        '<div class="qcx-dflex-aicenter-jcspacebet">' +
           '<div>' +
-            '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.08em;font-weight:600;margin-bottom:2px;">QUICK CAPTURE</div>' +
-            '<div style="font-size:20px;font-weight:700;">Talk it out</div>' +
+            '<div class="qcx-fs11px-c94a3b8-ls008em">QUICK CAPTURE</div>' +
+            '<div class="qcx-fs20px-w700">Talk it out</div>' +
           '</div>' +
-          '<button type="button" id="nbd-qc-close" style="background:transparent;border:none;color:#94a3b8;font-size:24px;cursor:pointer;padding:4px 10px;line-height:1;">×</button>' +
+          '<button type="button" id="nbd-qc-close" class="qcx-bgtranspar-bdnone-c94a3b8">×</button>' +
         '</div>' +
 
         // Recording panel
-        '<div id="nbd-qc-record-panel" style="text-align:center;padding:28px 18px;background:#0a1424;border-radius:10px;margin-bottom:14px;">' +
-          '<button type="button" id="nbd-qc-record-btn" style="width:88px;height:88px;border-radius:50%;border:none;background:var(--orange, #A14A22);color:#fff;font-size:36px;cursor:pointer;box-shadow:0 8px 24px rgba(161,74,34,0.45);transition:transform 120ms ease;">🎤</button>' +
-          '<div id="nbd-qc-status" style="margin-top:14px;font-size:14px;color:#94a3b8;">Tap to start recording (up to 5 minutes)</div>' +
+        '<div id="nbd-qc-record-panel" class="qcx-tacenter-p28px18px-bg0a1424">' +
+          '<button type="button" id="nbd-qc-record-btn" class="qcx-wd88px-hei88px-r50">🎤</button>' +
+          '<div id="nbd-qc-status" class="qcx-mt14px-fs14px-c94a3b8">Tap to start recording (up to 5 minutes)</div>' +
           '<canvas id="nbd-qc-canvas" width="360" height="36" style="display:none;margin:14px auto 0;"></canvas>' +
           '<div id="nbd-qc-timer" style="display:none;margin-top:8px;font-variant-numeric:tabular-nums;font-size:13px;color:#fbbf24;">0:00 / 5:00</div>' +
         '</div>' +
@@ -405,24 +405,24 @@
 
     function listChip(label, items) {
       if (!items.length) return '';
-      return '<div style="margin-bottom:10px;">' +
-        '<div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">' + escHtml(label) + '</div>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:5px;">' +
-        items.map(x => '<span style="display:inline-block;padding:3px 9px;background:#1a2540;border:1px solid #2a3344;border-radius:999px;font-size:12px;">' + escHtml(x) + '</span>').join('') +
+      return '<div class="qcx-mb10px">' +
+        '<div class="qcx-fs11px-c94a3b8-ttuppercas">' + escHtml(label) + '</div>' +
+        '<div class="qcx-dflex-flewrap-gap5px">' +
+        items.map(x => '<span class="qcx-dinlinebl-p3px9px-bg1a2540">' + escHtml(x) + '</span>').join('') +
         '</div></div>';
     }
 
     resultEl.innerHTML =
-      '<div style="background:#0a1424;border-radius:10px;padding:16px;margin-bottom:14px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-          '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.06em;font-weight:600;">SUMMARY</div>' +
-          '<div style="display:inline-block;padding:3px 9px;background:rgba(161,74,34,0.15);border:1px solid var(--orange, #A14A22);border-radius:999px;font-size:11px;color:var(--orange, #A14A22);">' + escHtml(category) + '</div>' +
+      '<div class="qcx-bg0a1424-r10px-p16px">' +
+        '<div class="qcx-dflex-jcspacebet-aicenter">' +
+          '<div class="qcx-fs11px-c94a3b8-ls006em">SUMMARY</div>' +
+          '<div class="qcx-dinlinebl-p3px9px-bgrgba1617">' + escHtml(category) + '</div>' +
         '</div>' +
-        '<div style="font-size:14px;line-height:1.5;margin-bottom:14px;">' + escHtml(overview) + '</div>' +
+        '<div class="qcx-fs14px-lh15-mb14px">' + escHtml(overview) + '</div>' +
 
         (actionItems.length
-          ? '<div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">ACTION ITEMS</div>' +
-            '<ul style="margin:0 0 14px;padding-left:20px;font-size:13px;line-height:1.6;">' +
+          ? '<div class="qcx-fs11px-c94a3b8-ttuppercas-2">ACTION ITEMS</div>' +
+            '<ul class="qcx-m0014px-pad20px-fs13px">' +
               actionItems.map(t => '<li>' + escHtml(t) + '</li>').join('') +
             '</ul>'
           : '') +
@@ -435,20 +435,20 @@
       '</div>' +
 
       // Routing actions
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">' +
-        '<button type="button" id="nbd-qc-act-save" style="padding:11px;background:var(--orange, #A14A22);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">Save capture</button>' +
-        '<button type="button" id="nbd-qc-act-link" style="padding:11px;background:#1a2540;color:inherit;border:1px solid #2a3344;border-radius:8px;cursor:pointer;font-size:13px;">Save & link to lead</button>' +
+      '<div class="qcx-dgrid-gtc1fr1fr-gap8px">' +
+        '<button type="button" id="nbd-qc-act-save" class="qcx-p11px-bgorange-cfff">Save capture</button>' +
+        '<button type="button" id="nbd-qc-act-link" class="qcx-p11px-bg1a2540-cinherit">Save & link to lead</button>' +
       '</div>' +
       (actionItems.length
-        ? '<button type="button" id="nbd-qc-act-tasks" style="width:100%;padding:11px;background:#1a2540;color:inherit;border:1px solid #2a3344;border-radius:8px;cursor:pointer;font-size:13px;margin-bottom:8px;">' +
+        ? '<button type="button" id="nbd-qc-act-tasks" class="qcx-wd100-p11px-bg1a2540">' +
           '+ Make ' + actionItems.length + ' task' + (actionItems.length === 1 ? '' : 's') + ' on a lead</button>'
         : '') +
-      '<button type="button" id="nbd-qc-act-discard" style="width:100%;padding:9px;background:transparent;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-size:12px;">Discard</button>' +
+      '<button type="button" id="nbd-qc-act-discard" class="qcx-wd100-p9px-bgtranspar">Discard</button>' +
 
       // Transcript reveal
-      '<details style="margin-top:14px;">' +
-        '<summary style="font-size:11px;color:#94a3b8;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;">Show full transcript</summary>' +
-        '<div style="margin-top:8px;padding:12px;background:#0a1424;border-radius:8px;font-size:13px;line-height:1.5;color:#cbd5e1;white-space:pre-wrap;">' + escHtml(result.transcript || '') + '</div>' +
+      '<details class="qcx-mt14px">' +
+        '<summary class="qcx-fs11px-c94a3b8-curpointer">Show full transcript</summary>' +
+        '<div class="qcx-mt8px-p12px-bg0a1424">' + escHtml(result.transcript || '') + '</div>' +
       '</details>';
 
     resultEl.style.display = 'block';
@@ -475,14 +475,14 @@
       'position:absolute;inset:0;background:rgba(10,20,36,0.96);z-index:10;' +
       'border-radius:14px;padding:24px;overflow-y:auto;display:flex;flex-direction:column;';
     overlay.innerHTML =
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
-        '<div style="font-size:14px;font-weight:700;">' +
+      '<div class="qcx-dflex-aicenter-jcspacebet-2">' +
+        '<div class="qcx-fs14px-w700">' +
           (action === 'tasks' ? 'Pick a lead to add tasks to' : 'Pick a lead to link this capture to') +
         '</div>' +
-        '<button type="button" id="nbd-qc-picker-cancel" style="background:transparent;border:none;color:#94a3b8;font-size:20px;cursor:pointer;line-height:1;">×</button>' +
+        '<button type="button" id="nbd-qc-picker-cancel" class="qcx-bgtranspar-bdnone-c94a3b8-2">×</button>' +
       '</div>' +
-      '<input type="text" id="nbd-qc-picker-search" placeholder="Search by name or address…" style="width:100%;padding:10px;border-radius:6px;border:1px solid #2a3344;background:#0a1424;color:inherit;font:inherit;font-size:14px;margin-bottom:12px;box-sizing:border-box;">' +
-      '<div id="nbd-qc-picker-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>';
+      '<input type="text" id="nbd-qc-picker-search" placeholder="Search by name or address…" class="qcx-wd100-p10px-r6px">' +
+      '<div id="nbd-qc-picker-list" class="qcx-fx1-oveauto-dflex"></div>';
 
     // Position relative on the panel parent so the overlay can
     // absolutely position over the result.
@@ -507,7 +507,7 @@
           }).slice(0, 30)
         : leads.slice(0, 30);
       if (matched.length === 0) {
-        listEl.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:14px;text-align:center;">No leads match. Try a different search.</div>';
+        listEl.innerHTML = '<div class="qcx-c94a3b8-fs13px-p14px">No leads match. Try a different search.</div>';
         return;
       }
       listEl.innerHTML = matched.map(l => {
@@ -515,8 +515,8 @@
         const addr = l.address || '';
         return '<button type="button" class="nbd-qc-lead-btn" data-lead-id="' + escHtml(l.id) + '" ' +
           'style="padding:10px 12px;text-align:left;background:#0f1729;border:1px solid #2a3344;border-radius:6px;color:inherit;cursor:pointer;font-size:13px;">' +
-          '<div style="font-weight:600;">' + escHtml(name) + '</div>' +
-          '<div style="color:#94a3b8;font-size:12px;margin-top:2px;">' + escHtml(addr) + '</div>' +
+          '<div class="qcx-w600">' + escHtml(name) + '</div>' +
+          '<div class="qcx-c94a3b8-fs12px-mt2px">' + escHtml(addr) + '</div>' +
           '</button>';
       }).join('');
       Array.from(listEl.querySelectorAll('.nbd-qc-lead-btn')).forEach(b => {

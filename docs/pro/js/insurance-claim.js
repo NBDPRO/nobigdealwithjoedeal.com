@@ -195,8 +195,8 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const stageLabel = (CLAIM_STAGES.find((s) => s.id === S.claimStage) || {}).label || '';
     const parts = [S.claimStatus || stageLabel, S.claimNumber ? '#' + S.claimNumber : '', S.carrier || status.insuranceCarrier || ''].filter(Boolean);
     return '<div class="claim-summary-line" style="' + _BOX + ' color: var(--m,#9ca3af);">' +
-      '<strong style="color: var(--t);">Claim on file:</strong> ' + _icEsc(parts.join(' · ') || 'yes') +
-      ' <span style="opacity:.8;">— this is a ' + _icEsc(String(lead.jobType || '').toLowerCase()) + ' job, so the claim workflow is hidden.</span></div>';
+      '<strong class="icx-ct">Claim on file:</strong> ' + _icEsc(parts.join(' · ') || 'yes') +
+      ' <span class="icx-opa8">— this is a ' + _icEsc(String(lead.jobType || '').toLowerCase()) + ' job, so the claim workflow is hidden.</span></div>';
   }
 
   /**
@@ -209,8 +209,8 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const types = [['insurance', 'Insurance'], ['cash', 'Cash'], ['finance', 'Finance'], ['service', 'Service'], ['warranty', 'Warranty']];
     const btn = 'border: 1px solid var(--br,rgba(255,255,255,.15)); background: transparent; color: var(--t); border-radius: 999px; padding: 10px 16px; min-height: 44px; font-size: 13px; cursor: pointer;';
     return '<div class="claim-type-prompt" style="' + _BOX + '">' +
-      '<div style="color: var(--t); font-weight: 600; margin-bottom: ' + (viewer ? '0' : '10px') + ';">Insurance job? <span style="color: var(--m,#9ca3af); font-weight: 400;">The job type isn\'t set.</span></div>' +
-      (viewer ? '' : '<div style="display: flex; flex-wrap: wrap; gap: 8px;">' + types.map(([v, l]) =>
+      '<div style="color: var(--t); font-weight: 600; margin-bottom: ' + (viewer ? '0' : '10px') + ';">Insurance job? <span class="icx-cm-w400">The job type isn\'t set.</span></div>' +
+      (viewer ? '' : '<div class="icx-dflex-flewrap-gap8px">' + types.map(([v, l]) =>
         '<button type="button" data-ic-action="settype" data-ic-id="' + _icEsc(leadId) + '" data-ic-type="' + v + '" style="' + btn + '">' + l + '</button>').join('') + '</div>') +
       '</div>';
   }
@@ -277,14 +277,14 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       // no fill on pending steps, the current one carries aria-current.
       // Denser too: at 360 the old grid was 11 full-width 40px tiles, 560px.
       const html = `
-        <div class="claim-workflow" style="background: var(--s,#12223D); border: 1px solid var(--br,rgba(255,255,255,.08)); border-radius: 8px; padding: 20px;">
-          <h3 style="color: var(--t); margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">Insurance Claim Progress</h3>
+        <div class="claim-workflow icx-bgs-bd1pxsolid-r8px">
+          <h3 class="icx-ct-m0020px0-fs18px">Insurance Claim Progress</h3>
 
-          <div class="claim-progress-bar" style="background: rgba(255,255,255,.05); height: 8px; border-radius: 4px; margin-bottom: 24px; overflow: hidden;">
+          <div class="claim-progress-bar icx-bgrgba2552-hei8px-r4px">
             <div style="background: var(--orange,#BD5728); height: 100%; width: ${status.progress}%; transition: width 0.3s ease;"></div>
           </div>
 
-          <div class="claim-stages" role="list" aria-label="Claim stages" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; margin-bottom: 24px;">
+          <div class="claim-stages icx-dgrid-gtcrepeatau-gap6px" role="list" aria-label="Claim stages">
             ${CLAIM_STAGES.map((stage, idx) => {
               const isCompleted = idx < currentIndex;
               const isCurrent = idx === currentIndex;
@@ -307,28 +307,28 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
                   font-size: 12px;
                   line-height: 1.25;
                 ">
-                  <span aria-hidden="true" style="flex: 0 0 auto; font-size: 11px;">${mark}</span>
-                  <span style="word-break: break-word;">${stage.label}</span>
+                  <span aria-hidden="true" class="icx-fx00auto-fs11px">${mark}</span>
+                  <span class="icx-worbreakwor">${stage.label}</span>
                 </div>
               `;
             }).join('')}
           </div>
 
-          <div class="claim-current-stage" style="background: rgba(255,255,255,.02); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--br,rgba(255,255,255,.08));">
-            <div style="color: var(--m,#9ca3af); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Current Stage</div>
-            <div style="color: var(--t); font-size: 18px; font-weight: 600; margin-bottom: 12px;">${status.currentStage}</div>
-            <div style="color: var(--m,#9ca3af); font-size: 13px; line-height: 1.5;">
+          <div class="claim-current-stage icx-bgrgba2552-r8px-p16px">
+            <div class="icx-cm-fs12px-ttuppercas">Current Stage</div>
+            <div class="icx-ct-fs18px-w600">${status.currentStage}</div>
+            <div class="icx-cm-fs13px-lh15">
               ${status.nextStage !== 'Complete'
                 ? `<strong>Next:</strong> ${status.nextStage}`
-                : '<strong style="color: #10b981;">Workflow Complete</strong>'}
+                : '<strong class="icx-c10b981">Workflow Complete</strong>'}
             </div>
           </div>
 
-          <div class="claim-details" style="background: rgba(255,255,255,.02); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--br,rgba(255,255,255,.08)); font-size: 13px;">
-            ${status.claimNumber ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Claim #:</strong> ${_icEsc(status.claimNumber)}</div>` : ''}
-            ${status.insuranceCarrier ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Carrier:</strong> ${_icEsc(status.insuranceCarrier)}</div>` : ''}
-            ${meeting ? `<div style="color: var(--m,#9ca3af); margin-bottom: 8px;"><strong style="color: var(--t);">Adjuster meeting:</strong> ${_icEsc(meeting)}</div>` : ''}
-            ${status.approvedAmount ? `<div style="color: var(--m,#9ca3af);"><strong style="color: var(--t);">Approved:</strong> $${status.approvedAmount.toLocaleString()}</div>` : ''}
+          <div class="claim-details icx-bgrgba2552-r8px-p16px-2">
+            ${status.claimNumber ? `<div class="icx-cm-mb8px"><strong class="icx-ct">Claim #:</strong> ${_icEsc(status.claimNumber)}</div>` : ''}
+            ${status.insuranceCarrier ? `<div class="icx-cm-mb8px"><strong class="icx-ct">Carrier:</strong> ${_icEsc(status.insuranceCarrier)}</div>` : ''}
+            ${meeting ? `<div class="icx-cm-mb8px"><strong class="icx-ct">Adjuster meeting:</strong> ${_icEsc(meeting)}</div>` : ''}
+            ${status.approvedAmount ? `<div class="icx-cm"><strong class="icx-ct">Approved:</strong> $${status.approvedAmount.toLocaleString()}</div>` : ''}
           </div>
 
           <div class="claim-actions">
@@ -373,7 +373,7 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       container.innerHTML = html;
     } catch (error) {
       console.error('Error rendering claim workflow:', error);
-      container.innerHTML = '<div style="color: #ef4444; padding: 16px;">Error loading claim workflow</div>';
+      container.innerHTML = '<div class="icx-cef4444-p16px">Error loading claim workflow</div>';
     }
   }
 
@@ -404,7 +404,7 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       const checklistHtml = checklist.map((item, idx) => {
         const isChecked = completed.includes(item);
         return `
-          <div style="display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--br,rgba(255,255,255,.08)); gap: 12px;">
+          <div class="icx-dflex-aicenter-p12px">
             <input
               type="checkbox"
               ${isChecked ? 'checked' : ''}
@@ -419,17 +419,17 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       }).join('');
 
       const html = `
-        <div class="claim-checklist" style="background: var(--s,#12223D); border: 1px solid var(--br,rgba(255,255,255,.08)); border-radius: 8px; overflow: hidden;">
-          <div style="background: rgba(255,255,255,.02); padding: 16px; border-bottom: 1px solid var(--br,rgba(255,255,255,.08));">
-            <h3 style="color: var(--t); margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">
+        <div class="claim-checklist icx-bgs-bd1pxsolid-r8px-2">
+          <div class="icx-bgrgba2552-p16px-bb1pxsolid">
+            <h3 class="icx-ct-m008px0-fs16px">
               ${CLAIM_STAGES.find(s => s.id === currentStageId)?.label || 'Checklist'} Documents
             </h3>
-            <div style="color: var(--m,#9ca3af); font-size: 12px;">
+            <div class="icx-cm-fs12px">
               ${completed.length} of ${checklist.length} items complete
             </div>
           </div>
           <div>
-            ${checklistHtml || '<div style="padding: 16px; color: var(--m,#9ca3af);">No items for this stage</div>'}
+            ${checklistHtml || '<div class="icx-p16px-cm">No items for this stage</div>'}
           </div>
         </div>
       `;
@@ -437,7 +437,7 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       container.innerHTML = html;
     } catch (error) {
       console.error('Error rendering checklist:', error);
-      container.innerHTML = '<div style="color: #ef4444; padding: 16px;">Error loading checklist</div>';
+      container.innerHTML = '<div class="icx-cef4444-p16px">Error loading checklist</div>';
     }
   }
 
@@ -488,9 +488,9 @@ let _NBD_IC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         margin-top: 8px;
         font-size: 12px;
       ">
-        <div style="color: var(--m,#9ca3af); margin-bottom: 4px;">Insurance Claim</div>
-        <div style="color: var(--t); font-weight: 600; margin-bottom: 4px;">${status.currentStage}</div>
-        ${status.claimNumber ? `<div style="color: var(--m,#9ca3af);">Claim #${_icEsc(status.claimNumber)}</div>` : ''}
+        <div class="icx-cm-mb4px">Insurance Claim</div>
+        <div class="icx-ct-w600-mb4px">${status.currentStage}</div>
+        ${status.claimNumber ? `<div class="icx-cm">Claim #${_icEsc(status.claimNumber)}</div>` : ''}
       </div>
     `;
   }
