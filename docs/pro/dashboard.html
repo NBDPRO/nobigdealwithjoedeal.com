@@ -111,7 +111,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=75"></script>
+<script src="js/script-loader.js?v=78"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -6853,7 +6853,7 @@
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
-<script defer src="js/collected-revenue.js?v=1"></script>
+<script defer src="js/collected-revenue.js?v=2"></script>
 <script defer src="js/widgets.js?v=12"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=2"></script>
@@ -6874,7 +6874,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=11"></script>
+<script defer src="js/invoice-pipeline.js?v=12"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -6916,7 +6916,7 @@
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
-<script defer src="js/deposit-rule.js?v=1"></script>
+<script defer src="js/deposit-rule.js?v=2"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
@@ -6941,7 +6941,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=7"></script>
+<script defer src="js/analytics-kpi.js?v=8"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
