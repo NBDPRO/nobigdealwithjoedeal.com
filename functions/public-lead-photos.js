@@ -39,12 +39,12 @@ const { CORS_ORIGINS } = require('./handlers/_shared');
 const { enforceRateLimit, clientIp } = require('./integrations/upstash-ratelimit');
 const { rateLimitIpKey } = require('./rate-limit');
 const L = require('./lead-bridge-logic');
+const { reencodePhoto } = require('./photo-reencode');
 
 const GRANTS = 'public_lead_photo_grants';
 const MAX_PHOTOS = 10;
 const GRANT_TTL_MS = 60 * 60 * 1000;
 const MAX_B64 = 11 * 1024 * 1024;          // ~8 MB decoded — a full phone photo
-const MAX_EDGE = 2560;
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 // Only these public-lead collections may carry photos (service requests).
 const PHOTO_COLLECTIONS = ['contact_leads', 'inspect_leads', 'estimate_leads', 'free_roof_entries'];
@@ -84,13 +84,9 @@ async function mintPhotoGrant(db, { collection, publicId, companyId }) {
 }
 
 /** Re-encode: proves it's an image, drops EXIF/GPS, auto-rotates, caps size. */
+// Shared with the homeowner portal upload (functions/photo-reencode.js).
 async function reencode(buffer) {
-  const sharp = require('sharp');
-  return sharp(buffer, { limitInputPixels: 80e6, failOn: 'error' })
-    .rotate()
-    .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85, mozjpeg: true })
-    .toBuffer();
+  return reencodePhoto(buffer, 'jpeg');
 }
 
 exports.uploadPublicLeadPhoto = onRequest(
