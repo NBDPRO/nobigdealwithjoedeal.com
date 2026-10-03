@@ -164,6 +164,12 @@ async function openRegisterWired(page, origin) {
   await Promise.race([wiredLog, page.waitForLoadState('networkidle')]);
   await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
   await expect(page.locator('#googleRegBtn')).toBeEnabled();
+  // Clickwrap (2026-10-03): /pro/register refuses Google sign-up until the
+  // required Terms + Privacy box is ticked (the popup never opens without
+  // it — tests/google-signin-popup.test.js pins that refusal). Both tests
+  // here are about COOP, not the gate, so a real user's tick comes first.
+  await page.check('#regTerms');
+  await expect(page.locator('#regTerms')).toBeChecked();
   return { wireCoop: () => wireCoop };
 }
 

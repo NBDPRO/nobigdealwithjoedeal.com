@@ -40,6 +40,9 @@
  *
  *   gateCommercialEmail(db, {companyId, email, leadId, source}) — the gate.
  *     Suppressed → { suppressed: true }  and the caller MUST NOT send.
+ *     No address → { suppressed: false, blocked: true, reason: 'no_postal_address' }
+ *                  (2026-10-03) and the caller MUST NOT send either — but
+ *                  must not record it as an unsubscribe; count + log it.
  *     Clear      → { suppressed: false, url, headers, footerHtml, footerText }
  *                  and the caller MUST put `headers` on the Resend call and
  *                  the footer in the body (applyFooter does both shapes).
@@ -52,9 +55,8 @@
  *     address for the footer, from companyProfile/{companyId}
  *     brand.contact.mailingAddress. PER TENANT with NO platform default:
  *     a fallback would print one contractor's address in another's mail.
- *     '' when unset, and the footer then renders exactly as it did before
- *     this existed. Unlike the suppression read beside it, this one fails
- *     SOFT — see the note on the function for why the asymmetry is right.
+ *     '' when unset or unreadable — and since 2026-10-03 a '' BLOCKS the
+ *     commercial send (see gateCommercialEmail) instead of sending without it.
  *     Set in the CRM at Settings → Company Profile → Mailing Address.
  *
  * Deliberately NOT a cache — an unsubscribe is a legal instruction and the
@@ -233,15 +235,23 @@ function escHtml(s) {
  * contractor's address in another's marketing mail, which is the NBD-leak
  * class this codebase has already been bitten by.
  *
- * Fails SOFT, unlike the suppression read right next to it, and the
- * asymmetry is deliberate: a missed suppression is someone emailed after
- * they said stop (a legal violation and a broken promise), while a missing
- * address is a disclosure gap on mail that is otherwise wanted. Failing
- * closed here would mean an unreadable companyProfile silently stops all
- * commercial email — a worse outcome than a footer without an address,
- * which is exactly what shipped before this existed.
+ * Returns '' rather than throwing on a read error, but '' is no longer "send
+ * without an address": since 2026-10-03 gateCommercialEmail BLOCKS a
+ * commercial send when this is '' (unset OR unreadable). The original
+ * soft-fail reasoning — a footer without an address beats no email — was a
+ * judgement that the disclosure gap was tolerable; it is not, because the
+ * address is a required element of a lawful commercial email, so mail
+ * missing it should not go. Transactional mail never reaches this read.
  */
 const POSTAL_MAX = 200;
+
+/** gateCommercialEmail's `reason` when the tenant has no postal address. */
+const NO_POSTAL_ADDRESS = 'no_postal_address';
+/** What a rep is told (sendEmail 403) — where to fix it. */
+const NO_POSTAL_ADDRESS_MESSAGE =
+  'Add your company mailing address (Settings → Company Profile → Mailing Address) before sending marketing email — '
+  + 'the law requires it on every commercial email. Nothing was sent. Invoices, receipts, estimates and other '
+  + 'transactional emails are not affected.';
 
 function normalizePostalAddress(v) {
   return String(v == null ? '' : v)
@@ -313,16 +323,21 @@ async function gateCommercialEmail(db, fields, opts) {
   const o = opts || {};
   const hit = await isSuppressed(db, f.companyId, f.email, { timeoutMs: o.timeoutMs });
   if (hit.suppressed) return { suppressed: true, id: hit.id };
+  // CAN-SPAM §7704(a)(5) (2026-10-03, legal-checklist audit): a commercial
+  // email WITHOUT the sender's postal address is itself the violation, so it
+  // is not sent at all — { blocked: true, reason: NO_POSTAL_ADDRESS }. Not
+  // `suppressed`: the recipient did nothing, and callers must not stamp the
+  // record terminal — once the tenant sets its address the mail can go. A
+  // caller that already has the address in hand passes opts.postalAddress
+  // and skips the read. Checked BEFORE the token mint so a blocked send
+  // leaves no orphan unsubscribe token behind.
+  const postal = typeof o.postalAddress === 'string'
+    ? normalizePostalAddress(o.postalAddress)
+    : await tenantPostalAddress(db, f.companyId);
+  if (!postal) return { suppressed: false, blocked: true, reason: NO_POSTAL_ADDRESS, id: hit.id };
   // The token mint must succeed (no token, no working unsubscribe link, so no
-  // send). The postal-address read must not block it — see
-  // tenantPostalAddress. A caller that already has the address in hand passes
-  // it as opts.postalAddress and skips the read.
-  const [minted, postal] = await Promise.all([
-    mintUnsubscribeToken(db, f, o.serverTimestamp),
-    typeof o.postalAddress === 'string'
-      ? Promise.resolve(normalizePostalAddress(o.postalAddress))
-      : tenantPostalAddress(db, f.companyId),
-  ]);
+  // send).
+  const minted = await mintUnsubscribeToken(db, f, o.serverTimestamp);
   return {
     suppressed: false,
     id: hit.id,
@@ -407,6 +422,8 @@ module.exports = {
   TOKEN_RE,
   SEND_PATHS,
   POSTAL_MAX,
+  NO_POSTAL_ADDRESS,
+  NO_POSTAL_ADDRESS_MESSAGE,
   UNSUB_TAG_NAME,
   unsubscribeTags,
   normalizeEmail,

@@ -227,6 +227,8 @@
     "stripe-dispute-branches.test.js",
     "swdi-hail.test.js",
     "tcpa-consent.test.js",
+    "account-erasure-billing.test.js",
+    "legal-disclosures-2026-10-03.test.js",
     "tenant-brand.test.js",
     "tenant-hardening.test.js",
     "tenant-legal.test.js",
