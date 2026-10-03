@@ -128,7 +128,8 @@
         return '<div class="gc-row"><span>' + esc(b.label) + ' (' + (b.kind === 'collected' ? '$' + fmt(b.count) : fmt(b.count)) + ')</span><span>+' + fmt(b.xp) + '</span></div>';
       }).join('') + '</div>' : '<div class="gc-muted">Nothing yet this week. Tick a follow-up or file a call and it shows up here.</div>') +
       ((c.partial || []).length ? '<div class="gc-muted gc-note">Some numbers are still catching up.</div>' : '') +
-      '<div class="gc-actions"><button type="button" class="btn btn-ghost btn-sm" data-gc="edit">' + (st.editing ? 'Done' : 'Edit avatar') + '</button></div>' +
+      '<div class="gc-actions"><button type="button" class="btn btn-ghost btn-sm" data-gc="edit">' + (st.editing ? 'Done' : 'Edit avatar') + '</button>' +
+        '<a class="btn btn-ghost btn-sm gc-play" href="/pro/roof-rep.html">🎮 Play Roof Rep</a></div>' +
       (st.editing ? editorHtml('gcHomeEd') : '') +
     '</div>';
     drawSprite(document.getElementById('gcHomeSprite'), avatar());

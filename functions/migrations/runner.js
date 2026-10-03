@@ -294,8 +294,11 @@ exports.runMigrations = onCall(
 );
 
 // Scheduled tick — runs daily; idempotent. Pending = 0 → no-op.
+// A fixed time, not a 24-hour interval: an interval restarts at every
+// deploy, and with daily deploys the tick last ran 2026-09-20 (audit
+// 2026-10-03). 04:40 ET is clear of the morning jobs.
 exports.migrationsTick = onSchedule(
-  { schedule: 'every 24 hours', region: 'us-central1' },
+  { schedule: 'every day 04:40', timeZone: 'America/New_York', region: 'us-central1' },
   async () => {
     const res = await runPending();
     // Always log a heartbeat (Audit #4 / 2.1) so a "no run in 26h" absence
