@@ -63,10 +63,14 @@
   function leadForNumber(num) {
     var d = digits10(num);
     if (!d) return null;
-    var hit = (window._leads || []).filter(function (l) {
+    var hits = (window._leads || []).filter(function (l) {
       return l && l.id && !l.deleted && [l.phoneDigits, l.phone, l.phone2, l.altPhone, l.mobilePhone, l.secondaryPhone].some(function (p) { return digits10(p) === d; });
-    })[0];
-    if (hit) return { leadId: hit.id, name: leadName(hit) };
+    });
+    var hit = hits[0];
+    // A number on 3+ customers is a proxy line (functions/call-center-logic.js
+    // proxyNumbers): it says nothing about who this caller is.
+    if (hit && hits.length < 3) return { leadId: hit.id, name: leadName(hit) };
+    if (hit) return null;
     return madeLeads[d] || null;
   }
   /**

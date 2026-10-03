@@ -218,6 +218,13 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('a second attach re-files nothing and creates nothing', JSON.stringify(rb.r.refiled) === JSON.stringify({ calls: 0, textDays: 0, texts: 0 }) && db.docs.size === before8);
   ok('…and never un-ticks a re-filed task', db.docs.get('leads/L1/tasks/cube-cube_SIB001').done === true);
 
+  // A proxy number (on 3+ leads — a relay, not a person) is never swept.
+  db = fakeDb(rseed());
+  for (const k of ['PX1', 'PX2', 'PX3']) db.docs.set('leads/' + k, { userId: OWN, companyId: 'co1', firstName: k, phoneDigits: NUM });
+  const rp = await run(db, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L1' });
+  ok('attach on a proxy number files that one call only — nothing else from the number', rp.r && rp.r.refiled.proxy === true && sib('cube_AAAAA1').leadId === 'L1'
+    && sib('cube_SIB001').leadId === null && db.docs.get('phone_text_days/txt_5135550100_20260930').leadId === null && db.docs.get('phone_texts/sms_T1').leadId === null, JSON.stringify(rp.r && rp.r.refiled));
+
   console.log('\n9. move — "Wrong customer → move to…" (2026-10-03)');
   const mseed = () => Object.assign(seed(), {
     [COLLECTION + '/cube_MOVE01']: { userId: OWN, companyId: 'co1', phoneDigits: '5135550166', leadId: 'L1', bucket: 'customer', status: 'noted', startedAtMs: NOW - 3600e3, direction: 'inbound', contactName: 'Sam', summary: 'Asked for a siding quote.', promises: [{ who: 'jo', text: 'Send the siding quote', due: '2026-10-02' }] },

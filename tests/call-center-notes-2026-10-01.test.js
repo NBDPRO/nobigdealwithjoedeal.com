@@ -223,7 +223,10 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
     // Noted before suggestions existed: the run backfills these.
     [COLLECTION + '/cube_old1']: call('cube_old1', { leadId: null, status: 'noted', contactName: 'Sam Ortiz Roof', summary: 'x', startedAtMs: NOW - 5 * 86400e3 }),
     [COLLECTION + '/cube_old2']: call('cube_old2', { leadId: null, status: 'noted', contactName: 'Nobody Known', summary: 'x', startedAtMs: NOW - 6 * 86400e3 }),
-    [COLLECTION + '/cube_old3']: call('cube_old3', { leadId: null, status: 'noted', contactName: 'Sam Ortiz', summary: 'x', suggestCheckedAtMs: 1, suggestedLeadId: null }),
+    [COLLECTION + '/cube_old3']: call('cube_old3', { leadId: null, status: 'noted', contactName: 'Sam Ortiz', summary: 'x', suggestCheckedAtMs: 1, suggestedLeadId: null, suggestRulesV: L.SUGGEST_RULES_VERSION }),
+    // Checked under the first rules (no Thumbtack rules yet): re-checked now.
+    [COLLECTION + '/cube_old4']: call('cube_old4', { leadId: null, status: 'noted', contactName: 'Jamie K', summary: 'Found us on Thumbtack, wants gutters.', suggestCheckedAtMs: 1, suggestedLeadId: null }),
+    'leads/LT1': { firstName: 'Jamie', lastName: 'Kowalski', address: 'Mason, OH 45040', source: 'Thumbtack', phone: '(555) 010-0001', userId: OWNER, companyId: OWNER },
   }, leadsSeed));
   r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
   const s1 = db.docs.get(COLLECTION + '/cube_s1');
@@ -231,7 +234,9 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('…as a suggestion only: never filed on it', s1.leadId === null && !db.docs.has('leads/L9/activity/cube-cube_s1') && !db.docs.has('leads/L9/tasks/cube-cube_s1'));
   ok('older noted calls get theirs on the next run (backfill)', db.docs.get(COLLECTION + '/cube_old1').suggestedLeadId === 'L10' && db.docs.get(COLLECTION + '/cube_old1').suggestCheckedAtMs === NOW);
   ok('no match → checked, nothing suggested', db.docs.get(COLLECTION + '/cube_old2').suggestedLeadId === null && db.docs.get(COLLECTION + '/cube_old2').suggestCheckedAtMs === NOW);
-  ok('an already-checked call is not re-read', db.docs.get(COLLECTION + '/cube_old3').suggestCheckedAtMs === 1 && r.suggested === 2, JSON.stringify(r));
+  ok('a call checked under the current rules is not re-read', db.docs.get(COLLECTION + '/cube_old3').suggestCheckedAtMs === 1 && r.suggested === 3, JSON.stringify(r));
+  const o4 = db.docs.get(COLLECTION + '/cube_old4');
+  ok('a call checked under OLDER rules is re-checked: Thumbtack lead suggested by name', o4.suggestedLeadId === 'LT1' && /Thumbtack/.test(o4.suggestedWhy) && o4.suggestRulesV === L.SUGGEST_RULES_VERSION && o4.leadId === null, JSON.stringify(o4));
   // A call ON a customer gets no suggestion fields at all.
   db = fakeDb(Object.assign({ [CONFIG]: { transcribeOnly: ['cube_m'] }, [COLLECTION + '/cube_m']: call('cube_m', { leadId: 'L9' }) }, leadsSeed));
   await runTranscribe({ db, bucket, live: false, nowMs: NOW });

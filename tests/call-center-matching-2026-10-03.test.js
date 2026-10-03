@@ -162,6 +162,11 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
   ok('_leads untouched by the guard (no fake leads added)', leads.length === leadsSnapshot.length);
   ok('leadForNumber: leading 1 and formatting ignored; deleted leads never match', typeof CC._leadForNumber === 'function' && CC._leadForNumber('1-513-555-0202').leadId === 'LP' && CC._leadForNumber('(513) 555-0203') === null);
 
+  ['PXA', 'PXB', 'PXC'].forEach((id) => leads.push({ id, firstName: id, lastName: 'Relay', phone: '(513) 555-0777' }));
+  ok('a number on 3+ customers is a proxy: not "already a customer", so no File on X from it', typeof CC._leadForNumber === 'function' && CC._leadForNumber('5135550777') === null
+    && CC._fileTarget({ id: 'cube_PX', phoneDigits: '5135550777' }) === null);
+  leads.splice(leads.length - 3, 3);
+
   console.log('\n4. Said you\'d do — one card per caller');
   const g = (CC._groupPromises || (() => []))([
     { callId: 'a', phoneDigits: '5135550300', leadId: null, kind: 'nofile' },
