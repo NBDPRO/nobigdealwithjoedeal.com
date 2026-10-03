@@ -435,7 +435,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               (smoke; follow-up dates are local days). MEASURED via --check.
 //   2026-10-03  321/71/415 -> 322/71/416, tests/deposit-draft-2026-10-03.test.js (on top of #2117's ky-pay-link-gate)
 //               (node; draft deposit invoice on a signed contract). MEASURED via --check.
-const FLOORS = { node: 322, smoke: 71, disk: 416 };
+const FLOORS = { node: 323, smoke: 71, disk: 417 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

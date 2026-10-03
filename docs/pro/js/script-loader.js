@@ -168,7 +168,7 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=14',
+      'js/document-generator.js?v=15',
       'js/document-generator-templates.js?v=11',
       'js/doc-preflight.js?v=3',
       // Mobile job-detail Documents tab (dashboard-actions.js

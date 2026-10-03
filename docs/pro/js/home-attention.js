@@ -133,7 +133,14 @@
   async function count() {
     const u = uid(), c = claims();
     const out = { stripe: 0, signs: 0, calls: 0, reviews: 0 };
-    try { if (w.NBDReviewDeck) out.reviews = w.NBDReviewDeck.candidates(w._leads).length; } catch (_) { /* never block the strip */ }
+    // Review asks wait for PAID IN FULL (2026-10-03), judged from the
+    // invoices — load the shared cache first (one query, reused).
+    try {
+      if (w.NBDReviewDeck) {
+        if (w.NBDRevenue && typeof w.NBDRevenue.loadInvoices === 'function') await w.NBDRevenue.loadInvoices().catch(() => null);
+        out.reviews = w.NBDReviewDeck.candidates(w._leads).length;
+      }
+    } catch (_) { /* never block the strip */ }
     const tenant = tenantOf(c, u);
     const jobs = [];
     if (canSeeStripe(c, u) && tenant) {

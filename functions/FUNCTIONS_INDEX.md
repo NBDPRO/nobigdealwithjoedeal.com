@@ -42,6 +42,7 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `revokePortalToken` | onCall | Revokes outstanding portal tokens |
 | `replyToPortalMessage` | onCall | Rep reply to a homeowner message |
 | `createSignRequest` | onCall | Remote signing — rep mints a doc_sign_token + emails the homeowner the sign link |
+| `recordInPersonSignature` | onCall | In-person signing (2026-10-03) — called by the doc viewer after it saves a contract signed on the rep's device. Re-reads the lead (caller's company only) and `leads/{leadId}/documents/{docId}` (status `signed`, `signedAt`, every required signer present), then job-spine `contract_signed` with sourceId `doc_<docId>` (idempotent; the same id remote signing uses) — moves the card to Contract Signed and drafts the deposit invoice (#2131). Refuses viewers; non-contract documents return `skipped`. Sends nothing (in-person-signing.js) |
 | `createEsignEnvelope` | onCall | Envelope signing — registers a rep-uploaded PDF; reads page geometry and the source SHA-256 SERVER-side so neither is client-asserted |
 | `saveEsignFields` | onCall | Envelope signing — persists the field layout (PDF user-space points). Refused once the envelope is sent: the layout is part of what the signer was shown |
 | `getEsignEnvelopeForOwner` | onCall | Envelope signing — rep re-opens a draft. A callable, NOT a Storage read: getDownloadURL would mint a permanent token that bypasses storage.rules |

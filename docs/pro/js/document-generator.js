@@ -751,6 +751,7 @@ window.NBDDocGen = {
         // and stamps signedAt + signedSigners on the Firestore doc.
         onPersistFinalized: async (signedHtml, signedSigners) => {
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
+          let _signedSaved = false;
           try {
             if (_htmlPath && window.storage && window.ref && window.uploadBytes) {
               const sRef = window.ref(window.storage, _htmlPath);
@@ -775,6 +776,7 @@ window.NBDDocGen = {
                   ? signedSigners.map(s => ({ role: s.role, label: s.label || null, signedAt: s.signedAt || null }))
                   : null,
               });
+              _signedSaved = true;
             }
           } catch (e) {
             console.warn('Signed metadata update failed:', e && e.message);
@@ -794,6 +796,17 @@ window.NBDDocGen = {
             }
           } catch (e) {
             console.warn('Lead filed-stamp failed:', e && e.message);
+          }
+          // 2026-10-03 — an in-person signature MOVES THE CARD. Remote, e-sign
+          // and deal-room signings reach the job spine on the server; this
+          // one was saved only from the browser, so the card stayed put and
+          // no deposit invoice was drafted. recordInPersonSignature re-reads
+          // the saved contract (it trusts only the ids), then records
+          // contract_signed — idempotent per document. The contract is
+          // already saved above: a failure here never blocks signing, it only
+          // logs and tells the rep to move the card by hand.
+          if (type === 'contract' && _signedSaved && _docMetaRef && _leadIdEarly) {
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id);
           }
           // Repaint so the row picks up its '✓ Signed' state immediately.
           if (window.NBDCustomerDocs) {
@@ -854,6 +867,31 @@ window.NBDDocGen = {
     const injected = html.replace('</body>', actionBar + '</body>');
     win.document.write(injected);
     win.document.close();
+  },
+
+  /**
+   * Tell the server an in-person contract signature was saved, so the job
+   * spine moves the card to Contract Signed (and drafts the deposit invoice).
+   * Never throws and never blocks the signing UX: the contract is already
+   * saved when this runs. Resolves to the callable's result, or null.
+   */
+  async _recordInPersonSignature(leadId, docId) {
+    try {
+      if (!window._functions || !window._httpsCallable) {
+        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        window._functions = window._functions || mod.getFunctions();
+        window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+      }
+      const fn = window._httpsCallable(window._functions, 'recordInPersonSignature');
+      const res = await fn({ leadId, docId });
+      const out = (res && res.data) || null;
+      if (out && out.moved && typeof showToast === 'function') showToast('✓ Contract signed — card moved to Contract Signed', 'success');
+      return out;
+    } catch (e) {
+      console.warn('recordInPersonSignature failed:', e && e.message);
+      if (typeof showToast === 'function') showToast('Contract saved — but the card did not move. Move it to Contract Signed by hand.', 'warning');
+      return null;
+    }
   },
 
   /**

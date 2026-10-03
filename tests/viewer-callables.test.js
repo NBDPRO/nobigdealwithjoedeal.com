@@ -358,6 +358,8 @@ const CASES = [
   { fn: 'sendEsignEnvelope', file: 'esign-envelope.js', kind: 'call', data: { envelopeId: 'env-123456', signerName: 'Sam', signerEmail: 'sam@example.com' } },
   { fn: 'voidEsignEnvelope', file: 'esign-envelope.js', kind: 'call', data: { envelopeId: 'env-123456' } },
   { fn: 'createSignRequest', file: 'remote-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1', signerEmail: 'sam@example.com', signerName: 'Sam' } },
+  // 2026-10-03: in-person signing moves the card + drafts the deposit invoice.
+  { fn: 'recordInPersonSignature', file: 'in-person-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' } },
   { fn: 'sendEstimateForSignature', file: 'integrations/esign.js', kind: 'call', data: { estimateId: 'est-1', signerName: 'Sam', signerEmail: 'sam@example.com', html: '<p>' + 'x'.repeat(200) + '</p>' } },
   { fn: 'createDealAcceptToken', file: 'deal-acceptance.js', kind: 'call', data: { dealId: 'deal-123456' } },
   { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' } },
@@ -400,6 +402,11 @@ const COMPLETE_CASES = [
   { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' },
     seed: (who) => ({ 'reports/report-123456': { userId: who.uid, companyId: who.token.companyId || who.uid, html: '<p>Inspection</p>', type: 'inspection report' } }),
     done: 'write:report_share_tokens/', value: (v) => !!v && typeof v.token === 'string' && !!v.shareUrl },
+  // In-person signing: the caller's own lead + a signed contract under it →
+  // the spine's job_events marker is written and the card moves.
+  { fn: 'recordInPersonSignature', file: 'in-person-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' },
+    seed: (who) => Object.assign(ownLead(who), { 'leads/lead-1/documents/doc-1': { type: 'contract', status: 'signed', signedAt: '2026-10-03T15:00:00Z', signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner', signedAt: 1 }] } }),
+    done: 'write:job_events/', value: (v) => !!v && v.ok === true && v.moved === true && v.to === 'contract_signed' },
   { fn: 'createCalendarFeedToken', file: 'calendar-feed.js', kind: 'call', data: {},
     done: 'write:calendar_feed_tokens/', value: (v) => !!v && typeof v.token === 'string' },
   { fn: 'trackUsage', file: 'billing.js', kind: 'call', data: { feature: 'leads' },
@@ -429,6 +436,7 @@ const VERDICTS = {
   createConnectDashboardLink: 'role-gated', createConnectOnboardingLink: 'role-gated',
   createDealAcceptToken: 'refused', createEsignEnvelope: 'refused', createPortalToken: 'refused',
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
+  recordInPersonSignature: 'refused',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
