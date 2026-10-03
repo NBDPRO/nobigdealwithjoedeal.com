@@ -199,6 +199,15 @@
       '</div>' +
       '<div data-v3="package" class="v3-pkg"></div>' +
       '<div data-v3="scope repairType" class="v3-review-hint">Start from a preset — you can add or remove any item after.</div>' +
+      // Photos are taken in the driveway, mid-estimate: shoot or pick them
+      // here instead of leaving for the customer page (the step used to be a
+      // dead end on a new customer). Uploads go to the linked customer
+      // through PhotoEngine — the same path as the camera everywhere else.
+      '<div data-v3="photos" class="v3-photo-add">' +
+        '<button type="button" class="v3-big" data-v3-act="photo-add">📷 Add photos</button>' +
+        '<input type="file" accept="image/*" multiple class="v3-photo-input" hidden>' +
+        '<div class="v3-photo-msg" aria-live="polite"></div>' +
+      '</div>' +
       '<div data-v3="review" class="v3-review-hint">Tap the step name at the top to jump back and change anything.</div>';
     body.insertBefore(extra, body.firstChild);
     body.insertBefore(head, body.firstChild);
@@ -229,6 +238,9 @@
 
     injectCss();
     modal.addEventListener('click', onClick);
+    modal.addEventListener('change', (ev) => {
+      if (ev.target && ev.target.classList && ev.target.classList.contains('v3-photo-input')) addPhotos(ev.target);
+    });
     ui.built = true;
     return true;
   }
@@ -244,6 +256,11 @@
     if (act === 'back') return go(-1);
     if (act === 'toggle') { ui.on = !ui.on; return paint(); }
     if (act === 'kind') { ui.kind = t.dataset.v3Val === 'repair' ? 'repair' : 'roof'; ui.inferKind = false; return paint(); }
+    if (act === 'photo-add') {
+      const input = $('.v3-photo-input');
+      if (input) input.click();
+      return;
+    }
     if (act === 'jump-open') return openSheet();
     if (act === 'jump') { closeSheet(); ui.step = t.dataset.v3Val; return paint(true); }
     if (act === 'sheet-close') return closeSheet();
@@ -277,6 +294,53 @@
       const btn = document.getElementById('v2tier' + t.dataset.v3Val.charAt(0).toUpperCase() + t.dataset.v3Val.slice(1));
       if (btn) btn.click();
       paintPackage();
+    }
+  }
+
+  async function addPhotos(input) {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    if (!files.length) return;
+    const msg = $('.v3-photo-msg');
+    const btn = $('[data-v3-act="photo-add"]');
+    const say = (t) => { if (msg) msg.textContent = t; };
+    const st = v2state();
+    const leadId = st.leadId || (st.customer && st.customer.leadId) || null;
+    if (!leadId) { say('Pick the customer first (step 1) — photos are saved to their file.'); return; }
+    if (btn) btn.disabled = true;
+    try {
+      // Before the photos bundle loads, dashboard-actions.js parks a
+      // load-then-run stub on window.PhotoEngine whose uploadFromFile fires
+      // the real upload later and returns nothing — so we'd never learn the
+      // new photo's id. Treat the stub as "not loaded" and load the real one.
+      const real = () => window.PhotoEngine && !window.PhotoEngine.__nbdLazyPhotosStub
+        && typeof window.PhotoEngine.uploadFromFile === 'function';
+      if (!real() && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
+        await window.ScriptLoader.loadBundle('photos');
+      }
+      if (!real()) {
+        say('Photos are not available right now — add them from the customer page.');
+        return;
+      }
+      const done = [];
+      let failed = 0;
+      for (let i = 0; i < files.length; i++) {
+        say('Uploading ' + (i + 1) + ' of ' + files.length + '…');
+        try {
+          const p = await window.PhotoEngine.uploadFromFile(leadId, files[i], [], '');
+          if (p && p.id) done.push(p.id);
+        } catch (e) {
+          failed++;
+          console.warn('[estimate-v3] photo upload failed:', e);
+        }
+      }
+      const a = v2();
+      if (a && typeof a.reloadLeadPhotos === 'function') await a.reloadLeadPhotos();
+      if (a && typeof a.includePhoto === 'function') done.forEach((id) => a.includePhoto(id));
+      say((done.length ? done.length + ' photo' + (done.length === 1 ? '' : 's') + ' added to this estimate.' : '') +
+        (failed ? ' ' + failed + ' did not upload — try again with signal.' : ''));
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -380,16 +444,29 @@
     const empty = !scope.length;
     const label = (t) => (cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[t] && cfg.TIER_DISPLAY[t].label) || (t.charAt(0).toUpperCase() + t.slice(1));
     const rate = (t) => (cfg.TIER_RATES && cfg.TIER_RATES[t]) ? ('$' + cfg.TIER_RATES[t] + '/SQ') : '';
+    // Line-item pricing (every insurance job, and cash jobs off Per-SQ) has
+    // no side-by-side: tierTotals() collapses to the selected package when
+    // the others can't be priced like-for-like. Those cards used to read
+    // "—", which looks broken. Say what is true instead: tap a package and
+    // its total shows (the real tier change re-prices the scope).
+    const priced = tiers.filter((t) => typeof totals[t] === 'number').length;
+    const oneAtATime = !empty && priced < 2;
+    const price = (t) => (typeof totals[t] === 'number' || !oneAtATime)
+      ? '<span class="v3-tier-price">' + esc(fmtMoney(totals[t])) + '</span>'
+      : '<span class="v3-tier-price v3-tier-pending">Tap to price</span>';
     box.innerHTML = (empty
       ? '<div class="v3-pkg-empty"><div>Load the roof system to price the packages:</div>' +
           '<div class="v3-kind-row">' +
             '<button type="button" class="v3-big" data-v3-act="preset" data-v3-val="standard-reroof">Standard Reroof</button>' +
             '<button type="button" class="v3-big" data-v3-act="preset" data-v3-val="storm-claim">Storm Claim</button>' +
           '</div></div>'
-      : '') + tiers.map((t) =>
+      : '') +
+      (oneAtATime
+        ? '<div class="v3-review-hint v3-pkg-one">Line-item pricing totals the package you pick — tap one to see its price. Per-SQ pricing (cash jobs) shows every package side by side.</div>'
+        : '') + tiers.map((t) =>
       '<button type="button" class="v3-tier' + (st.tier === t ? ' active' : '') + (t === 'beyond' ? ' beyond' : '') + '" data-v3-act="tier" data-v3-val="' + esc(t) + '" aria-pressed="' + (st.tier === t) + '">' +
         '<span class="v3-tier-top"><span class="v3-tier-name">' + esc(label(t)) + '</span>' +
-          '<span class="v3-tier-price">' + esc(fmtMoney(totals[t])) + '</span></span>' +
+          price(t) + '</span>' +
         '<span class="v3-tier-note">' + esc(t.charAt(0).toUpperCase() + t.slice(1)) + ' · ' + esc(TIER_NOTES[t] || '') + (rate(t) && st.mode === 'per-sq' ? ' · ' + esc(rate(t)) : '') + '</span>' +
       '</button>').join('') +
       '<div class="v3-label">Pricing method</div>';
@@ -489,6 +566,12 @@
       '#estV2Modal .v3-tier-top { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }',
       '#estV2Modal .v3-tier-name { font-size:18px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }',
       '#estV2Modal .v3-tier-price { font-size:20px; font-weight:800; }',
+      '#estV2Modal .v3-photo-add { margin-bottom:14px; }',
+      '#estV2Modal .v3-photo-add .v3-big { width:100%; }',
+      '#estV2Modal .v3-photo-add .v3-big:disabled { opacity:.5; cursor:default; }',
+      '#estV2Modal .v3-photo-msg { font-size:14px; color:var(--t,#e8eaf0); margin-top:8px; min-height:1em; }',
+      '#estV2Modal.v3-on #v2photosHint { font-size:14px !important; }',
+      '#estV2Modal .v3-tier-price.v3-tier-pending { font-size:14px; font-weight:700; color:var(--m,#8b8e96); }',
       '#estV2Modal .v3-tier-note { font-size:13px; color:var(--m,#8b8e96); }',
       '#estV2Modal.v3-on .v2-preset-btns button { min-height:56px; font-size:14px; }',
       '#estV2Modal.v3-kind-roof.v3-on .v2-preset-btns [data-arg="small-repair"], #estV2Modal.v3-kind-roof.v3-on .v2-preset-btns [data-arg="shingle-patch"] { display:none; }',
