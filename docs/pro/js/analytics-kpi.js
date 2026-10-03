@@ -238,6 +238,9 @@
     // follow-up you're late on.
     var overdueFollowUps = leads.filter(function (l) {
       if (_isDecided(l) || _isJob(l) || !l.followUp) return false;
+      // Phone-less door-knock leads aren't CRM follow-ups — same rule as the
+      // pipeline's "Follow-ups Due" (crm-pipeline.js _unreachableKnockLead).
+      if (typeof window.nbdUnreachableKnockLead === 'function' && window.nbdUnreachableKnockLead(l)) return false;
       // Local day ('YYYY-MM-DD' parses as UTC — a day early in the US).
       var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(l.followUp));
       var d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(l.followUp); d.setHours(0, 0, 0, 0);

@@ -491,6 +491,12 @@ async function saveLead(){
     // id right back on an edit, so a truthy return value alone can't
     // distinguish the two.
     const _wasNewLead = !_leadPayload.id;
+    // A NEW lead saved straight onto a won stage (logging a finished job)
+    // carries its close date from birth; an edit's stage change gets it from
+    // commitStageChange below (2026-10-03 data audit: won leads with no closedAt).
+    if (_wasNewLead && _editStageRole === 'won') {
+      _leadPayload.closedAt = typeof window.serverTimestamp === 'function' ? window.serverTimestamp() : new Date();
+    }
     // A stage CHANGE made here goes through stage-write.js commitStageChange —
     // the same path as the kanban and the customer page. Until 2026-09-28 this
     // form spread `stage` straight into updateDoc, so an edit-modal move never

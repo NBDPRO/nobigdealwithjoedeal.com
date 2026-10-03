@@ -304,7 +304,7 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=10',
+      'js/d2d-tracker-core-2026b.js?v=11',
       'js/d2d-tracker-ui-2026b.js?v=6',
       'js/d2d-tracker-2026b.js?v=3'
     ],

@@ -126,7 +126,9 @@ ok('registered as an external source', L.EXTERNAL_SOURCE_COLLECTIONS.indexOf('th
   ok('precomputed notes preserved', /Thumbtack — Gutter Cleaning/.test(lead.notes));
   ok('phoneDigits carried onto the CRM lead', lead.phoneDigits === '5135550188');
   ok('tenant stamped', lead.companyId === NBD && lead.userId === NBD);
-  ok('lands in the New stage', lead.stage === 'New');
+  // 2026-10-03 data audit: 61 Thumbtack leads sat at 'New' with no stageRole.
+  ok('lands in the canonical new stage key', lead.stage === 'new');
+  ok('…with stageRole new stamped', lead.stageRole === 'new');
   ok('provenance kind', lead.publicLeadKind === 'thumbtack');
 }
 {

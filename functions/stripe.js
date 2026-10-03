@@ -1837,6 +1837,11 @@ exports.invoiceWebhook = onRequest(
                       // unambiguous — no client-side derivation needed.
                       stageRole: stageRoles.roleFromKey('final_payment'),
                       stageStartedAt: FieldValue.serverTimestamp(),
+                      // Entering a won stage stamps closedAt, like every
+                      // client stage move (stage-write.js). Kept when the lead
+                      // was already won with a close date (install_complete →
+                      // final_payment is not a second close).
+                      ...(stageRoles.needsClosedAt(lead, 'final_payment') ? { closedAt: FieldValue.serverTimestamp() } : {}),
                       // Same history entry every client stage move writes
                       // (stage-write.js commitStageChange).
                       stageHistory: FieldValue.arrayUnion({

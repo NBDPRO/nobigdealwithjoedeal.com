@@ -158,6 +158,8 @@ async function checkAndCreateFollowUpNotifications(leads) {
 
   leads.forEach(l => {
     if (!l.followUp || ['Complete','Lost'].includes(l.stage||'')) return;
+    // Phone-less door-knock leads aren't CRM follow-ups (crm-pipeline.js).
+    if (typeof window.nbdUnreachableKnockLead === 'function' && window.nbdUnreachableKnockLead(l)) return;
     // Local day, not UTC (window.nbdFollowUpDay) — these became "Overdue"
     // notifications a day early.
     const d = (typeof window.nbdFollowUpDay === 'function') ? window.nbdFollowUpDay(l.followUp) : new Date(l.followUp); d.setHours(0,0,0,0);

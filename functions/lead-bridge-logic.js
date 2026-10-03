@@ -199,7 +199,13 @@ function mapPublicLeadToLead(args) {
     // functions/phone-utils.js.
     phoneDigits: phoneDigits10(data.phone),
     email: String(data.email || ''),
-    stage: 'New',
+    // The canonical first-stage KEY plus its role (2026-10-03 data audit: 61
+    // Thumbtack leads sat at the legacy display name 'New' with no stageRole).
+    // The board normalises 'New' at read time, but the server classifies a
+    // lead by its persisted stageRole first (stage-roles.js roleFor), and
+    // every client stage write stamps both — so the bridge does too.
+    stage: 'new',
+    stageRole: 'new',
     status: 'new',
     source: isExternal ? meta.label : 'Website — ' + meta.label,
     // External sources (thumbtack.js) precompute a richer note than the generic
@@ -282,7 +288,60 @@ function mapPublicLeadToLead(args) {
   return doc;
 }
 
+// ── Phone dedup for marketplace pushes (2026-10-03 data audit) ──────────────
+// Thumbtack sends a fresh lead every time a homeowner re-requests or messages a
+// new pro request, and the bridge minted a NEW pipeline card for each one: the
+// same person showed up two or three times. For the EXTERNAL collections, a
+// lead already in the same tenant with the same 10-digit phone is the same
+// customer — attach the new request to it instead of creating another card.
+function dedupesByPhone(collection) {
+  return EXTERNAL_SOURCE_COLLECTIONS.indexOf(collection) !== -1;
+}
+
+// docs: [{ id, data }] from `leads where companyId == X and phoneDigits == Y`.
+// → the lead to attach to, or null. Skips deleted leads; prefers the oldest
+// (the original card the rep has been working).
+function pickPhoneMatch(docs) {
+  const ms = (t) => (t && typeof t.toMillis === 'function') ? t.toMillis()
+    : (t && typeof t.seconds === 'number') ? t.seconds * 1000
+    : (t instanceof Date ? t.getTime() : (Number(t) || Infinity));
+  const live = (docs || []).filter((d) => d && d.id && d.data && d.data.deleted !== true);
+  if (!live.length) return null;
+  live.sort((a, b) => ms(a.data.createdAt) - ms(b.data.createdAt));
+  return live[0];
+}
+
+// The update that attaches a repeat request to the existing lead. Pure: the
+// caller adds updatedAt. → null when this request is already attached (a
+// re-delivered trigger), so the caller writes nothing.
+function phoneDuplicatePatch(existing, newLead, sourceId, nowIso) {
+  existing = existing || {};
+  newLead = newLead || {};
+  const sid = String(sourceId || '');
+  const ids = Array.isArray(existing.externalLeadIds) ? existing.externalLeadIds.slice() : [];
+  if (sid && (ids.indexOf(sid) !== -1 || existing.publicLeadId === sid)) return null;
+  if (sid) ids.push(sid);
+  const label = newLead.source || 'Marketplace';
+  const day = String(nowIso || '').slice(0, 10);
+  const block = 'Repeat ' + label + ' request' + (day ? ' (' + day + ')' : '') + ':' +
+    (newLead.notes ? '\n' + String(newLead.notes) : '');
+  const prior = typeof existing.notes === 'string' ? existing.notes : '';
+  const patch = {
+    notes: (prior ? prior + '\n\n' : '') + block,
+    externalLeadIds: ids,
+    lastExternalRequestAt: String(nowIso || ''),
+  };
+  // Thumbtack bills every lead, repeats included — keep the card's cost whole.
+  if (Number(newLead.leadCost) > 0) {
+    patch.leadCost = Math.round(((Number(existing.leadCost) || 0) + Number(newLead.leadCost)) * 100) / 100;
+  }
+  return patch;
+}
+
 module.exports = {
+  dedupesByPhone,
+  pickPhoneMatch,
+  phoneDuplicatePatch,
   BRIDGE_KINDS,
   EXTERNAL_SOURCE_COLLECTIONS,
   ESTIMATE_EVENT_TYPES,

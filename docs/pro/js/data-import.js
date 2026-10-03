@@ -192,6 +192,10 @@
       out.stage = key;
       if (typeof window.stageRole === 'function') out.stageRole = window.stageRole(key);
       if (key !== raw) out.importedStage = raw;
+      // A finished job imported on a won stage gets a close date (the import
+      // moment — the only date we have) unless the sheet supplied one, so it
+      // isn't a won lead with no closedAt (2026-10-03 data audit).
+      if (out.stageRole === 'won' && !out.closedAt) out.closedAt = new Date();
     }
     if (out.customerId) {
       const cid = String(out.customerId).trim();

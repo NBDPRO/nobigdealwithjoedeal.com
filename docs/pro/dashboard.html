@@ -51,10 +51,10 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=7" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=11" as="script">
+<link rel="preload" href="js/crm-leads.js?v=8" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=12" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
-<link rel="preload" href="js/crm-snooze.js?v=2" as="script">
+<link rel="preload" href="js/crm-snooze.js?v=3" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
 <link rel="preload" href="js/crm.js?v=34" as="script">
 <link rel="preload" href="js/maps.js?v=11" as="script">
@@ -111,7 +111,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=75"></script>
+<script src="js/script-loader.js?v=81"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -200,7 +200,7 @@
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
-<link rel="stylesheet" href="css/google-calendar.css?v=4">
+<link rel="stylesheet" href="css/google-calendar.css?v=5">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
@@ -6780,7 +6780,7 @@
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
      existing call sites migrate at their own pace. -->
-<script defer src="js/repos.js?v=1"></script>
+<script defer src="js/repos.js?v=2"></script>
 <!-- Step 4b (2026-05-16): crm.js (175KB) was split into four sibling
      modules + a thin shim. Load order is locked:
        leads → pipeline → snooze → portal-bridge → crm (shim)
@@ -6794,11 +6794,11 @@
      crm-leads.js (saveLead reads them) and smart-calendar.js. -->
 <script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/schedule-window-ui.js?v=1"></script>
-<script defer src="js/crm-leads.js?v=7"></script>
+<script defer src="js/crm-leads.js?v=8"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=11"></script>
-<script defer src="js/crm-snooze.js?v=2"></script>
+<script defer src="js/crm-pipeline.js?v=12"></script>
+<script defer src="js/crm-snooze.js?v=3"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
      users/{uid}/fcmTokens so the backend reminder/lead pushes have recipients.
@@ -6823,7 +6823,7 @@
 <script defer src="js/pwa-install-nudge.js?v=6"></script>
 <script defer src="js/data-export.js?v=4"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
-<script defer src="js/data-import.js?v=4"></script>
+<script defer src="js/data-import.js?v=5"></script>
 <script defer src="js/activity-feed.js?v=2"></script>
 <!-- Single owner of kanban filter state. MUST load before the two filter
      modules below: each registers with it at init, and without it they
@@ -6897,7 +6897,7 @@
      refs with window._leads for jobValue + lat/lng, and renders a
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
-<script defer src="js/smart-calendar.js?v=4"></script>
+<script defer src="js/smart-calendar.js?v=5"></script>
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
 <script defer src="js/google-calendar-ui.js?v=6"></script>
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
@@ -6941,7 +6941,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=7"></script>
+<script defer src="js/analytics-kpi.js?v=8"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
