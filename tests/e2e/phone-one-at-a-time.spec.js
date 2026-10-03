@@ -149,6 +149,45 @@ test.describe('phone: one at a time @shard2', () => {
     await page.locator('#nbdTriageDeck .deck-close').tap();
   });
 
+  test('Follow-ups due: Followed up moves it 7 days out; Undo; ⋯ Tomorrow', async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); localStorage.removeItem('nbd_crm_followup_hidden'); } catch (_) {} });
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => !!(window._user && window.NBDFollowUpDeck && window.NBDTriageDeck), { timeout: 30_000 });
+    const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    const yday = await safeEvaluate(page, () => window.NBDFollowUpDeck._inDays(-1));
+    const s = Date.now();
+    const base = { userId: who.uid, companyId: who.co, stage: 'contacted', e2eTestData: true, createdAt: new Date(), deleted: false, followUp: yday };
+    const id = (await adb().collection('leads').add(Object.assign({}, base, { firstName: 'ZZFollow', lastName: 'Up' + s, phone: '(513) 555-0177', notes: 'Wants a quote after the weekend.' }))).id;
+    await adb().collection('leads').add(Object.assign({}, base, { firstName: 'ZZFollow', lastName: 'Two' + s }));
+    await safeEvaluate(page, async () => { if (typeof window._loadLeads === 'function') await window._loadLeads(); else if (typeof window.loadLeads === 'function') await window.loadLeads(); });
+    await page.waitForFunction((want) => (window._leads || []).some((l) => l.id === want), id, { timeout: 30_000 });
+    expect(await forceStandalone(page)).toBeGreaterThan(200);
+    await page.evaluate(() => { window.goTo && window.goTo('crm'); if (typeof window.renderLeads === 'function') window.renderLeads(window._leads, null); });
+    const open = page.locator('#followUpAlerts .fa-deck');
+    await expect(open, 'the Follow-ups Due list offers One at a time').toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(500);
+    await open.tap();
+    await expect(deck(page)).toBeVisible();
+    for (let i = 0; i < 40 && (await card(page).getAttribute('data-id')) !== id; i++) { await page.locator('#nbdTriageDeck .deck-left').tap(); await page.waitForTimeout(200); }
+    await expect(card(page)).toHaveAttribute('data-id', id);
+    await expect(card(page)).toContainText('1 day overdue');
+    await expect(card(page)).toContainText('Wants a quote after the weekend.');
+    const followUpOf = async () => ((await adb().doc('leads/' + id).get()).data() || {}).followUp;
+    const plus7 = await safeEvaluate(page, () => window.NBDFollowUpDeck._inDays(7));
+    await page.locator('#nbdTriageDeck .deck-right').tap();
+    await expect.poll(followUpOf, { message: 'Followed up = next follow-up in 7 days' }).toBe(plus7);
+    await page.locator('#nbdTriageDeck .deck-undo').tap();
+    await expect.poll(followUpOf, { message: 'Undo restores the old date' }).toBe(yday);
+    await expect(card(page)).toHaveAttribute('data-id', id);
+    await page.locator('#nbdTriageDeck .deck-dots').tap();
+    await expect(page.locator('#nbdTriageDeck .deck-opt', { hasText: 'Call' })).toBeVisible();
+    const tmrw = await safeEvaluate(page, () => window.NBDFollowUpDeck._inDays(1));
+    await page.locator('#nbdTriageDeck .deck-opt', { hasText: 'Tomorrow' }).tap();
+    await expect.poll(followUpOf).toBe(tmrw);
+    await page.locator('#nbdTriageDeck .deck-close').tap();
+  });
+
   test('Agent inbox: Add to CRM writes the note; ⋯ Toss dismisses', async ({ page }) => {
     test.setTimeout(150_000);
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });

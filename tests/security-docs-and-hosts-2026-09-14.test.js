@@ -144,8 +144,10 @@ for (const rel of ['functions/report-sharing.js', 'functions/calendar-feed.js'])
     /NBD Pro/.test(priv) && /processor/i.test(priv) && /controller/i.test(priv));
   ok('privacy.html "Last Updated" was bumped off the stale August 2026 stamp',
     !/Last Updated:\s*August 2026/.test(priv));
-  ok('privacy.html "Last Updated" now reads September 2026',
-    /Last Updated:\s*September 2026/.test(priv));
+  // Not older than the 2026-09 revision (later updates bump it — 2026-10-02
+  // added the A2P mobile-information sentence).
+  ok('privacy.html "Last Updated" reads September 2026 or later',
+    /Last Updated:\s*(?:(?:September|October|November|December) 2026|\w+ 20(?:2[7-9]|[3-9]\d))/.test(priv));
 }
 
 // ── docs/pro/README-killswitch.md — corrected example URL ────────────────
