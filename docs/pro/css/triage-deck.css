@@ -46,3 +46,6 @@ html.deck-locked, html.deck-locked body { overflow: hidden; }
 .deck-why { font-size: 14px; line-height: 1.45; padding: 10px 12px; border-radius: 10px; background: var(--s2, #181c22); }
 .deck-tag { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 800; background: var(--orange, #BD5728); color: var(--accent-fg, #fff); }
 .deck-link { color: var(--orange, #BD5728); font-weight: 700; text-decoration: underline; min-height: 44px; display: inline-flex; align-items: center; }
+
+/* The follow-up list's entry button (crm-pipeline.js _renderFollowUpRows). */
+.fa-deck { display: block; width: 100%; min-height: 44px; margin: 0 0 8px; border-radius: 8px; border: 1px solid var(--orange, #BD5728); background: transparent; color: var(--orange, #BD5728); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
