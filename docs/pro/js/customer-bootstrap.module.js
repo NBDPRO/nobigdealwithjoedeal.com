@@ -352,10 +352,10 @@ function showSlowLoadHint() {
   overlay.id = 'slow-load-hint';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,18,25,0.94);z-index:var(--z-overlay);display:flex;align-items:center;justify-content:center;padding:24px;opacity:1;';
   overlay.innerHTML = `
-    <div style="max-width:380px;text-align:center;color:var(--t);font-family:'Barlow',-apple-system,system-ui,sans-serif;">
-      <div style="font-size:32px;margin-bottom:12px;">⏳</div>
-      <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Loading is taking a while</div>
-      <div style="font-size:14px;color:var(--m);line-height:1.5;margin-bottom:20px;">
+    <div class="cbx-slow">
+      <div class="cbx-slow-icon">⏳</div>
+      <div class="cbx-slow-title">Loading is taking a while</div>
+      <div class="cbx-slow-body">
         This usually means the connection went stale (common on iOS after switching apps). Tap below to refresh — your data is safe.
       </div>
       <button id="slow-load-retry" style="
@@ -364,7 +364,7 @@ function showSlowLoadHint() {
         font-size:15px;font-weight:600;cursor:pointer;
         box-shadow:0 4px 12px rgba(161,74,34,0.3);
         -webkit-tap-highlight-color:transparent;">Refresh now</button>
-      <div style="margin-top:14px;">
+      <div class="cbx-mt14">
         <button id="slow-load-back" style="
           background:transparent;color:var(--m);border:1px solid var(--br);
           padding:10px 22px;border-radius:8px;font-size:13px;cursor:pointer;
@@ -768,7 +768,7 @@ async function loadCustomerData(id) {
       if (days > 0) timeAgo = `Updated ${days}d ago`;
       else if (hours > 0) timeAgo = `Updated ${hours}h ago`;
       else timeAgo = 'Updated recently';
-      document.getElementById('lastUpdated').innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:middle;"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2.5"/></svg> ' + timeAgo;
+      document.getElementById('lastUpdated').innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico14"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2.5"/></svg> ' + timeAgo;
     }
     
     // Contact links
@@ -990,7 +990,7 @@ async function loadCustomerData(id) {
       if (preQualLink && /^https?:/i.test(String(preQualLink))) {
         const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
         document.getElementById('infoPreQualLink').innerHTML =
-          `<a href="${esc(preQualLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue);text-decoration:underline;">Open Link</a>`;
+          `<a href="${esc(preQualLink)}" target="_blank" rel="noopener noreferrer" class="cbx-link">Open Link</a>`;
       }
     }
 
@@ -1013,7 +1013,7 @@ async function loadCustomerData(id) {
       await window.loadTimeline(id, lead); 
     } catch (e) { 
       console.error('Timeline load failed:', e); 
-      document.getElementById('timelineList').innerHTML = '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></div>No activity yet</div>';
+      document.getElementById('timelineList').innerHTML = '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></div>No activity yet</div>';
     }
     
     // Load photos into BOTH the overview grid (#photoList) and the
@@ -1169,7 +1169,7 @@ async function loadCustomerActivity(leadId) {
     ));
     const events = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (events.length === 0) {
-      listEl.innerHTML = '<div class="empty" style="padding:18px;font-size:13px;color:var(--m);">No activity yet. Activity appears here when the homeowner opens their portal link.</div>';
+      listEl.innerHTML = '<div class="empty cbx-empty-pad">No activity yet. Activity appears here when the homeowner opens their portal link.</div>';
       return;
     }
     const ICON = {
@@ -1197,16 +1197,16 @@ async function loadCustomerActivity(leadId) {
       const when = t ? t.toLocaleString() : '';
       const icon = ICON[e.type] || '•';
       const label = LABEL[e.type] || esc(e.type);
-      const detail = e.resourceId ? ' · <span style="color:var(--m);font-size:11px;">' + esc(e.resourceId.slice(0, 32)) + '</span>' : '';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--br);font-size:13px;">' +
-        '<span style="font-size:18px;line-height:1;">' + icon + '</span>' +
-        '<span style="flex:1;color:var(--t);">' + label + detail + '</span>' +
-        '<span style="color:var(--m);font-size:11px;white-space:nowrap;">' + esc(when) + '</span>' +
+      const detail = e.resourceId ? ' · <span class="cbx-m11b">' + esc(e.resourceId.slice(0, 32)) + '</span>' : '';
+      return '<div class="cbx-act-row">' +
+        '<span class="cbx-act-icon">' + icon + '</span>' +
+        '<span class="cbx-act-label">' + label + detail + '</span>' +
+        '<span class="cbx-act-time">' + esc(when) + '</span>' +
         '</div>';
     }).join('');
   } catch (e) {
     console.warn('[customer-activity] load failed:', e.message);
-    listEl.innerHTML = '<div class="empty" style="padding:18px;font-size:13px;color:var(--m);">Activity unavailable.</div>';
+    listEl.innerHTML = '<div class="empty cbx-empty-pad">Activity unavailable.</div>';
   }
 }
 window.loadCustomerActivity = loadCustomerActivity;
@@ -1222,7 +1222,7 @@ async function loadTimeline(leadId, lead) {
     lead.stageHistory.forEach(h => {
       timeline.push({
         time: h.timestamp ? new Date(h.timestamp) : new Date(),
-        icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M3 10a7 7 0 0112.9-3.7L17 5"/><path d="M17 10a7 7 0 01-12.9 3.7L3 15"/><path d="M17 2v3h-3M3 18v-3h3"/></svg>',
+        icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M3 10a7 7 0 0112.9-3.7L17 5"/><path d="M17 10a7 7 0 01-12.9 3.7L3 15"/><path d="M17 2v3h-3M3 18v-3h3"/></svg>',
         title: `Stage: ${(h.from && window.stageLabel(h.from)) || h.from} → ${(h.to && window.stageLabel(h.to)) || h.to}`,
         desc: h.user || 'System',
         type: 'stage'
@@ -1235,7 +1235,7 @@ async function loadTimeline(leadId, lead) {
   if (lead.createdAt) {
     timeline.push({
       time: lead.createdAt?.toDate ? lead.createdAt.toDate() : new Date(lead.createdAt),
-      icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1"/></svg>',
+      icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1"/></svg>',
       title: 'Lead created',
       desc: `Source: ${lead.source || 'Unknown'}`,
       type: 'stage'
@@ -1268,7 +1268,7 @@ async function loadTimeline(leadId, lead) {
       }
       timeline.push({
         time: task.createdAt?.toDate ? task.createdAt.toDate() : new Date(task.createdAt || Date.now()),
-        icon: task.done ? '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M4 10.5l4 4 8-9"/></svg>' : '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M5 2h10v4l-3 3 3 3v4H5v-4l3-3-3-3V2z"/></svg>',
+        icon: task.done ? '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M4 10.5l4 4 8-9"/></svg>' : '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M5 2h10v4l-3 3 3 3v4H5v-4l3-3-3-3V2z"/></svg>',
         title: task.title || task.text || 'Task',
         desc: task.dueDate || '',
         isTask: true,
@@ -1320,7 +1320,7 @@ async function loadTimeline(leadId, lead) {
       if (est.createdAt) {
         timeline.push({
           time: est.createdAt?.toDate ? est.createdAt.toDate() : new Date(est.createdAt),
-          icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg>',
+          icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg>',
           title: 'Estimate created',
           desc: est.amount ? `$${parseFloat(est.amount).toLocaleString()}` : 'Draft',
           type: 'document'
@@ -1341,7 +1341,7 @@ async function loadTimeline(leadId, lead) {
       if (photo.uploadedAt) {
         timeline.push({
           time: photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : new Date(photo.uploadedAt),
-          icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg>',
+          icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg>',
           title: 'Photo uploaded',
           desc: photo.category || 'Property photo',
           type: 'photo'
@@ -1358,12 +1358,12 @@ async function loadTimeline(leadId, lead) {
       query(collection(db, 'communications'), where('leadId', '==', leadId), where('userId', '==', auth.currentUser?.uid))
     );
     const COMM_ICONS = {
-      call:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M4 3h3l2 4-2.5 1.5A9 9 0 0011.5 13.5L13 11l4 2v3a1 1 0 01-1 1C8.4 17 3 11.6 3 4a1 1 0 011-1z"/></svg>',
-      email: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><rect x="2" y="4" width="16" height="12" rx="1.5"/><path d="M2 6l8 5 8-5"/></svg>',
-      sms:   '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M3 5h14v9h-4l-3 3-3-3H3V5z"/></svg>',
+      call:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M4 3h3l2 4-2.5 1.5A9 9 0 0011.5 13.5L13 11l4 2v3a1 1 0 01-1 1C8.4 17 3 11.6 3 4a1 1 0 011-1z"/></svg>',
+      email: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><rect x="2" y="4" width="16" height="12" rx="1.5"/><path d="M2 6l8 5 8-5"/></svg>',
+      sms:   '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M3 5h14v9h-4l-3 3-3-3H3V5z"/></svg>',
       // 'note' = a system/audit entry (e.g. a primary-estimate switch) rather
       // than an outbound call/email/sms; pencil icon + explicit title.
-      note:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M4 13.5V16h2.5l7-7L11 6.5l-7 7z"/><path d="M12.5 5l2.5 2.5"/></svg>'
+      note:  '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M4 13.5V16h2.5l7-7L11 6.5l-7 7z"/><path d="M12.5 5l2.5 2.5"/></svg>'
     };
     const COMM_LABELS = { call: 'Called', email: 'Emailed', sms: 'Texted', note: 'Note' };
     commSnap.docs.forEach(d => {
@@ -1433,7 +1433,7 @@ async function loadTimeline(leadId, lead) {
       const n = d.data();
       timeline.push({
         time: n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt || Date.now()),
-        icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><path d="M4 13.5V16h2.5l7-7L11 6.5l-7 7z"/><path d="M12.5 5l2.5 2.5"/></svg>',
+        icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M4 13.5V16h2.5l7-7L11 6.5l-7 7z"/><path d="M12.5 5l2.5 2.5"/></svg>',
         title: 'Note added',
         desc: (n.text || '').substring(0, 200),
         type: 'note'
@@ -1454,12 +1454,12 @@ async function loadTimeline(leadId, lead) {
     const dtype = esc(item.type || 'note');
     if (item.isTask) {
       return `
-        <div class="timeline-item nbd-tl-task" data-type="${dtype}" data-task-id="${esc(item.taskId)}" data-task-done="${item.taskDone ? '1' : '0'}" style="cursor:pointer;">
+        <div class="timeline-item nbd-tl-task cbx-pointer" data-type="${dtype}" data-task-id="${esc(item.taskId)}" data-task-done="${item.taskDone ? '1' : '0'}">
           <div class="timeline-icon">${item.icon}</div>
           <div class="timeline-content">
-            <div class="timeline-title" style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" ${item.taskDone ? 'checked' : ''} class="nbd-tl-task-check" data-task-id="${esc(item.taskId)}"
-                style="width:16px;height:16px;cursor:pointer;">
+            <div class="timeline-title cbx-row8">
+              <input type="checkbox" ${item.taskDone ? 'checked' : ''} class="nbd-tl-task-check cbx-check" data-task-id="${esc(item.taskId)}"
+               >
               <span style="${item.taskDone ? 'text-decoration:line-through;opacity:0.6;' : ''}">${esc(item.title)}</span>
             </div>
             <div class="timeline-desc" style="${item.taskDone ? 'text-decoration:line-through;opacity:0.6;' : ''}">${esc(item.desc)}</div>
@@ -1482,7 +1482,7 @@ async function loadTimeline(leadId, lead) {
   }).join('');
 
   document.getElementById('timelineList').innerHTML = html ||
-    '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></div><div style="margin-bottom:10px;">No activity yet</div><button class="btn btn-orange" data-action="openTaskModal" style="font-size:13px;padding:8px 16px;"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:12px;height:12px;vertical-align:middle;"><path d="M10 4v12M4 10h12"/></svg> Add First Task</button></div>';
+    '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></div><div class="cbx-mb10">No activity yet</div><button class="btn btn-orange cbx-slow-btn" data-action="openTaskModal"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="cbx-ico12"><path d="M10 4v12M4 10h12"/></svg> Add First Task</button></div>';
 
   // Wire task toggles via event listeners rather than inline onclick.
   const tlListEl = document.getElementById('timelineList');
@@ -1574,7 +1574,7 @@ function renderCustomerPhotoStrip() {
 
   if (photos.length === 0) {
     listEl.innerHTML = '<div class="upload-zone" data-action="openUploadModal">'
-      + '<div class="upload-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg></div>'
+      + '<div class="upload-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico32"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg></div>'
       + '<div class="upload-text">No photos yet</div>'
       + '<div class="upload-hint">Click to upload your first photo</div></div>';
     return;
@@ -1605,9 +1605,9 @@ function renderCustomerPhotoStrip() {
          + label + ' (' + photos.length + ' total)</button>';
   }
 
-  html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">'
-       + '<button class="btn btn-orange" style="flex:1;" data-action="openUploadModal">📤 Upload More</button>'
-       + '<button class="btn" style="flex:1;background:var(--blue);border-color:var(--blue);color:#fff;" data-action="generatePhotoReport" data-pass-customer-id="true">📋 Generate Report</button>'
+  html += '<div class="cbx-photo-actions">'
+       + '<button class="btn btn-orange cbx-flex1" data-action="openUploadModal">📤 Upload More</button>'
+       + '<button class="btn cbx-btn-report" data-action="generatePhotoReport" data-pass-customer-id="true">📋 Generate Report</button>'
        // QA wiring audit 2026-07-27: NO data-action here. The Tranche-1
        // globals cleanup made toggleCustomerPhotoReorder module-local (and
        // a tripwire test bans re-windowing it), but the page delegate
@@ -1813,7 +1813,7 @@ async function loadPhotos(leadId) {
     console.error('Error loading photos:', e);
     document.getElementById('photoList').innerHTML = `
       <div class="upload-zone" data-action="openUploadModal">
-        <div class="upload-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg></div>
+        <div class="upload-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico32"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg></div>
         <div class="upload-text">Click to upload photos</div>
       </div>`;
   }
@@ -1931,7 +1931,7 @@ async function loadEstimates(leadId) {
     if (!estDocs.length) {
       document.getElementById('estimateList').innerHTML = `
         <div class="empty">
-          <div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></div>
+          <div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></div>
           No estimates yet
         </div>`;
       // Clear BOTH globals: loadEstimates is re-invoked (setPrimaryEstimate),
@@ -1983,7 +1983,7 @@ async function loadEstimates(leadId) {
 
     if (!window._customerEstimates.length) {
       document.getElementById('estimateList').innerHTML = `
-        <div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></div>No estimates yet</div>`;
+        <div class="empty"><div class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></div>No estimates yet</div>`;
       return;
     }
 
@@ -2004,27 +2004,27 @@ async function loadEstimates(leadId) {
       const dateStr = est.createdAt?.toDate ? est.createdAt.toDate().toLocaleDateString() : '—';
       const isPrimary = primaryId && String(est.id) === String(primaryId);
       const primaryControl = isPrimary
-        ? '<span class="nbd-est-primary-badge" style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--green);border:1px solid var(--green);padding:2px 7px;border-radius:3px;white-space:nowrap;">★ Primary</span>'
-        : `<button class="nbd-est-primary" data-est-id="${esc(est.id)}" style="background:transparent;border:1px solid var(--br);border-radius:4px;padding:4px 8px;font-size:10px;color:var(--m);cursor:pointer;font-family:inherit;white-space:nowrap;" title="Make this the lead&#39;s primary estimate">☆ Make primary</button>`;
+        ? '<span class="nbd-est-primary-badge cbx-primary-badge">★ Primary</span>'
+        : `<button class="nbd-est-primary cbx-mini cbx-mini-nw" data-est-id="${esc(est.id)}" title="Make this the lead&#39;s primary estimate">☆ Make primary</button>`;
       return `
-        <div class="estimate-item nbd-est-row" data-est-id="${esc(est.id)}" style="cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--br);">
+        <div class="estimate-item nbd-est-row cbx-est-row" data-est-id="${esc(est.id)}">
           <div>
-            <div class="estimate-title" style="display:flex;align-items:center;">${esc(est.title || est.name || 'Estimate')}${tierLabel}</div>
-            <div style="font-size:11px;color:var(--m);margin-top:2px;">${esc(dateStr)}</div>
+            <div class="estimate-title cbx-row">${esc(est.title || est.name || 'Estimate')}${tierLabel}</div>
+            <div class="cbx-date">${esc(dateStr)}</div>
           </div>
-          <div class="nbd-est-actions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
-            <div class="estimate-amount" style="font-size:15px;font-weight:700;color:var(--green);">${est.grandTotal ? '$'+parseFloat(est.grandTotal).toLocaleString() : est.amount ? '$'+parseFloat(est.amount).toLocaleString() : 'Draft'}</div>
+          <div class="nbd-est-actions cbx-est-actions">
+            <div class="estimate-amount cbx-amount">${est.grandTotal ? '$'+parseFloat(est.grandTotal).toLocaleString() : est.amount ? '$'+parseFloat(est.amount).toLocaleString() : 'Draft'}</div>
             ${primaryControl}
-            <button class="nbd-est-export" data-est-id="${esc(est.id)}" style="background:transparent;border:1px solid var(--br);border-radius:4px;padding:4px 8px;font-size:10px;color:var(--m);cursor:pointer;font-family:inherit;" title="Export PDF">📤</button>
-            <button class="nbd-est-share" data-est-id="${esc(est.id)}" style="background:transparent;border:1px solid rgba(46,204,138,0.45);border-radius:4px;padding:4px 8px;font-size:10px;color:#5eead4;cursor:pointer;font-family:inherit;" title="Copy customer view link">🔗</button>
-            <button class="nbd-est-cert" data-est-id="${esc(est.id)}" style="background:transparent;border:1px solid color-mix(in srgb, var(--orange) 40%, transparent);border-radius:4px;padding:4px 8px;font-size:10px;color:var(--orange);cursor:pointer;font-family:inherit;" title="Generate Warranty Certificate">🛡️</button>
+            <button class="nbd-est-export cbx-mini" data-est-id="${esc(est.id)}" title="Export PDF">📤</button>
+            <button class="nbd-est-share cbx-mini cbx-mini-teal" data-est-id="${esc(est.id)}" title="Copy customer view link">🔗</button>
+            <button class="nbd-est-cert cbx-mini cbx-mini-orange" data-est-id="${esc(est.id)}" title="Generate Warranty Certificate">🛡️</button>
           </div>
         </div>
       `;
     }).join('');
 
     const estListEl = document.getElementById('estimateList');
-    estListEl.innerHTML = '<div style="font-size:11px;color:var(--m);padding:8px 14px 2px;">Job value follows the ★ primary estimate.</div>' + html;
+    estListEl.innerHTML = '<div class="cbx-est-hint">Job value follows the ★ primary estimate.</div>' + html;
     estListEl.querySelectorAll('.nbd-est-row').forEach(row => {
       row.addEventListener('click', () => viewEstimate(row.dataset.estId));
     });
@@ -2482,10 +2482,10 @@ function showError(title, message) {
   const container = document.querySelector('.container');
   const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   container.innerHTML = `
-    <div style="text-align:center; padding:60px 20px;">
-      <div style="font-size:64px; margin-bottom:20px;">⚠️</div>
-      <div style="font-size:24px; font-weight:700; margin-bottom:12px;">${esc(title)}</div>
-      <div style="color:var(--m); margin-bottom:24px;">${esc(message)}</div>
+    <div class="cbx-err">
+      <div class="cbx-err-icon">⚠️</div>
+      <div class="cbx-err-title">${esc(title)}</div>
+      <div class="cbx-err-msg">${esc(message)}</div>
       <a href="/pro/dashboard" class="btn btn-orange">← Back to Dashboard</a>
     </div>
   `;
@@ -3285,16 +3285,16 @@ window.viewEstimate = function(estimateId) {
   let lineItemsHTML = '';
   if (estimate.lineItems && Array.isArray(estimate.lineItems) && estimate.lineItems.length > 0) {
     lineItemsHTML = `
-      <div style="margin-bottom:20px;">
-        <div style="font-size:12px;font-weight:600;color:var(--m);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em;">Line Items</div>
-        <div style="background:var(--s2);border:1px solid var(--br);border-radius:6px;overflow:hidden;">
+      <div class="cbx-mb20">
+        <div class="cbx-caps10">Line Items</div>
+        <div class="cbx-panel">
           ${estimate.lineItems.map(item => `
-            <div style="display:flex;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--br);">
+            <div class="cbx-line">
               <div>
-                <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${esc(item.description || item.name || 'Item')}</div>
-                ${item.quantity ? `<div style="font-size:11px;color:var(--m);">Qty: ${esc(item.quantity)} ${esc(item.unit || '')}</div>` : ''}
+                <div class="cbx-line-name">${esc(item.description || item.name || 'Item')}</div>
+                ${item.quantity ? `<div class="cbx-m11">Qty: ${esc(item.quantity)} ${esc(item.unit || '')}</div>` : ''}
               </div>
-              <div style="font-size:14px;font-weight:700;color:var(--orange);">
+              <div class="cbx-line-amt">
                 ${item.amount ? `$${parseFloat(item.amount).toLocaleString()}` : '—'}
               </div>
             </div>
@@ -3310,21 +3310,21 @@ window.viewEstimate = function(estimateId) {
   const total = parseFloat(estimate.total || estimate.amount || 0);
   
   const pricingHTML = `
-    <div style="background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:16px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-        <div style="font-size:13px;color:var(--m);">Subtotal</div>
-        <div style="font-size:14px;font-weight:600;">$${subtotal.toLocaleString()}</div>
+    <div class="cbx-panel16">
+      <div class="cbx-sum-row">
+        <div class="cbx-m13">Subtotal</div>
+        <div class="cbx-v14">$${subtotal.toLocaleString()}</div>
       </div>
       ${tax > 0 ? `
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-          <div style="font-size:13px;color:var(--m);">Tax</div>
-          <div style="font-size:14px;font-weight:600;">$${tax.toLocaleString()}</div>
+        <div class="cbx-sum-row">
+          <div class="cbx-m13">Tax</div>
+          <div class="cbx-v14">$${tax.toLocaleString()}</div>
         </div>
       ` : ''}
-      <div style="border-top:1px solid var(--br);margin:12px 0;"></div>
-      <div style="display:flex;justify-content:space-between;">
-        <div style="font-size:15px;font-weight:700;">Total</div>
-        <div style="font-size:18px;font-weight:700;color:var(--orange);">$${total.toLocaleString()}</div>
+      <div class="cbx-rule"></div>
+      <div class="cbx-between">
+        <div class="cbx-total-label">Total</div>
+        <div class="cbx-total">$${total.toLocaleString()}</div>
       </div>
     </div>
   `;
@@ -3340,22 +3340,22 @@ window.viewEstimate = function(estimateId) {
   }[status] || 'var(--m)';
   
   const metadataHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+    <div class="cbx-meta-grid">
       <div>
-        <div style="font-size:11px;color:var(--m);margin-bottom:4px;">Title</div>
-        <div style="font-size:14px;font-weight:600;">${esc(estimate.title || 'Untitled Estimate')}</div>
+        <div class="cbx-k">Title</div>
+        <div class="cbx-v14">${esc(estimate.title || 'Untitled Estimate')}</div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--m);margin-bottom:4px;">Status</div>
+        <div class="cbx-k">Status</div>
         <div style="font-size:13px;font-weight:600;color:${statusColor};">${esc(status)}</div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--m);margin-bottom:4px;">Created</div>
-        <div style="font-size:13px;">${esc(createdDate)}</div>
+        <div class="cbx-k">Created</div>
+        <div class="cbx-fs13">${esc(createdDate)}</div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--m);margin-bottom:4px;">Estimate #</div>
-        <div style="font-size:13px;font-family:'DM Mono',monospace;">${esc(String(estimate.id || '').substring(0,8).toUpperCase())}</div>
+        <div class="cbx-k">Estimate #</div>
+        <div class="cbx-mono">${esc(String(estimate.id || '').substring(0,8).toUpperCase())}</div>
       </div>
     </div>
   `;
@@ -3363,9 +3363,9 @@ window.viewEstimate = function(estimateId) {
   // Notes — escape + convert newlines to <br>
   const notesBodyHtml = estimate.notes ? esc(estimate.notes).replace(/\n/g, '<br>') : '';
   const notesHTML = notesBodyHtml ? `
-    <div style="margin-bottom:20px;">
-      <div style="font-size:12px;font-weight:600;color:var(--m);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;">Notes</div>
-      <div style="background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:12px;font-size:13px;line-height:1.6;color:var(--m);">
+    <div class="cbx-mb20">
+      <div class="cbx-caps8">Notes</div>
+      <div class="cbx-notes">
         ${notesBodyHtml}
       </div>
     </div>
