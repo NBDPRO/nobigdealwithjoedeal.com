@@ -1,0 +1,38 @@
+/* Optional game card (js/game-card.js, 2026-10-03): Home card + the Settings
+   › Appearance "Game mode" panel. gc- prefix. No inline styles (CSP), so the
+   XP bar width and the swatch colours are classes. */
+.gc-card { background: var(--s, #12223D); border: 1px solid var(--br, #2a2f3a); border-radius: 12px; padding: 14px 16px; }
+.gc-top { display: flex; align-items: center; gap: 12px; }
+.gc-sprite { width: 64px; height: 64px; image-rendering: pixelated; background: var(--s2, #1b2230); border-radius: 10px; flex: none; }
+.gc-sprite-lg { width: 128px; height: 128px; }
+.gc-who { flex: 1 1 auto; min-width: 0; }
+.gc-name { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; color: var(--t, #e8eaf0); }
+.gc-muted { font-size: 12px; color: var(--m, #9aa3b2); }
+.gc-xp { white-space: nowrap; }
+.gc-bar { height: 10px; background: var(--s2, #1b2230); border-radius: 6px; overflow: hidden; margin: 12px 0; }
+.gc-fill { height: 100%; background: var(--orange, #BD5728); border-radius: 6px; }
+.gc-w0 { width: 0; } .gc-w5 { width: 5%; } .gc-w10 { width: 10%; } .gc-w15 { width: 15%; } .gc-w20 { width: 20%; }
+.gc-w25 { width: 25%; } .gc-w30 { width: 30%; } .gc-w35 { width: 35%; } .gc-w40 { width: 40%; } .gc-w45 { width: 45%; }
+.gc-w50 { width: 50%; } .gc-w55 { width: 55%; } .gc-w60 { width: 60%; } .gc-w65 { width: 65%; } .gc-w70 { width: 70%; }
+.gc-w75 { width: 75%; } .gc-w80 { width: 80%; } .gc-w85 { width: 85%; } .gc-w90 { width: 90%; } .gc-w95 { width: 95%; } .gc-w100 { width: 100%; }
+.gc-weeks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.gc-stat { background: var(--s2, #1b2230); border-radius: 8px; padding: 10px 12px; }
+.gc-num { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; color: var(--t, #e8eaf0); }
+.gc-vs { margin: 8px 0 4px; }
+.gc-list { margin-top: 6px; }
+.gc-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--t, #e8eaf0); padding: 6px 0; border-top: 1px solid var(--br, #2a2f3a); }
+.gc-note { margin-top: 6px; }
+.gc-actions { margin-top: 10px; }
+.gc-editor { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
+.gc-editor-opts { flex: 1 1 200px; min-width: 0; }
+.gc-lbl { font-size: 12px; color: var(--m, #9aa3b2); margin: 8px 0 4px; }
+.gc-sw, .gc-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.gc-swatch { width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 8px; border: 1px solid var(--br, #2a2f3a); cursor: pointer; }
+.gc-swatch.is-on, .gc-tools .is-on { outline: 2px solid var(--orange, #BD5728); outline-offset: 2px; }
+.gc-sw-skin-0 { background: #F2C6A0; } .gc-sw-skin-1 { background: #D99A6C; } .gc-sw-skin-2 { background: #A86B45; } .gc-sw-skin-3 { background: #6B4226; }
+.gc-sw-hat-0 { background: #BA7517; } .gc-sw-hat-1 { background: #378ADD; } .gc-sw-hat-2 { background: #E24B4A; } .gc-sw-hat-3 { background: #639922; }
+.gc-sw-shirt-0 { background: #185FA5; } .gc-sw-shirt-1 { background: #D85A30; } .gc-sw-shirt-2 { background: #5F5E5A; } .gc-sw-shirt-3 { background: #0F6E56; }
+.gc-p { margin: 0 0 10px; line-height: 1.5; }
+.gc-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--t, #e8eaf0); cursor: pointer; min-height: 44px; }
+.gc-switch input { width: 20px; height: 20px; }
+@media (max-width: 480px) { .gc-sprite-lg { width: 96px; height: 96px; } .gc-weeks { grid-template-columns: 1fr 1fr; } }

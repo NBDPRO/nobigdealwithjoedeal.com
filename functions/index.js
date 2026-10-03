@@ -727,6 +727,9 @@ exports.callWatch = require('./call-watch').callWatch;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;
+// Optional game card (2026-10-03): level, XP and this week vs last week,
+// derived on request from the caller's own records — nothing stored.
+exports.getGameCard = require('./game').getGameCard;
 // Text Inbox (Call Center stage 4): Jo's texts from the SMS Backup & Restore
 // Drive backup → phone_texts (lead matched by phone, short codes never
 // stored). DRY-RUN (counts) unless TEXT_INBOX_ENABLED=true.
