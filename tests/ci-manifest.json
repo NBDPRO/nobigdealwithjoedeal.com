@@ -93,6 +93,7 @@
     "expenses-logic.test.js",
     "function-orphans.test.js",
     "funnel-recovery-hardening.test.js",
+    "background-job-reliability-2026-10-03.test.js",
     "ga4-landing-coverage.test.js",
     "gauntlet-brand-guard.test.js",
     "google-reviews-display.test.js",
