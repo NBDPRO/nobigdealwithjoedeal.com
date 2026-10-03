@@ -108,7 +108,23 @@ function ok(label, cond, detail) {
   console.log('E. wiring');
   const src = read('functions/call-watch.js');
   ok('every 2 hours, 8 AM-8 PM Eastern, heartbeat-wrapped', /schedule: '0 8-20\/2 \* \* \*', timeZone: 'America\/New_York'/.test(src) && /require\('\.\/integrations\/heartbeat'\)/.test(src));
-  ok('alerts only Jo: a bell notification + push; never SMS or email', /collection\('notifications'\)\.add/.test(src) && /sendCustomNotification/.test(src) && !/twilio|resend|sendSms|email_queue|alertJoe/i.test(src));
+  // It READS Twilio's delivery results (GET only, 2026-10-02) but never sends.
+  ok('alerts only Jo: a bell notification + push; never SMS or email', /collection\('notifications'\)\.add/.test(src) && /sendCustomNotification/.test(src)
+    && !/resend|sendSms|email_queue|alertJoe|messages\.create|method:\s*'POST'/i.test(src) && (src.match(/fetch\(/g) || []).length === 1 && /method: 'GET'/.test(src));
+
+  console.log('E2. texts that did not deliver (0 of 23 arrived while the CRM said "sent")');
+  const t = (status, code, ago, dir) => ({ status, error_code: code, direction: dir || 'outbound-api', date_sent: new Date(NOW - (ago || H)).toUTCString() });
+  const blocked = W.smsProblems([t('undelivered', 30034), t('undelivered', 30034), t('failed', 21608)], NOW);
+  ok('undelivered / failed texts raise one problem, the main reason in plain words', blocked.length === 1 && blocked[0].key === 'sms_undelivered'
+    && /3 texts in the last day did not deliver \(none did\)/.test(blocked[0].text) && /not registered for business texting/.test(blocked[0].text) && /TWILIO-A2P-REGISTRATION/.test(blocked[0].text), JSON.stringify(blocked));
+  ok('delivered texts, a STOP reply (21610), inbound and day-old messages raise nothing',
+    W.smsProblems([t('delivered'), t('undelivered', 21610), t('undelivered', 30034, H, 'inbound'), t('undelivered', 30034, 2 * D)], NOW).length === 0);
+  ok('a mixed day says how many did arrive', /1 text in the last day did not deliver \(2 did\)/.test(W.smsProblems([t('delivered'), t('delivered'), t('undelivered', 30007)], NOW)[0].text));
+  ok('repeats at most once a day (not every 6 h like pipeline problems)', W.problemsToTell(blocked, { sms_undelivered: NOW - 7 * H }, NOW).length === 0
+    && W.problemsToTell(blocked, { sms_undelivered: NOW - 25 * H }, NOW).length === 1);
+  const sa = W.alertFor([], blocked, NOW);
+  ok('the alert title says texts are not delivering, not "call updates are behind"', /texts are not delivering/.test(sa.title) && !/call updates/.test(sa.title) && sa.priority === 'high', sa.title);
+  ok('callWatch binds the Twilio secrets it reads', /secrets: \[TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN\]/.test(src) && /texts: recentTexts/.test(src));
   ok('a failure throws so the heartbeat reports /fail', /throw e; \/\/ let the heartbeat report \/fail/.test(src));
   ok('gated: CALL_WATCH_ENABLED (registered, on in prod)', /process\.env\.CALL_WATCH_ENABLED === 'true'/.test(src) && /CALL_WATCH_ENABLED/.test(read('functions/cron-gates.js')) && /^CALL_WATCH_ENABLED=true$/m.test(read('functions/.env.nobigdeal-pro')));
   ok('exported from index.js', /exports\.callWatch = require\('\.\/call-watch'\)\.callWatch;/.test(read('functions/index.js')));

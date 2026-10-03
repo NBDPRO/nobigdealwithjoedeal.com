@@ -140,7 +140,40 @@ function pipelineProblems(cc, ti, stored, thursday, now, gates) {
 /** Problems worth alerting now: new keys, or a standing one last told 6+ h ago. */
 function problemsToTell(problems, lastTold, now) {
   const told = lastTold || {};
-  return (problems || []).filter((p) => !told[p.key] || now - toMs(told[p.key]) >= PROBLEM_REPEAT_MS);
+  return (problems || []).filter((p) => !told[p.key] || now - toMs(told[p.key]) >= (p.repeatMs || PROBLEM_REPEAT_MS));
+}
+
+/**
+ * Texts that did not deliver (2026-10-02). Twilio "accepts" a message and the
+ * carrier blocks it later, so the CRM's own records said "sent" for 45 days
+ * while 0 of 23 texts arrived (30034: number not registered; 21608: trial
+ * account). messages = Twilio outbound messages from the last day ({ status,
+ * error_code, direction, date_sent }). One problem, repeated at most daily.
+ */
+const SMS_REPEAT_MS = 24 * HOUR;
+const SMS_REASONS = {
+  30034: 'the sending number is not registered for business texting (A2P 10DLC)',
+  21608: 'the Twilio account is still a trial and can only text verified numbers',
+  30007: 'the carrier filtered it as spam',
+  30003: 'the phone was unreachable',
+  30005: 'the number does not exist',
+  30006: 'the number cannot receive texts',
+};
+function smsProblems(messages, now) {
+  const out = (messages || []).filter((m) => m && /^outbound/.test(String(m.direction || ''))
+    && (toMs(m.date_sent) || toMs(m.date_created) || now) >= now - DAY);
+  // A person who replied STOP (21610) is the system working, not a failure.
+  const bad = out.filter((m) => (m.status === 'undelivered' || m.status === 'failed') && String(m.error_code) !== '21610');
+  if (!bad.length) return [];
+  const codes = {};
+  bad.forEach((m) => { const c = String(m.error_code || '?'); codes[c] = (codes[c] || 0) + 1; });
+  const top = Object.keys(codes).sort((a, b) => codes[b] - codes[a])[0];
+  const delivered = out.filter((m) => m.status === 'delivered').length;
+  return [{
+    key: 'sms_undelivered', repeatMs: SMS_REPEAT_MS,
+    text: bad.length + ' text' + (bad.length === 1 ? '' : 's') + ' in the last day did not deliver' + (delivered ? ' (' + delivered + ' did)' : ' (none did)') +
+      ' — ' + (SMS_REASONS[top] || 'Twilio error ' + top) + '. The fix: documentation/runbooks/TWILIO-A2P-REGISTRATION.md.',
+  }];
 }
 
 /** The one alert (bell + push). null when there is nothing to say. */
@@ -160,7 +193,8 @@ function alertFor(needs, problems, now) {
   }));
   const parts = [];
   if (n.length) parts.push(n.length + (n.length === 1 ? ' person needs' : ' people need') + ' you');
-  if (pr.length) parts.push('call updates are behind');
+  if (pr.some((p) => p.key !== 'sms_undelivered')) parts.push('call updates are behind');
+  if (pr.some((p) => p.key === 'sms_undelivered')) parts.push('texts are not delivering');
   const lines = n.slice(0, 5).map((x) => '• ' + x.who + ' — ' + x.why).concat(n.length > 5 ? ['• +' + (n.length - 5) + ' more'] : []).concat(pr.map((x) => '⚠ ' + x.text));
   return {
     title: '📞 ' + parts.join(' · '),
@@ -179,5 +213,6 @@ function inWatchHours(now) {
 
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
+  SMS_REPEAT_MS, smsProblems,
   toMs, etYmd, callNeedsYou, callerKey, reasonFor, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

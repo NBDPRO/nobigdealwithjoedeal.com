@@ -10,16 +10,37 @@
  * notification per check that has something new, and a push to Jo's phone.
  * Never texts or emails anyone. Gate: CALL_WATCH_ENABLED=true (otherwise it
  * computes and logs only).
+ *
+ * Also reads (GET only) Twilio's delivery results for the last day, so texts
+ * the carrier blocked surface as "texts are not delivering" (2026-10-02: 0 of
+ * 23 delivered while the CRM's records said "sent").
  */
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { defineSecret } = require('firebase-functions/params');
 const W = require('./call-watch-logic');
+
+const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
+const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
+const secretVal = (n) => { const v = String(process.env[n] || '').trim(); return v && v !== '__unset__' ? v : ''; };
+
+/** Twilio outbound messages from the last day — GET only; [] when not configured. */
+async function recentTexts(nowMs) {
+  const sid = secretVal('TWILIO_ACCOUNT_SID'), tok = secretVal('TWILIO_AUTH_TOKEN');
+  if (!sid || !tok) return [];
+  const since = new Date(nowMs - 86400000).toISOString().slice(0, 10);
+  const url = 'https://api.twilio.com/2010-04-01/Accounts/' + encodeURIComponent(sid) + '/Messages.json?PageSize=200&DateSent%3E=' + since;
+  const res = await fetch(url, { method: 'GET', headers: { Authorization: 'Basic ' + Buffer.from(sid + ':' + tok).toString('base64') } });
+  if (!res.ok) throw new Error('twilio messages ' + res.status);
+  const body = await res.json();
+  return Array.isArray(body.messages) ? body.messages : [];
+}
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const watchEnabled = () => process.env.CALL_WATCH_ENABLED === 'true';
 
-async function runWatch({ db, nowMs, live, push }) {
+async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   if (!W.inWatchHours(nowMs)) return { state: 'off_hours' };
   const stateRef = db.doc('integrations/callWatch');
   const stateSnap = await stateRef.get();
@@ -51,6 +72,10 @@ async function runWatch({ db, nowMs, live, push }) {
     textNotes: process.env.TEXT_NOTES_ENABLED === 'true',
   };
   const problems = W.pipelineProblems(cc.exists ? cc.data() : null, ti.exists ? ti.data() : null, rows(stored), thu, nowMs, gates);
+  if (typeof fetchTexts === 'function') {
+    try { problems.push(...W.smsProblems(await fetchTexts(nowMs), nowMs)); }
+    catch (e) { logger.warn('[callWatch] text delivery check skipped', { err: e && e.message }); }
+  }
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
   const alert = W.alertFor(needs, tell, nowMs);
   const counts = { needs: needs.length, problems: problems.length, told: tell.length };
@@ -73,11 +98,11 @@ async function runWatch({ db, nowMs, live, push }) {
 }
 
 exports.callWatch = onSchedule(
-  { schedule: '0 8-20/2 * * *', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '512MiB', maxInstances: 1 },
+  { schedule: '0 8-20/2 * * *', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '512MiB', maxInstances: 1, secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN] },
   async () => {
     try {
       const r = await runWatch({
-        db: getFirestore(), nowMs: Date.now(), live: watchEnabled(),
+        db: getFirestore(), nowMs: Date.now(), live: watchEnabled(), texts: recentTexts,
         // sendCustomNotification (as Thursday + deal views use) — push-functions'
         // module.exports.sendPushNotification points at an export never assigned.
         push: (uid, title, body, data) => require('./push-functions').sendCustomNotification(uid, title, body, Object.assign({ notificationId: 'call-watch-' + Date.now() }, data)),
@@ -90,4 +115,4 @@ exports.callWatch = onSchedule(
   }
 );
 
-exports._internal = { runWatch };
+exports._internal = { runWatch, recentTexts };
