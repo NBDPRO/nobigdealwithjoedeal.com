@@ -106,18 +106,18 @@
       '<div style="background:#0f1729;border:1px solid #2a3344;border-radius:14px;' +
         'width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;' +
         'padding:20px;color:#e2e8f0;box-shadow:0 20px 60px rgba(0,0,0,0.6);font:inherit;">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+        '<div class="qix-dflex-aicenter-jcspacebet">' +
           '<div>' +
-            '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.08em;font-weight:600;margin-bottom:2px;">CAPTURE INBOX</div>' +
-            '<div style="font-size:18px;font-weight:700;">Past voice captures</div>' +
+            '<div class="qix-fs11px-c94a3b8-ls008em">CAPTURE INBOX</div>' +
+            '<div class="qix-fs18px-w700">Past voice captures</div>' +
           '</div>' +
-          '<button type="button" id="nbd-qci-close" style="background:transparent;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:4px 10px;line-height:1;">×</button>' +
+          '<button type="button" id="nbd-qci-close" class="qix-bgtranspar-bdnone-c94a3b8">×</button>' +
         '</div>' +
         '<input type="text" id="nbd-qci-search" placeholder="Search by overview, transcript, or category…" ' +
           'style="width:100%;padding:10px;border-radius:6px;border:1px solid #2a3344;background:#0a1424;' +
           'color:inherit;font:inherit;font-size:14px;margin-bottom:12px;box-sizing:border-box;">' +
-        '<div id="nbd-qci-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">' +
-          '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:32px 12px;">Loading…</div>' +
+        '<div id="nbd-qci-list" class="qix-fx1-oveauto-dflex">' +
+          '<div class="qix-c94a3b8-fs13px-tacenter">Loading…</div>' +
         '</div>' +
       '</div>';
     wrap.querySelector('#nbd-qci-close').addEventListener('click', close);
@@ -167,7 +167,7 @@
     const uid = window._user?.uid || (window.auth && window.auth.currentUser && window.auth.currentUser.uid);
     if (!uid) {
       const list = document.getElementById('nbd-qci-list');
-      if (list) list.innerHTML = '<div style="color:#fca5a5;font-size:13px;text-align:center;padding:24px 12px;">Sign in to see your captures.</div>';
+      if (list) list.innerHTML = '<div class="qix-cfca5a5-fs13px-tacenter">Sign in to see your captures.</div>';
       return;
     }
     try {
@@ -185,7 +185,7 @@
       console.warn('[NBDQuickCaptureInbox] load failed:', e);
       const list = document.getElementById('nbd-qci-list');
       if (list) list.innerHTML =
-        '<div style="color:#fca5a5;font-size:13px;text-align:center;padding:24px 12px;">' +
+        '<div class="qix-cfca5a5-fs13px-tacenter">' +
         'Could not load captures: ' + escHtml(e.message || e) + '</div>';
     }
   }
@@ -203,7 +203,7 @@
     const visible = filtered.filter(c => !c.archived);
     if (visible.length === 0) {
       list.innerHTML =
-        '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:32px 12px;">' +
+        '<div class="qix-c94a3b8-fs13px-tacenter">' +
         (q ? 'No captures match this search.' : 'No captures yet. Tap 🎙 to record one.') +
         '</div>';
       return;
@@ -240,39 +240,39 @@
     return '<div class="nbd-qci-item" data-capture-id="' + escHtml(c.id) + '" ' +
         'style="background:#0a1424;border:1px solid #2a3344;border-radius:8px;padding:12px;">' +
 
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">' +
-        '<div style="flex:1;min-width:0;">' +
-          '<div style="font-size:11px;color:#94a3b8;margin-bottom:4px;display:flex;gap:8px;flex-wrap:wrap;">' +
+      '<div class="qix-dflex-jcspacebet-aiflexstar">' +
+        '<div class="qix-fx1-minw0">' +
+          '<div class="qix-fs11px-c94a3b8-mb4px">' +
             '<span>' + escHtml(fmtTime(c.createdAt)) + '</span>' +
-            '<span style="display:inline-block;padding:1px 7px;background:rgba(161,74,34,0.15);border:1px solid var(--orange, #A14A22);border-radius:999px;font-size:10px;color:var(--orange, #A14A22);">' + escHtml(category) + '</span>' +
+            '<span class="qix-dinlinebl-p1px7px-bgrgba1617">' + escHtml(category) + '</span>' +
             (linkedLabel
-              ? '<span style="display:inline-block;padding:1px 7px;background:#1a2540;border:1px solid #2a3344;border-radius:999px;font-size:10px;color:#cbd5e1;">→ ' + escHtml(linkedLabel) + '</span>'
+              ? '<span class="qix-dinlinebl-p1px7px-bg1a2540">→ ' + escHtml(linkedLabel) + '</span>'
               : '') +
             (c.tasksCommitted
-              ? '<span style="font-size:10px;color:#5eead4;">' + c.tasksCommitted + ' task' + (c.tasksCommitted === 1 ? '' : 's') + ' committed</span>'
+              ? '<span class="qix-fs10px-c5eead4">' + c.tasksCommitted + ' task' + (c.tasksCommitted === 1 ? '' : 's') + ' committed</span>'
               : '') +
           '</div>' +
-          '<div style="font-size:13px;line-height:1.45;">' + escHtml(overview) + '</div>' +
+          '<div class="qix-fs13px-lh145">' + escHtml(overview) + '</div>' +
         '</div>' +
       '</div>' +
 
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-        '<button type="button" class="nbd-qci-expand" style="padding:5px 10px;background:transparent;border:1px solid #2a3344;color:#cbd5e1;border-radius:5px;font-size:11px;cursor:pointer;">Show details</button>' +
+      '<div class="qix-dflex-gap6px-flewrap">' +
+        '<button type="button" class="nbd-qci-expand qix-p5px10px-bgtranspar-bd1pxsolid">Show details</button>' +
         (linkedLead
-          ? '<button type="button" class="nbd-qci-link" style="padding:5px 10px;background:transparent;border:1px solid #2a3344;color:#cbd5e1;border-radius:5px;font-size:11px;cursor:pointer;">Re-link</button>'
-          : '<button type="button" class="nbd-qci-link" style="padding:5px 10px;background:rgba(161,74,34,0.15);border:1px solid var(--orange, #A14A22);color:var(--orange, #A14A22);border-radius:5px;font-size:11px;cursor:pointer;">Link to lead</button>') +
-        '<button type="button" class="nbd-qci-archive" style="margin-left:auto;padding:5px 10px;background:transparent;border:1px solid #2a3344;color:#94a3b8;border-radius:5px;font-size:11px;cursor:pointer;">Archive</button>' +
+          ? '<button type="button" class="nbd-qci-link qix-p5px10px-bgtranspar-bd1pxsolid">Re-link</button>'
+          : '<button type="button" class="nbd-qci-link qix-p5px10px-bgrgba1617-bd1pxsolid">Link to lead</button>') +
+        '<button type="button" class="nbd-qci-archive qix-mlauto-p5px10px-bgtranspar">Archive</button>' +
       '</div>' +
 
       '<div class="nbd-qci-expand-panel" style="display:none;margin-top:10px;padding:10px;background:#0f1729;border-radius:6px;font-size:12px;line-height:1.55;">' +
         (actionItems.length
-          ? '<div style="font-weight:600;margin-bottom:4px;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;">Action items</div>' +
-            '<ul style="margin:0 0 10px;padding-left:18px;">' +
+          ? '<div class="qix-w600-mb4px-fs11px">Action items</div>' +
+            '<ul class="qix-m0010px-pad18px">' +
               actionItems.map(t => '<li>' + escHtml(t) + '</li>').join('') +
             '</ul>'
           : '') +
-        '<div style="font-weight:600;margin-bottom:4px;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;">Transcript</div>' +
-        '<div style="white-space:pre-wrap;color:#cbd5e1;">' + escHtml(c.transcript || '') + '</div>' +
+        '<div class="qix-w600-mb4px-fs11px">Transcript</div>' +
+        '<div class="qix-whiprewrap-ccbd5e1">' + escHtml(c.transcript || '') + '</div>' +
       '</div>' +
     '</div>';
   }
@@ -304,13 +304,13 @@
       'position:fixed;inset:0;background:rgba(10,20,36,0.96);z-index:10020;' +
       'display:flex;align-items:center;justify-content:center;padding:20px;';
     overlay.innerHTML =
-      '<div style="background:#0f1729;border:1px solid #2a3344;border-radius:12px;width:100%;max-width:480px;padding:18px;color:#e2e8f0;">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
-          '<div style="font-size:14px;font-weight:700;">Pick a lead to link to</div>' +
-          '<button type="button" data-act="cancel" style="background:transparent;border:none;color:#94a3b8;font-size:20px;cursor:pointer;line-height:1;">×</button>' +
+      '<div class="qix-bg0f1729-bd1pxsolid-r12px">' +
+        '<div class="qix-dflex-aicenter-jcspacebet-2">' +
+          '<div class="qix-fs14px-w700">Pick a lead to link to</div>' +
+          '<button type="button" data-act="cancel" class="qix-bgtranspar-bdnone-c94a3b8-2">×</button>' +
         '</div>' +
-        '<input type="text" data-search style="width:100%;padding:8px 10px;border-radius:5px;border:1px solid #2a3344;background:#0a1424;color:inherit;font:inherit;font-size:13px;margin-bottom:10px;box-sizing:border-box;" placeholder="Search…">' +
-        '<div data-list style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>' +
+        '<input type="text" data-search class="qix-wd100-p8px10px-r5px" placeholder="Search…">' +
+        '<div data-list class="qix-max300px-oveauto-dflex"></div>' +
       '</div>';
     document.body.appendChild(overlay);
     overlay.querySelector('[data-act="cancel"]').addEventListener('click', () => overlay.remove());
@@ -327,15 +327,15 @@
           }).slice(0, 30)
         : leads.slice(0, 30);
       if (matched.length === 0) {
-        listEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:14px;text-align:center;">No matches.</div>';
+        listEl.innerHTML = '<div class="qix-c94a3b8-fs12px-p14px">No matches.</div>';
         return;
       }
       listEl.innerHTML = matched.map(l => {
         const name = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || '(no name)';
         return '<button type="button" data-lead-id="' + escHtml(l.id) + '" ' +
           'style="padding:9px 11px;text-align:left;background:#0a1424;border:1px solid #2a3344;border-radius:5px;color:inherit;cursor:pointer;font-size:12px;">' +
-          '<div style="font-weight:600;">' + escHtml(name) + '</div>' +
-          '<div style="color:#94a3b8;font-size:11px;margin-top:2px;">' + escHtml(l.address || '') + '</div>' +
+          '<div class="qix-w600">' + escHtml(name) + '</div>' +
+          '<div class="qix-c94a3b8-fs11px-mt2px">' + escHtml(l.address || '') + '</div>' +
           '</button>';
       }).join('');
       Array.from(listEl.querySelectorAll('button[data-lead-id]')).forEach(b => {

@@ -1,0 +1,16 @@
+/* Profit tracker (js/profit-tracker.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.ptx-bgs-bd1pxsolid-r12px.ptx-bgs-bd1pxsolid-r12px.ptx-bgs-bd1pxsolid-r12px { background: var(--s,#12223D); border: 1px solid var(--br,rgba(255,255,255,.08)); border-radius: 12px; padding: 20px; }
+.ptx-dflex-aicenter-jcspacebet.ptx-dflex-aicenter-jcspacebet.ptx-dflex-aicenter-jcspacebet { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.ptx-m0-ffbarlowco-fs16px.ptx-m0-ffbarlowco-fs16px.ptx-m0-ffbarlowco-fs16px { margin: 0; font-family: 'Barlow Condensed',sans-serif; font-size: 16px; font-weight: 700; color: var(--t,#fff); }
+.ptx-fs10px-cgreen-m10px014p.ptx-fs10px-cgreen-m10px014p.ptx-fs10px-cgreen-m10px014p { font-size: 10px; color: var(--green,#16a34a); margin: -10px 0 14px; }
+.ptx-dgrid-gtc1fr1fr-gap12px.ptx-dgrid-gtc1fr1fr-gap12px.ptx-dgrid-gtc1fr1fr-gap12px { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.ptx-fs11px-cm-ttuppercas.ptx-fs11px-cm-ttuppercas.ptx-fs11px-cm-ttuppercas { font-size: 11px; color: var(--m,#9ca3af); text-transform: uppercase; letter-spacing: .05em; }
+.ptx-mb16px.ptx-mb16px.ptx-mb16px { margin-bottom: 16px; }
+.ptx-wd100-p10px-bgs2.ptx-wd100-p10px-bgs2.ptx-wd100-p10px-bgs2 { width: 100%; padding: 10px; background: var(--s2,rgba(255,255,255,.04)); border: 1px solid var(--br,rgba(255,255,255,.1)); border-radius: 8px; color: var(--t,#fff); font-size: 13px; margin-top: 4px; resize: vertical; box-sizing: border-box; }
+.ptx-cm-fs12px-tacenter.ptx-cm-fs12px-tacenter.ptx-cm-fs12px-tacenter { color: var(--m,#9ca3af); font-size: 12px; text-align: center; padding: 12px; }
+.ptx-bgs2-r8px-p14px.ptx-bgs2-r8px-p14px.ptx-bgs2-r8px-p14px { background: var(--s2,rgba(255,255,255,.03)); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+.ptx-dgrid-gtcrepeat31-gap10px.ptx-dgrid-gtcrepeat31-gap10px.ptx-dgrid-gtcrepeat31-gap10px { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; text-align: center; }
+.ptx-fs18px-w800-cgreen.ptx-fs18px-w800-cgreen.ptx-fs18px-w800-cgreen { font-size: 18px; font-weight: 800; color: var(--green,#16a34a); }
+.ptx-fs10px-cm.ptx-fs10px-cm.ptx-fs10px-cm { font-size: 10px; color: var(--m,#9ca3af); }
+.ptx-opa75.ptx-opa75.ptx-opa75 { opacity: .75; }
+.ptx-fs18px-w800-corange.ptx-fs18px-w800-corange.ptx-fs18px-w800-corange { font-size: 18px; font-weight: 800; color: var(--orange,#BD5728); }

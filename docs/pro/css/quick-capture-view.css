@@ -1,0 +1,35 @@
+/* Quick capture (js/quick-capture.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.qcx-dflex-aicenter-jcspacebet.qcx-dflex-aicenter-jcspacebet.qcx-dflex-aicenter-jcspacebet { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.qcx-fs11px-c94a3b8-ls008em.qcx-fs11px-c94a3b8-ls008em.qcx-fs11px-c94a3b8-ls008em { font-size: 11px; color: #94a3b8; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 2px; }
+.qcx-fs20px-w700.qcx-fs20px-w700.qcx-fs20px-w700 { font-size: 20px; font-weight: 700; }
+.qcx-bgtranspar-bdnone-c94a3b8.qcx-bgtranspar-bdnone-c94a3b8.qcx-bgtranspar-bdnone-c94a3b8 { background: transparent; border: none; color: #94a3b8; font-size: 24px; cursor: pointer; padding: 4px 10px; line-height: 1; }
+.qcx-tacenter-p28px18px-bg0a1424.qcx-tacenter-p28px18px-bg0a1424.qcx-tacenter-p28px18px-bg0a1424 { text-align: center; padding: 28px 18px; background: #0a1424; border-radius: 10px; margin-bottom: 14px; }
+.qcx-wd88px-hei88px-r50.qcx-wd88px-hei88px-r50.qcx-wd88px-hei88px-r50 { width: 88px; height: 88px; border-radius: 50%; border: none; background: var(--orange, #A14A22); color: #fff; font-size: 36px; cursor: pointer; box-shadow: 0 8px 24px rgba(161,74,34,0.45); transition: transform 120ms ease; }
+.qcx-mt14px-fs14px-c94a3b8.qcx-mt14px-fs14px-c94a3b8.qcx-mt14px-fs14px-c94a3b8 { margin-top: 14px; font-size: 14px; color: #94a3b8; }
+.qcx-mb10px.qcx-mb10px.qcx-mb10px { margin-bottom: 10px; }
+.qcx-fs11px-c94a3b8-ttuppercas.qcx-fs11px-c94a3b8-ttuppercas.qcx-fs11px-c94a3b8-ttuppercas { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.qcx-dflex-flewrap-gap5px.qcx-dflex-flewrap-gap5px.qcx-dflex-flewrap-gap5px { display: flex; flex-wrap: wrap; gap: 5px; }
+.qcx-dinlinebl-p3px9px-bg1a2540.qcx-dinlinebl-p3px9px-bg1a2540.qcx-dinlinebl-p3px9px-bg1a2540 { display: inline-block; padding: 3px 9px; background: #1a2540; border: 1px solid #2a3344; border-radius: 999px; font-size: 12px; }
+.qcx-bg0a1424-r10px-p16px.qcx-bg0a1424-r10px-p16px.qcx-bg0a1424-r10px-p16px { background: #0a1424; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+.qcx-dflex-jcspacebet-aicenter.qcx-dflex-jcspacebet-aicenter.qcx-dflex-jcspacebet-aicenter { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.qcx-fs11px-c94a3b8-ls006em.qcx-fs11px-c94a3b8-ls006em.qcx-fs11px-c94a3b8-ls006em { font-size: 11px; color: #94a3b8; letter-spacing: 0.06em; font-weight: 600; }
+.qcx-dinlinebl-p3px9px-bgrgba1617.qcx-dinlinebl-p3px9px-bgrgba1617.qcx-dinlinebl-p3px9px-bgrgba1617 { display: inline-block; padding: 3px 9px; background: rgba(161,74,34,0.15); border: 1px solid var(--orange, #A14A22); border-radius: 999px; font-size: 11px; color: var(--orange, #A14A22); }
+.qcx-fs14px-lh15-mb14px.qcx-fs14px-lh15-mb14px.qcx-fs14px-lh15-mb14px { font-size: 14px; line-height: 1.5; margin-bottom: 14px; }
+.qcx-fs11px-c94a3b8-ttuppercas-2.qcx-fs11px-c94a3b8-ttuppercas-2.qcx-fs11px-c94a3b8-ttuppercas-2 { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.qcx-m0014px-pad20px-fs13px.qcx-m0014px-pad20px-fs13px.qcx-m0014px-pad20px-fs13px { margin: 0 0 14px; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+.qcx-dgrid-gtc1fr1fr-gap8px.qcx-dgrid-gtc1fr1fr-gap8px.qcx-dgrid-gtc1fr1fr-gap8px { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.qcx-p11px-bgorange-cfff.qcx-p11px-bgorange-cfff.qcx-p11px-bgorange-cfff { padding: 11px; background: var(--orange, #A14A22); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.qcx-p11px-bg1a2540-cinherit.qcx-p11px-bg1a2540-cinherit.qcx-p11px-bg1a2540-cinherit { padding: 11px; background: #1a2540; color: inherit; border: 1px solid #2a3344; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.qcx-wd100-p11px-bg1a2540.qcx-wd100-p11px-bg1a2540.qcx-wd100-p11px-bg1a2540 { width: 100%; padding: 11px; background: #1a2540; color: inherit; border: 1px solid #2a3344; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 8px; }
+.qcx-wd100-p9px-bgtranspar.qcx-wd100-p9px-bgtranspar.qcx-wd100-p9px-bgtranspar { width: 100%; padding: 9px; background: transparent; color: #94a3b8; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; }
+.qcx-mt14px.qcx-mt14px.qcx-mt14px { margin-top: 14px; }
+.qcx-fs11px-c94a3b8-curpointer.qcx-fs11px-c94a3b8-curpointer.qcx-fs11px-c94a3b8-curpointer { font-size: 11px; color: #94a3b8; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+.qcx-mt8px-p12px-bg0a1424.qcx-mt8px-p12px-bg0a1424.qcx-mt8px-p12px-bg0a1424 { margin-top: 8px; padding: 12px; background: #0a1424; border-radius: 8px; font-size: 13px; line-height: 1.5; color: #cbd5e1; white-space: pre-wrap; }
+.qcx-dflex-aicenter-jcspacebet-2.qcx-dflex-aicenter-jcspacebet-2.qcx-dflex-aicenter-jcspacebet-2 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.qcx-fs14px-w700.qcx-fs14px-w700.qcx-fs14px-w700 { font-size: 14px; font-weight: 700; }
+.qcx-bgtranspar-bdnone-c94a3b8-2.qcx-bgtranspar-bdnone-c94a3b8-2.qcx-bgtranspar-bdnone-c94a3b8-2 { background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; line-height: 1; }
+.qcx-wd100-p10px-r6px.qcx-wd100-p10px-r6px.qcx-wd100-p10px-r6px { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #2a3344; background: #0a1424; color: inherit; font: inherit; font-size: 14px; margin-bottom: 12px; box-sizing: border-box; }
+.qcx-fx1-oveauto-dflex.qcx-fx1-oveauto-dflex.qcx-fx1-oveauto-dflex { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.qcx-c94a3b8-fs13px-p14px.qcx-c94a3b8-fs13px-p14px.qcx-c94a3b8-fs13px-p14px { color: #94a3b8; font-size: 13px; padding: 14px; text-align: center; }
+.qcx-w600.qcx-w600.qcx-w600 { font-weight: 600; }
+.qcx-c94a3b8-fs12px-mt2px.qcx-c94a3b8-fs12px-mt2px.qcx-c94a3b8-fs12px-mt2px { color: #94a3b8; font-size: 12px; margin-top: 2px; }

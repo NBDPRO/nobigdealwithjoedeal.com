@@ -213,24 +213,15 @@
       display:flex; align-items:center; justify-content:center; padding:20px;
       font-family:'Barlow',-apple-system,system-ui,sans-serif;`;
     modalEl.innerHTML = `
-      <div style="
-        background:var(--s,#1a1f2a); border:1px solid var(--br,#2a3344);
-        border-radius:12px; padding:0; width:100%; max-width:680px;
-        max-height:88vh; display:flex; flex-direction:column;
-        box-shadow:0 12px 40px rgba(0,0,0,0.5);">
+      <div class="dim-bgs-bd1pxsolid-r12px">
         <div class="dix-p18px22px-bb1pxsolid-dflex">
           <div>
             <h2 class="dix-fs17px-m003px-ct">Import Leads</h2>
             <div class="dix-fs12px-cm">CSV from your old CRM, spreadsheet, or anywhere else</div>
           </div>
-          <button id="nbd-import-x" aria-label="Close" style="
-            background:transparent; border:none; color:var(--m,#9aa3b2);
-            cursor:pointer; padding:6px 10px; font-size:18px; line-height:1;
-            -webkit-tap-highlight-color:transparent;">×</button>
+          <button id="nbd-import-x" aria-label="Close" class="dim-bgtranspar-bdnone-cm">×</button>
         </div>
-        <div id="nbd-import-body" style="
-          flex:1; overflow:auto; padding:22px;
-          display:flex; flex-direction:column; gap:14px;">
+        <div id="nbd-import-body" class="dim-fx1-oveauto-p22px">
         </div>
       </div>`;
     document.body.appendChild(modalEl);
@@ -247,12 +238,7 @@
   function renderUploadStep() {
     const body = modalEl.querySelector('#nbd-import-body');
     body.innerHTML = `
-      <div id="nbd-drop-zone" style="
-        border:2px dashed var(--br,#2a3344); border-radius:12px;
-        padding:38px 20px; text-align:center;
-        background:var(--s2,#0f1419);
-        transition:border-color .2s, background .2s;
-        cursor:pointer;">
+      <div id="nbd-drop-zone" class="dim-bd2pxdashe-r12px-p38px20px">
         <div class="dix-fs36px-mb10px-opa07">📁</div>
         <div class="dix-fs14px-w600-ct">Drop a CSV here</div>
         <div class="dix-fs12px-cm-mb14px">or click to choose a file</div>
@@ -339,11 +325,7 @@
           <div class="dix-fs13px-w600-ct">${dataRows.length} row${dataRows.length === 1 ? '' : 's'} detected</div>
           <div class="dix-fs11px-cm">Confirm column mapping below, then import.</div>
         </div>
-        <button id="nbd-import-back" style="
-          background:transparent; color:var(--m,#9aa3b2);
-          border:1px solid var(--br,#2a3344); padding:6px 14px;
-          border-radius:7px; font-size:12px; font-weight:600; cursor:pointer;
-          -webkit-tap-highlight-color:transparent;">← Choose different file</button>
+        <button id="nbd-import-back" class="dim-bgtranspar-cm-bd1pxsolid">← Choose different file</button>
       </div>
 
       <div class="dix-oveauto-max300px-bd1pxsolid">
@@ -352,11 +334,7 @@
             <tr>${headers.map((h, i) => `
               <th class="dix-p10px12px-taleft-bb1pxsolid">
                 <div class="dix-fs10px-cm-ttuppercas">${escapeHtml(h)}</div>
-                <select class="nbd-import-mapsel" data-col-index="${i}" style="
-                  background:var(--s,#1a1f2a); color:var(--t,#e8eaf0);
-                  border:1px solid var(--br,#2a3344); border-radius:5px;
-                  padding:5px 8px; font-size:12px; font-family:inherit;
-                  cursor:pointer; max-width:160px;">
+                <select class="nbd-import-mapsel dim-bgs-ct-bd1pxsolid" data-col-index="${i}">
                   ${fields.map(f => `
                     <option value="${escapeHtml(f)}" ${mapping[i] === f ? 'selected' : ''}>
                       ${escapeHtml(fieldLabel[f] || f)}
@@ -377,16 +355,8 @@
         </div>` : ''}
 
       <div class="dix-dflex-jcflexend-gap8px">
-        <button id="nbd-import-cancel" style="
-          background:transparent; color:var(--m,#9aa3b2);
-          border:1px solid var(--br,#2a3344); padding:9px 18px;
-          border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
-          -webkit-tap-highlight-color:transparent;">Cancel</button>
-        <button id="nbd-import-go" style="
-          background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%);
-          color:#fff; border:none; padding:9px 22px; border-radius:8px;
-          font-size:13px; font-weight:700; cursor:pointer;
-          -webkit-tap-highlight-color:transparent;">Import ${dataRows.length} row${dataRows.length === 1 ? '' : 's'}</button>
+        <button id="nbd-import-cancel" class="dim-bgtranspar-cm-bd1pxsolid-2">Cancel</button>
+        <button id="nbd-import-go" class="dim-bglineargr-cfff-bdnone">Import ${dataRows.length} row${dataRows.length === 1 ? '' : 's'}</button>
       </div>`;
 
     body.querySelector('#nbd-import-back').addEventListener('click', renderUploadStep);
@@ -415,9 +385,7 @@
           Starting…
         </div>
         <div class="dix-hei6px-bgs2-r3px">
-          <div id="nbd-import-bar" style="
-            height:100%; width:0%; background:linear-gradient(90deg,#A14A22,#f59e0b);
-            transition:width .15s ease;"></div>
+          <div id="nbd-import-bar" class="dim-hei100-wd0-bglineargr"></div>
         </div>
       </div>`;
 
@@ -665,11 +633,7 @@
               <strong class="dix-cef4444">${result.failed}</strong>
             </div>` : ''}
         </div>
-        <button id="nbd-import-done" style="
-          background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%);
-          color:#fff; border:none; padding:10px 26px; border-radius:8px;
-          font-size:13px; font-weight:700; cursor:pointer;
-          -webkit-tap-highlight-color:transparent;">Done</button>
+        <button id="nbd-import-done" class="dim-bglineargr-cfff-bdnone-2">Done</button>
       </div>`;
     body.querySelector('#nbd-import-done').addEventListener('click', closeImport);
   }

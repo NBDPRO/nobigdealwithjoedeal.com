@@ -1064,7 +1064,7 @@
           <button class="nbd-icon-btn" data-act="redo" title="Redo (Ctrl+Y)" disabled>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/><path d="M17 6l4 4-4 4"/></svg>
           </button>
-          <div style="width:1px;height:24px;background:var(--nbd-border)"></div>
+          <div class="pex-wd1px-hei24px-bgnbdborde"></div>
           <button class="nbd-btn" data-act="download" title="Download Local">
             <svg class="nbd-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Download
@@ -1075,7 +1075,7 @@
             <svg class="nbd-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
             Save
           </button>
-          <div style="width:1px;height:24px;background:var(--nbd-border)"></div>
+          <div class="pex-wd1px-hei24px-bgnbdborde"></div>
           <button class="nbd-icon-btn" data-act="guided" title="Guided Inspection">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
           </button>
@@ -1149,7 +1149,7 @@
       g.tools.forEach(t => {
         html += `<button class="nbd-tool-btn ${S.tool === t.id ? 'active' : ''}" data-tool="${t.id}" title="${t.label} (${t.key})">
           ${t.icon}
-          <span style="font-size:9px">${t.label}</span>
+          <span class="pex-fs9px">${t.label}</span>
           <span class="nbd-tool-key">${t.key}</span>
         </button>`;
       });
@@ -1158,7 +1158,7 @@
     // Stamp flyout
     html += `<div class="nbd-stamp-flyout" id="nbd-stamp-flyout">
       ${STAMP_LIBRARY.map(s => `<div class="nbd-stamp-item ${S.stampId === s.id ? 'active' : ''}" data-stamp="${s.id}" title="${s.label}">
-        <span style="font-size:18px">${s.icon}</span>
+        <span class="pex-fs18px">${s.icon}</span>
         <span>${s.label.split(' ')[0]}</span>
       </div>`).join('')}
     </div>`;
@@ -1196,10 +1196,10 @@
       </div>
       <div class="nbd-panel-section">
         <div class="nbd-panel-label">Tags</div>
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <input class="nbd-input" id="nbd-tag-input" placeholder="Add tag + Enter" style="flex:1">
+        <div class="pex-dflex-gap6px-mb6px">
+          <input class="nbd-input pex-fx1" id="nbd-tag-input" placeholder="Add tag + Enter">
         </div>
-        <div id="nbd-tags-wrap" style="display:flex;flex-wrap:wrap;gap:4px">${S.tags.map(t => `<span class="nbd-tag">${esc(t)}<button class="nbd-tag-remove" data-tag="${esc(t)}">&times;</button></span>`).join('')}</div>
+        <div id="nbd-tags-wrap" class="pex-dflex-flewrap-gap4px">${S.tags.map(t => `<span class="nbd-tag">${esc(t)}<button class="nbd-tag-remove" data-tag="${esc(t)}">&times;</button></span>`).join('')}</div>
       </div>
       <div class="nbd-panel-section">
         <div class="nbd-panel-label">Notes</div>
@@ -1211,15 +1211,15 @@
       </div>
       <div class="nbd-panel-section">
         <div class="nbd-panel-label">Image Adjust</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:11px;color:var(--nbd-text-dim);min-width:58px">Brightness</span>
-            <input type="range" class="nbd-slider" min="-100" max="100" value="${S.brightness}" data-adjust="brightness" style="flex:1">
+        <div class="pex-dflex-flecolumn-gap8px">
+          <div class="pex-dflex-aicenter-gap6px">
+            <span class="pex-fs11px-cnbdtextd-minw58px">Brightness</span>
+            <input type="range" class="nbd-slider pex-fx1" min="-100" max="100" value="${S.brightness}" data-adjust="brightness">
             <span class="nbd-slider-val" data-adjust-val="brightness">${S.brightness}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:11px;color:var(--nbd-text-dim);min-width:58px">Contrast</span>
-            <input type="range" class="nbd-slider" min="-100" max="100" value="${S.contrast}" data-adjust="contrast" style="flex:1">
+          <div class="pex-dflex-aicenter-gap6px">
+            <span class="pex-fs11px-cnbdtextd-minw58px">Contrast</span>
+            <input type="range" class="nbd-slider pex-fx1" min="-100" max="100" value="${S.contrast}" data-adjust="contrast">
             <span class="nbd-slider-val" data-adjust-val="contrast">${S.contrast}</span>
           </div>
         </div>
@@ -1228,7 +1228,7 @@
   }
 
   function buildAnnListHTML() {
-    if (!annotations.length) return '<div style="padding:8px;text-align:center;color:var(--nbd-text-muted);font-size:11px">No annotations yet</div>';
+    if (!annotations.length) return '<div class="pex-p8px-tacenter-cnbdtextm">No annotations yet</div>';
     return annotations.map((a, i) => {
       const icon = getAnnoIcon(a);
       const label = a.type === 'stamp' ? (STAMP_LIBRARY.find(s => s.id === a.stampId)?.label || a.type) : a.type;
@@ -1270,23 +1270,23 @@
       </div>
       <div class="nbd-prop-sep"></div>
       <div class="nbd-prop-group">
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--nbd-text-dim)">
+        <label class="pex-dflex-aicenter-gap4px">
           <input type="checkbox" id="nbd-fill" ${S.fillShapes ? 'checked' : ''}> Fill
         </label>
       </div>
       <div class="nbd-prop-sep"></div>
       <div class="nbd-prop-group">
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--nbd-text-dim)">
+        <label class="pex-dflex-aicenter-gap4px">
           <input type="checkbox" id="nbd-autonum" ${S.autoNumber ? 'checked' : ''}> Auto #
         </label>
       </div>
       <div class="nbd-prop-sep"></div>
       <div class="nbd-prop-group">
         <span class="nbd-prop-label">Zoom</span>
-        <button class="nbd-icon-btn" data-act="zoom-out" style="width:26px;height:26px" title="Zoom Out">−</button>
-        <span class="nbd-zoom-val" style="font-size:11px;min-width:38px;text-align:center;color:var(--nbd-text-dim)">${Math.round(S.zoom * 100)}%</span>
-        <button class="nbd-icon-btn" data-act="zoom-in" style="width:26px;height:26px" title="Zoom In">+</button>
-        <button class="nbd-icon-btn" data-act="zoom-fit" style="width:26px;height:26px" title="Fit">⊡</button>
+        <button class="nbd-icon-btn pex-wd26px-hei26px" data-act="zoom-out" title="Zoom Out">−</button>
+        <span class="nbd-zoom-val pex-fs11px-minw38px-tacenter">${Math.round(S.zoom * 100)}%</span>
+        <button class="nbd-icon-btn pex-wd26px-hei26px" data-act="zoom-in" title="Zoom In">+</button>
+        <button class="nbd-icon-btn pex-wd26px-hei26px" data-act="zoom-fit" title="Fit">⊡</button>
       </div>
     `;
   }
@@ -1635,8 +1635,8 @@
       overlay.innerHTML = `<div class="nbd-guided-card">
         <h3>Guided Inspection</h3>
         <p>Choose an inspection type to get a step-by-step checklist.</p>
-        ${Object.entries(GUIDED_PRESETS).map(([k, v]) => `<button class="nbd-btn" data-preset="${k}" style="width:100%;margin-bottom:8px;justify-content:flex-start">${v.label}</button>`).join('')}
-        <button class="nbd-btn" data-preset="cancel" style="width:100%;margin-top:4px">Cancel</button>
+        ${Object.entries(GUIDED_PRESETS).map(([k, v]) => `<button class="nbd-btn pex-wd100-mb8px-jcflexstar" data-preset="${k}">${v.label}</button>`).join('')}
+        <button class="nbd-btn pex-wd100-mt4px" data-preset="cancel">Cancel</button>
       </div>`;
       overlay.querySelectorAll('[data-preset]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1652,16 +1652,16 @@
     const preset = GUIDED_PRESETS[S.guidedPreset];
     if (!preset) return;
 
-    overlay.innerHTML = `<div class="nbd-guided-card" style="max-width:440px">
+    overlay.innerHTML = `<div class="nbd-guided-card pex-maxw440px">
       <h3>${preset.label}</h3>
       <p>Check off each item as you annotate it. Click an item to toggle.</p>
       ${preset.items.map((item, i) => `<div class="nbd-checklist-item ${S.guidedChecked.includes(i) ? 'done' : ''}" data-check="${i}">
         <div class="nbd-checklist-check">${S.guidedChecked.includes(i) ? '✓' : ''}</div>
         <span>${item}</span>
       </div>`).join('')}
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="nbd-btn" data-guide-act="minimize" style="flex:1">Minimize</button>
-        <button class="nbd-btn primary" data-guide-act="done" style="flex:1">Done</button>
+      <div class="pex-dflex-gap8px-mt14px">
+        <button class="nbd-btn pex-fx1" data-guide-act="minimize">Minimize</button>
+        <button class="nbd-btn primary pex-fx1" data-guide-act="done">Done</button>
       </div>
     </div>`;
 
