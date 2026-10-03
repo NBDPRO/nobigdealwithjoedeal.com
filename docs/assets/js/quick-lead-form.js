@@ -69,6 +69,9 @@
         // nbd_hp, NOT "website": that name matches browser URL-autofill
         // heuristics, and an autofilled honeypot silently drops a real lead.
         '<input class="qlf-hp" id="' + uid + '-hp" type="text" name="nbd_hp" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+        // TCPA (2026-10-03): the express-written-consent box /storm-check uses,
+        // same wording; required, and posted as tcpaConsent for the record.
+        '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>' +
         '<button class="qlf-btn" type="submit" id="' + uid + '-btn">Send &mdash; Joe calls you back</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
       '</form>';
@@ -93,6 +96,12 @@
         err.textContent = 'Please add your first name, a 10-digit phone number, and your street address.';
         return;
       }
+      var consentEl = document.getElementById(uid + '-consent');
+      var consent = !!(consentEl && consentEl.checked);
+      if (!consent) {
+        err.textContent = 'Please check the consent box so Joe can reach you.';
+        return;
+      }
       var intake = { fields: {}, files: [] };
       if (window.NBDIntake) {
         intake = window.NBDIntake.read(form, uid + 'i');
@@ -112,6 +121,7 @@
           service: service,
           message: (service || city) ? ('Page: ' + [service, city].filter(Boolean).join(' — ')) : '',
           nbd_hp: document.getElementById(uid + '-hp').value, // honeypot
+          tcpaConsent: consent === true,
           source: 'page-form:' + (window.location.pathname || '')
         }, intake.fields));
       }).then(function (out) {

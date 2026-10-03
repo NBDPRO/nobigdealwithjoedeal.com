@@ -28,6 +28,25 @@ const { httpRateLimit } = require('../integrations/upstash-ratelimit');
 // log-flooding. Firestore is intentionally NOT written; logs are
 // enough and cheaper.
 // ═════════════════════════════════════════════════════════════
+// Browsers post CSP reports as application/csp-report (report-uri) or
+// application/reports+json (report-to). The JSON body parser only reads
+// application/json, so req.body arrived as {} and all 38 reports after the
+// 10-02 invoker fix logged with every field blank (2026-10-03 audit). Parse
+// the raw body ourselves when the parsed one is empty, and skip blanks.
+function parseCspBody(body, raw) {
+  let b = body;
+  const isEmptyObj = (x) => x && typeof x === 'object' && !Array.isArray(x) && !Buffer.isBuffer(x) && Object.keys(x).length === 0;
+  if ((b == null || isEmptyObj(b) || Buffer.isBuffer(b) || typeof b === 'string') && raw && raw.length) {
+    try { b = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw)); } catch (_) { b = {}; }
+  } else if (typeof b === 'string') {
+    try { b = JSON.parse(b); } catch (_) { b = {}; }
+  }
+  const list = Array.isArray(b)
+    ? b.map((r) => r && r.body).filter(Boolean)
+    : b && b['csp-report'] ? [b['csp-report']] : [b || {}];
+  return list.filter((r) => r && typeof r === 'object' && Object.keys(r).length > 0);
+}
+
 exports.cspReport = onRequest(
   {
     region: 'us-central1',
@@ -71,14 +90,9 @@ exports.cspReport = onRequest(
       } catch (_) { /* fail open on limiter backend error */ }
       if (!allowed) return;
 
-      const body = req.body || {};
       // `report-uri` shape: { "csp-report": { ... } }
       // `report-to` shape: [ { type: 'csp-violation', body: { ... } } ]
-      const reports = Array.isArray(body)
-        ? body.map(r => r && r.body).filter(Boolean)
-        : body['csp-report']
-          ? [body['csp-report']]
-          : [body];
+      const reports = parseCspBody(req.body, raw);
       for (const r of reports) {
         logger.warn('csp_violation', {
           documentURI:        String(r['document-uri']       || r.documentURL || '').slice(0, 400),
@@ -99,3 +113,6 @@ exports.cspReport = onRequest(
     }
   }
 );
+
+// Test hook (exported by name from index.js, so this never deploys).
+exports._test = { parseCspBody };

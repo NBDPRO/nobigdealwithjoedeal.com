@@ -117,10 +117,86 @@ function smsAckGate(args) {
   return { allowed: true, reason: 'consent_on_record' };
 }
 
+// ── The consent RECORD (2026-10-03, legal-checklist audit) ────────────────
+// A stored `tcpaConsent: true` says THAT the box was ticked. A record you can
+// defend also says WHEN (server clock, not the browser's), WHAT the person
+// agreed to (the exact disclosure text they saw), WHERE (which page) and from
+// which IP. The text lives here, once, keyed by a short version id; the lead
+// document stores only the id. If the wording on a form ever changes, add a
+// NEW version — never edit an existing one, or every record already stamped
+// with that id silently starts pointing at words nobody agreed to.
+// tests/tcpa-consent.test.js pins each page's label to the text below.
+const CONSENT_TEXTS = Object.freeze({
+  // /storm-check, /roof-score, /storm-report, and (from 2026-10-03) /inspect,
+  // /storm-alerts, the homepage form and the on-page quick form.
+  'tcpa-v1-2026-10-03':
+    'I agree to receive my results and follow-up communication from No Big Deal Home Solutions '
+    + 'by call or text at the number above. Message & data rates may apply. Reply STOP to opt out. '
+    + 'Not a condition of purchase.',
+  // The /estimate funnel's own wording (docs/estimate.html #tcpaConsent).
+  'tcpa-estimate-v1-2026-10-03':
+    'I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions. '
+    + 'Message & data rates may apply. Reply STOP to opt out.',
+});
+const CONSENT_VERSION = 'tcpa-v1-2026-10-03';
+const ESTIMATE_CONSENT_VERSION = 'tcpa-estimate-v1-2026-10-03';
+
+/** Which disclosure a submission of this public-lead kind was shown. */
+function consentVersionForKind(kind) {
+  return kind === 'estimate' ? ESTIMATE_CONSENT_VERSION : CONSENT_VERSION;
+}
+
+/**
+ * The page path a submission came from, for tcpaConsentSource. Prefers the
+ * Referer's pathname (what the browser actually loaded) and falls back to the
+ * form's own `source` tag. Never the query string — UTMs and the like are not
+ * part of the consent record and can carry personal data.
+ */
+function consentSourcePath(referer, source) {
+  if (typeof referer === 'string' && referer) {
+    try {
+      const p = new URL(referer).pathname;
+      if (p) return p.slice(0, 200);
+    } catch (_) { /* not a URL — fall through */ }
+  }
+  return String(source == null ? '' : source).slice(0, 200);
+}
+
+/**
+ * The fields to stamp onto a public-lead document that carries consent.
+ * Returns {} unless consent is exactly `true` — a decline or an absent field
+ * gets no record (and so cannot be mistaken for one).
+ *
+ * @param {object} a
+ * @param {*}      a.consent    the parsed tcpaConsent value
+ * @param {string} a.kind       submitPublicLead kind
+ * @param {string} [a.referer]  request Referer header
+ * @param {string} [a.source]   the form's own source tag
+ * @param {string} [a.ip]       request IP, when the handler has it
+ * @param {*}      a.at         timestamp value (FieldValue.serverTimestamp())
+ */
+function consentRecord(a) {
+  const o = a || {};
+  if (o.consent !== true) return {};
+  const rec = {
+    tcpaConsentAt: o.at,
+    tcpaConsentText: consentVersionForKind(o.kind),
+    tcpaConsentSource: consentSourcePath(o.referer, o.source),
+  };
+  if (o.ip) rec.tcpaConsentIp = String(o.ip).slice(0, 64);
+  return rec;
+}
+
 module.exports = {
   CONSENT_FIELD,
   CONSENT_COLLECTIONS,
+  CONSENT_TEXTS,
+  CONSENT_VERSION,
+  ESTIMATE_CONSENT_VERSION,
   parseSubmittedConsent,
   hasWrittenConsent,
   smsAckGate,
+  consentVersionForKind,
+  consentSourcePath,
+  consentRecord,
 };

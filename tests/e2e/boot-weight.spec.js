@@ -40,7 +40,7 @@ function trackRequests(page) {
 }
 const hits = (urls, name) => urls.filter((u) => u.includes(name)).length;
 
-test.describe('boot weight — customer.html docgen is lazy', () => {
+test.describe('boot weight — customer.html docgen is lazy @engines', () => {
   test('docgen is absent at boot and resolves on demand', async ({ page }) => {
     const creds = requireTestUser(test);
     const errors = [];
@@ -119,7 +119,7 @@ test.describe('boot weight — customer.html docgen is lazy', () => {
   });
 });
 
-test.describe('boot weight — photo-report.js is lazy on customer.html', () => {
+test.describe('boot weight — photo-report.js is lazy on customer.html @engines', () => {
   // 2026-09-06: photo-report.js was eager here ONLY to out-race a rival
   // window.generatePhotoReport in customer-photo-report-generator.js. That rival
   // was dead (this file overwrote it) and is deleted, so the tag went too. The
@@ -165,7 +165,7 @@ test.describe('boot weight — photo-report.js is lazy on customer.html', () => 
   });
 });
 
-test.describe('duplicate execution — Cmd+K', () => {
+test.describe('duplicate execution — Cmd+K @engines', () => {
   test('one keypress opens exactly one palette', async ({ page }) => {
     const creds = requireTestUser(test);
     const errors = [];
@@ -200,7 +200,7 @@ test.describe('duplicate execution — Cmd+K', () => {
   });
 });
 
-test.describe('boot weight — Leaflet CSS rides the lazy bundle', () => {
+test.describe('boot weight — Leaflet CSS rides the lazy bundle @engines', () => {
   // NOTE ON SCOPE, measured 2026-09-06: 'weather-radar' is in DEFAULT_WIDGETS
   // (widgets.js), and its render() calls _withLeaflet → loadBundle('mapvendor').
   // So on a DEFAULT home view the Leaflet bytes still arrive shortly after
@@ -260,7 +260,7 @@ test.describe('boot weight — Leaflet CSS rides the lazy bundle', () => {
   });
 });
 
-test.describe('boot weight — maps-routing.js (drawtool) is lazy on the dashboard', () => {
+test.describe('boot weight — maps-routing.js (drawtool) is lazy on the dashboard @engines', () => {
   // 2026-09-14: maps-routing.js (172 KiB, the #2 static file on the page)
   // was the last of the four maps-split siblings still eager — see its own
   // header and script-loader.js's `drawtool` bundle comment for the full
@@ -335,7 +335,7 @@ test.describe('boot weight — maps-routing.js (drawtool) is lazy on the dashboa
   });
 });
 
-test.describe('boot weight — talk-tank.js is lazy on the dashboard', () => {
+test.describe('boot weight — talk-tank.js is lazy on the dashboard @engines', () => {
   // 2026-09-14: two static <script> tags (talk-tank.js was one) with zero
   // callers outside their own view — the same treatment already given to
   // storm/closeboard/expenses/money/repos via the `_lazyPreload.then(...)`

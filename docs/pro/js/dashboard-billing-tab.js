@@ -149,8 +149,8 @@
             el = document.getElementById('gxIntensitySlider');if (el) el.value = Math.round(gxState.intensity * 100);
             el = document.getElementById('gxIntensityVal');   if (el) el.textContent = Math.round(gxState.intensity * 100) + '%';
             el = document.getElementById('gxAccentPicker');   if (el) el.value = gxState.accentOverride || gxState.currentAccent || '#BD5728';
-            // Also render font grid + sync size buttons
-            if (typeof nbdRenderFontGrid === 'function') nbdRenderFontGrid();
+            // (The font grid is rendered once, by the base switchSettingsTab
+            // in ui.js — a second nbdRenderFontGrid() here redrew it twice.)
           }
         };
       }
