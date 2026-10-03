@@ -1085,6 +1085,8 @@ body.nbd-photo-reorder .nbd-photo-item.drop-after {
 .invoice-status.sent { background:color-mix(in srgb, var(--blue) 14%, transparent); color:var(--blue); }
 .invoice-status.draft { background:var(--s2); color:var(--m); }
 .invoice-status.overdue { background:color-mix(in srgb, var(--red) 14%, transparent); color:var(--red); }
+.invoice-status.partial { background:color-mix(in srgb, var(--gold,#D4A017) 16%, transparent); color:var(--gold,#D4A017); }
+.invoice-owed { font-size:11px; font-weight:700; color:var(--gold,#D4A017); margin-top:2px; }
 
 .payment-summary {
   display:grid; grid-template-columns:1fr 1fr; gap:12px;
@@ -2603,7 +2605,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/my-skin.js?v=2"></script>
 
 
-<script defer src="js/customer-tasks-ui.js?v=11"></script>
+<script defer src="js/customer-tasks-ui.js?v=12"></script>
 <script defer src="js/nbd-comms.js?v=3"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=1"></script>

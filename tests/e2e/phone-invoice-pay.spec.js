@@ -139,7 +139,7 @@ test.describe('phone invoice: record payments, installed iPhone app @shard2', ()
   test('Zelle part, then Check the rest — ledger, balance and history agree to the cent', async ({ page }) => {
     test.setTimeout(150_000);
     await signIn(page);
-    const { estimateId } = await seedLeadAndEstimate(page);
+    const { leadId, estimateId } = await seedLeadAndEstimate(page);
     expect(estimateId, 'a seeded estimate').toBeTruthy();
     expect(await forceStandalone(page), 'found the standalone rules to force').toBeGreaterThan(200);
     await safeWaitForFunction(page, () => !!(window.InvoicePipeline && window.getDoc), { timeout: 20_000 });
@@ -172,7 +172,7 @@ test.describe('phone invoice: record payments, installed iPhone app @shard2', ()
       expect(d.payments, 'one Zelle payment on the ledger').toEqual([{ amount: 4000, method: 'zelle', reference: 'ZL-77' }]);
       expect(cents(d.amountPaid), 'amount paid').toBe(ZELLE);
       expect(cents(d.balanceDue), 'balance = total − paid').toBe(924000 - ZELLE);
-      expect(d.status, 'not paid yet').not.toBe('paid');
+      expect(d.status, 'a part payment marks it partial (as Stripe does)').toBe('partial');
     });
 
     await test.step('the invoice detail shows the payment and the balance', async () => {
@@ -200,6 +200,22 @@ test.describe('phone invoice: record payments, installed iPhone app @shard2', ()
       const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
       expect(wide, 'the detail does not scroll sideways').toBe(false);
       await page.evaluate(() => { const m = document.getElementById('nbd-invoice-detail-modal'); if (m) m.remove(); });
+    });
+
+    await test.step('the customer page: the invoice reads partial with what is owed', async () => {
+      await page.goto('/pro/customer.html?id=' + leadId);
+      await forceStandalone(page);
+      const row = page.locator('.invoice-item').first();
+      await expect(row).toBeVisible({ timeout: 20_000 });
+      await expect(row.locator('.invoice-status'), 'not "draft"').toHaveText('partial');
+      await expect(row.locator('.invoice-owed')).toHaveText('$5,240.00 owed');
+      const mark = row.locator('[data-action="NBDCustomerInvoices.markPaid"]');
+      await mark.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      expect(await reachable(mark), 'Mark Paid is reachable on the customer page').toBe(true);
+      await page.goto('/pro/dashboard.html');
+      await safeWaitForFunction(page, () => !!(window.InvoicePipeline && window.getDoc && window._user), { timeout: 30_000 });
+      await forceStandalone(page);
     });
 
     await test.step('Record Payment again: defaults to what is left; Check pays it off', async () => {

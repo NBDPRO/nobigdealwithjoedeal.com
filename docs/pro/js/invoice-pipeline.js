@@ -465,7 +465,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         amountPaid: newPaid,
         depositPaid: newPaidC >= depositC,
         balanceDue: newBalanceDue,
-        status: newBalanceC === 0 ? 'paid' : (invoice.status == null ? 'sent' : invoice.status),
+        // A part payment makes the invoice 'partial' — the same status the
+        // Stripe ledger writes (functions/stripe-ledger-logic.js). It used to
+        // keep the old one, so a $4,000 check on a draft still read DRAFT.
+        // Every AR reader keys on status !== 'paid', and a re-send restores
+        // any non-draft status, so 'partial' stays in AR and survives a send.
+        status: newBalanceC === 0 ? 'paid' : (newPaidC > 0 ? 'partial' : (invoice.status == null ? 'sent' : invoice.status)),
         paidAt: newBalanceC === 0 ? entry.at : (invoice.paidAt == null ? null : invoice.paidAt),
         lastPaymentAt: paidAtNow,
         payments: priorPayments,

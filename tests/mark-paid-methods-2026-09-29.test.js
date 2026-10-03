@@ -119,7 +119,7 @@ function throws(fn, re) {
   const r1 = IP.applyPaymentToInvoice(inv, e1);
   ok('0.2 + 0.1 paid = 0.3 exactly', r1.patch.amountPaid === 0.3, r1.patch.amountPaid);
   ok('balance = 10000.10 − 0.30 = 9999.80 exactly', r1.patch.balanceDue === 9999.8 && r1.newBalanceDue === 9999.8, r1.patch.balanceDue);
-  ok('partial keeps status + paidAt', r1.patch.status === 'sent' && r1.patch.paidAt === null);
+  ok('a part payment marks the invoice partial (as the Stripe ledger does), paidAt untouched', r1.patch.status === 'partial' && r1.patch.paidAt === null);
   ok('ledger appended, prior entry untouched', r1.patch.payments.length === 2 && r1.patch.payments[0] === inv.payments[0] && r1.patch.payments[1] === e1);
   ok('input invoice not mutated', inv.payments.length === 1);
   ok('deposit not yet paid', r1.patch.depositPaid === false);
@@ -130,7 +130,7 @@ function throws(fn, re) {
   const back = IP.applyPaymentToInvoice(Object.assign({}, inv, { lastPaymentAt: later }), e1);
   ok('a back-dated check never moves lastPaymentAt backwards', back.patch.lastPaymentAt === later);
   ok('a newer payment moves lastPaymentAt forward', IP.applyPaymentToInvoice(inv, e1).patch.lastPaymentAt === at);
-  ok('an invoice with no status stays open as sent (never undefined)', IP.applyPaymentToInvoice({ total: 100 }, e1).patch.status === 'sent');
+  ok('an invoice with no status becomes partial, still open (never undefined)', IP.applyPaymentToInvoice({ total: 100 }, e1).patch.status === 'partial');
 
   console.log('\n8. attach proof in place');
   const t1 = new Date(2026, 8, 20), t2 = new Date(2026, 8, 25);
@@ -190,8 +190,8 @@ function throws(fn, re) {
   ok('one invoice write', writes.length === 1 && writes[0].path === 'invoices/zzqa-inv');
   ok('entry: amount 400, zelle, received date, reference', pe && pe.amount === 400 && pe.method === 'zelle' && pe.at === at && pe.reference === 'ZZQA-CONF-1');
   ok('entry: recordedBy from auth, recordedAt a Date, no proof keys', pe && pe.recordedBy === 'zzqa-uid' && pe.recordedAt instanceof Date && !('proofStoragePath' in pe) && !('note' in pe));
-  ok('invoice: amountPaid 400 / balance 600 / still sent / lastPaymentAt = received date',
-    w.amountPaid === 400 && w.balanceDue === 600 && w.status === 'sent' && w.lastPaymentAt === at);
+  ok('invoice: amountPaid 400 / balance 600 / partial / lastPaymentAt = received date',
+    w.amountPaid === 400 && w.balanceDue === 600 && w.status === 'partial' && w.lastPaymentAt === at);
   ok('no undefined anywhere in the write', JSON.stringify(w, (k, v) => (v === undefined ? '__UNDEF__' : v)).indexOf('__UNDEF__') === -1);
   writes.length = 0;
   await IP.markPaid('zzqa-inv', 1000, 'check', { proofStoragePath: 'payment-proofs/zzqa-uid/zzqa-inv/1_c.jpg', proofName: 'c.jpg' });

@@ -681,7 +681,9 @@ window.loadInvoices = async function(leadId) {
     }
 
     const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
-    const ALLOWED_STATUSES = new Set(['draft','sent','viewed','paid','overdue','cancelled']);
+    // 'partial' = part paid (Stripe ledger + Record Payment). It was missing,
+    // so a part-paid invoice rendered as "draft".
+    const ALLOWED_STATUSES = new Set(['draft','sent','viewed','partial','paid','overdue','cancelled']);
     // Invoices the Stripe ledger created (source:'stripe') get a "From Stripe"
     // chip + Open in Stripe / PDF links (stripe-ledger-ui-logic.js, escaped
     // and http(s)-only). '' when the rules module is absent.
@@ -724,6 +726,7 @@ window.loadInvoices = async function(leadId) {
           <div class="invoice-right">
             <div class="invoice-amount">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
             <div class="invoice-status ${safeStatus}">${safeStatus}</div>
+            ${bal > 0 && bal < amount ? `<div class="invoice-owed">$${bal.toLocaleString('en-US', {minimumFractionDigits: 2})} owed</div>` : ''}
             ${safeStatus !== 'paid' && safePayUrl ? `
               <a href="${esc(safePayUrl)}" target="_blank" rel="noopener noreferrer" class="doc-btn">Pay</a>
             ` : ''}
