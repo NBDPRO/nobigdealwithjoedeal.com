@@ -93,6 +93,19 @@ function ok(label, cond, detail) {
   ok('a failure throws so the heartbeat reports /fail', /throw e; \/\/ let the heartbeat report \/fail/.test(src));
   ok('gated: CALL_WATCH_ENABLED (registered, on in prod)', /process\.env\.CALL_WATCH_ENABLED === 'true'/.test(src) && /CALL_WATCH_ENABLED/.test(read('functions/cron-gates.js')) && /^CALL_WATCH_ENABLED=true$/m.test(read('functions/.env.nobigdeal-pro')));
   ok('exported from index.js', /exports\.callWatch = require\('\.\/call-watch'\)\.callWatch;/.test(read('functions/index.js')));
+  // The emulator never enforces indexes; prod 500'd the first run (FAILED_PRECONDITION)
+  // on an unordered userId + startedAtMs range. Every range query must name its
+  // order and match a composite index in firestore.indexes.json.
+  const idx = JSON.parse(read('firestore.indexes.json')).indexes;
+  const ranges = [...src.matchAll(/collection\('(\w+)'\)\.where\('(\w+)', '==', \w+\)\.where\('(\w+)', '>=', \w+\)([^\n]*)/g)];
+  ok('found the two 14-day range queries', ranges.length === 2, ranges.length);
+  for (const [, coll, eq, rng, rest] of ranges) {
+    const m = rest.match(/\.orderBy\('(\w+)', '(asc|desc)'\)/);
+    const dir = m && m[1] === rng ? (m[2] === 'desc' ? 'DESCENDING' : 'ASCENDING') : 'ASCENDING';
+    const has = idx.some((i) => i.collectionGroup === coll && i.fields.length === 2 &&
+      i.fields[0].fieldPath === eq && i.fields[1].fieldPath === rng && i.fields[1].order === dir);
+    ok(`${coll}: ${eq} == + ${rng} range (${dir}) has a deployed index`, has);
+  }
   const bell = read('docs/pro/js/notif-bell.js');
   ok('the bell shows 📞 and opens the Call Center', /call_watch: '📞'/.test(bell) && /n\.type === 'call_watch' \? '\/pro\/dashboard\.html#\/calls'/.test(bell));
 

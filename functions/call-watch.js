@@ -28,9 +28,12 @@ async function runWatch({ db, nowMs, live, push }) {
   const sinceMs = W.toMs(st.lastCheckAtMs) || nowMs - 2 * 3600000;
   const since14 = nowMs - W.CALL_WINDOW;
 
+  // orderBy desc so the ranges use the deployed (userId, startedAtMs DESC)
+  // indexes; an unordered range wants an ASC index, which prod doesn't have
+  // (the emulator never enforces indexes, so only prod caught it).
   const [calls, texts, thursday, stored, cc, ti] = await Promise.all([
-    db.collection('phone_calls').where('userId', '==', OWNER).where('startedAtMs', '>=', since14).get(),
-    db.collection('phone_text_days').where('userId', '==', OWNER).where('startedAtMs', '>=', since14).get(),
+    db.collection('phone_calls').where('userId', '==', OWNER).where('startedAtMs', '>=', since14).orderBy('startedAtMs', 'desc').get(),
+    db.collection('phone_text_days').where('userId', '==', OWNER).where('startedAtMs', '>=', since14).orderBy('startedAtMs', 'desc').get(),
     db.collection('thursday_calls').where('companyId', '==', OWNER).limit(300).get(),
     db.collection('phone_calls').where('userId', '==', OWNER).where('status', '==', 'stored').limit(200).get(),
     db.doc('integrations/callCenter').get(),
