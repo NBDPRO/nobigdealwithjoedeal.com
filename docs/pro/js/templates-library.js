@@ -279,12 +279,12 @@ Bookmark it; the link stays live as we work through the project.
             style="background:transparent; color:${starColor}; border:none; font-size:16px; line-height:1; cursor:pointer; padding:4px 6px; -webkit-tap-highlight-color:transparent;">
             <span aria-hidden="true">${star}</span>
           </button>
-          <div style="flex:1; min-width:0;">
-            <div style="font-size:13px; font-weight:600; color:var(--t,#e8eaf0);">
+          <div class="tlx-fx1-minw0">
+            <div class="tlx-fs13px-w600-ct">
               <span style="display:inline-block; padding:1px 6px; border-radius:8px; font-size:9px; margin-right:6px; ${t.channel === 'sms' ? 'background:rgba(59,130,246,0.18); color:#3b82f6;' : 'background:rgba(139,92,246,0.18); color:#8b5cf6;'}">${t.channel.toUpperCase()}</span>
-              ${escapeHtml(t.name)}${t._seeded ? ' <span style="font-size:9px; color:var(--m,#9aa3b2);">· seed</span>' : ''}${isDef ? ' <span style="font-size:9px; color:#fbbf24; font-weight:700;">· DEFAULT</span>' : ''}
+              ${escapeHtml(t.name)}${t._seeded ? ' <span class="tlx-fs9px-cm">· seed</span>' : ''}${isDef ? ' <span class="tlx-fs9px-cfbbf24-w700">· DEFAULT</span>' : ''}
             </div>
-            <div style="font-size:11px; color:var(--m,#9aa3b2); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml((t.body || '').slice(0, 90))}${(t.body || '').length > 90 ? '…' : ''}</div>
+            <div class="tlx-fs11px-cm-mt3px">${escapeHtml((t.body || '').slice(0, 90))}${(t.body || '').length > 90 ? '…' : ''}</div>
           </div>
           <button data-template-edit="${escapeHtml(t.id)}" type="button" aria-label="Edit ${escapeHtml(t.name)}" title="Edit"
             style="background:transparent; color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); padding:6px 10px; border-radius:6px; font: inherit; font-size:11px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent;">Edit</button>
@@ -292,7 +292,7 @@ Bookmark it; the link stays live as we work through the project.
             style="background:transparent; color:#fb7185; border:1px solid var(--br,#2a3344); padding:6px 10px; border-radius:6px; font: inherit; font-size:11px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent;">Delete</button>
         </div>`;
       }).join('');
-      const empty = `<div style="padding:22px; text-align:center; color:var(--m,#9aa3b2); font-size:12px;">No templates yet${channel ? ` for ${channel.toUpperCase()}` : ''}. Click + Add below.</div>`;
+      const empty = `<div class="tlx-p22px-tacenter-cm">No templates yet${channel ? ` for ${channel.toUpperCase()}` : ''}. Click + Add below.</div>`;
       return all.length ? items : empty;
     }
 
@@ -301,15 +301,15 @@ Bookmark it; the link stays live as we work through the project.
       const t = template || { name: '', channel: channel || 'sms', subject: '', body: '' };
       const placeholders = '{firstName} · {lastName} · {fullName} · {greeting} · {address} · {portalUrl} · {repName} · {repPhone}';
       return `
-        <div style="margin-top:12px; padding:14px; background:var(--s2,#0f1419); border:1px solid var(--br,#2a3344); border-radius:8px;">
-          <h3 style="margin:0 0 12px; font-size:14px; color:var(--t,#e8eaf0);">${isNew ? 'New template' : 'Edit template'}</h3>
-          <div style="display:flex; gap:8px; margin-bottom:10px;">
-            <label style="flex:1; font-size:11px; color:var(--m,#9aa3b2); font-weight:600;">
+        <div class="tlx-mt12px-p14px-bgs2">
+          <h3 class="tlx-m0012px-fs14px-ct">${isNew ? 'New template' : 'Edit template'}</h3>
+          <div class="tlx-dflex-gap8px-mb10px">
+            <label class="tlx-fx1-fs11px-cm">
               Name
               <input id="nbd-tpl-name" type="text" value="${escapeHtml(t.name)}"
                 style="display:block; width:100%; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px; box-sizing:border-box;">
             </label>
-            <label style="font-size:11px; color:var(--m,#9aa3b2); font-weight:600;">
+            <label class="tlx-fs11px-cm-w600">
               Channel
               <select id="nbd-tpl-channel"
                 style="display:block; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px;">
@@ -323,17 +323,17 @@ Bookmark it; the link stays live as we work through the project.
             <input id="nbd-tpl-subject" type="text" value="${escapeHtml(t.subject || '')}"
               style="display:block; width:100%; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px; box-sizing:border-box;">
           </label>
-          <label style="display:block; font-size:11px; color:var(--m,#9aa3b2); font-weight:600;">
+          <label class="tlx-dblock-fs11px-cm">
             Body
             <textarea id="nbd-tpl-body" rows="6"
               style="display:block; width:100%; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px; box-sizing:border-box; resize:vertical;">${escapeHtml(t.body || '')}</textarea>
           </label>
-          <div style="font-size:10px; color:var(--m,#9aa3b2); margin-top:6px;">
+          <div class="tlx-fs10px-cm-mt6px">
             Tokens: ${escapeHtml(placeholders)}
           </div>
-          <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:10px;">
-            <button id="nbd-tpl-cancel" type="button" style="background:transparent; color:var(--m,#9aa3b2); border:1px solid var(--br,#2a3344); padding:8px 14px; border-radius:6px; font:inherit; font-size:12px; font-weight:600; cursor:pointer;">Cancel</button>
-            <button id="nbd-tpl-save" type="button" style="background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%); color:#fff; border:none; padding:8px 14px; border-radius:6px; font:inherit; font-size:12px; font-weight:700; cursor:pointer;" data-template-id="${escapeHtml(t.id || '')}">Save</button>
+          <div class="tlx-dflex-gap6px-jcflexend">
+            <button id="nbd-tpl-cancel" type="button" class="tlx-bgtranspar-cm-bd1pxsolid">Cancel</button>
+            <button id="nbd-tpl-save" type="button" class="tlx-bglineargr-cfff-bdnone" data-template-id="${escapeHtml(t.id || '')}">Save</button>
           </div>
         </div>`;
     }
@@ -343,20 +343,20 @@ Bookmark it; the link stays live as we work through the project.
 
     function shell() {
       return `
-        <div style="background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:12px; padding:22px; max-width:560px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,0.5); max-height:85vh; overflow-y:auto;">
-          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <span style="font-size:24px;" aria-hidden="true">📝</span>
-            <h2 id="nbd-templates-title" style="font-size:17px; margin:0;">Message templates</h2>
+        <div class="tlx-bgs-ct-bd1pxsolid">
+          <div class="tlx-dflex-aicenter-gap10px">
+            <span class="tlx-fs24px" aria-hidden="true">📝</span>
+            <h2 id="nbd-templates-title" class="tlx-fs17px-m0">Message templates</h2>
             <button id="nbd-tpl-close-x" type="button" aria-label="Close"
               style="margin-left:auto; background:transparent; color:var(--m,#9aa3b2); border:none; font-size:22px; line-height:1; cursor:pointer; padding:4px 8px;">×</button>
           </div>
-          <p style="font-size:11px; color:var(--m,#9aa3b2); margin:0 0 14px; line-height:1.5;">
+          <p class="tlx-fs11px-cm-m0014px">
             Saved messages auto-fill the SMS / email composer when you share a portal link. Tokens like {firstName} and {portalUrl} get substituted before sending.
           </p>
           ${mode === 'edit' ? renderEditor(editingTemplate) : `
             <div id="nbd-tpl-list">${renderList()}</div>
-            <div style="display:flex; justify-content:flex-end; margin-top:10px;">
-              <button id="nbd-tpl-add" type="button" style="background:transparent; color:var(--orange,#A14A22); border:1px solid var(--orange,#A14A22); padding:8px 14px; border-radius:6px; font:inherit; font-size:12px; font-weight:700; cursor:pointer;">+ Add template</button>
+            <div class="tlx-dflex-jcflexend-mt10px">
+              <button id="nbd-tpl-add" type="button" class="tlx-bgtranspar-corange-bd1pxsolid">+ Add template</button>
             </div>
           `}
         </div>`;
@@ -536,15 +536,15 @@ Bookmark it; the link stays live as we work through the project.
 
       const channelLabel = channel === 'email' ? 'Email' : 'SMS';
       overlay.innerHTML = `
-        <div style="background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:12px; padding:20px; max-width:440px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,0.5); max-height:80vh; overflow-y:auto;">
-          <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-            <span style="font-size:22px;" aria-hidden="true">${channel === 'email' ? '📧' : '💬'}</span>
-            <h2 id="nbd-templates-picker-title" style="font-size:16px; margin:0;">Pick ${escapeHtml(channelLabel)} template</h2>
+        <div class="tlx-bgs-ct-bd1pxsolid-2">
+          <div class="tlx-dflex-aicenter-gap10px-2">
+            <span class="tlx-fs22px" aria-hidden="true">${channel === 'email' ? '📧' : '💬'}</span>
+            <h2 id="nbd-templates-picker-title" class="tlx-fs16px-m0">Pick ${escapeHtml(channelLabel)} template</h2>
             <button id="nbd-tpl-pick-close" type="button" aria-label="Cancel"
               style="margin-left:auto; background:transparent; color:var(--m,#9aa3b2); border:none; font-size:22px; line-height:1; cursor:pointer; padding:4px 8px;">×</button>
           </div>
-          <p style="font-size:11px; color:var(--m,#9aa3b2); margin:0 0 12px; line-height:1.4;">Tokens like {firstName} get filled in before the message opens.</p>
-          <div id="nbd-tpl-pick-list" style="display:flex; flex-direction:column; gap:6px;">
+          <p class="tlx-fs11px-cm-m0012px">Tokens like {firstName} get filled in before the message opens.</p>
+          <div id="nbd-tpl-pick-list" class="tlx-dflex-flecolumn-gap6px">
             ${templates.map((t, i) => `
               <button data-tpl-pick="${escapeHtml(t.id)}" type="button" style="
                 text-align:left; padding:10px 12px; border-radius:8px;
@@ -552,14 +552,14 @@ Bookmark it; the link stays live as we work through the project.
                 border:1px solid var(--br,#2a3344);
                 font:inherit; font-size:13px; font-weight:600;
                 cursor:pointer; -webkit-tap-highlight-color:transparent;">
-                <div style="margin-bottom:4px;">${escapeHtml(t.name)}${t._seeded ? ' <span style="font-size:10px; color:var(--m,#9aa3b2); font-weight:500;">· default</span>' : ''}</div>
-                <div style="font-size:11px; color:var(--m,#9aa3b2); font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml((t.body || '').slice(0, 80))}${(t.body || '').length > 80 ? '…' : ''}</div>
+                <div class="tlx-mb4px">${escapeHtml(t.name)}${t._seeded ? ' <span class="tlx-fs10px-cm-w500">· default</span>' : ''}</div>
+                <div class="tlx-fs11px-cm-w400">${escapeHtml((t.body || '').slice(0, 80))}${(t.body || '').length > 80 ? '…' : ''}</div>
               </button>
             `).join('')}
           </div>
-          <div style="display:flex; gap:6px; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid var(--br,#2a3344);">
-            <button id="nbd-tpl-pick-default" type="button" style="background:transparent; color:var(--m,#9aa3b2); border:1px solid var(--br,#2a3344); padding:7px 12px; border-radius:6px; font:inherit; font-size:11px; font-weight:600; cursor:pointer;">Use built-in default</button>
-            <button id="nbd-tpl-pick-cancel" type="button" style="background:transparent; color:var(--m,#9aa3b2); border:1px solid var(--br,#2a3344); padding:7px 12px; border-radius:6px; font:inherit; font-size:11px; font-weight:600; cursor:pointer;">Cancel</button>
+          <div class="tlx-dflex-gap6px-jcspacebet">
+            <button id="nbd-tpl-pick-default" type="button" class="tlx-bgtranspar-cm-bd1pxsolid-2">Use built-in default</button>
+            <button id="nbd-tpl-pick-cancel" type="button" class="tlx-bgtranspar-cm-bd1pxsolid-2">Cancel</button>
           </div>
         </div>`;
 
