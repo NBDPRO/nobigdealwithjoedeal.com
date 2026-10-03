@@ -29,6 +29,26 @@ takes a few days to a few weeks.
 Console → **Admin → Account billing → Upgrade**, and add a payment method.
 Until this is done, texts only reach verified numbers (21608).
 
+> **⚠ Order matters: upgrade and register together, not upgrade first.**
+>
+> Today a text you send to a customer from the CRM fails *immediately*
+> with 21608, because of the trial account. `nbd-comms.js` sees that error
+> and opens your phone's Messages app instead, so the customer still gets
+> the text, from your own phone.
+>
+> Once you upgrade, Twilio *accepts* those texts. If the campaign isn't
+> approved yet, the carrier then blocks them later (30034). There's no
+> error at send time, so the Messages fallback never runs and the text is
+> silently lost.
+>
+> So: upgrade, then submit the brand and campaign the same sitting. Until
+> the campaign shows **Approved**, keep texting customers from your own
+> phone. The callWatch bell ("texts are not delivering") and the dashboard
+> alert banner will show any text that gets lost in that window.
+> (Checked 2026-10-02: automatic customer texts — storm, lead
+> acknowledgement, anniversary — are all switched off, so only texts you
+> send by hand are affected.)
+
 ## Step 2 — Register the brand (Standard, because NBD is an LLC with an EIN)
 
 Console → **Messaging → Regulatory Compliance → A2P 10DLC → Register**.
