@@ -163,7 +163,8 @@ console.log('\nUI PRIMITIVES — product editor modal (JS-built, 2026-10-02)');
   ok('product modal: no field surface left inline (background:var(--s2) on an input)',
     !/<(input|select|textarea)\b[^>]*style="[^"]*background:var\(--s2\)/.test(body));
   ok('the 11 full-size fields wear the shared .ui-input surface plus .ui-input-box',
-    (body.match(/class="ui-input ui-input-box"/g) || []).length === 11);
+    // (the two textareas add plx-resize from the 2026-10-02 product-library reskin)
+    (body.match(/class="ui-input ui-input-box(?: [\w-]+)*"/g) || []).length === 11);
   // .ui-input is shared (about 10 dashboard fields) and Shape-driven: a
   // second .ui-input rule with width/padding/a fixed radius would restyle
   // every one of them. Size lives on .ui-input-box instead (2026-10-02, caught

@@ -67,6 +67,7 @@ async function runTool(name, args, key) {
     if (name === 'my_today') return L.toolText(L.personalToday(d.dsSnapshot, Date.now()));
     if (name === 'my_week') return L.toolText(L.personalWeek(d.dsSnapshot, Date.now()));
     if (name === 'my_reviews') return L.toolText({ reviews: L.personalReviews(d.dsReviews, args.limit) });
+    if (name === 'my_money') return L.toolText(L.personalMoney(d.dsSnapshot, Date.now()));
     return L.toolErr('unknown tool');
   }
   const company = key.companyId;

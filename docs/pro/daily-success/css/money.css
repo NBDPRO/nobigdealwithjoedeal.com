@@ -1,0 +1,27 @@
+/* 💵 Money card + "Plan my paycheck" sheet (js/money-ui.js, 2026-10-02).
+   Builds on workout-coach.css (.wc-*) and review.css (.rv-row). */
+.mn-dash { margin-bottom: 12px; }
+.mn-bar { height: 8px; border-radius: 4px; background: var(--rule, #d4c9b0); overflow: hidden; margin-top: 10px; }
+.mn-fill { display: block; height: 100%; width: 0; background: var(--grn, #16a34a); border-radius: 4px; }
+.mn-start, .mn-open { width: 100%; justify-content: center; margin-top: 12px; min-height: 44px; }
+.mn-start { background: var(--ac, #BD5728); color: #fff; border-color: var(--ac, #BD5728); }
+.mn-short { color: #f87171; font-weight: 700; margin-top: 8px; }
+
+#mnOverlay { background: #0a0c0f; }
+#mnOverlay .wc-lbl { margin-top: 18px; }
+#mnOverlay .wc-lbl small { text-transform: none; letter-spacing: 0; }
+.mn-row, .mn-row2, .mn-row3 { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.mn-row2 > *, .mn-row3 > * { flex: 1; min-width: 0; }
+.mn-row .mn-name { flex: 2; min-width: 0; }
+.mn-row .mn-in:not(.mn-name) { flex: 1; min-width: 0; }
+.mn-card-row { margin-top: 10px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, .04); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mn-card-row .mn-name { flex: 1; min-width: 0; }
+.mn-card-row .mn-row3 { flex-basis: 100%; margin-top: 0; }
+.mn-x { flex: 0 0 auto; width: 44px; height: 44px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: #8b9bb4; font-size: 16px; cursor: pointer; }
+.mn-add { margin-top: 8px; min-height: 44px; padding: 0 14px; border: 1px dashed rgba(255, 255, 255, .25); border-radius: 8px; background: transparent; color: #eef2f7; cursor: pointer; }
+.mn-keep { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; }
+.mn-keep input { width: 22px; height: 22px; }
+.mn-bad { border-color: #f87171 !important; }
+#mnPlan .rv-row.mn-fund b, #mnPlan .rv-row.mn-savings b { color: #4ade80; }
+#mnPlan .rv-row.mn-extra b { color: #fbbf24; }
+#mnPlan .wc-meta { margin-top: 10px; font-size: 13px; color: #c7d0dc; }

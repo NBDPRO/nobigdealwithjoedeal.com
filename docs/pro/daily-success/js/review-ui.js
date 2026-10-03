@@ -80,7 +80,8 @@
         kept: saved.kept, bailed: saved.bailed, scary: saved.scary, scaryDue: saved.scaryDue,
       });
       const doc = R().snapshotDoc({ floors: x.fl, byDayToday: R().metByDay(allPages(), x.fl).get(today()), todayDk: today(),
-        streak: x.streak, week: x.week, trend: x.t, rule: x.weight, goal: x.goal, scorecard: card }, Date.now());
+        streak: x.streak, week: x.week, trend: x.t, rule: x.weight, goal: x.goal, scorecard: card,
+        money: window.NBDMoney ? window.NBDMoney.boardView(readJson('nbd_ds_money', {})) : null }, Date.now());
       const prev = readJson(SNAP, null);
       if (prev && prev.sig === doc.sig) return false;
       localStorage.setItem(SNAP, JSON.stringify(doc));
