@@ -287,19 +287,19 @@
         border:1px solid var(--br); border-radius:12px;
         padding:22px; max-width:380px; width:100%;
         box-shadow:0 12px 40px rgba(0,0,0,0.5);">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-          <span style="font-size:24px;" aria-hidden="true">💤</span>
-          <h2 id="nbd-snooze-title" style="font-size:17px; margin:0;">Snooze lead</h2>
+        <div class="lsx-dflex-aicenter-gap10px">
+          <span class="lsx-fs24px" aria-hidden="true">💤</span>
+          <h2 id="nbd-snooze-title" class="lsx-fs17px-m0">Snooze lead</h2>
         </div>
-        <p style="font-size:12px; color:var(--m); margin:0 0 14px; line-height:1.5;">
+        <p class="lsx-fs12px-cm-m0014px">
           ${leadNameHint ? escapeHtml(leadNameHint) + ' ' : ''}will hide from the kanban + Hot Leads + Needs Attention until the snooze expires.
         </p>
         <!-- W73: reason picker. Optional. Single-select chips. -->
-        <div style="margin-bottom:14px;">
-          <label style="display:block; font-size:11px; color:var(--m); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px;">
-            Why? <span style="text-transform:none; font-weight:500; opacity:0.7;">(optional)</span>
+        <div class="lsx-mb14px">
+          <label class="lsx-dblock-fs11px-cm">
+            Why? <span class="lsx-ttnone-w500-opa07">(optional)</span>
           </label>
-          <div id="nbd-snooze-reasons" style="display:flex; flex-wrap:wrap; gap:5px;">
+          <div id="nbd-snooze-reasons" class="lsx-dflex-flewrap-gap5px">
             ${SNOOZE_REASONS.map((r) => `
               <button data-reason="${escapeHtml(r)}" type="button" style="
                 background:var(--s2); color:var(--m);
@@ -312,7 +312,7 @@
             `).join('')}
           </div>
         </div>
-        <div id="nbd-snooze-presets" style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px;">
+        <div id="nbd-snooze-presets" class="lsx-dflex-flecolumn-gap6px">
           ${presets.map((p, i) => {
             // W78: ⭐ pin button on each preset. Pinned preset
             // gets a subtle purple-tinted border + reorders to
@@ -323,7 +323,7 @@
             const star = isDefault ? '⭐' : '☆';
             const starColor = isDefault ? 'var(--purple)' : 'var(--m)';
             return `
-            <div style="display:flex; gap:6px; align-items:stretch;">
+            <div class="lsx-dflex-gap6px-aistretch">
               <button data-snooze-i="${i}" type="button" style="
                 flex:1; text-align:left; padding:10px 13px; border-radius:8px;
                 background:var(--s2); color:var(--t);
@@ -332,7 +332,7 @@
                 cursor:pointer; -webkit-tap-highlight-color:transparent;
                 display:flex; justify-content:space-between; align-items:center;">
                 <span>${escapeHtml(p.label)}</span>
-                <span style="font-size:10px; color:var(--m); font-weight:500;">
+                <span class="lsx-fs10px-cm-w500">
                   ${escapeHtml(p.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}
                 </span>
               </button>
@@ -353,11 +353,11 @@
             </div>`;
           }).join('')}
         </div>
-        <div style="border-top:1px solid var(--br); padding-top:12px; margin-bottom:14px;">
-          <label style="display:block; font-size:11px; color:var(--m); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px;">
+        <div class="lsx-bt1pxsolid-pad12px-mb14px">
+          <label class="lsx-dblock-fs11px-cm">
             Or pick a date
           </label>
-          <div style="display:flex; gap:8px;">
+          <div class="lsx-dflex-gap8px">
             <input type="date" id="nbd-snooze-custom" style="
               flex:1; background:var(--s2); color:var(--t);
               border:1px solid var(--br); border-radius:6px;
@@ -370,7 +370,7 @@
               cursor:pointer; -webkit-tap-highlight-color:transparent;">Go</button>
           </div>
         </div>
-        <div style="display:flex; justify-content:flex-end;">
+        <div class="lsx-dflex-jcflexend">
           <button id="nbd-snooze-cancel" type="button" style="
             background:transparent; color:var(--m);
             border:1px solid var(--br); padding:8px 16px;
@@ -530,20 +530,20 @@
         border:1px solid var(--br); border-radius:12px;
         padding:22px; max-width:380px; width:100%;
         box-shadow:0 12px 40px rgba(0,0,0,0.5);">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-          <span style="font-size:24px;" aria-hidden="true">💤</span>
-          <h2 id="nbd-bulk-snooze-title" style="font-size:17px; margin:0;">Snooze ${leadIds.length} lead${leadIds.length === 1 ? '' : 's'}</h2>
+        <div class="lsx-dflex-aicenter-gap10px">
+          <span class="lsx-fs24px" aria-hidden="true">💤</span>
+          <h2 id="nbd-bulk-snooze-title" class="lsx-fs17px-m0">Snooze ${leadIds.length} lead${leadIds.length === 1 ? '' : 's'}</h2>
         </div>
-        <p style="font-size:12px; color:var(--m); margin:0 0 14px; line-height:1.5;">
+        <p class="lsx-fs12px-cm-m0014px">
           All selected leads will hide from the kanban + Hot Leads + Needs Attention until the snooze date.
         </p>
         <!-- W73: reason picker for bulk snooze. Same chips as the
              single-lead modal — applies to ALL selected leads. -->
-        <div style="margin-bottom:14px;">
-          <label style="display:block; font-size:11px; color:var(--m); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px;">
-            Why? <span style="text-transform:none; font-weight:500; opacity:0.7;">(optional · applies to all)</span>
+        <div class="lsx-mb14px">
+          <label class="lsx-dblock-fs11px-cm">
+            Why? <span class="lsx-ttnone-w500-opa07">(optional · applies to all)</span>
           </label>
-          <div id="nbd-bulk-snooze-reasons" style="display:flex; flex-wrap:wrap; gap:5px;">
+          <div id="nbd-bulk-snooze-reasons" class="lsx-dflex-flewrap-gap5px">
             ${SNOOZE_REASONS.map((r) => `
               <button data-reason="${escapeHtml(r)}" type="button" style="
                 background:var(--s2); color:var(--m);
@@ -556,7 +556,7 @@
             `).join('')}
           </div>
         </div>
-        <div id="nbd-bulk-snooze-presets" style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px;">
+        <div id="nbd-bulk-snooze-presets" class="lsx-dflex-flecolumn-gap6px">
           ${presets.map((p, i) => {
             // W79: ⭐ pin button on each bulk preset, same shape
             // as the W78 per-lead modal. Shared DEFAULT_PRESET_KEY
@@ -567,7 +567,7 @@
             const star = isDefault ? '⭐' : '☆';
             const starColor = isDefault ? 'var(--purple)' : 'var(--m)';
             return `
-            <div style="display:flex; gap:6px; align-items:stretch;">
+            <div class="lsx-dflex-gap6px-aistretch">
               <button data-bsnooze-i="${i}" type="button" style="
                 flex:1; text-align:left; padding:10px 13px; border-radius:8px;
                 background:var(--s2); color:var(--t);
@@ -576,7 +576,7 @@
                 cursor:pointer; -webkit-tap-highlight-color:transparent;
                 display:flex; justify-content:space-between; align-items:center;">
                 <span>${escapeHtml(p.label)}</span>
-                <span style="font-size:10px; color:var(--m); font-weight:500;">
+                <span class="lsx-fs10px-cm-w500">
                   ${escapeHtml(p.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}
                 </span>
               </button>
@@ -597,11 +597,11 @@
             </div>`;
           }).join('')}
         </div>
-        <div style="border-top:1px solid var(--br); padding-top:12px; margin-bottom:14px;">
-          <label style="display:block; font-size:11px; color:var(--m); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px;">
+        <div class="lsx-bt1pxsolid-pad12px-mb14px">
+          <label class="lsx-dblock-fs11px-cm">
             Or pick a date
           </label>
-          <div style="display:flex; gap:8px;">
+          <div class="lsx-dflex-gap8px">
             <input type="date" id="nbd-bulk-snooze-custom" style="
               flex:1; background:var(--s2); color:var(--t);
               border:1px solid var(--br); border-radius:6px;
@@ -614,7 +614,7 @@
               cursor:pointer; -webkit-tap-highlight-color:transparent;">Go</button>
           </div>
         </div>
-        <div style="display:flex; justify-content:flex-end;">
+        <div class="lsx-dflex-jcflexend">
           <button id="nbd-bulk-snooze-cancel" type="button" style="
             background:transparent; color:var(--m);
             border:1px solid var(--br); padding:8px 16px;

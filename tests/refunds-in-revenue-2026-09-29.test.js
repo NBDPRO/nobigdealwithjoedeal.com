@@ -89,6 +89,51 @@ console.log('\n2. the three copies carry the same helper');
   ok('analytics "last payment date" ignores refunds', /function paymentDateOf\(inv\) \{[\s\S]{0,160}paymentsOnlyOf\(inv\)/.test(kpi));
 }
 
+console.log('\n2b. the weekly digest (server) nets refunds the same way');
+{
+  // The digest's ledger is a server copy (functions/weekly-digest.js), lifted
+  // out by name and run against the real NBDRevenue on the same invoices.
+  const WD = read('functions/weekly-digest.js');
+  const lift = (name) => {
+    const a = WD.indexOf('function ' + name + '(');
+    if (a < 0) return '';
+    let depth = 0, i = WD.indexOf('{', a);
+    for (; i < WD.length; i++) { if (WD[i] === '{') depth++; else if (WD[i] === '}' && --depth === 0) break; }
+    return WD.slice(a, i + 1);
+  };
+  const ctx = { Date }; // timestampMillis tests `instanceof Date` — share the realm
+  vm.createContext(ctx);
+  vm.runInContext(['timestampMillis', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf'].map(lift).join('\n') + '\nglobalThis.__p = _paymentsOf; globalThis.__ms = timestampMillis;', ctx);
+  const wdPaymentsOf = ctx.__p;
+  const shape = (list) => JSON.stringify(list.map((p) => [p.amount, !!p.synthetic, !!p.refund, new Date(p.at).getTime()]));
+  const FIX = {
+    'refund': { total: 1000, balanceDue: 0, payments: [{ amount: 1000, at: D(2026, 9, 10) }],
+      refunds: [{ amount: 250, at: D(2026, 10, 3), status: 'succeeded', kind: 'refund' }] },
+    'failed refund': { total: 1000, balanceDue: 0, payments: [{ amount: 1000, at: D(2026, 9, 10) }],
+      refunds: [{ amount: 250, at: D(2026, 10, 3), status: 'failed' }, { amount: 90, at: D(2026, 10, 3), status: 'canceled' }] },
+    'won dispute + lost chargeback': { total: 1000, balanceDue: 0, payments: [{ amount: 1000, at: D(2026, 9, 10) }],
+      refunds: [{ amount: 1000, at: D(2026, 10, 2), status: 'won', kind: 'dispute_lost' }, { amount: 400, at: D(2026, 10, 4), status: 'lost', kind: 'dispute_lost' }] },
+    'pre-ledger remainder + refund': { total: 1000, balanceDue: 400, payments: [{ amount: 300, at: D(2026, 9, 2) }], lastPaymentAt: D(2026, 9, 9),
+      refunds: [{ amount: 50, date: D(2026, 9, 25), status: 'succeeded' }] },
+    'legacy lump + refund': { total: 600, balanceDue: 0, paidAt: D(2026, 9, 5), refunds: [{ amount: 100, at: D(2026, 9, 20), status: 'succeeded' }] },
+    'junk refunds': { total: 10, balanceDue: 0, payments: [{ amount: 10, at: D(2026, 9, 1) }], refunds: [{}, { amount: 5 }, { amount: -5, at: D(2026, 9, 3) }, null] },
+  };
+  for (const [name, inv] of Object.entries(FIX)) {
+    const a = shape(wdPaymentsOf(inv)), b = shape(R.paymentsOf(inv));
+    ok('digest ledger = collected-revenue.js paymentsOf: ' + name, a === b, 'digest ' + a + ' vs client ' + b);
+  }
+  // The digest's "collected this week" sum (aggregateUserMetrics): entries at
+  // or after the cutoff, in cents. A refund week nets the refund off.
+  const weekCents = (invs, cutoffMs) => invs.reduce((s, inv) => s + wdPaymentsOf(inv)
+    .filter((p) => ctx.__ms(p.at) >= cutoffMs).reduce((t, p) => t + Math.round(p.amount * 100), 0), 0);
+  const cutoff = D(2026, 10, 1).getTime();
+  ok('digest week with a $250 refund and no payments collects −$250, not $0',
+    weekCents([FIX.refund], cutoff) === -25000, 'got ' + weekCents([FIX.refund], cutoff));
+  ok('digest week matches NBDRevenue.collectedBetween over all fixtures',
+    weekCents(Object.values(FIX), cutoff) === Math.round(R.collectedBetween(Object.values(FIX), cutoff, null).total * 100));
+  ok('digest: a refund-only week still counts as activity', /collectedCents !== 0/.test(WD));
+}
+
 console.log('\n3. the Stripe ledger records money going back');
 (async () => {
   process.env.NBD_OWNER_UID = 'OWNER';

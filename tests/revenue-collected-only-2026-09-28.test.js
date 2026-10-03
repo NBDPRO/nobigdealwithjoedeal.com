@@ -172,7 +172,7 @@ console.log('REVENUE — invoice load scoping + per-account cache');
     const WD = read('functions/weekly-digest.js');
     const wdCtx = {};
     vm.createContext(wdCtx);
-    vm.runInContext(['timestampMillis', '_paymentsOf'].map((n) => extractFn(WD, n)).join('\n') + '\nglobalThis.__p = _paymentsOf;', wdCtx);
+    vm.runInContext(['timestampMillis', '_paymentsOnlyOf', '_refundsOf', '_paymentsOf'].map((n) => extractFn(WD, n)).join('\n') + '\nglobalThis.__p = _paymentsOf;', wdCtx);
     const R = loadRevenue().NBDRevenue;
     const sameServer = INVOICES.every((inv) => JSON.stringify(wdCtx.__p(inv).map((p) => [p.amount, !!p.synthetic])) === JSON.stringify(R.paymentsOf(inv).map((p) => [p.amount, !!p.synthetic])));
     ok('digest _paymentsOf (server) matches the client definition on every shape', sameServer);

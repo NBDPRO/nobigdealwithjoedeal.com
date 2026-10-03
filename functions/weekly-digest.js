@@ -103,7 +103,8 @@ const TEMPLATE_STYLES = `
 
 function fmtMoney(n) {
   const v = Math.round(Number(n) || 0);
-  return '$' + v.toLocaleString('en-US');
+  // A refund week can net negative: "-$250", not "$-250".
+  return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('en-US');
 }
 
 function escapeHtml(s) {
@@ -211,8 +212,31 @@ function timestampMillis(t) {
 
 // Invoice payments with their dates — mirrors collected-revenue.js paymentsOf:
 // the payments[] ledger (+ a synthetic remainder when it sums short of
-// total−balanceDue), else one lump dated lastPaymentAt||paidAt.
+// total−balanceDue), else one lump dated lastPaymentAt||paidAt — plus
+// refunds[] as negative entries on the refund date (_refundsOf).
 function _paymentsOf(inv) {
+  return _paymentsOnlyOf(inv).concat(_refundsOf(inv));
+}
+
+// Refunds / lost chargebacks (invoices.refunds[], written by the Stripe
+// ledger) come off revenue on the day the money went back. A failed or
+// canceled refund, or a dispute Jo won, returned nothing. Same rule as
+// refundsOf in the four client readers —
+// tests/refunds-in-revenue-2026-09-29.test.js checks parity.
+function _refundsOf(inv) {
+  const out = [];
+  const list = Array.isArray(inv && inv.refunds) ? inv.refunds : [];
+  list.forEach(r => {
+    r = r || {};
+    const amt = Number(r.amount);
+    const at = r.at != null ? r.at : r.date;
+    if (!(amt > 0) || at == null || r.status === 'failed' || r.status === 'canceled' || r.status === 'won') return;
+    out.push({ amount: -amt, at, refund: true });
+  });
+  return out;
+}
+
+function _paymentsOnlyOf(inv) {
   const total = Number(inv.total) || 0;
   const bal = inv.balanceDue != null ? (Number(inv.balanceDue) || 0) : 0;
   const collectedCents = Math.round(Math.max(0, total - bal) * 100);
@@ -351,7 +375,8 @@ async function aggregateUserMetrics(db, uid) {
     collectedThisWeek,
     activePipelineValue,
     topLeads,
-    hasAnyActivity: newLeads.length > 0 || wonThisWeek.length > 0 || lostThisWeek.length > 0 || collectedCents > 0,
+    // !== 0: a refund-only week nets negative and is still worth reporting.
+    hasAnyActivity: newLeads.length > 0 || wonThisWeek.length > 0 || lostThisWeek.length > 0 || collectedCents !== 0,
   };
 }
 
