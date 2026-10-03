@@ -1,0 +1,35 @@
+/* Templates library (js/templates-library.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven ones stay inline. Generated (auto-named from the declarations). */
+.tlx-fx1-minw0.tlx-fx1-minw0.tlx-fx1-minw0 { flex: 1; min-width: 0; }
+.tlx-fs13px-w600-ct.tlx-fs13px-w600-ct.tlx-fs13px-w600-ct { font-size: 13px; font-weight: 600; color: var(--t,#e8eaf0); }
+.tlx-fs9px-cm.tlx-fs9px-cm.tlx-fs9px-cm { font-size: 9px; color: var(--m,#9aa3b2); }
+.tlx-fs9px-cfbbf24-w700.tlx-fs9px-cfbbf24-w700.tlx-fs9px-cfbbf24-w700 { font-size: 9px; color: #fbbf24; font-weight: 700; }
+.tlx-fs11px-cm-mt3px.tlx-fs11px-cm-mt3px.tlx-fs11px-cm-mt3px { font-size: 11px; color: var(--m,#9aa3b2); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tlx-p22px-tacenter-cm.tlx-p22px-tacenter-cm.tlx-p22px-tacenter-cm { padding: 22px; text-align: center; color: var(--m,#9aa3b2); font-size: 12px; }
+.tlx-mt12px-p14px-bgs2.tlx-mt12px-p14px-bgs2.tlx-mt12px-p14px-bgs2 { margin-top: 12px; padding: 14px; background: var(--s2,#0f1419); border: 1px solid var(--br,#2a3344); border-radius: 8px; }
+.tlx-m0012px-fs14px-ct.tlx-m0012px-fs14px-ct.tlx-m0012px-fs14px-ct { margin: 0 0 12px; font-size: 14px; color: var(--t,#e8eaf0); }
+.tlx-dflex-gap8px-mb10px.tlx-dflex-gap8px-mb10px.tlx-dflex-gap8px-mb10px { display: flex; gap: 8px; margin-bottom: 10px; }
+.tlx-fx1-fs11px-cm.tlx-fx1-fs11px-cm.tlx-fx1-fs11px-cm { flex: 1; font-size: 11px; color: var(--m,#9aa3b2); font-weight: 600; }
+.tlx-fs11px-cm-w600.tlx-fs11px-cm-w600.tlx-fs11px-cm-w600 { font-size: 11px; color: var(--m,#9aa3b2); font-weight: 600; }
+.tlx-dblock-fs11px-cm.tlx-dblock-fs11px-cm.tlx-dblock-fs11px-cm { display: block; font-size: 11px; color: var(--m,#9aa3b2); font-weight: 600; }
+.tlx-fs10px-cm-mt6px.tlx-fs10px-cm-mt6px.tlx-fs10px-cm-mt6px { font-size: 10px; color: var(--m,#9aa3b2); margin-top: 6px; }
+.tlx-dflex-gap6px-jcflexend.tlx-dflex-gap6px-jcflexend.tlx-dflex-gap6px-jcflexend { display: flex; gap: 6px; justify-content: flex-end; margin-top: 10px; }
+.tlx-bgtranspar-cm-bd1pxsolid.tlx-bgtranspar-cm-bd1pxsolid.tlx-bgtranspar-cm-bd1pxsolid { background: transparent; color: var(--m,#9aa3b2); border: 1px solid var(--br,#2a3344); padding: 8px 14px; border-radius: 6px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.tlx-bglineargr-cfff-bdnone.tlx-bglineargr-cfff-bdnone.tlx-bglineargr-cfff-bdnone { background: linear-gradient(135deg,#BD5728 0%,#A14A22 100%); color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tlx-bgs-ct-bd1pxsolid.tlx-bgs-ct-bd1pxsolid.tlx-bgs-ct-bd1pxsolid { background: var(--s,#1a1f2a); color: var(--t,#e8eaf0); border: 1px solid var(--br,#2a3344); border-radius: 12px; padding: 22px; max-width: 560px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.5); max-height: 85vh; overflow-y: auto; }
+.tlx-dflex-aicenter-gap10px.tlx-dflex-aicenter-gap10px.tlx-dflex-aicenter-gap10px { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.tlx-fs24px.tlx-fs24px.tlx-fs24px { font-size: 24px; }
+.tlx-fs17px-m0.tlx-fs17px-m0.tlx-fs17px-m0 { font-size: 17px; margin: 0; }
+.tlx-fs11px-cm-m0014px.tlx-fs11px-cm-m0014px.tlx-fs11px-cm-m0014px { font-size: 11px; color: var(--m,#9aa3b2); margin: 0 0 14px; line-height: 1.5; }
+.tlx-dflex-jcflexend-mt10px.tlx-dflex-jcflexend-mt10px.tlx-dflex-jcflexend-mt10px { display: flex; justify-content: flex-end; margin-top: 10px; }
+.tlx-bgtranspar-corange-bd1pxsolid.tlx-bgtranspar-corange-bd1pxsolid.tlx-bgtranspar-corange-bd1pxsolid { background: transparent; color: var(--orange,#A14A22); border: 1px solid var(--orange,#A14A22); padding: 8px 14px; border-radius: 6px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tlx-bgs-ct-bd1pxsolid-2.tlx-bgs-ct-bd1pxsolid-2.tlx-bgs-ct-bd1pxsolid-2 { background: var(--s,#1a1f2a); color: var(--t,#e8eaf0); border: 1px solid var(--br,#2a3344); border-radius: 12px; padding: 20px; max-width: 440px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.5); max-height: 80vh; overflow-y: auto; }
+.tlx-dflex-aicenter-gap10px-2.tlx-dflex-aicenter-gap10px-2.tlx-dflex-aicenter-gap10px-2 { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.tlx-fs22px.tlx-fs22px.tlx-fs22px { font-size: 22px; }
+.tlx-fs16px-m0.tlx-fs16px-m0.tlx-fs16px-m0 { font-size: 16px; margin: 0; }
+.tlx-fs11px-cm-m0012px.tlx-fs11px-cm-m0012px.tlx-fs11px-cm-m0012px { font-size: 11px; color: var(--m,#9aa3b2); margin: 0 0 12px; line-height: 1.4; }
+.tlx-dflex-flecolumn-gap6px.tlx-dflex-flecolumn-gap6px.tlx-dflex-flecolumn-gap6px { display: flex; flex-direction: column; gap: 6px; }
+.tlx-mb4px.tlx-mb4px.tlx-mb4px { margin-bottom: 4px; }
+.tlx-fs10px-cm-w500.tlx-fs10px-cm-w500.tlx-fs10px-cm-w500 { font-size: 10px; color: var(--m,#9aa3b2); font-weight: 500; }
+.tlx-fs11px-cm-w400.tlx-fs11px-cm-w400.tlx-fs11px-cm-w400 { font-size: 11px; color: var(--m,#9aa3b2); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tlx-dflex-gap6px-jcspacebet.tlx-dflex-gap6px-jcspacebet.tlx-dflex-gap6px-jcspacebet { display: flex; gap: 6px; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--br,#2a3344); }
+.tlx-bgtranspar-cm-bd1pxsolid-2.tlx-bgtranspar-cm-bd1pxsolid-2.tlx-bgtranspar-cm-bd1pxsolid-2 { background: transparent; color: var(--m,#9aa3b2); border: 1px solid var(--br,#2a3344); padding: 7px 12px; border-radius: 6px; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
