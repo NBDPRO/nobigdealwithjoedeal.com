@@ -1,0 +1,33 @@
+/* Job Templates (js/job-templates-ui.js) — library cards, configure step, preview, template editor. Layout moved out of inline style attributes so a theme can restyle it (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven ones stay inline. Generated (auto-named from the declarations). */
+.jtx-dflex-aibaseline-gap14px.jtx-dflex-aibaseline-gap14px.jtx-dflex-aibaseline-gap14px { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.jtx-fx1-minw0.jtx-fx1-minw0.jtx-fx1-minw0 { flex: 1; min-width: 0; }
+.jtx-c8b5cf6-bor8b5cf6.jtx-c8b5cf6-bor8b5cf6.jtx-c8b5cf6-bor8b5cf6 { color: #8b5cf6; border-color: #8b5cf6; }
+.jtx-mt4px.jtx-mt4px.jtx-mt4px { margin-top: 4px; }
+.jtx-dflex-gap6px.jtx-dflex-gap6px.jtx-dflex-gap6px { display: flex; gap: 6px; }
+.jtx-minw0.jtx-minw0.jtx-minw0 { min-width: 0; }
+.jtx-fs34px-mb10px.jtx-fs34px-mb10px.jtx-fs34px-mb10px { font-size: 34px; margin-bottom: 10px; }
+.jtx-mt14px.jtx-mt14px.jtx-mt14px { margin-top: 14px; }
+.jtx-dflex-gap8px.jtx-dflex-gap8px.jtx-dflex-gap8px { display: flex; gap: 8px; }
+.jtx-minw180px.jtx-minw180px.jtx-minw180px { min-width: 180px; }
+.jtx-mlauto.jtx-mlauto.jtx-mlauto { margin-left: auto; }
+.jtx-dflex-aicenter-gap8px.jtx-dflex-aicenter-gap8px.jtx-dflex-aicenter-gap8px { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--t,#e8eaf0); cursor: pointer; }
+.jtx-wd17px-hei17px-minw17px.jtx-wd17px-hei17px-minw17px.jtx-wd17px-hei17px-minw17px { width: 17px; height: 17px; min-width: 17px; }
+.jtx-wd100.jtx-wd100.jtx-wd100 { width: 100%; }
+.jtx-fs12px-w700-corange.jtx-fs12px-w700-corange.jtx-fs12px-w700-corange { font-size: 12px; font-weight: 700; color: var(--orange,#BD5728); text-transform: uppercase; letter-spacing: .1em; }
+.jtx-ceab308-w600-ttnone.jtx-ceab308-w600-ttnone.jtx-ceab308-w600-ttnone { color: #eab308; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.jtx-mt6px.jtx-mt6px.jtx-mt6px { margin-top: 6px; }
+.jtx-fs11px.jtx-fs11px.jtx-fs11px { font-size: 11px; }
+.jtx-dflex-jcspacebet-gap14px.jtx-dflex-jcspacebet-gap14px.jtx-dflex-jcspacebet-gap14px { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.jtx-taright.jtx-taright.jtx-taright { text-align: right; }
+.jtx-c94a3b8.jtx-c94a3b8.jtx-c94a3b8 { color: #94a3b8; }
+.jtx-minw52px-tacenter.jtx-minw52px-tacenter.jtx-minw52px-tacenter { min-width: 52px; text-align: center; }
+.jtx-dflex-aicenter-gap6px.jtx-dflex-aicenter-gap6px.jtx-dflex-aicenter-gap6px { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--m,#9aa3ad); cursor: pointer; }
+.jtx-dflex-gap4px-mlauto.jtx-dflex-gap4px-mlauto.jtx-dflex-gap4px-mlauto { display: flex; gap: 4px; margin-left: auto; }
+.jtx-min38px-p8px14px.jtx-min38px-p8px14px.jtx-min38px-p8px14px { min-height: 38px; padding: 8px 14px; }
+.jtx-mt12px.jtx-mt12px.jtx-mt12px { margin-top: 12px; }
+.jtx-wd100-min56px-resvertical.jtx-wd100-min56px-resvertical.jtx-wd100-min56px-resvertical { width: 100%; min-height: 56px; resize: vertical; }
+.jtx-mt10px.jtx-mt10px.jtx-mt10px { margin-top: 10px; }
+.jtx-m16px08px-dflex-jcspacebet.jtx-m16px08px-dflex-jcspacebet.jtx-m16px08px-dflex-jcspacebet { margin: 16px 0 8px; display: flex; justify-content: space-between; align-items: center; }
+.jtx-fs12px-w800-corange.jtx-fs12px-w800-corange.jtx-fs12px-w800-corange { font-size: 12px; font-weight: 800; color: var(--orange,#BD5728); text-transform: uppercase; letter-spacing: .1em; }
+.jtx-dflex-flecolumn-gap8px.jtx-dflex-flecolumn-gap8px.jtx-dflex-flecolumn-gap8px { display: flex; flex-direction: column; gap: 8px; }
+.jtx-p22px.jtx-p22px.jtx-p22px { padding: 22px; }
