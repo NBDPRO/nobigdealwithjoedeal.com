@@ -126,6 +126,7 @@
     "prefix-reservation.test.js",
     "push-lead-call-phone.test.js",
     "push-notification-actions.test.js",
+    "client-dead-calls-2026-10-03.test.js",
     "pwa-confirm-guard.test.js",
     "pwa-manifest.test.js",
     "route-truth.test.js",
