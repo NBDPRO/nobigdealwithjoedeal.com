@@ -196,7 +196,7 @@ group('Bad input renders nothing, never "Invalid Date"', () => {
    ══════════════════════════════════════════════════════════════════ */
 group('getHomeownerPortalView ships the date', () => {
   assert('scheduledDate is on the progress payload',
-    /nextBlurb:\s+nextStep\?\.blurb \|\| null,[\s\S]{0,900}?scheduledDate: \/\^\\d\{4\}/.test(PORTAL_FN),
+    /copy:\s+HOMEOWNER_PROGRESS_COPY\.ui,[\s\S]{0,1200}?scheduledDate: \/\^\\d\{4\}/.test(PORTAL_FN),
     'it must travel with the milestones the card already renders');
   assert('the server shape-validates it',
     /\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(String\(lead\.scheduledDate \|\| ''\)\)/.test(PORTAL_FN),
