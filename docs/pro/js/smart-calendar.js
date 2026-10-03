@@ -129,15 +129,16 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   }
 
   // The last OUTCOME_LOOKBACK_DAYS of this rep's appointments before today
-  // that still need an outcome. Same repUid + startTime range shape as the
-  // today query (same composite index).
+  // that still need an outcome. Scoped by userId — the appointments read rule
+  // is isOwner(userId), so a repUid query is denied for everyone but admins
+  // (the today query falls back to the same userId + startTime shape/index).
   async function _fetchPastNeedingOutcome(uid, nowMs) {
     const now = nowMs == null ? Date.now() : nowMs;
     const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
     const from = new Date(startOfToday); from.setDate(from.getDate() - OUTCOME_LOOKBACK_DAYS);
     const q = window.query(
       window.collection(window._db, 'appointments'),
-      window.where('repUid', '==', uid),
+      window.where('userId', '==', uid),
       window.where('startTime', '>=', from),
       window.where('startTime', '<', startOfToday),
       window.orderBy('startTime', 'asc')

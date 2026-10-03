@@ -384,8 +384,8 @@ function makeDb() {
     const list = await S.fetchPastNeedingOutcome('u1', now);
     ok('past fetch keeps only booked-without-outcome', list.length === 1 && list[0].id === 'p1', JSON.stringify(list.map((a) => a.id)));
     const w = calls[0] && calls[0].p;
-    ok('…scoped to the rep, before today, 14 days back (existing index shape)', calls[0] && calls[0].c === 'appointments'
-      && w.some((x) => x.f === 'repUid' && x.v === 'u1') && w.some((x) => x.f === 'startTime' && x.op === '<')
+    ok('…scoped by userId (the read rule), before today, 14 days back (existing index shape)', calls[0] && calls[0].c === 'appointments'
+      && w.some((x) => x.f === 'userId' && x.v === 'u1') && w.some((x) => x.f === 'startTime' && x.op === '<')
       && w.some((x) => x.f === 'startTime' && x.op === '>=' && Math.round((now - x.v.getTime()) / 86400000) >= 14));
     const html = S.renderNeedsOutcome(list);
     ok('the list says how many need an outcome and links the lead', /1 past appointment needs an outcome/.test(html) && /data-sc-id="L9"/.test(html));
