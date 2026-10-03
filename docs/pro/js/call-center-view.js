@@ -266,7 +266,9 @@
     var active = FILTERS.filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
     var rows = state.calls.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
-      '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p></div>' +
+      '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
+      (counts.attention && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + counts.attention + ')</button>' : '') +
+      '</div>' +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist">' + FILTERS.map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
@@ -380,6 +382,56 @@
   }
   function idsOf(b) { return String(b.getAttribute('data-ids') || '').split(',').filter(Boolean); }
 
+  // One at a time (Jo, 2026-10-02): the Needs attention people as a deck —
+  // swipe right = everything open for that person is handled (saved right
+  // away, Undo puts it back), left = later, ⋯ = open the customer.
+  function deckCard(g) {
+    var L = leadsById();
+    var latest = g.calls[0];
+    var lead = latest.leadId ? L[latest.leadId] : null;
+    var who = leadName(lead) || latest.contactName || fmtPhone(latest.phoneDigits) || 'Unknown caller';
+    return '<div class="deck-name">' + esc(who) + '</div>' +
+      '<div class="deck-sub">' + g.calls.length + ' open' + (lead ? ' · customer' : (latest.phoneDigits && who !== fmtPhone(latest.phoneDigits) ? ' · ' + esc(fmtPhone(latest.phoneDigits)) : '')) +
+        (g.calls.some(function (c) { return c.urgent; }) ? ' · <b>urgent</b>' : '') + '</div>' +
+      g.calls.map(function (c) {
+        var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+        var kind = c.channel === 'text' ? '💬 texts' : c.direction === 'outbound' ? '↗ you called' : '↙ they called';
+        var mine = (c.promises || []).filter(function (p) { return p && p.who === 'jo'; });
+        return '<div class="deck-why"><div class="deck-sub">' + esc(when) + ' · ' + esc(kind) + '</div>' +
+          (c.summary ? '<div>' + esc(c.summary) + '</div>' : '') +
+          (mine.length ? '<div class="deck-big">You: ' + mine.map(function (p) { return esc(p.text); }).join(' · ') + '</div>' : '') +
+          (c.followUpDate ? '<div class="deck-sub">Follow up ' + esc(c.followUpDate) + '</div>' : '') + '</div>';
+      }).join('');
+  }
+  function openDeck() {
+    if (!window.NBDTriageDeck) return;
+    var groups = groupNeeds(state.calls).map(function (g) { return Object.assign({ id: g.key }, g); });
+    window.NBDTriageDeck.open({
+      id: 'calls-attention',
+      title: 'Needs attention',
+      items: groups,
+      card: deckCard,
+      right: function (g) {
+        var ids = g.calls.map(function (c) { return c.id; });
+        return {
+          label: g.calls.length > 1 ? 'Handled (all ' + g.calls.length + ')' : 'Handled',
+          act: async function () {
+            var r = await actMany(ids, 'handled');
+            if (r.failed) throw new Error(r.failed + ' did not save — try again.');
+            return { undo: async function () { await actMany(ids, 'unhandled'); ids.forEach(function (id) { var c = byId(id); if (c) c.handledAtMs = null; }); render(); } };
+          },
+        };
+      },
+      left: { label: 'Later' },
+      more: function (g) {
+        var latest = g.calls[0];
+        return latest.leadId ? [{ label: 'Open customer ↗', href: '/pro/customer.html?id=' + encodeURIComponent(latest.leadId) }] : [];
+      },
+      doneText: 'Nothing needs you. Every call is handled or filed.',
+      onClose: function () { render(); },
+    });
+  }
+
   function openAttach(id) {
     var box = document.querySelector('[data-cc-attach="' + CSS.escape(id) + '"]');
     if (!box) return;
@@ -449,6 +501,7 @@
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
+    else if (a === 'deck') openDeck();
     else if (a === 'attachopen') openAttach(id);
     else if (a === 'attach') {
       var leadId = pickedLeadId(id);
