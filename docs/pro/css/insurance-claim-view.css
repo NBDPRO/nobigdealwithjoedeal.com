@@ -1,0 +1,28 @@
+/* Insurance claim workflow (js/insurance-claim.js, customer page) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.icx-ct.icx-ct.icx-ct { color: var(--t); }
+.icx-opa8.icx-opa8.icx-opa8 { opacity: .8; }
+.icx-cm-w400.icx-cm-w400.icx-cm-w400 { color: var(--m,#9ca3af); font-weight: 400; }
+.icx-dflex-flewrap-gap8px.icx-dflex-flewrap-gap8px.icx-dflex-flewrap-gap8px { display: flex; flex-wrap: wrap; gap: 8px; }
+.icx-bgs-bd1pxsolid-r8px.icx-bgs-bd1pxsolid-r8px.icx-bgs-bd1pxsolid-r8px { background: var(--s,#12223D); border: 1px solid var(--br,rgba(255,255,255,.08)); border-radius: 8px; padding: 20px; }
+.icx-ct-m0020px0-fs18px.icx-ct-m0020px0-fs18px.icx-ct-m0020px0-fs18px { color: var(--t); margin: 0 0 20px 0; font-size: 18px; font-weight: 600; }
+.icx-bgrgba2552-hei8px-r4px.icx-bgrgba2552-hei8px-r4px.icx-bgrgba2552-hei8px-r4px { background: rgba(255,255,255,.05); height: 8px; border-radius: 4px; margin-bottom: 24px; overflow: hidden; }
+.icx-dgrid-gtcrepeatau-gap6px.icx-dgrid-gtcrepeatau-gap6px.icx-dgrid-gtcrepeatau-gap6px { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; margin-bottom: 24px; }
+.icx-fx00auto-fs11px.icx-fx00auto-fs11px.icx-fx00auto-fs11px { flex: 0 0 auto; font-size: 11px; }
+.icx-worbreakwor.icx-worbreakwor.icx-worbreakwor { word-break: break-word; }
+.icx-bgrgba2552-r8px-p16px.icx-bgrgba2552-r8px-p16px.icx-bgrgba2552-r8px-p16px { background: rgba(255,255,255,.02); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--br,rgba(255,255,255,.08)); }
+.icx-cm-fs12px-ttuppercas.icx-cm-fs12px-ttuppercas.icx-cm-fs12px-ttuppercas { color: var(--m,#9ca3af); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.icx-ct-fs18px-w600.icx-ct-fs18px-w600.icx-ct-fs18px-w600 { color: var(--t); font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+.icx-cm-fs13px-lh15.icx-cm-fs13px-lh15.icx-cm-fs13px-lh15 { color: var(--m,#9ca3af); font-size: 13px; line-height: 1.5; }
+.icx-c10b981.icx-c10b981.icx-c10b981 { color: #10b981; }
+.icx-bgrgba2552-r8px-p16px-2.icx-bgrgba2552-r8px-p16px-2.icx-bgrgba2552-r8px-p16px-2 { background: rgba(255,255,255,.02); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--br,rgba(255,255,255,.08)); font-size: 13px; }
+.icx-cm-mb8px.icx-cm-mb8px.icx-cm-mb8px { color: var(--m,#9ca3af); margin-bottom: 8px; }
+.icx-cm.icx-cm.icx-cm { color: var(--m,#9ca3af); }
+.icx-cef4444-p16px.icx-cef4444-p16px.icx-cef4444-p16px { color: #ef4444; padding: 16px; }
+.icx-dflex-aicenter-p12px.icx-dflex-aicenter-p12px.icx-dflex-aicenter-p12px { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--br,rgba(255,255,255,.08)); gap: 12px; }
+.icx-bgs-bd1pxsolid-r8px-2.icx-bgs-bd1pxsolid-r8px-2.icx-bgs-bd1pxsolid-r8px-2 { background: var(--s,#12223D); border: 1px solid var(--br,rgba(255,255,255,.08)); border-radius: 8px; overflow: hidden; }
+.icx-bgrgba2552-p16px-bb1pxsolid.icx-bgrgba2552-p16px-bb1pxsolid.icx-bgrgba2552-p16px-bb1pxsolid { background: rgba(255,255,255,.02); padding: 16px; border-bottom: 1px solid var(--br,rgba(255,255,255,.08)); }
+.icx-ct-m008px0-fs16px.icx-ct-m008px0-fs16px.icx-ct-m008px0-fs16px { color: var(--t); margin: 0 0 8px 0; font-size: 16px; font-weight: 600; }
+.icx-cm-fs12px.icx-cm-fs12px.icx-cm-fs12px { color: var(--m,#9ca3af); font-size: 12px; }
+.icx-p16px-cm.icx-p16px-cm.icx-p16px-cm { padding: 16px; color: var(--m,#9ca3af); }
+.icx-cm-mb4px.icx-cm-mb4px.icx-cm-mb4px { color: var(--m,#9ca3af); margin-bottom: 4px; }
+.icx-ct-w600-mb4px.icx-ct-w600-mb4px.icx-ct-w600-mb4px { color: var(--t); font-weight: 600; margin-bottom: 4px; }

@@ -57,7 +57,7 @@
     // In cents from the printed (cent-rounded) figures, so the rows foot as shown.
     var adj = (Math.round((v.total) * 100) - Math.round((v.subtotal) * 100) - Math.round((v.tax || 0) * 100)) / 100;
     if (!adj) return '';
-    return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--m,#98a0ab);"><span>' +
+    return '<div class="epx-dflex-jcspacebet-p3px0"><span>' +
       ((v.minJobApplied && adj > 0) ? 'Minimum job charge adjustment' : 'Rounding') + '</span><span>' +
       (adj < 0 ? '−' : '') + money(Math.abs(adj)) + '</span></div>';
   }
@@ -147,32 +147,32 @@
 
     var v = normalize(est);
     var sig = '';
-    if (v.signatureStatus === 'signed') sig = '<span class="ep-chip" style="color:var(--green,#2ecc8a);border-color:var(--green,#2ecc8a);">✓ SIGNED</span>';
-    else if (v.signatureStatus === 'sent' || v.signatureStatus === 'viewed') sig = '<span class="ep-chip" style="color:var(--orange,#BD5728);border-color:var(--orange,#BD5728);">✍ AWAITING SIGN</span>';
-    else if (v.signatureStatus === 'declined') sig = '<span class="ep-chip" style="color:var(--red,#e5484d);border-color:var(--red,#e5484d);">✗ DECLINED</span>';
+    if (v.signatureStatus === 'signed') sig = '<span class="ep-chip epx-cgreen-borgreen">✓ SIGNED</span>';
+    else if (v.signatureStatus === 'sent' || v.signatureStatus === 'viewed') sig = '<span class="ep-chip epx-corange-bororange">✍ AWAITING SIGN</span>';
+    else if (v.signatureStatus === 'declined') sig = '<span class="ep-chip epx-cred-borred">✗ DECLINED</span>';
 
     var linkChip = v.leadId
       ? (v.owner ? '<span class="ep-chip">👤 ' + esc(v.owner) + '</span>' : '')
-      : '<span class="ep-chip" style="color:var(--orange,#BD5728);border-color:var(--orange,#BD5728);">➕ NOT ATTACHED</span>';
+      : '<span class="ep-chip epx-corange-bororange">➕ NOT ATTACHED</span>';
 
     var linesHtml = v.lines.length
       ? v.lines.map(function (l) {
-          return '<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--br,#232830);">' +
-            '<div style="min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--t,#eee);overflow:hidden;text-overflow:ellipsis;">' + esc(l.desc) + '</div>' +
-            (l.qty ? '<div style="font-size:11px;color:var(--m,#98a0ab);margin-top:1px;">' + esc(l.qty) + '</div>' : '') + '</div>' +
-            '<div style="font-size:13px;font-weight:700;white-space:nowrap;color:var(--t,#eee);">' + (l.total != null ? money(l.total) : '—') + '</div></div>';
+          return '<div class="epx-dflex-jcspacebet-gap10px">' +
+            '<div class="epx-minw0"><div class="epx-fs13px-w600-ct">' + esc(l.desc) + '</div>' +
+            (l.qty ? '<div class="epx-fs11px-cm-mt1px">' + esc(l.qty) + '</div>' : '') + '</div>' +
+            '<div class="epx-fs13px-w700-whinowrap">' + (l.total != null ? money(l.total) : '—') + '</div></div>';
         }).join('')
-      : '<div style="padding:14px 0;color:var(--m,#98a0ab);font-size:12px;">No line items on this estimate.</div>';
+      : '<div class="epx-p14px0-cm-fs12px">No line items on this estimate.</div>';
 
     var totalsHtml =
       (v.subtotal != null && v.subtotal !== v.total
-        ? '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--m,#98a0ab);"><span>Subtotal</span><span>' + money(v.subtotal) + '</span></div>' : '') +
+        ? '<div class="epx-dflex-jcspacebet-p3px0"><span>Subtotal</span><span>' + money(v.subtotal) + '</span></div>' : '') +
       (v.tax != null
-        ? '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--m,#98a0ab);"><span>Tax</span><span>' + money(v.tax) + '</span></div>' : '') +
+        ? '<div class="epx-dflex-jcspacebet-p3px0"><span>Tax</span><span>' + money(v.tax) + '</span></div>' : '') +
       adjustmentRow(v) +
-      '<div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;">' +
-        '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:14px;font-weight:800;letter-spacing:.08em;color:var(--m,#98a0ab);">TOTAL</span>' +
-        '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:28px;font-weight:800;color:var(--green,#2ecc8a);">' + money(v.total) + '</span></div>';
+      '<div class="epx-dflex-jcspacebet-aibaseline">' +
+        '<span class="epx-ffbarlowco-fs14px-w800">TOTAL</span>' +
+        '<span class="epx-ffbarlowco-fs28px-w800">' + money(v.total) + '</span></div>';
 
     var btn = function (action, label, primary) {
       return '<button type="button" class="ep-btn' + (primary ? ' primary' : '') + '" data-ep-action="' + action + '">' + label + '</button>';
@@ -192,14 +192,14 @@
       '<div class="ep-sheet" role="dialog" aria-modal="true" aria-label="Estimate preview">' +
         '<div class="ep-grab"></div>' +
         '<div class="ep-body">' +
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">' +
-            '<div style="min-width:0;">' +
-              '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:19px;font-weight:800;color:var(--t,#eee);line-height:1.15;">' + esc(v.name) + '</div>' +
-              (v.addr && v.addr !== v.name ? '<div style="font-size:12px;color:var(--m,#98a0ab);margin-top:3px;">' + esc(v.addr) + '</div>' : '') +
+          '<div class="epx-dflex-jcspacebet-aiflexstar">' +
+            '<div class="epx-minw0">' +
+              '<div class="epx-ffbarlowco-fs19px-w800">' + esc(v.name) + '</div>' +
+              (v.addr && v.addr !== v.name ? '<div class="epx-fs12px-cm-mt3px">' + esc(v.addr) + '</div>' : '') +
             '</div>' +
-            '<button type="button" data-ep-action="close" aria-label="Close" style="background:none;border:none;color:var(--m,#98a0ab);font-size:22px;line-height:1;cursor:pointer;padding:2px 4px;flex:none;">✕</button>' +
+            '<button type="button" data-ep-action="close" aria-label="Close" class="epx-bgnone-bdnone-cm">✕</button>' +
           '</div>' +
-          '<div style="margin:10px 0 4px;">' + linkChip +
+          '<div class="epx-m10px04px">' + linkChip +
             '<span class="ep-chip">' + esc(v.builder) + '</span>' +
             (v.tier ? '<span class="ep-chip">' + esc(String(v.tier).toUpperCase()) + '</span>' : '') +
             (v.sq ? '<span class="ep-chip">' + esc(v.sq) + ' SQ</span>' : '') +
@@ -207,14 +207,14 @@
             '<span class="ep-chip">' + esc(v.created) + '</span>' +
           '</div>' +
           ((Array.isArray(est.photos) && est.photos.length)
-            ? '<div style="display:flex;gap:6px;overflow-x:auto;margin-top:10px;-webkit-overflow-scrolling:touch;">' +
+            ? '<div class="epx-dflex-gap6px-oxauto">' +
                 est.photos.map(function (p) {
-                  return '<img src="' + esc(p.url) + '" alt="" loading="lazy" style="height:64px;border-radius:6px;flex:none;border:1px solid var(--br,#2a2f37);">';
+                  return '<img src="' + esc(p.url) + '" alt="" loading="lazy" class="epx-hei64px-r6px-fxnone">';
                 }).join('') +
               '</div>'
             : '') +
-          '<div style="margin-top:10px;">' + linesHtml + '</div>' +
-          '<div style="margin:12px 0 10px;">' + totalsHtml + '</div>' +
+          '<div class="epx-mt10px">' + linesHtml + '</div>' +
+          '<div class="epx-m12px010p">' + totalsHtml + '</div>' +
         '</div>' +
         '<div class="ep-actions">' + actions + '</div>' +
       '</div>';
