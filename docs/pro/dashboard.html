@@ -202,6 +202,7 @@
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
 <link rel="stylesheet" href="css/google-calendar.css?v=4">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
+<link rel="stylesheet" href="css/game-card.css?v=1">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
@@ -860,6 +861,7 @@
       <!-- Needs-you strip (js/home-attention.js): Stripe payments to assign,
            yard signs to pick up, phone calls that need you. Hidden when all are zero. -->
       <div id="homeAttention" class="ha-strip mb-md" hidden></div>
+      <div id="homeGameCard" class="mb-md" hidden></div>
       <style>
         .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
         .ha-strip[hidden]{display:none;}
@@ -3260,6 +3262,7 @@
 
       <!-- ══ TAB: APPEARANCE ══ -->
       <div class="stab-panel dn" id="stab-panel-appearance">
+        <div id="gameSettingsMount"></div>
 
         <!-- Mode toggle: Light / Dark / Auto. Applies to every theme. -->
         <div class="panel mb-md">
@@ -6840,6 +6843,8 @@
 <script defer src="js/lead-score-alert.js?v=2"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
 <script defer src="js/home-attention.js?v=6"></script>
+<script defer src="js/game-sprite.js?v=1"></script>
+<script defer src="js/game-card.js?v=1"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
