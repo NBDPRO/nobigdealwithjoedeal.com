@@ -227,7 +227,9 @@
       'js/estimate-builder-v2.js?v=8',
       'js/estimate-catalog-xactimate.js?v=3',
       'js/estimate-logic-engine.js?v=7',
-      'js/estimates.js?v=10',
+      // Classic review step's layout (reskin 2026-10-03), before the script.
+      'css/estimates-review.css?v=1',
+      'js/estimates.js?v=11',
       // Rock 2 PR 6: the New-Estimate front door (chooser) split out of
       // estimates.js. Loads after it — showNewEstimateChooser falls back to
       // estimates.js's showEstimateTypeSelector when V2 is missing.
