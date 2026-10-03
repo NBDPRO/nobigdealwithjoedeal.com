@@ -81,7 +81,26 @@ function ok(label, cond, detail) {
   console.log('D. one alert, only when something is new');
   ok('nothing new → no alert', W.alertFor([], [], NOW) === null);
   const al = W.alertFor(needs, [], NOW);
-  ok('alert: title counts, lines say who + why, urgent → high', /4 new calls need you/.test(al.title) && /Maria Lopez — urgent/.test(al.message) && al.priority === 'high', JSON.stringify(al));
+  ok('alert: title counts people, lines say who + why, urgent → high', /4 people need you/.test(al.title) && /Maria Lopez — urgent/.test(al.message) && al.priority === 'high', JSON.stringify(al));
+
+  console.log('D2. grouped by person (Jo, 2026-10-02: "group them by customer")');
+  const g = [
+    { id: 'g1', leadId: 'LX', contactName: 'Ann', promises: [{ who: 'jo', text: 'stop by' }], startedAtMs: NOW - 3 * D },
+    { id: 'g2', leadId: 'LX', contactName: 'Ann', promises: [{ who: 'jo', text: 'text quote' }], startedAtMs: NOW - D },
+    { id: 'g3', leadId: 'LX', contactName: 'Ann', urgent: true, startedAtMs: NOW - H },
+    { id: 'g4', bucket: 'unknown', status: 'noted', phoneDigits: '+1 (513) 555-0101', startedAtMs: NOW - 2 * H },
+    { id: 'g5', bucket: 'unknown', status: 'noted', phoneDigits: '5135550101', startedAtMs: NOW - 5 * H },
+    { id: 'g6', leadId: 'LY', promises: [{ who: 'jo', text: 'call back' }], startedAtMs: NOW - 4 * H },
+  ];
+  const groups = HA.groupNeeds(g, NOW);
+  ok('six open calls are three people', HA.callersNeedingYou(g, NOW) === 3 && HA.callsNeedingYou(g, NOW) === 6);
+  ok('a person = their customer, else the last 10 digits of the number', groups.map((x) => x.key).join() === 'lead:LX,num:5135550101,lead:LY', groups.map((x) => x.key).join());
+  ok('newest person first; their calls newest first', groups[0].calls.map((c) => c.id).join() === 'g3,g2,g1');
+  ok('callWatch keys people exactly as Home does', g.every((c) => W.callerKey(c) === HA.callerKey(c)));
+  ok('Home banner says people', /3 people need you/.test(HA.stripHtml({ calls: 3 })) && /1 person needs you/.test(HA.stripHtml({ calls: 1 })));
+  const gn = W.newNeeds(g, [], [], NOW - 4 * D, NOW);
+  const ga = W.alertFor(gn, [], NOW);
+  ok('the alert names each person once; extra calls ride along', /3 people need you/.test(ga.title) && (ga.message.match(/• /g) || []).length === 3 && /Ann — urgent \(\+2 more calls\)/.test(ga.message), ga.message);
   const probs = [{ key: 'ingest_stale', text: 'x' }];
   ok('a standing problem repeats at most every 6 h', W.problemsToTell(probs, { ingest_stale: NOW - 2 * H }, NOW).length === 0 && W.problemsToTell(probs, { ingest_stale: NOW - 7 * H }, NOW).length === 1 && W.problemsToTell(probs, {}, NOW).length === 1);
   ok('watch hours 8 AM-8 PM Eastern only', W.inWatchHours(NOW) && !W.inWatchHours(Date.parse('2026-10-03T02:00:00Z')) && W.inWatchHours(Date.parse('2026-10-03T00:00:00Z')));

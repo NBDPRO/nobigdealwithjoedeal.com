@@ -63,6 +63,20 @@
     return !!(mine || dueNow || c.urgent);
   }
 
+  // "Needs attention" is grouped by person (home-attention.js groupNeeds —
+  // the same grouping Home and callWatch count). The fallback mirrors it.
+  function groupNeeds(rows) {
+    var HA = window.NBDHomeAttention;
+    if (HA && typeof HA.groupNeeds === 'function') return HA.groupNeeds(rows, Date.now());
+    var by = {}, order = [];
+    rows.filter(needsAttention).forEach(function (c) {
+      var k = c.leadId ? 'lead:' + c.leadId : (c.phoneDigits ? 'num:' + String(c.phoneDigits).slice(-10) : 'id:' + c.id);
+      if (!by[k]) { by[k] = { key: k, calls: [] }; order.push(k); }
+      by[k].calls.push(c);
+    });
+    return order.map(function (k) { return by[k]; });
+  }
+
   var FILTERS = [
     ['attention', 'Needs attention', needsAttention],
     ['all', 'All', function () { return true; }],
@@ -191,12 +205,62 @@
       '</div>';
   }
 
+  // One person's open calls and text days in one card, newest first, with
+  // one ✓ Handled for all of them. A person with a single open call keeps
+  // the ordinary call card.
+  function renderGroup(g, L) {
+    var latest = g.calls[0];
+    var lead = latest.leadId ? L[latest.leadId] : null;
+    var who = leadName(lead) || latest.contactName || fmtPhone(latest.phoneDigits) || 'Unknown caller';
+    var ids = g.calls.map(function (c) { return c.id; });
+    var busy = ids.some(function (id) { return state.busy[id]; });
+    var bucketLabel = lead ? 'Customer' : ({ insurance: 'Insurance', contact: 'Contact', unknown: 'Unknown number' }[latest.bucket] || '');
+    var chips = chip(g.calls.length + ' open') + (bucketLabel ? chip(bucketLabel, 'cc-chip-' + esc(lead ? 'customer' : latest.bucket)) : '') +
+      (g.calls.some(function (c) { return c.urgent; }) ? chip('Urgent', 'cc-chip-urgent') : '');
+    var items = g.calls.map(function (c) {
+      var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+      var kind = c.channel === 'text' ? '💬 ' + (c.messageCount || 0) + ' text' + (c.messageCount === 1 ? '' : 's')
+        : c.direction === 'outbound' ? '↗ You called' : c.direction === 'inbound' ? '↙ They called' : 'Call';
+      var promises = (c.promises || []).length ? '<ul class="pc-promises">' + c.promises.map(function (p) {
+        return '<li class="pc-promise pc-promise-' + (p.who === 'jo' ? 'jo' : 'them') + '"><span class="pc-promise-who">' + (p.who === 'jo' ? 'You' : 'They') + '</span> ' +
+          esc(p.text) + (p.due ? ' <span class="pc-meta">by ' + esc(p.due) + '</span>' : '') + '</li>';
+      }).join('') + '</ul>' : '';
+      return '<li class="cc-group-call" data-call-id="' + esc(c.id) + '">' +
+        '<div class="pc-meta">' + esc(when) + ' · ' + esc(kind) + (c.durationSec ? ' · ' + esc(fmtDur(c.durationSec)) : '') + (c.urgent ? ' · <b>urgent</b>' : '') + '</div>' +
+        (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
+        (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
+        (c.storagePath ? '<div class="pc-actions"><button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(c.id) + '">▶ Play</button></div>' +
+          '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div><div class="pc-meta pc-status" data-cc-status="' + esc(c.id) + '"></div>' : '') +
+        '</li>';
+    }).join('');
+    var actions = '';
+    if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(latest.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
+    if (!isViewer()) {
+      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>';
+      if (!latest.leadId) {
+        actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>' +
+          '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(latest.id) + '">Attach to customer…</button>';
+      }
+    }
+    return '<div class="panel pc-card cc-card cc-group" data-call-id="' + esc(latest.id) + '" data-group="' + esc(g.key) + '">' +
+      '<div class="pc-head"><div class="pc-who">' + esc(who) + (!lead && latest.contactName && latest.phoneDigits ? ' <span class="pc-meta">' + esc(fmtPhone(latest.phoneDigits)) + '</span>' : '') + '</div>' +
+      '<div class="pc-meta">' + g.calls.length + ' open · latest ' + esc(latest.startedAtMs ? new Date(latest.startedAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '') + '</div></div>' +
+      '<div class="pc-chips">' + chips + '</div>' +
+      '<ul class="cc-group-calls">' + items + '</ul>' +
+      '<div class="pc-actions">' + actions + '</div>' +
+      '<div class="cc-attach" data-cc-attach="' + esc(latest.id) + '" data-ids="' + esc(ids.join(',')) + '" hidden></div>' +
+      '<div class="pc-meta pc-status" data-cc-status="' + esc(latest.id) + '"></div>' +
+      '</div>';
+  }
+
   function render() {
     var el = root();
     if (!el) return;
     var L = leadsById();
     var counts = {};
     FILTERS.forEach(function (f) { counts[f[0]] = state.calls.filter(f[2]).length; });
+    // Needs attention counts PEOPLE (Jo, 2026-10-02), like Home and the alert.
+    counts.attention = groupNeeds(state.calls).length;
     var badge = document.getElementById('callsNavBadge');
     if (badge) { badge.textContent = counts.attention ? String(counts.attention) : ''; badge.classList.toggle('dn', !counts.attention); }
     var active = FILTERS.filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
@@ -213,6 +277,13 @@
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? 'Nothing needs you. Every call is handled or filed.' : 'No calls match.') + '</div>';
+    else if (state.filter === 'attention') {
+      // A person shows when any of their open calls matches the search.
+      var hit = {};
+      rows.forEach(function (c) { hit[c.id] = true; });
+      body = groupNeeds(state.calls).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
+        .map(function (g) { return g.calls.length === 1 ? renderCall(g.calls[0], L) : renderGroup(g, L); }).join('');
+    }
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
       (rows.length > 150 ? '<div class="cc-empty">Showing the newest 150. Search to narrow it down.</div>' : '');
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
@@ -285,6 +356,30 @@
     }
   }
 
+  // The same action on every call in a person's group (✓ Handled all, or
+  // filing all of an unknown number's calls on one customer). Status shows
+  // on the group's card (keyed by its newest call).
+  async function actMany(ids, action, extra) {
+    var lead = ids[0];
+    ids.forEach(function (id) { state.busy[id] = true; });
+    status(lead, 'Saving ' + ids.length + '…');
+    var ok = 0, failed = 0, last = null;
+    for (var i = 0; i < ids.length; i++) {
+      try {
+        last = await callable('callCenterAction', Object.assign({ id: ids[i], action: action }, extra || {}));
+        var c = byId(ids[i]);
+        if (c && action === 'handled') c.handledAtMs = Date.now();
+        if (c && action === 'attach' && last && last.leadId) { c.leadId = last.leadId; c.bucket = 'customer'; c.alternateLeadIds = []; }
+        ok++;
+      } catch (e) { failed++; }
+    }
+    ids.forEach(function (id) { delete state.busy[id]; });
+    render();
+    if (failed) status(lead, ok + ' saved, ' + failed + ' did not — try again.');
+    return { ok: ok, failed: failed, last: last };
+  }
+  function idsOf(b) { return String(b.getAttribute('data-ids') || '').split(',').filter(Boolean); }
+
   function openAttach(id) {
     var box = document.querySelector('[data-cc-attach="' + CSS.escape(id) + '"]');
     if (!box) return;
@@ -307,7 +402,7 @@
     return m ? m[1] : '';
   }
 
-  async function newLead(id) {
+  async function newLead(id, moreIds) {
     var c = byId(id);
     if (!c || typeof window._saveLead !== 'function') return;
     state.busy[id] = true; render();
@@ -327,7 +422,9 @@
       delete state.busy[id];
       if (!leadId) { render(); status(id, 'Lead not created.'); return; }
       await act(id, 'attach', { leadId: leadId });
-      status(id, 'New lead created and the call is filed on it. Give it a job type on the customer page.');
+      var rest = (moreIds || []).filter(function (x) { return x !== id; });
+      if (rest.length) await actMany(rest, 'attach', { leadId: leadId });
+      status(id, 'New lead created and ' + (rest.length ? 'all ' + (rest.length + 1) + ' calls are' : 'the call is') + ' filed on it. Give it a job type on the customer page.');
     } catch (e) {
       delete state.busy[id];
       render();
@@ -351,13 +448,18 @@
     if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; render(); }
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
+    else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
     else if (a === 'attachopen') openAttach(id);
     else if (a === 'attach') {
       var leadId = pickedLeadId(id);
       if (!leadId) { status(id, 'Pick a customer from the list.'); return; }
-      act(id, 'attach', { leadId: leadId });
+      // From a group card, file every one of that number's open calls.
+      var box = document.querySelector('[data-cc-attach="' + CSS.escape(id) + '"]');
+      var all = box ? idsOf(box) : [];
+      if (all.length > 1) actMany(all, 'attach', { leadId: leadId }).then(function (r) { status(id, r.failed ? '' : 'All ' + r.ok + ' calls filed on the customer.'); });
+      else act(id, 'attach', { leadId: leadId });
     }
-    else if (a === 'newlead') newLead(id);
+    else if (a === 'newlead') newLead(id, idsOf(b));
   });
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ccSearch') { state.q = e.target.value || ''; render(); }

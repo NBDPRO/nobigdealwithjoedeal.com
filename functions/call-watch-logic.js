@@ -60,6 +60,14 @@ function reasonFor(c, now) {
   if (c.status === 'short' && c.direction === 'inbound') return 'missed call';
   return 'unknown number, no customer on file';
 }
+/** Mirror of home-attention.js callerKey: the customer, else the number. */
+function callerKey(c) {
+  if (!c) return '';
+  if (c.leadId) return 'lead:' + c.leadId;
+  const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+  return d ? 'num:' + d : 'id:' + (c.id || '');
+}
+
 const who = (c) => String(c.contactName || c.from || (c.phoneDigits ? '…' + String(c.phoneDigits).slice(-4) : '') || 'Unknown caller').slice(0, 60);
 
 /**
@@ -72,19 +80,20 @@ function newNeeds(calls, textDays, thursday, sinceMs, now) {
     if (!callNeedsYou(c, now)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.createdAtMs) || toMs(c.startedAtMs);
     if (arrived <= sinceMs) return;
-    out.push({ id: 'call:' + c.id, kind: 'call', who: who(c), why: reasonFor(c, now), at: toMs(c.startedAtMs) });
+    out.push({ id: 'call:' + c.id, key: callerKey(c), kind: 'call', who: who(c), why: reasonFor(c, now), at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.startedAtMs);
     if (arrived <= sinceMs) return;
-    out.push({ id: 'text:' + c.id, kind: 'text', who: who(c), why: reasonFor(c, now), at: toMs(c.startedAtMs) });
+    out.push({ id: 'text:' + c.id, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now), at: toMs(c.startedAtMs) });
   });
   (thursday || []).forEach((t) => {
     if (!t || t.reviewed === true || t.status !== 'processed') return;
     const arrived = toMs(t.processedAt) || toMs(t.startedAt);
     if (arrived <= sinceMs || arrived < now - CALL_WINDOW) return;
-    out.push({ id: 'thursday:' + t.id, kind: 'thursday', who: String(t.from || 'Caller').slice(0, 60), why: t.urgent ? 'urgent (Thursday took it)' : 'Thursday took it — not reviewed', at: toMs(t.startedAt) });
+    const td = String(t.from || '').replace(/\D/g, '').slice(-10);
+    out.push({ id: 'thursday:' + t.id, key: td ? 'num:' + td : 'thursday:' + t.id, kind: 'thursday', who: String(t.from || 'Caller').slice(0, 60), why: t.urgent ? 'urgent (Thursday took it)' : 'Thursday took it — not reviewed', at: toMs(t.startedAt) });
   });
   return out.sort((a, b) => (b.at || 0) - (a.at || 0));
 }
@@ -136,10 +145,21 @@ function problemsToTell(problems, lastTold, now) {
 
 /** The one alert (bell + push). null when there is nothing to say. */
 function alertFor(needs, problems, now) {
-  const n = needs || [], pr = problems || [];
-  if (!n.length && !pr.length) return null;
+  const items = needs || [], pr = problems || [];
+  if (!items.length && !pr.length) return null;
+  // One line per PERSON (Jo, 2026-10-02: "group them by customer"), the
+  // newest item first; their other new calls ride as "+N more calls".
+  const by = new Map();
+  items.forEach((x) => {
+    const k = x.key || x.id;
+    if (!by.has(k)) by.set(k, Object.assign({}, x, { extra: 0 }));
+    else { const g = by.get(k); g.extra++; if (/urgent/.test(x.why) && !/urgent/.test(g.why)) g.why = x.why; }
+  });
+  const n = Array.from(by.values()).map((g) => Object.assign({}, g, {
+    why: g.why + (g.extra ? ' (+' + g.extra + ' more call' + (g.extra === 1 ? '' : 's') + ')' : ''),
+  }));
   const parts = [];
-  if (n.length) parts.push(n.length + ' new call' + (n.length === 1 ? '' : 's') + ' need' + (n.length === 1 ? 's' : '') + ' you');
+  if (n.length) parts.push(n.length + (n.length === 1 ? ' person needs' : ' people need') + ' you');
   if (pr.length) parts.push('call updates are behind');
   const lines = n.slice(0, 5).map((x) => '• ' + x.who + ' — ' + x.why).concat(n.length > 5 ? ['• +' + (n.length - 5) + ' more'] : []).concat(pr.map((x) => '⚠ ' + x.text));
   return {
@@ -159,5 +179,5 @@ function inWatchHours(now) {
 
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
-  toMs, etYmd, callNeedsYou, reasonFor, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
+  toMs, etYmd, callNeedsYou, callerKey, reasonFor, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };
