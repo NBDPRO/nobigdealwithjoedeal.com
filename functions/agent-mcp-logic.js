@@ -330,12 +330,15 @@ function rulesReference() {
 
 // ── Finished jobs / sources / profit / storms ──────────────────────────
 const SR = (() => { try { return require('./stage-roles'); } catch (_) { return null; } })();
+const { isOwedInvoice } = require('./invoice-owed');
 function roleOf(l) { return SR && typeof SR.roleFor === 'function' ? SR.roleFor(l) : (CLOSED.test(String(l.stage || '')) ? 'won' : 'active'); }
 function completedMs(l) { return ms(l.completedAt) || ms(l.installCompletedAt) || ms(l.stageStartedAt) || ms(l.updatedAt); }
 function balanceByLead(invoices) {
   const out = {};
   (invoices || []).forEach((inv) => {
-    if (!inv || !inv.leadId || inv.deleted === true || inv.status === 'void' || inv.status === 'paid') return;
+    // Owed only (invoice-owed.js) — a draft, incl. the server's draft deposit
+    // invoice, was never sent and is not owed.
+    if (!inv || !inv.leadId || !isOwedInvoice(inv)) return;
     const b = parseFloat(inv.balanceDue);
     if (b > 0) out[inv.leadId] = Math.round(((out[inv.leadId] || 0) + b) * 100) / 100;
   });
