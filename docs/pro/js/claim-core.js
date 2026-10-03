@@ -162,22 +162,22 @@
     var has = c && (c.name || c.phone || c.email);
     var inner;
     if (!has) {
-      inner = '<button type="button" data-action="openClaimEditor" data-arg="' + esc(slot) + '" aria-label="Add ' + esc(label) + '" style="background:none;border:none;color:var(--blue,#3b82f6);font-size:15px;cursor:pointer;padding:4px 0;min-height:36px;font-weight:600;">＋ Add</button>';
+      inner = '<button type="button" data-action="openClaimEditor" data-arg="' + esc(slot) + '" aria-label="Add ' + esc(label) + '" class="ccx-bgnone-bdnone-cblue">＋ Add</button>';
     } else {
       var digits = String(c.phone || '').replace(/\D/g, '');
       var links = '';
       if (digits) {
-        links += '<a href="tel:' + esc(digits) + '" style="color:var(--green,#10b981);text-decoration:none;font-size:13px;margin-left:10px;">📞 Call</a>';
-        links += '<a href="sms:' + esc(digits) + '" style="color:var(--blue,#3b82f6);text-decoration:none;font-size:13px;margin-left:10px;">💬 Text</a>';
+        links += '<a href="tel:' + esc(digits) + '" class="ccx-cgreen-tdnone-fs13px">📞 Call</a>';
+        links += '<a href="sms:' + esc(digits) + '" class="ccx-cblue-tdnone-fs13px">💬 Text</a>';
       }
-      if (c.email) links += '<a href="mailto:' + esc(c.email) + '" style="color:var(--orange,#BD5728);text-decoration:none;font-size:13px;margin-left:10px;">✉️ Email</a>';
-      inner = '<div style="color:var(--t);font-weight:600;">' + esc(c.name || c.phone || c.email) + '</div>' +
-              (c.phone ? '<div style="color:var(--m,#9ca3af);font-size:12px;margin-top:2px;">' + esc(c.phone) + '</div>' : '') +
-              (links ? '<div style="margin-top:4px;margin-left:-10px;">' + links + '</div>' : '');
+      if (c.email) links += '<a href="mailto:' + esc(c.email) + '" class="ccx-corange-tdnone-fs13px">✉️ Email</a>';
+      inner = '<div class="ccx-ct-w600">' + esc(c.name || c.phone || c.email) + '</div>' +
+              (c.phone ? '<div class="ccx-cm-fs12px-mt2px">' + esc(c.phone) + '</div>' : '') +
+              (links ? '<div class="ccx-mt4px-ml10px">' + links + '</div>' : '');
     }
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--br,rgba(255,255,255,.08));gap:12px;">' +
-           '<div style="color:var(--m,#9ca3af);font-size:12px;text-transform:uppercase;letter-spacing:.06em;flex:0 0 auto;">' + esc(label) + '</div>' +
-           '<div style="text-align:right;min-width:0;">' + inner + '</div></div>';
+    return '<div class="ccx-dflex-jcspacebet-aicenter">' +
+           '<div class="ccx-cm-fs12px-ttuppercas">' + esc(label) + '</div>' +
+           '<div class="ccx-taright-minw0">' + inner + '</div></div>';
   }
 
   function render(containerId, lead) {
@@ -186,18 +186,18 @@
     var c = normalizeClaim(lead || window._currentLead || {});
     var color = STATUS_COLORS[c.status] || '#9ca3af';
     el.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:start;gap:12px;">' +
+      '<div class="ccx-dflex-jcspacebet-aistart">' +
         '<div>' +
-          '<div class="panel-title" style="margin-bottom:4px;">Insurance Claim Details</div>' +
-          '<div style="color:var(--m,#9ca3af);font-size:12px;">Deductible</div>' +
-          '<div style="color:var(--blue,#3b82f6);font-size:24px;font-weight:800;">' + money(c.deductible) + '</div>' +
+          '<div class="panel-title ccx-mb4px">Insurance Claim Details</div>' +
+          '<div class="ccx-cm-fs12px">Deductible</div>' +
+          '<div class="ccx-cblue-fs24px-w800">' + money(c.deductible) + '</div>' +
         '</div>' +
-        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:0 0 auto;">' +
-          '<button type="button" data-action="openClaimEditor" style="background:none;border:1px solid var(--br,rgba(255,255,255,.15));border-radius:8px;color:var(--t);font-size:12px;cursor:pointer;padding:6px 12px;">✎ Edit</button>' +
+        '<div class="ccx-dflex-flecolumn-aiflexend">' +
+          '<button type="button" data-action="openClaimEditor" class="ccx-bgnone-bd1pxsolid-r8px">✎ Edit</button>' +
           '<span id="claimStatusChip" style="background:' + color + '22;color:' + color + ';border:1px solid ' + color + '55;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;white-space:nowrap;">' + esc(c.status) + '</span>' +
         '</div>' +
       '</div>' +
-      '<div class="info-grid" style="margin-top:12px;">' +
+      '<div class="info-grid ccx-mt12px">' +
         factCell('Claim Number', dt(c.number)) +
         factCell('Type of Loss', dt(c.typeOfLoss)) +
         factCell('Carrier', dt(c.carrier)) +
@@ -212,7 +212,7 @@
         factCell('Scope of Work', dt(c.scopeOfWork)) +
         factCell('Adjuster Meeting', meetingLabel(c.adjusterMeeting) || '—') +
       '</div>' +
-      '<div style="margin-top:14px;">' +
+      '<div class="ccx-mt14px">' +
         contactRow('Adjuster', c.adjuster, 'adjuster') +
         contactRow('Claim Handler', c.claimHandler, 'handler') +
         contactRow('Mortgage Company', c.mortgageCompany, 'mortgage') +
@@ -240,16 +240,16 @@
   /* ── Claim editor modal ──────────────────────────────────────────── */
 
   function field(label, id, type, value, ph) {
-    return '<div class="mfield" style="flex:1;min-width:0;"><label style="display:block;color:var(--m,#9ca3af);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">' + esc(label) + '</label>' +
-      '<input type="' + type + '" id="' + id + '" value="' + esc(value == null ? '' : value) + '" placeholder="' + esc(ph || '') + '" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--br,rgba(255,255,255,.12));border-radius:8px;color:var(--t);padding:9px 10px;font-size:14px;font-family:inherit;box-sizing:border-box;"></div>';
+    return '<div class="mfield ccx-fx1-minw0"><label class="ccx-dblock-cm-fs11px">' + esc(label) + '</label>' +
+      '<input type="' + type + '" id="' + id + '" value="' + esc(value == null ? '' : value) + '" placeholder="' + esc(ph || '') + '" class="ccx-wd100-bgrgba2552-bd1pxsolid"></div>';
   }
   function selectField(label, id, options, value) {
     var opts = options.map(function (o) {
       var v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o;
       return '<option value="' + esc(v) + '"' + (v === value ? ' selected' : '') + '>' + esc(t) + '</option>';
     }).join('');
-    return '<div class="mfield" style="flex:1;min-width:0;"><label style="display:block;color:var(--m,#9ca3af);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">' + esc(label) + '</label>' +
-      '<select id="' + id + '" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--br,rgba(255,255,255,.12));border-radius:8px;color:var(--t);padding:9px 10px;font-size:14px;font-family:inherit;box-sizing:border-box;">' + opts + '</select></div>';
+    return '<div class="mfield ccx-fx1-minw0"><label class="ccx-dblock-cm-fs11px">' + esc(label) + '</label>' +
+      '<select id="' + id + '" class="ccx-wd100-bgrgba2552-bd1pxsolid">' + opts + '</select></div>';
   }
   // align-items:flex-end (2026-09-25): at 412px "Estimate Amount ($)" and
   // "Approved Amount ($)" wrap to two lines in their 103px columns while
@@ -257,10 +257,10 @@
   // its neighbours. Bottom-aligning the cells lines the inputs up whatever
   // the labels do; single-line rows are unchanged.
   function row() {
-    return '<div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-end;">' + Array.prototype.slice.call(arguments).join('') + '</div>';
+    return '<div class="ccx-dflex-gap10px-mb10px">' + Array.prototype.slice.call(arguments).join('') + '</div>';
   }
   function section(t, slot) {
-    return '<div' + (slot ? ' data-claim-section="' + esc(slot) + '"' : '') + ' style="font-family:\'Barlow Condensed\',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange,#BD5728);margin:16px 0 8px;">' + esc(t) + '</div>';
+    return '<div' + (slot ? ' data-claim-section="' + esc(slot) + '"' : '') + ' class="ccx-ffbarlowco-fs11px-w700">' + esc(t) + '</div>';
   }
   // Contact slot → the section heading and the field a "+ Add" lands on.
   var SLOT_FIELD = { adjuster: 'clmAdjName', handler: 'clmHandlerName', mortgage: 'clmMortgageName' };
@@ -277,10 +277,10 @@
     bg.className = 'modal-bg';
     bg.id = 'claimEditModal';
     bg.innerHTML =
-      '<div class="modal" style="max-width:560px;width:100%;max-height:86vh;overflow-y:auto;background:var(--s,#1a1d23);border:1px solid var(--br,rgba(255,255,255,.1));border-radius:14px;padding:20px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:20px;font-weight:800;color:var(--t);">Claim Details</div>' +
-          '<button type="button" data-action="closeClaimEditor" aria-label="Close" style="background:none;border:none;color:var(--m,#9ca3af);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;min-width:40px;min-height:40px;">×</button>' +
+      '<div class="modal ccx-maxw560px-wd100-max86vh">' +
+        '<div class="ccx-dflex-jcspacebet-aicenter-2">' +
+          '<div class="ccx-ffbarlowco-fs20px-w800">Claim Details</div>' +
+          '<button type="button" data-action="closeClaimEditor" aria-label="Close" class="ccx-bgnone-bdnone-cm">×</button>' +
         '</div>' +
         section('Claim') +
         row(field('Claim Number', 'clmNumber', 'text', c.number, 'CLM-123456'),
@@ -313,9 +313,9 @@
         section('Mortgage Company', 'mortgage') +
         row(field('Company', 'clmMortgageName', 'text', c.mortgageCompany.name, ''),
             field('Phone', 'clmMortgagePhone', 'tel', c.mortgageCompany.phone, '')) +
-        '<div style="display:flex;gap:10px;margin-top:16px;">' +
-          '<button type="button" data-action="closeClaimEditor" style="flex:1;background:none;border:1px solid var(--br,rgba(255,255,255,.15));border-radius:10px;color:var(--m,#9ca3af);font-size:14px;font-weight:700;cursor:pointer;padding:12px;">Cancel</button>' +
-          '<button type="button" id="saveClaimBtn" data-action="saveClaimEdits" style="flex:2;background:var(--orange,#BD5728);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:800;cursor:pointer;padding:12px;">SAVE CLAIM</button>' +
+        '<div class="ccx-dflex-gap10px-mt16px">' +
+          '<button type="button" data-action="closeClaimEditor" class="ccx-fx1-bgnone-bd1pxsolid">Cancel</button>' +
+          '<button type="button" id="saveClaimBtn" data-action="saveClaimEdits" class="ccx-fx2-bgorange-bdnone">SAVE CLAIM</button>' +
         '</div>' +
       '</div>';
     // nbdModal's focusFirst() takes an [autofocus] field over the first
