@@ -250,7 +250,8 @@ const ROW = { leadId: 'L1', phone: '5135550100', email: 'pat@example.test' };
   const actions = fs.readFileSync(path.join(PRO, 'js', 'dashboard-actions.js'), 'utf8');
   const state = fs.readFileSync(path.join(PRO, 'js', 'dashboard-state.js'), 'utf8');
   ok('script-loader has the winback bundle, logic before UI',
-    /winback:\s*\[\s*'js\/winback-logic\.js\?v=\d+',\s*'js\/winback\.js\?v=\d+'\s*\]/.test(loader));
+    // (the view's stylesheet may ride first — reskin 2026-10-03)
+    /winback:\s*\[\s*(?:'css\/[\w-]+\.css\?v=\d+',\s*)?'js\/winback-logic\.js\?v=\d+',\s*(?:'css\/[\w-]+\.css\?v=\d+',\s*)?'js\/winback\.js\?v=\d+'\s*\]/.test(loader));
   ok('the winback view maps to the winback bundle', /winback:\s*\['winback'\]/.test(loader));
   const v1 = (dash.match(/js\/script-loader\.js\?v=(\d+)/) || [])[1], v2 = (cust.match(/js\/script-loader\.js\?v=(\d+)/) || [])[1];
   ok('dashboard.html and customer.html load the same script-loader version', v1 && v1 === v2, v1 + ' vs ' + v2);
@@ -264,8 +265,14 @@ const ROW = { leadId: 'L1', phone: '5135550100', email: 'pat@example.test' };
   ok('winback.js defines and uses esc()', /const esc = \(s\) =>/.test(code) && (code.match(/esc\(/g) || []).length >= 15);
   ok('every rendered row value goes through esc()',
     /esc\(r\.name\)/.test(code) && /esc\(r\.address\)/.test(code) && /esc\(r\.lastJobTitle\)/.test(code) && /esc\(href\)/.test(code) && /esc\(r\.leadId\)/.test(code));
+  // The 44px lives in css/winback-view.css since the reskin (2026-10-03):
+  // follow the button's wbx- class to its rule rather than an inline style.
+  const reachBtn = (code.match(/isViewer\(\) \? '' : '<button[^\n]*data-wb-action="reach"[^\n]*/) || [''])[0];
+  const reachCls = (reachBtn.match(/\b(wbx-[\w-]+)/) || [])[1];
+  const wbCss = (() => { try { return fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'css', 'winback-view.css'), 'utf8'); } catch (_) { return ''; } })();
+  const reachRule = reachCls ? (wbCss.split(/\r?\n/).find((l) => l.startsWith('.' + reachCls + '.')) || '') : '';
   ok('the Reach out button is at least 44px tall and hidden from viewers',
-    /isViewer\(\) \? '' : '<button[^\n]*data-wb-action="reach"[^\n]*min-height:44px/.test(code));
+    !!reachBtn && (/min-height:44px/.test(reachBtn) || /min-height:\s*44px/.test(reachRule)), reachCls + ' → ' + reachRule.slice(0, 80));
   ok('no inline handlers in winback.js', !/\son[a-z]+=/i.test(UI_SRC));
   ok('nothing sends on load: sendSMS/sendEmail are only reached from send()',
     (code.match(/\.sendSMS\(/g) || []).length === 1 && (code.match(/\.sendEmail\(/g) || []).length === 1);

@@ -106,7 +106,7 @@
     const w = 480, h = 60, pad = 4;
     const max = Math.max(...buckets, 1);
     const len = buckets.length;
-    if (len < 2) return '<div style="color:var(--m, #888);font-size:12px;">Not enough data yet.</div>';
+    if (len < 2) return '<div class="rtx-cm-fs12px">Not enough data yet.</div>';
     const stepX = (w - pad * 2) / (len - 1);
     let pathD = '';
     let areaD = '';
@@ -222,21 +222,21 @@
 
     const customerRows = topCustomers.length
       ? topCustomers.map((c, i) =>
-          '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:12px;">' +
-            '<span style="color:var(--m, #888);">' + (i + 1) + '. ' + _esc(c.name) + (c.count > 1 ? ' <span style="opacity:0.6;">×' + c.count + '</span>' : '') + '</span>' +
-            '<span style="font-weight:700;font-variant-numeric:tabular-nums;color:var(--green, #2ecc8a);">' + _money(c.total) + '</span>' +
+          '<div class="rtx-dflex-jcspacebet-gap8px">' +
+            '<span class="rtx-cm">' + (i + 1) + '. ' + _esc(c.name) + (c.count > 1 ? ' <span class="rtx-opa06">×' + c.count + '</span>' : '') + '</span>' +
+            '<span class="rtx-w700-fontabularn-cgreen">' + _money(c.total) + '</span>' +
           '</div>'
         ).join('')
-      : '<div style="color:var(--m, #888);font-size:12px;font-style:italic;">' + (invoices ? 'No payments collected yet.' : 'Loading…') + '</div>';
+      : '<div class="rtx-cm-fs12px-fstitalic">' + (invoices ? 'No payments collected yet.' : 'Loading…') + '</div>';
 
     const sourceRows = topSources.length
       ? topSources.map((s, i) =>
-          '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:12px;">' +
-            '<span style="color:var(--m, #888);">' + (i + 1) + '. ' + _esc(s.source) + ' <span style="opacity:0.6;">×' + s.count + '</span></span>' +
-            '<span style="font-weight:700;font-variant-numeric:tabular-nums;color:var(--green, #2ecc8a);">' + _money(s.total) + '</span>' +
+          '<div class="rtx-dflex-jcspacebet-gap8px">' +
+            '<span class="rtx-cm">' + (i + 1) + '. ' + _esc(s.source) + ' <span class="rtx-opa06">×' + s.count + '</span></span>' +
+            '<span class="rtx-w700-fontabularn-cgreen">' + _money(s.total) + '</span>' +
           '</div>'
         ).join('')
-      : '<div style="color:var(--m, #888);font-size:12px;font-style:italic;">' + (invoices ? 'No payments collected yet.' : 'Loading…') + '</div>';
+      : '<div class="rtx-cm-fs12px-fstitalic">' + (invoices ? 'No payments collected yet.' : 'Loading…') + '</div>';
 
     const engagedRows = engaged.length
       ? engaged.map((e, i) => {
@@ -244,39 +244,39 @@
             || e.lead.address
             || '(no name)';
           return (
-            '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:12px;">' +
-              '<span style="color:var(--m, #888);">' + (i + 1) + '. ' + _esc(name) + '</span>' +
-              '<span style="font-weight:700;font-variant-numeric:tabular-nums;color:#fbbf24;">' + Math.round(e.score) + '</span>' +
+            '<div class="rtx-dflex-jcspacebet-gap8px">' +
+              '<span class="rtx-cm">' + (i + 1) + '. ' + _esc(name) + '</span>' +
+              '<span class="rtx-w700-fontabularn-cfbbf24">' + Math.round(e.score) + '</span>' +
             '</div>'
           );
         }).join('')
-      : '<div style="color:var(--m, #888);font-size:12px;font-style:italic;">No active engagement yet.</div>';
+      : '<div class="rtx-cm-fs12px-fstitalic">No active engagement yet.</div>';
 
     host.innerHTML =
-      '<div style="margin-bottom:18px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:8px;">' +
+      '<div class="rtx-mb18px">' +
+        '<div class="rtx-dflex-jcspacebet-aiflexend">' +
           '<div>' +
-            '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;">Weekly revenue · collected</div>' +
-            '<div style="font-size:18px;font-weight:800;color:var(--t, #e8eaf0);font-variant-numeric:tabular-nums;">' +
+            '<div class="rtx-fs11px-cm-ls006em">Weekly revenue · collected</div>' +
+            '<div class="rtx-fs18px-w800-ct">' +
               (invoices ? _money(totalThisWeek) + ' this week' + wowBadge : '…') +
             '</div>' +
           '</div>' +
-          '<div style="font-size:11px;color:var(--m, #888);">Last ' + TREND_WEEKS + ' weeks</div>' +
+          '<div class="rtx-fs11px-cm">Last ' + TREND_WEEKS + ' weeks</div>' +
         '</div>' +
         _renderSparkline(buckets, labels) +
       '</div>' +
 
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;">' +
-        '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:8px;padding:14px 16px;">' +
-          '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Top customers · collected</div>' +
+      '<div class="rtx-dgrid-gtcrepeatau-gap12px">' +
+        '<div class="rtx-bgs-bd1pxsolid-r8px">' +
+          '<div class="rtx-fs11px-cm-ls006em-2">Top customers · collected</div>' +
           customerRows +
         '</div>' +
-        '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:8px;padding:14px 16px;">' +
-          '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Top sources · collected</div>' +
+        '<div class="rtx-bgs-bd1pxsolid-r8px">' +
+          '<div class="rtx-fs11px-cm-ls006em-2">Top sources · collected</div>' +
           sourceRows +
         '</div>' +
-        '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:8px;padding:14px 16px;">' +
-          '<div style="font-size:11px;color:var(--m, #888);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Most engaged (30d)</div>' +
+        '<div class="rtx-bgs-bd1pxsolid-r8px">' +
+          '<div class="rtx-fs11px-cm-ls006em-2">Most engaged (30d)</div>' +
           engagedRows +
         '</div>' +
       '</div>';

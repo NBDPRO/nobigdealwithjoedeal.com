@@ -111,7 +111,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=68"></script>
+<script src="js/script-loader.js?v=73"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -130,7 +130,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=26"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=27"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -143,19 +143,27 @@
 <link rel="stylesheet" href="css/money-dashboard.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
-<link rel="stylesheet" href="css/expenses.css?v=1">
+<link rel="stylesheet" href="css/expenses.css?v=2">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
+<link rel="stylesheet" href="css/templates-library-view.css?v=2">
+<link rel="stylesheet" href="css/data-import-view.css?v=2">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
 <link rel="stylesheet" href="css/data-import-view.css?v=1">
+<link rel="stylesheet" href="css/ai-texting-persona-view.css?v=1">
+<link rel="stylesheet" href="css/admin-manager-view.css?v=1">
+<link rel="stylesheet" href="css/claim-core-view.css?v=1">
+<link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
+<link rel="stylesheet" href="css/voicemail-view.css?v=1">
+<link rel="stylesheet" href="css/reports-trends-view.css?v=1">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/product-library.css?v=1">
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
 <link rel="stylesheet" href="css/d2d-tracker.css?v=1">
-<link rel="stylesheet" href="css/storm-center.css?v=1">
+<link rel="stylesheet" href="css/storm-center.css?v=2">
 <link rel="stylesheet" href="css/my-skin.css?v=1">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=4" id="kanban-force-css-link">
@@ -190,9 +198,11 @@
      ═══════════════════════════════════════════════════════════════ -->
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
+<link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
 <link rel="stylesheet" href="css/google-calendar.css?v=4">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
+<link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -6802,10 +6812,10 @@
 <script defer src="js/dup-review.js?v=1"></script>
 <script defer src="js/global-search.js?v=2"></script>
 <script defer src="js/bottleneck-widget.js?v=2"></script>
-<script defer src="js/pwa-install-nudge.js?v=5"></script>
+<script defer src="js/pwa-install-nudge.js?v=6"></script>
 <script defer src="js/data-export.js?v=4"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
-<script defer src="js/data-import.js?v=3"></script>
+<script defer src="js/data-import.js?v=4"></script>
 <script defer src="js/activity-feed.js?v=2"></script>
 <!-- Single owner of kanban filter state. MUST load before the two filter
      modules below: each registers with it at init, and without it they
@@ -6813,7 +6823,7 @@
 <script defer src="js/lead-filter-registry.js?v=1"></script>
 <script defer src="js/needs-attention-filter.js?v=4"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
-<script defer src="js/lead-snooze.js?v=3"></script>
+<script defer src="js/lead-snooze.js?v=4"></script>
 <script defer src="js/prefs-sync.js?v=3"></script>
 <!-- Wave 42: portal-link helpers must load BEFORE kanban-context-menu
      so the menu picks up Copy/Text Portal Link items on first render. -->
@@ -6821,7 +6831,7 @@
 <script defer src="js/kanban-context-menu.js?v=4"></script>
 <script defer src="js/customer-engagement-score.js?v=2"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
-<script defer src="js/templates-library.js?v=3"></script>
+<script defer src="js/templates-library.js?v=4"></script>
 <script defer src="js/smart-followup.js?v=3"></script>
 <!-- W135: Lead Intelligence — unified 0-100 score engine -->
 <script defer src="js/lead-score.js?v=2"></script>
@@ -6847,7 +6857,7 @@
 <script defer src="js/warranty-claim.js?v=3"></script>
 <!-- Insurance Details panel reuse (mobile Details tab) — ClaimPanel.render
      is container-agnostic; not loaded on this page before. -->
-<script defer src="js/claim-core.js?v=5"></script>
+<script defer src="js/claim-core.js?v=6"></script>
 <!-- Job Checklist panel reuse (mobile Details tab) — not loaded on this
      page before. -->
 <script defer src="js/customer-checklist.js?v=2"></script>
@@ -6888,7 +6898,7 @@
      activity entry, and auto-create tasks from extracted action items.
      Loaded after voice-memo.js (sibling module) — they coexist; this
      adds the summary + upload + auto-task layer. -->
-<script defer src="js/voicemail.js?v=2"></script>
+<script defer src="js/voicemail.js?v=3"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
 <script defer src="js/estimate-config.js?v=5"></script>
@@ -6927,7 +6937,7 @@
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
 <script defer src="js/adjuster-tactic-card.js?v=2"></script>
 <!-- T-4: AI texting persona editor (Settings → AI Texting tab) -->
-<script defer src="js/ai-texting-persona.js?v=2"></script>
+<script defer src="js/ai-texting-persona.js?v=3"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- LAZY: sales-training, academy/*, real-deal-academy/*, storm-*, decision-engine,
      close-board, rep-os loaded via ScriptLoader when the user enters those views. -->
@@ -6954,7 +6964,7 @@
      period-over-period comparison + conversion funnel. -->
 <script defer src="js/reports-dashboard.js?v=2"></script>
 <!-- W154: revenue trend sparkline + top customers/sources/engaged. -->
-<script defer src="js/reports-trends.js?v=2"></script>
+<script defer src="js/reports-trends.js?v=3"></script>
 <!-- LAZY: estimate-v2-ui + product-library load via the `estimates` bundle (PR 2c). -->
 <!-- LAZY: theme-engine + overlays/sounds/achievements/gx load via the `theme`
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js
@@ -6973,7 +6983,7 @@
      based on the user's claims. Lazy-loading would hide the nav entry
      until the admin explicitly typed #/admin, defeating the gate UX. -->
 <script defer src="js/inbound-sms-triage.js?v=1"></script>
-<script defer src="js/admin-manager.js?v=2"></script>
+<script defer src="js/admin-manager.js?v=3"></script>
 <!-- Integrations client — exposes window.NBDIntegrations for HOVER,
      BoldSign, Regrid, HailTrace, Cal.com. No-op when providers are
      not configured server-side. -->
