@@ -119,9 +119,10 @@
       return;
     }
     const res = await window.NBDComms.sendSMS({ to: phone, message, leadId, source: 'review_request', sourceRef: leadId });
-    if (!res || res.success === false) return;   // refused (e.g. opted out): NBDComms showed why
-    logReviewRequest(leadId, 'sms');
+    if (!res || res.success === false) return false;   // refused (e.g. opted out): NBDComms showed why
+    await logReviewRequest(leadId, 'sms');
     if (typeof showToast === 'function') showToast(res.mode === 'queued' ? 'Offline — the review request is queued.' : 'Review request sent', 'ok');
+    return true;
   }
 
   /**
@@ -153,9 +154,10 @@
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const html = '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>';
     const res = await window.NBDComms.sendEmail({ to: lead.email, subject, html, leadId, kind: 'review_request' });
-    if (!res || res.success === false) return;   // refused (e.g. unsubscribed): NBDComms showed why
-    logReviewRequest(leadId, 'email');
+    if (!res || res.success === false) return false;   // refused (e.g. unsubscribed): NBDComms showed why
+    await logReviewRequest(leadId, 'email');
     if (typeof showToast === 'function') showToast(res.mode === 'mailto' ? 'Opened in your mail app' : 'Review request emailed', 'ok');
+    return true;
   }
 
   /**
@@ -176,6 +178,9 @@
         reviewRequested: true,
         reviewRequestedAt: window.serverTimestamp()
       });
+      // Keep the in-memory lead in step, so "asked" counts drop now, not on reload.
+      const local = (window._leads || []).find(l => l.id === leadId);
+      if (local) local.reviewRequested = true;
     } catch(e) { console.warn('Review request log failed:', e.message); }
   }
 
@@ -414,6 +419,8 @@
   window.ReviewEngine = {
     sendReviewSMS: sendReviewRequestSMS,
     sendReviewEmail: sendReviewRequestEmail,
+    // 'manual' = asked in person / by phone; the deck's "Already asked".
+    markAsked: logReviewRequest,
     checkAutoReviews: checkAutoReviewRequests,
     assignReferralCode,
     sendReferralSMS,

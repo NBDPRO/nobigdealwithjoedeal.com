@@ -221,6 +221,50 @@ test.describe('phone: one at a time @shard2', () => {
     await page.locator('#nbdTriageDeck .deck-close').tap();
   });
 
+  test('Review asks: Home shows the count; Text the ask sends + marks it; Don\'t ask sticks', async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => !!(window._user && window.NBDReviewDeck && window.ReviewEngine && window.NBDTriageDeck), { timeout: 30_000 });
+    const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    const s = Date.now();
+    const won = { userId: who.uid, companyId: who.co, stage: 'closed', stageRole: 'won', e2eTestData: true, createdAt: new Date(), deleted: false, stageStartedAt: new Date(s - 3 * 86400000) };
+    const askId = (await adb().collection('leads').add(Object.assign({}, won, { firstName: 'ZZReview', lastName: 'Ask' + s, phone: '(513) 555-0166', email: 'delivered@resend.dev', address: '9 Review Rd, Mason, OH 45040' }))).id;
+    const skipId = (await adb().collection('leads').add(Object.assign({}, won, { firstName: 'ZZReview', lastName: 'Skip' + s, phone: '(513) 555-0167' }))).id;
+    await safeEvaluate(page, async () => { if (typeof window._loadLeads === 'function') await window._loadLeads(); else if (typeof window.loadLeads === 'function') await window.loadLeads(); });
+    await page.waitForFunction((ids) => ids.every((id) => (window._leads || []).some((l) => l.id === id)), [askId, skipId], { timeout: 30_000 });
+    expect(await forceStandalone(page)).toBeGreaterThan(200);
+    // No real text leaves the test: capture what would be sent.
+    await page.evaluate(() => {
+      window.__sent = [];
+      window.NBDComms = Object.assign({}, window.NBDComms, { sendSMS: async (o) => { window.__sent.push(o); return { success: true, mode: 'sent' }; } });
+    });
+    await page.evaluate(() => { window.goTo && window.goTo('home'); return window.NBDHomeAttention && window.NBDHomeAttention.render(true); });
+    const chip = page.locator('#homeAttention [data-review-deck]');
+    await expect(chip, 'Home shows the review asks waiting').toContainText(/review asks? waiting/, { timeout: 15_000 });
+    await chip.tap();
+    await expect(deck(page)).toBeVisible();
+    const leadOf = async (id) => (await adb().doc('leads/' + id).get()).data() || {};
+    for (let i = 0; i < 40 && (await card(page).getAttribute('data-id')) !== askId; i++) { await page.locator('#nbdTriageDeck .deck-left').tap(); await page.waitForTimeout(200); }
+    await expect(card(page)).toContainText('Won 3 days ago');
+    await expect(page.locator('#nbdTriageDeck .deck-right')).toHaveText(/Text the ask/);
+    await page.locator('#nbdTriageDeck .deck-right').tap();
+    await expect.poll(async () => (await leadOf(askId)).reviewRequested, { message: 'the lead is marked asked' }).toBe(true);
+    const sent = await page.evaluate(() => window.__sent);
+    expect(sent.length, 'one text, through the platform sender').toBe(1);
+    expect(sent[0].to).toBe('5135550166');
+    expect(sent[0].source).toBe('review_request');
+    expect(sent[0].message, 'the ask carries the Google review link').toMatch(/review/i);
+    for (let i = 0; i < 40 && (await card(page).getAttribute('data-id')) !== skipId; i++) { await page.locator('#nbdTriageDeck .deck-left').tap(); await page.waitForTimeout(200); }
+    await page.locator('#nbdTriageDeck .deck-dots').tap();
+    await page.locator('#nbdTriageDeck .deck-opt', { hasText: "Don't ask this one" }).tap();
+    await expect.poll(async () => (await leadOf(skipId)).reviewAskDeclined).toBe(true);
+    expect((await page.evaluate(() => window.__sent)).length, "Don't ask sends nothing").toBe(1);
+    await page.locator('#nbdTriageDeck .deck-close').tap();
+    const left = await page.evaluate((ids) => window.NBDReviewDeck.candidates(window._leads).filter((l) => ids.includes(l.id)).length, [askId, skipId]);
+    expect(left, 'neither comes back as a candidate').toBe(0);
+  });
+
   test('Call Center: one person at a time; Handled covers all their open calls; Undo', async ({ page }) => {
     test.setTimeout(150_000);
     const actions = [];

@@ -113,6 +113,8 @@
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
     if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
+    // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
+    if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting</button>');
     return items.join('');
   }
 
@@ -130,7 +132,8 @@
 
   async function count() {
     const u = uid(), c = claims();
-    const out = { stripe: 0, signs: 0, calls: 0 };
+    const out = { stripe: 0, signs: 0, calls: 0, reviews: 0 };
+    try { if (w.NBDReviewDeck) out.reviews = w.NBDReviewDeck.candidates(w._leads).length; } catch (_) { /* never block the strip */ }
     const tenant = tenantOf(c, u);
     const jobs = [];
     if (canSeeStripe(c, u) && tenant) {
