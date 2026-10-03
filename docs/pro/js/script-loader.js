@@ -400,7 +400,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=5'
+      'js/call-center-view.js?v=6'
     ]
   };
 
