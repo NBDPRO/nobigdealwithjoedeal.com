@@ -102,8 +102,8 @@ from `TWILIO_PHONE_NUMBER`, so nothing in the code changes.
 
 The policy already says "We do not sell, share, or rent your personal
 information to third parties for their marketing purposes." Reviewers often
-want the mobile-specific line as well. **Pending Jo's OK** to add it to
-/privacy:
+want the mobile-specific line as well. **Added to /privacy §5 (Jo approved
+2026-10-02, PR #2056):**
 
 > No mobile information will be shared with third parties or affiliates for
 > marketing or promotional purposes. Text messaging opt-in data and consent
