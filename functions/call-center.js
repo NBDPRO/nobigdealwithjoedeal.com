@@ -284,7 +284,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
 
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   const usedSec = (cfg.audioSecDay === today && Number(cfg.audioSecUsed)) || 0;
-  const secLeft = L.DAY_AUDIO_SEC_CAP - usedSec;
+  const secLeft = L.dayAudioCapSec(cfg.dayAudioCapHours) - usedSec;
 
   let candidates = [];
   if (allowIds.length) {
@@ -421,7 +421,21 @@ async function gatherSweep({ db, nowMs }) {
     snaps.forEach((s, i) => { if (s.exists) tasksByCallId.set(withLead[i].id, s.data()); });
   }
   const items = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
-  const counts = { items: items.length, urgent: items.filter((i) => i.kind === 'urgent').length, due: items.filter((i) => i.kind === 'due').length, nofile: items.filter((i) => i.kind === 'nofile').length };
+  // "No customer on file": suggest the one existing customer the call is
+  // probably about (L.suggestLeadForCall — unique matches only).
+  const nofile = items.filter((i) => i.kind === 'nofile' && i.channel === 'call');
+  if (nofile.length) {
+    const leads = [];
+    const ls = await db.collection('leads').where('userId', '==', OWNER).get();
+    ls.forEach((d) => { const v = d.data() || {}; leads.push({ id: d.id, firstName: v.firstName, lastName: v.lastName, address: v.address, deleted: v.deleted }); });
+    const byId = new Map(calls.map((c) => [c.id, c]));
+    for (const it of nofile) {
+      const s = L.suggestLeadForCall(byId.get(it.callId), leads);
+      if (s) it.suggest = s;
+    }
+  }
+  const counts = { items: items.length, urgent: items.filter((i) => i.kind === 'urgent').length, due: items.filter((i) => i.kind === 'due').length, nofile: items.filter((i) => i.kind === 'nofile').length,
+    newLeads: items.filter((i) => i.kind === 'nofile' && i.callType === 'lead' && !i.suggest).length };
   return { today, items, counts };
 }
 
