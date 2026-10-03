@@ -1106,9 +1106,13 @@ console.log('\nCRM custom-pipeline + kanban correctness (lead-lifecycle sweep)')
     /isLost = _lostKeys\.includes\(sk\) \|\| role === 'lost'/.test(cp)
     && /isClosed = \(window\.isJobStage && window\.isJobStage\(sk\)\) \|\| role === 'won' \|\| role === 'job'/.test(cp),
     'hardcoded key lists excluded custom won from closed revenue and let custom lost inflate pipeline (2026-09-15: _closedKeys folded into the canonical window.isJobStage classifier)');
-  assert('dashboard stage counts add custom WON/LOST by role only (no else-catch-all rebucketing built-ins)',
-    /if \(!matched\) \{[\s\S]{0,260}role === 'won'\) _stageCounts\.closed\+\+;\s*else if \(role === 'lost'\) _stageCounts\.lost\+\+;\s*\}/.test(cp),
-    'a catch-all else would newly pile built-in mid-stages (inspected/scope_received/…) into Negotiating — a built-in behavior change');
+  // 2026-10-03: the hand-copied 6-bucket map this used to pin is gone — every
+  // stage now counts once via crm-stages.js dashboardTileFor (role first, so a
+  // custom WON/LOST stage still lands in Won/Lost). Behaviour, incl. a fixture
+  // of every stage key: tests/dashboard-stage-tiles-2026-10-03.test.js.
+  assert('dashboard stage tiles count through the canonical role-aware dashboardTileFor',
+    /const _stageCounts = _dashboardTileCounts\(all\);/.test(cp) && /window\.dashboardTileFor\(sk,/.test(cp) && !/_stageMap/.test(cp),
+    'the old _stageMap counted signed contracts as Estimate Sent and never counted Inspected or insurance stages');
   const cl = read('docs/pro/js/crm-leads.js');
   assert('Edit-modal save syncs stageRole with the edited stage (no stale denormalized role)',
     /_editStageRole = _editStageVal[\s\S]{0,200}window\.stageRole\(/.test(cl)

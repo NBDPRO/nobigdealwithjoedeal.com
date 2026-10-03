@@ -392,6 +392,9 @@ exports.submitDealAcceptance = onRequest(
     // the acceptance is already committed and must not fail on this.
     // deal-install-date.js has the rule and why.
     const leadFill = await fillLeadInstallDate(db, info, scheduledDate, { logger });
+    // The accepted package → the estimate + job value when the rep had not
+    // chosen a tier, else recorded beside it (deal-accepted-tier.js). Best-effort.
+    await require('./deal-accepted-tier').applyAcceptedTier(db, info, tier, info.price, { logger });
 
     logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill });
     res.status(200).json({ ok: true });

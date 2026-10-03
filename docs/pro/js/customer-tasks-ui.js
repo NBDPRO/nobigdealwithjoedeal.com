@@ -235,7 +235,11 @@ window.saveEvent = async function() {
   if (!when) { _taskNotify('Pick a date and time', 'warning'); return; }
   if (!window._customerId) { _taskNotify('Customer ID not found', 'error'); return; }
   try {
-    await window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
+    // The one event writer (lead-events.js, 2026-10-03) — D2D's "Appointment
+    // Set" books through it too. Inline copy kept only for a stale cache.
+    if (window.NBDLeadEvents && typeof window.NBDLeadEvents.add === 'function') {
+      await window.NBDLeadEvents.add(window._customerId, { title: title, when: when, notes: notes, source: 'manual' });
+    } else await window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
       type: 'event',
       leadId: window._customerId,
       userId: window.auth.currentUser?.uid || null,
@@ -493,27 +497,33 @@ window.loadProjectTimeline = async function(leadId) {
     const milestones = [
       { stage: 'new', label: 'Lead Created', icon: '📌', desc: 'New lead in system' },
       { stage: 'contacted', label: 'Contacted', icon: '📞', desc: 'Customer contacted' },
-      { stage: 'inspected', label: 'Inspection Completed', icon: '✓', desc: 'Roof inspection done' },
+      { stage: 'inspected', label: 'Inspected', icon: '✓', desc: 'Roof inspection done' },
       { stage: 'claim_filed', label: 'Claim Filed', icon: '📋', desc: 'Insurance claim submitted' },
-      { stage: 'adjuster_meeting_scheduled', label: 'Adjuster Meeting', icon: '📅', desc: 'Meeting scheduled' },
-      { stage: 'adjuster_inspection_done', label: 'Adjuster Inspection', icon: '✓', desc: 'Adjuster completed review' },
+      { stage: 'adjuster_meeting_scheduled', label: 'Adjuster Mtg', icon: '📅', desc: 'Meeting scheduled' },
+      { stage: 'adjuster_inspection_done', label: 'Adjuster Done', icon: '✓', desc: 'Adjuster completed review' },
       { stage: 'scope_received', label: 'Scope Received', icon: '📄', desc: 'Scope of work received' },
       { stage: 'estimate_submitted', label: 'Estimate Sent', icon: '💰', desc: 'Estimate sent to customer' }, // was "Estimate Approved" — nothing is approved at this stage
-      { stage: 'supplement_requested', label: 'Supplement Requested', icon: '⚙️', desc: 'Additional work requested' },
-      { stage: 'supplement_approved', label: 'Supplement Approved', icon: '✓', desc: 'Supplement approved' },
+      { stage: 'supplement_requested', label: 'Supplement', icon: '⚙️', desc: 'Additional work requested' },
+      { stage: 'supplement_approved', label: 'Supp. Approved', icon: '✓', desc: 'Supplement approved' },
       { stage: 'contract_signed', label: 'Contract Signed', icon: '✍️', desc: 'Customer signed contract' },
       { stage: 'job_created', label: 'Job Created', icon: '🎯', desc: 'Job scheduled' },
-      { stage: 'permit_pulled', label: 'Permit Pulled', icon: '🔐', desc: 'Building permit obtained' },
+      { stage: 'permit_pulled', label: 'Permit', icon: '🔐', desc: 'Building permit obtained' },
       { stage: 'materials_ordered', label: 'Materials Ordered', icon: '📦', desc: 'Materials ordered' },
-      { stage: 'materials_delivered', label: 'Materials Delivered', icon: '🚚', desc: 'Materials on site' },
+      { stage: 'materials_delivered', label: 'Materials Here', icon: '🚚', desc: 'Materials on site' },
       { stage: 'crew_scheduled', label: 'Crew Scheduled', icon: '👥', desc: 'Crew scheduled' },
-      { stage: 'install_in_progress', label: 'Installation In Progress', icon: '🔨', desc: 'Work in progress' },
-      { stage: 'install_complete', label: 'Installation Complete', icon: '✓', desc: 'Installation finished' },
+      { stage: 'install_in_progress', label: 'Installing', icon: '🔨', desc: 'Work in progress' },
+      { stage: 'install_complete', label: 'Install Done', icon: '✓', desc: 'Installation finished' },
       { stage: 'final_photos', label: 'Final Photos', icon: '📸', desc: 'Final photos taken' },
-      { stage: 'deductible_collected', label: 'Deductible Collected', icon: '💳', desc: 'Payment collected' },
+      { stage: 'deductible_collected', label: 'Deductible', icon: '💳', desc: 'Payment collected' },
       { stage: 'final_payment', label: 'Final Payment', icon: '✓', desc: 'Project paid in full' },
-      { stage: 'closed', label: 'Warranty Registered', icon: '✅', desc: 'Project complete' }
+      { stage: 'closed', label: 'Closed', icon: '✅', desc: 'Project complete' }
     ];
+    // Labels are the board's own (crm-stages.js STAGE_META via
+    // window.stageLabel — tenant renames included). This list carried its
+    // own names until 2026-10-03, e.g. Closed read "Warranty Registered".
+    // The literals above are the canonical defaults for a stale cache.
+    const _canonLabel = (k) => (typeof window.stageLabel === 'function' && window.stageLabel(k)) || '';
+    milestones.forEach(m => { const l = _canonLabel(m.stage); if (l) m.label = l; });
 
     // The list above is the insurance ladder. A cash / finance / warranty /
     // custom-stage lead matched none of it (currentIndex -1 → nothing shown as
@@ -567,7 +577,7 @@ window.loadProjectTimeline = async function(leadId) {
         <div class="milestone ${stateClass}">
           <div class="milestone-dot">${milestone.icon}</div>
           <div class="milestone-content">
-            <div class="milestone-title">${milestone.label}</div>
+            <div class="milestone-title">${nbdEscFn()(milestone.label)}</div>
             ${dateStr ? `<div class="milestone-date">${dateStr}</div>` : ''}
             <div class="milestone-desc">${milestone.desc}</div>
           </div>

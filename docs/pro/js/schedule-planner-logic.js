@@ -134,7 +134,36 @@
     return { date, start: str(l.scheduledStart), days, week: date ? '' : (mondayOf(l.scheduledWeek) || '') };
   }
 
-  const api = { READY, DONE, rowsFor, fieldsFor, inputsOf, nameOf, mondayOf };
+  /**
+   * Should saving a build date offer "Move to Crew Scheduled?" (2026-10-03,
+   * stage-flow lane)? Only when that is a FORWARD move on the lead's own
+   * track: `order` is the lead's ordered stage keys for its job type (the
+   * dashboard's tenant-aware stageOptionsForType), so a warranty/service lead
+   * — whose track has no Crew Scheduled — or a job already at/after it, or a
+   * won/lost lead, is never offered a move.
+   * @param {object}   lead
+   * @param {string[]} order     the lead's track, earliest first
+   * @param {object}   [o]       { normalize(stage), roleOf(stage) }
+   */
+  function crewMoveOffer(lead, order, o) {
+    const opts = o || {};
+    const l = lead || {};
+    const norm = typeof opts.normalize === 'function' ? opts.normalize : (s) => str(s).toLowerCase();
+    const cur = norm(l._stageKey || l.stage || 'new');
+    const role = typeof opts.roleOf === 'function' ? opts.roleOf(cur) : '';
+    if (role === 'won' || role === 'lost' || cur === 'lost') return false;
+    const list = Array.isArray(order) ? order : [];
+    const to = list.indexOf('crew_scheduled');
+    const from = list.indexOf(cur);
+    // Committed work only: an estimate-stage lead picked via "Show all open
+    // leads" gets its date saved, but jumping it to Crew Scheduled would skip
+    // the sale itself.
+    const signed = list.indexOf('contract_signed');
+    if (signed > -1 && from < signed) return false;
+    return to > -1 && from > -1 && from < to;
+  }
+
+  const api = { READY, DONE, rowsFor, fieldsFor, inputsOf, nameOf, mondayOf, crewMoveOffer };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDSchedulePlanner = api;
 })(typeof window !== 'undefined' ? window : null);

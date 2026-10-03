@@ -157,6 +157,30 @@ function _expandJobCards(list) {
   return out;
 }
 
+// { new, working, estimate, production, won, lost } for the dashboard tiles.
+// window.dashboardTileFor is published by crm-stages.js (both bootstraps
+// import it); before it lands every lead counts by role alone.
+function _dashboardTileCounts(all) {
+  const counts = { new: 0, working: 0, estimate: 0, production: 0, won: 0, lost: 0 };
+  const _normalize = window.normalizeStage || (s => s);
+  const roleOf = typeof window.stageRole === 'function' ? window.stageRole : null;
+  (all || []).forEach(l => {
+    if (!l) return;
+    const sk = l._stageKey || _normalize(l.stage || 'new');
+    let tile = null;
+    if (typeof window.dashboardTileFor === 'function') {
+      // The lead's own stamped role wins (a custom stage's role is on it).
+      tile = window.dashboardTileFor(sk, l._stageRole ? () => l._stageRole : roleOf);
+    } else {
+      const role = l._stageRole || (roleOf ? roleOf(sk) : 'active');
+      tile = role === 'won' ? 'won' : role === 'lost' ? 'lost' : role === 'job' ? 'production' : role === 'new' ? 'new' : 'working';
+    }
+    if (Object.prototype.hasOwnProperty.call(counts, tile)) counts[tile]++;
+  });
+  return counts;
+}
+window.nbdDashboardTileCounts = _dashboardTileCounts;
+
 function renderLeads(leads, filtered){
   const all   = (leads  || window._leads || []);
   // No subset passed (undefined, or the explicit "unfiltered" null) → keep
@@ -398,41 +422,18 @@ function renderLeads(leads, filtered){
   setEl('statClosed','$'+closedRev.toLocaleString());
   const lb=document.getElementById('leadBadge'); if(lb) lb.textContent=all.length;
 
-  // Dashboard pipeline stage counts
-  const _normalize = window.normalizeStage || (s => s);
-  const _stageCounts = { new:0, contacted:0, estimate_sent:0, negotiating:0, closed:0, lost:0 };
-  const _stageMap = {
-    'new':['new','New','New Lead'],
-    'contacted':['contacted','Contacted','contact_made','inspection_scheduled','inspection_completed'],
-    'estimate_sent':['estimate_sent','estimate_created','Estimate Sent','Estimate Created','estimate_approved','contract_signed'],
-    'negotiating':['negotiating','Negotiating','job_created','permit_pulled','materials_ordered','materials_delivered','crew_scheduled','install_in_progress'],
-    'closed':['closed','install_complete','final_photos','deductible_collected','final_payment','Approved','In Progress','Complete'],
-    'lost':['lost','Lost','Closed Lost']
-  };
-  all.forEach(l => {
-    const sk = l._stageKey || _normalize(l.stage || 'new');
-    let matched = false;
-    for (const [bucket, keys] of Object.entries(_stageMap)) {
-      if (keys.includes(sk) || keys.includes(l.stage || '')) { _stageCounts[bucket]++; matched = true; break; }
-    }
-    // Custom/freeform WON/LOST stage not in the built-in display map — count it
-    // in the closed/lost tile so it doesn't vanish. Only won/lost: built-in
-    // mid-pipeline stages (inspected, scope_received, estimate_submitted, …)
-    // are ALSO absent from _stageMap and were never counted in a tile — a
-    // catch-all 'else' would newly pile them into Negotiating, a built-in
-    // behavior change. Custom ACTIVE stages stay uncounted too, consistent with
-    // the built-in mid-stages.
-    if (!matched) {
-      const role = l._stageRole || (typeof window.stageRole === 'function' ? window.stageRole(sk) : 'active');
-      if (role === 'won') _stageCounts.closed++;
-      else if (role === 'lost') _stageCounts.lost++;
-    }
-  });
+  // Dashboard "Lead Stages" tiles — every lead counts in exactly ONE tile,
+  // decided by crm-stages.js dashboardTileFor (role first, then the Simple
+  // board column an active stage folds into). Until 2026-10-03 this was a
+  // hand-copied 6-bucket map: signed contracts counted as "Estimate Sent",
+  // production as "Negotiating", and Inspected + every insurance stage were
+  // never counted at all. Rules + fixture: tests/dashboard-stage-tiles-2026-10-03.test.js.
+  const _stageCounts = _dashboardTileCounts(all);
   setEl('dp-new', _stageCounts.new);
-  setEl('dp-ct', _stageCounts.contacted);
-  setEl('dp-es', _stageCounts.estimate_sent);
-  setEl('dp-ng', _stageCounts.negotiating);
-  setEl('dp-won', _stageCounts.closed);
+  setEl('dp-ct', _stageCounts.working);
+  setEl('dp-es', _stageCounts.estimate);
+  setEl('dp-ng', _stageCounts.production);
+  setEl('dp-won', _stageCounts.won);
   setEl('dp-lost', _stageCounts.lost);
 
   // Show/hide Load Sample Data button (only when a CONFIRMED load returned

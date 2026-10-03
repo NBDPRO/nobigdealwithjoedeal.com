@@ -2297,10 +2297,9 @@ document.addEventListener('keydown', (e) => {
 //     this page's edit modal is still missing several of the gated fields
 //     (insCarrier, claimNumber, estimateAmount, deductibleOrOwedByHO,
 //     financeCompany, loanAmount, scheduledDate). Blocking without a way to
-//     fill those in would strand the rep, so the block's toast links
-//     straight to the dashboard's card-detail editor (which has every field
-//     + the click-to-jump banner) instead of silently letting bad data
-//     through.
+//     fill those in would strand the rep. Since 2026-10-03 the block opens
+//     an inline bottom sheet (stage-gate-sheet.js) for exactly the missing
+//     fields; until then its toast left the page for the dashboard editor.
 //  4. No more window.location.reload() — the stage change updates local
 //     state + the visible button/label in place, the way every other save
 //     on this page already works.
@@ -2338,21 +2337,32 @@ window.progressStage = async function() {
   // (missingRequiredFields from crm-stages.js), with an escape hatch this
   // page can actually offer: jump to the full editor rather than stranding
   // the rep with a field the modal here doesn't have.
+  //
+  // 2026-10-03 (stage-flow lane): the escape hatch used to be a toast whose
+  // "Open full editor" LEFT this page for the dashboard editor. Now an inline
+  // bottom sheet (stage-gate-sheet.js) asks for just the missing fields —
+  // pre-filling what the CRM already knows — saves them on the lead, and the
+  // move carries on below. Cancel = no move, same as before.
   if (typeof _missingRequiredFields === 'function') {
     const missing = _missingRequiredFields({ ...(window._currentLead || {}), stage: nextStage }) || [];
     if (missing.length) {
-      if (window.showToast) {
-        window.showToast({
-          message: `Can't move to "${label}" yet — missing: ${missing.map(_requiredFieldLabel).join(', ')}.`,
-          type: 'error',
-          duration: 8000,
-          // ?edit=, not ?lead= — a bare ?lead= is the NEW-ESTIMATE deep link, so
-          // "Open full editor" opened a blank Estimate Builder (R14, 2026-09-28).
-          undoAction: () => { window.location.href = '/pro/dashboard?edit=' + encodeURIComponent(window._customerId); },
-          undoText: 'Open full editor',
-        });
+      const sheet = window.NBDStageGateSheet;
+      if (!sheet || typeof sheet.open !== 'function') {
+        if (window.showToast) window.showToast(`Can't move to "${label}" yet — missing: ${missing.map(_requiredFieldLabel).join(', ')}.`, 'error');
+        return;
       }
-      return;
+      const stored = window._currentLead || lead;
+      const saved = await sheet.open({
+        lead: stored, stage: nextStage, stageLabel: label, missing,
+        estimates: window._customerEstimates || [],
+        labelFor: _requiredFieldLabel,
+        missingFn: _missingRequiredFields,
+        save: async (patch) => {
+          await updateDoc(doc(db, 'leads', window._customerId), { ...patch, updatedAt: serverTimestamp() });
+          [window._currentLead, window._leadDoc, lead].forEach((o) => { if (o) Object.assign(o, patch); });
+        },
+      });
+      if (!saved) return;
     }
   }
 

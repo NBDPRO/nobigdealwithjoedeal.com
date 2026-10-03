@@ -32,6 +32,10 @@
 .sp-week { font-size: 12px; color: var(--blue, #3b82f6); margin-top: 3px; font-weight: 600; }
 .sp-week-late { color: var(--gold, #f59e0b); }
 .sp-or { font-size: 11px; color: var(--m); align-self: center; padding-bottom: 10px; }
+/* "Move to Crew Scheduled?" after a build date is saved (2026-10-03). 44px taps. */
+.sp-stage-offer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.sp-stage-chip { min-height: 44px; padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 700; border-radius: 22px; border: none; background: var(--orange, #e8720c); color: #fff; cursor: pointer; }
+.sp-stage-no { min-height: 44px; padding: 10px 14px; font: inherit; font-size: 13px; border-radius: 22px; border: 1px solid var(--br); background: transparent; color: var(--m); cursor: pointer; }
 
 /* Busy time from Jo's own Google calendar on the Today timeline (smart-calendar.js). */
 .sc-busy { display: grid; grid-template-columns: auto 1fr; text-align: left; gap: 10px; align-items: center; padding: 8px 12px; margin: 4px 0; border: 1px dashed var(--br); border-radius: 7px; background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, .08) 6px 12px); }
