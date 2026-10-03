@@ -486,7 +486,7 @@
   // Labor is treated as 0 when unset (a product genuinely can have no labor).
   function marginKnown(p, tier) { return hasCost(p, tier); }
 
-  const NOT_SET = '<span style="color:var(--m);opacity:.75;font-weight:500;">Cost not set</span>';
+  const NOT_SET = '<span class="plx-muted-soft">Cost not set</span>';
 
   // True gross margin: sell - material cost - labor cost
   function grossMargin(sell, matCost, laborCost) {
@@ -597,12 +597,12 @@
       const isCollapsed = isCategoryCollapsed(catId);
       const chevron = isCollapsed ? '▸' : '▾';
       productsHtml += `
-        <div style="margin-bottom:28px;">
+        <div class="plx-mb28">
           <div data-pl-action="toggleCategory" data-pl-id="${escapeHtml(catId)}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
-            <span style="font-size:14px;color:var(--m);font-weight:700;width:16px;text-align:center;">${chevron}</span>
-            <span style="font-size:20px;">${catIcon(catId)}</span>
+            <span class="plx-caret">${chevron}</span>
+            <span class="plx-fs20">${catIcon(catId)}</span>
             <h3 style="margin:0;font-size:16px;font-weight:700;color:${catColor(catId)};flex:1;">${escapeHtml(catLabel(catId))}</h3>
-            <span style="font-size:12px;color:var(--m);font-weight:500;">${catProds.length} product${catProds.length !== 1 ? 's' : ''}</span>
+            <span class="plx-t12-w5">${catProds.length} product${catProds.length !== 1 ? 's' : ''}</span>
           </div>
           <div class="pl-product-grid" style="display:${isCollapsed ? 'none' : 'grid'};margin-top:${isCollapsed ? '0' : '12px'};">
       `;
@@ -617,53 +617,53 @@
         const colorCount = p.colors ? p.colors.length : 0;
         const hasLabor = p.labor && p.labor.perUnit > 0;
         productsHtml += `
-          <div class="pl-card" style="background:var(--s);border-radius:10px;padding:16px;border:1px solid var(--br);box-shadow:0 1px 3px rgba(0,0,0,.06);transition:box-shadow .15s;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-              <div style="flex:1;min-width:0;">
-                <div style="font-weight:700;font-size:14px;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
-                <div style="font-size:11px;color:var(--m);margin-top:2px;">${escapeHtml(p.manufacturer || '')} ${p.sku ? '• ' + escapeHtml(p.sku) : ''}</div>
+          <div class="pl-card plx-card">
+            <div class="plx-card-head">
+              <div class="plx-grow">
+                <div class="plx-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+                <div class="plx-t11-mt">${escapeHtml(p.manufacturer || '')} ${p.sku ? '• ' + escapeHtml(p.sku) : ''}</div>
               </div>
               <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${catColor(p.category)}18;color:${catColor(p.category)};white-space:nowrap;">${escapeHtml(p.unit)}</span>
             </div>
 
-            <div style="font-size:12px;color:var(--m);margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;">${escapeHtml(p.description)}</div>
+            <div class="plx-desc">${escapeHtml(p.description)}</div>
 
             <!-- Tier Pricing -->
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+            <div class="plx-g3-tight">
               ${TIERS.map(t => {
                 const isHighlighted = currentFilter.tier === t;
                 return `<div style="background:${isHighlighted ? TIER_COLORS[t]+'20' : TIER_COLORS[t]+'0a'};border-radius:6px;padding:6px 8px;text-align:center;border:${isHighlighted ? '2px' : '1px'} solid ${isHighlighted ? TIER_COLORS[t] : TIER_COLORS[t]+'20'};${isHighlighted ? 'transform:scale(1.03);box-shadow:0 2px 8px '+TIER_COLORS[t]+'30;' : ''}">
                   <div style="font-size:10px;font-weight:600;color:${TIER_COLORS[t]};text-transform:uppercase;">${TIER_LABELS[t]}</div>
-                  <div style="font-size:14px;font-weight:700;color:var(--t);">${formatCurrency(p.pricing?.[t]?.sell)}</div>
-                  <div style="font-size:10px;color:var(--m);">${hasCost(p, t) ? 'Profit ' + grossMargin(p.pricing[t].sell||0, p.pricing[t].cost, laborCost) + '%' : 'Profit —'}</div>
+                  <div class="plx-t14">${formatCurrency(p.pricing?.[t]?.sell)}</div>
+                  <div class="plx-t10">${hasCost(p, t) ? 'Profit ' + grossMargin(p.pricing[t].sell||0, p.pricing[t].cost, laborCost) + '%' : 'Profit —'}</div>
                 </div>`;
               }).join('')}
             </div>
 
             <!-- Cost Breakdown Row -->
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+            <div class="plx-wrap6-mb">
               ${costKnown
-                ? `<span style="font-size:11px;padding:3px 10px;border-radius:10px;background:#1e293b;color:#f1f5f9;font-weight:700;">🏷️ My Cost: ${formatCurrency(myCost)}/${p.unit} <span style="opacity:.6;font-weight:400;">(${TIER_LABELS[tierForMargin]})</span></span>`
-                : `<span style="font-size:11px;padding:3px 10px;border-radius:10px;background:var(--s2);color:var(--m);font-weight:600;border:1px dashed var(--br);">🏷️ My Cost: not set <span style="opacity:.7;font-weight:400;">(${TIER_LABELS[tierForMargin]})</span></span>`}
-              ${costKnown && matCost ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#dcfce7;color:#166534;">💲 Mat ${formatCurrency(matCost)}</span>` : ''}
-              ${hasLabor ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#fef3c7;color:#92400e;">⚒️ Lab ${formatCurrency(p.labor.perUnit)}</span>` : ''}
+                ? `<span class="plx-chip plx-chip-dark">🏷️ My Cost: ${formatCurrency(myCost)}/${p.unit} <span class="plx-dim6">(${TIER_LABELS[tierForMargin]})</span></span>`
+                : `<span class="plx-chip plx-chip-dashed">🏷️ My Cost: not set <span class="plx-dim7b">(${TIER_LABELS[tierForMargin]})</span></span>`}
+              ${costKnown && matCost ? `<span class="plx-pill plx-pill-green">💲 Mat ${formatCurrency(matCost)}</span>` : ''}
+              ${hasLabor ? `<span class="plx-pill plx-pill-amber">⚒️ Lab ${formatCurrency(p.labor.perUnit)}</span>` : ''}
             </div>
 
             <!-- Meta Row -->
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
-              ${colorCount > 0 ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--s2);color:var(--t);">🎨 ${colorCount} ${colorCount === 1 ? 'color' : 'colors'}</span>` : ''}
-              ${p.warranty && p.warranty !== 'N/A' ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#ecfdf5;color:#065f46;">🛡️ ${escapeHtml(p.warranty.length > 20 ? p.warranty.substring(0, 18) + '…' : p.warranty)}</span>` : ''}
-              ${p.coverage ? `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#eff6ff;color:#1e40af;">📐 ${escapeHtml(typeof p.coverage === 'string' ? p.coverage : p.coverage.perUnit || '')}</span>` : ''}
+            <div class="plx-wrap6-mb">
+              ${colorCount > 0 ? `<span class="plx-pill plx-pill-plain">🎨 ${colorCount} ${colorCount === 1 ? 'color' : 'colors'}</span>` : ''}
+              ${p.warranty && p.warranty !== 'N/A' ? `<span class="plx-pill plx-pill-mint">🛡️ ${escapeHtml(p.warranty.length > 20 ? p.warranty.substring(0, 18) + '…' : p.warranty)}</span>` : ''}
+              ${p.coverage ? `<span class="plx-pill plx-pill-blue">📐 ${escapeHtml(typeof p.coverage === 'string' ? p.coverage : p.coverage.perUnit || '')}</span>` : ''}
             </div>
 
             <!-- Footer -->
-            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--br);">
-              <div style="font-size:12px;color:var(--m);"><strong>Gross Profit <span style="font-weight:400;opacity:.7;">(${TIER_LABELS[tierForMargin]})</span>:</strong> ${costKnown
+            <div class="plx-card-foot">
+              <div class="plx-t12"><strong>Gross Profit <span class="plx-dim7">(${TIER_LABELS[tierForMargin]})</span>:</strong> ${costKnown
                 ? `<span style="color:${m >= 40 ? '#10b981' : m >= 25 ? '#f59e0b' : '#ef4444'};font-weight:700;">${formatCurrency(sellPrice - myCost)}/${p.unit} (${m}%)</span>`
                 : NOT_SET}</div>
-              <div style="display:flex;gap:6px;">${editable ? `
-                <button class="pl-card-btn" data-pl-action="editProduct" data-pl-id="${escapeHtml(p.id)}" style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Edit</button>
-                <button class="pl-card-btn" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;">Archive</button>` : ''}
+              <div class="plx-row6">${editable ? `
+                <button class="pl-card-btn plx-btn-edit" data-pl-action="editProduct" data-pl-id="${escapeHtml(p.id)}">Edit</button>
+                <button class="pl-card-btn plx-btn-ghost" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}">Archive</button>` : ''}
               </div>
             </div>
           </div>
@@ -680,57 +680,57 @@
     // inline on each button.
     return `
       <style>.pl-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.1)!important;}.pl-product-grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}@media (max-width:360px){.pl-product-grid{grid-template-columns:minmax(0,1fr);}}@media (hover:none),(max-width:600px){.pl-card-btn{min-height:40px;padding:8px 16px!important;font-size:13px!important;}}</style>
-      <div style="padding:20px;background:transparent;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+      <div class="plx-root">
 
         <!-- Header -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+        <div class="plx-head">
           <div>
-            <h1 style="margin:0;font-size:28px;font-weight:700;color:var(--t);">Product Library</h1>
-            <p style="margin:6px 0 0;font-size:13px;color:var(--m);">Materials, labor, and pricing for your estimates — ${activeCount} products across ${categoryCount} categories</p>
-            ${editable ? '' : '<p style="margin:4px 0 0;font-size:12px;color:var(--m);">🔒 Your company’s shared library — only the owner or an admin can change it.</p>'}
+            <h1 class="plx-h1">Product Library</h1>
+            <p class="plx-sub13">Materials, labor, and pricing for your estimates — ${activeCount} products across ${categoryCount} categories</p>
+            ${editable ? '' : '<p class="plx-sub12">🔒 Your company’s shared library — only the owner or an admin can change it.</p>'}
           </div>
-          <div style="display:flex;gap:8px;">${editable ? `
-            <button data-pl-action="addProduct" style="padding:8px 16px;background:var(--orange,#BD5728);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">+ Add Product</button>
+          <div class="plx-row8">${editable ? `
+            <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
             <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>
-            <button data-pl-action="exportCSV" style="padding:8px 14px;background:#10b981;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:13px;">Export CSV</button>
-            ${editable ? `<button data-pl-action="resetDefaults" style="padding:8px 14px;background:#ef4444;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:13px;">Reset</button>` : ''}
+            <button data-pl-action="exportCSV" class="plx-btn-green">Export CSV</button>
+            ${editable ? `<button data-pl-action="resetDefaults" class="plx-btn-red">Reset</button>` : ''}
           </div>
         </div>
 
         <!-- Stats -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
-          <div style="background:var(--s);padding:14px;border-radius:8px;border-left:4px solid #3b82f6;">
-            <div style="font-size:11px;color:var(--m);font-weight:500;">Total Products</div>
-            <div style="font-size:22px;font-weight:700;color:var(--t);margin-top:2px;">${activeCount}</div>
+        <div class="plx-stats">
+          <div class="plx-stat plx-stat-blue">
+            <div class="plx-stat-label">Total Products</div>
+            <div class="plx-stat-value">${activeCount}</div>
           </div>
-          <div style="background:var(--s);padding:14px;border-radius:8px;border-left:4px solid #10b981;">
-            <div style="font-size:11px;color:var(--m);font-weight:500;">Categories</div>
-            <div style="font-size:22px;font-weight:700;color:var(--t);margin-top:2px;">${categoryCount}</div>
+          <div class="plx-stat plx-stat-green">
+            <div class="plx-stat-label">Categories</div>
+            <div class="plx-stat-value">${categoryCount}</div>
           </div>
-          <div style="background:var(--s);padding:14px;border-radius:8px;border-left:4px solid #f59e0b;">
-            <div style="font-size:11px;color:var(--m);font-weight:500;">Avg Margin</div>
-            <div style="font-size:22px;font-weight:700;color:var(--t);margin-top:2px;">${avgMargin == null ? '—' : avgMargin + '%'}</div>
-            ${avgMargin != null && pricedCount < activeCount ? `<div style="font-size:10px;color:var(--m);margin-top:2px;">${pricedCount} of ${activeCount} priced</div>` : ''}
+          <div class="plx-stat plx-stat-amber">
+            <div class="plx-stat-label">Avg Margin</div>
+            <div class="plx-stat-value">${avgMargin == null ? '—' : avgMargin + '%'}</div>
+            ${avgMargin != null && pricedCount < activeCount ? `<div class="plx-t10-mt">${pricedCount} of ${activeCount} priced</div>` : ''}
           </div>
-          <div style="background:var(--s);padding:14px;border-radius:8px;border-left:4px solid #8b5cf6;">
-            <div style="font-size:11px;color:var(--m);font-weight:500;">Showing</div>
-            <div style="font-size:22px;font-weight:700;color:var(--t);margin-top:2px;">${results.length}</div>
+          <div class="plx-stat plx-stat-violet">
+            <div class="plx-stat-label">Showing</div>
+            <div class="plx-stat-value">${results.length}</div>
           </div>
         </div>
 
         ${pricedCount === 0 && activeCount > 0 ? `
-        <div style="background:#fef3c7;border:1px solid #fcd34d;color:#92400e;padding:12px 14px;border-radius:8px;margin-bottom:16px;font-size:13px;line-height:1.5;">
+        <div class="plx-banner">
           <strong>Your costs aren't set yet.</strong> Prices below are your <em>sell</em> prices — profit and margin stay blank until you enter what each item costs you. Open any product and fill in Material Cost per tier.
         </div>` : ''}
 
         <!-- Search & Filter -->
-        <div style="background:var(--s);padding:14px;border-radius:8px;margin-bottom:16px;">
+        <div class="plx-filterbox">
           <input type="text" id="product-search" placeholder="Search by name, brand, tag..." value="${escapeHtml(currentFilter.search)}"
-            style="width:100%;padding:10px 14px;background:var(--s2);border:1px solid var(--br);border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px;color:var(--t);">
+            class="plx-search">
 
           <!-- Tier Filter Buttons -->
-          <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <div class="plx-row6-mb">
             <button data-pl-action="setTierFilter" data-pl-id="" style="flex:1;padding:8px 12px;border-radius:8px;border:2px solid ${!currentFilter.tier ? '#BD5728' : 'var(--br)'};background:${!currentFilter.tier ? '#BD572818' : 'var(--s)'};color:${!currentFilter.tier ? '#BD5728' : 'var(--m)'};cursor:pointer;font-size:12px;font-weight:600;">All Tiers</button>
             ${TIERS.map(t => {
               const isActive = currentFilter.tier === t;
@@ -739,14 +739,14 @@
           </div>
 
           <!-- Category Filter Pills -->
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <div class="plx-wrap6">
             <button data-pl-action="setFilter" data-pl-id="" style="padding:6px 12px;border-radius:20px;border:2px solid ${!currentFilter.category ? '#BD5728' : 'var(--br)'};background:${!currentFilter.category ? '#BD572818' : 'var(--s)'};color:${!currentFilter.category ? '#BD5728' : 'var(--t)'};cursor:pointer;font-size:12px;font-weight:${!currentFilter.category?'600':'500'};">All (${activeCount})</button>
             ${catPills}
           </div>
         </div>
 
         <!-- Products -->
-        ${productsHtml || '<div style="text-align:center;padding:60px 20px;color:var(--m);font-size:15px;">No products match your search</div>'}
+        ${productsHtml || '<div class="plx-empty">No products match your search</div>'}
 
       </div>
     `;
@@ -775,15 +775,15 @@
     modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
     modal.innerHTML = `
-      <div style="background:var(--s);border-radius:12px;width:95%;max-width:680px;max-height:92vh;overflow-y:auto;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,.2);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <h2 style="margin:0;font-size:20px;font-weight:700;color:var(--t);">${p ? 'Edit Product' : 'Add Product'}</h2>
-          <button data-pl-action="closeModal" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--m);padding:4px 8px;">×</button>
+      <div class="plx-modal">
+        <div class="plx-modal-head">
+          <h2 class="plx-h2">${p ? 'Edit Product' : 'Add Product'}</h2>
+          <button data-pl-action="closeModal" class="plx-close">×</button>
         </div>
 
-        <div style="display:grid;gap:16px;">
+        <div class="plx-form">
           <!-- Row 1: Name, Manufacturer -->
-          <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+          <div class="plx-g21">
             <div>
               <label class="ui-label-sm">Product Name *</label>
               <input class="ui-input ui-input-box" id="pm-name" type="text" value="${escapeHtml(p?.name || '')}" required>
@@ -795,7 +795,7 @@
           </div>
 
           <!-- Row 2: Category, Unit, SKU -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="plx-g3">
             <div>
               <label class="ui-label-sm">Category</label>
               <select class="ui-input ui-input-box" id="pm-category">${catOptions}</select>
@@ -813,17 +813,17 @@
           <!-- Description -->
           <div>
             <label class="ui-label-sm">Description</label>
-            <textarea class="ui-input ui-input-box" id="pm-description" rows="2" style="resize:vertical;">${escapeHtml(p?.description || '')}</textarea>
+            <textarea class="ui-input ui-input-box plx-resize" id="pm-description" rows="2">${escapeHtml(p?.description || '')}</textarea>
           </div>
 
           <!-- Tier Pricing -->
           <div>
             <label class="ui-label-strong">Pricing (Good / Better / Best)</label>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div class="plx-g3-8">
               ${TIERS.map(t => `
                 <div style="background:${TIER_COLORS[t]}08;border:1px solid ${TIER_COLORS[t]}30;border-radius:8px;padding:10px;">
                   <div style="font-size:11px;font-weight:600;color:${TIER_COLORS[t]};text-transform:uppercase;margin-bottom:6px;text-align:center;">${TIER_LABELS[t]}</div>
-                  <div style="margin-bottom:6px;">
+                  <div class="plx-mb6">
                     <label class="ui-hint">Sell Price</label>
                     <input class="ui-input-sm" id="pm-sell-${t}" type="number" step="0.01" value="${p?.pricing?.[t]?.sell || 0}">
                   </div>
@@ -834,17 +834,17 @@
                          and prices the tier at a 100% margin. -->
                     <input class="ui-input-sm" id="pm-cost-${t}" type="number" step="0.01" value="${hasCost(p, t) ? p.pricing[t].cost : ''}" placeholder="your cost">
                   </div>
-                  <div id="pm-margin-${t}" style="text-align:center;margin-top:6px;font-size:11px;font-weight:700;"></div>
+                  <div id="pm-margin-${t}" class="plx-margin"></div>
                 </div>
               `).join('')}
             </div>
-            <div id="pm-margin-warnings" style="margin-top:8px;"></div>
+            <div id="pm-margin-warnings" class="plx-mt8"></div>
           </div>
 
           <!-- Labor -->
           <div>
             <label class="ui-label-strong">Labor</label>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            <div class="plx-g3r">
               <div>
                 <label class="ui-hint">Per Unit Cost</label>
                 <input class="ui-input-sm" id="pm-labor-perunit" type="number" step="0.01" value="${p?.labor?.perUnit || 0}">
@@ -873,7 +873,7 @@
           </div>
 
           <!-- Colors, Warranty, Tags -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="plx-g2">
             <div>
               <label class="ui-label-sm">Colors (comma-separated)</label>
               <input class="ui-input ui-input-box" id="pm-colors" type="text" value="${escapeHtml((p?.colors || []).join(', '))}" placeholder="Charcoal, Weathered Wood, ...">
@@ -884,7 +884,7 @@
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="plx-g2">
             <div>
               <label class="ui-label-sm">Tags (comma-separated)</label>
               <input class="ui-input ui-input-box" id="pm-tags" type="text" value="${escapeHtml((p?.tags || []).join(', '))}">
@@ -898,15 +898,15 @@
           <!-- Notes -->
           <div>
             <label class="ui-label-sm">Notes</label>
-            <textarea class="ui-input ui-input-box" id="pm-notes" rows="2" style="resize:vertical;">${escapeHtml(p?.notes || '')}</textarea>
+            <textarea class="ui-input ui-input-box plx-resize" id="pm-notes" rows="2">${escapeHtml(p?.notes || '')}</textarea>
           </div>
 
           <!-- Actions -->
-          <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--br);">
-            ${p ? '<button data-pl-action="deleteFromModal" style="padding:8px 16px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Delete</button>' : '<div></div>'}
-            <div style="display:flex;gap:8px;">
-              <button data-pl-action="closeModal" style="padding:8px 16px;background:var(--s2);color:var(--t);border:none;border-radius:6px;cursor:pointer;font-size:13px;">Cancel</button>
-              <button data-pl-action="saveFromModal" style="padding:8px 20px;background:var(--orange,#BD5728);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">${p ? 'Update' : 'Add Product'}</button>
+          <div class="plx-modal-foot">
+            ${p ? '<button data-pl-action="deleteFromModal" class="plx-btn-delete">Delete</button>' : '<div></div>'}
+            <div class="plx-row8">
+              <button data-pl-action="closeModal" class="plx-btn-cancel">Cancel</button>
+              <button data-pl-action="saveFromModal" class="plx-btn-save">${p ? 'Update' : 'Add Product'}</button>
             </div>
           </div>
         </div>
@@ -936,11 +936,11 @@
       // An EMPTY cost box means "not set" — show nothing rather than a margin
       // computed against an assumed zero cost.
       if (costRaw === '' || !isFinite(mat)) {
-        el.innerHTML = '<span style="color:var(--m);">enter cost</span>';
+        el.innerHTML = '<span class="plx-muted">enter cost</span>';
         return;
       }
       const myCost = mat + labor;
-      if (sell <= 0) { el.innerHTML = '<span style="color:var(--m);">—</span>'; return; }
+      if (sell <= 0) { el.innerHTML = '<span class="plx-muted">—</span>'; return; }
       const m = Math.round(((sell - myCost) / sell) * 100);
       const profit = sell - myCost;
       const color = sell <= myCost ? '#ef4444' : m < 25 ? '#f59e0b' : '#10b981';
@@ -949,7 +949,7 @@
     });
     const warnEl = document.getElementById('pm-margin-warnings');
     if (warnEl) {
-      warnEl.innerHTML = warnings.map(w => '<div style="font-size:11px;color:#ef4444;padding:4px 8px;background:#ef444415;border-radius:4px;margin-bottom:4px;">⚠️ ' + w + '</div>').join('');
+      warnEl.innerHTML = warnings.map(w => '<div class="plx-warn">⚠️ ' + w + '</div>').join('');
     }
   }
 
