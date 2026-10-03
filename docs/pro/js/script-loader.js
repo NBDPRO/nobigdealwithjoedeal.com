@@ -122,8 +122,8 @@
       'js/stripe-ledger-ui-logic.js?v=1',
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=2',
-      'js/money-dashboard.js?v=7'
+      'js/invoice-reminder.js?v=3',
+      'js/money-dashboard.js?v=8'
     ],
     repos: [
       'js/rep-os.js?v=3'
@@ -142,8 +142,8 @@
       'js/winback.js?v=2'
     ],
     decision: [
-      'css/decision-engine-view.css?v=1',
-      'js/decision-engine.js?v=3'
+      'css/decision-engine-view.css?v=2',
+      'js/decision-engine.js?v=4'
     ],
     reports: [
       // ApexCharts must load BEFORE rep-report-generator.js, which calls
@@ -240,8 +240,8 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=5',
-      'js/estimate-v2-ui.js?v=19',
+      'js/estimate-finalization.js?v=6',
+      'js/estimate-v2-ui.js?v=20',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=2',
@@ -304,7 +304,7 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=10',
+      'js/d2d-tracker-core-2026b.js?v=11',
       'js/d2d-tracker-ui-2026b.js?v=6',
       'js/d2d-tracker-2026b.js?v=3'
     ],

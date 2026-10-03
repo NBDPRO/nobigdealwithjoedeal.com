@@ -203,19 +203,26 @@ const SUP_A = 'email_suppressions/co-a__' + sha(HOMEOWNER);
 const SUP_B = 'email_suppressions/co-b__' + sha(HOMEOWNER);
 const SUPPRESSED_A = { [SUP_A]: { companyId: 'co-a', emailHash: sha(HOMEOWNER), email: HOMEOWNER.toLowerCase(), source: 'link' } };
 const NBD = '1phDvAVXHSg82wDLegAbQFq14Ci1';
+// CAN-SPAM postal address (2026-10-03): a commercial send without one is
+// BLOCKED, so every tenant the suite sends AS has one unless a case says not.
+const POSTAL = 'PO Box 77, Goshen, OH 45122';
+const withPostal = (...ids) => Object.fromEntries(ids.map((id) => ['companyProfile/' + id, { brand: { contact: { mailingAddress: POSTAL } } }]));
 
 async function sendEmail(opts, body) {
-  // sendEmail binds the recipient to a record the caller can open (security
-  // batch 2026-10-03): the suite's lead-1 is the caller's own lead, carrying
-  // the homeowner's address — unless a scenario supplies its own.
-  opts = Object.assign({}, opts || {});
-  const tok = Object.assign({ uid: 'rep-a', companyId: 'co-a' }, opts.token || {});
-  if (!opts.noLead) {
-    opts.docs = Object.assign({
+  // Both fixtures by default (a scenario opts out with noLead / noPostal):
+  //  - lead-1, the caller's own lead carrying the homeowner's address —
+  //    sendEmail binds the recipient to a record the caller can open
+  //    (security batch 2026-10-03);
+  //  - the tenants' CAN-SPAM postal address (commercial sends need one).
+  const o = Object.assign({}, opts || {});
+  const tok = Object.assign({ uid: 'rep-a', companyId: 'co-a' }, o.token || {});
+  if (!o.noPostal) o.docs = Object.assign(withPostal('co-a', 'co-b', 'solo-1'), o.docs || {});
+  if (!o.noLead) {
+    o.docs = Object.assign({
       'leads/lead-1': { userId: tok.uid, companyId: tok.companyId || tok.uid, email: HOMEOWNER },
-    }, opts.docs || {});
+    }, o.docs || {});
   }
-  const { mod, w } = load('email-functions.js', opts);
+  const { mod, w } = load('email-functions.js', o);
   const res = await invoke(mod.sendEmail.__handler, {
     method: 'POST',
     headers: { authorization: 'Bearer t' },
@@ -253,7 +260,7 @@ async function sendEmail(opts, body) {
     ok('gate: suppressed for co-a', gA.suppressed === true && !gA.url);
     const minted = [];
     const gB = await S.gateCommercialEmail({ doc: (p) => ({ get: async () => ({ exists: w.docs[p] != null }), set: async (d) => { minted.push({ p, d }); } }) },
-      { companyId: 'co-b', email: HOMEOWNER, leadId: 'L1', source: 't' });
+      { companyId: 'co-b', email: HOMEOWNER, leadId: 'L1', source: 't' }, { postalAddress: POSTAL });
     ok('gate: co-a\'s suppression does NOT block co-b (tenant isolation)', gB.suppressed === false);
     ok('gate: clear send mints a token doc with companyId + normalized email + leadId',
       minted.length === 1 && /^email_unsub_tokens\/[A-Za-z0-9_-]{43}$/.test(minted[0].p)
@@ -263,7 +270,7 @@ async function sendEmail(opts, body) {
       && gB.headers['List-Unsubscribe-Post'] === 'List-Unsubscribe=One-Click');
     const f = S.applyFooter(gB, '<html><body><p>Hi</p></body></html>', 'Hi');
     ok('applyFooter puts the link before </body> and appends to text',
-      /Unsubscribe<\/a><\/p><\/body><\/html>$/.test(f.html) && f.html.indexOf(gB.url) > 0 && f.text.indexOf(gB.url) > 0);
+      /Unsubscribe<\/a><br>[^<]+<\/p><\/body><\/html>$/.test(f.html) && f.html.indexOf(gB.url) > 0 && f.text.indexOf(gB.url) > 0);
     // ── CAN-SPAM postal address (2026-09-22 follow-up) ──────────────────
     // §7704(a)(5): a commercial email carries the sender's physical postal
     // address. PER TENANT, from that tenant's own companyProfile — a platform
@@ -298,10 +305,15 @@ async function sendEmail(opts, body) {
 
     const gNone = await S.gateCommercialEmail(dbWithProfile(null),
       { companyId: 'co-b', email: HOMEOWNER, source: 't' });
-    ok('no address set → footer is exactly the pre-change shape (no stray <br>)',
-      gNone.postalAddress === '' && !/<br>/.test(gNone.footerHtml)
-      && /Unsubscribe<\/a><\/p>$/.test(gNone.footerHtml)
-      && gNone.footerText === '\n\n—\nDon\'t want these emails? Unsubscribe: ' + gNone.url + '\n');
+    ok('no address set → BLOCKED (reason no_postal_address), not suppressed, no link, no footer',
+      gNone.blocked === true && gNone.reason === S.NO_POSTAL_ADDRESS && gNone.suppressed === false
+      && !gNone.url && !gNone.footerHtml && !gNone.headers, JSON.stringify(gNone));
+    {
+      const mints = [];
+      const dbM = dbWithProfile(null); dbM.doc = ((orig) => (p) => Object.assign(orig(p), { set: async (d) => { mints.push(p); } }))(dbM.doc);
+      await S.gateCommercialEmail(dbM, { companyId: 'co-b', email: HOMEOWNER, source: 't' });
+      ok('a blocked send mints NO unsubscribe token (checked before the mint)', mints.length === 0, mints.join());
+    }
 
     // The NBD-leak shape: a tenant whose profile EXISTS but sets no mailing
     // address must get NO address — never a platform/NBD default, which would
@@ -311,18 +323,18 @@ async function sendEmail(opts, body) {
     const gEmptyField = await S.gateCommercialEmail(
       dbWithProfile({ brand: { contact: { phone: '(859) 420-7382' } } }),
       { companyId: 'co-b', email: HOMEOWNER, source: 't' });
-    ok('a profile with NO mailingAddress yields no address — never a platform default',
-      gEmptyField.postalAddress === '' && !/<br>/.test(gEmptyField.footerHtml));
+    ok('a profile with NO mailingAddress → blocked — never a platform default address',
+      gEmptyField.blocked === true && !gEmptyField.footerHtml);
     const gBlankField = await S.gateCommercialEmail(
       dbWithProfile({ brand: { contact: { mailingAddress: '   ' } } }),
       { companyId: 'co-b', email: HOMEOWNER, source: 't' });
-    ok('a blank mailingAddress yields no address — never a platform default',
-      gBlankField.postalAddress === '' && !/<br>/.test(gBlankField.footerHtml));
+    ok('a blank mailingAddress → blocked — never a platform default address',
+      gBlankField.blocked === true && !gBlankField.footerHtml);
 
     const gSoft = await S.gateCommercialEmail(dbWithProfile(null, { profileThrows: true }),
       { companyId: 'co-b', email: HOMEOWNER, source: 't' });
-    ok('an unreadable companyProfile fails SOFT — the email still sends, just without an address',
-      gSoft.suppressed === false && !!gSoft.url && gSoft.postalAddress === '');
+    ok('an unreadable companyProfile → blocked (an address we cannot read is not on the email)',
+      gSoft.blocked === true && gSoft.suppressed === false && !gSoft.url);
 
     const gXss = await S.gateCommercialEmail(
       dbWithProfile({ brand: { contact: { mailingAddress: '<script>alert(1)</script> PO Box 9' } } }),
@@ -499,6 +511,23 @@ async function sendEmail(opts, body) {
     const { w } = await sendEmail({}, { kind: 'invoice', attachments: [{ filename: 'a.pdf', path: 'https://evil.test/a.pdf' }] });
     ok('caller attachments are not forwarded to Resend', w.sends[0] && w.sends[0].attachments === undefined);
   }
+  {
+    const { res, w } = await sendEmail({ noPostal: true });
+    ok('CAN-SPAM: commercial send with NO tenant postal address → 403 no_postal_address (final, no mailto)',
+      res.statusCode === 403 && res.body && res.body.code === 'no_postal_address' && /Mailing Address/.test(res.body.error), JSON.stringify(res.body));
+    ok('...nothing sent, no unsubscribe token minted', w.sends.length === 0 && !w.writes.some((x) => /^email_unsub_tokens\//.test(x.path)));
+    const row = (w.adds.email_log || [])[0];
+    ok('...and the refusal is logged (email_log status blocked_no_postal_address)', !!row && row.status === 'blocked_no_postal_address', JSON.stringify(row));
+  }
+  for (const kind of ['invoice', 'receipt', 'estimate', 'appointment']) {
+    const { res, w } = await sendEmail({ noPostal: true }, { kind, html: '<p>Your ' + kind + '</p>' });
+    ok('transactional (' + kind + ') with NO postal address still SENDS, untouched', res.statusCode === 200 && w.sends.length === 1 && !/Unsubscribe/.test(w.sends[0].html), JSON.stringify(res.body));
+  }
+  {
+    const { res, w } = await sendEmail({});
+    const m = w.sends[0];
+    ok('with an address set, the commercial footer carries it', res.statusCode === 200 && !!m && m.html.indexOf(POSTAL) > 0);
+  }
 
   // ═══ C. funnel-recovery ════════════════════════════════════════════════
   console.log('C. runAbandonRecovery');
@@ -507,7 +536,7 @@ async function sendEmail(opts, body) {
     process.env.RESEND_API_KEY = 'k';
     const old = { toMillis: () => Date.now() - 2 * 3600e3 };
     const { mod, w } = load('funnel-recovery.js', {
-      docs: { ['email_suppressions/' + NBD + '__' + sha('gone@example.com')]: { companyId: NBD } },
+      docs: Object.assign(withPostal(NBD), { ['email_suppressions/' + NBD + '__' + sha('gone@example.com')]: { companyId: NBD } }),
       queries: {
         funnel_abandoned: [
           { id: 'f-supp', data: { email: 'Gone@Example.com', firstName: 'G', createdAt: old } },
@@ -551,13 +580,24 @@ async function sendEmail(opts, body) {
     ok('dry-run log names no visitor (no firstName, no raw email)',
       dry.length === 1 && !/Zebulon|dry@example\.com/.test(JSON.stringify(dry)), JSON.stringify(dry));
   }
+  {
+    const old = { toMillis: () => Date.now() - 2 * 3600e3 };
+    const { mod, w } = load('funnel-recovery.js', {
+      queries: { funnel_abandoned: [{ id: 'f-np', data: { email: 'np@example.com', createdAt: old } }] },
+    });
+    await mod.runAbandonRecovery.__handler({});
+    ok('CAN-SPAM: NBD has no postal address → recovery email NOT sent', w.sends.length === 0);
+    ok('...record left unclaimed and unstamped (sends later once the address is set)', !w.docs['funnel_abandoned/f-np'].recoveryEmailStatus);
+    const done = w.logs.info.find((a) => a[0] === 'funnel_recovery_done');
+    ok('...and counted: funnel_recovery_done.blockedNoAddress === 1', !!done && done[1].blockedNoAddress === 1, JSON.stringify(done));
+  }
 
   // ═══ D. lead-followup ══════════════════════════════════════════════════
   console.log('D. leadFollowUpSweep');
   {
     const card = (companyId) => [{ id: 'crm-1', data: { stage: 'new', status: 'new', companyId } }];
     const { mod, w } = load('lead-followup.js', {
-      docs: { ['email_suppressions/co-t__' + sha('no@example.com')]: { companyId: 'co-t' } },
+      docs: Object.assign(withPostal('co-t'), { ['email_suppressions/co-t__' + sha('no@example.com')]: { companyId: 'co-t' } }),
       queries: {
         estimate_leads: [
           { id: 'p-supp', data: { email: 'no@example.com', firstName: 'N', companyId: 'co-t' } },
@@ -578,6 +618,20 @@ async function sendEmail(opts, body) {
     const tokPath = Object.keys(w.docs).find((p) => p.startsWith('email_unsub_tokens/'));
     ok('token filed under the CRM card\'s tenant with the CRM leadId',
       !!tokPath && w.docs[tokPath].companyId === 'co-t' && w.docs[tokPath].leadId === 'crm-1');
+  }
+
+  {
+    const { mod, w } = load('lead-followup.js', {
+      queries: {
+        estimate_leads: [{ id: 'p-np', data: { email: 'np@example.com', firstName: 'N', companyId: 'co-u' } }],
+        leads: () => [{ id: 'crm-2', data: { stage: 'new', status: 'new', companyId: 'co-u' } }],
+      },
+    });
+    await mod.leadFollowUpSweep.__handler({});
+    ok('CAN-SPAM: tenant with no postal address → follow-up NOT sent', w.sends.length === 0);
+    ok('...not stamped sent or suppressed', !w.docs['estimate_leads/p-np'].followUpEmailSentAt && !w.docs['estimate_leads/p-np'].followUpEmailSuppressedAt);
+    const done = w.logs.info.find((a) => a[0] === 'leadFollowUp: sweep done');
+    ok('...and counted: sweep done blockedNoAddress === 1', !!done && done[1].blockedNoAddress === 1, JSON.stringify(done));
   }
 
   // ═══ E. emailUnsubscribe ═══════════════════════════════════════════════

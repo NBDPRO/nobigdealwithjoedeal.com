@@ -214,7 +214,8 @@
     viewBtn.style.cssText = 'flex-shrink:0;background:transparent;color:var(--m,#9aa3b2);border:1px solid var(--br,#2a3344);' +
       'border-radius:7px;padding:7px 10px;font-size:12px;cursor:pointer;';
     viewBtn.addEventListener('click', function () {
-      if (typeof window.openCardDetail === 'function') { try { window.openCardDetail(match.leadId); dismiss(card); return; } catch (_) {} }
+      // openCardDetailModal is the real global (window.openCardDetail never existed).
+      if (typeof window.openCardDetailModal === 'function') { try { window.openCardDetailModal(match.leadId); dismiss(card); return; } catch (_) {} }
       window.location.href = '/pro/customer.html?id=' + encodeURIComponent(match.leadId);
     });
 

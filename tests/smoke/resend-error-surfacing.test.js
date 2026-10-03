@@ -141,8 +141,12 @@ module.exports.run = function run(ctx) {
     const lf = read(path.join(FUNCTIONS, 'lead-followup.js'));
     assert('lead-followup.js requires resend-guard',
       /require\('\.\/resend-guard'\)/.test(lf));
+    // 2026-10-03: claim-before-send — the send is marked delivered (so a
+    // later stamp failure is not mistaken for a send failure) between the
+    // guard and the stamp; behaviour is pinned in
+    // tests/background-job-reliability-2026-10-03.test.js.
     assert('leadFollowUp throws on resendRejected(response) before followUpEmailSentAt is stamped (one send ever per lead)',
-      /if \(resendRejected\(response\)\) \{[\s\S]{0,80}throw new Error\(resendErrorMessage\(response\)\);[\s\S]{0,20}\}\s*await doc\.ref\.update\(\{ followUpEmailSentAt:/.test(lf));
+      /if \(resendRejected\(response\)\) \{[\s\S]{0,80}throw new Error\(resendErrorMessage\(response\)\);[\s\S]{0,20}\}\s*delivered = true;\s*sent\+\+;\s*await doc\.ref\.update\(\{ followUpEmailSentAt:/.test(lf));
 
     // ── functions/report-sharing.js (createReportShareToken) ──
     const rs = read(path.join(FUNCTIONS, 'report-sharing.js'));

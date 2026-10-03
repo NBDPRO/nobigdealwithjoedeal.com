@@ -140,6 +140,16 @@
         try { bad[0].focus(); } catch (e) {}
         return;
       }
+      // TCPA (2026-10-03): the same express-written-consent box as
+      // /storm-check, required because Joe calls and texts back. Unnamed, so
+      // gatherFormData never picks it up; posted explicitly below.
+      var consentEl = document.getElementById('ins-consent');
+      var consent = !!(consentEl && consentEl.checked);
+      if (!consent) {
+        showError(btn, 'Please check the consent box so Joe can reach you.');
+        try { consentEl.focus(); } catch (e) {}
+        return;
+      }
       // Scheduling choice (required) + photos and the rest.
       var intake = { fields: {}, files: [] };
       if (window.NBDIntake) {
@@ -157,6 +167,7 @@
 
       var data = gatherFormData(form);
       Object.keys(intake.fields).forEach(function (k) { data[k] = intake.fields[k]; });
+      data.tcpaConsent = consent === true;
 
       if (typeof window.submitPublicLead !== 'function') {
         // public-lead-submit.js failed to load — fail loud so we can

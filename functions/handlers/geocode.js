@@ -65,12 +65,19 @@ function parseGoogleResult(r) {
   };
 }
 
+// Per-request cap (2026-10-03). resolveAddress has a 15s function timeout
+// and runs Google + Regrid in parallel; with no cap one hung provider held
+// the call until the platform killed it — and the other provider's answer
+// (the Regrid fallback) was thrown away with it. 8s leaves room for the
+// cache read/write around the lookups.
+const GEOCODE_FETCH_TIMEOUT_MS = 8000;
+
 async function googleReverse(lat, lng, key) {
   // result_type=street_address keeps Google from handing back a neighborhood /
   // route centroid; we still fall back to the first result if it must.
   const url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=' +
     lat + ',' + lng + '&result_type=street_address&key=' + key;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(GEOCODE_FETCH_TIMEOUT_MS) });
   if (!res.ok) return null;
   const data = await res.json();
   if (data.status !== 'OK' || !Array.isArray(data.results) || !data.results.length) return null;
@@ -81,7 +88,7 @@ async function googleReverse(lat, lng, key) {
 async function googleForward(address, key) {
   const url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' +
     encodeURIComponent(address) + '&key=' + key;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(GEOCODE_FETCH_TIMEOUT_MS) });
   if (!res.ok) return null;
   const data = await res.json();
   if (data.status !== 'OK' || !Array.isArray(data.results) || !data.results.length) return null;
@@ -124,7 +131,7 @@ function parseRegridFeature(feat) {
 async function regridPoint(lat, lng, token) {
   const url = 'https://app.regrid.com/api/v2/parcels/point?lat=' + lat +
     '&lon=' + lng + '&limit=1&token=' + encodeURIComponent(token);
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(GEOCODE_FETCH_TIMEOUT_MS) });
   if (!res.ok) return null;
   const data = await res.json();
   const feat = data && data.parcels && data.parcels.features && data.parcels.features[0];
@@ -134,7 +141,7 @@ async function regridPoint(lat, lng, token) {
 async function regridAddress(address, token) {
   const url = 'https://app.regrid.com/api/v2/parcels/address?query=' +
     encodeURIComponent(address) + '&limit=1&token=' + encodeURIComponent(token);
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(GEOCODE_FETCH_TIMEOUT_MS) });
   if (!res.ok) return null;
   const data = await res.json();
   const feat = data && data.parcels && data.parcels.features && data.parcels.features[0];
@@ -246,6 +253,8 @@ exports.resolveAddress = onCall(
 // Reusable geocoder helpers — shared with handlers/reverify-knocks.js so the
 // server-side bulk re-verify scores addresses IDENTICALLY to the live path.
 exports._googleForward = googleForward;
+exports._googleReverse = googleReverse;
+exports._regridPoint = regridPoint;
 exports._regridAddress = regridAddress;
 exports._parseGoogleResult = parseGoogleResult;
 exports._parseRegridFeature = parseRegridFeature;
