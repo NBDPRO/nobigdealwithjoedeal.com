@@ -383,7 +383,10 @@ async function runRegister(opt = {}) {
     : new Promise((res) => { settleWarm = res; if (opt.warm === 'resolve') res({ token: 't' }); });
   const els = {};
   for (const id of ['regPlanBanner', 'regForm', 'googleRegBtn', 'regCode', 'regPass', 'regErr', 'regOk',
-    'regFirst', 'regLast', 'regCompany', 'regEmail', 'regConfirm', 'regBtn', 'strengthBar']) els[id] = makeEl(id);
+    'regFirst', 'regLast', 'regCompany', 'regEmail', 'regConfirm', 'regBtn', 'strengthBar', 'regTerms', 'regTermsErr']) els[id] = makeEl(id);
+  // Clickwrap box (2026-10-03): ticked unless a case says otherwise.
+  els.regTerms.checked = opt.terms !== false;
+  els.regTerms.focus = () => {};
 
   const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const stubs = {
@@ -529,6 +532,25 @@ async function partC() {
     }
     assert(`${label}: no raw Firebase text and no old "Sign-in cancelled." copy`,
       !/Firebase:|Sign-in cancelled\./.test(got), 'got ' + JSON.stringify(got));
+  }
+  // Clickwrap (2026-10-03): the Google path is gated by the same required box.
+  {
+    const h = await runRegister({ emulator: true, terms: false });
+    await h.click();
+    assert('Terms box unticked: Google sign-up never opens the popup', !h.calls.includes('signInWithPopup'));
+    assert('Terms box unticked: says to agree to the Terms of Service and Privacy Policy',
+      /agree to the Terms of Service and Privacy Policy/.test(h.els.regTermsErr.textContent), 'got ' + JSON.stringify(h.els.regTermsErr.textContent));
+  }
+  // ...and the email form path too: a fully valid form is refused until the box is ticked.
+  for (const ticked of [false, true]) {
+    const h = await runRegister({ emulator: true, terms: ticked });
+    Object.assign(h.els.regFirst, { value: 'Sam' }); Object.assign(h.els.regEmail, { value: 'sam@example.com' });
+    Object.assign(h.els.regPass, { value: 'pw-123456789' }); Object.assign(h.els.regConfirm, { value: 'pw-123456789' });
+    for (const fn of (h.els.regForm._listeners.submit || [])) { await fn({ preventDefault() {} }); }
+    await flush();
+    const msg = h.els.regErr.textContent;
+    if (!ticked) assert('email sign-up with the Terms box unticked → refused with the agree message', /agree to the Terms of Service and Privacy Policy/.test(msg), 'got ' + JSON.stringify(msg));
+    else assert('email sign-up with the box ticked → gets past the Terms gate', !/agree to the Terms/.test(msg), 'got ' + JSON.stringify(msg));
   }
 }
 

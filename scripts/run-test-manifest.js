@@ -433,7 +433,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               (smoke; full payment never moves a lead backward). MEASURED via --check.
 //   2026-09-28  209/70/302 -> 209/71/303, tests/followup-local-day.test.js
 //               (smoke; follow-up dates are local days). MEASURED via --check.
-const FLOORS = { node: 315, smoke: 71, disk: 409 };
+const FLOORS = { node: 322, smoke: 71, disk: 416 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -526,18 +526,74 @@ const wfText = wfFiles.map((f) => readIf(path.join(wfDir, f))).join('\n');
 // longer ran it.
 const wfExec = wfText.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join('\n');
 const pkgJson = readIf(path.join(TESTS, 'package.json'));
+// (c) source of truth for the shard tags. ci.yml sets
+//   PLAYWRIGHT_GREP: ${{ matrix.shard }}
+// — an unquoted expression, not a literal — so until 2026-10-03 the only
+// extractor here (quoted PLAYWRIGHT_GREP literals) found NOTHING, and the
+// `&& shardTags.length` guard below turned (c) into a silent skip. Two specs
+// (boot-weight, tenant-filename-prefix) sat in the authed-emu list with no
+// shard tag, never run by any CI shard, while this check printed "clean".
+// So: read every `shard:` matrix list (flow `[...]` or block `- x` form,
+// comments ignored), keep the quoted-literal path for any future step that
+// greps a literal, and FAIL — never skip — when nothing is found.
+function shardTagsFrom(text) {
+  const out = [];
+  const lines = text.split(/\r?\n/);
+  const stripComment = (s) => s.replace(/\s+#.*$/, '');
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*#/.test(lines[i])) continue;
+    const m = lines[i].match(/^(\s*)shard:\s*(.*)$/);
+    if (!m) continue;
+    let body = stripComment(m[2]);
+    if (body.trim().startsWith('[')) {
+      while (!body.includes(']') && i + 1 < lines.length) body += ' ' + stripComment(lines[++i]);
+    } else if (body.trim() === '') {
+      const indent = m[1].length;
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1];
+        if (/^\s*(#.*)?$/.test(next)) { i++; continue; }
+        const item = next.match(/^(\s*)-\s+(.*)$/);
+        if (!item || item[1].length < indent) break;
+        body += ' ' + stripComment(item[2]);
+        i++;
+      }
+    }
+    out.push(...(body.match(/@[a-z0-9_-]+/gi) || []));
+  }
+  return out;
+}
 const greps = [...wfText.matchAll(/PLAYWRIGHT_GREP[^'"\n]*['"]([^'"]+)['"]/g)].map((m) => m[1]);
-const shardTags = [...new Set(greps.flatMap((g) => g.match(/@[a-z0-9]+/gi) || []))];
-const authedList = (pkgJson.match(/"test:e2e:authed:emu":\s*"([^"]+)"/) || ['', ''])[1];
+const shardTags = [...new Set([
+  ...shardTagsFrom(wfText),
+  ...greps.flatMap((g) => g.match(/@[a-z0-9_-]+/gi) || []),
+])];
+const hasTag = (src, t) => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z0-9_-])', 'i').test(src);
+// Parse, don't regex: the script value contains escaped quotes (\"node
+// ./e2e/fixtures/seed-emulator.js && …\"), and the old /"([^"]+)"/ capture
+// stopped at the first one — 165 chars, zero spec names — so (c) matched no
+// spec at all even with tags in hand (found 2026-10-03, same audit).
+let authedScript = '';
+try { authedScript = (JSON.parse(pkgJson).scripts || {})['test:e2e:authed:emu'] || ''; } catch (_) { authedScript = ''; }
+const authedSpecs = new Set(authedScript.match(/[\w.-]+\.spec\.js/g) || []);
+const authedList = { includes: (f) => authedSpecs.has(f) };
+if (!shardTags.length) {
+  problems.push('no CI shard tags found — no `shard:` matrix list and no quoted PLAYWRIGHT_GREP literal in .github/workflows/. Check (c) cannot run; fix the extractor in scripts/run-test-manifest.js rather than letting it skip');
+}
+if (!authedSpecs.size) {
+  problems.push('could not read any spec from the "test:e2e:authed:emu" script in tests/package.json — check (c) cannot run; fix the extractor in scripts/run-test-manifest.js');
+}
+for (const f of authedSpecs) {
+  if (!fs.existsSync(path.join(TESTS, 'e2e', f))) problems.push('tests/package.json test:e2e:authed:emu names ' + f + ' but tests/e2e/' + f + ' does not exist');
+}
 for (const f of fs.readdirSync(path.join(TESTS, 'e2e')).filter((f) => f.endsWith('.spec.js')).sort()) {
   if (UNWIRED_SPECS[f]) continue;
   if (!pkgJson.includes(f) && !wfText.includes(f)) {
     problems.push('tests/e2e/' + f + ' appears in no tests/package.json script and no workflow — it runs nowhere (or add it to UNWIRED_SPECS with a dated reason)');
     continue;
   }
-  if (authedList.includes(f) && shardTags.length) {
+  if (authedList.includes(f)) {
     const src = readIf(path.join(TESTS, 'e2e', f));
-    if (!shardTags.some((t) => src.includes(t))) {
+    if (!shardTags.some((t) => hasTag(src, t))) {
       problems.push('tests/e2e/' + f + ' is in the authed-emu file list but carries none of the CI shard tags (' + shardTags.join(' ') + ') — no shard\'s grep ever selects it');
     }
   }
