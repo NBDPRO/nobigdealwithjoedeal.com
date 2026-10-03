@@ -119,6 +119,8 @@ const decide = (o) => D.decideDepositDraft(Object.assign({ leadId: 'L1', event: 
 
     const kyCash = decide({ lead: leadOf({ address: KY, claimNumber: 'C-3' }), est: perSq() });
     ok('KY lead with a claim number priced in CASH mode → still NO draft (the contract\'s classifyLead test)', kyCash.action === 'skip' && kyCash.reason === 'ky_insurance_hold');
+    ok('…and the deposit rule ITSELF holds it: the lead reaches fromEstimate (#2112 / #2117), plan.kyHold, $0 at signing',
+      !!kyCash.plan && kyCash.plan.kyHold === true && kyCash.plan.depositCents === 0 && kyCash.plan.rule === 'insurance-ky');
 
     const kyRetail = decide({ lead: leadOf({ address: KY }), est: perSq() });
     ok('positive control: a KY RETAIL job (no claim) gets its 50% draft', kyRetail.action === 'create' && kyRetail.invoice.depositAmount === 7500);
@@ -262,6 +264,14 @@ const decide = (o) => D.decideDepositDraft(Object.assign({ leadId: 'L1', event: 
   console.log('\nD. a draft is never owed');
   const draftInv = { id: 'd', leadId: 'L1', status: 'draft', total: 15000, balanceDue: 15000, autoDraft: { kind: 'deposit_on_sign' } };
   const sentInv = { id: 's', leadId: 'L1', status: 'sent', total: 2000, balanceDue: 2000 };
+  {
+    // #2112's owed rule is ONE rule: the server copy and the customer page's
+    // copy are its canonical block (collected-revenue.js) byte-for-byte.
+    const ob = (p) => { const m = lf(read(p)).match(/\/\/ nbd:owed-rule:start[\s\S]*?\/\/ nbd:owed-rule:end/); return m ? m[0] : null; };
+    const canon = ob('docs/pro/js/collected-revenue.js');
+    ok('functions/invoice-owed.js carries #2112\'s owed-rule block byte-for-byte', !!canon && fs.existsSync(path.join(ROOT, 'functions/invoice-owed.js')) && ob('functions/invoice-owed.js') === canon);
+    ok('customer-tasks-ui.js (Total Owed) carries the same block byte-for-byte', !!canon && ob('docs/pro/js/customer-tasks-ui.js') === canon);
+  }
   if (OWED) {
     ok('invoice-owed: draft / void / cancelled / deleted are not owed; sent / partial are',
       !OWED.isOwedInvoice(draftInv) && !OWED.isOwedInvoice({ status: 'void' }) && !OWED.isOwedInvoice({ status: 'Cancelled' })

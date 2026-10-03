@@ -113,6 +113,35 @@
     return '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
   }
 
+  // ── Deposit plan for a quote (Kentucky hold, 2026-10-03) ────────────────
+  // The lead this quote is for: meta.lead, else the linked lead
+  // (meta.leadId / meta.customer.leadId) in the loaded pipeline. Its claim
+  // number / carrier / jobType make a Kentucky job priced in cash or
+  // per-square mode an insurance job for deposit-rule.js — the same test that
+  // puts the KRS 367.624 notices on the contract — so the quote cannot ask
+  // for a deposit at signing that KRS 367.626 forbids.
+  function _quoteLead(meta) {
+    if (meta && meta.lead && typeof meta.lead === 'object') return meta.lead;
+    const c = (meta && meta.customer) || {};
+    const id = (meta && meta.leadId) || c.leadId || null;
+    if (!id || typeof window === 'undefined') return null;
+    try {
+      const cur = window._leadDoc;
+      if (cur && cur.id === id) return cur;
+      return (Array.isArray(window._leads) && window._leads.find((l) => l && l.id === id)) || null;
+    } catch (_) { return null; }
+  }
+  function _isKyPlan(p) { return !!(p && (p.kyHold === true || p.rule === 'insurance-ky')); }
+  // A stamped plan (the builder's) is printed as-is UNLESS the lead makes this
+  // a Kentucky insurance job the stamp did not hold — e.g. stamped before the
+  // claim was entered on the lead. Then the fresh, held plan wins.
+  function _quoteDepositPlan(rule, estimate, meta, total, stamped) {
+    const lead = _quoteLead(meta);
+    const fresh = rule ? rule.fromEstimate(estimate, { claim: meta.claim || null, total: total, lead: lead }) : null;
+    if (stamped && !(lead && _isKyPlan(fresh) && !_isKyPlan(stamped))) return stamped;
+    return fresh;
+  }
+
   // A quantity label must never round a fraction to a whole number. This
   // printed 0 decimals for every unit except SQ / LF / SF, so a 1.5-hour
   // line went out to the homeowner AND the adjuster reading "2 HR — $127.50"
@@ -897,10 +926,10 @@ ${footer}
             // a homeowner comparing tiers read one tier's deposit under all.
             const _tr = (typeof window !== 'undefined') ? window.NBDDepositRule : null;
             const _stamped = meta.depositPlan || estimate.depositPlan || null;
-            const _tp = (_stamped && _stamped.totalCents === Math.round(Number(tierEst.total) * 100))
-              ? _stamped   // the plan the Payment Terms print, for the tier they are for
-              : ((_tr && Number(tierEst.total) > 0)
-                ? _tr.fromEstimate(estimate, { claim: meta.claim || null, total: Number(tierEst.total) }) : null);
+            // The stamp is the plan the Payment Terms print, for the tier they are for.
+            const _tierStamp = (_stamped && _stamped.totalCents === Math.round(Number(tierEst.total) * 100)) ? _stamped : null;
+            const _tp = (_tierStamp || Number(tierEst.total) > 0)
+              ? _quoteDepositPlan(_tr, estimate, meta, Number(tierEst.total), _tierStamp) : null;
             const tierDep = (_tp && _tp.totalCents > 0)
               ? `<div class="tier-deposit" style="font-size:11px;color:#555;margin-top:8px;">${escapeHtml(_tp.label)}: ${escapeHtml(_tp.valueText)}</div>` : '';
             return `
@@ -935,8 +964,8 @@ ${footer}
     // This block used to fall back to its own 50/50 split, which is how the
     // on-screen quote and the server PDF ("25%") came to disagree.
     const _rule = (typeof window !== 'undefined') ? window.NBDDepositRule : null;
-    const depositPlan = meta.depositPlan || estimate.depositPlan
-      || (_rule ? _rule.fromEstimate(estimate, { claim: meta.claim || null, total: estimate.total }) : null);
+    const depositPlan = _quoteDepositPlan(_rule, estimate, meta, estimate.total,
+      meta.depositPlan || estimate.depositPlan || null);
     const deposit = depositPlan ? depositPlan.depositCents / 100 : null;
     const balance = depositPlan ? depositPlan.balanceCents / 100 : null;
     const _planOk = !!(depositPlan && depositPlan.totalCents > 0);

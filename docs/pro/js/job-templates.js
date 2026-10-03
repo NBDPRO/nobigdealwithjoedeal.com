@@ -1109,18 +1109,36 @@
    * re-stamps after upgrades move the total, so the saved plan is never for
    * a price the estimate no longer has.
    */
+  // meta.lead, else meta.leadId in the loaded pipeline; null when unlinked.
+  function _templateLead(meta) {
+    if (meta && meta.lead && typeof meta.lead === 'object') return meta.lead;
+    const id = meta && meta.leadId;
+    if (!id || typeof window === 'undefined') return null;
+    try {
+      const cur = window._leadDoc;
+      if (cur && cur.id === id) return cur;
+      return (Array.isArray(window._leads) && window._leads.find((l) => l && l.id === id)) || null;
+    } catch (_) { return null; }
+  }
+
   function depositStamp(total, mode, meta) {
     meta = meta || {};
     const R = (typeof window !== 'undefined' && window.NBDDepositRule) || null;
     if (!R) return { deposit: (meta.deposit != null ? Number(meta.deposit) : null), depositPlan: null };
-    const plan = R.compute({
+    const input = {
       total: total,
       mode: mode || 'cash',
       deductible: meta.deductible,
       // Kentucky hold (2026-09-27): the job's address decides.
       address: meta.addr || '',
       overrideAmount: (meta.deposit != null && meta.deposit !== '') ? meta.deposit : undefined
-    });
+    };
+    // The lead (2026-10-03): its claim number / carrier / jobType make a
+    // Kentucky job an insurance job for the hold even in cash mode — the same
+    // test that puts the KY notices on the contract.
+    const lead = _templateLead(meta);
+    if (lead) input.lead = lead;
+    const plan = R.compute(input);
     return { deposit: plan.depositCents / 100, depositPlan: R.toStored(plan) };
   }
 

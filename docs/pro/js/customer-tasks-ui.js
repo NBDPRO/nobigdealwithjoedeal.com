@@ -668,6 +668,28 @@ window.NBDCustomerInvoices = {
 
 // ── Invoices & Payments ─────────────────────────
 window.loadInvoices = async function(leadId) {
+  // #2112's owed rule, copied byte-for-byte from collected-revenue.js
+  // (that file is not loaded on this page); pinned by
+  // tests/deposit-draft-2026-10-03.test.js. Function-local: no new globals.
+  // nbd:owed-rule:start — ONE "is this invoice still owed?" rule, kept
+  // byte-identical in collected-revenue.js, money-dashboard.js,
+  // analytics-kpi.js and invoice-pipeline.js
+  // (tests/invoice-owed-rule-2026-10-03.test.js). A voided Stripe mirror is
+  // written { status:'void', balanceDue:0 }; drafts were never sent. Neither
+  // is owed. Amount = balanceDue when present (0 means nothing due — the old
+  // `balanceDue || total` read 0 as "missing" and re-counted the full face).
+  var NOT_OWED_STATUS = { paid: 1, draft: 1, cancelled: 1, canceled: 1, void: 1, voided: 1, uncollectible: 1 };
+  function isOwedInvoice(inv) {
+    if (!inv || inv.deleted === true) return false;
+    return !NOT_OWED_STATUS[String(inv.status || '').toLowerCase()];
+  }
+  function owedDollarsOf(inv) {
+    if (!isOwedInvoice(inv)) return 0;
+    var b = inv.balanceDue;
+    var v = parseFloat((b != null && b !== '') ? b : inv.total);
+    return v > 0 ? v : 0;
+  }
+  // nbd:owed-rule:end
   try {
     const uid = window.auth?.currentUser?.uid || window._user?.uid;
     if (!uid || !window.db) {
@@ -712,12 +734,10 @@ window.loadInvoices = async function(leadId) {
     const stripeBadge = (inv) => (window.NBDStripeLedgerLogic ? window.NBDStripeLedgerLogic.stripeInvoiceBadgeHtml(inv) : '');
     let totalAmount = 0;
     let totalPaid = 0;
-    // Total Owed counts only invoices someone owes: not a draft (never sent —
-    // incl. the draft deposit invoice the server makes on a signed contract),
-    // void, cancelled or deleted. Same status list as PR #2112's owed rule.
+    // Total Owed counts only invoices someone owes (owedDollarsOf above): not
+    // a draft (never sent — incl. the draft deposit invoice the server makes
+    // on a signed contract), void, cancelled or deleted.
     let totalOwed = 0;
-    const NOT_OWED = { paid: 1, draft: 1, cancelled: 1, canceled: 1, void: 1, voided: 1, uncollectible: 1 };
-    const isOwed = (inv) => !!inv && inv.deleted !== true && !NOT_OWED[String(inv.status || '').toLowerCase()];
     const isDepositDraft = (inv) => !!(inv && inv.status === 'draft' && inv.autoDraft && inv.autoDraft.kind === 'deposit_on_sign');
     let html = '';
 
@@ -734,7 +754,7 @@ window.loadInvoices = async function(leadId) {
 
       totalAmount += amount;
       totalPaid += paidCash;
-      if (isOwed(inv)) totalOwed += bal;
+      totalOwed += owedDollarsOf(inv);
       const depDraft = isDepositDraft(inv);
 
       const safeStatus = ALLOWED_STATUSES.has(inv.status) ? inv.status : 'draft';

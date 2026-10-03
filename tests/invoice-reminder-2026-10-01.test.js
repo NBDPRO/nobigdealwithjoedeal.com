@@ -59,7 +59,11 @@ console.log('\n3. no nagging');
 console.log('\n4. wiring');
 {
   const src = read('docs/pro/js/invoice-reminder.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
-  ok('a held invoice is refused before any sheet opens', /if \(r\.held\) \{ toast\(/.test(src) && src.indexOf('if (r.held)') < src.indexOf("createElement('div')"));
+  // Behaviour, not shape (2026-10-03): the old check here only looked for
+  // the text `if (r.held)`, which stayed green while open() looked the lead
+  // up in _leads alone — a soft-deleted (filtered) or unloaded lead came back
+  // null, payLinkHold(null, inv) said "not held", and a KY insurance invoice
+  // inside its window got a payment request. section 5 drives open() for real.
   ok('every value in the sheet is escaped', !/\+ r\.text \+|\+ r\.to\.phone \+|\+ inv\.\w+ \+/.test(src) && /esc\(r\.text\)/.test(src));
   ok('the invoice records a reminder only on a real send (not the mail-app fallback, not an offline queue)',
     /delivered = e\.mode !== 'mailto';/.test(src) && /queued = s\.mode === 'queued'; delivered = !queued;/.test(src) && /if \(delivered\) \{[\s\S]{0,120}lastReminderAt: new Date\(\)/.test(src));
@@ -69,6 +73,59 @@ console.log('\n4. wiring');
     /data-target="NBDInvoiceReminder\.open"/.test(md) && /reminded ' \+ \(remDays === 0 \? 'today'/.test(md) && /lastReminderAt: inv\.lastReminderAt \|\| null/.test(md));
   ok('the money bundle loads it before money-dashboard', /'js\/invoice-reminder\.js\?v=\d+',\s*'js\/money-dashboard\.js\?v=\d+'/.test(read('docs/pro/js/script-loader.js')));
 }
+// open() for real, in a vm with a fake window: which invoices get a sheet.
+async function openWith(o) {
+  const vm = require('vm');
+  const toasts = []; let sheets = 0; const tzSeen = [];
+  const J = o.noJurisdiction ? undefined : Object.assign({}, K, {
+    payLinkHold: (l, i, n, tz) => { tzSeen.push(tz); return K.payLinkHold(l, i, n, tz); },
+  });
+  const doc = {
+    createElement: () => ({ setAttribute() {}, style: {}, addEventListener() {}, innerHTML: '', querySelectorAll: () => [] }),
+    body: { appendChild() { sheets++; } },
+    getElementById: () => null,
+  };
+  const win = {
+    document: doc,
+    showToast: (m, t) => toasts.push([String(m), t]),
+    db: {}, doc: (_db, col, id) => ({ col, id }),
+    getDoc: async (ref) => {
+      if (ref.col === 'invoices') return { exists: () => true, data: () => o.invoice };
+      if (ref.col === 'leads') {
+        if (o.leadThrows) throw new Error('permission-denied');
+        return { exists: () => !!o.leadDoc, data: () => o.leadDoc };
+      }
+      throw new Error('unexpected read ' + ref.col);
+    },
+    _leads: o.leads || [],
+    NBDJurisdiction: J,
+    _companyProfile: o.profile || {},
+  };
+  win.window = win;
+  vm.runInNewContext(read('docs/pro/js/invoice-reminder.js'), { window: win, document: doc, console, Date, Math, JSON, Object, String, Number, Array, Promise, Intl });
+  await win.NBDInvoiceReminder.open('inv_1');
+  return { toasts, sheets, tzSeen };
+}
 
-console.log('\n' + passed + ' passed, ' + failed + ' failed');
-if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+(async () => {
+  console.log('\n5. open() — the lead decides the Kentucky hold, and a lead it cannot read is refused (fail closed)');
+  const kyIns = { firstName: 'Kim', address: '9 Dixie Hwy, Florence, KY 41042', jobType: 'insurance', claimNumber: 'C-1', deleted: true };
+  const kyInv = inv({ leadId: 'lead_ky', dueDate: new Date(Date.now() - 20 * 86400000) });
+  const a = await openWith({ invoice: kyInv, leads: [], leadDoc: kyIns });
+  ok('KY insurance lead missing from _leads (soft-deleted) → the lead doc is read and the reminder is HELD, no sheet',
+    a.sheets === 0 && a.toasts.length === 1 && /Kentucky insurance job/.test(a.toasts[0][0]), JSON.stringify(a));
+  const b = await openWith({ invoice: kyInv, leads: [], leadThrows: true });
+  ok('the lead doc cannot be read → refused (fail closed), no sheet', b.sheets === 0 && b.toasts.length === 1
+    && b.toasts[0][1] === 'error' && /Kentucky payment rules can't be checked/.test(b.toasts[0][0]), JSON.stringify(b));
+  const b2 = await openWith({ invoice: kyInv, leads: [], leadDoc: null });
+  ok('the lead doc does not exist → refused (fail closed), no sheet', b2.sheets === 0 && b2.toasts.length === 1 && b2.toasts[0][1] === 'error', JSON.stringify(b2));
+  const c = await openWith({ invoice: inv({ leadId: 'lead_oh', dueDate: new Date(Date.now() - 20 * 86400000) }), leads: [Object.assign({ id: 'lead_oh' }, ohLead)] });
+  ok('…positive control: an Ohio cash lead in _leads → the sheet opens', c.sheets === 1 && c.toasts.length === 0, JSON.stringify(c));
+  const d = await openWith({ invoice: inv({ leadId: 'lead_oh' }), leads: [Object.assign({ id: 'lead_oh' }, ohLead)], profile: { timezone: 'America/Chicago' } });
+  ok('the tenant time zone reaches payLinkHold (as the server passes it)', d.tzSeen.length === 1 && d.tzSeen[0] === 'America/Chicago', JSON.stringify(d.tzSeen));
+  const e = await openWith({ invoice: inv({ leadId: 'lead_oh' }), leads: [Object.assign({ id: 'lead_oh' }, ohLead)], noJurisdiction: true });
+  ok('the jurisdiction module did not load → refused, no sheet', e.sheets === 0 && e.toasts.length === 1 && e.toasts[0][1] === 'error', JSON.stringify(e));
+
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+})().catch((err) => { console.error('invoice-reminder test crashed:', err && (err.stack || err.message)); process.exit(1); });
