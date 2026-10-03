@@ -1,0 +1,83 @@
+/* Product library (js/product-library.js) — header, stat cards, filters,
+   category groups, product cards, edit modal. Layout moved out of inline
+   style attributes so a theme can restyle it (reskin, 2026-10-02). Values
+   are the old inline ones exactly; the data-driven colours (category, tier,
+   margin) and the JS-toggled collapse state stay inline.
+   Generated from the conversion map; a raised selector out-ranks a
+   component rule the way the inline style did. */
+.plx-banner { background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; line-height: 1.5; }
+.plx-close.plx-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--m); padding: 4px 8px; }
+.plx-card { background: var(--s); border-radius: 10px; padding: 16px; border: 1px solid var(--br); box-shadow: 0 1px 3px rgba(0,0,0,.06); transition: box-shadow .15s; }
+.plx-modal { background: var(--s); border-radius: 12px; width: 95%; max-width: 680px; max-height: 92vh; overflow-y: auto; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,.2); }
+.plx-filterbox { background: var(--s); padding: 14px; border-radius: 8px; margin-bottom: 16px; }
+.plx-muted { color: var(--m); }
+.plx-muted-soft { color: var(--m); opacity: .75; font-weight: 500; }
+.plx-wrap6 { display: flex; flex-wrap: wrap; gap: 6px; }
+.plx-wrap6-mb { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.plx-row6 { display: flex; gap: 6px; }
+.plx-row6-mb { display: flex; gap: 6px; margin-bottom: 12px; }
+.plx-row8 { display: flex; gap: 8px; }
+.plx-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.plx-card-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--br); }
+.plx-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.plx-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.plx-modal-foot { display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--br); }
+.plx-form { display: grid; gap: 16px; }
+.plx-g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.plx-g3-tight { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.plx-g3-8 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.plx-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.plx-g21 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+.plx-g3r { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.plx-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 12px; margin-bottom: 20px; }
+.plx-grow { flex: 1; min-width: 0; }
+.plx-t10 { font-size: 10px; color: var(--m); }
+.plx-t10-mt { font-size: 10px; color: var(--m); margin-top: 2px; }
+.plx-warn { font-size: 11px; color: #ef4444; padding: 4px 8px; background: #ef444415; border-radius: 4px; margin-bottom: 4px; }
+.plx-stat-label { font-size: 11px; color: var(--m); font-weight: 500; }
+.plx-t11-mt { font-size: 11px; color: var(--m); margin-top: 2px; }
+.plx-t12 { font-size: 12px; color: var(--m); }
+.plx-t12-w5 { font-size: 12px; color: var(--m); font-weight: 500; }
+.plx-desc { font-size: 12px; color: var(--m); margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; }
+.plx-caret { font-size: 14px; color: var(--m); font-weight: 700; width: 16px; text-align: center; }
+.plx-t14 { font-size: 14px; font-weight: 700; color: var(--t); }
+.plx-fs20 { font-size: 20px; }
+.plx-stat-value { font-size: 22px; font-weight: 700; color: var(--t); margin-top: 2px; }
+.plx-dim7 { font-weight: 400; opacity: .7; }
+.plx-name { font-weight: 700; font-size: 14px; color: var(--t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plx-mb28 { margin-bottom: 28px; }
+.plx-mb6 { margin-bottom: 6px; }
+.plx-mt8 { margin-top: 8px; }
+.plx-h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--t); }
+.plx-h1 { margin: 0; font-size: 28px; font-weight: 700; color: var(--t); }
+.plx-sub12 { margin: 4px 0 0; font-size: 12px; color: var(--m); }
+.plx-sub13 { margin: 6px 0 0; font-size: 13px; color: var(--m); }
+.plx-dim6 { opacity: .6; font-weight: 400; }
+.plx-dim7b { opacity: .7; font-weight: 400; }
+.plx-root { padding: 20px; background: transparent; min-height: 100vh; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+.plx-btn-ghost.plx-btn-ghost { padding: 5px 10px; background: #f3f4f6; color: #6b7280; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 500; }
+.plx-btn-edit.plx-btn-edit { padding: 5px 12px; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
+.plx-btn-green.plx-btn-green { padding: 8px 14px; background: #10b981; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13px; }
+.plx-btn-red.plx-btn-red { padding: 8px 14px; background: #ef4444; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13px; }
+.plx-btn-delete.plx-btn-delete { padding: 8px 16px; background: #ef4444; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.plx-btn-add.plx-btn-add { padding: 8px 16px; background: var(--orange,#BD5728); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.plx-btn-cancel.plx-btn-cancel { padding: 8px 16px; background: var(--s2); color: var(--t); border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.plx-btn-save.plx-btn-save { padding: 8px 20px; background: var(--orange,#BD5728); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.plx-resize.plx-resize { resize: vertical; }
+.plx-margin { text-align: center; margin-top: 6px; font-size: 11px; font-weight: 700; }
+.plx-empty { text-align: center; padding: 60px 20px; color: var(--m); font-size: 15px; }
+.plx-search.plx-search { width: 100%; padding: 10px 14px; background: var(--s2); border: 1px solid var(--br); border-radius: 8px; font-size: 14px; box-sizing: border-box; margin-bottom: 12px; color: var(--t); }
+.plx-stat { background: var(--s); padding: 14px; border-radius: 8px; }
+.plx-stat-green { border-left: 4px solid #10b981; }
+.plx-stat-blue { border-left: 4px solid #3b82f6; }
+.plx-stat-violet { border-left: 4px solid #8b5cf6; }
+.plx-stat-amber { border-left: 4px solid #f59e0b; }
+.plx-pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.plx-pill-green { background: #dcfce7; color: #166534; }
+.plx-pill-mint { background: #ecfdf5; color: #065f46; }
+.plx-pill-blue { background: #eff6ff; color: #1e40af; }
+.plx-pill-amber { background: #fef3c7; color: #92400e; }
+.plx-pill-plain { background: var(--s2); color: var(--t); }
+.plx-chip { font-size: 11px; padding: 3px 10px; border-radius: 10px; }
+.plx-chip-dark { background: #1e293b; color: #f1f5f9; font-weight: 700; }
+.plx-chip-dashed { background: var(--s2); color: var(--m); font-weight: 600; border: 1px dashed var(--br); }
