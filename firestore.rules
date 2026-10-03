@@ -2314,6 +2314,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Job-spine idempotency markers (functions/job-spine.js, 2026-10-03):
+    // one doc per (leadId, event, sourceId), created in the same transaction
+    // as the automatic stage move it records. Admin SDK only — a client that
+    // could write here could pre-claim a marker and silently suppress a real
+    // move (a payoff, a signed contract); reading one would leak another
+    // tenant's lead ids and payment metadata.
+    match /job_events/{markerId} {
+      allow read, write: if false;
+    }
+
     // Resend webhook delivery ids, claimed with create() so two concurrent
     // redeliveries of the same event cannot both record a suppression.
     // Admin-SDK only, exactly like stripe_events.

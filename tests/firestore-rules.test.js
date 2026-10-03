@@ -109,6 +109,11 @@ async function run() {
       reportId: 'report-alice', ownerUid: 'alice', status: 'active'
     });
     await setDoc(doc(db, 'parcel_cache/abc'), { parcel: { owner: 'Smith' } });
+    // Job-spine idempotency marker (2026-10-03) — admin-SDK only.
+    await setDoc(doc(db, 'job_events/leadA__paid_in_full__inv1'), {
+      leadId: 'leadA', companyId: 'alice', event: 'paid_in_full', sourceId: 'inv1',
+      result: { action: 'move', from: 'contract_signed', to: 'final_payment' },
+    });
     // Measurements — owner read tests
     await setDoc(doc(db, 'measurements/job-alice'), {
       ownerId: 'alice', leadId: 'leadA', status: 'pending'
@@ -238,6 +243,17 @@ async function run() {
   await assertFails(getDoc(doc(admin,   'sms_client_ids/alice_3f2b8c1e-5d6a-4b7c-9e8f-0a1b2c3d4e5f')));
   await assertFails(setDoc(doc(alice,   'sms_client_ids/alice_3f2b8c1e-5d6a-4b7c-9e8f-0a1b2c3d4e5f'), { status: 'sent' }));
   await assertFails(setDoc(doc(coAdmin, 'sms_client_ids/alice_anything-else-0000000000'), { status: 'claimed' }));
+
+  // 14e. job_events (job spine, 2026-10-03) — admin-SDK only. A client that
+  // could create a marker could pre-claim (leadId, event, sourceId) and make
+  // the server skip a real automatic move; reading one leaks lead ids and
+  // payment metadata. Denied to the lead's own owner and to platform admin.
+  await assertFails(getDoc(doc(anon,    'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(getDoc(doc(alice,   'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(getDoc(doc(admin,   'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(setDoc(doc(alice,   'job_events/leadA__contract_signed__doc_x'), { leadId: 'leadA', event: 'contract_signed' }));
+  await assertFails(setDoc(doc(coAdmin, 'job_events/leadA__paid_in_full__inv2'), { leadId: 'leadA', event: 'paid_in_full' }));
+  await assertFails(deleteDoc(doc(alice, 'job_events/leadA__paid_in_full__inv1')));
 
   // 15. parcel_cache — admin-SDK only (fixture seeded above).
   await assertFails(getDoc(doc(alice, 'parcel_cache/abc')));

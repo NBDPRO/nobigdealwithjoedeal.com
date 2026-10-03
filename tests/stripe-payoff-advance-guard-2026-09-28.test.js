@@ -55,10 +55,21 @@ ok('a lead with an open warranty claim stays', allow({ stage: 'closed', openWarr
 ok('a custom WON stage is not pulled back', allow({ stage: 'custom_paid', stageRole: 'won' }) === false);
 ok('no lead → no advance', allow(null) === false);
 
-console.log('WEBHOOK');
-ok('invoiceWebhook gates the advance on payoffAdvanceAllowed', /if \(stageRoles\.payoffAdvanceAllowed\(lead\)\)/.test(STRIPE));
+// 2026-10-03 (job spine): the webhook no longer writes the stage. It flips
+// the invoice to 'paid'; the invoice trigger (money-paper.js → job-spine.js
+// 'paid_in_full') does the advance for EVERY payment method, still gated on
+// payoffAdvanceAllowed, still with a stageHistory entry.
+console.log('WEBHOOK → INVOICE TRIGGER');
+const SPINE_L = require(path.join(__dirname, '..', 'functions', 'job-spine-logic.js'));
+ok('invoiceWebhook no longer writes the stage itself', !/stage: 'final_payment'/.test(STRIPE));
 ok('…the old three-stage PROTECTED list is gone', !/PROTECTED = new Set\(\['final_payment', 'closed', 'lost'\]\)/.test(STRIPE));
-ok('…and the write appends a stageHistory entry', /stage: 'final_payment',[\s\S]{0,2000}stageHistory: FieldValue\.arrayUnion\(\{/.test(STRIPE));
+ok('the spine gates paid_in_full on payoffAdvanceAllowed (warranty lead stays)',
+  SPINE_L.planJobEvent({ stage: 'contacted', jobType: 'warranty' }, 'paid_in_full').action === 'skip'
+  && SPINE_L.planJobEvent({ stage: 'final_photos', openWarrantyClaimId: 'w' }, 'paid_in_full').reason === 'payoff_not_allowed'
+  && SPINE_L.planJobEvent({ stage: 'contract_signed', jobType: 'insurance' }, 'paid_in_full').to === 'final_payment');
+ok('…and the move appends a stageHistory entry',
+  !!SPINE_L.movePayload({ stage: 'contract_signed' }, SPINE_L.planJobEvent({ stage: 'contract_signed', jobType: 'cash' }, 'paid_in_full'),
+    { actor: 'a', atIso: 'T', event: 'paid_in_full' }, { serverTimestamp: () => 'TS', arrayUnion: (x) => ({ u: x }) }).payload.stageHistory.u);
 
 console.log('\n──────────────────────');
 console.log(passed + ' passed, ' + failed + ' failed');
