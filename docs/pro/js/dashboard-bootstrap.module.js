@@ -363,8 +363,8 @@
     const tradeGroup = document.getElementById('lTradesGroup');
     if (tradeGroup && tradeGroup.children.length === 0 && Array.isArray(window.TRADES)) {
       tradeGroup.innerHTML = window.TRADES.map(t => `
-        <button type="button" class="trade-chip" data-value="${t.value}" data-selected="0"
-          style="font-size:11px;padding:4px 10px;border-radius:14px;border:1px solid var(--br);background:var(--s2);color:var(--m);cursor:pointer;font-family:inherit;letter-spacing:.02em;"
+        <button type="button" class="trade-chip dbx-fs11px-p4px10px-r14px" data-value="${t.value}" data-selected="0"
+         
           data-action="tradeChip">${t.icon || ''} ${t.label}</button>
       `).join('');
     }
@@ -1021,17 +1021,17 @@
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;z-index:var(--z-overlay,10000);background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;';
     modal.innerHTML = `
-      <div style="background:var(--s,#111);border:1px solid var(--br,#333);border-radius:14px;padding:32px;max-width:440px;width:90%;text-align:center;">
-        <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;color:var(--t,#fff);margin-bottom:8px;">Can't generate ${escFn(check.label || 'document')}</div>
-        <div style="font-size:13px;color:var(--m,#888);margin-bottom:16px;">${escFn(check.msg || 'This document needs data that hasn’t been added yet:')}</div>
-        <div style="text-align:left;background:var(--s2,#12223D);border-radius:8px;padding:14px;margin-bottom:20px;">
-          ${check.missing.map(m => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--orange,#BD5728);padding:4px 0;">'
+      <div class="dbx-bgs-bd1pxsolid-r14px">
+        <div class="dbx-fs32px-mb12px">⚠️</div>
+        <div class="dbx-ffbarlowco-fs20px-w700">Can't generate ${escFn(check.label || 'document')}</div>
+        <div class="dbx-fs13px-cm-mb16px">${escFn(check.msg || 'This document needs data that hasn’t been added yet:')}</div>
+        <div class="dbx-taleft-bgs2-r8px">
+          ${check.missing.map(m => '<div class="dbx-dflex-aicenter-jcspacebet">'
             + '<span>• ' + escFn(m.text) + '</span>'
-            + '<button type="button" class="nbd-preq-fix" data-need="' + escFn(m.need) + '" style="flex:none;padding:5px 12px;background:rgba(255,255,255,.08);color:var(--t,#fff);border:1px solid var(--br,#333);border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;">Fix &rarr;</button>'
+            + '<button type="button" class="nbd-preq-fix dbx-fxnone-p5px12px-bgrgba2552" data-need="' + escFn(m.need) + '">Fix &rarr;</button>'
             + '</div>').join('')}
         </div>
-        <button class="nbd-preq-close" style="padding:12px 28px;background:var(--orange,#BD5728);color:var(--accent-fg,#fff);border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Got it</button>
+        <button class="nbd-preq-close dbx-p12px28px-bgorange-caccentfg">Got it</button>
       </div>`;
     modal.querySelector('.nbd-preq-close').addEventListener('click', () => modal.remove());
     modal.querySelectorAll('.nbd-preq-fix').forEach((btn) => {
@@ -1715,8 +1715,8 @@
         banner.style.cssText = 'background:linear-gradient(90deg,var(--s),var(--s2));border-top:2px solid var(--orange);color:rgba(255,255,255,.8);';
         banner.innerHTML = `
           <span>🚀 You're on the <strong class="fg-orange">NBD Pro Free plan</strong> (10 leads/month)</span>
-          <a href="/pro/pricing.html" style="background:var(--orange);color:var(--accent-fg);padding:6px 16px;border-radius:6px;text-decoration:none;font-weight:700;font-size:11px;">Upgrade — Starter $99/mo →</a>
-          <button data-action="removeParent" style="background:none;border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:16px;margin-left:8px;">✕</button>
+          <a href="/pro/pricing.html" class="dbx-bgorange-caccentfg-p6px16px">Upgrade — Starter $99/mo →</a>
+          <button data-action="removeParent" class="dbx-bgnone-bdnone-crgba2552">✕</button>
         `;
         document.body.appendChild(banner);
       }, 2000);
@@ -2189,11 +2189,11 @@
         const board = document.getElementById('kanbanBoard');
         if (!board) return;
         board.innerHTML =
-          '<div style="grid-column:1/-1;padding:40px 20px;text-align:center;color:var(--m, #888);">' +
-          '<div style="font-size:32px;margin-bottom:12px;">⚠️</div>' +
-          '<div style="font-size:16px;font-weight:600;margin-bottom:8px;color:var(--t, #fff);">Couldn\'t finish loading the CRM.</div>' +
-          '<div style="font-size:13px;margin-bottom:18px;">Your data is safe — this is usually a slow connection during cold start.</div>' +
-          '<button type="button" data-action="reload" style="padding:10px 22px;border-radius:6px;background:var(--orange, #A14A22);color:#fff;border:none;cursor:pointer;font:inherit;font-size:14px;">Reload</button>' +
+          '<div class="dbx-gri11-p40px20px-tacenter">' +
+          '<div class="dbx-fs32px-mb12px">⚠️</div>' +
+          '<div class="dbx-fs16px-w600-mb8px">Couldn\'t finish loading the CRM.</div>' +
+          '<div class="dbx-fs13px-mb18px">Your data is safe — this is usually a slow connection during cold start.</div>' +
+          '<button type="button" data-action="reload" class="dbx-p10px22px-r6px-bgorange">Reload</button>' +
           '</div>';
       }
       // First attempt fires synchronously after loadLeads resolves.
@@ -2547,10 +2547,10 @@
   
   function showShortcutsHelp() {
     const helpHTML = `
-      <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:center;justify-content:center;" data-action="removeSelf">
-        <div style="background:var(--s);border:1px solid var(--br);border-radius:12px;padding:24px;max-width:400px;width:90%;" data-action="stopProp">
-          <div style="font-size:18px;font-weight:700;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;">⌨️ Keyboard Shortcuts</div>
-          <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
+      <div class="dbx-posfixed-top0-lef0" data-action="removeSelf">
+        <div class="dbx-bgs-bd1pxsolid-r12px" data-action="stopProp">
+          <div class="dbx-fs18px-w700-mb16px">⌨️ Keyboard Shortcuts</div>
+          <div class="dbx-dgrid-gtcauto1fr-gap8px16px">
             <kbd class="kbd-input">N</kbd>
             <span>New Lead</span>
             <kbd class="kbd-input">E</kbd>
@@ -2562,7 +2562,7 @@
             <kbd class="kbd-input">?</kbd>
             <span>Show This Help</span>
           </div>
-          <button class="btn btn-orange" style="width:100%;margin-top:16px;justify-content:center;" data-action="removeClosest" data-target="div[style*=fixed]">Got it</button>
+          <button class="btn btn-orange dbx-wd100-mt16px-jccenter" data-action="removeClosest" data-target="div[style*=fixed]">Got it</button>
         </div>
       </div>
     `;
@@ -2582,7 +2582,7 @@
       const recent = JSON.parse(localStorage.getItem('nbd_recent_customers') || '[]');
       const list = document.getElementById('recentList');
       if (!recent.length) {
-        list.innerHTML = '<div style="font-size:12px;color:var(--m);padding:8px;">No recent customers</div>';
+        list.innerHTML = '<div class="dbx-fs12px-cm-p8px">No recent customers</div>';
         return;
       }
       const leads = window._leads || [];
@@ -2600,19 +2600,19 @@
         const buttons = [];
         if (phoneDigits) {
           buttons.push(
-            `<a class="rc-action" href="tel:${e(phoneDigits)}" title="Call ${e(lead.phone)}"
-               style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:rgba(16,185,129,0.14);color:#10b981;text-decoration:none;font-size:11px;-webkit-tap-highlight-color:transparent;transition:transform .12s;"
+            `<a class="rc-action dbx-dflex-aicenter-jccenter" href="tel:${e(phoneDigits)}" title="Call ${e(lead.phone)}"
+              
                data-action="stopProp"
              >📞</a>`);
           buttons.push(
-            `<button class="rc-action" type="button" data-action="sms" data-lead-id="${e(lead.id)}" title="Text portal link to ${e(lead.phone)}"
-               style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:rgba(59,130,246,0.14);color:#3b82f6;border:none;font-size:11px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s;"
+            `<button class="rc-action dbx-dflex-aicenter-jccenter-2" type="button" data-action="sms" data-lead-id="${e(lead.id)}" title="Text portal link to ${e(lead.phone)}"
+              
              >💬</button>`);
         }
         if (email) {
           buttons.push(
-            `<button class="rc-action" type="button" data-action="email" data-lead-id="${e(lead.id)}" title="Email portal link to ${e(email)}"
-               style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:rgba(139,92,246,0.14);color:#8b5cf6;border:none;font-size:11px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s;"
+            `<button class="rc-action dbx-dflex-aicenter-jccenter-3" type="button" data-action="email" data-lead-id="${e(lead.id)}" title="Email portal link to ${e(email)}"
+              
              >📧</button>`);
         }
         // Wave 67: portal preview action — finishes the recent-
@@ -2624,8 +2624,8 @@
         if (window.PortalLinkHelpers
             && typeof window.PortalLinkHelpers.previewForLead === 'function') {
           buttons.push(
-            `<button class="rc-action" type="button" data-action="preview" data-lead-id="${e(lead.id)}" title="Preview the portal — see what the customer will see"
-               style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:rgba(245,158,11,0.14);color:#f59e0b;border:none;font-size:11px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s;"
+            `<button class="rc-action dbx-dflex-aicenter-jccenter-4" type="button" data-action="preview" data-lead-id="${e(lead.id)}" title="Preview the portal — see what the customer will see"
+              
              >🔍</button>`);
         }
         // Wave 62: state-aware snooze/unsnooze button on the recent
@@ -2639,18 +2639,18 @@
           if (isSnoozed) {
             const untilLabel = window.LeadSnooze.formatSnoozeLabel(window.LeadSnooze.snoozedUntilDate(lead));
             buttons.push(
-              `<button class="rc-action" type="button" data-action="unsnooze" data-lead-id="${e(lead.id)}" title="Unsnooze (was until ${e(untilLabel)})"
-                 style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:rgba(155,109,255,0.14);color:#cab8ff;border:none;font-size:11px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s;"
+              `<button class="rc-action dbx-dflex-aicenter-jccenter-5" type="button" data-action="unsnooze" data-lead-id="${e(lead.id)}" title="Unsnooze (was until ${e(untilLabel)})"
+                
                >⏰</button>`);
           } else {
             buttons.push(
-              `<button class="rc-action" type="button" data-action="snooze" data-lead-id="${e(lead.id)}" title="Snooze this lead"
-                 style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;background:rgba(155,109,255,0.10);color:#a890e8;border:none;font-size:11px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s;"
+              `<button class="rc-action dbx-dflex-aicenter-jccenter-6" type="button" data-action="snooze" data-lead-id="${e(lead.id)}" title="Snooze this lead"
+                
                >💤</button>`);
           }
         }
         if (buttons.length === 0) return '';
-        return `<div style="display:flex;gap:3px;flex-shrink:0;">${buttons.join('')}</div>`;
+        return `<div class="dbx-dflex-gap3px-fle0">${buttons.join('')}</div>`;
       }
 
       list.innerHTML = recent.map(r => {
@@ -2659,10 +2659,10 @@
         const name = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown';
         const shortAddr = (lead.address || '').split(',')[0];
         return `
-          <div class="nbd-recent-row" data-id="${e(r.id)}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:12px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e(name)}</div>
-              <div style="font-size:10px;color:var(--m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e(shortAddr)}</div>
+          <div class="nbd-recent-row dbx-dflex-gap8px-aicenter" data-id="${e(r.id)}">
+            <div class="dbx-fx1-minw0">
+              <div class="dbx-w600-mb2px-whinowrap">${e(name)}</div>
+              <div class="dbx-fs10px-cm-whinowrap">${e(shortAddr)}</div>
             </div>
             ${_recentActions(lead)}
           </div>
@@ -5148,7 +5148,7 @@
       if (!h || h.getAttribute('data-jur-wait') !== 'loading') return;
       if (window._companyProfileLoaded === true) { _jurProfileLanded(); return; }
       h.setAttribute('data-jur-wait', 'failed');
-      h.innerHTML = '<div class="fs-11" data-jur-failed style="color:var(--orange,#e8720c);padding:6px 2px;">'
+      h.innerHTML = '<div class="fs-11 dbx-corange-p6px2px" data-jur-failed>'
         + 'Your saved jurisdictions did not load, so they can\'t be changed right now. Check your connection, then try again.</div>'
         + '<button class="btn btn-ghost fs-11" type="button" data-action="call" data-fn="_retryJurisdictions">↻ Try again</button>';
     };
@@ -5166,7 +5166,7 @@
       _jurRowsResolved = false;
       _jurRowsKey = null;
       host.setAttribute('data-jur-wait', 'loading');
-      host.innerHTML = '<div class="fs-11" style="color:var(--m);padding:6px 2px;">Loading your saved jurisdictions…</div>';
+      host.innerHTML = '<div class="fs-11 dbx-cm-p6px2px">Loading your saved jurisdictions…</div>';
       _waitForJurisdictions();
       return;
     }

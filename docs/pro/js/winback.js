@@ -73,8 +73,8 @@
 
   function filterChip(key, label, n) {
     const on = _filter === key;
-    return '<button type="button" class="btn btn-sm ' + (on ? 'btn-orange' : 'btn-ghost') + '" data-wb-action="filter" data-wb-filter="' + key + '" aria-pressed="' + (on ? 'true' : 'false') + '" style="min-height:36px;">' +
-      esc(label) + ' <span style="opacity:.75;">(' + n + ')</span></button>';
+    return '<button type="button" class="btn btn-sm ' + (on ? 'btn-orange' : 'btn-ghost') + ' wbx-min36px" data-wb-action="filter" data-wb-filter="' + key + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+      esc(label) + ' <span class="wbx-opa75">(' + n + ')</span></button>';
   }
 
   function sinceLabel(m) {
@@ -90,37 +90,37 @@
     if (r.jobCount > 1) meta.push(esc(r.jobCount + ' jobs'));
     if (r.lastWinbackAt) meta.push('last reached ' + esc(daysAgo(r.lastWinbackAt)));
     return '<div class="wb-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--s2,#1a1d23);border:1px solid var(--br,#2a2e37);border-left:4px solid ' + (r.anniversarySoon ? 'var(--orange,#BD5728)' : 'var(--br,#2a2e37)') + ';border-radius:10px;padding:10px 12px;margin-bottom:8px;">' +
-      '<div style="flex:1 1 200px;min-width:0;">' +
-        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
-          '<a href="' + esc(href) + '" style="font-weight:800;color:var(--t);text-decoration:none;overflow-wrap:anywhere;">' + esc(r.name) + '</a>' +
-          (r.anniversarySoon ? '<span style="font-size:11px;font-weight:700;color:var(--orange,#BD5728);border:1px solid var(--orange,#BD5728);border-radius:999px;padding:1px 8px;white-space:nowrap;">🎉 Anniversary soon</span>' : '') +
+      '<div class="wbx-fx11200px-minw0">' +
+        '<div class="wbx-dflex-gap8px-aicenter">' +
+          '<a href="' + esc(href) + '" class="wbx-w800-ct-tdnone">' + esc(r.name) + '</a>' +
+          (r.anniversarySoon ? '<span class="wbx-fs11px-w700-corange">🎉 Anniversary soon</span>' : '') +
         '</div>' +
-        (r.address ? '<div style="font-size:12px;color:var(--m);overflow-wrap:anywhere;">' + esc(r.address) + '</div>' : '') +
-        '<div style="font-size:12px;color:var(--m);margin-top:2px;overflow-wrap:anywhere;">' + meta.join(' · ') + '</div>' +
+        (r.address ? '<div class="wbx-fs12px-cm-oveanywhere">' + esc(r.address) + '</div>' : '') +
+        '<div class="wbx-fs12px-cm-mt2px">' + meta.join(' · ') + '</div>' +
       '</div>' +
-      (isViewer() ? '' : '<button type="button" class="btn btn-orange btn-sm" data-wb-action="reach" data-wb-id="' + esc(r.leadId) + '" style="min-height:44px;flex:0 0 auto;">Reach out</button>') +
+      (isViewer() ? '' : '<button type="button" class="btn btn-orange btn-sm wbx-min44px-fx00auto" data-wb-action="reach" data-wb-id="' + esc(r.leadId) + '">Reach out</button>') +
     '</div>';
   }
 
   function render() {
     const el = scroll();
     if (!el) return;
-    if (!LG()) { el.innerHTML = '<div style="padding:20px;">Loading…</div>'; return; }
+    if (!LG()) { el.innerHTML = '<div class="wbx-p20px">Loading…</div>'; return; }
     const list = visible();
     const anniv = _rows.filter((r) => r.anniversarySoon).length;
     const six = _rows.filter((r) => r.monthsSince >= 6).length;
     const year = _rows.filter((r) => r.monthsSince >= 12).length;
     el.innerHTML =
-      '<div class="page-hdr" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;">' +
-        '<div style="min-width:0;"><div class="page-title">🤝 Past Customers</div>' +
+      '<div class="page-hdr wbx-dflex-jcspacebet-aiflexend">' +
+        '<div class="wbx-minw0"><div class="page-title">🤝 Past Customers</div>' +
         '<div class="page-sub">Customers whose last job wrapped up 3+ months ago, with nothing open now. Nothing is sent until you review the message and tap Send.</div></div>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;">' +
+      '<div class="wbx-dflex-gap8px-flewrap">' +
         filterChip('all', 'All', _rows.length) + filterChip('six', '6+ months', six) + filterChip('year', '1+ year', year) + filterChip('anniv', 'Anniversary soon', anniv) +
       '</div>' +
-      (_loading ? '<div style="color:var(--m);font-size:13px;margin-bottom:10px;">Loading jobs…</div>' : '') +
+      (_loading ? '<div class="wbx-cm-fs13px-mb10px">Loading jobs…</div>' : '') +
       (list.length ? list.map(row).join('')
-        : '<div style="background:var(--s2,#1a1d23);border:1px solid var(--br,#2a2e37);border-radius:10px;padding:16px;color:var(--m);font-size:14px;">' +
+        : '<div class="wbx-bgs2-bd1pxsolid-r10px">' +
           (_rows.length ? 'Nobody matches this filter.'
             : 'No past customers to reach out to right now. A customer shows up here once a job is closed out and paid in full, at least 6 months have passed, nothing else is open, there is a phone or email on file, and nobody reached out in the last 90 days.') +
           '</div>');
@@ -174,24 +174,24 @@
     sheet.setAttribute('aria-label', 'Reach out to a past customer');
     sheet.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;';
     const noPhone = !r.phone, noEmail = !r.email;
-    const kindBtn = (k) => '<button type="button" class="btn btn-sm ' + (k === kind ? 'btn-orange' : 'btn-ghost') + '" data-wb-kind="' + k + '" aria-pressed="' + (k === kind ? 'true' : 'false') + '" style="flex:1 1 90px;min-height:40px;">' + esc(KIND_LABEL[k]) + '</button>';
+    const kindBtn = (k) => '<button type="button" class="btn btn-sm ' + (k === kind ? 'btn-orange' : 'btn-ghost') + ' wbx-fx1190px-min40px" data-wb-kind="' + k + '" aria-pressed="' + (k === kind ? 'true' : 'false') + '">' + esc(KIND_LABEL[k]) + '</button>';
     sheet.innerHTML =
-      '<div style="background:var(--s,#12223D);color:var(--t,#fff);border:1px solid var(--br,rgba(255,255,255,.12));border-radius:14px 14px 0 0;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));box-sizing:border-box;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">' +
-          '<div style="font-weight:800;font-size:16px;overflow-wrap:anywhere;">Reach out to ' + esc(r.name) + '</div>' +
-          '<div style="font-size:12px;color:var(--m,#9ca3af);">' + esc(sinceLabel(r.monthsSince)) + '</div>' +
+      '<div class="wbx-bgs-ct-bd1pxsolid">' +
+        '<div class="wbx-dflex-jcspacebet-aibaseline">' +
+          '<div class="wbx-w800-fs16px-oveanywhere">Reach out to ' + esc(r.name) + '</div>' +
+          '<div class="wbx-fs12px-cm">' + esc(sinceLabel(r.monthsSince)) + '</div>' +
         '</div>' +
-        (r.lastWinbackAt ? '<div style="font-size:12px;margin-top:6px;color:var(--m,#9ca3af);">Last reached ' + esc(daysAgo(r.lastWinbackAt)) + '</div>' : '') +
-        '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;" role="group" aria-label="Message type">' +
+        (r.lastWinbackAt ? '<div class="wbx-fs12px-mt6px-cm">Last reached ' + esc(daysAgo(r.lastWinbackAt)) + '</div>' : '') +
+        '<div class="wbx-dflex-gap6px-mt12px" role="group" aria-label="Message type">' +
           LG().KINDS.map(kindBtn).join('') +
         '</div>' +
-        '<label for="nbdWinbackText" style="display:block;font-size:12px;color:var(--m,#9ca3af);margin:12px 0 6px;">Message (edit before sending)</label>' +
-        '<textarea id="nbdWinbackText" rows="6" style="width:100%;box-sizing:border-box;font:inherit;font-size:15px;line-height:1.4;padding:10px;border-radius:8px;border:1px solid var(--br,rgba(255,255,255,.15));background:var(--s2,rgba(255,255,255,.05));color:var(--t,#fff);">' + esc(msg.text) + '</textarea>' +
-        '<div style="font-size:12px;color:var(--m,#9ca3af);margin-top:6px;overflow-wrap:anywhere;">To: ' + esc(r.phone || 'no phone on file') + ' · ' + esc(r.email || 'no email on file') + '</div>' +
-        '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">' +
-          '<button type="button" class="btn btn-orange" data-wb-send="sms"' + (noPhone ? ' disabled' : '') + ' style="flex:1 1 140px;min-height:44px;">Text it</button>' +
-          '<button type="button" class="btn btn-ghost" data-wb-send="email"' + (noEmail ? ' disabled' : '') + ' style="flex:1 1 140px;min-height:44px;">Email it</button>' +
-          '<button type="button" class="btn btn-ghost" data-wb-send="cancel" style="flex:0 1 100px;min-height:44px;">Cancel</button>' +
+        '<label for="nbdWinbackText" class="wbx-dblock-fs12px-cm">Message (edit before sending)</label>' +
+        '<textarea id="nbdWinbackText" rows="6" class="wbx-wd100-boxborderbo-foninherit">' + esc(msg.text) + '</textarea>' +
+        '<div class="wbx-fs12px-cm-mt6px">To: ' + esc(r.phone || 'no phone on file') + ' · ' + esc(r.email || 'no email on file') + '</div>' +
+        '<div class="wbx-dflex-gap8px-mt14px">' +
+          '<button type="button" class="btn btn-orange wbx-fx11140px-min44px" data-wb-send="sms"' + (noPhone ? ' disabled' : '') + '>Text it</button>' +
+          '<button type="button" class="btn btn-ghost wbx-fx11140px-min44px" data-wb-send="email"' + (noEmail ? ' disabled' : '') + '>Email it</button>' +
+          '<button type="button" class="btn btn-ghost wbx-fx01100px-min44px" data-wb-send="cancel">Cancel</button>' +
         '</div>' +
       '</div>';
     document.body.appendChild(sheet);

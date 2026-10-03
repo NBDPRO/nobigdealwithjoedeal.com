@@ -26,6 +26,6 @@
 .mrx-fs11px-cm-wd120px.mrx-fs11px-cm-wd120px.mrx-fs11px-cm-wd120px { font-size: 11px; color: var(--m); width: 120px; }
 .mrx-fx1-bgs2-bd1pxsolid.mrx-fx1-bgs2-bd1pxsolid.mrx-fx1-bgs2-bd1pxsolid { flex: 1; background: var(--s2); border: 1px solid var(--br); border-radius: 4px; padding: 6px 8px; color: var(--t); font-size: 12px; }
 .mrx-bgs-bd1pxsolid-r12px.mrx-bgs-bd1pxsolid-r12px.mrx-bgs-bd1pxsolid-r12px { background: var(--s,#1a1d23); border: 1px solid var(--br); border-radius: 12px; padding: 24px; max-width: 400px; width: 100%; }
-.mrx-ffbarlowco-fs18px-w800.mrx-ffbarlowco-fs18px-w800.mrx-ffbarlowco-fs18px-w800 { font-family: \'Barlow Condensed\',sans-serif; font-size: 18px; font-weight: 800; color: var(--t); margin-bottom: 14px; }
+.mrx-ffbarlowco-fs18px-w800.mrx-ffbarlowco-fs18px-w800.mrx-ffbarlowco-fs18px-w800 { font-family: 'Barlow Condensed',sans-serif; font-size: 18px; font-weight: 800; color: var(--t); margin-bottom: 14px; }
 .mrx-dflex-gap8px-mt14px.mrx-dflex-gap8px-mt14px.mrx-dflex-gap8px-mt14px { display: flex; gap: 8px; margin-top: 14px; }
 .mrx-fx1-jccenter.mrx-fx1-jccenter.mrx-fx1-jccenter.mrx-fx1-jccenter { flex: 1; justify-content: center; }
