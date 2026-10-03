@@ -72,3 +72,5 @@
    "file on a customer" picker on a no-customer card. */
 .deck-sub.deck-urgent { color: var(--red, #e05252); font-weight: 700; }
 .cc-deck-attach { margin-top: 10px; }
+.cc-deck-hint { margin-top: 10px; font-size: 13px; color: var(--blue, #4A9EFF); }
+.cc-deck-one { margin-top: 8px; width: 100%; justify-content: center; }
