@@ -173,6 +173,43 @@
         : (leadOk ? `/pro/dashboard.html?tab=crm&lead=${encodeURIComponent(n.leadId)}` : null),
     };
   }
+  // ─── Duplicate collapse (defence in depth, 2026-10-03) ───────────
+  // The follow-up engine once wrote a fresh doc per lead on every load
+  // (18,169 follow_up docs across 89 leads in the owner tenant). Fixed at
+  // the writer (deterministic ids, crm-snooze.js), but the old docs are
+  // still in the feed, and any future writer can make the same mistake —
+  // so per-lead nag types show ONE row per lead here no matter how many
+  // docs exist. The row is the newest non-dismissed doc; it reads unread
+  // while ANY of its active docs is unread, and read/dismiss on it apply
+  // to every doc it stands for (_dupDocIds), so the badge counts people.
+  const COLLAPSE_PER_LEAD = new Set(['follow_up', 'needs_field']);
+  function collapseServerDupes(list) {
+    const out = [];
+    const groups = new Map();
+    (list || []).forEach(it => {
+      if (!it) return;
+      if (!COLLAPSE_PER_LEAD.has(it.type) || !it.leadId) { out.push(it); return; }
+      const k = it.type + '|' + it.leadId;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(it);
+    });
+    const tsOf = (x) => (x && x.ts && typeof x.ts.getTime === 'function') ? x.ts.getTime() : 0;
+    groups.forEach(arr => {
+      if (arr.length === 1) { out.push(arr[0]); return; }
+      const active = arr.filter(x => !x._dismissed);
+      const pool = (active.length ? active : arr).slice().sort((a, b) => tsOf(b) - tsOf(a));
+      const rep = pool[0];
+      rep._dupDocIds = arr.filter(x => x !== rep).map(x => x._docId).filter(Boolean);
+      rep._dupCount = arr.length;
+      if (active.length) rep._read = active.every(x => x._read);
+      out.push(rep);
+    });
+    return out;
+  }
+  function serverDocIds(n) {
+    return [n._docId].concat(Array.isArray(n._dupDocIds) ? n._dupDocIds : []).filter(Boolean);
+  }
+
   // Optimistically patch the underlying Firestore doc object in
   // window._notifications so the next re-render reflects the mutation
   // immediately. crm-snooze's onSnapshot replaces the whole array with
@@ -192,10 +229,14 @@
   // ─── Source-aware mutations ──────────────────────────────────────
   function markReadItem(n) {
     if (n._source === 'server') {
-      _patchServerDoc(n._docId, { read: true });
+      const ids = serverDocIds(n);
+      ids.forEach(id => _patchServerDoc(id, { read: true }));
       invalidateNotifCache();
-      if (window.NBDServerNotifs && typeof window.NBDServerNotifs.markRead === 'function') {
-        Promise.resolve(window.NBDServerNotifs.markRead(n._docId)).catch(() => {});
+      const S = window.NBDServerNotifs;
+      if (S && ids.length > 1 && typeof S.markReadMany === 'function') {
+        Promise.resolve(S.markReadMany(ids)).catch(() => {});
+      } else if (S && typeof S.markRead === 'function') {
+        Promise.resolve(S.markRead(n._docId)).catch(() => {});
       }
     } else {
       markRead(n.id);
@@ -203,10 +244,14 @@
   }
   function dismissItem(n) {
     if (n._source === 'server') {
-      _patchServerDoc(n._docId, { dismissed: true, read: true });
+      const ids = serverDocIds(n);
+      ids.forEach(id => _patchServerDoc(id, { dismissed: true, read: true }));
       invalidateNotifCache();
-      if (window.NBDServerNotifs && typeof window.NBDServerNotifs.dismiss === 'function') {
-        Promise.resolve(window.NBDServerNotifs.dismiss(n._docId)).catch(() => {});
+      const S = window.NBDServerNotifs;
+      if (S && ids.length > 1 && typeof S.dismissMany === 'function') {
+        Promise.resolve(S.dismissMany(ids)).catch(() => {});
+      } else if (S && typeof S.dismiss === 'function') {
+        Promise.resolve(S.dismiss(n._docId)).catch(() => {});
       }
     } else {
       dismiss(n.id);
@@ -521,10 +566,8 @@
     // active list). This is the fix for server notifications being
     // invisible + unclearable — they now appear and clear.
     const serverNotifs = Array.isArray(window._notifications) ? window._notifications : [];
-    serverNotifs.forEach(sn => {
-      const it = adaptServerNotif(sn);
-      if (it) items.push(it);
-    });
+    collapseServerDupes(serverNotifs.map(adaptServerNotif).filter(Boolean))
+      .forEach(it => items.push(it));
 
     // ── Same-lead dedupe: follow_up vs derived overdue/stale (2026-07-07) ──
     // A lead with an active (non-dismissed) server `follow_up` notice
@@ -869,9 +912,9 @@
     items.filter(n => n._source !== 'server').forEach(n => read.add(n.id));
     _writeSet(READ_KEY, read);
     // Server items → Firestore, by explicit doc id (order-independent).
-    const serverIds = items
+    const serverIds = [].concat(...items
       .filter(n => n._source === 'server' && !n._read)
-      .map(n => n._docId);
+      .map(serverDocIds));
     serverIds.forEach(docId => _patchServerDoc(docId, { read: true }));
     invalidateNotifCache();
     if (serverIds.length && window.NBDServerNotifs
@@ -887,9 +930,9 @@
     items.filter(n => n._source !== 'server').forEach(n => dismissed.add(n.id));
     _writeSet(DISMISS_KEY, dismissed);
     // Server items → Firestore, by explicit doc id.
-    const serverIds = items
+    const serverIds = [].concat(...items
       .filter(n => n._source === 'server')
-      .map(n => n._docId);
+      .map(serverDocIds));
     serverIds.forEach(docId => _patchServerDoc(docId, { dismissed: true, read: true }));
     invalidateNotifCache();
     if (serverIds.length && window.NBDServerNotifs
