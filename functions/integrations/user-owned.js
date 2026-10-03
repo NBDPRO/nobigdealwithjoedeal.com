@@ -292,6 +292,9 @@ const OWNER_KEYED_DOCS = [
   'reps',
   'estimate_drafts',
   'feature_flags',
+  // Roof Rep (the sales game): the career save and the crew-board row.
+  'roofRep',
+  'roofRepScores',
 ];
 
 // ─── NESTED-LEADS SUBTREE ───────────────────────────────────
