@@ -115,6 +115,11 @@ function provider() {
 // We do them as a single Lua-ish pipeline:
 //   MULTI; INCR key; EXPIRE key windowSec NX; EXEC
 // Upstash REST accepts array-of-commands as a pipeline.
+// Upstash answers in tens of ms; a hung request used to hang the CALLER
+// (every rate-limited endpoint) instead of reaching the fail-open-to-
+// Firestore path below, because fetch has no default timeout. 2.5s keeps the
+// fallback well inside the tightest caller (thursdayCallerLookup, 10s).
+const UPSTASH_TIMEOUT_MS = 2500;
 async function upstashIncr(key, windowSec) {
   const url = getSecret('UPSTASH_REDIS_REST_URL');
   const token = getSecret('UPSTASH_REDIS_REST_TOKEN');
@@ -127,7 +132,8 @@ async function upstashIncr(key, windowSec) {
     body: JSON.stringify([
       ['INCR', key],
       ['EXPIRE', key, String(windowSec), 'NX']
-    ])
+    ]),
+    signal: AbortSignal.timeout(UPSTASH_TIMEOUT_MS)
   });
   if (!res.ok) {
     const body = await res.text();

@@ -70,6 +70,8 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
 .faq-q{font-size:14px;font-weight:700;color:#f0f0f0;cursor:pointer;display:block;width:100%;text-align:left;background:none;border:0;padding:0;font-family:'Barlow',sans-serif;}
 .faq-q:focus-visible{outline:2px solid #BD5728;outline-offset:4px;}
 .cta:focus-visible{outline:2px solid #fff;outline-offset:3px;}
+/* Automatic-renewal disclosure under each paid button (2026-10-03) */
+.renew-note{font-size:12px;color:#8b9bb4;text-align:center;margin:8px 0 0;line-height:1.4;}
 .faq-a{font-size:13px;color:#8b9bb4;margin-top:8px;line-height:1.5;display:none;}
 .faq-item.open .faq-a{display:block;}
 
@@ -158,6 +160,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
       <li class="disabled">Team features</li>
     </ul>
     <a href="#" data-pr-action="subscribe" data-plan="starter" class="cta cta-primary">Subscribe — $99/mo</a>
+    <p class="renew-note" data-renew-plan="starter">Renews at $99/mo until you cancel.</p>
   </div>
 
   <!-- TEAM -->
@@ -177,6 +180,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
       <li>Customer portals</li>
     </ul>
     <a href="#" data-pr-action="subscribe" data-plan="team" class="cta cta-primary">Start 14-Day Free Trial</a>
+    <p class="renew-note" data-renew-plan="team">After the 14-day trial, renews at $149/mo until you cancel.</p>
   </div>
 
   <!-- GROWTH -->
@@ -197,6 +201,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
       <li>Priority support</li>
     </ul>
     <a href="#" data-pr-action="subscribe" data-plan="growth" class="cta cta-primary">Start 14-Day Free Trial</a>
+    <p class="renew-note" data-renew-plan="growth">After the 14-day trial, renews at $299/mo until you cancel.</p>
   </div>
 
   <!-- ENTERPRISE -->

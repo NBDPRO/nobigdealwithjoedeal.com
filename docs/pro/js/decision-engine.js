@@ -925,20 +925,15 @@
     const cat = CATEGORIES.find(c => c.key === _selectedCategoryKey) || CATEGORIES[0];
     overlay.innerHTML = `
       <div role="dialog" aria-label="Decision Engine — Pick a scenario"
-           style="background:var(--s,#181C22);border:1px solid var(--br,rgba(255,255,255,.1));
-                  border-radius:14px;max-width:780px;width:100%;max-height:90vh;max-height:90dvh;
-                  overflow:hidden;display:flex;flex-direction:column;color:var(--t,#E8EAF0);
-                  font-family:'Barlow',sans-serif;box-shadow:0 30px 80px rgba(0,0,0,.5);">
-        <div style="padding:18px 20px;border-bottom:1px solid var(--br,rgba(255,255,255,.1));
-                    display:flex;align-items:center;gap:12px;flex-shrink:0;">
+           class="dem-bgs-bd1pxsolid-r14px">
+        <div class="dem-p18px20px-bb1pxsolid-dflex">
           <div class="dex-ffbarlowco-fs22px-w800">
             DECISION ENGINE
           </div>
           <div class="dex-fs11px-cm-fx1">
             ${getAllScenarios().length} scenarios across ${CATEGORIES.length} categories
           </div>
-          <button data-action="close" style="background:transparent;border:0;color:var(--m,#6B7280);
-                  font-size:22px;cursor:pointer;padding:4px 10px;">×</button>
+          <button data-action="close" class="dem-bgtranspar-bd0-cm">×</button>
         </div>
 
         <div class="dex-p14px20px-dflex-gap8px">
@@ -955,9 +950,7 @@
 
         <div class="dex-p020px8px-fle0">
           <input type="search" id="nbd-decision-search" placeholder="Search scenarios…" autocomplete="off"
-                 style="width:100%;padding:10px 12px;background:var(--s2,#1F232A);
-                        border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;
-                        color:var(--t,#E8EAF0);font-size:14px;font-family:inherit;">
+                 class="dem-wd100-p10px12px-bgs2">
         </div>
 
         <div class="dex-p12px20px-fs11px-cm">
@@ -1000,10 +993,7 @@
     }
     return scens.map(s => {
       const priColor = s.priority === 'high' ? '#E05252' : s.priority === 'medium' ? '#D4A017' : '#4A9EFF';
-      return `<button data-scenario="${_esc(s.id)}" style="display:block;width:100%;text-align:left;
-        padding:12px 14px;margin-bottom:8px;border:1px solid var(--br,rgba(255,255,255,.08));
-        background:var(--s2,#1F232A);border-radius:10px;cursor:pointer;font-family:inherit;
-        color:var(--t,#E8EAF0);transition:border-color .15s,transform .1s;">
+      return `<button data-scenario="${_esc(s.id)}" class="dem-dblock-wd100-taleft">
         <div class="dex-dflex-aicenter-gap8px">
           <strong class="dex-fs13px">${_esc(s.title)}</strong>
           ${s.priority ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;
@@ -1026,25 +1016,17 @@
     if (!s) return;
     const overlay = _modalShell();
     const playbookHtml = (s.playbook || []).map(p => `<li class="dex-mb6px">${_esc(p)}</li>`).join('');
-    const codesHtml = (s.codeRefs || []).map(c => `<span style="display:inline-block;padding:2px 7px;
-      margin:2px 4px 2px 0;border-radius:6px;font-size:10px;background:var(--s,#181C22);
-      border:1px solid var(--br,rgba(255,255,255,.1));font-family:monospace;color:var(--orange,#BD5728);">
+    const codesHtml = (s.codeRefs || []).map(c => `<span class="dem-dinlinebl-p2px7px-m2px4px2p">
       ${_esc(c)}</span>`).join('');
     overlay.innerHTML = `
       <div role="dialog" aria-label="Scenario detail"
-           style="background:var(--s,#181C22);border:1px solid var(--br,rgba(255,255,255,.1));
-                  border-radius:14px;max-width:780px;width:100%;max-height:90vh;max-height:90dvh;
-                  overflow:hidden;display:flex;flex-direction:column;color:var(--t,#E8EAF0);
-                  font-family:'Barlow',sans-serif;box-shadow:0 30px 80px rgba(0,0,0,.5);">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--br,rgba(255,255,255,.1));
-                    display:flex;align-items:center;gap:10px;flex-shrink:0;">
-          <button data-action="back" style="background:transparent;border:0;color:var(--m,#6B7280);
-                  font-size:16px;cursor:pointer;padding:4px 8px;">←</button>
+           class="dem-bgs-bd1pxsolid-r14px">
+        <div class="dem-p16px20px-bb1pxsolid-dflex">
+          <button data-action="back" class="dem-bgtranspar-bd0-cm-2">←</button>
           <div class="dex-ffbarlowco-fs18px-w800">
             ${_esc(s.title)}
           </div>
-          <button data-action="close" style="background:transparent;border:0;color:var(--m,#6B7280);
-                  font-size:22px;cursor:pointer;padding:4px 10px;">×</button>
+          <button data-action="close" class="dem-bgtranspar-bd0-cm">×</button>
         </div>
         <div class="dex-fx1-oveauto-p18px22px">
           <div class="dex-fs12px-cm-mb14px">${_esc(s.situation || s.tagline || '')}</div>
@@ -1053,14 +1035,10 @@
           ${codesHtml ? `<div class="dex-mt14px"><span class="dex-fs11px-cm-ttuppercas">Code refs:</span>${codesHtml}</div>` : ''}
         </div>
         <div class="dex-p14px20px-bt1pxsolid-dflex">
-          <button data-action="ask-joe" style="flex:1;min-width:160px;padding:11px 16px;
-                  background:var(--orange,#BD5728);border:0;color:#fff;border-radius:8px;
-                  font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;letter-spacing:.04em;">
+          <button data-action="ask-joe" class="dem-fx1-minw160px-p11px16px">
             Send to Ask Joe →
           </button>
-          <button data-action="copy" style="padding:11px 16px;background:transparent;
-                  border:1px solid var(--br,rgba(255,255,255,.1));color:var(--t,#E8EAF0);
-                  border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;letter-spacing:.04em;">
+          <button data-action="copy" class="dem-p11px16px-bgtranspar-bd1pxsolid">
             Copy prompt
           </button>
         </div>

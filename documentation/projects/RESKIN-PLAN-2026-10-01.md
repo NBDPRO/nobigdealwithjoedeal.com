@@ -103,6 +103,8 @@ own stylesheet of prefixed classes (for example `wg-`, `rpx-`, `ysx-`),
 holding the old inline values exactly. The `docs/pro/js` ratchet went from
 **4101 to 2852** on main, and the four PRs still open take it to about 2680.
 
+**Update, end of 2026-10-03:** all 41 screens are merged. The `docs/pro/js` count on main is now **2148** (from 4101). Also merged: [#2083](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2083), which fixes two restyled headings that lost Barlow Condensed and adds the `css-no-js-escapes` guard. The decision-engine multi-line strings (about 12) are the next small pass.
+
 | # | Screen (file) | PR |
 |---|---|---|
 | 1 | Product editor (`product-library.js`) | [#2001](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2001) |
@@ -124,10 +126,28 @@ holding the old inline values exactly. The `docs/pro/js` ratchet went from
 | 17 | Job Templates (dashboard + customer page) | [#2066](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2066) |
 | 18 | Draw tool (`maps-routing.js`) | [#2067](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2067) |
 | 19 | CSV lead import | [#2068](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2068) |
-| 20 | Message templates manager | [#2069](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2069) (open) |
-| 21 | Classic estimate review | [#2070](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2070) (open) |
-| 22 | Pipeline cards + follow-ups | [#2071](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2071) (open) |
-| 23 | Estimates list, photos, intel card (`dashboard-widgets.js`) | [#2072](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2072) (open) |
+| 20 | Message templates manager | [#2069](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2069) |
+| 21 | Classic estimate review | [#2070](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2070) |
+| 22 | Pipeline cards + follow-ups | [#2071](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2071) |
+| 23 | Estimates list, photos, intel card (`dashboard-widgets.js`) | [#2072](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2072) |
+| 24 | Voice capture + inbox | [#2074](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2074) |
+| 25 | Snooze modals | [#2075](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2075) |
+| 26 | Insurance claim panel | [#2076](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2076) |
+| 27 | Claim panel + editor (`claim-core`) | [#2077](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2077) |
+| 28 | Team manager | [#2078](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2078) |
+| 29 | AI texting persona editor | [#2079](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2079) |
+| 30 | Job costs & profit panel | [#2080](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2080) |
+| 31 | Decision Engine picker | [#2081](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2081) |
+| 32 | Storm Center (the rest) | [#2082](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2082) |
+| 33 | CSV import + templates manager, multi-line strings | [#2084](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2084) |
+| 34 | Past Customers (win-back) | [#2085](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2085) |
+| 35 | Reports trends panel | [#2086](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2086) |
+| 36 | Voicemail modal (+ the errors-wiped fix) | [#2087](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2087) |
+| 37 | Estimate preview sheet | [#2088](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2088) |
+| 38 | Snooze modals, multi-line strings | [#2089](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2089) |
+| 39 | Dashboard bootstrap surfaces | [#2090](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2090) |
+| 40 | Inspection photo editor | [#2091](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2091) |
+| 41 | Install-the-app nudge | [#2092](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2092) |
 
 **The proof, every screen: an in-place swap check.** Sign in on the
 emulator and drive the screen through its real states at 1280 and 390 px.
@@ -152,6 +172,13 @@ red before a PR ships.
   converter.
 
 **Lessons (2026-10-03):**
+- Copy CSS values out of JS with the JS escaping removed. A `\'` copied into
+  a stylesheet broke `font-family`, and the swap proof compared broken
+  against broken, so it stayed green. `tests/css-no-js-escapes-2026-10-03.test.js`
+  now guards it.
+- Merge-conflict resolvers must strip `\r` and refuse lone CRs. One
+  resolver wrote `\r\r\n`, git then treated the file as binary, and the
+  result was a whole-file conflict.
 - A generated stylesheet's header line must be a real comment. A bare line
   parsed into the first rule's selector and silently dropped that rule
   (Job Templates). The swap proof caught it; a CSS-text test would not have.

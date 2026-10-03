@@ -56,6 +56,7 @@ const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 // duplicated copy was first flagged.
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { applyRepReplyEffects } = require('./portal-reply-effects');
+const { reencodePhoto } = require('./photo-reencode');
 // Customer-safe line items for the shared-estimate view. This is a byte-copy
 // of docs/pro/js/customer-estimate-rows.js (Functions deploys only functions/;
 // a smoke drift guard in tests/customer-estimate-rows.test.js asserts the two
@@ -1320,6 +1321,8 @@ exports.getPortalDocumentHtml = onRequest(
 //   - 10 photos per lead per day (per-token rate limit)
 //   - 8 MB per photo (resized client-side; this is the hard server cap)
 //   - jpeg/png/webp data URLs only
+//   - every photo is decoded + re-encoded server-side (photo-reencode.js):
+//     EXIF/GPS stripped, orientation baked in, long edge capped at 2560px
 //
 // Notifies the rep via the existing notifications collection so
 // the homeowner upload appears in the W48 bell with the W92 high-
@@ -1329,9 +1332,11 @@ exports.uploadHomeownerPhoto = onRequest(
     region: 'us-central1',
     cors: CORS_ORIGINS,
     maxInstances: 50,
-    concurrency: 40,
+    // sharp decode/re-encode (up to 80 MP) needs real headroom per request:
+    // same memory/concurrency budget as uploadPublicLeadPhoto.
+    concurrency: 20,
     timeoutSeconds: 30,
-    memory: '512MiB', // base64-decode + storage upload
+    memory: '1GiB', // base64-decode + sharp re-encode + storage upload
   },
   async (req, res) => {
     if (req.method !== 'POST') { res.status(405).end(); return; }
@@ -1371,6 +1376,23 @@ exports.uploadHomeownerPhoto = onRequest(
       return;
     }
     const safeCaption = (typeof caption === 'string') ? caption.slice(0, 280) : '';
+
+    // 2026-10-03 (SECURITY-CHECKLIST-2026-10-01 Open #2): decode + re-encode
+    // with sharp — the same pipeline as the public lead-form photos
+    // (functions/photo-reencode.js). Drops ALL EXIF incl. GPS (the
+    // homeowner's exact location), bakes in the EXIF orientation, caps the
+    // long edge, and refuses bytes that aren't a real image. Same output
+    // format as declared, so the stored path / contentType / mimeType are
+    // unchanged. Done BEFORE the quota reservation below so a file that
+    // isn't a photo never burns one of the day's ten slots.
+    let buffer;
+    try {
+      buffer = await reencodePhoto(Buffer.from(b64, 'base64'), mimeType);
+    } catch (decodeErr) {
+      logger.warn('[uploadHomeownerPhoto] not a decodable image', { msg: decodeErr.message });
+      res.status(400).json({ error: 'That file could not be read as a photo.' });
+      return;
+    }
 
     const db = getFirestore();
     const tokRef = db.doc(`portal_tokens/${token}`);
@@ -1420,8 +1442,7 @@ exports.uploadHomeownerPhoto = onRequest(
     const tok = reservation;
 
     try {
-      // Storage upload
-      const buffer = Buffer.from(b64, 'base64');
+      // Storage upload (buffer = the re-encoded, metadata-free bytes above)
       const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
       const ts = Date.now();
       const path = `homeowner-uploads/${tok.ownerUid}/${tok.leadId}/${ts}.${ext}`;

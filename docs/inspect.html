@@ -101,6 +101,9 @@ h1 span{color:#BD5728}
 .form-success p strong{color:var(--navy)}
 
 .fine-print{font-size:.72rem;color:var(--gray);margin-top:14px;line-height:1.55;text-align:center}
+/* consent (TCPA, 2026-10-03) — same markup as /storm-check's .sc-consent */
+.sc-consent{display:flex;gap:10px;align-items:flex-start;margin:4px 0 12px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
+.sc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
 
 /* Tagline footer */
 .tagline-bar{background:var(--navy-dark);color:#fff;text-align:center;padding:36px 5%;font-family:'Bebas Neue',sans-serif;font-size:clamp(1.1rem,2.6vw,1.55rem);letter-spacing:.04em}
@@ -258,7 +261,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Roofing"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Siding Replacement"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Gutter Replacement"}},
-          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Insurance Claims"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Inspection & Documentation"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Interior Drywall and Ceiling Repair"}}
         ]
       }
@@ -399,6 +402,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         <div data-nbd-intake="ins"></div>
 
         <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="f-nbd-hp">Leave blank</label><input type="text" id="f-nbd-hp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
+        <label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
         <button type="submit" class="submit-btn" id="inspectSubmit">Request Free Inspection</button>
         <p class="fine-print">I respect your time. I respond within 24 hours.</p>
       </form>
@@ -425,7 +429,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 
 <script src="/assets/js/public-lead-submit.js" defer></script>
 <script src="/assets/js/intake-extras.js?v=1" defer></script>
-<script src="/assets/js/inspect-form.js?v=2" defer></script>
+<script src="/assets/js/inspect-form.js?v=3" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <div class="mobile-cta-strip" aria-label="Quick contact options">
   <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>

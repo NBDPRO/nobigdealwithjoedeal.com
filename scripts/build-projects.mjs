@@ -732,44 +732,129 @@ const detailSchema = (p) => {
   return { '@context': 'https://schema.org', '@graph': graph };
 };
 
-// <title> for a case page: "<job> — <Town>, ST | NBD", kept to 60 characters
-// so results do not truncate it mid-phrase. Tried in order, first fit wins:
-//   1. the full job title + full city
-//   2. the full job title + the town without its state
-//   3. the job title cut back to whole leading clauses (split at " — ", ", ",
-//      ": ", " + ", " & "), if that leaves a real phrase (>= 20 chars)
-//   4. the job title cut back at a word boundary
-// The job phrase always leads and the town always stays; nothing is
-// reworded. Only <title> changes — og:title and the H1 keep the full title.
-// Titles must be unique across case pages (a trim that collapses two jobs
-// into one title is refused below).
-const TITLE_MAX = 60;
-const TITLE_MIN_PHRASE = 20;
-const trimTail = (s) => s.replace(/[\s—–\-,:;+&]+$/u, '').replace(/\s+(a|an|the|of|to|and|for|near|by|with)$/i, '');
-const pageTitle = (p) => {
-  const t = townOf(p);
-  const tail = ` — ${p.city} | NBD`;
-  const cands = [`${p.title}${tail}`];
-  if (t) cands.push(`${p.title} — ${t.name} | NBD`);
-  const budget = TITLE_MAX - tail.length;
-  const clauses = p.title.split(/(?= — |, |: | \+ | & )/);
-  for (let n = clauses.length - 1; n >= 1; n--) {
-    const phrase = trimTail(clauses.slice(0, n).join(''));
-    if (phrase.length <= budget && phrase.length >= TITLE_MIN_PHRASE) { cands.push(phrase + tail); break; }
-  }
-  const cut = p.title.slice(0, budget + 1);
-  cands.push(trimTail(cut.slice(0, cut.lastIndexOf(' '))) + tail);
-  return cands.find((c) => c.length <= TITLE_MAX) || cands.at(-1);
+// <title> for a case page (2026-10-03, SEO quick wins): leads with the
+// SERVICE + TOWN a homeowner searches for, then the job's own phrase —
+// "Roof Replacement in Milford, OH — Forty-Five Squares, Two Days | NBD".
+// Until then it led with the job phrase alone ("Forty-Five Squares, Two Days
+// — Milford, OH | NBD"), which says nothing a search matches on.
+//
+// The service is DERIVED, never typed per job: a tag that names the work
+// more exactly than the hub does wins (TITLE_TAG_SERVICE — "Gutter Repair"
+// beats the gutter-replacement hub's name for a downspout fix), otherwise
+// the job's first service in TITLE_SERVICE. storm-damage is skipped when
+// the job has another service, because storm is the cause and the other
+// service is the work done ("Wind-Lifted Shingles, Reset by Hand" is a roof
+// repair). Inner " — " in the job phrase becomes ", " so a title never
+// carries two dashes.
+//
+// Aimed at 65 characters (check-seo-surface.js warns above that), with a
+// little slack for a whole phrase over a chopped one — see titleCandidates().
+// Service + town always lead and the job's words are never reworded.
+// og:title / twitter:title carry the same lead with the untrimmed phrase;
+// the H1 keeps the job title as written. Titles must be unique across case
+// pages (PAGE_TITLES below; a job left with no unique form is refused).
+const TITLE_MAX = 65;
+const TITLE_MIN_PHRASE = 8;
+const TITLE_SERVICE = {
+  'roof-replacement': 'Roof Replacement',
+  'roof-repair': 'Roof Repair',
+  'commercial-roofing': 'Commercial Roofing',
+  'siding-replacement': 'Siding Replacement',
+  'siding-repair': 'Siding Repair',
+  'wood-siding-repair': 'Wood Siding Repair',
+  'shed-roof-replacement': 'Shed Re-Roof',
+  'gutter-replacement': 'Gutter Replacement',
+  'gutter-cleaning': 'Gutter Cleaning',
+  'storm-damage': 'Storm Damage Repair',
+  'roof-inspection': 'Roof Inspection',
+  'interior-repair': 'Interior Repair',
 };
+const TITLE_TAG_SERVICE = {
+  'Gutter Screens': 'Gutter Screens',
+  'Gutter Repair': 'Gutter Repair',
+  'Gutter & Shingle Repair': 'Gutter Repair',
+  'Soffit Repair': 'Soffit Repair',
+  'Metal Roof': 'Metal Roofing',
+  'Drywall Crack Repair': 'Drywall Repair',
+};
+for (const k of Object.keys(SERVICES)) if (!TITLE_SERVICE[k]) fail(`TITLE_SERVICE has no title wording for service "${k}"`);
+const titleService = (p) => {
+  if (TITLE_TAG_SERVICE[p.tag]) return TITLE_TAG_SERVICE[p.tag];
+  const work = p.services.find((s) => s !== 'storm-damage') || p.services[0];
+  return TITLE_SERVICE[work];
+};
+const titleLead = (p) => `${titleService(p)} in ${p.city}`;
+const titlePhrase = (p) => p.title.replace(/ — /g, ', ');
+const shareTitle = (p) => `${titleLead(p)} — ${titlePhrase(p)}`;
+const trimTail = (s) => s.replace(/[\s—–\-,:;+&→]+$/u, '').replace(/\s+(a|an|the|of|to|and|for|near|by|with)$/i, '');
+// Every candidate <title> for a job, best first. A cut mid-phrase reads as
+// nonsense ("— Charcoal Over | NBD"), so whole phrases and whole leading
+// clauses come first and are allowed a little past TITLE_MAX (to
+// TITLE_HARD_MAX) before any word-boundary cut is considered:
+//   1. the whole phrase, then whole leading clauses (split at ", ", ": ",
+//      " + ", " → "; >= TITLE_MIN_PHRASE chars), within TITLE_MAX
+//   2. the same, within TITLE_HARD_MAX
+//   3. a single later clause on its own, within TITLE_MAX (only reached
+//      when two jobs share a leading clause — "Three Layers Off")
+//   4. the phrase cut at a word boundary, within TITLE_MAX
+//   5. service + town alone
+const TITLE_HARD_MAX = 75;
+const titleCandidates = (p) => {
+  const head = `${titleLead(p)} — `;
+  const tail = ' | NBD';
+  const phrase = titlePhrase(p);
+  // Not " & " — it joins two nouns ("Gutter Section & Shingle Repair"), and
+  // cutting there leaves half a phrase.
+  const clauses = phrase.split(/(?=, |: | \+ | → )/);
+  const whole = [phrase];
+  for (let n = clauses.length - 1; n >= 1; n--) {
+    const cut = trimTail(clauses.slice(0, n).join(''));
+    if (cut.length >= TITLE_MIN_PHRASE) whole.push(cut);
+  }
+  const wrap = (s) => head + s + tail;
+  const later = clauses.slice(1).map((c) => trimTail(c.replace(/^(, |: | \+ | → )/, '')))
+    .filter((c) => c.length >= TITLE_MIN_PHRASE);
+  const out = [
+    ...whole.map(wrap).filter((t) => t.length <= TITLE_MAX),
+    ...whole.map(wrap).filter((t) => t.length <= TITLE_HARD_MAX),
+    ...later.map(wrap).filter((t) => t.length <= TITLE_MAX),
+  ];
+  const budget = TITLE_MAX - head.length - tail.length;
+  const cut = phrase.slice(0, budget + 1);
+  const word = trimTail(cut.slice(0, cut.lastIndexOf(' ')));
+  if (word) out.push(wrap(word));
+  out.push(`${titleLead(p)}${tail}`);
+  return [...new Set(out)];
+};
+// Assign unique titles: jobs with the fewest fitting candidates choose first
+// (stable on manifest order), each taking its best candidate not already
+// taken — so a one-clause job keeps its only short form and a many-clause
+// job moves to its next one. A job left with nothing unique is refused.
+const PAGE_TITLES = new Map();
 {
-  const byTitle = new Map();
-  for (const p of live) {
-    const t = pageTitle(p);
-    if (byTitle.has(t)) fail(`projects "${byTitle.get(t)}" and "${p.slug}" both get the <title> "${t}" — shorten one job title`);
-    byTitle.set(t, p.slug);
+  const taken = new Map();
+  const order = live.map((p, i) => ({ p, i, c: titleCandidates(p) }))
+    .sort((a, b) => a.c.length - b.c.length || a.i - b.i);
+  for (const { p, c } of order) {
+    const t = c.find((x) => !taken.has(x));
+    if (!t) { fail(`project "${p.slug}" has no unique <title> — every short form ("${c[0]}") is taken by "${taken.get(c[0])}"; shorten or reword one job title`); continue; }
+    taken.set(t, p.slug);
+    PAGE_TITLES.set(p.slug, t);
   }
   if (process.exitCode) process.exit(1);
 }
+const pageTitle = (p) => PAGE_TITLES.get(p.slug);
+
+// The site-wide sticky Call/Text bar (conversion audit 2026-07-03), the same
+// markup ~240 hand-authored pages carry before </body>, styled by
+// /assets/css/mobile-cta.css (mobile only, <=768px; nbd-nav.css hides it
+// while the drawer is open). Case pages were the one big template without
+// it until 2026-10-03. Kept byte-identical to the other pages' block.
+const MOBILE_CTA_STRIP = `<!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
+<div class="mobile-cta-strip" aria-label="Quick contact options">
+  <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
+  <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
+</div>`;
 
 const detailPage = (p) => {
   const price = priceLine(p);
@@ -791,12 +876,12 @@ const detailPage = (p) => {
 <meta name="description" content="${esc(descMeta)}">
 <link rel="canonical" href="${DETAIL_ORIGIN}/our-work/${esc(p.slug)}">
 <meta property="og:type" content="website">
-<meta property="og:title" content="${esc(p.title)}">
+<meta property="og:title" content="${esc(shareTitle(p))}">
 <meta property="og:description" content="${esc(descMeta)}">
 <meta property="og:url" content="${DETAIL_ORIGIN}/our-work/${esc(p.slug)}">
 <meta property="og:image" content="${DETAIL_ORIGIN}${esc(p.hero)}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${esc(p.title)}">
+<meta name="twitter:title" content="${esc(shareTitle(p))}">
 <meta name="twitter:description" content="${esc(descMeta)}">
 <meta name="twitter:image" content="${DETAIL_ORIGIN}${esc(p.hero)}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -808,6 +893,7 @@ const detailPage = (p) => {
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
 <link rel="stylesheet" href="/assets/css/project-cards.css?v=1">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
+<link rel="stylesheet" href="/assets/css/mobile-cta.css">
 <script type="application/ld+json">${JSON.stringify(detailSchema(p))}</script>
 <style>
 :root{--navy-dark:#12223d;--orange:#bd5728;--gray:#5d6673;--light-gray:#e8e5e0;--off-white:#f5f3ef}
@@ -887,6 +973,7 @@ ${linksOutHtml(p)}
 </main>
 <!-- nbd:partial footer-standard crumb_service_href="/our-work" crumb_service_name="Our Work" crumb_city_href="${crumbArea}" crumb_city_name="${crumbCity}" -->
 <!-- /nbd:partial footer-standard -->
+${MOBILE_CTA_STRIP}
 </body>
 </html>
 `;
