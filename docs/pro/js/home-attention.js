@@ -79,16 +79,44 @@
   }
   function callsNeedingYou(rows, now) { return (rows || []).filter((c) => callNeedsYou(c, now)).length; }
 
+  // Who a call / text day is with: the customer it is filed on, else the
+  // number. Jo, 2026-10-02: "group them by customer" — 78 open calls were
+  // 46 people (one customer had five), and an older call's promise was often
+  // kept on a later one, so Home, the Call Center and the 2-hourly alert
+  // count PEOPLE and a person's open calls clear together.
+  function callerKey(c) {
+    if (!c) return '';
+    if (c.leadId) return 'lead:' + c.leadId;
+    const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+    return d ? 'num:' + d : 'id:' + (c.id || '');
+  }
+  /** Open calls grouped by caller, newest caller first; calls newest first. */
+  function groupNeeds(rows, now) {
+    const by = new Map();
+    (rows || []).filter((c) => callNeedsYou(c, now)).forEach((c) => {
+      const k = callerKey(c);
+      if (!by.has(k)) by.set(k, { key: k, calls: [] });
+      by.get(k).calls.push(c);
+    });
+    const groups = Array.from(by.values());
+    groups.forEach((g) => {
+      g.calls.sort((a, b) => (toMs(b.startedAtMs) || 0) - (toMs(a.startedAtMs) || 0));
+      g.latestMs = toMs(g.calls[0].startedAtMs) || 0;
+    });
+    return groups.sort((a, b) => b.latestMs - a.latestMs);
+  }
+  function callersNeedingYou(rows, now) { return groupNeeds(rows, now).length; }
+
   function stripHtml(counts) {
     const c = counts || {};
     const items = [];
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
-    if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + ' call' + (c.calls === 1 ? '' : 's') + ' need' + (c.calls === 1 ? 's' : '') + ' you</button>');
+    if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -114,15 +142,18 @@
     jobs.push(w.getDocs(staff ? w.query(col, w.where('companyId', '==', c.companyId)) : w.query(col, w.where('userId', '==', u)))
       .then((snap) => { out.signs = signsDue(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
     // Calls: the owner's own (phone_calls rules: owner always reads own).
+    // Days of texts (phone_text_days) count by the same rule — a texted
+    // promise is a promise — and pool with the calls, so a customer who
+    // called AND texted is one person.
+    const callRows = [];
     if (u && w.orderBy && w.limit) {
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(200)))
-        .then((snap) => { out.calls += callsNeedingYou(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
-      // Days of texts (phone_text_days) count by the same rule: a texted promise
-      // is a promise.
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => {}));
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_text_days'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(100)))
-        .then((snap) => { out.calls += callsNeedingYou(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => {}));
     }
     await Promise.all(jobs);
+    out.calls = callersNeedingYou(callRows, Date.now());
     return out;
   }
 

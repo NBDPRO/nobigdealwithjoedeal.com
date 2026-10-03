@@ -105,11 +105,12 @@ console.log('\n4. wiring');
   ok('handled or personal → never', !need({ handledAtMs: NOW, urgent: true }) && !need({ status: 'personal', urgent: true }));
   ok('older than 14 days → never (backlog)', !need({ startedAtMs: NOW - 15 * D, urgent: true, promises: [{ who: 'jo', text: 'x' }] }) && need({ startedAtMs: NOW - 13 * D, promises: [{ who: 'jo', text: 'x' }] }));
   ok('count helper', HA.callsNeedingYou([call({ urgent: true }), call({}), call({ leadId: null, bucket: 'unknown' })], NOW) === 2);
-  ok('strip shows the calls item, singular and plural, to the Call Center', /data-target="calls">📞 1 call needs you</.test(HA.stripHtml({ calls: 1 })) && /📞 49 calls need you/.test(HA.stripHtml({ calls: 49 })) && HA.stripHtml({ calls: 0 }) === '');
+  // Counts PEOPLE since 2026-10-02 (Jo: "group them by customer").
+  ok('strip shows the calls item, singular and plural, to the Call Center', /data-target="calls">📞 1 person needs you</.test(HA.stripHtml({ calls: 1 })) && /📞 49 people need you/.test(HA.stripHtml({ calls: 49 })) && HA.stripHtml({ calls: 0 }) === '');
   const ccv = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'call-center-view.js'), 'utf8');
   ok('the Call Center view delegates to the same rule', /NBDHomeAttention\.callNeedsYou\(c, Date\.now\(\)\)/.test(ccv));
   const haSrc = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'home-attention.js'), 'utf8');
-  ok('Home counts days of texts by the same rule', /collection\(w\.db, 'phone_text_days'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(100\)/.test(haSrc) && (haSrc.match(/out\.calls \+= callsNeedingYou/g) || []).length === 2);
+  ok('Home counts days of texts by the same rule', /collection\(w\.db, 'phone_text_days'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(100\)/.test(haSrc) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)\)/.test(haSrc) && (haSrc.match(/callRows\.push/g) || []).length === 2);
   ok('Home reads only the owner\'s own calls, newest 200', /collection\(w\.db, 'phone_calls'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(200\)/.test(haSrc));
 }
 
