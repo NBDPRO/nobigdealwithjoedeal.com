@@ -282,11 +282,7 @@
 
     const presets = buildPresets();
     overlay.innerHTML = `
-      <div style="
-        background:var(--s); color:var(--t);
-        border:1px solid var(--br); border-radius:12px;
-        padding:22px; max-width:380px; width:100%;
-        box-shadow:0 12px 40px rgba(0,0,0,0.5);">
+      <div class="lsm-bgs-ct-bd1pxsolid">
         <div class="lsx-dflex-aicenter-gap10px">
           <span class="lsx-fs24px" aria-hidden="true">💤</span>
           <h2 id="nbd-snooze-title" class="lsx-fs17px-m0">Snooze lead</h2>
@@ -301,12 +297,7 @@
           </label>
           <div id="nbd-snooze-reasons" class="lsx-dflex-flewrap-gap5px">
             ${SNOOZE_REASONS.map((r) => `
-              <button data-reason="${escapeHtml(r)}" type="button" style="
-                background:var(--s2); color:var(--m);
-                border:1px solid var(--br); border-radius:14px;
-                padding:4px 11px; font: inherit; font-size:11px; font-weight:600;
-                cursor:pointer; -webkit-tap-highlight-color:transparent;
-                transition:background var(--t-fast,.12s), color var(--t-fast,.12s), border-color var(--t-fast,.12s);">
+              <button data-reason="${escapeHtml(r)}" type="button" class="lsm-bgs2-cm-bd1pxsolid">
                 ${escapeHtml(r)}
               </button>
             `).join('')}
@@ -358,24 +349,12 @@
             Or pick a date
           </label>
           <div class="lsx-dflex-gap8px">
-            <input type="date" id="nbd-snooze-custom" style="
-              flex:1; background:var(--s2); color:var(--t);
-              border:1px solid var(--br); border-radius:6px;
-              padding:8px 10px; font: inherit; font-size:13px;
-              ">
-            <button id="nbd-snooze-custom-go" type="button" style="
-              background:var(--orange);
-              color:var(--accent-fg,#fff); border:none; padding:8px 16px; border-radius:6px;
-              font: inherit; font-size:12px; font-weight:700;
-              cursor:pointer; -webkit-tap-highlight-color:transparent;">Go</button>
+            <input type="date" id="nbd-snooze-custom" class="lsm-fx1-bgs2-ct">
+            <button id="nbd-snooze-custom-go" type="button" class="lsm-bgorange-caccentfg-bdnone">Go</button>
           </div>
         </div>
         <div class="lsx-dflex-jcflexend">
-          <button id="nbd-snooze-cancel" type="button" style="
-            background:transparent; color:var(--m);
-            border:1px solid var(--br); padding:8px 16px;
-            border-radius:7px; font: inherit; font-size:12px; font-weight:600;
-            cursor:pointer; -webkit-tap-highlight-color:transparent;">Cancel</button>
+          <button id="nbd-snooze-cancel" type="button" class="lsm-bgtranspar-cm-bd1pxsolid">Cancel</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -525,11 +504,7 @@
 
     const presets = buildPresets();
     overlay.innerHTML = `
-      <div style="
-        background:var(--s); color:var(--t);
-        border:1px solid var(--br); border-radius:12px;
-        padding:22px; max-width:380px; width:100%;
-        box-shadow:0 12px 40px rgba(0,0,0,0.5);">
+      <div class="lsm-bgs-ct-bd1pxsolid">
         <div class="lsx-dflex-aicenter-gap10px">
           <span class="lsx-fs24px" aria-hidden="true">💤</span>
           <h2 id="nbd-bulk-snooze-title" class="lsx-fs17px-m0">Snooze ${leadIds.length} lead${leadIds.length === 1 ? '' : 's'}</h2>
@@ -545,12 +520,7 @@
           </label>
           <div id="nbd-bulk-snooze-reasons" class="lsx-dflex-flewrap-gap5px">
             ${SNOOZE_REASONS.map((r) => `
-              <button data-reason="${escapeHtml(r)}" type="button" style="
-                background:var(--s2); color:var(--m);
-                border:1px solid var(--br); border-radius:14px;
-                padding:4px 11px; font: inherit; font-size:11px; font-weight:600;
-                cursor:pointer; -webkit-tap-highlight-color:transparent;
-                transition:background var(--t-fast,.12s), color var(--t-fast,.12s), border-color var(--t-fast,.12s);">
+              <button data-reason="${escapeHtml(r)}" type="button" class="lsm-bgs2-cm-bd1pxsolid">
                 ${escapeHtml(r)}
               </button>
             `).join('')}
@@ -602,24 +572,12 @@
             Or pick a date
           </label>
           <div class="lsx-dflex-gap8px">
-            <input type="date" id="nbd-bulk-snooze-custom" style="
-              flex:1; background:var(--s2); color:var(--t);
-              border:1px solid var(--br); border-radius:6px;
-              padding:8px 10px; font: inherit; font-size:13px;
-              ">
-            <button id="nbd-bulk-snooze-custom-go" type="button" style="
-              background:var(--orange);
-              color:var(--accent-fg,#fff); border:none; padding:8px 16px; border-radius:6px;
-              font: inherit; font-size:12px; font-weight:700;
-              cursor:pointer; -webkit-tap-highlight-color:transparent;">Go</button>
+            <input type="date" id="nbd-bulk-snooze-custom" class="lsm-fx1-bgs2-ct">
+            <button id="nbd-bulk-snooze-custom-go" type="button" class="lsm-bgorange-caccentfg-bdnone">Go</button>
           </div>
         </div>
         <div class="lsx-dflex-jcflexend">
-          <button id="nbd-bulk-snooze-cancel" type="button" style="
-            background:transparent; color:var(--m);
-            border:1px solid var(--br); padding:8px 16px;
-            border-radius:7px; font: inherit; font-size:12px; font-weight:600;
-            cursor:pointer; -webkit-tap-highlight-color:transparent;">Cancel</button>
+          <button id="nbd-bulk-snooze-cancel" type="button" class="lsm-bgtranspar-cm-bd1pxsolid">Cancel</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);

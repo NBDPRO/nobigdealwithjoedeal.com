@@ -54,12 +54,29 @@ ok('handled, personal and >30-day calls never show', !items.some((i) => ['h', 'i
 ok('a no-customer call older than 14 days never shows (backlog)', !items.some((i) => i.callId === 'k'));
 ok('only Jo\'s own promises are listed', items.find((i) => i.callId === 'a').promises.join() === 'Send the quote');
 ok('a bare number reads as a phone number', items.find((i) => i.callId === 'e').who === '(513) 555-0100');
-ok('capped', L.collectSweepItems({ calls: Array.from({ length: 50 }, (_, k) => call('n' + k, { leadId: null, promises: [{ who: 'jo', text: 't' }] })), tasksByCallId: new Map(), nowMs: NOW, todayYmd: TODAY }).length === L.SWEEP_MAX_ITEMS);
+// 2026-10-03: the list is UNCAPPED (it used to stop at 30 — on 10-03 there
+// were 57 open and 27 never appeared). The email shows SWEEP_EMAIL_SHOW and
+// says how many more; the deck gets all of them.
+const fifty = L.collectSweepItems({ calls: Array.from({ length: 50 }, (_, k) => call('n' + k, { leadId: null, promises: [{ who: 'jo', text: 't' }] })), tasksByCallId: new Map(), nowMs: NOW, todayYmd: TODAY });
+ok('uncapped: all 50 open items come back', fifty.length === 50, String(fifty.length));
+const fiftyMail = L.buildSweepEmail({ items: fifty, todayYmd: TODAY, slot: 'am' });
+ok('the email subject counts every item, not just the ones shown', /Calls: 50 things/.test(fiftyMail.subject));
+ok('the email shows the first SWEEP_EMAIL_SHOW and says how many more',
+  (fiftyMail.html.match(/Do it →/g) || []).length === L.SWEEP_EMAIL_SHOW && /\+ 35 more/.test(fiftyMail.html) && /\+ 35 more/.test(fiftyMail.text));
+ok('items carry what the deck needs (phone digits, whether a task exists)',
+  items.find((i) => i.callId === 'e').phoneDigits === '5135550100' && items.find((i) => i.callId === 'a').hasTask === true && items.find((i) => i.callId === 'd').hasTask === false);
+const snoozed = L.collectSweepItems({ calls: [call('s1', { leadId: null, promises: [{ who: 'jo', text: 'x' }], snoozeUntilYmd: '2026-10-07' }), call('s2', { leadId: null, promises: [{ who: 'jo', text: 'y' }], snoozeUntilYmd: TODAY })], tasksByCallId: new Map(), nowMs: NOW, todayYmd: TODAY });
+ok('a call snoozed past today stays off; on its snooze day it comes back', snoozed.map((i) => i.callId).join() === 's2', snoozed.map((i) => i.callId).join());
+ok('addDaysYmd: calendar days, across a month end', L.addDaysYmd('2026-10-05', 1) === '2026-10-06' && L.addDaysYmd('2026-10-30', 3) === '2026-11-02' && L.addDaysYmd('2026-12-31', 7) === '2027-01-07');
 
 console.log('\n2. buildSweepEmail');
 const mail = L.buildSweepEmail({ items, todayYmd: TODAY, slot: 'am' });
 ok('subject counts and flags urgent', mail.subject === '🚨 Calls: 4 things you said you\'d do');
-ok('links go to the customer, or the Call Center for no-file calls', /customer\.html\?id=L4/.test(mail.html) && /dashboard\.html#calls/.test(mail.html));
+ok('names link to the customer, or to the deck for no-file calls', /customer\.html\?id=L4/.test(mail.html) && /dashboard\.html\?open=promises#calls/.test(mail.html));
+ok('a "work through all" button opens the deck', mail.html.includes('Work through all 4, one at a time') && mail.html.includes('href="' + L.DECK_URL + '"'));
+ok('each item has a Do it → link straight to that item in the deck', /dashboard\.html\?open=promises&amp;item=a#calls/.test(mail.html) && /open=promises&item=g#calls/.test(mail.text));
+ok('the breakdown says what kinds are open', /1 urgent · 1 due · 2 no customer on file/.test(mail.html));
+ok('no "+ more" line when everything fits', !/more — open the list/.test(mail.html));
 const evil = L.buildSweepEmail({ items: [{ kind: 'nofile', who: '<img src=x onerror=alert(1)>', promises: ['"><script>x</script>'], summary: '<b>', due: TODAY, callId: 'z', leadId: null }], todayYmd: TODAY, slot: 'pm' });
 ok('every value escaped (contact names and AI text are untrusted)', !/<img|<script|<b>/.test(evil.html) && /&lt;img/.test(evil.html));
 ok('afternoon subject says so', /afternoon check/.test(evil.subject));

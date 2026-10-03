@@ -931,6 +931,16 @@
   ],
   "fieldOverrides": [
     {
+      "_comment": "Optional game card (2026-10-03): getGameCard reads collectionGroup('tasks').where('userId','==') (equality-only) to count follow-ups done across every customer. Single-field COLLECTION_GROUP index on userId; COLLECTION asc/desc kept so default single-parent indexing is preserved. Without it the card degrades (partial: tasks) instead of failing.",
+      "collectionGroup": "tasks",
+      "fieldPath": "userId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "_comment": "Offline SMS outbox (2026-09-18): sendSMS idempotency claims (sms_client_ids/{uid}_{clientMsgId}) carry expireAt = claim time + 8 days (sms-outbox-guard.js CLAIM_TTL_MS, one day past the 7-day queuedAt bound, so no replay can outlive its claim). TTL deletes them so the rep uid + homeowner phone key are not kept forever. indexes: [] = no single-field index on the TTL timestamp (nothing queries it; avoids a hot-spot index on a monotonically increasing field).",
       "collectionGroup": "sms_client_ids",
       "fieldPath": "expireAt",

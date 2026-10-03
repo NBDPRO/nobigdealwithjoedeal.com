@@ -378,9 +378,9 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const sweepEnabled = () => process.env.CALL_CENTER_SWEEP_ENABLED === 'true';
 
-async function runSweep({ db, live, nowMs, send, slot }) {
-  const user = await db.collection('users').doc(OWNER).get();
-  const email = user.exists ? String((user.data() || {}).email || '') : '';
+// The open "you said you'd…" items, uncapped — ONE source for the email and
+// the Call Center deck (callPromisesList), so the two can't disagree.
+async function gatherSweep({ db, nowMs }) {
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   const calls = [];
   const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'noted')
@@ -398,6 +398,13 @@ async function runSweep({ db, live, nowMs, send, slot }) {
   }
   const items = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
   const counts = { items: items.length, urgent: items.filter((i) => i.kind === 'urgent').length, due: items.filter((i) => i.kind === 'due').length, nofile: items.filter((i) => i.kind === 'nofile').length };
+  return { today, items, counts };
+}
+
+async function runSweep({ db, live, nowMs, send, slot }) {
+  const user = await db.collection('users').doc(OWNER).get();
+  const email = user.exists ? String((user.data() || {}).email || '') : '';
+  const { today, items, counts } = await gatherSweep({ db, nowMs });
   if (!items.length) return Object.assign({ state: 'nothing' }, counts);
   if (!live) return Object.assign({ state: 'dry_run' }, counts);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Object.assign({ state: 'no_email' }, counts);
@@ -470,6 +477,41 @@ async function callAction({ db, auth, data, nowMs }) {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
     return { ok: true };
   }
+  // The "Said you'd do" deck (2026-10-03). Done ticks the call's follow-up
+  // task exactly as the customer page does (done + completedAt); Snooze
+  // moves that task's due date, or — for a call with no customer/task —
+  // parks the call itself (snoozeUntilYmd, read by collectSweepItems).
+  // Each has an undo. Applies to calls and texts alike.
+  if (action === 'taskDone' || action === 'taskUndone' || action === 'snooze' || action === 'unsnooze') {
+    const taskRef = call.leadId ? db.doc('leads/' + call.leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id) : null;
+    const tSnap = taskRef ? await taskRef.get() : null;
+    const task = tSnap && tSnap.exists ? tSnap.data() : null;
+    const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    if (action === 'taskDone' || action === 'taskUndone') {
+      if (!task) throw new HttpsError('failed-precondition', 'This call has no follow-up task — mark it handled instead.');
+      const done = action === 'taskDone';
+      await taskRef.set({ done, completedAt: done ? FieldValue.serverTimestamp() : null, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return { ok: true, done };
+    }
+    if (action === 'snooze') {
+      const days = Math.round(Number(data && data.days));
+      if (!(days >= 1 && days <= 30)) throw new HttpsError('invalid-argument', 'Snooze 1–30 days.');
+      const until = L.addDaysYmd(today, days);
+      if (task) {
+        await taskRef.set({ dueDate: until, snoozedFromDue: task.snoozedFromDue || task.dueDate || today, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        return { ok: true, until, on: 'task' };
+      }
+      await ref.set({ snoozeUntilYmd: until, snoozedBy: auth.uid }, { merge: true });
+      return { ok: true, until, on: 'call' };
+    }
+    // unsnooze
+    if (task && task.snoozedFromDue) {
+      await taskRef.set({ dueDate: task.snoozedFromDue, snoozedFromDue: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return { ok: true, on: 'task' };
+    }
+    await ref.set({ snoozeUntilYmd: null }, { merge: true });
+    return { ok: true, on: 'call' };
+  }
   // Texts are matched to customers by the text ingest itself; only Handled applies.
   if (isText) throw new HttpsError('invalid-argument', 'Only Handled applies to texts.');
   if (action === 'attach') {
@@ -516,12 +558,30 @@ exports.callCenterAction = onCall(
   (request) => callAction({ db: getFirestore(), auth: request.auth, data: request.data, nowMs: Date.now() })
 );
 
+// callPromisesList — the Call Center "Said you'd do" deck's list: every open
+// item the sweep email is built from (uncapped). Owner (or platform admin)
+// only: the sweep is the owner's own calls.
+async function promisesList({ db, auth, nowMs }) {
+  if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const role = String((auth.token || {}).role || '');
+  if (!(auth.uid === OWNER || role === 'admin')) throw new HttpsError('permission-denied', 'This list is the owner\'s calls.');
+  const { today, items, counts } = await gatherSweep({ db, nowMs });
+  return { today, items, counts };
+}
+
+exports.callPromisesList = onCall(
+  { region: 'us-central1', enforceAppCheck: true, memory: '512MiB', timeoutSeconds: 60, maxInstances: 5 },
+  (request) => promisesList({ db: getFirestore(), auth: request.auth, nowMs: Date.now() })
+);
+
 exports.claudeNotes = claudeNotes;
 
 exports._test = {
   runIngest,
   runTranscribe,
   runSweep,
+  gatherSweep,
+  promisesList,
   callAction,
   setActionDeps(x) { deps_ = x || {}; },
   setClient(c) { _testClient = c; },
