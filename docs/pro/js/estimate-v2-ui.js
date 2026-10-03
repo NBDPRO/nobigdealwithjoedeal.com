@@ -2835,7 +2835,7 @@
     if (!photos.length) {
       grid.innerHTML = '';
       if (hint) hint.textContent = state._leadPhotos
-        ? 'No photos on this customer yet — capture some from their customer page.'
+        ? 'No photos on this customer yet. Add some in Step mode (📷 Add photos) or from their customer page.'
         : 'Loading customer photos…';
       return;
     }
@@ -5227,6 +5227,14 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
     // Per-tier totals for the V3 Package cards — the same numbers the
     // homeowner presentation compares (an absent tier reads null).
     tierTotals: () => triTierTotals(effectiveEstimate()),
+    // V3 Photos step: photos taken from inside the estimate (PhotoEngine
+    // upload to the linked customer) refresh the pick grid and ride the
+    // estimate — a photo shot here is one the rep wants on the quote.
+    reloadLeadPhotos: () => loadLeadPhotos(true),
+    includePhoto: (photoId) => {
+      const on = (state.photos || []).some((p) => p.id === photoId);
+      if (!on) togglePhoto(photoId);
+    },
     // Test seam — pure builders + reopen helpers, exercised by
     // tests/estimate-v2-payload.test.js.
     _test: {
