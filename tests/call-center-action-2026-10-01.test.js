@@ -113,6 +113,47 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('back in the queue, marked not-personal', pd.status === 'stored' && pd.storagePath === saved[0][0] && pd.notPersonal === true && pd.audioRemoved === null && pd.transcribeAttempts === 0);
   M._test.setActionDeps({});
 
+  console.log('\n6. The "Said you\'d do" deck: taskDone / snooze (2026-10-03)');
+  db = fakeDb(seed());
+  // cube_AAAAA1 filed on L1 with an open follow-up task (due 10-03).
+  db.docs.set(COLLECTION + '/cube_AAAAA1', Object.assign({}, db.docs.get(COLLECTION + '/cube_AAAAA1'), { leadId: 'L1' }));
+  db.docs.set('leads/L1/tasks/cube-cube_AAAAA1', { title: 'Send photos', done: false, dueDate: '2026-10-03' });
+  const done = await run(db, owner, { id: 'cube_AAAAA1', action: 'taskDone' });
+  const tk = db.docs.get('leads/L1/tasks/cube-cube_AAAAA1');
+  ok('taskDone ticks the follow-up task the way the customer page does', done.r && done.r.done === true && tk.done === true && !!tk.completedAt);
+  await run(db, owner, { id: 'cube_AAAAA1', action: 'taskUndone' });
+  ok('taskUndone un-ticks it (the deck\'s Undo)', db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').done === false && db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').completedAt === null);
+  ok('taskDone on a call with no task says to mark it handled', (await run(db, owner, { id: 'cube_BBBBB2', action: 'taskDone' })).e.code === 'failed-precondition');
+  const sz = await run(db, owner, { id: 'cube_AAAAA1', action: 'snooze', days: 3 });
+  const st = db.docs.get('leads/L1/tasks/cube-cube_AAAAA1');
+  ok('snooze moves the task\'s due date N days from today and remembers the old one', sz.r.on === 'task' && st.dueDate === '2026-10-04' && st.snoozedFromDue === '2026-10-03', JSON.stringify(st));
+  await run(db, owner, { id: 'cube_AAAAA1', action: 'snooze', days: 7 });
+  ok('snoozing again keeps the ORIGINAL due date for undo', db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').snoozedFromDue === '2026-10-03' && db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').dueDate === '2026-10-08');
+  await run(db, owner, { id: 'cube_AAAAA1', action: 'unsnooze' });
+  ok('unsnooze puts the original due date back', db.docs.get('leads/L1/tasks/cube-cube_AAAAA1').dueDate === '2026-10-03');
+  db.docs.set(COLLECTION + '/cube_NOFIL5', { userId: OWN, companyId: 'co1', phoneDigits: '5135550155', status: 'noted', startedAtMs: NOW, promises: [{ who: 'jo', text: 'Email photos' }] });
+  const nz = await run(db, owner, { id: 'cube_NOFIL5', action: 'snooze', days: 1 });
+  ok('a call with no customer is snoozed on the call itself', nz.r.on === 'call' && db.docs.get(COLLECTION + '/cube_NOFIL5').snoozeUntilYmd === '2026-10-02');
+  await run(db, owner, { id: 'cube_NOFIL5', action: 'unsnooze' });
+  ok('…and unsnooze clears it', db.docs.get(COLLECTION + '/cube_NOFIL5').snoozeUntilYmd === null);
+  ok('snooze days are bounded (1–30)', (await run(db, owner, { id: 'cube_NOFIL5', action: 'snooze', days: 0 })).e.code === 'invalid-argument'
+    && (await run(db, owner, { id: 'cube_NOFIL5', action: 'snooze', days: 99 })).e.code === 'invalid-argument');
+  ok('a viewer cannot snooze or tick', (await run(db, { uid: 'v', token: { role: 'viewer', companyId: 'co1' } }, { id: 'cube_NOFIL5', action: 'snooze', days: 1 })).e.code === 'permission-denied');
+  db.docs.set('phone_text_days/txt_5135550100_20261001', { userId: OWN, companyId: 'co1', status: 'noted', leadId: 'L1', startedAtMs: NOW, promises: [{ who: 'jo', text: 'Send the quote' }] });
+  db.docs.set('leads/L1/tasks/sms-txt_5135550100_20261001', { done: false, dueDate: '2026-10-01' });
+  await run(db, owner, { id: 'txt_5135550100_20261001', action: 'taskDone' });
+  ok('a texted promise\'s task (sms-…) ticks too', db.docs.get('leads/L1/tasks/sms-txt_5135550100_20261001').done === true);
+
+  console.log('\n7. callPromisesList — who may read the deck');
+  const { promisesList, OWNER: REAL_OWNER } = M._test;
+  const lr = async (auth) => { try { return { r: await promisesList({ db: { collection: () => ({ where: function () { return this; }, orderBy: function () { return this; }, limit: function () { return this; }, get: async () => ({ forEach: () => {} }) }), getAll: async () => [] }, auth, nowMs: NOW }) }; } catch (e) { return { e }; } };
+  ok('signed out → unauthenticated', (await lr(null)).e.code === 'unauthenticated');
+  ok('a viewer, a manager or a rep is refused (the owner\'s calls)', (await lr({ uid: 'v', token: { role: 'viewer' } })).e.code === 'permission-denied'
+    && (await lr({ uid: 'm', token: { role: 'manager', companyId: 'co1' } })).e.code === 'permission-denied');
+  const lo = await lr({ uid: REAL_OWNER, token: {} });
+  ok('the owner gets the list (empty here) with counts', lo.r && Array.isArray(lo.r.items) && lo.r.counts.items === 0);
+  ok('a platform admin gets it too', !!(await lr({ uid: 'adm', token: { role: 'admin' } })).r);
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);

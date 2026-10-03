@@ -268,6 +268,7 @@
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
       (counts.attention && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + counts.attention + ')</button>' : '') +
+      (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + promises.items.length + ')</button>' : '') +
       '</div>' +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist">' + FILTERS.map(function (f) {
@@ -432,6 +433,157 @@
     });
   }
 
+  // ── "Said you'd do" (2026-10-03) ─────────────────────────────────────
+  // The twice-daily email's list, worked one at a time. Same server logic as
+  // the email (callPromisesList → gatherSweep), uncapped. Right = Done (ticks
+  // the call's follow-up task, or marks a call with no customer handled);
+  // Left = Later; ⋯ = snooze 1 / 3 / 7 days, call or text them, open the
+  // customer, mark the whole call handled. A call with no customer gets a
+  // "file on a customer" picker on its card. Every action has an Undo.
+  // The email links here: dashboard.html?open=promises[&item=<callId>]#calls.
+  var promises = { items: [], counts: null, loaded: false, denied: false, loading: false };
+
+  async function loadPromises() {
+    if (promises.loading || promises.denied || isViewer()) return;
+    promises.loading = true;
+    try {
+      var r = await callable('callPromisesList', {});
+      promises.items = (r && r.items) || [];
+      promises.counts = (r && r.counts) || null;
+      promises.loaded = true;
+    } catch (e) {
+      if (e && /permission-denied/.test(e.code || e.message || '')) promises.denied = true;
+    }
+    promises.loading = false;
+    render();
+  }
+
+  function promiseCard(p) {
+    var L = leadsById();
+    var lead = p.leadId ? L[p.leadId] : null;
+    var label = p.kind === 'urgent' ? 'Urgent' : p.kind === 'due' ? 'Due ' + p.due : 'No customer on file' + (p.due ? ' · ' + p.due : '');
+    var when = p.startedAtMs ? new Date(p.startedAtMs).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    var leads = (window._leads || []).filter(function (l) { return l && l.id && !l.deleted; });
+    return '<div class="deck-sub' + (p.kind === 'urgent' ? ' deck-urgent' : '') + '">' + esc(label) + '</div>' +
+      '<div class="deck-name">' + esc(lead ? leadName(lead) : p.who) + '</div>' +
+      '<div class="deck-sub">' + esc((p.channel === 'text' ? 'Texts · ' : 'Call · ') + when) + '</div>' +
+      (p.promises && p.promises.length ? '<div class="deck-big">You said: ' + p.promises.map(esc).join(' · ') + '</div>' : '') +
+      (p.summary ? '<div class="deck-why">' + esc(p.summary) + '</div>' : '') +
+      (!p.leadId && p.channel !== 'text' && !isViewer() ? '<div class="cc-attach-row cc-deck-attach">' +
+        '<input class="cc-search" id="ccpAttach-' + esc(p.callId) + '" list="ccpAttachList" autocomplete="off" placeholder="File on a customer…" aria-label="File this call on a customer">' +
+        '<button type="button" class="btn btn-ghost pc-play" data-ccp="attach" data-id="' + esc(p.callId) + '">File</button></div>' +
+        '<div class="deck-sub" data-ccp-status="' + esc(p.callId) + '"></div>' +
+        '<datalist id="ccpAttachList">' + leads.slice(0, 600).map(function (l) {
+          return '<option value="' + esc(leadName(l) + ' — ' + (l.address || '') + ' #' + l.id) + '"></option>';
+        }).join('') + '</datalist>' : '');
+  }
+
+  function snoozeOpt(p, days, label) {
+    return {
+      label: label,
+      act: async function () {
+        await callable('callCenterAction', { id: p.callId, action: 'snooze', days: days });
+        return { undo: async function () { await callable('callCenterAction', { id: p.callId, action: 'unsnooze' }); } };
+      },
+    };
+  }
+
+  function openPromiseDeck(startId) {
+    if (!window.NBDTriageDeck) return;
+    var items = promises.items.map(function (p) { return Object.assign({ id: p.callId }, p); });
+    if (startId) {
+      var i = items.findIndex(function (p) { return p.id === startId; });
+      if (i > 0) items.unshift(items.splice(i, 1)[0]);
+    }
+    window.NBDTriageDeck.open({
+      id: 'calls-promises',
+      title: 'Said you\'d do',
+      items: items,
+      card: promiseCard,
+      right: function (p) {
+        if (isViewer()) return null;
+        var on = p.hasTask ? ['taskDone', 'taskUndone'] : ['handled', 'unhandled'];
+        return {
+          label: p.hasTask ? '✓ Done' : '✓ Handled',
+          act: async function () {
+            await callable('callCenterAction', { id: p.callId, action: on[0] });
+            return { undo: async function () { await callable('callCenterAction', { id: p.callId, action: on[1] }); } };
+          },
+        };
+      },
+      left: { label: 'Later' },
+      more: function (p) {
+        var out = [];
+        if (!isViewer()) out.push(snoozeOpt(p, 1, '💤 Tomorrow'), snoozeOpt(p, 3, '💤 In 3 days'), snoozeOpt(p, 7, '💤 Next week'));
+        if (p.phoneDigits) {
+          var tel = '+1' + String(p.phoneDigits).replace(/\D/g, '').slice(-10);
+          out.push({ label: '📞 Call', href: 'tel:' + tel }, { label: '💬 Text', href: 'sms:' + tel });
+        }
+        if (p.leadId) out.push({ label: 'Open customer ↗', href: '/pro/customer.html?id=' + encodeURIComponent(p.leadId) });
+        if (p.hasTask && !isViewer()) {
+          out.push({
+            label: 'Mark the whole call handled',
+            act: async function () {
+              await callable('callCenterAction', { id: p.callId, action: 'handled' });
+              return { undo: async function () { await callable('callCenterAction', { id: p.callId, action: 'unhandled' }); } };
+            },
+          });
+        }
+        return out;
+      },
+      doneText: 'That\'s everything you said you\'d do. Nice.',
+      onClose: function () { promises.loaded = false; loadPromises(); load(); },
+    });
+  }
+
+  // "File on a customer" on a deck card (the deck overlay sits outside #view-calls).
+  document.addEventListener('click', async function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-ccp="attach"]') : null;
+    if (!b) return;
+    var id = b.getAttribute('data-id');
+    var input = document.getElementById('ccpAttach-' + id);
+    var m = /#([A-Za-z0-9_-]{5,})\s*$/.exec((input && input.value) || '');
+    var out = document.querySelector('[data-ccp-status="' + CSS.escape(id) + '"]');
+    if (!m) { if (out) out.textContent = 'Pick a customer from the list.'; return; }
+    b.disabled = true;
+    try {
+      await callable('callCenterAction', { id: id, action: 'attach', leadId: m[1] });
+      var p = promises.items.filter(function (x) { return x.callId === id; })[0];
+      if (p) { p.leadId = m[1]; }
+      if (out) out.textContent = 'Filed on the customer. Swipe it done when it\'s done.';
+    } catch (err) {
+      if (out) out.textContent = (err && err.message) || 'Could not file it — try again.';
+    }
+    b.disabled = false;
+  });
+
+  // Deep link from the email: ?open=promises[&item=<callId>].
+  function deepLink() {
+    var q;
+    try { q = new URLSearchParams(window.location.search); } catch (_) { return; }
+    if (q.get('open') !== 'promises') return;
+    var item = q.get('item') || '';
+    try {
+      q.delete('open'); q.delete('item');
+      var rest = q.toString();
+      history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : '') + window.location.hash);
+    } catch (_) {}
+    // Wait out the boot splash (#nbd-loader, z-index 99999) too, or the deck
+    // opens underneath it on a cold start from the email.
+    var splashGone = function () {
+      var l = document.getElementById('nbd-loader');
+      if (!l) return true;
+      var cs = getComputedStyle(l);
+      return cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0;
+    };
+    var tries = 0;
+    (function wait() {
+      if (promises.loaded && window.NBDTriageDeck && splashGone()) return openPromiseDeck(item);
+      if (promises.denied || ++tries > 60) return;
+      setTimeout(wait, 250);
+    })();
+  }
+
   function openAttach(id) {
     var box = document.querySelector('[data-cc-attach="' + CSS.escape(id) + '"]');
     if (!box) return;
@@ -502,6 +654,7 @@
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
     else if (a === 'deck') openDeck();
+    else if (a === 'promises') openPromiseDeck();
     else if (a === 'attachopen') openAttach(id);
     else if (a === 'attach') {
       var leadId = pickedLeadId(id);
@@ -519,8 +672,10 @@
   });
 
   window.NBDCallCenter = {
-    init: function () { load(); },
+    init: function () { load(); loadPromises(); deepLink(); },
     reload: load,
+    openPromises: openPromiseDeck,
+    _promises: promises,
     _state: state,
     _needsAttention: needsAttention,
   };

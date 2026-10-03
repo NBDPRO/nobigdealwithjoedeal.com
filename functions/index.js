@@ -727,6 +727,9 @@ exports.callWatch = require('./call-watch').callWatch;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;
+// The Call Center "Said you'd do" deck: every open item the sweep email is
+// built from, uncapped (owner / platform admin only).
+exports.callPromisesList = require('./call-center').callPromisesList;
 // Text Inbox (Call Center stage 4): Jo's texts from the SMS Backup & Restore
 // Drive backup → phone_texts (lead matched by phone, short codes never
 // stored). DRY-RUN (counts) unless TEXT_INBOX_ENABLED=true.

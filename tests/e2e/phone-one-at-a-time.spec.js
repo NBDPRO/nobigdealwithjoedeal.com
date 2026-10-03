@@ -312,4 +312,73 @@ test.describe('phone: one at a time @shard2', () => {
     await page.locator('#nbdTriageDeck .deck-close').tap();
     for (const k of Object.keys(calls)) await adb().doc('phone_calls/zzone' + s + k).delete().catch(() => {});
   });
+
+  // Jo, 2026-10-03: the "Calls: 30 things you said you'd do" email gets a link
+  // to a real page where each item is worked one at a time. The list comes
+  // from callPromisesList (the email's own logic, uncapped) — answered here
+  // in the browser, so nothing reads or writes production.
+  test('Said you\'d do: the email link opens the deck on that item; Done ticks the task or marks it handled; snooze + Undo', async ({ page }) => {
+    test.setTimeout(150_000);
+    const actions = [];
+    const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); localStorage.setItem('nbd_push_optin_snoozed_until', String(Date.now() + 3600_000)); } catch (_) {} });
+    const leadId = 'zzSaidLead1';
+    const items = () => [
+      { callId: 'cube_ZZDUE1', kind: 'due', due: '2026-09-23', leadId, who: 'ZZ Mark', channel: 'call', startedAtMs: Date.now() - 864e5, summary: 'Scheduled the board job.', promises: ['Send the confirmation email'], phoneDigits: '5135550181', hasTask: true },
+      { callId: 'cube_ZZNOF2', kind: 'nofile', due: '2026-09-25', leadId: null, who: '(513) 555-0182', channel: 'call', startedAtMs: Date.now() - 2 * 864e5, summary: 'Confirmed the 2:30 visit.', promises: ['Be at the house at 2:30 PM'], phoneDigits: '5135550182', hasTask: false },
+      { callId: 'cube_ZZNOF3', kind: 'nofile', due: '2026-09-30', leadId: null, who: '(513) 555-0183', channel: 'call', startedAtMs: Date.now() - 3 * 864e5, summary: 'Wants a price list.', promises: ['Come out and price everything'], phoneDigits: '5135550183', hasTask: false },
+    ];
+    await page.route(/callPromisesList/, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+      await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { today: '2026-10-03', items: items(), counts: { items: 3, urgent: 0, due: 1, nofile: 2 } } }) });
+    });
+    await page.route(/callCenterAction/, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}').data || {}; } catch (_) {}
+      actions.push(body);
+      await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { ok: true } }) });
+    });
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => !!window._user, null, { timeout: 60_000 });
+    // Exactly what the email's "Do it →" link opens.
+    await page.goto('/pro/dashboard.html?open=promises&item=cube_ZZNOF2#calls');
+    await safeWaitForFunction(page, () => !!(window._user && window.NBDTriageDeck), null, { timeout: 30_000 });
+    expect(await forceStandalone(page)).toBeGreaterThan(200);
+    await expect(deck(page)).toBeVisible({ timeout: 30_000 });
+    await expect(card(page), 'the deck starts on the item the email linked').toHaveAttribute('data-id', 'cube_ZZNOF2');
+    await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 5_000 }).toBe('');
+    await expect(card(page)).toContainText('No customer on file');
+    await expect(card(page)).toContainText('You said: Be at the house at 2:30 PM');
+    await expect(card(page).locator('.deck-name')).toHaveText('(513) 555-0182');
+    // No customer, no task → the main action marks the call handled.
+    const right = page.locator('#nbdTriageDeck .deck-right');
+    await expect(right).toHaveText(/Handled/);
+    expect(await reachable(right), 'Handled is tappable at 390').toBe(true);
+    await right.tap();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF2' && x.action === 'handled'), { timeout: 10_000 }).toBe(true);
+    await page.locator('#nbdTriageDeck .deck-undo').tap();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF2' && x.action === 'unhandled'), { timeout: 10_000 }).toBe(true);
+    await expect(card(page)).toHaveAttribute('data-id', 'cube_ZZNOF2');
+    // Later → the next one is the due task: Done ticks the TASK.
+    await page.locator('#nbdTriageDeck .deck-left').tap();
+    await expect(card(page)).toHaveAttribute('data-id', 'cube_ZZDUE1');
+    await expect(right).toHaveText(/Done/);
+    await right.tap();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZDUE1' && x.action === 'taskDone'), { timeout: 10_000 }).toBe(true);
+    // ⋯ on the next: call / text links, and Snooze → Undo.
+    await expect(card(page)).toHaveAttribute('data-id', 'cube_ZZNOF3');
+    await page.locator('#nbdTriageDeck .deck-dots').tap();
+    const more = page.locator('#nbdTriageDeck .deck-more');
+    await expect(more).toBeVisible();
+    await expect(more).toContainText('📞 Call');
+    await expect(more).toContainText('💬 Text');
+    await more.getByText('💤 Tomorrow').tap();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF3' && x.action === 'snooze' && x.days === 1), { timeout: 10_000 }).toBe(true);
+    await page.locator('#nbdTriageDeck .deck-undo').tap();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF3' && x.action === 'unsnooze'), { timeout: 10_000 }).toBe(true);
+    await page.locator('#nbdTriageDeck .deck-close').tap();
+    // The Call Center header offers the deck with the count.
+    await expect(page.locator('#view-calls [data-cc="promises"]')).toContainText("Said you'd do (3)", { timeout: 10_000 });
+  });
 });
