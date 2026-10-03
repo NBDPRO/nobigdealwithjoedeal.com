@@ -1,0 +1,58 @@
+/* Customer page panels (js/customer-tasks-ui.js) — photo grid + badges,
+   prerequisite check, document create grid, referral / photo sheets. Layout
+   moved out of inline style attributes so a theme can restyle the customer
+   page (reskin, 2026-10-02). Values are the old inline ones exactly;
+   computed / per-item values stay inline. Generated from the conversion map;
+   a raised selector out-ranks a component rule the way the inline style did. */
+.ct-close { background: none; border: none; color: var(--m); font-size: 22px; cursor: pointer; min-width: 40px; min-height: 40px; margin: -8px -10px -8px 0; display: flex; align-items: center; justify-content: center; }
+.ct-close-lg { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--m); }
+.ct-dialog { background: var(--s2); border: 1px solid var(--br); border-radius: 14px; padding: 32px; max-width: 460px; width: 90%; text-align: center; }
+.ct-c-blue { color: #3b82f6; }
+.ct-c-purple { color: #a855f7; }
+.ct-c-green { color: var(--green); }
+.ct-c-orange { color: var(--orange); }
+.ct-label { display: block; font-weight: 600; margin-bottom: 6px; }
+.ct-row10 { display: flex; align-items: center; gap: 10px; }
+.ct-preq-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--orange); padding: 4px 0; }
+.ct-actions-center { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ct-row4 { display: flex; gap: 4px; }
+.ct-row8 { display: flex; gap: 8px; }
+.ct-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.ct-photo-grid.ct-photo-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); gap: 10px; }
+.ct-preq-fix.ct-preq-fix { flex: none; padding: 5px 12px; background: rgba(255,255,255,.08); color: var(--t); border: 1px solid var(--br); border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; }
+.ct-dialog-title { font-family: 'Barlow Condensed',sans-serif; font-size: 20px; font-weight: 700; color: var(--t); margin-bottom: 8px; }
+.ct-hint-inline { font-size: 10px; color: var(--m); margin-left: 6px; }
+.ct-hint { font-size: 10px; color: var(--m,#9aa3b2); margin-bottom: 8px; }
+.ct-sub { font-size: 11px; color: var(--m); margin-top: 3px; line-height: 1.35; }
+.ct-label-sm { font-size: 11px; font-weight: 600; color: var(--m); display: block; margin-bottom: 4px; }
+.ct-muted { font-size: 12px; color: var(--m); }
+.ct-dialog-sub { font-size: 13px; color: var(--m); margin-bottom: 16px; }
+.ct-title-sm { font-size: 13px; font-weight: 700; color: var(--t); line-height: 1.25; }
+.ct-title { font-size: 16px; font-weight: 700; }
+.ct-icon { font-size: 22px; margin-bottom: 6px; }
+.ct-icon-lg { font-size: 32px; margin-bottom: 12px; }
+.ct-strong { font-weight: 700; color: var(--t); }
+.ct-mb14 { margin-bottom: 14px; }
+.ct-mb15 { margin-bottom: 15px; }
+.ct-mb20.ct-mb20 { margin-bottom: 20px; }
+.ct-phase-title.ct-phase-title { margin: 0; font-size: 15px; font-weight: 700; }
+.ct-w500.ct-w500 { max-width: 500px; }
+.ct-dialog-btn.ct-dialog-btn { padding: 12px 22px; background: rgba(255,255,255,.08); color: var(--t); border: 1px solid var(--br); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ct-dialog-btn-primary.ct-dialog-btn-primary { padding: 12px 28px; background: var(--orange); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.ct-tile.ct-tile { position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; aspect-ratio: 1; border: 1px solid var(--br); }
+.ct-preq-list { text-align: left; background: var(--s); border-radius: 8px; padding: 14px; margin-bottom: 20px; }
+.ct-cover { width: 100%; height: 100%; object-fit: cover; }
+.ct-field { width: 100%; padding: 10px; background: var(--s2); color: var(--t); border: 1px solid var(--br); border-radius: 6px; }
+.ct-field-sm { width: 100%; padding: 8px; background: var(--s2,#1e293b); border: 1px solid var(--br,#334155); border-radius: 6px; color: var(--t); font-size: 13px; }
+.ct-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+.ct-btn { padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.ct-btn-danger { flex: 1; background: rgba(239,68,68,.15); color: #ef4444; border: 1px solid rgba(239,68,68,.3); }
+.ct-btn-ghost { flex: 2; background: rgba(255,255,255,.08); color: var(--t); border: 1px solid var(--br,#334155); }
+.ct-btn-primary { flex: 2; background: var(--orange); color: #fff; border: none; }
+.ct-badge.ct-badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; }
+.ct-badge-orange.ct-badge-orange { background: color-mix(in srgb, var(--orange) 20%, transparent); color: var(--orange); }
+.ct-badge-purple.ct-badge-purple { background: rgba(168,85,247,.15); color: #a855f7; }
+.ct-badge-share.ct-badge-share { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3); cursor: pointer; }
+.ct-badge-shared.ct-badge-shared { background: rgba(34,197,94,.85); color: #fff; border: 0; cursor: pointer; font-weight: 600; }
+.ct-field-ta { resize: vertical; }
+.ct-bb { box-sizing: border-box; }

@@ -30,6 +30,8 @@ const CRON_GATES = [
   { name: 'CALL_CENTER_TRANSCRIBE_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   // Call Center "you said you'd" reminder email: dry-run until Jo says go.
   { name: 'CALL_CENTER_SWEEP_ENABLED', polarity: 'enabled', file: 'call-center.js' },
+  // Every-2-hours call check (8 AM-8 PM ET): new calls needing Jo + slow updates (bell + push).
+  { name: 'CALL_WATCH_ENABLED', polarity: 'enabled', file: 'call-watch.js' },
   // Text Inbox ingest (SMS Backup & Restore → phone_texts): dry-run until Jo says go.
   { name: 'TEXT_INBOX_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   // Text notes (AI per conversation-day): dry-run until texts flow and Jo says go.

@@ -1,0 +1,67 @@
+/* Insurance supplement modal (js/supplement-ui.js) — header, reason, item
+   picker, added / modified items, carrier response + per-line decisions,
+   totals. Layout moved out of inline style attributes so a theme can
+   restyle it (reskin, 2026-10-02). Values are the old inline ones exactly;
+   the JS-toggled hidden states (decisions box, search results) stay inline.
+   Generated from the conversion map; a raised selector out-ranks a
+   component rule the way the inline style did. */
+.sx-close { background: transparent; border: none; color: #94a3b8; font-size: 22px; cursor: pointer; padding: 4px 10px; line-height: 1; }
+.sx-btn { padding: 10px 16px; background: #1a2540; color: #cbd5e1; border: 1px solid #2a3344; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.sx-btn-primary { padding: 10px 18px; background: var(--orange, #A14A22); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 700; }
+.sx-btn-sm { padding: 8px 14px; background: #1a2540; color: #cbd5e1; border: 1px solid #2a3344; border-radius: 5px; cursor: pointer; font-size: 13px; }
+.sx-remove.sx-remove { background: transparent; border: 1px solid var(--br, #2a3344); color: #fca5a5; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.sx-btn-resp.sx-btn-resp { padding: 7px 14px; background: #1a2540; color: #cbd5e1; border: 1px solid #2a3344; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.sx-panel { background: #0a1424; border: 1px solid #2a3344; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+.sx-box { background: #0d1830; border: 1px solid #2a3344; border-radius: 6px; }
+.sx-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sx-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid #2a3344; }
+.sx-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 14px; }
+.sx-wrap8 { display: flex; gap: 8px; flex-wrap: wrap; }
+.sx-grow { flex: 1; min-width: 0; font-size: 12px; }
+.sx-meta { font-size: 11px; color: #94a3b8; }
+.sx-caps { font-size: 11px; color: #94a3b8; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.sx-hint { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+.sx-fs13.sx-fs13 { font-size: 13px; }
+.sx-title { font-size: 18px; font-weight: 700; }
+.sx-total { font-size: 24px; font-weight: 800; color: #5eead4; font-variant-numeric: tabular-nums; }
+.sx-mb14 { margin-bottom: 14px; }
+.sx-mb16 { margin-bottom: 16px; }
+.sx-msg { padding: 10px; color: #94a3b8; font-size: 12px; }
+.sx-empty { text-align: center; padding: 24px 12px; color: #94a3b8; font-size: 13px; background: #0a1424; border-radius: 8px; border: 1px dashed #2a3344; margin-bottom: 14px; }
+.sx-amt.sx-amt { width: 96px; padding: 5px 7px; border-radius: 5px; border: 1px solid #2a3344; background: #13171d; color: inherit; font: inherit; font-size: 12px; flex: 0 0 auto; }
+.sx-check.sx-check { width: 15px; height: 15px; cursor: pointer; flex: 0 0 auto; }
+.sx-label { display: block; font-size: 11px; color: #94a3b8; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 5px; font-weight: 600; }
+.sx-select.sx-select { flex: 1; min-width: 180px; padding: 7px 9px; border-radius: 5px; border: 1px solid #2a3344; background: #13171d; color: inherit; font: inherit; font-size: 13px; }
+.sx-c-green { color: #22c55e; font-weight: 700; }
+.sx-muted { color: #94a3b8; font-size: 12px; }
+.sx-muted-nw { color: #94a3b8; white-space: nowrap; }
+.sx-num { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+.sx-c-gold { color: #eab308; font-weight: 700; }
+.sx-c-red { color: #ef4444; font-weight: 700; }
+.sx-code { font-family: monospace; color: var(--orange, #A14A22); font-weight: 600; }
+.sx-w700 { font-weight: 700; }
+.sx-c-light { color: #cbd5e1; }
+.sx-table { width: 100%; border-collapse: collapse; background: #0a1424; border: 1px solid #2a3344; border-radius: 6px; overflow: hidden; }
+.sx-table-sub { width: 100%; border-collapse: collapse; margin-top: 8px; background: #0d1830; border: 1px solid #2a3344; }
+.sx-tds { padding: 4px 6px; font-size: 12px; }
+.sx-ths { padding: 5px 6px; }
+.sx-thead.sx-thead { background: #13171d; }
+.sx-tr { border-top: 1px solid var(--br, #2a3344); }
+.sx-tr-caps { font-size: 10px; color: #94a3b8; letter-spacing: 0.05em; text-transform: uppercase; }
+.sx-wrap8-mt { align-items: center; margin-top: 8px; }
+.sx-caps-3 { margin-bottom: 3px; }
+.sx-caps-4 { margin-bottom: 4px; }
+.sx-caps-8 { margin-bottom: 8px; }
+.sx-meta-gap { margin: 8px 0 2px; }
+.sx-mt6 { margin-top: 6px; }
+.sx-msg-err { color: #fca5a5; }
+.sx-r { text-align: right; }
+.sx-nw { white-space: nowrap; }
+.sx-fs11.sx-fs11 { font-size: 11px; }
+.sx-tab { font-variant-numeric: tabular-nums; }
+.sx-td { padding: 8px 6px; font-size: 12px; }
+.sx-mono { font-family: monospace; }
+.sx-td-plain { padding: 8px 6px; }
+.sx-l { text-align: left; }
+.sx-w600 { font-weight: 600; }
+.sx-th { padding: 8px 6px; font-weight: 600; }
