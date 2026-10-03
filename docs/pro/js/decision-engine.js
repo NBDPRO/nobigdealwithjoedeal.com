@@ -931,40 +931,40 @@
                   font-family:'Barlow',sans-serif;box-shadow:0 30px 80px rgba(0,0,0,.5);">
         <div style="padding:18px 20px;border-bottom:1px solid var(--br,rgba(255,255,255,.1));
                     display:flex;align-items:center;gap:12px;flex-shrink:0;">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;letter-spacing:.04em;">
+          <div class="dex-ffbarlowco-fs22px-w800">
             DECISION ENGINE
           </div>
-          <div style="font-size:11px;color:var(--m,#6B7280);flex:1;">
+          <div class="dex-fs11px-cm-fx1">
             ${getAllScenarios().length} scenarios across ${CATEGORIES.length} categories
           </div>
           <button data-action="close" style="background:transparent;border:0;color:var(--m,#6B7280);
                   font-size:22px;cursor:pointer;padding:4px 10px;">×</button>
         </div>
 
-        <div style="padding:14px 20px 8px;display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;">
+        <div class="dex-p14px20px-dflex-gap8px">
           ${CATEGORIES.map(c => {
             const active = c.key === _selectedCategoryKey;
             return `<button data-cat="${_esc(c.key)}"
               style="padding:8px 14px;border-radius:8px;border:1px solid ${active ? c.color : 'var(--br,rgba(255,255,255,.1))'};
                      background:${active ? c.color + '22' : 'transparent'};color:${active ? c.color : 'var(--t,#E8EAF0)'};
                      font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.04em;">
-              ${_esc(c.icon || '')} ${_esc(c.label)} <span style="opacity:.6;">(${c.scenarios.length})</span>
+              ${_esc(c.icon || '')} ${_esc(c.label)} <span class="dex-opa6">(${c.scenarios.length})</span>
             </button>`;
           }).join('')}
         </div>
 
-        <div style="padding:0 20px 8px;flex-shrink:0;">
+        <div class="dex-p020px8px-fle0">
           <input type="search" id="nbd-decision-search" placeholder="Search scenarios…" autocomplete="off"
                  style="width:100%;padding:10px 12px;background:var(--s2,#1F232A);
                         border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;
                         color:var(--t,#E8EAF0);font-size:14px;font-family:inherit;">
         </div>
 
-        <div style="padding:12px 20px 4px;font-size:11px;color:var(--m,#6B7280);font-style:italic;flex-shrink:0;">
+        <div class="dex-p12px20px-fs11px-cm">
           ${_esc(cat.description || '')}
         </div>
 
-        <div id="nbd-decision-list" style="flex:1;overflow-y:auto;padding:8px 14px 16px;-webkit-overflow-scrolling:touch;">
+        <div id="nbd-decision-list" class="dex-fx1-oveauto-p8px14px1">
           ${_renderScenarioList(cat.scenarios)}
         </div>
       </div>
@@ -996,7 +996,7 @@
 
   function _renderScenarioList(scens) {
     if (!scens || !scens.length) {
-      return '<div style="padding:30px;text-align:center;color:var(--m,#6B7280);font-size:13px;">No scenarios match.</div>';
+      return '<div class="dex-p30px-tacenter-cm">No scenarios match.</div>';
     }
     return scens.map(s => {
       const priColor = s.priority === 'high' ? '#E05252' : s.priority === 'medium' ? '#D4A017' : '#4A9EFF';
@@ -1004,13 +1004,13 @@
         padding:12px 14px;margin-bottom:8px;border:1px solid var(--br,rgba(255,255,255,.08));
         background:var(--s2,#1F232A);border-radius:10px;cursor:pointer;font-family:inherit;
         color:var(--t,#E8EAF0);transition:border-color .15s,transform .1s;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
-          <strong style="font-size:13px;">${_esc(s.title)}</strong>
+        <div class="dex-dflex-aicenter-gap8px">
+          <strong class="dex-fs13px">${_esc(s.title)}</strong>
           ${s.priority ? `<span style="font-size:9px;padding:1px 6px;border-radius:8px;
               background:${priColor}22;color:${priColor};font-weight:700;letter-spacing:.05em;
               text-transform:uppercase;">${_esc(s.priority)}</span>` : ''}
         </div>
-        <div style="font-size:11px;color:var(--m,#6B7280);">${_esc(s.tagline || '')}</div>
+        <div class="dex-fs11px-cm">${_esc(s.tagline || '')}</div>
       </button>`;
     }).join('');
   }
@@ -1025,7 +1025,7 @@
     const s = findScenario(id);
     if (!s) return;
     const overlay = _modalShell();
-    const playbookHtml = (s.playbook || []).map(p => `<li style="margin-bottom:6px;">${_esc(p)}</li>`).join('');
+    const playbookHtml = (s.playbook || []).map(p => `<li class="dex-mb6px">${_esc(p)}</li>`).join('');
     const codesHtml = (s.codeRefs || []).map(c => `<span style="display:inline-block;padding:2px 7px;
       margin:2px 4px 2px 0;border-radius:6px;font-size:10px;background:var(--s,#181C22);
       border:1px solid var(--br,rgba(255,255,255,.1));font-family:monospace;color:var(--orange,#BD5728);">
@@ -1040,19 +1040,19 @@
                     display:flex;align-items:center;gap:10px;flex-shrink:0;">
           <button data-action="back" style="background:transparent;border:0;color:var(--m,#6B7280);
                   font-size:16px;cursor:pointer;padding:4px 8px;">←</button>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;flex:1;">
+          <div class="dex-ffbarlowco-fs18px-w800">
             ${_esc(s.title)}
           </div>
           <button data-action="close" style="background:transparent;border:0;color:var(--m,#6B7280);
                   font-size:22px;cursor:pointer;padding:4px 10px;">×</button>
         </div>
-        <div style="flex:1;overflow-y:auto;padding:18px 22px;-webkit-overflow-scrolling:touch;">
-          <div style="font-size:12px;color:var(--m,#6B7280);margin-bottom:14px;">${_esc(s.situation || s.tagline || '')}</div>
-          ${playbookHtml ? `<h3 style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--orange,#BD5728);margin:14px 0 8px;">Playbook</h3>
-            <ol style="margin:0;padding-left:20px;font-size:13px;line-height:1.55;">${playbookHtml}</ol>` : ''}
-          ${codesHtml ? `<div style="margin-top:14px;"><span style="font-size:11px;color:var(--m,#6B7280);text-transform:uppercase;letter-spacing:.06em;margin-right:6px;">Code refs:</span>${codesHtml}</div>` : ''}
+        <div class="dex-fx1-oveauto-p18px22px">
+          <div class="dex-fs12px-cm-mb14px">${_esc(s.situation || s.tagline || '')}</div>
+          ${playbookHtml ? `<h3 class="dex-fs11px-ttuppercas-ls08em">Playbook</h3>
+            <ol class="dex-m0-pad20px-fs13px">${playbookHtml}</ol>` : ''}
+          ${codesHtml ? `<div class="dex-mt14px"><span class="dex-fs11px-cm-ttuppercas">Code refs:</span>${codesHtml}</div>` : ''}
         </div>
-        <div style="padding:14px 20px;border-top:1px solid var(--br,rgba(255,255,255,.1));display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;">
+        <div class="dex-p14px20px-bt1pxsolid-dflex">
           <button data-action="ask-joe" style="flex:1;min-width:160px;padding:11px 16px;
                   background:var(--orange,#BD5728);border:0;color:#fff;border-radius:8px;
                   font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;letter-spacing:.04em;">
