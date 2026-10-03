@@ -125,7 +125,7 @@
       'js/money-dashboard.js?v=7'
     ],
     repos: [
-      'js/rep-os.js?v=2'
+      'js/rep-os.js?v=3'
     ],
     // Yard-sign tracker (2026-09-29): placements, photos, pickup dates +
     // reminders. Pure rules first so the view can use them at init.

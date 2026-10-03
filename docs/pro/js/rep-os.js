@@ -422,10 +422,10 @@
 
     if (isGenerating) {
       scroll.innerHTML = `
-        <div style="text-align:center;padding:60px 20px;">
-          <div style="font-size:40px;margin-bottom:16px;">🧠</div>
-          <div style="font-size:18px;font-weight:700;color:var(--t);font-family:'Barlow Condensed',sans-serif;">Generating Your Daily Briefing...</div>
-          <div style="font-size:12px;color:var(--m);margin-top:6px;">Analyzing your performance, weather, and opportunities</div>
+        <div class="rpx-tacenter-p60px20px">
+          <div class="rpx-fs40px-mb16px">🧠</div>
+          <div class="rpx-fs18px-w700-ct">Generating Your Daily Briefing...</div>
+          <div class="rpx-fs12px-cm-mt6px">Analyzing your performance, weather, and opportunities</div>
         </div>
       `;
       return;
@@ -435,25 +435,25 @@
     const w = b.weather;
     const m = b.metrics;
 
-    let html = `<div style="padding:16px 20px 20px;">`;
+    let html = `<div class="rpx-p16px20px">`;
 
     // Header
     html += `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="rpx-dflex-aicenter-jcspacebet">
         <div>
-          <div style="font-size:22px;font-weight:800;font-family:'Barlow Condensed',sans-serif;color:var(--t);letter-spacing:.02em;">🧠 REP OS</div>
-          <div style="font-size:12px;color:var(--m);margin-top:2px;">${fmtDate(new Date())}</div>
+          <div class="rpx-fs22px-w800-ffbarlowco">🧠 REP OS</div>
+          <div class="rpx-fs12px-cm-mt2px">${fmtDate(new Date())}</div>
         </div>
-        <button data-repos-action="regenerate" style="padding:8px 14px;background:var(--s2);border:1px solid var(--br);color:var(--t);border-radius:8px;font-size:11px;font-weight:600;font-family:'Barlow Condensed',sans-serif;cursor:pointer;">🔄 Refresh</button>
+        <button data-repos-action="regenerate" class="rpx-p8px14px-bgs2-bd1pxsolid">🔄 Refresh</button>
       </div>
     `;
 
     // Greeting + Quote
     html += `
-      <div style="background:linear-gradient(135deg,#BD572820,var(--s2));border:1px solid #BD572840;border-radius:12px;padding:16px;margin-bottom:14px;">
-        <div style="font-size:18px;font-weight:700;color:var(--t);">${esc(b.greeting)} 👋</div>
-        <div style="font-size:12px;color:var(--m);margin-top:6px;font-style:italic;line-height:1.5;">"${esc(b.motivationalQuote.text)}"</div>
-        <div style="font-size:10px;color:var(--orange);margin-top:4px;">— ${esc(b.motivationalQuote.author)}</div>
+      <div class="rpx-bglineargr-bd1pxsolid-r12px">
+        <div class="rpx-fs18px-w700-ct-2">${esc(b.greeting)} 👋</div>
+        <div class="rpx-fs12px-cm-mt6px-2">"${esc(b.motivationalQuote.text)}"</div>
+        <div class="rpx-fs10px-corange-mt4px">— ${esc(b.motivationalQuote.author)}</div>
       </div>
     `;
 
@@ -462,16 +462,16 @@
       const windowColor = w.canvassingWindow?.quality === 'excellent' ? 'var(--green)' :
                           w.canvassingWindow?.quality === 'fair' ? '#ffab00' : 'var(--red)';
       html += `
-        <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;margin-bottom:10px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="rpx-bgs2-bd1pxsolid-r10px">
+          <div class="rpx-dflex-aicenter-jcspacebet-2">
             <div>
-              <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;">☁️ Weather — ${esc(w.city || 'Your Area')}</div>
-              <div style="font-size:22px;font-weight:700;color:var(--t);margin-top:4px;">${w.temp}°F <span style="font-size:12px;font-weight:400;color:var(--m);">feels ${w.feelsLike}°</span></div>
-              <div style="font-size:12px;color:var(--m);text-transform:capitalize;">${esc(w.description)} · 💨 ${w.windSpeed}mph · 💧 ${w.humidity}%</div>
+              <div class="rpx-fs11px-w700-cblue">☁️ Weather — ${esc(w.city || 'Your Area')}</div>
+              <div class="rpx-fs22px-w700-ct">${w.temp}°F <span class="rpx-fs12px-w400-cm">feels ${w.feelsLike}°</span></div>
+              <div class="rpx-fs12px-cm-ttcapitali">${esc(w.description)} · 💨 ${w.windSpeed}mph · 💧 ${w.humidity}%</div>
             </div>
-            <div style="text-align:right;">
+            <div class="rpx-taright">
               <div style="font-size:10px;color:${windowColor};font-weight:700;text-transform:uppercase;">${w.isGoodForKnocking ? '✅ GOOD FOR KNOCKING' : '⚠️ CHECK CONDITIONS'}</div>
-              <div style="font-size:11px;color:var(--m);margin-top:4px;">Window: ${w.canvassingWindow?.label || '10am-7pm'}</div>
+              <div class="rpx-fs11px-cm-mt4px">Window: ${w.canvassingWindow?.label || '10am-7pm'}</div>
             </div>
           </div>
         </div>
@@ -481,22 +481,22 @@
     // Performance Snapshot
     if (m) {
       html += `
-        <div class="ros-perf-row" style="display:flex;gap:8px;margin-bottom:10px;overflow-x:auto;">
-          <div style="flex:1;min-width:70px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:10px;text-align:center;">
-            <div style="font-size:20px;font-weight:700;color:var(--t);">${m.yesterdayKnocks}</div>
-            <div style="font-size:9px;color:var(--m);text-transform:uppercase;">Yesterday</div>
+        <div class="ros-perf-row rpx-dflex-gap8px-mb10px">
+          <div class="rpx-fx1-minw70px-bgs2">
+            <div class="rpx-fs20px-w700-ct">${m.yesterdayKnocks}</div>
+            <div class="rpx-fs9px-cm-ttuppercas">Yesterday</div>
           </div>
-          <div style="flex:1;min-width:70px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:10px;text-align:center;">
-            <div style="font-size:20px;font-weight:700;color:var(--blue);">${m.contactRate}%</div>
-            <div style="font-size:9px;color:var(--m);text-transform:uppercase;">Contact</div>
+          <div class="rpx-fx1-minw70px-bgs2">
+            <div class="rpx-fs20px-w700-cblue">${m.contactRate}%</div>
+            <div class="rpx-fs9px-cm-ttuppercas">Contact</div>
           </div>
-          <div style="flex:1;min-width:70px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:10px;text-align:center;">
-            <div style="font-size:20px;font-weight:700;color:var(--green);">${m.closeRate}%</div>
-            <div style="font-size:9px;color:var(--m);text-transform:uppercase;">Close</div>
+          <div class="rpx-fx1-minw70px-bgs2">
+            <div class="rpx-fs20px-w700-cgreen">${m.closeRate}%</div>
+            <div class="rpx-fs9px-cm-ttuppercas">Close</div>
           </div>
-          <div style="flex:1;min-width:70px;background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:10px;text-align:center;">
+          <div class="rpx-fx1-minw70px-bgs2">
             <div style="font-size:20px;font-weight:700;color:${m.followUpsDue > 0 ? 'var(--red)' : 'var(--m)'};">${m.followUpsDue}</div>
-            <div style="font-size:9px;color:var(--m);text-transform:uppercase;">Follow-ups</div>
+            <div class="rpx-fs9px-cm-ttuppercas">Follow-ups</div>
           </div>
         </div>
       `;
@@ -505,13 +505,13 @@
     // Gamification streak
     if (b.gamification) {
       html += `
-        <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">
-          <div style="font-size:28px;">${b.gamification.currentMilestone?.badge || '🔥'}</div>
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:700;color:var(--t);">${b.gamification.streak || 0} Day Streak</div>
-            <div style="font-size:11px;color:var(--m);">${b.gamification.completedChallenges || 0}/${b.gamification.totalChallenges || 0} daily challenges completed</div>
+        <div class="rpx-bgs2-bd1pxsolid-r10px-2">
+          <div class="rpx-fs28px">${b.gamification.currentMilestone?.badge || '🔥'}</div>
+          <div class="rpx-fx1">
+            <div class="rpx-fs14px-w700-ct">${b.gamification.streak || 0} Day Streak</div>
+            <div class="rpx-fs11px-cm">${b.gamification.completedChallenges || 0}/${b.gamification.totalChallenges || 0} daily challenges completed</div>
           </div>
-          <button data-repos-goto="d2d" data-repos-d2d-tab="gamify" style="padding:6px 12px;background:var(--orange);color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;">VIEW</button>
+          <button data-repos-goto="d2d" data-repos-d2d-tab="gamify" class="rpx-p6px12px-bgorange-cwhite">VIEW</button>
         </div>
       `;
     }
@@ -519,10 +519,10 @@
     // Storm Alerts
     if (b.storms.activeAlerts > 0 || b.storms.activeZones > 0) {
       html += `
-        <div style="background:#ff6d0015;border:1px solid #ff6d0040;border-radius:10px;padding:14px;margin-bottom:10px;">
-          <div style="font-size:12px;font-weight:700;color:#ff6d00;margin-bottom:6px;">⛈️ STORM OPPORTUNITY</div>
-          <div style="font-size:13px;color:var(--t);">${b.storms.activeAlerts} active alert${b.storms.activeAlerts !== 1 ? 's' : ''} · ${b.storms.activeZones} storm zone${b.storms.activeZones !== 1 ? 's' : ''} ready to canvass</div>
-          <button data-repos-goto="storm" style="margin-top:8px;padding:6px 14px;background:#ff6d00;color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">OPEN STORM CENTER →</button>
+        <div class="rpx-bgff6d0015-bd1pxsolid-r10px">
+          <div class="rpx-fs12px-w700-cff6d00">⛈️ STORM OPPORTUNITY</div>
+          <div class="rpx-fs13px-ct">${b.storms.activeAlerts} active alert${b.storms.activeAlerts !== 1 ? 's' : ''} · ${b.storms.activeZones} storm zone${b.storms.activeZones !== 1 ? 's' : ''} ready to canvass</div>
+          <button data-repos-goto="storm" class="rpx-mt8px-p6px14px-bgff6d00">OPEN STORM CENTER →</button>
         </div>
       `;
     }
@@ -530,14 +530,14 @@
     // Deal Pipeline
     if (b.deals.active > 0 || b.deals.pending > 0) {
       html += `
-        <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;margin-bottom:10px;">
-          <div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:6px;">📋 Deal Pipeline</div>
-          <div style="display:flex;gap:16px;font-size:12px;">
-            <span style="color:var(--blue);">${b.deals.active} active</span>
-            <span style="color:#ffab00;">${b.deals.pending} awaiting response</span>
-            <span style="color:var(--green);">${b.deals.signed} signed</span>
+        <div class="rpx-bgs2-bd1pxsolid-r10px">
+          <div class="rpx-fs12px-w700-ct">📋 Deal Pipeline</div>
+          <div class="rpx-dflex-gap16px-fs12px">
+            <span class="rpx-cblue">${b.deals.active} active</span>
+            <span class="rpx-cffab00">${b.deals.pending} awaiting response</span>
+            <span class="rpx-cgreen">${b.deals.signed} signed</span>
           </div>
-          ${b.deals.pending > 0 ? `<button data-repos-goto="closeboard" style="margin-top:8px;padding:6px 14px;background:var(--blue);color:white;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">CHECK DEALS →</button>` : ''}
+          ${b.deals.pending > 0 ? `<button data-repos-goto="closeboard" class="rpx-mt8px-p6px14px-bgblue">CHECK DEALS →</button>` : ''}
         </div>
       `;
     }
@@ -545,13 +545,13 @@
     // Coaching Tips
     if (b.coachingTips && b.coachingTips.length > 0) {
       html += `
-        <div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px;">💡 Today's Coaching</div>
+        <div class="rpx-fs11px-w700-corange">💡 Today's Coaching</div>
         ${b.coachingTips.map(tip => {
           const cat = COACHING_CATEGORIES[tip.cat] || COACHING_CATEGORIES.mindset;
           return `
-            <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px;margin-bottom:8px;">
-              <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">${cat.icon} ${cat.label}</div>
-              <div style="font-size:13px;color:var(--t);line-height:1.5;">${esc(tip.text)}</div>
+            <div class="rpx-bgs2-bd1pxsolid-r10px-3">
+              <div class="rpx-fs10px-w700-corange">${cat.icon} ${cat.label}</div>
+              <div class="rpx-fs13px-ct-lh15">${esc(tip.text)}</div>
             </div>
           `;
         }).join('')}
@@ -561,13 +561,13 @@
     // Today's Plan
     if (b.todayPlan && b.todayPlan.length > 0) {
       html += `
-        <div style="font-size:11px;font-weight:700;color:var(--t);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px;">📅 Today's Plan</div>
+        <div class="rpx-fs11px-w700-ct">📅 Today's Plan</div>
         ${b.todayPlan.map(p => {
           const prioColor = p.priority === 'critical' ? '#ff1744' : p.priority === 'high' ? '#ff6d00' : 'var(--m)';
           return `
-            <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--br);">
+            <div class="rpx-dflex-gap10px-aiflexstar">
               <div style="min-width:100px;font-size:11px;font-weight:600;color:${prioColor};">${p.time}</div>
-              <div style="flex:1;font-size:12px;color:var(--t);">${esc(p.action)}</div>
+              <div class="rpx-fx1-fs12px-ct">${esc(p.action)}</div>
             </div>
           `;
         }).join('')}
@@ -577,14 +577,14 @@
     // Follow-ups due
     if (m && m.followUps && m.followUps.length > 0) {
       html += `
-        <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px;">📞 Follow-ups Due</div>
+        <div class="rpx-fs11px-w700-cred">📞 Follow-ups Due</div>
         ${m.followUps.map(f => `
-          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--s2);border:1px solid var(--br);border-radius:8px;margin-bottom:6px;">
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:var(--t);">${esc(f.contactName || f.address || 'Unknown')}</div>
-              <div style="font-size:11px;color:var(--m);">${esc(f.address || '')} ${f.phone ? '· ' + esc(f.phone) : ''}</div>
+          <div class="rpx-dflex-aicenter-gap10px">
+            <div class="rpx-fx1">
+              <div class="rpx-fs13px-w600-ct">${esc(f.contactName || f.address || 'Unknown')}</div>
+              <div class="rpx-fs11px-cm">${esc(f.address || '')} ${f.phone ? '· ' + esc(f.phone) : ''}</div>
             </div>
-            ${f.phone ? `<a href="tel:${f.phone.replace(/\D/g, '')}" style="padding:6px 10px;background:var(--green);color:white;border:none;border-radius:6px;font-size:10px;font-weight:700;text-decoration:none;">📞 Call</a>` : ''}
+            ${f.phone ? `<a href="tel:${f.phone.replace(/\D/g, '')}" class="rpx-p6px10px-bggreen-cwhite">📞 Call</a>` : ''}
           </div>
         `).join('')}
       `;
@@ -592,12 +592,12 @@
 
     // Quick Actions
     html += `
-      <div style="font-size:11px;font-weight:700;color:var(--t);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px;">⚡ Quick Actions</div>
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
-        <button data-repos-goto="d2d" style="padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:10px;font-size:12px;font-weight:600;color:var(--t);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.03em;">🚪 Start Knocking</button>
-        <button data-repos-goto="storm" style="padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:10px;font-size:12px;font-weight:600;color:var(--t);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.03em;">⛈️ Storm Center</button>
-        <button data-repos-goto="closeboard" style="padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:10px;font-size:12px;font-weight:600;color:var(--t);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.03em;">📋 Close Board</button>
-        <button data-repos-goto="training" style="padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:10px;font-size:12px;font-weight:600;color:var(--t);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.03em;">🎓 Sales Practice</button>
+      <div class="rpx-fs11px-w700-ct-2">⚡ Quick Actions</div>
+      <div class="rpx-dgrid-gtcrepeat21-gap8px">
+        <button data-repos-goto="d2d" class="rpx-p14px-bgs2-bd1pxsolid">🚪 Start Knocking</button>
+        <button data-repos-goto="storm" class="rpx-p14px-bgs2-bd1pxsolid">⛈️ Storm Center</button>
+        <button data-repos-goto="closeboard" class="rpx-p14px-bgs2-bd1pxsolid">📋 Close Board</button>
+        <button data-repos-goto="training" class="rpx-p14px-bgs2-bd1pxsolid">🎓 Sales Practice</button>
       </div>
     `;
 
@@ -608,12 +608,12 @@
 
   function renderWelcome() {
     return `
-      <div style="padding:20px;text-align:center;">
-        <div style="margin-top:40px;">
-          <div style="font-size:60px;margin-bottom:16px;">🧠</div>
-          <div style="font-size:24px;font-weight:800;font-family:'Barlow Condensed',sans-serif;color:var(--t);">REP OS</div>
-          <div style="font-size:14px;color:var(--m);margin-top:6px;max-width:320px;margin-left:auto;margin-right:auto;line-height:1.5;">Your AI-powered daily briefing. Weather, follow-ups, coaching, and optimized route — all in one view.</div>
-          <button data-repos-action="generate" style="margin-top:20px;padding:14px 28px;background:var(--orange,#BD5728);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'Barlow Condensed',sans-serif;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;">
+      <div class="rpx-p20px-tacenter">
+        <div class="rpx-mt40px">
+          <div class="rpx-fs60px-mb16px">🧠</div>
+          <div class="rpx-fs24px-w800-ffbarlowco">REP OS</div>
+          <div class="rpx-fs14px-cm-mt6px">Your AI-powered daily briefing. Weather, follow-ups, coaching, and optimized route — all in one view.</div>
+          <button data-repos-action="generate" class="rpx-mt20px-p14px28px-bgorange">
             ⚡ GENERATE TODAY'S BRIEFING
           </button>
         </div>

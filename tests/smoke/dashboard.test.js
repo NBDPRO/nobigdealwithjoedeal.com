@@ -5918,7 +5918,9 @@ section('Mobile overflow sweep 2026-09-14 — 5 invisible-horizontal-scroll bugs
   // 2. Rep OS — Performance Snapshot row (rep-os.js), 4 cards with a
   //    304px floor width that overflows a ~296px 320px-phone content width.
   assert('rep-os.js Performance Snapshot row uses the .ros-perf-row class',
-    /class="ros-perf-row" style="display:flex;gap:8px;margin-bottom:10px;overflow-x:auto;"/.test(repOs),
+    // (reskin 2026-10-02: the row's layout moved to a class in css/rep-os.css)
+    /class="ros-perf-row rpx-dflex-gap8px-mb10px"/.test(repOs) &&
+      /\.rpx-dflex-gap8px-mb10px[^{]*\{ display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; \}/.test(require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'docs', 'pro', 'css', 'rep-os.css'), 'utf8')),
     'expected the Performance Snapshot row to carry a class so dashboard-app.css can target it');
   assert('.ros-perf-row has a mask-image fade (Rep OS Performance Snapshot)',
     /\.ros-perf-row\{\s*-webkit-mask-image:linear-gradient\(to right,#000 calc\(100% - 24px\),transparent 100%\);\s*mask-image:linear-gradient\(to right,#000 calc\(100% - 24px\),transparent 100%\);\s*\}/.test(dash),
