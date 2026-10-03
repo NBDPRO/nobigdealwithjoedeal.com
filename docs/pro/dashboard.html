@@ -28,7 +28,7 @@
 <link rel="stylesheet" href="css/triage-deck.css?v=2">
 <link rel="stylesheet" href="css/dol-fill.css?v=1">
 <link rel="stylesheet" href="css/d2d-storm.css?v=1">
-<link rel="stylesheet" href="css/phone-calls.css?v=6">
+<link rel="stylesheet" href="css/phone-calls.css?v=7">
 <style id="theme-system-noop">
 /* Theme variables now live in css/theme-system.css. This stub keeps the
    #theme-system id reachable for any DOM lookup that still expects a
@@ -111,7 +111,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=72"></script>
+<script src="js/script-loader.js?v=74"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -145,8 +145,11 @@
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=2">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
+<link rel="stylesheet" href="css/templates-library-view.css?v=2">
+<link rel="stylesheet" href="css/data-import-view.css?v=2">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
 <link rel="stylesheet" href="css/data-import-view.css?v=1">
+<link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" href="css/ai-texting-persona-view.css?v=1">
 <link rel="stylesheet" href="css/admin-manager-view.css?v=1">
 <link rel="stylesheet" href="css/claim-core-view.css?v=1">
@@ -154,6 +157,9 @@
 <link rel="stylesheet" href="css/quick-capture-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
+<link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
+<link rel="stylesheet" href="css/voicemail-view.css?v=1">
+<link rel="stylesheet" href="css/reports-trends-view.css?v=1">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/product-library.css?v=1">
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
@@ -5904,7 +5910,7 @@
      is an ES export; this bridge exposes it as window.VoiceIntel for the
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
-<script defer src="js/estimate-preview.js?v=2"></script>
+<script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=7"></script>
 <script defer src="js/dashboard-ui.js?v=10"></script>
 <script defer src="js/dashboard-actions.js?v=16"></script>
@@ -6813,7 +6819,7 @@
 <script defer src="js/pwa-install-nudge.js?v=6"></script>
 <script defer src="js/data-export.js?v=4"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
-<script defer src="js/data-import.js?v=3"></script>
+<script defer src="js/data-import.js?v=4"></script>
 <script defer src="js/activity-feed.js?v=2"></script>
 <!-- Single owner of kanban filter state. MUST load before the two filter
      modules below: each registers with it at init, and without it they
@@ -6821,7 +6827,7 @@
 <script defer src="js/lead-filter-registry.js?v=1"></script>
 <script defer src="js/needs-attention-filter.js?v=4"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
-<script defer src="js/lead-snooze.js?v=4"></script>
+<script defer src="js/lead-snooze.js?v=5"></script>
 <script defer src="js/prefs-sync.js?v=3"></script>
 <!-- Wave 42: portal-link helpers must load BEFORE kanban-context-menu
      so the menu picks up Copy/Text Portal Link items on first render. -->
@@ -6829,7 +6835,7 @@
 <script defer src="js/kanban-context-menu.js?v=4"></script>
 <script defer src="js/customer-engagement-score.js?v=2"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
-<script defer src="js/templates-library.js?v=3"></script>
+<script defer src="js/templates-library.js?v=4"></script>
 <script defer src="js/smart-followup.js?v=3"></script>
 <!-- W135: Lead Intelligence — unified 0-100 score engine -->
 <script defer src="js/lead-score.js?v=2"></script>
@@ -6898,7 +6904,7 @@
      activity entry, and auto-create tasks from extracted action items.
      Loaded after voice-memo.js (sibling module) — they coexist; this
      adds the summary + upload + auto-task layer. -->
-<script defer src="js/voicemail.js?v=2"></script>
+<script defer src="js/voicemail.js?v=3"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
 <script defer src="js/estimate-config.js?v=5"></script>
@@ -6964,7 +6970,7 @@
      period-over-period comparison + conversion funnel. -->
 <script defer src="js/reports-dashboard.js?v=2"></script>
 <!-- W154: revenue trend sparkline + top customers/sources/engaged. -->
-<script defer src="js/reports-trends.js?v=2"></script>
+<script defer src="js/reports-trends.js?v=3"></script>
 <!-- LAZY: estimate-v2-ui + product-library load via the `estimates` bundle (PR 2c). -->
 <!-- LAZY: theme-engine + overlays/sounds/achievements/gx load via the `theme`
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js

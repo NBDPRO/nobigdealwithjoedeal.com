@@ -67,3 +67,8 @@
 .cc-group-call:first-child { border-top: 0; padding-top: 4px; }
 .cc-group-call .pc-actions { margin-top: 6px; }
 .cc-deck-btn { margin-top: 10px; }
+
+/* Call Center "Said you'd do" deck (2026-10-03): the urgent label and the
+   "file on a customer" picker on a no-customer card. */
+.deck-sub.deck-urgent { color: var(--red, #e05252); font-weight: 700; }
+.cc-deck-attach { margin-top: 10px; }

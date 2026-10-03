@@ -727,6 +727,9 @@ exports.callWatch = require('./call-watch').callWatch;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;
+// The Call Center "Said you'd do" deck: every open item the sweep email is
+// built from, uncapped (owner / platform admin only).
+exports.callPromisesList = require('./call-center').callPromisesList;
 // Optional game card (2026-10-03): level, XP and this week vs last week,
 // derived on request from the caller's own records — nothing stored.
 exports.getGameCard = require('./game').getGameCard;

@@ -138,7 +138,8 @@
     // then the view. Nothing is sent without the rep tapping Send.
     winback: [
       'js/winback-logic.js?v=1',
-      'js/winback.js?v=1'
+      'css/winback-view.css?v=1',
+      'js/winback.js?v=2'
     ],
     decision: [
       'css/decision-engine-view.css?v=1',
@@ -405,7 +406,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=6'
+      'js/call-center-view.js?v=7'
     ]
   };
 
