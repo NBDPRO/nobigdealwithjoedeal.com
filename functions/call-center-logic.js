@@ -462,7 +462,7 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
     const mine = (Array.isArray(c.promises) ? c.promises : []).filter((p) => p && p.who === 'jo');
     const task = c.leadId ? tasks.get(c.id) : null;
     const who = c.contactName || (c.phoneDigits ? '(' + c.phoneDigits.slice(0, 3) + ') ' + c.phoneDigits.slice(3, 6) + '-' + c.phoneDigits.slice(6) : 'Unknown number');
-    const base = { callId: c.id, channel: c.channel === 'text' ? 'text' : 'call', leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text), phoneDigits: c.phoneDigits || '', hasTask: !!task };
+    const base = { callId: c.id, channel: c.channel === 'text' ? 'text' : 'call', leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text), phoneDigits: c.phoneDigits || '', hasTask: !!task, contactName: c.contactName || '', callType: c.callType || '' };
     if (task) {
       if (task.done === true) continue;
       const urgentNow = c.urgent && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS;
@@ -484,6 +484,36 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
   return out.sort((a, b) => rank[a.kind] - rank[b.kind] || String(a.due).localeCompare(String(b.due)) || (a.startedAtMs || 0) - (b.startedAtMs || 0));
 }
 
+/**
+ * Which existing customer a "no customer on file" call is probably about
+ * (2026-10-03: 7 of the 45 open that day matched one). Returns
+ * { leadId, name, why } only when EXACTLY ONE lead matches — never a guess
+ * between two. Rules, strongest first:
+ *   the phone's contact name contains the lead's full name;
+ *   the lead's full name is said on the call (summary / transcript);
+ *   the lead's numbered street address is said on the call.
+ * leads: [{ id, firstName, lastName, address, deleted }].
+ */
+const normMatch = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function suggestLeadForCall(call, leads) {
+  if (!call || call.leadId) return null;
+  const contact = normMatch(call.contactName);
+  const said = normMatch([call.summary, call.transcript].join(' '));
+  const hits = new Map();
+  for (const l of leads || []) {
+    if (!l || !l.id || l.deleted === true) continue;
+    const first = normMatch(l.firstName), last = normMatch(l.lastName);
+    const full = (first + ' ' + last).trim();
+    const street = normMatch(String(l.address || '').split(',')[0]);
+    let why = '';
+    if (first.length > 1 && last.length > 2 && full.length > 4 && (' ' + contact + ' ').includes(' ' + full + ' ')) why = 'their name in your phone';
+    else if (first.length > 2 && last.length > 3 && (' ' + said + ' ').includes(' ' + full + ' ')) why = 'their name said on the call';
+    else if (street.length > 8 && /^\d+ [a-z]/.test(street) && (' ' + said + ' ').includes(' ' + street + ' ')) why = 'their address said on the call';
+    if (why) hits.set(l.id, { leadId: l.id, name: ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer', why });
+  }
+  return hits.size === 1 ? [...hits.values()][0] : null;
+}
+
 /** "Snooze N days" lands on this date (America/New_York calendar days). */
 function addDaysYmd(ymd, days) {
   const [y, m, d] = String(ymd).split('-').map(Number);
@@ -503,8 +533,13 @@ function buildSweepEmail({ items, todayYmd, slot }) {
   const subject = (items.some((i) => i.kind === 'urgent') ? '🚨 ' : '') + 'Calls: ' + n + ' thing' + (n === 1 ? '' : 's') + ' you said you\'d do' + (slot === 'pm' ? ' (afternoon check)' : '');
   const label = { urgent: 'Urgent', due: 'Due', nofile: 'No customer on file' };
   const count = (k) => items.filter((i) => i.kind === k).length;
+  const isNewLead = (i) => i.kind === 'nofile' && i.callType === 'lead' && !i.suggest;
+  const newLeads = items.filter(isNewLead).length;
   const breakdown = [['urgent', 'urgent'], ['due', 'due'], ['nofile', 'no customer on file']]
-    .filter(([k]) => count(k)).map(([k, t]) => count(k) + ' ' + t).join(' · ');
+    .filter(([k]) => count(k)).map(([k, t]) => count(k) + ' ' + t).join(' · ') +
+    (newLeads ? ' (' + newLeads + ' sound like new leads not in the CRM yet)' : '');
+  const hint = (i) => i.suggest ? 'Looks like ' + i.suggest.name + ' — ' + i.suggest.why + '. File it on them in one tap.'
+    : isNewLead(i) ? '🆕 Sounds like a new lead — not in the CRM yet. Make it a lead in one tap.' : '';
   const link = (i) => i.leadId ? APP + 'customer.html?id=' + encodeURIComponent(i.leadId) : DECK_URL;
   const when = (ms) => ms ? new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
   const btn = '<a href="' + escHtml(DECK_URL) + '" style="display:inline-block;background:#BD5728;color:#fff;font-weight:700;text-decoration:none;padding:11px 18px;border-radius:8px;font-size:15px">Work through all ' + n + ', one at a time →</a>';
@@ -517,6 +552,7 @@ function buildSweepEmail({ items, todayYmd, slot }) {
       '<div style="font-weight:700;margin:2px 0"><a href="' + escHtml(link(i)) + '" style="color:#111">' + escHtml(i.who) + '</a> <span style="font-weight:400;color:#666;font-size:12px">' + escHtml((i.channel === 'text' ? 'texts · ' : '') + when(i.startedAtMs)) + '</span></div>' +
       (i.promises.length ? '<ul style="margin:4px 0 4px 18px;padding:0;font-size:14px">' + i.promises.map((p) => '<li>' + escHtml(p) + '</li>').join('') + '</ul>' : '') +
       (i.summary ? '<div style="font-size:13px;color:#444">' + escHtml(i.summary) + '</div>' : '') +
+      (hint(i) ? '<div style="font-size:13px;color:#1d4ed8;margin-top:4px">' + escHtml(hint(i)) + '</div>' : '') +
       '<div style="margin-top:6px;font-size:13px"><a href="' + escHtml(deckItemUrl(i.callId)) + '" style="color:#BD5728;font-weight:700">Do it →</a></div>' +
       '</div>').join('') +
     (more > 0 ? '<p style="margin:4px 0 0;font-size:14px"><a href="' + escHtml(DECK_URL) + '" style="color:#BD5728;font-weight:700">+ ' + more + ' more — open the list →</a></p>' : '') +
@@ -554,6 +590,7 @@ module.exports = {
   collectSweepItems,
   buildSweepEmail,
   addDaysYmd,
+  suggestLeadForCall,
   SWEEP_EMAIL_SHOW,
   DECK_URL,
   GROQ_MAX_BYTES,
