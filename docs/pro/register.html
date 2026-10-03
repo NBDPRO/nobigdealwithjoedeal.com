@@ -377,6 +377,10 @@ main#main {
   display: none;
 }
 .reg-err:not(:empty) { display: block; }
+/* Clickwrap checkbox (2026-10-03) */
+.terms-check { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 12px; font-size: 13px; line-height: 1.45; color: rgba(255,255,255,.8); cursor: pointer; }
+.terms-check input { width: 18px; height: 18px; margin-top: 1px; flex-shrink: 0; accent-color: var(--orange, #BD5728); }
+.terms-check a { color: var(--orange, #BD5728); }
 
 .reg-ok {
   background: rgba(46,204,138,.1);
@@ -514,7 +518,7 @@ main#main {
   <div class="left-footer">
     Already a member? <a href="/pro/login.html">Sign in →</a><br><br>
     Questions? <a href="mailto:jd@nobigdealwithjoedeal.com">jd@nobigdealwithjoedeal.com</a><br><br>
-    By creating an account you agree to the <a href="/pro/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.
+    <a href="/pro/terms.html">Terms of Service</a> · <a href="/privacy.html">Privacy Policy</a>
   </div>
 </div>
 
@@ -531,6 +535,11 @@ main#main {
          arrived from a paid CTA (?plan= or a stashed intent). Hidden by default
          so free signups never see it. -->
     <div id="regPlanBanner" role="status" style="display:none;margin:14px 0 4px;padding:11px 14px;background:rgba(189,87,40,.1);border:1px solid rgba(189,87,40,.4);border-radius:8px;font-size:13px;line-height:1.5;color:var(--orange,#BD5728);"></div>
+
+    <!-- Clickwrap (2026-10-03): an explicit, required agreement — gates both
+         the Google button and the email form (js/pages/register.js). -->
+    <label class="terms-check" for="regTerms"><input type="checkbox" id="regTerms" name="terms" required><span>I agree to the <a href="/pro/terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></span></label>
+    <div class="reg-err" id="regTermsErr" role="alert"></div>
 
     <button type="button" class="google-btn" id="googleRegBtn">
       <span class="google-icon">

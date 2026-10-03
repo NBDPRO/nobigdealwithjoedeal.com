@@ -335,24 +335,185 @@ check('T29 each of those three forms presents an express-written-consent TEXTING
   }
 });
 
-check('T30 /inspect either presents the disclosure AND posts the field, or neither (never a checkbox that is not recorded)', () => {
+check('T30 /inspect presents the disclosure AND posts the field (never a checkbox that is not recorded)', () => {
   const html = fs.readFileSync(path.join(ROOT, 'docs', 'inspect.html'), 'utf8');
   const js = fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'js', 'inspect-form.js'), 'utf8');
-  const hasCheckbox = /Reply STOP/.test(html);
-  const postsField = /tcpaConsent\s*:/.test(js);
-  assert.strictEqual(hasCheckbox, postsField,
-    'inspect.html and inspect-form.js disagree about consent: a box that is shown but not posted is the exact bug #1377 fixed');
-  // Today: neither. Its inspect_leads documents carry no field → no_stored_consent → never texted.
+  assert.ok(/id="ins-consent"/.test(html) && /Reply STOP/.test(html), '/inspect lost its consent checkbox (2026-10-03)');
+  assert.ok(/tcpaConsent\s*[:=]/.test(js) && js.includes("getElementById('ins-consent')"),
+    'inspect.html shows a consent box but inspect-form.js does not post it — the exact bug #1377 fixed');
 });
+
+// ── The consent RECORD (2026-10-03, legal-checklist audit) ───────────────
+// A boolean says THAT a box was ticked. A defensible record also says when,
+// what text, which page, which IP — stamped by the server.
+
+check('T31 consentRecord stamps when / which text / which page / which IP for a consent', () => {
+  const rec = C.consentRecord({
+    consent: true, kind: 'storm', referer: 'https://nobigdealwithjoedeal.com/storm-alerts?utm_source=yard-sign',
+    source: 'storm-alerts-page', ip: '203.0.113.9', at: '__server_ts__',
+  });
+  assert.deepStrictEqual(rec, {
+    tcpaConsentAt: '__server_ts__',
+    tcpaConsentText: 'tcpa-v1-2026-10-03',
+    tcpaConsentSource: '/storm-alerts',
+    tcpaConsentIp: '203.0.113.9',
+  });
+  assert.ok(!/utm_/.test(rec.tcpaConsentSource), 'the query string must never reach the consent record');
+});
+
+check('T32 no consent (false / absent / truthy junk) → no record at all', () => {
+  for (const v of [false, undefined, null, 'true', 1]) {
+    assert.deepStrictEqual(C.consentRecord({ consent: v, kind: 'contact', at: 'x', ip: '1.2.3.4' }), {},
+      'consent=' + JSON.stringify(v) + ' must not produce a consent record');
+  }
+});
+
+check('T33 source falls back to the form tag without a usable Referer; IP omitted when unknown', () => {
+  const rec = C.consentRecord({ consent: true, kind: 'inspect', referer: 'not a url', source: '/inspect', at: 't' });
+  assert.strictEqual(rec.tcpaConsentSource, '/inspect');
+  assert.ok(!('tcpaConsentIp' in rec));
+});
+
+check('T34 the /estimate funnel records ITS wording version; every other kind the shared one', () => {
+  assert.strictEqual(C.consentVersionForKind('estimate'), C.ESTIMATE_CONSENT_VERSION);
+  for (const k of ['inspect', 'storm', 'contact']) assert.strictEqual(C.consentVersionForKind(k), C.CONSENT_VERSION);
+  assert.ok(C.CONSENT_TEXTS[C.CONSENT_VERSION] && C.CONSENT_TEXTS[C.ESTIMATE_CONSENT_VERSION]);
+  assert.strictEqual(Object.isFrozen(C.CONSENT_TEXTS), true);
+});
+
+// The stored version id is only evidence if it names the words the person
+// actually saw. Pin every page's label to the one shared constant.
+function labelText(src, id) {
+  const i = src.indexOf('id="' + id + '"');
+  assert.ok(i > 0, 'checkbox ' + id + ' missing');
+  const raw = src.slice(i, src.indexOf('</label>', i));
+  return raw.replace(/^[^>]*>/, '').replace(/<a [^>]*>[^<]*<\/a>/g, '').replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+}
+const PAGES_V1 = [
+  ['docs/storm-check.html', 'sc-consent'], ['docs/roof-score.html', 'rs-consent'],
+  ['docs/storm-report.html', 'sr-consent'], ['docs/inspect.html', 'ins-consent'],
+  ['docs/storm-alerts.html', 'sa-consent'], ['docs/index.html', 'fieldConsent'],
+  ['docs/assets/js/quick-lead-form.js', "' + uid + '-consent"],
+];
+
+check('T35 every consent label is word-for-word the text its stored version id names', () => {
+  for (const [file, id] of PAGES_V1) {
+    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.strictEqual(labelText(src, id), C.CONSENT_TEXTS[C.CONSENT_VERSION],
+      file + ': label differs from CONSENT_TEXTS[' + C.CONSENT_VERSION + '] — new wording needs a NEW version id');
+  }
+  const est = fs.readFileSync(path.join(ROOT, 'docs', 'estimate.html'), 'utf8');
+  assert.strictEqual(labelText(est, 'tcpaConsent'), C.CONSENT_TEXTS[C.ESTIMATE_CONSENT_VERSION]);
+});
+
+check('T36 the three newly-gated forms read their box, refuse without it, and post tcpaConsent', () => {
+  const forms = [
+    ['docs/assets/js/inline/c5a2295382.js', "getElementById('sa-consent')"],
+    ['docs/assets/js/inline/72f02d79d0.js', "getElementById('fieldConsent')"],
+    ['docs/assets/js/quick-lead-form.js', "getElementById(uid + '-consent')"],
+  ];
+  for (const [file, read] of forms) {
+    const js = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.ok(js.includes(read), file + ' no longer reads its consent checkbox');
+    assert.ok(/if\s*\(\s*!consent\s*\)\s*\{/.test(js), file + ' no longer refuses to submit without consent');
+    assert.ok(/tcpaConsent:\s*consent === true/.test(js), file + ' does not post tcpaConsent');
+  }
+});
+
+check('T37 the storm and contact kinds declare tcpaConsent, and the gateway stamps the record', () => {
+  for (const [from, to] of [['  storm: {', '  free_roof: {'], ['  contact: {', '  estimate: {']]) {
+    const block = GATEWAY.slice(GATEWAY.indexOf(from), GATEWAY.indexOf(to));
+    assert.ok(block.length > 0 && /boolOptional:\s*\[[^\]]*'tcpaConsent'/.test(block), from.trim() + ' kind must declare tcpaConsent');
+  }
+  assert.ok(/TCPA\.consentRecord\(/.test(GATEWAY), 'submitPublicLead no longer stamps the consent record');
+});
+
+// ── Behaviour: one real submitPublicLead round-trip per newly-gated kind ──
+// Loads functions/handlers/integrations.js with Firestore / limiter /
+// Turnstile stubbed, posts the way each page posts, and reads what was
+// written. A source contract can pass with the record missing; this cannot.
+async function gatewayRoundTrip(kind, body, headers) {
+  const Module = require('module');
+  const added = [];
+  const stubs = {
+    'firebase-functions/v2/https': { onRequest: (o, h) => ({ __handler: h }), onCall: (o, h) => ({ __handler: h }), HttpsError: Error },
+    'firebase-admin/firestore': {
+      getFirestore: () => ({
+        collection: (name) => ({
+          add: async (row) => { added.push({ name, row }); return { id: 'doc-1' }; },
+          doc: () => ({ get: async () => ({ exists: false }) }),
+        }),
+      }),
+      FieldValue: { serverTimestamp: () => '__server_ts__' },
+    },
+    '../integrations/upstash-ratelimit': {
+      enforceRateLimit: async () => ({}), httpRateLimit: async () => true, clientIp: () => '198.51.100.7', provider: 'stub',
+    },
+    '../integrations/turnstile': { verifyTurnstile: async () => ({ ok: true, configured: false }) },
+  };
+  const real = Module._load;
+  Module._load = function (request) {
+    if (Object.prototype.hasOwnProperty.call(stubs, request)) return stubs[request];
+    return real.apply(this, arguments);
+  };
+  const file = path.join(ROOT, 'functions', 'handlers', 'integrations.js');
+  delete require.cache[file];
+  let mod;
+  try { mod = require(file); } finally { Module._load = real; }
+  const res = { code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; }, set() { return this; } };
+  await mod.submitPublicLead.__handler({ method: 'POST', headers: headers || {}, body: Object.assign({ kind }, body) }, res);
+  delete require.cache[file];
+  return { res, added };
+}
+
+const ROUND_TRIPS = [
+  ['storm', { name: 'Sam', phone: '8594207382', zip: '45122', source: 'storm-alerts-page', tcpaConsent: true },
+    'https://nobigdealwithjoedeal.com/storm-alerts', 'storm_alert_subscribers', '/storm-alerts'],
+  ['contact', { firstName: 'Sam', phone: '8594207382', address: '12 Main St, Mason, OH', source: 'homepage', tcpaConsent: true },
+    'https://nobigdealwithjoedeal.com/', 'contact_leads', '/'],
+  ['inspect', { name: 'Sam', phone: '8594207382', address: '12 Main St, Mason, OH', source: '/inspect', tcpaConsent: true },
+    undefined, 'inspect_leads', '/inspect'],
+];
+
+const asyncChecks = [];
+for (const [kind, body, referer, coll, srcPath] of ROUND_TRIPS) {
+  asyncChecks.push(['T38 gateway round-trip (' + kind + '): consent posted → consent record stored', async () => {
+    const { res, added } = await gatewayRoundTrip(kind, body, referer ? { referer } : {});
+    assert.strictEqual(res.code, 200, JSON.stringify(res.body));
+    assert.strictEqual(added.length, 1);
+    const { name, row } = added[0];
+    assert.strictEqual(name, coll);
+    assert.strictEqual(row.tcpaConsent, true, kind + ': the boolean was dropped');
+    assert.strictEqual(row.tcpaConsentAt, '__server_ts__', kind + ': no server timestamp on the consent');
+    assert.strictEqual(row.tcpaConsentText, C.CONSENT_VERSION);
+    assert.strictEqual(row.tcpaConsentSource, srcPath);
+    assert.strictEqual(row.tcpaConsentIp, '198.51.100.7');
+  }]);
+}
+asyncChecks.push(['T39 gateway round-trip: no consent posted → no consent fields at all', async () => {
+  const { res, added } = await gatewayRoundTrip('contact',
+    { firstName: 'Sam', phone: '8594207382', address: '12 Main St, Mason, OH', source: 'homepage' });
+  assert.strictEqual(res.code, 200);
+  const row = added[0].row;
+  for (const k of ['tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp']) {
+    assert.ok(!(k in row), k + ' written for a submission that never consented');
+  }
+}]);
 
 // ── Report ──────────────────────────────────────────────────────────────
 
-console.log('');
-if (failures.length) {
-  for (const f of failures) console.log(`  ✗ ${f.name}\n      ${f.message}`);
+(async () => {
+  for (const [name, fn] of asyncChecks) {
+    try { await fn(); passed++; } catch (e) { failures.push({ name, message: e && e.message ? e.message : String(e) }); }
+  }
   console.log('');
-  console.log(`FAILED — ${passed} passed, ${failures.length} failed`);
-  process.exit(1);
-}
-console.log(`PASSED — ${passed} assertions across the consent chain`);
-process.exit(0);
+  if (failures.length) {
+    for (const f of failures) console.log(`  ✗ ${f.name}\n      ${f.message}`);
+    console.log('');
+    console.log(`FAILED — ${passed} passed, ${failures.length} failed`);
+    process.exit(1);
+  }
+  console.log(`PASSED — ${passed} assertions across the consent chain`);
+  process.exit(0);
+})();

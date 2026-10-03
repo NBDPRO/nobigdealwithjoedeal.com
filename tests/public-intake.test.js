@@ -253,17 +253,31 @@ async function run() {
     ok('tcpaConsent:"yes" is dropped, not stored as consent', !!fields && !fields.tcpaConsent);
   }
   {
-    // M-04 regression guard: boolOptional is PER KIND. The contact form
-    // collects no texting consent, so a consent boolean posted there must be
-    // dropped exactly like any other unlisted key — adding boolean support
-    // must not have opened a hole for every kind.
+    // M-04 regression guard: boolOptional is PER KIND. The guide form
+    // collects no phone and no texting consent, so a consent boolean posted
+    // there must be dropped exactly like any other unlisted key — adding
+    // boolean support must not have opened a hole for every kind. (Was the
+    // contact kind until 2026-10-03, when the homepage + quick forms gained
+    // the consent checkbox and contact started declaring tcpaConsent.)
     const r = await post({
-      kind: 'contact', firstName: 'Mallory', phone: '8595550122', source: '/contact',
+      kind: 'guide', name: 'Mallory', email: 'mallory@nbd.test', source: '/guide',
       tcpaConsent: true
     }, '203.0.113.16');
-    const fields = (r.body && r.body.id) ? await fetchDoc('contact_leads', r.body.id) : null;
-    ok('contact doc written + readable', !!fields);
+    const fields = (r.body && r.body.id) ? await fetchDoc('guide_leads', r.body.id) : null;
+    ok('guide doc written + readable', !!fields);
     ok('tcpaConsent dropped on a kind that does not declare it (M-04 intact)', !!fields && !fields.tcpaConsent);
+    ok('...and no consent record is stamped there either', !!fields && !fields.tcpaConsentText && !fields.tcpaConsentAt);
+  }
+  {
+    // Positive control (2026-10-03): contact now declares tcpaConsent, and a
+    // posted consent lands with its record (version id + source page).
+    const r = await post({
+      kind: 'contact', firstName: 'Mallory', phone: '8595550122', address: '12 Main St, Mason, OH',
+      source: 'homepage', tcpaConsent: true
+    }, '203.0.113.17');
+    const fields = (r.body && r.body.id) ? await fetchDoc('contact_leads', r.body.id) : null;
+    ok('contact: consent stored with its record', !!fields && bool(fields, 'tcpaConsent') === true
+      && !!fields.tcpaConsentText && !!fields.tcpaConsentAt, JSON.stringify(fields && Object.keys(fields)));
   }
   {
     // 2026-09-29 security audit: a web-form name reached the Cmd-K palette as

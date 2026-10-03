@@ -72,6 +72,9 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 /* Inline validation error (T4f) — replaces alert() dialogs */
 .signup-err { display:none; background:rgba(220,38,38,.12); border:1px solid rgba(248,113,113,.45); color:#fca5a5; border-radius:8px; padding:11px 14px; font-size:.84rem; line-height:1.5; margin-bottom:12px; }
 .signup-err.show { display:block; }
+/* consent (TCPA, 2026-10-03) — same markup as /storm-check's .sc-consent */
+.sc-consent { display:flex; gap:10px; align-items:flex-start; margin:4px 0 14px; font-size:.78rem; color:rgba(255,255,255,.62); line-height:1.4; text-align:left; }
+.sc-consent input { margin-top:2px; width:18px; height:18px; flex-shrink:0; accent-color:var(--orange); }
 .field input[aria-invalid="true"] { border-color:#f87171; }
 
 /* Success */
@@ -286,7 +289,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Roofing"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Siding Replacement"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Gutter Replacement"}},
-          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Insurance Claims"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Inspection & Documentation"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Interior Drywall and Ceiling Repair"}}
         ]
       }
@@ -458,6 +461,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       </select>
     </div>
     <div style="position:absolute;left:-9999px;" aria-hidden="true"><input type="text" id="alertHoneypot" tabindex="-1" autocomplete="off" aria-label="Leave this field blank"></div>
+    <label class="sc-consent"><input type="checkbox" id="sa-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
     <div class="signup-err" id="sa-error" role="alert"></div>
     <button class="signup-btn" id="alertSignupBtn">🔔 Sign Me Up — Free</button>
     <script defer  src="/assets/js/inline/ba974607f0.js"></script>
@@ -508,7 +512,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <script defer src="/assets/js/public-lead-submit.js"></script>
 <script defer  src="/assets/js/inline/e9b498fbd3.js"></script>
 
-<script defer  src="/assets/js/inline/c5a2295382.js"></script>
+<script defer  src="/assets/js/inline/c5a2295382.js?v=2"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <div class="mobile-cta-strip" aria-label="Quick contact options">
   <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
