@@ -131,6 +131,15 @@
         esc(p.text) + (p.due ? ' <span class="pc-meta">by ' + esc(p.due) + '</span>' : '') + '</li>';
     }).join('') + '</ul>' : '';
     if (c.followUpDate) promisesHtml += '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>';
+    if (c.handledAtMs) chips += chip('Handled', '#14532d', '#bbf7d0');
+    // ✓ Handled and "Wrong customer → move to…" (2026-10-03) go through the
+    // callCenterAction callable (phone_calls is server-written; the move
+    // re-checks both customers are in the caller's company).
+    var acts = c.storagePath ? '<button type="button" class="btn pc-play" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button>' : '';
+    if (!isViewer()) {
+      acts += '<button type="button" class="btn pc-play" data-calls-act="' + (c.handledAtMs ? 'pc-unhandled' : 'pc-handled') + '" data-call-id="' + esc(id) + '">' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' +
+        '<button type="button" class="btn pc-play" data-calls-act="pc-moveopen" data-call-id="' + esc(id) + '">Wrong customer → move to…</button>';
+    }
     // Styled by css/phone-calls.css (no inline style attributes).
     return '<div class="panel pc-card" data-call-card="' + esc(id) + '">' +
       '<div class="pc-head">' +
@@ -139,7 +148,8 @@
       '</div>' +
       '<div class="pc-chips">' + chips + '</div>' +
       (summary ? '<div class="pc-summary">' + esc(summary) + '</div>' : '') + promisesHtml +
-      (c.storagePath ? '<div class="pc-actions"><button type="button" class="btn pc-play" data-calls-act="play" data-call-id="' + esc(id) + '">▶ Play recording</button></div>' : '') +
+      (acts ? '<div class="pc-actions">' + acts + '</div>' : '') +
+      '<div class="pc-move" data-calls-move="' + esc(id) + '" hidden></div>' +
       '<div class="pc-audio" data-calls-audio="' + esc(id) + '"></div>' +
       (c.transcript ? '<details class="pc-transcript"><summary>Transcript</summary>' +
         '<div class="pc-transcript-body">' + esc(c.transcript) + '</div></details>' : '') +
@@ -233,11 +243,13 @@
     var el = root();
     if (!el) return;
     if (typeof window.nbdNavCount === 'function') window.nbdNavCount('navCountCalls', calls.length + (texts.length ? 1 : 0));
+    var top = notice ? '<div class="panel pc-notice" data-calls-notice>' + esc(notice) +
+      (noticeLead ? ' <a class="cc-link" href="/pro/customer.html?id=' + encodeURIComponent(noticeLead) + '">Open them →</a>' : '') + '</div>' : '';
     if (!calls.length && !texts.length) {
-      el.innerHTML = '<div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">No calls yet. Calls Thursday answers, and calls recorded on your phone, show up here with the recording.</div>';
+      el.innerHTML = top + '<div style="color:var(--m);font-size:13px;text-align:center;padding:24px 12px;">No calls yet. Calls Thursday answers, and calls recorded on your phone, show up here with the recording.</div>';
       return;
     }
-    el.innerHTML = renderTexts() + calls.map(renderCall).join('');
+    el.innerHTML = top + renderTexts() + calls.map(renderCall).join('');
     var th = el.querySelector('[data-pt-thread]');
     if (th) th.scrollTop = th.scrollHeight;
   }
@@ -316,11 +328,95 @@
     return call;
   }
 
+  // ── A phone call on this customer: ✓ Handled, or move it to the right one ──
+  function phoneCall(id) { return calls.find(function (c) { return c._kind === 'phone' && 'phone:' + c._id === id; }); }
+  function leadLabel(l) { return (((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer'); }
+  var moveLeads = null; // this tenant's customers, read once on the first "move" tap
+  async function loadMoveLeads() {
+    if (moveLeads) return moveLeads;
+    var db = window.db, uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+    var c = claims();
+    var qs = [window.query(window.collection(db, 'leads'), window.where('userId', '==', uid))];
+    if (['company_admin', 'manager'].indexOf(c.role || '') !== -1 && c.companyId) qs.push(window.query(window.collection(db, 'leads'), window.where('companyId', '==', c.companyId)));
+    var byId = {};
+    for (var i = 0; i < qs.length; i++) {
+      try { (await window.getDocs(qs[i])).docs.forEach(function (d) { var v = d.data() || {}; if (v.deleted !== true) byId[d.id] = Object.assign({ id: d.id }, v); }); }
+      catch (e) { console.warn('[calls] leads read failed', e && e.code); }
+    }
+    moveLeads = Object.keys(byId).map(function (k) { return byId[k]; }).sort(function (a, b) { return leadLabel(a).localeCompare(leadLabel(b)); });
+    return moveLeads;
+  }
+  async function openMove(id) {
+    var box = document.querySelector('[data-calls-move="' + CSS.escape(id) + '"]');
+    var pc = phoneCall(id);
+    if (!box || !pc) return;
+    if (!box.hidden) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = '<div class="pc-meta">Loading your customers…</div>';
+    var here = window._customerId;
+    var all = (await loadMoveLeads()).filter(function (l) { return l.id !== here; });
+    var byId = {};
+    all.forEach(function (l) { byId[l.id] = l; });
+    // The other customers this number is on come first (the ingest's alternates).
+    var alts = (pc.alternateLeadIds || []).filter(function (x) { return byId[x]; });
+    box.innerHTML = (alts.length ? '<div class="pc-meta">This number is also on:</div><div class="pc-move-picks">' + alts.map(function (x) {
+      return '<button type="button" class="btn pc-play" data-calls-act="pc-move" data-call-id="' + esc(id) + '" data-lead="' + esc(x) + '">Move to ' + esc(leadLabel(byId[x])) + '</button>';
+    }).join('') + '</div>' : '') +
+      '<label class="pc-meta" for="pcMove-' + esc(pc._id) + '">Type the right customer\'s name or address</label>' +
+      '<div class="cc-attach-row"><input class="cc-search" id="pcMove-' + esc(pc._id) + '" list="pcMoveList-' + esc(pc._id) + '" autocomplete="off">' +
+      '<button type="button" class="btn btn-orange pc-play" data-calls-act="pc-move" data-call-id="' + esc(id) + '">Move</button></div>' +
+      '<datalist id="pcMoveList-' + esc(pc._id) + '">' + all.slice(0, 800).map(function (l) {
+        return '<option value="' + esc(leadLabel(l) + ' — ' + (l.address || '') + ' #' + l.id) + '"></option>';
+      }).join('') + '</datalist>';
+    var input = box.querySelector('input');
+    if (input) input.focus();
+  }
+  var notice = '';
+  async function moveCall(id, b) {
+    var pc = phoneCall(id);
+    if (!pc) return;
+    var to = b.getAttribute('data-lead');
+    if (!to) {
+      var input = document.getElementById('pcMove-' + pc._id);
+      var m = input && /#([A-Za-z0-9_-]{6,})\s*$/.exec(input.value || '');
+      to = m ? m[1] : '';
+    }
+    if (!to) { status(id, 'Pick a customer from the list.'); return; }
+    var name = (moveLeads || []).filter(function (l) { return l.id === to; }).map(leadLabel)[0] || 'the other customer';
+    b.disabled = true;
+    status(id, 'Moving…');
+    try {
+      await callable('callCenterAction', { id: pc._id, action: 'move', leadId: to });
+      notice = 'Moved the ' + (pc.startedAtMs ? new Date(pc.startedAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' : '') + 'call to ' + name + ', with its notes and follow-up task.';
+      noticeLead = to;
+      await load();
+    } catch (e) {
+      b.disabled = false;
+      status(id, (e && e.message) || 'Could not move it — try again.');
+    }
+  }
+  var noticeLead = '';
+  async function setHandled(id, on) {
+    var pc = phoneCall(id);
+    if (!pc) return;
+    status(id, 'Saving…');
+    try {
+      await callable('callCenterAction', { id: pc._id, action: on ? 'handled' : 'unhandled' });
+      pc.handledAtMs = on ? Date.now() : null;
+      render();
+    } catch (e) {
+      status(id, (e && e.message) || 'That did not save.');
+    }
+  }
+
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-calls-act]') : null;
     if (!b) return;
     var id = b.getAttribute('data-call-id');
     var a = b.getAttribute('data-calls-act');
+    if (a === 'pc-handled' || a === 'pc-unhandled') { setHandled(id, a === 'pc-handled'); return; }
+    if (a === 'pc-moveopen') { openMove(id); return; }
+    if (a === 'pc-move') { moveCall(id, b); return; }
     if (a === 'play') play(id);
     else if (a === 'confirm') act(id, 'confirm_match');
     else if (a === 'not-them') act(id, 'create_lead');

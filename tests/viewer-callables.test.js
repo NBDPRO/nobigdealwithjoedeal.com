@@ -456,6 +456,9 @@ const VERDICTS = {
   // The Call Center 'Said you'd do' deck list: owner or platform admin only
   // (call-center.js promisesList), so a viewer is refused by role.
   callPromisesList: 'role-gated',
+  // "Match my tagged contacts": owner or platform admin only (call-center.js
+  // taggedMatch), proven in tests/call-center-action-2026-10-01.test.js.
+  callTaggedMatch: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
   // HTTP functions

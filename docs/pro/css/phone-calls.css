@@ -74,3 +74,18 @@
 .cc-deck-attach { margin-top: 10px; }
 .cc-deck-hint { margin-top: 10px; font-size: 13px; color: var(--blue, #4A9EFF); }
 .cc-deck-one { margin-top: 8px; width: 100%; justify-content: center; }
+
+/* Matching a caller to a customer (2026-10-03): the one-tap "Looks like X /
+   File on X" row (or "Not in CRM yet / Make lead") on call cards and both
+   decks, the grouped Said-you'd-do card's rows, the owner's "Match my tagged
+   contacts" preview, and the customer page's "Wrong customer → move to…". */
+.cc-suggest { margin-top: 10px; font-size: 13px; color: var(--blue, #4A9EFF); display: flex; flex-direction: column; gap: 6px; }
+.cc-suggest-btn { align-self: flex-start; max-width: 100%; overflow-wrap: anywhere; }
+.cc-deck-item + .cc-deck-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--br, #2a2f35); }
+.cc-tagmatch { margin-bottom: 12px; }
+.cc-tag-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.cc-tag-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; cursor: pointer; overflow-wrap: anywhere; }
+.cc-tag-row input { width: 22px; height: 22px; flex: 0 0 auto; }
+.pc-move { margin-top: 10px; }
+.pc-move-picks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.pc-notice { margin-bottom: 12px; padding: 10px 14px; font-size: 14px; }

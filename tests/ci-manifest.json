@@ -189,6 +189,7 @@
     "text-notes-2026-10-01.test.js",
     "call-center-sweep-2026-10-01.test.js",
     "call-center-action-2026-10-01.test.js",
+    "call-center-matching-2026-10-03.test.js",
     "month-close-2026-10-01.test.js",
     "kanban-board-logic-2026-10-01.test.js",
     "clarity-2026-10-01.test.js",
