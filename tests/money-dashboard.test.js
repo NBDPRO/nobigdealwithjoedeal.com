@@ -427,5 +427,51 @@ ok('fetchData scopes invoices to companyId for staff (team-wide A/R — was crea
 ok('fetchData keeps each invoice\'s own doc id (needed so an action can target ONE invoice)',
   /Object\.assign\(\{ id: d\.id \}, d\.data\(\)\)/.test(mdSrc));
 
+// ── Owed rule (2026-10-03): void / draft / cancelled / deleted are not A/R ──
+// functions/stripe-ledger.js voids a Stripe mirror as { status:'void',
+// balanceDue:0 }. The old `parseFloat(balanceDue) || parseFloat(total)` read
+// that 0 as "missing" and counted the full total as owed; drafts (never sent)
+// were counted too.
+console.log('  owed rule (void / draft / cancelled / deleted):');
+{
+  const NOWo = new Date(2026, 8, 15, 12, 0, 0);
+  const past = new Date(NOWo.getTime() - 20 * 86400000);
+  const ow = MD.computePnL({
+    year: 2026, now: NOWo, leads: [], expenses: [], suppliers: [],
+    invoices: [
+      { id: 'open', status: 'sent', total: 1000, balanceDue: 1000, dueDate: past },
+      { id: 'void', status: 'void', source: 'stripe', total: 5000, balanceDue: 0, dueDate: past },
+      { id: 'voidStr', status: 'void', total: 700, balanceDue: '0', dueDate: past },
+      { id: 'draft', status: 'draft', total: 2500, balanceDue: 2500, dueDate: past },
+      { id: 'cancelled', status: 'Cancelled', total: 300, balanceDue: 300, dueDate: past },
+      { id: 'deleted', status: 'sent', deleted: true, total: 400, balanceDue: 400, dueDate: past },
+      { id: 'zeroBal', status: 'sent', total: 900, balanceDue: 0, dueDate: past },
+      { id: 'strBal', status: 'sent', total: 800, balanceDue: '250', dueDate: past },
+      { id: 'legacy', status: 'sent', total: 600, dueDate: past },
+    ],
+  });
+  eq('outstanding = open $1,000 + string balance $250 + legacy (no balanceDue → total) $600', ow.outstandingCents, 185000);
+  eq('aging 1-30 bucket = the same $1,850 (void/draft/zero not aged)', ow.agingCents.d1_30, 185000);
+  eq('collections queue holds only the owed invoices',
+    ow.collectionsQueue.map(q => q.id).sort().join(','), 'legacy,open,strBal');
+}
+
+// The owed rule is ONE rule: the marked block must be byte-identical in every
+// file that decides "is this invoice owed?" (no shared runtime import — each
+// loads standalone, like paymentsOf).
+{
+  const OWED_FILES = ['collected-revenue.js', 'money-dashboard.js', 'analytics-kpi.js', 'invoice-pipeline.js'];
+  const blockOf = (f) => {
+    const s = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js', f), 'utf8').replace(/\r\n/g, '\n');
+    const m = s.match(/\/\/ nbd:owed-rule:start[\s\S]*?\/\/ nbd:owed-rule:end/);
+    return m ? m[0] : null;
+  };
+  const canon = blockOf(OWED_FILES[0]);
+  ok('collected-revenue.js carries the canonical owed-rule block', !!canon && /function owedDollarsOf/.test(canon));
+  OWED_FILES.slice(1).forEach(function (f) {
+    ok(f + ' owed-rule block is identical to collected-revenue.js', blockOf(f) === canon);
+  });
+}
+
 console.log('\n' + (failed === 0 ? '✓' : '✗') + ' money dashboard: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) { console.error('FAILED: ' + fails.join(', ')); process.exit(1); }
