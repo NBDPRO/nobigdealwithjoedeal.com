@@ -2213,6 +2213,55 @@ async function run() {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));
   }
 
+  // ─── 46. Security batch 2026-10-03 ───
+  // (a) A lead CREATE may not carry server-owned referral fields
+  //     (referralServerFieldsFrozen only guarded updates).
+  // (b) A customerId with another tenant's RESERVED prefix is refused on create
+  //     and on the first stamp (update); unreserved / legacy ids still pass.
+  // (c) /emails read by sentBy needs a VERIFIED email claim.
+  const s46Fail = []; let s46Pass = 0;
+  async function x46(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s46Pass++;
+    } catch (e) { s46Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const rep46    = env.authenticatedContext('rep46',  { role: 'sales_rep', companyId: 'co-46' }).firestore();
+  const solo46   = env.authenticatedContext('solo46', {}).firestore();
+  const unver46  = env.authenticatedContext('unv46',  { email: 'victim46@x.test' }).firestore();
+  const ver46    = env.authenticatedContext('ver46',  { email: 'victim46@x.test', email_verified: true }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'docPrefixes/OAK46'), { companyId: 'co-other46' });
+    await setDoc(doc(db, 'docPrefixes/REP46'), { companyId: 'co-46' });
+    await setDoc(doc(db, 'leads/lead46a'), { userId: 'rep46', companyId: 'co-46', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'leads/lead46b'), { userId: 'rep46', companyId: 'co-46', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'emails/e46'), { sentBy: 'victim46@x.test', sentByUid: 'real-victim', to: 'h@x.test' });
+  });
+  const NEWLEAD = (extra) => Object.assign({ userId: 'rep46', companyId: 'co-46', firstName: 'ZZ_QA', lastName: 'New' }, extra || {});
+  // (a) referral fields on create
+  await x46('plain lead create (control)', 'allow', setDoc(doc(rep46, 'leads/n46-ok'), NEWLEAD()));
+  for (const [k, v] of [['referralRewardStatus', 'owed'], ['referralDocId', 'refdocX'], ['referrerLeadId', 'leadX'],
+    ['referralRewardAmount', 500], ['referredBy', 'X-1'], ['referralRewardJobCount', 0]]) {
+    await x46('create carrying ' + k, 'deny', setDoc(doc(rep46, 'leads/n46-' + k), NEWLEAD({ [k]: v })));
+  }
+  // (b) customerId prefixes
+  await x46("create with another tenant's reserved prefix", 'deny', setDoc(doc(rep46, 'leads/n46-oak'), NEWLEAD({ customerId: 'OAK46-0001-ABCD' })));
+  await x46('create with the own reserved prefix', 'allow', setDoc(doc(rep46, 'leads/n46-own'), NEWLEAD({ customerId: 'REP46-0007-ABCD' })));
+  await x46('create with an unreserved legacy id (CSV import)', 'allow', setDoc(doc(rep46, 'leads/n46-legacy'), NEWLEAD({ customerId: 'CUST-12345' })));
+  await x46('create with a non-prefix-shaped id', 'allow', setDoc(doc(rep46, 'leads/n46-free'), NEWLEAD({ customerId: '2024/117' })));
+  await x46("first stamp (update) with another tenant's reserved prefix", 'deny', updateDoc(doc(rep46, 'leads/lead46a'), { customerId: 'OAK46-0002-ABCD' }));
+  await x46('first stamp (update) with the own prefix — the client mint', 'allow', updateDoc(doc(rep46, 'leads/lead46b'), { customerId: 'REP46-0008-ABCD' }));
+  await x46('ordinary edit on a stamped lead still works', 'allow', updateDoc(doc(rep46, 'leads/lead46b'), { lastName: 'Edited' }));
+  await x46('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo46, 'leads/n46-solo'), { userId: 'solo46', companyId: 'solo46', firstName: 'ZZ_QA' }));
+  // (c) /emails read
+  await x46('unverified account with the sender\'s email cannot read the row', 'deny', getDoc(doc(unver46, 'emails/e46')));
+  await x46('verified owner of that email can read it', 'allow', getDoc(doc(ver46, 'emails/e46')));
+  console.log('  46: ' + s46Pass + ' security-batch checks passed, ' + s46Fail.length + ' failed');
+  if (s46Fail.length) {
+    throw new Error('46 security batch: ' + s46Fail.length + ' check(s) went the wrong way:\n    ' + s46Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

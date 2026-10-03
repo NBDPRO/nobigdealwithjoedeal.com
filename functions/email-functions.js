@@ -19,6 +19,7 @@ const { Resend } = require('resend');
 const { enforceRateLimit, httpRateLimit } = require('./rate-limit');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const Suppression = require('./email-suppression');
+const SendGuard = require('./email-send-guard');
 
 // Secrets
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -377,21 +378,69 @@ exports.sendEmail = onRequest(
       return;
     }
 
-    const { to, subject, body, html, replyTo, attachments, leadId } = req.body;
+    // `attachments` is no longer read from the caller (security batch
+    // 2026-10-03): no CRM call site sends any, and a Resend attachment `path`
+    // is a URL Resend fetches on our behalf.
+    const { to, subject, body, html, replyTo } = req.body || {};
+    const leadId = (req.body && typeof req.body.leadId === 'string' && req.body.leadId) || null;
+    const invoiceId = (req.body && typeof req.body.invoiceId === 'string' && req.body.invoiceId) || null;
 
     // Validate input
-    if (!to || !isValidEmail(to)) {
+    if (!to || typeof to !== 'string' || !isValidEmail(to)) {
       res.status(400).json({ error: 'Invalid recipient email' });
       return;
     }
 
-    if (!subject || subject.trim().length === 0) {
+    if (!subject || typeof subject !== 'string' || subject.trim().length === 0) {
       res.status(400).json({ error: 'Subject cannot be empty' });
       return;
     }
 
     if (!body && !html) {
       res.status(400).json({ error: 'Body or HTML required' });
+      return;
+    }
+
+    // ── Recipient binding (security batch 2026-10-03) ──────────────────
+    // This used to send to ANY `to` with caller-supplied HTML — an open
+    // phishing relay on the company domain for any verified account. The
+    // call must now name a record the caller can open (leadId and/or
+    // invoiceId — every CRM call site passes them) and `to` must be an email
+    // ON that record. A record the caller cannot open is a 403 (final; the
+    // client does not hand it off). "Not on the record" / "no record" is a
+    // 422: the client falls back to the rep's OWN mail app, which is fine —
+    // that is their address, not ours.
+    const db = getFirestore();
+    let lead = null;
+    let invoice = null;
+    try {
+      if (leadId) {
+        const snap = await db.doc(`leads/${leadId}`).get();
+        if (snap.exists) lead = snap.data() || null;
+        if (lead && !SendGuard.callerCanAccessLead(decoded, lead)) {
+          res.status(403).json({ error: 'You cannot email this customer from your account.', code: 'record_forbidden' });
+          return;
+        }
+      }
+      if (invoiceId) {
+        const snap = await db.doc(`invoices/${invoiceId}`).get();
+        if (snap.exists) invoice = snap.data() || null;
+        if (invoice && !SendGuard.callerCanAccessInvoice(decoded, invoice)) {
+          res.status(403).json({ error: 'You cannot email this customer from your account.', code: 'record_forbidden' });
+          return;
+        }
+      }
+    } catch (e) {
+      logger.error('sendEmail record_lookup_failed', { err: e && e.message });
+      res.status(503).json({ error: 'Could not load the customer record — nothing was sent. Try again in a moment.', code: 'record_unverified' });
+      return;
+    }
+    if (!lead && !invoice) {
+      res.status(422).json({ error: 'Email can only be sent to a customer on file.', code: 'record_required' });
+      return;
+    }
+    if (!SendGuard.recipientOnRecord(to, lead, invoice)) {
+      res.status(422).json({ error: 'That address is not on this customer\'s record.', code: 'recipient_not_on_record' });
       return;
     }
 
@@ -411,7 +460,6 @@ exports.sendEmail = onRequest(
     //
     // Tenant key = claims.companyId || uid (the Phase-1.5 convention the CRM
     // badge, the unsubscribe token and markEmailUnsubscribed all use).
-    const db = getFirestore();
     const companyId = decoded.companyId || null;
     const tenantKey = decoded.companyId || decoded.uid;
     const kind = req.body && typeof req.body.kind === 'string' ? req.body.kind : '';
@@ -454,15 +502,22 @@ exports.sendEmail = onRequest(
 
       // Commercial: footer link + RFC 8058 one-click headers. Transactional:
       // the message goes exactly as the caller built it.
-      const bodyHtml = Suppression.applyFooter(unsubGate, html || `<p>${body}</p>`, null).html;
+      // Caller HTML is sanitized (no script-capable/form elements, handlers or
+      // javascript:/data: URLs); a plain body is escaped — it used to be
+      // interpolated raw into <p>…</p>. replyTo only when it is the caller's
+      // own verified address (security batch 2026-10-03).
+      const contentHtml = html
+        ? SendGuard.sanitizeEmailHtml(html)
+        : SendGuard.plainTextToHtml(body);
+      const bodyHtml = Suppression.applyFooter(unsubGate, contentHtml, null).html;
       const message = {
         from: fromEmail,
         to,
         subject,
         html: bodyHtml,
-        reply_to: replyTo,
-        attachments: attachments || []
       };
+      const safeReply = SendGuard.safeReplyTo(replyTo, decoded);
+      if (safeReply) message.reply_to = safeReply;
       if (unsubGate && unsubGate.headers) message.headers = unsubGate.headers;
       // Carries the unsubscribe token so Resend's bounce/complaint webhook can
       // attribute the event to this tenant (functions/resend-webhook.js).

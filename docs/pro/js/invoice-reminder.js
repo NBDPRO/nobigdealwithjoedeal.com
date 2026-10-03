@@ -159,7 +159,7 @@
       } else {
         if (!C || typeof C.sendEmail !== 'function') throw new Error('Email is not available here.');
         var html = '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>';
-        var e = await C.sendEmail({ to: r.to.email, subject: r.subject, html: html, leadId: inv.leadId || null, kind: 'invoice' });
+        var e = await C.sendEmail({ to: r.to.email, subject: r.subject, html: html, leadId: inv.leadId || null, invoiceId: inv.id || null, kind: 'invoice' });
         if (!e || e.success === false) throw new Error((e && (e.message || e.error)) || 'The email was not sent.');
         // 'mailto' = the rep's own mail app opened; nothing confirms it was sent.
         delivered = e.mode !== 'mailto';

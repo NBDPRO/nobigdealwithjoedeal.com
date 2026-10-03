@@ -354,7 +354,7 @@ exports.runAbandonRecovery = onSchedule(
         logger.info('funnel_recovery_dry_run', {
           funnelId: doc.id,
           email: require('./email-suppression').maskEmail(data.email),   // no PII in logs (2026-10-01)
-          firstName,
+          hasFirstName: !!firstName,   // the name itself is PII (security batch 2026-10-03)
           age_min: Math.round((now - data.createdAt.toMillis()) / 60000),
         });
         skipped++;

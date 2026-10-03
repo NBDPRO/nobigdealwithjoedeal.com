@@ -470,7 +470,13 @@ exports.submitPublicLead = onRequest(
       (k) => body[k] != null && String(body[k]).length > 0
     );
     if (hpKey) {
-      logger.info('submitPublicLead: honeypot tripped', { kind, key: hpKey, ip: clientIp(req) });
+      // No raw IP in logs (PII, security batch 2026-10-03): the network
+      // prefix (/24 for IPv4, /64 for IPv6) is enough to spot a bot wave.
+      const _ipRaw = String(clientIp(req) || '');
+      const ipPrefix = _ipRaw.indexOf(':') === -1
+        ? _ipRaw.split('.').slice(0, 3).join('.') + (_ipRaw ? '.0/24' : '')
+        : rateLimitIpKey(_ipRaw);
+      logger.info('submitPublicLead: honeypot tripped', { kind, key: hpKey, ipPrefix });
       res.status(200).json({ success: true });
       return;
     }
