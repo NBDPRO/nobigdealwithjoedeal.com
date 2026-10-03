@@ -60,3 +60,10 @@
 .pt-out { align-self: flex-end; background: var(--orange, #e8720c); color: var(--accent-fg, #fff); border-bottom-right-radius: 4px; }
 .pt-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .pt-time { font-size: 10px; opacity: .75; margin-top: 2px; text-align: right; }
+
+/* Needs attention, grouped by person (2026-10-02): one card, each open call as a row. */
+.cc-group-calls { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.cc-group-call { padding: 10px 0; border-top: 1px solid var(--br, #2a2f35); }
+.cc-group-call:first-child { border-top: 0; padding-top: 4px; }
+.cc-group-call .pc-actions { margin-top: 6px; }
+.cc-deck-btn { margin-top: 10px; }
