@@ -185,12 +185,29 @@ function togglePass(id, btn) {
 // ─────────────────────────────────────────────────
 // REGISTER FLOW
 // ─────────────────────────────────────────────────
+// Clickwrap (2026-10-03, legal-checklist audit). The account is a contract
+// with the Terms; "by creating an account you agree" (browsewrap) is the
+// weakest form of assent there is. Both sign-up paths require the box.
+const TERMS_VERSION = '2026-10-03';
+function termsAccepted(errEl) {
+  const box = document.getElementById('regTerms');
+  if (box && box.checked) return true;
+  if (errEl) errEl.textContent = 'Please check the box to agree to the Terms of Service and Privacy Policy.';
+  try { if (box) box.focus(); } catch (_) { /* ignore */ }
+  return false;
+}
+// Stamped on the users doc at creation: when, and which Terms revision.
+function termsRecord() {
+  return { termsAcceptedAt: serverTimestamp(), termsVersion: TERMS_VERSION };
+}
+
 async function register(e) {
   e.preventDefault();
   const btn   = document.getElementById('regBtn');
   const errEl = document.getElementById('regErr');
   const okEl  = document.getElementById('regOk');
   errEl.textContent = ''; okEl.textContent = '';
+  if (!termsAccepted(errEl)) return;
 
   const firstName = document.getElementById('regFirst').value.trim();
   const lastName  = document.getElementById('regLast').value.trim();
@@ -214,7 +231,7 @@ async function register(e) {
       try { await sendEmailVerification(cred.user); } catch (_) { /* non-fatal */ }
       await setDoc(doc(db, 'users', cred.user.uid), {
         firstName, lastName, company: company || '', email,
-        createdAt: serverTimestamp(), onboarded: false
+        createdAt: serverTimestamp(), onboarded: false, ...termsRecord()
       });
       // Invitees (?invite=1 from the team-invite email) skip solo tenant
       // provisioning AND the owner wizard entirely: the dashboard's
@@ -265,7 +282,7 @@ async function register(e) {
       try { await sendEmailVerification(cred.user); } catch (_) {}
       await setDoc(doc(db, 'users', cred.user.uid), {
         firstName, lastName, company: company || '', email,
-        createdAt: serverTimestamp(), onboarded: false
+        createdAt: serverTimestamp(), onboarded: false, ...termsRecord()
       });
     }
 
@@ -377,6 +394,9 @@ async function googleRegister() {
   const errEl = document.getElementById('regErr');
   const code  = document.getElementById('regCode').value.trim();
   errEl.textContent = '';
+  const termsErr = document.getElementById('regTermsErr');
+  if (termsErr) termsErr.textContent = '';
+  if (!termsAccepted(termsErr || errEl)) return;
 
   try {
     const provider = new GoogleAuthProvider();
@@ -393,7 +413,8 @@ async function googleRegister() {
         company:   '',
         email:     user.email,
         createdAt: serverTimestamp(),
-        onboarded: false
+        onboarded: false,
+        ...termsRecord()
       });
     }
 

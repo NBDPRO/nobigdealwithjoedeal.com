@@ -30,7 +30,7 @@ All 14 of its fix checks fail on the pre-fix code.
 | Server-side API secrets | PASS | ~55 `defineSecret`s; no paid-API key in `docs/` |
 | claude-code-security-review | Not installed | Needs an Anthropic key as a repo secret plus per-PR spend; Jo's call |
 | Rate limit requests | **PARTIAL→FIXED** | Per-IP limits everywhere; the public AI endpoints had no global cap (gap 3) |
-| Validate file uploads | PARTIAL | Size and type limits on every path; SVG removed (gap 8). Open: homeowner portal photos keep EXIF |
+| Validate file uploads | PARTIAL | Size and type limits on every path; SVG removed (gap 8). Portal photos re-encoded and EXIF stripped 2026-10-03 (PR #2103) |
 | Keep sensitive data from logs | **FIXED** | 3 email and 1 phone log sites now masked (gap 4) |
 | Hash passwords | PASS | Firebase Auth only; no password stored, logged or kept locally |
 | Verify webhook signatures | PASS | Stripe ×3, Resend, Twilio, Cal.com, Bland, Swath, Hover, BoldSign, all before acting; Thumbtack is a constant-time shared token |
@@ -96,6 +96,10 @@ All 14 of its fix checks fail on the pre-fix code.
 2. **Low — homeowner portal photos keep EXIF/GPS and aren't re-encoded**
    (`functions/portal.js` upload). Re-encode with sharp, as the public-form
    photo path already does.
+   **Update 2026-10-03: fixed in PR #2103.** Both upload paths now call the
+   shared `functions/photo-reencode.js`, which strips EXIF/GPS, applies the
+   EXIF rotation, caps the size at 2560px and refuses non-images. The guard
+   is `tests/portal-photo-exif-2026-10-03.test.js`.
 3. **Low — permanent `?token=` download URLs** (photos, docs, receipts) can't
    be revoked. Move to short-lived signed links (`signImageUrl` exists, but is
    gated on an IAM grant; see the photo-token note).

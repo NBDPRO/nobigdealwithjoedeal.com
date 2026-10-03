@@ -438,6 +438,16 @@ exports.sendEmail = onRequest(
         res.status(403).json({ error: 'This person unsubscribed from email', code: 'unsubscribed' });
         return;
       }
+      // CAN-SPAM (2026-10-03): no tenant postal address → the commercial send
+      // is refused. 403 so the browser client treats it as final (toast, no
+      // mailto: handoff — handing it to the rep's mail app would send the
+      // same non-compliant email by another route).
+      if (unsubGate.blocked) {
+        logger.warn('sendEmail blocked: no postal address', { tenantKey, reason: unsubGate.reason });
+        await logEmailToFirestore(db, to, subject, decoded.uid, 'blocked_no_postal_address', leadId || null, companyId);
+        res.status(403).json({ error: Suppression.NO_POSTAL_ADDRESS_MESSAGE, code: Suppression.NO_POSTAL_ADDRESS });
+        return;
+      }
     }
 
     if (!(await httpRateLimit(req, res, 'sendEmail:ip', 60, 3_600_000))) return;

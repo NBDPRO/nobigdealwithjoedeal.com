@@ -28,6 +28,24 @@ const { getAuth } = require('firebase-admin/auth');
 const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
+const { defineSecret } = require('firebase-functions/params');
+const { cancelBillingForErasure, REFUSAL_MESSAGE: BILLING_REFUSAL } = require('./erasure-billing');
+
+// Stripe (2026-10-03): erasure cancels the user's subscription before it
+// deletes the only record of it. Redeclared per module like stripe.js /
+// seats.js (defineSecret scope is per-module; same Secret Manager entry).
+const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
+const STRIPE_API_VERSION = '2023-10-16'; // pinned, mirrors stripe.js
+let _stripeClient = null;
+function getStripe() {
+  if (_stripeClient) return _stripeClient;
+  const raw = STRIPE_SECRET_KEY.value();
+  const key = String(raw == null ? '' : raw).trim();
+  if (!key) throw new Error('STRIPE_SECRET_KEY is empty/unset');
+  const Stripe = require('stripe');
+  _stripeClient = new Stripe(key, { apiVersion: STRIPE_API_VERSION, maxNetworkRetries: 2, timeout: 20000 });
+  return _stripeClient;
+}
 
 // M-01/M-02: single source of truth for what "user-owned" means.
 // Erasure cascade + Article 20 export both import from here so the
@@ -453,6 +471,8 @@ exports.confirmAccountErasure = onRequest(
   {
     region: 'us-central1',
     cors: CORS_ORIGINS,
+    // The POST cancels the user's Stripe subscription before erasing.
+    secrets: [STRIPE_SECRET_KEY],
     timeoutSeconds: 540,
     memory: '512MiB'
   },
@@ -514,7 +534,7 @@ exports.confirmAccountErasure = onRequest(
         '.err{background:rgba(255,78,78,.15);color:#ff6b6b;display:block!important}' +
         '</style></head><body>' +
         '<h1>Permanently delete your NBD Pro account?</h1>' +
-        '<p>This removes your leads, estimates, photos, pins, tasks, documents, training sessions, profile, and subscription record. ' +
+        '<p>This cancels any active NBD Pro subscription (billing stops immediately) and removes your leads, estimates, photos, pins, tasks, documents, training sessions, profile, and subscription record. ' +
         'Your Auth account is disabled. This cannot be undone.</p>' +
         retainedHtml +
         '<p>If you did not request this, simply close this tab — nothing will happen.</p>' +
@@ -583,6 +603,19 @@ exports.confirmAccountErasure = onRequest(
     if (data.tokenHash !== hash) { res.status(403).json({ error: 'Invalid token' }); return; }
     if (data.expiresAt && data.expiresAt.toMillis() < Date.now()) {
       res.status(410).json({ error: 'Link expired' }); return;
+    }
+
+    // Billing FIRST (2026-10-03, legal-checklist audit). The cascade below
+    // deletes subscriptions/{uid} — the only record of the Stripe ids — so a
+    // subscription left running here would keep charging a deleted user with
+    // nothing left in the app that could find it. Cancel every live sub, or
+    // refuse and delete NOTHING. Runs before `confirmed` is set, so a refused
+    // request can simply be retried with the same link.
+    const billing = await cancelBillingForErasure({ db, uid, getStripe, logger });
+    if (!billing.ok) {
+      logger.error('confirmAccountErasure: refused, billing not cancelled', { uid, reason: billing.reason });
+      res.status(409).json({ error: BILLING_REFUSAL, code: 'billing_not_cancelled' });
+      return;
     }
 
     // Mark confirmed BEFORE starting the delete so a crash/retry
@@ -731,6 +764,7 @@ exports.confirmAccountErasure = onRequest(
       op: 'delete',
       ids: { uid },
       retained: ERASURE_RETAINED_PREFIXES,
+      stripeCancelled: billing.cancelled,
       ts: FieldValue.serverTimestamp()
     });
 
