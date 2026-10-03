@@ -65,24 +65,40 @@ function fakeDb(seed) {
     async set(d, o) { const clean = JSON.parse(JSON.stringify(d, (k, v) => (v && v.constructor && v.constructor.name === 'ServerTimestampTransform' ? 'TS' : v))); docs[p] = o && o.merge && docs[p] ? Object.assign(docs[p], clean) : clean; },
     collection: (c) => ({ doc: (id) => ref(p + '/' + c + '/' + id) }),
   });
+  // Every query read is logged with its limit (null = unbounded) — the
+  // nightly reconcile must page, never read a whole collection at once.
+  const reads = [];
+  // Firestore's implicit order is by document path; limit + startAfter(doc)
+  // page over it (2026-10-03, reconcile paging).
+  const page = (name, keys, mk, o) => {
+    keys.sort();
+    let from = 0;
+    if (o.after) { const i = keys.indexOf(o.after._path); from = i + 1; }
+    const sel = keys.slice(from, o.lim == null ? undefined : from + o.lim);
+    reads.push({ name, limit: o.lim == null ? null : o.lim, n: sel.length });
+    const hits = sel.map(mk);
+    return { forEach: (fn) => hits.forEach(fn), docs: hits, size: hits.length };
+  };
   // leads/{id}/jobs/{jobId} across all leads (multi-job, 2026-09-30).
-  const cg = (name, fl) => ({
-    where: (f, op, v) => cg(name, fl.concat([[f, v]])),
+  const cg = (name, fl, o) => ({
+    where: (f, op, v) => cg(name, fl.concat([[f, v]]), o),
+    limit: (n) => cg(name, fl, Object.assign({}, o, { lim: n })),
+    startAfter: (d) => cg(name, fl, Object.assign({}, o, { after: d })),
     async get() {
-      const hits = Object.keys(docs).filter((k) => { const s = k.split('/'); return s.length >= 4 && s[s.length - 2] === name && fl.every(([f, v]) => docs[k][f] === v); })
-        .map((k) => { const s = k.split('/'); return { id: s[s.length - 1], ref: { parent: { parent: { id: s[s.length - 3] } } }, data: () => JSON.parse(JSON.stringify(docs[k])) }; });
-      return { forEach: (fn) => hits.forEach(fn), docs: hits, size: hits.length };
+      const keys = Object.keys(docs).filter((k) => { const s = k.split('/'); return s.length >= 4 && s[s.length - 2] === name && fl.every(([f, v]) => docs[k][f] === v); });
+      return page(name, keys, (k) => { const s = k.split('/'); return { _path: k, id: s[s.length - 1], ref: { parent: { parent: { id: s[s.length - 3] } } }, data: () => JSON.parse(JSON.stringify(docs[k])) }; }, o);
     },
   });
-  const q = (col, fl) => ({
-    where: (f, op, v) => q(col, fl.concat([[f, v]])),
+  const q = (col, fl, o) => ({
+    where: (f, op, v) => q(col, fl.concat([[f, v]]), o),
+    limit: (n) => q(col, fl, Object.assign({}, o, { lim: n })),
+    startAfter: (d) => q(col, fl, Object.assign({}, o, { after: d })),
     async get() {
-      const hits = Object.keys(docs).filter((k) => k.startsWith(col + '/') && k.split('/').length === 2 && fl.every(([f, v]) => docs[k][f] === v))
-        .map((k) => ({ id: k.split('/')[1], data: () => JSON.parse(JSON.stringify(docs[k])) }));
-      return { forEach: (fn) => hits.forEach(fn), docs: hits, size: hits.length };
+      const keys = Object.keys(docs).filter((k) => k.startsWith(col + '/') && k.split('/').length === 2 && fl.every(([f, v]) => docs[k][f] === v));
+      return page(col, keys, (k) => ({ _path: k, id: k.split('/')[1], data: () => JSON.parse(JSON.stringify(docs[k])) }), o);
     },
   });
-  return { doc: (p) => ref(p), collection: (c) => Object.assign(q(c, []), { doc: (id) => ref(c + '/' + id) }), collectionGroup: (n) => cg(n, []), _docs: docs };
+  return { doc: (p) => ref(p), collection: (c) => Object.assign(q(c, [], {}), { doc: (id) => ref(c + '/' + id) }), collectionGroup: (n) => cg(n, [], {}), _docs: docs, _reads: reads };
 }
 
 const L = (id, f) => Object.assign({ companyId: 'OWNER', userId: 'OWNER', firstName: 'ZZ_QA', lastName: id, address: id + ' ZZQA St', stage: 'contract_signed' }, f);
@@ -423,6 +439,55 @@ const future = (d) => { const t = new Date(Date.now() + d * 86400000); return t.
     ok('Firestore Timestamps ({toDate}) read the same', ids([K('ts', { createdAt: { toDate: () => new Date(5) }, followUpDate: { toDate: () => new Date(6) } })]) === '["ts"]');
     ok('the badge and the dashboard metric both read it', /function updateNavBadge\(\) \{\s*const followUpsDue = followUpsDueOf\(state\.knocks\);/.test(core)
       && /const followUpsDue = followUpsDueOf\(state\.knocks\);\s*return \{/.test(core) && !/state\.knocks\.filter\(k => \{\s*const fup = toDate\(k\.followUpDate\);/.test(core));
+  }
+
+  console.log('\n12. the nightly reconcile pages its reads (2026-10-03: it loaded every owner lead/job/sign/knock at once into 512MiB)');
+  {
+    const g10 = fakeGoogle();
+    M._internal.setClient(g10.client);
+    const seed = {};
+    // 650 owner leads (> two pages), every 50th scheduled; one far-past lead
+    // whose event is out of the 30-day window; a job on a lead in the LAST page.
+    for (let i = 0; i < 650; i++) {
+      const id = 'P' + String(i).padStart(4, '0');
+      seed['leads/' + id] = L('Page' + i, i % 50 === 0 ? { scheduledDate: future(3 + (i % 7)), scheduledStart: '08:00', scheduledDurationMin: 60 } : {});
+    }
+    seed['leads/P0649'].scheduledDate = future(4);
+    seed['leads/P0649'].activeJobId = 'jA';
+    seed['leads/P0649/jobs/jB'] = { companyId: 'OWNER', userId: 'OWNER', title: 'Gutter guards', stage: 'new', scheduledDate: future(6), scheduledStart: '09:00', scheduledDurationMin: 120 };
+    seed['leads/Pold'] = L('Ancient', { scheduledDate: '2020-01-02', scheduledStart: '08:00', scheduledDurationMin: 60 });
+    for (let i = 0; i < 320; i++) seed['knocks/k' + String(i).padStart(4, '0')] = { companyId: 'OWNER', userId: 'OWNER', address: (i % 40) + ' Door Ln, Mason, OH', createdAt: 1000 + i, followUpDate: future(2), followUpTime: '10:00' };
+    const db10 = fakeDb(seed);
+    // Ground truth from the pure rules over ALL docs at once (what the old
+    // unpaged reconcile computed).
+    const cut = Date.now() - 30 * 86400000;
+    const inWin = (e) => (e.end.dateTime ? Date.parse(e.end.dateTime) : Date.parse(e.end.date + 'T23:59:59Z')) >= cut;
+    const allLeads = Object.keys(seed).filter((k) => /^leads\/[^/]+$/.test(k)).map((k) => Object.assign({ id: k.split('/')[1] }, seed[k]));
+    const allKnocks = Object.keys(seed).filter((k) => /^knocks\//.test(k)).map((k) => Object.assign({}, seed[k], { id: k.split('/')[1] }));
+    const truth = new Set([].concat(
+      ...allLeads.map((l) => G.desiredEventsForLead(l).filter(inWin)),
+      G.desiredEventsForJob(allLeads.find((l) => l.id === 'P0649'), Object.assign({ id: 'jB' }, seed['leads/P0649/jobs/jB'])).filter(inWin),
+      G.desiredKnockEvents(allKnocks, require(path.join(__dirname, '..', 'functions', 'schedule-window.js')).localToUtcMs).filter(inWin)
+    ).map((e) => e.id));
+    const r = await M._internal.reconcile(db10, 'cal10');
+    ok('every query the reconcile ran was a bounded page (no whole-collection read)', db10._reads.length > 0 && db10._reads.every((x) => x.limit != null && x.limit <= 500), JSON.stringify(db10._reads.filter((x) => x.limit == null).slice(0, 3)));
+    ok('...and it still walked past the first page of leads and knocks', db10._reads.filter((x) => x.name === 'leads').length >= 3 && db10._reads.filter((x) => x.name === 'knocks').length >= 2);
+    ok('counts are unique docs: 651 leads, 1 job, 320 knocks', r.leads === 651 && r.jobs === 1 && r.knocks === 320, JSON.stringify(r));
+    const liveIds = new Set(g10.live('cal10').map((e) => e.id));
+    ok('the synced event set is EXACTLY what one pass over every doc wants (last page, job, newest knock per door; nothing out of window)',
+      truth.size > 40 && liveIds.size === truth.size && [...truth].every((id) => liveIds.has(id)), liveIds.size + ' vs ' + truth.size);
+    ok('the job on a last-page lead got its own event', g10.live('cal10').some((e) => /Gutter guards/.test(e.summary)));
+    const r2 = await M._internal.reconcile(db10, 'cal10');
+    ok('a second paged reconcile changes nothing', r2.upserted === 0 && r2.deleted === 0, JSON.stringify(r2));
+  }
+
+  console.log('\n13. every Calendar API request carries a timeout (gaxios has none by default)');
+  {
+    const seen = [];
+    M._internal.setClient({ email: async () => null, request: async (o) => { seen.push(o); return { data: { items: [] } }; } });
+    await M._internal.listManaged('calX', Date.now());
+    await M._internal.deleteEvent('calX', 'abcde').catch(() => {});
+    ok('requests pass a finite timeout well under the 30s busy-check function', seen.length >= 2 && seen.every((o) => Number.isFinite(o.timeout) && o.timeout > 0 && o.timeout <= 15000), JSON.stringify(seen.map((o) => o.timeout)));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

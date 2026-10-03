@@ -147,7 +147,8 @@ for (const rel of ['functions/report-sharing.js', 'functions/calendar-feed.js'])
   // Not older than the 2026-09 revision (later updates bump it — 2026-10-02
   // added the A2P mobile-information sentence).
   ok('privacy.html "Last Updated" reads September 2026 or later',
-    /Last Updated:\s*(?:(?:September|October|November|December) 2026|\w+ 20(?:2[7-9]|[3-9]\d))/.test(priv));
+    // A day is allowed since 2026-10-03 ("October 3, 2026").
+    /Last Updated:\s*(?:(?:September|October|November|December)(?: \d{1,2},)? 2026|\w+(?: \d{1,2},)? 20(?:2[7-9]|[3-9]\d))/.test(priv));
 }
 
 // ── docs/pro/README-killswitch.md — corrected example URL ────────────────

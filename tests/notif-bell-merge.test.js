@@ -258,6 +258,63 @@ win._notifications = [
 forceRender();
 ok('fresh-view NOT suppressed by follow_up', els.notifList.innerHTML.includes('Customer viewing your estimate'));
 
+// ── Step 9: duplicate follow_up docs collapse to ONE row per lead (2026-10-03) ──
+// The follow-up engine once wrote a doc per lead per LOAD — 18,169 follow_up
+// docs across 89 leads in the owner tenant, so the bell + badge counted docs,
+// not people. The writer is fixed (crm-snooze.js deterministic ids), but the
+// old docs remain, so the bell collapses per (type, lead) as defence in depth.
+{
+  _ls['nbd_notif_read_v1'] = '[]'; _ls['nbd_notif_dismissed_v1'] = '[]';
+  win._leads = [{ id: 'LX', firstName: 'Sam', lastName: 'Roe', stage: 'contacted', updatedAt: nowD }];
+  win._taskCache = {}; win._estimates = [];
+  const at = (minsAgo) => new Date(Date.now() - minsAgo * 60000);
+  const fu = (id, lead, mins, extra) => Object.assign({ id, userId: 'u', type: 'follow_up', leadId: lead,
+    title: 'Overdue Follow-Up — ' + lead, message: 'overdue', read: false, dismissed: false, createdAt: at(mins) }, extra || {});
+  win._notifications = [
+    fu('x1', 'LX', 1), fu('x2', 'LX', 5), fu('x3', 'LX', 9), fu('x4', 'LX', 60), fu('x5', 'LX', 600),
+    fu('y1', 'LY', 2), fu('y2', 'LY', 30), fu('y3', 'LY', 90, { read: true }),
+    { id: 'n1', userId: 'u', type: 'needs_field', leadId: 'LX', title: 'Needs carrier — Sam', message: 'm', read: false, createdAt: at(3) },
+    { id: 'n2', userId: 'u', type: 'needs_field', leadId: 'LX', title: 'Needs carrier — Sam', message: 'm', read: false, createdAt: at(4) },
+  ];
+  captured.markRead.length = 0; captured.markReadMany.length = 0; captured.dismissMany.length = 0; captured.dismiss.length = 0;
+  forceRender();
+  const rowsFor = (t) => els.notifList.innerHTML.split(t).length - 1;
+  ok('collapse: 5 follow_up docs for one lead render ONE row', rowsFor('Overdue Follow-Up — LX') === 1);
+  ok('collapse: 3 follow_up docs for another lead render ONE row', rowsFor('Overdue Follow-Up — LY') === 1);
+  ok('collapse: needs_field dupes collapse too', rowsFor('Needs carrier — Sam') === 1);
+  ok('collapse: badge counts people per nag type (LX fu + LY fu + LX nf = 3), not 9 docs',
+    els.notifBadge.textContent === '3', 'badge=' + els.notifBadge.textContent);
+
+  // Opening the collapsed row marks EVERY doc it stands for read.
+  clickAction('handleClick', 'server:x1', false);
+  const many = captured.markReadMany[captured.markReadMany.length - 1] || [];
+  ok('collapse: opening the row marks all 5 LX follow_up docs read (one markReadMany)',
+    many.length === 5 && ['x1', 'x2', 'x3', 'x4', 'x5'].every((id) => many.includes(id)), JSON.stringify(many));
+  forceRender();
+  ok('collapse: badge drops by one person (3 → 2)', els.notifBadge.textContent === '2', 'badge=' + els.notifBadge.textContent);
+
+  // Dismissing a collapsed row dismisses every doc behind it.
+  clickAction('dismiss', 'server:y1', true);
+  const dm = captured.dismissMany[captured.dismissMany.length - 1] || [];
+  ok('collapse: dismissing the LY row dismisses all 3 LY docs', dm.length === 3 && ['y1', 'y2', 'y3'].every((id) => dm.includes(id)), JSON.stringify(dm));
+
+  // Mark-all-read reaches the hidden duplicates too.
+  win._notifications.forEach((n) => { if (n.leadId === 'LX' && n.type === 'needs_field') n.read = false; });
+  captured.markReadMany.length = 0;
+  forceRender();
+  win.markAllNotificationsRead();
+  const all = captured.markReadMany[0] || [];
+  ok('collapse: mark-all-read includes the collapsed needs_field duplicate', all.includes('n1') && all.includes('n2'), JSON.stringify(all));
+
+  // A non-nag type is never collapsed (two portal messages are two messages).
+  win._notifications = [
+    { id: 'p1', userId: 'u', type: 'portal_message', leadId: 'LX', title: 'Portal msg A', message: 'a', read: false, createdAt: at(1) },
+    { id: 'p2', userId: 'u', type: 'portal_message', leadId: 'LX', title: 'Portal msg B', message: 'b', read: false, createdAt: at(2) },
+  ];
+  forceRender();
+  ok('collapse: other types are NOT collapsed', els.notifList.innerHTML.includes('Portal msg A') && els.notifList.innerHTML.includes('Portal msg B'));
+}
+
 // ── the notification poll must not fight the live listener ───────────────
 // loadNotifications establishes an onSnapshot subscription, and a
 // setInterval(loadNotifications, 120000) re-ran it every two minutes — which

@@ -40,6 +40,14 @@ const CORS_ORIGINS = [
   'https://nobigdeal-pro.web.app'
 ];
 
+// Per-provider fetch cap (2026-10-03). getHailHistory has a 20s function
+// timeout and attachStormProof 30s, and lookupHail runs the preferred
+// provider THEN the NOAA fallback serially — so each leg gets 8s, leaving
+// room for both plus the callable's own work. Without a cap a hung provider
+// held the whole callable until the platform killed it, and the NOAA
+// fallback never ran.
+const HAIL_FETCH_TIMEOUT_MS = 8000;
+
 // NOAA Storm Events CSV endpoint. Per-year files. We query by
 // lat/lng bounding box + event type `Hail` then filter by distance.
 // For a demo/zero-cost deployment, keep a rolling 12-month window.
@@ -67,7 +75,7 @@ async function fetchNoaaHail(lat, lng, radiusMi, daysBack) {
     + '&minlon=' + (lng - lngDelta).toFixed(4)
     + '&maxlon=' + (lng + lngDelta).toFixed(4);
 
-  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(HAIL_FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error('NOAA/IEM ' + res.status);
   const geo = await res.json();
   const features = (geo && geo.features) || [];
@@ -92,7 +100,7 @@ async function fetchHailTrace(lat, lng, radiusMi, daysBack) {
     + '&lon=' + encodeURIComponent(lng)
     + '&radius_mi=' + encodeURIComponent(radiusMi)
     + '&days=' + encodeURIComponent(daysBack);
-  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + key } });
+  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + key }, signal: AbortSignal.timeout(HAIL_FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error('HailTrace ' + res.status);
   const data = await res.json();
   // Normalize — HailTrace returns `events`, each with
