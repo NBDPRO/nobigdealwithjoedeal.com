@@ -4,7 +4,7 @@
 .gc-card { background: var(--s, #12223D); border: 1px solid var(--br, #2a2f3a); border-radius: 12px; padding: 14px 16px; }
 .gc-top { display: flex; align-items: center; gap: 12px; }
 .gc-sprite { width: 64px; height: 64px; image-rendering: pixelated; background: var(--s2, #1b2230); border-radius: 10px; flex: none; }
-.gc-sprite-lg { width: 128px; height: 128px; }
+.gc-sprite-lg { width: 160px; height: 160px; }
 .gc-who { flex: 1 1 auto; min-width: 0; }
 .gc-name { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; color: var(--t, #e8eaf0); }
 .gc-muted { font-size: 12px; color: var(--m, #9aa3b2); }
@@ -29,10 +29,15 @@
 .gc-sw, .gc-tools { display: flex; gap: 8px; flex-wrap: wrap; }
 .gc-swatch { width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 8px; border: 1px solid var(--br, #2a2f3a); cursor: pointer; }
 .gc-swatch.is-on, .gc-tools .is-on { outline: 2px solid var(--orange, #BD5728); outline-offset: 2px; }
-.gc-sw-skin-0 { background: #F2C6A0; } .gc-sw-skin-1 { background: #D99A6C; } .gc-sw-skin-2 { background: #A86B45; } .gc-sw-skin-3 { background: #6B4226; }
-.gc-sw-hat-0 { background: #BA7517; } .gc-sw-hat-1 { background: #378ADD; } .gc-sw-hat-2 { background: #E24B4A; } .gc-sw-hat-3 { background: #639922; }
-.gc-sw-shirt-0 { background: #185FA5; } .gc-sw-shirt-1 { background: #D85A30; } .gc-sw-shirt-2 { background: #5F5E5A; } .gc-sw-shirt-3 { background: #0F6E56; }
+/* Swatch colours — generated from game-sprite.js OPTIONS (keep in step). */
+.gc-sw-skin-0 { background: #FBD9C0; } .gc-sw-skin-1 { background: #F2C6A0; } .gc-sw-skin-2 { background: #D99A6C; } .gc-sw-skin-3 { background: #B97A4E; } .gc-sw-skin-4 { background: #8D5A36; } .gc-sw-skin-5 { background: #5E3B23; }
+.gc-sw-hairColor-0 { background: #2C2420; } .gc-sw-hairColor-1 { background: #5A3A22; } .gc-sw-hairColor-2 { background: #A0612B; } .gc-sw-hairColor-3 { background: #E0B45A; } .gc-sw-hairColor-4 { background: #C2452D; } .gc-sw-hairColor-5 { background: #9AA0A6; }
+.gc-sw-hatColor-0 { background: #F2A900; } .gc-sw-hatColor-1 { background: #378ADD; } .gc-sw-hatColor-2 { background: #E24B4A; } .gc-sw-hatColor-3 { background: #639922; } .gc-sw-hatColor-4 { background: #F5F5F0; } .gc-sw-hatColor-5 { background: #2C2C2A; }
+.gc-sw-shirt-0 { background: #185FA5; } .gc-sw-shirt-1 { background: #D85A30; } .gc-sw-shirt-2 { background: #5F5E5A; } .gc-sw-shirt-3 { background: #0F6E56; } .gc-sw-shirt-4 { background: #7F4FB0; } .gc-sw-shirt-5 { background: #E8E4DA; }
+.gc-sw-pants-0 { background: #2E3A59; } .gc-sw-pants-1 { background: #5C4A32; } .gc-sw-pants-2 { background: #3D3D3A; } .gc-sw-pants-3 { background: #6B7B8C; }
+.gc-group { margin-bottom: 4px; }
+.gc-opt { min-height: 36px; }
 .gc-p { margin: 0 0 10px; line-height: 1.5; }
 .gc-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--t, #e8eaf0); cursor: pointer; min-height: 44px; }
 .gc-switch input { width: 20px; height: 20px; }
-@media (max-width: 480px) { .gc-sprite-lg { width: 96px; height: 96px; } .gc-weeks { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .gc-sprite-lg { width: 128px; height: 128px; } .gc-weeks { grid-template-columns: 1fr 1fr; } }

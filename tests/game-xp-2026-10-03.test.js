@@ -97,6 +97,34 @@ function fakeDb(seed, { cgFails } = {}) {
   const p = await gameCard({ db: fakeDb(seed, { cgFails: true }), auth: { uid: UID, token: {} }, nowMs: NOW });
   ok('task index not built yet → the card still comes back, marked partial', p.partial.includes('tasks') && p.week.xp === 0);
 
+  console.log('\n4. The 32×32 avatar (game-sprite.js)');
+  const fs = require('fs');
+  global.window = global.window || {};
+  require(path.join(__dirname, '..', 'docs', 'pro', 'js', 'game-sprite.js'));
+  const SP = global.window.NBDSprite;
+  const css = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'css', 'game-card.css'), 'utf8');
+  const missing = [];
+  for (const [k, o] of Object.entries(SP.OPTIONS)) (o.colors || []).forEach((c, i) => {
+    if (!new RegExp('\\.gc-sw-' + k + '-' + i + ' \\{ background: ' + c + '; \\}').test(css)) missing.push(k + '-' + i);
+  });
+  ok('every colour option has its swatch class in game-card.css (same colour)', missing.length === 0, missing.join(', '));
+  const old = SP.normalize({ skin: 2, hat: 3, shirt: 1, tool: 'ladder' });
+  ok('a first-version (16-px) save maps over: hat colour kept, hard hat on', old.hat === 'hardhat' && old.hatColor === 3 && old.skin === 2 && old.tool === 'ladder');
+  const junk = SP.normalize({ skin: 99, hair: '<script>', eyes: 7, tool: 'chainsaw' });
+  ok('unknown or out-of-range values fall back to defaults', junk.skin === SP.DEFAULTS.skin && junk.hair === SP.DEFAULTS.hair && junk.eyes === SP.DEFAULTS.eyes && junk.tool === SP.DEFAULTS.tool);
+  let drawErr = null, combos = 0;
+  const vals = (k) => SP.OPTIONS[k].values.map((v) => v[0]);
+  try {
+    for (const hair of vals('hair')) for (const hat of vals('hat')) for (const eyes of vals('eyes')) for (const extra of vals('extra')) {
+      const G = SP._outline(SP._build(SP.normalize({ hair, hat, eyes, extra, beard: 'full', vest: 'yes', tool: 'ladder' })));
+      if (G.length !== 32 || G.some((r) => r.length !== 32)) throw new Error('grid size');
+      combos++;
+    }
+  } catch (e) { drawErr = e; }
+  ok('every hair × headwear × eyes × extras combination builds a 32×32 sprite', !drawErr && combos === 6 * 4 * 4 * 4, drawErr && drawErr.message);
+  const spiky = SP._build(SP.normalize({ hair: 'spiky', hat: 'cap', hairColor: 3 }));
+  ok('a hat flattens spiky hair (no hair pixels above the cap)', [0, 1, 2].every((y) => !spiky[y].includes('#E0B45A')));
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);

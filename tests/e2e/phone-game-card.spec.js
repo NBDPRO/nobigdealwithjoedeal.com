@@ -75,7 +75,7 @@ test.describe('phone: optional game card @shard2', () => {
     await sw.check();
     await expect.poll(async () => (((await adb().doc('userSettings/' + uid).get()).data() || {}).game || {}).enabled, { timeout: 10_000 }).toBe(true);
     // Pick a red hard hat and a ladder; each saves at once.
-    const red = page.locator('#gameSettingsMount [data-key="hat"][data-val="2"]');
+    const red = page.locator('#gameSettingsMount [data-key="hatColor"][data-val="2"]');
     await red.scrollIntoViewIfNeeded();
     expect(await reachable(red), 'a swatch is tappable at 390').toBe(true);
     const box = await red.boundingBox();
@@ -83,7 +83,7 @@ test.describe('phone: optional game card @shard2', () => {
     await red.tap();
     await page.locator('#gameSettingsMount [data-key="tool"][data-val="ladder"]').tap();
     await expect.poll(async () => JSON.stringify(((((await adb().doc('userSettings/' + uid).get()).data() || {}).game || {}).avatar) || {}), { timeout: 10_000 })
-      .toContain('"hat":2');
+      .toContain('"hatColor":2');
     await expect.poll(async () => ((((await adb().doc('userSettings/' + uid).get()).data() || {}).game || {}).avatar || {}).tool, { timeout: 10_000 }).toBe('ladder');
 
     // Home card.
@@ -105,7 +105,7 @@ test.describe('phone: optional game card @shard2', () => {
     await safeWaitForFunction(page, () => !!(window.NBDGameCard && window.NBDGameCard._state.settings && window.NBDGameCard._state.settings.enabled), null, { timeout: 60_000 });
     await expect(page.locator('#homeGameCard')).toBeVisible({ timeout: 15_000 });
     const av = await page.evaluate(() => window.NBDGameCard._state.settings.avatar);
-    expect(av.hat === 2 && av.tool === 'ladder', 'avatar picks survive a reload').toBe(true);
+    expect(av.hatColor === 2 && av.tool === 'ladder', 'avatar picks survive a reload').toBe(true);
 
     // Off again → gone.
     await page.evaluate(() => { window.goTo('settings'); });

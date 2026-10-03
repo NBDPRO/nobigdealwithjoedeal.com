@@ -21,13 +21,8 @@
 
   var FUNCTIONS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
   var CACHE_MS = 15 * 60 * 1000;
-  var PALETTE = {
-    skin: ['#F2C6A0', '#D99A6C', '#A86B45', '#6B4226'],
-    hat: ['#BA7517', '#378ADD', '#E24B4A', '#639922'],
-    shirt: ['#185FA5', '#D85A30', '#5F5E5A', '#0F6E56'],
-  };
-  var TOOLS = [['hammer', 'Hammer'], ['ladder', 'Ladder'], ['none', 'None']];
-  var DEFAULT_AVATAR = { skin: 0, hat: 0, shirt: 0, tool: 'hammer' };
+  // The avatar itself (parts, colours, drawing) lives in game-sprite.js.
+  function S() { return window.NBDSprite; }
   var st = { settings: null, card: null, loading: false, editing: false, error: '' };
 
   function esc(s) {
@@ -35,7 +30,7 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function uid() { return window._user && window._user.uid; }
-  function avatar() { return Object.assign({}, DEFAULT_AVATAR, (st.settings && st.settings.avatar) || {}); }
+  function avatar() { return S() ? S().normalize((st.settings && st.settings.avatar) || {}) : {}; }
   function enabled() { return !!(st.settings && st.settings.enabled); }
   function fmt(n) { return Math.round(Number(n) || 0).toLocaleString('en-US'); }
 
@@ -80,41 +75,26 @@
     st.loading = false;
   }
 
-  // ── the 16×16 sprite ───────────────────────────────────────────────────
-  function drawSprite(canvas, a) {
-    if (!canvas || !canvas.getContext) return;
-    var g = canvas.getContext('2d');
-    var u = canvas.width / 16;
-    var px = function (x, y, c) { g.fillStyle = c; g.fillRect(x * u, y * u, u, u); };
-    g.clearRect(0, 0, canvas.width, canvas.height);
-    var skin = PALETTE.skin[a.skin] || PALETTE.skin[0], hat = PALETTE.hat[a.hat] || PALETTE.hat[0];
-    var shirt = PALETTE.shirt[a.shirt] || PALETTE.shirt[0], dark = '#2C2C2A', pants = '#444441';
-    var x, y;
-    for (x = 4; x < 12; x++) px(x, 2, hat);
-    for (x = 3; x < 13; x++) px(x, 3, hat);
-    for (y = 4; y < 8; y++) for (x = 5; x < 11; x++) px(x, y, skin);
-    px(6, 5, dark); px(9, 5, dark); px(7, 7, dark); px(8, 7, dark);
-    for (y = 8; y < 12; y++) for (x = 4; x < 12; x++) px(x, y, shirt);
-    for (y = 8; y < 11; y++) { px(3, y, skin); px(12, y, skin); }
-    for (y = 12; y < 15; y++) { px(5, y, pants); px(6, y, pants); px(9, y, pants); px(10, y, pants); }
-    px(5, 15, dark); px(6, 15, dark); px(9, 15, dark); px(10, 15, dark);
-    if (a.tool === 'hammer') { for (y = 6; y < 11; y++) px(13, y, '#854F0B'); px(12, 5, '#888780'); px(13, 5, '#888780'); px(14, 5, '#888780'); }
-    if (a.tool === 'ladder') { for (y = 4; y < 15; y++) { px(13, y, '#B4B2A9'); px(15, y, '#B4B2A9'); } for (y = 5; y < 15; y += 3) px(14, y, '#B4B2A9'); }
-  }
+  function drawSprite(canvas, a) { if (S()) S().draw(canvas, a); }
 
+  // The editor is generated from NBDSprite.OPTIONS: colour lists become
+  // swatches (classes gc-sw-<key>-<i>, CSP: no inline colours), the rest
+  // become small buttons.
   function editorHtml(prefix) {
-    var a = avatar();
-    var row = function (key, label) {
-      return '<div class="gc-lbl">' + label + '</div><div class="gc-sw">' + PALETTE[key].map(function (c, i) {
-        return '<button type="button" class="gc-swatch gc-sw-' + key + '-' + i + (a[key] === i ? ' is-on' : '') + '" data-gc="pick" data-key="' + key + '" data-val="' + i + '" aria-label="' + label + ' ' + (i + 1) + '" aria-pressed="' + (a[key] === i) + '"></button>';
-      }).join('') + '</div>';
+    if (!S()) return '';
+    var a = avatar(), O = S().OPTIONS;
+    var group = function (key) {
+      var o = O[key];
+      var body = o.colors ? o.colors.map(function (c, i) {
+        return '<button type="button" class="gc-swatch gc-sw-' + key + '-' + i + (a[key] === i ? ' is-on' : '') + '" data-gc="pick" data-key="' + key + '" data-val="' + i + '" aria-label="' + esc(o.label) + ' ' + (i + 1) + '" aria-pressed="' + (a[key] === i) + '"></button>';
+      }).join('') : o.values.map(function (v) {
+        return '<button type="button" class="btn btn-ghost btn-sm gc-opt' + (a[key] === v[0] ? ' is-on' : '') + '" data-gc="pick" data-key="' + key + '" data-val="' + esc(v[0]) + '" aria-pressed="' + (a[key] === v[0]) + '">' + esc(v[1]) + '</button>';
+      }).join('');
+      return '<div class="gc-group"><div class="gc-lbl">' + esc(o.label) + '</div><div class="' + (o.colors ? 'gc-sw' : 'gc-tools') + '">' + body + '</div></div>';
     };
     return '<div class="gc-editor">' +
-      '<canvas class="gc-sprite gc-sprite-lg" id="' + prefix + 'Sprite" width="128" height="128" role="img" aria-label="Your avatar"></canvas>' +
-      '<div class="gc-editor-opts">' + row('skin', 'Skin') + row('hat', 'Hard hat') + row('shirt', 'Shirt') +
-      '<div class="gc-lbl">Tool</div><div class="gc-tools">' + TOOLS.map(function (t) {
-        return '<button type="button" class="btn btn-ghost btn-sm' + (a.tool === t[0] ? ' is-on' : '') + '" data-gc="pick" data-key="tool" data-val="' + t[0] + '" aria-pressed="' + (a.tool === t[0]) + '">' + t[1] + '</button>';
-      }).join('') + '</div></div></div>';
+      '<canvas class="gc-sprite gc-sprite-lg" id="' + prefix + 'Sprite" width="256" height="256" role="img" aria-label="Your avatar"></canvas>' +
+      '<div class="gc-editor-opts">' + Object.keys(O).map(group).join('') + '</div></div>';
   }
 
   // ── Home card ──────────────────────────────────────────────────────────
@@ -134,7 +114,7 @@
     var ahead = c.week.xp - c.lastWeek.xp;
     el.innerHTML = '<div class="gc-card">' +
       '<div class="gc-top">' +
-        '<canvas class="gc-sprite" id="gcHomeSprite" width="64" height="64" role="img" aria-label="Your avatar"></canvas>' +
+        '<canvas class="gc-sprite" id="gcHomeSprite" width="128" height="128" role="img" aria-label="Your avatar"></canvas>' +
         '<div class="gc-who"><div class="gc-name">' + esc(name) + '</div><div class="gc-muted">Level ' + esc(c.level) + ' · ' + esc(c.title) + '</div></div>' +
         '<div class="gc-xp gc-muted">' + fmt(c.totalXp) + ' / ' + fmt(c.levelNext) + ' XP</div>' +
       '</div>' +
@@ -179,7 +159,9 @@
     if (a === 'pick') {
       var key = b.getAttribute('data-key'), val = b.getAttribute('data-val');
       var av = avatar();
-      av[key] = key === 'tool' ? val : Number(val);
+      var o = S() && S().OPTIONS[key];
+      if (!o) return;
+      av[key] = o.colors ? Number(val) : val;
       try { await saveSettings({ avatar: av }); } catch (_) {}
       renderAll();
     }
