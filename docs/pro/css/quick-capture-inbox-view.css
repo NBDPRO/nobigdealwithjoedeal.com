@@ -1,0 +1,31 @@
+/* Quick capture inbox (js/quick-capture-inbox.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.qix-dflex-aicenter-jcspacebet.qix-dflex-aicenter-jcspacebet.qix-dflex-aicenter-jcspacebet { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.qix-fs11px-c94a3b8-ls008em.qix-fs11px-c94a3b8-ls008em.qix-fs11px-c94a3b8-ls008em { font-size: 11px; color: #94a3b8; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 2px; }
+.qix-fs18px-w700.qix-fs18px-w700.qix-fs18px-w700 { font-size: 18px; font-weight: 700; }
+.qix-bgtranspar-bdnone-c94a3b8.qix-bgtranspar-bdnone-c94a3b8.qix-bgtranspar-bdnone-c94a3b8 { background: transparent; border: none; color: #94a3b8; font-size: 22px; cursor: pointer; padding: 4px 10px; line-height: 1; }
+.qix-fx1-oveauto-dflex.qix-fx1-oveauto-dflex.qix-fx1-oveauto-dflex { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.qix-c94a3b8-fs13px-tacenter.qix-c94a3b8-fs13px-tacenter.qix-c94a3b8-fs13px-tacenter { color: #94a3b8; font-size: 13px; text-align: center; padding: 32px 12px; }
+.qix-cfca5a5-fs13px-tacenter.qix-cfca5a5-fs13px-tacenter.qix-cfca5a5-fs13px-tacenter { color: #fca5a5; font-size: 13px; text-align: center; padding: 24px 12px; }
+.qix-dflex-jcspacebet-aiflexstar.qix-dflex-jcspacebet-aiflexstar.qix-dflex-jcspacebet-aiflexstar { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.qix-fx1-minw0.qix-fx1-minw0.qix-fx1-minw0 { flex: 1; min-width: 0; }
+.qix-fs11px-c94a3b8-mb4px.qix-fs11px-c94a3b8-mb4px.qix-fs11px-c94a3b8-mb4px { font-size: 11px; color: #94a3b8; margin-bottom: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+.qix-dinlinebl-p1px7px-bgrgba1617.qix-dinlinebl-p1px7px-bgrgba1617.qix-dinlinebl-p1px7px-bgrgba1617 { display: inline-block; padding: 1px 7px; background: rgba(161,74,34,0.15); border: 1px solid var(--orange, #A14A22); border-radius: 999px; font-size: 10px; color: var(--orange, #A14A22); }
+.qix-dinlinebl-p1px7px-bg1a2540.qix-dinlinebl-p1px7px-bg1a2540.qix-dinlinebl-p1px7px-bg1a2540 { display: inline-block; padding: 1px 7px; background: #1a2540; border: 1px solid #2a3344; border-radius: 999px; font-size: 10px; color: #cbd5e1; }
+.qix-fs10px-c5eead4.qix-fs10px-c5eead4.qix-fs10px-c5eead4 { font-size: 10px; color: #5eead4; }
+.qix-fs13px-lh145.qix-fs13px-lh145.qix-fs13px-lh145 { font-size: 13px; line-height: 1.45; }
+.qix-dflex-gap6px-flewrap.qix-dflex-gap6px-flewrap.qix-dflex-gap6px-flewrap { display: flex; gap: 6px; flex-wrap: wrap; }
+.qix-p5px10px-bgtranspar-bd1pxsolid.qix-p5px10px-bgtranspar-bd1pxsolid.qix-p5px10px-bgtranspar-bd1pxsolid { padding: 5px 10px; background: transparent; border: 1px solid #2a3344; color: #cbd5e1; border-radius: 5px; font-size: 11px; cursor: pointer; }
+.qix-p5px10px-bgrgba1617-bd1pxsolid.qix-p5px10px-bgrgba1617-bd1pxsolid.qix-p5px10px-bgrgba1617-bd1pxsolid { padding: 5px 10px; background: rgba(161,74,34,0.15); border: 1px solid var(--orange, #A14A22); color: var(--orange, #A14A22); border-radius: 5px; font-size: 11px; cursor: pointer; }
+.qix-mlauto-p5px10px-bgtranspar.qix-mlauto-p5px10px-bgtranspar.qix-mlauto-p5px10px-bgtranspar { margin-left: auto; padding: 5px 10px; background: transparent; border: 1px solid #2a3344; color: #94a3b8; border-radius: 5px; font-size: 11px; cursor: pointer; }
+.qix-w600-mb4px-fs11px.qix-w600-mb4px-fs11px.qix-w600-mb4px-fs11px { font-weight: 600; margin-bottom: 4px; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+.qix-m0010px-pad18px.qix-m0010px-pad18px.qix-m0010px-pad18px { margin: 0 0 10px; padding-left: 18px; }
+.qix-whiprewrap-ccbd5e1.qix-whiprewrap-ccbd5e1.qix-whiprewrap-ccbd5e1 { white-space: pre-wrap; color: #cbd5e1; }
+.qix-bg0f1729-bd1pxsolid-r12px.qix-bg0f1729-bd1pxsolid-r12px.qix-bg0f1729-bd1pxsolid-r12px { background: #0f1729; border: 1px solid #2a3344; border-radius: 12px; width: 100%; max-width: 480px; padding: 18px; color: #e2e8f0; }
+.qix-dflex-aicenter-jcspacebet-2.qix-dflex-aicenter-jcspacebet-2.qix-dflex-aicenter-jcspacebet-2 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.qix-fs14px-w700.qix-fs14px-w700.qix-fs14px-w700 { font-size: 14px; font-weight: 700; }
+.qix-bgtranspar-bdnone-c94a3b8-2.qix-bgtranspar-bdnone-c94a3b8-2.qix-bgtranspar-bdnone-c94a3b8-2 { background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; line-height: 1; }
+.qix-wd100-p8px10px-r5px.qix-wd100-p8px10px-r5px.qix-wd100-p8px10px-r5px { width: 100%; padding: 8px 10px; border-radius: 5px; border: 1px solid #2a3344; background: #0a1424; color: inherit; font: inherit; font-size: 13px; margin-bottom: 10px; box-sizing: border-box; }
+.qix-max300px-oveauto-dflex.qix-max300px-oveauto-dflex.qix-max300px-oveauto-dflex { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+.qix-c94a3b8-fs12px-p14px.qix-c94a3b8-fs12px-p14px.qix-c94a3b8-fs12px-p14px { color: #94a3b8; font-size: 12px; padding: 14px; text-align: center; }
+.qix-w600.qix-w600.qix-w600 { font-weight: 600; }
+.qix-c94a3b8-fs11px-mt2px.qix-c94a3b8-fs11px-mt2px.qix-c94a3b8-fs11px-mt2px { color: #94a3b8; font-size: 11px; margin-top: 2px; }

@@ -102,20 +102,20 @@
       var active = state.presetId === p.id;
       return '<button type="button" class="aip-preset' + (active ? ' aip-preset-active' : '') + '" data-aip-preset="' + esc(p.id) + '" ' +
         'style="text-align:left;border:2px solid ' + (active ? 'var(--orange,#BD5728)' : 'var(--br,#2a2f3a)') + ';background:var(--s2,#1a1f29);border-radius:8px;padding:10px 12px;cursor:pointer;">' +
-        '<div style="font-weight:700;font-size:13px;color:var(--t,#e8eaf0);">' + esc(p.label) + '</div>' +
-        '<div style="font-size:11px;color:var(--m,#9aa3b2);margin-top:2px;line-height:1.35;">' + esc(p.desc) + '</div>' +
+        '<div class="tpx-w700-fs13px-ct">' + esc(p.label) + '</div>' +
+        '<div class="tpx-fs11px-cm-mt2px">' + esc(p.desc) + '</div>' +
         '</button>';
     }).join('');
 
     var sliders = TRAITS.map(function (t) {
       var val = clamp(state.traits[t.key]);
-      return '<div style="margin-bottom:12px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
-          '<span style="font-size:12px;font-weight:700;color:var(--t,#e8eaf0);">' + esc(t.label) + '</span>' +
-          '<span class="aip-val" data-aip-val="' + esc(t.key) + '" style="font-size:11px;color:var(--m,#9aa3b2);font-variant-numeric:tabular-nums;">' + val + '</span>' +
+      return '<div class="tpx-mb12px">' +
+        '<div class="tpx-dflex-jcspacebet-aicenter">' +
+          '<span class="tpx-fs12px-w700-ct">' + esc(t.label) + '</span>' +
+          '<span class="aip-val tpx-fs11px-cm-fontabularn" data-aip-val="' + esc(t.key) + '">' + val + '</span>' +
         '</div>' +
-        '<input type="range" min="0" max="100" step="5" value="' + val + '" data-aip-trait="' + esc(t.key) + '" style="width:100%;accent-color:var(--orange,#BD5728);">' +
-        '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--m,#9aa3b2);margin-top:1px;">' +
+        '<input type="range" min="0" max="100" step="5" value="' + val + '" data-aip-trait="' + esc(t.key) + '" class="tpx-wd100-accorange">' +
+        '<div class="tpx-dflex-jcspacebet-fs10px">' +
           '<span>' + esc(t.left) + '</span><span>' + esc(t.right) + '</span></div>' +
       '</div>';
     }).join('');
@@ -125,51 +125,51 @@
     }).join('');
 
     var companyDefaultRow = isOwner()
-      ? '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--m,#9aa3b2);margin-top:10px;cursor:pointer;">' +
-          '<input type="checkbox" id="aipCompanyDefault" style="accent-color:var(--orange,#BD5728);"> ' +
+      ? '<label class="tpx-dflex-aicenter-gap8px">' +
+          '<input type="checkbox" id="aipCompanyDefault" class="tpx-accorange"> ' +
           'Also set as my team’s default (used for reps who haven’t customized)</label>'
       : '';
 
     mount.innerHTML =
-      '<div style="max-width:680px;">' +
-        '<p style="font-size:12.5px;color:var(--m,#9aa3b2);line-height:1.5;margin:0 0 14px;">' +
+      '<div class="tpx-maxw680px">' +
+        '<p class="tpx-fs125px-cm-lh15">' +
           'Shape how your AI texting assistant sounds when it drafts replies to homeowners. ' +
           'Safety rules (no pricing, no scheduling/scope promises, escalating upset customers) are always enforced and can’t be turned off here.</p>' +
 
-        '<div style="font-size:12px;font-weight:700;color:var(--t,#e8eaf0);margin-bottom:6px;">Start from a preset</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;">' + presetCards + '</div>' +
+        '<div class="tpx-fs12px-w700-ct-2">Start from a preset</div>' +
+        '<div class="tpx-dgrid-gtc1fr1fr-gap8px">' + presetCards + '</div>' +
 
-        '<div style="font-size:12px;font-weight:700;color:var(--t,#e8eaf0);margin-bottom:8px;">Fine-tune the voice</div>' +
+        '<div class="tpx-fs12px-w700-ct-3">Fine-tune the voice</div>' +
         sliders +
 
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;">' +
-          '<div><div style="font-size:12px;font-weight:700;color:var(--t,#e8eaf0);margin-bottom:4px;">Rep first name</div>' +
+        '<div class="tpx-dgrid-gtc1fr1fr-gap12px">' +
+          '<div><div class="tpx-fs12px-w700-ct-4">Rep first name</div>' +
             '<input type="text" id="aipName" value="' + esc(state.identityName) + '" placeholder="Joe" maxlength="40" ' +
             'style="width:100%;padding:8px 10px;border:1px solid var(--br,#2a2f3a);border-radius:6px;background:var(--s2,#1a1f29);color:var(--t,#e8eaf0);font:inherit;font-size:13px;"></div>' +
-          '<div><div style="font-size:12px;font-weight:700;color:var(--t,#e8eaf0);margin-bottom:4px;">Sign-off</div>' +
-            '<select id="aipSignOff" style="width:100%;padding:8px 10px;border:1px solid var(--br,#2a2f3a);border-radius:6px;background:var(--s2,#1a1f29);color:var(--t,#e8eaf0);font:inherit;font-size:13px;">' + signOffOpts + '</select></div>' +
+          '<div><div class="tpx-fs12px-w700-ct-4">Sign-off</div>' +
+            '<select id="aipSignOff" class="tpx-wd100-p8px10px-bd1pxsolid">' + signOffOpts + '</select></div>' +
         '</div>' +
 
-        '<div style="margin-top:12px;"><div style="font-size:12px;font-weight:700;color:var(--t,#e8eaf0);margin-bottom:4px;">Extra notes <span style="font-weight:400;color:var(--m,#9aa3b2);">(optional — style only)</span></div>' +
+        '<div class="tpx-mt12px"><div class="tpx-fs12px-w700-ct-4">Extra notes <span class="tpx-w400-cm">(optional — style only)</span></div>' +
           '<textarea id="aipNotes" rows="2" maxlength="600" placeholder="e.g. mention we’re local & family-owned; avoid the word ‘cheap’" ' +
           'style="width:100%;padding:8px 10px;border:1px solid var(--br,#2a2f3a);border-radius:6px;background:var(--s2,#1a1f29);color:var(--t,#e8eaf0);font:inherit;font-size:13px;line-height:1.5;resize:vertical;">' + esc(state.customInstructions) + '</textarea></div>' +
 
         // ── live preview ──
-        '<div style="margin-top:18px;padding:12px;border:1px dashed var(--br,#2a2f3a);border-radius:8px;background:var(--s1,#11151c);">' +
-          '<div style="font-size:12px;font-weight:700;color:var(--t,#e8eaf0);margin-bottom:6px;">Live preview</div>' +
-          '<div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;">' +
+        '<div class="tpx-mt18px-p12px-bd1pxdashe">' +
+          '<div class="tpx-fs12px-w700-ct-2">Live preview</div>' +
+          '<div class="tpx-dflex-gap8px-aistretch">' +
             '<input type="text" id="aipSample" value="' + esc(SAMPLE_DEFAULT) + '" maxlength="500" ' +
               'style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--br,#2a2f3a);border-radius:6px;background:var(--s2,#1a1f29);color:var(--t,#e8eaf0);font:inherit;font-size:12px;" placeholder="A sample inbound text…">' +
-            '<button type="button" id="aipPreviewBtn" style="padding:8px 16px;border:none;border-radius:6px;background:var(--orange,#BD5728);color:#fff;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">Preview draft</button>' +
+            '<button type="button" id="aipPreviewBtn" class="tpx-p8px16px-bdnone-r6px">Preview draft</button>' +
           '</div>' +
-          '<div id="aipPreviewOut" style="margin-top:10px;font-size:13px;color:var(--m,#9aa3b2);line-height:1.5;"></div>' +
+          '<div id="aipPreviewOut" class="tpx-mt10px-fs13px-cm"></div>' +
         '</div>' +
 
         // ── save ──
-        '<div style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
-          '<button type="button" id="aipSaveBtn" style="padding:9px 20px;border:none;border-radius:6px;background:var(--orange,#BD5728);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Save persona</button>' +
-          '<button type="button" id="aipResetBtn" style="padding:9px 14px;border:1px solid var(--br,#2a2f3a);border-radius:6px;background:transparent;color:var(--m,#9aa3b2);font-weight:600;font-size:12px;cursor:pointer;">Reset to default</button>' +
-          '<span id="aipStatus" role="status" aria-live="polite" style="font-size:12px;color:var(--m,#9aa3b2);"></span>' +
+        '<div class="tpx-mt16px-dflex-aicenter">' +
+          '<button type="button" id="aipSaveBtn" class="tpx-p9px20px-bdnone-r6px">Save persona</button>' +
+          '<button type="button" id="aipResetBtn" class="tpx-p9px14px-bd1pxsolid-r6px">Reset to default</button>' +
+          '<span id="aipStatus" role="status" aria-live="polite" class="tpx-fs12px-cm"></span>' +
         '</div>' +
         companyDefaultRow +
       '</div>';
@@ -275,7 +275,7 @@
     var out = document.getElementById('aipPreviewOut');
     var btn = document.getElementById('aipPreviewBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
-    if (out) out.innerHTML = '<span style="color:var(--m,#9aa3b2);">Drafting a sample reply…</span>';
+    if (out) out.innerHTML = '<span class="tpx-cm">Drafting a sample reply…</span>';
     try {
       if (!(await ensureFunctions())) throw new Error('functions unavailable');
       var sampleEl = document.getElementById('aipSample');
@@ -285,12 +285,12 @@
       var draft = (r && r.data && r.data.draftText) || '';
       if (out) {
         out.innerHTML = draft
-          ? '<div style="color:var(--m,#9aa3b2);font-size:11px;margin-bottom:4px;">Homeowner: “' + esc(sample) + '”</div>' +
-            '<div style="background:var(--s2,#1a1f29);border-radius:8px;padding:9px 11px;color:var(--t,#e8eaf0);">' + esc(draft) + '</div>'
-          : '<span style="color:var(--red,#e05252);">No preview returned.</span>';
+          ? '<div class="tpx-cm-fs11px-mb4px">Homeowner: “' + esc(sample) + '”</div>' +
+            '<div class="tpx-bgs2-r8px-p9px11px">' + esc(draft) + '</div>'
+          : '<span class="tpx-cred">No preview returned.</span>';
       }
     } catch (e) {
-      if (out) out.innerHTML = '<span style="color:var(--red,#e05252);">Couldn’t generate a preview. ' + esc((e && e.message) || '') + '</span>';
+      if (out) out.innerHTML = '<span class="tpx-cred">Couldn’t generate a preview. ' + esc((e && e.message) || '') + '</span>';
     } finally {
       previewing = false;
       if (btn) { btn.disabled = false; btn.textContent = 'Preview draft'; }
@@ -359,7 +359,7 @@
     if (!mount) return;
     if (!rendered) {
       rendered = true;
-      mount.innerHTML = '<div style="padding:20px;color:var(--m,#9aa3b2);font-size:13px;">Loading…</div>';
+      mount.innerHTML = '<div class="tpx-p20px-cm-fs13px">Loading…</div>';
       await load();
       render();
     }

@@ -1471,14 +1471,21 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/customer-bootstrap.css?v=1">
 <link rel="stylesheet" href="css/customer-tasks.css?v=1">
+<link rel="stylesheet" href="css/profit-tracker-view.css?v=1">
+<link rel="stylesheet" href="css/claim-core-view.css?v=1">
+<link rel="stylesheet" href="css/insurance-claim-view.css?v=1">
+<link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/my-skin.css?v=1">
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/customer">
-<link rel="stylesheet" href="css/photo-editor.css?v=4">
+<link rel="stylesheet" href="css/photo-editor.css?v=5">
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 <link rel="stylesheet" href="css/google-calendar.css?v=2">
 <link rel="stylesheet" href="css/phone-calls.css?v=6">
+<link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 </head>
 <body>
@@ -2659,7 +2666,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      resolved path, so an eager tag for this file would make
      loadBundle('photos') a no-op and nothing would actually be deferred. -->
 <script defer src="js/review-engine.js?v=6"></script>
-<script defer src="js/profit-tracker.js?v=3"></script>
+<script defer src="js/profit-tracker.js?v=4"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- Persisted per-job workflow checklist (RoofLink "View Checklist"). -->
 <script defer src="js/customer-checklist.js?v=3"></script>
@@ -2669,14 +2676,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Arrival-window / meeting date math (2026-09-29), pure. Before claim-core.js
      (the Adjuster Meeting cell) and insurance-claim.js, which format with it. -->
 <script defer src="js/schedule-window.js?v=2"></script>
-<script defer src="js/claim-core.js?v=5"></script>
-<script defer src="js/insurance-claim.js?v=7"></script>
+<script defer src="js/claim-core.js?v=6"></script>
+<script defer src="js/insurance-claim.js?v=8"></script>
 <script defer src="js/offline-manager.js?v=6"></script>
 <script defer src="js/customer-dnd-upload.js?v=3"></script>
 <script defer src="js/customer-quick-action-bar.js?v=3"></script>
 <!-- Wave 35/36: lead-snooze must load before the banner since the
      banner reads window.LeadSnooze on init. -->
-<script defer src="js/lead-snooze.js?v=3"></script>
+<script defer src="js/lead-snooze.js?v=4"></script>
 <script defer src="js/customer-snooze-banner.js?v=2"></script>
 <!-- Wave 42: shared portal-link helpers — used by the W40 + W41
      buttons on this page and by the kanban context menu on the
@@ -2709,7 +2716,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      editor below, which calls window.NBDSignedUrl.get() for canvas
      image loads (un-tainted fetch → blob → object URL). -->
 <script defer src="js/signed-image-url.js?v=1"></script>
-<script defer src="js/photo-editor.js?v=6"></script>
+<script defer src="js/photo-editor.js?v=7"></script>
 <script defer src="js/company-profile.js?v=4"></script>
 <!-- 2026-09-06 boot weight: the doc-generation cluster (nbd-logo-asset,
      document-generator, document-generator-templates, doc-preflight —
@@ -2923,9 +2930,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="/pro/js/claude-proxy.js?v=4"></script>
 <script defer src="/pro/js/nbd-whisper.js?v=2"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="/pro/js/quick-capture.js?v=2"></script>
+<script defer src="/pro/js/quick-capture.js?v=3"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
-<script defer src="/pro/js/quick-capture-inbox.js?v=2"></script>
+<script defer src="/pro/js/quick-capture-inbox.js?v=3"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
 <script defer src="/pro/js/command-palette.js?v=3"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
@@ -2943,7 +2950,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      shared the #nbd-pwa-install-banner id with separate dismissal flags,
      so dismissing one immediately surfaced the other. The nudge honors
      W150's stored dismiss/install state, so nobody gets re-nagged. -->
-<script defer src="/pro/js/pwa-install-nudge.js?v=5"></script>
+<script defer src="/pro/js/pwa-install-nudge.js?v=6"></script>
 <!-- W151: offline banner -->
 <script defer src="/pro/js/offline-banner.js?v=2"></script>
 <!-- W144: Supplement engine + UI entry point. Estimate-supplement.js
