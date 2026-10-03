@@ -97,6 +97,7 @@ async function registerViaUi(page, { first, last, company, email, password }) {
   await page.fill('#regEmail', email);
   await page.fill('#regPass', password);
   await page.fill('#regConfirm', password);
+  await page.check('#regTerms'); // clickwrap (2026-10-03)
   await page.click('#regBtn');
   try {
     await page.waitForURL(/\/pro\/onboarding(\.html)?([?#]|$)/, { timeout: 30_000 });
