@@ -260,7 +260,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
 
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   const usedSec = (cfg.audioSecDay === today && Number(cfg.audioSecUsed)) || 0;
-  const secLeft = L.DAY_AUDIO_SEC_CAP - usedSec;
+  const secLeft = L.dayAudioCapSec(cfg.dayAudioCapHours) - usedSec;
 
   let candidates = [];
   if (allowIds.length) {
