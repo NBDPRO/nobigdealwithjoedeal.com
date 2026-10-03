@@ -205,13 +205,15 @@
     var no = document.createElement('button');
     no.type = 'button';
     no.textContent = 'Not now';
-    no.style.cssText = 'background:transparent;border:0;color:var(--nbd-muted,#666);cursor:pointer;padding:6px 10px;';
+    // min-height:44px on both (2026-10-03): they measured 27px tall on an
+    // iPhone — under the 44px floor every other phone control holds to.
+    no.style.cssText = 'background:transparent;border:0;color:var(--nbd-muted,#666);cursor:pointer;padding:6px 12px;min-height:44px;';
     no.addEventListener('click', function () { snooze(); card.remove(); });
 
     var yes = document.createElement('button');
     yes.type = 'button';
     yes.textContent = 'Enable';
-    yes.style.cssText = 'background:var(--nbd-accent,#e8511f);color:#fff;border:0;border-radius:8px;cursor:pointer;padding:6px 14px;font-weight:600;';
+    yes.style.cssText = 'background:var(--nbd-accent,#e8511f);color:#fff;border:0;border-radius:8px;cursor:pointer;padding:6px 16px;font-weight:600;min-height:44px;';
     yes.addEventListener('click', function () {
       card.remove();
       registerAndMint({ requestPermission: true }).then(function (r) {
