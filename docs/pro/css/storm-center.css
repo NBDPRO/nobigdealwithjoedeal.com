@@ -71,3 +71,26 @@
 .stc-carriers { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
 .stc-carrier { background: var(--s2); border: 1px solid var(--br); border-radius: 8px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; }
 .stc-carrier-name { font-size: 11px; color: var(--t); }
+
+/* Storm Center, the rest (reskin 2026-10-03): the static styles #2029 left inline, incl. ones a template literal spread over several lines. stx- prefix; values are the old inline ones exactly. */
+.stx-ffbarlowsa-maxw250px.stx-ffbarlowsa-maxw250px.stx-ffbarlowsa-maxw250px { font-family: 'Barlow',sans-serif; max-width: 250px; }
+.stx-w700-fs13px.stx-w700-fs13px.stx-w700-fs13px { font-weight: 700; font-size: 13px; }
+.stx-fs11px-c666-mt4px.stx-fs11px-c666-mt4px.stx-fs11px-c666-mt4px { font-size: 11px; color: #666; margin-top: 4px; }
+.stx-mt4px-fs12px.stx-mt4px-fs12px.stx-mt4px-fs12px { margin-top: 4px; font-size: 12px; }
+.stx-mt2px-fs12px.stx-mt2px-fs12px.stx-mt2px-fs12px { margin-top: 2px; font-size: 12px; }
+.stx-mt6px-fs11px.stx-mt6px-fs11px.stx-mt6px-fs11px { margin-top: 6px; font-size: 11px; }
+.stx-mt8px.stx-mt8px.stx-mt8px.stx-mt8px { margin-top: 8px; }
+.stx-fs11px-mt4px.stx-fs11px-mt4px.stx-fs11px-mt4px { font-size: 11px; margin-top: 4px; }
+.stx-fs11px.stx-fs11px.stx-fs11px { font-size: 11px; }
+.stx-mt6px-dflex-gap6px.stx-mt6px-dflex-gap6px.stx-mt6px-dflex-gap6px { margin-top: 6px; display: flex; gap: 6px; }
+.stx-cblue-fs22px.stx-cblue-fs22px.stx-cblue-fs22px { color: var(--blue); font-size: 22px; }
+.stx-cgreen-fs22px.stx-cgreen-fs22px.stx-cgreen-fs22px { color: var(--green); font-size: 22px; }
+.stx-corange-fs22px.stx-corange-fs22px.stx-corange-fs22px { color: var(--orange); font-size: 22px; }
+.stx-fs10px-p2px8px-r10px.stx-fs10px-p2px8px-r10px.stx-fs10px-p2px8px-r10px { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--blue) 13%, transparent); color: var(--blue); font-weight: 600; }
+.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2.stx-fs10px-p2px8px-r10px-2 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, #ff6d00 13%, transparent); color: #ff6d00; font-weight: 600; }
+.stx-fs10px-p2px8px-r10px-3.stx-fs10px-p2px8px-r10px-3.stx-fs10px-p2px8px-r10px-3 { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--green) 13%, transparent); color: var(--green); font-weight: 600; }
+.stx-fs18px-corange.stx-fs18px-corange.stx-fs18px-corange { font-size: 18px; color: var(--orange); }
+.stx-fs18px-cgreen.stx-fs18px-cgreen.stx-fs18px-cgreen { font-size: 18px; color: var(--green); }
+.stx-corange.stx-corange.stx-corange { color: var(--orange); }
+.stx-cblue.stx-cblue.stx-cblue { color: var(--blue); }
+.stx-cgreen.stx-cgreen.stx-cgreen { color: var(--green); }
