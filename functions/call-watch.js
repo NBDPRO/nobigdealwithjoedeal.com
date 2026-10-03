@@ -72,8 +72,9 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
     textNotes: process.env.TEXT_NOTES_ENABLED === 'true',
   };
   const problems = W.pipelineProblems(cc.exists ? cc.data() : null, ti.exists ? ti.data() : null, rows(stored), thu, nowMs, gates);
+  let sent = [];
   if (typeof fetchTexts === 'function') {
-    try { problems.push(...W.smsProblems(await fetchTexts(nowMs), nowMs)); }
+    try { sent = await fetchTexts(nowMs); problems.push(...W.smsProblems(sent, nowMs)); }
     catch (e) { logger.warn('[callWatch] text delivery check skipped', { err: e && e.message }); }
   }
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
@@ -81,6 +82,18 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   const counts = { needs: needs.length, problems: problems.length, told: tell.length };
 
   if (!live) return Object.assign({ state: 'dry_run', alert: alert ? alert.title : null }, counts);
+
+  // The lead-alert ledger said "sent" for texts the carrier blocked: stamp the
+  // real result on each alert_outbox row that carries the message id.
+  const delivery = W.deliveryBySid(sent);
+  const sids = Object.keys(delivery);
+  for (let i = 0; i < sids.length; i += 30) {
+    try {
+      const snap = await db.collection('alert_outbox').where('smsSid', 'in', sids.slice(i, i + 30)).get();
+      await Promise.all(snap.docs.filter((d) => d.data().smsDelivery !== delivery[d.data().smsSid])
+        .map((d) => d.ref.update({ smsDelivery: delivery[d.data().smsSid], smsDeliveryAtMs: nowMs })));
+    } catch (e) { logger.warn('[callWatch] outbox delivery stamp skipped', { err: e && e.message }); }
+  }
 
   const problemsToldAt = {};
   problems.forEach((p) => { problemsToldAt[p.key] = (tell.some((t) => t.key === p.key) ? nowMs : W.toMs((st.problemsToldAt || {})[p.key])) || nowMs; });

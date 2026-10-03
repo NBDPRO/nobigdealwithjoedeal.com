@@ -124,6 +124,15 @@ function ok(label, cond, detail) {
     && W.problemsToTell(blocked, { sms_undelivered: NOW - 25 * H }, NOW).length === 1);
   const sa = W.alertFor([], blocked, NOW);
   ok('the alert title says texts are not delivering, not "call updates are behind"', /texts are not delivering/.test(sa.title) && !/call updates/.test(sa.title) && sa.priority === 'high', sa.title);
+  const dv = W.deliveryBySid([{ sid: 'SM1', status: 'undelivered', error_code: 30034, direction: 'outbound-api' }, { sid: 'SM2', status: 'delivered', direction: 'outbound-api' },
+    { sid: 'SM3', status: 'queued', direction: 'outbound-api' }, { sid: 'SM4', status: 'delivered', direction: 'inbound' }, { sid: 'SM5', status: 'failed', error_code: 21608, direction: 'outbound-api' }]);
+  ok('final delivery per message id: delivered / undelivered:<code> / failed:<code>; queued and inbound skipped',
+    JSON.stringify(dv) === JSON.stringify({ SM1: 'undelivered:30034', SM2: 'delivered', SM5: 'failed:21608' }), JSON.stringify(dv));
+  const la = read('functions/lead-alert.js');
+  ok('lead alerts keep the Twilio message id on the outbox row', la.includes('smsSid: outcomes.smsSid || null') && la.includes('outcomes.smsSid = (msg && msg.sid) || null'));
+  const hb = read('docs/pro/js/alert-health-banner.js');
+  ok('the alert health banner counts an undelivered text and names A2P on 30034/21608',
+    hb.includes('isFailed(d.smsStatus) || smsUndelivered(d)') && hb.includes(':30034$|:21608$') && hb.includes('not registered for business texting'));
   ok('callWatch binds the Twilio secrets it reads', /secrets: \[TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN\]/.test(src) && /texts: recentTexts/.test(src));
   ok('a failure throws so the heartbeat reports /fail', /throw e; \/\/ let the heartbeat report \/fail/.test(src));
   ok('gated: CALL_WATCH_ENABLED (registered, on in prod)', /process\.env\.CALL_WATCH_ENABLED === 'true'/.test(src) && /CALL_WATCH_ENABLED/.test(read('functions/cron-gates.js')) && /^CALL_WATCH_ENABLED=true$/m.test(read('functions/.env.nobigdeal-pro')));
@@ -169,6 +178,16 @@ function ok(label, cond, detail) {
     ok('run 2 right after: nothing new, the standing problem not repeated → quiet', r2.state === 'quiet' && bells2 === 1 && pushes.length === 1, JSON.stringify(r2));
     const dry = await runWatch({ db, nowMs: at + 10 * MIN, live: false, push: async () => { throw new Error('must not push'); } });
     ok('gate off → computes and logs only', dry.state === 'dry_run');
+    // The ledger said "sent"; the watcher stamps what the carrier did.
+    await db.doc('alert_outbox/obx1').set({ kind: 'lead-alert', smsStatus: 'sent', smsSid: 'SMzz1', createdAt: new Date(at - H) });
+    await db.doc('alert_outbox/obx2').set({ kind: 'lead-alert', smsStatus: 'sent', smsSid: 'SMzz2', createdAt: new Date(at - H) });
+    const texts = async () => [
+      { sid: 'SMzz1', status: 'undelivered', error_code: 30034, direction: 'outbound-api', date_sent: new Date(at - H).toUTCString() },
+      { sid: 'SMzz2', status: 'delivered', direction: 'outbound-api', date_sent: new Date(at - H).toUTCString() },
+    ];
+    await runWatch({ db, nowMs: at + 20 * MIN, live: true, push: async () => ({ sent: 1 }), texts });
+    const o1 = (await db.doc('alert_outbox/obx1').get()).data(), o2 = (await db.doc('alert_outbox/obx2').get()).data();
+    ok('alert_outbox rows get the real result: undelivered:30034 / delivered', o1.smsDelivery === 'undelivered:30034' && o2.smsDelivery === 'delivered' && o1.smsStatus === 'sent', JSON.stringify([o1.smsDelivery, o2.smsDelivery]));
   } else {
     console.log('F. (skipped — no FIRESTORE_EMULATOR_HOST)');
   }

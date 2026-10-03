@@ -294,6 +294,9 @@ async function recordAlertOutbox(collection, leadId, d, target, outcomes) {
       },
       emailStatus: outcomes.email,
       smsStatus: outcomes.sms,
+      // Twilio "accepts" before the carrier delivers; callWatch stamps the real
+      // result on this row as smsDelivery by this id (2026-10-02).
+      smsSid: outcomes.smsSid || null,
       createdAt: FieldValue.serverTimestamp(),
     });
   } catch (e) {
@@ -323,6 +326,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
       body: smsBody(label, source, s, target.seal, notice),
     });
     outcomes.sms = 'sent';
+    outcomes.smsSid = (msg && msg.sid) || null;
     logger.info('leadAlert: sms queued', { collection, leadId, sid: msg.sid });
   } catch (e) {
     outcomes.sms = 'failed:' + String(e && e.message || e).slice(0, 200);

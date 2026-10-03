@@ -40,8 +40,14 @@
   function isFailed(status) {
     return typeof status === 'string' && status.indexOf('failed:') === 0;
   }
+  // smsStatus 'sent' only means Twilio ACCEPTED the text; callWatch stamps the
+  // carrier's verdict as smsDelivery (2026-10-02: 0 of 23 delivered while every
+  // row said "sent"). 'undelivered:<code>' / 'failed:<code>' are failures.
+  function smsUndelivered(d) {
+    return typeof d.smsDelivery === 'string' && /^(undelivered|failed):/.test(d.smsDelivery);
+  }
 
-  function render(failCount, channels) {
+  function render(failCount, channels, unregistered) {
     if (document.getElementById(BANNER_ID)) return;
     const banner = document.createElement('div');
     banner.id = BANNER_ID;
@@ -56,7 +62,9 @@
     banner.textContent =
       '⚠ ' + failCount + ' lead-alert deliver' + (failCount === 1 ? 'y' : 'ies') +
       ' failed in the last 48h (' + channels.join(' + ') + '). New leads are safe in the CRM' +
-      ' — but notifications are not arriving. Check the Resend/Twilio keys.';
+      ' — but notifications are not arriving. ' + (unregistered
+        ? 'Texts are blocked: the Twilio number is not registered for business texting (see the A2P runbook).'
+        : 'Check the Resend/Twilio keys.');
     const close = document.createElement('button');
     close.type = 'button';
     close.setAttribute('aria-label', 'Dismiss for today');
@@ -98,15 +106,17 @@
     const snap = await window.getDocs(q);
     const cutoff = Date.now() - WINDOW_MS;
     let failCount = 0;
+    let unregistered = false;
     const channels = new Set();
     snap.forEach(function (doc) {
       const d = doc.data() || {};
       const ts = d.createdAt && typeof d.createdAt.toMillis === 'function' ? d.createdAt.toMillis() : 0;
       if (ts < cutoff) return;
       if (isFailed(d.emailStatus)) { failCount++; channels.add('email'); }
-      if (isFailed(d.smsStatus)) { failCount++; channels.add('SMS'); }
+      if (isFailed(d.smsStatus) || smsUndelivered(d)) { failCount++; channels.add('SMS'); }
+      if (/:30034$|:21608$/.test(String(d.smsDelivery || ''))) unregistered = true;
     });
-    if (failCount > 0) render(failCount, Array.from(channels));
+    if (failCount > 0) render(failCount, Array.from(channels), unregistered);
   }
 
   // Boot: claims land asynchronously after auth; retry a few times, then
