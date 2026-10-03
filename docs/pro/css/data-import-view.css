@@ -1,0 +1,36 @@
+/* Data import (js/data-import.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven ones stay inline. Generated (auto-named from the declarations). */
+.dix-p18px22px-bb1pxsolid-dflex.dix-p18px22px-bb1pxsolid-dflex.dix-p18px22px-bb1pxsolid-dflex { padding: 18px 22px; border-bottom: 1px solid var(--br,#2a3344); display: flex; align-items: center; justify-content: space-between; }
+.dix-fs17px-m003px-ct.dix-fs17px-m003px-ct.dix-fs17px-m003px-ct { font-size: 17px; margin: 0 0 3px; color: var(--t,#e8eaf0); }
+.dix-fs12px-cm.dix-fs12px-cm.dix-fs12px-cm { font-size: 12px; color: var(--m,#9aa3b2); }
+.dix-fs36px-mb10px-opa07.dix-fs36px-mb10px-opa07.dix-fs36px-mb10px-opa07 { font-size: 36px; margin-bottom: 10px; opacity: 0.7; }
+.dix-fs14px-w600-ct.dix-fs14px-w600-ct.dix-fs14px-w600-ct { font-size: 14px; font-weight: 600; color: var(--t,#e8eaf0); margin-bottom: 4px; }
+.dix-fs12px-cm-mb14px.dix-fs12px-cm-mb14px.dix-fs12px-cm-mb14px { font-size: 12px; color: var(--m,#9aa3b2); margin-bottom: 14px; }
+.dix-fs11px-cm-lh16.dix-fs11px-cm-lh16.dix-fs11px-cm-lh16 { font-size: 11px; color: var(--m,#9aa3b2); line-height: 1.6; padding: 0 4px; }
+.dix-ct.dix-ct.dix-ct { color: var(--t,#e8eaf0); }
+.dix-dflex-aicenter-jcspacebet.dix-dflex-aicenter-jcspacebet.dix-dflex-aicenter-jcspacebet { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.dix-fs13px-w600-ct.dix-fs13px-w600-ct.dix-fs13px-w600-ct { font-size: 13px; font-weight: 600; color: var(--t,#e8eaf0); }
+.dix-fs11px-cm.dix-fs11px-cm.dix-fs11px-cm { font-size: 11px; color: var(--m,#9aa3b2); }
+.dix-oveauto-max300px-bd1pxsolid.dix-oveauto-max300px-bd1pxsolid.dix-oveauto-max300px-bd1pxsolid { overflow: auto; max-height: 300px; border: 1px solid var(--br,#2a3344); border-radius: 8px; }
+.dix-wd100-borcollapse-fs12px.dix-wd100-borcollapse-fs12px.dix-wd100-borcollapse-fs12px { width: 100%; border-collapse: collapse; font-size: 12px; color: var(--t,#e8eaf0); }
+.dix-bgs2-possticky-top0.dix-bgs2-possticky-top0.dix-bgs2-possticky-top0 { background: var(--s2,#0f1419); position: sticky; top: 0; }
+.dix-p10px12px-taleft-bb1pxsolid.dix-p10px12px-taleft-bb1pxsolid.dix-p10px12px-taleft-bb1pxsolid { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--br,#2a3344); white-space: nowrap; }
+.dix-fs10px-cm-ttuppercas.dix-fs10px-cm-ttuppercas.dix-fs10px-cm-ttuppercas { font-size: 10px; color: var(--m,#9aa3b2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.dix-p8px12px-bb1pxsolid-whinowrap.dix-p8px12px-bb1pxsolid-whinowrap.dix-p8px12px-bb1pxsolid-whinowrap { padding: 8px 12px; border-bottom: 1px solid var(--br,#2a3344); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.dix-fs11px-cm-tacenter.dix-fs11px-cm-tacenter.dix-fs11px-cm-tacenter { font-size: 11px; color: var(--m,#9aa3b2); text-align: center; }
+.dix-dflex-jcflexend-gap8px.dix-dflex-jcflexend-gap8px.dix-dflex-jcflexend-gap8px { display: flex; justify-content: flex-end; gap: 8px; }
+.dix-tacenter-p30px20px.dix-tacenter-p30px20px.dix-tacenter-p30px20px { text-align: center; padding: 30px 20px; }
+.dix-fs32px-mb10px.dix-fs32px-mb10px.dix-fs32px-mb10px { font-size: 32px; margin-bottom: 10px; }
+.dix-fs14px-ct-w600.dix-fs14px-ct-w600.dix-fs14px-ct-w600 { font-size: 14px; color: var(--t,#e8eaf0); font-weight: 600; margin-bottom: 6px; }
+.dix-fs12px-cm-mb16px.dix-fs12px-cm-mb16px.dix-fs12px-cm-mb16px { font-size: 12px; color: var(--m,#9aa3b2); margin-bottom: 16px; }
+.dix-hei6px-bgs2-r3px.dix-hei6px-bgs2-r3px.dix-hei6px-bgs2-r3px { height: 6px; background: var(--s2,#0f1419); border-radius: 3px; overflow: hidden; }
+.dix-tacenter-p24px16px.dix-tacenter-p24px16px.dix-tacenter-p24px16px { text-align: center; padding: 24px 16px; }
+.dix-fs36px-mb12px.dix-fs36px-mb12px.dix-fs36px-mb12px { font-size: 36px; margin-bottom: 12px; }
+.dix-fs16px-ct-m006px.dix-fs16px-ct-m006px.dix-fs16px-ct-m006px { font-size: 16px; color: var(--t,#e8eaf0); margin: 0 0 6px; }
+.dix-fs13px-cm-mb18px.dix-fs13px-cm-mb18px.dix-fs13px-cm-mb18px { font-size: 13px; color: var(--m,#9aa3b2); margin-bottom: 18px; }
+.dix-dflex-flecolumn-gap6px.dix-dflex-flecolumn-gap6px.dix-dflex-flecolumn-gap6px { display: flex; flex-direction: column; gap: 6px; max-width: 300px; margin: 0 auto 18px; font-size: 12px; }
+.dix-dflex-jcspacebet-p8px12px.dix-dflex-jcspacebet-p8px12px.dix-dflex-jcspacebet-p8px12px { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--s2,#0f1419); border-radius: 6px; }
+.dix-cm.dix-cm.dix-cm { color: var(--m,#9aa3b2); }
+.dix-c10b981.dix-c10b981.dix-c10b981 { color: #10b981; }
+.dix-cf59e0b.dix-cf59e0b.dix-cf59e0b { color: #f59e0b; }
+.dix-fs11px-cf59e0b-taleft.dix-fs11px-cf59e0b-taleft.dix-fs11px-cf59e0b-taleft { font-size: 11px; color: #f59e0b; text-align: left; padding: 0 4px; }
+.dix-cef4444.dix-cef4444.dix-cef4444 { color: #ef4444; }

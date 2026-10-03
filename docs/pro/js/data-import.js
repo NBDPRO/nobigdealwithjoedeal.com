@@ -218,10 +218,10 @@
         border-radius:12px; padding:0; width:100%; max-width:680px;
         max-height:88vh; display:flex; flex-direction:column;
         box-shadow:0 12px 40px rgba(0,0,0,0.5);">
-        <div style="padding:18px 22px; border-bottom:1px solid var(--br,#2a3344); display:flex; align-items:center; justify-content:space-between;">
+        <div class="dix-p18px22px-bb1pxsolid-dflex">
           <div>
-            <h2 style="font-size:17px; margin:0 0 3px; color:var(--t,#e8eaf0);">Import Leads</h2>
-            <div style="font-size:12px; color:var(--m,#9aa3b2);">CSV from your old CRM, spreadsheet, or anywhere else</div>
+            <h2 class="dix-fs17px-m003px-ct">Import Leads</h2>
+            <div class="dix-fs12px-cm">CSV from your old CRM, spreadsheet, or anywhere else</div>
           </div>
           <button id="nbd-import-x" aria-label="Close" style="
             background:transparent; border:none; color:var(--m,#9aa3b2);
@@ -253,13 +253,13 @@
         background:var(--s2,#0f1419);
         transition:border-color .2s, background .2s;
         cursor:pointer;">
-        <div style="font-size:36px; margin-bottom:10px; opacity:0.7;">📁</div>
-        <div style="font-size:14px; font-weight:600; color:var(--t,#e8eaf0); margin-bottom:4px;">Drop a CSV here</div>
-        <div style="font-size:12px; color:var(--m,#9aa3b2); margin-bottom:14px;">or click to choose a file</div>
+        <div class="dix-fs36px-mb10px-opa07">📁</div>
+        <div class="dix-fs14px-w600-ct">Drop a CSV here</div>
+        <div class="dix-fs12px-cm-mb14px">or click to choose a file</div>
         <input type="file" id="nbd-import-file" accept=".csv,text/csv" style="display:none;">
       </div>
-      <div style="font-size:11px; color:var(--m,#9aa3b2); line-height:1.6; padding:0 4px;">
-        <strong style="color:var(--t,#e8eaf0);">Tips:</strong>
+      <div class="dix-fs11px-cm-lh16">
+        <strong class="dix-ct">Tips:</strong>
         First row should be headers. We auto-recognize names like "First Name", "Phone", "Address", "Email", "Job Value", "Stage", etc. You can adjust the mapping in the next step.
       </div>`;
     const zone = body.querySelector('#nbd-drop-zone');
@@ -334,10 +334,10 @@
     const preview = dataRows.slice(0, 5);
 
     body.innerHTML = `
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+      <div class="dix-dflex-aicenter-jcspacebet">
         <div>
-          <div style="font-size:13px; font-weight:600; color:var(--t,#e8eaf0);">${dataRows.length} row${dataRows.length === 1 ? '' : 's'} detected</div>
-          <div style="font-size:11px; color:var(--m,#9aa3b2);">Confirm column mapping below, then import.</div>
+          <div class="dix-fs13px-w600-ct">${dataRows.length} row${dataRows.length === 1 ? '' : 's'} detected</div>
+          <div class="dix-fs11px-cm">Confirm column mapping below, then import.</div>
         </div>
         <button id="nbd-import-back" style="
           background:transparent; color:var(--m,#9aa3b2);
@@ -346,12 +346,12 @@
           -webkit-tap-highlight-color:transparent;">← Choose different file</button>
       </div>
 
-      <div style="overflow:auto; max-height:300px; border:1px solid var(--br,#2a3344); border-radius:8px;">
-        <table style="width:100%; border-collapse:collapse; font-size:12px; color:var(--t,#e8eaf0);">
-          <thead style="background:var(--s2,#0f1419); position:sticky; top:0;">
+      <div class="dix-oveauto-max300px-bd1pxsolid">
+        <table class="dix-wd100-borcollapse-fs12px">
+          <thead class="dix-bgs2-possticky-top0">
             <tr>${headers.map((h, i) => `
-              <th style="padding:10px 12px; text-align:left; border-bottom:1px solid var(--br,#2a3344); white-space:nowrap;">
-                <div style="font-size:10px; color:var(--m,#9aa3b2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">${escapeHtml(h)}</div>
+              <th class="dix-p10px12px-taleft-bb1pxsolid">
+                <div class="dix-fs10px-cm-ttuppercas">${escapeHtml(h)}</div>
                 <select class="nbd-import-mapsel" data-col-index="${i}" style="
                   background:var(--s,#1a1f2a); color:var(--t,#e8eaf0);
                   border:1px solid var(--br,#2a3344); border-radius:5px;
@@ -367,16 +367,16 @@
           <tbody>
             ${preview.map(row => `
               <tr>${row.map(cell => `
-                <td style="padding:8px 12px; border-bottom:1px solid var(--br,#2a3344); white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}
+                <td class="dix-p8px12px-bb1pxsolid-whinowrap">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}
           </tbody>
         </table>
       </div>
       ${dataRows.length > preview.length ? `
-        <div style="font-size:11px; color:var(--m,#9aa3b2); text-align:center;">
+        <div class="dix-fs11px-cm-tacenter">
           + ${dataRows.length - preview.length} more rows not shown
         </div>` : ''}
 
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <div class="dix-dflex-jcflexend-gap8px">
         <button id="nbd-import-cancel" style="
           background:transparent; color:var(--m,#9aa3b2);
           border:1px solid var(--br,#2a3344); padding:9px 18px;
@@ -406,15 +406,15 @@
   async function runImport(headers, mapping, dataRows) {
     const body = modalEl.querySelector('#nbd-import-body');
     body.innerHTML = `
-      <div style="text-align:center; padding:30px 20px;">
-        <div style="font-size:32px; margin-bottom:10px;">⏳</div>
-        <div style="font-size:14px; color:var(--t,#e8eaf0); font-weight:600; margin-bottom:6px;">
+      <div class="dix-tacenter-p30px20px">
+        <div class="dix-fs32px-mb10px">⏳</div>
+        <div class="dix-fs14px-ct-w600">
           Importing leads…
         </div>
-        <div id="nbd-import-progress" style="font-size:12px; color:var(--m,#9aa3b2); margin-bottom:16px;">
+        <div id="nbd-import-progress" class="dix-fs12px-cm-mb16px">
           Starting…
         </div>
-        <div style="height:6px; background:var(--s2,#0f1419); border-radius:3px; overflow:hidden;">
+        <div class="dix-hei6px-bgs2-r3px">
           <div id="nbd-import-bar" style="
             height:100%; width:0%; background:linear-gradient(90deg,#A14A22,#f59e0b);
             transition:width .15s ease;"></div>
@@ -630,39 +630,39 @@
   function renderDoneStep(result) {
     const body = modalEl.querySelector('#nbd-import-body');
     body.innerHTML = `
-      <div style="text-align:center; padding:24px 16px;">
-        <div style="font-size:36px; margin-bottom:12px;">${result.failed > 0 ? '⚠️' : '✅'}</div>
-        <h3 style="font-size:16px; color:var(--t,#e8eaf0); margin:0 0 6px;">Import complete</h3>
-        <div style="font-size:13px; color:var(--m,#9aa3b2); margin-bottom:18px;">
+      <div class="dix-tacenter-p24px16px">
+        <div class="dix-fs36px-mb12px">${result.failed > 0 ? '⚠️' : '✅'}</div>
+        <h3 class="dix-fs16px-ct-m006px">Import complete</h3>
+        <div class="dix-fs13px-cm-mb18px">
           ${result.imported} of ${result.total} leads added to your CRM.
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px; max-width:300px; margin:0 auto 18px; font-size:12px;">
-          <div style="display:flex; justify-content:space-between; padding:8px 12px; background:var(--s2,#0f1419); border-radius:6px;">
-            <span style="color:var(--m,#9aa3b2);">Imported</span>
-            <strong style="color:#10b981;">${result.imported}</strong>
+        <div class="dix-dflex-flecolumn-gap6px">
+          <div class="dix-dflex-jcspacebet-p8px12px">
+            <span class="dix-cm">Imported</span>
+            <strong class="dix-c10b981">${result.imported}</strong>
           </div>
           ${result.skippedDupe > 0 ? `
-            <div style="display:flex; justify-content:space-between; padding:8px 12px; background:var(--s2,#0f1419); border-radius:6px;">
-              <span style="color:var(--m,#9aa3b2);">Skipped as duplicates</span>
-              <strong style="color:#f59e0b;">${result.skippedDupe}</strong>
+            <div class="dix-dflex-jcspacebet-p8px12px">
+              <span class="dix-cm">Skipped as duplicates</span>
+              <strong class="dix-cf59e0b">${result.skippedDupe}</strong>
             </div>` : ''}
           ${result.skippedCap > 0 ? `
-            <div style="display:flex; justify-content:space-between; padding:8px 12px; background:var(--s2,#0f1419); border-radius:6px;">
-              <span style="color:var(--m,#9aa3b2);">Not imported — plan limit reached</span>
-              <strong style="color:#f59e0b;">${result.skippedCap}</strong>
+            <div class="dix-dflex-jcspacebet-p8px12px">
+              <span class="dix-cm">Not imported — plan limit reached</span>
+              <strong class="dix-cf59e0b">${result.skippedCap}</strong>
             </div>
-            <div style="font-size:11px; color:#f59e0b; text-align:left; padding:0 4px;">
+            <div class="dix-fs11px-cf59e0b-taleft">
               Upgrade your plan to import the rest.
             </div>` : ''}
           ${result.skippedEmpty > 0 ? `
-            <div style="display:flex; justify-content:space-between; padding:8px 12px; background:var(--s2,#0f1419); border-radius:6px;">
-              <span style="color:var(--m,#9aa3b2);">Skipped (empty rows)</span>
-              <strong style="color:var(--m,#9aa3b2);">${result.skippedEmpty}</strong>
+            <div class="dix-dflex-jcspacebet-p8px12px">
+              <span class="dix-cm">Skipped (empty rows)</span>
+              <strong class="dix-cm">${result.skippedEmpty}</strong>
             </div>` : ''}
           ${result.failed > 0 ? `
-            <div style="display:flex; justify-content:space-between; padding:8px 12px; background:var(--s2,#0f1419); border-radius:6px;">
-              <span style="color:var(--m,#9aa3b2);">Failed</span>
-              <strong style="color:#ef4444;">${result.failed}</strong>
+            <div class="dix-dflex-jcspacebet-p8px12px">
+              <span class="dix-cm">Failed</span>
+              <strong class="dix-cef4444">${result.failed}</strong>
             </div>` : ''}
         </div>
         <button id="nbd-import-done" style="
