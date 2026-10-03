@@ -131,7 +131,7 @@
     // reminders. Pure rules first so the view can use them at init.
     signs: [
       'js/yard-signs-logic.js?v=3',
-      'js/yard-signs.js?v=4'
+      'js/yard-signs.js?v=5'
     ],
     // Past Customers win-back list (2026-10-01): pure rules + drafts first,
     // then the view. Nothing is sent without the rep tapping Send.
