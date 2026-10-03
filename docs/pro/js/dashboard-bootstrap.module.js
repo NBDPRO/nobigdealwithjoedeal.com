@@ -4024,14 +4024,21 @@
       // Fall back to one-shot fetch so the UI isn't stuck empty.
       loadEstimates();
     };
+    // Both slices are BOUNDED to the newest ESTIMATES_LIVE_LIMIT estimates
+    // (orderBy createdAt desc — the same key sortDesc renders by). Unbounded,
+    // every snapshot re-shipped the whole history. 500 = 60x the whole prod
+    // estimates collection (8, every one with a Timestamp createdAt — the
+    // 2026-10-03 count; every addDoc writer stamps it). Indexes: userId ASC +
+    // createdAt DESC and companyId ASC + createdAt DESC (firestore.indexes.json).
+    const ESTIMATES_LIVE_LIMIT = 500;
     const unsubs = [];
-    unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('userId', '==', uid)), (snap) => {
+    unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(ESTIMATES_LIVE_LIMIT)), (snap) => {
       for (const k in own) delete own[k];
       snap.docs.forEach(d => { own[d.id] = { id: d.id, ...d.data() }; });
       rebuild();
     }, onErr));
     if (teamRead) {
-      unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('companyId', '==', claims.companyId)), (snap) => {
+      unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('companyId', '==', claims.companyId), orderBy('createdAt', 'desc'), limit(ESTIMATES_LIVE_LIMIT)), (snap) => {
         for (const k in comp) delete comp[k];
         snap.docs.forEach(d => { comp[d.id] = { id: d.id, ...d.data() }; });
         rebuild();
