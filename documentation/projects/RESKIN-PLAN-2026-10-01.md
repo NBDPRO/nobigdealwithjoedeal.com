@@ -95,3 +95,82 @@ can only restyle what reaches a class or token.
   - 2026-10-02 (JS-built, second screen): Close Board (`close-board.js` CRM render functions only; the standalone homeowner deal page keeps its inline styles). 19 sites became `.ui-stat`, `.ui-stat-box`, `.ui-field-md`, `.ui-field-xs` and `.ui-caps-label`. Proven in context on all three tabs with animations frozen: zero diff, and a marker reached 4 / 15 / 8 elements. The JS ratchet is now 4101 → 4082.
 - Step 4: Daylight and Jobsite are mocked up on the Home screen (the "NBD Pro
   skin candidates" canvas) for Jo to pick.
+
+## Status 2026-10-03 — step 2 progress (JS-built screens)
+
+The JS-screen half of step 2 is now the main track. Each screen gets its
+own stylesheet of prefixed classes (for example `wg-`, `rpx-`, `ysx-`),
+holding the old inline values exactly. The `docs/pro/js` ratchet went from
+**4101 to 2852** on main, and the four PRs still open take it to about 2680.
+
+| # | Screen (file) | PR |
+|---|---|---|
+| 1 | Product editor (`product-library.js`) | [#2001](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2001) |
+| 2 | Close Board CRM surfaces | [#2002](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2002) |
+| 3 | Expenses | [#2014](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2014) |
+| 4 | Storm Center | [#2029](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2029) |
+| 5 | Home widgets (`widgets.js`) | [#2030](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2030) |
+| 6 | D2D knock tracker | [#2031](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2031) |
+| 7 | Customer page panels | [#2040](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2040) |
+| 8 | Insurance supplement modal | [#2041](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2041) |
+| 9 | Product library | [#2043](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2043) |
+| 10 | Customer page panels (second pass) | [#2044](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2044) |
+| 11 | Invoice screens | [#2045](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2045) |
+| 12 | Money view | [#2051](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2051) |
+| 13 | Close Board CRM screens | [#2052](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2052) |
+| 14 | Rep OS | [#2063](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2063) |
+| 15 | Expenses (the rest) | [#2064](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2064) |
+| 16 | Yard signs | [#2065](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2065) |
+| 17 | Job Templates (dashboard + customer page) | [#2066](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2066) |
+| 18 | Draw tool (`maps-routing.js`) | [#2067](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2067) |
+| 19 | CSV lead import | [#2068](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2068) |
+| 20 | Message templates manager | [#2069](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2069) (open) |
+| 21 | Classic estimate review | [#2070](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2070) (open) |
+| 22 | Pipeline cards + follow-ups | [#2071](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2071) (open) |
+| 23 | Estimates list, photos, intel card (`dashboard-widgets.js`) | [#2072](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/2072) (open) |
+
+**The proof, every screen: an in-place swap check.** Sign in on the
+emulator and drive the screen through its real states at 1280 and 390 px.
+Then, for each element carrying the prefix:
+
+1. Snapshot every computed property.
+2. Remove the new classes, put the old inline string back, and snapshot
+   again.
+3. Restore the element and diff the two snapshots.
+
+Class-sets the states never render are checked synthetically, *inside the
+real containers* (for example `#facetList`, a live `.k-card`), so
+ancestor-scoped rules apply. A +1px positive control must turn the check
+red before a PR ships.
+
+**What stays inline, deliberately:**
+- data-driven values (colours from data, computed widths);
+- JS-toggled `display:none`;
+- every document written into a new window: scope of work, drawing report,
+  material takeoff, supplement request, the printed estimate. The page
+  stylesheet doesn't exist in those windows, so they use skip ranges in the
+  converter.
+
+**Lessons (2026-10-03):**
+- A generated stylesheet's header line must be a real comment. A bare line
+  parsed into the first rule's selector and silently dropped that rule
+  (Job Templates). The swap proof caught it; a CSS-text test would not have.
+- A view opened from `customer.html` needs the stylesheet linked there too.
+  Job Templates and the templates manager both open from the customer page.
+- Lazy screens take their stylesheet in their ScriptLoader bundle, ahead of
+  the script: the Draw tool in `drawtool`, the estimate review in
+  `estimates`. A smoke pin anchored on the bundle's first entry
+  (`tests/smoke/maps.test.js`) was widened to allow one leading stylesheet.
+- `.btn` hosts need a four-class raise, because `body[data-nbd-size] .btn`
+  outranks three.
+- Check worktrees and open PRs before naming a branch.
+  `feat/reskin-home-widgets` already existed (#2030, `widgets.js`), and the
+  similar-sounding `dashboard-widgets.js` is a different file.
+
+**Left, by inline count:** the largest remaining files are printed
+documents that keep inline styles on purpose:
+`document-generator-templates.js`, `inspection-report-engine.js`,
+`rep-report-generator.js` and the homeowner `portal.js`. UI candidates still
+open: `vault-page.js` (208, check what it is first), `estimate-v2-ui.js`,
+`insurance-claim.js`, `lead-snooze.js`, `smart-calendar.js` and the
+quick-capture pair.
