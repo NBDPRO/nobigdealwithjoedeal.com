@@ -1,0 +1,25 @@
+/* Pipeline (js/crm-pipeline.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.cpx-wd12px-hei12px-vermiddle.cpx-wd12px-hei12px-vermiddle.cpx-wd12px-hei12px-vermiddle { width: 12px; height: 12px; vertical-align: middle; }
+.cpx-cm-fs11px.cpx-cm-fs11px.cpx-cm-fs11px { color: var(--m); font-size: 11px; }
+.cpx-mb8px.cpx-mb8px.cpx-mb8px { margin-bottom: 8px; }
+.cpx-fs10px-w700-ls08em.cpx-fs10px-w700-ls08em.cpx-fs10px-w700-ls08em { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--m); margin: 4px 0; }
+.cpx-dinlinefl-aicenter-gap6px.cpx-dinlinefl-aicenter-gap6px.cpx-dinlinefl-aicenter-gap6px { display: inline-flex; align-items: center; gap: 6px; background: var(--s2); border: 1px solid var(--br); color: var(--t); padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.cpx-cm.cpx-cm.cpx-cm { color: var(--m); }
+.cpx-wd11px-hei11px-vermiddle.cpx-wd11px-hei11px-vermiddle.cpx-wd11px-hei11px-vermiddle { width: 11px; height: 11px; vertical-align: middle; }
+.cpx-bgcolormix-cpurple-borrgba1551.cpx-bgcolormix-cpurple-borrgba1551.cpx-bgcolormix-cpurple-borrgba1551 { background: color-mix(in srgb, var(--purple,#a78bfa) 14%, transparent); color: var(--purple,#a78bfa); border-color: rgba(155,109,255,0.45); }
+.cpx-bgrgba4620-cgreen-borrgba4620.cpx-bgrgba4620-cgreen-borrgba4620.cpx-bgrgba4620-cgreen-borrgba4620 { background: rgba(46,204,138,0.14); color: var(--green,#16a34a); border-color: rgba(46,204,138,0.45); }
+.cpx-c10b981-w700.cpx-c10b981-w700.cpx-c10b981-w700 { color: #10b981; font-weight: 700; }
+.cpx-cef4444-w700.cpx-cef4444-w700.cpx-cef4444-w700 { color: #ef4444; font-weight: 700; }
+.cpx-bgcolormix-cgold-borrgba2451.cpx-bgcolormix-cgold-borrgba2451.cpx-bgcolormix-cgold-borrgba2451 { background: color-mix(in srgb, var(--gold,#eab308) 18%, transparent); color: var(--gold,#eab308); border-color: rgba(245,158,11,0.45); }
+.cpx-bgrgba1946-cc2410c-borc2410c.cpx-bgrgba1946-cc2410c-borc2410c.cpx-bgrgba1946-cc2410c-borc2410c { background: rgba(194,65,20,.14); color: #c2410c; border-color: #c2410c; }
+.cpx-dflex-aicenter-jcspacebet.cpx-dflex-aicenter-jcspacebet.cpx-dflex-aicenter-jcspacebet { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 6px; flex-wrap: wrap; }
+.cpx-dflex-aicenter-gap4px.cpx-dflex-aicenter-gap4px.cpx-dflex-aicenter-gap4px { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.cpx-dflex-aicenter-gap4px-2.cpx-dflex-aicenter-gap4px-2.cpx-dflex-aicenter-gap4px-2 { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.cpx-fs10px-bgs3-bd1pxsolid.cpx-fs10px-bgs3-bd1pxsolid.cpx-fs10px-bgs3-bd1pxsolid { font-size: 10px; background: var(--s3); border: 1px solid var(--br); border-radius: 10px; padding: 2px 6px; color: var(--gold); }
+.cpx-fs10px-bgs3-bd1pxsolid-2.cpx-fs10px-bgs3-bd1pxsolid-2.cpx-fs10px-bgs3-bd1pxsolid-2 { font-size: 10px; background: var(--s3); border: 1px solid var(--br); border-radius: 10px; padding: 2px 6px; color: var(--blue); }
+.cpx-taright-mb6px-lh1.cpx-taright-mb6px-lh1.cpx-taright-mb6px-lh1 { text-align: right; margin-bottom: 6px; line-height: 1; }
+.cpx-mlauto.cpx-mlauto.cpx-mlauto { margin-left: auto; }
+.cpx-taright-mb4px.cpx-taright-mb4px.cpx-taright-mb4px { text-align: right; margin-bottom: 4px; }
+.cpx-bgrgba2555-cred-borred.cpx-bgrgba2555-cred-borred.cpx-bgrgba2555-cred-borred { background: rgba(255,59,59,.18); color: var(--red,#ef4444); border-color: var(--red,#ef4444); }
+.cpx-bgrgba4620-cgreen-borgreen.cpx-bgrgba4620-cgreen-borgreen.cpx-bgrgba4620-cgreen-borgreen { background: rgba(46,204,138,.14); color: var(--green,#2ecc8a); border-color: var(--green,#2ecc8a); }
+.cpx-wd18px.cpx-wd18px.cpx-wd18px { width: 18px; }

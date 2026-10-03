@@ -52,7 +52,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=7" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=10" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=11" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=2" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
@@ -111,7 +111,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=67"></script>
+<script src="js/script-loader.js?v=68"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -144,9 +144,13 @@
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=1">
+<link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
 <link rel="stylesheet" href="css/data-import-view.css?v=1">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
+<link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/product-library.css?v=1">
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
@@ -5893,7 +5897,7 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=2"></script>
-<script defer src="js/dashboard-widgets.js?v=6"></script>
+<script defer src="js/dashboard-widgets.js?v=7"></script>
 <script defer src="js/dashboard-ui.js?v=10"></script>
 <script defer src="js/dashboard-actions.js?v=16"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
@@ -6775,7 +6779,7 @@
 <script defer src="js/crm-leads.js?v=7"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=10"></script>
+<script defer src="js/crm-pipeline.js?v=11"></script>
 <script defer src="js/crm-snooze.js?v=2"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6983,9 +6987,9 @@
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=2"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="js/quick-capture.js?v=2"></script>
+<script defer src="js/quick-capture.js?v=3"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
-<script defer src="js/quick-capture-inbox.js?v=2"></script>
+<script defer src="js/quick-capture-inbox.js?v=3"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
 <script defer src="js/command-palette.js?v=3"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a

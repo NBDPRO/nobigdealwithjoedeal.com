@@ -66,11 +66,11 @@ function _renderRecentEstimates(ests, esc) {
   }
   // Each card opens that specific estimate.
   rc.innerHTML=ests.slice(0,4).map(e=>`
-    <div class="est-card nbd-recent-est" data-id="${esc(e.id)}" style="margin-bottom:8px;cursor:pointer;">
-      <div style="font-size:18px;">📋</div>
-      <div><div class="est-addr" style="font-size:12px;">${esc(e.addr||e.name||e.title||'No address')}</div>
+    <div class="est-card nbd-recent-est dwx-mb8px-curpointer" data-id="${esc(e.id)}">
+      <div class="dwx-fs18px">📋</div>
+      <div><div class="est-addr dwx-fs12px">${esc(e.addr||e.name||e.title||'No address')}</div>
       <div class="est-meta">${esc(e.tierName||e.type||'')}</div></div>
-      <div class="est-total" style="font-size:16px;">$${_estVal(e).toLocaleString('en-US',{maximumFractionDigits:0})}</div>
+      <div class="est-total dwx-fs16px">$${_estVal(e).toLocaleString('en-US',{maximumFractionDigits:0})}</div>
     </div>`).join('');
   rc.querySelectorAll('.nbd-recent-est').forEach(el => {
     el.addEventListener('click', () => {
@@ -175,13 +175,13 @@ function renderEstimatesList(ests) {
     // so reps can eyeball the pipeline without clicking into each.
     let sigTag = '';
     if (e.signatureStatus === 'signed') {
-      sigTag = '<span class="est-src-chip" style="background:color-mix(in srgb, var(--green) 15%, transparent);color:var(--green);border-color:var(--green);">✓ SIGNED</span>';
+      sigTag = '<span class="est-src-chip dwx-bgcolormix-cgreen-borgreen">✓ SIGNED</span>';
     } else if (e.signatureStatus === 'sent' || e.signatureStatus === 'viewed') {
-      sigTag = '<span class="est-src-chip" style="background:color-mix(in srgb, var(--orange) 12%, transparent);color:var(--orange);border-color:var(--orange);">✍ AWAITING</span>';
+      sigTag = '<span class="est-src-chip dwx-bgcolormix-corange-bororange">✍ AWAITING</span>';
     } else if (e.signatureStatus === 'declined') {
-      sigTag = '<span class="est-src-chip" style="background:color-mix(in srgb, var(--red) 15%, transparent);color:var(--red);border-color:var(--red);">✗ DECLINED</span>';
+      sigTag = '<span class="est-src-chip dwx-bgcolormix-cred-borred">✗ DECLINED</span>';
     } else if (e.signatureStatus === 'expired') {
-      sigTag = '<span class="est-src-chip" style="opacity:.6;">⧗ EXPIRED</span>';
+      sigTag = '<span class="est-src-chip dwx-opa6">⧗ EXPIRED</span>';
     }
     return ''
       + '<div class="est-card nbd-est-card" data-id="' + esc(e.id) + '">'
@@ -732,29 +732,29 @@ async function renderPhotoLeads(){
     const badgeBg = count > 0 ? 'var(--green)' : 'var(--s3)';
     const badgeColor = count > 0 ? '#fff' : 'var(--m)'; // #fff intentional: on-green badge text
     return `
-    <div class="panel" style="margin:0;">
-      <div class="panel-hdr nbd-photo-lead" style="cursor:pointer;" data-lead-id="${e(l.id)}" data-addr="${e(addr)}">
+    <div class="panel dwx-m0">
+      <div class="panel-hdr nbd-photo-lead dwx-curpointer" data-lead-id="${e(l.id)}" data-addr="${e(addr)}">
         <div>
-          <div class="panel-label" style="display:flex;align-items:center;gap:6px;">
+          <div class="panel-label dwx-dflex-aicenter-gap6px">
             📸 Photos
             <span style="background:${badgeBg};color:${badgeColor};font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700;">${count} photo${count === 1 ? '' : 's'}</span>
-            <span style="background:var(--s3);color:var(--orange);font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700;">${e(stageLabel)}</span>
+            <span class="dwx-bgs3-corange-fs9px">${e(stageLabel)}</span>
           </div>
-          <div class="panel-title" style="font-size:14px;">${e(name)}</div>
-          <div style="font-size:11px;color:var(--m);margin-top:2px;">📍 ${e(addr)}</div>
+          <div class="panel-title dwx-fs14px">${e(name)}</div>
+          <div class="dwx-fs11px-cm-mt2px">📍 ${e(addr)}</div>
         </div>
         <button class="btn btn-orange btn-sm">${count > 0 ? '📷 View / Add' : '📷 Upload'}</button>
       </div>
     </div>`;
   };
 
-  let html = '<div style="display:flex;flex-direction:column;gap:10px;">';
+  let html = '<div class="dwx-dflex-flecolumn-gap10px">';
   if (withPhotos.length) {
-    html += '<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green);padding:6px 2px 0;">📸 Jobs with Photos (' + withPhotos.length + ')</div>';
+    html += '<div class="dwx-fs10px-w700-ls12em">📸 Jobs with Photos (' + withPhotos.length + ')</div>';
     html += withPhotos.map(cardHTML).join('');
   }
   if (withoutPhotos.length) {
-    html += '<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--m);padding:14px 2px 0;">Customers Without Photos (' + withoutPhotos.length + ')</div>';
+    html += '<div class="dwx-fs10px-w700-ls12em-2">Customers Without Photos (' + withoutPhotos.length + ')</div>';
     html += withoutPhotos.map(cardHTML).join('');
   }
   html += '</div>';
@@ -776,7 +776,7 @@ async function openPhotoFor(leadId, addr){
   currentPhotoLeadId=leadId; currentPhotoAddr=addr;
   document.getElementById('photoModalTitle').textContent='Damage Photos';
   document.getElementById('photoModalAddr').textContent=addr;
-  document.getElementById('photoGridModal').innerHTML='<div style="font-size:12px;color:var(--m);padding:10px;text-align:center;">Loading...</div>';
+  document.getElementById('photoGridModal').innerHTML='<div class="dwx-fs12px-cm-p10px">Loading...</div>';
   modal.classList.add('open');
   // Registry-only (Globals Tranche 3 T3-C, 2026-09-18), not a bare window global.
   const photos=await window.__NBD_CALL_REGISTRY._getPhotos(leadId);
@@ -787,7 +787,7 @@ function renderPhotoGrid(photos){
   // photoGridModal is a child of photoModal; both mount together.
   const grid=document.getElementById('photoGridModal');
   if (!grid) return;
-  if(!photos.length){grid.innerHTML='<p style="font-size:11px;color:var(--m);text-align:center;padding:10px;">No photos yet. Upload above.</p>';return;}
+  if(!photos.length){grid.innerHTML='<p class="dwx-fs11px-cm-tacenter">No photos yet. Upload above.</p>';return;}
   // Build via DOM so user-controlled `p.url` and `p.name` cannot inject markup.
   grid.textContent='';
   // Escape-everything: the local fallback MUST escape (identity fallback = stored-XSS
@@ -1002,7 +1002,7 @@ function renderIntelCard(targetElId, intel, county, address) {
       <span class="pi-county">${esc(county || 'OH')} County</span>
     </div>
     <div class="pi-body">
-      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">
+      <div class="dwx-dflex-aicenter-flewrap">
         <span class="pi-owner">${esc(ownerName)}</span>
         ${isLLC ? '<span class="pi-llc-flag">🏢 LLC/Corp</span>' : ''}
       </div>
@@ -1017,8 +1017,8 @@ function renderIntelCard(targetElId, intel, county, address) {
         ${intel.bedrooms ? `<div class="pi-stat"><span class="pi-stat-val">${esc(intel.bedrooms)} bed</span><span class="pi-stat-key">Bedrooms</span></div>` : ''}
         ${intel.sqft ? `<div class="pi-stat"><span class="pi-stat-val">${parseInt(intel.sqft).toLocaleString()} sf</span><span class="pi-stat-key">Living Area</span></div>` : ''}
         ${intel.acreage ? `<div class="pi-stat"><span class="pi-stat-val">${parseFloat(intel.acreage).toFixed(3)} ac</span><span class="pi-stat-key">Acreage</span></div>` : ''}
-        ${intel.homestead ? `<div class="pi-stat"><span class="pi-stat-val" style="color:var(--green);">Yes</span><span class="pi-stat-key">Homestead</span></div>` : ''}
-        ${intel.parcelId ? `<div class="pi-stat"><span class="pi-stat-val" style="font-size:10px;">${esc(intel.parcelId)}</span><span class="pi-stat-key">Parcel ID</span></div>` : ''}
+        ${intel.homestead ? `<div class="pi-stat"><span class="pi-stat-val dwx-cgreen">Yes</span><span class="pi-stat-key">Homestead</span></div>` : ''}
+        ${intel.parcelId ? `<div class="pi-stat"><span class="pi-stat-val dwx-fs10px">${esc(intel.parcelId)}</span><span class="pi-stat-key">Parcel ID</span></div>` : ''}
       </div>
       ${safeAuditor ? `<a class="pi-link" href="${esc(safeAuditor)}" target="_blank" rel="noopener noreferrer">↗ View Full County Record</a>` : ''}
     </div>
@@ -1047,7 +1047,7 @@ async function fetchPropertyIntelModal(geo, addr) {
 
   if(!intel) {
     // Temporarily show result container
-    resultEl.innerHTML = '<div style="color:var(--m);font-size:11px;">Estimating property profile...</div>';
+    resultEl.innerHTML = '<div class="dwx-cm-fs11px">Estimating property profile...</div>';
     resultEl.classList.add('visible');
     // Fire the intel engine with a temp container
     const tempId = 'pi-temp-' + Date.now();
@@ -1061,7 +1061,7 @@ async function fetchPropertyIntelModal(geo, addr) {
   }
 
   if(!intel) {
-    resultEl.innerHTML = '<div style="color:var(--red);font-size:11px;">Could not retrieve property data. Check your API key in Settings.</div>';
+    resultEl.innerHTML = '<div class="dwx-cred-fs11px">Could not retrieve property data. Check your API key in Settings.</div>';
     resultEl.classList.add('visible');
     return;
   }
@@ -1113,16 +1113,16 @@ async function fetchPropertyIntelModal(geo, addr) {
 
   const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   resultEl.innerHTML = `
-    <div class="mir-owner">${esc(intel.ownerName||'Unknown Owner')}${intel.isLLC?'&nbsp;<span style="font-size:9px;color:var(--blue);font-weight:700;">LLC</span>':''}</div>
+    <div class="mir-owner">${esc(intel.ownerName||'Unknown Owner')}${intel.isLLC?'&nbsp;<span class="dwx-fs9px-cblue-w700">LLC</span>':''}</div>
     <div class="mir-grid">
       ${yr ? `<div class="mir-item">Built <span>${esc(yr)}</span></div>` : ''}
       ${roofAge !== null ? `<div class="mir-item">Roof <span style="color:${esc(roofColor)};">${Number(roofAge)} yrs</span></div>` : ''}
       ${intel.marketValue ? `<div class="mir-item">Value <span>$${parseInt(intel.marketValue).toLocaleString()}</span></div>` : ''}
       ${intel.propertyType ? `<div class="mir-item">Type <span>${esc(intel.propertyType)}</span></div>` : ''}
       ${intel.bedrooms ? `<div class="mir-item">Beds <span>${esc(intel.bedrooms)}</span></div>` : ''}
-      ${intel.homestead ? `<div class="mir-item">Homestead <span style="color:var(--green);">Yes</span></div>` : ''}
+      ${intel.homestead ? `<div class="mir-item">Homestead <span class="dwx-cgreen">Yes</span></div>` : ''}
     </div>
-    <div style="font-size:10px;color:var(--m);margin-top:5px;">✓ Owner name and notes pre-filled below</div>`;
+    <div class="dwx-fs10px-cm-mt5px">✓ Owner name and notes pre-filled below</div>`;
   resultEl.classList.add('visible');
 }
 
@@ -1139,7 +1139,7 @@ function renderZoneList() {
   el.innerHTML = zones.map(z => `
     <div class="zone-item">
       <div class="zone-dot" style="background:${safeColor(z.color)};"></div>
-      <span>${esc(z.name)}${z.repLabel ? ` · <span style="color:var(--m);font-size:11px;">${esc(z.repLabel)}</span>` : ''}</span>
+      <span>${esc(z.name)}${z.repLabel ? ` · <span class="dwx-cm-fs11px">${esc(z.repLabel)}</span>` : ''}</span>
       <button class="zone-del nbd-zone-del" data-zone-id="${esc(z.id)}" data-action="call" data-fn="deleteZone" data-arg="${esc(z.id)}">✕</button>
     </div>`).join('');
   // Globals Tranche 3 T3-0 (2026-08-31): this used to re-bind a click listener
@@ -1169,12 +1169,12 @@ function updatePinStats() {
 
   el.innerHTML = `
     <div class="pin-stat-pill">
-      <span style="font-weight:700;color:var(--t);">${total}</span>
-      <span style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Doors</span>
+      <span class="dwx-w700-ct">${total}</span>
+      <span class="dwx-fs9px-cm-ttuppercas">Doors</span>
     </div>
-    ${signed ? `<div class="pin-stat-pill"><div class="pin-stat-dot" style="background:var(--gold);"></div><span style="color:var(--gold);font-weight:700;">${signed} Signed</span></div>` : ''}
-    ${interested ? `<div class="pin-stat-pill"><div class="pin-stat-dot" style="background:var(--green);"></div><span style="color:var(--green);font-weight:700;">${interested} Interested</span></div>` : ''}
-    ${notHome ? `<div class="pin-stat-pill"><div class="pin-stat-dot" style="background:#9CA3AF;"></div><span style="color:var(--m);">${notHome} Not Home</span></div>` : ''}`;
+    ${signed ? `<div class="pin-stat-pill"><div class="pin-stat-dot dwx-bggold"></div><span class="dwx-cgold-w700">${signed} Signed</span></div>` : ''}
+    ${interested ? `<div class="pin-stat-pill"><div class="pin-stat-dot dwx-bggreen"></div><span class="dwx-cgreen-w700">${interested} Interested</span></div>` : ''}
+    ${notHome ? `<div class="pin-stat-pill"><div class="pin-stat-dot dwx-bg9ca3af"></div><span class="dwx-cm">${notHome} Not Home</span></div>` : ''}`;
 }
 
 // ══════════════════════════════════════════════════════════════════════
