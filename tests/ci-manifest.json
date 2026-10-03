@@ -324,7 +324,9 @@
     "ky-insurance-contracts.test.js",
     "ky-claims-wording-scan.test.js",
     "voice-intel-anthropic-key.test.js",
-    "check-js-syntax.test.js"
+    "check-js-syntax.test.js",
+    "faq-schema-sync-2026-10-03.test.js",
+    "site-round2-2026-10-03.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

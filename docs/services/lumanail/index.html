@@ -556,7 +556,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
       <!-- WebP first (2026-09-04): this is the eager, above-the-fold hero and
            the JPEG is 117 KB against 43 KB for the same image in WebP — a 63%
            cut on the largest byte on the page, which is the LCP candidate on
-           mobile. The <img> keeps the JPEG so anything without WebP support
+           mobile. The img element keeps the JPEG so anything without WebP support
            still renders; no JS, no CSP surface. -->
       <picture>
         <source srcset="/assets/lumanail/pack-web-1.avif" type="image/avif">
