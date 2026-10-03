@@ -37,6 +37,12 @@ const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FOLDER_NAME = 'Cube ACR';
 const MAX_FILES_PER_RUN = 40;      // keeps one run well inside the timeout
 const MAX_BYTES = 80 * 1024 * 1024;
+// The newest day folders are read first on every run, ahead of any history
+// backlog, so a slow or stuck backfill can never delay today's calls. On
+// 2026-10-02 one 89 MB May recording failed every run, the scan stopped at
+// its day, and every later day (Oct 2's calls included) went unread.
+const RECENT_DAYS = 3;
+function etYmd(ms) { return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
 const enabled = () => process.env.CALL_CENTER_INGEST_ENABLED === 'true';
 
 let _client = null;
@@ -111,7 +117,8 @@ async function runIngest({ db, bucket, live, nowMs }) {
   let cursor = startCursor;
   let budget = MAX_FILES_PER_RUN;
 
-  for (const day of scan) {
+  // One day folder: file what's new; true when every recording in it is done.
+  async function fileDay(day) {
     const files = await listAll("'" + day.id + "' in parents and trashed = false", 'id, name, size, mimeType, createdTime');
     files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     let finishedDay = true;
@@ -129,6 +136,13 @@ async function runIngest({ db, bucket, live, nowMs }) {
       counts.seen++;
       const docRef = refs[i];
       if (have.has(docRef.id)) continue;
+      // Too big to copy is permanent, not a retry: log it and move on, so it
+      // never holds its day (and every day after it) open.
+      if (Number(f.size) > MAX_BYTES) {
+        counts.tooLarge = (counts.tooLarge || 0) + 1;
+        logger.info('call_center_file_too_large', { fileId: f.id, mb: Math.round(Number(f.size) / 1048576) });
+        continue;
+      }
       counts.fresh++;
       const match = L.matchLead(parsed.phoneDigits, index);
       const bucketName = L.classifyCall(parsed, match);
@@ -137,7 +151,6 @@ async function runIngest({ db, bucket, live, nowMs }) {
       if (budget <= 0) { finishedDay = false; break; }
       budget--;
       try {
-        if (Number(f.size) > MAX_BYTES) throw new Error('too_large');
         const path = L.storagePath(OWNER, parsed.ymd, f.id, parsed.ext);
         const bytes = await download(f.id);
         let durationSec = null;
@@ -155,11 +168,22 @@ async function runIngest({ db, bucket, live, nowMs }) {
         logger.warn('call_center_file_failed', { fileId: f.id, err: e && e.message });
       }
     }
-    if (!live) continue;
-    // Advance the cursor only past fully-filed days; today's folder is always
-    // re-listed next run (Cube ACR keeps adding to it).
-    if (finishedDay) cursor = day.ymd; else break;
+    return finishedDay;
   }
+
+  // Newest first: the last RECENT_DAYS folders, today first; then the history
+  // backlog in date order, stopping at the first day that isn't finished.
+  const recentFrom = L.daysBefore(etYmd(nowMs), RECENT_DAYS - 1);
+  const done = new Map();
+  for (const day of scan.filter((d) => d.ymd >= recentFrom).reverse()) done.set(day.ymd, await fileDay(day));
+  for (const day of scan.filter((d) => d.ymd < recentFrom)) {
+    const fin = await fileDay(day);
+    done.set(day.ymd, fin);
+    if (live && !fin) break;
+  }
+  // Advance the cursor only past fully-filed days, in date order; today's
+  // folder is always re-listed next run (Cube ACR keeps adding to it).
+  if (live) for (const day of scan) { if (done.get(day.ymd)) cursor = day.ymd; else break; }
 
   await ref.set({
     folderId: root,
