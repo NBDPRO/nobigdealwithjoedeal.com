@@ -1012,7 +1012,7 @@
     modal.id = 'jtModal';
     modal.innerHTML =
       '<div class="jt-m-hdr">' +
-        '<div style="display:flex;align-items:baseline;gap:14px;min-width:0;">' +
+        '<div class="jtx-dflex-aibaseline-gap14px">' +
           '<span class="jt-m-title">Job <span class="pro">Templates</span></span>' +
           '<span class="jt-m-step" id="jtStepLbl"></span>' +
         '</div>' +
@@ -1140,11 +1140,11 @@
     return '<div class="jt-card' + (sel ? ' sel' : '') + '" style="border-left-color:' + esc(col) + ';">' +
       '<div class="jt-card-top">' +
         '<input type="checkbox" class="jt-check" data-jt-action="toggle-select" data-id="' + esc(t.id) + '"' + (sel ? ' checked' : '') + ' aria-label="Select ' + esc(t.name) + '">' +
-        '<div style="flex:1;min-width:0;">' +
+        '<div class="jtx-fx1-minw0">' +
           '<div class="jt-card-name">' + esc(t.name) +
-            (custom ? ' <span class="jt-chip" style="color:#8b5cf6;border-color:#8b5cf6;">Custom</span>' : '') +
+            (custom ? ' <span class="jt-chip jtx-c8b5cf6-bor8b5cf6">Custom</span>' : '') +
           '</div>' +
-          '<div class="jt-chips" style="margin-top:4px;">' +
+          '<div class="jt-chips jtx-mt4px">' +
             '<span class="jt-chip" style="color:' + esc(col) + ';border-color:' + esc(col) + '55;">' + esc(catIcon(t.category)) + ' ' + esc(catLabel(t.category)) + '</span>' +
             (t.jobType ? '<span class="jt-chip">' + esc(JOB_TYPES[t.jobType] || t.jobType) + '</span>' : '') +
           '</div>' +
@@ -1162,7 +1162,7 @@
         '<button type="button" class="jt-btn jt-btn-primary jt-card-use" data-jt-action="quick-use" data-id="' + esc(t.id) + '" title="' + esc(useTitle) + '">' + useLabel + '</button>' +
         '<div class="jt-card-foot">' +
           '<span class="jt-band">' + (band ? esc(band) : '&nbsp;') + '</span>' +
-          '<div style="display:flex;gap:6px;">' +
+          '<div class="jtx-dflex-gap6px">' +
             '<button type="button" class="jt-btn jt-btn-sm" data-jt-action="edit-template" data-id="' + esc(t.id) + '">Edit</button>' +
             '<button type="button" class="jt-btn jt-btn-sm" data-jt-action="duplicate-template" data-id="' + esc(t.id) + '">Duplicate</button>' +
             (custom ? '<button type="button" class="jt-btn jt-btn-sm jt-btn-danger" data-jt-action="delete-template" data-id="' + esc(t.id) + '">Delete</button>' : '') +
@@ -1188,7 +1188,7 @@
         'data-jt-action="quick-select" data-id="' + esc(t.id) + '" ' +
         'style="border-left-color:' + esc(col) + ';" aria-label="Select ' + esc(t.name) + '">' +
         '<span class="jt-recent-ic">' + esc(catIcon(t.category)) + '</span>' +
-        '<span style="min-width:0;">' +
+        '<span class="jtx-minw0">' +
           '<span class="jt-recent-name">' + esc(t.name) + '</span>' +
           '<span class="jt-recent-meta">used ' + Number(t.useCount) + '×</span>' +
         '</span>' +
@@ -1217,15 +1217,15 @@
     var JT = engine();
     if (!JT) {
       return '<div class="jt-wrap"><div class="jt-empty">' +
-        '<div style="font-size:34px;margin-bottom:10px;">📋</div>' +
+        '<div class="jtx-fs34px-mb10px">📋</div>' +
         'Job templates are still loading.<br>' +
-        '<button type="button" class="jt-btn" style="margin-top:14px;" data-jt-action="rerender">Retry</button>' +
+        '<button type="button" class="jt-btn jtx-mt14px" data-jt-action="rerender">Retry</button>' +
         '</div></div>';
     }
     var list = getFiltered();
     var cards = list.map(renderCard).join('');
     var hdrBtns =
-      '<div style="display:flex;gap:8px;">' +
+      '<div class="jtx-dflex-gap8px">' +
         '<button type="button" class="jt-btn jt-btn-primary" data-jt-action="new-template">+ New Template</button>' +
       '</div>';
     // In modal (picker) mode the dashboard page header isn't around us,
@@ -1338,12 +1338,12 @@
     // builder, so preview tax == saved tax == V2 tax ("Other / My county"
     // = '' rides the engines' 7% fallback by design).
     var countySel = '<div><span class="jt-ctl-lbl">County / Tax</span>' +
-      '<select class="jt-in" data-jt-action="set-county" style="min-width:180px;">' +
+      '<select class="jt-in jtx-minw180px" data-jt-action="set-county">' +
       countyOptions().map(function (o) {
         return '<option value="' + esc(o.value) + '"' + (state.county === o.value ? ' selected' : '') + '>' + esc(o.label) + '</option>';
       }).join('') + '</select></div>';
 
-    var measBtn = '<div style="margin-left:auto;"><span class="jt-ctl-lbl">&nbsp;</span>' +
+    var measBtn = '<div class="jtx-mlauto"><span class="jt-ctl-lbl">&nbsp;</span>' +
       '<button type="button" class="jt-btn" data-jt-action="toggle-meas">📐 Measurements ' + (state.measOpen ? '▾' : '▸') + '</button></div>';
 
     // The Upgrades card sits right under the job's controls, above the line
@@ -1367,16 +1367,16 @@
     var fields = Object.keys(MEAS_DEFAULTS).map(function (k) {
       var v = state.measurements[k];
       if (typeof MEAS_DEFAULTS[k] === 'boolean') {
-        return '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--t,#e8eaf0);cursor:pointer;">' +
-          '<input type="checkbox" class="jt-check" style="width:17px;height:17px;min-width:17px;" data-jt-meas="' + esc(k) + '"' + (v ? ' checked' : '') + '>' +
+        return '<label class="jtx-dflex-aicenter-gap8px">' +
+          '<input type="checkbox" class="jt-check jtx-wd17px-hei17px-minw17px" data-jt-meas="' + esc(k) + '"' + (v ? ' checked' : '') + '>' +
           esc(MEAS_LABELS[k] || k) + '</label>';
       }
       return '<div><span class="jt-mini-lbl">' + esc(MEAS_LABELS[k] || k) + '</span>' +
-        '<input type="number" step="any" class="jt-in" style="width:100%;" data-jt-meas="' + esc(k) + '" value="' + esc(v == null ? '' : v) + '"></div>';
+        '<input type="number" step="any" class="jt-in jtx-wd100" data-jt-meas="' + esc(k) + '" value="' + esc(v == null ? '' : v) + '"></div>';
     }).join('');
     return '<div class="jt-meas">' +
-      '<div style="font-size:12px;font-weight:700;color:var(--orange,#BD5728);text-transform:uppercase;letter-spacing:.1em;">Measurements' +
-      (driven ? ' <span style="color:#eab308;font-weight:600;text-transform:none;letter-spacing:0;">— required: a selected template scales to real measurements</span>' : '') +
+      '<div class="jtx-fs12px-w700-corange">Measurements' +
+      (driven ? ' <span class="jtx-ceab308-w600-ttnone">— required: a selected template scales to real measurements</span>' : '') +
       '</div>' +
       '<div class="jt-meas-grid">' + fields + '</div>' +
       '</div>';
@@ -1432,7 +1432,7 @@
           (it.optional ? '<span class="jt-opt">Optional</span>' : '') +
         '</div>' +
         (desc ? '<div class="jt-row-desc">' + esc(desc) + '</div>' : '') +
-        (brandSel ? '<div style="margin-top:6px;">' + brandSel + '</div>' : '') +
+        (brandSel ? '<div class="jtx-mt6px">' + brandSel + '</div>' : '') +
       '</div>' +
       '<div class="jt-row-ctrls">' +
         '<div><span class="jt-mini-lbl">Qty</span>' +
@@ -1477,7 +1477,7 @@
       if (t.minApplied) extra.push('min charge applied');
     }
     if (model && model.errors.length) extra.push('upgrades not added — see the Upgrades card');
-    if (extra.length) bits += ' <span style="font-size:11px;">(' + esc(extra.join(' · ')) + ')</span>';
+    if (extra.length) bits += ' <span class="jtx-fs11px">(' + esc(extra.join(' · ')) + ')</span>';
     return bits;
   }
 
@@ -2384,12 +2384,12 @@
       : '<div class="jt-prop-co" style="color:' + esc(colors.primary) + ';">' + esc(coName) + '</div>';
 
     return '<div class="jt-prop">' +
-      '<div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;">' +
+      '<div class="jtx-dflex-jcspacebet-gap14px">' +
         '<div>' +
           brandBlock +
           '<div class="jt-prop-kind" style="color:' + esc(colors.accent) + ';">' + kind + '</div>' +
         '</div>' +
-        '<div class="jt-prop-meta" style="text-align:right;">' +
+        '<div class="jt-prop-meta jtx-taright">' +
           esc(dateStr) +
           (tiersApplyNow() ? '<br>' + esc(TIER_LABELS[state.tier] || state.tier) + ' tier' : '') +
         '</div>' +
@@ -2399,7 +2399,7 @@
       '<table><thead><tr>' +
         '<th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Unit Price</th><th class="num">Total</th>' +
       '</tr></thead><tbody>' +
-        (rowsHtml || '<tr><td colspan="5" style="color:#94a3b8;">No billable line items — adjust quantities or measurements.</td></tr>') +
+        (rowsHtml || '<tr><td colspan="5" class="jtx-c94a3b8">No billable line items — adjust quantities or measurements.</td></tr>') +
       '</tbody></table>' +
       '<div class="jt-prop-tots">' + totsHtml + '</div>' +
       (warranty ? '<div class="jt-prop-warranty"><b>Workmanship warranty:</b> ' + esc(warranty) + '</div>' : '') +
@@ -2408,7 +2408,7 @@
       // Create bar (rep-facing, below the paper)
       '<div class="jt-createbar">' +
         '<div class="fld"><span class="jt-mini-lbl">Estimate name</span>' +
-          '<input type="text" class="jt-in" id="jtEstName" style="width:100%;" value="' + esc(defaultEstimateName()) + '"></div>' +
+          '<input type="text" class="jt-in jtx-wd100" id="jtEstName" value="' + esc(defaultEstimateName()) + '"></div>' +
         leadField +
         '<button type="button" class="jt-btn jt-btn-primary" data-jt-action="create-estimate"' + (state.creating ? ' disabled' : '') + '>' +
           (state.creating ? 'Creating…' : 'Create estimate') + '</button>' +
@@ -2563,15 +2563,15 @@
         }
       }
       return '<div class="jt-ed-item">' +
-        '<span class="jt-chip" style="min-width:52px;text-align:center;">' + (isCustomItem ? 'CUSTOM' : 'CODE') + '</span>' +
+        '<span class="jt-chip jtx-minw52px-tacenter">' + (isCustomItem ? 'CUSTOM' : 'CODE') + '</span>' +
         unsetBadge +
         codeField +
         '<div><span class="jt-mini-lbl">Qty</span>' +
           '<input type="number" step="any" min="0" class="jt-in jt-in-qty" placeholder="auto" data-jt-edi="qty" data-idx="' + i + '" value="' + esc(q == null ? '' : q) + '"></div>' +
         costFields +
-        '<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--m,#9aa3ad);cursor:pointer;">' +
+        '<label class="jtx-dflex-aicenter-gap6px">' +
           '<input type="checkbox" data-jt-edi="optional" data-idx="' + i + '"' + (it.optional ? ' checked' : '') + '> optional</label>' +
-        '<div style="display:flex;gap:4px;margin-left:auto;">' +
+        '<div class="jtx-dflex-gap4px-mlauto">' +
           '<button type="button" class="jt-btn jt-btn-sm" data-jt-action="ed-move-up" data-idx="' + i + '" title="Move up">↑</button>' +
           '<button type="button" class="jt-btn jt-btn-sm" data-jt-action="ed-move-down" data-idx="' + i + '" title="Move down">↓</button>' +
           '<button type="button" class="jt-btn jt-btn-sm jt-btn-danger" data-jt-action="ed-remove-item" data-idx="' + i + '">✕</button>' +
@@ -2582,7 +2582,7 @@
     card.innerHTML =
       '<div class="jt-ed-hdr">' +
         '<span class="t">' + (t.id ? 'Edit Template' : 'New Template') + '</span>' +
-        '<button type="button" class="jt-m-close" style="min-height:38px;padding:8px 14px;" data-jt-action="ed-cancel">✕</button>' +
+        '<button type="button" class="jt-m-close jtx-min38px-p8px14px" data-jt-action="ed-cancel">✕</button>' +
       '</div>' +
       '<div class="jt-ed-body">' + dl +
         (edState.isFork
@@ -2590,22 +2590,22 @@
           : '') +
         '<div class="jt-ed-grid">' +
           '<div><span class="jt-mini-lbl">Name</span>' +
-            '<input type="text" class="jt-in" style="width:100%;" data-jt-ed="name" value="' + esc(t.name) + '"></div>' +
+            '<input type="text" class="jt-in jtx-wd100" data-jt-ed="name" value="' + esc(t.name) + '"></div>' +
           '<div><span class="jt-mini-lbl">Duration hint</span>' +
-            '<input type="text" class="jt-in" style="width:100%;" data-jt-ed="durationHint" value="' + esc(t.durationHint || '') + '" placeholder="e.g. 2-3 hours"></div>' +
+            '<input type="text" class="jt-in jtx-wd100" data-jt-ed="durationHint" value="' + esc(t.durationHint || '') + '" placeholder="e.g. 2-3 hours"></div>' +
           '<div><span class="jt-mini-lbl">Category</span>' +
-            '<select class="jt-in" style="width:100%;" data-jt-ed="category">' + catOpts + '</select></div>' +
+            '<select class="jt-in jtx-wd100" data-jt-ed="category">' + catOpts + '</select></div>' +
           '<div><span class="jt-mini-lbl">Job type</span>' +
-            '<select class="jt-in" style="width:100%;" data-jt-ed="jobType">' + typeOpts + '</select></div>' +
+            '<select class="jt-in jtx-wd100" data-jt-ed="jobType">' + typeOpts + '</select></div>' +
           '<div><span class="jt-mini-lbl">Tags (comma-separated)</span>' +
-            '<input type="text" class="jt-in" style="width:100%;" data-jt-ed="tags" value="' + esc((t.tags || []).join(', ')) + '"></div>' +
+            '<input type="text" class="jt-in jtx-wd100" data-jt-ed="tags" value="' + esc((t.tags || []).join(', ')) + '"></div>' +
           '<div><span class="jt-mini-lbl">Minimum job charge ($, blank = engine default)</span>' +
-            '<input type="number" step="any" min="0" class="jt-in" style="width:100%;" data-jt-ed="minJobCharge" value="' + esc(t.minJobCharge == null ? '' : t.minJobCharge) + '"></div>' +
+            '<input type="number" step="any" min="0" class="jt-in jtx-wd100" data-jt-ed="minJobCharge" value="' + esc(t.minJobCharge == null ? '' : t.minJobCharge) + '"></div>' +
         '</div>' +
-        '<div style="margin-top:12px;"><span class="jt-mini-lbl">Customer description (shown on proposals)</span>' +
-          '<textarea class="jt-in" style="width:100%;min-height:56px;resize:vertical;" data-jt-ed="description">' + esc(t.description || '') + '</textarea></div>' +
-        '<div style="margin-top:10px;"><span class="jt-mini-lbl">Scope notes (internal, rep-facing)</span>' +
-          '<textarea class="jt-in" style="width:100%;min-height:56px;resize:vertical;" data-jt-ed="scopeNotes">' + esc(t.scopeNotes || '') + '</textarea></div>' +
+        '<div class="jtx-mt12px"><span class="jt-mini-lbl">Customer description (shown on proposals)</span>' +
+          '<textarea class="jt-in jtx-wd100-min56px-resvertical" data-jt-ed="description">' + esc(t.description || '') + '</textarea></div>' +
+        '<div class="jtx-mt10px"><span class="jt-mini-lbl">Scope notes (internal, rep-facing)</span>' +
+          '<textarea class="jt-in jtx-wd100-min56px-resvertical" data-jt-ed="scopeNotes">' + esc(t.scopeNotes || '') + '</textarea></div>' +
         // The cost fields below are COMPANY-WIDE, while the template itself is
         // this user's own copy. That asymmetry is invisible unless it is said,
         // and a rep who assumes "my template, my numbers" would be wrong in a
@@ -2613,12 +2613,12 @@
         (canEditCosts()
           ? '<div class="jt-cost-scope-note">💰 Item costs are your <strong>company\'s</strong> cost book — shared by every rep, and used to price these lines on every estimate. The template itself stays your own copy.</div>'
           : '') +
-        '<div style="margin:16px 0 8px;display:flex;justify-content:space-between;align-items:center;">' +
-          '<span style="font-size:12px;font-weight:800;color:var(--orange,#BD5728);text-transform:uppercase;letter-spacing:.1em;">Line items (' + (t.items || []).length + ')</span>' +
+        '<div class="jtx-m16px08px-dflex-jcspacebet">' +
+          '<span class="jtx-fs12px-w800-corange">Line items (' + (t.items || []).length + ')</span>' +
           '<button type="button" class="jt-btn jt-btn-sm" data-jt-action="ed-add-item">+ Add item</button>' +
         '</div>' +
-        '<div style="display:flex;flex-direction:column;gap:8px;">' +
-          (itemsHtml || '<div class="jt-empty" style="padding:22px;">No items yet — add catalog codes above.</div>') +
+        '<div class="jtx-dflex-flecolumn-gap8px">' +
+          (itemsHtml || '<div class="jt-empty jtx-p22px">No items yet — add catalog codes above.</div>') +
         '</div>' +
       '</div>' +
       '<div class="jt-ed-foot">' +

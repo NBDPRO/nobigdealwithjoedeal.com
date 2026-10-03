@@ -251,7 +251,7 @@
       'js/job-templates-data.js?v=4',
       'js/job-templates.js?v=5',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=7',
+      'js/job-templates-ui.js?v=8',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle
