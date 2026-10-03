@@ -199,6 +199,7 @@
     "voicemail-error-visible-2026-10-03.test.js",
     "game-xp-2026-10-03.test.js",
     "css-no-js-escapes-2026-10-03.test.js",
+    "ops-audit-2026-10-03.test.js",
     "roof-rep-game-2026-10-03.test.js",
     "invoice-reminder-2026-10-01.test.js",
     "winback-2026-10-01.test.js",
