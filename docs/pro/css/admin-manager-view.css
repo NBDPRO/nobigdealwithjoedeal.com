@@ -1,0 +1,29 @@
+/* Team manager (js/admin-manager.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.amx-p30px.amx-p30px.amx-p30px { padding: 30px; }
+.amx-fs10px-cm-p5px10px.amx-fs10px-cm-p5px10px.amx-fs10px-cm-p5px10px { font-size: 10px; color: var(--m); padding: 5px 10px; }
+.amx-fs11px-p5px12px.amx-fs11px-p5px12px.amx-fs11px-p5px12px.amx-fs11px-p5px12px { font-size: 11px; padding: 5px 12px; }
+.amx-dgrid-gtc40px2fr1-gap10px.amx-dgrid-gtc40px2fr1-gap10px.amx-dgrid-gtc40px2fr1-gap10px { display: grid; grid-template-columns: 40px 2fr 1fr 1fr 1fr 110px 80px; gap: 10px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--br); cursor: pointer; }
+.amx-wd36px-hei36px-r18px.amx-wd36px-hei36px-r18px.amx-wd36px-hei36px-r18px { width: 36px; height: 36px; border-radius: 18px; background: var(--s2); border: 1px solid var(--br); color: var(--t); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+.amx-fs13px-w600-ct.amx-fs13px-w600-ct.amx-fs13px-w600-ct { font-size: 13px; font-weight: 600; color: var(--t); }
+.amx-fs11px-cm.amx-fs11px-cm.amx-fs11px-cm { font-size: 11px; color: var(--m); }
+.amx-fs11px-ct-w600.amx-fs11px-ct-w600.amx-fs11px-ct-w600 { font-size: 11px; color: var(--t); font-weight: 600; }
+.amx-taright.amx-taright.amx-taright { text-align: right; }
+.amx-dgrid-gtc40px2fr1-gap10px-2.amx-dgrid-gtc40px2fr1-gap10px-2.amx-dgrid-gtc40px2fr1-gap10px-2 { display: grid; grid-template-columns: 40px 2fr 1fr 1fr 1fr 110px 80px; gap: 10px; padding: 10px 16px; font-size: 9px; color: var(--m); text-transform: uppercase; letter-spacing: .1em; border-bottom: 1px solid var(--br); background: var(--s2); }
+.amx-cm-fs12px.amx-cm-fs12px.amx-cm-fs12px { color: var(--m); font-size: 12px; }
+.amx-p10px0-bb1pxsolid-dflex.amx-p10px0-bb1pxsolid-dflex.amx-p10px0-bb1pxsolid-dflex { padding: 10px 0; border-bottom: 1px solid var(--br); display: flex; justify-content: space-between; gap: 12px; }
+.amx-fs12px-ct-w600.amx-fs12px-ct-w600.amx-fs12px-ct-w600 { font-size: 12px; color: var(--t); font-weight: 600; }
+.amx-fs10px-cm.amx-fs10px-cm.amx-fs10px-cm { font-size: 10px; color: var(--m); }
+.amx-fs10px-cm-whinowrap.amx-fs10px-cm-whinowrap.amx-fs10px-cm-whinowrap { font-size: 10px; color: var(--m); white-space: nowrap; }
+.amx-p24px.amx-p24px.amx-p24px { padding: 24px; }
+.amx-cm-fs11px.amx-cm-fs11px.amx-cm-fs11px { color: var(--m); font-size: 11px; }
+.amx-dflex-gap12px-aiflexstar.amx-dflex-gap12px-aiflexstar.amx-dflex-gap12px-aiflexstar { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-bottom: 1px solid var(--br); }
+.amx-fx1-minw0.amx-fx1-minw0.amx-fx1-minw0 { flex: 1; min-width: 0; }
+.amx-w700-ct-fs13px.amx-w700-ct-fs13px.amx-w700-ct-fs13px { font-weight: 700; color: var(--t); font-size: 13px; }
+.amx-fs12px-cm-mt2px.amx-fs12px-cm-mt2px.amx-fs12px-cm-mt2px { font-size: 12px; color: var(--m); margin-top: 2px; word-break: break-word; }
+.amx-fs10px-cm-mt4px.amx-fs10px-cm-mt4px.amx-fs10px-cm-mt4px { font-size: 10px; color: var(--m); margin-top: 4px; }
+.amx-dflex-flecolumn-gap4px.amx-dflex-flecolumn-gap4px.amx-dflex-flecolumn-gap4px { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.amx-cm.amx-cm.amx-cm { color: var(--m); }
+.amx-p12px-bgs2-bd1pxsolid.amx-p12px-bgs2-bd1pxsolid.amx-p12px-bgs2-bd1pxsolid { padding: 12px; background: var(--s2); border: 1px solid var(--br); border-radius: 7px; }
+.amx-fs9px-cm-ttuppercas.amx-fs9px-cm-ttuppercas.amx-fs9px-cm-ttuppercas { font-size: 9px; color: var(--m); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; }
+.amx-ffbarlowco-fs22px-w800.amx-ffbarlowco-fs22px-w800.amx-ffbarlowco-fs22px-w800 { font-family: \'Barlow Condensed\',sans-serif; font-size: 22px; font-weight: 800; color: var(--t); }
+.amx-fs10px-cm-mt3px.amx-fs10px-cm-mt3px.amx-fs10px-cm-mt3px { font-size: 10px; color: var(--m); margin-top: 3px; }
