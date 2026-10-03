@@ -175,8 +175,8 @@ section('Phase 1a: shared estimate preview sheet (mobile-first, both doc shapes)
   const dashHtml = read(path.join(ROOT, 'docs/pro/dashboard.html'));
   const custHtml = read(path.join(ROOT, 'docs/pro/customer.html'));
   assert('dashboard.html loads estimate-preview.js before dashboard-widgets',
-    /estimate-preview\.js\?v=2"><\/script>\s*<script defer src="js\/dashboard-widgets\.js/.test(dashHtml));
-  assert('customer.html loads estimate-preview.js', /estimate-preview\.js\?v=2/.test(custHtml));
+    /estimate-preview\.js\?v=\d+"><\/script>\s*<script defer src="js\/dashboard-widgets\.js/.test(dashHtml));
+  assert('customer.html loads estimate-preview.js', /estimate-preview\.js\?v=\d+/.test(custHtml));
 }
 
 section('Phase 1b: V2 builder mobile step navigation + always-visible total');

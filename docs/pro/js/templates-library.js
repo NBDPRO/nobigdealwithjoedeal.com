@@ -287,9 +287,9 @@ Bookmark it; the link stays live as we work through the project.
             <div class="tlx-fs11px-cm-mt3px">${escapeHtml((t.body || '').slice(0, 90))}${(t.body || '').length > 90 ? '…' : ''}</div>
           </div>
           <button data-template-edit="${escapeHtml(t.id)}" type="button" aria-label="Edit ${escapeHtml(t.name)}" title="Edit"
-            style="background:transparent; color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); padding:6px 10px; border-radius:6px; font: inherit; font-size:11px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent;">Edit</button>
+            class="tlm-bgtranspar-ct-bd1pxsolid">Edit</button>
           <button data-template-delete="${escapeHtml(t.id)}" type="button" aria-label="Delete ${escapeHtml(t.name)}" title="Delete"
-            style="background:transparent; color:#fb7185; border:1px solid var(--br,#2a3344); padding:6px 10px; border-radius:6px; font: inherit; font-size:11px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent;">Delete</button>
+            class="tlm-bgtranspar-cfb7185-bd1pxsolid">Delete</button>
         </div>`;
       }).join('');
       const empty = `<div class="tlx-p22px-tacenter-cm">No templates yet${channel ? ` for ${channel.toUpperCase()}` : ''}. Click + Add below.</div>`;
@@ -307,12 +307,12 @@ Bookmark it; the link stays live as we work through the project.
             <label class="tlx-fx1-fs11px-cm">
               Name
               <input id="nbd-tpl-name" type="text" value="${escapeHtml(t.name)}"
-                style="display:block; width:100%; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px; box-sizing:border-box;">
+                class="tlm-dblock-wd100-mt4px">
             </label>
             <label class="tlx-fs11px-cm-w600">
               Channel
               <select id="nbd-tpl-channel"
-                style="display:block; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px;">
+                class="tlm-dblock-mt4px-p8px10px">
                 <option value="sms" ${t.channel === 'sms' ? 'selected' : ''}>SMS</option>
                 <option value="email" ${t.channel === 'email' ? 'selected' : ''}>Email</option>
               </select>
@@ -321,12 +321,12 @@ Bookmark it; the link stays live as we work through the project.
           <label id="nbd-tpl-subject-row" style="display:${t.channel === 'email' ? 'block' : 'none'}; margin-bottom:10px; font-size:11px; color:var(--m,#9aa3b2); font-weight:600;">
             Subject
             <input id="nbd-tpl-subject" type="text" value="${escapeHtml(t.subject || '')}"
-              style="display:block; width:100%; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px; box-sizing:border-box;">
+              class="tlm-dblock-wd100-mt4px">
           </label>
           <label class="tlx-dblock-fs11px-cm">
             Body
             <textarea id="nbd-tpl-body" rows="6"
-              style="display:block; width:100%; margin-top:4px; padding:8px 10px; background:var(--s,#1a1f2a); color:var(--t,#e8eaf0); border:1px solid var(--br,#2a3344); border-radius:6px; font:inherit; font-size:13px; box-sizing:border-box; resize:vertical;">${escapeHtml(t.body || '')}</textarea>
+              class="tlm-dblock-wd100-mt4px-2">${escapeHtml(t.body || '')}</textarea>
           </label>
           <div class="tlx-fs10px-cm-mt6px">
             Tokens: ${escapeHtml(placeholders)}
@@ -348,7 +348,7 @@ Bookmark it; the link stays live as we work through the project.
             <span class="tlx-fs24px" aria-hidden="true">📝</span>
             <h2 id="nbd-templates-title" class="tlx-fs17px-m0">Message templates</h2>
             <button id="nbd-tpl-close-x" type="button" aria-label="Close"
-              style="margin-left:auto; background:transparent; color:var(--m,#9aa3b2); border:none; font-size:22px; line-height:1; cursor:pointer; padding:4px 8px;">×</button>
+              class="tlm-mlauto-bgtranspar-cm">×</button>
           </div>
           <p class="tlx-fs11px-cm-m0014px">
             Saved messages auto-fill the SMS / email composer when you share a portal link. Tokens like {firstName} and {portalUrl} get substituted before sending.
@@ -541,17 +541,12 @@ Bookmark it; the link stays live as we work through the project.
             <span class="tlx-fs22px" aria-hidden="true">${channel === 'email' ? '📧' : '💬'}</span>
             <h2 id="nbd-templates-picker-title" class="tlx-fs16px-m0">Pick ${escapeHtml(channelLabel)} template</h2>
             <button id="nbd-tpl-pick-close" type="button" aria-label="Cancel"
-              style="margin-left:auto; background:transparent; color:var(--m,#9aa3b2); border:none; font-size:22px; line-height:1; cursor:pointer; padding:4px 8px;">×</button>
+              class="tlm-mlauto-bgtranspar-cm">×</button>
           </div>
           <p class="tlx-fs11px-cm-m0012px">Tokens like {firstName} get filled in before the message opens.</p>
           <div id="nbd-tpl-pick-list" class="tlx-dflex-flecolumn-gap6px">
             ${templates.map((t, i) => `
-              <button data-tpl-pick="${escapeHtml(t.id)}" type="button" style="
-                text-align:left; padding:10px 12px; border-radius:8px;
-                background:var(--s2,#0f1419); color:var(--t,#e8eaf0);
-                border:1px solid var(--br,#2a3344);
-                font:inherit; font-size:13px; font-weight:600;
-                cursor:pointer; -webkit-tap-highlight-color:transparent;">
+              <button data-tpl-pick="${escapeHtml(t.id)}" type="button" class="tlm-taleft-p10px12px-r8px">
                 <div class="tlx-mb4px">${escapeHtml(t.name)}${t._seeded ? ' <span class="tlx-fs10px-cm-w500">· default</span>' : ''}</div>
                 <div class="tlx-fs11px-cm-w400">${escapeHtml((t.body || '').slice(0, 80))}${(t.body || '').length > 80 ? '…' : ''}</div>
               </button>
