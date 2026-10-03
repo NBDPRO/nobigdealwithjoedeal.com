@@ -141,7 +141,8 @@
       'js/winback.js?v=1'
     ],
     decision: [
-      'js/decision-engine.js?v=2'
+      'css/decision-engine-view.css?v=1',
+      'js/decision-engine.js?v=3'
     ],
     reports: [
       // ApexCharts must load BEFORE rep-report-generator.js, which calls
