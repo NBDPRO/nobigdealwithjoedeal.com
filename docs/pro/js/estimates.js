@@ -537,30 +537,30 @@ function buildReview() {
                         : 'margin-weak';
   const internalViewHtml = `
     <div id="internalViewPanel" style="display:none;margin-top:16px;padding:12px;background:var(--s2);border:1px dashed var(--orange);border-radius:7px;font-size:11px;">
-      <div style="font-weight:700;color:var(--orange);margin-bottom:8px;">Internal View — NOT FOR CUSTOMER</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-        <div><div style="color:var(--m);">Customer Price</div><div style="font-weight:700;">${fmt(grandTotal)}</div></div>
-        <div><div style="color:var(--m);">Cost Basis</div><div style="font-weight:700;">${fmt(costBasis)}</div></div>
-        <div><div style="color:var(--m);">Margin</div><div class="${marginSafeClass}" style="font-weight:700;">${fmt(margin)} · ${marginPct.toFixed(1)}%</div></div>
+      <div class="erx-w700-corange-mb8px">Internal View — NOT FOR CUSTOMER</div>
+      <div class="erx-dgrid-gtcrepeat31-gap8px">
+        <div><div class="erx-cm">Customer Price</div><div class="erx-w700">${fmt(grandTotal)}</div></div>
+        <div><div class="erx-cm">Cost Basis</div><div class="erx-w700">${fmt(costBasis)}</div></div>
+        <div><div class="erx-cm">Margin</div><div class="${marginSafeClass} erx-w700">${fmt(margin)} · ${marginPct.toFixed(1)}%</div></div>
       </div>
     </div>`;
   reviewEl.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
+    <div class="erx-dflex-jcspacebet-aiflexstar">
       <div>
-        <div style="font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--m);margin-bottom:4px;">Property</div>
-        <div style="font-size:14px;font-weight:600;color:var(--blue);">${esc(addr)}</div>
-        <div style="font-size:12px;color:var(--m);">${esc(owner)} · Parcel: ${esc(parcel)} · Built: ${esc(yr)}</div>
+        <div class="erx-fs10px-w700-ls15em">Property</div>
+        <div class="erx-fs14px-w600-cblue">${esc(addr)}</div>
+        <div class="erx-fs12px-cm">${esc(owner)} · Parcel: ${esc(parcel)} · Built: ${esc(yr)}</div>
       </div>
-      <div style="text-align:right;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--m);">Estimate Total</div>
-        <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:32px;font-weight:700;color:var(--orange);">${fmt(grandTotal)}</div>
-        <div style="font-size:11px;color:var(--m);">${esc(tierLabel(selectedTier))}</div>
+      <div class="erx-taright">
+        <div class="erx-fs10px-w700-ls15em-2">Estimate Total</div>
+        <div class="erx-ffmontserr-fs32px-w700">${fmt(grandTotal)}</div>
+        <div class="erx-fs11px-cm">${esc(tierLabel(selectedTier))}</div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;font-size:11px;">
-      <div style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px;"><div style="color:var(--m);margin-bottom:3px;">Roof Type</div><div style="font-weight:700;">${esc(roofType)}</div></div>
-      <div style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px;"><div style="color:var(--m);margin-bottom:3px;">Pitch</div><div style="font-weight:700;">${esc(d.pl)}</div></div>
-      <div style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px;"><div style="color:var(--m);margin-bottom:3px;">Squares</div><div style="font-weight:700;">${d.sq.toFixed(2)} SQ</div></div>
+    <div class="erx-dgrid-gtcrepeat31-gap10px">
+      <div class="erx-bgs2-bd1pxsolid-r7px"><div class="erx-cm-mb3px">Roof Type</div><div class="erx-w700">${esc(roofType)}</div></div>
+      <div class="erx-bgs2-bd1pxsolid-r7px"><div class="erx-cm-mb3px">Pitch</div><div class="erx-w700">${esc(d.pl)}</div></div>
+      <div class="erx-bgs2-bd1pxsolid-r7px"><div class="erx-cm-mb3px">Squares</div><div class="erx-w700">${d.sq.toFixed(2)} SQ</div></div>
     </div>
     <table class="li-table">
       <thead><tr><th>Code</th><th>Description</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
@@ -570,49 +570,49 @@ function buildReview() {
         <tr><td class="code">TAX</td><td>Sales tax${d.county ? ' — ' + esc(d.county) + ' County' : ''} (${((d.taxRate||0)*100).toFixed(2)}%)</td><td></td><td></td><td><strong>${fmt(d.taxAmount)}</strong></td></tr>
         ` : ''}
         ${(d.mode === 'insurance') ? `
-        <tr><td class="code" style="color:var(--blue);">INS</td><td colspan="3" style="color:var(--m);font-style:italic;">Insurance mode — tax covered by adjuster (ACV/RCV)</td><td></td></tr>
+        <tr><td class="code erx-cblue">INS</td><td colspan="3" class="erx-cm-fstitalic">Insurance mode — tax covered by adjuster (ACV/RCV)</td><td></td></tr>
         ` : ''}
         <tr class="total-row grand"><td colspan="4"><strong>ESTIMATE TOTAL</strong></td><td><strong>${fmt(grandTotal)}</strong></td></tr>
       </tbody>
     </table>
     ${d.mode === 'insurance' && insuranceFields ? `
-    <div style="margin-top:14px;padding:10px 12px;background:rgba(74,158,255,.06);border:1px solid rgba(74,158,255,.25);border-radius:7px;font-size:12px;">
-      <div style="font-weight:700;color:var(--blue);margin-bottom:6px;">Insurance Claim Details</div>
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;color:var(--t);">
-        <div><span style="color:var(--m);">Carrier:</span> ${esc(insuranceFields.carrier || '—')}</div>
-        <div><span style="color:var(--m);">Claim #:</span> ${esc(insuranceFields.claimNumber || '—')}</div>
-        <div><span style="color:var(--m);">Deductible:</span> ${insuranceFields.deductible != null ? fmt(insuranceFields.deductible) : '—'}</div>
-        <div><span style="color:var(--m);">Date of Loss:</span> ${esc(insuranceFields.dateOfLoss || '—')}</div>
-        ${insuranceFields.adjuster       ? `<div><span style="color:var(--m);">Adjuster:</span> ${esc(insuranceFields.adjuster)}</div>` : ''}
-        ${insuranceFields.policyNumber   ? `<div><span style="color:var(--m);">Policy #:</span> ${esc(insuranceFields.policyNumber)}</div>` : ''}
-        ${insuranceFields.rcv != null    ? `<div><span style="color:var(--m);">RCV:</span> ${fmt(insuranceFields.rcv)}</div>` : ''}
-        ${insuranceFields.acv != null    ? `<div><span style="color:var(--m);">ACV:</span> ${fmt(insuranceFields.acv)}</div>` : ''}
-        ${insuranceFields.op != null     ? `<div><span style="color:var(--m);">O&P:</span> ${fmt(insuranceFields.op)}</div>` : ''}
-        ${insuranceFields.depreciation != null    ? `<div><span style="color:var(--m);">Depreciation:</span> ${fmt(insuranceFields.depreciation)}</div>` : ''}
-        ${insuranceFields.recoverableDep != null  ? `<div><span style="color:var(--m);">Recoverable Dep:</span> ${fmt(insuranceFields.recoverableDep)}</div>` : ''}
+    <div class="erx-mt14px-p10px12px-bgrgba7415">
+      <div class="erx-w700-cblue-mb6px">Insurance Claim Details</div>
+      <div class="erx-dgrid-gtcrepeat21-gap6px14px">
+        <div><span class="erx-cm">Carrier:</span> ${esc(insuranceFields.carrier || '—')}</div>
+        <div><span class="erx-cm">Claim #:</span> ${esc(insuranceFields.claimNumber || '—')}</div>
+        <div><span class="erx-cm">Deductible:</span> ${insuranceFields.deductible != null ? fmt(insuranceFields.deductible) : '—'}</div>
+        <div><span class="erx-cm">Date of Loss:</span> ${esc(insuranceFields.dateOfLoss || '—')}</div>
+        ${insuranceFields.adjuster       ? `<div><span class="erx-cm">Adjuster:</span> ${esc(insuranceFields.adjuster)}</div>` : ''}
+        ${insuranceFields.policyNumber   ? `<div><span class="erx-cm">Policy #:</span> ${esc(insuranceFields.policyNumber)}</div>` : ''}
+        ${insuranceFields.rcv != null    ? `<div><span class="erx-cm">RCV:</span> ${fmt(insuranceFields.rcv)}</div>` : ''}
+        ${insuranceFields.acv != null    ? `<div><span class="erx-cm">ACV:</span> ${fmt(insuranceFields.acv)}</div>` : ''}
+        ${insuranceFields.op != null     ? `<div><span class="erx-cm">O&P:</span> ${fmt(insuranceFields.op)}</div>` : ''}
+        ${insuranceFields.depreciation != null    ? `<div><span class="erx-cm">Depreciation:</span> ${fmt(insuranceFields.depreciation)}</div>` : ''}
+        ${insuranceFields.recoverableDep != null  ? `<div><span class="erx-cm">Recoverable Dep:</span> ${fmt(insuranceFields.recoverableDep)}</div>` : ''}
       </div>
     </div>` : ''}
-    <div style="margin-top:14px;padding:10px 12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;font-size:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="font-weight:700;color:var(--t);">Deposit Schedule</div>
-        <div style="font-size:10px;color:var(--m);">${depositPlan && depositPlan.kind === 'override' ? 'Rep override' : 'Deposit rule'} · override below (blank = rule)</div>
+    <div class="erx-mt14px-p10px12px-bgs2">
+      <div class="erx-dflex-jcspacebet-aicenter">
+        <div class="erx-w700-ct">Deposit Schedule</div>
+        <div class="erx-fs10px-cm">${depositPlan && depositPlan.kind === 'override' ? 'Rep override' : 'Deposit rule'} · override below (blank = rule)</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        <div><div style="color:var(--m);font-size:10px;">${esc(depositPlan ? depositPlan.label : 'Due at Signing')}</div><div style="font-weight:700;">${depositPlan ? esc(depositPlan.valueText) : fmt(deposit.amount)} (${deposit.pct}%)</div></div>
-        <div><div style="color:var(--m);font-size:10px;">Balance at Completion</div><div style="font-weight:700;">${fmt(deposit.remainder)}</div></div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <label style="font-size:10px;color:var(--m);">Rep override %:</label>
-          <input type="number" min="0" max="100" value="${d.depositPctOverride != null ? esc(String(d.depositPctOverride)) : ''}" placeholder="${deposit.pct}" data-on-change="setDepositOverride" style="width:56px;padding:2px 6px;border-radius:4px;background:var(--s);border:1px solid var(--br);color:var(--t);font-size:11px;">
+      <div class="erx-dgrid-gtcrepeat31-gap10px-2">
+        <div><div class="erx-cm-fs10px">${esc(depositPlan ? depositPlan.label : 'Due at Signing')}</div><div class="erx-w700">${depositPlan ? esc(depositPlan.valueText) : fmt(deposit.amount)} (${deposit.pct}%)</div></div>
+        <div><div class="erx-cm-fs10px">Balance at Completion</div><div class="erx-w700">${fmt(deposit.remainder)}</div></div>
+        <div class="erx-dflex-aicenter-gap6px">
+          <label class="erx-fs10px-cm">Rep override %:</label>
+          <input type="number" min="0" max="100" value="${d.depositPctOverride != null ? esc(String(d.depositPctOverride)) : ''}" placeholder="${deposit.pct}" data-on-change="setDepositOverride" class="erx-wd56px-p2px6px-r4px">
         </div>
       </div>
-      ${depositPlan && depositPlan.summary ? `<div style="margin-top:8px;color:var(--t);">${esc(depositPlan.summary)}</div>` : ''}
-      ${depositPlan && depositPlan.repNote ? `<div style="margin-top:4px;font-size:11px;color:var(--orange,#BD5728);">${esc(depositPlan.repNote)}</div>` : ''}
+      ${depositPlan && depositPlan.summary ? `<div class="erx-mt8px-ct">${esc(depositPlan.summary)}</div>` : ''}
+      ${depositPlan && depositPlan.repNote ? `<div class="erx-mt4px-fs11px-corange">${esc(depositPlan.repNote)}</div>` : ''}
     </div>
-    <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
-      <div style="font-size:10px;color:var(--m);">Version v${d.version || 1}${d.revisedFrom ? ' · revised from prior estimate' : ''}</div>
-      <div style="display:flex;gap:6px;">
-        <button type="button" class="btn btn-ghost" style="font-size:10px;padding:4px 10px;" data-est-action="createEstimateRevision">↻ Create Revision</button>
-        <button type="button" class="btn btn-ghost" style="font-size:10px;padding:4px 10px;" data-est-action="toggleInternalView">🔒 Internal View</button>
+    <div class="erx-mt10px-dflex-jcspacebet">
+      <div class="erx-fs10px-cm">Version v${d.version || 1}${d.revisedFrom ? ' · revised from prior estimate' : ''}</div>
+      <div class="erx-dflex-gap6px">
+        <button type="button" class="btn btn-ghost erx-fs10px-p4px10px" data-est-action="createEstimateRevision">↻ Create Revision</button>
+        <button type="button" class="btn btn-ghost erx-fs10px-p4px10px" data-est-action="toggleInternalView">🔒 Internal View</button>
       </div>
     </div>
     ${internalViewHtml}`;

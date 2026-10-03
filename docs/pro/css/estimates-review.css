@@ -1,0 +1,34 @@
+/* Classic estimate review (js/estimates.js buildReview) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.erx-w700-corange-mb8px.erx-w700-corange-mb8px.erx-w700-corange-mb8px { font-weight: 700; color: var(--orange); margin-bottom: 8px; }
+.erx-dgrid-gtcrepeat31-gap8px.erx-dgrid-gtcrepeat31-gap8px.erx-dgrid-gtcrepeat31-gap8px { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.erx-cm.erx-cm.erx-cm { color: var(--m); }
+.erx-w700.erx-w700.erx-w700 { font-weight: 700; }
+.erx-dflex-jcspacebet-aiflexstar.erx-dflex-jcspacebet-aiflexstar.erx-dflex-jcspacebet-aiflexstar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+.erx-fs10px-w700-ls15em.erx-fs10px-w700-ls15em.erx-fs10px-w700-ls15em { font-size: 10px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--m); margin-bottom: 4px; }
+.erx-fs14px-w600-cblue.erx-fs14px-w600-cblue.erx-fs14px-w600-cblue { font-size: 14px; font-weight: 600; color: var(--blue); }
+.erx-fs12px-cm.erx-fs12px-cm.erx-fs12px-cm { font-size: 12px; color: var(--m); }
+.erx-taright.erx-taright.erx-taright { text-align: right; }
+.erx-fs10px-w700-ls15em-2.erx-fs10px-w700-ls15em-2.erx-fs10px-w700-ls15em-2 { font-size: 10px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--m); }
+.erx-ffmontserr-fs32px-w700.erx-ffmontserr-fs32px-w700.erx-ffmontserr-fs32px-w700 { font-family: 'Montserrat','Segoe UI',Helvetica,Arial,sans-serif; font-size: 32px; font-weight: 700; color: var(--orange); }
+.erx-fs11px-cm.erx-fs11px-cm.erx-fs11px-cm { font-size: 11px; color: var(--m); }
+.erx-dgrid-gtcrepeat31-gap10px.erx-dgrid-gtcrepeat31-gap10px.erx-dgrid-gtcrepeat31-gap10px { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; font-size: 11px; }
+.erx-bgs2-bd1pxsolid-r7px.erx-bgs2-bd1pxsolid-r7px.erx-bgs2-bd1pxsolid-r7px { background: var(--s2); border: 1px solid var(--br); border-radius: 7px; padding: 10px; }
+.erx-cm-mb3px.erx-cm-mb3px.erx-cm-mb3px { color: var(--m); margin-bottom: 3px; }
+.erx-cblue.erx-cblue.erx-cblue { color: var(--blue); }
+.erx-cm-fstitalic.erx-cm-fstitalic.erx-cm-fstitalic { color: var(--m); font-style: italic; }
+.erx-mt14px-p10px12px-bgrgba7415.erx-mt14px-p10px12px-bgrgba7415.erx-mt14px-p10px12px-bgrgba7415 { margin-top: 14px; padding: 10px 12px; background: rgba(74,158,255,.06); border: 1px solid rgba(74,158,255,.25); border-radius: 7px; font-size: 12px; }
+.erx-w700-cblue-mb6px.erx-w700-cblue-mb6px.erx-w700-cblue-mb6px { font-weight: 700; color: var(--blue); margin-bottom: 6px; }
+.erx-dgrid-gtcrepeat21-gap6px14px.erx-dgrid-gtcrepeat21-gap6px14px.erx-dgrid-gtcrepeat21-gap6px14px { display: grid; grid-template-columns: repeat(2,1fr); gap: 6px 14px; color: var(--t); }
+.erx-mt14px-p10px12px-bgs2.erx-mt14px-p10px12px-bgs2.erx-mt14px-p10px12px-bgs2 { margin-top: 14px; padding: 10px 12px; background: var(--s2); border: 1px solid var(--br); border-radius: 7px; font-size: 12px; }
+.erx-dflex-jcspacebet-aicenter.erx-dflex-jcspacebet-aicenter.erx-dflex-jcspacebet-aicenter { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.erx-w700-ct.erx-w700-ct.erx-w700-ct { font-weight: 700; color: var(--t); }
+.erx-fs10px-cm.erx-fs10px-cm.erx-fs10px-cm { font-size: 10px; color: var(--m); }
+.erx-dgrid-gtcrepeat31-gap10px-2.erx-dgrid-gtcrepeat31-gap10px-2.erx-dgrid-gtcrepeat31-gap10px-2 { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.erx-cm-fs10px.erx-cm-fs10px.erx-cm-fs10px { color: var(--m); font-size: 10px; }
+.erx-dflex-aicenter-gap6px.erx-dflex-aicenter-gap6px.erx-dflex-aicenter-gap6px { display: flex; align-items: center; gap: 6px; }
+.erx-wd56px-p2px6px-r4px.erx-wd56px-p2px6px-r4px.erx-wd56px-p2px6px-r4px { width: 56px; padding: 2px 6px; border-radius: 4px; background: var(--s); border: 1px solid var(--br); color: var(--t); font-size: 11px; }
+.erx-mt8px-ct.erx-mt8px-ct.erx-mt8px-ct { margin-top: 8px; color: var(--t); }
+.erx-mt4px-fs11px-corange.erx-mt4px-fs11px-corange.erx-mt4px-fs11px-corange { margin-top: 4px; font-size: 11px; color: var(--orange,#BD5728); }
+.erx-mt10px-dflex-jcspacebet.erx-mt10px-dflex-jcspacebet.erx-mt10px-dflex-jcspacebet { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+.erx-dflex-gap6px.erx-dflex-gap6px.erx-dflex-gap6px { display: flex; gap: 6px; }
+.erx-fs10px-p4px10px.erx-fs10px-p4px10px.erx-fs10px-p4px10px.erx-fs10px-p4px10px { font-size: 10px; padding: 4px 10px; }
