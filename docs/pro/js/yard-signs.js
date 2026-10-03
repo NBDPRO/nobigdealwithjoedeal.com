@@ -102,7 +102,7 @@
   // ── render ───────────────────────────────────────────────────────────
   function chip(label, n, color) {
     return '<div style="background:var(--s2,#1a1d23);border:1px solid var(--br,#2a2e37);border-left:3px solid ' + color + ';border-radius:10px;padding:10px 14px;min-width:110px;">' +
-      '<div style="font-size:22px;font-weight:800;">' + n + '</div><div style="font-size:11px;color:var(--m);text-transform:uppercase;letter-spacing:.04em;">' + esc(label) + '</div></div>';
+      '<div class="ysx-fs22px-w800">' + n + '</div><div class="ysx-fs11px-cm-ttuppercas">' + esc(label) + '</div></div>';
   }
 
   function signRow(s, credit) {
@@ -114,19 +114,19 @@
     const scheduled = st === 'scheduled';
     const live = st !== 'picked_up' && st !== 'missing' && !scheduled;
     return '<div class="ys-row" data-ys-id="' + esc(s.id) + '" title="' + (L.hasPin(s) ? 'Show this sign on the map' : 'No map location yet — tap Edit to add its address') + '" style="cursor:pointer;display:flex;gap:12px;align-items:center;background:var(--s2,#1a1d23);border:1px solid var(--br,#2a2e37);border-left:4px solid ' + L.COLOR[st] + ';border-radius:10px;padding:10px 12px;margin-bottom:8px;">' +
-      '<div data-ys-photo="' + esc(s.photoPath || '') + '" style="width:56px;height:56px;flex:none;border-radius:8px;background:var(--s,#12223D);display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;">🪧</div>' +
-      '<div style="min-width:0;flex:1;">' +
-        '<div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.address || leadName(lead) || 'Yard sign') + '</div>' +
-        '<div style="font-size:12px;color:var(--m);">' + (lead ? esc((lead.customerId ? lead.customerId + ' · ' : '') + leadName(lead)) + ' · ' : '') + (scheduled ? 'goes out ' : 'placed ') + esc(fmtDate(s.placedAt)) + ' · ' + esc(s.durationDays ? s.durationDays + ' days' : '') + '</div>' +
-        '<div style="font-size:12px;font-weight:700;color:' + L.COLOR[st] + ';">' + esc(L.dueText(s)) + (live || scheduled ? ' · pickup ' + esc(fmtDate(s.dueAt)) : '') + (nLeads ? ' · <span style="color:var(--green,#16a34a);">🎯 ' + nLeads + ' lead' + (nLeads === 1 ? '' : 's') + '</span>' : '') + '</div>' +
-        (s.note ? '<div style="font-size:11px;color:var(--m);">' + esc(s.note) + '</div>' : '') +
+      '<div data-ys-photo="' + esc(s.photoPath || '') + '" class="ysx-wd56px-hei56px-fxnone">🪧</div>' +
+      '<div class="ysx-minw0-fx1">' +
+        '<div class="ysx-w700-fs14px-whinowrap">' + esc(s.address || leadName(lead) || 'Yard sign') + '</div>' +
+        '<div class="ysx-fs12px-cm">' + (lead ? esc((lead.customerId ? lead.customerId + ' · ' : '') + leadName(lead)) + ' · ' : '') + (scheduled ? 'goes out ' : 'placed ') + esc(fmtDate(s.placedAt)) + ' · ' + esc(s.durationDays ? s.durationDays + ' days' : '') + '</div>' +
+        '<div style="font-size:12px;font-weight:700;color:' + L.COLOR[st] + ';">' + esc(L.dueText(s)) + (live || scheduled ? ' · pickup ' + esc(fmtDate(s.dueAt)) : '') + (nLeads ? ' · <span class="ysx-cgreen">🎯 ' + nLeads + ' lead' + (nLeads === 1 ? '' : 's') + '</span>' : '') + '</div>' +
+        (s.note ? '<div class="ysx-fs11px-cm">' + esc(s.note) + '</div>' : '') +
       '</div>' +
-      (!ro ? '<div style="display:flex;flex-direction:column;gap:4px;flex:none;">' +
+      (!ro ? '<div class="ysx-dflex-flecolumn-gap4px">' +
         (live ? '<button type="button" class="btn btn-orange btn-sm" data-ys-action="pickup" data-ys-id="' + esc(s.id) + '">✓ Picked up</button>' +
           '<button type="button" class="btn btn-ghost btn-sm" data-ys-action="extend" data-ys-id="' + esc(s.id) + '">+1 week</button>' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-ys-action="missing" data-ys-id="' + esc(s.id) + '" style="font-size:11px;">Missing</button>' : '') +
+          '<button type="button" class="btn btn-ghost btn-sm ysx-fs11px" data-ys-action="missing" data-ys-id="' + esc(s.id) + '">Missing</button>' : '') +
         // Edit (2026-09-30): address, pin, dates, customer, note, photo — or remove a mistaken sign.
-        '<button type="button" class="btn btn-ghost btn-sm" data-ys-action="edit" data-ys-id="' + esc(s.id) + '" style="font-size:11px;">✎ Edit</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm ysx-fs11px" data-ys-action="edit" data-ys-id="' + esc(s.id) + '">✎ Edit</button>' +
       '</div>' : '') +
       '</div>';
   }
@@ -135,7 +135,7 @@
     const el = scroll();
     if (!el) return;
     const L = LG();
-    if (!L) { el.innerHTML = '<div style="padding:20px;">Loading…</div>'; return; }
+    if (!L) { el.innerHTML = '<div class="ysx-p20px">Loading…</div>'; return; }
     const sum = L.summary(_signs);
     const credit = leadsBySign();
     const active = _signs.filter((s) => { const st = L.statusOf(s); return st !== 'picked_up' && st !== 'missing' && st !== 'scheduled'; })
@@ -146,34 +146,34 @@
     const today = L.pickupList(_signs, Date.now(), _here);
     const creditedTotal = Object.values(credit).reduce((a, x) => a + x.length, 0);
     el.innerHTML =
-      '<div class="page-hdr" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;">' +
+      '<div class="page-hdr ysx-dflex-jcspacebet-aiflexend">' +
         '<div><div class="page-title">🪧 Yard Signs</div><div class="page-sub">Where every sign is, when it goes back, and which ones bring in leads.</div></div>' +
         (isViewer() ? '' : '<button type="button" class="btn btn-orange" data-ys-action="open-place">＋ Place sign</button>') +
       '</div>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:14px 0;">' +
+      '<div class="ysx-dflex-gap10px-flewrap">' +
         chip('Out now', sum.out, '#16a34a') + chip('Due today', sum.dueToday, '#ea580c') + chip('Overdue', sum.overdue, '#dc2626') +
         chip('Due soon', sum.dueSoon, '#d97706') + (sum.scheduled ? chip('Scheduled', sum.scheduled, L.COLOR.scheduled) : '') + chip('Leads from signs', creditedTotal, '#3b82f6') +
       '</div>' +
-      (today.length ? '<div style="background:color-mix(in srgb, #ea580c 10%, transparent);border:1px solid #ea580c;border-radius:10px;padding:12px 14px;margin-bottom:14px;">' +
-        '<div style="font-weight:800;margin-bottom:6px;">🚚 Pick up today' + (_here ? ' — in driving order' : '') + '</div>' +
-        today.map((s, i) => '<div style="font-size:13px;padding:2px 0;">' + (i + 1) + '. ' + esc(s.address || 'Sign') + ' <span style="color:' + L.COLOR[L.statusOf(s)] + ';font-weight:700;">· ' + esc(L.dueText(s)) + '</span>' +
+      (today.length ? '<div class="ysx-bgcolormix-bd1pxsolid-r10px">' +
+        '<div class="ysx-w800-mb6px">🚚 Pick up today' + (_here ? ' — in driving order' : '') + '</div>' +
+        today.map((s, i) => '<div class="ysx-fs13px-p2px0">' + (i + 1) + '. ' + esc(s.address || 'Sign') + ' <span style="color:' + L.COLOR[L.statusOf(s)] + ';font-weight:700;">· ' + esc(L.dueText(s)) + '</span>' +
           (L.hasPin(s) ? ' · <a href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(s.lat + ',' + s.lng) + '" target="_blank" rel="noopener">Directions</a>' : '') + '</div>').join('') +
-        (_here ? '' : '<button type="button" class="btn btn-ghost btn-sm" data-ys-action="order-route" style="margin-top:6px;">📍 Order by where I am</button>') +
+        (_here ? '' : '<button type="button" class="btn btn-ghost btn-sm ysx-mt6px" data-ys-action="order-route">📍 Order by where I am</button>') +
       '</div>' : '') +
-      '<div id="ysMap" style="height:320px;border-radius:12px;border:1px solid var(--br,#2a2e37);margin-bottom:6px;"></div>' +
+      '<div id="ysMap" class="ysx-hei320px-r12px-bd1pxsolid"></div>' +
       (function () {
         const off = active.concat(scheduled).filter((s) => !L.hasPin(s));
-        if (!off.length) return '<div style="margin-bottom:14px;"></div>';
-        return '<div style="font-size:12px;color:var(--m);margin-bottom:14px;">' + off.length + ' sign' + (off.length === 1 ? ' isn\'t' : 's aren\'t') + ' on the map (no location saved: ' +
+        if (!off.length) return '<div class="ysx-mb14px"></div>';
+        return '<div class="ysx-fs12px-cm-mb14px">' + off.length + ' sign' + (off.length === 1 ? ' isn\'t' : 's aren\'t') + ' on the map (no location saved: ' +
           off.slice(0, 3).map((s) => esc(s.address || 'no address')).join(', ') + (off.length > 3 ? ', …' : '') + ').' +
-          (isViewer() ? '' : ' <button type="button" class="btn btn-ghost btn-sm" data-ys-action="pin-missing" style="margin-left:6px;">📍 Put them on the map</button>') + '</div>';
+          (isViewer() ? '' : ' <button type="button" class="btn btn-ghost btn-sm ysx-ml6px" data-ys-action="pin-missing">📍 Put them on the map</button>') + '</div>';
       })() +
-      '<h3 class="rr-h" style="font-size:13px;text-transform:uppercase;color:var(--m);margin:10px 0 8px;">Out now (' + active.length + ')</h3>' +
-      (active.length ? active.map((s) => signRow(s, credit)).join('') : '<div style="padding:18px;border:1px dashed var(--br);border-radius:10px;color:var(--m);text-align:center;">No signs out. Tap <b>＋ Place sign</b> at the next yard — GPS, a photo, and the pickup date take about ten seconds.</div>') +
-      (scheduled.length ? '<h3 class="rr-h" style="font-size:13px;text-transform:uppercase;color:var(--m);margin:16px 0 8px;">Scheduled to go out (' + scheduled.length + ')</h3>' +
+      '<h3 class="rr-h ysx-fs13px-ttuppercas-cm">Out now (' + active.length + ')</h3>' +
+      (active.length ? active.map((s) => signRow(s, credit)).join('') : '<div class="ysx-p18px-bd1pxdashe-r10px">No signs out. Tap <b>＋ Place sign</b> at the next yard — GPS, a photo, and the pickup date take about ten seconds.</div>') +
+      (scheduled.length ? '<h3 class="rr-h ysx-fs13px-ttuppercas-cm-2">Scheduled to go out (' + scheduled.length + ')</h3>' +
         scheduled.map((s) => signRow(s, credit)).join('') : '') +
-      (history.length ? '<button type="button" class="btn btn-ghost btn-sm" data-ys-action="toggle-history" style="margin-top:10px;">' + (_showHistory ? 'Hide' : 'Show') + ' history (' + history.length + ')</button>' +
-        (_showHistory ? '<div style="margin-top:8px;opacity:.8;">' + history.map((s) => signRow(s, credit)).join('') + '</div>' : '') : '');
+      (history.length ? '<button type="button" class="btn btn-ghost btn-sm ysx-mt10px" data-ys-action="toggle-history">' + (_showHistory ? 'Hide' : 'Show') + ' history (' + history.length + ')</button>' +
+        (_showHistory ? '<div class="ysx-mt8px-opa8">' + history.map((s) => signRow(s, credit)).join('') + '</div>' : '') : '');
     drawMap(active.concat(scheduled, _showHistory ? history : []));
     fillPhotos(el);
   }
@@ -341,29 +341,29 @@
     ov.setAttribute('role', 'dialog');
     ov.setAttribute('aria-modal', 'true');
     ov.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.7);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px;';
-    ov.innerHTML = '<div style="background:var(--s,#12223D);border:1px solid var(--br);border-radius:12px;width:100%;max-width:460px;padding:18px;color:var(--t,#fff);">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="margin:0;">🪧 ' + (sign ? 'Edit yard sign' : 'Place a yard sign') + '</h3><button type="button" class="modal-close" data-ys-action="close-place">✕</button></div>' +
-      '<label style="display:block;font-size:12px;margin:12px 0 4px;">Customer / job</label>' +
-      '<select id="ysLead" style="width:100%;"><option value="">— Choose the homeowner —</option>' + opts + '</select>' +
-      '<label style="display:block;font-size:12px;margin:12px 0 4px;">Address</label>' +
-      '<input id="ysAddr" type="text" maxlength="200" placeholder="Fills from the customer, or type it" style="width:100%;" value="' + esc(sign ? sign.address || '' : '') + '">' +
-      '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;"><button type="button" class="btn btn-ghost btn-sm" data-ys-action="gps">📍 Use my location</button><span id="ysGps" style="font-size:11px;color:var(--m);">' +
+    ov.innerHTML = '<div class="ysx-bgs-bd1pxsolid-r12px">' +
+      '<div class="ysx-dflex-jcspacebet-aicenter"><h3 class="ysx-m0">🪧 ' + (sign ? 'Edit yard sign' : 'Place a yard sign') + '</h3><button type="button" class="modal-close" data-ys-action="close-place">✕</button></div>' +
+      '<label class="ysx-dblock-fs12px-m12px04px">Customer / job</label>' +
+      '<select id="ysLead" class="ysx-wd100"><option value="">— Choose the homeowner —</option>' + opts + '</select>' +
+      '<label class="ysx-dblock-fs12px-m12px04px">Address</label>' +
+      '<input id="ysAddr" type="text" maxlength="200" placeholder="Fills from the customer, or type it" class="ysx-wd100" value="' + esc(sign ? sign.address || '' : '') + '">' +
+      '<div class="ysx-dflex-gap8px-aicenter"><button type="button" class="btn btn-ghost btn-sm" data-ys-action="gps">📍 Use my location</button><span id="ysGps" class="ysx-fs11px-cm">' +
         (sign && LG().hasPin(sign) ? 'Pin saved — tap only if you are standing at the sign' : 'Pin comes from the address — tap only if you are standing at the sign') + '</span></div>' +
-      '<label style="display:block;font-size:12px;margin:12px 0 4px;" for="ysPlaceOn">Placing on</label>' +
-      '<input id="ysPlaceOn" type="date" value="' + esc(_form.placeOn) + '" style="width:100%;">' +
-      '<label style="display:block;font-size:12px;margin:12px 0 4px;">Pick it up after</label>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+      '<label class="ysx-dblock-fs12px-m12px04px" for="ysPlaceOn">Placing on</label>' +
+      '<input id="ysPlaceOn" type="date" value="' + esc(_form.placeOn) + '" class="ysx-wd100">' +
+      '<label class="ysx-dblock-fs12px-m12px04px">Pick it up after</label>' +
+      '<div class="ysx-dflex-gap6px-flewrap">' +
         '<button type="button" class="btn btn-sm" data-ys-days="7">1 week</button>' +
         '<button type="button" class="btn btn-sm" data-ys-days="14">2 weeks</button>' +
-        '<input id="ysCustom" type="date" title="Or a specific date" value="' + esc(_form.custom) + '" style="flex:1;min-width:140px;">' +
+        '<input id="ysCustom" type="date" title="Or a specific date" value="' + esc(_form.custom) + '" class="ysx-fx1-minw140px">' +
       '</div>' +
-      '<div id="ysDue" style="font-size:12px;color:var(--m);margin-top:4px;"></div>' +
-      '<label style="display:block;font-size:12px;margin:12px 0 4px;">' + (sign ? 'Replace the photo (optional)' : 'Photo of the sign in the yard <span style="color:var(--gold,#eab308);">(recommended)</span>') + '</label>' +
+      '<div id="ysDue" class="ysx-fs12px-cm-mt4px"></div>' +
+      '<label class="ysx-dblock-fs12px-m12px04px">' + (sign ? 'Replace the photo (optional)' : 'Photo of the sign in the yard <span class="ysx-cgold">(recommended)</span>') + '</label>' +
       '<input id="ysPhoto" type="file" accept="image/*" capture="environment">' +
-      '<label style="display:block;font-size:12px;margin:12px 0 4px;">Note (optional)</label>' +
-      '<input id="ysNote" type="text" maxlength="200" placeholder="e.g. left of driveway, HOA ok\'d" style="width:100%;" value="' + esc(sign ? sign.note || '' : '') + '">' +
-      '<button type="button" class="btn btn-orange" data-ys-action="save-place" style="width:100%;margin-top:16px;justify-content:center;">' + (sign ? 'Save changes' : 'Save sign') + '</button>' +
-      (sign ? '<button type="button" class="btn btn-ghost btn-sm" data-ys-action="remove" data-ys-id="' + esc(sign.id) + '" style="width:100%;margin-top:8px;justify-content:center;color:var(--red,#dc2626);">Remove this sign (logged by mistake)</button>' : '') +
+      '<label class="ysx-dblock-fs12px-m12px04px">Note (optional)</label>' +
+      '<input id="ysNote" type="text" maxlength="200" placeholder="e.g. left of driveway, HOA ok\'d" class="ysx-wd100" value="' + esc(sign ? sign.note || '' : '') + '">' +
+      '<button type="button" class="btn btn-orange ysx-wd100-mt16px-jccenter" data-ys-action="save-place">' + (sign ? 'Save changes' : 'Save sign') + '</button>' +
+      (sign ? '<button type="button" class="btn btn-ghost btn-sm ysx-wd100-mt8px-jccenter" data-ys-action="remove" data-ys-id="' + esc(sign.id) + '">Remove this sign (logged by mistake)</button>' : '') +
       '</div>';
     document.body.appendChild(ov);
     updateDue();

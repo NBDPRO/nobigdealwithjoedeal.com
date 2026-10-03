@@ -1,0 +1,39 @@
+/* Yard Signs view (js/yard-signs.js) — pickups list, sign cards, history, the place / edit form. Layout moved out of inline style attributes so a theme can restyle it (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from each rule's properties); rules tripled so they out-rank component rules the way the inline style did. */
+.ysx-fs22px-w800.ysx-fs22px-w800.ysx-fs22px-w800 { font-size: 22px; font-weight: 800; }
+.ysx-fs11px-cm-ttuppercas.ysx-fs11px-cm-ttuppercas.ysx-fs11px-cm-ttuppercas { font-size: 11px; color: var(--m); text-transform: uppercase; letter-spacing: .04em; }
+.ysx-wd56px-hei56px-fxnone.ysx-wd56px-hei56px-fxnone.ysx-wd56px-hei56px-fxnone { width: 56px; height: 56px; flex: none; border-radius: 8px; background: var(--s,#12223D); display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden; }
+.ysx-minw0-fx1.ysx-minw0-fx1.ysx-minw0-fx1 { min-width: 0; flex: 1; }
+.ysx-w700-fs14px-whinowrap.ysx-w700-fs14px-whinowrap.ysx-w700-fs14px-whinowrap { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ysx-fs12px-cm.ysx-fs12px-cm.ysx-fs12px-cm { font-size: 12px; color: var(--m); }
+.ysx-cgreen.ysx-cgreen.ysx-cgreen { color: var(--green,#16a34a); }
+.ysx-fs11px-cm.ysx-fs11px-cm.ysx-fs11px-cm { font-size: 11px; color: var(--m); }
+.ysx-dflex-flecolumn-gap4px.ysx-dflex-flecolumn-gap4px.ysx-dflex-flecolumn-gap4px { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.ysx-fs11px.ysx-fs11px.ysx-fs11px.ysx-fs11px { font-size: 11px; }
+.ysx-p20px.ysx-p20px.ysx-p20px { padding: 20px; }
+.ysx-dflex-jcspacebet-aiflexend.ysx-dflex-jcspacebet-aiflexend.ysx-dflex-jcspacebet-aiflexend { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
+.ysx-dflex-gap10px-flewrap.ysx-dflex-gap10px-flewrap.ysx-dflex-gap10px-flewrap { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+.ysx-bgcolormix-bd1pxsolid-r10px.ysx-bgcolormix-bd1pxsolid-r10px.ysx-bgcolormix-bd1pxsolid-r10px { background: color-mix(in srgb, #ea580c 10%, transparent); border: 1px solid #ea580c; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+.ysx-w800-mb6px.ysx-w800-mb6px.ysx-w800-mb6px { font-weight: 800; margin-bottom: 6px; }
+.ysx-fs13px-p2px0.ysx-fs13px-p2px0.ysx-fs13px-p2px0 { font-size: 13px; padding: 2px 0; }
+.ysx-mt6px.ysx-mt6px.ysx-mt6px.ysx-mt6px { margin-top: 6px; }
+.ysx-hei320px-r12px-bd1pxsolid.ysx-hei320px-r12px-bd1pxsolid.ysx-hei320px-r12px-bd1pxsolid { height: 320px; border-radius: 12px; border: 1px solid var(--br,#2a2e37); margin-bottom: 6px; }
+.ysx-mb14px.ysx-mb14px.ysx-mb14px { margin-bottom: 14px; }
+.ysx-fs12px-cm-mb14px.ysx-fs12px-cm-mb14px.ysx-fs12px-cm-mb14px { font-size: 12px; color: var(--m); margin-bottom: 14px; }
+.ysx-ml6px.ysx-ml6px.ysx-ml6px.ysx-ml6px { margin-left: 6px; }
+.ysx-fs13px-ttuppercas-cm.ysx-fs13px-ttuppercas-cm.ysx-fs13px-ttuppercas-cm { font-size: 13px; text-transform: uppercase; color: var(--m); margin: 10px 0 8px; }
+.ysx-p18px-bd1pxdashe-r10px.ysx-p18px-bd1pxdashe-r10px.ysx-p18px-bd1pxdashe-r10px { padding: 18px; border: 1px dashed var(--br); border-radius: 10px; color: var(--m); text-align: center; }
+.ysx-fs13px-ttuppercas-cm-2.ysx-fs13px-ttuppercas-cm-2.ysx-fs13px-ttuppercas-cm-2 { font-size: 13px; text-transform: uppercase; color: var(--m); margin: 16px 0 8px; }
+.ysx-mt10px.ysx-mt10px.ysx-mt10px.ysx-mt10px { margin-top: 10px; }
+.ysx-mt8px-opa8.ysx-mt8px-opa8.ysx-mt8px-opa8 { margin-top: 8px; opacity: .8; }
+.ysx-bgs-bd1pxsolid-r12px.ysx-bgs-bd1pxsolid-r12px.ysx-bgs-bd1pxsolid-r12px { background: var(--s,#12223D); border: 1px solid var(--br); border-radius: 12px; width: 100%; max-width: 460px; padding: 18px; color: var(--t,#fff); }
+.ysx-dflex-jcspacebet-aicenter.ysx-dflex-jcspacebet-aicenter.ysx-dflex-jcspacebet-aicenter { display: flex; justify-content: space-between; align-items: center; }
+.ysx-m0.ysx-m0.ysx-m0 { margin: 0; }
+.ysx-dblock-fs12px-m12px04px.ysx-dblock-fs12px-m12px04px.ysx-dblock-fs12px-m12px04px { display: block; font-size: 12px; margin: 12px 0 4px; }
+.ysx-wd100.ysx-wd100.ysx-wd100 { width: 100%; }
+.ysx-dflex-gap8px-aicenter.ysx-dflex-gap8px-aicenter.ysx-dflex-gap8px-aicenter { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.ysx-dflex-gap6px-flewrap.ysx-dflex-gap6px-flewrap.ysx-dflex-gap6px-flewrap { display: flex; gap: 6px; flex-wrap: wrap; }
+.ysx-fx1-minw140px.ysx-fx1-minw140px.ysx-fx1-minw140px { flex: 1; min-width: 140px; }
+.ysx-fs12px-cm-mt4px.ysx-fs12px-cm-mt4px.ysx-fs12px-cm-mt4px { font-size: 12px; color: var(--m); margin-top: 4px; }
+.ysx-cgold.ysx-cgold.ysx-cgold { color: var(--gold,#eab308); }
+.ysx-wd100-mt16px-jccenter.ysx-wd100-mt16px-jccenter.ysx-wd100-mt16px-jccenter.ysx-wd100-mt16px-jccenter { width: 100%; margin-top: 16px; justify-content: center; }
+.ysx-wd100-mt8px-jccenter.ysx-wd100-mt8px-jccenter.ysx-wd100-mt8px-jccenter.ysx-wd100-mt8px-jccenter { width: 100%; margin-top: 8px; justify-content: center; color: var(--red,#dc2626); }
