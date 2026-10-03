@@ -205,7 +205,7 @@ function fakeDb(docs, opts) {
     ok('...and cancelled BEFORE the request is confirmed and before the first delete',
       cancelAt >= 0 && cancelAt < events.indexOf('update:account_erasures/u1') && cancelAt < events.indexOf('delete'), events.join(' > '));
     const audit = (docs.__add_audit_log || [])[0];
-    ok('...and the audit row records which subscriptions were cancelled', !!audit && audit.stripeCancelled.join() === 'sub_1');
+    ok('...and the audit row records which subscriptions were cancelled', !!audit && (audit.stripeCancelled || []).join() === 'sub_1');
     ok('confirmAccountErasure binds STRIPE_SECRET_KEY', (opts.secrets || []).some((s) => s && s.name === 'STRIPE_SECRET_KEY'));
   }
   {
