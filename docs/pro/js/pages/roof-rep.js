@@ -609,18 +609,18 @@ function slipMin() { return Math.round((owns('harness') ? 20 : 60) * (1 - 0.25 *
 function sk(k) { return (SAVE.skills && SAVE.skills[k]) || 0; }
 function spFree() { return lvl() - 1 - Object.keys(SAVE.skills).reduce(function (a, k) { return a + SAVE.skills[k]; }, 0); }
 var SHOP = [
-  { id: 'hangers', name: 'Premium door hangers', cost: 800, what: 'Hanger doors reopen after 1 day instead of 2, and warmer.' },
-  { id: 'signs', name: 'Yard signs', cost: 1500, what: 'Every finished roof warms up two neighbors instead of one.' },
-  { id: 'ipad', name: 'iPad estimates', cost: 2500, what: 'Clean, itemized estimates on the spot: +5 trust on every pitch.' },
-  { id: 'truck', name: 'Truck: backup cam + lift kit', cost: 4000, what: 'Town traffic feels 20% slower on every drive.' },
-  { id: 'drone', name: 'Inspection drone', cost: 6000, what: 'Damage blinks for the first 2 seconds of every inspection, and wind doesn\'t slow you down.' },
-  { id: 'treats', name: 'Dog treats', cost: 200, what: 'Keep a bag in the truck. Barking dogs become your biggest fans (+12 trust).' },
-  { id: 'meter', name: 'Moisture meter', cost: 2000, what: 'Finds the real leak: repair calls narrow to two options.' },
-  { id: 'harness', name: 'Harness and rope system', cost: 3000, what: 'Wind no longer cuts inspections, and a slip costs 20 minutes, not an hour.' },
-  { id: 'wrap', name: 'Branded truck wrap', cost: 5000, what: 'People know you before you knock: +3 trust at every door.' },
-  { id: 'canvasser', name: 'Hire a canvasser', cost: 8000, what: 'Books one inspection for you every morning.' },
-  { id: 'office', name: 'Hire an office manager', cost: 10000, what: 'Schedules waiting builds each morning and keeps the CRM log for you.' },
-  { id: 'crew2', name: 'Second crew', cost: 12000, what: 'Build two roofs a day instead of one.' },
+  { id: 'hangers', name: 'Premium door hangers', price: 800, what: 'Hanger doors reopen after 1 day instead of 2, and warmer.' },
+  { id: 'signs', name: 'Yard signs', price: 1500, what: 'Every finished roof warms up two neighbors instead of one.' },
+  { id: 'ipad', name: 'iPad estimates', price: 2500, what: 'Clean, itemized estimates on the spot: +5 trust on every pitch.' },
+  { id: 'truck', name: 'Truck: backup cam + lift kit', price: 4000, what: 'Town traffic feels 20% slower on every drive.' },
+  { id: 'drone', name: 'Inspection drone', price: 6000, what: 'Damage blinks for the first 2 seconds of every inspection, and wind doesn\'t slow you down.' },
+  { id: 'treats', name: 'Dog treats', price: 200, what: 'Keep a bag in the truck. Barking dogs become your biggest fans (+12 trust).' },
+  { id: 'meter', name: 'Moisture meter', price: 2000, what: 'Finds the real leak: repair calls narrow to two options.' },
+  { id: 'harness', name: 'Harness and rope system', price: 3000, what: 'Wind no longer cuts inspections, and a slip costs 20 minutes, not an hour.' },
+  { id: 'wrap', name: 'Branded truck wrap', price: 5000, what: 'People know you before you knock: +3 trust at every door.' },
+  { id: 'canvasser', name: 'Hire a canvasser', price: 8000, what: 'Books one inspection for you every morning.' },
+  { id: 'office', name: 'Hire an office manager', price: 10000, what: 'Schedules waiting builds each morning and keeps the CRM log for you.' },
+  { id: 'crew2', name: 'Second crew', price: 12000, what: 'Build two roofs a day instead of one.' },
 ];
 function owns(id) { return !!(SAVE.owned && SAVE.owned[id]); }
 // Weather is fixed per day for a career (seeded), so the forecast never lies.
@@ -2165,8 +2165,8 @@ function renderLocker() {
     SAVE.skills[k] = sk(k) + 1; if (!DAY) persist(); else saveLocal(); toast(SKILLS[k].name.toUpperCase() + ' RANK ' + SAVE.skills[k]); renderLocker(); hud();
   }); });
   el.querySelectorAll('[data-buy]').forEach(function (b) { b.addEventListener('click', function () {
-    var it = SHOP.filter(function (x) { return x.id === b.dataset.buy; })[0]; if (!it || owns(it.id) || SAVE.bank < it.cost) return;
-    SAVE.bank -= it.cost; SAVE.owned[it.id] = SAVE.day; if (!DAY) persist(); else saveLocal(); toast('BOUGHT: ' + it.name.toUpperCase()); renderLocker(); hud();
+    var it = SHOP.filter(function (x) { return x.id === b.dataset.buy; })[0]; if (!it || owns(it.id) || SAVE.bank < it.price) return;
+    SAVE.bank -= it.price; SAVE.owned[it.id] = SAVE.day; if (!DAY) persist(); else saveLocal(); toast('BOUGHT: ' + it.name.toUpperCase()); renderLocker(); hud();
   }); });
 }
 function skillsHtml() {
@@ -2183,7 +2183,7 @@ function shopHtml() {
     SHOP.map(function (it) {
       var has = owns(it.id);
       return '<div class="skill"><div class="d">' + esc(it.name) + '<small>' + esc(it.what) + '</small></div>' +
-        (has ? '<span class="badge-ok">OWNED</span>' : '<button type="button" class="btn" data-buy="' + it.id + '"' + (SAVE.bank >= it.cost ? '' : ' disabled') + '>' + money(it.cost) + '</button>') + '</div>';
+        (has ? '<span class="badge-ok">OWNED</span>' : '<button type="button" class="btn" data-buy="' + it.id + '"' + (SAVE.bank >= it.price ? '' : ' disabled') + '>' + money(it.price) + '</button>') + '</div>';
     }).join('') + '</div>';
 }
 var crewSeq = 0;
