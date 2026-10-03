@@ -324,7 +324,9 @@ section('Customers map layer — dashboard.html wiring');
   // geometry/totals module) rides the same bundle and must load FIRST, so
   // maps-routing.js can call it from its first line once L2 wires it in.
   assert('script-loader.js defines a drawtool bundle: draw-geom.js, then maps-routing.js',
-    /drawtool:\s*\[\s*'js\/draw-geom\.js\?v=\d+',\s*'js\/maps-routing\.js/.test(scriptLoader),
+    // An optional leading stylesheet (css/maps-routing-view.css, 2026-10-03)
+    // loads before either script so the panels are styled on first paint.
+    /drawtool:\s*\[\s*(?:'css\/[\w-]+\.css\?v=\d+',\s*)?'js\/draw-geom\.js\?v=\d+',\s*'js\/maps-routing\.js/.test(scriptLoader),
     'expected BUNDLES.drawtool to list draw-geom.js immediately before maps-routing.js');
   assert("the 'draw' view resolves both mapvendor and drawtool",
     /draw:\s*\['mapvendor',\s*'drawtool'\]/.test(scriptLoader),

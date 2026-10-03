@@ -1,0 +1,31 @@
+/* Maps routing (js/maps-routing.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven ones stay inline. Generated (auto-named from the declarations). */
+.mrx-minw200px.mrx-minw200px.mrx-minw200px { min-width: 200px; }
+.mrx-fs10px-w700-ls1em.mrx-fs10px-w700-ls1em.mrx-fs10px-w700-ls1em { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--orange,#BD5728); margin-bottom: 6px; }
+.mrx-dflex-flewrap-gap4px.mrx-dflex-flewrap-gap4px.mrx-dflex-flewrap-gap4px { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.mrx-mt4px.mrx-mt4px.mrx-mt4px { margin-top: 4px; }
+.mrx-fs10px-c888-curpointer.mrx-fs10px-c888-curpointer.mrx-fs10px-c888-curpointer { font-size: 10px; color: #888; cursor: pointer; user-select: none; }
+.mrx-dflex-flewrap-gap4px-2.mrx-dflex-flewrap-gap4px-2.mrx-dflex-flewrap-gap4px-2 { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.mrx-mt8px-dflex-gap4px.mrx-mt8px-dflex-gap4px.mrx-mt8px-dflex-gap4px { margin-top: 8px; display: flex; gap: 4px; }
+.mrx-fx1-bge0525220-bd1pxsolid.mrx-fx1-bge0525220-bd1pxsolid.mrx-fx1-bge0525220-bd1pxsolid { flex: 1; background: #E0525220; border: 1px solid #E05252; color: #E05252; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; }
+.mrx-fx1-bgtranspar-bd1pxsolid.mrx-fx1-bgtranspar-bd1pxsolid.mrx-fx1-bgtranspar-bd1pxsolid { flex: 1; background: transparent; border: 1px solid #888; color: #888; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; }
+.mrx-fs10px-cm-tacenter.mrx-fs10px-cm-tacenter.mrx-fs10px-cm-tacenter { font-size: 10px; color: var(--m); text-align: center; padding: 4px; }
+.mrx-cm-w400.mrx-cm-w400.mrx-cm-w400 { color: var(--m); font-weight: 400; }
+.mrx-fs10px-cm-tacenter-2.mrx-fs10px-cm-tacenter-2.mrx-fs10px-cm-tacenter-2 { font-size: 10px; color: var(--m); text-align: center; padding: 8px; }
+.mrx-dflex-aicenter-gap8px.mrx-dflex-aicenter-gap8px.mrx-dflex-aicenter-gap8px { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.mrx-bgrgba2341-c000-p6px12px.mrx-bgrgba2341-c000-p6px12px.mrx-bgrgba2341-c000-p6px12px { background: rgba(234,179,8,.9); color: #000; padding: 6px 12px; border-radius: 6px; font-family: 'Barlow Condensed',sans-serif; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+.mrx-fs10px-w400.mrx-fs10px-w400.mrx-fs10px-w400 { font-size: 10px; font-weight: 400; }
+.mrx-corange-w700.mrx-corange-w700.mrx-corange-w700 { color: var(--orange); font-weight: 700; }
+.mrx-fs10px-cm-tacenter-3.mrx-fs10px-cm-tacenter-3.mrx-fs10px-cm-tacenter-3 { font-size: 10px; color: var(--m); text-align: center; padding: 6px; }
+.mrx-dblock-w400-ttnone.mrx-dblock-w400-ttnone.mrx-dblock-w400-ttnone { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; font-family: inherit; color: var(--m); font-size: 10px; }
+.mrx-fs9px-w700-ls15em.mrx-fs9px-w700-ls15em.mrx-fs9px-w700-ls15em { font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--orange); margin-bottom: 8px; }
+.mrx-mt12px-p12px-bgs2.mrx-mt12px-p12px-bgs2.mrx-mt12px-p12px-bgs2 { margin-top: 12px; padding: 12px; background: var(--s2,#181c22); border: 1px solid var(--br,#2a2f35); border-radius: 6px; }
+.mrx-fs10px-cm-ttuppercas.mrx-fs10px-cm-ttuppercas.mrx-fs10px-cm-ttuppercas { font-size: 10px; color: var(--m); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; }
+.mrx-wd100-mt10px-jccenter.mrx-wd100-mt10px-jccenter.mrx-wd100-mt10px-jccenter.mrx-wd100-mt10px-jccenter { width: 100%; margin-top: 10px; justify-content: center; }
+.mrx-wd100-mt6px-jccenter.mrx-wd100-mt6px-jccenter.mrx-wd100-mt6px-jccenter.mrx-wd100-mt6px-jccenter { width: 100%; margin-top: 6px; justify-content: center; font-size: 10px; }
+.mrx-dflex-gap8px-aicenter.mrx-dflex-gap8px-aicenter.mrx-dflex-gap8px-aicenter { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.mrx-fs11px-cm-wd120px.mrx-fs11px-cm-wd120px.mrx-fs11px-cm-wd120px { font-size: 11px; color: var(--m); width: 120px; }
+.mrx-fx1-bgs2-bd1pxsolid.mrx-fx1-bgs2-bd1pxsolid.mrx-fx1-bgs2-bd1pxsolid { flex: 1; background: var(--s2); border: 1px solid var(--br); border-radius: 4px; padding: 6px 8px; color: var(--t); font-size: 12px; }
+.mrx-bgs-bd1pxsolid-r12px.mrx-bgs-bd1pxsolid-r12px.mrx-bgs-bd1pxsolid-r12px { background: var(--s,#1a1d23); border: 1px solid var(--br); border-radius: 12px; padding: 24px; max-width: 400px; width: 100%; }
+.mrx-ffbarlowco-fs18px-w800.mrx-ffbarlowco-fs18px-w800.mrx-ffbarlowco-fs18px-w800 { font-family: \'Barlow Condensed\',sans-serif; font-size: 18px; font-weight: 800; color: var(--t); margin-bottom: 14px; }
+.mrx-dflex-gap8px-mt14px.mrx-dflex-gap8px-mt14px.mrx-dflex-gap8px-mt14px { display: flex; gap: 8px; margin-top: 14px; }
+.mrx-fx1-jccenter.mrx-fx1-jccenter.mrx-fx1-jccenter.mrx-fx1-jccenter { flex: 1; justify-content: center; }

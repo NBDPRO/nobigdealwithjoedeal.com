@@ -1453,14 +1453,14 @@ function openLineTypePicker(lineId, latlng) {
   const commonBtns = COMMON.map(makeBtn).join('');
   const extraBtns = EXTRA.map(makeBtn).join('');
 
-  const html = '<div style="min-width:200px;">'
-    + '<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange,#BD5728);margin-bottom:6px;">Change Line Type</div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">' + commonBtns + '</div>'
-    + '<details style="margin-top:4px;"><summary style="font-size:10px;color:#888;cursor:pointer;user-select:none;">More types \u25bc</summary>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">' + extraBtns + '</div></details>'
-    + '<div style="margin-top:8px;display:flex;gap:4px;">'
-    + '<button data-mr-action="deleteLine" data-mr-id="' + lineId + '" style="flex:1;background:#E0525220;border:1px solid #E05252;color:#E05252;padding:5px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:600;">Delete</button>'
-    + '<button data-mr-action="editLineLength" data-mr-id="' + lineId + '" style="flex:1;background:transparent;border:1px solid #888;color:#888;padding:5px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:600;">Edit Length</button>'
+  const html = '<div class="mrx-minw200px">'
+    + '<div class="mrx-fs10px-w700-ls1em">Change Line Type</div>'
+    + '<div class="mrx-dflex-flewrap-gap4px">' + commonBtns + '</div>'
+    + '<details class="mrx-mt4px"><summary class="mrx-fs10px-c888-curpointer">More types \u25bc</summary>'
+    + '<div class="mrx-dflex-flewrap-gap4px-2">' + extraBtns + '</div></details>'
+    + '<div class="mrx-mt8px-dflex-gap4px">'
+    + '<button data-mr-action="deleteLine" data-mr-id="' + lineId + '" class="mrx-fx1-bge0525220-bd1pxsolid">Delete</button>'
+    + '<button data-mr-action="editLineLength" data-mr-id="' + lineId + '" class="mrx-fx1-bgtranspar-bd1pxsolid">Edit Length</button>'
     + '</div></div>';
 
   L.popup({ closeButton: true, className: 'nbd-line-picker-popup' })
@@ -1727,14 +1727,14 @@ function addAreaLabel(points, area, facetIdx) {
 function renderFacetList() {
   const el = document.getElementById('facetList');
   if(!el) return;
-  if(!facets.length) { el.innerHTML = '<p style="font-size:10px;color:var(--m);text-align:center;padding:4px;">No facets yet.</p>'; return; }
+  if(!facets.length) { el.innerHTML = '<p class="mrx-fs10px-cm-tacenter">No facets yet.</p>'; return; }
   const multi = structures.length > 1;
   el.innerHTML = facets.map((f,i) => {
     const color = f.color || FACET_COLORS[i % FACET_COLORS.length];
     const pitched = f.baseArea * f.pitch;
     const s = multi ? structures.find(x => x.id === f.structureId) : null;
     return `<div class="facet-row" style="border-left:3px solid ${color};">
-      <span class="facet-name">${_esc(f.label)}${s ? ' <span style="color:var(--m);font-weight:400;">· '+_esc(s.name)+'</span>' : ''}</span>
+      <span class="facet-name">${_esc(f.label)}${s ? ' <span class="mrx-cm-w400">· '+_esc(s.name)+'</span>' : ''}</span>
       <span class="facet-area">${f.baseArea.toFixed(0)} sf</span>
       <select class="facet-pitch-sel" data-mr-pitch="${i}" title="Facet pitch">
         <option value="1.0" ${f.pitch===1?'selected':''}>Flat</option>
@@ -2064,7 +2064,7 @@ function renderLineList() {
   const el = document.getElementById('lineList');
   if(!el) return;
   if(!drawnLines.length) {
-    el.innerHTML = '<p style="font-size:10px;color:var(--m);text-align:center;padding:8px;">No lines yet.</p>';
+    el.innerHTML = '<p class="mrx-fs10px-cm-tacenter-2">No lines yet.</p>';
     el.onclick = null;
     el.onchange = null;
     _clearAngleLabels(); // with no lines there are no angles (was: ghosts)
@@ -2789,7 +2789,7 @@ function renderAccessoryPanel() {
   panel.innerHTML = ACCESSORIES.map(a => {
     const isActive = accessoryMode === a.id;
     const count = counts[a.id] || 0;
-    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;">'
+    return '<div class="mrx-dflex-aicenter-gap8px">'
       + '<button data-mr-action="toggleAccessoryMode" data-mr-id="' + a.id + '" style="background:' + (isActive ? a.color + '20' : 'transparent') + ';border:1px solid ' + (isActive ? a.color : 'var(--br,#2a2f35)') + ';color:' + (isActive ? a.color : 'var(--m,#888)') + ';padding:5px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;flex:1;text-align:left;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.03em;transition:all .15s;">'
       + a.icon + ' ' + a.label + '</button>'
       + '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:16px;font-weight:800;color:' + (count > 0 ? 'var(--t,#fff)' : 'var(--m,#888)') + ';min-width:24px;text-align:center;">' + count + '</span>'
@@ -2877,7 +2877,7 @@ function renderSolarOverlay(data) {
   const center = drawMap.getCenter();
   L.marker(center, {
     icon: L.divIcon({
-      html: `<div style="background:rgba(234,179,8,.9);color:#000;padding:6px 12px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);">☀️ ${sp.maxSunshineHoursPerYear?.toFixed(0) || '—'} hrs/yr max · ${sp.roofSegmentStats?.length || 0} segments</div>`,
+      html: `<div class="mrx-bgrgba2341-c000-p6px12px">☀️ ${sp.maxSunshineHoursPerYear?.toFixed(0) || '—'} hrs/yr max · ${sp.roofSegmentStats?.length || 0} segments</div>`,
       className: '', iconAnchor: [0, 0]
     })
   }).addTo(group);
@@ -2920,7 +2920,7 @@ function renderSolarEstimate(lat) {
 
   L.marker(center, {
     icon: L.divIcon({
-      html: `<div style="background:rgba(234,179,8,.9);color:#000;padding:6px 12px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);">☀️ Est. ${sunHours} hrs/yr · Lat ${lat.toFixed(1)}° · <span style="font-size:10px;font-weight:400;">Add API key for precise data</span></div>`,
+      html: `<div class="mrx-bgrgba2341-c000-p6px12px">☀️ Est. ${sunHours} hrs/yr · Lat ${lat.toFixed(1)}° · <span class="mrx-fs10px-w400">Add API key for precise data</span></div>`,
       className: '', iconAnchor: [0, 0]
     })
   }).addTo(group);
@@ -3296,7 +3296,7 @@ function applySmartWaste() {
   // Update smart waste display
   const swEl = document.getElementById('smartWasteInfo');
   if(swEl) {
-    swEl.innerHTML = `<span style="color:var(--orange);font-weight:700;">${sw.label}</span> waste — ${sw.complexity} roof (${sw.reasons})`;
+    swEl.innerHTML = `<span class="mrx-corange-w700">${sw.label}</span> waste — ${sw.complexity} roof (${sw.reasons})`;
     swEl.style.display = 'block';
   }
   showToast(`Smart Waste: ${sw.label} — ${sw.reasons}`, 'ok');
@@ -4229,13 +4229,13 @@ function renderStructureList() {
     el.addEventListener('click', function () { /* makes the rows tappable in WebKit; see above */ });
   }
   if(structures.length < 2) {
-    el.innerHTML = '<p style="font-size:10px;color:var(--m);text-align:center;padding:6px;">Single structure. Add more for garage, shed, etc.</p>';
+    el.innerHTML = '<p class="mrx-fs10px-cm-tacenter-3">Single structure. Add more for garage, shed, etc.</p>';
     return;
   }
   el.innerHTML = structures.map((s, i) => `
     <div class="structure-row ${s.id===activeStructureId?'structure-active':''}" data-mr-action="switchStructure" data-mr-id="${s.id}" data-structure-id="${s.id}">
       <span class="structure-icon">${i===0?'🏠':i===1?'🏗️':'🏚️'}</span>
-      <span class="structure-name">${_esc(s.name)}<span class="structure-totals" style="display:block;font-weight:400;text-transform:none;letter-spacing:0;font-family:inherit;color:var(--m);font-size:10px;"></span></span>
+      <span class="structure-name">${_esc(s.name)}<span class="structure-totals mrx-dblock-w400-ttnone"></span></span>
       <button class="structure-rename" data-mr-action="renameStructure" data-mr-id="${s.id}" data-mr-stop="1" title="Rename">✏️</button>
       ${i>0?`<button class="structure-del" data-mr-action="removeStructure" data-mr-id="${s.id}" data-mr-stop="1" title="Remove">✕</button>`:''}
     </div>
@@ -4495,7 +4495,7 @@ function renderComparison() {
     {label:'Squares', ours:ourSq, theirs:ext.squares},
   ];
 
-  el.innerHTML = `<div style="font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;">Comparison: ${comparisonData.source}</div>` +
+  el.innerHTML = `<div class="mrx-fs9px-w700-ls15em">Comparison: ${comparisonData.source}</div>` +
     comparisons.filter(c => c.theirs !== undefined).map(c => {
       const diff = c.ours > 0 && c.theirs > 0 ? ((c.ours - c.theirs) / c.theirs * 100) : null;
       const diffClass = diff !== null ? (Math.abs(diff) <= 5 ? 'comp-match' : Math.abs(diff) <= 15 ? 'comp-warn' : 'comp-off') : 'comp-na';
@@ -4513,19 +4513,19 @@ function renderComparison() {
   const matchPcts = scored.map(c => 100 - Math.min(100, Math.abs((c.ours - c.theirs) / c.theirs * 100)));
   const avgMatch = matchPcts.length > 0 ? Math.round(matchPcts.reduce((a, b) => a + b, 0) / matchPcts.length) : 0;
 
-  el.innerHTML += `<div style="margin-top:12px;padding:12px;background:var(--s2,#181c22);border:1px solid var(--br,#2a2f35);border-radius:6px;">
-    <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Match Score</div>
+  el.innerHTML += `<div class="mrx-mt12px-p12px-bgs2">
+    <div class="mrx-fs10px-cm-ttuppercas">Match Score</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;color:${avgMatch >= 90 ? 'var(--green)' : avgMatch >= 70 ? 'var(--gold)' : 'var(--red)'};">${avgMatch}%</div>
   </div>`;
 
   // Supplement letter button (only show if differences > 5%)
   const bigDiffs = comparisons.filter(c => c.theirs !== undefined && c.ours > 0 && Math.abs((c.ours - c.theirs) / c.theirs * 100) > 5);
   if (bigDiffs.length > 0) {
-    el.innerHTML += `<button class="btn btn-orange" style="width:100%;margin-top:10px;justify-content:center;" data-mr-action="generateSupplementFromComparison">📝 Generate Supplement Letter</button>`;
+    el.innerHTML += `<button class="btn btn-orange mrx-wd100-mt10px-jccenter" data-mr-action="generateSupplementFromComparison">📝 Generate Supplement Letter</button>`;
   }
 
   // Manual entry link
-  el.innerHTML += `<button class="btn btn-ghost" style="width:100%;margin-top:6px;justify-content:center;font-size:10px;" data-mr-action="openManualComparisonEntry">✏️ Enter Report Values Manually</button>`;
+  el.innerHTML += `<button class="btn btn-ghost mrx-wd100-mt6px-jccenter" data-mr-action="openManualComparisonEntry">✏️ Enter Report Values Manually</button>`;
 
   el.style.display = 'block';
   closeComparisonMode();
@@ -4538,19 +4538,19 @@ function openManualComparisonEntry() {
   const labels = ['Total Area (SF)','Ridge (LF)','Hip (LF)','Valley (LF)','Eave (LF)','Rake (LF)','Squares'];
   const current = comparisonData?.measurements || {};
   const html = fields.map((f, i) =>
-    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">'
-    + '<label style="font-size:11px;color:var(--m);width:120px;">' + labels[i] + '</label>'
-    + '<input type="number" id="mc_' + f + '" value="' + (current[f] || '') + '" placeholder="0" style="flex:1;background:var(--s2);border:1px solid var(--br);border-radius:4px;padding:6px 8px;color:var(--t);font-size:12px;">'
+    '<div class="mrx-dflex-gap8px-aicenter">'
+    + '<label class="mrx-fs11px-cm-wd120px">' + labels[i] + '</label>'
+    + '<input type="number" id="mc_' + f + '" value="' + (current[f] || '') + '" placeholder="0" class="mrx-fx1-bgs2-bd1pxsolid">'
     + '</div>'
   ).join('');
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
-  modal.innerHTML = '<div style="background:var(--s,#1a1d23);border:1px solid var(--br);border-radius:12px;padding:24px;max-width:400px;width:100%;">'
-    + '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:18px;font-weight:800;color:var(--t);margin-bottom:14px;">Enter Report Measurements</div>'
+  modal.innerHTML = '<div class="mrx-bgs-bd1pxsolid-r12px">'
+    + '<div class="mrx-ffbarlowco-fs18px-w800">Enter Report Measurements</div>'
     + html
-    + '<div style="display:flex;gap:8px;margin-top:14px;">'
-    + '<button class="btn btn-ghost" data-mr-action="closeManualOverlay" style="flex:1;justify-content:center;">Cancel</button>'
-    + '<button class="btn btn-orange" data-mr-action="applyManualComparisonAndClose" style="flex:1;justify-content:center;">Compare</button>'
+    + '<div class="mrx-dflex-gap8px-mt14px">'
+    + '<button class="btn btn-ghost mrx-fx1-jccenter" data-mr-action="closeManualOverlay">Cancel</button>'
+    + '<button class="btn btn-orange mrx-fx1-jccenter" data-mr-action="applyManualComparisonAndClose">Compare</button>'
     + '</div></div>';
   document.body.appendChild(modal);
 }
