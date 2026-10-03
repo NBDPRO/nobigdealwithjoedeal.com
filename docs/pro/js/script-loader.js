@@ -92,7 +92,7 @@
       'js/storm-outlook.js?v=1'
     ],
     closeboard: [
-      'js/close-board.js?v=6'
+      'js/close-board.js?v=7'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load

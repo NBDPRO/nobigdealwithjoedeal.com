@@ -1,0 +1,68 @@
+/* Close Board CRM screens (js/close-board.js) — tabs, active deals, the
+   create form, analytics. Layout moved out of inline style attributes so a
+   theme can restyle it (reskin, 2026-10-02). Values are the old inline ones
+   exactly. The homeowner's standalone deal page (generateDealPageHTML)
+   keeps its inline styles; so do data-driven ones and the JS-toggled
+   hidden row. Generated from the conversion map; rules tripled. */
+.cbr-mb10.cbr-mb10.cbr-mb10 { margin-bottom: 10px; }
+.cbr-label.cbr-label.cbr-label { font-size: 10px; color: var(--m); text-transform: uppercase; letter-spacing: .06em; }
+.cbr-label-tight.cbr-label-tight.cbr-label-tight { font-size: 10px; color: var(--m); text-transform: uppercase; }
+.cbr-flex1.cbr-flex1.cbr-flex1 { flex: 1; }
+.cbr-v22-green.cbr-v22-green.cbr-v22-green { font-size: 22px; font-weight: 700; color: var(--green); }
+.cbr-btn-create.cbr-btn-create.cbr-btn-create { width: 100%; padding: 14px; background: var(--orange,#BD5728); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; font-family: 'Barlow Condensed',sans-serif; cursor: pointer; letter-spacing: .04em; text-transform: uppercase; margin-top: 8px; }
+.cbr-empty.cbr-empty.cbr-empty { text-align: center; padding: 40px; }
+.cbr-btn-new.cbr-btn-new.cbr-btn-new { padding: 8px 16px; background: var(--orange,#BD5728); color: white; border: none; border-radius: 8px; font-size: 12px; font-weight: 700; font-family: 'Barlow Condensed',sans-serif; cursor: pointer; letter-spacing: .04em; text-transform: uppercase; }
+.cbr-pad-top.cbr-pad-top.cbr-pad-top { padding: 16px 20px 0; }
+.cbr-pad-body.cbr-pad-body.cbr-pad-body { padding: 0 20px 20px; }
+.cbr-mt4.cbr-mt4.cbr-mt4 { margin-top: 4px; }
+.cbr-bar.cbr-bar.cbr-bar { height: 6px; background: var(--s); border-radius: 3px; overflow: hidden; }
+.cbr-b.cbr-b.cbr-b { font-weight: 700; }
+.cbr-empty-icon.cbr-empty-icon.cbr-empty-icon { font-size: 40px; margin-bottom: 12px; }
+.cbr-big.cbr-big.cbr-big { font-size: 28px; font-weight: 700; color: var(--t); }
+.cbr-title.cbr-title.cbr-title { font-size: 22px; font-weight: 800; font-family: 'Barlow Condensed',sans-serif; color: var(--t); letter-spacing: .02em; }
+.cbr-v22-orange.cbr-v22-orange.cbr-v22-orange { font-size: 22px; font-weight: 700; color: var(--orange); }
+.cbr-v22-blue.cbr-v22-blue.cbr-v22-blue { font-size: 22px; font-weight: 700; color: var(--blue); }
+.cbr-name.cbr-name.cbr-name { font-size: 15px; font-weight: 600; color: var(--t); }
+.cbr-h14-mb.cbr-h14-mb.cbr-h14-mb { font-size: 14px; font-weight: 700; color: var(--t); margin-bottom: 12px; }
+.cbr-h14.cbr-h14.cbr-h14 { font-size: 14px; font-weight: 700; color: var(--t); }
+.cbr-h12.cbr-h12.cbr-h12 { font-size: 12px; font-weight: 700; color: var(--t); margin: 14px 0 8px; }
+.cbr-t12.cbr-t12.cbr-t12 { font-size: 12px; color: var(--t); }
+.cbr-m12-mt4.cbr-m12-mt4.cbr-m12-mt4 { font-size: 12px; color: var(--m); margin-top: 4px; }
+.cbr-m12-mt2.cbr-m12-mt2.cbr-m12-mt2 { font-size: 12px; color: var(--m); margin-top: 2px; }
+.cbr-caps11.cbr-caps11.cbr-caps11 { font-size: 11px; font-weight: 700; color: var(--t); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.cbr-m11-mt2.cbr-m11-mt2.cbr-m11-mt2 { font-size: 11px; color: var(--m); margin-top: 2px; }
+.cbr-m10-mt8.cbr-m10-mt8.cbr-m10-mt8 { font-size: 10px; color: var(--m); margin-top: 8px; }
+.cbr-m10.cbr-m10.cbr-m10 { font-size: 10px; color: var(--m); }
+.cbr-third.cbr-third.cbr-third { flex: 1 1 30%; min-width: 90px; }
+.cbr-g2.cbr-g2.cbr-g2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-bottom: 16px; }
+.cbr-kv.cbr-kv.cbr-kv { display: flex; justify-content: space-between; font-size: 11px; color: var(--t); margin-bottom: 4px; }
+.cbr-row8-mb.cbr-row8-mb.cbr-row8-mb { display: flex; gap: 8px; margin-bottom: 10px; }
+.cbr-row8.cbr-row8.cbr-row8 { display: flex; gap: 8px; }
+.cbr-actions.cbr-actions.cbr-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.cbr-row6-mb.cbr-row6-mb.cbr-row6-mb { display: flex; gap: 6px; margin-bottom: 14px; }
+.cbr-scroll-row.cbr-scroll-row.cbr-scroll-row { display: flex; gap: 10px; margin-bottom: 14px; overflow-x: auto; }
+.cbr-wrap8.cbr-wrap8.cbr-wrap8 { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.cbr-col4.cbr-col4.cbr-col4 { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.cbr-between-top.cbr-between-top.cbr-between-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.cbr-head.cbr-head.cbr-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.cbr-check-row.cbr-check-row.cbr-check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.cbr-card.cbr-card.cbr-card { background: var(--s2); border: 1px solid var(--br); border-radius: 10px; padding: 14px; }
+.cbr-accent.cbr-accent.cbr-accent { accent-color: var(--orange); }
+.cbr-pill.cbr-pill.cbr-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--s); border: 1px solid var(--br); }
+.cbr-pill-m.cbr-pill-m.cbr-pill-m.cbr-pill-m { color: var(--m); }
+.cbr-pill-t.cbr-pill-t.cbr-pill-t.cbr-pill-t { color: var(--t); }
+.cbr-input.cbr-input.cbr-input { padding: 8px; background: var(--s); border: 1px solid var(--br); border-radius: 6px; color: var(--t); font-size: 12px; box-sizing: border-box; }
+.cbr-input-120.cbr-input-120.cbr-input-120.cbr-input-120 { width: 120px; }
+.cbr-input-grow.cbr-input-grow.cbr-input-grow.cbr-input-grow { flex: 1; }
+.cbr-act.cbr-act.cbr-act { padding: 5px 10px; border-radius: 5px; font-size: 10px; font-weight: 600; }
+.cbr-act-static.cbr-act-static.cbr-act-static.cbr-act-static { border: 1px solid var(--br); color: var(--m); text-align: center; }
+.cbr-act-plain.cbr-act-plain.cbr-act-plain.cbr-act-plain { background: var(--s); border: 1px solid var(--br); color: var(--t); cursor: pointer; }
+.cbr-act-orange.cbr-act-orange.cbr-act-orange.cbr-act-orange { background: var(--orange,#BD5728); color: white; border: none; cursor: pointer; }
+.cbr-act-green.cbr-act-green.cbr-act-green.cbr-act-green { background: var(--green,#2ECC8A); color: white; border: none; cursor: pointer; }
+.cbr-act-blue.cbr-act-blue.cbr-act-blue.cbr-act-blue { background: var(--blue,var(--orange)); color: white; border: none; cursor: pointer; }
+.cbr-act-ghost.cbr-act-ghost.cbr-act-ghost.cbr-act-ghost { background: transparent; border: 1px solid var(--br); color: var(--m); cursor: pointer; }
+.cbr-c-green.cbr-c-green.cbr-c-green.cbr-c-green { color: var(--green); }
+.cbr-c-blue.cbr-c-blue.cbr-c-blue.cbr-c-blue { color: var(--blue); }
+.cbr-c-amber.cbr-c-amber.cbr-c-amber.cbr-c-amber { color: #ffab00; }
+.cbr-card-16.cbr-card-16.cbr-card-16.cbr-card-16 { padding: 16px; }
+.cbr-card-mb.cbr-card-mb.cbr-card-mb.cbr-card-mb { margin-bottom: 10px; }
