@@ -164,32 +164,19 @@
       transition:transform .35s cubic-bezier(0.16, 1, 0.3, 1);
       display:flex; gap:12px; align-items:center;`;
     banner.innerHTML = `
-      <div style="font-size:26px; flex-shrink:0;">📱</div>
-      <div style="flex:1; min-width:0;">
-        <div style="font-size:13px; font-weight:700; margin-bottom:2px;">Install NBD Pro</div>
-        <div style="font-size:11px; color:var(--m,#cbd5e1); line-height:1.4;">
+      <div class="pwx-fs26px-fle0">📱</div>
+      <div class="pwx-fx1-minw0">
+        <div class="pwx-fs13px-w700-mb2px">Install NBD Pro</div>
+        <div class="pwx-fs11px-cm-lh14">
           Faster cold start, full-screen layout, home-screen icon. No app store needed.
         </div>
       </div>
-      <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
-        <button id="nbd-pwa-install-action" style="
-          background:linear-gradient(135deg,var(--orange,#BD5728) 0%,#A14A22 100%);
-          color:var(--accent-fg,#fff); border:none; padding:8px 14px; border-radius:7px;
-          font-size:12px; font-weight:700; cursor:pointer;
-          -webkit-tap-highlight-color:transparent; white-space:nowrap;
-          letter-spacing:0.2px;">Install</button>
-        <button id="nbd-pwa-install-later" style="
-          background:transparent; color:var(--m,#94a3b8);
-          border:1px solid var(--br,rgba(255,255,255,0.12)); padding:6px 14px;
-          border-radius:7px; font-size:11px; font-weight:600; cursor:pointer;
-          -webkit-tap-highlight-color:transparent; white-space:nowrap;">Not now</button>
+      <div class="pwx-dflex-flecolumn-gap6px">
+        <button id="nbd-pwa-install-action" class="pwx-bglineargr-caccentfg-bdnone">Install</button>
+        <button id="nbd-pwa-install-later" class="pwx-bgtranspar-cm-bd1pxsolid">Not now</button>
       </div>
       <button id="nbd-pwa-install-x" aria-label="Dismiss"
-        style="
-          position:absolute; top:6px; right:8px;
-          background:transparent; border:none; color:var(--m,#64748b);
-          cursor:pointer; padding:4px 6px; line-height:1;
-          font-size:14px; -webkit-tap-highlight-color:transparent;">×</button>`;
+        class="pwx-posabsolute-top6px-rig8px">×</button>`;
     // Anchor the banner ABOVE any fixed bottom bar. At bottom:14px /
     // z-index:99990 the ~420px-wide banner sat directly on top of
     // #mobile-nav (dashboard tab bar, z 1900) on phone viewports and
@@ -233,33 +220,24 @@
       display:flex; align-items:center; justify-content:center; padding:20px;
       font-family:'Barlow',-apple-system,system-ui,sans-serif;`;
     overlay.innerHTML = `
-      <div style="
-        background:#ffffff; color:#1f2937;
-        border-radius:14px; padding:22px;
-        max-width:380px; width:100%;
-        box-shadow:0 12px 40px rgba(0,0,0,0.5);">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
-          <div style="font-size:24px;">📱</div>
-          <h2 style="font-size:17px; margin:0; color:#111827;">Add to Home Screen</h2>
+      <div class="pwx-bgffffff-c1f2937-r14px">
+        <div class="pwx-dflex-aicenter-gap10px">
+          <div class="pwx-fs24px">📱</div>
+          <h2 class="pwx-fs17px-m0-c111827">Add to Home Screen</h2>
         </div>
-        <ol style="padding-left:22px; margin:0 0 14px; line-height:1.7; font-size:14px; color:#374151;">
+        <ol class="pwx-pad22px-m0014px-lh17">
           <li>Tap the <strong>Share</strong> button at the bottom of Safari
-            <span style="display:inline-block; vertical-align:middle; margin-left:4px;">
-              <svg width="16" height="20" viewBox="0 0 16 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#6366f1;"><path d="M8 2v12"/><path d="M5 5l3-3 3 3"/><rect x="2" y="9" width="12" height="9" rx="1.5"/></svg>
+            <span class="pwx-dinlinebl-vermiddle-ml4px">
+              <svg width="16" height="20" viewBox="0 0 16 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="pwx-c6366f1"><path d="M8 2v12"/><path d="M5 5l3-3 3 3"/><rect x="2" y="9" width="12" height="9" rx="1.5"/></svg>
             </span>
           </li>
           <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
           <li>Tap <strong>Add</strong> in the top-right corner</li>
         </ol>
-        <div style="background:#f9fafb; border-radius:8px; padding:10px 12px; margin-bottom:14px; font-size:12px; color:#6b7280; line-height:1.5;">
+        <div class="pwx-bgf9fafb-r8px-p10px12px">
           You'll see the NBD Pro icon on your home screen. Tap it any time — opens full-screen, no Safari address bar.
         </div>
-        <button id="nbd-pwa-ios-close" style="
-          width:100%;
-          background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%);
-          color:#fff; border:none; padding:12px;
-          border-radius:8px; font-size:14px; font-weight:700;
-          cursor:pointer; -webkit-tap-highlight-color:transparent;">
+        <button id="nbd-pwa-ios-close" class="pwx-wd100-bglineargr-cfff">
           Got it
         </button>
       </div>`;
@@ -278,25 +256,17 @@
       display:flex; align-items:center; justify-content:center; padding:20px;
       font-family:'Barlow',-apple-system,system-ui,sans-serif;`;
     overlay.innerHTML = `
-      <div style="
-        background:#ffffff; color:#1f2937; border-radius:14px;
-        padding:22px; max-width:380px; width:100%;
-        box-shadow:0 12px 40px rgba(0,0,0,0.5);">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
-          <div style="font-size:24px;">📱</div>
-          <h2 style="font-size:17px; margin:0; color:#111827;">Install NBD Pro</h2>
+      <div class="pwx-bgffffff-c1f2937-r14px-2">
+        <div class="pwx-dflex-aicenter-gap10px">
+          <div class="pwx-fs24px">📱</div>
+          <h2 class="pwx-fs17px-m0-c111827">Install NBD Pro</h2>
         </div>
-        <ol style="padding-left:22px; margin:0 0 14px; line-height:1.7; font-size:14px; color:#374151;">
+        <ol class="pwx-pad22px-m0014px-lh17">
           <li>Tap the <strong>⋮</strong> menu (top-right of Chrome)</li>
           <li>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong></li>
           <li>Confirm <strong>Install</strong></li>
         </ol>
-        <button id="nbd-pwa-and-close" style="
-          width:100%;
-          background:linear-gradient(135deg,#BD5728 0%,#A14A22 100%);
-          color:#fff; border:none; padding:12px;
-          border-radius:8px; font-size:14px; font-weight:700;
-          cursor:pointer; -webkit-tap-highlight-color:transparent;">
+        <button id="nbd-pwa-and-close" class="pwx-wd100-bglineargr-cfff">
           Got it
         </button>
       </div>`;

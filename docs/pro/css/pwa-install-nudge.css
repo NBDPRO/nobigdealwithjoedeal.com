@@ -1,0 +1,19 @@
+/* Install-the-app nudge (js/pwa-install-nudge.js): bottom banner, iOS and Android instruction sheets. Static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly. Generated (auto-named from the declarations). */
+.pwx-fs26px-fle0.pwx-fs26px-fle0.pwx-fs26px-fle0 { font-size: 26px; flex-shrink: 0; }
+.pwx-fx1-minw0.pwx-fx1-minw0.pwx-fx1-minw0 { flex: 1; min-width: 0; }
+.pwx-fs13px-w700-mb2px.pwx-fs13px-w700-mb2px.pwx-fs13px-w700-mb2px { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.pwx-fs11px-cm-lh14.pwx-fs11px-cm-lh14.pwx-fs11px-cm-lh14 { font-size: 11px; color: var(--m,#cbd5e1); line-height: 1.4; }
+.pwx-dflex-flecolumn-gap6px.pwx-dflex-flecolumn-gap6px.pwx-dflex-flecolumn-gap6px { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.pwx-bglineargr-caccentfg-bdnone.pwx-bglineargr-caccentfg-bdnone.pwx-bglineargr-caccentfg-bdnone { background: linear-gradient(135deg,var(--orange,#BD5728) 0%,#A14A22 100%); color: var(--accent-fg,#fff); border: none; padding: 8px 14px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; white-space: nowrap; letter-spacing: 0.2px; }
+.pwx-bgtranspar-cm-bd1pxsolid.pwx-bgtranspar-cm-bd1pxsolid.pwx-bgtranspar-cm-bd1pxsolid { background: transparent; color: var(--m,#94a3b8); border: 1px solid var(--br,rgba(255,255,255,0.12)); padding: 6px 14px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; white-space: nowrap; }
+.pwx-posabsolute-top6px-rig8px.pwx-posabsolute-top6px-rig8px.pwx-posabsolute-top6px-rig8px { position: absolute; top: 6px; right: 8px; background: transparent; border: none; color: var(--m,#64748b); cursor: pointer; padding: 4px 6px; line-height: 1; font-size: 14px; -webkit-tap-highlight-color: transparent; }
+.pwx-bgffffff-c1f2937-r14px.pwx-bgffffff-c1f2937-r14px.pwx-bgffffff-c1f2937-r14px { background: #ffffff; color: #1f2937; border-radius: 14px; padding: 22px; max-width: 380px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+.pwx-dflex-aicenter-gap10px.pwx-dflex-aicenter-gap10px.pwx-dflex-aicenter-gap10px { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.pwx-fs24px.pwx-fs24px.pwx-fs24px { font-size: 24px; }
+.pwx-fs17px-m0-c111827.pwx-fs17px-m0-c111827.pwx-fs17px-m0-c111827 { font-size: 17px; margin: 0; color: #111827; }
+.pwx-pad22px-m0014px-lh17.pwx-pad22px-m0014px-lh17.pwx-pad22px-m0014px-lh17 { padding-left: 22px; margin: 0 0 14px; line-height: 1.7; font-size: 14px; color: #374151; }
+.pwx-dinlinebl-vermiddle-ml4px.pwx-dinlinebl-vermiddle-ml4px.pwx-dinlinebl-vermiddle-ml4px { display: inline-block; vertical-align: middle; margin-left: 4px; }
+.pwx-c6366f1.pwx-c6366f1.pwx-c6366f1 { color: #6366f1; }
+.pwx-bgf9fafb-r8px-p10px12px.pwx-bgf9fafb-r8px-p10px12px.pwx-bgf9fafb-r8px-p10px12px { background: #f9fafb; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #6b7280; line-height: 1.5; }
+.pwx-wd100-bglineargr-cfff.pwx-wd100-bglineargr-cfff.pwx-wd100-bglineargr-cfff { width: 100%; background: linear-gradient(135deg,#BD5728 0%,#A14A22 100%); color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pwx-bgffffff-c1f2937-r14px-2.pwx-bgffffff-c1f2937-r14px-2.pwx-bgffffff-c1f2937-r14px-2 { background: #ffffff; color: #1f2937; border-radius: 14px; padding: 22px; max-width: 380px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
