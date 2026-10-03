@@ -22,7 +22,8 @@
 .gc-list { margin-top: 6px; }
 .gc-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--t, #e8eaf0); padding: 6px 0; border-top: 1px solid var(--br, #2a2f3a); }
 .gc-note { margin-top: 6px; }
-.gc-actions { margin-top: 10px; }
+.gc-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.gc-play { text-decoration: none; display: inline-flex; align-items: center; min-height: 36px; }
 .gc-editor { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
 .gc-editor-opts { flex: 1 1 200px; min-width: 0; }
 .gc-lbl { font-size: 12px; color: var(--m, #9aa3b2); margin: 8px 0 4px; }
