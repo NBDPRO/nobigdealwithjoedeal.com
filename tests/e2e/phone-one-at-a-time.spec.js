@@ -188,6 +188,39 @@ test.describe('phone: one at a time @shard2', () => {
     await page.locator('#nbdTriageDeck .deck-close').tap();
   });
 
+  test('Agent inbox: Add to CRM writes the note; ⋯ Toss dismisses', async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => !!(window._user && window.NBDAgentInbox && window.NBDTriageDeck && window.getDocs), { timeout: 30_000 });
+    const who = await safeEvaluate(page, () => ({ uid: window._user.uid, key: (window._userClaims && window._userClaims.companyId) || window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    const s = Date.now();
+    const leadId = (await adb().collection('leads').add({ userId: who.uid, companyId: who.co, firstName: 'ZZInbox', lastName: 'Cust' + s, stage: 'new', e2eTestData: true, createdAt: new Date(), deleted: false })).id;
+    const noteId = (await adb().collection('agent_inbox').add({ companyId: who.key, status: 'pending', kind: 'note', bot: 'Marcus', leadId, text: 'ZZINBOX gutters sag on the north side.', verified: true, verifiedBy: 'Quinn', createdAt: new Date(s) })).id;
+    const reportId = (await adb().collection('agent_inbox').add({ companyId: who.key, status: 'pending', kind: 'report', bot: 'Frank', title: 'ZZINBOX weekly money', text: 'Collected this week: $0.', createdAt: new Date(s + 1) })).id;
+    expect(await forceStandalone(page)).toBeGreaterThan(200);
+    await page.evaluate(() => window.NBDAgentInbox.open());
+    const btn = page.locator('#aiOverlay #aiDeck');
+    await expect(btn, 'the inbox offers One at a time').toBeVisible({ timeout: 20_000 });
+    await btn.tap();
+    await expect(deck(page)).toBeVisible();
+    const statusOf = async (id) => ((await adb().doc('agent_inbox/' + id).get()).data() || {}).status;
+    for (let i = 0; i < 40 && (await card(page).getAttribute('data-id')) !== noteId; i++) { await page.locator('#nbdTriageDeck .deck-left').tap(); await page.waitForTimeout(200); }
+    await expect(card(page)).toContainText('gutters sag on the north side');
+    await expect(page.locator('#nbdTriageDeck .deck-right')).toHaveText(/Add to CRM/);
+    await page.locator('#nbdTriageDeck .deck-right').tap();
+    await expect.poll(() => statusOf(noteId), { message: 'the item is approved' }).toBe('approved');
+    const notes = await adb().collection('notes').where('agentItemId', '==', noteId).get();
+    expect(notes.size, 'the note landed on the customer').toBe(1);
+    expect(notes.docs[0].data().leadId).toBe(leadId);
+    for (let i = 0; i < 40 && (await card(page).getAttribute('data-id')) !== reportId; i++) { await page.locator('#nbdTriageDeck .deck-left').tap(); await page.waitForTimeout(200); }
+    await expect(page.locator('#nbdTriageDeck .deck-right')).toHaveText(/Got it/);
+    await page.locator('#nbdTriageDeck .deck-dots').tap();
+    await page.locator('#nbdTriageDeck .deck-opt', { hasText: 'Toss' }).tap();
+    await expect.poll(() => statusOf(reportId), { message: 'Toss dismisses it' }).toBe('dismissed');
+    await page.locator('#nbdTriageDeck .deck-close').tap();
+  });
+
   test('Call Center: one person at a time; Handled covers all their open calls; Undo', async ({ page }) => {
     test.setTimeout(150_000);
     const actions = [];
