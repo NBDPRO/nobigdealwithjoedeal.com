@@ -113,7 +113,7 @@
     state.loading = true;
     const container = document.getElementById('adminRosterContainer');
     if (container && !state.loaded) {
-      container.innerHTML = '<div class="empty" style="padding:30px;"><div class="empty-icon">⏳</div>Loading team roster…</div>';
+      container.innerHTML = '<div class="empty amx-p30px"><div class="empty-icon">⏳</div>Loading team roster…</div>';
     }
     try {
       const fn = await callable('listTeamMembers');
@@ -124,7 +124,7 @@
     } catch (e) {
       console.error('listTeamMembers failed:', e);
       if (container) {
-        container.innerHTML = '<div class="empty" style="padding:30px;"><div class="empty-icon">⚠️</div>'
+        container.innerHTML = '<div class="empty amx-p30px"><div class="empty-icon">⚠️</div>'
           + 'Failed to load team: ' + (e.message || 'unknown error') + '</div>';
       }
       toast('Could not load team roster', 'error');
@@ -157,7 +157,7 @@
     setText('adminStatDeactivated', String(deactivated));
 
     if (!filtered.length) {
-      container.innerHTML = '<div class="empty" style="padding:30px;"><div class="empty-icon">👥</div>'
+      container.innerHTML = '<div class="empty amx-p30px"><div class="empty-icon">👥</div>'
         + (state.members.length ? 'No members match the filter.' : 'No team members yet — click "+ New User" to get started.')
         + '</div>';
       return;
@@ -174,26 +174,26 @@
       const statusBadge = statusPill(m.status);
       const rowId = 'admin-row-' + (m.uid || m.email).replace(/[^a-z0-9]/gi, '_');
       const actions = m.isOwner
-        ? '<span style="font-size:10px;color:var(--m);padding:5px 10px;">Owner</span>'
-        : '<button class="btn btn-ghost" style="font-size:11px;padding:5px 12px;" data-email="'
+        ? '<span class="amx-fs10px-cm-p5px10px">Owner</span>'
+        : '<button class="btn btn-ghost amx-fs11px-p5px12px" data-email="'
           + escapeAttr(m.email) + '" data-uid="' + escapeAttr(m.uid || '') + '">Edit</button>';
-      return '<div id="' + rowId + '" class="admin-row" style="display:grid;grid-template-columns:40px 2fr 1fr 1fr 1fr 110px 80px;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--br);cursor:pointer;"'
+      return '<div id="' + rowId + '" class="admin-row amx-dgrid-gtc40px2fr1-gap10px"'
         + ' data-email="' + escapeAttr(m.email) + '" data-uid="' + escapeAttr(m.uid || '') + '">'
-        + '<div style="width:36px;height:36px;border-radius:18px;background:var(--s2);border:1px solid var(--br);color:var(--t);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">'
+        + '<div class="amx-wd36px-hei36px-r18px">'
         +   escapeHTML(initials) + '</div>'
-        + '<div><div style="font-size:13px;font-weight:600;color:var(--t);">' + escapeHTML(m.displayName || m.email) + '</div>'
-        +   '<div style="font-size:11px;color:var(--m);">' + escapeHTML(m.email) + '</div></div>'
+        + '<div><div class="amx-fs13px-w600-ct">' + escapeHTML(m.displayName || m.email) + '</div>'
+        +   '<div class="amx-fs11px-cm">' + escapeHTML(m.email) + '</div></div>'
         + '<div><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;border:1px solid ' + roleColor + ';color:' + roleColor + ';text-transform:uppercase;letter-spacing:.06em;">' + escapeHTML(roleLabel) + '</span></div>'
-        + '<div style="font-size:11px;color:var(--m);">' + statusBadge + '</div>'
-        + '<div style="font-size:11px;color:var(--m);">' + escapeHTML(lastSeen) + '</div>'
-        + '<div style="font-size:11px;color:var(--t);font-weight:600;">' + (m.leadCount || 0) + ' leads</div>'
-        + '<div style="text-align:right;">' + actions + '</div>'
+        + '<div class="amx-fs11px-cm">' + statusBadge + '</div>'
+        + '<div class="amx-fs11px-cm">' + escapeHTML(lastSeen) + '</div>'
+        + '<div class="amx-fs11px-ct-w600">' + (m.leadCount || 0) + ' leads</div>'
+        + '<div class="amx-taright">' + actions + '</div>'
         + '</div>';
     }).join('');
 
     container.innerHTML =
-      '<div style="display:grid;grid-template-columns:40px 2fr 1fr 1fr 1fr 110px 80px;gap:10px;padding:10px 16px;font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid var(--br);background:var(--s2);">'
-      + '<div></div><div>Name / Email</div><div>Role</div><div>Status</div><div>Last Login</div><div>Leads</div><div style="text-align:right;">Actions</div>'
+      '<div class="amx-dgrid-gtc40px2fr1-gap10px-2">'
+      + '<div></div><div>Name / Email</div><div>Role</div><div>Status</div><div>Last Login</div><div>Leads</div><div class="amx-taright">Actions</div>'
       + '</div>'
       + rows;
 
@@ -241,13 +241,13 @@
     if (title) title.textContent = 'Activity — ' + (email || '—');
     if (!feed) return;
     if (!uid) {
-      feed.innerHTML = '<div style="color:var(--m);font-size:12px;">This member hasn\'t signed in yet — no activity recorded.</div>';
+      feed.innerHTML = '<div class="amx-cm-fs12px">This member hasn\'t signed in yet — no activity recorded.</div>';
       return;
     }
-    feed.innerHTML = '<div style="color:var(--m);font-size:12px;">Loading activity…</div>';
+    feed.innerHTML = '<div class="amx-cm-fs12px">Loading activity…</div>';
     try {
       if (!window.db || !window.collection || !window.query || !window.where) {
-        feed.innerHTML = '<div style="color:var(--m);font-size:12px;">Firestore SDK not ready.</div>';
+        feed.innerHTML = '<div class="amx-cm-fs12px">Firestore SDK not ready.</div>';
         return;
       }
       const q = window.query(
@@ -263,21 +263,21 @@
         }).slice(0, 15);
 
       if (!leads.length) {
-        feed.innerHTML = '<div style="color:var(--m);font-size:12px;">No leads logged yet.</div>';
+        feed.innerHTML = '<div class="amx-cm-fs12px">No leads logged yet.</div>';
         return;
       }
       feed.innerHTML = leads.map(l => {
         const when = l.createdAt?.toDate?.()?.toLocaleString() || '—';
         const addr = l.address || l.name || l.id;
-        return '<div style="padding:10px 0;border-bottom:1px solid var(--br);display:flex;justify-content:space-between;gap:12px;">'
-          + '<div><div style="font-size:12px;color:var(--t);font-weight:600;">' + escapeHTML(addr) + '</div>'
-          +   '<div style="font-size:10px;color:var(--m);">' + escapeHTML(l.stage || l.status || 'lead') + '</div></div>'
-          + '<div style="font-size:10px;color:var(--m);white-space:nowrap;">' + escapeHTML(when) + '</div>'
+        return '<div class="amx-p10px0-bb1pxsolid-dflex">'
+          + '<div><div class="amx-fs12px-ct-w600">' + escapeHTML(addr) + '</div>'
+          +   '<div class="amx-fs10px-cm">' + escapeHTML(l.stage || l.status || 'lead') + '</div></div>'
+          + '<div class="amx-fs10px-cm-whinowrap">' + escapeHTML(when) + '</div>'
           + '</div>';
       }).join('');
     } catch (e) {
       console.warn('activity load failed:', e);
-      feed.innerHTML = '<div style="color:var(--m);font-size:12px;">Could not load activity: '
+      feed.innerHTML = '<div class="amx-cm-fs12px">Could not load activity: '
         + escapeHTML(e.message || 'unknown error') + '</div>';
     }
   }
@@ -451,7 +451,7 @@
     if (!container) return; // panel not present (e.g. legacy dashboard) — no-op
     const T = window.InboundSmsTriage;
     if (!window.db || !window.collection || !window.getDocs || !T) {
-      container.innerHTML = '<div class="empty" style="padding:24px;"><div class="empty-icon">⚠️</div>Inbound triage not ready.</div>';
+      container.innerHTML = '<div class="empty amx-p24px"><div class="empty-icon">⚠️</div>Inbound triage not ready.</div>';
       return;
     }
     // Platform-admin-only collection (rules: isAdmin()). Don't query it for a
@@ -462,7 +462,7 @@
       if (panel) panel.style.display = 'none';
       return;
     }
-    container.innerHTML = '<div class="empty" style="padding:24px;"><div class="empty-icon">⏳</div>Loading inbound texts…</div>';
+    container.innerHTML = '<div class="empty amx-p24px"><div class="empty-icon">⏳</div>Loading inbound texts…</div>';
     try {
       // unmatched_sms has no companyId (an unknown number has no tenant), and
       // firestore.rules gates it to isAdmin() — so this is a GLOBAL admin inbox.
@@ -479,7 +479,7 @@
         if (panel) panel.style.display = 'none';
         return;
       }
-      container.innerHTML = '<div class="empty" style="padding:24px;"><div class="empty-icon">⚠️</div>Could not load inbound texts: ' + escapeHTML(e && e.message || 'error') + '</div>';
+      container.innerHTML = '<div class="empty amx-p24px"><div class="empty-icon">⚠️</div>Could not load inbound texts: ' + escapeHTML(e && e.message || 'error') + '</div>';
     }
   }
 
@@ -491,18 +491,18 @@
     const filtered = (triage.filtered || []).length;
     if (countEl) countEl.textContent = rows.length ? (rows.length + ' to triage' + (filtered ? ' · ' + filtered + ' filtered' : '')) : (filtered ? filtered + ' filtered' : '');
     if (!rows.length) {
-      container.innerHTML = '<div class="empty" style="padding:24px;"><div class="empty-icon">📭</div>No new inbound texts to triage.' +
-        (filtered ? ' <span style="color:var(--m);font-size:11px;">(' + filtered + ' opt-out/keyword hidden)</span>' : '') + '</div>';
+      container.innerHTML = '<div class="empty amx-p24px"><div class="empty-icon">📭</div>No new inbound texts to triage.' +
+        (filtered ? ' <span class="amx-cm-fs11px">(' + filtered + ' opt-out/keyword hidden)</span>' : '') + '</div>';
       return;
     }
     container.innerHTML = rows.map((r) =>
-      '<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--br);">' +
-        '<div style="flex:1;min-width:0;">' +
-          '<div style="font-weight:700;color:var(--t);font-size:13px;">' + escapeHTML(r._display || r.from) + '</div>' +
-          '<div style="font-size:12px;color:var(--m);margin-top:2px;word-break:break-word;">' + escapeHTML(r.body) + '</div>' +
-          (r._ms ? '<div style="font-size:10px;color:var(--m);margin-top:4px;">' + escapeHTML(relTimeShort(r._ms)) + '</div>' : '') +
+      '<div class="amx-dflex-gap12px-aiflexstar">' +
+        '<div class="amx-fx1-minw0">' +
+          '<div class="amx-w700-ct-fs13px">' + escapeHTML(r._display || r.from) + '</div>' +
+          '<div class="amx-fs12px-cm-mt2px">' + escapeHTML(r.body) + '</div>' +
+          (r._ms ? '<div class="amx-fs10px-cm-mt4px">' + escapeHTML(relTimeShort(r._ms)) + '</div>' : '') +
         '</div>' +
-        '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">' +
+        '<div class="amx-dflex-flecolumn-gap4px">' +
           '<button class="btn btn-ghost btn-sm" data-inbound-copy="' + escapeAttr(r._digits || '') + '">📋 Copy #</button>' +
           '<button class="btn btn-orange btn-sm" data-inbound-lead="' + escapeAttr(r.id || '') + '">➕ Convert</button>' +
         '</div>' +
@@ -626,20 +626,20 @@
   async function loadAnalytics() {
     const grid = document.getElementById('adminAnalyticsGrid');
     if (!grid) return;
-    grid.innerHTML = '<div style="color:var(--m);">Loading analytics…</div>';
+    grid.innerHTML = '<div class="amx-cm">Loading analytics…</div>';
     try {
       const fn = await callable('getAdminAnalytics');
       const res = await fn({});
       const d = res && res.data;
-      if (!d) { grid.innerHTML = '<div style="color:var(--m);">No data yet.</div>'; return; }
+      if (!d) { grid.innerHTML = '<div class="amx-cm">No data yet.</div>'; return; }
 
       const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString());
       const fmtMoney = (n) => (n == null ? '—' : '$' + Math.round(Number(n)).toLocaleString());
       const tile = (label, value, sub) =>
-        '<div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">' +
-          '<div style="font-size:9px;color:var(--m);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">' + label + '</div>' +
-          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:22px;font-weight:800;color:var(--t);">' + value + '</div>' +
-          (sub ? '<div style="font-size:10px;color:var(--m);margin-top:3px;">' + sub + '</div>' : '') +
+        '<div class="amx-p12px-bgs2-bd1pxsolid">' +
+          '<div class="amx-fs9px-cm-ttuppercas">' + label + '</div>' +
+          '<div class="amx-ffbarlowco-fs22px-w800">' + value + '</div>' +
+          (sub ? '<div class="amx-fs10px-cm-mt3px">' + sub + '</div>' : '') +
         '</div>';
 
       grid.innerHTML = [
@@ -656,7 +656,7 @@
           fmtNum(d.claude.tokens30d) + ' tokens')
       ].join('');
     } catch (e) {
-      grid.innerHTML = '<div style="color:var(--m);">Analytics unavailable: ' +
+      grid.innerHTML = '<div class="amx-cm">Analytics unavailable: ' +
         (e.message || 'error') + '</div>';
     }
   }
