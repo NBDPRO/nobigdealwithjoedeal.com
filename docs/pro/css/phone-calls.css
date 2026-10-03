@@ -66,3 +66,4 @@
 .cc-group-call { padding: 10px 0; border-top: 1px solid var(--br, #2a2f35); }
 .cc-group-call:first-child { border-top: 0; padding-top: 4px; }
 .cc-group-call .pc-actions { margin-top: 6px; }
+.cc-deck-btn { margin-top: 10px; }
