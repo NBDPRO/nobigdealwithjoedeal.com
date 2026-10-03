@@ -124,6 +124,8 @@
     const bulkOk = document.getElementById('aiBulkChecked');
     // Only worth a second button when it differs from "Add all".
     if (bulkOk) { bulkOk.hidden = checked < 1 || checked === notesAndReminders; bulkOk.textContent = '✓ Add the ' + checked + ' Quinn checked'; }
+    const deckBtn = document.getElementById('aiDeck');
+    if (deckBtn) { deckBtn.hidden = !(window.NBDTriageDeck && pend.length > 1); deckBtn.textContent = 'One at a time (' + pend.length + ')'; }
     list.innerHTML = pend.length ? pend.map(rowHtml).join('')
       : '<div class="ai-empty">Nothing waiting. When the bots file notes, reminders or reports, they show up here for you to add to the CRM or toss.</div>';
   }
@@ -137,6 +139,7 @@
       '<div class="ai-head"><div><h2 class="ai-h" id="aiTitle">🤖 Agent inbox</h2><div class="ai-sub" id="aiCount">Loading…</div></div>' +
       '<button type="button" class="ai-close" data-ai-act="close" aria-label="Close">✕</button></div>' +
       '<p class="ai-note">Your bot team files notes, reminders and reports here. Nothing reaches a customer — adding an item only writes it to the customer’s card. Edit before adding.</p>' +
+      '<button type="button" class="ai-btn ai-bulk" id="aiDeck" data-ai-act="deck" hidden></button>' +
       '<button type="button" class="ai-btn is-primary ai-bulk" id="aiBulkChecked" data-ai-act="bulkChecked" hidden></button>' +
       '<button type="button" class="ai-btn is-primary ai-bulk" id="aiBulk" data-ai-act="bulk" hidden></button>' +
       '<div id="aiList"></div>' +
@@ -223,6 +226,42 @@
     } finally { _busy = false; }
   }
 
+  // One at a time (Jo, 2026-10-02): the inbox as a swipe deck — right adds the
+  // item to the customer's card (or "Got it" for a report), left = later,
+  // ⋯ = Toss. No Undo: adding writes a note / task on the customer.
+  function deckCard(it) {
+    const flagged = !it.verified && it.quinnNote;
+    return '<div><span class="deck-tag">' + esc(KINDS[it.kind] || it.kind) + '</span></div>' +
+      (it.leadId ? '<div class="deck-name">' + esc(leadName(it.leadId)) + '</div>' : '') +
+      '<div class="deck-sub">from ' + esc(it.bot || 'Agent') + (it.kind === 'reminder' && it.dueDate ? ' · due ' + esc(it.dueDate) : '') +
+        ' · ' + (it.verified ? '✓ checked by ' + esc(it.verifiedBy || 'Quinn') : flagged ? '⚠ flagged by ' + esc(it.verifiedBy || 'Quinn') : 'unverified') + '</div>' +
+      (it.quinnNote ? '<div class="deck-why">' + esc((it.verified ? 'Quinn: ' : '⚠ Quinn: ') + it.quinnNote) + '</div>' : '') +
+      (it.title ? '<div class="deck-big">' + esc(it.title) + '</div>' : '') +
+      '<div class="deck-why">' + esc(it.text || '') + '</div>';
+  }
+  function openDeck() {
+    if (!window.NBDTriageDeck) return;
+    const decideOrThrow = async (id, approve) => { if (!(await decide(id, approve))) throw new Error('That did not save — try again.'); };
+    const items = sortItems(_items).map((it) => Object.assign({}, it));
+    // The inbox overlay sits above the deck's layer: step out of it, and come
+    // back (re-read) when the deck closes.
+    close();
+    window.NBDTriageDeck.open({
+      id: 'agent-inbox',
+      title: 'Agent inbox',
+      items,
+      card: deckCard,
+      right: (it) => ({ label: it.kind === 'report' ? 'Got it' : 'Add to CRM', act: () => decideOrThrow(it.id, true) }),
+      left: { label: 'Later' },
+      more: (it) => [{ label: 'Toss', act: () => decideOrThrow(it.id, false) }],
+      doneText: 'Inbox clear.',
+      onClose: (done) => {
+        open();
+        if (done) { try { if (typeof window.loadAllTasks === 'function') window.loadAllTasks(); } catch (_) {} }
+      },
+    });
+  }
+
   async function bulk(onlyChecked) {
     const ids = bulkIds(_items, onlyChecked);
     let ok = 0;
@@ -239,6 +278,7 @@
     if (act === 'close') return close();
     if (act === 'bulk') return bulk(false);
     if (act === 'bulkChecked') return bulk(true);
+    if (act === 'deck') return openDeck();
     if (act === 'conn') { const d = document.getElementById('aiConn'); if (d && !d.open) setTimeout(() => paintConn(null), 0); return; }
     if (act === 'mkkey') {
       t.disabled = true;
@@ -285,5 +325,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDAgentInbox = { open, close, sortItems, writeFor, bulkIds, KINDS, COLL };
+  window.NBDAgentInbox = { open, openDeck, close, sortItems, writeFor, bulkIds, KINDS, COLL };
 })();

@@ -1203,46 +1203,46 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     const totalValue = signed.reduce((s, d) => s + dealValue(d), 0);
 
     let html = `
-      <div style="padding:16px 20px 0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="cbr-pad-top">
+        <div class="cbr-head">
           <div>
-            <div style="font-size:22px;font-weight:800;font-family:'Barlow Condensed',sans-serif;color:var(--t);letter-spacing:.02em;">📋 CLOSE BOARD</div>
-            <div style="font-size:12px;color:var(--m);margin-top:2px;">Shareable deal rooms — one link to close</div>
+            <div class="cbr-title">📋 CLOSE BOARD</div>
+            <div class="cbr-m12-mt2">Shareable deal rooms — one link to close</div>
           </div>
-          <button data-cb-action="createNew" style="padding:8px 16px;background:var(--orange,#BD5728);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;font-family:'Barlow Condensed',sans-serif;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;">
+          <button data-cb-action="createNew" class="cbr-btn-new">
             + NEW DEAL
           </button>
         </div>
 
         <!-- Stats -->
-        <div class="cb-stats-row" style="display:flex;gap:10px;margin-bottom:14px;overflow-x:auto;">
+        <div class="cb-stats-row cbr-scroll-row">
           <div class="ui-stat">
-            <div style="font-size:22px;font-weight:700;color:var(--blue);">${openCount}</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Active Deals</div>
+            <div class="cbr-v22-blue">${openCount}</div>
+            <div class="cbr-label">Active Deals</div>
           </div>
           <div class="ui-stat">
-            <div style="font-size:22px;font-weight:700;color:var(--orange);">${dealRooms.filter(wasViewed).length}</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Viewed</div>
+            <div class="cbr-v22-orange">${dealRooms.filter(wasViewed).length}</div>
+            <div class="cbr-label">Viewed</div>
           </div>
           <div class="ui-stat">
-            <div style="font-size:22px;font-weight:700;color:var(--green);">${signed.length}</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Signed</div>
+            <div class="cbr-v22-green">${signed.length}</div>
+            <div class="cbr-label">Signed</div>
           </div>
           <div class="ui-stat">
-            <div style="font-size:22px;font-weight:700;color:var(--green);">${fmtCurrency(totalValue)}</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;">Closed Value</div>
+            <div class="cbr-v22-green">${fmtCurrency(totalValue)}</div>
+            <div class="cbr-label">Closed Value</div>
           </div>
         </div>
 
         <!-- Tabs -->
-        <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <div class="cbr-row6-mb">
           ${tabBtn('active', 'Active Deals', '📋')}
           ${tabBtn('create', 'New Deal', '➕')}
           ${tabBtn('analytics', 'Analytics', '📊')}
         </div>
       </div>
 
-      <div style="padding:0 20px 20px;">
+      <div class="cbr-pad-body">
     `;
 
     if (currentTab === 'active') {
@@ -1292,89 +1292,89 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   function renderActiveDeals() {
     if (dealRooms.length === 0) {
       return `
-        <div style="text-align:center;padding:40px;">
-          <div style="font-size:40px;margin-bottom:12px;">📋</div>
-          <div style="font-size:15px;font-weight:600;color:var(--t);">No Deal Rooms Yet</div>
-          <div style="font-size:12px;color:var(--m);margin-top:4px;">Create a deal from any estimate to generate a shareable link.</div>
+        <div class="cbr-empty">
+          <div class="cbr-empty-icon">📋</div>
+          <div class="cbr-name">No Deal Rooms Yet</div>
+          <div class="cbr-m12-mt4">Create a deal from any estimate to generate a shareable link.</div>
         </div>
       `;
     }
 
     return dealRooms.map(d => `
-      <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;margin-bottom:10px;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:700;color:var(--t);">${esc(d.customerName) || 'Unnamed'}</div>
-            <div style="font-size:11px;color:var(--m);margin-top:2px;">${esc(d.address) || 'No address'}</div>
-            <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+      <div class="cbr-card cbr-card-mb">
+        <div class="cbr-between-top">
+          <div class="cbr-flex1">
+            <div class="cbr-h14">${esc(d.customerName) || 'Unnamed'}</div>
+            <div class="cbr-m11-mt2">${esc(d.address) || 'No address'}</div>
+            <div class="cbr-actions">
               <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${STATUS_COLORS[d.status] || 'var(--m)'}20;color:${STATUS_COLORS[d.status] || 'var(--m)'};font-weight:600;text-transform:uppercase;">${esc(d.status)}</span>
-              <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--t);">${fmtCurrency(dealValue(d))}</span>
-              ${wasViewed(d) ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--m);" title="${esc(viewTitle(d))}">${esc(viewBadge(d))}</span>` : ''}
-              ${d.sentVia ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s);border:1px solid var(--br);color:var(--m);">📤 via ${d.sentVia}</span>` : ''}
+              <span class="cbr-pill cbr-pill-t">${fmtCurrency(dealValue(d))}</span>
+              ${wasViewed(d) ? `<span class="cbr-pill cbr-pill-m" title="${esc(viewTitle(d))}">${esc(viewBadge(d))}</span>` : ''}
+              ${d.sentVia ? `<span class="cbr-pill cbr-pill-m">📤 via ${d.sentVia}</span>` : ''}
             </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-            <button data-cb-action="preview" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--blue,var(--orange));color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">👁 Preview</button>
-            ${_isClosedDeal(d) ? '' : `<button data-cb-action="sendSMS" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--green,#2ECC8A);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">📱 Text</button>
-            <button data-cb-action="sendEmail" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--orange,#BD5728);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">📧 Email</button>
-            <button data-cb-action="copyLink" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:var(--s);border:1px solid var(--br);color:var(--t);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🔗 Copy</button>`}
+          <div class="cbr-col4">
+            <button data-cb-action="preview" data-cb-id="${esc(d.id)}" class="cbr-act cbr-act-blue">👁 Preview</button>
+            ${_isClosedDeal(d) ? '' : `<button data-cb-action="sendSMS" data-cb-id="${esc(d.id)}" class="cbr-act cbr-act-green">📱 Text</button>
+            <button data-cb-action="sendEmail" data-cb-id="${esc(d.id)}" class="cbr-act cbr-act-orange">📧 Email</button>
+            <button data-cb-action="copyLink" data-cb-id="${esc(d.id)}" class="cbr-act cbr-act-plain">🔗 Copy</button>`}
             ${_isClosedDeal(d)
-              ? `<span title="A signed deal is kept on record" style="padding:5px 10px;border:1px solid var(--br);color:var(--m);border-radius:5px;font-size:10px;font-weight:600;text-align:center;">🔒 On record</span>`
-              : `<button data-cb-action="remove" data-cb-id="${esc(d.id)}" style="padding:5px 10px;background:transparent;border:1px solid var(--br);color:var(--m);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;">🗑 Delete</button>`}
+              ? `<span title="A signed deal is kept on record" class="cbr-act cbr-act-static">🔒 On record</span>`
+              : `<button data-cb-action="remove" data-cb-id="${esc(d.id)}" class="cbr-act cbr-act-ghost">🗑 Delete</button>`}
           </div>
         </div>
-        <div style="font-size:10px;color:var(--m);margin-top:8px;">Created ${timeAgo(d.createdAt)}${_isClosedDeal(d) ? '' : ' · Expires ' + fmtDate(d.expiresAt)}${d.scheduledInstallDate ? ' · 🔨 Install ' + esc(fmtDate(d.scheduledInstallDate)) : ''}</div>
+        <div class="cbr-m10-mt8">Created ${timeAgo(d.createdAt)}${_isClosedDeal(d) ? '' : ' · Expires ' + fmtDate(d.expiresAt)}${d.scheduledInstallDate ? ' · 🔨 Install ' + esc(fmtDate(d.scheduledInstallDate)) : ''}</div>
       </div>
     `).join('');
   }
 
   function renderCreateForm() {
     return `
-      <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:16px;">
-        <div style="font-size:14px;font-weight:700;color:var(--t);margin-bottom:12px;">Create New Deal Room</div>
+      <div class="cbr-card cbr-card-16">
+        <div class="cbr-h14-mb">Create New Deal Room</div>
 
-        <div style="margin-bottom:10px;">
+        <div class="cbr-mb10">
           <label class="ui-caps-label">Customer Name</label>
           <input class="ui-field-md" id="cb-name" type="text" placeholder="John Smith">
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <div style="flex:1;">
+        <div class="cbr-row8-mb">
+          <div class="cbr-flex1">
             <label class="ui-caps-label">Phone</label>
             <input class="ui-field-md" id="cb-phone" type="tel" placeholder="(555) 123-4567">
           </div>
-          <div style="flex:1;">
+          <div class="cbr-flex1">
             <label class="ui-caps-label">Email</label>
             <input class="ui-field-md" id="cb-email" type="email" placeholder="john@email.com">
           </div>
         </div>
-        <div style="margin-bottom:10px;">
+        <div class="cbr-mb10">
           <label class="ui-caps-label">Address</label>
           <input class="ui-field-md" id="cb-addr" type="text" placeholder="123 Main St, Cincinnati, OH">
         </div>
 
-        <div style="font-size:12px;font-weight:700;color:var(--t);margin:14px 0 8px;">Pricing Tiers</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div class="cbr-h12">Pricing Tiers</div>
+        <div class="cbr-wrap8">
           ${dealTiers().map(t => `
-          <div style="flex:1 1 30%;min-width:90px;">
-            <label style="font-size:10px;color:var(--m);">${({ economy: 'Economy', good: 'Good', better: 'Better', best: 'Best', beyond: 'Beyond' })[t] || t} ($)</label>
+          <div class="cbr-third">
+            <label class="cbr-m10">${({ economy: 'Economy', good: 'Good', better: 'Better', best: 'Best', beyond: 'Beyond' })[t] || t} ($)</label>
             <input class="ui-field-xs" id="cb-${t}" type="number" inputmode="decimal" placeholder="${({ economy: '6500', good: '8000', better: '11000', best: '15000', beyond: '17500' })[t] || ''}">
           </div>`).join('')}
         </div>
 
-        <div style="margin-bottom:10px;">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input id="cb-insurance" type="checkbox" style="accent-color:var(--orange);">
-            <span style="font-size:12px;color:var(--t);">Insurance claim</span>
+        <div class="cbr-mb10">
+          <label class="cbr-check-row">
+            <input id="cb-insurance" type="checkbox" class="cbr-accent">
+            <span class="cbr-t12">Insurance claim</span>
           </label>
         </div>
         <div id="cb-ins-fields" style="display:none;margin-bottom:10px;">
-          <div style="display:flex;gap:8px;">
-            <input id="cb-carrier" type="text" placeholder="Insurance carrier" style="flex:1;padding:8px;background:var(--s);border:1px solid var(--br);border-radius:6px;color:var(--t);font-size:12px;box-sizing:border-box;">
-            <input id="cb-deductible" type="number" placeholder="Deductible $" style="width:120px;padding:8px;background:var(--s);border:1px solid var(--br);border-radius:6px;color:var(--t);font-size:12px;box-sizing:border-box;">
+          <div class="cbr-row8">
+            <input id="cb-carrier" type="text" placeholder="Insurance carrier" class="cbr-input cbr-input-grow">
+            <input id="cb-deductible" type="number" placeholder="Deductible $" class="cbr-input cbr-input-120">
           </div>
         </div>
 
-        <button data-cb-action="submitCreate" style="width:100%;padding:14px;background:var(--orange,#BD5728);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'Barlow Condensed',sans-serif;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;margin-top:8px;">
+        <button data-cb-action="submitCreate" class="cbr-btn-create">
           CREATE DEAL ROOM
         </button>
       </div>
@@ -1389,28 +1389,28 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     const closeRate = sent > 0 ? Math.round(signed / sent * 100) : 0;
 
     return `
-      <div style="margin-top:4px;">
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;">
+      <div class="cbr-mt4">
+        <div class="cbr-g2">
           <div class="ui-stat-box">
-            <div style="font-size:28px;font-weight:700;color:var(--t);">${total}</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Total Deals</div>
+            <div class="cbr-big">${total}</div>
+            <div class="cbr-label-tight">Total Deals</div>
           </div>
           <div class="ui-stat-box">
-            <div style="font-size:28px;font-weight:700;color:var(--blue);">${sent}</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Sent</div>
+            <div class="cbr-big cbr-c-blue">${sent}</div>
+            <div class="cbr-label-tight">Sent</div>
           </div>
           <div class="ui-stat-box">
-            <div style="font-size:28px;font-weight:700;color:#ffab00;">${viewed}</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Viewed</div>
+            <div class="cbr-big cbr-c-amber">${viewed}</div>
+            <div class="cbr-label-tight">Viewed</div>
           </div>
           <div class="ui-stat-box">
-            <div style="font-size:28px;font-weight:700;color:var(--green);">${closeRate}%</div>
-            <div style="font-size:10px;color:var(--m);text-transform:uppercase;">Close Rate</div>
+            <div class="cbr-big cbr-c-green">${closeRate}%</div>
+            <div class="cbr-label-tight">Close Rate</div>
           </div>
         </div>
 
-        <div style="font-size:11px;font-weight:700;color:var(--t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Conversion Funnel</div>
-        <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:14px;">
+        <div class="cbr-caps11">Conversion Funnel</div>
+        <div class="cbr-card">
           ${['Created → Sent', 'Sent → Viewed', 'Viewed → Signed'].map((label, i) => {
             const vals = [
               [total, sent],
@@ -1419,12 +1419,12 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
             ][i];
             const pct = vals[0] > 0 ? Math.round(vals[1] / vals[0] * 100) : 0;
             return `
-              <div style="margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t);margin-bottom:4px;">
+              <div class="cbr-mb10">
+                <div class="cbr-kv">
                   <span>${label}</span>
-                  <span style="font-weight:700;">${pct}% (${vals[1]}/${vals[0]})</span>
+                  <span class="cbr-b">${pct}% (${vals[1]}/${vals[0]})</span>
                 </div>
-                <div style="height:6px;background:var(--s);border-radius:3px;overflow:hidden;">
+                <div class="cbr-bar">
                   <div style="height:100%;width:${pct}%;background:var(--orange);border-radius:3px;transition:width .3s;"></div>
                 </div>
               </div>

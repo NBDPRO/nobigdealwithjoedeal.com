@@ -443,12 +443,12 @@
   // alone would be invisible.
   function card(label, value, sub, color) {
     return '<div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:2px;border-top:2px solid ' + color + ';">' +
-      '<div class="stat-lbl" style="margin-top:0;text-transform:uppercase;letter-spacing:.05em;">' + esc(label) + '</div>' +
+      '<div class="stat-lbl mdx-sec">' + esc(label) + '</div>' +
       '<div class="stat-val" style="font-weight:800;color:' + color + ';-webkit-text-fill-color:' + color + ';margin:2px 0;">' + value + '</div>' +
-      '<div style="font-size:10px;color:var(--m,#9ca3af);">' + esc(sub) + '</div></div>';
+      '<div class="mdx-m10">' + esc(sub) + '</div></div>';
   }
   function grid(cards) {
-    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">' + cards.join('') + '</div>';
+    return '<div class="mdx-stats">' + cards.join('') + '</div>';
   }
 
   // ── Month-close card ────────────────────────────────────────────────
@@ -466,25 +466,25 @@
     var href = kind === 'invoice'
       ? (it.leadId ? '/pro/customer.html?id=' + encodeURIComponent(it.leadId) : '')
       : '#/expenses';
-    var name = '<span style="color:var(--t);font-weight:600;overflow-wrap:anywhere;">' + esc(it.label) + '</span>';
-    return '<li style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--br);min-height:44px;">' +
-      '<div style="min-width:0;flex:1 1 160px;">' +
-        (href ? '<a href="' + esc(href) + '" style="text-decoration:none;display:inline-block;min-height:24px;">' + name + '</a>' : name) +
-        '<div style="font-size:11px;color:var(--m);">' + esc(it.date) + '</div></div>' +
-      '<div style="font-size:13px;font-weight:700;color:var(--t);white-space:nowrap;">' + esc(fmt(it.amountCents)) + '</div></li>';
+    var name = '<span class="mdx-name">' + esc(it.label) + '</span>';
+    return '<li class="mdx-row">' +
+      '<div class="mdx-grow160">' +
+        (href ? '<a href="' + esc(href) + '" class="mdx-link-chip">' + name + '</a>' : name) +
+        '<div class="mdx-m11b">' + esc(it.date) + '</div></div>' +
+      '<div class="mdx-amt">' + esc(fmt(it.amountCents)) + '</div></li>';
   }
   function closeListHtml(items, one, many, kind, fixHint) {
     if (!items.length) return '';
     var n = items.length;
     var shown = items.slice(0, 25);
-    var html = '<details style="border-top:1px solid var(--br);">' +
-      '<summary style="cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--gold);">' +
+    var html = '<details class="mdx-rule">' +
+      '<summary class="mdx-toggle">' +
         esc(n + ' ' + (n === 1 ? one : many)) + '</summary>' +
-      '<div style="font-size:11px;color:var(--m);margin:0 0 4px;">' + esc(fixHint) + '</div>' +
-      '<ul style="list-style:none;margin:0;padding:0;">';
+      '<div class="mdx-m11-mb4">' + esc(fixHint) + '</div>' +
+      '<ul class="mdx-list">';
     shown.forEach(function (it) { html += closeItemHtml(it, kind); });
     html += '</ul>';
-    if (n > shown.length) html += '<div style="font-size:11px;color:var(--m);padding:6px 0;">' + esc('+' + (n - shown.length) + ' more') + '</div>';
+    if (n > shown.length) html += '<div class="mdx-m11-pad">' + esc('+' + (n - shown.length) + ' more') + '</div>';
     return html + '</details>';
   }
   function monthCloseHtml(mc) {
@@ -501,32 +501,32 @@
       ' style="' + shell + (mc.prominent ? 'border-top:2px solid var(--orange);' : '') + '">' +
       '<summary style="' + summaryStyle + '">' + esc(summaryText) + '</summary>';
     var big = function (label, cents, color) {
-      return '<div style="flex:1 1 90px;min-width:0;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--m);">' + esc(label) + '</div>' +
+      return '<div class="mdx-grow90"><div class="mdx-caps10">' + esc(label) + '</div>' +
         '<div style="font-size:20px;font-weight:800;color:' + color + ';white-space:nowrap;">' + esc(fmt(cents)) + '</div></div>';
     };
-    html += '<div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin:6px 0 4px;">' +
+    html += '<div class="mdx-meta-row">' +
       big('Collected', mc.collectedCents, 'var(--green)') +
       big('Expenses', mc.expensesCents, 'var(--orange)') +
       big('Net', mc.netCents, netColor) + '</div>' +
-      '<div style="font-size:11px;color:var(--m);margin-bottom:10px;">' + esc(mc.monthLabel + ' · collected money only (payments received, refunds taken off) · expenses incl. tax') + '</div>';
+      '<div class="mdx-m11-mb10">' + esc(mc.monthLabel + ' · collected money only (payments received, refunds taken off) · expenses incl. tax') + '</div>';
     if (mc.categories.length) {
-      html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--m);margin-bottom:4px;">Where it went</div><ul style="list-style:none;margin:0 0 10px;padding:0;">';
+      html += '<div class="mdx-caps11">Where it went</div><ul class="mdx-list-mb">';
       mc.categories.forEach(function (c) {
-        html += '<li style="display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--t);padding:3px 0;"><span style="min-width:0;overflow-wrap:anywhere;">' + esc(catLabel(c.category)) + '</span><span style="font-weight:700;white-space:nowrap;">' + esc(fmt(c.cents)) + '</span></li>';
+        html += '<li class="mdx-kv"><span class="mdx-wrap">' + esc(catLabel(c.category)) + '</span><span class="mdx-b-nw">' + esc(fmt(c.cents)) + '</span></li>';
       });
       html += '</ul>';
     } else {
-      html += '<div style="font-size:12px;color:var(--m);margin-bottom:10px;">' + esc('No expenses logged for ' + mc.monthLabel + '.') + '</div>';
+      html += '<div class="mdx-m12-mb">' + esc('No expenses logged for ' + mc.monthLabel + '.') + '</div>';
     }
     var tidy = closeListHtml(mc.uncategorized, 'expense needs a category', 'expenses need a category', 'expense', 'Open Expenses and pick a category.') +
       closeListHtml(mc.untiedDirect, 'direct cost isn\'t tied to a job', 'direct costs aren\'t tied to a job', 'untied', 'Open Expenses and choose the customer this cost belongs to.') +
       closeListHtml(mc.missingReceipts, 'missing receipt', 'missing receipts', 'expense', 'Attach a photo or PDF in Expenses (recommended, never required).') +
       closeListHtml(mc.unpaidInvoices, 'invoice from last month still unpaid', 'invoices from last month still unpaid', 'invoice', 'Open the customer to chase it — nothing is sent from here.');
-    html += tidy || '<div style="font-size:12px;color:var(--green);padding:6px 0;border-top:1px solid var(--br);">Nothing to tidy up.</div>';
+    html += tidy || '<div class="mdx-ok-row">Nothing to tidy up.</div>';
     if (mc.closed) {
-      html += '<div style="font-size:12px;color:var(--green);font-weight:700;padding-top:10px;">' + esc(mc.monthName + ' closed ✓') + '</div>';
+      html += '<div class="mdx-ok-note">' + esc(mc.monthName + ' closed ✓') + '</div>';
     } else {
-      html += '<div style="padding-top:12px;"><button type="button" class="btn btn-orange" data-action="module" data-target="MoneyDashboard.markMonthClosed" data-arg="' + esc(mc.monthKey) + '" style="min-height:44px;max-width:100%;white-space:normal;">' +
+      html += '<div class="mdx-pt12"><button type="button" class="btn btn-orange mdx-btn-wrap" data-action="module" data-target="MoneyDashboard.markMonthClosed" data-arg="' + esc(mc.monthKey) + '">' +
         esc('Looks good — mark ' + mc.monthName + ' closed') + '</button></div>';
     }
     return html + '</details>';
@@ -545,14 +545,14 @@
     var netColor = m.netCashCents >= 0 ? 'var(--green,#16a34a)' : 'var(--red,#dc2626)';
     var marginColor = m.grossMargin == null ? 'var(--t,#fff)' : m.grossMargin >= 40 ? 'var(--green,#16a34a)' : m.grossMargin >= 25 ? 'var(--gold,#eab308)' : 'var(--red,#dc2626)';
     var html = '';
-    html += '<div style="margin-bottom:18px;"><h2 style="margin:0;font-family:\'Barlow Condensed\',sans-serif;font-size:26px;font-weight:800;color:var(--t,#fff);">💵 Money — ' + m.year + '</h2>' +
-      '<div style="font-size:12px;color:var(--m,#9ca3af);margin-top:2px;">' + (isStaff() && claims().companyId ? 'Team-wide' : 'Your books') + ' · live snapshot</div></div>';
+    html += '<div class="mdx-mb18"><h2 class="mdx-title">💵 Money — ' + m.year + '</h2>' +
+      '<div class="mdx-m12-mt">' + (isStaff() && claims().companyId ? 'Team-wide' : 'Your books') + ' · live snapshot</div></div>';
 
     // Close last month (2026-10-01) — checklist card, near the top.
     html += monthCloseHtml(m.monthClose);
 
     // Cash (this year)
-    html += '<div style="font-size:12px;font-weight:700;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Cash — ' + m.year + ' (collected vs spent)</div>';
+    html += '<div class="mdx-caps12">Cash — ' + m.year + ' (collected vs spent)</div>';
     html += grid([
       card('Collected', fmt(m.collectedCents), 'paid invoices', 'var(--green,#16a34a)'),
       card('Spent', fmt(m.spentCents), 'COGS + overhead', 'var(--orange,#BD5728)'),
@@ -571,53 +571,53 @@
     // drill-down so a rep knows WHICH invoice to chase and can act on it
     // in one click (driven-UX: 2026-09-15 Collections foundation).
     var overdue = (m.collectionsQueue || []).filter(function (q) { return q.daysPastDue > 0; });
-    html += '<div style="font-size:12px;font-weight:700;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Collections Queue</div>';
+    html += '<div class="mdx-caps12">Collections Queue</div>';
     html += grid([
       card('Current', fmt(m.agingCents.current), 'not yet due', 'var(--blue,#3b82f6)'),
       card('1–30 Days', fmt(m.agingCents.d1_30), 'past due', 'var(--gold,#eab308)'),
       card('31–60 Days', fmt(m.agingCents.d31_60), 'past due', 'var(--orange,#BD5728)'),
       card('60+ Days', fmt(m.agingCents.d61_plus), 'past due', 'var(--red,#dc2626)'),
     ]);
-    html += '<div class="ui-card" style="margin-bottom:20px;">';
+    html += '<div class="ui-card mdx-mb20">';
     if (!overdue.length) {
-      html += '<div class="nbd-empty" style="padding:14px"><div class="ne-icon">✅</div><div class="ne-msg">Nothing overdue</div><div class="ne-sub">Every outstanding invoice is still inside its terms.</div></div>';
+      html += '<div class="nbd-empty mdx-pad14"><div class="ne-icon">✅</div><div class="ne-msg">Nothing overdue</div><div class="ne-sub">Every outstanding invoice is still inside its terms.</div></div>';
     } else {
       var shownQ = overdue.slice(0, 20);
-      html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+      html += '<div class="mdx-col8">';
       shownQ.forEach(function (q) {
         var badgeColor = q.bucket === 'd61_plus' ? 'var(--red,#dc2626)' : q.bucket === 'd31_60' ? 'var(--orange,#BD5728)' : 'var(--gold,#eab308)';
         var nameHtml = q.leadId
-          ? '<a href="/pro/customer.html?id=' + encodeURIComponent(q.leadId) + '" style="color:var(--t,#fff);text-decoration:none;font-weight:700;">' + esc(q.customerName) + '</a>'
-          : '<span style="color:var(--t,#fff);font-weight:700;">' + esc(q.customerName) + '</span>';
+          ? '<a href="/pro/customer.html?id=' + encodeURIComponent(q.leadId) + '" class="mdx-link">' + esc(q.customerName) + '</a>'
+          : '<span class="mdx-strong">' + esc(q.customerName) + '</span>';
         var actionHtml = q.inCollections
-          ? '<span style="font-size:10px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;">⏰ In Collections</span>'
+          ? '<span class="mdx-label">⏰ In Collections</span>'
           : (q.leadId && q.id)
-            ? '<button type="button" class="btn btn-orange btn-sm" data-action="module" data-target="MoneyDashboard.moveToCollections" data-arg="' + esc(q.id) + '" style="font-size:11px;padding:4px 10px;">Move to Collections</button>'
+            ? '<button type="button" class="btn btn-orange btn-sm mdx-btn-xs" data-action="module" data-target="MoneyDashboard.moveToCollections" data-arg="' + esc(q.id) + '">Move to Collections</button>'
             : '';
         // One-tap payment reminder (invoice-reminder.js): the rep sees and
         // edits the message, then taps Text or Email — nothing auto-sends.
         if (q.id && window.NBDInvoiceReminder) {
-          actionHtml = '<button type="button" class="btn btn-ghost btn-sm" data-action="module" data-target="NBDInvoiceReminder.open" data-arg="' + esc(q.id) + '" style="font-size:12px;padding:6px 12px;min-height:44px;">Remind</button> ' + actionHtml;
+          actionHtml = '<button type="button" class="btn btn-ghost btn-sm mdx-btn-sm" data-action="module" data-target="NBDInvoiceReminder.open" data-arg="' + esc(q.id) + '">Remind</button> ' + actionHtml;
         }
         var dueJS = q.dueDate ? toJSDate(q.dueDate) : null;
         var remJS = q.lastReminderAt ? toJSDate(q.lastReminderAt) : null;
         var remDays = remJS ? Math.max(0, Math.floor((Date.now() - remJS.getTime()) / 86400000)) : null;
         var dueLabel = (dueJS ? 'due ' + dueJS.toLocaleDateString() : 'no due date')
           + (remDays != null ? ' · reminded ' + (remDays === 0 ? 'today' : remDays + 'd ago') : '');
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--br,rgba(255,255,255,.06));flex-wrap:wrap;">' +
-          '<div style="min-width:140px;">' + nameHtml + '<div style="font-size:11px;color:var(--m,#9ca3af);">' + dueLabel + '</div></div>' +
+        html += '<div class="mdx-row-wrap">' +
+          '<div class="mdx-minw140">' + nameHtml + '<div class="mdx-m11">' + dueLabel + '</div></div>' +
           '<div style="font-size:12px;font-weight:700;color:' + badgeColor + ';white-space:nowrap;">' + q.daysPastDue + 'd overdue</div>' +
-          '<div style="font-size:13px;font-weight:800;color:var(--t,#fff);white-space:nowrap;">' + fmt(q.balanceCents) + '</div>' +
-          '<div style="white-space:nowrap;">' + actionHtml + '</div>' +
+          '<div class="mdx-amt-strong">' + fmt(q.balanceCents) + '</div>' +
+          '<div class="mdx-nw">' + actionHtml + '</div>' +
           '</div>';
       });
       html += '</div>';
-      if (overdue.length > shownQ.length) html += '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:10px;">+' + (overdue.length - shownQ.length) + ' more overdue invoice' + (overdue.length - shownQ.length === 1 ? '' : 's') + '</div>';
+      if (overdue.length > shownQ.length) html += '<div class="mdx-m11-mt10">+' + (overdue.length - shownQ.length) + ' more overdue invoice' + (overdue.length - shownQ.length === 1 ? '' : 's') + '</div>';
     }
     html += '</div>';
 
     // Job profitability
-    html += '<div style="font-size:12px;font-weight:700;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Job profitability (won jobs)</div>';
+    html += '<div class="mdx-caps12">Job profitability (won jobs)</div>';
     html += grid([
       card('Contract Value', fmt(m.wonContractCents), m.costedJobs + ' of ' + m.wonJobs + ' won jobs costed', 'var(--blue,#3b82f6)'),
       card('Direct Costs', fmt(m.wonDirectCents), 'materials, labor, subs', 'var(--orange,#BD5728)'),
@@ -626,24 +626,24 @@
     ]);
 
     // Two-column: top suppliers + 1099
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">';
+    html += '<div class="mdx-cols">';
     html += '<div class="ui-card">' +
-      '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">Top Suppliers — ' + m.year + '</h3>';
-    if (!m.topSuppliers.length) html += '<div class="nbd-empty" style="padding:14px"><div class="ne-icon">🧾</div><div class="ne-msg">No spend logged yet</div><div class="ne-sub">Log expenses in the Expenses view and they roll up here.</div></div>';
+      '<h3 class="mdx-h3">Top Suppliers — ' + m.year + '</h3>';
+    if (!m.topSuppliers.length) html += '<div class="nbd-empty mdx-pad14"><div class="ne-icon">🧾</div><div class="ne-msg">No spend logged yet</div><div class="ne-sub">Log expenses in the Expenses view and they roll up here.</div></div>';
     else {
       var max = m.topSuppliers[0].cents || 1;
       m.topSuppliers.forEach(function (s) {
         var w = Math.max(4, Math.round(s.cents / max * 100));
-        html += '<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t,#fff);"><span>' + esc(s.supplier) + '</span><span style="font-weight:700;">' + fmt(s.cents) + '</span></div>' +
-          '<div style="height:6px;background:var(--s2,rgba(255,255,255,.06));border-radius:4px;overflow:hidden;margin-top:4px;"><div style="height:100%;width:' + w + '%;background:var(--orange,#BD5728);"></div></div></div>';
+        html += '<div class="mdx-mb10"><div class="mdx-kv-tight"><span>' + esc(s.supplier) + '</span><span class="mdx-b">' + fmt(s.cents) + '</span></div>' +
+          '<div class="mdx-bar"><div style="height:100%;width:' + w + '%;background:var(--orange,#BD5728);"></div></div></div>';
       });
     }
     html += '</div>';
     html += '<div class="ui-card">' +
-      '<h3 style="margin:0 0 12px;font-size:14px;color:var(--t,#fff);">1099 Worklist — ' + m.year + '</h3>' +
+      '<h3 class="mdx-h3">1099 Worklist — ' + m.year + '</h3>' +
       '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:40px;font-weight:800;color:' + (m.due1099 ? 'var(--orange,#BD5728)' : 'var(--t,#fff)') + ';">' + m.due1099 + '</div>' +
-      '<div style="font-size:12px;color:var(--m,#9ca3af);">supplier(s) need a 1099-NEC · ' + fmt(m.due1099Cents) + ' in service payments</div>' +
-      '<div style="font-size:10px;color:var(--m,#9ca3af);margin-top:8px;">Eligible + W-9 on file + ≥ ' + fmt(m.thresholdCents) + ' (' + m.year + ' threshold). Manage in Expenses → Suppliers.</div>' +
+      '<div class="mdx-m12">supplier(s) need a 1099-NEC · ' + fmt(m.due1099Cents) + ' in service payments</div>' +
+      '<div class="mdx-m10-mt">Eligible + W-9 on file + ≥ ' + fmt(m.thresholdCents) + ' (' + m.year + ' threshold). Manage in Expenses → Suppliers.</div>' +
       '</div>';
     html += '</div>';
 
@@ -751,12 +751,12 @@
   var _loaded = false;
   async function refreshAndRender() {
     var scroll = document.querySelector('#view-money .view-scroll');
-    if (scroll && !_loaded) scroll.innerHTML = '<div style="padding:40px;text-align:center;color:var(--m,#9ca3af);">Loading your books…</div>';
+    if (scroll && !_loaded) scroll.innerHTML = '<div class="mdx-empty">Loading your books…</div>';
     var data = await fetchData();
     _loaded = true;
     _lastData = data;
     try { renderData(data); }
-    catch (e) { console.warn('[money] render failed', e); if (scroll) scroll.innerHTML = '<div style="padding:40px;text-align:center;color:var(--m,#9ca3af);">Could not load the money dashboard.</div>'; }
+    catch (e) { console.warn('[money] render failed', e); if (scroll) scroll.innerHTML = '<div class="mdx-empty">Could not load the money dashboard.</div>'; }
   }
   function init() { refreshAndRender(); }
 

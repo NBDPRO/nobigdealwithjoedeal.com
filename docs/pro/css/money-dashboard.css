@@ -1,0 +1,61 @@
+/* Money view (js/money-dashboard.js) — stat cards, A/R, payments, jobs,
+   month close. Layout moved out of inline style attributes so a theme can
+   restyle it (reskin, 2026-10-02). Values are the old inline ones exactly;
+   data-driven ones (bar widths, status colours) stay inline.
+   Generated from the conversion map. Rules are tripled so they out-rank
+   component rules the way the inline style did; .btn hosts get four. */
+.mdx-caps12.mdx-caps12.mdx-caps12 { font-size: 12px; font-weight: 700; color: var(--m,#9ca3af); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.mdx-empty.mdx-empty.mdx-empty { padding: 40px; text-align: center; color: var(--m,#9ca3af); }
+.mdx-pad14.mdx-pad14.mdx-pad14 { padding: 14px; }
+.mdx-h3.mdx-h3.mdx-h3 { margin: 0 0 12px; font-size: 14px; color: var(--t,#fff); }
+.mdx-nw.mdx-nw.mdx-nw { white-space: nowrap; }
+.mdx-link-chip.mdx-link-chip.mdx-link-chip { text-decoration: none; display: inline-block; min-height: 24px; }
+.mdx-pt12.mdx-pt12.mdx-pt12 { padding-top: 12px; }
+.mdx-minw140.mdx-minw140.mdx-minw140 { min-width: 140px; }
+.mdx-wrap.mdx-wrap.mdx-wrap { min-width: 0; overflow-wrap: anywhere; }
+.mdx-grow160.mdx-grow160.mdx-grow160 { min-width: 0; flex: 1 1 160px; }
+.mdx-btn-wrap.mdx-btn-wrap.mdx-btn-wrap.mdx-btn-wrap { min-height: 44px; max-width: 100%; white-space: normal; }
+.mdx-title.mdx-title.mdx-title { margin: 0; font-family: 'Barlow Condensed',sans-serif; font-size: 26px; font-weight: 800; color: var(--t,#fff); }
+.mdx-sec.mdx-sec.mdx-sec { margin-top: 0; text-transform: uppercase; letter-spacing: .05em; }
+.mdx-mb20.mdx-mb20.mdx-mb20 { margin-bottom: 20px; }
+.mdx-mb18.mdx-mb18.mdx-mb18 { margin-bottom: 18px; }
+.mdx-mb10.mdx-mb10.mdx-mb10 { margin-bottom: 10px; }
+.mdx-list.mdx-list.mdx-list { list-style: none; margin: 0; padding: 0; }
+.mdx-list-mb.mdx-list-mb.mdx-list-mb { list-style: none; margin: 0 0 10px; padding: 0; }
+.mdx-bar.mdx-bar.mdx-bar { height: 6px; background: var(--s2,rgba(255,255,255,.06)); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+.mdx-b-nw.mdx-b-nw.mdx-b-nw { font-weight: 700; white-space: nowrap; }
+.mdx-b.mdx-b.mdx-b { font-weight: 700; }
+.mdx-amt-strong.mdx-amt-strong.mdx-amt-strong { font-size: 13px; font-weight: 800; color: var(--t,#fff); white-space: nowrap; }
+.mdx-amt.mdx-amt.mdx-amt { font-size: 13px; font-weight: 700; color: var(--t); white-space: nowrap; }
+.mdx-btn-sm.mdx-btn-sm.mdx-btn-sm.mdx-btn-sm { font-size: 12px; padding: 6px 12px; min-height: 44px; }
+.mdx-m12-mt.mdx-m12-mt.mdx-m12-mt { font-size: 12px; color: var(--m,#9ca3af); margin-top: 2px; }
+.mdx-m12.mdx-m12.mdx-m12 { font-size: 12px; color: var(--m,#9ca3af); }
+.mdx-m12-mb.mdx-m12-mb.mdx-m12-mb { font-size: 12px; color: var(--m); margin-bottom: 10px; }
+.mdx-ok-row.mdx-ok-row.mdx-ok-row { font-size: 12px; color: var(--green); padding: 6px 0; border-top: 1px solid var(--br); }
+.mdx-ok-note.mdx-ok-note.mdx-ok-note { font-size: 12px; color: var(--green); font-weight: 700; padding-top: 10px; }
+.mdx-btn-xs.mdx-btn-xs.mdx-btn-xs.mdx-btn-xs { font-size: 11px; padding: 4px 10px; }
+.mdx-caps11.mdx-caps11.mdx-caps11 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--m); margin-bottom: 4px; }
+.mdx-m11-mt10.mdx-m11-mt10.mdx-m11-mt10 { font-size: 11px; color: var(--m,#9ca3af); margin-top: 10px; }
+.mdx-m11.mdx-m11.mdx-m11 { font-size: 11px; color: var(--m,#9ca3af); }
+.mdx-m11-pad.mdx-m11-pad.mdx-m11-pad { font-size: 11px; color: var(--m); padding: 6px 0; }
+.mdx-m11-mb4.mdx-m11-mb4.mdx-m11-mb4 { font-size: 11px; color: var(--m); margin: 0 0 4px; }
+.mdx-m11-mb10.mdx-m11-mb10.mdx-m11-mb10 { font-size: 11px; color: var(--m); margin-bottom: 10px; }
+.mdx-m11b.mdx-m11b.mdx-m11b { font-size: 11px; color: var(--m); }
+.mdx-caps10.mdx-caps10.mdx-caps10 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--m); }
+.mdx-label.mdx-label.mdx-label { font-size: 10px; color: var(--m,#9ca3af); text-transform: uppercase; letter-spacing: .05em; }
+.mdx-m10-mt.mdx-m10-mt.mdx-m10-mt { font-size: 10px; color: var(--m,#9ca3af); margin-top: 8px; }
+.mdx-m10.mdx-m10.mdx-m10 { font-size: 10px; color: var(--m,#9ca3af); }
+.mdx-grow90.mdx-grow90.mdx-grow90 { flex: 1 1 90px; min-width: 0; }
+.mdx-cols.mdx-cols.mdx-cols { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 16px; }
+.mdx-stats.mdx-stats.mdx-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 12px; margin-bottom: 20px; }
+.mdx-kv.mdx-kv.mdx-kv { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--t); padding: 3px 0; }
+.mdx-kv-tight.mdx-kv-tight.mdx-kv-tight { display: flex; justify-content: space-between; font-size: 13px; color: var(--t,#fff); }
+.mdx-meta-row.mdx-meta-row.mdx-meta-row { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 6px 0 4px; }
+.mdx-row.mdx-row.mdx-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--br); min-height: 44px; }
+.mdx-col8.mdx-col8.mdx-col8 { display: flex; flex-direction: column; gap: 8px; }
+.mdx-row-wrap.mdx-row-wrap.mdx-row-wrap { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--br,rgba(255,255,255,.06)); flex-wrap: wrap; }
+.mdx-toggle.mdx-toggle.mdx-toggle { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--gold); }
+.mdx-link.mdx-link.mdx-link { color: var(--t,#fff); text-decoration: none; font-weight: 700; }
+.mdx-strong.mdx-strong.mdx-strong { color: var(--t,#fff); font-weight: 700; }
+.mdx-name.mdx-name.mdx-name { color: var(--t); font-weight: 600; overflow-wrap: anywhere; }
+.mdx-rule.mdx-rule.mdx-rule { border-top: 1px solid var(--br); }

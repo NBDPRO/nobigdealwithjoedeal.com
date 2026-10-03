@@ -113,7 +113,10 @@ function _renderFollowUpRows(box, overdue) {
   _fuLast = { box, overdue };
   const phone = !!(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
   const cap = _fuShowAll ? overdue.length : (phone ? 3 : 5);
-  box.innerHTML = overdue.slice(0, cap).map(l => `
+  // One at a time (Jo, 2026-10-02): the whole list as a swipe deck.
+  const deckBtn = (window.NBDFollowUpDeck && window.NBDTriageDeck && overdue.length > 1)
+    ? `<button type="button" class="fa-deck">One at a time (${overdue.length})</button>` : '';
+  box.innerHTML = deckBtn + overdue.slice(0, cap).map(l => `
         <div class="follow-up-alert">
           <span class="fa-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:middle;"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14"/><path d="M7 2v4M13 2v4"/></svg></span>
           <span class="fa-name">${escHtml(l.firstName||'')} ${escHtml(l.lastName||'')}</span>
@@ -127,6 +130,8 @@ function _renderFollowUpRows(box, overdue) {
   });
   const more = box.querySelector('.fa-more');
   if (more) more.addEventListener('click', () => { _fuShowAll = true; _renderFollowUpRows(box, overdue); });
+  const deck = box.querySelector('.fa-deck');
+  if (deck) deck.addEventListener('click', () => window.NBDFollowUpDeck.open(overdue));
 }
 
 // Customers → pipeline cards. Without jobs-store.js (or before its first load)

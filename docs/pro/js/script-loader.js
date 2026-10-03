@@ -92,7 +92,7 @@
       'js/storm-outlook.js?v=1'
     ],
     closeboard: [
-      'js/close-board.js?v=6'
+      'js/close-board.js?v=7'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -122,7 +122,7 @@
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=1',
-      'js/money-dashboard.js?v=6'
+      'js/money-dashboard.js?v=7'
     ],
     repos: [
       'js/rep-os.js?v=3'
@@ -400,7 +400,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=4'
+      'js/call-center-view.js?v=6'
     ]
   };
 

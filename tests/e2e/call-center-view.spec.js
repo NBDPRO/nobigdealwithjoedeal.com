@@ -81,6 +81,9 @@ test.describe.serial('Call Center view @shard2', () => {
       c: { leadId: null, bucket: 'unknown', contactName: '', phoneDigits: '5135550142', direction: 'inbound', startedAtMs: s - 3000, status: 'stored', storagePath: null },
       p: { leadId: null, bucket: 'contact', contactName: 'ZZCV Misjudged', phoneDigits: '5135550188', direction: 'outbound', startedAtMs: s - 5000, status: 'personal', storagePath: null, summary: 'Personal call.', promises: [], driveFileId: 'drvzz' },
       d: { leadId, bucket: 'customer', contactName: 'ZZCV Cust', phoneDigits: '5135557001', direction: 'outbound', startedAtMs: s - 4000, status: 'noted', storagePath: null, summary: 'Quick check-in. Nothing owed.', promises: [] },
+      // One unknown number, two open calls: one person, one card.
+      e: { leadId: null, bucket: 'unknown', contactName: '', phoneDigits: '5135550177', direction: 'inbound', startedAtMs: s - 6000, status: 'noted', storagePath: null, summary: 'ZZCV asked about siding.', promises: [] },
+      f: { leadId: null, bucket: 'unknown', contactName: '', phoneDigits: '5135550177', direction: 'inbound', startedAtMs: s - 7000, status: 'noted', storagePath: null, summary: 'ZZCV first call, left a message.', promises: [] },
     };
     for (const [k, v] of Object.entries(docs)) await db.doc('phone_calls/cube_zzcv' + s + k).set(Object.assign({}, base, v));
     // A day of texts (phone_text_days) with a promise Jo made.
@@ -93,22 +96,41 @@ test.describe.serial('Call Center view @shard2', () => {
     await safeWaitForFunction(page, () => !!window.NBDCallCenter && window.NBDCallCenter._state.loaded, null, { timeout: 20_000 });
     const card = (k) => page.locator('#view-calls .cc-card[data-call-id="cube_zzcv' + s + k + '"]');
 
-    // Needs attention: a (Jo promised), b (no customer), c (unknown); not d.
-    await expect(card('a')).toBeVisible();
+    // Needs attention is grouped by PERSON (Jo, 2026-10-02): the customer's
+    // call a and their day of texts share one card; b and c are one call
+    // each; e + f are one unknown number; not d (nothing owed).
+    const group = page.locator('#view-calls .cc-group[data-group="lead:' + leadId + '"]');
+    await expect(group).toBeVisible();
+    await expect(group.locator('.cc-group-call')).toHaveCount(2);
+    await expect(group.locator('.pc-promise-jo')).toContainText(['Text the quote tonight', 'Send the gutter quote']);
+    await expect(group.locator('[data-cc="handledgroup"]')).toHaveText('✓ Handled (all 2)');
+    await expect(card('a'), 'call a is inside its person card').toHaveCount(0);
     await expect(card('b')).toBeVisible();
     await expect(card('c')).toBeVisible();
     await expect(card('d')).toHaveCount(0);
     await expect(page.locator('#view-calls')).not.toContainText('ZZCV Other Tenant');
-    await expect(card('a').locator('.pc-promise-jo')).toContainText('Send the gutter quote');
     await expect(card('c')).toContainText('(513) 555-0142');
+    const num = page.locator('#view-calls .cc-group[data-group="num:5135550177"]');
+    await expect(num).toContainText('2 open');
+    // The tab counts people: one per card on the list (other specs may seed
+    // calls for this user too, so compare to what is on screen).
+    const tabCount = async () => Number(await page.locator('#view-calls [data-cc="filter"][data-arg="attention"] .cc-count').textContent());
+    const people = () => page.locator('#view-calls .cc-list > .cc-card').count();
+    const before = await tabCount();
+    expect(before, 'the tab counts people, not calls').toBe(await people());
 
-    // A day of texts sits with the calls, and on its own tab.
+    // ✓ Handled (all 2) clears both of that number's calls in one tap.
+    await num.locator('[data-cc="handledgroup"]').click();
+    await expect.poll(() => ['e', 'f'].every((k) => actions.some((x) => x.id === 'cube_zzcv' + s + k && x.action === 'handled')), { timeout: 10_000 }).toBe(true);
+    await expect(num).toHaveCount(0);
+    await expect.poll(tabCount, { message: 'one person fewer' }).toBe(before - 1);
+
+    // A day of texts on its own tab.
     const textCard = page.locator('#view-calls .cc-card.cc-text[data-call-id="txt_5135557' + String(s).slice(-3) + '_20261001"]');
+    await page.locator('#view-calls [data-cc="filter"][data-arg="texts"]').click();
     await expect(textCard).toBeVisible();
     await expect(textCard).toContainText('4 texts');
     await expect(textCard.locator('.pc-promise-jo')).toContainText('Text the quote tonight');
-    await page.locator('#view-calls [data-cc="filter"][data-arg="texts"]').click();
-    await expect(textCard).toBeVisible();
     await expect(card('a')).toHaveCount(0);
     await textCard.locator('[data-cc="handled"]').click();
     await expect.poll(() => actions.some((x) => /^txt_/.test(x.id) && x.action === 'handled'), { timeout: 10_000 }).toBe(true);
@@ -175,7 +197,7 @@ test.describe.serial('Call Center view @shard2', () => {
     await expect(card('c')).toHaveCount(0);
 
     // Cleanup.
-    for (const k of ['a', 'b', 'c', 'd', 'p', 'x']) await db.doc('phone_calls/cube_zzcv' + s + k).delete().catch(() => {});
+    for (const k of ['a', 'b', 'c', 'd', 'e', 'f', 'p', 'x']) await db.doc('phone_calls/cube_zzcv' + s + k).delete().catch(() => {});
     await db.doc('phone_text_days/txt_5135557' + String(s).slice(-3) + '_20261001').delete().catch(() => {});
     await bucket.file(path).delete().catch(() => {});
   });
