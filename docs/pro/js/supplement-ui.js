@@ -77,24 +77,24 @@
     const dec = s.submission && s.submission.itemDecisions;
     if (!dec || !dec.length) return '';
     const chip = function (d) {
-      return d === 'denied' ? '<span style="color:#ef4444;font-weight:700;">✗ Denied</span>'
-        : d === 'reduced' ? '<span style="color:#eab308;font-weight:700;">↓ Reduced</span>'
-        : '<span style="color:#22c55e;font-weight:700;">✓ Approved</span>';
+      return d === 'denied' ? '<span class="sx-c-red">✗ Denied</span>'
+        : d === 'reduced' ? '<span class="sx-c-gold">↓ Reduced</span>'
+        : '<span class="sx-c-green">✓ Approved</span>';
     };
     const rows = dec.map(function (d) {
       return '<tr>' +
-        '<td style="padding:4px 6px;font-size:12px;">' + _esc(d.name || d.code) + '</td>' +
-        '<td style="padding:4px 6px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums;">' + _money(Number(d.requested) || 0) + '</td>' +
-        '<td style="padding:4px 6px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums;">' + (d.decision === 'denied' ? '$0' : _money(Number(d.approved) || 0)) + '</td>' +
-        '<td style="padding:4px 6px;font-size:11px;text-align:right;white-space:nowrap;">' + chip(d.decision) + '</td>' +
+        '<td class="sx-tds">' + _esc(d.name || d.code) + '</td>' +
+        '<td class="sx-tds sx-r sx-tab">' + _money(Number(d.requested) || 0) + '</td>' +
+        '<td class="sx-tds sx-r sx-tab">' + (d.decision === 'denied' ? '$0' : _money(Number(d.approved) || 0)) + '</td>' +
+        '<td class="sx-tds sx-r sx-nw sx-fs11">' + chip(d.decision) + '</td>' +
         '</tr>';
     }).join('');
-    return '<table style="width:100%;border-collapse:collapse;margin-top:8px;background:#0d1830;border:1px solid #2a3344;">' +
-      '<thead><tr style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;background:#13171d;">' +
-      '<th style="text-align:left;padding:5px 6px;font-weight:600;">Item</th>' +
-      '<th style="text-align:right;padding:5px 6px;font-weight:600;">Requested</th>' +
-      '<th style="text-align:right;padding:5px 6px;font-weight:600;">Approved</th>' +
-      '<th style="padding:5px 6px;"></th>' +
+    return '<table class="sx-table-sub">' +
+      '<thead><tr class="sx-tr-caps sx-thead">' +
+      '<th class="sx-ths sx-l sx-w600">Item</th>' +
+      '<th class="sx-ths sx-r sx-w600">Requested</th>' +
+      '<th class="sx-ths sx-r sx-w600">Approved</th>' +
+      '<th class="sx-ths"></th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
@@ -119,15 +119,15 @@
       return '<div class="nbd-sup-dec-row" data-kind="' + it.kind + '" data-index="' + it.index + '" ' +
         'data-code="' + _esc(it.code) + '" data-name="' + _esc(it.name) + '" data-requested="' + it.requested + '" ' +
         'style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid #1a2540;">' +
-        '<input type="checkbox" class="nbd-sup-dec-on"' + (on ? ' checked' : '') + ' style="width:15px;height:15px;cursor:pointer;flex:0 0 auto;">' +
-        '<div style="flex:1;min-width:0;font-size:12px;">' + _esc(it.name || it.code) +
-          ' <span style="color:#94a3b8;white-space:nowrap;">req ' + _money(it.requested) + '</span></div>' +
-        '<input type="number" class="nbd-sup-dec-amt" min="0" step="0.01" value="' + (on ? (Math.round(appr * 100) / 100) : '') + '"' + (on ? '' : ' disabled') +
-          ' style="width:96px;padding:5px 7px;border-radius:5px;border:1px solid #2a3344;background:#13171d;color:inherit;font:inherit;font-size:12px;flex:0 0 auto;">' +
+        '<input type="checkbox" class="nbd-sup-dec-on sx-check"' + (on ? ' checked' : '') + '>' +
+        '<div class="sx-grow">' + _esc(it.name || it.code) +
+          ' <span class="sx-muted-nw">req ' + _money(it.requested) + '</span></div>' +
+        '<input type="number" class="nbd-sup-dec-amt sx-amt" min="0" step="0.01" value="' + (on ? (Math.round(appr * 100) / 100) : '') + '"' + (on ? '' : ' disabled') +
+          '>' +
         '</div>';
     }).join('');
-    return '<div style="font-size:11px;color:#94a3b8;margin:8px 0 2px;">Uncheck what the adjuster denied; adjust approved $ per line. The billable total auto-sums (edit it after if the carrier applied O&amp;P differently).</div>' +
-      '<div style="background:#0d1830;border:1px solid #2a3344;border-radius:6px;">' + rows + '</div>';
+    return '<div class="sx-meta sx-meta-gap">Uncheck what the adjuster denied; adjust approved $ per line. The billable total auto-sums (edit it after if the carrier applied O&amp;P differently).</div>' +
+      '<div class="sx-box">' + rows + '</div>';
   }
 
   // Rows for each saved supplement + its "record carrier response" control.
@@ -143,21 +143,21 @@
       return (
         '<div class="nbd-sup-existing" data-sup-id="' + _esc(s.id) + '" data-sup-total="' + total + '" ' +
           'style="background:#0a1424;border:1px solid #2a3344;border-radius:8px;padding:10px 12px;margin-bottom:8px;">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
-            '<div style="font-size:13px;">' +
-              '<span style="font-weight:700;">Supplement #' + _esc(String(s.version || 1)) + '</span>' +
-              ' <span style="color:#cbd5e1;font-variant-numeric:tabular-nums;">' + _money(total) + '</span>' +
-              (s.reason ? ' <span style="color:#94a3b8;font-size:12px;">— ' + _esc(s.reason) + '</span>' : '') +
+          '<div class="sx-between">' +
+            '<div class="sx-fs13">' +
+              '<span class="sx-w700">Supplement #' + _esc(String(s.version || 1)) + '</span>' +
+              ' <span class="sx-num">' + _money(total) + '</span>' +
+              (s.reason ? ' <span class="sx-muted">— ' + _esc(s.reason) + '</span>' : '') +
             '</div>' +
             _statusBadge(st) +
           '</div>' +
           (bill != null
-            ? '<div style="margin-top:6px;font-size:11px;color:#94a3b8;">Invoices bill <strong style="color:#cbd5e1;">' + bill + '</strong> for this supplement.</div>'
+            ? '<div class="sx-meta sx-mt6">Invoices bill <strong class="sx-c-light">' + bill + '</strong> for this supplement.</div>'
             : '') +
           _decisionsSummaryHtml(s) +
           '<div class="nbd-sup-decisions" style="display:none;"></div>' +
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;">' +
-            '<select class="nbd-sup-resp-status" style="flex:1;min-width:180px;padding:7px 9px;border-radius:5px;border:1px solid #2a3344;background:#13171d;color:inherit;font:inherit;font-size:13px;">' +
+          '<div class="sx-wrap8 sx-wrap8-mt">' +
+            '<select class="nbd-sup-resp-status sx-select">' +
               '<option value="">Record carrier response…</option>' +
               '<option value="approved"' + (st === 'approved' ? ' selected' : '') + '>Approved — bill full ' + _money(total) + '</option>' +
               '<option value="partial"' + (st === 'partial' ? ' selected' : '') + '>Partial — enter approved $</option>' +
@@ -166,7 +166,7 @@
             '<input type="number" class="nbd-sup-resp-amount" min="0" step="0.01" placeholder="Approved $" ' +
               'value="' + _esc(priorAmt) + '" ' +
               'style="width:120px;padding:7px 9px;border-radius:5px;border:1px solid #2a3344;background:#13171d;color:inherit;font:inherit;font-size:13px;display:' + (st === 'partial' ? 'inline-block' : 'none') + ';">' +
-            '<button type="button" class="nbd-sup-resp-save" style="padding:7px 14px;background:#1a2540;color:#cbd5e1;border:1px solid #2a3344;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600;">Save response</button>' +
+            '<button type="button" class="nbd-sup-resp-save sx-btn-resp">Save response</button>' +
           '</div>' +
         '</div>'
       );
@@ -176,9 +176,9 @@
   function _existingSectionHtml() {
     if (!(_existingSupplements && _existingSupplements.length)) return '';
     return (
-      '<div style="margin-bottom:16px;">' +
-        '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:4px;">Previous supplements on this estimate</div>' +
-        '<div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">Record what the carrier approved. Only <strong>Approved</strong> / <strong>Partial</strong> supplements are folded into invoices.</div>' +
+      '<div class="sx-mb16">' +
+        '<div class="sx-caps sx-caps-4">Previous supplements on this estimate</div>' +
+        '<div class="sx-hint">Record what the carrier approved. Only <strong>Approved</strong> / <strong>Partial</strong> supplements are folded into invoices.</div>' +
         '<div id="nbd-sup-existing-list">' + _existingListHtml() + '</div>' +
       '</div>'
     );
@@ -260,27 +260,27 @@
     };
 
     const addedRows = (sup.addedItems || []).map((it, idx) =>
-      '<tr style="border-top:1px solid var(--br, #2a3344);">' +
-        '<td style="padding:8px 6px;font-size:12px;font-family:monospace;">' + _esc(it.code || '') + '</td>' +
-        '<td style="padding:8px 6px;font-size:13px;">' + _esc(it.name || '') + '</td>' +
-        '<td style="padding:8px 6px;font-size:12px;text-align:right;">' + _esc(String(it.quantity || 0)) + '</td>' +
-        '<td style="padding:8px 6px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums;">' + _money(it.lineTotal || 0) + '</td>' +
-        '<td style="padding:8px 6px;text-align:right;white-space:nowrap;">' +
+      '<tr class="sx-tr">' +
+        '<td class="sx-td sx-mono">' + _esc(it.code || '') + '</td>' +
+        '<td class="sx-td sx-fs13">' + _esc(it.name || '') + '</td>' +
+        '<td class="sx-td sx-r">' + _esc(String(it.quantity || 0)) + '</td>' +
+        '<td class="sx-td sx-r sx-tab">' + _money(it.lineTotal || 0) + '</td>' +
+        '<td class="sx-td-plain sx-r sx-nw">' +
           photoBtn('added', idx, it.photos) +
-          '<button type="button" class="nbd-sup-remove-add" data-idx="' + idx + '" style="background:transparent;border:1px solid var(--br, #2a3344);color:#fca5a5;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;">Remove</button>' +
+          '<button type="button" class="nbd-sup-remove-add sx-remove" data-idx="' + idx + '">Remove</button>' +
         '</td>' +
       '</tr>'
     ).join('');
 
     const modRows = (sup.modifiedItems || []).map((m, idx) =>
-      '<tr style="border-top:1px solid var(--br, #2a3344);">' +
-        '<td style="padding:8px 6px;font-size:12px;font-family:monospace;">' + _esc(m.originalCode || '') + '</td>' +
-        '<td style="padding:8px 6px;font-size:13px;">' + _esc(m.name || '') + '</td>' +
-        '<td style="padding:8px 6px;font-size:12px;text-align:right;">' + _esc(String(m.originalQuantity)) + ' → ' + _esc(String(m.newQuantity)) + '</td>' +
-        '<td style="padding:8px 6px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums;">' + _money(m.deltaLineTotal || 0) + '</td>' +
-        '<td style="padding:8px 6px;text-align:right;white-space:nowrap;">' +
+      '<tr class="sx-tr">' +
+        '<td class="sx-td sx-mono">' + _esc(m.originalCode || '') + '</td>' +
+        '<td class="sx-td sx-fs13">' + _esc(m.name || '') + '</td>' +
+        '<td class="sx-td sx-r">' + _esc(String(m.originalQuantity)) + ' → ' + _esc(String(m.newQuantity)) + '</td>' +
+        '<td class="sx-td sx-r sx-tab">' + _money(m.deltaLineTotal || 0) + '</td>' +
+        '<td class="sx-td-plain sx-r sx-nw">' +
           photoBtn('modified', idx, m.photos) +
-          '<button type="button" class="nbd-sup-remove-mod" data-idx="' + idx + '" style="background:transparent;border:1px solid var(--br, #2a3344);color:#fca5a5;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;">Remove</button>' +
+          '<button type="button" class="nbd-sup-remove-mod sx-remove" data-idx="' + idx + '">Remove</button>' +
         '</td>' +
       '</tr>'
     ).join('');
@@ -291,17 +291,17 @@
         'box-shadow:0 24px 60px rgba(0,0,0,0.6);">' +
 
         // Header
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:14px;">' +
+        '<div class="sx-head">' +
           '<div>' +
-            '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.06em;font-weight:600;text-transform:uppercase;margin-bottom:3px;">' +
+            '<div class="sx-caps sx-caps-3">' +
               'Supplement #' + sup.version +
             '</div>' +
-            '<div style="font-size:18px;font-weight:700;">' +
+            '<div class="sx-title">' +
               'Insurance Supplement' +
               (parent.number ? ' — ' + _esc(parent.number) : '') +
             '</div>' +
           '</div>' +
-          '<button type="button" id="nbd-sup-close" style="background:transparent;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:4px 10px;line-height:1;">×</button>' +
+          '<button type="button" id="nbd-sup-close" class="sx-close">×</button>' +
         '</div>' +
 
         // Existing supplements + carrier-response recording (only when there
@@ -309,37 +309,37 @@
         _existingSectionHtml() +
 
         // Reason input
-        '<div style="margin-bottom:14px;">' +
-          '<label style="display:block;font-size:11px;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px;font-weight:600;">Reason for supplement</label>' +
+        '<div class="sx-mb14">' +
+          '<label class="sx-label">Reason for supplement</label>' +
           '<input type="text" id="nbd-sup-reason" value="' + _esc(sup.reason) + '" placeholder="Newly discovered hail damage on rear elevation" ' +
             'style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid #2a3344;background:#0a1424;color:inherit;font:inherit;font-size:14px;box-sizing:border-box;">' +
         '</div>' +
 
         // Add line item
-        '<div style="background:#0a1424;border:1px solid #2a3344;border-radius:8px;padding:12px;margin-bottom:14px;">' +
-          '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Add line item from catalog</div>' +
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+        '<div class="sx-panel">' +
+          '<div class="sx-caps sx-caps-8">Add line item from catalog</div>' +
+          '<div class="sx-wrap8">' +
             '<input type="text" id="nbd-sup-search" placeholder="Search by code, name, or tag…" ' +
               'style="flex:2;min-width:200px;padding:8px 10px;border-radius:5px;border:1px solid #2a3344;background:#13171d;color:inherit;font:inherit;font-size:13px;box-sizing:border-box;">' +
             '<input type="number" id="nbd-sup-qty" placeholder="Qty" min="0" step="0.5" ' +
               'style="width:90px;padding:8px 10px;border-radius:5px;border:1px solid #2a3344;background:#13171d;color:inherit;font:inherit;font-size:13px;box-sizing:border-box;">' +
-            '<button type="button" id="nbd-sup-search-btn" style="padding:8px 14px;background:#1a2540;color:#cbd5e1;border:1px solid #2a3344;border-radius:5px;cursor:pointer;font-size:13px;">Search</button>' +
+            '<button type="button" id="nbd-sup-search-btn" class="sx-btn-sm">Search</button>' +
           '</div>' +
           '<div id="nbd-sup-search-results" style="margin-top:8px;display:none;max-height:200px;overflow-y:auto;border:1px solid #2a3344;border-radius:5px;"></div>' +
         '</div>' +
 
         // Tables
         ((addedRows || modRows) ? (
-          '<div style="margin-bottom:14px;">' +
-            '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:8px;">Supplement scope</div>' +
-            '<table style="width:100%;border-collapse:collapse;background:#0a1424;border:1px solid #2a3344;border-radius:6px;overflow:hidden;">' +
-              '<thead style="background:#13171d;">' +
-                '<tr style="font-size:10px;color:#94a3b8;letter-spacing:0.05em;text-transform:uppercase;">' +
-                  '<th style="text-align:left;padding:8px 6px;font-weight:600;">Code</th>' +
-                  '<th style="text-align:left;padding:8px 6px;font-weight:600;">Item</th>' +
-                  '<th style="text-align:right;padding:8px 6px;font-weight:600;">Qty</th>' +
-                  '<th style="text-align:right;padding:8px 6px;font-weight:600;">Delta</th>' +
-                  '<th style="text-align:right;padding:8px 6px;font-weight:600;">' +
+          '<div class="sx-mb14">' +
+            '<div class="sx-caps sx-caps-8">Supplement scope</div>' +
+            '<table class="sx-table">' +
+              '<thead class="sx-thead">' +
+                '<tr class="sx-tr-caps">' +
+                  '<th class="sx-th sx-l">Code</th>' +
+                  '<th class="sx-th sx-l">Item</th>' +
+                  '<th class="sx-th sx-r">Qty</th>' +
+                  '<th class="sx-th sx-r">Delta</th>' +
+                  '<th class="sx-th sx-r">' +
                   '</th>' +
                 '</tr>' +
               '</thead>' +
@@ -349,25 +349,25 @@
             '</table>' +
           '</div>'
         ) : (
-          '<div style="text-align:center;padding:24px 12px;color:#94a3b8;font-size:13px;background:#0a1424;border-radius:8px;border:1px dashed #2a3344;margin-bottom:14px;">' +
+          '<div class="sx-empty">' +
             'No items added yet. Search for a line item above.' +
           '</div>'
         )) +
 
         // Totals + actions
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-top:14px;border-top:1px solid #2a3344;">' +
+        '<div class="sx-foot">' +
           '<div>' +
-            '<div style="font-size:11px;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;">Supplement delta</div>' +
-            '<div style="font-size:24px;font-weight:800;color:#5eead4;font-variant-numeric:tabular-nums;">' +
+            '<div class="sx-caps">Supplement delta</div>' +
+            '<div class="sx-total">' +
               (supTotal >= 0 ? '+' : '') + _money(supTotal) +
             '</div>' +
-            '<div style="font-size:11px;color:#94a3b8;">' +
+            '<div class="sx-meta">' +
               'Original: ' + _money(parentTotal) + ' → Revised: ' + _money(newTotal) +
             '</div>' +
           '</div>' +
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<button type="button" id="nbd-sup-preview" style="padding:10px 16px;background:#1a2540;color:#cbd5e1;border:1px solid #2a3344;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Preview Letter</button>' +
-            '<button type="button" id="nbd-sup-save" style="padding:10px 18px;background:var(--orange, #A14A22);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;">Save Supplement</button>' +
+          '<div class="sx-wrap8">' +
+            '<button type="button" id="nbd-sup-preview" class="sx-btn">Preview Letter</button>' +
+            '<button type="button" id="nbd-sup-save" class="sx-btn-primary">Save Supplement</button>' +
           '</div>' +
         '</div>' +
       '</div>'
@@ -687,14 +687,14 @@
     if (!(window.NBD_XACT_CATALOG && typeof window.NBD_XACT_CATALOG.search === 'function')
         && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
       wrap.style.display = 'block';
-      wrap.innerHTML = '<div style="padding:10px;color:#94a3b8;font-size:12px;">Loading catalog…</div>';
+      wrap.innerHTML = '<div class="sx-msg">Loading catalog…</div>';
       try { await window.ScriptLoader.loadBundle('estimates'); }
       catch (e) { console.warn('[supplement-ui] estimates bundle failed to load:', e && e.message); }
     }
     const cat = window.NBD_XACT_CATALOG;
     if (!cat || typeof cat.search !== 'function') {
       wrap.style.display = 'block';
-      wrap.innerHTML = '<div style="padding:10px;color:#fca5a5;font-size:12px;">Catalog not loaded.</div>';
+      wrap.innerHTML = '<div class="sx-msg sx-msg-err">Catalog not loaded.</div>';
       return;
     }
     const q = String(query || '').trim();
@@ -702,14 +702,14 @@
     const hits = cat.search(q).slice(0, 8);
     if (hits.length === 0) {
       wrap.style.display = 'block';
-      wrap.innerHTML = '<div style="padding:10px;color:#94a3b8;font-size:12px;">No catalog matches.</div>';
+      wrap.innerHTML = '<div class="sx-msg">No catalog matches.</div>';
       return;
     }
     wrap.style.display = 'block';
     wrap.innerHTML = hits.map(h =>
       '<button type="button" class="nbd-sup-pick" data-code="' + _esc(h.code) + '" ' +
         'style="display:block;width:100%;text-align:left;padding:8px 10px;background:transparent;border:none;border-bottom:1px solid #1a2540;color:inherit;font:inherit;font-size:12px;cursor:pointer;">' +
-        '<span style="font-family:monospace;color:var(--orange, #A14A22);font-weight:600;">' + _esc(h.code) + '</span> ' +
+        '<span class="sx-code">' + _esc(h.code) + '</span> ' +
         _esc(h.name) +
       '</button>'
     ).join('');

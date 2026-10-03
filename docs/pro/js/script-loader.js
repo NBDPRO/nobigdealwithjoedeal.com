@@ -241,7 +241,7 @@
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=1',
       'js/estimate-supplement.js?v=2',
-      'js/supplement-ui.js?v=2',
+      'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
       // resolves through EstimateLogic + registers custom items into
       // EstimateBuilderV2.CATALOG (so it must load after both), and the UI
