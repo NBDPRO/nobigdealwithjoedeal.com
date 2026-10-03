@@ -156,6 +156,15 @@ async function submitForm(){
     _formShowError('Please enter your first name, a 10-digit phone number, and your street address so Joe can reach you.', invalid);
     return;
   }
+  // TCPA (2026-10-03): the express-written-consent box /storm-check uses,
+  // required because Joe calls and texts back. Posted as tcpaConsent so the
+  // server stores a consent record (functions/tcpa-consent.js).
+  const consentEl = document.getElementById('fieldConsent');
+  const consent = !!(consentEl && consentEl.checked);
+  if(!consent){
+    _formShowError('Please check the consent box so Joe can reach you.', [consentEl]);
+    return;
+  }
   // Scheduling choice (required) + photos and the rest — intake-extras.js.
   let intake = { fields: {}, files: [] };
   if (window.NBDIntake) {
@@ -198,7 +207,8 @@ async function submitForm(){
     try {
       captured = await window._captureContactLead({
         firstName: first, lastName: last, phone, email,
-        address, service, message, ...intake.fields
+        address, service, message, ...intake.fields,
+        tcpaConsent: consent === true
       });
     } catch(err){
       captured = false;
