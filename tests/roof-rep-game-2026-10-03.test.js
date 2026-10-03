@@ -126,6 +126,7 @@ ok('GDPR erasure/export covers roofRep and roofRepScores', ['roofRep', 'roofRepS
 const dash = read('docs/pro/dashboard.html');
 ok('CRM sidebar has the Roof Rep tab', /<a class="ni" href="\/pro\/roof-rep\.html" id="nav-roofrep">/.test(dash));
 ok('phone More drawer has the Roof Rep tab', /<a class="mm-item" href="\/pro\/roof-rep\.html" id="mm-roofrep">/.test(dash));
+ok('the Home game card links to the game (Game mode on)', /<a class="btn btn-ghost btn-sm gc-play" href="\/pro\/roof-rep\.html">/.test(read('docs/pro/js/game-card.js')));
 ok('the page is noindexed', /"\/pro\/@\(roof-rep\|/.test(read('firebase.json')));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
