@@ -179,9 +179,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const hosted = safe(inv.stripeHostedUrl), pdf = safe(inv.stripePdfUrl);
     const num = inv.nbdInvoiceNumber || inv.stripeInvoiceNumber || '';
     const a = 'color:var(--blue,#3b82f6);font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap;';
-    return '<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:3px;">' +
-      '<span style="background:color-mix(in srgb,#635bff 16%,transparent);color:#8b85ff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap;">From Stripe</span>' +
-      (num ? '<span style="font-size:11px;color:var(--m);">' + escHtml(num) + '</span>' : '') +
+    return '<span class="ipx-tags">' +
+      '<span class="ipx-stripe-chip">From Stripe</span>' +
+      (num ? '<span class="ipx-m11">' + escHtml(num) + '</span>' : '') +
       (hosted ? '<a href="' + escHtml(hosted) + '" target="_blank" rel="noopener noreferrer" style="' + a + '">Open in Stripe ↗</a>' : '') +
       (pdf ? '<a href="' + escHtml(pdf) + '" target="_blank" rel="noopener noreferrer" style="' + a + '">PDF ↗</a>' : '') +
       '</span>';
@@ -534,28 +534,28 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const body = rows.map(r => {
       const date = Number.isFinite(r.atMs) ? new Date(r.atMs).toLocaleDateString() : '—';
       const ref = r.reference ? ` · #${escHtml(r.reference)}` : '';
-      const note = r.note ? `<div style="font-size:11px;color:var(--m);margin-top:2px;">${escHtml(r.note)}</div>` : '';
+      const note = r.note ? `<div class="ipx-m11 ipx-mt2">${escHtml(r.note)}</div>` : '';
       let proof = '';
       if (r.proofStoragePath) {
-        proof = `<button type="button" class="btn btn-ghost" data-ip-action="viewProof" data-ip-id="${id}" data-ip-idx="${r.index}" style="min-height:40px;padding:6px 10px;font-size:12px;" title="${escHtml(r.proofName || 'Proof')}">📎 View</button>`;
+        proof = `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="viewProof" data-ip-id="${id}" data-ip-idx="${r.index}" title="${escHtml(r.proofName || 'Proof')}">📎 View</button>`;
       } else if (r.canAttach) {
-        proof = `<button type="button" class="btn btn-ghost" data-ip-action="attachProof" data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''} style="min-height:40px;padding:6px 10px;font-size:12px;">📎 Attach proof</button>`;
+        proof = `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="attachProof" data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''}>📎 Attach proof</button>`;
       }
       return `
-        <div data-ip-payment-row style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--br);font-size:12px;">
-          <div style="min-width:0;">
+        <div data-ip-payment-row class="ipx-pay-row">
+          <div class="ipx-minw0">
             <div><strong>${escHtml(date)}</strong> · ${escHtml(r.methodLabel)}${ref}</div>
             ${note}
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-            <span style="font-weight:700;">${escHtml(formatCurrency(r.amount))}</span>
+          <div class="ipx-row-fixed">
+            <span class="ipx-b">${escHtml(formatCurrency(r.amount))}</span>
             ${proof}
           </div>
         </div>`;
     }).join('');
     return `
-      <div data-ip-payment-history style="margin-bottom:20px;">
-        <div style="font-size:10px;color:var(--m);text-transform:uppercase;font-weight:700;margin-bottom:4px;">Payment History</div>
+      <div data-ip-payment-history class="ipx-mb20">
+        <div class="ipx-k">Payment History</div>
         ${body}
       </div>`;
   }
@@ -1636,34 +1636,34 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const invoices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       let html = `
-        <div class="invoice-panel" style="padding:16px;background:var(--s);border-radius:8px;border:1px solid var(--br);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h3 style="margin:0;font-size:14px;font-weight:700;">Invoices</h3>
+        <div class="invoice-panel ipx-card">
+          <div class="ipx-bar">
+            <h3 class="ipx-h3">Invoices</h3>
             <button type="button" class="btn btn-orange btn-sm" data-ip-action="createInvoiceUI" data-ip-id="${leadId}">+ New Invoice</button>
           </div>
       `;
 
       if (invoices.length === 0) {
         html += `
-          <div class="nbd-empty" style="padding:20px 12px;">
+          <div class="nbd-empty ipx-pad20-12">
             <div class="ne-icon">🧾</div>
             <div class="ne-msg">No invoices yet</div>
             <div class="ne-sub">Create one from this lead's estimate.</div>
           </div>`;
       } else {
-        html += `<div style="display:grid;gap:8px;">`;
+        html += `<div class="ipx-stack8">`;
         invoices.forEach(inv => {
           const statusBg = inv.status === 'paid' ? 'var(--green)' : inv.status === 'sent' ? 'var(--blue)' : 'var(--m)';
           const _s = String(inv.status || '');
           const statusTxt = escHtml(_s.charAt(0).toUpperCase() + _s.slice(1));
           html += `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--s2);border-radius:5px;border-left:3px solid ${statusBg};">
-              <div style="flex:1;">
-                <div style="font-weight:700;font-size:12px;">${formatCurrency(inv.total)}</div>
-                <div style="font-size:11px;color:var(--m);">${statusTxt}</div>
+              <div class="ipx-flex1">
+                <div class="ipx-b ipx-fs12">${formatCurrency(inv.total)}</div>
+                <div class="ipx-m11">${statusTxt}</div>
                 ${stripeSourceHtml(inv)}
               </div>
-              <div style="display:flex;gap:6px;">
+              <div class="ipx-row6">
                 <button type="button" class="btn btn-ghost btn-sm" data-ip-action="renderDetail" data-ip-id="${inv.id}" data-ip-target="inv-detail">View</button>
                 <button type="button" class="btn btn-orange btn-sm" data-ip-action="sendInvoice" data-ip-id="${inv.id}">Send</button>
               </div>
@@ -1678,7 +1678,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
     } catch (error) {
       console.error('renderInvoicePanel error:', error);
-      container.innerHTML = `<div style="color:var(--red);padding:12px;">Failed to load invoices</div>`;
+      container.innerHTML = `<div class="ipx-err">Failed to load invoices</div>`;
     }
   }
 
@@ -1744,29 +1744,29 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       };
 
       let html = `
-        <div class="invoice-detail" style="padding:20px;background:var(--paper,#fff);color:var(--ink,#1a1612);border-radius:8px;max-width:900px;margin:0 auto;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+        <div class="invoice-detail ipx-paper">
+          <div class="ipx-head">
             <div>
-              <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:var(--orange);">${_esc(_invoiceBrandName())}</div>
-              <div style="font-size:12px;color:var(--m);">Invoice ${_esc(invoiceId)}</div>
+              <div class="ipx-brand">${_esc(_invoiceBrandName())}</div>
+              <div class="ipx-m12">Invoice ${_esc(invoiceId)}</div>
               ${stripeSourceHtml(inv)}
             </div>
-            <div style="text-align:right;">
-              <div style="font-size:32px;font-weight:700;color:var(--orange);">${formatCurrency(inv.total)}</div>
-              <div style="font-size:11px;color:var(--m);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">${_esc(inv.status)}</div>
+            <div class="ipx-r">
+              <div class="ipx-big">${formatCurrency(inv.total)}</div>
+              <div class="ipx-caps">${_esc(inv.status)}</div>
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+          <div class="ipx-g2-wide">
             <div>
-              <div style="font-size:10px;color:var(--m);text-transform:uppercase;font-weight:700;margin-bottom:4px;">Bill To</div>
-              <div style="font-size:14px;font-weight:700;">${_esc(invoiceCustomerName(inv) || 'Customer')}</div>
-              <div style="font-size:12px;color:var(--m);">${_esc(inv.customerEmail || '')}</div>
-              ${inv.customerPhone ? `<div style="font-size:12px;color:var(--m);">${_esc(inv.customerPhone)}</div>` : ''}
+              <div class="ipx-k">Bill To</div>
+              <div class="ipx-b14">${_esc(invoiceCustomerName(inv) || 'Customer')}</div>
+              <div class="ipx-m12">${_esc(inv.customerEmail || '')}</div>
+              ${inv.customerPhone ? `<div class="ipx-m12">${_esc(inv.customerPhone)}</div>` : ''}
             </div>
             <div>
-              <div style="font-size:10px;color:var(--m);text-transform:uppercase;font-weight:700;margin-bottom:4px;">Invoice Details</div>
-              <div style="display:grid;gap:4px;font-size:12px;">
+              <div class="ipx-k">Invoice Details</div>
+              <div class="ipx-stack4">
                 <div><strong>Date:</strong> ${new Date(inv.createdAt?.toDate?.() || inv.createdAt).toLocaleDateString()}</div>
                 <div><strong>Due Date:</strong> ${new Date(inv.dueDate?.toDate?.() || inv.dueDate).toLocaleDateString()}</div>
                 <div><strong>Status:</strong> ${_esc((inv.status||'').toString().toUpperCase())}</div>
@@ -1774,13 +1774,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             </div>
           </div>
 
-          <table class="inv-lines" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+          <table class="inv-lines ipx-table ipx-mb20">
             <thead>
-              <tr style="border-bottom:2px solid var(--br);">
-                <th style="text-align:left;padding:8px;font-weight:700;font-size:11px;">DESCRIPTION</th>
-                <th style="text-align:right;padding:8px;font-weight:700;font-size:11px;">QUANTITY</th>
-                <th style="text-align:right;padding:8px;font-weight:700;font-size:11px;">UNIT PRICE</th>
-                <th style="text-align:right;padding:8px;font-weight:700;font-size:11px;">TOTAL</th>
+              <tr class="ipx-head-row">
+                <th class="ipx-th8 ipx-l">DESCRIPTION</th>
+                <th class="ipx-th8 ipx-r">QUANTITY</th>
+                <th class="ipx-th8 ipx-r">UNIT PRICE</th>
+                <th class="ipx-th8 ipx-r">TOTAL</th>
               </tr>
             </thead>
             <tbody>
@@ -1788,11 +1788,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
       inv.items?.forEach(item => {
         html += `
-          <tr style="border-bottom:1px solid var(--br);">
-            <td style="padding:8px;">${_esc(item.description)}</td>
-            <td style="text-align:right;padding:8px;">${_esc(item.quantity)}</td>
-            <td style="text-align:right;padding:8px;">${formatCurrency(item.unitPrice)}</td>
-            <td style="text-align:right;padding:8px;font-weight:700;">${formatCurrency(item.total)}</td>
+          <tr class="ipx-row">
+            <td class="ipx-td8">${_esc(item.description)}</td>
+            <td class="ipx-td8 ipx-r">${_esc(item.quantity)}</td>
+            <td class="ipx-td8 ipx-r">${formatCurrency(item.unitPrice)}</td>
+            <td class="ipx-td8 ipx-r ipx-b">${formatCurrency(item.total)}</td>
           </tr>
         `;
       });
@@ -1801,22 +1801,22 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             </tbody>
           </table>
 
-          <div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
-            <div style="width:300px;">
-              <div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid var(--br);font-size:12px;">
+          <div class="ipx-end20">
+            <div class="ipx-w300">
+              <div class="ipx-sum-row">
                 <span>Subtotal:</span>
                 <span>${formatCurrency(inv.subtotal)}</span>
               </div>
-              <div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid var(--br);font-size:12px;">
+              <div class="ipx-sum-row">
                 <span>Tax (${((Number(inv.taxRate) || 0) * 100).toFixed(1)}%):</span>
                 <span>${formatCurrency(inv.tax)}</span>
               </div>
-              <div style="display:flex;justify-content:space-between;padding:8px;font-size:14px;font-weight:700;">
+              <div class="ipx-total-row">
                 <span>Total:</span>
                 <span>${formatCurrency(inv.total)}</span>
               </div>
               ${paymentSummaryRows(inv).map((r, idx) => r.strong ? `
-              <div style="display:flex;justify-content:space-between;padding:8px;font-size:13px;font-weight:700;color:var(--orange);">
+              <div class="ipx-due-row">
                 <span>${_esc(r.label)}:</span>
                 <span>${formatCurrency(r.amount)}</span>
               </div>` : `
@@ -1825,7 +1825,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
                 <span>${formatCurrency(r.amount)}</span>
               </div>`).join('')}
               ${inv.depositRepNote ? `
-              <div data-ip-deposit-note style="padding:8px;border-top:1px solid var(--br);font-size:11px;line-height:1.4;color:var(--orange);font-weight:600;">
+              <div data-ip-deposit-note class="ipx-note-row">
                 ${_esc(inv.depositRepNote)}
               </div>` : ''}
             </div>
@@ -1833,7 +1833,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
           ${paymentHistoryHtml(invoiceId, inv)}
 
-          <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+          <div class="ipx-toolbar">
             <button type="button" class="btn btn-ghost" data-ip-action="print">Print Invoice</button>
             <button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>
             ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Record Payment (Check/Zelle/Cash)</button>` : ''}
@@ -1842,15 +1842,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
           ${(inv.kyInsuranceHold && !inv.stripePaymentLink && inv.status !== 'paid') ? `
-          <div data-ip-ky-hold style="margin:-12px 0 20px;padding:8px;font-size:11px;line-height:1.4;color:var(--orange);font-weight:600;border:1px solid var(--br);border-radius:6px;">
+          <div data-ip-ky-hold class="ipx-note">
             ${_esc(((typeof window !== 'undefined' && window.NBDJurisdiction) ? window.NBDJurisdiction.MSG.payLinkHeld : 'Online payment link withheld: Kentucky insurance job (KRS 367.626).'))}
             ${inv.emergencyServices ? ' This invoice is marked emergency work.' : ''}
           </div>` : ''}
 
-          <div style="background:var(--s2);padding:12px;border-radius:5px;font-size:11px;color:var(--m);">
+          <div class="ipx-box">
             <strong>Terms:</strong> ${_esc(inv.terms)}
           </div>
-          ${inv.notes ? `<div style="background:var(--s2);padding:12px;border-radius:5px;font-size:11px;color:var(--m);margin-top:8px;"><strong>Notes:</strong> ${_esc(inv.notes)}</div>` : ''}
+          ${inv.notes ? `<div class="ipx-box ipx-mt8"><strong>Notes:</strong> ${_esc(inv.notes)}</div>` : ''}
         </div>
       `;
 
@@ -1858,7 +1858,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
     } catch (error) {
       console.error('renderInvoiceDetail error:', error);
-      container.innerHTML = `<div style="color:var(--red);padding:12px;">Failed to load invoice</div>`;
+      container.innerHTML = `<div class="ipx-err">Failed to load invoice</div>`;
     }
   }
 
@@ -1889,25 +1889,25 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         .reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
 
       let html = `
-        <div class="invoice-list" style="padding:16px;">
-          <div class="stat-card" style="margin-bottom:16px;">
+        <div class="invoice-list ipx-pad16">
+          <div class="stat-card ipx-mb16">
             <div class="stat-icon si-o">💰</div>
             <div>
-              <div class="stat-val" style="color:var(--orange);">${formatCurrency(totalOutstanding)}</div>
+              <div class="stat-val ipx-orange">${formatCurrency(totalOutstanding)}</div>
               <div class="stat-lbl">Total Outstanding</div>
             </div>
           </div>
 
-          <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;">
+          <div class="ipx-scroll-x">
+            <table class="ipx-table">
               <thead>
-                <tr style="border-bottom:2px solid var(--br);">
-                  <th style="text-align:left;padding:10px;font-weight:700;font-size:11px;">INVOICE</th>
-                  <th style="text-align:left;padding:10px;font-weight:700;font-size:11px;">CUSTOMER</th>
-                  <th style="text-align:right;padding:10px;font-weight:700;font-size:11px;">AMOUNT</th>
-                  <th style="text-align:right;padding:10px;font-weight:700;font-size:11px;">DUE DATE</th>
-                  <th style="padding:10px;font-weight:700;font-size:11px;">STATUS</th>
-                  <th style="padding:10px;font-weight:700;font-size:11px;">ACTION</th>
+                <tr class="ipx-head-row">
+                  <th class="ipx-th10 ipx-l">INVOICE</th>
+                  <th class="ipx-th10 ipx-l">CUSTOMER</th>
+                  <th class="ipx-th10 ipx-r">AMOUNT</th>
+                  <th class="ipx-th10 ipx-r">DUE DATE</th>
+                  <th class="ipx-th10">STATUS</th>
+                  <th class="ipx-th10">ACTION</th>
                 </tr>
               </thead>
               <tbody>
@@ -1919,15 +1919,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         const statusBg = inv.status === 'paid' ? 'var(--green)' : isOverdue ? 'var(--red)' : 'var(--blue)';
 
         html += `
-          <tr style="border-bottom:1px solid var(--br);">
-            <td style="padding:10px;font-weight:700;font-size:12px;">${escHtml(inv.id.slice(0, 8))}</td>
-            <td style="padding:10px;font-size:12px;">${escHtml(invoiceCustomerName(inv) || '—')}${inv.source === 'stripe' ? '<br>' + stripeSourceHtml(inv) : ''}</td>
-            <td style="text-align:right;padding:10px;font-size:12px;font-weight:700;">${formatCurrency(inv.total)}</td>
-            <td style="text-align:right;padding:10px;font-size:12px;">${dueDate.toLocaleDateString()}</td>
-            <td style="padding:10px;">
+          <tr class="ipx-row">
+            <td class="ipx-td10 ipx-fs12 ipx-b">${escHtml(inv.id.slice(0, 8))}</td>
+            <td class="ipx-td10 ipx-fs12">${escHtml(invoiceCustomerName(inv) || '—')}${inv.source === 'stripe' ? '<br>' + stripeSourceHtml(inv) : ''}</td>
+            <td class="ipx-td10 ipx-r ipx-fs12 ipx-b">${formatCurrency(inv.total)}</td>
+            <td class="ipx-td10 ipx-r ipx-fs12">${dueDate.toLocaleDateString()}</td>
+            <td class="ipx-td10">
               <span style="background:${statusBg};color:#fff;padding:3px 8px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;">${escHtml(inv.status)}</span>
             </td>
-            <td style="padding:10px;">
+            <td class="ipx-td10">
               <button type="button" class="btn btn-ghost btn-sm" data-ip-action="renderDetail" data-ip-id="${inv.id}" data-ip-target="inv-detail-modal">View</button>
             </td>
           </tr>
@@ -1945,7 +1945,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
     } catch (error) {
       console.error('renderInvoiceList error:', error);
-      container.innerHTML = `<div style="color:var(--red);padding:12px;">Failed to load invoices</div>`;
+      container.innerHTML = `<div class="ipx-err">Failed to load invoices</div>`;
     }
   }
 
@@ -2089,19 +2089,19 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     overlay.id = 'nbd-invoice-modal';
     overlay.className = 'modal-bg';
     overlay.innerHTML = `
-      <div class="modal" style="max-width:420px;">
-        <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;">Create Invoice from Estimate</div>
-        <label style="font-size:10px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.08em;">Estimate</label>
+      <div class="modal ipx-max420">
+        <div class="ipx-title">Create Invoice from Estimate</div>
+        <label class="ipx-label">Estimate</label>
         ${leadEstimates.length ? `
-        <select id="nbd-inv-est-pick" class="fi" style="margin-top:6px;">
+        <select id="nbd-inv-est-pick" class="fi ipx-mt6">
           ${estOptions}
           <option value="__manual__">Other — enter an estimate ID…</option>
         </select>` : `
-        <div style="font-size:12px;color:var(--m);margin-top:6px;line-height:1.45;">This customer has no estimates yet. Build one first (Template Quote or Estimates), then invoice from it — or paste an estimate ID below.</div>`}
-        <input id="nbd-inv-est-id" type="text" class="fi" placeholder="Enter estimate ID..." style="margin-top:6px;"${leadEstimates.length ? ' hidden' : ''}>
-        <div style="display:flex;gap:8px;margin-top:20px;">
-          <button id="nbd-inv-cancel" type="button" class="btn btn-ghost" style="flex:1;justify-content:center;">Cancel</button>
-          <button id="nbd-inv-create" type="button" class="btn btn-orange" style="flex:1;justify-content:center;">Create Invoice</button>
+        <div class="ipx-help">This customer has no estimates yet. Build one first (Template Quote or Estimates), then invoice from it — or paste an estimate ID below.</div>`}
+        <input id="nbd-inv-est-id" type="text" class="fi ipx-mt6" placeholder="Enter estimate ID..."${leadEstimates.length ? ' hidden' : ''}>
+        <div class="ipx-actions">
+          <button id="nbd-inv-cancel" type="button" class="btn btn-ghost ipx-grow-btn">Cancel</button>
+          <button id="nbd-inv-create" type="button" class="btn btn-orange ipx-grow-btn">Create Invoice</button>
         </div>
       </div>
     `;
@@ -2210,15 +2210,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     overlay.id = 'nbd-send-invoice-modal';
     overlay.className = 'modal-bg';
     overlay.innerHTML = `
-      <div class="modal" style="max-width:380px;">
-        <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;">Send Invoice</div>
-        <div style="font-size:12px;color:var(--m);margin-bottom:16px;">How would you like to send this invoice?</div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <button type="button" class="nbd-send-method btn btn-ghost" data-method="email" style="width:100%;justify-content:flex-start;padding:14px;">📧 Send via Email</button>
-          <button type="button" class="nbd-send-method btn btn-ghost" data-method="sms" style="width:100%;justify-content:flex-start;padding:14px;">💬 Send via SMS</button>
-          <button type="button" class="nbd-send-method btn btn-ghost" data-method="portal" style="width:100%;justify-content:flex-start;padding:14px;">🌐 Share Customer Portal Link</button>
+      <div class="modal ipx-max380">
+        <div class="ipx-title">Send Invoice</div>
+        <div class="ipx-m12 ipx-mb16">How would you like to send this invoice?</div>
+        <div class="ipx-col8">
+          <button type="button" class="nbd-send-method btn btn-ghost ipx-choice" data-method="email">📧 Send via Email</button>
+          <button type="button" class="nbd-send-method btn btn-ghost ipx-choice" data-method="sms">💬 Send via SMS</button>
+          <button type="button" class="nbd-send-method btn btn-ghost ipx-choice" data-method="portal">🌐 Share Customer Portal Link</button>
         </div>
-        <button id="nbd-send-cancel" type="button" class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:12px;">Cancel</button>
+        <button id="nbd-send-cancel" type="button" class="btn btn-ghost ipx-btn-full">Cancel</button>
       </div>
     `;
 
@@ -2264,8 +2264,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // default. Layout-only overrides — chrome/z-index come from .modal-bg.
     overlay.style.cssText = 'align-items:flex-start;overflow:auto;padding:24px;';
     overlay.innerHTML = `
-      <div style="max-width:920px;width:100%;">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <div class="ipx-max920">
+        <div class="ipx-end8">
           <button id="nbd-inv-detail-close" type="button" class="btn btn-ghost">✕ Close</button>
         </div>
         <div id="nbd-inv-detail-host"></div>
@@ -2445,8 +2445,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
     const today = localDateInputValue(new Date());
     const methodBtns = PAYMENT_METHODS.map((m, i) => `
-          <button type="button" class="nbd-mp-method btn btn-ghost" data-method="${escHtml(m.key)}" aria-pressed="${i === 0 ? 'true' : 'false'}"
-            style="min-height:52px;justify-content:center;font-size:15px;font-weight:700;">${escHtml(m.icon)} ${escHtml(m.label)}</button>`).join('');
+          <button type="button" class="nbd-mp-method btn btn-ghost ipx-method" data-method="${escHtml(m.key)}" aria-pressed="${i === 0 ? 'true' : 'false'}"
+           >${escHtml(m.icon)} ${escHtml(m.label)}</button>`).join('');
     const lbl = 'font-size:10px;font-weight:600;color:var(--m);text-transform:uppercase;letter-spacing:.08em;';
 
     destroyExisting('nbd-markpaid-modal');
@@ -2460,26 +2460,26 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         #nbd-markpaid-modal .nbd-mp-method[aria-pressed="true"]{border-color:var(--orange);color:var(--orange);background:rgba(232,114,12,.10);}
         #nbd-markpaid-modal .fi{font-size:16px;min-height:44px;}
       </style>
-      <div class="modal" style="max-width:420px;width:100%;">
-        <div style="font-family:'Montserrat','Segoe UI',Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;margin-bottom:14px;">Record Payment</div>
-        <div role="group" aria-label="Payment method" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">${methodBtns}
+      <div class="modal ipx-max420w">
+        <div class="ipx-title ipx-title-14">Record Payment</div>
+        <div role="group" aria-label="Payment method" class="ipx-g2 ipx-mb14">${methodBtns}
         </div>
         <label for="nbd-mp-amount" style="${lbl}">Amount</label>
-        <input id="nbd-mp-amount" type="number" inputmode="decimal" class="fi" step="0.01" min="0" value="${escHtml(balanceDefault)}" style="margin:6px 0 12px;width:100%;">
+        <input id="nbd-mp-amount" type="number" inputmode="decimal" class="fi ipx-field" step="0.01" min="0" value="${escHtml(balanceDefault)}">
         <label for="nbd-mp-date" style="${lbl}">Date received</label>
-        <input id="nbd-mp-date" type="date" class="fi" value="${escHtml(today)}" max="${escHtml(today)}" style="margin:6px 0 12px;width:100%;">
+        <input id="nbd-mp-date" type="date" class="fi ipx-field" value="${escHtml(today)}" max="${escHtml(today)}">
         <label for="nbd-mp-ref" id="nbd-mp-ref-label" style="${lbl}">${escHtml(PAYMENT_METHODS[0].refLabel)}</label>
-        <input id="nbd-mp-ref" type="text" class="fi" maxlength="${PAYMENT_REF_MAX}" autocomplete="off" style="margin:6px 0 12px;width:100%;">
+        <input id="nbd-mp-ref" type="text" class="fi ipx-field" maxlength="${PAYMENT_REF_MAX}" autocomplete="off">
         <label for="nbd-mp-note" style="${lbl}">Note (optional)</label>
-        <input id="nbd-mp-note" type="text" class="fi" maxlength="${PAYMENT_NOTE_MAX}" autocomplete="off" style="margin:6px 0 12px;width:100%;">
+        <input id="nbd-mp-note" type="text" class="fi ipx-field" maxlength="${PAYMENT_NOTE_MAX}" autocomplete="off">
         <div style="${lbl}margin-bottom:6px;">Proof — photo or PDF</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <button type="button" id="nbd-mp-proof-cam" class="btn btn-ghost" style="min-height:48px;justify-content:center;">📷 Take photo</button>
-          <button type="button" id="nbd-mp-proof-file" class="btn btn-ghost" style="min-height:48px;justify-content:center;">📄 Choose file</button>
+        <div class="ipx-g2">
+          <button type="button" id="nbd-mp-proof-cam" class="btn btn-ghost ipx-btn48">📷 Take photo</button>
+          <button type="button" id="nbd-mp-proof-file" class="btn btn-ghost ipx-btn48">📄 Choose file</button>
         </div>
-        <div id="nbd-mp-proof-status" data-ip-proof-nudge style="font-size:12px;margin:8px 0 4px;color:var(--orange);font-weight:600;">📎 Proof recommended</div>
-        <button id="nbd-mp-save" type="button" class="btn btn-green" style="width:100%;justify-content:center;min-height:52px;font-size:16px;font-weight:700;margin-top:10px;">Save payment</button>
-        <button id="nbd-mp-cancel" type="button" class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px;min-height:44px;">Cancel</button>
+        <div id="nbd-mp-proof-status" data-ip-proof-nudge class="ipx-warn">📎 Proof recommended</div>
+        <button id="nbd-mp-save" type="button" class="btn btn-green ipx-btn-save">Save payment</button>
+        <button id="nbd-mp-cancel" type="button" class="btn btn-ghost ipx-btn-full44">Cancel</button>
       </div>
     `;
     const closeModal = openOverlay(overlay);
