@@ -85,7 +85,7 @@
       'js/sales-training.js?v=2'
     ],
     storm: [
-      'js/storm-center.js?v=4',
+      'js/storm-center.js?v=5',
       'js/storm-integration.js?v=2',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
@@ -103,10 +103,11 @@
     // this bundle or the margin silently degrades to "set Job Value".
     expenses: [
       'js/expense-config.js?v=2',
-      // v=2 to match customer.html, which keeps this file EAGER: its
+      // Same ?v as customer.html, which keeps this file EAGER: its
       // renderCostPanel('profitPanel') runs during the customer render, so it
       // cannot be lazy there. Same cache key on both pages.
-      'js/profit-tracker.js?v=3',
+      'css/profit-tracker-view.css?v=1',
+      'js/profit-tracker.js?v=4',
       'js/expenses.js?v=7',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
@@ -140,7 +141,8 @@
       'js/winback.js?v=1'
     ],
     decision: [
-      'js/decision-engine.js?v=2'
+      'css/decision-engine-view.css?v=1',
+      'js/decision-engine.js?v=3'
     ],
     reports: [
       // ApexCharts must load BEFORE rep-report-generator.js, which calls

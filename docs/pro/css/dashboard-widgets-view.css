@@ -1,0 +1,35 @@
+/* Dashboard widgets (js/dashboard-widgets.js) — estimates list, photo gallery, card detail, phone job detail. Static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.dwx-mb8px-curpointer.dwx-mb8px-curpointer.dwx-mb8px-curpointer { margin-bottom: 8px; cursor: pointer; }
+.dwx-fs18px.dwx-fs18px.dwx-fs18px { font-size: 18px; }
+.dwx-fs12px.dwx-fs12px.dwx-fs12px { font-size: 12px; }
+.dwx-fs16px.dwx-fs16px.dwx-fs16px { font-size: 16px; }
+.dwx-bgcolormix-cgreen-borgreen.dwx-bgcolormix-cgreen-borgreen.dwx-bgcolormix-cgreen-borgreen { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); border-color: var(--green); }
+.dwx-bgcolormix-corange-bororange.dwx-bgcolormix-corange-bororange.dwx-bgcolormix-corange-bororange { background: color-mix(in srgb, var(--orange) 12%, transparent); color: var(--orange); border-color: var(--orange); }
+.dwx-bgcolormix-cred-borred.dwx-bgcolormix-cred-borred.dwx-bgcolormix-cred-borred { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); border-color: var(--red); }
+.dwx-opa6.dwx-opa6.dwx-opa6 { opacity: .6; }
+.dwx-m0.dwx-m0.dwx-m0 { margin: 0; }
+.dwx-curpointer.dwx-curpointer.dwx-curpointer { cursor: pointer; }
+.dwx-dflex-aicenter-gap6px.dwx-dflex-aicenter-gap6px.dwx-dflex-aicenter-gap6px { display: flex; align-items: center; gap: 6px; }
+.dwx-bgs3-corange-fs9px.dwx-bgs3-corange-fs9px.dwx-bgs3-corange-fs9px { background: var(--s3); color: var(--orange); font-size: 9px; padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+.dwx-fs14px.dwx-fs14px.dwx-fs14px { font-size: 14px; }
+.dwx-fs11px-cm-mt2px.dwx-fs11px-cm-mt2px.dwx-fs11px-cm-mt2px { font-size: 11px; color: var(--m); margin-top: 2px; }
+.dwx-dflex-flecolumn-gap10px.dwx-dflex-flecolumn-gap10px.dwx-dflex-flecolumn-gap10px { display: flex; flex-direction: column; gap: 10px; }
+.dwx-fs10px-w700-ls12em.dwx-fs10px-w700-ls12em.dwx-fs10px-w700-ls12em { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--green); padding: 6px 2px 0; }
+.dwx-fs10px-w700-ls12em-2.dwx-fs10px-w700-ls12em-2.dwx-fs10px-w700-ls12em-2 { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--m); padding: 14px 2px 0; }
+.dwx-fs12px-cm-p10px.dwx-fs12px-cm-p10px.dwx-fs12px-cm-p10px { font-size: 12px; color: var(--m); padding: 10px; text-align: center; }
+.dwx-fs11px-cm-tacenter.dwx-fs11px-cm-tacenter.dwx-fs11px-cm-tacenter { font-size: 11px; color: var(--m); text-align: center; padding: 10px; }
+.dwx-dflex-aicenter-flewrap.dwx-dflex-aicenter-flewrap.dwx-dflex-aicenter-flewrap { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.dwx-cgreen.dwx-cgreen.dwx-cgreen { color: var(--green); }
+.dwx-fs10px.dwx-fs10px.dwx-fs10px { font-size: 10px; }
+.dwx-cm-fs11px.dwx-cm-fs11px.dwx-cm-fs11px { color: var(--m); font-size: 11px; }
+.dwx-cred-fs11px.dwx-cred-fs11px.dwx-cred-fs11px { color: var(--red); font-size: 11px; }
+.dwx-fs9px-cblue-w700.dwx-fs9px-cblue-w700.dwx-fs9px-cblue-w700 { font-size: 9px; color: var(--blue); font-weight: 700; }
+.dwx-fs10px-cm-mt5px.dwx-fs10px-cm-mt5px.dwx-fs10px-cm-mt5px { font-size: 10px; color: var(--m); margin-top: 5px; }
+.dwx-w700-ct.dwx-w700-ct.dwx-w700-ct { font-weight: 700; color: var(--t); }
+.dwx-fs9px-cm-ttuppercas.dwx-fs9px-cm-ttuppercas.dwx-fs9px-cm-ttuppercas { font-size: 9px; color: var(--m); text-transform: uppercase; letter-spacing: .06em; }
+.dwx-bggold.dwx-bggold.dwx-bggold { background: var(--gold); }
+.dwx-cgold-w700.dwx-cgold-w700.dwx-cgold-w700 { color: var(--gold); font-weight: 700; }
+.dwx-bggreen.dwx-bggreen.dwx-bggreen { background: var(--green); }
+.dwx-cgreen-w700.dwx-cgreen-w700.dwx-cgreen-w700 { color: var(--green); font-weight: 700; }
+.dwx-bg9ca3af.dwx-bg9ca3af.dwx-bg9ca3af { background: #9CA3AF; }
+.dwx-cm.dwx-cm.dwx-cm { color: var(--m); }
