@@ -92,37 +92,37 @@ window.setCoverPhotoFromPopup = async function (idx) {
 // Task Modal HTML (to be injected)
 const taskModalHTML = `
 <div id="taskModal" class="modal-bg">
-  <div class="modal-content" style="max-width:500px;">
+  <div class="modal-content ct-w500">
     <div class="modal-header">
       <h3 style="margin:0;">Add Task</h3>
-      <button data-action="closeTaskModal" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--m);">&times;</button>
+      <button data-action="closeTaskModal" class="ct-close-lg">&times;</button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:15px;">
-        <label style="display:block;font-weight:600;margin-bottom:6px;">Task Title *</label>
+      <div class="ct-mb15">
+        <label class="ct-label">Task Title *</label>
         <input type="text" id="taskTitle" placeholder="e.g., Schedule roof inspection" aria-label="Task title"
-               style="width:100%;padding:10px;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:6px;">
+               class="ct-field">
       </div>
       
-      <div style="margin-bottom:15px;">
-        <label style="display:block;font-weight:600;margin-bottom:6px;">Due Date</label>
+      <div class="ct-mb15">
+        <label class="ct-label">Due Date</label>
         <input type="date" id="taskDueDate" 
-               style="width:100%;padding:10px;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:6px;">
+               class="ct-field">
       </div>
       
-      <div style="margin-bottom:15px;">
-        <label style="display:block;font-weight:600;margin-bottom:6px;">Priority</label>
-        <select id="taskPriority" style="width:100%;padding:10px;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:6px;">
+      <div class="ct-mb15">
+        <label class="ct-label">Priority</label>
+        <select id="taskPriority" class="ct-field">
           <option value="low">Low</option>
           <option value="medium" selected>Medium</option>
           <option value="high">High</option>
         </select>
       </div>
       
-      <div style="margin-bottom:15px;">
-        <label style="display:block;font-weight:600;margin-bottom:6px;">Notes (Optional)</label>
+      <div class="ct-mb15">
+        <label class="ct-label">Notes (Optional)</label>
         <textarea id="taskNotes" rows="3" placeholder="Additional details..." 
-                  style="width:100%;padding:10px;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:6px;resize:vertical;"></textarea>
+                  class="ct-field ct-field-ta"></textarea>
       </div>
     </div>
     <div class="modal-footer">
@@ -144,26 +144,26 @@ const taskModalHTML = `
 // as a 📅 milestone and the open-task badge ignores it.
 const eventModalHTML = `
 <div id="eventModal" class="modal-bg">
-  <div class="modal-content" style="max-width:500px;">
+  <div class="modal-content ct-w500">
     <div class="modal-header">
       <h3 style="margin:0;">Add Event</h3>
-      <button data-action="closeEventModal" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--m);">&times;</button>
+      <button data-action="closeEventModal" class="ct-close-lg">&times;</button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:15px;">
-        <label style="display:block;font-weight:600;margin-bottom:6px;">Event Title *</label>
+      <div class="ct-mb15">
+        <label class="ct-label">Event Title *</label>
         <input type="text" id="eventTitle" placeholder="e.g., Adjuster meeting — contract signature" aria-label="Event title"
-               style="width:100%;padding:10px;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:6px;">
+               class="ct-field">
       </div>
-      <div style="margin-bottom:15px;">
-        <label style="display:block;font-weight:600;margin-bottom:6px;">Date & Time *</label>
+      <div class="ct-mb15">
+        <label class="ct-label">Date & Time *</label>
         <input type="datetime-local" id="eventWhen" aria-label="Event date and time"
-               style="width:100%;padding:10px;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:6px;">
+               class="ct-field">
       </div>
-      <div style="margin-bottom:15px;">
-        <label style="display:block;font-weight:600;margin-bottom:6px;">Notes</label>
+      <div class="ct-mb15">
+        <label class="ct-label">Notes</label>
         <textarea id="eventNotes" rows="3" placeholder="Optional details…" aria-label="Event notes"
-                  style="width:100%;padding:10px;background:var(--s2);color:var(--t);border:1px solid var(--br);border-radius:6px;resize:vertical;"></textarea>
+                  class="ct-field ct-field-ta"></textarea>
       </div>
     </div>
     <div class="modal-footer">
@@ -809,12 +809,12 @@ function _dmgOptions() {
 
 function buildPhotoBadges(photo, esc) {
   var badges = '';
-  if (photo.damageType) badges += '<span class="nbd-photo-badge" style="font-size:9px;padding:1px 5px;border-radius:4px;background:color-mix(in srgb, var(--orange) 20%, transparent);color:var(--orange);">' + esc(_dmgLabel(photo.damageType)) + '</span>';
+  if (photo.damageType) badges += '<span class="nbd-photo-badge ct-badge ct-badge-orange">' + esc(_dmgLabel(photo.damageType)) + '</span>';
   if (photo.severity) {
     var sc = photo.severity === 'severe' ? 'var(--red)' : photo.severity === 'moderate' ? 'var(--orange)' : 'var(--gold)';
     badges += '<span class="nbd-photo-badge" style="font-size:9px;padding:1px 5px;border-radius:4px;background:color-mix(in srgb, ' + sc + ' 20%, transparent);color:' + sc + ';text-transform:capitalize;">' + esc(photo.severity) + '</span>';
   }
-  if (photo.isAnnotated) badges += '<span class="nbd-photo-badge" style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(168,85,247,.15);color:#a855f7;">Annotated</span>';
+  if (photo.isAnnotated) badges += '<span class="nbd-photo-badge ct-badge ct-badge-purple">Annotated</span>';
   // Homeowner-share badge — clickable. data-action triggers the
   // delegated handler in attachCustomerPhotoStripHandlers /
   // wirePhotoGridDelegate to flip sharedWithHomeowner via
@@ -823,9 +823,9 @@ function buildPhotoBadges(photo, esc) {
   //   - unshared: ghost pill with "Share" (subtle, doesn't compete
   //               with damage/severity tags)
   if (photo.sharedWithHomeowner) {
-    badges += '<button type="button" class="nbd-photo-badge nbd-share-toggle" data-action="toggleHomeownerShare" data-arg="' + esc(photo.id) + '" style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.85);color:#fff;border:0;cursor:pointer;font-weight:600;">✓ Shared</button>';
+    badges += '<button type="button" class="nbd-photo-badge nbd-share-toggle ct-badge ct-badge-shared" data-action="toggleHomeownerShare" data-arg="' + esc(photo.id) + '">✓ Shared</button>';
   } else {
-    badges += '<button type="button" class="nbd-photo-badge nbd-share-toggle" data-action="toggleHomeownerShare" data-arg="' + esc(photo.id) + '" style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);cursor:pointer;">Share</button>';
+    badges += '<button type="button" class="nbd-photo-badge nbd-share-toggle ct-badge ct-badge-share" data-action="toggleHomeownerShare" data-arg="' + esc(photo.id) + '">Share</button>';
   }
   return badges;
 }
@@ -902,9 +902,9 @@ function buildPhotoTile(photo, esc) {
   var badges = buildPhotoBadges(photo, esc);
   var selected = window._photoSelected && window._photoSelected.has(photo.id);
   var classes = 'photo-item nbd-phase-photo' + (selected ? ' is-selected' : '');
-  var tile = '<div class="' + classes + '" data-photo-id="' + esc(photo.id) + '" style="position:relative;border-radius:8px;overflow:hidden;cursor:pointer;aspect-ratio:1;border:1px solid var(--br);">';
+  var tile = '<div class="' + classes + ' ct-tile" data-photo-id="' + esc(photo.id) + '">';
   tile += '<span class="nbd-photo-checkbox" aria-hidden="true"></span>';
-  tile += '<img ' + imgAttrs + ' alt="Photo" referrerpolicy="no-referrer" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">';
+  tile += '<img ' + imgAttrs + ' alt="Photo" referrerpolicy="no-referrer" loading="lazy" decoding="async" class="ct-cover">';
   tile += '<div class="nbd-photo-badge-row" style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.7));display:' + (badges ? 'flex' : 'none') + ';flex-wrap:wrap;gap:2px;">' + badges + '</div>';
   tile += '</div>';
   return tile;
@@ -1206,13 +1206,13 @@ function renderPhotoGrid() {
     var visible = (expanded || fullList.length <= PHOTO_PHASE_CAP) ? fullList : fullList.slice(0, PHOTO_PHASE_CAP);
     var hidden = fullList.length - visible.length;
 
-    html += '<div class="photo-phase" style="margin-bottom:20px;">';
+    html += '<div class="photo-phase ct-mb20">';
     html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ' + color + ';">';
     html += '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';"></div>';
-    html += '<div class="photo-phase-title" style="margin:0;font-size:15px;font-weight:700;">' + esc(phase) + ' Phase</div>';
-    html += '<span style="font-size:12px;color:var(--m);">(' + fullList.length + (hidden ? ' • showing ' + visible.length : '') + ')</span>';
+    html += '<div class="photo-phase-title ct-phase-title">' + esc(phase) + ' Phase</div>';
+    html += '<span class="ct-muted">(' + fullList.length + (hidden ? ' • showing ' + visible.length : '') + ')</span>';
     html += '</div>';
-    html += '<div class="photo-grid-phase" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+    html += '<div class="photo-grid-phase ct-photo-grid">';
     for (var i = 0; i < visible.length; i++) {
       html += buildPhotoTile(visible[i], esc);
     }
@@ -1354,11 +1354,11 @@ function updatePhotoStats() {
   var after = photos.filter(function(p){return p.phase==='After';}).length;
   var annotated = photos.filter(function(p){return p.isAnnotated;}).length;
   
-  var html = '<span style="font-weight:700;color:var(--t);">' + photos.length + ' Photos</span>';
-  if (before) html += '<span style="color:#3b82f6;">&#9679; ' + before + ' Before</span>';
-  if (during) html += '<span style="color:var(--orange);">&#9679; ' + during + ' During</span>';
-  if (after) html += '<span style="color:var(--green);">&#9679; ' + after + ' After</span>';
-  if (annotated) html += '<span style="color:#a855f7;">&#9679; ' + annotated + ' Annotated</span>';
+  var html = '<span class="ct-strong">' + photos.length + ' Photos</span>';
+  if (before) html += '<span class="ct-c-blue">&#9679; ' + before + ' Before</span>';
+  if (during) html += '<span class="ct-c-orange">&#9679; ' + during + ' During</span>';
+  if (after) html += '<span class="ct-c-green">&#9679; ' + after + ' After</span>';
+  if (annotated) html += '<span class="ct-c-purple">&#9679; ' + annotated + ' Annotated</span>';
   bar.innerHTML = html;
 }
 
@@ -1539,13 +1539,13 @@ async function loadCommunicationLog(leadId) {
     const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
     let html = '';
     if (teamThread) {
-      html += '<div style="font-size:10px;color:var(--m,#9aa3b2);margin-bottom:8px;">Team thread · all company sends for this lead</div>';
+      html += '<div class="ct-hint">Team thread · all company sends for this lead</div>';
     }
     comms.forEach(comm => {
       const dateStr = comm.date.toLocaleDateString() + ' ' + comm.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       const safeType = comm.type === 'sms' ? 'sms' : 'email';
       const who = (teamThread && comm.fromUid && comm.fromUid !== uid)
-        ? '<span style="font-size:10px;color:var(--m);margin-left:6px;">· teammate</span>'
+        ? '<span class="ct-hint-inline">· teammate</span>'
         : '';
       html += `
         <div class="comm-item">
@@ -1610,16 +1610,16 @@ window.showPhotoActions = function(idx, event) {
   var card = document.createElement('div');
   card.style.cssText = 'background:var(--bg,#0f172a);border:1px solid var(--br,#2a2a4e);border-radius:16px;padding:24px;max-width:420px;width:90%;color:var(--t);font-family:system-ui,sans-serif;';
   
-  card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
-    '<div style="display:flex;align-items:center;gap:10px;">' +
-    '<img src="' + photo.url + '" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">' +
-    '<div style="font-size:16px;font-weight:700;">Edit Photo</div></div>' +
+  card.innerHTML = '<div class="ct-head">' +
+    '<div class="ct-row10">' +
+    '<img src="' + photo.url + '" loading="lazy" decoding="async" class="ct-thumb">' +
+    '<div class="ct-title">Edit Photo</div></div>' +
     // The × was a bare 13x26 glyph; 40x40 is a thumb-sized target (2026-09-25).
-    '<button data-action="_closePhotoActionPopup" aria-label="Close" style="background:none;border:none;color:var(--m);font-size:22px;cursor:pointer;min-width:40px;min-height:40px;margin:-8px -10px -8px 0;display:flex;align-items:center;justify-content:center;">&times;</button></div>' +
+    '<button data-action="_closePhotoActionPopup" aria-label="Close" class="ct-close">&times;</button></div>' +
     
-    '<div style="margin-bottom:14px;">' +
-    '<label style="font-size:11px;font-weight:600;color:var(--m);display:block;margin-bottom:4px;">Phase</label>' +
-    '<div style="display:flex;gap:4px;" id="qePhaseButtons">' +
+    '<div class="ct-mb14">' +
+    '<label class="ct-label-sm">Phase</label>' +
+    '<div class="ct-row4" id="qePhaseButtons">' +
     ['Before','During','After'].map(function(p) {
       var active = photo.phase === p;
       var c = phaseColors[p];
@@ -1628,18 +1628,18 @@ window.showPhotoActions = function(idx, event) {
     }).join('') +
     '</div></div>' +
     
-    '<div style="margin-bottom:14px;">' +
-    '<label style="font-size:11px;font-weight:600;color:var(--m);display:block;margin-bottom:4px;">Damage Type</label>' +
-    '<select id="qeDamageType" data-change-action="quickSaveMeta" style="width:100%;padding:8px;background:var(--s2,#1e293b);border:1px solid var(--br,#334155);border-radius:6px;color:var(--t);font-size:13px;">' +
+    '<div class="ct-mb14">' +
+    '<label class="ct-label-sm">Damage Type</label>' +
+    '<select id="qeDamageType" data-change-action="quickSaveMeta" class="ct-field-sm">' +
     '<option value="">None</option>' +
     _dmgOptions().map(function(o) {
       return '<option value="' + o[0] + '"' + (_dmgNorm(photo.damageType) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
     }).join('') +
     '</select></div>' +
     
-    '<div style="margin-bottom:14px;">' +
-    '<label style="font-size:11px;font-weight:600;color:var(--m);display:block;margin-bottom:4px;">Severity</label>' +
-    '<div style="display:flex;gap:4px;" id="qeSeverityButtons">' +
+    '<div class="ct-mb14">' +
+    '<label class="ct-label-sm">Severity</label>' +
+    '<div class="ct-row4" id="qeSeverityButtons">' +
     ['minor','moderate','severe'].map(function(s) {
       var active = photo.severity === s;
       var c = sevColors[s];
@@ -1648,18 +1648,18 @@ window.showPhotoActions = function(idx, event) {
     }).join('') +
     '</div></div>' +
     
-    '<div style="margin-bottom:14px;">' +
-    '<label style="font-size:11px;font-weight:600;color:var(--m);display:block;margin-bottom:4px;">Location</label>' +
-    '<select id="qeLocation" data-change-action="quickSaveMeta" style="width:100%;padding:8px;background:var(--s2,#1e293b);border:1px solid var(--br,#334155);border-radius:6px;color:var(--t);font-size:13px;">' +
+    '<div class="ct-mb14">' +
+    '<label class="ct-label-sm">Location</label>' +
+    '<select id="qeLocation" data-change-action="quickSaveMeta" class="ct-field-sm">' +
     '<option value="">None</option>' +
     ['Ridge','Hip','Valley','Field','Edge','Flashing','Vent','Chimney','Skylight','Gutter','Soffit','Fascia'].map(function(l) {
       return '<option value="' + l + '"' + (photo.location === l ? ' selected' : '') + '>' + l + '</option>';
     }).join('') +
     '</select></div>' +
     
-    '<div style="margin-bottom:20px;">' +
-    '<label style="font-size:11px;font-weight:600;color:var(--m);display:block;margin-bottom:4px;">Description</label>' +
-    '<input type="text" id="qeDescription" value="' + (photo.description || '').replace(/"/g, '&quot;') + '" placeholder="Add description..." aria-label="Photo description" data-change-action="quickSaveMeta" style="width:100%;padding:8px;background:var(--s2,#1e293b);border:1px solid var(--br,#334155);border-radius:6px;color:var(--t);font-size:13px;box-sizing:border-box;">' +
+    '<div class="ct-mb20">' +
+    '<label class="ct-label-sm">Description</label>' +
+    '<input type="text" id="qeDescription" value="' + (photo.description || '').replace(/"/g, '&quot;') + '" placeholder="Add description..." aria-label="Photo description" data-change-action="quickSaveMeta" class="ct-field-sm ct-bb">' +
     '</div>' +
     
     // RoofLink "Set Cover": toggles lead.coverPhotoId/-Url. Label reflects
@@ -1671,10 +1671,10 @@ window.showPhotoActions = function(idx, event) {
       'border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">' +
       ((window._currentLead && window._currentLead.coverPhotoId === photo.id) ? '★ Cover Photo — tap to clear' : '☆ Set as Cover Photo') +
     '</button>' +
-    '<div style="display:flex;gap:8px;">' +
-    '<button data-action="_previewPhotoFromPopup" data-arg="' + idx + '" style="flex:2;padding:10px;background:rgba(255,255,255,.08);color:var(--t);border:1px solid var(--br,#334155);border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">👁 Preview</button>' +
-    '<button data-action="_openPhotoInEditorAndClose" data-arg="' + idx + '" style="flex:2;padding:10px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">Open Editor</button>' +
-    '<button data-action="deletePhoto" data-arg="' + photo.id + '" style="flex:1;padding:10px;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">Delete</button>' +
+    '<div class="ct-row8">' +
+    '<button data-action="_previewPhotoFromPopup" data-arg="' + idx + '" class="ct-btn ct-btn-ghost">👁 Preview</button>' +
+    '<button data-action="_openPhotoInEditorAndClose" data-arg="' + idx + '" class="ct-btn ct-btn-primary">Open Editor</button>' +
+    '<button data-action="deletePhoto" data-arg="' + photo.id + '" class="ct-btn ct-btn-danger">Delete</button>' +
     '</div>';
   
   popup.appendChild(card);
@@ -2164,9 +2164,9 @@ function _renderDocCreateGrid(filter) {
     return '<div class="doc-template-card" data-action="_pickCustomerDoc" data-doc-type="' + esc(t.type) + '" '
       + 'style="position:relative;padding:14px;background:var(--s2);border-radius:10px;border:1px solid var(--br);cursor:pointer;transition:all .2s;">'
       + '<button type="button" class="dt-preview-btn" data-action="_previewBlankDoc" data-doc-type="' + esc(t.type) + '" aria-label="Preview blank template" title="Preview blank template">&#9432;</button>'
-      + '<div style="font-size:22px;margin-bottom:6px;">' + t.icon + '</div>'
-      + '<div style="font-size:13px;font-weight:700;color:var(--t);line-height:1.25;">' + esc(t.name) + '</div>'
-      + '<div style="font-size:11px;color:var(--m);margin-top:3px;line-height:1.35;">' + esc(t.desc) + '</div>'
+      + '<div class="ct-icon">' + t.icon + '</div>'
+      + '<div class="ct-title-sm">' + esc(t.name) + '</div>'
+      + '<div class="ct-sub">' + esc(t.desc) + '</div>'
       + '</div>';
   }).join('');
 }
@@ -2243,19 +2243,19 @@ window.generateCustomerDoc = async function(type) {
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:var(--z-overlay);background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;';
     modal.innerHTML = `
-      <div style="background:var(--s2);border:1px solid var(--br);border-radius:14px;padding:32px;max-width:460px;width:90%;text-align:center;">
-        <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;color:var(--t);margin-bottom:8px;">Can't Generate ${esc(label)}</div>
-        <div style="font-size:13px;color:var(--m);margin-bottom:16px;">This document requires data that hasn't been added yet:</div>
-        <div style="text-align:left;background:var(--s);border-radius:8px;padding:14px;margin-bottom:20px;">
-          ${check.missing.map(m => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--orange);padding:4px 0;">'
+      <div class="ct-dialog">
+        <div class="ct-icon-lg">⚠️</div>
+        <div class="ct-dialog-title">Can't Generate ${esc(label)}</div>
+        <div class="ct-dialog-sub">This document requires data that hasn't been added yet:</div>
+        <div class="ct-preq-list">
+          ${check.missing.map(m => '<div class="ct-preq-row">'
             + '<span>• ' + esc(m.text) + '</span>'
-            + '<button type="button" class="nbd-preq-fix" data-need="' + esc(m.need) + '" style="flex:none;padding:5px 12px;background:rgba(255,255,255,.08);color:var(--t);border:1px solid var(--br);border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;">Fix &rarr;</button>'
+            + '<button type="button" class="nbd-preq-fix ct-preq-fix" data-need="' + esc(m.need) + '">Fix &rarr;</button>'
             + '</div>').join('')}
         </div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-          <button class="nbd-preq-preview" style="padding:12px 22px;background:rgba(255,255,255,.08);color:var(--t);border:1px solid var(--br);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">👁 Preview blank template</button>
-          <button class="nbd-preq-close" style="padding:12px 28px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Got It</button>
+        <div class="ct-actions-center">
+          <button class="nbd-preq-preview ct-dialog-btn">👁 Preview blank template</button>
+          <button class="nbd-preq-close ct-dialog-btn-primary">Got It</button>
         </div>
       </div>`;
     modal.querySelector('.nbd-preq-close').addEventListener('click', () => modal.remove());
