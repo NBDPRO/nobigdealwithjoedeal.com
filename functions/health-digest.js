@@ -24,7 +24,7 @@
 
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
-const { Timestamp, getFirestore } = require('firebase-admin/firestore');
+const { Timestamp, getFirestore, FieldPath } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { gateStatus } = require('./cron-gates');
 
@@ -131,7 +131,18 @@ async function gatherApiUsage(db) {
   const dayKey = new Date().toISOString().slice(0, 10);
   let total = 0;
   let topUsers = [];
-  const snap = await db.collection('api_usage_daily').get();
+  // Read ONLY today's uid rows: a document-id range on the
+  // "{YYYY-MM-DD}__uid__" prefix (2026-10-03). This used to .get() the whole
+  // collection — every day's uid AND co rows since launch, growing forever —
+  // and filter to today in memory. The id format is the writers' own
+  // (handlers/ai.js, integrations/voice-intelligence.js: UTC
+  // toISOString().slice(0, 10) + '__uid__' + uid). A __name__ range needs no
+  // composite index. The in-loop checks below stay as a belt-and-braces guard.
+  const idPrefix = dayKey + '__uid__';
+  const snap = await db.collection('api_usage_daily')
+    .where(FieldPath.documentId(), '>=', idPrefix)
+    .where(FieldPath.documentId(), '<', idPrefix + '')
+    .get();
   snap.forEach(d => {
     if (!d.id.includes('__uid__')) return;
     if (!d.id.startsWith(dayKey)) return;
