@@ -809,13 +809,13 @@
         }).addTo(stormLayers.alerts);
 
         poly.bindPopup(`
-          <div style="font-family:'Barlow',sans-serif;max-width:250px;">
-            <div style="font-weight:700;font-size:13px;">${eventIcon(alert.event)} ${esc(alert.event)}</div>
-            <div style="font-size:11px;color:#666;margin-top:4px;">${esc(alert.areaDesc?.split(';')[0] || '')}</div>
-            ${alert.hailSize ? `<div style="margin-top:4px;font-size:12px;">🧊 ${alert.hailSize}" hail</div>` : ''}
-            ${alert.windSpeed ? `<div style="margin-top:2px;font-size:12px;">💨 ${alert.windSpeed} mph</div>` : ''}
-            <div style="margin-top:6px;font-size:11px;">Damage probability: <strong>${Math.round(alert.damageProb * 100)}%</strong></div>
-            <button class="btn btn-orange btn-sm" data-storm-action="createZone" data-storm-id="${alert.id}" style="margin-top:8px;">Create Storm Zone</button>
+          <div class="stx-ffbarlowsa-maxw250px">
+            <div class="stx-w700-fs13px">${eventIcon(alert.event)} ${esc(alert.event)}</div>
+            <div class="stx-fs11px-c666-mt4px">${esc(alert.areaDesc?.split(';')[0] || '')}</div>
+            ${alert.hailSize ? `<div class="stx-mt4px-fs12px">🧊 ${alert.hailSize}" hail</div>` : ''}
+            ${alert.windSpeed ? `<div class="stx-mt2px-fs12px">💨 ${alert.windSpeed} mph</div>` : ''}
+            <div class="stx-mt6px-fs11px">Damage probability: <strong>${Math.round(alert.damageProb * 100)}%</strong></div>
+            <button class="btn btn-orange btn-sm stx-mt8px" data-storm-action="createZone" data-storm-id="${alert.id}">Create Storm Zone</button>
           </div>
         `);
       }
@@ -834,11 +834,11 @@
         }).addTo(stormLayers.zones);
 
         poly.bindPopup(`
-          <div style="font-family:'Barlow',sans-serif;max-width:250px;">
-            <div style="font-weight:700;font-size:13px;">🌩️ ${esc(zone.name)}</div>
-            <div style="font-size:11px;margin-top:4px;">Status: <strong>${esc(String(zone.status || 'active')).toUpperCase()}</strong></div>
-            <div style="font-size:11px;">Est. roofs: ${zone.estimatedRoofs} · ${Math.round((zone.damageProb || 0) * 100)}% damage</div>
-            <div style="margin-top:6px;display:flex;gap:6px;">
+          <div class="stx-ffbarlowsa-maxw250px">
+            <div class="stx-w700-fs13px">🌩️ ${esc(zone.name)}</div>
+            <div class="stx-fs11px-mt4px">Status: <strong>${esc(String(zone.status || 'active')).toUpperCase()}</strong></div>
+            <div class="stx-fs11px">Est. roofs: ${zone.estimatedRoofs} · ${Math.round((zone.damageProb || 0) * 100)}% damage</div>
+            <div class="stx-mt6px-dflex-gap6px">
               <button class="btn btn-ghost btn-sm" data-storm-action="openZone" data-storm-id="${zone.id}">View</button>
               <button class="btn btn-orange btn-sm" data-storm-action="pushToD2D" data-storm-id="${zone.id}">Start Knocking</button>
             </div>
@@ -896,11 +896,11 @@
           </div>
           <div class="stat-card stc-stat">
             <div class="stat-icon">🗺️</div>
-            <div><div class="stat-val" style="color:var(--blue);font-size:22px;">${activeZones}</div><div class="stat-lbl">Storm Zones</div></div>
+            <div><div class="stat-val stx-cblue-fs22px">${activeZones}</div><div class="stat-lbl">Storm Zones</div></div>
           </div>
           <div class="stat-card stc-stat">
             <div class="stat-icon">💰</div>
-            <div><div class="stat-val" style="color:var(--green);font-size:22px;">$${Math.round(totalRevenue/1000)}k</div><div class="stat-lbl">Pipeline Value</div></div>
+            <div><div class="stat-val stx-cgreen-fs22px">$${Math.round(totalRevenue/1000)}k</div><div class="stat-lbl">Pipeline Value</div></div>
           </div>
           ${(() => {
             // SPC Day-1 outlook at the rep's own location. Renders NOTHING when
@@ -918,7 +918,7 @@
           })()}
           <div class="stat-card stc-stat">
             <div class="stat-icon">🚪</div>
-            <div><div class="stat-val" style="color:var(--orange);font-size:22px;">${stormZones.reduce((s, z) => s + (Number(z.knockCount) || 0), 0)}</div><div class="stat-lbl">Storm Knocks</div></div>
+            <div><div class="stat-val stx-corange-fs22px">${stormZones.reduce((s, z) => s + (Number(z.knockCount) || 0), 0)}</div><div class="stat-lbl">Storm Knocks</div></div>
           </div>
         </div>
 
@@ -1013,8 +1013,8 @@
                 <div class="stc-card-sub">${esc(a.areaDesc?.split(';').slice(0, 3).join(', ') || 'Unknown area')}</div>
                 <div class="stc-tags">
                   <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${severityColor(a.severity)} 13%, transparent);color:${severityColor(a.severity)};font-weight:600;">${a.severity}</span>
-                  ${a.hailSize ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, var(--blue) 13%, transparent);color:var(--blue);font-weight:600;">🧊 ${a.hailSize}" Hail</span>` : ''}
-                  ${a.windSpeed ? `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, #ff6d00 13%, transparent);color:#ff6d00;font-weight:600;">💨 ${a.windSpeed}mph</span>` : ''}
+                  ${a.hailSize ? `<span class="stx-fs10px-p2px8px-r10px">🧊 ${a.hailSize}" Hail</span>` : ''}
+                  ${a.windSpeed ? `<span class="stx-fs10px-p2px8px-r10px-2">💨 ${a.windSpeed}mph</span>` : ''}
                   <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${a.damageProb > 0.6 ? '#ff1744' : '#ffab00'} 13%, transparent);color:${a.damageProb > 0.6 ? '#ff1744' : '#ffab00'};font-weight:600;">
                     ${Math.round(a.damageProb * 100)}% damage prob
                   </span>
@@ -1059,7 +1059,7 @@
                     <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, ${z.status === 'active' ? '#ff6d00' : z.status === 'canvassing' ? 'var(--orange)' : 'var(--green)'} 13%, transparent);color:${z.status === 'active' ? '#ff6d00' : z.status === 'canvassing' ? 'var(--orange)' : 'var(--green)'};font-weight:600;text-transform:uppercase;">${esc(z.status)}</span>
                     <span class="stc-tag stc-tag-plain">🏠 ${z.estimatedRoofs} roofs</span>
                     <span class="stc-tag stc-tag-plain">🚪 ${Number(z.knockCount) || 0} knocks</span>
-                    <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:color-mix(in srgb, var(--green) 13%, transparent);color:var(--green);font-weight:600;">${rev.revenueFormatted} pipeline</span>
+                    <span class="stx-fs10px-p2px8px-r10px-3">${rev.revenueFormatted} pipeline</span>
                   </div>
                 </div>
                 <div class="stc-actions">
@@ -1112,13 +1112,13 @@
               <div><div class="stat-val stc-fs18">${rev.estimatedRoofs}</div><div class="stat-lbl">Est. Roofs</div></div>
             </div>
             <div class="stat-card stc-proj-tile">
-              <div><div class="stat-val" style="font-size:18px;color:var(--orange);">${rev.damagedRoofs}</div><div class="stat-lbl">Likely Damaged</div></div>
+              <div><div class="stat-val stx-fs18px-corange">${rev.damagedRoofs}</div><div class="stat-lbl">Likely Damaged</div></div>
             </div>
             <div class="stat-card stc-proj-tile">
-              <div><div class="stat-val" style="font-size:18px;color:var(--green);">${rev.expectedJobs}</div><div class="stat-lbl">Expected Jobs</div></div>
+              <div><div class="stat-val stx-fs18px-cgreen">${rev.expectedJobs}</div><div class="stat-lbl">Expected Jobs</div></div>
             </div>
             <div class="stat-card stc-proj-tile">
-              <div><div class="stat-val" style="font-size:18px;color:var(--green);">${rev.revenueFormatted}</div><div class="stat-lbl" title="Model: roofs × damage probability × close rate × avg job — not collected money">Projected Revenue</div></div>
+              <div><div class="stat-val stx-fs18px-cgreen">${rev.revenueFormatted}</div><div class="stat-lbl" title="Model: roofs × damage probability × close rate × avg job — not collected money">Projected Revenue</div></div>
             </div>
           </div>
 
@@ -1175,15 +1175,15 @@
           </div>
           <div class="stat-card">
             <div class="stat-icon">🚪</div>
-            <div><div class="stat-val" style="color:var(--orange);">${totalKnocks}</div><div class="stat-lbl">Storm Knocks</div></div>
+            <div><div class="stat-val stx-corange">${totalKnocks}</div><div class="stat-lbl">Storm Knocks</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon">👥</div>
-            <div><div class="stat-val" style="color:var(--blue);">${totalLeads}</div><div class="stat-lbl">Leads Generated</div></div>
+            <div><div class="stat-val stx-cblue">${totalLeads}</div><div class="stat-lbl">Leads Generated</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon">📈</div>
-            <div><div class="stat-val" style="color:var(--green);">${convRate}%</div><div class="stat-lbl">Conversion Rate</div></div>
+            <div><div class="stat-val stx-cgreen">${convRate}%</div><div class="stat-lbl">Conversion Rate</div></div>
           </div>
         </div>
 
