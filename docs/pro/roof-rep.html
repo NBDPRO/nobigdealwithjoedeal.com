@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Roof Rep · NBD Pro</title>
+  <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
+  <link rel="manifest" href="/pro/manifest.json">
+  <meta name="theme-color" content="#141821">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NBD Pro">
+  <meta name="robots" content="noindex, nofollow">
+  <script src="js/pages/sw-register.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap">
+  <link rel="stylesheet" href="css/roof-rep.css?v=1">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="rr-back" href="/pro/dashboard.html" aria-label="Back to NBD Pro">← CRM</a>
+      <canvas id="meFace" width="32" height="32" aria-hidden="true"></canvas>
+      <div class="t">
+        <h1>ROOF REP</h1>
+        <div class="lvl" id="lvlText">Level 1 · Apprentice</div>
+        <div class="bar" role="progressbar" aria-label="Progress to the next level" id="lvlBar"><i id="lvlFill"></i></div>
+      </div>
+      <button type="button" class="snd" id="sndBtn" aria-label="Sound on">🔊</button>
+    </header>
+
+    <div class="hud" aria-live="polite">
+      <div class="stat"><span>Day</span><b id="hDay">1</b></div>
+      <div class="stat"><span>Time</span><b id="hTime">—</b></div>
+      <div class="stat"><span>XP today</span><b id="hXp">0</b></div>
+      <div class="stat"><span>Signed</span><b id="hSigned">0</b></div>
+      <div class="stat"><span>Collected</span><b id="hColl">$0</b></div>
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="street" aria-selected="false">Street</button>
+      <button type="button" role="tab" data-tab="today" aria-selected="true">Today<span class="badge" id="agBadge" hidden>0</span></button>
+      <button type="button" role="tab" data-tab="train" aria-selected="false">Train</button>
+      <button type="button" role="tab" data-tab="locker" aria-selected="false">Locker<span class="badge" id="lkBadge" hidden>0</span></button>
+      <button type="button" role="tab" data-tab="crew" aria-selected="false">Crew</button>
+    </nav>
+
+    <section class="panel" id="p-street" hidden>
+      <div class="chips" id="streetChips"></div>
+      <div class="stage"><canvas id="world" width="320" height="200" aria-label="The street: tap a house to walk to its door"></canvas></div>
+      <div class="box">
+        <canvas class="face" id="face" width="32" height="32" aria-hidden="true"></canvas>
+        <div class="talk" id="talk"></div>
+      </div>
+      <div class="row"><p class="help grow">Tap a house to knock. Dark specks on a roof mean hail. Flags: blue booked, green signed, gold hanger, red lost. Tap another street to drive there.</p><button type="button" class="btn" id="endBtn">Call it a day</button></div>
+    </section>
+
+    <section class="panel" id="p-today"></section>
+    <section class="panel" id="p-train" hidden></section>
+    <section class="panel" id="p-locker" hidden></section>
+    <section class="panel" id="p-crew" hidden></section>
+  </div>
+
+  <div class="overlay" id="ov" hidden><div class="card" id="ovCard"></div></div>
+  <div class="toast" id="toast" hidden></div>
+
+  <div class="rr-auth" id="rrAuth" hidden>
+    <div class="card">
+      <h2>ROOF REP</h2>
+      <p>Sign in to NBD Pro to save your career and join your team's crew board.</p>
+      <p><a href="/pro/login.html">Sign in</a></p>
+    </div>
+  </div>
+
+  <script type="module" src="js/pages/roof-rep-net.js?v=1"></script>
+  <script src="js/pages/roof-rep.js?v=1" defer></script>
+</body>
+</html>

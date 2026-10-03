@@ -651,6 +651,24 @@ async function run() {
   //     default-deny failed every unlinked save and load. Exercise the
   //     exact client query shapes from maps-routing.js.
   const { collection, query, where, orderBy, limit, getDocs, addDoc } = require('firebase/firestore');
+
+  // Roof Rep (the sales game, 2026-10-03). The career save is owner-only — not
+  // even a company admin reads it. The crew board is readable inside the
+  // company only, and a rep writes only their OWN row, stamped with their OWN
+  // companyId, carrying only the board's fields.
+  await assertSucceeds(setDoc(doc(alice, 'roofRep/alice'), { save: { v: 2, day: 3, xp: 240 }, at: 1 }));
+  await assertSucceeds(getDoc(doc(alice, 'roofRep/alice')));
+  await assertFails(getDoc(doc(coAdmin, 'roofRep/alice')));
+  await assertFails(setDoc(doc(bob, 'roofRep/alice'), { save: { v: 2, day: 99 }, at: 1 }));
+  const rrRow = { xp: 240, level: 2, title: 'Door Knocker', weekKey: '2026-09-28', weekXp: 240, bestDay: 180, days: 2, cleanDays: 2, collected: 0, badges: 1, avatar: { skin: 1 }, name: 'Alice', at: 1 };
+  await assertSucceeds(setDoc(doc(alice, 'roofRepScores/alice'), Object.assign({}, rrRow, { companyId: 'co-a' })));
+  await assertFails(setDoc(doc(alice, 'roofRepScores/alice'), Object.assign({}, rrRow, { companyId: 'co-b' })));
+  await assertFails(setDoc(doc(alice, 'roofRepScores/alice'), Object.assign({}, rrRow, { companyId: 'co-a', role: 'admin' })));
+  await assertFails(setDoc(doc(bob, 'roofRepScores/alice'), Object.assign({}, rrRow, { companyId: 'co-b' })));
+  await assertSucceeds(getDoc(doc(coAdmin, 'roofRepScores/alice')));
+  await assertFails(getDoc(doc(bob, 'roofRepScores/alice')));
+  await assertSucceeds(getDocs(query(collection(coAdmin, 'roofRepScores'), where('companyId', '==', 'co-a'))));
+  await assertFails(getDocs(query(collection(bob, 'roofRepScores'), where('companyId', '==', 'co-a'))));
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'drawings/draw-alice'),

@@ -1430,6 +1430,26 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── ROOF REP (the sales game, docs/pro/roof-rep.html, 2026-10-03) ──
+    // roofRep/{uid}: the rep's own career save. Owner-only.
+    // roofRepScores/{uid}: the crew board. Readable by the owner and by
+    // members of the SAME company (never another tenant); the owner writes
+    // only their own row, stamped with their own companyId (null when the
+    // token carries none), and only the board's fields.
+    match /roofRep/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /roofRepScores/{uid} {
+      allow read: if isOwner(uid)
+        || (isAuth() && request.auth.token.get('companyId', null) != null
+            && resource.data.companyId == request.auth.token.get('companyId', null));
+      allow create, update: if isOwner(uid)
+        && request.resource.data.companyId == request.auth.token.get('companyId', null)
+        && request.resource.data.keys().hasOnly(['xp', 'level', 'title', 'weekKey', 'weekXp', 'bestDay', 'days', 'cleanDays', 'collected', 'badges', 'avatar', 'name', 'companyId', 'at'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 40;
+      allow delete: if isOwner(uid);
+    }
+
     // ── COUNTERS (atomic ID sequences) ────────────────
     // Used by dashboard.html + customer.html runTransaction calls to mint
     // sequential customer IDs (NBD-####). `customerIds` is the only counter.

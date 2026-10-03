@@ -296,7 +296,7 @@
       },
       {
         "_comment": "Private /pro APP pages (2026-07-16): robots.txt's old Disallow lines used the .html forms, which NEVER match under cleanUrls (the served canonical URL is extensionless, and RFC 9309 prefix-matching means 'Disallow: /pro/dashboard.html' does not cover '/pro/dashboard') — so the CRM app shells were crawlable AND indexable, polluting brand search results. Same fix rationale as /pro/blog above: X-Robots-Tag noindex is the authoritative signal, and the pages deliberately stay OUT of robots.txt so crawlers can SEE the noindex instead of leaving a URL-only listing. Enumerated (not /pro/**) because /pro, /pro/pricing, /pro/how-to and /pro/terms are the public B2B pages in sitemap-pro.xml and must stay indexable. (/pro/landing was a byte-identical duplicate of /pro and was folded into it with a 301 on 2026-08-18.)",
-        "source": "/pro/@(dashboard|vault|codex|analytics|leaderboard|demo|sandbox|diagnostic|daily-success|stripe-success|ask-joe|ai-tree|ai-tool-finder|project-codex|understand|customer|estimate-view|photo-review|portal|onboarding|refer|sign|esign|esign-setup|login|register)",
+        "source": "/pro/@(roof-rep|dashboard|vault|codex|analytics|leaderboard|demo|sandbox|diagnostic|daily-success|stripe-success|ask-joe|ai-tree|ai-tool-finder|project-codex|understand|customer|estimate-view|photo-review|portal|onboarding|refer|sign|esign|esign-setup|login|register)",
         "headers": [
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
         ]
