@@ -390,7 +390,7 @@
     // rep turns that on. Stylesheet first, so the bar is styled the moment
     // the JS builds it. This file's own ?v re-bumped 9 -> 10.
     drawtool: [
-      'css/maps-routing-view.css?v=1',
+      'css/maps-routing-view.css?v=2',
       'js/draw-geom.js?v=2',
       'js/maps-routing.js?v=8',
       'css/draw-reticle.css?v=1',
