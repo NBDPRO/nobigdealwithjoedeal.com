@@ -69,6 +69,24 @@ const snoozed = L.collectSweepItems({ calls: [call('s1', { leadId: null, promise
 ok('a call snoozed past today stays off; on its snooze day it comes back', snoozed.map((i) => i.callId).join() === 's2', snoozed.map((i) => i.callId).join());
 ok('addDaysYmd: calendar days, across a month end', L.addDaysYmd('2026-10-05', 1) === '2026-10-06' && L.addDaysYmd('2026-10-30', 3) === '2026-11-02' && L.addDaysYmd('2026-12-31', 7) === '2027-01-07');
 
+console.log('\n1b. suggestLeadForCall (2026-10-03)');
+const LEADS = [
+  { id: 'Lm', firstName: 'Mark', lastName: 'Southman', address: '412 Elm Street, Goshen, KY' },
+  { id: 'Lb', firstName: 'Bryce', lastName: 'Williams', address: '9 Oak Ct' },
+  { id: 'Ld', firstName: 'Old', lastName: 'Deleted', address: '77 Gone Rd', deleted: true },
+  { id: 'Lj1', firstName: 'Jo', lastName: 'Smith', address: '' },
+  { id: 'Lj2', firstName: 'Jo', lastName: 'Smith', address: '' },
+];
+const sg = (c) => L.suggestLeadForCall(Object.assign({ leadId: null, contactName: '', summary: '', transcript: '' }, c), LEADS);
+ok('contact name in the phone matches the lead', (sg({ contactName: 'Mark Southman NBD Lead' }) || {}).leadId === 'Lm' && /in your phone/.test(sg({ contactName: 'Mark Southman NBD Lead' }).why));
+ok('the full name said on the call matches', (sg({ summary: 'Jo called Bryce Williams about the garage.' }) || {}).leadId === 'Lb');
+ok('a numbered street said on the call matches', (sg({ transcript: 'yeah we are at 412 elm street by the school' }) || {}).leadId === 'Lm');
+ok('a first name alone never matches', sg({ summary: 'Talked to Mark about gutters.' }) === null);
+ok('two leads with the same name → no guess', sg({ contactName: 'Jo Smith' }) === null);
+ok('a deleted lead is never suggested', sg({ summary: 'at 77 gone rd' }) === null);
+ok('a call already on a customer gets no suggestion', L.suggestLeadForCall({ leadId: 'Lx', contactName: 'Mark Southman' }, LEADS) === null);
+ok('a name inside a longer word does not match', sg({ contactName: 'Mark Southmanson' }) === null);
+
 console.log('\n2. buildSweepEmail');
 const mail = L.buildSweepEmail({ items, todayYmd: TODAY, slot: 'am' });
 ok('subject counts and flags urgent', mail.subject === '🚨 Calls: 4 things you said you\'d do');
@@ -77,6 +95,14 @@ ok('a "work through all" button opens the deck', mail.html.includes('Work throug
 ok('each item has a Do it → link straight to that item in the deck', /dashboard\.html\?open=promises&amp;item=a#calls/.test(mail.html) && /open=promises&item=g#calls/.test(mail.text));
 ok('the breakdown says what kinds are open', /1 urgent · 1 due · 2 no customer on file/.test(mail.html));
 ok('no "+ more" line when everything fits', !/more — open the list/.test(mail.html));
+const hinted = L.buildSweepEmail({ items: [
+  { kind: 'nofile', callType: 'lead', who: 'A', promises: ['Price it'], summary: '', due: TODAY, callId: 'h1', leadId: null },
+  { kind: 'nofile', callType: 'customer', who: 'B', promises: ['x'], summary: '', due: TODAY, callId: 'h2', leadId: null, suggest: { leadId: 'Lm', name: 'Mark Southman', why: 'their name in your phone' } },
+  { kind: 'nofile', callType: 'sub', who: 'C', promises: ['y'], summary: '', due: TODAY, callId: 'h3', leadId: null },
+], todayYmd: TODAY, slot: 'am' });
+ok('a new-lead call is flagged as not in the CRM yet', /Sounds like a new lead/.test(hinted.html) && /1 sound like new leads/.test(hinted.html));
+ok('a suggested match names the customer and why', /Looks like Mark Southman — their name in your phone/.test(hinted.html));
+ok('a sub call gets no hint', (hinted.html.match(/Sounds like a new lead|Looks like/g) || []).length === 2);
 const evil = L.buildSweepEmail({ items: [{ kind: 'nofile', who: '<img src=x onerror=alert(1)>', promises: ['"><script>x</script>'], summary: '<b>', due: TODAY, callId: 'z', leadId: null }], todayYmd: TODAY, slot: 'pm' });
 ok('every value escaped (contact names and AI text are untrusted)', !/<img|<script|<b>/.test(evil.html) && /&lt;img/.test(evil.html));
 ok('afternoon subject says so', /afternoon check/.test(evil.subject));
@@ -107,6 +133,11 @@ function fakeDb(seed) {
   ok('dry run: counts, sends nothing', r.state === 'dry_run' && r.items === 4 && r.urgent === 1 && sent.length === 0, JSON.stringify(r));
   r = await runSweep({ db: fakeDb(seed), live: true, nowMs: NOW, send, slot: 'am' });
   ok('live: one email to the owner', r.state === 'sent' && sent.length === 1 && sent[0].to === 'owner@nbd.test' && /4 things/.test(sent[0].subject));
+  const seedS = Object.assign({}, seed, { ['leads/LX']: { userId: OWNER, firstName: 'Example', lastName: 'Claims', address: '1 Test St' } });
+  const g = await M._test.gatherSweep({ db: fakeDb(seedS), nowMs: NOW });
+  const dItem = g.items.find((i) => i.callId === 'd');
+  ok('gatherSweep suggests the one matching customer for a no-file call', dItem && dItem.suggest && dItem.suggest.leadId === 'LX', JSON.stringify(dItem && dItem.suggest));
+  ok('…and leaves the unmatched one alone', !g.items.find((i) => i.callId === 'e').suggest);
   const quiet = { ['users/' + OWNER]: { email: 'owner@nbd.test' }, [COLLECTION + '/x']: Object.assign(call('x', { leadId: 'L9' })) };
   sent.length = 0;
   r = await runSweep({ db: fakeDb(quiet), live: true, nowMs: NOW, send, slot: 'pm' });

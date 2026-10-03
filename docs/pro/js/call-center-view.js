@@ -469,6 +469,13 @@
       '<div class="deck-sub">' + esc((p.channel === 'text' ? 'Texts · ' : 'Call · ') + when) + '</div>' +
       (p.promises && p.promises.length ? '<div class="deck-big">You said: ' + p.promises.map(esc).join(' · ') + '</div>' : '') +
       (p.summary ? '<div class="deck-why">' + esc(p.summary) + '</div>' : '') +
+      // One-tap fixes for a call with no customer (2026-10-03): the one
+      // existing customer it matches, or — for a prospect — a new lead.
+      (!p.leadId && p.channel !== 'text' && !isViewer() && p.suggest ? '<div class="cc-deck-hint">Looks like <b>' + esc(p.suggest.name) + '</b> — ' + esc(p.suggest.why) + '.</div>' +
+        '<button type="button" class="btn btn-orange pc-play cc-deck-one" data-ccp="suggest" data-id="' + esc(p.callId) + '" data-lead="' + esc(p.suggest.leadId) + '">File on ' + esc(p.suggest.name) + '</button>' : '') +
+      (!p.leadId && p.channel !== 'text' && !isViewer() && !p.suggest && p.callType === 'lead' ? '<div class="cc-deck-hint">🆕 Sounds like a new lead — not in the CRM yet.</div>' +
+        '<button type="button" class="btn btn-orange pc-play cc-deck-one" data-ccp="newlead" data-id="' + esc(p.callId) + '">＋ Make this a lead</button>' : '') +
+      (!p.leadId && (p.callType === 'sub' || p.callType === 'supplier') ? '<div class="cc-deck-hint">' + (p.callType === 'sub' ? 'A sub' : 'A supplier') + ' — not a customer. Mark it done when it\'s done.</div>' : '') +
       (!p.leadId && p.channel !== 'text' && !isViewer() ? '<div class="cc-attach-row cc-deck-attach">' +
         '<input class="cc-search" id="ccpAttach-' + esc(p.callId) + '" list="ccpAttachList" autocomplete="off" placeholder="File on a customer…" aria-label="File this call on a customer">' +
         '<button type="button" class="btn btn-ghost pc-play" data-ccp="attach" data-id="' + esc(p.callId) + '">File</button></div>' +
@@ -535,6 +542,48 @@
       onClose: function () { promises.loaded = false; loadPromises(); load(); },
     });
   }
+
+  // One tap on a no-customer card: file on the suggested customer, or make
+  // the caller a new lead (then file the call on it — attach adds the
+  // timeline entry and the follow-up task from what Jo promised).
+  async function attachFromDeck(id, leadId, out, okText) {
+    await callable('callCenterAction', { id: id, action: 'attach', leadId: leadId });
+    var p = promises.items.filter(function (x) { return x.callId === id; })[0];
+    if (p) { p.leadId = leadId; p.suggest = null; }
+    if (out) out.textContent = okText;
+  }
+  document.addEventListener('click', async function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-ccp="suggest"],[data-ccp="newlead"]') : null;
+    if (!b) return;
+    var id = b.getAttribute('data-id');
+    var out = document.querySelector('[data-ccp-status="' + CSS.escape(id) + '"]');
+    var p = promises.items.filter(function (x) { return x.callId === id; })[0];
+    if (!p) return;
+    b.disabled = true;
+    try {
+      if (b.getAttribute('data-ccp') === 'suggest') {
+        await attachFromDeck(id, b.getAttribute('data-lead'), out, 'Filed on ' + ((p.suggest && p.suggest.name) || 'the customer') + '. Swipe it done when it\'s done.');
+      } else {
+        if (typeof window._saveLead !== 'function') throw new Error('Leads are still loading — try again in a moment.');
+        var name = String(p.contactName || '').replace(/\bNBD\b|\blead\b/gi, '').trim();
+        var parts = name ? name.split(/\s+/) : [];
+        var leadId = await window._saveLead({
+          firstName: parts.length ? parts[0] : 'Caller',
+          lastName: parts.length > 1 ? parts.slice(1).join(' ') : fmtPhone(p.phoneDigits),
+          phone: fmtPhone(p.phoneDigits),
+          source: 'Phone call',
+          stage: 'new',
+          notes: (p.summary ? 'From a phone call: ' + p.summary : 'From a phone call.') + (p.promises && p.promises.length ? '\nYou said you would: ' + p.promises.join('; ') : ''),
+        });
+        if (!leadId) throw new Error('Lead not created.');
+        await attachFromDeck(id, leadId, out, 'New lead created and the call filed on it — it\'s in your pipeline with a follow-up task.');
+      }
+      b.hidden = true;
+    } catch (err) {
+      if (out) out.textContent = (err && err.message) || 'That did not save — try again.';
+      b.disabled = false;
+    }
+  });
 
   // "File on a customer" on a deck card (the deck overlay sits outside #view-calls).
   document.addEventListener('click', async function (e) {
