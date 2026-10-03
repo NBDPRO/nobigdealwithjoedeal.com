@@ -116,6 +116,7 @@
     "money-dashboard.test.js",
     "monthly-overhead-logic.test.js",
     "notif-bell-merge.test.js",
+    "stage-actor-no-next-step-2026-10-03.test.js",
     "orphan-sweep-parser.test.js",
     "ourwork-deeplink-contract.test.js",
     "ourwork-detail-pages.test.js",
