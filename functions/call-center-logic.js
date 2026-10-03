@@ -442,7 +442,14 @@ function buildFollowUpTask({ call, notes, leadId, ownerUid, todayYmd, nowMs }) {
 
 const SWEEP_LOOKBACK_MS = 30 * 24 * 3600 * 1000;
 const URGENT_WINDOW_MS = 36 * 3600 * 1000;
-const SWEEP_MAX_ITEMS = 30;
+// The list itself is UNCAPPED (2026-10-03): it used to stop at 30, and on
+// 10-03 there were 57 open — 27 silently missing from the email. The page
+// (Call Center → "Said you'd do", one at a time) shows every item; the
+// email shows the first SWEEP_EMAIL_SHOW and says how many more there are.
+const SWEEP_EMAIL_SHOW = 15;
+const APP = 'https://nobigdealwithjoedeal.com/pro/';
+const DECK_URL = APP + 'dashboard.html?open=promises#calls';
+const deckItemUrl = (callId) => APP + 'dashboard.html?open=promises&item=' + encodeURIComponent(callId) + '#calls';
 
 function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
   const tasks = tasksByCallId instanceof Map ? tasksByCallId : new Map(Object.entries(tasksByCallId || {}));
@@ -450,10 +457,12 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
   for (const c of calls || []) {
     if (!c || c.status !== 'noted' || c.handledAtMs) continue;
     if ((Number(c.startedAtMs) || 0) < nowMs - SWEEP_LOOKBACK_MS) continue;
+    // Snoozed from the deck: a call with no task to move carries the date.
+    if (c.snoozeUntilYmd && String(c.snoozeUntilYmd) > todayYmd) continue;
     const mine = (Array.isArray(c.promises) ? c.promises : []).filter((p) => p && p.who === 'jo');
     const task = c.leadId ? tasks.get(c.id) : null;
     const who = c.contactName || (c.phoneDigits ? '(' + c.phoneDigits.slice(0, 3) + ') ' + c.phoneDigits.slice(3, 6) + '-' + c.phoneDigits.slice(6) : 'Unknown number');
-    const base = { callId: c.id, channel: c.channel === 'text' ? 'text' : 'call', leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text) };
+    const base = { callId: c.id, channel: c.channel === 'text' ? 'text' : 'call', leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text), phoneDigits: c.phoneDigits || '', hasTask: !!task };
     if (task) {
       if (task.done === true) continue;
       const urgentNow = c.urgent && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS;
@@ -472,8 +481,14 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
     }
   }
   const rank = { urgent: 0, due: 1, nofile: 2 };
-  return out.sort((a, b) => rank[a.kind] - rank[b.kind] || String(a.due).localeCompare(String(b.due)) || (a.startedAtMs || 0) - (b.startedAtMs || 0))
-    .slice(0, SWEEP_MAX_ITEMS);
+  return out.sort((a, b) => rank[a.kind] - rank[b.kind] || String(a.due).localeCompare(String(b.due)) || (a.startedAtMs || 0) - (b.startedAtMs || 0));
+}
+
+/** "Snooze N days" lands on this date (America/New_York calendar days). */
+function addDaysYmd(ymd, days) {
+  const [y, m, d] = String(ymd).split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + Number(days)));
+  return t.toISOString().slice(0, 10);
 }
 
 function escHtml(s) {
@@ -483,21 +498,33 @@ function escHtml(s) {
 /** The sweep email. Internal (Jo only); every value escaped. */
 function buildSweepEmail({ items, todayYmd, slot }) {
   const n = items.length;
+  const shown = items.slice(0, SWEEP_EMAIL_SHOW);
+  const more = n - shown.length;
   const subject = (items.some((i) => i.kind === 'urgent') ? '🚨 ' : '') + 'Calls: ' + n + ' thing' + (n === 1 ? '' : 's') + ' you said you\'d do' + (slot === 'pm' ? ' (afternoon check)' : '');
   const label = { urgent: 'Urgent', due: 'Due', nofile: 'No customer on file' };
-  const link = (i) => i.leadId ? 'https://nobigdealwithjoedeal.com/pro/customer.html?id=' + encodeURIComponent(i.leadId) : 'https://nobigdealwithjoedeal.com/pro/dashboard.html#calls';
+  const count = (k) => items.filter((i) => i.kind === k).length;
+  const breakdown = [['urgent', 'urgent'], ['due', 'due'], ['nofile', 'no customer on file']]
+    .filter(([k]) => count(k)).map(([k, t]) => count(k) + ' ' + t).join(' · ');
+  const link = (i) => i.leadId ? APP + 'customer.html?id=' + encodeURIComponent(i.leadId) : DECK_URL;
   const when = (ms) => ms ? new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const btn = '<a href="' + escHtml(DECK_URL) + '" style="display:inline-block;background:#BD5728;color:#fff;font-weight:700;text-decoration:none;padding:11px 18px;border-radius:8px;font-size:15px">Work through all ' + n + ', one at a time →</a>';
   const html = '<div style="font-family:Arial,sans-serif;max-width:620px;color:#111">' +
     '<h2 style="margin:0 0 6px">' + escHtml(subject) + '</h2>' +
-    '<p style="margin:0 0 14px;color:#555;font-size:13px">From your recorded calls, ' + escHtml(todayYmd) + '. Tick the task (or mark the call handled) and it drops off.</p>' +
-    items.map((i) => '<div style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:0 0 10px">' +
+    '<p style="margin:0 0 10px;color:#555;font-size:13px">From your recorded calls, ' + escHtml(todayYmd) + (breakdown ? ': ' + escHtml(breakdown) : '') + '. Swipe each one done, later or snooze — it drops off.</p>' +
+    '<p style="margin:0 0 16px">' + btn + '</p>' +
+    shown.map((i) => '<div style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:0 0 10px">' +
       '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:' + (i.kind === 'urgent' ? '#b91c1c' : '#c2410c') + '">' + escHtml(label[i.kind]) + (i.due ? ' · ' + escHtml(i.due) : '') + '</div>' +
       '<div style="font-weight:700;margin:2px 0"><a href="' + escHtml(link(i)) + '" style="color:#111">' + escHtml(i.who) + '</a> <span style="font-weight:400;color:#666;font-size:12px">' + escHtml((i.channel === 'text' ? 'texts · ' : '') + when(i.startedAtMs)) + '</span></div>' +
       (i.promises.length ? '<ul style="margin:4px 0 4px 18px;padding:0;font-size:14px">' + i.promises.map((p) => '<li>' + escHtml(p) + '</li>').join('') + '</ul>' : '') +
       (i.summary ? '<div style="font-size:13px;color:#444">' + escHtml(i.summary) + '</div>' : '') +
-      '</div>').join('') + '</div>';
-  const text = subject + '\n\n' + items.map((i) => '- [' + label[i.kind] + (i.due ? ' ' + i.due : '') + '] ' + i.who + ': ' +
-    (i.promises.length ? i.promises.join('; ') : i.summary) + '\n  ' + link(i)).join('\n');
+      '<div style="margin-top:6px;font-size:13px"><a href="' + escHtml(deckItemUrl(i.callId)) + '" style="color:#BD5728;font-weight:700">Do it →</a></div>' +
+      '</div>').join('') +
+    (more > 0 ? '<p style="margin:4px 0 0;font-size:14px"><a href="' + escHtml(DECK_URL) + '" style="color:#BD5728;font-weight:700">+ ' + more + ' more — open the list →</a></p>' : '') +
+    '</div>';
+  const text = subject + (breakdown ? '\n' + breakdown : '') + '\n\nWork through them one at a time: ' + DECK_URL + '\n\n' +
+    shown.map((i) => '- [' + label[i.kind] + (i.due ? ' ' + i.due : '') + '] ' + i.who + ': ' +
+      (i.promises.length ? i.promises.join('; ') : i.summary) + '\n  ' + deckItemUrl(i.callId)).join('\n') +
+    (more > 0 ? '\n\n+ ' + more + ' more: ' + DECK_URL : '');
   return { subject, html, text };
 }
 
@@ -526,7 +553,9 @@ module.exports = {
   phonePatchForLead,
   collectSweepItems,
   buildSweepEmail,
-  SWEEP_MAX_ITEMS,
+  addDaysYmd,
+  SWEEP_EMAIL_SHOW,
+  DECK_URL,
   GROQ_MAX_BYTES,
   DAY_AUDIO_SEC_CAP,
   estimateAudioSec,
