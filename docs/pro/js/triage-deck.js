@@ -181,7 +181,13 @@
     else if (a === 'more') { var m = el().querySelector('.deck-more'); if (m.hidden) openMore(); else m.hidden = true; }
     else if (a === 'opt') {
       var o = (st.cfg.more(item) || [])[Number(b.getAttribute('data-i'))];
-      if (o && o.href) { window.open(o.href, '_blank', 'noopener'); return; }
+      if (o && o.href) {
+        // tel: / sms: hand off to the phone's own apps — a new window would
+        // be blank in the installed app, so navigate in place.
+        if (/^(tel|sms):/.test(o.href)) window.location.href = o.href;
+        else window.open(o.href, '_blank', 'noopener');
+        return;
+      }
       if (o) run(o.kind === 'left' ? 'left' : 'right', o.act, item);
     }
   }
