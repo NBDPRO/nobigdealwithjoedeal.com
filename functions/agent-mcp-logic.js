@@ -107,6 +107,10 @@ const TOOLS = {
     description: 'Jo\'s week from his tracker: each floor out of 7, full days, the $5-per-miss tax and whether he moved it to savings, the weigh-in rule (7-day average vs last week; not down 0.5 lb → cut 200 calories), the goal weight, and the plain-text weekly scorecard. Read only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
+  my_money: {
+    description: 'Jo\'s money tab (Finance Board only): his paycheck and how often, the zero-based plan for one paycheck (bills, card minimums, kept subscriptions, auto-saves, spending buffer, emergency fund, extra to the highest-APR card), the emergency fund vs target, each card (nickname, balance, APR, minimum), the payoff order and debt-free estimate, and his subscriptions marked keep / cut. Nicknames and amounts only — never account or card numbers. Read only; Jo edits it in the tracker.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
   my_reviews: {
     description: 'Jo\'s saved Sunday reviews, newest first: floors %, miss tax moved or not, last week\'s hard thing done or not, what he kept, where he bailed, and this week\'s hard thing with its deadline. Hold him to them. Read only.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 12 } }, additionalProperties: false },
@@ -138,9 +142,9 @@ const BOTS = {
   // tracker (userSettings/{ownerUid}.dsSnapshot / dsReviews) — never the CRM.
   // Their keys are made with scope 'personal' and checked on every call.
   coach:  { name: 'Coach · Personal', scope: 'personal', tools: ['my_today', 'my_week', 'my_reviews'] },
-  board:  { name: 'Finance Board · Personal', scope: 'personal', tools: ['my_week', 'my_reviews'] },
+  board:  { name: 'Finance Board · Personal', scope: 'personal', tools: ['my_money', 'my_week', 'my_reviews'] },
 };
-const PERSONAL_TOOLS = ['my_today', 'my_week', 'my_reviews'];
+const PERSONAL_TOOLS = ['my_today', 'my_week', 'my_reviews', 'my_money'];
 function isPersonalBot(botId) { return Object.prototype.hasOwnProperty.call(BOTS, botId) && BOTS[botId].scope === 'personal'; }
 function isPersonalTool(name) { return PERSONAL_TOOLS.indexOf(name) !== -1; }
 const FIRST_WAVE = ['cos', 'marcus', 'quinn'];
@@ -488,6 +492,28 @@ function personalWeek(snap, nowMs) {
     scorecard: cap(s.scorecard, 2500),
   };
 }
+// The money plan the tracker publishes (dsSnapshot.money = money-logic
+// boardView). Trimmed and capped; any string that looks like an account or
+// card number (6+ digits) is dropped as a last line of defence.
+function personalMoney(snap, nowMs) {
+  const s = snap || {};
+  const m = s.money;
+  if (!m || typeof m !== 'object') return { note: 'No money plan yet — Jo fills it in on the tracker (💵 Money → Plan my paycheck).' };
+  const safe = (v, n) => { const t = cap(v, n || 60); return /\d{6,}/.test(t.replace(/[\s-]/g, '').replace(/[$.,]/g, '')) && !/^[-−]?\$/.test(t) ? '' : t; };
+  const arr = (a, f, n) => (Array.isArray(a) ? a : []).slice(0, n || 40).map(f);
+  return {
+    as_of_hours_ago: snapshotAge(s, nowMs),
+    paycheck: safe(m.paycheck, 60),
+    plan: arr(m.plan, (l) => ({ line: safe(l && l.line, 80), amount: cap(l && l.amount, 20) })),
+    short_by: m.short_by ? cap(m.short_by, 20) : null,
+    emergency_fund: m.emergency_fund ? { balance: cap(m.emergency_fund.balance, 20), target: cap(m.emergency_fund.target, 20), paychecks_to_target: numOr(m.emergency_fund.paychecks_to_target) } : null,
+    cards: arr(m.cards, (c) => ({ card: safe(c && c.card, 40), balance: cap(c && c.balance, 20), apr_pct: numOr(c && c.apr_pct), minimum: cap(c && c.minimum, 20) })),
+    payoff: m.payoff ? { debt_free_months: numOr(m.payoff.debt_free_months), interest_to_pay: cap(m.payoff.interest_to_pay, 20), order: arr(m.payoff.order, (o) => safe(o, 40), 20) } : null,
+    subscriptions: arr(m.subscriptions, (x) => ({ name: safe(x && x.name, 40), monthly: cap(x && x.monthly, 20), keep: !!(x && x.keep) })),
+    monthly: m.monthly ? { income: cap(m.monthly.income, 20), bills: cap(m.monthly.bills, 20), subscriptions: cap(m.monthly.subscriptions, 20), card_minimums: cap(m.monthly.card_minimums, 20) } : null,
+    note: 'A pressure-test, not licensed advice. Big moves (closing cards, retirement, taxes) → tell Jo to confirm with a professional.',
+  };
+}
 function personalReviews(reviews, limit) {
   const weeks = (reviews && typeof reviews.weeks === 'object' && reviews.weeks) || {};
   const n = Math.min(Math.max(Math.floor(Number(limit)) || 4, 1), 12);
@@ -639,7 +665,7 @@ module.exports = {
   toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, validateFiling,
   claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
-  PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews,
+  PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
 };
