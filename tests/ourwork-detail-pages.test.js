@@ -60,6 +60,7 @@ ok('no orphaned detail page for a non-live/removed slug',
   onDisk.filter((s) => !liveSlugs.has(s)).join(', '));
 
 console.log('\nSTRUCTURE — spot-check every generated page');
+const titles = new Map();
 for (const p of live) {
   const file = path.join(DETAIL_DIR, `${p.slug}.html`);
   if (!fs.existsSync(file)) continue; // already flagged above
@@ -70,20 +71,34 @@ for (const p of live) {
   // "| NBD", not "| No Big Deal Home Solutions": the site-wide suffix chosen
   // for the ~60-char search-title budget (scripts/normalize-location-templates.js).
   // The long form made 52 of 53 detail titles overflow (2026-09-24).
-  // Since 2026-09-27 build-projects.mjs also holds the whole <title> to that
-  // budget (pageTitle()): the full "<job> — <City, ST> | NBD" whenever it
-  // fits, otherwise a shortened form that still leads with the job phrase,
-  // keeps the town, and ends "| NBD". og:title and the H1 keep the full job.
+  // Since 2026-10-03 the <title> LEADS with service + town — "Roof
+  // Replacement in Milford, OH — Forty-Five Squares | NBD" — then the job's
+  // own words (whole, or cut back to whole clauses), aimed at 65 chars with
+  // slack to 75 for a whole phrase over a chopped one (titleCandidates() in
+  // build-projects.mjs). Until then it led with the job phrase alone, which
+  // matched nothing a homeowner searches. og:title / twitter:title carry the
+  // same lead with the untrimmed phrase; the H1 keeps the job title as written.
   {
-    const full = `${p.title} — ${p.city} | NBD`;
     const tm = html.match(/<title>([^<]*)<\/title>/);
-    const shown = tm ? tm[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : '';
-    const fits = full.length <= 60
-      ? shown === full
-      : shown.length <= 60 && shown.startsWith(p.title.split(/\s+/)[0]) && shown.includes(p.city.split(',')[0]);
-    ok(`${p.slug}: <title> uses the short "| NBD" brand suffix within the 60-char budget`,
-      shown.endsWith(' | NBD') && fits, `got "${shown}" (${shown.length} chars)`);
+    const shown = tm ? unesc(tm[1]) : '';
+    const lead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${p.city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} — `);
+    ok(`${p.slug}: <title> leads with "<Service> in ${p.city} — " and ends "| NBD", <= 75 chars`,
+      lead.test(shown) && shown.endsWith(' | NBD') && shown.length <= 75, `got "${shown}" (${shown.length} chars)`);
+    titles.set(shown, (titles.get(shown) || []).concat(p.slug));
+    const phrase = p.title.replace(/ — /g, ', ');
+    for (const prop of ['property="og:title"', 'name="twitter:title"']) {
+      const m = html.match(new RegExp(`<meta ${prop} content="([^"]*)">`));
+      const v = m ? unesc(m[1]) : '';
+      ok(`${p.slug}: ${prop.split('"')[1]} = same service + town lead + the whole job phrase`,
+        lead.test(v) && v.endsWith(` — ${phrase}`), `got "${v}"`);
+    }
   }
+  // The site-wide sticky Call/Text bar every other template carries
+  // (mobile-cta.css, mobile only). Case pages lacked it until 2026-10-03.
+  ok(`${p.slug}: sticky mobile Call/Text bar present and styled`,
+    html.includes('<link rel="stylesheet" href="/assets/css/mobile-cta.css">')
+      && /<div class="mobile-cta-strip"[^>]*>\s*<a href="tel:\+18594207382" class="mobile-cta-call">[\s\S]*?<a href="sms:\+18594207382" class="mobile-cta-text">/.test(html)
+      && html.indexOf('class="mobile-cta-strip"') > html.indexOf('<!-- /nbd:partial footer-standard -->'));
   ok(`${p.slug}: Service + BreadcrumbList JSON-LD present`,
     /"@type":"Service"/.test(html) && /"@type":"BreadcrumbList"/.test(html));
   ok(`${p.slug}: nav-standard region is FILLED, not an empty marker pair (apply-partials ran)`,
@@ -93,6 +108,12 @@ for (const p of live) {
   ok(`${p.slug}: every photo appears in the gallery`,
     p.photos.every((ph) => html.includes(esc(ph.src))));
   ok(`${p.slug}: links back to the listing`, html.includes('href="/our-work"'));
+}
+
+{
+  const dupes = [...titles].filter(([, s]) => s.length > 1);
+  ok('every case page has its own <title>', dupes.length === 0,
+    dupes.map(([t, s]) => `"${t}": ${s.join(', ')}`).join('; '));
 }
 
 console.log('\nCARD LINK — the listing gallery links out to each detail page');
@@ -132,6 +153,9 @@ console.log('\nIDEMPOTENCY — re-running the real generator against the real, a
     after.length === 0, after.join(', '));
 }
 
+function unesc(s) {
+  return String(s).replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
