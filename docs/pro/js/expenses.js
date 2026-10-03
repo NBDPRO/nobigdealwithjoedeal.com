@@ -681,7 +681,7 @@
 
   // ── render ──────────────────────────────────────────────────────────
   function bar(pct, color) {
-    return '<div style="height:6px;background:var(--s2,rgba(255,255,255,.06));border-radius:4px;overflow:hidden;margin-top:4px;">' +
+    return '<div class="exx-hei6px-bgs2-r4px">' +
       '<div style="height:100%;width:' + Math.max(2, Math.min(100, pct)).toFixed(1) + '%;background:' + color + ';"></div></div>';
   }
 
@@ -693,10 +693,10 @@
 
     var html = '';
     // Header
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">' +
-      '<div><h2 style="margin:0;font-family:\'Barlow Condensed\',sans-serif;font-size:26px;font-weight:800;color:var(--t,#fff);">🧾 Expenses &amp; Supplier Spend</h2>' +
-      '<div style="font-size:12px;color:var(--m,#9ca3af);margin-top:2px;">' + (isStaff() && claims().companyId ? 'Team-wide (all reps)' : 'Your expenses') + ' · ' + _expenses.length + ' logged</div></div>' +
-      '<div style="display:flex;gap:8px;">' +
+    html += '<div class="exx-dflex-aicenter-jcspacebet">' +
+      '<div><h2 class="exx-m0-ffbarlowco-fs26px">🧾 Expenses &amp; Supplier Spend</h2>' +
+      '<div class="exx-fs12px-cm-mt2px">' + (isStaff() && claims().companyId ? 'Team-wide (all reps)' : 'Your expenses') + ' · ' + _expenses.length + ' logged</div></div>' +
+      '<div class="exx-dflex-gap8px">' +
         (_expenses.length ? '<button type="button" class="btn btn-ghost" data-exp-action="export-csv" title="Download CSV for your accountant">⬇ Export CSV</button>' : '') +
         (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') +
         '<button type="button" class="btn btn-orange" data-exp-action="open-form">+ Log Expense</button>' +
@@ -704,7 +704,7 @@
       '</div>';
 
     // Summary cards
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">';
+    html += '<div class="exx-dgrid-gtcrepeatau-gap12px">';
     html += card('Total Spend', money(agg.totalCents), agg.supplierCount + (agg.supplierCount === 1 ? ' supplier' : ' suppliers'), accent);
     html += card('Direct / Job Costs', money(agg.directCents), 'COGS — feeds margin', 'var(--green,#16a34a)');
     html += card('Overhead', money(agg.overheadCents), 'Operating costs', 'var(--blue,#3b82f6)');
@@ -718,32 +718,32 @@
       var lsTotal = ls.leadCents + ls.marketingCents;
       var leadPct = lsTotal ? (ls.leadCents / lsTotal * 100) : 0;
       var mktPct = lsTotal ? (ls.marketingCents / lsTotal * 100) : 0;
-      html += '<div class="ui-card" style="margin-bottom:20px;">' +
-        '<h3 style="margin:0 0 4px;font-size:14px;color:var(--t,#fff);">📣 Lead Spend</h3>' +
-        '<div style="font-size:11px;color:var(--m,#9ca3af);margin-bottom:12px;">What it costs to generate a lead — per-lead marketplace fees plus the marketing/advertising you log by hand.</div>' +
-        '<div style="margin-bottom:14px;">' +
+      html += '<div class="ui-card exx-mb20px">' +
+        '<h3 class="exx-m004px-fs14px-ct">📣 Lead Spend</h3>' +
+        '<div class="exx-fs11px-cm-mb12px">What it costs to generate a lead — per-lead marketplace fees plus the marketing/advertising you log by hand.</div>' +
+        '<div class="exx-mb14px">' +
           '<div class="ui-kv">' +
           '<span>Lead / Acquisition Cost <span class="ui-hint">(job cost — Thumbtack auto-captured)</span></span>' +
-          '<span style="font-weight:700;">' + money(ls.leadCents) + '</span></div>' +
+          '<span class="exx-w700">' + money(ls.leadCents) + '</span></div>' +
           bar(leadPct, 'var(--green,#16a34a)') +
           (ls.leadCount
-            ? '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:4px;">' + ls.leadCount + ' lead' + (ls.leadCount === 1 ? '' : 's') +
+            ? '<div class="exx-fs11px-cm-mt4px">' + ls.leadCount + ' lead' + (ls.leadCount === 1 ? '' : 's') +
               ' · ' + money(Math.round(ls.leadCents / ls.leadCount)) + ' avg' +
               (ls.sourceRows.length ? ' · ' + ls.sourceRows.slice(0, 3).map(function (r) { return esc(r.source) + ' ' + money(r.cents); }).join(' · ') : '') +
               '</div>'
-            : '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:4px;">No per-lead cost captured yet.</div>') +
+            : '<div class="exx-fs11px-cm-mt4px">No per-lead cost captured yet.</div>') +
         '</div>' +
         '<div>' +
           '<div class="ui-kv">' +
           '<span>Marketing &amp; Advertising <span class="ui-hint">(overhead — logged by hand, e.g. Yelp/Angi invoices)</span></span>' +
-          '<span style="font-weight:700;">' + money(ls.marketingCents) + '</span></div>' +
+          '<span class="exx-w700">' + money(ls.marketingCents) + '</span></div>' +
           bar(mktPct, 'var(--blue,#3b82f6)') +
         '</div>' +
         '</div>';
     }
 
     if (_expenses.length === 0) {
-      html += '<div style="border:1px dashed var(--br,rgba(255,255,255,.12));border-radius:12px;">' +
+      html += '<div class="exx-bd1pxdashe-r12px">' +
         '<div class="nbd-empty"><div class="ne-icon">🧾</div>' +
         '<div class="ne-msg">No expenses yet</div>' +
         '<div class="ne-sub">Log your first material or supplier cost to start tracking spend and job margin. You can also add suppliers below.</div></div></div>';
@@ -754,14 +754,14 @@
     // they're reachable even before the first expense is logged.
     if (_expenses.length) {
     // Two-column: supplier spend + category breakdown
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px;">';
+    html += '<div class="exx-dgrid-gtcrepeatau-gap16px">';
     // Supplier spend (the explicit ask)
     html += '<div class="ui-card">' +
       '<h3 class="ui-card-head">Spend by Supplier</h3>';
     agg.suppliers.slice(0, 8).forEach(function (s) {
-      html += '<div style="margin-bottom:10px;">' +
+      html += '<div class="exx-mb10px">' +
         '<div class="ui-kv">' +
-        '<span>' + esc(s.supplier) + '</span><span style="font-weight:700;">' + money(s.cents) + '</span></div>' +
+        '<span>' + esc(s.supplier) + '</span><span class="exx-w700">' + money(s.cents) + '</span></div>' +
         '<div class="ui-note">' + s.pct.toFixed(0) + '% of total</div>' +
         bar(s.pct, accent) + '</div>';
     });
@@ -770,9 +770,9 @@
     html += '<div class="ui-card">' +
       '<h3 class="ui-card-head">Spend by Category</h3>';
     agg.categories.forEach(function (cat) {
-      html += '<div style="margin-bottom:10px;">' +
+      html += '<div class="exx-mb10px">' +
         '<div class="ui-kv">' +
-        '<span>' + esc(cat.label) + '</span><span style="font-weight:700;">' + money(cat.cents) + '</span></div>' +
+        '<span>' + esc(cat.label) + '</span><span class="exx-w700">' + money(cat.cents) + '</span></div>' +
         bar(cat.pct, 'var(--blue,#3b82f6)') + '</div>';
     });
     html += '</div>';
@@ -781,7 +781,7 @@
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
     if (jobIds.length) {
-      html += '<div class="ui-card" style="margin-bottom:20px;">' +
+      html += '<div class="ui-card exx-mb20px">' +
         '<h3 class="ui-card-head">Cost &amp; Margin by Job</h3>';
       jobIds.map(function (jid) {
         var jb = agg.byJob[jid];
@@ -797,8 +797,8 @@
         var rev = (ecB && row.lead) ? ecB.getJobRevenue(row.lead) : 0;
         var bDefaults = (window._companyProfile && window._companyProfile.budgetDefaults) || null;
         var bStatus = ecB && ecB.budgetStatus ? ecB.budgetStatus(rev, row.jb.directCents / 100, bDefaults) : null;
-        var budgetBadge = bStatus === 'breach' ? '<span title="Over budget / margin below floor" style="color:var(--red,#dc2626);">⚠ </span>'
-          : bStatus === 'warn' ? '<span title="Approaching cost budget" style="color:var(--gold,#eab308);">⚠ </span>' : '';
+        var budgetBadge = bStatus === 'breach' ? '<span title="Over budget / margin below floor" class="exx-cred">⚠ </span>'
+          : bStatus === 'warn' ? '<span title="Approaching cost budget" class="exx-cgold">⚠ </span>' : '';
         // Estimated-vs-actual (V2 estimates only)
         var va = estVsActual(row.jid, row.jb.directCents);
         var vaTxt = '';
@@ -808,29 +808,29 @@
           vaTxt = '<div class="ui-note">est ' + money(va.estCents) + ' · ' +
             '<span style="color:' + vColor + ';font-weight:700;">' + (over ? '+' : '') + money(Math.abs(va.varianceCents)) + (over ? ' over' : ' under') + '</span></div>';
         }
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--br,rgba(255,255,255,.06));">' +
-          '<div style="min-width:0;"><div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(leadName(row.lead)) + '</div>' +
+        html += '<div class="exx-dflex-jcspacebet-aicenter">' +
+          '<div class="exx-minw0"><div class="exx-fs13px-ct-whinowrap">' + esc(leadName(row.lead)) + '</div>' +
           '<div class="ui-note">' + row.jb.count + (row.jb.count === 1 ? ' expense · ' : ' expenses · ') + money(row.jb.directCents) + ' direct</div>' + vaTxt + '</div>' +
-          '<div style="text-align:right;white-space:nowrap;"><div style="font-size:14px;font-weight:700;color:var(--t,#fff);">' + money(row.jb.cents) + '</div>' +
+          '<div class="exx-taright-whinowrap"><div class="exx-fs14px-w700-ct">' + money(row.jb.cents) + '</div>' +
           '<div style="font-size:11px;font-weight:700;color:' + mColor + ';">' + budgetBadge + marginTxt + '</div></div></div>';
       });
-      html += '<div style="font-size:10px;color:var(--m,#9ca3af);margin-top:10px;">Gross margin = Job Value − direct job costs (before overhead &amp; commission). "est" = budgeted cost from the job\'s estimate (V2 builder only).</div>';
+      html += '<div class="exx-fs10px-cm-mt10px">Gross margin = Job Value − direct job costs (before overhead &amp; commission). "est" = budgeted cost from the job\'s estimate (V2 builder only).</div>';
       html += '</div>';
     }
     } // end expense-only analytics
 
     // A1b: Recurring templates + one-tap "Due" chips
     if (_recurring.length) {
-      html += '<div class="ui-card" style="margin-bottom:20px;">' +
+      html += '<div class="ui-card exx-mb20px">' +
         '<h3 class="ui-card-head">🔁 Recurring</h3>';
       _recurring.slice().sort(function (a, b) { return (toDate(a.nextDueDate) || 0) - (toDate(b.nextDueDate) || 0); }).forEach(function (t) {
         var due = isDue(t);
         html += '<div class="ui-list-row">' +
-          '<div style="min-width:0;"><div style="font-size:13px;color:var(--t,#fff);">' + esc(t.name || 'Recurring') + ' · ' + money(t.amountCents) + '</div>' +
+          '<div class="exx-minw0"><div class="exx-fs13px-ct">' + esc(t.name || 'Recurring') + ' · ' + money(t.amountCents) + '</div>' +
           '<div class="ui-note">' + esc(t.frequency || 'monthly') + ' · ' + (t.status !== 'active' ? 'paused' : 'next ' + esc(fmtDate(t.nextDueDate))) + '</div></div>' +
-          '<div style="white-space:nowrap;">' +
+          '<div class="exx-whinowrap">' +
             (due ? '<button type="button" class="btn btn-orange btn-sm" data-exp-action="add-recurring" data-rec-id="' + esc(t.id) + '">Due — Add</button> ' : '') +
-            '<button data-exp-action="del-recurring" data-rec-id="' + esc(t.id) + '" title="Delete template" style="background:none;border:none;color:var(--red,#dc2626);cursor:pointer;font-size:13px;">✕</button>' +
+            '<button data-exp-action="del-recurring" data-rec-id="' + esc(t.id) + '" title="Delete template" class="exx-bgnone-bdnone-cred">✕</button>' +
           '</div></div>';
       });
       html += '</div>';
@@ -838,30 +838,30 @@
 
     // A5: Suppliers & 1099 tracking
     var taxYear = new Date().getFullYear();
-    html += '<div class="ui-card" style="margin-bottom:20px;">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">' +
-        '<h3 style="margin:0;font-size:14px;color:var(--t,#fff);">🧑‍🔧 Suppliers &amp; 1099 (' + taxYear + ')</h3>' +
-        '<div style="display:flex;gap:8px;">' +
+    html += '<div class="ui-card exx-mb20px">' +
+      '<div class="exx-dflex-jcspacebet-aicenter-2">' +
+        '<h3 class="exx-m0-fs14px-ct">🧑‍🔧 Suppliers &amp; 1099 (' + taxYear + ')</h3>' +
+        '<div class="exx-dflex-gap8px">' +
           (_suppliers.length ? '<button type="button" class="btn btn-ghost btn-sm" data-exp-action="export-1099" title="Year-end 1099 worklist CSV">⬇ 1099 CSV</button>' : '') +
           '<button type="button" class="btn btn-orange btn-sm" data-exp-action="open-supplier">+ Supplier</button>' +
         '</div></div>';
     if (!_suppliers.length) {
-      html += '<div style="font-size:12px;color:var(--m,#9ca3af);">No suppliers yet. Add subcontractors/vendors to track who needs a 1099-NEC at year-end (services ≥ ' + money(thresholdCents(taxYear)) + ' in ' + taxYear + ').</div>';
+      html += '<div class="exx-fs12px-cm">No suppliers yet. Add subcontractors/vendors to track who needs a 1099-NEC at year-end (services ≥ ' + money(thresholdCents(taxYear)) + ' in ' + taxYear + ').</div>';
     } else {
       _suppliers.slice().sort(function (a, b) { return (a.displayName || '').localeCompare(b.displayName || ''); }).forEach(function (s) {
         var ytd = supplierYtdCents(s.displayName, taxYear, _expenses);
         var flag = needs1099(s, taxYear, _expenses);
         var tc = TAX_CLASS_BY_KEY[s.taxClassification];
         html += '<div class="ui-list-row">' +
-          '<div style="min-width:0;"><div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.displayName) + '</div>' +
+          '<div class="exx-minw0"><div class="exx-fs13px-ct-whinowrap">' + esc(s.displayName) + '</div>' +
           '<div class="ui-note">' + esc(tc ? tc.label : s.taxClassification || '') + ' · W-9: ' + esc(s.w9Status || 'not_requested') + (s.is1099Eligible ? ' · 1099-eligible' : ' · exempt') + '</div></div>' +
-          '<div style="text-align:right;white-space:nowrap;"><div style="font-size:13px;font-weight:700;color:var(--t,#fff);">' + money(ytd) + ' YTD</div>' +
-          (flag ? '<div style="font-size:11px;font-weight:700;color:var(--orange,#BD5728);">⚑ 1099 due</div>' : '') +
+          '<div class="exx-taright-whinowrap"><div class="exx-fs13px-w700-ct">' + money(ytd) + ' YTD</div>' +
+          (flag ? '<div class="exx-fs11px-w700-corange">⚑ 1099 due</div>' : '') +
           '</div>' +
-          '<button data-exp-action="del-supplier" data-sup-id="' + esc(s.id) + '" title="Delete" style="background:none;border:none;color:var(--red,#dc2626);cursor:pointer;font-size:13px;">✕</button>' +
+          '<button data-exp-action="del-supplier" data-sup-id="' + esc(s.id) + '" title="Delete" class="exx-bgnone-bdnone-cred">✕</button>' +
           '</div>';
       });
-      html += '<div style="font-size:10px;color:var(--m,#9ca3af);margin-top:10px;">YTD = subcontractor/labor payments matched by name, this year. 1099 due = eligible class + W-9 on file + YTD ≥ ' + money(thresholdCents(taxYear)) + '. No tax IDs are stored.</div>';
+      html += '<div class="exx-fs10px-cm-mt10px">YTD = subcontractor/labor payments matched by name, this year. 1099 due = eligible class + W-9 on file + YTD ≥ ' + money(thresholdCents(taxYear)) + '. No tax IDs are stored.</div>';
     }
     html += '</div>';
 
@@ -869,28 +869,28 @@
     if (_expenses.length) {
     var noReceipt = _expenses.filter(function (e) { return !e.receiptStoragePath && e.category !== 'mileage'; }).length;
     html += '<div class="ui-card">' +
-      '<h3 style="margin:0 0 4px;font-size:14px;color:var(--t,#fff);">Recent Expenses</h3>' +
-      (noReceipt ? '<div style="font-size:11px;color:var(--gold,#eab308);margin-bottom:10px;">📎 ' + noReceipt + ' expense' + (noReceipt === 1 ? '' : 's') + ' without a receipt — attaching a photo or PDF is recommended (taxes, disputes, warranty claims).</div>' : '<div style="margin-bottom:8px;"></div>');
+      '<h3 class="exx-m004px-fs14px-ct">Recent Expenses</h3>' +
+      (noReceipt ? '<div class="exx-fs11px-cgold-mb10px">📎 ' + noReceipt + ' expense' + (noReceipt === 1 ? '' : 's') + ' without a receipt — attaching a photo or PDF is recommended (taxes, disputes, warranty claims).</div>' : '<div class="exx-mb8px"></div>');
     _expenses.slice(0, 60).forEach(function (e) {
       var lead = e.leadId ? leadById(e.leadId) : null;
       html += '<div class="ui-list-row">' +
-        '<div style="min-width:0;flex:1;">' +
-        '<div style="font-size:13px;color:var(--t,#fff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.supplier || 'Unknown') +
+        '<div class="exx-minw0-fx1">' +
+        '<div class="exx-fs13px-ct-whinowrap">' + esc(e.supplier || 'Unknown') +
         ' <span class="ui-hint">· ' + esc(EC() ? EC().labelFor(e.category) : e.category) + '</span></div>' +
         '<div class="ui-note">' + esc(fmtDate(e.date)) + (lead ? ' · ' + esc(leadName(lead)) : '') + (e.note ? ' · ' + esc(e.note) : '') + (e.source === 'ocr' ? ' · scanned' : e.source === 'import_homedepot' ? ' · Home Depot import' : '') + '</div></div>' +
-        (e.needsReview ? '<span title="AI scan — review the amount/vendor" style="color:var(--gold,#eab308);font-size:13px;">⚠</span>' : '') +
+        (e.needsReview ? '<span title="AI scan — review the amount/vendor" class="exx-cgold-fs13px">⚠</span>' : '') +
         (e.receiptStoragePath
-          ? '<button data-exp-action="receipt" data-exp-path="' + esc(e.receiptStoragePath) + '" title="View receipt" style="background:none;border:none;cursor:pointer;font-size:15px;">📎</button>'
+          ? '<button data-exp-action="receipt" data-exp-path="' + esc(e.receiptStoragePath) + '" title="View receipt" class="exx-bgnone-bdnone-curpointer">📎</button>'
           // No receipt yet — recommended, never required (Jo, 2026-09-29).
-          : '<button data-exp-action="attach" data-exp-id="' + esc(e.id) + '" title="Attach a receipt (photo or PDF)" style="background:none;border:1px dashed var(--br,rgba(255,255,255,.25));border-radius:6px;color:var(--m,#9ca3af);cursor:pointer;font-size:11px;padding:3px 7px;white-space:nowrap;">📎 Add receipt</button>') +
+          : '<button data-exp-action="attach" data-exp-id="' + esc(e.id) + '" title="Attach a receipt (photo or PDF)" class="exx-bgnone-bd1pxdashe-r6px">📎 Add receipt</button>') +
         // Total incl. sales tax — the same figure every card above sums
         // (a $1,234.56 + $87.65 tax row used to read $1,234.56 under a
         // $1,322.21 total). The tax is named on a second line.
-        '<div style="text-align:right;white-space:nowrap;"><div style="font-size:14px;font-weight:700;color:var(--t,#fff);">' +
+        '<div class="exx-taright-whinowrap"><div class="exx-fs14px-w700-ct">' +
           money((parseInt(e.amountCents, 10) || 0) + (parseInt(e.taxCents, 10) || 0)) + '</div>' +
           ((parseInt(e.taxCents, 10) || 0) > 0 ? '<div class="ui-hint">incl. ' + money(e.taxCents) + ' tax</div>' : '') +
         '</div>' +
-        '<button data-exp-action="delete" data-exp-id="' + esc(e.id) + '" title="Delete" style="background:none;border:none;color:var(--red,#dc2626);cursor:pointer;font-size:14px;">✕</button>' +
+        '<button data-exp-action="delete" data-exp-id="' + esc(e.id) + '" title="Delete" class="exx-bgnone-bdnone-cred-2">✕</button>' +
         '</div>';
     });
     html += '</div>';
@@ -906,7 +906,7 @@
   // alone would be invisible.
   function card(label, value, sub, color) {
     return '<div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:2px;border-top:2px solid ' + color + ';">' +
-      '<div class="stat-lbl" style="margin-top:0;text-transform:uppercase;letter-spacing:.05em;">' + esc(label) + '</div>' +
+      '<div class="stat-lbl exx-mt0-ttuppercas-ls05em">' + esc(label) + '</div>' +
       '<div class="stat-val" style="font-weight:800;color:' + color + ';-webkit-text-fill-color:' + color + ';margin:2px 0;">' + value + '</div>' +
       '<div class="ui-hint">' + esc(sub) + '</div></div>';
   }
@@ -930,10 +930,10 @@
     ov.id = 'expFormOverlay';
     ov.className = 'modal-bg';
     ov.innerHTML =
-      '<div class="modal" style="max-width:440px;">' +
+      '<div class="modal exx-maxw440px">' +
         '<button type="button" class="modal-close" data-exp-action="close-form" title="Close">✕</button>' +
-        '<h3 style="margin:0 0 16px;color:var(--t,#fff);font-size:18px;">Log Expense</h3>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+        '<h3 class="exx-m0016px-ct-fs18px">Log Expense</h3>' +
+        '<div class="exx-dgrid-gtc1fr1fr-gap12px">' +
           '<div><label class="ui-label-caps">Amount ($)</label><input id="expAmount" type="number" step="0.01" min="0" inputmode="decimal" autofocus class="ui-input-lg"></div>' +
           '<div><label class="ui-label-caps">Date</label><input id="expDate" type="date" value="' + today + '" class="ui-input-lg"></div>' +
           '<div><label class="ui-label-caps">Sales Tax ($)</label><input id="expTax" type="number" step="0.01" min="0" inputmode="decimal" class="ui-input-lg"></div>' +
@@ -941,23 +941,23 @@
         '</div>' +
         '<div id="expMileageRow" style="display:none;margin-top:12px;"><label class="ui-label-caps">Miles</label>' +
           '<input id="expMiles" type="number" step="0.1" min="0" inputmode="decimal" class="ui-input-lg">' +
-          '<div id="expMileageHint" style="font-size:11px;color:var(--m,#9ca3af);margin-top:4px;"></div></div>' +
+          '<div id="expMileageHint" class="exx-fs11px-cm-mt4px"></div></div>' +
         '<div id="expSourceRow" style="display:none;margin-top:12px;"><label class="ui-label-caps">Lead Source / Campaign</label>' +
           '<input id="expSource" type="text" maxlength="60" placeholder="e.g. Door-to-Door, Google, Storm" class="ui-input-lg"></div>' +
-        '<div style="margin-top:12px;"><label class="ui-label-caps">Supplier / Vendor</label><input id="expSupplier" type="text" maxlength="120" list="expSupplierList" placeholder="e.g. ABC Supply" class="ui-input-lg">' +
+        '<div class="exx-mt12px"><label class="ui-label-caps">Supplier / Vendor</label><input id="expSupplier" type="text" maxlength="120" list="expSupplierList" placeholder="e.g. ABC Supply" class="ui-input-lg">' +
           '<datalist id="expSupplierList">' + _suppliers.map(function (s) { return '<option value="' + esc(s.displayName) + '">'; }).join('') + '</datalist></div>' +
-        '<div style="margin-top:12px;"><label class="ui-label-caps">Job (optional)</label><select id="expLead" class="ui-input-lg">' + leadOpts + '</select></div>' +
-        '<div style="margin-top:12px;"><label class="ui-label-caps">Note (optional)</label><input id="expNote" type="text" maxlength="500" class="ui-input-lg"></div>' +
-        '<div style="margin-top:12px;"><label class="ui-label-caps">Repeat (optional)</label><select id="expRepeat" class="ui-input-lg"><option value="none">One-time</option>' +
+        '<div class="exx-mt12px"><label class="ui-label-caps">Job (optional)</label><select id="expLead" class="ui-input-lg">' + leadOpts + '</select></div>' +
+        '<div class="exx-mt12px"><label class="ui-label-caps">Note (optional)</label><input id="expNote" type="text" maxlength="500" class="ui-input-lg"></div>' +
+        '<div class="exx-mt12px"><label class="ui-label-caps">Repeat (optional)</label><select id="expRepeat" class="ui-input-lg"><option value="none">One-time</option>' +
           FREQUENCIES.map(function (f) { return '<option value="' + f.key + '">' + f.label + '</option>'; }).join('') + '</select></div>' +
-        '<div style="margin-top:12px;"><label class="ui-label-caps">Receipt (image / PDF, optional)</label>' +
-          '<div style="display:flex;gap:8px;align-items:center;">' +
-            '<input id="expFile" type="file" accept="image/*,application/pdf" class="ui-input-lg" style="flex:1;">' +
-            '<button data-exp-action="scan" type="button" class="btn btn-ghost" style="white-space:nowrap;">📷 Scan with AI</button>' +
+        '<div class="exx-mt12px"><label class="ui-label-caps">Receipt (image / PDF, optional)</label>' +
+          '<div class="exx-dflex-gap8px-aicenter">' +
+            '<input id="expFile" type="file" accept="image/*,application/pdf" class="ui-input-lg exx-fx1">' +
+            '<button data-exp-action="scan" type="button" class="btn btn-ghost exx-whinowrap">📷 Scan with AI</button>' +
           '</div>' +
-          '<div id="expScanStatus" style="font-size:11px;color:var(--m,#9ca3af);margin-top:6px;min-height:14px;"></div>' +
+          '<div id="expScanStatus" class="exx-fs11px-cm-mt6px"></div>' +
         '</div>' +
-        '<button type="button" class="btn btn-orange" data-exp-action="save" style="width:100%;margin-top:18px;justify-content:center;">Save Expense</button>' +
+        '<button type="button" class="btn btn-orange exx-wd100-mt18px-jccenter" data-exp-action="save">Save Expense</button>' +
       '</div>';
     document.body.appendChild(ov);
     // nbdModal owns backdrop-click + Esc; its onClose hook runs the teardown
@@ -1082,7 +1082,7 @@
   }
   function init() {
     var scroll = document.querySelector('#view-expenses .view-scroll');
-    if (scroll && !_loaded) scroll.innerHTML = '<div style="padding:40px;text-align:center;color:var(--m,#9ca3af);">Loading expenses…</div>';
+    if (scroll && !_loaded) scroll.innerHTML = '<div class="exx-p40px-tacenter-cm">Loading expenses…</div>';
     refresh();
   }
 
@@ -1160,21 +1160,21 @@
     ov.id = 'supFormOverlay';
     ov.className = 'modal-bg';
     ov.innerHTML =
-      '<div class="modal" style="max-width:440px;">' +
+      '<div class="modal exx-maxw440px">' +
         '<button type="button" class="modal-close" data-exp-action="close-supplier" title="Close">✕</button>' +
-        '<h3 style="margin:0 0 16px;color:var(--t,#fff);font-size:18px;">Add Supplier</h3>' +
-        '<div style="margin-bottom:12px;"><label class="ui-label-caps">Supplier / Vendor name</label><input id="supName" type="text" maxlength="120" placeholder="e.g. Crew Co" autofocus class="ui-input-lg"></div>' +
-        '<div style="margin-bottom:12px;"><label class="ui-label-caps">Legal name (for the 1099)</label><input id="supLegal" type="text" maxlength="120" class="ui-input-lg"></div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+        '<h3 class="exx-m0016px-ct-fs18px">Add Supplier</h3>' +
+        '<div class="exx-mb12px"><label class="ui-label-caps">Supplier / Vendor name</label><input id="supName" type="text" maxlength="120" placeholder="e.g. Crew Co" autofocus class="ui-input-lg"></div>' +
+        '<div class="exx-mb12px"><label class="ui-label-caps">Legal name (for the 1099)</label><input id="supLegal" type="text" maxlength="120" class="ui-input-lg"></div>' +
+        '<div class="exx-dgrid-gtc1fr1fr-gap12px">' +
           '<div><label class="ui-label-caps">Tax classification (from W-9)</label><select id="supClass" class="ui-input-lg">' + classOpts + '</select></div>' +
           '<div><label class="ui-label-caps">W-9 status</label><select id="supW9" class="ui-input-lg">' + w9Opts + '</select></div>' +
         '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">' +
+        '<div class="exx-dgrid-gtc1fr1fr-gap12px-2">' +
           '<div><label class="ui-label-caps">Phone</label><input id="supPhone" type="tel" maxlength="40" class="ui-input-lg"></div>' +
           '<div><label class="ui-label-caps">Email</label><input id="supEmail" type="email" maxlength="120" class="ui-input-lg"></div>' +
         '</div>' +
-        '<div style="font-size:11px;color:var(--m,#9ca3af);margin-top:10px;">1099-eligibility is derived from the tax classification. No SSN/EIN is stored — keep tax IDs in your tax software.</div>' +
-        '<button type="button" class="btn btn-orange" data-exp-action="save-supplier" style="width:100%;margin-top:16px;justify-content:center;">Save Supplier</button>' +
+        '<div class="exx-fs11px-cm-mt10px">1099-eligibility is derived from the tax classification. No SSN/EIN is stored — keep tax IDs in your tax software.</div>' +
+        '<button type="button" class="btn btn-orange exx-wd100-mt16px-jccenter" data-exp-action="save-supplier">Save Supplier</button>' +
       '</div>';
     document.body.appendChild(ov);
     if (window.nbdModal) {
