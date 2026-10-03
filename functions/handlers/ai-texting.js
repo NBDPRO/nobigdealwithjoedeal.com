@@ -162,7 +162,7 @@ async function buildLeadContext(db, leadId, lead, incomingBody) {
     leadRef.collection('notes')
       .where('type', '==', 'sms')
       .orderBy('createdAt', 'desc')
-      .limit(12).get().catch(() => null),      // missing index — first run; skip
+      .limit(12).get().catch((e) => { logger.warn('ai_sms_thread_read_failed', { leadId, code: e && e.code, err: String((e && e.message) || e).slice(0, 200) }); return null; }),
     leadRef.collection('portal_messages')
       .orderBy('createdAt', 'desc')
       .limit(12).get().catch(() => null),      // no portal thread / no index; skip
