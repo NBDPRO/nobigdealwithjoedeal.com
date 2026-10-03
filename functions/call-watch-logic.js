@@ -159,6 +159,17 @@ const SMS_REASONS = {
   30005: 'the number does not exist',
   30006: 'the number cannot receive texts',
 };
+/** sid -> 'delivered' | 'undelivered:<code>' | 'failed:<code>' for messages in a final state (pure). */
+function deliveryBySid(messages) {
+  const out = {};
+  (messages || []).forEach((m) => {
+    if (!m || !m.sid || !/^outbound/.test(String(m.direction || ''))) return;
+    if (m.status === 'delivered') out[m.sid] = 'delivered';
+    else if (m.status === 'undelivered' || m.status === 'failed') out[m.sid] = m.status + ':' + (m.error_code || '?');
+  });
+  return out;
+}
+
 function smsProblems(messages, now) {
   const out = (messages || []).filter((m) => m && /^outbound/.test(String(m.direction || ''))
     && (toMs(m.date_sent) || toMs(m.date_created) || now) >= now - DAY);
@@ -213,6 +224,6 @@ function inWatchHours(now) {
 
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
-  SMS_REPEAT_MS, smsProblems,
+  SMS_REPEAT_MS, smsProblems, deliveryBySid,
   toMs, etYmd, callNeedsYou, callerKey, reasonFor, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };
