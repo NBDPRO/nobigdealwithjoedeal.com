@@ -325,8 +325,8 @@ test.describe('phone: one at a time @shard2', () => {
     const leadId = 'zzSaidLead1';
     const items = () => [
       { callId: 'cube_ZZDUE1', kind: 'due', due: '2026-09-23', leadId, who: 'ZZ Mark', channel: 'call', startedAtMs: Date.now() - 864e5, summary: 'Scheduled the board job.', promises: ['Send the confirmation email'], phoneDigits: '5135550181', hasTask: true },
-      { callId: 'cube_ZZNOF2', kind: 'nofile', due: '2026-09-25', leadId: null, who: '(513) 555-0182', channel: 'call', startedAtMs: Date.now() - 2 * 864e5, summary: 'Confirmed the 2:30 visit.', promises: ['Be at the house at 2:30 PM'], phoneDigits: '5135550182', hasTask: false },
-      { callId: 'cube_ZZNOF3', kind: 'nofile', due: '2026-09-30', leadId: null, who: '(513) 555-0183', channel: 'call', startedAtMs: Date.now() - 3 * 864e5, summary: 'Wants a price list.', promises: ['Come out and price everything'], phoneDigits: '5135550183', hasTask: false },
+      { callId: 'cube_ZZNOF2', kind: 'nofile', due: '2026-09-25', leadId: null, who: '(513) 555-0182', channel: 'call', startedAtMs: Date.now() - 2 * 864e5, summary: 'Confirmed the 2:30 visit.', promises: ['Be at the house at 2:30 PM'], phoneDigits: '5135550182', hasTask: false, callType: 'customer', suggest: { leadId: 'zzSugLead', name: 'ZZ Danuta', why: 'their name in your phone' } },
+      { callId: 'cube_ZZNOF3', kind: 'nofile', due: '2026-09-30', leadId: null, who: '(513) 555-0183', channel: 'call', startedAtMs: Date.now() - 3 * 864e5, summary: 'Wants a price list.', promises: ['Come out and price everything'], phoneDigits: '5135550183', hasTask: false, callType: 'lead', contactName: 'ZZ Prospect Pat' },
     ];
     await page.route(/callPromisesList/, async (route) => {
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
@@ -351,6 +351,11 @@ test.describe('phone: one at a time @shard2', () => {
     await expect(card(page)).toContainText('No customer on file');
     await expect(card(page)).toContainText('You said: Be at the house at 2:30 PM');
     await expect(card(page).locator('.deck-name')).toHaveText('(513) 555-0182');
+    // One tap: file it on the suggested customer.
+    await expect(card(page)).toContainText('Looks like ZZ Danuta');
+    await card(page).getByRole('button', { name: 'File on ZZ Danuta' }).tap();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF2' && x.action === 'attach' && x.leadId === 'zzSugLead'), { timeout: 10_000 }).toBe(true);
+    await expect(card(page)).toContainText('Filed on ZZ Danuta');
     // No customer, no task → the main action marks the call handled.
     const right = page.locator('#nbdTriageDeck .deck-right');
     await expect(right).toHaveText(/Handled/);
@@ -366,8 +371,19 @@ test.describe('phone: one at a time @shard2', () => {
     await expect(right).toHaveText(/Done/);
     await right.tap();
     await expect.poll(() => actions.some((x) => x.id === 'cube_ZZDUE1' && x.action === 'taskDone'), { timeout: 10_000 }).toBe(true);
-    // ⋯ on the next: call / text links, and Snooze → Undo.
+    // A prospect with no lead: one tap makes the lead (the CRM's own save)
+    // and files the call on it.
     await expect(card(page)).toHaveAttribute('data-id', 'cube_ZZNOF3');
+    await expect(card(page)).toContainText('Sounds like a new lead');
+    await card(page).getByRole('button', { name: /Make this a lead/ }).tap();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF3' && x.action === 'attach' && x.leadId), { timeout: 15_000 }).toBe(true);
+    const newLeadId = actions.find((x) => x.id === 'cube_ZZNOF3' && x.action === 'attach').leadId;
+    const nl = (await adb().doc('leads/' + newLeadId).get()).data() || {};
+    expect(nl.firstName + ' ' + nl.lastName, 'the lead is named from the phone contact').toBe('ZZ Prospect Pat');
+    expect(nl.source).toBe('Phone call');
+    expect(nl.notes || '', 'what Jo promised rides along').toContain('Come out and price everything');
+    await adb().doc('leads/' + newLeadId).delete().catch(() => {});
+    // ⋯ on it: call / text links, and Snooze → Undo.
     await page.locator('#nbdTriageDeck .deck-dots').tap();
     const more = page.locator('#nbdTriageDeck .deck-more');
     await expect(more).toBeVisible();
