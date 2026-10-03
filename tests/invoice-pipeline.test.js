@@ -505,6 +505,62 @@ test('invoiceCustomerName: an invoice already saved with a blank name resolves i
   }
 });
 
-console.log('──────────────────────────────────────────────────');
-console.log(passed + ' passed, ' + failed + ' failed');
-process.exit(failed > 0 ? 1 : 0);
+// ── Owed rule (2026-10-03): void / draft rows are not "overdue" ──
+test('isOwedInvoice / owedDollarsOf: void, draft, cancelled, deleted are not owed; balanceDue 0 is 0', () => {
+  eq(IP.isOwedInvoice({ status: 'void', balanceDue: 0, total: 5000 }), false, 'void');
+  eq(IP.isOwedInvoice({ status: 'draft', total: 10 }), false, 'draft');
+  eq(IP.isOwedInvoice({ status: 'Cancelled', total: 10 }), false, 'cancelled');
+  eq(IP.isOwedInvoice({ status: 'sent', deleted: true, total: 10 }), false, 'deleted');
+  eq(IP.isOwedInvoice({ status: 'sent', total: 10 }), true, 'sent');
+  eq(IP.owedDollarsOf({ status: 'void', balanceDue: 0, total: 5000 }), 0, 'void amount');
+  eq(IP.owedDollarsOf({ status: 'sent', balanceDue: 0, total: 900 }), 0, 'zero balance');
+  eq(IP.owedDollarsOf({ status: 'sent', balanceDue: '250', total: 800 }), 250, 'string balance');
+  eq(IP.owedDollarsOf({ status: 'sent', total: 600 }), 600, 'legacy no balanceDue');
+});
+
+async function renderListWith(invoices) {
+  const hadW = Object.prototype.hasOwnProperty.call(global, 'window');
+  const hadD = Object.prototype.hasOwnProperty.call(global, 'document');
+  const prevW = global.window, prevD = global.document;
+  const container = { innerHTML: '' };
+  global.document = { getElementById: () => container };
+  global.window = {
+    _db: {}, doc() {}, collection() {}, query() {}, where() {}, orderBy() {}, limit() {},
+    _auth: { currentUser: { uid: 'u1' } },
+    getDocs: async () => ({ docs: invoices.map((inv) => ({ id: inv.id, data: () => inv })) }),
+  };
+  try { await IP.renderInvoiceList('x'); }
+  finally {
+    if (hadW) global.window = prevW; else delete global.window;
+    if (hadD) global.document = prevD; else delete global.document;
+  }
+  return container.innerHTML;
+}
+
+(async () => {
+  const past = new Date(Date.now() - 20 * 86400000);
+  try {
+    const html = await renderListWith([
+      { id: 'voidinv01', status: 'void', source: 'stripe', total: 5000, balanceDue: 0, dueDate: past },
+      { id: 'draftinv1', status: 'draft', total: 2500, balanceDue: 2500, dueDate: past },
+      { id: 'openinv01', status: 'sent', total: 1000, balanceDue: 1000, dueDate: past },
+    ]);
+    const rowOf = (id) => (html.split('<tr class="ipx-row">').find((r) => r.includes(id.slice(0, 8))) || '');
+    const total = (html.match(/stat-val ipx-orange">([^<]*)</) || [])[1];
+    test('renderInvoiceList: Total Outstanding counts only the owed invoice ($1,000)', () => eq(total, '$1,000.00', 'total'));
+    test('renderInvoiceList: a past-due VOID row is not painted red (overdue)', () => {
+      eq(/background:var\(--red\)/.test(rowOf('voidinv01')), false, 'void row red');
+    });
+    test('renderInvoiceList: a past-due DRAFT row is not painted red', () => {
+      eq(/background:var\(--red\)/.test(rowOf('draftinv1')), false, 'draft row red');
+    });
+    test('renderInvoiceList: a past-due SENT row IS painted red (positive control)', () => {
+      eq(/background:var\(--red\)/.test(rowOf('openinv01')), true, 'open row red');
+    });
+  } catch (e) {
+    test('renderInvoiceList harness ran', () => { throw e; });
+  }
+  console.log('──────────────────────────────────────────────────');
+  console.log(passed + ' passed, ' + failed + ' failed');
+  process.exit(failed > 0 ? 1 : 0);
+})();

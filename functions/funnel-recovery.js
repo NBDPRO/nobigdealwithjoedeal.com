@@ -355,6 +355,7 @@ exports.runAbandonRecovery = onSchedule(
     let sent = 0;
     let skipped = 0;
     let failed = 0;
+    let blockedNoAddress = 0; // CAN-SPAM: no postal address configured (2026-10-03)
     let resend = null;
     let fromAddress = 'Joe Deal <jd@nobigdealwithjoedeal.com>';
     if (enabled) {
@@ -422,6 +423,15 @@ exports.runAbandonRecovery = onSchedule(
         logger.info('funnel_recovery_suppressed', { funnelId: doc.id });
         await doc.ref.update({ recoveryEmailStatus: 'suppressed' }).catch(() => {});
         skipped++;
+        continue;
+      }
+      // CAN-SPAM (2026-10-03): no postal address configured for NBD → do not
+      // send. Left unclaimed and unstamped (the visitor did nothing), so it
+      // goes out on a later run once the address is set, while still inside
+      // the recovery window. Counted so the summary log shows it.
+      if (unsub.blocked) {
+        logger.warn('funnel_recovery_blocked_no_postal_address', { funnelId: doc.id });
+        blockedNoAddress++;
         continue;
       }
 
@@ -522,6 +532,7 @@ exports.runAbandonRecovery = onSchedule(
       sent,
       skipped,
       failed,
+      blockedNoAddress,
     });
   }
 );

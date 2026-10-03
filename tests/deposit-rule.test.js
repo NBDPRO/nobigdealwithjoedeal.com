@@ -1044,6 +1044,65 @@ function closeBoardPage(price, mode, deductible) {
     ok('KY invoice terms say nothing is due at signing', !!capKy && /Nothing is due at signing/.test(String(capKy.terms)), capKy && capKy.terms);
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  section('12. KENTUCKY — the LEAD\'s claim decides too, not just the estimate mode (2026-10-03)');
+  // ══════════════════════════════════════════════════════════════════
+  // The contract (document-generator _jurisdiction → ky-insurance-law
+  // isInsurance) calls any lead with a claim number / carrier / jobType
+  // 'insurance' an insurance job and prints the KY notices. deposit-rule.js
+  // used to look at est.mode only, so the same KY lead priced in cash mode
+  // printed those notices AND a 50% deposit at signing (KRS 367.626).
+  {
+    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const OHA = '1 Elm St, Cincinnati, OH 45202';
+    const J = W.NBDJurisdiction;
+    const kyClaimLead = { id: 'lead_kyc', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-77' };
+    ok('precondition: the contract side calls this lead a KY insurance job', !!J && J.classifyLead(kyClaimLead).kyInsurance === true);
+
+    const a = R.compute({ total: 15000, mode: 'cash', address: KY, lead: kyClaimLead });
+    ok('KY lead with a claim number, priced in CASH mode: $0 at signing', a.depositCents === 0 && a.kyHold === true, a.summary);
+    ok('…a carrier alone on the lead counts', R.compute({ total: 15000, mode: 'cash', address: KY, lead: { address: KY, insCarrier: 'State Farm' } }).depositCents === 0);
+    ok('…jobType "insurance" on the lead counts (per-square mode)', R.compute({ total: 15000, mode: 'per-sq', address: KY, lead: { address: KY, jobType: 'insurance' } }).depositCents === 0);
+    ok('…the lead\'s own address is used when the caller passed none', R.compute({ total: 15000, mode: 'cash', lead: kyClaimLead }).depositCents === 0);
+    ok('…a rep override still cannot raise it', R.compute({ total: 15000, mode: 'cash', address: KY, lead: kyClaimLead, overridePct: 30 }).depositCents === 0);
+    const oh = R.compute({ total: 15000, mode: 'cash', address: OHA, lead: { address: OHA, claimNumber: 'CLM-1' } });
+    ok('OHIO lead with a claim, cash mode: unchanged (50% at signing)', oh.depositCents === 750000 && !oh.kyHold, oh.summary);
+    const ret = R.compute({ total: 15000, mode: 'cash', address: KY, lead: { address: KY, jobType: 'cash', claimNumber: '', insCarrier: 'none' } });
+    ok('KY RETAIL lead (no claim, cash job): unchanged (50% at signing)', ret.depositCents === 750000 && !ret.kyHold, ret.summary);
+    ok('no lead passed: cash mode unchanged (legacy callers)', R.compute({ total: 15000, mode: 'cash', address: KY }).depositCents === 750000);
+
+    const fe = R.fromEstimate({ grandTotal: 12000, mode: 'cash', addr: KY }, { lead: kyClaimLead });
+    ok('fromEstimate (invoice + contract pre-flight path): cash estimate, KY claim lead → $0', fe.depositCents === 0 && fe.kyHold === true, fe.summary);
+    const feOh = R.fromEstimate({ grandTotal: 12000, mode: 'cash', addr: OHA }, { lead: { address: OHA, claimNumber: 'CLM-1' } });
+    ok('fromEstimate: OH claim lead, cash estimate → 50% unchanged', feOh.depositCents === 600000, feOh.summary);
+
+    // The builder + on-screen quote, for real: a cash-mode V2 estimate linked
+    // to the KY claim lead.
+    const prevLeads = W._leads;
+    const c = { mode: 'cash', total: 12000 };
+    const doc = Object.assign(savedDocFor(c, 'est_kyc'), { addr: KY, leadId: 'lead_kyc' });
+    W._leads = [kyClaimLead];
+    W._estimates = [JSON.parse(JSON.stringify(doc))];
+    V2.rehydrateFromSaved('est_kyc');
+    const st = V2.getState();
+    const est = V2.effectiveEstimate();
+    ok('V2 builder stamp: cash-mode estimate on a KY claim lead → $0 at signing', !!(est && est.depositPlan)
+      && est.depositPlan.depositCents === 0 && cents(est.deposit) === 0, est && est.depositPlan && est.depositPlan.summary);
+    const meta = { customer: { name: 'Kay Why', address: KY, leadId: 'lead_kyc' }, claim: st.claim,
+      estimate: { number: 'EST-KYC', date: '2026-10-03', preparedBy: 'Joe' } };
+    const rq = FIN.formatEstimate(est, 'retail-quote', meta);
+    ok('on-screen Retail Quote: $0 deposit, "Nothing is due at signing"', cents(rq.deposit) === 0
+      && /Nothing is due at signing/.test(stripTags(rq.html)), rq.deposit);
+    // A plan stamped BEFORE the claim reached the lead (no hold) must not print.
+    const stale = R.compute({ total: 12000, mode: 'cash', address: KY });
+    const rqStale = FIN.formatEstimate(Object.assign({}, est, { depositPlan: stale, deposit: stale.depositCents / 100 }), 'retail-quote', meta);
+    ok('on-screen Retail Quote: a stale non-KY stamp is replaced by the held plan', cents(rqStale.deposit) === 0, rqStale.deposit);
+    const rqNoLead = FIN.formatEstimate(Object.assign({}, est, { depositPlan: stale, deposit: stale.depositCents / 100 }), 'retail-quote',
+      Object.assign({}, meta, { customer: { name: 'Kay Why', address: KY } }));
+    ok('…positive control: with no linked lead the builder\'s stamp is still printed as-is', cents(rqNoLead.deposit) === 600000, rqNoLead.deposit);
+    W._leads = prevLeads;
+  }
+
   console.log('\n──────────────────────────────────────────────────');
   console.log(passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILURES: ' + fails.length); process.exit(1); }

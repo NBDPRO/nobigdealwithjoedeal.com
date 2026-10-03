@@ -71,6 +71,10 @@ function makeFakeDb() {
     return collections[name];
   }
   let failPredicate = null; // (collName, id, data) => boolean — throws on update() when true
+  // CAN-SPAM (2026-10-03): a recovery email is commercial and is BLOCKED
+  // without the sender's postal address, so NBD's profile carries one here
+  // (tests/email-unsubscribe.test.js covers the no-address case).
+  coll('companyProfile').set('1phDvAVXHSg82wDLegAbQFq14Ci1', { brand: { contact: { mailingAddress: 'PO Box 77, Goshen, OH 45122' } } });
 
   function docRef(name, id) {
     return {

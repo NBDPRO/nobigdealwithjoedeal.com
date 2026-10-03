@@ -107,6 +107,7 @@ exports.leadFollowUpSweep = onSchedule(
 
     let sent = 0;
     let skipped = 0;
+    let blockedNoAddress = 0; // CAN-SPAM: no postal address configured (2026-10-03)
     let resend = null;
 
     for (const collection of SOURCES) {
@@ -163,6 +164,15 @@ exports.leadFollowUpSweep = onSchedule(
           logger.info('leadFollowUp: suppressed', { collection, leadId: doc.id });
           await doc.ref.update({ followUpEmailSuppressedAt: FieldValue.serverTimestamp() }).catch(() => {});
           skipped++;
+          continue;
+        }
+        // CAN-SPAM (2026-10-03): the lead's tenant has no postal address
+        // configured → do not send. Not stamped (the homeowner did nothing);
+        // a later sweep sends it if the address is set while the lead is
+        // still inside the window. Counted in the sweep summary.
+        if (unsub.blocked) {
+          logger.warn('leadFollowUp: blocked, no postal address', { collection, leadId: doc.id, tenantKey });
+          blockedNoAddress++;
           continue;
         }
 
@@ -228,6 +238,6 @@ exports.leadFollowUpSweep = onSchedule(
         }
       }
     }
-    logger.info('leadFollowUp: sweep done', { sent, skipped });
+    logger.info('leadFollowUp: sweep done', { sent, skipped, blockedNoAddress });
   }
 );
