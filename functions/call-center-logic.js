@@ -275,6 +275,17 @@ const GROQ_MAX_BYTES = 25 * 1024 * 1024;
 // 7.5 h (Jo, 2026-10-01: "raise it to 7.5 hours"), half an hour under Groq's
 // 8 h free-tier ceiling so dictation and Voice Intelligence still have room.
 const DAY_AUDIO_SEC_CAP = 7.5 * 3600;
+// The cap is a setting (Jo, 2026-10-03: "catch up asap"): when the Groq
+// account moves to a paid tier, integrations/callCenter.dayAudioCapHours
+// lifts it without a deploy. Anything missing or invalid falls back to the
+// free-tier 7.5 h; the setting is bounded to 1–48 h. Groq's own rate limit
+// still stops a run cleanly if the account can't take more.
+const DAY_AUDIO_CAP_MAX_HOURS = 48;
+function dayAudioCapSec(cfgHours) {
+  const h = Number(cfgHours);
+  if (cfgHours == null || cfgHours === '' || !Number.isFinite(h) || h <= 0) return DAY_AUDIO_SEC_CAP;
+  return Math.round(Math.max(1, Math.min(DAY_AUDIO_CAP_MAX_HOURS, h)) * 3600);
+}
 // Cube ACR's m4a runs ~4 KB/s; good enough to budget before Groq says.
 function estimateAudioSec(sizeBytes) {
   return Math.max(1, Math.round((Number(sizeBytes) || 0) / 4000));
@@ -595,6 +606,8 @@ module.exports = {
   DECK_URL,
   GROQ_MAX_BYTES,
   DAY_AUDIO_SEC_CAP,
+  DAY_AUDIO_CAP_MAX_HOURS,
+  dayAudioCapSec,
   estimateAudioSec,
   pickToTranscribe,
   isRateLimited,

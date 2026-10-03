@@ -300,6 +300,7 @@ test.describe.serial('Gauntlet lifecycle — persona / lapse / access-code / mul
     await page.fill('#regPass', codePw);
     await page.fill('#regConfirm', codePw);
     await page.fill('#regCode', code);
+    await page.check('#regTerms'); // clickwrap (2026-10-03)
     await page.click('#regBtn');
     try {
       await page.waitForURL(/\/pro\/onboarding(\.html)?([?#]|$)/, { timeout: 30_000 });

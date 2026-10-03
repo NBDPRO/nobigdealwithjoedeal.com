@@ -54,7 +54,7 @@
 <link rel="preload" href="js/crm-leads.js?v=7" as="script">
 <link rel="preload" href="js/crm-pipeline.js?v=11" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
-<link rel="preload" href="js/crm-snooze.js?v=2" as="script">
+<link rel="preload" href="js/crm-snooze.js?v=4" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
 <link rel="preload" href="js/crm.js?v=34" as="script">
 <link rel="preload" href="js/maps.js?v=11" as="script">
@@ -202,7 +202,7 @@
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
 <link rel="stylesheet" href="css/google-calendar.css?v=4">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
-<link rel="stylesheet" href="css/game-card.css?v=1">
+<link rel="stylesheet" href="css/game-card.css?v=2">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
@@ -3255,6 +3255,9 @@
                 <span style="font-size:10px;color:var(--m);margin-left:auto;">Adds 13 demo leads</span>
               </button>
               <button class="btn btn-red" data-action="signOut">Sign Out</button>
+              <!-- Legal links (2026-10-03, legal-checklist audit): the policies a
+                   signed-in user agreed to must stay reachable from inside the app. -->
+              <div class="meta-11" id="settingsLegalLinks"><a href="/pro/terms.html" target="_blank" rel="noopener">Terms of Service</a> · <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></div>
             </div>
           </div>
         </div>
@@ -6798,7 +6801,7 @@
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
 <script defer src="js/crm-pipeline.js?v=11"></script>
-<script defer src="js/crm-snooze.js?v=2"></script>
+<script defer src="js/crm-snooze.js?v=4"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
      users/{uid}/fcmTokens so the backend reminder/lead pushes have recipients.
@@ -6813,7 +6816,7 @@
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=6"></script>
 <script defer src="js/dol-fill.js?v=1"></script>
-<script defer src="js/notif-bell.js?v=6"></script>
+<script defer src="js/notif-bell.js?v=7"></script>
 <script defer src="js/agent-inbox.js?v=5"></script>
 <script defer src="js/buying-intent-strike.js?v=2"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
@@ -6848,7 +6851,7 @@
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
 <script defer src="js/home-attention.js?v=6"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
-<script defer src="js/game-card.js?v=1"></script>
+<script defer src="js/game-card.js?v=2"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>

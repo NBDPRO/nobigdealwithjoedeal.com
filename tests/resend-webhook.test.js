@@ -350,7 +350,10 @@ async function post(payload, opts, worldOpts) {
     const S = require(path.join(FUNCTIONS, 'email-suppression.js'));
     const g = await S.gateCommercialEmail(
       { doc: () => ({ get: async () => ({ exists: false }), set: async () => {} }) },
-      { companyId: 'co-b', email: HOMEOWNER, source: 't' });
+      { companyId: 'co-b', email: HOMEOWNER, source: 't' },
+      // A postal address is required since 2026-10-03 (CAN-SPAM) — without
+      // one the gate blocks and mints nothing.
+      { postalAddress: 'PO Box 77, Goshen, OH 45122' });
     ok('gateCommercialEmail returns the nbd_unsub tag carrying the token',
       Array.isArray(g.tags) && g.tags.length === 1
       && g.tags[0].name === S.UNSUB_TAG_NAME && g.tags[0].value === g.token);

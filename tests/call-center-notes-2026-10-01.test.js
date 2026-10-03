@@ -79,6 +79,10 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('personal: no summary detail, no promises, no follow-up', p.summary === 'Personal call.' && !p.promises.length && p.followUpDate === null && p.urgent === false);
   ok('garbage in → safe empty notes', L.sanitizeNotes(null).callType === 'other' && L.sanitizeNotes('x').promises.length === 0);
 
+  ok('the cap is a setting: unset / junk → 7.5 h; 20 → 20 h; bounded to 1–48 h',
+    L.dayAudioCapSec(undefined) === 27000 && L.dayAudioCapSec(null) === 27000 && L.dayAudioCapSec('') === 27000 && L.dayAudioCapSec('abc') === 27000
+      && L.dayAudioCapSec(0) === 27000 && L.dayAudioCapSec(-5) === 27000 && L.dayAudioCapSec(20) === 72000 && L.dayAudioCapSec('12') === 43200
+      && L.dayAudioCapSec(0.5) === 3600 && L.dayAudioCapSec(500) === 48 * 3600);
   ok('daily audio cap is 7.5 h, under Groq\'s 8 h free tier', L.DAY_AUDIO_SEC_CAP === 27000 && L.DAY_AUDIO_SEC_CAP < 8 * 3600);
 
   console.log('\n2. Picking');
@@ -120,6 +124,20 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('one follow-up task on the lead', db.docs.get('leads/L1/tasks/cube-cube_1') && db.docs.get('leads/L1/tasks/cube-cube_1').done === false && r.tasks === 1);
   ok('the test list clears after it runs', db.docs.get(CONFIG).transcribeOnly.length === 0);
   ok('audio seconds counted for the day', db.docs.get(CONFIG).audioSecUsed === 95 && db.docs.get(CONFIG).audioSecDay === '2026-10-01');
+
+  console.log('\n5a. The daily audio cap is a setting (catch-up after a Groq upgrade)');
+  stub(BUSINESS);
+  const capDb = (extra) => fakeDb({
+    [CONFIG]: Object.assign({ audioSecDay: '2026-10-01', audioSecUsed: 27000 }, extra),
+    [COLLECTION + '/cube_cap']: call('cube_cap', { leadId: 'L1' }),
+    'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER },
+  });
+  db = capDb({});
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('at the default 7.5 h, a spent day transcribes nothing more', r.picked === 0 && db.docs.get(COLLECTION + '/cube_cap').status === 'stored', JSON.stringify(r));
+  db = capDb({ dayAudioCapHours: 20 });
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('with dayAudioCapHours 20, the same day keeps going', r.picked === 1 && db.docs.get(COLLECTION + '/cube_cap').status === 'noted', JSON.stringify(r));
 
   console.log('\n5b. An old (backlog) call: notes + timeline, no stale task');
   stub(BUSINESS);
