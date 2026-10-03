@@ -1103,6 +1103,90 @@ function closeBoardPage(price, mode, deductible) {
     W._leads = prevLeads;
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  section('13. KENTUCKY — the lead reaches the classic builder, Job Templates and the Close Board (2026-10-03)');
+  // ══════════════════════════════════════════════════════════════════
+  // Same law as section 12: a KY lead with a claim on file is an insurance
+  // job even when priced in cash mode; nothing may be due at signing.
+  {
+    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const OHA = '1 Elm St, Cincinnati, OH 45202';
+    const kyClaimLead = { id: 'lead_kyc2', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-88' };
+    const ohClaimLead = { id: 'lead_ohc2', firstName: 'Oh', lastName: 'Io', address: OHA, claimNumber: 'CLM-89' };
+    const prevLeads = W._leads, prevLinked = W._estLinkedLeadId;
+
+    // K. the engine adapter forwards the lead
+    const eng = ENGINE.calcDeposit(15000, 'cash', { lead: kyClaimLead });
+    ok('engine calcDeposit forwards the lead: cash mode + KY claim lead → $0', eng.amount === 0 && !!eng.plan && eng.plan.kyHold === true, JSON.stringify(eng.plan && eng.plan.summary));
+    ok('…OH claim lead unchanged (50%)', ENGINE.calcDeposit(15000, 'cash', { lead: ohClaimLead }).amount === 7500);
+
+    // Classic builder (estimates.js): calcDeposit + the linked-lead lookup the review uses.
+    load(APP, 'docs/pro/js/estimates.js');
+    ok('classic estimates.js loaded (window.calcDeposit + global _estLinkedLead)', typeof W.calcDeposit === 'function' && typeof APP.sandbox._estLinkedLead === 'function');
+    const ESTL = (typeof APP.sandbox._estLinkedLead === 'function') ? APP.sandbox._estLinkedLead : () => null;
+    W._leads = [kyClaimLead, ohClaimLead];
+    W._estLinkedLeadId = 'lead_kyc2';
+    const linked = ESTL();
+    ok('classic: the linked lead is found by window._estLinkedLeadId', !!linked && linked.id === 'lead_kyc2');
+    const cl = W.calcDeposit(15000, 'cash', null, null, linked);
+    ok('classic calcDeposit: cash mode on a KY claim lead → $0 at signing', cl.amount === 0 && cl.remainder === 15000, JSON.stringify(cl.plan && cl.plan.summary));
+    W._estLinkedLeadId = 'lead_ohc2';
+    ok('classic calcDeposit: OH claim lead → 50% unchanged', W.calcDeposit(15000, 'cash', null, null, ESTL()).amount === 7500);
+    W._estLinkedLeadId = null;
+    ok('classic calcDeposit: no linked lead → 50% unchanged', W.calcDeposit(15000, 'cash', null, null, ESTL()).amount === 7500);
+    const estSrc = read('docs/pro/js/estimates.js');
+    ok('classic review passes the linked lead to calcDeposit', /calcDeposit\(grandTotal, d\.mode, d\.depositPctOverride, insuranceFields, _estLinkedLead\(\)\)/.test(estSrc));
+
+    // Job Templates: depositStamp via buildEstimatePayload, lead by meta.leadId.
+    const jtKy = JT.buildEstimatePayload({ totals: { total: 15000, mode: 'cash', lines: [] }, measurements: {} },
+      { owner: 'Kay Why', addr: KY, leadId: 'lead_kyc2' });
+    ok('Job Templates: cash template on a KY claim lead → deposit $0, held plan', Number(jtKy.deposit) === 0
+      && !!jtKy.depositPlan && jtKy.depositPlan.rule === 'insurance-ky', JSON.stringify(jtKy.depositPlan && jtKy.depositPlan.summary));
+    const jtOh = JT.buildEstimatePayload({ totals: { total: 15000, mode: 'cash', lines: [] }, measurements: {} },
+      { owner: 'Oh Io', addr: OHA, leadId: 'lead_ohc2' });
+    ok('Job Templates: OH claim lead → 50% unchanged', Number(jtOh.deposit) === 7500, jtOh.deposit);
+    W._leads = prevLeads; W._estLinkedLeadId = prevLinked;
+
+    // Close Board: a deal with a claim NUMBER but no carrier. Its mode was
+    // 'cash' (insuranceClaim follows the carrier) while the KY notices printed.
+    function cbPage(leadData) {
+      const raw = read('docs/pro/js/close-board.js').replace(/\bimport\(/g, '__testImport(');
+      const mk = () => ({ _h: '', get innerHTML() { return this._h; }, set innerHTML(v) { this._h = String(v); },
+        style: {}, dataset: {}, querySelector: () => null, querySelectorAll: () => [],
+        addEventListener() {}, classList: { add() {}, remove() {}, contains() { return false; }, toggle() {} } });
+      const store = {};
+      const sb = {
+        console: { log() {}, info() {}, warn() {}, error() {} }, JSON, Math, Date, Number, String, Array, Object, RegExp,
+        Boolean, Error, Promise, Set, Map, isNaN, parseFloat, parseInt, encodeURIComponent, Intl,
+        setTimeout: () => 0, clearTimeout: () => {},
+        localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } },
+        document: { getElementById: () => mk(), createElement: mk, querySelector: () => null, querySelectorAll: () => [], addEventListener() {} },
+        navigator: {},
+        __testImport: async () => ({ doc: () => ({}), collection: () => ({}), where: () => ({}), query: () => ({}),
+          setDoc: () => Promise.resolve(), deleteDoc: () => Promise.resolve(), getDocs: () => Promise.resolve({ empty: true, size: 0, forEach() {} }) }),
+      };
+      sb.window = sb; sb.addEventListener = () => {}; sb.showToast = () => {}; sb.open = () => null;
+      sb._db = null; sb._user = { uid: 'u1' }; sb._userClaims = { companyId: 'c1' };
+      sb._companyProfile = { brand: { contact: { mailingAddress: '6563 Manila Rd, Goshen, OH 45122', email: 'x@nbd.test' } } };
+      sb.getLineItems = () => [];
+      vm.createContext(sb);
+      vm.runInContext(read('docs/pro/js/deposit-rule.js'), sb, { filename: 'deposit-rule.js' });
+      vm.runInContext(read('docs/pro/js/ky-insurance-law.js'), sb, { filename: 'ky-insurance-law.js' });
+      vm.runInContext(raw, sb, { filename: 'close-board.js' });
+      const deal = sb.CloseBoard.createFromEstimate({ prices: { good: 15000, better: 15000, best: 15000 } }, leadData);
+      return sb.CloseBoard.generatePageHTML(deal) || '';
+    }
+    const kyHtml = cbPage({ id: 'lead_kyc2', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-88' });
+    ok('precondition: the KY claim deal page prints the KRS 367.624 notices', /NOTICE OF CANCELLATION/.test(kyHtml));
+    ok('Close Board: KY deal with a claim number (no carrier) → "Due at signing: $0" on every tier',
+      (kyHtml.match(/class="tier-deposit">Due at signing: <strong>\$0<\/strong>/g) || []).length >= 3
+        && !/Due at signing: <strong>\$7,500/.test(kyHtml) && !/50% deposit/.test(kyHtml),
+      (kyHtml.match(/class="tier-deposit">[^<]*<strong>[^<]*/g) || []).join(' | '));
+    const ohHtml = cbPage({ id: 'lead_ohc2', firstName: 'Oh', lastName: 'Io', address: OHA, claimNumber: 'CLM-89' });
+    ok('…positive control: OH deal with a claim number → 50% at signing unchanged', /class="tier-deposit">[^<]*<strong>\$7,500<\/strong>/.test(ohHtml),
+      (ohHtml.match(/class="tier-deposit">[^<]*<strong>[^<]*/g) || []).join(' | '));
+  }
+
   console.log('\n──────────────────────────────────────────────────');
   console.log(passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILURES: ' + fails.length); process.exit(1); }

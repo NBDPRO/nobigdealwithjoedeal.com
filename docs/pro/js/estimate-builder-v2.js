@@ -568,6 +568,9 @@
     };
     // Kentucky hold (2026-09-27): only when the caller knows the address.
     if (Object.prototype.hasOwnProperty.call(o, 'address')) input.address = o.address;
+    // The linked lead (2026-10-03): its claim number / carrier / jobType make
+    // a Kentucky job an insurance job for the hold even in cash mode.
+    if (o.lead && typeof o.lead === 'object') input.lead = o.lead;
     const plan = rule.compute(input);
     return { pct: plan.pct, amount: _fromCents(plan.depositCents), remainder: _fromCents(plan.balanceCents), plan };
   }
