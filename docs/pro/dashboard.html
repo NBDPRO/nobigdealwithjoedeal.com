@@ -52,7 +52,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=7" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=10" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=11" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=2" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
@@ -130,7 +130,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=26"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=27"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -144,8 +144,16 @@
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=1">
+<link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
 <link rel="stylesheet" href="css/data-import-view.css?v=1">
+<link rel="stylesheet" href="css/ai-texting-persona-view.css?v=1">
+<link rel="stylesheet" href="css/admin-manager-view.css?v=1">
+<link rel="stylesheet" href="css/claim-core-view.css?v=1">
+<link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
+<link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/product-library.css?v=1">
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
@@ -185,9 +193,11 @@
      ═══════════════════════════════════════════════════════════════ -->
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
+<link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
 <link rel="stylesheet" href="css/google-calendar.css?v=4">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
+<link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -5892,7 +5902,7 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=2"></script>
-<script defer src="js/dashboard-widgets.js?v=6"></script>
+<script defer src="js/dashboard-widgets.js?v=7"></script>
 <script defer src="js/dashboard-ui.js?v=10"></script>
 <script defer src="js/dashboard-actions.js?v=16"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
@@ -6774,7 +6784,7 @@
 <script defer src="js/crm-leads.js?v=7"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=10"></script>
+<script defer src="js/crm-pipeline.js?v=11"></script>
 <script defer src="js/crm-snooze.js?v=2"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6797,7 +6807,7 @@
 <script defer src="js/dup-review.js?v=1"></script>
 <script defer src="js/global-search.js?v=2"></script>
 <script defer src="js/bottleneck-widget.js?v=2"></script>
-<script defer src="js/pwa-install-nudge.js?v=5"></script>
+<script defer src="js/pwa-install-nudge.js?v=6"></script>
 <script defer src="js/data-export.js?v=4"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
 <script defer src="js/data-import.js?v=3"></script>
@@ -6808,7 +6818,7 @@
 <script defer src="js/lead-filter-registry.js?v=1"></script>
 <script defer src="js/needs-attention-filter.js?v=4"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
-<script defer src="js/lead-snooze.js?v=3"></script>
+<script defer src="js/lead-snooze.js?v=4"></script>
 <script defer src="js/prefs-sync.js?v=3"></script>
 <!-- Wave 42: portal-link helpers must load BEFORE kanban-context-menu
      so the menu picks up Copy/Text Portal Link items on first render. -->
@@ -6842,7 +6852,7 @@
 <script defer src="js/warranty-claim.js?v=3"></script>
 <!-- Insurance Details panel reuse (mobile Details tab) — ClaimPanel.render
      is container-agnostic; not loaded on this page before. -->
-<script defer src="js/claim-core.js?v=5"></script>
+<script defer src="js/claim-core.js?v=6"></script>
 <!-- Job Checklist panel reuse (mobile Details tab) — not loaded on this
      page before. -->
 <script defer src="js/customer-checklist.js?v=2"></script>
@@ -6922,7 +6932,7 @@
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
 <script defer src="js/adjuster-tactic-card.js?v=2"></script>
 <!-- T-4: AI texting persona editor (Settings → AI Texting tab) -->
-<script defer src="js/ai-texting-persona.js?v=2"></script>
+<script defer src="js/ai-texting-persona.js?v=3"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- LAZY: sales-training, academy/*, real-deal-academy/*, storm-*, decision-engine,
      close-board, rep-os loaded via ScriptLoader when the user enters those views. -->
@@ -6968,7 +6978,7 @@
      based on the user's claims. Lazy-loading would hide the nav entry
      until the admin explicitly typed #/admin, defeating the gate UX. -->
 <script defer src="js/inbound-sms-triage.js?v=1"></script>
-<script defer src="js/admin-manager.js?v=2"></script>
+<script defer src="js/admin-manager.js?v=3"></script>
 <!-- Integrations client — exposes window.NBDIntegrations for HOVER,
      BoldSign, Regrid, HailTrace, Cal.com. No-op when providers are
      not configured server-side. -->
@@ -6982,9 +6992,9 @@
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=2"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="js/quick-capture.js?v=2"></script>
+<script defer src="js/quick-capture.js?v=3"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
-<script defer src="js/quick-capture-inbox.js?v=2"></script>
+<script defer src="js/quick-capture-inbox.js?v=3"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
 <script defer src="js/command-palette.js?v=3"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
