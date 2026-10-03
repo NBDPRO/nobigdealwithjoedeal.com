@@ -195,6 +195,53 @@ const callDocs = (db) => [...db.docs.keys()].filter((k) => k.startsWith(COLLECTI
   r = await runIngest({ db, bucket: fakeBucket(), live: true, nowMs: NOW + 1800e3 });
   ok('the next run resumes from the cursor (January is not re-listed)', !hd.listed.includes('jan') && hd.listed.includes('sep'), JSON.stringify(hd.listed));
 
+  // A tree-driven Drive for the 2026-10-03 regressions below.
+  function treeDrive(tree) {
+    const calls = [];
+    return {
+      calls,
+      request: async (o) => {
+        calls.push(o);
+        if (o.params && o.params.alt === 'media') return { data: new Uint8Array([1, 2, 3]).buffer };
+        const q = o.params.q;
+        if (/^name = 'Cube ACR'/.test(q)) return { data: { files: [{ id: 'root', name: 'Cube ACR' }] } };
+        const parent = /^'([^']+)' in parents/.exec(q)[1];
+        return { data: { files: (tree[parent] || []).filter((f) => !/mimeType = /.test(q) || f.mimeType === FOLDER) } };
+      },
+    };
+  }
+  let recN = 10;
+  const rec = (id, ymd, hh, size) => ({ id, name: ymd + ' ' + hh + '-00-00 (phone) +1 513-555-01' + String(recN++) + ' ↙.m4a', size: String(size || 1000), mimeType: 'audio/mpeg' });
+
+  console.log('\n8. A too-large recording never blocks the days after it (2026-10-03 regression)');
+  // An 89 MB May call failed every run and the scan stopped at its day, so Oct 2's calls never filed.
+  setClient(treeDrive({
+    root: [{ id: 'may10', name: '2026-05-10', mimeType: FOLDER }, { id: 'sep29', name: '2026-09-29', mimeType: FOLDER }],
+    may10: [rec('b1', '2026-05-10', '13', 89112577), rec('b2', '2026-05-10', '14')],
+    sep29: [rec('b3', '2026-09-29', '10')],
+  }));
+  db = fakeDb(leads); bucket = fakeBucket();
+  r = await runIngest({ db, bucket, live: true, nowMs: NOW });
+  ok('the big file is skipped (counted, not failed) and its neighbours file', r.tooLarge === 1 && r.failed === 0 && r.stored === 2 && !db.docs.has(COLLECTION + '/' + L.callDocId('b1')), JSON.stringify(r));
+  ok('...and the cursor moves past its day', db.docs.get(CONFIG).cursorYmd === '2026-09-29');
+  setClient(treeDrive({ root: [{ id: 'may10', name: '2026-05-10', mimeType: FOLDER }], may10: [rec('b1', '2026-05-10', '13', 89112577)] }));
+  r = await runIngest({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  ok('...and it is not retried next run', r.tooLarge === undefined && r.failed === 0, JSON.stringify(r));
+
+  console.log('\n9. The newest calls file first, ahead of any history backlog');
+  const backlog = Array.from({ length: 45 }, (_, i) => rec('k' + i, '2026-05-12', String(10 + (i % 9)).padStart(2, '0') + '-' + String(i).padStart(2, '0')));
+  backlog.forEach((b, i) => { b.name = '2026-05-12 ' + String(8 + Math.floor(i / 10)).padStart(2, '0') + '-' + String(i % 60).padStart(2, '0') + '-00 (phone) +1 513-555-02' + String(i).padStart(2, '0') + ' ↙.m4a'; });
+  setClient(treeDrive({
+    root: [{ id: 'old', name: '2026-05-12', mimeType: FOLDER }, { id: 'today', name: '2026-10-01', mimeType: FOLDER }],
+    old: backlog,
+    today: [rec('t1', '2026-10-01', '07')],
+  }));
+  db = fakeDb(leads); bucket = fakeBucket();
+  r = await runIngest({ db, bucket, live: true, nowMs: NOW });
+  ok("today's call is filed on the first run even with a 45-call backlog", db.docs.has(COLLECTION + '/' + L.callDocId('t1')), JSON.stringify(r));
+  ok('...the backlog uses the rest of the run budget (40 per run)', r.stored === 40, JSON.stringify(r));
+  ok('...and the cursor stays before the unfinished backlog day', db.docs.get(CONFIG).cursorYmd == null || db.docs.get(CONFIG).cursorYmd < '2026-05-12', String(db.docs.get(CONFIG).cursorYmd));
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);
