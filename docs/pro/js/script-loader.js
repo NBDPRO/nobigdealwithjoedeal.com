@@ -107,7 +107,7 @@
       // renderCostPanel('profitPanel') runs during the customer render, so it
       // cannot be lazy there. Same cache key on both pages.
       'js/profit-tracker.js?v=3',
-      'js/expenses.js?v=6',
+      'js/expenses.js?v=7',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=3',
@@ -131,7 +131,7 @@
     // reminders. Pure rules first so the view can use them at init.
     signs: [
       'js/yard-signs-logic.js?v=3',
-      'js/yard-signs.js?v=4'
+      'js/yard-signs.js?v=5'
     ],
     // Past Customers win-back list (2026-10-01): pure rules + drafts first,
     // then the view. Nothing is sent without the rep tapping Send.
