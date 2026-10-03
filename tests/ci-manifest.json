@@ -44,6 +44,7 @@
     "customer-photo-fetch-unification-2026-09-17.test.js",
     "portal-open-signal-extension-2026-09-16.test.js",
     "storm-watch-active-subscriber-2026-09-16.test.js",
+    "storm-sms-no-double-send-2026-10-03.test.js",
     "admin-project-codex-duplicate-ids-2026-09-16.test.js",
     "inspect-photo-disclosure-2026-09-16.test.js",
     "customer-doc-branding.test.js",
