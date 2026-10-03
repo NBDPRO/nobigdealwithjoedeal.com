@@ -246,7 +246,9 @@ test.describe('phone: one at a time @shard2', () => {
     await expect(deck(page)).toBeVisible();
     const leadOf = async (id) => (await adb().doc('leads/' + id).get()).data() || {};
     for (let i = 0; i < 40 && (await card(page).getAttribute('data-id')) !== askId; i++) { await page.locator('#nbdTriageDeck .deck-left').tap(); await page.waitForTimeout(200); }
-    await expect(card(page)).toContainText('Won 3 days ago');
+    // Review asks wait for PAID IN FULL (2026-10-03): a Closed job with no
+    // invoice owing is paid in full, so it is on the deck.
+    await expect(card(page)).toContainText('Paid in full 3 days ago');
     await expect(page.locator('#nbdTriageDeck .deck-right')).toHaveText(/Text the ask/);
     await page.locator('#nbdTriageDeck .deck-right').tap();
     await expect.poll(async () => (await leadOf(askId)).reviewRequested, { message: 'the lead is marked asked' }).toBe(true);
@@ -255,6 +257,7 @@ test.describe('phone: one at a time @shard2', () => {
     expect(sent[0].to).toBe('5135550166');
     expect(sent[0].source).toBe('review_request');
     expect(sent[0].message, 'the ask carries the Google review link').toMatch(/review/i);
+    expect(sent[0].message, 'and the homeowner\'s referral link, in the same message').toMatch(/\/pro\/refer\.html\?ref=[^&\s]+&code=[A-Z0-9-]+/);
     for (let i = 0; i < 40 && (await card(page).getAttribute('data-id')) !== skipId; i++) { await page.locator('#nbdTriageDeck .deck-left').tap(); await page.waitForTimeout(200); }
     await page.locator('#nbdTriageDeck .deck-dots').tap();
     await page.locator('#nbdTriageDeck .deck-opt', { hasText: "Don't ask this one" }).tap();
