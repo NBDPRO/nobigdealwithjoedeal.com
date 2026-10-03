@@ -1,0 +1,21 @@
+/* Decision Engine (js/decision-engine.js) — scenario picker and detail. Static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.dex-ffbarlowco-fs22px-w800.dex-ffbarlowco-fs22px-w800.dex-ffbarlowco-fs22px-w800 { font-family: 'Barlow Condensed',sans-serif; font-size: 22px; font-weight: 800; letter-spacing: .04em; }
+.dex-fs11px-cm-fx1.dex-fs11px-cm-fx1.dex-fs11px-cm-fx1 { font-size: 11px; color: var(--m,#6B7280); flex: 1; }
+.dex-p14px20px-dflex-gap8px.dex-p14px20px-dflex-gap8px.dex-p14px20px-dflex-gap8px { padding: 14px 20px 8px; display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+.dex-opa6.dex-opa6.dex-opa6 { opacity: .6; }
+.dex-p020px8px-fle0.dex-p020px8px-fle0.dex-p020px8px-fle0 { padding: 0 20px 8px; flex-shrink: 0; }
+.dex-p12px20px-fs11px-cm.dex-p12px20px-fs11px-cm.dex-p12px20px-fs11px-cm { padding: 12px 20px 4px; font-size: 11px; color: var(--m,#6B7280); font-style: italic; flex-shrink: 0; }
+.dex-fx1-oveauto-p8px14px1.dex-fx1-oveauto-p8px14px1.dex-fx1-oveauto-p8px14px1 { flex: 1; overflow-y: auto; padding: 8px 14px 16px; -webkit-overflow-scrolling: touch; }
+.dex-p30px-tacenter-cm.dex-p30px-tacenter-cm.dex-p30px-tacenter-cm { padding: 30px; text-align: center; color: var(--m,#6B7280); font-size: 13px; }
+.dex-dflex-aicenter-gap8px.dex-dflex-aicenter-gap8px.dex-dflex-aicenter-gap8px { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.dex-fs13px.dex-fs13px.dex-fs13px { font-size: 13px; }
+.dex-fs11px-cm.dex-fs11px-cm.dex-fs11px-cm { font-size: 11px; color: var(--m,#6B7280); }
+.dex-mb6px.dex-mb6px.dex-mb6px { margin-bottom: 6px; }
+.dex-ffbarlowco-fs18px-w800.dex-ffbarlowco-fs18px-w800.dex-ffbarlowco-fs18px-w800 { font-family: 'Barlow Condensed',sans-serif; font-size: 18px; font-weight: 800; flex: 1; }
+.dex-fx1-oveauto-p18px22px.dex-fx1-oveauto-p18px22px.dex-fx1-oveauto-p18px22px { flex: 1; overflow-y: auto; padding: 18px 22px; -webkit-overflow-scrolling: touch; }
+.dex-fs12px-cm-mb14px.dex-fs12px-cm-mb14px.dex-fs12px-cm-mb14px { font-size: 12px; color: var(--m,#6B7280); margin-bottom: 14px; }
+.dex-fs11px-ttuppercas-ls08em.dex-fs11px-ttuppercas-ls08em.dex-fs11px-ttuppercas-ls08em { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--orange,#BD5728); margin: 14px 0 8px; }
+.dex-m0-pad20px-fs13px.dex-m0-pad20px-fs13px.dex-m0-pad20px-fs13px { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.55; }
+.dex-mt14px.dex-mt14px.dex-mt14px { margin-top: 14px; }
+.dex-fs11px-cm-ttuppercas.dex-fs11px-cm-ttuppercas.dex-fs11px-cm-ttuppercas { font-size: 11px; color: var(--m,#6B7280); text-transform: uppercase; letter-spacing: .06em; margin-right: 6px; }
+.dex-p14px20px-bt1pxsolid-dflex.dex-p14px20px-bt1pxsolid-dflex.dex-p14px20px-bt1pxsolid-dflex { padding: 14px 20px; border-top: 1px solid var(--br,rgba(255,255,255,.1)); display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }

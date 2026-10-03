@@ -241,58 +241,58 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const escT = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     el.innerHTML = `
-      <div style="background:var(--s,#12223D);border:1px solid var(--br,rgba(255,255,255,.08));border-radius:12px;padding:20px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <h4 style="margin:0;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--t,#fff);">💲 Job Costs & Profit</h4>
+      <div class="ptx-bgs-bd1pxsolid-r12px">
+        <div class="ptx-dflex-aicenter-jcspacebet">
+          <h4 class="ptx-m0-ffbarlowco-fs16px">💲 Job Costs & Profit</h4>
           ${pl.revenue > 0 && costsSet ? `<span style="background:color-mix(in srgb, ${marginColor} 13%, transparent);color:${marginColor};padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;">${pl.grossMargin}% margin</span>` : ''}
         </div>
-        ${expFed ? `<div style="font-size:10px;color:var(--green,#16a34a);margin:-10px 0 14px;">✓ Margin reflects ${expenses.length} logged expense${expenses.length > 1 ? 's' : ''} — $${formatPT(pl.materialCost + pl.laborCost + pl.miscCosts)} direct cost from the Expenses ledger.</div>` : ''}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        ${expFed ? `<div class="ptx-fs10px-cgreen-m10px014p">✓ Margin reflects ${expenses.length} logged expense${expenses.length > 1 ? 's' : ''} — $${formatPT(pl.materialCost + pl.laborCost + pl.miscCosts)} direct cost from the Expenses ledger.</div>` : ''}
+        <div class="ptx-dgrid-gtc1fr1fr-gap12px">
           <div>
-            <label style="font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;">Material Cost</label>
+            <label class="ptx-fs11px-cm-ttuppercas">Material Cost</label>
             <input id="ptMaterial" type="number" step="0.01" value="${lead.materialCost || ''}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
           <div>
-            <label style="font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;">Labor Cost</label>
+            <label class="ptx-fs11px-cm-ttuppercas">Labor Cost</label>
             <input id="ptLabor" type="number" step="0.01" value="${lead.laborCost || ''}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
           <div>
-            <label style="font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;">Misc / Other</label>
+            <label class="ptx-fs11px-cm-ttuppercas">Misc / Other</label>
             <input id="ptMisc" type="number" step="0.01" value="${lead.miscCosts || ''}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
           <div>
-            <label style="font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;">Overhead %</label>
+            <label class="ptx-fs11px-cm-ttuppercas">Overhead %</label>
             <input id="ptOverhead" type="number" step="1" value="${overheadPctFrom(lead.overheadPct)}"
               style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:14px;margin-top:4px;box-sizing:border-box;">
           </div>
         </div>
-        <div style="margin-bottom:16px;">
-          <label style="font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;">Cost Notes</label>
-          <textarea id="ptNotes" rows="2" style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:13px;margin-top:4px;resize:vertical;box-sizing:border-box;">${escT(lead.costNotes)}</textarea>
+        <div class="ptx-mb16px">
+          <label class="ptx-fs11px-cm-ttuppercas">Cost Notes</label>
+          <textarea id="ptNotes" rows="2" class="ptx-wd100-p10px-bgs2">${escT(lead.costNotes)}</textarea>
         </div>
 
-        ${pl.revenue > 0 && !costsSet ? '<div style="color:var(--m,#9ca3af);font-size:12px;text-align:center;padding:12px;">Costs not set — enter material, labor or misc cost (or log expenses on this job) to see the margin.</div>' : ''}
+        ${pl.revenue > 0 && !costsSet ? '<div class="ptx-cm-fs12px-tacenter">Costs not set — enter material, labor or misc cost (or log expenses on this job) to see the margin.</div>' : ''}
         ${pl.revenue > 0 && costsSet ? `
-        <div style="background:var(--s2,rgba(255,255,255,.03));border-radius:8px;padding:14px;margin-bottom:16px;">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+        <div class="ptx-bgs2-r8px-p14px">
+          <div class="ptx-dgrid-gtcrepeat31-gap10px">
             <div>
-              <div style="font-size:18px;font-weight:800;color:var(--green,#16a34a);">$${formatPT(pl.grossProfit)}</div>
-              <div style="font-size:10px;color:var(--m,#9ca3af);">GROSS PROFIT <span style="opacity:.75;">(before overhead)</span></div>
+              <div class="ptx-fs18px-w800-cgreen">$${formatPT(pl.grossProfit)}</div>
+              <div class="ptx-fs10px-cm">GROSS PROFIT <span class="ptx-opa75">(before overhead)</span></div>
             </div>
             <div>
               <div style="font-size:18px;font-weight:800;color:${marginColor};">${pl.grossMargin}%</div>
-              <div style="font-size:10px;color:var(--m,#9ca3af);">GROSS MARGIN</div>
+              <div class="ptx-fs10px-cm">GROSS MARGIN</div>
             </div>
             <div>
-              <div style="font-size:18px;font-weight:800;color:var(--orange,#BD5728);">$${formatPT(pl.totalCost)}</div>
-              <div style="font-size:10px;color:var(--m,#9ca3af);">TOTAL COST <span style="opacity:.75;">(incl. ${escT(overheadPctFrom(lead.overheadPct))}% overhead)</span></div>
+              <div class="ptx-fs18px-w800-corange">$${formatPT(pl.totalCost)}</div>
+              <div class="ptx-fs10px-cm">TOTAL COST <span class="ptx-opa75">(incl. ${escT(overheadPctFrom(lead.overheadPct))}% overhead)</span></div>
             </div>
           </div>
         </div>` : ''}
-        ${pl.revenue > 0 ? '' : '<div style="color:var(--m,#9ca3af);font-size:12px;text-align:center;padding:12px;">Set a Job Value on this lead to see margin calculations</div>'}
+        ${pl.revenue > 0 ? '' : '<div class="ptx-cm-fs12px-tacenter">Set a Job Value on this lead to see margin calculations</div>'}
 
         <button type="button" class="btn btn-orange" data-pt-action="save" data-pt-id="${leadId}"
           style="width:100%;justify-content:center;">

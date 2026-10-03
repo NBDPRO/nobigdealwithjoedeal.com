@@ -1,7 +1,7 @@
 /* Expenses (js/expenses.js) — the remaining layout strings after #2014: list rows, totals, receipt + supplier panels, recurring. Moved out of inline style attributes so a theme can restyle it (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven ones stay inline. Generated (auto-named from each rule's properties); rules tripled so they out-rank component rules the way the inline style did. */
 .exx-hei6px-bgs2-r4px.exx-hei6px-bgs2-r4px.exx-hei6px-bgs2-r4px { height: 6px; background: var(--s2,rgba(255,255,255,.06)); border-radius: 4px; overflow: hidden; margin-top: 4px; }
 .exx-dflex-aicenter-jcspacebet.exx-dflex-aicenter-jcspacebet.exx-dflex-aicenter-jcspacebet { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
-.exx-m0-ffbarlowco-fs26px.exx-m0-ffbarlowco-fs26px.exx-m0-ffbarlowco-fs26px { margin: 0; font-family: \'Barlow Condensed\',sans-serif; font-size: 26px; font-weight: 800; color: var(--t,#fff); }
+.exx-m0-ffbarlowco-fs26px.exx-m0-ffbarlowco-fs26px.exx-m0-ffbarlowco-fs26px { margin: 0; font-family: 'Barlow Condensed',sans-serif; font-size: 26px; font-weight: 800; color: var(--t,#fff); }
 .exx-fs12px-cm-mt2px.exx-fs12px-cm-mt2px.exx-fs12px-cm-mt2px { font-size: 12px; color: var(--m,#9ca3af); margin-top: 2px; }
 .exx-dflex-gap8px.exx-dflex-gap8px.exx-dflex-gap8px { display: flex; gap: 8px; }
 .exx-dgrid-gtcrepeatau-gap12px.exx-dgrid-gtcrepeatau-gap12px.exx-dgrid-gtcrepeatau-gap12px { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 12px; margin-bottom: 20px; }

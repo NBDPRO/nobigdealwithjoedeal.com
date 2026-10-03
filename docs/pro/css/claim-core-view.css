@@ -1,0 +1,31 @@
+/* Claim view (js/claim-core.js) — static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven and JS-toggled ones stay inline. Generated (auto-named from the declarations). */
+.ccx-bgnone-bdnone-cblue.ccx-bgnone-bdnone-cblue.ccx-bgnone-bdnone-cblue { background: none; border: none; color: var(--blue,#3b82f6); font-size: 15px; cursor: pointer; padding: 4px 0; min-height: 36px; font-weight: 600; }
+.ccx-cgreen-tdnone-fs13px.ccx-cgreen-tdnone-fs13px.ccx-cgreen-tdnone-fs13px { color: var(--green,#10b981); text-decoration: none; font-size: 13px; margin-left: 10px; }
+.ccx-cblue-tdnone-fs13px.ccx-cblue-tdnone-fs13px.ccx-cblue-tdnone-fs13px { color: var(--blue,#3b82f6); text-decoration: none; font-size: 13px; margin-left: 10px; }
+.ccx-corange-tdnone-fs13px.ccx-corange-tdnone-fs13px.ccx-corange-tdnone-fs13px { color: var(--orange,#BD5728); text-decoration: none; font-size: 13px; margin-left: 10px; }
+.ccx-ct-w600.ccx-ct-w600.ccx-ct-w600 { color: var(--t); font-weight: 600; }
+.ccx-cm-fs12px-mt2px.ccx-cm-fs12px-mt2px.ccx-cm-fs12px-mt2px { color: var(--m,#9ca3af); font-size: 12px; margin-top: 2px; }
+.ccx-mt4px-ml10px.ccx-mt4px-ml10px.ccx-mt4px-ml10px { margin-top: 4px; margin-left: -10px; }
+.ccx-dflex-jcspacebet-aicenter.ccx-dflex-jcspacebet-aicenter.ccx-dflex-jcspacebet-aicenter { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--br,rgba(255,255,255,.08)); gap: 12px; }
+.ccx-cm-fs12px-ttuppercas.ccx-cm-fs12px-ttuppercas.ccx-cm-fs12px-ttuppercas { color: var(--m,#9ca3af); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; flex: 0 0 auto; }
+.ccx-taright-minw0.ccx-taright-minw0.ccx-taright-minw0 { text-align: right; min-width: 0; }
+.ccx-dflex-jcspacebet-aistart.ccx-dflex-jcspacebet-aistart.ccx-dflex-jcspacebet-aistart { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.ccx-mb4px.ccx-mb4px.ccx-mb4px { margin-bottom: 4px; }
+.ccx-cm-fs12px.ccx-cm-fs12px.ccx-cm-fs12px { color: var(--m,#9ca3af); font-size: 12px; }
+.ccx-cblue-fs24px-w800.ccx-cblue-fs24px-w800.ccx-cblue-fs24px-w800 { color: var(--blue,#3b82f6); font-size: 24px; font-weight: 800; }
+.ccx-dflex-flecolumn-aiflexend.ccx-dflex-flecolumn-aiflexend.ccx-dflex-flecolumn-aiflexend { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto; }
+.ccx-bgnone-bd1pxsolid-r8px.ccx-bgnone-bd1pxsolid-r8px.ccx-bgnone-bd1pxsolid-r8px { background: none; border: 1px solid var(--br,rgba(255,255,255,.15)); border-radius: 8px; color: var(--t); font-size: 12px; cursor: pointer; padding: 6px 12px; }
+.ccx-mt12px.ccx-mt12px.ccx-mt12px { margin-top: 12px; }
+.ccx-mt14px.ccx-mt14px.ccx-mt14px { margin-top: 14px; }
+.ccx-fx1-minw0.ccx-fx1-minw0.ccx-fx1-minw0 { flex: 1; min-width: 0; }
+.ccx-dblock-cm-fs11px.ccx-dblock-cm-fs11px.ccx-dblock-cm-fs11px { display: block; color: var(--m,#9ca3af); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.ccx-wd100-bgrgba2552-bd1pxsolid.ccx-wd100-bgrgba2552-bd1pxsolid.ccx-wd100-bgrgba2552-bd1pxsolid { width: 100%; background: rgba(255,255,255,.05); border: 1px solid var(--br,rgba(255,255,255,.12)); border-radius: 8px; color: var(--t); padding: 9px 10px; font-size: 14px; font-family: inherit; box-sizing: border-box; }
+.ccx-dflex-gap10px-mb10px.ccx-dflex-gap10px-mb10px.ccx-dflex-gap10px-mb10px { display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end; }
+.ccx-ffbarlowco-fs11px-w700.ccx-ffbarlowco-fs11px-w700.ccx-ffbarlowco-fs11px-w700 { font-family: 'Barlow Condensed',sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--orange,#BD5728); margin: 16px 0 8px; }
+.ccx-maxw560px-wd100-max86vh.ccx-maxw560px-wd100-max86vh.ccx-maxw560px-wd100-max86vh { max-width: 560px; width: 100%; max-height: 86vh; overflow-y: auto; background: var(--s,#1a1d23); border: 1px solid var(--br,rgba(255,255,255,.1)); border-radius: 14px; padding: 20px; }
+.ccx-dflex-jcspacebet-aicenter-2.ccx-dflex-jcspacebet-aicenter-2.ccx-dflex-jcspacebet-aicenter-2 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ccx-ffbarlowco-fs20px-w800.ccx-ffbarlowco-fs20px-w800.ccx-ffbarlowco-fs20px-w800 { font-family: 'Barlow Condensed',sans-serif; font-size: 20px; font-weight: 800; color: var(--t); }
+.ccx-bgnone-bdnone-cm.ccx-bgnone-bdnone-cm.ccx-bgnone-bdnone-cm { background: none; border: none; color: var(--m,#9ca3af); font-size: 22px; cursor: pointer; padding: 4px 8px; line-height: 1; min-width: 40px; min-height: 40px; }
+.ccx-dflex-gap10px-mt16px.ccx-dflex-gap10px-mt16px.ccx-dflex-gap10px-mt16px { display: flex; gap: 10px; margin-top: 16px; }
+.ccx-fx1-bgnone-bd1pxsolid.ccx-fx1-bgnone-bd1pxsolid.ccx-fx1-bgnone-bd1pxsolid { flex: 1; background: none; border: 1px solid var(--br,rgba(255,255,255,.15)); border-radius: 10px; color: var(--m,#9ca3af); font-size: 14px; font-weight: 700; cursor: pointer; padding: 12px; }
+.ccx-fx2-bgorange-bdnone.ccx-fx2-bgorange-bdnone.ccx-fx2-bgorange-bdnone { flex: 2; background: var(--orange,#BD5728); border: none; border-radius: 10px; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer; padding: 12px; }
