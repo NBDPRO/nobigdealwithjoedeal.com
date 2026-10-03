@@ -138,7 +138,8 @@
     // then the view. Nothing is sent without the rep tapping Send.
     winback: [
       'js/winback-logic.js?v=1',
-      'js/winback.js?v=1'
+      'css/winback-view.css?v=1',
+      'js/winback.js?v=2'
     ],
     decision: [
       'css/decision-engine-view.css?v=1',
