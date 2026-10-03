@@ -1,0 +1,16 @@
+/* Reports trends (js/reports-trends.js) — collected-revenue sparkline and top-performer lists. Static styles moved out of inline style attributes (reskin, 2026-10-03). Values are the old inline ones exactly; data-driven ones stay inline. Generated (auto-named from the declarations). */
+.rtx-cm-fs12px.rtx-cm-fs12px.rtx-cm-fs12px { color: var(--m, #888); font-size: 12px; }
+.rtx-dflex-jcspacebet-gap8px.rtx-dflex-jcspacebet-gap8px.rtx-dflex-jcspacebet-gap8px { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; font-size: 12px; }
+.rtx-cm.rtx-cm.rtx-cm { color: var(--m, #888); }
+.rtx-opa06.rtx-opa06.rtx-opa06 { opacity: 0.6; }
+.rtx-w700-fontabularn-cgreen.rtx-w700-fontabularn-cgreen.rtx-w700-fontabularn-cgreen { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--green, #2ecc8a); }
+.rtx-cm-fs12px-fstitalic.rtx-cm-fs12px-fstitalic.rtx-cm-fs12px-fstitalic { color: var(--m, #888); font-size: 12px; font-style: italic; }
+.rtx-w700-fontabularn-cfbbf24.rtx-w700-fontabularn-cfbbf24.rtx-w700-fontabularn-cfbbf24 { font-weight: 700; font-variant-numeric: tabular-nums; color: #fbbf24; }
+.rtx-mb18px.rtx-mb18px.rtx-mb18px { margin-bottom: 18px; }
+.rtx-dflex-jcspacebet-aiflexend.rtx-dflex-jcspacebet-aiflexend.rtx-dflex-jcspacebet-aiflexend { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+.rtx-fs11px-cm-ls006em.rtx-fs11px-cm-ls006em.rtx-fs11px-cm-ls006em { font-size: 11px; color: var(--m, #888); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.rtx-fs18px-w800-ct.rtx-fs18px-w800-ct.rtx-fs18px-w800-ct { font-size: 18px; font-weight: 800; color: var(--t, #e8eaf0); font-variant-numeric: tabular-nums; }
+.rtx-fs11px-cm.rtx-fs11px-cm.rtx-fs11px-cm { font-size: 11px; color: var(--m, #888); }
+.rtx-dgrid-gtcrepeatau-gap12px.rtx-dgrid-gtcrepeatau-gap12px.rtx-dgrid-gtcrepeatau-gap12px { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.rtx-bgs-bd1pxsolid-r8px.rtx-bgs-bd1pxsolid-r8px.rtx-bgs-bd1pxsolid-r8px { background: var(--s, #13171d); border: 1px solid var(--br, #2a2f35); border-radius: 8px; padding: 14px 16px; }
+.rtx-fs11px-cm-ls006em-2.rtx-fs11px-cm-ls006em-2.rtx-fs11px-cm-ls006em-2 { font-size: 11px; color: var(--m, #888); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
