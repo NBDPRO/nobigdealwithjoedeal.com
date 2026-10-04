@@ -29,6 +29,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 // Kentucky insurance-job payment hold (KRS 367.626) — byte-identical copy of
 // docs/pro/js/ky-insurance-law.js.
 const KyLaw = require('./ky-insurance-law');
+const KyPayLinkGate = require('./ky-pay-link-gate-logic');
 // Lazy require (2026-08-07): the stripe SDK is ~20 MB of parse weight that
 // every deployed function paid at cold start (index.js pulls this module
 // eagerly). Required on first client construction instead.
@@ -104,7 +105,6 @@ function hasLiveSubscription(sub) {
 // Shared helpers (B2).
 const { requireAuth, viewOnlyRefusal } = require('./shared');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
-const stageRoles = require('./stage-roles');
 
 // setCustomUserClaims REPLACES the entire claim set. Writing a bare billing
 // patch ({ plan, subscriptionStatus, stripeCustomerId }) therefore WIPES a
@@ -1205,29 +1205,31 @@ exports.createStripePaymentLink = onRequest(
       // tarp/repair work (367.626(3)) is exempt. Classification is the
       // server's own (ky-insurance-law.js) — the client's kyInsuranceHold flag
       // can only ADD the hold. Refused BEFORE any Stripe call.
-      if (invoice.emergencyServices !== true) {
-        let kyLead = null;
-        if (invoice.leadId) {
-          try {
-            const ls = await db.collection('leads').doc(String(invoice.leadId)).get();
-            kyLead = ls.exists ? (ls.data() || {}) : null;
-          } catch (leadErr) {
-            logger.warn('payment_link_ky_lead_read_failed', { invoiceId, err: leadErr && leadErr.message });
-          }
-        }
-        let tz = KyLaw.DEFAULT_TIME_ZONE;
-        try {
-          const ps = await db.collection('companyProfile').doc(String(tenantId)).get();
-          if (ps.exists) tz = KyLaw.resolveTimeZone(ps.data() || {});
-        } catch (_) { /* default zone */ }
-        const hold = KyLaw.payLinkHold(kyLead, invoice, Date.now(), tz);
-        if (hold.held) {
-          logger.info('payment_link_refused_ky_window', { invoiceId, uid: decoded.uid, companyId: tenantId,
-            hasDecision: !!(kyLead && kyLead.carrierDecisionAt) });
+      // FAIL CLOSED (2026-10-03, ky-pay-link-gate-logic.js): an invoice that
+      // names a lead we cannot read (read error, or the doc is gone) is
+      // refused — it was minted with kyLead = null, i.e. never held.
+      {
+        const gate = await KyPayLinkGate.kyPayLinkGate({
+          invoice,
+          readLead: async (id) => {
+            const ls = await db.collection('leads').doc(id).get();
+            return ls.exists ? (ls.data() || {}) : null;
+          },
+          readProfile: async () => {
+            const ps = await db.collection('companyProfile').doc(String(tenantId)).get();
+            return ps.exists ? (ps.data() || {}) : null;
+          },
+          now: Date.now(),
+        });
+        if (gate.held) {
+          const unreadable = gate.reason === 'lead_unreadable' || gate.reason === 'lead_missing';
+          logger.info(unreadable ? 'payment_link_refused_ky_lead_unreadable' : 'payment_link_refused_ky_window',
+            { invoiceId, uid: decoded.uid, companyId: tenantId, reason: gate.reason, err: gate.error || null });
           res.status(409).json({
             error: 'KY_CANCELLATION_WINDOW',
-            message: KyLaw.MSG.payLinkHeld,
-            releaseDate: hold.releaseDate || null,
+            reason: gate.reason,
+            message: unreadable ? KyPayLinkGate.LEAD_UNREADABLE_MESSAGE : KyLaw.MSG.payLinkHeld,
+            releaseDate: gate.releaseDate || null,
           });
           return;
         }
@@ -1797,68 +1799,16 @@ exports.invoiceWebhook = onRequest(
               newBalanceDue: creditResult.newBalanceDue, fullyPaid: creditResult.fullyPaid,
             });
 
-            // ── Auto-advance kanban stage on FULL payment ─────────────
-            // Close the loop: when the homeowner pays the invoice OFF via
-            // Stripe, bump the card to 'final_payment'. Gate on fullyPaid —
-            // a deposit-sized online payment must NOT advance the lead to
-            // final payment (the balance is still open). Runs only when the
-            // credit was actually applied (never on an idempotent replay).
-            // The CRM's `STAGE_META` treats final_payment/closed as
-            // won-revenue stages.
-            //
-            // Idempotency: only auto-advance if the lead is currently
-            // pre-final-payment AND not already lost. Never overwrite
-            // a manually-set 'closed' or 'lost' state.
-            if (creditResult.fullyPaid && creditResult.leadId) {
-              try {
-                const leadRef = db.collection('leads').doc(creditResult.leadId);
-                const leadSnap = await leadRef.get();
-                if (leadSnap.exists) {
-                  const lead = leadSnap.data();
-                  const curStage = (lead.stage || '').toLowerCase();
-                  // Forward-only, main job track only — see
-                  // stage-roles.js payoffAdvanceAllowed (R14, 2026-09-28): the
-                  // old final_payment/closed/lost list let a warranty or
-                  // service payoff drag the lead onto Final Payment.
-                  if (stageRoles.payoffAdvanceAllowed(lead)) {
-                    await leadRef.update({
-                      stage: 'final_payment',
-                      _stageKey: 'final_payment',
-                      // Stamp stageRole alongside stage, same as every client
-                      // stage-mutation path (#981's persisted-stageRole-wins
-                      // rule — functions/stage-roles.js roleFor()). Without
-                      // this, a custom-pipeline tenant's lead keeps its STALE
-                      // pre-payoff role (e.g. 'active') because persisted
-                      // always wins over derived: review-request-nudge.js and
-                      // the $100 referral-reward system both read roleFor()
-                      // and silently never fire for a Stripe-paid job.
-                      // 'final_payment' is a hardcoded built-in key here (not
-                      // the lead's arbitrary custom stage), so its role is
-                      // unambiguous — no client-side derivation needed.
-                      stageRole: stageRoles.roleFromKey('final_payment'),
-                      stageStartedAt: FieldValue.serverTimestamp(),
-                      // Same history entry every client stage move writes
-                      // (stage-write.js commitStageChange).
-                      stageHistory: FieldValue.arrayUnion({
-                        from: lead.stage || null, to: 'final_payment',
-                        timestamp: new Date().toISOString(), user: 'stripe (online payment)',
-                      }),
-                      autoAdvancedFromInvoiceId: invoiceId,
-                      autoAdvancedAt: FieldValue.serverTimestamp(),
-                      updatedAt: FieldValue.serverTimestamp(),
-                    });
-                    logger.info('lead_auto_advanced_on_payment', {
-                      invoiceId, leadId: creditResult.leadId, fromStage: curStage
-                    });
-                  }
-                }
-              } catch (advanceErr) {
-                // Non-fatal — invoice is already marked paid, just log.
-                logger.warn('lead_auto_advance_failed', {
-                  invoiceId, leadId: creditResult.leadId, err: advanceErr.message
-                });
-              }
-            }
+            // The lead's stage is NOT moved here any more (job spine,
+            // 2026-10-03). The credit above writes status 'paid' onto the
+            // invoice, and the invoice trigger (money-paper.js
+            // moneyPaperOnInvoice → job-spine.js recordJobEvent
+            // 'paid_in_full') advances the lead to Final Payment — the same
+            // rule for a card payoff as for cash / check / Zelle via Mark
+            // Paid, forward-only and main-track-only
+            // (stage-roles.js payoffAdvanceAllowed), with the stage history,
+            // closedAt, timeline note and stage-entry task every client
+            // stage move writes, exactly once per invoice.
           }
         }
       } else if (event.type === 'charge.dispute.created'

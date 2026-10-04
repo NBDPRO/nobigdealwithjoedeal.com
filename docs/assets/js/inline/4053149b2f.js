@@ -14,7 +14,15 @@ const CONFIG = {
   // lead was created. Spends nothing — see functions/integrations/public-measure.js.
   MEASURE_URL: 'https://us-central1-nobigdeal-pro.cloudfunctions.net/publicRoofMeasure',
   JOE_PHONE: '8594207382',
-  OTP_ENABLED: true // Set to false to skip SMS verification during testing
+  // OFF since 2026-10-03. The text-code check kept Submit disabled until the
+  // phone was verified (only a small "Skip verification" link got past it),
+  // the funnel produced 3 leads EVER, and the Twilio account is a trial that
+  // has delivered 0 texts — so the code most visitors waited for never came.
+  // The spam defence is Turnstile + the honeypot + the per-IP rate limit in
+  // submitPublicLead, which never required a verified phone. The code path
+  // below stays intact: set this to true and _applyOtpMode() shows the Send
+  // Code button + skip link again and Submit waits for verification.
+  OTP_ENABLED: false
 };
 
 /* ── State ── */
@@ -47,9 +55,22 @@ let funnelData = {
   phone: '',
   email: '',
   phoneVerified: false,
+  // Set when the homeowner chose "Use my address as typed" after the map
+  // lookup found nothing: the satellite step is skipped and no lat/lon is sent.
+  addressTyped: '',
   ballpark: { min: 0, max: 0 },
   estimate: null
 };
+
+/* ── Per-step analytics (2026-10-03) ──
+   The funnel emitted nothing between landing and the final lead, so a drop-off
+   could not be located. GA4 only, through trackEvent's gtag guard — the same
+   path as every other event on this page (GA ignores DNT here exactly as it
+   already does for generate_lead; Clarity keeps its own DNT/GPC gate). No PII. */
+const STEP_NAMES = { 1: 'address', 2: 'confirm_home', 3: 'project', 4: 'ballpark', 5: 'contact', 6: 'results' };
+function trackStep(step) {
+  trackEvent('funnel_step', { step: step, step_name: STEP_NAMES[step] || String(step) });
+}
 
 /* ── Unified pricing model — single source of truth ──
  * Per-square pricing for shingles ($/square = 100 sqft of roof).
@@ -176,6 +197,9 @@ function goToStep(step) {
   if (step > currentStep) {
     if (!validateStep(currentStep)) return;
   }
+  // A typed (unmatched) address has no map to confirm: forward skips the
+  // satellite step, and Back from step 3 returns to the address.
+  if (step === 2 && funnelData.addressTyped) step = currentStep > 2 ? 1 : 3;
 
   // Hide all steps
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
@@ -193,6 +217,7 @@ function goToStep(step) {
     currentStep = step;
     updateProgress(step);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    trackStep(step);
   }
 }
 
@@ -204,8 +229,15 @@ function validateStep(step) {
       inp.parentElement.classList.add('has-error');
       inp.setAttribute('aria-invalid', 'true');
       inp.focus();
-      _setAddressHint("Type your address, then pick it from the dropdown that appears.");
+      _setAddressHint("Type your street address, then tap Continue.");
       return false;
+    }
+    // "Use my address as typed" (no map match): continue on the words alone.
+    if (funnelData.addressTyped && funnelData.addressTyped === addr) {
+      funnelData.address = addr;
+      funnelData.lat = null;
+      funnelData.lon = null;
+      return true;
     }
     // Require a geocoded selection so step 2's satellite map can resolve.
     // If user typed without picking from dropdown, attempt a single resolve
@@ -240,24 +272,60 @@ function _setAddressHint(msg) {
   el.style.display = msg ? 'block' : 'none';
 }
 
+/* The map lookup is a convenience, never a gate (2026-10-03): when it found
+   nothing — new builds, rural routes, a typo — the homeowner could not get
+   past step 1 at all. Offer "Use my address as typed", which skips the
+   satellite step; Joe confirms the address when he calls. */
+function _offerTypedAddress(msg, reason) {
+  _setAddressHint(msg);
+  var el = document.getElementById('addressHint');
+  if (!el) return;
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn-use-typed';
+  b.id = 'btnUseTyped';
+  b.setAttribute('data-action', 'useTypedAddress');
+  b.textContent = 'Use my address as typed →';
+  el.appendChild(document.createElement('br'));
+  el.appendChild(b);
+  trackEvent('funnel_address_unmatched', { reason: reason });
+}
+
+function useTypedAddress() {
+  var addr = addrInput.value.trim();
+  if (!addr || addr.length < 5) { validateStep(1); return; }
+  funnelData.addressFull = null;
+  funnelData.addressTyped = addr;
+  acDrop.style.display = 'none';
+  _setAddressHint('');
+  trackEvent('funnel_address_typed', {});
+  goToStep(3);
+}
+
 async function _resolveAddressInline(q) {
   _setAddressHint("Looking up that address…");
   try {
-    const data = await _nominatimQuery(q);
+    const data = await _geocodeOnce(q);
     if (!data || !data.length) {
-      _setAddressHint("Couldn't find that address. Please type more of it, then pick from the dropdown.");
+      _offerTypedAddress("We couldn't find that address on the map. Check it, or continue with it as typed.", 'no_match');
       return;
     }
     // Use the top match
+    window._acResults = data;
     selectAddr(0);
     _setAddressHint("");
     setTimeout(function () { goToStep(2); }, 100);
   } catch (e) {
-    _setAddressHint("Address lookup failed. Check your connection and try again.");
+    _offerTypedAddress("The map lookup isn't responding. You can continue with your address as typed.", 'lookup_error');
   }
 }
 
-/* ── Address Autocomplete (Nominatim) ── */
+/* ── Address lookup (Nominatim) — on blur or Continue, never per keystroke ──
+   The public Nominatim server's usage policy forbids autocomplete-as-you-type
+   (max 1 request/second; no client-side autocomplete). Until 2026-10-03 this
+   fired a search 350ms after every pause in typing. Now: one lookup when the
+   field loses focus (debounced), or when Continue/Enter is pressed — and each
+   distinct address string is looked up at most once per page (_geocodeOnce). */
 let _debounceTimer = null;
 const addrInput = document.getElementById('addressInput');
 const acDrop = document.getElementById('acDrop');
@@ -266,9 +334,19 @@ addrInput.addEventListener('input', function() {
   this.parentElement.classList.remove('has-error');
   this.setAttribute('aria-invalid', 'false');
   clearTimeout(_debounceTimer);
+  // Editing invalidates an earlier pick / "as typed" choice for another string.
   const q = this.value.trim();
-  if (q.length < 4) { acDrop.style.display = 'none'; return; }
-  _debounceTimer = setTimeout(() => searchAddress(q), 350);
+  if (funnelData.addressFull && q !== funnelData.address) funnelData.addressFull = null;
+  if (funnelData.addressTyped && q !== funnelData.addressTyped) funnelData.addressTyped = '';
+  acDrop.style.display = 'none';
+  this.setAttribute('aria-expanded', 'false');
+});
+
+addrInput.addEventListener('blur', function() {
+  clearTimeout(_debounceTimer);
+  const q = this.value.trim();
+  if (q.length < 5 || funnelData.addressFull || funnelData.addressTyped) return;
+  _debounceTimer = setTimeout(() => searchAddress(q), 400);
 });
 
 // Keyboard path for the autocomplete: the dropdown items are divs, so
@@ -312,6 +390,17 @@ addrInput.addEventListener('keydown', function(e) {
 // Covers SW Ohio, Northern Kentucky, and SE Indiana — matches our service-area pages.
 const _NOMI_VIEWBOX = '-85.2,39.5,-83.6,38.6';
 
+// One request per distinct address string per page — blur, Continue and the
+// dropdown all share the same answer instead of re-asking the public server.
+const _geoCache = {};
+function _geocodeOnce(q) {
+  const key = String(q || '').trim().toLowerCase();
+  if (!_geoCache[key]) {
+    _geoCache[key] = _nominatimQuery(q).catch(function (e) { delete _geoCache[key]; throw e; });
+  }
+  return _geoCache[key];
+}
+
 async function _nominatimQuery(q) {
   // Bias toward Cincinnati metro but allow outside results (bounded=0) so a homeowner
   // who just moved still finds their address.
@@ -327,7 +416,7 @@ let _searchSeq = 0;
 async function searchAddress(q) {
   const myReq = ++_searchSeq;
   try {
-    const data = await _nominatimQuery(q);
+    const data = await _geocodeOnce(q);
     // Drop stale responses if the user kept typing.
     if (myReq !== _searchSeq) return;
     if (!data.length) { acDrop.style.display = 'none'; return; }
@@ -704,8 +793,24 @@ async function sendVerificationCode() {
 }
 
 /* ── OTP Input Handling ── */
+// Spread a multi-digit value across the boxes from idx — what the paste
+// handler always did. iOS / Android SMS autofill (autocomplete="one-time-code"
+// on the first box) drops the WHOLE code into one field; without this the
+// first box kept one digit and the rest of the code was lost.
+function _spreadOtp(inputs, idx, raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  let last = idx - 1;
+  for (let i = 0; i < Math.min(digits.length, inputs.length - idx); i++) {
+    inputs[idx + i].value = digits[i];
+    inputs[idx + i].classList.add('filled');
+    last = idx + i;
+  }
+  if (last >= idx && last < inputs.length - 1) inputs[last + 1].focus();
+  if (digits.length >= inputs.length - idx) verifyOTPCode();
+}
 document.querySelectorAll('.otp-input').forEach(function(input, idx, inputs) {
   input.addEventListener('input', function() {
+    if (this.value.length > 1) { _spreadOtp(inputs, idx, this.value); return; }
     if (this.value.length === 1) {
       this.classList.add('filled');
       if (idx < inputs.length - 1) inputs[idx + 1].focus();
@@ -723,12 +828,7 @@ document.querySelectorAll('.otp-input').forEach(function(input, idx, inputs) {
   // Handle paste
   input.addEventListener('paste', function(e) {
     e.preventDefault();
-    const paste = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
-    for (let i = 0; i < Math.min(paste.length, inputs.length - idx); i++) {
-      inputs[idx + i].value = paste[i];
-      inputs[idx + i].classList.add('filled');
-    }
-    if (paste.length >= inputs.length - idx) verifyOTPCode();
+    _spreadOtp(inputs, idx, (e.clipboardData || window.clipboardData).getData('text'));
   });
 });
 
@@ -786,20 +886,11 @@ async function skipOtpAndRequestCall(btn) {
   var email = document.getElementById('emailAddress').value.trim();
   var consent = document.getElementById('tcpaConsent').checked;
 
-  if (!(fn && ln && phoneDigits.length === 10 && email.includes('@') && consent)) {
+  if (!(fn && phoneDigits.length === 10 && _emailOk(email) && consent)) {
     status.className = 'otp-skip-status error';
-    status.textContent = 'Fill in your name, phone, and email above (and check the consent box) so Joe knows how to reach you.';
+    status.textContent = 'Fill in your first name and phone above (and check the consent box) so Joe knows how to reach you.';
     return;
   }
-
-  var _intake = _readIntake();
-  if (_intake.error) {
-    status.className = 'otp-skip-status error';
-    status.textContent = _intake.error;
-    _intakeError(_intake);
-    return;
-  }
-  _intakeError(null);
 
   _otpSkipBusy = true;
   btn.disabled = true;
@@ -848,7 +939,6 @@ async function skipOtpAndRequestCall(btn) {
     tcpaConsent: consent,
     requestType: 'otp_skipped_call_request'
   };
-  Object.assign(leadData, _intake.fields);
 
   // Same awaited-with-one-retry contract as submitAndGetEstimate.
   var saved = false;
@@ -861,7 +951,7 @@ async function skipOtpAndRequestCall(btn) {
   if (window._notifyJoe) {
     try {
       await window._notifyJoe({
-        name: funnelData.firstName + ' ' + funnelData.lastName,
+        name: _fullName(),
         phone: funnelData.phone,
         email: funnelData.email,
         address: funnelData.address,
@@ -880,7 +970,6 @@ async function skipOtpAndRequestCall(btn) {
     btn.textContent = 'Request sent ✓';
     status.className = 'otp-skip-status';
     status.textContent = 'Got it — Joe will call you at ' + funnelData.phone + '. No code needed.';
-    if (window.NBDIntake && saved) window.NBDIntake.afterSubmit(status.parentNode, Object.assign(_intakeInfo(_intake), { quietContact: true }));
     trackEvent('otp_skip_call_request', { service: funnelData.service });
   } else {
     btn.disabled = false;
@@ -890,42 +979,74 @@ async function skipOtpAndRequestCall(btn) {
   }
 }
 
-/* ── Shared intake block (2026-09-30, Jo: every service form asks the same) ──
-   REQUIRED scheduling choice (book a time now, or "please contact me"), best
-   time, insurance claim, how they heard, photos — intake-extras.js. If the
-   block never loaded, the lead is never blocked on it. */
-function _mountIntake() {
+function _emailOk(email) { return !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+function _fullName() { return (funnelData.firstName + ' ' + (funnelData.lastName || '')).trim(); }
+
+/* ── "Help Joe prepare" — the optional questions, AFTER the lead (2026-10-03) ──
+   The contact step used to require a scheduling choice and show best time,
+   insurance, how-heard and photos (intake-extras.js) before Submit would send
+   anything. Those questions now live on the thank-you screen, every one
+   optional, saved onto the SAME lead: submitPublicLead hands back a one-time
+   grant (wantsFollowUp) that updatePublicLeadIntake checks, and the server
+   re-validates every answer with the gateway's own allowlist. Photos use the
+   same grant through uploadPublicLeadPhoto. */
+function _mountFollowUp() {
+  var wrap = document.getElementById('estFollowUp');
   var box = document.getElementById('estIntake');
-  if (!box) return true;
-  if (box.childElementCount) return true;
-  if (!window.NBDIntake) return false;
-  box.innerHTML = window.NBDIntake.html('estI');
-  return true;
-}
-if (!_mountIntake()) {
-  var _intakeTries = 0;
-  var _intakeTimer = setInterval(function () { if (_mountIntake() || ++_intakeTries > 40) clearInterval(_intakeTimer); }, 250);
+  if (!wrap || !box) return;
+  // No grant = nothing to save against (the lead itself failed) — stay hidden.
+  if (!window._lastPhotoToken || !window.NBDIntake) { wrap.hidden = true; return; }
+  if (!box.childElementCount) box.innerHTML = window.NBDIntake.html('estI', { optional: true });
+  wrap.hidden = false;
 }
 function _readIntake() {
   var box = document.getElementById('estIntake');
   if (!window.NBDIntake || !box || !box.childElementCount) return { fields: {}, files: [] };
-  return window.NBDIntake.read(box, 'estI');
+  return window.NBDIntake.read(box, 'estI', { optional: true });
 }
-// Same convention as the other fields: .input-group.has-error shows .error-msg.
-function _intakeError(r) {
-  var grp = document.getElementById('estIntakeGroup');
-  var err = document.getElementById('estIntake-err');
-  var sched = document.getElementById('estISched');
-  var msg = (r && r.error) || '';
-  if (err) err.textContent = msg;
-  if (grp) grp.classList.toggle('has-error', !!msg);
-  if (sched) sched.classList.toggle('nbd-intake-invalid', !!msg && (!r.el || r.el === sched));
-  if (msg) { try { (r.el || err).scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {} }
+var _followUpBusy = false;
+async function saveFollowUp(btn) {
+  if (_followUpBusy) return;
+  var status = document.getElementById('estFollowUpStatus');
+  var intake = _readIntake();
+  if (intake.error) { status.className = 'followup-status error'; status.textContent = intake.error; return; }
+  var answers = {};
+  ['scheduling', 'bestTime', 'insuranceClaim', 'howHeard'].forEach(function (k) { if (intake.fields[k]) answers[k] = intake.fields[k]; });
+  var hasAnswers = Object.keys(answers).length > 0;
+  if (!hasAnswers && !intake.files.length) {
+    status.className = 'followup-status error';
+    status.textContent = 'Pick an answer or add a photo first — or just skip this, Joe already has your request.';
+    return;
+  }
+  var token = window._lastPhotoToken;
+  _followUpBusy = true;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  var saved = !hasAnswers; // photos only: nothing to post here, afterSubmit uploads them
+  if (hasAnswers && token) {
+    try {
+      var base = typeof window.nbdPublicFunctionsBase === 'function' ? window.nbdPublicFunctionsBase() : 'https://us-central1-nobigdeal-pro.cloudfunctions.net';
+      var res = await fetch(base + '/updatePublicLeadIntake', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', mode: 'cors',
+        body: JSON.stringify(Object.assign({ token: token }, answers))
+      });
+      saved = res.ok;
+    } catch (e) { saved = false; }
+  }
+  _followUpBusy = false;
+  if (!saved) {
+    btn.disabled = false;
+    btn.textContent = 'Send to Joe →';
+    status.className = 'followup-status error';
+    status.innerHTML = 'Couldn’t save that — call or text Joe: <a href="tel:+18594207382">(859) 420-7382</a> · <a href="sms:+18594207382">send a text</a>.';
+    return;
+  }
+  btn.textContent = 'Sent ✓';
+  status.className = 'followup-status';
+  status.textContent = 'Thanks — that’s on your request now.';
+  trackEvent('funnel_followup_saved', { answers: Object.keys(answers).length, photos: intake.files.length });
+  if (window.NBDIntake) window.NBDIntake.afterSubmit(document.getElementById('estIntakeAfter'), _intakeInfo(intake));
 }
-// Picking a scheduling option clears the "choose one" message.
-document.addEventListener('change', function (e) {
-  if (e.target && e.target.name === 'estIScheduling') _intakeError(null);
-});
 function _intakeInfo(intake) {
   return { prefix: 'estI', fields: intake.fields, files: intake.files, photoToken: window._lastPhotoToken || null,
     firstName: funnelData.firstName, lastName: funnelData.lastName, phone: funnelData.phone, email: funnelData.email,
@@ -934,14 +1055,16 @@ function _intakeInfo(intake) {
 
 /* ── Form Validation ── */
 function checkSubmitReady() {
+  // Required: first name, a 10-digit phone, consent. Last name and email are
+  // optional (an email, when typed, must look like one). Phone verification
+  // only counts when OTP_ENABLED.
   const fn = document.getElementById('firstName').value.trim();
-  const ln = document.getElementById('lastName').value.trim();
   const phone = document.getElementById('phoneNumber').value.replace(/\D/g, '');
   const email = document.getElementById('emailAddress').value.trim();
   const consent = document.getElementById('tcpaConsent').checked;
   const verified = _otpVerified || !CONFIG.OTP_ENABLED;
 
-  document.getElementById('btnSubmit').disabled = !(fn && ln && phone.length === 10 && email.includes('@') && consent && verified);
+  document.getElementById('btnSubmit').disabled = !(fn && phone.length === 10 && _emailOk(email) && consent && verified);
 }
 
 // Attach validation listeners
@@ -972,10 +1095,7 @@ document.getElementById('emailAddress').addEventListener('blur', function () {
 /* ── Submit & Get Estimate ── */
 async function submitAndGetEstimate() {
   const btn = document.getElementById('btnSubmit');
-  // The scheduling choice is required — checked before the loading screen.
-  const _intake = _readIntake();
-  if (_intake.error) { _intakeError(_intake); return; }
-  _intakeError(null);
+  if (btn.disabled) return;
   btn.disabled = true;
   btn.textContent = 'Processing...';
 
@@ -1034,9 +1154,11 @@ async function submitAndGetEstimate() {
     // completed lead — stored explicitly so the record is audit-ready and the
     // SMS-ack trigger can rely on it.
     tcpaConsent: document.getElementById('tcpaConsent').checked,
-    ballpark: funnelData.ballpark
+    ballpark: funnelData.ballpark,
+    // Ask for the one-time grant the thank-you screen's optional questions
+    // (and photos) are saved with — see saveFollowUp.
+    wantsFollowUp: true
   };
-  Object.assign(leadData, _intake.fields);
 
   // Awaited with one retry — this used to be fire-and-forget, so a failed
   // CRM write still showed the success screen and the lead vanished
@@ -1057,7 +1179,7 @@ async function submitAndGetEstimate() {
   if (window._notifyJoe) {
     try {
       await window._notifyJoe({
-        name: funnelData.firstName + ' ' + funnelData.lastName,
+        name: _fullName(),
         phone: funnelData.phone,
         email: funnelData.email,
         address: funnelData.address,
@@ -1075,8 +1197,6 @@ async function submitAndGetEstimate() {
   // Either channel landing means Joe has the lead; only if BOTH failed does
   // the results screen show the call-Joe fallback banner.
   window._leadDeliveryFailed = !_leadSaved && !_joeNotified;
-  // Calendar button (when they chose to book) + their photos, on the results screen.
-  if (window.NBDIntake && _leadSaved) window.NBDIntake.afterSubmit(document.getElementById('estIntakeAfter'), _intakeInfo(_intake));
 
   // Real roof measurement. The server measures this property from aerial
   // imagery the moment the CRM lead is created; this only READS the result,
@@ -1339,7 +1459,7 @@ function showResults(est) {
       failBanner.id = 'leadDeliveryFail';
       failBanner.setAttribute('role', 'alert');
       failBanner.style.cssText = 'background:#fff4ee;border:2px solid #BD5728;border-radius:10px;padding:14px 16px;margin:0 0 18px;color:#12223d;font-size:.92rem;font-weight:600;line-height:1.5;text-align:left;';
-      failBanner.innerHTML = 'Heads up &#8212; our system couldn\'t send your request to Joe just now. Your estimate below still stands, but to make sure Joe gets your info, call or text <a href="tel:8594207382" style="color:#BD5728;font-weight:800;white-space:nowrap">(859) 420-7382</a>.';
+      failBanner.innerHTML = 'Heads up &#8212; our system couldn\'t send your request to Joe just now. Your estimate below still stands, but to make sure Joe gets your info, call or text Joe &#8212; <a href="tel:+18594207382" style="color:#BD5728;font-weight:800;white-space:nowrap">(859) 420-7382</a> &middot; <a href="sms:+18594207382" style="color:#BD5728;font-weight:800;white-space:nowrap">send a text</a>.';
       var resultsHost = document.getElementById('stepResults');
       if (resultsHost) resultsHost.insertBefore(failBanner, resultsHost.firstChild);
     }
@@ -1347,6 +1467,9 @@ function showResults(est) {
   } else if (failBanner) {
     failBanner.style.display = 'none';
   }
+  // The optional "help Joe prepare" questions, saved onto this lead.
+  if (!window._leadDeliveryFailed) _mountFollowUp();
+  trackStep(6);
 
   // Personalized header
   document.getElementById('resultName').textContent = funnelData.firstName + "'s";
@@ -1512,6 +1635,20 @@ function buildEstimateSummary(est) {
 // never rely on the global `event`. Only claims "Sent!" once _saveLead
 // resolves with a real document id (it returns the id or null).
 async function emailEstimate(btn) {
+  // Email is optional on the contact step (2026-10-03). Without one, the first
+  // tap reveals an address field on this card; the next tap sends to it.
+  if (!funnelData.email) {
+    var to = document.getElementById('emailEstimateTo');
+    if (!to) return;
+    var v = to.value.trim();
+    if (to.hidden || !v || !_emailOk(v)) {
+      to.hidden = false;
+      to.focus();
+      if (btn) btn.textContent = 'Send to this email →';
+      return;
+    }
+    funnelData.email = v;
+  }
   trackCTA('email-estimate');
   var est = funnelData.estimate;
   var msg = buildEstimateSummary(est);
@@ -1558,11 +1695,24 @@ function resetFunnel() {
     service: '', roofType: 'asphalt', homeSize: 'typical', timeline: '',
     insuranceClaim: null,
     firstName: '', lastName: '', phone: '', email: '',
-    phoneVerified: false, ballpark: { min: 0, max: 0 }, estimate: null
+    phoneVerified: false, addressTyped: '', ballpark: { min: 0, max: 0 }, estimate: null
   };
   _otpSent = false;
   _otpVerified = false;
   currentStep = 1;
+  window._lastPhotoToken = null;
+  var fu = document.getElementById('estFollowUp');
+  if (fu) {
+    fu.hidden = true;
+    var fuBox = document.getElementById('estIntake');
+    if (fuBox) fuBox.innerHTML = '';
+    var fuBtn = document.getElementById('btnFollowUp');
+    if (fuBtn) { fuBtn.disabled = false; fuBtn.textContent = 'Send to Joe →'; }
+    var fuSt = document.getElementById('estFollowUpStatus');
+    if (fuSt) { fuSt.className = 'followup-status'; fuSt.textContent = ''; }
+  }
+  var after = document.getElementById('estIntakeAfter');
+  if (after) after.innerHTML = '';
   // Reset inputs
   document.getElementById('addressInput').value = '';
   document.getElementById('firstName').value = '';
@@ -1653,7 +1803,25 @@ document.addEventListener('click', function (e) {
     if (a === 'sendCode') sendVerificationCode();
     else if (a === 'submitEstimate') submitAndGetEstimate();
     else if (a === 'skipOtp') skipOtpAndRequestCall(act);
+    else if (a === 'useTypedAddress') useTypedAddress();
+    else if (a === 'saveFollowUp') saveFollowUp(act);
     else if (a === 'emailEstimate') emailEstimate(act);
     else if (a === 'resetFunnel') resetFunnel();
   }
 });
+
+/* ── Init (2026-10-03) ── */
+// OTP UI follows the flag. The markup ships with the Send Code button and the
+// skip link HIDDEN (OTP off), so a visitor never sees them flash before this
+// lazily-loaded script runs; turning OTP back on shows them here.
+function _applyOtpMode() {
+  var on = !!CONFIG.OTP_ENABLED;
+  var send = document.getElementById('btnSendCode');
+  var skip = document.getElementById('otpSkip');
+  if (send) send.hidden = !on;
+  if (skip) skip.hidden = !on;
+  checkSubmitReady();
+}
+_applyOtpMode();
+// The visitor is on step 1 when this (lazily loaded) script first runs.
+if (currentStep === 1) trackStep(1);

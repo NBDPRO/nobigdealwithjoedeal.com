@@ -73,6 +73,12 @@ console.log('CSV IMPORT — stage');
   ok('"Install Complete" is stored as install_complete', r.stage === 'install_complete', r.stage);
   ok('…with stageRole won (what the server trusts)', r.stageRole === 'won', r.stageRole);
   ok('…and the CSV text kept as importedStage', r.importedStage === 'Install Complete');
+  // 2026-10-03 data audit: won leads with no closedAt.
+  ok('…and a won row gets a close date', !!r.closedAt && typeof r.closedAt.getTime === 'function');
+}
+{
+  const r = prep({ firstName: 'B2', stage: 'contacted' }, []);
+  ok('an open-stage row gets no closedAt', !('closedAt' in r));
 }
 {
   const r = prep({ firstName: 'B', stage: 'contacted' }, []);

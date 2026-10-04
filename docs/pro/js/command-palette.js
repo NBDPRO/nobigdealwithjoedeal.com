@@ -72,7 +72,9 @@
 
     // Actions
     { id: 'action-new-lead',  label: 'New Lead',          icon: '➕', group: 'Actions', keywords: 'create add prospect customer', run: () => {
-        if (typeof window.openNewLeadModal === 'function') window.openNewLeadModal();
+        // The real global is openLeadModal (crm.js). openNewLeadModal never
+        // existed, so "New Lead" only ever navigated to the board.
+        if (typeof window.openLeadModal === 'function') window.openLeadModal();
         else _goTo('crm');
       } },
     { id: 'action-new-est',   label: 'New Estimate',      icon: '📝', group: 'Actions', keywords: 'create proposal quote', run: () => _goTo('est') },

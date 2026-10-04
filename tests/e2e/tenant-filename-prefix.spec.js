@@ -18,7 +18,7 @@
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate } = require('./fixtures/auth');
 
-test.describe('tenant filename prefix — no NBD leak for a non-NBD tenant', () => {
+test.describe('tenant filename prefix — no NBD leak for a non-NBD tenant @engines', () => {
   test('the resolver returns the tenant prefix, never NBD', async ({ page }) => {
     const creds = requireTestUser(test);
     const errors = [];

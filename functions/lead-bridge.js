@@ -87,6 +87,32 @@ async function bridgeToCrm(collection, data, sourceId) {
   leadDoc.createdAt = FieldValue.serverTimestamp();
   leadDoc.stageStartedAt = FieldValue.serverTimestamp();
 
+  // Marketplace repeat (Thumbtack): the same phone already has a card in this
+  // tenant → attach the request to it rather than mint a duplicate. A lookup
+  // failure falls through to the normal create (a duplicate beats a lost lead).
+  if (L.dedupesByPhone(collection) && /^\d{10}$/.test(String(leadDoc.phoneDigits || ''))) {
+    try {
+      const snap = await db.collection('leads')
+        .where('companyId', '==', target.companyId)
+        .where('phoneDigits', '==', leadDoc.phoneDigits)
+        .limit(10).get();
+      const match = L.pickPhoneMatch(snap.docs.map((d) => ({ id: d.id, data: d.data() || {} })));
+      if (match && match.id !== id) {
+        const patch = L.phoneDuplicatePatch(match.data, leadDoc, sourceId, new Date().toISOString());
+        if (patch) {
+          patch.updatedAt = FieldValue.serverTimestamp();
+          await db.collection('leads').doc(match.id).update(patch);
+        }
+        logger.info('leadBridge: repeat request attached to the existing lead (same phone)', {
+          collection, sourceId, leadId: match.id, attached: !!patch,
+        });
+        return;
+      }
+    } catch (e) {
+      logger.warn('leadBridge: phone dedup lookup failed — creating a new lead', { collection, sourceId, err: e && e.message });
+    }
+  }
+
   try {
     // create() (not set()) so a re-delivery hits ALREADY_EXISTS instead of
     // overwriting a lead the rep may have already edited. The customerId is

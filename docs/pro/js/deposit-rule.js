@@ -76,17 +76,44 @@
   // Does this insurance job get the Kentucky hold? An explicit flag, a stamped
   // jurisdiction, or — when the caller passed the job's location at all —
   // ky-insurance-law.js's classification (Kentucky, or no readable state).
+  // When input.lead is passed, its own address / zip / state fill in any the
+  // caller left blank, and the lead counts as "location passed".
   function _kyHold(input, insurance) {
     if (!insurance) return false;
     if (input.kentucky === true || input.kyInsurance === true) return true;
     var j = input.jurisdiction;
     if (j && typeof j === 'object' && (j.kyInsurance === true || j.kentucky === true)) return true;
-    var hasLoc = Object.prototype.hasOwnProperty.call(input, 'address') ||
+    var lead = (input.lead && typeof input.lead === 'object') ? input.lead : null;
+    var hasLoc = !!lead || Object.prototype.hasOwnProperty.call(input, 'address') ||
       Object.prototype.hasOwnProperty.call(input, 'zip') || Object.prototype.hasOwnProperty.call(input, 'state');
     if (!hasLoc) return false;
     var J = _jurisdictionApi();
     if (!J) return false;
-    return J.classify({ address: input.address || '', zip: input.zip || '', state: input.state || '', mode: 'insurance' }).kyInsurance === true;
+    var l = lead || {};
+    return J.classify({
+      address: input.address || l.address || l.propertyAddress || '',
+      zip: input.zip || l.zip || l.zipCode || '',
+      state: input.state || l.state || '',
+      mode: 'insurance'
+    }).kyInsurance === true;
+  }
+
+  // Is the LEAD an insurance job, whatever mode the estimate was priced in?
+  // The SAME ky-insurance-law.js isInsurance test, on the same lead fields,
+  // that puts the KRS 367.624 notices on the contract
+  // (document-generator.js _jurisdiction, ky-insurance-law.js payLinkHold):
+  // jobType 'insurance', a claim number or a carrier on file. Before
+  // 2026-10-03 only est.mode === 'insurance' counted here, so a Kentucky lead
+  // with a claim priced in cash / per-square mode got the KY notices AND a
+  // 30-50% deposit at signing — an advance payment KRS 367.626 forbids.
+  function _leadInsurance(lead) {
+    if (!lead || typeof lead !== 'object') return false;
+    var J = _jurisdictionApi();
+    if (!J || typeof J.isInsurance !== 'function') return false;
+    return J.isInsurance({
+      jobType: lead.jobType, claimNumber: lead.claimNumber,
+      insuranceCarrier: lead.insuranceCarrier, insCarrier: lead.insCarrier
+    }) === true;
   }
 
   // The Kentucky insurance plan: $0 at signing; the deductible + ACV payment
@@ -355,6 +382,10 @@
    *       Honored and labelled (plan.kind 'override', plan.repNote); on an
    *       insurance job it can never go below the deductible.
    *   input.roundToCents, input.config  optional (tests / tenant settings)
+   *   input.lead                       optional lead doc: its claim number /
+   *       carrier / jobType make the job an insurance job for the Kentucky
+   *       hold even in cash mode (the contract's isInsurance test), and its
+   *       address / zip / state fill in a location the caller left blank.
    */
   function compute(input) {
     input = input || {};
@@ -368,9 +399,16 @@
     if (!(acv > 0)) acv = null;
     var step = _int(input.roundToCents) || c.CASH_DEPOSIT_ROUND_TO_CENTS;
 
-    // Kentucky insurance job: $0 at signing, whatever the override says.
-    if (totalCents > 0 && _kyHold(input, insurance)) {
-      var ky = _kyPlan(totalCents, ded, acv);
+    // Kentucky insurance job: $0 at signing, whatever the override says. The
+    // estimate's mode OR the lead's own insurance signals make it one.
+    if (totalCents > 0 && _kyHold(input, insurance || _leadInsurance(input.lead))) {
+      var kDed = ded, kAcv = acv;
+      if (!insurance) {
+        // Priced in cash mode: read the claim figures the caller still has.
+        kDed = toCents(input.deductible); if (!(kDed > 0)) kDed = null;
+        kAcv = toCents(input.acv); if (!(kAcv > 0)) kAcv = null;
+      }
+      var ky = _kyPlan(totalCents, kDed, kAcv);
       var hadOverride = (input.overrideAmount != null && input.overrideAmount !== '') || _validPct(input.overridePct) != null;
       if (hadOverride) ky.repNote = 'Rep override ignored — ' + KY_REP_NOTE.charAt(0).toLowerCase() + KY_REP_NOTE.slice(1);
       return ky;
@@ -500,7 +538,10 @@
       address: (opts.address != null ? opts.address : (est.addr || est.address || est.propertyAddress || lead.address || '')),
       zip: opts.zip || lead.zip || '',
       state: opts.state || lead.state || '',
-      jurisdiction: opts.jurisdiction || null
+      jurisdiction: opts.jurisdiction || null,
+      // The lead's insurance signals (claim number, carrier, jobType) decide
+      // the Kentucky hold too, not just the estimate's mode (2026-10-03).
+      lead: opts.lead || null
     };
     var stored = est.depositPlan && est.depositPlan.override;
     if (opts.overrideAmount != null && opts.overrideAmount !== '') input.overrideAmount = opts.overrideAmount;

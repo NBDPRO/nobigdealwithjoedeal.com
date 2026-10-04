@@ -130,11 +130,25 @@ ok('file loads without throwing and exposes window.StageChecklist.onStageChange'
       setDocCalls.length === 0);
   }
 
-  // ── terminal stages: no "what's next" once the deal is decided ────────
+  // ── terminal stages: no "what's next" on a lost deal or a closed job ──
   {
     const { win, setDocCalls } = makeSandbox({ role: 'won' });
     await win.StageChecklist.onStageChange('lead1', 'install_complete', 'closed', 'insurance');
-    ok('a WON stage does not auto-create a task', setDocCalls.length === 0);
+    ok('CLOSED does not auto-create a task', setDocCalls.length === 0);
+  }
+  // 2026-10-03 (job spine): every OTHER won stage now gets its task — the
+  // old rule skipped all of them, so Final Invoice, Request Final Payment,
+  // Warranty Certificate… never surfaced. Break-test: on the old file the
+  // role 'won' short-circuit returns before any write.
+  for (const [stage, action] of [
+    ['final_photos', { id: 'final_invoice', kind: 'doc', label: 'Final Invoice', icon: '🧾' }],
+    ['deductible_collected', { id: 'request_payment', kind: 'action', label: 'Request Final Payment', icon: '🏦' }],
+    ['final_payment', { id: 'warranty_cert', kind: 'doc', label: 'Warranty Certificate', icon: '🏆' }],
+  ]) {
+    const { win, setDocCalls } = makeSandbox({ role: 'won', action });
+    await win.StageChecklist.onStageChange('lead1', 'install_complete', stage, 'insurance');
+    ok('won stage ' + stage + ' DOES auto-create its task (' + action.label + ')',
+      setDocCalls.length === 1 && setDocCalls[0].ref.__path === 'leads/lead1/tasks/stage-' + stage + '-' + action.id);
   }
   {
     const { win, setDocCalls } = makeSandbox({ role: 'lost' });

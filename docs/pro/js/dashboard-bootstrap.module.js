@@ -102,6 +102,22 @@
   // and the cost of the two mistakes is not symmetric: skipping the stamp loses
   // nothing (the rep can set it), writing the 0 destroys a real number.
   const _canStampJobValue = (v) => Number.isFinite(v) && v > 0;
+  // A lead's first estimate bumps a New lead to Contacted. That used to ride
+  // along inside the plain estimate stamp-back updateDoc (both _saveEstimate
+  // and _assignEstimateToLead), so the move left no stageStartedAt, no
+  // stageHistory entry, no timeline note and no stage-entry task (job spine,
+  // 2026-10-03). It now goes through stage-write.js's commitStageChange like
+  // every other stage move — race-guarded, so a lead that moved meanwhile is
+  // left alone. Best-effort: the estimate is already saved.
+  const _estimateBumpToContacted = async (leadId, lead) => {
+    try {
+      const { commitStageChange } = await import('./stage-write.js');
+      await commitStageChange(leadId, S.CONTACTED, (lead && lead.stage) || null, { jobType: (lead && lead.jobType) || null });
+    } catch (e) {
+      const m = e && e.message;
+      if (m !== 'STAGE_RACE_NOOP' && m !== 'STAGE_RACE_LOST') console.warn('[estimate] New → Contacted failed:', m);
+    }
+  };
   // Phase marker for the pre-module error trap (v159.5+) so the diag
   // banner can pinpoint where init died if a downstream import throws.
   window.__nbdMark && window.__nbdMark('m2:stagesImport');
@@ -4024,14 +4040,21 @@
       // Fall back to one-shot fetch so the UI isn't stuck empty.
       loadEstimates();
     };
+    // Both slices are BOUNDED to the newest ESTIMATES_LIVE_LIMIT estimates
+    // (orderBy createdAt desc — the same key sortDesc renders by). Unbounded,
+    // every snapshot re-shipped the whole history. 500 = 60x the whole prod
+    // estimates collection (8, every one with a Timestamp createdAt — the
+    // 2026-10-03 count; every addDoc writer stamps it). Indexes: userId ASC +
+    // createdAt DESC and companyId ASC + createdAt DESC (firestore.indexes.json).
+    const ESTIMATES_LIVE_LIMIT = 500;
     const unsubs = [];
-    unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('userId', '==', uid)), (snap) => {
+    unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(ESTIMATES_LIVE_LIMIT)), (snap) => {
       for (const k in own) delete own[k];
       snap.docs.forEach(d => { own[d.id] = { id: d.id, ...d.data() }; });
       rebuild();
     }, onErr));
     if (teamRead) {
-      unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('companyId', '==', claims.companyId)), (snap) => {
+      unsubs.push(onSnapshot(query(collection(db, 'estimates'), where('companyId', '==', claims.companyId), orderBy('createdAt', 'desc'), limit(ESTIMATES_LIVE_LIMIT)), (snap) => {
         for (const k in comp) delete comp[k];
         snap.docs.forEach(d => { comp[d.id] = { id: d.id, ...d.data() }; });
         rebuild();
@@ -4085,11 +4108,10 @@
                 // job value to $0.
                 const _firstVal = _estValue(data);
                 if (_canStampJobValue(_firstVal)) stampUpdate.jobValue = _firstVal;
-                if (normalizeStage(lead.stage) === S.NEW) {
-                  stampUpdate.stage = S.CONTACTED;
-                  stampUpdate.stageRole = stageRole(S.CONTACTED);
-                }
                 await updateDoc(leadRef, stampUpdate);
+                // New → Contacted through commitStageChange (history, note,
+                // stage-entry task, race guard) — job spine, 2026-10-03.
+                if (normalizeStage(lead.stage) === S.NEW) await _estimateBumpToContacted(data.leadId, lead);
               } else if (lead.primaryEstimateId !== ref2.id) {
                 // Lead already has a primary estimate (a revision/second
                 // quote is being created) — don't silently clobber a
@@ -4276,11 +4298,9 @@
               // Only stamp a jobValue the pipeline can trust — never
               // zero a KPI off an estimate with no total.
               if (_canStampJobValue(newVal)) stampUpdate.jobValue = newVal;
-              if (normalizeStage(lead.stage) === S.NEW) {
-                stampUpdate.stage = S.CONTACTED;
-                stampUpdate.stageRole = stageRole(S.CONTACTED);
-              }
               await updateDoc(leadRef, stampUpdate);
+              // Same New → Contacted bump as _saveEstimate, same chokepoint.
+              if (normalizeStage(lead.stage) === S.NEW) await _estimateBumpToContacted(leadId, lead);
             } else if (lead.primaryEstimateId !== id) {
               // Same rule as the branch above, which this one did NOT share:
               // it wrote jobValue unconditionally, so re-assigning a Classic

@@ -1219,6 +1219,7 @@ jobs:
       # both counts — the roles are granted, and the actual blocker is
       # the project not being on Identity Platform.
       - name: Deploy Cloud Functions (tolerant — skip-list retry)
+        id: tolerant_retry
         # ROOT-CAUSE FIX (deploy run 27631207476 starved Hosting): this retry
         # of the GCIP/IAM-blocked skip-list (onRepSignup) had NO step timeout,
         # so it ran until the job timeout-minutes cap canceled the WHOLE job —
@@ -1276,6 +1277,20 @@ jobs:
             echo "✓ Skip-list functions deployed cleanly — the GCIP blocker is gone. Empty NBD_DEPLOY_SKIP_LIST in the workflow."
           fi
           exit 0
+
+      # The step above always exits 0 itself, so a non-success outcome means the
+      # runner killed it (the 8-minute step timeout) before its own warning ran.
+      # Say so, instead of letting a hung retry pass silently (audit 2026-10-03).
+      - name: Warn if the tolerant retry was cut off
+        if: ${{ always() && steps.tolerant_retry.outcome == 'failure' }}
+        run: |
+          echo "::warning::The tolerant skip-list retry (onRepSignup) did not finish: it hit its step timeout. Its last-deployed revision is still live; nothing else was affected."
+          {
+            echo "### ⚠ Tolerant skip-list retry was cut off"
+            echo ""
+            echo "The onRepSignup retry hit its 8-minute step timeout before it could report."
+            echo "Its last-deployed revision is still live. Re-run the deploy if this repeats."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Orphan check (2026-09-04). Eight functions retired from source on
       # 2026-08-06 and 2026-08-11 stayed deployed for four months across many

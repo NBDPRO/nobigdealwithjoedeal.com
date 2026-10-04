@@ -181,6 +181,8 @@ exports.integrationAvailability = integrationsHandlers.integrationAvailability;
 exports.submitPublicLead  = integrationsHandlers.submitPublicLead;
 // Photos attached to a website request (2026-09-30) — one-time grant from submitPublicLead.
 exports.uploadPublicLeadPhoto = require('./public-lead-photos').uploadPublicLeadPhoto;
+// The /estimate thank-you screen's optional answers, saved onto the same lead (2026-10-03).
+exports.updatePublicLeadIntake = require('./public-lead-photos').updatePublicLeadIntake;
 
 // Inline access-code callable. Distinct from functions/portal.js
 // (which owns createPortalToken / revokePortalToken /

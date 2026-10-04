@@ -92,4 +92,14 @@ function payoffAdvanceAllowed(lead) {
   return role === ROLE.WON && PRE_FINAL_WON.has(key);
 }
 
-module.exports = { ROLE, WON_STAGES, WON_ALIASES, normKey, roleFromKey, roleFor, isWon, isLost, isDecided, payoffAdvanceAllowed };
+// Does moving `lead` to `nextStage` need a fresh closedAt? Yes when the move
+// lands on a WON stage and the lead was not already won with a close date
+// (2026-10-03 data audit: 10 won leads had no closedAt). Mirrors
+// docs/pro/js/stage-write.js's commitStageChange rule.
+function needsClosedAt(lead, nextStage) {
+  if (roleFromKey(nextStage) !== ROLE.WON) return false;
+  if (!lead) return true;
+  return !lead.closedAt || roleFor(lead) !== ROLE.WON;
+}
+
+module.exports = { ROLE, WON_STAGES, WON_ALIASES, normKey, roleFromKey, roleFor, isWon, isLost, isDecided, payoffAdvanceAllowed, needsClosedAt };

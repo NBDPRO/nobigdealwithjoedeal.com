@@ -11,7 +11,8 @@
  *  - active unless LEAD_FOLLOWUP_ENABLED === 'false' (kill switch);
  *  - window 20–48h: never sooner than Joe's realistic first-day attempts,
  *    never after the request has gone stale;
- *  - one send ever per lead (followUpEmailSentAt stamped on the public doc);
+ *  - one send ever per lead (followUpEmailStatus 'sending' claimed on the
+ *    public doc BEFORE the send, followUpEmailSentAt stamped after);
  *  - skipped when the CRM card moved past 'new' (Joe reached them) or when
  *    the CRM card is missing (bridge failed — don't email on unknown state);
  *  - NBD leads only (same tenant rule as the ack email);
@@ -121,6 +122,9 @@ exports.leadFollowUpSweep = onSchedule(
         if (L.isFollowUpEvent(collection, d)) { skipped++; continue; }
         if (d.followUpEmailSentAt) { skipped++; continue; }
         if (d.followUpEmailSuppressedAt) { skipped++; continue; }
+        // Claimed by a prior sweep right before its Resend call (below): stays
+        // excluded whether or not that sweep's post-send stamp ever landed.
+        if (d.followUpEmailStatus === 'sending') { skipped++; continue; }
         const email = String(d.email || '').trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { skipped++; continue; }
         if (!(await isNbdLead(d.companyId))) { skipped++; continue; }
@@ -172,6 +176,25 @@ exports.leadFollowUpSweep = onSchedule(
           continue;
         }
 
+        // Claim BEFORE calling Resend (2026-10-03; house pattern from
+        // funnel-recovery.js). The send and the followUpEmailSentAt stamp
+        // used to share one try, so a send that went out but whose stamp
+        // write then failed left the lead eligible — and the homeowner got
+        // the same "we haven't connected" email every 3 hours for the rest
+        // of the 20–48h window. The claim makes the exclusion durable before
+        // anything is sent; a failed claim sends nothing (retried next sweep).
+        try {
+          await doc.ref.update({
+            followUpEmailStatus: 'sending',
+            followUpEmailClaimedAt: FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          logger.error('leadFollowUp: claim failed', { collection, leadId: doc.id, err: e && e.message });
+          skipped++;
+          continue;
+        }
+
+        let delivered = false;
         try {
           if (!resend) resend = new Resend(RESEND_API_KEY.value());
           const firstName = String(d.firstName || d.name || '').trim().split(/\s+/)[0] || '';
@@ -196,10 +219,22 @@ exports.leadFollowUpSweep = onSchedule(
           if (resendRejected(response)) {
             throw new Error(resendErrorMessage(response));
           }
-          await doc.ref.update({ followUpEmailSentAt: FieldValue.serverTimestamp() });
+          delivered = true;
           sent++;
+          await doc.ref.update({ followUpEmailSentAt: FieldValue.serverTimestamp(), followUpEmailStatus: 'sent' });
         } catch (e) {
-          logger.error('leadFollowUp: send failed', { collection, leadId: doc.id, err: e.message });
+          if (delivered) {
+            // The email is out; the 'sending' claim keeps this lead excluded.
+            // Bookkeeping gap only — reconcile against Resend's log.
+            logger.error('leadFollowUp: stamp failed after send', { collection, leadId: doc.id, err: e && e.message });
+          } else {
+            logger.error('leadFollowUp: send failed', { collection, leadId: doc.id, err: e && e.message });
+            // A genuine send failure releases the claim so the next sweep
+            // retries while the lead is still in the window (as before). If
+            // even this write fails the lead stays claimed — no duplicate.
+            await doc.ref.update({ followUpEmailStatus: 'failed', followUpEmailError: String((e && e.message) || 'unknown').slice(0, 300) })
+              .catch((w) => logger.error('leadFollowUp: fail stamp failed', { collection, leadId: doc.id, err: w && w.message }));
+          }
         }
       }
     }
