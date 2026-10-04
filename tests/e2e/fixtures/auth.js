@@ -146,14 +146,30 @@ async function safeEvaluate(page, fn, arg) {
  * safeEvaluate: a mid-wait SW reload destroys the polling context and
  * throws even though the predicate would be true on the settled page.
  *
+ * Call shapes (both are in use across the specs):
+ *   safeWaitForFunction(page, fn, opts[, arg])
+ *   safeWaitForFunction(page, fn, arg, opts)   — page.waitForFunction's order
+ * Until 2026-10-04 only the first was read, so the 31 callers written in
+ * page.waitForFunction's order passed `null` as opts: their { timeout } was
+ * dropped and every wait ran to the TEST timeout, which turned a stuck boot
+ * into a bare "Test timeout of 150000ms exceeded" at this line.
+ *
  * @param {import('@playwright/test').Page} page
  * @param {Function} fn
- * @param {{timeout?: number}} [opts]
+ * @param {*} [a] — opts ({ timeout, polling }) or the argument for fn
+ * @param {*} [b] — the argument for fn, or opts
  */
-async function safeWaitForFunction(page, fn, opts) {
+function waitArgs(a, b) {
+  const isOpts = (o) => !!o && typeof o === 'object' && !Array.isArray(o)
+    && Object.keys(o).length > 0 && Object.keys(o).every((k) => k === 'timeout' || k === 'polling');
+  if (isOpts(b) && !isOpts(a)) return { arg: a === undefined ? null : a, opts: b };
+  return { arg: b === undefined ? null : b, opts: a || {} };
+}
+async function safeWaitForFunction(page, fn, a, b) {
+  const { arg, opts } = waitArgs(a, b);
   for (let attempt = 0; ; attempt++) {
     try {
-      return await page.waitForFunction(fn, null, opts || {});
+      return await page.waitForFunction(fn, arg, opts);
     } catch (e) {
       const msg = String((e && e.message) || e);
       if (attempt < 4
@@ -224,5 +240,6 @@ module.exports = {
   callCallableInPage,
   cleanupE2EData,
   safeEvaluate,
-  safeWaitForFunction
+  safeWaitForFunction,
+  _waitArgs: waitArgs
 };
