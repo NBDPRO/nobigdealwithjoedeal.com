@@ -42,6 +42,9 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m, k) => { if (typeof window.showToast === 'function') window.showToast(m, k || 'info'); };
   function browserTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) { return ''; } }
+  // The app's themed dialog in the installed app (standalone-compat.js);
+  // the browser's own confirm everywhere else — a revoke always asks.
+  const ask = async (m) => (typeof window.nbdConfirm === 'function' ? !!(await window.nbdConfirm(m)) : window.confirm(m));
   const when = (ms) => (ms ? new Date(ms).toLocaleString() : 'never');
 
   async function callable(name, payload) {
@@ -212,13 +215,13 @@
         const f = document.getElementById('abFresh');
         if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' });
       } else if (a === 'revoke') {
-        const sure = typeof window.nbdConfirm === 'function' ? await window.nbdConfirm('Revoke this key? The bot loses access until you make a new one.') : true;
+        const sure = await ask('Revoke this key? The bot loses access until you make a new one.');
         if (!sure) return;
         await callable('revokeAgentKey', { id });
         toast('Key revoked', 'success');
         await load();
       } else if (a === 'rmbot') {
-        const sure = typeof window.nbdConfirm === 'function' ? await window.nbdConfirm('Remove this bot? Its keys stop working right away.') : true;
+        const sure = await ask('Remove this bot? Its keys stop working right away.');
         if (!sure) return;
         await callable('deleteAgentBot', { botId: id });
         toast('Bot removed', 'success');
@@ -243,7 +246,7 @@
     const t = ev.target;
     if (!t || !t.matches || !t.matches('#agentBotsMount [data-ab-change="enabled"]')) return;
     const on = !!t.checked;
-    if (!on && typeof window.nbdConfirm === 'function' && !(await window.nbdConfirm('Turn bots off? Every bot key of this company stops working until you turn them back on.'))) { t.checked = true; return; }
+    if (!on && !(await ask('Turn bots off? Every bot key of this company stops working until you turn them back on.'))) { t.checked = true; return; }
     t.disabled = true;
     try { await callable('saveAgentSettings', { enabled: on }); toast(on ? 'Bots are on' : 'Bots are off', 'success'); await load(); }
     catch (e) { t.checked = !on; toast((e && e.message) || 'Could not save', 'error'); t.disabled = false; }

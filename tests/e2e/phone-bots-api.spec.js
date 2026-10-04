@@ -38,6 +38,10 @@ test.describe.serial('Bots & API — an owner connects their own bot @stranger',
     const creds = requireTestUser();
     await installLocalSdkShim(page);
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); localStorage.setItem('nbd_push_optin_snoozed_until', String(Date.now() + 3600_000)); } catch (_) {} });
+    // Revoke / remove ask first: the browser's confirm here (the installed
+    // app uses its own dialog — handled by confirmIfAsked too).
+    page.on('dialog', (d) => d.accept());
+    const confirmIfAsked = async () => { const okBtn = page.locator('.sa-btn-ok'); try { await okBtn.waitFor({ state: 'visible', timeout: 2000 }); await okBtn.click(); } catch (_) { /* native dialog, already accepted */ } };
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!window._user && !!window._functions && typeof window.goTo === 'function', null, { timeout: 30_000 });
@@ -86,14 +90,14 @@ test.describe.serial('Bots & API — an owner connects their own bot @stranger',
 
     // Revoke (confirm in the app's own dialog).
     await card.locator('[data-ab-act="revoke"]').click();
-    await page.locator('.sa-btn-ok').click();
+    await confirmIfAsked();
     await expect(card.locator('[data-ab-act="revoke"]')).toHaveCount(0, { timeout: 30_000 });
     const after = await mcp(key, 'tools/list');
     expect(after.status, 'a revoked key is refused').toBe(401);
 
     // Clean up: remove the bot.
     await card.locator('[data-ab-act="rmbot"]').click();
-    await page.locator('.sa-btn-ok').click();
+    await confirmIfAsked();
     await expect(page.locator('.ab-bot', { hasText: name })).toHaveCount(0, { timeout: 30_000 });
   });
 });
