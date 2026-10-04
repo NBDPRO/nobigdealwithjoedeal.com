@@ -453,7 +453,9 @@ function loadCloseBoard(opts) {
     calls.callables.push({ fns, name });
     return async (payload) => {
       if (opts.callableThrows) throw Object.assign(new Error('app-check'), { code: 'functions/unauthenticated' });
-      return { data: { acceptUrl: 'https://nobigdealwithjoedeal.com/deal/tok_' + payload.dealId } };
+      // a2pApproved (2026-10-03): this harness drives the platform-send path;
+      // the A2P-off route through Jo's phone is estimate-send-track §D.
+      return { data: { acceptUrl: 'https://nobigdealwithjoedeal.com/deal/tok_' + payload.dealId, a2pApproved: true } };
     };
   };
   const sandbox = {

@@ -55,6 +55,9 @@ const { getStorage } = require('firebase-admin/storage');
 const { defineSecret } = require('firebase-functions/params');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
+const ESL = require('./estimate-send-logic');
+const EVA = require('./estimate-view-alert');
+const DV = require('./deal-view-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -492,7 +495,22 @@ exports.getSharedReport = onRequest(
     // the objects to be client-readable.
     if (tok.kind === 'lead_document') {
       const path = typeof tok.storagePath === 'string' ? tok.storagePath : '';
-      if (!RENDER_PATH_RE.test(path)) { errPage(404, 'This report is no longer available.'); return; }
+      // A render (pdf-renders/) or, since 2026-10-03, an estimate PDF Jo
+      // attached and sent for review (docs/{owner}/{leadId}_… upload or a
+      // documents/{uid}/{leadId}/… filed PDF) — still pinned to the TOKEN's
+      // lead. estimate-send-logic.js isServableLeadDocPath.
+      if (!RENDER_PATH_RE.test(path) && !ESL.isServableLeadDocPath(path, tok.leadId)) {
+        errPage(404, 'This report is no longer available.'); return;
+      }
+      // "They opened it" (2026-10-03): stamp lead.lastViewedAt + the ONE
+      // estimate_viewed alert, throttled per lead per 6h. A link preview
+      // (iMessage fetches the link the moment Jo texts it) is not an open.
+      if (tok.leadId && !DV.isPreviewBot(req.get('user-agent'))) {
+        EVA.recordEstimateView(db, {
+          leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'review_link',
+          what: tok.docLabel || tok.filename || '',
+        }).catch(() => {});
+      }
       let file, meta;
       try {
         file = getStorage().bucket().file(path);
