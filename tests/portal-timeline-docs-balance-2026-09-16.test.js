@@ -34,67 +34,61 @@ function liftBetween(src, startMarker, endMarker, fromIndex) {
   return end < 0 ? null : src.slice(start, end + endMarker.length);
 }
 
-/* ── lift STAGE_TO_PROGRESS + milestoneDatesFor + _isDocVisibleToHomeowner
-   from functions/portal.js ── */
-const stageMapSrc = liftBetween(PORTAL_FN, 'const STAGE_TO_PROGRESS = {', '\n};');
-const milestoneDatesSrc = liftBetween(PORTAL_FN, 'function milestoneDatesFor(lead) {', '\n}');
+/* ── milestoneDatesFor lives in functions/homeowner-progress.js since the
+   2026-10-03 9-step rebuild (a pure module — required, not lifted);
+   _isDocVisibleToHomeowner is still lifted from functions/portal.js ── */
+const { milestoneDatesFor } = require(path.join(ROOT, 'functions', 'homeowner-progress.js'));
 const visibleDocSrc = liftBetween(PORTAL_FN, 'function _isDocVisibleToHomeowner(d) {', '\n}');
 
-group('All three helpers are present and liftable', () => {
-  assert('found STAGE_TO_PROGRESS in functions/portal.js', !!stageMapSrc,
+group('Both helpers are present', () => {
+  assert('milestoneDatesFor is exported by homeowner-progress.js', typeof milestoneDatesFor === 'function');
+  assert('portal.js uses it for the view', /milestoneDates: milestoneDatesFor\(lead\)/.test(PORTAL_FN));
+  assert('found _isDocVisibleToHomeowner', !!visibleDocSrc,
     'if it moved, update the extractor — do NOT delete the suite');
-  assert('found milestoneDatesFor', !!milestoneDatesSrc);
-  assert('found _isDocVisibleToHomeowner', !!visibleDocSrc);
 });
-if (!stageMapSrc || !milestoneDatesSrc || !visibleDocSrc) {
+if (!visibleDocSrc) {
   console.log('\ncannot continue'); console.log(passed + ' passed, ' + (failed + 1) + ' failed');
   process.exit(1);
 }
 
 const ctx = { Array, String };
 vm.createContext(ctx);
-vm.runInContext(
-  stageMapSrc + '\n' + milestoneDatesSrc + '\n' + visibleDocSrc
-  + '\nthis.__m = milestoneDatesFor; this.__v = _isDocVisibleToHomeowner;',
-  ctx
-);
-const milestoneDatesFor = ctx.__m;
+vm.runInContext(visibleDocSrc + '\nthis.__v = _isDocVisibleToHomeowner;', ctx);
 const isDocVisible = ctx.__v;
 
 /* ══════════════════════════════════════════════════════════════════
    1. milestoneDatesFor — first entry wins on a bounce-back
    ══════════════════════════════════════════════════════════════════ */
 group('milestoneDatesFor: first-reached date, not last', () => {
-  // A lead that reached "install" (materials_delivered), got bounced back
-  // to "contract_signed" (job_created — a stage that ALSO maps to
-  // contract_signed) for a re-schedule, then re-advanced. The date the
-  // homeowner sees for "Installation" must be the FIRST time they reached
-  // it, not lost or overwritten by the bounce-back.
+  // A lead that reached "Build" (install_in_progress), got bounced back to
+  // "Signed" (job_created — a stage that ALSO maps to signed) for a
+  // re-schedule, then re-advanced. The date the homeowner sees for each step
+  // must be the FIRST time they reached it, not overwritten by the bounce.
   const lead = {
     stageHistory: [
       { from: 'new', to: 'inspected', timestamp: '2026-09-01T12:00:00.000Z' },
       { from: 'inspected', to: 'contract_signed', timestamp: '2026-09-05T12:00:00.000Z' },
-      { from: 'contract_signed', to: 'materials_delivered', timestamp: '2026-09-10T12:00:00.000Z' },
-      // Bounce back to a stage that ALSO maps to contract_signed —
-      // must NOT push the contract_signed date forward to this later time.
-      { from: 'materials_delivered', to: 'job_created', timestamp: '2026-09-12T12:00:00.000Z' },
-      { from: 'job_created', to: 'crew_scheduled', timestamp: '2026-09-14T12:00:00.000Z' },
+      { from: 'contract_signed', to: 'install_in_progress', timestamp: '2026-09-10T12:00:00.000Z' },
+      // Bounce back to a stage that ALSO maps to signed — must NOT push the
+      // signed date forward to this later time.
+      { from: 'install_in_progress', to: 'job_created', timestamp: '2026-09-12T12:00:00.000Z' },
+      { from: 'job_created', to: 'install_in_progress', timestamp: '2026-09-14T12:00:00.000Z' },
     ]
   };
   const dates = milestoneDatesFor(lead);
-  assert('inspected keeps its one date', dates.inspected === '2026-09-01T12:00:00.000Z', JSON.stringify(dates));
-  assert('contract_signed keeps the FIRST time it was reached (Sept 5), not the Sept 12 bounce-back',
-    dates.contract_signed === '2026-09-05T12:00:00.000Z', JSON.stringify(dates));
-  assert('install keeps the first time it was reached (materials_delivered, Sept 10), not the later crew_scheduled entry',
-    dates.install === '2026-09-10T12:00:00.000Z', JSON.stringify(dates));
-  assert('complete was never reached — no date at all (not null, not undefined-as-a-key)',
-    !('complete' in dates), JSON.stringify(dates));
+  assert('inspection keeps its one date', dates.inspection === '2026-09-01T12:00:00.000Z', JSON.stringify(dates));
+  assert('signed keeps the FIRST time it was reached (Sept 5), not the Sept 12 bounce-back',
+    dates.signed === '2026-09-05T12:00:00.000Z', JSON.stringify(dates));
+  assert('build keeps the first time it was reached (Sept 10), not the Sept 14 re-entry',
+    dates.build === '2026-09-10T12:00:00.000Z', JSON.stringify(dates));
+  assert('review was never reached — no date at all (not null, not undefined-as-a-key)',
+    !('review' in dates), JSON.stringify(dates));
 });
 
 group('milestoneDatesFor: defensive on malformed/absent history', () => {
   assert('no stageHistory at all → {}', JSON.stringify(milestoneDatesFor({})) === '{}');
   assert('stageHistory not an array → {}', JSON.stringify(milestoneDatesFor({ stageHistory: 'nope' })) === '{}');
-  assert('a custom tenant stage not in STAGE_TO_PROGRESS is skipped, not crashing',
+  assert('a custom tenant stage not in STAGE_TO_STEP is skipped, not crashing',
     JSON.stringify(milestoneDatesFor({ stageHistory: [{ to: 'tenant_custom_stage_xyz', timestamp: '2026-09-01T00:00:00.000Z' }] })) === '{}');
   assert('a Firestore-Timestamp-shaped entry (not a plain string) is skipped — timestamp is always new Date().toISOString() per stage-write.js',
     JSON.stringify(milestoneDatesFor({ stageHistory: [{ to: 'inspected', timestamp: { seconds: 123, nanoseconds: 0 } }] })) === '{}');
