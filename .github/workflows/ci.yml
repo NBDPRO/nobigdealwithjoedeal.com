@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  # GitHub merge queue (2026-10-04): every check must also run on the
+  # queue's merge_group ref, or a queued PR waits forever for it.
+  merge_group:
   push:
     branches: [main]
 
