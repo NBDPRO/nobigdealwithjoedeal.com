@@ -1788,7 +1788,7 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
   {
     for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
       const html = read(page);
-      const i = html.indexOf('<script defer src="js/nbd-comms.js?v=3"></script>');
+      const i = html.indexOf('<script defer src="js/nbd-comms.js?v=4"></script>');
       const j = html.indexOf('<script defer src="js/sms-outbox.js?v=1"></script>');
       ok(page + ' loads sms-outbox.js (defer) right after nbd-comms.js', i >= 0 && j > i && html.slice(i, j).split('<script').length === 2);
     }

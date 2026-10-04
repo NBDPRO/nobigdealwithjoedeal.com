@@ -19,13 +19,26 @@
   // these keys on NBDAuth.purgeAccountStorage()'s sign-out / account-switch
   // purge (tests/close-board-per-uid-storage-2026-09-18.test.js runs it).
   const DEAL_STORAGE_KEY = 'nbd_deal_rooms';
-  const FINANCING_RATES = [
-    { term: 12, rate: 0, label: '12 mo Same-as-Cash' },
-    { term: 36, rate: 5.99, label: '36 mo @ 5.99%' },
-    { term: 60, rate: 7.99, label: '60 mo @ 7.99%' },
-    { term: 120, rate: 9.99, label: '120 mo @ 9.99%' },
-    { term: 180, rate: 11.99, label: '180 mo @ 11.99%' }
-  ];
+  // Financing (2026-10-03, Reg Z): the deal page used to offer 0% / 5.99% /
+  // 7.99% / 9.99% / 11.99% plans and print "~$X/mo" at 7.99% for 60 months —
+  // rates nobody offers, all at or under the low end of the Acorn band the
+  // public financing page uses, so every payment was understated. Payments now
+  // come only from the shared band (/assets/js/financing-band.js →
+  // window.NBD_FINANCING_BAND), shown as the same low–high range the public
+  // estimator prints, over its default term. No band loaded → no payment line.
+  function financingBand() {
+    const b = window.NBD_FINANCING_BAND;
+    return (b && typeof b.range === 'function' && typeof b.fmtWhole === 'function') ? b : null;
+  }
+  // "$218–$299" for this price over the band's default term, or '' when the
+  // band is missing or the price is not a positive number.
+  function financingRangeText(price) {
+    const b = financingBand();
+    const p = Number(price);
+    if (!b || !(p > 0)) return '';
+    const r = b.range(p, b.defaultTermYears * 12);
+    return b.fmtWhole(r.lo) + '–' + b.fmtWhole(r.hi);
+  }
 
   const DEAL_STATUS = {
     DRAFT: 'draft',
@@ -65,13 +78,24 @@
     return (cfg && Array.isArray(cfg.TIER_ORDER)) ? cfg.TIER_ORDER.slice() : ['economy', 'good', 'better', 'best', 'beyond'];
   }
 
-  // Per-tier warranty differentiator (all tiers are lifetime workmanship —
-  // see the flat warranty badge above — so this is just what varies:
-  // transferability + inspection). Same config, same fallback pattern.
-  function tierDisplayWarrantyBlurb(key) {
+  // Each tier's OWN warranty sentence (2026-10-03). The page used to put a
+  // flat "Lifetime Workmanship Warranty" badge above every tier, but Economy
+  // is a 1-year labor warranty plus the shingle maker's limited warranty, with
+  // no system warranty (Jo, 2026-10-02) — so the badge promised an Economy
+  // buyer a lifetime warranty the paperwork does not give. The badge is gone;
+  // each card prints estimate-config.js tierWarrantyText(tier), the sentence
+  // every generator prints. The fallback mirrors it for a page built before
+  // that config loads (this file's established pattern).
+  function tierDisplayWarrantyText(key) {
     const cfg = window.NBD_ESTIMATE_CONFIG;
-    if (cfg && typeof cfg.tierWarrantyBlurb === 'function') return cfg.tierWarrantyBlurb(key);
-    return ({ economy: '1-year labor warranty', good: 'Non-transferable', better: 'Transferable to 1 subsequent owner', best: 'Fully transferable + annual inspection', beyond: 'Fully transferable + annual inspection + hail warranty' })[key] || '';
+    if (cfg && typeof cfg.tierWarrantyText === 'function') return cfg.tierWarrantyText(key);
+    return ({
+      economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
+      good: 'Lifetime workmanship warranty; does not transfer on sale of property.',
+      better: 'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
+      best: 'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.',
+      beyond: 'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
+    })[key] || '';
   }
 
   // Per-tier card copy (2026-09-25). The cards promised scope no tier price
@@ -135,12 +159,6 @@
     return Math.floor(hrs / 24) + 'd ago';
   }
   function generateId() { return 'dr_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 6); }
-
-  function calcMonthlyPayment(principal, annualRate, termMonths) {
-    if (annualRate === 0) return principal / termMonths;
-    const r = annualRate / 100 / 12;
-    return principal * r * Math.pow(1 + r, termMonths) / (Math.pow(1 + r, termMonths) - 1);
-  }
 
   // The booked dollar value of a deal. A remote acceptance writes acceptedTier +
   // acceptedPrice (the server's price snapshot, deal-acceptance.js) — NOT
@@ -459,14 +477,11 @@
       // Product details
       selectedProducts: opts.selectedProducts || [],
       shingleColor: opts.shingleColor || '',
-      // GBB audit, 2026-09-09: was a flat '25-year limited lifetime' that
-      // matched no tier's actual warranty (Sept-8 commit a3ac83b1 flagged
-      // this verbatim as "needs a decision, not a guess"). All three tiers
-      // now carry the same lifetime workmanship warranty (they always
-      // differed only by transferability, never duration), so a single
-      // flat badge is finally accurate for every tier — see the per-tier
-      // transferability line rendered on each tier card instead.
-      warranty: opts.warranty || 'Lifetime Workmanship Warranty',
+      // No deal-wide warranty (2026-10-03): the tiers differ in DURATION
+      // since Economy (1-year labor), so the page prints each tier's own
+      // warranty on its card (tierDisplayWarrantyText). The field is kept
+      // for an explicitly passed value only; nothing renders it.
+      warranty: opts.warranty || '',
 
       // Insurance
       insuranceClaim: opts.insuranceClaim || false,
@@ -489,7 +504,9 @@
 
       // Rep info
       repName: opts.repName || window._user?.displayName || 'Your NBD Rep',
-      repPhone: opts.repPhone || '',
+      // The company phone from the brand when the caller has none, so the
+      // page's Call / Text buttons have a number (createFromEstimate passes none).
+      repPhone: opts.repPhone || _brandPhone(),
       repEmail: opts.repEmail || window._user?.email || '',
       repPhoto: opts.repPhoto || '',
 
@@ -602,9 +619,20 @@
   // DEAL ROOM FROM ESTIMATE
   // ============================================================================
 
+  // The open deal already made for this saved estimate, if any (not accepted /
+  // signed / scheduled). "Send to homeowner" and "Sign on this phone" reuse it
+  // so a second tap refreshes one deal instead of stacking duplicates.
+  function findOpenDealForEstimate(estimateId) {
+    if (!estimateId) return null;
+    return _dealRoomsForCurrentUser().find(d => d && d.estimateId === estimateId && !_isClosedDeal(d)) || null;
+  }
+
   function createFromEstimate(estimateData, leadData) {
     // Pull pricing from current estimate
     const tiers = blankTiers(t => estimateData?.prices?.[t]);
+    // The saved estimate this deal is for (2026-10-03: the deal used to carry
+    // no estimate id, and "Create Deal Room" never saved the estimate at all).
+    const estimateId = estimateData?.id || leadData?.estimateId || null;
 
     // Pull line items if available
     if (typeof window.getLineItems === 'function') {
@@ -629,7 +657,27 @@
     // deductible alone made every deal "Unnamed" with no claim details.
     const _nm = ((leadData?.firstName || '') + ' ' + (leadData?.lastName || '')).trim() || leadData?.name || '';
     const _carrier = leadData?.insCarrier || leadData?.insuranceCarrier || '';
+    // An insurance job with no carrier typed yet is still an insurance job
+    // (the estimate builder passes its own classification) — the deal page's
+    // Kentucky notices and deposit rule key on it.
+    const _isIns = !!_carrier || leadData?.insuranceClaim === true;
+    // Same estimate, still open → refresh that deal in place.
+    const existing = findOpenDealForEstimate(estimateId);
+    if (existing) {
+      return updateDeal(existing.id, {
+        customerName: _nm || existing.customerName,
+        customerEmail: leadData?.email || existing.customerEmail || '',
+        customerPhone: leadData?.phone || existing.customerPhone || '',
+        address: leadData?.address || existing.address || '',
+        tiers,
+        insuranceClaim: _isIns,
+        insuranceCarrier: _carrier,
+        claimNumber: leadData?.claimNumber || '',
+        deductible: leadData?.deductibleOrOwedByHO || leadData?.deductible || 0
+      }) || existing;
+    }
     const deal = createDealRoom({
+      estimateId,
       customerName: _nm,
       customerEmail: leadData?.email || '',
       customerPhone: leadData?.phone || '',
@@ -637,7 +685,7 @@
       leadId: leadData?.id || null,
       tiers,
       selectedProducts,
-      insuranceClaim: !!_carrier,
+      insuranceClaim: _isIns,
       insuranceCarrier: _carrier,
       claimNumber: leadData?.claimNumber || '',
       deductible: leadData?.deductibleOrOwedByHO || leadData?.deductible || 0
@@ -675,6 +723,24 @@
     };
   }
 
+  // The tenant's own phone (brand.contact.phone), or ''.
+  function _brandPhone() {
+    try {
+      const b = (typeof window._brand === 'function') ? window._brand() : null;
+      const p = b && b.contact && b.contact.phone;
+      return typeof p === 'string' ? p.trim() : '';
+    } catch (_) { return ''; }
+  }
+
+  // Call / Text buttons for the rep's phone (2026-10-03): it was plain text a
+  // homeowner had to copy. '' when there is no dialable number.
+  function repContactButtons(phone) {
+    const digits = String(phone || '').replace(/[^\d+]/g, '');
+    if (digits.replace(/\D/g, '').length < 7) return '';
+    return `<div class="rep-actions"><a class="rep-btn" href="tel:${esc(digits)}" aria-label="Call ${esc(phone)}">📞 Call</a>` +
+      `<a class="rep-btn" href="sms:${esc(digits)}" aria-label="Text ${esc(phone)}">💬 Text</a></div>`;
+  }
+
   function generateDealPageHTML(deal) {
     // Every tier the rep PRICED, cheapest first (five since 2026-10-02). An
     // unpriced tier never shows — it would be a $0 package the homeowner
@@ -682,8 +748,11 @@
     // saved before 2026-10-02 renders exactly as before.
     const _dt = deal.tiers || {};
     const pricedTiers = dealTiers().filter(t => _dt[t] && Number(_dt[t].price) > 0);
+    // Monthly-payment RANGE per tier from the shared Acorn band, over the
+    // public estimator's default term ('' with no band → no line printed).
+    const _band = financingBand();
     const _payFor = {};
-    pricedTiers.forEach(t => { _payFor[t] = calcMonthlyPayment(_dt[t].price, 7.99, 60); });
+    pricedTiers.forEach(t => { _payFor[t] = financingRangeText(_dt[t].price); });
     const _recommended = pricedTiers.indexOf('better') !== -1 ? 'better' : null;
     const _stars = { economy: '○', good: '☆', better: '★★', best: '★★★', beyond: '★★★★' };
     const BRAND = _dealBrand();
@@ -776,6 +845,10 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 .rep-bar{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px;padding:12px 20px;background:#1e2028;border-radius:10px;max-width:400px;margin-left:auto;margin-right:auto;}
 .rep-name{font-size:13px;font-weight:600;}
 .rep-contact{font-size:11px;color:#8b8e96;}
+.rep-actions{display:flex;gap:8px;justify-content:center;margin-top:8px;}
+.rep-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:96px;padding:0 16px;border-radius:10px;background:var(--orange);color:#fff;font-size:15px;font-weight:700;text-decoration:none;}
+.finance-disc{font-size:11px;color:#8b8e96;line-height:1.5;margin-top:8px;}
+.finance-disc a{color:var(--orange);font-weight:700;}
 .container{max-width:600px;margin:0 auto;padding:20px;}
 .section-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--orange);margin:24px 0 12px;}
 .tier-cards{display:flex;flex-direction:column;gap:12px;}
@@ -815,7 +888,6 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 .success-icon{font-size:60px;}
 .success-text{font-size:22px;font-weight:700;font-family:'Barlow Condensed',sans-serif;}
 .success-sub{font-size:14px;line-height:1.5;color:#c9ccd2;max-width:320px;text-align:center;}
-.warranty-badge{display:inline-block;background:linear-gradient(135deg,var(--orange),#ff8c42);color:white;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em;margin-top:12px;}
 @media(max-width:500px){.tier-price{font-size:22px;}.tier-name{font-size:17px;}}
 </style>
 </head><body>
@@ -827,10 +899,10 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   <div class="rep-bar">
     <div>
       <div class="rep-name">${esc(deal.repName)}</div>
-      <div class="rep-contact">${esc(deal.repPhone)} · ${esc(deal.repEmail)}</div>
+      ${deal.repEmail ? `<div class="rep-contact">${esc(deal.repEmail)}</div>` : ''}
+      ${repContactButtons(deal.repPhone)}
     </div>
   </div>
-  <div class="warranty-badge">${esc(deal.warranty)}</div>
 </div>
 
 <div class="container">
@@ -840,9 +912,9 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     <div class="tier${t === _recommended ? ' recommended' : ''}" id="tier-${t}" data-deal-tier="${t}">
       <div class="tier-name">${_stars[t] || ''} ${esc(tierDisplayLabel(t))}</div>
       <div class="tier-price">${fmtCurrency(_dt[t].price)}</div>
-      <div class="tier-monthly">or ~${fmtCurrency(_payFor[t])}/mo with financing</div>
+      ${_payFor[t] ? `<div class="tier-monthly">or est. ${_payFor[t]}/mo with financing*</div>` : ''}
       <div class="tier-desc">${esc(_dt[t].description || TIER_DESCRIPTIONS[t] || '')}</div>
-      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyBlurb(t))}</div>
+      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyText(t))}</div>
       ${depositLine(_dt[t].price)}
     </div>`).join('')}
   </div>
@@ -859,6 +931,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 
   <div class="section-title">Financing Options</div>
   <div class="finance-section" id="financeOpts"></div>
+  ${_band ? `<div class="finance-disc">*Estimated range at ${esc(_band.aprLabel)} over ${_band.defaultTermYears} years through the ${esc(_band.lender)} marketplace. ${esc(_band.disclaimer)} Not an offer of credit. <a href="${esc(_band.preQualUrl)}" target="_blank" rel="noopener noreferrer">Check your options (soft credit pull) &rarr;</a></div>` : ''}
 
   <div class="section-title">Sign & Schedule</div>
   ${kyNotices}
@@ -893,10 +966,12 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     // Escape < so lead-sourced strings can never close the tag early.
     JSON.stringify({
       prices: Object.fromEntries(pricedTiers.map(t => [t, _dt[t].price])),
-      rates: FINANCING_RATES,
+      // The shared Acorn band (deal-room.js prints the same range). null →
+      // the page offers Pay in Full only, never a guessed rate.
+      band: _band ? { aprLo: _band.aprLo, aprHi: _band.aprHi, months: _band.defaultTermYears * 12, lender: _band.lender } : null,
     }).replace(/</g, '\\u003c')
   }</script>
-<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=2"><\/script>
+<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=3"><\/script>
 </body></html>`;
   }
 
@@ -1614,12 +1689,31 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     render();
   }
 
+  // The estimate builder's "Send to homeowner" shares the accept link from the
+  // phone's own share sheet / Messages / Mail (nothing sends from the server).
+  // Stamp the first share like copyDealLink does: sentAt is the close-rate
+  // denominator, and only a draft is escalated to Sent.
+  function markShared(dealId, via) {
+    const deal = _findDeal(dealId);
+    if (!deal) return null;
+    if (deal.sentAt) return deal;
+    return updateDeal(dealId, Object.assign(
+      { sentAt: new Date().toISOString(), sentVia: via || 'link' },
+      deal.status === DEAL_STATUS.DRAFT ? { status: DEAL_STATUS.SENT } : {}
+    ));
+  }
+
   window.CloseBoard = {
     init,
     render,
     setTab,
     createNew,
     createFromEstimate,
+    findOpenDealForEstimate,
+    // Upload the page + mint the single-use /deal/<token> accept link (null on
+    // failure; the reason is already toasted).
+    getAcceptLink: getDealAcceptLink,
+    markShared,
     submitCreate: submitCreateForm,
     preview: openDealPreview,
     sendSMS: sendViaSMS,

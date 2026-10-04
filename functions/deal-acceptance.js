@@ -40,6 +40,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { fillLeadInstallDate } = require('./deal-install-date');
+const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
 const ESL = require('./estimate-send-logic');
 const EVA = require('./estimate-view-alert');
@@ -64,6 +65,35 @@ const VALID_TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 // overwrote the accepted tier, price and signature and re-notified the rep.
 // The DEAL's status is now the gate at all three entry points.
 const DONE_STATUSES = ['accepted', 'signed', 'scheduled'];
+
+// The deal-room page is TENANT-AUTHORED HTML (the rep's client uploads it to
+// Storage) served on the main domain. The site-wide Hosting CSP already bars
+// inline script, but it still allows every same-origin script ('self') and
+// form posts anywhere — so a crafted deal room could load the CRM's own JS on
+// our origin or post a fake login form off-site. This policy is enforced on
+// top of it (security batch 2026-10-03): the ONE script the page needs
+// (deal-room.js, by exact path), XHR/beacon only to our own /api endpoints,
+// no forms, no framing, no <base>. Not `sandbox`: an opaque origin would turn
+// the same-origin ACCEPT POST into a CORS request and break acceptance.
+const DEAL_ROOM_SCRIPT_URLS = [
+  'https://nobigdealwithjoedeal.com/pro/deal-room.js',
+  'https://www.nobigdealwithjoedeal.com/pro/deal-room.js',
+  'https://nobigdeal-pro.web.app/pro/deal-room.js',
+].join(' ');
+const DEAL_ROOM_CSP = [
+  "default-src 'none'",
+  'script-src ' + DEAL_ROOM_SCRIPT_URLS,
+  'script-src-elem ' + DEAL_ROOM_SCRIPT_URLS,
+  "script-src-attr 'none'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join('; ');
 const ALREADY_ACCEPTED_MSG = 'This deal has already been accepted — your rep will reach out to confirm your installation.';
 
 // 32-char no-confusable alphabet (no 0/O, 1/I/L) — same as portal.js / remote-signing.js.
@@ -268,6 +298,9 @@ exports.getDealRoom = onRequest(
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')
       .set('Cache-Control', 'no-store')
+      .set('Content-Security-Policy', DEAL_ROOM_CSP)
+      .set('X-Content-Type-Options', 'nosniff')
+      .set('Referrer-Policy', 'no-referrer')
       .send(html);
   }
 );
@@ -411,7 +444,12 @@ exports.submitDealAcceptance = onRequest(
     // deal-install-date.js has the rule and why.
     const leadFill = await fillLeadInstallDate(db, info, scheduledDate, { logger });
 
-    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill });
+    // Job spine (2026-10-03): the homeowner accepted and signed → the job
+    // moves to Contract Signed (Service Approved on a repair), forward only.
+    // Once per deal; never throws — the acceptance is already committed.
+    const spine = await spineAfterDealAccept(db, info, tier);
+
+    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill, stageMoved: !!(spine && spine.moved) });
     res.status(200).json({ ok: true });
   }
 );

@@ -2357,7 +2357,7 @@ function syncMobileToolsMenuActive() {
   // inside its update fn (added 2026-07-06 — none of them ever set it
   // before, which is why the old mobile menu's active mirrors never lit
   // up). The class is therefore the cheap shared truth to count here.
-  const filterIds = ['needsAttentionBtn', 'staleSharesBtn', 'snoozedToggleBtn', 'engagementSortBtn'];
+  const filterIds = ['needsAttentionBtn', 'noNextStepBtn', 'staleSharesBtn', 'snoozedToggleBtn', 'engagementSortBtn'];
   const n = filterIds.filter((id) => {
     const b = document.getElementById(id);
     return b && b.classList.contains('active');

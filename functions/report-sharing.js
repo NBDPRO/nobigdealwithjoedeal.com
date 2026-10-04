@@ -104,6 +104,26 @@ const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 // Nothing else in the bucket is shareable through this function.
 const RENDER_PATH_RE = /^pdf-renders\/[A-Za-z0-9_-]{1,128}\/[^/\\]{1,240}$/;
 
+// A saved report's HTML is TENANT-AUTHORED (reports/{id}.html is written by
+// the rep's client) and served on the main domain at /report/<token>. Both
+// report generators emit static HTML — no script, no handlers — so the page
+// is served SANDBOXED (security batch 2026-10-03): an opaque origin with no
+// scripts, forms, popups or top navigation, so a crafted report can neither
+// run the site's own JS on our origin nor post a fake login form. Images and
+// styles still load; this is enforced on top of the site-wide Hosting CSP.
+const SHARED_REPORT_CSP = [
+  'sandbox',
+  "default-src 'none'",
+  "img-src 'self' data: blob: https:",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "media-src 'self' blob: https:",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join('; ');
+
 // ── Subject resolvers ────────────────────────────────────────────
 // Each returns the common descriptor the mint path writes into the token doc,
 // having already proved the caller may share the thing.
@@ -560,6 +580,9 @@ exports.getSharedReport = onRequest(
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')
       .set('Cache-Control', 'no-store')
+      .set('Content-Security-Policy', SHARED_REPORT_CSP)
+      .set('X-Content-Type-Options', 'nosniff')
+      .set('Referrer-Policy', 'no-referrer')
       .send(html);
   }
 );

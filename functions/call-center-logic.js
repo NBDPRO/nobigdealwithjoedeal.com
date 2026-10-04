@@ -125,6 +125,8 @@ function buildPhoneIndex(leads) {
       idx.get(d).push(l);
     }
   }
+  // A number on 3+ leads is a proxy (proxyNumbers): it identifies nobody.
+  for (const [d, ls] of idx) if (ls.length >= PROXY_MIN_LEADS) idx.delete(d);
   return idx;
 }
 
@@ -404,6 +406,30 @@ function buildCallActivity({ call, notes, ownerUid }) {
 }
 
 /**
+ * leads/{id}/activity/sms-{dayId} — a day of texts on the customer timeline.
+ * One shape for the text-notes pass (text-inbox.js) and for re-filing a day
+ * when its number joins a lead (call-center.js refileNumber).
+ * day: { id, contactName, messageCount }.
+ */
+function buildTextDayActivity({ day, notes, ownerUid }) {
+  return {
+    userId: ownerUid, companyId: ownerUid, type: 'text', source: 'sms-backup',
+    label: 'Texts' + (day.contactName ? ' · ' + day.contactName : '') + ' (' + (Number(day.messageCount) || 0) + ')',
+    summary: notes.summary, promises: notes.promises, followUpDate: notes.followUpDate,
+    phoneTextDayId: day.id,
+  };
+}
+
+/** leads/{id}/tasks/sms-{dayId} — the call task shape, sourced to the texts. */
+function buildTextDayTask({ day, notes, leadId, ownerUid, todayYmd, nowMs }) {
+  const task = buildFollowUpTask({ call: { id: day.id, contactName: day.contactName, startedAtMs: day.startedAtMs }, notes, leadId, ownerUid, todayYmd, nowMs });
+  if (!task) return null;
+  Object.assign(task, { source: 'sms-backup', phoneTextDayId: day.id, createdBy: 'Text Inbox (AI notes)' });
+  delete task.phoneCallId;
+  return task;
+}
+
+/**
  * leads/{id}/tasks/cube-{docId} — ONE follow-up task per call, only when
  * Jo promised something or a follow-up date came out of it. Shape matches
  * Thursday's (docs/pro/js/tasks.js readers).
@@ -506,23 +532,105 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
  * leads: [{ id, firstName, lastName, address, deleted }].
  */
 const normMatch = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const isThumbtackLead = (l) => /thumb\s*tack/i.test(String((l && l.source) || ''));
+const THUMBTACK_SAID_RE = /\bthumb\s*tack\b/i;
+// Bump when the rules change: calls checked under an older version are
+// re-checked by the backfill (call-center.js backfillSuggestions).
+const SUGGEST_RULES_VERSION = 2;
 function suggestLeadForCall(call, leads) {
   if (!call || call.leadId) return null;
-  const contact = normMatch(call.contactName);
-  const said = normMatch([call.summary, call.transcript].join(' '));
+  const contact = ' ' + normMatch(call.contactName) + ' ';
+  const said = ' ' + normMatch([call.summary, call.transcript].join(' ')) + ' ';
+  const live = (leads || []).filter((l) => l && l.id && l.deleted !== true);
+  const name = (l) => ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer';
   const hits = new Map();
-  for (const l of leads || []) {
-    if (!l || !l.id || l.deleted === true) continue;
+  for (const l of live) {
     const first = normMatch(l.firstName), last = normMatch(l.lastName);
     const full = (first + ' ' + last).trim();
     const street = normMatch(String(l.address || '').split(',')[0]);
     let why = '';
-    if (first.length > 1 && last.length > 2 && full.length > 4 && (' ' + contact + ' ').includes(' ' + full + ' ')) why = 'their name in your phone';
-    else if (first.length > 2 && last.length > 3 && (' ' + said + ' ').includes(' ' + full + ' ')) why = 'their name said on the call';
-    else if (street.length > 8 && /^\d+ [a-z]/.test(street) && (' ' + said + ' ').includes(' ' + street + ' ')) why = 'their address said on the call';
-    if (why) hits.set(l.id, { leadId: l.id, name: ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer', why });
+    if (first.length > 1 && last.length > 2 && full.length > 4 && contact.includes(' ' + full + ' ')) why = 'their name in your phone';
+    else if (first.length > 2 && last.length > 3 && said.includes(' ' + full + ' ')) why = 'their name said on the call';
+    else if (street.length > 8 && /^\d+ [a-z]/.test(street) && said.includes(' ' + street + ' ')) why = 'their address said on the call';
+    if (why) hits.set(l.id, { leadId: l.id, name: name(l), why });
   }
-  return hits.size === 1 ? [...hits.values()][0] : null;
+  if (hits.size) return hits.size === 1 ? [...hits.values()][0] : null;
+  // Thumbtack leads (2026-10-03 prod audit: 98 of 102 carry a number from
+  // Thumbtack's masked pool, so the customer's own number never matches; the
+  // webhook sends no other number). Weaker evidence, tried only when nothing
+  // above matched, and still only a UNIQUE Thumbtack lead:
+  //   the phone contact reads "<first> <last initial>" (Thumbtack's display);
+  //   the call mentions Thumbtack and says the lead's first name.
+  const tt = live.filter(isThumbtackLead);
+  const tier = (test, why) => {
+    const m = tt.filter(test);
+    return m.length === 1 ? { leadId: m[0].id, name: name(m[0]), why } : (m.length > 1 ? false : null);
+  };
+  const byContact = tier((l) => {
+    const first = normMatch(l.firstName), initial = normMatch(l.lastName).slice(0, 1);
+    return first.length > 2 && !!initial && new RegExp(' ' + first + ' ' + initial).test(contact);
+  }, 'Thumbtack lead — their first name and initial in your phone');
+  if (byContact !== null) return byContact || null;
+  if (!THUMBTACK_SAID_RE.test(said)) return null;
+  return tier((l) => { const first = normMatch(l.firstName); return first.length > 2 && said.includes(' ' + first + ' '); },
+    'Thumbtack lead — the call mentions Thumbtack and their first name') || null;
+}
+
+/**
+ * Numbers on 3 or more of a tenant's leads are proxies (a shared office
+ * line, a lead service's relay), not a person: they never match a call by
+ * themselves and a number-wide re-file never runs on them.
+ */
+const PROXY_MIN_LEADS = 3;
+function proxyNumbers(leads) {
+  const count = new Map();
+  for (const l of leads || []) {
+    if (!l || l.deleted === true) continue;
+    const seen = new Set([l.phoneDigits, l.phone, l.phone2, l.altPhone, l.mobilePhone, l.secondaryPhone].map(phoneDigits10).filter((d) => d.length === 10));
+    seen.forEach((d) => count.set(d, (count.get(d) || 0) + 1));
+  }
+  return new Set([...count].filter(([, n]) => n >= PROXY_MIN_LEADS).map(([d]) => d));
+}
+
+/**
+ * Calls to and from a phone contact Jo tagged "NBD Customer" that sit on no
+ * lead (2026-10-03: 328 of 477 calls landed in the contact bucket). One row
+ * per number (or per contact name when there's no number), newest call
+ * first. A row MATCHES when exactly one lead carries the number, or — with
+ * no number match — exactly one lead's full name is in the contact name
+ * (suggestLeadForCall's first rule). Everything else is "not in the CRM yet".
+ * Pure: the callable previews this and writes only what Jo confirms.
+ * calls: phone_calls rows; leads: [{ id, firstName, lastName, address, phone…, deleted }].
+ */
+function taggedContactPlan({ calls, leads }) {
+  const live = (leads || []).filter((l) => l && l.id && l.deleted !== true);
+  const index = buildPhoneIndex(live);
+  const groups = new Map();
+  for (const c of calls || []) {
+    if (!c || c.leadId || c.status === 'personal' || !(Array.isArray(c.tags) && c.tags.includes('customer'))) continue;
+    const d = phoneDigits10(c.phoneDigits);
+    const key = d.length === 10 ? 'num:' + d : 'name:' + normMatch(c.contactName);
+    if (key === 'name:') continue;
+    if (!groups.has(key)) groups.set(key, { key, phoneDigits: d.length === 10 ? d : '', contactName: c.contactName || '', calls: [] });
+    groups.get(key).calls.push(c);
+  }
+  const name = (l) => ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer';
+  const matches = [], notInCrm = [];
+  for (const g of groups.values()) {
+    g.calls.sort((a, b) => (b.startedAtMs || 0) - (a.startedAtMs || 0));
+    const row = { key: g.key, phoneDigits: g.phoneDigits, contactName: g.contactName, callIds: g.calls.map((c) => c.id), latestAtMs: g.calls[0].startedAtMs || 0 };
+    const hits = g.phoneDigits && index.has(g.phoneDigits) ? index.get(g.phoneDigits) : [];
+    let lead = null, why = '';
+    if (hits.length === 1) { lead = hits[0]; why = 'their number is on the customer'; }
+    else if (!hits.length) {
+      const s = suggestLeadForCall({ contactName: g.contactName }, live);
+      if (s) { lead = live.find((l) => l.id === s.leadId); why = s.why; }
+    }
+    if (lead) matches.push(Object.assign(row, { leadId: lead.id, leadName: name(lead), why }));
+    else notInCrm.push(Object.assign(row, { ambiguous: hits.length > 1 }));
+  }
+  const newest = (a, b) => b.latestAtMs - a.latestAtMs;
+  return { matches: matches.sort(newest), notInCrm: notInCrm.sort(newest) };
 }
 
 /** "Snooze N days" lands on this date (America/New_York calendar days). */
@@ -602,6 +710,13 @@ module.exports = {
   buildSweepEmail,
   addDaysYmd,
   suggestLeadForCall,
+  SUGGEST_RULES_VERSION,
+  isThumbtackLead,
+  proxyNumbers,
+  PROXY_MIN_LEADS,
+  taggedContactPlan,
+  buildTextDayActivity,
+  buildTextDayTask,
   SWEEP_EMAIL_SHOW,
   DECK_URL,
   GROQ_MAX_BYTES,

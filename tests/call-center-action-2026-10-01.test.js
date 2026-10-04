@@ -24,14 +24,34 @@ function ok(name, cond, detail) {
   else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail ? '\n      ' + detail : '')); }
 }
 
+// Equality queries (Firestore semantics: == null never matches a missing
+// field), batches and deletes, enough for attach's re-file, move and the
+// tagged-contacts match.
 function fakeDb(seed) {
   const docs = new Map(Object.entries(seed));
   const mk = (p) => ({
+    id: p.split('/').pop(), path: p,
     get: async () => ({ exists: docs.has(p), data: () => docs.get(p) }),
     set: async (v, o) => { docs.set(p, o && o.merge ? Object.assign({}, docs.get(p) || {}, v) : v); },
     create: async (v) => { if (docs.has(p)) { const e = new Error('already exists'); e.code = 6; throw e; } docs.set(p, v); },
+    delete: async () => { docs.delete(p); },
   });
-  return { docs, doc: mk, collection: (n) => ({ doc: (id) => mk(n + '/' + id) }) };
+  const query = (name, filters, lim) => ({
+    where: (f, op, v) => query(name, filters.concat([[f, op, v]]), lim),
+    orderBy: () => query(name, filters, lim),
+    limit: (n) => query(name, filters, n),
+    get: async () => {
+      const rows = [...docs.entries()].filter(([k, v]) => k.startsWith(name + '/') && k.split('/').length === 2
+        && filters.every(([f, op, val]) => op === '==' && Object.prototype.hasOwnProperty.call(v, f) && v[f] === val)).slice(0, lim || 1e9)
+        .map(([k, v]) => ({ id: k.split('/')[1], ref: mk(k), exists: true, data: () => v }));
+      return { docs: rows, size: rows.length, forEach: (fn) => rows.forEach(fn) };
+    },
+  });
+  return {
+    docs, doc: mk,
+    collection: (n) => Object.assign(query(n, [], null), { doc: (id) => mk(n + '/' + id) }),
+    batch: () => { const ops = []; return { set: (ref, v, o) => ops.push(() => ref.set(v, o)), commit: async () => { for (const f of ops) await f(); } }; },
+  };
 }
 const OWN = 'owner1';
 const seed = () => ({
@@ -153,6 +173,128 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   const lo = await lr({ uid: REAL_OWNER, token: {} });
   ok('the owner gets the list (empty here) with counts', lo.r && Array.isArray(lo.r.items) && lo.r.counts.items === 0);
   ok('a platform admin gets it too', !!(await lr({ uid: 'adm', token: { role: 'admin' } })).r);
+
+  console.log('\n8. attach re-files every unfiled call + text from that number (2026-10-03)');
+  const NUM = '5135550100';
+  const rseed = () => Object.assign(seed(), {
+    // Earlier calls from the same number, filed on nobody at ingest.
+    [COLLECTION + '/cube_SIB001']: { userId: OWN, companyId: 'co1', phoneDigits: NUM, leadId: null, status: 'noted', startedAtMs: NOW - 86400e3, direction: 'outbound', contactName: 'Example Claims', summary: 'Left a voicemail.', promises: [{ who: 'jo', text: 'Call the adjuster back', due: '2026-10-02' }], followUpDate: null, urgent: false },
+    [COLLECTION + '/cube_SIB002']: { userId: OWN, companyId: 'co1', phoneDigits: NUM, leadId: null, status: 'stored' },
+    // Same number, already on ANOTHER customer: never moved.
+    [COLLECTION + '/cube_SIB003']: { userId: OWN, companyId: 'co1', phoneDigits: NUM, leadId: 'L2', status: 'noted', startedAtMs: NOW - 2 * 86400e3, summary: 'x', promises: [] },
+    // Same number, another tenant: never touched.
+    [COLLECTION + '/cube_SIB004']: { userId: 'other', companyId: 'co2', phoneDigits: NUM, leadId: null, status: 'noted', startedAtMs: NOW, summary: 'x', promises: [] },
+    // A different number: never touched.
+    [COLLECTION + '/cube_SIB005']: { userId: OWN, companyId: 'co1', phoneDigits: '5135550142', leadId: null, status: 'noted', startedAtMs: NOW, summary: 'x', promises: [] },
+    'phone_text_days/txt_5135550100_20260930': { userId: OWN, companyId: 'co1', channel: 'text', phoneDigits: NUM, leadId: null, status: 'noted', startedAtMs: NOW - 3600e3, messageCount: 3, contactName: 'Example Claims', summary: 'Texted the claim number.', promises: [{ who: 'jo', text: 'Text the photos', due: null }], followUpDate: '2026-10-01', urgent: false },
+    'phone_texts/sms_T1': { userId: OWN, companyId: 'co1', phoneDigits: NUM, leadId: null, body: 'claim # is 123' },
+    'phone_texts/sms_T2': { userId: OWN, companyId: 'co1', phoneDigits: NUM, leadId: null, body: 'thanks' },
+    'phone_texts/sms_T3': { userId: OWN, companyId: 'co1', phoneDigits: '5135550142', leadId: null, body: 'not them' },
+    'phone_texts/sms_T4': { userId: 'other', companyId: 'co2', phoneDigits: NUM, leadId: null, body: 'other tenant' },
+  });
+  db = fakeDb(rseed());
+  const ra = await run(db, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L1' });
+  const sib = (k) => db.docs.get(COLLECTION + '/' + k);
+  ok('the attached call itself is filed', sib('cube_AAAAA1').leadId === 'L1');
+  ok('an earlier noted call from the number is re-filed on the lead', sib('cube_SIB001').leadId === 'L1' && sib('cube_SIB001').bucket === 'customer' && sib('cube_SIB001').refiledFrom === 'cube_AAAAA1', JSON.stringify(sib('cube_SIB001')));
+  ok('…with the same timeline entry the notes pass writes', JSON.stringify(Object.assign({}, db.docs.get('leads/L1/activity/cube-cube_SIB001'), { createdAt: 0 }))
+    === JSON.stringify(Object.assign(L.buildCallActivity({ call: Object.assign({}, sib('cube_SIB001'), { id: 'cube_SIB001' }), notes: { summary: 'Left a voicemail.', promises: [{ who: 'jo', text: 'Call the adjuster back', due: '2026-10-02' }], followUpDate: null, urgent: false }, ownerUid: OWN }), { createdAt: 0 })));
+  ok('…and the same follow-up task', db.docs.get('leads/L1/tasks/cube-cube_SIB001') && /Call the adjuster back/.test(db.docs.get('leads/L1/tasks/cube-cube_SIB001').title) && db.docs.get('leads/L1/tasks/cube-cube_SIB001').leadId === 'L1');
+  ok('a not-yet-noted call is filed (the notes pass adds its entry later)', sib('cube_SIB002').leadId === 'L1' && !db.docs.has('leads/L1/activity/cube-cube_SIB002'));
+  ok('a call already on another customer stays there', sib('cube_SIB003').leadId === 'L2' && !db.docs.has('leads/L1/activity/cube-cube_SIB003'));
+  ok('another tenant\'s call from the same number is untouched', sib('cube_SIB004').leadId === null);
+  ok('a different number is untouched', sib('cube_SIB005').leadId === null);
+  const tday = db.docs.get('phone_text_days/txt_5135550100_20260930');
+  ok('the number\'s unfiled day of texts is re-filed', tday.leadId === 'L1');
+  ok('…with the text timeline entry + task text notes write', !!db.docs.get('leads/L1/activity/sms-txt_5135550100_20260930') && db.docs.get('leads/L1/activity/sms-txt_5135550100_20260930').label === 'Texts · Example Claims (3)'
+    && db.docs.get('leads/L1/tasks/sms-txt_5135550100_20260930') && db.docs.get('leads/L1/tasks/sms-txt_5135550100_20260930').source === 'sms-backup');
+  ok('the texts themselves move onto the lead (customer page thread)', db.docs.get('phone_texts/sms_T1').leadId === 'L1' && db.docs.get('phone_texts/sms_T2').leadId === 'L1');
+  ok('…not another number\'s or another tenant\'s', db.docs.get('phone_texts/sms_T3').leadId === null && db.docs.get('phone_texts/sms_T4').leadId === null);
+  ok('the result counts what was re-filed', ra.r && JSON.stringify(ra.r.refiled) === JSON.stringify({ calls: 2, textDays: 1, texts: 2 }), JSON.stringify(ra.r && ra.r.refiled));
+  // Idempotent: Jo ticks the re-filed task, then attaches again.
+  db.docs.set('leads/L1/tasks/cube-cube_SIB001', Object.assign({}, db.docs.get('leads/L1/tasks/cube-cube_SIB001'), { done: true }));
+  const before8 = db.docs.size;
+  const rb = await run(db, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L1' });
+  ok('a second attach re-files nothing and creates nothing', JSON.stringify(rb.r.refiled) === JSON.stringify({ calls: 0, textDays: 0, texts: 0 }) && db.docs.size === before8);
+  ok('…and never un-ticks a re-filed task', db.docs.get('leads/L1/tasks/cube-cube_SIB001').done === true);
+
+  // A proxy number (on 3+ leads — a relay, not a person) is never swept.
+  db = fakeDb(rseed());
+  for (const k of ['PX1', 'PX2', 'PX3']) db.docs.set('leads/' + k, { userId: OWN, companyId: 'co1', firstName: k, phoneDigits: NUM });
+  const rp = await run(db, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L1' });
+  ok('attach on a proxy number files that one call only — nothing else from the number', rp.r && rp.r.refiled.proxy === true && sib('cube_AAAAA1').leadId === 'L1'
+    && sib('cube_SIB001').leadId === null && db.docs.get('phone_text_days/txt_5135550100_20260930').leadId === null && db.docs.get('phone_texts/sms_T1').leadId === null, JSON.stringify(rp.r && rp.r.refiled));
+
+  console.log('\n9. move — "Wrong customer → move to…" (2026-10-03)');
+  const mseed = () => Object.assign(seed(), {
+    [COLLECTION + '/cube_MOVE01']: { userId: OWN, companyId: 'co1', phoneDigits: '5135550166', leadId: 'L1', bucket: 'customer', status: 'noted', startedAtMs: NOW - 3600e3, direction: 'inbound', contactName: 'Sam', summary: 'Asked for a siding quote.', promises: [{ who: 'jo', text: 'Send the siding quote', due: '2026-10-02' }] },
+    'leads/L1/activity/cube-cube_MOVE01': { type: 'call', phoneCallId: 'cube_MOVE01', summary: 'Asked for a siding quote.', userId: OWN, companyId: OWN },
+    'leads/L1/tasks/cube-cube_MOVE01': { leadId: 'L1', title: 'Send the siding quote (Sam)', done: false, dueDate: '2026-10-02', phoneCallId: 'cube_MOVE01' },
+    'leads/L1/activity/other-entry': { type: 'note', text: 'unrelated' },
+    'leads/Y1': { userId: OWN, companyId: 'co1', firstName: 'Deleted', deleted: true },
+  });
+  db = fakeDb(mseed());
+  const snap9 = () => JSON.stringify([...db.docs.entries()].sort());
+  let s9 = snap9();
+  ok('a viewer cannot move', (await run(db, { uid: 'v', token: { role: 'viewer', companyId: 'co1' } }, { id: 'cube_MOVE01', action: 'move', leadId: 'L2' })).e.code === 'permission-denied' && snap9() === s9);
+  ok('another company\'s lead is refused, nothing written', (await run(db, owner, { id: 'cube_MOVE01', action: 'move', leadId: 'X1' })).e.code === 'permission-denied' && snap9() === s9);
+  ok('a deleted lead is refused', (await run(db, owner, { id: 'cube_MOVE01', action: 'move', leadId: 'Y1' })).e.code === 'not-found' && snap9() === s9);
+  ok('a bad lead id is refused', (await run(db, owner, { id: 'cube_MOVE01', action: 'move', leadId: 'a/b' })).e.code === 'invalid-argument');
+  ok('a call on no customer is attached, not moved', (await run(db, owner, { id: 'cube_BBBBB2', action: 'move', leadId: 'L2' })).e.code === 'failed-precondition');
+  const mv = await run(db, owner, { id: 'cube_MOVE01', action: 'move', leadId: 'L2' });
+  const mc = db.docs.get(COLLECTION + '/cube_MOVE01');
+  ok('the call now names the chosen customer', mv.r && mv.r.moved === true && mc.leadId === 'L2' && mc.movedFromLeadId === 'L1' && mc.movedBy === OWN, JSON.stringify(mc));
+  ok('its timeline entry moved (gone from the wrong customer)', !db.docs.has('leads/L1/activity/cube-cube_MOVE01') && db.docs.get('leads/L2/activity/cube-cube_MOVE01').summary === 'Asked for a siding quote.');
+  ok('its open task moved and points at the new lead', !db.docs.has('leads/L1/tasks/cube-cube_MOVE01') && db.docs.get('leads/L2/tasks/cube-cube_MOVE01').leadId === 'L2' && db.docs.get('leads/L2/tasks/cube-cube_MOVE01').done === false);
+  ok('the wrong customer\'s other timeline entries are untouched', !!db.docs.get('leads/L1/activity/other-entry'));
+  ok('the caller\'s number goes onto the new lead (blank phone)', db.docs.get('leads/L2').phone === '(513) 555-0166' && mv.r.phoneAdded === true);
+  s9 = snap9();
+  ok('moving to where it already is changes nothing', (await run(db, owner, { id: 'cube_MOVE01', action: 'move', leadId: 'L2' })).r.moved === false && snap9() === s9);
+  // A call filed on another company's lead (bad data) can't be moved out by this tenant.
+  db.docs.set(COLLECTION + '/cube_MOVE02', { userId: OWN, companyId: 'co1', phoneDigits: '5135550167', leadId: 'X1', status: 'stored' });
+  ok('a call whose current lead is in another company is refused', (await run(db, owner, { id: 'cube_MOVE02', action: 'move', leadId: 'L2' })).e.code === 'permission-denied');
+  // Retry after a half-finished move (entry + task already copied, call not yet re-pointed).
+  db = fakeDb(mseed());
+  db.docs.set('leads/L2/tasks/cube-cube_MOVE01', { leadId: 'L2', title: 'Send the siding quote (Sam)', done: true });
+  await run(db, owner, { id: 'cube_MOVE01', action: 'move', leadId: 'L2' });
+  ok('a retried move finishes and never un-ticks the task already on the new lead', db.docs.get(COLLECTION + '/cube_MOVE01').leadId === 'L2' && db.docs.get('leads/L2/tasks/cube-cube_MOVE01').done === true && !db.docs.has('leads/L1/tasks/cube-cube_MOVE01'));
+
+  console.log('\n10. "Match my tagged contacts" — preview, then write only what Jo confirms');
+  const { taggedMatch } = M._test;
+  const tm = async (d, auth, data) => { try { return { r: await taggedMatch({ db: d, auth, data, nowMs: NOW }) }; } catch (e) { return { e }; } };
+  const O = REAL_OWNER;
+  const tcall = (extra) => Object.assign({ userId: O, companyId: O, leadId: null, bucket: 'contact', savedContact: true, tags: ['customer'], status: 'noted', startedAtMs: NOW - 3600e3, summary: 's', promises: [] }, extra);
+  const tseed = () => ({
+    'leads/TL1': { userId: O, companyId: O, firstName: 'Dana', lastName: 'Rivers', phone: '(513) 555-0301' },
+    'leads/TL2': { userId: O, companyId: O, firstName: 'Lee', lastName: 'Okafor', phone: '' },
+    'leads/TL3': { userId: O, companyId: O, firstName: 'Old', lastName: 'Gone', phone: '5135550309', deleted: true },
+    [COLLECTION + '/cube_TAG001']: tcall({ phoneDigits: '5135550301', contactName: 'Dana R', startedAtMs: NOW - 1000 }),
+    [COLLECTION + '/cube_TAG002']: tcall({ phoneDigits: '5135550301', contactName: 'Dana R', startedAtMs: NOW - 2000 }),
+    [COLLECTION + '/cube_TAG003']: tcall({ phoneDigits: '5135550302', contactName: 'Lee Okafor' }),
+    [COLLECTION + '/cube_TAG004']: tcall({ phoneDigits: '5135550303', contactName: 'Morgan New' }),
+    [COLLECTION + '/cube_TAG005']: tcall({ phoneDigits: '5135550304', contactName: 'Untagged Friend', tags: [] }),
+    [COLLECTION + '/cube_TAG006']: tcall({ phoneDigits: '5135550309', contactName: 'Was A Lead' }),
+  });
+  db = fakeDb(tseed());
+  ok('a manager is refused (the owner\'s phone)', (await tm(db, { uid: 'm', token: { role: 'manager', companyId: O } }, {})).e.code === 'permission-denied');
+  ok('signed out is refused', (await tm(db, null, {})).e.code === 'unauthenticated');
+  const s10 = JSON.stringify([...db.docs.entries()].sort());
+  const pv = (await tm(db, { uid: O, token: {} }, {})).r;
+  ok('preview writes nothing', JSON.stringify([...db.docs.entries()].sort()) === s10);
+  const byK = (rows, k) => rows.find((x) => x.key === k);
+  ok('a tagged number on a lead matches it (2 calls, one row)', byK(pv.matches, 'num:5135550301') && byK(pv.matches, 'num:5135550301').leadId === 'TL1' && byK(pv.matches, 'num:5135550301').callIds.length === 2, JSON.stringify(pv));
+  ok('a tagged contact named like one lead matches by name', byK(pv.matches, 'num:5135550302') && byK(pv.matches, 'num:5135550302').leadId === 'TL2' && /name/.test(byK(pv.matches, 'num:5135550302').why));
+  ok('a tagged contact on no lead is "not in the CRM yet"', !!byK(pv.notInCrm, 'num:5135550303') && pv.notInCrm.length === 2);
+  ok('a deleted lead is never a match', !byK(pv.matches, 'num:5135550309') && !!byK(pv.notInCrm, 'num:5135550309'));
+  ok('an untagged contact is left out', !byK(pv.matches, 'num:5135550304') && !byK(pv.notInCrm, 'num:5135550304'));
+  // Confirm one row; a row whose lead doesn't match the fresh plan is skipped.
+  const cf = (await tm(db, { uid: O, token: {} }, { confirm: [{ key: 'num:5135550301', leadId: 'TL1' }, { key: 'num:5135550302', leadId: 'TL1' }, { key: 'num:5135550303', leadId: 'TL1' }] })).r;
+  ok('only the confirmed, still-matching row is filed', cf.filed === 1 && cf.skipped === 2 && cf.calls === 2, JSON.stringify(cf));
+  ok('both of that number\'s calls are on the lead', sib('cube_TAG001').leadId === 'TL1' && sib('cube_TAG002').leadId === 'TL1');
+  ok('the skipped rows are untouched', sib('cube_TAG003').leadId === null && sib('cube_TAG004').leadId === null);
+  const cf2 = (await tm(db, { uid: O, token: {} }, { confirm: [{ key: 'num:5135550301', leadId: 'TL1' }] })).r;
+  ok('confirming again files nothing (already filed)', cf2.filed === 0 && cf2.skipped === 1);
+  ok('L.taggedContactPlan: a number on two leads is never guessed', L.taggedContactPlan({ calls: [tcall({ id: 'c1', phoneDigits: '5135550400', contactName: 'X' })], leads: [{ id: 'a', phone: '5135550400' }, { id: 'b', altPhone: '5135550400' }] }).notInCrm[0].ambiguous === true);
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

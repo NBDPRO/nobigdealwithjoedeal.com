@@ -32,6 +32,19 @@
     });
   }
 
+  // The live Google rating for the trust line (data-nbd-gr-rating). Pages that
+  // already load google-reviews-widget.js get re-hydrated through its hook;
+  // the rest load it once. Until it answers, the static "5.0" stands — the
+  // same true-at-rest fallback the homepage's reviews row uses.
+  function hydrateRating() {
+    if (typeof window.nbdHydrateReviewHooks === 'function') { window.nbdHydrateReviewHooks(); return; }
+    if (document.querySelector('script[src*="google-reviews-widget.js"]')) return; // loading — it hydrates on its own
+    var s = document.createElement('script');
+    s.src = '/assets/js/google-reviews-widget.js';
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
   // Lazy-load the shared intake block (scheduling choice, photos, …).
   function ensureIntake() {
     if (window.NBDIntake) return Promise.resolve();
@@ -72,6 +85,8 @@
         // TCPA (2026-10-03): the express-written-consent box /storm-check uses,
         // same wording; required, and posted as tcpaConsent for the record.
         '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>' +
+        // Trust line above Submit (2026-10-03). Rating hydrated live (hydrateRating).
+        '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof</p>' +
         '<button class="qlf-btn" type="submit" id="' + uid + '-btn">Send &mdash; Joe calls you back</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
       '</form>';
@@ -81,6 +96,11 @@
     var ok = document.getElementById(uid + '-ok');
     var btn = document.getElementById(uid + '-btn');
     ensureIntake();
+    hydrateRating();
+    // First focus in the form: fetch the gateway client now, not at Submit —
+    // loading it starts the spam-check (Turnstile) script download too
+    // (public-lead-submit.js preloads on the focused field).
+    form.addEventListener('focusin', function () { ensureGateway().catch(function () {}); }, { once: true });
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();

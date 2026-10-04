@@ -144,7 +144,14 @@ function makeWorld(opts) {
       orderBy: (f, dir) => query(name, filters, [f, dir || 'asc'], lim),
       limit: (n) => query(name, filters, order, n),
       get: async () => {
-        if (name === 'sms_log') {
+        if (name === 'sms_log' && !filters.some(([f, op]) => f === 'date' && op === '>')) {
+          // sendSMS's per-tenant NEW-number lookup (security batch
+          // 2026-10-03): "has this tenant ever texted this number?" — no
+          // date window, every send. Not the outbox activity scan, which
+          // always reads a window (date > writtenAt - 60s).
+          const scope = filters.filter(([f]) => f !== 'toDigits').map(([f, , v]) => f + '=' + v).join(',');
+          events.push('newnumber-read:' + scope);
+        } else if (name === 'sms_log') {
           // Which tenant field the activity scan filtered on, for the
           // tenant-scoping assertions ('activity-read:companyId=co-1').
           const scope = filters.filter(([f]) => f !== 'toDigits' && f !== 'date').map(([f, , v]) => f + '=' + v).join(',');
