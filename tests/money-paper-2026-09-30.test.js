@@ -252,7 +252,9 @@ const docsOf = (db) => [...db.store.keys()].filter((k) => k.startsWith('leads/L1
   const cd = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'customer-documents.js'), 'utf8');
   ok('the Documents tab opens pdfPath rows through getDocumentPdfUrl', /data-doc-pdf=/.test(cd) && /'getDocumentPdfUrl'/.test(cd));
   const sci = fs.readFileSync(path.join(FN, 'stripe-crm-invoice.js'), 'utf8');
-  ok('Stripe invoices are due in 7 days', /days_until_due: 7,/.test(sci));
+  // 2026-10-03: one due-date value for every invoice (deposit-rule.js).
+  ok('Stripe invoices are due in 7 days', /days_until_due: require\('\.\/deposit-rule'\)\.INVOICE_DUE_DAYS,/.test(sci)
+    && require(path.join(FN, 'deposit-rule.js')).INVOICE_DUE_DAYS === 7);
   ok('trigger is 2GiB (Chromium) and watches invoices/{invoiceId}', MP.moneyPaperOnInvoice.__opts && MP.moneyPaperOnInvoice.__opts.memory === '2GiB' && MP.moneyPaperOnInvoice.__opts.document === 'invoices/{invoiceId}');
 
   console.log('\n12. history is never touched — only a change made by THIS write (the real trigger passes `before`)');

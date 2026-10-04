@@ -37,6 +37,13 @@
     return n;
   }
 
+  // window.NBDJurisdiction in the browser; the same file under Node (tests).
+  function jurisdiction(opts) {
+    if (opts && opts.jurisdiction) return opts.jurisdiction;
+    if (root && root.NBDJurisdiction) return root.NBDJurisdiction;
+    try { return (typeof require === 'function') ? require('./ky-insurance-law.js') : null; } catch (_) { return null; }
+  }
+
   /**
    * PURE. What a reminder for this invoice would say, and whether it may go.
    * opts: { company, repName, now, holdFn(lead, inv, now) -> {held, releaseDate} }
@@ -51,7 +58,11 @@
     var num = inv.nbdInvoiceNumber || inv.stripeInvoiceNumber || '';
     var company = opts.company || 'us';
     var who = firstName(inv, lead);
-    var link = hold.held ? '' : (inv.stripePaymentLink || '');
+    // ky-insurance-law.js payUrlOf: stripePaymentLink OR stripeHostedUrl (a
+    // Stripe Invoice) — this read only the first, so a Stripe-invoice
+    // reminder never carried its link. No module → no link (fail closed).
+    var J = jurisdiction(opts);
+    var link = hold.held ? '' : ((J && typeof J.payUrlOf === 'function') ? J.payUrlOf(inv) : '');
     var dueText = due ? due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     var line1 = (who ? 'Hi ' + who + ', ' : 'Hi, ') + 'a friendly reminder from ' + company + ': invoice'
       + (num ? ' ' + num : '') + ' for ' + money(balance) + (dueText ? ' was due ' + dueText : ' is still open') + '.';

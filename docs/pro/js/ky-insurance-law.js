@@ -466,6 +466,36 @@
     return { held: !kyPaymentsReleased(decision, now, tz), releaseDate: kyReleaseDateText(decision, tz) };
   }
 
+  /**
+   * payUrlOf(invoice) → the homeowner's pay link, or ''.
+   * Two writers, two fields: a payment link minted by the CRM is
+   * stripePaymentLink; a Stripe Invoice (stripe-crm-invoice.js, and every
+   * invoice the Stripe ledger mirrors in from the dashboard) is
+   * stripeHostedUrl. Every surface read only stripePaymentLink, so the
+   * Stripe invoices — all 7 in the 2026-10-03 prod audit — showed no Pay
+   * button anywhere. http(s) only; anything else is ''.
+   * Use payUrlUnlessHeld wherever the link reaches a homeowner.
+   */
+  function payUrlOf(invoice) {
+    var inv = invoice || {};
+    var cands = [inv.stripePaymentLink, inv.stripeHostedUrl];
+    for (var i = 0; i < cands.length; i++) {
+      var u = _str(cands[i]).trim();
+      if (u && /^https?:\/\/[^\s"'<>]+$/i.test(u)) return u;
+    }
+    return '';
+  }
+  /**
+   * payUrlUnlessHeld(lead, invoice, now, tz) → payUrlOf(invoice), or '' while
+   * the Kentucky insurance hold (payLinkHold) applies. A hosted Stripe
+   * invoice is minted outside createStripePaymentLink's gate (the ledger
+   * mirrors dashboard invoices), so the hold is re-checked at every surface.
+   */
+  function payUrlUnlessHeld(lead, invoice, now, tz) {
+    if (payLinkHold(lead, invoice, now, tz).held) return '';
+    return payUrlOf(invoice);
+  }
+
   /** The first day payment may be asked for ("October 6, 2026"), or ''. */
   function kyReleaseDateText(decisionDate, tz) {
     var end = kyWindowEnd(decisionDate, tz);
@@ -886,6 +916,8 @@
     kyPaymentsReleased: kyPaymentsReleased,
     kyReleaseDateText: kyReleaseDateText,
     payLinkHold: payLinkHold,
+    payUrlOf: payUrlOf,
+    payUrlUnlessHeld: payUrlUnlessHeld,
     addBusinessDays: addBusinessDays,
     esc: esc,
     kyNoticesHtml: kyNoticesHtml,

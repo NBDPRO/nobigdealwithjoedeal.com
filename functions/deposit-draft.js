@@ -146,4 +146,81 @@ async function draftDepositAfterSign(db, args, deps) {
   }
 }
 
-module.exports = { draftDepositAfterSign };
+
+/**
+ * The FINAL invoice when the install is complete (2026-10-03) — a DRAFT,
+ * never sent, plus the "Send final invoice" task, in ONE transaction:
+ *
+ *   reads   leads/{leadId}, estimates/{primaryEstimateId},
+ *           invoices where leadId == leadId, invoices/{finaldraft_…},
+ *           leads/{leadId}/tasks/send-final-invoice-…
+ *   writes  invoices/{finaldraft_<lead>_<job>}   tx.create (only when needed)
+ *           leads/{leadId}/tasks/send-final-invoice-<job>   only if absent
+ *
+ * Idempotent per job: the invoice id and the task id are deterministic, so
+ * a re-entered stage, a retried trigger and the spine's own 'installed' move
+ * all land on the same two documents. Never throws.
+ * @returns {Promise<{ created: boolean, invoiceId?: string|null, taskId?: string|null, reason?: string, error?: string }>}
+ */
+async function draftFinalAtInstall(db, args, deps) {
+  const { FieldValue, logger, now } = _deps(deps);
+  args = args || {};
+  const leadId = typeof args.leadId === 'string' ? args.leadId.trim() : '';
+  const sourceId = args.sourceId != null ? String(args.sourceId) : '';
+  if (!db || !/^[A-Za-z0-9_-]{1,128}$/.test(leadId)) return { created: false, reason: 'bad_lead_id' };
+  const nowMs = now();
+  try {
+    const leadRef = db.collection('leads').doc(leadId);
+    const out = await db.runTransaction(async (tx) => {
+      const ls = await tx.get(leadRef);
+      const lead = ls.exists ? (ls.data() || {}) : null;
+      if (!lead) return { created: false, reason: 'no_lead' };
+      const estimateId = (typeof lead.primaryEstimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(lead.primaryEstimateId)) ? lead.primaryEstimateId : null;
+      let est = null;
+      if (estimateId) {
+        const es = await tx.get(db.collection('estimates').doc(estimateId));
+        est = es.exists ? (es.data() || {}) : null;
+      }
+      const invSnap = await tx.get(db.collection('invoices').where('leadId', '==', leadId).limit(50));
+      const invoices = (invSnap.docs || []).map((d) => Object.assign({ id: d.id }, d.data() || {}));
+      const decision = D.decideFinalDraft({ leadId, lead, est, estimateId, invoices, nowMs, sourceId });
+      if (decision.action === 'skip' && decision.reason !== 'no_estimate') {
+        return { created: false, reason: decision.reason, invoiceId: null, taskId: null };
+      }
+      let invRef = null;
+      if (decision.action === 'create') {
+        invRef = db.collection('invoices').doc(decision.invoiceId);
+        const already = await tx.get(invRef);
+        if (already.exists) { invRef = null; decision.action = 'use_existing'; decision.reason = 'duplicate'; }
+      }
+      const t = D.finalTask(decision.jobId, decision, _todayEt(nowMs));
+      const taskRef = leadRef.collection('tasks').doc(t.id);
+      const ts = await tx.get(taskRef);
+      if (invRef) {
+        tx.create(invRef, Object.assign({}, decision.invoice, {
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }));
+      }
+      if (!ts.exists) {
+        tx.set(taskRef, Object.assign({}, t.doc, { createdAt: FieldValue.serverTimestamp(), createdBy: 'system: final invoice' }));
+      }
+      return {
+        created: !!invRef,
+        invoiceId: decision.invoiceId || null,
+        taskId: t.id,
+        taskCreated: !ts.exists,
+        reason: decision.action === 'create' ? 'drafted' : (decision.reason || decision.action),
+      };
+    });
+    logger.info('[finalDraft] install-complete billing', { leadId, sourceId, created: out.created, invoiceId: out.invoiceId || null, reason: out.reason, taskId: out.taskId || null });
+    return out;
+  } catch (e) {
+    if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) {
+      return { created: false, reason: 'duplicate' };
+    }
+    logger.warn('[finalDraft] failed', { leadId, sourceId, err: e && e.message });
+    return { created: false, reason: 'error', error: String((e && e.message) || e) };
+  }
+}
+module.exports = { draftDepositAfterSign, draftFinalAtInstall };

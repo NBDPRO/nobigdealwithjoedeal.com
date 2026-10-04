@@ -305,6 +305,13 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
 
 async function handle(invoiceId, after, deps, before) {
   const spine = await spineOnInvoice(deps, invoiceId, before, after);
+  // One timeline line per NEW payment, every tenant, every path (the Stripe
+  // webhook, the ledger, Mark Paid, Record payment) — payment-timeline.js,
+  // create-only per payment id. Only on a real write (never history), and
+  // not affected by the money-paper kill switch. Never throws.
+  const timeline = before !== undefined
+    ? await (deps.writePaymentTimeline || require('./payment-timeline').writePaymentTimeline)(deps.db, invoiceId, before, after, { FieldValue: deps.FieldValue })
+    : null;
   if (process.env.NBD_MONEY_PAPER === 'off') return spine ? { skipped: 'killswitch', spine } : { skipped: 'killswitch' };
   const d = P.decide(after, { ownerUid: OWNER });
   // before === undefined → a caller that cannot tell (tests of the rules
@@ -315,6 +322,7 @@ async function handle(invoiceId, after, deps, before) {
     if (!t.becamePaid) { d.fileReceipt = false; d.markOob = false; }
   }
   const out = spine ? { spine } : {};
+  if (timeline && (timeline.written || timeline.existing)) out.timeline = timeline;
   // Multi-job stage 2b: an invoice paid in full ON THIS WRITE marks its job
   // paid (the invoice's own jobId, else the customer's active job). A job is
   // done only when closed out AND paid in full (Jo, J3); jobsOnJobWrite then

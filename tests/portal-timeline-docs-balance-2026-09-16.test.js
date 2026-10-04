@@ -188,8 +188,13 @@ group('Balance card: server never mints a payment link, only reads one', () => {
   if (buildBlock) {
     assert('no Stripe API call anywhere in the balance build (read-only, per the approved plan)',
       !/stripe\.paymentLinks\.create|getStripe\(\)/.test(buildBlock), buildBlock);
-    assert('stripePaymentLink is only accepted when it is already an https URL',
-      /\/\^https:\\\/\\\/\/i\.test\(_unpaidInvoice\.stripePaymentLink\)/.test(buildBlock), buildBlock);
+    // 2026-10-03: the link comes from ky-insurance-law.js payUrlUnlessHeld
+    // (stripePaymentLink OR stripeHostedUrl, '' under the Kentucky hold) and
+    // is still only accepted when it is an https URL. Behaviour is tested in
+    // tests/money-getting-paid-2026-10-03.test.js.
+    assert('the pay link is only accepted when it is already an https URL',
+      /\/\^https:\\\/\\\/\/i\.test\(_payUrl\)/.test(buildBlock)
+      && /KyLaw\.payUrlUnlessHeld\(lead, _unpaidInvoice,/.test(buildBlock), buildBlock);
   }
 });
 
