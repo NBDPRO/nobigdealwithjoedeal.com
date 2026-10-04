@@ -113,7 +113,8 @@ function renderViaPreflight(method, preflightData) {
   ok('change_order: rep change description reaches doc (changeDescription→changesDescription)', html.indexOf(SENT) !== -1);
   ok('change_order: rep change amount $1,500 reaches doc (not $0 from empty items)', /1,500\.00/.test(html));
   ok('change_order: rep new total $13,500 reaches doc', /13,500\.00/.test(html));
-  ok('change_order: rep original contract date reaches doc', /2026-01-15/.test(html));
+  // Printed the way a person writes it since 2026-10-04 (was the raw input value).
+  ok('change_order: rep original contract date reaches doc', /January 15, 2026/.test(html));
 }
 
 // ── supplement_request: modal insCarrier bridges to renderer insuranceCompany;
@@ -323,7 +324,7 @@ function renderViaPreflight(method, preflightData) {
   });
   console.log('PREFLIGHT CONTRACT — warranty_certificate');
   ok('warranty: renders (no error)', html.indexOf('RENDER_ERROR') !== 0);
-  ok('warranty: rep install date reaches doc (installDate→issueDate)', /2026-09-15/.test(html));
+  ok('warranty: rep install date reaches doc (installDate→issueDate)', /September 15, 2026/.test(html));
   ok('warranty: rep coverage details reach doc (coverageDetails wired)', html.indexOf('SENTINELcoverage') !== -1);
   ok('warranty: rep-checked transferable clause shows on a Standard-tier cert (checkbox ADDS transferability)', /fully transferable/.test(html));
   ok('warranty: roof-specific "Complete roof replacement" workPerformed default is GONE', !/Complete roof replacement including tear-off/.test(html));

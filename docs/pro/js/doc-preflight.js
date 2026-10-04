@@ -355,6 +355,20 @@
   }
 
   /**
+   * The estimate's items as identity only — { code, name }, no prices — for
+   * NBDDocGen.resolveDocManufacturer. Reads BOTH shapes (V2 `rows`, classic
+   * `lineItems`); a per-SQ estimate's customer line items are one "Roofing
+   * system" line, which names no shingle at all.
+   */
+  function manufacturerItems(est) {
+    if (!est) return [];
+    var src = [].concat(Array.isArray(est.rows) ? est.rows : [], Array.isArray(est.lineItems) ? est.lineItems : []);
+    return src.map(function (r) {
+      return { code: String((r && r.code) || ''), name: String((r && (r.name || r.description)) || '') };
+    }).filter(function (r) { return r.code || r.name; });
+  }
+
+  /**
    * The job's deposit plan from deposit-rule.js (2026-09-25): the contract
    * price the pre-flight prefills (computed.jobValue's own priority), the
    * estimate's mode + claim, the lead's deductible as fallback.
@@ -410,6 +424,32 @@
         // rule for any other caller.
         return depositFieldDefault('computed.' + name,
           depositPlanFor(ctx, ('depositTotal' in ctx) ? { total: ctx.depositTotal } : {}));
+      // Template library (2026-10-04) — each prefills from what the CRM
+      // already knows, so nothing is retyped.
+      case 'propertyState':
+        // OH / KY from the same classifier the contract uses; '' otherwise.
+        try {
+          var _jx = window.NBDJurisdiction;
+          var _st = _jx ? _jx.classify({ address: lead.address || '', zip: lead.zip || '', state: lead.state || '' }).state : '';
+          return (_st === 'OH' || _st === 'KY') ? _st : '';
+        } catch (e) { return ''; }
+      case 'contractDate':
+        // The signed contract's date when the CRM has one, else today.
+        return toDateInput(lead.contractSignedAt || lead.contractFiledAt) || toDateInput(new Date());
+      case 'signedContractDate':
+        // The change order's "Original Contract Date": only a date the CRM
+        // actually holds — never today, which would misstate the contract.
+        return toDateInput(lead.contractSignedAt || lead.contractFiledAt);
+      case 'payerType':
+        return (lead.insCarrier || lead.claimNumber) ? 'insurance' : 'homeowner';
+      case 'shingleLine':
+        // The shingle actually on the estimate; never the resolver's
+        // no-estimate default.
+        try {
+          var _m = window.NBDDocGen && window.NBDDocGen.resolveDocManufacturer
+            ? window.NBDDocGen.resolveDocManufacturer(manufacturerItems(est)) : null;
+          return (_m && _m.manufacturerName && _m.manufacturerName !== _m.manufacturer + ' shingles') ? _m.manufacturerName : '';
+        } catch (e) { return ''; }
       case 'dueDate':
         var d = new Date();
         d.setDate(d.getDate() + 30);
@@ -1014,7 +1054,7 @@
             { key: 'originalContractNumber', label: 'Original Contract #', type: 'text',
               source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'e.g., CON-2026-001' },
             { key: 'originalContractDate', label: 'Original Contract Date', type: 'date',
-              source: 'literal:', persist: PERSIST.DOCUMENT },
+              source: 'computed.signedContractDate', persist: PERSIST.DOCUMENT },
             { key: 'changeOrderNumber', label: 'Change Order #', type: 'text',
               source: 'literal:CO-001', persist: PERSIST.DOCUMENT },
             { key: 'originalTotal', label: 'Original Total', type: 'currency',
@@ -1030,10 +1070,192 @@
             { key: 'changeAmount', label: 'Change Amount (+/-)', type: 'currency', required: true,
               source: 'literal:0', persist: PERSIST.DOCUMENT,
               help: 'Positive for additions, negative for credits.' },
-            { key: 'newTotal', label: 'New Contract Total', type: 'currency', required: true,
-              source: 'literal:0', persist: PERSIST.DOCUMENT },
-            { key: 'scheduleImpact', label: 'Schedule Impact', type: 'textarea', rows: 2,
+            // 2026-10-04: was required with a literal 0 default, and the
+            // renderer trusted it — a rep who filled in only the change
+            // amount printed "New Total $0.00" on a signed change order.
+            { key: 'newTotal', label: 'New Contract Total', type: 'currency',
+              source: 'literal:', persist: PERSIST.EPHEMERAL,
+              help: 'Leave blank to compute it: original total + change amount.' }
+          ]
+        },
+        {
+          id: 'schedule', title: 'Effect on Schedule', collapsed: false,
+          fields: [
+            { key: 'scheduleDays', label: 'Working days added (+) or saved (−)', type: 'number',
+              source: 'literal:', persist: PERSIST.EPHEMERAL, placeholder: '0' },
+            { key: 'newCompletionDate', label: 'New estimated completion', type: 'date',
+              source: 'literal:', persist: PERSIST.EPHEMERAL },
+            { key: 'scheduleImpact', label: 'Schedule note', type: 'textarea', rows: 2,
               source: 'literal:No change to estimated completion date.', persist: PERSIST.DOCUMENT }
+          ]
+        }
+      ]
+    },
+
+    // ── 11b. LIEN WAIVER (template library, 2026-10-04) ─────────
+    // One document, four kinds x two states. The waiver is the contractor's,
+    // so the contractor signs; a mortgage company usually wants it before it
+    // endorses an insurance check.
+    lien_waiver: {
+      title: 'Lien Waiver',
+      subtitle: 'Gives up the contractor’s lien rights for one payment.',
+      sections: [
+        CUSTOMER_SECTION,
+        {
+          id: 'waiver', title: 'Waiver', collapsed: false,
+          fields: [
+            { key: 'waiverKind', label: 'Kind of waiver', type: 'select', required: true,
+              source: 'literal:conditional_progress', persist: PERSIST.EPHEMERAL,
+              options: [
+                { value: 'conditional_progress',   label: 'Conditional — progress payment (before the check clears)' },
+                { value: 'unconditional_progress', label: 'Unconditional — progress payment (money received)' },
+                { value: 'conditional_final',      label: 'Conditional — final payment (before the check clears)' },
+                { value: 'unconditional_final',    label: 'Unconditional — final payment (money received)' }
+              ],
+              help: 'Conditional until the money has cleared. Unconditional only after it has.' },
+            { key: 'waiverState', label: 'Property state', type: 'select', required: true,
+              source: 'computed.propertyState', persist: PERSIST.EPHEMERAL,
+              options: [{ value: 'OH', label: 'Ohio' }, { value: 'KY', label: 'Kentucky' }] },
+            { key: 'amount', label: 'Payment amount', type: 'currency', required: true,
+              source: 'literal:', persist: PERSIST.EPHEMERAL },
+            { key: 'throughDate', label: 'Work covered through (progress waivers)', type: 'date',
+              source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+            { key: 'checkNumber', label: 'Check / payment reference no.', type: 'text',
+              source: 'literal:', persist: PERSIST.EPHEMERAL }
+          ]
+        },
+        {
+          id: 'payer', title: 'Who Is Paying', collapsed: false,
+          fields: [
+            { key: 'payerType', label: 'Paid by', type: 'select', required: true,
+              source: 'computed.payerType', persist: PERSIST.EPHEMERAL,
+              options: [
+                { value: 'homeowner', label: 'Homeowner' },
+                { value: 'insurance', label: 'Insurance company (check to the owner)' },
+                { value: 'mortgage',  label: 'Mortgage company' }
+              ] },
+            { key: 'insCarrier', label: 'Insurance company', type: 'text',
+              source: 'lead.insCarrier', persist: PERSIST.LEAD },
+            { key: 'claimNumber', label: 'Owner’s claim number', type: 'text',
+              source: 'lead.claimNumber', persist: PERSIST.LEAD },
+            { key: 'mortgageCompany', label: 'Mortgage company', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'loanNumber', label: 'Mortgage loan no.', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
+          ]
+        },
+        {
+          id: 'extra', title: 'Exceptions & Notary', collapsed: true,
+          fields: [
+            { key: 'exceptions', label: 'Amounts NOT waived', type: 'textarea', rows: 2,
+              source: 'literal:', persist: PERSIST.EPHEMERAL, placeholder: 'Leave blank for none.' },
+            { key: 'includeNotary', label: 'Add a notary block', type: 'checkbox',
+              source: 'literal:false', persist: PERSIST.DOCUMENT,
+              help: 'Some mortgage companies ask for a notarized waiver.' }
+          ]
+        }
+      ]
+    },
+
+    // ── 11c. RIGHT TO CANCEL (template library, 2026-10-04) ─────
+    right_to_cancel: {
+      title: 'Notice of Right to Cancel',
+      subtitle: 'The 3-business-day cancellation notice for a contract signed at the home.',
+      sections: [
+        CUSTOMER_SECTION,
+        {
+          id: 'contract', title: 'Contract', collapsed: false,
+          fields: [
+            { key: 'contractDate', label: 'Contract date', type: 'date', required: true,
+              source: 'computed.contractDate', persist: PERSIST.EPHEMERAL,
+              help: 'The day the homeowner signed. The cancel deadline is counted from it.' }
+          ]
+        }
+      ]
+    },
+
+    // ── 11d. MATERIAL & COLOR SELECTION (template library) ──────
+    material_selection: {
+      title: 'Material & Color Selection',
+      subtitle: 'Homeowner signs off on materials and colors before ordering.',
+      sections: [
+        CUSTOMER_SECTION,
+        {
+          id: 'roof', title: 'Roof', collapsed: false,
+          fields: [
+            { key: 'shingleLine', label: 'Shingle line', type: 'text',
+              source: 'computed.shingleLine', persist: PERSIST.DOCUMENT, placeholder: 'e.g., TAMKO Titan XT' },
+            { key: 'shingleColor', label: 'Shingle color', type: 'text', required: true,
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'underlayment', label: 'Underlayment', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'dripEdge', label: 'Drip edge (style / color)', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'ventilation', label: 'Roof vents', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'e.g., ridge vent' }
+          ]
+        },
+        {
+          id: 'gutters', title: 'Gutters', collapsed: false,
+          fields: [
+            { key: 'gutters', label: 'Gutters (size / style)', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'e.g., 6" K-style seamless' },
+            { key: 'gutterColor', label: 'Gutter color', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'gutterGuards', label: 'Gutter guards', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
+          ]
+        },
+        {
+          id: 'other', title: 'Other', collapsed: true,
+          fields: [
+            { key: 'otherSelections', label: 'Other selections', type: 'textarea', rows: 2,
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'selectionNotes', label: 'Notes', type: 'textarea', rows: 2,
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'warrantyTier', label: 'Package', type: 'warranty-tier',
+              source: 'estimate.tier', persist: PERSIST.DOCUMENT }
+          ]
+        }
+      ]
+    },
+
+    // ── 11e. GOOD-BETTER-BEST OPTIONS (template library) ────────
+    // The per-tier prices come from the estimate itself (hydrateDerivedFields),
+    // never from a field the rep retypes.
+    proposal_options: {
+      title: 'Good-Better-Best Options',
+      subtitle: 'One page comparing every priced package on the estimate.',
+      sections: [
+        CUSTOMER_SECTION,
+        {
+          id: 'options', title: 'Options', collapsed: false,
+          fields: [
+            { key: 'date', label: 'Date', type: 'date', source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+            { key: 'projectDescription', label: 'Scope (same for every option)', type: 'textarea', rows: 3,
+              source: 'lead.scopeOfWork', persist: PERSIST.LEAD }
+          ]
+        }
+      ]
+    },
+
+    // ── 11f. INSURANCE JOB: SCOPE & NEXT STEPS (template library) ─
+    insurance_next_steps: {
+      title: 'Insurance Job: Scope & Next Steps',
+      subtitle: 'Homeowner letter: who does what on an insurance job.',
+      sections: [
+        CUSTOMER_SECTION,
+        {
+          id: 'scope', title: 'Scope', collapsed: false,
+          fields: [
+            { key: 'scopeOfWork', label: 'What we found and recommend', type: 'textarea', rows: 4,
+              source: 'lead.scopeOfWork', persist: PERSIST.LEAD },
+            { key: 'insCarrier', label: 'Homeowner’s insurance company', type: 'text',
+              source: 'lead.insCarrier', persist: PERSIST.LEAD },
+            { key: 'claimNumber', label: 'Homeowner’s claim number', type: 'text',
+              source: 'lead.claimNumber', persist: PERSIST.LEAD },
+            { key: 'dateOfLoss', label: 'Date of loss', type: 'date',
+              source: 'lead.dateOfLoss', persist: PERSIST.LEAD }
           ]
         }
       ]
@@ -2943,6 +3165,28 @@
       data.warranty = _wMfg ? (_wTxt + ' ' + _wMfg.level + ' manufacturer coverage — ' + _wMfg.note) : _wTxt;          // tier consolidation, #1529)
     }
     if (data.scopeSummary == null && data.scopeCompleted) data.scopeSummary = data.scopeCompleted;                     // certificate_of_completion
+
+    // Template library (2026-10-04). What the shingle on the estimate IS —
+    // code + name only, never a price — for the manufacturer resolver
+    // (warranty certificate, material selection). The pre-flight never passed
+    // it, so every certificate generated through this modal fell back to the
+    // resolver's GAF default and named GAF's warranty on TAMKO roofs.
+    // Scoped to the documents that read each field, so every other
+    // document's merge data stays exactly what it was.
+    var _est = state.estimate || null;
+    if ((state.type === 'warranty_certificate' || state.type === 'material_selection') && data.estimateLineItems == null) {
+      data.estimateLineItems = manufacturerItems(_est);
+    }
+    // Good-Better-Best options: every tier price the estimate saved (dollars,
+    // estimate-v2-ui.js `prices`) and the tier it was quoted at.
+    if (state.type === 'proposal_options') {
+      if (data.tierPrices == null && _est && _est.prices && typeof _est.prices === 'object') data.tierPrices = _est.prices;
+      if (data.selectedTier == null && _est) data.selectedTier = _est.selectedTier || _est.tier || '';
+      if (data.deductible == null) {
+        var _ld = window._leadDoc || {};
+        data.deductible = _ld.deductibleOrOwedByHO || _ld.deductible || '';
+      }
+    }
     if (!data.neighborhoodName && data.affectedArea) data.neighborhoodName = data.affectedArea;                       // neighborhood_mailer (required Affected Area → neighborhood label)
 
     // Contract warranty-bridge gap (GBB audit §9, 2026-09-09). The `contract`
