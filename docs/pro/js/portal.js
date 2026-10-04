@@ -609,6 +609,63 @@
     }
   }
 
+  // ── Progress tracker helpers (9 steps, 2026-10-03) ──────────────
+  // Every word on the tracker comes from the server's
+  // HOMEOWNER_PROGRESS_COPY (functions/homeowner-progress.js) — Jo edits it
+  // there. These helpers only fill placeholders and lay the steps out.
+
+  // The build day for "{date}", e.g. "Monday, October 12". Built from the
+  // parts (local midnight) — never new Date('YYYY-MM-DD'), which is UTC and
+  // shows the day before for every US reader (see _scheduleLine).
+  function _buildDayLabel(ymd) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd || ''))) return null;
+    const [y, m, d] = String(ymd).split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+    try {
+      return dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    } catch (_) {
+      return ymd;
+    }
+  }
+
+  // Fill {name} placeholders; an unknown one is left as-is.
+  function _fillCopy(text, vars) {
+    return String(text == null ? '' : text).replace(/\{(\w+)\}/g, function (m, k) {
+      return Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m;
+    });
+  }
+
+  // The current step's sentence. A {date} with no usable date drops the
+  // sentence rather than printing "{date}" or "Invalid Date" to a customer
+  // (the server already sends the no-date wording when it has no date).
+  function _progressBlurb(text, scheduledDate) {
+    const t = String(text || '');
+    if (t.indexOf('{date}') === -1) return t;
+    const day = _buildDayLabel(scheduledDate);
+    return day ? _fillCopy(t, { date: day }) : '';
+  }
+
+  // [{key,label,state}] — the server sends each step's state. An older
+  // payload (5-step, no state) is derived from currentIndex so a cached
+  // server response still renders.
+  function _progressSteps(milestones, idx) {
+    const OK = { done: 1, current: 1, upcoming: 1, skipped: 1 };
+    return (Array.isArray(milestones) ? milestones : []).map(function (m, i) {
+      const st = m && OK[m.state] ? m.state : (i < idx ? 'done' : (i === idx ? 'current' : 'upcoming'));
+      return { key: (m && m.key) || '', label: (m && m.label) || '', state: st };
+    });
+  }
+
+  // Printing (the adjuster's paper copy — portal.html's print sheet keeps
+  // "the dated progress tracker"): a closed <details> prints only its
+  // summary, so open the step list first.
+  try {
+    window.addEventListener('beforeprint', function () {
+      document.querySelectorAll('details.progress-all').forEach(function (d) { d.open = true; });
+    });
+  } catch (_) { /* printing is best-effort */ }
+
   function renderView(view) {
     const firstName = (view.homeowner && view.homeowner.firstName) || '';
     const lastName  = (view.homeowner && view.homeowner.lastName)  || '';
@@ -729,38 +786,69 @@
 
     const parts = [];
 
-    // ── Project progress timeline ──
-    // 5-step homeowner-friendly milestone tracker. The server (portal.js)
-    // maps the rep-side stage key (e.g. claim_filed, install_in_progress)
-    // to one of: Inspection / Estimate / Contract / Installation / Complete.
+    // ── Project progress tracker ──
+    // 9 steps (2026-10-03): Inspection → Estimate → Signed → Build day set →
+    // Build → Final walkthrough → Final payment → Warranty → Review. The
+    // server (functions/homeowner-progress.js) decides the step, each step's
+    // state and every word; this lays it out for a phone: the current step,
+    // the next one and the done count up top, the full list behind a native
+    // <details> (no script, no inline handler, no inline style).
     if (view.progress && Array.isArray(view.progress.milestones)) {
       const p = view.progress;
+      const copy = p.copy || {};
       const idx = p.currentIndex >= 0 ? p.currentIndex : 0;
-      const total = p.milestones.length;
-      const fillPct = total > 1 ? Math.round((idx / (total - 1)) * 100) : 0;
-      const steps = p.milestones.map((m, i) => {
-        const cls = i < idx ? 'done' : (i === idx ? 'current' : '');
-        const symbol = i < idx ? '✓' : (i + 1);
-        // Only a completed step gets a date — the current step's date isn't
-        // known yet (it's in progress), and future steps have no date at all.
-        const dateLabel = i < idx
-          ? _milestoneDateLabel(p.milestoneDates && p.milestoneDates[m.key])
-          : null;
-        return '<div class="progress-step ' + cls + '">' +
-                 '<div class="progress-dot">' + symbol + '</div>' +
-                 '<div class="progress-step-label">' + esc(m.label) + '</div>' +
-                 (dateLabel ? '<div class="progress-step-date">' + esc(dateLabel) + '</div>' : '') +
-               '</div>';
-      }).join('');
+      const steps = _progressSteps(p.milestones, idx);
+      const total = typeof p.total === 'number' ? p.total : steps.length;
+      const doneCount = typeof p.doneCount === 'number' ? p.doneCount : idx;
+      const blurb = _progressBlurb(p.currentBlurb, p.scheduledDate);
+      const countText = copy.doneCount ? _fillCopy(copy.doneCount, { done: doneCount, total: total }) : '';
+
+      // One segment per step; the state rides on a data attribute for CSS.
+      const bar = '<div class="progress-bar" aria-hidden="true">' +
+        steps.map(function (s) {
+          return '<span class="progress-seg" data-state="' + esc(s.state) + '"></span>';
+        }).join('') +
+      '</div>';
+
+      // Actions — each reuses something the page ALREADY shows: the
+      // rep-sent Stripe link (server sends payLink only for an unpaid Final
+      // payment step), the rating card, the warranty card.
+      const ratingInfoP = view.rating || {};
+      const actions = [];
+      if (p.payLink && safeUrl(p.payLink) && copy.payLink) {
+        actions.push('<a class="btn progress-action" href="' + esc(safeUrl(p.payLink)) + '" target="_blank" rel="noopener">' + esc(copy.payLink) + '</a>');
+      }
+      if (p.currentKey === 'review' && ratingInfoP.canRate && !ratingInfoP.submitted && copy.reviewLink) {
+        actions.push('<a class="btn progress-action" href="#cr-card">' + esc(copy.reviewLink) + '</a>');
+      }
+      if (p.warrantyOnFile && view.warranty && (p.currentKey === 'review' || p.currentKey === 'warranty') && copy.warrantyLink) {
+        actions.push('<a class="btn btn-ghost progress-action" href="#wc-card">' + esc(copy.warrantyLink) + '</a>');
+      }
+
+      const list = '<ol class="progress-list">' +
+        steps.map(function (s, i) {
+          const mark = s.state === 'done' ? '✓' : (s.state === 'skipped' ? '–' : String(i + 1));
+          // Only a finished step carries a date (the current one isn't done).
+          const dateLabel = s.state === 'done'
+            ? _milestoneDateLabel(p.milestoneDates && p.milestoneDates[s.key])
+            : null;
+          return '<li class="progress-item" data-state="' + esc(s.state) + '"' +
+              (s.state === 'current' ? ' aria-current="step"' : '') + '>' +
+            '<span class="progress-dot" aria-hidden="true">' + mark + '</span>' +
+            '<span class="progress-item-label">' + esc(s.label) + '</span>' +
+            (dateLabel ? '<span class="progress-step-date">' + esc(dateLabel) + '</span>' : '') +
+          '</li>';
+        }).join('') +
+      '</ol>';
+
       const nextHtml = p.nextLabel
         ? '<div class="progress-next">' +
-            '<div class="progress-next-label">Next up</div>' +
-            '<div><strong>' + esc(p.nextLabel) + '</strong> · ' + esc(p.nextBlurb || '') + '</div>' +
+            '<div class="progress-next-label">' + esc(copy.nextUp || '') + '</div>' +
+            '<div><strong>' + esc(p.nextLabel) + '</strong></div>' +
           '</div>'
-        : '<div class="progress-next" style="background:rgba(46,204,138,.1);border-color:rgba(46,204,138,.3);">' +
-            '<div class="progress-next-label" style="color:var(--green);">Project complete</div>' +
-            '<div>Thanks for choosing us. Your rep will reach out for a final walkthrough.</div>' +
-          '</div>';
+        : (!p.pending && copy.allDone
+          ? '<div class="progress-next progress-next-done">' + esc(copy.allDone) + '</div>'
+          : '');
       // Sits above "Next up" because it is the more specific fact: a date
       // beats a milestone name. Rendered from the raw YYYY-MM-DD the server
       // sent, compared against the READER's local today.
@@ -786,16 +874,23 @@
           + '</div>';
       }).join('');
       parts.push(
-        '<div class="card progress-card">' +
-          '<div class="card-label">Where We Are</div>' +
-          '<div class="card-title">' + esc(p.currentLabel) + '</div>' +
-          '<div class="progress-track">' +
-            '<div class="progress-track-fill" style="width:calc(' + fillPct + '% - 12px);"></div>' +
-            steps +
+        '<div class="card progress-card" data-progress-step="' + esc(p.currentKey || '') + '">' +
+          '<div class="card-label">' + esc(copy.heading || '') + '</div>' +
+          '<div class="progress-head">' +
+            '<div class="card-title">' + esc(p.currentLabel) + '</div>' +
+            (countText ? '<div class="progress-count">' + esc(countText) + '</div>' : '') +
           '</div>' +
+          bar +
+          (blurb ? '<p class="progress-blurb">' + esc(blurb) + '</p>' : '') +
+          (p.paidLine && p.currentKey !== 'payment' ? '<p class="progress-paid">' + esc(p.paidLine) + '</p>' : '') +
+          (actions.length ? '<div class="progress-actions">' + actions.join('') + '</div>' : '') +
           schedHtml +
           otherHtml +
           nextHtml +
+          '<details class="progress-all">' +
+            '<summary>' + esc(_fillCopy(copy.showAll || '', { total: steps.length })) + '</summary>' +
+            list +
+          '</details>' +
         '</div>'
       );
     }
@@ -1293,13 +1388,14 @@
     //    most embarrassing thing on the page if forwarded before anything
     //    happened, and it poisons the referral channel it exists to grow.
     //
-    //    'complete' is the same gate the rating card uses (view.rating
-    //    .canRate, computed server-side as progressKey === 'complete' and
-    //    re-enforced when a rating is submitted). Asking for a referral at
+    //    It is the same gate the rating card uses (view.rating.canRate —
+    //    PAID IN FULL since 2026-10-03, computed server-side by
+    //    functions/homeowner-progress.js and re-enforced when a rating is
+    //    submitted). Asking for a referral at
     //    the moment you ask for a rating is the correct pairing: both claim
     //    the work is done, so both wait until it is.
     const customerId = view.homeowner && view.homeowner.customerId;
-    const jobComplete = !!(view.progress && view.progress.currentKey === 'complete');
+    const jobComplete = !!(view.rating && view.rating.canRate === true);
     if (customerId && jobComplete) {
       // Canonical custom domain — NOT the *.web.app origin, which Google
       // Safe Browsing has flagged (a friend tapping the texted link in

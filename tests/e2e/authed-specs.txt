@@ -57,3 +57,4 @@ roof-rep.spec.js
 estimate-send.spec.js
 phone-ux-batch-2026-10-03.spec.js
 phone-stage-flow.spec.js
+portal-progress-steps.spec.js
