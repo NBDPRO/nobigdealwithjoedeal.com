@@ -154,6 +154,7 @@ async function transcribeGroq(audioBuf, mimeType) {
     // Clips are ≤60 s and the callable has a 60 s ceiling; leave room for
     // the Deepgram fallback + the Claude call after a slow Groq response.
     timeoutMs: 25_000,
+    feature: 'dictate',
   });
   return normalizeGroqTranscription(out);
 }
@@ -206,6 +207,7 @@ async function callClaudeForDictate({ system, userText, maxTokens, apiKey }) {
     throw new HttpsError('internal', 'AI processing failed');
   }
   const data = await res.json();
+  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('dictate', 'claude-haiku-4-5-20251001', data), { log: logger });
   const text = (data?.content?.[0]?.text || '').trim();
   return {
     text,

@@ -306,6 +306,7 @@ exports.analyzePhotoVision = onCall({
     logger.warn('photo-vision.api_error', { status: response.status, msg });
     throw new HttpsError('internal', 'Vision API error: ' + msg);
   }
+  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('photo-vision', MODEL, data), { log: logger });
 
   // ── Parse + sanitize ──
   const textBlock = data.content && Array.isArray(data.content)

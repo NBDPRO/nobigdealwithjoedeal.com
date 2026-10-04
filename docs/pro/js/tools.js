@@ -150,10 +150,14 @@ async function handleQMFile(file) {
 }
 Return ONLY the JSON object. No other text.`;
 
-    // Sonnet 4.5 has stronger PDF document extraction than Haiku 4.5 — the
-    // accuracy gain on QM reports is worth the ~5x token cost.
+    // Sonnet has stronger PDF document extraction than Haiku 4.5 — the
+    // accuracy gain on QM reports is worth the token cost. 2026-10-04: this
+    // asked for claude-sonnet-4-5-20250929, which claudeProxy's allowlist
+    // never held, so every import silently ran on Haiku. Sonnet 5.5 is on the
+    // allowlist (functions/handlers/_shared.js ALLOWED_CLAUDE_MODELS).
     const result = await window.callClaude({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-5-5',
+      feature: 'qm-import',
       max_tokens: 2000,
       messages: [{
         role: 'user',
@@ -172,7 +176,8 @@ Return ONLY the JSON object. No other text.`;
     if (result.error) {
       throw new Error('Claude API error: ' + (result.error.message || JSON.stringify(result.error)));
     }
-    rawResponse = result?.content?.[0]?.text || '';
+    // The first TEXT block — never assume content[0] is text.
+    rawResponse = (Array.isArray(result?.content) ? result.content : []).filter((c) => c && c.type === 'text').map((c) => c.text || '').join('') || '';
     if (!rawResponse) {
       throw new Error('Claude response missing content.[0].text — structure: ' + JSON.stringify(result).substring(0, 200));
     }

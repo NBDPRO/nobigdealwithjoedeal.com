@@ -195,7 +195,7 @@ async function runTextNotes({ db, live, nowMs }) {
         const ls = await db.doc('leads/' + day.leadId).get();
         if (ls.exists) { const l = ls.data(); leadName = ((l.firstName || '') + ' ' + (l.lastName || '')).trim(); }
       }
-      const notes = CC.sanitizeNotes(await notesFn({ system: T.TEXT_NOTES_SYSTEM, prompt: T.buildTextNotesPrompt({ day, leadName }) }));
+      const notes = CC.sanitizeNotes(await notesFn({ system: T.TEXT_NOTES_SYSTEM, prompt: T.buildTextNotesPrompt({ day, leadName }), feature: 'text-notes' }));
       const personal = notes.callType === 'personal';
       if (personal) notes.summary = 'Personal texts.';
       await db.collection(DAYS).doc(day.id).set({
