@@ -965,6 +965,24 @@
         { "fieldPath": "companyId", "order": "ASCENDING"  },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "_comment": "Today home (2026-10-03): the dashboard's ONE task load — collectionGroup('tasks').where('userId','==',uid).orderBy('createdAt','asc') (docs/pro/js/tasks.js, shape in today-plan.js tasksQuery; tests/today-plan-2026-10-03.test.js ties them). Replaced one query per lead.",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Today home (2026-10-03): the same load for company staff — collectionGroup('tasks').where('companyId','==',companyId).orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

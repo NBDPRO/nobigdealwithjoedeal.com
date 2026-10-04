@@ -419,6 +419,24 @@ service cloud.firestore {
     // be legacy docs without companyId, and defensive tokens may lack the
     // claim. The get() is the same parent read the owner clause already
     // pays — rules dedupe repeated access to one document per request.
+    // Today home (2026-10-03): the dashboard loads every task in ONE
+    // collection-group query filtered on the task's own userId / companyId
+    // (the recursive tasks rule below). Those stamps decide who can READ a
+    // task, so a writer may only set them to values that keep the task inside
+    // its own tenant: userId = the lead's owner or the writer, companyId = the
+    // lead's tenant, the writer's tenant, or the writer's uid (a solo
+    // operator's tenant key). Absent/null stays allowed — every legacy writer
+    // and cached bundle omits them; functions/tasks-stamp.js fills them.
+    function taskStampOk(leadId) {
+      let lead = get(/databases/$(database)/documents/leads/$(leadId)).data;
+      let d = request.resource.data;
+      let u = d.get('userId', null);
+      let c = d.get('companyId', null);
+      return (u == null || u == lead.get('userId', '') || u == request.auth.uid)
+        && (c == null || c == lead.get('companyId', '') || c == request.auth.uid
+            || c == request.auth.token.get('companyId', ''));
+    }
+
     function parentLeadInMyCompany(leadId) {
       return isCompanyReader()
         && request.auth.token.get('companyId', '') != ''
@@ -609,7 +627,19 @@ service cloud.firestore {
         allow read:   if isAuth() && (isAdmin()
           || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
           || parentLeadInMyCompany(leadId));
-        allow write:  if isAuth() && notViewer()
+        // 2026-10-03: create / a stamp change must keep the task in its
+        // tenant (taskStampOk); an update that leaves the stamps alone (tick
+        // done, move the due date) is unchanged.
+        allow create: if isAuth() && notViewer()
+          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+              || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
+          && taskStampOk(leadId);
+        allow update: if isAuth() && notViewer()
+          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+              || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'companyId'])
+              || taskStampOk(leadId));
+        allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)));
       }
@@ -2566,6 +2596,25 @@ service cloud.firestore {
     // shape as the jobs grant directly above; orderWriteOk pins both fields
     // to the parent lead's.
     match /{path=**}/orders/{orderId} {
+      allow read: if isAuth() && (isAdmin()
+        || resource.data.get('userId', '') == request.auth.uid
+        || (isCompanyReader()
+            && request.auth.token.get('companyId', '') != ''
+            && resource.data.get('companyId', '') == request.auth.token.get('companyId', '')));
+    }
+
+    // ── TASKS, collection-group reads (2026-10-03) ────
+    // The dashboard loads every task in ONE query
+    // (collectionGroup('tasks').where('companyId'|'userId', '==', …),
+    // docs/pro/js/tasks.js + today-plan.js tasksQuery) instead of one read
+    // per lead. A collection-group query only matches a recursive rule, so
+    // this grants READ ONLY, on the task's own stamps — which taskStampOk()
+    // keeps inside the task's tenant and functions/tasks-stamp.js fills from
+    // the parent lead. Same audience as the nested rule: the owner, a company
+    // reader of the task's tenant, or a platform admin. (It also matches the
+    // retired top-level /tasks docs, whose own rule already lets the owner
+    // read them; the client drops those rows.)
+    match /{path=**}/tasks/{taskId} {
       allow read: if isAuth() && (isAdmin()
         || resource.data.get('userId', '') == request.auth.uid
         || (isCompanyReader()
