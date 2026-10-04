@@ -105,6 +105,8 @@ function fakeDocument(reg) {
 function baseWindow(doc, extra) {
   const win = Object.assign({
     document: doc, console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
+    // dashboard.html loads today-plan.js (THE follow-up rule, 2026-10-03) before crm-pipeline.js.
+    NBDTodayPlan: require(path.join(__dirname, '..', 'docs/pro/js/today-plan.js')),
     setTimeout, clearTimeout, setInterval() { return 0; }, clearInterval() {},
     addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
     CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init && init.detail; },
