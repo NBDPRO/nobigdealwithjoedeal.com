@@ -176,10 +176,15 @@ console.log('\n3. Photo variants that exist');
 // ══ 4. Captions, executed ═════════════════════════════════════════════
 console.log('\n4. Rep-typed captions reach the report');
 {
-  const sandbox = {};
+  // _captionFor runs every caption through the shared KY claim-wording filter
+  // (window.NBDClaimWording, 2026-10-04) — load the real module into the
+  // sandbox's window, the way the 'photos' bundle does.
+  const sandbox = { window: {} };
   vm.createContext(sandbox);
-  vm.runInContext(extractFn(PHOTO_REPORT, '_captionFor'), sandbox);
+  vm.runInContext(read('docs/pro/js/claim-wording-filter.js'), sandbox);
+  vm.runInContext(extractFn(PHOTO_REPORT, '_captionFor') + '\n' + extractFn(PHOTO_REPORT, '_captionRaw'), sandbox);
   const captionFor = sandbox._captionFor;
+  ok('the claim-wording filter loaded into the sandbox window', !!sandbox.window.NBDClaimWording);
 
   // The field a rep actually types into (customer-tasks-ui.js qeDescription →
   // quickSaveMeta writes photos/{id}.description).
@@ -203,6 +208,22 @@ console.log('\n4. Rep-typed captions reach the report');
     captionFor({ location: 'West slope' }, 'homeowner') === 'West slope');
   ok('returns empty, not undefined, for a bare photo',
     captionFor({}, 'homeowner') === '' && captionFor({}, 'adjuster') === '');
+
+  // KY claim wording (2026-10-04): an AI caption advising the homeowner on
+  // the claim never reaches the report; the observation sentence survives.
+  const aiClaim = { aiSuggestion: { caption: 'Hail bruising on three shingles. We recommend filing an insurance claim. Insurance will cover a full replacement.' } };
+  for (const mode of ['homeowner', 'adjuster']) {
+    const got = captionFor(aiClaim, mode);
+    ok(mode + ': the claim advice + payout promise are dropped from an AI caption',
+      !/claim|insurance/i.test(got), 'got: ' + JSON.stringify(got));
+    ok(mode + ': the observation in the same caption survives', got === 'Hail bruising on three shingles.', 'got: ' + JSON.stringify(got));
+  }
+  // Filter not loaded → the AI caption is skipped, not printed unchecked.
+  const bare = { window: {} };
+  vm.createContext(bare);
+  vm.runInContext(extractFn(PHOTO_REPORT, '_captionFor') + '\n' + extractFn(PHOTO_REPORT, '_captionRaw'), bare);
+  ok('without the filter an AI caption is NOT printed (fail closed)',
+    bare._captionFor({ aiSuggestion: { caption: 'File a claim now.' }, location: 'Ridge' }, 'homeowner') === 'Ridge');
 }
 
 console.log('\n' + (failed === 0
