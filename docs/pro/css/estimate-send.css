@@ -1,0 +1,38 @@
+/* estimate-send.css — Send for review (customer Files rows) and the Home
+   "Estimate follow-ups" card (js/customer-documents.js, js/estimate-followups.js).
+   2026-10-03. Classes only: docs/pro/js carries no new style="…" strings. */
+
+/* A .doc-btn that is a <button>: reset the UA look the same way the row's
+   other buttons do (font-family, never the font shorthand — see rowHtml). */
+.doc-btn.doc-btn-plain { background: none; border: 0; cursor: pointer; font-family: inherit; }
+.doc-btn.doc-btn-review { color: var(--orange, #e8720c); font-weight: 600; }
+
+/* Home card */
+#homeEstimateFollowups[hidden] { display: none; }
+.ef-card .panel-body { padding-top: 4px; }
+.ef-bucket + .ef-bucket { margin-top: 10px; }
+.ef-bucket-hdr {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--m, #8b8e96); padding: 6px 0 4px;
+}
+.ef-split { font-weight: 500; text-transform: none; letter-spacing: 0; margin-left: 6px; }
+.ef-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 0; border-top: 1px solid var(--br, #2a2d35); min-width: 0;
+}
+.ef-who { min-width: 0; flex: 1 1 140px; }
+.ef-name {
+  display: block; font-weight: 600; font-size: 14px; color: var(--t, inherit); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ef-meta { font-size: 12px; color: var(--m, #8b8e96); margin-top: 2px; }
+.ef-opened { color: var(--green, #2e9e5b); font-weight: 600; }
+.ef-unopened { color: var(--gold, #f59e0b); }
+.ef-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex: 0 1 auto; max-width: 100%; }
+.ef-btn { font-size: 12px; padding: 8px 12px; min-height: 40px; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .ef-row { flex-wrap: wrap; }
+  .ef-acts { flex: 1 1 100%; }
+  .ef-btn { flex: 1 1 0; }
+}

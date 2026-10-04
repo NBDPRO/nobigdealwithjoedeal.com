@@ -20,6 +20,11 @@
  *           leads/{leadId}/tasks/…   stage-entry task, only if absent (never
  *                                    reopens one the rep already finished)
  *
+ * Right after a contract_signed / deal_accepted event (first delivery or a
+ * retry), deposit-draft.js makes the DRAFT deposit invoice — once per lead
+ * + job, never sent (Jo, 2026-10-03). Its result rides back on
+ * `depositDraft`.
+ *
  * Never sends anything to a customer. Never throws: callers are webhooks and
  * triggers whose real work already succeeded, so a spine failure is logged
  * and returned as { error }.
@@ -56,6 +61,30 @@ function _iso(at, nowMs) {
  *   error?: string }>}
  */
 async function recordJobEvent(db, args, deps) {
+  const out = await _recordJobEventCore(db, args, deps);
+  const event = String((args && args.event) || '');
+  // The draft deposit invoice. Also on a duplicate: a retry after a draft
+  // failure gets another try, and the draft itself is idempotent (one
+  // deterministic id per lead + job). Not on a refused event.
+  const refused = ['bad_lead_id', 'unknown_event', 'tenant_mismatch', 'error'];
+  if (DEPOSIT_DRAFT_EVENTS.indexOf(event) !== -1 && refused.indexOf(out.reason) === -1
+      && !(deps && deps.depositDraft === false)) {
+    const draft = (deps && deps.draftDepositAfterSign) || require('./deposit-draft').draftDepositAfterSign;
+    try {
+      out.depositDraft = await draft(db, {
+        leadId: String(args.leadId || '').trim(), event,
+        sourceId: args.sourceId != null ? String(args.sourceId) : '',
+        meta: (args.meta && typeof args.meta === 'object') ? args.meta : {},
+      }, deps);
+    } catch (e) {
+      out.depositDraft = { created: false, reason: 'error', error: String((e && e.message) || e) };
+    }
+  }
+  return out;
+}
+const DEPOSIT_DRAFT_EVENTS = ['contract_signed', 'deal_accepted'];
+
+async function _recordJobEventCore(db, args, deps) {
   const { FieldValue, logger, now } = _deps(deps);
   args = args || {};
   const leadId = typeof args.leadId === 'string' ? args.leadId.trim() : '';
