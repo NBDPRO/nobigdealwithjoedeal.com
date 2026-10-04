@@ -1725,9 +1725,9 @@ section('Phase C.4 settings-tab — switchSettingsTab via settingsTab action');
     'expected switchSettingsTab(target) dispatch');
 
   const count = (dash.match(/data-action="settingsTab"\s+data-target="[a-z]+"/g) || []).length;
-  assert('settingsTab conversions: 11 (one per Settings tab, incl. Pipelines)',
-    count === 11,
-    'expected 11 settingsTab data-actions; got ' + count);
+  assert('settingsTab conversions: 12 (one per Settings tab, incl. Pipelines + Bots & API)',
+    count === 12,
+    'expected 12 settingsTab data-actions; got ' + count);
 
   const remaining = (dash.match(/onclick="switchSettingsTab\(/g) || []).length;
   assert('no inline switchSettingsTab onclicks remain',

@@ -74,6 +74,7 @@
     "cron-gate-drift.test.js",
     "address-audit-script.test.js",
     "backup-freshness.test.js",
+    "vendor-config-export.test.js",
     "billing-gate.test.js",
     "calendar-feed.test.js",
     "company-stale-fields-cleanup.test.js",
@@ -199,6 +200,7 @@
     "agent-personal-keys-2026-10-02.test.js",
     "call-watch-2026-10-02.test.js",
     "agent-mcp-roles-v2-2026-10-02.test.js",
+    "agent-tenant-bots-2026-10-04.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
@@ -359,7 +361,8 @@
     "faq-schema-sync-2026-10-03.test.js",
     "site-round2-2026-10-03.test.js",
     "security-batch-2026-10-03.test.js",
-    "stage-actor-no-next-step-2026-10-03.test.js"
+    "stage-actor-no-next-step-2026-10-03.test.js",
+    "boot-offline-reads-2026-10-04.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

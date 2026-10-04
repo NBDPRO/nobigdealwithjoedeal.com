@@ -1,0 +1,44 @@
+/* Settings → Bots & API (agent-bots-settings.js, 2026-10-04): a company
+   connects its own AI bots to its CRM. Phone-first: one column, 44px taps. */
+#agentBotsMount { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ab-card { border: 1px solid var(--br); border-radius: 12px; padding: 14px; background: var(--s); color: var(--t); min-width: 0; }
+.ab-gate { border-color: var(--gold, #f59e0b); }
+.ab-fresh { border: 2px solid var(--orange, #BD5728); }
+.ab-h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+.ab-h3 { font-weight: 800; font-size: 15px; margin: 0 0 6px; }
+.ab-p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--t); }
+.ab-meta { font-size: 12px; color: var(--m); line-height: 1.45; margin-top: 4px; overflow-wrap: anywhere; }
+.ab-block { display: block; }
+.ab-pad { padding: 8px 2px; }
+.ab-warn { font-size: 12px; color: var(--gold, #b45309); font-weight: 700; margin: 6px 0; line-height: 1.45; }
+.ab-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.ab-grow { flex: 1 1 200px; min-width: 0; }
+.ab-btn { min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--br); background: transparent; color: var(--t); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.ab-btn.is-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: var(--accent-fg, #fff); }
+.ab-btn.is-danger { color: var(--red, #dc2626); border-color: var(--red, #dc2626); }
+.ab-btn:disabled { opacity: .5; }
+.ab-wide { width: 100%; margin-top: 12px; }
+.ab-a { color: var(--t); }
+.ab-link-btn { background: none; border: 0; color: var(--red, #dc2626); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: underline; min-height: 44px; padding: 0 6px; }
+.ab-label { display: block; font-size: 12px; font-weight: 700; color: var(--m); margin: 12px 0 4px; }
+.ab-input { width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 12px; background: var(--s2); color: var(--t); border: 1px solid var(--br); border-radius: 8px; font: inherit; font-size: 16px; }
+textarea.ab-input { resize: vertical; }
+.ab-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.ab-switch input { width: 22px; height: 22px; accent-color: var(--orange, #BD5728); }
+.ab-tools { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow: auto; border: 1px solid var(--br); border-radius: 8px; padding: 6px; }
+.ab-tool { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; min-height: 44px; cursor: pointer; font-size: 13px; }
+.ab-tool input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 1px; accent-color: var(--orange, #BD5728); }
+.ab-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--orange, #BD5728); }
+.ab-bot { border-top: 1px solid var(--br); padding: 10px 0; }
+.ab-bot:first-of-type { border-top: 0; }
+.ab-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.ab-chip { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: var(--s2); border: 1px solid var(--br); }
+.ab-key-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; }
+.ab-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.ab-key { display: block; padding: 10px; background: var(--s2); border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
+.ab-details { margin-top: 8px; font-size: 13px; }
+.ab-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
+.ab-pre { white-space: pre-wrap; word-break: break-all; font-size: 12px; background: var(--s2); padding: 10px; border-radius: 8px; margin: 0; }
+.ab-empty { font-size: 13px; color: var(--m); padding: 10px 0; }
+/* Agent inbox: the link to this page (agent-inbox.js). */
+.ai-conn-link { margin-top: 12px; width: 100%; }
