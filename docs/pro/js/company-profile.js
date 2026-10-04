@@ -81,6 +81,14 @@
       marginFloorPct:    30    // red ⚠ when projected gross margin < this %
     },
 
+    /* ── SALES LINKS (2026-10-03) ──────────────────────────────
+       How many days a Close Board accept link (/deal/<token>) lives.
+       functions/deal-acceptance.js + estimate-send.js read
+       salesLinks.dealLinkDays (1–90); absent = 14, the old fixed value. */
+    salesLinks: {
+      dealLinkDays: 14
+    },
+
     /* ── LEGAL TEXT ────────────────────────────────────────────── */
     cancellationWindowText: 'three (3) business days',
     cancellationStatute: 'Kentucky Revised Statutes § 367.390',

@@ -445,13 +445,21 @@
   // DEAL ROOM CRUD
   // ============================================================================
 
+  function _dealLinkDays() {
+    const p = window._companyProfile || {};
+    const n = Math.floor(Number(p.salesLinks && p.salesLinks.dealLinkDays));
+    return Number.isFinite(n) && n > 0 ? Math.min(90, n) : 14;
+  }
+
   function createDealRoom(opts) {
     const deal = {
       id: generateId(),
       status: DEAL_STATUS.DRAFT,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days
+      // Company setting since 2026-10-03 (Settings → Sales links), default 14 —
+      // the same number createDealAcceptToken gives the accept link.
+      expiresAt: new Date(Date.now() + _dealLinkDays() * 24 * 60 * 60 * 1000).toISOString(),
 
       // Customer info
       customerName: opts.customerName || '',
@@ -1084,11 +1092,51 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     window.addEventListener('nbd:sms-outbox-ready', _registerDealSmsReceipts, { once: true });
   }
 
+  // integrations/sms.a2pApproved as last reported by createDealAcceptToken.
+  // false until the server says otherwise — a missing answer means phone.
+  let _serverSmsOk = false;
+  // Jo-tapped shares awaiting a fresh tap (Safari drops the share sheet's
+  // user activation while the link is minted): dealId → message.
+  const _phonePending = Object.create(null);
+
+  // Send the deal link from Jo's own phone. SENT is stamped ONLY when the
+  // share sheet resolved or Jo confirmed the Messages hand-off went out, and
+  // only escalated from draft (a viewed deal never regresses), with
+  // sentVia 'phone' → "shared from your phone".
+  async function _shareDealFromPhone(dealId, deal, msg, shareUrl) {
+    if (!window.NBDPhoneShare) {
+      if (window.showToast) window.showToast('Sharing is still loading — try again', 'error');
+      return;
+    }
+    const res = await window.NBDPhoneShare.share({
+      text: msg, phone: deal.customerPhone, title: 'Roof estimate',
+      noRetry: !!_phonePending[dealId],
+    });
+    if (res.needsTap) {
+      _phonePending[dealId] = msg;
+      if (window.showToast) window.showToast('Link ready — tap 📱 Text again to send it from your phone', 'info');
+      return;
+    }
+    delete _phonePending[dealId];
+    if (!res.shared) return;
+    const cur = _findDeal(dealId) || deal;
+    updateDeal(dealId, Object.assign(
+      { sentAt: new Date().toISOString(), sentVia: 'phone' },
+      (!cur.status || cur.status === DEAL_STATUS.DRAFT) ? { status: DEAL_STATUS.SENT } : {}
+    ));
+    if (window.showToast) window.showToast('Shared from your phone ✓', 'success');
+  }
+
   async function sendViaSMS(dealId) {
     const deal = _findDeal(dealId);
     if (!deal || !deal.customerPhone) {
       if (window.showToast) window.showToast('No phone number for this customer', 'error');
       return;
+    }
+    // Second tap after Safari refused the first share: the link is already
+    // minted and the message written — share it now, inside this tap.
+    if (_phonePending[dealId]) {
+      return _shareDealFromPhone(dealId, deal, _phonePending[dealId], '');
     }
 
     // Upload + mint a single-use accept link (/deal/<token>) the homeowner
@@ -1101,27 +1149,32 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       // same resolver as the generated page.
       const brand = _dealBrand().name;
       const msg = `Hi ${deal.customerName || 'there'}! Here's your roof estimate from ${brand}. View your options, compare packages, and sign digitally: ${shareUrl}`;
-      if (window.NBDComms && typeof window.NBDComms.sendSMS === 'function') {
-        const result = await window.NBDComms.sendSMS({
-          to: deal.customerPhone,
-          message: msg,
-          leadId: deal.leadId || null,
-          source: DEAL_SMS_SOURCE,
-          sourceRef: dealId,
-        });
-        // Offline: stored in the outbox, NOT sent. No SENT stamp (it feeds
-        // close-rate analytics) until the outbox actually sends it — see
-        // _applyDealSmsReceipt above. NBDComms already toasted.
-        if (result && result.success && result.mode === 'queued') {
-          return;
-        }
-        if (result && result.success) {
-          updateDeal(dealId, { status: DEAL_STATUS.SENT, sentAt: new Date().toISOString(), sentVia: 'sms' });
-          return;
-        }
-      } else {
-        window.open(`sms:${deal.customerPhone.replace(/\D/g, '')}?body=${encodeURIComponent(msg)}`, '_self');
+      // 2026-10-03: while the server's Twilio number is not A2P-registered
+      // (integrations/sms.a2pApproved, default false) a server text is
+      // "accepted" and never delivered — 0 of 23 in 45 days, all stamped
+      // SENT. So the link goes from Jo's own phone (share sheet, or Messages
+      // with the text written), and the deal is marked sent ONLY when he
+      // actually sent it — labelled "shared from your phone".
+      if (!_serverSmsOk || !(window.NBDComms && typeof window.NBDComms.sendSMS === 'function')) {
+        return _shareDealFromPhone(dealId, deal, msg, shareUrl);
+      }
+      // A2P approved: the server number delivers, so the platform send is back.
+      const result = await window.NBDComms.sendSMS({
+        to: deal.customerPhone,
+        message: msg,
+        leadId: deal.leadId || null,
+        source: DEAL_SMS_SOURCE,
+        sourceRef: dealId,
+      });
+      // Offline: stored in the outbox, NOT sent. No SENT stamp (it feeds
+      // close-rate analytics) until the outbox actually sends it — see
+      // _applyDealSmsReceipt above. NBDComms already toasted.
+      if (result && result.success && result.mode === 'queued') {
+        return;
+      }
+      if (result && result.success) {
         updateDeal(dealId, { status: DEAL_STATUS.SENT, sentAt: new Date().toISOString(), sentVia: 'sms' });
+        return;
       }
     } else {
       // Fallback: copy link
@@ -1217,6 +1270,8 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       const fn = window._httpsCallable(window._functions, 'createDealAcceptToken');
       const res = await fn({ dealId: deal.id });
       const acceptUrl = res && res.data && res.data.acceptUrl;
+      // integrations/sms.a2pApproved, read server-side (default false).
+      _serverSmsOk = !!(res && res.data && res.data.a2pApproved === true);
       if (acceptUrl) { deal.acceptUrl = acceptUrl; saveDealRooms(); }
       return acceptUrl || null;
     } catch (e) {
@@ -1380,6 +1435,12 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     };
   }
 
+  // "shared from your phone" is the honest label for a link Jo sent himself
+  // (2026-10-03) — the CRM saw him tap share, not a delivery receipt.
+  function sentViaLabel(via) {
+    return via === 'phone' ? '📤 shared from your phone' : '📤 via ' + via;
+  }
+
   function renderActiveDeals() {
     if (dealRooms.length === 0) {
       return `
@@ -1401,7 +1462,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
               <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${STATUS_COLORS[d.status] || 'var(--m)'}20;color:${STATUS_COLORS[d.status] || 'var(--m)'};font-weight:600;text-transform:uppercase;">${esc(d.status)}</span>
               <span class="cbr-pill cbr-pill-t">${fmtCurrency(dealValue(d))}</span>
               ${wasViewed(d) ? `<span class="cbr-pill cbr-pill-m" title="${esc(viewTitle(d))}">${esc(viewBadge(d))}</span>` : ''}
-              ${d.sentVia ? `<span class="cbr-pill cbr-pill-m">📤 via ${d.sentVia}</span>` : ''}
+              ${d.sentVia ? `<span class="cbr-pill cbr-pill-m">${esc(sentViaLabel(d.sentVia))}</span>` : ''}
             </div>
           </div>
           <div class="cbr-col4">
