@@ -119,6 +119,7 @@
     "instantroofer-field-wiring.test.js",
     "instantroofer-measurement.test.js",
     "public-measure.test.js",
+    "solar-measure.test.js",
     "lead-dedup.test.js",
     "lead-photo-reaping.test.js",
     "lead-filter-registry.test.js",
