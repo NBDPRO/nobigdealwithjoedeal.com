@@ -1,0 +1,6 @@
+BarlowCondensed-600.ttf and BarlowCondensed-800.ttf are the Barlow Condensed
+typeface (Copyright 2017 The Barlow Project Authors,
+https://github.com/jpt/barlow), licensed under the SIL Open Font License,
+Version 1.1 (https://openfontlicense.org). They were converted unmodified from
+the WOFF2 files in docs/assets/fonts/ because ffmpeg's drawtext (FreeType)
+cannot read WOFF2. Reel Studio burns them into rendered video only.

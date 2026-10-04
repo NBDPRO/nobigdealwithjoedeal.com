@@ -430,6 +430,9 @@ const VERDICTS = {
   socialEligibleJobs: 'role-gated', socialDraftFromJob: 'role-gated', socialPlanWeeks: 'role-gated', socialApprovePost: 'role-gated',
   // Re-encoded social media copies by unguessable key (Meta fetches these).
   socialMedia: 'public',
+  // Reel Studio (2026-10-04): the same requireSocialManager gate (viewer / rep / manager refused).
+  reelStartUpload: 'role-gated', reelJobMedia: 'role-gated', reelCreate: 'role-gated', reelConfirmPrivacy: 'role-gated',
+  reelApplyBlur: 'role-gated', reelRetry: 'role-gated', reelToPosts: 'role-gated', reelAiImagePost: 'role-gated',
   attachStormProof: 'refused', backfillAnalytics: 'refused', claimInvite: 'self',
   cleanupE2ETestData: 'role-gated', convertUnmatchedSms: 'role-gated',
   createCalendarFeedToken: 'refused', createCompany: 'self', createConnectAccount: 'role-gated',

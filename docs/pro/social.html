@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
 <link rel="stylesheet" href="css/theme-system.css">
-<link rel="stylesheet" href="css/social-studio.css?v=1">
+<link rel="stylesheet" href="css/social-studio.css?v=2">
 </head>
 <body>
 <header class="ss-header">
@@ -24,6 +24,7 @@
   <button class="ss-tab" role="tab" data-tab="calendar" aria-selected="true">Calendar</button>
   <button class="ss-tab" role="tab" data-tab="drafts" aria-selected="false">Approve<span class="ss-count" id="ssCountDrafts">0</span></button>
   <button class="ss-tab" role="tab" data-tab="ready" aria-selected="false">Ready to post<span class="ss-count" id="ssCountReady">0</span></button>
+  <button class="ss-tab" role="tab" data-tab="reels" aria-selected="false">Reels<span class="ss-count" id="ssCountReels">0</span></button>
   <button class="ss-tab" role="tab" data-tab="all" aria-selected="false">All &amp; export</button>
   <button class="ss-tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>
 </nav>
@@ -56,6 +57,19 @@
     <p class="ss-note">Posts for TikTok, Nextdoor, LinkedIn and X — and any post whose platform is not connected yet. Copy the caption, share the photos, post it, then tap Mark posted.</p>
     <div class="ss-list" id="ssReady"></div>
   </section>
+  <section data-panel="reels" hidden>
+    <div class="ss-card-actions">
+      <button class="ss-btn ss-btn-primary" id="srNew" data-act="rnew" disabled>+ New reel</button>
+      <button class="ss-btn" id="srUpload" data-act="rupload" disabled>Upload clips</button>
+      <button class="ss-btn" id="srAi" data-act="rai" disabled>AI graphic</button>
+    </div>
+    <input type="file" id="srFile" class="sr-file" accept="video/*,image/*" multiple>
+    <input type="file" id="srAiFile" class="sr-file" accept="image/*">
+    <p class="ss-note">Drone clips, walk-arounds, talking to camera, job photos → a 9:16 or square reel with the brand intro and outro, rendered on our server. GPS and phone metadata are stripped from every upload. A privacy check looks at the frames for house numbers, plates, street signs and faces before a reel can be approved.</p>
+    <div class="ss-list" id="srList"><div class="ss-empty">Loading…</div></div>
+    <h3 class="sr-h">Your uploads</h3>
+    <div id="srMedia"></div>
+  </section>
   <section data-panel="all" hidden>
     <div class="ss-card-actions">
       <button class="ss-btn" id="ssExportJson">Export JSON</button>
@@ -84,6 +98,7 @@
 <script src="js/dashboard-appcheck-config.js"></script>
 <script src="js/claude-proxy.js?v=4" defer></script>
 <script src="js/social-studio-logic.js?v=1" defer></script>
-<script type="module" src="js/pages/social-studio.js?v=1"></script>
+<script src="js/reel-studio-logic.js?v=1" defer></script>
+<script type="module" src="js/pages/social-studio.js?v=2"></script>
 </body>
 </html>

@@ -839,6 +839,25 @@ exports.socialApprovePost = socialStudio.socialApprovePost;
 exports.socialPublisher = socialStudio.socialPublisher;
 exports.socialMedia = socialStudio.socialMedia;
 
+// Reel Studio (2026-10-04) — Social Studio's short-form video pipeline:
+// phone/drone clip uploads (metadata-stripped transcode), data-driven
+// templates rendered with ffmpeg-static on 2nd-gen functions, Whisper
+// captions, the Claude-vision privacy frame check with confirm / auto-blur
+// gating, rendered reels → Social Studio drafts, AI-graphic posts (tip /
+// storm PSA only). functions/reel-studio.js.
+const reelStudio = require('./reel-studio');
+exports.reelStartUpload = reelStudio.reelStartUpload;
+exports.reelJobMedia = reelStudio.reelJobMedia;
+exports.reelCreate = reelStudio.reelCreate;
+exports.reelConfirmPrivacy = reelStudio.reelConfirmPrivacy;
+exports.reelApplyBlur = reelStudio.reelApplyBlur;
+exports.reelRetry = reelStudio.reelRetry;
+exports.reelToPosts = reelStudio.reelToPosts;
+exports.reelAiImagePost = reelStudio.reelAiImagePost;
+exports.reelRenderWorker = reelStudio.reelRenderWorker;
+exports.reelIngestUpload = reelStudio.reelIngestUpload;
+exports.reelCleanup = reelStudio.reelCleanup;
+
 // Photo-vision classifier (Phase 3 of the photo system rebuild).
 // Single-photo Claude Vision call with $10/lead + $50/uid-month caps
 // and sha256(url) cache. Surfaces suggestions in photo.aiSuggestion

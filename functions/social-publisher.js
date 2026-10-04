@@ -63,6 +63,39 @@ async function leadTerms(db, post) {
 }
 
 /**
+ * Reel Studio gates (2026-10-04), shared by socialApprovePost and the
+ * publisher (approval AND publish time, like the caption filter):
+ *   - a reel post needs its reel rendered and its privacy check clear,
+ *     confirmed by Jo, or blurred (reel-logic canApproveReel);
+ *   - an AI-made image (post.aiGenerated, or any media whose social_media
+ *     index says aiGenerated) only on a tip / storm-season post — never a
+ *     job showcase, never a reel (reel-logic checkAiImageRule).
+ * → null when clear, else { code, message }.
+ */
+async function postBlockers(db, companyId, post) {
+  const RL = require('./reel-logic');
+  const p = post || {};
+  const idx = {};
+  for (const m of (p.media || []).slice(0, 12)) {
+    if (!m || typeof m.key !== 'string' || !/^[a-f0-9]{32}$/.test(m.key)) continue;
+    try { const s = await db.doc('social_media/' + m.key).get(); if (s.exists) idx[m.key] = s.data() || {}; } catch (_) { /* treated as absent */ }
+  }
+  const ai = RL.checkAiImageRule(p, idx);
+  if (!ai.ok) return { code: 'ai_image_rule', message: ai.reason };
+  const isReel = p.format === 'reel' || !!p.reelId || (p.media || []).some((m) => m && idx[m.key] && idx[m.key].kind === 'reel');
+  if (isReel) {
+    if (typeof p.reelId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(p.reelId)) return { code: 'reel_missing', message: 'This video post is not linked to a reel.' };
+    let reel = null;
+    try { const s = await db.doc('companies/' + companyId + '/reels/' + p.reelId).get(); reel = s.exists ? s.data() : null; } catch (_) { reel = null; }
+    if (!reel) return { code: 'reel_missing', message: 'The reel for this post was not found.' };
+    const g = RL.canApproveReel(reel);
+    if (!g.ok) return { code: 'reel_privacy', message: g.reason };
+    if (!(p.media || []).some((m) => m && m.key === reel.output.key)) return { code: 'reel_stale', message: 'The reel was re-rendered (blurred). Send the new version to Social Studio.' };
+  }
+  return null;
+}
+
+/**
  * Transactionally move a post from one of `fromStatuses` to `patch`, only
  * if `guard(data)` holds. → the fresh data on success, null if the doc
  * moved on (someone else claimed it, Jo edited it, …).
@@ -134,7 +167,9 @@ async function runPublisher(deps) {
 
     // 3. Manual / not connected → Ready to post.
     const adapter = adapters[post.platform];
-    const conn = adapter ? adapter.connected() : { ok: false, reason: 'unknown platform ' + post.platform };
+    let conn = adapter ? adapter.connected() : { ok: false, reason: 'unknown platform ' + post.platform };
+    // A reel goes by hand where the adapter cannot post video (GBP, manual).
+    if (conn.ok && post.format === 'reel' && !(adapter && adapter.video)) conn = { ok: false, reason: 'manual: ' + ((L.PLATFORMS[post.platform] || {}).label || post.platform) + ' takes the video by hand — Download MP4 from Ready to post' };
     if (!adapter || !adapter.auto || !conn.ok) {
       const moved = await transition(db, doc.ref, ['scheduled'], () => ({
         status: 'ready', readyReason: String(conn.reason || 'manual'), readyAt: ts(nowMs), updatedAt: ts(nowMs),
@@ -163,6 +198,18 @@ async function runPublisher(deps) {
       continue;
     }
 
+    // 4b. Reel privacy gate + AI-image rule (Reel Studio). Never publish past them.
+    const block = await postBlockers(db, companyId, post);
+    if (block) {
+      const moved = await transition(db, doc.ref, ['scheduled'], (d) => ({
+        status: 'failed', failReason: block.code,
+        publish: Object.assign({}, d.publish, { lastError: 'Blocked — ' + block.message }),
+        updatedAt: ts(nowMs),
+      }));
+      if (moved) { counts.failed++; await alert({ companyId, postId: ids.postId, post: moved, reason: block.code, message: moved.publish.lastError }); }
+      continue;
+    }
+
     // 5. Claim.
     const claimId = randomId();
     const claimed = await transition(db, doc.ref, ['scheduled'], (d) => {
@@ -179,15 +226,19 @@ async function runPublisher(deps) {
 
     // 6. Publish.
     const mediaUrls = (claimed.media || []).map((m) => deps.mediaUrl(m.key)).filter(Boolean);
+    const v = claimed.format === 'reel' && claimed.video ? claimed.video : null;
+    const video = v ? { url: deps.mediaUrl(v.key), coverUrl: v.thumbKey ? deps.mediaUrl(v.thumbKey) : '', thumbOffsetMs: Number(v.thumbOffsetMs) || 0 } : null;
     let result = null;
     try {
-      result = await adapter.publish({ post: claimed, message: L.composeMessage(claimed), mediaUrls });
+      result = await adapter.publish({ post: claimed, message: L.composeMessage(claimed), mediaUrls, video, resume: (claimed.publish && claimed.publish.resume) || null });
     } catch (e) {
       const msg = String((e && e.message) || e).slice(0, 500);
       if (e && e.retryable && !e.unknown && attempts < L.MAX_ATTEMPTS) {
+        // e.resume (Instagram Reels: the container still processing) carries
+        // over to the next attempt so it polls the SAME container, never a new one.
         await doc.ref.update({
           status: 'scheduled',
-          publish: Object.assign({}, claimed.publish, { lastError: msg, nextAttemptAtMs: nowMs + L.backoffMs(attempts) }),
+          publish: Object.assign({}, claimed.publish, { lastError: msg, nextAttemptAtMs: nowMs + L.backoffMs(attempts), resume: e.resume || null }),
           updatedAt: ts(nowMs),
         });
         counts.retried++;
@@ -209,7 +260,7 @@ async function runPublisher(deps) {
     try {
       await doc.ref.update({
         status: 'posted', postUrl: result.url || '', platformPostId: result.platformPostId || '', postedAt: ts(nowMs),
-        publish: Object.assign({}, claimed.publish, { lastError: null, postedAtMs: nowMs }), updatedAt: ts(nowMs),
+        publish: Object.assign({}, claimed.publish, { lastError: null, postedAtMs: nowMs, resume: null }), updatedAt: ts(nowMs),
       });
     } catch (e) {
       if (logger) logger.error('socialPublisher: posted but could not stamp', { postId: ids.postId, url: result.url, err: e && e.message });
@@ -224,4 +275,4 @@ async function runPublisher(deps) {
   return counts;
 }
 
-module.exports = { runPublisher, POST_PATH, loadSettings };
+module.exports = { runPublisher, POST_PATH, loadSettings, postBlockers };
