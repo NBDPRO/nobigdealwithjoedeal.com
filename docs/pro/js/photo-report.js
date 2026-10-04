@@ -351,17 +351,28 @@
   // so an explicit homeowner caption must win. `description` still backs it up,
   // because nothing writes homeownerCaption today and a report with no captions
   // is the actual defect being fixed.
+  // KY claim wording (2026-10-04): AI captions (aiSuggestion.caption, Claude
+  // Vision) and rep text both pass through the shared filter
+  // (claim-wording-filter.js) before a report prints them — a caption that
+  // tells the homeowner to file, or promises what insurance will pay, is
+  // dropped. Missing filter → the AI caption is skipped (fail closed).
   function _captionFor(p, mode) {
+    const CW = window.NBDClaimWording;
+    const cap = _captionRaw(p, mode, !!CW);
+    return (CW && typeof CW.cleanText === 'function') ? CW.cleanText(cap) : cap;
+  }
+  function _captionRaw(p, mode, aiOk) {
+    const ai = aiOk ? (p.aiSuggestion && p.aiSuggestion.caption) : '';
     if (mode === 'adjuster') {
       return p.description
         || p.caption
-        || (p.aiSuggestion && p.aiSuggestion.caption)
+        || ai
         || '';
     }
     return p.homeownerCaption
       || p.description
       || p.caption
-      || (p.aiSuggestion && p.aiSuggestion.caption)
+      || ai
       || p.location
       || (p.inferredLocation && p.inferredLocation.label)
       || '';
@@ -1415,7 +1426,9 @@
       if (!url) return null;
       return {
         url,
-        caption:  _captionFor(p, mode) || p.aiCaption || '',
+        caption:  _captionFor(p, mode)
+          || (window.NBDClaimWording ? window.NBDClaimWording.cleanText(p.aiCaption || '') : '')
+          || '',
         location: p.location || '',
         damageType: _damageLabel(p) || p.damageType || '',
         severity: _severityLabel(p) || p.severity || '',
