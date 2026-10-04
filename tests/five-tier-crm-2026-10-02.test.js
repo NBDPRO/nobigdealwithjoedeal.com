@@ -162,7 +162,7 @@ ok('estimate-rows labels all five, both copies identical', /economy: 'Economy'/.
     const html5 = CB.generatePageHTML({ id: 'd1', customerName: 'Pat', address: '1 Test St, Milford OH', tiers: { economy: t(9000), good: t(11000), better: t(13000), best: t(15000), beyond: t(17000) } });
     const order = [...html5.matchAll(/data-deal-tier="(\w+)"/g)].map((m) => m[1]).join();
     ok('the deal page shows all five priced tiers, cheapest first', order === TIERS.join(), order);
-    ok('...with Beyond described as TAMKO HailGuard and Economy as 1-year labor', /TAMKO HailGuard/.test(html5) && /1-year labor warranty/.test(html5));
+    ok('...with Beyond described as TAMKO HailGuard and Economy as 1-year labor', /TAMKO HailGuard/.test(html5) && /1-year workmanship \(labor\) warranty/.test(html5));
     const html3 = CB.generatePageHTML({ id: 'd2', customerName: 'Pat', address: '1 Test St, Milford OH', tiers: { good: t(11000), better: t(13000), best: t(15000) } });
     ok('an older three-tier deal renders exactly its three', [...html3.matchAll(/data-deal-tier="(\w+)"/g)].map((m) => m[1]).join() === 'good,better,best');
     const html0 = CB.generatePageHTML({ id: 'd3', customerName: 'Pat', address: '1 Test St, Milford OH', tiers: { good: t(11000), better: t(0), best: t(15000) } });

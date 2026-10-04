@@ -56,19 +56,32 @@ function selectTier(tier) {
   checkReady();
 }
 
+// Financing (2026-10-03, Reg Z): ONE row, the estimated payment RANGE at the
+// shared Acorn band (/assets/js/financing-band.js, baked into the page's data
+// island by close-board.js as CONFIG.band) — the same math and whole-dollar
+// rounding as the public financing estimator. Pages generated before this
+// carried CONFIG.rates (0%–11.99% plans that understated every payment);
+// those rates are ignored, so an old page offers Pay in Full only.
+function bandPayment(P, apr, n) { const r = apr / 12; return r === 0 ? P / n : P * r / (1 - Math.pow(1 + r, -n)); }
+function wholeDollars(n) { return '$' + Math.round(Number(n) || 0).toLocaleString('en-US'); }
+function financingRow(price) {
+  const b = CONFIG.band;
+  const P = Number(price);
+  if (!b || !(P > 0) || !(b.months > 0) || !(b.aprLo > 0) || !(b.aprHi >= b.aprLo)) return '';
+  const lo = wholeDollars(bandPayment(P, b.aprLo, b.months));
+  const hi = wholeDollars(bandPayment(P, b.aprHi, b.months));
+  const years = Math.round(b.months / 12);
+  return '<div class="finance-opt" data-idx="0"><span class="finance-label">🏦 Finance' + (b.lender ? ' through ' + String(b.lender).replace(/[<>&"']/g, '') : '') +
+    ' — ' + years + ' yr (est.*)</span><span class="finance-payment">' + lo + '–' + hi + '/mo</span></div>';
+}
+
 function updateFinancing() {
   const container = document.getElementById('financeOpts');
   if (!container || !selectedTier) return;
   const price = CONFIG.prices[selectedTier];
-  const rates = CONFIG.rates || [];
   container.innerHTML =
     '<div class="finance-opt selected" data-idx="-1"><span class="finance-label">💰 Pay in Full</span><span class="finance-payment">' + formatCurrency(price) + '</span></div>' +
-    rates.map(function (r, i) {
-      const monthly = r.rate === 0
-        ? price / r.term
-        : price * (r.rate / 100 / 12) * Math.pow(1 + r.rate / 100 / 12, r.term) / (Math.pow(1 + r.rate / 100 / 12, r.term) - 1);
-      return '<div class="finance-opt" data-idx="' + i + '"><span class="finance-label">' + r.label + '</span><span class="finance-payment">' + formatCurrency(monthly) + '/mo</span></div>';
-    }).join('');
+    financingRow(price);
   selectedFinance = -1;
 }
 
