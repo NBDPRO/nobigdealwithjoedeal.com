@@ -271,6 +271,7 @@
     "portal-share-recording.test.js",
     "portal-estimate-scope-link.test.js",
     "portal-completion-truth.test.js",
+    "portal-progress-steps-2026-10-03.test.js",
     "portal-scheduled-date.test.js",
     "portal-signature-repaint.test.js",
     "photo-upload-phase.test.js",

@@ -64,7 +64,6 @@ const { reencodePhoto } = require('./photo-reencode');
 // stay identical). NEVER emit est.rows raw — pre-sweep V2 rows carry the
 // contractor's COST basis.
 const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
-const { isOwedInvoice } = require('./invoice-owed');
 // The estimate's deposit-rule stamp, validated + whitelisted (2026-09-25).
 const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
@@ -451,110 +450,34 @@ exports.revokePortalToken = onCall(
 // getHomeownerPortalView — homeowner-facing POST → redacted view.
 // ═══════════════════════════════════════════════════════════════
 // ── Project progress (homeowner-facing milestones) ──────────────────
-// Map the rep-side stage key to one of 5 user-friendly milestones
-// homeowners actually understand. Internal stages like
-// "supplement_requested" do not matter to them — they want to know "are we
-// still inspecting" vs "is someone coming to install".
-const HOMEOWNER_PROGRESS = [
-  { key: 'inspected',        label: 'Inspection',     blurb: 'We\'ve looked at your property.' },
-  { key: 'estimate_sent',    label: 'Estimate',       blurb: 'You have a written quote.' },
-  { key: 'contract_signed',  label: 'Contract',       blurb: 'Signed and ready to schedule.' },
-  { key: 'install',          label: 'Installation',   blurb: 'The crew is on the job.' },
-  { key: 'complete',         label: 'Complete',       blurb: 'Project finished — final walkthrough done.' }
-];
-const STAGE_TO_PROGRESS = {
-  // Pre-inspection / contact-only — show "Inspection" as upcoming
-  'new': 'inspected', 'contacted': 'inspected',
-  // Inspection done
-  'inspected': 'inspected',
-  // Insurance pipeline — collapse to "Estimate" once a number is on the table
-  'claim_filed': 'inspected', 'adjuster_meeting_scheduled': 'inspected',
-  'adjuster_inspection_done': 'estimate_sent', 'scope_received': 'estimate_sent',
-  'estimate_submitted': 'estimate_sent', 'supplement_requested': 'estimate_sent',
-  'supplement_approved': 'estimate_sent',
-  // Cash / finance — same idea
-  'estimate_sent_cash': 'estimate_sent', 'negotiating': 'estimate_sent',
-  'prequal_sent': 'estimate_sent', 'loan_approved': 'estimate_sent',
-  // Contract signed
-  'contract_signed': 'contract_signed',
-  // Job phase
-  'job_created': 'contract_signed', 'permit_pulled': 'contract_signed',
-  'materials_ordered': 'contract_signed', 'materials_delivered': 'install',
-  'crew_scheduled': 'install', 'install_in_progress': 'install',
-  'install_complete': 'install',
-  'final_photos': 'complete', 'deductible_collected': 'complete',
-  'final_payment': 'complete', 'closed': 'complete'
-};
+// The 9-step tracker, its wording (HOMEOWNER_PROGRESS_COPY — the one place
+// Jo edits it), the stage → step map, and the "paid in full" gate all live in
+// ./homeowner-progress.js (2026-10-03 rebuild).
+//
+// ONE owner for "which milestone is this lead on?" — the 2026-09-08 rule.
+// This file once computed the milestone in getHomeownerPortalView while
+// submitCustomerRating carried its own hardcoded literal stage list. A legacy
+// display stage ('Complete', 'Closed Won') or a tenant custom stage with
+// stageRole 'won' rendered the rating card and was then refused at submit:
+// "two gates for one invariant drift". Both now call resolveHomeownerProgress
+// (via paidInFullFor) and nothing else, and 2026-10-03 moved the gate itself
+// from "final photos taken" to "paid in full".
+const {
+  HOMEOWNER_PROGRESS_COPY, resolveHomeownerProgress, paidInFullFor, milestoneDatesFor, invoiceOwes,
+} = require('./homeowner-progress');
 
-// ONE owner for "which milestone is this lead on?".
-//
-// 2026-09-08: this lived inside getHomeownerPortalView while
-// submitCustomerRating carried its own hardcoded literal list —
-// ['final_photos','deductible_collected','final_payment','closed'] — under a
-// comment claiming those were "exactly the stages that map to the
-// 'complete' progress milestone". They were not, in two ways, and both
-// reach a real homeowner:
-//
-//   * A legacy raw display stage ('Complete', 'Closed Won', 'Won', 'Closed')
-//     is not a key in STAGE_TO_PROGRESS, so the view fell through to the
-//     role fallback, stage-roles ALIASed it to 'closed', the role came back
-//     'won', and progressKey became 'complete' — canRate true, card
-//     rendered. The submit gate then compared the RAW stage against its
-//     literal list, missed, and answered 409 "You can rate once the job is
-//     complete." on a job that was complete.
-//   * A tenant CUSTOM stage carrying stageRole 'won' does the same thing.
-//
-// So a homeowner tapped five stars on a finished roof and was told it was
-// not finished. Two gates for one invariant drift; now there is one.
-function progressKeyFor(lead) {
-  const stageKey = (lead && (lead._stageKey || lead.stage)) || 'new';
-  let progressKey = STAGE_TO_PROGRESS[stageKey];
-  if (!progressKey) {
-    // A tenant CUSTOM stage is not in the map — fall back by its semantic
-    // role (persisted on the lead by crm-pipeline moveCard).
-    const _role = require('./stage-roles').roleFor(lead);
-    progressKey = _role === 'won' ? 'complete' : (_role === 'job' ? 'install' : 'inspected');
-  }
-  return progressKey;
-}
-
-// ONE owner for "when did each homeowner-facing milestone first happen?".
-// Indexes lead.stageHistory (array of {from, to, timestamp, user}, written by
-// commitStageChange in docs/pro/js/stage-write.js) by mapping each entry's
-// destination stage through STAGE_TO_PROGRESS, keeping the EARLIEST
-// timestamp per milestone bucket — mirrors the "first entry wins" fix
-// already shipped on the rep side (docs/pro/js/customer-tasks-ui.js:446-455):
-// a bounce-back re-entry into an earlier stage must not overwrite the date
-// the lead first reached a later milestone.
-//
-// A tenant CUSTOM stage (not a key in STAGE_TO_PROGRESS) has no per-history-
-// entry role recorded — stageRole is stamped on the LEAD doc at write time,
-// not inside the historyEvent itself — so there is no way to know which
-// milestone a historical custom-stage entry belonged to. Those entries are
-// skipped for dating purposes; progressKeyFor's live role fallback still
-// resolves the CURRENT position for them, just without a per-step date.
-//
-// timestamp is written as new Date().toISOString() (stage-write.js), never
-// a Firestore Timestamp, so plain string comparison is chronological — same
-// "ship the raw value, format client-side" call already made for
-// scheduledDate below.
-function milestoneDatesFor(lead) {
-  const dates = {};
-  const history = Array.isArray(lead && lead.stageHistory) ? lead.stageHistory : [];
-  for (const h of history) {
-    if (!h || !h.to || typeof h.timestamp !== 'string') continue;
-    const key = STAGE_TO_PROGRESS[h.to];
-    if (!key) continue;
-    if (!(key in dates) || h.timestamp < dates[key]) dates[key] = h.timestamp;
-  }
-  return dates;
+// The lead's invoices that belong to this portal's tenant (portal-authz.js).
+// Used by the view (balance card + tracker) and by the rating gate.
+function _tenantInvoices(invDocs, tenant) {
+  return (invDocs || []).map((d) => d.data())
+    .filter(inv => recordInPortalTenant(inv, ['createdBy'], tenant));
 }
 
 // ONE owner for "is this leads/{id}/documents row visible to the
 // homeowner?" (documents shelf, 2026-09-16). Used BOTH to build the shelf
 // list below and by getPortalDocumentHtml to re-check a specific docId
 // before returning bytes — the exact "two gates for one invariant" drift
-// progressKeyFor's own comment above describes, avoided by having one
+// the progress-milestone comment above describes, avoided by having one
 // function instead of two independently-written filters.
 function _isDocVisibleToHomeowner(d) {
   return !!d && d.deleted !== true && (d.generated === true || d.sharedWithHomeowner === true);
@@ -862,20 +785,34 @@ exports.getHomeownerPortalView = onRequest(
       }
     }
 
-    // Project progress — see progressKeyFor() at module scope. Both this
-    // view and submitCustomerRating resolve through it, so the rating card
-    // can never render on a job whose rating the server will then refuse.
-    const progressKey = progressKeyFor(lead);
-    const currentIdx = HOMEOWNER_PROGRESS.findIndex(p => p.key === progressKey);
-    const nextStep = currentIdx >= 0 && currentIdx < HOMEOWNER_PROGRESS.length - 1
-      ? HOMEOWNER_PROGRESS[currentIdx + 1] : null;
+    // Project progress — see ./homeowner-progress.js. This view and
+    // submitCustomerRating both resolve through it, so the rating card can
+    // never render on a job whose rating the server will then refuse.
+    const tenantInvoices = _tenantInvoices(invSnap.docs, tenant);
+    const hp = resolveHomeownerProgress(lead, {
+      invoices: tenantInvoices,
+      repName: rep.displayName || lead.repName || '',
+    });
     const progress = {
-      milestones: HOMEOWNER_PROGRESS,
-      currentKey:    progressKey,
-      currentIndex:  currentIdx,
-      currentLabel:  HOMEOWNER_PROGRESS[currentIdx]?.label || 'In Progress',
-      nextLabel:     nextStep?.label || null,
-      nextBlurb:     nextStep?.blurb || null,
+      // [{key, label, state: done|current|upcoming|skipped}] — labels come
+      // from HOMEOWNER_PROGRESS_COPY; the client renders, it never words.
+      milestones:    hp.steps,
+      currentKey:    hp.currentKey,
+      currentIndex:  hp.currentIndex,
+      currentLabel:  hp.currentLabel,
+      // May carry {date} — the client fills it in the reader's timezone.
+      currentBlurb:  hp.currentBlurb,
+      pending:       hp.pending,
+      doneCount:     hp.doneCount,
+      total:         hp.total,
+      nextLabel:     hp.nextLabel,
+      paidInFull:    hp.paidInFull,
+      paidLine:      hp.paidLine,
+      warrantyOnFile: hp.warrantyOnFile,
+      // Set below, once the balance is known: the existing rep-sent Stripe
+      // link, and ONLY while the current step is an unpaid Final payment.
+      payLink:       null,
+      copy:          HOMEOWNER_PROGRESS_COPY.ui,
       // The install date. crm-stages.js requires scheduledDate on EVERY track
       // to reach CREW_SCHEDULED (tests/crm-required-fields.test.js guards it),
       // so from that stage on this is a real commitment a rep typed, not a
@@ -998,14 +935,15 @@ exports.getHomeownerPortalView = onRequest(
     // themselves without a rep having sent a link first. Picks the most
     // recently created invoice that still has a balance — most jobs have
     // exactly one, but this doesn't assume that.
-    const _unpaidInvoice = invSnap.docs
-      .map(d => d.data())
-      .filter(inv => recordInPortalTenant(inv, ['createdBy'], tenant))
-      // A draft (incl. the server's draft deposit invoice, 2026-10-03) was
-      // never sent — showing it here would bill the homeowner before Jo
-      // taps Send. Void / cancelled / deleted are not owed either.
-      .filter(inv => isOwedInvoice(inv))
-      .filter(inv => Number(inv.balanceDue) > 0)
+    // Same tenant-filtered list and the same "still owes" predicate the
+    // tracker's Final payment step used above — the card and the step cannot
+    // disagree about whether money is owed. invoiceOwes goes through
+    // invoice-owed.js's isOwedInvoice: a draft (incl. the server's draft
+    // deposit invoice, #2131) was never sent — showing it here would bill
+    // the homeowner before Jo taps Send. Void / cancelled / deleted are not
+    // owed either.
+    const _unpaidInvoice = tenantInvoices
+      .filter(invoiceOwes)
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))[0] || null;
     const _balance = _unpaidInvoice ? {
       amountCents: Math.round(Number(_unpaidInvoice.balanceDue) * 100),
@@ -1013,6 +951,15 @@ exports.getHomeownerPortalView = onRequest(
         ? _unpaidInvoice.stripePaymentLink
         : null,
     } : null;
+    // The tracker's "Pay your invoice" link is this SAME already-sent link —
+    // never a new one. A Kentucky insurance job's link is withheld at
+    // creation (stripe.js runs ky-insurance-law.js server-side), so a held
+    // invoice has no link here and the step shows no button. Only while the
+    // current step is an unpaid Final payment: the build is done by then, so
+    // this is never an ask for money up front.
+    if (hp.currentKey === 'payment' && hp.pending && _balance && _balance.stripePaymentLink) {
+      progress.payLink = _balance.stripePaymentLink;
+    }
 
     const view = {
       homeowner: {
@@ -1158,14 +1105,15 @@ exports.getHomeownerPortalView = onRequest(
       // Wave 121: rating gate — surface to the portal whether the
       // homeowner can rate the job and whether they already have.
       // The rating card only shows when:
-      //   1. progressKey === 'complete'
+      //   1. the job is PAID IN FULL (hp.paidInFull — the tracker's Review
+      //      step; was "final photos taken" until 2026-10-03)
       //   2. lead.customerRating is unset (not already rated)
       // We emit both bits so the client can render correctly without
       // a second round-trip. If rep.googleReviewUrl is set on the
       // user doc, we also surface it so 4-5★ raters get nudged to
       // leave a public review on Google.
       rating: {
-        canRate: progressKey === 'complete',
+        canRate: hp.paidInFull,
         submitted: typeof lead.customerRating === 'number' && lead.customerRating > 0,
         stars: typeof lead.customerRating === 'number' ? lead.customerRating : null,
         // W134 CRITICAL fix: enforce https?:// scheme so a rep with a
@@ -1949,8 +1897,9 @@ exports.reportWarrantyClaim = onRequest(
 // job, optional comment, smart routing on outcome.
 // ═══════════════════════════════════════════════════════════════
 //
-// The post-completion feedback loop. When a lead has hit the
-// 'complete' homeowner-progress milestone, we show a 1-5 star
+// The post-completion feedback loop. When a job is PAID IN FULL
+// (homeowner-progress.js paidInFullFor — the tracker's Review step;
+// 2026-10-03, was "final photos taken"), we show a 1-5 star
 // rating card on the portal. Customer picks stars + optional
 // comment, server stamps the lead with `customerRating` +
 // `customerRatingComment` + `customerRatingAt`, and routes
@@ -2012,6 +1961,18 @@ exports.submitCustomerRating = onRequest(
     }
 
     const leadRef = db.doc(`leads/${tok.leadId}`);
+    // The paid-in-full gate needs the lead's invoices. Read outside the
+    // transaction (they are not what the write-once race is about) and
+    // tenant-filtered inside it, once the lead is in hand — the same
+    // _tenantInvoices the portal view builds the rating card from.
+    let invDocs = [];
+    try {
+      invDocs = (await db.collection('invoices').where('leadId', '==', tok.leadId).limit(20).get()).docs;
+    } catch (e) {
+      logger.warn('[submitCustomerRating] invoice read failed', { msg: e && e.message });
+      res.status(500).json({ error: 'Could not save rating. Try again.' });
+      return;
+    }
 
     // W134 fix: write-once atomicity. The previous read-then-update
     // was racy — two concurrent submissions could both pass the
@@ -2028,14 +1989,14 @@ exports.submitCustomerRating = onRequest(
         if (typeof lead.customerRating === 'number' && lead.customerRating > 0) {
           const e = new Error('already-rated'); e._http = 409; e._msg = 'You\'ve already rated this job. Thank you!'; throw e;
         }
-        // Server-side 'complete' gate — the canRate hint in getHomeownerPortalView
-        // is client-only; without this a crafted POST could rate a job that
-        // isn't done (QA finding). These are exactly the stages that map to the
-        // 'complete' progress milestone in the portal view.
-        // Same resolver the portal view uses for canRate, so the card the
-        // homeowner sees and the gate that accepts their rating agree by
-        // construction rather than by two lists staying in sync.
-        if (progressKeyFor(lead) !== 'complete') {
+        // Server-side paid-in-full gate — the canRate hint in
+        // getHomeownerPortalView is client-only; without this a crafted POST
+        // could rate a job that isn't done (QA finding). Same resolver and the
+        // same tenant-filtered invoices the portal view uses for canRate, so
+        // the card the homeowner sees and the gate that accepts their rating
+        // agree by construction rather than by two lists staying in sync.
+        const ratingInvoices = _tenantInvoices(invDocs, portalTenant(tok, lead));
+        if (!paidInFullFor(lead, ratingInvoices)) {
           const e = new Error('not-complete'); e._http = 409; e._msg = 'You can rate once the job is complete.'; throw e;
         }
         tx.update(leadRef, {
