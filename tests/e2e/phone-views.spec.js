@@ -263,7 +263,8 @@ test.describe('phone views: dashboard lead widgets and the bell @audit', () => {
     for (const width of [412, 360]) {
       await page.setViewportSize({ width, height: 860 });
       await page.evaluate(() => window.scrollTo(0, 0));
-      await page.locator('#mni-dash').tap();
+      // The KPI dashboard (Hot Leads lives there) — the Home tab is Today since 2026-10-03.
+      await safeEvaluate(page, () => window.goTo('dash'));
       await safeEvaluate(page, () => window.dispatchEvent(new Event('nbd:data-refreshed')));
       await expect(page.locator('#hot-leads-body .hot-lead-row').first()).toBeVisible({ timeout: 15_000 });
       await settled(page, '#hot-leads-body');
@@ -1597,7 +1598,8 @@ const lightSuite = (width) => test.describe(`phone views: light mode stays reada
     });
 
     await test.step('views#11 Engagement Cohort + Next Best Actions labels', async () => {
-      await page.locator('#mni-dash').tap();
+      // The KPI dashboard — the Home tab is Today since 2026-10-03.
+      await safeEvaluate(page, () => window.goTo('dash'));
       await safeEvaluate(page, () => window.dispatchEvent(new Event('nbd:data-refreshed')));
       // Tier rows: the grid children of the cohort list (label | bar | count).
       await safeWaitForFunction(page, () => [...document.querySelectorAll('#engagement-cohort-body > div:first-child > div')].some((r) => getComputedStyle(r).display === 'grid'), { timeout: 15_000 });

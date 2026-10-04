@@ -2314,62 +2314,113 @@ async function run() {
     throw new Error('47 security batch: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
   }
 
-  // 48. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
+  // ─── 48. Tasks: ONE collection-group load + tenant-safe stamps (2026-10-03,
+  // Today home). The dashboard reads every task with
+  // collectionGroup('tasks').where(companyId|userId).orderBy(createdAt); the
+  // recursive rule grants READ on the task's own stamps, and a writer may only
+  // stamp values inside the task's tenant (taskStampOk) — else a stamp could
+  // push a task into another tenant's Today list.
+  const s48Fail = []; let s48Pass = 0;
+  async function x48(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s48Pass++;
+    } catch (e) { s48Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'leads/lead47'), { userId: 'own48', companyId: 'co47', stage: 'new' });
+      await setDoc(doc(db, 'leads/lead47/tasks/t1'), { text: 'call back', done: false, dueDate: '2026-10-03', userId: 'own48', companyId: 'co47', createdAt: new Date() });
+      await setDoc(doc(db, 'leads/lead47/tasks/legacy'), { text: 'unstamped legacy', done: false, createdAt: new Date() });
+      await setDoc(doc(db, 'leads/lead47other'), { userId: 'other47', companyId: 'coOther47', stage: 'new' });
+      await setDoc(doc(db, 'leads/lead47other/tasks/t9'), { text: 'not yours', userId: 'other47', companyId: 'coOther47', createdAt: new Date() });
+    });
+    const own48 = env.authenticatedContext('own48', { role: 'sales_rep', companyId: 'co47' }).firestore();
+    const mgr48 = env.authenticatedContext('mgr48', { role: 'company_admin', companyId: 'co47' }).firestore();
+    const vw48 = env.authenticatedContext('vw48', { role: 'viewer', companyId: 'co47' }).firestore();
+    const evil48 = env.authenticatedContext('other47', { role: 'company_admin', companyId: 'coOther47' }).firestore();
+    const byCo48 = (db, co) => getDocs(query(collectionGroup(db, 'tasks'), where('companyId', '==', co), orderBy('createdAt', 'asc')));
+    const byUser48 = (db, u) => getDocs(query(collectionGroup(db, 'tasks'), where('userId', '==', u), orderBy('createdAt', 'asc')));
+    await x48('company admin loads the tenant\'s tasks in one query', 'allow', byCo48(mgr48, 'co47'));
+    await x48('a viewer loads them too (read-only role)', 'allow', byCo48(vw48, 'co47'));
+    await x48('a rep loads their OWN tasks', 'allow', byUser48(own48, 'own48'));
+    await x48('a rep asks for the whole company\'s tasks', 'deny', byCo48(own48, 'co47'));
+    await x48('another tenant asks for co47\'s tasks', 'deny', byCo48(evil48, 'co47'));
+    await x48('another user\'s tasks by userId', 'deny', byUser48(own48, 'other47'));
+    await x48('an unfiltered collection-group read', 'deny', getDocs(collectionGroup(mgr48, 'tasks')));
+    const t48 = (db, lead, id) => doc(db, 'leads/' + lead + '/tasks/' + id);
+    await x48('owner adds a task stamped with the lead\'s owner + tenant', 'allow', setDoc(t48(own48, 'lead47', 'n1'), { text: 'x', done: false, userId: 'own48', companyId: 'co47', leadId: 'lead47' }));
+    await x48('owner adds an unstamped task (every legacy writer)', 'allow', setDoc(t48(own48, 'lead47', 'n2'), { text: 'x', done: false }));
+    await x48('company admin adds one stamped with the writer\'s own uid as userId', 'allow', setDoc(t48(mgr48, 'lead47', 'n3'), { text: 'x', userId: 'mgr48', companyId: 'co47' }));
+    await x48('stamping ANOTHER tenant onto a task (inject into their Today list)', 'deny', setDoc(t48(evil48, 'lead47other', 'n4'), { text: 'spam', userId: 'other47', companyId: 'co47' }));
+    await x48('stamping another user as the owner', 'deny', setDoc(t48(evil48, 'lead47other', 'n5'), { text: 'spam', userId: 'own48' }));
+    await x48('ticking a legacy task done (stamps untouched) still works', 'allow', updateDoc(t48(own48, 'lead47', 'legacy'), { done: true }));
+    await x48('re-stamping a task to another tenant', 'deny', updateDoc(t48(own48, 'lead47', 't1'), { companyId: 'coOther47' }));
+    await x48('owner deletes a task', 'allow', deleteDoc(t48(own48, 'lead47', 'n2')));
+    await x48('a viewer adds a task', 'deny', setDoc(t48(vw48, 'lead47', 'n6'), { text: 'x' }));
+  }
+  console.log('  48: ' + s48Pass + ' task one-query / stamp checks passed, ' + s48Fail.length + ' failed');
+  if (s48Fail.length) {
+    throw new Error('48 tasks: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
+  }
+
+  // 50. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
   // lead create names its `meter`; subscriptions/{companyId}.leadCap (written
   // by functions/lead-cap.js) blocks metered creates at the plan cap, except
   // imports / samples still inside their one-time allowance; a cancelled
   // plan's readOnlyUntil blocks everything; NBD's company is exempt. Each
   // company's block touches only that company (cross-tenant control).
-  const s48Fail = [];
-  let s48Pass = 0;
-  async function x48(label, want, promise) {
-    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s48Pass++; }
-    catch (_) { s48Fail.push(label + ' (wanted ' + want + ')'); }
+  const s50Fail = [];
+  let s50Pass = 0;
+  async function x50(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s50Pass++; }
+    catch (_) { s50Fail.push(label + ' (wanted ' + want + ')'); }
   }
   const NBD_UID = '1phDvAVXHSg82wDLegAbQFq14Ci1';
-  const future48 = new Date(Date.now() + 10 * 24 * 3600 * 1000);
-  const past48 = new Date(Date.now() - 24 * 3600 * 1000);
+  const future50 = new Date(Date.now() + 10 * 24 * 3600 * 1000);
+  const past50 = new Date(Date.now() - 24 * 3600 * 1000);
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'subscriptions/co-cap'), { plan: 'free', status: 'none', leadCap: { plan: 'free', blockedUntil: future48 }, importAllowanceUsed: 3, sampleAllowanceUsed: 20 });
-    await setDoc(doc(db, 'subscriptions/co-capfull'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: future48 }, importAllowanceUsed: 1000 });
-    await setDoc(doc(db, 'subscriptions/co-upg'), { plan: 'growth', leadCap: { plan: 'free', blockedUntil: future48 } });
-    await setDoc(doc(db, 'subscriptions/co-newmonth'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: past48 } });
-    await setDoc(doc(db, 'subscriptions/co-ro'), { plan: 'free', status: 'cancelled', readOnlyUntil: future48 });
+    await setDoc(doc(db, 'subscriptions/co-cap'), { plan: 'free', status: 'none', leadCap: { plan: 'free', blockedUntil: future50 }, importAllowanceUsed: 3, sampleAllowanceUsed: 20 });
+    await setDoc(doc(db, 'subscriptions/co-capfull'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: future50 }, importAllowanceUsed: 1000 });
+    await setDoc(doc(db, 'subscriptions/co-upg'), { plan: 'growth', leadCap: { plan: 'free', blockedUntil: future50 } });
+    await setDoc(doc(db, 'subscriptions/co-newmonth'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: past50 } });
+    await setDoc(doc(db, 'subscriptions/co-ro'), { plan: 'free', status: 'cancelled', readOnlyUntil: future50 });
     await setDoc(doc(db, 'subscriptions/co-open'), { plan: 'free', usage: { leads: 2 } });
   });
-  const rep48 = (cid) => env.authenticatedContext('rep48-' + cid, { role: 'sales_rep', companyId: cid }).firestore();
-  const L48 = (cid, extra) => Object.assign({ userId: 'rep48-' + cid, companyId: cid, firstName: 'ZZ_QA', lastName: 'Cap' }, extra || {});
-  let n48 = 0;
-  const create48 = (cid, extra) => setDoc(doc(rep48(cid), 'leads/cap48-' + (++n48)), L48(cid, extra));
-  await x48('a client lead with NO meter is refused', 'deny', create48('co-open'));
-  await x48('an unknown meter is refused', 'deny', create48('co-open', { meter: 'free-pass' }));
-  await x48('meter manual under the cap is allowed', 'allow', create48('co-open', { meter: 'manual' }));
-  await x48('a company with no subscription doc yet is allowed', 'allow', create48('co-nosub', { meter: 'manual' }));
-  await x48('at the cap: a manual lead is refused', 'deny', create48('co-cap', { meter: 'manual' }));
-  await x48('at the cap: an import inside the allowance is allowed', 'allow', create48('co-cap', { meter: 'import' }));
-  await x48('at the cap: a sample past its allowance is refused', 'deny', create48('co-cap', { meter: 'sample' }));
-  await x48('at the cap with the import allowance used up: import refused', 'deny', create48('co-capfull', { meter: 'import' }));
-  await x48('upgraded since the block (plan changed): allowed', 'allow', create48('co-upg', { meter: 'manual' }));
-  await x48('a new month (blockedUntil passed): allowed', 'allow', create48('co-newmonth', { meter: 'manual' }));
-  await x48('read-only grace: a manual lead is refused', 'deny', create48('co-ro', { meter: 'manual' }));
-  await x48('read-only grace: even an import is refused', 'deny', create48('co-ro', { meter: 'import' }));
+  const rep50 = (cid) => env.authenticatedContext('rep50-' + cid, { role: 'sales_rep', companyId: cid }).firestore();
+  const L50 = (cid, extra) => Object.assign({ userId: 'rep50-' + cid, companyId: cid, firstName: 'ZZ_QA', lastName: 'Cap' }, extra || {});
+  let n50 = 0;
+  const create50 = (cid, extra) => setDoc(doc(rep50(cid), 'leads/cap50-' + (++n50)), L50(cid, extra));
+  await x50('a client lead with NO meter is refused', 'deny', create50('co-open'));
+  await x50('an unknown meter is refused', 'deny', create50('co-open', { meter: 'free-pass' }));
+  await x50('meter manual under the cap is allowed', 'allow', create50('co-open', { meter: 'manual' }));
+  await x50('a company with no subscription doc yet is allowed', 'allow', create50('co-nosub', { meter: 'manual' }));
+  await x50('at the cap: a manual lead is refused', 'deny', create50('co-cap', { meter: 'manual' }));
+  await x50('at the cap: an import inside the allowance is allowed', 'allow', create50('co-cap', { meter: 'import' }));
+  await x50('at the cap: a sample past its allowance is refused', 'deny', create50('co-cap', { meter: 'sample' }));
+  await x50('at the cap with the import allowance used up: import refused', 'deny', create50('co-capfull', { meter: 'import' }));
+  await x50('upgraded since the block (plan changed): allowed', 'allow', create50('co-upg', { meter: 'manual' }));
+  await x50('a new month (blockedUntil passed): allowed', 'allow', create50('co-newmonth', { meter: 'manual' }));
+  await x50('read-only grace: a manual lead is refused', 'deny', create50('co-ro', { meter: 'manual' }));
+  await x50('read-only grace: even an import is refused', 'deny', create50('co-ro', { meter: 'import' }));
   // Cross-tenant: co-cap's block never reaches co-open, and a rep cannot
   // borrow another company's open allowance (companyId is pinned to the claim).
-  await x48('cross-tenant: another company is unaffected by co-cap\'s block', 'allow', create48('co-open', { meter: 'manual' }));
-  await x48('cross-tenant: a co-cap rep cannot file the lead under co-open', 'deny',
-    setDoc(doc(rep48('co-cap'), 'leads/cap48-x'), Object.assign(L48('co-cap', { meter: 'manual' }), { companyId: 'co-open' })));
+  await x50('cross-tenant: another company is unaffected by co-cap\'s block', 'allow', create50('co-open', { meter: 'manual' }));
+  await x50('cross-tenant: a co-cap rep cannot file the lead under co-open', 'deny',
+    setDoc(doc(rep50('co-cap'), 'leads/cap50-x'), Object.assign(L50('co-cap', { meter: 'manual' }), { companyId: 'co-open' })));
   // NBD control: NBD's own company is never metered — a lead without a meter
   // (an old cached page) still saves, exactly as before.
-  const nbd48 = env.authenticatedContext(NBD_UID, { companyId: NBD_UID, owner: true }).firestore();
-  await x48('NBD (control): a lead with no meter still saves', 'allow',
-    setDoc(doc(nbd48, 'leads/cap48-nbd'), { userId: NBD_UID, companyId: NBD_UID, firstName: 'ZZ_QA' }));
+  const nbd50 = env.authenticatedContext(NBD_UID, { companyId: NBD_UID, owner: true }).firestore();
+  await x50('NBD (control): a lead with no meter still saves', 'allow',
+    setDoc(doc(nbd50, 'leads/cap50-nbd'), { userId: NBD_UID, companyId: NBD_UID, firstName: 'ZZ_QA' }));
   // Clients can never write the meter state themselves.
-  await x48('a company owner cannot clear their own leadCap', 'deny',
+  await x50('a company owner cannot clear their own leadCap', 'deny',
     setDoc(doc(env.authenticatedContext('co-cap', { companyId: 'co-cap' }).firestore(), 'subscriptions/co-cap'), { leadCap: null }, { merge: true }));
-  console.log('  48: ' + s48Pass + ' plan lead-cap checks passed, ' + s48Fail.length + ' failed');
-  if (s48Fail.length) {
-    throw new Error('48 plan lead cap: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
+  console.log('  50: ' + s50Pass + ' plan lead-cap checks passed, ' + s50Fail.length + ' failed');
+  if (s50Fail.length) {
+    throw new Error('50 plan lead cap: ' + s50Fail.length + ' check(s) went the wrong way:\n    ' + s50Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

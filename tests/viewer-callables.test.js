@@ -441,7 +441,7 @@ const VERDICTS = {
   exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
-  getHailHistory: 'read-paid', getSwathReport: 'role-gated', getSwathUsage: 'role-gated',
+  getHailHistory: 'read-paid',
   integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
@@ -490,7 +490,7 @@ const VERDICTS = {
   sendQueuedSMS: 'refused', sendSMS: 'refused', setStorageCors: 'role-gated', shareSSR: 'public',
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
   submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
-  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public', swathWebhook: 'public',
+  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
   // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup
   // (Bland's bearer token, no signed-in user).
