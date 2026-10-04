@@ -203,7 +203,7 @@ at under $0.10.
 2. After the merge, the next functions deploy ships ffmpeg-static (Cloud
    Build downloads its Linux binary from GitHub during `npm ci`). It is an
    optional dependency, so a failed download does not fail the deploy. Reel
-   Studio then says "Video rendering is not available"; redeploy to fix it.
+   Studio then says "Video rendering is not available"; redeploy to fix it. The version is pinned to exactly 5.2.0: 5.3.0's Linux binary has no drawtext. Never bump it without the CI real-render test passing.
 3. Turn it on: **Social Studio → Settings → Reel Studio**. It is off until
    you do.
 4. Optional: add the GCS lifecycle rule in the runbook.
@@ -227,6 +227,7 @@ fix was restored.
 
 | # | Severity | Where | Problem | Fix |
 |---|---|---|---|---|
+| 0 | **Critical** | `functions/package.json` ffmpeg-static ^5.3.0 | Its Linux binary is FFmpeg 7.0.2 built without libharfbuzz, which FFmpeg 7 needs for **drawtext**. Every brand card (intro, outro, titles, captions) failed with "No such filter: drawtext", so **no reel could render in production**. CI showed it (the real render was red on #2171 and on this branch); local Windows runs used a different binary. | Pinned to exactly **5.2.0** (FFmpeg 6.0, has drawtext; the Linux binary was checked). `ffmpegPath()` now accepts only a binary whose `-filters` list has every template filter. In CI (`CI=true`) a usable ffmpeg is required, so the real-render tests can no longer skip green. |
 | 1 | Medium | `functions/reel-logic.js` blurArgs | One boxblur radius (at least 8) for every plane. In yuv420p the chroma planes are half size, so any blur box under 32 px made ffmpeg refuse the filter. The auto-blur re-render died ("Invalid chroma radius"). | `blurRadii()` caps luma at min/2-1 and chroma at min/4-1. blurRegions keeps boxes at least 48 px and slides an edge box back inside the frame instead of shrinking it. Proven with real ffmpeg on 16 px and 20 px boxes. |
 | 2 | Medium | normalizeArgs | `min(1920,iw)` keeps an odd width (or height), and libx264 yuv420p refuses odd sizes. The ingest of such a clip failed. | `trunc(min(1920,iw)/2)*2` on both edges. Proven with a 641x361 / 361x641 fixture. |
 | 3 | Low | doRender / buildPlan | The talking-head trim window was computed inside buildPlan, and doRender read it back out of a throwaway plan for the Whisper audio. Correct today but fragile: if the two drift apart, every caption is off. | One shared `talkingHeadWindow()`. An end-to-end test checks that the audio Whisper hears lasts exactly the rendered window. |

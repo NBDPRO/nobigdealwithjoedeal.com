@@ -36,11 +36,27 @@ function ffmpegPath() {
   _bin = null;
   for (const c of candidates) {
     try {
-      const r = spawnSync(c, ['-hide_banner', '-version'], { timeout: 15000, windowsHide: true });
-      if (r.status === 0) { _bin = c; break; }
+      // A binary only counts if it has every filter the templates use. The
+      // ffmpeg-static 5.3.0 Linux build (FFmpeg 7.0.2) has NO drawtext —
+      // FFmpeg 7 needs libharfbuzz for it — so every brand card failed with
+      // "No such filter: 'drawtext'". Pinned to 5.2.0 (FFmpeg 6.0) in
+      // functions/package.json; this check catches a future regression.
+      const r = spawnSync(c, ['-hide_banner', '-filters'], { timeout: 15000, windowsHide: true, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+      if (r.status === 0 && missingFilters(r.stdout).length === 0) { _bin = c; break; }
     } catch (_) { /* next */ }
   }
   return _bin;
+}
+
+const REQUIRED_FILTERS = ['drawtext', 'drawbox', 'overlay', 'xfade', 'zoompan', 'boxblur', 'scale', 'crop', 'tpad', 'fade', 'concat', 'atrim'];
+/** `ffmpeg -filters` output → the template filters it lacks ([] = usable). */
+function missingFilters(filtersText) {
+  const have = new Set();
+  for (const line of String(filtersText || '').split(/\r?\n/)) {
+    const m = /^\s*[A-Z.|]{2,4}\s+(\w+)\s/.exec(line);
+    if (m) have.add(m[1]);
+  }
+  return REQUIRED_FILTERS.filter((f) => !have.has(f));
 }
 function _resetBin() { _bin = undefined; }
 
@@ -126,4 +142,4 @@ async function sampleFrames(dir, file, durationSec, width) {
   return out;
 }
 
-module.exports = { ffmpegPath, _resetBin, run, probe, withWorkDir, stageBrand, normalize, renderPlan, droneScores, sampleFrames, ASSET_DIR };
+module.exports = { ffmpegPath, missingFilters, REQUIRED_FILTERS, _resetBin, run, probe, withWorkDir, stageBrand, normalize, renderPlan, droneScores, sampleFrames, ASSET_DIR };

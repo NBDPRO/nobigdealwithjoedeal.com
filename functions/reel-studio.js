@@ -78,7 +78,7 @@ function isEmulator() { return process.env.FUNCTIONS_EMULATOR === 'true'; }
 // install script downloads a ~80 MB binary, and a failed download must not
 // fail the whole functions deploy. Without it, every video path stops here
 // with this message instead of a cryptic spawn error.
-const FFMPEG_MISSING = 'Video rendering is not available: the ffmpeg binary did not install with this deploy (ffmpeg-static is an optional dependency). Redeploy functions, or set FFMPEG_PATH.';
+const FFMPEG_MISSING = 'Video rendering is not available: no usable ffmpeg binary (with drawtext) shipped with this deploy (ffmpeg-static is an optional dependency, pinned to 5.2.0). Redeploy functions, or set FFMPEG_PATH.';
 function requireFfmpeg(deps) {
   if (!deps.stub && !(deps.ff && deps.ff.ffmpegPath())) throw new Error(FFMPEG_MISSING);
 }

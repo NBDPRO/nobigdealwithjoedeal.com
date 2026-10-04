@@ -758,9 +758,32 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
     }
     const wrong = Object.keys(PK).filter((loc) => loc && (PK[loc].optional === true) !== !reqd.has(loc));
     ok('lock: every package reachable only through ffmpeg-static is flagged optional (and nothing else changed)', wrong.length === 0 && PK['node_modules/ffmpeg-static'].optional === true, wrong.slice(0, 8).join(', '));
+    // CI caught it: ffmpeg-static 5.3.0's Linux binary (FFmpeg 7.0.2) has no drawtext
+    // (FFmpeg 7 needs libharfbuzz for it), so EVERY brand card failed in production.
+    // 5.2.0 ships FFmpeg 6.0 with drawtext. Pinned exactly; a caret would float back to 5.3.
+    ok('ffmpeg-static pinned to exactly 5.2.0 (5.3.0 Linux binary lacks drawtext) — package.json + lock', pkgK.optionalDependencies['ffmpeg-static'] === '5.2.0' && lockK.packages[''].optionalDependencies['ffmpeg-static'] === '5.2.0' && PK['node_modules/ffmpeg-static'].version === '5.2.0' && /ffmpeg-static-5\.2\.0\.tgz$/.test(PK['node_modules/ffmpeg-static'].resolved));
+    if (RF) {
+      const linux7 = ' T.. xfade             VV->V      Cross fade\n ... zoompan           V->V       zoom\n T.C boxblur           V->V       blur\n ..C overlay           VV->V      overlay\n T.C drawbox           V->V       box\n ..C scale             V->V       scale\n ..C crop              V->V       crop\n ... tpad              V->V       pad\n T.. fade              V->V       fade\n ..C concat            N->N       concat\n ... atrim             A->A       trim\n';
+      ok('ffmpegPath rejects a binary without drawtext (the 5.3.0 Linux build)', JSON.stringify(RF.missingFilters(linux7)) === '["drawtext"]' && RF.missingFilters(linux7 + ' T.C drawtext          V->V       Draw text\n').length === 0 && RF.REQUIRED_FILTERS.includes('drawtext'));
+    }
     ok('reel-ffmpeg resolves ffmpeg-static inside try/catch (a missing package is not a crash)', /try \{ const p = require\('ffmpeg-static'\); if \(p\) candidates\.push\(p\); \} catch/.test(read('functions/reel-ffmpeg.js')));
   }
   // K6. Real ffmpeg: the fixed argv actually runs.
+  // The binary check runs on the RAW candidate (FFMPEG_PATH, else ffmpeg-static's
+  // path) — ffmpegPath() would reject a drawtext-less binary and every real-ffmpeg
+  // section below would then skip green. In CI (GitHub sets CI=true) a usable
+  // ffmpeg is REQUIRED: the 5.3.0 drawtext gap was only visible because the real
+  // render ran there.
+  if (RF) {
+    let cand = process.env.FFMPEG_PATH || null;
+    if (!cand) { try { cand = require(require.resolve('ffmpeg-static', { paths: [FN] })); } catch (_) { cand = null; } }
+    if (cand && fs.existsSync(cand)) {
+      const fr = require('child_process').spawnSync(cand, ['-hide_banner', '-filters'], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true });
+      const miss = RF.missingFilters(fr.stdout);
+      ok('the installed ffmpeg binary has every template filter (drawtext, xfade, zoompan, boxblur, …)', fr.status === 0 && miss.length === 0, 'missing: ' + miss.join(', ') + ' in ' + cand);
+    } else ok('no ffmpeg binary installed here' + (process.env.CI ? ' — REQUIRED in CI' : ' — binary filter check SKIPPED'), !process.env.CI);
+    ok('CI renders with real ffmpeg (never a silent skip)', !process.env.CI || !!FF);
+  }
   if (!FF) {
     ok('ffmpeg unavailable — real blur / odd-size checks SKIPPED (CI installs ffmpeg-static)', true);
   } else {

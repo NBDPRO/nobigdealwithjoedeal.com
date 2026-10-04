@@ -23,7 +23,7 @@
     "twilio": "^6.1.1"
   },
   "optionalDependencies": {
-    "ffmpeg-static": "^5.3.0"
+    "ffmpeg-static": "5.2.0"
   },
   "overrides": {
     "brace-expansion": "5.0.12",
