@@ -1123,6 +1123,15 @@ body.nbd-photo-reorder .nbd-photo-item.drop-after {
 .invoice-item.is-deposit-draft .invoice-left { flex:1 1 100%; }
 .invoice-item.is-deposit-draft .invoice-right { flex:1 1 100%; flex-wrap:wrap; justify-content:flex-end; row-gap:8px; }
 .invoice-item.is-deposit-draft .doc-btn { min-height:44px; }
+/* Phone (2026-10-04): a part-paid row carries Send receipt + Mark Paid + Send
+   balance (+ Pay / ACH note) — never fits beside a 390px row, and the
+   flex-shrink:0 group pushed the whole page sideways. Same wrap as above. */
+@media (max-width: 600px) {
+  .invoice-item { flex-wrap:wrap; row-gap:8px; }
+  .invoice-item .invoice-left { flex:1 1 100%; }
+  .invoice-item .invoice-right { flex:1 1 100%; flex-wrap:wrap; justify-content:flex-end; row-gap:8px; }
+  .invoice-item .invoice-right .doc-btn { min-height:44px; }
+}
 
 .payment-summary {
   display:grid; grid-template-columns:1fr 1fr; gap:12px;

@@ -197,6 +197,11 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     await rowBtn.scrollIntoViewIfNeeded();
     const rb = await rowBtn.boundingBox();
     expect(rb && rb.height >= 44 && rb.x >= 0 && rb.x + rb.width <= 390).toBeTruthy();
+    // The part-paid row (Send receipt + Mark Paid + Send balance) wraps — it
+    // used to push the whole page sideways at 390px.
+    const wide = await page.evaluate(() => [...document.querySelectorAll('#invoiceList .invoice-right > *')]
+      .map((el) => el.getBoundingClientRect()).filter((r) => r.width && (r.right > 391 || r.left < -1)).length);
+    expect(wide).toBe(0);
     await page.screenshot({ path: test.info().outputPath('send-receipt-row-390.png') });
     // One tap → exactly ONE sendEmail call, naming the lead + invoice (#2120).
     const emailBodies = [];
