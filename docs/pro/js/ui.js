@@ -969,25 +969,14 @@ function switchSettingsTab(tab) {
       if (window.ThemeAchievements?.renderAchievementPanel) window.ThemeAchievements.renderAchievementPanel('te-achievements-panel');
       if (window.ThemeBuilder?.renderBuilder) window.ThemeBuilder.renderBuilder('te-builder-panel');
     }
-    const fontGrid = document.getElementById('settings-font-grid');
-    if (fontGrid && !fontGrid.dataset.loaded) {
-      if (typeof NBD_FONTS !== 'undefined') {
-        fontGrid.innerHTML = '';
-        const _nbd_activeFont = window._nbd_activeFont || '';
-        NBD_FONTS.forEach(f => {
-          const isAct = f.id === _nbd_activeFont;
-          const d = document.createElement('div');
-          d.style.cssText = 'background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px;cursor:pointer;transition:border-color .15s;' + (isAct ? 'border-color:var(--orange);' : '');
-          d.onclick = () => { if (typeof nbdApplyFont === 'function') nbdApplyFont(f.id); };
-          d.innerHTML = '<div style="font-family:' + f.css.fd + ';font-size:13px;font-weight:700;margin-bottom:4px;">' + f.name + (isAct ? ' ✓' : '') + '</div><div style="font-family:' + f.css.fb + ';font-size:11px;color:var(--m);">' + f.preview.b + '</div>';
-          fontGrid.appendChild(d);
-        });
-        fontGrid.dataset.loaded = '1';
-      } else if (typeof renderFontGrid === 'function') {
-        renderFontGrid('settings-font-grid');
-        fontGrid.dataset.loaded = '1';
-      }
-    }
+    // The Settings font grid (#settings-font-grid) is drawn ONLY by
+    // nbdRenderFontGrid() at the top of this branch — the 28-font picker
+    // whose choice (localStorage 'nbd_font') is what the app's CSS reads
+    // (--nbd-font-body / --nbd-font-display). A second block here used to
+    // wipe that grid and redraw maps.js's 8 NBD_FONTS pairings (key
+    // 'nbd-font'), with an active ✓ read from window._nbd_activeFont —
+    // which maps.js declares with `let`, so it was never on window and no
+    // ✓ ever showed. Two pickers, two keys, one grid: removed 2026-10-03.
   }
   // Re-init daily floors when switching to daily tab
   if (tab === 'daily') {

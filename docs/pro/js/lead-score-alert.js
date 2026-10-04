@@ -136,8 +136,10 @@
       '</div>';
     card.addEventListener('click', () => {
       // Best-effort open: try in-app handler first, then deep link.
-      if (typeof window.openCardDetail === 'function') {
-        try { window.openCardDetail(lead.id); _dismiss(card); return; } catch (_) {}
+      // openCardDetailModal (dashboard-widgets.js) is the real global;
+      // window.openCardDetail never existed, so every tap did a full reload.
+      if (typeof window.openCardDetailModal === 'function') {
+        try { window.openCardDetailModal(lead.id); _dismiss(card); return; } catch (_) {}
       }
       window.location.href = '/pro/customer.html?id=' + encodeURIComponent(lead.id);
     });

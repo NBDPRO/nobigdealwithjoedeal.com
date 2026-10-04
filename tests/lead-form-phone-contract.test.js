@@ -101,6 +101,8 @@ function runInspect({ name, address, phone, response }) {
     fields: () => ({ name: els['f-name'].value, address: els['f-address'].value, phone: els['f-phone'].value, email: '', nbd_hp: '' }),
   });
   mk('f-name', { value: name }); mk('f-address', { value: address }); mk('f-phone', { value: phone });
+  // TCPA consent box (2026-10-03) — ticked, so these cases test the phone rule.
+  mk('ins-consent', { checked: true });
   mk('inspectSubmit', { textContent: 'Request Free Inspection' }); mk('inspectSuccess');
   const document = {
     readyState: 'complete',

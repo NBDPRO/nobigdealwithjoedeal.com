@@ -791,6 +791,11 @@ jobs:
         # wired (2026-08-07 audit). Advisory on introduction; PROMOTED
         # 2026-08-26 on a 10/10 green streak (ledger in
         # documentation/projects/WEEKLY_CADENCE.md).
+        # 2026-10-03: + boot-weight.spec.js and tenant-filename-prefix.spec.js
+        # (lazy-bundle / boot-path proofs, functions-less). Both sat in the
+        # authed-emu file list untagged since 2026-09-06, so no shard ran
+        # them; run-test-manifest.js check (c) now reads THIS list and fails
+        # on an untagged authed spec instead of silently skipping.
         shard: ['@shard1', '@shard2', '@audit', '@stranger', '@gauntlet', '@engines']
     # Rock 3: hermetic authed journey — seed a tenant in the Auth/Firestore
     # emulators, serve docs/ from the hosting emulator (the client SDK

@@ -2471,15 +2471,27 @@
 
   // ── Live team activity ("who's knocking where right now") ───────────
   // A single onSnapshot on the company's knocks streams teammates' knocks in
-  // real time. companyId-only query (mirrors loadTeamKnocks) so it needs no new
-  // composite index; the recency/today slicing is done client-side.
+  // real time. The recency/today slicing is still done client-side
+  // (getTeamActivity), but the listener is BOUNDED to the newest
+  // TEAM_LIVE_KNOCK_LIMIT knocks (orderBy createdAt desc) — unbounded, every
+  // snapshot re-shipped the company's entire knock history. The panel only
+  // shows today's counts + the 6 most-recent reps, so the newest knocks are
+  // all it needs. 1000 = 6x the whole prod knocks collection (167, all with a
+  // Timestamp createdAt — 2026-10-03 count). Index: companyId ASC + createdAt
+  // DESC (firestore.indexes.json, same one loadKnocks' manager query uses).
+  const TEAM_LIVE_KNOCK_LIMIT = 1000;
   let _teamUnsub = null;
   function subscribeTeamActivity() {
     if (!state.currentRep || !state.currentRep.companyId) return;
     unsubscribeTeamActivity();
     if (typeof window.onSnapshot !== 'function') { loadTeamKnocks().then(_renderIfActive); return; }
     try {
-      const q = window.query(window.collection(window._db, 'knocks'), window.where('companyId', '==', state.currentRep.companyId));
+      const q = window.query(
+        window.collection(window._db, 'knocks'),
+        window.where('companyId', '==', state.currentRep.companyId),
+        window.orderBy('createdAt', 'desc'),
+        window.limit(TEAM_LIVE_KNOCK_LIMIT)
+      );
       _teamUnsub = window.onSnapshot(q,
         (snap) => { state.teamKnocks = snap.docs.map(d => ({ id: d.id, ...d.data() })); _renderIfActive(); },
         (err) => { console.warn('[D2D] team listener error — one-shot fallback:', err && err.message || err); loadTeamKnocks().then(_renderIfActive); }

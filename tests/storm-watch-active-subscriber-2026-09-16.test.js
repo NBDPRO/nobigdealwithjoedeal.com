@@ -14,6 +14,12 @@
  * Fix: stormWatch's subscriber query now carries the same
  * .where('active', '==', true) filter as its sibling.
  *
+ * 2026-10-03: both crons now load subscribers through ONE paged helper,
+ * functions/storm-sms-guard.js loadActiveSubscribers (stormWatch's old
+ * .limit(1000) silently dropped everyone past 1000), so this file follows the
+ * query there. Behaviour (paging, opt-out, one cooldown) is driven in
+ * tests/storm-sms-no-double-send-2026-10-03.test.js.
+ *
  * Zero deps. Run: node tests/storm-watch-active-subscriber-2026-09-16.test.js
  */
 'use strict';
@@ -33,23 +39,24 @@ function group(name, fn) { console.log('\n' + name); fn(); }
 
 const STORM_WATCH = read('functions/storm-watch.js');
 const SMS_FUNCTIONS = read('functions/sms-functions.js');
+const GUARD = read('functions/storm-sms-guard.js');
 const INTEGRATIONS = read('functions/handlers/integrations.js');
 
 console.log('storm-watch.js — subscriber query filters on active:true\n');
 
-group('storm-watch.js\'s subscriber query now filters on active', () => {
-  const idx = STORM_WATCH.indexOf("db.collection('storm_alert_subscribers')");
-  ok('found the subscriber query', idx >= 0);
-  const line = STORM_WATCH.slice(idx, STORM_WATCH.indexOf('\n', idx) + 1);
-  ok('the query chains .where(\'active\', \'==\', true) before .get()',
+group('the shared subscriber query (storm-sms-guard.js) filters on active', () => {
+  const idx = GUARD.indexOf('db.collection(SUBSCRIBERS)');
+  ok('found the subscriber query', idx >= 0 && /const SUBSCRIBERS = 'storm_alert_subscribers'/.test(GUARD));
+  const line = GUARD.slice(idx, GUARD.indexOf('\n', idx) + 1);
+  ok('the query chains .where(\'active\', \'==\', true)',
     /\.where\('active', '==', true\)/.test(line), line);
 });
 
-group('the sibling checkStormAlerts cron already has this filter (confirms the pattern this fix matches)', () => {
-  const idx = SMS_FUNCTIONS.indexOf("db.collection('storm_alert_subscribers')");
-  ok('found the sibling subscriber query', idx >= 0);
-  const block = idx >= 0 ? SMS_FUNCTIONS.slice(idx, idx + 200) : '';
-  ok('it filters on active too', /\.where\('active', '==', true\)/.test(block), block);
+group('both crons load subscribers through that helper, not their own query', () => {
+  ok('storm-watch.js uses StormGuard.loadActiveSubscribers', /StormGuard\.loadActiveSubscribers\(db/.test(STORM_WATCH));
+  ok('sms-functions.js (checkStormAlerts) uses StormGuard.loadActiveSubscribers', /StormGuard\.loadActiveSubscribers\(db/.test(SMS_FUNCTIONS));
+  ok('neither queries storm_alert_subscribers directly any more',
+    !/collection\('storm_alert_subscribers'\)\s*\.where/.test(STORM_WATCH + SMS_FUNCTIONS));
 });
 
 group('active:true is server-stamped, never client-trusted (confirms the field is meaningful to filter on)', () => {
