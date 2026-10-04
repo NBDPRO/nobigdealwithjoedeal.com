@@ -132,4 +132,20 @@ work in place.
 
 ## E2E record
 
-(filled in below after the local emulator runs)
+Local emulator, system Chrome, retries 2 (this machine runs several lanes'
+emulators, so timing flakes are common):
+
+- `boot-weight.spec.js` 8/8. Boot queries by collection, measured from the
+  SDK's Listen channel: origin/main `"photos":2`; this branch — no photos key.
+- Full `@shard1|@shard2|@audit|@engines` session (SDK 12.19, before the
+  revert): 328 passed, 7 failed, 2 flaky, 19 did not run. The failures were
+  `phone-views` (3 Settings / company-profile specs), `phone-chrome` (2),
+  `phone-pipeline` (1), `invoice-job-id` (1), `yard-signs-edit` map (1).
+  The three `phone-views` failures **also fail on an origin/main worktree
+  on this machine** (A/B, same three tests), so they are local, not this
+  branch. `customer-jobs` / `my-skin` flaked at the same rate on origin/main.
+- `@stranger|@gauntlet` with the functions emulator (exercises the lazy
+  `FUNCTION_TARGET` path per worker): 13/13.
+- CI on #2155 (12.19): every shard green except `@audit` —
+  `phone-views:1294`, an offline-cache assertion that is specific to the SDK
+  version → reverted to 10.12.2 (see §7).
