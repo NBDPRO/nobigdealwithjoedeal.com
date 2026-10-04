@@ -105,7 +105,6 @@ function hasLiveSubscription(sub) {
 // Shared helpers (B2).
 const { requireAuth, viewOnlyRefusal } = require('./shared');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
-const stageRoles = require('./stage-roles');
 
 // setCustomUserClaims REPLACES the entire claim set. Writing a bare billing
 // patch ({ plan, subscriptionStatus, stripeCustomerId }) therefore WIPES a
@@ -1800,73 +1799,16 @@ exports.invoiceWebhook = onRequest(
               newBalanceDue: creditResult.newBalanceDue, fullyPaid: creditResult.fullyPaid,
             });
 
-            // ── Auto-advance kanban stage on FULL payment ─────────────
-            // Close the loop: when the homeowner pays the invoice OFF via
-            // Stripe, bump the card to 'final_payment'. Gate on fullyPaid —
-            // a deposit-sized online payment must NOT advance the lead to
-            // final payment (the balance is still open). Runs only when the
-            // credit was actually applied (never on an idempotent replay).
-            // The CRM's `STAGE_META` treats final_payment/closed as
-            // won-revenue stages.
-            //
-            // Idempotency: only auto-advance if the lead is currently
-            // pre-final-payment AND not already lost. Never overwrite
-            // a manually-set 'closed' or 'lost' state.
-            if (creditResult.fullyPaid && creditResult.leadId) {
-              try {
-                const leadRef = db.collection('leads').doc(creditResult.leadId);
-                const leadSnap = await leadRef.get();
-                if (leadSnap.exists) {
-                  const lead = leadSnap.data();
-                  const curStage = (lead.stage || '').toLowerCase();
-                  // Forward-only, main job track only — see
-                  // stage-roles.js payoffAdvanceAllowed (R14, 2026-09-28): the
-                  // old final_payment/closed/lost list let a warranty or
-                  // service payoff drag the lead onto Final Payment.
-                  if (stageRoles.payoffAdvanceAllowed(lead)) {
-                    await leadRef.update({
-                      stage: 'final_payment',
-                      _stageKey: 'final_payment',
-                      // Stamp stageRole alongside stage, same as every client
-                      // stage-mutation path (#981's persisted-stageRole-wins
-                      // rule — functions/stage-roles.js roleFor()). Without
-                      // this, a custom-pipeline tenant's lead keeps its STALE
-                      // pre-payoff role (e.g. 'active') because persisted
-                      // always wins over derived: review-request-nudge.js and
-                      // the $100 referral-reward system both read roleFor()
-                      // and silently never fire for a Stripe-paid job.
-                      // 'final_payment' is a hardcoded built-in key here (not
-                      // the lead's arbitrary custom stage), so its role is
-                      // unambiguous — no client-side derivation needed.
-                      stageRole: stageRoles.roleFromKey('final_payment'),
-                      stageStartedAt: FieldValue.serverTimestamp(),
-                      // Entering a won stage stamps closedAt, like every
-                      // client stage move (stage-write.js). Kept when the lead
-                      // was already won with a close date (install_complete →
-                      // final_payment is not a second close).
-                      ...(stageRoles.needsClosedAt(lead, 'final_payment') ? { closedAt: FieldValue.serverTimestamp() } : {}),
-                      // Same history entry every client stage move writes
-                      // (stage-write.js commitStageChange).
-                      stageHistory: FieldValue.arrayUnion({
-                        from: lead.stage || null, to: 'final_payment',
-                        timestamp: new Date().toISOString(), user: 'stripe (online payment)',
-                      }),
-                      autoAdvancedFromInvoiceId: invoiceId,
-                      autoAdvancedAt: FieldValue.serverTimestamp(),
-                      updatedAt: FieldValue.serverTimestamp(),
-                    });
-                    logger.info('lead_auto_advanced_on_payment', {
-                      invoiceId, leadId: creditResult.leadId, fromStage: curStage
-                    });
-                  }
-                }
-              } catch (advanceErr) {
-                // Non-fatal — invoice is already marked paid, just log.
-                logger.warn('lead_auto_advance_failed', {
-                  invoiceId, leadId: creditResult.leadId, err: advanceErr.message
-                });
-              }
-            }
+            // The lead's stage is NOT moved here any more (job spine,
+            // 2026-10-03). The credit above writes status 'paid' onto the
+            // invoice, and the invoice trigger (money-paper.js
+            // moneyPaperOnInvoice → job-spine.js recordJobEvent
+            // 'paid_in_full') advances the lead to Final Payment — the same
+            // rule for a card payoff as for cash / check / Zelle via Mark
+            // Paid, forward-only and main-track-only
+            // (stage-roles.js payoffAdvanceAllowed), with the stage history,
+            // closedAt, timeline note and stage-entry task every client
+            // stage move writes, exactly once per invoice.
           }
         }
       } else if (event.type === 'charge.dispute.created'

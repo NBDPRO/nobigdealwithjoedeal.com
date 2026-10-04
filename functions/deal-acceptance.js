@@ -40,6 +40,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { fillLeadInstallDate } = require('./deal-install-date');
+const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
 
 const CORS_ORIGINS = [
@@ -425,7 +426,12 @@ exports.submitDealAcceptance = onRequest(
     // deal-install-date.js has the rule and why.
     const leadFill = await fillLeadInstallDate(db, info, scheduledDate, { logger });
 
-    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill });
+    // Job spine (2026-10-03): the homeowner accepted and signed → the job
+    // moves to Contract Signed (Service Approved on a repair), forward only.
+    // Once per deal; never throws — the acceptance is already committed.
+    const spine = await spineAfterDealAccept(db, info, tier);
+
+    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill, stageMoved: !!(spine && spine.moved) });
     res.status(200).json({ ok: true });
   }
 );

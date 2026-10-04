@@ -114,8 +114,12 @@ section('Linkage invariant: unattached saves are warned; Assign stamps the pipel
     /if \(!_canStampJobValue\(newVal\)\)/.test(fn));
   assert('assign confirms before clobbering an existing rep-confirmed primary',
     /lead\.primaryEstimateId !== id[\s\S]{0,700}nbdConfirm/.test(fn));
+  // Since 2026-10-03 (job spine) the bump goes through the shared
+  // _estimateBumpToContacted → stage-write.js commitStageChange (history,
+  // note, stage-entry task), not a stage field in the plain stamp-back.
   assert('assign bumps a stone-cold NEW lead to Contacted (parity with _saveEstimate)',
-    /normalizeStage\(lead\.stage\) === S\.NEW[\s\S]{0,200}S\.CONTACTED/.test(fn));
+    /normalizeStage\(lead\.stage\) === S\.NEW\) await _estimateBumpToContacted\(leadId, lead\)/.test(fn)
+      && /commitStageChange\(leadId, S\.CONTACTED/.test(dash));
   assert('re-assign un-dangles the previous lead\'s primaryEstimateId pointer',
     /if \(prevLeadId && prevLeadId !== \(leadId \|\| null\)\)[\s\S]{0,400}\{ primaryEstimateId: null \}/.test(fn));
   assert('assign stamp-back is best-effort (never fails the assign itself)',

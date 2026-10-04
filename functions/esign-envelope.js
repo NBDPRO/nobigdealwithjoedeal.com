@@ -59,6 +59,7 @@ const { callableRateLimit, assertNotViewer } = require('./shared');
 const { stampPdf, readPdfGeometry, validateFields, FIELD_TYPES } = require('./esign-stamp');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const { spineAfterEsign } = require('./job-spine');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -740,6 +741,11 @@ exports.submitEsignEnvelope = onRequest(
         audit: FieldValue.arrayUnion({ event: 'signed', at: Date.now(), ip, ua, stored }),
       }, { merge: true });
     } catch (e) { logger.error('[submitEsignEnvelope] envelope stamp failed', { err: e.message }); }
+
+    // Job spine (2026-10-03): an envelope titled as the contract moves the
+    // job to Contract Signed and stamps Contract Filed. Best-effort, never
+    // throws — the signature is already recorded.
+    await spineAfterEsign(db, env, tok.envelopeId, signerName);
 
     try {
       await db.collection('notifications').add({

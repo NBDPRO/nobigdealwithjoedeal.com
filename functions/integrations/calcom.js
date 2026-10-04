@@ -53,6 +53,7 @@ const { getSecret, hasSecret, SECRETS } = require('./_shared');
 const L = require('../lead-bridge-logic');
 const CL = require('./calcom-logic');
 const { createLeadWithCustomerId } = require('../customer-id-mint');
+const { spineAfterBooking } = require('../job-spine');
 
 exports.calcomWebhook = onRequest(
   {
@@ -251,6 +252,14 @@ exports.calcomWebhook = onRequest(
               updatedAt:    FieldValue.serverTimestamp(),
             }).catch(e => logger.warn('calcomWebhook: prior-appt cancel skipped', { priorUid, err: e && e.message }));
           }
+        }
+
+        // Job spine (2026-10-03): a new booking means the homeowner has been
+        // reached — New → Contacted (forward only, never a lost/closed lead),
+        // plus a timeline note naming the appointment. Once per booking uid;
+        // a webhook redelivery is a no-op. Internal only — nothing is sent.
+        if (trigger === 'BOOKING_CREATED' && leadId) {
+          await spineAfterBooking(db, { leadId, companyId: repCompanyId || repUid, bookingId, startTime, title: payload.title });
         }
 
         // (Removed a dead "remind 1hr before" tasks/{id} write: its dueAt had
