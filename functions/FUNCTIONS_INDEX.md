@@ -174,6 +174,7 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `setupGoogleCalendar` | onCall | requireOwner: platform owner, its company_admin, or role admin | Google Calendar — creates the "NBD Jobs" calendar (owned by the functions service account), shares it READ-ONLY with the given Google account, fills it (functions/google-calendar.js) |
 | `getGoogleCalendarStatus` | onCall | requireOwner | Google Calendar — set up? shared with whom, the service-account email to share free/busy with, whether Jo's main calendar is readable |
 | `getBusyTimes` | onCall | requireOwner | Google Calendar — merged busy blocks (NBD Jobs + Jo's main calendar) for the double-booking warning; ≤62-day window |
+| `getJobWeather` | onCall | requireOwner | Production flow (2026-10-04) — the free weather.gov forecast for the owner's jobs scheduled in the next 7 days (Plan Jobs badge); cached 2 h per ~1 km grid point in `weather_cache` (admin-only), identifying User-Agent; warns only (functions/job-weather.js) |
 | `reverifyCompanyKnocks` | onCall | `requireTeamAdmin` | D2D — re-geocodes/verifies the company's knock addresses (540s sweep) |
 | `convertUnmatchedSms` | onCall | `isOwnerCaller` or `role === 'admin'` | Turns an `unmatched_sms` triage row into a real lead + AI draft (handlers/inbound-sms-convert.js) |
 
@@ -204,7 +205,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runMigrations` | onCall | `role === 'admin'` (see ADMIN note) | Manual versioned-migration trigger (was mislabeled "scheduler-triggered" in the previous index) |
 | `migrationsTick` | scheduled (every 24h) | n/a (server-only) | Idempotent daily migration cron (also listed in SCHEDULED) |
 
-## SCHEDULED CRONS (server-only, no client traffic) — 28
+## SCHEDULED CRONS (server-only, no client traffic) — 29
 | Export | Schedule | Purpose |
 |---|---|---|
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
@@ -224,6 +225,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `googleCalendarReconcile` | daily 05:45 ET | Google Calendar — makes "NBD Jobs" match the CRM (jobs + adjuster meetings from 30 days back; removes stale events). No-op until set up; kill switch `GOOGLE_CALENDAR_SYNC_DISABLED=true` |
 | `stripeLedgerReconcile` | daily 06:15 ET | Stripe ledger — re-ingests the last 4 days of Stripe activity so a missed webhook can never lose a payment (idempotent; kill switch `STRIPE_LEDGER_DISABLED=true`, also honoured by the webhook path) |
 | `onYardSignPickupDue` | daily 07:30 ET | Push: yard signs due for pickup today or overdue (one per rep, repeats daily until handled) |
+| `onAfterInstallDay` | daily 07:15 ET | Push: the morning after a job's last day, "Mark Install Done? Take After photos." — once per lead per last day (`push_markers` create() marker); jobs still in a production stage only (production flow, 2026-10-04) |
 | `migrationsTick` | every 24h | Idempotent versioned-migration runner tick |
 | `auditLogRetentionCron` | daily 03:30 | Prunes `audit_log` rows past retention (keys on `ts`) |
 | `recordingRetentionCron` | daily 05:00 | Prunes aged voice-intelligence recordings |
@@ -243,7 +245,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 
-## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 39 Firestore + 2 Storage
+## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 41 Firestore + 2 Storage
 | Export | Watches | Purpose |
 |---|---|---|
 | `onPhotoUploaded` | Storage finalize (`nobigdeal-pro.appspot.com`) | 200/600/1600 px WebP variant pipeline; stamps `photo.urls` (or `knock.photoVariants[idx]` for `/d2d/` sources, mirrored to the converted lead) |
@@ -257,6 +259,8 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `onLeadCalendarWrite` | `leads/{leadId}` written | Google Calendar — updates that lead's "NBD Jobs" events (job + adjuster meeting) when a field the calendar shows changes; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onJobCalendarWrite` | `leads/{leadId}/jobs/{jobId}` written | Google Calendar — multi-job: a customer's OTHER (non-active) job gets its own "NBD Jobs" events, keyed per job, titled with the job; the active job's events stay the lead's; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onYardSignCalendarWrite` | `yardSigns/{signId}` written | Google Calendar — a yard sign's pickup reminder: one all-day FREE "🪧 Pick up yard sign" event on its New York pickup day (overdue → rolled to today by the nightly reconcile), removed on pickup / missing / remove; platform tenant only; no-op until set up (functions/google-calendar.js) |
+| `onLeadEventCalendarWrite` | `leads/{leadId}/tasks/{taskId}` written | Google Calendar — a CRM-booked appointment (type:'event', lead-events.js: Add Event, door-knock Appointment Set) → a timed BUSY "📅" event (Cal.com sees it busy); removed when deleted/cancelled; plain tasks ignored; platform tenant only (production flow, 2026-10-04) |
+| `onOrderCalendarWrite` | `leads/{leadId}/jobs/{jobId}/orders/{orderId}` written | Google Calendar — a material order's delivery day → an all-day FREE "🚚 Delivery" event, flagged when it lands after the job's start; cancelled → removed (production flow, 2026-10-04) |
 | `onKnockCalendarWrite` | `knocks/{knockId}` written | Google Calendar — D2D follow-ups that carry a time: the NEWEST knock at a door decides (Jo, 2026-09-30) — a 30-minute BUSY "📞 Follow up" event keyed per door, removed when the newest knock has no timed follow-up; spelling variants merged by the nightly reconcile; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onClaimStageChange` | `leads/{leadId}` updated | Push notification on claim-stage transitions |
 | `onAiDraftApproved` | `leads/{leadId}/ai_drafts/{draftId}` updated | Sends approved AI-drafted SMS via Twilio (pending→approved transition only; idempotent) |

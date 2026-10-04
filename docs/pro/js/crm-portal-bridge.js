@@ -555,7 +555,9 @@ function editLead(id){
   // was saved with, or "All day" for one that has none.
   if (window.NBDScheduleWindowUI) window.NBDScheduleWindowUI.fill('l', l);
   setV('lScheduledWeek', l.scheduledDate ? '' : (l.scheduledWeek || ''));
-  setV('lCrew', l.crew||'');
+  // Sub picker (production flow, 2026-10-04) — the roster sub, or the old
+  // free-text crew name kept selectable so a re-save never wipes it.
+  if (window.NBDProduction) window.NBDProduction.fillSubSelect('lSubId', l);
   // 2026-09-15 (Paperwork Filing) — checkboxes use .checked, not .value
   // (setV above would leave every one permanently checked: an unattributed
   // <input type="checkbox"> with no value= attribute reads "on" regardless
