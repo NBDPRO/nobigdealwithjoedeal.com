@@ -140,16 +140,18 @@ test.describe('phone: Send for review + estimate follow-ups @shard2', () => {
     await expect.poll(() => calls.record.length, { timeout: 10_000 }).toBe(1);
     expect(calls.record[0].data).toMatchObject({ leadId: leadA, documentId: 'doc-est', token: REVIEW_TOKEN });
 
-    // ── 2. Home: the follow-up card ──────────────────────────────────────
+    // ── 2. Home: the follow-up rows ──────────────────────────────────────
+    // Since the ONE Home (#2137) the card is the "Estimates to follow up"
+    // section of the Today list (#todayPlan) — same rows, same buttons.
     await page.goto('/pro/dashboard.html');
-    await safeWaitForFunction(page, () => !!(window._user && window.NBDEstimateFollowups && Array.isArray(window._leads) && window._leads.length), null, { timeout: 60_000 });
+    await safeWaitForFunction(page, () => !!(window._user && window.NBDEstimateFollowups && window.NBDToday && Array.isArray(window._leads) && window._leads.length), null, { timeout: 60_000 });
     await safeEvaluate(page, () => { if (typeof window.goTo === 'function') window.goTo('home'); });
-    await safeWaitForFunction(page, () => { window.NBDEstimateFollowups.render(); const el = document.getElementById('homeEstimateFollowups'); return !!el && !el.hidden; }, null, { timeout: 30_000 });
-    const row = page.locator('#homeEstimateFollowups .ef-row[data-lead-id="' + leadB + '"]');
+    await safeWaitForFunction(page, () => { window.NBDEstimateFollowups.render(); window.NBDToday.render(); return !!document.querySelector('#todayPlan [data-tp-sec="estimates"] .ef-row'); }, null, { timeout: 30_000 });
+    const row = page.locator('#todayPlan .ef-row[data-lead-id="' + leadB + '"]');
     await expect(row, 'the 3-day-old estimate is on the card').toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText('Sent 3d ago');
     await expect(row).toContainText('Not opened yet');
-    await expect(page.locator('#homeEstimateFollowups .ef-row[data-lead-id="' + leadA + '"]'), 'a just-sent estimate is not due yet').toHaveCount(0);
+    await expect(page.locator('#todayPlan .ef-row[data-lead-id="' + leadA + '"]'), 'a just-sent estimate is not due yet').toHaveCount(0);
     const fu = row.locator('[data-ef-send]');
     await fu.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await page.waitForTimeout(400);
@@ -163,7 +165,9 @@ test.describe('phone: Send for review + estimate follow-ups @shard2', () => {
     expect(fuText, 'the pre-written follow-up').toMatch(/^Hi \[E2E\], .*estimate/s);
     await expect.poll(async () => !!((await db.doc('leads/' + leadB).get()).data() || {}).lastEstimateNudgeAt,
       { timeout: 15_000, message: 'the nudge is recorded once shared' }).toBe(true);
-    await expect(row, 'a followed-up lead leaves the card until the next step').toHaveCount(0);
+    await expect(row, 'a followed-up lead leaves the list until the next step').toHaveCount(0);
+    // One row per lead across Today: never also listed as a stalled lead.
+    expect(await page.locator('#todayPlan [data-tp-row="fu:' + leadB + '"]').count(), 'not double-listed under Stalled').toBe(0);
 
     await db.doc('leads/' + leadA).delete().catch(() => {});
     await db.doc('leads/' + leadB).delete().catch(() => {});

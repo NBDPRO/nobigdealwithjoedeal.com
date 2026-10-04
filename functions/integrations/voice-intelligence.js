@@ -210,7 +210,6 @@ async function transcribeAudio({ bucket, path, mimeType, provider }) {
   const p = (provider || PROVIDERS.voiceTranscription || 'groq').toLowerCase();
   switch (p) {
     case 'groq':     return transcribeGroq({ bucket, path, mimeType });
-    case 'deepgram': return transcribeDeepgram({ bucket, path, mimeType });
     default:
       throw new VoiceError('transcription-provider-unknown',
         'PROVIDERS.voiceTranscription="' + p + '" not implemented');
@@ -328,14 +327,6 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, wor
       })) : []
     } : {})
   };
-}
-
-// Deepgram Nova-2 stub for Phase 2. Kept as a not-implemented
-// throw so the provider dispatch table above reads cleanly today.
-// Full adapter lands with the Pro-tier launch.
-async function transcribeDeepgram(/* { bucket, path, mimeType } */) {
-  throw new VoiceError('deepgram-not-implemented',
-    'Deepgram adapter ships with Phase 2. Set NBD_VOICE_TRANSCRIPTION_PROVIDER=groq in the meantime.');
 }
 
 // ─── Analysis + consent (C1c) ────────────────────────────────────

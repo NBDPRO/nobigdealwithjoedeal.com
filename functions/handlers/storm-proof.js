@@ -4,7 +4,7 @@
  *
  * `attachStormProof` — the server-verified, adjuster-grade counterpart to the
  * Phase-1 client bulk-attach (#1046). Given a lead, it resolves the property's
- * coordinates, looks up VERIFIED hail reports (NOAA/IEM or HailTrace) near the
+ * coordinates, looks up VERIFIED hail reports (NOAA/IEM or NCEI SWDI) near the
  * address, and writes an IMMUTABLE proof record to
  * leads/{leadId}/storm_proofs/{proofId} — server-timestamped, server-derived,
  * client-read-only (firestore.rules: write:false). An adjuster claiming "there
@@ -27,7 +27,6 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { callableRateLimit, assertNotViewer } = require('../shared');
 const { CORS_ORIGINS } = require('./_shared');
 const { secretValue } = require('../integrations/_shared'); // the secret registry, not handlers/_shared
-const { SECRETS } = require('../integrations/_shared');
 const { lookupHail } = require('../integrations/hail');
 const { buildStormProof } = require('../storm-proof-logic');
 const { _googleForward } = require('./geocode');
@@ -43,14 +42,14 @@ exports.attachStormProof = onCall(
     enforceAppCheck: true,
     timeoutSeconds: 30,
     memory: '256MiB',
-    secrets: [SECRETS.HAILTRACE_API_KEY, SECRETS.SWATH_API_KEY, GOOGLE_GEOCODING_API_KEY],
+    secrets: [GOOGLE_GEOCODING_API_KEY],
   },
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
     // 2026-09-25 (decision B): a viewer is read-only. The access check below
     // admits ANY same-company member on ANY lead, and this writes an
-    // immutable storm_proofs record plus a paid hail lookup — refused first.
+    // immutable storm_proofs record plus a hail lookup — refused first.
     assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'attachStormProof', 60, 60 * 60_000);
 
