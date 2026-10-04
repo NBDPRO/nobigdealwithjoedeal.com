@@ -23,16 +23,14 @@
  * Budget: transcription goes to Groq Whisper-large-v3-turbo first (free
  * tier: 20 req/min, 2,000 req/day, 8 h audio/day — verified 2026-09-02),
  * the same provider + key the Voice Intelligence pipeline uses, selected by
- * NBD_VOICE_TRANSCRIPTION_PROVIDER (default 'groq'). Deepgram Nova-3 is the
- * fallback when Groq is unset OR throws (its free tier can 429), so a
- * Deepgram-only deployment behaves exactly as before 2026-09-04. The Claude
+ * NBD_VOICE_TRANSCRIPTION_PROVIDER (default 'groq'). (The Deepgram Nova-3
+ * fallback was removed 2026-10-04 — its key was never set.) The Claude
  * call uses Haiku 4.5 — ~30 tokens of overhead for clean mode, more for
  * summarize. Token usage returned in the `usage` field for client-side
  * budget UI hooks. The response's `provider` field names who transcribed.
  *
  * SETUP:
  *   firebase functions:secrets:set GROQ_API_KEY     (shared with Voice Intel)
- *   firebase functions:secrets:set DEEPGRAM_API_KEY (optional fallback; F8)
  *   firebase functions:secrets:set ANTHROPIC_API_KEY (already required by AI arc)
  */
 
@@ -42,16 +40,15 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 
-// Both transcription keys come from the shared registry so hasSecret() sees
+// The transcription key comes from the shared registry so hasSecret() sees
 // the deploy's `__unset__` stub as "not configured" (a bare defineSecret
 // .value() check would treat the stub as a real key).
-const { SECRETS, PROVIDERS, hasSecret, getSecret, secretValue } = require('./integrations/_shared');
+const { SECRETS, hasSecret, secretValue } = require('./integrations/_shared');
 const { transcribeGroqBuffer } = require('./integrations/voice-intelligence');
 const {
   pickDictationProvider,
   groqExtensionForMime,
   normalizeGroqTranscription,
-  normalizeDeepgramTranscription,
 } = require('./integrations/transcription-logic');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
@@ -123,28 +120,6 @@ Rules:
 - Output ONLY the JSON.`;
 
 // ─── Transcription helpers ─────────────────────────────────────
-// Deepgram Nova-3 — the original (metered) path, now the fallback.
-async function transcribeDeepgram(audioBuf, mimeType) {
-  const url = 'https://api.deepgram.com/v1/listen?'
-    + 'model=nova-3&smart_format=true&punctuate=true&language=en-US';
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Token ' + getSecret('DEEPGRAM_API_KEY'),
-      'Content-Type': mimeType,
-    },
-    body: audioBuf,
-    signal: AbortSignal.timeout(40_000),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    const err = new Error('Deepgram ' + res.status + ': ' + body.slice(0, 300));
-    err.status = res.status;
-    throw err;
-  }
-  return normalizeDeepgramTranscription(await res.json());
-}
-
 // Groq Whisper-large-v3-turbo — free tier, same key as Voice Intel.
 async function transcribeGroq(audioBuf, mimeType) {
   const out = await transcribeGroqBuffer({
@@ -152,14 +127,14 @@ async function transcribeGroq(audioBuf, mimeType) {
     mimeType,
     filename: 'dictate.' + groqExtensionForMime(mimeType),
     // Clips are ≤60 s and the callable has a 60 s ceiling; leave room for
-    // the Deepgram fallback + the Claude call after a slow Groq response.
+    // the Claude call after a slow Groq response.
     timeoutMs: 25_000,
     feature: 'dictate',
   });
   return normalizeGroqTranscription(out);
 }
 
-const TRANSCRIBERS = { groq: transcribeGroq, deepgram: transcribeDeepgram };
+const TRANSCRIBERS = { groq: transcribeGroq };
 
 // Try the preferred provider, fall back once, and say who did the work.
 // Every failure path logs the provider + status (a 429 from Groq is the
@@ -248,7 +223,7 @@ exports.dictate = onCall(
     enforceAppCheck: true,
     timeoutSeconds: 60,
     memory: '512MiB',
-    secrets: [SECRETS.GROQ_API_KEY, SECRETS.DEEPGRAM_API_KEY, ANTHROPIC_API_KEY],
+    secrets: [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY],
   },
   async (request) => {
     const uid = request.auth && request.auth.uid;
@@ -275,11 +250,7 @@ exports.dictate = onCall(
 
     let anthKey;
     anthKey = secretValue(ANTHROPIC_API_KEY); // '__unset__' stub → null
-    const plan = pickDictationProvider({
-      preferred: PROVIDERS.voiceTranscription,
-      hasGroq: hasSecret('GROQ_API_KEY'),
-      hasDeepgram: hasSecret('DEEPGRAM_API_KEY'),
-    });
+    const plan = pickDictationProvider({ hasGroq: hasSecret('GROQ_API_KEY') });
     if (!plan) throw new HttpsError('failed-precondition', 'Voice transcription not configured.');
     if (!anthKey) throw new HttpsError('failed-precondition', 'AI processing not configured.');
 

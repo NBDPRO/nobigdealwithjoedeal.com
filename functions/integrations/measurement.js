@@ -11,27 +11,21 @@
  *                     10–20 s, plus a ~1 h Human Certified Report that
  *                     arrives by webhook (integrations/instantroofer-logic.js;
  *                     runbooks/INSTANTROOFER-SETUP.md)
- *   - hover               — cleanest API, best mobile UX
- *   - eagleview           — most coverage, older/stricter API
- *   - nearmap             — best for storm verification (temporal imagery)
  *
- * SETUP (pick one):
+ * SETUP:
  *   firebase functions:secrets:set INSTANTROOFER_API_KEY
  *   firebase functions:secrets:set INSTANTROOFER_WEBHOOK_SECRET   # human reports only
- *   firebase functions:secrets:set HOVER_API_KEY
- *   firebase functions:secrets:set EAGLEVIEW_API_KEY
- *   firebase functions:secrets:set NEARMAP_API_KEY
  *
- * History worth knowing (2026-09-06): HOVER/EagleView/Nearmap have been wired
- * since April but none was ever configured — all three prod secrets are the
- * deploy's `__unset__` stub — so every click on the CRM's auto-measure and
- * D2D "order roof report" buttons has returned "not configured". Instant
- * Roofer is the first provider with a real key.
+ * History worth knowing: HOVER/EagleView/Nearmap were wired from April 2026
+ * but none was ever configured — all their prod secrets were the deploy's
+ * `__unset__` stub (2026-09-06). Instant Roofer was the first provider with a
+ * real key. The three dead adapters and their five secrets were removed
+ * 2026-10-04 (documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md, Lane C).
  *
  * CALLABLE: requestMeasurement({ address, leadId, lat, lng, reportType })
  *   Creates a Firestore `measurements/{jobId}` doc with status
  *   'pending', fires the async vendor job, then returns {jobId}.
- *   Synchronous providers (Instant Roofer AI, Nearmap) write the doc
+ *   A synchronous provider (Instant Roofer AI) writes the doc
  *   already 'ready' with `measurements` populated. A separate onRequest
  *   webhook endpoint receives vendor callbacks and updates the doc to
  *   'ready' + populates measurement fields.
@@ -79,95 +73,6 @@ const INSTANTROOFER_PER_MINUTE = 5;
 // {ok:false, reason}. We ALWAYS write a Firestore row first so the
 // UI has something to poll — the vendor call can fill it in later.
 
-async function requestHOVER(address, callerUid) {
-  if (!hasSecret('HOVER_API_KEY')) return notConfigured('hover');
-  const apiKey = getSecret('HOVER_API_KEY');
-  try {
-    const res = await fetch('https://api.hover.to/v2/jobs', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        address,
-        measurement_type: 'roof',
-        webhook_url: `https://us-central1-nobigdeal-pro.cloudfunctions.net/measurementWebhook?provider=hover`,
-        reference_id: callerUid
-      })
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      logger.warn('HOVER job create failed', { status: res.status, body: t.slice(0, 200) });
-      return { ok: false, reason: 'vendor-error', status: res.status };
-    }
-    const data = await res.json();
-    return {
-      ok: true,
-      jobId: data.id || data.job_id,
-      estimatedMinutes: data.estimated_turnaround_minutes || 30,
-      provider: 'hover'
-    };
-  } catch (e) {
-    logger.error('HOVER request error:', e.message);
-    return { ok: false, reason: 'network' };
-  }
-}
-
-async function requestEagleView(address, callerUid) {
-  if (!hasSecret('EAGLEVIEW_API_KEY')) return notConfigured('eagleview');
-  const apiKey = getSecret('EAGLEVIEW_API_KEY');
-  try {
-    const res = await fetch('https://apis.eagleview.com/property-measurements/v3/orders', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        address,
-        product: 'premium_residential',
-        deliveryMethod: 'webhook',
-        webhookUrl: `https://us-central1-nobigdeal-pro.cloudfunctions.net/measurementWebhook?provider=eagleview`,
-        customerReference: callerUid
-      })
-    });
-    if (!res.ok) {
-      return { ok: false, reason: 'vendor-error', status: res.status };
-    }
-    const data = await res.json();
-    return { ok: true, jobId: data.orderId, estimatedMinutes: 240, provider: 'eagleview' };
-  } catch (e) {
-    return { ok: false, reason: 'network' };
-  }
-}
-
-async function requestNearmap(address, callerUid) {
-  if (!hasSecret('NEARMAP_API_KEY')) return notConfigured('nearmap');
-  // Nearmap AI Feature Pack doesn't have a "job" concept the way
-  // HOVER does — it's synchronous. Call the AI endpoint directly.
-  const apiKey = getSecret('NEARMAP_API_KEY');
-  try {
-    const res = await fetch(
-      `https://api.nearmap.com/ai/features/v4/features.json?address=${encodeURIComponent(address)}&apikey=${apiKey}`,
-      { method: 'GET' }
-    );
-    if (!res.ok) return { ok: false, reason: 'vendor-error', status: res.status };
-    const data = await res.json();
-    // Nearmap returns features directly — mint our own jobId so the
-    // downstream shape is consistent.
-    return {
-      ok: true,
-      jobId: 'nearmap-' + Date.now(),
-      estimatedMinutes: 0,
-      provider: 'nearmap',
-      synchronousData: data
-    };
-  } catch (e) {
-    return { ok: false, reason: 'network' };
-  }
-}
-
 /**
  * Instant Roofer — POST {latitude, longitude} to v5.instantroofer.com/v2.
  *
@@ -175,8 +80,8 @@ async function requestNearmap(address, callerUid) {
  * deps.fetchImpl / deps.now exist for tests; production callers pass none.
  *
  * AI (default): synchronous, 10–20 s, returns the normalized `measurements`
- * straight away (no webhook, no polling). The jobId is minted locally like
- * Nearmap's because the vendor returns no id for an AI measure.
+ * straight away (no webhook, no polling). The jobId is minted locally
+ * because the vendor returns no id for an AI measure.
  *
  * Human ("reportType":"human"): the vendor queues a drawing-team report and
  * answers {requestId, humanReportId}; the file URL arrives ~60 min later on
@@ -278,16 +183,15 @@ function stripVendorBlobs(data) {
   return out;
 }
 
-// Provider registry. `needsCoords` providers locate the roof from a point;
-// the legacy three take the address string. Unknown values return null so
-// the callable fails loudly — the old `return requestHOVER; // default`
-// meant a typo in NBD_MEASUREMENT_PROVIDER silently billed the wrong vendor.
+// Provider registry. `needsCoords` providers locate the roof from a point.
+// Unknown values return null so the callable fails loudly — the old
+// `return requestHOVER; // default` meant a typo in NBD_MEASUREMENT_PROVIDER
+// silently billed the wrong vendor. The never-configured HOVER, EagleView and
+// Nearmap adapters were removed 2026-10-04 (VENDOR-COST-LOCKIN Lane C), so
+// setting any of those names now fails the same loud way.
 function selectProvider() {
   const p = PROVIDERS.measurement;
   if (p === 'instantroofer') return { name: p, needsCoords: true,  run: requestInstantRoofer };
-  if (p === 'hover')         return { name: p, needsCoords: false, run: (ctx) => requestHOVER(ctx.address, ctx.uid) };
-  if (p === 'eagleview')     return { name: p, needsCoords: false, run: (ctx) => requestEagleView(ctx.address, ctx.uid) };
-  if (p === 'nearmap')       return { name: p, needsCoords: false, run: (ctx) => requestNearmap(ctx.address, ctx.uid) };
   return null;
 }
 
@@ -506,7 +410,6 @@ exports.requestMeasurement = onCall(
     timeoutSeconds: 60,
     memory: '256MiB',
     secrets: [
-      SECRETS.HOVER_API_KEY, SECRETS.EAGLEVIEW_API_KEY, SECRETS.NEARMAP_API_KEY,
       SECRETS.INSTANTROOFER_API_KEY, SECRETS.INSTANTROOFER_WEBHOOK_SECRET,
       SECRETS.REGRID_API_TOKEN, GOOGLE_GEOCODING_API_KEY
     ]
@@ -556,9 +459,6 @@ exports.requestMeasurement = onCall(
     if (!provider) {
       throw new HttpsError('failed-precondition',
         `Unknown measurement provider '${PROVIDERS.measurement}' — check NBD_MEASUREMENT_PROVIDER.`);
-    }
-    if (!provider.needsCoords && !address) {
-      throw new HttpsError('invalid-argument', 'Valid address required');
     }
 
     const db = getFirestore();
@@ -707,8 +607,7 @@ exports.requestMeasurement = onCall(
       throw new HttpsError('internal', 'Measurement request failed: ' + (result.reason || 'unknown'));
     }
 
-    const measurements = result.measurements
-      || (result.synchronousData && !result.measurements ? (parseSync(result.synchronousData).measurements || null) : null);
+    const measurements = result.measurements || null;
     const status = measurements ? 'ready' : 'pending';
 
     const doc = {
@@ -738,7 +637,7 @@ exports.requestMeasurement = onCall(
       // see. Read by the V2 builder and admin analytics.
       passThruEligible: true,
       // Drives the line-item wording client-side. True only when the vendor
-      // actually hands us a document (HOVER/EagleView PDF, human report).
+      // actually hands us a document (the human report).
       passThruHasDocument: !(result.provider === 'instantroofer' && (result.reportType || 'ai') === 'ai'),
       ...(measurements ? { measurements } : {}),
       ...(result.synchronousData && result.provider === 'instantroofer' ? { vendorResponse: result.synchronousData } : {})
@@ -769,67 +668,18 @@ exports.requestMeasurement = onCall(
   }
 );
 
-// Normalize synchronous provider data (Nearmap) into our own shape.
-function parseSync(data) {
-  if (!data || !Array.isArray(data.features)) return {};
-  const roof = data.features.find(f => f.classId && /roof/i.test(f.classId)) || {};
-  return {
-    measurements: {
-      rawSqft: roof.areaSqft || null,
-      pitch:   roof.pitch    || null,
-      // Nearmap doesn't always return ridge/eave separately.
-      source: 'nearmap-ai'
-    }
-  };
-}
-
 // ─── Webhook: provider pushes completed job ─────────────────
-// Configure each vendor to POST back to
-//   https://us-central1-nobigdeal-pro.cloudfunctions.net/measurementWebhook?provider=hover
+// Configure the vendor to POST back to
 //   https://us-central1-nobigdeal-pro.cloudfunctions.net/measurementWebhook?provider=instantroofer
 //
-// F-02: vendor signatures are now VERIFIED. Previously the endpoint
-// accepted any POST that named a provider, letting an attacker forge
-// roof-measurement updates against any known externalJobId. Fail
-// closed unless the webhook secret for the provider is set AND the
-// signature matches.
+// F-02: vendor deliveries are VERIFIED. Previously the endpoint accepted any
+// POST that named a provider, letting an attacker forge roof-measurement
+// updates against any known externalJobId. Fail closed unless the webhook
+// secret is set AND the credential matches.
 //
-// Per-provider verification:
-//   HOVER         — HMAC SHA-256 of rawBody with HOVER_WEBHOOK_SECRET,
-//                   hex in X-Hover-Signature.
-//   EAGLEVIEW     — HMAC SHA-256 of rawBody with EAGLEVIEW_WEBHOOK_SECRET,
-//                   hex in X-EV-Signature. (EagleView docs describe a JWT
-//                   variant; if/when we negotiate that, swap in a JWKS
-//                   fetch here — HMAC is the baseline both vendors support.)
 //   INSTANTROOFER — no HMAC on offer; a bearer token WE mint and paste into
 //                   their dashboard, sent as `Authorization: Bearer …`,
 //                   compared constant-time against INSTANTROOFER_WEBHOOK_SECRET.
-function verifyWebhookHmac(provider, rawBody, headerValue) {
-  const secretName = provider === 'hover'
-    ? 'HOVER_WEBHOOK_SECRET'
-    : provider === 'eagleview'
-      ? 'EAGLEVIEW_WEBHOOK_SECRET'
-      : null;
-  if (!secretName) return { ok: false, reason: 'unknown-provider' };
-  if (!hasSecret(secretName)) return { ok: false, reason: 'secret-not-configured' };
-  if (!rawBody || !Buffer.isBuffer(rawBody)) return { ok: false, reason: 'missing-raw-body' };
-  if (typeof headerValue !== 'string' || headerValue.length < 8) {
-    return { ok: false, reason: 'missing-signature' };
-  }
-  // Some vendors send "sha256=<hex>"; tolerate both shapes.
-  const provided = headerValue.replace(/^sha256=/i, '').trim().toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(provided)) return { ok: false, reason: 'malformed-signature' };
-  const expected = crypto
-    .createHmac('sha256', getSecret(secretName))
-    .update(rawBody)
-    .digest('hex');
-  // Constant-time compare — both are 64-byte hex so length is fixed.
-  const a = Buffer.from(provided, 'hex');
-  const b = Buffer.from(expected, 'hex');
-  if (a.length !== b.length) return { ok: false, reason: 'length-mismatch' };
-  if (!crypto.timingSafeEqual(a, b)) return { ok: false, reason: 'signature-mismatch' };
-  return { ok: true };
-}
 
 // One definition of "the webhook is configured", used by both the receiver and
 // the callable's human-order gate.
@@ -848,39 +698,6 @@ function verifyInstantRooferBearer(headerValue) {
 // when the provider is unknown. Pure; exercised directly by the tests.
 function normalizeWebhookPayload(provider, body) {
   body = body || {};
-  if (provider === 'hover') {
-    return {
-      externalJobId: body.job_id || body.id,
-      status: body.status === 'completed' ? 'ready' : 'pending',
-      measurements: body.measurements ? {
-        rawSqft: body.measurements.total_facets_area_sqft,
-        ridge:   body.measurements.ridge_linear_feet,
-        eave:    body.measurements.eave_linear_feet,
-        hip:     body.measurements.hip_linear_feet,
-        valley:  body.measurements.valley_linear_feet,
-        rake:    body.measurements.rake_linear_feet,
-        pitch:   body.measurements.predominant_pitch,
-        reportUrl: body.report_url || null
-      } : null
-    };
-  }
-  if (provider === 'eagleview') {
-    const m = body.measurementReport || {};
-    return {
-      externalJobId: body.orderId,
-      status: body.status === 'Completed' ? 'ready' : 'pending',
-      measurements: m ? {
-        rawSqft: m.totalRoofArea,
-        ridge:   m.totalRidges,
-        eave:    m.totalEaves,
-        hip:     m.totalHips,
-        valley:  m.totalValleys,
-        rake:    m.totalRakes,
-        pitch:   m.predominantPitch,
-        reportUrl: body.documentUrl || null
-      } : null
-    };
-  }
   if (provider === 'instantroofer') {
     const wh = IR.parseHumanWebhook(body);
     if (!wh) return { externalJobId: null, status: 'pending', measurements: null, human: null };
@@ -894,7 +711,7 @@ function normalizeWebhookPayload(provider, body) {
 exports.measurementWebhook = onRequest(
   {
     region: 'us-central1',
-    secrets: [SECRETS.HOVER_WEBHOOK_SECRET, SECRETS.EAGLEVIEW_WEBHOOK_SECRET, SECRETS.INSTANTROOFER_WEBHOOK_SECRET],
+    secrets: [SECRETS.INSTANTROOFER_WEBHOOK_SECRET],
     maxInstances: 10,
     timeoutSeconds: 15,
     memory: '256MiB'
@@ -903,18 +720,13 @@ exports.measurementWebhook = onRequest(
     if (req.method !== 'POST') { res.status(405).end(); return; }
     const provider = String(req.query.provider || '');
 
-    // Signature verification is now mandatory and happens against
-    // the raw body. If the runtime didn't preserve rawBody we refuse
-    // rather than fall through — otherwise an attacker can force a
-    // parsed-body path that can't be signature-checked.
-    const sigHeader = provider === 'hover'
-      ? (req.headers['x-hover-signature'] || '')
-      : provider === 'eagleview'
-        ? (req.headers['x-ev-signature'] || '')
-        : '';
+    // Authentication is mandatory. Instant Roofer is the only provider with
+    // a webhook; any other ?provider= value is refused before the body is
+    // read (the HOVER/EagleView HMAC branches were removed 2026-10-04 —
+    // neither was ever configured).
     const sigResult = provider === 'instantroofer'
       ? verifyInstantRooferBearer(req.headers['authorization'] || '')
-      : verifyWebhookHmac(provider, req.rawBody, sigHeader);
+      : { ok: false, reason: 'unknown-provider' };
     if (!sigResult.ok) {
       logger.warn('measurementWebhook: signature rejected', {
         provider, reason: sigResult.reason
@@ -1046,7 +858,6 @@ exports._test = {
   resolveCoords,
   leadCoords,
   geocodeNominatim,
-  parseSync,
   stripVendorBlobs,
   normalizeWebhookPayload,
   measuredAtMs,
@@ -1054,7 +865,6 @@ exports._test = {
   findReusableMeasurement,
   webhookSecretReady,
   verifyInstantRooferBearer,
-  verifyWebhookHmac,
   REUSE_WINDOW_MS,
   INSTANTROOFER_PER_MINUTE
 };
