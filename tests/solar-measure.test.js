@@ -367,17 +367,189 @@ function fakeDb() {
         if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p); continue; }
         if (!/\.(js|html|json)$/.test(e.name)) continue;
         const t = fs.readFileSync(p, 'utf8');
-        // maps-routing.js's pre-existing sun-exposure overlay calls Solar with
-        // a key the rep pastes into localStorage (nothing committed); it is
-        // allowlisted by name and must never embed a key literal.
+        // No exceptions (2026-10-04): maps-routing.js's sun overlay, which
+        // called Solar with a key pasted into localStorage, now goes through
+        // the server (requestMeasurement purpose 'sun-exposure').
         const rel = path.relative(ROOT, p).replace(/\\/g, '/');
-        if (rel === 'docs/pro/js/maps-routing.js') { if (/SOLAR_API_KEY|AIza[0-9A-Za-z_-]{20,}/.test(t)) hits.push(rel); continue; }
-        if (/SOLAR_API_KEY|solar\.googleapis\.com/.test(t)) hits.push(rel);
+        // The one allowed mention of the old localStorage key is the line that
+        // deletes it from devices that still hold one.
+        const scan = t.replace(/localStorage\.removeItem\('nbd_google_solar_key'\)/g, '');
+        if (/SOLAR_API_KEY|solar\.googleapis\.com|nbd_google_solar_key/.test(scan)) hits.push(rel);
       }
     })(path.join(ROOT, 'docs'));
-    ok('nothing under docs/ names SOLAR_API_KEY or calls solar.googleapis.com', hits.length === 0, hits.join(', '));
+    ok('nothing under docs/ (all of it, no allowlist) names SOLAR_API_KEY, calls solar.googleapis.com or reads a stored Solar key', hits.length === 0, hits.join(', '));
     const sm = codeOnly(read('functions/integrations/solar-measure.js'));
     ok('the adapter reads the key only through hasSecret/getSecret (stub counts as unset)', /hasSecret\('SOLAR_API_KEY'\)/.test(sm) && /getSecret\('SOLAR_API_KEY'\)/.test(sm) && !/process\.env\.SOLAR_API_KEY/.test(sm));
+  }
+
+  section('sun-exposure summary (Maps ☀️ Solar Analysis) — adapter');
+  {
+    const sun = S.mapSunExposure(FIXTURE);
+    ok('mapSunExposure: max sunshine + one entry per plane with a centre', sun && sun.maxSunshineHoursPerYear === 1403 && sun.segments.length === FIXTURE.solarPotential.roofSegmentStats.length, JSON.stringify(sun));
+    ok('per plane: centre lat/lng, area m², median sunshine (middle quantile)',
+      sun && near(sun.segments[0].lat, 38.9986705, 1e-7) && near(sun.segments[0].lng, -84.6265521, 1e-7)
+      && sun.segments[0].areaMeters2 === 62.4 && sun.segments[0].sunshineHoursMedian === 1346, JSON.stringify(sun && sun.segments[0]));
+    ok('11 API deciles → index 5 is the median', S.mapSunExposure({ solarPotential: { roofSegmentStats: [{ center: { latitude: 1, longitude: 2 }, stats: { sunshineQuantiles: [0, 1, 2, 3, 4, 555, 6, 7, 8, 9, 10] } }] } }).segments[0].sunshineHoursMedian === 555);
+    let threw = false, g1, g2;
+    try { g1 = S.mapSunExposure(null); g2 = S.mapSunExposure({ solarPotential: { roofSegmentStats: [{ stats: {} }] } }); } catch (e) { threw = true; }
+    ok('garbage → null, never throws', !threw && g1 === null && g2 === null);
+    ok('sun summary is NOT inside measurements (never lands on measurement / lead docs)', !('sun' in m) && mapped.sun && mapped.sun.segments.length === 6);
+    ok('the field mask asks for maxSunshineHoursPerYear', T.RESPONSE_FIELDS.includes('solarPotential.maxSunshineHoursPerYear') && !T.RESPONSE_FIELDS.includes('solarPanelConfigs'));
+
+    const db = fakeDb();
+    let fetches = 0;
+    const deps = (over) => Object.assign({ apiKey: 'k', now: () => NOW, cap: 2, fetchImpl: async () => { fetches++; return jsonReply(200, FIXTURE); } }, over || {});
+    const ctxA = { lat: PIN.lat, lng: PIN.lng, uid: 'u1', companyId: 'coSun', db };
+    const s1 = await S.runSunAnalysis(ctxA, deps());
+    ok('runSunAnalysis: ok with sun + imagery, not cached, one API call', s1.ok && s1.sun && s1.sun.segments.length === 6 && s1.imagery.quality === 'HIGH' && s1.cached === false && fetches === 1, JSON.stringify(s1));
+    const cacheKey = [...db.store.keys()].find((k) => k.startsWith(T.CACHE_COLLECTION + '/'));
+    ok('the sun summary is stored in the company-scoped cache doc', cacheKey && db.store.get(cacheKey).scope === 'c_coSun' && db.store.get(cacheKey).sun && db.store.get(cacheKey).sun.segments.length === 6);
+    const s2 = await S.runSunAnalysis(Object.assign({}, ctxA, { uid: 'u2' }), deps());
+    ok('same company, same roof → cache hit, no API call, no cap use', s2.ok && s2.cached === true && fetches === 1 && db.store.get(T.USAGE_COLLECTION + '/c_coSun_2026-10-04').count === 1);
+    const m2 = await S.runSolarProvider(Object.assign({}, ctxA, { uid: 'u3' }), deps({ mode: 'solar' }));
+    ok('a roof cached by the sun overlay is free for a roof MEASURE too (shared cache)', m2.ok && m2.solarCached === true && fetches === 1);
+    // An entry cached before the sun summary was stored has none: the overlay re-fetches it once.
+    const legacyDb = fakeDb();
+    const legacyCtx = { lat: PIN.lat, lng: PIN.lng, uid: 'u1', companyId: 'coOld', db: legacyDb };
+    await S.runSolarProvider(legacyCtx, deps({ mode: 'solar' }));
+    const lk = [...legacyDb.store.keys()].find((k) => k.startsWith(T.CACHE_COLLECTION + '/'));
+    const legacy = legacyDb.store.get(lk); delete legacy.sun; legacyDb.store.set(lk, legacy);
+    const before = fetches;
+    const s3 = await S.runSunAnalysis(legacyCtx, deps());
+    ok('a cache entry without a sun summary is a miss for the overlay (re-fetched once)', s3.ok && s3.cached === false && fetches === before + 1);
+    const capCtx = (i) => ({ lat: 38.9 + i * 0.001, lng: -84.6, uid: 'u1', companyId: 'coSunCap', db });
+    await S.runSunAnalysis(capCtx(1), deps());
+    await S.runSunAnalysis(capCtx(2), deps());
+    const capped = await S.runSunAnalysis(capCtx(3), deps());
+    ok('the per-company daily cap applies (cap 2 → 3rd new roof refused)', capped.ok === false && capped.reason === 'daily-cap' && capped.code === 'resource-exhausted');
+    let irCalls = 0;
+    const solo = await S.runSunAnalysis({ lat: PIN.lat, lng: PIN.lng, uid: 'u9', companyId: 'coX', db: fakeDb() },
+      deps({ fetchImpl: async () => jsonReply(500, {}), instantRoofer: async () => { irCalls++; return { ok: true }; }, mode: 'auto' }));
+    ok('Solar failure never escalates to Instant Roofer (even if a caller passes mode auto)', solo.ok === false && irCalls === 0);
+    const noKey = await S.runSunAnalysis({ lat: PIN.lat, lng: PIN.lng, uid: 'u1', companyId: 'coK', db: fakeDb() }, { now: () => NOW, fetchImpl: async () => { throw new Error('must not call'); } });
+    ok('no key → configured:false, no network', noKey.ok === false && noKey.configured === false);
+  }
+
+  section('requestMeasurement purpose sun-exposure — the callable (auth, viewer, company cache, cap)');
+  {
+    const Module = require('module');
+    const origLoad = Module._load;
+    const origFetch = global.fetch;
+    const db = fakeDb();
+    let handler = null, limits = [], fetchUrls = [];
+    class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
+    const realFs = {
+      Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }), now: () => ({ toMillis: () => Date.now() }) },
+      FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }), increment: (n) => ({ __fv: 'inc', n }) }
+    };
+    Module._load = function (request, parent, isMain) {
+      if (request === 'firebase-functions/v2/https') {
+        return { onCall: (o, h) => { if (o && o.secrets && !handler && h) handler = { opts: o, fn: h }; return { __handler: h }; }, onRequest: () => ({}), HttpsError };
+      }
+      if (request === 'firebase-admin/firestore') {
+        return { getFirestore: () => db, Timestamp: realFs.Timestamp, FieldValue: realFs.FieldValue };
+      }
+      if (request === './upstash-ratelimit') {
+        return { enforceRateLimit: async (ns, key) => { limits.push(ns + '|' + key); return { count: 1 }; } };
+      }
+      return origLoad.apply(this, arguments);
+    };
+    const measPath = require.resolve(path.join(FUNCTIONS, 'integrations', 'measurement.js'));
+    const savedMeas = require.cache[measPath];
+    delete require.cache[measPath];
+    process.env.SOLAR_API_KEY = 'unit-test-key';
+    process.env.NBD_SOLAR_DAILY_CAP = '2';
+    global.fetch = async (url) => { fetchUrls.push(String(url)); return jsonReply(200, FIXTURE); };
+    const call = async (auth, data) => {
+      try { return { res: await handler.fn({ auth, data }) }; } catch (e) { return { err: e }; }
+    };
+    const rep = (uid, companyId, role) => ({ uid, token: Object.assign({ companyId }, role ? { role } : {}) });
+    const sunData = (i) => ({ purpose: 'sun-exposure', lat: PIN.lat + (i || 0) * 0.001, lng: PIN.lng });
+    try {
+      require(measPath);
+      ok('requestMeasurement captured with SOLAR_API_KEY bound + App Check', handler && handler.opts.enforceAppCheck === true && handler.opts.secrets.some((s) => s && s.name === 'SOLAR_API_KEY'));
+
+      let o = await call(null, sunData());
+      ok('signed out → unauthenticated, no Solar call', o.err && o.err.code === 'unauthenticated' && fetchUrls.length === 0);
+      o = await call(rep('v1', 'coA', 'viewer'), sunData());
+      ok('viewer → permission-denied (paid call), no Solar call', o.err && o.err.code === 'permission-denied' && fetchUrls.length === 0);
+      o = await call(rep('u1', 'coA'), { purpose: 'sun-exposure', lat: 'x', lng: 1 });
+      ok('bad coordinates → invalid-argument, no Solar call', o.err && o.err.code === 'invalid-argument' && fetchUrls.length === 0);
+
+      o = await call(rep('u1', 'coA'), Object.assign(sunData(), { address: '1 Test St' }));
+      ok('rep → sun data for the roof (server fetched it)', o.res && o.res.ok && o.res.sun && o.res.sun.segments.length === 6 && o.res.cached === false && fetchUrls.length === 1, JSON.stringify(o.err || o.res));
+      ok('the key is used server-side and never returned to the client', fetchUrls[0].includes('key=unit-test-key') && !JSON.stringify(o.res).includes('unit-test-key'));
+      ok('the per-uid limiter ran', limits.some((l) => l.startsWith('callable:requestMeasurement:uid|u1')));
+      ok('no measurement or lead doc written (overlay only)', ![...db.store.keys()].some((k) => k.startsWith('measurements/') || k.startsWith('leads/')));
+      o = await call(rep('u2', 'coA'), sunData());
+      ok('a colleague in the SAME company → cache hit, no second Solar call', o.res && o.res.cached === true && fetchUrls.length === 1);
+      o = await call(rep('u3', 'coB'), sunData());
+      ok('ANOTHER company, same roof → its own fetch (cache is company-scoped)', o.res && o.res.cached === false && fetchUrls.length === 2);
+      o = await call(rep('u1', 'coA'), sunData(1));
+      ok('coA second new roof → allowed (cap 2)', o.res && o.res.ok && fetchUrls.length === 3);
+      o = await call(rep('u1', 'coA'), sunData(2));
+      ok('coA third new roof → resource-exhausted at the daily cap, no Solar call', o.err && o.err.code === 'resource-exhausted' && fetchUrls.length === 3, o.err && o.err.message);
+      o = await call(rep('u2', 'coA'), sunData());
+      ok('a cached roof still works at the cap', o.res && o.res.cached === true);
+      delete process.env.SOLAR_API_KEY;
+      o = await call(rep('u1', 'coC'), sunData(5));
+      ok('no SOLAR_API_KEY → failed-precondition, no Solar call', o.err && o.err.code === 'failed-precondition' && fetchUrls.length === 3);
+    } catch (e) {
+      ok('callable section ran', false, e && e.stack);
+    } finally {
+      Module._load = origLoad;
+      global.fetch = origFetch;
+      delete process.env.SOLAR_API_KEY;
+      delete process.env.NBD_SOLAR_DAILY_CAP;
+      if (savedMeas) require.cache[measPath] = savedMeas; else delete require.cache[measPath];
+    }
+  }
+
+  section('Maps ☀️ Solar Analysis client — server call, no key on the device');
+  {
+    const vm = require('vm');
+    const src = read('docs/pro/js/maps-routing.js').replace(/\r\n/g, '\n');
+    const start = src.indexOf("try { localStorage.removeItem('nbd_google_solar_key'); }");
+    const end = src.indexOf('function renderSolarEstimate(');
+    const endEst = src.indexOf('\n}\n', src.indexOf('function renderSolarEstimate(')) + 3;
+    ok('client block found', start > 0 && end > start && endEst > end);
+    const block = src.slice(start, endEst);
+    ok('no client fetch, no stored-key read, no key prompt',
+      !/\bfetch\s*\(/.test(codeOnly(block)) && !/getItem\(\s*'nbd_google_solar_key'/.test(block) && !/API key/i.test(codeOnly(block)));
+    const toasts = [], storage = { removed: [], got: [] }, calls = [], circles = [];
+    const layer = () => ({ addTo: () => layer(), bindPopup: () => ({ addTo: () => { circles.push(1); } }) });
+    const sandbox = {
+      console: { warn: () => {}, error: () => {}, log: () => {} },
+      localStorage: { removeItem: (k) => storage.removed.push(k), getItem: (k) => { storage.got.push(k); return 'AIzaLEAKEDKEY'; } },
+      showToast: (m, k) => toasts.push([k, m]),
+      fetch: () => { throw new Error('client fetch'); },
+      document: { getElementById: () => ({ value: '1 Test St' }) },
+      drawMap: { getCenter: () => ({ lat: PIN.lat, lng: PIN.lng }), removeLayer: () => {} },
+      L: { layerGroup: () => ({ addTo: () => {} }), circle: () => ({ bindPopup: () => ({ addTo: () => { circles.push(1); } }), addTo: () => {} }), marker: () => ({ addTo: () => {} }), divIcon: (o) => o, polyline: () => ({ addTo: () => {} }) },
+      window: {}
+    };
+    sandbox.window._functions = {};
+    sandbox.window._httpsCallable = (fns, name) => async (payload) => {
+      calls.push({ name, payload });
+      return { data: { ok: true, cached: false, sun: S.mapSunExposure(FIXTURE), imagery: { quality: 'HIGH' } } };
+    };
+    vm.createContext(sandbox);
+    try {
+      vm.runInContext(block + '\nthis.runSolarAnalysis = runSolarAnalysis;', sandbox);
+      ok('loading the module deletes any stored Solar key', storage.removed.includes('nbd_google_solar_key'));
+      await sandbox.runSolarAnalysis();
+      ok("calls requestMeasurement with purpose 'sun-exposure' + the map centre", calls.length === 1 && calls[0].name === 'requestMeasurement'
+        && calls[0].payload.purpose === 'sun-exposure' && calls[0].payload.lat === PIN.lat && calls[0].payload.lng === PIN.lng, JSON.stringify(calls));
+      ok('draws one circle per roof plane from the server summary', circles.length === 6, String(circles.length));
+      ok('success toast with max sun hours; never reads localStorage', toasts.some(([k, t]) => k === 'success' && /1403 hours\/year/.test(t)) && storage.got.length === 0, JSON.stringify(toasts));
+      // Server refusal (e.g. daily cap) → latitude estimate, no key prompt.
+      sandbox.window._httpsCallable = () => async () => { const e = new Error('Daily satellite-measure limit reached'); e.code = 'functions/resource-exhausted'; throw e; };
+      toasts.length = 0;
+      await sandbox.runSolarAnalysis();
+      ok('server error → estimate shown with the reason, no key prompt', toasts.some(([k, t]) => k === 'warning' && /limit reached/.test(t) && !/key/i.test(t)), JSON.stringify(toasts));
+    } catch (e) {
+      ok('client block runs in a sandbox', false, e && e.stack);
+    }
   }
 
   section('harness');
