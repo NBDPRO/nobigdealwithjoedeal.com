@@ -44,6 +44,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { getSecret, hasSecret, secretValue, PROVIDERS, notConfigured, SECRETS } = require('./_shared');
 const IR = require('./instantroofer-logic');
+const SOLAR = require('./solar-measure');
 const geocodeHandlers = require('../handlers/geocode');
 const { assertNotViewer } = require('../shared');
 
@@ -192,6 +193,11 @@ function stripVendorBlobs(data) {
 function selectProvider() {
   const p = PROVIDERS.measurement;
   if (p === 'instantroofer') return { name: p, needsCoords: true,  run: requestInstantRoofer };
+  // Google Solar API (integrations/solar-measure.js): 'solar' alone, or 'auto'
+  // = Solar first with Instant Roofer as the fallback.
+  if (p === 'solar' || p === 'auto') {
+    return { name: p, needsCoords: true, run: (ctx) => SOLAR.runSolarProvider(ctx, { mode: p, instantRoofer: requestInstantRoofer }) };
+  }
   return null;
 }
 
@@ -341,6 +347,7 @@ async function attachMeasurementToLead(db, { leadId, ownerId, address, provider,
   const addr = address || '(address unknown)';
   const providerLabel = provider === 'instantroofer'
     ? (reportType === 'human' ? 'Instant Roofer (human certified)' : 'Instant Roofer (AI)')
+    : provider === 'solar' ? 'Google Solar (' + SOLAR.ACCURACY_NOTE.toLowerCase() + ')'
     : String(provider || 'provider').toUpperCase();
   const m = measurements || {};
   const summary = (m.rawSqft ? Math.round(m.rawSqft) + ' SF roof, ' : '')
@@ -410,7 +417,7 @@ exports.requestMeasurement = onCall(
     timeoutSeconds: 60,
     memory: '256MiB',
     secrets: [
-      SECRETS.INSTANTROOFER_API_KEY, SECRETS.INSTANTROOFER_WEBHOOK_SECRET,
+      SECRETS.INSTANTROOFER_API_KEY, SECRETS.INSTANTROOFER_WEBHOOK_SECRET, SECRETS.SOLAR_API_KEY,
       SECRETS.REGRID_API_TOKEN, GOOGLE_GEOCODING_API_KEY
     ]
   },
@@ -484,7 +491,10 @@ exports.requestMeasurement = onCall(
       address: address || (lead && lead.address) || '',
       reportType,
       customerName: lead ? [lead.firstName, lead.lastName].filter(Boolean).join(' ') : null,
-      contractorName: token.companyName || null
+      contractorName: token.companyName || null,
+      // Read by the Solar provider's company-scoped cache and daily cap.
+      companyId: token.companyId || null,
+      db
     };
 
     let coords = null;
@@ -583,7 +593,7 @@ exports.requestMeasurement = onCall(
 
       // Vendor-side limit is 5/min per account; meter it before we hit it.
       try {
-        await enforceRateLimit('callable:requestMeasurement:instantroofer', 'account', INSTANTROOFER_PER_MINUTE, 60_000);
+        if (provider.name !== 'solar') await enforceRateLimit('callable:requestMeasurement:instantroofer', 'account', INSTANTROOFER_PER_MINUTE, 60_000);
       } catch (e) {
         if (e.rateLimited) {
           throw new HttpsError('resource-exhausted',
@@ -638,7 +648,8 @@ exports.requestMeasurement = onCall(
       passThruEligible: true,
       // Drives the line-item wording client-side. True only when the vendor
       // actually hands us a document (the human report).
-      passThruHasDocument: !(result.provider === 'instantroofer' && (result.reportType || 'ai') === 'ai'),
+      passThruHasDocument: !((result.provider === 'instantroofer' || result.provider === 'solar') && (result.reportType || 'ai') === 'ai'),
+      ...(result.fallbackFrom ? { fallbackFrom: result.fallbackFrom } : {}),
       ...(measurements ? { measurements } : {}),
       ...(result.synchronousData && result.provider === 'instantroofer' ? { vendorResponse: result.synchronousData } : {})
     };
