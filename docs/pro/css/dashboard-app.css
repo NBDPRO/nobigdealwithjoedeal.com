@@ -4481,12 +4481,14 @@ body {
      390px iPhone the tab scroller above was squeezed to ~275px: Jobs sat
      half under the fade and All was entirely out of sight, its centre
      under ▦ Board — and the fade is the only hint a swipe exists. Now the
-     row wraps (tabs take the full width, Board/List drop to their own line,
-     right-aligned) and the tabs WRAP too instead of scrolling: every one of
+     tabs take the full width and WRAP instead of scrolling: every one of
      the seven is on screen and tappable at load, at any phone width and
      with any count badges. flex-grow fills each line evenly; the mask fade
-     goes, since there is nothing left to scroll to. */
-  .crm-hdr-viewrow{ flex-wrap:wrap!important; row-gap:6px; }
+     goes, since there is nothing left to scroll to. Board/List move UP into
+     the Filters / ⋯ / Add Lead row (see "Board/List share the actions row"
+     at the end of this file) rather than onto a line of their own — a
+     third header row pushed the first search match below an Android
+     keyboard (phone-pipeline.spec.js, pipeline#7). */
   .crm-hdr-views{
     flex-wrap:wrap!important;
     overflow:visible!important;
@@ -5448,4 +5450,21 @@ body {
   .joe-quick, .nbd-rdash-period, .tl-filter-btn, .ph-mode-btn { min-height:44px; }
   .bc-meta-cp { display:inline-block; position:relative; z-index:1; padding:16px 8px; margin:-16px -8px; }
   .cl-card-name { position:relative; z-index:1; padding:13px 0; margin:-13px 0; }
+}
+
+/* Board/List share the actions row (phones, 2026-10-03). With the view tabs
+   at full width (see "No more hidden tabs" above), .crm-hdr-viewrow becomes
+   display:contents so its two children are items of the wrapping
+   .crm-header: the toggle joins Filters / ⋯ / Add Lead (which have ~180px
+   of spare width at 390px) and the tabs follow on their own line. Header
+   height stays what it was before the tabs stopped scrolling, so a search
+   match still lands above a phone keyboard. Ordering is by order:-1 on the
+   rows that come first, so anything else in the header keeps DOM order.
+   Declared last in the file so these !important rules beat the earlier
+   ".crm-hdr-actions{flex-basis:100%!important;width:100%!important}". */
+@media (max-width:768px) {
+  .crm-hdr-viewrow{ display:contents!important; }
+  .crm-hdr-label, .crm-hdr-search, .crm-hdr-actions, .crm-view-mode{ order:-1; }
+  .crm-hdr-actions{ flex:1 1 0!important; flex-basis:0!important; width:auto!important; min-width:0!important; }
+  .crm-view-mode{ flex:0 0 auto; margin-left:auto; }
 }
