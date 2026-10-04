@@ -134,6 +134,17 @@
            normally scrolls so the bar overlapping a few pixels of
            content is harmless. */
         body.nbd-qab-active { padding-bottom:64px; }
+        /* 64px was the bar WITHOUT the home-bar inset. In the installed
+           iPhone app the bar is ~104px tall (its own padding includes
+           env(safe-area-inset-bottom)), so the last 40px of the page could
+           never scroll clear of it — and anything scrolled into view
+           (scrollIntoView, focus, a find-in-page hit) landed its bottom edge
+           exactly under it: the doc-template ⓘ previews, for one
+           (2026-10-03). Both now use the bar's measured height, published
+           by fab-stack-coordinator.js as --nbd-bottom-chrome, with an
+           inset-aware fallback for the frame before it measures. */
+        body.nbd-qab-active { padding-bottom:max(calc(72px + env(safe-area-inset-bottom, 0px)), var(--nbd-bottom-chrome, 0px)); }
+        html:has(> body.nbd-qab-active) { scroll-padding-bottom:max(calc(72px + env(safe-area-inset-bottom, 0px)), var(--nbd-bottom-chrome, 0px)); }
         /* FAB lift REMOVED 2026-07. This module used to write \`bottom:\`
            for three FABs it does not own, restating their base constants,
            at its own 641px breakpoint while the FAB stack switches at
@@ -144,6 +155,7 @@
         @media (min-width:641px) {
           #nbd-quick-action-bar { display:none !important; }
           body.nbd-qab-active   { padding-bottom:0 !important; }
+          html:has(> body.nbd-qab-active) { scroll-padding-bottom:0 !important; }
         }`;
       document.head.appendChild(style);
     }

@@ -937,7 +937,7 @@
           '<div><label class="ui-label-caps">Amount ($)</label><input id="expAmount" type="number" step="0.01" min="0" inputmode="decimal" autofocus class="ui-input-lg"></div>' +
           '<div><label class="ui-label-caps">Date</label><input id="expDate" type="date" value="' + today + '" class="ui-input-lg"></div>' +
           '<div><label class="ui-label-caps">Sales Tax ($)</label><input id="expTax" type="number" step="0.01" min="0" inputmode="decimal" class="ui-input-lg"></div>' +
-          '<div><label class="ui-label-caps">Category</label><select id="expCategory" class="ui-input-lg">' + cats + '</select></div>' +
+          '<div class="exp-cat-cell"><label class="ui-label-caps">Category</label><select id="expCategory" class="ui-input-lg">' + cats + '</select></div>' +
         '</div>' +
         '<div id="expMileageRow" style="display:none;margin-top:12px;"><label class="ui-label-caps">Miles</label>' +
           '<input id="expMiles" type="number" step="0.1" min="0" inputmode="decimal" class="ui-input-lg">' +
@@ -951,7 +951,7 @@
         '<div class="exx-mt12px"><label class="ui-label-caps">Repeat (optional)</label><select id="expRepeat" class="ui-input-lg"><option value="none">One-time</option>' +
           FREQUENCIES.map(function (f) { return '<option value="' + f.key + '">' + f.label + '</option>'; }).join('') + '</select></div>' +
         '<div class="exx-mt12px"><label class="ui-label-caps">Receipt (image / PDF, optional)</label>' +
-          '<div class="exx-dflex-gap8px-aicenter">' +
+          '<div class="exx-dflex-gap8px-aicenter exp-receipt-row">' +
             '<input id="expFile" type="file" accept="image/*,application/pdf" class="ui-input-lg exx-fx1">' +
             '<button data-exp-action="scan" type="button" class="btn btn-ghost exx-whinowrap">📷 Scan with AI</button>' +
           '</div>' +
