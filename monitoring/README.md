@@ -24,6 +24,9 @@ rollback: [ALERT-POLICIES-LIVE-2026-09-13](../documentation/audit/ALERT-POLICIES
 | `alert-voice-processing-failures.json` | 4594628795274947618 | live |
 | `alert-claude-budget-exceeded.json` | — | **held**: cannot fire as intended until a code change logs the budget event |
 | `alert-migrations-tick-stale.json` | — | **held**: disabled by design (a daily absence is not expressible) |
+| `alert-client-error-new-signature.json` | — | **not yet created** (2026-10-04) — Jo runs [CLIENT-ERROR-ALERTS](../documentation/runbooks/CLIENT-ERROR-ALERTS.md) after the clientError deploy |
+| `alert-client-error-spike.json` | — | **not yet created** (2026-10-04) — same runbook |
+| `alert-csp-report-spike.json` | — | **not yet created** (2026-10-04) — same runbook |
 
 **Do not run the create commands below for a live policy** — it makes a
 duplicate. List first:

@@ -46,7 +46,9 @@ console.log('\nPUBLIC INVOKER — browser-facing onRequest functions declare it'
 // Called from the browser (or by browsers on their own, for CSP reports).
 // Each one enforces its own auth in the handler: an ID token plus role for
 // email/SMS, and a rate limit plus size cap for cspReport.
-const MUST_BE_PUBLIC = ['cspReport', 'sendEmail', 'sendSMS', 'sendQueuedSMS'];
+// clientError (2026-10-04): browser error reports, rate limit + size cap
+// like cspReport — a 403 at Cloud Run would blind it the same way.
+const MUST_BE_PUBLIC = ['cspReport', 'clientError', 'sendEmail', 'sendSMS', 'sendQueuedSMS'];
 for (const name of MUST_BE_PUBLIC) {
   const ep = fns[name] && fns[name].__endpoint;
   const inv = ep && ep.httpsTrigger && ep.httpsTrigger.invoker;
