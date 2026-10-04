@@ -77,7 +77,15 @@ test.describe('Reel Studio — job photos → slideshow reel → draft on the ca
     await A.db.doc('photos/' + leadId + '-a').set({ leadId, userId: uid, companyId: uid, storagePath: 'photos/' + uid + '/' + leadId + '-after.jpg', phase: 'After', createdAt: A.Timestamp.fromMillis(Date.now() + 1000) });
 
     await loginAs(page, { email, password: process.env.PLAYWRIGHT_TEST_USER_PASSWORD || 'nbd-e2e-password-1' });
+    // Reel Studio is OFF by default (post-merge review): turn it on through the
+    // Settings toggle, exactly as Jo would, and check the switch landed server-side.
+    await A.db.doc('companies/' + uid + '/social_settings/config').set({ reels: false }, { merge: true });
     await page.goto('/pro/social.html');
+    await page.locator('.ss-tab[data-tab="settings"]').click();
+    const reelsSwitch = page.locator('#ssReels');
+    await expect(reelsSwitch).not.toBeChecked({ timeout: 30_000 });
+    await reelsSwitch.check();
+    await expect.poll(async () => ((await A.db.doc('companies/' + uid + '/social_settings/config').get()).data() || {}).reels, { timeout: 30_000 }).toBe(true);
     await page.locator('.ss-tab[data-tab="reels"]').click();
     const newBtn = page.locator('#srNew');
     await expect(newBtn).toBeEnabled({ timeout: 30_000 });
