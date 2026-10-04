@@ -83,7 +83,9 @@ const ests = [
   // Signed on the spot, never "sent" or viewed: the signature proves it went out.
   const r = compute([{ id: 'L9', createdAt: ts('2026-09-20T12:00:00Z'), stage: 'closed' }],
     [{ leadId: 'L9', createdAt: ts('2026-09-20T12:00:00Z'), signedAt: ts('2026-09-21T12:00:00Z'), grandTotal: 20000 }]);
-  ok('signed-only estimate is sent AND signed (close rate 100%, not ÷0)', r && r.estimateCount === 1 && r.closeRate === 1 && r.signedValue === 20000);
+  // 2026-10-04: the estimate ratio is estimateSignRate; closeRate is now the
+  // shared lead close rate (numbers-logic.js) — tests/numbers-you-can-trust.
+  ok('signed-only estimate is sent AND signed (sign rate 100%, not ÷0)', r && r.estimateCount === 1 && r.estimateSignRate === 1 && r.signedValue === 20000);
   // Revenue = COLLECTED (Jo, 2026-09-28): a signature is not money. With no
   // invoice data loaded the tile shows "…", never the signed total.
   ok('signed value is NOT revenue (revenue unknown until invoices load)', r && r.revenue === null);

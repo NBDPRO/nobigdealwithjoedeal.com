@@ -54,6 +54,18 @@
   // Metrics audit F8: closed-won money = role won OR job (in production).
   function _isClosedWon(l) { return _isWon(l) || _isJob(l); }
 
+  // THE close rate (2026-10-04): numbers-logic.js closeRate — won ÷ (won +
+  // lost), where won is the sale test (won, in production, or Contract Signed,
+  // Jo 2026-09-15). The KPI card, the Analytics view, the Win Rate widget,
+  // Reports and the lead-source table all read this one function. No numbers
+  // module (a failed script load) → no rate ("—"), never a home-made one.
+  function _closeRate(recs) {
+    var N = window.NBDNumbers;
+    if (N && typeof N.closeRate === 'function') return N.closeRate(recs);
+    return { won: 0, lost: 0, decided: 0, rate: null };
+  }
+  function _ratePct(cr) { return cr && cr.rate != null ? Math.round(cr.rate * 100) : null; }
+
   // ── Date helpers ──
   function toJSDate(v) {
     if (!v) return null;
@@ -239,14 +251,8 @@
       return sum + (parseFloat(l.jobValue) || 0);
     }, 0);
 
-    var totalClosed = recs.filter(function (l) {
-      return _isClosedWon(l);
-    }).length;
-    var totalLost = recs.filter(function (l) {
-      return _isLost(l);
-    }).length;
-    var totalDecided = totalClosed + totalLost;
-    var closeRate = totalDecided > 0 ? Math.round((totalClosed / totalDecided) * 100) : 0;
+    // null = nothing decided yet → the card shows "—", not 0%.
+    var closeRate = _ratePct(_closeRate(recs));
 
     var leadsThisMonth = leads.filter(function (l) {
       var d = toJSDate(l.createdAt);
@@ -334,7 +340,7 @@
         '<div class="kpi-card" data-ak-action="goTo" data-ak-target="board" role="button" title="Open analytics" style="cursor:pointer;">' +
           '<div class="kpi-icon">🎯</div>' +
           '<div class="kpi-data">' +
-            '<div class="kpi-value">' + k.closeRate + '%</div>' +
+            '<div class="kpi-value">' + (k.closeRate == null ? '—' : k.closeRate + '%') + '</div>' +
             '<div class="kpi-label">Close Rate</div>' +
             '<div class="kpi-sub">Avg deal $' + formatNum(k.avgDealSize) + '</div>' +
           '</div>' +
@@ -508,9 +514,9 @@
     var lostLeads = recs.filter(function (l) {
       return _isLost(l);
     });
-    var totalDecided = wonLeads.length + lostLeads.length;
     var nonDeleted = leads.filter(function (l) { return !l.deleted; });
-    var conversionRate = pct(wonLeads.length, totalDecided);
+    var _cr = _closeRate(recs);
+    var conversionRate = _ratePct(_cr);
 
     // ── Average deal size ──
     var wonWithValue = wonLeads.filter(function (l) { return parseFloat(l.jobValue) > 0; });
@@ -672,8 +678,9 @@
       avgDealSize: avgDealSize,
       totalLeads: nonDeleted.length,
       activeLeadCount: activeLeads.length,
-      wonCount: wonLeads.length,
-      lostCount: lostLeads.length,
+      // The rate's own counts, so "N won / M decided" sits beside its rate.
+      wonCount: _cr.won,
+      lostCount: _cr.lost,
       totalEstimates: totalEstimates,
       avgEstimateValue: avgEstimateValue,
       stageMap: stageMap,
@@ -961,7 +968,7 @@
           '</div>' +
           '<div class="ak-card orange">' +
             '<div class="ak-lbl">Conversion Rate <span style="opacity:.55;font-weight:normal;">(all-time)</span></div>' +
-            '<div class="ak-val orange">' + m.conversionRate + '%</div>' +
+            '<div class="ak-val orange">' + (m.conversionRate == null ? '—' : m.conversionRate + '%') + '</div>' +
             '<div class="ak-sub">' + m.wonCount + ' won / ' + (m.wonCount + m.lostCount) + ' decided</div>' +
           '</div>' +
           '<div class="ak-card cyan">' +

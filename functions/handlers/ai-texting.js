@@ -143,7 +143,9 @@ async function buildLeadContext(db, leadId, lead, incomingBody) {
   const lastName  = lead.lastName  || '';
   const stage     = lead.stage     || 'new';
   const address   = lead.address   || '';
-  const isCustomer= (lead.stage === 'Complete') || lead.completedAt || lead.installCompletedAt;
+  // Won by role (2026-10-04), not the one legacy spelling 'Complete' — a
+  // closed / final-payment / install-complete customer is a customer too.
+  const isCustomer= require('../stage-roles').isWon(lead) || lead.completedAt || lead.installCompletedAt;
   const isProspect= !!lead.isProspect;
 
   // ── Conversation history: SMS thread, homeowner-portal thread, activity ──

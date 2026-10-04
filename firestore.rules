@@ -1846,6 +1846,26 @@ service cloud.firestore {
         // Admin-SDK callables bypass rules; platform admins keep client access.
         allow create, update, delete: if isAdmin();
       }
+
+      // Owner-only business numbers (2026-10-04, "knowing your numbers"):
+      // monthly lead spend per paid source (lead_spend), the Sunday review's
+      // weekly "one decision" notes (week_<date>), and the server-counted
+      // referral-link opens (referral_clicks_<YYYY-MM>, written by the admin
+      // SDK only). Spend and cost-per-lead are cost figures — CRM-only, and
+      // only the company OWNER sees them: not managers, not reps, not
+      // viewers. The owner of a tenant is the uid the company is keyed by, or
+      // the uid the company doc names as ownerId. referral_clicks_* is
+      // server-written; a client can never create or edit one.
+      match /owner_numbers/{docId} {
+        allow read: if isAdmin()
+          || (isAuth() && request.auth.uid == companyId)
+          || (isAuth() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid);
+        allow create, update: if isAdmin()
+          || (isAuth() && notViewer() && !docId.matches('referral_clicks_.*')
+              && (request.auth.uid == companyId
+                  || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid));
+        allow delete: if isAdmin();
+      }
     }
 
     // ── TRAINING SESSIONS ────────────────────────────

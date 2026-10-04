@@ -144,6 +144,12 @@
       'css/winback-view.css?v=1',
       'js/winback.js?v=2'
     ],
+    // Sunday business review (2026-10-04): the rules (numbers-logic.js) and
+    // the owner-only data reads (numbers-data.js) are eager on the page; this
+    // is just the view.
+    weekreview: [
+      'js/week-review.js?v=1'
+    ],
     decision: [
       'css/decision-engine-view.css?v=2',
       'js/decision-engine.js?v=4'
@@ -433,6 +439,7 @@
     money:       ['money'],
     signs:       ['mapvendor', 'signs'],
     winback:     ['winback'],
+    weekreview:  ['weekreview'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     calls:       ['callcenter'],

@@ -521,7 +521,19 @@ async function saveLead(){
             return; // finally{} re-enables the Save button
           }
         }
-        _stageMove = { from: _existing.stage, to: _leadPayload.stage, isLost: _isLost };
+        // Lost needs a reason (2026-10-04) — the same required picker as the
+        // board. Cancel keeps the dialog open and saves nothing.
+        let _lostFields = null;
+        if (_isLost) {
+          if (_existing.lostReason) {
+            _lostFields = { lostReason: _existing.lostReason, lostReasonKey: _existing.lostReasonKey || null, lostReasonNote: null };
+          } else {
+            const _choice = window.NBDLostReason ? await window.NBDLostReason.prompt(_existing) : false;
+            if (!_choice) { showFormError('Pick why it was lost to move it to Lost.'); return; }
+            _lostFields = _choice.fields;
+          }
+        }
+        _stageMove = { from: _existing.stage, to: _leadPayload.stage, isLost: _isLost, lostFields: _lostFields };
         delete _leadPayload.stage;
         delete _leadPayload.stageRole;
       }
@@ -532,6 +544,7 @@ async function saveLead(){
         const { commitStageChange } = await import('./stage-write.js');
         await commitStageChange(_savedId, _stageMove.to, _stageMove.from, {
           isLostMove: _stageMove.isLost,
+          lostFields: _stageMove.lostFields || null,
           jobType: _leadPayload.jobType || null,
           actorLabel: window._currentUser?.email,
         });

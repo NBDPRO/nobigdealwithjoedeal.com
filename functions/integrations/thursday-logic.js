@@ -772,7 +772,11 @@ function buildLeadDoc(args) {
     phone: phone ? toE164(phone) || phone : '',
     phoneDigits: phoneDigits10(phone),
     email: ex.email || '',
-    stage: 'New',
+    // Canonical key + role (2026-10-04 numbers audit: 64 leads stored the
+    // legacy display name 'New' and 62 had no stageRole). Migration 008
+    // heals the ones already written.
+    stage: 'new',
+    stageRole: 'new',
     status: 'new',
     source: mapHeardAboutToSource(ex.heard_about_us),
     intake: INTAKE_LABEL,
