@@ -95,6 +95,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
   console.log('\n1. "Looks like X" on the main call cards');
   rows.splice(0, rows.length,
     call('cube_SUG1', { contactName: 'Roof Guy', phoneDigits: '5135550201', suggestedLeadId: 'LD', suggestedLeadName: 'Dana Rivers', suggestedWhy: 'their name said on the call' }),
+    call('cube_SUGF', { contactName: '', phoneDigits: '5135550207', suggestedLeadId: 'LD', suggestedLeadName: 'Dana Rivers', suggestedWhy: 'name + Florence' }),
     call('cube_NUM1', { contactName: 'Pat Cell', phoneDigits: '5135550202' }),
     call('cube_GONE', { contactName: 'X', phoneDigits: '5135550203', suggestedLeadId: 'LDEL', suggestedLeadName: 'Deleted Person' }),
     call('cube_TAG1', { contactName: 'Morgan New', phoneDigits: '5135550204', tags: ['customer'] }),
@@ -121,6 +122,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
   const html = env.target.innerHTML;
   const cardOf = (id) => { const i = html.indexOf('data-call-id="' + id + '"'); const j = html.indexOf('data-call-id="', i + 10); return i < 0 ? '' : html.slice(i, j < 0 ? undefined : j); };
   ok('stored suggestion → "Looks like Dana Rivers" + a one-tap File on button', /Looks like <b>Dana Rivers<\/b> — their name said on the call/.test(cardOf('cube_SUG1')) && /data-ccp="suggest" data-id="cube_SUG1" data-lead="LD"/.test(cardOf('cube_SUG1')), cardOf('cube_SUG1').slice(0, 600));
+  ok('a caller-facts suggestion shows its reason on the chip: "name + Florence"', cardOf('cube_SUGF').includes('Looks like <b>Dana Rivers</b> — name + Florence.') && /data-ccp="suggest" data-id="cube_SUGF" data-lead="LD"/.test(cardOf('cube_SUGF')), cardOf('cube_SUGF').slice(0, 600));
   ok('a number already on a customer (their alt phone) → File on that customer', /Looks like <b>Pat Example<\/b> — this number is already on them/.test(cardOf('cube_NUM1')) && /data-lead="LP"/.test(cardOf('cube_NUM1')));
   ok('…and no "+ New lead" for that number (it would be a duplicate)', !/data-cc="newlead" data-id="cube_NUM1"/.test(cardOf('cube_NUM1')));
   ok('a suggestion naming a deleted customer is not shown', !/Looks like/.test(cardOf('cube_GONE')));
