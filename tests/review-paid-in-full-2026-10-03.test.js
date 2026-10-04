@@ -321,6 +321,23 @@ const tick = () => new Promise((r) => setImmediate(r));
 
   // ═══ 6. recordInPersonSignature ═══════════════════════════════════════
   console.log('\n6. recordInPersonSignature — in-person signing moves the card');
+  {
+    // The authed E2E job (@shard2) loads the logic module in the Playwright
+    // process WITHOUT functions/node_modules. A package require there made
+    // the E2E's server answer throw and the card never moved (CI, 2026-10-04).
+    // Load it in a child with every package require refused.
+    const { spawnSync } = require('child_process');
+    const probe = [
+      "const Module = require('module'); const path = require('path'); const real = Module._load; const bad = [];",
+      "Module._load = function (r, p, m) { if (!r.startsWith('.') && !path.isAbsolute(r) && !Module.builtinModules.includes(r.replace(/^node:/, ''))) { bad.push(r); throw new Error('no package ' + r); } return real.apply(this, arguments); };",
+      "const L = require(process.argv[1]); require(path.join(path.dirname(process.argv[1]), 'job-spine.js')); require(path.join(path.dirname(process.argv[1]), 'deposit-draft.js'));",
+      "console.log(JSON.stringify({ fn: typeof L.handleInPersonSignature, bad }));",
+    ].join('\n');
+    const r = spawnSync(process.execPath, ['-e', probe, path.join(ROOT, 'functions', 'in-person-signing-logic.js')], { encoding: 'utf8' });
+    let out = null; try { out = JSON.parse((r.stdout || '').trim().split('\n').pop()); } catch (_) { out = null; }
+    ok('the in-person logic (+ spine + deposit draft) loads with NO npm packages — the E2E job has none in functions/',
+      !!out && out.fn === 'function' && out.bad.length === 0, (r.stdout || '') + (r.stderr || '').slice(0, 300));
+  }
   if (IPS) {
     const H = IPS._test.handleInPersonSignature;
     const signed = (o) => Object.assign({ type: 'contract', status: 'signed', signedAt: '2026-10-03T15:00:00Z',

@@ -40,9 +40,10 @@ function adb() {
   _db = getFirestore();
   return _db;
 }
-// The server logic, with this process's admin SDK (the emulator).
+// The server logic, with this process's admin SDK (the emulator). The logic
+// module needs no functions/node_modules — this CI job does not install them.
 function serverHandle(auth, data) {
-  const IPS = require(path.join(__dirname, '..', '..', 'functions', 'in-person-signing.js'))._test;
+  const IPS = require(path.join(__dirname, '..', '..', 'functions', 'in-person-signing-logic.js'));
   const { FieldValue } = require('firebase-admin/firestore');
   const quiet = { info() {}, warn() {}, error() {} };
   return IPS.handleInPersonSignature(adb(), auth, data, { FieldValue, logger: quiet });
