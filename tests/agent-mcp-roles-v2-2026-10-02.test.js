@@ -134,7 +134,9 @@ function ok(label, cond, detail) {
     ok('Frank: job_profit 10,000 collected − 4,000 direct = 6,000', f.jobs[0].profit === 6000 && f.jobs[0].margin_pct === 60, JSON.stringify(f.jobs));
     const s = await call('marcus', 'storm_near_customers', { days: 3 });
     ok('Marcus: the storm finds this company\'s customer, never the other company\'s', s.events[0].customers_within === 1 && s.events[0].customers[0].lead_id === 'rA', JSON.stringify(s.events[0]));
-    const q = await call('quinn', 'rules_reference');
+    // NBD's own rules for NBD's house team (another company gets its own —
+    // tests/agent-tenant-bots-2026-10-04.test.js).
+    const q = JSON.parse((await M.handleRpc({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'rules_reference', arguments: {} } }, Object.assign(key('quinn'), { companyId: M.NBD_OWNER_UID }))).result.content[0].text);
     ok('Quinn: rules_reference over the wire', q.tiers.length === 5);
     const denied = (await M.handleRpc({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'job_profit', arguments: {} } }, key('dana'))).result;
     ok('Dana asking for job_profit is refused', denied.isError === true);
