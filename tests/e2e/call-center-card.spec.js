@@ -54,6 +54,17 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     const creds = requireTestUser();
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
     await page.route(/cloudfunctions\.net|\.run\.app/, (route) => route.abort());
+    // ✓ Handled / Wrong customer → move (2026-10-03) go through callCenterAction;
+    // its server side (tenant checks, the move itself) is covered by
+    // tests/call-center-action-2026-10-01.test.js. Answered here in the browser.
+    const actions = [];
+    await page.route(/callCenterAction/, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' } });
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}').data || {}; } catch (_) {}
+      actions.push(body);
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ result: { ok: true, moved: body.action === 'move', leadId: body.leadId || null } }) });
+    });
     await page.route(/nominatim\.openstreetmap\.org/, (route) => route.fulfill({ contentType: 'application/json', body: '[]', headers: { 'Access-Control-Allow-Origin': '*' } }));
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
@@ -72,7 +83,7 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     await bucket.file(path).save(silentWav(), { contentType: 'audio/wav', resumable: false });
     const base = { userId: uid, companyId: lead.companyId || uid, source: 'cube-acr', ymd: '2026-09-30', savedContact: true, tags: ['customer'], bucket: 'customer', alternateLeadIds: [], status: 'stored', transcript: null, summary: null, actionItems: [], createdAtMs: s };
     await db.doc('phone_calls/cube_zzcc' + s).set(Object.assign({}, base, {
-      leadId: id, phoneDigits: phone, contactName: 'ZZCC Caller', direction: 'inbound', startedAtMs: Date.parse('2026-09-30T21:06:55Z'), storagePath: path,
+      leadId: id, alternateLeadIds: [other], phoneDigits: phone, contactName: 'ZZCC Caller', direction: 'inbound', startedAtMs: Date.parse('2026-09-30T21:06:55Z'), storagePath: path,
       status: 'noted', summary: 'Gutter leaking again; Jo will send a quote.', followUpDate: '2026-10-02', urgent: true,
       promises: [{ who: 'jo', text: 'Send the gutter repair quote', due: '2026-10-02' }, { who: 'them', text: 'Leave the gate open', due: null }],
     }));
@@ -122,5 +133,31 @@ test.describe.serial('Call Center → customer card @shard2', () => {
     expect(got.src).toBe('blob:');
     expect(got.size).toBe(silentWav().length);
     if (box) expect(box.height, 'play button is a 44px phone target').toBeGreaterThanOrEqual(44);
+
+    // ✓ Handled, right on the customer page.
+    const handled = card.locator('[data-calls-act="pc-handled"]');
+    await expect(handled).toHaveText('✓ Handled');
+    await handled.click();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_zzcc' + s && x.action === 'handled'), { timeout: 10_000 }).toBe(true);
+    await expect(card.locator('[data-calls-act="pc-unhandled"]')).toHaveText('Not handled');
+    // Wrong customer → move to…: the number's other customer is offered first.
+    const moveOpen = card.locator('[data-calls-act="pc-moveopen"]');
+    await expect(moveOpen).toHaveText('Wrong customer → move to…');
+    await moveOpen.click();
+    const pick = card.locator('[data-calls-act="pc-move"][data-lead="' + other + '"]');
+    await expect(pick).toHaveText('Move to ZZCC Other' + s, { timeout: 15_000 });
+    const fit = await safeEvaluate(page, (sel) => {
+      const c = document.querySelector(sel);
+      const hs = [...c.querySelectorAll('[data-calls-act]')].map((b) => b.getBoundingClientRect().height);
+      let worst = 0; c.querySelectorAll('*').forEach((el) => { const r = el.getBoundingClientRect(); if (r.width) worst = Math.max(worst, r.right); });
+      return { minH: Math.min(...hs), worst, vw: document.documentElement.clientWidth };
+    }, '[data-call-card="phone:cube_zzcc' + s + '"]');
+    expect(fit.minH, 'every call-card button is a 44px phone target').toBeGreaterThanOrEqual(44);
+    expect(fit.worst, 'nothing wider than the phone').toBeLessThanOrEqual(fit.vw + 1);
+    await card.scrollIntoViewIfNeeded().catch(() => {});
+    await page.screenshot({ path: 'test-results/customer-call-move-phone.png' });
+    await pick.click();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_zzcc' + s && x.action === 'move' && x.leadId === other), { timeout: 10_000 }).toBe(true);
+    await expect(page.locator('#callsList [data-calls-notice]')).toContainText('call to ZZCC Other' + s + ', with its notes and follow-up task');
   });
 });

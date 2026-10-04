@@ -209,16 +209,11 @@ async function runTextNotes({ db, live, nowMs }) {
       if (personal) { out.personal++; continue; }
       out.noted++;
       if (day.leadId) {
-        await db.doc('leads/' + day.leadId + '/activity/sms-' + day.id).set({
-          userId: OWNER, companyId: OWNER, type: 'text', source: 'sms-backup',
-          label: 'Texts' + (day.contactName ? ' · ' + day.contactName : '') + ' (' + day.messages.length + ')',
-          summary: notes.summary, promises: notes.promises, followUpDate: notes.followUpDate,
-          phoneTextDayId: day.id, createdAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-        const task = CC.buildFollowUpTask({ call: { id: day.id, contactName: day.contactName, startedAtMs: day.lastAtMs }, notes, leadId: day.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
+        const dayInfo = { id: day.id, contactName: day.contactName, messageCount: day.messages.length, startedAtMs: day.lastAtMs };
+        await db.doc('leads/' + day.leadId + '/activity/sms-' + day.id).set(Object.assign(
+          CC.buildTextDayActivity({ day: dayInfo, notes, ownerUid: OWNER }), { createdAt: FieldValue.serverTimestamp() }), { merge: true });
+        const task = CC.buildTextDayTask({ day: dayInfo, notes, leadId: day.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
         if (task) {
-          Object.assign(task, { source: 'sms-backup', phoneTextDayId: day.id, createdBy: 'Text Inbox (AI notes)' });
-          delete task.phoneCallId;
           if (await createIfAbsent(db.doc('leads/' + day.leadId + '/tasks/sms-' + day.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
         }
       }

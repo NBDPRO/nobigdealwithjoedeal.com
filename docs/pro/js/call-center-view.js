@@ -53,6 +53,60 @@
   }
   function leadName(l) { return l ? (((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer') : ''; }
 
+  // ── Matching a caller to a customer (2026-10-03) ─────────────────────
+  // Last-10 digits, the same key the server files by (phone-utils.js).
+  function digits10(v) { var d = String(v || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return d.length === 10 ? d : ''; }
+  // Leads made from a call screen this session, by number — so a second
+  // card for the same caller can't make a second lead before _leads refreshes.
+  var madeLeads = {};
+  /** The customer this number is already on, or null. Never creates. */
+  function leadForNumber(num) {
+    var d = digits10(num);
+    if (!d) return null;
+    var hits = (window._leads || []).filter(function (l) {
+      return l && l.id && !l.deleted && [l.phoneDigits, l.phone, l.phone2, l.altPhone, l.mobilePhone, l.secondaryPhone].some(function (p) { return digits10(p) === d; });
+    });
+    var hit = hits[0];
+    // A number on 3+ customers is a proxy line (functions/call-center-logic.js
+    // proxyNumbers): it says nothing about who this caller is.
+    if (hit && hits.length < 3) return { leadId: hit.id, name: leadName(hit) };
+    if (hit) return null;
+    return madeLeads[d] || null;
+  }
+  /**
+   * "File on X" for a call on no customer: the customer its number is
+   * already on (a sure thing), else the one the notes point at (stored by
+   * the server as suggestedLeadId when the notes were written). Never
+   * filed by itself — the card offers it, Jo taps it.
+   */
+  function fileTarget(c) {
+    if (!c || c.leadId || c.channel === 'text') return null;
+    var byNum = leadForNumber(c.phoneDigits);
+    if (byNum) return { leadId: byNum.leadId, name: byNum.name, why: 'this number is already on them' };
+    if (!c.suggestedLeadId) return null;
+    var L = leadsById(), l = L[c.suggestedLeadId], any = Object.keys(L).length;
+    if (any && (!l || l.deleted)) return null;
+    return { leadId: c.suggestedLeadId, name: l ? leadName(l) : (c.suggestedLeadName || 'the customer'), why: c.suggestedWhy || '' };
+  }
+  // A phone contact Jo tagged "NBD Customer" that no lead carries.
+  function taggedNotInCrm(c) { return !!(c && !c.leadId && c.channel !== 'text' && (c.tags || []).indexOf('customer') !== -1); }
+  // The one-tap row on a card: "Looks like X — why. [File on X]", or for a
+  // tagged contact on no lead, "Not in CRM yet — [＋ Make lead]".
+  function fileRow(c, ids) {
+    if (!c || isViewer() || c.leadId || c.channel === 'text') return '';
+    var t = fileTarget(c);
+    var idsAttr = ids && ids.length > 1 ? ' data-ids="' + esc(ids.join(',')) + '"' : '';
+    if (t) {
+      return '<div class="cc-suggest" data-cc-suggest="' + esc(c.id) + '"><span>Looks like <b>' + esc(t.name) + '</b>' + (t.why ? ' — ' + esc(t.why) : '') + '.</span>' +
+        '<button type="button" class="btn btn-orange pc-play cc-suggest-btn" data-ccp="suggest" data-id="' + esc(c.id) + '" data-lead="' + esc(t.leadId) + '" data-name="' + esc(t.name) + '"' + idsAttr + '>File on ' + esc(t.name) + '</button></div>';
+    }
+    if (taggedNotInCrm(c)) {
+      return '<div class="cc-suggest cc-suggest-new" data-cc-suggest="' + esc(c.id) + '"><span>Tagged “NBD Customer” in your phone — not in the CRM yet.</span>' +
+        '<button type="button" class="btn btn-orange pc-play cc-suggest-btn" data-ccp="newlead" data-id="' + esc(c.id) + '"' + idsAttr + '>＋ Make lead</button></div>';
+    }
+    return '';
+  }
+
   // THE rule lives in home-attention.js (callNeedsYou), shared with the Home
   // strip so the two never disagree. The fallback is only for a page without it.
   function needsAttention(c) {
@@ -186,7 +240,9 @@
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
       if (!c.leadId) {
-        actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>' +
+        // No "+ New lead" when the number is already a customer's (that's
+        // a duplicate — the File on row above offers them instead).
+        actions += (leadForNumber(c.phoneDigits) || taggedNotInCrm(c) ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>') +
           '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(c.id) + '">Attach to customer…</button>';
       }
     }
@@ -197,6 +253,7 @@
       (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
       (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
       (status ? '<div class="pc-meta">' + esc(status) + '</div>' : '') +
+      fileRow(c) +
       '<div class="pc-actions">' + actions + '</div>' +
       '<div class="cc-attach" data-cc-attach="' + esc(c.id) + '" hidden></div>' +
       '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div>' +
@@ -234,12 +291,16 @@
         '</li>';
     }).join('');
     var actions = '';
+    // Filing goes through a CALL (texts are matched by the text ingest; the
+    // server re-files the number's texts with it).
+    var anchor = g.calls.filter(function (c) { return c.channel !== 'text'; })[0] || null;
+    var withTarget = g.calls.filter(function (c) { return fileTarget(c); })[0] || anchor;
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(latest.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>';
-      if (!latest.leadId) {
-        actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>' +
-          '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(latest.id) + '">Attach to customer…</button>';
+      if (!latest.leadId && anchor) {
+        actions += (leadForNumber(anchor.phoneDigits) || taggedNotInCrm(anchor) ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(anchor.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>') +
+          '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(anchor.id) + '">Attach to customer…</button>';
       }
     }
     return '<div class="panel pc-card cc-card cc-group" data-call-id="' + esc(latest.id) + '" data-group="' + esc(g.key) + '">' +
@@ -247,9 +308,10 @@
       '<div class="pc-meta">' + g.calls.length + ' open · latest ' + esc(latest.startedAtMs ? new Date(latest.startedAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '') + '</div></div>' +
       '<div class="pc-chips">' + chips + '</div>' +
       '<ul class="cc-group-calls">' + items + '</ul>' +
+      (latest.leadId ? '' : fileRow(withTarget, ids)) +
       '<div class="pc-actions">' + actions + '</div>' +
-      '<div class="cc-attach" data-cc-attach="' + esc(latest.id) + '" data-ids="' + esc(ids.join(',')) + '" hidden></div>' +
-      '<div class="pc-meta pc-status" data-cc-status="' + esc(latest.id) + '"></div>' +
+      '<div class="cc-attach" data-cc-attach="' + esc((anchor || latest).id) + '" data-ids="' + esc(ids.join(',')) + '" hidden></div>' +
+      '<div class="pc-meta pc-status" data-cc-status="' + esc((anchor || latest).id) + '"></div>' +
       '</div>';
   }
 
@@ -268,8 +330,10 @@
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
       (counts.attention && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + counts.attention + ')</button>' : '') +
-      (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + promises.items.length + ')</button>' : '') +
-      '</div>' +
+      (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
+      // Owner only (the callable refuses anyone else; promises.denied = not the owner).
+      (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
+      '</div>' + tagPanel() +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist">' + FILTERS.map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
@@ -295,8 +359,22 @@
   }
 
   function status(id, text) {
-    var s = document.querySelector('[data-cc-status="' + CSS.escape(id) + '"]');
-    if (s) s.textContent = text || '';
+    var k = CSS.escape(id);
+    document.querySelectorAll('[data-cc-status="' + k + '"],[data-ccp-status="' + k + '"]').forEach(function (s) { s.textContent = text || ''; });
+  }
+
+  // What attach did on the server, mirrored here: the call, and every other
+  // call / day of texts from its number still on no customer (refileNumber).
+  function mirrorFiled(id, leadId) {
+    var c = byId(id);
+    var p0 = promises.items.filter(function (x) { return x.callId === id; })[0];
+    var num = digits10((c && c.phoneDigits) || (p0 && p0.phoneDigits));
+    state.calls.forEach(function (x) {
+      if (x.id === id || (num && !x.leadId && digits10(x.phoneDigits) === num)) { x.leadId = leadId; x.bucket = 'customer'; x.alternateLeadIds = []; }
+    });
+    promises.items.forEach(function (x) {
+      if (x.callId === id || (num && !x.leadId && digits10(x.phoneDigits) === num)) { x.leadId = leadId; x.suggest = null; }
+    });
   }
 
   async function callable(name, data) {
@@ -343,13 +421,13 @@
       if (c) {
         if (action === 'handled') c.handledAtMs = Date.now();
         if (action === 'unhandled') c.handledAtMs = null;
-        if (action === 'attach' && r && r.leadId) { c.leadId = r.leadId; c.bucket = 'customer'; c.alternateLeadIds = []; }
+        if (action === 'attach' && r && r.leadId) mirrorFiled(id, r.leadId);
         if (action === 'notpersonal' && r && r.requeued) { c.status = 'stored'; c.notPersonal = true; c.summary = null; }
       }
       delete state.busy[id];
       render();
       if (action === 'notpersonal') status(id, 'Got it. The recording is back and the notes will be redone within about 30 minutes.');
-      if (action === 'attach') status(id, 'Filed on the customer' + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
+      if (action === 'attach') status(id, 'Filed on the customer' + refiledText(r) + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
       return r;
     } catch (e) {
       delete state.busy[id];
@@ -372,7 +450,7 @@
         last = await callable('callCenterAction', Object.assign({ id: ids[i], action: action }, extra || {}));
         var c = byId(ids[i]);
         if (c && action === 'handled') c.handledAtMs = Date.now();
-        if (c && action === 'attach' && last && last.leadId) { c.leadId = last.leadId; c.bucket = 'customer'; c.alternateLeadIds = []; }
+        if (c && action === 'attach' && last && last.leadId) mirrorFiled(ids[i], last.leadId);
         ok++;
       } catch (e) { failed++; }
     }
@@ -382,6 +460,10 @@
     return { ok: ok, failed: failed, last: last };
   }
   function idsOf(b) { return String(b.getAttribute('data-ids') || '').split(',').filter(Boolean); }
+  function refiledText(r) {
+    var f = r && r.refiled, n = f ? (Number(f.calls) || 0) + (Number(f.textDays) || 0) : 0;
+    return n ? ' (plus ' + n + ' more from this number)' : '';
+  }
 
   // One at a time (Jo, 2026-10-02): the Needs attention people as a deck —
   // swipe right = everything open for that person is handled (saved right
@@ -402,7 +484,15 @@
           (c.summary ? '<div>' + esc(c.summary) + '</div>' : '') +
           (mine.length ? '<div class="deck-big">You: ' + mine.map(function (p) { return esc(p.text); }).join(' · ') + '</div>' : '') +
           (c.followUpDate ? '<div class="deck-sub">Follow up ' + esc(c.followUpDate) + '</div>' : '') + '</div>';
-      }).join('');
+      }).join('') + deckFileRow(g.calls);
+  }
+  // "Looks like X" / "Not in CRM yet" on a deck card for a caller on no
+  // customer, through one of their CALLS (texts can't be attached).
+  function deckFileRow(calls) {
+    if (!calls.length || calls[0].leadId) return '';
+    var anchor = calls.filter(function (c) { return fileTarget(c); })[0] || calls.filter(function (c) { return c.channel !== 'text'; })[0];
+    var row = anchor ? fileRow(anchor) : '';
+    return row ? row + '<div class="deck-sub" data-ccp-status="' + esc(anchor.id) + '"></div>' : '';
   }
   function openDeck() {
     if (!window.NBDTriageDeck) return;
@@ -458,48 +548,93 @@
     render();
   }
 
-  function promiseCard(p) {
+  // Said-you'd-do cards are grouped by CALLER (2026-10-03): two open calls
+  // from one number used to be two cards, and "Make this a lead" on each
+  // made two leads. One card per customer / number; Done ticks them all.
+  function promiseKey(p) {
+    if (p.leadId) return 'lead:' + p.leadId;
+    var d = digits10(p.phoneDigits);
+    return d ? 'num:' + d : 'id:' + p.callId;
+  }
+  function groupPromises(items) {
+    var by = {}, order = [];
+    (items || []).forEach(function (p) {
+      var k = promiseKey(p);
+      if (!by[k]) { by[k] = { key: k, items: [] }; order.push(k); }
+      by[k].items.push(p);
+    });
+    // The deck card's id is its most pressing call (the email's deep links
+    // and the deck's own bookkeeping name calls, not callers).
+    return order.map(function (k) { return Object.assign(by[k], { id: by[k].items[0].callId }); });
+  }
+
+  function promiseLabel(p) {
+    return p.kind === 'urgent' ? 'Urgent' : p.kind === 'due' ? 'Due ' + p.due : 'No customer on file' + (p.due ? ' · ' + p.due : '');
+  }
+  function promiseCard(g) {
     var L = leadsById();
-    var lead = p.leadId ? L[p.leadId] : null;
-    var label = p.kind === 'urgent' ? 'Urgent' : p.kind === 'due' ? 'Due ' + p.due : 'No customer on file' + (p.due ? ' · ' + p.due : '');
-    var when = p.startedAtMs ? new Date(p.startedAtMs).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    var first = g.items[0];
+    var lead = first.leadId ? L[first.leadId] : null;
+    var many = g.items.length > 1;
     var leads = (window._leads || []).filter(function (l) { return l && l.id && !l.deleted; });
-    return '<div class="deck-sub' + (p.kind === 'urgent' ? ' deck-urgent' : '') + '">' + esc(label) + '</div>' +
-      '<div class="deck-name">' + esc(lead ? leadName(lead) : p.who) + '</div>' +
-      '<div class="deck-sub">' + esc((p.channel === 'text' ? 'Texts · ' : 'Call · ') + when) + '</div>' +
-      (p.promises && p.promises.length ? '<div class="deck-big">You said: ' + p.promises.map(esc).join(' · ') + '</div>' : '') +
-      (p.summary ? '<div class="deck-why">' + esc(p.summary) + '</div>' : '') +
-      // One-tap fixes for a call with no customer (2026-10-03): the one
+    // Filing goes through one of the caller's CALLS; the server files the
+    // rest of the number's calls and texts with it.
+    var anchor = g.items.filter(function (p) { return p.channel !== 'text'; })[0] || null;
+    var withSuggest = g.items.filter(function (p) { return p.suggest; })[0];
+    var byNum = anchor ? leadForNumber(anchor.phoneDigits) : null;
+    var target = byNum ? { leadId: byNum.leadId, name: byNum.name, why: 'this number is already on them' }
+      : (withSuggest ? withSuggest.suggest : (anchor ? fileTarget(byId(anchor.callId)) : null));
+    var isLead = g.items.some(function (p) { return p.callType === 'lead'; });
+    var tagged = g.items.some(function (p) { return taggedNotInCrm(byId(p.callId)); });
+    var subType = g.items.map(function (p) { return p.callType; }).filter(function (t) { return t === 'sub' || t === 'supplier'; })[0];
+    var open = !first.leadId && anchor && !isViewer();
+    return '<div class="deck-sub' + (first.kind === 'urgent' ? ' deck-urgent' : '') + '">' + esc(promiseLabel(first)) + (many ? ' · ' + g.items.length + ' open' : '') + '</div>' +
+      '<div class="deck-name">' + esc(lead ? leadName(lead) : first.who) + '</div>' +
+      g.items.map(function (p) {
+        var when = p.startedAtMs ? new Date(p.startedAtMs).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+        return '<div class="cc-deck-item" data-ccp-item="' + esc(p.callId) + '">' +
+          '<div class="deck-sub">' + esc((p.channel === 'text' ? 'Texts · ' : 'Call · ') + when) + (many ? ' · ' + esc(promiseLabel(p)) : '') + '</div>' +
+          (p.promises && p.promises.length ? '<div class="deck-big">You said: ' + p.promises.map(esc).join(' · ') + '</div>' : '') +
+          (p.summary ? '<div class="deck-why">' + esc(p.summary) + '</div>' : '') + '</div>';
+      }).join('') +
+      // One-tap fixes for a caller with no customer (2026-10-03): the one
       // existing customer it matches, or — for a prospect — a new lead.
-      (!p.leadId && p.channel !== 'text' && !isViewer() && p.suggest ? '<div class="cc-deck-hint">Looks like <b>' + esc(p.suggest.name) + '</b> — ' + esc(p.suggest.why) + '.</div>' +
-        '<button type="button" class="btn btn-orange pc-play cc-deck-one" data-ccp="suggest" data-id="' + esc(p.callId) + '" data-lead="' + esc(p.suggest.leadId) + '">File on ' + esc(p.suggest.name) + '</button>' : '') +
-      (!p.leadId && p.channel !== 'text' && !isViewer() && !p.suggest && p.callType === 'lead' ? '<div class="cc-deck-hint">🆕 Sounds like a new lead — not in the CRM yet.</div>' +
-        '<button type="button" class="btn btn-orange pc-play cc-deck-one" data-ccp="newlead" data-id="' + esc(p.callId) + '">＋ Make this a lead</button>' : '') +
-      (!p.leadId && (p.callType === 'sub' || p.callType === 'supplier') ? '<div class="cc-deck-hint">' + (p.callType === 'sub' ? 'A sub' : 'A supplier') + ' — not a customer. Mark it done when it\'s done.</div>' : '') +
-      (!p.leadId && p.channel !== 'text' && !isViewer() ? '<div class="cc-attach-row cc-deck-attach">' +
-        '<input class="cc-search" id="ccpAttach-' + esc(p.callId) + '" list="ccpAttachList" autocomplete="off" placeholder="File on a customer…" aria-label="File this call on a customer">' +
-        '<button type="button" class="btn btn-ghost pc-play" data-ccp="attach" data-id="' + esc(p.callId) + '">File</button></div>' +
-        '<div class="deck-sub" data-ccp-status="' + esc(p.callId) + '"></div>' +
+      (open && target ? '<div class="cc-deck-hint">Looks like <b>' + esc(target.name) + '</b> — ' + esc(target.why) + '.</div>' +
+        '<button type="button" class="btn btn-orange pc-play cc-deck-one" data-ccp="suggest" data-id="' + esc(anchor.callId) + '" data-lead="' + esc(target.leadId) + '" data-name="' + esc(target.name) + '">File on ' + esc(target.name) + '</button>' : '') +
+      (open && !target && (isLead || tagged) ? '<div class="cc-deck-hint">' + (tagged ? 'Tagged “NBD Customer” in your phone — not in the CRM yet.' : '🆕 Sounds like a new lead — not in the CRM yet.') + '</div>' +
+        '<button type="button" class="btn btn-orange pc-play cc-deck-one" data-ccp="newlead" data-id="' + esc(anchor.callId) + '">＋ Make this a lead</button>' : '') +
+      (!first.leadId && subType ? '<div class="cc-deck-hint">' + (subType === 'sub' ? 'A sub' : 'A supplier') + ' — not a customer. Mark it done when it\'s done.</div>' : '') +
+      (open ? '<div class="cc-attach-row cc-deck-attach">' +
+        '<input class="cc-search" id="ccpAttach-' + esc(anchor.callId) + '" list="ccpAttachList" autocomplete="off" placeholder="File on a customer…" aria-label="File this call on a customer">' +
+        '<button type="button" class="btn btn-ghost pc-play" data-ccp="attach" data-id="' + esc(anchor.callId) + '">File</button></div>' +
+        '<div class="deck-sub" data-ccp-status="' + esc(anchor.callId) + '"></div>' +
         '<datalist id="ccpAttachList">' + leads.slice(0, 600).map(function (l) {
           return '<option value="' + esc(leadName(l) + ' — ' + (l.address || '') + ' #' + l.id) + '"></option>';
         }).join('') + '</datalist>' : '');
   }
 
-  function snoozeOpt(p, days, label) {
-    return {
-      label: label,
-      act: async function () {
-        await callable('callCenterAction', { id: p.callId, action: 'snooze', days: days });
-        return { undo: async function () { await callable('callCenterAction', { id: p.callId, action: 'unsnooze' }); } };
-      },
+  // The same action on every item of a caller's card; undo reverses them all.
+  function eachItem(g, pick) {
+    return async function () {
+      var done = [];
+      for (var i = 0; i < g.items.length; i++) {
+        var on = pick(g.items[i]);
+        if (!on) continue;
+        await callable('callCenterAction', Object.assign({ id: g.items[i].callId, action: on[0] }, on[2] || {}));
+        done.push([g.items[i].callId, on[1]]);
+      }
+      return { undo: async function () { for (var j = 0; j < done.length; j++) await callable('callCenterAction', { id: done[j][0], action: done[j][1] }); } };
     };
+  }
+  function snoozeOpt(g, days, label) {
+    return { label: label, act: eachItem(g, function () { return ['snooze', 'unsnooze', { days: days }]; }) };
   }
 
   function openPromiseDeck(startId) {
     if (!window.NBDTriageDeck) return;
-    var items = promises.items.map(function (p) { return Object.assign({ id: p.callId }, p); });
+    var items = groupPromises(promises.items);
     if (startId) {
-      var i = items.findIndex(function (p) { return p.id === startId; });
+      var i = items.findIndex(function (g) { return g.items.some(function (p) { return p.callId === startId; }); });
       if (i > 0) items.unshift(items.splice(i, 1)[0]);
     }
     window.NBDTriageDeck.open({
@@ -507,33 +642,28 @@
       title: 'Said you\'d do',
       items: items,
       card: promiseCard,
-      right: function (p) {
+      right: function (g) {
         if (isViewer()) return null;
-        var on = p.hasTask ? ['taskDone', 'taskUndone'] : ['handled', 'unhandled'];
+        var tasks = g.items.every(function (p) { return p.hasTask; });
         return {
-          label: p.hasTask ? '✓ Done' : '✓ Handled',
-          act: async function () {
-            await callable('callCenterAction', { id: p.callId, action: on[0] });
-            return { undo: async function () { await callable('callCenterAction', { id: p.callId, action: on[1] }); } };
-          },
+          label: g.items.length > 1 ? '✓ Done (all ' + g.items.length + ')' : (tasks ? '✓ Done' : '✓ Handled'),
+          act: eachItem(g, function (p) { return p.hasTask ? ['taskDone', 'taskUndone'] : ['handled', 'unhandled']; }),
         };
       },
       left: { label: 'Later' },
-      more: function (p) {
+      more: function (g) {
+        var p = g.items[0];
         var out = [];
-        if (!isViewer()) out.push(snoozeOpt(p, 1, '💤 Tomorrow'), snoozeOpt(p, 3, '💤 In 3 days'), snoozeOpt(p, 7, '💤 Next week'));
+        if (!isViewer()) out.push(snoozeOpt(g, 1, '💤 Tomorrow'), snoozeOpt(g, 3, '💤 In 3 days'), snoozeOpt(g, 7, '💤 Next week'));
         if (p.phoneDigits) {
           var tel = '+1' + String(p.phoneDigits).replace(/\D/g, '').slice(-10);
           out.push({ label: '📞 Call', href: 'tel:' + tel }, { label: '💬 Text', href: 'sms:' + tel });
         }
         if (p.leadId) out.push({ label: 'Open customer ↗', href: '/pro/customer.html?id=' + encodeURIComponent(p.leadId) });
-        if (p.hasTask && !isViewer()) {
+        if (g.items.some(function (x) { return x.hasTask; }) && !isViewer()) {
           out.push({
-            label: 'Mark the whole call handled',
-            act: async function () {
-              await callable('callCenterAction', { id: p.callId, action: 'handled' });
-              return { undo: async function () { await callable('callCenterAction', { id: p.callId, action: 'unhandled' }); } };
-            },
+            label: g.items.length > 1 ? 'Mark all these calls handled' : 'Mark the whole call handled',
+            act: eachItem(g, function (x) { return x.hasTask ? ['handled', 'unhandled'] : null; }),
           });
         }
         return out;
@@ -543,44 +673,88 @@
     });
   }
 
-  // One tap on a no-customer card: file on the suggested customer, or make
-  // the caller a new lead (then file the call on it — attach adds the
-  // timeline entry and the follow-up task from what Jo promised).
-  async function attachFromDeck(id, leadId, out, okText) {
-    await callable('callCenterAction', { id: id, action: 'attach', leadId: leadId });
+  // ── One way to file a caller or make them a lead, on every call screen ──
+  // (main cards, both decks; 2026-10-03). Filing never happens by itself:
+  // every path is a tap. A lead is never made for a number that is already
+  // a customer's — that offers "File on <name>" instead.
+  function callInfo(id) {
+    var c = byId(id);
     var p = promises.items.filter(function (x) { return x.callId === id; })[0];
-    if (p) { p.leadId = leadId; p.suggest = null; }
-    if (out) out.textContent = okText;
+    if (c) {
+      return { phoneDigits: c.phoneDigits, contactName: c.contactName, summary: c.summary, callType: c.callType || '',
+        promises: (c.promises || []).filter(function (x) { return x && x.who === 'jo'; }).map(function (x) { return x.text; }),
+        insurance: c.callType === 'insurance' || c.bucket === 'insurance' };
+    }
+    if (p) return { phoneDigits: p.phoneDigits, contactName: p.contactName, summary: p.summary, callType: p.callType || '', promises: p.promises || [], insurance: p.callType === 'insurance' };
+    return null;
   }
+  async function leadFromCall(info) {
+    var have = leadForNumber(info.phoneDigits);
+    if (have) return { existing: have };
+    if (typeof window._saveLead !== 'function') throw new Error('Leads are still loading — try again in a moment.');
+    var name = String(info.contactName || '').replace(/\bNBD\b|\blead\b/gi, ' ').replace(/\s+/g, ' ').trim();
+    var parts = name ? name.split(/\s+/) : [];
+    var data = {
+      firstName: parts.length ? parts[0] : 'Caller',
+      lastName: parts.length > 1 ? parts.slice(1).join(' ') : fmtPhone(info.phoneDigits),
+      phone: fmtPhone(info.phoneDigits),
+      source: 'Phone call',
+      stage: 'new',
+      notes: (info.summary ? 'From a phone call: ' + info.summary : 'From a phone call.') + (info.promises && info.promises.length ? '\nYou said you would: ' + info.promises.join('; ') : ''),
+    };
+    if (info.insurance) data.jobType = 'insurance';
+    var leadId = await window._saveLead(data);
+    if (!leadId) return { leadId: null };
+    var d = digits10(info.phoneDigits);
+    if (d) madeLeads[d] = { leadId: leadId, name: (data.firstName + ' ' + data.lastName).trim() };
+    return { leadId: leadId };
+  }
+  async function fileOn(id, leadId) {
+    var r = await callable('callCenterAction', { id: id, action: 'attach', leadId: leadId });
+    mirrorFiled(id, leadId);
+    return r;
+  }
+  // A "File on X" / "Make lead" tap, wherever it sits (the decks are an
+  // overlay outside #view-calls). Status lands on every slot for the call.
   document.addEventListener('click', async function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-ccp="suggest"],[data-ccp="newlead"]') : null;
     if (!b) return;
     var id = b.getAttribute('data-id');
-    var out = document.querySelector('[data-ccp-status="' + CSS.escape(id) + '"]');
-    var p = promises.items.filter(function (x) { return x.callId === id; })[0];
-    if (!p) return;
+    var info = callInfo(id);
+    if (!info) return;
+    var inView = !!b.closest('#view-calls');
+    var after = inView ? '' : ' Swipe it done when it\'s done.';
     b.disabled = true;
     try {
       if (b.getAttribute('data-ccp') === 'suggest') {
-        await attachFromDeck(id, b.getAttribute('data-lead'), out, 'Filed on ' + ((p.suggest && p.suggest.name) || 'the customer') + '. Swipe it done when it\'s done.');
+        var name = b.getAttribute('data-name') || 'the customer';
+        var r = await fileOn(id, b.getAttribute('data-lead'));
+        if (inView) render();
+        status(id, 'Filed on ' + name + refiledText(r) + '.' + after);
       } else {
-        if (typeof window._saveLead !== 'function') throw new Error('Leads are still loading — try again in a moment.');
-        var name = String(p.contactName || '').replace(/\bNBD\b|\blead\b/gi, '').trim();
-        var parts = name ? name.split(/\s+/) : [];
-        var leadId = await window._saveLead({
-          firstName: parts.length ? parts[0] : 'Caller',
-          lastName: parts.length > 1 ? parts.slice(1).join(' ') : fmtPhone(p.phoneDigits),
-          phone: fmtPhone(p.phoneDigits),
-          source: 'Phone call',
-          stage: 'new',
-          notes: (p.summary ? 'From a phone call: ' + p.summary : 'From a phone call.') + (p.promises && p.promises.length ? '\nYou said you would: ' + p.promises.join('; ') : ''),
-        });
-        if (!leadId) throw new Error('Lead not created.');
-        await attachFromDeck(id, leadId, out, 'New lead created and the call filed on it — it\'s in your pipeline with a follow-up task.');
+        status(id, 'Creating the lead…');
+        var made = await leadFromCall(info);
+        if (made.existing) {
+          // Already a customer: offer them instead of a duplicate lead.
+          b.setAttribute('data-ccp', 'suggest');
+          b.setAttribute('data-lead', made.existing.leadId);
+          b.setAttribute('data-name', made.existing.name);
+          b.textContent = 'File on ' + made.existing.name;
+          b.disabled = false;
+          status(id, 'This number is already on ' + made.existing.name + ' — no new lead made. File it on them?');
+          return;
+        }
+        if (!made.leadId) throw new Error('Lead not created.');
+        var r2 = await fileOn(id, made.leadId);
+        if (inView) render();
+        status(id, 'New lead created and the call' + refiledText(r2) + ' filed on it — it\'s in your pipeline with a follow-up task.');
       }
+      // Gone, not [hidden]: .btn's display rule beats the hidden attribute,
+      // and a second tap must not be on offer.
       b.hidden = true;
+      if (b.remove) b.remove();
     } catch (err) {
-      if (out) out.textContent = (err && err.message) || 'That did not save — try again.';
+      status(id, (err && err.message) || 'That did not save — try again.');
       b.disabled = false;
     }
   });
@@ -596,10 +770,8 @@
     if (!m) { if (out) out.textContent = 'Pick a customer from the list.'; return; }
     b.disabled = true;
     try {
-      await callable('callCenterAction', { id: id, action: 'attach', leadId: m[1] });
-      var p = promises.items.filter(function (x) { return x.callId === id; })[0];
-      if (p) { p.leadId = m[1]; }
-      if (out) out.textContent = 'Filed on the customer. Swipe it done when it\'s done.';
+      var r = await fileOn(id, m[1]);
+      if (out) out.textContent = 'Filed on the customer' + refiledText(r) + '. Swipe it done when it\'s done.';
     } catch (err) {
       if (out) out.textContent = (err && err.message) || 'Could not file it — try again.';
     }
@@ -655,35 +827,87 @@
     return m ? m[1] : '';
   }
 
-  async function newLead(id, moreIds) {
-    var c = byId(id);
-    if (!c || typeof window._saveLead !== 'function') return;
+  // "+ New lead" on a main card. Never a second lead for a number that is
+  // already a customer's (leadFromCall); one attach files the number's other
+  // calls and texts with it (server: refileNumber).
+  async function newLead(id) {
+    var info = callInfo(id);
+    if (!info) return;
     state.busy[id] = true; render();
     status(id, 'Creating the lead…');
     try {
-      var name = (c.contactName || '').trim();
-      var parts = name ? name.split(/\s+/) : [];
-      var leadId = await window._saveLead({
-        firstName: parts.length ? parts[0] : 'Caller',
-        lastName: parts.length > 1 ? parts.slice(1).join(' ') : fmtPhone(c.phoneDigits),
-        phone: fmtPhone(c.phoneDigits),
-        source: 'Phone call',
-        stage: 'new',
-        jobType: c.callType === 'insurance' || c.bucket === 'insurance' ? 'insurance' : '',
-        notes: c.summary ? 'From a phone call: ' + c.summary : 'From a phone call.',
-      });
+      var made = await leadFromCall(info);
       delete state.busy[id];
-      if (!leadId) { render(); status(id, 'Lead not created.'); return; }
-      await act(id, 'attach', { leadId: leadId });
-      var rest = (moreIds || []).filter(function (x) { return x !== id; });
-      if (rest.length) await actMany(rest, 'attach', { leadId: leadId });
-      status(id, 'New lead created and ' + (rest.length ? 'all ' + (rest.length + 1) + ' calls are' : 'the call is') + ' filed on it. Give it a job type on the customer page.');
+      if (made.existing) { render(); status(id, 'This number is already on ' + made.existing.name + ' — no new lead made. Tap File on ' + made.existing.name + '.'); return; }
+      if (!made.leadId) { render(); status(id, 'Lead not created.'); return; }
+      var r = await act(id, 'attach', { leadId: made.leadId });
+      status(id, 'New lead created and the call' + refiledText(r) + ' filed on it. Give it a job type on the customer page.');
     } catch (e) {
       delete state.busy[id];
       render();
       status(id, (e && e.message) || 'Could not create the lead.');
     }
   }
+
+  // ── "Match my tagged contacts" (owner, 2026-10-03) ──────────────────
+  // Calls to phone contacts Jo tagged "NBD Customer" that sit on no
+  // customer: a preview first (callTaggedMatch {} writes nothing), each row
+  // tickable, then one confirm tap files only the ticked rows.
+  function tagPanel() {
+    var t = state.tag;
+    if (!t) return '';
+    var body;
+    if (t.loading) body = '<div class="pc-meta">Looking through your tagged contacts…</div>';
+    else if (t.error) body = '<div class="pc-meta">' + esc(t.error) + '</div>';
+    else if (t.done) body = '<div class="pc-meta">' + esc(t.done) + '</div>';
+    else {
+      var on = t.rows.filter(function (r) { return !t.off[r.key]; }).length;
+      body = (t.rows.length ? '<ul class="cc-tag-list">' + t.rows.map(function (r, i) {
+        return '<li><label class="cc-tag-row" for="ccTag-' + i + '"><input type="checkbox" id="ccTag-' + i + '" data-cc-tag="' + esc(r.key) + '"' + (t.off[r.key] ? '' : ' checked') + '>' +
+          '<span><b>' + esc(r.contactName || fmtPhone(r.phoneDigits)) + '</b> (' + r.callIds.length + ' call' + (r.callIds.length === 1 ? '' : 's') + ') → <b>' + esc(r.leadName) + '</b>' +
+          '<span class="pc-meta"> — ' + esc(r.why) + '</span></span></label></li>';
+      }).join('') + '</ul>' : '<div class="pc-meta">No tagged contact matches a customer.</div>') +
+        (t.notInCrm ? '<div class="pc-meta">' + t.notInCrm + ' tagged contact' + (t.notInCrm === 1 ? ' isn\'t' : 's aren\'t') + ' in the CRM yet — their calls show “Make lead”.</div>' : '') +
+        '<div class="pc-actions">' + (t.rows.length ? '<button type="button" class="btn btn-orange pc-play" data-cc="tagconfirm"' + (on && !t.saving ? '' : ' disabled') + '>' + (t.saving ? 'Filing…' : 'File ' + on + ' on their customers') + '</button>' : '') +
+        '<button type="button" class="btn btn-ghost pc-play" data-cc="tagcancel">' + (t.rows.length ? 'Cancel' : 'Close') + '</button></div>';
+    }
+    if (t.loading || t.error || t.done) body += '<div class="pc-actions"><button type="button" class="btn btn-ghost pc-play" data-cc="tagcancel">Close</button></div>';
+    return '<div class="panel pc-card cc-tagmatch"><div class="pc-who">Tagged “NBD Customer” contacts on no customer</div>' + body + '</div>';
+  }
+  async function tagPreview() {
+    state.tag = { loading: true, rows: [], off: {} };
+    render();
+    try {
+      var r = await callable('callTaggedMatch', {});
+      state.tag = { rows: (r && r.matches) || [], notInCrm: ((r && r.notInCrm) || []).length, off: {} };
+    } catch (e) {
+      state.tag = { error: (e && e.message) || 'Could not check your tagged contacts.', rows: [], off: {} };
+    }
+    render();
+  }
+  async function tagConfirm() {
+    var t = state.tag;
+    if (!t || !t.rows || t.saving) return;
+    var pick = t.rows.filter(function (r) { return !t.off[r.key]; }).map(function (r) { return { key: r.key, leadId: r.leadId }; });
+    if (!pick.length) return;
+    t.saving = true; render();
+    try {
+      var r = await callable('callTaggedMatch', { confirm: pick });
+      state.tag = { done: 'Filed ' + ((r && r.calls) || 0) + ' call' + ((r && r.calls) === 1 ? '' : 's') + ' on ' + ((r && r.filed) || 0) + ' customer' + ((r && r.filed) === 1 ? '' : 's') + '.' + (r && r.skipped ? ' ' + r.skipped + ' skipped (changed since the preview).' : ''), rows: [], off: {} };
+      render();
+      load();
+    } catch (e) {
+      t.saving = false;
+      t.error = (e && e.message) || 'Could not file them — try again.';
+      render();
+    }
+  }
+  document.addEventListener('change', function (e) {
+    var k = e.target && e.target.getAttribute && e.target.getAttribute('data-cc-tag');
+    if (!k || !state.tag) return;
+    state.tag.off[k] = !e.target.checked;
+    render();
+  });
 
   async function load() {
     if (state.loading) return;
@@ -708,13 +932,14 @@
     else if (a === 'attach') {
       var leadId = pickedLeadId(id);
       if (!leadId) { status(id, 'Pick a customer from the list.'); return; }
-      // From a group card, file every one of that number's open calls.
-      var box = document.querySelector('[data-cc-attach="' + CSS.escape(id) + '"]');
-      var all = box ? idsOf(box) : [];
-      if (all.length > 1) actMany(all, 'attach', { leadId: leadId }).then(function (r) { status(id, r.failed ? '' : 'All ' + r.ok + ' calls filed on the customer.'); });
-      else act(id, 'attach', { leadId: leadId });
+      // One attach files every other unfiled call and text from the number
+      // too (server: refileNumber), so a group card needs just its one call.
+      act(id, 'attach', { leadId: leadId });
     }
-    else if (a === 'newlead') newLead(id, idsOf(b));
+    else if (a === 'newlead') newLead(id);
+    else if (a === 'tagmatch') tagPreview();
+    else if (a === 'tagconfirm') tagConfirm();
+    else if (a === 'tagcancel') { state.tag = null; render(); }
   });
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ccSearch') { state.q = e.target.value || ''; render(); }
@@ -724,6 +949,9 @@
     init: function () { load(); loadPromises(); deepLink(); },
     reload: load,
     openPromises: openPromiseDeck,
+    _groupPromises: groupPromises,
+    _leadForNumber: leadForNumber,
+    _fileTarget: fileTarget,
     _promises: promises,
     _state: state,
     _needsAttention: needsAttention,
