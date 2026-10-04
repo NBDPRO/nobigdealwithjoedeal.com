@@ -39,6 +39,7 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `revokeMySessions` | onCall | Self-service "Sign Out Everywhere" (2026-09-08) — revokes the CALLER's own refresh tokens. Self-scoped by construction: uid comes from the verified token, no target parameter, so it cannot become an admin path. The only caller-scoped revoke in the tree; the five `revokeRefreshTokens` calls in `handlers/admin.js` / `invites.js` / `compliance.js` / `lapse-enforcement.js` are all admins acting on someone else. Rate-limited per-uid + per-IP via `guardCallable` (5/hr, 20/hr). Kills refresh tokens only — an ID token already issued survives up to ~1h, which is why the UI promises "within an hour at most" |
 | `createCompany` | onCall | Pillar 1 phase 2 — self-serve tenant provisioning (companies/{uid} + companyProfile seed + owner claims) |
 | `setSiteSlug` | onCall | Pillar 5 — tenant sets a human slug for their public microsite (validated + reserved-word list) |
+| `publishTenantSite` | onCall | Owner's "Publish my site" / "Unpublish" — the only writer of `companies/{id}.sitePublished`; needs brand name + phone + service area (2026-10-04) |
 | `createPortalToken` | onCall | Mints a portal-share token for a lead |
 | `revokePortalToken` | onCall | Revokes outstanding portal tokens |
 | `replyToPortalMessage` | onCall | Rep reply to a homeowner message |
