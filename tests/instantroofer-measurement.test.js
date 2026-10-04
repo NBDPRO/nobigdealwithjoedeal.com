@@ -446,7 +446,8 @@ function finish() {
   ok('...including a reuse copy, which costs us nothing but delivers the same work to the customer',
     /billed: false,\s*\n\s*passThruEligible: true,/.test(meas));
   ok('the DOCUMENT flag is what still distinguishes them — an AI measure produces no report',
-    /passThruHasDocument: !\(result\.provider === 'instantroofer' && \(result\.reportType \|\| 'ai'\) === 'ai'\)/.test(meas)
+    // (2026-10-04: a Google Solar measure is the same kind of no-document service.)
+    /passThruHasDocument: !\(\(result\.provider === 'instantroofer' \|\| result\.provider === 'solar'\) && \(result\.reportType \|\| 'ai'\) === 'ai'\)/.test(meas)
     && /passThruHasDocument: doc\.passThruHasDocument/.test(meas));
   ok('the line item is worded honestly: a report only when a document actually exists',
     /meta\.passThruHasDocument === false/.test(v2)

@@ -571,6 +571,22 @@ async function run() {
   await assertFails(setDoc(doc(alice, 'companies/squatUid'), { ownerId: 'alice', name: 'squat' })); // ❌ create pinned to own uid
   await assertSucceeds(setDoc(doc(alice, 'companies/alice'), { ownerId: 'alice', name: 'Alice solo co' })); // ✅ own-uid create
 
+  // 23e-2. Public-site publication (2026-10-04): status + sitePublished decide
+  //        whether /sites/t/<id> serves a page on Jo's domain. Only the admin
+  //        SDK (createCompany / publishTenantSite) may write them — an owner
+  //        must not self-publish by client write, at create OR update.
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { sitePublished: true }));              // ❌ self-publish
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { sitePublishedAt: 'now' }));           // ❌ forged publish stamp
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { status: 'active' }));                 // ❌ status (the legacy gate) frozen too
+  await assertFails(setDoc(doc(alice, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ❌ merge-set same
+  // Create-time (companies/bob and companies/dave don't exist yet — 23f
+  // creates them below with the plain shape, which must still succeed).
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', sitePublished: true })); // ❌ born published
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', sitePublished: false })); // ❌ flag is admin-SDK-only either way
+  await assertFails(setDoc(doc(dave, 'companies/dave'), { ownerId: 'dave', name: 'Dave Co', status: 'active' }));     // ❌ born status-active (legacy gate = published)
+  await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ✅ admin SDK path (publishTenantSite)
+  await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing' }));          // ✅ unrelated owner edit still fine with the flag present
+
   // 23f. CRITICAL (audit 2026-09-15): the create branch pinned ownerId but
   //      never checked `plan` — the didNotChange(['plan','ownerId']) freeze
   //      right above only guards UPDATE, so a self-serve owner could squat
@@ -2224,6 +2240,17 @@ async function run() {
   await x45('a sales rep cannot decide', 'deny', updateDoc(doc(rep45, 'agent_inbox/a4'), decide('rep45')));
   await x45('nobody creates items from the client (server only)', 'deny', setDoc(doc(own45, 'agent_inbox/x9'), ITEM()));
   await x45('nobody deletes items from the client', 'deny', deleteDoc(doc(own45, 'agent_inbox/a4')));
+  // Bots & API (2026-10-04): a company's bots and its bot settings are
+  // managed only through the callables — not even the owner touches them.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'agent_bots/b45'), { companyId: 'co-45', name: 'Helper', tools: ['list_leads'], active: true });
+    await setDoc(doc(ctx.firestore(), 'agent_settings/co-45'), { enabled: true });
+  });
+  await x45('the owner cannot read a company bot from the client', 'deny', getDoc(doc(own45, 'agent_bots/b45')));
+  await x45('the owner cannot widen a bot\'s tools from the client', 'deny', updateDoc(doc(own45, 'agent_bots/b45'), { tools: ['job_profit'] }));
+  await x45('the owner cannot create a bot from the client', 'deny', setDoc(doc(own45, 'agent_bots/b46'), { companyId: 'co-45', name: 'x', tools: [], active: true }));
+  await x45('a company_admin cannot flip the switch from the client', 'deny', setDoc(doc(cadm45, 'agent_settings/co-45'), { enabled: false }));
+  await x45('another company cannot read the settings', 'deny', getDoc(doc(other45, 'agent_settings/co-45')));
   console.log('  45: ' + s45Pass + ' agent-inbox checks passed, ' + s45Fail.length + ' failed');
   if (s45Fail.length) {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));
