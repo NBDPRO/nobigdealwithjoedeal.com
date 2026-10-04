@@ -244,15 +244,15 @@ async function checkAndCreateFollowUpNotifications(leads) {
   const dueTomorrow = [];
 
   leads.forEach(l => {
-    if (!l.followUp || ['Complete','Lost'].includes(l.stage||'')) return;
-    // Phone-less door-knock leads aren't CRM follow-ups (crm-pipeline.js).
-    if (typeof window.nbdUnreachableKnockLead === 'function' && window.nbdUnreachableKnockLead(l)) return;
-    // Local day, not UTC (window.nbdFollowUpDay) — these became "Overdue"
-    // notifications a day early.
-    const d = (typeof window.nbdFollowUpDay === 'function') ? window.nbdFollowUpDay(l.followUp) : new Date(l.followUp); d.setHours(0,0,0,0);
-    if (d < today) overdue.push(l);
-    else if (d.getTime() === today.getTime()) dueToday.push(l);
-    else if (d.getTime() === tomorrow.getTime()) dueTomorrow.push(l);
+    if (!l.followUp) return;
+    // ONE follow-up rule (2026-10-03, today-plan.js followUpDue — local day,
+    // won/lost/in-production and phone-less knock leads excluded): due → an
+    // overdue / due-today notice; otherwise only tomorrow gets a heads-up.
+    const P = window.NBDTodayPlan;
+    const d = P.followUpDay(l.followUp);
+    if (P.followUpDue(l, today.getTime())) {
+      if (d < today) overdue.push(l); else dueToday.push(l);
+    } else if (!P.isUnreachableKnock(l) && d.getTime() === tomorrow.getTime()) dueTomorrow.push(l);
   });
 
   if (!overdue.length && !dueToday.length && !dueTomorrow.length) return;

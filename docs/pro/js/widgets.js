@@ -160,10 +160,14 @@ const WIDGETS = [
   {id:'hot-leads', name:'Hot Leads', icon:'🔥', cat:'Pipeline & Sales', size:'md',
     render(el){
       const HOT = ['contacted','estimate_submitted','estimate_sent_cash','negotiating','contract_signed'];
+      // A due follow-up counts by THE follow-up rule (today-plan.js
+      // followUpDue). This used to read a `callback` field no writer sets
+      // (0 leads had it, 2026-10-03 audit).
+      const fuDue = window.NBDTodayPlan && window.NBDTodayPlan.followUpDue;
       const leads = (window._leads || []).filter(l => {
         const r = _roleOf(l);
         if (r === 'won' || r === 'lost') return false;
-        if(l.callback) { const cb = new Date(l.callback); return cb <= new Date(); }
+        if (fuDue && fuDue(l)) return true;
         return HOT.includes(_normStage(l));
       }).slice(0, 5);
       if(!leads.length) { el.innerHTML = '<div class="w-empty">No hot leads right now</div>'; return; }
@@ -405,24 +409,26 @@ const WIDGETS = [
 
   {id:'today-schedule', name:"Today's Schedule", icon:'📅', cat:'Operations', size:'md',
     render(el){
-      // users/{uid}.calcomUsername is the real setting (it survives sign-out,
-      // which wipes the legacy nbd_cal_settings cache) — same order as
-      // dashboard-ui.js loadCalSettings.
-      let calUser = (window._currentRep && window._currentRep.calcomUsername) || '';
-      if (!calUser) { try { calUser = (JSON.parse(localStorage.getItem('nbd_cal_settings') || '{}') || {}).username || ''; } catch (e) { calUser = ''; } }
-      if(!calUser) {
-        el.innerHTML = '<div class="w-empty"><div class="wg-icon20">📅</div>Connect Cal.com in Settings to see today\'s appointments</div>';
-        return;
-      }
-      el.innerHTML = `
-        <div class="wg-between-c wg-mb8">
-          <span class="wg-title-sm">Today</span>
-          <button class="w-mini-btn" data-w-goto="schedule">Open Calendar →</button>
-        </div>
-        <div class="w-empty wg-fs11">Your Cal.com bookings and today's events are on your Schedule.</div>`;
+      // Real items (2026-10-03): the same appointments / job days / adjuster
+      // meetings as the Today list (today-plan.js collectTodayItems — the
+      // morning brief's rule), from the plan Today last painted. It used to
+      // be a link to the Schedule and nothing else.
+      const p = window.NBDToday && typeof window.NBDToday.last === 'function' ? window.NBDToday.last() : null;
+      const items = (p && p.appointments) || [];
+      const head = `<div class="wg-between-c wg-mb8"><span class="wg-title-sm">Today</span><button class="w-mini-btn" data-w-goto="schedule">Open Calendar →</button></div>`;
+      if (!p) { el.innerHTML = head + '<div class="w-empty wg-fs11">Loading today…</div>'; return; }
+      if (!items.length) { el.innerHTML = head + '<div class="w-empty wg-fs11">Nothing on the calendar today.</div>'; return; }
+      el.innerHTML = head + items.slice(0, 6).map(it => `
+        <div class="w-lead-row" data-w-goto="schedule">
+          <div class="w-lead-name">${esc(it.name)}</div>
+          <div class="w-lead-stage">${esc(it.timeLabel)}${it.type ? ' · ' + esc(it.type) : ''}</div>
+        </div>`).join('') + (items.length > 6 ? `<div class="w-empty wg-fs11">+${items.length - 6} more</div>` : '');
     }},
 
-  {id:'task-checklist', name:'Task Checklist', icon:'✅', cat:'Operations', size:'md',
+  // "Personal checklist" (2026-10-03, was "Task Checklist"): a private
+  // scratch list on this user's settings — NOT the CRM's tasks (those are on
+  // the Today list and each customer).
+  {id:'task-checklist', name:'Personal checklist', icon:'✅', cat:'Operations', size:'md',
     render(el){
       const tasks = _getHomeTasks();
       el.innerHTML = `<div id="w-tasks">` + tasks.map((t,i) => `
@@ -1136,8 +1142,13 @@ async function _thuPlay(id) {
 
 // ── WIDGET STATE (localStorage) ─────────────────────────────────
 const STORAGE_KEY = 'nbd_home_widgets';
-const DEFAULT_WIDGETS = ['pipeline-value','hot-leads','win-rate','revenue-month','task-checklist',
-  'daily-floors','quick-add-lead','recent-activity','weather-radar','north-star','quote-widget','streak-counter'];
+// The DEFAULT set only (2026-10-03): Quote, Streak and North Star kept their
+// state in browser storage the sign-out wipe clears, and Radar pulled Leaflet
+// + map tiles on every Home paint — they are no longer pre-placed. A user who
+// added them keeps them (a saved list is never rewritten); all four stay in
+// the picker. Today's Schedule now shows real items, so it is on by default.
+const DEFAULT_WIDGETS = ['today-schedule','pipeline-value','hot-leads','win-rate','revenue-month','task-checklist',
+  'daily-floors','quick-add-lead','recent-activity'];
 
 function getActiveWidgets() {
   let ids = null;
@@ -1405,6 +1416,14 @@ _wAskJoe = function() {
 
 
 // ── PUBLIC API ──────────────────────────────────────────────────
+// Today's Schedule follows the Today list: today-home.js paints the plan,
+// then this widget repaints from it (2026-10-03).
+if (typeof window.addEventListener === 'function') window.addEventListener('nbd:today-rendered', () => {
+  const el = document.getElementById('wb-today-schedule');
+  const w = WIDGETS.find(x => x.id === 'today-schedule');
+  if (el && w) { try { w.render(el); } catch (_) { /* a widget never breaks Home */ } }
+});
+
 window.NBDWidgets = {
   WIDGETS,
   render: renderWidgetHome,

@@ -53,7 +53,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=8" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=14" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=16" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
@@ -146,6 +146,7 @@
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=3">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
+<link rel="stylesheet" href="css/today-home.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
@@ -758,7 +759,7 @@
 <nav class="sidebar">
   
   <!-- TIER 1: PRIMARY WORKFLOW -->
-  <div class="ni active" role="button" tabindex="0" data-action="goTo" data-target="home" id="nav-home"><span class="ni-icon">🏠</span>Home</div>
+  <div class="ni active" role="button" tabindex="0" data-action="goTo" data-target="home" id="nav-home"><span class="ni-icon">🏠</span>Today</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="dash" id="nav-dash"><span class="ni-icon">📊</span>Dashboard</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="crm"  id="nav-crm"><span class="ni-icon">👥</span>Pipeline <span class="nbadge" id="leadBadge">0</span><span class="health-indicator" id="crmHealthBadge" title="CRM connection status"></span></div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="schedule" id="nav-schedule"><span class="ni-icon">🗓️</span>Schedule</div>
@@ -854,13 +855,18 @@
       <div class="page-hdr">
         <div>
           <div class="page-title" id="homeGreeting" data-user-greeting>Welcome Back</div>
-          <div class="page-sub">Your personalized command center</div>
+          <div class="page-sub">Today</div>
         </div>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-ghost" style="font-size:11px;padding:8px 14px;" data-action="module" data-target="NBDWidgets.openPicker">⚙️ Customize</button>
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
+      <!-- Today (js/today-plan.js + js/today-home.js, 2026-10-03): the ONE
+           list of what is on Jo's plate — appointments, calls owed, promised
+           follow-ups, money to collect, stalled leads. Boot view and phone Home tab. -->
+      <section id="todayPlan" class="tp" aria-label="Today" hidden></section>
+
       <!-- Needs-you strip (js/home-attention.js): Stripe payments to assign,
            yard signs to pick up, phone calls that need you. Hidden when all are zero. -->
       <div id="homeAttention" class="ha-strip mb-md" hidden></div>
@@ -868,10 +874,9 @@
            no open task, oldest first, one-tap rows. Hidden when empty. -->
       <section id="homeNoNextStep" class="nns-card mb-md" aria-label="Leads with no next step" hidden></section>
       <div id="homeGameCard" class="mb-md" hidden></div>
-      <!-- Estimate follow-ups (js/estimate-followups.js): estimates out 2 / 5 / 10+
-           days, opened or not, each with a pre-written follow-up sent from
-           Jo's phone. Hidden when nothing is due. Nothing sends by itself. -->
-      <div id="homeEstimateFollowups" class="mb-md" hidden></div>
+      <!-- Estimate follow-ups (js/estimate-followups.js) are a section of the
+           Today list above (#todayPlan, "Estimates to follow up") since
+           2026-10-03 — one list, one row per lead. Nothing sends by itself. -->
       <style>
         .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
         .ha-strip[hidden]{display:none;}
@@ -5981,7 +5986,7 @@
      pattern while staying NBD-orange. Tapping it opens the create
      popover (toggleMobileCreatePopover, defined in Wave 2C). -->
 <nav id="mobile-nav">
-  <div class="mn-item active" id="mni-dash" data-action="mobileNav" data-target="dash" role="button" aria-label="Home">
+  <div class="mn-item active" id="mni-dash" data-action="mobileNav" data-target="home" role="button" aria-label="Home">
     <svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-home"/></svg>
     <span class="mn-lbl">Home</span>
   </div>
@@ -6071,10 +6076,10 @@
 
   <div class="mm-section">Core</div>
   <div class="mm-item" data-action="mobileNav" data-target="home" data-close-more>
-    <span class="mm-item-icon">🏠</span>Home
+    <span class="mm-item-icon">🏠</span>Today
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="dash" data-close-more>
-    <span class="mm-item-icon">📊</span>Dashboard
+    <span class="mm-item-icon">📊</span>Dashboard (KPIs)
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="crm" data-close-more>
     <span class="mm-item-icon">👥</span>Pipeline
@@ -6825,13 +6830,16 @@
      crm-leads.js (saveLead reads them) and smart-calendar.js. -->
 <script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/schedule-window-ui.js?v=1"></script>
+<!-- Today (2026-10-03): the pure plan + THE follow-up rule (followUpDue) that
+     crm-pipeline / crm-snooze / analytics-kpi read — before them. -->
+<script defer src="js/today-plan.js?v=1"></script>
 <script defer src="js/crm-leads.js?v=8"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
-<script defer src="js/jobs-store.js?v=5"></script>
 <!-- Lead photos on demand (startup audit 2026-10-04): window.NBDPhotoCache
      replaces the unbounded every-photo read loadLeads used to do at boot. -->
 <script defer src="js/photo-cache.js?v=2"></script>
-<script defer src="js/crm-pipeline.js?v=14"></script>
+<script defer src="js/jobs-store.js?v=5"></script>
+<script defer src="js/crm-pipeline.js?v=16"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6845,7 +6853,7 @@
 <script defer src="js/sort-customers.js?v=2"></script>
 <script defer src="js/crm.js?v=35"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
-<script defer src="js/tasks.js?v=6"></script>
+<script defer src="js/tasks.js?v=8"></script>
 <script defer src="js/dol-fill.js?v=1"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
 <script defer src="js/agent-inbox.js?v=6"></script>
@@ -6883,7 +6891,7 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
-<script defer src="js/home-attention.js?v=7"></script>
+<script defer src="js/home-attention.js?v=9"></script>
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
@@ -6897,6 +6905,7 @@
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
 <script defer src="js/collected-revenue.js?v=2"></script>
 <script defer src="js/widgets.js?v=13"></script>
+<script defer src="js/today-home.js?v=2"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 <script defer src="js/ui.js?v=10"></script>
@@ -6983,7 +6992,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=8"></script>
+<script defer src="js/analytics-kpi.js?v=9"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -6999,7 +7008,7 @@
      composes window.D2D; goTo('d2d')'s existing waitForD2D() poller handles the
      late load. The maps engine stays eager (maps.js doubles as the theme
      engine — deferring it would defer theme application + the picker). -->
-<script defer src="js/ask-joe-proactive.js?v=4"></script>
+<script defer src="js/ask-joe-proactive.js?v=5"></script>
 <!-- LAZY: estimate engine (PR 2c) — product-data, roofivent-catalog,
      product-library, estimate-labor-catalog, estimate-builder-v2,
      estimate-catalog-xactimate, estimate-logic-engine, estimates,
@@ -7029,7 +7038,7 @@
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>
-<script defer src="js/mobile-nav-customizer.js?v=6"></script>
+<script defer src="js/mobile-nav-customizer.js?v=7"></script>
 <script defer src="js/connection-status-btn.js?v=4"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
      based on the user's claims. Lazy-loading would hide the nav entry
