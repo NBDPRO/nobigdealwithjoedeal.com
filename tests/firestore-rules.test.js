@@ -109,6 +109,11 @@ async function run() {
       reportId: 'report-alice', ownerUid: 'alice', status: 'active'
     });
     await setDoc(doc(db, 'parcel_cache/abc'), { parcel: { owner: 'Smith' } });
+    // Job-spine idempotency marker (2026-10-03) — admin-SDK only.
+    await setDoc(doc(db, 'job_events/leadA__paid_in_full__inv1'), {
+      leadId: 'leadA', companyId: 'alice', event: 'paid_in_full', sourceId: 'inv1',
+      result: { action: 'move', from: 'contract_signed', to: 'final_payment' },
+    });
     // Measurements — owner read tests
     await setDoc(doc(db, 'measurements/job-alice'), {
       ownerId: 'alice', leadId: 'leadA', status: 'pending'
@@ -238,6 +243,17 @@ async function run() {
   await assertFails(getDoc(doc(admin,   'sms_client_ids/alice_3f2b8c1e-5d6a-4b7c-9e8f-0a1b2c3d4e5f')));
   await assertFails(setDoc(doc(alice,   'sms_client_ids/alice_3f2b8c1e-5d6a-4b7c-9e8f-0a1b2c3d4e5f'), { status: 'sent' }));
   await assertFails(setDoc(doc(coAdmin, 'sms_client_ids/alice_anything-else-0000000000'), { status: 'claimed' }));
+
+  // 14e. job_events (job spine, 2026-10-03) — admin-SDK only. A client that
+  // could create a marker could pre-claim (leadId, event, sourceId) and make
+  // the server skip a real automatic move; reading one leaks lead ids and
+  // payment metadata. Denied to the lead's own owner and to platform admin.
+  await assertFails(getDoc(doc(anon,    'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(getDoc(doc(alice,   'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(getDoc(doc(admin,   'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(setDoc(doc(alice,   'job_events/leadA__contract_signed__doc_x'), { leadId: 'leadA', event: 'contract_signed' }));
+  await assertFails(setDoc(doc(coAdmin, 'job_events/leadA__paid_in_full__inv2'), { leadId: 'leadA', event: 'paid_in_full' }));
+  await assertFails(deleteDoc(doc(alice, 'job_events/leadA__paid_in_full__inv1')));
 
   // 15. parcel_cache — admin-SDK only (fixture seeded above).
   await assertFails(getDoc(doc(alice, 'parcel_cache/abc')));
@@ -2247,12 +2263,12 @@ async function run() {
     throw new Error('46 notifications: ' + s46Fail.length + ' check(s) went the wrong way:\n    ' + s46Fail.join('\n    '));
   }
 
-  // ─── 47. Tasks: ONE collection-group load + tenant-safe stamps (2026-10-03,
-  // Today home). The dashboard reads every task with
-  // collectionGroup('tasks').where(companyId|userId).orderBy(createdAt); the
-  // recursive rule grants READ on the task's own stamps, and a writer may only
-  // stamp values inside the task's tenant (taskStampOk) — else a stamp could
-  // push a task into another tenant's Today list.
+  // ─── 47. Security batch 2026-10-03 ───
+  // (a) A lead CREATE may not carry server-owned referral fields
+  //     (referralServerFieldsFrozen only guarded updates).
+  // (b) A customerId with another tenant's RESERVED prefix is refused on create
+  //     and on the first stamp (update); unreserved / legacy ids still pass.
+  // (c) /emails read by sentBy needs a VERIFIED email claim.
   const s47Fail = []; let s47Pass = 0;
   async function x47(label, want, promise) {
     try {
@@ -2260,42 +2276,91 @@ async function run() {
       s47Pass++;
     } catch (e) { s47Fail.push(label + ' (wanted ' + want + ')'); }
   }
+  const rep47    = env.authenticatedContext('rep47',  { role: 'sales_rep', companyId: 'co-46' }).firestore();
+  const solo47   = env.authenticatedContext('solo47', {}).firestore();
+  const unver47  = env.authenticatedContext('unv46',  { email: 'victim46@x.test' }).firestore();
+  const ver47    = env.authenticatedContext('ver47',  { email: 'victim46@x.test', email_verified: true }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'docPrefixes/OAK46'), { companyId: 'co-other46' });
+    await setDoc(doc(db, 'docPrefixes/REP46'), { companyId: 'co-46' });
+    await setDoc(doc(db, 'leads/lead46a'), { userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'leads/lead46b'), { userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'emails/e46'), { sentBy: 'victim46@x.test', sentByUid: 'real-victim', to: 'h@x.test' });
+  });
+  const NEWLEAD47 = (extra) => Object.assign({ userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA', lastName: 'New' }, extra || {});
+  // (a) referral fields on create
+  await x47('plain lead create (control)', 'allow', setDoc(doc(rep47, 'leads/n46-ok'), NEWLEAD47()));
+  for (const [k, v] of [['referralRewardStatus', 'owed'], ['referralDocId', 'refdocX'], ['referrerLeadId', 'leadX'],
+    ['referralRewardAmount', 500], ['referredBy', 'X-1'], ['referralRewardJobCount', 0]]) {
+    await x47('create carrying ' + k, 'deny', setDoc(doc(rep47, 'leads/n46-' + k), NEWLEAD47({ [k]: v })));
+  }
+  // (b) customerId prefixes
+  await x47("create with another tenant's reserved prefix", 'deny', setDoc(doc(rep47, 'leads/n46-oak'), NEWLEAD47({ customerId: 'OAK46-0001-ABCD' })));
+  await x47('create with the own reserved prefix', 'allow', setDoc(doc(rep47, 'leads/n46-own'), NEWLEAD47({ customerId: 'REP46-0007-ABCD' })));
+  await x47('create with an unreserved legacy id (CSV import)', 'allow', setDoc(doc(rep47, 'leads/n46-legacy'), NEWLEAD47({ customerId: 'CUST-12345' })));
+  await x47('create with a non-prefix-shaped id', 'allow', setDoc(doc(rep47, 'leads/n46-free'), NEWLEAD47({ customerId: '2024/117' })));
+  await x47("first stamp (update) with another tenant's reserved prefix", 'deny', updateDoc(doc(rep47, 'leads/lead46a'), { customerId: 'OAK46-0002-ABCD' }));
+  await x47('first stamp (update) with the own prefix — the client mint', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { customerId: 'REP46-0008-ABCD' }));
+  await x47('ordinary edit on a stamped lead still works', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { lastName: 'Edited' }));
+  await x47('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo47, 'leads/n46-solo'), { userId: 'solo47', companyId: 'solo47', firstName: 'ZZ_QA' }));
+  // (c) /emails read
+  await x47('unverified account with the sender\'s email cannot read the row', 'deny', getDoc(doc(unver47, 'emails/e46')));
+  await x47('verified owner of that email can read it', 'allow', getDoc(doc(ver47, 'emails/e46')));
+  console.log('  47: ' + s47Pass + ' security-batch checks passed, ' + s47Fail.length + ' failed');
+  if (s47Fail.length) {
+    throw new Error('47 security batch: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
+  }
+
+  // ─── 48. Tasks: ONE collection-group load + tenant-safe stamps (2026-10-03,
+  // Today home). The dashboard reads every task with
+  // collectionGroup('tasks').where(companyId|userId).orderBy(createdAt); the
+  // recursive rule grants READ on the task's own stamps, and a writer may only
+  // stamp values inside the task's tenant (taskStampOk) — else a stamp could
+  // push a task into another tenant's Today list.
+  const s48Fail = []; let s48Pass = 0;
+  async function x48(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s48Pass++;
+    } catch (e) { s48Fail.push(label + ' (wanted ' + want + ')'); }
+  }
   {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
-      await setDoc(doc(db, 'leads/lead47'), { userId: 'own47', companyId: 'co47', stage: 'new' });
-      await setDoc(doc(db, 'leads/lead47/tasks/t1'), { text: 'call back', done: false, dueDate: '2026-10-03', userId: 'own47', companyId: 'co47', createdAt: new Date() });
+      await setDoc(doc(db, 'leads/lead47'), { userId: 'own48', companyId: 'co47', stage: 'new' });
+      await setDoc(doc(db, 'leads/lead47/tasks/t1'), { text: 'call back', done: false, dueDate: '2026-10-03', userId: 'own48', companyId: 'co47', createdAt: new Date() });
       await setDoc(doc(db, 'leads/lead47/tasks/legacy'), { text: 'unstamped legacy', done: false, createdAt: new Date() });
       await setDoc(doc(db, 'leads/lead47other'), { userId: 'other47', companyId: 'coOther47', stage: 'new' });
       await setDoc(doc(db, 'leads/lead47other/tasks/t9'), { text: 'not yours', userId: 'other47', companyId: 'coOther47', createdAt: new Date() });
     });
-    const own47 = env.authenticatedContext('own47', { role: 'sales_rep', companyId: 'co47' }).firestore();
-    const mgr47 = env.authenticatedContext('mgr47', { role: 'company_admin', companyId: 'co47' }).firestore();
-    const vw47 = env.authenticatedContext('vw47', { role: 'viewer', companyId: 'co47' }).firestore();
-    const evil47 = env.authenticatedContext('other47', { role: 'company_admin', companyId: 'coOther47' }).firestore();
-    const byCo = (db, co) => getDocs(query(collectionGroup(db, 'tasks'), where('companyId', '==', co), orderBy('createdAt', 'asc')));
-    const byUser = (db, u) => getDocs(query(collectionGroup(db, 'tasks'), where('userId', '==', u), orderBy('createdAt', 'asc')));
-    await x47('company admin loads the tenant\'s tasks in one query', 'allow', byCo(mgr47, 'co47'));
-    await x47('a viewer loads them too (read-only role)', 'allow', byCo(vw47, 'co47'));
-    await x47('a rep loads their OWN tasks', 'allow', byUser(own47, 'own47'));
-    await x47('a rep asks for the whole company\'s tasks', 'deny', byCo(own47, 'co47'));
-    await x47('another tenant asks for co47\'s tasks', 'deny', byCo(evil47, 'co47'));
-    await x47('another user\'s tasks by userId', 'deny', byUser(own47, 'other47'));
-    await x47('an unfiltered collection-group read', 'deny', getDocs(collectionGroup(mgr47, 'tasks')));
-    const t47 = (db, lead, id) => doc(db, 'leads/' + lead + '/tasks/' + id);
-    await x47('owner adds a task stamped with the lead\'s owner + tenant', 'allow', setDoc(t47(own47, 'lead47', 'n1'), { text: 'x', done: false, userId: 'own47', companyId: 'co47', leadId: 'lead47' }));
-    await x47('owner adds an unstamped task (every legacy writer)', 'allow', setDoc(t47(own47, 'lead47', 'n2'), { text: 'x', done: false }));
-    await x47('company admin adds one stamped with the writer\'s own uid as userId', 'allow', setDoc(t47(mgr47, 'lead47', 'n3'), { text: 'x', userId: 'mgr47', companyId: 'co47' }));
-    await x47('stamping ANOTHER tenant onto a task (inject into their Today list)', 'deny', setDoc(t47(evil47, 'lead47other', 'n4'), { text: 'spam', userId: 'other47', companyId: 'co47' }));
-    await x47('stamping another user as the owner', 'deny', setDoc(t47(evil47, 'lead47other', 'n5'), { text: 'spam', userId: 'own47' }));
-    await x47('ticking a legacy task done (stamps untouched) still works', 'allow', updateDoc(t47(own47, 'lead47', 'legacy'), { done: true }));
-    await x47('re-stamping a task to another tenant', 'deny', updateDoc(t47(own47, 'lead47', 't1'), { companyId: 'coOther47' }));
-    await x47('owner deletes a task', 'allow', deleteDoc(t47(own47, 'lead47', 'n2')));
-    await x47('a viewer adds a task', 'deny', setDoc(t47(vw47, 'lead47', 'n6'), { text: 'x' }));
+    const own48 = env.authenticatedContext('own48', { role: 'sales_rep', companyId: 'co47' }).firestore();
+    const mgr48 = env.authenticatedContext('mgr48', { role: 'company_admin', companyId: 'co47' }).firestore();
+    const vw48 = env.authenticatedContext('vw48', { role: 'viewer', companyId: 'co47' }).firestore();
+    const evil48 = env.authenticatedContext('other47', { role: 'company_admin', companyId: 'coOther47' }).firestore();
+    const byCo48 = (db, co) => getDocs(query(collectionGroup(db, 'tasks'), where('companyId', '==', co), orderBy('createdAt', 'asc')));
+    const byUser48 = (db, u) => getDocs(query(collectionGroup(db, 'tasks'), where('userId', '==', u), orderBy('createdAt', 'asc')));
+    await x48('company admin loads the tenant\'s tasks in one query', 'allow', byCo48(mgr48, 'co47'));
+    await x48('a viewer loads them too (read-only role)', 'allow', byCo48(vw48, 'co47'));
+    await x48('a rep loads their OWN tasks', 'allow', byUser48(own48, 'own48'));
+    await x48('a rep asks for the whole company\'s tasks', 'deny', byCo48(own48, 'co47'));
+    await x48('another tenant asks for co47\'s tasks', 'deny', byCo48(evil48, 'co47'));
+    await x48('another user\'s tasks by userId', 'deny', byUser48(own48, 'other47'));
+    await x48('an unfiltered collection-group read', 'deny', getDocs(collectionGroup(mgr48, 'tasks')));
+    const t48 = (db, lead, id) => doc(db, 'leads/' + lead + '/tasks/' + id);
+    await x48('owner adds a task stamped with the lead\'s owner + tenant', 'allow', setDoc(t48(own48, 'lead47', 'n1'), { text: 'x', done: false, userId: 'own48', companyId: 'co47', leadId: 'lead47' }));
+    await x48('owner adds an unstamped task (every legacy writer)', 'allow', setDoc(t48(own48, 'lead47', 'n2'), { text: 'x', done: false }));
+    await x48('company admin adds one stamped with the writer\'s own uid as userId', 'allow', setDoc(t48(mgr48, 'lead47', 'n3'), { text: 'x', userId: 'mgr48', companyId: 'co47' }));
+    await x48('stamping ANOTHER tenant onto a task (inject into their Today list)', 'deny', setDoc(t48(evil48, 'lead47other', 'n4'), { text: 'spam', userId: 'other47', companyId: 'co47' }));
+    await x48('stamping another user as the owner', 'deny', setDoc(t48(evil48, 'lead47other', 'n5'), { text: 'spam', userId: 'own48' }));
+    await x48('ticking a legacy task done (stamps untouched) still works', 'allow', updateDoc(t48(own48, 'lead47', 'legacy'), { done: true }));
+    await x48('re-stamping a task to another tenant', 'deny', updateDoc(t48(own48, 'lead47', 't1'), { companyId: 'coOther47' }));
+    await x48('owner deletes a task', 'allow', deleteDoc(t48(own48, 'lead47', 'n2')));
+    await x48('a viewer adds a task', 'deny', setDoc(t48(vw48, 'lead47', 'n6'), { text: 'x' }));
   }
-  console.log('  47: ' + s47Pass + ' task one-query / stamp checks passed, ' + s47Fail.length + ' failed');
-  if (s47Fail.length) {
-    throw new Error('47 tasks: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
+  console.log('  48: ' + s48Pass + ' task one-query / stamp checks passed, ' + s48Fail.length + ' failed');
+  if (s48Fail.length) {
+    throw new Error('48 tasks: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

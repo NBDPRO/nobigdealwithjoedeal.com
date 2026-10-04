@@ -108,7 +108,8 @@
     var IP = w.InvoicePipeline;
     var nns = null;
     if (w.NBDNoNextStep && typeof w.NBDNoNextStep.compute === 'function') {
-      try { var r = w.NBDNoNextStep.compute(); nns = { count: ((r && r.people) || []).length + ((r && r.knockNoPhone) || []).length }; } catch (_) { nns = null; }
+      // The deck (no-next-step.js openDeck) swipes r.people — count what it opens.
+      try { var r = w.NBDNoNextStep.compute(); nns = isViewer() ? null : { count: ((r && r.people) || []).length }; } catch (_) { nns = null; }
     }
     var leads = w._leads || [];
     return P.buildTodayPlan({

@@ -314,5 +314,18 @@ ok('…none when stale or empty (no network fallback)', TP.stormLine({ ts: NOW -
 ok('taskDue: an ISO dueDate with a time counts by its day', TP.taskDue({ dueDate: TODAY + 'T15:00:00' }, NOW) && !TP.taskDue({ dueDate: TMW + 'T01:00' }, NOW));
 ok('cents formatting', TP.fmtCents(450000) === '$4,500' && TP.fmtCents(12345) === '$123.45');
 
+console.log('\nH. The real No-next-step module (#2126) lights up its row');
+{
+  const NNS = require(path.join(ROOT, 'docs/pro/js/no-next-step.js'));
+  const leads = [{ id: 'n1', firstName: 'No', lastName: 'Step', stage: 'contacted', phone: '5135552001', _stageRole: 'active' }];
+  const r = NNS.buildNoNextStep(leads, {}, { now: NOW, stageRole });
+  ok('no-next-step.js finds the lead with no follow-up and no open task', r.people.length === 1);
+  const p = TP.buildTodayPlan({ now: NOW, leads, env: ENV, SW, noNextStep: { count: r.people.length } });
+  ok('…and Today carries the deck pointer with that count', p.noNextStep && p.noNextStep.count === 1);
+  const home = read('docs/pro/js/today-home.js');
+  ok('today-home counts what the deck swipes (r.people) and opens it with data-nns-act="deck"', /w\.NBDNoNextStep\.compute\(\)/.test(home) && /count: \(\(r && r\.people\) \|\| \[\]\)\.length/.test(home) && /data-nns-act="deck"/.test(home) && /act === 'deck'\) \{ openDeck\(\)/.test(read('docs/pro/js/no-next-step.js')));
+  ok('…and finds the real followup-deck setFollowUp + owed rule on the page', /NBDFollowUpDeck = \{ open, setFollowUp/.test(read('docs/pro/js/followup-deck.js')) && /isOwedInvoice: isOwedInvoice/.test(read('docs/pro/js/collected-revenue.js')));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

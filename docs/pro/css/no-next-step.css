@@ -1,0 +1,48 @@
+/* no-next-step.css — Home "No next step" card + board filter button
+   (js/no-next-step.js, 2026-10-03). Phone-first: every tap target is at
+   least 44px tall, rows stack, nothing scrolls sideways at 390px. */
+
+.nns-card { display: block; border: 1px solid var(--br, #2a2d35); border-radius: 12px; background: var(--s, #1a1d23); padding: 12px; }
+.nns-card[hidden] { display: none; }
+
+.nns-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.nns-title { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; color: var(--t); }
+.nns-count { display: inline-block; min-width: 22px; padding: 1px 7px; margin-left: 4px; border-radius: 10px; background: var(--gold, #f59e0b); color: #111; font-size: 12px; text-align: center; vertical-align: middle; }
+.nns-sub { font-size: 12px; color: var(--m); margin-top: 2px; }
+.nns-head-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.nns-link { font: inherit; font-size: 13px; font-weight: 600; min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--orange); cursor: pointer; }
+
+.nns-list { display: flex; flex-direction: column; }
+.nns-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--br, #2a2d35); }
+.nns-row.nns-saving { opacity: .5; pointer-events: none; }
+.nns-main { min-width: 0; }
+.nns-name { font-size: 15px; font-weight: 700; color: var(--t); text-decoration: none; overflow-wrap: anywhere; }
+.nns-meta { font-size: 12px; color: var(--m); overflow-wrap: anywhere; }
+.nns-old { color: var(--gold, #f59e0b); font-weight: 600; }
+
+.nns-acts { display: grid; grid-template-columns: auto repeat(3, minmax(44px, 1fr)); gap: 6px; align-items: center; }
+.nns-lbl { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m); padding-right: 2px; }
+.nns-btn { font: inherit; font-size: 13px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); cursor: pointer; touch-action: manipulation; }
+.nns-btn.nns-fu { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 45%, var(--br, #2a2d35)); }
+.nns-btn.nns-lost { color: var(--red, #ef4444); }
+.nns-acts .nns-lost { grid-column: 1 / span 2; }
+.nns-acts .nns-lost + .nns-btn { grid-column: 3 / span 2; }
+
+.nns-more { display: block; width: 100%; min-height: 44px; margin-top: 6px; font: inherit; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px dashed var(--br, #2a2d35); background: none; color: var(--m); cursor: pointer; }
+
+.nns-knock { border: 1px solid var(--gold, #f59e0b); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--s2, #22252c); }
+.nns-knock-title { font-size: 14px; font-weight: 700; color: var(--t); }
+.nns-knock-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.nns-knock-acts .nns-btn { flex: 1 1 160px; }
+
+@media (min-width: 720px) {
+  .nns-row { flex-direction: row; align-items: center; justify-content: space-between; }
+  .nns-main { flex: 1 1 auto; }
+  .nns-acts { flex: 0 0 auto; display: flex; flex-wrap: nowrap; }
+  .nns-acts .nns-lost, .nns-acts .nns-lost + .nns-btn { grid-column: auto; }
+}
+
+.nns-filter-btn { position: relative; }
+.nns-filter-badge { background: var(--gold, #f59e0b); color: #111; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+.nns-filter-badge[hidden] { display: none; }

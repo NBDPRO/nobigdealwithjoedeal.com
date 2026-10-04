@@ -98,8 +98,10 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
     const src = strip(read('functions/handlers/integrations.js'));
     ok('an off-list enum value is dropped, never stored', /if \(data\[k\] != null && !allowed\.includes\(data\[k\]\)\) delete data\[k\];/.test(src));
     ok('a service lead without an address is FLAGGED (not refused — a stale cached page never loses a lead)', /if \(SERVICE_KINDS\.includes\(kind\) && !data\.address\) data\.missingAddress = true;/.test(src));
+    // 2026-10-03: wantsFollowUp (the /estimate thank-you screen) asks for the
+    // same grant — behaviour covered in estimate-funnel-unblock-2026-10-03.test.js.
     ok('the photo grant is minted only when the page asks, and never blocks the lead',
-      /body\.wantsPhotos === true \|\| body\.wantsPhotos === 'true'/.test(src) && /photo grant failed/.test(src) && /photoToken \? \{ photoToken \} : \{\}/.test(src));
+      /_wants\(body\.wantsPhotos\) \|\| _wants\(body\.wantsFollowUp\)/.test(src) && /const _wants = \(v\) => v === true \|\| v === 'true';/.test(src) && /photo grant failed/.test(src) && /photoToken \? \{ photoToken \} : \{\}/.test(src));
     const idx = read('functions/index.js');
     ok('the upload endpoint is exported', /exports\.uploadPublicLeadPhoto\s*=\s*require\('\.\/public-lead-photos'\)\.uploadPublicLeadPhoto/.test(idx));
     ok('...and documented', /`uploadPublicLeadPhoto` \| onRequest/.test(read('functions/FUNCTIONS_INDEX.md')));
@@ -120,7 +122,7 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
   console.log('\n5. the forms');
   {
     const ie = strip(read('docs/assets/js/intake-extras.js'));
-    ok('the scheduling choice is REQUIRED (no choice → error)', /if \(!picked\) \{/.test(ie) && /Choose how you’d like to schedule/.test(read('docs/assets/js/intake-extras.js')));
+    ok('the scheduling choice is REQUIRED (no choice → error) unless the caller opts into optional mode', /if \(!picked && !\(opts && opts\.optional\)\) \{/.test(ie) &&/Choose how you’d like to schedule/.test(read('docs/assets/js/intake-extras.js')));
     ok('up to 10 photos, downscaled in the browser before upload', /MAX_PHOTOS = 10/.test(ie) && /toDataURL\('image\/jpeg', 0\.85\)/.test(ie));
     ok('a text-us fallback is always offered', /Or text photos to/.test(ie));
     ok('a contractor microsite never says "Joe" or links NBD\'s calendar', /calUrl: null/.test(read('docs/sites/t/site.js')) && /o\.calUrl \? '<label/.test(ie));
@@ -157,24 +159,21 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
     ok('no-calendar pages get a contact-me-only scheduling error', /hasCal \?/.test(ieRaw) && /Please check “Please contact me to coordinate scheduling”/.test(ieRaw));
     ok('/inspect suppresses the duplicate "will reach out" line', /quietContact: true/.test(read('docs/assets/js/inspect-form.js')) && /!i\.quietContact/.test(ieRaw));
 
-    // The Instant Estimate wizard (follow-up, same day): the same block on its
-    // contact step; both submit paths require the choice and send the answers.
+    // The Instant Estimate wizard. SUPERSEDED 2026-10-03: the contact step no
+    // longer asks the block at all (first name + phone + consent only); the
+    // same questions are OPTIONAL on the thank-you screen and saved onto the
+    // same lead. Behaviour: tests/estimate-funnel-unblock-2026-10-03.test.js.
     const estHtml = read('docs/estimate.html');
     const wiz = strip(read('docs/assets/js/inline/4053149b2f.js'));
     const estMod = strip(read('docs/assets/js/inline/f95015cb84.module.js'));
-    ok('/estimate loads the block and hosts it on the contact step (before the consent box)',
+    ok('/estimate loads the block, and hosts it on the RESULTS screen — not before the consent box',
       /<script defer src="\/assets\/js\/intake-extras\.js\?v=\d+"><\/script>/.test(estHtml)
-      && estHtml.indexOf('id="estIntake"') > estHtml.indexOf('id="emailAddress"') && estHtml.indexOf('id="estIntake"') < estHtml.indexOf('id="tcpaConsent"'));
+      && estHtml.indexOf('id="estIntake"') > estHtml.indexOf('id="stepResults"') && estHtml.indexOf('id="estIntake"') > estHtml.indexOf('id="tcpaConsent"'));
     ok('...and a results-screen host for the calendar button / photo result', /id="estIntakeAfter"/.test(estHtml));
-    ok('the verified path refuses to submit without a scheduling choice — before the loading screen',
-      /async function submitAndGetEstimate\(\) \{[\s\S]{0,300}const _intake = _readIntake\(\);\s*if \(_intake\.error\) \{ _intakeError\(_intake\); return; \}[\s\S]{0,200}btn\.disabled = true;/.test(wiz));
-    ok('the "just call me" path refuses too', /async function skipOtpAndRequestCall\(btn\) \{[\s\S]{0,1200}var _intake = _readIntake\(\);\s*if \(_intake\.error\) \{/.test(wiz));
-    ok('both paths send the answers', (wiz.match(/Object\.assign\(leadData, _intake\.fields\);/g) || []).length === 2);
-    ok('both paths run afterSubmit (calendar / photos) only once the lead is saved',
-      /if \(window\.NBDIntake && _leadSaved\) window\.NBDIntake\.afterSubmit\(document\.getElementById\('estIntakeAfter'\)/.test(wiz)
-      && /if \(window\.NBDIntake && saved\) window\.NBDIntake\.afterSubmit\(status\.parentNode/.test(wiz));
-    ok('a block that never loaded never blocks the lead', /if \(!window\.NBDIntake \|\| !box \|\| !box\.childElementCount\) return \{ fields: \{\}, files: \[\] \};/.test(wiz));
-    ok('the photo grant reaches the wizard', /window\._lastPhotoToken = res\.photoToken \|\| null;/.test(estMod) && /photoToken: window\._lastPhotoToken \|\| null/.test(wiz));
+    ok('the submit path no longer demands a scheduling choice', !/async function submitAndGetEstimate\(\) \{[\s\S]{0,300}_readIntake\(\)/.test(wiz));
+    ok('the block is read in OPTIONAL mode', /window\.NBDIntake\.read\(box, 'estI', \{ optional: true \}\)/.test(wiz));
+    ok('a block that never loaded never blocks anything', /if \(!window\.NBDIntake \|\| !box \|\| !box\.childElementCount\) return \{ fields: \{\}, files: \[\] \};/.test(wiz));
+    ok('the grant reaches the wizard, and a later CTA/email save cannot wipe it', /if \(res\.photoToken\) window\._lastPhotoToken = res\.photoToken;/.test(estMod) && /photoToken: window\._lastPhotoToken \|\| null/.test(wiz));
 
     // The storm tools + roof score (same day): each posts an 'inspect' service
     // lead, so each asks the block, refuses without the choice, sends the

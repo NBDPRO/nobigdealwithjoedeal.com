@@ -450,3 +450,105 @@ backup), so no rescan is needed: the first run simply starts at the floor.
 Tests: `text-inbox-logic` §2 (4 checks, including a New Year's Eve 2025 text
 dropped and a 12:30 am Jan 1 text kept, through the real parser).
 Break-tested: putting back the 90-day window turns 3 red.
+
+## Update 2026-10-03: matching calls to customers, and no duplicate leads
+
+An audit of `origin/main` @ 2264b010 found five gaps. All five are fixed on
+`feat/calls-matching`:
+
+1. **Earlier calls from a new customer stayed unfiled.** The ingest files a
+   call once and skips it from then on (`call-center.js` `fileDay`). "Make
+   this a lead" in the Said-you'd-do deck filed only one call. Now
+   `callCenterAction attach` runs `refileNumber`. That step files every other
+   call, day of texts (`phone_text_days`) and text (`phone_texts`) from the
+   same 10-digit number that is still on no lead. It stays inside the same
+   tenant (`userId` + `companyId`) and never moves a call that is already on
+   another lead. Each re-filed call or day gets the timeline entry and the
+   create-only task the notes pass writes. The ids are deterministic, so a
+   repeat does nothing. `L.buildTextDayActivity` / `buildTextDayTask` are now
+   the one shape for text days, and `text-inbox.js` uses them too.
+2. **No duplicate leads from call screens.** Every "make lead" path
+   (main card, group card, both decks) goes through `leadFromCall`. When the
+   number is already on a lead in `window._leads` (phone, phoneDigits,
+   phone2, altPhone, mobilePhone or secondaryPhone), or on a lead made
+   earlier in this session, no lead is made. The card offers "File on
+   <name>" instead. Said-you'd-do cards are grouped by caller
+   (`groupPromises`), so one caller gets one card, one Done and one lead.
+   Lead creation is a client write (`_saveLead`), not a callable, so the
+   server has no create to check.
+3. **"Looks like X" everywhere.** `runTranscribe` stores `suggestedLeadId`,
+   `suggestedLeadName`, `suggestedWhy` and `suggestCheckedAtMs` when it notes
+   a call that is on no customer. It uses `L.suggestLeadForCall`, which
+   returns only a unique match. Up to 100 older noted calls are backfilled
+   on each live run. Main call cards, group cards and both decks show a
+   one-tap "File on X". The number already being on a customer outranks the
+   stored guess. A suggestion is never filed without Jo's tap.
+4. **The "NBD Customer" phone tag.** When a tagged contact matches no lead,
+   the card shows "Tagged 'NBD Customer' in your phone — not in the CRM yet"
+   with a ＋ Make lead button (deduped as in item 2). The bucket stays
+   `contact`. The new owner-only callable `callTaggedMatch` previews matches
+   with `L.taggedContactPlan`: one row per number, matched by a unique number
+   on a lead or else by the contact name holding one lead's full name. The
+   preview writes nothing. `{confirm:[{key,leadId}]}` re-plans on the server
+   and files only the confirmed rows that still match. The button is
+   "Match my tagged contacts" in the Call Center header.
+5. **Fixing a call filed on the wrong customer.** The customer-page call
+   card now has ✓ Handled and "Wrong customer → move to…". The number's
+   other customers (`alternateLeadIds`) are listed first, then a picker.
+   `callCenterAction move {leadId}` checks that both leads are in the call's
+   company. It copies the timeline entry and the task (create-only, so a
+   ticked task stays ticked) to the new lead, deletes the old copies, and
+   only then re-points the call, so a retry finishes the job. The number is
+   added to the new lead (blanks only) and never removed from the old one.
+
+Tests: `call-center-action` §8–10 (re-file, move, tagged match),
+`call-center-notes` §9 (stored suggestion + backfill), and the new
+`call-center-matching-2026-10-03` (the client, vm-loaded). E2E at 390×844:
+`call-center-view.spec.js` ("Looks like X" on the card and in the deck),
+`call-center-card.spec.js` (Handled + Move), and
+`phone-one-at-a-time.spec.js` (two calls from one prospect make one card and
+one lead). Every one was break-tested against `origin/main`.
+
+## Update 2026-10-03: why Thumbtack customers' calls never matched
+
+Prod audit, read-only and aggregates only (owner tenant, 2026-10-03):
+
+- **Thumbtack leads hold Thumbtack's masked number.** 104 live leads have
+  source `Thumbtack`. 102 carry a valid `phone`/`phoneDigits` and 0 carry an
+  `altPhone`. 98 of those 102 numbers share ONE non-local area code; only 3
+  are local. Non-Thumbtack leads are the opposite: 31 of 44 are local, across
+  10 area codes. Each masked number belongs to one lead (no number sits on 3
+  or more leads, and only 1 number sits on 2), so this is a per-lead relay,
+  not one shared line.
+- **The webhook drops nothing.** The 83 `thumbtack_leads` payloads hold one
+  phone field, `data.customer.phone` (keys: customerID, firstName, lastName,
+  phone), and it is that masked number. All 76 payloads that could be tied to
+  a lead by name have that same number on the lead. There is no real customer
+  number to store.
+- **Effect.** Only 14 calls ever matched a Thumbtack lead, and all 14 matched
+  through the masked number. 757 of 829 calls sit on no lead. Of the 288
+  unmatched calls that have notes, 19 mention Thumbtack. 9 have a saved
+  contact name holding a Thumbtack lead's full name, which the stored "Looks
+  like X" (#2124) already catches. Addresses don't help: only 12 Thumbtack
+  leads have a street number (most are town + ZIP only).
+
+Fix (`feat/calls-thumbtack-match`):
+
+- `L.suggestLeadForCall` gets a Thumbtack tier. It runs only when no stronger
+  rule matched (an ambiguous strong match never falls through to it), and
+  only for a UNIQUE Thumbtack lead. It fires on either: (a) a phone contact
+  reading "<first> <last initial>" (Thumbtack's display name), or (b) a call
+  that mentions Thumbtack and says the lead's first name. It is still a
+  suggestion only. `SUGGEST_RULES_VERSION` = 2, so the backfill re-checks
+  calls checked under the older rules. Estimated on prod: 18 unmatched noted
+  calls (9 numbers, 11 leads) get a suggestion, 7 of them through the
+  Thumbtack tier.
+- Proxy numbers: a number on 3 or more of a tenant's leads (`L.proxyNumbers`)
+  never matches a call (`buildPhoneIndex`), never triggers the number-wide
+  re-file on attach, and is never "already a customer" in the call screens'
+  dedupe. Prod has none today. This is a guard, not a fix for Thumbtack,
+  whose numbers are unique per lead.
+- The real number is learned when Jo files one call from it. Attach already
+  writes the caller's number to the lead's empty `altPhone`
+  (`phonePatchForLead`), so later calls from that number match by
+  themselves.

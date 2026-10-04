@@ -175,9 +175,20 @@ function makeDb() {
   ok('needsClosedAt: won lead without a date → yes', SR.needsClosedAt({ stage: 'install_complete' }, 'final_payment') === true);
   ok('needsClosedAt: non-won destination → no', SR.needsClosedAt({ stage: 'new' }, 'contacted') === false);
   {
+    // Since the job spine (#2123) the payoff advance is no longer in the
+    // Stripe webhook: the invoice trigger records paid_in_full and
+    // job-spine-logic.js movePayload stamps closedAt through THIS helper.
     const stripe = read('functions/stripe.js');
-    const adv = stripe.slice(stripe.indexOf("stage: 'final_payment',"), stripe.indexOf('autoAdvancedFromInvoiceId'));
-    ok('the Stripe payoff advance stamps closedAt via needsClosedAt', /stageRoles\.needsClosedAt\(lead, 'final_payment'\) \? \{ closedAt: FieldValue\.serverTimestamp\(\) \}/.test(adv));
+    const SL = require(path.join(ROOT, 'functions', 'job-spine-logic.js'));
+    const fv = { serverTimestamp: () => 'TS', arrayUnion: (x) => [x] };
+    const pay = (lead) => SL.movePayload(lead, SL.planJobEvent(lead, 'paid_in_full'), { actor: 'a', atIso: 'T', event: 'paid_in_full' }, fv).payload;
+    let delegated = 0; const orig = SR.needsClosedAt;
+    SR.needsClosedAt = function () { delegated++; return orig.apply(this, arguments); };
+    const p1 = pay({ stage: 'contract_signed', jobType: 'cash' });
+    const p2 = pay({ stage: 'install_complete', stageRole: 'won', closedAt: 1, jobType: 'cash' });
+    SR.needsClosedAt = orig;
+    ok('the Stripe payoff advance stamps closedAt via needsClosedAt',
+      p1.closedAt === 'TS' && !('closedAt' in p2) && delegated === 2 && !/stage: 'final_payment'/.test(stripe));
   }
 
   console.log('\n1c. kanban: per-job move + the "Create invoice" offer (crm-pipeline.js)');
@@ -261,7 +272,17 @@ function makeDb() {
     if (opts.existingTask) await db.collection('leads').doc('L1').collection('tasks').doc('paid-not-closed-I1').set({ done: true });
     const before = { leadId: 'L1', companyId: 'co-x', total: 900, balanceDue: opts.alreadyPaid ? 0 : 400, status: opts.alreadyPaid ? 'paid' : 'partial', payments: [] };
     const after = Object.assign({}, before, { balanceDue: 0, status: 'paid', payments: [lastPayment] });
-    const deps = { db, now: () => T0, bucket: null, render: null, stripe: null };
+    // The job spine (#2123) runs first in handle(). Stubbed here so these
+    // cases test the paid-but-not-won flag on its own; opts.spineMoves
+    // simulates a spine that advanced the lead (the ordering case below).
+    const recordJobEvent = async (d, a) => {
+      if (opts.spineMoves && a.event === 'paid_in_full') {
+        await d.collection('leads').doc(a.leadId).update({ stage: 'final_payment', stageRole: 'won' });
+        return { moved: true };
+      }
+      return { moved: false, reason: 'stubbed' };
+    };
+    const deps = { db, now: () => T0, bucket: null, render: null, stripe: null, recordJobEvent };
     const out = await handle('I1', after, deps, before);
     const task = db.store.get('leads/L1/tasks/paid-not-closed-I1');
     return { out, task, lead: db.store.get('leads/L1') };
@@ -272,6 +293,12 @@ function makeDb() {
     ok("…due today in Eastern time", r.task && r.task.dueDate === '2026-10-03', r.task && r.task.dueDate);
     ok('…naming the invoice', r.task && r.task.invoiceId === 'I1');
     ok('…and the stage is NOT moved', r.lead.stage === 'contract_signed' && !('closedAt' in r.lead));
+  }
+  {
+    // Ordering with the job spine: it runs BEFORE this flag, so a payoff the
+    // spine advanced to Final Payment (won) files no paid-but-not-won task.
+    const r = await payoff({ stage: 'contract_signed', stageRole: 'active' }, { method: 'zelle', amount: 400 }, { spineMoves: true });
+    ok('a payoff the job spine advanced (now won) files nothing', !r.task && r.lead.stage === 'final_payment');
   }
   {
     const r = await payoff({ stage: 'closed', stageRole: 'won' }, { method: 'check', amount: 400 });

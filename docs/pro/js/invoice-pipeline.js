@@ -1396,6 +1396,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             subject: `Invoice ${invoiceId} from ${_invoiceCompany()}`,
             html: invoiceHtml,
             leadId: invoice.leadId || null,
+            invoiceId: invoiceId, // the server checks `to` against invoice.customerEmail
             kind: 'invoice', // transactional: never blocked by an email unsubscribe
           });
           if (!emailResult || emailResult.success === false) {
@@ -1588,49 +1589,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         }
       }
 
-      // If fully paid, advance lead stage. Post-crm-stages migration the
-      // canonical key for this transition is 'contract_signed' (the legacy
-      // display name 'Approved' maps to S.CONTRACT_SIGNED via LEGACY_MAP in
-      // crm-stages.js). v159.4 swept most legacy writes; this one was
-      // missed. Writing the canonical key keeps the Firestore doc in sync
-      // with the schema instead of relying on normalizeStage() at read time.
-      // ONLY forward: a lead already at Contract Signed or beyond (a job, or
-      // Closed/won) must not move. This ran unconditionally, so paying the
-      // final invoice on a Closed job dragged it BACK to Contract Signed —
-      // out of won revenue and onto the board as an active contract.
-      let _advance = false;
-      let _advFrom = null, _advJobType = null;
-      if (newBalanceDue === 0 && invoice.leadId) {
-        let _lead = (window._leads || []).find(l => l && l.id === invoice.leadId) || null;
-        if (!_lead) {
-          try { const ls = await window.getDoc(window.doc(db, 'leads', invoice.leadId)); if (ls.exists()) _lead = ls.data(); } catch (_) {}
-        }
-        const _k = (_lead && (_lead._stageKey || _lead.stage)) || 'new';
-        const _role = (_lead && _lead._stageRole) || (typeof window.stageRole === 'function' ? window.stageRole(_k) : null);
-        const _isJob = typeof window.isJobStage === 'function' ? window.isJobStage(_k) : false;
-        _advance = _k !== 'contract_signed' && !_isJob && (_role === 'new' || _role === 'active');
-        _advFrom = (_lead && _lead.stage) || null;
-        _advJobType = (_lead && _lead.jobType) || null;
-      }
-      if (_advance) {
-        // Through stage-write.js's commitStageChange, like every other stage
-        // move (CRM sweep R14, 2026-09-28). This was a plain updateDoc: no
-        // stageStartedAt (days-in-stage, bottleneck, the dormant-lead nudge
-        // kept counting from the OLD stage), no stageHistory, no timeline
-        // note, no stage-entry task / drip — emulator: a paid-off lead sat in
-        // Contract Signed with an empty history. commitStageChange also stamps
-        // stageRole and is race-guarded. The payment is already recorded, so
-        // a failed advance warns instead of failing the payment.
-        try {
-          const { commitStageChange } = await import('./stage-write.js');
-          await commitStageChange(invoice.leadId, 'contract_signed', _advFrom, { jobType: _advJobType });
-        } catch (advErr) {
-          const m = advErr && advErr.message;
-          if (m !== 'STAGE_RACE_NOOP' && m !== 'STAGE_RACE_LOST') {
-            console.warn('markPaid: stage advance to Contract Signed failed', m);
-          }
-        }
-      }
+      // No stage write here any more (job spine, 2026-10-03). This payment
+      // lands on the invoice doc, and the server's invoice trigger
+      // (functions/money-paper.js moneyPaperOnInvoice → job-spine.js) moves
+      // the lead: paid in full → Final Payment, a deposit → Contract Signed,
+      // forward only, with history, timeline note and stage-entry task. It
+      // used to advance only a New/Active lead to Contract Signed from here
+      // while a card payoff (stripe.js) went to Final Payment — the same
+      // payoff landed the card in two places depending on how it was paid.
 
       // Send receipt
       if (window.NBDComms?.sendEmail && invoice.customerEmail) {
@@ -1639,6 +1605,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           subject: `Payment Received - ${_invoiceCompany()} Invoice ${invoiceId}`,
           html: `<p>Thank you! We received your payment of ${formatCurrency(amount)}.</p><p>Your invoice is now ${newBalanceDue === 0 ? 'fully paid' : 'partially paid'}.</p>`,
           leadId: invoice.leadId || null,
+          invoiceId: invoiceId,
           kind: 'receipt', // transactional: payment confirmation
         });
       }

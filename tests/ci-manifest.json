@@ -21,6 +21,7 @@
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
     "intake-forms-2026-09-30.test.js",
+    "estimate-funnel-unblock-2026-10-03.test.js",
     "portal-photo-exif-2026-10-03.test.js",
     "leaderboard-rep-names-2026-09-28.test.js",
     "gate-before-warranty-writes-2026-09-28.test.js",
@@ -29,6 +30,7 @@
     "analytics-stage-labels-2026-09-28.test.js",
     "events-not-open-tasks-2026-09-28.test.js",
     "stripe-payoff-advance-guard-2026-09-28.test.js",
+    "job-spine-2026-10-03.test.js",
     "bulk-carrier-field-2026-09-28.test.js",
     "bulk-move-honest-count-2026-09-28.test.js",
     "settings-deep-link-tab-2026-09-28.test.js",
@@ -197,6 +199,7 @@
     "text-notes-2026-10-01.test.js",
     "call-center-sweep-2026-10-01.test.js",
     "call-center-action-2026-10-01.test.js",
+    "call-center-matching-2026-10-03.test.js",
     "month-close-2026-10-01.test.js",
     "kanban-board-logic-2026-10-01.test.js",
     "clarity-2026-10-01.test.js",
@@ -341,7 +344,9 @@
     "check-js-syntax.test.js",
     "bounded-live-listeners-2026-10-03.test.js",
     "faq-schema-sync-2026-10-03.test.js",
-    "site-round2-2026-10-03.test.js"
+    "site-round2-2026-10-03.test.js",
+    "security-batch-2026-10-03.test.js",
+    "stage-actor-no-next-step-2026-10-03.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

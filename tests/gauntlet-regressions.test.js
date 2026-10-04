@@ -939,8 +939,16 @@ console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
   assert('webhook flips paid/paidAt only when fully paid + stamps lastPaymentAt',
     /status: fullyPaid \? 'paid' : \(inv\.status/.test(st)
     && /lastPaymentAt: FieldValue\.serverTimestamp\(\)/.test(st));
+  // Since 2026-10-03 (job spine) the payoff advance is no longer in the
+  // webhook: the webhook flips the invoice to 'paid' only when fully paid
+  // (asserted above), and the invoice trigger (money-paper.js ->
+  // job-spine.js) turns THAT flip into paid_in_full. A deposit-sized
+  // payment leaves status open -> no paid_in_full (behaviour, not regex).
+  const _spineL = require(path.join(__dirname, '..', 'functions', 'job-spine-logic.js'));
   assert('kanban auto-advance gated on fullyPaid (a deposit must not advance to final_payment)',
-    /if \(creditResult\.fullyPaid && creditResult\.leadId\)/.test(st));
+    JSON.stringify(_spineL.invoiceEvents({ status: 'sent' }, { leadId: 'L', status: 'sent', amountPaid: 500, depositAmount: 0, depositPaid: true })) === '[]'
+    && JSON.stringify(_spineL.invoiceEvents({ status: 'sent' }, { leadId: 'L', status: 'paid', amountPaid: 1000 })) === '["paid_in_full"]'
+    && !/stage: 'final_payment'/.test(st));
   // 2026-07-18 post-sprint certification (pre-existing, not sprint-caused):
   // invoiceWebhook's auto-advance stamped stage:'final_payment' with NO
   // stageRole. functions/stage-roles.js's roleFor() prefers the PERSISTED
@@ -950,19 +958,26 @@ console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
   // and review-request-nudge.js + referral-rewards.js both key off roleFor(),
   // silently skipping the review ask and the $100 referral payout on every
   // automated Stripe-payoff loop.
+  // The advance now lives in job-spine-logic.js movePayload — it stamps
+  // stageRole from stage-roles.js on every automatic move.
+  const _mp = _spineL.movePayload({ stage: 'contract_signed', jobType: 'cash' },
+    _spineL.planJobEvent({ stage: 'contract_signed', jobType: 'cash' }, 'paid_in_full'),
+    { actor: 't', atIso: 'T', event: 'paid_in_full' }, { serverTimestamp: () => 'TS', arrayUnion: (x) => [x] }).payload;
   assert('invoiceWebhook stamps stageRole alongside the final_payment auto-advance',
-    /stage: 'final_payment',\s*\r?\n\s*_stageKey: 'final_payment',[\s\S]{0,1200}stageRole: stageRoles\.roleFromKey\('final_payment'\)/.test(st),
+    _mp.stage === 'final_payment' && _mp.stageRole === 'won',
     "an unstamped write leaves roleFor() returning the STALE persisted role (persisted wins over the key map), so a custom-pipeline tenant's Stripe-paid job never classifies as won");
   assert('stripe.js requires functions/stage-roles.js',
-    /const stageRoles = require\('\.\/stage-roles'\)/.test(st));
+    /require\('\.\/stage-roles'\)/.test(read('functions/job-spine-logic.js')));
   const ip = read('docs/pro/js/invoice-pipeline.js');
   assert('markPaid stamps lastPaymentAt on every payment (incl. partials)',
     /lastPaymentAt:\s*paidAtNow/.test(ip) || /lastPaymentAt:\s*new Date\(\)/.test(ip));
   // Since 2026-09-28 (R14) the advance goes through stage-write.js's
   // commitStageChange, which stamps stageRole (plus stageStartedAt / history);
   // behaviour pinned in invoice-markpaid-stage.test.js.
+  // Since 2026-10-03 markPaid writes no stage at all — the server's invoice
+  // trigger does, through job-spine.js (which stamps stageRole, above).
   assert('markPaid stamps stageRole alongside the contract_signed full-payoff advance (client, window.stageRole)',
-    /commitStageChange\(invoice\.leadId, 'contract_signed'/.test(ip)
+    !/commitStageChange\(invoice\.leadId/.test(ip)
       && /stageRole: window\.stageRole\(newStage\)/.test(read('docs/pro/js/stage-write.js')),
     'consequence-neutral today (contract_signed already derives to role active) but keeps this write conforming to the persisted-stageRole-wins invariant every other stage-change path upholds');
   const md = read('docs/pro/js/money-dashboard.js');
