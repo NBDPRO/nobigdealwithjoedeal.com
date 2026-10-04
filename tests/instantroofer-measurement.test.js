@@ -7,7 +7,9 @@
  * three providers and zero behavioural tests — every one of them called a
  * bare global fetch, and none had ever been configured in prod (all three
  * keys are the deploy's `__unset__` stub, verified 2026-09-06). Instant
- * Roofer is the first provider with a real key, so this suite pins:
+ * Roofer is the first provider with a real key. (The three dead providers
+ * were removed 2026-10-04 — VENDOR-COST-LOCKIN Lane C — and section
+ * "removed providers" below pins that they stay unreachable.) This suite pins:
  *
  *   1. the pure normalizer against the vendor's documented example response
  *      (functions/integrations/instantroofer-logic.js);
@@ -223,6 +225,19 @@ if (M && M._test) {
   const sel = T.selectProvider();
   ok('selectProvider → instantroofer, needsCoords', !process.env.NBD_MEASUREMENT_PROVIDER ? (sel && sel.name === 'instantroofer' && sel.needsCoords === true) : true);
 
+  section('removed providers (HOVER / EagleView / Nearmap, 2026-10-04) stay unreachable');
+  {
+    const prev = shared.PROVIDERS.measurement;
+    for (const p of ['hover', 'eagleview', 'nearmap']) {
+      shared.PROVIDERS.measurement = p;
+      ok('NBD_MEASUREMENT_PROVIDER=' + p + ' → selectProvider null (callable fails loudly, never bills)', T.selectProvider() === null);
+    }
+    shared.PROVIDERS.measurement = prev;
+    ok("webhook payload for provider 'hover' → null (400 Unknown provider)", T.normalizeWebhookPayload('hover', { job_id: 'j1', status: 'completed', measurements: { total_facets_area_sqft: 2500 } }) === null);
+    ok("webhook payload for provider 'eagleview' → null (400 Unknown provider)", T.normalizeWebhookPayload('eagleview', { orderId: 'o1', status: 'Completed', measurementReport: { totalRoofArea: 3000 } }) === null);
+    ok('the HMAC verifier and Nearmap sync parser are gone from the _test seam', !('verifyWebhookHmac' in T) && !('parseSync' in T));
+  }
+
   section('requestInstantRoofer — request/response contract via deps.fetchImpl');
   const calls = [];
   const fakeFetch = (reply) => async (url, opts) => { calls.push({ url, opts }); return reply; };
@@ -268,11 +283,7 @@ if (M && M._test) {
     r = await T.requestInstantRoofer({ lat: 39.1, lng: -84.5, reportType: 'human' }, { fetchImpl: fakeFetch(jsonReply(200, { ok: true })) });
     ok('human: ack without requestId → bad-ack', !r.ok && r.reason === 'bad-ack');
 
-    section('normalizeWebhookPayload — three providers, one shape');
-    const h = T.normalizeWebhookPayload('hover', { job_id: 'j1', status: 'completed', measurements: { total_facets_area_sqft: 2500, ridge_linear_feet: 40, predominant_pitch: '6/12' }, report_url: 'https://h/r.pdf' });
-    ok('hover completed → ready with mapped fields (unchanged behaviour)', h.externalJobId === 'j1' && h.status === 'ready' && h.measurements.rawSqft === 2500 && h.measurements.ridge === 40 && h.measurements.reportUrl === 'https://h/r.pdf');
-    const ev = T.normalizeWebhookPayload('eagleview', { orderId: 'o1', status: 'Completed', measurementReport: { totalRoofArea: 3000 } });
-    ok('eagleview Completed → ready (unchanged behaviour)', ev.externalJobId === 'o1' && ev.status === 'ready' && ev.measurements.rawSqft === 3000);
+    section('normalizeWebhookPayload — Instant Roofer only');
     const ir = T.normalizeWebhookPayload('instantroofer', { requestId: 'req-9', status: 'completed', reportType: 'pdf', reportUrl: 'https://ir/r.pdf' });
     ok('instantroofer → externalJobId from requestId, human block, NO numbers', ir.externalJobId === 'req-9' && ir.status === 'ready' && ir.measurements === null && ir.human.reportUrl === 'https://ir/r.pdf');
     ok('instantroofer with no request id → externalJobId null (400 upstream)', T.normalizeWebhookPayload('instantroofer', { status: 'completed' }).externalJobId === null);
@@ -372,7 +383,7 @@ function finish() {
   ok("_shared.js default measurement provider is 'instantroofer'", /NBD_MEASUREMENT_PROVIDER\s*\|\|\s*'instantroofer'/.test(codeOnly(sharedSrc)));
   ok('requestMeasurement binds the API key + webhook secret + geocoder keys (Gen2 mounts only declared secrets)',
     /secrets:\s*\[[^\]]*SECRETS\.INSTANTROOFER_API_KEY[^\]]*SECRETS\.INSTANTROOFER_WEBHOOK_SECRET[^\]]*GOOGLE_GEOCODING_API_KEY/.test(meas));
-  ok('measurementWebhook binds INSTANTROOFER_WEBHOOK_SECRET', /secrets:\s*\[SECRETS\.HOVER_WEBHOOK_SECRET,[^\]]*SECRETS\.INSTANTROOFER_WEBHOOK_SECRET\]/.test(meas));
+  ok('measurementWebhook binds only INSTANTROOFER_WEBHOOK_SECRET', /secrets:\s*\[SECRETS\.INSTANTROOFER_WEBHOOK_SECRET\]/.test(meas));
   ok('callable timeout raised to 60 s for the synchronous vendor call', /timeoutSeconds:\s*60/.test(meas));
   ok('selectProvider has no silent HOVER fallback for unknown values (comment-stripped: the old line is quoted in a comment)',
     !/return requestHOVER;/.test(meas) && /function selectProvider\(\)[\s\S]{0,700}return null;/.test(meas));
@@ -389,9 +400,10 @@ function finish() {
     && /dedupeKey: leadId \+ '\|' \+ ctx\.coordKey/.test(meas)
     && (meas.match(/\{ merge: true \}/g) || []).length >= 2);
   ok('the outline image / LiDAR blobs are never written to Firestore', /stripVendorBlobs/.test(meas) && /'\[stripped\]'/.test(meas));
-  ok('the webhook verifies Instant Roofer by bearer token, HOVER/EagleView by HMAC (F-02 literals intact)',
-    /verifyInstantRooferBearer\(req\.headers\['authorization'\]/.test(meas) && /verifyWebhookHmac\(provider,\s*req\.rawBody/.test(meas)
-    && /x-hover-signature/.test(meas) && /x-ev-signature/.test(meas) && /'secret-not-configured' \? 503/.test(meas));
+  ok('the webhook verifies Instant Roofer by bearer token and refuses every other provider (F-02)',
+    /verifyInstantRooferBearer\(req\.headers\['authorization'\]/.test(meas)
+    && /:\s*\{\s*ok:\s*false,\s*reason:\s*'unknown-provider'\s*\}/.test(meas)
+    && !/verifyWebhookHmac|x-hover-signature|x-ev-signature/.test(meas) && /'secret-not-configured' \? 503/.test(meas));
   ok('human-report webhooks merge per-format URLs idempotently and never regress ready',
     /reportUrls\[urlKey\] = human\.reportUrl/.test(meas) && /preferredReportUrl/.test(meas) && /status !== 'failed'\) status = 'ready'/.test(meas));
   ok('the per-format merge is a DOTTED field path — concurrent pdf+csv deliveries would otherwise erase each other',
