@@ -62,7 +62,14 @@ console.log('B. getDealRoom');
   ok('the read URL is injected for the page', /<meta name="nbd-deal-read" content="\$\{escAttr\(READ_PATH\)\}">/.test(getBody) && /const READ_PATH = '\/api\/deal-read';/.test(src));
   const nd = src.slice(src.indexOf('async function notifyDealView('), src.indexOf('exports.dealRoomReadPing'));
   ok('notifyDealView claims the heads-up inside a transaction before sending', /runTransaction[\s\S]*tx\.update\(ref, \{ lastViewNotifiedAt: FieldValue\.serverTimestamp\(\) \}\)/.test(nd) && nd.indexOf('runTransaction') < nd.indexOf("collection('notifications').add"));
-  ok('…writes the bell notification and pushes to the owner', /type: 'deal_viewed'/.test(nd) && /sendCustomNotification\(ownerUid,/.test(nd));
+  // 2026-10-03: a deal on a lead alerts through the ONE per-lead
+  // estimate_viewed alert (estimate-view-alert.js, throttled across portal /
+  // review link / deal room / remote signing — behaviour-tested in
+  // tests/estimate-send-track-2026-10-03.test.js §F); a lead-less deal still
+  // writes the bell + push itself, under the same type.
+  ok('…alerts through the per-lead estimate_viewed alert, gated on this deal\'s claim',
+    /EVA\.recordEstimateView\(db, \{ leadId, ownerUid, source: 'deal_room', title: msg\.title, body: msg\.body, alert: !!claimed \}\)/.test(nd));
+  ok('…and a lead-less deal writes the bell notification and pushes to the owner', /type: 'estimate_viewed'/.test(nd) && /sendCustomNotification\(ownerUid,/.test(nd) && !/deal_viewed/.test(nd));
 }
 
 console.log('C. dealRoomReadPing');
@@ -119,7 +126,9 @@ console.log('E. Close Board');
   ok('"👁 Viewed 3× · 12 min"', viewBadge({ viewCount: 3, readSeconds: 720 }) === '👁 Viewed 3× · 12 min', viewBadge({ viewCount: 3, readSeconds: 720 }));
   ok('an older deal with only viewedAt reads "👁 Viewed"', viewBadge({ viewedAt: {} }) === '👁 Viewed');
   ok('one open, 40 sec', viewBadge({ viewCount: 1, readSeconds: 40 }) === '👁 Viewed · 40 sec');
-  ok('new deal pages load deal-room.js ?v=2 (the beacon)', /pro\/deal-room\.js\?v=2/.test(cb));
+  // ?v=2 shipped the beacon; later bumps (v=3: the financing band) keep it.
+  const _drv = /pro\/deal-room\.js\?v=(\d+)/.exec(cb);
+  ok('new deal pages load deal-room.js ?v=2+ (the beacon)', !!_drv && Number(_drv[1]) >= 2);
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

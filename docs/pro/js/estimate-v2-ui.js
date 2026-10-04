@@ -908,6 +908,28 @@
         text-align:center; color:var(--m,#666); padding:24px 8px;
         font-size:12px; font-style:italic;
       }
+      /* Send to homeowner / Sign on this phone / Kentucky gate (2026-10-03) */
+      .v2-send-ho { width:100%; justify-content:center; min-height:52px; padding:12px; margin-bottom:6px; font-size:15px; }
+      .v2-sign-phone, .v2-ky-contract {
+        width:100%; justify-content:center; min-height:48px; padding:12px; margin-bottom:6px;
+        border-color:var(--green,#2ecc8a); color:var(--green,#2ecc8a);
+      }
+      .v2-share-status { font-size:12px; color:var(--m,#888); text-align:center; min-height:1em; margin-bottom:6px; }
+      .v2-share-box { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+      .v2-share-box[hidden] { display:none; }
+      .v2-share-box .v2-share-act {
+        display:flex; align-items:center; justify-content:center; min-height:48px; border-radius:8px;
+        border:1px solid var(--br,#2a2f35); background:var(--s2,#181c22); color:var(--t,#e8eaf0);
+        font:inherit; font-size:14px; font-weight:700; text-decoration:none; cursor:pointer;
+      }
+      .v2-share-box .v2-share-url { grid-column:1 / -1; font-size:11px; color:var(--m,#888); word-break:break-all; text-align:center; }
+      .v2-ky-note {
+        font-size:12px; line-height:1.45; color:var(--t,#e8eaf0); background:var(--s2,#181c22);
+        border:1px solid var(--orange,#BD5728); border-radius:8px; padding:10px; margin-bottom:8px;
+      }
+      .v2-ky-note[hidden], .v2-ky-contract[hidden] { display:none !important; }
+      #estV2Modal .v2-ky-off { display:none !important; }
+      #estV2Modal .v2-status-err { color:var(--red,#ff6b6b) !important; }
       </style>
 
       <div class="v2-hdr">
@@ -1209,11 +1231,12 @@
             <button type="button" data-action="finalize" data-arg="internal-view">🔒 Internal</button>
           </div>
 
-          <div class="v2-section">Close Board</div>
-          <button type="button" class="btn btn-ghost" data-action="create-deal-room"
-            style="width:100%;justify-content:center;padding:12px;margin-bottom:6px;border-color:var(--blue,#4A9EFF);color:var(--blue,#4A9EFF);">
-            🏠 Create Deal Room
+          <div class="v2-section">Send to Homeowner</div>
+          <button id="v2sendHoBtn" type="button" class="btn btn-orange v2-send-ho" data-action="send-to-homeowner">
+            📲 Send to homeowner
           </button>
+          <div id="v2shareStatus" class="v2-share-status" aria-live="polite"></div>
+          <div id="v2shareBox" class="v2-share-box" hidden></div>
 
           <div class="v2-section">Present</div>
           <button type="button" class="btn btn-ghost" data-action="present"
@@ -1229,6 +1252,16 @@
           <div id="v2saveStatus" style="font-size:10px;color:var(--m,#888);margin-top:6px;text-align:center;"></div>
 
           <div class="v2-section">E-Signature</div>
+          <button id="v2signPhoneBtn" type="button" class="btn btn-ghost v2-sign-phone" data-action="sign-on-phone">
+            📱 Sign on this phone
+          </button>
+          <div id="v2kyNote" class="v2-ky-note" hidden>
+            Kentucky insurance job: sign on this phone or with the generated contract — both carry the
+            KRS 367.624 notices and the cancellation form. E-mail e-signature is off for this job.
+          </div>
+          <button id="v2kyContractBtn" type="button" class="btn btn-ghost v2-ky-contract" data-action="ky-contract" hidden>
+            📄 Generate contract (Kentucky notices)
+          </button>
           <button id="v2signBtn" type="button" class="btn btn-ghost" data-action="send-for-signature"
             style="width:100%;justify-content:center;padding:12px;margin-bottom:6px;border-color:var(--orange,#BD5728);color:var(--orange,#BD5728);">
             ✍️ Send for Signature
@@ -1376,7 +1409,10 @@
           break;
         case 'pres-sign':
           closePresentation();
-          sendForSignature();
+          // Kentucky insurance job: the e-mail e-signature body has no KRS
+          // 367.624 notices — sign on this phone (the deal page carries them).
+          if (_kySigningBlocked()) signOnThisPhone();
+          else sendForSignature();
           break;
         case 'load-preset':
           if (arg) loadPreset(arg);
@@ -1396,8 +1432,27 @@
             if (typeof window.showToast === 'function') window.showToast('Preview failed: ' + ((e && e.message) || 'unknown error') + ' — try again.', 'error');
           });
           break;
+        case 'send-to-homeowner':
         case 'create-deal-room':
-          createDealRoomFromEstimate();
+          // One flow (2026-10-03): save → deal → link → share sheet, and the
+          // builder stays open. "Create Deal Room" used to skip the save.
+          sendToHomeowner();
+          break;
+        case 'sign-on-phone':
+          signOnThisPhone();
+          break;
+        case 'ky-contract':
+          openKyContract();
+          break;
+        case 'share-native':
+          _shareNative(false);
+          break;
+        case 'share-mark':
+          // A Text / Email link: the anchor opens Messages / Mail itself.
+          _markShared(arg === 'email' ? 'email' : 'sms');
+          break;
+        case 'share-copy':
+          _copyShareLink();
           break;
         case 'save':
           save();
@@ -3425,6 +3480,7 @@
     renderScope();
     renderPhotos();
     _paintModeHint();
+    _applyKySigningGate();
     // F7: debounced autosave on every render. Cheap — just a JSON
     // write to localStorage. Firestore backup fires on a slower
     // cadence so network blips don't cost the rep their work.
@@ -4613,7 +4669,16 @@
   // appear in the existing Estimates list + customer records)
   // ═════════════════════════════════════════════════════════
 
+  // Resolves to the saved estimate id, or null when nothing was saved
+  // (Send to homeowner / Sign on this phone need the id; the Save button
+  // ignores it).
   async function save() {
+    _savedIdOut = null;
+    await _saveInner();
+    return _savedIdOut;
+  }
+  let _savedIdOut = null;
+  async function _saveInner() {
     const statusEl = document.getElementById('v2saveStatus');
     const btn = document.getElementById('v2saveBtn');
     const setStatus = (msg, color) => {
@@ -4685,6 +4750,7 @@
         // Expose the id so sendForSignature() can scope the BoldSign
         // envelope metadata back to this estimate.
         window._v2SavedEstimateId = savedId;
+        _savedIdOut = savedId;
         // F7: saved estimate → draft is obsolete.
         clearDraft();
         setStatus('✓ Saved — estimate #' + savedId.substring(0, 8) + '…', 'var(--green,#2ECC8A)');
@@ -4734,6 +4800,16 @@
         statusEl.style.color = color || 'var(--m,#8b8e96)';
       }
     };
+
+    // Kentucky insurance job (2026-10-03): this sends the retail quote as a
+    // "Roofing Contract" with NO KRS 367.624 notices or cancellation form.
+    // Same test the contract notices use (ky-insurance-law.js classifyLead);
+    // the button is hidden for these jobs, and this refuses if reached anyway.
+    if (_kySigningBlocked()) {
+      setStatus(KY_SIGN_MSG, 'var(--red,#ff6b6b)');
+      if (typeof window.showToast === 'function') window.showToast(KY_SIGN_MSG, 'warning');
+      return;
+    }
 
     if (!window.NBDIntegrations || typeof window.NBDIntegrations.sendForSignature !== 'function') {
       setStatus('Integrations client not ready. Refresh and retry.', 'var(--red,#ff6b6b)');
@@ -5167,54 +5243,328 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
     }
   }
 
-  // Hand the current estimate off to the Close Board as a shareable deal room.
-  // Wires the previously-orphaned CloseBoard.createFromEstimate (it had zero
-  // callers). Gated on a priced estimate (Per-SQ + Cash yields estimate.prices)
-  // and a named customer, since createFromEstimate needs the tier prices + lead.
-  function createDealRoomFromEstimate() {
-    const toast = (m, t) => { if (window.showToast) window.showToast(m, t); };
-    if (!window.CloseBoard || typeof window.CloseBoard.createFromEstimate !== 'function') {
-      toast('Close Board isn’t loaded yet — open it once, then retry.', 'error');
-      return;
-    }
-    const estimate = (typeof effectiveEstimate === 'function') ? effectiveEstimate() : null;
-    if (!estimate || !estimate.prices) {
-      toast('Price the Good/Better/Best tiers (Per-SQ · Cash) before creating a deal room.', 'error');
-      return;
-    }
-    const p = estimate.prices;
-    if (!_v2Tiers().some(t => Number(p[t]))) {
-      toast('Enter at least one tier price before creating a deal room.', 'error');
-      return;
-    }
+  // ═════════════════════════════════════════════════════════
+  // KENTUCKY SIGNING GATE (2026-10-03)
+  //
+  // "Send for Signature" (BoldSign) sends the retail quote titled "Roofing
+  // Contract" with none of the KRS 367.624 insurance-job notices or the
+  // cancellation form — those live only on the deal page and the generated
+  // contract. On a Kentucky insurance job (the SAME test the contract notices
+  // use: ky-insurance-law.js classifyLead — Kentucky address/ZIP, or an
+  // insurance job whose state can't be read; fail closed) the BoldSign button
+  // is hidden and refuses, and the rep is routed to "Sign on this phone" (the
+  // deal page) or the generated contract, which both carry the notices.
+  // ═════════════════════════════════════════════════════════
+  const KY_SIGN_MSG = 'Kentucky insurance job: e-mail e-signature does not include the KRS 367.624 notices. ' +
+    'Use "Sign on this phone" or "Generate contract" — both carry the notices and the cancellation form.';
+
+  // The linked lead record (the open customer, else the loaded lead list).
+  function _linkedLeadForSigning() {
+    const id = state.leadId || (state.customer && state.customer.leadId) || null;
+    if (!id) return null;
+    try {
+      const cur = window._leadDoc;
+      if (cur && cur.id === id) return cur;
+      return (Array.isArray(window._leads) && window._leads.find((l) => l && l.id === id)) || null;
+    } catch (_) { return null; }
+  }
+  // The lead as the builder currently has it: the rep's typed address and
+  // claim fields over the stored lead's.
+  function _kySigningLead() {
+    const lead = Object.assign({}, _linkedLeadForSigning() || {});
     const c = state.customer || {};
     const cl = state.claim || {};
+    if (c.address) lead.address = c.address;
+    if (cl.number) lead.claimNumber = cl.number;
+    if (cl.carrier) lead.insCarrier = cl.carrier;
+    return lead;
+  }
+  // classifyLead → { kyInsurance, insurance, … }, or null if the law module
+  // is missing (the callers fail closed on null).
+  function _kyClassification() {
+    const J = window.NBDJurisdiction;
+    if (!J || typeof J.classifyLead !== 'function') return null;
+    try { return J.classifyLead(_kySigningLead(), { jobMode: state.jobMode }); } catch (_) { return null; }
+  }
+  function _kySigningBlocked() {
+    const j = _kyClassification();
+    return !j || j.kyInsurance === true;
+  }
+  function _applyKySigningGate() {
+    if (typeof document === 'undefined' || !document.getElementById) return;
+    const blocked = _kySigningBlocked();
+    const sign = document.getElementById('v2signBtn');
+    if (sign && sign.classList) sign.classList.toggle('v2-ky-off', blocked);
+    const note = document.getElementById('v2kyNote');
+    if (note) note.hidden = !blocked;
+    const kc = document.getElementById('v2kyContractBtn');
+    if (kc) kc.hidden = !blocked;
+  }
+
+  // The generated contract (document-generator.js) — it prints the Kentucky
+  // notices + cancellation form for this job. Saves the estimate first so the
+  // contract reads the current numbers, then hands off to the same
+  // prerequisites + pre-flight chain the customer page's Contract chip uses.
+  async function openKyContract() {
+    const toast = (m, t) => { if (window.showToast) window.showToast(m, t); };
+    const leadId = state.leadId || (state.customer && state.customer.leadId) || null;
+    if (!leadId) { toast('Link this estimate to a customer first — the contract is generated from the customer file.', 'error'); return; }
+    if (!window._v2SavedEstimateId) {
+      const id = await save();
+      if (!id) { toast('Save the estimate first — the contract reads it.', 'error'); return; }
+    }
+    close();
+    const reg = window.__NBD_CALL_REGISTRY;
+    if (reg && typeof reg._generateDocWithPreflight === 'function') { reg._generateDocWithPreflight('contract', leadId); return; }
+    const run = () => {
+      if (window.DocPreflight && typeof window.DocPreflight.open === 'function') window.DocPreflight.open('contract', leadId);
+      else toast('Document generator is still loading — open the customer and tap Contract.', 'warning');
+    };
+    if (!window.DocPreflight && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
+      window.ScriptLoader.loadBundle('docgen').then(run, run);
+    } else run();
+  }
+
+  // ═════════════════════════════════════════════════════════
+  // SEND TO HOMEOWNER / SIGN ON THIS PHONE (2026-10-03)
+  //
+  // "Create Deal Room" never called save(): the estimate the homeowner was
+  // shown was never stored (no primary estimate, no job value on the lead),
+  // then the builder closed and jumped to the Close Board. Now one flow:
+  //   1. save the estimate (save() — _saveEstimate stamps primaryEstimateId +
+  //      jobValue on the lead; a second tap UPDATES the same estimate)
+  //   2. create the deal (or refresh this estimate's open deal)
+  //   3. mint the /deal/<token> accept link
+  //   4a. Send: the phone's share sheet (navigator.share), else Messages /
+  //       Mail (sms: / mailto:) — the rep's own phone sends; nothing is sent
+  //       from the server. The builder stays open.
+  //   4b. Sign on this phone: open the accept page in-app (signature pad +
+  //       the Kentucky notices); acceptance runs through submitDealAcceptance
+  //       like any homeowner link — no e-mail needed.
+  // ═════════════════════════════════════════════════════════
+
+  // Tier prices for the deal: the per-SQ map when there is one; a cash
+  // line-item estimate compares tiers like the presentation does; an
+  // insurance estimate offers only the package it was priced on.
+  function _dealPricesFor(estimate) {
+    if (!estimate) return null;
+    let src;
+    if (estimate.prices && Object.keys(estimate.prices).some((k) => Number(estimate.prices[k]) > 0)) src = estimate.prices;
+    else if (state.jobMode === 'insurance') src = { [state.tier]: estimate.total };
+    else src = triTierTotals(estimate);
+    const out = {};
+    _v2Tiers().forEach((t) => { const v = Number(src && src[t]); if (v > 0) out[t] = v; });
+    return Object.keys(out).length ? out : null;
+  }
+
+  function _statusSetter(id) {
+    return (msg, kind) => {
+      const el = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById(id) : null;
+      if (!el) return;
+      el.textContent = msg || '';
+      if (el.classList) el.classList.toggle('v2-status-err', kind === 'error');
+    };
+  }
+
+  let _dealBusy = false;
+  let _lastShare = null;
+
+  // Steps 1–3. Resolves { deal, url } or null (the reason is on `say`).
+  async function _prepareDealLink(say) {
+    const estimate = effectiveEstimate();
+    if (!estimate) { say('Add line items to the scope first.', 'error'); return null; }
+    const c = state.customer || {};
+    const name = (c.name || '').trim();
+    if (!name) { say('Add the customer name (Customer step) first.', 'error'); return null; }
+    const prices = _dealPricesFor(estimate);
+    if (!prices) { say('Price the estimate first — no package has a total yet.', 'error'); return null; }
+
+    // 1. Save. Re-sending the same estimate updates it instead of adding a
+    //    copy; the edit id is cleared afterwards so it can't leak into the
+    //    next builder session.
+    say('Saving the estimate…');
+    let pinned = null;
+    if (window._v2SavedEstimateId && !window._editingEstimateId) {
+      pinned = window._v2SavedEstimateId;
+      window._editingEstimateId = pinned;
+    }
+    let estimateId = null;
+    try { estimateId = await save(); }
+    finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
+    if (!estimateId) { say('The estimate did not save — nothing was sent.', 'error'); return null; }
+
+    // 2. The Close Board engine loads with its view; load it here if needed.
+    if ((!window.CloseBoard || typeof window.CloseBoard.getAcceptLink !== 'function')
+        && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
+      try { await window.ScriptLoader.loadBundle('closeboard'); } catch (_) { /* checked below */ }
+    }
+    const CB = window.CloseBoard;
+    if (!CB || typeof CB.createFromEstimate !== 'function' || typeof CB.getAcceptLink !== 'function') {
+      say('The deal page did not load — check signal and try again.', 'error');
+      return null;
+    }
+    const cl = state.claim || {};
+    const j = _kyClassification();
     const leadData = {
-      id: c.leadId || null,
-      name: (c.name || '').trim(),
+      id: c.leadId || state.leadId || null,
+      estimateId,
+      name,
       email: (c.email || '').trim(),
       phone: c.phone || '',
       address: c.address || '',
-      insuranceCarrier: cl.carrier || '',
+      insCarrier: cl.carrier || '',
       claimNumber: cl.number || '',
-      deductible: Number(cl.deductible) || 0
+      deductible: Number(cl.deductible) || 0,
+      // Insurance by the same test the builder's Kentucky gate uses, so the
+      // deal page prints the KY notices for exactly the jobs gated here.
+      insuranceClaim: !!(j && j.insurance) || state.jobMode === 'insurance'
     };
-    if (!leadData.name) {
-      toast('Add the customer name (Customer section) before creating a deal room.', 'error');
-      return;
+    let deal;
+    try { deal = CB.createFromEstimate({ id: estimateId, prices }, leadData); }
+    catch (e) {
+      console.error('[v2] deal create failed:', e);
+      say('Could not create the deal — try again.', 'error');
+      return null;
     }
+    if (!deal || !deal.id) { say('Could not create the deal — try again.', 'error'); return null; }
+
+    // 3. Upload the page + mint the single-use accept link.
+    say('Creating the homeowner link…');
+    let url = null;
+    try { url = await CB.getAcceptLink(deal); } catch (e) { url = null; }
+    if (!url) { say('Could not create the link — see the message and try again.', 'error'); return null; }
+    return { deal, url };
+  }
+
+  function _brandName() {
     try {
-      window.CloseBoard.createFromEstimate(estimate, leadData);
-    } catch (e) {
-      console.error('[v2] create deal room failed:', e);
-      toast('Could not create the deal room — see console.', 'error');
-      return;
+      const b = (typeof window._brand === 'function') ? window._brand() : null;
+      return (b && (b.legalName || b.name)) || '';
+    } catch (_) { return ''; }
+  }
+  function _shareMessage(name, url) {
+    const first = String(name || '').trim().split(/\s+/)[0] || 'there';
+    const brand = _brandName();
+    return 'Hi ' + first + '! Here\'s your roof estimate' + (brand ? ' from ' + brand : '') +
+      '. Compare the options and sign here: ' + url;
+  }
+  function _escAttr(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+  function _smsHref(phone, body) {
+    const digits = String(phone || '').replace(/[^\d+]/g, '');
+    return digits.replace(/\D/g, '').length >= 7 ? 'sms:' + digits + '?body=' + encodeURIComponent(body) : '';
+  }
+  function _mailHref(email, body) {
+    if (!email || email.indexOf('@') === -1) return '';
+    const brand = _brandName();
+    return 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('Your roof estimate' + (brand ? ' — ' + brand : '')) +
+      '&body=' + encodeURIComponent(body);
+  }
+  // The rep's fallback controls under the button: Share / Text / Email / Copy.
+  // Plain links, so each tap is a fresh user gesture (iOS won't open a share
+  // sheet or a sms: link after a long await).
+  function _renderShareBox() {
+    const box = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('v2shareBox') : null;
+    if (!box || !_lastShare) return;
+    const s = _lastShare;
+    const sms = _smsHref(s.phone, s.text);
+    const mail = _mailHref(s.email, s.text);
+    const canShare = typeof navigator !== 'undefined' && navigator && typeof navigator.share === 'function';
+    box.innerHTML =
+      (canShare ? '<button type="button" class="v2-share-act" data-action="share-native">📤 Share…</button>' : '') +
+      (sms ? '<a class="v2-share-act" data-action="share-mark" data-arg="sms" href="' + _escAttr(sms) + '">💬 Text</a>' : '') +
+      (mail ? '<a class="v2-share-act" data-action="share-mark" data-arg="email" href="' + _escAttr(mail) + '">✉️ Email</a>' : '') +
+      '<button type="button" class="v2-share-act" data-action="share-copy">📋 Copy link</button>' +
+      '<div class="v2-share-url">' + _escAttr(s.url) + '</div>';
+    box.hidden = false;
+  }
+  function _markShared(via) {
+    if (!_lastShare) return;
+    try { if (window.CloseBoard && typeof window.CloseBoard.markShared === 'function') window.CloseBoard.markShared(_lastShare.dealId, via); } catch (_) {}
+  }
+  // navigator.share, else Messages (phone on file), else Mail (email on file).
+  // `auto` = called right after the link was minted (not from a tap).
+  async function _shareNative(auto) {
+    const s = _lastShare;
+    if (!s) return 'none';
+    const nav = (typeof navigator !== 'undefined') ? navigator : null;
+    if (nav && typeof nav.share === 'function') {
+      try {
+        await nav.share({ title: 'Your roof estimate', text: s.text.replace(s.url, '').trim(), url: s.url });
+        _markShared('link');
+        if (window.showToast) window.showToast('✓ Shared', 'success');
+        return 'shared';
+      } catch (e) {
+        // AbortError = the rep closed the sheet. NotAllowedError = the tap's
+        // activation expired during the save — the Share button below works.
+        return (e && e.name === 'AbortError') ? 'cancelled' : 'blocked';
+      }
     }
-    toast('Deal room created in Close Board ✓', 'success');
-    if (typeof close === 'function') close(); // dismiss the estimate modal
-    // Navigate to the Close Board view (robust to goTo not being a window global).
-    if (typeof window.goTo === 'function') window.goTo('closeboard');
-    else { const nav = document.querySelector('[data-action="goTo"][data-target="closeboard"]'); if (nav) nav.click(); }
+    if (!auto) return 'none';
+    const href = _smsHref(s.phone, s.text) || _mailHref(s.email, s.text);
+    if (!href) return 'none';
+    _markShared(href.indexOf('sms:') === 0 ? 'sms' : 'email');
+    try { window.location.href = href; } catch (_) {}
+    return href.indexOf('sms:') === 0 ? 'sms' : 'email';
+  }
+  async function _copyShareLink() {
+    if (!_lastShare) return;
+    let okCopy = false;
+    try { await navigator.clipboard.writeText(_lastShare.url); okCopy = true; } catch (_) { okCopy = false; }
+    _markShared('link');
+    if (window.showToast) window.showToast(okCopy ? 'Link copied' : 'Link ready — copy it from below', okCopy ? 'success' : 'info');
+  }
+
+  async function sendToHomeowner() {
+    if (_dealBusy) return 'busy';
+    _dealBusy = true;
+    const btn = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('v2sendHoBtn') : null;
+    const say = _statusSetter('v2shareStatus');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await _prepareDealLink(say);
+      if (!r) return 'failed';
+      const c = state.customer || {};
+      _lastShare = {
+        dealId: r.deal.id, url: r.url,
+        name: c.name || '', phone: c.phone || '', email: (c.email || '').trim(),
+        text: _shareMessage(c.name, r.url)
+      };
+      _renderShareBox();
+      say('✓ Link ready — send it from your phone.', 'ok');
+      return await _shareNative(true);
+    } finally {
+      _dealBusy = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function signOnThisPhone() {
+    if (_dealBusy) return 'busy';
+    _dealBusy = true;
+    const say = _statusSetter('v2signStatus');
+    // Open the tab INSIDE the tap — Safari blocks window.open after an await.
+    let w = null;
+    try { w = (typeof window.open === 'function') ? window.open('', '_blank') : null; } catch (_) { w = null; }
+    try {
+      const r = await _prepareDealLink(say);
+      if (!r) { if (w) { try { w.close(); } catch (_) {} } return 'failed'; }
+      if (w && !w.closed) {
+        try { w.location.href = r.url; say('Signing page open — hand the phone to the homeowner.', 'ok'); return 'opened'; }
+        catch (_) { /* fall through to the link */ }
+      }
+      // Popup blocked: a plain link opens it on the next tap.
+      const box = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('v2shareBox') : null;
+      if (box) {
+        box.innerHTML = '<a class="v2-share-act" target="_blank" rel="noopener" href="' + _escAttr(r.url) + '">📱 Open the signing page</a>';
+        box.hidden = false;
+      }
+      say('Tap "Open the signing page", then hand the phone to the homeowner.', 'ok');
+      return 'link';
+    } finally {
+      _dealBusy = false;
+    }
   }
 
   window.EstimateV2UI = {
@@ -5232,6 +5582,9 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
     addScopeEntries,
     finalize,
     save,
+    // 2026-10-03: the one homeowner flow (V3's Finish primary calls it too).
+    sendToHomeowner,
+    signOnThisPhone,
     // Quick Measure import (tools.js applyQMData) pushes measurements into
     // an ALREADY-OPEN builder through here — open({importMeasurements})
     // only covers the not-yet-open case. Re-renders so the imported
@@ -5266,6 +5619,14 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
       lineRetail: lineRetail,
       shopRepairMinimum: shopRepairMinimum,
       shopLineItemRates: shopLineItemRates,
+      // Close flow (2026-10-03) — tests/close-flow-2026-10-03.test.js.
+      kySigningBlocked: _kySigningBlocked,
+      applyKySigningGate: _applyKySigningGate,
+      dealPricesFor: _dealPricesFor,
+      sendForSignature: sendForSignature,
+      sendToHomeowner: sendToHomeowner,
+      signOnThisPhone: signOnThisPhone,
+      lastShare: () => _lastShare,
     },
   };
 

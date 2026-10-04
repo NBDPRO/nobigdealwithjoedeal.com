@@ -92,7 +92,10 @@
       'js/storm-outlook.js?v=1'
     ],
     closeboard: [
-      'js/close-board.js?v=8'
+      // The shared financing APR band (public estimator + deal page, 2026-10-03)
+      // — close-board.js prints payments only from it.
+      '/assets/js/financing-band.js?v=1',
+      'js/close-board.js?v=9'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -108,7 +111,7 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=4',
-      'js/expenses.js?v=7',
+      'js/expenses.js?v=8',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=3',
@@ -175,7 +178,7 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=6',
+      'js/customer-documents.js?v=7',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -241,10 +244,10 @@
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
       'js/estimate-finalization.js?v=6',
-      'js/estimate-v2-ui.js?v=20',
+      'js/estimate-v2-ui.js?v=21',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
-      'js/estimate-v3-wizard.js?v=2',
+      'js/estimate-v3-wizard.js?v=3',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
@@ -304,8 +307,11 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=11',
-      'js/d2d-tracker-ui-2026b.js?v=6',
+      // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
+      'js/d2d-knock-lead-logic.js?v=1',
+      'js/lead-events.js?v=1',
+      'js/d2d-tracker-core-2026b.js?v=13',
+      'js/d2d-tracker-ui-2026b.js?v=7',
       'js/d2d-tracker-2026b.js?v=3'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
@@ -406,7 +412,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=10'
+      'js/call-center-view.js?v=11'
     ]
   };
 

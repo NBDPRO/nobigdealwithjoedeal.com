@@ -74,6 +74,10 @@
 .cc-deck-attach { margin-top: 10px; }
 .cc-deck-hint { margin-top: 10px; font-size: 13px; color: var(--blue, #4A9EFF); }
 .cc-deck-one { margin-top: 8px; width: 100%; justify-content: center; }
+/* Call / Text on every call card (2026-10-03): tel: / sms: links, 44px. */
+.cc-reach { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; text-decoration: none; }
+/* The card a ?call=<id> link opened (the urgent push, the email). */
+.cc-card.cc-focus { outline: 2px solid var(--orange, #e8720c); outline-offset: 2px; scroll-margin-top: 72px; }
 
 /* Matching a caller to a customer (2026-10-03): the one-tap "Looks like X /
    File on X" row (or "Not in CRM yet / Make lead") on call cards and both

@@ -89,11 +89,38 @@ console.log('\nE-SIGN — 3 of 25 doc types ship a default signer block; links e
   ok('demo.html states the real TTL', read('docs/pro/demo.html').includes('expire after 14 days'));
 }
 
-console.log('\nA2P — texting is on a shared number today; a business\'s own number needs carrier registration that is roadmap, not shipped');
+// 2026-10-04: the 09-13 fix said texts "send and receive on a shared NBD Pro
+// number today". Also false — Twilio is a trial account with no A2P
+// registration and delivered zero texts in 45 days. Texting is "coming soon".
+console.log('\nA2P — texting is coming soon: no A2P registration, so no texts deliver today (shared number included)');
 {
   ok('demo.html mockup no longer implies A2P is a one-time, already-available toggle',
      !/SMS delivery activates with one-time carrier \(A2P\) registration\.<\/div>/.test(read('docs/pro/demo.html')));
-  ok('demo.html states the shared-number-today / roadmap truth', /shared NBD Pro number.*roadmap and not yet available/.test(read('docs/pro/demo.html')));
+  ok('no public page claims texts send on a shared NBD Pro number today',
+     countAcross('shared NBD Pro number') === 0);
+  ok('demo.html says texting is coming soon', /Texting: coming soon/.test(read('docs/pro/demo.html')));
+  ok('index.html says texting is coming soon', /Texting: coming soon/.test(read('docs/pro/index.html')));
+}
+
+console.log('\nLEGAL (2026-10-04) — no AOB on the public Pro pages; the FAQ never manages claims or coordinates adjusters');
+{
+  const PUB = ['index', 'pricing', 'register', 'how-to', 'demo'].map((p) => read('docs/pro/' + p + '.html'));
+  ok('no "AOBs" in a public Pro page feature list', PUB.every((s) => !/\bAOBs\b/.test(s)));
+  ok('how-to no longer lists AOB as a document', !/AOB, contracts, supplement letters/.test(PUB[3]));
+  ok('the "claims management, adjuster coordination" FAQ answer is gone', countAcross('claims management, adjuster coordination') === 0);
+  const idx = PUB[0];
+  const faq = "line-item estimates that document the damage and the paperwork for the homeowner's own claim, which the homeowner files and decides";
+  ok('the reworded FAQ is in BOTH the visible answer and the JSON-LD mirror', idx.split(faq).length - 1 === 2);
+  ok('the document count still matches the 25 DOCUMENT_TYPES the generator ships',
+     (() => {
+       const g = read('docs/pro/js/document-generator.js');
+       const a = g.indexOf('DOCUMENT_TYPES: {');
+       const body = g.slice(a, g.indexOf('\n  },', a));
+       const n = (body.match(/^\s{4}[a-zA-Z_]+:\s+\{ name:/gm) || []).length;
+       return n === 25 && !/assignment_of_benefits:\s+\{/.test(body) && /25 branded document types/.test(idx);
+     })());
+  ok('the storm-alert mockup carries a visible SAMPLE label', /SEVERE HAIL ALERT <span[^>]*>SAMPLE<\/span>/.test(idx));
+  ok('pricing.html has no dashboard link for logged-out visitors', !/>Back to Dashboard</.test(PUB[1]));
 }
 
 console.log("\nDEMO ACCOUNT — login.html no longer calls seeded sample data 'real'");

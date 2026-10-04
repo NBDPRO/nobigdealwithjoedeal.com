@@ -91,6 +91,7 @@ console.log('\n2. buildSweepEmail');
 const mail = L.buildSweepEmail({ items, todayYmd: TODAY, slot: 'am' });
 ok('subject counts and flags urgent', mail.subject === '🚨 Calls: 4 things you said you\'d do');
 ok('names link to the customer, or to the deck for no-file calls', /customer\.html\?id=L4/.test(mail.html) && /dashboard\.html\?open=promises#calls/.test(mail.html));
+ok('a no-customer name opens THAT call\'s card in the Call Center (2026-10-03), not the whole deck', /href="https:\/\/nobigdealwithjoedeal\.com\/pro\/dashboard\.html\?call=e#calls" style="color:#111">\(513\) 555-0100</.test(mail.html));
 ok('a "work through all" button opens the deck', mail.html.includes('Work through all 4, one at a time') && mail.html.includes('href="' + L.DECK_URL + '"'));
 ok('each item has a Do it → link straight to that item in the deck', /dashboard\.html\?open=promises&amp;item=a#calls/.test(mail.html) && /open=promises&item=g#calls/.test(mail.text));
 ok('the breakdown says what kinds are open', /1 urgent · 1 due · 2 no customer on file/.test(mail.html));

@@ -63,14 +63,20 @@
     ['#v2search', 'scope items'], ['#v2cats', 'scope items'], ['#v2items', 'scope items'],
     ['#v2scopeList', 'scope items review'],
     ['.v2-total-card', 'review'],
-    ['.v2-export-btns', 'review'],
+    ['.v2-export-btns', 'review finish', 'more'],
     ['#v2claimCarrier', 'insurance'], ['#v2claimNumber', 'insurance'], ['#v2claimAdjuster', 'insurance'],
     ['#v2claimDeductible', 'insurance'], ['#v2claimAcv', 'insurance'], ['#v2claimDateOfLoss', 'insurance'],
     ['#v2claimPolicyNumber', 'insurance'],
     ['#v2photosHint', 'photos'], ['#v2photosGrid', 'photos'],
-    ['[data-action="create-deal-room"]', 'finish'], ['[data-action="present"]', 'finish'],
-    ['#v2saveBtn', 'finish'], ['#v2saveStatus', 'finish'],
-    ['#v2signBtn', 'finish'], ['#v2signStatus', 'finish'],
+    // Finish (2026-10-03): ONE primary — "Send to homeowner" (save → deal →
+    // link → share sheet). It used to be four competing buttons (Create Deal
+    // Room / Present / Save / Send for Signature) plus four exports; those now
+    // sit under "More" (third column = 'more').
+    ['[data-action="send-to-homeowner"]', 'finish'], ['#v2shareStatus', 'finish'], ['#v2shareBox', 'finish'],
+    ['[data-action="present"]', 'finish', 'more'],
+    ['#v2saveBtn', 'finish', 'more'], ['#v2saveStatus', 'finish', 'more'],
+    ['#v2signPhoneBtn', 'finish', 'more'], ['#v2kyNote', 'finish', 'more'], ['#v2kyContractBtn', 'finish', 'more'],
+    ['#v2signBtn', 'finish', 'more'], ['#v2signStatus', 'finish', 'more'],
   ];
 
   // Count fields get −/+ steppers; selects become tap chips.
@@ -94,6 +100,10 @@
     kind: 'roof',      // 'roof' | 'repair'
     step: 'job',
     inferKind: false,  // infer roof/repair once, after the open's state loads
+    // Skip the Customer step once, after the open's state loads, when it came
+    // prefilled from a lead (2026-10-03).
+    skipJob: false,
+    more: false,       // Finish's "More" section open
     built: false,
   };
 
@@ -126,11 +136,29 @@
     ui.modal = modal;
     if (ui.built) return true;
 
-    TAGS.forEach(([sel, stepList]) => {
+    TAGS.forEach(([sel, stepList, more]) => {
       const el = modal.querySelector(sel);
       const row = el && rowOf(el);
-      if (row) row.setAttribute('data-v3', stepList);
+      if (!row) return;
+      row.setAttribute('data-v3', stepList);
+      if (more === 'more') row.setAttribute('data-v3-more', '1');
     });
+
+    // Finish: the primary block leads the step, then the "More" toggle; the
+    // secondary rows (DOM order) show only while More is open.
+    const primary = modal.querySelector('[data-action="send-to-homeowner"]');
+    const primaryWrap = primary && primary.closest('.v2-section-content');
+    if (primaryWrap) {
+      primaryWrap.classList.add('v3-finish-primary');
+      const moreBtn = document.createElement('button');
+      moreBtn.type = 'button';
+      moreBtn.className = 'v3-more';
+      moreBtn.dataset.v3Act = 'more';
+      moreBtn.setAttribute('data-v3', 'finish');
+      moreBtn.setAttribute('aria-expanded', 'false');
+      moreBtn.textContent = 'More ▾';
+      primaryWrap.appendChild(moreBtn);
+    }
 
     // Presets lead the add-ons screen (in V2 they sit under Add-Ons).
     const presets = modal.querySelector('.v2-preset-btns');
@@ -255,6 +283,7 @@
     if (act === 'next') return go(+1);
     if (act === 'back') return go(-1);
     if (act === 'toggle') { ui.on = !ui.on; return paint(); }
+    if (act === 'more') { ui.more = !ui.more; return paint(); }
     if (act === 'kind') { ui.kind = t.dataset.v3Val === 'repair' ? 'repair' : 'roof'; ui.inferKind = false; return paint(); }
     if (act === 'photo-add') {
       const input = $('.v3-photo-input');
@@ -395,6 +424,13 @@
     const list = steps();
     if (list.indexOf(ui.step) === -1) ui.step = list[Math.min(list.length - 1, 0)];
     const idx = list.indexOf(ui.step);
+    m.classList.toggle('v3-step-finish', ui.step === 'finish');
+    m.classList.toggle('v3-more-open', !!ui.more);
+    const moreBtn = $('.v3-more');
+    if (moreBtn) {
+      moreBtn.setAttribute('aria-expanded', ui.more ? 'true' : 'false');
+      moreBtn.textContent = ui.more ? 'Less ▴' : 'More ▾';
+    }
 
     m.querySelectorAll('[data-v3]').forEach((el) => {
       const on = el.getAttribute('data-v3').split(' ').indexOf(ui.step) !== -1;
@@ -492,6 +528,44 @@
     else ui.kind = 'roof';
   }
 
+  // Started from a lead (2026-10-03): V2's open() calls onOpen BEFORE it
+  // prefills the customer, so the wizard always opened on the Customer step.
+  // On the first render after the open, a customer that arrived prefilled
+  // (linked lead + name + address) skips that step. The lead's job type, when
+  // it has one, sets Cash / Insurance through the real V2 toggle — that
+  // choice lives on the skipped step.
+  function customerPrefilled(st) {
+    const c = (st && st.customer) || {};
+    const leadId = st && (st.leadId || c.leadId);
+    return !!(leadId && String(c.name || '').trim() && String(c.address || '').trim());
+  }
+  function leadJobMode(st) {
+    const c = (st && st.customer) || {};
+    const id = st && (st.leadId || c.leadId);
+    if (!id) return '';
+    let lead = null;
+    try {
+      const cur = window._leadDoc;
+      lead = (cur && cur.id === id) ? cur
+        : ((Array.isArray(window._leads) && window._leads.find((l) => l && l.id === id)) || null);
+    } catch (_) { lead = null; }
+    const jt = String((lead && lead.jobType) || '').trim().toLowerCase();
+    return (jt === 'cash' || jt === 'insurance') ? jt : '';
+  }
+  function maybeSkipJob() {
+    const st = v2state();
+    if (ui.step !== 'job' || !customerPrefilled(st)) return false;
+    const mode = leadJobMode(st);
+    if (mode && st.jobMode !== mode) {
+      const b = document.getElementById(mode === 'cash' ? 'v2jobCash' : 'v2jobInsurance');
+      if (b) b.click(); // re-renders; skipJob is already cleared
+    }
+    const list = steps();
+    const i = list.indexOf('job');
+    if (i !== -1 && list[i + 1]) ui.step = list[i + 1];
+    return true;
+  }
+
   // ── hooks called by estimate-v2-ui.js ────────────────────────────────
   function onOpen(opts) {
     opts = opts || {};
@@ -499,6 +573,8 @@
     ui.on = true;
     ui.kind = 'roof';
     ui.inferKind = true;
+    ui.skipJob = !opts.reopened;
+    ui.more = false;
     ui.step = opts.reopened ? 'review' : 'job';
     closeSheet();
     paint(true);
@@ -506,7 +582,8 @@
 
   function onRender() {
     if (!ui.modal || !ui.built) return;
-    if (ui.inferKind) { ui.inferKind = false; inferKind(); paint(false); return; }
+    if (ui.skipJob) { ui.skipJob = false; if (maybeSkipJob()) ui.inferKind = true; }
+    if (ui.inferKind) { ui.inferKind = false; inferKind(); paint(true); return; }
     // Full repaint: a Cash/Insurance switch adds or drops the claim step,
     // so the counter and the Next label must follow every render.
     if (ui.on) paint(false);
@@ -594,6 +671,13 @@
       '#estV2Modal .v3-sheet-row { display:flex; align-items:center; gap:12px; width:100%; min-height:52px; background:transparent; border:0; border-top:1px solid var(--br,#2a2f35); color:var(--t,#e8eaf0); font:inherit; font-size:16px; text-align:left; cursor:pointer; }',
       '#estV2Modal .v3-sheet-row .n { width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:var(--s2,#181c22); font-size:13px; font-weight:800; }',
       '#estV2Modal .v3-sheet-row.cur { color:var(--orange,#BD5728); font-weight:800; }',
+      // Finish (2026-10-03): one primary, the rest under More.
+      '#estV2Modal .v3-more { display:none; }',
+      '#estV2Modal.v3-on .v3-more.v3-cur { display:flex; align-items:center; justify-content:center; width:100%; min-height:48px; margin:6px 0 10px; background:transparent; border:1px solid var(--br,#2a2f35); border-radius:10px; color:var(--t,#e8eaf0); font:inherit; font-size:15px; font-weight:700; cursor:pointer; }',
+      '#estV2Modal.v3-on.v3-step-finish .pane-review { display:flex !important; flex-direction:column; }',
+      '#estV2Modal.v3-on.v3-step-finish .pane-review > .v3-finish-primary { order:-1; }',
+      '#estV2Modal.v3-on.v3-step-finish:not(.v3-more-open) [data-v3-more] { display:none !important; }',
+      '#estV2Modal.v3-on [data-v3~="finish"] .v2-send-ho, #estV2Modal.v3-on .v2-send-ho { min-height:60px; font-size:17px; }',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -602,6 +686,6 @@
     onOpen,
     onRender,
     // Test seam.
-    _test: { steps, get ui() { return ui; }, inferKind, ROOF_STEPS, REPAIR_STEPS, TAGS },
+    _test: { steps, get ui() { return ui; }, inferKind, ROOF_STEPS, REPAIR_STEPS, TAGS, customerPrefilled, maybeSkipJob },
   };
 })();

@@ -47,7 +47,7 @@ function fakeDb(seed) {
   return {
     docs,
     doc: mk,
-    collection: (name) => Object.assign(query(name, [], null), { doc: (id) => mk(name + '/' + id) }),
+    collection: (name) => Object.assign(query(name, [], null), { doc: (id) => mk(name + '/' + id), add: async (v) => { const id = 'auto' + docs.size; docs.set(name + '/' + id, v); return { id }; } }),
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
   };
 }
@@ -212,7 +212,85 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('a 3-strike call whose last error was a rate limit is picked again; a real 3-strike failure is not',
     L.pickToTranscribe(pickList, { live: true, allowIds: [], maxCount: 5, secLeft: 1e6 }).map((c) => c.id).join() === 'victim');
 
-  console.log('\n9. "Looks like X" is stored when the notes are written (2026-10-03)');
+  console.log('\n9. "The CRM knows I called" — the lead itself is updated (2026-10-03)');
+  const tsOf = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : v);
+  stub(BUSINESS);
+  // BUSINESS: follow_up_date 2026-10-02; NOW is 2026-10-01 (ET); call 1 h ago.
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_lc'] }, [COLLECTION + '/cube_lc']: call('cube_lc', { leadId: 'L9' }), 'leads/L9': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  r = await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  let l9 = db.docs.get('leads/L9');
+  ok('a noted call sets lastContactedAt (the CALL time, a Timestamp) + lastContactType "call"', tsOf(l9.lastContactedAt) === NOW - 3600e3 && typeof l9.lastContactedAt.toMillis === 'function' && l9.lastContactType === 'call' && r.leadsUpdated === 1, JSON.stringify(l9));
+  ok('a lead with no follow-up gets the AI follow-up date, as YYYY-MM-DD (the kanban Due chip\'s format)', l9.followUp === '2026-10-02');
+  ok('the timeline entry carries when the call happened', db.docs.get('leads/L9/activity/cube-cube_lc').startedAtMs === NOW - 3600e3);
+  const runLead = async (lead, extra) => {
+    stub(BUSINESS);
+    const d2 = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_lx'] }, [COLLECTION + '/cube_lx']: call('cube_lx', Object.assign({ leadId: 'LX' }, extra)), 'leads/LX': Object.assign({ firstName: 'Pat', userId: OWNER }, lead) });
+    await runTranscribe({ db: d2, bucket, live: false, nowMs: NOW });
+    return d2.docs.get('leads/LX');
+  };
+  let lx = await runLead({ followUp: '2026-10-20' });
+  ok('a FUTURE follow-up Jo set is never overwritten', lx.followUp === '2026-10-20');
+  lx = await runLead({ followUp: '2026-10-01' });
+  ok('a follow-up due TODAY is still Jo\'s (not in the past) — kept', lx.followUp === '2026-10-01');
+  lx = await runLead({ followUp: '2026-09-20' });
+  ok('a follow-up already in the past is replaced by the call\'s', lx.followUp === '2026-10-02');
+  lx = await runLead({ followUp: 'call after the storm' });
+  ok('a follow-up Jo typed as words is left alone', lx.followUp === 'call after the storm');
+  lx = await runLead({ lastContactedAt: new Date(NOW - 600e3) });
+  ok('lastContactedAt is never rolled back by an older call', tsOf(lx.lastContactedAt) === NOW - 600e3 || (lx.lastContactedAt instanceof Date && lx.lastContactedAt.getTime() === NOW - 600e3), JSON.stringify(lx.lastContactedAt));
+  ok('…while the follow-up is still filled', lx.followUp === '2026-10-02');
+  lx = await runLead({}, { startedAtMs: NOW - 40 * 24 * 3600e3 });
+  ok('a backlog call (older than the 14-day task window) sets lastContactedAt but no follow-up', tsOf(lx.lastContactedAt) === NOW - 40 * 24 * 3600e3 && lx.followUp === undefined);
+  stub(() => Object.assign(BUSINESS(), { follow_up_date: null }));
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_nf'] }, [COLLECTION + '/cube_nf']: call('cube_nf', { leadId: 'LN' }), 'leads/LN': { firstName: 'Pat', userId: OWNER, followUp: '2026-09-01' } });
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('no AI follow-up date → the lead\'s follow-up is untouched', db.docs.get('leads/LN').followUp === '2026-09-01' && db.docs.get('leads/LN').lastContactType === 'call');
+  ok('leadContactPatch: nothing new → null', typeof L.leadContactPatch === 'function' && L.leadContactPatch({ lead: { lastContactedAt: NOW, followUp: '2026-12-01' }, call: { startedAtMs: NOW - 1 }, notes: { followUpDate: '2026-10-02' }, todayYmd: '2026-10-01', nowMs: NOW }) === null);
+
+  console.log('\n10. Urgent calls tell Jo NOW — one internal push per call (2026-10-03)');
+  const URGENT = () => Object.assign(BUSINESS(), { urgent: true, summary: 'Water coming through the ceiling right now.' });
+  const pushes = [];
+  const stubPush = (notesFn, pushFn) => {
+    calls = { transcribe: 0, notes: 0, prompts: [] };
+    setDeps({ transcribe: async () => ({ text: 'leak', durationSec: 30 }), notes: async () => notesFn(), push: pushFn || (async (...a) => { pushes.push(a); return { sent: 1 }; }) });
+  };
+  const DAYTIME = Date.parse('2026-10-01T16:00:00Z'); // 12 PM ET
+  const prevGate = process.env.CALL_WATCH_ENABLED;
+  process.env.CALL_WATCH_ENABLED = 'true';
+  stubPush(URGENT);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_ug'] }, [COLLECTION + '/cube_ug']: call('cube_ug', { leadId: 'LU', contactName: 'Maria Example' }), 'leads/LU': { firstName: 'Maria', userId: OWNER } });
+  r = await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('an urgent call pushes to Jo (the owner) at once', pushes.length === 1 && pushes[0][0] === OWNER && /Urgent call — Maria Example/.test(pushes[0][1]) && /ceiling/.test(pushes[0][2]) && r.urgentPushed === 1, JSON.stringify(pushes));
+  ok('the push opens that call\'s card in the Call Center', pushes[0][3].clickUrl === '/pro/dashboard.html?call=cube_ug#/calls' && pushes[0][3].type === 'call_watch' && pushes[0][3].notificationId === 'call-urgent-cube_ug');
+  ok('stamped on the call (so callWatch won\'t repeat it) + a bell entry', db.docs.get(COLLECTION + '/cube_ug').urgentPushedAtMs === DAYTIME
+    && [...db.docs.entries()].some(([k, v]) => k.startsWith('notifications/') && v.type === 'call_watch' && v.userId === OWNER && v.clickUrl === '/pro/dashboard.html?call=cube_ug#/calls'));
+  db.docs.set(COLLECTION + '/cube_ug', Object.assign({}, db.docs.get(COLLECTION + '/cube_ug'), { status: 'stored' }));
+  await db.doc(CONFIG).set({ transcribeOnly: ['cube_ug'] }, { merge: true });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME + 60e3 });
+  ok('re-transcribing the same call never pushes twice', pushes.length === 1);
+  stubPush(BUSINESS);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_nu'] }, [COLLECTION + '/cube_nu']: call('cube_nu', { leadId: 'LU' }), 'leads/LU': { firstName: 'Maria', userId: OWNER } });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('a call that is not urgent → no push', pushes.length === 1);
+  stubPush(URGENT);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_nt'] }, [COLLECTION + '/cube_nt']: call('cube_nt', { leadId: null }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: Date.parse('2026-10-02T07:00:00Z') }); // 3 AM ET
+  ok('at night → no push and no stamp (the 8 AM callWatch tells Jo instead)', pushes.length === 1 && !db.docs.get(COLLECTION + '/cube_nt').urgentPushedAtMs);
+  stubPush(URGENT, async () => { throw new Error('fcm down'); });
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_pf'] }, [COLLECTION + '/cube_pf']: call('cube_pf', { leadId: null }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('a failed push is not stamped (callWatch picks it up) and the call is still noted', !db.docs.get(COLLECTION + '/cube_pf').urgentPushedAtMs && db.docs.get(COLLECTION + '/cube_pf').status === 'noted');
+  process.env.CALL_WATCH_ENABLED = 'false';
+  stubPush(URGENT);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_go'] }, [COLLECTION + '/cube_go']: call('cube_go', { leadId: null }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('gated with callWatch: CALL_WATCH_ENABLED off → no push', pushes.length === 1);
+  if (prevGate === undefined) delete process.env.CALL_WATCH_ENABLED; else process.env.CALL_WATCH_ENABLED = prevGate;
+  const ccSrc = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'call-center.js'), 'utf8');
+  const pushFn = ccSrc.slice(ccSrc.indexOf('async function pushUrgent'), ccSrc.indexOf('/** One transcription pass'));
+  ok('the urgent push is internal only: no SMS, no email, no customer address', pushFn.length > 200 && !/sendSms|twilio|resend|email|messages\.create|lead\.phone/i.test(pushFn) && /d\.push\(OWNER,/.test(pushFn));
+
+  console.log('\n11. "Looks like X" is stored when the notes are written (2026-10-03)');
   stub(() => ({ call_type: 'customer', summary: 'Dana Rivers asked when the crew starts.', promises: [{ who: 'jo', text: 'Call Dana back', due: null }], follow_up_date: null, urgent: false }));
   const leadsSeed = {
     'leads/L9': { firstName: 'Dana', lastName: 'Rivers', address: '412 Oak Hill Dr, Mason OH', userId: OWNER, companyId: OWNER },
@@ -241,6 +319,92 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   db = fakeDb(Object.assign({ [CONFIG]: { transcribeOnly: ['cube_m'] }, [COLLECTION + '/cube_m']: call('cube_m', { leadId: 'L9' }) }, leadsSeed));
   await runTranscribe({ db, bucket, live: false, nowMs: NOW });
   ok('a call already on a customer gets no suggestion', db.docs.get(COLLECTION + '/cube_m').suggestedLeadId === undefined);
+
+  console.log('\n12. Caller facts: name / street / town / service (2026-10-03)');
+  ok('the notes prompt asks for the four optional facts, null unless said', /"caller_name"/.test(L.NOTES_SYSTEM) && /"street"/.test(L.NOTES_SYSTEM) && /"town"/.test(L.NOTES_SYSTEM) && /"service"/.test(L.NOTES_SYSTEM) && /never guess/i.test(L.NOTES_SYSTEM));
+  let cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: '  Dana   Rivers ', street: '412 Oak Hill Dr.', town: 'Florence', service: 'Gutters' })).callerFacts;
+  ok('clean facts kept (trimmed, service lower-cased)', cf.name === 'Dana Rivers' && cf.street === '412 Oak Hill Dr' && cf.town === 'Florence' && cf.service === 'gutters', JSON.stringify(cf));
+  const old = L.sanitizeNotes(BUSINESS());
+  ok('a reply WITHOUT the new fields (prompt drift) → every old field intact, facts all null',
+    old.callType === 'customer' && old.promises.length === 2 && old.followUpDate === '2026-10-02' && old.callerFacts.name === null && old.callerFacts.street === null && old.callerFacts.town === null && old.callerFacts.service === null);
+  cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: 'x'.repeat(61), street: { a: 1 }, town: 'Florence 41042', service: 'plumbing' })).callerFacts;
+  ok('over-long, non-string, digit-town and unknown-service values → null', cf.name === null && cf.street === null && cf.town === null && cf.service === null, JSON.stringify(cf));
+  cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: 'unknown', street: 'N/A', town: 'null', service: null })).callerFacts;
+  ok('"unknown" / "N/A" / "null" placeholders → null, not a name', cf.name === null && cf.street === null && cf.town === null);
+  cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: '<img src=x onerror=alert(1)>Dana "Rivers"', town: '41042' })).callerFacts;
+  ok('markup and quotes are stripped; a ZIP is a valid town', cf.name === 'Dana Rivers' && cf.town === '41042', JSON.stringify(cf));
+  cf = L.sanitizeNotes({ call_type: 'personal', summary: 'mom', caller_name: 'Mom Example', town: 'Florence' }).callerFacts;
+  ok('a personal call keeps no facts', cf.name === null && cf.town === null);
+  ok('the facts are a separate key: the text inbox (which picks fields) is unaffected', !('caller_name' in old) && typeof old.callerFacts === 'object');
+
+  // A new call: facts stored with it, and they drive the suggestion.
+  stub(() => Object.assign(BUSINESS(), { summary: 'Wants the gutters cleaned.', caller_name: 'Jamie Kowalski', town: 'Florence', service: 'gutters' }));
+  const factLeads = {
+    'leads/LF1': { firstName: 'Jamie', lastName: 'Kowalski', address: '412 Oak Hill Dr, Florence, KY 41042', source: 'Thumbtack', userId: OWNER, companyId: OWNER },
+    'leads/LF2': { firstName: 'Jamie', lastName: 'Kowalski', address: '88 Elm St, Mason, OH 45040', userId: OWNER, companyId: OWNER },
+  };
+  db = fakeDb(Object.assign({ [CONFIG]: { transcribeOnly: ['cube_fx'] }, [COLLECTION + '/cube_fx']: call('cube_fx', { leadId: null, contactName: '' }) }, factLeads));
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  const fxd = db.docs.get(COLLECTION + '/cube_fx');
+  ok('a new call stores its caller facts + factsV', fxd.callerFacts && fxd.callerFacts.name === 'Jamie Kowalski' && fxd.callerFacts.town === 'Florence' && fxd.factsV === L.FACTS_VERSION, JSON.stringify(fxd.callerFacts));
+  ok('…and "Looks like" names the lead in that town, why "name + Florence" — never filed', fxd.suggestedLeadId === 'LF1' && fxd.suggestedWhy === 'name + Florence' && fxd.leadId === null && !db.docs.has('leads/LF1/activity/cube-cube_fx'), JSON.stringify(fxd));
+
+  console.log('\n13. Older calls: bounded facts re-read from the STORED transcript');
+  const { FACTS_PER_RUN, FACTS_DAY_CAP } = M._test;
+  ok('the bounds are small: ≤ 25 a run, ≤ 200 a day', FACTS_PER_RUN > 0 && FACTS_PER_RUN <= 25 && FACTS_DAY_CAP >= FACTS_PER_RUN && FACTS_DAY_CAP <= 200);
+  const factsStub = (fn) => {
+    calls = { transcribe: 0, notes: 0, prompts: [], systems: [] };
+    setDeps({
+      transcribe: async () => { calls.transcribe++; return { text: 'x', durationSec: 1 }; },
+      notes: async ({ system, prompt }) => { calls.notes++; calls.prompts.push(prompt); calls.systems.push(system); return fn(prompt); },
+    });
+  };
+  const oldNoted = (i, extra) => call('cube_on' + i, Object.assign({ leadId: null, status: 'noted', summary: 'Wants a roof quote.', transcript: 'TRANSCRIPT-' + i + ' this is Jamie Kowalski up in Florence', startedAtMs: NOW - (i + 1) * 3600e3, suggestRulesV: 2 }, extra));
+  const seedOld = (n, cfgExtra, extra) => {
+    const s = Object.assign({ [CONFIG]: Object.assign({}, cfgExtra) }, factLeads);
+    for (let i = 0; i < n; i++) s[COLLECTION + '/cube_on' + i] = oldNoted(i, extra);
+    return fakeDb(s);
+  };
+  factsStub(() => ({ caller_name: 'Jamie Kowalski', street: null, town: 'Florence', service: 'roof' }));
+  db = seedOld(FACTS_PER_RUN + 5);
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('one run re-reads at most FACTS_PER_RUN calls', calls.notes === FACTS_PER_RUN && r.factsReextracted === FACTS_PER_RUN, JSON.stringify(r));
+  ok('…from the stored transcript with the facts-only prompt — no audio re-transcribed', calls.transcribe === 0 && /TRANSCRIPT-0/.test(calls.prompts[0]) && calls.systems[0] === L.FACTS_SYSTEM);
+  const on0 = db.docs.get(COLLECTION + '/cube_on0');
+  ok('…newest first; each is marked (factsV) and re-scored at once', on0.factsV === L.FACTS_VERSION && on0.callerFacts.town === 'Florence' && on0.suggestedLeadId === 'LF1' && on0.suggestedWhy === 'name + Florence' && on0.suggestRulesV === L.SUGGEST_RULES_VERSION);
+  ok('…the summary / promises are left alone', on0.summary === 'Wants a roof quote.');
+  ok('…the day count is kept on the config', db.docs.get(CONFIG).factsDay === '2026-10-01' && db.docs.get(CONFIG).factsUsed === FACTS_PER_RUN);
+  const leftOver = db.docs.get(COLLECTION + '/cube_on' + (FACTS_PER_RUN + 4));
+  ok('…the rest wait (still re-scored by the ordinary backfill, no facts yet)', !leftOver.factsV && leftOver.suggestRulesV === L.SUGGEST_RULES_VERSION);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  ok('the next run picks up only the rest — a marked call is never re-read', calls.notes === FACTS_PER_RUN + 5 && db.docs.get(CONFIG).factsUsed === FACTS_PER_RUN + 5);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 3600e3 });
+  ok('…and then nothing more (idempotent)', calls.notes === FACTS_PER_RUN + 5);
+  factsStub(() => ({ caller_name: 'Jamie Kowalski', town: 'Florence' }));
+  db = seedOld(10, { factsDay: '2026-10-01', factsUsed: FACTS_DAY_CAP - 3 });
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('the daily cap holds: 3 left today → 3 model calls', calls.notes === 3 && db.docs.get(CONFIG).factsUsed === FACTS_DAY_CAP);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  ok('…a spent day makes none', calls.notes === 3);
+  await runTranscribe({ db, bucket, live: true, nowMs: Date.parse('2026-10-02T16:00:00Z') });
+  ok('…a new day starts a fresh count', calls.notes === 3 + 7 && db.docs.get(CONFIG).factsDay === '2026-10-02' && db.docs.get(CONFIG).factsUsed === 7);
+  factsStub(() => { throw new Error('anthropic 529: overloaded'); });
+  db = seedOld(5);
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('a model failure stops the re-read for this run (one attempt counted)', calls.notes === 1 && r.factsFailed === 1 && db.docs.get(COLLECTION + '/cube_on0').factsAttempts === 1 && !db.docs.get(COLLECTION + '/cube_on0').factsV);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 3600e3 });
+  ok('a call that fails twice is left alone after that', db.docs.get(COLLECTION + '/cube_on0').factsAttempts === 2 && db.docs.get(COLLECTION + '/cube_on1').factsAttempts === 1, JSON.stringify([db.docs.get(COLLECTION + '/cube_on0').factsAttempts, db.docs.get(COLLECTION + '/cube_on1').factsAttempts]));
+  factsStub(() => ({ caller_name: 'Jamie Kowalski', town: 'Florence' }));
+  db = seedOld(3, {}, { transcript: null });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('a call with no stored transcript is marked done without a model call', calls.notes === 0 && db.docs.get(COLLECTION + '/cube_on0').factsV === L.FACTS_VERSION);
+  db = seedOld(3);
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('gate off (not live) → no re-read at all', calls.notes === 0 && !db.docs.get(COLLECTION + '/cube_on0').factsV);
+  db = seedOld(3, { paused: true });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('paused → no re-read', calls.notes === 0);
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
