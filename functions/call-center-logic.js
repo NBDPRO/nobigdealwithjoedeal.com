@@ -404,6 +404,30 @@ function buildCallActivity({ call, notes, ownerUid }) {
 }
 
 /**
+ * leads/{id}/activity/sms-{dayId} — a day of texts on the customer timeline.
+ * One shape for the text-notes pass (text-inbox.js) and for re-filing a day
+ * when its number joins a lead (call-center.js refileNumber).
+ * day: { id, contactName, messageCount }.
+ */
+function buildTextDayActivity({ day, notes, ownerUid }) {
+  return {
+    userId: ownerUid, companyId: ownerUid, type: 'text', source: 'sms-backup',
+    label: 'Texts' + (day.contactName ? ' · ' + day.contactName : '') + ' (' + (Number(day.messageCount) || 0) + ')',
+    summary: notes.summary, promises: notes.promises, followUpDate: notes.followUpDate,
+    phoneTextDayId: day.id,
+  };
+}
+
+/** leads/{id}/tasks/sms-{dayId} — the call task shape, sourced to the texts. */
+function buildTextDayTask({ day, notes, leadId, ownerUid, todayYmd, nowMs }) {
+  const task = buildFollowUpTask({ call: { id: day.id, contactName: day.contactName, startedAtMs: day.startedAtMs }, notes, leadId, ownerUid, todayYmd, nowMs });
+  if (!task) return null;
+  Object.assign(task, { source: 'sms-backup', phoneTextDayId: day.id, createdBy: 'Text Inbox (AI notes)' });
+  delete task.phoneCallId;
+  return task;
+}
+
+/**
  * leads/{id}/tasks/cube-{docId} — ONE follow-up task per call, only when
  * Jo promised something or a follow-up date came out of it. Shape matches
  * Thursday's (docs/pro/js/tasks.js readers).
@@ -525,6 +549,47 @@ function suggestLeadForCall(call, leads) {
   return hits.size === 1 ? [...hits.values()][0] : null;
 }
 
+/**
+ * Calls to and from a phone contact Jo tagged "NBD Customer" that sit on no
+ * lead (2026-10-03: 328 of 477 calls landed in the contact bucket). One row
+ * per number (or per contact name when there's no number), newest call
+ * first. A row MATCHES when exactly one lead carries the number, or — with
+ * no number match — exactly one lead's full name is in the contact name
+ * (suggestLeadForCall's first rule). Everything else is "not in the CRM yet".
+ * Pure: the callable previews this and writes only what Jo confirms.
+ * calls: phone_calls rows; leads: [{ id, firstName, lastName, address, phone…, deleted }].
+ */
+function taggedContactPlan({ calls, leads }) {
+  const live = (leads || []).filter((l) => l && l.id && l.deleted !== true);
+  const index = buildPhoneIndex(live);
+  const groups = new Map();
+  for (const c of calls || []) {
+    if (!c || c.leadId || c.status === 'personal' || !(Array.isArray(c.tags) && c.tags.includes('customer'))) continue;
+    const d = phoneDigits10(c.phoneDigits);
+    const key = d.length === 10 ? 'num:' + d : 'name:' + normMatch(c.contactName);
+    if (key === 'name:') continue;
+    if (!groups.has(key)) groups.set(key, { key, phoneDigits: d.length === 10 ? d : '', contactName: c.contactName || '', calls: [] });
+    groups.get(key).calls.push(c);
+  }
+  const name = (l) => ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer';
+  const matches = [], notInCrm = [];
+  for (const g of groups.values()) {
+    g.calls.sort((a, b) => (b.startedAtMs || 0) - (a.startedAtMs || 0));
+    const row = { key: g.key, phoneDigits: g.phoneDigits, contactName: g.contactName, callIds: g.calls.map((c) => c.id), latestAtMs: g.calls[0].startedAtMs || 0 };
+    const hits = g.phoneDigits && index.has(g.phoneDigits) ? index.get(g.phoneDigits) : [];
+    let lead = null, why = '';
+    if (hits.length === 1) { lead = hits[0]; why = 'their number is on the customer'; }
+    else if (!hits.length) {
+      const s = suggestLeadForCall({ contactName: g.contactName }, live);
+      if (s) { lead = live.find((l) => l.id === s.leadId); why = s.why; }
+    }
+    if (lead) matches.push(Object.assign(row, { leadId: lead.id, leadName: name(lead), why }));
+    else notInCrm.push(Object.assign(row, { ambiguous: hits.length > 1 }));
+  }
+  const newest = (a, b) => b.latestAtMs - a.latestAtMs;
+  return { matches: matches.sort(newest), notInCrm: notInCrm.sort(newest) };
+}
+
 /** "Snooze N days" lands on this date (America/New_York calendar days). */
 function addDaysYmd(ymd, days) {
   const [y, m, d] = String(ymd).split('-').map(Number);
@@ -602,6 +667,9 @@ module.exports = {
   buildSweepEmail,
   addDaysYmd,
   suggestLeadForCall,
+  taggedContactPlan,
+  buildTextDayActivity,
+  buildTextDayTask,
   SWEEP_EMAIL_SHOW,
   DECK_URL,
   GROQ_MAX_BYTES,
