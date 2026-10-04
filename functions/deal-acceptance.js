@@ -42,6 +42,8 @@ const { callableRateLimit, assertNotViewer } = require('./shared');
 const { fillLeadInstallDate } = require('./deal-install-date');
 const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
+const ESL = require('./estimate-send-logic');
+const EVA = require('./estimate-view-alert');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -157,7 +159,15 @@ exports.createDealAcceptToken = onCall(
     VALID_TIERS.forEach((t) => { tierPrices[t] = Number(tiers[t] && tiers[t].price) || 0; });
 
     const now = Date.now();
-    const ttlDays = 14;
+    // Link life is a company setting since 2026-10-03
+    // (companyProfile/{tenant}.salesLinks.dealLinkDays, 1–90, default still
+    // 14): stuck leads median 46 days in an estimate stage, so a 14-day link
+    // was usually dead by the time the homeowner came back to it.
+    let ttlDays = ESL.DEAL_LINK_DEFAULT_DAYS;
+    try {
+      const cp = await db.doc(`companyProfile/${deal.companyId || deal.userId}`).get();
+      ttlDays = ESL.dealLinkDays(cp.exists ? cp.data() : null);
+    } catch (e) { logger.warn('[createDealAcceptToken] link-days read failed', { msg: e && e.message }); }
     const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
     const token = mintToken();
 
@@ -175,8 +185,16 @@ exports.createDealAcceptToken = onCall(
       expiresAt,
     });
 
-    logger.info('[createDealAcceptToken] minted', { dealId });
-    return { token, acceptUrl: DEAL_URL_BASE + token, expiresAt: expiresAt.toMillis() };
+    logger.info('[createDealAcceptToken] minted', { dealId, ttlDays });
+    // integrations/sms.a2pApproved (default false): while the Twilio number is
+    // not A2P-registered a server text is accepted and never delivered, so the
+    // Close Board sends the link from Jo's own phone instead (close-board.js).
+    let a2pApproved = false;
+    try {
+      const s = await db.doc('integrations/sms').get();
+      a2pApproved = ESL.smsA2pApproved(s.exists ? s.data() : null);
+    } catch (_) { /* default: phone */ }
+    return { token, acceptUrl: DEAL_URL_BASE + token, expiresAt: expiresAt.toMillis(), ttlDays, a2pApproved };
   }
 );
 
@@ -448,23 +466,30 @@ module.exports = exports;
 // ═══════════════════════════════════════════════════════════════
 async function notifyDealView(db, tok, room) {
   const now = Date.now();
-  if (!DV.shouldNotifyView(room, now)) return;
   const ownerUid = tok.ownerUid || room.userId;
-  if (!ownerUid) return;
+  const leadId = tok.leadId || room.leadId || null;
   // Claim the heads-up first so two near-simultaneous opens send one.
   const ref = db.doc(`deal_rooms/${tok.dealId}`);
-  const claimed = await db.runTransaction(async (tx) => {
+  const claimed = (ownerUid && DV.shouldNotifyView(room, now)) ? await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists || !DV.shouldNotifyView(snap.data() || {}, now)) return null;
     tx.update(ref, { lastViewNotifiedAt: FieldValue.serverTimestamp() });
     return snap.data() || {};
-  });
+  }) : null;
+  const viewNumber = (Number((claimed || room).viewCount) || 0) + 1;
+  const msg = DV.viewMessage((claimed || room).customerName || room.customerName, viewNumber, (claimed || room).readSeconds);
+  // 2026-10-03: ONE "they opened it" alert per lead (estimate_viewed), shared
+  // with the portal, the Send-for-review link and remote signing, throttled
+  // to once per lead per 6h — and every real open stamps lead.lastViewedAt,
+  // claimed or not. A deal with no lead falls through to the bell below.
+  if (leadId) {
+    await EVA.recordEstimateView(db, { leadId, ownerUid, source: 'deal_room', title: msg.title, body: msg.body, alert: !!claimed });
+    return;
+  }
   if (!claimed) return;
-  const viewNumber = (Number(claimed.viewCount) || 0) + 1;
-  const msg = DV.viewMessage(claimed.customerName || room.customerName, viewNumber, claimed.readSeconds);
   await db.collection('notifications').add({
     userId: ownerUid,
-    type: 'deal_viewed',
+    type: 'estimate_viewed',
     leadId: tok.leadId || claimed.leadId || null,
     title: msg.title,
     message: msg.body,
@@ -474,7 +499,7 @@ async function notifyDealView(db, tok, room) {
   });
   try {
     const push = require('./push-functions');
-    await push.sendCustomNotification(ownerUid, msg.title, msg.body, { type: 'deal_viewed', leadId: String(tok.leadId || claimed.leadId || '') });
+    await push.sendCustomNotification(ownerUid, msg.title, msg.body, { type: 'estimate_viewed', leadId: '' });
   } catch (e) { logger.warn('[dealView] push failed', { msg: e && e.message }); }
 }
 

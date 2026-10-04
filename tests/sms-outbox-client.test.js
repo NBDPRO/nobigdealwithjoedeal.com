@@ -1547,6 +1547,11 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     // fails loudly here instead of silently testing a stale shape.
     const factory = new Function('window', 'getDealAcceptLink', '_dealBrand', 'DEAL_STATUS', 'updateDeal', 'loadDealRooms', 'render', 'getRooms', 'setRooms', '_findDeal',
       "const DEAL_SMS_SOURCE = 'deal-sms'; let currentTab = 'active';\n"
+      // 2026-10-03: sendViaSMS routes through Jo's phone unless the server
+      // number is A2P-approved (estimate-send-track test §D). This lift
+      // exercises the A2P-approved platform send, the one the outbox queues.
+      + "let _serverSmsOk = true; const _phonePending = Object.create(null);\n"
+      + "const _shareDealFromPhone = async () => { throw new Error('phone path not expected with A2P approved'); };\n"
       + 'let dealRooms = getRooms();\n'
       + applySrc.replace('loadDealRooms();', 'loadDealRooms(); dealRooms = getRooms();') + '\n' + regSrc + '\nasync ' + sendSrc
       + '\n_registerDealSmsReceipts();\nreturn { sendViaSMS, sync: () => { dealRooms = getRooms(); } };');

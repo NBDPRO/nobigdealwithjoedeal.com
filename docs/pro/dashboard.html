@@ -112,7 +112,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=101"></script>
+<script src="js/script-loader.js?v=105"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -131,20 +131,20 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=29"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=31"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=8">
+<link rel="stylesheet" href="css/dashboard-app.css?v=9">
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=1">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=1">
 <link rel="stylesheet" href="css/money-dashboard.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
-<link rel="stylesheet" href="css/expenses.css?v=2">
+<link rel="stylesheet" href="css/expenses.css?v=3">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
@@ -170,7 +170,7 @@
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=4" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
-<link rel="stylesheet" href="css/theme-bridge.css?v=2" id="nbd-theme-bridge-link">
+<link rel="stylesheet" href="css/theme-bridge.css?v=3" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
 <link rel="stylesheet" href="css/shape-styles.css?v=1">
 
@@ -204,6 +204,7 @@
 <link rel="stylesheet" href="css/google-calendar.css?v=7">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
+<link rel="stylesheet" href="css/estimate-send.css?v=1">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
@@ -867,6 +868,10 @@
            no open task, oldest first, one-tap rows. Hidden when empty. -->
       <section id="homeNoNextStep" class="nns-card mb-md" aria-label="Leads with no next step" hidden></section>
       <div id="homeGameCard" class="mb-md" hidden></div>
+      <!-- Estimate follow-ups (js/estimate-followups.js): estimates out 2 / 5 / 10+
+           days, opened or not, each with a pre-written follow-up sent from
+           Jo's phone. Hidden when nothing is due. Nothing sends by itself. -->
+      <div id="homeEstimateFollowups" class="mb-md" hidden></div>
       <style>
         .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
         .ha-strip[hidden]{display:none;}
@@ -4186,6 +4191,18 @@
           </div>
         </div>
 
+        <!-- Sales links (2026-10-03): companyProfile.salesLinks.dealLinkDays,
+             read by createDealAcceptToken / freshEstimateLink. -->
+        <div class="panel mb-md">
+          <div class="panel-hdr"><div><div class="panel-label">How long a Close Board accept link works before the homeowner needs a fresh one. Blank = 14 days. A ↻ Fresh link on any estimate follow-up makes a new one and turns the old one off.</div><div class="panel-title">Sales Links</div></div></div>
+          <div class="panel-body">
+            <div class="sf-row">
+              <div class="sf"><label>Deal link lasts (days, 1–90)</label>
+                <input type="number" id="cp_salesLinks_dealLinkDays" min="1" max="90" step="1" placeholder="14" inputmode="numeric"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Pillar 5: tenant microsite address + wizard re-run -->
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">Your free one-page site renders live from this profile. Share the link in your GBP, truck decals, and door hangers — its quote form feeds YOUR pipeline.</div><div class="panel-title">Your Website</div></div></div>
@@ -4969,7 +4986,7 @@
     </div>
   </template>
   <template id="tpl-view-d2d">
-    <div id="d2dMap" style="width:100%;height:55vh;height:55dvh;min-height:300px;position:relative;z-index:1;"></div>
+    <div id="d2dMap"></div>
     <div class="view-scroll" id="d2dContent" style="flex:1;overflow-y:auto;padding:0 16px 80px;">
       <div class="empty"><div class="empty-icon">🚪</div>Loading Door-to-Door Tracker...</div>
     </div>
@@ -6817,8 +6834,8 @@
      push token via getToken({vapidKey}), and persists it to
      users/{uid}/fcmTokens so the backend reminder/lead pushes have recipients.
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
-<script defer src="js/push-registration.js?v=3"></script>
-<script defer src="js/push-actions.js?v=2"></script>
+<script defer src="js/push-registration.js?v=6"></script>
+<script defer src="js/push-actions.js?v=3"></script>
 <script defer src="js/crm-portal-bridge.js?v=7"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
@@ -6864,6 +6881,11 @@
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
 <script defer src="js/home-attention.js?v=6"></script>
+<!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
+     cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
+     (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
+<script defer src="js/phone-share.js?v=1"></script>
+<script defer src="js/estimate-followups.js?v=1"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
 <script defer src="js/game-card.js?v=2"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
@@ -6949,7 +6971,7 @@
 <script defer src="js/review-engine.js?v=6"></script>
 <script defer src="js/review-deck.js?v=1"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=4"></script>
+<script defer src="js/company-profile.js?v=5"></script>
 <!-- LAZY: doc-generation cluster (nbd-logo-asset, document-generator,
      document-generator-templates, doc-preflight) loaded via ScriptLoader's
      `docgen` bundle. Was eager here (~420 KB on every load); PR 2b moved it
@@ -7005,7 +7027,7 @@
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>
 <script defer src="js/mobile-nav-customizer.js?v=6"></script>
-<script defer src="js/connection-status-btn.js?v=3"></script>
+<script defer src="js/connection-status-btn.js?v=4"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
      based on the user's claims. Lazy-loading would hide the nav entry
      until the admin explicitly typed #/admin, defeating the gate UX. -->
