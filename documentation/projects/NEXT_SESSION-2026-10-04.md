@@ -41,9 +41,11 @@ or held when this was written.
 2. Start the autopilot in the background:
    `bash /c/Users/jonat/nbd-ops/mq-overnight.sh`. Its HOLD list is
    `2135 2143 2149 2150 2146 2159`; its WAKE_ON list is `2132 2137 2141 2135`.
-3. Check whether Reel Studio has a PR. If not, relaunch it from
-   `C:\Users\jonat\nbd-ops\reel-studio-brief.md`. If a `feat/reel-studio`
-   worktree exists, continue it.
+3. **Reel Studio is PR #2171**, based on feat/social-studio (it stacks on
+   #2162). Once #2162 merges, retarget it with
+   `gh pr edit 2171 --base main`, catch it up with requeue.sh, then enqueue it.
+   Before posting anything real, Jo tries one real drone clip and checks
+   the privacy flags.
 4. Confirm the deploys landed with
    `gh run list --workflow firebase-deploy.yml`. Once #2155 is live, also
    check `/version.json`.
@@ -73,6 +75,9 @@ or held when this was written.
   - #2168: Maps solar uses the server; no key on phones. Stacks on #2164.
   - #2169: Voice Memo → Groq.
 - **#2167:** the FLOORS warning. It was jumped to the front.
+
+**Merged since this note was first written:** #2137, #2161, #2167. #2150 was
+caught up and enqueued.
 
 **Held, rebuild by hand after their bases merge.**
 - **#2135** (getting paid): stacked on #2132 and squash-stale. Rebuild by
