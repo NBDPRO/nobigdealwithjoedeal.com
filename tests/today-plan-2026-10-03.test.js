@@ -327,5 +327,31 @@ console.log('\nH. The real No-next-step module (#2126) lights up its row');
   ok('…and finds the real followup-deck setFollowUp + owed rule on the page', /NBDFollowUpDeck = \{ open, setFollowUp/.test(read('docs/pro/js/followup-deck.js')) && /isOwedInvoice: isOwedInvoice/.test(read('docs/pro/js/collected-revenue.js')));
 }
 
+console.log('\nI. Estimate follow-ups (#2136) — a Today section, one row per lead');
+{
+  const EF = require(path.join(ROOT, 'docs/pro/js/estimate-followups.js'));
+  const D = 86400000;
+  const leads = [
+    // out 3 days AND a follow-up date a week late → Estimates only, never also Stalled
+    { id: 'q1', firstName: 'Quote', lastName: 'Both', stage: 'estimate_sent_cash', phone: '5135553001', lastSharedAt: new Date(NOW - 3 * D), followUp: LAST_WEEK, _stageRole: 'active' },
+    // out 6 days, but has a task due → Promised wins, not listed twice
+    { id: 'q2', firstName: 'Quote', lastName: 'Task', stage: 'estimate_sent_cash', phone: '5135553002', lastSharedAt: new Date(NOW - 6 * D), _stageRole: 'active' },
+    // sent today → not due yet
+    { id: 'q3', firstName: 'Quote', lastName: 'Fresh', stage: 'estimate_sent_cash', phone: '5135553003', lastSharedAt: new Date(NOW - 3600000), _stageRole: 'active' },
+  ];
+  const est = EF.computeFollowups(leads, NOW);
+  ok('estimate-followups.js lists the two that are due (its own rule)', est.rows.map((r) => r.leadId).sort().join(',') === 'q1,q2', est.rows.map((r) => r.leadId).join(','));
+  const p = TP.buildTodayPlan({ now: NOW, leads, env: ENV, SW, estimateRows: est.rows, tasksByLead: { q2: [{ id: 't', text: 'call about the quote', dueDate: TODAY, done: false }] } });
+  ok('Today has an Estimates section with q1', p.estimates.length === 1 && p.estimates[0].leadId === 'q1' && p.estimates[0].daysOut === 3 && /Not opened/.test(p.estimates[0].openedLabel));
+  ok('q1 is NOT also a stalled lead (its follow-up date is a week late)', !p.stalled.some((r) => r.leadId === 'q1'));
+  ok('q2 (task due) is on Promised, not also on Estimates', p.promised.some((r) => r.leadId === 'q2') && !p.estimates.some((r) => r.leadId === 'q2'));
+  ok('the estimate rows count toward "N things today"', p.total === p.promised.length + p.estimates.length + p.stalled.length + p.calls.length + p.money.length + p.appointments.length);
+  const p2 = TP.buildTodayPlan({ now: NOW, leads, env: ENV, SW, estimateRows: est.rows, handled: new Set(['est:q1']) });
+  ok('a followed-up estimate row hides at once', !p2.estimates.some((r) => r.leadId === 'q1'));
+  const home = read('docs/pro/js/today-home.js');
+  ok('Today renders the module\'s own Follow up / Share now buttons (its delegate shares + stamps)', /data-ef-send="/.test(home) && /data-ef-share-now="/.test(home) && /NBDEstimateFollowups/.test(home) && /'nbd:estimate-followups'/.test(home));
+  ok('the old Home card is gone from the template (one list)', !/id="homeEstimateFollowups"/.test(read('docs/pro/dashboard.html')));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

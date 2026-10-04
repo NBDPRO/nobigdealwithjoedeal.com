@@ -874,10 +874,9 @@
            no open task, oldest first, one-tap rows. Hidden when empty. -->
       <section id="homeNoNextStep" class="nns-card mb-md" aria-label="Leads with no next step" hidden></section>
       <div id="homeGameCard" class="mb-md" hidden></div>
-      <!-- Estimate follow-ups (js/estimate-followups.js): estimates out 2 / 5 / 10+
-           days, opened or not, each with a pre-written follow-up sent from
-           Jo's phone. Hidden when nothing is due. Nothing sends by itself. -->
-      <div id="homeEstimateFollowups" class="mb-md" hidden></div>
+      <!-- Estimate follow-ups (js/estimate-followups.js) are a section of the
+           Today list above (#todayPlan, "Estimates to follow up") since
+           2026-10-03 — one list, one row per lead. Nothing sends by itself. -->
       <style>
         .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
         .ha-strip[hidden]{display:none;}
@@ -6894,7 +6893,7 @@
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
 <script defer src="js/phone-share.js?v=1"></script>
-<script defer src="js/estimate-followups.js?v=1"></script>
+<script defer src="js/estimate-followups.js?v=2"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
 <script defer src="js/game-card.js?v=2"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>

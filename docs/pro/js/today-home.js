@@ -112,6 +112,12 @@
       try { var r = w.NBDNoNextStep.compute(); nns = isViewer() ? null : { count: ((r && r.people) || []).length }; } catch (_) { nns = null; }
     }
     var leads = w._leads || [];
+    // Estimates to follow up (#2136): its own pure rule over the same leads.
+    var EF = w.NBDEstimateFollowups;
+    var estRows = [];
+    if (EF && typeof EF.computeFollowups === 'function') {
+      try { estRows = EF.computeFollowups(leads, now).rows || []; } catch (_) { estRows = []; }
+    }
     return P.buildTodayPlan({
       now: now, leads: leads, tasksByLead: w._taskCache || {},
       appointments: appts.rows, jobs: jobsOf(leads),
@@ -121,6 +127,7 @@
       isDepositDraft: IP && typeof IP.isDepositDraft === 'function' ? IP.isDepositDraft : null,
       stripeNeedsReview: (HA && HA.lastCounts && HA.lastCounts.stripe) || 0,
       noNextStep: nns,
+      estimateRows: estRows,
       isSnoozed: w.LeadSnooze && typeof w.LeadSnooze.isSnoozed === 'function' ? w.LeadSnooze.isSnoozed : null,
       handled: handled,
       env: { stageRole: w.stageRole },
@@ -169,6 +176,20 @@
       var acts = (ro ? '' : btn('done', r.key, '✓ Done', 'tp-go') + btn('tomorrow', r.key, 'Tomorrow')) + link(custUrl(r.leadId), 'Open');
       return row(r.key, esc(r.name), when + (bits.length ? ' · ' + bits.slice(0, 3).join(' · ') : ''), acts);
     });
+    // Estimate follow-ups: the buttons are estimate-followups.js's own
+    // (data-ef-send / data-ef-share-now) — its click delegate opens the share
+    // sheet with the pre-written message and stamps the lead only once sent.
+    var EF = w.NBDEstimateFollowups;
+    var e = (p.estimates || []).map(function (r) {
+      var pend = EF && typeof EF.isPending === 'function' && EF.isPending(r.leadId);
+      var go = ro ? '' : (pend
+        ? '<button type="button" class="tp-btn tp-go" data-ef-share-now="' + esc(r.leadId) + '">📤 Share now</button>'
+        : '<button type="button" class="tp-btn tp-go" data-ef-send="' + esc(r.leadId) + '">📤 Follow up</button>');
+      var sub = 'Sent ' + esc(r.daysOut) + 'd ago · <span class="' + (r.opened ? 'tp-dim' : 'tp-hot') + '">' + esc(r.openedLabel) + '</span>';
+      return '<div class="tp-row ef-row" data-tp-row="' + esc(r.key) + '" data-lead-id="' + esc(r.leadId) + '">' +
+        '<div class="tp-main"><div class="tp-name">' + esc(r.name) + '</div><div class="tp-sub">' + sub + '</div></div>' +
+        '<div class="tp-acts">' + go + link(custUrl(r.leadId), 'Open') + '</div></div>';
+    });
     var m = p.money.map(function (r) {
       if (r.kind === 'stripe') return row(r.key, '💳 ' + r.count + ' Stripe payment' + (r.count === 1 ? '' : 's') + ' need' + (r.count === 1 ? 's' : '') + ' a customer', '', btn('goto', 'money', 'Assign', 'tp-go'));
       if (r.kind === 'deposit') return row(r.key, esc(r.name), 'Draft deposit ' + esc(P.fmtCents(r.cents)) + ' · not sent', link(r.leadId ? custUrl(r.leadId) : '', 'Review', 'tp-go') + (r.leadId ? '' : btn('goto', 'money', 'Review', 'tp-go')));
@@ -185,7 +206,7 @@
     }
     var deck = (w.NBDFollowUpDeck && w.NBDTriageDeck && p.stalled.length > 1) ? '<button type="button" class="tp-more tp-hd-btn" data-tp-act="fudeck" data-tp-key="stalled">One at a time</button>' : '';
     var storm = P.stormLine(stormCache(), Date.now());
-    var body = section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) +
+    var body = section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
       section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck);
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
@@ -291,7 +312,7 @@
     act(a, key).catch(function (e) { console.warn('[today] action failed', e); });
   });
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded'].forEach(function (n) { w.addEventListener(n, schedule); });
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });

@@ -19,6 +19,9 @@
  *                    Center's own rule, passed in — never re-implemented);
  *   3. promised      CRM tasks due today or overdue MERGED with the calls
  *                    where Jo promised something, ONE row per lead;
+ *   3b. estimates    estimates out 2 / 5 / 10+ days (estimate-followups.js
+ *                    computeFollowups, #2136, passed in), one row per lead,
+ *                    one-tap Follow up through the phone share sheet;
  *   4. money         invoices still owed by the shared owed rule
  *                    (collected-revenue.js isOwedInvoice, #2112), Stripe
  *                    payments with no customer, and draft deposits when
@@ -367,6 +370,7 @@
    *   isOwedInvoice, owedDollarsOf   the shared owed rule (window.NBDRevenue)
    *   isDepositDraft    invoice-pipeline.js (#2131) — draft deposits only when present
    *   stripeNeedsReview count of Stripe payments with no customer
+   *   estimateRows      estimate-followups.js computeFollowups(...).rows (#2136)
    *   noNextStep        { count } from no-next-step.js (#2126), or null
    *   isSnoozed(lead)   LeadSnooze.isSnoozed — a snoozed lead's tasks wait
    *   handled           Set of row keys acted on this session (optimistic)
@@ -466,6 +470,23 @@
     calls = calls.filter(function (r) { return keep(r.key); });
     calls.forEach(function (r) { taken.add(r.key); if (r.leadId) taken.add('lead:' + r.leadId); });
 
+    // 3b. Estimates to follow up (#2136, estimate-followups.js
+    // computeFollowups — passed in, never re-implemented): one row per lead,
+    // skipped when the lead is already on Calls owed / Promised; a lead here
+    // is not ALSO on Stalled for its follow-up date.
+    var estimates = [];
+    (o.estimateRows || []).forEach(function (r) {
+      if (!r || !r.leadId) return;
+      var id = String(r.leadId);
+      if (!byId.has(id) || taken.has('lead:' + id) || !keep('est:' + id)) return;
+      if (estimates.some(function (e) { return e.leadId === id; })) return;
+      estimates.push({
+        key: 'est:' + id, leadId: id, name: r.name || leadName(byId.get(id)), daysOut: r.daysOut, bucket: r.bucket,
+        opened: !!r.opened, openedLabel: r.openedLabel || '', linkLive: !!r.linkLive,
+      });
+    });
+    estimates.forEach(function (r) { taken.add('lead:' + r.leadId); });
+
     // 4. Money: owed invoices (the shared owed rule), Stripe to assign, draft deposits.
     var money = [];
     if (typeof o.isOwedInvoice === 'function' && typeof o.owedDollarsOf === 'function') {
@@ -513,8 +534,8 @@
     }).sort(function (a, b) { return b.daysLate - a.daysLate || a.name.localeCompare(b.name); });
 
     var nns = o.noNextStep && o.noNextStep.count > 0 ? { count: o.noNextStep.count } : null;
-    var total = appointments.length + calls.length + promised.length + money.length + stalled.length;
-    return { appointments: appointments, calls: calls, promised: promised, money: money, stalled: stalled, noNextStep: nns, total: total };
+    var total = appointments.length + calls.length + promised.length + estimates.length + money.length + stalled.length;
+    return { appointments: appointments, calls: calls, promised: promised, estimates: estimates, money: money, stalled: stalled, noNextStep: nns, total: total };
   }
 
   /** "N things today" — the header line. */

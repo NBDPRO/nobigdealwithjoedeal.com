@@ -105,7 +105,8 @@ test.describe('phone: ONE Home = Today @shard2', () => {
     const done = rowWith('ZZToday Task' + s).locator('[data-tp-act="done"]');
     await expect(done).toBeVisible();
     const box = await done.boundingBox();
-    expect(box.height, 'Done is thumb-sized').toBeGreaterThanOrEqual(44);
+    // Sub-pixel layout can report 43.99997 for a 44px min-height.
+    expect(Math.round(box.height), 'Done is thumb-sized').toBeGreaterThanOrEqual(44);
     await done.tap();
     await expect(rowWith('ZZToday Task' + s), 'one tap removes the row').toHaveCount(0, { timeout: 5_000 });
     await expect.poll(async () => ((await db.doc('leads/' + leadT + '/tasks/tt' + s).get()).data() || {}).done, { message: 'the task is ticked in Firestore' }).toBe(true);
