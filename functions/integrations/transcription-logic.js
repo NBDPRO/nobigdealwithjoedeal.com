@@ -14,37 +14,27 @@
  * (`NBD_VOICE_TRANSCRIPTION_PROVIDER`, default 'groq'). This module holds
  * the choice so the callable stays thin and the choice stays testable.
  *
- * Failure order matters: Groq's free tier can 429 mid-session, so when both
- * keys are set the paid provider is the FALLBACK, not dead code. A Deepgram
- * key alone keeps working exactly as before; a Groq key alone is enough.
+ * 2026-10-04: the Deepgram fallback was removed (VENDOR-COST-LOCKIN Lane C).
+ * Its key was the deploy's `__unset__` stub, so the fallback never ran in
+ * prod — Groq was the only transcriber dictate could reach.
  */
 
 'use strict';
 
 /**
- * Decide which transcriber the dictate callable should try first, and what
- * to fall back to if that one throws.
+ * Decide which transcriber the dictate callable should use. The
+ * {primary, fallback} shape is kept so a second provider can slot back in
+ * without touching the callable's retry loop.
  *
  * @param {object} o
- * @param {string} o.preferred   PROVIDERS.voiceTranscription ('groq' | 'deepgram' | anything)
  * @param {boolean} o.hasGroq    hasSecret('GROQ_API_KEY')
- * @param {boolean} o.hasDeepgram hasSecret('DEEPGRAM_API_KEY')
  * @returns {{primary: string, fallback: (string|null)} | null}
  *   null when nothing is configured — the caller turns that into
- *   failed-precondition, exactly as the Deepgram-only code did.
+ *   failed-precondition.
  */
-function pickDictationProvider({ preferred, hasGroq, hasDeepgram } = {}) {
-  const pref = String(preferred || 'groq').toLowerCase();
-  const groq = !!hasGroq;
-  const deepgram = !!hasDeepgram;
-  if (!groq && !deepgram) return null;
-  if (groq && !deepgram) return { primary: 'groq', fallback: null };
-  if (deepgram && !groq) return { primary: 'deepgram', fallback: null };
-  // Both configured: the env switch picks the primary; the other is the
-  // fallback. An unknown value falls to Groq (the free one) — never to the
-  // metered provider by accident.
-  if (pref === 'deepgram') return { primary: 'deepgram', fallback: 'groq' };
-  return { primary: 'groq', fallback: 'deepgram' };
+function pickDictationProvider({ hasGroq } = {}) {
+  if (!hasGroq) return null;
+  return { primary: 'groq', fallback: null };
 }
 
 // Groq detects the container from the multipart filename's extension, not
@@ -81,20 +71,8 @@ function normalizeGroqTranscription(data) {
   };
 }
 
-/** Normalize a Deepgram /v1/listen response — unchanged from the original inline code. */
-function normalizeDeepgramTranscription(data) {
-  const alt = (data && data.results && data.results.channels && data.results.channels[0]
-    && data.results.channels[0].alternatives && data.results.channels[0].alternatives[0]) || {};
-  return {
-    transcript: (alt.transcript || '').trim(),
-    confidence: typeof alt.confidence === 'number' ? alt.confidence : null,
-    durationSec: null,
-  };
-}
-
 module.exports = {
   pickDictationProvider,
   groqExtensionForMime,
   normalizeGroqTranscription,
-  normalizeDeepgramTranscription,
 };
