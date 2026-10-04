@@ -295,6 +295,13 @@
       // existing dedupe trap this file documents elsewhere: ScriptLoader
       // dedupes on resolved path, so an eager tag for either file would make
       // loadBundle('photos') a no-op for it and nothing would load lazily.
+      'js/photo-queue-store.js?v=2',
+      'js/photo-queue-recovery.js?v=2',
+      // KY claim-wording filter (2026-10-04) — BEFORE the two report
+      // builders, which run every caption / report string through it.
+      'js/claim-wording-filter.js?v=1',
+      'js/inspection-report-engine.js?v=7',
+      'js/photo-report.js?v=5'
       'js/photo-queue-store.js?v=3',
       'js/photo-queue-recovery.js?v=3',
       'js/inspection-report-engine.js?v=6',
