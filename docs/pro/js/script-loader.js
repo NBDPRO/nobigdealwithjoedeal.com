@@ -95,7 +95,7 @@
       // The shared financing APR band (public estimator + deal page, 2026-10-03)
       // — close-board.js prints payments only from it.
       '/assets/js/financing-band.js?v=1',
-      'js/close-board.js?v=9'
+      'js/close-board.js?v=10'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -172,7 +172,7 @@
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
       'js/document-generator.js?v=14',
-      'js/document-generator-templates.js?v=11',
+      'js/document-generator-templates.js?v=12',
       'js/doc-preflight.js?v=3',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
@@ -230,7 +230,7 @@
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=9',
+      'js/estimate-builder-v2.js?v=10',
       'js/estimate-catalog-xactimate.js?v=3',
       'js/estimate-logic-engine.js?v=7',
       // Classic review step's layout (reskin 2026-10-03), before the script.
@@ -247,7 +247,7 @@
       'js/estimate-v2-ui.js?v=21',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
-      'js/estimate-v3-wizard.js?v=3',
+      'js/estimate-v3-wizard.js?v=4',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
@@ -310,7 +310,7 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=13',
+      'js/d2d-tracker-core-2026b.js?v=14',
       'js/d2d-tracker-ui-2026b.js?v=7',
       'js/d2d-tracker-2026b.js?v=3'
     ],

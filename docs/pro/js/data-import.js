@@ -323,6 +323,11 @@
     // Preview = first 5 rows.
     const preview = dataRows.slice(0, 5);
 
+    // How many of these rows will actually be imported (2026-10-04): shown
+    // BEFORE the rep confirms. Imports run on a one-time onboarding allowance
+    // (functions/lead-cap-logic.js), not on the plan's monthly lead cap.
+    const capNote = importCapNote(dataRows.length);
+
     body.innerHTML = `
       <div class="dix-dflex-aicenter-jcspacebet">
         <div>
@@ -358,9 +363,11 @@
           + ${dataRows.length - preview.length} more rows not shown
         </div>` : ''}
 
+        <div id="nbd-import-capnote" class="dix-fs11px-cm" data-import-will="${capNote.willImport}">${escapeHtml(capNote.text)}</div>
+
       <div class="dix-dflex-jcflexend-gap8px">
         <button id="nbd-import-cancel" class="dim-bgtranspar-cm-bd1pxsolid-2">Cancel</button>
-        <button id="nbd-import-go" class="dim-bglineargr-cfff-bdnone">Import ${dataRows.length} row${dataRows.length === 1 ? '' : 's'}</button>
+        <button id="nbd-import-go" class="dim-bglineargr-cfff-bdnone"${capNote.willImport === 0 ? ' disabled' : ''}>Import ${capNote.willImport} lead${capNote.willImport === 1 ? '' : 's'}</button>
       </div>`;
 
     body.querySelector('#nbd-import-back').addEventListener('click', renderUploadStep);
@@ -374,6 +381,29 @@
     body.querySelector('#nbd-import-go').addEventListener('click', () => {
       runImport(headers, mapping, dataRows);
     });
+  }
+
+  // The pre-confirm count: { willImport, text }. Duplicates are found during
+  // the run, so this is the most that will be imported.
+  function importCapNote(rows) {
+    const B = window.NBDBilling;
+    const cap = (B && typeof B.importCapacity === 'function') ? B.importCapacity() : null;
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    if (!cap || cap.unlimited) {
+      return { willImport: rows, text: 'Imports don’t count against your monthly lead limit. Rows that match a lead you already have are skipped.' };
+    }
+    if (cap.readOnly) {
+      return { willImport: 0, text: 'Your plan ended, so your account is read-only right now — nothing can be imported.' };
+    }
+    const will = Math.min(rows, cap.remaining);
+    let text = 'Imports don’t count against your monthly lead limit: they use a one-time onboarding allowance of '
+      + fmt(1000) + ' leads (' + fmt(cap.allowanceLeft) + ' left).';
+    if (will < rows) {
+      text += ' Only the first ' + fmt(will) + ' of these ' + fmt(rows) + ' rows will be imported'
+        + (cap.monthlyLeft > 0 ? ' (the rest of your allowance plus ' + fmt(cap.monthlyLeft) + ' left on this month’s plan).' : '.')
+        + ' Upgrade your plan to import more.';
+    }
+    return { willImport: will, text: text };
   }
 
   // ─── Bulk import ────────────────────────────────────────────────
@@ -430,8 +460,12 @@
     // canonical upgrade modal (billing-gate.js owns its CSP-safe delegate,
     // loaded earlier on both dashboard pages) and aborts. Fails open before
     // the plan loads and for owners, per the 2026-07-16 product decision.
-    if (window.NBDBilling && typeof window.NBDBilling.enforceGate === 'function'
-        && !window.NBDBilling.enforceGate('leads', 'leads')) {
+    // Since 2026-10-04 imports do NOT stop at the monthly cap: they run on the
+    // one-time onboarding allowance first (importCapacity below). Only a
+    // read-only grace stops the whole import here.
+    if (window.NBDBilling && typeof window.NBDBilling.importCapacity === 'function'
+        && window.NBDBilling.importCapacity().readOnly) {
+      _toast('Your plan ended — your account is read-only, so nothing can be imported right now.', 'error');
       closeImport();
       return;
     }
@@ -455,11 +489,10 @@
     // reached". Key the cap on the same owner claim the gate uses.
     const _isOwnerAcct = !!(window._userClaims && window._userClaims.owner === true);
     let remaining = Infinity;
-    if (!_isOwnerAcct && window.NBDBilling && typeof window.NBDBilling.getPlan === 'function') {
-      const p = window.NBDBilling.getPlan();
-      if (p.loaded && p.limits && p.limits.leads !== Infinity) {
-        remaining = Math.max(0, p.limits.leads - (p.usage.leads || 0));
-      }
+    // One-time import allowance + what is left of the month (2026-10-04) —
+    // the same number the mapping step showed before the rep confirmed.
+    if (!_isOwnerAcct && window.NBDBilling && typeof window.NBDBilling.importCapacity === 'function') {
+      remaining = window.NBDBilling.importCapacity().remaining;
     }
     // LITE (trial-expired free): mirror _saveLead's blunt total-leads stop.
     // Owner-exempt for the same reason as the plan cap above.
@@ -515,6 +548,9 @@
             updatedAt: window.serverTimestamp(),
             stageStartedAt: window.serverTimestamp(),
             importedAt: window.serverTimestamp(),
+            // Server lead meter: imports use the one-time onboarding
+            // allowance (functions/lead-cap.js; firestore.rules leadMeterOk).
+            meter: 'import',
             deleted: false,
           }
         );
@@ -554,12 +590,9 @@
         // this same import run catch dupes from earlier rows.
         existingLeads.push({ id: ref.id, ...lead, userId: uid, companyId });
         imported++;
-        // Meter the create (server-authoritative monthly counter — same
-        // call both _saveLead branches make). Without this, imported leads
-        // never count and subsequent single adds under-gate.
-        if (window.NBDBilling && typeof window.NBDBilling.trackUsage === 'function') {
-          window.NBDBilling.trackUsage('leads');
-        }
+        // No trackUsage here (2026-10-04): the server's create trigger meters
+        // every imported lead against the import allowance, and a local bump
+        // would wrongly eat this month's cap in the gauge.
       } catch (e) {
         console.warn('[import] row failed', i, e.message);
         failed++;

@@ -22,6 +22,7 @@
 'use strict';
 
 const D = require('./deposit-draft-logic');
+const TenantOps = require('./tenant-ops-logic');
 
 function _deps(deps) {
   deps = deps || {};
@@ -81,7 +82,15 @@ async function draftDepositAfterSign(db, args, deps) {
         est = es.exists ? (es.data() || {}) : null;
       }
 
-      const ctx = { leadId, event, sourceId, lead, deal, est, estimateId, nowMs };
+      // The company's own cash deposit rule (2026-10-04, tenant-ready).
+      // NBD: undefined → deposit-rule.js's rule, unchanged.
+      const tenantKey = String(lead.companyId || lead.userId || '');
+      let depositConfig;
+      if (tenantKey && tenantKey !== TenantOps.NBD_OWNER_UID) {
+        const ps = await tx.get(db.collection('companyProfile').doc(tenantKey));
+        depositConfig = TenantOps.depositConfigFor(tenantKey, ps.exists ? (ps.data() || {}) : {});
+      }
+      const ctx = { leadId, event, sourceId, lead, deal, est, estimateId, nowMs, depositConfig };
       // Decide once without the invoice read: a skip (no estimate, cash under
       // $2k, KY hold…) needs no query.
       let decision = D.decideDepositDraft(ctx);

@@ -473,13 +473,29 @@
     const a = v2();
     const st = v2state();
     const cfg = window.NBD_ESTIMATE_CONFIG || {};
-    const tiers = Array.isArray(cfg.TIER_ORDER) ? cfg.TIER_ORDER : ['good', 'better', 'best'];
+    // The tiers THIS company offers (2026-10-04): estimate-config tierOrder()
+    // asks the company's business rules; NBD gets its five, as before.
+    const tiers = (typeof cfg.tierOrder === 'function') ? cfg.tierOrder()
+      : (Array.isArray(cfg.TIER_ORDER) ? cfg.TIER_ORDER : ['good', 'better', 'best']);
     let totals = {};
     try { totals = (a && typeof a.tierTotals === 'function') ? (a.tierTotals() || {}) : {}; } catch (_) { totals = {}; }
     const scope = Array.isArray(st.scope) ? st.scope : [];
     const empty = !scope.length;
-    const label = (t) => (cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[t] && cfg.TIER_DISPLAY[t].label) || (t.charAt(0).toUpperCase() + t.slice(1));
-    const rate = (t) => (cfg.TIER_RATES && cfg.TIER_RATES[t]) ? ('$' + cfg.TIER_RATES[t] + '/SQ') : '';
+    const label = (t) => (typeof cfg.tierLabel === 'function' ? cfg.tierLabel(t) : '') ||
+      (cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[t] && cfg.TIER_DISPLAY[t].label) || (t.charAt(0).toUpperCase() + t.slice(1));
+    // The COMPANY's package prices (2026-10-04) — the same resolution the
+    // engine prices with (EstimateBuilderV2.effectiveTierRates), not the
+    // NBD config numbers this card used to print for every company.
+    let rates = null;
+    try { rates = (window.EstimateBuilderV2 && typeof window.EstimateBuilderV2.effectiveTierRates === 'function') ? window.EstimateBuilderV2.effectiveTierRates() : null; } catch (_) { rates = null; }
+    rates = rates || cfg.TIER_RATES || {};
+    const rate = (t) => (rates[t]) ? ('$' + rates[t] + '/SQ') : '';
+    const TR = window.NBDTenantRules;
+    const note = (t) => {
+      const own = (TR && typeof TR.noteFor === 'function') ? TR.noteFor(t) : null;
+      return own != null ? own : (TIER_NOTES[t] || '');
+    };
+    const starter = !!(TR && typeof TR.isPlatformTenant === 'function' && !TR.isPlatformTenant() && typeof TR.ratesSet === 'function' && !TR.ratesSet());
     // Line-item pricing (every insurance job, and cash jobs off Per-SQ) has
     // no side-by-side: tierTotals() collapses to the selected package when
     // the others can't be priced like-for-like. Those cards used to read
@@ -499,11 +515,14 @@
       : '') +
       (oneAtATime
         ? '<div class="v3-review-hint v3-pkg-one">Line-item pricing totals the package you pick — tap one to see its price. Per-SQ pricing (cash jobs) shows every package side by side.</div>'
+        : '') +
+      (starter
+        ? '<div class="v3-review-hint v3-pkg-starter" data-v3-starter-rates>These are starter prices. Set your own package prices in Settings → Estimates and every estimate uses them.</div>'
         : '') + tiers.map((t) =>
       '<button type="button" class="v3-tier' + (st.tier === t ? ' active' : '') + (t === 'beyond' ? ' beyond' : '') + '" data-v3-act="tier" data-v3-val="' + esc(t) + '" aria-pressed="' + (st.tier === t) + '">' +
         '<span class="v3-tier-top"><span class="v3-tier-name">' + esc(label(t)) + '</span>' +
           price(t) + '</span>' +
-        '<span class="v3-tier-note">' + esc(t.charAt(0).toUpperCase() + t.slice(1)) + ' · ' + esc(TIER_NOTES[t] || '') + (rate(t) && st.mode === 'per-sq' ? ' · ' + esc(rate(t)) : '') + '</span>' +
+        '<span class="v3-tier-note">' + esc(t.charAt(0).toUpperCase() + t.slice(1)) + ' · ' + esc(note(t)) + (rate(t) && st.mode === 'per-sq' ? ' · ' + esc(rate(t)) : '') + '</span>' +
       '</button>').join('') +
       '<div class="v3-label">Pricing method</div>';
   }
@@ -686,6 +705,6 @@
     onOpen,
     onRender,
     // Test seam.
-    _test: { steps, get ui() { return ui; }, inferKind, ROOF_STEPS, REPAIR_STEPS, TAGS, customerPrefilled, maybeSkipJob },
+    _test: { steps, get ui() { return ui; }, inferKind, ROOF_STEPS, REPAIR_STEPS, TAGS, customerPrefilled, maybeSkipJob, paintPackage, TIER_NOTES },
   };
 })();

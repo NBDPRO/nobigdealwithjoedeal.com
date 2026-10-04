@@ -93,7 +93,9 @@
       { "_comment": "Email unsubscribe (CAN-SPAM). /unsubscribe/<token> is the footer link AND the RFC 8058 List-Unsubscribe one-click URL on every commercial email. GET renders a confirm page with no side effect (link scanners prefetch GET); POST records the per-tenant suppression. Token-authed, no login. See functions/email-unsubscribe.js.",
         "source": "/unsubscribe/**", "function": { "functionId": "emailUnsubscribe", "region": "us-central1" } },
       { "_comment": "Resend bounce/spam-complaint webhook, folded into the same per-tenant suppression register (sources 'bounce' and 'complaint'). Signed with Svix/standard-webhooks; DARK until the owner adds this endpoint in the Resend dashboard (events email.bounced + email.complained) and sets RESEND_WEBHOOK_SECRET — unconfigured it answers 503 before parsing anything. Served through Hosting so the site's security headers apply. See functions/resend-webhook.js.",
-        "source": "/hooks/resend", "function": { "functionId": "resendWebhook", "region": "us-central1" } }
+        "source": "/hooks/resend", "function": { "functionId": "resendWebhook", "region": "us-central1" } },
+      { "_comment": "Tenant logos (2026-10-04, tenant-ready). /tenant-logo/<companyId>/<sha>.png serves an EXIF-stripped, re-encoded logo uploaded through uploadCompanyLogo, streamed from Storage by the server — so a company's logo has a public first-party URL and never a Storage ?token= link. See functions/tenant-ops.js.",
+        "source": "/tenant-logo/**", "function": { "functionId": "tenantLogo", "region": "us-central1" } }
     ],
     "headers": [
       {

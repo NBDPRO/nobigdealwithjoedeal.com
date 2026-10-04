@@ -53,7 +53,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=8" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=14" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=15" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=5" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
@@ -107,12 +107,12 @@
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=4"></script>
+<script defer src="js/role-gate.js?v=5"></script>
 <!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=106"></script>
+<script src="js/script-loader.js?v=124"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -131,7 +131,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=31"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=33"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -141,6 +141,7 @@
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=1">
+<link rel="stylesheet" href="css/tenant-ready.css?v=1">
 <link rel="stylesheet" href="css/money-dashboard.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
@@ -2195,9 +2196,14 @@
       </div>
       
       <div class="flex-g8">
+        <!-- An empty account's first move is bringing its customer list
+             over (2026-10-04, tenant-ready): Import comes first. Imports run
+             on a one-time allowance, not the monthly cap; sample leads use
+             their own small allowance too (functions/lead-cap.js). -->
+        <button class="btn btn-orange" id="crmEmptyImportBtn" data-action="call" data-fn="openLeadImport">⬆ Import leads (CSV)</button>
         <!-- Load Sample Data is useful in BOTH modes — an empty account is
              exactly who wants to see what a populated board looks like. -->
-        <button class="btn btn-orange" data-action="call" data-fn="loadSampleData">🎲 Load Sample Data</button>
+        <button class="btn btn-ghost" data-action="call" data-fn="loadSampleData">🎲 Load Sample Data</button>
         <span id="crmDiagnosticDebugTools" style="display:contents;">
           <button class="btn btn-ghost" data-action="call" data-fn="retryLoadLeads">🔄 Retry Load</button>
           <button class="btn btn-ghost" data-action="call" data-fn="testFirestoreRules">🔐 Test Rules</button>
@@ -3614,7 +3620,7 @@
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">V2 Engine · Per-SQ Mode</div><div class="panel-title">Tier Rates</div></div></div>
           <div class="panel-body">
-            <p class="meta-12-mb16">Flat per-square pricing used when V2 Estimate Builder is in Per-SQ mode. Five tiers since October 2026: Economy and Beyond are in-person options (Beyond is TAMKO HailGuard only).</p>
+            <p class="meta-12-mb16">Your package prices, per square. Company-wide: Save All Estimate Settings saves them for every rep and device, and the estimate builder, deal room and close board all quote them. Which tiers you offer, their names, warranties and shingle rules are under Business Rules below.</p>
             <div class="sf-row">
               <div class="sf"><label>Economy Tier ($/SQ)</label><input type="number" id="v2rateEconomy" value="440" step="5"></div>
               <div class="sf"><label>Good Tier ($/SQ)</label><input type="number" id="v2rateGood" value="550" step="5"></div>
@@ -3634,6 +3640,16 @@
               <div class="sf"><label>Minimum Job Charge (Per-SQ)</label><input type="number" id="v2minJob" value="2500" step="50"></div>
               <div class="sf"><label>Round To Nearest ($)</label><input type="number" id="v2roundTo" value="25" step="5"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- ▸ Business rules (2026-10-04, tenant-ready): tiers offered, names,
+             warranties, shingle locks, deposit rule → companyProfile.businessRules.
+             Rendered by js/tenant-rules-settings.js (own Save button). -->
+        <div class="panel mb-md">
+          <div class="panel-hdr"><div><div class="panel-label">Company-wide</div><div class="panel-title">Business Rules</div></div></div>
+          <div class="panel-body">
+            <div id="tenantRulesPanel" data-state="loading"><p class="tr-muted">Loading your company settings…</p></div>
           </div>
         </div>
 
@@ -3967,6 +3983,14 @@
             </div>
             <div class="sf"><label>Logo URL</label>
               <input type="text" id="cp_brand_logoUrl" placeholder="https://yourdomain.com/logo.png"></div>
+            <!-- Logo upload (2026-10-04, tenant-ready): the server re-encodes the
+                 image (EXIF/GPS stripped) and saves a public first-party URL —
+                 never a Storage ?token= link. js/tenant-account-ui.js. -->
+            <div class="ta-logo-row">
+              <input type="file" id="cp_logoFile" accept="image/png,image/jpeg,image/webp,image/gif" class="ta-file">
+              <button type="button" class="btn btn-ghost fs-11" id="cp_logoUpload">⬆ Upload logo</button>
+              <span id="cp_logoMsg" class="ta-msg" role="status"></span>
+            </div>
             <div class="sf-row">
               <div class="sf" style="flex:0 0 160px;"><label>Primary Color</label>
                 <input type="color" id="cp_brand_colorPrimary" value="#1A3057"></div>
@@ -4108,7 +4132,7 @@
               <div class="sf"><label>Tagline</label>
                 <input type="text" id="cp_tagline" placeholder="No Big Deal — We've Got You Covered"></div>
               <div class="sf"><label>Service Area</label>
-                <input type="text" id="cp_serviceArea" placeholder="Greater Cincinnati & Northern Kentucky"></div>
+                <input type="text" id="cp_serviceArea" placeholder="e.g. Your City & surrounding counties"></div>
             </div>
 
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Services (6 slots)</div>
@@ -4424,6 +4448,14 @@
               <button class="btn btn-ghost fs-11" data-action="call" data-fn="_exportAllData">📥 Export All Leads (CSV)</button>
               <button class="btn btn-ghost fs-11" data-action="call" data-fn="_exportEstimates">📥 Export Estimates (CSV)</button>
               <button class="btn btn-ghost fs-11" data-action="call" data-fn="_exportPhotos">📥 Export Photos (ZIP)</button>
+            </div>
+            <!-- Full company export (2026-10-04, tenant-ready): leads, estimates,
+                 invoices, contracts, documents and photo list as JSON + CSV in
+                 one ZIP named after the company. Owner / company admin only
+                 (functions/tenant-ops.js exportCompanyData). -->
+            <div class="ta-export-row">
+              <button type="button" class="btn btn-orange fs-11" id="taExportAll">📦 Export all company data (ZIP)</button>
+              <span id="taExportMsg" class="ta-msg" role="status"></span>
             </div>
           </div>
         </div>
@@ -6794,7 +6826,7 @@
      that view. -->
 <!-- Legendary Rep Report Generator — bold-editorial visual
      reports for rep coaching + owner meetings. -->
-<script defer src="js/billing-gate.js?v=2"></script>
+<script defer src="js/billing-gate.js?v=3"></script>
 <!-- LAZY: rep-report-generator (reports view) loaded via ScriptLoader -->
 
 <script defer src="js/roof-report.js?v=2"></script>
@@ -6811,7 +6843,7 @@
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
      existing call sites migrate at their own pace. -->
-<script defer src="js/repos.js?v=2"></script>
+<script defer src="js/repos.js?v=3"></script>
 <!-- Step 4b (2026-05-16): crm.js (175KB) was split into four sibling
      modules + a thin shim. Load order is locked:
        leads → pipeline → snooze → portal-bridge → crm (shim)
@@ -6828,7 +6860,7 @@
 <script defer src="js/crm-leads.js?v=8"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=14"></script>
+<script defer src="js/crm-pipeline.js?v=15"></script>
 <script defer src="js/crm-snooze.js?v=5"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6852,9 +6884,9 @@
 <script defer src="js/global-search.js?v=2"></script>
 <script defer src="js/bottleneck-widget.js?v=2"></script>
 <script defer src="js/pwa-install-nudge.js?v=6"></script>
-<script defer src="js/data-export.js?v=4"></script>
+<script defer src="js/data-export.js?v=5"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
-<script defer src="js/data-import.js?v=5"></script>
+<script defer src="js/data-import.js?v=6"></script>
 <script defer src="js/activity-feed.js?v=3"></script>
 <!-- Single owner of kanban filter state. MUST load before the two filter
      modules below: each registers with it at init, and without it they
@@ -6897,7 +6929,7 @@
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=2"></script>
 <script defer src="js/ui.js?v=9"></script>
-<script defer src="js/demo.js?v=4"></script>
+<script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
 <script defer src="js/nbd-comms.js?v=4"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
@@ -6913,7 +6945,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=13"></script>
+<script defer src="js/invoice-pipeline.js?v=14"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -6950,12 +6982,12 @@
 <script defer src="js/voicemail.js?v=3"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
-<script defer src="js/estimate-config.js?v=5"></script>
+<script defer src="js/estimate-config.js?v=6"></script>
 <!-- deposit-rule.js (2026-09-25): the ONE deposit rule every quote, contract,
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
-<script defer src="js/deposit-rule.js?v=2"></script>
+<script defer src="js/deposit-rule.js?v=3"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
@@ -6971,7 +7003,16 @@
 <script defer src="js/review-engine.js?v=6"></script>
 <script defer src="js/review-deck.js?v=1"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=5"></script>
+<script defer src="js/company-profile.js?v=6"></script>
+<!-- tenant-rules.js (2026-10-04, tenant-ready): each company's own business
+     rules (tiers, names, warranties, shingle locks, deposit) with NBD-only
+     defaults. After company-profile.js (reads _companyProfile at call time);
+     estimate-config.js and deposit-rule.js ask it first. -->
+<script defer src="js/tenant-rules.js?v=1"></script>
+<script defer src="js/tenant-rules-settings.js?v=1"></script>
+<!-- New-owner setup checklist on Home + logo upload / full export (2026-10-04). -->
+<script defer src="js/setup-checklist.js?v=1"></script>
+<script defer src="js/tenant-account-ui.js?v=1"></script>
 <!-- LAZY: doc-generation cluster (nbd-logo-asset, document-generator,
      document-generator-templates, doc-preflight) loaded via ScriptLoader's
      `docgen` bundle. Was eager here (~420 KB on every load); PR 2b moved it

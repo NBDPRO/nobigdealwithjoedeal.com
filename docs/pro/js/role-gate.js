@@ -211,10 +211,22 @@
   // Only a POSITIVE 'viewer' claim is read-only. No claims yet, or a solo
   // operator with no role claim, is not evidence of restriction (the same
   // stance customer-bootstrap's read-only banner takes).
+  // A cancelled plan's 30-day read-only grace (2026-10-04, tenant-ready):
+  // billing-gate.js sets window.__nbdAccountReadOnlyUntil (ms) from
+  // subscriptions/{companyId}.readOnlyUntil. The whole account is view-only
+  // until then — the same controls hide, with its own explanation.
+  function accountReadOnly() {
+    try {
+      var t = window.__nbdAccountReadOnlyUntil;
+      return typeof t === 'number' && t > Date.now();
+    } catch (_) { return false; }
+  }
+  var PLAN_READ_ONLY = 'Your plan ended — your account is read-only for 30 days. Export your data in Settings, or pick a plan to keep working.';
   function isViewer(c) {
     c = c || claims();
-    return !!c && c.role === 'viewer';
+    return (!!c && c.role === 'viewer') || accountReadOnly();
   }
+  function noticeText() { return accountReadOnly() ? PLAN_READ_ONLY : VIEW_ONLY; }
   function canWrite(c) { return !isViewer(c); }
 
   var _lastNotice = 0;
@@ -223,7 +235,7 @@
     if (now - _lastNotice < 2500) return;   // one toast per burst, not per write
     _lastNotice = now;
     if (typeof window.showToast === 'function') {
-      try { window.showToast(VIEW_ONLY, 'info'); return; } catch (_) { /* fall through */ }
+      try { window.showToast(noticeText(), 'info'); return; } catch (_) { /* fall through */ }
     }
     try {
       var el = document.getElementById('nbdRoleViewOnlyNotice');
@@ -236,7 +248,7 @@
           + 'font-weight:600;max-width:calc(100vw - 32px);box-shadow:0 6px 20px rgba(0,0,0,.3);';
         document.body.appendChild(el);
       }
-      el.textContent = VIEW_ONLY;
+      el.textContent = noticeText();
       clearTimeout(el._t);
       el._t = setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4000);
     } catch (_) { /* never let the notice itself throw */ }
@@ -378,6 +390,8 @@
 
   window.NBDRole = {
     VIEW_ONLY: VIEW_ONLY,
+    PLAN_READ_ONLY: PLAN_READ_ONLY,
+    accountReadOnly: accountReadOnly,
     isViewer: isViewer,
     canWrite: canWrite,
     guard: guard,

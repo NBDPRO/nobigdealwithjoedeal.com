@@ -415,9 +415,11 @@ async function run() {
     { userId: 'alice', name: 'Lead with numeric companyId', companyId: 42 }));
 
   // ✅ create with non-empty string companyId → succeeds.
+  // (meter: every client lead create names its meter since 2026-10-04 —
+  // section 48 below tests the plan lead cap it feeds.)
   await assertSucceeds(setDoc(
     doc(alice, 'leads/with-companyid'),
-    { userId: 'alice', name: 'Lead with companyId', companyId: 'co-a' }));
+    { userId: 'alice', name: 'Lead with companyId', companyId: 'co-a', meter: 'manual' }));
 
   // 24. Referral money-field freeze (QA sweep 2026-07-08). Server-owned referral
   //     fields are admin-SDK-only (onReferralLeadWrite); the client's ONLY writes
@@ -1511,7 +1513,7 @@ async function run() {
   // the payload is otherwise valid, so the ❌ above it can only be the guard.
   const guardDoc = {
     // { userId, companyId } unless the rule wants something else.
-    leads:              (uid, cid) => ({ userId: uid, companyId: cid, name: 'Guard Lead' }),
+    leads:              (uid, cid) => ({ userId: uid, companyId: cid, name: 'Guard Lead', meter: 'manual' }),
     estimates:          (uid, cid) => ({ userId: uid, companyId: cid, total: 1000 }),
     recurringExpenses:  (uid, cid) => ({ userId: uid, companyId: cid, amountCents: 5000, costType: 'overhead' }),
     // hasOnly: extra keys are refused, so keep to the allowlist.
@@ -1672,7 +1674,7 @@ async function run() {
 
   // ── Lead doc: create (new), and update/delete of the lead the viewer owns.
   await x34('leads create: viewer',     'deny',  setDoc(doc(vx, 'leads/s34-new-vx'), { userId: 'vx', companyId: CO, name: 'n' }));
-  await x34('leads create: rep',        'allow', setDoc(doc(rx, 'leads/s34-new-rx'), { userId: 'rx', companyId: CO, name: 'n' }));
+  await x34('leads create: rep',        'allow', setDoc(doc(rx, 'leads/s34-new-rx'), { userId: 'rx', companyId: CO, name: 'n', meter: 'manual' }));
   await x34('leads update: viewer-owner', 'deny', updateDoc(doc(vx, 'leads/leadVX'), { stage: 'contacted' }));
   await x34('leads update: rep-owner',  'allow', updateDoc(doc(rx, 'leads/leadRX'), { stage: 'contacted' }));
 
@@ -1758,9 +1760,9 @@ async function run() {
   await x34('manager soft-deletes a lead document',       'allow', updateDoc(doc(mx, 'leads/leadRX/documents/s34-mgr'), { deleted: true }));
   await x34('manager hard-deletes a lead document',       'deny',  deleteDoc(doc(mx, 'leads/leadRX/documents/s34-mgr')));  // decision A
   await x34('manager creates own estimate',               'allow', setDoc(doc(mx, 'estimates/s34-mx'), { userId: 'mx', companyId: CO, total: 1 }));
-  await x34('solo (no claims) creates a lead',            'allow', setDoc(doc(sx, 'leads/s34-sx'), { userId: 'sx34', companyId: 'sx34', name: 's' }));
+  await x34('solo (no claims) creates a lead',            'allow', setDoc(doc(sx, 'leads/s34-sx'), { userId: 'sx34', companyId: 'sx34', name: 's', meter: 'manual' }));
   await x34('solo (no claims) creates an estimate',       'allow', setDoc(doc(sx, 'estimates/s34-sx'), { userId: 'sx34', total: 1 }));
-  await x34('no-role member creates a lead',              'allow', setDoc(doc(dx, 'leads/s34-dx'), { userId: 'dx34', companyId: 'co-dx', name: 'd' }));
+  await x34('no-role member creates a lead',              'allow', setDoc(doc(dx, 'leads/s34-dx'), { userId: 'dx34', companyId: 'co-dx', name: 'd', meter: 'manual' }));
   await x34('no-role member uploads a photo doc',         'allow', setDoc(doc(dx, 'photos/s34-dx'), { userId: 'dx34', companyId: 'co-dx', url: 'p/d.jpg' }));
   await x34('platform admin edits any estimate',          'allow', updateDoc(doc(admin, 'estimates/s34-vx'), { note: 'admin' }));
 
@@ -1953,7 +1955,7 @@ async function run() {
     } catch (e) { s39Fail.push(label + ' (wanted ' + want + ')'); }
   }
   const L38 = doc(alice, 'leads/zzqaWin38');
-  const base38 = { userId: 'alice', companyId: 'co-a', firstName: 'ZZ_QA', lastName: 'Window', scheduledDate: '2026-10-06' };
+  const base38 = { userId: 'alice', companyId: 'co-a', firstName: 'ZZ_QA', lastName: 'Window', scheduledDate: '2026-10-06', meter: 'manual' };
   await x39('create with a full project window', 'allow', setDoc(L38, Object.assign({}, base38, { scheduledStart: '07:00', scheduledDurationMin: null, scheduledEndDate: '2026-10-07' })));
   await x39('create with a bad start time', 'deny', setDoc(doc(alice, 'leads/zzqaWin38b'), Object.assign({}, base38, { scheduledStart: '7am' })));
   await x39('create with no window at all (the pre-2026-09-29 lead)', 'allow', setDoc(doc(alice, 'leads/zzqaWin38c'), base38));
@@ -2091,7 +2093,7 @@ async function run() {
   await x42('owner edits a lead that has no job yet', 'allow', updateDoc(doc(own42, 'leads/lead42b'), { firstName: 'Yan' }));
   await x42('owner claims an activeJobId on a lead', 'deny', updateDoc(doc(own42, 'leads/lead42b'), { activeJobId: 'j1' }));
   await x42('a new lead carrying activeJobId', 'deny', setDoc(doc(own42, 'leads/lead42c'), { userId: 'own42', companyId: 'co42', stage: 'new', activeJobId: 'j1' }));
-  await x42('a new lead without it (unchanged)', 'allow', setDoc(doc(own42, 'leads/lead42d'), { userId: 'own42', companyId: 'co42', stage: 'new' }));
+  await x42('a new lead without it (unchanged)', 'allow', setDoc(doc(own42, 'leads/lead42d'), { userId: 'own42', companyId: 'co42', stage: 'new', meter: 'manual' }));
   console.log('  42: ' + s42Pass + ' jobs-phase-1 checks passed, ' + s42Fail.length + ' failed');
   if (s42Fail.length) {
     throw new Error('42 jobs phase 1: ' + s42Fail.length + ' check(s) went the wrong way:\n    ' + s42Fail.join('\n    '));
@@ -2288,7 +2290,7 @@ async function run() {
     await setDoc(doc(db, 'leads/lead46b'), { userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA' });
     await setDoc(doc(db, 'emails/e46'), { sentBy: 'victim46@x.test', sentByUid: 'real-victim', to: 'h@x.test' });
   });
-  const NEWLEAD47 = (extra) => Object.assign({ userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA', lastName: 'New' }, extra || {});
+  const NEWLEAD47 = (extra) => Object.assign({ userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA', lastName: 'New', meter: 'manual' }, extra || {});
   // (a) referral fields on create
   await x47('plain lead create (control)', 'allow', setDoc(doc(rep47, 'leads/n46-ok'), NEWLEAD47()));
   for (const [k, v] of [['referralRewardStatus', 'owed'], ['referralDocId', 'refdocX'], ['referrerLeadId', 'leadX'],
@@ -2303,13 +2305,71 @@ async function run() {
   await x47("first stamp (update) with another tenant's reserved prefix", 'deny', updateDoc(doc(rep47, 'leads/lead46a'), { customerId: 'OAK46-0002-ABCD' }));
   await x47('first stamp (update) with the own prefix — the client mint', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { customerId: 'REP46-0008-ABCD' }));
   await x47('ordinary edit on a stamped lead still works', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { lastName: 'Edited' }));
-  await x47('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo47, 'leads/n46-solo'), { userId: 'solo47', companyId: 'solo47', firstName: 'ZZ_QA' }));
+  await x47('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo47, 'leads/n46-solo'), { userId: 'solo47', companyId: 'solo47', firstName: 'ZZ_QA', meter: 'manual' }));
   // (c) /emails read
   await x47('unverified account with the sender\'s email cannot read the row', 'deny', getDoc(doc(unver47, 'emails/e46')));
   await x47('verified owner of that email can read it', 'allow', getDoc(doc(ver47, 'emails/e46')));
   console.log('  47: ' + s47Pass + ' security-batch checks passed, ' + s47Fail.length + ' failed');
   if (s47Fail.length) {
     throw new Error('47 security batch: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
+  }
+
+  // 48. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
+  // lead create names its `meter`; subscriptions/{companyId}.leadCap (written
+  // by functions/lead-cap.js) blocks metered creates at the plan cap, except
+  // imports / samples still inside their one-time allowance; a cancelled
+  // plan's readOnlyUntil blocks everything; NBD's company is exempt. Each
+  // company's block touches only that company (cross-tenant control).
+  const s48Fail = [];
+  let s48Pass = 0;
+  async function x48(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s48Pass++; }
+    catch (_) { s48Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const NBD_UID = '1phDvAVXHSg82wDLegAbQFq14Ci1';
+  const future48 = new Date(Date.now() + 10 * 24 * 3600 * 1000);
+  const past48 = new Date(Date.now() - 24 * 3600 * 1000);
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'subscriptions/co-cap'), { plan: 'free', status: 'none', leadCap: { plan: 'free', blockedUntil: future48 }, importAllowanceUsed: 3, sampleAllowanceUsed: 20 });
+    await setDoc(doc(db, 'subscriptions/co-capfull'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: future48 }, importAllowanceUsed: 1000 });
+    await setDoc(doc(db, 'subscriptions/co-upg'), { plan: 'growth', leadCap: { plan: 'free', blockedUntil: future48 } });
+    await setDoc(doc(db, 'subscriptions/co-newmonth'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: past48 } });
+    await setDoc(doc(db, 'subscriptions/co-ro'), { plan: 'free', status: 'cancelled', readOnlyUntil: future48 });
+    await setDoc(doc(db, 'subscriptions/co-open'), { plan: 'free', usage: { leads: 2 } });
+  });
+  const rep48 = (cid) => env.authenticatedContext('rep48-' + cid, { role: 'sales_rep', companyId: cid }).firestore();
+  const L48 = (cid, extra) => Object.assign({ userId: 'rep48-' + cid, companyId: cid, firstName: 'ZZ_QA', lastName: 'Cap' }, extra || {});
+  let n48 = 0;
+  const create48 = (cid, extra) => setDoc(doc(rep48(cid), 'leads/cap48-' + (++n48)), L48(cid, extra));
+  await x48('a client lead with NO meter is refused', 'deny', create48('co-open'));
+  await x48('an unknown meter is refused', 'deny', create48('co-open', { meter: 'free-pass' }));
+  await x48('meter manual under the cap is allowed', 'allow', create48('co-open', { meter: 'manual' }));
+  await x48('a company with no subscription doc yet is allowed', 'allow', create48('co-nosub', { meter: 'manual' }));
+  await x48('at the cap: a manual lead is refused', 'deny', create48('co-cap', { meter: 'manual' }));
+  await x48('at the cap: an import inside the allowance is allowed', 'allow', create48('co-cap', { meter: 'import' }));
+  await x48('at the cap: a sample past its allowance is refused', 'deny', create48('co-cap', { meter: 'sample' }));
+  await x48('at the cap with the import allowance used up: import refused', 'deny', create48('co-capfull', { meter: 'import' }));
+  await x48('upgraded since the block (plan changed): allowed', 'allow', create48('co-upg', { meter: 'manual' }));
+  await x48('a new month (blockedUntil passed): allowed', 'allow', create48('co-newmonth', { meter: 'manual' }));
+  await x48('read-only grace: a manual lead is refused', 'deny', create48('co-ro', { meter: 'manual' }));
+  await x48('read-only grace: even an import is refused', 'deny', create48('co-ro', { meter: 'import' }));
+  // Cross-tenant: co-cap's block never reaches co-open, and a rep cannot
+  // borrow another company's open allowance (companyId is pinned to the claim).
+  await x48('cross-tenant: another company is unaffected by co-cap\'s block', 'allow', create48('co-open', { meter: 'manual' }));
+  await x48('cross-tenant: a co-cap rep cannot file the lead under co-open', 'deny',
+    setDoc(doc(rep48('co-cap'), 'leads/cap48-x'), Object.assign(L48('co-cap', { meter: 'manual' }), { companyId: 'co-open' })));
+  // NBD control: NBD's own company is never metered — a lead without a meter
+  // (an old cached page) still saves, exactly as before.
+  const nbd48 = env.authenticatedContext(NBD_UID, { companyId: NBD_UID, owner: true }).firestore();
+  await x48('NBD (control): a lead with no meter still saves', 'allow',
+    setDoc(doc(nbd48, 'leads/cap48-nbd'), { userId: NBD_UID, companyId: NBD_UID, firstName: 'ZZ_QA' }));
+  // Clients can never write the meter state themselves.
+  await x48('a company owner cannot clear their own leadCap', 'deny',
+    setDoc(doc(env.authenticatedContext('co-cap', { companyId: 'co-cap' }).firestore(), 'subscriptions/co-cap'), { leadCap: null }, { merge: true }));
+  console.log('  48: ' + s48Pass + ' plan lead-cap checks passed, ' + s48Fail.length + ' failed');
+  if (s48Fail.length) {
+    throw new Error('48 plan lead cap: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

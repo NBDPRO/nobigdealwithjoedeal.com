@@ -68,6 +68,29 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   // tenants the seat-charging callable would refuse (non-card-billed).
   let _source = null;
   let _loaded = false;
+  // Tenant-ready (2026-10-04): the one-time import allowance already used
+  // (functions/lead-cap.js) and a cancelled subscription's read-only grace
+  // end (functions/stripe.js customer.subscription.deleted).
+  const IMPORT_ALLOWANCE = 1000; // == functions/lead-cap-logic.js
+  let _importUsed = 0;
+  let _readOnlyUntil = null;
+  function _tsMs(t) {
+    if (!t) return null;
+    if (typeof t.toMillis === 'function') return t.toMillis();
+    if (t instanceof Date) return t.getTime();
+    const n = Date.parse(t);
+    return isFinite(n) ? n : null;
+  }
+  function _readOnlyActive() {
+    const ms = _tsMs(_readOnlyUntil);
+    return ms != null && ms > Date.now();
+  }
+  // role-gate.js reads this to treat the whole account as view-only during
+  // the grace ("Your plan ended — read-only until …").
+  function _publishReadOnly() {
+    try { window.__nbdAccountReadOnlyUntil = _readOnlyActive() ? _tsMs(_readOnlyUntil) : null; } catch (_) { /* ignore */ }
+    try { if (window.NBDRole && typeof window.NBDRole.sync === 'function') window.NBDRole.sync(); } catch (_) { /* ignore */ }
+  }
 
   // Owner bypass — claim-ONLY since the OWNER_EMAILS retirement
   // (2026-07-06): keyed on the { owner: true } custom claim minted
@@ -207,6 +230,9 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         _status = data.status || 'none';
         _usage = data.usage || { leads: 0, reports: 0, aiCalls: 0 };
         _trialEndsAt = data.trialEndsAt || null;
+        _importUsed = Math.max(0, Number(data.importAllowanceUsed) || 0);
+        _readOnlyUntil = data.readOnlyUntil || null;
+        _publishReadOnly();
         // Access-code trial expiry — mirror of the read-time check in
         // functions/billing.js trackUsage (the server meter is the real
         // gate; this keeps the UI honest). A code-granted subscription
@@ -323,7 +349,12 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       if (data && typeof data.usage === 'number') {
         // Server authoritative — keep local in sync. If the server
         // reports higher (another device incremented too) we accept it.
-        _usage[feature] = data.usage;
+        // Leads are counted by the server's create trigger since
+        // 2026-10-04 (functions/lead-cap.js), which can land a moment
+        // AFTER this read — so for leads never step the local count back.
+        _usage[feature] = (data.meteredBy === 'server')
+          ? Math.max(_usage[feature] || 0, data.usage)
+          : data.usage;
       }
     } catch (e) {
       // Soft fail — local counter still tracks within the session, just
@@ -342,6 +373,17 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   function enforceGate(feature, featureLabel) {
     if (!_loaded) return true;    // plan unknown — never block on a race
     if (_isOwner()) return true;  // owner accounts are never limit-gated
+    // Cancelled-plan grace (2026-10-04): 30 days read-only — everything
+    // stays visible and exportable, nothing new is added. The server rules
+    // refuse the create too; this just says why first.
+    if (_readOnlyActive()) {
+      const until = new Date(_tsMs(_readOnlyUntil));
+      if (typeof window.showToast === 'function') {
+        window.showToast('Your plan ended — your account is read-only until ' + until.toLocaleDateString()
+          + '. Export your data in Settings, or pick a plan to keep working.', 'error');
+      }
+      return false;
+    }
     const limits = PLANS[_plan] || PLANS.free;
     const limit = limits[feature === 'aiCalls' ? 'aiCalls' : feature];
     if (limit === Infinity) return true;
@@ -451,8 +493,35 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       isTrialing: _status === 'trialing',
       isPastDue: _status === 'past_due',
       isCancelled: _status === 'cancelled',
-      isActive: _status === 'active' || _status === 'trialing'
+      isActive: _status === 'active' || _status === 'trialing',
+      importAllowance: IMPORT_ALLOWANCE,
+      importAllowanceLeft: Math.max(0, IMPORT_ALLOWANCE - _importUsed),
+      readOnlyUntil: _readOnlyActive() ? new Date(_tsMs(_readOnlyUntil)) : null
     };
+  }
+
+  // ── How many leads a CSV import may add right now (2026-10-04) ──
+  // Imports run on the one-time onboarding allowance first (IMPORT_ALLOWANCE,
+  // the server's importAllowanceUsed), then on what is left of this month's
+  // plan cap — the same order functions/lead-cap-logic.js meters them in and
+  // firestore.rules enforce. Owners and unlimited plans: no limit. A plan
+  // that has not loaded yet: no limit (fail open, as enforceGate does — the
+  // server rules are the real stop). Read-only grace: nothing.
+  //   → { remaining, allowanceLeft, monthlyLeft, readOnly, unlimited }
+  function importCapacity() {
+    if (_isOwner() || !_loaded) {
+      return { remaining: Infinity, allowanceLeft: Infinity, monthlyLeft: Infinity, readOnly: false, unlimited: true };
+    }
+    if (_readOnlyActive()) {
+      return { remaining: 0, allowanceLeft: 0, monthlyLeft: 0, readOnly: true, unlimited: false };
+    }
+    const limits = PLANS[_plan] || PLANS.free;
+    const allowanceLeft = Math.max(0, IMPORT_ALLOWANCE - _importUsed);
+    if (limits.leads === Infinity) {
+      return { remaining: Infinity, allowanceLeft, monthlyLeft: Infinity, readOnly: false, unlimited: true };
+    }
+    const monthlyLeft = Math.max(0, limits.leads - (_usage.leads || 0));
+    return { remaining: allowanceLeft + monthlyLeft, allowanceLeft, monthlyLeft, readOnly: false, unlimited: false };
   }
 
   // ── Expose ──
@@ -465,6 +534,7 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     softGate,
     enforceGate,
     getPlan,
+    importCapacity,
     showUpgradeModal
   };
 

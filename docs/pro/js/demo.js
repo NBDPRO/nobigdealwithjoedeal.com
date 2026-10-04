@@ -62,6 +62,10 @@ async function seedDemoLeads(uid) {
         ...rest,
         userId: uid,
         companyId: window._userClaims?.companyId || uid,
+        // Sample leads use their own small allowance (functions/lead-cap.js),
+        // so Load Sample Data no longer eats a Free plan's monthly cap.
+        meter: 'sample',
+        isSample: true,
         // Normalized inbound-SMS match key — see functions/phone-utils.js.
         phoneDigits: String(rest.phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10),
         createdAt: createdAt,

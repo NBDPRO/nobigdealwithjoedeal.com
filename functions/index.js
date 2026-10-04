@@ -867,3 +867,16 @@ exports.healthDigestCron = healthDigest.healthDigestCron;
 // MONTHLY_OVERHEAD_ALERT_DISABLED=true pauses without a rollback.
 const monthlyOverheadAlert = require('./monthly-overhead-alert');
 exports.monthlyOverheadAlertCron = monthlyOverheadAlert.monthlyOverheadAlertCron;
+
+// Tenant-ready (2026-10-04): NBD Pro works for a new contractor without Jo.
+// Server lead meter behind the plan lead cap (firestore.rules leadMeterOk).
+const leadCap = require('./lead-cap');
+exports.meterLeadCreate = leadCap.meterLeadCreate;
+// Admin Tenants page, signup alert + welcome email, full company export,
+// logo upload + its public first-party route (/tenant-logo/**).
+const tenantOps = require('./tenant-ops');
+exports.adminListTenants = tenantOps.adminListTenants;
+exports.onCompanyCreated = tenantOps.onCompanyCreated;
+exports.exportCompanyData = tenantOps.exportCompanyData;
+exports.uploadCompanyLogo = tenantOps.uploadCompanyLogo;
+exports.tenantLogo = tenantOps.tenantLogo;

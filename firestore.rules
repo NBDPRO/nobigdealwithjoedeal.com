@@ -145,6 +145,40 @@ service cloud.firestore {
     // an 'owed' bonus, a referralDocId / referrerLeadId pointer, or any other
     // field onReferralLeadWrite owns. No client create path writes any of them
     // (they are stamped by the admin SDK: submitReferral, referral-rewards.js).
+    // ── Server-side plan lead cap (2026-10-04, tenant-ready) ──────────────
+    // Every CLIENT lead create names its meter — 'manual' (Add Lead, D2D),
+    // 'import' (CSV import) or 'sample' (Load Sample Data) — and the
+    // meterLeadCreate trigger (functions/lead-cap.js) counts it on
+    // subscriptions/{companyId}. A create is refused while that doc's
+    // leadCap says this plan is at its cap for the month, except an import /
+    // sample still inside its one-time allowance (1000 / 20 — equal to
+    // functions/lead-cap-logic.js), and refused outright during a cancelled
+    // plan's read-only grace (readOnlyUntil). NBD's own company, platform
+    // admins and owner-claim accounts are exempt, as in billing-gate.js.
+    // Server-created leads (web form, referrals, SMS) bypass rules and are
+    // never metered, as before.
+    function leadMeterOk(d) {
+      return d.companyId == '1phDvAVXHSg82wDLegAbQFq14Ci1'
+        || isAdmin()
+        || request.auth.token.get('owner', false) == true
+        || (d.get('meter', '') in ['manual', 'import', 'sample']
+            && leadCapOpen(d.companyId, d.get('meter', '')));
+    }
+    function leadCapOpen(cid, meter) {
+      return !exists(/databases/$(database)/documents/subscriptions/$(cid))
+        || subAllowsLead(get(/databases/$(database)/documents/subscriptions/$(cid)).data, meter);
+    }
+    function subAllowsLead(sub, meter) {
+      let ro = sub.get('readOnlyUntil', null);
+      let cap = sub.get('leadCap', null);
+      return !(ro is timestamp && request.time < ro)
+        && ((meter == 'import' && sub.get('importAllowanceUsed', 0) < 1000)
+            || (meter == 'sample' && sub.get('sampleAllowanceUsed', 0) < 20)
+            || !(cap is map
+                 && cap.get('plan', '') == sub.get('plan', 'free')
+                 && cap.get('blockedUntil', null) is timestamp
+                 && request.time < cap.blockedUntil));
+    }
     function leadCreateHasNoServerFields() {
       return !request.resource.data.keys().hasAny([
         'referralRewardStatus', 'referralRewardAmount', 'referralAttributedAt',
@@ -513,7 +547,9 @@ service cloud.firestore {
         && customerIdTenantOk(request.resource.data.get('customerId', null), request.resource.data.companyId)
         // The first job is made by the server (jobs-mirror.js), never claimed
         // by the client.
-        && !('activeJobId' in request.resource.data);
+        && !('activeJobId' in request.resource.data)
+        // Plan lead cap, enforced here and metered by the server (above).
+        && leadMeterOk(request.resource.data);
 
       // D3: flat-path subcollections — the measurementWebhook +
       // esignWebhook auto-append activity here via admin SDK. Rules

@@ -249,6 +249,7 @@
     "tenant-brand.test.js",
     "tenant-hardening.test.js",
     "tenant-legal.test.js",
+    "tenant-ready-2026-10-04.test.js",
     "theme-contrast.test.js",
     "thumbtack-webhook.test.js",
     "thursday-logic.test.js",
