@@ -1449,6 +1449,7 @@ test.describe('Signup funnel — free tier reaches the dashboard @shard2', () =>
     await page.fill('#regPass', 'nbd-e2e-signup-pw-1');
     await page.fill('#regConfirm', 'nbd-e2e-signup-pw-1');
     // #regCode deliberately left blank — the free path.
+    await page.check('#regTerms'); // clickwrap (2026-10-03)
     await page.click('#regBtn');
 
     // Free path: createUser → users/{uid} (onboarded:false) → createCompany

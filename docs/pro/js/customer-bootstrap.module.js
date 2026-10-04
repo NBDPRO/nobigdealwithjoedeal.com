@@ -1300,12 +1300,17 @@ async function loadTimeline(leadId, lead) {
         const a = d.data();
         const when = a.startTime?.toDate ? a.startTime.toDate() : (a.startTime ? new Date(a.startTime) : null);
         if (!when) return;
+        // Past and still booked → say so (2026-10-03 data audit; same rule as
+        // the Schedule view's "needs an outcome", smart-calendar.js).
+        const _endMs = (a.endTime?.toDate ? a.endTime.toDate().getTime() : 0) || when.getTime();
+        const _st = String(a.status || '').toLowerCase();
+        const _needsOutcome = !a.outcome && (_st === 'booked' || _st === 'rescheduled') && _endMs < Date.now();
         timeline.push({
           time: when,
           icon: '📅',
           title: a.title || 'Appointment',
           desc: when.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-            + (a.status ? ' · ' + a.status : ''),
+            + (a.status ? ' · ' + a.status : '') + (_needsOutcome ? ' · needs an outcome' : ''),
           type: 'event'
         });
       });

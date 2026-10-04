@@ -136,6 +136,34 @@ const RULES = [
     re: /\b(I|we|Joe)( stay| stays| remain| remains| keep| keeps) involved\b/i, ctx: true },
   { id: 'insurance-side', why: '(1)(a)2 market insurance expertise',
     re: /\bknows? the insurance side\b/i },
+  // 2026-10-03: outcome promises on the claim. "get Mason homeowners the full
+  // payout they're owed", the "Max Your Payout" trust badge, and "fight for
+  // the full, legitimate payout" on 9 pages (the fight rule missed it: no
+  // claim word in that sentence) all sell a claim result — representing the
+  // insured. Describing payouts passes ("the initial payout is below actual
+  // scope", "policies with larger maximum payouts", "a partial payout").
+  { id: 'payout-promise', why: '(1)(a)1 advertise to represent (promising the claim payout)',
+    re: /\b(full|fullest|max|maximum|maximi[sz]e|maximi[sz]ing|biggest|largest)\b[^.;]{0,25}\b(payouts?|settlements?)\b|\b(payouts?|settlements?|money|amount) (they're|you're|they are|you are|homeowners are) owed\b/i,
+    unless: /\b(polic(y|ies)|coverage)\b/i },
+  // "make sure your claim reflects every dollar of damage" — a promise about
+  // the claim's value. Needs the claim word in the sentence, so a blog line
+  // about homeowners who "get every dollar they deserved" by pushing back
+  // themselves still passes.
+  { id: 'every-dollar', why: '(1)(a)1 advertise to represent (promising the claim value)',
+    re: /\bevery (last )?(dollar|penny|cent)\b/i, ctx: true },
+  // "Denials get appealed." / "I appeal denied claims" — the contractor
+  // contesting the carrier's decision for the insured. "to support an
+  // appeal" sold the supplement as appeal work. A homeowner asking their
+  // carrier to reconsider is advice and passes.
+  { id: 'appeal-promise', why: '(1)(a)1 represent/negotiate (appealing the claim decision)',
+    re: /\b(denials?|claims?|decisions?)( (get|gets|will be|are|is|can be))? appealed\b|\b(I|we|Joe|he)( will|'ll| can)? (appeal|appeals)\b|\b(support|file|handle|win|run) (an |the |your )?appeals?\b/i },
+  // "I know how to document damage, file claims, and …" / "I've documented
+  // and filed Warren County hail claims since 2018" — plural claims, which
+  // files-claim above (one "the/your/a claim") never saw. The homeowner
+  // filing in the same sentence passes.
+  { id: 'files-claims', why: '(1)(a)1 contractor files the claims for the insured',
+    re: /\b(I|we|Joe|he)\b[^.;]{0,60}\b(file|files|filed|filing) ([\w-]+ ){0,3}claims\b/i,
+    unless: /\b(you|homeowners?|homes|houses|neighbou?rs|they|owners?|customers?|families) (file|files|filed)\b|\b(not|never|don't|won't)\b[^.;]{0,30}\bfil(e|ing)\b/i },
 ];
 
 function decode(s) {
@@ -235,6 +263,11 @@ const BAD = {
   'contractor-reinspection': "I've found insurance-grade damage that initial adjusters missed and can request a re-inspection or supplement that changes the outcome.",
   'stay-involved': 'I stay involved through adjuster visits and supplement documentation to keep things moving.',
   'insurance-side': "Having someone who knows the insurance side as well as the roofing side makes a significant difference in claim outcomes.",
+  // 2026-10-03 — each is the shipped line it was written for.
+  'payout-promise': "Seven years of insurance restoration experience means I know how to document damage, file claims, and get Mason homeowners the full payout they're owed.",
+  'every-dollar': 'Seven years of insurance restoration work across Greater Cincinnati means I know how Hamilton County adjusters operate, what they look for, and how to make sure your claim reflects every dollar of damage.',
+  'appeal-promise': "Denials get appealed. I document everything specifically so there's a paper trail.",
+  'files-claims': "I've documented and filed Warren County hail claims since 2018 and know how local adjusters evaluate impact density.",
 };
 for (const r of RULES) {
   const fx = BAD[r.id] || 'NO FIXTURE';
@@ -256,6 +289,16 @@ const FILING_FAMILY = [
   'Does Joe help with the insurance claim for Goshen storm damage?',
 ];
 for (const s of FILING_FAMILY) ok(checkSentence(s).length > 0, `claim-filing family is caught: "${s.slice(0, 70)}"`);
+// The outcome-promise family (2026-10-03), each caught by SOME rule.
+const OUTCOME_FAMILY = [
+  'Max Your Payout.',
+  'I do it the honest way — I document every bit of damage and fight for the full, legitimate payout, so your out-of-pocket stays as low as it honestly can.',
+  'My insurance restoration background means I know how to build a claim scope that reflects the full replacement cost — not just a discounted payout, and maximize your settlement.',
+  'I can supplement a claim with additional documentation — photos, measurements, and written scope explanations — to support an appeal.',
+  'We appeal denied claims.',
+  'I know how to document damage, file claims, and meet adjusters.',
+];
+for (const s of OUTCOME_FAMILY) ok(checkSentence(s).length > 0, `outcome-promise family is caught: "${s.slice(0, 70)}"`);
 
 // ── 2. The compliant vocabulary — and honest third-party advice — passes ─
 console.log('\n2. compliant wording passes');
@@ -288,6 +331,18 @@ const GOOD = [
   'You file the claim with your carrier; once you have, I meet the adjuster on the roof.',
   'I meet the adjuster on the roof after you file and send a supplement (my updated estimate) for anything the first scope missed.',
   'We tear off, dry in, and handle the rest of the build in one day.',
+  // 2026-10-03 rules: describing payouts, homeowners acting, and the reworded lines pass.
+  'Supplement documentation if the initial payout is below actual scope',
+  'Higher home values typically mean replacement cost value (RCV) policies with larger maximum payouts.',
+  'That experience is the difference between a partial payout and a full replacement cost estimate.',
+  "I've watched homeowners with Allstate get every dollar they deserved because they knew how to push back.",
+  "If you think a denial is wrong, you can ask your carrier for a re-inspection, use your policy's appraisal clause, or hire a licensed public adjuster — and I'll tell you honestly whether the damage supports it.",
+  "I've documented Warren County hail damage since 2018 and know how local adjusters evaluate impact density.",
+  'I know how to document storm damage, write a complete line-item estimate, and meet your adjuster on the roof — you file the claim, and it stays yours.',
+  'I document every bit of damage and write a complete line-item estimate, so nothing real gets left off the record — and the claim stays yours.',
+  'We see homeowners file claims late every spring, and the documentation suffers.',
+  "I'm not in the business of filing claims that don't exist.",
+  "I've seen rows of homes file claims back-to-back after a single April storm in Anderson Township.",
 ];
 for (const g of GOOD) ok(checkSentence(g).length === 0, `passes: "${g.slice(0, 70)}"${checkSentence(g).length ? ' — fired ' + checkSentence(g).join(',') : ''}`);
 // Windowed context: advocacy talk about a third party, or far from any claim, passes.

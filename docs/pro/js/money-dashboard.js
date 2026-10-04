@@ -43,6 +43,26 @@
     var bal = (inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0;
     return Math.round(Math.max(0, total - bal) * 100);
   }
+
+  // nbd:owed-rule:start — ONE "is this invoice still owed?" rule, kept
+  // byte-identical in collected-revenue.js, money-dashboard.js,
+  // analytics-kpi.js and invoice-pipeline.js
+  // (tests/invoice-owed-rule-2026-10-03.test.js). A voided Stripe mirror is
+  // written { status:'void', balanceDue:0 }; drafts were never sent. Neither
+  // is owed. Amount = balanceDue when present (0 means nothing due — the old
+  // `balanceDue || total` read 0 as "missing" and re-counted the full face).
+  var NOT_OWED_STATUS = { paid: 1, draft: 1, cancelled: 1, canceled: 1, void: 1, voided: 1, uncollectible: 1 };
+  function isOwedInvoice(inv) {
+    if (!inv || inv.deleted === true) return false;
+    return !NOT_OWED_STATUS[String(inv.status || '').toLowerCase()];
+  }
+  function owedDollarsOf(inv) {
+    if (!isOwedInvoice(inv)) return 0;
+    var b = inv.balanceDue;
+    var v = parseFloat((b != null && b !== '') ? b : inv.total);
+    return v > 0 ? v : 0;
+  }
+  // nbd:owed-rule:end
   // Per-payment cash ledger. Prefer inv.payments[] (stamped by markPaid + the
   // Stripe invoiceWebhook on every credit) so a deposit in May and a balance
   // payoff in July land in their own months/years. Legacy docs without the
@@ -171,8 +191,9 @@
     });
     var outstandingCents = 0;
     invoices.forEach(function (inv) {
-      if (inv.status === 'paid') return;
-      outstandingCents += Math.round((parseFloat(inv.balanceDue) || parseFloat(inv.total) || 0) * 100);
+      // isOwedInvoice/owedDollarsOf: void/draft/cancelled are not A/R, and a
+      // balanceDue of 0 is 0 (not "missing → use total").
+      outstandingCents += Math.round(owedDollarsOf(inv) * 100);
     });
 
     // ── Collections queue (2026-09-15 Collections foundation) ───────────
@@ -185,8 +206,7 @@
     var agingCents = { current: 0, d1_30: 0, d31_60: 0, d61_plus: 0 };
     var collectionsQueue = [];
     invoices.forEach(function (inv) {
-      if (inv.status === 'paid') return;
-      var balC = Math.round((parseFloat(inv.balanceDue) || parseFloat(inv.total) || 0) * 100);
+      var balC = Math.round(owedDollarsOf(inv) * 100);
       if (balC <= 0) return;
       var due = toJSDate(inv.dueDate);
       var daysPastDue = due ? Math.floor((now.getTime() - due.getTime()) / 86400000) : 0;
@@ -333,7 +353,6 @@
   function expenseLabel(e) {
     return String(e.supplier || e.vendor || e.description || e.note || e.category || 'Expense').trim().slice(0, 80) || 'Expense';
   }
-  var UNPAID_DONE = { paid: 1, draft: 1, cancelled: 1, canceled: 1, void: 1, voided: 1 };
 
   function monthClose(data, now) {
     data = data || {};
@@ -372,12 +391,10 @@
     // non-draft doc that predates sentAt.
     var unpaid = [];
     invoices.forEach(function (inv) {
-      if (!inv || inv.deleted === true) return;
-      var st = String(inv.status || '').toLowerCase();
-      if (UNPAID_DONE[st]) return;
+      if (!isOwedInvoice(inv)) return;
       var p = etParts(inv.sentAt != null ? inv.sentAt : inv.createdAt);
       if (!p || p.iso.slice(0, 7) !== key) return;
-      var balC = Math.round((parseFloat(inv.balanceDue != null ? inv.balanceDue : inv.total) || 0) * 100);
+      var balC = Math.round(owedDollarsOf(inv) * 100);
       if (balC <= 0) return;
       unpaid.push({ id: inv.id || null, label: String(inv.customerName || inv.invoiceNumber || 'Invoice').slice(0, 80), amountCents: balC, date: p.iso, leadId: inv.leadId || null });
     });

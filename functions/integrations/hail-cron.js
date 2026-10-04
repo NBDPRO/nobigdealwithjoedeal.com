@@ -32,6 +32,8 @@ const { SECRETS, PROVIDERS, hasSecret, getSecret } = require('./_shared');
 // this cron runs with admin rights, no caller token.
 // Keeping the fetchers duplicated lightly is simpler than exporting
 // private helpers; each is a handful of lines.
+const { retryTransient } = require('./retry-transient');
+
 async function fetchNoaaHail(lat, lng, radiusMi, daysBack) {
   const tsEnd = new Date();
   const tsStart = new Date(tsEnd.getTime() - daysBack * 86_400_000);
@@ -46,7 +48,7 @@ async function fetchNoaaHail(lat, lng, radiusMi, daysBack) {
     + '&maxlat=' + (lat + latDelta).toFixed(4)
     + '&minlon=' + (lng - lngDelta).toFixed(4)
     + '&maxlon=' + (lng + lngDelta).toFixed(4);
-  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(20000) });
   if (!res.ok) return [];
   const geo = await res.json();
   return ((geo && geo.features) || []).map(f => {
@@ -70,7 +72,7 @@ async function fetchHailTrace(lat, lng, radiusMi, daysBack) {
     + '&lon=' + encodeURIComponent(lng)
     + '&radius_mi=' + encodeURIComponent(radiusMi)
     + '&days=' + encodeURIComponent(daysBack);
-  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + key } });
+  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + key }, signal: AbortSignal.timeout(20000) });
   if (!res.ok) return [];
   const data = await res.json();
   return (data.events || []).map(e => ({
@@ -163,7 +165,7 @@ exports.hailMatchCron = onSchedule(
       if (Date.now() - last < 20 * 60 * 60 * 1000) { skipped++; continue; }
 
       try {
-        const hits = await fetcher(lat, lng, RADIUS_MI, DAYS_BACK);
+        const hits = await retryTransient(() => fetcher(lat, lng, RADIUS_MI, DAYS_BACK));
         const best = hits.reduce((m, h) => {
           const s = Number(h.sizeInches) || 0;
           return s > (m.sizeInches || 0) ? h : m;

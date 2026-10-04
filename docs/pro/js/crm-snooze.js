@@ -134,6 +134,88 @@ async function loadNotifications() {
 // ══════════════════════════════════════════════════════════════════════
 // FOLLOW-UP NOTIFICATION ENGINE
 // ══════════════════════════════════════════════════════════════════════
+//
+// AT MOST ONE notification per (kind, lead, local day) — 2026-10-03.
+//
+// The owner tenant had 18,169 follow_up docs (17,562 unread) across 89
+// leads: up to 31 for one lead in one day, 2,557 lead-days duplicated
+// despite the dateKey field. Root cause: the engine wrote with addDoc (a
+// random id every time) and deduped against window._notifications — the
+// bell feed, which is the newest 50 docs of ANY type. With ~89 leads due,
+// most of today's follow_ups were never in that window, so every
+// loadLeads (boot, every refresh, every tab, every device) re-created them;
+// at boot the feed was often still empty when the 1.2s timer fired, which
+// re-created all of them. The dedupe was a check-then-write over a list
+// that could not hold the answer.
+//
+// Now: the doc id is deterministic — <kind>_<uid>_<leadId>_<YYYY-MM-DD,
+// local> — and written with setDoc. firestore.rules makes a notification's
+// identity fields immutable, so a second setDoc onto an existing id is a
+// refused overwrite: create semantics, enforced by the server, across tabs
+// and devices. The day's existing rows (including legacy random-id ones)
+// are read ONCE per tab per day by an equality-only query (no composite
+// index) so the common case writes nothing at all.
+function _nbdLocalDayKey(d) {
+  const x = d instanceof Date ? d : new Date();
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+}
+function _nbdNotifDocId(kind, uid, leadId, dayKey) {
+  const safe = (s) => String(s == null ? '' : s).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 128);
+  return safe(kind) + '_' + safe(uid) + '_' + safe(leadId) + '_' + dayKey;
+}
+// Deterministic ids this tab has created, or knows exist (server read / feed).
+const _nbdNotifSeen = new Set();
+// uid|day → Promise of the one server read of that day's rows.
+const _nbdNotifDayLoads = new Map();
+function _nbdSeedSeenFromFeed(uid, dayKey) {
+  (window._notifications || []).forEach((n) => {
+    if (n && n.leadId && n.type && n.dateKey === dayKey) _nbdNotifSeen.add(_nbdNotifDocId(n.type, uid, n.leadId, dayKey));
+  });
+}
+function _nbdLoadDayRows(fs, db, uid, dayKey) {
+  const k = uid + '|' + dayKey;
+  if (!_nbdNotifDayLoads.has(k)) {
+    const p = fs.getDocs(fs.query(fs.collection(db, 'notifications'),
+      fs.where('userId', '==', uid), fs.where('dateKey', '==', dayKey)))
+      .then((snap) => {
+        snap.forEach((d) => {
+          const x = (d && typeof d.data === 'function' ? d.data() : null) || {};
+          if (x.leadId && x.type) _nbdNotifSeen.add(_nbdNotifDocId(x.type, uid, x.leadId, dayKey));
+        });
+      })
+      .catch((e) => { _nbdNotifDayLoads.delete(k); throw e; });
+    _nbdNotifDayLoads.set(k, p);
+  }
+  return _nbdNotifDayLoads.get(k);
+}
+// Create-once. Marks the id BEFORE the await so a second engine run in this
+// tab (loadLeads fires often) skips it; another tab/device is stopped by the
+// rule. A refused write (it already exists) is the expected race outcome.
+async function _nbdCreateNotifOnce(fs, db, id, data) {
+  if (_nbdNotifSeen.has(id)) return false;
+  _nbdNotifSeen.add(id);
+  try {
+    await fs.setDoc(fs.doc(db, 'notifications', id), data);
+    return true;
+  } catch (e) {
+    if (!(e && e.code === 'permission-denied')) console.warn('[notif] create skipped:', id, e && e.message);
+    return false;
+  }
+}
+function _nbdFollowUpEligible(l) {
+  if (!l || !l.id || l.deleted === true) return false;
+  const sk = l._stageKey || l.stage || '';
+  const role = l._stageRole || (typeof window.stageRole === 'function' ? window.stageRole(sk) : 'active');
+  if (role === 'won' || role === 'lost' || role === 'job') return false;
+  if (/^(closed|lost|complete)$/i.test(String(sk))) return false;
+  if (window.LeadSnooze && typeof window.LeadSnooze.isSnoozed === 'function' && window.LeadSnooze.isSnoozed(l)) return false;
+  return true;
+}
+// Everything the engines need from the SDK, in one place.
+function _nbdFirestoreMod() {
+  return import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+}
+
 async function checkAndCreateFollowUpNotifications(leads) {
   if (!window._user || !leads || !leads.length) return;
   // Respect the user's notif settings — if they turned the
@@ -147,6 +229,11 @@ async function checkAndCreateFollowUpNotifications(leads) {
     return;
   }
   const userId = window._user.uid;
+  // Stage KEYS are lowercase ('lost', 'closed') — the ['Complete','Lost']
+  // name check below never matched them, so lost/won/in-production leads
+  // with an old follow-up date kept generating a notice a day. Same role
+  // rule as the pipeline's "Follow-ups Due"; deleted + snoozed leads too.
+  leads = leads.filter(_nbdFollowUpEligible);
 
   const today = new Date(); today.setHours(0,0,0,0);
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -158,6 +245,8 @@ async function checkAndCreateFollowUpNotifications(leads) {
 
   leads.forEach(l => {
     if (!l.followUp || ['Complete','Lost'].includes(l.stage||'')) return;
+    // Phone-less door-knock leads aren't CRM follow-ups (crm-pipeline.js).
+    if (typeof window.nbdUnreachableKnockLead === 'function' && window.nbdUnreachableKnockLead(l)) return;
     // Local day, not UTC (window.nbdFollowUpDay) — these became "Overdue"
     // notifications a day early.
     const d = (typeof window.nbdFollowUpDay === 'function') ? window.nbdFollowUpDay(l.followUp) : new Date(l.followUp); d.setHours(0,0,0,0);
@@ -168,13 +257,25 @@ async function checkAndCreateFollowUpNotifications(leads) {
 
   if (!overdue.length && !dueToday.length && !dueTomorrow.length) return;
 
-  // Deduplicate — only create one notification per lead per day
-  const todayKey = today.toISOString().split('T')[0];
-  const existingKeys = new Set(
-    (window._notifications || [])
-      .filter(n => n.type === 'follow_up' && (n.dateKey === todayKey))
-      .map(n => n.leadId)
-  );
+  // One per lead per LOCAL day (toISOString of local midnight is the UTC
+  // date — the previous day east of Greenwich). Deterministic ids + the
+  // day's server rows; the bell feed is only an extra hint now.
+  const todayKey = _nbdLocalDayKey(today);
+  const _db = window._db || window.db;
+  if (!_db) return;
+  let fs;
+  try {
+    fs = await _nbdFirestoreMod();
+    _nbdSeedSeenFromFeed(userId, todayKey);
+    await _nbdLoadDayRows(fs, _db, userId, todayKey);
+  } catch (e) {
+    // Can't tell what already exists → write nothing this run (the next
+    // loadLeads retries). Never guess on the side of a duplicate.
+    console.warn('Follow-up notifications skipped:', e && e.message);
+    return;
+  }
+  const _fuId = (l) => _nbdNotifDocId('follow_up', userId, l.id, todayKey);
+  const existingKeys = { has: (leadId) => _nbdNotifSeen.has(_nbdNotifDocId('follow_up', userId, leadId, todayKey)) };
 
   // Wave 110: sanitize user-controlled fields BEFORE writing to
   // Firestore. The render path uses escHtml at display time so the
@@ -242,29 +343,27 @@ async function checkAndCreateFollowUpNotifications(leads) {
 
   if (!toCreate.length) return;
 
-  // Write to Firestore
+  // Write to Firestore — create-once per deterministic id.
   try {
-    const _db = window._db || window.db;
-    if (!_db) return;
-    const { addDoc, collection: firestoreCol, serverTimestamp } =
-      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-
-    await Promise.all(toCreate.map(n =>
-      addDoc(firestoreCol(_db, 'notifications'), {
+    const results = await Promise.all(toCreate.map(n =>
+      _nbdCreateNotifOnce(fs, _db, _fuId({ id: n.leadId }), {
         ...n,
-        createdAt: serverTimestamp()
-      })
+        createdAt: fs.serverTimestamp()
+      }).then(created => (created ? n.leadId : null))
     ));
-    // Reload notifications so badge updates immediately
-    await loadNotifications();
+    const createdIds = new Set(results.filter(Boolean));
+    if (!createdIds.size) return;
+    // The live onSnapshot already delivers new docs; only the no-listener
+    // fallback needs a manual refresh.
+    if (!_notifLive) await loadNotifications();
 
     // Browser notification if permitted AND push channel enabled in settings
     const pushAllowed = typeof window.shouldFireNotif === 'function'
       ? window.shouldFireNotif('follow_up', 'push', 'high')
       : true;
     if (pushAllowed && 'Notification' in window && Notification.permission === 'granted') {
-      const overdueCount = overdue.filter(l => !existingKeys.has(l.id)).length;
-      const todayCount = dueToday.filter(l => !existingKeys.has(l.id)).length;
+      const overdueCount = overdue.filter(l => createdIds.has(l.id)).length;
+      const todayCount = dueToday.filter(l => createdIds.has(l.id)).length;
       let body = '';
       if (overdueCount) body += `${overdueCount} overdue follow-up${overdueCount!==1?'s':''}. `;
       if (todayCount) body += `${todayCount} due today.`;
@@ -302,17 +401,28 @@ async function checkAndCreateNeedsFieldNotifications(leads) {
   }
   const userId = window._user.uid;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const todayKey = today.toISOString().split('T')[0];
+  const todayKey = _nbdLocalDayKey(today);
+  const _db = window._db || window.db;
+  if (!_db) return;
+  // Same one-per-(lead, day) machinery as the follow-up engine above (it
+  // had the same addDoc + 50-doc-feed dedupe, so the same flood shape).
+  let fs;
+  try {
+    fs = await _nbdFirestoreMod();
+    _nbdSeedSeenFromFeed(userId, todayKey);
+    await _nbdLoadDayRows(fs, _db, userId, todayKey);
+  } catch (e) {
+    console.warn('Needs-field notifications skipped:', e && e.message);
+    return;
+  }
 
   // Existing keys: don't notify twice for the same lead today.
   // Match across both follow_up and needs_field types since the rep
   // sees the same physical card — a needs-field nudge on top of a
   // follow-up nudge for the same lead is noise.
-  const existingKeys = new Set(
-    (window._notifications || [])
-      .filter(n => (n.type === 'needs_field' || n.type === 'follow_up') && n.dateKey === todayKey)
-      .map(n => n.leadId)
-  );
+  const existingKeys = { has: (leadId) =>
+    _nbdNotifSeen.has(_nbdNotifDocId('needs_field', userId, leadId, todayKey))
+    || _nbdNotifSeen.has(_nbdNotifDocId('follow_up', userId, leadId, todayKey)) };
 
   const FIELD_LABELS = {
     insCarrier: 'carrier', claimNumber: 'claim #', policyNumber: 'policy #',
@@ -368,17 +478,12 @@ async function checkAndCreateNeedsFieldNotifications(leads) {
   if (!toCreate.length) return;
 
   try {
-    const _db = window._db || window.db;
-    if (!_db) return;
-    const { addDoc, collection: firestoreCol, serverTimestamp } =
-      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-
-    await Promise.all(toCreate.map(n =>
-      addDoc(firestoreCol(_db, 'notifications'), Object.assign({}, n, {
-        createdAt: serverTimestamp()
+    const made = await Promise.all(toCreate.map(n =>
+      _nbdCreateNotifOnce(fs, _db, _nbdNotifDocId('needs_field', userId, n.leadId, todayKey), Object.assign({}, n, {
+        createdAt: fs.serverTimestamp()
       }))
     ));
-    if (typeof loadNotifications === 'function') await loadNotifications();
+    if (made.some(Boolean) && !_notifLive && typeof loadNotifications === 'function') await loadNotifications();
   } catch (e) {
     console.warn('Needs-field notification error:', e && e.message);
   }

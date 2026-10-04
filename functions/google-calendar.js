@@ -47,9 +47,14 @@ async function gclient() {
   _client = { request: (o) => c.request(o), email: async () => { try { return (await auth.getCredentials()).client_email || null; } catch (_) { return null; } } };
   return _client;
 }
+// Per-request cap on every Calendar API call (gaxios `timeout`, ms). The
+// callers run inside 30–60s request functions (getBusyTimes 30s, the write
+// triggers 60s) and gaxios has NO default timeout — one hung Google request
+// used to hold the function until the platform killed it.
+const GCAL_REQUEST_TIMEOUT_MS = 10000;
 async function call(method, path, data, params) {
   const c = await gclient();
-  const r = await c.request({ url: API + path, method, data, params });
+  const r = await c.request({ url: API + path, method, data, params, timeout: GCAL_REQUEST_TIMEOUT_MS });
   return r.data;
 }
 const statusOf = (e) => (e && (e.code || (e.response && e.response.status))) || 0;
@@ -151,59 +156,94 @@ async function syncKnockDoor(db, calendarId, address) {
   return { upserted: 0, removed: (await deleteEvent(calendarId, G.knockEventId(key))) ? 1 : 0 };
 }
 
+// Reconcile reads in pages (2026-10-03). It used to .get() every owner lead,
+// job, yard sign and knock — the WHOLE history, since a lead's scheduled /
+// adjuster / follow-up dates live in several fields and the 30-day cut is
+// applied to the events, not the docs — into one 512MiB instance at once.
+// Filtering the queries by date would risk dropping a doc whose event is
+// still wanted, and planSync DELETES every managed event nobody wants; so the
+// set of docs read is unchanged and only peak memory is cut: each lead page
+// is turned into events and released, and knocks are reduced to the newest
+// per door as they stream in.
+const RECONCILE_PAGE = 300;
+async function forEachPage(query, fn) {
+  let cursor = null;
+  for (;;) {
+    let q = query.limit(RECONCILE_PAGE);
+    // No orderBy: startAfter(snapshot) pages on the implicit __name__ order,
+    // which an equality-only query is already served in (no new index).
+    if (cursor) q = q.startAfter(cursor);
+    const snap = await q.get();
+    const docs = snap.docs || [];
+    await fn(docs);
+    if (docs.length < RECONCILE_PAGE) return;
+    cursor = docs[docs.length - 1];
+  }
+}
+
 /** Make Google match the CRM: every owner lead from 30 days back. */
 async function reconcile(db, calendarId) {
   const sinceMs = Date.now() - 30 * 86400000;
-  const [a, b] = await Promise.all([
-    db.collection('leads').where('companyId', '==', OWNER).get(),
-    db.collection('leads').where('userId', '==', OWNER).get(),
-  ]);
-  const leads = new Map();
-  [a, b].forEach((s) => s.forEach((d) => leads.set(d.id, Object.assign({ id: d.id }, d.data()))));
-  // Multi-job: every owner job (one collection-group read per stamp — the
-  // single-field COLLECTION_GROUP indexes from #1917 serve both).
-  const [ja, jb] = await Promise.all([
-    db.collectionGroup('jobs').where('companyId', '==', OWNER).get(),
-    db.collectionGroup('jobs').where('userId', '==', OWNER).get(),
-  ]);
-  const jobs = new Map();
-  [ja, jb].forEach((s) => s.forEach((d) => {
-    const leadId = d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
-    if (leadId) jobs.set(leadId + '/' + d.id, { leadId, job: Object.assign({ id: d.id }, d.data()) });
-  }));
   const desired = [];
   const keep = (e) => {
     const endMs = e.end.dateTime ? Date.parse(e.end.dateTime) : Date.parse(e.end.date + 'T23:59:59Z');
     if (endMs >= sinceMs) desired.push(e);
   };
-  for (const l of leads.values()) G.desiredEventsForLead(l).forEach(keep);
-  for (const { leadId, job } of jobs.values()) {
-    const l = leads.get(leadId);
-    if (l) G.desiredEventsForJob(l, job).forEach(keep);
+  // Multi-job: every owner job (one collection-group read per stamp — the
+  // single-field COLLECTION_GROUP indexes from #1917 serve both). Read first
+  // so each lead's jobs are at hand when its page streams past.
+  const jobKeys = new Set();
+  const jobsByLead = new Map();
+  for (const field of ['companyId', 'userId']) {
+    await forEachPage(db.collectionGroup('jobs').where(field, '==', OWNER), (docs) => docs.forEach((d) => {
+      const leadId = d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!leadId || jobKeys.has(leadId + '/' + d.id)) return;
+      jobKeys.add(leadId + '/' + d.id);
+      if (!jobsByLead.has(leadId)) jobsByLead.set(leadId, []);
+      jobsByLead.get(leadId).push(Object.assign({ id: d.id }, d.data()));
+    }));
   }
+  const leadIds = new Set();
+  for (const field of ['companyId', 'userId']) {
+    await forEachPage(db.collection('leads').where(field, '==', OWNER), (docs) => docs.forEach((d) => {
+      if (leadIds.has(d.id)) return;      // matched both stamps — same doc
+      leadIds.add(d.id);
+      const l = Object.assign({ id: d.id }, d.data());
+      G.desiredEventsForLead(l).forEach(keep);
+      for (const job of jobsByLead.get(d.id) || []) G.desiredEventsForJob(l, job).forEach(keep);
+    }));
+  }
+  jobsByLead.clear();
   // Yard-sign pickups. They MUST be in `desired`: planSync deletes every
   // managed event nobody wants, so a sign left out here would be wiped nightly.
-  const [sa, sb] = await Promise.all([
-    db.collection('yardSigns').where('companyId', '==', OWNER).get(),
-    db.collection('yardSigns').where('userId', '==', OWNER).get(),
-  ]);
-  const signs = new Map();
-  [sa, sb].forEach((s) => s.forEach((d) => signs.set(d.id, Object.assign({}, d.data(), { id: d.id }))));
+  const signIds = new Set();
   const nowMs = Date.now();
-  for (const s of signs.values()) { const e = G.desiredEventForSign(s, nowMs); if (e) keep(e); }
-  // D2D follow-ups with a time — the newest knock per door (same reason: must be in `desired`).
-  const [ka, kb] = await Promise.all([
-    db.collection('knocks').where('companyId', '==', OWNER).get(),
-    db.collection('knocks').where('userId', '==', OWNER).get(),
-  ]);
-  const knocks = new Map();
-  [ka, kb].forEach((s) => s.forEach((d) => knocks.set(d.id, Object.assign({}, d.data(), { id: d.id }))));
-  G.desiredKnockEvents([...knocks.values()], require('./schedule-window').localToUtcMs).forEach(keep);
+  for (const field of ['companyId', 'userId']) {
+    await forEachPage(db.collection('yardSigns').where(field, '==', OWNER), (docs) => docs.forEach((d) => {
+      if (signIds.has(d.id)) return;
+      signIds.add(d.id);
+      const e = G.desiredEventForSign(Object.assign({}, d.data(), { id: d.id }), nowMs);
+      if (e) keep(e);
+    }));
+  }
+  // D2D follow-ups with a time — the newest knock per door (same reason: must
+  // be in `desired`). latestKnockPerDoor is a max with a total tie-break, so
+  // folding page by page picks exactly the knock one pass over all would.
+  const knockIds = new Set();
+  let latest = new Map();
+  for (const field of ['companyId', 'userId']) {
+    await forEachPage(db.collection('knocks').where(field, '==', OWNER), (docs) => {
+      const page = [];
+      docs.forEach((d) => { if (!knockIds.has(d.id)) { knockIds.add(d.id); page.push(Object.assign({}, d.data(), { id: d.id })); } });
+      latest = G.latestKnockPerDoor([...latest.values(), ...page]);
+    });
+  }
+  G.desiredKnockEvents([...latest.values()], require('./schedule-window').localToUtcMs).forEach(keep);
   const existing = await listManaged(calendarId, sinceMs);
   const plan = G.planSync(desired, existing);
   for (const e of plan.upserts) await upsertEvent(calendarId, e);
   for (const id of plan.deletes) await deleteEvent(calendarId, id);
-  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leads.size, jobs: jobs.size, signs: signs.size, knocks: knocks.size };
+  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leadIds.size, jobs: jobKeys.size, signs: signIds.size, knocks: knockIds.size };
 }
 
 // ── owner gate (same shape as stripe-ledger.js) ───────────────────────────

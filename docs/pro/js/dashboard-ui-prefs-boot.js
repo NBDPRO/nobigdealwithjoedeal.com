@@ -192,12 +192,14 @@ function nbdApplyLegacyFont(fontId) {
   document.documentElement.style.setProperty('--nbd-font-display', font.heading);
   document.body.style.fontFamily = font.body;
   localStorage.setItem('nbd_font', fontId);
-  // Highlight active font card
-  document.querySelectorAll('.nbd-font-card').forEach(function(c) {
-    var active = c.dataset.fontId === fontId;
-    c.style.borderColor = active ? 'var(--orange)' : 'var(--br)';
-    c.style.background = active ? 'color-mix(in srgb, var(--orange) 6%, transparent)' : 'var(--s2)';
-  });
+  // ONE font system (2026-10-03): 'nbd_font' is the only key the Settings
+  // picker writes and the only one the CSS reads. maps.js's retired 8-pairing
+  // key 'nbd-font' is honoured at boot only for users who never picked here
+  // (see maps.js) — an explicit pick retires it so it can't override this.
+  try { localStorage.removeItem('nbd-font'); } catch (e) {}
+  // Re-render so the active border AND the ✓ move to the picked card (the old
+  // in-place restyle left the ✓ and glow on the previous one).
+  nbdRenderFontGrid();
   if (typeof showToast === 'function') showToast('Font: ' + font.label, 'info');
 }
 // (Dispatch used to require an explicit window export of this function to survive
@@ -211,7 +213,15 @@ function nbdApplyLegacyFont(fontId) {
 function nbdRenderFontGrid() {
   var grid = document.getElementById('settings-font-grid');
   if (!grid) return;
-  var saved = localStorage.getItem('nbd_font') || 'barlow';
+  // Active mark = the saved Settings choice. A user who only ever picked one
+  // of maps.js's retired pairings ('nbd-font', still applied at boot until
+  // they pick here) is wearing none of these 28 — mark nothing rather than
+  // claim Barlow.
+  var saved = localStorage.getItem('nbd_font');
+  if (!saved) {
+    var pairing = localStorage.getItem('nbd-font');
+    saved = (pairing && pairing !== 'nbd-default') ? '' : 'barlow';
+  }
   var cats = [
     { key: 'sans',    label: 'Sans-serif' },
     { key: 'serif',   label: 'Serif' },

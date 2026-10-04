@@ -598,10 +598,12 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
   ok('an Ohio insurance job is never held', J.payLinkHold({ address: OH_ADDR, jobType: 'insurance' }, {}).held === false);
   ok('the invoice flag can ADD the hold (lead unreadable)', J.payLinkHold(null, { kyInsuranceHold: true }).held === true);
   const stripeSrc = read('functions/stripe.js').replace(/\r\n/g, '\n');
-  const gateAt = stripeSrc.indexOf('KyLaw.payLinkHold(kyLead, invoice, Date.now(), tz)');
-  ok('createStripePaymentLink runs payLinkHold before any Stripe call and refuses with 409 KY_CANCELLATION_WINDOW',
+  // 2026-10-03: the gate moved into functions/ky-pay-link-gate-logic.js
+  // (behaviour-tested in tests/ky-pay-link-gate-2026-10-03.test.js).
+  const gateAt = stripeSrc.indexOf('KyPayLinkGate.kyPayLinkGate({');
+  ok('createStripePaymentLink runs the KY pay-link gate before any Stripe call and refuses with 409 KY_CANCELLATION_WINDOW',
     gateAt > 0 && gateAt < stripeSrc.indexOf('const stripe = getStripe();', gateAt) &&
-    /res\.status\(409\)\.json\(\{\s*error: 'KY_CANCELLATION_WINDOW'/.test(stripeSrc.slice(gateAt, gateAt + 800)));
+    /res\.status\(409\)\.json\(\{\s*error: 'KY_CANCELLATION_WINDOW'/.test(stripeSrc.slice(gateAt, gateAt + 1400)));
 
   console.log('\n' + '─'.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

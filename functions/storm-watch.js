@@ -21,8 +21,11 @@
  * Dedupe: each LSR is keyed (time+coords+type) into storm_events/{key};
  * an event alerts exactly once, and re-fetch overlap is harmless.
  * Subscriber protections: 15 mi radius zip-centroid match, at most one
- * storm text per subscriber per 24h (cooldown stamp), STOP handled by
- * Twilio at the carrier level.
+ * storm text per subscriber per STORM_TEXT_COOLDOWN_H — the SAME cooldown
+ * field + constant checkStormAlerts uses, so one storm cannot text a person
+ * from both crons — the TCPA opt-out register (sms_opt_outs), and the cooldown
+ * stamp is claimed in a transaction BEFORE the send (storm-sms-guard.js), so
+ * a failed stamp can no longer leave a person textable again.
  */
 
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
@@ -33,7 +36,8 @@ const { Resend } = require('resend');
 // cold-start path; call sites use _twilio()(...).
 let _twilioSdk = null;
 const _twilio = () => (_twilioSdk = _twilioSdk || require('twilio'));
-const { Timestamp, FieldValue, getFirestore } = require('firebase-admin/firestore');
+const { FieldValue, getFirestore } = require('firebase-admin/firestore');
+const StormGuard = require('./storm-sms-guard');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -47,7 +51,7 @@ const JOE_SMS = '+18594207382';
 const LOOKBACK_H = 3;            // re-fetch overlap; dedupe absorbs repeats
 const SERVICE_RADIUS_MI = 25;    // event must be this close to a service city
 const SUBSCRIBER_RADIUS_MI = 15; // "hits your zip" honesty radius
-const SUBSCRIBER_COOLDOWN_H = 24;
+// Cooldown: StormGuard.STORM_TEXT_COOLDOWN_H (shared with checkStormAlerts).
 const MIN_HAIL_IN = 0.75;
 const MIN_WIND_MPH = 58;
 
@@ -173,18 +177,25 @@ exports.stormWatch = onSchedule(
     if (!events.length) { logger.info('stormWatch: no new qualifying events'); return; }
 
     // Affected subscribers (within radius of ANY new event)
-    const textEnabled = process.env.STORM_TEXT_ENABLED === 'true';
-    const cooldown = Timestamp.fromMillis(Date.now() - SUBSCRIBER_COOLDOWN_H * 3600_000);
+    // TCPA master switch (integrations/stormAlerts.enabled; absent = on) —
+    // read every run; Joe's own alert still goes out with texting shown OFF.
+    const switchOn = await StormGuard.stormAlertsEnabled(db, logger);
+    if (!switchOn) logger.info('stormWatch: storm texts switched off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
+    const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn;
+    const nowMs = Date.now();
     // active:true is server-stamped on every subscriber (functions/handlers/
     // integrations.js's serverDefaults, never client-trusted) specifically so
     // an opted-out subscriber stops matching every alert query — sms-
     // functions.js's sibling checkStormAlerts cron already filters on it.
     // This query queried unfiltered, so an unsubscribed homeowner kept
     // receiving stormWatch's texts even after opting out.
-    const subsSnap = await db.collection('storm_alert_subscribers').where('active', '==', true).limit(1000).get();
+    //
+    // 2026-10-03: was .limit(1000) on an unordered query — every subscriber
+    // past the first 1000 was silently never texted. Paged by documentId now.
+    const subDocs = await StormGuard.loadActiveSubscribers(db, { logger });
     const affected = [];
     let unknownZips = 0;
-    for (const doc of subsSnap.docs) {
+    for (const doc of subDocs) {
       const s = doc.data() || {};
       const digits = String(s.phone || '').replace(/[^\d]/g, '');
       if (digits.length !== 10 && !(digits.length === 11 && digits[0] === '1')) continue;
@@ -192,8 +203,8 @@ exports.stormWatch = onSchedule(
       if (!zc) { unknownZips++; continue; }
       const near = events.find((ev) => haversineMi(zc[0], zc[1], ev.lat, ev.lon) <= SUBSCRIBER_RADIUS_MI);
       if (!near) continue;
-      if (s.lastStormTextAt && s.lastStormTextAt.toMillis && s.lastStormTextAt.toMillis() > cooldown.toMillis()) continue;
-      affected.push({ ref: doc.ref, to: '+1' + digits.slice(-10), zip: String(s.zip || ''), event: near });
+      if (StormGuard.inStormCooldown(s, nowMs)) continue;
+      affected.push({ ref: doc.ref, to: '+1' + digits.slice(-10), zip: String(s.zip || ''), tz: s.tz, event: near });
     }
 
     // 1) Joe's alert — always
@@ -230,22 +241,36 @@ exports.stormWatch = onSchedule(
     } catch (e) { logger.error('stormWatch: joe email failed', { err: e.message }); }
 
     // 2) Subscriber texts — gated
+    // Each text: opt-out register → cooldown claim (transaction, BEFORE the
+    // send; a claim failure is logged and nothing is sent) → send.
     let texted = 0;
+    const skipped = {};
     if (textEnabled && affected.length) {
       const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
       for (const a of affected) {
-        try {
-          await client.messages.create({
+        const result = await StormGuard.sendGuardedStormText({
+          db,
+          subscriberRef: a.ref,
+          phone: a.to,
+          source: 'stormWatch',
+          eventKey: a.event.key,
+          logger,
+          tz: a.tz,
+          serverTimestamp: () => FieldValue.serverTimestamp(),
+          send: () => client.messages.create({
             to: a.to,
             from: TWILIO_PHONE_NUMBER.value(),
             body: `NBD Storm Alert: ${eventLabel(a.event)} reported near ${a.event.city || 'your area'}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.`,
-          });
-          await a.ref.update({ lastStormTextAt: FieldValue.serverTimestamp(), lastStormEventKey: a.event.key }).catch(() => {});
-          texted++;
-        } catch (e) { logger.error('stormWatch: subscriber sms failed', { err: e.message }); }
+          }),
+        });
+        if (result.status === 'sent') texted++;
+        else skipped[result.status] = (skipped[result.status] || 0) + 1;
       }
     }
-    logger.info('stormWatch: done', { events: events.length, affected: affected.length, texted, textEnabled });
+    if (skipped.quiet_hours) {
+      logger.info('stormWatch: quiet hours skipped', { count: skipped.quiet_hours, window: StormGuard.STORM_QUIET_HOURS });
+    }
+    logger.info('stormWatch: done', { events: events.length, affected: affected.length, texted, textEnabled, skipped });
   }
 );
 
