@@ -148,7 +148,7 @@
         serverTimestamp: window.serverTimestamp,
       };
     }
-    const mod = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     return {
       db: window.db || mod.getFirestore(),
       collection: mod.collection,

@@ -43,7 +43,7 @@ let _bootStartedAt; // module-local (globals Tranche 1 — was window.*)
   window.__nbdGstaticTest = async function _nbdGstaticTest() {
     const btn = document.getElementById('nbd-ls-gstatic-btn');
     if (btn) btn.textContent = 'testing…';
-    const url = '/assets/vendor/firebase/12.19.0/firebase-app.js';
+    const url = '/assets/vendor/firebase/10.12.2/firebase-app.js';
     const t0 = Date.now();
     try {
       const res = await fetch(url, { cache: 'no-store', mode: 'cors' });

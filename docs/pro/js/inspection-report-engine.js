@@ -126,7 +126,7 @@
         if (!window._db) return [];
 
         const { collection, getDocs, query, where, orderBy } = await import(
-          '/assets/vendor/firebase/12.19.0/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         const q = query(
@@ -157,7 +157,7 @@
         }
 
         const { collection, doc, setDoc, serverTimestamp } = await import(
-          '/assets/vendor/firebase/12.19.0/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         const reportId = `report_${Date.now()}`;
@@ -207,7 +207,7 @@
         if (!window._db) return false;
 
         const { collection, doc, deleteDoc } = await import(
-          '/assets/vendor/firebase/12.19.0/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         await deleteDoc(doc(window._db, REPORTS_COLLECTION, reportId));
@@ -230,7 +230,7 @@
       if (!reportId) return;
       try {
         if (!window._functions || !window._httpsCallable) {
-          const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+          const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
           window._functions = window._functions || mod.getFunctions();
           window._httpsCallable = window._httpsCallable || mod.httpsCallable;
         }
@@ -2793,7 +2793,7 @@
      */
     async _tryServerRender(state) {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }
@@ -3109,7 +3109,7 @@
         if (!window._db) return;
 
         const { doc, getDoc } = await import(
-          '/assets/vendor/firebase/12.19.0/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         const reportDoc = await getDoc(doc(window._db, REPORTS_COLLECTION, reportId));

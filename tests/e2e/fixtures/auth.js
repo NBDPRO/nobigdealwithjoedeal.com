@@ -200,7 +200,7 @@ async function logout(page) {
  */
 async function callCallableInPage(page, name, data) {
   return page.evaluate(async ({ fnName, payload }) => {
-    const m = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+    const m = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const f = m.httpsCallable(m.getFunctions(), fnName);
     const r = await f(payload || {});
     return r && r.data;

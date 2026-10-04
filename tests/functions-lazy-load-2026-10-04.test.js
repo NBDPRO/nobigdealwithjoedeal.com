@@ -68,7 +68,7 @@ if (process.argv[2] === '--child') {
   const u = require(INDEX);
   out.unknown = { keys: Object.keys(u).length, modules: own().length };
   delete process.env.FUNCTION_TARGET;
-  process.stderr.write('\n@@RESULT@@' + JSON.stringify(out) + '\n');
+  fs.writeFileSync(process.env.NBD_LAZY_RESULT_FILE, JSON.stringify(out));
   process.exit(0);
   })().catch((e) => { process.stderr.write(String(e && e.stack || e)); process.exit(1); });
   return;
@@ -143,11 +143,17 @@ function ok(label, cond, detail) {
 
   console.log('\nLAZY — every target, cold, in a child process');
   {
-    const r = spawnSync(process.execPath, [__filename, '--child'], { cwd: FUNCTIONS, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: Object.assign({}, process.env, { FUNCTION_TARGET: '' }) });
-    const marker = (r.stderr || '').lastIndexOf('@@RESULT@@');
-    ok('child ran', r.status === 0 && marker >= 0, (r.stderr || '').slice(-600));
-    if (marker >= 0) {
-      const res = JSON.parse(r.stderr.slice(marker + 10).trim().split('\n')[0]);
+    // The child hands its result back through a FILE: on Linux a pipe write
+    // is async and process.exit() truncated a stderr handoff (CI: "Unexpected
+    // end of JSON input"), while Windows pipes are synchronous.
+    const resultFile = path.join(require('os').tmpdir(), 'nbd-lazy-load-' + process.pid + '.json');
+    try { fs.unlinkSync(resultFile); } catch (_) {}
+    const r = spawnSync(process.execPath, [__filename, '--child'], { cwd: FUNCTIONS, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: Object.assign({}, process.env, { FUNCTION_TARGET: '', NBD_LAZY_RESULT_FILE: resultFile }) });
+    const have = fs.existsSync(resultFile);
+    ok('child ran', r.status === 0 && have, (r.stderr || '').slice(-600));
+    if (have) {
+      const res = JSON.parse(fs.readFileSync(resultFile, 'utf8'));
+      try { fs.unlinkSync(resultFile); } catch (_) {}
       const names = Object.keys(res.full);
       const wrongKeys = names.filter((n) => JSON.stringify(res.lazy[n].keys) !== JSON.stringify([n]));
       const diffEp = names.filter((n) => res.lazy[n].ep !== res.full[n]);

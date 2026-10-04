@@ -86,22 +86,30 @@ cannot see one member silently stopping. CI fails on an unplanned cron.
 Jo's to-do: create the 18 checks in the runbook table; delete the 18 old
 slugs listed there if he created them.
 
-## 7. Firebase JS SDK self-hosted — 12.19.0
+## 7. Firebase JS SDK self-hosted — 10.12.2 (same version; upgrade is a follow-up)
 
-`docs/assets/vendor/firebase/12.19.0/` (app, app-check, auth, firestore,
+`docs/assets/vendor/firebase/10.12.2/` (app, app-check, auth, firestore,
 functions, storage, messaging + the two compat files the messaging SW
 imports), copied from the npm `firebase` package root with the inner gstatic
 import rewritten to `./firebase-app.js` (two copies of firebase-app = two app
 registries). 263 references in 103 files rewritten (incl. the admin vault,
-which was on 10.8.0); `/assets/vendor/firebase/**` is cached immutably.
+which was on 10.8.0 — now 10.12.2 like everything else);
+`/assets/vendor/firebase/**` is cached immutably. Zero SDK behaviour change
+for the CRM; the win is same-origin (service-worker cacheable, no third-party
+connection, one version in one place).
 
-- All 297 named imports the site uses exist in 12.19.0 (pinned by
-  `tests/firebase-sdk-vendored-2026-10-04.test.js`).
-- Cost: firestore 12.19 is 178 KB gzipped vs 112 KB in 10.12.2 (+67 KB once,
-  then cached immutably and by the service worker).
-- `pro/sw.js` (owned by the offline-safety lane) already treats same-origin
-  JS network-first with cache — the vendored SDK is now cacheable offline;
-  nothing in sw.js changed here.
+**12.19.0 was vendored first and reverted.** All 297 named imports exist in
+12.19, but CI's `@audit` shard failed
+`phone-views.spec.js:1294` — "offline, the SDK hands out the partial doc
+(the hole under test)": a test that pins how Firestore's local cache serves a
+doc with a pending write while offline. 12.x changed that behaviour, so the
+company-profile retry path it guards needs re-reading against 12.x before an
+upgrade (locally the same spec family, `phone-views:1435/1457` "a
+company-profile read that gave up at boot", also failed on 12.19). 12.19's
+firestore bundle is also 178 KB gz vs 112 KB. **Follow-up:** upgrade in its own
+PR — `node scripts/vendor-firebase-sdk.js 12.x <pkg>` + `--rewrite`, then
+re-baseline those specs with the offline-safety lane's persistentLocalCache
+work in place.
 
 ## 8. Lighter startup
 

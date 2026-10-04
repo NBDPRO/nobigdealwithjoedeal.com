@@ -19,7 +19,7 @@
   'use strict';
   if (window.NBDGameCard) return;
 
-  var FUNCTIONS_SDK = '/assets/vendor/firebase/12.19.0/firebase-functions.js';
+  var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
   var CACHE_MS = 15 * 60 * 1000;
   // The avatar itself (parts, colours, drawing) lives in game-sprite.js.
   function S() { return window.NBDSprite; }

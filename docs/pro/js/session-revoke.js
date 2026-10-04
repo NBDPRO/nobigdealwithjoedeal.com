@@ -51,7 +51,7 @@
    */
   async function getCallable() {
     if (!window._functions || !window._httpsCallable) {
-      var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+      var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = window._functions || mod.getFunctions();
       try {
         var emu = await import('./nbd-emulator-connect.js');

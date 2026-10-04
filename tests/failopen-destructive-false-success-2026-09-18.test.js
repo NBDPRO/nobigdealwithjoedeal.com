@@ -379,8 +379,8 @@ const CB_IMPORTS = (CB_RAW.match(IMPORT_RE) || []).length;
 // loader, so route it to a stub. Proven applied: every import( is rewritten,
 // and the rewritten file contains none.
 const CB_SRC = CB_RAW.replace(IMPORT_RE, '__testImport(');
-const FIRESTORE_URL = '/assets/vendor/firebase/12.19.0/firebase-firestore.js';
-const FUNCTIONS_URL = '/assets/vendor/firebase/12.19.0/firebase-functions.js';
+const FIRESTORE_URL = '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
+const FUNCTIONS_URL = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
 
 function fullDeal(over) {
   const tier = (p) => ({ label: 'T', price: p, lineItems: [], description: 'd' });

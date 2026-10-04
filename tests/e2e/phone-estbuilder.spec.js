@@ -107,7 +107,7 @@ async function reachable(locator) {
 async function seedLeads(page, n) {
   return safeEvaluate(page, async (count) => {
     const stamp = Date.now();
-    const fsMod = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const companyId = (window._userClaims && window._userClaims.companyId) || uid;
@@ -399,7 +399,7 @@ test.describe('phone estbuilder: reopened estimate keeps contact @shard2', () =>
       // Recover by leadId: survives the emulator's ALREADY_EXISTS retry bug
       // (the write lands, the client reports an error).
       const saved = await safeEvaluate(page, async (lid) => {
-        const fsMod = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+        const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const db = window.db || window._db;
         const uid = (window._auth || window.auth).currentUser.uid;
         const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'estimates'),
@@ -579,7 +579,7 @@ test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px 
       await create.tap();
       await expect(page.locator('#jtModal .jt-success')).toBeVisible({ timeout: 20_000 });
       const saved = await safeEvaluate(page, async (lid) => {
-        const fsMod = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+        const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const db = window.db || window._db;
         const uid = (window._auth || window.auth).currentUser.uid;
         const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'estimates'),
@@ -624,7 +624,7 @@ test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px 
       await safeEvaluate(page, () => window.EstimateV2UI.save());
       await expect(page.locator('#v2saveStatus')).toHaveText(/Saved|error|fail/i, { timeout: 20_000 });
       const again = await safeEvaluate(page, async (id) => {
-        const fsMod = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+        const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const snap = await fsMod.getDoc(fsMod.doc(window.db || window._db, 'estimates', id));
         const d = snap.data() || {};
         const row = (d.rows || []).find((r) => r.code === 'UPG LG-ARX') || null;

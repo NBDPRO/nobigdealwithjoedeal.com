@@ -77,7 +77,7 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
 
     // Lead + estimate first (ids), then the server-shaped draft.
     const ids = await safeEvaluate(page, async ({ lead, est }) => {
-      const fs = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const leadId = (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({}, lead, { createdAt: fs.serverTimestamp() }))).id;
       const estimateId = (await fs.addDoc(fs.collection(db, 'estimates'), Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }))).id;
@@ -96,7 +96,7 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
 
     // A sent $2,000 invoice too, so Total Owed has something real to count.
     await safeEvaluate(page, async ({ id, inv, leadId, uid, companyId }) => {
-      const fs = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const due = new Date(inv.dueDateMs); delete inv.dueDateMs;
       await fs.setDoc(fs.doc(db, 'invoices', id), Object.assign({}, inv, { dueDate: due, createdAt: fs.serverTimestamp(), updatedAt: fs.serverTimestamp() }));

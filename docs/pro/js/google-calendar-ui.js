@@ -36,7 +36,7 @@
 
   async function callable(name, payload) {
     if (!window._httpsCallable) {
-      const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._httpsCallable = mod.httpsCallable;
     }
     if (!window._functions) throw new Error('Functions SDK unavailable');

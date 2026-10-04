@@ -1,10 +1,10 @@
 
 let toggleCustomerPhotoReorder, _lightboxIndex, _lightboxSource; // module-local (globals Tranche 1 — was window.*)
-import { initializeApp } from "/assets/vendor/firebase/12.19.0/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "/assets/vendor/firebase/12.19.0/firebase-app-check.js";
-import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/12.19.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, getDoc, doc, query, orderBy, where, updateDoc, deleteDoc, serverTimestamp, addDoc, arrayUnion, arrayRemove, limit, runTransaction, setDoc, writeBatch } from "/assets/vendor/firebase/12.19.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytesResumable, uploadBytes, getDownloadURL } from "/assets/vendor/firebase/12.19.0/firebase-storage.js";
+import { initializeApp } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
+import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+import { getFirestore, collection, getDocs, getDoc, doc, query, orderBy, where, updateDoc, deleteDoc, serverTimestamp, addDoc, arrayUnion, arrayRemove, limit, runTransaction, setDoc, writeBatch } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytesResumable, uploadBytes, getDownloadURL } from "/assets/vendor/firebase/10.12.2/firebase-storage.js";
 import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 // The canonical stage config. This page used to advance stages with a private
 // hardcoded copy of the pipeline ladder and none of the kanban's bookkeeping;
@@ -2142,7 +2142,7 @@ window.shareEstimateViewLink = async function(estId) {
     // (already used by W118 portal flow + W144 supplements).
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }
@@ -4262,7 +4262,7 @@ async function _renderEmailUnsubState(lead, leadId) {
     btn.disabled = true;
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }

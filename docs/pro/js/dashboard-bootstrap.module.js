@@ -7,11 +7,11 @@
 // Module scripts are implicitly deferred and execute in document
 // order, so this still runs after dashboard-appcheck-config.js sets
 // window.__NBD_APP_CHECK_KEY and after dashboard-auth-gate.module.js.
-  import { initializeApp } from "/assets/vendor/firebase/12.19.0/firebase-app.js";
-  import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "/assets/vendor/firebase/12.19.0/firebase-app-check.js";
-  import { getAuth, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "/assets/vendor/firebase/12.19.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp, where, arrayUnion, increment, limit, startAfter, setDoc, writeBatch, runTransaction, onSnapshot, disableNetwork, enableNetwork, getCountFromServer } from "/assets/vendor/firebase/12.19.0/firebase-firestore.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from "/assets/vendor/firebase/12.19.0/firebase-storage.js";
+  import { initializeApp } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+  import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
+  import { getAuth, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp, where, arrayUnion, increment, limit, startAfter, setDoc, writeBatch, runTransaction, onSnapshot, disableNetwork, enableNetwork, getCountFromServer } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from "/assets/vendor/firebase/10.12.2/firebase-storage.js";
   import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 
   // ═══ GLOBAL CRM STATE (MUST BE TOP-LEVEL) ═══
@@ -1864,7 +1864,7 @@
       if (window._userClaims.companyId && window._userClaims.companyId !== user.uid
           && !localStorage.getItem(_repActivatedKey)) {
         try {
-          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'activateInvitedRep');
@@ -1888,7 +1888,7 @@
       else if ((!window._userClaims.companyId || window._userClaims.companyId === user.uid)
           && !localStorage.getItem(_inviteCheckedKey)) {
         try {
-          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'claimInvite');
@@ -1968,7 +1968,7 @@
             resend.addEventListener('click', async () => {
               resend.disabled = true; resend.textContent = 'Sending…';
               try {
-                const { sendEmailVerification } = await import('/assets/vendor/firebase/12.19.0/firebase-auth.js');
+                const { sendEmailVerification } = await import('/assets/vendor/firebase/10.12.2/firebase-auth.js');
                 await sendEmailVerification(user);
                 resend.textContent = 'Sent — check your inbox';
               } catch (err) {
@@ -2002,7 +2002,7 @@
       if (!window._userClaims.companyId && window._userClaims.owner !== true
           && localStorage.getItem(_provisionPendingKey)) {
         try {
-          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'createCompany');
@@ -5367,7 +5367,7 @@
     // a failure was only ever logged.
     try {
       if (window._db && window._user) {
-        const { setDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
+        const { setDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
         Promise.resolve(setDoc(
           doc(window._db, 'userSettings', window._user.uid),
           { estimateSettingsV2: patch, updatedAt: new Date().toISOString() },
@@ -5510,7 +5510,7 @@
         // rows were actually deleted, re-pull so the tenant cache matches).
         if (customJurisdictions && window._db && window._user) {
           const removed = prevJurSlugs.filter(k => !(k in customJurisdictions));
-          const { updateDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
+          const { updateDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
           // companyKey (above) comes from the SAME helper _saveCompanyProfile
           // uses — a divergent key would land the merge-write and the
           // full-replace on different docs (deleted rows resurrect, save
@@ -5636,7 +5636,7 @@
     }
     if (resetHere) {
       try {
-        const { updateDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
+        const { updateDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
         await updateDoc(doc(window._db, 'companyProfile', String(companyKey)), {
           'pricing.permits': {},
           'pricing.countyTax': {},
@@ -5709,7 +5709,7 @@
     try { localStorage.setItem('nbd_company_settings', JSON.stringify(data)); } catch(e){}
     try {
       if (window._db && window._user) {
-        const { setDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
+        const { setDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
         await setDoc(
           doc(window._db, 'userSettings', window._user.uid),
           { company: data, updatedAt: new Date().toISOString() },
@@ -5737,7 +5737,7 @@
     // Firestore wins if present
     try {
       if (window._db && window._user) {
-        const { getDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
+        const { getDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
         const snap = await getDoc(doc(window._db, 'userSettings', window._user.uid));
         if (snap.exists() && snap.data().company) {
           data = Object.assign({}, data, snap.data().company);
@@ -6079,7 +6079,7 @@
     const slug = (input && input.value || '').trim().toLowerCase();
     try {
       if (!(window._functions && window._httpsCallable)) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         await connectEmulatorsIfLocal({ functions: window._functions }); // no-op in prod
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
@@ -6259,7 +6259,7 @@
     try { localStorage.setItem('nbd_notif_settings', JSON.stringify(data)); } catch(e){}
     try {
       if (window._db && window._user) {
-        const { setDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
+        const { setDoc, doc } = await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
         await setDoc(
           doc(window._db, 'userSettings', window._user.uid),
           { notifications: data, updatedAt: new Date().toISOString() },
@@ -6314,7 +6314,7 @@
     const uid = window._user && window._user.uid;
     if (!_db || !uid) return;
     try {
-      const { getDoc, doc } = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+      const { getDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       // QA 2026-06-21 #1: retry transient cold-boot offline (WebChannel not up yet).
       const snap = await (window.nbdRetryOffline || (f => f()))(() => getDoc(doc(_db, 'userSettings', uid)));
       if (!snap.exists()) return;

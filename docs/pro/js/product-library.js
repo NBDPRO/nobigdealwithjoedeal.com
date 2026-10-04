@@ -240,7 +240,7 @@
 
   async function cloudFs() {
     if (window.__NBD_FS__) return window.__NBD_FS__;
-    return import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+    return import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   }
   function cloudDb() { return window.db || window._db || null; }
 

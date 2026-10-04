@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2017 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// This value is retrieved and hardcoded by the NPM postinstall script
-const getDefaultsFromPostinstall = () => undefined;
 
 /**
  * @license
@@ -104,7 +102,6 @@ const byteArrayToString = function (bytes) {
 // We define it as an object literal instead of a class because a class compiled down to es5 can't
 // be treeshaked. https://github.com/rollup/rollup/issues/1691
 // Static lookup maps, lazily populated by init_()
-// TODO(dlarocque): Define this as a class, since we no longer target ES5.
 const base64 = {
     /**
      * Maps bytes to characters.
@@ -335,6 +332,7 @@ const base64Decode = function (str) {
     }
     return null;
 };
+
 /**
  * @license
  * Copyright 2022 Google LLC
@@ -368,6 +366,7 @@ function getGlobal() {
     }
     throw new Error('Unable to locate global object.');
 }
+
 /**
  * @license
  * Copyright 2022 Google LLC
@@ -427,8 +426,7 @@ const getDefaultsFromCookie = () => {
  */
 const getDefaults = () => {
     try {
-        return (getDefaultsFromPostinstall() ||
-            getDefaultsFromGlobal() ||
+        return (getDefaultsFromGlobal() ||
             getDefaultsFromEnvVariable() ||
             getDefaultsFromCookie());
     }
@@ -447,7 +445,8 @@ const getDefaults = () => {
  * Returns Firebase app config stored in the __FIREBASE_DEFAULTS__ object.
  * @public
  */
-const getDefaultAppConfig = () => getDefaults()?.config;
+const getDefaultAppConfig = () => { var _a; return (_a = getDefaults()) === null || _a === void 0 ? void 0 : _a.config; };
+
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -474,7 +473,7 @@ class Deferred {
         });
     }
     /**
-     * Our API internals are not promisified and cannot because our callback APIs have subtle expectations around
+     * Our API internals are not promiseified and cannot because our callback APIs have subtle expectations around
      * invoking promises inline, which Promises are forbidden to do. This method accepts an optional node-style callback
      * and returns a node-style callback which will resolve or reject the Deferred's promise.
      */
@@ -503,21 +502,10 @@ class Deferred {
     }
 }
 /**
- * Detect Browser Environment.
- * Note: This will return true for certain test frameworks that are incompletely
- * mimicking a browser, and should not lead to assuming all browser APIs are
- * available.
+ * Detect Browser Environment
  */
 function isBrowser() {
-    return typeof window !== 'undefined' || isWebWorker();
-}
-/**
- * Detect Web Worker context.
- */
-function isWebWorker() {
-    return (typeof WorkerGlobalScope !== 'undefined' &&
-        typeof self !== 'undefined' &&
-        self instanceof WorkerGlobalScope);
+    return typeof self === 'object' && self.self === self;
 }
 /**
  * This method checks if indexedDB is supported by current browser/service worker context
@@ -556,7 +544,8 @@ function validateIndexedDBOpenable() {
                 preExist = false;
             };
             request.onerror = () => {
-                reject(request.error?.message || '');
+                var _a;
+                reject(((_a = request.error) === null || _a === void 0 ? void 0 : _a.message) || '');
             };
         }
         catch (error) {
@@ -564,6 +553,7 @@ function validateIndexedDBOpenable() {
         }
     });
 }
+
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -585,7 +575,7 @@ function validateIndexedDBOpenable() {
  *
  * Usage:
  *
- *   // TypeScript string literals for type-safe codes
+ *   // Typescript string literals for type-safe codes
  *   type Err =
  *     'unknown' |
  *     'object-not-found'
@@ -636,8 +626,6 @@ class FirebaseError extends Error {
         this.name = ERROR_NAME;
         // Fix For ES5
         // https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-        // TODO(dlarocque): Replace this with `new.target`: https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-2.html#support-for-newtarget
-        //                   which we can now use since we no longer target ES5.
         Object.setPrototypeOf(this, FirebaseError.prototype);
         // Maintains proper stack trace for where our error was thrown.
         // Only available on V8.
@@ -664,34 +652,12 @@ class ErrorFactory {
     }
 }
 function replaceTemplate(template, data) {
-    try {
-        let ptr = 0;
-        let result = '';
-        while (ptr < template.length) {
-            const start = template.indexOf('{$', ptr);
-            if (start === -1) {
-                result += template.substring(ptr);
-                break;
-            }
-            const end = template.indexOf('}', start + 2);
-            if (end === -1) {
-                result += template.substring(ptr);
-                break;
-            }
-            const key = template.substring(start + 2, end);
-            const value = data[key];
-            result +=
-                template.substring(ptr, start) +
-                    (value != null ? String(value) : `<${key}?>`);
-            ptr = end + 1;
-        }
-        return result;
-    }
-    catch (e) {
-        // Should never happen, but fallback just in case
-        return template;
-    }
+    return template.replace(PATTERN, (_, key) => {
+        const value = data[key];
+        return value != null ? String(value) : `<${key}?>`;
+    });
 }
+const PATTERN = /\{\$([^}]+)}/g;
 /**
  * Deep equal two objects. Support Arrays and Objects.
  */
@@ -766,6 +732,7 @@ class Component {
         return this;
     }
 }
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -783,6 +750,7 @@ class Component {
  * limitations under the License.
  */
 const DEFAULT_ENTRY_NAME$1 = '[DEFAULT]';
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -814,7 +782,7 @@ class Provider {
         this.onInitCallbacks = new Map();
     }
     /**
-     * @param identifier A provider can provide multiple instances of a service
+     * @param identifier A provider can provide mulitple instances of a service
      * if this.component.multipleInstances is true.
      */
     get(identifier) {
@@ -843,9 +811,10 @@ class Provider {
         return this.instancesDeferred.get(normalizedIdentifier).promise;
     }
     getImmediate(options) {
+        var _a;
         // if multipleInstances is not supported, use the default name
-        const normalizedIdentifier = this.normalizeInstanceIdentifier(options?.identifier);
-        const optional = options?.optional ?? false;
+        const normalizedIdentifier = this.normalizeInstanceIdentifier(options === null || options === void 0 ? void 0 : options.identifier);
+        const optional = (_a = options === null || options === void 0 ? void 0 : options.optional) !== null && _a !== void 0 ? _a : false;
         if (this.isInitialized(normalizedIdentifier) ||
             this.shouldAutoInitialize()) {
             try {
@@ -863,7 +832,7 @@ class Provider {
             }
         }
         else {
-            // In case a component is not initialized and should/cannot be auto-initialized at the moment, return null if the optional flag is set, or throw
+            // In case a component is not initialized and should/can not be auto-initialized at the moment, return null if the optional flag is set, or throw
             if (optional) {
                 return null;
             }
@@ -977,9 +946,9 @@ class Provider {
      * @returns a function to unregister the callback
      */
     onInit(callback, identifier) {
+        var _a;
         const normalizedIdentifier = this.normalizeInstanceIdentifier(identifier);
-        const existingCallbacks = this.onInitCallbacks.get(normalizedIdentifier) ??
-            new Set();
+        const existingCallbacks = (_a = this.onInitCallbacks.get(normalizedIdentifier)) !== null && _a !== void 0 ? _a : new Set();
         existingCallbacks.add(callback);
         this.onInitCallbacks.set(normalizedIdentifier, existingCallbacks);
         const existingInstance = this.instances.get(normalizedIdentifier);
@@ -1003,7 +972,7 @@ class Provider {
             try {
                 callback(instance, identifier);
             }
-            catch {
+            catch (_a) {
                 // ignore errors in the onInit callback
             }
         }
@@ -1032,7 +1001,7 @@ class Provider {
                 try {
                     this.component.onInstanceCreated(this.container, instanceIdentifier, instance);
                 }
-                catch {
+                catch (_a) {
                     // ignore errors in the onInstanceCreatedCallback
                 }
             }
@@ -1059,6 +1028,7 @@ function normalizeIdentifierForFactory(identifier) {
 function isComponentEager(component) {
     return component.instantiationMode === "EAGER" /* InstantiationMode.EAGER */;
 }
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -1127,42 +1097,6 @@ class ComponentContainer {
         return Array.from(this.providers.values());
     }
 }
-/**
- * @license
- * Copyright 2019 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-var InstantiationMode;
-(function (InstantiationMode) {
-    InstantiationMode["LAZY"] = "LAZY";
-    InstantiationMode["EAGER"] = "EAGER";
-    InstantiationMode["EXPLICIT"] = "EXPLICIT"; // component needs to be initialized explicitly by calling Provider.initialize()
-})(InstantiationMode || (InstantiationMode = {}));
-/**
- * PUBLIC: A public component provides a set of public APIs to customers. A service namespace will be patched
- * onto `firebase` namespace. Assume the component name is `test`, customers will be able
- * to get the service by calling `firebase.test()` or `app.test()` where `app` is a `FirebaseApp` instance.
- *
- * PRIVATE: A private component provides a set of private APIs that are used internally by other
- * Firebase SDKs. No service namespace is created in `firebase` namespace and customers have no way to get them.
- */
-var ComponentType;
-(function (ComponentType) {
-    ComponentType["PUBLIC"] = "PUBLIC";
-    ComponentType["PRIVATE"] = "PRIVATE";
-    ComponentType["VERSION"] = "VERSION";
-})(ComponentType || (ComponentType = {}));
 
 /**
  * @license
@@ -1368,7 +1302,7 @@ function setUserLogHandler(logCallback, options) {
                 })
                     .filter(arg => arg)
                     .join(' ');
-                if (level >= (customLogLevel ?? instance.logLevel)) {
+                if (level >= (customLogLevel !== null && customLogLevel !== void 0 ? customLogLevel : instance.logLevel)) {
                     logCallback({
                         level: LogLevel[level].toLowerCase(),
                         message,
@@ -1382,6 +1316,7 @@ function setUserLogHandler(logCallback, options) {
 }
 
 const instanceOfAny = (object, constructors) => constructors.some((c) => object instanceof c);
+
 let idbProxyableTypes;
 let cursorAdvanceMethods;
 // This is a function to prevent it throwing up in node environments.
@@ -1595,6 +1530,7 @@ function openDB(name, version, { blocked, upgrade, blocking, terminated } = {}) 
         .catch(() => { });
     return openPromise;
 }
+
 const readMethods = ['get', 'getKey', 'getAll', 'getAllKeys', 'count'];
 const writeMethods = ['put', 'add', 'delete', 'clear'];
 const cachedMethods = new Map();
@@ -1690,10 +1626,12 @@ class PlatformLoggerServiceImpl {
  */
 function isVersionServiceProvider(provider) {
     const component = provider.getComponent();
-    return component?.type === "VERSION" /* ComponentType.VERSION */;
+    return (component === null || component === void 0 ? void 0 : component.type) === "VERSION" /* ComponentType.VERSION */;
 }
-const name$q = "./firebase-app.js";
-const version$1 = "0.16.2";
+
+const name$p = "./firebase-app.js";
+const version$1 = "0.10.5";
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -1711,33 +1649,58 @@ const version$1 = "0.16.2";
  * limitations under the License.
  */
 const logger = new Logger('./firebase-app.js');
-const name$p = "@firebase/app-compat";
-const name$o = "@firebase/analytics-compat";
-const name$n = "@firebase/analytics";
-const name$m = "@firebase/app-check-compat";
-const name$l = "@firebase/app-check";
-const name$k = "@firebase/auth";
-const name$j = "@firebase/auth-compat";
-const name$i = "@firebase/database";
-const name$h = "@firebase/data-connect";
+
+const name$o = "@firebase/app-compat";
+
+const name$n = "@firebase/analytics-compat";
+
+const name$m = "@firebase/analytics";
+
+const name$l = "@firebase/app-check-compat";
+
+const name$k = "@firebase/app-check";
+
+const name$j = "@firebase/auth";
+
+const name$i = "@firebase/auth-compat";
+
+const name$h = "@firebase/database";
+
 const name$g = "@firebase/database-compat";
+
 const name$f = "@firebase/functions";
+
 const name$e = "@firebase/functions-compat";
+
 const name$d = "@firebase/installations";
+
 const name$c = "@firebase/installations-compat";
+
 const name$b = "@firebase/messaging";
+
 const name$a = "@firebase/messaging-compat";
+
 const name$9 = "@firebase/performance";
+
 const name$8 = "@firebase/performance-compat";
+
 const name$7 = "@firebase/remote-config";
+
 const name$6 = "@firebase/remote-config-compat";
+
 const name$5 = "@firebase/storage";
+
 const name$4 = "@firebase/storage-compat";
+
 const name$3 = "@firebase/firestore";
-const name$2 = "@firebase/ai";
+
+const name$2 = "@firebase/vertexai-preview";
+
 const name$1 = "@firebase/firestore-compat";
-const name$r = "firebase";
-const version$2 = "12.19.0";
+
+const name$q = "firebase";
+const version$2 = "10.12.2";
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -1761,16 +1724,15 @@ const version$2 = "12.19.0";
  */
 const DEFAULT_ENTRY_NAME = '[DEFAULT]';
 const PLATFORM_LOG_STRING = {
-    [name$q]: 'fire-core',
-    [name$p]: 'fire-core-compat',
-    [name$n]: 'fire-analytics',
-    [name$o]: 'fire-analytics-compat',
-    [name$l]: 'fire-app-check',
-    [name$m]: 'fire-app-check-compat',
-    [name$k]: 'fire-auth',
-    [name$j]: 'fire-auth-compat',
-    [name$i]: 'fire-rtdb',
-    [name$h]: 'fire-data-connect',
+    [name$p]: 'fire-core',
+    [name$o]: 'fire-core-compat',
+    [name$m]: 'fire-analytics',
+    [name$n]: 'fire-analytics-compat',
+    [name$k]: 'fire-app-check',
+    [name$l]: 'fire-app-check-compat',
+    [name$j]: 'fire-auth',
+    [name$i]: 'fire-auth-compat',
+    [name$h]: 'fire-rtdb',
     [name$g]: 'fire-rtdb-compat',
     [name$f]: 'fire-fn',
     [name$e]: 'fire-fn-compat',
@@ -1787,9 +1749,10 @@ const PLATFORM_LOG_STRING = {
     [name$3]: 'fire-fst',
     [name$1]: 'fire-fst-compat',
     [name$2]: 'fire-vertex',
-    'fire-js': 'fire-js', // Platform identifier for JS SDK.
-    [name$r]: 'fire-js-all'
+    'fire-js': 'fire-js',
+    [name$q]: 'fire-js-all'
 };
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -1895,7 +1858,7 @@ function _removeServiceInstance(app, name, instanceIdentifier = DEFAULT_ENTRY_NA
 }
 /**
  *
- * @param obj - an object of type FirebaseApp, FirebaseOptions or FirebaseAppSettings.
+ * @param obj - an object of type FirebaseApp or FirebaseOptions.
  *
  * @returns true if the provide object is of type FirebaseApp.
  *
@@ -1906,23 +1869,6 @@ function _isFirebaseApp(obj) {
 }
 /**
  *
- * @param obj - an object of type FirebaseApp, FirebaseOptions or FirebaseAppSettings.
- *
- * @returns true if the provided object is of type FirebaseServerAppImpl.
- *
- * @internal
- */
-function _isFirebaseServerAppSettings(obj) {
-    if (_isFirebaseApp(obj)) {
-        return false;
-    }
-    return ('authIdToken' in obj ||
-        'appCheckToken' in obj ||
-        'releaseOnDeref' in obj ||
-        'automaticDataCollectionEnabled' in obj);
-}
-/**
- *
  * @param obj - an object of type FirebaseApp.
  *
  * @returns true if the provided object is of type FirebaseServerAppImpl.
@@ -1930,9 +1876,6 @@ function _isFirebaseServerAppSettings(obj) {
  * @internal
  */
 function _isFirebaseServerApp(obj) {
-    if (obj === null || obj === undefined) {
-        return false;
-    }
     return obj.settings !== undefined;
 }
 /**
@@ -1943,6 +1886,7 @@ function _isFirebaseServerApp(obj) {
 function _clearComponents() {
     _components.clear();
 }
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -1963,8 +1907,7 @@ const ERRORS = {
     ["no-app" /* AppError.NO_APP */]: "No Firebase App '{$appName}' has been created - " +
         'call initializeApp() first',
     ["bad-app-name" /* AppError.BAD_APP_NAME */]: "Illegal App name: '{$appName}'",
-    ["duplicate-app" /* AppError.DUPLICATE_APP */]: "Firebase App named '{$appName}' already exists with different {$mismatchedParam}." +
-        " Existing: '{$oldValue}'. New: '{$newValue}'.",
+    ["duplicate-app" /* AppError.DUPLICATE_APP */]: "Firebase App named '{$appName}' already exists with different options or config",
     ["app-deleted" /* AppError.APP_DELETED */]: "Firebase App named '{$appName}' already deleted",
     ["server-app-deleted" /* AppError.SERVER_APP_DELETED */]: 'Firebase Server App has been deleted',
     ["no-options" /* AppError.NO_OPTIONS */]: 'Need to provide options, when not being deployed to hosting via source.',
@@ -1979,6 +1922,7 @@ const ERRORS = {
     ["invalid-server-app-environment" /* AppError.INVALID_SERVER_APP_ENVIRONMENT */]: 'FirebaseServerApp is not for use in browser environments.'
 };
 const ERROR_FACTORY = new ErrorFactory('app', 'Firebase', ERRORS);
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -1998,8 +1942,8 @@ const ERROR_FACTORY = new ErrorFactory('app', 'Firebase', ERRORS);
 class FirebaseAppImpl {
     constructor(options, config, container) {
         this._isDeleted = false;
-        this._options = { ...options };
-        this._config = { ...config };
+        this._options = Object.assign({}, options);
+        this._config = Object.assign({}, config);
         this._name = config.name;
         this._automaticDataCollectionEnabled =
             config.automaticDataCollectionEnabled;
@@ -2045,6 +1989,7 @@ class FirebaseAppImpl {
         }
     }
 }
+
 /**
  * @license
  * Copyright 2023 Google LLC
@@ -2061,33 +2006,12 @@ class FirebaseAppImpl {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Parse the token and check to see if the `exp` claim is in the future.
-// Reports an error to the console if the token or claim could not be parsed, or if `exp` is in
-// the past.
-function validateTokenTTL(base64Token, tokenName) {
-    const secondPart = base64Decode(base64Token.split('.')[1]);
-    if (secondPart === null) {
-        console.error(`FirebaseServerApp ${tokenName} is invalid: second part could not be parsed.`);
-        return;
-    }
-    const expClaim = JSON.parse(secondPart).exp;
-    if (expClaim === undefined) {
-        console.error(`FirebaseServerApp ${tokenName} is invalid: expiration claim could not be parsed`);
-        return;
-    }
-    const exp = JSON.parse(secondPart).exp * 1000;
-    const now = new Date().getTime();
-    const diff = exp - now;
-    if (diff <= 0) {
-        console.error(`FirebaseServerApp ${tokenName} is invalid: the token has expired.`);
-    }
-}
 class FirebaseServerAppImpl extends FirebaseAppImpl {
     constructor(options, serverConfig, name, container) {
         // Build configuration parameters for the FirebaseAppImpl base class.
         const automaticDataCollectionEnabled = serverConfig.automaticDataCollectionEnabled !== undefined
             ? serverConfig.automaticDataCollectionEnabled
-            : true;
+            : false;
         // Create the FirebaseAppSettings object for the FirebaseAppImp constructor.
         const config = {
             name,
@@ -2102,31 +2026,17 @@ class FirebaseServerAppImpl extends FirebaseAppImpl {
             super(appImpl.options, config, container);
         }
         // Now construct the data for the FirebaseServerAppImpl.
-        this._serverConfig = {
-            automaticDataCollectionEnabled,
-            ...serverConfig
-        };
-        // Ensure that the current time is within the `authIdtoken` window of validity.
-        if (this._serverConfig.authIdToken) {
-            validateTokenTTL(this._serverConfig.authIdToken, 'authIdToken');
-        }
-        // Ensure that the current time is within the `appCheckToken` window of validity.
-        if (this._serverConfig.appCheckToken) {
-            validateTokenTTL(this._serverConfig.appCheckToken, 'appCheckToken');
-        }
-        this._finalizationRegistry = null;
-        if (typeof FinalizationRegistry !== 'undefined') {
-            this._finalizationRegistry = new FinalizationRegistry(() => {
-                this.automaticCleanup();
-            });
-        }
+        this._serverConfig = Object.assign({ automaticDataCollectionEnabled }, serverConfig);
+        this._finalizationRegistry = new FinalizationRegistry(() => {
+            this.automaticCleanup();
+        });
         this._refCount = 0;
         this.incRefCount(this._serverConfig.releaseOnDeref);
-        // Do not retain a hard reference to the dref object, otherwise the FinalizationRegistry
+        // Do not retain a hard reference to the dref object, otherwise the FinalizationRegisry
         // will never trigger.
         this._serverConfig.releaseOnDeref = undefined;
         serverConfig.releaseOnDeref = undefined;
-        registerVersion(name$q, version$1, 'serverapp');
+        registerVersion(name$p, version$1, 'serverapp');
     }
     toJSON() {
         return undefined;
@@ -2141,7 +2051,7 @@ class FirebaseServerAppImpl extends FirebaseAppImpl {
             return;
         }
         this._refCount++;
-        if (obj !== undefined && this._finalizationRegistry !== null) {
+        if (obj !== undefined) {
             this._finalizationRegistry.register(obj, this);
         }
     }
@@ -2172,6 +2082,7 @@ class FirebaseServerAppImpl extends FirebaseAppImpl {
         }
     }
 }
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -2200,11 +2111,7 @@ function initializeApp(_options, rawConfig = {}) {
         const name = rawConfig;
         rawConfig = { name };
     }
-    const config = {
-        name: DEFAULT_ENTRY_NAME,
-        automaticDataCollectionEnabled: true,
-        ...rawConfig
-    };
+    const config = Object.assign({ name: DEFAULT_ENTRY_NAME, automaticDataCollectionEnabled: false }, rawConfig);
     const name = config.name;
     if (typeof name !== 'string' || !name) {
         throw ERROR_FACTORY.create("bad-app-name" /* AppError.BAD_APP_NAME */, {
@@ -2218,24 +2125,12 @@ function initializeApp(_options, rawConfig = {}) {
     const existingApp = _apps.get(name);
     if (existingApp) {
         // return the existing app if options and config deep equal the ones in the existing app.
-        if (!deepEqual(options, existingApp.options)) {
-            throw ERROR_FACTORY.create("duplicate-app" /* AppError.DUPLICATE_APP */, {
-                appName: name,
-                mismatchedParam: 'options',
-                oldValue: JSON.stringify(existingApp.options),
-                newValue: JSON.stringify(options)
-            });
-        }
-        else if (!deepEqual(config, existingApp.config)) {
-            throw ERROR_FACTORY.create("duplicate-app" /* AppError.DUPLICATE_APP */, {
-                appName: name,
-                mismatchedParam: 'config',
-                oldValue: JSON.stringify(existingApp.config),
-                newValue: JSON.stringify(config)
-            });
+        if (deepEqual(options, existingApp.options) &&
+            deepEqual(config, existingApp.config)) {
+            return existingApp;
         }
         else {
-            return existingApp;
+            throw ERROR_FACTORY.create("duplicate-app" /* AppError.DUPLICATE_APP */, { appName: name });
         }
     }
     const container = new ComponentContainer(name);
@@ -2246,36 +2141,23 @@ function initializeApp(_options, rawConfig = {}) {
     _apps.set(name, newApp);
     return newApp;
 }
-function initializeServerApp(_options, _serverAppConfig = {}) {
-    if (isBrowser() && !isWebWorker()) {
+function initializeServerApp(_options, _serverAppConfig) {
+    if (isBrowser()) {
         // FirebaseServerApp isn't designed to be run in browsers.
         throw ERROR_FACTORY.create("invalid-server-app-environment" /* AppError.INVALID_SERVER_APP_ENVIRONMENT */);
     }
-    let firebaseOptions;
-    let serverAppSettings = _serverAppConfig || {};
-    if (_options) {
-        if (_isFirebaseApp(_options)) {
-            firebaseOptions = _options.options;
-        }
-        else if (_isFirebaseServerAppSettings(_options)) {
-            serverAppSettings = _options;
-        }
-        else {
-            firebaseOptions = _options;
-        }
+    if (_serverAppConfig.automaticDataCollectionEnabled === undefined) {
+        _serverAppConfig.automaticDataCollectionEnabled = false;
     }
-    if (serverAppSettings.automaticDataCollectionEnabled === undefined) {
-        serverAppSettings.automaticDataCollectionEnabled = true;
+    let appOptions;
+    if (_isFirebaseApp(_options)) {
+        appOptions = _options.options;
     }
-    firebaseOptions || (firebaseOptions = getDefaultAppConfig());
-    if (!firebaseOptions) {
-        throw ERROR_FACTORY.create("no-options" /* AppError.NO_OPTIONS */);
+    else {
+        appOptions = _options;
     }
     // Build an app name based on a hash of the configuration options.
-    const nameObj = {
-        ...serverAppSettings,
-        ...firebaseOptions
-    };
+    const nameObj = Object.assign(Object.assign({}, _serverAppConfig), appOptions);
     // However, Do not mangle the name based on releaseOnDeref, since it will vary between the
     // construction of FirebaseServerApp instances. For example, if the object is the request headers.
     if (nameObj.releaseOnDeref !== undefined) {
@@ -2284,7 +2166,7 @@ function initializeServerApp(_options, _serverAppConfig = {}) {
     const hashCode = (s) => {
         return [...s].reduce((hash, c) => (Math.imul(31, hash) + c.charCodeAt(0)) | 0, 0);
     };
-    if (serverAppSettings.releaseOnDeref !== undefined) {
+    if (_serverAppConfig.releaseOnDeref !== undefined) {
         if (typeof FinalizationRegistry === 'undefined') {
             throw ERROR_FACTORY.create("finalization-registry-not-supported" /* AppError.FINALIZATION_REGISTRY_NOT_SUPPORTED */, {});
         }
@@ -2292,14 +2174,14 @@ function initializeServerApp(_options, _serverAppConfig = {}) {
     const nameString = '' + hashCode(JSON.stringify(nameObj));
     const existingApp = _serverApps.get(nameString);
     if (existingApp) {
-        existingApp.incRefCount(serverAppSettings.releaseOnDeref);
+        existingApp.incRefCount(_serverAppConfig.releaseOnDeref);
         return existingApp;
     }
     const container = new ComponentContainer(nameString);
     for (const component of _components.values()) {
         container.addComponent(component);
     }
-    const newApp = new FirebaseServerAppImpl(firebaseOptions, serverAppSettings, nameString, container);
+    const newApp = new FirebaseServerAppImpl(appOptions, _serverAppConfig, nameString, container);
     _serverApps.set(nameString, newApp);
     return newApp;
 }
@@ -2396,9 +2278,10 @@ async function deleteApp(app) {
  * @public
  */
 function registerVersion(libraryKeyOrName, version, variant) {
+    var _a;
     // TODO: We can use this check to whitelist strings when/if we set up
     // a good whitelist system.
-    let library = PLATFORM_LOG_STRING[libraryKeyOrName] ?? libraryKeyOrName;
+    let library = (_a = PLATFORM_LOG_STRING[libraryKeyOrName]) !== null && _a !== void 0 ? _a : libraryKeyOrName;
     if (variant) {
         library += `-${variant}`;
     }
@@ -2447,6 +2330,7 @@ function onLog(logCallback, options) {
 function setLogLevel(logLevel) {
     setLogLevel$1(logLevel);
 }
+
 /**
  * @license
  * Copyright 2021 Google LLC
@@ -2513,7 +2397,7 @@ async function readHeartbeatsFromIndexedDB(app) {
         }
         else {
             const idbGetError = ERROR_FACTORY.create("idb-get" /* AppError.IDB_GET */, {
-                originalErrorMessage: e?.message
+                originalErrorMessage: e === null || e === void 0 ? void 0 : e.message
             });
             logger.warn(idbGetError.message);
         }
@@ -2533,7 +2417,7 @@ async function writeHeartbeatsToIndexedDB(app, heartbeatObject) {
         }
         else {
             const idbGetError = ERROR_FACTORY.create("idb-set" /* AppError.IDB_WRITE */, {
-                originalErrorMessage: e?.message
+                originalErrorMessage: e === null || e === void 0 ? void 0 : e.message
             });
             logger.warn(idbGetError.message);
         }
@@ -2542,6 +2426,7 @@ async function writeHeartbeatsToIndexedDB(app, heartbeatObject) {
 function computeKey(app) {
     return `${app.name}!${app.options.appId}`;
 }
+
 /**
  * @license
  * Copyright 2021 Google LLC
@@ -2559,7 +2444,8 @@ function computeKey(app) {
  * limitations under the License.
  */
 const MAX_HEADER_BYTES = 1024;
-const MAX_NUM_STORED_HEARTBEATS = 30;
+// 30 days
+const STORED_HEARTBEAT_RETENTION_MAX_MILLIS = 30 * 24 * 60 * 60 * 1000;
 class HeartbeatServiceImpl {
     constructor(container) {
         this.container = container;
@@ -2588,42 +2474,38 @@ class HeartbeatServiceImpl {
      * already logged, subsequent calls to this function in the same day will be ignored.
      */
     async triggerHeartbeat() {
-        try {
-            const platformLogger = this.container
-                .getProvider('platform-logger')
-                .getImmediate();
-            // This is the "Firebase user agent" string from the platform logger
-            // service, not the browser user agent.
-            const agent = platformLogger.getPlatformInfoString();
-            const date = getUTCDateString();
-            if (this._heartbeatsCache?.heartbeats == null) {
-                this._heartbeatsCache = await this._heartbeatsCachePromise;
-                // If we failed to construct a heartbeats cache, then return immediately.
-                if (this._heartbeatsCache?.heartbeats == null) {
-                    return;
-                }
-            }
-            // Do not store a heartbeat if one is already stored for this day
-            // or if a header has already been sent today.
-            if (this._heartbeatsCache.lastSentHeartbeatDate === date ||
-                this._heartbeatsCache.heartbeats.some(singleDateHeartbeat => singleDateHeartbeat.date === date)) {
+        var _a, _b;
+        const platformLogger = this.container
+            .getProvider('platform-logger')
+            .getImmediate();
+        // This is the "Firebase user agent" string from the platform logger
+        // service, not the browser user agent.
+        const agent = platformLogger.getPlatformInfoString();
+        const date = getUTCDateString();
+        if (((_a = this._heartbeatsCache) === null || _a === void 0 ? void 0 : _a.heartbeats) == null) {
+            this._heartbeatsCache = await this._heartbeatsCachePromise;
+            // If we failed to construct a heartbeats cache, then return immediately.
+            if (((_b = this._heartbeatsCache) === null || _b === void 0 ? void 0 : _b.heartbeats) == null) {
                 return;
             }
-            else {
-                // There is no entry for this date. Create one.
-                this._heartbeatsCache.heartbeats.push({ date, agent });
-                // If the number of stored heartbeats exceeds the maximum number of stored heartbeats, remove the heartbeat with the earliest date.
-                // Since this is executed each time a heartbeat is pushed, the limit can only be exceeded by one, so only one needs to be removed.
-                if (this._heartbeatsCache.heartbeats.length > MAX_NUM_STORED_HEARTBEATS) {
-                    const earliestHeartbeatIdx = getEarliestHeartbeatIdx(this._heartbeatsCache.heartbeats);
-                    this._heartbeatsCache.heartbeats.splice(earliestHeartbeatIdx, 1);
-                }
-            }
-            return this._storage.overwrite(this._heartbeatsCache);
         }
-        catch (e) {
-            logger.warn(e);
+        // Do not store a heartbeat if one is already stored for this day
+        // or if a header has already been sent today.
+        if (this._heartbeatsCache.lastSentHeartbeatDate === date ||
+            this._heartbeatsCache.heartbeats.some(singleDateHeartbeat => singleDateHeartbeat.date === date)) {
+            return;
         }
+        else {
+            // There is no entry for this date. Create one.
+            this._heartbeatsCache.heartbeats.push({ date, agent });
+        }
+        // Remove entries older than 30 days.
+        this._heartbeatsCache.heartbeats = this._heartbeatsCache.heartbeats.filter(singleDateHeartbeat => {
+            const hbTimestamp = new Date(singleDateHeartbeat.date).valueOf();
+            const now = Date.now();
+            return now - hbTimestamp <= STORED_HEARTBEAT_RETENTION_MAX_MILLIS;
+        });
+        return this._storage.overwrite(this._heartbeatsCache);
     }
     /**
      * Returns a base64 encoded string which can be attached to the heartbeat-specific header directly.
@@ -2633,40 +2515,35 @@ class HeartbeatServiceImpl {
      * returns an empty string.
      */
     async getHeartbeatsHeader() {
-        try {
-            if (this._heartbeatsCache === null) {
-                await this._heartbeatsCachePromise;
-            }
-            // If it's still null or the array is empty, there is no data to send.
-            if (this._heartbeatsCache?.heartbeats == null ||
-                this._heartbeatsCache.heartbeats.length === 0) {
-                return '';
-            }
-            const date = getUTCDateString();
-            // Extract as many heartbeats from the cache as will fit under the size limit.
-            const { heartbeatsToSend, unsentEntries } = extractHeartbeatsForHeader(this._heartbeatsCache.heartbeats);
-            const headerString = base64urlEncodeWithoutPadding(JSON.stringify({ version: 2, heartbeats: heartbeatsToSend }));
-            // Store last sent date to prevent another being logged/sent for the same day.
-            this._heartbeatsCache.lastSentHeartbeatDate = date;
-            if (unsentEntries.length > 0) {
-                // Store any unsent entries if they exist.
-                this._heartbeatsCache.heartbeats = unsentEntries;
-                // This seems more likely than emptying the array (below) to lead to some odd state
-                // since the cache isn't empty and this will be called again on the next request,
-                // and is probably safest if we await it.
-                await this._storage.overwrite(this._heartbeatsCache);
-            }
-            else {
-                this._heartbeatsCache.heartbeats = [];
-                // Do not wait for this, to reduce latency.
-                void this._storage.overwrite(this._heartbeatsCache);
-            }
-            return headerString;
+        var _a;
+        if (this._heartbeatsCache === null) {
+            await this._heartbeatsCachePromise;
         }
-        catch (e) {
-            logger.warn(e);
+        // If it's still null or the array is empty, there is no data to send.
+        if (((_a = this._heartbeatsCache) === null || _a === void 0 ? void 0 : _a.heartbeats) == null ||
+            this._heartbeatsCache.heartbeats.length === 0) {
             return '';
         }
+        const date = getUTCDateString();
+        // Extract as many heartbeats from the cache as will fit under the size limit.
+        const { heartbeatsToSend, unsentEntries } = extractHeartbeatsForHeader(this._heartbeatsCache.heartbeats);
+        const headerString = base64urlEncodeWithoutPadding(JSON.stringify({ version: 2, heartbeats: heartbeatsToSend }));
+        // Store last sent date to prevent another being logged/sent for the same day.
+        this._heartbeatsCache.lastSentHeartbeatDate = date;
+        if (unsentEntries.length > 0) {
+            // Store any unsent entries if they exist.
+            this._heartbeatsCache.heartbeats = unsentEntries;
+            // This seems more likely than emptying the array (below) to lead to some odd state
+            // since the cache isn't empty and this will be called again on the next request,
+            // and is probably safest if we await it.
+            await this._storage.overwrite(this._heartbeatsCache);
+        }
+        else {
+            this._heartbeatsCache.heartbeats = [];
+            // Do not wait for this, to reduce latency.
+            void this._storage.overwrite(this._heartbeatsCache);
+        }
+        return headerString;
     }
 }
 function getUTCDateString() {
@@ -2739,7 +2616,7 @@ class HeartbeatStorageImpl {
         }
         else {
             const idbHeartbeatObject = await readHeartbeatsFromIndexedDB(this.app);
-            if (idbHeartbeatObject?.heartbeats) {
+            if (idbHeartbeatObject === null || idbHeartbeatObject === void 0 ? void 0 : idbHeartbeatObject.heartbeats) {
                 return idbHeartbeatObject;
             }
             else {
@@ -2749,6 +2626,7 @@ class HeartbeatStorageImpl {
     }
     // overwrite the storage with the provided heartbeats
     async overwrite(heartbeatsObject) {
+        var _a;
         const canUseIndexedDB = await this._canUseIndexedDBPromise;
         if (!canUseIndexedDB) {
             return;
@@ -2756,14 +2634,14 @@ class HeartbeatStorageImpl {
         else {
             const existingHeartbeatsObject = await this.read();
             return writeHeartbeatsToIndexedDB(this.app, {
-                lastSentHeartbeatDate: heartbeatsObject.lastSentHeartbeatDate ??
-                    existingHeartbeatsObject.lastSentHeartbeatDate,
+                lastSentHeartbeatDate: (_a = heartbeatsObject.lastSentHeartbeatDate) !== null && _a !== void 0 ? _a : existingHeartbeatsObject.lastSentHeartbeatDate,
                 heartbeats: heartbeatsObject.heartbeats
             });
         }
     }
     // add heartbeats
     async add(heartbeatsObject) {
+        var _a;
         const canUseIndexedDB = await this._canUseIndexedDBPromise;
         if (!canUseIndexedDB) {
             return;
@@ -2771,8 +2649,7 @@ class HeartbeatStorageImpl {
         else {
             const existingHeartbeatsObject = await this.read();
             return writeHeartbeatsToIndexedDB(this.app, {
-                lastSentHeartbeatDate: heartbeatsObject.lastSentHeartbeatDate ??
-                    existingHeartbeatsObject.lastSentHeartbeatDate,
+                lastSentHeartbeatDate: (_a = heartbeatsObject.lastSentHeartbeatDate) !== null && _a !== void 0 ? _a : existingHeartbeatsObject.lastSentHeartbeatDate,
                 heartbeats: [
                     ...existingHeartbeatsObject.heartbeats,
                     ...heartbeatsObject.heartbeats
@@ -2792,24 +2669,7 @@ function countBytes(heartbeatsCache) {
     // heartbeatsCache wrapper properties
     JSON.stringify({ version: 2, heartbeats: heartbeatsCache })).length;
 }
-/**
- * Returns the index of the heartbeat with the earliest date.
- * If the heartbeats array is empty, -1 is returned.
- */
-function getEarliestHeartbeatIdx(heartbeats) {
-    if (heartbeats.length === 0) {
-        return -1;
-    }
-    let earliestHeartbeatIdx = 0;
-    let earliestHeartbeatDate = heartbeats[0].date;
-    for (let i = 1; i < heartbeats.length; i++) {
-        if (heartbeats[i].date < earliestHeartbeatDate) {
-            earliestHeartbeatDate = heartbeats[i].date;
-            earliestHeartbeatIdx = i;
-        }
-    }
-    return earliestHeartbeatIdx;
-}
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -2830,38 +2690,23 @@ function registerCoreComponents(variant) {
     _registerComponent(new Component('platform-logger', container => new PlatformLoggerServiceImpl(container), "PRIVATE" /* ComponentType.PRIVATE */));
     _registerComponent(new Component('heartbeat', container => new HeartbeatServiceImpl(container), "PRIVATE" /* ComponentType.PRIVATE */));
     // Register `app` package.
-    registerVersion(name$q, version$1, variant);
-    // BUILD_TARGET will be replaced by values like esm, cjs, etc during the compilation
-    registerVersion(name$q, version$1, 'esm2020');
+    registerVersion(name$p, version$1, variant);
+    // BUILD_TARGET will be replaced by values like esm5, esm2017, cjs5, etc during the compilation
+    registerVersion(name$p, version$1, 'esm2017');
     // Register platform SDK identifier (no version).
     registerVersion('fire-js', '');
 }
+
 /**
  * Firebase App
  *
  * @remarks This package coordinates the communication between the different Firebase components
  * @packageDocumentation
  */
-/**
- * @license
- * Copyright 2019 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 registerCoreComponents('');
 
 var name = "firebase";
-var version = "12.19.0";
+var version = "10.12.2";
 
 /**
  * @license
@@ -2881,5 +2726,5 @@ var version = "12.19.0";
  */
 registerVersion(name, version, 'cdn');
 
-export { FirebaseError, SDK_VERSION, DEFAULT_ENTRY_NAME as _DEFAULT_ENTRY_NAME, _addComponent, _addOrOverwriteComponent, _apps, _clearComponents, _components, _getProvider, _isFirebaseApp, _isFirebaseServerApp, _isFirebaseServerAppSettings, _registerComponent, _removeServiceInstance, _serverApps, deleteApp, getApp, getApps, initializeApp, initializeServerApp, onLog, registerVersion, setLogLevel };
+export { FirebaseError, SDK_VERSION, DEFAULT_ENTRY_NAME as _DEFAULT_ENTRY_NAME, _addComponent, _addOrOverwriteComponent, _apps, _clearComponents, _components, _getProvider, _isFirebaseApp, _isFirebaseServerApp, _registerComponent, _removeServiceInstance, _serverApps, deleteApp, getApp, getApps, initializeApp, initializeServerApp, onLog, registerVersion, setLogLevel };
 

@@ -1,7 +1,7 @@
 /* @generated — extracted from inline <script type="module"> by audit-homeowner-2026-05-22.
    Hash: b9b56a8331.  Do not edit by hand. */
-import { initializeApp } from '/assets/vendor/firebase/12.19.0/firebase-app.js';
-  import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from '/assets/vendor/firebase/12.19.0/firebase-app-check.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+  import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from '/assets/vendor/firebase/10.12.2/firebase-app-check.js';
   try {
     const app = initializeApp({
       apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",

@@ -414,7 +414,7 @@ window._gdprExport = async function () {
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   if (!(await ask('Download a JSON file containing every record tied to your account (profile, leads, estimates, photos, pins, tasks, documents, api_usage). The download link expires in 24 hours.\n\nProceed?'))) return;
   try {
-    const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fn = mod.httpsCallable(mod.getFunctions(), 'exportMyData');
     if (typeof showToast==='function') showToast('Building export… this can take up to a minute.', 'info');
     const res = await fn({});
@@ -442,7 +442,7 @@ window._gdprRequestErasure = async function () {
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   if (!(await ask(warning))) return;
   try {
-    const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fn = mod.httpsCallable(mod.getFunctions(), 'requestAccountErasure');
     await fn({});
     if (typeof showToast==='function') showToast('Confirmation email sent. Click the link within 24h to complete deletion.', 'success');
@@ -465,7 +465,7 @@ window._revokePortalLink = async function (leadId) {
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   if (!(await ask('Revoke all active portal links for this lead and mint a new one?\n\nThe old URL stops working immediately.'))) return;
   try {
-    const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fns = mod.getFunctions();
     const revoke = mod.httpsCallable(fns, 'revokePortalToken');
     const r = await revoke({ leadId });
@@ -491,7 +491,7 @@ window._revokePortalLink = async function (leadId) {
 // what happens next, and the caller owns calling PortalLinkHelpers.recordShare.
 window._mintPortalUrl = async function (leadId) {
   if (!leadId) throw new Error('No lead selected');
-  const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+  const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
   const fns = mod.getFunctions();
   const call = mod.httpsCallable(fns, 'createPortalToken');
   const res = await call({ leadId, ttlDays: 30 });

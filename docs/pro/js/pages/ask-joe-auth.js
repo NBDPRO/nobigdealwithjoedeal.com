@@ -4,7 +4,7 @@
  * 'unsafe-inline'. Waits for NBDAuth to expose an auth instance, then
  * redirects to /pro/index.html if the user signs out.
  */
-import { onAuthStateChanged } from '/assets/vendor/firebase/12.19.0/firebase-auth.js';
+import { onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
 
 function waitForAuth() {
   if (window._auth) {

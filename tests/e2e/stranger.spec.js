@@ -119,7 +119,7 @@ async function waitOnboardingReady(page, email) {
 /** In-page callable through the app's own (emulator-connected, App-Check-shimmed) SDK. */
 async function callFromPageOnce(page, fnName, payload) {
   return page.evaluate(async ({ name, data }) => {
-    const m = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+    const m = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const emu = await import('/pro/js/nbd-emulator-connect.js');
     const fns = m.getFunctions();
     await emu.connectEmulatorsIfLocal({ functions: fns });
@@ -221,7 +221,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
 
     // The provisioning contract: claims say this user IS a tenant.
     const idState = await page.evaluate(async () => {
-      const m = await import('/assets/vendor/firebase/12.19.0/firebase-auth.js');
+      const m = await import('/assets/vendor/firebase/10.12.2/firebase-auth.js');
       const user = m.getAuth().currentUser;
       const t = await user.getIdTokenResult(true);
       return { uid: user.uid, claims: t.claims, plan: window._userPlan || null };
@@ -420,7 +420,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
       // for the link click, and the page refreshes its token to carry it.
       await auth.updateUser(REP.uid, { emailVerified: true });
       await repPage.evaluate(async () => {
-        const m = await import('/assets/vendor/firebase/12.19.0/firebase-auth.js');
+        const m = await import('/assets/vendor/firebase/10.12.2/firebase-auth.js');
         await m.getAuth().currentUser.getIdToken(true);
       });
 
@@ -474,7 +474,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
       for (let i = 0; i < 4; i++) {
         try {
         managerRead = await repPage.evaluate(async (id) => {
-          const fs = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+          const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
           try {
             const snap = await fs.getDoc(fs.doc(window.db || window._db, 'leads', id));
             return { ok: snap.exists() };
@@ -496,7 +496,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
       for (let i = 0; i < 4; i++) {
         try {
         managerWrite = await repPage.evaluate(async (id) => {
-          const fs = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+          const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
           try {
             await fs.updateDoc(fs.doc(window.db || window._db, 'leads', id), { stage: 'contacted' });
             return { wrote: true };
@@ -520,7 +520,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
       for (let i = 0; i < 4; i++) {
         try {
         provenanceWrite = await repPage.evaluate(async (id) => {
-          const fs = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+          const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
           try {
             const me = (window._user && window._user.uid) || 'me';
             await fs.updateDoc(fs.doc(window.db || window._db, 'leads', id), { userId: me });
@@ -562,7 +562,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
       .where('lastName', '==', LEAD_LAST).limit(1).get()).docs[0];
 
     const probeReadOnce = async (p, leadId) => p.evaluate(async (id) => {
-      const fs = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       try {
         const snap = await fs.getDoc(fs.doc(window.db || window._db, 'leads', id));
         return { denied: false, exists: snap.exists() };

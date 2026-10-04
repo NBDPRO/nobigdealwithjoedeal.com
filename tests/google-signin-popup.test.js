@@ -221,7 +221,7 @@ group('A0. Discovery + effective-header instruments, on synthetic inputs');
     'pro/js/auth/google.js': 'export function go(a, p) { return signInWithPopup(a, p); }',
     // Named in an import list but never CALLED — not a popup page.
     'pro/quiet.html': '<script type="module" src="/pro/js/quiet.js"></script>',
-    'pro/js/quiet.js': 'import { signInWithPopup } from "/assets/vendor/firebase/12.19.0/firebase-auth.js";',
+    'pro/js/quiet.js': 'import { signInWithPopup } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";',
     // A commented-out tag loads nothing.
     'index.html': '<!-- <script src="/pro/js/auth/google.js"></script> -->',
     // Compat-API call in an inline script, odd spacing.
@@ -393,7 +393,7 @@ async function runRegister(opt = {}) {
   els.regTerms.checked = opt.terms !== false;
   els.regTerms.focus = () => {};
 
-  const SDK = '/assets/vendor/firebase/12.19.0/';
+  const SDK = '/assets/vendor/firebase/10.12.2/';
   const stubs = {
     [SDK + 'firebase-app.js']: { initializeApp: () => { calls.push('initializeApp'); return { name: '[DEFAULT]' }; } },
     [SDK + 'firebase-app-check.js']: {
@@ -624,7 +624,7 @@ async function runLogin(opt = {}) {
   // login.html ships these disabled until login.js has wired them.
   for (const id of ['loginBtn', 'codeBtn', 'demoBtn', 'googleLoginBtn']) els[id].setAttribute('disabled', '');
 
-  const SDK = '/assets/vendor/firebase/12.19.0/';
+  const SDK = '/assets/vendor/firebase/10.12.2/';
   const write = (name) => async (...a) => { writes.push({ name, path: a[0] && a[0].path }); };
   const stubs = {
     [SDK + 'firebase-app.js']: { initializeApp: () => { calls.push('initializeApp'); return { name: '[DEFAULT]' }; } },

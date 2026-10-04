@@ -5,9 +5,9 @@
 // including type="module"; serving as a same-origin .js file passes).
 // Wires the data-pr-action delegate that the page's buttons already use.
 
-import { initializeApp } from '/assets/vendor/firebase/12.19.0/firebase-app.js';
-import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/12.19.0/firebase-auth.js';
-import { getFirestore, doc, getDoc } from '/assets/vendor/firebase/12.19.0/firebase-firestore.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 
 // pricing.html now loads js/toast.js before this module.
 function _ppNotify(msg, kind) {

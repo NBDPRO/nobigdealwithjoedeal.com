@@ -34,7 +34,7 @@
 (function () {
   'use strict';
 
-  var MESSAGING_SDK = '/assets/vendor/firebase/12.19.0/firebase-messaging.js';
+  var MESSAGING_SDK = '/assets/vendor/firebase/10.12.2/firebase-messaging.js';
   var SW_URL = '/pro/firebase-messaging-sw.js';
   // DEDICATED scope — NOT '/pro/'. The offline/PWA service worker (sw.js) owns
   // scope '/pro/' (dashboard-sw-bootstrap.js / offline-manager.js), and a scope

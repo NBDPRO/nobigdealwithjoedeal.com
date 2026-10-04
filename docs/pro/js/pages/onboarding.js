@@ -21,11 +21,11 @@
  *   - anyone already onboarded (users/{uid}.onboarded, set here; ?redo=1
  *     bypasses for QA/re-runs).
  */
-import { initializeApp, getApps } from "/assets/vendor/firebase/12.19.0/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "/assets/vendor/firebase/12.19.0/firebase-app-check.js";
-import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/12.19.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "/assets/vendor/firebase/12.19.0/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "/assets/vendor/firebase/12.19.0/firebase-functions.js";
+import { initializeApp, getApps } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
+import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "/assets/vendor/firebase/10.12.2/firebase-functions.js";
 import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal } from "../nbd-emulator-connect.js"; // localhost-only, no-op in prod
 import { ensureProvisioned } from "../provisioning-retry.js"; // retry + pending-marker (first-run audit 2026-07-28)
 

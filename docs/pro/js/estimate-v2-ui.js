@@ -3668,7 +3668,7 @@
   // errors (which the caller catches and falls back from).
   async function _tryServerRenderEstimate(format, estimate, meta, previewHtml) {
     if (!window._functions || !window._httpsCallable) {
-      const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = mod.getFunctions();
       window._httpsCallable = mod.httpsCallable;
     }

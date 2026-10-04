@@ -9,11 +9,11 @@
  * hung on "Loading..." forever. Mirror of the same fix the
  * customer.html FIXME at firebase.json:76 calls for.
  */
-import { initializeApp, getApps } from "/assets/vendor/firebase/12.19.0/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "/assets/vendor/firebase/12.19.0/firebase-app-check.js";
-import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/12.19.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, orderBy, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "/assets/vendor/firebase/12.19.0/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "/assets/vendor/firebase/12.19.0/firebase-functions.js";
+import { initializeApp, getApps } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
+import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, orderBy, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "/assets/vendor/firebase/10.12.2/firebase-functions.js";
 import { connectEmulatorsIfLocal } from "../nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 
 // NEW-D32: this file shipped a FABRICATED firebaseConfig (apiKey/senderId

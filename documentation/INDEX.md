@@ -93,7 +93,7 @@ Map of content for the `documentation/` corpus (~115 files) plus the other place
 - [MERGE-QUEUE](runbooks/MERGE-QUEUE.md) — the live `main` merge queue (ruleset 24456328, NBDPRO org since 2026-10-04): the 16 required checks, why `@shard2` is the one shard missing, and the guard test that keeps every required check reporting on `merge_group`
 - [DEPLOY-VERIFICATION](runbooks/DEPLOY-VERIFICATION.md) — `/version.json` stamped at deploy; the `verify-live` job proves hosting landed and re-dispatches ONCE when live is behind main on a deploy path ("nothing to deploy" is green)
 - [FIRESTORE-INDEX-COVERAGE](runbooks/FIRESTORE-INDEX-COVERAGE.md) — the emulator never enforces indexes: a static scan of every literal query in functions/ + docs/pro/js against `firestore.indexes.json` (CI-enforced), and the FAILED_PRECONDITION log alert to create
-- [INFRA-CI-SPEED-2026-10-04](audit/INFRA-CI-SPEED-2026-10-04.md) — the under-the-hood audit lane: merge queue, spec-list file, deploy verification, lazy functions (avg 12 of 183 modules per cold start), index + heartbeat gates, self-hosted Firebase SDK 12.19.0, no photo read at dashboard boot — findings, measurements, follow-ups
+- [INFRA-CI-SPEED-2026-10-04](audit/INFRA-CI-SPEED-2026-10-04.md) — the under-the-hood audit lane: merge queue, spec-list file, deploy verification, lazy functions (avg 12 of 183 modules per cold start), index + heartbeat gates, self-hosted Firebase SDK (10.12.2 — 12.19 tried and reverted), no photo read at dashboard boot — findings, measurements, follow-ups
 - [ROLLBACK](runbooks/ROLLBACK.md)
 - [RESTORE_FROM_BACKUP](runbooks/RESTORE_FROM_BACKUP.md)
 - [SECRET_ROTATION](runbooks/SECRET_ROTATION.md) — linked from the admin integrationStatus readout

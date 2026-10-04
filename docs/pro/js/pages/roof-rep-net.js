@@ -14,9 +14,9 @@
  * rep who built a look there starts Roof Rep with it. Writes are queued one at
  * a time per doc. firestore.rules owns who can read and write what.
  */
-import { initializeApp } from '/assets/vendor/firebase/12.19.0/firebase-app.js';
-import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/12.19.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot } from '/assets/vendor/firebase/12.19.0/firebase-firestore.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '../nbd-emulator-connect.js'; // localhost-only, no-op in prod
 
 const firebaseConfig = {

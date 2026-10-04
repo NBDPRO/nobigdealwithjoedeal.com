@@ -6,7 +6,7 @@ let autoRefreshTimer = null;
 // analytics-gate.js's module rather than re-initializing a second one.
 async function callable(name) {
   if (!window._functions || !window._httpsCallable) {
-    const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     window._functions = mod.getFunctions();
     window._httpsCallable = mod.httpsCallable;
   }

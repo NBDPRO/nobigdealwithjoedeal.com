@@ -3,8 +3,8 @@
  * Extracted from an inline <script type="module"> for strict CSP.
  * Reads the admin custom claim and routes to the vault or the dashboard.
  */
-import { initializeApp } from '/assets/vendor/firebase/12.19.0/firebase-app.js';
-import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/12.19.0/firebase-auth.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
 
 const app = initializeApp({
   apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",

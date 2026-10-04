@@ -51,7 +51,7 @@
   // enforceAppCheck callables: the SDK attaches the App Check token itself.
   async function callable(name, payload, timeoutMs) {
     if (!window._httpsCallable || !window._functions) {
-      var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+      var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = window._functions || mod.getFunctions();
       try {
         var emu = await import('./nbd-emulator-connect.js');

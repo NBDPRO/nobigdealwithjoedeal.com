@@ -1,6 +1,6 @@
-  import { initializeApp } from '/assets/vendor/firebase/12.19.0/firebase-app.js';
-  import { getAuth, onAuthStateChanged, signInAnonymously } from '/assets/vendor/firebase/12.19.0/firebase-auth.js';
-  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, orderBy, limit } from '/assets/vendor/firebase/12.19.0/firebase-firestore.js';
+  import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+  import { getAuth, onAuthStateChanged, signInAnonymously } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, orderBy, limit } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",

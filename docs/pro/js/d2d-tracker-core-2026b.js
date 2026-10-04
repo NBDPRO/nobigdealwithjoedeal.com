@@ -825,7 +825,7 @@
   async function callResolveAddress(payload) {
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1118,7 +1118,7 @@
     window.showToast?.('Re-verifying the whole team… this can take a minute', 'info');
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1294,7 +1294,7 @@
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Ordering…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1329,7 +1329,7 @@
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Loading…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1695,7 +1695,7 @@
         if (state.currentRep && !state.currentRep.role) state.currentRep.role = window._userClaims?.role || 'rep';
       } else {
         const initials = (window._user.displayName || 'R').split(' ').map(n => n[0]).join('').toUpperCase();
-        const {setDoc} = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+        const {setDoc} = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         // The /reps create rule FORBIDS a `role` (or `isAdmin`) key on the doc
         // — role is reserved for admin-SDK / custom-claim assignment to prevent
         // client-side privilege escalation. Writing role:'rep' here made every
@@ -1914,7 +1914,7 @@
     let total = null, countError = null;
     try {
       if (window._user && window._user.uid && window._db) {
-        const { getCountFromServer } = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
+        const { getCountFromServer } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const scope = (state.teamMode && state.currentRep?.role === 'manager')
           ? window.where('companyId', '==', state.currentRep.companyId)
           : window.where('userId', '==', window._user.uid);
@@ -4717,7 +4717,7 @@
     // Route door-knock photos through `photos/{uid}/d2d/{knockId}/...`
     // so they inherit the existing photos rule instead of hitting
     // the default-deny that d2d_photos/{uid}/... falls under.
-    const { ref, getDownloadURL } = await import('/assets/vendor/firebase/12.19.0/firebase-storage.js');
+    const { ref, getDownloadURL } = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
     const uid = window._user && window._user.uid;
     if (!uid) {
       console.error('d2d photo upload: not signed in');
@@ -4768,7 +4768,7 @@
   async function uploadVoiceMemo(blob, knockId) {
     if (!blob) return '';
     try {
-      const { ref, getDownloadURL } = await import('/assets/vendor/firebase/12.19.0/firebase-storage.js');
+      const { ref, getDownloadURL } = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
       // Path must live under `audio/{uid}/...` — storage.rules:146 is the
       // only allowlisted path for audio uploads, everything else hits the
       // default-deny at storage.rules:155. Keep the `d2d/` prefix for

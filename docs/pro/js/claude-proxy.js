@@ -154,7 +154,7 @@ async function _callViaProxy(params) {
   try {
     const ac = window.__NBD_APP_CHECK;
     if (ac) {
-      const mod = await import('/assets/vendor/firebase/12.19.0/firebase-app-check.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-app-check.js');
       if (mod && typeof mod.getToken === 'function') {
         const tok = await mod.getToken(ac, false);
         if (tok && tok.token) headers['X-Firebase-AppCheck'] = tok.token;

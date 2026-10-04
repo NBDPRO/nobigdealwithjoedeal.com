@@ -395,7 +395,7 @@ async function _cmdHandleRecordingStop(mimeType) {
     if (window._functions && window._httpsCallable) {
       callDictate = window._httpsCallable(window._functions, 'dictate');
     } else {
-      const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = window._functions || mod.getFunctions();
       window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       callDictate = window._httpsCallable(window._functions, 'dictate');

@@ -54,7 +54,7 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   }
   async function getCallable(name) {
     if (!window._functions || !window._httpsCallable) {
-      const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = mod.getFunctions();
       window._httpsCallable = mod.httpsCallable;
     }

@@ -30,7 +30,7 @@
           // Self-provision the functions SDK globals (billing-gate pattern) —
           // they're set lazily and may not exist at click time.
           if (!(window._functions && window._httpsCallable)) {
-            var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+            var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
             window._functions = window._functions || mod.getFunctions();
             window._httpsCallable = window._httpsCallable || mod.httpsCallable;
           }
@@ -392,7 +392,7 @@
       // ── Member row actions (delegated; no inline handlers under strict CSP) ──
       async function _teamCallable(name, payload) {
         if (!(window._functions && window._httpsCallable)) {
-          var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
+          var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
           window._functions = window._functions || mod.getFunctions();
           window._httpsCallable = window._httpsCallable || mod.httpsCallable;
         }
