@@ -41,6 +41,8 @@ const { phoneDigits10 } = require('./phone-utils');
 // used to write the register under an 11-digit key and read it under a
 // 10-digit one, so no STOP was ever honoured on an outbound send.
 const OptOut = require('./sms-optout');
+// Storm texts: opt-out → claim → send (never double-sends). See the module.
+const StormGuard = require('./storm-sms-guard');
 // Tenant-safe inbound routing (audit 2026-08-02 HIGH-5): one shared Twilio
 // number serves every tenant, so the lead match must consider ALL candidates
 // and refuse to guess across tenants. Pure module — decision table lives (and
@@ -1600,45 +1602,70 @@ const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped
  * Polls NWS weather alerts for subscriber zip codes
  * Sends SMS when severe weather is detected
  *
+ * Never double-sends (2026-10-03): every text goes through
+ * storm-sms-guard.js — TCPA opt-out register, then a CLAIM transaction
+ * (deterministic storm_alerts_sent/{hash(alertId, subscriber)} created with
+ * create semantics + the shared lastStormTextAt cooldown stamp) committed
+ * BEFORE Twilio is called. A failed post-send write or a timeout kill can no
+ * longer make the next run re-text, an NWS update re-issued under a new alert
+ * id is absorbed by the cooldown, and stormWatch shares the same cooldown.
+ *
  * Setup: firebase deploy --only functions
  * Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER secrets
  */
+// Run-time budget. 250 texts at the 1.1s Twilio pacing is ~275s of sleep
+// alone, plus an opt-out read, a claim transaction and the Twilio call per
+// text — the old 120s timeout killed the run near text ~105, every time.
+// The fan-out stops itself at STORM_RUN_BUDGET_MS (the rest are picked up by
+// the next tick), well inside STORM_TIMEOUT_S, so a kill is never the normal
+// way a big run ends.
+const STORM_TIMEOUT_S = 540;
+const STORM_RUN_BUDGET_MS = 420_000;
+const STORM_NWS_FETCH_TIMEOUT_MS = 20_000;
+const STORM_SMS_PACING_MS = 1100;
+
 exports.checkStormAlerts = onSchedule(
   {
     schedule: 'every 30 minutes',
     secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
     maxInstances: 1,
-    timeoutSeconds: 120,
+    timeoutSeconds: STORM_TIMEOUT_S,
     memory: '256MiB'
   },
   async (event) => {
     const db = getFirestore();
+    const runStartMs = Date.now();
 
     try {
-      // Get all active subscribers
-      const subsSnap = await db.collection('storm_alert_subscribers')
-        .where('active', '==', true)
-        .get();
+      // TCPA master switch (integrations/stormAlerts.enabled; absent = on).
+      if (!(await StormGuard.stormAlertsEnabled(db, logger))) {
+        logger.info('storm_alerts_switched_off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
+        return;
+      }
 
-      if (subsSnap.empty) {
+      // Every active subscriber, paged by documentId (no silent cap).
+      const subDocs = await StormGuard.loadActiveSubscribers(db, { logger });
+
+      if (subDocs.length === 0) {
         logger.info('storm_alerts_no_subscribers');
         return;
       }
 
       // Group subscribers by zip
       const byZip = {};
-      subsSnap.docs.forEach(doc => {
+      subDocs.forEach(doc => {
         const data = doc.data();
         if (!byZip[data.zip]) byZip[data.zip] = [];
-        byZip[data.zip].push({ id: doc.id, ...data });
+        byZip[data.zip].push({ id: doc.id, ref: doc.ref, ...data });
       });
 
       const uniqueZips = Object.keys(byZip);
-      logger.info('storm_alerts_scan_start', { zips: uniqueZips.length, subscribers: subsSnap.size });
+      logger.info('storm_alerts_scan_start', { zips: uniqueZips.length, subscribers: subDocs.length });
 
       const alertUrl = 'https://api.weather.gov/alerts/active?area=OH,KY&severity=Severe,Extreme';
       const alertResp = await fetch(alertUrl, {
-        headers: { 'User-Agent': 'NBDHomeStormAlerts/1.0 (jd@nobigdealwithjoedeal.com)' }
+        headers: { 'User-Agent': 'NBDHomeStormAlerts/1.0 (jd@nobigdealwithjoedeal.com)' },
+        signal: AbortSignal.timeout(STORM_NWS_FETCH_TIMEOUT_MS),
       });
       if (!alertResp.ok) { logger.error('NWS API error', { status: alertResp.status }); return; }
 
@@ -1664,7 +1691,9 @@ exports.checkStormAlerts = onSchedule(
         return;
       }
 
-      // Dedup by (alertId, subscriberId).
+      // Cheap pre-filter + daily budget from the last 48h of claims. The
+      // claim transaction (StormGuard) is the authoritative dedup; this set
+      // only saves a transaction per already-handled pair.
       const alreadySent = new Set();
       const recentSent = await db.collection('storm_alerts_sent')
         .where('sentAt', '>', new Date(Date.now() - 48 * 60 * 60 * 1000))
@@ -1686,15 +1715,16 @@ exports.checkStormAlerts = onSchedule(
       // Extreme event × many subscribers could otherwise blast thousands of
       // Twilio messages (and dollars) from a single tick. When the cap
       // trips we stop and log loudly; remaining subscribers are picked up
-      // on the next 30-min tick (the (alertId,subscriberId) dedup prevents
-      // anyone being messaged twice for the same alert). Override via env.
+      // on the next 30-min tick (the claim + shared cooldown prevent anyone
+      // being messaged twice). Override via env.
       const MAX_SMS_PER_RUN = Number(process.env.STORM_MAX_SMS_PER_RUN) || 250;
       // Daily ceiling across all runs (defends a multi-day storm event). Set
       // STORM_MAX_SMS_PER_DAY=0 to halt storm SMS entirely (kill-switch).
       const MAX_SMS_PER_DAY = Number(process.env.STORM_MAX_SMS_PER_DAY) || 2000;
-      let totalSent = 0;
+      let totalSent = 0;   // claims spent this run (sent or failed after claim)
       let capHit = false;
       let capScope = null;
+      const skipped = {};
 
       // Helper: does subscriber's zip fall inside this alert's areaDesc?
       function zipMatchesArea(zip, areaDescLower) {
@@ -1721,41 +1751,60 @@ exports.checkStormAlerts = onSchedule(
           for (const sub of byZip[zip]) {
             if (totalSent >= MAX_SMS_PER_RUN) { capHit = true; capScope = 'run'; break fanout; }
             if (sentToday + totalSent >= MAX_SMS_PER_DAY) { capHit = true; capScope = 'day'; break fanout; }
+            if (Date.now() - runStartMs >= STORM_RUN_BUDGET_MS) { capHit = true; capScope = 'time'; break fanout; }
             const dedupKey = `${alertId}::${sub.id}`;
             if (alreadySent.has(dedupKey)) continue;
+            if (StormGuard.inStormCooldown(sub, Date.now())) { skipped.cooldown = (skipped.cooldown || 0) + 1; continue; }
 
             const phone = formatPhoneNumber(sub.phone);
             if (!phone) continue;
 
             const body = `⛈️ NBD Storm Alert: ${event} reported near ${zip}. ${String(headline).substring(0, 120)} — Free roof inspection: nobigdealwithjoedeal.com or call Joe (859) 420-7382. Reply STOP to unsubscribe.`;
 
-            try {
-              await client.messages.create({
-                body: body.substring(0, 1600),
-                from: fromPhone,
-                to: phone,
-              });
-              totalSent++;
-              alreadySent.add(dedupKey);
-
-              await db.collection('storm_alerts_sent').add({
+            const result = await StormGuard.sendGuardedStormText({
+              db,
+              subscriberRef: sub.ref || db.collection('storm_alert_subscribers').doc(sub.id),
+              phone,
+              claimRef: db.collection('storm_alerts_sent').doc(StormGuard.claimDocId(alertId, sub.id)),
+              claimData: {
                 alertId,
                 subscriberId: sub.id,
                 event,
                 headline,
                 areas: areasLower,
                 zip,
+                // sentAt = claim time: the 48h dedup query and the daily
+                // budget count claims, so a run that dies mid-send still
+                // spends budget rather than refunding it.
                 sentAt: FieldValue.serverTimestamp(),
-              });
-            } catch (e) {
-              logger.warn('storm_alert_sms_failed', { sub: sub.id, err: e.message });
-              if (e.code === 21211 || e.code === 21614) {
-                await db.doc(`storm_alert_subscribers/${sub.id}`).update({ active: false });
+              },
+              source: 'checkStormAlerts',
+              eventKey: String(alertId),
+              logger,
+              tz: sub.tz,
+              serverTimestamp: () => FieldValue.serverTimestamp(),
+              send: () => client.messages.create({
+                body: body.substring(0, 1600),
+                from: fromPhone,
+                to: phone,
+              }),
+            });
+            alreadySent.add(dedupKey);
+
+            if (result.status === 'sent' || result.status === 'send_failed') totalSent++;
+            else { skipped[result.status] = (skipped[result.status] || 0) + 1; continue; }
+
+            if (result.status === 'send_failed') {
+              const code = result.error && Number(result.error.code);
+              if (code === 21610) await recordCarrierOptOut(db, phone, 'checkStormAlerts');
+              if (code === 21211 || code === 21614 || code === 21610) {
+                await db.doc(`storm_alert_subscribers/${sub.id}`).update({ active: false })
+                  .catch((e) => logger.error('storm_alert_deactivate_failed', { sub: sub.id, err: e.message }));
               }
             }
 
             // Twilio default per-number cap is 1 msg/sec.
-            await sleep(1100);
+            await sleep(STORM_SMS_PACING_MS);
           }
         }
       }
@@ -1763,10 +1812,13 @@ exports.checkStormAlerts = onSchedule(
       if (capHit) {
         logger.warn('storm_alerts_cap_hit', {
           scope: capScope, totalSent, sentToday,
-          cap: capScope === 'day' ? MAX_SMS_PER_DAY : MAX_SMS_PER_RUN,
+          cap: capScope === 'day' ? MAX_SMS_PER_DAY : capScope === 'time' ? STORM_RUN_BUDGET_MS : MAX_SMS_PER_RUN,
         });
       }
-      logger.info('storm_alerts_complete', { totalSent, sentToday, capHit, capScope });
+      if (skipped.quiet_hours) {
+        logger.info('storm_alerts_quiet_hours_skipped', { count: skipped.quiet_hours, window: StormGuard.STORM_QUIET_HOURS });
+      }
+      logger.info('storm_alerts_complete', { totalSent, sentToday, capHit, capScope, skipped });
 
     } catch (e) {
       logger.error('checkStormAlerts error', { err: e.message });

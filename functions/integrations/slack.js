@@ -18,8 +18,12 @@
 
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { logger } = require('firebase-functions/v2');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getSecret, hasSecret, SECRETS } = require('./_shared');
+const { reserveOnce } = require('../storm-sms-guard');
+
+// One Slack post per storm alert: storm_alert_slack_posts/{hash(alertId)}.
+const STORM_SLACK_POSTS = 'storm_alert_slack_posts';
 
 async function postSlack(payload) {
   if (!hasSecret('SLACK_WEBHOOK_URL')) return { posted: false, reason: 'unconfigured' };
@@ -117,7 +121,40 @@ exports.slack_onAdminGrantAttempt = onDocumentCreated(
   }
 );
 
-// ─── Trigger: storm alert — post the summary to ops channel ──
+// ─── Trigger: storm alert — ONE summary post per alert to ops channel ──
+// storm_alerts_sent holds one doc per (alertId, subscriber), so a 250-text
+// run fired this trigger 250 times and posted 250 times (2026-10-03). It also
+// read d.subscribers / d.severity, which no writer has ever set — every post
+// said "Subscribers notified: 0". Now the first doc for an alertId reserves
+// storm_alert_slack_posts/{hash} with create-once semantics and only that
+// invocation posts; the per-subscriber rows stay in storm_alerts_sent.
+async function postStormAlertOnce(db, d) {
+  if (!d || !d.alertId) return { posted: false, reason: 'no_alert_id' };
+  let first;
+  try {
+    first = await reserveOnce(db, STORM_SLACK_POSTS, d.alertId,
+      { alertId: String(d.alertId), event: d.event || null },
+      () => FieldValue.serverTimestamp());
+  } catch (e) {
+    logger.warn('slack_storm_reserve_failed', { err: e.message });
+    return { posted: false, reason: 'reserve_failed' };
+  }
+  if (!first) return { posted: false, reason: 'duplicate' };
+  const area = d.areas || d.area || d.zip || 'unknown area';
+  return postSlack({
+    text: '⛈ Storm alert — texting subscribers: ' + (d.event || 'severe weather') + ' (' + String(area).slice(0, 120) + ')',
+    blocks: [{
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*⛈ Storm alert — texting subscribers*\nEvent: *${escSlack(d.event || 'Severe Weather')}*\nArea: *${escSlack(String(area).slice(0, 300))}*` +
+          (d.headline ? `\n${escSlack(String(d.headline).slice(0, 300))}` : '') +
+          '\n_One post per alert — per-subscriber texts are logged in storm_alerts_sent._'
+      }
+    }]
+  });
+}
+
 exports.slack_onStormAlert = onDocumentCreated(
   {
     region: 'us-central1',
@@ -128,16 +165,7 @@ exports.slack_onStormAlert = onDocumentCreated(
     if (!hasSecret('SLACK_WEBHOOK_URL')) return;
     const d = event.data && event.data.data && event.data.data();
     if (!d) return;
-    await postSlack({
-      text: '⛈ Storm alert fired: ' + (d.zip || d.area || 'unknown area'),
-      blocks: [{
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*⛈ Storm alert*\nArea: *${escSlack(d.zip || d.area || 'unknown')}*\nSubscribers notified: *${d.subscribers || 0}*\nSeverity: *${escSlack(d.severity || 'unknown')}*`
-        }
-      }]
-    });
+    await postStormAlertOnce(getFirestore(), d);
   }
 );
 
@@ -160,3 +188,4 @@ function escSlack(s) {
 
 module.exports = exports;
 module.exports.postSlack = postSlack;
+module.exports._test = { postStormAlertOnce, STORM_SLACK_POSTS };

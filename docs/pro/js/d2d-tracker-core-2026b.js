@@ -2111,7 +2111,12 @@
         addrVerifiedAt: window.serverTimestamp()
       };
 
-      if (followUpDate) knockDoc.followUpDate = followUpDate;
+      if (followUpDate) {
+        knockDoc.followUpDate = followUpDate;
+        // Rep-picked vs disposition default — convertToLead keeps only a
+        // picked date for a lead with no phone.
+        knockDoc.followUpSource = fupInput ? 'manual' : 'auto';
+      }
 
       // 12s timeout — addDoc on a stale iOS bfcache connection never
       // resolves or rejects. Without this the Save button is stuck on
@@ -2272,8 +2277,16 @@
 
       // Auto-assign follow-up date — use the knock's follow-up if set, otherwise
       // smart defaults per disposition (Interested: 2d, Appointment: 1d, Storm: 3d)
+      //
+      // No phone → no AUTOMATIC CRM follow-up (2026-10-03 data audit: 65
+      // phone-less knock leads under one placeholder name carried auto dates
+      // and buried the real follow-ups). Re-knocking that door stays on D2D's
+      // own list; a date the rep PICKED on the knock form is still kept.
+      const _knockHasPhone = String(knock.phone || '').replace(/\D/g, '').length >= 10;
       let followUpStr = '';
-      if (knock.followUpDate) {
+      if (!_knockHasPhone && knock.followUpSource !== 'manual') {
+        followUpStr = '';
+      } else if (knock.followUpDate) {
         followUpStr = (typeof knock.followUpDate === 'object' && knock.followUpDate.toISOString
           ? knock.followUpDate.toISOString().split('T')[0]
           : String(knock.followUpDate));
