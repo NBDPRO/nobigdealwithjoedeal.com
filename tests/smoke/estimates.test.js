@@ -460,6 +460,11 @@ section('F8: Voice memo transcription');
     /MAX_AUDIO_BYTES\s*=\s*1_500_000/.test(srv));
   assert('writes activity on the lead',
     /type: 'voice_memo'/.test(srv));
+  // 2026-10-04: Groq through the helper dictate uses; Deepgram is gone.
+  // Behaviour is pinned in tests/voice-memo-groq-2026-10-04.test.js.
+  assert('transcribes through the shared Groq helper, not Deepgram',
+    /transcribeGroqBuffer\(/.test(srv) &&
+    !/deepgram/i.test(srv.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/mg, '')));
   const cli = read(path.join(PRO_JS, 'voice-memo.js'));
   assert('client exposes window.NBDVoiceMemo',
     /window\.NBDVoiceMemo\s*=/.test(cli));
