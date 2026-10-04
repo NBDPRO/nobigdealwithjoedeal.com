@@ -448,7 +448,10 @@ const VERDICTS = {
   revokeMySessions: 'self', revokePortalToken: 'refused', rotateAccessCodes: 'role-gated',
   runMigrations: 'role-gated', saveEsignFields: 'refused', sendEsignEnvelope: 'refused',
   sendEstimateForSignature: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
-  setSiteSlug: 'role-gated', trackUsage: 'refused', transcribeVoiceMemo: 'refused',
+  setSiteSlug: 'role-gated',
+  // Publish my site (2026-10-04): requireTeamAdmin ownerOnly — owner / platform admin.
+  publishTenantSite: 'role-gated',
+  trackUsage: 'refused', transcribeVoiceMemo: 'refused',
   updateUserRole: 'role-gated', validateAccessCode: 'public', verifyCode: 'public',
   // Bot keys (agent-mcp.js requireKeyAdmin refuses viewer / sales_rep).
   createAgentKey: 'role-gated', listAgentKeys: 'role-gated', revokeAgentKey: 'role-gated',

@@ -3,6 +3,22 @@
 **Severity:** P0 (you are here because data is lost or corrupted)
 **Owner:** Jo Deal · **Last drilled:** _never against prod — emulator round-trip verified (Audit #4)_
 
+> **UPDATE 2026-10-04: parts of this page are stale. The overview is now
+> [BACKUP-RESTORE](BACKUP-RESTORE.md).** Read live with gcloud on 2026-10-04:
+> - **§1:** the canonical bucket is `gs://nobigdeal-pro-firestore-backups`
+>   (US multi-region). The second pipeline (`nightlyFirestoreBackup`) was
+>   retired 2026-09-05.
+> - **§0 RPO is no longer 24h.** PITR is on (7 days), and a daily native
+>   Firestore backup schedule keeps 14 weeks (created 2026-10-04). Restore
+>   either one into a NEW database: [BACKUP-RESTORE §3c](BACKUP-RESTORE.md).
+> - **§6 is wrong now.** Storage HAS a backup: object versioning is on for
+>   `nobigdeal-pro.firebasestorage.app`, and the separate project
+>   `nobigdeal-backups` pulls daily copies of both the photo bucket and the
+>   Firestore exports (since 2026-09-03).
+> - **"Last drilled":** a real prod export was imported into the LOCAL
+>   emulator on 2026-10-04 (67 collections, 32,705 root docs, 14 s). A
+>   scratch-project import (§2) is still undrilled.
+>
 > ⚠️ A restore **overwrites/merges into the live database**. Read the whole
 > page before running anything. When in doubt, restore into a **scratch
 > project first**, eyeball it, then decide.
