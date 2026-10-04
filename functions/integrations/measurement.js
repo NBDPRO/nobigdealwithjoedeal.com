@@ -445,6 +445,33 @@ exports.requestMeasurement = onCall(
     }
 
     const data = request.data || {};
+
+    // ☀️ Solar Analysis on the Maps drawing tool (2026-10-04). It used to call
+    // solar.googleapis.com from the browser with a key the rep pasted into
+    // localStorage; keys never live on a phone, so it comes here. Same Solar
+    // fetch, same company-scoped 180-day cache and per-company daily cap as a
+    // roof measure (integrations/solar-measure.js runSunAnalysis). Works
+    // whatever NBD_MEASUREMENT_PROVIDER says — it needs SOLAR_API_KEY only,
+    // never escalates to Instant Roofer, and writes no measurement / lead doc.
+    if (data.purpose === 'sun-exposure') {
+      const v = IR.validateCoords(data.lat, data.lng);
+      if (!v.ok) throw new HttpsError('invalid-argument', 'Valid lat/lng required');
+      const sun = await SOLAR.runSunAnalysis({
+        uid,
+        companyId: token.companyId || null,
+        db: getFirestore(),
+        lat: v.lat, lng: v.lng,
+        address: typeof data.address === 'string' ? data.address.trim().slice(0, 500) : ''
+      });
+      if (!sun || !sun.ok) {
+        if (sun && sun.configured === false) {
+          throw new HttpsError('failed-precondition', 'Satellite sun data is not set up for this account.');
+        }
+        throw new HttpsError((sun && sun.code) || 'unavailable', (sun && sun.message) || 'Sun analysis failed — try again.');
+      }
+      return { ok: true, cached: sun.cached, sun: sun.sun, imagery: sun.imagery, accuracyNote: sun.accuracyNote };
+    }
+
     const address = typeof data.address === 'string' ? data.address.trim() : '';
     if (address && (address.length < 5 || address.length > 500)) {
       throw new HttpsError('invalid-argument', 'Valid address required');

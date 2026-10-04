@@ -2805,11 +2805,29 @@ function renderAccessoryPanel() {
 // derived from the drawing measurements. Different from the
 // measurement report (which is technical/internal).
 // ═══════════════════════════════════════════════════════════
-// GOOGLE SOLAR API INTEGRATION
-// Shows sun exposure heatmap overlay on the drawing. Uses
-// Google Solar API ($0.05/lookup) if a key is configured,
-// otherwise shows a static sun path estimate based on lat/lng.
+// SUN EXPOSURE (Google Solar data, fetched SERVER-SIDE)
+// Shows a sun-exposure overlay on the drawing. The data comes from
+// the requestMeasurement callable (purpose 'sun-exposure'), which
+// holds the Solar key, caches each roof for 180 days per company
+// and enforces the per-company daily cap
+// (functions/integrations/solar-measure.js runSunAnalysis). If the
+// server can't answer, a static latitude-based estimate is shown.
+// No key is ever read, stored or prompted for on the device.
 // ═══════════════════════════════════════════════════════════
+
+// Until 2026-10-04 this tool read a Google key from localStorage. Clear any
+// copy a device still holds — a key must never live on a phone.
+try { localStorage.removeItem('nbd_google_solar_key'); } catch (_) {}
+
+async function _sunExposureCallable() {
+  if (!window._functions || !window._httpsCallable) {
+    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    window._functions = window._functions || mod.getFunctions();
+    window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+  }
+  return window._httpsCallable(window._functions, 'requestMeasurement');
+}
+
 async function runSolarAnalysis() {
   const center = drawMap ? drawMap.getCenter() : null;
   if (!center) { showToast('Open the drawing tool first', 'error'); return; }
@@ -2817,67 +2835,60 @@ async function runSolarAnalysis() {
   const addr = document.getElementById('drawSearch')?.value || '';
   showToast('Running solar analysis...', 'info');
 
-  // Check for Google Solar API key in localStorage
-  const apiKey = localStorage.getItem('nbd_google_solar_key') || '';
-
-  if (apiKey) {
-    // Real Google Solar API call
-    try {
-      const url = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${center.lat}&location.longitude=${center.lng}&requiredQuality=HIGH&key=${apiKey}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('API returned ' + response.status);
-      const data = await response.json();
-
-      // Render solar data overlay
-      renderSolarOverlay(data);
-      showToast('Solar analysis complete — ' + (data.solarPotential?.maxSunshineHoursPerYear || 0).toFixed(0) + ' hours/year max sun', 'success');
-    } catch (e) {
-      console.error('Solar API failed:', e);
-      showToast('Solar API error: ' + e.message + '. Showing estimate instead.', 'warning');
-      renderSolarEstimate(center.lat);
-    }
-  } else {
-    // No API key — show estimated sun path
+  try {
+    const fn = await _sunExposureCallable();
+    const res = await fn({ purpose: 'sun-exposure', lat: center.lat, lng: center.lng, address: addr });
+    const d = (res && res.data) || {};
+    if (!d.sun) throw new Error('No sun data returned');
+    renderSolarOverlay(d.sun);
+    const max = Number(d.sun.maxSunshineHoursPerYear);
+    showToast('Solar analysis complete — ' + (isFinite(max) && max > 0 ? max.toFixed(0) : '—') + ' hours/year max sun'
+      + (d.cached ? ' (saved result, no new charge)' : ''), 'success');
+  } catch (e) {
+    console.warn('Sun analysis failed:', e && (e.code || e.message));
     renderSolarEstimate(center.lat);
-    showToast('Solar estimate shown. Add Google Solar API key in Settings for precise data.', 'info');
+    showToast('Satellite sun data unavailable' + (e && e.message ? ' (' + e.message + ')' : '') + ' — showing an estimate.', 'warning');
   }
 }
 
-function renderSolarOverlay(data) {
+// sun: { maxSunshineHoursPerYear, segments: [{ lat, lng, areaMeters2, sunshineHoursMedian }] }
+function renderSolarOverlay(sun) {
   // Remove previous overlay
   if (window._solarOverlay) { drawMap.removeLayer(window._solarOverlay); }
 
-  const sp = data.solarPotential;
-  if (!sp || !sp.roofSegmentStats) return;
+  const segs = sun && Array.isArray(sun.segments) ? sun.segments : null;
+  if (!segs) return;
+  const maxRaw = Number(sun.maxSunshineHoursPerYear);
+  const maxHours = isFinite(maxRaw) && maxRaw > 0 ? maxRaw : 1500;
 
   const group = L.layerGroup();
 
   // Draw roof segments colored by sun exposure
-  sp.roofSegmentStats.forEach((seg, i) => {
-    const hours = seg.stats?.sunshineQuantiles?.[5] || 0; // median sunshine
-    const maxHours = sp.maxSunshineHoursPerYear || 1500;
+  segs.forEach((seg, i) => {
+    const lat = Number(seg && seg.lat), lng = Number(seg && seg.lng);
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    const hours = Number(seg.sunshineHoursMedian) || 0; // median sunshine
+    const area = Number(seg.areaMeters2) || 0;
     const ratio = Math.min(1, hours / maxHours);
     // Red = most sun, blue = least sun
     const r = Math.round(255 * ratio);
     const b = Math.round(255 * (1 - ratio));
     const color = `rgb(${r},${Math.round(100 * ratio)},${b})`;
 
-    if (seg.center) {
-      L.circle([seg.center.latitude, seg.center.longitude], {
-        radius: Math.sqrt(seg.stats?.areaMeters2 || 50) * 2,
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.4,
-        weight: 1
-      }).bindPopup(`<b>Segment ${i + 1}</b><br>${hours.toFixed(0)} hrs/yr sunshine<br>${(seg.stats?.areaMeters2 * 10.764 || 0).toFixed(0)} SF`).addTo(group);
-    }
+    L.circle([lat, lng], {
+      radius: Math.sqrt(area || 50) * 2,
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.4,
+      weight: 1
+    }).bindPopup(`<b>Segment ${i + 1}</b><br>${hours.toFixed(0)} hrs/yr sunshine<br>${(area * 10.764).toFixed(0)} SF`).addTo(group);
   });
 
   // Summary label
   const center = drawMap.getCenter();
   L.marker(center, {
     icon: L.divIcon({
-      html: `<div class="mrx-bgrgba2341-c000-p6px12px">☀️ ${sp.maxSunshineHoursPerYear?.toFixed(0) || '—'} hrs/yr max · ${sp.roofSegmentStats?.length || 0} segments</div>`,
+      html: `<div class="mrx-bgrgba2341-c000-p6px12px">☀️ ${isFinite(maxRaw) && maxRaw > 0 ? maxRaw.toFixed(0) : '—'} hrs/yr max · ${segs.length} segments</div>`,
       className: '', iconAnchor: [0, 0]
     })
   }).addTo(group);
@@ -2920,7 +2931,7 @@ function renderSolarEstimate(lat) {
 
   L.marker(center, {
     icon: L.divIcon({
-      html: `<div class="mrx-bgrgba2341-c000-p6px12px">☀️ Est. ${sunHours} hrs/yr · Lat ${lat.toFixed(1)}° · <span class="mrx-fs10px-w400">Add API key for precise data</span></div>`,
+      html: `<div class="mrx-bgrgba2341-c000-p6px12px">☀️ Est. ${sunHours} hrs/yr · Lat ${lat.toFixed(1)}° · <span class="mrx-fs10px-w400">Latitude estimate</span></div>`,
       className: '', iconAnchor: [0, 0]
     })
   }).addTo(group);
