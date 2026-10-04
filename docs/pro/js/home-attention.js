@@ -198,6 +198,10 @@
     }
     await Promise.all(jobs);
     out.calls = callersNeedingYou(callRows, Date.now());
+    // Today (today-home.js) lists these same people from these same rows —
+    // shared, not re-read (2026-10-03).
+    api.lastRows = callRows; api.lastCounts = out;
+    try { w.dispatchEvent(new CustomEvent('nbd:attention-loaded')); } catch (_) { /* old browser */ }
     return out;
   }
 

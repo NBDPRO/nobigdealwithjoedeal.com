@@ -28,15 +28,16 @@
  *   2026-04-18: Gemini 2.5 Flash Image (too conservative, color-only)
  *   2026-04-18: FLUX.1 Kontext Max via Replicate (current default)
  *   2026-08-05: kie.ai added as a flag-gated ALTERNATE provider for the
- *               same Flux Kontext models (IMAGEGEN_PROVIDER=kie). Ships
- *               dark: default stays 'replicate' until Joe adds a
- *               KIE_API_KEY secret and QAs output quality side-by-side.
+ *               same Flux Kontext models (IMAGEGEN_PROVIDER=kie).
+ *   2026-10-04: kie.ai removed — its key was never set, so it never ran.
+ *               Replicate is the one provider, still behind the
+ *               VISUALIZER_IMAGEGEN_ENABLED flag (default OFF).
+ *               documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md, Lane C.
  */
 
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
-const { getStorage } = require('firebase-admin/storage');
 
 // Shared with other functions — re-use the same rate limiter
 const { httpRateLimit } = require('./rate-limit');
@@ -56,20 +57,6 @@ const { httpRateLimit } = require('./rate-limit');
 // If Gemini is ever wanted again it needs a fresh defineSecret() and the
 // API enabled, so the secret is not "kept ready" for anything — delete it.
 const REPLICATE_API_TOKEN = defineSecret('REPLICATE_API_TOKEN');
-// kie.ai API key — alternate image-gen provider (same Flux Kontext family,
-// typically cheaper per image; verify current pricing on kie.ai before
-// flipping). Also registered in integrations/_shared.js SECRETS so the admin
-// integration-status readout shows whether it's populated.
-const KIE_API_KEY = defineSecret('KIE_API_KEY');
-const { secretValue } = require('./integrations/_shared');
-
-// Provider seam. 'replicate' (default) | 'kie'. Env-switchable so a swap
-// (or rollback) needs no code change — mirrors the FLUX_MODEL override
-// pattern below.
-function imageGenProvider() {
-  return String(process.env.IMAGEGEN_PROVIDER || 'replicate').toLowerCase() === 'kie'
-    ? 'kie' : 'replicate';
-}
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -383,9 +370,9 @@ function buildPrompt(selections) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// Providers
+// Provider
 // ───────────────────────────────────────────────────────────────
-// Both return { imgBuf, outMediaType } or throw { httpStatus, token }-shaped
+// Returns { imgBuf, outMediaType } or throws { httpStatus, token }-shaped
 // errors the endpoint maps onto its existing error contract.
 
 function _provErr(httpStatus, token, extra) {
@@ -463,132 +450,6 @@ async function generateViaReplicate(prompt, inputDataUrl, model) {
   return { imgBuf, outMediaType };
 }
 
-// kie.ai model ids for the same family. The Replicate names
-// ('black-forest-labs/flux-kontext-pro') map by suffix; KIE_MODEL /
-// KIE_SHINGLE_MODEL override without a redeploy (same pattern as
-// FLUX_MODEL / FLUX_SHINGLE_MODEL).
-function kieModelFor(replicateModel, isShingle) {
-  const override = isShingle ? process.env.KIE_SHINGLE_MODEL : process.env.KIE_MODEL;
-  if (override) return override;
-  return /kontext-max/.test(replicateModel || '') ? 'flux-kontext-max' : 'flux-kontext-pro';
-}
-
-const KIE_BASE = 'https://api.kie.ai/api/v1/flux/kontext';
-
-// kie.ai: task-based — create (POST /generate) then poll
-// (GET /record-info?taskId=). Two differences vs Replicate, both handled
-// here so the endpoint contract is identical:
-//   1. inputImage must be a PUBLICLY REACHABLE URL (no data-URLs), so the
-//      homeowner's photo is staged as a Storage object behind a 15-minute
-//      V4 signed URL and best-effort deleted afterwards. (Signed URLs need
-//      the runtime SA to hold iam.serviceAccounts.signBlob — the default
-//      gen2 SA does; if a future SA swap breaks this it surfaces as
-//      input_stage_failed, not a silent wrong image.)
-//   2. No 'match_input_image' aspect ratio — aspectRatio is omitted so the
-//      service default applies. QA output framing before flipping the flag.
-async function generateViaKie(prompt, imageBase64, mediaType, replicateModel, isShingle) {
-  const model = kieModelFor(replicateModel, isShingle);
-  const ext = mediaType === 'image/png' ? 'png' : mediaType === 'image/webp' ? 'webp' : 'jpg';
-  const objectPath = 'visualizer-tmp/' +
-    Date.now() + '-' + require('crypto').randomBytes(8).toString('hex') + '.' + ext;
-  const file = getStorage().bucket().file(objectPath);
-
-  try {
-    // Stage the input photo behind a short-lived signed URL.
-    let inputUrl;
-    try {
-      await file.save(Buffer.from(imageBase64, 'base64'), {
-        contentType: mediaType,
-        resumable: false,
-        metadata: { cacheControl: 'private, max-age=0' },
-      });
-      const [signed] = await file.getSignedUrl({
-        version: 'v4', action: 'read', expires: Date.now() + 15 * 60_000,
-      });
-      inputUrl = signed;
-    } catch (e) {
-      logger.warn('visualizerImageGen: kie input staging failed', { err: e && e.message });
-      throw _provErr(502, 'input_stage_failed');
-    }
-
-    const createResp = await fetch(KIE_BASE + '/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + KIE_API_KEY.value(),
-      },
-      body: JSON.stringify({
-        prompt,
-        inputImage: inputUrl,
-        model,
-        outputFormat: 'jpeg',
-        safetyTolerance: 2,
-      }),
-    });
-    if (!createResp.ok) {
-      const errText = await createResp.text().catch(() => '');
-      logger.warn('visualizerImageGen: upstream error', {
-        provider: 'kie', status: createResp.status, body: errText.slice(0, 2000),
-      });
-      throw _provErr(502, 'upstream_error', { upstream_status: createResp.status });
-    }
-    const created = await createResp.json();
-    const taskId = created && created.data && created.data.taskId;
-    if (!taskId) {
-      logger.warn('visualizerImageGen: kie create returned no taskId', {
-        code: created && created.code, msg: created && created.msg,
-      });
-      throw _provErr(502, 'upstream_error');
-    }
-
-    // Poll. successFlag: 0 generating, 1 success, 2 create-failed,
-    // 3 generate-failed. Budget ~90s inside the 120s function timeout.
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    let info = null;
-    for (let attempt = 0; attempt < 30; attempt++) {
-      await sleep(3000);
-      const poll = await fetch(KIE_BASE + '/record-info?taskId=' + encodeURIComponent(taskId), {
-        headers: { 'Authorization': 'Bearer ' + KIE_API_KEY.value() },
-      });
-      if (!poll.ok) continue; // transient — keep polling inside the budget
-      const body = await poll.json().catch(() => null);
-      info = body && body.data;
-      if (info && info.successFlag !== 0) break;
-    }
-    if (!info || info.successFlag === 0) {
-      logger.warn('visualizerImageGen: kie poll timeout', { taskId });
-      throw _provErr(504, 'prediction_timeout_or_failed', { prediction_status: 'processing' });
-    }
-    if (info.successFlag !== 1) {
-      logger.warn('visualizerImageGen: kie generation failed', {
-        taskId, successFlag: info.successFlag,
-        errorCode: info.errorCode, errorMessage: info.errorMessage,
-      });
-      throw _provErr(504, 'prediction_timeout_or_failed', { prediction_status: 'failed' });
-    }
-
-    const resultUrl = info.response && info.response.resultImageUrl;
-    if (!resultUrl || typeof resultUrl !== 'string') {
-      logger.warn('visualizerImageGen: kie success without resultImageUrl', { taskId });
-      throw _provErr(502, 'no_image_returned');
-    }
-    const imgResp = await fetch(resultUrl);
-    if (!imgResp.ok) {
-      logger.warn('visualizerImageGen: output fetch failed', {
-        provider: 'kie', status: imgResp.status,
-      });
-      throw _provErr(502, 'output_fetch_failed');
-    }
-    const imgBuf = Buffer.from(await imgResp.arrayBuffer());
-    const outMediaType = imgResp.headers.get('content-type') || 'image/jpeg';
-    return { imgBuf, outMediaType };
-  } finally {
-    // The staged input is PII (the homeowner's house) — delete it as soon as
-    // the round-trip is over; the 15-minute signed URL bounds the worst case.
-    file.delete({ ignoreNotFound: true }).catch(() => {});
-  }
-}
-
 // ───────────────────────────────────────────────────────────────
 // visualizerImageGen — HTTP endpoint
 // ───────────────────────────────────────────────────────────────
@@ -615,7 +476,7 @@ async function generateViaKie(prompt, imageBase64, mediaType, replicateModel, is
 exports.visualizerImageGen = onRequest(
   {
     cors: CORS_ORIGINS,
-    secrets: [REPLICATE_API_TOKEN, KIE_API_KEY],
+    secrets: [REPLICATE_API_TOKEN],
     maxInstances: 5,
     concurrency: 10,
     timeoutSeconds: 120, // Replicate sync wait can take up to 60s + our own overhead
@@ -709,29 +570,9 @@ exports.visualizerImageGen = onRequest(
 
       const prompt = buildPrompt(selections);
       const modelForRequest = pickModelForSelections(selections);
-      const isShingle = modelForRequest === (process.env.FLUX_SHINGLE_MODEL || DEFAULT_SHINGLE_MODEL);
 
-      // Provider seam: Replicate (default) or kie.ai (IMAGEGEN_PROVIDER=kie).
-      // Both return the same { imgBuf, outMediaType } so the response shape —
-      // and therefore the frontend — never changes with the provider.
-      const provider = imageGenProvider();
-      let result;
-      if (provider === 'kie') {
-        // Refuse loudly if the flag was flipped before the key exists —
-        // a misconfig must not silently fall back to a provider Joe just
-        // switched away from.
-        let kieKey = '';
-        kieKey = secretValue(KIE_API_KEY) || ''; // the '__unset__' deploy stub reads as ''
-        if (!kieKey) {
-          logger.error('visualizerImageGen: IMAGEGEN_PROVIDER=kie but KIE_API_KEY is unset');
-          res.status(503).json({ error: 'provider_not_configured' });
-          return;
-        }
-        result = await generateViaKie(prompt, imageBase64, mediaType, modelForRequest, isShingle);
-      } else {
-        const inputDataUrl = 'data:' + mediaType + ';base64,' + imageBase64;
-        result = await generateViaReplicate(prompt, inputDataUrl, modelForRequest);
-      }
+      const inputDataUrl = 'data:' + mediaType + ';base64,' + imageBase64;
+      const result = await generateViaReplicate(prompt, inputDataUrl, modelForRequest);
 
       res.json({
         imageBase64: result.imgBuf.toString('base64'),

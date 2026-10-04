@@ -769,11 +769,16 @@ section('Pipeline small fixes (#9 legacy card handlers, #10 filter preserved)');
   // (#11 — homeowner-share badge dispatch — is covered in portal.test.js.)
   // #12 — the overdue-followup count skips won/lost/job by stageRole, so a won
   // deal at final_payment (or a custom won/lost stage) no longer nags "due".
-  // 2026-10-03: the rule lives in _overdueFollowUps (also skips phone-less knock leads).
+  // 2026-10-03 (Today home): ONE rule for every follow-up surface —
+  // today-plan.js followUpDue; _overdueFollowUps delegates to it.
+  // tests/today-plan-2026-10-03.test.js runs both on the same leads.
   const overdue = crm.slice(crm.indexOf('function _overdueFollowUps('), crm.indexOf('function _overdueFollowUps(') + 800);
+  const tplan = read(path.join(ROOT, 'docs/pro/js/today-plan.js'));
+  const fuRule = tplan.slice(tplan.indexOf('function followUpDue('), tplan.indexOf('function followUpDue(') + 900);
   assert('overdue-followup excludes won/lost/job by stageRole',
-    /window\.stageRole\(sk\)/.test(overdue) &&
-    /role === 'won' \|\| role === 'lost' \|\| role === 'job'/.test(overdue));
+    /window\.NBDTodayPlan\.followUpDue/.test(overdue) &&
+    /stageRoleOf\(lead, env\)/.test(fuRule) &&
+    /role === 'won' \|\| role === 'lost' \|\| role === 'job'/.test(fuRule));
 }
 
 section('Swallowed-error fixes: doc-save + task-toggle tell the truth');
