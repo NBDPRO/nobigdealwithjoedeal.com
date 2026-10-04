@@ -13,7 +13,7 @@
 //   today) → one "Payment received" line on the timeline.
 //
 // Nothing may email or text anyone: every Cloud Function call is intercepted
-// and the lead carries no email address (Resend rejects test domains anyway).
+// and the receipt box is left unticked (the lead's address is Resend's test sink).
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
 
@@ -70,7 +70,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     const stamp = Date.now();
     const lead = {
       firstName: '[E2E] Paid', lastName: 'NoInvoice' + stamp, address: stamp + ' Gutter Ln, Milford, OH 45150',
-      phone: '513' + String(stamp).slice(-7), stage: 'install_complete', jobType: 'cash', jobValue: 8200,
+      phone: '513' + String(stamp).slice(-7), email: 'delivered@resend.dev', stage: 'install_complete', jobType: 'cash', jobValue: 8200,
       e2eTestData: true, userId: uid, companyId,
     };
     const leadId = await safeEvaluate(page, async (lead) => {
@@ -99,6 +99,8 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     await expect(sheet.locator('[data-rp-target="jobValue"]')).toContainText('Confirm the job total');
     // jobValue is a SUGGESTION in an editable field, never used unconfirmed.
     await expect(sheet.locator('#nbd-rp-total')).toHaveValue('8200.00');
+    // The receipt email is OPT-IN here (old checks must not surprise customers).
+    await expect(sheet.locator('#nbd-rp-receipt')).not.toBeChecked();
 
     // Every target is thumb-sized and nothing runs off a 390px screen.
     const small = await page.evaluate(() => [...document.querySelectorAll('#nbd-recordpay-modal button, #nbd-recordpay-modal input:not([type=checkbox]), #nbd-recordpay-modal label.ipx-rp-confirm')]
@@ -121,7 +123,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     }, leadId);
     expect(none).toBe(0);
 
-    await sheet.locator('label.ipx-rp-confirm').click();
+    await sheet.locator('label.ipx-rp-confirm').filter({ hasText: 'This is the job total' }).click();
     await sheet.locator('#nbd-rp-save').click();
     await expect(sheet).toHaveCount(0, { timeout: 20_000 });
 
@@ -179,7 +181,8 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     await safeWaitForFunction(page, () => document.documentElement.style.opacity === '1', { timeout: 25_000 });
     await expect(page.locator('#timelineList')).toContainText('Payment received: $3,000.00 by Zelle', { timeout: 25_000 });
 
-    // Nothing was emailed or texted: the lead has no email, and no send function was called.
+    // Nothing was emailed or texted: the lead HAS an email, the receipt box was left
+    // unticked, and no send function was called.
     expect(fnCalls.filter((u) => /sendEmail|sendSMS|sendSms|send-email|send-sms/i.test(u))).toEqual([]);
   });
 });

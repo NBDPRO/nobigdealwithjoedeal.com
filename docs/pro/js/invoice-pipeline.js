@@ -2021,8 +2021,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // while a card payoff (stripe.js) went to Final Payment — the same
       // payoff landed the card in two places depending on how it was paid.
 
-      // Send receipt
-      if (window.NBDComms?.sendEmail && invoice.customerEmail) {
+      // Send receipt. details.sendReceipt === false skips it (Record payment
+      // passes its "Email a receipt" box, default OFF — Jo entering weeks-old
+      // checks must not surprise customers). Every other caller leaves it
+      // unset and keeps the existing behaviour (Jo has not decided that one).
+      if (details.sendReceipt !== false && window.NBDComms?.sendEmail && invoice.customerEmail) {
         await window.NBDComms.sendEmail({
           to: invoice.customerEmail,
           subject: `Payment Received - ${_invoiceCompany()} Invoice ${invoiceId}`,
@@ -3173,6 +3176,52 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   /**
+   * The Record Payment sheet's write, without the DOM (tests drive it):
+   * resolve / make the job's invoice, then markPaid. o = { leadId, lead,
+   * target (recordPaymentTarget), invoiceId (existing), totalCents
+   * (jobValue), amount, method, payer, at, reference, sendReceipt }.
+   * sendReceipt defaults OFF here: only an explicit true emails the
+   * customer (markPaid's own default is unchanged for its other callers).
+   * → invoiceId
+   */
+  async function recordPaymentCommit(o) {
+    o = o || {};
+    const db = getDb();
+    const target = o.target || {};
+    let invoiceId;
+    if (target.kind === 'existing') {
+      invoiceId = o.invoiceId || (target.invoices && target.invoices[0] && target.invoices[0].id);
+    } else if (target.kind === 'estimate') {
+      invoiceId = (await createOrOpenJobInvoice(target.estimateId)).invoiceId;
+    } else {
+      // Re-read the job's invoices right before writing: another device
+      // may have made one since the sheet opened.
+      const fresh = await _loadLeadInvoices(db, o.leadId);
+      const plan = planJobInvoice(o.totalCents, fresh, target.jobId);
+      if (plan.action === 'open') {
+        invoiceId = plan.invoiceId;
+      } else {
+        const uid = _currentUid();
+        const doc = jobValueInvoiceDoc({
+          lead: o.lead, leadId: o.leadId, totalCents: o.totalCents, jobId: target.jobId, credits: plan.credits, uid,
+          companyId: (window._userClaims && window._userClaims.companyId) || uid,
+          depRule: window.NBDDepositRule || null, J: window.NBDJurisdiction || null, now: new Date(),
+        });
+        invoiceId = (await window.addDoc(window.collection(db, 'invoices'), doc)).id;
+      }
+    }
+    if (!invoiceId) throw new Error('No invoice to record the payment on');
+    const cur = await window.getDoc(window.doc(db, 'invoices', invoiceId));
+    if (cur.exists() && String((cur.data() || {}).status || '') === 'paid') {
+      throw new Error('The invoice for this job is already paid in full — record extra money on the invoice itself.');
+    }
+    await markPaid(invoiceId, o.amount, o.method, {
+      at: o.at, reference: o.reference, payer: o.payer, sendReceipt: o.sendReceipt === true,
+    });
+    return invoiceId;
+  }
+
+  /**
    * UI: the Record Payment sheet. Resolves true once a payment is recorded,
    * false when dismissed. Nothing is sent to the homeowner from here except
    * what markPaid has always sent (its receipt email — unchanged, Jo's call).
@@ -3246,6 +3295,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         <input id="nbd-rp-date" type="date" class="fi ipx-field ipx-rp-input" value="${escHtml(today)}" max="${escHtml(today)}">
         <label for="nbd-rp-ref" id="nbd-rp-ref-label" class="ipx-label">${escHtml(PAYMENT_METHODS[0].refLabel)}</label>
         <input id="nbd-rp-ref" type="text" class="fi ipx-field ipx-rp-input" maxlength="${PAYMENT_REF_MAX}" autocomplete="off">
+        <label class="ipx-rp-confirm"><input id="nbd-rp-receipt" type="checkbox" class="ipx-rp-check"> Email a receipt to the customer</label>
         <button id="nbd-rp-save" type="button" class="btn btn-green ipx-btn-save">Save payment</button>
         <button id="nbd-rp-cancel" type="button" class="btn btn-ghost ipx-btn-full44">Cancel</button>
       </div>
@@ -3304,33 +3354,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving…';
         try {
-          let invoiceId;
-          if (target.kind === 'existing') {
-            invoiceId = invSel ? invSel.value : target.invoices[0].id;
-          } else if (target.kind === 'estimate') {
-            invoiceId = (await createOrOpenJobInvoice(target.estimateId)).invoiceId;
-          } else {
-            // Re-read the job's invoices right before writing: another device
-            // may have made one since the sheet opened.
-            const fresh = await _loadLeadInvoices(db, leadId);
-            const plan = planJobInvoice(totalCents, fresh, target.jobId);
-            if (plan.action === 'open') {
-              invoiceId = plan.invoiceId;
-            } else {
-              const uid = _currentUid();
-              const doc = jobValueInvoiceDoc({
-                lead, leadId, totalCents, jobId: target.jobId, credits: plan.credits, uid,
-                companyId: (window._userClaims && window._userClaims.companyId) || uid,
-                depRule: window.NBDDepositRule || null, J: window.NBDJurisdiction || null, now: new Date(),
-              });
-              invoiceId = (await window.addDoc(window.collection(db, 'invoices'), doc)).id;
-            }
-          }
-          const cur = await window.getDoc(window.doc(db, 'invoices', invoiceId));
-          if (cur.exists() && String((cur.data() || {}).status || '') === 'paid') {
-            throw new Error('The invoice for this job is already paid in full — record extra money on the invoice itself.');
-          }
-          await markPaid(invoiceId, amount, method, { at, reference: $('#nbd-rp-ref').value, payer });
+          await recordPaymentCommit({
+            leadId, lead, target, totalCents, amount, method, payer, at,
+            invoiceId: (target.kind === 'existing') ? (invSel ? invSel.value : target.invoices[0].id) : null,
+            reference: $('#nbd-rp-ref').value,
+            // Default OFF (unticked): no surprise receipt for an old check.
+            sendReceipt: $('#nbd-rp-receipt').checked === true,
+          });
           _toast('Payment recorded', 'success');
           mo.disconnect();
           closeModal();
@@ -3353,6 +3383,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // Getting paid (2026-10-03, tests/money-getting-paid-2026-10-03.test.js)
     createOrOpenJobInvoice,
     recordPaymentUI,
+    recordPaymentCommit,
     recordPaymentTarget,
     jobValueInvoiceDoc,
     PAYERS,

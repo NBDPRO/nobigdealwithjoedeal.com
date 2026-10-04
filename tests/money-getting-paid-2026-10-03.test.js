@@ -546,6 +546,34 @@ function browser(seed, extra) {
       && doc.createdBy === 'u1' && doc.companyId === 'u1' && doc.jobId === 'j1' && doc.totalConfirmedBy === 'u1' && doc.customerName === 'Pat Jones' && doc.source === 'record_payment');
     let threw = false; try { IP.jobValueInvoiceDoc({ lead: ohLead, totalCents: 0 }); } catch (_) { threw = true; }
     ok('never a $0 invoice', threw);
+    // The receipt email (coordinator, 2026-10-03): Jo is entering weeks-old
+    // checks — Record payment must not email the customer unless he ticks
+    // "Email a receipt"; markPaid's own default stays as it was.
+    {
+      const withEmail = Object.assign({}, ohLead, { email: 'delivered@resend.dev' });
+      const run = async (sendReceipt) => {
+        const B = browser({ 'leads/L1': withEmail, 'invoices/r1': { leadId: 'L1', createdBy: 'u1', status: 'sent', total: 8200, amountPaid: 0, balanceDue: 8200, customerEmail: 'delivered@resend.dev', jobId: null } });
+        const args = { leadId: 'L1', lead: withEmail, target: IP.recordPaymentTarget({ lead: withEmail, invoices: [{ id: 'r1', status: 'sent', total: 8200 }] }),
+          amount: '3000', method: 'check', payer: 'insurance', at: new Date(NOW), reference: '1042' };
+        if (sendReceipt !== undefined) args.sendReceipt = sendReceipt;
+        await IP.recordPaymentCommit(args);
+        return B;
+      };
+      const off = await run(undefined);
+      ok('Record payment, receipt box unticked (default) → payment recorded, NO email', off.emails.length === 0 && off.store.get('invoices/r1').amountPaid === 3000);
+      const offF = await run(false);
+      ok('…explicitly unticked → no email', offF.emails.length === 0);
+      const on = await run(true);
+      ok('Record payment, box ticked → exactly ONE receipt email to the customer',
+        on.emails.length === 1 && on.emails[0].to === 'delivered@resend.dev' && on.emails[0].kind === 'receipt');
+      const B = browser({ 'invoices/r2': { leadId: 'L1', status: 'sent', total: 100, amountPaid: 0, balanceDue: 100, customerEmail: 'delivered@resend.dev' } });
+      await IP.markPaid('r2', '50', 'cash', { at: new Date(NOW) });
+      ok('markPaid\'s default for its other callers is unchanged (still one receipt)', B.emails.length === 1);
+      const sheet = lf(read('docs/pro/js/invoice-pipeline.js')).split('async function recordPaymentUI')[1].split('// ═══')[0];
+      ok('the sheet has an "Email a receipt to the customer" box, unchecked, wired to sendReceipt',
+        /<input id="nbd-rp-receipt" type="checkbox" class="ipx-rp-check"> Email a receipt to the customer<\/label>/.test(sheet)
+        && !/nbd-rp-receipt"[^>]*checked/.test(sheet) && /sendReceipt: \$\('#nbd-rp-receipt'\)\.checked === true/.test(sheet));
+    }
     const r = await customerList([], { _currentLead: ohLead });
     ok('customer page: a "Record payment" button even with no invoices', /data-rp-open data-action="NBDCustomerInvoices\.recordPayment" data-arg="L1"/.test(r.html) && /No invoices yet/.test(r.html));
     const css = read('docs/pro/css/invoice-pipeline.css');
