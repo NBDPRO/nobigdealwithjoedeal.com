@@ -98,13 +98,18 @@ console.log('INBOUND-SMS ROUTE — tenant-safe decision table');
   ok('cross-tenant, one fresh outbound → routes to the texting tenant',
     r2.decision === 'route' && r2.leadId === 'LA' && r2.ambiguity === 'cross-tenant-resolved');
 
-  // Both tenants texted recently → the strictly-newest wins…
+  // Both tenants texted recently → the ESTABLISHED thread keeps the reply
+  // (2026-10-03 reply-hijack fix). Before: the strictly-newest outbound won,
+  // so tenant B could text tenant A's customer once and capture the replies.
   const r3 = pick([
     lead({ id: 'LA', companyId: 'coA', userId: 'u1', lastOutboundAt: NOW - 5 * DAY }),
     lead({ id: 'LB', companyId: 'coB', userId: 'u2', lastOutboundAt: NOW - 1 * DAY }),
   ]);
-  ok('cross-tenant, both fresh → strictly-newest outbound wins',
-    r3.decision === 'route' && r3.leadId === 'LB');
+  ok('cross-tenant, both fresh → the established (earlier) thread keeps the reply, NOT the newest',
+    r3.decision === 'route' && r3.leadId === 'LA', JSON.stringify(r3));
+  ok('…and the newer tenant\'s lead is flagged',
+    Array.isArray(r3.flaggedLeadIds) && r3.flaggedLeadIds.length === 1 && r3.flaggedLeadIds[0] === 'LB'
+      && r3.ambiguity === 'cross-tenant-contested', JSON.stringify(r3));
 
   // …but an exact tie is not a signal.
   const r4 = pick([
@@ -139,6 +144,77 @@ console.log('INBOUND-SMS ROUTE — tenant-safe decision table');
   ]);
   ok('3-way cross-tenant with one fresh outbound → routes to it',
     r7.decision === 'route' && r7.leadId === 'LA1');
+}
+
+// ── reply hijack (security batch 2026-10-03) ───────────────────
+// Tenant A has a months-long thread with the homeowner; tenant B (any
+// account — sendSMS takes any `to`) texts the same number today. One shared
+// Twilio number, so the homeowner's next reply arrives with no tenant on it.
+{
+  const hijack = [
+    lead({ id: 'A-lead', companyId: 'coA', userId: 'uA',
+      firstOutboundAt: NOW - 90 * DAY, lastOutboundAt: NOW - 3 * DAY, createdAt: NOW - 95 * DAY }),
+    lead({ id: 'B-lead', companyId: 'coB', userId: 'uB',
+      firstOutboundAt: NOW - 60 * 1000, lastOutboundAt: NOW - 60 * 1000, createdAt: NOW - 2 * 60 * 1000 }),
+  ];
+  const r = pick(hijack);
+  ok('hijack: B texted a minute ago, A has the established thread → reply stays with A',
+    r.decision === 'route' && r.leadId === 'A-lead', JSON.stringify(r));
+  ok('hijack: B\'s lead is flagged for review', JSON.stringify(r.flaggedLeadIds) === '["B-lead"]');
+
+  // Input order must not matter (Firestore returns candidates in id order).
+  const rRev = pick(hijack.slice().reverse());
+  ok('hijack: candidate order does not change the decision', rRev.decision === 'route' && rRev.leadId === 'A-lead');
+
+  // B keeps texting — many recent outbound texts never make B's thread older.
+  const r2 = pick([
+    hijack[0],
+    lead({ id: 'B-lead', companyId: 'coB', userId: 'uB',
+      firstOutboundAt: NOW - 2 * DAY, lastOutboundAt: NOW - 1000 }),
+  ]);
+  ok('hijack: repeated texting by the newer tenant still loses to the established thread',
+    r2.decision === 'route' && r2.leadId === 'A-lead');
+
+  // A's thread went quiet (last text 45 days ago) and B is texting now: no
+  // tenant can be trusted with it → triage, never B.
+  const r3 = pick([
+    lead({ id: 'A-lead', companyId: 'coA', userId: 'uA',
+      firstOutboundAt: NOW - 120 * DAY, lastOutboundAt: NOW - 45 * DAY }),
+    lead({ id: 'B-lead', companyId: 'coB', userId: 'uB',
+      firstOutboundAt: NOW - DAY, lastOutboundAt: NOW - DAY }),
+  ]);
+  ok('stale established thread + fresh newer tenant → UNMATCHED (contested), never the newer tenant',
+    r3.decision === 'unmatched' && r3.ambiguity === 'cross-tenant-contested'
+      && JSON.stringify(r3.flaggedLeadIds) === '["B-lead"]', JSON.stringify(r3));
+
+  // A has two leads with this number; the reply goes to A's most recently
+  // texted one (same within-tenant rule as before).
+  const r4 = pick([
+    lead({ id: 'A-old', companyId: 'coA', userId: 'uA', firstOutboundAt: NOW - 200 * DAY, lastOutboundAt: NOW - 150 * DAY }),
+    lead({ id: 'A-new', companyId: 'coA', userId: 'uA', firstOutboundAt: NOW - 20 * DAY, lastOutboundAt: NOW - 2 * DAY }),
+    lead({ id: 'B-lead', companyId: 'coB', userId: 'uB', firstOutboundAt: NOW - DAY, lastOutboundAt: NOW - DAY }),
+  ]);
+  ok('established tenant with two leads → its most recently texted lead',
+    r4.decision === 'route' && r4.leadId === 'A-new');
+
+  // B holds the number as a lead but never texted it: nothing to flag.
+  const r5 = pick([
+    hijack[0],
+    lead({ id: 'B-cold', companyId: 'coB', userId: 'uB', createdAt: NOW - DAY }),
+  ]);
+  ok('newer tenant without outbound history is not flagged',
+    r5.decision === 'route' && r5.leadId === 'A-lead' && r5.ambiguity === 'cross-tenant-resolved'
+      && r5.flaggedLeadIds.length === 0, JSON.stringify(r5));
+
+  // Single-tenant behaviour is untouched: B alone, however new, routes.
+  const r6 = pick([hijack[1]]);
+  ok('single candidate still routes regardless of history', r6.decision === 'route' && r6.leadId === 'B-lead' && r6.ambiguity === null);
+  const r7 = pick([
+    lead({ id: 'A1', companyId: 'coA', userId: 'uA', firstOutboundAt: NOW - 90 * DAY, lastOutboundAt: NOW - 80 * DAY }),
+    lead({ id: 'A2', companyId: 'coA', userId: 'uA', firstOutboundAt: NOW - DAY, lastOutboundAt: NOW - DAY }),
+  ]);
+  ok('same tenant still routes to the newest outbound (unchanged)',
+    r7.decision === 'route' && r7.leadId === 'A2' && r7.ambiguity === 'same-tenant');
 }
 
 // ── module contract ────────────────────────────────────────────

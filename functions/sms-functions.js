@@ -53,6 +53,28 @@ const { pickLeadForInbound } = require('./inbound-sms-route-logic');
 // activity. Pure; the Firestore reads that feed it live in queuedSendGate().
 const Outbox = require('./sms-outbox-guard');
 
+// Per-tenant daily cap on texts to numbers the tenant has NEVER texted before
+// (see handleSendSMS). Generous for real lead flow, tight against fishing.
+const NEW_NUMBERS_PER_TENANT_PER_DAY = 40;
+
+// Has this tenant (company claim, or the solo rep's uid) ever logged an SMS
+// with this number? Same {toDigits, companyId|uid, date} composites the
+// offline-outbox activity check uses (firestore.indexes.json).
+async function isNewNumberForTenant(db, decoded, toDigits) {
+  let q = db.collection('sms_log').where('toDigits', '==', toDigits);
+  q = decoded.companyId
+    ? q.where('companyId', '==', decoded.companyId)
+    : q.where('uid', '==', decoded.uid);
+  const snap = await q.orderBy('date', 'desc').limit(1).get();
+  return snap.empty;
+}
+
+// Log-safe phone: last 2 digits only (PII in logs, security batch 2026-10-03).
+function maskPhoneLast2(p) {
+  const d = String(p == null ? '' : p).replace(/\D/g, '');
+  return d ? '…' + d.slice(-2) : '';
+}
+
 // Minimal HTML escaper for values we store from untrusted SMS webhooks.
 function escForStore(s) {
   return String(s == null ? '' : s)
@@ -663,6 +685,35 @@ async function handleSendSMS(req, res, queuedEndpoint) {
         return;
       }
       throw e;
+    }
+
+    // Per-tenant cap on NEW numbers (security batch 2026-10-03). One Twilio
+    // number serves every tenant and this endpoint accepts any `to`, so
+    // texting numbers the tenant has never texted is how a tenant would fish
+    // for another tenant's customers (incomingSMS now keeps replies with the
+    // established thread — this bounds the attempts). A number this tenant
+    // already has an sms_log row for is never counted. A failed lookup counts
+    // the number as new: the cap is the conservative side.
+    const tenantKey = decoded.companyId || decoded.uid;
+    let newNumber = true;
+    try {
+      newNumber = await isNewNumberForTenant(getFirestore(), decoded, toDigits);
+    } catch (e) {
+      logger.warn('sendSMS new-number lookup failed — counting as new', { err: e && e.message });
+    }
+    if (newNumber) {
+      try {
+        await enforceRateLimit('sendSMS:newTo', tenantKey, NEW_NUMBERS_PER_TENANT_PER_DAY, 86_400_000);
+      } catch (e) {
+        if (e.rateLimited) {
+          res.status(429).json({
+            error: 'Daily limit for texting new numbers reached. Texts to customers you have already texted still go through.',
+            code: 'new_number_limit',
+          });
+          return;
+        }
+        throw e;
+      }
     }
 
     if (!body || body.trim().length === 0) {
@@ -1316,7 +1367,8 @@ exports.incomingSMS = onRequest(
         if (!docsById.has(d.id)) docsById.set(d.id, d);
       }
       if (docsById.size >= MATCH_LIMIT) {
-        logger.warn('[incomingSMS] candidate cap hit — match set may be incomplete', { fromDigits });
+        // Last 2 digits only — a full phone number is PII in the log stream.
+        logger.warn('[incomingSMS] candidate cap hit — match set may be incomplete', { fromLast2: maskPhoneLast2(fromDigits) });
       }
 
       const tsMillis = (v) => (v && typeof v.toMillis === 'function') ? v.toMillis()
@@ -1328,15 +1380,22 @@ exports.incomingSMS = onRequest(
           id,
           companyId: data.companyId || null,
           userId: data.userId || null,
+          firstOutboundAt: null,
           lastOutboundAt: null,
           lastContactedAt: tsMillis(data.lastContactedAt),
           createdAt: tsMillis(data.createdAt),
         });
       }
-      // Outbound-SMS recency is only needed to break ties — skip the extra
+      // Outbound-SMS history is only needed to break ties — skip the extra
       // reads for the common single-match case. Uses the existing
-      // {leadId, uid, date} composite (firestore.indexes.json); outbound rows
-      // are any status other than 'received'.
+      // {leadId, uid, date DESC} composite (firestore.indexes.json); outbound
+      // rows are any status other than 'received'. The OLDEST outbound row in
+      // the window read stands in for the thread's start (firstOutboundAt):
+      // pickLeadForInbound gives a cross-tenant reply to the tenant whose
+      // conversation is established, not to whoever texted last (2026-10-03
+      // reply-hijack fix). A thread longer than OUTBOUND_SCAN rows reads as
+      // starting later than it did — never earlier.
+      const OUTBOUND_SCAN = 50;
       if (candidates.length > 1) {
         for (const c of candidates) {
           if (!c.userId) continue;
@@ -1345,10 +1404,13 @@ exports.incomingSMS = onRequest(
               .where('leadId', '==', c.id)
               .where('uid', '==', c.userId)
               .orderBy('date', 'desc')
-              .limit(3)
+              .limit(OUTBOUND_SCAN)
               .get();
-            const sent = out.docs.map(x => x.data()).find(x => x && x.status !== 'received');
+            const sentRows = out.docs.map(x => x.data()).filter(x => x && x.status !== 'received');
+            const sent = sentRows[0];
             c.lastOutboundAt = sent ? tsMillis(sent.date) : null;
+            const oldest = sentRows.length ? sentRows[sentRows.length - 1] : null;
+            c.firstOutboundAt = oldest ? tsMillis(oldest.date) : null;
           } catch (e) {
             // Recency is best-effort; a failed lookup just means this lead
             // can't win a cross-tenant tiebreak (fails toward triage).
@@ -1363,6 +1425,21 @@ exports.incomingSMS = onRequest(
           ambiguity: route.ambiguity,
           decision: route.decision,
           candidateLeadIds: candidates.map(c => c.id),
+        });
+      }
+      // A NEWER tenant was texting a number another tenant already had a
+      // conversation with — the reply did not go to it. Flag it for review:
+      // this is the shape of a reply-hijack attempt (and of an honest second
+      // contractor, which is why it is a flag and not a block).
+      if (route.flaggedLeadIds && route.flaggedLeadIds.length) {
+        const byId = new Map(candidates.map(c => [c.id, c]));
+        logger.warn('[incomingSMS] newer-tenant thread flagged (reply kept with the established tenant)', {
+          decision: route.decision,
+          routedLeadId: route.leadId || null,
+          flagged: route.flaggedLeadIds.map(id => ({
+            leadId: id,
+            companyId: (byId.get(id) || {}).companyId || null,
+          })),
         });
       }
 
