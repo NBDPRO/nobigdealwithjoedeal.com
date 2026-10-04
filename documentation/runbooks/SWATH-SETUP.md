@@ -1,5 +1,14 @@
 # Swath API setup (2026-08-06)
 
+> **RETIRED 2026-10-04 — do not follow.** The Swath integration was never
+> configured (`SWATH_API_KEY` and `SWATH_WEBHOOK_SECRET` held the deploy's
+> `__unset__` stub), so its code was removed: `integrations/swath.js`, the
+> `getSwathReport` / `getSwathUsage` / `swathWebhook` exports, and the
+> `swath` options of `NBD_HAIL_PROVIDER` and `NBD_PARCEL_PROVIDER`. See
+> the vendor cost and lock-in audit (`documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md`, Lane C — on PR #2157 until it merges). Hail runs on free NOAA/IEM (default) or NCEI SWDI. After the deploy,
+> Jo deletes the three deployed functions and the two secrets. Kept below as
+> history only.
+
 Wiring for [swathapi.com](https://swathapi.com) — storm-verified property
 intelligence. Radar-**measured** hail events only (never forecasts), swath
 polygons, per-property exposure reports, and webhook alerts for registered

@@ -97,8 +97,8 @@ Map of content for the `documentation/` corpus (~115 files) plus the other place
 - [COST-ROTATION](runbooks/COST-ROTATION.md) — closing the Grok Pro/CRM audit's cost-basis leak: worksheets prepared and gitignored in `.local/`, Jo fills real labor/xact/v2 figures and runs apply → import → ledger-paste (Jo action, writes prod Firestore)
 - [ONBOARD_TENANT](runbooks/ONBOARD_TENANT.md)
 - [TENANT-CUSTOM-DOMAINS](runbooks/TENANT-CUSTOM-DOMAINS.md)
-- [VISUALIZER-KIE-PROVIDER](runbooks/VISUALIZER-KIE-PROVIDER.md) — flip image-gen to kie.ai (config-only, Jo action)
-- [SWATH-SETUP](runbooks/SWATH-SETUP.md) — Swath API (storm-verified property intel): signup, secrets, coverage monitor, provider flags, credit model (Jo action)
+- [VISUALIZER-KIE-PROVIDER](runbooks/VISUALIZER-KIE-PROVIDER.md) — **retired 2026-10-04** (kie.ai removed; Replicate is the only image provider). History only
+- [SWATH-SETUP](runbooks/SWATH-SETUP.md) — **retired 2026-10-04** (Swath code removed, never configured). History only
 - [TURNSTILE-SETUP](runbooks/TURNSTILE-SETUP.md) — the CAPTCHA the public forms never had: the site key was empty and no page rendered a widget, so the verifier waved every submission through. Widget created 2026-09-06 (invisible mode, and why not Managed), the rollout order that 403s every lead if you get it backwards, how to verify tokens are arriving before setting the secret, and the test-key evidence that a failing widget cannot lose a lead
 - [INSTANTROOFER-SETUP](runbooks/INSTANTROOFER-SETUP.md) — Instant Roofer measurement API, the first measurement provider that ever had a real key (HOVER/EagleView/Nearmap were the April deploy stub): the two vendor accounts, key + webhook secrets, the human-report webhook field table, cost guards (5/min meter, 90-day reuse, no pass-through for AI measures), what `rawSqft` means, the coordinate-resolution order and its Nominatim caveat (Jo action)
 - [PUBLISH-PROJECT](runbooks/PUBLISH-PROJECT.md) — add a Featured Project to /our-work (prices, photos, consent rules)
