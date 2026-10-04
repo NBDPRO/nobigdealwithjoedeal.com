@@ -67,7 +67,9 @@
     { id: 'claim-for-you', why: '(1)(a)1 represent on the claim',
       re: /\b(handle|manage|navigate|file|files)\b[^.]{0,40}\bclaim\b[^.]{0,20}\bfor you\b/i },
     { id: 'negotiate', why: '(1)(a)1 negotiate on behalf of the insured',
-      re: /\bnegotiat\w*/i, ctx: true, unless: THIRD_PARTY },
+      // "Negotiating" in quotes is the CRM's cash-pipeline STAGE name, which the
+      // public how-to names when explaining it is not an insurance stage.
+      re: /\bnegotiat\w*/i, ctx: true, unless: new RegExp(THIRD_PARTY.source + '|"Negotiating"', 'i') },
     { id: 'advocate', why: '(1)(a)1 represent on the claim',
       re: /\badvoca(te|tes|ting|cy)\b/i, ctx: true, unless: THIRD_PARTY },
     { id: 'on-your-behalf', why: '(1)(a)1 on behalf of the insured',
@@ -160,6 +162,20 @@
     { id: 'files-claims', why: '(1)(a)1 contractor files the claims for the insured',
       re: /\b(I|we|Joe|he)\b[^.;]{0,60}\b(file|files|filed|filing) ([\w-]+ ){0,3}claims\b/i,
       unless: /\b(you|homeowners?|homes|houses|neighbou?rs|they|owners?|customers?|families) (file|files|filed)\b|\b(not|never|don't|won't)\b[^.;]{0,30}\bfil(e|ing)\b/i },
+    // 2026-10-04: claim administration sold as a product feature. The NBD Pro
+    // FAQ offered claim management and adjuster coordination — managing the
+    // insured's claim and coordinating their adjuster is representing them.
+    // "meet the adjuster on the roof" is the allowed (1)(c)2 conference.
+    { id: 'claims-management', why: '(1)(a)1 represent on the claim (claim management / adjuster coordination as a service)',
+      re: /\b(insurance )?claims? (management|administration|coordination)\b|\badjusters? (coordination|management)\b|\bcoordinat\w* (with )?(the |your |their )?(insurance )?adjusters?\b/i,
+      unless: THIRD_PARTY },
+    // 2026-10-04: an assignment of benefits is void in Kentucky (KRS
+    // 304.20-105) and Jo retired it in both states (2026-09-27). The public
+    // pages may only mention it to say it is not used, or to warn a homeowner
+    // off signing one ("hands control of your claim … to someone else").
+    { id: 'aob', why: 'KRS 304.20-105 assignment of benefits (void in Kentucky; retired)',
+      re: /\bAOBs?\b|\bassignments? of benefits\b/i,
+      unless: /\b(no|never|not|don't|do not|won't|retired|void|voids|banned|forbid\w*|prohibit\w*|illegal|unlawful|avoid|hands? control)\b/i },
   ];
 
   // ── Report-only phrasings (2026-10-04) ────────────────────────────────

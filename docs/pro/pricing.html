@@ -85,7 +85,8 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
 <style>
 /* Public funnel nav. /pro/pricing.html is crawlable and sitemapped but shipped
    with no navigation at all — its only site links were an 11px footer run led
-   by "Back to Dashboard", which a logged-out prospect cannot use. Scoped to
+   by a dashboard link, which a logged-out prospect cannot use (that link was
+   removed from the footer 2026-10-04). Scoped to
    .pro-nav* so it cannot collide with the page's existing .header/.brand. */
 .pro-nav{position:sticky;top:0;z-index:1000;background:var(--s,#111418);border-bottom:1px solid var(--br,rgba(255,255,255,.07));display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 5%}
 .pro-nav-logo{font-family:'Barlow Condensed',sans-serif;font-size:18px;letter-spacing:2px;color:#E8EAF0;text-decoration:none;font-weight:800;flex-shrink:0}
@@ -260,7 +261,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
 </main>
 
 <div class="footer">
-  <a href="/pro/dashboard.html">Back to Dashboard</a> · <a href="/pro/">NBD Pro Home</a> · <a href="/pro/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a><br>
+  <a href="/pro/">NBD Pro Home</a> · <a href="/pro/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a><br>
   No Big Deal Home Solutions · nobigdealwithjoedeal.com
 </div>
 

@@ -28,7 +28,9 @@
  * insurance restoration specialist and "insurance claim experts".
  *
  * WHAT IT SCANS: every text file under docs/ except the CRM and private
- * trees (pro/, admin/, sites/, dev/) and vendored libraries. HTML is reduced
+ * trees (pro/, admin/, sites/, dev/) and vendored libraries — but the five
+ * PUBLIC NBD Pro pages (pro/index, pricing, register, how-to, demo) are
+ * scanned (2026-10-04). HTML is reduced
  * to text (tags stripped, the common entities decoded) and split into
  * sentences, so JSON-LD answers, meta descriptions and JS strings are all
  * checked. Each rule is proven red against a fixture below — a rule that
@@ -49,6 +51,12 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const SKIP_DIRS = new Set(['node_modules', '.git', 'vendor']);
 const SKIP_TOP = /^(pro|admin|sites|dev)\//;
+// 2026-10-04: the PUBLIC NBD Pro marketing pages live under pro/ but are
+// public pages a logged-out visitor reads — the landing page's FAQ said
+// "claims management, adjuster coordination" and its feature list sold
+// "AOBs" (void in Kentucky, KRS 304.20-105) while the CRM-tree skip hid both.
+// These five are scanned; the CRM app pages under pro/ stay out of scope.
+const PUBLIC_PRO = new Set(['pro/index.html', 'pro/pricing.html', 'pro/register.html', 'pro/how-to.html', 'pro/demo.html']);
 
 // The rule set lives in the RUNTIME module (2026-10-04) so the CRM's report
 // filter and this static gate share one copy: docs/pro/js/claim-wording-filter.js.
@@ -91,8 +99,12 @@ function walk(dir, base, acc) {
     const p = path.join(dir, e.name);
     const rel = path.relative(base, p).replace(/\\/g, '/');
     if (e.isDirectory()) {
-      if (SKIP_DIRS.has(e.name) || SKIP_TOP.test(rel + '/')) continue;
+      if (SKIP_DIRS.has(e.name)) continue;
+      // pro/ is entered only for its public pages (files are filtered below).
+      if (SKIP_TOP.test(rel + '/') && rel !== 'pro') continue;
       walk(p, base, acc);
+    } else if (SKIP_TOP.test(rel) && !PUBLIC_PRO.has(rel)) {
+      continue;
     } else if (/\.(html?|txt|xml|json|js|mjs|webmanifest)$/.test(e.name)) {
       acc.push(p);
     }
@@ -156,6 +168,9 @@ const BAD = {
   'every-dollar': 'Seven years of insurance restoration work across Greater Cincinnati means I know how Hamilton County adjusters operate, what they look for, and how to make sure your claim reflects every dollar of damage.',
   'appeal-promise': "Denials get appealed. I document everything specifically so there's a paper trail.",
   'files-claims': "I've documented and filed Warren County hail claims since 2018 and know how local adjusters evaluate impact density.",
+  // 2026-10-04 — the shipped NBD Pro lines each was written for.
+  'claims-management': 'NBD Pro supports full workflows for insurance restoration (claims management, adjuster coordination, damage documentation) and retail roofing.',
+  'aob': '25 branded document types: contracts, AOBs, change orders, warranties',
 };
 for (const r of RULES) {
   const fx = BAD[r.id] || 'NO FIXTURE';
@@ -231,6 +246,13 @@ const GOOD = [
   'We see homeowners file claims late every spring, and the documentation suffers.',
   "I'm not in the business of filing claims that don't exist.",
   "I've seen rows of homes file claims back-to-back after a single April storm in Anderson Township.",
+  // 2026-10-04 rules: the reworded Pro FAQ, "never an AOB", and the warning sense pass.
+  "NBD Pro supports insurance restoration work (damage photos, inspection reports and line-item estimates that document the damage for the homeowner's own claim) and retail roofing.",
+  'No Assignment of Benefits — retired in both states (void in Kentucky).',
+  'We never use AOBs.',
+  'That includes an assignment of benefits or any paper that hands control of your claim or its payments to someone else.',
+  'I meet the adjuster on the roof after you file.',
+  'If your current stage isn\'t valid in the insurance pipeline (e.g., you were in "Negotiating"), you\'ll see a small warning under the stage select.',
 ];
 for (const g of GOOD) ok(checkSentence(g).length === 0, `passes: "${g.slice(0, 70)}"${checkSentence(g).length ? ' — fired ' + checkSentence(g).join(',') : ''}`);
 // Windowed context: advocacy talk about a third party, or far from any claim, passes.
@@ -252,13 +274,18 @@ try {
     '<p>I&#39;m here. Supplement negotiation if the initial scope is short.</p>' +
     '<p>Small towns get under-documented claims. Homeowners file without professional advocacy.</p></body></html>');
   fs.writeFileSync(path.join(tmp, 'pro', 'crm.html'), '<p>I handle the insurance claim for you.</p>');
+  fs.mkdirSync(path.join(tmp, 'pro', 'js'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'pro', 'js', 'app.js'), "const s = 'Send AOB to the homeowner';");
+  // The public Pro landing page IS scanned (2026-10-04).
+  fs.writeFileSync(path.join(tmp, 'pro', 'index.html'), '<ul><li>25 branded document types: contracts, AOBs, change orders, warranties</li></ul>');
   const r = scanTree(tmp);
   const rules = new Set(r.findings.map((f) => f.rule));
   ok(rules.has('claims-specialist'), 'meta description text is scanned');
   ok(rules.has('handles-claim'), 'JSON-LD answer text is scanned');
   ok(rules.has('negotiate'), 'visible body text is scanned');
   ok(rules.has('advocacy-near-claim'), 'the tree scan passes each sentence its neighbours (near rules fire)');
-  ok(!r.findings.some((f) => /\/pro\//.test(f.file)), 'pro/ (the CRM) is out of scope');
+  ok(!r.findings.some((f) => /\/pro\/(crm\.html|js\/)/.test(f.file)), 'pro/ CRM app pages and pro/js are out of scope');
+  ok(r.findings.some((f) => /\/pro\/index\.html$/.test(f.file) && f.rule === 'aob'), 'the public pro/index.html IS scanned (AOB line fires)');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
