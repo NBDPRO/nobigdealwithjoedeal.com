@@ -5861,6 +5861,11 @@
       directCostPctWarn: bdPct('cp_budget_directCostPctWarn', bdDef.directCostPctWarn),
       marginFloorPct: bdPct('cp_budget_marginFloorPct', bdDef.marginFloorPct)
     };
+    // Sales links (2026-10-03): deal accept-link life in days, 1–90. Blank /
+    // out of range keeps the default (14) — the server clamps the same way.
+    const slDef = (defaults.salesLinks && defaults.salesLinks.dealLinkDays) || 14;
+    const slDays = Math.floor(parseFloat(document.getElementById('cp_salesLinks_dealLinkDays')?.value));
+    out.salesLinks = { dealLinkDays: (Number.isFinite(slDays) && slDays >= 1 && slDays <= 90) ? slDays : slDef };
 
     // FIX 1 — drop every field still equal to its NBD default (see helper).
     _cpStripDefaults(out, defaults);
@@ -5980,6 +5985,9 @@
     if (warnEl) warnEl.value = bd.directCostPctWarn != null ? bd.directCostPctWarn : '';
     const floorEl = document.getElementById('cp_budget_marginFloorPct');
     if (floorEl) floorEl.value = bd.marginFloorPct != null ? bd.marginFloorPct : '';
+    const sl = p.salesLinks || defaults.salesLinks || {};
+    const slEl = document.getElementById('cp_salesLinks_dealLinkDays');
+    if (slEl) slEl.value = sl.dealLinkDays != null ? sl.dealLinkDays : '';
 
     // ── Brand Identity sub-panel (gauntlet Batch 3) ─────────────────
     // Fill from the RAW (un-merged) tenant override so a field the tenant never

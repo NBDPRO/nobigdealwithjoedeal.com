@@ -104,6 +104,17 @@
       shareUrl: (typeof d.shareUrl === 'string' && /^https?:/i.test(d.shareUrl)) ? d.shareUrl : '',
       reportNumber: (typeof d.reportNumber === 'string' && d.reportNumber) ? d.reportNumber : '',
       deleted: d.deleted === true,
+      // "Send for review" (2026-10-03): an attached estimate PDF — Jo builds
+      // them outside the CRM — can be sent as the tracked /report/<token>
+      // link (functions/estimate-send.js). Never a generated HTML doc (no
+      // PDF), never a photo report (it has its own Share link), never a
+      // legacy top-level row (the callable reads the lead subcollection).
+      isPdf: !legacy && d.deleted !== true && !d.htmlPath && d.source !== 'photo_report'
+        && (/^application\/pdf\b/i.test(String(d.type || ''))
+          || /\.pdf$/i.test(String(d.filename || d.name || ''))
+          || (typeof d.pdfPath === 'string' && !!d.pdfPath)),
+      reviewToken: (d.source !== 'photo_report' && typeof d.shareToken === 'string'
+        && /^[A-Z0-9]{10,64}$/.test(d.shareToken)) ? d.shareToken : '',
       // Documents shelf (2026-09-16): gates whether an UPLOADED row appears
       // in the homeowner portal (functions/portal.js's getHomeownerPortalView
       // — generated rows are always visible there, no flag needed). Same
@@ -244,6 +255,17 @@
                   ? '<button type="button" class="doc-btn" data-doc-pdf="' + esc(doc.id) + '"'
                     + ' style="background:none;border:0;cursor:pointer;font-family:inherit;">View</button>'
                   : '')))
+      // Send for review: mint the tracked link, then Jo sends it from his
+      // own phone (share sheet). "Share now" when Safari needed a fresh tap.
+      + (doc.isPdf
+          ? '<button type="button" class="doc-btn doc-btn-plain doc-btn-review" data-doc-review="' + esc(doc.id) + '"'
+            + ' title="Text or email this estimate from your phone as a tracked link">'
+            + (doc.reviewPending ? '📤 Share now' : (doc.reviewToken ? '📤 Send again' : '📤 Send for review')) + '</button>'
+            + (doc.reviewToken
+                ? '<button type="button" class="doc-btn doc-btn-plain" data-doc-fresh="' + esc(doc.id) + '"'
+                  + ' title="New link for this estimate; the old link stops working">↻ Fresh link</button>'
+                : '')
+          : '')
       + (doc.shareable
           ? '<button type="button" class="doc-btn" data-doc-share="' + esc(doc.id) + '"'
             + ' title="' + (doc.shareUrl
@@ -636,6 +658,151 @@
     if (!btn) return;
     e.preventDefault();
     toggleHomeownerShare(btn.getAttribute('data-doc-homeowner-share'), btn);
+  });
+
+  // ── Send for review (2026-10-03) ──────────────────────────────────
+  // 1. createEstimateReviewLink mints (or reuses) the tracked /report/<token>
+  //    link for this PDF — the row's Storage download-token URL never leaves
+  //    the CRM. Nothing is stamped yet: Jo may still cancel.
+  // 2. The share sheet opens with the message written (phone-share.js);
+  //    without one, Messages / Mail opens and Jo confirms it went out.
+  // 3. ONLY when it actually went: lead.lastSharedAt / sharedDocId / … are
+  //    stamped and recordEstimateShared fires the job spine's estimate_shared.
+  // Nothing is ever sent from a server.
+  var _reviewPending = Object.create(null); // docId → { text, link }
+
+  async function _docCallable(name, data) {
+    if (!window._functions || !window._httpsCallable) {
+      var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      window._functions = window._functions || mod.getFunctions();
+      try {
+        var emu = await import('./nbd-emulator-connect.js');
+        await emu.connectEmulatorsIfLocal({ functions: window._functions });
+      } catch (_) { /* prod: no emulator module needed */ }
+      window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+    }
+    var res = await window._httpsCallable(window._functions, name)(data);
+    return (res && res.data) || {};
+  }
+
+  function _reviewText(url) {
+    var lead = window._currentLead || {};
+    var EF = window.NBDEstimateFollowups;
+    var brand = '';
+    try { var b = typeof window._brand === 'function' ? window._brand() : null; brand = (b && (b.shortName || b.name)) || ''; } catch (_) {}
+    var from = EF ? EF.fromLine(window._user, brand) : '';
+    var first = String(lead.firstName || '').trim().split(/\s+/)[0] || '';
+    return EF ? EF.reviewMessage({ firstName: first, from: from, url: url })
+      : 'Hi' + (first ? ' ' + first : '') + ', here’s your roof estimate to look over:\n\n' + url;
+  }
+
+  function _setPending(docId, on) {
+    (window._customerDocs || []).forEach(function (d) { if (d.id === docId) d.reviewPending = !!on; });
+    render();
+  }
+
+  async function _recordShared(docId, link, via) {
+    var leadId = window._customerId;
+    var now = new Date();
+    var entry = (window._customerDocs || []).filter(function (d) { return d.id === docId; })[0] || {};
+    var patch = {
+      lastSharedAt: now, lastSharedVia: via, sharedDocId: docId,
+      sharedDocName: String(entry.name || '').slice(0, 200),
+      sharedLinkUrl: link.shareUrl, sharedLinkExpiresAt: link.expiresAt ? new Date(link.expiresAt) : null
+    };
+    if (window._currentLead && window._currentLead.id === leadId) {
+      window._currentLead = Object.assign({}, window._currentLead, patch);
+    }
+    if (Array.isArray(window._leads)) {
+      var i = window._leads.findIndex(function (l) { return l && l.id === leadId; });
+      if (i >= 0) window._leads[i] = Object.assign({}, window._leads[i], patch);
+    }
+    // The lead stamp is written here too (owner/staff write, rules-checked)
+    // so the record is right even if the callable below is slow; the server
+    // writes the same fields and is the authority.
+    try {
+      if (window.db && window.doc && window.updateDoc) {
+        var w = Object.assign({}, patch, { lastSharedAt: window.serverTimestamp ? window.serverTimestamp() : now });
+        await window.updateDoc(window.doc(window.db, 'leads', leadId), w);
+      }
+    } catch (e) { console.warn('[send-for-review] lead stamp failed', e && e.message); }
+    try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'estimate-shared', leadId: leadId } })); } catch (_) {}
+    _docCallable('recordEstimateShared', { leadId: leadId, documentId: docId, token: link.token, via: via })
+      .catch(function (e) { console.warn('[send-for-review] recordEstimateShared failed', e && e.message); });
+  }
+
+  async function _shareReview(docId, pend, btn) {
+    var lead = window._currentLead || {};
+    var res = await window.NBDPhoneShare.share({
+      text: pend.text, phone: lead.phone, email: lead.email,
+      subject: 'Your roof estimate', title: 'Roof estimate', noRetry: !!pend.retried
+    });
+    if (res.needsTap) {
+      _reviewPending[docId] = { text: pend.text, link: pend.link, retried: true };
+      _setPending(docId, true);
+      if (typeof showToast === 'function') showToast('Link ready — tap “Share now” to send it', 'info');
+      return res;
+    }
+    delete _reviewPending[docId];
+    _setPending(docId, false);
+    if (res.shared) {
+      await _recordShared(docId, pend.link, res.via === 'share' ? 'phone_share' : res.via);
+      if (typeof showToast === 'function') showToast('Shared from your phone ✓ — you’ll get a heads-up when they open it', 'success');
+      setTimeout(refresh, 1500);
+    }
+    return res;
+  }
+
+  async function sendForReview(docId, btn) {
+    if (window.NBDRole && !window.NBDRole.guard()) return;
+    if (!docId || !window._customerId) return;
+    if (!window.NBDPhoneShare) { if (typeof showToast === 'function') showToast('Sharing is still loading — try again', 'error'); return; }
+    var pend = _reviewPending[docId];
+    if (pend) return _shareReview(docId, pend, btn);
+    var label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Getting link…'; }
+    try {
+      var link = await _docCallable('createEstimateReviewLink', { leadId: window._customerId, documentId: docId });
+      if (!link.shareUrl || !/^https:\/\//.test(link.shareUrl)) throw new Error('No link came back');
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+      return await _shareReview(docId, { text: _reviewText(link.shareUrl), link: link }, btn);
+    } catch (e) {
+      console.warn('sendForReview failed:', e && e.message);
+      if (typeof showToast === 'function') showToast('Could not send for review: ' + ((e && e.message) || 'unknown'), 'error');
+    } finally {
+      if (btn && btn.isConnected && btn.disabled) { btn.disabled = false; btn.textContent = label || '📤 Send for review'; }
+    }
+  }
+
+  async function freshReviewLink(docId, btn) {
+    if (window.NBDRole && !window.NBDRole.guard()) return;
+    if (!docId || !window._customerId) return;
+    var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
+    if (!(await ask('Make a fresh link for this estimate?\n\nThe link you sent before stops working.'))) return;
+    var label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Linking…'; }
+    try {
+      var out = await _docCallable('freshEstimateLink', { leadId: window._customerId, kind: 'review', documentId: docId });
+      if (!out.url) throw new Error('No link came back');
+      await refresh();
+      return await _shareReview(docId, {
+        text: _reviewText(out.url),
+        link: { shareUrl: out.url, token: out.token, expiresAt: out.expiresAt }
+      }, null);
+    } catch (e) {
+      console.warn('freshReviewLink failed:', e && e.message);
+      if (typeof showToast === 'function') showToast('Could not make a fresh link: ' + ((e && e.message) || 'unknown'), 'error');
+    } finally {
+      if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = label || '↻ Fresh link'; }
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest && e.target.closest('[data-doc-review],[data-doc-fresh]');
+    if (!t) return;
+    e.preventDefault();
+    if (t.hasAttribute('data-doc-fresh')) freshReviewLink(t.getAttribute('data-doc-fresh'), t);
+    else sendForReview(t.getAttribute('data-doc-review'), t);
   });
 
   window.NBDCustomerDocs = {

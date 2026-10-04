@@ -741,6 +741,11 @@ export const NBDAuth = {
         // each sign-in (2026-09-24).
         'nbd-crm-view-mode', 'nbd-kanban-density', 'nbd_ui_size',
         'nbd-dup-dismissed',
+        // "Not now" on the appointment-reminders card (push-registration.js
+        // SNOOZE_KEY). A device-level answer, not account data: wiped, the
+        // card came back after every sign-out and sat over the buttons
+        // above the bottom nav (2026-10-03).
+        'nbd_push_optin_snoozed_until',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {

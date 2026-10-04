@@ -82,8 +82,15 @@ window.kanbanFilterDebounced = kanbanFilterDebounced;
 window.clearCrmSearch = clearCrmSearch;
 window.filterByStage = function(stageKey) {
   const _normalize = window.normalizeStage || (s => s);
+  // 'tile:<key>' — a dashboard Lead Stages tile (crm-stages.js
+  // dashboardTileFor): the same leads the tile counted, not one stage key.
+  const tile = /^tile:/.test(String(stageKey || '')) ? String(stageKey).slice(5) : null;
   const filtered = (window._leads || []).filter(l => {
     const sk = l._stageKey || _normalize(l.stage || 'new');
+    if (tile) {
+      return typeof window.dashboardTileFor === 'function'
+        && window.dashboardTileFor(sk, l._stageRole ? () => l._stageRole : window.stageRole) === tile;
+    }
     return sk === stageKey;
   });
   renderLeads(window._leads, filtered);

@@ -71,7 +71,14 @@ const progressStart = boot.indexOf('window.progressStage = async function');
 // mode this repo has hit before (see kanban-filter-unification.test.js's own
 // _ACTIVE_JOB_KEYS fix); verified empirically the offset is ~6134 chars, so
 // 7500 keeps real margin for the next small addition too.
-const progressFn = progressStart >= 0 ? boot.slice(progressStart, progressStart + 7500) : '';
+// 2026-10-03: no fixed window any more — the stage-gate sheet grew the
+// function again. Slice to the function's own closing `};` line instead.
+const _pEnd = (() => {
+  if (progressStart < 0) return -1;
+  const m = /\r?\n\};\r?\n/.exec(boot.slice(progressStart));
+  return m ? progressStart + m.index + m[0].length : boot.length;
+})();
+const progressFn = progressStart >= 0 ? boot.slice(progressStart, _pEnd) : '';
 const progressFnNoComments = stripComments(progressFn);
 
 console.log('\ncustomer-stage-advance — parity with the kanban move\n');
@@ -164,10 +171,13 @@ ok('the block message NAMES the missing fields by their labels ("Carrier", not "
 ok('the check evaluates the DESTINATION stage, not the current one',
   /_missingRequiredFields\([\s\S]{0,120}?stage:\s*nextStage/.test(progressFn),
   'checking the current stage would block on the wrong requirements');
-ok('the block offers an escape hatch to the full editor (this page cannot satisfy every gated field itself)',
-  /undoText:\s*['"]Open full editor['"]/.test(progressFn)
-  // ?edit= (R14, 2026-09-28) — a bare ?lead= is the NEW-ESTIMATE deep link.
-  && /window\.location\.href = ['"]\/pro\/dashboard\?edit=['"] \+ encodeURIComponent\(window\._customerId\)/.test(progressFn),
+// 2026-10-03 (stage-flow lane): the escape hatch is an inline bottom sheet
+// for exactly the missing fields — the old "Open full editor" toast LEFT the
+// page. Behaviour of the sheet: tests/stage-flow-ui-2026-10-03.test.js.
+ok('the block offers a way forward ON this page (the stage-gate sheet), not a page exit',
+  /window\.NBDStageGateSheet/.test(progressFn) && /await sheet\.open\(\{/.test(progressFn)
+  && /if \(!saved\) return;/.test(progressFn)
+  && !/Open full editor/.test(progressFnNoComments) && !/location\.href/.test(progressFnNoComments),
   'a hard block with no way forward strands the rep worse than the silent advance it replaced');
 
 // ── no reload on the common (successful) path ───────────────────────────

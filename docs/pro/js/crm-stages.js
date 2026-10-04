@@ -1183,9 +1183,60 @@ export function missingRequiredFields(lead) {
   }
   const required = requiredFieldsFor(jobType, lead.stage);
   return required.filter(f => {
+    // "No permit required" (2026-10-03, stage-flow lane) answers the permit
+    // question as fully as a filed permit does: plenty of KY/OH re-roofs need
+    // none, and the gate used to force a false "Permit filed" tick. Only this
+    // one field has an alternative answer — every other gate field is unchanged.
+    if (f === 'permitFiledAt' && lead.permitNotRequired === true) return false;
     const v = lead[f];
     return v === undefined || v === null || v === '';
   });
+}
+
+// ─────────────────────────────────────────────
+// DASHBOARD STAGE TILES (2026-10-03, stage-flow lane)
+// The dashboard's "Lead Stages" panel has six tiles. They used to be filled
+// from a hand-copied 6-bucket map in crm-pipeline.js that counted signed
+// contracts as "Estimate Sent", production as "Negotiating", and never
+// counted Inspected or any insurance stage at all. Now every stage lands in
+// exactly one tile, decided by its ROLE first (so a tenant's role override or
+// custom stage follows) and, for active stages, by the Simple board column it
+// folds into (resolveColumn) — the same grouping the board itself uses.
+// None of these tiles is money; none may be labelled "revenue".
+// ─────────────────────────────────────────────
+export const DASHBOARD_TILES = [
+  { key: 'new',        label: 'New' },
+  { key: 'working',    label: 'Working' },
+  { key: 'estimate',   label: 'Estimate Out' },
+  { key: 'production', label: 'Signed & Building' },
+  { key: 'won',        label: 'Won' },
+  { key: 'lost',       label: 'Lost' },
+];
+
+/**
+ * The tile a stage counts under. `roleOf` (optional) is the live, tenant-aware
+ * role function (window.stageRole); defaults to the built-in stageRole.
+ */
+export function dashboardTileFor(stageKey, roleOf) {
+  const role = (typeof roleOf === 'function' ? roleOf(stageKey) : null) || stageRole(stageKey);
+  if (role === ROLE.WON)  return 'won';
+  if (role === ROLE.LOST) return 'lost';
+  if (role === ROLE.JOB)  return 'production';
+  if (role === ROLE.NEW)  return 'new';
+  // Active: where the Simple board would show it.
+  const col = resolveColumn(stageKey, VIEW_SIMPLE);
+  if (col === S.ESTIMATE_SUBMITTED) return 'estimate';
+  if (col === S.CONTRACT_SIGNED || col === S.INSTALL_IN_PROGRESS || col === S.CLOSED) return 'production';
+  // contacted / inspected (incl. the claim + adjuster steps that fold into
+  // Inspected), and an active custom stage with no built-in equivalent.
+  return 'working';
+}
+
+// Plain-script consumers (crm-pipeline.js, crm.js) have no static import of
+// this module; publish the classifier the way the bootstraps publish the rest.
+if (typeof window !== 'undefined' && window && !window.dashboardTileFor) {
+  window.dashboardTileFor = dashboardTileFor;
+  window.DASHBOARD_TILES = DASHBOARD_TILES;
 }
 
 // ─────────────────────────────────────────────

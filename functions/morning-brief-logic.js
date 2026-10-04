@@ -33,6 +33,7 @@ const SW = require('./schedule-window');
 const CF = require('./calendar-feed-logic');
 const JOBS = require('./jobs-logic');
 const roles = require('./stage-roles');
+const { isOwedInvoice } = require('./invoice-owed');
 
 const CUSTOMER_URL = 'https://nobigdealwithjoedeal.com/pro/customer.html';
 const DASHBOARD_URL = 'https://nobigdealwithjoedeal.com/pro/dashboard.html';
@@ -284,13 +285,15 @@ function yearOf(job) {
   return c ? nyDateOf(c).slice(0, 4) : '';
 }
 
-/** Open balance in cents across the lead's invoices (void/deleted skipped). */
+/**
+ * Open balance in cents across the lead's invoices. Only owed invoices count
+ * (invoice-owed.js): void / cancelled / deleted, and drafts — never sent, incl.
+ * the draft deposit invoice the server makes on a signed contract.
+ */
 function openBalanceCents(invoices) {
   let total = 0;
   for (const inv of (Array.isArray(invoices) ? invoices : [])) {
-    if (!inv || inv.deleted === true) continue;
-    const st = String(inv.status || '').toLowerCase();
-    if (st === 'void' || st === 'voided' || st === 'cancelled') continue;
+    if (!isOwedInvoice(inv)) continue;
     let bal;
     if (inv.balanceDue != null && Number.isFinite(Number(inv.balanceDue))) bal = Math.round(Number(inv.balanceDue) * 100);
     else if (inv.total != null) bal = Math.round(Number(inv.total) * 100) - Math.round((Number(inv.amountPaid) || 0) * 100);

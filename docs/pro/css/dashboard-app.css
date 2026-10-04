@@ -4244,8 +4244,11 @@ body {
 
 /* ── SAFARI STANDALONE (Add to Home Screen) FIXES ── */
 @media(display-mode: standalone) {
-  /* Use dvh (dynamic viewport height) for map — accounts for missing Safari toolbar */
-  #d2dMap { height:55dvh!important; min-height:300px; }
+  /* #d2dMap height REMOVED here (2026-10-03). It was 55dvh!important +
+     min-height:300px for every installed app, phones included, which beat
+     theme-bridge.css's phone heights and pushed the D2D Knock / Heat / Hail
+     row under the bottom nav on an iPhone. theme-bridge.css now sizes the
+     map in dvh at every breakpoint, which is what this rule was for. */
   /* Prevent overscroll bounce that breaks map pan */
   html, body { overscroll-behavior: none; }
   /* Safe area insets for notched devices */
@@ -4473,6 +4476,31 @@ body {
     padding:8px 14px!important;
     font-size:12px!important;
   }
+  /* No more hidden tabs (2026-10-03). The view row shares its line with
+     the Board/List toggle (.crm-hdr-viewrow, kanban-force.css), so on a
+     390px iPhone the tab scroller above was squeezed to ~275px: Jobs sat
+     half under the fade and All was entirely out of sight, its centre
+     under ▦ Board — and the fade is the only hint a swipe exists. Now the
+     tabs take the full width and WRAP instead of scrolling: every one of
+     the seven is on screen and tappable at load, at any phone width and
+     with any count badges. flex-grow fills each line evenly; the mask fade
+     goes, since there is nothing left to scroll to. Board/List move UP into
+     the Filters / ⋯ / Add Lead row (see "Board/List share the actions row"
+     at the end of this file) rather than onto a line of their own — a
+     third header row pushed the first search match below an Android
+     keyboard (phone-pipeline.spec.js, pipeline#7). */
+  .crm-hdr-views{
+    flex-wrap:wrap!important;
+    overflow:visible!important;
+    -webkit-mask-image:none!important;
+    mask-image:none!important;
+  }
+  .crm-hdr-views .kview-btn{
+    flex:1 0 auto!important;
+    padding:8px 10px!important;
+    min-height:44px!important;
+  }
+  .crm-view-mode .kview-btn{ min-height:44px; }
   /* Actions row: its own row, left-aligned (margin-left:auto unused
      when row is full-width), buttons size to content */
   .crm-hdr-actions{
@@ -5405,3 +5433,38 @@ body {
 .hov-green:hover{border-color:var(--green)!important}
 .hov-purple:hover{border-color:var(--purple)!important}
 .hov-border2:hover{border-color:var(--border2)!important}
+
+/* ── Phone tap floor for the small controls (2026-10-03) ─────────────
+   An iPhone pass measured these at 12-29px tall against the 44px floor:
+   Ask Joe prompts (.joe-quick 27), Reports periods (.nbd-rdash-period 27),
+   Docs filters (.tl-filter-btn 29), Photos By Property / Recent
+   (.ph-mode-btn 25), the pipeline list's customer names (.cl-card-name
+   19) and the "← Back to …" breadcrumbs (.bc-meta-cp 12). Phone widths
+   and touch screens only — a desktop cursor keeps the dense sizes.
+   Chips GROW (they are visible pills, so the pill itself is the target).
+   The two text links keep their exact look and layout instead: 16px /
+   13px of padding cancelled by the same negative margin, so the hit box
+   is 44px tall while the line box does not move; z-index lifts the
+   padded band above the neighbouring line so a tap there still lands. */
+@media (max-width:768px), (pointer:coarse) {
+  .joe-quick, .nbd-rdash-period, .tl-filter-btn, .ph-mode-btn { min-height:44px; }
+  .bc-meta-cp { display:inline-block; position:relative; z-index:1; padding:16px 8px; margin:-16px -8px; }
+  .cl-card-name { position:relative; z-index:1; padding:13px 0; margin:-13px 0; }
+}
+
+/* Board/List share the actions row (phones, 2026-10-03). With the view tabs
+   at full width (see "No more hidden tabs" above), .crm-hdr-viewrow becomes
+   display:contents so its two children are items of the wrapping
+   .crm-header: the toggle joins Filters / ⋯ / Add Lead (which have ~180px
+   of spare width at 390px) and the tabs follow on their own line. Header
+   height stays what it was before the tabs stopped scrolling, so a search
+   match still lands above a phone keyboard. Ordering is by order:-1 on the
+   rows that come first, so anything else in the header keeps DOM order.
+   Declared last in the file so these !important rules beat the earlier
+   ".crm-hdr-actions{flex-basis:100%!important;width:100%!important}". */
+@media (max-width:768px) {
+  .crm-hdr-viewrow{ display:contents!important; }
+  .crm-hdr-label, .crm-hdr-search, .crm-hdr-actions, .crm-view-mode{ order:-1; }
+  .crm-hdr-actions{ flex:1 1 0!important; flex-basis:0!important; width:auto!important; min-width:0!important; }
+  .crm-view-mode{ flex:0 0 auto; margin-left:auto; }
+}

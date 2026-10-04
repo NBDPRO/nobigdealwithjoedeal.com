@@ -10,20 +10,21 @@
  */
 (function () {
   'use strict';
-  var APR_LO = 0.1149, APR_HI = 0.1999;
+  // The band is shared with the CRM deal page: financing-band.js
+  // (window.NBD_FINANCING_BAND) — load it before this file. No band, no
+  // numbers: never print a payment from a guessed rate.
+  var BAND = window.NBD_FINANCING_BAND;
   var amt = document.getElementById('fe-amount');
   var group = document.getElementById('fe-term-group');
-  if (!amt || !group) return;
-  var years = 5;
+  if (!amt || !group || !BAND) return;
+  var years = BAND.defaultTermYears;
   var $ = function (id) { return document.getElementById(id); };
-  var fmt = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
-  // Fixed fully-amortizing payment: P·r / (1 − (1+r)^−n); r = monthly rate.
-  function pay(P, apr, n) { var r = apr / 12; return r === 0 ? P / n : P * r / (1 - Math.pow(1 + r, -n)); }
+  var fmt = BAND.fmtWhole;
   function render() {
-    var P = +amt.value, n = years * 12;
+    var P = +amt.value, r = BAND.range(P, years * 12);
     $('fe-amt').textContent = fmt(P);
-    $('fe-lo').textContent = fmt(pay(P, APR_LO, n));
-    $('fe-hi').textContent = fmt(pay(P, APR_HI, n));
+    $('fe-lo').textContent = fmt(r.lo);
+    $('fe-hi').textContent = fmt(r.hi);
   }
   amt.addEventListener('input', render);
   group.addEventListener('click', function (e) {
