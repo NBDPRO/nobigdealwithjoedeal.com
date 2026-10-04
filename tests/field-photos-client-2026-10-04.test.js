@@ -140,6 +140,8 @@ function loadEngine(over) {
     showToast: (m, t) => toasts.push([t, m]),
   };
   if (over.ls) Object.assign(ls, over.ls);
+  // customer.html publishes only window.db / window.storage / window.auth.
+  if (over.customerPage) { win.db = win._db; win.storage = win._storage; win.auth = win._auth; delete win._db; delete win._storage; delete win._auth; }
   win.window = win;
   win.self = win;
   vm.createContext(win);
@@ -462,6 +464,13 @@ const blob = () => new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])], { 
     const over = H.writes.find((w) => w[0] === 'updateDoc' && w[1] === 'photos/p4');
     ok('save-over replaces url + storagePath and backs up the original once',
       !!over && /photo_p4\.jpg$/.test(over[2].storagePath) && over[2].originalUrl === 'https://o/1');
+
+    // customer.html (where the editor lives) publishes window.db/storage only.
+    const CP = loadEngine({ customerPage: true });
+    const cp = await CP.PE.enqueueEdit({ mode: 'meta', leadId: 'L1', photoId: 'p9', meta });
+    ok('on the customer page (window.db / window.storage only) an editor save still saves', cp.status === 'saved', JSON.stringify(cp));
+    const cpb = await CP.PE._burst.saveBurstShot(blob(), 'L1', null);
+    ok('and a burst shot there is queued instead of refused as "Firebase not initialized"', cpb && cpb.queued === true, JSON.stringify(cpb));
 
     // The editor routes through it.
     const ED = read('docs/pro/js/photo-editor.js');

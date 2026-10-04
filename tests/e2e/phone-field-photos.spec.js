@@ -93,7 +93,13 @@ async function seedLead(page, extra) {
       phone: '513' + String(stamp).slice(-7),
       stage: 'new', e2eTestData: true, userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
     }, x || {});
-    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), lead)).id;
+    // A fixed id + setDoc, and ALREADY_EXISTS swallowed: the emulator's
+    // commit retry can land the first attempt and then reject the retry
+    // (see fixtures/auth.js loginAs).
+    const ref = fsMod.doc(fsMod.collection(db, 'leads'));
+    try { await fsMod.setDoc(ref, lead); }
+    catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+    const id = ref.id;
     if (typeof window.loadLeads === 'function') await window.loadLeads();
     for (let i = 0; i < 75 && !(window._leads || []).some((l) => l.id === id); i++) {
       await new Promise((r) => setTimeout(r, 200));

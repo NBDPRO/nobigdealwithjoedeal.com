@@ -88,6 +88,21 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  // customer.html's bootstrap publishes window.db / window.storage / window.auth;
+  // only the dashboard also sets the underscored names this engine reads. So on
+  // the customer page every upload failed its preflight ("Firebase not
+  // initialized") — the camera, burst and the editor queue included (found
+  // 2026-10-04 by the phone E2E). Alias the SAME instances, like
+  // customer-tasks-ui.js does for invoice-pipeline.js; on the dashboard both
+  // names already point at one object, so nothing changes there.
+  function _aliasFirebase() {
+    if (typeof window === 'undefined') return;
+    if (!window._db && window.db) window._db = window.db;
+    if (!window._storage && window.storage) window._storage = window.storage;
+    if (!window._auth && window.auth) window._auth = window.auth;
+  }
+  _aliasFirebase();
+
   // Ensure Firebase is initialized
   if (!window._storage || !window._db || !window._user || !window._auth) {
     console.warn('PhotoEngine: Firebase not fully initialized. Waiting...');
@@ -264,6 +279,13 @@
         color: #fff; cursor: pointer;
       }
       .pe-preset-badge:active { opacity: .7; }
+      /* 2026-10-04 (phone E2E at 390): the top bar's tools pushed the back
+         button down to 23px wide and the preset badge was 22px tall. Every
+         camera control keeps a 44px target; the decorative title gives way. */
+      .pe-cam-back, .pe-cam-tool { flex-shrink: 0; min-width: 44px; }
+      .pe-preset-badge { min-height: 44px; flex-shrink: 0; font-size: 13px; }
+      .pe-cam-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; text-align: center; padding: 0 6px; }
+      @media (max-width: 420px) { .pe-cam-title { display: none; } .pe-cam-topbar { gap: 8px; } }
 
       /* ── VIEWFINDER ── */
       .pe-cam-viewfinder {
@@ -1687,6 +1709,7 @@
     const edit = (item && item.capture && item.capture.edit) || {};
     const uid = item.uid || _currentUid();
     if (!uid) throw new Error('Not signed in');
+    _aliasFirebase();
     if (!window._db) throw new Error('Firebase not initialized');
     const { doc, setDoc, updateDoc, serverTimestamp } = await import(
       'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
@@ -2198,6 +2221,7 @@
    * photo is held and then drop it as unrecoverable on the next drain.
    */
   function _uploadPreflightError(leadId) {
+    _aliasFirebase();
     if (!window._storage || !window._db || !window._user) {
       const err = new Error('Firebase not initialized');
       err.retryable = false;
