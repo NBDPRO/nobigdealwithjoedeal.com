@@ -138,7 +138,7 @@ function makeDom() {
       const els = { messages: mk(), userInput: mk(), sendBtn: mk() };
       const win = { NBDAskJoeRules: { text: () => 'rules' }, callClaude };
       const sandbox = { window: win, document: { getElementById: (id) => els[id], createElement: () => mk() }, console: { error() {} },
-        fetch: async (u) => { fetches.push(u); throw new Error('no network in tests'); }, sessionStorage: { getItem: () => 'sk-ant-SHOULD-NEVER-BE-READ' }, localStorage: { getItem: () => null } };
+        fetch: async (u) => { fetches.push(u); throw new Error('no network in tests'); }, sessionStorage: { getItem: () => 'sk-' + 'ant-SHOULD-NEVER-BE-READ' }, localStorage: { getItem: () => null } };
       vm.runInNewContext(src, sandbox, { filename: 'ask-joe-main.js' });
       return { win, msgs, fetches, els };
     }
