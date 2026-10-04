@@ -571,15 +571,15 @@ section('Turnstile');
     /verifyTurnstile\(\s*\(req\.body && req\.body\.turnstileToken\)/.test(idx));
 }
 
-section('Upstash rate limiter adapter');
+section('Rate limiter entry point (integrations/upstash-ratelimit.js)');
 {
+  // The Upstash backend was removed 2026-10-04 (never provisioned); the
+  // module keeps its path and delegates to the Firestore limiter.
   const src = read(path.join(FUNCTIONS, 'integrations/upstash-ratelimit.js'));
   assert('exports enforceRateLimit + httpRateLimit',
     /module\.exports\s*=\s*\{[\s\S]*enforceRateLimit[\s\S]*httpRateLimit/.test(src));
-  assert('falls back to Firestore limiter when not configured',
-    /firestoreLimiter\.enforceRateLimit/.test(src));
-  assert('uses pipeline INCR + EXPIRE NX',
-    /\['INCR', key\][\s\S]{0,100}\['EXPIRE', key/.test(src));
+  assert('delegates to the Firestore limiter',
+    /firestoreLimiter\.enforceRateLimit/.test(src) && /firestoreLimiter\.httpRateLimit/.test(src));
   const idx = readFunctionsIndex();
   assert('index.js now requires the adapter',
     /require\(['"]\.\/integrations\/upstash-ratelimit['"]\)/.test(idx));
@@ -591,8 +591,8 @@ section('Measurement adapter');
   for (const name of ['requestMeasurement','measurementWebhook']) {
     assert('exports ' + name, new RegExp('exports\\.' + name + '\\s*=').test(src));
   }
-  assert('supports hover + eagleview + nearmap',
-    /requestHOVER/.test(src) && /requestEagleView/.test(src) && /requestNearmap/.test(src));
+  assert('never-configured hover / eagleview / nearmap adapters stay removed (2026-10-04)',
+    !/requestHOVER|requestEagleView|requestNearmap|api\.hover\.to|eagleview\.com|nearmap\.com/.test(src.replace(/^\s*(\/\/|\*).*$/gm, '')));
   assert('supports instantroofer (coordinates-in, synchronous — the default since 2026-09-06)',
     /requestInstantRoofer/.test(src) && /instantroofer-logic/.test(src));
   assert('requestMeasurement binds INSTANTROOFER_API_KEY (Gen2 mounts only declared secrets)',
@@ -1659,8 +1659,8 @@ section('F2 / M3: webhooks fail closed (every HTTP webhook signed)');
 
   // M3: measurementWebhook completed the sweep — ensure the fix sticks.
   const m = read(path.join(FUNCTIONS, 'integrations/measurement.js'));
-  assert('measurementWebhook verifies HMAC (F-02 + M3 regression guard)',
-    /verifyWebhookHmac\(provider,\s*req\.rawBody/.test(m));
+  assert('measurementWebhook verifies the vendor credential (F-02 + M3 regression guard)',
+    /verifyInstantRooferBearer\(req\.headers\['authorization'\]/.test(m) && /if \(!sigResult\.ok\)/.test(m));
 
   // Stripe webhooks: both stripeWebhook and invoiceWebhook must verify.
   // L-03 cont.: Stripe handlers moved to functions/stripe.js.
@@ -2773,17 +2773,12 @@ section('Phase D.3 — integrationStatus secret-readout completeness');
   const declared = (sh.match(/[A-Z_]+:\s*defineSecret\('([A-Z_]+)'\)/g) || [])
     .map(s => s.match(/'([A-Z_]+)'/)[1]);
   const configuredBlock = (idx.match(/configured:\s*\{[\s\S]*?\},?\s*rateLimitProvider/) || [''])[0];
-  // These are intentionally aggregated under a single key.
-  const AGGREGATED = new Set(['UPSTASH_REDIS_REST_URL','UPSTASH_REDIS_REST_TOKEN']);
-  const missing = declared.filter(name => {
-    if (AGGREGATED.has(name)) return false;
-    return !configuredBlock.includes("'" + name + "'");
-  });
+  const missing = declared.filter(name => !configuredBlock.includes("'" + name + "'"));
   assert('integrationStatus.configured covers every declared secret',
     missing.length === 0,
     'expected every secret in _shared.js to appear in the configured readout; missing: ' + missing.join(', '));
   // Spot-check the new D.3 additions
-  for (const k of ['hoverWebhook','eagleviewWebhook','boldsignWebhook','groq']) {
+  for (const k of ['instantrooferWebhook','boldsignWebhook','groq']) {
     assert('configured.' + k + ' present in integrationStatus',
       new RegExp('\\b' + k + ':\\s+_hasInt').test(idx),
       'expected configured.' + k);
@@ -2816,7 +2811,7 @@ section('Phase D.3 — integrationAvailability (non-admin-safe availability read
     // Only the booleans that actually gate requestMeasurement / sendForSignature /
     // lookupParcel — never the H-06-restricted fields (Turnstile, Upstash,
     // Sentry, Slack, webhook secrets, rateLimitProvider, rotationRunbook).
-    for (const key of ['hover', 'eagleview', 'nearmap', 'instantroofer', 'boldsign', 'regrid']) {
+    for (const key of ['instantroofer', 'boldsign', 'regrid']) {
       assert('integrationAvailability.configured exposes ' + key,
         new RegExp('\\b' + key + ':\\s+_hasInt').test(m[0]));
     }
@@ -2830,29 +2825,19 @@ section('Phase D.3 — integrationAvailability (non-admin-safe availability read
   }
 }
 
-section('Visualizer image-gen provider seam (kie.ai, ships dark)');
+section('Visualizer image-gen — one provider (Replicate), flag-off');
 {
+  // kie.ai was removed 2026-10-04 (VENDOR-COST-LOCKIN Lane C): its key was
+  // never set, so Replicate was the only provider that could ever run.
   const vig = read(path.join(FUNCTIONS, 'visualizer-image-gen.js'));
-  assert('provider seam defaults to replicate',
-    /process\.env\.IMAGEGEN_PROVIDER \|\| 'replicate'/.test(vig),
-    'flipping providers must be an explicit env change, never a silent default');
-  assert('KIE_API_KEY declared and registered on the endpoint',
-    /defineSecret\('KIE_API_KEY'\)/.test(vig)
-    && /secrets: \[REPLICATE_API_TOKEN, KIE_API_KEY\]/.test(vig));
-  assert('kie path refuses loudly when the key is unset (no silent fallback)',
-    /provider_not_configured/.test(vig));
-  assert('both providers exist behind one response contract',
+  assert('still gated by VISUALIZER_IMAGEGEN_ENABLED (default off)',
+    /process\.env\.VISUALIZER_IMAGEGEN_ENABLED !== 'true'/.test(vig));
+  assert('Replicate is the only provider, bound to its one secret',
     /async function generateViaReplicate\(/.test(vig)
-    && /async function generateViaKie\(/.test(vig)
+    && /secrets: \[REPLICATE_API_TOKEN\]/.test(vig)
     && /result\.imgBuf\.toString\('base64'\)/.test(vig));
-  assert('kie staged input (homeowner PII) is deleted in a finally block',
-    /finally \{[\s\S]{0,400}file\.delete\(\{ ignoreNotFound: true \}\)/.test(vig));
-  assert('kie polling is bounded (no infinite loop inside the function timeout)',
-    /attempt < 30/.test(vig) && /sleep\(3000\)/.test(vig));
-  assert('integrationStatus surfaces the kie key',
-    /kie:\s+_hasInt\('KIE_API_KEY'\)/.test(readFunctionsIndex().includes('KIE_API_KEY')
-      ? readFunctionsIndex()
-      : read(path.join(FUNCTIONS, 'handlers', 'integrations.js'))));
+  assert('kie.ai provider stays removed (no second image vendor, no stray secret)',
+    !/defineSecret\('KIE_API_KEY'\)|generateViaKie|api\.kie\.ai|IMAGEGEN_PROVIDER/.test(vig.replace(/^\s*(\/\/|\*).*$/gm, '')));
 }
 
 };
