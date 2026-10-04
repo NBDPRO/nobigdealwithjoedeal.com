@@ -1,60 +1,40 @@
-    // FAQ Accordion. Questions are real <button>s (keyboard operable) —
-    // keep aria-expanded in sync so screen readers hear open/closed state.
-    function toggleFAQ(question) {
-      const answer = question.nextElementSibling;
-      const toggle = question.querySelector('.faq-toggle');
+// landing-page.js — the /pro product page. CSP-safe: no inline handlers.
+// Budget: 5 KB (tests/pro-landing-budget-2026-10-04.test.js).
+(function () {
+  'use strict';
 
-      document.querySelectorAll('.faq-answer').forEach(el => {
-        if (el !== answer) {
-          el.classList.remove('active');
-          el.previousElementSibling.querySelector('.faq-toggle').classList.remove('active');
-          el.previousElementSibling.setAttribute('aria-expanded', 'false');
-        }
-      });
+  // THE demo link. Every "Book a demo" button ([data-demo-link]) gets this
+  // href; nothing else on the page names the URL. Their static href is Jo's
+  // main Cal.com page, so a visitor without JS still reaches a booking page.
+  var DEMO_URL = 'https://cal.com/nobigdeal/nbd-pro-demo';
 
-      const open = answer.classList.toggle('active');
-      toggle.classList.toggle('active', open);
-      question.setAttribute('aria-expanded', String(open));
-    }
+  document.querySelectorAll('[data-demo-link]').forEach(function (a) {
+    a.setAttribute('href', DEMO_URL);
+  });
 
-    // CSP-safe data-pl-action delegate (replaces inline handlers).
-    document.addEventListener('click', (e) => {
-      const t = e.target.closest('[data-pl-action]');
-      if (!t) return;
-      const action = t.getAttribute('data-pl-action');
-      if (action === 'goRegister') {
-        e.preventDefault();
-        const plan = t.getAttribute('data-plan');
-        window.location.href = '/pro/register.html' + (plan ? '?plan=' + plan : '');
-      } else if (action === 'toggleFAQ') {
-        toggleFAQ(t);
-      }
+  // FAQ accordion. Questions are real <button>s; aria-expanded tracks state.
+  function toggleFAQ(q) {
+    var a = q.nextElementSibling;
+    var open = q.getAttribute('aria-expanded') !== 'true';
+    document.querySelectorAll('.pl-faq-q[aria-expanded="true"]').forEach(function (o) {
+      if (o !== q) { o.setAttribute('aria-expanded', 'false'); o.nextElementSibling.classList.remove('is-open'); }
     });
+    q.setAttribute('aria-expanded', String(open));
+    a.classList.toggle('is-open', open);
+  }
 
-    // Scroll Animation Observer
-    const observerOptions = {
-      threshold: 0.1,
-      rootMargin: '0px 0px -50px 0px'
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('in-view');
-        }
-      });
-    }, observerOptions);
-
-    document.querySelectorAll('.animate').forEach(el => {
-      observer.observe(el);
-    });
-
-    // Mobile nav menu toggle
-    const navLinks = document.querySelector('.nav-links');
-    const navToggle = document.querySelector('.nav-toggle');
-
-    if (navToggle) {
-      navToggle.addEventListener('click', () => {
-        navLinks.style.display = navLinks.style.display === 'flex' ? 'none' : 'flex';
-      });
+  // data-pl-action delegate. goRegister keeps the data-plan wiring
+  // register.html reads (?plan=starter|team|growth).
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-pl-action]');
+    if (!t) return;
+    var action = t.getAttribute('data-pl-action');
+    if (action === 'goRegister') {
+      e.preventDefault();
+      var plan = t.getAttribute('data-plan');
+      window.location.href = '/pro/register.html' + (plan ? '?plan=' + plan : '');
+    } else if (action === 'toggleFAQ') {
+      toggleFAQ(t);
     }
+  });
+})();
