@@ -1,5 +1,12 @@
 # Runbook — Flip the visualizer image-gen provider to kie.ai
 
+> **RETIRED 2026-10-04 — do not follow.** The kie.ai provider was never
+> switched on (`KIE_API_KEY` held the deploy's `__unset__` stub), so it was
+> removed: Replicate is the visualizer's only image provider, still behind
+> `VISUALIZER_IMAGEGEN_ENABLED` (default OFF). `IMAGEGEN_PROVIDER` is no
+> longer read. See the vendor cost and lock-in audit (`documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md`, Lane C — on PR #2157 until it merges). After the deploy, Jo deletes the `KIE_API_KEY`
+> secret. Kept below as history only.
+
 **When:** you want the homeowner visualizer's image generation to run on
 kie.ai instead of Replicate (same Flux Kontext model family, typically
 cheaper per image — verify current pricing first). The seam shipped dark in

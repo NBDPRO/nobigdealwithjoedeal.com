@@ -5,8 +5,8 @@
  * Legal-checklist audit (2026-10-03) — the page-level disclosures:
  *
  *   1. docs/privacy.html names every vendor the code actually sends personal
- *      data to (Bland AI, Groq + Anthropic for recorded calls, Replicate /
- *      Kie.ai for the PUBLIC visualizer, xAI for the CRM bots), and its Do
+ *      data to (Bland AI, Groq + Anthropic for recorded calls, Replicate
+ *      for the PUBLIC visualizer, xAI for the CRM bots), and its Do
  *      Not Track text agrees with what the analytics loaders DO — derived
  *      from the loader source, so the policy and the code cannot drift.
  *   2. /pro/register is clickwrap: a required "I agree" checkbox, not a
@@ -49,10 +49,12 @@ console.log('1. privacy policy — vendors the code uses');
     /transcribed by Groq/.test(callPara) && /summarized by Anthropic/.test(callPara), callPara.slice(0, 160));
 
   const viz = read('functions/visualizer-image-gen.js');
-  ok('code: the visualizer image endpoint calls Replicate and (alternate) kie.ai (precondition)',
-    /replicate\.com/.test(viz) && /api\.kie\.ai/.test(viz));
-  ok('policy: the PUBLIC visualizer discloses Replicate and Kie.ai',
-    /Roof Visualizer/.test(text) && /Replicate/.test(text) && /Kie\.ai/.test(text) && /do not need an account/.test(text));
+  // The kie.ai alternate provider was removed 2026-10-04 (VENDOR-COST-LOCKIN
+  // Lane C); Replicate is the one image vendor the code can call.
+  ok('code: the visualizer image endpoint calls Replicate (precondition)',
+    /replicate\.com/.test(viz));
+  ok('policy: the PUBLIC visualizer discloses Replicate',
+    /Roof Visualizer/.test(text) && /Replicate/.test(text) && /do not need an account/.test(text));
   ok('policy no longer claims Replicate is used only for Pro accounts with an image feature enabled',
     !/only if a contractor's account has the optional AI image feature/.test(text));
 
@@ -124,6 +126,43 @@ console.log('5. Terms + Privacy links inside the app');
   const l = login.slice(login.indexOf('id="loginLegalLinks"'), login.indexOf('</div>', login.indexOf('id="loginLegalLinks"')));
   ok('/pro/login links Terms of Service and Privacy Policy',
     /href="\/pro\/terms\.html">Terms of Service/.test(l) && /href="\/privacy\.html">Privacy Policy/.test(l), l);
+}
+
+// 2026-10-04 — Twilio A2P 10DLC. The Campaign Registry rejects a campaign
+// whose website privacy policy lacks any of: a no-sharing statement for
+// mobile numbers, the message frequency, and "Message and data rates may
+// apply"; it also checks for terms hosted on the same domain. The claims in
+// the terms must match what the code and the signup page actually do.
+// See documentation/runbooks/TWILIO-A2P-REGISTRATION.md.
+console.log('6. privacy policy — text-message terms TCR reviewers check');
+{
+  const start = priv.indexOf('id="sms-terms"');
+  ok('privacy has a #sms-terms section', start !== -1);
+  const end = priv.indexOf('</ul>', start);
+  const sms = start === -1 ? '' : priv.slice(start, end).replace(/<[^>]+>/g, ' ').replace(/&ndash;/g, '-').replace(/\s+/g, ' ');
+  ok('mobile-number non-sharing statement is present',
+    /No mobile information will be shared with third parties or affiliates for marketing or promotional purposes/.test(text));
+  ok('#sms-terms discloses message frequency', /message frequency varies/i.test(sms), sms);
+  ok('#sms-terms says "Message and data rates may apply"', /Message and data rates may apply/.test(sms), sms);
+  ok('#sms-terms names STOP and HELP', /reply STOP/i.test(sms) && /Reply HELP/.test(sms), sms);
+  ok('#sms-terms has the carrier-liability and not-a-condition-of-purchase lines',
+    /Carriers are not liable for delayed or undelivered messages/.test(sms) && /not a condition of any purchase/.test(sms), sms);
+
+  // Code agreement: the inbound webhook really answers STOP and HELP, and
+  // the HELP reply carries the same phone number the terms give.
+  const smsFn = read('functions/sms-functions.js');
+  const stopWords = (smsFn.match(/const STOP_WORDS = new Set\(\[([^\]]*)\]\)/) || [])[1] || '';
+  const helpWords = (smsFn.match(/const HELP_WORDS = new Set\(\[([^\]]*)\]\)/) || [])[1] || '';
+  ok('code: inbound webhook treats STOP as an opt-out keyword', /'STOP'/.test(stopWords), stopWords);
+  ok('code: inbound webhook treats HELP as a help keyword', /'HELP'/.test(helpWords), helpWords);
+  const helpIdx = smsFn.indexOf('HELP_WORDS.has(opt)');
+  ok('code: the HELP reply gives (859) 420-7382, as the terms do',
+    helpIdx !== -1 && /\(859\) 420-7382/.test(smsFn.slice(helpIdx, helpIdx + 600)) && /\(859\) 420-7382/.test(sms));
+
+  // Storm-alert frequency must match what the signup page promises.
+  const sa = read('docs/storm-alerts.html');
+  ok('storm-alerts page promises 2-4 texts per season (precondition)', /Usually 2-4 times per season/.test(sa));
+  ok('#sms-terms gives the same 2-4 per season for storm alerts', /2-4 texts per season/.test(sms), sms);
 }
 
 console.log('');

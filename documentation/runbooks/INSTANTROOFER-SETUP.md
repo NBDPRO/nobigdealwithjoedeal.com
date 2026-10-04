@@ -62,8 +62,9 @@ not with a green run.
 
 `NBD_MEASUREMENT_PROVIDER` is not set anywhere, so the code default applies —
 and that default is now `instantroofer` (`functions/integrations/_shared.js`).
-To go back: `NBD_MEASUREMENT_PROVIDER=hover` in `functions/.env.nobigdeal-pro`
-(public repo — provider *names* only, never keys).
+There is no other provider to go back to: HOVER, EagleView and Nearmap were
+removed 2026-10-04 (never configured), and any other `NBD_MEASUREMENT_PROVIDER`
+value makes `requestMeasurement` fail loudly instead of billing anyone.
 
 ## 3. Human-report webhook (needed before any `reportType:'human'` order)
 

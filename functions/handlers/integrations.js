@@ -66,12 +66,10 @@ exports.integrationStatus = onCall(
     if (!['admin', 'company_admin'].includes(callerRole)) {
       throw new HttpsError('permission-denied', 'Admin access required');
     }
-    // R-01: the RUNTIME-active rate-limit provider. Derived from
-    // both NBD_RATE_LIMIT_PROVIDER env AND whether the Upstash secrets
-    // are populated. 'firestore' means the hot-doc path is live —
-    // under 10k-user carrier-NAT load this is the documented R-01
-    // throughput ceiling. Admin-visible so post-deploy verification
-    // doesn't require grepping Cloud Logging.
+    // R-01: the RUNTIME-active rate-limit provider. Always 'firestore'
+    // since the never-provisioned Upstash adapter was removed 2026-10-04
+    // (VENDOR-COST-LOCKIN Lane C); kept in the payload so existing admin
+    // readouts and post-deploy checks keep their field.
     const { provider: rateLimitProvider } = require('../integrations/upstash-ratelimit');
     return {
       providers: _intProviders,
@@ -79,27 +77,15 @@ exports.integrationStatus = onCall(
         sentry:             _hasInt('SENTRY_DSN_FUNCTIONS'),
         slack:              _hasInt('SLACK_WEBHOOK_URL'),
         turnstile:          _hasInt('TURNSTILE_SECRET'),
-        upstash:            _hasInt('UPSTASH_REDIS_REST_URL') && _hasInt('UPSTASH_REDIS_REST_TOKEN'),
-        hover:              _hasInt('HOVER_API_KEY'),
         // Webhook secrets are tracked separately so admin can see when
         // the inbound webhook auth is missing without conflating it
         // with the API-key state.
-        hoverWebhook:       _hasInt('HOVER_WEBHOOK_SECRET'),
-        eagleview:          _hasInt('EAGLEVIEW_API_KEY'),
-        eagleviewWebhook:   _hasInt('EAGLEVIEW_WEBHOOK_SECRET'),
-        nearmap:            _hasInt('NEARMAP_API_KEY'),
         // Instant Roofer — coordinates-in AI measure (the default provider) and
         // the bearer token its human-report webhook presents
         // (integrations/measurement.js; runbooks/INSTANTROOFER-SETUP.md).
         instantroofer:      _hasInt('INSTANTROOFER_API_KEY'),
         instantrooferWebhook: _hasInt('INSTANTROOFER_WEBHOOK_SECRET'),
         regrid:             _hasInt('REGRID_API_TOKEN'),
-        hailtrace:          _hasInt('HAILTRACE_API_KEY'),
-        // Swath (swathapi.com) — one API key serves both the hail-swath
-        // and parcel slots; the webhook secret is minted separately by
-        // POST /v1/monitors (runbooks/SWATH-SETUP.md).
-        swath:              _hasInt('SWATH_API_KEY'),
-        swathWebhook:       _hasInt('SWATH_WEBHOOK_SECRET'),
         calcom:             _hasInt('CALCOM_WEBHOOK_SECRET'),
         // Thumbtack lead/message/review webhook — Custom Header shared
         // token (no HMAC offered); receiver fails closed without it
@@ -111,13 +97,10 @@ exports.integrationStatus = onCall(
         bland:              _hasInt('BLAND_API_KEY'),
         blandWebhook:       _hasInt('BLAND_WEBHOOK_SECRET'),
         thursdayLookup:     _hasInt('THURSDAY_LOOKUP_TOKEN'),
-        // Voice transcription pair — Phase 1 uses Groq, Phase 2 may
-        // add Deepgram for native diarization on Pro+.
+        // Voice transcription — Groq Whisper (dictate, Voice Intelligence,
+        // call center); Deepgram backs only transcribeVoiceMemo.
         deepgram:           _hasInt('DEEPGRAM_API_KEY'),
         groq:               _hasInt('GROQ_API_KEY'),
-        // Image generation — kie.ai alternate visualizer provider
-        // (dark until IMAGEGEN_PROVIDER=kie; see visualizer-image-gen.js).
-        kie:                _hasInt('KIE_API_KEY'),
         // Healthchecks.io dead-man's-switch for every scheduled function
         // (integrations/heartbeat.js; runbooks/HEALTHCHECKS-SETUP.md).
         healthchecks:       _hasInt('HEALTHCHECKS_PING_KEY')
@@ -154,9 +137,6 @@ exports.integrationAvailability = onCall(
     timeoutSeconds: 10,
     memory: '256MiB',
     secrets: [
-      _intSecrets.HOVER_API_KEY,
-      _intSecrets.EAGLEVIEW_API_KEY,
-      _intSecrets.NEARMAP_API_KEY,
       _intSecrets.INSTANTROOFER_API_KEY,
       _intSecrets.REGRID_API_TOKEN
     ]
@@ -172,15 +152,12 @@ exports.integrationAvailability = onCall(
       // Which named provider is active per category — an env-var selection
       // (functions/integrations/_shared.js PROVIDERS), not a secret.
       // requestMeasurement() reads providers.measurement to know which of
-      // the four `configured` keys below gates its own call.
+      // the `configured` keys below gates its own call.
       providers: {
         measurement: _intProviders.measurement,
         parcel: _intProviders.parcel
       },
       configured: {
-        hover:         _hasInt('HOVER_API_KEY'),
-        eagleview:     _hasInt('EAGLEVIEW_API_KEY'),
-        nearmap:       _hasInt('NEARMAP_API_KEY'),
         instantroofer: _hasInt('INSTANTROOFER_API_KEY'),
         regrid:        _hasInt('REGRID_API_TOKEN')
       }
