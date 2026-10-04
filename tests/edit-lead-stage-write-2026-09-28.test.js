@@ -131,6 +131,19 @@ async function run(opts) {
   {
     const r = await run({ editId: '', stored: null, formStage: 'new' });
     assert('a new lead saves its stage directly, no stage transaction', r.saved.length === 1 && r.saved[0].stage === 'new' && r.txUpdates.length === 0);
+    assert('…and an open-stage new lead carries no closedAt', !('closedAt' in r.saved[0]));
+  }
+  {
+    // 2026-10-03 data audit: won leads with no closedAt. A finished job logged
+    // straight onto a won stage carries its close date from birth.
+    const r = await run({ editId: '', stored: null, formStage: 'closed', roleOf: (s) => (s === 'closed' ? 'won' : 'active') });
+    assert('a NEW lead saved on a won stage gets closedAt', r.saved.length === 1 && r.saved[0].closedAt === 'SERVER_TS', JSON.stringify(r.saved[0] && r.saved[0].closedAt));
+  }
+  {
+    // An EDIT onto a won stage gets it from commitStageChange (tx payload).
+    const r = await run({ editId: 'lead-1', stored: { id: 'lead-1', stage: 'contract_signed', jobType: 'insurance' }, formStage: 'closed', roleOf: (s) => (s === 'closed' ? 'won' : 'active') });
+    const tx = r.txUpdates[0] && r.txUpdates[0].p;
+    assert('an edit onto a won stage stamps closedAt in the stage transaction', !!tx && tx.stage === 'closed' && tx.closedAt === 'SERVER_TS', JSON.stringify(tx));
   }
 
   console.log('\n──────────────────────');

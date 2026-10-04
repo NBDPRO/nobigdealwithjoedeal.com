@@ -36,6 +36,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const P = require('./money-paper-logic');
 const SPINE = require('./job-spine-logic');
+const stageRoles = require('./stage-roles');
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
@@ -285,6 +286,23 @@ async function spineOnInvoice(deps, invoiceId, before, after) {
   return out;
 }
 
+/** File the "paid in full — not closed" task on the invoice's lead. → task id | null. */
+async function flagPaidNotClosed(deps, invoiceId, inv) {
+  const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
+  const ls = await leadRef.get();
+  if (!ls.exists) return null;
+  const et = P.etParts(deps.now());               // { y, md: 'MMDD' } — the task wants 'YYYY-MM-DD'
+  const today = et.y + '-' + et.md.slice(0, 2) + '-' + et.md.slice(2);
+  const task = P.paidNotClosedTask(ls.data(), inv, invoiceId, today, stageRoles);
+  if (!task) return null;
+  const taskId = P.paidNotClosedTaskId(invoiceId);
+  const ref = leadRef.collection('tasks').doc(taskId);
+  if ((await ref.get()).exists) return taskId;   // already filed (and maybe already done) — never reopen
+  await ref.set(Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
+  logger.info('[moneyPaper] paid in full but not closed — task filed', { invoiceId, leadId: inv.leadId, taskId });
+  return taskId;
+}
+
 async function handle(invoiceId, after, deps, before) {
   const spine = await spineOnInvoice(deps, invoiceId, before, after);
   if (process.env.NBD_MONEY_PAPER === 'off') return spine ? { skipped: 'killswitch', spine } : { skipped: 'killswitch' };
@@ -304,6 +322,11 @@ async function handle(invoiceId, after, deps, before) {
   if (before !== undefined && after && transitions(before, after).becamePaid
       && (after.companyId || after.userId) === OWNER && after.leadId) {
     out.jobPaid = await markJobPaid(deps.db, after).catch((e) => { logger.warn('[moneyPaper] job paid mark failed', { invoiceId, err: e && e.message }); return null; });
+  }
+  // Paid in full ON THIS WRITE but the lead is not on a won stage → one task
+  // for the owner to confirm the close (never moves the stage). Any tenant.
+  if (before !== undefined && after && transitions(before, after).becamePaid && after.leadId) {
+    out.paidNotClosed = await flagPaidNotClosed(deps, invoiceId, after).catch((e) => { logger.warn('[moneyPaper] paid-not-closed flag failed', { invoiceId, err: e && e.message }); return null; });
   }
   if (!d.fileInvoice && !d.fileReceipt && !d.markOob
       && !(after && after.paper && ['invoice', 'receipt'].some((k) => retriable(after.paper[k], deps.now())))) {
@@ -332,4 +355,4 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
   }
 );
 
-exports._internal = { handle, payQr, markJobPaid, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, payQr, markJobPaid, flagPaidNotClosed, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };

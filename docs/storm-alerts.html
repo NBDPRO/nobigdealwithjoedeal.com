@@ -65,6 +65,9 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 .field select { appearance:none; cursor:pointer; }
 .field select option { background:var(--navy-dark); color:white; }
 .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+/* trust line above Submit (2026-10-03); rating hydrated live by google-reviews-widget.js */
+.nbd-trust-line { margin:4px 0 10px; font-size:.78rem; font-weight:600; color:rgba(255,255,255,.72); text-align:center; line-height:1.4; }
+.nbd-trust-line span[aria-hidden] { color:#fbbc04; }
 .signup-btn { width:100%; padding:15px; background:var(--alert); color:var(--navy-dark); border:none; border-radius:10px; font-family:'Montserrat',sans-serif; font-size:.9rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; transition:all .2s; margin-top:8px; }
 .signup-btn:hover { background:#fbbf24; transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,158,11,.3); }
 .signup-btn:disabled { opacity:.6; cursor:wait; }
@@ -289,7 +292,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Roofing"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Siding Replacement"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Gutter Replacement"}},
-          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Insurance Claims"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Inspection & Documentation"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Interior Drywall and Ceiling Repair"}}
         ]
       }
@@ -351,6 +354,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 }
 </script>
 <!-- /nbd:partial schema-entity -->
+<link rel="stylesheet" href="/assets/css/nbd-nav.css">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -368,7 +372,6 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     </a>
   </div>
   <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav"><span></span><span></span><span></span></button>
-  <link rel="stylesheet" href="/assets/css/nbd-nav.css">
   <script defer src="/assets/js/nbd-nav.js"></script>
 </nav>
 <!-- /nbd:partial nav-tool -->
@@ -463,6 +466,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     <div style="position:absolute;left:-9999px;" aria-hidden="true"><input type="text" id="alertHoneypot" tabindex="-1" autocomplete="off" aria-label="Leave this field blank"></div>
     <label class="sc-consent"><input type="checkbox" id="sa-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
     <div class="signup-err" id="sa-error" role="alert"></div>
+    <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof</p>
     <button class="signup-btn" id="alertSignupBtn">🔔 Sign Me Up — Free</button>
     <script defer  src="/assets/js/inline/ba974607f0.js"></script>
     <div class="signup-note">We'll only text you when severe weather actually hits your zip code. Usually 2-4 times per season. Reply STOP to unsubscribe anytime.</div>
@@ -510,6 +514,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
      rules layer (C-3). Submissions go through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/google-reviews-widget.js"></script>
 <script defer  src="/assets/js/inline/e9b498fbd3.js"></script>
 
 <script defer  src="/assets/js/inline/c5a2295382.js?v=2"></script>

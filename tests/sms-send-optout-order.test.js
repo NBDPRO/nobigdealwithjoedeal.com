@@ -110,9 +110,24 @@ function makeWorld(opts) {
     // onAiDraftApproved's success path writes leads/{id}/notes.
     collection: (n) => db.collection(p + '/' + n),
   });
+  // Minimal equality-query builder (sendSMS's new-number lookup reads
+  // sms_log where toDigits == X and companyId|uid == tenant). Rows come from
+  // opts.priorSmsLog; opts.smsLogQueryThrows simulates a failed read.
+  const query = (name, filters) => ({
+    where: (f, op, v) => query(name, filters.concat([[f, v]])),
+    orderBy: () => query(name, filters),
+    limit: () => query(name, filters),
+    get: async () => {
+      events.push('query:' + name + ':' + filters.map(([f]) => f).join(','));
+      if (opts.smsLogQueryThrows) throw new Error('simulated query failure');
+      const rows = (name === 'sms_log' ? (opts.priorSmsLog || []) : [])
+        .filter((r) => filters.every(([f, v]) => r[f] === v));
+      return { empty: rows.length === 0, size: rows.length, docs: rows.map((r) => ({ data: () => r })) };
+    },
+  });
   const db = {
     doc: docRef,
-    collection: (name) => ({
+    collection: (name) => Object.assign(query(name, []), {
       add: async (row) => { if (name === 'sms_log') smsLog.push(row); return { id: 'x' }; },
       doc: (id) => docRef(name + '/' + id),
     }),
@@ -552,6 +567,46 @@ const OPTED_OUT = { [OPT_DOC]: { phone: '+18595550134', keyword: 'STOP' } };
     await approveDraft(exported);
     ok('AI draft: a number already in the register is refused before Twilio (control)',
       w.twilioCalls.length === 0 && draftMarks(w).some((m) => m.failureReason === 'opted_out'));
+  }
+
+  // ═══ sendSMS — per-tenant cap on NEW numbers (security batch 2026-10-03) ═══
+  // One Twilio number serves every tenant and sendSMS takes any `to`, so a
+  // tenant texting numbers it has never texted is how another tenant's
+  // customers would be fished for. Numbers the tenant already has an sms_log
+  // row for are never counted.
+  console.log('sendSMS — per-tenant cap on numbers the tenant has never texted');
+  {
+    const { res, w } = await callSendSMS({ limited: ['sendSMS:newTo'] });
+    ok('never-texted number + tenant over its new-number cap → 429 new_number_limit, Twilio not called',
+      res.statusCode === 429 && res.body && res.body.code === 'new_number_limit' && w.twilioCalls.length === 0,
+      res.statusCode + ' ' + JSON.stringify(res.body));
+    ok('the lookup is scoped to the caller\'s tenant (toDigits + companyId)',
+      w.events.includes('query:sms_log:toDigits,companyId'), w.events.join(' > '));
+  }
+  {
+    const prior = [{ toDigits: KEY, companyId: 'co-1', uid: 'rep-2', status: 'sent' }];
+    const { res, w } = await callSendSMS({ limited: ['sendSMS:newTo'], priorSmsLog: prior });
+    ok('a number this tenant already texted is not counted — sends even with the new-number cap exhausted',
+      res.statusCode === 200 && w.twilioCalls.length === 1 && idx(w.events, 'limit:sendSMS:newTo') === -1,
+      res.statusCode + ' ' + w.events.join(' > '));
+  }
+  {
+    // ANOTHER tenant's history with this number does not make it "known".
+    const prior = [{ toDigits: KEY, companyId: 'co-OTHER', uid: 'rep-9', status: 'sent' }];
+    const { res, w } = await callSendSMS({ limited: ['sendSMS:newTo'], priorSmsLog: prior });
+    ok('another tenant\'s thread with the number does not exempt it from the cap',
+      res.statusCode === 429 && w.twilioCalls.length === 0, res.statusCode + ' ' + w.events.join(' > '));
+  }
+  {
+    const { res, w } = await callSendSMS({ smsLogQueryThrows: true, limited: ['sendSMS:newTo'] });
+    ok('a failed lookup counts the number as new (cap applies)',
+      res.statusCode === 429 && w.twilioCalls.length === 0, res.statusCode + ' ' + w.events.join(' > '));
+  }
+  {
+    const { res, w } = await callSendSMS({});
+    ok('under the cap a new number sends normally (control)',
+      res.statusCode === 200 && w.twilioCalls.length === 1 && idx(w.events, 'limit:sendSMS:newTo') > idx(w.events, 'limit:sendSMS:to'),
+      res.statusCode + ' ' + w.events.join(' > '));
   }
 
   world = null;
