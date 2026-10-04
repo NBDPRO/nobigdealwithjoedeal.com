@@ -52,9 +52,9 @@
   const THIRD_PARTY = /\b(public adjusters?|attorneys?|lawyers?)\b/i;
 
   const RULES = [
-    { id: 'claims-specialist', why: '(1)(a)2.a claims specialist/expert',
+    { id: 'claims-specialist', why: '(1)(a)2.a claims-specialist/-expert framing',
       re: /\bclaims? (specialist|expert|expertise)s?\b/i },
-    { id: 'insurance-specialist', why: '(1)(a)2.b insurance specialist/expert',
+    { id: 'insurance-specialist', why: '(1)(a)2.b insurance-specialist/-expert framing',
       re: /\binsurance(-| )(restoration |claims? |adjuster |)(specialist|specialty|expert|expertise)s?\b/i },
     { id: 'storm-specialist', why: '(1)(a)2 specialist framing next to insurance',
       re: /\b(storm|hail|restoration) specialists?\b/i, ctx: true },
