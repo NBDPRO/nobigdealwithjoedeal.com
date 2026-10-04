@@ -226,6 +226,35 @@
     rowEl.appendChild(no); rowEl.appendChild(yes);
     card.appendChild(title); card.appendChild(msg); card.appendChild(rowEl);
     document.body.appendChild(card);
+    wireKeyboardYield(card);
+  }
+
+  // Stand aside while the rep is typing (2026-10-03). The card floats above
+  // the bottom nav; with a phone keyboard up the screen is ~half height and
+  // the card covered the very results a search had just narrowed to
+  // (phone-pipeline.spec.js pipeline#7: the one match sat under it). Hidden
+  // while a text field has focus, back when it loses it. Listeners remove
+  // themselves once the card is gone.
+  function isTextField(el) {
+    if (!el || !el.tagName) return false;
+    if (el.isContentEditable) return true;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    return !/^(button|submit|reset|checkbox|radio|file|range|color|image|hidden)$/i.test(el.type || 'text');
+  }
+  function wireKeyboardYield(card) {
+    function sync() {
+      if (!card.isConnected) {
+        document.removeEventListener('focusin', sync, true);
+        document.removeEventListener('focusout', later, true);
+        return;
+      }
+      card.style.display = isTextField(document.activeElement) ? 'none' : '';
+    }
+    function later() { setTimeout(sync, 0); }
+    document.addEventListener('focusin', sync, true);
+    document.addEventListener('focusout', later, true);
+    sync();
   }
 
   // ─── boot ──────────────────────────────────────────────────────

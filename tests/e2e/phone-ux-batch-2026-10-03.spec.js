@@ -134,9 +134,12 @@ const covered = (rows) => rows.filter((r) => r.why !== 'hit').map((r) => `${r.la
 const short = (rows, min) => rows.filter((r) => r.h < min).map((r) => `${r.label}: ${r.w}x${r.h}`);
 const narrow = (rows, min) => rows.filter((r) => r.w < min).map((r) => `${r.label}: ${r.w}x${r.h}`);
 
+// Toasts, and the reminders card: test 4 measures the card on purpose, but
+// on any fresh page (a worker restarted after a failure logs in again with
+// empty localStorage) it boots 4s in and would decide every other hit-test.
 async function dropToasts(page) {
   await safeEvaluate(page, () => {
-    document.querySelectorAll('#toastContainer > *, .toast').forEach((t) => t.remove());
+    document.querySelectorAll('#toastContainer > *, .toast, #nbd-push-optin').forEach((t) => t.remove());
   });
 }
 
@@ -164,6 +167,12 @@ async function goView(page, view) {
     return !!el && el.classList.contains('active') && el.getBoundingClientRect().height > 0;
   }, view, { timeout: 15_000 });
   await page.waitForTimeout(700);
+  // Start every view at the top: an earlier test may have left it scrolled.
+  await safeEvaluate(page, (v) => {
+    window.scrollTo(0, 0);
+    const el = document.getElementById('view-' + v);
+    if (el) { el.scrollTop = 0; el.querySelectorAll('.view-scroll').forEach((x) => { x.scrollTop = 0; }); }
+  }, view);
   await forceStandalone(page);
   await dropToasts(page);
 }
@@ -260,6 +269,24 @@ test.describe('installed iPhone app — tap targets and safe areas @shard2', () 
       // soft: the keep-list half below must run (and report) either way.
       expect.soft(short(btns, TAP), 'reminder card buttons under 44px tall').toEqual([]);
       expect.soft(covered(btns), 'reminder card buttons take a tap').toEqual([]);
+      // The taller card must not sit over what a rep is typing for: with a
+      // text field focused (keyboard up) it stands aside, and comes back on blur.
+      const yieldState = await safeEvaluate(page, async () => {
+        const vis = () => getComputedStyle(document.getElementById('nbd-push-optin')).display !== 'none';
+        const inp = document.createElement('input');
+        inp.type = 'search';
+        inp.className = 'e2e-kbd-probe';
+        document.body.appendChild(inp);
+        inp.focus();
+        await new Promise((r) => setTimeout(r, 50));
+        const typing = vis();
+        inp.blur();
+        await new Promise((r) => setTimeout(r, 50));
+        const after = vis();
+        inp.remove();
+        return { typing, after };
+      });
+      expect.soft(yieldState, 'card hidden while typing, back after').toEqual({ typing: false, after: true });
       await page.locator('#nbd-push-optin button', { hasText: 'Not now' }).tap();
       await expect(page.locator('#nbd-push-optin')).toHaveCount(0);
     } else {
