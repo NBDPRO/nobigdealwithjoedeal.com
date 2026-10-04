@@ -252,7 +252,10 @@ ok('KY: exactly two KY NOTICE OF CANCELLATION forms', count(kyHtml, /data-nbd-no
 ok('KY: the form body is the act text', kyText.includes(ACT_FORM_HEAD) && kyText.includes(ACT_FORM_TAIL));
 ok('KY: forms prefilled — transaction date, physical address, email',
   kyText.includes('September 28, 2026') && kyText.includes(BIZ_ADDR) && kyText.includes('info@nobigdealwithjoedeal.com'));
-ok('KY: "I HEREBY CANCEL THIS TRANSACTION." twice', count(kyText, /I HEREBY CANCEL THIS TRANSACTION\./g) === 2);
+// 2026-10-04: every contract now also carries the two FTC forms (the Notice of
+// Right to Cancel packet), so the cancel line appears 2 (KY) + 2 (FTC) times.
+ok('KY: "I HEREBY CANCEL THIS TRANSACTION." on each of the 2 KY + 2 FTC forms',
+  count(kyText, /I HEREBY CANCEL THIS TRANSACTION\./g) === 4 && count(kyHtml, /data-nbd-noc="ftc"/g) === 2);
 const sigAt = kyHtml.indexOf('Contract Execution');
 ok('KY: both notices sit BEFORE the signature block',
   kyHtml.indexOf('data-nbd-statutory="ky-367-624-3"') > 0 && kyHtml.indexOf('data-nbd-statutory="ky-367-624-3"') < sigAt);
@@ -280,7 +283,9 @@ const ohCashHtml = withLead({ id: 'L1', address: OH_ADDR, jobType: 'cash' },
 ok('OH cash: no "Insurance Assignment" clause', !/Insurance Assignment/.test(ohCashHtml) &&
   !text(ohCashHtml).includes('accept assignment of insurance proceeds'));
 ok('OH cash: no "Insurance assignment accepted"', !/Insurance assignments? accepted/i.test(text(ohCashHtml)));
-ok('OH cash: no KY statutory blocks', !/nbd-statutory/.test(ohCashHtml));
+// The FTC statement + forms are statutory too (2026-10-04) — what must stay
+// off an Ohio cash contract is the KENTUCKY text.
+ok('OH cash: no KY statutory blocks', !/data-nbd-statutory="ky-367-624-3"/.test(ohCashHtml) && !/data-nbd-noc="ky"/.test(ohCashHtml));
 ok('OH cash: the same plain Payment clause', text(ohCashHtml).includes(J.PAYMENT_CLAUSE));
 for (const [name, html, statutory] of [['KY insurance', kyHtml, true], ['OH insurance', ohInsHtml, false], ['OH cash', ohCashHtml, false]]) {
   const body = statutory ? scanText(html) : text(html);
@@ -502,10 +507,13 @@ section('E. generate() — no AOB in Kentucky; no KY insurance contract without 
   ok('…and the letterhead header shows NO contractor address', headerOf(kyA).length > 0 && !headerOf(kyA).includes('100 Test Plaza'), headerOf(kyA).slice(0, 200));
   const ohEst = withLead({ id: 'L1', address: OH_ADDR, jobType: 'cash' },
     () => DG.renderProposal(contractData(OH_ADDR, 'cash', { totalPrice: '$9,000.00', companyProfile: PROFILE(BIZ_ADDR, '') })));
-  ok('an Ohio estimate shows the contractor address nowhere', !ohEst.includes('100 Test Plaza'));
+  // …except the FTC Notice of Cancellation, which the law requires to name
+  // the seller's address (2026-10-04: attached to every contract).
+  ok('an Ohio estimate shows the contractor address nowhere but the FTC cancellation forms',
+    !J.stripCancelPacket(ohEst).includes('100 Test Plaza') && /data-nbd-noc="ftc"[\s\S]*100 Test Plaza/.test(ohEst));
   const ohIns = withLead({ id: 'L1', address: OH_ADDR, jobType: 'insurance' },
     () => DG.renderContract(contractData(OH_ADDR, 'insurance', { companyProfile: PROFILE(BIZ_ADDR, '') })));
-  ok('an Ohio insurance contract shows it nowhere either', !ohIns.includes('100 Test Plaza'));
+  ok('an Ohio insurance contract shows it nowhere either (outside those forms)', !J.stripCancelPacket(ohIns).includes('100 Test Plaza'));
   const lhOnly = withLead({ id: 'L1', address: KY_ADDR, jobType: 'insurance' },
     () => DG._contractorPhysicalAddress(PROFILE('', 'LETTERHEAD ONLY 9 Elm')));
   ok('a letterhead address alone does NOT satisfy the KY requirement (never read)', lhOnly === '');

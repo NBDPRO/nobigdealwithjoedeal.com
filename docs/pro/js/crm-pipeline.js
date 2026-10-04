@@ -2089,6 +2089,19 @@ async function moveCard(id, newStage, opts){
     }
   }
 
+  // ─── 3-day cancellation window (2026-10-04) ───
+  // Ordering materials or scheduling the crew while the homeowner can still
+  // cancel without penalty gets a warning — never a block (Jo's rule).
+  // ky-insurance-law.js workStartWarning reads lead.cancelBy, which every
+  // in-app signing path records.
+  try {
+    const _Jx = window.NBDJurisdiction;
+    const _cxlWarn = (_Jx && typeof _Jx.workStartWarning === 'function')
+      ? _Jx.workStartWarning(lead, newStage, new Date(), _Jx.resolveTimeZone(window._legal ? window._legal() : window._companyProfile))
+      : '';
+    if (_cxlWarn && typeof showToast === 'function') showToast('⚠ ' + _cxlWarn, 'warning');
+  } catch (_) { /* a warning must never stop the move */ }
+
   // ─── Warranty-claim guard ───
   // 2026-09-15 (Warranty Claim lane). Two directions, both must run BEFORE
   // the lead.stage write below (same contract as the lost-reason prompt):

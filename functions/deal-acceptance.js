@@ -44,6 +44,8 @@ const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
 const ESL = require('./estimate-send-logic');
 const EVA = require('./estimate-view-alert');
+const KyLaw = require('./ky-insurance-law');
+const CW = require('./cancel-window');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -279,6 +281,9 @@ exports.getDealRoom = onRequest(
       logger.error('[getDealRoom] html fetch failed', { token: token.slice(0, 6), err: e.message });
       errPage(500, 'We could not load this deal right now. Please try again shortly.'); return;
     }
+    // The Notice of Right to Cancel on the page is dated today — the day the
+    // homeowner reads and signs it — not the day the rep made the link.
+    try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
 
     // Inject the token + same-origin submit endpoint so the page's ACCEPT
     // button can record the acceptance. The deal-room's submitDeal() reads
@@ -442,8 +447,15 @@ exports.submitDealAcceptance = onRequest(
       res.status(500).json({ error: 'Could not record your acceptance. Try again.' }); return;
     }
 
+    // The 3-day right to cancel (2026-10-04): accepting here is signing the
+    // contract. The stored page's Notice of Right to Cancel is re-dated to
+    // today (the record), and the last day to cancel is recorded on the deal
+    // and the lead. Best-effort — the acceptance is already committed.
+    const cancelBy = await recordDealCancelWindow(db, info, new Date());
+
     // The digest of the deal page as stored when they accepted — what they
-    // were shown. Best-effort: the acceptance is already committed.
+    // were shown (after the re-date above, so it matches the stored record).
+    // Best-effort: the acceptance is already committed.
     if (info.htmlPath) {
       try {
         const [buf] = await getStorage().bucket().file(info.htmlPath).download();
@@ -485,12 +497,36 @@ exports.submitDealAcceptance = onRequest(
     // Once per deal; never throws — the acceptance is already committed.
     const spine = await spineAfterDealAccept(db, info, tier);
 
-    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill, stageMoved: !!(spine && spine.moved) });
+    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill, stageMoved: !!(spine && spine.moved), cancelBy });
     res.status(200).json({ ok: true });
   }
 );
 
 module.exports = exports;
+
+// Re-date the accepted deal page's Notice of Right to Cancel to the signing
+// day, store it back (the page IS the signed record), and stamp cancelBy on
+// the deal + the lead. Never throws; returns the cancelBy written ('' if none).
+async function recordDealCancelWindow(db, info, when) {
+  let cancelBy = '';
+  let html = '';
+  if (info.htmlPath) {
+    try {
+      const file = getStorage().bucket().file(info.htmlPath);
+      const [buf] = await file.download();
+      html = buf.toString('utf8');
+      if (KyLaw.hasCancelPacket(html)) {
+        html = KyLaw.restampCancelPacket(html, when);
+        await file.save(Buffer.from(html, 'utf8'), { contentType: 'text/html', resumable: false });
+      }
+    } catch (e) { logger.warn('[submitDealAcceptance] cancel packet re-date failed', { msg: e && e.message }); }
+  }
+  cancelBy = CW.cancelByFor(html, when);
+  try { await db.doc(`deal_rooms/${info.dealId}`).update({ cancelBy }); }
+  catch (e) { logger.warn('[submitDealAcceptance] deal cancelBy stamp failed', { msg: e && e.message }); }
+  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger);
+  return cancelBy;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Proposal views (2026-10-02): tell the rep when the homeowner opens the deal
