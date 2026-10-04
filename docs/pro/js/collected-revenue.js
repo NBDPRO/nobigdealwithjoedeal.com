@@ -20,6 +20,8 @@
  *                                            → { total, count }  (dollars, payments)
  *   window.NBDRevenue.collectedByLead(invs, startMs, endMs) → { leadId: dollars }
  *   window.NBDRevenue.paymentsOf(inv)        → [{ amount, at, synthetic?, refund? }] (refunds negative)
+ *   window.NBDRevenue.isOwedInvoice(inv)     → bool (not paid/draft/cancelled/void, not deleted)
+ *   window.NBDRevenue.owedDollarsOf(inv)     → dollars still owed (0 when not owed)
  *
  * Emits 'nbd:invoices-loaded' on window after each load. Invalidated on
  * 'nbd:data-refreshed' and when the signed-in account changes.
@@ -41,6 +43,26 @@
     var bal = (inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0;
     return Math.round(Math.max(0, total - bal) * 100) / 100;
   }
+
+  // nbd:owed-rule:start — ONE "is this invoice still owed?" rule, kept
+  // byte-identical in collected-revenue.js, money-dashboard.js,
+  // analytics-kpi.js and invoice-pipeline.js
+  // (tests/invoice-owed-rule-2026-10-03.test.js). A voided Stripe mirror is
+  // written { status:'void', balanceDue:0 }; drafts were never sent. Neither
+  // is owed. Amount = balanceDue when present (0 means nothing due — the old
+  // `balanceDue || total` read 0 as "missing" and re-counted the full face).
+  var NOT_OWED_STATUS = { paid: 1, draft: 1, cancelled: 1, canceled: 1, void: 1, voided: 1, uncollectible: 1 };
+  function isOwedInvoice(inv) {
+    if (!inv || inv.deleted === true) return false;
+    return !NOT_OWED_STATUS[String(inv.status || '').toLowerCase()];
+  }
+  function owedDollarsOf(inv) {
+    if (!isOwedInvoice(inv)) return 0;
+    var b = inv.balanceDue;
+    var v = parseFloat((b != null && b !== '') ? b : inv.total);
+    return v > 0 ? v : 0;
+  }
+  // nbd:owed-rule:end
 
   // Same as money-dashboard.js / analytics-kpi.js / pages/leaderboard.js:
   // prefer the payments[] ledger (each credit dated), append a synthetic
@@ -191,6 +213,8 @@
   window.NBDRevenue = {
     paymentsOf: paymentsOf,
     collectedDollarsOf: collectedDollarsOf,
+    isOwedInvoice: isOwedInvoice,
+    owedDollarsOf: owedDollarsOf,
     collectedBetween: collectedBetween,
     collectedByLead: collectedByLead,
     loadInvoices: loadInvoices,

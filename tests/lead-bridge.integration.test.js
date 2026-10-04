@@ -59,7 +59,7 @@ async function run() {
     const d = nbdLead.data();
     ok('NBD: userId = tenant-zero owner', d.userId === NBD_OWNER);
     ok('NBD: companyId = owner uid (solo)', d.companyId === NBD_OWNER);
-    ok('NBD: stage New', d.stage === 'New');
+    ok('NBD: stage is the canonical new key + role', d.stage === 'new' && d.stageRole === 'new');
     ok('NBD: source label', d.source === 'Website — Inspection / Storm tool');
     ok('NBD: webLead flag', d.webLead === true);
     ok('NBD: provenance id', d.publicLeadId === insRef.id);

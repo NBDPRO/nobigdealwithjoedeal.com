@@ -83,6 +83,7 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     if (!appts.length && !manualToday.length) {
       host.innerHTML = _emptyState('No appointments today. Time to knock some doors. 🚪');
       _attachBusy(host, [], paintSeq).catch((e) => console.warn('[smart-cal] busy attach failed:', e?.message || e));
+      _attachNeedsOutcome(host, user.uid, paintSeq).catch((e) => console.warn('[smart-cal] outcome attach failed:', e?.message || e));
       return;
     }
 
@@ -106,6 +107,68 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     _attachBusy(host, appts, paintSeq).catch((e) => {
       console.warn('[smart-cal] busy attach failed:', e?.message || e);
     });
+    // Earlier appointments still sitting on 'booked' — after the first paint.
+    _attachNeedsOutcome(host, user.uid, paintSeq).catch((e) => {
+      console.warn('[smart-cal] outcome attach failed:', e?.message || e);
+    });
+  }
+
+  // ── "Needs an outcome" ──────────────────────────────────────
+  // 2026-10-03 data audit: past Cal.com appointments stayed 'booked' forever —
+  // nothing asked what happened (inspected? no-show? rescheduled?), so the
+  // calendar and the lead both kept reading as an upcoming visit. An
+  // appointment whose time has passed and is still booked/rescheduled, with
+  // no outcome recorded, is flagged. Pure; exported for tests.
+  const OUTCOME_LOOKBACK_DAYS = 14;
+  function _apptNeedsOutcome(a, nowMs) {
+    if (!a || a.outcome) return false;
+    const st = String(a.status || '').toLowerCase();
+    if (st !== 'booked' && st !== 'rescheduled') return false;
+    const end = _toMs(a.endTime) || _toMs(a.startTime);
+    return end > 0 && end < (nowMs == null ? Date.now() : nowMs);
+  }
+
+  // The last OUTCOME_LOOKBACK_DAYS of this rep's appointments before today
+  // that still need an outcome. Scoped by userId — the appointments read rule
+  // is isOwner(userId), so a repUid query is denied for everyone but admins
+  // (the today query falls back to the same userId + startTime shape/index).
+  async function _fetchPastNeedingOutcome(uid, nowMs) {
+    const now = nowMs == null ? Date.now() : nowMs;
+    const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+    const from = new Date(startOfToday); from.setDate(from.getDate() - OUTCOME_LOOKBACK_DAYS);
+    const q = window.query(
+      window.collection(window._db, 'appointments'),
+      window.where('userId', '==', uid),
+      window.where('startTime', '>=', from),
+      window.where('startTime', '<', startOfToday),
+      window.orderBy('startTime', 'asc')
+    );
+    const snap = await window.getDocs(q);
+    const out = [];
+    snap.forEach(d => { const a = Object.assign({ id: d.id }, d.data()); if (_apptNeedsOutcome(a, now)) out.push(a); });
+    return out;
+  }
+
+  function _renderNeedsOutcome(list) {
+    if (!list || !list.length) return '';
+    const rows = list.map(a => {
+      const ms = _toMs(a.startTime);
+      const when = ms ? new Date(ms).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+      const title = a.title || a.attendeeName || 'Appointment';
+      const lead = a.leadId || a._leadId;
+      const open = lead ? '<button type="button" class="sc-outcome-open" data-sc-action="openCardDetail" data-sc-id="' + _esc(lead) + '">Open lead →</button>' : '';
+      return '<div class="sc-outcome-row"><div class="sc-outcome-main"><div class="sc-outcome-title">' + _esc(title) + '</div>' +
+        '<div class="sc-outcome-when">' + _esc(when) + ' · still booked</div></div>' + open + '</div>';
+    }).join('');
+    return '<div class="sc-outcome-list" data-sc-outcome-list><div class="sc-outcome-head">⚠ ' + list.length +
+      ' past appointment' + (list.length === 1 ? '' : 's') + ' need' + (list.length === 1 ? 's' : '') + ' an outcome</div>' + rows + '</div>';
+  }
+
+  async function _attachNeedsOutcome(host, uid, paintSeq) {
+    if (!window._db || !window.query || !window.where || !window.getDocs || !window.orderBy) return;
+    const list = await _fetchPastNeedingOutcome(uid);
+    if (!list.length || host.dataset.scSeq !== paintSeq || !host.isConnected) return;
+    host.insertAdjacentHTML('afterbegin', _renderNeedsOutcome(list));
   }
 
   // ── Google busy blocks ──────────────────────────────────────
@@ -481,6 +544,7 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const title = a.title || a.attendeeName || 'Appointment';
     const where = a.location || a._leadAddress || '';
     const valueBadge = _renderValueBadge(a._leadValue);
+    const outcomeFlag = _apptNeedsOutcome(a) ? '<span class="sc-outcome-chip">Needs an outcome</span>' : '';
     const leadLink = a._leadId
       ? `<button data-sc-action="openCardDetail" data-sc-id="${_esc(a._leadId)}" style="background:none;border:none;color:var(--orange);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;">Open lead →</button>`
       : '';
@@ -494,6 +558,7 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
           <div style="font-size:13px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(title)}</div>
           ${where ? `<div style="font-size:11px;color:var(--m);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${_esc(where)}</div>` : ''}
           <span data-sc-forecast="${_esc(a.id || '')}"></span>
+          ${outcomeFlag}
           ${leadLink ? `<div style="margin-top:4px;">${leadLink}</div>` : ''}
         </div>
         <div style="text-align:right;">${valueBadge}</div>
@@ -780,6 +845,8 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   // Schedule-row helpers, exposed for tests/schedule-events-2026-09-28.test.js.
   window.NBDSchedule = {
     todaysEvents: _todaysEvents, renderApptRow: _renderApptRow, renderBusyRow: _renderBusyRow, attachBusy: _attachBusy,
+    // "needs an outcome" (2026-10-03) — tests/data-integrity-guards-2026-10-03.test.js
+    apptNeedsOutcome: _apptNeedsOutcome, fetchPastNeedingOutcome: _fetchPastNeedingOutcome, renderNeedsOutcome: _renderNeedsOutcome,
     // tests/calendar-phase0-2026-09-29.test.js
     leadDayItems: _leadDayItems, renderManualScheduled: _renderManualScheduled,
   };

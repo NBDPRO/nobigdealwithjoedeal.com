@@ -29,6 +29,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 // Kentucky insurance-job payment hold (KRS 367.626) — byte-identical copy of
 // docs/pro/js/ky-insurance-law.js.
 const KyLaw = require('./ky-insurance-law');
+const KyPayLinkGate = require('./ky-pay-link-gate-logic');
 // Lazy require (2026-08-07): the stripe SDK is ~20 MB of parse weight that
 // every deployed function paid at cold start (index.js pulls this module
 // eagerly). Required on first client construction instead.
@@ -1204,29 +1205,31 @@ exports.createStripePaymentLink = onRequest(
       // tarp/repair work (367.626(3)) is exempt. Classification is the
       // server's own (ky-insurance-law.js) — the client's kyInsuranceHold flag
       // can only ADD the hold. Refused BEFORE any Stripe call.
-      if (invoice.emergencyServices !== true) {
-        let kyLead = null;
-        if (invoice.leadId) {
-          try {
-            const ls = await db.collection('leads').doc(String(invoice.leadId)).get();
-            kyLead = ls.exists ? (ls.data() || {}) : null;
-          } catch (leadErr) {
-            logger.warn('payment_link_ky_lead_read_failed', { invoiceId, err: leadErr && leadErr.message });
-          }
-        }
-        let tz = KyLaw.DEFAULT_TIME_ZONE;
-        try {
-          const ps = await db.collection('companyProfile').doc(String(tenantId)).get();
-          if (ps.exists) tz = KyLaw.resolveTimeZone(ps.data() || {});
-        } catch (_) { /* default zone */ }
-        const hold = KyLaw.payLinkHold(kyLead, invoice, Date.now(), tz);
-        if (hold.held) {
-          logger.info('payment_link_refused_ky_window', { invoiceId, uid: decoded.uid, companyId: tenantId,
-            hasDecision: !!(kyLead && kyLead.carrierDecisionAt) });
+      // FAIL CLOSED (2026-10-03, ky-pay-link-gate-logic.js): an invoice that
+      // names a lead we cannot read (read error, or the doc is gone) is
+      // refused — it was minted with kyLead = null, i.e. never held.
+      {
+        const gate = await KyPayLinkGate.kyPayLinkGate({
+          invoice,
+          readLead: async (id) => {
+            const ls = await db.collection('leads').doc(id).get();
+            return ls.exists ? (ls.data() || {}) : null;
+          },
+          readProfile: async () => {
+            const ps = await db.collection('companyProfile').doc(String(tenantId)).get();
+            return ps.exists ? (ps.data() || {}) : null;
+          },
+          now: Date.now(),
+        });
+        if (gate.held) {
+          const unreadable = gate.reason === 'lead_unreadable' || gate.reason === 'lead_missing';
+          logger.info(unreadable ? 'payment_link_refused_ky_lead_unreadable' : 'payment_link_refused_ky_window',
+            { invoiceId, uid: decoded.uid, companyId: tenantId, reason: gate.reason, err: gate.error || null });
           res.status(409).json({
             error: 'KY_CANCELLATION_WINDOW',
-            message: KyLaw.MSG.payLinkHeld,
-            releaseDate: hold.releaseDate || null,
+            reason: gate.reason,
+            message: unreadable ? KyPayLinkGate.LEAD_UNREADABLE_MESSAGE : KyLaw.MSG.payLinkHeld,
+            releaseDate: gate.releaseDate || null,
           });
           return;
         }

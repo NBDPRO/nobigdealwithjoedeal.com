@@ -516,12 +516,16 @@ window.buildWelcomeThemePicker = () => {};  // DS welcome modal — no-op, full 
   // applying 'nbd-default' here reverted the user's Settings font on every reload.
   // Only auto-apply this engine's font when the user actually picked one here,
   // or when no Settings-grid font is active.
+  // 2026-10-03: 'nbd_font' (Settings grid) is the ONE authority. If it is set
+  // at all — Barlow included — prefs-boot already applied it and this engine
+  // must not touch the body font. Before, a stale 'nbd-font' pairing won here
+  // on every reload, overriding a later Settings pick. 'nbd-font' is now only
+  // a read-only fallback for users who never used the Settings grid.
   (function(){
     var mapsFont = localStorage.getItem('nbd-font');
     var legacyFont = localStorage.getItem('nbd_font');
-    if (mapsFont) nbdApplyFont(mapsFont, { silent: true });
-    else if (!(legacyFont && legacyFont !== 'barlow')) nbdApplyFont('nbd-default', { silent: true });
-    // else: a Settings-grid font is active; prefs-boot already applied it — leave it.
+    if (legacyFont) return;
+    nbdApplyFont(mapsFont || 'nbd-default', { silent: true });
   })();
   nbdRenderCats();
 })();

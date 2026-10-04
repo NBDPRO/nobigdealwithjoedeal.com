@@ -2229,6 +2229,40 @@ async function run() {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));
   }
 
+  // ── 46: notifications are create-only on their identity (2026-10-03) ──
+  // crm-snooze.js writes follow-up notices to a deterministic id
+  // (follow_up_<uid>_<lead>_<day>) with setDoc. A second tab's setDoc onto
+  // that id must be REFUSED, not silently overwrite (which would also reset
+  // read:true back to false), while the owner's read/dismiss updates and
+  // the first create keep working.
+  const s46Fail = []; let s46Pass = 0;
+  async function x46(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s46Pass++;
+    } catch (e) { s46Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  {
+    const { serverTimestamp: sts46 } = require('firebase/firestore');
+    const jo46 = env.authenticatedContext('jo46', {}).firestore();
+    const other46 = env.authenticatedContext('ot46', {}).firestore();
+    const ID = 'notifications/follow_up_jo46_lead1_2026-10-03';
+    const body = (extra) => Object.assign({ userId: 'jo46', type: 'follow_up', leadId: 'lead1', dateKey: '2026-10-03', title: 'Overdue', read: false, createdAt: sts46() }, extra || {});
+    await x46('first create of a deterministic id', 'allow', setDoc(doc(jo46, ID), body()));
+    await x46('owner marks it read', 'allow', updateDoc(doc(jo46, ID), { read: true, readAt: sts46() }));
+    await x46('owner dismisses / restores it', 'allow', updateDoc(doc(jo46, ID), { dismissed: true, read: true }));
+    await x46('a second setDoc onto the same id (another tab) is refused', 'deny', setDoc(doc(jo46, ID), body()));
+    await x46('cannot rewrite which lead / day it is about', 'deny', updateDoc(doc(jo46, ID), { leadId: 'lead2' }));
+    await x46('cannot change its type', 'deny', updateDoc(doc(jo46, ID), { type: 'needs_field' }));
+    await x46('another user cannot touch it', 'deny', updateDoc(doc(other46, ID), { read: false }));
+    await x46('owner can query their own day (equality-only, no index)', 'allow',
+      getDocs(query(collection(jo46, 'notifications'), where('userId', '==', 'jo46'), where('dateKey', '==', '2026-10-03'))));
+  }
+  console.log('  46: ' + s46Pass + ' notification create-only checks passed, ' + s46Fail.length + ' failed');
+  if (s46Fail.length) {
+    throw new Error('46 notifications: ' + s46Fail.length + ' check(s) went the wrong way:\n    ' + s46Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

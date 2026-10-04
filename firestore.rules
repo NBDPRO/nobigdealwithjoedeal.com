@@ -1163,7 +1163,17 @@ service cloud.firestore {
     // caller's own inbox rows. Marking one read or dismissing it is personal
     // UI state, not tenant data, and a viewer needs it to use the bell.
     match /notifications/{notifId} {
-      allow read, update, delete: if isOwner(resource.data.userId) || isAdmin();
+      allow read, delete: if isOwner(resource.data.userId) || isAdmin();
+      // Update = the owner flipping read/dismissed state. The identity of a
+      // notification (who, what kind, which lead, which day, when) never
+      // changes after create — which also makes a client setDoc onto an
+      // EXISTING deterministic id (crm-snooze.js follow-up ids,
+      // followup_<uid>_<lead>_<day>) a refused overwrite: create-only. Before
+      // 2026-10-03 the engine used addDoc + a 50-doc in-memory dedupe and
+      // wrote 18,169 follow_up docs across 89 leads.
+      allow update: if isAdmin() || (isOwner(resource.data.userId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['userId', 'type', 'leadId', 'dateKey', 'createdAt']));
       // Creation is server-side (admin SDK). Allow self-create too for client-initiated flows
       // but only if the userId matches the caller, to prevent cross-tenant spam.
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;

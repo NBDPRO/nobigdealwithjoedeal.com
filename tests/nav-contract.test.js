@@ -113,6 +113,54 @@ group('Coverage: every page with a drawer loads the one stylesheet and the one c
     missingJs.length + ' missing, e.g. ' + missingJs.slice(0, 5).map(rel).join(', '));
 });
 
+group('nbd-nav.css is linked in <head>, exactly once (render-blocking perf, 2026-10-03)', () => {
+  /* The four nav partials used to carry the <link> inside <nav>, i.e. mid-
+     <body>: a stylesheet there blocks rendering of everything after it and
+     can flash an unstyled header. It now lives once in each page's <head>
+     (the nav rules are all #id-scoped, so moving it ahead of the page's own
+     styles is cascade-neutral — measured: 0 computed-style diffs on every nav
+     element at 390/1280 px, drawer open and closed). Scope: the marketing
+     tree apply-partials governs; /pro, /admin and /dev are separate apps. */
+  const NAV_LINK_RE = /<link\b[^>]*href="\/assets\/css\/nbd-nav\.css(?:\?[^"]*)?"[^>]*>/g;
+  const marketing = pages.filter((p) => !/^docs\/(pro|admin|dev)\//.test(rel(p)));
+  const scoped = marketing.filter((p) => {
+    const html = read(p);
+    return /<!--\s*nbd:partial\s+nav-(standard|blog|tool|microsite)\b/.test(html)
+      || html.includes('/assets/css/nbd-nav.css');
+  });
+  // Positive controls: the scan found the partial pages AND the hand-authored
+  // homepage, whose nav lives outside the markers.
+  assert('at least 280 marketing pages carry a nav partial or link nbd-nav.css',
+    scoped.length >= 280, 'found ' + scoped.length);
+  assert('the homepage is in scope', scoped.some((p) => rel(p) === 'docs/index.html'));
+
+  const bad = { missing: [], twice: [], body: [] };
+  for (const p of scoped) {
+    const html = read(p);
+    const headEnd = html.indexOf('</head>');
+    const links = [];
+    let m;
+    NAV_LINK_RE.lastIndex = 0;
+    while ((m = NAV_LINK_RE.exec(html)) !== null) links.push(m.index);
+    if (links.length === 0) bad.missing.push(rel(p));
+    if (links.length > 1) bad.twice.push(rel(p) + ' x' + links.length);
+    if (headEnd < 0 || links.some((i) => i > headEnd)) bad.body.push(rel(p));
+  }
+  assert('every nav page links nbd-nav.css', bad.missing.length === 0,
+    bad.missing.length + ' missing, e.g. ' + bad.missing.slice(0, 5).join(', '));
+  assert('no nav page links nbd-nav.css twice', bad.twice.length === 0,
+    bad.twice.slice(0, 5).join(', '));
+  assert('nbd-nav.css is never linked after </head> (no render-blocking mid-body link)',
+    bad.body.length === 0, bad.body.length + ' page(s), e.g. ' + bad.body.slice(0, 5).join(', '));
+
+  // The partials are stamped into <body>, so they must not carry it either —
+  // re-adding it there would put it back mid-body on ~290 pages at once.
+  for (const name of ['nav-standard', 'nav-blog', 'nav-tool', 'nav-microsite']) {
+    const src = read(path.join(ROOT, 'site-src', 'partials', name + '.html'));
+    assert('partial ' + name + ' does not link nbd-nav.css', !src.includes('nbd-nav.css'));
+  }
+});
+
 group('Single owner: no page loads a second, competing drawer toggler', () => {
   /* Two togglers that both BIND to the hamburger cancel each other inside a
      single click dispatch — one sets open, the other toggles it straight

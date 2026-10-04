@@ -1486,7 +1486,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/customer">
 <link rel="stylesheet" href="css/photo-editor.css?v=5">
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
-<link rel="stylesheet" href="css/google-calendar.css?v=2">
+<link rel="stylesheet" href="css/google-calendar.css?v=3">
 <link rel="stylesheet" href="css/phone-calls.css?v=8">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
@@ -2589,7 +2589,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=76"></script>
+<script defer src="js/script-loader.js?v=85"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2605,19 +2605,19 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      contract / proposal pre-flight and company-profile.js's payment-terms
      defaults all read it. This page loads no estimate-config.js, so the
      rule's own DEFAULTS apply (pinned equal to the config by test). -->
-<script defer src="js/deposit-rule.js?v=1"></script>
+<script defer src="js/deposit-rule.js?v=2"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager and small; the lazy docgen bundle reads it. -->
 <script defer src="js/ky-insurance-law.js?v=3"></script>
 <script defer src="js/booking-events.js?v=2"></script>
 <script defer src="js/customer-quick-actions.js?v=1"></script>
-<script type="module" src="js/customer-bootstrap.module.js?v=13"></script>
+<script type="module" src="js/customer-bootstrap.module.js?v=14"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=2"></script>
 
 
-<script defer src="js/customer-tasks-ui.js?v=13"></script>
+<script defer src="js/customer-tasks-ui.js?v=14"></script>
 <script defer src="js/nbd-comms.js?v=3"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
@@ -2937,7 +2937,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="/pro/js/quick-capture-inbox.js?v=3"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
-<script defer src="/pro/js/command-palette.js?v=3"></script>
+<script defer src="/pro/js/command-palette.js?v=4"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="/pro/js/fab-stack-coordinator.js?v=2"></script>

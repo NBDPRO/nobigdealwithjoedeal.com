@@ -51,13 +51,13 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=7" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=11" as="script">
+<link rel="preload" href="js/crm-leads.js?v=8" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=13" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
-<link rel="preload" href="js/crm-snooze.js?v=2" as="script">
+<link rel="preload" href="js/crm-snooze.js?v=5" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
 <link rel="preload" href="js/crm.js?v=34" as="script">
-<link rel="preload" href="js/maps.js?v=11" as="script">
+<link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -111,7 +111,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=76"></script>
+<script src="js/script-loader.js?v=85"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -130,7 +130,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=28"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=29"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -191,7 +191,7 @@
   <style>@keyframes nbd-load-bar{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>
 </div>
 <script src="js/dashboard-loader-fadeout.js?v=1"></script>
-<script src="js/dashboard-ui-prefs-boot.js?v=5"></script>
+<script src="js/dashboard-ui-prefs-boot.js?v=6"></script>
 <!-- ═══════════════════════════════════════════════════════════════
      NBD PRO UNIVERSAL NAV BAR v1.0
      Drop this block into any NBD Pro tool page.
@@ -200,7 +200,7 @@
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
-<link rel="stylesheet" href="css/google-calendar.css?v=4">
+<link rel="stylesheet" href="css/google-calendar.css?v=5">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
@@ -4526,7 +4526,7 @@
         </div>
       </div><!-- /stab-panel-billing -->
 
-      <script src="js/dashboard-billing-tab.js?v=2"></script>
+      <script src="js/dashboard-billing-tab.js?v=3"></script>
       <script src="js/dashboard-connect-tab.js?v=2"></script>
 
       <!-- ══ TAB: NOTIFICATIONS ══ -->
@@ -6783,7 +6783,7 @@
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
      existing call sites migrate at their own pace. -->
-<script defer src="js/repos.js?v=1"></script>
+<script defer src="js/repos.js?v=2"></script>
 <!-- Step 4b (2026-05-16): crm.js (175KB) was split into four sibling
      modules + a thin shim. Load order is locked:
        leads → pipeline → snooze → portal-bridge → crm (shim)
@@ -6797,17 +6797,17 @@
      crm-leads.js (saveLead reads them) and smart-calendar.js. -->
 <script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/schedule-window-ui.js?v=1"></script>
-<script defer src="js/crm-leads.js?v=7"></script>
+<script defer src="js/crm-leads.js?v=8"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=11"></script>
-<script defer src="js/crm-snooze.js?v=2"></script>
+<script defer src="js/crm-pipeline.js?v=13"></script>
+<script defer src="js/crm-snooze.js?v=5"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
      users/{uid}/fcmTokens so the backend reminder/lead pushes have recipients.
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=3"></script>
-<script defer src="js/push-actions.js?v=1"></script>
+<script defer src="js/push-actions.js?v=2"></script>
 <script defer src="js/crm-portal-bridge.js?v=7"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=1"></script>
@@ -6816,9 +6816,9 @@
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=6"></script>
 <script defer src="js/dol-fill.js?v=1"></script>
-<script defer src="js/notif-bell.js?v=6"></script>
+<script defer src="js/notif-bell.js?v=7"></script>
 <script defer src="js/agent-inbox.js?v=5"></script>
-<script defer src="js/buying-intent-strike.js?v=2"></script>
+<script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
 <script defer src="js/dup-review.js?v=1"></script>
 <script defer src="js/global-search.js?v=2"></script>
@@ -6826,7 +6826,7 @@
 <script defer src="js/pwa-install-nudge.js?v=6"></script>
 <script defer src="js/data-export.js?v=4"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
-<script defer src="js/data-import.js?v=4"></script>
+<script defer src="js/data-import.js?v=5"></script>
 <script defer src="js/activity-feed.js?v=2"></script>
 <!-- Single owner of kanban filter state. MUST load before the two filter
      modules below: each registers with it at init, and without it they
@@ -6847,7 +6847,7 @@
 <!-- W135: Lead Intelligence — unified 0-100 score engine -->
 <script defer src="js/lead-score.js?v=2"></script>
 <!-- W139: Hot-lead threshold-crossing alert -->
-<script defer src="js/lead-score-alert.js?v=2"></script>
+<script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
 <script defer src="js/home-attention.js?v=6"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
@@ -6856,11 +6856,11 @@
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
-<script defer src="js/collected-revenue.js?v=1"></script>
+<script defer src="js/collected-revenue.js?v=2"></script>
 <script defer src="js/widgets.js?v=12"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=2"></script>
-<script defer src="js/ui.js?v=8"></script>
+<script defer src="js/ui.js?v=9"></script>
 <script defer src="js/demo.js?v=4"></script>
 <script defer src="js/icons.js?v=4"></script>
 <script defer src="js/nbd-comms.js?v=3"></script>
@@ -6877,7 +6877,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=12"></script>
+<script defer src="js/invoice-pipeline.js?v=13"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -6894,13 +6894,13 @@
 <script defer src="js/maps-core.js?v=8"></script>
 <script defer src="js/maps-overlays.js?v=8"></script>
 <script defer src="js/maps-customers.js?v=12"></script>
-<script defer src="js/maps.js?v=11"></script>
+<script defer src="js/maps.js?v=12"></script>
 <!-- Smart Calendar — Today's Schedule with travel-time + priority. Reads
      /appointments (Cal.com webhook output) for the current rep, cross-
      refs with window._leads for jobValue + lat/lng, and renders a
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
-<script defer src="js/smart-calendar.js?v=4"></script>
+<script defer src="js/smart-calendar.js?v=5"></script>
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
 <script defer src="js/google-calendar-ui.js?v=6"></script>
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
@@ -6919,7 +6919,7 @@
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
-<script defer src="js/deposit-rule.js?v=1"></script>
+<script defer src="js/deposit-rule.js?v=2"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
@@ -6944,7 +6944,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=7"></script>
+<script defer src="js/analytics-kpi.js?v=8"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -7014,7 +7014,7 @@
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="js/quick-capture-inbox.js?v=3"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
-<script defer src="js/command-palette.js?v=3"></script>
+<script defer src="js/command-palette.js?v=4"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="js/fab-stack-coordinator.js?v=2"></script>
