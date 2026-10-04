@@ -1,38 +1,43 @@
 /**
- * integrations/voice-memo.js — Deepgram voice transcription (F8)
+ * integrations/voice-memo.js — voice memo transcription (F8)
  *
- * Rep taps 🎙 on a lead → MediaRecorder captures 15-30s of audio →
- * client uploads the blob through this callable → Deepgram
- * Nova-3 returns a transcript → we write a `voice_memo` activity
- * entry on the lead and return the text to the client for display.
+ * Rep taps 🎙 on a lead → MediaRecorder captures up to 60s of audio →
+ * client uploads the blob through this callable → Groq Whisper returns a
+ * transcript → we write a `voice_memo` activity entry on the lead and
+ * return the text to the client for display.
  *
- * Why server-side transcription vs. browser WebSpeech:
- *   1. Consistent quality across browsers (Safari's WebSpeech is weak).
- *   2. Deepgram supports speaker diarization + smart formatting out of
- *      the box, which matters for D2D logs.
- *   3. Keeps the API key server-side.
+ * 2026-10-04: moved from Deepgram Nova-3 to Groq Whisper-large-v3-turbo.
+ * DEEPGRAM_API_KEY only ever held the deploy's `__unset__` stub, so in prod
+ * this callable always answered "Voice transcription not configured" and the
+ * card-detail Voice Memo button never worked. It now goes through the SAME
+ * provider, key and helpers as `dictate` (functions/dictate.js):
+ * voice-intelligence.js transcribeGroqBuffer + transcription-logic.js's
+ * groqExtensionForMime / normalizeGroqTranscription — no second Groq client.
+ * Same guards as dictate too: the global AI kill switch (isAiDisabled) and a
+ * per-uid rate limit. (dictate has no per-company meter to share; Groq's free
+ * tier is the cost ceiling for both.)
  *
- * Privacy: audio is NEVER written to Storage. The blob is streamed
- * to Deepgram and discarded after the transcript comes back. Only
- * the transcript survives, on the lead's activity subcollection.
+ * Privacy: audio is NEVER written to Storage. The blob is sent to Groq and
+ * discarded after the transcript comes back. Only the transcript survives,
+ * on the lead's activity subcollection.
  *
- * Unconfigured secret → callable throws failed-precondition with a
- * clear message, the client toasts + hides the 🎙 button.
+ * Unconfigured secret → callable throws failed-precondition with a clear
+ * message; the client toasts it.
  *
  * SETUP:
- *   firebase functions:secrets:set DEEPGRAM_API_KEY
+ *   firebase functions:secrets:set GROQ_API_KEY   (shared with dictate + Voice Intel)
  */
 
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 
-const DEEPGRAM_API_KEY = defineSecret('DEEPGRAM_API_KEY');
-const { secretValue } = require('./_shared');
+const { SECRETS, hasSecret } = require('./_shared');
+const { transcribeGroqBuffer } = require('./voice-intelligence');
+const { groqExtensionForMime, normalizeGroqTranscription } = require('./transcription-logic');
 const { assertNotViewer } = require('../shared');
 
 const CORS_ORIGINS = [
@@ -52,7 +57,7 @@ exports.transcribeVoiceMemo = onCall(
     enforceAppCheck: true,
     timeoutSeconds: 60,
     memory: '512MiB',
-    secrets: [DEEPGRAM_API_KEY]
+    secrets: [SECRETS.GROQ_API_KEY]
   },
   async (request) => {
     const uid = request.auth && request.auth.uid;
@@ -68,6 +73,12 @@ exports.transcribeVoiceMemo = onCall(
       assertNotViewer(request.auth.token);
     }
 
+    // Global AI kill-switch (Audit #4) — the same flag dictate reads.
+    // Emergency halt of Groq spend without a deploy.
+    if (await require('./killswitch').isAiDisabled()) {
+      throw new HttpsError('unavailable', 'AI temporarily disabled');
+    }
+
     // D1-style per-uid cap. Voice memos are human-paced; 20/hour
     // is fine for the most diligent rep and kills a loop cheaply.
     const { enforceRateLimit } = require('./upstash-ratelimit');
@@ -78,15 +89,16 @@ exports.transcribeVoiceMemo = onCall(
       throw e;
     }
 
-    const apiKey = secretValue(DEEPGRAM_API_KEY); // the '__unset__' deploy stub reads as null
-    if (!apiKey) {
+    // Registry check: the deploy's '__unset__' stub reads as not configured.
+    if (!hasSecret('GROQ_API_KEY')) {
       throw new HttpsError('failed-precondition',
         'Voice transcription not configured. Contact support.');
     }
 
-    // Accept base64 audio in the callable payload. MediaRecorder on
-    // the client produces audio/webm or audio/mp4 — Deepgram accepts
-    // both without a mime hint if `container=webm` is omitted.
+    // Accept base64 audio in the callable payload. MediaRecorder on the
+    // client produces audio/webm (Chrome/Android) or audio/mp4 (iOS
+    // Safari); groqExtensionForMime maps that to the filename extension
+    // Groq detects the container from.
     const audioB64 = typeof request.data?.audioBase64 === 'string' ? request.data.audioBase64 : '';
     const mimeType = typeof request.data?.mimeType === 'string' ? request.data.mimeType : 'audio/webm';
     const leadId   = typeof request.data?.leadId === 'string' ? request.data.leadId : null;
@@ -106,8 +118,8 @@ exports.transcribeVoiceMemo = onCall(
     // own that lead (or be platform admin). The activity write below uses
     // the Admin SDK, which BYPASSES firestore.rules — so without this check
     // any authed rep could forge a voice_memo timeline entry onto another
-    // tenant's lead by passing its (non-secret) id. Checked before Deepgram
-    // so a cross-tenant id also can't burn transcription cost. Mirrors the
+    // tenant's lead by passing its (non-secret) id. Checked before Groq
+    // so a cross-tenant id also can't burn transcription quota. Mirrors the
     // guard in remote-signing.js:97-101 / esign.js:94.
     if (leadId) {
       const leadSnap = await getFirestore().doc(`leads/${leadId}`).get();
@@ -118,56 +130,58 @@ exports.transcribeVoiceMemo = onCall(
       }
     }
 
-    // POST to Deepgram. Model: nova-3 (Nov 2024). smart_format=true
-    // inserts commas/periods; punctuate=true adds punctuation;
-    // diarize=true labels speakers (useful for homeowner+rep memos).
+    // Transcribe through the shared Groq helper (the one dictate uses).
+    let raw;
     try {
-      const url = 'https://api.deepgram.com/v1/listen?'
-        + 'model=nova-3&smart_format=true&punctuate=true&diarize=true&language=en-US';
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Token ' + apiKey,
-          'Content-Type': mimeType
-        },
-        body: audioBuf
+      raw = await transcribeGroqBuffer({
+        buffer: audioBuf,
+        mimeType,
+        filename: 'memo.' + groqExtensionForMime(mimeType),
+        // The callable has a 60s ceiling and nothing runs after Groq but
+        // one Firestore write; leave headroom for the lead read above.
+        timeoutMs: 45_000,
       });
-      if (!res.ok) {
-        const body = await res.text();
-        logger.warn('Deepgram error', { status: res.status, body: body.slice(0, 300) });
-        throw new HttpsError('internal', 'Transcription failed');
-      }
-      const data = await res.json();
-      const alt = data?.results?.channels?.[0]?.alternatives?.[0] || {};
-      const transcript = (alt.transcript || '').trim();
-      const confidence = alt.confidence || null;
-
-      // Persist to the lead's activity subcollection (if linked).
-      if (leadId && transcript) {
-        try {
-          await getFirestore().collection(`leads/${leadId}/activity`).add({
-            userId: uid,
-            type: 'voice_memo',
-            label: 'Voice memo',
-            transcript,
-            confidence,
-            durationSec: Math.round(audioBuf.length / (128 * 1024 / 8)),
-            createdAt: FieldValue.serverTimestamp()
-          });
-        } catch (e) { logger.warn('voice-memo activity write failed', { err: e.message }); }
-      }
-
-      return {
-        success: true,
-        transcript,
-        confidence,
-        words: Array.isArray(alt.words) ? alt.words.length : 0
-      };
     } catch (e) {
-      if (e instanceof HttpsError) throw e;
-      logger.error('transcribeVoiceMemo', { err: e.message });
+      // Provider detail goes to the log, never to the client.
+      logger.warn('[transcribeVoiceMemo] transcription failed', {
+        provider: 'groq', status: (e && e.status) || null, code: (e && e.code) || null,
+        detail: String((e && e.message) || e).slice(0, 300),
+      });
+      if (e && e.status === 429) {
+        throw new HttpsError('resource-exhausted', 'Transcription is busy — try again in a minute.');
+      }
       throw new HttpsError('internal', 'Transcription failed');
     }
+    // transcribeGroqBuffer returns { text, segments, durationSec }; the
+    // normalizer trims the text and sets confidence null (Groq gives none —
+    // never invented).
+    const { transcript, confidence } = normalizeGroqTranscription(raw);
+    const groqSec = Number(raw && raw.durationSec);
+
+    // Persist to the lead's activity subcollection (if linked).
+    if (leadId && transcript) {
+      try {
+        await getFirestore().collection(`leads/${leadId}/activity`).add({
+          userId: uid,
+          type: 'voice_memo',
+          label: 'Voice memo',
+          transcript,
+          confidence,
+          provider: 'groq',
+          durationSec: groqSec > 0
+            ? Math.round(groqSec)
+            : Math.round(audioBuf.length / (128 * 1024 / 8)),
+          createdAt: FieldValue.serverTimestamp()
+        });
+      } catch (e) { logger.warn('voice-memo activity write failed', { err: e.message }); }
+    }
+
+    return {
+      success: true,
+      transcript,
+      confidence,
+      words: transcript ? transcript.split(/\s+/).filter(Boolean).length : 0
+    };
   }
 );
 
