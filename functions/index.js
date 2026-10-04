@@ -326,16 +326,10 @@ Object.assign(exports, stormBriefingIntegration);
 Object.assign(exports, thumbtackIntegration);
 Object.assign(exports, thursdayIntegration);
 
-// Swath (swathapi.com) — storm-verified property intel: hail-swath +
-// parcel providers (mounted inside hail.js/parcel.js), storm.verified
-// webhook, and the quote-first Swath Report callables. Mounted
-// selectively because the module also exports plain helpers
-// (fetchSwathHail, querySwathProperty, verifySwathSignature) that don't
-// belong in the deploy surface. See runbooks/SWATH-SETUP.md.
-const swathIntegration = require('./integrations/swath');
-exports.getSwathReport = swathIntegration.getSwathReport;
-exports.getSwathUsage  = swathIntegration.getSwathUsage;
-exports.swathWebhook   = swathIntegration.swathWebhook;
+// Swath (getSwathReport, getSwathUsage, swathWebhook) was removed
+// 2026-10-04 — its key was never set (VENDOR-COST-LOCKIN Lane C).
+// Retiring an export does NOT undeploy it: the three functions must be
+// deleted by hand (gcloud functions delete … --region=us-central1).
 
 // ═══════════════════════════════════════════════════════════════
 // HOMEOWNER PORTAL (createPortalToken, revokePortalToken,
@@ -795,8 +789,8 @@ exports.onReferralJobWrite  = referralRewards.onReferralJobWrite;
 // ~$0.08 on flux-kontext-max (the default for shingle edits).
 //
 // Ships DISABLED by default. Set VISUALIZER_IMAGEGEN_ENABLED=true to go
-// live; it needs the REPLICATE_API_TOKEN secret populated (or
-// KIE_API_KEY with IMAGEGEN_PROVIDER=kie for the alternate provider).
+// live; it needs the REPLICATE_API_TOKEN secret populated. (The kie.ai
+// alternate provider was removed 2026-10-04.)
 //
 // CORRECTED 2026-09-05 — this block was wrong on all three counts. It
 // named Gemini 2.5 Flash Image as the model, quoted ~$0.02-$0.04, and
@@ -805,8 +799,8 @@ exports.onReferralJobWrite  = referralRewards.onReferralJobWrite;
 // (2026-04-18): it would not commit to material swaps, returning tinted
 // asphalt for asphalt→metal. Nothing in functions/ declares
 // GOOGLE_AI_API_KEY — no defineSecret() references it — and the
-// provider seam in visualizer-image-gen.js is 'replicate' | 'kie', with
-// no Gemini path at all. See that file's header for the full swap
+// only provider in visualizer-image-gen.js is Replicate, with no Gemini
+// path at all. See that file's header for the full swap
 // history; it is the source of truth for this feature.
 const visualizerImageGen = require('./visualizer-image-gen');
 exports.visualizerImageGen = visualizerImageGen.visualizerImageGen;

@@ -5,8 +5,8 @@
  * Legal-checklist audit (2026-10-03) — the page-level disclosures:
  *
  *   1. docs/privacy.html names every vendor the code actually sends personal
- *      data to (Bland AI, Groq + Anthropic for recorded calls, Replicate /
- *      Kie.ai for the PUBLIC visualizer, xAI for the CRM bots), and its Do
+ *      data to (Bland AI, Groq + Anthropic for recorded calls, Replicate
+ *      for the PUBLIC visualizer, xAI for the CRM bots), and its Do
  *      Not Track text agrees with what the analytics loaders DO — derived
  *      from the loader source, so the policy and the code cannot drift.
  *   2. /pro/register is clickwrap: a required "I agree" checkbox, not a
@@ -49,10 +49,12 @@ console.log('1. privacy policy — vendors the code uses');
     /transcribed by Groq/.test(callPara) && /summarized by Anthropic/.test(callPara), callPara.slice(0, 160));
 
   const viz = read('functions/visualizer-image-gen.js');
-  ok('code: the visualizer image endpoint calls Replicate and (alternate) kie.ai (precondition)',
-    /replicate\.com/.test(viz) && /api\.kie\.ai/.test(viz));
-  ok('policy: the PUBLIC visualizer discloses Replicate and Kie.ai',
-    /Roof Visualizer/.test(text) && /Replicate/.test(text) && /Kie\.ai/.test(text) && /do not need an account/.test(text));
+  // The kie.ai alternate provider was removed 2026-10-04 (VENDOR-COST-LOCKIN
+  // Lane C); Replicate is the one image vendor the code can call.
+  ok('code: the visualizer image endpoint calls Replicate (precondition)',
+    /replicate\.com/.test(viz));
+  ok('policy: the PUBLIC visualizer discloses Replicate',
+    /Roof Visualizer/.test(text) && /Replicate/.test(text) && /do not need an account/.test(text));
   ok('policy no longer claims Replicate is used only for Pro accounts with an image feature enabled',
     !/only if a contractor's account has the optional AI image feature/.test(text));
 
