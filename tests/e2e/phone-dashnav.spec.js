@@ -232,9 +232,11 @@ const phoneSuite = (width) => test.describe.serial(`phone dashboard nav + quick 
     await dismissToasts(page);
     await expectTappable(page, '#mni-dash', 'bottom-nav Home');
     await page.locator('#mni-dash').tap();
-    await expect.poll(() => activeView(page)).toBe('view-dash');
+    // ONE Home (2026-10-03): the Home tab opens Today (#view-home), the boot
+    // view; the KPI dashboard is under More → Dashboard (KPIs).
+    await expect.poll(() => activeView(page)).toBe('view-home');
     const first = await safeEvaluate(page, () => String(window._user.displayName || window._user.email.split('@')[0]).trim().split(/\s+/)[0]);
-    await expect(page.locator('#view-dash .page-title').first()).toHaveText(new RegExp(`Welcome Back, ${first}$`, 'i'));
+    await expect(page.locator('#view-home .page-title').first()).toHaveText(new RegExp(`Welcome Back, ${first}$`, 'i'));
   });
 
   test('bell: What\'s New opens over the current view instead of navigating to Settings', async () => {
