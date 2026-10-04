@@ -62,6 +62,10 @@ test.describe.serial('Call Center view @shard2', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, leadId: body.leadId || null, phoneAdded: true, requeued: body.action === 'notpersonal' } }) });
     });
     await page.route(/cloudfunctions\.net|\.run\.app/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":{}}' }));
+    // The Said-you'd-do list: one no-customer call the server matched to the
+    // seeded customer ("Looks like X", 2026-10-03). Filled in once seeded.
+    let promiseItems = [];
+    await page.route(/callPromisesList/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: { items: promiseItems, counts: { items: promiseItems.length } } }) }));
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!window._user && !!window._user.uid && typeof window.goTo === 'function', null, { timeout: 30_000 });
@@ -84,12 +88,18 @@ test.describe.serial('Call Center view @shard2', () => {
       // One unknown number, two open calls: one person, one card.
       e: { leadId: null, bucket: 'unknown', contactName: '', phoneDigits: '5135550177', direction: 'inbound', startedAtMs: s - 6000, status: 'noted', storagePath: null, summary: 'ZZCV asked about siding.', promises: [] },
       f: { leadId: null, bucket: 'unknown', contactName: '', phoneDigits: '5135550177', direction: 'inbound', startedAtMs: s - 7000, status: 'noted', storagePath: null, summary: 'ZZCV first call, left a message.', promises: [] },
+      // On no customer, but the notes named the seeded one: the server stored
+      // the suggestion when it wrote the notes (2026-10-03).
+      g: { leadId: null, bucket: 'contact', contactName: 'ZZCV Roofer Pal', phoneDigits: '5135556' + String(s).slice(-3), direction: 'inbound', startedAtMs: s - 8000, status: 'noted', storagePath: null, summary: 'ZZCV asked about the estimate.', promises: [{ who: 'jo', text: 'Send ZZCV the estimate', due: null }],
+           suggestedLeadId: leadId, suggestedLeadName: 'ZZCV Cust' + s, suggestedWhy: 'their name said on the call', suggestCheckedAtMs: s },
     };
     for (const [k, v] of Object.entries(docs)) await db.doc('phone_calls/cube_zzcv' + s + k).set(Object.assign({}, base, v));
     // A day of texts (phone_text_days) with a promise Jo made.
     await db.doc('phone_text_days/txt_5135557' + String(s).slice(-3) + '_20261001').set({ userId: uid, companyId: uid, channel: 'text', status: 'noted', leadId, contactName: 'ZZCV Cust', phoneDigits: '5135557' + String(s).slice(-3), ymd: '2026-10-01', startedAtMs: s - 500, messageCount: 4, summary: 'ZZCV texted about the gutter quote.', promises: [{ who: 'jo', text: 'Text the quote tonight', due: null }], followUpDate: null, urgent: false });
     await db.doc('phone_calls/cube_zzcv' + s + 'x').set(Object.assign({}, base, { userId: 'someone-else', companyId: 'other-co', contactName: 'ZZCV Other Tenant', bucket: 'unknown', startedAtMs: s, status: 'noted' }));
 
+    promiseItems = [{ callId: 'cube_zzcv' + s + 'g', channel: 'call', kind: 'nofile', due: null, leadId: null, who: 'ZZCV Roofer Pal', contactName: 'ZZCV Roofer Pal', phoneDigits: '5135556' + String(s).slice(-3), startedAtMs: s - 8000,
+      summary: 'ZZCV asked about the estimate.', promises: ['Send ZZCV the estimate'], hasTask: false, callType: 'customer', suggest: { leadId, name: 'ZZCV Cust' + s, why: 'their name said on the call' } }];
     // Reachable from the nav; lazy bundle.
     expect(await safeEvaluate(page, () => !!window.NBDCallCenter)).toBe(false);
     await safeEvaluate(page, () => window.goTo('calls'));
@@ -196,8 +206,37 @@ test.describe.serial('Call Center view @shard2', () => {
     // Filed on a customer + nothing promised → leaves Needs attention.
     await expect(card('c')).toHaveCount(0);
 
+    // "Looks like X" (2026-10-03): the stored suggestion is a one-tap File on
+    // row on the main card — offered, never filed by itself.
+    await page.locator('#view-calls [data-cc="filter"][data-arg="attention"]').click();
+    const g = card('g');
+    await expect(g.locator('.cc-suggest')).toContainText('Looks like ZZCV Cust' + s + ' — their name said on the call');
+    const fileBtn = g.locator('[data-ccp="suggest"]');
+    await expect(fileBtn).toHaveText('File on ZZCV Cust' + s);
+    expect(actions.some((x) => x.id === 'cube_zzcv' + s + 'g'), 'nothing filed until the tap').toBe(false);
+    await fileBtn.scrollIntoViewIfNeeded();
+    const fb = await fileBtn.boundingBox();
+    expect(fb.height, 'File on is a 44px phone target').toBeGreaterThanOrEqual(44);
+    expect(fb.x + fb.width, 'File on fits the phone').toBeLessThanOrEqual(391);
+    await page.screenshot({ path: 'test-results/call-center-looks-like-phone.png' });
+    // The Said-you'd-do deck card offers the same one tap.
+    await page.locator('#view-calls [data-cc="promises"]').click();
+    const deckCard = page.locator('#nbdTriageDeck .deck-card[data-id]');
+    await expect(deckCard).toHaveAttribute('data-id', 'cube_zzcv' + s + 'g', { timeout: 10_000 });
+    await expect(deckCard).toContainText('Looks like ZZCV Cust' + s);
+    const deckFile = deckCard.getByRole('button', { name: 'File on ZZCV Cust' + s });
+    const db2 = await deckFile.boundingBox();
+    expect(db2.height).toBeGreaterThanOrEqual(44);
+    expect(db2.x + db2.width).toBeLessThanOrEqual(391);
+    await page.screenshot({ path: 'test-results/call-center-looks-like-deck-phone.png' });
+    await page.locator('#nbdTriageDeck .deck-close').click();
+    // The tap on the main card files it.
+    await fileBtn.click();
+    await expect.poll(() => actions.some((x) => x.id === 'cube_zzcv' + s + 'g' && x.action === 'attach' && x.leadId === leadId), { timeout: 10_000 }).toBe(true);
+    await expect(g.locator('[data-cc-status]')).toContainText('Filed on ZZCV Cust' + s);
+
     // Cleanup.
-    for (const k of ['a', 'b', 'c', 'd', 'e', 'f', 'p', 'x']) await db.doc('phone_calls/cube_zzcv' + s + k).delete().catch(() => {});
+    for (const k of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'p', 'x']) await db.doc('phone_calls/cube_zzcv' + s + k).delete().catch(() => {});
     await db.doc('phone_text_days/txt_5135557' + String(s).slice(-3) + '_20261001').delete().catch(() => {});
     await bucket.file(path).delete().catch(() => {});
   });

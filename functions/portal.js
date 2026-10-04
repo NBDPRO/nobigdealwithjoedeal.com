@@ -63,6 +63,7 @@ const { reencodePhoto } = require('./photo-reencode');
 // stay identical). NEVER emit est.rows raw — pre-sweep V2 rows carry the
 // contractor's COST basis.
 const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
+const { isOwedInvoice } = require('./invoice-owed');
 // The estimate's deposit-rule stamp, validated + whitelisted (2026-09-25).
 const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
@@ -999,6 +1000,10 @@ exports.getHomeownerPortalView = onRequest(
     const _unpaidInvoice = invSnap.docs
       .map(d => d.data())
       .filter(inv => recordInPortalTenant(inv, ['createdBy'], tenant))
+      // A draft (incl. the server's draft deposit invoice, 2026-10-03) was
+      // never sent — showing it here would bill the homeowner before Jo
+      // taps Send. Void / cancelled / deleted are not owed either.
+      .filter(inv => isOwedInvoice(inv))
       .filter(inv => Number(inv.balanceDue) > 0)
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))[0] || null;
     const _balance = _unpaidInvoice ? {

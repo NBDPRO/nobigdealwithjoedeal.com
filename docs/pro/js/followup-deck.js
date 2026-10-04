@@ -94,5 +94,6 @@
     });
   }
 
-  window.NBDFollowUpDeck = { open, _inDays: inDays };
+  // setFollowUp is shared with no-next-step.js — one writer for `followUp`.
+  window.NBDFollowUpDeck = { open, setFollowUp, _inDays: inDays };
 })();

@@ -26,9 +26,10 @@
 <link rel="stylesheet" href="css/agent-inbox.css?v=4">
 <link rel="stylesheet" href="css/sort-customers.css?v=1">
 <link rel="stylesheet" href="css/triage-deck.css?v=2">
+<link rel="stylesheet" href="css/no-next-step.css?v=1">
 <link rel="stylesheet" href="css/dol-fill.css?v=1">
 <link rel="stylesheet" href="css/d2d-storm.css?v=1">
-<link rel="stylesheet" href="css/phone-calls.css?v=8">
+<link rel="stylesheet" href="css/phone-calls.css?v=9">
 <style id="theme-system-noop">
 /* Theme variables now live in css/theme-system.css. This stub keeps the
    #theme-system id reachable for any DOM lookup that still expects a
@@ -111,7 +112,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=101"></script>
+<script src="js/script-loader.js?v=102"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -130,14 +131,14 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=28"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=30"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
 <link rel="stylesheet" href="css/dashboard-app.css?v=8">
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=1">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=1">
 <link rel="stylesheet" href="css/money-dashboard.css?v=1">
@@ -862,6 +863,9 @@
       <!-- Needs-you strip (js/home-attention.js): Stripe payments to assign,
            yard signs to pick up, phone calls that need you. Hidden when all are zero. -->
       <div id="homeAttention" class="ha-strip mb-md" hidden></div>
+      <!-- No next step (js/no-next-step.js): open leads with no follow-up and
+           no open task, oldest first, one-tap rows. Hidden when empty. -->
+      <section id="homeNoNextStep" class="nns-card mb-md" aria-label="Leads with no next step" hidden></section>
       <div id="homeGameCard" class="mb-md" hidden></div>
       <style>
         .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
@@ -1905,6 +1909,13 @@
               🚨 <span class="crm-hdr-btn-label">Needs Attention</span>
               <span id="needsAttentionCountBadge"
                 style="display:none;background:#ef4444;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;">0</span>
+            </button>
+            <!-- No next step (2026-10-03, js/no-next-step.js): open leads with
+                 no follow-up date and no open task. -->
+            <button class="btn btn-ghost crm-hdr-btn nns-filter-btn" id="noNextStepBtn" type="button"
+              title="Show only open leads with no follow-up date and no open task" aria-pressed="false">
+              🧭 <span class="crm-hdr-btn-label">No next step</span>
+              <span id="noNextStepCountBadge" class="nns-filter-badge" hidden>0</span>
             </button>
             <!-- Wave 54: Stale Shares filter — customers shared 5+ days
                  ago with no customer-side response. -->
@@ -5916,7 +5927,7 @@
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=7"></script>
-<script defer src="js/dashboard-ui.js?v=10"></script>
+<script defer src="js/dashboard-ui.js?v=11"></script>
 <script defer src="js/dashboard-actions.js?v=16"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
@@ -6810,7 +6821,7 @@
 <script defer src="js/push-actions.js?v=2"></script>
 <script defer src="js/crm-portal-bridge.js?v=7"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
-<script defer src="js/followup-deck.js?v=1"></script>
+<script defer src="js/followup-deck.js?v=2"></script>
 <script defer src="js/sort-customers.js?v=2"></script>
 <script defer src="js/crm.js?v=34"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
@@ -6833,8 +6844,11 @@
      deliberately no-op rather than fight over the board. -->
 <script defer src="js/lead-filter-registry.js?v=1"></script>
 <script defer src="js/needs-attention-filter.js?v=4"></script>
+<!-- "No next step" (2026-10-03): open leads with no follow-up and no open
+     task — Home card #homeNoNextStep + the board filter #noNextStepBtn. -->
+<script defer src="js/no-next-step.js?v=2"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
-<script defer src="js/lead-snooze.js?v=5"></script>
+<script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=3"></script>
 <!-- Wave 42: portal-link helpers must load BEFORE kanban-context-menu
      so the menu picks up Copy/Text Portal Link items on first render. -->
@@ -6863,9 +6877,9 @@
 <script defer src="js/ui.js?v=9"></script>
 <script defer src="js/demo.js?v=4"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=3"></script>
+<script defer src="js/nbd-comms.js?v=4"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
-<script defer src="js/stage-checklist.js?v=1"></script>
+<script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
 <script defer src="js/warranty-claim.js?v=3"></script>
 <!-- Insurance Details panel reuse (mobile Details tab) — ClaimPanel.render
@@ -6877,7 +6891,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=12"></script>
+<script defer src="js/invoice-pipeline.js?v=13"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js

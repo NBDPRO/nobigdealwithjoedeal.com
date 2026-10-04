@@ -39,8 +39,10 @@ window._saveLead = async (data) => {
     console.warn('Lead save failed:', res.reason);
     return null;
   }
-  // One-time grant to attach this submission's photos (intake-extras.js).
-  window._lastPhotoToken = res.photoToken || null;
+  // One-time grant for this submission's follow-up answers + photos (the
+  // thank-you screen). Only a save that ASKED for one gets one back, so a
+  // later CTA-click / email-request save must not wipe it (2026-10-03).
+  if (res.photoToken) window._lastPhotoToken = res.photoToken;
   return res.id;
 };
 

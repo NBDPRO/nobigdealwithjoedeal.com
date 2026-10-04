@@ -1087,6 +1087,12 @@ body.nbd-photo-reorder .nbd-photo-item.drop-after {
 .invoice-status.overdue { background:color-mix(in srgb, var(--red) 14%, transparent); color:var(--red); }
 .invoice-status.partial { background:color-mix(in srgb, var(--gold,#D4A017) 16%, transparent); color:var(--gold,#D4A017); }
 .invoice-owed { font-size:11px; font-weight:700; color:var(--gold,#D4A017); margin-top:2px; }
+/* The draft deposit invoice row (2026-10-03): chip on its own line, actions
+   wrap under it with 44px taps — three buttons never fit beside a 390px row. */
+.invoice-item.is-deposit-draft { flex-wrap:wrap; row-gap:8px; }
+.invoice-item.is-deposit-draft .invoice-left { flex:1 1 100%; }
+.invoice-item.is-deposit-draft .invoice-right { flex:1 1 100%; flex-wrap:wrap; justify-content:flex-end; row-gap:8px; }
+.invoice-item.is-deposit-draft .doc-btn { min-height:44px; }
 
 .payment-summary {
   display:grid; grid-template-columns:1fr 1fr; gap:12px;
@@ -1467,7 +1473,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 
 </style>
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=1">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/customer-bootstrap.css?v=1">
 <link rel="stylesheet" href="css/customer-tasks.css?v=1">
@@ -1486,6 +1492,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/customer">
 <link rel="stylesheet" href="css/photo-editor.css?v=5">
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
+<link rel="stylesheet" href="css/google-calendar.css?v=2">
+<link rel="stylesheet" href="css/phone-calls.css?v=9">
 <link rel="stylesheet" href="css/google-calendar.css?v=3">
 <link rel="stylesheet" href="css/phone-calls.css?v=8">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
@@ -2589,14 +2597,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=101"></script>
+<script defer src="js/script-loader.js?v=102"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
      before the modal-consuming scripts below. -->
 <script defer src="js/nbd-modal.js?v=2"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/customer-photo-report-generator.js?v=4"></script>
+<script defer src="js/customer-photo-report-generator.js?v=5"></script>
 <!-- Retail line-item derivation for the portal estimate export — pre-sweep V2
      docs persist the internal COST basis in rows[].rate/total; this maps them
      to customer prices (exportCustomerEstimate fails closed without it). -->
@@ -2617,10 +2625,10 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/my-skin.js?v=2"></script>
 
 
-<script defer src="js/customer-tasks-ui.js?v=13"></script>
-<script defer src="js/nbd-comms.js?v=3"></script>
+<script defer src="js/customer-tasks-ui.js?v=14"></script>
+<script defer src="js/nbd-comms.js?v=4"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
-<script defer src="js/stage-checklist.js?v=1"></script>
+<script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
 <script defer src="js/warranty-claim.js?v=3"></script>
 <script defer src="js/nbd-input-guards.js?v=1"></script>
@@ -2686,7 +2694,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/customer-quick-action-bar.js?v=3"></script>
 <!-- Wave 35/36: lead-snooze must load before the banner since the
      banner reads window.LeadSnooze on init. -->
-<script defer src="js/lead-snooze.js?v=5"></script>
+<script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/customer-snooze-banner.js?v=2"></script>
 <!-- Wave 42: shared portal-link helpers — used by the W40 + W41
      buttons on this page and by the kanban context menu on the
@@ -2696,7 +2704,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Wave 52: last-shared chip in the customer header. Mirrors the
      W44 kanban badge so both surfaces show the same cue. -->
 <script defer src="js/customer-last-shared-chip.js?v=2"></script>
-<script defer src="js/customer-calls.js?v=7"></script>
+<script defer src="js/customer-calls.js?v=8"></script>
 <script defer src="js/customer-viewed-chip.js?v=2"></script>
 <script defer src="js/customer-sibling-snooze.js?v=2"></script>
 <script defer src="js/customer-engagement-score.js?v=2"></script>
