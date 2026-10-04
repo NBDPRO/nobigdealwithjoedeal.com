@@ -2094,6 +2094,10 @@
         photoPaths: Array.isArray(data.photoPaths) ? data.photoPaths : [],
         voiceUrl: data.voiceUrl || '',
         followUpTime: data.followUpTime || '',
+        // "Appointment Set" — when the rep booked it (datetime-local, the
+        // rep's local time). convertToLead books it on the new lead through
+        // lead-events.js (2026-10-03, stage-flow lane).
+        appointmentAt: (disposition === 'appointment' && data.appointmentAt) ? String(data.appointmentAt).slice(0, 25) : '',
         // ── Door-number accuracy provenance ──
         // How we know this address is right: the verdict, whether a human
         // confirmed it, the house number we cross-checked, which sources
@@ -2194,6 +2198,7 @@
     // 2026-09-28). _saveLead's own catch comment expects exactly this.
     let _locked = false;
     let knock = null;
+    let _newLeadId = null;
     const _release = async () => {
       if (!_locked) return;
       _locked = false;
@@ -2256,14 +2261,15 @@
       const firstName = (knock.homeowner || '').split(' ')[0] || 'D2D';
       const lastName = (knock.homeowner || '').split(' ').slice(1).join(' ') || 'Lead';
 
-      // Map D2D disposition → CRM stage key (snake_case, matches crm-stages.js)
-      let stage = 'new';
-      if (knock.disposition === 'appointment') stage = 'inspected';
-      else if (knock.disposition === 'interested') stage = 'contacted';
-      else if (knock.disposition === 'callback') stage = 'contacted';
-      else if (knock.disposition === 'left_material') stage = 'contacted';
-      else if (INS_DISPOSITIONS.includes(knock.disposition)) stage = 'claim_filed';
-      else if (knock.disposition === 'storm_damage') stage = 'contacted';
+      // Map D2D disposition → CRM stage key (d2d-knock-lead-logic.js).
+      // 2026-10-03: "Appointment Set" landed as Inspected (nobody had been on
+      // the roof) and "Needs to file" as Claim Filed (nobody had filed
+      // anything — on a KY insurance job that record is a legal problem).
+      // Both are Contacted now.
+      const _KL = window.NBDKnockLeadLogic;
+      const stage = _KL ? _KL.stageForDisposition(knock.disposition)
+        : ((knock.disposition === 'ins_has_claim' || knock.disposition === 'ins_denied') ? 'claim_filed'
+          : (knock.disposition && DISPOSITIONS[knock.disposition] && HOT_DISPOSITIONS.concat(['left_material']).includes(knock.disposition)) ? 'contacted' : 'new');
 
       // Map D2D disposition → CRM job type
       let jobType = '';
@@ -2300,8 +2306,14 @@
         if (defaultDays > 0) {
           const d = new Date();
           d.setDate(d.getDate() + defaultDays);
-          followUpStr = d.toISOString().split('T')[0];
+          // LOCAL day — toISOString() is the UTC day, a day late after ~8pm ET.
+          followUpStr = _KL ? _KL.localYmd(d) : d.toISOString().split('T')[0];
         }
+      }
+      // Same UTC slip for the knock's own follow-up (a local-midnight Date):
+      // re-derive the local calendar day from the stored value.
+      if (followUpStr && _KL && knock.followUpDate && typeof knock.followUpDate === 'object') {
+        followUpStr = _KL.followUpYmd(knock.followUpDate) || followUpStr;
       }
 
       // ─── Prospect segregation (April 2026) ───
@@ -2366,20 +2378,43 @@
         // toast -- bail here instead of stamping the knock converted and
         // telling the rep it worked (mirrors tools.js's quick-add guard).
         if (!leadId) { await _release(); return; }
+        _newLeadId = leadId;
       } else {
         // Fallback: direct Firestore write. stageStartedAt anchors the
         // days-in-stage badge to actual lead-create time.
-        await window.addDoc(window.collection(window._db, 'leads'), {
+        const _fbRef = await window.addDoc(window.collection(window._db, 'leads'), {
           ...leadData,
           userId: window._user.uid,
           companyId: window._userClaims?.companyId || window._user.uid,
           createdAt: window.serverTimestamp(),
           stageStartedAt: window.serverTimestamp()
         });
+        _newLeadId = (_fbRef && _fbRef.id) || null;
         _locked = false;
         if (typeof window._loadLeads === 'function') await window._loadLeads();
       }
       _locked = false; // a lead exists now — the knock stays converted whatever follows
+
+      // "Appointment Set" with a time → book it on the lead (lead-events.js,
+      // the customer page's Add Event writer). Best-effort: the lead exists.
+      let _apptBooked = false;
+      if (isAppointment && _newLeadId && knock.appointmentAt && window.NBDLeadEvents && typeof window.NBDLeadEvents.add === 'function') {
+        const _when = _KL ? _KL.appointmentWhen(knock.appointmentAt) : new Date(knock.appointmentAt);
+        if (_when && !isNaN(_when.getTime())) {
+          try {
+            await window.NBDLeadEvents.add(_newLeadId, {
+              title: 'Inspection appointment' + (knock.homeowner ? ' — ' + knock.homeowner : ''),
+              when: _when,
+              notes: 'Booked at the door (D2D knock).' + (knock.address ? ' ' + knock.address : ''),
+              source: 'd2d',
+            });
+            _apptBooked = true;
+          } catch (apptErr) {
+            console.warn('convertToLead: appointment not booked', apptErr && apptErr.message);
+            window.showToast?.('Lead saved — but the appointment did not save. Add it from the customer page.', 'warning');
+          }
+        }
+      }
 
       await updateKnock(knockId, { convertedToLead: true });
       if (window.D2D && typeof window.D2D.closeKnockDetail === 'function') window.D2D.closeKnockDetail();
@@ -2388,7 +2423,7 @@
       // (isProspect above), which the pipeline hides. The toast used to say
       // "visible in your pipeline" either way.
       window.showToast?.(isAppointment
-        ? '✅ Converted to CRM Lead — visible in your pipeline'
+        ? (_apptBooked ? '✅ Converted to CRM Lead — appointment booked' : '✅ Converted to CRM Lead — visible in your pipeline')
         : '✅ Saved to Prospects — promote it when it’s qualified', 'success');
     } catch (e) {
       console.error('convertToLead failed:', e);
@@ -2444,8 +2479,10 @@
       // select silently stayed on the placeholder.
       const stageEl = document.getElementById('lStage');
       if (stageEl) {
-        if (knock.disposition === 'appointment') stageEl.value = 'inspected';
-        else if (knock.disposition === 'interested') stageEl.value = 'contacted';
+        // Same map as convertToLead (d2d-knock-lead-logic.js, 2026-10-03).
+        const _KLe = window.NBDKnockLeadLogic;
+        if (_KLe) stageEl.value = _KLe.stageForDisposition(knock.disposition);
+        else if (knock.disposition === 'appointment' || knock.disposition === 'interested') stageEl.value = 'contacted';
         else stageEl.value = 'new';
       }
 

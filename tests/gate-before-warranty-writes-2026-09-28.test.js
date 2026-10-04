@@ -71,9 +71,11 @@ console.log('CUSTOMER PAGE progressStage — check before write');
   const resolve = ps.indexOf('window.WarrantyClaim.promptResolution(lead)');
   ok('progressStage found with gate + both warranty writers', ps && gate > 0 && intake > 0 && resolve > 0);
   ok('the required-field gate runs before the claim is filed / resolved', gate < intake && gate < resolve, [gate, intake, resolve].join(' / '));
-  ok('"Open full editor" goes to ?edit= (a bare ?lead= is the new-estimate link)',
-    /undoAction: \(\) => \{ window\.location\.href = '\/pro\/dashboard\?edit=' \+ encodeURIComponent\(window\._customerId\); \}/.test(ps)
-      && !/\/pro\/dashboard\?lead=' \+ window\._customerId; \}/.test(ps));
+  // 2026-10-03: the gate opens the inline stage-gate sheet instead of leaving
+  // the page, so there is no deep link left to get wrong.
+  ok('the gate never navigates away (no ?lead= / ?edit= link) — it opens the stage-gate sheet first',
+    /sheet\.open\(\{/.test(ps) && !/\/pro\/dashboard\?lead=' \+ window\._customerId; \}/.test(ps)
+      && ps.indexOf('sheet.open({') < intake);
 }
 
 console.log('DASHBOARD ?edit= deep link');

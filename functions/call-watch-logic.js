@@ -37,27 +37,45 @@ function toMs(v) {
 }
 const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
-/** Mirror of home-attention.js callNeedsYou (kept in step by the test). */
-function callNeedsYou(c, now) {
+/** Mirror of home-attention.js isMissedCall / reachIndex / callNeedsYou (kept in step by the test). */
+const isMissedCall = (c) => !!c && c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound';
+function reachIndex(rows) {
+  const m = new Map();
+  (rows || []).forEach((r) => {
+    if (!r || r.channel === 'text' || isMissedCall(r) || (r.direction !== 'inbound' && r.direction !== 'outbound')) return;
+    const k = callerKey(r), at = toMs(r.startedAtMs) || 0;
+    if (at > (m.get(k) || 0)) m.set(k, at);
+  });
+  return { reachedAt: m };
+}
+function callNeedsYou(c, now, ctx) {
   const t = now == null ? Date.now() : now;
   if (!c || c.handledAtMs || c.status === 'personal') return false;
+  if (c.callType === 'spam' || c.taskDone === true) return false;
   if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
+  const promised = (c.promises || []).some((p) => p && p.who === 'jo');
+  if (c.callType === 'sub' || c.callType === 'supplier') return promised;
   if (c.urgent === true) return true;
-  if ((c.promises || []).some((p) => p && p.who === 'jo')) return true;
+  if (promised) return true;
   if (c.followUpDate && c.followUpDate <= etYmd(t)) return true;
+  if (isMissedCall(c)) {
+    const reached = ctx && ctx.reachedAt ? (ctx.reachedAt.get(callerKey(c)) || 0) : 0;
+    return reached <= (toMs(c.startedAtMs) || 0);
+  }
   if (c.leadId) return false;
   if (c.bucket === 'insurance') return true;
-  if (c.bucket === 'unknown') return c.status !== 'short' || c.direction === 'inbound';
+  if (c.bucket === 'unknown') return c.status !== 'short';
   return false;
 }
 
 /** Why a call / text day needs Jo, in a few words. */
 function reasonFor(c, now) {
-  if (c.urgent === true) return 'urgent';
-  if ((c.promises || []).some((p) => p && p.who === 'jo')) return 'you promised something';
+  const promised = (c.promises || []).some((p) => p && p.who === 'jo');
+  if (c.urgent === true && c.callType !== 'sub' && c.callType !== 'supplier') return 'urgent';
+  if (promised) return 'you promised something';
   if (c.followUpDate && c.followUpDate <= etYmd(now)) return 'follow-up due';
+  if (isMissedCall(c)) return 'missed call';
   if (c.bucket === 'insurance') return 'insurance line, no customer on file';
-  if (c.status === 'short' && c.direction === 'inbound') return 'missed call';
   return 'unknown number, no customer on file';
 }
 /** Mirror of home-attention.js callerKey: the customer, else the number. */
@@ -76,11 +94,15 @@ const who = (c) => String(c.contactName || c.from || (c.phoneDigits ? '…' + St
  */
 function newNeeds(calls, textDays, thursday, sinceMs, now) {
   const out = [];
+  const ctx = reachIndex(calls);
   (calls || []).forEach((c) => {
-    if (!callNeedsYou(c, now)) return;
+    if (!callNeedsYou(c, now, ctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.createdAtMs) || toMs(c.startedAtMs);
     if (arrived <= sinceMs) return;
-    out.push({ id: 'call:' + c.id, key: callerKey(c), kind: 'call', who: who(c), why: reasonFor(c, now), at: toMs(c.startedAtMs) });
+    const why = reasonFor(c, now);
+    // Already told by the immediate urgent push (call-center.js pushUrgent).
+    if (why === 'urgent' && c.urgentPushedAtMs) return;
+    out.push({ id: 'call:' + c.id, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now)) return;
@@ -213,8 +235,13 @@ function alertFor(needs, problems, now) {
     push: n.length ? n.slice(0, 2).map((x) => x.who + ' — ' + x.why).join('; ') + (n.length > 2 ? ' +' + (n.length - 2) + ' more' : '') : pr[0].text,
     priority: n.some((x) => /urgent/.test(x.why)) || pr.length ? 'high' : 'normal',
     day: etYmd(now),
+    // One person on a phone call / text day → straight to their card in the
+    // Call Center (call-center-view.js ?call=); anything else → the list.
+    clickUrl: n.length === 1 && /^(call|text):/.test(n[0].id) ? callCardUrl(n[0].id.replace(/^(call|text):/, '')) : '/pro/dashboard.html#/calls',
   };
 }
+/** The Call Center opened on one call's card (call-center-view.js reads ?call=). */
+const callCardUrl = (id) => '/pro/dashboard.html?call=' + encodeURIComponent(id) + '#/calls';
 
 /** Business hours check (ET), so a late scheduler retry never pings at night. */
 function inWatchHours(now) {
@@ -225,5 +252,5 @@ function inWatchHours(now) {
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
   SMS_REPEAT_MS, smsProblems, deliveryBySid,
-  toMs, etYmd, callNeedsYou, callerKey, reasonFor, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
+  toMs, etYmd, callNeedsYou, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

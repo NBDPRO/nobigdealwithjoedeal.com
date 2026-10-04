@@ -70,14 +70,19 @@
     return n || lead.address || 'Unnamed lead';
   }
 
+  // The board's own label first (crm-stages.js via window.stageLabel, tenant
+  // renames included — 2026-10-03); this map is only the stale-cache fallback.
   function stageDisplay(stage) {
+    if (typeof window.stageLabel === 'function') {
+      try { const l = window.stageLabel(stage); if (l) return l; } catch (_) {}
+    }
     const map = {
       'new': 'New', 'contacted': 'Contacted', 'inspected': 'Inspected',
       'claim_filed': 'Claim Filed', 'estimate_submitted': 'Estimate Sent',
       'estimate_sent_cash': 'Estimate Sent', 'negotiating': 'Negotiating',
       'contract_signed': 'Contract Signed', 'job_created': 'Job Created',
       'install_in_progress': 'Installing', 'install_complete': 'Install Done',
-      'closed': 'Closed Won', 'lost': 'Lost', 'final_payment': 'Final Payment',
+      'closed': 'Closed', 'lost': 'Lost', 'final_payment': 'Final Payment',
     };
     return map[stage] || stage;
   }

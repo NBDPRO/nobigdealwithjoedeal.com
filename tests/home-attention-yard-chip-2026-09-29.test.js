@@ -108,7 +108,30 @@ console.log('\n4. wiring');
   // Counts PEOPLE since 2026-10-02 (Jo: "group them by customer").
   ok('strip shows the calls item, singular and plural, to the Call Center', /data-target="calls">📞 1 person needs you</.test(HA.stripHtml({ calls: 1 })) && /📞 49 people need you/.test(HA.stripHtml({ calls: 49 })) && HA.stripHtml({ calls: 0 }) === '');
   const ccv = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'call-center-view.js'), 'utf8');
-  ok('the Call Center view delegates to the same rule', /NBDHomeAttention\.callNeedsYou\(c, Date\.now\(\)\)/.test(ccv));
+  ok('the Call Center view delegates to the same rule', /NBDHomeAttention\.callNeedsYou\(c, Date\.now\(\), reachCtx\(\)\)/.test(ccv));
+
+  // 2026-10-03 — "the CRM knows I called".
+  console.log('\nCalls: kept promises, missed calls, spam (2026-10-03)');
+  const promise = { promises: [{ who: 'jo', text: 'send quote' }] };
+  ok('a promise whose follow-up task is DONE → no longer needs you', need(promise) && !need(Object.assign({ taskDone: true }, promise)));
+  ok('…even when the call was urgent or its follow-up date has come', !need({ taskDone: true, urgent: true }) && !need({ taskDone: true, followUpDate: '2026-09-30' }));
+  ok('ticking the task clears the PERSON (all their open calls with done tasks)',
+    HA.callersNeedingYou([call(Object.assign({ id: 'a', taskDone: true }, promise)), call(Object.assign({ id: 'b', taskDone: true }, promise))], NOW) === 0
+    && HA.callersNeedingYou([call(Object.assign({ id: 'a', taskDone: true }, promise)), call(Object.assign({ id: 'b' }, promise))], NOW) === 1);
+  const missed = (x) => Object.assign({ status: 'short', direction: 'inbound', promises: [] }, x);
+  ok('a MISSED call from a customer → needs you', need(missed({})));
+  ok('a missed call from a saved contact (no customer) → needs you', need(missed({ leadId: null, bucket: 'contact' })));
+  ok('a short OUTGOING call (Jo got no answer) → not', !need({ status: 'short', direction: 'outbound' }));
+  const rows = [
+    call(missed({ id: 'm1', startedAtMs: NOW - 3 * H, phoneDigits: '5135550101' })),
+    call({ id: 'cb', startedAtMs: NOW - 2 * H, direction: 'outbound', status: 'noted', phoneDigits: '5135550101' }),
+  ];
+  ok('…until Jo reaches them: a later call to/from the same person clears the missed one', HA.callersNeedingYou(rows, NOW) === 0 && HA.callersNeedingYou([rows[0]], NOW) === 1);
+  ok('a call BEFORE the missed one does not clear it', HA.callersNeedingYou([rows[0], call({ id: 'early', startedAtMs: NOW - 5 * H, direction: 'outbound' })], NOW) === 1);
+  ok('a later TEXT day does not count as reaching them', HA.callersNeedingYou([rows[0], call({ id: 'tx', channel: 'text', startedAtMs: NOW - H })], NOW) === 1);
+  ok('spam never counts — not even urgent, a promise, or a missed call', !need({ callType: 'spam', urgent: true }) && !need(Object.assign({ callType: 'spam' }, promise)) && !need(missed({ leadId: null, bucket: 'unknown', callType: 'spam' })));
+  ok('a sub / supplier counts ONLY through a promise', !need({ callType: 'sub', urgent: true }) && !need({ callType: 'supplier', followUpDate: '2026-09-30' })
+    && !need({ leadId: null, bucket: 'unknown', callType: 'supplier' }) && need(Object.assign({ callType: 'sub' }, promise)) && need(Object.assign({ callType: 'supplier', leadId: null, bucket: 'contact' }, promise)));
   const haSrc = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'home-attention.js'), 'utf8');
   ok('Home counts days of texts by the same rule', /collection\(w\.db, 'phone_text_days'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(100\)/.test(haSrc) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)\)/.test(haSrc) && (haSrc.match(/callRows\.push/g) || []).length === 2);
   ok('Home reads only the owner\'s own calls, newest 200', /collection\(w\.db, 'phone_calls'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(200\)/.test(haSrc));

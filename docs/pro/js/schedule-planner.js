@@ -21,6 +21,11 @@
  * double-booking warning as the customer page (google-calendar-ui.js
  * checkRow → getBusyTimes). Warn, never block (Jo, 2026-09-29). The warning
  * is kept per row (_warn) so a re-render doesn't drop it.
+ * Saving a real build day on a committed job then offers a one-tap "Move to
+ * Crew Scheduled?" chip on that row (2026-10-03, stage-flow lane) — only when
+ * that is a forward move on the lead's own track (crewMoveOffer). The tap goes
+ * through window.moveCard → stage-write.js commitStageChange, the same gates
+ * and race guards as a kanban move. Saving the date alone never moves a stage.
  * Delegated listeners; every value into innerHTML is escaped.
  */
 (function () {
@@ -41,6 +46,7 @@
   const _warn = {};             // lead id → the double-booking warning's HTML (escaped by google-calendar-ui)
   const _warnSeq = {};          // lead id → the latest check, so a slow answer can't overwrite a newer one
   const _warnTimers = {};
+  const _offer = {};            // lead id → offer "Move to Crew Scheduled?" (set by a date save)
 
   function rowHtml(r, kind) {
     const v = _drafts[r.id] || P().inputsOf(r.lead);
@@ -59,7 +65,46 @@
         '<button type="button" class="btn btn-orange sp-save" data-sp-action="save">Save</button>' +
         (kind === 'scheduled' ? '<button type="button" class="btn btn-ghost sp-clear" data-sp-action="clear" title="Remove the date">Clear</button>' : '') +
       '</div><div class="sp-conflict gcal-conflict" aria-live="polite">' + (_warn[r.id] || '') + '</div>' +
-      '<div class="sp-msg" aria-live="polite"></div></div>';
+      '<div class="sp-msg" aria-live="polite"></div>' +
+      (_offer[r.id] ? '<div class="sp-stage-offer">' +
+        '<button type="button" class="sp-stage-chip" data-sp-action="stage">Move to ' + esc(stageLabel('crew_scheduled')) + '?</button>' +
+        '<button type="button" class="sp-stage-no" data-sp-action="stage-no">Not now</button></div>' : '') +
+      '</div>';
+  }
+
+  // The lead's own ordered track (tenant-aware on the dashboard).
+  function trackOf(lead) {
+    if (typeof window.stageOptionsForType !== 'function') return [];
+    try { return (window.stageOptionsForType((lead && lead.jobType) || 'insurance') || []).map((o) => o && o.value); } catch (_) { return []; }
+  }
+  function offerFor(lead) {
+    if (!lead || !P() || typeof P().crewMoveOffer !== 'function') return false;
+    const norm = typeof window.normalizeStage === 'function' ? (s) => { try { return window.normalizeStage(s); } catch (_) { return String(s || ''); } } : undefined;
+    return P().crewMoveOffer(lead, trackOf(lead), { normalize: norm, roleOf: typeof window.stageRole === 'function' ? window.stageRole : undefined });
+  }
+
+  async function moveToCrew(id) {
+    const lead = (window._leads || []).find((l) => l && l.id === id);
+    if (!lead || _saving[id]) return;
+    _saving[id] = true;
+    try {
+      let moved = false;
+      if (typeof window.moveCard === 'function') {
+        moved = (await window.moveCard(id, 'crew_scheduled')) === true;
+      } else {
+        const { commitStageChange } = await import('./stage-write.js');
+        await commitStageChange(id, 'crew_scheduled', lead.stage, { jobType: lead.jobType || null });
+        lead.stage = 'crew_scheduled';
+        moved = true;
+      }
+      delete _offer[id];
+      if (moved) toast('Moved to ' + stageLabel('crew_scheduled') + ' ✓', 'success');
+    } catch (e) {
+      toast('Could not move the stage: ' + ((e && (e.code || e.message)) || 'unknown'), 'error');
+    } finally {
+      delete _saving[id];
+      render();
+    }
   }
 
   function render() {
@@ -107,10 +152,19 @@
       _warnSeq[id] = (_warnSeq[id] || 0) + 1;
       const lead = (window._leads || []).find((l) => l && l.id === id);
       if (lead) Object.assign(lead, out.fields);
+      if (!clear && out.fields.scheduledDate && offerFor(lead)) _offer[id] = true;
+      else delete _offer[id];
       toast(clear ? 'Schedule cleared'
         : out.fields.scheduledWeek ? 'Planned for the week of ' + weekLabel(out.fields.scheduledWeek) + ' ✓'
         : 'Scheduled ✓ — on your Google Calendar in a few seconds', 'success');
       render();
+      // The row can leave both lists (a date past the next 30 days) — then
+      // the offer rides on a toast action instead of the row chip.
+      if (_offer[id] && !document.querySelector('.sp-row[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"] .sp-stage-chip')
+        && typeof window.showToast === 'function') {
+        window.showToast({ message: 'Scheduled ✓ — move it to ' + stageLabel('crew_scheduled') + '?', type: 'info', duration: 10000,
+          undoText: 'Move', undoAction: () => { moveToCrew(id); } });
+      }
       const reg = window.__NBD_CALL_REGISTRY;
       if (reg && typeof reg.loadSmartCalendar === 'function') { try { reg.loadSmartCalendar(); } catch (_) {} }
     } catch (e) {
@@ -125,7 +179,11 @@
     const b = ev.target.closest && ev.target.closest('[data-sp-action]');
     if (!b) return;
     const row = b.closest('.sp-row');
-    if (row) save(row, b.dataset.spAction === 'clear');
+    if (!row) return;
+    const act = b.dataset.spAction;
+    if (act === 'stage') { moveToCrew(row.dataset.id); return; }
+    if (act === 'stage-no') { delete _offer[row.dataset.id]; render(); return; }
+    save(row, act === 'clear');
   });
   document.addEventListener('change', (ev) => {
     if (ev.target && ev.target.id === 'spAll') { _all = !!ev.target.checked; render(); }
@@ -198,5 +256,5 @@
   window.addEventListener('hashchange', maybeRender);
   window.addEventListener('nbd:data-refreshed', maybeRender);
 
-  window.NBDSchedulePlannerUI = { render, _checkBusy: checkBusy };
+  window.NBDSchedulePlannerUI = { render, _checkBusy: checkBusy, _offerFor: offerFor };
 })();

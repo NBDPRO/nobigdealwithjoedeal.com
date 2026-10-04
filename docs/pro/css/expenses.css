@@ -51,3 +51,17 @@
 .exx-dgrid-gtc1fr1fr-gap12px-2.exx-dgrid-gtc1fr1fr-gap12px-2.exx-dgrid-gtc1fr1fr-gap12px-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .exx-fs11px-cm-mt10px.exx-fs11px-cm-mt10px.exx-fs11px-cm-mt10px { font-size: 11px; color: var(--m,#9ca3af); margin-top: 10px; }
 .exx-wd100-mt16px-jccenter.exx-wd100-mt16px-jccenter.exx-wd100-mt16px-jccenter.exx-wd100-mt16px-jccenter { width: 100%; margin-top: 16px; justify-content: center; }
+
+/* Log Expense on a phone (2026-10-03). The Amount/Date/Tax/Category grid
+   is two equal columns, so on a 390px iPhone the Category select was
+   ~155px and read "Materials (job co…"; the receipt picker shared its
+   row with Scan with AI and its "No file chosen" read "N…en". Category
+   takes the full row and the receipt row wraps, picker first, at phone
+   widths. Scoped by the overlay id: the exx- utilities above are
+   triple-class (0,3,0) and this has to beat them. */
+@media (max-width:520px) {
+  #expFormOverlay .exp-cat-cell { grid-column:1 / -1; }
+  #expFormOverlay .exp-receipt-row { flex-wrap:wrap; }
+  #expFormOverlay .exp-receipt-row > input[type=file] { flex:1 1 100%; min-width:0; }
+  #expFormOverlay .exp-receipt-row > .btn { flex:1 1 100%; justify-content:center; min-height:44px; }
+}

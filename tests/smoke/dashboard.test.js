@@ -2042,7 +2042,8 @@ section('Phase C.4 cluster 2 — compound goTo handlers (newEstimate / filterByS
     newEst === 2,
     'expected 2 newEstimate conversions; got ' + newEst);
 
-  const stages = (dash.match(/data-action="filterByStage"\s+data-stage="[a-z_]+"/g) || []).length;
+  // 2026-10-03: the tiles filter by dashboard tile ('tile:working'), not one stage key.
+  const stages = (dash.match(/data-action="filterByStage"\s+data-stage="(?:tile:)?[a-z_]+"/g) || []).length;
   assert('data-action="filterByStage" appears 6× (one per dashboard stage box)',
     stages === 6,
     'expected 6 filterByStage conversions; got ' + stages);

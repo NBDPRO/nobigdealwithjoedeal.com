@@ -132,7 +132,10 @@ console.log('\nCap-blocked D2D convert — _saveLead\'s return must not be disca
 {
   const d2d = read('docs/pro/js/d2d-tracker-core-2026b.js');
   const fnStart = d2d.indexOf('async function convertToLead(knockId)');
-  const fnBody = fnStart >= 0 ? d2d.slice(fnStart, fnStart + 12000) : '';
+  // To the next function, not a fixed 12000-char window: the body outgrew it
+  // (2026-10-04, appointment booking + #2118's follow-up rule).
+  const fnEnd = d2d.indexOf('function convertToLeadWithEdit(', fnStart);
+  const fnBody = fnStart >= 0 ? d2d.slice(fnStart, fnEnd > fnStart ? fnEnd : fnStart + 20000) : '';
   assert('convertToLead captures _saveLead\'s return value',
     /const leadId = await window\._saveLead\(leadData\)/.test(fnBody));
   assert('convertToLead bails before marking the knock converted when _saveLead short-circuits',
@@ -1121,9 +1124,13 @@ console.log('\nCRM custom-pipeline + kanban correctness (lead-lifecycle sweep)')
     /isLost = _lostKeys\.includes\(sk\) \|\| role === 'lost'/.test(cp)
     && /isClosed = \(window\.isJobStage && window\.isJobStage\(sk\)\) \|\| role === 'won' \|\| role === 'job'/.test(cp),
     'hardcoded key lists excluded custom won from closed revenue and let custom lost inflate pipeline (2026-09-15: _closedKeys folded into the canonical window.isJobStage classifier)');
-  assert('dashboard stage counts add custom WON/LOST by role only (no else-catch-all rebucketing built-ins)',
-    /if \(!matched\) \{[\s\S]{0,260}role === 'won'\) _stageCounts\.closed\+\+;\s*else if \(role === 'lost'\) _stageCounts\.lost\+\+;\s*\}/.test(cp),
-    'a catch-all else would newly pile built-in mid-stages (inspected/scope_received/…) into Negotiating — a built-in behavior change');
+  // 2026-10-03: the hand-copied 6-bucket map this used to pin is gone — every
+  // stage now counts once via crm-stages.js dashboardTileFor (role first, so a
+  // custom WON/LOST stage still lands in Won/Lost). Behaviour, incl. a fixture
+  // of every stage key: tests/dashboard-stage-tiles-2026-10-03.test.js.
+  assert('dashboard stage tiles count through the canonical role-aware dashboardTileFor',
+    /const _stageCounts = _dashboardTileCounts\(all\);/.test(cp) && /window\.dashboardTileFor\(sk,/.test(cp) && !/_stageMap/.test(cp),
+    'the old _stageMap counted signed contracts as Estimate Sent and never counted Inspected or insurance stages');
   const cl = read('docs/pro/js/crm-leads.js');
   assert('Edit-modal save syncs stageRole with the edited stage (no stale denormalized role)',
     /_editStageRole = _editStageVal[\s\S]{0,200}window\.stageRole\(/.test(cl)

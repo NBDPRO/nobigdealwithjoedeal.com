@@ -111,7 +111,7 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=4',
-      'js/expenses.js?v=7',
+      'js/expenses.js?v=8',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=3',
@@ -307,8 +307,11 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=11',
-      'js/d2d-tracker-ui-2026b.js?v=6',
+      // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
+      'js/d2d-knock-lead-logic.js?v=1',
+      'js/lead-events.js?v=1',
+      'js/d2d-tracker-core-2026b.js?v=13',
+      'js/d2d-tracker-ui-2026b.js?v=7',
       'js/d2d-tracker-2026b.js?v=3'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
@@ -409,7 +412,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=10'
+      'js/call-center-view.js?v=11'
     ]
   };
 
