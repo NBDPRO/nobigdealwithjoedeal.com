@@ -85,6 +85,8 @@ const ENDPOINTS = [
   { file: 'functions/dictate.js', export: 'dictate', gate: 'isAiDisabled', spend: /callClaudeForDictate\(/ },
   { file: 'functions/handlers/ai-texting-preview.js', export: 'previewAiPersona', gate: 'isAiDisabled', spend: /callClaudeForDraft\(/ },
   { file: 'functions/handlers/photo.js', export: 'analyzeRoofPhoto', gate: 'isAiDisabled', spend: VENDOR_FETCH },
+  // 2026-10-04: moved off Deepgram onto Groq through the shared helper.
+  { file: 'functions/integrations/voice-memo.js', export: 'transcribeVoiceMemo', gate: 'isAiDisabled', spend: /transcribeGroqBuffer\(/ },
 ];
 
 section('every known AI-spending Cloud Function checks its kill switch before calling the vendor');

@@ -62,9 +62,17 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `lookupParcel` | onCall | Parcel lookup w/ 90-day cache — Regrid (the Swath alternate was removed 2026-10-04) |
 | `requestMeasurement` | onCall | Roof measurement request — Instant Roofer (default: coordinates-in AI measure, synchronous; or `reportType:'human'` for the ~1 h certified report) — the only provider since Hover / EagleView / Nearmap were removed 2026-10-04; any other `NBD_MEASUREMENT_PROVIDER` fails loudly |
 | `sendEstimateForSignature` | onCall | BoldSign embedded-signing flow (was listed here as `sendForSignature` — actual export name is `sendEstimateForSignature`) |
+<<<<<<< HEAD
+| `getHailHistory` | onCall | Storm history within radius — NOAA (default) / HailTrace / Swath per `NBD_HAIL_PROVIDER`, NOAA fallback (routes through shared `lookupHail`) |
+| `getSwathReport` | onCall | Swath per-property exposure report — quote-first (`confirm:true` required to spend credits), **admin/company_admin gate in-body**, 30-day Firestore cache (integrations/swath.js) |
+| `getSwathUsage` | onCall | Swath month-to-date credit meter — **admin/company_admin gate in-body**, 10/hr limiter (integrations/swath.js) |
+| `transcribeVoiceMemo` | onCall | Voice memo transcription — Groq Whisper via the shared `transcribeGroqBuffer` (same key + helpers as `dictate`), `isAiDisabled` kill switch, 20/hr/uid; writes a `voice_memo` activity on the lead (customer timeline). Deepgram removed 2026-10-04 |
+| `dictate` | onCall | Whisper unified transcribe + AI cleanup |
+=======
 | `getHailHistory` | onCall | Storm history within radius — NOAA (default) / NCEI SWDI per `NBD_HAIL_PROVIDER`, NOAA fallback (routes through shared `lookupHail`); HailTrace + Swath removed 2026-10-04 |
 | `transcribeVoiceMemo` | onCall | Deepgram audio transcription — the card-detail "Voice Memo" button. `DEEPGRAM_API_KEY` is still the deploy stub, so it answers "not configured"; the last Deepgram consumer (dictate's fallback was removed 2026-10-04) |
 | `dictate` | onCall | Whisper unified transcribe + AI cleanup — Groq only (Deepgram fallback removed 2026-10-04) |
+>>>>>>> origin/main
 | `renderPdf` | onCall | Server-side Puppeteer PDF render (warranty/inspection/estimate/etc.), 2GiB, minInstances:0 since 2026-09-05 — expect a ~10-20s Chromium cold start after an idle window |
 | `sendVerificationCode` | onCall | SMS OTP via Twilio Verify (per-phone attempt cap) |
 | `verifyCode` | onCall | Verifies a Twilio Verify OTP |

@@ -5,12 +5,12 @@
  * take effect WITHOUT a deploy or secret rotation — one write to flip them.
  * The hot path (claudeProxy, publicVisualizerAI, publicFunnelAI, adminAI,
  * analyzePhotoVision, visualizerImageGen, extractReceiptData, dictate,
- * previewAiPersona, analyzeRoofPhoto) reads this via a 60-second in-memory
- * cache, so the cost is ~1 Firestore read per minute per warm instance, not
+ * previewAiPersona, analyzeRoofPhoto, transcribeVoiceMemo) reads this via a
+ * 60-second in-memory cache, so the cost is ~1 Firestore read per minute per warm instance, not
  * one per request.
  *
  * Flags:
- *   aiDisabled: true         → all ten AI endpoints above fail closed
+ *   aiDisabled: true         → all eleven AI endpoints above fail closed
  *                              (503 / unavailable) — rep-initiated, admin,
  *                              AND the two unauthenticated public ones
  *                              (publicVisualizerAI, publicFunnelAI). Does

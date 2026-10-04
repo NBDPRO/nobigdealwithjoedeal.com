@@ -25,6 +25,8 @@ live in the same file as the already-gated `claudeProxy`):
   login, gated only by a per-IP rate limit until this fix):
   `publicVisualizerAI` (the marketing-site room visualizer),
   `publicFunnelAI` (the `/estimate` instant-estimator + storm-check note)
+- **2026-10-04:** `transcribeVoiceMemo` (the card-detail Voice Memo button)
+  moved from Deepgram to Groq Whisper and reads this flag like `dictate`.
 
 ```
 feature_flags/global   →   { aiDisabled: true }
