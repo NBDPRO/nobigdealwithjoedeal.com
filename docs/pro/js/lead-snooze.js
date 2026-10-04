@@ -806,6 +806,14 @@
     prompt: openSnoozeModal,
     promptUnsnooze: _doUnsnooze,
     bulkPrompt: openBulkSnoozeModal,
+    // Programmatic bulk snooze — the same chunked writeBatch the bulk modal
+    // commits, for a caller that already asked its own ONE confirm
+    // (no-next-step.js's door-knock group, 2026-10-03).
+    bulkSnooze: (leadIds, untilDate, reason) => {
+      if (!Array.isArray(leadIds) || !leadIds.length) return Promise.resolve();
+      if (!(untilDate instanceof Date) || isNaN(untilDate)) return Promise.reject(new Error('untilDate required'));
+      return _doBulkSnooze(leadIds, untilDate, formatSnoozeLabel(untilDate), reason);
+    },
     closeModal: closeSnoozeModal,
     toggleShowSnoozed,
     updateSnoozedToggle,
