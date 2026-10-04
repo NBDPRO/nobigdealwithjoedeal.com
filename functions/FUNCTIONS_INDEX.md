@@ -131,6 +131,7 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256) |
 | `listAgentKeys` | onCall | The company's bot keys (no secrets) + bot tool lists |
 | `revokeAgentKey` | onCall | Turns one bot key off |
+| `getDealPhoto` | onRequest | Deal packet photos (2026-10-04) via `/deal/*/photo/*` rewrite (before `/deal/**`): one inspection photo of a FULL packet, token re-checked on every load (expired / revoked / accepted → 410), owner + lead + `photos/<owner>/` path checked, re-encoded (EXIF/GPS stripped), `private, no-store`. Never a Storage URL. Rules: `deal-packet-logic.js` |
 | `dealRoomReadPing` | onRequest | Deal room time-on-page beacon via `/api/deal-read` rewrite: token-authed, adds clamped seconds to deal_rooms.readSeconds; preview bots ignored |
 | `getSharedReport` | onRequest | Report share: ~120-bit REUSABLE token, 30-day default expiry, per-IP rate limit (view-only) |
 | `getCalendarFeed` | onRequest | Read-only `.ics` feed served at `/calendar/<token>.ics` for the iPhone Calendar app. ~120-bit token, deliberately NO expiry (a subscription that stops refreshing is silent), per-IP + per-token rate limits, `text/calendar`, never an empty 200 — a calendar client reads that as "all events deleted" |

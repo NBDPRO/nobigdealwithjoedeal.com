@@ -72,6 +72,9 @@
     // link → share sheet). It used to be four competing buttons (Create Deal
     // Room / Present / Save / Send for Signature) plus four exports; those now
     // sit under "More" (third column = 'more').
+    // Full packet / Paperwork only (2026-10-04) sits with the primary: it is
+    // the question asked at send time, not an extra.
+    ['.v2-packet', 'finish'], ['#v2packetHint', 'finish'], ['#v2packetPhotos', 'finish'],
     ['[data-action="send-to-homeowner"]', 'finish'], ['#v2shareStatus', 'finish'], ['#v2shareBox', 'finish'],
     ['[data-action="present"]', 'finish', 'more'],
     ['#v2saveBtn', 'finish', 'more'], ['#v2saveStatus', 'finish', 'more'],

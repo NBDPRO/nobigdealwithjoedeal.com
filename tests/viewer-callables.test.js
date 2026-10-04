@@ -470,7 +470,7 @@ const VERDICTS = {
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
   createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public', esignWebhook: 'public',
-  getCalendarFeed: 'public', getDealRoom: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
+  getCalendarFeed: 'public', getDealRoom: 'public', getDealPhoto: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
   getGoogleReviews: 'public', getHomeownerPortalView: 'public', getPortalDocumentHtml: 'public',
   getPortalMessages: 'public', getPublicSiteConfig: 'public', getSharedReport: 'public',
   getSignDocument: 'public', getSubscriptionStatus: 'read', imageProxy: 'public', incomingSMS: 'public',

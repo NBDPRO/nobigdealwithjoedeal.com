@@ -399,6 +399,8 @@
   }
   async function hydrateFromFirestore() {
     if (!window._db || !window._user) return;
+    // The rep's remembered packet choice (New Deal form default).
+    try { if (window.NBDDealPacket && typeof window.NBDDealPacket.load === 'function') window.NBDDealPacket.load(); } catch (_) {}
     const uid = window._user.uid;
     const confirmedBeforeRead = _dealRoomsForCurrentUser().filter(d => _isConfirmedBy(d, uid)).map(d => d.id);
     try {
@@ -451,6 +453,27 @@
     return Number.isFinite(n) && n > 0 ? Math.min(90, n) : 14;
   }
 
+  // Packet choice → deal fields. deal-packet.js when loaded (it is, in this
+  // bundle); the same rule inline otherwise, so a deal never lacks a packet.
+  function _packetFields(packet, photoIds) {
+    const DP = window.NBDDealPacket;
+    if (DP && typeof DP.dealFields === 'function') return DP.dealFields(packet, photoIds);
+    const pk = packet === 'paperwork' ? 'paperwork' : 'full';
+    const ids = pk === 'full' && Array.isArray(photoIds)
+      ? photoIds.filter(id => typeof id === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(id)).slice(0, 6) : [];
+    return { packet: pk, packetPhotoIds: ids };
+  }
+  // The full packet's "What's included": line NAMES only (never a cost or a
+  // quantity), de-duplicated, at most 15.
+  function _scopeSummary(list) {
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach(n => {
+      const s = String(n == null ? '' : n).replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (s && out.indexOf(s) === -1 && out.length < 15) out.push(s);
+    });
+    return out;
+  }
+
   function createDealRoom(opts) {
     const deal = {
       id: generateId(),
@@ -473,6 +496,13 @@
 
       // Pricing tiers
       tiers: opts.tiers || blankTiers(),
+
+      // What the homeowner's link carries (2026-10-04): 'full' (default —
+      // photos, scope summary, reviews) or 'paperwork' (tiers, terms,
+      // signature). Photos by /photos doc ID only; getDealRoom serves them
+      // through the deal link (functions/deal-packet-logic.js).
+      ..._packetFields(opts.packet, opts.packetPhotoIds),
+      scopeSummary: _scopeSummary(opts.scopeSummary),
 
       // Product details
       selectedProducts: opts.selectedProducts || [],
@@ -661,10 +691,16 @@
     // (the estimate builder passes its own classification) — the deal page's
     // Kentucky notices and deposit rule key on it.
     const _isIns = !!_carrier || leadData?.insuranceClaim === true;
+    // The packet chosen at send time (2026-10-04). Absent → the default
+    // full packet; a re-send carries the new choice onto the same deal.
+    const _packet = _packetFields(estimateData?.packet, estimateData?.packetPhotoIds);
+    const _scope = _scopeSummary(estimateData?.scopeSummary);
     // Same estimate, still open → refresh that deal in place.
     const existing = findOpenDealForEstimate(estimateId);
     if (existing) {
       return updateDeal(existing.id, {
+        ..._packet,
+        scopeSummary: _scope,
         customerName: _nm || existing.customerName,
         customerEmail: leadData?.email || existing.customerEmail || '',
         customerPhone: leadData?.phone || existing.customerPhone || '',
@@ -684,6 +720,9 @@
       address: leadData?.address || '',
       leadId: leadData?.id || null,
       tiers,
+      packet: _packet.packet,
+      packetPhotoIds: _packet.packetPhotoIds,
+      scopeSummary: _scope,
       selectedProducts,
       insuranceClaim: _isIns,
       insuranceCarrier: _carrier,
@@ -741,6 +780,30 @@
       `<a class="rep-btn" href="sms:${esc(digits)}" aria-label="Text ${esc(phone)}">💬 Text</a></div>`;
   }
 
+  // The full packet's extra sections. The photos are a MARKER only: getDealRoom
+  // (functions/deal-acceptance.js) swaps it for <img src="/deal/<token>/
+  // photo/<n>"> on the served page. The rep's own preview (blob URL, no
+  // token) shows no photos — never a Storage URL, here or anywhere.
+  const PHOTO_MARKER = '<!--nbd:deal-photos-->';
+  function _fullPacketHtml(deal, BRAND) {
+    const scope = _scopeSummary(deal.scopeSummary);
+    const scopeHtml = scope.length
+      ? '<div class="section-title">What\'s Included</div><ul class="scope-list">' +
+        scope.map(s => '<li>✓ ' + esc(s) + '</li>').join('') + '</ul>'
+      : '';
+    // Reviews / trust: facts only. The reviews page is NBD's own (/review —
+    // the live Google reviews widget); another tenant's page names none.
+    const reviews = BRAND.isNbd
+      ? '<a class="trust-link" href="https://nobigdealwithjoedeal.com/review" target="_blank" rel="noopener noreferrer">⭐ Read our Google reviews</a>'
+      : '';
+    const trust = '<div class="section-title">Why Homeowners Choose Us</div><div class="trust">' +
+      '<div class="trust-row">✓ Licensed &amp; insured</div>' +
+      '<div class="trust-row">✓ Every package above carries its own written warranty</div>' +
+      '<div class="trust-row">✓ Questions? Call or text ' + esc(deal.repName || 'your rep') + ' any time</div>' +
+      reviews + '</div>';
+    return PHOTO_MARKER + scopeHtml + trust;
+  }
+
   function generateDealPageHTML(deal) {
     // Every tier the rep PRICED, cheapest first (five since 2026-10-02). An
     // unpriced tier never shows — it would be a $0 package the homeowner
@@ -756,6 +819,12 @@
     const _recommended = pricedTiers.indexOf('better') !== -1 ? 'better' : null;
     const _stars = { economy: '○', good: '☆', better: '★★', best: '★★★', beyond: '★★★★' };
     const BRAND = _dealBrand();
+    // Packet (2026-10-04): a full packet adds the inspection photos (the
+    // marker — getDealRoom fills it through the deal link; no photo URL is
+    // ever written into this page), the scope summary and reviews / trust.
+    // Paperwork only is the tiers, the terms and the signature.
+    const _packet = _packetFields(deal.packet).packet;
+    const _fullPacket = _packet === 'full' ? _fullPacketHtml(deal, BRAND) : '';
     // Deposit per tier (2026-09-25) — deposit-rule.js, the same answer the
     // quote, contract and invoice give: cash under $2,000 none, $2,000+ 50%
     // at signing, insurance the deductible + the ACV payment. The deal page
@@ -888,9 +957,20 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 .success-icon{font-size:60px;}
 .success-text{font-size:22px;font-weight:700;font-family:'Barlow Condensed',sans-serif;}
 .success-sub{font-size:14px;line-height:1.5;color:#c9ccd2;max-width:320px;text-align:center;}
+.deal-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.deal-photo{margin:0;background:#1e2028;border-radius:10px;overflow:hidden;}
+.deal-photo img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#2a2d35;}
+.deal-photo figcaption{font-size:12px;color:#c9ccd2;padding:6px 8px;line-height:1.4;}
+.deal-photo.is-broken{display:none;}
+.scope-list{list-style:none;background:#1e2028;border:1px solid #2a2d35;border-radius:10px;padding:10px 14px;}
+.scope-list li{font-size:13px;color:#e5e7eb;padding:5px 0;border-bottom:1px solid #2a2d35;}
+.scope-list li:last-child{border-bottom:none;}
+.trust{background:#1e2028;border:1px solid #2a2d35;border-radius:10px;padding:12px 14px;}
+.trust-row{font-size:13px;color:#e5e7eb;padding:4px 0;}
+.trust-link{display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:8px;border-radius:10px;border:1px solid var(--orange);color:var(--orange);font-weight:700;font-size:14px;text-decoration:none;}
 @media(max-width:500px){.tier-price{font-size:22px;}.tier-name{font-size:17px;}}
 </style>
-</head><body>
+</head><body data-packet="${_packet}">
 
 <div class="hero">
   <div class="logo">${BRAND.logoHtml}</div>
@@ -918,6 +998,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       ${depositLine(_dt[t].price)}
     </div>`).join('')}
   </div>
+  ${_fullPacket}
 
   ${deal.insuranceClaim ? `
   <div class="insurance-box">
@@ -971,7 +1052,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       band: _band ? { aprLo: _band.aprLo, aprHi: _band.aprHi, months: _band.defaultTermYears * 12, lender: _band.lender } : null,
     }).replace(/</g, '\\u003c')
   }</script>
-<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=3"><\/script>
+<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=4"><\/script>
 </body></html>`;
   }
 
@@ -1480,6 +1561,12 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     `).join('');
   }
 
+  // The rep's last packet choice (userSettings/{uid}.dealPacket via deal-packet.js).
+  function _rememberedPacket() {
+    const DP = window.NBDDealPacket;
+    return DP && typeof DP.current === 'function' ? DP.current() : 'full';
+  }
+
   function renderCreateForm() {
     return `
       <div class="cbr-card cbr-card-16">
@@ -1524,6 +1611,15 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
             <input id="cb-carrier" type="text" placeholder="Insurance carrier" class="cbr-input cbr-input-grow">
             <input id="cb-deductible" type="number" placeholder="Deductible $" class="cbr-input cbr-input-120">
           </div>
+        </div>
+
+        <div class="cbr-mb10" role="radiogroup" aria-label="What the homeowner gets">
+          <div class="cbr-h12">What to send</div>
+          ${['full', 'paperwork'].map(p => `
+          <label class="cbr-check-row">
+            <input type="radio" name="cb-packet" id="cb-packet-${p}" value="${p}" class="cbr-accent"${_rememberedPacket() === p ? ' checked' : ''}>
+            <span class="cbr-t12">${p === 'full' ? 'Full packet — estimate, photos, scope, warranty, reviews' : 'Paperwork only — estimate, terms, signature (no photos)'}</span>
+          </label>`).join('')}
         </div>
 
         <button data-cb-action="submitCreate" class="cbr-btn-create">
@@ -1611,11 +1707,15 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       return;
     }
 
+    const packet = document.getElementById('cb-packet-paperwork')?.checked ? 'paperwork' : 'full';
+    if (window.NBDDealPacket && typeof window.NBDDealPacket.remember === 'function') window.NBDDealPacket.remember(packet);
+
     const deal = createDealRoom({
       customerName: name,
       customerPhone: phone,
       customerEmail: email,
       address: addr,
+      packet,
       tiers: blankTiers(t => tierPrice[t]),
       insuranceClaim: isInsurance,
       insuranceCarrier: carrier,
