@@ -2761,8 +2761,22 @@
       acv: c.acv,
       // Kentucky hold (2026-09-27): the job's address decides; an insurance
       // quote with no readable state is held, like the contract (fail closed).
-      address: (state.customer && state.customer.address) || ''
+      address: (state.customer && state.customer.address) || '',
+      // The linked lead's claim number / carrier / jobType make it an
+      // insurance job for the KY hold even when priced in cash or per-square
+      // mode — the same test that puts the KY notices on the contract
+      // (2026-10-03). null (no linked lead) = the rule as before.
+      lead: _linkedLeadForDeposit()
     });
+  }
+  function _linkedLeadForDeposit() {
+    const id = state.leadId || (state.customer && state.customer.leadId) || null;
+    if (!id) return null;
+    try {
+      const cur = window._leadDoc;
+      if (cur && cur.id === id) return cur;
+      return (Array.isArray(window._leads) && window._leads.find((l) => l && l.id === id)) || null;
+    } catch (_) { return null; }
   }
   function _stampDeposit(estimate) {
     if (!estimate) return estimate;

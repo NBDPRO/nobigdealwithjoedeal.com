@@ -262,7 +262,14 @@ function mapPublicLeadToLead(args) {
   // and auto-blocking it on this flag would break his daily driver. This is the
   // audit record; gating CRM sends on it is a separate decision, not a
   // side effect of persisting the fact.
-  if (data.tcpaConsent === true) doc.tcpaConsent = true;
+  if (data.tcpaConsent === true) {
+    doc.tcpaConsent = true;
+    // The consent record (2026-10-03): when / which disclosure / which page.
+    // Copied as stored; the IP stays on the raw public-lead document only.
+    for (const k of ['tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource']) {
+      if (data[k] != null) doc[k] = data[k];
+    }
+  }
 
   // Per-lead acquisition cost (2026-09-20). Thumbtack's leadPrice (webhook
   // payload, thumbtack-logic.js normalizeLead) previously only reached the

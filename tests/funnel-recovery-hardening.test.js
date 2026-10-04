@@ -65,11 +65,16 @@ function fakeTs(ms) {
 // enough to drive both saveFunnelProgress and runAbandonRecovery unmodified.
 function makeFakeDb() {
   const collections = {};
+  const queryLog = [];
   function coll(name) {
     if (!collections[name]) collections[name] = new Map();
     return collections[name];
   }
   let failPredicate = null; // (collName, id, data) => boolean — throws on update() when true
+  // CAN-SPAM (2026-10-03): a recovery email is commercial and is BLOCKED
+  // without the sender's postal address, so NBD's profile carries one here
+  // (tests/email-unsubscribe.test.js covers the no-address case).
+  coll('companyProfile').set('1phDvAVXHSg82wDLegAbQFq14Ci1', { brand: { contact: { mailingAddress: 'PO Box 77, Goshen, OH 45122' } } });
 
   function docRef(name, id) {
     return {
@@ -94,6 +99,7 @@ function makeFakeDb() {
 
   return {
     _collections: collections,
+    _queryLog: queryLog,
     setFailPredicate(fn) { failPredicate = fn; },
     // db.doc('coll/id') — the email-unsubscribe gate (functions/
     // email-suppression.js, 2026-09-22) reads email_suppressions/{id} and
@@ -110,14 +116,19 @@ function makeFakeDb() {
           const builder = {
             where(f2, o2, v2) { preds.push([f2, o2, v2]); return builder; },
             limit(n) { builder._limit = n; return builder; },
+            orderBy(f, dir) { builder._order = [f, dir || 'asc']; return builder; },
+            startAfter(snapDoc) { builder._after = snapDoc; return builder; },
             async get() {
+              queryLog.push(preds.map((p) => p.slice()));
               let docs = [...coll(name).entries()].map(([id, data]) => ({
                 id, data: () => Object.assign({}, data), ref: docRef(name, id),
               }));
+              const ms = (raw) => (raw && typeof raw.toMillis === 'function' ? raw.toMillis() : raw);
               docs = docs.filter((d) => preds.every(([f, o, v]) => {
-                const raw = d.data()[f];
-                const val = raw && typeof raw.toMillis === 'function' ? raw.toMillis() : raw;
-                const target = v && typeof v.toMillis === 'function' ? v.toMillis() : v;
+                // Firestore semantics: a MISSING field matches nothing — not
+                // even `== null` (undefined !== null below models that).
+                const val = ms(d.data()[f]);
+                const target = ms(v);
                 if (o === '<') return val < target;
                 if (o === '>') return val > target;
                 if (o === '<=') return val <= target;
@@ -125,6 +136,19 @@ function makeFakeDb() {
                 if (o === '==') return val === target;
                 return true;
               }));
+              // Firestore orders a range query by the inequality field
+              // ASCENDING unless told otherwise — the root of the "oldest
+              // 200 forever" starvation bug, so the fake must model it.
+              const rangePred = preds.find(([, o]) => o !== '==');
+              const order = builder._order || (rangePred ? [rangePred[0], 'asc'] : null);
+              if (order) {
+                const [f, dir] = order;
+                docs.sort((a, b) => (ms(a.data()[f]) - ms(b.data()[f])) * (dir === 'desc' ? -1 : 1));
+              }
+              if (builder._after) {
+                const i = docs.findIndex((d) => d.id === builder._after.id);
+                docs = i >= 0 ? docs.slice(i + 1) : docs;
+              }
               if (builder._limit != null) docs = docs.slice(0, builder._limit);
               return { empty: docs.length === 0, docs, size: docs.length };
             },
@@ -392,6 +416,74 @@ console.log('\n(9) the recovery email escapes the public first name (security au
   ok('the recovery email was sent', sent.length === 1, sent.length);
   ok('no live link from the first name', !/<a href="https:\/\/evil\.example"/.test(html), html.slice(0, 200));
   ok('the name shows escaped', /&lt;a href=&quot;https:\/\/evil\.example&quot;&gt;/.test(html));
+}
+
+console.log('\n(10) STARVATION — >200 already-processed records in the window must not hide a new abandoner (2026-10-03)');
+{
+  currentDb = makeFakeDb();
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  // 250 records from the last 3–20 days, every one already sent — the
+  // oldest 200 of these were all the old `.limit(200)` query ever returned.
+  for (let i = 0; i < 250; i++) {
+    const t = now - 3 * DAY - i * 60 * 60 * 1000;
+    await currentDb.collection('funnel_abandoned').doc('old' + String(i).padStart(5, '0')).set({
+      email: 'old' + i + '@example.com', funnelId: 'old' + i, firstName: 'Old',
+      createdAt: fakeTs(t), updatedAt: fakeTs(t), completedAt: null,
+      recoveryEmailSentAt: fakeTs(t + DAY), recoveryEmailStatus: 'sent',
+    });
+  }
+  const twoHoursAgo = now - 2 * 60 * 60 * 1000;
+  await currentDb.collection('funnel_abandoned').doc('fresh001').set({
+    email: 'fresh@example.com', funnelId: 'fresh001', firstName: 'New',
+    createdAt: fakeTs(twoHoursAgo), updatedAt: fakeTs(twoHoursAgo),
+    completedAt: null, recoveryEmailSentAt: null, recoveryEmailStatus: null,
+  });
+  process.env.FUNNEL_RECOVERY_ENABLED = 'true';
+  process.env.RESEND_API_KEY = 'test-resend-key';
+  const sent = [];
+  currentResendSend = async (p) => { sent.push(p); return { data: { id: 'em_' + sent.length }, error: null }; };
+  await FR.runAbandonRecovery.run({});
+  ok('the new abandoner got the recovery email despite 250 older processed records',
+    sent.length === 1 && sent[0].to === 'fresh@example.com', sent.map((s) => s.to));
+  const fresh = await currentDb.collection('funnel_abandoned').doc('fresh001').get();
+  ok('and is stamped sent', fresh.data().recoveryEmailStatus === 'sent', fresh.data().recoveryEmailStatus);
+  ok('every runAbandonRecovery query filters on recoveryEmailStatus (processed records never fill the page)',
+    currentDb._queryLog.length > 0 && currentDb._queryLog.every((q) => q.some(([f, o]) => f === 'recoveryEmailStatus' && o === '==')),
+    currentDb._queryLog);
+
+  // The query is equality + range on different fields: production needs a
+  // composite index (the emulator never enforces one).
+  const idx = JSON.parse(require('fs').readFileSync(path.join(ROOT, 'firestore.indexes.json'), 'utf8'));
+  const hit = (idx.indexes || []).some((x) => x.collectionGroup === 'funnel_abandoned'
+    && x.queryScope === 'COLLECTION'
+    && JSON.stringify(x.fields) === JSON.stringify([
+      { fieldPath: 'recoveryEmailStatus', order: 'ASCENDING' },
+      { fieldPath: 'createdAt', order: 'DESCENDING' },
+    ]));
+  ok('firestore.indexes.json declares funnel_abandoned (recoveryEmailStatus ASC, createdAt DESC)', hit);
+}
+
+console.log('\n(10b) paging — 450 unprocessed records: newest 400 this run, the rest next run, none twice');
+{
+  currentDb = makeFakeDb();
+  const now = Date.now();
+  for (let i = 0; i < 450; i++) {
+    const t = now - 2 * 60 * 60 * 1000 - i * 60 * 1000;
+    await currentDb.collection('funnel_abandoned').doc('pg' + String(i).padStart(5, '0')).set({
+      email: 'pg' + i + '@example.com', funnelId: 'pg' + i, firstName: 'P',
+      createdAt: fakeTs(t), updatedAt: fakeTs(t), completedAt: null,
+      recoveryEmailSentAt: null, recoveryEmailStatus: null,
+    });
+  }
+  const sent = [];
+  currentResendSend = async (p) => { sent.push(p.to); return { data: { id: 'em' }, error: null }; };
+  await FR.runAbandonRecovery.run({});
+  ok('run 1 sends 400 (the per-run cap), across more than one 200-doc page', sent.length === 400, sent.length);
+  ok('run 1 took the NEWEST first', sent[0] === 'pg0@example.com' && sent.includes('pg399@example.com') && !sent.includes('pg449@example.com'));
+  await FR.runAbandonRecovery.run({});
+  ok('run 2 sends the remaining 50', sent.length === 450, sent.length);
+  ok('no address was mailed twice', new Set(sent).size === sent.length);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

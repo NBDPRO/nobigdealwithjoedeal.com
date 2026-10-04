@@ -149,6 +149,7 @@ section{padding:80px 40px}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
 .hero h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(3rem,5.5vw,5.5rem);color:white;line-height:.92;letter-spacing:.02em;margin-bottom:10px;animation:fadeUp .6s ease .1s both}
 .hero h1 span{color:#BD5728}
+.hero h1 .hero-h1-kicker{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:clamp(.95rem,1.5vw,1.2rem);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);line-height:1.2;margin-bottom:12px}
 .hero-tagline{font-family:'Dancing Script',cursive;font-size:1.45rem;color:var(--orange-light);margin-bottom:22px;animation:fadeUp .6s ease .2s both}
 .hero p{color:rgba(255,255,255,.72);font-size:.95rem;line-height:1.7;margin-bottom:32px;max-width:500px;animation:fadeUp .6s ease .3s both}
 .hero-btns{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:36px;animation:fadeUp .6s ease .35s both}
@@ -336,6 +337,9 @@ a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .form-submit{width:100%;padding:15px;background:#BD5728;color:white;font-family:'Montserrat',sans-serif;font-size:.9rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border:none;border-radius:6px;cursor:pointer;transition:all .25s;margin-top:4px}
 .form-submit:hover{background:var(--orange-light);transform:translateY(-2px);box-shadow:0 6px 20px rgba(189,87,40,.4)}
 .form-note{font-size:.7rem;color:var(--gray);text-align:center;margin-top:8px}
+/* consent (TCPA, 2026-10-03) — same markup as /storm-check's .sc-consent */
+.sc-consent{display:flex;gap:10px;align-items:flex-start;margin:4px 0 12px;font-size:.78rem;color:var(--gray);line-height:1.4;text-align:left}
+.sc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
 .form-success{display:none;text-align:center;padding:30px 0}
 .form-success-icon{width:64px;height:64px;border-radius:50%;background:rgba(189,87,40,.1);border:3px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin:0 auto 16px}
 .form-success h3{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:.04em;color:var(--navy-dark);margin-bottom:8px}
@@ -705,7 +709,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Roofing"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Siding Replacement"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Gutter Replacement"}},
-          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Insurance Claims"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Inspection & Documentation"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Interior Drywall and Ceiling Repair"}}
         ]
       }
@@ -767,6 +771,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 }
 </script>
 <!-- /nbd:partial schema-entity -->
+<link rel="stylesheet" href="/assets/css/nbd-nav.css">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -831,7 +836,6 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav">
     <span></span><span></span><span></span>
   </button>
-  <link rel="stylesheet" href="/assets/css/nbd-nav.css">
   <script defer src="/assets/js/nbd-nav.js"></script>
 </nav>
 
@@ -884,8 +888,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <div class="hero-bg"></div>
   <div class="hero-content">
     <div class="hero-left">
-      <div class="hero-badge">Cincinnati Area, OH · Owner-Operated</div>
-      <h1>No Big Deal.<br><span>Seriously — it's in the name.</span></h1>
+      <div class="hero-badge">Owner-Operated · I'm on every roof</div>
+      <h1><span class="hero-h1-kicker">Cincinnati &amp; Northern KY Roofing</span>No Big Deal.<br><span>Seriously — it's in the name.</span></h1>
       <div class="hero-tagline">One call. One guy. One job done right.</div>
       <p>I'm Joe Deal. I pick up the phone.<span class="trim-mobile"> I walk your roof. I put my name on every install.</span> Roofing, siding, gutters, storm damage &mdash; start to finish, no call centers, no handoffs, no BS.<span class="trim-mobile"> That's it. That's the pitch.</span></p>
       <p class="trim-mobile" style="color:rgba(255,255,255,.55);font-size:.86rem;font-style:italic;margin-top:-14px;margin-bottom:28px;max-width:500px">Seven years on Cincinnati roofs under other companies &mdash; now finally under my own name.</p>
@@ -1803,6 +1807,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
             <!-- Scheduling choice (required), photos, best time, insurance, how heard — js/intake-extras.js -->
             <div data-nbd-intake="hp"></div>
             <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="fieldNbdHp">Leave blank</label><input type="text" id="fieldNbdHp" tabindex="-1" autocomplete="off"></div>
+            <label class="sc-consent"><input type="checkbox" id="fieldConsent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
             <p id="formError" class="form-error" role="alert" hidden></p>
             <button class="form-submit" id="leadFormSubmit">Get My Free Estimate →</button>
             <script defer  src="/assets/js/inline/72fb917108.js"></script>
@@ -2035,7 +2040,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 <script defer src="/assets/js/public-lead-submit.js"></script>
 <script defer src="/assets/js/intake-extras.js?v=1"></script>
 <script defer  src="/assets/js/inline/0214ed5eea.js"></script>
-<script defer  src="/assets/js/inline/72f02d79d0.js"></script>
+<script defer  src="/assets/js/inline/72f02d79d0.js?v=2"></script>
 
 <!-- STORM BANNER LOGIC (seasonal messaging) -->
 <script defer  src="/assets/js/inline/20fa0c9b91.js"></script>

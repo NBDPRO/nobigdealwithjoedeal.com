@@ -263,7 +263,11 @@ const PUBLIC_LEAD_KINDS = {
     // lead-bridge — incl. `address`, so a bridged contact lead isn't blank in
     // the pipeline. (M-04: deliberate, bounded expansion.)
     maxLen:   { firstName: 200, lastName: 200, phone: 30, email: 200, address: 500, zip: 10, service: 200, message: 1500, source: 200 },
-    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'lastName', 'email', 'address', 'zip', 'service', 'message']
+    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'lastName', 'email', 'address', 'zip', 'service', 'message'],
+    // TCPA consent (2026-10-03): the homepage form and the on-page quick form
+    // (quick-lead-form.js) gate submit on the consent checkbox and post it.
+    // Tenant microsites that post nothing simply store no record.
+    boolOptional: ['tcpaConsent']
   },
   estimate: {
     collection: 'estimate_leads',
@@ -311,6 +315,9 @@ const PUBLIC_LEAD_KINDS = {
     // queries .where('active','==',true), so a subscriber created without it
     // would be invisible to every alert send.
     optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'concern'],
+    // TCPA consent (2026-10-03): /storm-alerts now gates signup on the same
+    // express-written-consent checkbox as /storm-check and posts its value.
+    boolOptional: ['tcpaConsent'],
     serverDefaults: { active: true }
   },
   // "One Free Roof a Year" giveaway entries. Nominator can be the
@@ -547,6 +554,17 @@ exports.submitPublicLead = onRequest(
     data.ip = clientIp(req);
     data.userAgent = String(req.headers['user-agent'] || '').slice(0, 200);
     data.createdAt = FieldValue.serverTimestamp();
+    // TCPA consent RECORD (2026-10-03): when, which disclosure version, which
+    // page, which IP — server-stamped, so the browser cannot backdate it.
+    // Empty unless tcpaConsent is exactly true (tcpa-consent.consentRecord).
+    Object.assign(data, TCPA.consentRecord({
+      consent: data.tcpaConsent,
+      kind,
+      referer: req.headers && (req.headers.referer || req.headers.referrer),
+      source: data.source,
+      ip: data.ip,
+      at: FieldValue.serverTimestamp(),
+    }));
     // Per-kind server-set defaults (never trusted from the client). storm sets
     // active:true so the storm-alert cron's .where('active','==',true) actually
     // matches form signups — the client `active` field is intentionally dropped.
