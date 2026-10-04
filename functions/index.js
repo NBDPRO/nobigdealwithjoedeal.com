@@ -500,6 +500,12 @@ Object.assign(exports, firestoreBackup);
 const backupFreshness = require('./backup-freshness');
 Object.assign(exports, backupFreshness);
 
+// Weekly backup of the config that lives only at a vendor (Bland "Thursday",
+// Cal.com, BoldSign, Stripe catalog) into the private vendor-backups bucket.
+// Vendor audit 2026-10-04 Lane B; runbook documentation/runbooks/BACKUP-RESTORE.md.
+const vendorConfigExport = require('./vendor-config-export');
+Object.assign(exports, vendorConfigExport);
+
 // ── Verification Functions (SMS OTP + Lead Notifications) ──
 const verifyFunctions = require('./verify-functions');
 Object.assign(exports, verifyFunctions);
