@@ -103,9 +103,22 @@ async function _loadTasks(leadId) {
     return tasks;
   } catch(e){ return window._taskCache[leadId]||[]; }
 }
+// Owner stamps (2026-10-03): the ONE task load is a collection-group query
+// scoped by userId / companyId, so a task carries its lead's owner + tenant
+// (the rules accept only those values; functions/tasks-stamp.js fills them
+// for every other writer).
+function _taskStamps(leadId) {
+  const lead = (window._leads||[]).find(l=>l&&l.id===leadId);
+  const out = { leadId };
+  const uid = (window._user&&window._user.uid) || (typeof auth!=='undefined'&&auth&&auth.currentUser&&auth.currentUser.uid) || null;
+  const owner = (lead&&lead.userId) || uid;
+  if (owner) out.userId = owner;
+  if (lead&&lead.companyId) out.companyId = lead.companyId;
+  return out;
+}
 async function _saveTask(leadId, text, dueDate) {
   try {
-    const ref = await addDoc(collection(db,'leads',leadId,'tasks'),{text:text.trim(),done:false,dueDate:dueDate||'',createdAt:serverTimestamp()});
+    const ref = await addDoc(collection(db,'leads',leadId,'tasks'),Object.assign(_taskStamps(leadId),{text:text.trim(),done:false,dueDate:dueDate||'',createdAt:serverTimestamp()}));
     return ref.id;
   } catch(e){ return null; }
 }
@@ -130,26 +143,102 @@ async function _deleteTask(leadId, taskId) {
 }
 let _taskCacheRetries = 0;
 const _TASK_CACHE_RETRY_MS = 2500, _TASK_CACHE_MAX_RETRIES = 4;
+// ══ The ONE task load (2026-10-03, Today home) ═══════════════
+// Every task the signed-in user can see, in ONE collection-group query —
+// NBDTodayPlan.tasksQuery (today-plan.js): the tenant for company staff, the
+// owner otherwise, oldest first; its composite index is in
+// firestore.indexes.json and tests/today-plan-2026-10-03.test.js ties the
+// two. It replaced one query per lead (~234 at boot) that also RACED the
+// lead load: it ran once at load+1.8 s over whatever _leads held then, so a
+// cold boot could paint "All caught up" over overdue tasks. The boot load now
+// waits for the leads (_leadsLoaded + the nbd:data-refreshed {source:'leads'}
+// event the lead load fires). The bell, the Today list, the task panel, the
+// card badges and No-next-step all read the _taskCache this one load fills.
+// If the collection-group read is refused (rules / index not deployed yet)
+// the per-lead read below takes over for the session.
+const _FS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+let _taskLoadMode = 'group';
+let _tasksLoaded = false;
+async function _loadAllTasksGroup() {
+  const plan = window.NBDTodayPlan;
+  const uid = (window._user&&window._user.uid) || (typeof auth!=='undefined'&&auth&&auth.currentUser&&auth.currentUser.uid) || null;
+  const spec = plan && plan.tasksQuery(window._userClaims||{}, uid);
+  if (!spec) return null;
+  const cg = window.collectionGroup || (await import(_FS_SDK)).collectionGroup;
+  const snap = await getDocs(query(cg(db, spec.group), where(spec.field, '==', spec.value), orderBy(spec.orderBy, spec.dir)));
+  const by = plan.groupTasksByLead(snap.docs.map(d=>({ id: d.id, parentPath: d.ref && d.ref.parent ? d.ref.parent.path : '', data: d.data() })));
+  return { by, fromCache: !!(snap.metadata && snap.metadata.fromCache) };
+}
 async function loadAllTasks(opts) {
-  // A retry re-reads only the leads whose last read came from cache.
-  const ids = (opts && opts.retry)
-    ? Array.from(_tasksFromCache)
-    : (window._leads||[]).map(l=>l.id);
-  // Use allSettled so a single lead's failure doesn't block the rest
-  await Promise.allSettled(ids.map(id=>_loadTasks(id)));
+  const retry = !!(opts && opts.retry);
+  if (!retry) _taskCacheRetries = 0;
+  let fromCache = false;
+  if (_taskLoadMode === 'group') {
+    try {
+      const r = await _loadAllTasksGroup();
+      if (r) {
+        const next = {};
+        (window._leads||[]).forEach(l=>{ if (l && l.id) next[l.id] = []; });
+        Object.keys(r.by).forEach(k=>{ next[k] = r.by[k]; });
+        window._taskCache = next;
+        fromCache = r.fromCache;
+      } else _taskLoadMode = 'per-lead';
+    } catch (e) {
+      console.warn('[tasks] one-query load refused — per-lead fallback:', e && (e.code || e.message));
+      _taskLoadMode = 'per-lead';
+    }
+  }
+  if (_taskLoadMode === 'per-lead') {
+    // A retry re-reads only the leads whose last read came from cache.
+    const ids = retry ? Array.from(_tasksFromCache) : (window._leads||[]).map(l=>l.id);
+    // Use allSettled so a single lead's failure doesn't block the rest
+    await Promise.allSettled(ids.map(id=>_loadTasks(id)));
+    fromCache = _tasksFromCache.size > 0;
+  }
+  _tasksLoaded = true;
   renderTodayTasks();
   renderLeads(window._leads, window._filteredLeads);
   // Wave 13: tell the notification bell tasks just refreshed.
   try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'tasks' } })); } catch (_) {}
-  // Any read served from the local cache is re-read from the server shortly
+  // A read served from the local cache is re-read from the server shortly
   // (bounded: a genuinely offline rep keeps the cached tasks, which are the
   // best available, and the retries stop).
-  if (!(opts && opts.retry)) _taskCacheRetries = 0;
-  if (_tasksFromCache.size && _taskCacheRetries < _TASK_CACHE_MAX_RETRIES) {
+  if (fromCache && _taskCacheRetries < _TASK_CACHE_MAX_RETRIES) {
     _taskCacheRetries++;
     setTimeout(() => { loadAllTasks({ retry: true }); }, _TASK_CACHE_RETRY_MS);
   }
 }
+// Boot: once the lead book is in (and again if the account changes); a lead
+// refresh after that only repaints from the cache.
+let _taskBootUid = null;
+function _bootTasks() {
+  if (window._leadsLoaded !== true) return;
+  const uid = (window._user&&window._user.uid) || null;
+  if (_taskBootUid !== null && _taskBootUid === uid) { renderTodayTasks(); return; }
+  _taskBootUid = uid;
+  loadAllTasks();
+}
+// Today rows act on tasks through these (today-home.js).
+function _cachedTask(leadId, taskId) { return ((window._taskCache||{})[leadId]||[]).find(t=>t.id===taskId) || null; }
+async function _setTaskDone(leadId, taskId) {
+  const t = _cachedTask(leadId, taskId); const prev = t ? t.done : undefined;
+  if (t) t.done = true;
+  const ok = await _toggleTask(leadId, taskId, true);
+  if (!ok && t) t.done = prev;
+  renderTodayTasks();
+  try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'tasks' } })); } catch (_) {}
+  return ok;
+}
+async function _setTaskDue(leadId, taskId, ymd) {
+  const t = _cachedTask(leadId, taskId); const prev = t ? t.dueDate : undefined;
+  if (t) t.dueDate = ymd;
+  try { await updateDoc(doc(db,'leads',leadId,'tasks',taskId), { dueDate: ymd }); }
+  catch (e) { if (t) t.dueDate = prev; console.error('setTaskDue error:', e); return false; }
+  renderTodayTasks();
+  try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'tasks' } })); } catch (_) {}
+  return true;
+}
+window.NBDTasks = { loaded: () => _tasksLoaded, reload: loadAllTasks, setDone: _setTaskDone, setDue: _setTaskDue };
 function renderTodayTasks() {
   const el = document.getElementById('todayTasksList');
   if(!el) return;
@@ -377,7 +466,8 @@ async function removeTask(taskId){if(!_taskModalLeadId)return;const _t=(window._
   }
   renderTaskList(await _loadTasks(_taskModalLeadId));
 }
-window.addEventListener('load',()=>{setTimeout(loadAllTasks,1800);});
+window.addEventListener('load', _bootTasks);
+window.addEventListener('nbd:data-refreshed', (e) => { if (e && e.detail && e.detail.source === 'leads') _bootTasks(); });
 // ══ END TASK SYSTEM ══════════════════════════════
 
 // ══ Window Scope Exposures ══════════════════════════════════
