@@ -240,6 +240,77 @@ async function readPdfGeometry(pdfBytes) {
   });
 }
 
+// The standard PDF fonts are WinAnsi: anything outside it (an emoji in a
+// user agent, a curly quote in a name) would throw inside drawText and lose
+// the whole certificate. Map the common typographic characters, drop the rest.
+function winAnsiSafe(s) {
+  return String(s == null ? '' : s)
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replace(/[–—]/g, '-').replace(/ /g, ' ')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E¡-ÿ]/g, '');
+}
+
+function wrapLine(font, text, size, width) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const out = [];
+  let line = '';
+  for (const w of words) {
+    const next = line ? line + ' ' + w : w;
+    if (!line || font.widthOfTextAtSize(next, size) <= width) { line = next; continue; }
+    out.push(line);
+    line = w;
+  }
+  if (line) out.push(line);
+  // A single unbroken token wider than the line (a SHA-256, a long UA
+  // fragment) is hard-split so nothing runs off the page.
+  const hard = [];
+  for (const l of out.length ? out : ['']) {
+    let rest = l;
+    while (rest && font.widthOfTextAtSize(rest, size) > width) {
+      let n = rest.length;
+      while (n > 1 && font.widthOfTextAtSize(rest.slice(0, n), size) > width) n--;
+      hard.push(rest.slice(0, n));
+      rest = rest.slice(n);
+    }
+    hard.push(rest);
+  }
+  return hard;
+}
+
+/**
+ * Append the signature certificate (functions/esign-logic.js certificateLines)
+ * as one or more US-Letter pages at the end of `pdfBytes`. Pure; returns the
+ * new bytes and how many pages were added.
+ *   lines: [{ h }, { h2 }, { t }, { sp }]  — heading, sub-heading, text, spacer
+ */
+async function appendAuditCertificate(pdfBytes, lines) {
+  const { PDFDocument, StandardFonts, rgb } = pdfLib();
+  const pdf = await PDFDocument.load(pdfBytes, { ignoreEncryption: false });
+  const before = pdf.getPageCount();
+  const reg = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const W = 612, H = 792, M = 54;
+  let page = pdf.addPage([W, H]);
+  let y = H - M;
+  const draw = (text, font, size, gapAfter) => {
+    for (const ln of wrapLine(font, winAnsiSafe(text), size, W - 2 * M)) {
+      if (y - size < M) { page = pdf.addPage([W, H]); y = H - M; }
+      page.drawText(ln, { x: M, y: y - size, size, font, color: rgb(0.08, 0.09, 0.14) });
+      y -= size * 1.4;
+    }
+    y -= gapAfter;
+  };
+  for (const l of Array.isArray(lines) ? lines : []) {
+    if (!l) continue;
+    if (l.h) draw(l.h, bold, 16, 8);
+    else if (l.h2) draw(l.h2, bold, 11.5, 3);
+    else if (l.sp) y -= 8;
+    else if (l.t != null) draw(l.t, reg, 9.5, 2);
+  }
+  const bytes = await pdf.save({ useObjectStreams: true });
+  return { bytes, pagesAdded: pdf.getPageCount() - before };
+}
+
 module.exports = {
   FIELD_TYPES,
   fieldError,
@@ -248,4 +319,6 @@ module.exports = {
   fitFontSize,
   stampPdf,
   readPdfGeometry,
+  appendAuditCertificate,
+  winAnsiSafe,
 };

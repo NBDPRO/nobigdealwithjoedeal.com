@@ -368,7 +368,7 @@ const C = sb.__out;
       /require\('\.\/job-spine'\)/.test(rs) && /tx\.update\(tokRef, \{ status: 'signed'[\s\S]*await spineAfterRemoteSign\(db, info\)/.test(rs));
     const es = strip(read('functions/esign-envelope.js'));
     ok('esign-envelope.js submitEsignEnvelope calls spineAfterEsign after completion',
-      /status: 'completed'[\s\S]*await spineAfterEsign\(db, env, tok\.envelopeId, signerName\)/.test(es));
+      /status: 'completed'[\s\S]*await spineAfterEsign\(db, env, tok\.envelopeId, /.test(es));
     const da = strip(read('functions/deal-acceptance.js'));
     ok('deal-acceptance.js calls spineAfterDealAccept after the acceptance commits',
       /fillLeadInstallDate\(db, info[\s\S]*await spineAfterDealAccept\(db, info, tier\)/.test(da));

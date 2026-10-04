@@ -295,12 +295,13 @@ section('Phase 3: homeowner presentation mode (Good/Better/Best)');
   // Fewer than 2 priced tiers → single clean card, never a fake compare.
   assert('single-card fallback when tiers cannot be priced',
     /cardOrder\.length >= 2/.test(src) && /Full scope as reviewed with your estimator\./.test(src));
-  // Homeowner-clean + handoff: Sign Now → existing BoldSign flow; close()
-  // never leaves the overlay armed.
-  // …except a Kentucky insurance job (2026-10-03): the BoldSign body has no
+  // Homeowner-clean + handoff: Sign Now → in-house e-sign IN PERSON (the
+  // signing page opens on this device — BoldSign's embed until 2026-10-04);
+  // close() never leaves the overlay armed.
+  // …except a Kentucky insurance job (2026-10-03): the e-sign contract has no
   // KRS 367.624 notices, so Sign Now goes to Sign on this phone (deal page).
-  assert('Sign Now hands off to sendForSignature',
-    /case 'pres-sign':[\s\S]{0,400}else sendForSignature\(\)/.test(src));
+  assert('Sign Now hands off to sendForSignature in person',
+    /case 'pres-sign':[\s\S]{0,400}else sendForSignature\(\{ inPerson: true \}\)/.test(src));
   assert('Sign Now on a Kentucky insurance job → Sign on this phone',
     /case 'pres-sign':[\s\S]{0,400}if \(_kySigningBlocked\(\)\) signOnThisPhone\(\)/.test(src));
   assert('builder close() also closes the presentation',
@@ -655,9 +656,13 @@ section('Per-line supplement money: item decisions, per-line notes, per-item pho
   assert('saved rows persist the note and reopen restores it into overrides',
     /note:\s*\(\(state\.scope \|\| \[\]\)\.find\(s => s\.code === line\.code\)\?\.overrides\?\.note \?\? null\)/.test(v2)
     && /r\.note \? \{ note: String\(r\.note\) \} : \{\}/.test(v2));
-  assert('_stampLineNotes decorates resolved lines before BOTH formatEstimate calls',
+  // Since 2026-10-04 the signed contract is built on the SERVER from the
+  // saved estimate (estimate-esign-pdf.js), so finalize() is the one client
+  // formatEstimate call left — every one of them must still stamp first.
+  assert('_stampLineNotes decorates resolved lines before EVERY formatEstimate call',
     /function _stampLineNotes\(estimate\)/.test(v2)
-    && (v2.match(/_stampLineNotes\(estimate\);/g) || []).length >= 2);
+    && (v2.match(/_stampLineNotes\(estimate\);/g) || []).length >= 1
+    && (v2.match(/_stampLineNotes\(estimate\);/g) || []).length >= (v2.match(/EstimateFinalization\.formatEstimate\(estimate,/g) || []).length);
 
   // ── Documents print the note. ──
   assert('insurance scope rows print the rep note (escaped, distinct from catalog reason)',

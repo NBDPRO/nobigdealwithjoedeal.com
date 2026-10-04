@@ -48,8 +48,6 @@ SECRETS_RECOMMENDED=(
   "HOVER_API_KEY"
   "INSTANTROOFER_API_KEY"
   "INSTANTROOFER_WEBHOOK_SECRET"
-  "BOLDSIGN_API_KEY"
-  "BOLDSIGN_WEBHOOK_SECRET"
   "REGRID_API_TOKEN"
   "HAILTRACE_API_KEY"
   "CALCOM_WEBHOOK_SECRET"
@@ -290,7 +288,6 @@ cat <<'EOF'
 
   EXTERNAL WEBHOOKS TO REGISTER:
     Cal.com  → https://us-central1-nobigdeal-pro.cloudfunctions.net/calcomWebhook
-    BoldSign → https://us-central1-nobigdeal-pro.cloudfunctions.net/esignWebhook
     HOVER    → https://us-central1-nobigdeal-pro.cloudfunctions.net/measurementWebhook?provider=hover
     EagleView→ https://us-central1-nobigdeal-pro.cloudfunctions.net/measurementWebhook?provider=eagleview
     Stripe   → (already in place) /stripeWebhook + /invoiceWebhook

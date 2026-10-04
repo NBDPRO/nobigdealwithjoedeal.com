@@ -178,7 +178,7 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=7',
+      'js/customer-documents.js?v=8',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -244,10 +244,10 @@
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
       'js/estimate-finalization.js?v=6',
-      'js/estimate-v2-ui.js?v=21',
+      'js/estimate-v2-ui.js?v=22',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
-      'js/estimate-v3-wizard.js?v=3',
+      'js/estimate-v3-wizard.js?v=4',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine

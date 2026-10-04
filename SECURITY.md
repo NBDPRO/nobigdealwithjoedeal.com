@@ -36,7 +36,7 @@ responsible reporters in the release notes for the fix (with permission).
 - **Storage rules:** `storage.rules`
 - **Client auth + role handling:** `docs/pro/js/nbd-auth.js`, `docs/pro/js/admin-manager.js`
 - **Homeowner portal:** `docs/pro/portal.html` + `getHomeownerPortalView` / `createPortalToken`
-- **Webhooks:** `stripeWebhook`, `invoiceWebhook`, `esignWebhook`, `calcomWebhook`,
+- **Webhooks:** `stripeWebhook`, `invoiceWebhook`, `calcomWebhook`,
   `measurementWebhook`, `incomingSMS`, `swathWebhook`, `thumbtackWebhook`,
   `stripeConnectWebhook` (the last three added 2026-09-14 — they were always
   live and signature-gated, just never listed here)
@@ -45,10 +45,10 @@ responsible reporters in the release notes for the fix (with permission).
 
 - Theoretical attacks that require physical access to a signed-in device
 - DoS that requires 10k+ concurrent clients (we rely on Firebase quota + Upstash rate limits)
-- Third-party vendor vulnerabilities (report directly to HOVER / BoldSign / Regrid / etc.
+- Third-party vendor vulnerabilities (report directly to HOVER / Regrid / etc.
   — we'll coordinate if their issue affects us)
 - Social engineering the on-call engineer
-- Missing security headers on third-party iframes we embed (Cal.com, BoldSign)
+- Missing security headers on third-party iframes we embed (Cal.com)
 
 ## Current security posture (for researchers)
 

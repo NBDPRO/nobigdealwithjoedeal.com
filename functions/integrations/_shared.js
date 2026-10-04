@@ -55,8 +55,6 @@ const SECRETS = {
   // paste into their dashboard (runbooks/INSTANTROOFER-SETUP.md).
   INSTANTROOFER_API_KEY: defineSecret('INSTANTROOFER_API_KEY'),
   INSTANTROOFER_WEBHOOK_SECRET: defineSecret('INSTANTROOFER_WEBHOOK_SECRET'),
-  BOLDSIGN_API_KEY:      defineSecret('BOLDSIGN_API_KEY'),
-  BOLDSIGN_WEBHOOK_SECRET: defineSecret('BOLDSIGN_WEBHOOK_SECRET'),
   REGRID_API_TOKEN:      defineSecret('REGRID_API_TOKEN'),
   HAILTRACE_API_KEY:     defineSecret('HAILTRACE_API_KEY'),
   CALCOM_WEBHOOK_SECRET: defineSecret('CALCOM_WEBHOOK_SECRET'),
@@ -99,7 +97,8 @@ const PROVIDERS = {
   // first provider that ever had a real key (the other three have been the
   // deploy stub since April). hover/eagleview/nearmap remain selectable.
   measurement:       (process.env.NBD_MEASUREMENT_PROVIDER  || 'instantroofer').toLowerCase(),
-  esign:             (process.env.NBD_ESIGN_PROVIDER        || 'boldsign').toLowerCase(),
+  // (esign: retired 2026-10-04 with BoldSign — signing is in-house only,
+  // functions/esign-envelope.js. NBD_ESIGN_PROVIDER had zero readers.)
   // parcel: 'regrid' (default) | 'swath'  ·  hail: 'noaa' (default,
   // free) | 'swdi' (free, keyless radar hail — integrations/swdi-hail.js)
   // | 'hailtrace' | 'swath'. Swath is one key for both slots —

@@ -93,8 +93,6 @@ exports.integrationStatus = onCall(
         // (integrations/measurement.js; runbooks/INSTANTROOFER-SETUP.md).
         instantroofer:      _hasInt('INSTANTROOFER_API_KEY'),
         instantrooferWebhook: _hasInt('INSTANTROOFER_WEBHOOK_SECRET'),
-        boldsign:           _hasInt('BOLDSIGN_API_KEY'),
-        boldsignWebhook:    _hasInt('BOLDSIGN_WEBHOOK_SECRET'),
         regrid:             _hasInt('REGRID_API_TOKEN'),
         hailtrace:          _hasInt('HAILTRACE_API_KEY'),
         // Swath (swathapi.com) — one API key serves both the hail-swath
@@ -136,8 +134,9 @@ exports.integrationStatus = onCall(
 // ═══════════════════════════════════════════════════════════════
 // integrationAvailability — the non-admin-safe subset of integrationStatus.
 //
-// requestMeasurement / sendForSignature / lookupParcel (the only three
-// callers of requireConfigured() in docs/pro/js/integrations-client.js) need
+// requestMeasurement / lookupParcel (the callers of requireConfigured() in
+// docs/pro/js/integrations-client.js; e-sign left it with BoldSign on
+// 2026-10-04 — in-house signing needs no vendor key) need
 // to know whether their own gating provider is configured, but they run for
 // EVERY rep, not just admin/company_admin. integrationStatus is deliberately
 // admin-gated (H-06, above) to stop a free-tier caller from enumerating the
@@ -159,7 +158,6 @@ exports.integrationAvailability = onCall(
       _intSecrets.EAGLEVIEW_API_KEY,
       _intSecrets.NEARMAP_API_KEY,
       _intSecrets.INSTANTROOFER_API_KEY,
-      _intSecrets.BOLDSIGN_API_KEY,
       _intSecrets.REGRID_API_TOKEN
     ]
   },
@@ -169,7 +167,7 @@ exports.integrationAvailability = onCall(
     }
     // No role check by design — this is the point of the callable: every
     // authenticated rep, not just admin/company_admin, needs this to light
-    // up their own Auto-measure / e-sign / parcel-lookup buttons.
+    // up their own Auto-measure / parcel-lookup buttons.
     return {
       // Which named provider is active per category — an env-var selection
       // (functions/integrations/_shared.js PROVIDERS), not a secret.
@@ -177,7 +175,6 @@ exports.integrationAvailability = onCall(
       // the four `configured` keys below gates its own call.
       providers: {
         measurement: _intProviders.measurement,
-        esign: _intProviders.esign,
         parcel: _intProviders.parcel
       },
       configured: {
@@ -185,7 +182,6 @@ exports.integrationAvailability = onCall(
         eagleview:     _hasInt('EAGLEVIEW_API_KEY'),
         nearmap:       _hasInt('NEARMAP_API_KEY'),
         instantroofer: _hasInt('INSTANTROOFER_API_KEY'),
-        boldsign:      _hasInt('BOLDSIGN_API_KEY'),
         regrid:        _hasInt('REGRID_API_TOKEN')
       }
     };
