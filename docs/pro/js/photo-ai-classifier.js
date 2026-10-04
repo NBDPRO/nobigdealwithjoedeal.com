@@ -50,7 +50,7 @@
     // Lazy-load Firebase Functions SDK on first use (mirrors the
     // pattern used by _sharePortalLink and other on-demand callers
     // in customer.html / dashboard.html).
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
     _fns = mod.getFunctions();
     window._functions   = _fns;
     window._httpsCallable = mod.httpsCallable;

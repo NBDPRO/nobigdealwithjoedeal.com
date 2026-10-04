@@ -477,7 +477,7 @@
       _receiptCallable = window._httpsCallable(window._functions, 'extractReceiptData');
       return _receiptCallable;
     }
-    var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
     window._functions = window._functions || mod.getFunctions();
     window._httpsCallable = mod.httpsCallable;
     _receiptCallable = mod.httpsCallable(window._functions, 'extractReceiptData');

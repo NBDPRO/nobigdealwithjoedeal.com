@@ -1266,7 +1266,7 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     const start = CP_SRC.indexOf('} else if (window.auth) {');
     const block = extractBlock(CP_SRC.slice(start + 2), 'else if (window.auth) {');
     const body = block.slice(block.indexOf('{') + 1, block.lastIndexOf('}'))
-      .replace("import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js')", '__import()');
+      .replace("import('/assets/vendor/firebase/12.19.0/firebase-auth.js')", '__import()');
     ok('command-palette fallback: the lifted block still imports the SDK signOut (the stub replaced it)', /__import\(\)/.test(body));
     const run = async (purgeAll) => {
       const order = [];
@@ -1788,7 +1788,7 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
   {
     for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
       const html = read(page);
-      const i = html.indexOf('<script defer src="js/nbd-comms.js?v=4"></script>');
+      const i = html.search(/<script defer src="js\/nbd-comms\.js\?v=\d+"><\/script>/); // any ?v= — cache-buster bumps must not redden wiring
       const j = html.indexOf('<script defer src="js/sms-outbox.js?v=1"></script>');
       ok(page + ' loads sms-outbox.js (defer) right after nbd-comms.js', i >= 0 && j > i && html.slice(i, j).split('<script').length === 2);
     }

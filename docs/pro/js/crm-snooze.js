@@ -78,7 +78,7 @@ async function loadNotifications() {
     if (!user) return;
 
     const {getDocs: _getDocs, onSnapshot: _onSnap, query: _query, collection: _col, where: _where, orderBy: _order, limit: _limit} =
-      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
 
     const q = _query(
       _col(_db, 'notifications'),
@@ -213,7 +213,7 @@ function _nbdFollowUpEligible(l) {
 }
 // Everything the engines need from the SDK, in one place.
 function _nbdFirestoreMod() {
-  return import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  return import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
 }
 
 async function checkAndCreateFollowUpNotifications(leads) {
@@ -504,7 +504,7 @@ async function _updateNotifDocs(ids, patch) {
   if (!_db || !list.length) return;
   try {
     const { updateDoc, doc, serverTimestamp } =
-      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
     const ts = serverTimestamp();
     const stamped = Object.assign({}, patch);
     if (patch.read)      stamped.readAt = ts;

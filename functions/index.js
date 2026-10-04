@@ -66,6 +66,42 @@ require('./integrations/sentry');
 require('./shared');
 
 // ═══════════════════════════════════════════════════════════════
+// LAZY FAST PATH (2026-10-04) — a running instance loads ONE module.
+//
+// Every Gen2 function is its own Cloud Run service, yet each cold start ran
+// this whole file: ~116 module requires for 237 exports, to serve one of them
+// (and needed 256MiB+ to hold them all). The runtime names the function it is
+// serving in FUNCTION_TARGET (Cloud Run's Functions Framework and the
+// emulator's per-function workers both set it to the export name), so when it
+// is set and functions/function-map.json knows the name, export just that
+// function from just its module and stop.
+//
+// Deploy discovery (firebase-tools' manifest pass) and the emulator's
+// discovery pass run WITHOUT FUNCTION_TARGET and take the full path below, so
+// the deployed surface is unchanged — tests/functions-lazy-load-2026-10-04
+// .test.js runs the real discovery loader both ways and requires identical
+// endpoint lists, and re-proves every map entry by object identity. An
+// unmapped or stale name falls through to the full load: slower, never broken.
+// Regenerate the map after adding/moving an export:
+//   node scripts/gen-function-map.js        (CI: --check)
+// Memory settings are deliberately unchanged in this PR (follow-up: measure
+// cold-start RSS per function now that each loads one module, then trim).
+// ═══════════════════════════════════════════════════════════════
+{
+  const target = process.env.FUNCTION_TARGET;
+  if (target) {
+    let map = null;
+    try { map = require('./function-map.json'); } catch (_) { map = null; }
+    const rel = map && Object.prototype.hasOwnProperty.call(map, target) ? map[target] : null;
+    const fn = rel ? require(rel)[target] : undefined;
+    if (typeof fn === 'function') {
+      exports[target] = fn;
+      return; // CommonJS module scope: skip the full load below.
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // STEP 4c — inline handlers re-exported from functions/handlers/*.
 //
 // Order doesn't matter for the export contract; we group thematically

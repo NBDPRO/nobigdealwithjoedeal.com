@@ -397,7 +397,7 @@
         b.addEventListener('click', async function () {
           var w = window.open('', '_blank'); // open now — a popup opened after an await is blocked
           try {
-            var st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+            var st = await import('/assets/vendor/firebase/12.19.0/firebase-storage.js');
             var blob = await st.getBlob(st.ref(window.storage, b.getAttribute('data-esign-open')));
             var url = URL.createObjectURL(blob);
             if (w) w.location.href = url; else window.open(url, '_blank');
@@ -491,7 +491,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -535,7 +535,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -580,7 +580,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Linking…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -673,7 +673,7 @@
 
   async function _docCallable(name, data) {
     if (!window._functions || !window._httpsCallable) {
-      var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
       window._functions = window._functions || mod.getFunctions();
       try {
         var emu = await import('./nbd-emulator-connect.js');

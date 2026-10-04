@@ -31,7 +31,7 @@
   LOADED['customer-calls'] = true;
   if (!/\/pro\/customer(?:\.html)?$/.test(window.location.pathname || '')) return;
 
-  var FUNCTIONS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+  var FUNCTIONS_SDK = '/assets/vendor/firebase/12.19.0/firebase-functions.js';
   var calls = [];
   // Texts from Jo's phone (functions/text-inbox.js → phone_texts), 2026-10-01.
   var texts = [];
@@ -266,7 +266,7 @@
       status(callId, 'Loading recording…');
       try {
         var pc = calls.find(function (c) { return c._kind === 'phone' && 'phone:' + c._id === callId; });
-        var st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+        var st = await import('/assets/vendor/firebase/12.19.0/firebase-storage.js');
         var blob = await st.getBlob(st.ref(window.storage, pc.storagePath));
         blobUrls[callId] = URL.createObjectURL(blob);
         status(callId, '');

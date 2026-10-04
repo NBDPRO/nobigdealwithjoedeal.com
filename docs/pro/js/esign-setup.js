@@ -21,11 +21,11 @@
  * cropped page — which scanned insurance forms routinely are.
  */
 
-import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getStorage, ref as storageRef, uploadBytes } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+import { initializeApp, getApps } from '/assets/vendor/firebase/12.19.0/firebase-app.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from '/assets/vendor/firebase/12.19.0/firebase-app-check.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/12.19.0/firebase-auth.js';
+import { getStorage, ref as storageRef, uploadBytes } from '/assets/vendor/firebase/12.19.0/firebase-storage.js';
+import { getFunctions, httpsCallable } from '/assets/vendor/firebase/12.19.0/firebase-functions.js';
 import * as pdfjsLib from '/assets/vendor/pdfjs/pdf.min.mjs';
 import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal } from './nbd-emulator-connect.js';
 
@@ -592,7 +592,7 @@ onAuthStateChanged(auth, async (user) => {
     // them blank as before.
     if (leadId) {
       try {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
         const db = fs.getFirestore(app);
         try { await connectEmulatorsIfLocal({ db }); } catch (_) {}
         const snap = await fs.getDoc(fs.doc(db, 'leads', leadId));

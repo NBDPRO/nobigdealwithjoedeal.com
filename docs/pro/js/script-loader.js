@@ -86,7 +86,7 @@
     ],
     storm: [
       'js/storm-center.js?v=5',
-      'js/storm-integration.js?v=2',
+      'js/storm-integration.js?v=3',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
       'js/storm-outlook.js?v=1'
@@ -95,7 +95,7 @@
       // The shared financing APR band (public estimator + deal page, 2026-10-03)
       // — close-board.js prints payments only from it.
       '/assets/js/financing-band.js?v=1',
-      'js/close-board.js?v=9'
+      'js/close-board.js?v=10'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -111,7 +111,7 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=4',
-      'js/expenses.js?v=8',
+      'js/expenses.js?v=9',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=3',
@@ -123,7 +123,7 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=1',
+      'js/stripe-ledger-panel.js?v=2',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=4',
       'js/money-dashboard.js?v=8'
@@ -158,7 +158,7 @@
       // CDN fetch fails, load() resolves anyway and the generator's existing
       // `typeof ApexCharts === 'undefined'` guard degrades gracefully.
       '/assets/vendor/apexcharts/apexcharts.min.js',
-      'js/rep-report-generator.js?v=6'
+      'js/rep-report-generator.js?v=7'
     ],
     // Doc-generation cluster (PR 2b). Only needed when the rep generates a
     // document — from a lead-card doc chip (_generateDocWithPreflight) or
@@ -171,14 +171,14 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=14',
+      'js/document-generator.js?v=15',
       'js/document-generator-templates.js?v=11',
       'js/doc-preflight.js?v=3',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=7',
+      'js/customer-documents.js?v=8',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -223,8 +223,8 @@
       'js/nbd-logo-asset.js?v=3',
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
-      'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=8',
+      'js/catalog-costs.js?v=4',
+      'js/product-library.js?v=9',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
@@ -244,7 +244,7 @@
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
       'js/estimate-finalization.js?v=6',
-      'js/estimate-v2-ui.js?v=21',
+      'js/estimate-v2-ui.js?v=22',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=3',
@@ -285,7 +285,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=7',
+      'js/photo-engine.js?v=8',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
@@ -297,8 +297,8 @@
       // loadBundle('photos') a no-op for it and nothing would load lazily.
       'js/photo-queue-store.js?v=2',
       'js/photo-queue-recovery.js?v=2',
-      'js/inspection-report-engine.js?v=6',
-      'js/photo-report.js?v=4'
+      'js/inspection-report-engine.js?v=7',
+      'js/photo-report.js?v=5'
     ],
     // D2D tracker (PR 2e). The door-to-door knock tracker — only the D2D
     // view uses it. ~180 KB off boot. Load order locked: core publishes
@@ -310,7 +310,7 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=13',
+      'js/d2d-tracker-core-2026b.js?v=14',
       'js/d2d-tracker-ui-2026b.js?v=7',
       'js/d2d-tracker-2026b.js?v=3'
     ],
@@ -325,7 +325,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=6'
+      'js/warranty-cert.js?v=7'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
@@ -412,7 +412,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=11'
+      'js/call-center-view.js?v=12'
     ]
   };
 

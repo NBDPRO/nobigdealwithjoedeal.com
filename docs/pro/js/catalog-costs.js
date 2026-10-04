@@ -114,7 +114,7 @@
   };
   const CACHE_PREFIX = 'nbd_catalog_costs';
   const TIERS = ['good', 'better', 'best'];
-  const FS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  const FS_SDK = '/assets/vendor/firebase/12.19.0/firebase-firestore.js';
   // Matches SEED_VERSION in functions/catalog-cost-logic.js — stamped on a
   // book this client creates from scratch so the ops scripts can validate it.
   const SEED_VERSION = 1;

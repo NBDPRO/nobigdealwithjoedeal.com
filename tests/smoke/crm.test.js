@@ -299,7 +299,7 @@ section('Customer photo multi-select + batched commit');
   // writeBatch must be imported AND exposed on window so the bulk
   // handlers can invoke it.
   assert('customer.html imports writeBatch from firestore SDK',
-    /import \{[^}]*writeBatch[^}]*\}\s*from\s*"https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/firebase-firestore\.js"/.test(customer));
+    /import \{[^}]*writeBatch[^}]*\}\s*from\s*"\/assets\/vendor\/firebase\/[\d.]+\/firebase-firestore\.js"/.test(customer));
   assert('customer.html exposes window.writeBatch',
     /window\.writeBatch\s*=\s*writeBatch/.test(customer));
   // _photoSelected Set + tile checkbox overlay + bulk action bar DOM.

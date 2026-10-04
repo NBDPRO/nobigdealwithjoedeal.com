@@ -32,7 +32,7 @@ function ok(name, cond, detail) {
 }
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/crm-snooze.js'), 'utf8');
-const CDN = 'import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js")';
+const CDN = 'import("/assets/vendor/firebase/12.19.0/firebase-firestore.js")';
 const PATCHED = SRC.split(CDN).join('__fsImport()');
 
 // ── one shared fake Firestore (the server) ───────────────────────────────

@@ -144,7 +144,7 @@
     }
     try {
       const { doc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp } =
-        await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
 
       const stormProof = {
         zoneId: zone.id,
@@ -435,7 +435,7 @@
     if (!leadId) { if (window.showToast) window.showToast('Open a lead first', 'info'); return; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }

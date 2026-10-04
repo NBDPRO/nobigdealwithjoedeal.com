@@ -34,6 +34,11 @@
  * from the logs when creating the check. `{ heartbeat: 'custom-slug' }` in
  * the options overrides it; `{ heartbeat: false }` opts a function out.
  *
+ * 2026-10-04: 35 crons vs a 20-check free tier, so the slug now comes from
+ * heartbeat-plan.js first (dedicated checks keep their kebab slug; low-stakes
+ * crons on one cadence share a check; `exempt` opts out). The kebab default
+ * remains the fallback for a cron missing from the plan — which CI rejects.
+ *
  * When HEALTHCHECKS_PING_KEY is unset (the deploy's `__unset__` stub) every
  * ping is a no-op — nothing changes for a project that never configures it.
  * A ping never throws into the cron: a monitoring outage must not fail the
@@ -47,6 +52,7 @@
 const { onSchedule: rawOnSchedule } = require('firebase-functions/v2/scheduler');
 const { logger } = require('firebase-functions/v2');
 const { SECRETS, hasSecret, getSecret } = require('./_shared');
+const { planFor } = require('./heartbeat-plan');
 
 const HC_BASE = 'https://hc-ping.com/';
 const PING_TIMEOUT_MS = 5_000;
@@ -119,10 +125,24 @@ async function pingHeartbeat(slug, outcome = 'success', meta = {}) {
 }
 
 /** Wrap a scheduled handler: success → ping, throw → ping /fail then rethrow. */
+/**
+ * The slug this run pings: an explicit `heartbeat: 'slug'` option wins, then
+ * the plan in heartbeat-plan.js (shared checks — 35 crons, 20 free checks),
+ * then the kebab-case export name. `null` = the plan exempts this cron.
+ */
+function resolveSlug(explicit) {
+  if (explicit) return explicit;
+  const name = currentFunctionName();
+  const planned = planFor(name);
+  if (planned === null) return null;
+  return planned || heartbeatSlug(name);
+}
+
 function withHeartbeat(slugOrNull, handler) {
   if (typeof handler !== 'function') throw new TypeError('withHeartbeat: handler must be a function');
   return async function heartbeatWrapped(event) {
-    const slug = slugOrNull || heartbeatSlug(currentFunctionName());
+    const slug = resolveSlug(slugOrNull);
+    if (slug === null) return handler(event); // exempt in heartbeat-plan.js
     const t0 = Date.now();
     try {
       const result = await handler(event);
@@ -161,6 +181,7 @@ function onSchedule(opts, handler) {
 module.exports = {
   onSchedule,
   withHeartbeat,
+  resolveSlug,
   pingHeartbeat,
   heartbeatSlug,
   heartbeatUrl,

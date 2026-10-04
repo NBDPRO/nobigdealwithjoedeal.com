@@ -11,11 +11,11 @@
 // verification happens first; the TOTP UI only appears for an
 // authenticated admin.
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp } from '/assets/vendor/firebase/12.19.0/firebase-app.js';
 import {
   getAuth, onAuthStateChanged,
   multiFactor, TotpMultiFactorGenerator, TotpSecret
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+} from '/assets/vendor/firebase/12.19.0/firebase-auth.js';
 
 const app = initializeApp({
   apiKey: 'AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg',
@@ -123,7 +123,7 @@ $('verifyBtn').addEventListener('click', async () => {
     // MFA; they'll just not have recovery codes on this account.
     try {
       const { getFirestore, doc, setDoc, serverTimestamp } =
-        await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
       const db = getFirestore(app);
       await setDoc(doc(db, 'users/' + currentUser.uid), {
         mfaEnrolledAt: serverTimestamp(),

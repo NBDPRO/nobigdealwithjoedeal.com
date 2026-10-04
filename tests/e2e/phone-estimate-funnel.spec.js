@@ -43,6 +43,9 @@ test.describe('phone estimate funnel — no text code @shard2', () => {
       const url = req.url();
       if (url.startsWith(origin)) {
         if (/\/api\/google-reviews/.test(url)) return route.fulfill({ json: { rating: 5, total: 29, reviews: [] } });
+        // The SDK is same-origin since 2026-10-04 (/assets/vendor/firebase/<ver>/) — stub it here.
+        if (/\/assets\/vendor\/firebase\/[\d.]+\/firebase-app\.js/.test(url)) return route.fulfill({ contentType: 'text/javascript', body: FIREBASE_APP });
+        if (/\/assets\/vendor\/firebase\/[\d.]+\/firebase-functions\.js/.test(url)) return route.fulfill({ contentType: 'text/javascript', body: FIREBASE_FNS });
         return route.continue();
       }
       const fn = (url.match(/cloudfunctions\.net\/([A-Za-z]+)/) || [])[1];

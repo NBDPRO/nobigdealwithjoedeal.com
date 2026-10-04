@@ -56,7 +56,7 @@ test.describe.serial('My Skin @shard2', () => {
 
     // What reached Storage is the re-encoded JPEG at the capped size.
     const stored = await safeEvaluate(page, async (p) => {
-      const st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+      const st = await import('/assets/vendor/firebase/12.19.0/firebase-storage.js');
       const md = await st.getMetadata(st.ref(window.storage, p));
       const blob = await st.getBlob(st.ref(window.storage, p));
       const bmp = await createImageBitmap(blob);
@@ -89,7 +89,7 @@ test.describe.serial('My Skin @shard2', () => {
     // Remove both pictures: the objects are gone from Storage.
     await safeEvaluate(page, async () => { await window.NBDMySkin.remove('wallpaper'); await window.NBDMySkin.remove('mascot'); });
     const gone = await safeEvaluate(page, async (u) => {
-      const st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+      const st = await import('/assets/vendor/firebase/12.19.0/firebase-storage.js');
       try { await st.getBlob(st.ref(window.storage, 'skins/' + u + '/wallpaper')); return false; } catch (e) { return /object-not-found/.test(e.code || ''); }
     }, uid);
     expect(gone).toBe(true);

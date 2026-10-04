@@ -55,7 +55,7 @@
 <link rel="preload" href="js/crm-leads.js?v=8" as="script">
 <link rel="preload" href="js/crm-pipeline.js?v=14" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
-<link rel="preload" href="js/crm-snooze.js?v=5" as="script">
+<link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
 <link rel="preload" href="js/crm.js?v=35" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
@@ -112,7 +112,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=106"></script>
+<script src="js/script-loader.js?v=125"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -131,7 +131,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=31"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=32"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -4359,7 +4359,7 @@
         </div>
       </div><!-- /stab-panel-team -->
 
-      <script src="js/dashboard-team-tab.js?v=4"></script>
+      <script src="js/dashboard-team-tab.js?v=5"></script>
 
       <!-- ══ TAB: ACCESS ══ -->
       <div class="stab-panel dn" id="stab-panel-access">
@@ -4555,7 +4555,7 @@
       </div><!-- /stab-panel-billing -->
 
       <script src="js/dashboard-billing-tab.js?v=3"></script>
-      <script src="js/dashboard-connect-tab.js?v=2"></script>
+      <script src="js/dashboard-connect-tab.js?v=3"></script>
 
       <!-- ══ TAB: NOTIFICATIONS ══ -->
       <div class="stab-panel dn" id="stab-panel-notifications">
@@ -5910,7 +5910,7 @@
 <script defer src="js/dashboard-state.js?v=8"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
-<script defer src="js/dashboard-api.js?v=5"></script>
+<script defer src="js/dashboard-api.js?v=6"></script>
 <!-- Durable offline photo queue. Loaded EAGERLY and ahead of the lazy
      `photos` bundle on purpose: photo-engine.js only arrives when the rep
      opens a photos view, but a photo queued before a bfcache reload has to
@@ -5937,7 +5937,7 @@
 <script defer src="js/customer-estimate-rows.js?v=3"></script>
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/customer-estimate-hub.js?v=4"></script>
-<script defer src="js/customer-photo-hub.js?v=2"></script>
+<script defer src="js/customer-photo-hub.js?v=3"></script>
 <!-- Mobile job-detail Voice Intel tab. voice-intelligence.js's initVoiceIntel
      is an ES export; this bridge exposes it as window.VoiceIntel for the
      classic dashboard-actions.js mount/unmount wiring to call. -->
@@ -5945,7 +5945,7 @@
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=8"></script>
 <script defer src="js/dashboard-ui.js?v=11"></script>
-<script defer src="js/dashboard-actions.js?v=16"></script>
+<script defer src="js/dashboard-actions.js?v=17"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -6794,7 +6794,7 @@
      that view. -->
 <!-- Legendary Rep Report Generator — bold-editorial visual
      reports for rep coaching + owner meetings. -->
-<script defer src="js/billing-gate.js?v=2"></script>
+<script defer src="js/billing-gate.js?v=3"></script>
 <!-- LAZY: rep-report-generator (reports view) loaded via ScriptLoader -->
 
 <script defer src="js/roof-report.js?v=2"></script>
@@ -6806,7 +6806,7 @@
      The loading spinner covers the gap. billing-gate and
      doc-viewer must come BEFORE crm/widgets since those
      reference NBDBilling and NBDDocGen at call-time. -->
-<script defer src="js/claude-proxy.js?v=4"></script>
+<script defer src="js/claude-proxy.js?v=5"></script>
 <!-- Audit batch 6: repository pattern layer. Centralizes userId/
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
@@ -6827,14 +6827,17 @@
 <script defer src="js/schedule-window-ui.js?v=1"></script>
 <script defer src="js/crm-leads.js?v=8"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
-<script defer src="js/jobs-store.js?v=4"></script>
+<script defer src="js/jobs-store.js?v=5"></script>
+<!-- Lead photos on demand (startup audit 2026-10-04): window.NBDPhotoCache
+     replaces the unbounded every-photo read loadLeads used to do at boot. -->
+<script defer src="js/photo-cache.js?v=2"></script>
 <script defer src="js/crm-pipeline.js?v=14"></script>
-<script defer src="js/crm-snooze.js?v=5"></script>
+<script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
      users/{uid}/fcmTokens so the backend reminder/lead pushes have recipients.
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
-<script defer src="js/push-registration.js?v=6"></script>
+<script defer src="js/push-registration.js?v=7"></script>
 <script defer src="js/push-actions.js?v=3"></script>
 <script defer src="js/crm-portal-bridge.js?v=7"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
@@ -6845,7 +6848,7 @@
 <script defer src="js/tasks.js?v=6"></script>
 <script defer src="js/dol-fill.js?v=1"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
-<script defer src="js/agent-inbox.js?v=5"></script>
+<script defer src="js/agent-inbox.js?v=6"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
 <script defer src="js/dup-review.js?v=1"></script>
@@ -6885,21 +6888,21 @@
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
 <script defer src="js/phone-share.js?v=1"></script>
-<script defer src="js/estimate-followups.js?v=1"></script>
+<script defer src="js/estimate-followups.js?v=2"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
-<script defer src="js/game-card.js?v=2"></script>
+<script defer src="js/game-card.js?v=3"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
 <script defer src="js/collected-revenue.js?v=2"></script>
-<script defer src="js/widgets.js?v=12"></script>
+<script defer src="js/widgets.js?v=13"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
-<script defer src="js/my-skin.js?v=2"></script>
-<script defer src="js/ui.js?v=9"></script>
+<script defer src="js/my-skin.js?v=3"></script>
+<script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=4"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=4"></script>
+<script defer src="js/nbd-comms.js?v=5"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
@@ -6937,8 +6940,8 @@
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
 <script defer src="js/smart-calendar.js?v=5"></script>
-<script defer src="js/calendar-feed-ui.js?v=1"></script>
-<script defer src="js/google-calendar-ui.js?v=6"></script>
+<script defer src="js/calendar-feed-ui.js?v=2"></script>
+<script defer src="js/google-calendar-ui.js?v=7"></script>
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
 <script defer src="js/schedule-planner-logic.js?v=2"></script>
 <script defer src="js/schedule-planner.js?v=3"></script>
@@ -6947,7 +6950,7 @@
      activity entry, and auto-create tasks from extracted action items.
      Loaded after voice-memo.js (sibling module) — they coexist; this
      adds the summary + upload + auto-task layer. -->
-<script defer src="js/voicemail.js?v=3"></script>
+<script defer src="js/voicemail.js?v=4"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
 <script defer src="js/estimate-config.js?v=5"></script>
@@ -6971,7 +6974,7 @@
 <script defer src="js/review-engine.js?v=6"></script>
 <script defer src="js/review-deck.js?v=1"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=5"></script>
+<script defer src="js/company-profile.js?v=6"></script>
 <!-- LAZY: doc-generation cluster (nbd-logo-asset, document-generator,
      document-generator-templates, doc-preflight) loaded via ScriptLoader's
      `docgen` bundle. Was eager here (~420 KB on every load); PR 2b moved it
@@ -6986,7 +6989,7 @@
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
 <script defer src="js/adjuster-tactic-card.js?v=2"></script>
 <!-- T-4: AI texting persona editor (Settings → AI Texting tab) -->
-<script defer src="js/ai-texting-persona.js?v=3"></script>
+<script defer src="js/ai-texting-persona.js?v=4"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- LAZY: sales-training, academy/*, real-deal-academy/*, storm-*, decision-engine,
      close-board, rep-os loaded via ScriptLoader when the user enters those views. -->
@@ -7032,25 +7035,25 @@
      based on the user's claims. Lazy-loading would hide the nav entry
      until the admin explicitly typed #/admin, defeating the gate UX. -->
 <script defer src="js/inbound-sms-triage.js?v=1"></script>
-<script defer src="js/admin-manager.js?v=3"></script>
+<script defer src="js/admin-manager.js?v=4"></script>
 <!-- Integrations client — exposes window.NBDIntegrations for HOVER,
      BoldSign, Regrid, HailTrace, Cal.com. No-op when providers are
      not configured server-side. -->
-<script defer src="js/integrations-client.js?v=2"></script>
+<script defer src="js/integrations-client.js?v=3"></script>
 <!-- Signed Storage URL helper — lets photo grids fetch images
      directly from Storage (C1) instead of streaming through
      the deprecated imageProxy. -->
 <script defer src="js/signed-image-url.js?v=1"></script>
 <!-- Voice memo recorder + Deepgram client (F8) -->
-<script defer src="js/voice-memo.js?v=1"></script>
+<script defer src="js/voice-memo.js?v=2"></script>
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
-<script defer src="js/nbd-whisper.js?v=2"></script>
+<script defer src="js/nbd-whisper.js?v=3"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="js/quick-capture.js?v=3"></script>
+<script defer src="js/quick-capture.js?v=4"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
-<script defer src="js/quick-capture-inbox.js?v=3"></script>
+<script defer src="js/quick-capture-inbox.js?v=4"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
-<script defer src="js/command-palette.js?v=4"></script>
+<script defer src="js/command-palette.js?v=5"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="js/fab-stack-coordinator.js?v=2"></script>
@@ -7082,11 +7085,11 @@
 <!-- Feature flags (F9) — window.NBDFlags for kill switches + gradual rollout -->
 <script defer src="js/feature-flags.js?v=1"></script>
 <!-- Stage B slice 1: flag-gated shadow server aggregates (no UI reads) -->
-<script defer src="js/server-aggregates.js?v=2"></script>
+<script defer src="js/server-aggregates.js?v=3"></script>
 <!-- Help-icon helper: window.HelpIcon.attach(el, anchor) drops a "?"
      next to any element that opens how-to.html at the right section. -->
 <script defer src="js/help-icon.js?v=2"></script>
-<script defer src="js/session-revoke.js?v=2"></script>
+<script defer src="js/session-revoke.js?v=3"></script>
 <!-- LAZY: photo-report (window.generatePhotoReport) loads via ScriptLoader's
      `photos` bundle (PR 2d). The Next Actions "📸 Photo Report" chip calls
      generatePhotoReport through a load-then-run stub (dashboard-actions.js)
@@ -7110,4 +7113,4 @@
      banner script is a plain (non-module) classic script that browsers cache
      hard, so shipping the fix without bumping it leaves every warm cache
      showing the old false error. -->
-<script src="js/dashboard-load-status-banner.js?v=2"></script>
+<script src="js/dashboard-load-status-banner.js?v=3"></script>

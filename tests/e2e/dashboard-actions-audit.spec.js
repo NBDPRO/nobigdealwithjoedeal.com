@@ -43,13 +43,14 @@ test.use({
     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
 });
 
-// Sandbox egress blocks www.gstatic.com — serve locally-bundled Firebase
-// 10.12.2 ESM builds instead (set FIREBASE_SDK_DIR to the esbuild output).
+// The SDK is self-hosted under /assets/vendor/firebase/<ver>/ since 2026-10-04
+// (scripts/vendor-firebase-sdk.js), so no gstatic egress is needed any more;
+// this override (FIREBASE_SDK_DIR) remains for swapping in local builds (set FIREBASE_SDK_DIR to the esbuild output).
 // Shared by both tests in this file.
 async function installSandboxRoutes(page) {
   const sdkDir = process.env.FIREBASE_SDK_DIR;
   if (!sdkDir) return;
-  await page.route(/https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/(firebase-[a-z-]+\.js)/, (route, req) => {
+  await page.route(/\/assets\/vendor\/firebase\/[\d.]+\/(firebase-[a-z-]+\.js)/, (route, req) => {
     const m = req.url().match(/(firebase-[a-z-]+\.js)$/);
     const f = m && path.join(sdkDir, m[1]);
     if (f && fs.existsSync(f)) {

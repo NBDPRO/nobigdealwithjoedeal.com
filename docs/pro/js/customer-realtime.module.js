@@ -1,10 +1,10 @@
 
   import {
     collection, query, where, orderBy, onSnapshot, limit
-  } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  } from '/assets/vendor/firebase/12.19.0/firebase-firestore.js';
   import {
     getFunctions, httpsCallable
-  } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+  } from '/assets/vendor/firebase/12.19.0/firebase-functions.js';
 
   function escMsg(s) {
     return String(s == null ? '' : s)

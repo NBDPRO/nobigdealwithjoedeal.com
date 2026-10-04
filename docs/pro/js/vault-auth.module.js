@@ -13,7 +13,7 @@ import { NBDAuth } from '/pro/js/nbd-auth.js';
 // URL-cached, so importing the same gstatic 10.12.2 firestore module nbd-auth.js
 // uses gives helpers bound to the same Firestore instance (NBDAuth.db).
 import { doc, getDoc, setDoc, collection, getDocs, query, where, orderBy, limit }
-  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  from '/assets/vendor/firebase/12.19.0/firebase-firestore.js';
 
 window._nbdAuth = NBDAuth.init({
   requiredPlan: 'growth',

@@ -7,11 +7,11 @@
 // Module scripts are implicitly deferred and execute in document
 // order, so this still runs after dashboard-appcheck-config.js sets
 // window.__NBD_APP_CHECK_KEY and after dashboard-auth-gate.module.js.
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
-  import { getAuth, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp, where, arrayUnion, increment, limit, startAfter, setDoc, writeBatch, runTransaction, onSnapshot, disableNetwork, enableNetwork } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+  import { initializeApp } from "/assets/vendor/firebase/12.19.0/firebase-app.js";
+  import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "/assets/vendor/firebase/12.19.0/firebase-app-check.js";
+  import { getAuth, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "/assets/vendor/firebase/12.19.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp, where, arrayUnion, increment, limit, startAfter, setDoc, writeBatch, runTransaction, onSnapshot, disableNetwork, enableNetwork, getCountFromServer } from "/assets/vendor/firebase/12.19.0/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from "/assets/vendor/firebase/12.19.0/firebase-storage.js";
   import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 
   // ═══ GLOBAL CRM STATE (MUST BE TOP-LEVEL) ═══
@@ -1021,6 +1021,14 @@
     window._customerId = leadId;
     window._customerEstimates = (window._estimates || []).filter(e => e && (e.leadId === leadId || e.customerId === leadId));
     window._allPhotos = (window._photoCache && window._photoCache[leadId]) || [];
+    // Photos load on demand (js/photo-cache.js): fetch this lead's bag if it
+    // is not in yet, then re-stage _allPhotos if the lead is still the one open.
+    const _pc = window.NBDPhotoCache;
+    if (_pc && typeof _pc.ensure === 'function' && !_pc.isLoaded(leadId)) {
+      _pc.ensure([leadId]).then(() => {
+        if (window._customerId === leadId) window._allPhotos = (window._photoCache && window._photoCache[leadId]) || [];
+      });
+    }
     return true;
   }
   // Exported: the mobile job-detail Documents tab (dashboard-actions.js
@@ -1063,9 +1071,17 @@
   // Helper used by the doc branch — runs prerequisites + opens the
   // preflight modal (which calls NBDDocGen.generate on submit). Falls
   // through to direct generate if DocPreflight isn't loaded yet.
-  function _generateDocWithPreflight(docType, leadId) {
+  function _generateDocWithPreflight(docType, leadId, _photosReady) {
     if (!leadId) {
       if (typeof showToast === 'function') showToast('Open a lead first', 'warning');
+      return;
+    }
+    // The "needs photos" prerequisites read _photoCache[leadId], which now
+    // fills on demand — wait for this lead's photos once before checking, or
+    // a lead WITH photos would be told to upload some.
+    const _pc = window.NBDPhotoCache;
+    if (!_photosReady && _pc && typeof _pc.ensure === 'function' && !_pc.isLoaded(leadId)) {
+      _pc.ensure([leadId]).then(() => _generateDocWithPreflight(docType, leadId, true));
       return;
     }
     if (!_stageWindowStateForLead(leadId)) {
@@ -1848,7 +1864,7 @@
       if (window._userClaims.companyId && window._userClaims.companyId !== user.uid
           && !localStorage.getItem(_repActivatedKey)) {
         try {
-          const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'activateInvitedRep');
@@ -1872,7 +1888,7 @@
       else if ((!window._userClaims.companyId || window._userClaims.companyId === user.uid)
           && !localStorage.getItem(_inviteCheckedKey)) {
         try {
-          const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'claimInvite');
@@ -1952,7 +1968,7 @@
             resend.addEventListener('click', async () => {
               resend.disabled = true; resend.textContent = 'Sending…';
               try {
-                const { sendEmailVerification } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+                const { sendEmailVerification } = await import('/assets/vendor/firebase/12.19.0/firebase-auth.js');
                 await sendEmailVerification(user);
                 resend.textContent = 'Sent — check your inbox';
               } catch (err) {
@@ -1986,7 +2002,7 @@
       if (!window._userClaims.companyId && window._userClaims.owner !== true
           && localStorage.getItem(_provisionPendingKey)) {
         try {
-          const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+          const { getFunctions, httpsCallable } = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
           const fns = getFunctions();
           await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
           const fn = httpsCallable(fns, 'createCompany');
@@ -3141,36 +3157,14 @@
       window._loadLeadsExhausted = false;
       window._loadLeadsNextRetryAt = null;
     }
-    // Load photo cache for thumbnails. Team visibility (2026-07): company
-    // readers ALSO pull the tenant's stamped photos so teammate kanban
-    // cards get thumbnails — the loadLeads two-scope shape. The own-userId
-    // query always runs (it covers the caller's pre-backfill photos that
-    // have no companyId yet — the same "pre-invite docs vanish" class the
-    // #863 review caught on leads); the company query only adds docs that
-    // migration 004 / post-2026-07 clients stamped. Deduped by doc id.
-    try {
-      const _puid = window._user?.uid;
-      const _pClaims = window._userClaims || {};
-      const _pScopes = [];
-      if (_puid) {
-        _pScopes.push(where('userId','==',_puid));
-        if (['company_admin','manager','viewer'].includes(_pClaims.role || '') && _pClaims.companyId) {
-          _pScopes.push(where('companyId','==',_pClaims.companyId));
-        }
-      }
-      window._photoCache = {};
-      const _pSeen = new Set();
-      for (const _scope of _pScopes) {
-        const psnap = await getDocs(query(collection(db,'photos'), _scope));
-        psnap.docs.forEach(d => {
-          if (_pSeen.has(d.id)) return;
-          _pSeen.add(d.id);
-          const p = {id:d.id,...d.data()};
-          if(!window._photoCache[p.leadId]) window._photoCache[p.leadId] = [];
-          window._photoCache[p.leadId].push(p);
-        });
-      }
-    } catch(e) { window._photoCache = {}; }
+    // Photos are NOT read here any more (startup audit 2026-10-04). This used
+    // to read EVERY photos doc in both scopes, unbounded, on every boot and
+    // every loadLeads refresh — for a kanban that draws no thumbnails.
+    // window.NBDPhotoCache (js/photo-cache.js) now fetches a lead's photos the
+    // first time a surface for that lead asks (job detail, Photos tab, doc
+    // preflight, inspection report), in the same own + company scopes.
+    // _photoCache keeps whatever bags are already loaded across refreshes.
+    if (!window._photoCache || typeof window._photoCache !== 'object') window._photoCache = {};
     // Wave 120: replace one-shot 500ms retry with a polling loop so
     // a slow crm.js load doesn't leave the kanban skeleton up forever.
     // The OUTER loadLeads().then() block at line ~611 also runs a
@@ -4427,6 +4421,10 @@
   // ── END REPORTS CRUD HELPERS ──────────────────
 
   // ── PINS ───────────────────────────────────────
+  // Boot-read bounds (startup audit 2026-10-04). Per scope, so a team reader
+  // sees at most 2×PIN_CAP pins / 2×ZONE_CAP zones on the map.
+  const PIN_CAP = 1500;
+  const ZONE_CAP = 300;
   async function loadPins() {
     try {
       const uid = window._user?.uid;
@@ -4444,9 +4442,27 @@
         : [_teamReader ? where('companyId', '==', _claims.companyId) : where('userId', '==', uid)];
       const _seen = new Set();
       const _out = [];
+      const _add = (snap) => snap.docs.forEach(d => { if (!_seen.has(d.id)) { _seen.add(d.id); _out.push({id:d.id,...d.data()}); } });
       for (const scope of _scopes) {
-        const snap = await getDocs(query(collection(db,'pins'), scope));
-        snap.docs.forEach(d => { if (!_seen.has(d.id)) { _seen.add(d.id); _out.push({id:d.id,...d.data()}); } });
+        // Bounded by RECENT USE (startup audit 2026-10-04): was an unbounded
+        // read of every pin in scope on every boot. The newest PIN_CAP pins
+        // per scope; if the createdAt index is still building (or missing),
+        // fall back to an unordered capped read rather than an empty map.
+        let snap;
+        try { snap = await getDocs(query(collection(db,'pins'), scope, orderBy('createdAt','desc'), limit(PIN_CAP))); }
+        catch (e) {
+          if (!e || e.code !== 'failed-precondition') throw e;
+          snap = await getDocs(query(collection(db,'pins'), scope, limit(PIN_CAP)));
+        }
+        _add(snap);
+        // orderBy hides docs WITHOUT createdAt (legacy pins). Under the cap,
+        // a count tells us whether any exist; only then pay a capped unordered read.
+        if (snap.size < PIN_CAP) {
+          try {
+            const total = (await getCountFromServer(query(collection(db,'pins'), scope))).data().count;
+            if (total > snap.size) _add(await getDocs(query(collection(db,'pins'), scope, limit(PIN_CAP))));
+          } catch (_) { /* count unavailable — keep the ordered set */ }
+        }
       }
       window._pins = _out;
     } catch(e) { console.error('📌 loadPins FAILED:', e.code, e.message, e); window._pins = []; }
@@ -4498,7 +4514,9 @@
       const _seen = new Set();
       const _out = [];
       for (const scope of _scopes) {
-        const snap = await getDocs(query(collection(db,'zones'), scope));
+        // Capped (startup audit 2026-10-04): territories are a handful per
+        // team; the cap only stops a runaway collection from loading whole.
+        const snap = await getDocs(query(collection(db,'zones'), scope, limit(ZONE_CAP)));
         snap.docs.forEach(d => { if (!_seen.has(d.id)) { _seen.add(d.id); _out.push({id:d.id,...d.data()}); } });
       }
       window._zones = _out;
@@ -5349,7 +5367,7 @@
     // a failure was only ever logged.
     try {
       if (window._db && window._user) {
-        const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        const { setDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
         Promise.resolve(setDoc(
           doc(window._db, 'userSettings', window._user.uid),
           { estimateSettingsV2: patch, updatedAt: new Date().toISOString() },
@@ -5492,7 +5510,7 @@
         // rows were actually deleted, re-pull so the tenant cache matches).
         if (customJurisdictions && window._db && window._user) {
           const removed = prevJurSlugs.filter(k => !(k in customJurisdictions));
-          const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+          const { updateDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
           // companyKey (above) comes from the SAME helper _saveCompanyProfile
           // uses — a divergent key would land the merge-write and the
           // full-replace on different docs (deleted rows resurrect, save
@@ -5618,7 +5636,7 @@
     }
     if (resetHere) {
       try {
-        const { updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        const { updateDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
         await updateDoc(doc(window._db, 'companyProfile', String(companyKey)), {
           'pricing.permits': {},
           'pricing.countyTax': {},
@@ -5691,7 +5709,7 @@
     try { localStorage.setItem('nbd_company_settings', JSON.stringify(data)); } catch(e){}
     try {
       if (window._db && window._user) {
-        const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        const { setDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
         await setDoc(
           doc(window._db, 'userSettings', window._user.uid),
           { company: data, updatedAt: new Date().toISOString() },
@@ -5719,7 +5737,7 @@
     // Firestore wins if present
     try {
       if (window._db && window._user) {
-        const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        const { getDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
         const snap = await getDoc(doc(window._db, 'userSettings', window._user.uid));
         if (snap.exists() && snap.data().company) {
           data = Object.assign({}, data, snap.data().company);
@@ -6061,7 +6079,7 @@
     const slug = (input && input.value || '').trim().toLowerCase();
     try {
       if (!(window._functions && window._httpsCallable)) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         await connectEmulatorsIfLocal({ functions: window._functions }); // no-op in prod
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
@@ -6241,7 +6259,7 @@
     try { localStorage.setItem('nbd_notif_settings', JSON.stringify(data)); } catch(e){}
     try {
       if (window._db && window._user) {
-        const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        const { setDoc, doc } = await import("/assets/vendor/firebase/12.19.0/firebase-firestore.js");
         await setDoc(
           doc(window._db, 'userSettings', window._user.uid),
           { notifications: data, updatedAt: new Date().toISOString() },
@@ -6296,7 +6314,7 @@
     const uid = window._user && window._user.uid;
     if (!_db || !uid) return;
     try {
-      const { getDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { getDoc, doc } = await import('/assets/vendor/firebase/12.19.0/firebase-firestore.js');
       // QA 2026-06-21 #1: retry transient cold-boot offline (WebChannel not up yet).
       const snap = await (window.nbdRetryOffline || (f => f()))(() => getDoc(doc(_db, 'userSettings', uid)));
       if (!snap.exists()) return;

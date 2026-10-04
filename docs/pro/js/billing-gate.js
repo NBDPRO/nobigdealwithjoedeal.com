@@ -301,7 +301,7 @@ let _NBD_BG_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       return _httpsCallableTrackUsage;
     }
     try {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/12.19.0/firebase-functions.js');
       window._functions    = window._functions    || mod.getFunctions();
       window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       _httpsCallableTrackUsage = window._httpsCallable(window._functions, 'trackUsage');

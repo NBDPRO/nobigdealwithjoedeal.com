@@ -1,7 +1,7 @@
 /* @generated — extracted from inline <script type="module"> by audit-homeowner-2026-05-22.
    Hash: f95015cb84.  Do not edit by hand. */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { initializeApp } from "/assets/vendor/firebase/12.19.0/firebase-app.js";
+import { getFunctions, httpsCallable } from "/assets/vendor/firebase/12.19.0/firebase-functions.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",

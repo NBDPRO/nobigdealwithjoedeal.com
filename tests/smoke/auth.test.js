@@ -453,7 +453,7 @@ section('Q6: deploy bundle excludes seed / find-secrets helpers');
   const idx = read(path.join(FUNCTIONS, 'index.js'));
   const requires = Array.from(idx.matchAll(/require\(\s*['"]\.\/([^'"]+)['"]\s*\)/g))
     .map(m => m[1])
-    .map(r => r.endsWith('.js') ? r : r + '.js');
+    .map(r => /\.(js|json)$/.test(r) ? r : r + '.js'); // ./function-map.json (2026-10-04) is a data require
   for (const rel of requires) {
     // Match against the ignore glob: simple equality is enough for
     // our single-file ignore patterns. If ignore grows to globs

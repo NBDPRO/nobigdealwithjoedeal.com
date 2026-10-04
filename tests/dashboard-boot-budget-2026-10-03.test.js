@@ -67,5 +67,49 @@ ok('control: counts local tags, skips CDN + commented-out tags, splits blocking 
 const real = measure('<script src="dashboard-boot-budget-2026-10-03.test.js"></script><script defer src="dashboard-boot-budget-2026-10-03.test.js"></script>', __dirname);
 ok('control: a blocking tag and a deferred tag are told apart', real.localScripts === 2 && real.blockingScripts === 1);
 
+// ── BOOT READS (2026-10-04) ────────────────────────────────────────────────
+// Bytes are half the boot cost; Firestore reads are the other half. The boot
+// read path is loadLeads + the post-auth tail it triggers (loadPins,
+// loadZones). Every collection read there must be BOUNDED (limit(...)) — the
+// one deliberate exception is that leads page through the WHOLE book (500 a
+// page, the kanban must be complete), which carries limit(_PAGE) per page.
+//   measured 2026-10-03 (before): 3 unbounded boot reads — photos (every doc
+//     in scope, own + company), pins, zones;
+//   measured 2026-10-04 (after):  0 — photos load per lead on demand
+//     (js/photo-cache.js), pins capped to the newest PIN_CAP, zones to ZONE_CAP.
+// The runtime twin is tests/e2e/boot-weight.spec.js "boot reads", which
+// counts the queries the SDK actually starts. Ceiling: never grow.
+console.log('\nDASHBOARD BOOT READS');
+const UNBOUNDED_BOOT_READS_CEILING = 0;
+function bootReadCalls(src) {
+  const fnBody = (name, endMarker) => {
+    const a = src.indexOf('async function ' + name + '(');
+    if (a < 0) return '';
+    const b = src.indexOf(endMarker, a);
+    return src.slice(a, b < 0 ? a + 20000 : b);
+  };
+  const bodies = [
+    fnBody('loadLeads', 'window._loadLeads = loadLeads'),
+    fnBody('loadPins', 'async function _savePin'),
+    fnBody('loadZones', 'window.loadZones = loadZones'),
+  ].map((s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
+  const calls = [];
+  for (const body of bodies) {
+    for (const m of body.matchAll(/getDocs\(\s*query\(\s*collection\(\s*db\s*,\s*'([\w-]+)'([^;]*)/g)) {
+      calls.push({ coll: m[1], bounded: /\blimit\(/.test(m[2]) });
+    }
+  }
+  return { found: bodies.every(Boolean), calls };
+}
+const br = bootReadCalls(fs.readFileSync(path.join(PRO, 'js', 'dashboard-bootstrap.module.js'), 'utf8'));
+const unbounded = br.calls.filter((c) => !c.bounded);
+ok('found loadLeads / loadPins / loadZones', br.found);
+ok('boot read calls located (' + br.calls.length + ')', br.calls.length >= 3);
+ok('unbounded boot reads: ' + unbounded.length + ' ≤ ' + UNBOUNDED_BOOT_READS_CEILING + ' (was 3: photos, pins, zones)',
+  unbounded.length <= UNBOUNDED_BOOT_READS_CEILING, unbounded.map((c) => c.coll).join(', '));
+ok('no photos read anywhere on the boot path', !br.calls.some((c) => c.coll === 'photos'));
+const ctlReads = bootReadCalls("async function loadLeads() { await getDocs(query(collection(db,'photos'), s)); }\nwindow._loadLeads = loadLeads\nasync function loadPins() { getDocs(query(collection(db,'pins'), s, limit(5))); }\nasync function _savePin\nasync function loadZones() {}\nwindow.loadZones = loadZones");
+ok('control: an unbounded read is counted, a limit()ed one is not', ctlReads.calls.length === 2 && ctlReads.calls.filter((c) => !c.bounded).length === 1);
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

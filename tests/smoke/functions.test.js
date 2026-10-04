@@ -1946,9 +1946,9 @@ section('C3a: Voice Intel client module — data layer');
   const src = read(path.join(ROOT, 'docs/pro/js/voice-intelligence.js'));
   // ES module — imports Firebase v10.12.2 modular SDK
   assert('C3a: module imports modular Firestore SDK (not compat)',
-    /from 'https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/firebase-firestore\.js'/.test(src));
+    /from '\/assets\/vendor\/firebase\/[\d.]+\/firebase-firestore\.js'/.test(src));
   assert('C3a: module imports modular Storage SDK',
-    /from 'https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/firebase-storage\.js'/.test(src));
+    /from '\/assets\/vendor\/firebase\/[\d.]+\/firebase-storage\.js'/.test(src));
 
   // Consent mode constants match the server-side rule + pipeline
   assert('C3a: CONSENT_MODES exports all three modes',

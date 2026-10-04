@@ -433,7 +433,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               (smoke; full payment never moves a lead backward). MEASURED via --check.
 //   2026-09-28  209/70/302 -> 209/71/303, tests/followup-local-day.test.js
 //               (smoke; follow-up dates are local days). MEASURED via --check.
-const FLOORS = { node: 341, smoke: 71, disk: 435 };
+const FLOORS = { node: 348, smoke: 71, disk: 442 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -492,10 +492,13 @@ if (unlisted.length) {
 // exists to close. Five extra checks:
 //
 //   (a) every tests/smoke/*.test.js must be required by tests/smoke.test.js;
-//   (b) every tests/e2e/*.spec.js must be named in tests/package.json or a
-//       workflow file, or carry a dated entry in UNWIRED_SPECS below;
-//   (c) every spec in the authed-emu file list must carry at least one @tag
-//       that some ci.yml PLAYWRIGHT_GREP selects;
+//   (b) every tests/e2e/*.spec.js must be listed in tests/e2e/authed-specs.txt,
+//       named by another tests/package.json script or an executable workflow
+//       line, or carry an entry in UNWIRED_SPECS below whose reason is DATED
+//       (YYYY-MM-DD) — an undated exemption is how a spec goes dark forever;
+//   (c) every spec in tests/e2e/authed-specs.txt must exist, appear once, and
+//       carry at least one @tag that some ci.yml PLAYWRIGHT_GREP selects — and
+//       the test:e2e:authed:emu script must actually run that file's runner;
 //   (d) every 'wired-individually' / 'emulator' suite name must appear on an
 //       EXECUTABLE (non-comment) workflow line, and every runnable bucket must
 //       have a live, un-neutered step invoking it;
@@ -568,27 +571,46 @@ const shardTags = [...new Set([
   ...greps.flatMap((g) => g.match(/@[a-z0-9_-]+/gi) || []),
 ])];
 const hasTag = (src, t) => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z0-9_-])', 'i').test(src);
-// Parse, don't regex: the script value contains escaped quotes (\"node
-// ./e2e/fixtures/seed-emulator.js && …\"), and the old /"([^"]+)"/ capture
-// stopped at the first one — 165 chars, zero spec names — so (c) matched no
-// spec at all even with tags in hand (found 2026-10-03, same audit).
+// The authed-emu spec list moved out of the one-line npm script into
+// tests/e2e/authed-specs.txt (2026-10-04, one spec per line — parallel PRs
+// that each appended to the single line conflicted every time). Read it with
+// the RUNNER's own parser so this gate and what CI executes cannot disagree,
+// and assert the npm script still invokes that runner: a list nobody runs is
+// the same orphan class this file exists to close.
 let authedScript = '';
 try { authedScript = (JSON.parse(pkgJson).scripts || {})['test:e2e:authed:emu'] || ''; } catch (_) { authedScript = ''; }
-const authedSpecs = new Set(authedScript.match(/[\w.-]+\.spec\.js/g) || []);
+let authedSpecList = [];
+try { authedSpecList = require(path.join(TESTS, 'e2e', 'fixtures', 'run-authed-specs.js')).readAuthedSpecs(); } catch (e) {
+  problems.push('could not read tests/e2e/authed-specs.txt via tests/e2e/fixtures/run-authed-specs.js: ' + (e && e.message));
+}
+const authedSpecs = new Set(authedSpecList);
 const authedList = { includes: (f) => authedSpecs.has(f) };
+if (!/run-authed-specs\.js/.test(authedScript)) {
+  problems.push('tests/package.json "test:e2e:authed:emu" no longer runs e2e/fixtures/run-authed-specs.js — tests/e2e/authed-specs.txt would gate nothing');
+}
+{
+  const dup = authedSpecList.filter((s, i) => authedSpecList.indexOf(s) !== i);
+  if (dup.length) problems.push('tests/e2e/authed-specs.txt lists ' + [...new Set(dup)].join(', ') + ' more than once (the runner refuses duplicates)');
+  for (const s of authedSpecList) if (!/^[\w.-]+\.spec\.js$/.test(s)) problems.push('tests/e2e/authed-specs.txt line "' + s + '" is not a bare *.spec.js file name');
+}
+for (const [f, why] of Object.entries(UNWIRED_SPECS)) {
+  if (!/\b20\d\d-\d\d-\d\d\b/.test(why)) problems.push('UNWIRED_SPECS["' + f + '"] has no dated reason (YYYY-MM-DD) — say when and why it was parked');
+  if (!fs.existsSync(path.join(TESTS, 'e2e', f))) problems.push('UNWIRED_SPECS names ' + f + ' but tests/e2e/' + f + ' does not exist — drop the stale exemption');
+  if (authedSpecs.has(f)) problems.push(f + ' is both in tests/e2e/authed-specs.txt and UNWIRED_SPECS — pick one');
+}
 if (!shardTags.length) {
   problems.push('no CI shard tags found — no `shard:` matrix list and no quoted PLAYWRIGHT_GREP literal in .github/workflows/. Check (c) cannot run; fix the extractor in scripts/run-test-manifest.js rather than letting it skip');
 }
 if (!authedSpecs.size) {
-  problems.push('could not read any spec from the "test:e2e:authed:emu" script in tests/package.json — check (c) cannot run; fix the extractor in scripts/run-test-manifest.js');
+  problems.push('tests/e2e/authed-specs.txt lists no spec — check (c) cannot run');
 }
 for (const f of authedSpecs) {
-  if (!fs.existsSync(path.join(TESTS, 'e2e', f))) problems.push('tests/package.json test:e2e:authed:emu names ' + f + ' but tests/e2e/' + f + ' does not exist');
+  if (!fs.existsSync(path.join(TESTS, 'e2e', f))) problems.push('tests/e2e/authed-specs.txt names ' + f + ' but tests/e2e/' + f + ' does not exist');
 }
 for (const f of fs.readdirSync(path.join(TESTS, 'e2e')).filter((f) => f.endsWith('.spec.js')).sort()) {
   if (UNWIRED_SPECS[f]) continue;
-  if (!pkgJson.includes(f) && !wfText.includes(f)) {
-    problems.push('tests/e2e/' + f + ' appears in no tests/package.json script and no workflow — it runs nowhere (or add it to UNWIRED_SPECS with a dated reason)');
+  if (!authedSpecs.has(f) && !pkgJson.includes(f) && !wfExec.includes(f)) {
+    problems.push('tests/e2e/' + f + ' is not in tests/e2e/authed-specs.txt, no other tests/package.json script and no executable workflow line — it runs nowhere (add it to authed-specs.txt with a shard tag, or to UNWIRED_SPECS with a dated reason)');
     continue;
   }
   if (authedList.includes(f)) {

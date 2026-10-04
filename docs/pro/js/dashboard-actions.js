@@ -2149,6 +2149,13 @@ function _mJdTeardownRealtimeTabs(newLeadId) {
 // Registered in this IIFE's own __NBD_CALL_REGISTRY block below (Globals
 // Tranche 3 T3-C, 2026-09-18), no longer a bare window global.
 
+// Photos load on demand now (js/photo-cache.js): when the open lead's bag
+// arrives, repaint the hero (the first cached photo is its fallback image).
+window.addEventListener('nbd:photos-loaded', (e) => {
+  const ids = (e && e.detail && e.detail.leadIds) || [];
+  if (window._cardDetailLeadId && ids.indexOf(window._cardDetailLeadId) !== -1) _repaintJobDetailHero();
+});
+
 // Recompute the job-detail hero from the same inputs openMobileJobDetail uses:
 // the rep-chosen cover wins, else the first cached photo.
 function _repaintJobDetailHero() {

@@ -31,8 +31,8 @@ rethrows. Until the key is set, every ping is a no-op — nothing changes.
    firebase functions:secrets:set HEALTHCHECKS_PING_KEY
    ```
 
-   Paste the ping key. The next deploy binds it to all 25 scheduled
-   functions automatically (the wrapper adds it to each one's `secrets`); no
+   Paste the ping key. The next deploy binds it to every scheduled
+   function automatically (the wrapper adds it to each one's `secrets`); no
    redeploy is needed for the binding itself if a deploy has run since the
    wrapper merged, but the **new secret version is only picked up on the
    next deploy** of those functions — trigger one, or wait for the next
@@ -51,55 +51,59 @@ rethrows. Until the key is set, every ping is a no-op — nothing changes.
    the slug each instance used the first time it pinged — if a slug there
    differs from this table, use the logged one.
 
-## The 25 slugs
+## The 18 checks to create (35 crons)
 
-Slug = the export name in kebab-case, derived at run time from
-`FUNCTION_TARGET`. Period = how often the cron fires; grace = how late a ping
-may be before Healthchecks alerts (generous where a run can be slow).
+**Updated 2026-10-04.** There are now 35 scheduled functions and the free tier
+holds 20 checks, so the slug each cron pings comes from an explicit plan,
+[`functions/integrations/heartbeat-plan.js`](../../functions/integrations/heartbeat-plan.js),
+not just its name. `tests/cron-heartbeat.test.js` fails CI if a cron is
+missing from the plan, if the plan needs more than 20 checks, or if this
+table drifts from it.
 
-| Slug | Function | Fires | Suggested period · grace |
-|---|---|---|---|
-| `email-queue-worker` | emailQueueWorker | every 1 min | 1 min · 10 min |
-| `on-appointment-reminder` | onAppointmentReminder | every 15 min | 15 min · 30 min |
-| `check-storm-alerts` | checkStormAlerts | every 30 min | 30 min · 1 h |
-| `storm-watch` | stormWatch | every 30 min | 30 min · 1 h |
-| `run-abandon-recovery` | runAbandonRecovery | every 60 min | 1 h · 2 h |
-| `lead-follow-up-sweep` | leadFollowUpSweep | every 3 h | 3 h · 4 h |
-| `daily-firestore-backup` | dailyFirestoreBackup | 03:15 ET daily | 1 day · 6 h |
-| `firestore-backup-retention` | firestoreBackupRetention | 03:45 ET daily | 1 day · 6 h |
-| `audit-log-retention-cron` | auditLogRetentionCron | 03:30 CT daily | 1 day · 6 h |
-| `recording-retention-cron` | recordingRetentionCron | 05:00 CT daily | 1 day · 6 h |
-| `backup-freshness-cron` | backupFreshnessCron | 06:00 ET daily | 1 day · 3 h |
-| `sync-gbp-reviews` | syncGbpReviews | 06:00 ET daily | 1 day · 6 h |
-| `google-calendar-reconcile` | googleCalendarReconcile | 05:45 ET daily | 1 day · 6 h |
-| `stripe-ledger-reconcile` | stripeLedgerReconcile | 06:15 ET daily | 1 day · 6 h |
-| `daily-lead-digest` | dailyLeadDigest | 07:00 ET daily | 1 day · 3 h |
-| `on-follow-up-due` | onFollowUpDue | 08:00 ET daily | 1 day · 3 h |
-| `on-yard-sign-pickup-due` | onYardSignPickupDue | 07:30 ET daily | 1 day · 3 h |
-| `anniversary-auto-touch` | anniversaryAutoTouch | 08:00 ET daily | 1 day · 6 h |
-| `review-request-nudge` | reviewRequestNudge | 08:15 ET daily | 1 day · 6 h |
-| `enforce-lapsed-seats` | enforceLapsedSeats | 09:00 ET daily | 1 day · 6 h |
-| `hail-match-cron` | hailMatchCron | 09:00 CT daily | 1 day · 6 h |
-| `health-digest-cron` | healthDigestCron | 14:00 UTC daily | 1 day · 6 h |
-| `migrations-tick` | migrationsTick | every 24 h | 1 day · 12 h |
-| `weekly-digest` | weeklyDigest | Mon 07:00 ET | 1 week · 12 h |
-| `dormant-lead-nudge` | dormantLeadNudge | Wed 08:00 ET | 1 week · 12 h |
-| `monthly-marketing-report` | monthlyMarketingReport | 1st 07:00 ET | cron `0 7 1 * *` (America/New_York) · 12 h |
-| `monthly-overhead-alert-cron` | monthlyOverheadAlertCron | 1st 09:00 ET | cron `0 9 1 * *` (America/New_York) · 12 h |
+- **Dedicated** (one cron): the slug is the export name in kebab-case — the
+  same slug it always sent, so a check you already created keeps working.
+- **Shared** (several crons, same cadence): any member's throw still pings
+  `<slug>/fail` and turns the check red; what a shared check cannot see is
+  one member silently stopping while a sibling keeps pinging. Only crons where
+  that is low-stakes are grouped.
 
-## Twenty checks for twenty-five crons
+| Slug | Crons that ping it | Period | Grace | Why |
+|---|---|---|---|---|
+| `email-queue-worker` | emailQueueWorker | 1 minute | 10 minutes | every outbound email rides this queue |
+| `on-appointment-reminder` | onAppointmentReminder | 15 minutes | 30 minutes | appointment reminders |
+| `daily-firestore-backup` | dailyFirestoreBackup | 1 day | 6 hours | the nightly backup |
+| `backup-freshness-cron` | backupFreshnessCron | 1 day | 3 hours | the alarm on the backup |
+| `migrations-tick` | migrationsTick | 1 day | 12 hours | went silent 2026-08-31 with nothing watching |
+| `stripe-ledger-reconcile` | stripeLedgerReconcile | 1 day | 6 hours | money ledger |
+| `enforce-lapsed-seats` | enforceLapsedSeats | 1 day | 6 hours | billing / seat access |
+| `health-digest-cron` | healthDigestCron | 1 day | 6 hours | daily health digest |
+| `lead-follow-up-sweep` | leadFollowUpSweep | 3 hours | 4 hours | follow-up to untouched new leads |
+| `storm-crons` | checkStormAlerts, stormWatch | 30 minutes | 1 hour | storm alert texts + NWS storm watch |
+| `calls-texts-ingest` | callCenterIngest, callCenterTranscribe, textInboxIngest | 30 minutes | 1 hour | call recordings, transcripts, texts in |
+| `hourly-crons` | runAbandonRecovery, textInboxNotes | 1 hour | 2 hours | abandoned-estimate recovery + text notes |
+| `call-followups` | callWatch, callCenterSweep | 12 hours | 1 hour | call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET) |
+| `daily-retention` | firestoreBackupRetention, auditLogRetentionCron, recordingRetentionCron, pdfRenderRetention | 1 day | 6 hours | cleanup / retention jobs |
+| `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge | 1 day | 6 hours | morning digests + nudges to Jo (not homeowners) |
+| `daily-syncs` | syncGbpReviews, googleCalendarReconcile, hailMatchCron | 1 day | 6 hours | GBP reviews, Google Calendar reconcile, hail match |
+| `weekly-crons` | weeklyDigest, dormantLeadNudge | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) |
+| `monthly-crons` | monthlyMarketingReport, monthlyOverheadAlertCron | cron 0 7 1 * * (America/New_York) | 12 hours | marketing report + overhead alert, 1st of month |
 
-The free tier allows 20. Five to leave uncreated, in this order — each is
-either observable another way or low-stakes if it silently stops:
+That is 18 of 20 — two spare for the next high-stakes cron.
 
-1. `firestore-backup-retention` — `backup-freshness-cron` already alarms on
-   the backups themselves; retention is cleanup.
-2. `recording-retention-cron` — cleanup only.
-3. `audit-log-retention-cron` — cleanup only.
-4. `anniversary-auto-touch` — marketing nicety.
-5. `monthly-overhead-alert-cron` — the money dashboard shows the same figure.
+**If you created checks from the old 25-slug table:** the dedicated ones above
+keep working. These old slugs no longer receive pings and will go red — delete
+them: `check-storm-alerts`, `storm-watch`, `run-abandon-recovery`,
+`firestore-backup-retention`, `audit-log-retention-cron`,
+`recording-retention-cron`, `sync-gbp-reviews`,
+`google-calendar-reconcile`, `daily-lead-digest`, `on-follow-up-due`,
+`on-yard-sign-pickup-due`, `anniversary-auto-touch`,
+`review-request-nudge`, `hail-match-cron`, `weekly-digest`,
+`dormant-lead-nudge`, `monthly-marketing-report`,
+`monthly-overhead-alert-cron`.
 
-Or pay for the next tier ($5/month for 100 checks) and create all 25.
+Adding a cron: give it a PLAN entry (a dedicated slug + a CHECKS row while
+there is room, otherwise join the closest-cadence group), add its row here,
+and create the check.
 
 ## What a red check means, and does not mean
 
@@ -111,7 +115,7 @@ Or pay for the next tier ($5/month for 100 checks) and create all 25.
   is `false` in the admin readout). Check the fleet: the orphan detector
   (#1382) and `gcloud scheduler jobs list`.
 - **Every check red at once** — the ping key was rotated or the secret is
-  the `__unset__` stub. Not 25 outages.
+  the `__unset__` stub. Not 18 outages.
 - A ping is a POST with a 5-second timeout that never throws into the cron:
   Healthchecks being down cannot fail the work it monitors.
 
