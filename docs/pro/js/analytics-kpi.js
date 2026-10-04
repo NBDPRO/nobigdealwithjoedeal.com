@@ -101,6 +101,26 @@
     var bal = (inv.balanceDue != null) ? (parseFloat(inv.balanceDue) || 0) : 0;
     return Math.round(Math.max(0, total - bal) * 100) / 100;
   }
+
+  // nbd:owed-rule:start — ONE "is this invoice still owed?" rule, kept
+  // byte-identical in collected-revenue.js, money-dashboard.js,
+  // analytics-kpi.js and invoice-pipeline.js
+  // (tests/invoice-owed-rule-2026-10-03.test.js). A voided Stripe mirror is
+  // written { status:'void', balanceDue:0 }; drafts were never sent. Neither
+  // is owed. Amount = balanceDue when present (0 means nothing due — the old
+  // `balanceDue || total` read 0 as "missing" and re-counted the full face).
+  var NOT_OWED_STATUS = { paid: 1, draft: 1, cancelled: 1, canceled: 1, void: 1, voided: 1, uncollectible: 1 };
+  function isOwedInvoice(inv) {
+    if (!inv || inv.deleted === true) return false;
+    return !NOT_OWED_STATUS[String(inv.status || '').toLowerCase()];
+  }
+  function owedDollarsOf(inv) {
+    if (!isOwedInvoice(inv)) return 0;
+    var b = inv.balanceDue;
+    var v = parseFloat((b != null && b !== '') ? b : inv.total);
+    return v > 0 ? v : 0;
+  }
+  // nbd:owed-rule:end
   // TRANSITION RECONCILIATION (mirrors money-dashboard.paymentsOf): a
   // pre-ledger partial (before the 2026-07-19 deploy) never got a payments[]
   // entry, so a post-deploy credit leaves the ledger summing SHORT of the
@@ -238,6 +258,9 @@
     // follow-up you're late on.
     var overdueFollowUps = leads.filter(function (l) {
       if (_isDecided(l) || _isJob(l) || !l.followUp) return false;
+      // Phone-less door-knock leads aren't CRM follow-ups — same rule as the
+      // pipeline's "Follow-ups Due" (crm-pipeline.js _unreachableKnockLead).
+      if (typeof window.nbdUnreachableKnockLead === 'function' && window.nbdUnreachableKnockLead(l)) return false;
       // Local day ('YYYY-MM-DD' parses as UTC — a day early in the US).
       var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(l.followUp));
       var d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(l.followUp); d.setHours(0, 0, 0, 0);
@@ -462,11 +485,11 @@
       return inv.status === 'paid';
     });
 
-    var unpaidInvoices = invoices.filter(function (inv) {
-      return inv.status !== 'paid';
-    });
+    // Owed = not paid/draft/cancelled/void (isOwedInvoice). A voided Stripe
+    // mirror carries balanceDue:0 and must not re-count its full total.
+    var unpaidInvoices = invoices.filter(isOwedInvoice);
     var unpaidAmount = unpaidInvoices.reduce(function (sum, inv) {
-      return sum + (parseFloat(inv.balanceDue) || parseFloat(inv.total) || 0);
+      return sum + owedDollarsOf(inv);
     }, 0);
 
     // ── Pipeline value from active jobs (every job, multi-job) ──

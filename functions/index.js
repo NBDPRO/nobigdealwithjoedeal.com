@@ -181,6 +181,8 @@ exports.integrationAvailability = integrationsHandlers.integrationAvailability;
 exports.submitPublicLead  = integrationsHandlers.submitPublicLead;
 // Photos attached to a website request (2026-09-30) — one-time grant from submitPublicLead.
 exports.uploadPublicLeadPhoto = require('./public-lead-photos').uploadPublicLeadPhoto;
+// The /estimate thank-you screen's optional answers, saved onto the same lead (2026-10-03).
+exports.updatePublicLeadIntake = require('./public-lead-photos').updatePublicLeadIntake;
 
 // Inline access-code callable. Distinct from functions/portal.js
 // (which owns createPortalToken / revokePortalToken /
@@ -730,6 +732,9 @@ exports.callCenterAction = require('./call-center').callCenterAction;
 // The Call Center "Said you'd do" deck: every open item the sweep email is
 // built from, uncapped (owner / platform admin only).
 exports.callPromisesList = require('./call-center').callPromisesList;
+// "Match my tagged contacts": preview calls to "NBD Customer" phone contacts
+// on no lead, then file only the rows the owner confirms (owner/admin only).
+exports.callTaggedMatch = require('./call-center').callTaggedMatch;
 // Optional game card (2026-10-03): level, XP and this week vs last week,
 // derived on request from the caller's own records — nothing stored.
 exports.getGameCard = require('./game').getGameCard;

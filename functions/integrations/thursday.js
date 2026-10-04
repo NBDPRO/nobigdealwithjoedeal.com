@@ -427,13 +427,24 @@ async function notifyAll(ref, data, ctx) {
 
 // ── Processing trigger ──────────────────────────────────────────────────────
 
+// A 'processing' claim older than STALE_PROCESSING_MS (> the trigger's 300s
+// timeout) belongs to a run that was killed mid-flight — a timeout kill never
+// reaches the catch below, so nothing else would ever move the doc on.
+function isStaleProcessing(d, now) {
+  if (!d || d.status !== 'processing') return false;
+  const at = d.processingStartedAt;
+  const ms = at && typeof at.toMillis === 'function' ? at.toMillis() : null;
+  // No usable start stamp on a 'processing' doc: nothing can be running it.
+  if (ms == null) return true;
+  return (now == null ? Date.now() : now) - ms > STALE_PROCESSING_MS;
+}
+
 async function claim(ref) {
   return db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) return null;
     const d = snap.data() || {};
-    const stale = d.status === 'processing' && d.processingStartedAt &&
-      Date.now() - d.processingStartedAt.toMillis() > STALE_PROCESSING_MS;
+    const stale = isStaleProcessing(d);
     if (d.status !== 'pending' && d.status !== 'reprocess' && !stale) return null;
     tx.update(ref, { status: 'processing', processingStartedAt: FieldValue.serverTimestamp(), attempts: FieldValue.increment(1) });
     return d;
@@ -559,7 +570,14 @@ exports.thursdayCallProcess = onDocumentWritten(
     } catch (e) {
       logger.error('thursday: processing failed', { doc: ref.id, err: e && e.stack || e });
       await ref.update({ status: 'failed', processError: String(e && e.message || e).slice(0, 300), processedAt: FieldValue.serverTimestamp() })
-        .catch(() => {});
+        .catch((w) => {
+          // Was swallowed silently: the doc then stays 'processing' with no
+          // trace of why. It is recoverable (reprocess once the claim is
+          // stale) but only if someone can see it happened.
+          logger.error('thursday: failure write failed — call left processing', {
+            doc: ref.id, err: w && w.message, processErr: String(e && e.message || e).slice(0, 200),
+          });
+        });
     }
   }
 );
@@ -667,7 +685,12 @@ exports.thursdayCallAction = onCall(
       return { ok: true };
     }
     if (action === 'reprocess') {
-      if (data.status === 'processing') throw new HttpsError('failed-precondition', 'Already processing.');
+      // A live run is refused; a STALE claim (killed by the trigger's
+      // timeout — the doc would otherwise sit in 'processing' forever) is
+      // re-queued. Same staleness rule as claim().
+      if (data.status === 'processing' && !isStaleProcessing(data)) {
+        throw new HttpsError('failed-precondition', 'Already processing.');
+      }
       await ref.update({ status: 'reprocess', reprocessRequestedBy: by, notify: 'suppress' });
       return { ok: true };
     }

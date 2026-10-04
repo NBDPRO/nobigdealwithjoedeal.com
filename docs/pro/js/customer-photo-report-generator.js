@@ -586,11 +586,22 @@ window.saveEstimate = async function() {
           const stageKey = (typeof window.normalizeStage === 'function')
             ? window.normalizeStage(lead.stage)
             : String(lead.stage || 'new').trim().toLowerCase();
-          if (stageKey === 'new') {
-            stampUpdate.stage = 'contacted';
-            if (typeof window.stageRole === 'function') stampUpdate.stageRole = window.stageRole('contacted');
-          }
           await window.updateDoc(leadRef, stampUpdate);
+          // The New → Contacted bump goes through stage-write.js's
+          // commitStageChange like every other stage move (job spine,
+          // 2026-10-03): it used to ride along in the plain update above, so
+          // the lead got no stageStartedAt, no stageHistory entry, no
+          // timeline note and no stage-entry task. Race-guarded; a lead that
+          // moved meanwhile is left where it is.
+          if (stageKey === 'new') {
+            try {
+              const { commitStageChange } = await import('./stage-write.js');
+              await commitStageChange(window._customerId, 'contacted', lead.stage || null, { jobType: lead.jobType || null });
+            } catch (advErr) {
+              const m = advErr && advErr.message;
+              if (m !== 'STAGE_RACE_NOOP' && m !== 'STAGE_RACE_LOST') console.warn('[saveEstimate] New → Contacted failed:', m);
+            }
+          }
         } else {
           // Lead already has a primary estimate (this is a revision or a
           // second quote) — don't silently clobber a rep-confirmed number.

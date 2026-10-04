@@ -59,6 +59,10 @@ const SITE_URL = 'https://nobigdealwithjoedeal.com';
 const REPLY_TO = 'jd@nobigdealwithjoedeal.com';
 const ABANDON_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RECOVERY_MAX_AGE_DAYS = 30; // Don't send recovery if record is older than this
+// runAbandonRecovery paging: unprocessed records only, newest first.
+const RECOVERY_RETRY_STATUSES = [null, 'failed'];
+const RECOVERY_PAGE_SIZE = 200;
+const RECOVERY_MAX_PER_RUN = 400; // bounded under the 300s timeout; the rest wait an hour
 // The /estimate funnel is NBD's own public site (tenant zero): its visitors'
 // unsubscribes are recorded against NBD's tenant key. Same constant +
 // override as lead-bridge.js / estimate-email.js.
@@ -302,12 +306,46 @@ exports.runAbandonRecovery = onSchedule(
     const cutoffOld = new Date(now - ABANDON_WINDOW_MS);
     const cutoffTooOld = new Date(now - RECOVERY_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
 
-    const snap = await db
-      .collection('funnel_abandoned')
-      .where('createdAt', '<', Timestamp.fromDate(cutoffOld))
-      .where('createdAt', '>', Timestamp.fromDate(cutoffTooOld))
-      .limit(200)
-      .get();
+    // Only UNPROCESSED records, newest first, paged with a cursor (2026-10-03).
+    // The old query was a bare createdAt range with .limit(200): Firestore
+    // returns a range query in ascending createdAt order, so once the 30-day
+    // window held more than 200 records the job re-read the same OLDEST 200
+    // (all long since sent/skipped) every hour and a new abandoner was never
+    // even looked at. Now each query filters on recoveryEmailStatus, so
+    // finished records ('sent', 'sending', 'suppressed', 'skipped_completed')
+    // drop out of the result set, and orders newest-first so fresh
+    // abandoners are always reached first.
+    //
+    // `== null` only matches a field that EXISTS with value null — a missing
+    // field is invisible to it. saveFunnelProgress has written
+    // recoveryEmailStatus: null on every new record since the collection was
+    // created (041a6ea0, 2026-04-18), and nothing else writes this
+    // collection, so every unprocessed record carries the explicit null.
+    // 'failed' is queried separately so a genuine Resend failure is still
+    // retried next hour, exactly as before.
+    // Index: funnel_abandoned (recoveryEmailStatus ASC, createdAt DESC) in
+    // firestore.indexes.json — equality + range/order on different fields.
+    const docs = [];
+    const seen = new Set(); // a doc can only match one status, but never process one twice
+    for (const status of RECOVERY_RETRY_STATUSES) {
+      let cursor = null;
+      while (docs.length < RECOVERY_MAX_PER_RUN) {
+        let q = db
+          .collection('funnel_abandoned')
+          .where('recoveryEmailStatus', '==', status)
+          .where('createdAt', '<', Timestamp.fromDate(cutoffOld))
+          .where('createdAt', '>', Timestamp.fromDate(cutoffTooOld))
+          .orderBy('createdAt', 'desc');
+        if (cursor) q = q.startAfter(cursor);
+        const page = await q.limit(RECOVERY_PAGE_SIZE).get();
+        for (const d of page.docs) {
+          if (docs.length < RECOVERY_MAX_PER_RUN && !seen.has(d.id)) { seen.add(d.id); docs.push(d); }
+        }
+        if (page.docs.length < RECOVERY_PAGE_SIZE) break;
+        cursor = page.docs[page.docs.length - 1];
+      }
+    }
+    const snap = { empty: docs.length === 0, docs, size: docs.length };
 
     if (snap.empty) {
       logger.info('funnel_recovery_no_eligible', { mode: enabled ? 'live' : 'dry-run' });
@@ -355,7 +393,7 @@ exports.runAbandonRecovery = onSchedule(
         logger.info('funnel_recovery_dry_run', {
           funnelId: doc.id,
           email: require('./email-suppression').maskEmail(data.email),   // no PII in logs (2026-10-01)
-          firstName,
+          hasFirstName: !!firstName,   // the name itself is PII (security batch 2026-10-03)
           age_min: Math.round((now - data.createdAt.toMillis()) / 60000),
         });
         skipped++;

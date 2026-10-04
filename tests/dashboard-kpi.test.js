@@ -269,6 +269,23 @@ ok('topSource = referral (3 non-deleted)', k.topSource === 'referral' && k.topSo
     cashTrend[prevKey] && cashTrend[prevKey].revenue === 1500 && cashTrend[thisKey] && cashTrend[thisKey].revenue === 2500);
 }
 
+// Owed rule (2026-10-03): a voided Stripe mirror ({status:'void', balanceDue:0})
+// and a never-sent draft are not owed. The old `balanceDue || total` read the
+// void's 0 as "missing" and showed its full total as unpaid.
+{
+  console.log('\nANALYTICS A/R — void / draft are not owed');
+  const CFA = win.AnalyticsKPI._test.computeFullAnalytics;
+  const a = CFA({ leads: [], knocks: [], photos: [], estimates: [], expenses: [], invoices: [
+    { status: 'sent', total: 1000, balanceDue: 1000 },
+    { status: 'void', source: 'stripe', total: 5000, balanceDue: 0 },
+    { status: 'draft', total: 2500, balanceDue: 2500 },
+    { status: 'sent', total: 900, balanceDue: 0 },
+    { status: 'sent', total: 600 },
+  ] });
+  ok('unpaidAmount excludes void + draft, balanceDue 0 is 0 (1000 + 600 = 1600; got ' + a.unpaidAmount + ')', a.unpaidAmount === 1600);
+  ok('unpaidCount excludes void + draft (3; got ' + a.unpaidCount + ')', a.unpaidCount === 3);
+}
+
 console.log('\n──────────────────────────────────────────────────');
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) { console.log('\nFailures:'); fails.forEach(f => console.log('  - ' + f)); process.exit(1); }

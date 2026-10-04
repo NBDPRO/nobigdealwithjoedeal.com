@@ -92,7 +92,7 @@
       'js/storm-outlook.js?v=1'
     ],
     closeboard: [
-      'js/close-board.js?v=7'
+      'js/close-board.js?v=8'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -122,8 +122,8 @@
       'js/stripe-ledger-ui-logic.js?v=1',
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=1',
-      'js/money-dashboard.js?v=7'
+      'js/invoice-reminder.js?v=3',
+      'js/money-dashboard.js?v=8'
     ],
     repos: [
       'js/rep-os.js?v=3'
@@ -227,12 +227,12 @@
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=8',
+      'js/estimate-builder-v2.js?v=9',
       'js/estimate-catalog-xactimate.js?v=3',
       'js/estimate-logic-engine.js?v=7',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
-      'js/estimates.js?v=11',
+      'js/estimates.js?v=12',
       // Rock 2 PR 6: the New-Estimate front door (chooser) split out of
       // estimates.js. Loads after it — showNewEstimateChooser falls back to
       // estimates.js's showEstimateTypeSelector when V2 is missing.
@@ -240,8 +240,8 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=5',
-      'js/estimate-v2-ui.js?v=19',
+      'js/estimate-finalization.js?v=6',
+      'js/estimate-v2-ui.js?v=20',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=2',
@@ -254,7 +254,7 @@
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
       'js/job-templates-data.js?v=4',
-      'js/job-templates.js?v=5',
+      'js/job-templates.js?v=6',
       'js/entity-resolver.js?v=2',
       'js/job-templates-ui.js?v=8',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
@@ -304,7 +304,7 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=10',
+      'js/d2d-tracker-core-2026b.js?v=11',
       'js/d2d-tracker-ui-2026b.js?v=6',
       'js/d2d-tracker-2026b.js?v=3'
     ],
@@ -406,7 +406,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=8'
+      'js/call-center-view.js?v=9'
     ]
   };
 

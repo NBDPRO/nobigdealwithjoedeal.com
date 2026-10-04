@@ -212,6 +212,31 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('a 3-strike call whose last error was a rate limit is picked again; a real 3-strike failure is not',
     L.pickToTranscribe(pickList, { live: true, allowIds: [], maxCount: 5, secLeft: 1e6 }).map((c) => c.id).join() === 'victim');
 
+  console.log('\n9. "Looks like X" is stored when the notes are written (2026-10-03)');
+  stub(() => ({ call_type: 'customer', summary: 'Dana Rivers asked when the crew starts.', promises: [{ who: 'jo', text: 'Call Dana back', due: null }], follow_up_date: null, urgent: false }));
+  const leadsSeed = {
+    'leads/L9': { firstName: 'Dana', lastName: 'Rivers', address: '412 Oak Hill Dr, Mason OH', userId: OWNER, companyId: OWNER },
+    'leads/L10': { firstName: 'Sam', lastName: 'Ortiz', address: '9 Elm St', userId: OWNER, companyId: OWNER },
+  };
+  db = fakeDb(Object.assign({
+    [COLLECTION + '/cube_s1']: call('cube_s1', { leadId: null, contactName: '', startedAtMs: NOW - 10e3 }),
+    // Noted before suggestions existed: the run backfills these.
+    [COLLECTION + '/cube_old1']: call('cube_old1', { leadId: null, status: 'noted', contactName: 'Sam Ortiz Roof', summary: 'x', startedAtMs: NOW - 5 * 86400e3 }),
+    [COLLECTION + '/cube_old2']: call('cube_old2', { leadId: null, status: 'noted', contactName: 'Nobody Known', summary: 'x', startedAtMs: NOW - 6 * 86400e3 }),
+    [COLLECTION + '/cube_old3']: call('cube_old3', { leadId: null, status: 'noted', contactName: 'Sam Ortiz', summary: 'x', suggestCheckedAtMs: 1, suggestedLeadId: null }),
+  }, leadsSeed));
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  const s1 = db.docs.get(COLLECTION + '/cube_s1');
+  ok('a newly noted call on no customer stores its one likely customer', s1.suggestedLeadId === 'L9' && s1.suggestedLeadName === 'Dana Rivers' && /name said on the call/.test(s1.suggestedWhy) && s1.suggestCheckedAtMs === NOW, JSON.stringify(s1));
+  ok('…as a suggestion only: never filed on it', s1.leadId === null && !db.docs.has('leads/L9/activity/cube-cube_s1') && !db.docs.has('leads/L9/tasks/cube-cube_s1'));
+  ok('older noted calls get theirs on the next run (backfill)', db.docs.get(COLLECTION + '/cube_old1').suggestedLeadId === 'L10' && db.docs.get(COLLECTION + '/cube_old1').suggestCheckedAtMs === NOW);
+  ok('no match → checked, nothing suggested', db.docs.get(COLLECTION + '/cube_old2').suggestedLeadId === null && db.docs.get(COLLECTION + '/cube_old2').suggestCheckedAtMs === NOW);
+  ok('an already-checked call is not re-read', db.docs.get(COLLECTION + '/cube_old3').suggestCheckedAtMs === 1 && r.suggested === 2, JSON.stringify(r));
+  // A call ON a customer gets no suggestion fields at all.
+  db = fakeDb(Object.assign({ [CONFIG]: { transcribeOnly: ['cube_m'] }, [COLLECTION + '/cube_m']: call('cube_m', { leadId: 'L9' }) }, leadsSeed));
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('a call already on a customer gets no suggestion', db.docs.get(COLLECTION + '/cube_m').suggestedLeadId === undefined);
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);

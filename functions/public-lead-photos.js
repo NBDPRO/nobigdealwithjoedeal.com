@@ -192,4 +192,119 @@ exports.uploadPublicLeadPhoto = onRequest(
   }
 );
 
-exports._internal = { mintPhotoGrant, parseDataUrl, checkGrant, reencode, hashToken, PHOTO_COLLECTIONS, MAX_PHOTOS, GRANTS };
+// ═════════════════════════════════════════════════════════════
+// updatePublicLeadIntake (2026-10-03) — the /estimate thank-you screen's
+// optional "help Joe prepare" answers (scheduling choice, best time,
+// insurance, how they heard), saved onto the SAME lead after it exists.
+//
+// Why: the funnel's contact step used to ask all of these up front (the
+// scheduling choice was required), on top of a text-code check — and the
+// funnel produced 3 leads, ever. The contact step now asks first name, phone
+// and consent only; the lead (and Joe's alert) lands on that. These questions
+// moved after it.
+//
+// Authorisation is the grant submitPublicLead already mints for this exact
+// submission (wantsFollowUp → the same 60-minute photoToken): the browser can
+// only ever touch the one public lead + its bridged CRM card, never choose a
+// document. Answers go through sanitizeIntake — the SAME allowlist, caps and
+// enums submitPublicLead applies — and at most INTAKE_MAX_UPDATES saves per
+// grant. Nothing here alerts anyone; the lead already did.
+// ═════════════════════════════════════════════════════════════
+const { sanitizeIntake } = require('./public-lead-intake-spec');
+const INTAKE_MAX_UPDATES = 3;
+const CRM_LEAD_TRIES = 3;
+const CRM_LEAD_WAIT_MS = 2500;
+
+/** Pure: may this grant save follow-up answers now? */
+function checkIntakeGrant(g, nowMs) {
+  if (!g) return { ok: false, status: 404, error: 'This link is not valid.' };
+  if (!(g.exp > nowMs)) return { ok: false, status: 410, error: 'This window has closed. Call or text Joe at (859) 420-7382 with anything else.' };
+  if ((g.intakeUpdates || 0) >= INTAKE_MAX_UPDATES) return { ok: false, status: 429, error: 'Those answers are already saved.' };
+  if (!PHOTO_COLLECTIONS.includes(g.collection) || !/^[A-Za-z0-9_-]{1,128}$/.test(String(g.publicId || ''))) {
+    return { ok: false, status: 400, error: 'This link is not valid.' };
+  }
+  return { ok: true };
+}
+
+/**
+ * The whole save, against an injected Firestore (tests pass a fake).
+ * → { status, json }
+ */
+async function saveIntakeUpdate(db, body, opts) {
+  const o = opts || {};
+  const now = typeof o.now === 'function' ? o.now : Date.now;
+  const wait = typeof o.wait === 'function' ? o.wait : (ms) => new Promise((r) => setTimeout(r, ms));
+  const b = body || {};
+  const token = typeof b.token === 'string' ? b.token : '';
+  if (!/^[a-f0-9]{48}$/.test(token)) return { status: 400, json: { error: 'This link is not valid.' } };
+  const fields = sanitizeIntake(b);
+  if (!Object.keys(fields).length) return { status: 400, json: { error: 'Nothing to save.' } };
+
+  const ref = db.collection(GRANTS).doc(hashToken(token));
+  let grant;
+  try {
+    grant = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const g = snap.exists ? snap.data() : null;
+      const c = checkIntakeGrant(g, now());
+      if (!c.ok) { const e = new Error('grant'); e._http = c.status; e._msg = c.error; throw e; }
+      tx.update(ref, { intakeUpdates: FieldValue.increment(1), lastIntakeAt: FieldValue.serverTimestamp() });
+      return g;
+    });
+  } catch (e) {
+    if (e && e._http) return { status: e._http, json: { error: e._msg } };
+    throw e;
+  }
+
+  // The public lead (what lead-alert / the funnel-recovery job read).
+  await db.collection(grant.collection).doc(grant.publicId)
+    .set(Object.assign({}, fields, { intakeUpdatedAt: FieldValue.serverTimestamp() }), { merge: true });
+
+  // The CRM card the bridge made for this submission. The bridge runs on the
+  // lead's create, normally seconds before anyone reaches the thank-you
+  // screen; if it has not landed yet, wait briefly — never create the card
+  // here (that would make the bridge's create() fail and lose the lead).
+  const leadRef = db.collection('leads').doc(L.bridgeDocId(grant.collection, grant.publicId));
+  const lines = L.intakeNoteLines(fields);
+  let crm = false;
+  for (let i = 0; i < CRM_LEAD_TRIES && !crm; i++) {
+    if (i) await wait(CRM_LEAD_WAIT_MS);
+    const snap = await leadRef.get();
+    if (!snap.exists) continue;
+    const prior = typeof (snap.data() || {}).notes === 'string' ? snap.data().notes : '';
+    const patch = {
+      notes: (prior ? prior + '\n' : '') + 'Added on the thank-you screen:\n' + lines.join('\n'),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (fields.scheduling) patch.schedulingPreference = fields.scheduling;
+    await leadRef.update(patch);
+    crm = true;
+  }
+  return { status: 200, json: { success: true, crm } };
+}
+
+exports.updatePublicLeadIntake = onRequest(
+  { cors: CORS_ORIGINS, maxInstances: 10, concurrency: 40, timeoutSeconds: 30, memory: '256MiB' },
+  async (req, res) => {
+    if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
+    try {
+      await enforceRateLimit('publicLeadIntake:ip', rateLimitIpKey(clientIp(req)), 20, 10 * 60_000);
+    } catch (e) {
+      if (e && e.rateLimited) { res.set('Retry-After', '120'); res.status(429).json({ error: 'Too many requests — wait a minute.' }); return; }
+      // Limiter backend down: the grant itself caps a submission at 3 saves.
+    }
+    try {
+      const out = await saveIntakeUpdate(getFirestore(), req.body || {});
+      if (out.status === 200) logger.info('updatePublicLeadIntake', { crm: out.json.crm });
+      res.status(out.status).json(out.json);
+    } catch (e) {
+      logger.error('updatePublicLeadIntake failed', { err: e.message });
+      res.status(500).json({ error: 'Could not save that. Call or text Joe at (859) 420-7382.' });
+    }
+  }
+);
+
+exports._internal = {
+  mintPhotoGrant, parseDataUrl, checkGrant, reencode, hashToken, PHOTO_COLLECTIONS, MAX_PHOTOS, GRANTS,
+  checkIntakeGrant, saveIntakeUpdate, INTAKE_MAX_UPDATES,
+};

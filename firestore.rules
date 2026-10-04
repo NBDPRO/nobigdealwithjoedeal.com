@@ -139,6 +139,34 @@ service cloud.firestore {
         'referralRewardJobCount'
       ]);
     }
+    // The same server-owned referral fields must be ABSENT on a lead CREATE
+    // (security batch 2026-10-03). referralServerFieldsFrozen() only guards
+    // updates (diff-based), so a client could create a lead already carrying
+    // an 'owed' bonus, a referralDocId / referrerLeadId pointer, or any other
+    // field onReferralLeadWrite owns. No client create path writes any of them
+    // (they are stamped by the admin SDK: submitReferral, referral-rewards.js).
+    function leadCreateHasNoServerFields() {
+      return !request.resource.data.keys().hasAny([
+        'referralRewardStatus', 'referralRewardAmount', 'referralAttributedAt',
+        'referrerLeadId', 'referralDocId', 'referralRewardOwedAt', 'referredBy',
+        'referralCodeInvalid', 'referralRewardJobCount', 'referralRewardPaidAt'
+      ]);
+    }
+    // A customerId whose leading segment is a RESERVED prefix
+    // (docPrefixes/{PREFIX}, reserveCompanyPrefix) must belong to the lead's
+    // own tenant (security batch 2026-10-03). The public referral resolver
+    // (functions/referrals.js) maps a code to its tenant by that prefix, so a
+    // lead stamped with another tenant's 'OAK-0001-…' was an impersonation of
+    // that tenant's customer code. Segments that cannot be a prefix (shape
+    // /^[A-Z0-9]{2,12}$/, the resolver's own test) or are not reserved stay
+    // allowed: CSV import keeps a legacy CRM's own customer ids. Non-string
+    // values can never match the resolver's string query, so they pass.
+    function customerIdTenantOk(cid, tenant) {
+      return !(cid is string)
+        || !cid.split('-')[0].matches('^[A-Z0-9]{2,12}$')
+        || !exists(/databases/$(database)/documents/docPrefixes/$(cid.split('-')[0]))
+        || get(/databases/$(database)/documents/docPrefixes/$(cid.split('-')[0])).data.get('companyId', '') == tenant;
+    }
     // The per-JOB referral latch (functions/referral-rewards.js creditJob).
     // A client must never set, clear or change it on a job: clearing it on a
     // closed job would re-arm onReferralJobWrite and pay the bonus twice.
@@ -445,6 +473,12 @@ service cloud.firestore {
           // tenant's customer. Write-once rather than frozen because the
           // client stamps it onto a just-created lead (see writeOnce).
           && writeOnce('customerId')
+          // …and its first value (the client's mint, right after create) may
+          // not claim another tenant's reserved prefix either. Only evaluated
+          // when customerId is in the write, so ordinary edits cost no read.
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['customerId'])
+              || customerIdTenantOk(request.resource.data.get('customerId', null),
+                                    resource.data.get('companyId', resource.data.userId)))
           && referralServerFieldsFrozen()
           && referralStatusTransitionOk()
           && stageWriteOk()
@@ -472,6 +506,11 @@ service cloud.firestore {
                 && request.resource.data.companyId == request.auth.uid))
         // The lead modal's Add Lead carries the window too (2026-09-29).
         && scheduleWindowOk()
+        // Server-owned referral fields never arrive on a create, and a
+        // customerId (CSV import may carry one) cannot claim another
+        // tenant's reserved prefix (security batch 2026-10-03).
+        && leadCreateHasNoServerFields()
+        && customerIdTenantOk(request.resource.data.get('customerId', null), request.resource.data.companyId)
         // The first job is made by the server (jobs-mirror.js), never claimed
         // by the client.
         && !('activeJobId' in request.resource.data);
@@ -1163,7 +1202,17 @@ service cloud.firestore {
     // caller's own inbox rows. Marking one read or dismissing it is personal
     // UI state, not tenant data, and a viewer needs it to use the bell.
     match /notifications/{notifId} {
-      allow read, update, delete: if isOwner(resource.data.userId) || isAdmin();
+      allow read, delete: if isOwner(resource.data.userId) || isAdmin();
+      // Update = the owner flipping read/dismissed state. The identity of a
+      // notification (who, what kind, which lead, which day, when) never
+      // changes after create — which also makes a client setDoc onto an
+      // EXISTING deterministic id (crm-snooze.js follow-up ids,
+      // followup_<uid>_<lead>_<day>) a refused overwrite: create-only. Before
+      // 2026-10-03 the engine used addDoc + a 50-doc in-memory dedupe and
+      // wrote 18,169 follow_up docs across 89 leads.
+      allow update: if isAdmin() || (isOwner(resource.data.userId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['userId', 'type', 'leadId', 'dateKey', 'createdAt']));
       // Creation is server-side (admin SDK). Allow self-create too for client-initiated flows
       // but only if the userId matches the caller, to prevent cross-tenant spam.
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
@@ -1174,9 +1223,13 @@ service cloud.firestore {
     // mutable identity key, so it's kept only as a fallback for docs written
     // before sentByUid existed — new writes additionally bind to the uid.
     match /emails/{emailId} {
+      // The sentBy-email branch requires a VERIFIED email claim (security
+      // batch 2026-10-03): sign-up is open, so an account registered with
+      // someone else's address — unverified — read every row that address sent.
       allow read: if isAuth() && (
         resource.data.get('sentByUid', '') == request.auth.uid ||
-        resource.data.sentBy == request.auth.token.email
+        (request.auth.token.get('email_verified', false) == true
+          && resource.data.sentBy == request.auth.token.email)
       );
       // notViewer(): a sent-mail log row for a lead (decision B, 2026-09-25).
       // sendEmail already refuses a viewer sender server-side.
@@ -2311,6 +2364,16 @@ service cloud.firestore {
     }
 
     match /stripe_events/{eventId} {
+      allow read, write: if false;
+    }
+
+    // Job-spine idempotency markers (functions/job-spine.js, 2026-10-03):
+    // one doc per (leadId, event, sourceId), created in the same transaction
+    // as the automatic stage move it records. Admin SDK only — a client that
+    // could write here could pre-claim a marker and silently suppress a real
+    // move (a payoff, a signed contract); reading one would leak another
+    // tenant's lead ids and payment metadata.
+    match /job_events/{markerId} {
       allow read, write: if false;
     }
 

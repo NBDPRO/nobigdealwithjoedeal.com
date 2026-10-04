@@ -145,6 +145,20 @@ function splitName(data) {
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
 
+// The intake answers as CRM note lines. Shared by the bridge (answers that
+// arrive WITH the lead) and updatePublicLeadIntake (answers the /estimate
+// thank-you screen adds AFTER it), so both read the same on the card.
+function intakeNoteLines(data) {
+  data = data || {};
+  const out = [];
+  if (data.scheduling === 'calendar') out.push('Scheduling: booking a time on the calendar');
+  else if (data.scheduling === 'contact_me') out.push('Scheduling: asked to be contacted to set a time');
+  if (data.bestTime) out.push('Best time to reach: ' + String(data.bestTime));
+  if (data.insuranceClaim) out.push('Insurance claim: ' + ({ yes: 'yes', no: 'no', not_sure: 'not sure' }[data.insuranceClaim] || String(data.insuranceClaim)));
+  if (data.howHeard) out.push('Heard about us: ' + String(data.howHeard));
+  return out;
+}
+
 // Map a public-form submission onto a CRM `leads` doc (minus the
 // serverTimestamp fields, which the trigger adds so this stays pure).
 function mapPublicLeadToLead(args) {
@@ -171,11 +185,7 @@ function mapPublicLeadToLead(args) {
   }
   if (data.photoCount) notesParts.push('Homeowner attached ' + data.photoCount + ' photo(s) — see Photos');
   // Intake answers (2026-09-30).
-  if (data.scheduling === 'calendar') notesParts.push('Scheduling: booking a time on the calendar');
-  else if (data.scheduling === 'contact_me') notesParts.push('Scheduling: asked to be contacted to set a time');
-  if (data.bestTime) notesParts.push('Best time to reach: ' + String(data.bestTime));
-  if (data.insuranceClaim) notesParts.push('Insurance claim: ' + ({ yes: 'yes', no: 'no', not_sure: 'not sure' }[data.insuranceClaim] || String(data.insuranceClaim)));
-  if (data.howHeard) notesParts.push('Heard about us: ' + String(data.howHeard));
+  notesParts.push(...intakeNoteLines(data));
   if (data.missingAddress) notesParts.push('⚠ No address given — ask for it');
   // Estimator context — so the pipeline card shows what the homeowner
   // actually asked for, not just a name and address. Fields are present
@@ -199,7 +209,13 @@ function mapPublicLeadToLead(args) {
     // functions/phone-utils.js.
     phoneDigits: phoneDigits10(data.phone),
     email: String(data.email || ''),
-    stage: 'New',
+    // The canonical first-stage KEY plus its role (2026-10-03 data audit: 61
+    // Thumbtack leads sat at the legacy display name 'New' with no stageRole).
+    // The board normalises 'New' at read time, but the server classifies a
+    // lead by its persisted stageRole first (stage-roles.js roleFor), and
+    // every client stage write stamps both — so the bridge does too.
+    stage: 'new',
+    stageRole: 'new',
     status: 'new',
     source: isExternal ? meta.label : 'Website — ' + meta.label,
     // External sources (thumbtack.js) precompute a richer note than the generic
@@ -289,7 +305,60 @@ function mapPublicLeadToLead(args) {
   return doc;
 }
 
+// ── Phone dedup for marketplace pushes (2026-10-03 data audit) ──────────────
+// Thumbtack sends a fresh lead every time a homeowner re-requests or messages a
+// new pro request, and the bridge minted a NEW pipeline card for each one: the
+// same person showed up two or three times. For the EXTERNAL collections, a
+// lead already in the same tenant with the same 10-digit phone is the same
+// customer — attach the new request to it instead of creating another card.
+function dedupesByPhone(collection) {
+  return EXTERNAL_SOURCE_COLLECTIONS.indexOf(collection) !== -1;
+}
+
+// docs: [{ id, data }] from `leads where companyId == X and phoneDigits == Y`.
+// → the lead to attach to, or null. Skips deleted leads; prefers the oldest
+// (the original card the rep has been working).
+function pickPhoneMatch(docs) {
+  const ms = (t) => (t && typeof t.toMillis === 'function') ? t.toMillis()
+    : (t && typeof t.seconds === 'number') ? t.seconds * 1000
+    : (t instanceof Date ? t.getTime() : (Number(t) || Infinity));
+  const live = (docs || []).filter((d) => d && d.id && d.data && d.data.deleted !== true);
+  if (!live.length) return null;
+  live.sort((a, b) => ms(a.data.createdAt) - ms(b.data.createdAt));
+  return live[0];
+}
+
+// The update that attaches a repeat request to the existing lead. Pure: the
+// caller adds updatedAt. → null when this request is already attached (a
+// re-delivered trigger), so the caller writes nothing.
+function phoneDuplicatePatch(existing, newLead, sourceId, nowIso) {
+  existing = existing || {};
+  newLead = newLead || {};
+  const sid = String(sourceId || '');
+  const ids = Array.isArray(existing.externalLeadIds) ? existing.externalLeadIds.slice() : [];
+  if (sid && (ids.indexOf(sid) !== -1 || existing.publicLeadId === sid)) return null;
+  if (sid) ids.push(sid);
+  const label = newLead.source || 'Marketplace';
+  const day = String(nowIso || '').slice(0, 10);
+  const block = 'Repeat ' + label + ' request' + (day ? ' (' + day + ')' : '') + ':' +
+    (newLead.notes ? '\n' + String(newLead.notes) : '');
+  const prior = typeof existing.notes === 'string' ? existing.notes : '';
+  const patch = {
+    notes: (prior ? prior + '\n\n' : '') + block,
+    externalLeadIds: ids,
+    lastExternalRequestAt: String(nowIso || ''),
+  };
+  // Thumbtack bills every lead, repeats included — keep the card's cost whole.
+  if (Number(newLead.leadCost) > 0) {
+    patch.leadCost = Math.round(((Number(existing.leadCost) || 0) + Number(newLead.leadCost)) * 100) / 100;
+  }
+  return patch;
+}
+
 module.exports = {
+  dedupesByPhone,
+  pickPhoneMatch,
+  phoneDuplicatePatch,
   BRIDGE_KINDS,
   EXTERNAL_SOURCE_COLLECTIONS,
   ESTIMATE_EVENT_TYPES,
@@ -301,5 +370,6 @@ module.exports = {
   resolveBridgeTarget,
   bridgeDocId,
   splitName,
+  intakeNoteLines,
   mapPublicLeadToLead,
 };

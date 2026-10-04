@@ -102,7 +102,9 @@ console.log('\nLEAD-BRIDGE — public lead → CRM leads doc mapping');
   ok('inspect: lastName split', inspect.lastName === 'Homeowner');
   ok('inspect: phone mapped', inspect.phone === '8594207382');
   ok('inspect: address mapped', inspect.address === '12 Oak St, Batavia OH');
-  ok('inspect: stage New', inspect.stage === 'New');
+  // 2026-10-03: the canonical stage KEY + its role, not the legacy 'New' label.
+  ok('inspect: stage is the canonical new key', inspect.stage === 'new');
+  ok('inspect: stageRole new stamped', inspect.stageRole === 'new');
   ok('inspect: source label', inspect.source === 'Website — Inspection / Storm tool');
   ok('inspect: webLead flag', inspect.webLead === true);
   ok('inspect: provenance kind', inspect.publicLeadKind === 'inspect');

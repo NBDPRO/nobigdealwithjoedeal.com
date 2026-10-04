@@ -80,7 +80,7 @@ export function stageActor(labelOverride) {
  * @param {string}  [opts.actorLabel]   'user' field for the history event
  *                                       (defaults to the signed-in user's
  *                                       email)
- * @returns {Promise<{historyEvent: Object}>} resolves once the transaction
+ * @returns {Promise<{historyEvent: Object, enteredWon: boolean}>} resolves once the transaction
  *   (or fallback plain write), the activity note, and the drip trigger have
  *   all been attempted. Activity-note and drip failures are swallowed
  *   (console.warn only) — matching both prior implementations, since
@@ -118,6 +118,16 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   if (isLostMove && lostReason) historyEvent.lostReason = lostReason;
 
   const leadRef = window.doc(window.db, 'leads', id);
+  // Won-stage close stamp (2026-10-03 data audit: 10 won leads had no
+  // closedAt — only a LOST move stamped it, so a deal dragged to Install
+  // Complete / Final Payment / Closed carried no close date and fell out of
+  // every "closed this month" read that keys on it). Entering a won stage
+  // stamps closedAt unless the lead was already won with a close date (a
+  // won → won step is not a second close). Set inside the transaction from
+  // the server copy, so a stale local snapshot can't double-stamp.
+  const _roleOf = (k) => (typeof window.stageRole === 'function' ? window.stageRole(k) : null);
+  const enteringWon = _roleOf(newStage) === 'won';
+  let enteredWon = false;
 
   if (typeof window.runTransaction === 'function') {
     await window.runTransaction(window.db, async (tx) => {
@@ -151,7 +161,10 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
       if (isLostMove) {
         payload.closedAt = window.serverTimestamp();
         if (lostReason) payload.lostReason = lostReason;
+      } else if (enteringWon && (!cur.closedAt || _roleOf(cur.stage) !== 'won')) {
+        payload.closedAt = window.serverTimestamp();
       }
+      enteredWon = enteringWon && _roleOf(cur.stage) !== 'won';
       tx.update(leadRef, payload);
     });
   } else {
@@ -167,7 +180,11 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
     if (isLostMove) {
       payload.closedAt = window.serverTimestamp();
       if (lostReason) payload.lostReason = lostReason;
+    } else if (enteringWon && _roleOf(oldStage) !== 'won') {
+      // No server read on this path: the caller's oldStage decides.
+      payload.closedAt = window.serverTimestamp();
     }
+    enteredWon = enteringWon && _roleOf(oldStage) !== 'won';
     await window.updateDoc(leadRef, payload);
   }
 
@@ -206,5 +223,7 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
     }
   } catch (e) { console.warn('[stage-write] stage-checklist trigger failed:', e && e.message); }
 
-  return { historyEvent };
+  // enteredWon: this move took the lead from a non-won stage onto a won one —
+  // the caller's cue to offer "Create invoice" (crm-pipeline.js moveCard).
+  return { historyEvent, enteredWon };
 }
