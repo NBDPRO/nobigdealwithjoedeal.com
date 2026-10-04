@@ -50,7 +50,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .progress-line{position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%);z-index:0;}
 .progress-fill{position:absolute;top:50%;left:0;height:2px;background:var(--orange);transform:translateY(-50%);z-index:1;transition:width .5s ease;}
 .progress-step{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:6px;}
-.progress-dot{width:32px;height:32px;border-radius:50%;background:var(--navy-dark);border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:rgba(255,255,255,.3);transition:all .3s;}
+.progress-dot{width:32px;height:32px;border-radius:50%;background:var(--navy-dark);border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:rgba(255,255,255,.72);transition:all .3s;}
 .progress-dot.active{border-color:#BD5728;background:#BD5728;color:var(--white);box-shadow:0 0 16px rgba(189,87,40,.4);}
 .progress-dot.done{border-color:var(--success);background:var(--success);color:var(--white);}
 .progress-label{font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.7);white-space:nowrap;transition:color .3s;}
@@ -67,6 +67,8 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .step-eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--orange);margin-bottom:10px;text-align:center;}
 .step-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,6vw,3.2rem);line-height:1.08;text-align:center;margin-bottom:10px;letter-spacing:1px;}
 .step-title span{color:#BD5728;}
+/* Step 1 page heading (2026-10-03): the H1 names the page for search; the big "What's Your Address?" prompt under it is unchanged, now an h2. */
+.step-h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.15rem,3.6vw,1.5rem);line-height:1.2;letter-spacing:.06em;text-align:center;color:rgba(255,255,255,.9);margin-bottom:12px;}
 .step-subtitle{color:rgba(255,255,255,.68);font-size:.9rem;text-align:center;line-height:1.6;margin-bottom:32px;max-width:480px;margin-left:auto;margin-right:auto;}
 
 /* ── Card ── */
@@ -96,16 +98,16 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
 
 /* ── Secondary / Back Button ── */
-.btn-back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:rgba(255,255,255,.4);font-family:'Montserrat',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;margin-top:16px;padding:0;}
-.btn-back:hover{color:rgba(255,255,255,.7);}
+.btn-back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:rgba(255,255,255,.72);font-family:'Montserrat',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;margin-top:16px;padding:0;}
+.btn-back:hover{color:rgba(255,255,255,.9);}
 
 /* ── Trust Row ── */
 .trust-row{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:24px;}
-.trust-badge{font-size:.68rem;font-weight:700;color:rgba(255,255,255,.45);letter-spacing:.06em;text-transform:uppercase;padding:8px 14px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(255,255,255,.02);}
+.trust-badge{font-size:.68rem;font-weight:700;color:rgba(255,255,255,.72);letter-spacing:.06em;text-transform:uppercase;padding:8px 14px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(255,255,255,.02);}
 
 /* ── Tile Selectors ── */
 .tile-group{margin-bottom:24px;}
-.tile-group-label{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:12px;}
+.tile-group-label{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-bottom:12px;}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
 .tile{background:rgba(255,255,255,.04);border:2px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;user-select:none;}
 .tile:hover{border-color:rgba(189,87,40,.3);background:rgba(189,87,40,.05);}
@@ -117,7 +119,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 /* ── Satellite Image ── */
 .satellite-container{border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,.1);margin-bottom:20px;position:relative;background:var(--navy-dark);min-height:280px;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;}
 .satellite-container img{width:100%;height:auto;display:block;}
-.satellite-placeholder{text-align:center;padding:40px 20px;color:rgba(255,255,255,.4);width:100%;}
+.satellite-placeholder{text-align:center;padding:40px 20px;color:rgba(255,255,255,.72);width:100%;}
 .satellite-placeholder .icon{font-size:3rem;margin-bottom:12px;}
 .satellite-address{background:rgba(0,0,0,.6);padding:10px 16px;font-size:.8rem;font-weight:600;text-align:center;border-radius:0 0 10px 10px;position:absolute;bottom:0;left:0;right:0;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);z-index:401;}
 #leafletMap{width:100%;height:340px;background:var(--navy-dark);}
@@ -131,11 +133,11 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .ballpark-hero{text-align:center;padding:32px 0;}
 .ballpark-label{font-size:.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:12px;}
 .ballpark-price{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.8rem,8vw,4rem);color:var(--white);line-height:1;}
-.ballpark-price span{font-size:clamp(1.6rem,4vw,2.2rem);color:rgba(255,255,255,.4);}
-.ballpark-context{font-size:.82rem;color:rgba(255,255,255,.4);margin-top:8px;line-height:1.5;}
+.ballpark-price span{font-size:clamp(1.6rem,4vw,2.2rem);color:rgba(255,255,255,.72);}
+.ballpark-context{font-size:.82rem;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.5;}
 .ballpark-factors{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:24px 0;}
 .ballpark-factor{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px 12px;text-align:center;}
-.ballpark-factor .label{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:3px;}
+.ballpark-factor .label{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-bottom:3px;}
 .ballpark-factor .value{font-size:.92rem;font-weight:700;color:var(--white);}
 .unlock-prompt{background:linear-gradient(135deg,rgba(189,87,40,.08),rgba(189,87,40,.03));border:1px solid rgba(189,87,40,.15);border-radius:12px;padding:20px;text-align:center;margin-top:24px;}
 .unlock-prompt p{font-size:.88rem;color:rgba(255,255,255,.72);margin-bottom:4px;}
@@ -170,8 +172,24 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 /* ── TCPA ── */
 .tcpa-check{display:flex;gap:10px;align-items:flex-start;margin:20px 0 8px;}
 .tcpa-check input[type="checkbox"]{width:18px;height:18px;margin-top:2px;accent-color:var(--orange);flex-shrink:0;}
-.tcpa-check label{font-size:.68rem;color:rgba(255,255,255,.35);line-height:1.5;}
+.tcpa-check label{font-size:.8rem;color:rgba(255,255,255,.72);line-height:1.5;}
 .tcpa-check label a{color:var(--orange);text-decoration:none;}
+/* 2026-10-03 funnel unblock: OTP off by default (hidden until the flag turns
+   it on), the "use my address as typed" escape, the optional thank-you
+   questions, and the trust line above Submit. */
+.btn-send-code[hidden],.otp-skip[hidden],#estFollowUp[hidden],#emailEstimateTo[hidden]{display:none!important;}
+.field-optional{font-weight:500;opacity:.6;text-transform:none;letter-spacing:0;}
+.btn-use-typed{margin-top:10px;padding:10px 16px;background:transparent;border:1px solid var(--orange);border-radius:8px;color:var(--white);font-family:'Montserrat',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.btn-use-typed:hover{background:rgba(189,87,40,.15);}
+.nbd-trust-line{margin:4px 0 12px;font-size:.78rem;font-weight:600;color:rgba(255,255,255,.72);text-align:center;line-height:1.5;}
+.nbd-trust-line span[aria-hidden]{color:#fbbc04;}
+.followup{margin:18px 0 6px;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.04);text-align:left;}
+.followup-title{font-size:.95rem;font-weight:800;color:var(--white);margin-bottom:4px;}
+.followup-sub{font-size:.78rem;color:rgba(255,255,255,.62);margin-bottom:12px;line-height:1.5;}
+.followup-status{font-size:.8rem;margin-top:8px;color:rgba(255,255,255,.75);}
+.followup-status.error{color:var(--error);}
+.followup-status a{color:var(--orange);font-weight:700;}
+#emailEstimateTo{width:100%;margin-top:10px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:var(--white);font-size:16px;}
 
 /* ── Results ── */
 .results-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:32px 28px;position:relative;}
@@ -181,17 +199,17 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .result-range{text-align:center;margin-bottom:24px;}
 .result-label{font-size:.7rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;}
 .result-price{font-family:'Bebas Neue',sans-serif;font-size:3.2rem;color:var(--white);line-height:1;}
-.result-price span{font-size:1.8rem;color:rgba(255,255,255,.4);}
-.result-note{font-size:.72rem;color:rgba(255,255,255,.3);margin-top:6px;}
+.result-price span{font-size:1.8rem;color:rgba(255,255,255,.72);}
+.result-note{font-size:.72rem;color:rgba(255,255,255,.72);margin-top:6px;}
 .result-monthly{margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08);}
 .result-monthly .rm-line{font-size:.95rem;color:rgba(255,255,255,.85);}
 .result-monthly .rm-line strong{color:var(--orange);font-weight:800;}
 .result-monthly .rm-link{display:inline-block;margin-top:7px;font-size:.78rem;font-weight:700;color:var(--orange);text-decoration:none;}
 .result-monthly .rm-link:hover{text-decoration:underline;}
-.result-monthly .rm-disc{font-size:.66rem;color:rgba(255,255,255,.35);margin-top:9px;line-height:1.55;max-width:460px;margin-left:auto;margin-right:auto;}
+.result-monthly .rm-disc{font-size:.8rem;color:rgba(255,255,255,.72);margin-top:9px;line-height:1.55;max-width:460px;margin-left:auto;margin-right:auto;}
 .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;}
 .detail-item{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px;}
-.detail-label{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:4px;}
+.detail-label{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-bottom:4px;}
 .detail-value{font-size:1rem;font-weight:700;color:var(--white);}
 
 /* Joe's Take */
@@ -204,7 +222,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 /* CTAs — Three-Path Next Steps */
 .cta-block{padding:24px 0 0;border-top:1px solid rgba(255,255,255,.06);}
 .cta-block .cta-heading{font-size:1.05rem;font-weight:800;color:var(--white);text-align:center;margin-bottom:4px;}
-.cta-block .cta-subhead{font-size:.82rem;color:rgba(255,255,255,.45);text-align:center;margin-bottom:20px;line-height:1.5;}
+.cta-block .cta-subhead{font-size:.82rem;color:rgba(255,255,255,.72);text-align:center;margin-bottom:20px;line-height:1.5;}
 .next-step-cards{display:flex;flex-direction:column;gap:14px;}
 .ns-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px;transition:border-color .2s,background .2s;cursor:pointer;text-decoration:none;display:block;}
 .ns-card:hover{border-color:var(--orange);background:rgba(189,87,40,.06);}
@@ -215,17 +233,17 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .ns-card.primary .ns-card-label{color:var(--orange);}
 .ns-card-tag{margin-left:auto;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:20px;background:#BD5728;color:var(--white);}
 .ns-card-desc{font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.55;margin-bottom:10px;}
-.ns-card-detail{font-size:.72rem;color:rgba(255,255,255,.3);line-height:1.5;font-style:italic;}
+.ns-card-detail{font-size:.72rem;color:rgba(255,255,255,.72);line-height:1.5;font-style:italic;}
 .ns-card-btn{display:block;margin-top:14px;padding:12px;background:#BD5728;color:var(--white);border:none;border-radius:8px;font-weight:700;font-size:.88rem;text-align:center;text-decoration:none;cursor:pointer;transition:opacity .2s;}
 .ns-card-btn:hover{opacity:.9;}
 .ns-card-btn.outline{background:transparent;border:1.5px solid rgba(255,255,255,.2);color:var(--white);}
 .ns-card-btn.outline:hover{border-color:var(--orange);color:var(--orange);}
 .cta-onsite-note{margin-top:18px;padding:12px 14px;background:rgba(255,255,255,.03);border-radius:8px;text-align:center;}
-.cta-onsite-note p{font-size:.72rem;color:rgba(255,255,255,.35);line-height:1.55;margin:0;}
-.cta-onsite-note p strong{color:rgba(255,255,255,.55);}
+.cta-onsite-note p{font-size:.72rem;color:rgba(255,255,255,.72);line-height:1.55;margin:0;}
+.cta-onsite-note p strong{color:rgba(255,255,255,.92);}
 .cta-reset{margin-top:14px;text-align:center;}
-.cta-reset button{background:none;border:none;color:rgba(255,255,255,.3);font-size:.78rem;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
-.cta-reset button:hover{color:rgba(255,255,255,.6);}
+.cta-reset button{background:none;border:none;color:rgba(255,255,255,.72);font-size:.78rem;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+.cta-reset button:hover{color:rgba(255,255,255,.9);}
 
 /* Footer */
 .foot{text-align:center;padding:40px 5%;font-size:.75rem;color:rgba(255,255,255,.6);}
@@ -238,7 +256,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 @keyframes spin{to{transform:rotate(360deg);}}
 .loading-text{font-size:.85rem;color:rgba(255,255,255,.5);}
 .loading-steps{margin-top:12px;}
-.loading-step{font-size:.75rem;color:rgba(255,255,255,.3);margin:4px 0;transition:color .3s;}
+.loading-step{font-size:.75rem;color:rgba(255,255,255,.72);margin:4px 0;transition:color .3s;}
 .loading-step.active{color:var(--orange);}
 .loading-step.done{color:var(--success);}
 
@@ -449,7 +467,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Roofing"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Siding Replacement"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Gutter Replacement"}},
-          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Insurance Claims"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Inspection & Documentation"}},
           {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Interior Drywall and Ceiling Repair"}}
         ]
       }
@@ -512,6 +530,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 </script>
 <!-- /nbd:partial schema-entity -->
 <script defer src="/assets/js/clarity-loader.js"></script>
+<link rel="stylesheet" href="/assets/css/nbd-nav.css">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -530,7 +549,6 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     </a>
   </div>
   <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav"><span></span><span></span><span></span></button>
-  <link rel="stylesheet" href="/assets/css/nbd-nav.css">
   <script defer src="/assets/js/nbd-nav.js"></script>
 </nav>
 <!-- /nbd:partial nav-tool -->
@@ -611,7 +629,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ STEP 1: ADDRESS ═══════════════════════ -->
 <div class="step active" id="step1">
   <div class="step-eyebrow">Step 1 of 5</div>
-  <h1 class="step-title">What's Your <span>Address?</span></h1>
+  <h1 class="step-h1">Free Roof Estimate &mdash; Greater Cincinnati &amp; Northern KY</h1>
+  <h2 class="step-title">What's Your <span>Address?</span></h2>
   <div class="step-subtitle">Enter your home address and I'll pull up a satellite view to start your estimate.</div>
 
   <div class="funnel-card">
@@ -817,8 +836,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ STEP 5: CONTACT + VERIFY ═══════════════════════ -->
 <div class="step" id="step5">
   <div class="step-eyebrow">Final Step</div>
-  <h2 class="step-title">Verify Your Info to <span>Unlock</span></h2>
-  <div class="step-subtitle">We verify phone numbers to ensure you get a real, personalized estimate — not spam.</div>
+  <h2 class="step-title">Where Should Joe <span>Send It?</span></h2>
+  <div class="step-subtitle">Your first name and phone are all Joe needs. No call center, no spam.</div>
 
   <div class="funnel-card">
     <div class="funnel-card-glow"></div>
@@ -830,9 +849,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
         <div class="error-msg" id="firstName-err" role="alert" aria-live="assertive">Required</div>
       </div>
       <div class="input-group">
-        <label for="lastName">Last Name</label>
-        <input type="text" id="lastName" placeholder="Deal" autocomplete="family-name" required aria-required="true" aria-describedby="lastName-err">
-        <div class="error-msg" id="lastName-err" role="alert" aria-live="assertive">Required</div>
+        <label for="lastName">Last Name <span class="field-optional">(optional)</span></label>
+        <input type="text" id="lastName" placeholder="Deal" autocomplete="family-name">
       </div>
     </div>
 
@@ -840,7 +858,9 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       <label for="phoneNumber">Phone Number</label>
       <div class="phone-input-row">
         <input type="tel" id="phoneNumber" placeholder="(859) 555-1234" autocomplete="tel" required aria-required="true" aria-describedby="phoneNumber-err">
-        <button class="btn-send-code" id="btnSendCode" data-action="sendCode">Send Code</button>
+        <!-- Text-code check: OFF (CONFIG.OTP_ENABLED in the wizard). Hidden in
+             the markup so it never flashes; the wizard shows it if re-enabled. -->
+        <button class="btn-send-code" id="btnSendCode" data-action="sendCode" hidden>Send Code</button>
       </div>
       <div class="error-msg" id="phoneNumber-err" role="alert" aria-live="assertive">Valid phone number required</div>
     </div>
@@ -848,7 +868,9 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     <div class="otp-section" id="otpSection">
       <div style="font-size:.78rem;font-weight:600;color:rgba(255,255,255,.5);text-align:center;margin-bottom:8px;">Enter the 6-digit code we texted you</div>
       <div class="otp-row" id="otpRow">
-        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 1">
+        <!-- First box takes the WHOLE code from SMS autofill (one-time-code);
+             the wizard spreads it across the boxes, like a paste. -->
+        <input type="text" class="otp-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" aria-label="Digit 1">
         <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 2">
         <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 3">
         <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 4">
@@ -859,24 +881,21 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     </div>
 
     <div class="input-group">
-      <label for="emailAddress">Email Address</label>
-      <input type="email" id="emailAddress" placeholder="you@email.com" autocomplete="email" required aria-required="true" aria-describedby="emailAddress-err">
+      <label for="emailAddress">Email Address <span class="field-optional">(optional)</span></label>
+      <input type="email" id="emailAddress" placeholder="you@email.com" autocomplete="email" aria-describedby="emailAddress-err">
       <div class="error-msg" id="emailAddress-err" role="alert" aria-live="assertive">Valid email required</div>
     </div>
 
-    <!-- Shared intake block (2026-09-30): REQUIRED scheduling choice, best time,
-         insurance, how-heard, photos. Markup from intake-extras.js NBDIntake.html. -->
-    <div id="estIntake" data-nbd-intake="estI"></div>
-    <div class="input-group" id="estIntakeGroup"><div class="error-msg" id="estIntake-err" role="alert" aria-live="assertive"></div></div>
 
     <div class="tcpa-check">
       <input type="checkbox" id="tcpaConsent">
       <label for="tcpaConsent">I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions. Message &amp; data rates may apply. Reply STOP to opt out. <a href="/privacy">Privacy Policy</a></label>
     </div>
 
+    <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof</p>
     <button class="btn-primary" id="btnSubmit" data-action="submitEstimate" disabled>Get My Free Detailed Estimate &#x2192;</button>
 
-    <div class="otp-skip" id="otpSkip">
+    <div class="otp-skip" id="otpSkip" hidden>
       <button type="button" class="otp-skip-btn" id="btnOtpSkip" data-action="skipOtp">Skip verification &#8212; just have Joe call me</button>
       <div class="otp-skip-status" id="otpSkipStatus" role="status" aria-live="polite"></div>
     </div>
@@ -927,6 +946,17 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       </div>
     </div>
 
+    <!-- "Help Joe prepare" (2026-10-03): the intake questions that used to
+         gate Submit, now optional and AFTER the lead — saved onto the same
+         lead via updatePublicLeadIntake. Filled + shown by the wizard only
+         when the lead was saved (it carries the one-time grant). -->
+    <div class="followup" id="estFollowUp" hidden>
+      <div class="followup-title">Help Joe prepare <span class="field-optional">(optional)</span></div>
+      <div class="followup-sub">Your request is already with Joe. Answer any of these and he shows up ready &#8212; or skip them all.</div>
+      <div id="estIntake"></div>
+      <button type="button" class="ns-card-btn" id="btnFollowUp" data-action="saveFollowUp">Send to Joe &#x2192;</button>
+      <div class="followup-status" id="estFollowUpStatus" role="status" aria-live="polite"></div>
+    </div>
     <!-- The calendar button / photo upload result (intake-extras afterSubmit). -->
     <div id="estIntakeAfter"></div>
 
@@ -991,6 +1021,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
             <span class="ns-card-label">Email My Estimate for Now</span>
           </div>
           <div class="ns-card-desc">Not ready yet? No problem. We'll send this estimate to your inbox so you have it when you're ready. When you want exact numbers, Joe will need an on-site assessment with interior access for attic, ventilation, and structural details.</div>
+          <input type="email" id="emailEstimateTo" placeholder="you@email.com" autocomplete="email" aria-label="Email address for your estimate" hidden>
           <button class="ns-card-btn outline" data-action="emailEstimate">Send to My Email &#x2192;</button>
         </div>
       </div>
@@ -1035,7 +1066,9 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
      layer (C-3); submissions go through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
-<script defer src="/assets/js/intake-extras.js?v=1"></script>
+<script defer src="/assets/js/intake-extras.js?v=2"></script>
+<!-- Live Google rating for the trust line above Submit (data-nbd-gr-rating). -->
+<script defer src="/assets/js/google-reviews-widget.js"></script>
 <script type="module" src="/assets/js/inline/f95015cb84.module.js"></script>
 
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════

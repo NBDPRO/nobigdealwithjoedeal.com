@@ -223,8 +223,10 @@ section('Firestore repository layer — write convention');
     /bulkUpdate:\s*async function[\s\S]{0,300}window\.writeBatch\(window\.db\)/.test(repos));
   // Soft-delete sets deleted:true rather than calling deleteDoc,
   // because cross-collection references would orphan otherwise.
+  // 2026-10-03: through stampSoftDelete(), which also stamps deletedAt.
   assert('leads.softDelete sets deleted:true (not deleteDoc)',
-    /softDelete:\s*async function[\s\S]{0,200}deleted:\s*true/.test(repos)
+    /softDelete:\s*async function[\s\S]{0,200}stampSoftDelete\(\)/.test(repos)
+    && /function stampSoftDelete\(\)[\s\S]{0,200}deleted:\s*true,\s*deletedAt/.test(repos)
     && /hardDelete:\s*async function[\s\S]{0,200}window\.deleteDoc/.test(repos));
 }
 
@@ -767,7 +769,8 @@ section('Pipeline small fixes (#9 legacy card handlers, #10 filter preserved)');
   // (#11 — homeowner-share badge dispatch — is covered in portal.test.js.)
   // #12 — the overdue-followup count skips won/lost/job by stageRole, so a won
   // deal at final_payment (or a custom won/lost stage) no longer nags "due".
-  const overdue = crm.slice(crm.indexOf('Follow-up overdue'), crm.indexOf('Follow-up overdue') + 800);
+  // 2026-10-03: the rule lives in _overdueFollowUps (also skips phone-less knock leads).
+  const overdue = crm.slice(crm.indexOf('function _overdueFollowUps('), crm.indexOf('function _overdueFollowUps(') + 800);
   assert('overdue-followup excludes won/lost/job by stageRole',
     /window\.stageRole\(sk\)/.test(overdue) &&
     /role === 'won' \|\| role === 'lost' \|\| role === 'job'/.test(overdue));

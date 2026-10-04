@@ -158,6 +158,88 @@
   }
   window.nbdTurnstileExecute = nbdTurnstileExecute;
 
+  // ─── Preload on first field focus (2026-10-03) ─────────
+  // The script used to be fetched only when Submit was pressed, so the visitor
+  // watched "Sending…" for the script download PLUS the challenge, inside the
+  // 6s budget above — on a slow phone that budget ran out and the lead POSTed
+  // tokenless. The first focus of ANY form field on a page that loads this
+  // client now starts the download, so the token is usually ready by Submit.
+  // Load only (no render, no execute — the widget still runs at submit).
+  let _preloaded = false;
+  function isField(el) {
+    return !!(el && el.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) &&
+      !/^(hidden|submit|button|reset|image)$/i.test(el.type || ''));
+  }
+  function preloadTurnstile() {
+    if (_preloaded) return;
+    _preloaded = true;
+    try { ensureTurnstileLoaded(); } catch (e) { /* submit still loads it */ }
+  }
+  window.nbdTurnstilePreload = preloadTurnstile;
+
+  // The form the visitor was last typing in — where a failed submit's
+  // call/text fallback is shown.
+  let _lastField = null;
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('focusin', function (e) {
+      if (!isField(e.target)) return;
+      _lastField = e.target;
+      preloadTurnstile();
+    }, true);
+  }
+  // This client is lazy-loaded on some pages (quick-lead-form.js injects it on
+  // the first focus): the focus that triggered the load happened before this
+  // listener existed, so honour it now.
+  if (isField(document.activeElement)) { _lastField = document.activeElement; preloadTurnstile(); }
+
+  // ─── Call / text fallback when a submit fails (2026-10-03) ─────────
+  // Forms each had their own failure text (some named the number, some did
+  // not, none offered a text link). Every failed submitPublicLead now also
+  // puts one clear way through under the form the visitor was using:
+  // "Call or text Joe — (859) 420-7382" with tel: and sms: links.
+  // Not on tenant microsites (/sites/t/): those forms are a contractor's own
+  // and must never show NBD's number. A page can opt out with
+  // window.__NBD_LEAD_FALLBACK = false.
+  const JOE_TEL = '+18594207382';
+  const JOE_DISPLAY = '(859) 420-7382';
+  function fallbackAllowed() {
+    if (window.__NBD_LEAD_FALLBACK === false) return false;
+    return !/^\/sites\/t(\/|$)/.test((window.location && window.location.pathname) || '');
+  }
+  function visible(el) {
+    return !!(el && el.isConnected !== false && (el.offsetParent !== null || (el.getClientRects && el.getClientRects().length)));
+  }
+  function showLeadFallback(anchor) {
+    if (!fallbackAllowed()) return null;
+    let host = anchor || null;
+    if (!host && _lastField) {
+      host = (_lastField.closest && (_lastField.closest('form') || _lastField.closest('[data-nbd-lead-form]') || _lastField.closest('.funnel-card'))) || _lastField.parentNode;
+    }
+    if (!host || !visible(host)) return null;
+    let box = host.querySelector && host.querySelector('.nbd-lead-fallback');
+    if (!box) {
+      box = document.createElement('p');
+      box.className = 'nbd-lead-fallback';
+      box.setAttribute('role', 'alert');
+      box.style.cssText = 'margin:12px 0 0;font-weight:700;font-size:.95rem;line-height:1.5;';
+      const call = document.createElement('a');
+      call.href = 'tel:' + JOE_TEL;
+      call.textContent = JOE_DISPLAY;
+      call.style.cssText = 'color:inherit;white-space:nowrap;text-decoration:underline;';
+      const sms = document.createElement('a');
+      sms.href = 'sms:' + JOE_TEL;
+      sms.textContent = 'send a text';
+      sms.style.cssText = 'color:inherit;white-space:nowrap;text-decoration:underline;';
+      box.appendChild(document.createTextNode('Call or text Joe \u2014 '));
+      box.appendChild(call);
+      box.appendChild(document.createTextNode(' \u00b7 '));
+      box.appendChild(sms);
+      host.appendChild(box);
+    }
+    return box;
+  }
+  window.nbdLeadFailFallback = showLeadFallback;
+
   async function submitPublicLead(kind, fields) {
     if (!kind || typeof kind !== 'string') {
       return { ok: false, reason: 'Missing kind' };
@@ -184,6 +266,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        showLeadFallback();
         return { ok: false, reason: data.error || 'Submission failed', status: res.status };
       }
       // Central conversion event: every public lead form routes through
@@ -201,6 +284,7 @@
       // submission (intake-extras.js uploads them). Only present when asked.
       return { ok: true, id: data.id || null, photoToken: data.photoToken || null };
     } catch (e) {
+      showLeadFallback();
       return { ok: false, reason: 'Network error: ' + (e.message || 'unknown') };
     }
   }

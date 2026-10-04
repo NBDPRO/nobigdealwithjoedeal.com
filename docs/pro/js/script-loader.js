@@ -122,7 +122,7 @@
       'js/stripe-ledger-ui-logic.js?v=1',
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=2',
+      'js/invoice-reminder.js?v=4',
       'js/money-dashboard.js?v=8'
     ],
     repos: [
@@ -304,7 +304,7 @@
     // other consumer (crm-pipeline.js) guards on window.D2D. The maps engine
     // stays eager — maps.js doubles as the theme/font appearance engine.
     d2d: [
-      'js/d2d-tracker-core-2026b.js?v=10',
+      'js/d2d-tracker-core-2026b.js?v=11',
       'js/d2d-tracker-ui-2026b.js?v=6',
       'js/d2d-tracker-2026b.js?v=3'
     ],

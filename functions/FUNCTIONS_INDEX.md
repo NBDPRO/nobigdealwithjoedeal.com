@@ -111,6 +111,7 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `getEstimateForView` | onRequest | Portal token validation; stamps first/last-viewed engagement fields. 2026-09-25: the estimate must also be the token's tenant's (portal-authz.js) |
 | `uploadHomeownerPhoto` | onRequest | Portal token; 10 photos/lead/day, 8 MB cap, jpeg/png/webp only |
 | `uploadPublicLeadPhoto` | onRequest | One-time grant minted by `submitPublicLead` (SHA-256-keyed, 60 min, 10 photos, reserved in a transaction) + per-IP 30/10 min; decoded and re-encoded by sharp (EXIF/GPS dropped, ≤2560px); stored under `homeowner-uploads/` on the bridged CRM lead (2026-09-30) |
+| `updatePublicLeadIntake` | onRequest | The /estimate thank-you screen's optional answers (scheduling, best time, insurance, how-heard) saved onto the SAME public lead + its bridged CRM card. Authorised by the grant `submitPublicLead` mints on `wantsFollowUp` (60 min, ≤3 saves, transaction); answers through the gateway's own allowlist/enums (`public-lead-intake-spec.js`); per-IP 20/10 min; never creates a CRM card (2026-10-03) |
 | `sendPortalMessage` | onRequest | Portal token; 30 msgs/token/day, 2000-char cap, per-IP limit |
 | `getPortalMessages` | onRequest | Portal token; latest 50 messages, marks rep messages read |
 | `requestCallback` | onRequest | Portal token; 3 requests/token/day, 280-char note cap, slot whitelist |
