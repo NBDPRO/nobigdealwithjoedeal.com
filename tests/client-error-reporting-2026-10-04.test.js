@@ -74,11 +74,11 @@ function errAt(msg, file, line) {
   console.log('\nA. scrub — both copies strip PII the same way');
   const FIX = [
     ['Lead jo.deal+x@gmail.com not found', /@|gmail/],
-    ['call (859) 555-1234 failed', /555|859/],
-    ['call +1 859.555.1234 failed', /555/],
+    ['call (859) 555-1234 errored', /555|859/],
+    ['call +1 859.555.1234 errored', /555/],
     ['bad id 8595551234', /8595551234/],
     ['account 123456789012 rejected', /123456789012/],
-    ['geocode 1234 Main Street failed', /Main Street|1234 Main/],
+    ['geocode 1234 Main Street errored', /Main Street|1234 Main/],
     ['at https://x.app/pro/portal?token=abcSECRET123&email=a@b.co:4:5', /SECRET|token=|a@b/],
     ['fetch /api/x?idToken=SECRETTOKEN failed', /SECRETTOKEN/],
     ['auth Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghij expired', /eyJ|abcdefghij/],
