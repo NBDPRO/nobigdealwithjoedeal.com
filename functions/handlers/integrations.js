@@ -85,6 +85,10 @@ exports.integrationStatus = onCall(
         // (integrations/measurement.js; runbooks/INSTANTROOFER-SETUP.md).
         instantroofer:      _hasInt('INSTANTROOFER_API_KEY'),
         instantrooferWebhook: _hasInt('INSTANTROOFER_WEBHOOK_SECRET'),
+        // Google Solar API measure (integrations/solar-measure.js). 'auto' is
+        // usable when either provider is, since it falls back to Instant Roofer.
+        solar:              _hasInt('SOLAR_API_KEY'),
+        auto:               _hasInt('SOLAR_API_KEY') || _hasInt('INSTANTROOFER_API_KEY'),
         regrid:             _hasInt('REGRID_API_TOKEN'),
         calcom:             _hasInt('CALCOM_WEBHOOK_SECRET'),
         // Thumbtack lead/message/review webhook — Custom Header shared
@@ -138,6 +142,7 @@ exports.integrationAvailability = onCall(
     memory: '256MiB',
     secrets: [
       _intSecrets.INSTANTROOFER_API_KEY,
+      _intSecrets.SOLAR_API_KEY,
       _intSecrets.REGRID_API_TOKEN
     ]
   },
@@ -159,6 +164,10 @@ exports.integrationAvailability = onCall(
       },
       configured: {
         instantroofer: _hasInt('INSTANTROOFER_API_KEY'),
+        // requestMeasurement() gates on configured[providers.measurement], so
+        // the solar|auto values need their own keys here or the button refuses.
+        solar:         _hasInt('SOLAR_API_KEY'),
+        auto:          _hasInt('SOLAR_API_KEY') || _hasInt('INSTANTROOFER_API_KEY'),
         regrid:        _hasInt('REGRID_API_TOKEN')
       }
     };
