@@ -2419,7 +2419,7 @@
       // ALLOWLIST, not passthrough: switchSettingsTab() hides EVERY .stab-panel
       // and then shows one only `if (panel)`, so an unrecognised value from the
       // URL leaves the user staring at a blank Settings screen.
-      const SETTINGS_TABS = ['access', 'ai-texting', 'appearance', 'billing', 'company',
+      const SETTINGS_TABS = ['access', 'ai-texting', 'appearance', 'billing', 'bots', 'company',
         'company-profile', 'daily', 'estimates', 'help', 'notifications', 'pipelines',
         'profile', 'team'];
       const wantTab = String(urlParams.get('settings') || '').toLowerCase();

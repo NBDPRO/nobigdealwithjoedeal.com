@@ -385,6 +385,11 @@ exports.crmMcp = agentMcp.crmMcp;
 exports.createAgentKey = agentMcp.createAgentKey;
 exports.listAgentKeys = agentMcp.listAgentKeys;
 exports.revokeAgentKey = agentMcp.revokeAgentKey;
+// Settings → Bots & API (2026-10-04): any company on a paid plan makes its
+// own bots; per-company on/off switch, timezone and house rules.
+exports.saveAgentBot = agentMcp.saveAgentBot;
+exports.deleteAgentBot = agentMcp.deleteAgentBot;
+exports.saveAgentSettings = agentMcp.saveAgentSettings;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;

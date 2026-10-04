@@ -1622,6 +1622,10 @@ service cloud.firestore {
     // Bot keys (hashed) and the bot audit trail — server only (agent-mcp.js).
     match /agent_keys/{keyId}   { allow read, write: if false; }
     match /agent_audit/{auditId} { allow read, write: if false; }
+    // A company's own bots and its bot settings (on/off switch, house rules)
+    // — server only, managed through the Bots & API callables (2026-10-04).
+    match /agent_bots/{botId}       { allow read, write: if false; }
+    match /agent_settings/{companyId} { allow read, write: if false; }
 
     match /agent_inbox/{itemId} {
       allow read: if isAdmin()
