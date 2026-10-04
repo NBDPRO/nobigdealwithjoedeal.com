@@ -975,7 +975,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
 
     // Promotion contract (convertToLead): an appointment is a QUALIFIED
     // customer — it lands in the kanban immediately (isProspect false, stage
-    // 'inspected'), tagged with the D2D source + structured disposition key,
+    // 'contacted'), tagged with the D2D source + structured disposition key,
     // and the runTransaction double-convert guard means EXACTLY ONE lead per
     // knock (the two-pins/two-customer-IDs regression).
     expect(out.knock.convertedToLead, 'knock flagged convertedToLead after auto-promote').toBe(true);
@@ -990,7 +990,9 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
     // a 0% conversion rate that was never real. Pin the canonical value here:
     // this assertion is what stops the fork reopening.
     expect(lead.source, 'lead source attributed to the canonical Door Knock').toBe('Door Knock');
-    expect(lead.stage, "appointment knock maps to CRM stage 'inspected'").toBe('inspected');
+    // 2026-10-03: an appointment is booked, not an inspection done — Contacted
+    // (d2d-knock-lead-logic.js stageForDisposition).
+    expect(lead.stage, "appointment knock maps to CRM stage 'contacted'").toBe('contacted');
     expect(lead.isProspect, 'appointment lead is a full customer, NOT a hidden prospect').toBe(false);
     expect(lead.disposition, 'structured disposition key persisted for the Prospects bucketer').toBe('appointment');
 

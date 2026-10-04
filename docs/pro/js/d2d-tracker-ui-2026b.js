@@ -263,7 +263,7 @@
       homeowner: '', phone: '', email: '', notes: '',
       disposition: null, photoFiles: [],
       insCarrier: '', claimNumber: '',
-      followUpDate: '', followUpTime: '',
+      followUpDate: '', followUpTime: '', appointmentAt: '',
       gpsAccuracy: (typeof state.gpsAccuracy === 'number') ? Math.round(state.gpsAccuracy) : null
     };
 
@@ -323,6 +323,13 @@
             }).join('')}
           </div>
         `).join('')}
+
+        <!-- Appointment Set → when (2026-10-03). Booked on the new lead as a
+             dated event (lead-events.js) when the knock converts. -->
+        <div id="d2d-appt-section" class="d2d-appt-section" hidden>
+          <label class="d2d-field-label dk-w600" for="d2d-qk-appt">Appointment date &amp; time *</label>
+          <input type="datetime-local" id="d2d-qk-appt" class="d2d-input d2d-appt-input">
+        </div>
 
         <!-- Insurance carrier -->
         <div id="d2d-ins-section" class="d2d-ins-section">
@@ -536,6 +543,18 @@
       saveBtn.textContent = `${dispo.icon} ${dispo.label}`;
     }
 
+    // Appointment Set asks when (2026-10-03).
+    const apptSection = document.getElementById('d2d-appt-section');
+    if (apptSection) {
+      apptSection.hidden = key !== 'appointment';
+      // The disposition grid is tall: on a phone the new field opens ~900px
+      // below the button just tapped. Bring it to the rep (no focus — that
+      // would pop the date wheel before they've looked).
+      if (key === 'appointment') {
+        try { apptSection.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) { apptSection.scrollIntoView(); }
+      }
+    }
+
     // Show/hide insurance section
     const insSection = document.getElementById('d2d-ins-section');
     if (insSection) insSection.style.display = state.INS_DISPOSITIONS.includes(key) ? 'block' : 'none';
@@ -643,6 +662,19 @@
     state.currentKnockEntry.followUpTime = document.getElementById('d2d-qk-followup-time')?.value || '';
     state.currentKnockEntry.insCarrier = document.getElementById('d2d-qk-carrier')?.value || '';
     state.currentKnockEntry.claimNumber = document.getElementById('d2d-qk-claim')?.value || '';
+    // An appointment needs its date and time — that IS the appointment
+    // (2026-10-03). It is booked on the lead when the knock converts.
+    state.currentKnockEntry.appointmentAt = '';
+    if (state.currentKnockEntry.disposition === 'appointment') {
+      const apptEl = document.getElementById('d2d-qk-appt');
+      const apptVal = (apptEl && apptEl.value) || '';
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(apptVal)) {
+        window.showToast?.('Pick the appointment date and time', 'error');
+        _bringIntoView(document.getElementById('d2d-appt-section'), apptEl);
+        return;
+      }
+      state.currentKnockEntry.appointmentAt = apptVal;
+    }
 
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 

@@ -62,3 +62,7 @@
 .dk-btn-tall.dk-btn-tall, body[data-nbd-size] .btn.dk-btn-tall { padding: 12px; }
 .dk-full.dk-full { width: 100%; justify-content: center; }
 .dk-min0 { min-width: 0; }
+/* Appointment Set: when (d2d-tracker-ui-2026b.js, 2026-10-03). 16px input = no iOS zoom. */
+.d2d-appt-section { margin-top: 12px; padding: 12px; background: var(--s2); border: 1px solid var(--br); border-radius: 8px; }
+.d2d-appt-section[hidden] { display: none; }
+.d2d-appt-input.d2d-appt-input { font-size: 16px; min-height: 44px; width: 100%; box-sizing: border-box; }

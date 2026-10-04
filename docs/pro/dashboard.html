@@ -53,11 +53,11 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=8" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=13" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=14" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=5" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
-<link rel="preload" href="js/crm.js?v=34" as="script">
+<link rel="preload" href="js/crm.js?v=35" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -112,7 +112,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=104"></script>
+<script src="js/script-loader.js?v=105"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -164,7 +164,7 @@
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/product-library.css?v=1">
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
-<link rel="stylesheet" href="css/d2d-tracker.css?v=1">
+<link rel="stylesheet" href="css/d2d-tracker.css?v=2">
 <link rel="stylesheet" href="css/storm-center.css?v=2">
 <link rel="stylesheet" href="css/my-skin.css?v=1">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
@@ -201,7 +201,7 @@
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
-<link rel="stylesheet" href="css/google-calendar.css?v=5">
+<link rel="stylesheet" href="css/google-calendar.css?v=7">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
 <link rel="stylesheet" href="css/estimate-send.css?v=1">
@@ -1054,12 +1054,12 @@
           <div class="panel-hdr cp" data-action="goTo" data-target="crm"><div><div class="panel-label">CRM Pipeline</div><div class="panel-title">Lead Stages</div></div><span class="meta-11">View →</span></div>
           <div class="panel-body">
             <div class="pgrid">
-              <div class="stage-box sb-new cp" data-action="filterByStage" data-stage="new"><div class="stage-count" id="dp-new">0</div><div class="stage-name">New</div></div>
-              <div class="stage-box sb-ct cp" data-action="filterByStage" data-stage="contacted"><div class="stage-count s-blue" id="dp-ct">0</div><div class="stage-name">Contacted</div></div>
-              <div class="stage-box sb-es cp" data-action="filterByStage" data-stage="estimate_sent"><div class="stage-count s-gold" id="dp-es">0</div><div class="stage-name">Est. Sent</div></div>
-              <div class="stage-box sb-ng cp" data-action="filterByStage" data-stage="negotiating"><div class="stage-count s-purple" id="dp-ng">0</div><div class="stage-name">Negotiating</div></div>
-              <div class="stage-box sb-won cp" data-action="filterByStage" data-stage="closed"><div class="stage-count s-green" id="dp-won">0</div><div class="stage-name">Won</div></div>
-              <div class="stage-box sb-lost cp" data-action="filterByStage" data-stage="lost"><div class="stage-count s-red" id="dp-lost">0</div><div class="stage-name">Lost</div></div>
+              <div class="stage-box sb-new cp" data-action="filterByStage" data-stage="tile:new"><div class="stage-count" id="dp-new">0</div><div class="stage-name">New</div></div>
+              <div class="stage-box sb-ct cp" data-action="filterByStage" data-stage="tile:working"><div class="stage-count s-blue" id="dp-ct">0</div><div class="stage-name">Working</div></div>
+              <div class="stage-box sb-es cp" data-action="filterByStage" data-stage="tile:estimate"><div class="stage-count s-gold" id="dp-es">0</div><div class="stage-name">Estimate Out</div></div>
+              <div class="stage-box sb-ng cp" data-action="filterByStage" data-stage="tile:production"><div class="stage-count s-purple" id="dp-ng">0</div><div class="stage-name">Signed &amp; Building</div></div>
+              <div class="stage-box sb-won cp" data-action="filterByStage" data-stage="tile:won"><div class="stage-count s-green" id="dp-won">0</div><div class="stage-name">Won</div></div>
+              <div class="stage-box sb-lost cp" data-action="filterByStage" data-stage="tile:lost"><div class="stage-count s-red" id="dp-lost">0</div><div class="stage-name">Lost</div></div>
             </div>
           </div>
         </div>
@@ -5943,7 +5943,7 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=7"></script>
+<script defer src="js/dashboard-widgets.js?v=8"></script>
 <script defer src="js/dashboard-ui.js?v=11"></script>
 <script defer src="js/dashboard-actions.js?v=16"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
@@ -6828,7 +6828,7 @@
 <script defer src="js/crm-leads.js?v=8"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=13"></script>
+<script defer src="js/crm-pipeline.js?v=14"></script>
 <script defer src="js/crm-snooze.js?v=5"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6840,7 +6840,7 @@
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
 <script defer src="js/sort-customers.js?v=2"></script>
-<script defer src="js/crm.js?v=34"></script>
+<script defer src="js/crm.js?v=35"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=6"></script>
 <script defer src="js/dol-fill.js?v=1"></script>
@@ -6855,7 +6855,7 @@
 <script defer src="js/data-export.js?v=4"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
 <script defer src="js/data-import.js?v=5"></script>
-<script defer src="js/activity-feed.js?v=2"></script>
+<script defer src="js/activity-feed.js?v=3"></script>
 <!-- Single owner of kanban filter state. MUST load before the two filter
      modules below: each registers with it at init, and without it they
      deliberately no-op rather than fight over the board. -->
@@ -6940,8 +6940,8 @@
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
 <script defer src="js/google-calendar-ui.js?v=6"></script>
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
-<script defer src="js/schedule-planner-logic.js?v=1"></script>
-<script defer src="js/schedule-planner.js?v=2"></script>
+<script defer src="js/schedule-planner-logic.js?v=2"></script>
+<script defer src="js/schedule-planner.js?v=3"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.

@@ -727,7 +727,9 @@ async function renderPhotoLeads(){
     const name = ((l.firstName||'')+ ' ' + (l.lastName||'')).trim() || l.name || 'Unknown';
     const addr = l.address || 'No address';
     const stage = l.stage || 'new';
-    const stageLabel = {'new':'New','contacted':'Contacted','inspected':'Inspected','claim_filed':'Claim Filed','contract_signed':'Signed','closed':'Closed'}[stage] || stage.replace(/_/g,' ');
+    // Canonical label (crm-stages.js via window.stageLabel, 2026-10-03).
+    const stageLabel = (typeof window.stageLabel === 'function' && window.stageLabel(stage))
+      || {'new':'New Lead','contacted':'Contacted','inspected':'Inspected','claim_filed':'Claim Filed','contract_signed':'Contract Signed','closed':'Closed'}[stage] || stage.replace(/_/g,' ');
     const count = counts[l.id] || 0;
     const badgeBg = count > 0 ? 'var(--green)' : 'var(--s3)';
     const badgeColor = count > 0 ? '#fff' : 'var(--m)'; // #fff intentional: on-green badge text
