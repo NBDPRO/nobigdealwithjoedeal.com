@@ -138,7 +138,11 @@ section('2026-09-25 (review of PR #1777): portal records scoped to the token\'s 
   assert('portal view filters e-sign envelopes by tenant',
     /if \(!recordInPortalTenant\(e, \['ownerUid'\], tenant\)\) return null;/.test(psrc));
   assert('portal view filters invoices by tenant',
-    /\.filter\(inv => recordInPortalTenant\(inv, \['createdBy'\], tenant\)\)/.test(psrc));
+    /\.filter\(inv => recordInPortalTenant\(inv, \['createdBy'\], tenant\)\)/.test(psrc)
+      // 2026-10-03: the filter lives in _tenantInvoices, shared by the view
+      // and the rating gate — both must actually go through it.
+      && /const tenantInvoices = _tenantInvoices\(invSnap\.docs, tenant\);/.test(psrc)
+      && /_tenantInvoices\(invDocs, portalTenant\(tok, lead\)\)/.test(psrc));
   assert('getEstimateForView checks the estimate\'s tenant',
     /recordInPortalTenant\(est, \['userId'\], portalTenant\(tok, tokLead\)\)/.test(psrc));
 }
