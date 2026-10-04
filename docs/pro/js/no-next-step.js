@@ -329,8 +329,11 @@
   }
 
   async function confirmIt(msg) {
-    if (typeof w.nbdConfirm === 'function') return !!(await w.nbdConfirm(msg));
-    return !!w.confirm(msg);
+    // No native confirm(): it is auto-cancelled in the installed iPhone app
+    // (pwa-confirm-guard). Without the in-app dialog a bulk write is refused.
+    if (typeof window.nbdConfirm === 'function') return !!(await window.nbdConfirm(msg));
+    toast('Confirm dialog not loaded — refresh and try again', 'error');
+    return false;
   }
 
   async function knockBulk(kind) {
