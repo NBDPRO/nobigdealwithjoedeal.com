@@ -1443,7 +1443,7 @@ async function loadTimeline(leadId, lead) {
       const actSnap = await getDocs(collection(db, 'leads', leadId, 'activity'));
       actSnap.docs.forEach(d => {
         const row = CT.fromActivity(d.id, d.data());
-        if (row) timeline.push(Object.assign(row, { icon: row.kind === 'text' ? '💬' : '📞', callEntry: true }));
+        if (row) timeline.push(Object.assign(row, { icon: row.icon || (row.kind === 'text' ? '💬' : '📞'), callEntry: row.kind !== 'memo' }));
       });
     }
   } catch (e) {
