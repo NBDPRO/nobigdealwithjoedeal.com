@@ -94,8 +94,8 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
   const cust = read('docs/pro/customer.html');
   ok('customer.html links ui-primitives.css', /<link rel="stylesheet" href="css\/ui-primitives\.css\?v=\d+">/.test(cust));
   const tiles = cust.match(/<div class="doc-template-card[^"]*"[^>]*>/g) || [];
-  ok('16 document-template tiles use .ui-tile with no inline style',
-    tiles.length === 16 && tiles.every((t) => /\bui-tile\b/.test(t) && !/\sstyle=/.test(t)), 'found ' + tiles.length);
+  ok('22 document-template tiles use .ui-tile with no inline style',
+    tiles.length === 22 && tiles.every((t) => /\bui-tile\b/.test(t) && !/\sstyle=/.test(t)), 'found ' + tiles.length);
   const fields = ['editFirstName', 'editLastName', 'editPhone', 'editEmail', 'editAddress', 'editDamageType', 'editScope', 'editScheduledDate']
     .map((id) => (cust.match(new RegExp('<(?:input|select|textarea)\\b[^>]*\\bid="' + id + '"[^>]*>')) || [''])[0]);
   ok('Edit Customer fields use .ui-field and keep no surface styles inline',
@@ -108,8 +108,8 @@ console.log('\nUI PRIMITIVES — customer.html (batch 3)');
   // 390 px (JS off, templates expanded); a 1px control on .ui-tile-sub moved
   // exactly 16 margin-tops.
   const tileBodies = cust.split('class="doc-template-card').slice(1).map((chunk) => chunk.slice(0, 900));
-  ok('each of the 16 tiles has a .ui-tile-icon, .ui-tile-title and .ui-tile-sub',
-    tileBodies.length === 16 && tileBodies.every((t) => /class="ui-tile-icon"/.test(t) && /class="ui-tile-title"/.test(t) && /class="ui-tile-sub"/.test(t)), 'found ' + tileBodies.length);
+  ok('each of the 22 tiles has a .ui-tile-icon, .ui-tile-title and .ui-tile-sub',
+    tileBodies.length === 22 && tileBodies.every((t) => /class="ui-tile-icon"/.test(t) && /class="ui-tile-title"/.test(t) && /class="ui-tile-sub"/.test(t)), 'found ' + tileBodies.length);
   ok('no tile content style is left inline',
     !/style="font-size:20px;margin-bottom:6px;"|style="font-size:13px;font-weight:700;color:var\(--t\);"|style="font-size:11px;color:var\(--m\);margin-top:2px;"/.test(cust));
   const labels = cust.match(/<label for="edit[A-Za-z]+"[^>]*>/g) || [];
