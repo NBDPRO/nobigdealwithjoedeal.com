@@ -47,7 +47,7 @@ function fakeDb(seed) {
   return {
     docs,
     doc: mk,
-    collection: (name) => Object.assign(query(name, [], null), { doc: (id) => mk(name + '/' + id) }),
+    collection: (name) => Object.assign(query(name, [], null), { doc: (id) => mk(name + '/' + id), add: async (v) => { const id = 'auto' + docs.size; docs.set(name + '/' + id, v); return { id }; } }),
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
   };
 }
@@ -212,7 +212,85 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('a 3-strike call whose last error was a rate limit is picked again; a real 3-strike failure is not',
     L.pickToTranscribe(pickList, { live: true, allowIds: [], maxCount: 5, secLeft: 1e6 }).map((c) => c.id).join() === 'victim');
 
-  console.log('\n9. "Looks like X" is stored when the notes are written (2026-10-03)');
+  console.log('\n9. "The CRM knows I called" — the lead itself is updated (2026-10-03)');
+  const tsOf = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : v);
+  stub(BUSINESS);
+  // BUSINESS: follow_up_date 2026-10-02; NOW is 2026-10-01 (ET); call 1 h ago.
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_lc'] }, [COLLECTION + '/cube_lc']: call('cube_lc', { leadId: 'L9' }), 'leads/L9': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  r = await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  let l9 = db.docs.get('leads/L9');
+  ok('a noted call sets lastContactedAt (the CALL time, a Timestamp) + lastContactType "call"', tsOf(l9.lastContactedAt) === NOW - 3600e3 && typeof l9.lastContactedAt.toMillis === 'function' && l9.lastContactType === 'call' && r.leadsUpdated === 1, JSON.stringify(l9));
+  ok('a lead with no follow-up gets the AI follow-up date, as YYYY-MM-DD (the kanban Due chip\'s format)', l9.followUp === '2026-10-02');
+  ok('the timeline entry carries when the call happened', db.docs.get('leads/L9/activity/cube-cube_lc').startedAtMs === NOW - 3600e3);
+  const runLead = async (lead, extra) => {
+    stub(BUSINESS);
+    const d2 = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_lx'] }, [COLLECTION + '/cube_lx']: call('cube_lx', Object.assign({ leadId: 'LX' }, extra)), 'leads/LX': Object.assign({ firstName: 'Pat', userId: OWNER }, lead) });
+    await runTranscribe({ db: d2, bucket, live: false, nowMs: NOW });
+    return d2.docs.get('leads/LX');
+  };
+  let lx = await runLead({ followUp: '2026-10-20' });
+  ok('a FUTURE follow-up Jo set is never overwritten', lx.followUp === '2026-10-20');
+  lx = await runLead({ followUp: '2026-10-01' });
+  ok('a follow-up due TODAY is still Jo\'s (not in the past) — kept', lx.followUp === '2026-10-01');
+  lx = await runLead({ followUp: '2026-09-20' });
+  ok('a follow-up already in the past is replaced by the call\'s', lx.followUp === '2026-10-02');
+  lx = await runLead({ followUp: 'call after the storm' });
+  ok('a follow-up Jo typed as words is left alone', lx.followUp === 'call after the storm');
+  lx = await runLead({ lastContactedAt: new Date(NOW - 600e3) });
+  ok('lastContactedAt is never rolled back by an older call', tsOf(lx.lastContactedAt) === NOW - 600e3 || (lx.lastContactedAt instanceof Date && lx.lastContactedAt.getTime() === NOW - 600e3), JSON.stringify(lx.lastContactedAt));
+  ok('…while the follow-up is still filled', lx.followUp === '2026-10-02');
+  lx = await runLead({}, { startedAtMs: NOW - 40 * 24 * 3600e3 });
+  ok('a backlog call (older than the 14-day task window) sets lastContactedAt but no follow-up', tsOf(lx.lastContactedAt) === NOW - 40 * 24 * 3600e3 && lx.followUp === undefined);
+  stub(() => Object.assign(BUSINESS(), { follow_up_date: null }));
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_nf'] }, [COLLECTION + '/cube_nf']: call('cube_nf', { leadId: 'LN' }), 'leads/LN': { firstName: 'Pat', userId: OWNER, followUp: '2026-09-01' } });
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('no AI follow-up date → the lead\'s follow-up is untouched', db.docs.get('leads/LN').followUp === '2026-09-01' && db.docs.get('leads/LN').lastContactType === 'call');
+  ok('leadContactPatch: nothing new → null', typeof L.leadContactPatch === 'function' && L.leadContactPatch({ lead: { lastContactedAt: NOW, followUp: '2026-12-01' }, call: { startedAtMs: NOW - 1 }, notes: { followUpDate: '2026-10-02' }, todayYmd: '2026-10-01', nowMs: NOW }) === null);
+
+  console.log('\n10. Urgent calls tell Jo NOW — one internal push per call (2026-10-03)');
+  const URGENT = () => Object.assign(BUSINESS(), { urgent: true, summary: 'Water coming through the ceiling right now.' });
+  const pushes = [];
+  const stubPush = (notesFn, pushFn) => {
+    calls = { transcribe: 0, notes: 0, prompts: [] };
+    setDeps({ transcribe: async () => ({ text: 'leak', durationSec: 30 }), notes: async () => notesFn(), push: pushFn || (async (...a) => { pushes.push(a); return { sent: 1 }; }) });
+  };
+  const DAYTIME = Date.parse('2026-10-01T16:00:00Z'); // 12 PM ET
+  const prevGate = process.env.CALL_WATCH_ENABLED;
+  process.env.CALL_WATCH_ENABLED = 'true';
+  stubPush(URGENT);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_ug'] }, [COLLECTION + '/cube_ug']: call('cube_ug', { leadId: 'LU', contactName: 'Maria Example' }), 'leads/LU': { firstName: 'Maria', userId: OWNER } });
+  r = await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('an urgent call pushes to Jo (the owner) at once', pushes.length === 1 && pushes[0][0] === OWNER && /Urgent call — Maria Example/.test(pushes[0][1]) && /ceiling/.test(pushes[0][2]) && r.urgentPushed === 1, JSON.stringify(pushes));
+  ok('the push opens that call\'s card in the Call Center', pushes[0][3].clickUrl === '/pro/dashboard.html?call=cube_ug#/calls' && pushes[0][3].type === 'call_watch' && pushes[0][3].notificationId === 'call-urgent-cube_ug');
+  ok('stamped on the call (so callWatch won\'t repeat it) + a bell entry', db.docs.get(COLLECTION + '/cube_ug').urgentPushedAtMs === DAYTIME
+    && [...db.docs.entries()].some(([k, v]) => k.startsWith('notifications/') && v.type === 'call_watch' && v.userId === OWNER && v.clickUrl === '/pro/dashboard.html?call=cube_ug#/calls'));
+  db.docs.set(COLLECTION + '/cube_ug', Object.assign({}, db.docs.get(COLLECTION + '/cube_ug'), { status: 'stored' }));
+  await db.doc(CONFIG).set({ transcribeOnly: ['cube_ug'] }, { merge: true });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME + 60e3 });
+  ok('re-transcribing the same call never pushes twice', pushes.length === 1);
+  stubPush(BUSINESS);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_nu'] }, [COLLECTION + '/cube_nu']: call('cube_nu', { leadId: 'LU' }), 'leads/LU': { firstName: 'Maria', userId: OWNER } });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('a call that is not urgent → no push', pushes.length === 1);
+  stubPush(URGENT);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_nt'] }, [COLLECTION + '/cube_nt']: call('cube_nt', { leadId: null }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: Date.parse('2026-10-02T07:00:00Z') }); // 3 AM ET
+  ok('at night → no push and no stamp (the 8 AM callWatch tells Jo instead)', pushes.length === 1 && !db.docs.get(COLLECTION + '/cube_nt').urgentPushedAtMs);
+  stubPush(URGENT, async () => { throw new Error('fcm down'); });
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_pf'] }, [COLLECTION + '/cube_pf']: call('cube_pf', { leadId: null }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('a failed push is not stamped (callWatch picks it up) and the call is still noted', !db.docs.get(COLLECTION + '/cube_pf').urgentPushedAtMs && db.docs.get(COLLECTION + '/cube_pf').status === 'noted');
+  process.env.CALL_WATCH_ENABLED = 'false';
+  stubPush(URGENT);
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_go'] }, [COLLECTION + '/cube_go']: call('cube_go', { leadId: null }) });
+  await runTranscribe({ db, bucket, live: false, nowMs: DAYTIME });
+  ok('gated with callWatch: CALL_WATCH_ENABLED off → no push', pushes.length === 1);
+  if (prevGate === undefined) delete process.env.CALL_WATCH_ENABLED; else process.env.CALL_WATCH_ENABLED = prevGate;
+  const ccSrc = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'call-center.js'), 'utf8');
+  const pushFn = ccSrc.slice(ccSrc.indexOf('async function pushUrgent'), ccSrc.indexOf('/** One transcription pass'));
+  ok('the urgent push is internal only: no SMS, no email, no customer address', pushFn.length > 200 && !/sendSms|twilio|resend|email|messages\.create|lead\.phone/i.test(pushFn) && /d\.push\(OWNER,/.test(pushFn));
+
+  console.log('\n11. "Looks like X" is stored when the notes are written (2026-10-03)');
   stub(() => ({ call_type: 'customer', summary: 'Dana Rivers asked when the crew starts.', promises: [{ who: 'jo', text: 'Call Dana back', due: null }], follow_up_date: null, urgent: false }));
   const leadsSeed = {
     'leads/L9': { firstName: 'Dana', lastName: 'Rivers', address: '412 Oak Hill Dr, Mason OH', userId: OWNER, companyId: OWNER },

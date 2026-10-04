@@ -737,6 +737,9 @@ exports.callWatch = require('./call-watch').callWatch;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;
+// A call's follow-up task ticked anywhere → taskDone on the call, so a kept
+// promise drops off "needs you" (Home, the Call Center, callWatch).
+exports.onCallTaskWrite = require('./call-center').onCallTaskWrite;
 // The Call Center "Said you'd do" deck: every open item the sweep email is
 // built from, uncapped (owner / platform admin only).
 exports.callPromisesList = require('./call-center').callPromisesList;

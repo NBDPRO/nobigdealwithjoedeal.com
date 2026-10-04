@@ -105,6 +105,54 @@ function ok(label, cond, detail) {
   ok('a standing problem repeats at most every 6 h', W.problemsToTell(probs, { ingest_stale: NOW - 2 * H }, NOW).length === 0 && W.problemsToTell(probs, { ingest_stale: NOW - 7 * H }, NOW).length === 1 && W.problemsToTell(probs, {}, NOW).length === 1);
   ok('watch hours 8 AM-8 PM Eastern only', W.inWatchHours(NOW) && !W.inWatchHours(Date.parse('2026-10-03T02:00:00Z')) && W.inWatchHours(Date.parse('2026-10-03T00:00:00Z')));
 
+  console.log('D3. "the CRM knows I called" (2026-10-03) — callWatch stays in step with Home');
+  const r3 = [
+    { id: 'td', leadId: 'LT', promises: [{ who: 'jo', text: 'send quote' }], taskDone: true, startedAtMs: NOW - H },
+    { id: 'tu', leadId: 'LU', promises: [{ who: 'jo', text: 'send quote' }], taskDone: false, startedAtMs: NOW - H },
+    { id: 'mc', leadId: 'LM', status: 'short', direction: 'inbound', startedAtMs: NOW - 3 * H },
+    { id: 'mk', bucket: 'contact', phoneDigits: '5135550142', status: 'short', direction: 'inbound', startedAtMs: NOW - 3 * H },
+    { id: 'mb', bucket: 'contact', phoneDigits: '5135550143', status: 'short', direction: 'inbound', startedAtMs: NOW - 3 * H },
+    { id: 'cb', bucket: 'contact', phoneDigits: '5135550143', status: 'noted', direction: 'outbound', startedAtMs: NOW - 2 * H },
+    { id: 'sp', bucket: 'unknown', callType: 'spam', status: 'noted', urgent: true, startedAtMs: NOW - H },
+    { id: 'su', bucket: 'contact', callType: 'sub', urgent: true, status: 'noted', startedAtMs: NOW - H },
+    { id: 'sp2', bucket: 'contact', callType: 'supplier', promises: [{ who: 'jo', text: 'order shingles' }], status: 'noted', startedAtMs: NOW - H },
+  ];
+  const ctxW = typeof W.reachIndex === 'function' ? W.reachIndex(r3) : null, ctxH = typeof HA.reachIndex === 'function' ? HA.reachIndex(r3) : null;
+  const w3 = r3.filter((r) => W.callNeedsYou(r, NOW, ctxW)).map((r) => r.id).join();
+  const h3 = r3.filter((r) => HA.callNeedsYou(r, NOW, ctxH)).map((r) => r.id).join();
+  ok('same flags as Home: done task cleared, missed calls from a customer + contact, called-back cleared, spam + an urgent sub skipped, a supplier promise kept',
+    w3 === h3 && w3 === 'tu,mc,mk,sp2', w3 + ' vs ' + h3);
+  const n3 = W.newNeeds(r3, [], [], NOW - 4 * H, NOW);
+  ok('newNeeds alerts the same set', n3.map((x) => x.id.replace('call:', '')).sort().join() === 'mc,mk,sp2,tu', n3.map((x) => x.id).join());
+  ok('a missed call from a customer reads "missed call"', n3.find((x) => x.id === 'call:mc').why === 'missed call');
+  const up = W.newNeeds([{ id: 'ux', urgent: true, urgentPushedAtMs: NOW - 30 * MIN, startedAtMs: NOW - H, notedAtMs: NOW - 30 * MIN }, { id: 'uy', urgent: true, startedAtMs: NOW - H, notedAtMs: NOW - 30 * MIN }], [], [], NOW - 2 * H, NOW);
+  ok('an urgent call the immediate push already told is not alerted again', up.map((x) => x.id).join() === 'call:uy', up.map((x) => x.id).join());
+  const one = W.alertFor([{ id: 'call:cube_abc', key: 'lead:L', kind: 'call', who: 'Ann', why: 'urgent' }], [], NOW);
+  ok('one person → the push + bell open that call\'s card', one.clickUrl === '/pro/dashboard.html?call=cube_abc#/calls', one.clickUrl);
+  ok('several people (or a Thursday call) → the Call Center list', W.alertFor(gn, [], NOW).clickUrl === '/pro/dashboard.html#/calls'
+    && W.alertFor([{ id: 'thursday:t1', key: 'num:1', kind: 'thursday', who: 'X', why: 'y' }], [], NOW).clickUrl === '/pro/dashboard.html#/calls');
+
+  // Done tasks from before onCallTaskWrite: callWatch reads the open calls'
+  // tasks, mirrors taskDone, and leaves those people out of the alert.
+  const reconcileTaskDone = require(path.join(ROOT, 'functions', 'call-watch.js'))._internal.reconcileTaskDone || (async () => -1);
+  const store = new Map([['leads/LA/tasks/cube-ca', { done: true }], ['leads/LB/tasks/cube-cb2', { done: false }], ['leads/LA/tasks/sms-ta', { done: true }]]);
+  const writes = [];
+  const fdb = {
+    doc: (p) => ({ p }),
+    getAll: async (...refs) => refs.map((r) => ({ exists: store.has(r.p), data: () => store.get(r.p) })),
+    collection: (c) => ({ doc: (id) => ({ set: async (v) => { writes.push([c, id, v]); } }) }),
+  };
+  const rc = [{ id: 'ca', leadId: 'LA', promises: [{ who: 'jo', text: 'x' }], startedAtMs: NOW - H }, { id: 'cb2', leadId: 'LB', promises: [{ who: 'jo', text: 'y' }], startedAtMs: NOW - H }];
+  const rt = [{ id: 'ta', leadId: 'LA', channel: 'text', promises: [{ who: 'jo', text: 'z' }], startedAtMs: NOW - H }];
+  const nRec = await reconcileTaskDone({ db: fdb, calls: rc, texts: rt, nowMs: NOW, live: true });
+  ok('reconcile: done tasks mirrored onto the call AND the text day; an open task is not', nRec === 2 && rc[0].taskDone === true && rt[0].taskDone === true && rc[1].taskDone === undefined
+    && JSON.stringify(writes) === JSON.stringify([['phone_calls', 'ca', { taskDone: true }], ['phone_text_days', 'ta', { taskDone: true }]]), JSON.stringify(writes));
+  ok('…and the alert then leaves them out', W.newNeeds(rc, rt, [], NOW - 2 * H, NOW).map((x) => x.id).join() === 'call:cb2');
+  writes.length = 0;
+  const rc2 = [{ id: 'ca', leadId: 'LA', promises: [{ who: 'jo', text: 'x' }], startedAtMs: NOW - H }];
+  await reconcileTaskDone({ db: fdb, calls: rc2, texts: [], nowMs: NOW, live: false });
+  ok('dry run mirrors in memory only (no writes)', rc2[0].taskDone === true && writes.length === 0);
+
   console.log('E. wiring');
   const src = read('functions/call-watch.js');
   ok('every 2 hours, 8 AM-8 PM Eastern, heartbeat-wrapped', /schedule: '0 8-20\/2 \* \* \*', timeZone: 'America\/New_York'/.test(src) && /require\('\.\/integrations\/heartbeat'\)/.test(src));

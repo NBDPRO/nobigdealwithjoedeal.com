@@ -401,6 +401,9 @@ function buildCallActivity({ call, notes, ownerUid }) {
     promises: notes.promises,
     followUpDate: notes.followUpDate,
     durationSec: Number(call.durationSec) || 0,
+    // When the call happened — the customer timeline sorts by it
+    // (docs/pro/js/call-timeline.js); createdAt is only when it was filed.
+    startedAtMs: Number(call.startedAtMs) || null,
     phoneCallId: call.id,
   };
 }
@@ -417,6 +420,8 @@ function buildTextDayActivity({ day, notes, ownerUid }) {
     label: 'Texts' + (day.contactName ? ' · ' + day.contactName : '') + ' (' + (Number(day.messageCount) || 0) + ')',
     summary: notes.summary, promises: notes.promises, followUpDate: notes.followUpDate,
     phoneTextDayId: day.id,
+    // When the texts happened — the customer timeline sorts by it.
+    startedAtMs: Number(day.startedAtMs) || null,
   };
 }
 
@@ -659,7 +664,9 @@ function buildSweepEmail({ items, todayYmd, slot }) {
     (newLeads ? ' (' + newLeads + ' sound like new leads not in the CRM yet)' : '');
   const hint = (i) => i.suggest ? 'Looks like ' + i.suggest.name + ' — ' + i.suggest.why + '. File it on them in one tap.'
     : isNewLead(i) ? '🆕 Sounds like a new lead — not in the CRM yet. Make it a lead in one tap.' : '';
-  const link = (i) => i.leadId ? APP + 'customer.html?id=' + encodeURIComponent(i.leadId) : DECK_URL;
+  // A name opens that person: the customer page, else their call's card in
+  // the Call Center (call-center-view.js ?call=, 2026-10-03).
+  const link = (i) => i.leadId ? APP + 'customer.html?id=' + encodeURIComponent(i.leadId) : APP + 'dashboard.html?call=' + encodeURIComponent(i.callId) + '#calls';
   const when = (ms) => ms ? new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
   const btn = '<a href="' + escHtml(DECK_URL) + '" style="display:inline-block;background:#BD5728;color:#fff;font-weight:700;text-decoration:none;padding:11px 18px;border-radius:8px;font-size:15px">Work through all ' + n + ', one at a time →</a>';
   const html = '<div style="font-family:Arial,sans-serif;max-width:620px;color:#111">' +
@@ -700,7 +707,49 @@ function phonePatchForLead(lead, phoneDigits) {
   return null;
 }
 
+/**
+ * "The CRM knows I called" (2026-10-03). A noted call on a matched customer
+ * updates the lead itself, not only its timeline:
+ *   lastContactedAt / lastContactType 'call' — only when this call is newer
+ *     than what the lead already has (a backlog call never rolls it back).
+ *     Same fields the customer page's Call / Text / Email buttons write; Ask
+ *     Joe's "gone quiet" check and the inbound-SMS router read them.
+ *   followUp ('YYYY-MM-DD', the edit modal's <input type="date"> value — the
+ *     kanban Due chip, the follow-up banner and Ask Joe read it) — from the
+ *     AI follow-up date, ONLY when the lead has none or its date has passed,
+ *     and only for a recent call (TASK_WINDOW_MS, as tasks). A date Jo set
+ *     that is still ahead is never touched.
+ * Returns { lastContactedAtMs?, lastContactType?, followUp? } or null; the
+ * caller turns lastContactedAtMs into a Firestore Timestamp.
+ */
+function leadContactPatch({ lead, call, notes, todayYmd, nowMs }) {
+  if (!lead || !call) return null;
+  const out = {};
+  const at = Number(call.startedAtMs) || 0;
+  if (at > 0 && at > tsMs(lead.lastContactedAt)) {
+    out.lastContactedAtMs = at;
+    out.lastContactType = 'call';
+  }
+  const fu = notes && ymdOrNull(notes.followUpDate);
+  const recent = !Number.isFinite(nowMs) || at >= nowMs - TASK_WINDOW_MS;
+  const have = ymdOrNull(lead.followUp);
+  const haveIsOpen = have && have >= todayYmd;
+  const haveRaw = String(lead.followUp == null ? '' : lead.followUp).trim();
+  // An unparseable non-empty followUp is something Jo typed: leave it.
+  if (fu && recent && !haveIsOpen && (have || !haveRaw) && fu !== have) out.followUp = fu;
+  return Object.keys(out).length ? out : null;
+}
+
+/** The immediate push for an urgent call: { title, body } (plain text, Jo only). */
+function urgentPushText({ call, notes, leadName }) {
+  const d = String((call && call.phoneDigits) || '');
+  const who = (call && call.contactName) || leadName || (d.length >= 10 ? '(' + d.slice(-10, -7) + ') ' + d.slice(-7, -4) + '-' + d.slice(-4) : 'Unknown caller');
+  return { title: 'Urgent call — ' + clip(who, 60), body: clip((notes && notes.summary) || 'Marked urgent from the call notes.', 180) };
+}
+
 module.exports = {
+  leadContactPatch,
+  urgentPushText,
   TASK_WINDOW_MS,
   SHORT_CALL_SEC,
   sidecarNameFor,
