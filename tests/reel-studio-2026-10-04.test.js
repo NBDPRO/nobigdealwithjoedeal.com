@@ -25,6 +25,10 @@
  *   I. Ingest: upload → metadata-stripped intermediate, raw always deleted,
  *      no slot → refused.
  *   J. Media route Range parsing + wiring (exports, rules, index, deps, page).
+ *   K. Review hardening (post-merge review of #2171): blur radii inside
+ *      ffmpeg's chroma limits, even dims for odd sources, ONE talking-head
+ *      trim window for render + Whisper, confidence 0 stays 0, the Reel
+ *      Studio on/off switch (default off) + kill switch, ffmpeg-static optional.
  *
  * Run: node tests/reel-studio-2026-10-04.test.js
  * Local real-ffmpeg: FFMPEG_PATH=/path/to/ffmpeg node tests/reel-studio-2026-10-04.test.js
@@ -486,7 +490,7 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
     const baseDeps = (db, bucket, extra) => Object.assign({
       db, bucket, ff: RF, logger: null, stub: false, nowMs: Date.now(),
       reencode: async (buf) => (sharp ? sharp(buf).rotate().jpeg().toBuffer() : buf),
-      visionGate: async () => null, meter: async () => {},
+      visionGate: async () => null, meter: async () => {}, reelsGate: async () => null,
       vision: async () => ({ ran: true, raw: { frames: [] }, costUsd: 0.01 }),
       transcribeGate: async () => null, transcribe: async () => ({ words: [], segments: [] }),
     }, extra || {});
@@ -579,11 +583,11 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
     {
       const db = fakeDb(); const bucket = fakeBucket();
       bucket.files.set('reel-uploads/co1/u1/nope', Buffer.from('x'));
-      const r = await RS.ingestUpload('reel-uploads/co1/u1/nope', 'video/mp4', 1, { db, bucket, ff: RF || { withWorkDir: async (f) => f('.') } });
+      const r = await RS.ingestUpload('reel-uploads/co1/u1/nope', 'video/mp4', 1, { db, bucket, ff: RF || { withWorkDir: async (f) => f('.') }, reelsGate: async () => null });
       ok('an upload with no server-minted slot is refused AND deleted', r.refused && bucket.deleted.includes('reel-uploads/co1/u1/nope'));
       db.store.set('companies/co1/reel_media/m9', { status: 'awaiting_upload', uploadPath: 'reel-uploads/co1/u1/m9', createdBy: 'someone-else', kind: 'video' });
       bucket.files.set('reel-uploads/co1/u1/m9', Buffer.from('x'));
-      const r2 = await RS.ingestUpload('reel-uploads/co1/u1/m9', 'video/mp4', 1, { db, bucket, ff: RF || { withWorkDir: async (f) => f('.') } });
+      const r2 = await RS.ingestUpload('reel-uploads/co1/u1/m9', 'video/mp4', 1, { db, bucket, ff: RF || { withWorkDir: async (f) => f('.') }, reelsGate: async () => null });
       ok('an upload into someone else’s slot is refused and deleted', r2.refused && !bucket.files.has('reel-uploads/co1/u1/m9'));
     }
     if (!FF) ok('ffmpeg unavailable — real ingest SKIPPED (CI runs it)', true);
@@ -596,7 +600,7 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
       });
       db.store.set('companies/co1/reel_media/m1', { status: 'awaiting_upload', uploadPath: 'reel-uploads/co1/u1/m1', createdBy: 'u1', kind: 'video' });
       bucket.files.set('reel-uploads/co1/u1/m1', raw);
-      const r = await RS.ingestUpload('reel-uploads/co1/u1/m1', 'video/quicktime', raw.length, { db, bucket, ff: RF });
+      const r = await RS.ingestUpload('reel-uploads/co1/u1/m1', 'video/quicktime', raw.length, { db, bucket, ff: RF, reelsGate: async () => null });
       const m = db.store.get('companies/co1/reel_media/m1');
       const work = bucket.files.get('reel-work/co1/m1.mp4') || Buffer.alloc(0);
       ok('ingest: ready, 3 s, audio kept', r.ok && m.status === 'ready' && Math.abs(m.durationSec - 3) < 0.2 && m.hasAudio === true, JSON.stringify(r));
@@ -604,7 +608,7 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
       ok('ingest: the raw upload (with GPS) is deleted', !bucket.files.has('reel-uploads/co1/u1/m1') && bucket.deleted.includes('reel-uploads/co1/u1/m1'));
       db.store.set('companies/co1/reel_media/m2', { status: 'awaiting_upload', uploadPath: 'reel-uploads/co1/u1/m2', createdBy: 'u1', kind: 'video' });
       bucket.files.set('reel-uploads/co1/u1/m2', Buffer.from('not a video at all'));
-      const r2 = await RS.ingestUpload('reel-uploads/co1/u1/m2', 'video/mp4', 18, { db, bucket, ff: RF });
+      const r2 = await RS.ingestUpload('reel-uploads/co1/u1/m2', 'video/mp4', 18, { db, bucket, ff: RF, reelsGate: async () => null });
       ok('ingest: garbage → failed, raw still deleted', r2.error && db.store.get('companies/co1/reel_media/m2').status === 'failed' && !bucket.files.has('reel-uploads/co1/u1/m2'));
     }
   }
@@ -626,19 +630,190 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
   ok('index: reel_media.createdAtMs COLLECTION_GROUP (cleanup sweep)', fbj.fieldOverrides.some((f) => f.collectionGroup === 'reel_media' && f.fieldPath === 'createdAtMs' && f.indexes.some((i) => i.queryScope === 'COLLECTION_GROUP')));
   const pkg = JSON.parse(read('functions/package.json'));
   const lock = JSON.parse(read('functions/package-lock.json'));
-  ok('ffmpeg-static is a functions dependency, locked', /^\^?5\./.test(pkg.dependencies['ffmpeg-static']) && lock.packages['node_modules/ffmpeg-static'] && lock.packages[''].dependencies['ffmpeg-static']);
+  ok('ffmpeg-static is an OPTIONAL functions dependency, locked', /^\^?5\./.test((pkg.optionalDependencies || {})['ffmpeg-static'] || '') && lock.packages['node_modules/ffmpeg-static'] && lock.packages[''].optionalDependencies['ffmpeg-static']);
   ok('lockfile keeps every glibc constraint (npm on Windows strips them)', JSON.stringify(lock).split('"glibc"').length - 1 >= 17);
   ok('brand assets ship with the functions (fonts TTF + logo + emulator stub)', ['BarlowCondensed-800.ttf', 'BarlowCondensed-600.ttf', 'logo.png', 'emulator-stub.mp4'].every((f) => fs.existsSync(path.join(FN, 'assets', 'reel', f))));
   ok('worker: 2nd gen, 4 GiB / 4 vCPU, 540 s, one render per instance', /reelRenderWorker = onDocumentWritten\(\{[\s\S]{0,200}memory: '4GiB', cpu: 4, timeoutSeconds: 540, concurrency: 1/.test(read('functions/reel-studio.js')));
   ok('Whisper reuse: transcribeGroqBuffer asks for word stamps only when told', /if \(words\) form\.append\('timestamp_granularities\[\]', 'word'\)/.test(read('functions/integrations/voice-intelligence.js')));
   const page = read('docs/pro/social.html');
   ok('page: Reels tab + panel, no inline scripts / handlers / styles', /data-tab="reels"/.test(page) && /data-panel="reels"/.test(page) && !/<script(?![^>]*\bsrc=)[^>]*>/.test(page) && !/\son[a-z]+=/i.test(page) && !/\sstyle=/.test(page));
-  ok('page: reel logic loaded; module cache-busted', /js\/reel-studio-logic\.js\?v=1/.test(page) && /js\/pages\/social-studio\.js\?v=2/.test(page));
+  ok('page: reel logic loaded; module cache-busted', /js\/reel-studio-logic\.js\?v=1/.test(page) && /js\/pages\/social-studio\.js\?v=3/.test(page));
   const mod = read('docs/pro/js/pages/social-reels.js');
   ok('reels module: resumable upload to the server-minted path; no style= strings', /uploadBytesResumable\(sref\(storage, slot\.path\)/.test(mod) && !/style=/.test(mod));
   ok('upload checks on the page: type + 500 MB', RC.uploadProblem({ type: 'application/zip', size: 10 }) !== '' && RC.uploadProblem({ type: 'video/quicktime', size: 501 * 1024 * 1024 }) !== '' && RC.uploadProblem({ type: '', name: 'IMG_1.MOV', size: 10 }) === '' && RC.uploadProblem({ type: 'video/mp4', size: 10 }, 'ai_image') !== '');
   ok('page picks: before/after = first before + last after', RC.defaultPicks('before_after', [{ id: 'a', phase: 'before' }, { id: 'b', phase: 'after' }, { id: 'c', phase: 'after' }]).join() === 'a,c');
   ok('cost estimate: a 60 s reel is pennies (< $0.10)', RL.estimateCostUsd({ durationSec: 60 }).total < 0.10 && RL.estimateCostUsd({ durationSec: 60 }).total > 0.01);
+
+  // ── K. review hardening (2026-10-04, post-merge review of #2171) ────────
+  console.log('K. review hardening — blur radii, even dims, shared trim window, confidence 0, on/off switch, optional ffmpeg');
+  // K1. sanitizeVision: an explicit 0 confidence stays 0 (dropped); missing → 0.5.
+  {
+    const box = [0.1, 0.1, 0.2, 0.2];
+    const sv0 = RL.sanitizeVision({ frames: [
+      { i: 0, flags: [{ type: 'face', box, confidence: 0 }] },
+      { i: 1, flags: [{ type: 'face', box }] },
+      { i: 2, flags: [{ type: 'license_plate', box, confidence: '0' }] },
+      { i: 3, flags: [{ type: 'street_sign', box, confidence: null }] },
+    ] }, [0.5, 2.5, 4.5, 6.5]);
+    ok('vision: confidence exactly 0 (number or "0") is dropped, not promoted to 0.5', !sv0.flags.some((f) => f.frame === 0 || f.frame === 2), JSON.stringify(sv0.flags));
+    ok('vision: a missing / null confidence still flags at 0.5 (Jo looks)', sv0.flags.length === 2 && sv0.flags.every((f) => f.confidence === 0.5) && sv0.flags.map((f) => f.frame).join() === '1,3', JSON.stringify(sv0.flags));
+  }
+  // K2. Blur radii inside ffmpeg's limits for luma AND the half-size chroma planes.
+  {
+    const sizes = [[16, 16], [20, 40], [30, 30], [32, 64], [48, 48], [100, 60], [400, 300]];
+    const bad = sizes.filter(([w, h]) => {
+      const r = RL.blurRadii(w, h);
+      const m = Math.min(w, h);
+      return !(r.luma >= 1 && r.chroma >= 1 && r.luma <= Math.floor(m / 2) && r.chroma <= Math.floor(Math.ceil(m / 2) / 2));
+    });
+    ok('blur radii: luma ≤ min/2, chroma ≤ min/4 (yuv420p chroma is half size) for every box size', bad.length === 0, JSON.stringify(bad));
+    ok('blur radii: big boxes keep a strong blur (≥ 8)', RL.blurRadii(300, 200).luma >= 8 && RL.blurRadii(300, 200).chroma >= 8);
+    const edge = RL.blurRegions([{ t: 1, box: [0.985, 0.985, 0.01, 0.01] }, { t: 1, box: [0, 0, 0.01, 0.01] }], 160, 120, 4);
+    ok('blur regions: at least 48 px a side, slid inside the frame at the edges (never shrunk)', edge.length >= 1 && RL.MIN_BLUR_PX === 48 && edge.every((r) => r.w >= 48 && r.h >= 48 && r.x >= 0 && r.y >= 0 && r.x + r.w <= 160 && r.y + r.h <= 120 && r.x % 2 === 0 && r.y % 2 === 0), JSON.stringify(edge));
+  }
+  // K3. Talking head: ONE trim window for the render and the Whisper audio.
+  {
+    const W1 = RL.talkingHeadWindow({ trimStart: 2, trimEnd: 12 }, 30);
+    ok('trim window: 2–12 s of a 30 s clip', W1.start === 2 && W1.end === 12 && W1.duration === 10, JSON.stringify(W1));
+    const W2 = RL.talkingHeadWindow({ trimStart: 5, trimEnd: 0 }, 200);
+    ok('trim window: no end → capped at the reel body room (90 − intro − outro)', W2.start === 5 && W2.end === 5 + RL.MAX_DURATION_S - RL.INTRO_S - RL.OUTRO_S, JSON.stringify(W2));
+    const W3 = RL.talkingHeadWindow({ trimStart: 50, trimEnd: 99 }, 20);
+    ok('trim window: start past the end clamps inside the clip', W3.start === 19 && W3.end === 20 && W3.duration === 1, JSON.stringify(W3));
+    for (const [prm, dur] of [[{ trimStart: 1.25, trimEnd: 7.5 }, 9.876], [{ trimStart: 0, trimEnd: 0 }, 41.3333], [{ trimStart: 3.3333, trimEnd: 2 }, 12]]) {
+      const req = RL.validateRequest({ template: 'talking_head', clips: [{ type: 'video' }], params: prm });
+      const plan = RL.buildPlan(req, [{ file: 'c0.mp4', type: 'video', durationSec: dur, hasAudio: true }], {});
+      const w = RL.talkingHeadWindow(req.params, dur);
+      const a = plan.segments[1].args.join(' ');
+      ok('trim window ' + JSON.stringify(prm) + ' @' + dur + 's: buildPlan trims video + audio to exactly the shared window',
+        plan.segments[1].trim.start === w.start && plan.segments[1].trim.end === w.end && plan.segments[1].duration === w.duration &&
+        a.includes('trim=start=' + w.start + ':end=' + w.end) && a.includes('atrim=start=' + w.start + ':end=' + w.end), a.slice(0, 200));
+    }
+  }
+  // K4. The on/off switch (default OFF) + platform kill switch.
+  {
+    ok('switch: no settings → off', !RL.reelSwitch(null, {}).ok && !RL.reelSwitch({}, {}).ok && !RL.reelSwitch({ enabled: true }, {}).ok);
+    ok('switch: reels: true → on; reels: "true" (string) → off', RL.reelSwitch({ reels: true }, {}).ok && !RL.reelSwitch({ reels: 'true' }, {}).ok);
+    ok('switch: feature_flags/global.reelStudioDisabled beats the company switch', !RL.reelSwitch({ reels: true }, { reelStudioDisabled: true }).ok);
+  }
+  if (RS) {
+    {
+      const db = fakeDb();
+      const off0 = await RS.reelsBlocked(db, 'co1', async () => ({}));
+      db.store.set('companies/co1/social_settings/config', { enabled: true });
+      const off1 = await RS.reelsBlocked(db, 'co1', async () => ({}));
+      db.store.set('companies/co1/social_settings/config', { enabled: false, reels: true });
+      const on = await RS.reelsBlocked(db, 'co1', async () => ({}));
+      const killed = await RS.reelsBlocked(db, 'co1', async () => ({ reelStudioDisabled: true }));
+      const broken = await RS.reelsBlocked({ doc: () => ({ get: async () => { throw new Error('firestore down'); } }) }, 'co1', async () => ({}));
+      ok('reelsBlocked: off by default, off with only auto-publish on, on with reels: true', !!off0 && !!off1 && on === null, [off0, off1, on].join(' | '));
+      ok('reelsBlocked: kill switch blocks; a settings read error fails CLOSED', !!killed && !!broken);
+    }
+    // Every spending callable asks the switch BEFORE it spends (comments stripped; order asserted).
+    {
+      const src = read('functions/reel-studio.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
+      const body = (name) => { const i = src.indexOf('exports.' + name + ' = onCall('); const j = src.indexOf('\nexports.', i + 10); return i < 0 ? '' : src.slice(i, j < 0 ? undefined : j); };
+      const before = (name, spend) => { const b = body(name); const g = b.indexOf('await requireReelsOn(db, ctx.companyId)'); const s = b.indexOf(spend); return g > 0 && s > 0 && g < s; };
+      ok('reelStartUpload checks the switch before minting an upload slot', before('reelStartUpload', 'await ref.set('));
+      ok('reelCreate checks the switch (and the ffmpeg binary) before taking a render slot', before('reelCreate', 'await takeRenderSlot(') && body('reelCreate').indexOf('FFMPEG_MISSING') < body('reelCreate').indexOf('await takeRenderSlot('));
+      ok('reelApplyBlur + reelRetry check the switch before taking a render slot', before('reelApplyBlur', 'await takeRenderSlot(') && before('reelRetry', 'await takeRenderSlot('));
+      ok('the live worker / ingest deps carry the switch', /reelsGate: \(companyId\) => reelsBlocked\(db, companyId, killswitch\.getFlags\)/.test(src));
+    }
+    // Worker + ingest honour the switch; no ffmpeg → a clear failure, never a stub in prod.
+    {
+      const db = fakeDb(); const bucket = fakeBucket();
+      db.store.set('companies/co1/reels/off1', { template: 'slideshow', aspect: '9:16', params: {}, clips: [{ source: 'job_photo', type: 'photo', storagePath: 'photos/co1/x.jpg' }], status: 'queued', op: 'render', companyId: 'co1', requestedBy: 'co1', facts: {} });
+      let runs = 0;
+      const ffSpy = Object.assign({}, RF || {}, { run: async () => { runs++; throw new Error('should not run'); }, withWorkDir: (RF && RF.withWorkDir) || (async (fn) => fn(os.tmpdir())), ffmpegPath: () => 'ffmpeg' });
+      const deps = { db, bucket, ff: ffSpy, logger: null, stub: false, nowMs: 1, reencode: async (b) => b, visionGate: async () => null, meter: async () => {}, vision: async () => ({ ran: false }), transcribeGate: async () => 'x', transcribe: async () => ({}) };
+      const r1 = await RS.processReel('co1', 'off1', Object.assign({}, deps, { reelsGate: async () => 'Reel Studio is off.' }));
+      const d1 = db.store.get('companies/co1/reels/off1');
+      ok('worker: switch off → the queued reel is failed with the reason, nothing rendered', r1.off === true && d1.status === 'failed' && /off/.test(d1.render.error) && runs === 0 && bucket.files.size === 0);
+      db.store.set('companies/co1/reels/off2', Object.assign({}, d1, { status: 'queued', render: {} }));
+      const r2 = await RS.processReel('co1', 'off2', deps);
+      ok('worker: no gate wired → fails CLOSED', r2.off === true && db.store.get('companies/co1/reels/off2').status === 'failed' && runs === 0);
+      db.store.set('companies/co1/reels/nf', Object.assign({}, d1, { status: 'queued', render: {} }));
+      const r3 = await RS.processReel('co1', 'nf', Object.assign({}, deps, { reelsGate: async () => null, ff: Object.assign({}, ffSpy, { ffmpegPath: () => null }) }));
+      const d3 = db.store.get('companies/co1/reels/nf');
+      ok('worker: ffmpeg binary missing (optional dep failed) → failed with the clear message, no stub', r3.ok === false && d3.status === 'failed' && d3.render.error === RS.FFMPEG_MISSING && runs === 0 && bucket.files.size === 0, JSON.stringify(d3.render));
+      db.store.set('companies/co1/reel_media/moff', { status: 'awaiting_upload', uploadPath: 'reel-uploads/co1/u1/moff', createdBy: 'u1', kind: 'video' });
+      bucket.files.set('reel-uploads/co1/u1/moff', Buffer.from('raw-with-gps'));
+      const ri = await RS.ingestUpload('reel-uploads/co1/u1/moff', 'video/mp4', 12, { db, bucket, ff: ffSpy, reelsGate: async () => 'Reel Studio is off.' });
+      ok('ingest: switch off → refused, slot failed, raw (GPS) still deleted', ri.refused === 'off' && db.store.get('companies/co1/reel_media/moff').status === 'failed' && !bucket.files.has('reel-uploads/co1/u1/moff') && runs === 0);
+    }
+  }
+  // K5. ffmpeg-static is OPTIONAL (a failed binary download must not fail the deploy) and the lock agrees.
+  {
+    const pkgK = JSON.parse(read('functions/package.json'));
+    const lockK = JSON.parse(read('functions/package-lock.json'));
+    ok('ffmpeg-static: optionalDependencies, not dependencies (package.json + lock root)', /^\^?5\./.test((pkgK.optionalDependencies || {})['ffmpeg-static'] || '') && !(pkgK.dependencies || {})['ffmpeg-static'] &&
+      (lockK.packages[''].optionalDependencies || {})['ffmpeg-static'] === pkgK.optionalDependencies['ffmpeg-static'] && !(lockK.packages[''].dependencies || {})['ffmpeg-static']);
+    // npm's rule: a package is "optional" exactly when no path of required edges reaches it from the root.
+    const PK = lockK.packages;
+    const resolveK = (from, name) => { let base = from; for (;;) { const c = (base ? base + '/' : '') + 'node_modules/' + name; if (PK[c]) return c; if (!base) return null; const i = base.lastIndexOf('/node_modules/'); base = i >= 0 ? base.slice(0, i) : ''; } };
+    const reqd = new Set(['']); const qk = [''];
+    while (qk.length) {
+      const loc = qk.shift(); const p = PK[loc]; const meta = p.peerDependenciesMeta || {};
+      const names = Object.keys(p.dependencies || {}).concat(Object.keys(p.peerDependencies || {}).filter((n) => !(meta[n] && meta[n].optional)));
+      for (const n of names) { const r = resolveK(loc, n); if (r && !reqd.has(r)) { reqd.add(r); qk.push(r); } }
+    }
+    const wrong = Object.keys(PK).filter((loc) => loc && (PK[loc].optional === true) !== !reqd.has(loc));
+    ok('lock: every package reachable only through ffmpeg-static is flagged optional (and nothing else changed)', wrong.length === 0 && PK['node_modules/ffmpeg-static'].optional === true, wrong.slice(0, 8).join(', '));
+    ok('reel-ffmpeg resolves ffmpeg-static inside try/catch (a missing package is not a crash)', /try \{ const p = require\('ffmpeg-static'\); if \(p\) candidates\.push\(p\); \} catch/.test(read('functions/reel-ffmpeg.js')));
+  }
+  // K6. Real ffmpeg: the fixed argv actually runs.
+  if (!FF) {
+    ok('ffmpeg unavailable — real blur / odd-size checks SKIPPED (CI installs ffmpeg-static)', true);
+  } else {
+    await RF.withWorkDir(async (dir) => {
+      await RF.run(['-hide_banner', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=160x120:r=30:d=2', '-f', 'lavfi', '-i', 'sine=d=2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', 'small.mp4'], { cwd: dir });
+      let err16 = '';
+      try { await RF.run(RL.blurArgs('small.mp4', 'b16.mp4', [{ x: 0, y: 0, w: 16, h: 16, start: 0, end: 1 }, { x: 140, y: 100, w: 20, h: 20, start: 0.5, end: 2 }]), { cwd: dir }); } catch (e) { err16 = e.message; }
+      ok('real ffmpeg: blur on 16 px + 20 px boxes renders (chroma radius capped for the half-size planes)', !err16 && fs.existsSync(path.join(dir, 'b16.mp4')), err16.slice(0, 300));
+      const regsK = RL.blurRegions([{ t: 0.5, box: [0.97, 0.97, 0.02, 0.02] }, { t: 1.2, box: [0.3, 0.4, 0.05, 0.05] }], 160, 120, 2);
+      let errR = '';
+      try { await RF.run(RL.blurArgs('small.mp4', 'br.mp4', regsK), { cwd: dir }); } catch (e) { errR = e.message; }
+      ok('real ffmpeg: blurRegions output on a small frame (edge box) renders', !errR && fs.existsSync(path.join(dir, 'br.mp4')), errR.slice(0, 300));
+      // Odd-dimension sources (ffv1 + yuv444p keep them odd; libx264 yuv420p refuses them).
+      await RF.run(['-hide_banner', '-y', '-f', 'lavfi', '-i', 'testsrc=s=641x361:r=30:d=1', '-pix_fmt', 'yuv444p', '-c:v', 'ffv1', 'oddw.mkv'], { cwd: dir });
+      await RF.run(['-hide_banner', '-y', '-f', 'lavfi', '-i', 'testsrc=s=361x641:r=30:d=1', '-pix_fmt', 'yuv444p', '-c:v', 'ffv1', 'oddh.mkv'], { cwd: dir });
+      const oddProbe = await RF.run(['-hide_banner', '-i', 'oddw.mkv'], { cwd: dir, allowFail: true }).catch(() => ({ stderr: '' }));
+      ok('positive control: the fixture really is odd-sized (641x361)', /641x361/.test(oddProbe.stderr), oddProbe.stderr.slice(-300));
+      for (const [src, wantW, wantH] of [['oddw.mkv', 640, 360], ['oddh.mkv', 360, 640]]) {
+        let errN = '', pr = null;
+        try { pr = await RF.normalize(path.join(dir, src), path.join(dir, src + '.mp4')); } catch (e) { errN = e.message; }
+        ok('real ffmpeg: normalize an odd-size ' + src.replace('.mkv', '') + ' source → even ' + wantW + 'x' + wantH + ' H.264', !errN && pr && pr.width === wantW && pr.height === wantH, errN.slice(0, 300) || JSON.stringify(pr));
+      }
+    });
+    // Talking head end to end: the audio Whisper hears is EXACTLY the rendered window.
+    if (RS) {
+      const db = fakeDb(); const bucket = fakeBucket();
+      const clip = await RF.withWorkDir(async (dir) => {
+        await RF.run(['-hide_banner', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=360x640:r=30:d=12', '-f', 'lavfi', '-i', 'sine=d=12', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', 'th.mp4'], { cwd: dir });
+        return fs.readFileSync(path.join(dir, 'th.mp4'));
+      });
+      bucket.files.set('reel-work/co1/th.mp4', clip);
+      const params = RL.validateRequest({ template: 'talking_head', clips: [{ type: 'video' }], params: { trimStart: 3.25, trimEnd: 8.5, captions: true } }).params;
+      db.store.set('companies/co1/reels/th', { template: 'talking_head', aspect: '9:16', params, clips: [{ source: 'upload', mediaId: 'mth', type: 'video', storagePath: 'reel-work/co1/th.mp4', durationSec: 12, hasAudio: true }], status: 'queued', op: 'render', companyId: 'co1', requestedBy: 'co1', facts: {}, postIds: [] });
+      const runs = [];
+      let heardSec = -1;
+      const ffT = Object.assign({}, RF, { run: (args, o) => { runs.push(args); return RF.run(args, o); } });
+      const res = await RS.processReel('co1', 'th', {
+        db, bucket, ff: ffT, logger: null, stub: false, nowMs: Date.now(), reelsGate: async () => null,
+        reencode: async (b) => b, visionGate: async () => 'ai_disabled', meter: async () => {}, vision: async () => ({ ran: false }),
+        transcribeGate: async () => null,
+        transcribe: async (buf) => {
+          heardSec = await RF.withWorkDir(async (d2) => { fs.writeFileSync(path.join(d2, 'h.m4a'), buf); return (await RF.probe(path.join(d2, 'h.m4a'), { cwd: d2 })).durationSec; });
+          return { words: [{ word: 'Fresh', start: 0.2, end: 0.5 }, { word: 'ridge', start: 0.5, end: 0.8 }, { word: 'vent.', start: 0.8, end: 1.2 }] };
+        },
+      });
+      const r = db.store.get('companies/co1/reels/th');
+      const win = RL.talkingHeadWindow(params, 12);
+      const aud = runs.find((a) => a.includes('-vn')) || [];
+      ok('talking head e2e: rendered with burned captions', res.ok && r.status === 'rendered' && r.captions.status === 'burned' && r.captions.groups >= 1, JSON.stringify(res) + JSON.stringify(r.captions));
+      ok('talking head e2e: Whisper audio range = the render trim window (same -ss/-to; reel = intro + window + outro)', aud[aud.indexOf('-ss') + 1] === String(win.start) && aud[aud.indexOf('-to') + 1] === String(win.end) && Math.abs(r.output.durationSec - (RL.INTRO_S + win.duration + RL.OUTRO_S)) < 0.25, JSON.stringify(aud) + ' out ' + (r.output && r.output.durationSec));
+      ok('talking head e2e: the audio Whisper heard lasts exactly the window (' + win.duration + ' s)', Math.abs(heardSec - win.duration) < 0.1, String(heardSec));
+    }
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

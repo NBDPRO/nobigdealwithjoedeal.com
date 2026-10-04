@@ -2431,6 +2431,14 @@ async function run() {
   await x49('owner cannot create a reel doc from the client', 'deny', setDoc(doc(own49, 'companies/co-49/reels/n49'), { status: 'rendered', privacy: { status: 'clear' } }));
   await x49('owner cannot mark an upload ready from the client', 'deny', updateDoc(doc(own49, 'companies/co-49/reel_media/m49'), { status: 'ready', workPath: 'x' }));
   await x49('client cannot bump the daily render counter', 'deny', setDoc(doc(own49, 'companies/co-49/reel_usage/2026-10-04'), { renders: 0 }));
+  // Review hardening (2026-10-04): UPDATE paths too — cross-tenant, rep, company_admin — and the Reel Studio switch.
+  await x49('another company cannot update a reel', 'deny', updateDoc(doc(other49, 'companies/co-49/reels/r49'), { 'privacy.status': 'confirmed' }));
+  await x49('company_admin cannot update a reel from the client', 'deny', updateDoc(doc(cadm49, 'companies/co-49/reels/r49'), { status: 'queued' }));
+  await x49('sales rep cannot update reel media', 'deny', updateDoc(doc(rep49, 'companies/co-49/reel_media/m49'), { aiGenerated: false }));
+  await x49('another company cannot read reel media', 'deny', getDoc(doc(other49, 'companies/co-49/reel_media/m49')));
+  await x49('owner turns Reel Studio on (social_settings.reels)', 'allow', setDoc(doc(own49, 'companies/co-49/social_settings/config'), { reels: true }, { merge: true }));
+  await x49('sales rep cannot turn Reel Studio on', 'deny', updateDoc(doc(rep49, 'companies/co-49/social_settings/config'), { reels: true }));
+  await x49('another company cannot turn Reel Studio on', 'deny', updateDoc(doc(other49, 'companies/co-49/social_settings/config'), { reels: true }));
   await x49('create a post carrying aiGenerated is refused', 'deny', setDoc(sp(own49, 'n49x'), NEW49({ aiGenerated: true })));
   await x49('create a post carrying reelId / video is refused', 'deny', setDoc(sp(own49, 'n49y'), NEW49({ reelId: 'r49', video: { key: 'a'.repeat(32) } })));
   await x49('an AI post cannot be re-kinded into a job showcase', 'deny', updateDoc(sp(own49, 'p49-ai'), { kind: 'job_showcase' }));

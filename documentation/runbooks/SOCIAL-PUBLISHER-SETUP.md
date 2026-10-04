@@ -249,6 +249,17 @@ from there.
 
 **Switches:**
 
+- **Reel Studio is OFF until you turn it on** (updated 2026-10-04, post-merge
+  review): **Social Studio → Settings → Reel Studio**
+  (`companies/{c}/social_settings/config.reels = true`). While it is off,
+  uploads, renders, blurs and retries are refused and a queued reel fails
+  with "Reel Studio is off", so nothing spends compute, Claude or Groq money.
+- Platform kill switch for every company:
+  `feature_flags/global.reelStudioDisabled = true`.
+- If the functions deploy could not download the ffmpeg binary
+  (`ffmpeg-static` is an optional dependency, so the deploy still succeeds),
+  creating a reel says "Video rendering is not available …". Redeploy
+  functions to fix it.
 - Reels follow the same **Auto-publish** and per-platform switches.
 - `feature_flags/global.aiDisabled = true` stops the vision check and
   Whisper captions. Reels then need your confirmation, and talking-head reels

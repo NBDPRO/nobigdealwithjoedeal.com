@@ -97,6 +97,11 @@ at under $0.10.
 
 ## Guards
 
+- **Off by default** (added in the post-merge review, see below).
+  `social_settings/config.reels === true` turns it on for a company, and
+  `feature_flags/global.reelStudioDisabled` kills it for everyone. Upload
+  slots, create, blur, retry, ingest and the render worker all check it. A
+  settings read error counts as off.
 - **Daily cap.** 20 renders per company per Eastern day. Renders, blurs and
   retries all count (`companies/{c}/reel_usage/{day}`, taken in a
   transaction).
@@ -196,9 +201,13 @@ at under $0.10.
    `pages_show_list` for Page video, plus `instagram_content_publish` for
    Reels. See the runbook section dated 2026-10-04.
 2. After the merge, the next functions deploy ships ffmpeg-static (Cloud
-   Build downloads its Linux binary from GitHub during `npm ci`).
-3. Optional: add the GCS lifecycle rule in the runbook.
-4. Try it once on the phone with a real drone clip, and look at the privacy
+   Build downloads its Linux binary from GitHub during `npm ci`). It is an
+   optional dependency, so a failed download does not fail the deploy. Reel
+   Studio then says "Video rendering is not available"; redeploy to fix it.
+3. Turn it on: **Social Studio → Settings → Reel Studio**. It is off until
+   you do.
+4. Optional: add the GCS lifecycle rule in the runbook.
+5. Try it once on the phone with a real drone clip, and look at the privacy
    flags it raises before the first real post.
 
 ## Follow-ups (not built)
@@ -208,3 +217,40 @@ at under $0.10.
   timelines (cutting several walk-around clips together).
 - Facebook Reels (`/{page}/video_reels` upload phases) instead of a plain
   Page video.
+
+## Post-merge review (2026-10-04, after #2171 landed in #2162 unreviewed)
+
+What the review found and fixed. Each fix has a test in
+`tests/reel-studio-2026-10-04.test.js` section K, and each test was
+mutation-checked: the fix was broken on purpose, the test went red, then the
+fix was restored.
+
+| # | Severity | Where | Problem | Fix |
+|---|---|---|---|---|
+| 1 | Medium | `functions/reel-logic.js` blurArgs | One boxblur radius (at least 8) for every plane. In yuv420p the chroma planes are half size, so any blur box under 32 px made ffmpeg refuse the filter. The auto-blur re-render died ("Invalid chroma radius"). | `blurRadii()` caps luma at min/2-1 and chroma at min/4-1. blurRegions keeps boxes at least 48 px and slides an edge box back inside the frame instead of shrinking it. Proven with real ffmpeg on 16 px and 20 px boxes. |
+| 2 | Medium | normalizeArgs | `min(1920,iw)` keeps an odd width (or height), and libx264 yuv420p refuses odd sizes. The ingest of such a clip failed. | `trunc(min(1920,iw)/2)*2` on both edges. Proven with a 641x361 / 361x641 fixture. |
+| 3 | Low | doRender / buildPlan | The talking-head trim window was computed inside buildPlan, and doRender read it back out of a throwaway plan for the Whisper audio. Correct today but fragile: if the two drift apart, every caption is off. | One shared `talkingHeadWindow()`. An end-to-end test checks that the audio Whisper hears lasts exactly the rendered window. |
+| 4 | Medium | sanitizeVision | `Number(confidence) \|\| 0.5` turned an explicit 0 ("not there") into a 0.5 flag. That blocked approval on false positives. | A missing confidence counts as 0.5. An explicit 0 stays 0 and is dropped. |
+| 5 | High | reel-studio.js | There was no Reel Studio switch. Any owner could upload and render, and every render spent Claude vision and Groq money. Only the global `aiDisabled` existed. | `social_settings/config.reels` (default off) plus `feature_flags/global.reelStudioDisabled`, checked by every spending path. The check fails closed. |
+| 6 | Medium | functions/package.json | `ffmpeg-static` was a hard dependency, so a failed binary download at install would fail the whole functions deploy. | It is now an optional dependency. The lock flags its sub-tree optional (and fixes a stale `util-deprecate` flag). reelCreate refuses before taking a render slot, and the worker / ingest fail with a clear message. A scratch `npm install` with a dead binary URL exits 1 as a dependency and 0 as optional. |
+| 7 | Low | storage.rules | `companyId == uid` let a rep or viewer of another company create files in a self-named reel-uploads folder. Ingest deleted them, but each upload still started a 4 GiB function. | Solo-owner branch also needs `token.companyId` to be absent or equal to the uid. Storage tests added, plus UPDATE / cross-tenant checks in firestore-rules §49. |
+
+Checked and left as they are:
+
+- Memory: worker / ingest 4 GiB / 4 vCPU / 540 s; cleanup 256 MiB; callables
+  default. Nothing is under 256 MiB.
+- CSP: no inline script or handlers. `social.html` asset refs are now
+  absolute `/pro/...`.
+- The metadata strip runs on every output, proven with a GPS fixture.
+- Rules: reels, reel_media and reel_usage are server-only. Cross-tenant
+  access and rep / company_admin UPDATE are denied.
+- The AI-image rule holds in logic, callables, approval, publisher and rules.
+
+Noted for later:
+
+- `reelIngestUpload` is an `onObjectFinalized` trigger on the default
+  bucket, so it starts (and returns immediately) for every CRM photo upload.
+  That is cheap but not free. A dedicated bucket, or a callable "finish
+  upload", would stop it.
+- The ffmpeg binary (about 80 MB) ships in every function's image.
+- Vision budget reads fail open (same as photo-vision).

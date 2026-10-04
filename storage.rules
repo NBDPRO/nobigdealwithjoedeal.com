@@ -377,7 +377,11 @@ service firebase.storage {
       allow read: if false;
       allow create: if ownerWrites(uid)
         && resource == null
-        && (companyId == uid
+        // Solo owner = a folder named for themselves AND no other company
+        // on the token (the server's requireSocialManager rule: companyId =
+        // token.companyId || uid). A sales rep / viewer of another company
+        // cannot open a "company of one" folder of their own.
+        && ((companyId == uid && request.auth.token.get('companyId', uid) == uid)
             || (request.auth.token.get('companyId', '') == companyId
                 && request.auth.token.get('role', '') == 'company_admin')
             || isAdmin())

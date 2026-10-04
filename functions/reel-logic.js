@@ -37,6 +37,7 @@ const FRAME_EVERY_S = 2;            // privacy check samples one frame every ~2 
 const MAX_FRAMES = 45;
 const FRAME_WIDTH = 512;            // frames sent to vision are 512 px wide (cost)
 const STALE_RENDER_MS = 12 * 60 * 1000;
+const MIN_BLUR_PX = 48;             // smallest blur box side (px, even)
 
 const BRAND = Object.freeze({
   navy: '0x1a3057',
@@ -311,7 +312,10 @@ function finishChain() { return 'fps=' + FPS + ',format=yuv420p,settb=AVTB'; }
 function normalizeArgs(input, output, opts) {
   const o = opts || {};
   const maxS = Math.min(MAX_SOURCE_S, num(o.maxSeconds, MAX_SOURCE_S));
-  const vf = "scale='if(gt(iw,ih),min(1920,iw),-2)':'if(gt(iw,ih),-2,min(1920,ih))'," + finishChain();
+  // libx264 + yuv420p refuses odd dimensions ("width not divisible by 2"),
+  // so the capped edge is rounded down to even too — a 1281x720 screen
+  // recording or an odd-cropped phone export must not fail the ingest.
+  const vf = "scale='if(gt(iw,ih),trunc(min(1920,iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(1920,ih)/2)*2)'," + finishChain();
   return ['-hide_banner', '-nostdin', '-y', '-i', input, '-t', String(maxS),
     '-map', '0:v:0', '-map', '0:a:0?', '-vf', vf]
     .concat(ENC_V, ENC_A, STRIP, MP4_OUT, [output]);
@@ -320,6 +324,23 @@ function normalizeArgs(input, output, opts) {
 function drawText(file, font, size, y, extra) {
   return "drawtext=fontfile='" + font + "':textfile='" + file + "':expansion=none:fontsize=" + size +
     ':fontcolor=white:borderw=' + Math.max(2, Math.round(size / 14)) + ':bordercolor=black@0.85:x=(w-text_w)/2:y=' + y + (extra || '');
+}
+
+/**
+ * The talking-head trim window, in source seconds. ONE function for both
+ * the video/audio trim in buildPlan and the audio range sent to Whisper
+ * (reel-studio.js doRender): caption timestamps are relative to the start
+ * of that audio, so the two windows must be identical or every caption
+ * drifts. → { start, end, duration } (duration ≥ 1 s, ≤ the reel's body room)
+ */
+function talkingHeadWindow(params, durationSec) {
+  const p = params || {};
+  const dur = Math.max(0, num(durationSec, 0));
+  const start = clamp(Math.max(0, num(p.trimStart, 0)), 0, Math.max(0, dur - 1));
+  const te = Math.max(0, num(p.trimEnd, 0));
+  const endRaw = te > start ? te : dur;
+  const end = Math.min(dur, endRaw, start + (MAX_DURATION_S - INTRO_S - OUTRO_S));
+  return { start: r3(start), end: r3(end), duration: r3(Math.max(1, end - start)) };
 }
 
 /**
@@ -423,12 +444,9 @@ function buildPlan(req, clips, texts, probe) {
     segs.push(seg);
   } else if (tpl === 'talking_head') {
     const c = clips[0];
-    const start = clamp(p.trimStart, 0, Math.max(0, c.durationSec - 1));
-    const endRaw = p.trimEnd > start ? p.trimEnd : c.durationSec;
-    const end = Math.min(c.durationSec, endRaw, start + (MAX_DURATION_S - INTRO_S - OUTRO_S));
-    const d = r3(Math.max(1, end - start));
-    const seg = { name: 's01.mp4', duration: d, texts: [], trim: { start: r3(start), end: r3(end) } };
-    let fc = '[0:v]trim=start=' + r3(start) + ':end=' + r3(end) + ',setpts=PTS-STARTPTS,' + coverChain(W, H);
+    const { start, end, duration: d } = talkingHeadWindow(p, c.durationSec);
+    const seg = { name: 's01.mp4', duration: d, texts: [], trim: { start, end } };
+    let fc = '[0:v]trim=start=' + start + ':end=' + end + ',setpts=PTS-STARTPTS,' + coverChain(W, H);
     // Captions: bottom-safe area (above the platform's own UI chrome).
     const capY = req.aspect === '1:1' ? 'h*0.80' : 'h*0.70';
     for (const g of (p.captions ? (t.captionGroups || []) : [])) {
@@ -438,7 +456,7 @@ function buildPlan(req, clips, texts, probe) {
     fc += ',' + finishChain() + '[v]';
     let mapA;
     if (c.hasAudio) {
-      fc += ';[0:a]atrim=start=' + r3(start) + ':end=' + r3(end) + ',asetpts=PTS-STARTPTS,aresample=48000[a]';
+      fc += ';[0:a]atrim=start=' + start + ':end=' + end + ',asetpts=PTS-STARTPTS,aresample=48000[a]';
       mapA = '[a]';
     } else {
       mapA = '1:a';
@@ -542,7 +560,11 @@ function sanitizeVision(raw, times) {
     for (const fl of (Array.isArray(f.flags) ? f.flags : [])) {
       const type = String(fl && fl.type || '');
       if (!FLAG_TYPES[type]) continue;
-      const conf = clamp(Number(fl.confidence) || 0.5, 0, 1);
+      // A missing / non-numeric confidence counts as 0.5 (flag it, Jo looks);
+      // an explicit 0 is the model saying "not there" and must stay 0 — the
+      // old `Number(x) || 0.5` turned it into a 0.5 flag.
+      const rawConf = (fl.confidence === null || fl.confidence === undefined || fl.confidence === '') ? NaN : Number(fl.confidence);
+      const conf = clamp(Number.isFinite(rawConf) ? rawConf : 0.5, 0, 1);
       if (conf < 0.35) continue;
       flags.push({ type, t: times[i], frame: i, box: cleanBox(fl.box), confidence: r3(conf) });
     }
@@ -604,13 +626,17 @@ function blurRegions(flags, w, h, durationSec) {
     const pad = 0.04;
     const x0 = clamp(b[0] - pad, 0, 1), y0 = clamp(b[1] - pad, 0, 1);
     const x1 = clamp(b[0] + b[2] + pad, 0, 1), y1 = clamp(b[1] + b[3] + pad, 0, 1);
+    // At least MIN_BLUR_PX a side; a box at the frame edge slides back
+    // inside instead of shrinking (the old shrink could leave a 10 px box,
+    // which boxblur then refused — see blurRadii).
+    const even = (v) => Math.floor(v / 2) * 2;
+    const bw = Math.min(even(w), Math.max(MIN_BLUR_PX, even((x1 - x0) * w)));
+    const bh = Math.min(even(h), Math.max(MIN_BLUR_PX, even((y1 - y0) * h)));
     const r = {
-      x: Math.floor(x0 * w / 2) * 2, y: Math.floor(y0 * h / 2) * 2,
-      w: Math.max(16, Math.floor((x1 - x0) * w / 2) * 2), h: Math.max(16, Math.floor((y1 - y0) * h / 2) * 2),
+      x: Math.min(even(x0 * w), even(w - bw)), y: Math.min(even(y0 * h), even(h - bh)),
+      w: bw, h: bh,
       start: r3(Math.max(0, f.t - half)), end: r3(Math.min(durationSec || 1e9, f.t + half)),
     };
-    if (r.x + r.w > w) r.w = Math.floor((w - r.x) / 2) * 2;
-    if (r.y + r.h > h) r.h = Math.floor((h - r.y) / 2) * 2;
     const same = out.find((o) => Math.abs(o.x - r.x) < w * 0.08 && Math.abs(o.y - r.y) < h * 0.08 && r.start <= o.end + 0.01);
     if (same) {
       same.end = Math.max(same.end, r.end);
@@ -622,11 +648,28 @@ function blurRegions(flags, w, h, durationSec) {
   return out.slice(0, 24);
 }
 
+/**
+ * boxblur radii for a w x h crop. ffmpeg refuses a radius above half the
+ * plane's smaller side, and in yuv420p the two chroma planes are HALF size —
+ * so the chroma radius gets its own, smaller cap. (The old single radius,
+ * at least 8, made boxblur fail on any crop under 32 px: "Invalid chroma
+ * radius value 8, must be >= 0 and <= 7" — the blur re-render died.)
+ * → { luma, chroma }
+ */
+function blurRadii(w, h) {
+  const m = Math.max(2, Math.min(num(w, 0), num(h, 0)));
+  const luma = Math.max(1, Math.min(Math.floor(m / 2) - 1, Math.max(8, Math.round(m / 6))));
+  const chroma = Math.max(1, Math.min(luma, Math.floor(m / 4) - 1));
+  return { luma, chroma };
+}
+
 function blurArgs(input, output, regions) {
   if (!regions.length) throw new Error('nothing to blur');
   let fc = '[0:v]split=' + (regions.length + 1) + '[base]' + regions.map((_, i) => '[c' + i + ']').join('') + ';';
   regions.forEach((r, i) => {
-    fc += '[c' + i + ']crop=' + r.w + ':' + r.h + ':' + r.x + ':' + r.y + ',boxblur=' + Math.max(8, Math.round(Math.min(r.w, r.h) / 6)) + ':3[b' + i + '];';
+    const br = blurRadii(r.w, r.h);
+    fc += '[c' + i + ']crop=' + r.w + ':' + r.h + ':' + r.x + ':' + r.y +
+      ',boxblur=luma_radius=' + br.luma + ':luma_power=3:chroma_radius=' + br.chroma + ':chroma_power=3[b' + i + '];';
   });
   let cur = '[base]';
   regions.forEach((r, i) => {
@@ -665,6 +708,22 @@ function reelPostKind(template, wanted) {
   return L.KINDS[wanted] ? wanted : tpl.defaultKind;
 }
 
+// ── On / off ────────────────────────────────────────────────────────────
+/**
+ * Reel Studio is OFF until the company turns it on, and the platform can
+ * pull it for everyone. Renders spend compute, and the privacy check +
+ * captions spend Claude / Groq money, so every spending path (upload slot,
+ * create, blur, retry, the render worker, ingest) asks this first.
+ *   settings  companies/{c}/social_settings/config  — needs reels === true
+ *   flags     feature_flags/global                  — reelStudioDisabled kills it
+ * → { ok, reason }
+ */
+function reelSwitch(settings, flags) {
+  if (flags && flags.reelStudioDisabled === true) return { ok: false, reason: 'Reel Studio is switched off for maintenance.' };
+  if (!settings || settings.reels !== true) return { ok: false, reason: 'Reel Studio is off. Turn it on in Social Studio → Settings.' };
+  return { ok: true, reason: '' };
+}
+
 // ── Cost ────────────────────────────────────────────────────────────────
 // Cloud Functions gen2 (Tier 1): $0.000024 / vCPU-s, $0.0000025 / GiB-s.
 // Haiku 4.5: $1 / M input, $5 / M output. A 512x910 frame ≈ 620 tokens.
@@ -686,11 +745,11 @@ function dayKey(ms) {
 
 module.exports = {
   ASPECTS, FPS, MAX_DURATION_S, MAX_SOURCE_S, INTRO_S, OUTRO_S, DAILY_RENDER_CAP, MAX_UPLOAD_BYTES,
-  FRAME_EVERY_S, MAX_FRAMES, FRAME_WIDTH, STALE_RENDER_MS, BRAND, VIDEO_TYPES, IMAGE_TYPES,
+  FRAME_EVERY_S, MAX_FRAMES, FRAME_WIDTH, STALE_RENDER_MS, MIN_BLUR_PX, BRAND, VIDEO_TYPES, IMAGE_TYPES,
   TEMPLATES, TEMPLATE_IDS, AI_IMAGE_KINDS, FLAG_TYPES, STRIP,
   validateRequest, pickBestWindow, droneParts, partsDuration, groupWords, wordsFromSegments,
   filterTranscriptWords, safeOverlayText, jobOfWeekLines,
-  normalizeArgs, buildPlan, frameTimes, frameArgs, audioArgs, sceneArgs, parseSceneScores, parseProbe,
-  cleanBox, sanitizeVision, privacyStatusFrom, blurAvailable, canApproveReel, blurRegions, blurArgs,
-  aiImageAllowedFor, checkAiImageRule, reelPostKind, estimateCostUsd, dayKey,
+  normalizeArgs, talkingHeadWindow, buildPlan, frameTimes, frameArgs, audioArgs, sceneArgs, parseSceneScores, parseProbe,
+  cleanBox, sanitizeVision, privacyStatusFrom, blurAvailable, canApproveReel, blurRegions, blurRadii, blurArgs,
+  aiImageAllowedFor, checkAiImageRule, reelPostKind, reelSwitch, estimateCostUsd, dayKey,
 };

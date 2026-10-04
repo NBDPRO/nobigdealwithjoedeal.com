@@ -62,7 +62,7 @@ const AI_MODEL = 'claude-haiku-4-5-20251001';
 const AUTO_PLATFORMS = ['facebook', 'instagram', 'gbp'];
 
 const state = {
-  uid: null, companyId: null, posts: [], byId: new Map(), settings: { enabled: false, platforms: {} },
+  uid: null, companyId: null, posts: [], byId: new Map(), settings: { enabled: false, reels: false, platforms: {} },
   tab: 'calendar', view: (window.matchMedia && window.matchMedia('(min-width: 800px)').matches) ? 'month' : 'week',
   anchorMs: Date.now(), hiddenLanes: new Set(), editingId: null, jobs: null, dragId: null,
 };
@@ -132,7 +132,7 @@ function subscribe() {
   });
   onSnapshot(doc(db, 'companies', state.companyId, 'social_settings', 'config'), (snap) => {
     const d = snap.exists() ? snap.data() : {};
-    state.settings = { enabled: d.enabled === true, platforms: d.platforms || {} };
+    state.settings = { enabled: d.enabled === true, reels: d.reels === true, platforms: d.platforms || {} };
     renderSettings();
     renderSub();
   }, () => {});
@@ -253,6 +253,7 @@ function renderCalendar() {
 
 function renderSettings() {
   $('ssEnabled').checked = state.settings.enabled;
+  if ($('ssReels')) $('ssReels').checked = state.settings.reels;
   document.querySelectorAll('input[data-platform]').forEach((el) => {
     const v = state.settings.platforms[el.dataset.platform];
     el.checked = v !== false && !(el.dataset.platform === 'gbp' && v !== true);
@@ -571,7 +572,7 @@ async function saveSettings() {
   const platforms = {};
   document.querySelectorAll('input[data-platform]').forEach((el) => { platforms[el.dataset.platform] = el.checked; });
   try {
-    await setDoc(doc(db, 'companies', state.companyId, 'social_settings', 'config'), { enabled: $('ssEnabled').checked, platforms, updatedAt: serverTimestamp(), updatedBy: state.uid }, { merge: true });
+    await setDoc(doc(db, 'companies', state.companyId, 'social_settings', 'config'), { enabled: $('ssEnabled').checked, reels: !!($('ssReels') && $('ssReels').checked), platforms, updatedAt: serverTimestamp(), updatedBy: state.uid }, { merge: true });
     toast('Settings saved.');
   } catch (e) { toast(e.message); }
 }
@@ -632,7 +633,7 @@ document.addEventListener('click', (ev) => {
   }
 });
 document.addEventListener('change', (ev) => {
-  if (ev.target.id === 'ssEnabled' || (ev.target.dataset && ev.target.dataset.platform)) saveSettings();
+  if (ev.target.id === 'ssEnabled' || ev.target.id === 'ssReels' || (ev.target.dataset && ev.target.dataset.platform)) saveSettings();
 });
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('ssSheet').hidden) closeSheet(); });
 

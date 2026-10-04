@@ -8,8 +8,8 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
-<link rel="stylesheet" href="css/theme-system.css">
-<link rel="stylesheet" href="css/social-studio.css?v=2">
+<link rel="stylesheet" href="/pro/css/theme-system.css">
+<link rel="stylesheet" href="/pro/css/social-studio.css?v=2">
 </head>
 <body>
 <header class="ss-header">
@@ -83,6 +83,7 @@
     <div class="ss-switch-row"><label for="ssPfFacebook">Facebook Page</label><input type="checkbox" id="ssPfFacebook" data-platform="facebook"></div>
     <div class="ss-switch-row"><label for="ssPfInstagram">Instagram</label><input type="checkbox" id="ssPfInstagram" data-platform="instagram"></div>
     <div class="ss-switch-row"><label for="ssPfGbp">Google Business (waiting on Google's API approval)</label><input type="checkbox" id="ssPfGbp" data-platform="gbp"></div>
+    <div class="ss-switch-row"><label for="ssReels"><strong>Reel Studio</strong><br><span class="ss-note">Off = no uploads, no renders, no AI privacy checks or captions (they cost money). Up to 20 renders a day when on.</span></label><input type="checkbox" id="ssReels"></div>
     <p class="ss-note">A platform that is switched on but not connected sends its posts to Ready to post when they come due, and you get a bell notification. Setup steps: documentation/runbooks/SOCIAL-PUBLISHER-SETUP.md.</p>
   </section>
 </main>
@@ -95,10 +96,10 @@
 </div>
 <div class="ss-toast" id="ssToast" role="status" aria-live="polite" hidden></div>
 
-<script src="js/dashboard-appcheck-config.js"></script>
-<script src="js/claude-proxy.js?v=4" defer></script>
-<script src="js/social-studio-logic.js?v=1" defer></script>
-<script src="js/reel-studio-logic.js?v=1" defer></script>
-<script type="module" src="js/pages/social-studio.js?v=2"></script>
+<script src="/pro/js/dashboard-appcheck-config.js"></script>
+<script src="/pro/js/claude-proxy.js?v=4" defer></script>
+<script src="/pro/js/social-studio-logic.js?v=1" defer></script>
+<script src="/pro/js/reel-studio-logic.js?v=1" defer></script>
+<script type="module" src="/pro/js/pages/social-studio.js?v=3"></script>
 </body>
 </html>

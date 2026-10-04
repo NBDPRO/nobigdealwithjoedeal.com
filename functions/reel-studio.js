@@ -73,6 +73,33 @@ const PHOTO_PATH_RE = /^(photos|homeowner-uploads)\//;
 const INTERMEDIATE_TTL_MS = 14 * 86400000;
 
 function isEmulator() { return process.env.FUNCTIONS_EMULATOR === 'true'; }
+
+// ffmpeg-static is an OPTIONAL dependency (functions/package.json): its
+// install script downloads a ~80 MB binary, and a failed download must not
+// fail the whole functions deploy. Without it, every video path stops here
+// with this message instead of a cryptic spawn error.
+const FFMPEG_MISSING = 'Video rendering is not available: the ffmpeg binary did not install with this deploy (ffmpeg-static is an optional dependency). Redeploy functions, or set FFMPEG_PATH.';
+function requireFfmpeg(deps) {
+  if (!deps.stub && !(deps.ff && deps.ff.ffmpegPath())) throw new Error(FFMPEG_MISSING);
+}
+
+/**
+ * The on/off gate (RL.reelSwitch): companies/{c}/social_settings/config.reels
+ * must be true and feature_flags/global.reelStudioDisabled must not be.
+ * Fails CLOSED: a settings read error counts as off. → null | reason
+ */
+async function reelsBlocked(db, companyId, getFlags) {
+  let settings = null;
+  try { const s = await db.doc('companies/' + companyId + '/social_settings/config').get(); settings = s.exists ? s.data() : null; } catch (_) { settings = null; }
+  let flags = {};
+  try { flags = (getFlags && await getFlags()) || {}; } catch (_) { flags = {}; }
+  const sw = RL.reelSwitch(settings, flags);
+  return sw.ok ? null : sw.reason;
+}
+async function requireReelsOn(db, companyId) {
+  const why = await reelsBlocked(db, companyId, require('./integrations/killswitch').getFlags);
+  if (why) throw new HttpsError('failed-precondition', why);
+}
 function randomKey() { return crypto.randomBytes(16).toString('hex'); }
 function sm() { return require('./social-studio')._test; }
 function reelsCol(db, c) { return db.collection('companies').doc(c).collection('reels'); }
@@ -227,6 +254,22 @@ async function processReel(companyId, reelId, deps) {
   const ref = reelsCol(db, companyId).doc(reelId);
   const nowMs = deps.nowMs || Date.now();
   const claimId = crypto.randomBytes(8).toString('hex');
+  // Off switch first (fails closed when the gate is missing): a queued reel
+  // in a company that turned Reel Studio off — or with the platform kill
+  // switch pulled — is failed with the reason, never rendered. Retry
+  // re-queues it once the switch is back on.
+  const off = deps.reelsGate ? await deps.reelsGate(companyId) : 'Reel Studio gate missing.';
+  if (off) {
+    let failedIt = false;
+    await db.runTransaction(async (tx) => {
+      failedIt = false;
+      const s = await tx.get(ref);
+      if (!s.exists || s.data().status !== 'queued') return;
+      tx.update(ref, { status: 'failed', op: null, render: Object.assign({}, s.data().render, { error: off, finishedAtMs: nowMs }), updatedAt: FieldValue.serverTimestamp() });
+      failedIt = true;
+    });
+    return failedIt ? { ok: false, off: true, error: off } : { skipped: true };
+  }
   let reel = null;
   await db.runTransaction(async (tx) => {
     reel = null;
@@ -326,6 +369,7 @@ async function doRender(companyId, reelId, reel, deps) {
   if (title.dropped) textDropped.push({ rule: title.dropped, text: 'title' });
   const lines = req.template === 'job_of_week' ? RL.jobOfWeekLines(facts, terms) : [];
 
+  requireFfmpeg(deps);
   return ff.withWorkDir(async (dir) => {
     let outFile;
     let captions = { status: 'none', groups: 0 };
@@ -350,8 +394,9 @@ async function doRender(companyId, reelId, reel, deps) {
       }
       let captionGroups = [];
       if (req.template === 'talking_head' && req.params.captions && local[0].hasAudio) {
-        const plan0 = RL.buildPlan(req, local, {}, null);
-        const trim = plan0.segments[1].trim;
+        // The SAME window buildPlan trims to (shared helper) — the caption
+        // timestamps Whisper returns are relative to this audio's start.
+        const trim = RL.talkingHeadWindow(req.params, local[0].durationSec);
         const tr = await transcribeTrim(dir, local[0].file, trim, deps);
         if (tr.ok) {
           const words = (tr.words && tr.words.length) ? tr.words : RL.wordsFromSegments(tr.segments);
@@ -412,6 +457,7 @@ async function transcribeTrim(dir, file, trim, deps) {
 async function doBlur(companyId, reelId, reel, deps) {
   const { db, bucket, ff } = deps;
   if (!RL.blurAvailable(reel)) throw new Error('This reel has nothing the auto-blur can fix.');
+  requireFfmpeg(deps);
   return ff.withWorkDir(async (dir) => {
     const idx = await db.doc('social_media/' + reel.output.key).get();
     if (!idx.exists) throw new Error('The rendered reel is missing.');
@@ -446,6 +492,8 @@ async function ingestUpload(name, contentType, size, deps) {
       return { refused: 'no matching upload slot' };
     }
     if (Number(size) > RL.MAX_UPLOAD_BYTES) { await ref.update({ status: 'failed', error: 'File is over 500 MB.' }); return { refused: 'size' }; }
+    const off = deps.reelsGate ? await deps.reelsGate(companyId) : 'Reel Studio gate missing.';
+    if (off) { await ref.update({ status: 'failed', error: off }); return { refused: 'off' }; }
     await ref.update({ status: 'processing', updatedAt: FieldValue.serverTimestamp() });
     return await ff.withWorkDir(async (dir) => {
       const [buf] = await raw.download();
@@ -458,7 +506,7 @@ async function ingestUpload(name, contentType, size, deps) {
         await ref.update({ status: 'ready', workPath, bytes: jpeg.length, readyAt: FieldValue.serverTimestamp() });
         return { ok: true, kind: 'photo' };
       }
-      if (!ff.ffmpegPath()) throw new Error('Video processing is not available here.');
+      if (!ff.ffmpegPath()) throw new Error(FFMPEG_MISSING);
       const inFile = path.join(dir, 'raw');
       fs.writeFileSync(inFile, buf);
       const pr = await ff.normalize(inFile, path.join(dir, 'norm.mp4'));
@@ -505,6 +553,7 @@ exports.reelStartUpload = onCall(Object.assign({}, callOpts, { timeoutSeconds: 3
     postKind = d.postKind;
   }
   const db = getFirestore();
+  await requireReelsOn(db, ctx.companyId);
   let leadId = null;
   if (d.leadId && purpose === 'clip') { await loadLeadFor(db, d.leadId, ctx.companyId, ctx.uid); leadId = d.leadId; }
   const ref = mediaCol(db, ctx.companyId).doc();
@@ -540,6 +589,9 @@ exports.reelCreate = onCall(Object.assign({}, callOpts, { timeoutSeconds: 60 }),
   const ctx = sm().requireSocialManager(request, (t) => t.role === 'admin');
   const d = request.data || {};
   const db = getFirestore();
+  await requireReelsOn(db, ctx.companyId);
+  // Fail before spending a render slot when the binary is not there.
+  if (!isEmulator() && !require('./reel-ffmpeg').ffmpegPath()) throw new HttpsError('failed-precondition', FFMPEG_MISSING);
   const lead = d.leadId ? await loadLeadFor(db, d.leadId, ctx.companyId, ctx.uid) : null;
   const clips = await resolveClips(db, ctx.companyId, ctx.uid, d.leadId || null, lead, d.clips);
   let req;
@@ -589,6 +641,7 @@ exports.reelApplyBlur = onCall(Object.assign({}, callOpts, { timeoutSeconds: 30 
   const db = getFirestore();
   const { ref, reel } = await loadReel(db, ctx, (request.data || {}).reelId);
   if (reel.status !== 'rendered' || !RL.blurAvailable(reel)) throw new HttpsError('failed-precondition', 'Auto-blur needs a box for every flagged frame (and no flagged speech). Watch the reel and confirm instead.');
+  await requireReelsOn(db, ctx.companyId);
   await takeRenderSlot(db, ctx.companyId, Date.now());
   await ref.update({ status: 'queued', op: 'blur', blurRequestedBy: ctx.uid, updatedAt: FieldValue.serverTimestamp() });
   return { status: 'queued' };
@@ -600,6 +653,7 @@ exports.reelRetry = onCall(Object.assign({}, callOpts, { timeoutSeconds: 30 }), 
   const { ref, reel } = await loadReel(db, ctx, (request.data || {}).reelId);
   const stale = reel.status === 'rendering' && Date.now() - Number((reel.render || {}).startedAtMs || 0) > RL.STALE_RENDER_MS;
   if (reel.status !== 'failed' && !stale) throw new HttpsError('failed-precondition', 'Only a failed (or stuck) render can be retried.');
+  await requireReelsOn(db, ctx.companyId);
   await takeRenderSlot(db, ctx.companyId, Date.now());
   await ref.update({ status: 'queued', op: reel.op === 'blur' ? 'blur' : 'render', updatedAt: FieldValue.serverTimestamp() });
   return { status: 'queued' };
@@ -703,6 +757,7 @@ function liveDeps() {
   const stub = isEmulator() && !ff.ffmpegPath();
   return {
     db, bucket: getStorage().bucket(), ff, logger, stub,
+    reelsGate: (companyId) => reelsBlocked(db, companyId, killswitch.getFlags),
     reencode: (buf, f) => require('./photo-reencode').reencodePhoto(buf, f),
     heicToJpeg: async (buf) => Buffer.from(await require('heic-convert')({ buffer: buf, format: 'JPEG', quality: 0.9 })),
     visionGate: (uid, companyId) => visionBlocked(db, uid, companyId, { aiDisabled: killswitch.isAiDisabled, emulator: isEmulator(), apiKey, nowMs: Date.now() }),
@@ -767,4 +822,4 @@ exports.reelCleanup = onSchedule({ schedule: 'every day 04:15', timeZone: 'Ameri
   logger.info('reelCleanup', counts);
 });
 
-exports._test = { processReel, ingestUpload, resolveClips, takeRenderSlot, callVision, visionBlocked, reelPostsFor, aiImagePostsFor, cleanup, isHeic, UPLOAD_RE, VISION_SYSTEM };
+exports._test = { reelsBlocked, FFMPEG_MISSING, processReel, ingestUpload, resolveClips, takeRenderSlot, callVision, visionBlocked, reelPostsFor, aiImagePostsFor, cleanup, isHeic, UPLOAD_RE, VISION_SYSTEM };

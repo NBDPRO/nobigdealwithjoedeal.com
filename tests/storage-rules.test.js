@@ -509,7 +509,14 @@ async function run() {
   await assertFails(deleteObject(ref(solo, 'reel-uploads/solo1/solo1/m1')));
   await assertFails(getBytes(ref(solo, 'reel-work/solo1/m1.mp4')));                                                          // intermediates server-only
   await assertFails(uploadBytes(ref(solo, 'social-media/solo1/' + 'a'.repeat(32) + '.mp4'), buf(4096), { contentType: 'video/mp4' })); // nor the served copies
-  console.log('  reel studio: 14 storage checks passed');
+  // Review hardening (2026-10-04): a rep / viewer of ANOTHER company cannot
+  // open a "company of one" folder named for themselves; a solo owner whose
+  // token names their own uid as the company still can.
+  await assertFails(uploadBytes(ref(alice, 'reel-uploads/alice/alice/m10'), buf(4096), { contentType: 'video/mp4' }));       // rep of co-a, self-named folder
+  await assertFails(uploadBytes(ref(vic, 'reel-uploads/vic/vic/m11'), buf(4096), { contentType: 'video/mp4' }));             // viewer, self-named folder
+  const soloTok = env.authenticatedContext('solo2', { companyId: 'solo2' }).storage();
+  await assertSucceeds(uploadBytes(ref(soloTok, 'reel-uploads/solo2/solo2/m12'), buf(4096), { contentType: 'video/mp4' }));  // solo owner, companyId claim == uid
+  console.log('  reel studio: 17 storage checks passed');
 
   console.log('✓ All storage rules tests passed');
   await env.cleanup();

@@ -4,9 +4,12 @@
  *
  * Binary: FFMPEG_PATH (tests / local), else the ffmpeg-static package (a
  * static Linux build ships with the functions deploy — `npm ci` in Cloud
- * Build downloads it), else an `ffmpeg` on PATH. ffmpegPath() returns null
- * when none runs, and the caller decides (the render fails cleanly in
- * production; the emulator uses its stub).
+ * Build downloads it), else an `ffmpeg` on PATH. ffmpeg-static is an
+ * OPTIONAL dependency: if its install-time download fails, npm drops it and
+ * the deploy still succeeds. ffmpegPath() then returns null and the caller
+ * decides (reelCreate refuses before taking a render slot, the worker and
+ * ingest fail the reel / upload with reel-studio.js FFMPEG_MISSING; the
+ * emulator uses its stub).
  *
  * Every run is argv (spawn, no shell) with cwd = a private work dir under
  * os.tmpdir(); on Cloud Functions gen2 /tmp is memory-backed, so the work
