@@ -17,9 +17,15 @@
  * there is no send action here at all. Text can be edited before approving;
  * "Approve all" clears notes + reminders in one go.
  *
- * Opens from: a 🤖 bell notification (?agentInbox=1), the command palette
- * ("Agent inbox"), or window.NBDAgentInbox.open(). Owner / company_admin
- * only (Firestore rules enforce it; others see nothing).
+ * Opens from: the 🤖 Agent inbox nav entry (sidebar AI TOOLS + the phone
+ * More drawer, shown to the owner / an admin), a 🤖 bell notification
+ * (?agentInbox=1), the command palette ("Agent inbox"), or
+ * window.NBDAgentInbox.open(). Owner / company_admin only (Firestore rules
+ * enforce it; others see nothing).
+ *
+ * Bots and their keys are managed on Settings → 🤖 Bots & API
+ * (agent-bots-settings.js, 2026-10-04): any company on a paid plan connects
+ * its own bots there; the inbox links to it.
  */
 (function () {
   'use strict';
@@ -133,6 +139,8 @@
   async function open() {
     if (!canUse()) { if (window.showToast) window.showToast('The Agent inbox is for the owner or an admin', 'error'); return; }
     close();
+    // Opened from the phone More drawer: step out of it first.
+    try { if (typeof window.closeMobileMore === 'function') window.closeMobileMore(); } catch (_) {}
     const ov = document.createElement('div');
     ov.className = 'ai-overlay'; ov.id = 'aiOverlay';
     ov.innerHTML = '<div class="ai-modal" role="dialog" aria-modal="true" aria-labelledby="aiTitle">' +
@@ -143,58 +151,13 @@
       '<button type="button" class="ai-btn is-primary ai-bulk" id="aiBulkChecked" data-ai-act="bulkChecked" hidden></button>' +
       '<button type="button" class="ai-btn is-primary ai-bulk" id="aiBulk" data-ai-act="bulk" hidden></button>' +
       '<div id="aiList"></div>' +
-      '<details class="ai-conn" id="aiConn"><summary class="ai-conn-sum" data-ai-act="conn">🔌 Connect bots (keys)</summary><div id="aiConnBody"></div></details>' +
+      '<button type="button" class="ai-btn ai-conn-link" data-ai-act="bots">🔌 Bots &amp; API — connect a bot, keys</button>' +
       '</div>';
     document.body.appendChild(ov);
     try { _items = await load(); } catch (e) { _items = []; console.warn('[agent-inbox] load failed:', (e && (e.code || e.message)) || e); }
     paint();
   }
   function close() { const o = document.getElementById('aiOverlay'); if (o) o.remove(); }
-
-  // ── Bot keys (functions/agent-mcp.js) ─────────────────────────────────
-  // One key per bot, shown ONCE when made. Jo pastes it into that bot's
-  // secure box in Grok Bot, with the connection address. Revoke any time.
-  async function callable(name, payload) {
-    if (!window._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
-      window._httpsCallable = mod.httpsCallable;
-    }
-    if (!window._functions) throw new Error('Functions SDK unavailable');
-    const res = await window._httpsCallable(window._functions, name)(payload || {});
-    return res && res.data;
-  }
-
-  function connHtml(data, fresh) {
-    const keysByBot = {};
-    (data.keys || []).filter((k) => k.active).forEach((k) => { (keysByBot[k.botId] = keysByBot[k.botId] || []).push(k); });
-    const serverName = fresh && fresh.personal ? 'Jo Tracker' : 'NBD CRM';
-    const freshHtml = fresh ? '<div class="ai-key-fresh"><div class="ai-kind">New key for ' + esc(fresh.botName) + ' — copy it now, it is shown once</div>' +
-      '<code class="ai-key" id="aiFreshKey">' + esc(fresh.key) + '</code>' +
-      '<button type="button" class="ai-btn" data-ai-act="copykey">Copy key</button>' +
-      '<div class="ai-meta">In Grok Bot, ask ' + esc(fresh.botName) + ' to add an MCP server named “' + serverName + '” at <b>' + esc(fresh.url) + '</b> through its mcp-remote wrapper with the header <b>Authorization: Bearer &lt;key&gt;</b>, and paste the key into its secure box — never into the chat.' +
-      (fresh.personal ? ' This key reads only your own tracker — never the CRM.' : '') + '</div></div>' : '';
-    const row = (b) => {
-        const ks = keysByBot[b.botId] || [];
-        return '<div class="ai-conn-row"><div><div class="ai-kind">' + esc(b.name) + (b.firstWave ? ' <span class="ai-ok">· first wave</span>' : '') + '</div>' +
-          '<div class="ai-meta">' + esc(b.tools.join(', ')) + '</div>' +
-          ks.map((k) => '<div class="ai-meta">Key ' + esc(k.prefix) + '… · last used ' + esc(k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : 'never') +
-            ' <button type="button" class="ai-link" data-ai-act="revoke" data-ai-id="' + esc(k.id) + '">Revoke</button></div>').join('') + '</div>' +
-          '<button type="button" class="ai-btn" data-ai-act="mkkey" data-ai-id="' + esc(b.botId) + '">' + (ks.length ? 'New key' : 'Create key') + '</button></div>';
-    };
-    const bots = data.bots || [];
-    const personal = bots.filter((b) => b.personal);
-    return freshHtml + '<div class="ai-meta">Address: ' + esc(data.url || '') + '</div>' +
-      bots.filter((b) => !b.personal).map(row).join('') +
-      (personal.length ? '<div class="ai-kind ai-conn-sec">Personal — reads only your own tracker, never the CRM</div>' + personal.map(row).join('') : '');
-  }
-
-  async function paintConn(fresh) {
-    const body = document.getElementById('aiConnBody');
-    if (!body) return;
-    body.innerHTML = '<div class="ai-meta">Loading…</div>';
-    try { body.innerHTML = connHtml(await callable('listAgentKeys'), fresh); }
-    catch (e) { body.innerHTML = '<div class="ai-meta">Could not load bot keys: ' + esc((e && e.message) || 'error') + '</div>'; }
-  }
 
   async function decide(id, approve) {
     const it = _items.find((x) => x.id === id);
@@ -279,23 +242,9 @@
     if (act === 'bulk') return bulk(false);
     if (act === 'bulkChecked') return bulk(true);
     if (act === 'deck') return openDeck();
-    if (act === 'conn') { const d = document.getElementById('aiConn'); if (d && !d.open) setTimeout(() => paintConn(null), 0); return; }
-    if (act === 'mkkey') {
-      t.disabled = true;
-      try { const r = await callable('createAgentKey', { botId: id }); await paintConn(r); }
-      catch (e) { if (window.showToast) window.showToast('Could not make a key: ' + ((e && e.message) || 'error'), 'error'); t.disabled = false; }
-      return;
-    }
-    if (act === 'revoke') {
-      const sure = typeof window.nbdConfirm === 'function' ? await window.nbdConfirm('Revoke this bot key? The bot loses CRM access until you make a new one.') : true;
-      if (!sure) return;
-      try { await callable('revokeAgentKey', { id }); await paintConn(null); }
-      catch (e) { if (window.showToast) window.showToast('Could not revoke: ' + ((e && e.message) || 'error'), 'error'); }
-      return;
-    }
-    if (act === 'copykey') {
-      const k = document.getElementById('aiFreshKey');
-      try { await navigator.clipboard.writeText(k ? k.textContent : ''); if (window.showToast) window.showToast('Key copied — paste it into the bot’s secure box', 'success'); } catch (_) {}
+    if (act === 'bots') {
+      close();
+      if (window.NBDAgentBots && typeof window.NBDAgentBots.open === 'function') window.NBDAgentBots.open();
       return;
     }
     if (act === 'approve' || act === 'dismiss') {
@@ -314,8 +263,11 @@
     const tick = () => {
       if (!(window._user && window.getDocs)) { if (++tries < 60) setTimeout(tick, 500); return; }
       if (window.NBDCommand && typeof window.NBDCommand.registerAction === 'function' && canUse()) {
-        window.NBDCommand.registerAction({ id: 'agent-inbox', label: 'Agent inbox (bot team)', icon: '🤖', run: open, keywords: ['agent', 'bot', 'grok', 'inbox', 'marcus', 'quinn'], group: 'Tools' });
+        window.NBDCommand.registerAction({ id: 'agent-inbox', label: 'Agent inbox (bots)', icon: '🤖', run: open, keywords: ['agent', 'bot', 'grok', 'inbox', 'marcus', 'quinn', 'mcp'], group: 'Tools' });
+        window.NBDCommand.registerAction({ id: 'agent-bots', label: 'Bots & API settings', icon: '🔌', run: () => { if (window.NBDAgentBots) window.NBDAgentBots.open(); }, keywords: ['bot', 'api', 'mcp', 'key', 'claude', 'chatgpt', 'grok'], group: 'Tools' });
       }
+      // The nav entries are hidden until we know the reader may open it.
+      if (canUse()) ['nav-agentinbox', 'mm-agentinbox'].forEach((id) => { const el = document.getElementById(id); if (el) el.classList.remove('dn'); });
       if (want) {
         try { window.history.replaceState({}, '', window.location.pathname + window.location.hash); } catch (_) {}
         open();
