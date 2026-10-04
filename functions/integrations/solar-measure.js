@@ -56,7 +56,10 @@ const ENDPOINT = 'https://solar.googleapis.com/v1/buildingInsights:findClosest';
 // Standard Google API partial-response parameter. solarPanelConfigs and the
 // financial analyses are most of a buildingInsights body (hundreds of panel
 // layouts) and nothing here reads them.
-const RESPONSE_FIELDS = 'name,center,imageryDate,imageryQuality,solarPotential.wholeRoofStats,solarPotential.roofSegmentStats';
+// maxSunshineHoursPerYear feeds the Maps tool's sun-exposure overlay
+// (mapSunExposure below); roofSegmentStats already carries each plane's
+// centre and sunshineQuantiles.
+const RESPONSE_FIELDS = 'name,center,imageryDate,imageryQuality,solarPotential.maxSunshineHoursPerYear,solarPotential.wholeRoofStats,solarPotential.roofSegmentStats';
 
 const SQFT_PER_M2 = 10.7639104;
 const CACHE_COLLECTION = 'solar_measure_cache';
@@ -268,7 +271,43 @@ function mapBuildingInsights(body, opts) {
       direction: s.direction, sqft: s.sqft, squares: s.squares
     }))
   };
-  return { measurements, quality, buildingName: typeof body.name === 'string' ? body.name : null };
+  return { measurements, quality, buildingName: typeof body.name === 'string' ? body.name : null, sun: mapSunExposure(body) };
+}
+
+/**
+ * buildingInsights body → the sun-exposure summary the Maps drawing tool's
+ * ☀️ Solar Analysis overlay draws (docs/pro/js/maps-routing.js
+ * renderSolarOverlay), or null. Kept OUT of `measurements` so it never lands
+ * on measurement / lead docs; it rides in the company-scoped cache doc only.
+ * Per plane: centre point, area and median annual sunshine hours
+ * (sunshineQuantiles is 11 deciles from the API, so the middle entry, index 5,
+ * is the median). Never throws.
+ */
+function mapSunExposure(body) {
+  if (!body || typeof body !== 'object') return null;
+  const sp = body.solarPotential || {};
+  const rawSegs = Array.isArray(sp.roofSegmentStats) ? sp.roofSegmentStats : [];
+  const segments = [];
+  for (const s of rawSegs) {
+    const st = (s && s.stats) || {};
+    const c = (s && s.center) || {};
+    const lat = num(c.latitude), lng = num(c.longitude);
+    if (lat === null || lng === null) continue;
+    const q = Array.isArray(st.sunshineQuantiles) ? st.sunshineQuantiles : [];
+    const median = q.length ? num(q[Math.floor(q.length / 2)]) : null;
+    const area = num(st.areaMeters2);
+    segments.push({
+      lat, lng,
+      areaMeters2: area === null ? null : Math.round(area * 10) / 10,
+      sunshineHoursMedian: median === null ? null : Math.round(median)
+    });
+  }
+  const maxHours = num(sp.maxSunshineHoursPerYear);
+  if (!segments.length && maxHours === null) return null;
+  return {
+    maxSunshineHoursPerYear: maxHours === null ? null : Math.round(maxHours),
+    segments
+  };
 }
 
 // ─── HTTP ──────────────────────────────────────────────────
@@ -332,6 +371,7 @@ async function requestSolar(ctx, deps) {
     estimatedMinutes: 0,
     quality: mapped.quality,
     buildingName: mapped.buildingName,
+    sun: mapped.sun || null,
     measurements: mapped.measurements
   };
 }
@@ -370,6 +410,7 @@ async function writeCache(db, scope, lat, lng, result, nowMs, address) {
     buildingName: result.buildingName || null,
     quality: result.quality || null,
     measurements: result.measurements,
+    sun: result.sun || null,
     fetchedAtMs: nowMs,
     expiresAtMs: nowMs + CACHE_TTL_MS
   });
@@ -435,11 +476,15 @@ async function runSolarProvider(ctx, deps) {
   // 1. Cache — free, and does not count against the cap.
   let cached = null;
   try { cached = await readCache(db, scope, ctx.lat, ctx.lng, nowMs); } catch (_) { cached = null; }
+  // A sun-overlay request needs the sun summary; an entry cached before it
+  // was stored has none, so it is a miss for that caller (re-fetched once).
+  if (cached && deps.needSun && !cached.sun) cached = null;
   if (cached) {
     const hit = {
       ok: true, provider: PROVIDER, reportType: 'ai',
       jobId: 'solar-cache-' + nowMs, estimatedMinutes: 0,
       quality: cached.quality || null, buildingName: cached.buildingName || null,
+      sun: cached.sun || null,
       solarCached: true,
       measurements: Object.assign({}, cached.measurements, { solarCachedAtMs: cached.fetchedAtMs })
     };
@@ -472,8 +517,40 @@ async function runSolarProvider(ctx, deps) {
   return result;
 }
 
+// ─── Sun-exposure overlay entry point (solarSunExposure callable) ──
+
+/**
+ * The Maps drawing tool's ☀️ Solar Analysis. Same fetch, same company-scoped
+ * 180-day cache and the same per-company daily cap as a roof measure — a roof
+ * measured by either path is free for the other. Solar only: a sun overlay
+ * never escalates to Instant Roofer.
+ * ctx: {lat, lng, uid, companyId, db, address}; deps: as runSolarProvider.
+ * → {ok:true, sun, imagery, cached} or the adapter's {ok:false, ...} shape.
+ */
+async function runSunAnalysis(ctx, deps) {
+  const r = await runSolarProvider(
+    Object.assign({}, ctx || {}, { reportType: 'ai' }),
+    Object.assign({}, deps || {}, { mode: 'solar', instantRoofer: null, needSun: true })
+  );
+  if (!r || !r.ok) return r || { ok: false, provider: PROVIDER, reason: 'unknown' };
+  if (!r.sun) {
+    return { ok: false, provider: PROVIDER, reason: 'no-sun-data', code: 'not-found', message: 'Google returned no sun data for this roof.' };
+  }
+  const m = r.measurements || {};
+  return {
+    ok: true,
+    provider: PROVIDER,
+    cached: !!r.solarCached,
+    sun: r.sun,
+    imagery: m.imagery || { date: null, quality: r.quality || null, ageYears: null },
+    accuracyNote: ACCURACY_NOTE
+  };
+}
+
 module.exports = {
   runSolarProvider,
+  runSunAnalysis,
+  mapSunExposure,
   requestSolar,
   mapBuildingInsights,
   PROVIDER,
