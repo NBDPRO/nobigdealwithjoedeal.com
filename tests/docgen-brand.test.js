@@ -54,6 +54,10 @@ ok('NBD: resolves to the COMPANY base VALUES',
 ok('NBD: still gets a logo (identity-check regression)', !!dgNBD._logoSrc());
 ok('NBD: name unchanged', cNBD.name === 'No Big Deal Home Solutions');
 ok('NBD: email unchanged (info@)', cNBD.email === 'info@nobigdealwithjoedeal.com');
+// Zelle has its own pair (Jo, 2026-10-04): (859) 420-7382 + jd@, while the
+// documents email above stays info@.
+ok('NBD: Zelle email is jd@ (not info@)', cNBD.zelleEmail === 'jd@nobigdealwithjoedeal.com');
+ok('NBD: Zelle phone is (859) 420-7382', cNBD.zellePhone === '(859) 420-7382');
 // NBD DOCUMENT STANDARD, locked 2026-09-07: the palette was re-measured off the
 // master logo artwork. Retired #1e3a6e / #1a1a2e / #e8720c — the last of which
 // also failed WCAG AA on white at 3.07:1. Expected VALUES updated; the
@@ -80,6 +84,7 @@ ok('Oaks: primary charcoal', cOAK.colors.primary === '#333333');
 ok('Oaks: secondary near-black', cOAK.colors.secondary === '#1A1A1A');
 ok('Oaks: phone remapped', cOAK.phone === '(513) 827-5297');
 ok('Oaks: email remapped', cOAK.email === 'joe@oaksrfc.com');
+ok('Oaks: no Zelle pair set → blank, never NBD\'s jd@ / phone', cOAK.zelleEmail === '' && cOAK.zellePhone === '');
 ok('Oaks: logoUrl set', /logo-orange\.svg$/.test(cOAK.logoUrl || ''));
 ok('Oaks: neutral lightGray preserved from base', cOAK.colors.lightGray === '#f5f5f5');
 ok('Oaks: getSharedCSS renders Oaks charcoal #333333', /#333333/i.test(dgOAK.getSharedCSS()));

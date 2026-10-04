@@ -336,7 +336,7 @@ function rulesReference() {
       'Crews are independent subcontractors carrying their own insurance; never write "in-house crews" or W-2 employees. Jo is on every roof; no salespeople.',
       '"Revenue" means money collected (payments by date received). Estimates, contracts and pipeline are projected.',
       'Never publish cost, contractor price or margin figures anywhere public. Retail prices are fine.',
-      'Two emails on purpose: jd@ for marketing, info@ for documents and Zelle. Never merge them.',
+      'Two emails on purpose: jd@ for marketing and Zelle (Zelle: (859) 420-7382 or jd@), info@ for documents. Never merge them.',
     ],
   };
 }

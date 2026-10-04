@@ -145,7 +145,7 @@
      /pro/css revalidation policy instead of shipping in every HTML load. -->
 <link rel="stylesheet" href="css/dashboard-app.css?v=11">
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=1">
 <link rel="stylesheet" href="css/tenant-ready.css?v=1">
@@ -4019,6 +4019,15 @@
               <div class="sf"><label>Address (one line)</label>
                 <input type="text" id="cp_brand_address" placeholder="City, ST"></div>
             </div>
+            <!-- Where customers send Zelle (2026-10-04). Its own pair, so the
+                 documents email above can stay a different address. Blank =
+                 Zelle lines use the Email above. -->
+            <div class="sf-row">
+              <div class="sf"><label>Zelle phone</label>
+                <input type="text" id="cp_brand_zellePhone" placeholder="(859) 420-7382" maxlength="40"></div>
+              <div class="sf"><label>Zelle email</label>
+                <input type="text" id="cp_brand_zelleEmail" placeholder="you@yourdomain.com" maxlength="120"></div>
+            </div>
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Mailing address — required by law on marketing email</div>
             <div class="sf"><label>Mailing Address (one line)</label>
               <input type="text" id="cp_brand_mailingAddress" placeholder="PO Box 123, Goshen, OH 45122" maxlength="200">
@@ -6997,7 +7006,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=15"></script>
+<script defer src="js/invoice-pipeline.js?v=16"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js

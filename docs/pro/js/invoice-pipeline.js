@@ -348,6 +348,24 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     }
     return J.payUrlUnlessHeld(lead, invoice, (deps && deps.now) || new Date());
   }
+  // The Zelle line for a homeowner message (2026-10-04): the company's Zelle
+  // pair, under the SAME Kentucky hold as the pay link — Zelle is a way to
+  // pay too. Fails closed ('') without the jurisdiction module or the lead.
+  async function _homeownerZelle(invoice, deps) {
+    const z = (deps && typeof deps.zelle === 'string') ? deps.zelle : _zelleText();
+    if (!z) return '';
+    const J = (deps && deps.J) || (typeof window !== 'undefined' ? window.NBDJurisdiction : null);
+    if (!J || typeof J.payLinkHold !== 'function') return '';
+    let lead = null;
+    if (invoice && invoice.leadId) {
+      try {
+        const read = (deps && deps.readLead) || _readLeadForHold;
+        lead = await read(String(invoice.leadId));
+      } catch (_) { lead = null; }
+      if (!lead) return '';
+    }
+    return J.payLinkHold(lead, invoice || {}, (deps && deps.now) || new Date()).held ? '' : z;
+  }
   /**
    * Every invoice on a lead this user may read — the customer page's scope
    * (customer-tasks-ui.js loadInvoices, mirroring the /invoices read rule):
@@ -572,6 +590,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       entry.proofStoragePath = String(input.proofStoragePath);
       entry.proofName = _cleanText(input.proofName, PROOF_NAME_MAX) || 'proof';
     }
+    // A receipt DRAFT for this payment (Jo, 2026-10-04): never emailed on its
+    // own — the rep taps "Send receipt" (sendReceipt below).
+    entry.receipt = { status: 'draft' };
     return entry;
   }
 
@@ -695,6 +716,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       } else if (r.canAttach) {
         proof = `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="attachProof" data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''}>📎 Attach proof</button>`;
       }
+      // The receipt draft for this payment: one tap sends it (2026-10-04).
+      const p = (inv.payments || [])[r.index];
+      const rs = receiptStateOf(p);
+      const rkey = receiptKeyOf(p, r.index);
+      const receipt = rs === 'draft'
+        ? `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="sendReceipt" data-ip-id="${id}" data-ip-pay="${escHtml(rkey)}" data-send-receipt>✉️ Send receipt</button>`
+        : (rs === 'sent' ? '<span class="ipx-m11" data-receipt-sent>Receipt sent ✓</span>' : '');
       return `
         <div data-ip-payment-row class="ipx-pay-row">
           <div class="ipx-minw0">
@@ -704,6 +732,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           <div class="ipx-row-fixed">
             <span class="ipx-b">${escHtml(formatCurrency(r.amount))}</span>
             ${proof}
+            ${receipt}
           </div>
         </div>`;
     }).join('');
@@ -712,6 +741,265 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         <div class="ipx-k">Payment History</div>
         ${body}
       </div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RECEIPTS — drafted on every payment, sent only by a tap (Jo, 2026-10-04)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Marking a payment paid NEVER emails the customer, from any caller
+  // (markPaid, Record payment, the Stripe webhook). Each payment carries a
+  // receipt DRAFT (payments[i].receipt.status 'draft' — entries the Stripe
+  // webhook / ledger wrote have no receipt field and read as a draft too).
+  // "Send receipt" on the customer page's invoice row, the payment's
+  // timeline line and the invoice detail sends it once through
+  // NBDComms.sendEmail with leadId + invoiceId (the #2120 recipient binding:
+  // `to` must be an email on that invoice / lead), or the share sheet when
+  // there is no email on file. The receipt names the NBD invoice number,
+  // never the internal doc id.
+
+  /** 'draft' | 'sent' | 'none' (no money: nothing to receipt). */
+  function receiptStateOf(p) {
+    if (!p || !(Number(p.amount) > 0)) return 'none';
+    if (p.achStatus === 'failed' || p.reverted === true) return 'none';
+    const r = (p.receipt && typeof p.receipt === 'object') ? p.receipt : null;
+    return (r && r.status === 'sent') ? 'sent' : 'draft';
+  }
+
+  /** The key a button carries for a payment: its own id, else 'idx:N'. */
+  function receiptKeyOf(p, index) {
+    const pid = paymentIdOf(p);
+    return pid || ('idx:' + index);
+  }
+
+  /** Index of the payment a receipt key names, or -1. */
+  function findReceiptPayment(payments, key) {
+    const list = Array.isArray(payments) ? payments : [];
+    const k = String(key || '');
+    if (!k) return -1;
+    if (k.indexOf('idx:') === 0) {
+      const i = parseInt(k.slice(4), 10);
+      return (Number.isInteger(i) && i >= 0 && i < list.length && !paymentIdOf(list[i])) ? i : -1;
+    }
+    return list.findIndex(p => paymentIdOf(p) === k);
+  }
+
+  /**
+   * The customer-facing invoice number: invoiceNumber, else the filed
+   * NBD-500's number, else the Stripe invoice number. '' when there is none
+   * — NEVER the Firestore doc id.
+   */
+  function nbdInvoiceNumberOf(inv) {
+    inv = inv || {};
+    const pp = (inv.paper && typeof inv.paper === 'object') ? inv.paper : {};
+    const filed = pp.invoice && pp.invoice.instanceId;
+    return String(inv.invoiceNumber || filed || inv.stripeInvoiceNumber || '').trim();
+  }
+
+  const RECEIPT_METHOD_LABELS = {
+    check: 'Check', zelle: 'Zelle', cash: 'Cash', card: 'Card', ach: 'Bank transfer (ACH)', other: 'Other',
+    stripe: 'Card (online)', us_bank_account: 'Bank transfer (ACH)', apple_pay: 'Apple Pay', google_pay: 'Google Pay',
+    link: 'Link (online)', cashapp: 'Cash App', manual: 'Payment',
+  };
+
+  /**
+   * Everything a receipt says about one payment. Pure.
+   * → null, or { key, index, amount, method, dateText, balanceRemaining,
+   *   invoiceNumber, paidInFull, pdfPath, pdfName, reference }
+   * balanceRemaining is what was still owed right after THIS payment
+   * (total − every payment up to and including it, in cents).
+   */
+  function receiptDetailsOf(inv, key) {
+    inv = inv || {};
+    const list = Array.isArray(inv.payments) ? inv.payments : [];
+    const i = findReceiptPayment(list, key);
+    if (i < 0) return null;
+    const p = list[i] || {};
+    if (receiptStateOf(p) === 'none') return null;
+    const totalC = toCents(Math.max(0, Number(inv.total) || 0)) || 0;
+    let paidC = 0;
+    for (let j = 0; j <= i; j++) {
+      const a = list[j];
+      if (a && Number(a.amount) > 0) paidC += toCents(Number(a.amount)) || 0;
+    }
+    const balC = Math.max(0, totalC - paidC);
+    const atMs = _tsMs(p.at != null ? p.at : p.date);
+    const pp = (inv.paper && typeof inv.paper === 'object') ? inv.paper : {};
+    // The filed NBD-510 (money-paper.js) is the paid-in-full receipt: it
+    // belongs to the payment that closed the invoice out.
+    const isLast = i === list.length - 1;
+    const filed = pp.receipt && pp.receipt.state === 'filed' && pp.receipt.pdfPath ? pp.receipt : null;
+    return {
+      key: receiptKeyOf(p, i),
+      index: i,
+      amount: centsToDollars(toCents(Number(p.amount)) || 0),
+      method: RECEIPT_METHOD_LABELS[p.method] || paymentMethodLabel(p.method),
+      dateText: Number.isFinite(atMs)
+        ? new Date(atMs).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
+      balanceRemaining: centsToDollars(balC),
+      invoiceNumber: nbdInvoiceNumberOf(inv),
+      paidInFull: balC === 0 && totalC > 0,
+      pdfPath: (filed && isLast && balC === 0) ? String(filed.pdfPath) : '',
+      pdfName: (filed && filed.instanceId) ? 'Receipt ' + filed.instanceId + '.pdf' : 'Receipt.pdf',
+      reference: p.reference ? String(p.reference).slice(0, 40) : '',
+    };
+  }
+
+  /** Subject + HTML + plain text for one payment's receipt. Pure; escaped. */
+  function buildReceiptEmail(details, company) {
+    const d = details || {};
+    const co = String(company || 'NBD Roofing');
+    const num = d.invoiceNumber ? 'Invoice ' + d.invoiceNumber : 'your invoice';
+    const rows = [
+      ['Invoice', d.invoiceNumber || '—'],
+      ['Amount paid', formatCurrency(d.amount)],
+      ['Method', d.method + (d.reference ? ' #' + d.reference : '')],
+      ['Date', d.dateText || '—'],
+      ['Balance remaining', d.paidInFull ? '$0.00 — paid in full' : formatCurrency(d.balanceRemaining)],
+    ];
+    const subject = 'Payment received — ' + co + (d.invoiceNumber ? ' Invoice ' + d.invoiceNumber : '');
+    // A <style> block, not inline attributes (the reskin ratchet); the
+    // server's sanitizer keeps <style>.
+    const html = '<style>.rc{font-family:Lato,"Segoe UI",Helvetica,Arial,sans-serif;color:#333;max-width:560px}'
+      + '.rc table{border-collapse:collapse;width:100%}.rc td{padding:6px 8px;border-bottom:1px solid #eee}'
+      + '.rc td.k{color:#666}.rc td.v{text-align:right;font-weight:700}.rc .co{color:#999;font-size:12px}</style>'
+      + '<div class="rc">'
+      + '<p>Thank you — we received your payment of <strong>' + escHtml(formatCurrency(d.amount)) + '</strong> on ' + escHtml(num) + '.</p>'
+      + '<table>'
+      + rows.map(r => '<tr><td class="k">' + escHtml(r[0]) + '</td><td class="v">' + escHtml(r[1]) + '</td></tr>').join('')
+      + '</table>'
+      + '<p>Keep this email for your records. Questions? Just reply.</p>'
+      + '<p class="co">' + escHtml(co) + '</p></div>';
+    const text = 'Thank you — we received your payment of ' + formatCurrency(d.amount) + ' on ' + num + '.\n'
+      + rows.map(r => r[0] + ': ' + r[1]).join('\n') + '\n\n' + co;
+    return { subject, html, text };
+  }
+
+  /** New payments[] with this payment's receipt marked sent. Pure. */
+  function markReceiptSent(payments, key, via, at) {
+    const list = Array.isArray(payments) ? payments.slice() : [];
+    const i = findReceiptPayment(list, key);
+    if (i < 0) throw new Error('That payment changed — reopen the invoice and try again');
+    list[i] = Object.assign({}, list[i], { receipt: { status: 'sent', sentAt: at instanceof Date ? at : new Date(), via: String(via || 'email') } });
+    return list;
+  }
+
+  async function _receiptPdfFile(details) {
+    try {
+      if (!details || !details.pdfPath || !window.getDownloadURL || !window.ref || typeof fetch !== 'function') return null;
+      const url = await window.getDownloadURL(window.ref(window.storage, details.pdfPath));
+      const blob = await (await fetch(url)).blob();
+      return (typeof File === 'function') ? new File([blob], details.pdfName, { type: 'application/pdf' }) : null;
+    } catch (_) { return null; }
+  }
+
+  /**
+   * Send ONE payment's receipt — the "Send receipt" tap. Email when the
+   * invoice has a customer email (NBDComms.sendEmail, leadId + invoiceId,
+   * kind 'receipt'); else the share sheet (with the filed NBD-510 PDF when
+   * there is one and the phone can share files). Then marks it sent on the
+   * payment and on its timeline line.
+   * → { sent: true, via } | { sent: false, reason }
+   */
+  async function sendReceipt(invoiceId, key) {
+    const db = getDb();
+    const invRef = window.doc(db, 'invoices', invoiceId);
+    const snap = await window.getDoc(invRef);
+    if (!snap.exists()) throw new Error('Invoice not found');
+    const inv = snap.data() || {};
+    const i = findReceiptPayment(inv.payments, key);
+    if (i < 0) throw new Error('That payment changed — reopen the invoice and try again');
+    if (receiptStateOf(inv.payments[i]) === 'sent') return { sent: false, reason: 'already_sent' };
+    const details = receiptDetailsOf(inv, key);
+    if (!details) return { sent: false, reason: 'nothing_to_receipt' };
+    const mail = buildReceiptEmail(details, _invoiceCompany());
+    let via = '';
+    if (inv.customerEmail && window.NBDComms && typeof window.NBDComms.sendEmail === 'function') {
+      const r = await window.NBDComms.sendEmail({
+        to: inv.customerEmail,
+        subject: mail.subject,
+        html: mail.html,
+        leadId: inv.leadId || null,
+        invoiceId: invoiceId, // #2120: `to` must be on this invoice / lead
+        kind: 'receipt',      // transactional: payment confirmation
+      });
+      if (!r || r.success === false) return { sent: false, reason: (r && (r.error || r.message)) || 'email_failed' };
+      via = r.mode === 'mailto' ? 'mailto' : 'email';
+    } else if (typeof navigator !== 'undefined' && navigator && typeof navigator.share === 'function') {
+      const data = { title: mail.subject, text: mail.text };
+      const file = await _receiptPdfFile(details);
+      if (file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) data.files = [file];
+      try { await navigator.share(data); }
+      catch (e) { return { sent: false, reason: (e && e.name === 'AbortError') ? 'cancelled' : 'share_failed' }; }
+      via = 'share';
+    } else {
+      return { sent: false, reason: 'no_email' };
+    }
+    // Mark it sent on the payment (re-read: the array can move under us).
+    try {
+      const fresh = await window.getDoc(invRef);
+      const next = markReceiptSent((fresh.data() || {}).payments || [], key, via, new Date());
+      await window.updateDoc(invRef, { payments: next, updatedAt: new Date() });
+    } catch (e) { console.warn('sendReceipt: could not mark the receipt sent', e && (e.code || e.message)); }
+    const noteId = paymentTimelineNoteId(invoiceId, inv.payments[i]);
+    if (noteId && typeof window.updateDoc === 'function') {
+      try { await window.updateDoc(window.doc(db, 'notes', noteId), { receiptSentAt: new Date() }); }
+      catch (_) { /* the timeline line may not exist (legacy payment) */ }
+    }
+    return { sent: true, via };
+  }
+
+  /** UI: the one-tap "Send receipt" (no confirm sheet — the tap IS the send). */
+  async function sendReceiptUI(invoiceId, key) {
+    try {
+      const r = await sendReceipt(invoiceId, key);
+      if (r.sent) {
+        if (r.via === 'share') _toast('Receipt shared', 'success');
+        if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
+        return true;
+      }
+      const why = {
+        already_sent: 'That receipt was already sent.',
+        nothing_to_receipt: 'Nothing to send for that payment.',
+        no_email: 'No email on this invoice — add one to the customer, then tap Send receipt.',
+        cancelled: 'Receipt not sent.',
+      }[r.reason];
+      _toast(why || ('Receipt not sent: ' + r.reason), r.reason === 'cancelled' ? 'info' : 'error');
+      return false;
+    } catch (e) {
+      _toast('Error: ' + ((e && e.message) || 'could not send the receipt'), 'error');
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BANK PAYMENT (ACH) + ZELLE lines on the pay surfaces (2026-10-04)
+  // ═══════════════════════════════════════════════════════════════════════
+  const PAY_BY_BANK_LINE = 'Pay by bank (ACH) — lower fees. Choose "US bank account" on the payment page.';
+
+  // Where a Zelle payment goes: the company's Zelle pair (company-profile.js
+  // brand.contact.zellePhone / zelleEmail; NBD: "(859) 420-7382 or jd@…",
+  // never the info@ documents address). '' for a tenant that set none.
+  function zelleTextFor(brand) {
+    const b = brand || null;
+    const c = (b && b.contact) || {};
+    const isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+    const email = String(c.zelleEmail || (isNbd ? 'jd@nobigdealwithjoedeal.com' : '')).trim();
+    const phone = String(c.zellePhone || (isNbd ? '(859) 420-7382' : '')).trim();
+    return phone && email ? phone + ' or ' + email : (phone || email);
+  }
+  function _zelleText() {
+    let b = null;
+    try { if (typeof window._brand === 'function') b = window._brand() || null; } catch (e) { b = null; }
+    return zelleTextFor(b);
+  }
+
+  /** "Bank payment processing" for an invoice with an ACH in flight, or ''. */
+  function achPendingText(inv) {
+    const p = inv && inv.achPending;
+    if (!p || typeof p !== 'object' || !(Number(p.amountCents) > 0)) return '';
+    return 'Bank payment (ACH) of ' + formatCurrency(Number(p.amountCents) / 100)
+      + ' processing — not counted as paid until it clears (4–5 business days).';
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1791,10 +2079,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // '' while the Kentucky insurance hold applies (_homeownerPayUrl).
       const payUrl = await _homeownerPayUrl(Object.assign({ id: invoiceId }, linkSource));
       const balanceText = balanceSend ? formatCurrency(invoice.balanceDue) : '';
+      // Zelle: (859) 420-7382 or jd@ for NBD (never info@), held like the link.
+      const zelle = await _homeownerZelle(Object.assign({ id: invoiceId }, invoice));
 
       if (method === 'email') {
         // Build invoice HTML
-        const invoiceHtml = buildInvoiceHtml(invoice, { payUrl });
+        const invoiceHtml = buildInvoiceHtml(invoice, { payUrl, zelle });
 
         // Send via NBDComms
         if (window.NBDComms?.sendEmail) {
@@ -1825,9 +2115,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         const opener = balanceSend
           ? `Thank you for your payment — your ${_invoiceCompany()} invoice has a remaining balance of ${balanceText}.`
           : `Your ${_invoiceCompany()} invoice is ready.`;
+        // Bank payment (ACH) is on the same link — lower fees (2026-10-04).
+        const zelleBit = zelle ? ` Zelle: ${zelle}.` : '';
         const message = link
-          ? `${opener} Payment link: ${link}`
-          : `${opener.replace(/\.$/, '')} — reply here with any questions.`;
+          ? `${opener} Payment link: ${link} (card or bank/ACH — bank has lower fees).${zelleBit}`
+          : (zelle ? `${opener} Zelle: ${zelle}. Reply here with any questions.`
+            : `${opener.replace(/\.$/, '')} — reply here with any questions.`);
 
         if (window.NBDComms?.sendSMS) {
           const smsResult = await window.NBDComms.sendSMS({
@@ -2021,20 +2314,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // while a card payoff (stripe.js) went to Final Payment — the same
       // payoff landed the card in two places depending on how it was paid.
 
-      // Send receipt. details.sendReceipt === false skips it (Record payment
-      // passes its "Email a receipt" box, default OFF — Jo entering weeks-old
-      // checks must not surprise customers). Every other caller leaves it
-      // unset and keeps the existing behaviour (Jo has not decided that one).
-      if (details.sendReceipt !== false && window.NBDComms?.sendEmail && invoice.customerEmail) {
-        await window.NBDComms.sendEmail({
-          to: invoice.customerEmail,
-          subject: `Payment Received - ${_invoiceCompany()} Invoice ${invoiceId}`,
-          html: `<p>Thank you! We received your payment of ${formatCurrency(amount)}.</p><p>Your invoice is now ${newBalanceDue === 0 ? 'fully paid' : 'partially paid'}.</p>`,
-          leadId: invoice.leadId || null,
-          invoiceId: invoiceId,
-          kind: 'receipt', // transactional: payment confirmation
-        });
-      }
+      // NO receipt email from here — from ANY caller (Jo, 2026-10-04:
+      // "draft it, one-click send"). The ledger entry above carries a receipt
+      // DRAFT (entry.receipt.status 'draft'); the customer page's invoice row,
+      // the payment's timeline line and the invoice detail show "Send
+      // receipt", and only that tap emails the customer (sendReceipt). The
+      // old auto-send surprised customers with receipts for weeks-old checks
+      // and named the invoice by its internal doc id. details.sendReceipt is
+      // ignored.
+      return { paymentId: entry.paymentId, receipt: 'draft', balanceDue: newBalanceDue };
 
     } catch (error) {
       console.error('markPaid error:', error);
@@ -2271,6 +2559,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             </div>
           </div>
 
+          ${achPendingText(inv) ? `<div data-ip-ach-pending class="ipx-note">🏦 ${_esc(achPendingText(inv))}</div>` : ''}
           ${paymentHistoryHtml(invoiceId, inv)}
 
           <div class="ipx-toolbar">
@@ -2284,6 +2573,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
           ${connectStripeNoteHtml(inv, _canCollect)}
+          ${(_payUrl && inv.status !== 'paid') ? `<div data-pay-by-bank class="ipx-m11 ipx-mt8">🏦 ${_esc(PAY_BY_BANK_LINE)}</div>` : ''}
           ${(inv.kyInsuranceHold && !inv.stripePaymentLink && inv.status !== 'paid') ? `
           <div data-ip-ky-hold class="ipx-note">
             ${_esc(((typeof window !== 'undefined' && window.NBDJurisdiction) ? window.NBDJurisdiction.MSG.payLinkHeld : 'Online payment link withheld: Kentucky insurance job (KRS 367.626).'))}
@@ -2443,6 +2733,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             table { width: 100%; border-collapse: collapse; margin: 20px 0; }
             .total { text-align: right; font-weight: 700; }
             .cta { background: var(--orange,#BD5728); color: #fff; padding: 12px 24px; border-radius: 5px; text-decoration: none; display: inline-block; margin-top: 20px; }
+            .paynote { margin: 10px 0 0; font-size: 13px; color: #555; }
           </style>
         </head>
         <body>
@@ -2491,7 +2782,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               </tbody>
             </table>
             <p><strong>Payment Terms:</strong> ${_esc(invoice.terms)}</p>
-            ${_safeUrl(_payUrl) ? `<a href="${_esc(_safeUrl(_payUrl))}" class="cta">Pay Online</a>` : ''}
+            ${_safeUrl(_payUrl) ? `<a href="${_esc(_safeUrl(_payUrl))}" class="cta">Pay Online</a>
+            <p class="paynote">${_esc(PAY_BY_BANK_LINE)}</p>` : ''}
+            ${(opts && opts.zelle) ? `<p class="paynote">Zelle: ${_esc(opts.zelle)}</p>` : ''}
             <p style="margin-top: 30px; font-size: 12px; color: #999;">Thank you for choosing ${_esc(_invoiceCompany())}!</p>
           </div>
         </body>
@@ -3179,9 +3472,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * The Record Payment sheet's write, without the DOM (tests drive it):
    * resolve / make the job's invoice, then markPaid. o = { leadId, lead,
    * target (recordPaymentTarget), invoiceId (existing), totalCents
-   * (jobValue), amount, method, payer, at, reference, sendReceipt }.
-   * sendReceipt defaults OFF here: only an explicit true emails the
-   * customer (markPaid's own default is unchanged for its other callers).
+   * (jobValue), amount, method, payer, at, reference }.
+   * Never emails the customer (2026-10-04): the payment gets a receipt
+   * DRAFT and the rep taps "Send receipt" when ready.
    * → invoiceId
    */
   async function recordPaymentCommit(o) {
@@ -3216,15 +3509,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       throw new Error('The invoice for this job is already paid in full — record extra money on the invoice itself.');
     }
     await markPaid(invoiceId, o.amount, o.method, {
-      at: o.at, reference: o.reference, payer: o.payer, sendReceipt: o.sendReceipt === true,
+      at: o.at, reference: o.reference, payer: o.payer,
     });
     return invoiceId;
   }
 
   /**
    * UI: the Record Payment sheet. Resolves true once a payment is recorded,
-   * false when dismissed. Nothing is sent to the homeowner from here except
-   * what markPaid has always sent (its receipt email — unchanged, Jo's call).
+   * false when dismissed. Nothing is sent to the homeowner from here: the
+   * payment's receipt is a draft until the rep taps Send receipt.
    */
   async function recordPaymentUI(leadId) {
     if (!leadId) return false;
@@ -3295,7 +3588,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         <input id="nbd-rp-date" type="date" class="fi ipx-field ipx-rp-input" value="${escHtml(today)}" max="${escHtml(today)}">
         <label for="nbd-rp-ref" id="nbd-rp-ref-label" class="ipx-label">${escHtml(PAYMENT_METHODS[0].refLabel)}</label>
         <input id="nbd-rp-ref" type="text" class="fi ipx-field ipx-rp-input" maxlength="${PAYMENT_REF_MAX}" autocomplete="off">
-        <label class="ipx-rp-confirm"><input id="nbd-rp-receipt" type="checkbox" class="ipx-rp-check"> Email a receipt to the customer</label>
+        <div class="ipx-m11 ipx-rp-note" data-rp-receipt-note>A receipt is drafted — nothing is sent until you tap Send receipt.</div>
         <button id="nbd-rp-save" type="button" class="btn btn-green ipx-btn-save">Save payment</button>
         <button id="nbd-rp-cancel" type="button" class="btn btn-ghost ipx-btn-full44">Cancel</button>
       </div>
@@ -3358,10 +3651,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             leadId, lead, target, totalCents, amount, method, payer, at,
             invoiceId: (target.kind === 'existing') ? (invSel ? invSel.value : target.invoices[0].id) : null,
             reference: $('#nbd-rp-ref').value,
-            // Default OFF (unticked): no surprise receipt for an old check.
-            sendReceipt: $('#nbd-rp-receipt').checked === true,
           });
-          _toast('Payment recorded', 'success');
+          _toast('Payment recorded — receipt drafted (tap Send receipt to email it)', 'success');
           mo.disconnect();
           closeModal();
           settle(true);
@@ -3384,6 +3675,20 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     createOrOpenJobInvoice,
     recordPaymentUI,
     recordPaymentCommit,
+    // Receipts: drafted, one-tap send (2026-10-04, tests/receipts-zelle-ach-2026-10-04.test.js)
+    receiptStateOf,
+    receiptKeyOf,
+    findReceiptPayment,
+    nbdInvoiceNumberOf,
+    receiptDetailsOf,
+    buildReceiptEmail,
+    markReceiptSent,
+    sendReceipt,
+    sendReceiptUI,
+    // Pay by bank (ACH) + Zelle lines (2026-10-04)
+    PAY_BY_BANK_LINE,
+    zelleTextFor,
+    achPendingText,
     recordPaymentTarget,
     jobValueInvoiceDoc,
     PAYERS,
@@ -3487,6 +3792,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           const idx = parseInt(t.dataset.ipIdx, 10);
           const rec = t.dataset.ipRec != null ? Number(t.dataset.ipRec) : NaN;
           if (typeof IP.attachProofUI === 'function' && Number.isInteger(idx)) IP.attachProofUI(id, idx, rec);
+          break;
+        }
+        case 'sendReceipt': {
+          const key = t.dataset.ipPay;
+          if (typeof IP.sendReceiptUI === 'function' && id && key) IP.sendReceiptUI(id, key);
           break;
         }
         case 'viewProof': {

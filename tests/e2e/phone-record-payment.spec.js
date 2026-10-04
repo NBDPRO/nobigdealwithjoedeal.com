@@ -99,8 +99,10 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     await expect(sheet.locator('[data-rp-target="jobValue"]')).toContainText('Confirm the job total');
     // jobValue is a SUGGESTION in an editable field, never used unconfirmed.
     await expect(sheet.locator('#nbd-rp-total')).toHaveValue('8200.00');
-    // The receipt email is OPT-IN here (old checks must not surprise customers).
-    await expect(sheet.locator('#nbd-rp-receipt')).not.toBeChecked();
+    // No "Email a receipt" box any more (Jo, 2026-10-04): the receipt is a
+    // DRAFT until the rep taps Send receipt.
+    await expect(sheet.locator('#nbd-rp-receipt')).toHaveCount(0);
+    await expect(sheet.locator('[data-rp-receipt-note]')).toContainText('nothing is sent until you tap Send receipt');
 
     // Every target is thumb-sized and nothing runs off a 390px screen.
     const small = await page.evaluate(() => [...document.querySelectorAll('#nbd-recordpay-modal button, #nbd-recordpay-modal input:not([type=checkbox]), #nbd-recordpay-modal label.ipx-rp-confirm')]
@@ -182,8 +184,38 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     await safeWaitForFunction(page, () => document.documentElement.style.opacity === '1', { timeout: 25_000 });
     await expect(page.locator('#timelineList')).toContainText('Payment received: $3,000.00 by Zelle', { timeout: 25_000 });
 
-    // Nothing was emailed or texted: the lead HAS an email, the receipt box was left
-    // unticked, and no send function was called.
-    expect(fnCalls.filter((u) => /sendEmail|sendSMS|sendSms|send-email|send-sms/i.test(u))).toEqual([]);
+    // Nothing was emailed or texted by RECORDING the payment: the lead HAS an
+    // email and no send function was called (2026-10-04: never, from any path).
+    const sends = () => fnCalls.filter((u) => /sendEmail|sendSMS|sendSms|send-email|send-sms/i.test(u));
+    expect(sends()).toEqual([]);
+
+    // The drafted receipt: "Send receipt" on the invoice row (and on the
+    // payment's timeline line), thumb-sized, on a 390px screen.
+    const rowBtn = page.locator('#invoiceList [data-send-receipt]');
+    await expect(rowBtn).toHaveCount(1, { timeout: 25_000 });
+    await expect(page.locator('#timelineList [data-send-receipt]')).toHaveCount(1);
+    await rowBtn.scrollIntoViewIfNeeded();
+    const rb = await rowBtn.boundingBox();
+    expect(rb && rb.height >= 44 && rb.x >= 0 && rb.x + rb.width <= 390).toBeTruthy();
+    await page.screenshot({ path: test.info().outputPath('send-receipt-row-390.png') });
+    // One tap → exactly ONE sendEmail call, naming the lead + invoice (#2120).
+    const emailBodies = [];
+    page.on('request', (req) => { if (/sendEmail/i.test(req.url())) emailBodies.push(req.postData() || ''); });
+    await rowBtn.click();
+    await expect.poll(() => sends().length, { timeout: 20_000 }).toBe(1);
+    expect(sends()[0]).toMatch(/sendEmail/i);
+    const body = JSON.parse(emailBodies[0] || '{}');
+    const payload = body.data || body;
+    expect(payload).toMatchObject({ to: 'delivered@resend.dev', leadId, invoiceId: inv[0].id, kind: 'receipt' });
+    expect(String(payload.subject || '')).not.toContain(inv[0].id);
+    // Marked sent: the buttons go away, and a second tap is impossible.
+    await expect(page.locator('#invoiceList [data-send-receipt]')).toHaveCount(0, { timeout: 20_000 });
+    const sent = await safeEvaluate(page, async (invId) => {
+      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const d = await fs.getDoc(fs.doc(window.db, 'invoices', invId));
+      return ((d.data().payments || [])[0] || {}).receipt || null;
+    }, inv[0].id);
+    expect(sent && sent.status).toBe('sent');
+    expect(sends().length).toBe(1);
   });
 });

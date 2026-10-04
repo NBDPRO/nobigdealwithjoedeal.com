@@ -24,6 +24,10 @@ window.NBDDocGen = {
     name: 'No Big Deal Home Solutions',
     phone: '(859) 420-7382',
     email: 'info@nobigdealwithjoedeal.com',
+    // Zelle has its own pair (Jo, 2026-10-04) — the documents email stays
+    // info@. company-profile.js brand.contact.zelle*; functions/zelle-contact.js.
+    zelleEmail: 'jd@nobigdealwithjoedeal.com',
+    zellePhone: '(859) 420-7382', // NBD COMPANY default — _resolveCompany() blanks it for any other tenant
     website: 'nobigdealwithjoedeal.com',
     tagline: 'No Big Deal — We\'ve Got You Covered',
     address: '', // Optional
@@ -72,11 +76,15 @@ window.NBDDocGen = {
         const contact = b.contact || {};
         const fb = isNbd
           ? base
-          : { phone: '', email: '', website: '', tagline: '', address: '' };
+          : { phone: '', email: '', website: '', tagline: '', address: '', zelleEmail: '', zellePhone: '' };
         return {
           name:    b.legalName,
           phone:   contact.phone   || fb.phone,
           email:   contact.email   || fb.email,
+          // Where Zelle goes. A tenant that set none gets '' and the
+          // templates fall back to `email`, as they always did.
+          zelleEmail: contact.zelleEmail || fb.zelleEmail || '',
+          zellePhone: contact.zellePhone || fb.zellePhone || '',
           website: contact.website || fb.website,
           tagline: b.tagline       || fb.tagline,
           address: contact.address || fb.address,

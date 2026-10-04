@@ -5922,6 +5922,10 @@
     const cWebsite  = cSiteRaw ? cSiteRaw.replace(/^https?:\/\//i, '').replace(/\/$/, '') : '';
     const cAddress  = cpv('cp_brand_address') || cpv('cp_businessAddress');
     const cMailing  = cpv('cp_brand_mailingAddress');
+    // Zelle pair (2026-10-04) — never mirrored into email / businessEmail.
+    const cZellePhone = cpv('cp_brand_zellePhone');
+    const cZelleEmailRaw = cpv('cp_brand_zelleEmail');
+    const cZelleEmail = cZelleEmailRaw ? cZelleEmailRaw.toLowerCase() : '';
     // Lockstep: keep the Letterhead top-levels equal to the resolved values. Only
     // write when a value is present so an unedited NBD field stays absent (it was
     // stripped above) and byte-identical; clearing a saved field is the accepted
@@ -5964,6 +5968,9 @@
     // a PO box on marketing mail and nothing at all on the letterhead. Blank
     // means "print no address", never a platform default.
     if (cMailing) contact.mailingAddress = cMailing;
+    // Where customers send Zelle (functions/zelle-contact.js reads these).
+    if (cZellePhone) contact.zellePhone = cZellePhone;
+    if (cZelleEmail) contact.zelleEmail = cZelleEmail;
     if (Object.keys(contact).length) brand.contact = contact;
 
     // AUTO-SEED legalName — belt-and-suspenders against the skip→Letterhead-only
@@ -6042,6 +6049,8 @@
     setCp('cp_brand_website', rawContact.website || '');
     setCp('cp_brand_address', rawContact.address || '');
     setCp('cp_brand_mailingAddress', rawContact.mailingAddress || '');
+    setCp('cp_brand_zellePhone', rawContact.zellePhone || '');
+    setCp('cp_brand_zelleEmail', rawContact.zelleEmail || '');
     // Color <input>s always report a value: seed from the raw override's colors
     // when present, else the NBD default swatch (cosmetic — an untouched picker
     // is never written, see _cpColorsTouched).

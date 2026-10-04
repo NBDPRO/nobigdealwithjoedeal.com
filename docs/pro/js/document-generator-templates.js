@@ -56,6 +56,7 @@
   let C = DG.COMPANY || {
     name: 'No Big Deal Home Solutions', phone: '(859) 420-7382',
     email: 'info@nobigdealwithjoedeal.com', website: 'nobigdealwithjoedeal.com',
+    zelleEmail: 'jd@nobigdealwithjoedeal.com', zellePhone: '(859) 420-7382',
     colors: { primary: '#1A3057', secondary: '#12223D', accent: '#BD5728' }
   };
   // NBD DOCUMENT STANDARD, locked 2026-09-07 — measured off the logo artwork.
@@ -459,6 +460,14 @@
   }
 
   // & and quotes too — used in alt="…" (security audit 2026-09-29).
+  // Where a Zelle payment goes (Jo, 2026-10-04): the company's Zelle pair —
+  // "(859) 420-7382 or jd@…" for NBD, never the info@ documents address.
+  // A tenant that set no Zelle pair falls back to its documents email, which
+  // is what every Zelle line printed before. '' → the line is left out.
+  function zelleTo() {
+    const t = [C.zellePhone, C.zelleEmail].map((v) => String(v || '').trim()).filter(Boolean).join(' or ');
+    return t || String(C.email || '').trim();
+  }
   function esc(s) { return String(s||'').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function money(n) { return '$' + (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   // Cents helpers (2026-10-04): money math stays in integer cents (CLAUDE.md).
@@ -1236,7 +1245,7 @@
           amount: money(balance),
           alternatives: [
             'Check — payable to <strong>' + esc(C.name) + '</strong>',
-            C.email ? 'Zelle — ' + esc(C.email) : '',
+            zelleTo() ? 'Zelle — ' + esc(zelleTo()) : '',
             d.payUrl ? '' : 'Credit Card — ask for secure link',
             _invFinancePartner ? 'Financing — through ' + esc(_invFinancePartner) : '',
           ],
@@ -2730,7 +2739,7 @@
         <ol style="font-size:13px;line-height:2;padding-left:24px;color:#444;">
           <li>All payments are due as specified above. Late payments may be subject to a ${esc(latePaymentText)}.</li>
           <li>Checks should be made payable to <strong>${C.name}</strong>.</li>
-          ${C.email ? `<li>For Zelle payments, send to <strong>${C.email}</strong>.</li>` : ''}
+          ${zelleTo() ? `<li>For Zelle payments, send to <strong>${esc(zelleTo())}</strong>.</li>` : ''}
           <li>Credit card payments are accepted via secure link provided by ${C.name}. A convenience fee may apply.</li>
           ${financePartner ? `<li>Financing is available through ${esc(financePartner)}, subject to credit approval and separate terms.</li>` : ''}
           <li>Work will not commence until the deposit payment has been received and verified.</li>

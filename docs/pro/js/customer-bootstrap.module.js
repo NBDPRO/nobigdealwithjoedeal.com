@@ -1457,12 +1457,19 @@ async function loadTimeline(leadId, lead) {
     );
     noteSnap.docs.forEach(d => {
       const n = d.data();
+      // A payment's line (payment-timeline.js) carries a one-tap "Send
+      // receipt" until its receipt is sent (2026-10-04). Nothing is emailed
+      // when the payment is recorded. A legacy line keyed by a content hash
+      // (paymentId === the note id) cannot name its payment — no button.
+      const _rcpt = (n.type === 'payment' && n.invoiceId && n.paymentId && n.paymentId !== d.id && !n.receiptSentAt)
+        ? { invoiceId: String(n.invoiceId), key: String(n.paymentId) } : null;
       timeline.push({
         time: n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt || Date.now()),
         icon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cbx-ico13"><path d="M4 13.5V16h2.5l7-7L11 6.5l-7 7z"/><path d="M12.5 5l2.5 2.5"/></svg>',
         title: 'Note added',
         desc: (n.text || '').substring(0, 200),
-        type: 'note'
+        type: 'note',
+        receipt: _rcpt
       });
     });
   } catch (e) {
@@ -1501,6 +1508,7 @@ async function loadTimeline(leadId, lead) {
             <div class="timeline-title">${esc(item.title)}</div>
             <div class="timeline-desc">${esc(item.desc)}</div>
             <div class="timeline-time">${esc(item.time.toLocaleString())}</div>
+            ${item.receipt ? `<button type="button" class="doc-btn tl-send-receipt" data-send-receipt data-action="NBDCustomerInvoices.sendReceipt" data-arg="${esc(item.receipt.invoiceId)}" data-arg2="${esc(item.receipt.key)}">✉️ Send receipt</button>` : ''}
           </div>
         </div>
       `;

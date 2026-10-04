@@ -613,7 +613,7 @@ async function _nbdInvoicePipeline(fnName) {
   if (!window._db && window.db) window._db = window.db;
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-    await window.ScriptLoader.load('js/invoice-pipeline.js?v=15');
+    await window.ScriptLoader.load('js/invoice-pipeline.js?v=16');
   }
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     throw new Error('InvoicePipeline.' + fnName + ' missing after load');
@@ -643,6 +643,27 @@ window.NBDCustomerInvoices = {
       if (typeof window.showToast === 'function') window.showToast('Could not open the payment form. Reload and try again.', 'error');
     }
   },
+  // "Send receipt" (2026-10-04): ONE tap sends that payment's drafted
+  // receipt — email with leadId + invoiceId (the #2120 recipient binding),
+  // or the share sheet with no email on file. Recording a payment never
+  // emails anyone; this tap is the only way a receipt goes out.
+  sendReceipt: async function (invoiceId, key) {
+    if (!invoiceId || !key) return;
+    try {
+      const IP = await _nbdInvoicePipeline('sendReceiptUI');
+      const sent = await IP.sendReceiptUI(invoiceId, key);
+      if (sent) {
+        const leadId = window._customerId;
+        const reloadInv = window.loadInvoices;
+        const reloadTl = window.loadTimeline;
+        if (typeof reloadInv === 'function' && leadId) await reloadInv(leadId);
+        if (typeof reloadTl === 'function' && leadId && window._currentLead) await reloadTl(leadId, window._currentLead);
+      }
+    } catch (err) {
+      console.error('[invoices] sendReceipt failed', err);
+      if (typeof window.showToast === 'function') window.showToast('Could not send the receipt. Reload and try again.', 'error');
+    }
+  },
   // "Send balance" on a part-paid invoice: the existing send sheet (email /
   // text / portal) — one tap to choose, nothing goes out on its own.
   sendBalance: async function (invoiceId) {
@@ -668,7 +689,7 @@ window.NBDCustomerInvoices = {
       if (!window._db && window.db) window._db = window.db;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=15');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=16');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -694,7 +715,7 @@ window.NBDCustomerInvoices = {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=15');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=16');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -799,6 +820,31 @@ window.loadInvoices = async function(leadId) {
     // on a signed contract), void, cancelled or deleted.
     let totalOwed = 0;
     const isDepositDraft = (inv) => !!(inv && inv.status === 'draft' && inv.autoDraft && inv.autoDraft.kind === 'deposit_on_sign');
+    // Receipts (2026-10-04): every payment has a DRAFT receipt until the rep
+    // taps Send receipt — nothing is emailed when money is recorded. Same
+    // rules as invoice-pipeline.js receiptStateOf / receiptKeyOf (that file
+    // is lazy-loaded here, so the two small rules are inlined).
+    const _payIdOf = (p) => String((p && (p.paymentId || p.paymentIntentId || p.stripeRef)) || '');
+    const receiptBtns = (inv) => {
+      const pays = Array.isArray(inv.payments) ? inv.payments : [];
+      const drafts = [];
+      pays.forEach((p, i) => {
+        if (!p || !(Number(p.amount) > 0) || p.achStatus === 'failed' || p.reverted === true) return;
+        if (p.receipt && p.receipt.status === 'sent') return;
+        drafts.push({ key: _payIdOf(p) || ('idx:' + i), amount: Number(p.amount) });
+      });
+      return drafts.map((r) => '<button type="button" class="doc-btn ipx-send-receipt" data-send-receipt'
+        + ' data-action="NBDCustomerInvoices.sendReceipt" data-arg="' + esc(inv.id) + '" data-arg2="' + esc(r.key) + '"'
+        + ' title="Email this payment\'s receipt to the customer">Send receipt'
+        + (drafts.length > 1 ? ' ($' + r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ')' : '') + '</button>').join('');
+    };
+    // A bank payment (ACH) in flight: shown, never counted as paid.
+    const achPendingHtml = (inv) => {
+      const p = inv && inv.achPending;
+      if (!p || !(Number(p.amountCents) > 0)) return '';
+      return '<div class="invoice-paynote" data-ach-pending>Bank payment $' + (Number(p.amountCents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })
+        + ' processing — not paid until it clears</div>';
+    };
     const _J = window.NBDJurisdiction;
     const _payLead = (window._currentLead && typeof window._currentLead === 'object'
       && (!window._customerId || window._customerId === leadId)) ? window._currentLead : null;
@@ -853,7 +899,10 @@ window.loadInvoices = async function(leadId) {
             ` : ''}
             ${safeStatus !== 'paid' && safePayUrl ? `
               <a href="${esc(safePayUrl)}" target="_blank" rel="noopener noreferrer" class="doc-btn">Pay</a>
+              <div class="invoice-paynote" data-pay-by-bank>Pay by bank (ACH) — lower fees</div>
             ` : ''}
+            ${achPendingHtml(inv)}
+            ${receiptBtns(inv)}
             ${safeStatus !== 'paid' ? `
               <button type="button" class="doc-btn" data-action="NBDCustomerInvoices.markPaid" data-arg="${esc(inv.id)}"
                       title="Record a check or cash payment">Mark Paid</button>
