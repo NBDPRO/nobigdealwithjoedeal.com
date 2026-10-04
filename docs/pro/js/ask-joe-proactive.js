@@ -10,17 +10,11 @@
 //       5-day no-reply, supplement approved)
 //   User configurable
 //
-// This module coordinates three things:
-//   1. Morning briefing aggregator — at 7am (or on demand)
-//      pulls from every data source and builds a prioritized
-//      summary card
-//   2. Event watcher — runs on a timer, scans for new signals
-//      (overdue follow-ups, storm alerts, inbox responses)
-//      and fires notifications
-//   3. Notification queue — unified queue for both proactive
-//      briefings and reactive alerts, surfaced by the UI
-//
-// Exposes AskJoeProactive.
+// What is left (2026-10-03): the morning briefing aggregator,
+// on demand only. The event watcher timer, the 7am timer and the
+// notification queue were removed — nothing read the queue; the
+// Today list on Home (today-plan.js) is the morning view. See
+// the note at the bottom of this file.
 // ============================================================
 
 (function () {
@@ -146,56 +140,6 @@
     } catch (e) {
       return false;
     }
-  }
-
-  // ═════════════════════════════════════════════════════════
-  // Notification queue
-  // ═════════════════════════════════════════════════════════
-
-  const QUEUE_KEY = 'nbd_notification_queue';
-  const MAX_QUEUE = 50;
-
-  function getQueue() {
-    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
-    catch (e) { return []; }
-  }
-
-  function pushToQueue(alert) {
-    const queue = getQueue();
-    // Dedupe by id if provided
-    if (alert.id && queue.find(a => a.id === alert.id)) return false;
-    const entry = Object.assign({
-      id: 'alert_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      createdAt: new Date().toISOString(),
-      read: false,
-      dismissed: false
-    }, alert);
-    queue.unshift(entry);
-    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(0, MAX_QUEUE))); }
-    catch (e) {}
-    // Fire UI toast if available
-    if (typeof window.showToast === 'function' && alert.priority === 'high') {
-      window.showToast(alert.title + ' — ' + (alert.body || ''), 'warning');
-    }
-    return entry;
-  }
-
-  function markAlertRead(id) {
-    const queue = getQueue();
-    const entry = queue.find(a => a.id === id);
-    if (entry) {
-      entry.read = true;
-      try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)); } catch (e) {}
-    }
-  }
-
-  function dismissAlert(id) {
-    const queue = getQueue().filter(a => a.id !== id);
-    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)); } catch (e) {}
-  }
-
-  function getUnreadCount() {
-    return getQueue().filter(a => !a.read && !a.dismissed).length;
   }
 
   // ═════════════════════════════════════════════════════════
@@ -511,267 +455,26 @@
   }
 
   // ═════════════════════════════════════════════════════════
-  // Event watcher — scans for new signals on a timer
-  // ═════════════════════════════════════════════════════════
-
-  let watcherTimer = null;
-  let lastScan = null;
-
-  function startWatcher() {
-    const prefs = loadPrefs();
-    if (!prefs.enabled) return;
-    if (watcherTimer) clearInterval(watcherTimer);
-    // Run immediately, then on interval
-    runWatcherScan();
-    watcherTimer = setInterval(runWatcherScan, prefs.eventWatcherInterval);
-    console.log('[AskJoeProactive] Event watcher started (interval:', prefs.eventWatcherInterval / 1000, 'sec)');
-  }
-
-  function stopWatcher() {
-    if (watcherTimer) {
-      clearInterval(watcherTimer);
-      watcherTimer = null;
-    }
-  }
-
-  function runWatcherScan() {
-    const prefs = loadPrefs();
-    if (!prefs.enabled) return;
-    lastScan = new Date().toISOString();
-
-    // Scan storms
-    if (prefs.triggers.stormAlerts && window.StormIntegration) {
-      try {
-        window.StormIntegration.scanForNewAlerts();
-      } catch (e) {}
-    }
-
-    // Scan for overdue follow-ups (only once per day)
-    if (prefs.triggers.overdueFollowUps && shouldFireOnceToday('overdue_scan')) {
-      scanOverdueFollowUps(prefs);
-    }
-
-    // Scan for pending estimates (once per day)
-    if (prefs.triggers.estimatesPending && shouldFireOnceToday('pending_estimate_scan')) {
-      scanPendingEstimates(prefs);
-    }
-  }
-
-  function shouldFireOnceToday(key) {
-    const today = new Date().toISOString().split('T')[0];
-    const last = localStorage.getItem('nbd_proactive_' + key);
-    if (last === today) return false;
-    try { localStorage.setItem('nbd_proactive_' + key, today); } catch (e) {}
-    return true;
-  }
-
-  function scanOverdueFollowUps(prefs) {
-    const leads = window._leads || [];
-    const now = new Date();
-    const overdueMs = prefs.triggers.overdueThresholdDays * 24 * 60 * 60 * 1000;
-    const overdue = leads.filter(lead => {
-      const last = _lastTouch(lead);
-      if (!last) return false;
-      const ageMs = now - last;
-      return ageMs > overdueMs && !_isTerminal(lead);
-    });
-    if (overdue.length === 0) return;
-    pushToQueue({
-      id: 'overdue_scan_' + now.toISOString().split('T')[0],
-      type: 'overdue_batch',
-      priority: 'high',
-      title: `${overdue.length} overdue follow-up${overdue.length > 1 ? 's' : ''}`,
-      body: `Leads that haven't been contacted in ${prefs.triggers.overdueThresholdDays}+ days`,
-      leadIds: overdue.map(l => l.id),
-      action: 'view_overdue'
-    });
-  }
-
-  function scanPendingEstimates(prefs) {
-    const leads = window._leads || [];
-    const now = new Date();
-    const pendingMs = prefs.triggers.estimatePendingThresholdDays * 24 * 60 * 60 * 1000;
-    const pending = leads.filter(lead => {
-      if (!_isEstimateSent(lead)) return false;
-      const started = _stageStarted(lead);
-      if (!started) return false;
-      const ageMs = now - started;
-      return ageMs > pendingMs;
-    });
-    if (pending.length === 0) return;
-    pushToQueue({
-      id: 'pending_estimate_scan_' + now.toISOString().split('T')[0],
-      type: 'pending_estimates',
-      priority: 'medium',
-      title: `${pending.length} estimate${pending.length > 1 ? 's' : ''} awaiting response`,
-      body: `Sent ${prefs.triggers.estimatePendingThresholdDays}+ days ago, no reply`,
-      leadIds: pending.map(l => l.id),
-      action: 'follow_up_pending'
-    });
-  }
-
-  // ═════════════════════════════════════════════════════════
-  // Morning briefing trigger (daily at 7am or on demand)
-  // ═════════════════════════════════════════════════════════
-
-  function triggerMorningBriefing() {
-    const prefs = loadPrefs();
-    if (!prefs.enabled) return null;
-
-    const briefing = buildMorningBriefing();
-
-    // Save as notification
-    pushToQueue({
-      id: 'morning_briefing_' + new Date().toISOString().split('T')[0],
-      type: 'morning_briefing',
-      priority: 'medium',
-      title: briefing.greeting + ' — ' + briefing.date,
-      body: briefing.summary,
-      briefing: briefing,
-      action: 'view_briefing'
-    });
-
-    return briefing;
-  }
-
-  /**
-   * Schedule the morning briefing for the next 7am (or user-preferred time).
-   * Runs on a timer that fires at the configured time every day.
-   */
-  let briefingTimer = null;
-  function scheduleMorningBriefing() {
-    if (briefingTimer) clearTimeout(briefingTimer);
-    const prefs = loadPrefs();
-    if (!prefs.enabled || !prefs.channels.morningDigest) return;
-
-    const [hh, mm] = (prefs.morningBriefingTime || '07:00').split(':').map(Number);
-    const now = new Date();
-    const next = new Date();
-    next.setHours(hh, mm, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
-    const delay = next - now;
-
-    briefingTimer = setTimeout(() => {
-      // Don't fire if already fired today
-      if (shouldFireOnceToday('morning_briefing')) {
-        triggerMorningBriefing();
-      }
-      scheduleMorningBriefing();  // Schedule next day
-    }, delay);
-    console.log('[AskJoeProactive] Morning briefing scheduled for', next.toLocaleString());
-  }
-
-  // ═════════════════════════════════════════════════════════
-  // Event trigger helpers — call these from other modules
-  // ═════════════════════════════════════════════════════════
-
-  function triggerSupplementApproved(supplement) {
-    pushToQueue({
-      type: 'supplement_approved',
-      priority: 'high',
-      title: `✓ Supplement approved: $${supplement.supplementTotal.toLocaleString()}`,
-      body: `Supplement #${supplement.version} for claim ${supplement.parentEstimateId}`,
-      supplementId: supplement.id,
-      action: 'view_supplement'
-    });
-  }
-
-  function triggerSupplementDenied(supplement) {
-    pushToQueue({
-      type: 'supplement_denied',
-      priority: 'high',
-      title: `✗ Supplement denied`,
-      body: `Supplement #${supplement.version} — ${supplement.submission.responseNotes || 'No reason given'}`,
-      supplementId: supplement.id,
-      action: 'rebuttal_playbook'
-    });
-  }
-
-  // Form-created leads carry firstName/lastName, not `name`.
-  function leadName(lead) {
-    return ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || lead.name || 'Unknown';
-  }
-
-  function triggerHotLeadAlert(lead) {
-    pushToQueue({
-      type: 'hot_lead',
-      priority: 'high',
-      title: `🔥 Hot lead: ${leadName(lead)}`,
-      body: `Score ${lead.leadScore} · ${lead.stage}`,
-      leadId: lead.id,
-      action: 'view_lead'
-    });
-  }
-
-  function triggerInboundMessage(lead, channel) {
-    pushToQueue({
-      type: 'inbound_message',
-      priority: 'medium',
-      title: `${channel === 'sms' ? '💬' : channel === 'email' ? '📧' : '📞'} ${leadName(lead)} replied`,
-      body: `${channel} · ${lead.stage}`,
-      leadId: lead.id,
-      action: 'view_lead'
-    });
-  }
-
-  // ═════════════════════════════════════════════════════════
   // Public API
   // ═════════════════════════════════════════════════════════
 
+  // 2026-10-03 (Today home): the event watcher (a 5-minute setInterval), the
+  // 7am briefing timer and the localStorage notification queue they wrote to
+  // are gone. Nothing ever read the queue (it is not the bell), so the
+  // watcher re-scanned every lead every five minutes to fill a list no
+  // screen showed — and toasted "N overdue follow-ups" by a THIRD follow-up
+  // rule (3 days untouched). The Today list (today-plan.js) is the morning
+  // briefing now. buildMorningBriefing stays as the reference briefing (its
+  // tests pin how it reads job records); it is not on window (Globals Tranche 1)
+  // and nothing here runs on its own. The Ask Joe chat is untouched.
   const AskJoeProactive = {
     // Preferences
     loadPrefs,
     savePrefs,
     DEFAULT_PREFS,
 
-    // Morning briefing
+    // Morning briefing (on demand only)
     buildMorningBriefing,
-    triggerMorningBriefing,
-    scheduleMorningBriefing,
-
-    // Event watcher
-    startWatcher,
-    stopWatcher,
-    runWatcherScan,
-
-    // Notification queue
-    getQueue,
-    pushToQueue,
-    markAlertRead,
-    dismissAlert,
-    getUnreadCount,
-
-    // Event triggers (call from other modules)
-    triggerSupplementApproved,
-    triggerSupplementDenied,
-    triggerHotLeadAlert,
-    triggerInboundMessage,
-
-    // Internal state
-    getLastScan: () => lastScan,
-    isWatcherRunning: () => !!watcherTimer
   };
-
-  // Auto-start on page load if enabled
-  if (typeof window !== 'undefined' && document.readyState !== 'loading') {
-    setTimeout(() => {
-      const prefs = loadPrefs();
-      if (prefs.enabled) {
-        startWatcher();
-        scheduleMorningBriefing();
-      }
-    }, 2000);
-  } else {
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => {
-        const prefs = loadPrefs();
-        if (prefs.enabled) {
-          startWatcher();
-          scheduleMorningBriefing();
-        }
-      }, 2000);
-    });
-  }
-
-  console.log('[AskJoeProactive] Ready — morning briefing + event watcher + notification queue.');
+  void AskJoeProactive;
 })();

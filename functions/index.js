@@ -455,6 +455,9 @@ exports.moneyPaperOnInvoice = require('./money-paper').moneyPaperOnInvoice;
 exports.jobsMirrorOnLead = require('./jobs-mirror').jobsMirrorOnLead;
 // Stage 2b: a job changed → promote the next open job when the active one is done.
 exports.jobsOnJobWrite = require('./jobs-mirror').jobsOnJobWrite;
+// Today home (2026-10-03): a new lead task gets its lead's userId/companyId
+// (the one collection-group task load filters on them).
+exports.tasksStampOwner = require('./tasks-stamp').tasksStampOwner;
 
 // Google Calendar sync (2026-09-29, calendar hub Phase 2): CRM jobs + adjuster
 // meetings → an "NBD Jobs" calendar the service account owns and shares with

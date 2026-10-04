@@ -297,7 +297,9 @@ function makeDb() {
   // ══════════════════════════════════════════════════════════════════
   console.log('\n3. phone-less door-knock leads and follow-ups');
   {
-    const sb = { window: {} };
+    // 2026-10-03: the rule lives in today-plan.js (followUpDue /
+    // isUnreachableKnock); crm-pipeline's two functions delegate to it.
+    const sb = { window: { NBDTodayPlan: require(path.join(__dirname, '..', 'docs', 'pro', 'js', 'today-plan.js')) } };
     vm.createContext(sb);
     vm.runInContext([lift(CP, '_followUpDay'), lift(CP, '_unreachableKnockLead'), lift(CP, '_overdueFollowUps'),
       'globalThis.__od = _overdueFollowUps; globalThis.__uk = _unreachableKnockLead;'].join('\n'), sb);
@@ -315,8 +317,10 @@ function makeDb() {
     ok('a phone-less non-knock lead still is (rule is knock-only)', /w1/.test(ids));
     ok('a won lead still is not (unchanged)', !/c1/.test(ids));
     ok('the rule is exported for the KPI tile + bell', /window\.nbdUnreachableKnockLead = _unreachableKnockLead;/.test(CP));
-    ok('analytics KPI uses it', /nbdUnreachableKnockLead\(l\)\) return false;/.test(read('docs/pro/js/analytics-kpi.js')));
-    ok('follow-up notifications use it', /nbdUnreachableKnockLead\(l\)\) return;/.test(read('docs/pro/js/crm-snooze.js')));
+    // 2026-10-03: both now call THE follow-up rule (today-plan.js followUpDue),
+    // which applies the knock rule (tests/today-plan-2026-10-03.test.js runs it).
+    ok('analytics KPI uses it (through followUpDue)', /window\.NBDTodayPlan\.followUpDue/.test(read('docs/pro/js/analytics-kpi.js')));
+    ok('follow-up notifications use it (through followUpDue)', /P\.followUpDue\(l, today\.getTime\(\)\)/.test(read('docs/pro/js/crm-snooze.js')) && /!P\.isUnreachableKnock\(l\)/.test(read('docs/pro/js/crm-snooze.js')));
   }
   {
     const D2D = read('docs/pro/js/d2d-tracker-core-2026b.js');
