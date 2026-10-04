@@ -20,7 +20,8 @@
  *   - A tenant CUSTOM stage carrying stageRole 'won' does the same.
  *
  * So the homeowner tapped five stars on a finished roof and was told it wasn't
- * finished. Both gates now resolve through one `progressKeyFor(lead)`.
+ * finished. Both gates now resolve through one resolver — since 2026-10-03
+ * functions/homeowner-progress.js, whose gate is "paid in full".
  *
  * ── 2. The homeowner's own photo, as a broken tile ──
  *
@@ -48,55 +49,28 @@ function assert(label, cond, detail) {
 }
 function group(name, fn) { console.log('\n' + name); fn(); }
 
-/* ── lift progressKeyFor together with the two literals it reads ── */
-function sliceBetween(from, to) {
-  const a = SRC.indexOf(from);
-  const b = SRC.indexOf(to, a);
-  if (a < 0 || b < 0) return null;
-  return SRC.slice(a, b + to.length);
-}
-const progressBlock = sliceBetween('const HOMEOWNER_PROGRESS = [', '\nfunction progressKeyFor(lead) {')
-  && SRC.slice(SRC.indexOf('const HOMEOWNER_PROGRESS = ['),
-    SRC.indexOf('\n}\n', SRC.indexOf('function progressKeyFor(lead) {')) + 3);
+/* ── The resolver: functions/homeowner-progress.js (2026-10-03 rebuild).
+   Required and RUN, not lifted — it is a pure module. Since the rebuild
+   "complete enough to rate" means PAID IN FULL (paidInFullFor), not "final
+   photos taken"; the defect below is still the thing guarded: one gate. ── */
+const HP = require(path.join(ROOT, 'functions', 'homeowner-progress.js'));
+const paid = (lead, invoices) => HP.paidInFullFor(lead, invoices || []);
+const keyFor = (lead, invoices) => HP.resolveHomeownerProgress(lead, { invoices: invoices || [] }).currentKey;
 
-group('The resolver is present and liftable', () => {
-  assert('found HOMEOWNER_PROGRESS + STAGE_TO_PROGRESS + progressKeyFor at module scope',
-    !!progressBlock && progressBlock.indexOf('function progressKeyFor(lead)') > -1
-      && progressBlock.indexOf('STAGE_TO_PROGRESS') > -1,
-    'if these moved, update the extractor — do NOT delete the suite');
+group('The resolver is present', () => {
+  assert('homeowner-progress.js exports resolveHomeownerProgress + paidInFullFor',
+    typeof HP.resolveHomeownerProgress === 'function' && typeof HP.paidInFullFor === 'function');
 });
-if (!progressBlock) {
-  console.log('\ncannot continue'); console.log(passed + ' passed, ' + (failed + 1) + ' failed');
-  process.exit(1);
-}
-const ctx = { require: (m) => (m === './stage-roles' ? stageRoles : require(m)) };
-vm.createContext(ctx);
-vm.runInContext(progressBlock + '\nthis.__k = progressKeyFor;', ctx);
-const keyFor = ctx.__k;
 
 /* ══════════════════════════════════════════════════════════════════
    1. The resolver agrees with itself across every stage shape
    ══════════════════════════════════════════════════════════════════ */
-group('Built-in stages map as before (no regression from the hoist)', () => {
-  const cases = [
-    ['new', 'inspected'], ['contacted', 'inspected'], ['inspected', 'inspected'],
-    ['estimate_submitted', 'estimate_sent'], ['negotiating', 'estimate_sent'],
-    ['contract_signed', 'contract_signed'], ['permit_pulled', 'contract_signed'],
-    ['crew_scheduled', 'install'], ['install_in_progress', 'install'],
-    ['final_photos', 'complete'], ['final_payment', 'complete'],
-    ['deductible_collected', 'complete'], ['closed', 'complete'],
-  ];
-  const wrong = cases.filter(([stage, want]) => keyFor({ stage }) !== want)
-    .map(([s, w]) => s + ' → ' + keyFor({ stage: s }) + ' (want ' + w + ')');
-  assert('all ' + cases.length + ' built-in stages resolve unchanged', wrong.length === 0,
-    wrong.join('; '));
-});
-
-group('The legacy display stages that broke it', () => {
-  // These are NOT keys in STAGE_TO_PROGRESS, so they take the role fallback.
+group('The legacy display stages that broke it are still rateable', () => {
+  // These are NOT keys in STAGE_TO_STEP; they resolve through the legacy
+  // map. A legacy "Complete" with nothing owed is a finished, paid job.
   ['Complete', 'Closed Won', 'Won', 'Closed', 'closed_won', 'closed-won'].forEach((stage) => {
-    assert('"' + stage + '" resolves to complete', keyFor({ stage }) === 'complete',
-      'got ' + keyFor({ stage }));
+    assert('"' + stage + '" with nothing owed is paid in full (rateable)', paid({ stage }) === true,
+      'got key ' + keyFor({ stage }));
   });
   // ...and the OLD submit gate's literal list would have refused every one.
   const oldList = ['final_photos', 'deductible_collected', 'final_payment', 'closed'];
@@ -107,44 +81,46 @@ group('The legacy display stages that broke it', () => {
 });
 
 group('Tenant custom stages resolve by their persisted role', () => {
-  assert("a custom stage with stageRole 'won' is complete",
-    keyFor({ stage: 'Roof On & Invoiced', stageRole: 'won' }) === 'complete');
-  assert("a custom stage with stageRole 'job' is install",
-    keyFor({ stage: 'Crew Dispatched', stageRole: 'job' }) === 'install');
-  assert("a custom stage with stageRole 'active' is inspected",
-    keyFor({ stage: 'Chasing Adjuster', stageRole: 'active' }) === 'inspected');
-  assert('an unknown stage with no role is inspected, not complete',
-    keyFor({ stage: 'Whatever The Tenant Typed' }) === 'inspected',
+  assert("a custom stage with stageRole 'won' and nothing owed is rateable",
+    paid({ stage: 'Roof On & Invoiced', stageRole: 'won' }) === true);
+  assert("a custom stage with stageRole 'won' and money owed is NOT",
+    paid({ stage: 'Roof On & Invoiced', stageRole: 'won' }, [{ balanceDue: 1200 }]) === false);
+  assert("a custom stage with stageRole 'job' claims only 'signed'",
+    keyFor({ stage: 'Crew Dispatched', stageRole: 'job' }) === 'signed');
+  assert("a custom stage with stageRole 'active' is inspection",
+    keyFor({ stage: 'Chasing Adjuster', stageRole: 'active' }) === 'inspection');
+  assert('an unknown stage with no role is inspection, not paid',
+    keyFor({ stage: 'Whatever The Tenant Typed' }) === 'inspection' && paid({ stage: 'Whatever The Tenant Typed' }) === false,
     'defaulting an unknown stage to complete would be the worst possible failure');
-  assert('a lost lead is not complete',
-    keyFor({ stage: 'lost', stageRole: 'lost' }) !== 'complete');
+  assert('a lost lead is not rateable', paid({ stage: 'lost', stageRole: 'lost' }) === false);
 });
 
 group('It does not throw on the degenerate inputs a real lead can have', () => {
-  assert('no stage at all → inspected', keyFor({}) === 'inspected');
-  assert('null lead does not throw', keyFor(null) === 'inspected');
+  assert('no stage at all → inspection', keyFor({}) === 'inspection');
+  assert('null lead does not throw', keyFor(null) === 'inspection');
   assert('_stageKey wins over stage, as the rest of the file assumes',
-    keyFor({ _stageKey: 'closed', stage: 'new' }) === 'complete');
+    keyFor({ _stageKey: 'closed', stage: 'new' }) === 'review');
 });
 
 /* ══════════════════════════════════════════════════════════════════
-   2. Both gates now go through it — the coupling
+   2. Both gates go through it — the coupling
    ══════════════════════════════════════════════════════════════════ */
 group('One owner, two call sites', () => {
-  assert('the portal view computes progressKey through the resolver',
-    /const progressKey = progressKeyFor\(lead\);/.test(SRC));
-  assert('canRate is derived from that same progressKey',
-    /canRate: progressKey === 'complete'/.test(SRC));
+  assert('the portal view resolves progress through the module',
+    /const hp = resolveHomeownerProgress\(lead, \{/.test(SRC));
+  assert('canRate is derived from that same resolution',
+    /canRate: hp\.paidInFull,/.test(SRC));
   assert('the rating submit gate resolves through it too',
-    /if \(progressKeyFor\(lead\) !== 'complete'\) \{/.test(SRC));
+    /if \(!paidInFullFor\(lead, ratingInvoices\)\) \{/.test(SRC));
+  assert('both read the SAME tenant-filtered invoice list builder',
+    /const tenantInvoices = _tenantInvoices\(invSnap\.docs, tenant\);/.test(SRC)
+      && /const ratingInvoices = _tenantInvoices\(invDocs, portalTenant\(tok, lead\)\);/.test(SRC));
 
   // The literal list must be gone, not merely bypassed — and the comment
   // explaining its removal quotes it, so a raw whole-file search matches the
   // explanation. Slice the region out of RAW source FIRST, then strip comments
   // from the slice only: a 40-line window can be reasoned about, and it cannot
-  // be satisfied by an unrelated match 2,000 lines away. A whole-file percentage
-  // guard was tried and is useless here — functions/portal.js is 43% comment
-  // lines, so any threshold either fails on correct code or proves nothing.
+  // be satisfied by an unrelated match 2,000 lines away.
   const from = SRC.indexOf('exports.submitCustomerRating');
   const to = SRC.indexOf('exports.', from + 10);
   assert('the submitCustomerRating region was located',
@@ -154,12 +130,12 @@ group('One owner, two call sites', () => {
     return !(t.startsWith('//') || t.startsWith('*') || t.startsWith('/*'));
   }).join('\n');
   assert('the sliced gate still contains its own code',
-    gate.indexOf('progressKeyFor(lead)') > -1 && gate.indexOf('not-complete') > -1);
+    gate.indexOf('paidInFullFor(lead') > -1 && gate.indexOf('not-complete') > -1);
   assert('no hardcoded completeness list survives in the submit gate',
-    gate.indexOf('final_photos') === -1,
+    gate.indexOf('final_photos') === -1 && gate.indexOf("'closed'") === -1,
     'the gate must not carry its own copy of what "complete" means');
-  const defs = (SRC.match(/^const STAGE_TO_PROGRESS = /gm) || []).length;
-  assert('STAGE_TO_PROGRESS is defined exactly once, at module scope', defs === 1,
+  const defs = (SRC.match(/STAGE_TO_STEP\s*=|STAGE_TO_PROGRESS\s*=/g) || []).length;
+  assert('portal.js carries no stage map of its own (the module owns it)', defs === 0,
     'found ' + defs);
 });
 
