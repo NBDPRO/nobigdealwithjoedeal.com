@@ -564,10 +564,16 @@ console.log('\nUsage caps — enforced with nudges (metering wired)');
   // stop at the cap — or a free tenant bulk-loads around the 10/mo cap
   // AND the imported leads never count against subsequent single adds.
   const imp = read('docs/pro/js/data-import.js');
-  assert('CSV import pre-gates through enforceGate (mirrors _saveLead)',
-    /NBDBilling\.enforceGate === 'function'[\s\S]{0,160}enforceGate\('leads', 'leads'\)/.test(imp));
-  assert('CSV import meters each created lead via trackUsage',
-    /NBDBilling\.trackUsage\('leads'\)/.test(imp),
+  // 2026-10-04 (tenant-ready, Jo-approved): imports run on a one-time
+  // onboarding allowance instead of the monthly cap. The pre-gate is the
+  // allowance + cap capacity (NBDBilling.importCapacity), and the METER is
+  // the server's: every imported lead carries meter:'import', which
+  // firestore.rules require and functions/lead-cap.js counts — a browser
+  // trackUsage would count it a second time.
+  assert('CSV import pre-gates through importCapacity (allowance, then the cap)',
+    /NBDBilling\.importCapacity === 'function'[\s\S]{0,200}importCapacity\(\)\.remaining/.test(imp));
+  assert('CSV import is metered by the server (meter: import), not a client trackUsage',
+    /meter: 'import'/.test(imp) && !/NBDBilling\.trackUsage\('leads'\)/.test(imp),
     'unmetered imports leave the server counter low — later adds under-gate');
   assert('CSV import stops at the cap and surfaces it on the done screen',
     /skippedCap/.test(imp) && /plan limit/i.test(imp),
