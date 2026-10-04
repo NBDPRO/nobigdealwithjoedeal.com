@@ -42,7 +42,7 @@ const { CORS_ORIGINS } = require('./handlers/_shared');
 const L = require('./social-logic');
 const SR = require('./stage-roles');
 const { makeAdapters } = require('./social-adapters');
-const { runPublisher } = require('./social-publisher');
+const { runPublisher, postBlockers: approvalBlockers } = require('./social-publisher');
 
 const META_PAGE_ACCESS_TOKEN = defineSecret('META_PAGE_ACCESS_TOKEN');
 const META_PAGE_ID = defineSecret('META_PAGE_ID');
@@ -280,6 +280,9 @@ exports.socialApprovePost = onCall(Object.assign({}, callOpts, { timeoutSeconds:
   if (L.PLATFORMS[post.platform] && L.PLATFORMS[post.platform].needsMedia && !(post.media || []).length) {
     throw new HttpsError('failed-precondition', L.PLATFORMS[post.platform].label + ' posts need a photo.');
   }
+  // Reel Studio: a reel's privacy gate + the AI-image rule (also re-checked at publish).
+  const block = await approvalBlockers(db, ctx.companyId, post);
+  if (block) throw new HttpsError('failed-precondition', block.message);
   const schedMs = Number(data.scheduledAtMs) || L.ms(post.scheduledAt) || 0;
   const status = schedMs ? 'scheduled' : 'approved';
   await ref.update({
@@ -344,7 +347,26 @@ exports.socialPublisher = onSchedule({
   });
 });
 
-exports.socialMedia = onRequest({ region: 'us-central1', maxInstances: 20, concurrency: 40, timeoutSeconds: 30, memory: '256MiB' }, async (req, res) => {
+// Only files written by prepareMedia() / Reel Studio's storeMedia(): a
+// re-encoded JPEG, or a rendered reel MP4 (ffmpeg, all metadata stripped).
+const MEDIA_PATH_RE = /^social-media\/[A-Za-z0-9_-]+\/[a-f0-9]{32}\.(jpg|mp4)$/;
+
+/**
+ * "bytes=a-b" → { start, end } within size, or null (serve the whole file).
+ * 'invalid' when the range cannot be satisfied (→ 416). Safari / iPhone
+ * plays <video> only from a server that answers Range with 206.
+ */
+function parseRange(header, size) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(header || '').trim());
+  if (!m || (m[1] === '' && m[2] === '')) return null;
+  let start, end;
+  if (m[1] === '') { const n = Number(m[2]); start = Math.max(0, size - n); end = size - 1; }
+  else { start = Number(m[1]); end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1); }
+  if (!(start >= 0) || start > end || start >= size) return 'invalid';
+  return { start, end };
+}
+
+exports.socialMedia = onRequest({ region: 'us-central1', maxInstances: 20, concurrency: 40, timeoutSeconds: 120, memory: '256MiB' }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('X-Content-Type-Options', 'nosniff');
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.status(405).send('Method not allowed'); return; }
@@ -354,10 +376,28 @@ exports.socialMedia = onRequest({ region: 'us-central1', maxInstances: 20, concu
     const db = getFirestore();
     const idx = await db.doc('social_media/' + key).get();
     const d = idx.exists ? idx.data() : null;
-    if (!d || typeof d.path !== 'string' || !/^social-media\/[A-Za-z0-9_-]+\/[a-f0-9]{32}\.jpg$/.test(d.path)) { res.status(404).send('Not found'); return; }
-    const [buf] = await getStorage().bucket().file(d.path).download();
-    res.set('Content-Type', 'image/jpeg');
+    if (!d || typeof d.path !== 'string' || !MEDIA_PATH_RE.test(d.path)) { res.status(404).send('Not found'); return; }
+    const file = getStorage().bucket().file(d.path);
     res.set('Cache-Control', 'public, max-age=86400');
+    if (d.path.endsWith('.mp4')) {
+      // Video: stream, with Range support (206) — never buffer a whole reel.
+      const [meta] = await file.getMetadata();
+      const size = Number(meta.size) || 0;
+      res.set('Content-Type', 'video/mp4');
+      res.set('Accept-Ranges', 'bytes');
+      const r = parseRange(req.headers && req.headers.range, size);
+      if (r === 'invalid') { res.set('Content-Range', 'bytes */' + size); res.status(416).end(); return; }
+      const start = r ? r.start : 0;
+      const end = r ? r.end : size - 1;
+      res.set('Content-Length', String(end - start + 1));
+      if (r) res.set('Content-Range', 'bytes ' + start + '-' + end + '/' + size);
+      res.status(r ? 206 : 200);
+      if (req.method === 'HEAD' || size === 0) { res.end(); return; }
+      file.createReadStream({ start, end }).on('error', () => { try { res.end(); } catch (_) {} }).pipe(res);
+      return;
+    }
+    const [buf] = await file.download();
+    res.set('Content-Type', 'image/jpeg');
     res.status(200).send(buf);
   } catch (e) {
     logger.warn('socialMedia: serve failed', { err: e && e.message });
@@ -365,4 +405,4 @@ exports.socialMedia = onRequest({ region: 'us-central1', maxInstances: 20, concu
   }
 });
 
-exports._test = { requireSocialManager, leadInCompany, prepareMedia, mediaUrl, cleanPlatforms };
+exports._test = { requireSocialManager, leadInCompany, leadPhotos, prepareMedia, mediaUrl, cleanPlatforms, approvalBlockers, parseRange, MEDIA_PATH_RE };

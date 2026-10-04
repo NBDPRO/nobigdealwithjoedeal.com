@@ -362,6 +362,34 @@ service firebase.storage {
       allow delete: if isOwner(uid);
     }
 
+    // ── REEL STUDIO UPLOADS (2026-10-04) ──────────────
+    // Path: reel-uploads/{companyId}/{uid}/{mediaId}
+    // Phone clips, photos and AI-made graphics for Reel Studio. The page
+    // asks reelStartUpload for a slot first (it writes companies/{c}/
+    // reel_media/{mediaId}); the reelIngestUpload trigger refuses any object
+    // without a matching slot, transcodes it to a metadata-stripped
+    // intermediate, and DELETES this raw file (it carries the phone's GPS).
+    // Write-once (create) by the uploader into their own folder, only for
+    // their own company as owner (solo: companyId == uid) or company_admin;
+    // never readable or deletable by any client. Resumable uploads finalise
+    // as one create. 500 MB cap.
+    match /reel-uploads/{companyId}/{uid}/{mediaId} {
+      allow read: if false;
+      allow create: if ownerWrites(uid)
+        && resource == null
+        && (companyId == uid
+            || (request.auth.token.get('companyId', '') == companyId
+                && request.auth.token.get('role', '') == 'company_admin')
+            || isAdmin())
+        && request.resource.size < 500 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('video/(mp4|quicktime|x-m4v|webm|3gpp)|image/(jpeg|png|webp|heic|heif)');
+      allow update, delete: if false;
+    }
+    // Rendered reels, intermediates and social copies are server-only
+    // (served through /api/social-media); the default deny below covers
+    // reel-work/ and social-media/.
+
     // ── DEFAULT DENY ──────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;

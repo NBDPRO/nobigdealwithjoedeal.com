@@ -70,6 +70,11 @@ async function run() {
     for (const st of ['draft', 'approved', 'scheduled', 'ready', 'publishing', 'posted', 'failed']) {
       await setDoc(doc(db, 'companies/co-48/social_posts/p48-' + st), P48(st, st === 'posted' ? { postUrl: 'https://www.facebook.com/1' } : {}));
     }
+    // §49 Reel Studio: an AI-graphic tip draft, a reel draft, a reel + its media.
+    await setDoc(doc(db, 'companies/co-48/social_posts/p49-ai'), P48('draft', { aiGenerated: true, kind: 'tip', media: [{ key: 'd'.repeat(32), role: 'ai_image' }] }));
+    await setDoc(doc(db, 'companies/co-48/social_posts/p49-reel'), P48('draft', { format: 'reel', reelId: 'r49', video: { key: 'a'.repeat(32) }, media: [{ key: 'a'.repeat(32), role: 'video' }], kind: 'job_showcase' }));
+    await setDoc(doc(db, 'companies/co-48/reels/r49'), { companyId: 'co-48', status: 'rendered', privacy: { status: 'flagged' }, output: { key: 'a'.repeat(32) } });
+    await setDoc(doc(db, 'companies/co-48/reel_media/m49'), { companyId: 'co-48', status: 'ready', kind: 'video' });
     await setDoc(doc(db, 'stripeLedger/ch_zz40'), { companyId: 'owner40', userId: 'owner40', kind: 'charge', amountCents: 145000, status: 'succeeded' });
     // §41 signed-document lock: a lead owned by owner41 in tenant owner41.
     await setDoc(doc(db, 'leads/lead41'), { userId: 'owner41', companyId: 'owner41', firstName: 'ZZ_QA', lastName: 'Lock' });
@@ -2366,6 +2371,23 @@ async function run() {
   await x48('owner writes the switches', 'allow', setDoc(doc(own48, 'companies/co-48/social_settings/config'), { enabled: true, platforms: { facebook: true } }));
   await x48('sales rep cannot flip the switches', 'deny', setDoc(doc(rep48, 'companies/co-48/social_settings/config'), { enabled: false }));
   await x48('nobody reads the media index from a client', 'deny', getDoc(doc(own48, 'social_media/' + 'a'.repeat(32))));
+  // ─── 49. Reel Studio (2026-10-04) — reels / reel_media server-only; reel + AI fields frozen ───
+  await x48('owner reads a reel', 'allow', getDoc(doc(own48, 'companies/co-48/reels/r49')));
+  await x48('company_admin reads reel media', 'allow', getDoc(doc(cadm48, 'companies/co-48/reel_media/m49')));
+  await x48('sales rep cannot read reels', 'deny', getDoc(doc(rep48, 'companies/co-48/reels/r49')));
+  await x48('another company cannot read reels', 'deny', getDoc(doc(other48, 'companies/co-48/reels/r49')));
+  await x48('owner cannot confirm privacy from the client (server-only)', 'deny', updateDoc(doc(own48, 'companies/co-48/reels/r49'), { 'privacy.status': 'confirmed' }));
+  await x48('owner cannot create a reel doc from the client', 'deny', setDoc(doc(own48, 'companies/co-48/reels/n49'), { status: 'rendered', privacy: { status: 'clear' } }));
+  await x48('owner cannot mark an upload ready from the client', 'deny', updateDoc(doc(own48, 'companies/co-48/reel_media/m49'), { status: 'ready', workPath: 'x' }));
+  await x48('client cannot bump the daily render counter', 'deny', setDoc(doc(own48, 'companies/co-48/reel_usage/2026-10-04'), { renders: 0 }));
+  await x48('create a post carrying aiGenerated is refused', 'deny', setDoc(sp(own48, 'n49a'), NEW48({ aiGenerated: true })));
+  await x48('create a post carrying reelId / video is refused', 'deny', setDoc(sp(own48, 'n49b'), NEW48({ reelId: 'r49', video: { key: 'a'.repeat(32) } })));
+  await x48('an AI post cannot be re-kinded into a job showcase', 'deny', updateDoc(sp(own48, 'p49-ai'), { kind: 'job_showcase' }));
+  await x48('an AI post cannot drop its aiGenerated tag', 'deny', updateDoc(sp(own48, 'p49-ai'), { aiGenerated: false }));
+  await x48('an AI tip draft can still be edited', 'allow', updateDoc(sp(own48, 'p49-ai'), { caption: 'Check your flashing.' }));
+  await x48('a reel post cannot swap its video', 'deny', updateDoc(sp(own48, 'p49-reel'), { video: { key: 'b'.repeat(32) } }));
+  await x48('a reel post cannot unlink its reel', 'deny', updateDoc(sp(own48, 'p49-reel'), { reelId: 'other' }));
+  await x48('a reel draft cannot be approved from the client', 'deny', updateDoc(sp(own48, 'p49-reel'), { status: 'scheduled', scheduledAt: new Date('2026-11-04T14:00:00Z') }));
   console.log('  48: ' + s48Pass + ' social studio checks passed, ' + s48Fail.length + ' failed');
   if (s48Fail.length) {
     throw new Error('48 social studio: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));

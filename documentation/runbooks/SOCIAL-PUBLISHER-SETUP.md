@@ -167,3 +167,90 @@ in the app, then **Mark posted** and paste the link.
   https://developers.facebook.com/docs/development/build-and-test/app-modes —
   that is why step 2 says **Business** type, and why step 5 checks a real post from
   a logged-out phone.
+
+---
+
+## Reels (Reel Studio) — added 2026-10-04
+
+*Checked against Meta's docs on **2026-10-04**. Code: `functions/reel-studio.js`,
+the publishing in `functions/social-adapters.js`. Design notes:
+[REEL-STUDIO-2026-10-04](../projects/REEL-STUDIO-2026-10-04.md).*
+
+**No new token and no new permission.** Reels use the same three secrets and
+the same Page token from steps 3–4 above:
+
+- **Facebook Page video:** `POST /{page-id}/videos` with `file_url` (Meta
+  fetches the MP4 from our `/api/social-media?k=…` URL) and `description`.
+  - Permissions: `pages_manage_posts`, `pages_read_engagement` and
+    `pages_show_list`. These are the scopes you already granted.
+  - Meta's Graph reference lists `file_url` as "Accessible URL of a video
+    file".
+  - https://developers.facebook.com/docs/graph-api/reference/page/videos/
+- **Instagram Reels:**
+  1. `POST /{ig-user-id}/media` with `media_type=REELS`, `video_url`,
+     `caption`, `share_to_feed=true` and `cover_url` (the hero frame the
+     privacy check picked).
+  2. Poll `GET /{container-id}?fields=status_code` until it says `FINISHED`.
+  3. `POST /{ig-user-id}/media_publish`.
+
+  Permissions: `instagram_basic` and `instagram_content_publish` (already
+  granted).
+
+  Meta's spec: MP4/MOV, H.264, AAC at up to 48 kHz, 23–60 fps, at most 1920 px
+  wide, 3 s to 15 min, at most 300 MB, 9:16 recommended. Our reels are 1080×1920
+  or 1080×1080, 30 fps, H.264 + AAC, and at most 90 s. Reels count toward the
+  same 100 API posts per 24 h.
+
+  https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media
+  and https://developers.facebook.com/docs/instagram-platform/content-publishing
+
+**How a reel posts:**
+
+- Instagram processes video for a minute or more. The publisher checks a few
+  times per run. If the reel is still processing, it puts the post back to
+  *Scheduled* and checks **the same upload** again on the next try (5 min,
+  then 10, 20, 40). It never uploads the video twice.
+- A network drop at the moment of posting is marked **Failed — check the
+  page** and is never retried, the same as photos.
+- Google Business, TikTok, Nextdoor, LinkedIn and X take the video by hand:
+  **Ready to post** → **Share video** (the iPhone share sheet) or **Download
+  MP4**.
+
+**Approval is locked until the privacy check clears.** Every rendered reel
+has its frames checked (one every ~2 s) for readable house numbers, license
+plates, street signs and faces. If anything is flagged, or the check could not
+run, open the reel in **Social Studio → Reels** and tap **Looks fine —
+confirm**. If every flag has a box, you can tap **Blur flagged areas**
+instead. The publisher re-checks this right before posting.
+
+**AI graphics** (made in SuperGrok or Gemini — those are subscriptions, not
+API keys) are uploaded in **Reels → AI graphic**. They can only become a tip
+or storm-season post, are tagged as AI, and the caption says so. They can
+never be a job showcase or go in a reel.
+
+**Optional storage clean-up rule** (the daily `reelCleanup` already does
+this; this is a second safety net). On a computer with gcloud:
+
+```bash
+cat > /tmp/reel-lifecycle.json <<'JSON'
+{"rule":[
+  {"action":{"type":"Delete"},"condition":{"age":2,"matchesPrefix":["reel-uploads/"]}},
+  {"action":{"type":"Delete"},"condition":{"age":30,"matchesPrefix":["reel-work/"]}}
+]}
+JSON
+gcloud storage buckets describe gs://nobigdeal-pro.firebasestorage.app --format="default(lifecycle_config)"
+```
+
+Only run `gcloud storage buckets update gs://nobigdeal-pro.firebasestorage.app
+--lifecycle-file=/tmp/reel-lifecycle.json` if the describe shows **no**
+existing rules, because the update REPLACES the bucket's lifecycle config.
+Never add a rule for `social-media/`: posted reels and photos are served
+from there.
+
+**Switches:**
+
+- Reels follow the same **Auto-publish** and per-platform switches.
+- `feature_flags/global.aiDisabled = true` stops the vision check and
+  Whisper captions. Reels then need your confirmation, and talking-head reels
+  render without captions.
+- Each company is capped at 20 renders a day (blurs and retries count).

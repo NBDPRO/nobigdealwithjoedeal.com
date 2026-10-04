@@ -163,3 +163,26 @@ a { color: var(--orange); }
   .ss-day { min-height: 96px; }
   .ss-month .ss-chip { font-size: 11px; min-height: 28px; }
 }
+
+/* Reels (Reel Studio, 2026-10-04) */
+.sr-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.sr-h { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 17px; margin: 18px 0 6px; }
+.sr-video, .ss-video { display: block; max-width: 100%; border-radius: 10px; background: #000; margin: 8px 0; object-fit: contain; }
+.sr-a916 { aspect-ratio: 9 / 16; height: min(60vh, 480px); width: auto; }
+.sr-a11 { aspect-ratio: 1 / 1; width: min(100%, 360px); height: auto; }
+.sr-privacy { margin: 8px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--br); font-size: 13px; }
+.sr-privacy ul { margin: 6px 0 0; padding-left: 18px; }
+.sr-ok { border-color: var(--green, #16a34a); }
+.sr-warn { border-color: var(--gold, #eab308); }
+.sr-muted { color: var(--m); }
+.sr-ai { color: var(--purple, #a78bfa); }
+.sr-link { display: inline-flex; align-items: center; text-decoration: none; }
+.sr-tpls { display: flex; flex-direction: column; }
+.sr-picks { display: flex; flex-direction: column; gap: 6px; }
+.sr-pick { width: 100%; }
+.sr-row { display: flex; gap: 8px; }
+.sr-row > .ss-field { flex: 1; min-width: 0; }
+.sr-picked-job { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sr-media-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 44px; padding: 6px 0; border-bottom: 1px solid var(--br); font-size: 13px; }
+.sr-media-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-media-state { color: var(--m); }

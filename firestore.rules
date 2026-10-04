@@ -1871,7 +1871,15 @@ service cloud.firestore {
       }
       function socialContentChanged() {
         return request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['caption', 'hashtags', 'media', 'platform', 'kind', 'format']);
+          .hasAny(['caption', 'hashtags', 'media', 'platform', 'kind', 'format', 'video']);
+      }
+      // Reel Studio (2026-10-04): an AI-made image never sits on a job
+      // showcase (aiGenerated is server-set and frozen; this stops a client
+      // re-kinding an AI post into a showcase). The callables + publisher
+      // enforce the same rule on the media themselves.
+      function socialAiRuleOk() {
+        return !(request.resource.data.get('aiGenerated', false) == true
+          && request.resource.data.get('kind', '') == 'job_showcase');
       }
       function socialStatusOk() {
         let before = resource.data.status;
@@ -1892,13 +1900,21 @@ service cloud.firestore {
           && request.resource.data.companyId == companyId
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.status == 'draft'
-          && !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId']);
+          && !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'reelId', 'video', 'aiGenerated']);
         allow update: if socialManager()
           && resource.data.status != 'publishing'
-          && didNotChange(['companyId', 'createdBy', 'approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'groupId', 'captionFilter'])
+          && didNotChange(['companyId', 'createdBy', 'approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'groupId', 'captionFilter', 'reelId', 'video', 'aiGenerated'])
+          && socialAiRuleOk()
           && socialStatusOk();
         allow delete: if socialManager() && resource.data.status != 'publishing';
       }
+      // Reel Studio (2026-10-04): reels, their uploaded clips / AI graphics,
+      // and the daily render counter. Server-only writes (functions/
+      // reel-studio.js callables + the render worker); owner + company_admin
+      // read them to drive the Reels tab.
+      match /reels/{reelId}        { allow read: if socialManager(); allow write: if false; }
+      match /reel_media/{mediaId}  { allow read: if socialManager(); allow write: if false; }
+      match /reel_usage/{dayId}    { allow read: if socialManager(); allow write: if false; }
       // On/off switches: { enabled: bool, platforms: { facebook: bool, … } }.
       match /social_settings/{docId} {
         allow read, write: if socialManager();

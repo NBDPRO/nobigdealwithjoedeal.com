@@ -491,6 +491,26 @@ async function run() {
   await assertSucceeds(deleteObject(ref(alice, 'skins/alice/mascot')));
   console.log('  my-skin: 19 storage checks passed');
 
+  // ── Reel Studio (2026-10-04): reel-uploads/{companyId}/{uid}/{mediaId} —
+  // create-only by the uploader, owner or company_admin of THAT company,
+  // video/image only, never readable / deletable by a client. ──
+  const cadm = env.authenticatedContext('cadm1', { role: 'company_admin', companyId: 'co-r' }).storage();
+  await assertSucceeds(uploadBytes(ref(solo, 'reel-uploads/solo1/solo1/m1'), buf(4096), { contentType: 'video/quicktime' }));   // solo owner: company == uid
+  await assertSucceeds(uploadBytes(ref(cadm, 'reel-uploads/co-r/cadm1/m2'), buf(4096), { contentType: 'video/mp4' }));        // company_admin of co-r
+  await assertSucceeds(uploadBytes(ref(cadm, 'reel-uploads/co-r/cadm1/m3'), buf(4096), { contentType: 'image/heic' }));       // phone photo / AI graphic
+  await assertFails(uploadBytes(ref(alice, 'reel-uploads/co-a/alice/m4'), buf(4096), { contentType: 'video/mp4' }));        // a sales rep is not a social manager
+  await assertFails(uploadBytes(ref(vic, 'reel-uploads/co-v/vic/m5'), buf(4096), { contentType: 'video/mp4' }));             // viewer
+  await assertFails(uploadBytes(ref(cadm, 'reel-uploads/co-other/cadm1/m6'), buf(4096), { contentType: 'video/mp4' }));      // another company
+  await assertFails(uploadBytes(ref(cadm, 'reel-uploads/co-r/someone/m7'), buf(4096), { contentType: 'video/mp4' }));        // someone else's folder
+  await assertFails(uploadBytes(ref(solo, 'reel-uploads/solo1/solo1/m8'), buf(4096), { contentType: 'application/zip' }));   // not a video / photo
+  await assertFails(uploadBytes(ref(solo, 'reel-uploads/solo1/solo1/m9'), buf(4096), { contentType: 'image/svg+xml' }));     // script-capable
+  await assertFails(uploadBytes(ref(solo, 'reel-uploads/solo1/solo1/m1'), buf(4096), { contentType: 'video/mp4' }));         // write-once: no overwrite
+  await assertFails(getBytes(ref(solo, 'reel-uploads/solo1/solo1/m1')));                                                     // raw (GPS) never readable
+  await assertFails(deleteObject(ref(solo, 'reel-uploads/solo1/solo1/m1')));
+  await assertFails(getBytes(ref(solo, 'reel-work/solo1/m1.mp4')));                                                          // intermediates server-only
+  await assertFails(uploadBytes(ref(solo, 'social-media/solo1/' + 'a'.repeat(32) + '.mp4'), buf(4096), { contentType: 'video/mp4' })); // nor the served copies
+  console.log('  reel studio: 14 storage checks passed');
+
   console.log('✓ All storage rules tests passed');
   await env.cleanup();
 }

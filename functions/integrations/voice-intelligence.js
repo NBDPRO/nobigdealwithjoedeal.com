@@ -270,7 +270,11 @@ async function transcribeGroq({ bucket, path, mimeType }) {
 // `timeoutMs` defaults to the pipeline's 8-minute budget; dictate passes
 // something far shorter because its clips are ≤60 s and the callable itself
 // has a 60 s ceiling.
-async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs }) {
+//
+// `words: true` (Reel Studio burned captions, 2026-10-04) ALSO asks Groq for
+// word timestamps and returns them as `words: [{ word, start, end }]`.
+// Default off, so every existing caller's request and result are unchanged.
+async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words }) {
   if (!hasSecret('GROQ_API_KEY')) {
     throw new VoiceError('groq-not-configured',
       'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.');
@@ -282,6 +286,7 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs }) {
   form.append('model', 'whisper-large-v3-turbo');
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'segment');
+  if (words) form.append('timestamp_granularities[]', 'word');
   form.append('language', 'en');
 
   let res;
@@ -314,7 +319,14 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs }) {
       text: String(s.text || '')
     })) : [],
     durationSec: Number(data.duration) || 0,
-    providerJobId: null   // Groq is synchronous; no job id to track
+    providerJobId: null,  // Groq is synchronous; no job id to track
+    ...(words ? {
+      words: Array.isArray(data.words) ? data.words.map(w => ({
+        word: String(w.word || ''),
+        start: Number(w.start) || 0,
+        end: Number(w.end) || 0
+      })) : []
+    } : {})
   };
 }
 

@@ -12,6 +12,10 @@
  * only what the rules let a client write (edit → draft, reschedule, cancel,
  * mark posted, delete, settings).
  *
+ * Reels (Reel Studio, 2026-10-04): the Reels tab lives in pages/social-reels.js;
+ * a rendered reel lands here as a normal post with format 'reel' (video +
+ * hero-frame poster), approved through the same callable.
+ *
  * Captions: the server drafts a template caption (always filtered). "Write
  * with AI" asks Claude Haiku 4.5 through the claudeProxy (window.callClaude)
  * using ONLY the post's public facts (town, package, kind) — never the
@@ -23,7 +27,9 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, doc, onSnapshot, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp, query, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal } from "../nbd-emulator-connect.js";
+import { initReels } from "./social-reels.js?v=1";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",
@@ -46,7 +52,8 @@ try {
 const auth = getAuth(app);
 const db = getFirestore(app);
 const fns = getFunctions(app);
-await connectEmulatorsIfLocal({ auth, db, functions: fns });
+const storage = getStorage(app);
+await connectEmulatorsIfLocal({ auth, db, functions: fns, storage });
 window.auth = auth; // claude-proxy.js reads window.auth.currentUser
 
 const S = window.NBDSocialLogic;
@@ -107,6 +114,8 @@ onAuthStateChanged(auth, async (user) => {
   $('ssNewFromJob').disabled = false;
   $('ssPlan').disabled = false;
   subscribe();
+  reels.start();
+  ['srNew', 'srUpload', 'srAi'].forEach((id) => { if ($(id)) $(id).disabled = false; });
 });
 
 function subscribe() {
@@ -148,7 +157,13 @@ function render() {
   $('ssAll').innerHTML = all.length ? all.map(cardHtml).join('') : '<div class="ss-empty">No posts yet.</div>';
 }
 
+function isReel(p) { return p && p.format === 'reel' && p.video && p.video.key; }
 function thumbsHtml(p) {
+  if (isReel(p)) {
+    // Reel Studio video: the hero frame as the poster; plays inline on iPhone.
+    return '<div class="ss-thumbs"><video class="ss-video ' + (p.video.aspect === '1:1' ? 'sr-a11' : 'sr-a916') + '" controls playsinline preload="none" src="' + esc(MEDIA_BASE + '?k=' + p.video.key) + '"' +
+      (p.video.thumbKey ? ' poster="' + esc(MEDIA_BASE + '?k=' + p.video.thumbKey) + '"' : '') + '></video></div>';
+  }
   const media = p.media || [];
   if (!media.length) return '';
   return '<div class="ss-thumbs">' + media.map((m) => '<img loading="lazy" alt="" src="' + esc(MEDIA_BASE + '?k=' + m.key) + '">').join('') + '</div>';
@@ -160,7 +175,8 @@ function cardHtml(p) {
   actions.push('<button class="ss-btn ss-btn-small" data-act="edit" data-id="' + esc(p.id) + '">Open</button>');
   if (st === 'ready' || (st === 'scheduled' && S.PLATFORMS[p.platform] && !S.PLATFORMS[p.platform].auto)) {
     actions.push('<button class="ss-btn ss-btn-small" data-act="copy" data-id="' + esc(p.id) + '">Copy caption</button>');
-    if ((p.media || []).length) actions.push('<button class="ss-btn ss-btn-small" data-act="share" data-id="' + esc(p.id) + '">Share photos</button>');
+    if ((p.media || []).length) actions.push('<button class="ss-btn ss-btn-small" data-act="share" data-id="' + esc(p.id) + '">' + (isReel(p) ? 'Share video' : 'Share photos') + '</button>');
+    if (isReel(p)) actions.push('<a class="ss-btn ss-btn-small sr-link" download="nbd-reel.mp4" href="' + esc(MEDIA_BASE + '?k=' + p.video.key) + '">Download MP4</a>');
     actions.push('<button class="ss-btn ss-btn-small ss-btn-primary" data-act="markposted" data-id="' + esc(p.id) + '">Mark posted</button>');
   }
   const err = st === 'failed' && p.publish && p.publish.lastError ? '<div class="ss-err">' + esc(p.publish.lastError) + '</div>' : '';
@@ -170,6 +186,7 @@ function cardHtml(p) {
     '<div class="ss-card-h"><span class="ss-badge">' + esc(platLabel(p.platform)) + '</span>' +
     '<span class="ss-badge st-' + esc(st) + '">' + esc(S.STATUS_LABELS[st] || st) + '</span>' +
     '<span class="ss-badge">' + esc(S.KIND_LABELS[p.kind] || p.kind || '') + '</span>' +
+    (isReel(p) ? '<span class="ss-badge">Reel</span>' : '') + (p.aiGenerated ? '<span class="ss-badge sr-ai">AI graphic</span>' : '') +
     '<span class="ss-card-when">' + esc(fmtWhen(p.postedAt || p.scheduledAt)) + '</span></div>' +
     thumbsHtml(p) +
     '<div class="ss-caption">' + esc(p.caption || '') + '</div>' +
@@ -510,10 +527,11 @@ async function sharePhotos(id) {
   if (!p || !(p.media || []).length) return;
   try {
     const files = [];
-    for (let i = 0; i < p.media.length; i++) {
-      const r = await fetch(MEDIA_BASE + '?k=' + encodeURIComponent(p.media[i].key));
-      if (!r.ok) throw new Error('photo ' + (i + 1) + ' did not load');
-      files.push(new File([await r.blob()], 'nbd-post-' + (i + 1) + '.jpg', { type: 'image/jpeg' }));
+    const media = isReel(p) ? [{ key: p.video.key, video: true }] : p.media;
+    for (let i = 0; i < media.length; i++) {
+      const r = await fetch(MEDIA_BASE + '?k=' + encodeURIComponent(media[i].key));
+      if (!r.ok) throw new Error((media[i].video ? 'video' : 'photo ' + (i + 1)) + ' did not load');
+      files.push(media[i].video ? new File([await r.blob()], 'nbd-reel.mp4', { type: 'video/mp4' }) : new File([await r.blob()], 'nbd-post-' + (i + 1) + '.jpg', { type: 'image/jpeg' }));
     }
     if (navigator.canShare && navigator.canShare({ files })) {
       await navigator.share({ files, text: composeMessage(p) });
@@ -563,6 +581,11 @@ function switchTab(tab) {
   document.querySelectorAll('.ss-tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   document.querySelectorAll('[data-panel]').forEach((s) => { s.hidden = s.dataset.panel !== tab; });
 }
+
+const reels = initReels({
+  db, storage, call, toast, esc, openSheet, closeSheet, switchTab, platformChecks, chosenPlatforms, $,
+  get state() { return state; },
+});
 
 function shift(dir) {
   const d = new Date(state.anchorMs);

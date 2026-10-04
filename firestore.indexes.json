@@ -977,6 +977,16 @@
   ],
   "fieldOverrides": [
     {
+      "_comment": "Reel Studio cleanup (2026-10-04): reelCleanup sweeps collectionGroup('reel_media').where('createdAtMs','<',…) daily to expire intermediates and abandoned upload slots. Single-field COLLECTION_GROUP index on createdAtMs (the emulator never enforces it; prod would throw FAILED_PRECONDITION without it). COLLECTION asc/desc kept so default single-parent indexing is preserved.",
+      "collectionGroup": "reel_media",
+      "fieldPath": "createdAtMs",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "_comment": "Optional game card (2026-10-03): getGameCard reads collectionGroup('tasks').where('userId','==') (equality-only) to count follow-ups done across every customer. Single-field COLLECTION_GROUP index on userId; COLLECTION asc/desc kept so default single-parent indexing is preserved. Without it the card degrades (partial: tasks) instead of failing.",
       "collectionGroup": "tasks",
       "fieldPath": "userId",

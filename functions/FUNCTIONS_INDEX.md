@@ -178,6 +178,14 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `socialDraftFromJob` | onCall | requireSocialManager | Social Studio — one job → a draft per platform: re-encoded photos (photo-reencode.js), town only, package/shingle, caption through the privacy + KY filter |
 | `socialPlanWeeks` | onCall | requireSocialManager | Social Studio — Plan N weeks: a mix of showcases / tips / storm PSAs / reviews / behind-the-scenes as DRAFTS |
 | `socialApprovePost` | onCall | requireSocialManager | Social Studio — the only path to approved/scheduled; re-cleans caption + hashtags with the source lead's private terms |
+| `reelStartUpload` | onCall | requireSocialManager | Reel Studio — mints an upload slot (`companies/{c}/reel_media/{id}`) + the private `reel-uploads/{c}/{uid}/{id}` path for a phone clip, photo or AI graphic (AI: tip / storm PSA only) |
+| `reelJobMedia` | onCall | requireSocialManager | Reel Studio — a job's photos (ids + phase) and its uploaded clips for the reel picker |
+| `reelCreate` | onCall | requireSocialManager | Reel Studio — validates template + sources (server-verified job photos / ready uploads, never AI images), takes a per-company daily render slot (20/day), queues the reel |
+| `reelConfirmPrivacy` | onCall | requireSocialManager | Reel Studio — Jo confirms a flagged / unchecked privacy check (unlocks approval) |
+| `reelApplyBlur` | onCall | requireSocialManager | Reel Studio — queues the auto-blur re-render (only when every flag has a vision box; counts against the daily cap) |
+| `reelRetry` | onCall | requireSocialManager | Reel Studio — re-queues a failed or stuck (>12 min) render |
+| `reelToPosts` | onCall | requireSocialManager | Reel Studio — a rendered reel → Social Studio drafts (format `reel`), approval gated by the privacy check |
+| `reelAiImagePost` | onCall | requireSocialManager | Reel Studio — an uploaded AI graphic → tip / storm-season drafts tagged `aiGenerated` (never a job showcase) |
 | `getBusyTimes` | onCall | requireOwner | Google Calendar — merged busy blocks (NBD Jobs + Jo's main calendar) for the double-booking warning; ≤62-day window |
 | `reverifyCompanyKnocks` | onCall | `requireTeamAdmin` | D2D — re-geocodes/verifies the company's knock addresses (540s sweep) |
 | `convertUnmatchedSms` | onCall | `isOwnerCaller` or `role === 'admin'` | Turns an `unmatched_sms` triage row into a real lead + AI draft (handlers/inbound-sms-convert.js) |
@@ -209,7 +217,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runMigrations` | onCall | `role === 'admin'` (see ADMIN note) | Manual versioned-migration trigger (was mislabeled "scheduler-triggered" in the previous index) |
 | `migrationsTick` | scheduled (every 24h) | n/a (server-only) | Idempotent daily migration cron (also listed in SCHEDULED) |
 
-## SCHEDULED CRONS (server-only, no client traffic) — 28
+## SCHEDULED CRONS (server-only, no client traffic) — 29
 | Export | Schedule | Purpose |
 |---|---|---|
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
@@ -219,6 +227,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `dailyLeadDigest` | daily 07:00 ET | Summary of the last 24h of public leads |
 | `leadFollowUpSweep` | every 3h | One follow-up email to 20-48h-old leads whose bridged CRM card is untouched |
 | `socialPublisher` | every 5 min | Social Studio publisher — claims due scheduled posts and publishes via Meta Graph (FB/IG); not connected or manual → Ready to post queue; retry with backoff, then failed + bell/push alert. Off per company until Jo flips the switch; `SOCIAL_PUBLISHER_DISABLED=true` kills it globally |
+| `reelCleanup` | daily 04:15 ET | Reel Studio — expires transcoded intermediates older than 14 days, abandoned upload slots, and any raw `reel-uploads/` object older than a day (raw uploads carry GPS) |
 | `stormWatch` | every 30 min | NWS/IEM Local Storm Reports watcher; always alerts Joe; subscriber texting gated by `STORM_TEXT_ENABLED` |
 | `checkStormAlerts` | every 30 min | (sms-functions.js) Polls NWS **weather alerts** for subscriber zips → Twilio SMS. Distinct from `stormWatch`, which polls storm *reports* |
 | `monthlyMarketingReport` | 1st of month 07:00 ET | Marketing rollup email |
@@ -249,9 +258,11 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 
-## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 39 Firestore + 2 Storage
+## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 40 Firestore + 3 Storage
 | Export | Watches | Purpose |
 |---|---|---|
+| `reelIngestUpload` | Storage finalize (`reel-uploads/` only) | Reel Studio — refuses an object without a matching server-minted slot; transcodes the clip with ffmpeg-static to a normalized H.264/AAC intermediate (`reel-work/`) with ALL metadata + data streams stripped (GPS), or re-encodes a photo with sharp; always deletes the raw upload. 4 GiB / 4 vCPU / 540 s |
+| `reelRenderWorker` | `companies/{c}/reels/{id}` written (acts on `status: queued`) | Reel Studio — claims the reel, renders it with ffmpeg (brand intro/outro, templates, Whisper captions for talking-head), stores the MP4 under `social-media/` (served by `socialMedia`), runs the Claude-vision privacy frame check (AI kill switch + shared vision budget) + hero thumbnail; or applies the blur. 4 GiB / 4 vCPU / 540 s, one render per instance |
 | `onPhotoUploaded` | Storage finalize (`nobigdeal-pro.appspot.com`) | 200/600/1600 px WebP variant pipeline; stamps `photo.urls` (or `knock.photoVariants[idx]` for `/d2d/` sources, mirrored to the converted lead) |
 | `onKnockCreated` | `knocks/{knockId}` created | Race-heal for d2d photo variants: photos upload BEFORE the knock doc exists, so early photos' Storage triggers miss — this stamps `photoVariants` for any `photoPaths` entry whose variants already exist (tokens recovered from variant object metadata) |
 | `onAudioUploaded` | Storage finalize (`nobigdeal-pro.firebasestorage.app`) | Voice intelligence — recording → transcribe + analyze (was listed as `voiceIntelligenceTrigger`). 2026-09-25: ignores `audio/{uid}/d2d/...` and other reserved lead ids, which used to land every D2D memo under one phantom `leads/d2d` |
