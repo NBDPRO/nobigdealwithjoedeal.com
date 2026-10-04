@@ -57,8 +57,16 @@ console.log('\n1. script-loader.js — queue files ride the lazy photos bundle, 
     /photo-engine\.js/.test(bundleBody));
 
   const dash = read('docs/pro/dashboard.html');
+  // Version-agnostic (the ?v= moves with every change to these files), but
+  // the static tag and the bundle entry must carry the SAME version, or the
+  // loader's dedupe sees two different URLs and loads the file twice.
+  const staticV = (f) => (dash.match(new RegExp('src="js/' + f + '\\?v=(\\d+)"')) || [])[1];
+  const bundleV = (f) => (bundleBody.match(new RegExp("'js/" + f + "\\?v=(\\d+)'")) || [])[1];
   ok('dashboard.html KEEPS its static tags (no regression for the page that already worked)',
-    dash.includes('js/photo-queue-store.js?v=2') && dash.includes('js/photo-queue-recovery.js?v=2'));
+    !!staticV('photo-queue-store\\.js') && !!staticV('photo-queue-recovery\\.js'));
+  ok('…at the same ?v= as the photos bundle entries',
+    staticV('photo-queue-store\\.js') === bundleV('photo-queue-store\\.js') && staticV('photo-queue-recovery\\.js') === bundleV('photo-queue-recovery\\.js'),
+    [staticV('photo-queue-store\\.js'), bundleV('photo-queue-store\\.js'), staticV('photo-queue-recovery\\.js'), bundleV('photo-queue-recovery\\.js')].join());
 
   const customer = read('docs/pro/customer.html');
   ok('customer.html does NOT get a static tag for either file — that would make loadBundle(\'photos\') a no-op for it (the documented dedupe trap)',

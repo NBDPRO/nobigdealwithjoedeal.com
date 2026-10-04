@@ -543,7 +543,12 @@
       );
       return false;
     }
-    state.offlineQueue.push({ action, data, timestamp: Date.now() });
+    // Owned (2026-10-04): the queue now survives sign-out (nbd-auth.js keeps
+    // SYNC_QUEUE_KEY), so every entry records who knocked. The flush below
+    // sends only the signed-in rep's own knocks — on a shared phone the next
+    // rep never uploads them under their account.
+    const uid = (window._user && window._user.uid) || null;
+    state.offlineQueue.push({ action, data, timestamp: Date.now(), uid });
     saveOfflineQueue();
     window.showToast?.('Saved offline — will sync when connected', 'warning');
     return true;
@@ -551,12 +556,18 @@
 
   async function flushOfflineQueue() {
     if (state.offlineQueue.length === 0) return;
+    const me = (window._user && window._user.uid) || null;
+    if (!me) return;   // nobody signed in: nothing may be sent as anyone
     // Snapshot the queue, clear it, persist the empty queue. Items
     // that fail re-enter via the catch below + saveOfflineQueue at
     // the end — so the persisted state always reflects the in-memory
-    // state at flush exit, not at flush entry.
-    const queue = [...state.offlineQueue];
-    state.offlineQueue = [];
+    // state at flush exit, not at flush entry. Another rep's knocks
+    // (signed out with them still queued) are kept, untouched, for them.
+    // An entry with no uid predates ownership and was this device's
+    // signed-in rep's — sent as before.
+    const queue = state.offlineQueue.filter((it) => !it.uid || it.uid === me);
+    state.offlineQueue = state.offlineQueue.filter((it) => it.uid && it.uid !== me);
+    if (!queue.length) return;
     saveOfflineQueue();
 
     let synced = 0;
@@ -601,7 +612,8 @@
   window.addEventListener('online', () => {
     state.isOnline = true;
     if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
-    flushOfflineQueue();
+    // Knocks first: a held photo can only attach once its knock is saved.
+    Promise.resolve(flushOfflineQueue()).catch(() => {}).then(() => flushKnockPhotoQueue()).catch(() => {});
   });
   window.addEventListener('offline', () => {
     state.isOnline = false;
@@ -621,7 +633,7 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', event => {
       if (event.data?.type === 'FLUSH_OFFLINE_QUEUE') {
-        flushOfflineQueue();
+        Promise.resolve(flushOfflineQueue()).catch(() => {}).then(() => flushKnockPhotoQueue()).catch(() => {});
       }
     });
   }
@@ -2092,6 +2104,11 @@
         // client never writes photoVariants). Renderers null-check both:
         // pre-feature knocks have neither field.
         photoPaths: Array.isArray(data.photoPaths) ? data.photoPaths : [],
+        // The client id this knock was saved under (the UI's tempId). Photos
+        // held on the phone (NBDPhotoQueueStore kind 'knock') carry the same
+        // id, which is how flushKnockPhotoQueue finds the knock to attach
+        // them to — including a knock that itself waited in the offline queue.
+        clientTempId: data.clientTempId ? String(data.clientTempId).slice(0, 40) : '',
         voiceUrl: data.voiceUrl || '',
         followUpTime: data.followUpTime || '',
         // "Appointment Set" — when the rep booked it (datetime-local, the
@@ -2151,6 +2168,9 @@
       // territory, bump that zone's knock (and lead, for hot dispositions) count.
       try { attributeKnockToStormZone(data.lat, data.lng, HOT_DISPOSITIONS.includes(disposition)); }
       catch (_) {}
+
+      // Photos held on the phone for this knock can attach now that it exists.
+      if (data.photosHeld > 0) flushKnockPhotoQueue().catch(() => {});
 
       return ref.id;
     } catch (e) {
@@ -4693,6 +4713,74 @@
     return map[ext] || null;
   }
 
+  // ── Door-knock photos: resized, then uploaded or held (2026-10-04) ──
+  // Before: the raw camera file (3–5 MB from an iPhone) went up with a 20 s
+  // timeout, and on a failure — or with no signal at all, where the UI did
+  // not even try — the photo was simply gone. Now every photo is resized on
+  // the phone first, uploaded when that works, and otherwise held in the SAME
+  // IndexedDB photo queue the main camera uses (NBDPhotoQueueStore, kind
+  // 'knock'), which survives the app being killed. flushKnockPhotoQueue()
+  // attaches each held photo to its knock once both are online.
+  const KNOCK_PHOTO_MAX_DIM = 1600;
+  const KNOCK_PHOTO_QUALITY = 0.82;
+
+  /**
+   * A JPEG no larger than KNOCK_PHOTO_MAX_DIM on its long edge. Falls back to
+   * the original file when this browser cannot decode it (the upload path
+   * still accepts it) — a photo is never lost to the resize step.
+   */
+  async function resizeKnockPhoto(file, maxDim, quality) {
+    const max = maxDim || KNOCK_PHOTO_MAX_DIM;
+    const q = quality || KNOCK_PHOTO_QUALITY;
+    let url = null;
+    try {
+      let src = null, w = 0, h = 0;
+      if (typeof createImageBitmap === 'function') {
+        try { src = await createImageBitmap(file); w = src.width; h = src.height; } catch (_) { src = null; }
+      }
+      if (!src && typeof Image === 'function' && typeof URL !== 'undefined' && URL.createObjectURL) {
+        url = URL.createObjectURL(file);
+        src = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('decode failed'));
+          img.src = url;
+        });
+        w = src.naturalWidth || src.width; h = src.naturalHeight || src.height;
+      }
+      if (!src || !w || !h) return file;
+      const scale = Math.min(1, max / Math.max(w, h));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      canvas.getContext('2d').drawImage(src, 0, 0, canvas.width, canvas.height);
+      if (src.close) { try { src.close(); } catch (_) {} }
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', q));
+      // Re-encoding through a canvas also drops the camera's EXIF/GPS block.
+      return (blob && blob.size) ? blob : file;
+    } catch (_) {
+      return file;
+    } finally {
+      if (url) { try { URL.revokeObjectURL(url); } catch (_) {} }
+    }
+  }
+
+  function _knockPhotoStore() {
+    const st = window.NBDPhotoQueueStore;
+    return (st && typeof st.add === 'function' && typeof st.all === 'function') ? st : null;
+  }
+
+  async function _uploadKnockBlob(blob, uid, knockTempId, name, contentType) {
+    const { ref, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+    const storagePath = 'photos/' + uid + '/d2d/' + knockTempId + '/' + name;
+    const storageRef = ref(window._storage, storagePath);
+    // Bounded: Storage uploads on a stale iOS connection hang like Firestore
+    // writes do. A timeout is no longer a loss — the caller holds the photo.
+    await _withTimeout(window.uploadBytes(storageRef, blob, { contentType }), 20000, 'uploadBytes(photo)');
+    const url = await _withTimeout(getDownloadURL(storageRef), 10000, 'getDownloadURL(photo)');
+    return { url, path: storagePath };
+  }
+
   async function uploadPhotos(files, knockId) {
     // RETURN SHAPE: an ARRAY of download URLs carrying a non-index `paths`
     // property (index-aligned storage paths). NOT a {urls, paths} object —
@@ -4702,8 +4790,9 @@
     // serializes arrays by their indexed elements, so the extra property is
     // silently dropped and the knock just misses variants); an object would
     // have persisted a map into a field six consumers read as an array.
+    // `queued` (also non-index) counts photos held for a later upload.
     const urls = [];
-    if (!files || !files.length) { urls.paths = []; return urls; }
+    if (!files || !files.length) { urls.paths = []; urls.queued = 0; return urls; }
     // Storage object paths, index-aligned with `urls`. Persisted on the
     // knock doc as `photoPaths` so the image pipeline
     // (functions/image-pipeline.js) can find the knock by
@@ -4711,58 +4800,129 @@
     // photos have no /photos doc, so the path is the only join key.
     // (The {knockId} path segment is the client tempId, NOT the
     // Firestore doc id, so the pipeline cannot derive the doc from the
-    // path alone.)
+    // path alone.) Storage rules only permit photos under
+    // `photos/{uid}/...`, hence `photos/{uid}/d2d/{knockId}/...`.
     const paths = [];
-    // Storage rules only permit photos under `photos/{uid}/...`.
-    // Route door-knock photos through `photos/{uid}/d2d/{knockId}/...`
-    // so they inherit the existing photos rule instead of hitting
-    // the default-deny that d2d_photos/{uid}/... falls under.
-    const { ref, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
     const uid = window._user && window._user.uid;
     if (!uid) {
       console.error('d2d photo upload: not signed in');
-      urls.paths = [];
+      urls.paths = []; urls.queued = 0;
       return urls;
     }
-    let rejected = 0;
+    const store = _knockPhotoStore();
+    let rejected = 0, queued = 0, lost = 0;
     for (const file of files) {
-      try {
-        const contentType = inferImageContentType(file);
-        if (!contentType) {
-          // Unsupported format — surface to the user rather than
-          // letting Storage reject with an opaque 403.
-          console.warn('d2d photo upload: unsupported file', file && file.name, file && file.type);
-          rejected++;
-          continue;
-        }
-        const safeName = String(file.name || 'knock').replace(/[^A-Za-z0-9._-]+/g, '_').substring(0, 120);
-        const storagePath = `photos/${uid}/d2d/${knockId}/${Date.now()}_${safeName}`;
-        const storageRef = ref(window._storage, storagePath);
-        // Pass contentType explicitly so Storage doesn't infer
-        // application/octet-stream for HEIC files where Safari left
-        // file.type empty.
-        // 20s upload timeout — Storage uploads on a stale iOS bfcache
-        // connection hang the same way Firestore writes do. Per-photo
-        // timeout so one bad photo doesn't block the rest of the batch.
-        await _withTimeout(window.uploadBytes(storageRef, file, { contentType }), 20000, 'uploadBytes(photo)');
-        const url = await _withTimeout(getDownloadURL(storageRef), 10000, 'getDownloadURL(photo)');
-        urls.push(url);
-        paths.push(storagePath);
-      } catch(e) {
-        console.error('Photo upload failed:', e && e.code, e && e.message, file && file.name, file && file.type);
+      const contentType = inferImageContentType(file);
+      if (!contentType) {
+        // Unsupported format — surface to the user rather than
+        // letting Storage reject with an opaque 403.
+        console.warn('d2d photo upload: unsupported file', file && file.name, file && file.type);
         rejected++;
+        continue;
+      }
+      const blob = await resizeKnockPhoto(file);
+      const resized = blob !== file;
+      const outType = resized ? 'image/jpeg' : contentType;
+      const base = String(file.name || 'knock').replace(/\.[A-Za-z0-9]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '_').substring(0, 100);
+      const ext = resized ? 'jpg' : ((String(file.name || '').split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg');
+      // Stable per photo: a retry from the queue overwrites the same object.
+      const name = Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + base + '.' + ext;
+      if (state.isOnline !== false && navigator.onLine !== false) {
+        try {
+          const up = await _uploadKnockBlob(blob, uid, knockId, name, outType);
+          urls.push(up.url);
+          paths.push(up.path);
+          continue;
+        } catch (e) {
+          console.warn('d2d photo upload failed — holding it for later:', e && (e.code || e.message));
+        }
+      }
+      // Offline, or the upload failed: hold it in the durable photo queue.
+      try {
+        if (!store) throw new Error('photo queue unavailable');
+        await store.add({ kind: 'knock', knockTempId: String(knockId), uid, blob, timestamp: Date.now(), uploadId: name, preset: null });
+        queued++;
+      } catch (e) {
+        console.error('d2d photo could not be held:', e && (e.reason || e.message));
+        lost++;
       }
     }
-    if (rejected > 0 && window.showToast) {
-      const ok = files.length - rejected;
-      if (ok === 0) {
-        window.showToast('Photo upload failed — unsupported format or network error', 'error');
-      } else {
-        window.showToast(`${rejected} of ${files.length} photo${files.length > 1 ? 's' : ''} failed to upload`, 'warning');
+    if (window.showToast) {
+      if (queued > 0) {
+        window.showToast(queued + ' photo' + (queued === 1 ? '' : 's') + ' saved on this phone — will upload when you have signal', 'warning');
+      }
+      if (rejected > 0 || lost > 0) {
+        window.showToast((rejected + lost) + ' of ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + ' could not be saved' + (rejected ? ' (unsupported format)' : ''), 'error');
       }
     }
     urls.paths = paths;
+    urls.queued = queued;
     return urls;
+  }
+
+  // The Firestore id of the knock a held photo belongs to: the knock carries
+  // the same client id (`clientTempId`) it was saved with. null while the
+  // knock itself is still waiting in the offline knock queue.
+  async function _knockDocIdForTemp(tempId, uid) {
+    const local = (state.knocks || []).find((k) => k && k.clientTempId === tempId);
+    if (local && local.id) return local.id;
+    if (!window.query || !window.where || !window.getDocs || !window.collection || !window.limit) return null;
+    const q = window.query(
+      window.collection(window._db, 'knocks'),
+      window.where('userId', '==', uid),
+      window.where('clientTempId', '==', tempId),
+      window.limit(1)
+    );
+    const snap = await _withTimeout(window.getDocs(q), 10000, 'getDocs(knock by clientTempId)');
+    if (!snap || snap.empty) return null;
+    return snap.docs[0].id;
+  }
+
+  let _knockPhotoDraining = false;
+  async function flushKnockPhotoQueue() {
+    if (_knockPhotoDraining) return 0;
+    if (state.isOnline === false || navigator.onLine === false) return 0;
+    const store = _knockPhotoStore();
+    const uid = window._user && window._user.uid;
+    if (!store || !uid) return 0;
+    _knockPhotoDraining = true;
+    let sent = 0;
+    try {
+      if (typeof store.available === 'function' && !(await store.available())) return 0;
+      // Only this rep's knock photos; another rep's wait for them.
+      const rows = (await store.all()).filter((r) => r && r.kind === 'knock' && r.uid === uid && r.knockTempId);
+      for (const r of rows) {
+        let knockDocId = null;
+        try { knockDocId = await _knockDocIdForTemp(r.knockTempId, uid); } catch (_) { break; }
+        if (!knockDocId) continue;     // the knock is not on the server yet
+        try {
+          const name = r.uploadId || ('q' + r.id + '.jpg');
+          const up = await _uploadKnockBlob(r.blob, uid, r.knockTempId, name, (r.blob && r.blob.type) || 'image/jpeg');
+          await _withTimeout(window.updateDoc(window.doc(window._db, 'knocks', knockDocId), {
+            photoUrls: window.arrayUnion(up.url),
+            photoPaths: window.arrayUnion(up.path),
+            updatedAt: window.serverTimestamp(),
+          }), 12000, 'updateDoc(knock photos)');
+          await store.remove(r.id);
+          sent++;
+        } catch (e) {
+          // Still no signal (or Storage refused): stop, keep this and the rest.
+          console.warn('d2d held photo upload failed — will retry:', e && (e.code || e.message));
+          break;
+        }
+      }
+      if (sent) {
+        if (window.showToast) window.showToast('✓ ' + sent + ' held knock photo' + (sent === 1 ? '' : 's') + ' uploaded', 'success');
+        const rec = window.NBDPhotoQueueRecovery;
+        if (rec && typeof rec.syncMarker === 'function') { try { await rec.syncMarker(); } catch (_) {} }
+        try { await loadKnocks(); } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('d2d held photo drain failed:', e && e.message);
+    } finally {
+      _knockPhotoDraining = false;
+    }
+    return sent;
   }
 
   async function uploadVoiceMemo(blob, knockId) {
@@ -4917,7 +5077,7 @@
 
       // Async background tasks
       if (state.isOnline) {
-        flushOfflineQueue();
+        Promise.resolve(flushOfflineQueue()).catch(() => {}).then(() => flushKnockPhotoQueue()).catch(() => {});
         loadWeather();
       }
     } catch (e) {
@@ -5009,6 +5169,8 @@
   state.refreshMapMarkers = refreshMapMarkers;
   state.toggleHeatMap = toggleHeatMap;
   state.uploadPhotos = uploadPhotos;
+  state.resizeKnockPhoto = resizeKnockPhoto;
+  state.flushKnockPhotoQueue = flushKnockPhotoQueue;
   state.uploadVoiceMemo = uploadVoiceMemo;
   state.sendFollowUpSMS = sendFollowUpSMS;
   state.sendFollowUpEmail = sendFollowUpEmail;

@@ -804,6 +804,43 @@ async function reason(fn) {
       !/<script[^>]*>[\s\S]{0,40}NBDPhotoQueueStore\s*=/.test(html));
   }
 
+  // ── Door-knock photos share the durable queue (2026-10-04) ──
+  // d2d-tracker-core-2026b.js used to upload the raw camera file and drop it
+  // on any failure. Knock photos are now held here as kind 'knock' rows,
+  // keyed by the knock's client id instead of a customer id, and survive a
+  // reload like any other row. photo-engine's drain must skip them.
+  {
+    console.log('\n  door-knock rows');
+    const disk = newDisk();
+    let store = loadStore(disk);
+    const id = await store.add({ kind: 'knock', knockTempId: '1728050000000', uid: UID, blob: jpeg(512), timestamp: 5, uploadId: 'a.jpg' });
+    ok('a knock photo (no customer id) is accepted with its knock id', typeof id === 'number');
+    ok('…but a knock row with no knock id is refused', (await reason(() => store.add({ kind: 'knock', uid: UID, blob: jpeg(10) }))) === 'bad-item');
+    ok('a customer photo still needs its customer id', (await reason(() => store.add({ uid: UID, blob: jpeg(10) }))) === 'bad-item');
+    store = loadStore(disk);   // the reload / app kill
+    const rows = await store.all();
+    const k = rows.find((r) => r.id === id);
+    ok('the knock row survives the reload with kind + knock id + bytes',
+      !!k && k.kind === 'knock' && k.knockTempId === '1728050000000' && k.leadId === null && k.blob.size === 512 && k.uploadId === 'a.jpg',
+      JSON.stringify(k && { kind: k.kind, knockTempId: k.knockTempId, leadId: k.leadId }));
+    const lead = await store.add(photo());
+    const l = (await store.all()).find((r) => r.id === lead);
+    ok('a customer row reads back as kind lead', l && l.kind === 'lead' && l.leadId === 'lead-x');
+
+    // photo-engine.js's real _pendingItems, lifted out of the file and RUN
+    // against this store (it reads only the helpers passed in below).
+    const ENGINE = fs.readFileSync(path.join(ROOT, 'docs/pro/js/photo-engine.js'), 'utf8').replace(/\r\n/g, '\n');
+    const m = ENGINE.match(/async function _pendingItems\(\) \{[\s\S]*?\n  \}\n/);
+    ok('photo-engine _pendingItems located', !!m);
+    if (m) {
+      const ctx = vm.createContext({ _store: () => store, _currentUid: () => UID, state: { uploadQueue: [] }, _inFlight: new Set(), console });
+      vm.runInContext(m[0], ctx);
+      const pend = await vm.runInContext('_pendingItems()', ctx);
+      ok('the customer-photo drain never picks up a knock row (it would drop it: no leadId)',
+        pend.length === 1 && pend[0].id === lead && !pend.some((r) => r.kind === 'knock'), JSON.stringify(pend.map((r) => r.id + ':' + r.kind)));
+    }
+  }
+
   console.log(`\n  ${passed} passed, ${failed} failed`);
   if (failed) { console.log('\n  failures:'); for (const f of fails) console.log('    - ' + f); process.exit(1); }
   process.exit(0);

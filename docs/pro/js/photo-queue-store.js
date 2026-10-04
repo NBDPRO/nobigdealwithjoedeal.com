@@ -433,7 +433,15 @@
     // refuses it before any network call), so holding one would only ever
     // end in it being dropped as unrecoverable — after the rep was told it
     // was safe. Refuse here too, so no caller can store one by accident.
-    if (!item.leadId || typeof item.leadId !== 'string') {
+    // Door-knock photos (kind 'knock', 2026-10-04) belong to a knock, not a
+    // customer: they carry the knock's client id instead, and only the D2D
+    // drain (d2d-tracker-core-2026b.js flushKnockPhotoQueue) uploads them.
+    const isKnock = item.kind === 'knock';
+    if (isKnock) {
+      if (!item.knockTempId || typeof item.knockTempId !== 'string') {
+        throw _fail('bad-item', 'knock photo needs the knock id');
+      }
+    } else if (!item.leadId || typeof item.leadId !== 'string') {
       throw _fail('bad-item', 'photo queue needs a customer id');
     }
     if (!item.uid || typeof item.uid !== 'string') {
@@ -458,7 +466,9 @@
       byteLength: buffer.byteLength,
       mime: blob.type || 'image/jpeg',
       uid: item.uid,
-      leadId: item.leadId,
+      leadId: isKnock ? null : item.leadId,
+      kind: isKnock ? 'knock' : 'lead',
+      knockTempId: isKnock ? item.knockTempId : null,
       tags: Array.isArray(item.tags) ? item.tags : [],
       description: item.description || '',
       location: item.location || '',
@@ -521,6 +531,8 @@
         uid: r.uid || null,
         blob: new Blob([r.bytes], { type: r.mime || 'image/jpeg' }),
         leadId: r.leadId,
+        kind: r.kind === 'knock' ? 'knock' : 'lead',
+        knockTempId: r.knockTempId || null,
         tags: Array.isArray(r.tags) ? r.tags : [],
         description: r.description || '',
         location: r.location || '',

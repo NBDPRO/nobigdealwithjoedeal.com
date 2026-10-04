@@ -24,7 +24,7 @@
 let __NBD_SENTRY_BOOTSTRAPPED; // module-local (globals Tranche 1 — was window.*)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, initializeFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, initializeFirestore, doc, getDoc, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, waitForPendingWrites, terminate, clearIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 // Audit #3: localhost-only emulator wiring. No-op in production.
 import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js";
@@ -64,6 +64,41 @@ const DEFAULT_SENTRY_DSN = "";
     document.head.appendChild(s);
   } catch (e) { /* non-fatal — error reporter failing to load is not an app-breaking event */ }
 })();
+
+// ── Firestore on-phone cache (2026-10-04) ────────────────
+// Which local cache Firestore runs with. Until this change it ran with NONE
+// (memory only): an edit made on a roof with no signal sat in RAM until it
+// could be sent, and iOS killing the backgrounded app threw it away. A
+// persistent (IndexedDB) cache keeps queued writes on the phone across a
+// kill and sends them on the next launch with signal.
+//
+//   'single' — iPhone/iPad (incl. the installed app): the single-tab
+//              manager. The multi-tab manager's cross-tab lease is the part
+//              iOS kills mid-flight; one app window needs none of it. If
+//              another tab already holds the cache the SDK falls back to
+//              memory for that tab on its own.
+//   'multi'  — everywhere else: desktop reps keep the dashboard and a
+//              customer open in two tabs.
+//   'memory' — no IndexedDB, or the kill switch: ?nopersist=1 on the URL or
+//              localStorage nbd-firestore-memory = '1' (mirror of ?nosw=1).
+function _firestoreCacheChoice(env) {
+  const e = env || {};
+  if (e.optOut || !e.hasIndexedDB) return 'memory';
+  return e.ios ? 'single' : 'multi';
+}
+
+function _firestoreEnv() {
+  const nav = (typeof navigator !== 'undefined' && navigator) || {};
+  const ua = String(nav.userAgent || '');
+  let optOut = false;
+  try { optOut = /[?&]nopersist=1\b/.test(String((window.location && window.location.search) || '')); } catch (_) {}
+  try { if (localStorage.getItem('nbd-firestore-memory') === '1') optOut = true; } catch (_) {}
+  return {
+    ios: /iPad|iPhone|iPod/.test(ua) || (nav.platform === 'MacIntel' && Number(nav.maxTouchPoints) > 1),
+    hasIndexedDB: typeof indexedDB !== 'undefined' && !!indexedDB,
+    optOut,
+  };
+}
 
 // ── Plan Hierarchy ────────────────────────────────────────
 // Internal plan-level keys are the CANONICAL pricing tiers: free ($0),
@@ -296,8 +331,19 @@ export const NBDAuth = {
       // NBDAuth.init() runs synchronously from dashboard.html's first
       // module script, before the second module script's
       // getFirestore(app) at line ~359, so this is the right place.
+      //
+      // 2026-10-04: plus a persistent local cache (see _firestoreCacheChoice)
+      // so writes queued offline survive iOS killing the app. Long polling
+      // stays: it is the transport, the cache is storage — independent.
       try {
-        _db = initializeFirestore(_app, { experimentalForceLongPolling: true });
+        const _cacheMode = _firestoreCacheChoice(_firestoreEnv());
+        const _localCache = _cacheMode === 'single'
+          ? persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
+          : _cacheMode === 'multi'
+            ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+            : memoryLocalCache();
+        _db = initializeFirestore(_app, { experimentalForceLongPolling: true, localCache: _localCache });
+        window.__NBD_FS_CACHE = _cacheMode;
       } catch (e) {
         // initializeFirestore throws if Firestore was already
         // initialized on this app (e.g. a hot-reload). Fall back to
@@ -351,6 +397,12 @@ export const NBDAuth = {
       window._auth = _auth;
       window._db = _db;
       window._firebaseApp = _app;
+      // For offline-sync-status.js (a classic script: it cannot import the
+      // SDK). Resolves once every write queued so far reached the server.
+      window.NBDFirestoreSync = {
+        waitForPendingWrites: () => waitForPendingWrites(_db),
+        cacheMode: () => window.__NBD_FS_CACHE || 'memory',
+      };
 
       // iOS Safari (and Firefox in some configurations) restore the
       // Firebase auth session from IndexedDB asynchronously. The very
@@ -549,6 +601,12 @@ export const NBDAuth = {
             getDoc(doc(_db, 'subscriptions', _claimCompanyId || user.uid)),
             new Promise((_, rej) => setTimeout(() => rej(new Error('subscription read timed out')), 5000))
           ]);
+          // Cached "missing" ≠ "no subscription": treat it as the network
+          // error it is (same fail-closed plan, honest status) instead of
+          // concluding this account never subscribed.
+          if (!subSnap.exists() && subSnap.metadata && subSnap.metadata.fromCache) {
+            throw new Error('subscription unknown offline (cache miss)');
+          }
           if (subSnap.exists()) {
             _subscription = subSnap.data();
             // Stripe's standard "active" states are 'active' AND 'trialing'.
@@ -746,6 +804,14 @@ export const NBDAuth = {
         // card came back after every sign-out and sat over the buttons
         // above the bottom nav (2026-10-03).
         'nbd_push_optin_snoozed_until',
+        // Door knocks saved offline and not yet sent (d2d-tracker-core
+        // SYNC_QUEUE_KEY) — WORK, not a cache: purging them at sign-out
+        // deleted knocks that exist nowhere else (2026-10-04). Each entry
+        // records the rep who knocked and only that rep's session sends it,
+        // the same ownership rule as the photo queue's IndexedDB rows. The
+        // size counter stays with the queue, or the next boot's loss check
+        // would read a kept queue against a wiped count.
+        'nbd_d2d_sync_queue', 'nbd_d2d_queue_last_known_size',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -828,7 +894,32 @@ export const NBDAuth = {
     try {
       await signOut(_auth);
     } catch(e) { console.warn('Logout error:', e.message); }
+    try { await this.clearFirestoreCache(); } catch (_) {}
     window.location.replace(redirect);
+  },
+
+  /**
+   * Customer data Firestore cached on this device — after sign-out. The
+   * persistent cache (2026-10-04) holds every lead this rep read; on a
+   * shared phone that must not outlive the session, the same rule as the
+   * nbd_ localStorage purge. EXCEPT while writes are still queued: those
+   * are edits that exist nowhere else, kept (under this user, sent only
+   * when this user signs back in) rather than destroyed. Resolves
+   * 'cleared' | 'kept-pending' | 'skipped'; bounded, never rejects.
+   */
+  clearFirestoreCache() {
+    const work = (async () => {
+      if (!_db || (window.__NBD_FS_CACHE || 'memory') === 'memory') return 'skipped';
+      const sync = window.NBDOfflineSync;
+      let pending = null;
+      try { pending = sync && typeof sync.countPending === 'function' ? await sync.countPending({ anyUser: true }) : null; } catch (_) { pending = null; }
+      // Unknown is treated as "maybe": never risk deleting a queued edit.
+      if (pending == null || pending > 0) return 'kept-pending';
+      await terminate(_db);
+      await clearIndexedDbPersistence(_db);
+      return 'cleared';
+    })().catch((e) => { console.warn('[nbd-auth] Firestore cache not cleared:', e && e.message); return 'skipped'; });
+    return Promise.race([work, new Promise((r) => setTimeout(() => r('skipped'), 3000))]);
   },
 
   /**

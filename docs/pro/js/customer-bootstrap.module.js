@@ -551,6 +551,13 @@ async function loadCustomerData(id) {
       // Cold path: fetch from Firestore.
       const leadSnap = await getDoc(doc(db, 'leads', id));
       if (!leadSnap.exists()) {
+        // From the on-phone cache (offline, 2026-10-04 persistent cache) a
+        // miss only means this customer was never opened on this phone — not
+        // that it was deleted. Say which.
+        if (leadSnap.metadata && leadSnap.metadata.fromCache) {
+          showError('Not saved on this phone yet', 'You\'re offline and this customer hasn\'t been opened on this phone before. Reconnect to load it.');
+          return;
+        }
         showError('Customer not found', 'The customer you\'re looking for doesn\'t exist or has been deleted.');
         return;
       }

@@ -112,7 +112,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=106"></script>
+<script src="js/script-loader.js?v=115"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -131,7 +131,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=31"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=32"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -207,6 +207,7 @@
 <link rel="stylesheet" href="css/estimate-send.css?v=1">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
+<link rel="stylesheet" href="css/offline-sync.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -5924,8 +5925,8 @@
      load, and must precede every photo consumer (including the lazy
      ScriptLoader 'photos' bundle). See docs/pro/js/photo-damage-types.js. -->
 <script defer src="js/photo-damage-types.js?v=1"></script>
-<script defer src="js/photo-queue-store.js?v=2"></script>
-<script defer src="js/photo-queue-recovery.js?v=2"></script>
+<script defer src="js/photo-queue-store.js?v=3"></script>
+<script defer src="js/photo-queue-recovery.js?v=3"></script>
 <!-- Canonical two-shape estimate money reader (window.NBDCustomerEstimateRows).
      Must load BEFORE its consumers below (customer-estimate-hub, invoice-pipeline,
      dashboard-widgets), which all read V2 grandTotal / Classic total|amount.
@@ -6852,6 +6853,8 @@
 <script defer src="js/global-search.js?v=2"></script>
 <script defer src="js/bottleneck-widget.js?v=2"></script>
 <script defer src="js/pwa-install-nudge.js?v=6"></script>
+<!-- Offline edits: "N changes waiting to sync" badge + honest Saved toasts (2026-10-04). -->
+<script defer src="js/offline-sync-status.js?v=1"></script>
 <script defer src="js/data-export.js?v=4"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
 <script defer src="js/data-import.js?v=5"></script>
@@ -6866,7 +6869,7 @@
 <script defer src="js/no-next-step.js?v=2"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
-<script defer src="js/prefs-sync.js?v=3"></script>
+<script defer src="js/prefs-sync.js?v=4"></script>
 <!-- Wave 42: portal-link helpers must load BEFORE kanban-context-menu
      so the menu picks up Copy/Text Portal Link items on first render. -->
 <script defer src="js/portal-link-helpers.js?v=3"></script>
@@ -6913,7 +6916,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=13"></script>
+<script defer src="js/invoice-pipeline.js?v=14"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
