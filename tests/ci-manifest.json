@@ -89,6 +89,7 @@
     "dashboard-kpi.test.js",
     "data-export.test.js",
     "dictate-transcription-provider.test.js",
+    "voice-memo-groq-2026-10-04.test.js",
     "docgen-paypanel.test.js",
     "docgen-brand.test.js",
     "docgen-address-guard.test.js",
