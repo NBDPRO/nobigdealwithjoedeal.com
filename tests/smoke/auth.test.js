@@ -216,23 +216,24 @@ section('D7: GDPR two-step erasure');
 
 section('F-02: measurementWebhook signature verification');
 {
+  // 2026-10-04: the HOVER/EagleView HMAC branches were removed with those
+  // never-configured providers (VENDOR-COST-LOCKIN Lane C). Instant Roofer's
+  // bearer is the one credential left; tests/instantroofer-measurement.test.js
+  // exercises verifyBearer and the receiver behaviourally.
   const src = read(path.join(FUNCTIONS, 'integrations/measurement.js'));
-  assert('verifyWebhookHmac helper present',
-    /function verifyWebhookHmac/.test(src));
-  assert('timingSafeEqual compare of hmacs',
-    /crypto\.timingSafeEqual/.test(src));
+  const ir = read(path.join(FUNCTIONS, 'integrations/instantroofer-logic.js'));
+  assert('Instant Roofer bearer verified constant-time',
+    /verifyInstantRooferBearer/.test(src) && /crypto\.timingSafeEqual/.test(ir));
   assert('fails closed on unconfigured secret',
     /reason: 'secret-not-configured'/.test(src) &&
     /secret-not-configured' \? 503/.test(src));
-  assert('rejects missing X-Hover-Signature',
-    /x-hover-signature/.test(src));
-  assert('rejects missing X-EV-Signature',
-    /x-ev-signature/.test(src));
+  assert('any provider other than instantroofer is refused before the body is read',
+    /provider === 'instantroofer'\s*\?\s*verifyInstantRooferBearer\([^)]*\)\s*:\s*\{\s*ok:\s*false,\s*reason:\s*'unknown-provider'\s*\}/.test(src));
   const shared = read(path.join(FUNCTIONS, 'integrations/_shared.js'));
-  assert('HOVER_WEBHOOK_SECRET registered',
-    /HOVER_WEBHOOK_SECRET:\s*defineSecret\('HOVER_WEBHOOK_SECRET'\)/.test(shared));
-  assert('EAGLEVIEW_WEBHOOK_SECRET registered',
-    /EAGLEVIEW_WEBHOOK_SECRET:\s*defineSecret\('EAGLEVIEW_WEBHOOK_SECRET'\)/.test(shared));
+  assert('INSTANTROOFER_WEBHOOK_SECRET registered',
+    /INSTANTROOFER_WEBHOOK_SECRET:\s*defineSecret\('INSTANTROOFER_WEBHOOK_SECRET'\)/.test(shared));
+  assert('removed HOVER/EagleView webhook secrets stay out of the registry (re-adding recreates the stub on deploy)',
+    !/defineSecret\('(HOVER|EAGLEVIEW)_WEBHOOK_SECRET'\)/.test(shared));
 }
 
 section('F-03/F-04: admin analytics uses custom-claim gate');
@@ -859,44 +860,26 @@ section('M-02: exportMyData uses the registry + Storage enumeration');
     !/const OWNED\s*=\s*\['leads'/.test(src));
 }
 
-section('R-01: rate-limit provider visibility + cold-start misconfig warning');
+section('R-01: rate-limit provider visibility (Firestore limiter)');
 {
+  // 2026-10-04: the never-provisioned Upstash backend was removed
+  // (VENDOR-COST-LOCKIN Lane C). The module keeps its path and re-exports
+  // the Firestore limiter, which was already the active path — see
+  // tests/rate-limit-facade-2026-10-04.test.js for the behavioural proof.
   const adapterPath = path.join(FUNCTIONS, 'integrations/upstash-ratelimit.js');
   const src = read(adapterPath);
-
-  assert('R-01: adapter exports a `provider()` function',
-    /^\s*(module\.exports\s*=\s*\{[\s\S]*?\bprovider[\s\S]*?\};?|exports\.provider\s*=)/m.test(src));
-  assert('R-01: provider() returns upstash only when env=upstash AND secrets configured',
-    /PROVIDERS\.rateLimit\s*===\s*'upstash'\s*&&\s*upstashConfigured\(\)/.test(src));
-  assert('R-01: cold-start misconfig logs a structured `rate_limit_provider_drift` WARN',
-    /logger\(\)\.warn\(\s*'rate_limit_provider_drift'/.test(src));
-  assert('R-01: cold-start drift message cites envPref + active fields',
-    /rate_limit_provider_drift[\s\S]{0,400}envPref[\s\S]{0,120}active/.test(src));
-  // Live-load the adapter and verify provider() resolves without
-  // secrets available (expected: 'firestore' — the test env is
-  // unconfigured by design).
+  assert('R-01: no Upstash network code or secret reads remain in the limiter',
+    !/upstash\.io|UPSTASH_REDIS_REST|\/pipeline/.test(src.replace(/^\s*(\/\/|\*).*$/gm, '')));
   const adapter = require(adapterPath);
   assert('R-01: provider() is a callable function',
     typeof adapter.provider === 'function');
-  assert('R-01: provider() returns a string in {upstash, firestore}',
-    ['upstash', 'firestore'].includes(adapter.provider()));
+  assert('R-01: provider() reports firestore',
+    adapter.provider() === 'firestore');
 
   const idx = readFunctionsIndex();
   assert('R-01: integrationStatus surfaces rateLimitProvider to admin callers',
     /rateLimitProvider:\s*rateLimitProvider\(\)/.test(idx)
     && /require\(['"]\.\/integrations\/upstash-ratelimit['"]\)/.test(idx));
-
-  const runbook = read(path.join(ROOT, 'documentation', 'archive', 'legacy', 'POST_DEPLOY_CHECKLIST.md'));
-  assert('R-01: POST_DEPLOY_CHECKLIST has an Upstash runbook section',
-    /##\s*18\.\s*Rate-limit provider/i.test(runbook));
-  assert('R-01: runbook walks through secret provisioning',
-    /functions:secrets:set UPSTASH_REDIS_REST_URL/.test(runbook)
-    && /functions:secrets:set UPSTASH_REDIS_REST_TOKEN/.test(runbook));
-  assert('R-01: runbook documents the NBD_RATE_LIMIT_PROVIDER=upstash flip',
-    /NBD_RATE_LIMIT_PROVIDER.{0,10}upstash/.test(runbook)
-    || /nbd\.rate_limit_provider.{0,10}upstash/.test(runbook));
-  assert('R-01: runbook tells ops how to verify the flip post-deploy',
-    /integrationStatus[\s\S]{0,400}rateLimitProvider/.test(runbook));
 }
 
 section('L-04: confirmAccountErasure GET is rate-limited');
