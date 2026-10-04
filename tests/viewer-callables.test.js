@@ -426,6 +426,10 @@ const VERDICTS = {
   assignStripeTransaction: 'role-gated', getStripeOverview: 'role-gated', stripeLedgerSync: 'role-gated',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
+  // Social Studio (2026-10-04): requireSocialManager refuses viewer / rep / manager.
+  socialEligibleJobs: 'role-gated', socialDraftFromJob: 'role-gated', socialPlanWeeks: 'role-gated', socialApprovePost: 'role-gated',
+  // Re-encoded social media copies by unguessable key (Meta fetches these).
+  socialMedia: 'public',
   attachStormProof: 'refused', backfillAnalytics: 'refused', claimInvite: 'self',
   cleanupE2ETestData: 'role-gated', convertUnmatchedSms: 'role-gated',
   createCalendarFeedToken: 'refused', createCompany: 'self', createConnectAccount: 'role-gated',

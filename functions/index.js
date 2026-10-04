@@ -826,6 +826,19 @@ exports.getGoogleReviews = googleReviews.getGoogleReviews;
 const gbpReviewsSync = require('./gbp-reviews-sync');
 exports.syncGbpReviews = gbpReviewsSync.syncGbpReviews;
 
+// Social Studio (2026-10-04) — the CRM's own social media system (replaces
+// Metricool): drafts from finished jobs, Plan N weeks, approval through the
+// privacy + Kentucky caption filter, the every-5-min publisher (Facebook /
+// Instagram via Meta Graph; GBP stub behind SOCIAL_GBP_ENABLED; manual
+// queue for the rest) and the public re-encoded media endpoint.
+const socialStudio = require('./social-studio');
+exports.socialEligibleJobs = socialStudio.socialEligibleJobs;
+exports.socialDraftFromJob = socialStudio.socialDraftFromJob;
+exports.socialPlanWeeks = socialStudio.socialPlanWeeks;
+exports.socialApprovePost = socialStudio.socialApprovePost;
+exports.socialPublisher = socialStudio.socialPublisher;
+exports.socialMedia = socialStudio.socialMedia;
+
 // Photo-vision classifier (Phase 3 of the photo system rebuild).
 // Single-photo Claude Vision call with $10/lead + $50/uid-month caps
 // and sha256(url) cache. Surfaces suggestions in photo.aiSuggestion

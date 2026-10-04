@@ -38,6 +38,11 @@ const CRON_GATES = [
   { name: 'TEXT_NOTES_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   { name: 'REVIEW_NUDGE_ENABLED', polarity: 'enabled', file: 'review-request-nudge.js' },
   { name: 'STORM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-watch.js' },
+  // Social Studio publisher kill switch (per-company on/off lives in
+  // companies/{id}/social_settings/config, default OFF).
+  { name: 'SOCIAL_PUBLISHER_DISABLED', polarity: 'disabled', file: 'social-studio.js' },
+  // Social Studio's Google Business posting stub: OFF until API access lands.
+  { name: 'SOCIAL_GBP_ENABLED', polarity: 'enabled', file: 'social-studio.js' },
   { name: 'VISUALIZER_IMAGEGEN_ENABLED', polarity: 'enabled', file: 'visualizer-image-gen.js' },
   { name: 'WEEKLY_DIGEST_ENABLED', polarity: 'enabled', file: 'weekly-digest.js' },
   // Not a cron: a lead trigger that writes jobs/j1 + activeJobId onto live

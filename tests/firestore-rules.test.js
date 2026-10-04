@@ -65,6 +65,11 @@ async function run() {
     const db = ctx.firestore();
     // Original fixture
     // §40 Stripe ledger rows (written only by the admin SDK in production).
+    // §48 Social Studio posts (companies/co-48/social_posts), one per state.
+    const P48 = (status, extra) => Object.assign({ companyId: 'co-48', createdBy: 'co-48', platform: 'facebook', kind: 'tip', caption: 'Clean gutters matter.', hashtags: ['#roofing'], media: [], status, scheduledAt: new Date('2026-11-01T14:00:00Z'), publish: { attempts: 0 } }, extra || {});
+    for (const st of ['draft', 'approved', 'scheduled', 'ready', 'publishing', 'posted', 'failed']) {
+      await setDoc(doc(db, 'companies/co-48/social_posts/p48-' + st), P48(st, st === 'posted' ? { postUrl: 'https://www.facebook.com/1' } : {}));
+    }
     await setDoc(doc(db, 'stripeLedger/ch_zz40'), { companyId: 'owner40', userId: 'owner40', kind: 'charge', amountCents: 145000, status: 'succeeded' });
     // §41 signed-document lock: a lead owned by owner41 in tenant owner41.
     await setDoc(doc(db, 'leads/lead41'), { userId: 'owner41', companyId: 'owner41', firstName: 'ZZ_QA', lastName: 'Lock' });
@@ -2310,6 +2315,60 @@ async function run() {
   console.log('  47: ' + s47Pass + ' security-batch checks passed, ' + s47Fail.length + ' failed');
   if (s47Fail.length) {
     throw new Error('47 security batch: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
+  }
+
+  // ─── 48. Social Studio — companies/{id}/social_posts + social_settings (2026-10-04) ───
+  // Owner + company_admin only. A client creates DRAFTS; only the
+  // socialApprovePost callable (admin SDK) approves; a content edit sends a
+  // post back to draft; server fields are frozen; 'publishing' is untouchable.
+  const s48Fail = []; let s48Pass = 0;
+  async function x48(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s48Pass++;
+    } catch (e) { s48Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own48   = env.authenticatedContext('co-48',  { companyId: 'co-48' }).firestore();
+  const cadm48  = env.authenticatedContext('cadm48', { role: 'company_admin', companyId: 'co-48' }).firestore();
+  const rep48   = env.authenticatedContext('rep48',  { role: 'sales_rep', companyId: 'co-48' }).firestore();
+  const mgr48   = env.authenticatedContext('mgr48',  { role: 'manager', companyId: 'co-48' }).firestore();
+  const view48  = env.authenticatedContext('vw48',   { role: 'viewer', companyId: 'co-48' }).firestore();
+  const other48 = env.authenticatedContext('oth48',  { role: 'company_admin', companyId: 'co-other48' }).firestore();
+  const sp = (db, id) => doc(db, 'companies/co-48/social_posts/' + id);
+  const NEW48 = (extra) => Object.assign({ companyId: 'co-48', createdBy: 'co-48', platform: 'x', kind: 'tip', caption: 'Hi.', hashtags: [], media: [], status: 'draft' }, extra || {});
+  await x48('owner reads a post', 'allow', getDoc(sp(own48, 'p48-draft')));
+  await x48('company_admin reads a post', 'allow', getDoc(sp(cadm48, 'p48-draft')));
+  await x48('sales rep cannot read', 'deny', getDoc(sp(rep48, 'p48-draft')));
+  await x48('manager cannot read', 'deny', getDoc(sp(mgr48, 'p48-draft')));
+  await x48('viewer cannot read', 'deny', getDoc(sp(view48, 'p48-draft')));
+  await x48('another company cannot read', 'deny', getDoc(sp(other48, 'p48-draft')));
+  await x48('owner creates a draft', 'allow', setDoc(sp(own48, 'n48a'), NEW48()));
+  await x48('create as approved is refused', 'deny', setDoc(sp(own48, 'n48b'), NEW48({ status: 'approved' })));
+  await x48('create carrying approvedAt is refused', 'deny', setDoc(sp(own48, 'n48c'), NEW48({ approvedAt: new Date() })));
+  await x48('create for another company id is refused', 'deny', setDoc(sp(own48, 'n48d'), NEW48({ companyId: 'co-other48' })));
+  await x48('viewer cannot create', 'deny', setDoc(sp(view48, 'n48e'), NEW48({ createdBy: 'vw48' })));
+  await x48('draft → approved by a client is refused (approval is server-side)', 'deny', updateDoc(sp(own48, 'p48-draft'), { status: 'approved' }));
+  await x48('draft → scheduled by a client is refused', 'deny', updateDoc(sp(own48, 'p48-draft'), { status: 'scheduled' }));
+  await x48('edit a draft caption', 'allow', updateDoc(sp(own48, 'p48-draft'), { caption: 'Edited.' }));
+  await x48('editing an approved caption without going back to draft is refused', 'deny', updateDoc(sp(own48, 'p48-approved'), { caption: 'Sneaky edit.' }));
+  await x48('approved → scheduled with a time (reschedule)', 'allow', updateDoc(sp(own48, 'p48-approved'), { status: 'scheduled', scheduledAt: new Date('2026-11-02T14:00:00Z') }));
+  await x48('scheduled: move the time', 'allow', updateDoc(sp(cadm48, 'p48-scheduled'), { scheduledAt: new Date('2026-11-03T14:00:00Z') }));
+  await x48('client cannot write the publish claim', 'deny', updateDoc(sp(own48, 'p48-scheduled'), { publish: { attempts: 0, claimId: 'x' } }));
+  await x48('client cannot set platformPostId', 'deny', updateDoc(sp(own48, 'p48-scheduled'), { platformPostId: 'fake' }));
+  await x48('client cannot touch a publishing post', 'deny', updateDoc(sp(own48, 'p48-publishing'), { status: 'cancelled' }));
+  await x48('client cannot delete a publishing post', 'deny', deleteDoc(sp(own48, 'p48-publishing')));
+  await x48('ready → posted with a URL (manual queue)', 'allow', updateDoc(sp(own48, 'p48-ready'), { status: 'posted', postUrl: 'https://www.tiktok.com/@nbd/video/1' }));
+  await x48('mark posted without a URL is refused', 'deny', updateDoc(sp(own48, 'p48-failed'), { status: 'posted' }));
+  await x48('a posted post cannot go back to draft', 'deny', updateDoc(sp(own48, 'p48-posted'), { status: 'draft' }));
+  await x48('client cannot set failed', 'deny', updateDoc(sp(own48, 'p48-scheduled'), { status: 'failed' }));
+  await x48('failed → draft (edit and re-approve)', 'allow', updateDoc(sp(own48, 'p48-failed'), { status: 'draft', caption: 'Fixed.' }));
+  await x48('sales rep cannot write', 'deny', updateDoc(sp(rep48, 'p48-draft'), { caption: 'rep' }));
+  await x48('owner writes the switches', 'allow', setDoc(doc(own48, 'companies/co-48/social_settings/config'), { enabled: true, platforms: { facebook: true } }));
+  await x48('sales rep cannot flip the switches', 'deny', setDoc(doc(rep48, 'companies/co-48/social_settings/config'), { enabled: false }));
+  await x48('nobody reads the media index from a client', 'deny', getDoc(doc(own48, 'social_media/' + 'a'.repeat(32))));
+  console.log('  48: ' + s48Pass + ' social studio checks passed, ' + s48Fail.length + ' failed');
+  if (s48Fail.length) {
+    throw new Error('48 social studio: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

@@ -91,6 +91,7 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | Export | Type | Compensating control |
 |---|---|---|
 | `stripeWebhook` | onRequest | Stripe signature verification + idempotency via `stripe_events/{eventId}` |
+| `socialMedia` | onRequest (GET /api/social-media?k=) | Serves ONLY Social Studio's re-encoded (EXIF/GPS-stripped) copies under `social-media/`, looked up by an unguessable 32-hex key in `social_media/{key}`; GET/HEAD only. Meta fetches post images from here |
 | `invoiceWebhook` | onRequest | Stripe signature verification (payment_intent.succeeded credit; phase-3 dispute auto-reversal + refund/decline visibility; since 2026-09-29 every event also feeds the Stripe ledger — stripe-ledger.js `onEvent`). Since 2026-10-03 it no longer moves the lead's stage on a payoff — it writes the invoice, and `moneyPaperOnInvoice` runs the job spine (`job-spine.js` `paid_in_full`) for every payment method |
 | `esignWebhook` | onRequest | BoldSign webhook-secret verification |
 | `measurementWebhook` | onRequest | Hover/EagleView HMAC + Instant Roofer bearer-token verification; human-report file URLs land here |
@@ -173,6 +174,10 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `getStripeOverview` | onCall | requireOwner | Stripe ledger — balance (available/pending) + last 10 payouts for the Money view |
 | `setupGoogleCalendar` | onCall | requireOwner: platform owner, its company_admin, or role admin | Google Calendar — creates the "NBD Jobs" calendar (owned by the functions service account), shares it READ-ONLY with the given Google account, fills it (functions/google-calendar.js) |
 | `getGoogleCalendarStatus` | onCall | requireOwner | Google Calendar — set up? shared with whom, the service-account email to share free/busy with, whether Jo's main calendar is readable |
+| `socialEligibleJobs` | onCall | requireSocialManager: solo owner, company_admin, or role admin (viewer refused) | Social Studio — finished jobs (stage-roles isWon) with photos, for the draft picker (functions/social-studio.js) |
+| `socialDraftFromJob` | onCall | requireSocialManager | Social Studio — one job → a draft per platform: re-encoded photos (photo-reencode.js), town only, package/shingle, caption through the privacy + KY filter |
+| `socialPlanWeeks` | onCall | requireSocialManager | Social Studio — Plan N weeks: a mix of showcases / tips / storm PSAs / reviews / behind-the-scenes as DRAFTS |
+| `socialApprovePost` | onCall | requireSocialManager | Social Studio — the only path to approved/scheduled; re-cleans caption + hashtags with the source lead's private terms |
 | `getBusyTimes` | onCall | requireOwner | Google Calendar — merged busy blocks (NBD Jobs + Jo's main calendar) for the double-booking warning; ≤62-day window |
 | `reverifyCompanyKnocks` | onCall | `requireTeamAdmin` | D2D — re-geocodes/verifies the company's knock addresses (540s sweep) |
 | `convertUnmatchedSms` | onCall | `isOwnerCaller` or `role === 'admin'` | Turns an `unmatched_sms` triage row into a real lead + AI draft (handlers/inbound-sms-convert.js) |
@@ -213,6 +218,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runAbandonRecovery` | hourly | Funnel-drop recovery email sender; DRY-RUN unless `FUNNEL_RECOVERY_ENABLED=true` |
 | `dailyLeadDigest` | daily 07:00 ET | Summary of the last 24h of public leads |
 | `leadFollowUpSweep` | every 3h | One follow-up email to 20-48h-old leads whose bridged CRM card is untouched |
+| `socialPublisher` | every 5 min | Social Studio publisher — claims due scheduled posts and publishes via Meta Graph (FB/IG); not connected or manual → Ready to post queue; retry with backoff, then failed + bell/push alert. Off per company until Jo flips the switch; `SOCIAL_PUBLISHER_DISABLED=true` kills it globally |
 | `stormWatch` | every 30 min | NWS/IEM Local Storm Reports watcher; always alerts Joe; subscriber texting gated by `STORM_TEXT_ENABLED` |
 | `checkStormAlerts` | every 30 min | (sms-functions.js) Polls NWS **weather alerts** for subscriber zips → Twilio SMS. Distinct from `stormWatch`, which polls storm *reports* |
 | `monthlyMarketingReport` | 1st of month 07:00 ET | Marketing rollup email |

@@ -1621,6 +1621,9 @@ service cloud.firestore {
     // decided item stays decided.
     // Bot keys (hashed) and the bot audit trail — server only (agent-mcp.js).
     match /agent_keys/{keyId}   { allow read, write: if false; }
+    // Social Studio media index (key → social-media/ Storage path of a
+    // re-encoded copy). Server only: functions/social-studio.js.
+    match /social_media/{key}   { allow read, write: if false; }
     match /agent_audit/{auditId} { allow read, write: if false; }
 
     match /agent_inbox/{itemId} {
@@ -1845,6 +1848,60 @@ service cloud.firestore {
         //     since Firestore authorizes by claim, not roster membership).
         // Admin-SDK callables bypass rules; platform admins keep client access.
         allow create, update, delete: if isAdmin();
+      }
+
+      // ── SOCIAL STUDIO (2026-10-04) ───────────────────────────────────
+      // companies/{companyId}/social_posts — every post (caption, media keys,
+      // schedule, result URL) lives here, exportable from Social Studio.
+      // Owner + company_admin only (same editors as priceBook/catalogCosts);
+      // viewers, managers and reps neither read nor write.
+      //
+      // The publish lifecycle is server-owned: only the socialApprovePost
+      // callable (which re-runs the privacy + Kentucky caption filter) can
+      // move a DRAFT to approved/scheduled, and only the publisher writes
+      // publish/approvedAt/platformPostId. A client may: create a draft,
+      // edit a post (any content edit sends it back to 'draft'), reschedule
+      // an approved/scheduled/ready post, cancel, or mark a post posted
+      // with its URL (the manual "Ready to post" queue). A post the
+      // publisher holds ('publishing') is untouchable.
+      function socialManager() {
+        return isAdmin()
+          || (companyId == request.auth.uid && notViewer())
+          || (isCompanyAdmin() && companyId == myCompanyId());
+      }
+      function socialContentChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['caption', 'hashtags', 'media', 'platform', 'kind', 'format']);
+      }
+      function socialStatusOk() {
+        let before = resource.data.status;
+        let after = request.resource.data.status;
+        return (!socialContentChanged() || after == 'draft')
+          && (before != 'posted' || after == 'posted')
+          && (after != 'scheduled' || request.resource.data.scheduledAt is timestamp)
+          && (after == before
+            || (after == 'draft' && before in ['draft', 'approved', 'scheduled', 'failed', 'ready', 'cancelled'])
+            || (after == 'cancelled' && before in ['draft', 'approved', 'scheduled', 'failed', 'ready'])
+            || (after in ['approved', 'scheduled'] && before in ['approved', 'scheduled', 'ready'])
+            || (after == 'posted' && before in ['approved', 'scheduled', 'ready', 'failed']
+                && request.resource.data.postUrl is string && request.resource.data.postUrl.size() > 0));
+      }
+      match /social_posts/{postId} {
+        allow read: if socialManager();
+        allow create: if socialManager()
+          && request.resource.data.companyId == companyId
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'draft'
+          && !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId']);
+        allow update: if socialManager()
+          && resource.data.status != 'publishing'
+          && didNotChange(['companyId', 'createdBy', 'approvedAt', 'approvedBy', 'publish', 'platformPostId', 'sourceLeadId', 'groupId', 'captionFilter'])
+          && socialStatusOk();
+        allow delete: if socialManager() && resource.data.status != 'publishing';
+      }
+      // On/off switches: { enabled: bool, platforms: { facebook: bool, … } }.
+      match /social_settings/{docId} {
+        allow read, write: if socialManager();
       }
     }
 

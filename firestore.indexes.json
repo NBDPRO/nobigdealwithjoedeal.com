@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "social_posts",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "funnel_abandoned",
       "queryScope": "COLLECTION",
       "fields": [
