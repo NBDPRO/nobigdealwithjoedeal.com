@@ -3539,23 +3539,41 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * false when dismissed. Nothing is sent to the homeowner from here: the
    * payment's receipt is a draft until the rep taps Send receipt.
    */
-  async function recordPaymentUI(leadId) {
-    if (!leadId) return false;
+  /**
+   * Everything the Record Payment sheet reads before it opens: the lead, its
+   * job's invoices, the primary estimate and where a payment would land
+   * (recordPaymentTarget). Shared with the "Catch up my numbers" screen's
+   * Paid-in-full shortcut (catchup.js) so both resolve the job total the
+   * same way. Throws when the lead or its invoices cannot be read.
+   */
+  async function recordPaymentContext(leadId) {
     const db = getDb();
-    let lead = null, invoices = [], estimate = null;
+    const ls = await window.getDoc(window.doc(db, 'leads', leadId));
+    const lead = ls.exists() ? Object.assign({ id: leadId }, ls.data()) : null;
+    if (!lead) throw new Error('Customer not found');
+    const invoices = await _loadLeadInvoices(db, leadId);
+    const estId = lead.primaryEstimateId
+      || ((window._estimates || []).find(e => e && e.leadId === leadId && e.deleted !== true) || {}).id || null;
+    const estimate = estId ? await _readEstimate(db, estId) : null;
+    const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts() });
+    return { lead, invoices, estimate, target };
+  }
+
+  /**
+   * opts.noReceipt (2026-10-04, the catch-up screen) is accepted and needs
+   * nothing: this sheet never emails anyone (the receipt is a draft until
+   * the rep taps Send receipt), so Jo back-entering old checks from that
+   * screen cannot email a customer.
+   */
+  async function recordPaymentUI(leadId, opts) {
+    if (!leadId) return false;
+    let lead = null, target = null;
     try {
-      const ls = await window.getDoc(window.doc(db, 'leads', leadId));
-      lead = ls.exists() ? Object.assign({ id: leadId }, ls.data()) : null;
-      if (!lead) throw new Error('Customer not found');
-      invoices = await _loadLeadInvoices(db, leadId);
-      const estId = lead.primaryEstimateId
-        || ((window._estimates || []).find(e => e && e.leadId === leadId && e.deleted !== true) || {}).id || null;
-      estimate = estId ? await _readEstimate(db, estId) : null;
+      ({ lead, target } = await recordPaymentContext(leadId));
     } catch (e) {
       _toast('Could not load the invoices for this customer — try again.', 'error');
       return false;
     }
-    const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts() });
 
     const today = localDateInputValue(new Date());
     const fmt = (c) => formatCurrency((Number(c) || 0) / 100);
@@ -3710,6 +3728,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     zelleTextFor,
     achPendingText,
     recordPaymentTarget,
+    recordPaymentContext,
+    // The job's invoices, scoped like every other read here (catchup.js
+    // snapshots them before and after a payment so Undo can reverse it).
+    loadLeadInvoices: (leadId) => _loadLeadInvoices(getDb(), leadId),
     jobValueInvoiceDoc,
     PAYERS,
     isPartPaid,

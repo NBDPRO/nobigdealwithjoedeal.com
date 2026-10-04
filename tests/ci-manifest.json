@@ -36,6 +36,7 @@
     "stripe-payoff-advance-guard-2026-09-28.test.js",
     "job-spine-2026-10-03.test.js",
     "numbers-you-can-trust-2026-10-04.test.js",
+    "catchup-2026-10-04.test.js",
     "deposit-draft-2026-10-03.test.js",
     "money-getting-paid-2026-10-03.test.js",
     "receipts-zelle-ach-2026-10-04.test.js",

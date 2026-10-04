@@ -79,7 +79,9 @@ const routeConfig = {
   'signs':        { label: 'Yard Signs',        parent: null },
   'winback':      { label: 'Past Customers',    parent: null },
   // Sunday business review (2026-10-04, js/week-review.js).
-  'weekreview':   { label: 'Sunday Review',     parent: null }
+  'weekreview':   { label: 'Sunday Review',     parent: null },
+  // Catch up my numbers (2026-10-04, js/catchup.js) — owner-only decks.
+  'catchup':      { label: 'Catch Up Numbers',  parent: null }
 };
 
 /**

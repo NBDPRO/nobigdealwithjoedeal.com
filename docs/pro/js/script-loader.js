@@ -151,7 +151,15 @@
     // the owner-only data reads (numbers-data.js) are eager on the page; this
     // is just the view.
     weekreview: [
-      'js/week-review.js?v=1'
+      'js/week-review.js?v=2'
+    ],
+    // Catch up my numbers (2026-10-04, #/catchup): the deck rules, then the
+    // view. numbers-logic / numbers-data / the lost-reason picker and
+    // invoice-pipeline.js (Record payment) are eager on the dashboard.
+    catchup: [
+      'js/catchup-logic.js?v=1',
+      'css/catchup.css?v=1',
+      'js/catchup.js?v=1'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -470,6 +478,7 @@
     signs:       ['mapvendor', 'signs'],
     winback:     ['winback'],
     weekreview:  ['weekreview'],
+    catchup:     ['catchup'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     calls:       ['callcenter'],

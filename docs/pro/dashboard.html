@@ -874,6 +874,7 @@
         <div style="display:flex;gap:6px;">
           <button class="btn btn-ghost" style="font-size:11px;padding:8px 14px;" data-action="module" data-target="NBDWidgets.openPicker">⚙️ Customize</button>
           <button class="btn btn-ghost nb-home-link" id="homeWeekReviewBtn" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
+          <button class="btn btn-ghost nb-home-link" id="homeCatchUpBtn" data-action="goTo" data-target="catchup">📋 Catch up my numbers</button>
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
@@ -2420,6 +2421,9 @@
   <!-- Sunday business review (2026-10-04): template-hydrated mount; week-review.js (lazy 'weekreview' bundle) renders into .view-scroll on init. Owner-only figures. -->
   <div class="view" id="view-weekreview" data-view-template="tpl-view-weekreview"></div>
   <template id="tpl-view-weekreview"><div class="view-scroll" id="weekReviewScroll"></div></template>
+  <!-- Catch up my numbers (2026-10-04): template-hydrated mount; catchup.js (lazy 'catchup' bundle) renders the decks into .view-scroll on init. Owner-only. -->
+  <div class="view" id="view-catchup" data-view-template="tpl-view-catchup"></div>
+  <template id="tpl-view-catchup"><div class="view-scroll" id="catchUpScroll"></div></template>
   <template id="tpl-view-closeboard">
     <div class="view-scroll">
       <div class="page-hdr">
@@ -5979,7 +5983,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=9"></script>
+<script defer src="js/dashboard-state.js?v=10"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=5"></script>
@@ -6017,7 +6021,7 @@
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=9"></script>
 <script defer src="js/dashboard-ui.js?v=11"></script>
-<script defer src="js/dashboard-actions.js?v=17"></script>
+<script defer src="js/dashboard-actions.js?v=18"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -6984,7 +6988,7 @@
      the required "Why was it lost?" sheet (crm-pipeline / crm-leads). -->
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/numbers-data.js?v=1"></script>
-<script defer src="js/lost-reason-picker.js?v=1"></script>
+<script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=13"></script>
 <script defer src="js/today-home.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>

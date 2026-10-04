@@ -1,0 +1,79 @@
+/* catchup.css — "Catch up my numbers" (#/catchup, js/catchup.js, 2026-10-04).
+   Phone first: 390 px wide, 44 px tap targets, no horizontal page scroll.
+   The Paid-in-full sheet reuses numbers.css's .nb-sheet. */
+
+.cu-page { max-width: 640px; margin: 0 auto; padding: 14px 16px 48px; box-sizing: border-box; }
+.cu-top { margin-bottom: 12px; }
+.cu-title { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--t, #e8eaf0); }
+.cu-sub { font-size: 13px; color: var(--m, #8892A4); margin-top: 2px; }
+.cu-dim { color: var(--m, #8892A4); }
+.cu-small { font-size: 12px; margin-top: 6px; line-height: 1.45; }
+.cu-empty { padding: 32px 12px; text-align: center; color: var(--m, #8892A4); font-size: 15px; }
+.cu-mt { margin-top: 14px; }
+
+.cu-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+.cu-tab { min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 4px; border-radius: 10px; border: 1px solid var(--br, #2a2f35); background: var(--s2, #1b2028); color: var(--t, #e8eaf0); font: inherit; cursor: pointer; min-width: 0; }
+.cu-tab.cu-on { border-color: var(--orange, #BD5728); box-shadow: inset 0 0 0 1px var(--orange, #BD5728); background: rgba(189, 87, 40, .12); }
+.cu-tab-l { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cu-tab-s { font-size: 12px; color: var(--m, #8892A4); font-variant-numeric: tabular-nums; }
+
+.cu-undo { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 6px 6px 12px; margin-bottom: 10px; border-radius: 10px; background: var(--s2, #1b2028); border: 1px dashed var(--br, #2a2f35); }
+.cu-undo-t { font-size: 12px; color: var(--m, #8892A4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cu-progress { margin-bottom: 10px; }
+.cu-bar { display: block; width: 100%; height: 10px; border: none; border-radius: 6px; overflow: hidden; background: var(--s2, #1b2028); accent-color: var(--green, #22c55e); appearance: none; -webkit-appearance: none; }
+.cu-bar::-webkit-progress-bar { background: var(--s2, #1b2028); border-radius: 6px; }
+.cu-bar::-webkit-progress-value { background: var(--green, #22c55e); border-radius: 6px; }
+.cu-bar::-moz-progress-bar { background: var(--green, #22c55e); border-radius: 6px; }
+.cu-progress-t { font-size: 14px; font-weight: 800; color: var(--t, #e8eaf0); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+.cu-card { background: var(--s, #13171d); border: 1px solid var(--br, #2a2f35); border-radius: 14px; padding: 14px; margin-bottom: 12px; min-width: 0; touch-action: pan-y; }
+.cu-card-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.cu-name { font-size: 18px; font-weight: 800; color: var(--t, #e8eaf0); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; min-width: 0; }
+.cu-booked { font-size: 14px; font-weight: 700; color: var(--t, #e8eaf0); white-space: nowrap; }
+.cu-proj { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--m, #8892A4); }
+.cu-addr { font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+.cu-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; padding: 0; list-style: none; }
+.cu-chip { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--br, #2a2f35); }
+.cu-chip.cu-miss { color: #f3b48f; border-color: rgba(189, 87, 40, .55); background: rgba(189, 87, 40, .12); }
+.cu-chip.cu-ok { color: var(--green, #22c55e); border-color: rgba(34, 197, 94, .35); }
+
+.cu-sec { border-top: 1px solid var(--br, #2a2f35); padding-top: 10px; margin-top: 10px; }
+.cu-sec-t { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--t, #e8eaf0); }
+.cu-q { font-size: 15px; font-weight: 700; margin: 8px 0 6px; color: var(--t, #e8eaf0); }
+.cu-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.cu-allset { margin-top: 12px; color: var(--green, #22c55e); font-weight: 700; }
+
+.cu-btn { min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--br, #2a2f35); background: var(--s2, #1b2028); color: var(--t, #e8eaf0); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.cu-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cu-btn-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: var(--accent-fg, #fff); }
+.cu-btn-ghost { background: transparent; color: var(--m, #8892A4); }
+.cu-btn-done { background: rgba(34, 197, 94, .14); border-color: rgba(34, 197, 94, .55); color: var(--green, #22c55e); }
+.cu-row .cu-btn { flex: 1 1 120px; }
+.cu-tiers, .cu-reasons, .cu-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.cu-tier, .cu-reason, .cu-pick { min-height: 48px; text-align: center; }
+.cu-pick.cu-on { border-color: var(--orange, #BD5728); background: rgba(189, 87, 40, .14); box-shadow: inset 0 0 0 1px var(--orange, #BD5728); }
+.cu-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.cu-foot .cu-btn { min-height: 52px; font-size: 16px; }
+.cu-pos { text-align: center; }
+
+.cu-date, .cu-money, .cu-file { min-height: 44px; box-sizing: border-box; background: var(--s2, #1b2028); color: var(--t, #e8eaf0); border: 1px solid var(--br, #2a2f35); border-radius: 10px; padding: 6px 10px; font: inherit; font-size: 16px; max-width: 100%; }
+.cu-date { flex: 1 1 160px; min-width: 0; }
+.cu-date-wide { width: 100%; }
+.cu-money { width: 120px; text-align: right; }
+.cu-file { width: 100%; margin-top: 8px; }
+
+.cu-months { list-style: none; margin: 10px 0 0; padding: 0; }
+.cu-month { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid var(--br, #2a2f35); }
+.cu-month:last-child { border-bottom: none; }
+.cu-month-l { display: flex; flex-direction: column; gap: 2px; font-size: 14px; min-width: 0; }
+.cu-month-l .cu-dim { font-size: 12px; }
+.cu-month-ok .cu-month-l strong::after { content: ' ✓'; color: var(--green, #22c55e); }
+.cu-month-r { margin-top: 0; flex: 0 1 auto; }
+.cu-month-r .cu-btn { flex: 0 0 auto; }
+.cu-csv { margin-top: 10px; font-size: 13px; }
+.cu-list { margin: 6px 0; padding-left: 18px; line-height: 1.5; }
+
+.cu-pif-amt { font-size: 32px; font-weight: 800; color: var(--t, #e8eaf0); font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+#cu-pif .cu-picks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nb-home-catchup { font-size: 11px; padding: 8px 14px; }
