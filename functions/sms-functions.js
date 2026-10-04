@@ -41,6 +41,8 @@ const { phoneDigits10 } = require('./phone-utils');
 // used to write the register under an 11-digit key and read it under a
 // 10-digit one, so no STOP was ever honoured on an outbound send.
 const OptOut = require('./sms-optout');
+// Storm texts: opt-out → claim → send (never double-sends). See the module.
+const StormGuard = require('./storm-sms-guard');
 // Tenant-safe inbound routing (audit 2026-08-02 HIGH-5): one shared Twilio
 // number serves every tenant, so the lead match must consider ALL candidates
 // and refuse to guess across tenants. Pure module — decision table lives (and
@@ -50,6 +52,28 @@ const { pickLeadForInbound } = require('./inbound-sms-route-logic');
 // pass before it goes — idempotency, quiet hours, staleness, competing
 // activity. Pure; the Firestore reads that feed it live in queuedSendGate().
 const Outbox = require('./sms-outbox-guard');
+
+// Per-tenant daily cap on texts to numbers the tenant has NEVER texted before
+// (see handleSendSMS). Generous for real lead flow, tight against fishing.
+const NEW_NUMBERS_PER_TENANT_PER_DAY = 40;
+
+// Has this tenant (company claim, or the solo rep's uid) ever logged an SMS
+// with this number? Same {toDigits, companyId|uid, date} composites the
+// offline-outbox activity check uses (firestore.indexes.json).
+async function isNewNumberForTenant(db, decoded, toDigits) {
+  let q = db.collection('sms_log').where('toDigits', '==', toDigits);
+  q = decoded.companyId
+    ? q.where('companyId', '==', decoded.companyId)
+    : q.where('uid', '==', decoded.uid);
+  const snap = await q.orderBy('date', 'desc').limit(1).get();
+  return snap.empty;
+}
+
+// Log-safe phone: last 2 digits only (PII in logs, security batch 2026-10-03).
+function maskPhoneLast2(p) {
+  const d = String(p == null ? '' : p).replace(/\D/g, '');
+  return d ? '…' + d.slice(-2) : '';
+}
 
 // Minimal HTML escaper for values we store from untrusted SMS webhooks.
 function escForStore(s) {
@@ -661,6 +685,35 @@ async function handleSendSMS(req, res, queuedEndpoint) {
         return;
       }
       throw e;
+    }
+
+    // Per-tenant cap on NEW numbers (security batch 2026-10-03). One Twilio
+    // number serves every tenant and this endpoint accepts any `to`, so
+    // texting numbers the tenant has never texted is how a tenant would fish
+    // for another tenant's customers (incomingSMS now keeps replies with the
+    // established thread — this bounds the attempts). A number this tenant
+    // already has an sms_log row for is never counted. A failed lookup counts
+    // the number as new: the cap is the conservative side.
+    const tenantKey = decoded.companyId || decoded.uid;
+    let newNumber = true;
+    try {
+      newNumber = await isNewNumberForTenant(getFirestore(), decoded, toDigits);
+    } catch (e) {
+      logger.warn('sendSMS new-number lookup failed — counting as new', { err: e && e.message });
+    }
+    if (newNumber) {
+      try {
+        await enforceRateLimit('sendSMS:newTo', tenantKey, NEW_NUMBERS_PER_TENANT_PER_DAY, 86_400_000);
+      } catch (e) {
+        if (e.rateLimited) {
+          res.status(429).json({
+            error: 'Daily limit for texting new numbers reached. Texts to customers you have already texted still go through.',
+            code: 'new_number_limit',
+          });
+          return;
+        }
+        throw e;
+      }
     }
 
     if (!body || body.trim().length === 0) {
@@ -1314,7 +1367,8 @@ exports.incomingSMS = onRequest(
         if (!docsById.has(d.id)) docsById.set(d.id, d);
       }
       if (docsById.size >= MATCH_LIMIT) {
-        logger.warn('[incomingSMS] candidate cap hit — match set may be incomplete', { fromDigits });
+        // Last 2 digits only — a full phone number is PII in the log stream.
+        logger.warn('[incomingSMS] candidate cap hit — match set may be incomplete', { fromLast2: maskPhoneLast2(fromDigits) });
       }
 
       const tsMillis = (v) => (v && typeof v.toMillis === 'function') ? v.toMillis()
@@ -1326,15 +1380,22 @@ exports.incomingSMS = onRequest(
           id,
           companyId: data.companyId || null,
           userId: data.userId || null,
+          firstOutboundAt: null,
           lastOutboundAt: null,
           lastContactedAt: tsMillis(data.lastContactedAt),
           createdAt: tsMillis(data.createdAt),
         });
       }
-      // Outbound-SMS recency is only needed to break ties — skip the extra
+      // Outbound-SMS history is only needed to break ties — skip the extra
       // reads for the common single-match case. Uses the existing
-      // {leadId, uid, date} composite (firestore.indexes.json); outbound rows
-      // are any status other than 'received'.
+      // {leadId, uid, date DESC} composite (firestore.indexes.json); outbound
+      // rows are any status other than 'received'. The OLDEST outbound row in
+      // the window read stands in for the thread's start (firstOutboundAt):
+      // pickLeadForInbound gives a cross-tenant reply to the tenant whose
+      // conversation is established, not to whoever texted last (2026-10-03
+      // reply-hijack fix). A thread longer than OUTBOUND_SCAN rows reads as
+      // starting later than it did — never earlier.
+      const OUTBOUND_SCAN = 50;
       if (candidates.length > 1) {
         for (const c of candidates) {
           if (!c.userId) continue;
@@ -1343,10 +1404,13 @@ exports.incomingSMS = onRequest(
               .where('leadId', '==', c.id)
               .where('uid', '==', c.userId)
               .orderBy('date', 'desc')
-              .limit(3)
+              .limit(OUTBOUND_SCAN)
               .get();
-            const sent = out.docs.map(x => x.data()).find(x => x && x.status !== 'received');
+            const sentRows = out.docs.map(x => x.data()).filter(x => x && x.status !== 'received');
+            const sent = sentRows[0];
             c.lastOutboundAt = sent ? tsMillis(sent.date) : null;
+            const oldest = sentRows.length ? sentRows[sentRows.length - 1] : null;
+            c.firstOutboundAt = oldest ? tsMillis(oldest.date) : null;
           } catch (e) {
             // Recency is best-effort; a failed lookup just means this lead
             // can't win a cross-tenant tiebreak (fails toward triage).
@@ -1361,6 +1425,21 @@ exports.incomingSMS = onRequest(
           ambiguity: route.ambiguity,
           decision: route.decision,
           candidateLeadIds: candidates.map(c => c.id),
+        });
+      }
+      // A NEWER tenant was texting a number another tenant already had a
+      // conversation with — the reply did not go to it. Flag it for review:
+      // this is the shape of a reply-hijack attempt (and of an honest second
+      // contractor, which is why it is a flag and not a block).
+      if (route.flaggedLeadIds && route.flaggedLeadIds.length) {
+        const byId = new Map(candidates.map(c => [c.id, c]));
+        logger.warn('[incomingSMS] newer-tenant thread flagged (reply kept with the established tenant)', {
+          decision: route.decision,
+          routedLeadId: route.leadId || null,
+          flagged: route.flaggedLeadIds.map(id => ({
+            leadId: id,
+            companyId: (byId.get(id) || {}).companyId || null,
+          })),
         });
       }
 
@@ -1523,45 +1602,70 @@ const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped
  * Polls NWS weather alerts for subscriber zip codes
  * Sends SMS when severe weather is detected
  *
+ * Never double-sends (2026-10-03): every text goes through
+ * storm-sms-guard.js — TCPA opt-out register, then a CLAIM transaction
+ * (deterministic storm_alerts_sent/{hash(alertId, subscriber)} created with
+ * create semantics + the shared lastStormTextAt cooldown stamp) committed
+ * BEFORE Twilio is called. A failed post-send write or a timeout kill can no
+ * longer make the next run re-text, an NWS update re-issued under a new alert
+ * id is absorbed by the cooldown, and stormWatch shares the same cooldown.
+ *
  * Setup: firebase deploy --only functions
  * Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER secrets
  */
+// Run-time budget. 250 texts at the 1.1s Twilio pacing is ~275s of sleep
+// alone, plus an opt-out read, a claim transaction and the Twilio call per
+// text — the old 120s timeout killed the run near text ~105, every time.
+// The fan-out stops itself at STORM_RUN_BUDGET_MS (the rest are picked up by
+// the next tick), well inside STORM_TIMEOUT_S, so a kill is never the normal
+// way a big run ends.
+const STORM_TIMEOUT_S = 540;
+const STORM_RUN_BUDGET_MS = 420_000;
+const STORM_NWS_FETCH_TIMEOUT_MS = 20_000;
+const STORM_SMS_PACING_MS = 1100;
+
 exports.checkStormAlerts = onSchedule(
   {
     schedule: 'every 30 minutes',
     secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
     maxInstances: 1,
-    timeoutSeconds: 120,
+    timeoutSeconds: STORM_TIMEOUT_S,
     memory: '256MiB'
   },
   async (event) => {
     const db = getFirestore();
+    const runStartMs = Date.now();
 
     try {
-      // Get all active subscribers
-      const subsSnap = await db.collection('storm_alert_subscribers')
-        .where('active', '==', true)
-        .get();
+      // TCPA master switch (integrations/stormAlerts.enabled; absent = on).
+      if (!(await StormGuard.stormAlertsEnabled(db, logger))) {
+        logger.info('storm_alerts_switched_off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
+        return;
+      }
 
-      if (subsSnap.empty) {
+      // Every active subscriber, paged by documentId (no silent cap).
+      const subDocs = await StormGuard.loadActiveSubscribers(db, { logger });
+
+      if (subDocs.length === 0) {
         logger.info('storm_alerts_no_subscribers');
         return;
       }
 
       // Group subscribers by zip
       const byZip = {};
-      subsSnap.docs.forEach(doc => {
+      subDocs.forEach(doc => {
         const data = doc.data();
         if (!byZip[data.zip]) byZip[data.zip] = [];
-        byZip[data.zip].push({ id: doc.id, ...data });
+        byZip[data.zip].push({ id: doc.id, ref: doc.ref, ...data });
       });
 
       const uniqueZips = Object.keys(byZip);
-      logger.info('storm_alerts_scan_start', { zips: uniqueZips.length, subscribers: subsSnap.size });
+      logger.info('storm_alerts_scan_start', { zips: uniqueZips.length, subscribers: subDocs.length });
 
       const alertUrl = 'https://api.weather.gov/alerts/active?area=OH,KY&severity=Severe,Extreme';
       const alertResp = await fetch(alertUrl, {
-        headers: { 'User-Agent': 'NBDHomeStormAlerts/1.0 (jd@nobigdealwithjoedeal.com)' }
+        headers: { 'User-Agent': 'NBDHomeStormAlerts/1.0 (jd@nobigdealwithjoedeal.com)' },
+        signal: AbortSignal.timeout(STORM_NWS_FETCH_TIMEOUT_MS),
       });
       if (!alertResp.ok) { logger.error('NWS API error', { status: alertResp.status }); return; }
 
@@ -1587,7 +1691,9 @@ exports.checkStormAlerts = onSchedule(
         return;
       }
 
-      // Dedup by (alertId, subscriberId).
+      // Cheap pre-filter + daily budget from the last 48h of claims. The
+      // claim transaction (StormGuard) is the authoritative dedup; this set
+      // only saves a transaction per already-handled pair.
       const alreadySent = new Set();
       const recentSent = await db.collection('storm_alerts_sent')
         .where('sentAt', '>', new Date(Date.now() - 48 * 60 * 60 * 1000))
@@ -1609,15 +1715,16 @@ exports.checkStormAlerts = onSchedule(
       // Extreme event × many subscribers could otherwise blast thousands of
       // Twilio messages (and dollars) from a single tick. When the cap
       // trips we stop and log loudly; remaining subscribers are picked up
-      // on the next 30-min tick (the (alertId,subscriberId) dedup prevents
-      // anyone being messaged twice for the same alert). Override via env.
+      // on the next 30-min tick (the claim + shared cooldown prevent anyone
+      // being messaged twice). Override via env.
       const MAX_SMS_PER_RUN = Number(process.env.STORM_MAX_SMS_PER_RUN) || 250;
       // Daily ceiling across all runs (defends a multi-day storm event). Set
       // STORM_MAX_SMS_PER_DAY=0 to halt storm SMS entirely (kill-switch).
       const MAX_SMS_PER_DAY = Number(process.env.STORM_MAX_SMS_PER_DAY) || 2000;
-      let totalSent = 0;
+      let totalSent = 0;   // claims spent this run (sent or failed after claim)
       let capHit = false;
       let capScope = null;
+      const skipped = {};
 
       // Helper: does subscriber's zip fall inside this alert's areaDesc?
       function zipMatchesArea(zip, areaDescLower) {
@@ -1644,41 +1751,60 @@ exports.checkStormAlerts = onSchedule(
           for (const sub of byZip[zip]) {
             if (totalSent >= MAX_SMS_PER_RUN) { capHit = true; capScope = 'run'; break fanout; }
             if (sentToday + totalSent >= MAX_SMS_PER_DAY) { capHit = true; capScope = 'day'; break fanout; }
+            if (Date.now() - runStartMs >= STORM_RUN_BUDGET_MS) { capHit = true; capScope = 'time'; break fanout; }
             const dedupKey = `${alertId}::${sub.id}`;
             if (alreadySent.has(dedupKey)) continue;
+            if (StormGuard.inStormCooldown(sub, Date.now())) { skipped.cooldown = (skipped.cooldown || 0) + 1; continue; }
 
             const phone = formatPhoneNumber(sub.phone);
             if (!phone) continue;
 
             const body = `⛈️ NBD Storm Alert: ${event} reported near ${zip}. ${String(headline).substring(0, 120)} — Free roof inspection: nobigdealwithjoedeal.com or call Joe (859) 420-7382. Reply STOP to unsubscribe.`;
 
-            try {
-              await client.messages.create({
-                body: body.substring(0, 1600),
-                from: fromPhone,
-                to: phone,
-              });
-              totalSent++;
-              alreadySent.add(dedupKey);
-
-              await db.collection('storm_alerts_sent').add({
+            const result = await StormGuard.sendGuardedStormText({
+              db,
+              subscriberRef: sub.ref || db.collection('storm_alert_subscribers').doc(sub.id),
+              phone,
+              claimRef: db.collection('storm_alerts_sent').doc(StormGuard.claimDocId(alertId, sub.id)),
+              claimData: {
                 alertId,
                 subscriberId: sub.id,
                 event,
                 headline,
                 areas: areasLower,
                 zip,
+                // sentAt = claim time: the 48h dedup query and the daily
+                // budget count claims, so a run that dies mid-send still
+                // spends budget rather than refunding it.
                 sentAt: FieldValue.serverTimestamp(),
-              });
-            } catch (e) {
-              logger.warn('storm_alert_sms_failed', { sub: sub.id, err: e.message });
-              if (e.code === 21211 || e.code === 21614) {
-                await db.doc(`storm_alert_subscribers/${sub.id}`).update({ active: false });
+              },
+              source: 'checkStormAlerts',
+              eventKey: String(alertId),
+              logger,
+              tz: sub.tz,
+              serverTimestamp: () => FieldValue.serverTimestamp(),
+              send: () => client.messages.create({
+                body: body.substring(0, 1600),
+                from: fromPhone,
+                to: phone,
+              }),
+            });
+            alreadySent.add(dedupKey);
+
+            if (result.status === 'sent' || result.status === 'send_failed') totalSent++;
+            else { skipped[result.status] = (skipped[result.status] || 0) + 1; continue; }
+
+            if (result.status === 'send_failed') {
+              const code = result.error && Number(result.error.code);
+              if (code === 21610) await recordCarrierOptOut(db, phone, 'checkStormAlerts');
+              if (code === 21211 || code === 21614 || code === 21610) {
+                await db.doc(`storm_alert_subscribers/${sub.id}`).update({ active: false })
+                  .catch((e) => logger.error('storm_alert_deactivate_failed', { sub: sub.id, err: e.message }));
               }
             }
 
             // Twilio default per-number cap is 1 msg/sec.
-            await sleep(1100);
+            await sleep(STORM_SMS_PACING_MS);
           }
         }
       }
@@ -1686,10 +1812,13 @@ exports.checkStormAlerts = onSchedule(
       if (capHit) {
         logger.warn('storm_alerts_cap_hit', {
           scope: capScope, totalSent, sentToday,
-          cap: capScope === 'day' ? MAX_SMS_PER_DAY : MAX_SMS_PER_RUN,
+          cap: capScope === 'day' ? MAX_SMS_PER_DAY : capScope === 'time' ? STORM_RUN_BUDGET_MS : MAX_SMS_PER_RUN,
         });
       }
-      logger.info('storm_alerts_complete', { totalSent, sentToday, capHit, capScope });
+      if (skipped.quiet_hours) {
+        logger.info('storm_alerts_quiet_hours_skipped', { count: skipped.quiet_hours, window: StormGuard.STORM_QUIET_HOURS });
+      }
+      logger.info('storm_alerts_complete', { totalSent, sentToday, capHit, capScope, skipped });
 
     } catch (e) {
       logger.error('checkStormAlerts error', { err: e.message });

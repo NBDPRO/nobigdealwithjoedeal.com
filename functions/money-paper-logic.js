@@ -209,4 +209,42 @@ function pdfPathFor(ownerUid, leadId, id) {
   return 'documents/' + ownerUid + '/' + leadId + '/' + id + '.pdf';
 }
 
-module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents };
+// ── "Paid but not closed" (2026-10-03 data audit) ────────────────────────
+// Three owner-tenant invoices were paid in full while their lead sat on an
+// open stage: a Zelle/check payoff recorded with Mark Paid only advances a
+// pre-contract lead to Contract Signed (not a won stage), and the Stripe
+// payoff advance refuses warranty/service leads. Nothing told the owner. We
+// do NOT move the stage here (that is the owner's call) — we file one task on
+// the lead, due today, so it shows on Today's Tasks and the bell.
+//
+// → the task doc to create, or null. Pure; the caller supplies the role
+// helpers (stage-roles.js) and today's local YYYY-MM-DD.
+function paidNotClosedTask(lead, invoice, invoiceId, todayYmd, roles) {
+  if (!lead || lead.deleted === true || !invoice || !roles) return null;
+  const paidInFull = invoice.status === 'paid' && toCents(invoice.total) > 0 && toCents(invoice.balanceDue) <= 0;
+  if (!paidInFull) return null;
+  if (roles.roleFor(lead) === 'won') return null;
+  // A Stripe payoff on a lead the webhook is allowed to advance is about to
+  // land on Final Payment (a won stage) — not a "not closed" case.
+  const last = lastPayment(invoice);
+  const viaStripe = !!(last && (last.method === 'stripe' || last.source === 'stripe_ledger'));
+  if (viaStripe && roles.payoffAdvanceAllowed(lead)) return null;
+  const name = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || lead.address || 'this customer';
+  return {
+    text: '💵 Paid in full — close out ' + name + '?',
+    title: 'Paid in full — not closed',
+    notes: 'Invoice ' + String(invoiceId) + ' is paid in full but the job is still on an open stage. '
+      + 'Move it to Closed (or the right won stage) if the work is done.',
+    source: 'paid_not_closed',
+    invoiceId: String(invoiceId),
+    dueDate: String(todayYmd || ''),
+    done: false,
+  };
+}
+
+// Deterministic task id: a re-fired trigger finds it instead of adding another.
+function paidNotClosedTaskId(invoiceId) {
+  return 'paid-not-closed-' + String(invoiceId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
+}
+
+module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };

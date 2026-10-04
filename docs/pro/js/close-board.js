@@ -687,8 +687,24 @@
     // the ACV payment the rule asks for up front.
     const _depRule = window.NBDDepositRule || null;
     const _dealMode = deal.insuranceClaim ? 'insurance' : 'cash';
+    // The lead for the Kentucky hold (2026-10-03): the deal's own claim fields
+    // over the linked lead's. A claim NUMBER with no carrier left _dealMode
+    // 'cash' while the KY notices below (classify on claimNumber) printed —
+    // so the page asked a 50% deposit on a KY insurance job (KRS 367.626).
+    let _linked = null;
+    try {
+      _linked = deal.leadId
+        ? ((window._leadDoc && window._leadDoc.id === deal.leadId) ? window._leadDoc
+          : ((Array.isArray(window._leads) && window._leads.find(l => l && l.id === deal.leadId)) || null))
+        : null;
+    } catch (_) { _linked = null; }
+    const _depLead = Object.assign({}, _linked || {}, {
+      address: deal.address || (_linked && _linked.address) || '',
+      claimNumber: deal.claimNumber || (_linked && _linked.claimNumber) || '',
+      insCarrier: deal.insuranceCarrier || (_linked && (_linked.insCarrier || _linked.insuranceCarrier)) || ''
+    });
     const _tierPlan = (price) => (_depRule && Number(price) > 0)
-      ? _depRule.compute({ total: Number(price), mode: _dealMode, deductible: deal.deductible, address: deal.address || '' })
+      ? _depRule.compute({ total: Number(price), mode: _dealMode, deductible: deal.deductible, address: deal.address || '', lead: _depLead })
       : null;
     const depositLine = (price) => {
       const p = _tierPlan(price);

@@ -89,6 +89,9 @@ h1 span{color:#BD5728}
 .form-row input[type=file]{width:100%;padding:10px;border:1.5px dashed var(--light-gray);border-radius:8px;font-size:.85rem;background:var(--off-white);cursor:pointer}
 .form-row input[type=file]:hover{border-color:var(--orange)}
 
+/* trust line above Submit (2026-10-03); rating hydrated live by google-reviews-widget.js */
+.nbd-trust-line{margin:4px 0 10px;font-size:.78rem;font-weight:600;color:#5b6572;text-align:center;line-height:1.4}
+.nbd-trust-line span[aria-hidden]{color:#b07d00}
 .submit-btn{width:100%;background:#BD5728;color:#fff;border:none;padding:16px;border-radius:8px;font-family:inherit;font-weight:800;font-size:1rem;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:background .2s,transform .15s;margin-top:6px}
 .submit-btn:hover:not(:disabled){background:#A14A22;transform:translateY(-1px)}
 .submit-btn:disabled{opacity:.6;cursor:wait}
@@ -403,6 +406,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 
         <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="f-nbd-hp">Leave blank</label><input type="text" id="f-nbd-hp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
         <label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
+        <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof</p>
         <button type="submit" class="submit-btn" id="inspectSubmit">Request Free Inspection</button>
         <p class="fine-print">I respect your time. I respond within 24 hours.</p>
       </form>
@@ -428,6 +432,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 </footer>
 
 <script src="/assets/js/public-lead-submit.js" defer></script>
+<script defer src="/assets/js/google-reviews-widget.js"></script>
 <script src="/assets/js/intake-extras.js?v=1" defer></script>
 <script src="/assets/js/inspect-form.js?v=3" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->

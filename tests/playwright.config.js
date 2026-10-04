@@ -16,13 +16,20 @@ module.exports = defineConfig({
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: true,
-  // 3 (was 2): with 16 serial journeys in one emulator session, the Java
-  // Firestore emulator intermittently drops reads ('client is offline')
-  // under load and a rotating single test loses all its attempts while
-  // everything else passes (rounds of 2026-07-05). One more attempt per
-  // test costs seconds and converts most of those rounds to flaky-pass.
-  retries: process.env.CI ? 3 : 0,
-  reporter: process.env.CI ? 'line' : 'list',
+  // A stray test.only / describe.only committed to a spec would silently
+  // shrink a CI shard to that one test while the job stays green.
+  forbidOnly: !!process.env.CI,
+  // 2 (was 3, 2026-10-03). 3 was raised on 2026-07-05 when the Java
+  // Firestore emulator dropped reads ('client is offline') under the
+  // 16-journey single-session load; the shard split and the race fixes since
+  // (#842, #912) took that load off, and 4 attempts per test was enough to
+  // hide a genuinely intermittent product bug. 2 still absorbs a one-off
+  // emulator hiccup; going to 1 in one step would invite a flake wave.
+  retries: process.env.CI ? 2 : 0,
+  // A pass-on-retry must be VISIBLE, not just green. 'line' prints the
+  // "N flaky" summary with each flaky test named; 'github' adds a job
+  // annotation per failed/flaky test so it shows on the PR checks page.
+  reporter: process.env.CI ? [['line'], ['github']] : 'list',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://nobigdealwithjoedeal.com',
     trace: 'on-first-retry',

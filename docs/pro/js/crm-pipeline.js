@@ -97,6 +97,37 @@ function _followUpDay(v) {
   return d;
 }
 window.nbdFollowUpDay = _followUpDay;
+// A door-knock lead with no phone number is not a follow-up anyone can make
+// from the CRM (2026-10-03 data audit: 65 phone-less knock leads under one
+// placeholder name carried auto-set follow-up dates and buried the real
+// ones in "Follow-ups Due"). They stay on the board and on D2D's own
+// re-knock list; they just don't count as overdue CRM follow-ups.
+function _unreachableKnockLead(l) {
+  if (!l) return false;
+  const knock = !!l.d2dKnockId || /door|d2d|knock/i.test(String(l.source || ''));
+  if (!knock) return false;
+  const digits = String(l.phone || l.phoneDigits || '').replace(/\D/g, '');
+  return digits.length < 10;
+}
+window.nbdUnreachableKnockLead = _unreachableKnockLead;
+// Leads whose follow-up is due today or earlier — the "N Follow-ups Due"
+// banner, the header pill and the follow-up deck. Skips effectively-closed
+// deals by semantic stageRole (won / lost / in-production job) rather than a
+// hardcoded name list, which missed final_payment + any custom won/lost
+// stage and so nagged "due" on done deals; the name list stays as a
+// fallback for before stageRole is loaded.
+function _overdueFollowUps(all, today) {
+  const _terminalStages = ['closed','lost','Complete','Lost','final_payment'];
+  return (all || []).filter(l=>{
+    if(!l || !l.followUp) return false;
+    if(_unreachableKnockLead(l)) return false;
+    const sk = l._stageKey || l.stage || '';
+    const role = l._stageRole || (typeof window.stageRole === 'function' ? window.stageRole(sk) : 'active');
+    if(role === 'won' || role === 'lost' || role === 'job') return false;
+    if(_terminalStages.includes(sk) || _terminalStages.includes(l.stage||'')) return false;
+    const d=_followUpDay(l.followUp); return d<=today;
+  });
+}
 // "Due today" / "Due Sep 29" / "3 days overdue" — the banner printed the raw
 // "Due: 2026-09-29".
 function _followUpDueText(v) {
@@ -525,16 +556,9 @@ function renderLeads(leads, filtered){
   // missed final_payment + any custom won/lost stage and so nagged "due" on
   // done deals. Mirrors the role idiom used for pipeline value above; the name
   // list stays as a fallback for before stageRole is loaded.
+  // (rules in _overdueFollowUps above — incl. phone-less door-knock leads)
   const today=new Date(); today.setHours(0,0,0,0);
-  const _terminalStages = ['closed','lost','Complete','Lost','final_payment'];
-  const overdue = all.filter(l=>{
-    if(!l.followUp) return false;
-    const sk = l._stageKey || l.stage || '';
-    const role = l._stageRole || (typeof window.stageRole === 'function' ? window.stageRole(sk) : 'active');
-    if(role === 'won' || role === 'lost' || role === 'job') return false;
-    if(_terminalStages.includes(sk) || _terminalStages.includes(l.stage||'')) return false;
-    const d=_followUpDay(l.followUp); return d<=today;
-  });
+  const overdue = _overdueFollowUps(all, today);
   setEl('crmFollowUps', overdue.length);
   const fp=document.getElementById('followUpPill');
   if(fp) fp.style.display = overdue.length ? 'flex':'none';
@@ -1968,7 +1992,10 @@ async function _moveJobCard(lead, jobId, newStage, isDrag) {
   if (typeof window.arrayUnion === 'function') {
     patch.stageHistory = window.arrayUnion({ from: card.stage || null, to: newStage, at: now.toISOString(), by: (window._user && window._user.uid) || null, drag: !!isDrag });
   }
-  if (role === 'won' && toKey === 'closed') patch.closedAt = now;
+  // Any won stage closes the job (not only 'closed'), once: a won → won step
+  // keeps its close date (2026-10-03 data audit: won with no closedAt).
+  const fromRole = typeof window.stageRole === 'function' ? window.stageRole(fromKey) : undefined;
+  if (role === 'won' && (!card.closedAt || fromRole !== 'won')) patch.closedAt = now;
   try {
     await J.update(lead, jobId, patch);
     if (typeof showToast === 'function') showToast('Job moved', 'ok');
@@ -1977,6 +2004,54 @@ async function _moveJobCard(lead, jobId, newStage, isDrag) {
   } catch (e) {
     console.warn('[moveJobCard] failed', e && e.code, e && e.message);
     if (typeof showToast === 'function') showToast('Could not move that job — try again', 'error');
+    return false;
+  }
+}
+
+// Does this lead already have an invoice? Owner scope first (createdBy — the
+// invoices read rule), then the company scope for staff. → true / false, or
+// null when the check could not run (the caller then offers anyway).
+async function _leadHasInvoice(leadId) {
+  const w = window;
+  const db = w.db || w._db;
+  const uid = w._user && w._user.uid;
+  if (!db || !uid || !w.query || !w.collection || !w.where || !w.getDocs) return null;
+  const lim = typeof w.limit === 'function' ? [w.limit(1)] : [];
+  try {
+    const mine = await w.getDocs(w.query(w.collection(db, 'invoices'), w.where('leadId', '==', leadId), w.where('createdBy', '==', uid), ...lim));
+    if (mine && !mine.empty) return true;
+    const claims = w._userClaims || {};
+    if (claims.companyId && ['company_admin', 'manager', 'admin'].includes(claims.role || '')) {
+      const team = await w.getDocs(w.query(w.collection(db, 'invoices'), w.where('leadId', '==', leadId), w.where('companyId', '==', claims.companyId), ...lim));
+      if (team && !team.empty) return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('[moveCard] invoice check failed', e && e.code, e && e.message);
+    return null;
+  }
+}
+
+// After a move onto a won stage: no invoice yet → a toast with a
+// "Create invoice" button (invoice-pipeline.js createInvoiceUI). Revenue is
+// still collected payments only — this just stops a won job going unbilled.
+async function _offerInvoiceOnWin(lead) {
+  try {
+    if (!lead || !lead.id) return false;
+    const IP = window.InvoicePipeline;
+    if (!IP || typeof IP.createInvoiceUI !== 'function' || typeof showToast !== 'function') return false;
+    if ((await _leadHasInvoice(lead.id)) === true) return false;
+    const who = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || lead.address || 'this job';
+    showToast({
+      message: 'Won — ' + who + ' has no invoice yet.',
+      type: 'info',
+      duration: 12000,
+      undoText: 'Create invoice',
+      undoAction: () => IP.createInvoiceUI(lead.id),
+    });
+    return true;
+  } catch (e) {
+    console.warn('[moveCard] invoice offer failed', e && e.message);
     return false;
   }
 }
@@ -2088,7 +2163,14 @@ async function moveCard(id, newStage, opts){
   // the move.
   let lostReason = null;
   const isLostMove = /^lost$/i.test(String(newStage || ''));
-  if (isLostMove && !lead.lostReason) {
+  // opts.lostReason: a caller that already asked (a bulk "mark lost — no
+  // contact info" after ONE confirm, no-next-step.js) supplies the reason so
+  // N leads don't open N sheets.
+  const _givenLostReason = (opts && typeof opts.lostReason === 'string' && opts.lostReason.trim())
+    ? opts.lostReason.trim().slice(0, 300) : null;
+  if (isLostMove && !lead.lostReason && _givenLostReason) {
+    lostReason = _givenLostReason;
+  } else if (isLostMove && !lead.lostReason) {
     lostReason = await promptLostReason(lead);
     if (lostReason === false) {
       // User canceled the prompt — do NOT move the card
@@ -2200,10 +2282,13 @@ async function moveCard(id, newStage, opts){
     // foundation work) so both write paths share one set of race guards
     // instead of the kanban being the only safe one.
     const { commitStageChange } = await _stageWriteMod();
-    const { historyEvent } = await commitStageChange(id, newStage, oldStage, {
+    const { historyEvent, enteredWon } = await commitStageChange(id, newStage, oldStage, {
       isDrag, isLostMove, lostReason, actorLabel: window._currentUser?.email,
       jobType: lead.jobType || null,
     });
+    // Won with no invoice is how 26 of 30 owner-tenant wins ended up
+    // unbilled (2026-10-03 data audit). Offer it right here; never blocks.
+    if (enteredWon) _offerInvoiceOnWin(lead);
 
     // Update local state with history
     if(!lead.stageHistory) lead.stageHistory = [];

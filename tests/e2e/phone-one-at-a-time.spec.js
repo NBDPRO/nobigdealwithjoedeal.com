@@ -327,10 +327,13 @@ test.describe('phone: one at a time @shard2', () => {
       { callId: 'cube_ZZDUE1', kind: 'due', due: '2026-09-23', leadId, who: 'ZZ Mark', channel: 'call', startedAtMs: Date.now() - 864e5, summary: 'Scheduled the board job.', promises: ['Send the confirmation email'], phoneDigits: '5135550181', hasTask: true },
       { callId: 'cube_ZZNOF2', kind: 'nofile', due: '2026-09-25', leadId: null, who: '(513) 555-0182', channel: 'call', startedAtMs: Date.now() - 2 * 864e5, summary: 'Confirmed the 2:30 visit.', promises: ['Be at the house at 2:30 PM'], phoneDigits: '5135550182', hasTask: false, callType: 'customer', suggest: { leadId: 'zzSugLead', name: 'ZZ Danuta', why: 'their name in your phone' } },
       { callId: 'cube_ZZNOF3', kind: 'nofile', due: '2026-09-30', leadId: null, who: '(513) 555-0183', channel: 'call', startedAtMs: Date.now() - 3 * 864e5, summary: 'Wants a price list.', promises: ['Come out and price everything'], phoneDigits: '5135550183', hasTask: false, callType: 'lead', contactName: 'ZZ Prospect Pat' },
+      // A second open call from the same prospect (2026-10-03): one card per
+      // caller, so "Make this a lead" can only ever make ONE lead.
+      { callId: 'cube_ZZNOF4', kind: 'nofile', due: '2026-10-01', leadId: null, who: '(513) 555-0183', channel: 'call', startedAtMs: Date.now() - 4 * 864e5, summary: 'First call, left a message.', promises: ['Call Pat back'], phoneDigits: '5135550183', hasTask: false, callType: 'lead', contactName: 'ZZ Prospect Pat' },
     ];
     await page.route(/callPromisesList/, async (route) => {
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
-      await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { today: '2026-10-03', items: items(), counts: { items: 3, urgent: 0, due: 1, nofile: 2 } } }) });
+      await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { today: '2026-10-03', items: items(), counts: { items: 4, urgent: 0, due: 1, nofile: 3 } } }) });
     });
     await page.route(/callCenterAction/, async (route) => {
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
@@ -375,9 +378,15 @@ test.describe('phone: one at a time @shard2', () => {
     // and files the call on it.
     await expect(card(page)).toHaveAttribute('data-id', 'cube_ZZNOF3');
     await expect(card(page)).toContainText('Sounds like a new lead');
+    await expect(card(page), 'both of the prospect calls on one card').toContainText('2 open');
+    await expect(card(page)).toContainText('You said: Call Pat back');
     await card(page).getByRole('button', { name: /Make this a lead/ }).tap();
     await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF3' && x.action === 'attach' && x.leadId), { timeout: 15_000 }).toBe(true);
     const newLeadId = actions.find((x) => x.id === 'cube_ZZNOF3' && x.action === 'attach').leadId;
+    // One lead, one attach: the server files the number's other call with it.
+    expect(actions.filter((x) => x.action === 'attach' && /^cube_ZZNOF[34]$/.test(x.id)).length, 'one attach for the caller').toBe(1);
+    expect((await adb().collection('leads').where('phone', '==', '(513) 555-0183').get()).size, 'exactly one lead for the number').toBe(1);
+    await expect(card(page).getByRole('button', { name: /Make this a lead/ }), 'no second Make-lead tap').toHaveCount(0);
     const nl = (await adb().doc('leads/' + newLeadId).get()).data() || {};
     expect(nl.firstName + ' ' + nl.lastName, 'the lead is named from the phone contact').toBe('ZZ Prospect Pat');
     expect(nl.source).toBe('Phone call');
@@ -390,7 +399,7 @@ test.describe('phone: one at a time @shard2', () => {
     await expect(more).toContainText('📞 Call');
     await expect(more).toContainText('💬 Text');
     await more.getByText('💤 Tomorrow').tap();
-    await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF3' && x.action === 'snooze' && x.days === 1), { timeout: 10_000 }).toBe(true);
+    await expect.poll(() => ['cube_ZZNOF3', 'cube_ZZNOF4'].every((id) => actions.some((x) => x.id === id && x.action === 'snooze' && x.days === 1)), { timeout: 10_000 }).toBe(true);
     await page.locator('#nbdTriageDeck .deck-undo').tap();
     await expect.poll(() => actions.some((x) => x.id === 'cube_ZZNOF3' && x.action === 'unsnooze'), { timeout: 10_000 }).toBe(true);
     await page.locator('#nbdTriageDeck .deck-close').tap();

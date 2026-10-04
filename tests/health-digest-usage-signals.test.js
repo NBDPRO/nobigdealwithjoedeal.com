@@ -79,7 +79,11 @@ function extractFn(src, name) {
 // real file); provide the minimal shape the fake Firestore's where-filter
 // understands (an object with .toMillis()).
 const Timestamp = { fromMillis: (ms) => ({ toMillis: () => ms }) };
-const sandbox = { console, Object, Array, String, Number, Math, Date, Promise, Error, Timestamp };
+// FieldPath.documentId() → the '__name__' sentinel the fake below filters
+// on by doc id (2026-10-03: gatherApiUsage reads an id range, not the
+// whole collection).
+const FieldPath = { documentId: () => '__name__' };
+const sandbox = { console, Object, Array, String, Number, Math, Date, Promise, Error, Timestamp, FieldPath };
 vm.createContext(sandbox);
 vm.runInContext(
   ['gatherApiUsage', 'gatherStripe']
@@ -120,9 +124,16 @@ function fakeDb(collections) {
         },
         async get() {
           let rows = all.slice();
+          // Document-id range filters (FieldPath.documentId() → '__name__').
+          for (const w of state.wheres) {
+            if (w.field !== '__name__') continue;
+            rows = rows.filter((d) => (w.op === '>=' ? d.id >= w.value : w.op === '<' ? d.id < w.value
+              : w.op === '<=' ? d.id <= w.value : w.op === '>' ? d.id > w.value : true));
+          }
+          if (fakeDb.reads) fakeDb.reads.push({ name, wheres: state.wheres.slice(), returned: rows.length });
           // Apply only >= filters the fixed code is expected to issue.
           for (const w of state.wheres) {
-            if (w.op === '>=') {
+            if (w.op === '>=' && w.field !== '__name__') {
               rows = rows.filter((d) => {
                 const v = d._raw[w.field];
                 const ms = v && v.toMillis ? v.toMillis() : v;
@@ -203,6 +214,29 @@ function ts(ms) {
     .reduce((sum, d) => sum + Number(d._raw.tokensUsed || 0), 0);
   ok('A6 (sanity) the old `tokensUsed` field is absent on every doc — pre-fix read is provably 0',
     preFixTotal === 0);
+
+  // A7 (2026-10-03): the read is bounded to today's uid rows by a document-id
+  // range — it used to .get() the WHOLE collection (every day since launch,
+  // uid and co rows) and filter in memory.
+  {
+    const big = { api_usage_daily: apiDocs.api_usage_daily.slice() };
+    for (let i = 0; i < 1500; i++) {
+      const d = new Date(Date.UTC(2025, 0, 1) + i * 86400000).toISOString().slice(0, 10);
+      if (d === dayKey) continue;
+      big.api_usage_daily.push({ id: d + '__uid__old-' + i, _raw: { tokens: 7 } });
+      big.api_usage_daily.push({ id: d + '__co__co-' + i, _raw: { tokens: 7 } });
+    }
+    fakeDb.reads = [];
+    const u7 = await gatherApiUsage(fakeDb(big));
+    const r7 = fakeDb.reads.filter((r) => r.name === 'api_usage_daily');
+    fakeDb.reads = null;
+    ok('A7 same answer on a collection with ~3000 other-day rows', u7.total === 5200, 'got ' + u7.total);
+    ok('A7 the query is a document-id range on today\'s uid prefix (reads 2 docs, not ' + big.api_usage_daily.length + ')',
+      r7.length === 1 && r7[0].returned === 2
+      && r7[0].wheres.some((w) => w.field === '__name__' && w.op === '>=' && w.value === dayKey + '__uid__')
+      && r7[0].wheres.some((w) => w.field === '__name__' && w.op === '<' && String(w.value).startsWith(dayKey + '__uid__')),
+      JSON.stringify(r7));
+  }
 
   // ═══════════════════════ gatherStripe ═══════════════════════
   console.log('\nB. Stripe Webhook Activity is not blind past 200 all-time events');

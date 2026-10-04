@@ -456,6 +456,9 @@ const VERDICTS = {
   // The Call Center 'Said you'd do' deck list: owner or platform admin only
   // (call-center.js promisesList), so a viewer is refused by role.
   callPromisesList: 'role-gated',
+  // "Match my tagged contacts": owner or platform admin only (call-center.js
+  // taggedMatch), proven in tests/call-center-action-2026-10-01.test.js.
+  callTaggedMatch: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
   // HTTP functions
@@ -473,7 +476,7 @@ const VERDICTS = {
   sendQueuedSMS: 'refused', sendSMS: 'refused', setStorageCors: 'role-gated', shareSSR: 'public',
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
   submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
-  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', submitReferral: 'public', submitSignature: 'public', swathWebhook: 'public',
+  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public', swathWebhook: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
   // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup
   // (Bland's bearer token, no signed-in user).

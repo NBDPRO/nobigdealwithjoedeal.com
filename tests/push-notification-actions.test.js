@@ -288,7 +288,10 @@ console.log('\nTHE PAGE BRIDGE — a tap may only ever land inside this app');
     addEventListener: on(winListeners),
     showToast() {},
     openCardDetailModal: (id) => { rec.opened.push(id); },
-    snoozeLead: async (id) => { rec.snoozed.push(id); },
+    // The app's real snooze API (lead-snooze.js). window.snoozeLead, which
+    // this stub used to provide, never existed in the app (2026-10-03).
+    db: {},
+    LeadSnooze: { snooze: async (id) => { rec.snoozed.push(id); } },
   };
   const ctx = {
     window: win,
@@ -340,10 +343,12 @@ console.log('\nTHE PAGE BRIDGE — a tap may only ever land inside this app');
     fn({ ...from, data: { type: 'NBD_PUSH_ACTION', action: 'navigate', url: '/pro/customer.html?leadId=L9' } });
     fn({ ...from, data: { type: 'NBD_PUSH_ACTION', action: 'snooze', leadId: 'L9' } });
   }
+  await new Promise((r) => setImmediate(r));   // a snooze lands after a microtask now
   ok('a window message from another origin neither navigates nor snoozes',
      rec.assigned.length === 0 && rec.snoozed.length === 0);
   if (onMessage) onMessage({ data: { type: 'NBD_PUSH_ACTION', action: 'snooze', leadId: 'L3' } });
-  ok('control: the same snooze from the worker does reach snoozeLead', same(rec.snoozed, ['L3']));
+  await new Promise((r) => setImmediate(r));   // snooze() awaits LeadSnooze readiness first
+  ok('control: the same snooze from the worker does reach LeadSnooze.snooze', same(rec.snoozed, ['L3']));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

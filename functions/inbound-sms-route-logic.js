@@ -17,22 +17,28 @@
  *                                        lastContactedAt, then createdAt) —
  *                                        tenant is unambiguous so a wrong
  *                                        pick stays inside the right company
- *   - N candidates, multiple tenants  → route ONLY when exactly one lead
- *                                        holds the strictly-newest outbound
- *                                        SMS within the recency window
- *                                        (someone texted them recently —
- *                                        they're replying to that thread);
- *                                        otherwise UNMATCHED. We never guess
- *                                        across tenants: a misroute is a
- *                                        cross-company PII leak, a triaged
- *                                        message is a 30-second admin task.
+ *   - N candidates, multiple tenants  → route to the ESTABLISHED tenant: the
+ *                                        one whose first outbound text to this
+ *                                        number is the oldest — provided it
+ *                                        has also texted within the recency
+ *                                        window. Newer tenants' leads are
+ *                                        returned as flaggedLeadIds (a newer
+ *                                        thread can never take the reply
+ *                                        over — 2026-10-03 hijack fix). No
+ *                                        outbound history, a tie, or a stale
+ *                                        established thread → UNMATCHED. We
+ *                                        never guess across tenants: a
+ *                                        misroute is a cross-company PII
+ *                                        leak, a triaged message is a
+ *                                        30-second admin task.
  *
  * Candidate shape (all timestamps in epoch millis or null):
- *   { id, companyId, userId, lastOutboundAt, lastContactedAt, createdAt }
+ *   { id, companyId, userId, firstOutboundAt, lastOutboundAt, lastContactedAt, createdAt }
+ * (firstOutboundAt absent → lastOutboundAt stands in for it.)
  *
  * Returns:
- *   { decision: 'route',     leadId, ambiguity: null|'same-tenant'|'cross-tenant-resolved' }
- *   { decision: 'unmatched',         ambiguity: null|'cross-tenant-unresolved' }
+ *   { decision: 'route', leadId, ambiguity: null|'same-tenant'|'cross-tenant-resolved'|'cross-tenant-contested', flaggedLeadIds? }
+ *   { decision: 'unmatched',     ambiguity: null|'cross-tenant-unresolved'|'cross-tenant-contested', flaggedLeadIds? }
  */
 'use strict';
 
@@ -75,22 +81,60 @@ function pickLeadForInbound(candidates, opts) {
     return { decision: 'route', leadId: sorted[0].id, ambiguity: 'same-tenant' };
   }
 
-  // Cross-tenant: a fresh outbound text is the only signal safe enough to
-  // route on. "Fresh" = within the window; "safe" = exactly one lead holds
-  // the strictly-newest one (a tie means two threads could own the reply).
-  const withFresh = list.filter(c =>
-    typeof c.lastOutboundAt === 'number' &&
-    c.lastOutboundAt > 0 &&
-    (now - c.lastOutboundAt) <= windowMs);
-  if (withFresh.length) {
-    let max = 0;
-    for (const c of withFresh) { if (c.lastOutboundAt > max) max = c.lastOutboundAt; }
-    const holders = withFresh.filter(c => c.lastOutboundAt === max);
-    if (holders.length === 1) {
-      return { decision: 'route', leadId: holders[0].id, ambiguity: 'cross-tenant-resolved' };
-    }
+  // Cross-tenant (security batch 2026-10-03 — reply hijack). The old rule
+  // routed to whichever tenant held the strictly-NEWEST outbound text. sendSMS
+  // accepts any `to`, so any tenant could text another tenant's customer once
+  // and capture every reply after it. Now the thread that was there FIRST
+  // owns the reply: the tenant whose earliest outbound text to this number is
+  // oldest (the established conversation). A newer tenant's thread can never
+  // take it over — its leads come back in `flaggedLeadIds` for the caller to
+  // log. The established tenant must still be FRESH (an outbound within the
+  // window); if it has gone quiet while a newer tenant is texting, nobody can
+  // be told apart from a hijacker, so the reply goes to triage.
+  const firstOut = (c) => {
+    const f = (typeof c.firstOutboundAt === 'number' && c.firstOutboundAt > 0) ? c.firstOutboundAt : 0;
+    const l = (typeof c.lastOutboundAt === 'number' && c.lastOutboundAt > 0) ? c.lastOutboundAt : 0;
+    // A row read without its first-outbound time falls back to the last one —
+    // never later than the truth, so it can only make a lead look NEWER.
+    return f && l ? Math.min(f, l) : (f || l);
+  };
+  const byTenant = new Map();
+  for (const c of list) {
+    const first = firstOut(c);
+    if (!first) continue;                       // never texted by anyone here
+    const key = tenantOf(c);
+    const t = byTenant.get(key) || { key, first: Infinity, last: 0, leads: [] };
+    t.first = Math.min(t.first, first);
+    t.last = Math.max(t.last, (typeof c.lastOutboundAt === 'number' && c.lastOutboundAt > 0) ? c.lastOutboundAt : first);
+    t.leads.push(c);
+    byTenant.set(key, t);
   }
-  return { decision: 'unmatched', ambiguity: 'cross-tenant-unresolved' };
+  if (byTenant.size === 0) return { decision: 'unmatched', ambiguity: 'cross-tenant-unresolved' };
+
+  const ordered = Array.from(byTenant.values()).sort((a, b) => a.first - b.first);
+  const established = ordered[0];
+  const newer = ordered.slice(1);
+  const flaggedLeadIds = [];
+  for (const t of newer) for (const c of t.leads) flaggedLeadIds.push(c.id);
+
+  // Two tenants that started on the same millisecond: no established thread.
+  if (newer.length && newer[0].first === established.first) {
+    return { decision: 'unmatched', ambiguity: 'cross-tenant-unresolved', flaggedLeadIds: [] };
+  }
+  if ((now - established.last) > windowMs) {
+    return {
+      decision: 'unmatched',
+      ambiguity: newer.length ? 'cross-tenant-contested' : 'cross-tenant-unresolved',
+      flaggedLeadIds,
+    };
+  }
+  const pick = established.leads.slice().sort(newestFirst)[0];
+  return {
+    decision: 'route',
+    leadId: pick.id,
+    ambiguity: newer.length ? 'cross-tenant-contested' : 'cross-tenant-resolved',
+    flaggedLeadIds,
+  };
 }
 
 module.exports = { pickLeadForInbound, tenantOf, DEFAULT_RECENCY_WINDOW_MS };

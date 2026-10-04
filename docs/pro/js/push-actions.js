@@ -62,13 +62,41 @@
     window.location.assign(target);
   }
 
+  // Resolves window.LeadSnooze once it and its Firestore handle (window.db)
+  // exist, or null after the timeout. Immediate when both are already there.
+  function waitForLeadSnooze(timeoutMs) {
+    const ready = () => {
+      const LS = window.LeadSnooze;
+      return (LS && typeof LS.snooze === 'function' && window.db) ? LS : null;
+    };
+    const now = ready();
+    if (now || typeof setTimeout !== 'function') return Promise.resolve(now);
+    const deadline = Date.now() + (timeoutMs == null ? 15000 : timeoutMs);
+    return new Promise((resolve) => {
+      (function poll() {
+        const LS = ready();
+        if (LS || Date.now() >= deadline) { resolve(LS); return; }
+        setTimeout(poll, 250);
+      })();
+    });
+  }
+
   async function snooze(leadId) {
     if (!leadId) { toast('Nothing to snooze', 'info'); return; }
     // Prefer whatever the app already uses, so a snooze from a notification is
-    // indistinguishable from one made in the UI.
-    if (typeof window.snoozeLead === 'function') {
-      try { await window.snoozeLead(leadId, SNOOZE_MS); toast('Snoozed for an hour', 'success'); return; }
-      catch (e) { console.warn('[PushActions] snoozeLead failed', e); }
+    // indistinguishable from one made in the UI: LeadSnooze.snooze
+    // (lead-snooze.js) writes snoozeCount + snoozedReason and patches the
+    // in-memory lead cache. (This used to test window.snoozeLead, which never
+    // existed, so every push snooze took the bare fallback write below.)
+    // lead-snooze.js and the Firestore bootstrap load AFTER this file, and the
+    // ?pushAction=snooze URL is consumed at load — so wait for them briefly.
+    const LS = await waitForLeadSnooze();
+    if (LS) {
+      try {
+        await LS.snooze(leadId, new Date(Date.now() + SNOOZE_MS));
+        toast('Snoozed for an hour', 'success');
+        return;
+      } catch (e) { console.warn('[PushActions] LeadSnooze.snooze failed', e); }
     }
     if (!window._db || !window.doc || !window.updateDoc) {
       toast('Could not snooze — open the lead to act on it', 'error');

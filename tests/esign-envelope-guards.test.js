@@ -196,6 +196,8 @@ function loadEsignHandlers(db) {
     },
     './integrations/_shared': { secretOr: (_secret, def) => def },
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => 'rejected' },
+    // Job spine (2026-10-03) — its own suite is tests/job-spine-2026-10-03.test.js.
+    './job-spine': { spineAfterEsign: async () => ({ skipped: 'stub' }) },
   };
 
   const requireStub = (id) => {

@@ -97,6 +97,14 @@
     return Object.assign({}, data, { updatedAt: st });
   }
 
+  // Every soft delete records WHEN (2026-10-03 data audit: 10 deleted leads
+  // had no deletedAt, so the Deleted bin could not age or sort them). Same
+  // pair the dashboard's own delete writes (_deleteLead).
+  function stampSoftDelete() {
+    var st = window.serverTimestamp ? window.serverTimestamp() : new Date().toISOString();
+    return stampUpdate({ deleted: true, deletedAt: st });
+  }
+
   // ── /leads ─────────────────────────────────────────────────────
   var leads = {
     /**
@@ -135,7 +143,7 @@
      * @param {string} id
      */
     softDelete: async function (id) {
-      return window.updateDoc(window.doc(window.db, 'leads', id), stampUpdate({ deleted: true }));
+      return window.updateDoc(window.doc(window.db, 'leads', id), stampSoftDelete());
     },
 
     /**
@@ -252,7 +260,7 @@
     softDelete: async function (id) {
       return window.updateDoc(
         window.doc(window.db, 'estimates', id),
-        stampUpdate({ deleted: true })
+        stampSoftDelete()
       );
     },
   };

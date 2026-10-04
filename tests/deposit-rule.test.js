@@ -1044,6 +1044,149 @@ function closeBoardPage(price, mode, deductible) {
     ok('KY invoice terms say nothing is due at signing', !!capKy && /Nothing is due at signing/.test(String(capKy.terms)), capKy && capKy.terms);
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  section('12. KENTUCKY — the LEAD\'s claim decides too, not just the estimate mode (2026-10-03)');
+  // ══════════════════════════════════════════════════════════════════
+  // The contract (document-generator _jurisdiction → ky-insurance-law
+  // isInsurance) calls any lead with a claim number / carrier / jobType
+  // 'insurance' an insurance job and prints the KY notices. deposit-rule.js
+  // used to look at est.mode only, so the same KY lead priced in cash mode
+  // printed those notices AND a 50% deposit at signing (KRS 367.626).
+  {
+    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const OHA = '1 Elm St, Cincinnati, OH 45202';
+    const J = W.NBDJurisdiction;
+    const kyClaimLead = { id: 'lead_kyc', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-77' };
+    ok('precondition: the contract side calls this lead a KY insurance job', !!J && J.classifyLead(kyClaimLead).kyInsurance === true);
+
+    const a = R.compute({ total: 15000, mode: 'cash', address: KY, lead: kyClaimLead });
+    ok('KY lead with a claim number, priced in CASH mode: $0 at signing', a.depositCents === 0 && a.kyHold === true, a.summary);
+    ok('…a carrier alone on the lead counts', R.compute({ total: 15000, mode: 'cash', address: KY, lead: { address: KY, insCarrier: 'State Farm' } }).depositCents === 0);
+    ok('…jobType "insurance" on the lead counts (per-square mode)', R.compute({ total: 15000, mode: 'per-sq', address: KY, lead: { address: KY, jobType: 'insurance' } }).depositCents === 0);
+    ok('…the lead\'s own address is used when the caller passed none', R.compute({ total: 15000, mode: 'cash', lead: kyClaimLead }).depositCents === 0);
+    ok('…a rep override still cannot raise it', R.compute({ total: 15000, mode: 'cash', address: KY, lead: kyClaimLead, overridePct: 30 }).depositCents === 0);
+    const oh = R.compute({ total: 15000, mode: 'cash', address: OHA, lead: { address: OHA, claimNumber: 'CLM-1' } });
+    ok('OHIO lead with a claim, cash mode: unchanged (50% at signing)', oh.depositCents === 750000 && !oh.kyHold, oh.summary);
+    const ret = R.compute({ total: 15000, mode: 'cash', address: KY, lead: { address: KY, jobType: 'cash', claimNumber: '', insCarrier: 'none' } });
+    ok('KY RETAIL lead (no claim, cash job): unchanged (50% at signing)', ret.depositCents === 750000 && !ret.kyHold, ret.summary);
+    ok('no lead passed: cash mode unchanged (legacy callers)', R.compute({ total: 15000, mode: 'cash', address: KY }).depositCents === 750000);
+
+    const fe = R.fromEstimate({ grandTotal: 12000, mode: 'cash', addr: KY }, { lead: kyClaimLead });
+    ok('fromEstimate (invoice + contract pre-flight path): cash estimate, KY claim lead → $0', fe.depositCents === 0 && fe.kyHold === true, fe.summary);
+    const feOh = R.fromEstimate({ grandTotal: 12000, mode: 'cash', addr: OHA }, { lead: { address: OHA, claimNumber: 'CLM-1' } });
+    ok('fromEstimate: OH claim lead, cash estimate → 50% unchanged', feOh.depositCents === 600000, feOh.summary);
+
+    // The builder + on-screen quote, for real: a cash-mode V2 estimate linked
+    // to the KY claim lead.
+    const prevLeads = W._leads;
+    const c = { mode: 'cash', total: 12000 };
+    const doc = Object.assign(savedDocFor(c, 'est_kyc'), { addr: KY, leadId: 'lead_kyc' });
+    W._leads = [kyClaimLead];
+    W._estimates = [JSON.parse(JSON.stringify(doc))];
+    V2.rehydrateFromSaved('est_kyc');
+    const st = V2.getState();
+    const est = V2.effectiveEstimate();
+    ok('V2 builder stamp: cash-mode estimate on a KY claim lead → $0 at signing', !!(est && est.depositPlan)
+      && est.depositPlan.depositCents === 0 && cents(est.deposit) === 0, est && est.depositPlan && est.depositPlan.summary);
+    const meta = { customer: { name: 'Kay Why', address: KY, leadId: 'lead_kyc' }, claim: st.claim,
+      estimate: { number: 'EST-KYC', date: '2026-10-03', preparedBy: 'Joe' } };
+    const rq = FIN.formatEstimate(est, 'retail-quote', meta);
+    ok('on-screen Retail Quote: $0 deposit, "Nothing is due at signing"', cents(rq.deposit) === 0
+      && /Nothing is due at signing/.test(stripTags(rq.html)), rq.deposit);
+    // A plan stamped BEFORE the claim reached the lead (no hold) must not print.
+    const stale = R.compute({ total: 12000, mode: 'cash', address: KY });
+    const rqStale = FIN.formatEstimate(Object.assign({}, est, { depositPlan: stale, deposit: stale.depositCents / 100 }), 'retail-quote', meta);
+    ok('on-screen Retail Quote: a stale non-KY stamp is replaced by the held plan', cents(rqStale.deposit) === 0, rqStale.deposit);
+    const rqNoLead = FIN.formatEstimate(Object.assign({}, est, { depositPlan: stale, deposit: stale.depositCents / 100 }), 'retail-quote',
+      Object.assign({}, meta, { customer: { name: 'Kay Why', address: KY } }));
+    ok('…positive control: with no linked lead the builder\'s stamp is still printed as-is', cents(rqNoLead.deposit) === 600000, rqNoLead.deposit);
+    W._leads = prevLeads;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  section('13. KENTUCKY — the lead reaches the classic builder, Job Templates and the Close Board (2026-10-03)');
+  // ══════════════════════════════════════════════════════════════════
+  // Same law as section 12: a KY lead with a claim on file is an insurance
+  // job even when priced in cash mode; nothing may be due at signing.
+  {
+    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const OHA = '1 Elm St, Cincinnati, OH 45202';
+    const kyClaimLead = { id: 'lead_kyc2', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-88' };
+    const ohClaimLead = { id: 'lead_ohc2', firstName: 'Oh', lastName: 'Io', address: OHA, claimNumber: 'CLM-89' };
+    const prevLeads = W._leads, prevLinked = W._estLinkedLeadId;
+
+    // K. the engine adapter forwards the lead
+    const eng = ENGINE.calcDeposit(15000, 'cash', { lead: kyClaimLead });
+    ok('engine calcDeposit forwards the lead: cash mode + KY claim lead → $0', eng.amount === 0 && !!eng.plan && eng.plan.kyHold === true, JSON.stringify(eng.plan && eng.plan.summary));
+    ok('…OH claim lead unchanged (50%)', ENGINE.calcDeposit(15000, 'cash', { lead: ohClaimLead }).amount === 7500);
+
+    // Classic builder (estimates.js): calcDeposit + the linked-lead lookup the review uses.
+    load(APP, 'docs/pro/js/estimates.js');
+    ok('classic estimates.js loaded (window.calcDeposit + global _estLinkedLead)', typeof W.calcDeposit === 'function' && typeof APP.sandbox._estLinkedLead === 'function');
+    const ESTL = (typeof APP.sandbox._estLinkedLead === 'function') ? APP.sandbox._estLinkedLead : () => null;
+    W._leads = [kyClaimLead, ohClaimLead];
+    W._estLinkedLeadId = 'lead_kyc2';
+    const linked = ESTL();
+    ok('classic: the linked lead is found by window._estLinkedLeadId', !!linked && linked.id === 'lead_kyc2');
+    const cl = W.calcDeposit(15000, 'cash', null, null, linked);
+    ok('classic calcDeposit: cash mode on a KY claim lead → $0 at signing', cl.amount === 0 && cl.remainder === 15000, JSON.stringify(cl.plan && cl.plan.summary));
+    W._estLinkedLeadId = 'lead_ohc2';
+    ok('classic calcDeposit: OH claim lead → 50% unchanged', W.calcDeposit(15000, 'cash', null, null, ESTL()).amount === 7500);
+    W._estLinkedLeadId = null;
+    ok('classic calcDeposit: no linked lead → 50% unchanged', W.calcDeposit(15000, 'cash', null, null, ESTL()).amount === 7500);
+    const estSrc = read('docs/pro/js/estimates.js');
+    ok('classic review passes the linked lead to calcDeposit', /calcDeposit\(grandTotal, d\.mode, d\.depositPctOverride, insuranceFields, _estLinkedLead\(\)\)/.test(estSrc));
+
+    // Job Templates: depositStamp via buildEstimatePayload, lead by meta.leadId.
+    const jtKy = JT.buildEstimatePayload({ totals: { total: 15000, mode: 'cash', lines: [] }, measurements: {} },
+      { owner: 'Kay Why', addr: KY, leadId: 'lead_kyc2' });
+    ok('Job Templates: cash template on a KY claim lead → deposit $0, held plan', Number(jtKy.deposit) === 0
+      && !!jtKy.depositPlan && jtKy.depositPlan.rule === 'insurance-ky', JSON.stringify(jtKy.depositPlan && jtKy.depositPlan.summary));
+    const jtOh = JT.buildEstimatePayload({ totals: { total: 15000, mode: 'cash', lines: [] }, measurements: {} },
+      { owner: 'Oh Io', addr: OHA, leadId: 'lead_ohc2' });
+    ok('Job Templates: OH claim lead → 50% unchanged', Number(jtOh.deposit) === 7500, jtOh.deposit);
+    W._leads = prevLeads; W._estLinkedLeadId = prevLinked;
+
+    // Close Board: a deal with a claim NUMBER but no carrier. Its mode was
+    // 'cash' (insuranceClaim follows the carrier) while the KY notices printed.
+    function cbPage(leadData) {
+      const raw = read('docs/pro/js/close-board.js').replace(/\bimport\(/g, '__testImport(');
+      const mk = () => ({ _h: '', get innerHTML() { return this._h; }, set innerHTML(v) { this._h = String(v); },
+        style: {}, dataset: {}, querySelector: () => null, querySelectorAll: () => [],
+        addEventListener() {}, classList: { add() {}, remove() {}, contains() { return false; }, toggle() {} } });
+      const store = {};
+      const sb = {
+        console: { log() {}, info() {}, warn() {}, error() {} }, JSON, Math, Date, Number, String, Array, Object, RegExp,
+        Boolean, Error, Promise, Set, Map, isNaN, parseFloat, parseInt, encodeURIComponent, Intl,
+        setTimeout: () => 0, clearTimeout: () => {},
+        localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } },
+        document: { getElementById: () => mk(), createElement: mk, querySelector: () => null, querySelectorAll: () => [], addEventListener() {} },
+        navigator: {},
+        __testImport: async () => ({ doc: () => ({}), collection: () => ({}), where: () => ({}), query: () => ({}),
+          setDoc: () => Promise.resolve(), deleteDoc: () => Promise.resolve(), getDocs: () => Promise.resolve({ empty: true, size: 0, forEach() {} }) }),
+      };
+      sb.window = sb; sb.addEventListener = () => {}; sb.showToast = () => {}; sb.open = () => null;
+      sb._db = null; sb._user = { uid: 'u1' }; sb._userClaims = { companyId: 'c1' };
+      sb._companyProfile = { brand: { contact: { mailingAddress: '6563 Manila Rd, Goshen, OH 45122', email: 'x@nbd.test' } } };
+      sb.getLineItems = () => [];
+      vm.createContext(sb);
+      vm.runInContext(read('docs/pro/js/deposit-rule.js'), sb, { filename: 'deposit-rule.js' });
+      vm.runInContext(read('docs/pro/js/ky-insurance-law.js'), sb, { filename: 'ky-insurance-law.js' });
+      vm.runInContext(raw, sb, { filename: 'close-board.js' });
+      const deal = sb.CloseBoard.createFromEstimate({ prices: { good: 15000, better: 15000, best: 15000 } }, leadData);
+      return sb.CloseBoard.generatePageHTML(deal) || '';
+    }
+    const kyHtml = cbPage({ id: 'lead_kyc2', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-88' });
+    ok('precondition: the KY claim deal page prints the KRS 367.624 notices', /NOTICE OF CANCELLATION/.test(kyHtml));
+    ok('Close Board: KY deal with a claim number (no carrier) → "Due at signing: $0" on every tier',
+      (kyHtml.match(/class="tier-deposit">Due at signing: <strong>\$0<\/strong>/g) || []).length >= 3
+        && !/Due at signing: <strong>\$7,500/.test(kyHtml) && !/50% deposit/.test(kyHtml),
+      (kyHtml.match(/class="tier-deposit">[^<]*<strong>[^<]*/g) || []).join(' | '));
+    const ohHtml = cbPage({ id: 'lead_ohc2', firstName: 'Oh', lastName: 'Io', address: OHA, claimNumber: 'CLM-89' });
+    ok('…positive control: OH deal with a claim number → 50% at signing unchanged', /class="tier-deposit">[^<]*<strong>\$7,500<\/strong>/.test(ohHtml),
+      (ohHtml.match(/class="tier-deposit">[^<]*<strong>[^<]*/g) || []).join(' | '));
+  }
+
   console.log('\n──────────────────────────────────────────────────');
   console.log(passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILURES: ' + fails.length); process.exit(1); }

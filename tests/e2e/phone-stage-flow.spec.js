@@ -277,7 +277,12 @@ test.describe.serial('phone stage flow at 390px, installed app @shard2', () => {
     // the sheet; a rep swipes them away.
     await dismissToasts(page);
     await expectTappable(page, '#d2d-qk-appt', 'appointment date & time (brought on screen by the tap)');
-    await safeEvaluate(page, (h) => { document.querySelector('.d2d-details')?.setAttribute('open', ''); document.getElementById('d2d-qk-homeowner').value = h; }, homeowner);
+    // A phone: a phone-less knock gets no automatic CRM follow-up (#2118).
+    await safeEvaluate(page, ({ h, ph }) => {
+      document.querySelector('.d2d-details')?.setAttribute('open', '');
+      document.getElementById('d2d-qk-homeowner').value = h;
+      document.getElementById('d2d-qk-phone').value = ph;
+    }, { h: homeowner, ph: '513' + String(stamp).slice(-7) });
     // No time → refused, sheet stays open.
     await dismissToasts(page);
     await page.locator('#d2d-qk-save').scrollIntoViewIfNeeded();

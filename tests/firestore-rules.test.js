@@ -109,6 +109,11 @@ async function run() {
       reportId: 'report-alice', ownerUid: 'alice', status: 'active'
     });
     await setDoc(doc(db, 'parcel_cache/abc'), { parcel: { owner: 'Smith' } });
+    // Job-spine idempotency marker (2026-10-03) — admin-SDK only.
+    await setDoc(doc(db, 'job_events/leadA__paid_in_full__inv1'), {
+      leadId: 'leadA', companyId: 'alice', event: 'paid_in_full', sourceId: 'inv1',
+      result: { action: 'move', from: 'contract_signed', to: 'final_payment' },
+    });
     // Measurements — owner read tests
     await setDoc(doc(db, 'measurements/job-alice'), {
       ownerId: 'alice', leadId: 'leadA', status: 'pending'
@@ -238,6 +243,17 @@ async function run() {
   await assertFails(getDoc(doc(admin,   'sms_client_ids/alice_3f2b8c1e-5d6a-4b7c-9e8f-0a1b2c3d4e5f')));
   await assertFails(setDoc(doc(alice,   'sms_client_ids/alice_3f2b8c1e-5d6a-4b7c-9e8f-0a1b2c3d4e5f'), { status: 'sent' }));
   await assertFails(setDoc(doc(coAdmin, 'sms_client_ids/alice_anything-else-0000000000'), { status: 'claimed' }));
+
+  // 14e. job_events (job spine, 2026-10-03) — admin-SDK only. A client that
+  // could create a marker could pre-claim (leadId, event, sourceId) and make
+  // the server skip a real automatic move; reading one leaks lead ids and
+  // payment metadata. Denied to the lead's own owner and to platform admin.
+  await assertFails(getDoc(doc(anon,    'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(getDoc(doc(alice,   'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(getDoc(doc(admin,   'job_events/leadA__paid_in_full__inv1')));
+  await assertFails(setDoc(doc(alice,   'job_events/leadA__contract_signed__doc_x'), { leadId: 'leadA', event: 'contract_signed' }));
+  await assertFails(setDoc(doc(coAdmin, 'job_events/leadA__paid_in_full__inv2'), { leadId: 'leadA', event: 'paid_in_full' }));
+  await assertFails(deleteDoc(doc(alice, 'job_events/leadA__paid_in_full__inv1')));
 
   // 15. parcel_cache — admin-SDK only (fixture seeded above).
   await assertFails(getDoc(doc(alice, 'parcel_cache/abc')));
@@ -2211,6 +2227,89 @@ async function run() {
   console.log('  45: ' + s45Pass + ' agent-inbox checks passed, ' + s45Fail.length + ' failed');
   if (s45Fail.length) {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));
+  }
+
+  // ── 46: notifications are create-only on their identity (2026-10-03) ──
+  // crm-snooze.js writes follow-up notices to a deterministic id
+  // (follow_up_<uid>_<lead>_<day>) with setDoc. A second tab's setDoc onto
+  // that id must be REFUSED, not silently overwrite (which would also reset
+  // read:true back to false), while the owner's read/dismiss updates and
+  // the first create keep working.
+  const s46Fail = []; let s46Pass = 0;
+  async function x46(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s46Pass++;
+    } catch (e) { s46Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  {
+    const { serverTimestamp: sts46 } = require('firebase/firestore');
+    const jo46 = env.authenticatedContext('jo46', {}).firestore();
+    const other46 = env.authenticatedContext('ot46', {}).firestore();
+    const ID = 'notifications/follow_up_jo46_lead1_2026-10-03';
+    const body = (extra) => Object.assign({ userId: 'jo46', type: 'follow_up', leadId: 'lead1', dateKey: '2026-10-03', title: 'Overdue', read: false, createdAt: sts46() }, extra || {});
+    await x46('first create of a deterministic id', 'allow', setDoc(doc(jo46, ID), body()));
+    await x46('owner marks it read', 'allow', updateDoc(doc(jo46, ID), { read: true, readAt: sts46() }));
+    await x46('owner dismisses / restores it', 'allow', updateDoc(doc(jo46, ID), { dismissed: true, read: true }));
+    await x46('a second setDoc onto the same id (another tab) is refused', 'deny', setDoc(doc(jo46, ID), body()));
+    await x46('cannot rewrite which lead / day it is about', 'deny', updateDoc(doc(jo46, ID), { leadId: 'lead2' }));
+    await x46('cannot change its type', 'deny', updateDoc(doc(jo46, ID), { type: 'needs_field' }));
+    await x46('another user cannot touch it', 'deny', updateDoc(doc(other46, ID), { read: false }));
+    await x46('owner can query their own day (equality-only, no index)', 'allow',
+      getDocs(query(collection(jo46, 'notifications'), where('userId', '==', 'jo46'), where('dateKey', '==', '2026-10-03'))));
+  }
+  console.log('  46: ' + s46Pass + ' notification create-only checks passed, ' + s46Fail.length + ' failed');
+  if (s46Fail.length) {
+    throw new Error('46 notifications: ' + s46Fail.length + ' check(s) went the wrong way:\n    ' + s46Fail.join('\n    '));
+  }
+
+  // ─── 47. Security batch 2026-10-03 ───
+  // (a) A lead CREATE may not carry server-owned referral fields
+  //     (referralServerFieldsFrozen only guarded updates).
+  // (b) A customerId with another tenant's RESERVED prefix is refused on create
+  //     and on the first stamp (update); unreserved / legacy ids still pass.
+  // (c) /emails read by sentBy needs a VERIFIED email claim.
+  const s47Fail = []; let s47Pass = 0;
+  async function x47(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s47Pass++;
+    } catch (e) { s47Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const rep47    = env.authenticatedContext('rep47',  { role: 'sales_rep', companyId: 'co-46' }).firestore();
+  const solo47   = env.authenticatedContext('solo47', {}).firestore();
+  const unver47  = env.authenticatedContext('unv46',  { email: 'victim46@x.test' }).firestore();
+  const ver47    = env.authenticatedContext('ver47',  { email: 'victim46@x.test', email_verified: true }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'docPrefixes/OAK46'), { companyId: 'co-other46' });
+    await setDoc(doc(db, 'docPrefixes/REP46'), { companyId: 'co-46' });
+    await setDoc(doc(db, 'leads/lead46a'), { userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'leads/lead46b'), { userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'emails/e46'), { sentBy: 'victim46@x.test', sentByUid: 'real-victim', to: 'h@x.test' });
+  });
+  const NEWLEAD47 = (extra) => Object.assign({ userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA', lastName: 'New' }, extra || {});
+  // (a) referral fields on create
+  await x47('plain lead create (control)', 'allow', setDoc(doc(rep47, 'leads/n46-ok'), NEWLEAD47()));
+  for (const [k, v] of [['referralRewardStatus', 'owed'], ['referralDocId', 'refdocX'], ['referrerLeadId', 'leadX'],
+    ['referralRewardAmount', 500], ['referredBy', 'X-1'], ['referralRewardJobCount', 0]]) {
+    await x47('create carrying ' + k, 'deny', setDoc(doc(rep47, 'leads/n46-' + k), NEWLEAD47({ [k]: v })));
+  }
+  // (b) customerId prefixes
+  await x47("create with another tenant's reserved prefix", 'deny', setDoc(doc(rep47, 'leads/n46-oak'), NEWLEAD47({ customerId: 'OAK46-0001-ABCD' })));
+  await x47('create with the own reserved prefix', 'allow', setDoc(doc(rep47, 'leads/n46-own'), NEWLEAD47({ customerId: 'REP46-0007-ABCD' })));
+  await x47('create with an unreserved legacy id (CSV import)', 'allow', setDoc(doc(rep47, 'leads/n46-legacy'), NEWLEAD47({ customerId: 'CUST-12345' })));
+  await x47('create with a non-prefix-shaped id', 'allow', setDoc(doc(rep47, 'leads/n46-free'), NEWLEAD47({ customerId: '2024/117' })));
+  await x47("first stamp (update) with another tenant's reserved prefix", 'deny', updateDoc(doc(rep47, 'leads/lead46a'), { customerId: 'OAK46-0002-ABCD' }));
+  await x47('first stamp (update) with the own prefix — the client mint', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { customerId: 'REP46-0008-ABCD' }));
+  await x47('ordinary edit on a stamped lead still works', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { lastName: 'Edited' }));
+  await x47('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo47, 'leads/n46-solo'), { userId: 'solo47', companyId: 'solo47', firstName: 'ZZ_QA' }));
+  // (c) /emails read
+  await x47('unverified account with the sender\'s email cannot read the row', 'deny', getDoc(doc(unver47, 'emails/e46')));
+  await x47('verified owner of that email can read it', 'allow', getDoc(doc(ver47, 'emails/e46')));
+  console.log('  47: ' + s47Pass + ' security-batch checks passed, ' + s47Fail.length + ' failed');
+  if (s47Fail.length) {
+    throw new Error('47 security batch: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

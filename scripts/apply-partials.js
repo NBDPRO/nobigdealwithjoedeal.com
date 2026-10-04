@@ -73,19 +73,20 @@ const REQUIRED_MARKUP = {
   // ids don't cover: nav-faq.js opens the Services dropdown only through
   // ul.nav-links > li.dropdown; the hamburger↔mobileNav controller tag lives
   // INSIDE <nav> (drop it and every mobile menu dies silently); that
-  // controller animates the hamburger's three <span> children; and
-  // nbd-nav.css carries the drawer's positioning contract, without which the
-  // per-page inline copies take over and the drawer misaligns with the header
-  // again (see the 2026-09-08 nav reliability audit).
+  // controller animates the hamburger's three <span> children. nbd-nav.css
+  // (the drawer's positioning contract, 2026-09-08 nav reliability audit) is
+  // deliberately NOT in these partials any more: since 2026-10-03 it is linked
+  // once in each page's <head>, because a stylesheet <link> inside <body>
+  // blocks rendering of everything after it. tests/nav-css-in-head.test.js
+  // pins head-only, exactly-once on every page carrying a nav partial.
   'nav-standard': ['id="mainNav"', 'id="navLinks"', 'id="hamburger"',
     'class="nav-links"', 'class="dropdown"',
-    'href="/assets/css/nbd-nav.css"', 'src="/assets/js/nbd-nav.js"',
+    'src="/assets/js/nbd-nav.js"',
     '<span></span><span></span><span></span>'],
   'nav-blog': ['id="mainNav"', 'id="navLinks"',
     'class="nav-links"', 'class="dropdown"',
-    'href="/assets/css/nbd-nav.css"', 'src="/assets/js/nbd-nav.js"'],
-  'nav-tool': ['id="mainNav"',
-    'href="/assets/css/nbd-nav.css"', 'src="/assets/js/nbd-nav.js"'],
+    'src="/assets/js/nbd-nav.js"'],
+  'nav-tool': ['id="mainNav"', 'src="/assets/js/nbd-nav.js"'],
   // The 7 brand microsites (LumaNail, Roofivent, GAF Pivot Boot, GAF Timberline,
   // TAMKO Impact-Resistant Shingles + the two promise pages) ran 4 divergent link sets before
   // 2026-08-19 — two of them dropped Pledge/Guarantee/Build entirely and pointed
@@ -93,7 +94,7 @@ const REQUIRED_MARKUP = {
   // which this family does not have.
   'nav-microsite': ['id="mainNav"', 'id="navLinks"', 'id="hamburger"',
     'class="nav-links"',
-    'href="/assets/css/nbd-nav.css"', 'src="/assets/js/nbd-nav.js"',
+    'src="/assets/js/nbd-nav.js"',
     '<span></span><span></span><span></span>'],
   'mobile-nav-standard': ['id="mobileNav"'],
   'mobile-nav-blog': ['id="mobileNav"'],

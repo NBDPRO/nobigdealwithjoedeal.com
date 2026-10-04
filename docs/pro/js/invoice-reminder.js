@@ -97,11 +97,32 @@
     catch (e) { toast('Could not load that invoice — try again.', 'error'); return; }
     if (!snap || !snap.exists()) { toast('Invoice not found.', 'error'); return; }
     var inv = Object.assign({ id: invoiceId }, snap.data());
-    var lead = inv.leadId ? (root._leads || []).find(function (l) { return l && l.id === inv.leadId; }) : null;
+    // FAIL CLOSED (ky-insurance-law.js): the Kentucky hold is decided from
+    // the LEAD. root._leads drops soft-deleted leads (and may not hold this
+    // one yet), so a miss there reads the lead doc; a lead that still cannot
+    // be read — or a jurisdiction module that did not load — refuses the
+    // reminder rather than send a payment request on what may be a KY
+    // insurance job inside its window (2026-10-03; was: no lead → not held).
+    var lead = null;
+    if (inv.leadId) {
+      lead = (root._leads || []).find(function (l) { return l && l.id === inv.leadId; }) || null;
+      if (!lead) {
+        try {
+          var ls = await root.getDoc(root.doc(root.db, 'leads', String(inv.leadId)));
+          lead = (ls && ls.exists()) ? Object.assign({ id: String(inv.leadId) }, ls.data() || {}) : null;
+        } catch (_) { lead = null; }
+        if (!lead) { toast('Could not read this invoice\'s customer record, so the Kentucky payment rules can\'t be checked — no reminder sent.', 'error'); return; }
+      }
+    }
     var J = root.NBDJurisdiction;
+    if (!J || typeof J.payLinkHold !== 'function') { toast('The Kentucky payment rules did not load — reload and try again.', 'error'); return; }
+    // The tenant's time zone, as the server's payment-link check uses it
+    // (functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
+    var tz;
+    try { tz = J.resolveTimeZone(typeof root._legal === 'function' ? root._legal() : (root._companyProfile || {})); } catch (_) { tz = undefined; }
     var r = buildReminder(inv, lead, {
       company: companyName(), repName: repName(), now: new Date(),
-      holdFn: J && typeof J.payLinkHold === 'function' ? function (l, i, n) { return J.payLinkHold(l, i, n); } : null,
+      holdFn: function (l, i, n) { return J.payLinkHold(l, i, n, tz); },
     });
     if (r.held) { toast('Kentucky insurance job — no payment requests until ' + (r.releaseDate || 'the cancellation window ends') + '.', 'error'); return; }
     if (!r.allowed) { toast('Nothing to remind about — this invoice has no balance due.', 'info'); return; }
@@ -159,7 +180,7 @@
       } else {
         if (!C || typeof C.sendEmail !== 'function') throw new Error('Email is not available here.');
         var html = '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>';
-        var e = await C.sendEmail({ to: r.to.email, subject: r.subject, html: html, leadId: inv.leadId || null, kind: 'invoice' });
+        var e = await C.sendEmail({ to: r.to.email, subject: r.subject, html: html, leadId: inv.leadId || null, invoiceId: inv.id || null, kind: 'invoice' });
         if (!e || e.success === false) throw new Error((e && (e.message || e.error)) || 'The email was not sent.');
         // 'mailto' = the rep's own mail app opened; nothing confirms it was sent.
         delivered = e.mode !== 'mailto';

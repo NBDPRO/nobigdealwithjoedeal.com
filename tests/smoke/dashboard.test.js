@@ -1393,7 +1393,7 @@ section('Pipeline one-row toolbar (2026-07-06) — three controls, ids intact');
   // those classes into the Filters badge.
   assert('sync function counts stamped .active classes into the badge',
     /crmFiltersActiveBadge/.test(ui)
-    && /\['needsAttentionBtn', 'staleSharesBtn', 'snoozedToggleBtn', 'engagementSortBtn'\]/.test(ui));
+    && /\['needsAttentionBtn', 'noNextStepBtn', 'staleSharesBtn', 'snoozedToggleBtn', 'engagementSortBtn'\]/.test(ui));
   // The two kanban filters read their state from NBDLeadFilters now
   // (lead-filter-registry.js, 2026-09-03) instead of a private `active`
   // boolean, so their stamp reads `isActive()`. The assertion's intent is
