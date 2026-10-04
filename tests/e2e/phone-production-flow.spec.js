@@ -193,8 +193,8 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
     expect(o.deliveryDate).toBe(ymd(late));
     expect(o.userId, 'owner pinned to the lead').toBe(l1.userId);
     expect(Object.keys(o).some((k) => /cost|price|total|margin/i.test(k)), 'no money keys on an order').toBe(false);
-    await expect(page.locator('[data-pr-step="ordered"]')).toHaveClass(/pr-done/);
-    await expect(page.locator('[data-pr-step="delivery"]').locator('xpath=..').locator('.pr-step-warn')).toContainText('after the start day');
+    await expect(page.locator('#productionPanel .pr-step').nth(1), 'Ordered is done').toHaveClass(/pr-done/);
+    await expect(page.locator('#productionPanel .pr-step').nth(2).locator('.pr-step-warn'), 'Delivery warns on the strip').toContainText('after the start day');
   });
 
   test('2. sub roster + picker: an expired certificate warns; "Send to sub" shares the job sheet', async () => {
@@ -296,7 +296,14 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
     }, { leadId: id, day: nyDay(1) });
     await safeWaitForFunction(page, (n) => (window._leads || []).some((l) => l.lastName === n), { timeout: 20_000 }, tag)
       .catch(async () => { await safeEvaluate(page, () => window._loadLeads && window._loadLeads()); });
-    await safeEvaluate(page, async () => { await window.NBDProduction.loadTenantOrders(true); await window.NBDProduction.renderSchedExtras(); });
+    // getBusyTimes answers only Jo (owner / company_admin) — the test user is
+    // neither, so the Google answer is stubbed one level up, at busyBetween.
+    await safeEvaluate(page, async (s) => {
+      window.NBDGoogleCalendarUI.busyBetween = async () => ({ configured: true, primaryShared: true, jobsCalendarId: 'jobs@group', primaryCalendarId: 'jo@example.test',
+        blocks: [{ startMs: s, endMs: s + 2 * 3600000, calendars: ['jo@example.test'], titles: [] }] });
+      await window.NBDProduction.loadTenantOrders(true);
+      await window.NBDProduction.renderSchedExtras(true);
+    }, SWN.localToUtcMs(nyDay(1), '09:00'));
     const strip = page.locator('#schedBusyStrip');
     await expect(strip).toBeVisible({ timeout: 10_000 });
     await expect(strip.locator('.bs-day')).toHaveCount(7);

@@ -657,7 +657,8 @@
       '<div class="bs-note">' + (jobs ? '🔨 ' + jobs : '') + (d.deliveries.length ? (jobs ? ' · ' : '') + '🚚 ' + d.deliveries.length : '') + '</div></div>';
   }
 
-  async function renderSchedExtras() {
+  async function renderSchedExtras(force) {
+    if (force) { _busy = null; _busyAt = 0; }
     const host = $('schedBusyStrip');
     const tom = $('schedTomorrow');
     if (!P() || !SW()) return;
