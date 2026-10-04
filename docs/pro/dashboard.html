@@ -112,7 +112,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=106"></script>
+<script src="js/script-loader.js?v=114"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -131,12 +131,12 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=31"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=32"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=9">
+<link rel="stylesheet" href="css/dashboard-app.css?v=10">
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
@@ -4227,6 +4227,14 @@
               <a id="cp-site-link" href="#" target="_blank" rel="noopener" style="color:var(--orange);word-break:break-all;">—</a>
             </div>
             <div id="cp-slug-msg" style="display:none;margin-top:8px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;"></div>
+            <!-- Publish my site (2026-10-04): a new company's page starts
+                 PRIVATE. Publishing is a server call (publishTenantSite) that
+                 needs your brand name, phone and service area filled first. -->
+            <div class="cp-site-publish">
+              <div id="cp-site-status" class="cp-site-status">Checking whether your site is published…</div>
+              <button id="cp-site-publish-btn" class="btn btn-orange" data-action="call" data-fn="_publishSite" hidden>🌐 Publish my site</button>
+              <button id="cp-site-unpublish-btn" class="btn btn-ghost" data-action="call" data-fn="_unpublishSite" hidden>Unpublish</button>
+            </div>
             <div style="margin-top:14px;border-top:1px solid var(--br);padding-top:12px;font-size:12px;color:var(--m);">
               Want a guided do-over of your name, colors, seal, and contact info?
               <a href="/pro/onboarding.html?redo=1" style="color:var(--orange);">Re-run the setup wizard →</a>
@@ -7054,7 +7062,7 @@
      directly from Storage (C1) instead of streaming through
      the deprecated imageProxy. -->
 <script defer src="js/signed-image-url.js?v=1"></script>
-<!-- Voice memo recorder + Deepgram client (F8) -->
+<!-- Voice memo recorder + transcribeVoiceMemo client (F8; Groq server-side) -->
 <script defer src="js/voice-memo.js?v=1"></script>
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=2"></script>

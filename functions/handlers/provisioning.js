@@ -122,7 +122,13 @@ exports.createCompany = onCall(
     batch.set(companyRef, {
       name: v.name,
       ownerId: uid,
+      // status:'active' = a working CRM tenant. The PUBLIC microsite is a
+      // separate release: it starts unpublished and only the owner's
+      // publishTenantSite call (name + phone + service area filled) flips it.
+      // Without this, every free signup got a live page on Jo's domain with
+      // whatever name and phone it typed (handlers/public-site.js).
       status: 'active',
+      sitePublished: false,
       plan: 'free',
       source: 'self-serve',
       createdAt: now,

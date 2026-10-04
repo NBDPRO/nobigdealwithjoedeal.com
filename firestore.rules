@@ -1841,12 +1841,20 @@ service cloud.firestore {
       // admin SDK ever writes there (createCompany always seeds plan:'free').
       // notViewer() (decision B, 2026-09-25): a viewer belongs to another
       // tenant, so a companies/{their uid} doc could only be a squat.
+      // Public-site publication (2026-10-04): `status` and `sitePublished` /
+      // `sitePublishedAt` decide whether /sites/t/<id> serves a page on Jo's
+      // domain (functions/handlers/public-site.js isPublishedCompany). Only the
+      // admin SDK writes them — createCompany / setSiteSlug (status, and
+      // sitePublished:false) and the owner's publishTenantSite callable (which
+      // checks name + phone + service area first). A client create carrying
+      // any of them, or an update that changes one, would be a self-publish.
       allow create: if isAuth() && notViewer()
         && companyId == request.auth.uid
         && request.resource.data.ownerId == request.auth.uid
-        && (!('plan' in request.resource.data) || request.resource.data.plan == 'free');
+        && (!('plan' in request.resource.data) || request.resource.data.plan == 'free')
+        && !request.resource.data.keys().hasAny(['status', 'sitePublished', 'sitePublishedAt']);
       allow update: if ((isAuth() && notViewer() && resource.data.ownerId == request.auth.uid)
-            && didNotChange(['plan', 'ownerId'])) || isAdmin();
+            && didNotChange(['plan', 'ownerId', 'status', 'sitePublished', 'sitePublishedAt'])) || isAdmin();
       allow delete: if (isAuth() && notViewer() && resource.data.ownerId == request.auth.uid) || isAdmin();
 
       // Members subcollection is writable only by the company owner or admin.

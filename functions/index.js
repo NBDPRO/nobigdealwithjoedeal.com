@@ -219,6 +219,7 @@ exports.setCompanySeatCount = seatHandlers.setCompanySeatCount;
 const publicSiteHandlers = require('./handlers/public-site');
 exports.getPublicSiteConfig = publicSiteHandlers.getPublicSiteConfig;
 exports.setSiteSlug = publicSiteHandlers.setSiteSlug;
+exports.publishTenantSite = publicSiteHandlers.publishTenantSite;
 
 // Browser monitoring (CSP violation report sink)
 const monitoringHandlers = require('./handlers/monitoring');
@@ -496,6 +497,12 @@ Object.assign(exports, firestoreBackup);
 // ever did — so it stays independent of whatever breaks next.
 const backupFreshness = require('./backup-freshness');
 Object.assign(exports, backupFreshness);
+
+// Weekly backup of the config that lives only at a vendor (Bland "Thursday",
+// Cal.com, BoldSign, Stripe catalog) into the private vendor-backups bucket.
+// Vendor audit 2026-10-04 Lane B; runbook documentation/runbooks/BACKUP-RESTORE.md.
+const vendorConfigExport = require('./vendor-config-export');
+Object.assign(exports, vendorConfigExport);
 
 // ── Verification Functions (SMS OTP + Lead Notifications) ──
 const verifyFunctions = require('./verify-functions');

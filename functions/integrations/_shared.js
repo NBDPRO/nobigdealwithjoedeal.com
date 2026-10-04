@@ -54,6 +54,10 @@ const SECRETS = {
   // paste into their dashboard (runbooks/INSTANTROOFER-SETUP.md).
   INSTANTROOFER_API_KEY: defineSecret('INSTANTROOFER_API_KEY'),
   INSTANTROOFER_WEBHOOK_SECRET: defineSecret('INSTANTROOFER_WEBHOOK_SECRET'),
+  // Google Solar API (buildingInsights:findClosest) — the cheap roof-measure
+  // provider behind NBD_MEASUREMENT_PROVIDER=solar|auto
+  // (integrations/solar-measure.js). A key restricted to solar.googleapis.com.
+  SOLAR_API_KEY:         defineSecret('SOLAR_API_KEY'),
   BOLDSIGN_API_KEY:      defineSecret('BOLDSIGN_API_KEY'),
   BOLDSIGN_WEBHOOK_SECRET: defineSecret('BOLDSIGN_WEBHOOK_SECRET'),
   REGRID_API_TOKEN:      defineSecret('REGRID_API_TOKEN'),
@@ -88,6 +92,8 @@ const PROVIDERS = {
   // measurement default flipped hover → instantroofer on 2026-09-06: it is the
   // first provider that ever had a real key. hover/eagleview/nearmap were
   // removed 2026-10-04, so instantroofer is the only valid value.
+  // 'solar' (Google Solar API only) and 'auto' (Solar first, Instant Roofer
+  // fallback) are integrations/solar-measure.js, added 2026-10-04.
   measurement:       (process.env.NBD_MEASUREMENT_PROVIDER  || 'instantroofer').toLowerCase(),
   esign:             (process.env.NBD_ESIGN_PROVIDER        || 'boldsign').toLowerCase(),
   // parcel: 'regrid' (the only provider)  ·  hail: 'noaa' (default,
