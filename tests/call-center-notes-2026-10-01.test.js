@@ -320,6 +320,92 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   await runTranscribe({ db, bucket, live: false, nowMs: NOW });
   ok('a call already on a customer gets no suggestion', db.docs.get(COLLECTION + '/cube_m').suggestedLeadId === undefined);
 
+  console.log('\n12. Caller facts: name / street / town / service (2026-10-03)');
+  ok('the notes prompt asks for the four optional facts, null unless said', /"caller_name"/.test(L.NOTES_SYSTEM) && /"street"/.test(L.NOTES_SYSTEM) && /"town"/.test(L.NOTES_SYSTEM) && /"service"/.test(L.NOTES_SYSTEM) && /never guess/i.test(L.NOTES_SYSTEM));
+  let cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: '  Dana   Rivers ', street: '412 Oak Hill Dr.', town: 'Florence', service: 'Gutters' })).callerFacts;
+  ok('clean facts kept (trimmed, service lower-cased)', cf.name === 'Dana Rivers' && cf.street === '412 Oak Hill Dr' && cf.town === 'Florence' && cf.service === 'gutters', JSON.stringify(cf));
+  const old = L.sanitizeNotes(BUSINESS());
+  ok('a reply WITHOUT the new fields (prompt drift) → every old field intact, facts all null',
+    old.callType === 'customer' && old.promises.length === 2 && old.followUpDate === '2026-10-02' && old.callerFacts.name === null && old.callerFacts.street === null && old.callerFacts.town === null && old.callerFacts.service === null);
+  cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: 'x'.repeat(61), street: { a: 1 }, town: 'Florence 41042', service: 'plumbing' })).callerFacts;
+  ok('over-long, non-string, digit-town and unknown-service values → null', cf.name === null && cf.street === null && cf.town === null && cf.service === null, JSON.stringify(cf));
+  cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: 'unknown', street: 'N/A', town: 'null', service: null })).callerFacts;
+  ok('"unknown" / "N/A" / "null" placeholders → null, not a name', cf.name === null && cf.street === null && cf.town === null);
+  cf = L.sanitizeNotes(Object.assign(BUSINESS(), { caller_name: '<img src=x onerror=alert(1)>Dana "Rivers"', town: '41042' })).callerFacts;
+  ok('markup and quotes are stripped; a ZIP is a valid town', cf.name === 'Dana Rivers' && cf.town === '41042', JSON.stringify(cf));
+  cf = L.sanitizeNotes({ call_type: 'personal', summary: 'mom', caller_name: 'Mom Example', town: 'Florence' }).callerFacts;
+  ok('a personal call keeps no facts', cf.name === null && cf.town === null);
+  ok('the facts are a separate key: the text inbox (which picks fields) is unaffected', !('caller_name' in old) && typeof old.callerFacts === 'object');
+
+  // A new call: facts stored with it, and they drive the suggestion.
+  stub(() => Object.assign(BUSINESS(), { summary: 'Wants the gutters cleaned.', caller_name: 'Jamie Kowalski', town: 'Florence', service: 'gutters' }));
+  const factLeads = {
+    'leads/LF1': { firstName: 'Jamie', lastName: 'Kowalski', address: '412 Oak Hill Dr, Florence, KY 41042', source: 'Thumbtack', userId: OWNER, companyId: OWNER },
+    'leads/LF2': { firstName: 'Jamie', lastName: 'Kowalski', address: '88 Elm St, Mason, OH 45040', userId: OWNER, companyId: OWNER },
+  };
+  db = fakeDb(Object.assign({ [CONFIG]: { transcribeOnly: ['cube_fx'] }, [COLLECTION + '/cube_fx']: call('cube_fx', { leadId: null, contactName: '' }) }, factLeads));
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  const fxd = db.docs.get(COLLECTION + '/cube_fx');
+  ok('a new call stores its caller facts + factsV', fxd.callerFacts && fxd.callerFacts.name === 'Jamie Kowalski' && fxd.callerFacts.town === 'Florence' && fxd.factsV === L.FACTS_VERSION, JSON.stringify(fxd.callerFacts));
+  ok('…and "Looks like" names the lead in that town, why "name + Florence" — never filed', fxd.suggestedLeadId === 'LF1' && fxd.suggestedWhy === 'name + Florence' && fxd.leadId === null && !db.docs.has('leads/LF1/activity/cube-cube_fx'), JSON.stringify(fxd));
+
+  console.log('\n13. Older calls: bounded facts re-read from the STORED transcript');
+  const { FACTS_PER_RUN, FACTS_DAY_CAP } = M._test;
+  ok('the bounds are small: ≤ 25 a run, ≤ 200 a day', FACTS_PER_RUN > 0 && FACTS_PER_RUN <= 25 && FACTS_DAY_CAP >= FACTS_PER_RUN && FACTS_DAY_CAP <= 200);
+  const factsStub = (fn) => {
+    calls = { transcribe: 0, notes: 0, prompts: [], systems: [] };
+    setDeps({
+      transcribe: async () => { calls.transcribe++; return { text: 'x', durationSec: 1 }; },
+      notes: async ({ system, prompt }) => { calls.notes++; calls.prompts.push(prompt); calls.systems.push(system); return fn(prompt); },
+    });
+  };
+  const oldNoted = (i, extra) => call('cube_on' + i, Object.assign({ leadId: null, status: 'noted', summary: 'Wants a roof quote.', transcript: 'TRANSCRIPT-' + i + ' this is Jamie Kowalski up in Florence', startedAtMs: NOW - (i + 1) * 3600e3, suggestRulesV: 2 }, extra));
+  const seedOld = (n, cfgExtra, extra) => {
+    const s = Object.assign({ [CONFIG]: Object.assign({}, cfgExtra) }, factLeads);
+    for (let i = 0; i < n; i++) s[COLLECTION + '/cube_on' + i] = oldNoted(i, extra);
+    return fakeDb(s);
+  };
+  factsStub(() => ({ caller_name: 'Jamie Kowalski', street: null, town: 'Florence', service: 'roof' }));
+  db = seedOld(FACTS_PER_RUN + 5);
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('one run re-reads at most FACTS_PER_RUN calls', calls.notes === FACTS_PER_RUN && r.factsReextracted === FACTS_PER_RUN, JSON.stringify(r));
+  ok('…from the stored transcript with the facts-only prompt — no audio re-transcribed', calls.transcribe === 0 && /TRANSCRIPT-0/.test(calls.prompts[0]) && calls.systems[0] === L.FACTS_SYSTEM);
+  const on0 = db.docs.get(COLLECTION + '/cube_on0');
+  ok('…newest first; each is marked (factsV) and re-scored at once', on0.factsV === L.FACTS_VERSION && on0.callerFacts.town === 'Florence' && on0.suggestedLeadId === 'LF1' && on0.suggestedWhy === 'name + Florence' && on0.suggestRulesV === L.SUGGEST_RULES_VERSION);
+  ok('…the summary / promises are left alone', on0.summary === 'Wants a roof quote.');
+  ok('…the day count is kept on the config', db.docs.get(CONFIG).factsDay === '2026-10-01' && db.docs.get(CONFIG).factsUsed === FACTS_PER_RUN);
+  const leftOver = db.docs.get(COLLECTION + '/cube_on' + (FACTS_PER_RUN + 4));
+  ok('…the rest wait (still re-scored by the ordinary backfill, no facts yet)', !leftOver.factsV && leftOver.suggestRulesV === L.SUGGEST_RULES_VERSION);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  ok('the next run picks up only the rest — a marked call is never re-read', calls.notes === FACTS_PER_RUN + 5 && db.docs.get(CONFIG).factsUsed === FACTS_PER_RUN + 5);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 3600e3 });
+  ok('…and then nothing more (idempotent)', calls.notes === FACTS_PER_RUN + 5);
+  factsStub(() => ({ caller_name: 'Jamie Kowalski', town: 'Florence' }));
+  db = seedOld(10, { factsDay: '2026-10-01', factsUsed: FACTS_DAY_CAP - 3 });
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('the daily cap holds: 3 left today → 3 model calls', calls.notes === 3 && db.docs.get(CONFIG).factsUsed === FACTS_DAY_CAP);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  ok('…a spent day makes none', calls.notes === 3);
+  await runTranscribe({ db, bucket, live: true, nowMs: Date.parse('2026-10-02T16:00:00Z') });
+  ok('…a new day starts a fresh count', calls.notes === 3 + 7 && db.docs.get(CONFIG).factsDay === '2026-10-02' && db.docs.get(CONFIG).factsUsed === 7);
+  factsStub(() => { throw new Error('anthropic 529: overloaded'); });
+  db = seedOld(5);
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('a model failure stops the re-read for this run (one attempt counted)', calls.notes === 1 && r.factsFailed === 1 && db.docs.get(COLLECTION + '/cube_on0').factsAttempts === 1 && !db.docs.get(COLLECTION + '/cube_on0').factsV);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 3600e3 });
+  ok('a call that fails twice is left alone after that', db.docs.get(COLLECTION + '/cube_on0').factsAttempts === 2 && db.docs.get(COLLECTION + '/cube_on1').factsAttempts === 1, JSON.stringify([db.docs.get(COLLECTION + '/cube_on0').factsAttempts, db.docs.get(COLLECTION + '/cube_on1').factsAttempts]));
+  factsStub(() => ({ caller_name: 'Jamie Kowalski', town: 'Florence' }));
+  db = seedOld(3, {}, { transcript: null });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('a call with no stored transcript is marked done without a model call', calls.notes === 0 && db.docs.get(COLLECTION + '/cube_on0').factsV === L.FACTS_VERSION);
+  db = seedOld(3);
+  await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('gate off (not live) → no re-read at all', calls.notes === 0 && !db.docs.get(COLLECTION + '/cube_on0').factsV);
+  db = seedOld(3, { paused: true });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('paused → no re-read', calls.notes === 0);
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);

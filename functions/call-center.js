@@ -321,16 +321,69 @@ function suggestionPatch(call, leads, nowMs) {
   return { suggestedLeadId: s ? s.leadId : null, suggestedLeadName: s ? s.name : null, suggestedWhy: s ? s.why : null, suggestCheckedAtMs: nowMs, suggestRulesV: L.SUGGEST_RULES_VERSION };
 }
 const SUGGEST_BACKFILL_PER_RUN = 100;
-async function backfillSuggestions({ db, nowMs, leads }) {
+// The noted calls on no customer — read once a run, shared by the facts
+// re-extraction and the suggestion backfill.
+async function unfiledNoted(db) {
   const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'noted').where('leadId', '==', null).limit(500).get();
-  const todo = [];
-  // Unchecked, or checked under older rules (2026-10-03: Thumbtack rules added).
-  q.forEach((d) => { const v = d.data() || {}; if (v.suggestRulesV !== L.SUGGEST_RULES_VERSION) todo.push(Object.assign({}, v, { id: d.id })); });
+  const rows = [];
+  q.forEach((d) => rows.push(Object.assign({}, d.data() || {}, { id: d.id })));
+  return rows;
+}
+async function backfillSuggestions({ db, nowMs, leads, rows }) {
+  const all = rows || await unfiledNoted(db);
+  // Unchecked, or checked under older rules (2026-10-03: Thumbtack rules, then caller facts).
+  const todo = all.filter((v) => v.suggestRulesV !== L.SUGGEST_RULES_VERSION);
   if (!todo.length) return 0;
-  const all = leads || await ownerLeads(db);
+  const leadRows = leads || await ownerLeads(db);
   const batch = todo.slice(0, SUGGEST_BACKFILL_PER_RUN);
-  for (const c of batch) await db.collection(COLLECTION).doc(c.id).set(suggestionPatch(c, all, nowMs), { merge: true });
+  for (const c of batch) await db.collection(COLLECTION).doc(c.id).set(suggestionPatch(c, leadRows, nowMs), { merge: true });
   return batch.length;
+}
+
+// Caller facts for calls noted before the notes prompt asked for them
+// (2026-10-03). Bounded: FACTS_PER_RUN a run and FACTS_DAY_CAP model calls
+// a day (counted on integrations/callCenter factsDay / factsUsed, the same
+// way the audio cap is), from the STORED transcript — never re-transcribed.
+// factsV marks a call done, so a re-run never re-reads it; a call that
+// fails twice is left alone. Each re-read call is re-scored at once.
+const FACTS_PER_RUN = 20;
+const FACTS_DAY_CAP = 150;
+const FACTS_MAX_ATTEMPTS = 2;
+async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads }) {
+  const usedToday = (cfg && cfg.factsDay === today && Number(cfg.factsUsed)) || 0;
+  const out = { reextracted: 0, failed: 0, aiCalls: 0, usedToday };
+  const room = Math.min(FACTS_PER_RUN, FACTS_DAY_CAP - usedToday);
+  if (room <= 0) return out;
+  const todo = rows
+    .filter((c) => (Number(c.factsV) || 0) < L.FACTS_VERSION && (Number(c.factsAttempts) || 0) < FACTS_MAX_ATTEMPTS)
+    .sort((a, b) => (b.startedAtMs || 0) - (a.startedAtMs || 0));
+  for (const c of todo) {
+    if (out.aiCalls >= room) break;
+    const ref = db.collection(COLLECTION).doc(c.id);
+    if (!String(c.transcript || '').trim()) {
+      // Nothing to read: marked done, no model call spent.
+      const patch = { callerFacts: L.sanitizeCallerFacts(null), factsV: L.FACTS_VERSION };
+      await ref.set(patch, { merge: true });
+      Object.assign(c, patch);
+      continue;
+    }
+    out.aiCalls++;
+    try {
+      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.FACTS_SYSTEM, prompt: L.buildFactsPrompt({ transcript: c.transcript }) }));
+      Object.assign(c, { callerFacts: facts, factsV: L.FACTS_VERSION });
+      const sp = suggestionPatch(c, await getLeads(), nowMs);
+      await ref.set(Object.assign({ callerFacts: facts, factsV: L.FACTS_VERSION, factsAtMs: nowMs }, sp), { merge: true });
+      Object.assign(c, sp);
+      out.reextracted++;
+    } catch (e) {
+      out.failed++;
+      c.factsAttempts = (Number(c.factsAttempts) || 0) + 1;
+      await ref.set({ factsAttempts: c.factsAttempts, factsError: String((e && e.message) || e).slice(0, 300) }, { merge: true }).catch(() => {});
+      logger.warn('call_center_facts_failed', { id: c.id, err: e && e.message });
+      break; // the model is down or refusing: the next run tries again
+    }
+  }
+  return out;
 }
 
 /** One transcription pass. Exported for the integration test (stubbed deps). */
@@ -391,6 +444,8 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         promises: notes.promises,
         followUpDate: notes.followUpDate,
         urgent: notes.urgent,
+        callerFacts: notes.callerFacts,
+        factsV: L.FACTS_VERSION,
         notedAtMs: nowMs,
       }, { merge: true });
       if (personal) {
@@ -418,7 +473,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       // "File on X" in one tap. A suggestion only — never filed by itself.
       if (!call.leadId) {
         if (!leadsForSuggest) leadsForSuggest = await ownerLeads(db);
-        await callRef.set(suggestionPatch(Object.assign({}, call, { summary: notes.summary, transcript: t.text }), leadsForSuggest, nowMs), { merge: true });
+        await callRef.set(suggestionPatch(Object.assign({}, call, { summary: notes.summary, transcript: t.text, callerFacts: notes.callerFacts }), leadsForSuggest, nowMs), { merge: true });
       }
 
       if (call.leadId) {
@@ -448,11 +503,25 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   }
 
   // Calls noted before suggestions existed get theirs, a batch a run.
+  // Older calls get caller facts re-read (bounded, see reextractFacts) and
+  // are re-scored.
+  let factsUsed = null;
   if (live && !allowIds.length) {
-    try { out.suggested = await backfillSuggestions({ db, nowMs, leads: leadsForSuggest }); } catch (e) { logger.warn('call_center_suggest_backfill_failed', { err: e && e.message }); }
+    try {
+      const rows = await unfiledNoted(db);
+      const getLeads = async () => (leadsForSuggest = leadsForSuggest || await ownerLeads(db));
+      try {
+        const f = await reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads });
+        out.factsReextracted = f.reextracted;
+        if (f.failed) out.factsFailed = f.failed;
+        factsUsed = f.usedToday + f.aiCalls;
+      } catch (e) { logger.warn('call_center_facts_backfill_failed', { err: e && e.message }); }
+      out.suggested = await backfillSuggestions({ db, nowMs, leads: leadsForSuggest, rows });
+    } catch (e) { logger.warn('call_center_suggest_backfill_failed', { err: e && e.message }); }
   }
 
   const patch = { audioSecDay: today, audioSecUsed: usedSec + out.audioSec, lastTranscribeAtMs: nowMs, lastTranscribe: out };
+  if (factsUsed !== null) Object.assign(patch, { factsDay: today, factsUsed });
   // The one-call test runs once: clear the ids it handled.
   if (allowIds.length) patch.transcribeOnly = allowIds.filter((id) => !pick.some((c) => c.id === id));
   await ref.set(patch, { merge: true });
@@ -935,6 +1004,8 @@ exports._test = {
   taggedMatch,
   refileNumber,
   backfillSuggestions,
+  reextractFacts,
+  FACTS_PER_RUN, FACTS_DAY_CAP,
   setActionDeps(x) { deps_ = x || {}; },
   setClient(c) { _testClient = c; },
   setDeps(x) { _deps = x; },

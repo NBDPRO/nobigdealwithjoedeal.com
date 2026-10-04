@@ -22,7 +22,7 @@
  *   contact   — a saved phone contact the CRM doesn't know yet
  *   unknown   — a bare number
  *
- * Dependency-light (phone-utils + schedule-window only) so the tests
+ * Dependency-light (phone-utils, schedule-window, stage-roles) so the tests
  * require() it directly and the function shares the exact code path.
  */
 'use strict';
@@ -332,6 +332,55 @@ function pickToTranscribe(calls, { live, allowIds, maxCount, secLeft }) {
 
 const CALL_TYPES = ['customer', 'insurance', 'supplier', 'sub', 'lead', 'personal', 'spam', 'other'];
 
+// Who / where the call is about (2026-10-03): 757 of 829 calls sat on no
+// lead, mostly Thumbtack customers whose lead carries Thumbtack's masked
+// number. These four optional facts let suggestLeadForCall match by name +
+// town / street instead. Untrusted model output: sanitizeCallerFacts.
+const SERVICES = ['roof', 'siding', 'gutters', 'repair', 'insurance'];
+const CALLER_FACT_RULES = [
+  'Also, about the customer (NOT Jo, NOT an insurance adjuster, supplier or sub). Each is null unless CLEARLY said on the call — never guess, never infer from the phone contact name:',
+  ' "caller_name": the customer\'s name as they give it for themselves, or as Jo addresses them (e.g. "Dana Rivers", "Dana"), or null',
+  ' "street": the street of the job / their home, house number only if spoken (e.g. "412 Oak Hill Dr", "Oak Hill Drive"), or null',
+  ' "town": the town / city of the job (e.g. "Florence"), or a 5-digit ZIP if only that was said, or null',
+  ' "service": one of ' + JSON.stringify(SERVICES) + ' — what the call is about — or null',
+].join('\n');
+const FACTS_SYSTEM = [
+  'You read a transcript of a phone call taken or made by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati / Northern Kentucky area.',
+  'Return ONE JSON object and nothing else: {"caller_name": ..., "street": ..., "town": ..., "service": ...}',
+  CALLER_FACT_RULES,
+].join('\n');
+function buildFactsPrompt({ transcript }) {
+  return 'Transcript:\n' + String(transcript || '').slice(0, 30000);
+}
+// Bump when the fact rules change: calls extracted under an older version
+// are re-read (bounded) by call-center.js reextractFacts.
+const FACTS_VERSION = 1;
+
+const NOT_SAID_RE = /^(null|none|n\/?a|unknown|not (said|given|stated|mentioned)|unclear|caller|customer|homeowner|jo|the caller|unspecified|-+)$/i;
+function factText(v, max) {
+  if (typeof v !== 'string') return null;
+  // Letters, digits, spaces and the punctuation a name / address uses; the
+  // rest (markup, quotes, control characters) goes.
+  const t = v.normalize('NFKC').replace(/<[^>]*>/g, ' ').replace(/[^\p{L}\p{N} .,'#-]+/gu, ' ').replace(/\s+/g, ' ').trim().replace(/^[.,'#-]+|[.,'#-]+$/g, '').trim();
+  if (!t || t.length > max || NOT_SAID_RE.test(t) || !/\p{L}|\d/u.test(t)) return null;
+  return t;
+}
+/** The model's caller facts → { name, street, town, service }, each null unless clean. */
+function sanitizeCallerFacts(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const name = factText(r.caller_name, 60);
+  const street = factText(r.street, 80);
+  let town = factText(r.town, 40);
+  if (town && /\d/.test(town) && !/^\d{5}$/.test(town)) town = null; // a town has no digits; a ZIP is exactly five
+  const svc = typeof r.service === 'string' ? r.service.trim().toLowerCase() : '';
+  return {
+    name: name && /\p{L}{2}/u.test(name) && !/\d/.test(name) ? name : null,
+    street: street && /\p{L}{2}/u.test(street) ? street : null,
+    town,
+    service: SERVICES.includes(svc) ? svc : null,
+  };
+}
+
 const NOTES_SYSTEM = [
   'You read transcripts of phone calls made or taken by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati area.',
   'Return ONE JSON object and nothing else:',
@@ -339,11 +388,12 @@ const NOTES_SYSTEM = [
   ' "summary": "2-3 plain sentences: who, what about, what was decided",',
   ' "promises": [{"who": "jo" | "them", "text": "a concrete thing someone said they would do, imperative, under 120 chars", "due": "YYYY-MM-DD" or null}],',
   ' "follow_up_date": "YYYY-MM-DD" or null (when Jo should next reach out, if the call implies one),',
-  ' "urgent": true | false (an active leak, safety issue, or a hard deadline within 48 hours)}',
+  ' "urgent": true | false (an active leak, safety issue, or a hard deadline within 48 hours),',
+  ' "caller_name": ..., "street": ..., "town": ..., "service": ... (see below)}',
   'Rules: only promises actually made on the call, at most 6. Resolve relative dates ("Thursday", "next week") against the call date given. ',
   'A call about family, friends or anything not business is "personal": then summary is "Personal call." and promises is [].',
   'Never invent prices, names or dates that were not said.',
-].join('\n');
+].join('\n') + '\n' + CALLER_FACT_RULES;
 
 function buildNotesPrompt({ call, transcript, leadName }) {
   const when = call.startedAtMs ? new Date(call.startedAtMs).toLocaleString('en-US', { timeZone: 'America/New_York' }) : 'unknown';
@@ -384,6 +434,8 @@ function sanitizeNotes(raw) {
     promises,
     followUpDate: personal ? null : ymdOrNull(r.follow_up_date),
     urgent: !personal && r.urgent === true,
+    // Optional; a reply without them (older prompt, drift) → all null.
+    callerFacts: personal ? sanitizeCallerFacts(null) : sanitizeCallerFacts(r),
   };
 }
 
@@ -541,13 +593,18 @@ const isThumbtackLead = (l) => /thumb\s*tack/i.test(String((l && l.source) || ''
 const THUMBTACK_SAID_RE = /\bthumb\s*tack\b/i;
 // Bump when the rules change: calls checked under an older version are
 // re-checked by the backfill (call-center.js backfillSuggestions).
-const SUGGEST_RULES_VERSION = 2;
+const SUGGEST_RULES_VERSION = 3; // 3: caller facts (name + town / street), 2026-10-03
+const leadLabel = (l) => ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer';
 function suggestLeadForCall(call, leads) {
   if (!call || call.leadId) return null;
+  const live = (leads || []).filter((l) => l && l.id && l.deleted !== true);
+  // The facts tier runs only when the rules above find no single lead.
+  return suggestByContactOrSaid(call, live) || suggestByFacts(call.callerFacts, live);
+}
+function suggestByContactOrSaid(call, live) {
   const contact = ' ' + normMatch(call.contactName) + ' ';
   const said = ' ' + normMatch([call.summary, call.transcript].join(' ')) + ' ';
-  const live = (leads || []).filter((l) => l && l.id && l.deleted !== true);
-  const name = (l) => ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'Customer';
+  const name = leadLabel;
   const hits = new Map();
   for (const l of live) {
     const first = normMatch(l.firstName), last = normMatch(l.lastName);
@@ -579,6 +636,94 @@ function suggestLeadForCall(call, leads) {
   if (!THUMBTACK_SAID_RE.test(said)) return null;
   return tier((l) => { const first = normMatch(l.firstName); return first.length > 2 && said.includes(' ' + first + ' '); },
     'Thumbtack lead — the call mentions Thumbtack and their first name') || null;
+}
+
+// ── Caller facts → one open lead (2026-10-03) ─────────────────────────────
+// The AI notes' caller_name / street / town (sanitizeCallerFacts) scored
+// against the tenant's OPEN leads. A lead qualifies only on strong evidence:
+//   name (first + last; first + last initial on a Thumbtack lead) + town/ZIP
+//   name + street name
+//   house number + street name
+// and anything that CONTRADICTS (a different last name, house number or
+// town) rules the lead out. Suggested only when exactly one lead qualifies
+// and no other same-named lead lacks the address to tell them apart.
+// why reads like "name + Florence" for the "Looks like X" chip.
+const SR = require('./stage-roles');
+const STREET_SUFFIX = { street: 'st', st: 'st', drive: 'dr', dr: 'dr', road: 'rd', rd: 'rd', lane: 'ln', ln: 'ln', court: 'ct', ct: 'ct',
+  avenue: 'ave', ave: 'ave', av: 'ave', boulevard: 'blvd', blvd: 'blvd', place: 'pl', pl: 'pl', circle: 'cir', cir: 'cir', way: 'way',
+  trail: 'trl', trl: 'trl', parkway: 'pkwy', pkwy: 'pkwy', highway: 'hwy', hwy: 'hwy', terrace: 'ter', ter: 'ter', pike: 'pike', pk: 'pike' };
+const DIRS = { north: 'n', south: 's', east: 'e', west: 'w', n: 'n', s: 's', e: 'e', w: 'w' };
+const TITLES = new Set(['mr', 'mrs', 'ms', 'miss', 'dr', 'mister']);
+function parseStreet(s) {
+  let t = normMatch(s).replace(/\b(apt|unit|suite|ste|lot)\b.*$/, '').split(' ').filter(Boolean);
+  const num = /^\d+[a-z]?$/.test(t[0] || '') ? t.shift() : '';
+  t = t.map((w) => DIRS[w] || w);
+  while (t.length > 1 && STREET_SUFFIX[t[t.length - 1]]) t.pop();
+  if (t.length > 1 && DIRS[t[0]] && t[0].length === 1) t.shift();
+  const core = t.join(' ');
+  return { num, core: core.length >= 3 && /[a-z]/.test(core) ? core : '' };
+}
+function nameLevel(factName, l) {
+  const toks = normMatch(factName).split(' ').filter((w) => w && !TITLES.has(w));
+  const lp = normMatch((l.firstName || '') + ' ' + (l.lastName || '')).split(' ').filter(Boolean);
+  if (!toks.length || lp.length < 2 || lp[0].length < 2) return toks.length ? 'none' : '';
+  const lf = lp[0], ll = lp[lp.length - 1];
+  if (toks[0] !== lf) return 'none';
+  if (toks.length < 2) return 'first';
+  const last = toks[toks.length - 1];
+  if (last === ll && ll.length > 1) return 'full';
+  if (isThumbtackLead(l) && (ll.length === 1 ? last[0] === ll : last.length === 1 && ll[0] === last)) return 'full';
+  return 'conflict';
+}
+// "412 Oak Hill Dr, Florence, KY" → street + rest; "Burlington, KY 41005"
+// (a Thumbtack lead often has no street) → no street, all of it is the town.
+function splitAddress(addr) {
+  const segs = String(addr || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const first = segs[0] || '';
+  const toks = normMatch(first).split(' ');
+  const looksStreet = /^\d/.test(first) || (toks.length > 1 && !!STREET_SUFFIX[toks[toks.length - 1]]);
+  if (!looksStreet) return { street: '', rest: segs.join(' ') };
+  return { street: first, rest: segs.slice(1).join(' ') };
+}
+function townLevel(factTown, l) {
+  const t = normMatch(factTown);
+  if (!t) return '';
+  const rest = splitAddress(l.address).rest;
+  const hay = ' ' + normMatch([rest, l.city, l.zip, l.zipCode].join(' ')) + ' ';
+  if (!hay.trim()) return '';                      // no town on the lead: unknown, not a contradiction
+  if (t.length >= 3 && hay.includes(' ' + t + ' ')) return 'match';
+  return 'conflict';
+}
+function streetLevel(factStreet, l) {
+  const f = parseStreet(factStreet);
+  const lead = parseStreet(splitAddress(l.address).street);
+  if (!f.core || !lead.core) return '';
+  if (f.core !== lead.core) return 'other';
+  if (f.num && lead.num) return f.num === lead.num ? 'full' : 'conflict';
+  return 'name';
+}
+const titleCase = (s) => String(s).toLowerCase().replace(/(^|[\s-])\p{L}/gu, (m) => m.toUpperCase());
+function suggestByFacts(facts, live) {
+  const f = facts && typeof facts === 'object' ? sanitizeCallerFacts({ caller_name: facts.name, street: facts.street, town: facts.town }) : null;
+  if (!f || (!f.name && !f.street)) return null;
+  const open = live.filter((l) => !SR.isDecided(l));
+  const strong = [], sameNameNoAddress = [];
+  for (const l of open) {
+    const n = f.name ? nameLevel(f.name, l) : '';
+    const t = f.town ? townLevel(f.town, l) : '';
+    const s = f.street ? streetLevel(f.street, l) : '';
+    // A different street rules a lead out too (a second property is Jo's call, not a guess).
+    if (n === 'conflict' || t === 'conflict' || s === 'conflict' || s === 'other') continue;
+    const street = splitAddress(l.address).street;
+    let why = '';
+    if (s === 'full') why = street;
+    else if (n === 'full' && s === 'name') why = 'name + ' + street;
+    else if (n === 'full' && t === 'match') why = 'name + ' + titleCase(f.town);
+    if (why) strong.push({ leadId: l.id, name: leadLabel(l), why: clip(why, 80) });
+    else if (n === 'full' && !String(l.address || '').trim()) sameNameNoAddress.push(l.id);
+  }
+  if (strong.length !== 1) return null;
+  return sameNameNoAddress.some((id) => id !== strong[0].leadId) ? null : strong[0];
 }
 
 /**
@@ -759,6 +904,12 @@ module.exports = {
   buildSweepEmail,
   addDaysYmd,
   suggestLeadForCall,
+  suggestByFacts,
+  sanitizeCallerFacts,
+  FACTS_SYSTEM,
+  buildFactsPrompt,
+  FACTS_VERSION,
+  SERVICES,
   SUGGEST_RULES_VERSION,
   isThumbtackLead,
   proxyNumbers,

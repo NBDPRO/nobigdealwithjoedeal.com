@@ -107,5 +107,47 @@ const amb = [{ id: 'a1', firstName: 'Pat', lastName: 'Lane' }, { id: 'a2', first
 ok('two leads tie on a strong rule → nothing (never falls through to a weaker one)', L.suggestLeadForCall({ leadId: null, contactName: 'Pat Lane', summary: 'thumbtack' }, amb) === null);
 ok('the rules version is bumped so older checks are redone', L.SUGGEST_RULES_VERSION >= 2);
 
+console.log('\n7. Caller facts → one open lead (name + town / street, 2026-10-03)');
+// Invented people and streets. Thumbtack leads carry a masked number, so
+// these calls match no lead by phone and say no full name the old rules see.
+const FL = [
+  TT('f1', 'Jamie', 'Kowalski', { address: '412 Oak Hill Dr, Florence, KY 41042' }),
+  { id: 'f2', firstName: 'Jamie', lastName: 'Kowalski', address: '88 Elm St, Mason, OH 45040', source: 'Website' },
+  TT('f3', 'Robin', 'S', { address: 'Burlington, KY 41005' }),             // Thumbtack shows a last initial only
+  { id: 'f4', firstName: 'Lee', lastName: 'Turner', address: '17 Maple Ave, Union, KY 41091' },
+  { id: 'f5', firstName: 'Lee', lastName: 'Turner', address: '' },           // same name, no address
+  { id: 'f6', firstName: 'Avery', lastName: 'Cole', address: '903 Ridge Rd, Hebron, KY 41048', stage: 'closed' }, // won: not open
+  { id: 'f7', firstName: 'Quinn', lastName: 'Hart', address: '55 Birch Ln, Florence, KY 41042', deleted: true },
+];
+const byFacts = (facts, extra) => L.suggestLeadForCall(Object.assign({ leadId: null, contactName: '', summary: 'Wants a roof quote.', transcript: '' }, extra, { callerFacts: facts }), FL);
+let fx = byFacts({ name: 'Jamie Kowalski', town: 'Florence' });
+ok('name + town → the one lead in that town, why "name + Florence"', fx && fx.leadId === 'f1' && fx.why === 'name + Florence' && fx.name === 'Jamie Kowalski', JSON.stringify(fx));
+ok('…the same name in the other town picks the other lead', (byFacts({ name: 'jamie kowalski', town: 'MASON' }) || {}).leadId === 'f2');
+ok('a ZIP works as the town', (byFacts({ name: 'Jamie Kowalski', town: '41042' }) || {}).leadId === 'f1');
+fx = byFacts({ street: '412 Oak Hill Drive' });
+ok('house number + street (Drive = Dr) alone → that lead, why is the street', fx && fx.leadId === 'f1' && fx.why === '412 Oak Hill Dr', JSON.stringify(fx));
+fx = byFacts({ name: 'Jamie Kowalski', street: 'Oak Hill' });
+ok('name + street name (no number) → that lead', fx && fx.leadId === 'f1' && fx.why === 'name + 412 Oak Hill Dr', JSON.stringify(fx));
+ok('Thumbtack lead stored as "Robin S": first name + last initial + town', (byFacts({ name: 'Robin Sanders', town: 'Burlington' }) || {}).leadId === 'f3');
+ok('…but the initial rule is Thumbtack-only', byFacts({ name: 'Jamie K', town: 'Mason' }) === null);
+// Ambiguous / weak / contradicting → NO suggestion.
+ok('name alone (no town, no street) → nothing', byFacts({ name: 'Jamie Kowalski' }) === null);
+ok('first name + town → nothing', byFacts({ name: 'Jamie', town: 'Florence' }) === null);
+ok('town alone → nothing', byFacts({ town: 'Florence' }) === null);
+ok('street name without a number and without a name → nothing', byFacts({ street: 'Oak Hill Dr' }) === null);
+ok('a different house number on the same street → nothing', byFacts({ street: '410 Oak Hill Dr' }) === null && byFacts({ name: 'Jamie Kowalski', street: '410 Oak Hill Dr', town: 'Florence' }) === null);
+ok('right number + street but a different town → nothing', byFacts({ street: '412 Oak Hill Dr', town: 'Mason' }) === null);
+ok('right name + town but a different street → nothing', byFacts({ name: 'Jamie Kowalski', town: 'Florence', street: '9 Pine Ct' }) === null);
+ok('a different last name → nothing', byFacts({ name: 'Jamie Kowalczyk', town: 'Florence' }) === null);
+ok('a same-named lead with no address could be them too → nothing', byFacts({ name: 'Lee Turner', town: 'Union' }) === null);
+ok('closed and deleted leads are never suggested by facts', byFacts({ name: 'Avery Cole', town: 'Hebron' }) === null && byFacts({ name: 'Quinn Hart', town: 'Florence' }) === null);
+const twins = [{ id: 'w1', firstName: 'Sam', lastName: 'Reed', address: '1 Ash St, Florence KY' }, { id: 'w2', firstName: 'Sam', lastName: 'Reed', address: '2 Birch St, Florence KY' }];
+ok('two leads clear the bar → nothing', L.suggestLeadForCall({ leadId: null, callerFacts: { name: 'Sam Reed', town: 'Florence' } }, twins) === null);
+ok('…and a number disambiguates them', (L.suggestLeadForCall({ leadId: null, callerFacts: { name: 'Sam Reed', street: '2 Birch Street' } }, twins) || {}).leadId === 'w2');
+ok('the older rules still win when they match (full name said on the call)', (L.suggestLeadForCall({ leadId: null, summary: 'Casey Shaw called', callerFacts: { name: 'Dana Rivers', town: 'X' } }, ttLeads) || {}).leadId === 'n1');
+ok('junk / missing facts → nothing, never a throw', byFacts(null) === null && byFacts('Jamie') === null && byFacts({ name: 42, town: ['Florence'] }) === null && (byFacts({ name: '<b>Jamie Kowalski</b>', town: 'Florence<script>' }) || {}).leadId === 'f1');
+ok('a call already on a lead gets no suggestion', L.suggestLeadForCall({ leadId: 'f2', callerFacts: { name: 'Jamie Kowalski', town: 'Florence' } }, FL) === null);
+ok('rules version bumped for the facts tier (older checks are redone)', L.SUGGEST_RULES_VERSION >= 3);
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
