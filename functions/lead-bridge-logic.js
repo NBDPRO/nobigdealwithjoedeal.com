@@ -145,6 +145,20 @@ function splitName(data) {
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
 
+// The intake answers as CRM note lines. Shared by the bridge (answers that
+// arrive WITH the lead) and updatePublicLeadIntake (answers the /estimate
+// thank-you screen adds AFTER it), so both read the same on the card.
+function intakeNoteLines(data) {
+  data = data || {};
+  const out = [];
+  if (data.scheduling === 'calendar') out.push('Scheduling: booking a time on the calendar');
+  else if (data.scheduling === 'contact_me') out.push('Scheduling: asked to be contacted to set a time');
+  if (data.bestTime) out.push('Best time to reach: ' + String(data.bestTime));
+  if (data.insuranceClaim) out.push('Insurance claim: ' + ({ yes: 'yes', no: 'no', not_sure: 'not sure' }[data.insuranceClaim] || String(data.insuranceClaim)));
+  if (data.howHeard) out.push('Heard about us: ' + String(data.howHeard));
+  return out;
+}
+
 // Map a public-form submission onto a CRM `leads` doc (minus the
 // serverTimestamp fields, which the trigger adds so this stays pure).
 function mapPublicLeadToLead(args) {
@@ -171,11 +185,7 @@ function mapPublicLeadToLead(args) {
   }
   if (data.photoCount) notesParts.push('Homeowner attached ' + data.photoCount + ' photo(s) — see Photos');
   // Intake answers (2026-09-30).
-  if (data.scheduling === 'calendar') notesParts.push('Scheduling: booking a time on the calendar');
-  else if (data.scheduling === 'contact_me') notesParts.push('Scheduling: asked to be contacted to set a time');
-  if (data.bestTime) notesParts.push('Best time to reach: ' + String(data.bestTime));
-  if (data.insuranceClaim) notesParts.push('Insurance claim: ' + ({ yes: 'yes', no: 'no', not_sure: 'not sure' }[data.insuranceClaim] || String(data.insuranceClaim)));
-  if (data.howHeard) notesParts.push('Heard about us: ' + String(data.howHeard));
+  notesParts.push(...intakeNoteLines(data));
   if (data.missingAddress) notesParts.push('⚠ No address given — ask for it');
   // Estimator context — so the pipeline card shows what the homeowner
   // actually asked for, not just a name and address. Fields are present
@@ -360,5 +370,6 @@ module.exports = {
   resolveBridgeTarget,
   bridgeDocId,
   splitName,
+  intakeNoteLines,
   mapPublicLeadToLead,
 };

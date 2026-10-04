@@ -235,12 +235,10 @@ const PUBLIC_LEAD_OPTIONAL_DEFAULTS = [
 // Intake answers every SERVICE-REQUEST form now asks (2026-09-30, Jo: "make
 // sure we do capture all info needed"). Enum-checked after the optional loop
 // (see INTAKE_ENUMS); free-text ones are length-capped like any optional.
-const INTAKE_OPTIONAL = ['scheduling', 'bestTime', 'insuranceClaim', 'howHeard'];
-const INTAKE_MAXLEN = { scheduling: 20, bestTime: 60, insuranceClaim: 20, howHeard: 100 };
-const INTAKE_ENUMS = {
-  scheduling: ['calendar', 'contact_me'],
-  insuranceClaim: ['yes', 'no', 'not_sure'],
-};
+// The lists live in public-lead-intake-spec.js since 2026-10-03, shared with
+// updatePublicLeadIntake (the /estimate thank-you screen saves them AFTER the
+// lead) so both paths accept exactly the same answers.
+const { INTAKE_OPTIONAL, INTAKE_MAXLEN, INTAKE_ENUMS } = require('../public-lead-intake-spec');
 // Kinds that are a homeowner asking for work (not a list signup): these carry
 // the intake answers, may attach photos (public-lead-photos.js), and are
 // flagged when they arrive without an address.
@@ -634,8 +632,13 @@ exports.submitPublicLead = onRequest(
       });
       // Photos (2026-09-30): a one-time upload grant for this submission, only
       // when the page says the homeowner picked photos. Never blocks the lead.
+      // wantsFollowUp (2026-10-03): the /estimate funnel asks its optional
+      // "help Joe prepare" questions on the thank-you screen, AFTER the lead
+      // exists; the same 60-minute grant authorises that one follow-up
+      // (updatePublicLeadIntake) and any photos picked there.
       let photoToken = null;
-      if (SERVICE_KINDS.includes(kind) && (body.wantsPhotos === true || body.wantsPhotos === 'true')) {
+      const _wants = (v) => v === true || v === 'true';
+      if (SERVICE_KINDS.includes(kind) && (_wants(body.wantsPhotos) || _wants(body.wantsFollowUp))) {
         try {
           photoToken = await require('../public-lead-photos')._internal.mintPhotoGrant(getFirestore(), {
             collection: spec.collection, publicId: ref.id, companyId: data.companyId || null,
