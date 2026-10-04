@@ -277,13 +277,14 @@ async function createIfAbsent(ref, data) {
 // exactly one lead matches, or nothing). suggestCheckedAtMs marks it done.
 function suggestionPatch(call, leads, nowMs) {
   const s = L.suggestLeadForCall(Object.assign({}, call, { leadId: null }), leads);
-  return { suggestedLeadId: s ? s.leadId : null, suggestedLeadName: s ? s.name : null, suggestedWhy: s ? s.why : null, suggestCheckedAtMs: nowMs };
+  return { suggestedLeadId: s ? s.leadId : null, suggestedLeadName: s ? s.name : null, suggestedWhy: s ? s.why : null, suggestCheckedAtMs: nowMs, suggestRulesV: L.SUGGEST_RULES_VERSION };
 }
 const SUGGEST_BACKFILL_PER_RUN = 100;
 async function backfillSuggestions({ db, nowMs, leads }) {
   const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('status', '==', 'noted').where('leadId', '==', null).limit(500).get();
   const todo = [];
-  q.forEach((d) => { const v = d.data() || {}; if (!v.suggestCheckedAtMs) todo.push(Object.assign({}, v, { id: d.id })); });
+  // Unchecked, or checked under older rules (2026-10-03: Thumbtack rules added).
+  q.forEach((d) => { const v = d.data() || {}; if (v.suggestRulesV !== L.SUGGEST_RULES_VERSION) todo.push(Object.assign({}, v, { id: d.id })); });
   if (!todo.length) return 0;
   const all = leads || await ownerLeads(db);
   const batch = todo.slice(0, SUGGEST_BACKFILL_PER_RUN);
@@ -459,7 +460,7 @@ async function gatherSweep({ db, nowMs }) {
   if (nofile.length) {
     const leads = [];
     const ls = await db.collection('leads').where('userId', '==', OWNER).get();
-    ls.forEach((d) => { const v = d.data() || {}; leads.push({ id: d.id, firstName: v.firstName, lastName: v.lastName, address: v.address, deleted: v.deleted }); });
+    ls.forEach((d) => { const v = d.data() || {}; leads.push({ id: d.id, firstName: v.firstName, lastName: v.lastName, address: v.address, deleted: v.deleted, source: v.source }); });
     const byId = new Map(calls.map((c) => [c.id, c]));
     for (const it of nofile) {
       const s = L.suggestLeadForCall(byId.get(it.callId), leads);
@@ -575,6 +576,15 @@ async function refileNumber({ db, call, leadId, uid, nowMs }) {
   const out = { calls: 0, textDays: 0, texts: 0 };
   const digits = String(call.phoneDigits || '');
   if (!/^\d{10}$/.test(digits) || !call.userId) return out;
+  // A proxy number (on 3+ of the tenant's leads) identifies nobody: never
+  // sweep everything from it onto one lead.
+  const onLeads = new Set();
+  for (const [f, v] of [['userId', call.userId], ['companyId', call.companyId]]) {
+    if (!v) continue;
+    (await db.collection('leads').where(f, '==', v).where('phoneDigits', '==', digits).get())
+      .forEach((d) => { if ((d.data() || {}).deleted !== true) onLeads.add(d.id); });
+  }
+  if (onLeads.size >= L.PROXY_MIN_LEADS) return Object.assign(out, { proxy: true });
   const mine = (v) => v && !v.leadId && v.userId === call.userId && (v.companyId || null) === (call.companyId || null);
   const extra = { refiledFrom: call.id };
   const cs = await db.collection(COLLECTION).where('userId', '==', call.userId).where('phoneDigits', '==', digits).get();

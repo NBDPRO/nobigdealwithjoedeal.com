@@ -508,3 +508,47 @@ Tests: `call-center-action` §8–10 (re-file, move, tagged match),
 `call-center-card.spec.js` (Handled + Move), and
 `phone-one-at-a-time.spec.js` (two calls from one prospect make one card and
 one lead). Every one was break-tested against `origin/main`.
+
+## Update 2026-10-03: why Thumbtack customers' calls never matched
+
+Prod audit, read-only and aggregates only (owner tenant, 2026-10-03):
+
+- **Thumbtack leads hold Thumbtack's masked number.** 104 live leads have
+  source `Thumbtack`. 102 carry a valid `phone`/`phoneDigits` and 0 carry an
+  `altPhone`. 98 of those 102 numbers share ONE non-local area code; only 3
+  are local. Non-Thumbtack leads are the opposite: 31 of 44 are local, across
+  10 area codes. Each masked number belongs to one lead (no number sits on 3
+  or more leads, and only 1 number sits on 2), so this is a per-lead relay,
+  not one shared line.
+- **The webhook drops nothing.** The 83 `thumbtack_leads` payloads hold one
+  phone field, `data.customer.phone` (keys: customerID, firstName, lastName,
+  phone), and it is that masked number. All 76 payloads that could be tied to
+  a lead by name have that same number on the lead. There is no real customer
+  number to store.
+- **Effect.** Only 14 calls ever matched a Thumbtack lead, and all 14 matched
+  through the masked number. 757 of 829 calls sit on no lead. Of the 288
+  unmatched calls that have notes, 19 mention Thumbtack. 9 have a saved
+  contact name holding a Thumbtack lead's full name, which the stored "Looks
+  like X" (#2124) already catches. Addresses don't help: only 12 Thumbtack
+  leads have a street number (most are town + ZIP only).
+
+Fix (`feat/calls-thumbtack-match`):
+
+- `L.suggestLeadForCall` gets a Thumbtack tier. It runs only when no stronger
+  rule matched (an ambiguous strong match never falls through to it), and
+  only for a UNIQUE Thumbtack lead. It fires on either: (a) a phone contact
+  reading "<first> <last initial>" (Thumbtack's display name), or (b) a call
+  that mentions Thumbtack and says the lead's first name. It is still a
+  suggestion only. `SUGGEST_RULES_VERSION` = 2, so the backfill re-checks
+  calls checked under the older rules. Estimated on prod: 18 unmatched noted
+  calls (9 numbers, 11 leads) get a suggestion, 7 of them through the
+  Thumbtack tier.
+- Proxy numbers: a number on 3 or more of a tenant's leads (`L.proxyNumbers`)
+  never matches a call (`buildPhoneIndex`), never triggers the number-wide
+  re-file on attach, and is never "already a customer" in the call screens'
+  dedupe. Prod has none today. This is a guard, not a fix for Thumbtack,
+  whose numbers are unique per lead.
+- The real number is learned when Jo files one call from it. Attach already
+  writes the caller's number to the lead's empty `altPhone`
+  (`phonePatchForLead`), so later calls from that number match by
+  themselves.

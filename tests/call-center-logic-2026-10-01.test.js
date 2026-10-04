@@ -82,5 +82,30 @@ ok('doc is tenant-stamped and stored', doc.userId === 'U1' && doc.companyId === 
 const dry = L.buildCallDoc({ ownerUid: 'U1', file: { id: 'F2', name: 'y.m4a' }, parsed: bare, match: null, bucket: 'unknown', storedPath: null, nowMs: 1 });
 ok('dry-run doc is "listed", no storage path', dry.status === 'listed' && dry.storagePath === null && dry.leadId === null);
 
+console.log('\n6. Proxy numbers and Thumbtack leads (2026-10-03 prod audit)');
+// A number on 3+ leads is a relay, not a person.
+const px = [
+  { id: 'p1', phone: '(513) 555-0700' }, { id: 'p2', phoneDigits: '5135550700' }, { id: 'p3', altPhone: '+1 513 555 0700' },
+  { id: 'q1', phone: '5135550701' }, { id: 'q2', phone: '5135550701' }, { id: 'gone', phone: '5135550700', deleted: true },
+];
+ok('proxyNumbers: 3+ live leads on one number → proxy; 2 → not', typeof L.proxyNumbers === 'function' && L.proxyNumbers(px).has('5135550700') && !L.proxyNumbers(px).has('5135550701') && L.proxyNumbers(px).size === 1);
+const pidx = L.buildPhoneIndex(px);
+ok('a proxy number never matches a call', L.matchLead('5135550700', pidx).leadId === null);
+ok('a number on 2 leads still matches (most recent + alternate)', !!L.matchLead('5135550701', pidx).leadId && L.matchLead('5135550701', pidx).alternates.length === 1);
+// Thumbtack leads carry a masked number, so suggestions fall back to name.
+const TT = (id, f, l, extra) => Object.assign({ id, firstName: f, lastName: l, source: 'Thumbtack', phone: '5135550800' + id.length }, extra);
+const ttLeads = [TT('t1', 'Dana', 'Rivers'), TT('t2', 'Morgan', 'Price'), TT('t3', 'Morgan', 'Pole'), { id: 'n1', firstName: 'Casey', lastName: 'Shaw', source: 'Website' }];
+const sug = (c) => L.suggestLeadForCall(Object.assign({ leadId: null, contactName: '', summary: '', transcript: '' }, c), ttLeads);
+ok('contact "Dana R" → the one Thumbtack Dana R', sug({ contactName: 'Dana R Roof' }) && sug({ contactName: 'Dana R Roof' }).leadId === 't1' && /Thumbtack/.test(sug({ contactName: 'Dana R Roof' }).why));
+ok('contact "Morgan P" matches two Thumbtack leads → no guess', sug({ contactName: 'Morgan P' }) === null);
+ok('a Thumbtack mention + one Thumbtack first name → that lead', (sug({ summary: 'Dana found us on Thumbtack and wants a gutter quote.' }) || {}).leadId === 't1');
+ok('a first name WITHOUT a Thumbtack mention → nothing', sug({ summary: 'Dana wants a gutter quote.' }) === null);
+ok('Thumbtack + an ambiguous first name → nothing', sug({ summary: 'Morgan from Thumbtack called back.' }) === null);
+ok('the Thumbtack rules only look at Thumbtack leads', sug({ summary: 'Casey saw us on Thumbtack.' }) === null && sug({ contactName: 'Casey S' }) === null);
+ok('a stronger match (full name) still wins over the Thumbtack rules', (sug({ summary: 'Morgan Pole on Thumbtack; also mentioned Dana.' }) || {}).leadId === 't3');
+const amb = [{ id: 'a1', firstName: 'Pat', lastName: 'Lane' }, { id: 'a2', firstName: 'Pat', lastName: 'Lane' }, TT('t9', 'Pat', 'Lane')];
+ok('two leads tie on a strong rule → nothing (never falls through to a weaker one)', L.suggestLeadForCall({ leadId: null, contactName: 'Pat Lane', summary: 'thumbtack' }, amb) === null);
+ok('the rules version is bumped so older checks are redone', L.SUGGEST_RULES_VERSION >= 2);
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
