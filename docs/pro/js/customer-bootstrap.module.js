@@ -1424,6 +1424,25 @@ async function loadTimeline(leadId, lead) {
     console.log('No Thursday calls for timeline');
   }
 
+  // Jo's own phone calls and texts (Call Center, 2026-10-03): the AI
+  // summary of each noted call / day of texts, filed by the server as
+  // leads/{id}/activity/cube-* and sms-*. js/call-timeline.js picks only
+  // those (thursday-* above and the rest come from their own sources).
+  // Summaries are AI output from customer speech: plain strings, escaped
+  // by the renderer below like every other row.
+  try {
+    const CT = window.NBDCallTimeline;
+    if (CT) {
+      const actSnap = await getDocs(collection(db, 'leads', leadId, 'activity'));
+      actSnap.docs.forEach(d => {
+        const row = CT.fromActivity(d.id, d.data());
+        if (row) timeline.push(Object.assign(row, { icon: row.kind === 'text' ? '💬' : '📞', callEntry: true }));
+      });
+    }
+  } catch (e) {
+    console.log('No call activity for timeline');
+  }
+
   // Load notes. The Notes filter pill matched data-type="note", but this
   // function never queried /notes — clicking Notes emptied the timeline and
   // told the rep the customer had none while the Notes panel beside it was
@@ -1474,7 +1493,7 @@ async function loadTimeline(leadId, lead) {
       `;
     } else {
       return `
-        <div class="timeline-item" data-type="${dtype}">
+        <div class="timeline-item${item.callEntry ? ' nbd-tl-call' : ''}" data-type="${dtype}">
           <div class="timeline-icon">${item.icon}</div>
           <div class="timeline-content">
             <div class="timeline-title">${esc(item.title)}</div>
@@ -3959,6 +3978,18 @@ async function _gatherTimelineForReport(leadId, lead) {
         type:  'note'
       });
     });
+  } catch (_) { /* ignore */ }
+
+  // Phone calls + texts filed by the Call Center (same source as loadTimeline).
+  try {
+    const CT = window.NBDCallTimeline;
+    if (CT) {
+      const snap = await getDocs(collection(window.db, 'leads', leadId, 'activity'));
+      snap.docs.forEach(d => {
+        const row = CT.fromActivity(d.id, d.data());
+        if (row) timeline.push({ time: row.time, title: row.title, desc: row.desc, type: row.type });
+      });
+    }
   } catch (_) { /* ignore */ }
 
   return timeline.sort((a, b) => b.time - a.time);

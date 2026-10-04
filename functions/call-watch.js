@@ -40,6 +40,26 @@ async function recentTexts(nowMs) {
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const watchEnabled = () => process.env.CALL_WATCH_ENABLED === 'true';
 
+/** Mirror done follow-up tasks onto open calls / text days (mutates the rows). */
+async function reconcileTaskDone({ db, calls, texts, nowMs, live }) {
+  const open = [];
+  (calls || []).forEach((c) => { if (c.leadId && c.taskDone !== true && W.callNeedsYou(c, nowMs)) open.push({ row: c, col: 'phone_calls', task: 'cube-' + c.id }); });
+  (texts || []).forEach((c) => { if (c.leadId && c.taskDone !== true && W.callNeedsYou(c, nowMs)) open.push({ row: c, col: 'phone_text_days', task: 'sms-' + c.id }); });
+  if (!open.length || typeof db.getAll !== 'function') return 0;
+  let n = 0;
+  for (let i = 0; i < open.length; i += 100) {
+    const part = open.slice(i, i + 100);
+    const snaps = await db.getAll(...part.map((o) => db.doc('leads/' + o.row.leadId + '/tasks/' + o.task)));
+    for (let j = 0; j < part.length; j++) {
+      if (!(snaps[j].exists && (snaps[j].data() || {}).done === true)) continue;
+      part[j].row.taskDone = true;
+      n++;
+      if (live) await db.collection(part[j].col).doc(part[j].row.id).set({ taskDone: true }, { merge: true });
+    }
+  }
+  return n;
+}
+
 async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   if (!W.inWatchHours(nowMs)) return { state: 'off_hours' };
   const stateRef = db.doc('integrations/callWatch');
@@ -62,10 +82,16 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   ]);
   const rows = (s) => s.docs.map((d) => Object.assign({ id: d.id }, d.data()));
   const thu = rows(thursday).filter((t) => (W.toMs(t.startedAt) || W.toMs(t.createdAt)) >= since14);
+  const callRows = rows(calls), textRows = rows(texts);
+
+  // A follow-up task ticked before onCallTaskWrite existed (or a missed
+  // trigger) never reached the call: read the open ones' tasks and mirror
+  // taskDone, so a kept promise is never alerted and the screens catch up.
+  const mirror = await reconcileTaskDone({ db, calls: callRows, texts: textRows, nowMs, live });
 
   // Items already told (keeps a re-run or an overlapping check from repeating).
   const told = new Set(Array.isArray(st.toldIds) ? st.toldIds : []);
-  const needs = W.newNeeds(rows(calls), rows(texts), thu, sinceMs, nowMs).filter((n) => !told.has(n.id));
+  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs).filter((n) => !told.has(n.id));
   const gates = {
     ingest: process.env.CALL_CENTER_INGEST_ENABLED === 'true',
     transcribe: process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true',
@@ -79,7 +105,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   }
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
   const alert = W.alertFor(needs, tell, nowMs);
-  const counts = { needs: needs.length, problems: problems.length, told: tell.length };
+  const counts = { needs: needs.length, problems: problems.length, told: tell.length, tasksMirrored: mirror };
 
   if (!live) return Object.assign({ state: 'dry_run', alert: alert ? alert.title : null }, counts);
 
@@ -101,9 +127,9 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   if (alert) {
     await db.collection('notifications').add({
       userId: OWNER, type: 'call_watch', title: alert.title, message: alert.message, priority: alert.priority,
-      clickUrl: '/pro/dashboard#/calls', read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
+      clickUrl: alert.clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
     });
-    try { await push(OWNER, alert.title.replace(/^📞 /, ''), alert.push, { type: 'call_watch', clickUrl: '/pro/dashboard#/calls' }); }
+    try { await push(OWNER, alert.title.replace(/^📞 /, ''), alert.push, { type: 'call_watch', clickUrl: alert.clickUrl }); }
     catch (e) { logger.warn('[callWatch] push failed', { err: e && e.message }); }
   }
   await stateRef.set({ lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds }, { merge: false });
@@ -128,4 +154,4 @@ exports.callWatch = onSchedule(
   }
 );
 
-exports._internal = { runWatch, recentTexts };
+exports._internal = { runWatch, recentTexts, reconcileTaskDone };

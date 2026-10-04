@@ -164,6 +164,44 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   await run(db, owner, { id: 'txt_5135550100_20261001', action: 'taskDone' });
   ok('a texted promise\'s task (sms-…) ticks too', db.docs.get('leads/L1/tasks/sms-txt_5135550100_20261001').done === true);
 
+  console.log('\n6b. A kept promise reaches the call (2026-10-03): taskDone on the call doc');
+  db = fakeDb(seed());
+  db.docs.set(COLLECTION + '/cube_AAAAA1', Object.assign({}, db.docs.get(COLLECTION + '/cube_AAAAA1'), { leadId: 'L1' }));
+  db.docs.set('leads/L1/tasks/cube-cube_AAAAA1', { title: 'Send photos', done: false, dueDate: '2026-10-03' });
+  await run(db, owner, { id: 'cube_AAAAA1', action: 'taskDone' });
+  ok('"✓ Done" in Said-you\'d-do also marks the CALL taskDone (Home + the Call Center drop the person)', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === true);
+  await run(db, owner, { id: 'cube_AAAAA1', action: 'taskUndone' });
+  ok('…and Undo puts it back', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === false);
+  const mirrorCallTask = M._test.mirrorCallTask || (async () => undefined);
+  db = fakeDb(seed());
+  db.docs.set(COLLECTION + '/cube_AAAAA1', Object.assign({}, db.docs.get(COLLECTION + '/cube_AAAAA1'), { leadId: 'L1' }));
+  let mr = await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: { done: true } });
+  ok('onCallTaskWrite: ticking the task on the customer page marks the call taskDone', mr && mr.done === true && db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === true);
+  mr = await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: { done: true } });
+  ok('…a second write with no change writes nothing', mr && mr.unchanged === true);
+  await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: { done: false } });
+  ok('un-ticking puts the call back on "needs you"', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === false);
+  await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: null });
+  ok('deleting the follow-up task counts as dealt with', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === true);
+  db.docs.set('phone_text_days/txt_5135550100_20261001', { userId: OWN, leadId: 'L1', status: 'noted' });
+  await mirrorCallTask({ db, leadId: 'L1', taskId: 'sms-txt_5135550100_20261001', after: { done: true } });
+  ok('a texted promise\'s task (sms-…) marks the text day', db.docs.get('phone_text_days/txt_5135550100_20261001').taskDone === true);
+  ok('an ordinary task, a task on ANOTHER lead, or an unknown call → no write',
+    (await mirrorCallTask({ db, leadId: 'L1', taskId: 'abc123', after: { done: true } })) === null
+    && (await mirrorCallTask({ db, leadId: 'L2', taskId: 'cube-cube_AAAAA1', after: { done: false } })) === null && db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === true
+    && (await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_NOPE99', after: { done: true } })) === null && !db.docs.has(COLLECTION + '/cube_NOPE99'));
+  const ccSrc = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'call-center.js'), 'utf8');
+  ok('the trigger is a direct onDocumentWritten export on leads/{leadId}/tasks/{taskId} (CI-deployable) and index.js exports it',
+    /^exports\.onCallTaskWrite = onDocumentWritten\(\s*\{ document: 'leads\/\{leadId\}\/tasks\/\{taskId\}'/m.test(ccSrc)
+    && /exports\.onCallTaskWrite = require\('\.\/call-center'\)\.onCallTaskWrite;/.test(require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8')));
+
+  console.log('\n6c. Attaching a noted call updates the lead too');
+  db = fakeDb(seed());
+  await run(db, owner, { id: 'cube_AAAAA1', action: 'attach', leadId: 'L2' });
+  const l2 = db.docs.get('leads/L2');
+  ok('lastContactedAt (call time) + lastContactType + the follow-up date land on the customer',
+    l2.lastContactedAt && l2.lastContactedAt.toMillis() === Date.parse('2026-09-29T15:00:00Z') && l2.lastContactType === 'call' && l2.followUp === '2026-10-03', JSON.stringify(l2));
+
   console.log('\n7. callPromisesList — who may read the deck');
   const { promisesList, OWNER: REAL_OWNER } = M._test;
   const lr = async (auth) => { try { return { r: await promisesList({ db: { collection: () => ({ where: function () { return this; }, orderBy: function () { return this; }, limit: function () { return this; }, get: async () => ({ forEach: () => {} }) }), getAll: async () => [] }, auth, nowMs: NOW }) }; } catch (e) { return { e }; } };
@@ -204,6 +242,9 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('a call already on another customer stays there', sib('cube_SIB003').leadId === 'L2' && !db.docs.has('leads/L1/activity/cube-cube_SIB003'));
   ok('another tenant\'s call from the same number is untouched', sib('cube_SIB004').leadId === null);
   ok('a different number is untouched', sib('cube_SIB005').leadId === null);
+  const l1 = db.docs.get('leads/L1');
+  ok('the lead\'s lastContactedAt comes from the NEWEST noted call among the attached + re-filed ones (one write)',
+    l1.lastContactedAt && l1.lastContactedAt.toMillis() === NOW - 86400e3 && l1.lastContactType === 'call', JSON.stringify(l1.lastContactedAt));
   const tday = db.docs.get('phone_text_days/txt_5135550100_20260930');
   ok('the number\'s unfiled day of texts is re-filed', tday.leadId === 'L1');
   ok('…with the text timeline entry + task text notes write', !!db.docs.get('leads/L1/activity/sms-txt_5135550100_20260930') && db.docs.get('leads/L1/activity/sms-txt_5135550100_20260930').label === 'Texts · Example Claims (3)'

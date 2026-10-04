@@ -25,7 +25,7 @@
 
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
 
@@ -245,6 +245,8 @@ function deps() {
   return {
     transcribe: (buffer, ext) => transcribeGroqBuffer({ buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg', filename: 'call.' + (ext || 'm4a'), timeoutMs: 300_000 }),
     notes: claudeNotes,
+    // callWatch's push sender (Jo's own devices; never a customer).
+    push: (uid, title, body, data) => require('./push-functions').sendCustomNotification(uid, title, body, data),
   };
 }
 
@@ -270,6 +272,45 @@ async function createIfAbsent(ref, data) {
   try { await ref.create(data); return true; } catch (e) {
     if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) return false;
     throw e;
+  }
+}
+
+/** lastContactedAt / lastContactType / followUp on the lead (L.leadContactPatch). */
+async function applyLeadContact({ db, leadId, lead, call, notes, todayYmd, nowMs }) {
+  const p = L.leadContactPatch({ lead, call, notes, todayYmd, nowMs });
+  if (!p) return false;
+  const patch = {};
+  if (p.lastContactedAtMs) { patch.lastContactedAt = Timestamp.fromMillis(p.lastContactedAtMs); patch.lastContactType = p.lastContactType; }
+  if (p.followUp) patch.followUp = p.followUp;
+  await db.doc('leads/' + leadId).set(patch, { merge: true });
+  return true;
+}
+
+/**
+ * An urgent call → Jo's own push right away (2026-10-03), plus the bell
+ * entry callWatch would have made. Once per call: urgentPushedAtMs on the
+ * call doc is stamped only after the push went out, and callWatch skips a
+ * call already told this way (call-watch-logic newNeeds). Same gate and
+ * hours as callWatch (CALL_WATCH_ENABLED, 8 AM-8 PM ET) — outside them the
+ * next callWatch run tells Jo instead. INTERNAL: never a customer.
+ */
+async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
+  if (process.env.CALL_WATCH_ENABLED !== 'true' || typeof d.push !== 'function') return false;
+  const W = require('./call-watch-logic');
+  if (!W.inWatchHours(nowMs)) return false;
+  const msg = L.urgentPushText({ call, notes, leadName });
+  const clickUrl = W.callCardUrl(call.id);
+  try {
+    await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
+    await db.collection(COLLECTION).doc(call.id).set({ urgentPushedAtMs: nowMs }, { merge: true });
+    await db.collection('notifications').add({
+      userId: OWNER, type: 'call_watch', title: '📞 ' + msg.title, message: msg.body, priority: 'high',
+      clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (e) {
+    logger.warn('call_center_urgent_push_failed', { id: call.id, err: e && e.message });
+    return false;
   }
 }
 
@@ -331,9 +372,10 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       out.audioSec += Number(t.durationSec) || L.estimateAudioSec(call.sizeBytes);
 
       let leadName = '';
+      let leadDoc = null;
       if (call.leadId) {
         const ls = await db.doc('leads/' + call.leadId).get();
-        if (ls.exists) { const l = ls.data(); leadName = ((l.firstName || '') + ' ' + (l.lastName || '')).trim(); }
+        if (ls.exists) { leadDoc = ls.data(); leadName = ((leadDoc.firstName || '') + ' ' + (leadDoc.lastName || '')).trim(); }
       }
       const notes = L.sanitizeNotes(await d.notes({ system: L.NOTES_SYSTEM, prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName }) }));
       // Jo said "it wasn't personal" (callCenterAction notpersonal): the
@@ -366,6 +408,11 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       }
       out.noted++;
 
+      // An urgent call tells Jo now, not at the next 2-hourly callWatch.
+      if (notes.urgent === true && !call.urgentPushedAtMs) {
+        if (await pushUrgent({ db, d, call, notes, leadName, nowMs })) out.urgentPushed = (out.urgentPushed || 0) + 1;
+      }
+
       // "Looks like X" (2026-10-03): a call on no customer gets its one
       // likely customer stored with it, so every call screen can offer
       // "File on X" in one tap. A suggestion only — never filed by itself.
@@ -381,6 +428,8 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         const task = L.buildFollowUpTask({ call: full, notes, leadId: call.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
         // create(): a re-run must never un-tick a task Jo already completed.
         if (task && await createIfAbsent(db.doc('leads/' + call.leadId + '/tasks/cube-' + call.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
+        // The lead itself knows Jo talked to them (lastContactedAt, followUp).
+        if (leadDoc && leadDoc.deleted !== true && await applyLeadContact({ db, leadId: call.leadId, lead: leadDoc, call, notes, todayYmd: today, nowMs })) out.leadsUpdated = (out.leadsUpdated || 0) + 1;
       }
     } catch (e) {
       // Groq's hourly/daily rate limit is about the account, not this call:
@@ -572,7 +621,7 @@ async function fileTextDayOnLead({ db, day, leadId, uid, nowMs, extra }) {
  * call already on another lead is never moved. Idempotent: a second pass
  * finds nothing unfiled.
  */
-async function refileNumber({ db, call, leadId, uid, nowMs }) {
+async function refileNumber({ db, call, leadId, uid, nowMs, noted }) {
   const out = { calls: 0, textDays: 0, texts: 0 };
   const digits = String(call.phoneDigits || '');
   if (!/^\d{10}$/.test(digits) || !call.userId) return out;
@@ -592,6 +641,7 @@ async function refileNumber({ db, call, leadId, uid, nowMs }) {
     const c = Object.assign({}, s.data(), { id: s.id });
     if (s.id === call.id || !mine(c)) continue;
     await fileCallOnLead({ db, call: c, leadId, uid, nowMs, extra });
+    if (Array.isArray(noted) && c.status === 'noted') noted.push(c);
     out.calls++;
   }
   const ds = await db.collection(TEXT_DAYS).where('userId', '==', call.userId).where('phoneDigits', '==', digits).get();
@@ -620,7 +670,12 @@ async function attachCallToLead({ db, call, lead, leadId, uid, nowMs }) {
   await fileCallOnLead({ db, call, leadId, uid, nowMs });
   const patch = L.phonePatchForLead(lead, call.phoneDigits);
   if (patch) await db.doc('leads/' + leadId).set(Object.assign(patch, { updatedAt: FieldValue.serverTimestamp() }), { merge: true });
-  const refiled = await refileNumber({ db, call, leadId, uid, nowMs });
+  const noted = call.status === 'noted' ? [call] : [];
+  const refiled = await refileNumber({ db, call, leadId, uid, nowMs, noted });
+  // "The CRM knows I called": the newest noted call among the attached one
+  // and every re-filed one sets lastContactedAt / followUp (one write).
+  const newest = noted.sort((a, b) => (Number(b.startedAtMs) || 0) - (Number(a.startedAtMs) || 0))[0];
+  if (newest) await applyLeadContact({ db, leadId, lead, call: newest, notes: noteOf(newest), todayYmd: etToday(nowMs), nowMs });
   return { phoneAdded: !!patch, refiled };
 }
 
@@ -688,6 +743,9 @@ async function callAction({ db, auth, data, nowMs }) {
       if (!task) throw new HttpsError('failed-precondition', 'This call has no follow-up task — mark it handled instead.');
       const done = action === 'taskDone';
       await taskRef.set({ done, completedAt: done ? FieldValue.serverTimestamp() : null, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      // Mirror onto the call now (onCallTaskWrite does the same for a tick
+      // anywhere else) so "needs you" drops the person straight away.
+      await ref.set({ taskDone: done }, { merge: true });
       return { ok: true, done };
     }
     if (action === 'snooze') {
@@ -778,6 +836,45 @@ exports.callPromisesList = onCall(
   (request) => promisesList({ db: getFirestore(), auth: request.auth, nowMs: Date.now() })
 );
 
+// ═══════════════════════════════════════════════════════════════════════
+// onCallTaskWrite (2026-10-03) — a call's follow-up task ticked ANYWHERE
+// (the customer page, the Today list, "Said you'd do", a bot) → taskDone on
+// the call / text day it came from. home-attention.js callNeedsYou and
+// callWatch read it: a kept promise drops the person off "needs you".
+// Task ids are cube-<callId> (phone_calls) and sms-<dayId> (phone_text_days).
+// A deleted follow-up task counts as dealt with. Writes only when the value
+// changes; the task must sit on the call's own lead.
+// ═══════════════════════════════════════════════════════════════════════
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
+
+async function mirrorCallTask({ db, leadId, taskId, after }) {
+  const m = /^(cube|sms)-([A-Za-z0-9_-]{5,140})$/.exec(String(taskId || ''));
+  if (!m) return null;
+  const ref = db.collection(m[1] === 'sms' ? 'phone_text_days' : COLLECTION).doc(m[2]);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const call = snap.data() || {};
+  if (call.leadId && call.leadId !== leadId) return null;
+  const done = !after || after.done === true;
+  if (call.taskDone === done) return { unchanged: true };
+  await ref.set({ taskDone: done }, { merge: true });
+  return { id: m[2], done };
+}
+
+exports.onCallTaskWrite = onDocumentWritten(
+  { document: 'leads/{leadId}/tasks/{taskId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 30 },
+  async (event) => {
+    // Most tasks are not a call's; skip them before any read.
+    if (!/^(cube|sms)-/.test(String(event.params.taskId || ''))) return;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    try {
+      await mirrorCallTask({ db: getFirestore(), leadId: event.params.leadId, taskId: event.params.taskId, after });
+    } catch (e) {
+      logger.warn('call_task_mirror_failed', { taskId: event.params.taskId, err: e && e.message });
+    }
+  }
+);
+
 // callTaggedMatch — "Match my tagged contacts" (2026-10-03). Owner (or
 // platform admin) only. { } previews: calls to phone contacts tagged
 // "NBD Customer" that sit on no lead, each number paired with the one lead
@@ -833,6 +930,8 @@ exports._test = {
   gatherSweep,
   promisesList,
   callAction,
+  mirrorCallTask,
+  applyLeadContact,
   taggedMatch,
   refileNumber,
   backfillSuggestions,
