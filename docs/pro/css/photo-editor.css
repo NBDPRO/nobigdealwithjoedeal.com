@@ -844,3 +844,117 @@ input[type="color"].nbd-color-native {
 .pex-wd100-mt4px.pex-wd100-mt4px.pex-wd100-mt4px { width: 100%; margin-top: 4px; }
 .pex-maxw440px.pex-maxw440px.pex-maxw440px { max-width: 440px; }
 .pex-dflex-gap8px-mt14px.pex-dflex-gap8px-mt14px.pex-dflex-gap8px-mt14px { display: flex; gap: 8px; margin-top: 14px; }
+
+/* ============================================
+   DAYLIGHT LEGIBILITY (2026-10-04)
+   The editor is used on a roof, on a phone, in sun. Labels ran 8-11px in
+   grey on near-black, tool buttons were 42px and swatches 22px. This layer
+   (root class .nbd-daylight, always on) sets the floor everywhere:
+     - every label / value / button text 13px or larger
+     - every tap target 44px or larger in both directions
+     - near-white text on a near-black ground, borders you can see
+   Selectors carry .nbd-editor-overlay.nbd-daylight so they outrank the
+   base rules above, including the triple-class pex- utilities.
+   ============================================ */
+.nbd-editor-overlay.nbd-daylight {
+  --nbd-bg-dark: #05070a;
+  --nbd-bg-panel: #0e1116;
+  --nbd-bg-surface: #171b22;
+  --nbd-bg-hover: #222833;
+  --nbd-bg-active: #2a3140;
+  --nbd-text: #ffffff;
+  --nbd-text-dim: #dfe3ea;
+  --nbd-text-muted: #cfd5df;
+  --nbd-border: rgba(255,255,255,.30);
+  --nbd-border-light: rgba(255,255,255,.50);
+  font-size: 15px;
+}
+
+/* Text floor */
+.nbd-editor-overlay.nbd-daylight .nbd-btn,
+.nbd-editor-overlay.nbd-daylight .nbd-select,
+.nbd-editor-overlay.nbd-daylight .nbd-input,
+.nbd-editor-overlay.nbd-daylight .nbd-textarea,
+.nbd-editor-overlay.nbd-daylight .nbd-severity-pill,
+.nbd-editor-overlay.nbd-daylight .nbd-phase-tab,
+.nbd-editor-overlay.nbd-daylight .nbd-ann-item,
+.nbd-editor-overlay.nbd-daylight .nbd-context-item,
+.nbd-editor-overlay.nbd-daylight .nbd-checklist-item { font-size: 15px; }
+.nbd-editor-overlay.nbd-daylight .nbd-panel-label,
+.nbd-editor-overlay.nbd-daylight .nbd-prop-label,
+.nbd-editor-overlay.nbd-daylight .nbd-slider-val,
+.nbd-editor-overlay.nbd-daylight .nbd-tag,
+.nbd-editor-overlay.nbd-daylight .nbd-ann-item-num,
+.nbd-editor-overlay.nbd-daylight .nbd-stamp-item span,
+.nbd-editor-overlay.nbd-daylight .nbd-strip-toggle,
+.nbd-editor-overlay.nbd-daylight .nbd-strip-badge,
+.nbd-editor-overlay.nbd-daylight [data-tooltip]::after { font-size: 13px; }
+.nbd-editor-overlay.nbd-daylight .nbd-panel-label,
+.nbd-editor-overlay.nbd-daylight .nbd-prop-label { color: var(--nbd-text-dim); font-weight: 700; }
+.nbd-editor-overlay.nbd-daylight .nbd-tool-btn .pex-fs9px.pex-fs9px,
+.nbd-editor-overlay.nbd-daylight .pex-fs11px-cnbdtextd-minw58px.pex-fs11px-cnbdtextd-minw58px,
+.nbd-editor-overlay.nbd-daylight .pex-p8px-tacenter-cnbdtextm.pex-p8px-tacenter-cnbdtextm,
+.nbd-editor-overlay.nbd-daylight .pex-dflex-aicenter-gap4px.pex-dflex-aicenter-gap4px,
+.nbd-editor-overlay.nbd-daylight .pex-fs11px-minw38px-tacenter.pex-fs11px-minw38px-tacenter { font-size: 13px; color: var(--nbd-text-dim); }
+/* Keyboard-shortcut letters: no keyboard on a roof, and no room at 13px. */
+.nbd-editor-overlay.nbd-daylight .nbd-tool-key { display: none; }
+
+/* Tap-target floor: 44px */
+.nbd-editor-overlay.nbd-daylight .nbd-btn { min-height: 44px; min-width: 44px; padding: 0 14px; }
+.nbd-editor-overlay.nbd-daylight .nbd-icon-btn,
+.nbd-editor-overlay.nbd-daylight .pex-wd26px-hei26px.pex-wd26px-hei26px { width: 44px; height: 44px; min-width: 44px; font-size: 18px; }
+.nbd-editor-overlay.nbd-daylight .nbd-icon-btn svg { width: 20px; height: 20px; }
+.nbd-editor-overlay.nbd-daylight .nbd-topbar { height: 60px; }
+.nbd-editor-overlay.nbd-daylight .nbd-toolbar { width: 72px; }
+.nbd-editor-overlay.nbd-daylight .nbd-tool-btn { width: 60px; height: 56px; gap: 2px; }
+.nbd-editor-overlay.nbd-daylight .nbd-tool-btn svg { width: 22px; height: 22px; }
+.nbd-editor-overlay.nbd-daylight .nbd-stamp-flyout { width: 300px; }
+.nbd-editor-overlay.nbd-daylight .nbd-stamp-item { width: 64px; height: 64px; }
+.nbd-editor-overlay.nbd-daylight .nbd-select,
+.nbd-editor-overlay.nbd-daylight .nbd-input { min-height: 44px; }
+.nbd-editor-overlay.nbd-daylight .nbd-severity-pill,
+.nbd-editor-overlay.nbd-daylight .nbd-phase-tab { min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; flex: 1; }
+.nbd-editor-overlay.nbd-daylight .nbd-tag { min-height: 44px; padding-left: 12px; }
+.nbd-editor-overlay.nbd-daylight .nbd-tag-remove,
+.nbd-editor-overlay.nbd-daylight .nbd-ann-item-delete { min-width: 44px; min-height: 44px; font-size: 20px; opacity: 1; }
+.nbd-editor-overlay.nbd-daylight .nbd-ann-item { min-height: 44px; }
+.nbd-editor-overlay.nbd-daylight .nbd-propbar { height: auto; min-height: 60px; gap: 12px; }
+.nbd-editor-overlay.nbd-daylight .nbd-prop-group { gap: 8px; }
+.nbd-editor-overlay.nbd-daylight .nbd-swatch { width: 44px; height: 44px; border-width: 3px; flex-shrink: 0; }
+.nbd-editor-overlay.nbd-daylight .nbd-swatch.active { border-color: #fff; box-shadow: 0 0 0 3px var(--nbd-accent); }
+.nbd-editor-overlay.nbd-daylight .nbd-color-picker-btn { width: 44px; height: 44px; }
+.nbd-editor-overlay.nbd-daylight .nbd-slider { width: 120px; height: 44px; background: transparent; }
+.nbd-editor-overlay.nbd-daylight .nbd-slider::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: var(--nbd-border-light); }
+.nbd-editor-overlay.nbd-daylight .nbd-slider::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -10px; }
+.nbd-editor-overlay.nbd-daylight .nbd-slider::-moz-range-track { height: 8px; border-radius: 4px; background: var(--nbd-border-light); }
+.nbd-editor-overlay.nbd-daylight .nbd-slider::-moz-range-thumb { width: 28px; height: 28px; }
+.nbd-editor-overlay.nbd-daylight .pex-dflex-aicenter-gap4px.pex-dflex-aicenter-gap4px { min-height: 44px; min-width: 44px; gap: 8px; }
+.nbd-editor-overlay.nbd-daylight .pex-dflex-aicenter-gap4px input[type="checkbox"] { width: 24px; height: 24px; }
+.nbd-editor-overlay.nbd-daylight .nbd-photostrip { height: 76px; }
+.nbd-editor-overlay.nbd-daylight .nbd-photostrip.collapsed { height: 0; }
+.nbd-editor-overlay.nbd-daylight .nbd-strip-thumb { width: 56px; height: 56px; }
+.nbd-editor-overlay.nbd-daylight .nbd-strip-badge { width: 22px; height: 22px; }
+.nbd-editor-overlay.nbd-daylight .nbd-strip-toggle { width: 64px; height: 44px; }
+.nbd-editor-overlay.nbd-daylight .nbd-context-item { min-height: 44px; display: flex; align-items: center; }
+.nbd-editor-overlay.nbd-daylight .nbd-checklist-item { min-height: 44px; }
+.nbd-editor-overlay.nbd-daylight .nbd-checklist-check { width: 24px; height: 24px; }
+
+/* Palette swatches are coloured here, not by a style attribute. */
+.nbd-swatch[data-color="#ef4444"] { background: #ef4444; }
+.nbd-swatch[data-color="#f97316"] { background: #f97316; }
+.nbd-swatch[data-color="#eab308"] { background: #eab308; }
+.nbd-swatch[data-color="#22c55e"] { background: #22c55e; }
+.nbd-swatch[data-color="#3b82f6"] { background: #3b82f6; }
+.nbd-swatch[data-color="#8b5cf6"] { background: #8b5cf6; }
+.nbd-swatch[data-color="#ffffff"] { background: #ffffff; }
+.nbd-swatch[data-color="#000000"] { background: #000000; }
+
+@media (max-width: 768px) {
+  .nbd-editor-overlay.nbd-daylight .nbd-toolbar { width: auto; height: 64px; }
+  .nbd-editor-overlay.nbd-daylight .nbd-tool-btn { width: 56px; height: 56px; }
+  .nbd-editor-overlay.nbd-daylight .nbd-tool-sep { height: 40px; }
+  .nbd-editor-overlay.nbd-daylight .nbd-panel { bottom: 64px; }
+  .nbd-editor-overlay.nbd-daylight .nbd-propbar { min-height: 60px; flex-wrap: nowrap; overflow-x: auto; }
+  .nbd-editor-overlay.nbd-daylight .nbd-photostrip { height: 72px; }
+  .nbd-editor-overlay.nbd-daylight .nbd-minimap { bottom: 72px; }
+}

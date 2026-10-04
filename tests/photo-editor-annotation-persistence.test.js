@@ -65,7 +65,11 @@ group('STATIC — meta object literals reference annotations (cheap regression g
 {
   const saveTagsBody = extractFunctionBody(EDITOR_SRC, 'saveTagsOnly');
   ok('saveTagsOnly() exists in the source', !!saveTagsBody);
-  const saveTagsMeta = /const meta = \{([\s\S]*?)\};/.exec(saveTagsBody);
+  // 2026-10-04: both saves build their meta in _metaNow() (they queue through
+  // PhotoEngine.enqueueEdit); the literal lives there.
+  const metaNowBody = extractFunctionBody(EDITOR_SRC, '_metaNow');
+  const saveTagsMeta = /const meta = \{([\s\S]*?)\};/.exec(saveTagsBody)
+    || (/_metaNow\(/.test(saveTagsBody) ? /return \{([\s\S]*?)\};/.exec(metaNowBody) : null);
   ok('saveTagsOnly() has a meta object literal', !!saveTagsMeta);
   ok('saveTagsOnly()\'s meta object literal writes annotations',
     !!saveTagsMeta && /annotations\s*:/.test(saveTagsMeta[1]),
@@ -73,7 +77,8 @@ group('STATIC — meta object literals reference annotations (cheap regression g
 
   const uploadBlobBody = extractFunctionBody(EDITOR_SRC, 'uploadBlob');
   ok('uploadBlob() exists in the source', !!uploadBlobBody);
-  const uploadBlobMeta = /const meta = \{([\s\S]*?)\};/.exec(uploadBlobBody);
+  const uploadBlobMeta = /const meta = \{([\s\S]*?)\};/.exec(uploadBlobBody)
+    || (/_metaNow\(/.test(uploadBlobBody) ? /return \{([\s\S]*?)\};/.exec(metaNowBody) : null);
   ok('uploadBlob() has a meta object literal', !!uploadBlobMeta);
   ok('uploadBlob()\'s (shared, both-branches) meta object literal writes annotations',
     !!uploadBlobMeta && /annotations\s*:/.test(uploadBlobMeta[1]),

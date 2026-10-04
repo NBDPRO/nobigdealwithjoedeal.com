@@ -471,6 +471,7 @@
                   <div class="photo-item">
                     <img src="${this._escapeHtml(photo.url)}" alt="Inspection photo">
                     ${photo.description ? `<p class="photo-caption">${this._escapeHtml(photo.description)}</p>` : ''}
+                    ${photo.stamp ? `<p class="photo-caption photo-stamp">${this._escapeHtml(photo.stamp)}</p>` : ''}
                     ${this._renderPhotoAIAnalysis(photo)}
                   </div>
                 `).join('')}
@@ -737,6 +738,7 @@
                   <div class="photo-item">
                     <img src="${this._escapeHtml(photo.url)}" alt="Damage photo">
                     ${photo.description ? `<p class="photo-caption">${this._escapeHtml(photo.description)}</p>` : ''}
+                    ${photo.stamp ? `<p class="photo-caption photo-stamp">${this._escapeHtml(photo.stamp)}</p>` : ''}
                     ${this._renderPhotoAIAnalysis(photo)}
                   </div>
                 `).join('')}
@@ -926,6 +928,7 @@
                   <div class="photo-item">
                     <img src="${this._escapeHtml(photo.url)}" alt="Evidence photo">
                     ${photo.description ? `<p class="photo-caption">${this._escapeHtml(photo.description)}</p>` : ''}
+                    ${photo.stamp ? `<p class="photo-caption photo-stamp">${this._escapeHtml(photo.stamp)}</p>` : ''}
                   </div>
                 `).join('')}
               </div>
@@ -2079,7 +2082,7 @@
           </div>
 
           <div style="margin-top: 20px;">
-            <label><input type="checkbox" id="save-to-db"> Save report to database</label>
+            <label><input type="checkbox" id="save-to-db" checked> Save report to database</label>
           </div>
         </div>
       `;
@@ -2504,7 +2507,9 @@
         // aiCaption is a phantom field — Claude Vision writes aiSuggestion.caption
         // (photo-vision.js). Read the real key so AI captions reach the report.
         description: p.caption || (p.aiSuggestion && p.aiSuggestion.caption) || p.aiCaption || p.description || '',
-        aiAnalysis: p.aiAnalysis || null
+        aiAnalysis: p.aiAnalysis || null,
+        // "Oct 4, 2026 · 2:14 PM · On-site" (2026-10-04) — never coordinates.
+        stamp: this._photoStamp(p)
       });
 
       // First visit: default-select all so reports aren't accidentally empty.
@@ -2736,10 +2741,13 @@
 
       // INSP-1: persist to Firestore when requested (was a dead checkbox).
       // Do it first so a saved copy survives even if the popup is blocked.
+      // 2026-10-04: the box is ticked by default, and every report — saved
+      // or not — is filed on the lead's Documents list below.
+      let savedReportId = null;
       if (wantSave) {
         if (html) {
           const lead = this._getLead(state.leadId) || {};
-          await this.saveReport(state.leadId, state.templateId, {
+          savedReportId = await this.saveReport(state.leadId, state.templateId, {
             html,
             data: state.data,
             photoIds: (state.data.photos || []).map(p => p.url).filter(Boolean),
@@ -2751,6 +2759,10 @@
           showToast('Could not build report to save', 'error');
         }
       }
+
+      // Attach it to the lead (never awaited by the rep — the render below
+      // is what they are waiting for).
+      if (html) this._fileReportOnLead(state.leadId, state.templateId, html, savedReportId);
 
       // ── D-2 server path (full-inspection only) ──
       if (state.templateId === 'full-inspection') {
@@ -2883,6 +2895,9 @@
           caption:  p.caption || (p.aiSuggestion && p.aiSuggestion.caption) || p.aiCaption || '',
           area:     p.location || p.area || p.phase || '',
           severity: p.severity || '',
+          // Date, time and on-site from capture (2026-10-04). Coordinates
+          // never leave the CRM — only the word "On-site" is printed.
+          stamp:    this._photoStamp(p),
         });
       });
 
@@ -3193,6 +3208,86 @@
         return '<img src="' + this._escapeHtml(src) + '" alt="" ' +
                'style="display:block;width:150px;height:auto;flex-shrink:0;"/>';
       } catch (_) { return ''; }
+    },
+
+    /**
+     * "Oct 4, 2026 · 2:14 PM · On-site" for one photo (2026-10-04), or ''.
+     * Time is the capture time photo-engine pinned (capturedAt), then EXIF,
+     * then the doc's write time. "On-site" only when the capture's GPS fix
+     * was within photo-engine's ON_SITE_RADIUS_M of the lead — nothing is
+     * printed for off-site or unknown, and coordinates are never printed.
+     * Pure.
+     */
+    _photoStamp(p) {
+      if (!p) return '';
+      const toMs = (v) => {
+        if (v == null || v === '') return 0;
+        if (typeof v === 'number') return v;
+        if (typeof v.toMillis === 'function') return v.toMillis();
+        if (typeof v.seconds === 'number') return v.seconds * 1000;
+        if (typeof v === 'string') { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
+        return 0;
+      };
+      const ms = toMs(p.capturedAt) || toMs(p.exif && p.exif.takenAt) || toMs(p.createdAt) || toMs(p.uploadedAt);
+      if (!ms) return '';
+      const d = new Date(ms);
+      if (isNaN(d.getTime())) return '';
+      const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return date + ' · ' + time + (p.onSite === true ? ' · On-site' : '');
+    },
+
+    /**
+     * File a generated report on the lead's Documents list (2026-10-04).
+     *
+     * Every report is attached — not only when "Save report to database" is
+     * ticked — so the homeowner's report is never just a browser tab. Same
+     * shape as document-generator.js's generated docs: the HTML goes to
+     * documents/{uid}/{leadId}/ (storage.rules: owner read, HTML only) and
+     * the row carries htmlPath, which customer-documents.js re-opens through
+     * the authed getDocumentHtml callable. Deliberately NO download URL — a
+     * token URL is public, permanent and unrevocable.
+     *
+     * Never throws: the report is already in front of the rep.
+     */
+    async _fileReportOnLead(leadId, templateId, html, reportId) {
+      try {
+        if (!leadId || !html || !window._user || !window.db || !window.addDoc || !window.collection) return null;
+        const uid = window._user.uid;
+        const tpl = this.getTemplate(templateId) || {};
+        const day = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        let htmlPath = null;
+        try {
+          if (window.storage && window.ref && window.uploadBytes) {
+            const fileId = 'insp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+            htmlPath = `documents/${uid}/${leadId}/${fileId}.html`;
+            await window.uploadBytes(window.ref(window.storage, htmlPath),
+              new Blob([html], { type: 'text/html' }), { contentType: 'text/html' });
+          }
+        } catch (e) {
+          htmlPath = null;
+          console.warn('[inspection] report HTML upload failed:', e && e.message);
+        }
+        const ref = await window.addDoc(window.collection(window.db, 'leads', leadId, 'documents'), {
+          type: 'inspection_report',
+          typeName: tpl.name || 'Inspection Report',
+          filename: (tpl.name || 'Inspection Report') + ' — ' + day,
+          htmlPath,
+          source: 'inspection_report',
+          templateId: templateId || null,
+          reportId: reportId || null,
+          userId: uid,
+          createdBy: window._user.email || uid,
+          createdAt: window.serverTimestamp ? window.serverTimestamp() : new Date()
+        });
+        if (window.NBDCustomerDocs && typeof window.NBDCustomerDocs.refresh === 'function') {
+          window.NBDCustomerDocs.refresh();
+        }
+        return ref && ref.id ? ref.id : null;
+      } catch (e) {
+        console.warn('[inspection] could not file the report on the lead:', e && e.message);
+        return null;
+      }
     },
 
     _escapeHtml(text) {

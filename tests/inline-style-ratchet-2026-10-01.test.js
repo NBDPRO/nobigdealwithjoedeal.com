@@ -33,7 +33,7 @@ const EXEMPT = {
 
 // Lower these whenever the count drops. Never raise them.
 const CEILING = {
-  'docs/pro/js': 2133,
+  'docs/pro/js': 2128,  // -5 (2026-10-04 field photos: photo-engine camera queue bar, photo-editor swatches)
   'docs/pro/dashboard.html': 826,
   'docs/pro/customer.html': 207,
 };

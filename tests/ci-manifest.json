@@ -115,6 +115,8 @@
     "instantroofer-field-wiring.test.js",
     "instantroofer-measurement.test.js",
     "public-measure.test.js",
+    "field-photos-client-2026-10-04.test.js",
+    "field-photos-server-2026-10-04.test.js",
     "lead-dedup.test.js",
     "lead-photo-reaping.test.js",
     "lead-filter-registry.test.js",

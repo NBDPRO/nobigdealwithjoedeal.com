@@ -85,6 +85,29 @@ Same doc, same 60-second cache, same instant no-deploy effect
 `aiDisabled` — an operator may want to stop metered-vendor spend without
 darkening every AI surface, or vice versa.
 
+### CRM auto-order (added 2026-10-04)
+
+`autoMeasureOnStage` / `autoMeasureOnAppointment`
+(`functions/integrations/measure-auto-order.js`) order the same $3 measure
+for a CRM lead when it gets an appointment or reaches Inspected — once per
+lead, under a daily and a monthly cap. Own flag, plus the caps, all in the
+same doc:
+
+```
+feature_flags/global   →   { autoMeasureDisabled: true }        // stop it
+feature_flags/global   →   { autoMeasureDailyCap: 6,            // defaults
+                             autoMeasureMonthlyCap: 60 }
+```
+
+Counters live in `measurementAutoOrders/day_YYYY-MM-DD` and
+`month_YYYY-MM` (admin SDK only); each lead's marker is
+`measurementAutoOrders/lead_<leadId>` with `status` ordered / reused /
+failed.
+
+The per-photo AI classifier trigger `onPhotoCreatedClassify`
+(`functions/photo-vision.js`, also 2026-10-04) sits under `aiDisabled`
+like the `analyzePhotoVision` callable it shares its code and caps with.
+
 ## Voice memos and AI-drafted replies
 
 **Wired 2026-09-14** — these surfaces were flagged in the Grok Pro/CRM

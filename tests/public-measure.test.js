@@ -78,7 +78,9 @@ section('the trigger is gated so it cannot bill the wrong things');
 section('spend guards');
 {
   ok('a redelivery collides on a deterministic doc id instead of re-billing',
-    /doc\('weblead-' \+ leadId\)/.test(src) && /jobRef\.create\(jobDoc\)/.test(src) && /e\.code === 6/.test(src));
+    // jobId defaults to 'weblead-'+leadId; the CRM auto-order passes 'auto-'+leadId.
+    /const jobId = jobDocId \|\| \('weblead-' \+ leadId\)/.test(src) && /\.doc\(jobId\)/.test(src)
+      && /jobRef\.create\(jobDoc\)/.test(src) && /e\.code === 6/.test(src));
   ok('same-roof reuse is attempted before the vendor is called',
     src.indexOf('findReusableMeasurement') < src.indexOf('requestInstantRoofer'));
   ok('a daily cap on AUTOMATED spend exists', /trigger:measureNewWebLead:daily/.test(src) && /AUTO_MEASURE_DAILY_CAP/.test(src));

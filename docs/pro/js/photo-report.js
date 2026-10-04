@@ -147,7 +147,11 @@
     const reportMode = (mode === 'adjuster') ? 'adjuster' : 'homeowner';
     build = build || {};
 
-    if (typeof showToast === 'function') showToast('Building ' + reportMode + ' photo report...', 'ok');
+    // build.auto (2026-10-04): the Before & After report that builds itself
+    // when an install completes (NBDAutoBeforeAfter below). It files the
+    // report on the lead's Documents and opens nothing.
+    const auto = build.auto === true;
+    if (typeof showToast === 'function') showToast(auto ? 'Building the Before & After report…' : 'Building ' + reportMode + ' photo report...', 'ok');
 
     try {
       // Get lead data
@@ -187,6 +191,7 @@
       }
 
       if (photos.length === 0) {
+        if (auto) return 'needs-after';
         if (typeof showToast === 'function') showToast('No photos found for this lead — upload some first', 'error');
         return;
       }
@@ -242,6 +247,10 @@
       const beforePhotos = photos.filter(p => getPhase(p).includes('before'));
       const duringPhotos = photos.filter(p => getPhase(p).includes('during'));
       const afterPhotos = photos.filter(p => getPhase(p).includes('after'));
+      // An automatic Before & After report needs both halves; without an
+      // After photo it waits for one (NBDAutoBeforeAfter.afterPhoto).
+      if (auto && !afterPhotos.length) return 'needs-after';
+      if (auto && !beforePhotos.length) return 'needs-before';
 
       let before, during, after;
       const hasPhases = beforePhotos.length > 0 || duringPhotos.length > 0 || afterPhotos.length > 0;
@@ -270,10 +279,13 @@
           mode: reportMode,
           allPhotos: photos,
         }, build));
-        if (ok) return;
+        if (ok) return auto ? 'filed' : undefined;
       } catch (e) {
         console.warn('[photo-report] server render failed, falling back:', e && e.message || e);
       }
+      // The client fallback only opens a viewer — nothing to file — so the
+      // automatic report stops here rather than popping a window unasked.
+      if (auto) return 'render-failed';
 
       const html = buildReportHTML(lead, name, before, during, after, now, hasPhases, reportMode);
 
@@ -1345,6 +1357,8 @@
         reportMode: rec.mode,
         reportNumber: rec.reportNumber || '',
         reportOptions: rec.options || null,
+        // Built on its own when the install completed (NBDAutoBeforeAfter).
+        autoBeforeAfter: rec.auto === true,
       });
       // Two refreshes for the same reason logGeneratedDoc does it
       // (customer-tasks-ui.js:2261): the write and the list read race, and both
@@ -1590,7 +1604,7 @@
     // Deliberately after the viewer opens and never fatal: the PDF already
     // rendered and is in front of the rep, so a rules denial on the documents
     // subcollection must not turn a finished report into an error.
-    _fileReportOnLead(lead.id, {
+    const _filing = _fileReportOnLead(lead.id, {
       name: data.filename || filename,
       url: data.url,
       storagePath: data.path || '',
@@ -1598,7 +1612,16 @@
       mode: mode,
       reportNumber: reportNumber,
       options: O,
+      auto: opts.auto === true,
     });
+
+    // The automatic Before & After report (2026-10-04) opens nothing: it is
+    // filed, and the rep is told where it is.
+    if (opts.auto === true) {
+      await _filing;
+      if (typeof showToast === 'function') showToast('✓ Before & After report is ready in Documents', 'ok');
+      return true;
+    }
 
     if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
       window.NBDDocViewer.open({
@@ -1617,6 +1640,82 @@
   }
 
   window.generatePhotoReport = generatePhotoReport;
+
+  // ── Automatic Before & After report (2026-10-04) ──────────────────────
+  // When an install completes (stage-write.js commitStageChange → the
+  // install_complete stage), the homeowner Before & After report builds
+  // itself and is filed in the lead's Documents — nobody has to remember to
+  // press Generate. Photos already carry a phase stamped from the stage at
+  // capture (photo-engine.js captureContext), so the halves exist without
+  // anyone tagging them.
+  //
+  // If there is no After photo yet (the usual case — the finished roof is
+  // shot after the card moves), the lead is marked beforeAfterReportPending
+  // and the report builds once the first After photos land: photo-engine
+  // calls afterPhoto(), which waits for the burst to finish (AFTER_SETTLE_MS
+  // of quiet) and then builds. Once per lead — beforeAfterReportAt is set
+  // on success and nothing runs again.
+  const AFTER_SETTLE_MS = 20000;
+  const _baTimers = {};
+  const _baRunning = {};
+
+  function _leadLocal(leadId) {
+    const cur = window._currentLead;
+    if (cur && (cur.id === leadId || window._customerId === leadId)) return cur;
+    return (window._leads || []).find((l) => l && l.id === leadId) || null;
+  }
+
+  async function _patchLead(leadId, patch) {
+    const local = _leadLocal(leadId);
+    if (local) Object.assign(local, patch);
+    try {
+      if (window.updateDoc && window.doc && window.db) {
+        const p = Object.assign({}, patch);
+        if (p.beforeAfterReportAt === true && window.serverTimestamp) p.beforeAfterReportAt = window.serverTimestamp();
+        await window.updateDoc(window.doc(window.db, 'leads', leadId), p);
+      }
+    } catch (e) {
+      console.warn('[before-after] lead flag write failed:', e && e.message);
+    }
+  }
+
+  const NBDAutoBeforeAfter = {
+    AFTER_SETTLE_MS,
+    /** Build now if both halves exist; otherwise wait for After photos. */
+    async onInstallComplete(leadId) {
+      if (!leadId || _baRunning[leadId]) return 'busy';
+      const local = _leadLocal(leadId);
+      if (local && local.beforeAfterReportAt) return 'already-filed';
+      _baRunning[leadId] = true;
+      try {
+        const r = await generatePhotoReport(leadId, 'homeowner', { auto: true });
+        if (r === 'filed') {
+          await _patchLead(leadId, { beforeAfterReportAt: true, beforeAfterReportPending: false });
+        } else if (r === 'needs-after' || r === 'needs-before') {
+          await _patchLead(leadId, { beforeAfterReportPending: true });
+          if (typeof showToast === 'function') {
+            showToast('Install complete — shoot the finished roof and the Before & After report builds itself.', 'ok');
+          }
+        }
+        return r;
+      } finally {
+        delete _baRunning[leadId];
+      }
+    },
+    /** An After photo landed for this lead (photo-engine). */
+    afterPhoto(leadId) {
+      const local = _leadLocal(leadId);
+      if (!local || local.beforeAfterReportPending !== true || local.beforeAfterReportAt) return false;
+      clearTimeout(_baTimers[leadId]);
+      _baTimers[leadId] = setTimeout(() => {
+        delete _baTimers[leadId];
+        NBDAutoBeforeAfter.onInstallComplete(leadId);
+      }, AFTER_SETTLE_MS);
+      return true;
+    }
+  };
+  window.NBDAutoBeforeAfter = NBDAutoBeforeAfter;
+
   // Exposed for smoke + future Playwright coverage. Pure function —
   // takes an array of photo docs, returns up to 8 {location, before,
   // after} pair objects. No DOM, no Firebase, safe to unit-test.

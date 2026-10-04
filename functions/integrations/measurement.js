@@ -194,7 +194,8 @@ async function requestInstantRoofer(ctx, deps) {
     reportType,
     address: ctx.address,
     customerName: ctx.customerName,
-    contractorName: ctx.contractorName
+    contractorName: ctx.contractorName,
+    outline: ctx.withOutline === true
   });
 
   let res;
@@ -264,6 +265,10 @@ async function requestInstantRoofer(ctx, deps) {
     jobId: 'instantroofer-' + now(),
     estimatedMinutes: 0,
     measurements,
+    // Only when the caller asked for it (ctx.withOutline): the outline image
+    // as bytes, for Storage. Never persisted to Firestore — synchronousData
+    // below still strips imagery.
+    ...(ctx.withOutline === true ? { outline: IR.outlineImage(data) } : {}),
     // Kept for the audit trail minus the two blobs (base64 image, LiDAR
     // points) that would blow the 1 MiB doc cap — see stripVendorBlobs().
     synchronousData: stripVendorBlobs(data)
