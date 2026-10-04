@@ -2250,6 +2250,17 @@ async function run() {
   await x45('a sales rep cannot decide', 'deny', updateDoc(doc(rep45, 'agent_inbox/a4'), decide('rep45')));
   await x45('nobody creates items from the client (server only)', 'deny', setDoc(doc(own45, 'agent_inbox/x9'), ITEM()));
   await x45('nobody deletes items from the client', 'deny', deleteDoc(doc(own45, 'agent_inbox/a4')));
+  // Bots & API (2026-10-04): a company's bots and its bot settings are
+  // managed only through the callables — not even the owner touches them.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'agent_bots/b45'), { companyId: 'co-45', name: 'Helper', tools: ['list_leads'], active: true });
+    await setDoc(doc(ctx.firestore(), 'agent_settings/co-45'), { enabled: true });
+  });
+  await x45('the owner cannot read a company bot from the client', 'deny', getDoc(doc(own45, 'agent_bots/b45')));
+  await x45('the owner cannot widen a bot\'s tools from the client', 'deny', updateDoc(doc(own45, 'agent_bots/b45'), { tools: ['job_profit'] }));
+  await x45('the owner cannot create a bot from the client', 'deny', setDoc(doc(own45, 'agent_bots/b46'), { companyId: 'co-45', name: 'x', tools: [], active: true }));
+  await x45('a company_admin cannot flip the switch from the client', 'deny', setDoc(doc(cadm45, 'agent_settings/co-45'), { enabled: false }));
+  await x45('another company cannot read the settings', 'deny', getDoc(doc(other45, 'agent_settings/co-45')));
   console.log('  45: ' + s45Pass + ' agent-inbox checks passed, ' + s45Fail.length + ' failed');
   if (s45Fail.length) {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));

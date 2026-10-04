@@ -134,10 +134,13 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `submitEsignEnvelope` | onRequest | Envelope signing: stamps a FLATTENED signed PDF with pdf-lib, verifies the source digest is unchanged, requires consent, records signer IP + user agent + both SHA-256 digests. Stamps BEFORE the burn so a bad payload cannot grief a real signing. Never overwrites the source. Job spine (2026-10-03): an envelope titled as the contract stamps `contractFiledAt` and records `contract_signed` |
 | `getDealRoom` | onRequest | Deal acceptance: ~120-bit single-use token, 14-day expiry, served same-origin via `/deal/**` rewrite |
 | `submitDealAcceptance` | onRequest | Deal acceptance: burns token, records tier + signature, notifies rep. Job spine (2026-10-03): records `deal_accepted` (Contract Signed; Service Approved on a repair) |
-| `crmMcp` | onRequest | NBD CRM connection for the Grok Bot team: MCP (JSON-RPC) at `/api/mcp`, per-bot hashed keys, minimized reads, files notes/reminders/reports into `agent_inbox`; no send/edit/delete tools; `AGENT_MCP_DISABLED=true` kills it |
-| `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256) |
-| `listAgentKeys` | onCall | The company's bot keys (no secrets) + bot tool lists |
-| `revokeAgentKey` | onCall | Turns one bot key off |
+| `crmMcp` | onRequest | CRM connection for bots (NBD's house team + any paid company's own bots): MCP (JSON-RPC) at `/api/mcp`, per-bot hashed keys, minimized reads, files notes/reminders/reports into `agent_inbox`; no send/edit/delete tools; `AGENT_MCP_DISABLED=true` kills it |
+| `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256); house roster NBD-only, personal tracker keys self-serve |
+| `listAgentKeys` | onCall | The Bots & API page: own keys (owner/admin: every company key), company bots, switch, plan, timezone — no secrets |
+| `revokeAgentKey` | onCall | Turns one bot key off (owner/admin: any company key; anyone: their own) |
+| `saveAgentBot` | onCall | Owner/company_admin makes or edits a company bot (name, role, allowed tools, who it notifies); paid plan + company switch on |
+| `deleteAgentBot` | onCall | Owner/company_admin removes a company bot and revokes its keys |
+| `saveAgentSettings` | onCall | Owner/company_admin: the company's bots on/off switch, timezone, house rules for bots |
 | `dealRoomReadPing` | onRequest | Deal room time-on-page beacon via `/api/deal-read` rewrite: token-authed, adds clamped seconds to deal_rooms.readSeconds; preview bots ignored |
 | `getSharedReport` | onRequest | Report share: ~120-bit REUSABLE token, 30-day default expiry, per-IP rate limit (view-only) |
 | `getCalendarFeed` | onRequest | Read-only `.ics` feed served at `/calendar/<token>.ics` for the iPhone Calendar app. ~120-bit token, deliberately NO expiry (a subscription that stops refreshing is silent), per-IP + per-token rate limits, `text/calendar`, never an empty 200 — a calendar client reads that as "all events deleted" |

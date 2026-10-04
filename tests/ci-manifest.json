@@ -201,6 +201,7 @@
     "agent-mcp-roles-v2-2026-10-02.test.js",
     "social-studio-2026-10-04.test.js",
     "reel-studio-2026-10-04.test.js",
+    "agent-tenant-bots-2026-10-04.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
@@ -361,7 +362,8 @@
     "faq-schema-sync-2026-10-03.test.js",
     "site-round2-2026-10-03.test.js",
     "security-batch-2026-10-03.test.js",
-    "stage-actor-no-next-step-2026-10-03.test.js"
+    "stage-actor-no-next-step-2026-10-03.test.js",
+    "boot-offline-reads-2026-10-04.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
