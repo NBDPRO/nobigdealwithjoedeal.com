@@ -107,8 +107,12 @@ ok('httpRateLimit keys on rateLimitIpKey(clientIp(req)), not raw clientIp',
   /enforceRateLimit\(\s*namespace\s*,\s*rateLimitIpKey\(\s*clientIp\(req\)\s*\)/.test(httpBody));
 
 const upstashSrc = fs.readFileSync(path.join(FUNCTIONS, 'integrations', 'upstash-ratelimit.js'), 'utf8');
-ok('the Upstash limiter path also collapses to /64',
-  /rateLimitIpKey\(\s*firestoreLimiter\.clientIp\(req\)\s*\)/.test(upstashSrc));
+// The Upstash backend was removed 2026-10-04; the entry point now hands every
+// HTTP call to rate-limit.js's httpRateLimit (checked above), so it inherits
+// the /64 keying instead of re-deriving the key itself.
+ok('the limiter entry point delegates HTTP limiting to rate-limit.js (inherits /64)',
+  /firestoreLimiter\.httpRateLimit\(\s*req\s*,/.test(upstashSrc)
+  && !/clientIp\(req\)/.test(upstashSrc.replace(/^\s*(\/\/|\*).*$/gm, '')));
 
 // ── 3. The two unauthenticated AI relays must stay documented as such ────
 // Their headers previously asserted a control that did not exist. If someone

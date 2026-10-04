@@ -48,8 +48,11 @@ function extractFn(src, name) {
   return src.slice(start, i);
 }
 // Module-level state the two functions share, taken from the file itself.
-const decls = (SRC.match(/^(?:const|let) _(?:tasksFromCache|taskCacheRetries|TASK_CACHE_RETRY_MS)\b[^\n]*$/gm) || []).join('\n');
-const code = decls + '\n' + extractFn(SRC, '_loadTasks') + '\n' + extractFn(SRC, 'loadAllTasks')
+// 2026-10-03: loadAllTasks is ONE collection-group query now
+// (tests/tasks-one-query-2026-10-03.test.js); with no NBDTodayPlan on the
+// page it falls back to this per-lead read, which is what this file pins.
+const decls = (SRC.match(/^(?:const|let) _(?:tasksFromCache|taskCacheRetries|TASK_CACHE_RETRY_MS|FS_SDK|taskLoadMode|tasksLoaded)\b[^\n]*$/gm) || []).join('\n');
+const code = decls + '\n' + extractFn(SRC, '_loadTasks') + '\n' + extractFn(SRC, '_loadAllTasksGroup') + '\n' + extractFn(SRC, 'loadAllTasks')
   + '\nglobalThis.loadAllTasks = loadAllTasks;';
 ok('tasks.js declares the from-cache state', /_tasksFromCache/.test(decls), decls);
 

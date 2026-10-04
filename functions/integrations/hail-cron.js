@@ -14,9 +14,9 @@
  * Batch size: 500 leads / run (Firestore page limit). Larger tenants
  * will roll over into the next run's cursor naturally.
  *
- * SAFE TO DEPLOY WITH NO HAIL PROVIDER CONFIGURED — the function
- * no-ops when getHailHistory returns nothing useful, which happens
- * for every provider when the keys are unset.
+ * Provider: NOAA/IEM Local Storm Reports — free and keyless. (The paid
+ * HailTrace branch, never configured, was removed 2026-10-04 —
+ * VENDOR-COST-LOCKIN Lane C.)
  */
 
 'use strict';
@@ -25,13 +25,11 @@ const { onSchedule } = require('./heartbeat'); // heartbeat-wrapped drop-in for 
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
-const { SECRETS, PROVIDERS, hasSecret, getSecret } = require('./_shared');
+const { SECRETS, hasSecret, getSecret } = require('./_shared');
 
-// Re-use the hail fetch helpers from the hail.js module via a
-// low-level import. We intentionally don't go through the callable —
-// this cron runs with admin rights, no caller token.
-// Keeping the fetchers duplicated lightly is simpler than exporting
-// private helpers; each is a handful of lines.
+// The NOAA fetcher is duplicated lightly from hail.js rather than going
+// through the callable — this cron runs with admin rights, no caller token,
+// and its own longer timeout.
 const { retryTransient } = require('./retry-transient');
 
 async function fetchNoaaHail(lat, lng, radiusMi, daysBack) {
@@ -64,26 +62,6 @@ async function fetchNoaaHail(lat, lng, radiusMi, daysBack) {
   }).filter(h => h.lat != null && h.lng != null);
 }
 
-async function fetchHailTrace(lat, lng, radiusMi, daysBack) {
-  if (!hasSecret('HAILTRACE_API_KEY')) return [];
-  const key = getSecret('HAILTRACE_API_KEY');
-  const url = 'https://api.hailtrace.com/v1/hail/query?'
-    + 'lat=' + encodeURIComponent(lat)
-    + '&lon=' + encodeURIComponent(lng)
-    + '&radius_mi=' + encodeURIComponent(radiusMi)
-    + '&days=' + encodeURIComponent(daysBack);
-  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + key }, signal: AbortSignal.timeout(20000) });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.events || []).map(e => ({
-    at: e.start_time,
-    lat: (e.centroid && e.centroid.lat) || null,
-    lng: (e.centroid && e.centroid.lng) || null,
-    sizeInches: e.max_size || null,
-    source: 'hailtrace'
-  }));
-}
-
 async function postSlackSummary(summary) {
   if (!hasSecret('SLACK_WEBHOOK_URL')) return;
   try {
@@ -105,7 +83,7 @@ exports.hailMatchCron = onSchedule(
     timeZone: 'America/Chicago',
     timeoutSeconds: 540,                   // 9 min
     memory: '512MiB',
-    secrets: [SECRETS.HAILTRACE_API_KEY, SECRETS.SLACK_WEBHOOK_URL]
+    secrets: [SECRETS.SLACK_WEBHOOK_URL]
   },
   async (event) => {
     const db = getFirestore();
@@ -135,14 +113,7 @@ exports.hailMatchCron = onSchedule(
       .limit(500)
       .get();
 
-    // DELIBERATE: this cron never uses the Swath provider even when
-    // NBD_HAIL_PROVIDER=swath — a 500-lead sweep would burn the whole
-    // 100-credit/month free plan in one run (and real money on paid
-    // tiers). Interactive lookups get Swath; the nightly sweep stays on
-    // HailTrace/NOAA. See integrations/swath.js header.
-    const fetcher = PROVIDERS.hail === 'hailtrace' && hasSecret('HAILTRACE_API_KEY')
-      ? fetchHailTrace
-      : fetchNoaaHail;
+    const fetcher = fetchNoaaHail;
 
     const newHits = [];
     let checked = 0;
