@@ -433,7 +433,7 @@ const RUNNABLE = ['node', 'smoke'];
 //               (smoke; full payment never moves a lead backward). MEASURED via --check.
 //   2026-09-28  209/70/302 -> 209/71/303, tests/followup-local-day.test.js
 //               (smoke; follow-up dates are local days). MEASURED via --check.
-const FLOORS = { node: 344, smoke: 71, disk: 438 };
+const FLOORS = { node: 345, smoke: 71, disk: 439 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -642,13 +642,22 @@ for (const [f, doc] of Object.entries(manifest.smoke || {})) {
 // it means the floor is stale — and the gap is exactly how many suites gate
 // nothing, so it has to fail on the PR that opens it rather than sit quiet
 // for 31 commits the way it did up to 2026-09-07.
+//
+// 2026-10-04: OVER is now a warning, not a failure. With GitHub's merge queue
+// (ruleset 24456328) every PR that added a suite had to edit this one FLOORS
+// line, so any two such PRs conflicted textually when the queue stacked them
+// and the later one was dropped as UNMERGEABLE (#2139/#2142/#2160 that day).
+// UNDER — a suite deleted — still fails everywhere. Raise the floors in a
+// batch from main when the warning shows; the gap it prints is how many
+// suites are only protected by the manifest's own orphan tripwire meanwhile.
 const drifted = [];
+const warnings = [];
 for (const [b, floor] of Object.entries(FLOORS)) {
   const n = b === 'disk' ? disk.length : buckets[b].length;
   if (n < floor) problems.push(b + ' holds ' + n + ' suites but the gating floor is ' + floor + ' — suites were removed. Raise the floor deliberately in scripts/run-test-manifest.js if this is intended.');
   else if (n > floor) {
     drifted.push(b);
-    problems.push(b + ' holds ' + n + ' suites but the floor is still ' + floor
+    warnings.push(b + ' holds ' + n + ' suites but the floor is still ' + floor
       + ' — the floor is stale by ' + (n - floor) + '. That many suites gate nothing: they could be'
       + ' deleted, file and manifest entry both, with this check green. SET the floor to ' + n + '.');
   }
@@ -656,9 +665,14 @@ for (const [b, floor] of Object.entries(FLOORS)) {
 if (drifted.length) {
   // Print the whole literal, not a delta: "+1 for the suite I added" is the
   // mistake that produced floors of 52/53/54 against real counts of 66/73/75.
-  problems.push('fix: replace the FLOORS line in scripts/run-test-manifest.js with  const FLOORS = { '
+  warnings.push('fix: replace the FLOORS line in scripts/run-test-manifest.js with  const FLOORS = { '
     + Object.keys(FLOORS).map((b) => b + ': ' + (b === 'disk' ? disk.length : buckets[b].length)).join(', ')
     + ' };');
+}
+if (warnings.length) {
+  // A ::warning:: annotation shows on the run summary without failing it.
+  // No "N failed"-shaped text here: the manifest runner's log scan reads it.
+  for (const w of warnings) console.log((process.env.GITHUB_ACTIONS ? '::warning::' : 'WARNING: ') + 'floor stale: ' + w);
 }
 
 if (problems.length) {

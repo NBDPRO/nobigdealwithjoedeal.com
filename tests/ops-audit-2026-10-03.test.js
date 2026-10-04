@@ -72,7 +72,9 @@ function ok(name, cond, detail) {
   ok('a persistent transient error gives up after the retries (3 tries)', err && n === 3);
   ok('timeouts and aborts count as transient', isTransient({ name: 'TimeoutError', message: 'x' }) && isTransient({ name: 'AbortError', message: 'x' }) && isTransient(new Error('socket hang up')));
   const hc = read('functions/integrations/hail-cron.js');
-  ok('the cron wraps the provider fetch in retryTransient, with a fetch timeout', /await retryTransient\(\(\) => fetcher\(lat, lng, RADIUS_MI, DAYS_BACK\)\)/.test(hc) && (hc.match(/signal: AbortSignal\.timeout\(20000\)/g) || []).length === 2);
+  // One fetcher now: the HailTrace branch (the second timeout) was removed
+  // 2026-10-04 — VENDOR-COST-LOCKIN Lane C. NOAA's fetch keeps its timeout.
+  ok('the cron wraps the provider fetch in retryTransient, with a fetch timeout', /await retryTransient\(\(\) => fetcher\(lat, lng, RADIUS_MI, DAYS_BACK\)\)/.test(hc) && (hc.match(/signal: AbortSignal\.timeout\(20000\)/g) || []).length === 1 && !/hailtrace\.com/.test(hc));
   ok('retry-transient.js is a helper, not a deployed function', !/retry-transient/.test(read('functions/index.js')));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

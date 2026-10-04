@@ -37,10 +37,9 @@
 
 'use strict';
 
-// Provider-aware limiter: honours NBD_RATE_LIMIT_PROVIDER=upstash and falls
-// back to the Firestore limiter — the same adapter the handlers require.
-// Requiring ./rate-limit directly here would silently pin policy-guarded
-// routes to Firestore while the rest of the fleet rides Upstash.
+// The same limiter entry point the handlers require (Firestore-backed since
+// the unused Upstash adapter was removed 2026-10-04). Keep requiring it rather
+// than ./rate-limit, so a future backend swap there covers these routes too.
 const { enforceRateLimit, clientIp, hashKey } = require('./integrations/upstash-ratelimit');
 // Pure key derivation (no I/O, provider-independent): buckets IPv6 callers by
 // /64 prefix so one allocation can't rotate addresses past the cap. Same

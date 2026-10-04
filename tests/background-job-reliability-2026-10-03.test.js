@@ -15,8 +15,9 @@
  *      while 'processing'. A STALE claim (same STALE_PROCESSING_MS as claim())
  *      is now re-queueable, and the swallowed failure write is logged.
  *   C. Outbound calls in request paths carry a timeout (AbortSignal.timeout):
- *      hail.js lookups, handlers/geocode.js Google + Regrid, and the Upstash
- *      limiter (which now reaches its fail-open path on a hang). A fetch stub
+ *      hail.js lookups and handlers/geocode.js Google + Regrid. (The Upstash
+ *      limiter this also covered was removed 2026-10-04; its block now proves
+ *      the limiter makes no network call at all.) A fetch stub
  *      that never answers on its own proves each call rejects when its signal
  *      fires, and AbortSignal.timeout is spied to pin each budget under the
  *      owning function's timeout.
@@ -264,9 +265,12 @@ async function settles(p, ms) {
   global.fetch = hangingFetch(log);
   timeouts.length = 0;
   const r = await settles(hail.lookupHail(38.2, -84.5, 3, 365), 2000);
-  ok('hail: a hung provider AND a hung NOAA fallback reject instead of hanging the callable', r !== 'HUNG' && !!r.e, r === 'HUNG' ? 'HUNG' : r);
-  ok('hail: both legs (HailTrace, then NOAA) were bounded', log.length === 2 && log.every((x) => x.signal) && /hailtrace/.test(log[0].url) && /mesonet/.test(log[1].url), log.map((x) => x.url.slice(0, 40)));
-  ok('hail: two serial legs fit inside getHailHistory\'s 20s', timeouts.length === 2 && timeouts.reduce((a, b) => a + b, 0) <= 18000, timeouts);
+  // 2026-10-04: HailTrace was removed (VENDOR-COST-LOCKIN Lane C). A stale
+  // NBD_HAIL_PROVIDER=hailtrace plus a key must now select NOAA and never
+  // reach api.hailtrace.com.
+  ok('hail: a hung NOAA provider rejects instead of hanging the callable', r !== 'HUNG' && !!r.e, r === 'HUNG' ? 'HUNG' : r);
+  ok('hail: provider=hailtrace now selects NOAA — one bounded leg, nothing sent to HailTrace', log.length === 1 && log.every((x) => x.signal) && /mesonet/.test(log[0].url) && !log.some((x) => /hailtrace/i.test(x.url)), log.map((x) => x.url.slice(0, 40)));
+  ok('hail: the NOAA leg fits inside getHailHistory\'s 20s', timeouts.length === 1 && timeouts[0] <= 18000, timeouts);
   delete process.env.NBD_HAIL_PROVIDER; delete process.env.HAILTRACE_API_KEY;
 }
 {
@@ -300,8 +304,14 @@ async function settles(p, ms) {
   global.fetch = hangingFetch(log);
   timeouts.length = 0;
   const r = await settles(up.enforceRateLimit('test:ns', 'k1', 10, 60000), 2000);
-  ok('upstash: a hung Upstash request reaches the fail-open Firestore limiter', r !== 'HUNG' && r.v && r.v.via === 'firestore', r);
-  ok('upstash: the budget is small (≤ 3s, inside the 10s caller-lookup function)', log.length === 1 && !!log[0].signal && timeouts.length === 1 && timeouts[0] <= 3000, timeouts);
+  // 2026-10-04: the Upstash backend was removed (never provisioned). Even with
+  // the old env flag and both secrets present, every call must go straight to
+  // the Firestore limiter and make no network request.
+  ok('rate limit: with the old Upstash env + secrets set, enforceRateLimit answers from the Firestore limiter', r !== 'HUNG' && r.v && r.v.via === 'firestore', r);
+  ok('rate limit: no outbound request is made (Upstash code is gone)', log.length === 0, log.map((x) => x.url));
+  const h = await settles(up.httpRateLimit({ headers: {} }, {}, 'test:http', 10, 60000), 2000);
+  ok('rate limit: httpRateLimit answers from the Firestore limiter, no outbound request', h !== 'HUNG' && h.v === true && log.length === 0, h);
+  ok('rate limit: provider() reports firestore', up.provider() === 'firestore', up.provider());
   delete process.env.NBD_RATE_LIMIT_PROVIDER; delete process.env.UPSTASH_REDIS_REST_URL; delete process.env.UPSTASH_REDIS_REST_TOKEN;
 }
 AbortSignal.timeout = realTimeout;
