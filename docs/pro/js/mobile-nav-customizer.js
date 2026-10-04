@@ -10,8 +10,12 @@ let _delegateBound = false; // click-delegate bind-once (formerly a window-level
 
 // ── MASTER TAB REGISTRY ──────────────────────────────────────
 const TAB_REGISTRY = [
-  { id: 'dash',       icon: '📊', label: 'Home',        action: 'dash',       category: 'Core' },
-  { id: 'home',       icon: '🏠', label: 'Widgets',     action: 'home',       category: 'Core' },
+  // ONE Home (2026-10-03): the phone Home tab and the boot view are the same
+  // Today view (route 'home'). The tab keeps its old id 'dash' so every saved
+  // bar keeps its Home tab; a saved 'home' ("Widgets") tab folds into it. The
+  // old KPI dashboard (route 'dash') stays one tap away as "Dashboard".
+  { id: 'dash',       icon: '🏠', label: 'Home',        action: 'home',       category: 'Core' },
+  { id: 'home',       icon: '🏠', label: 'Home',        action: 'home',       category: 'Core', alias: 'dash' },
   { id: 'crm',        icon: '👥', label: 'CRM',         action: 'crm',        category: 'Core',  badge: true },
   { id: 'create',     icon: '➕', label: 'New',         action: 'create',     category: 'Core' },
   { id: 'est',        icon: '📋', label: 'Estimates',   action: 'est',        category: 'Core' },
@@ -33,6 +37,7 @@ const TAB_REGISTRY = [
   { id: 'board',      icon: '🏆', label: 'Leaderboard', action: 'board',      category: 'Insights' },
   // Sidebar-only until the 2026-09-25 phone audit (views#1) — no way in on a phone.
   { id: 'reports',    icon: '📈', label: 'Reports',     action: 'reports',    category: 'Insights' },
+  { id: 'kpis',       icon: '📊', label: 'Dashboard',   action: 'dash',       category: 'Insights' },
   { id: 'talk-tank',  icon: '🎙️', label: 'Talk Tank',   action: 'talk-tank',  category: 'Insights' },
   { id: 'calls',      icon: '📞', label: 'Call Center', action: 'calls',      category: 'Insights' },
   { id: 'refrewards', icon: '🎁', label: 'Referrals',   action: 'refrewards', category: 'Insights' },
@@ -56,12 +61,25 @@ const MAX_TABS     = 4;
 //  STORAGE LAYER — localStorage + Firestore
 // ══════════════════════════════════════════════════════════════
 
+// A retired tab id → the tab that replaced it, deduped (2026-10-03: the
+// 'home' Widgets tab is the Home tab now).
+function canonTabs(ids) {
+  const out = [];
+  (ids || []).forEach(id => {
+    const t = TAB_REGISTRY.find(r => r.id === id);
+    if (!t) return;
+    const c = t.alias || t.id;
+    if (!out.includes(c)) out.push(c);
+  });
+  return out;
+}
+
 function loadTabsLocal() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      const valid = parsed.filter(id => TAB_REGISTRY.find(t => t.id === id));
+      const valid = canonTabs(parsed);
       if (valid.length > 0 && valid.length <= MAX_TABS) return valid;
     }
   } catch(e) {}
@@ -88,7 +106,7 @@ async function loadTabsFirestore() {
     if (snap.exists()) {
       const data = snap.data();
       if (Array.isArray(data.tabs)) {
-        const valid = data.tabs.filter(id => TAB_REGISTRY.find(t => t.id === id));
+        const valid = canonTabs(data.tabs);
         if (valid.length > 0 && valid.length <= MAX_TABS) return valid;
       }
     }
@@ -387,7 +405,10 @@ function setActiveTab() {
     // A route with no tab of its own (Home, Settings, Expenses…) lights
     // nothing. That is honest: highlighting a tab the user is not on is what
     // made the bar untrustworthy in the first place.
-    if (el) el.classList.toggle('active', id === route);
+    // Lit by the tab's VIEW (2026-10-03): the Home tab (id 'dash') shows the
+    // Today view, route 'home'.
+    const tab = TAB_REGISTRY.find(t => t.id === id);
+    if (el) el.classList.toggle('active', !!tab && tab.action === route);
   });
 }
 
@@ -469,6 +490,7 @@ function _ncmEscFallback(e) {
 function renderModal(modal) {
   const categories = {};
   TAB_REGISTRY.forEach(t => {
+    if (t.alias) return; // retired id, folded into another tab
     if (!categories[t.category]) categories[t.category] = [];
     categories[t.category].push(t);
   });

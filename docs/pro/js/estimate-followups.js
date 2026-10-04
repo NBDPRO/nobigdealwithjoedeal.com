@@ -281,11 +281,18 @@
   }
 
   let _last = null;
+  // 2026-10-03 (Today home): the rows live in the Today list now
+  // (today-home.js, "Estimates to follow up"), which renders the same
+  // data-ef-send / data-ef-share-now buttons this file's click delegate
+  // handles. So the list is computed (and _last kept for the share) even
+  // when the old #homeEstimateFollowups card is not on the page, and Today
+  // repaints on 'nbd:estimate-followups'.
   function render() {
-    const el = document.getElementById('homeEstimateFollowups');
-    if (!el) return null;
     const res = computeFollowups(Array.isArray(w._leads) ? w._leads : [], Date.now(), { from: currentFrom() });
     _last = res;
+    try { w.dispatchEvent(new CustomEvent('nbd:estimate-followups', { detail: { total: res.total } })); } catch (_) { /* old browser */ }
+    const el = document.getElementById('homeEstimateFollowups');
+    if (!el) return res;
     const html = cardHtml(res);
     el.innerHTML = html;
     el.hidden = !html;
@@ -395,4 +402,6 @@
   const boot = () => setTimeout(render, 1500);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   api.render = render;
+  // Today shows "Share now" for a row whose link is ready but needs a second tap.
+  api.isPending = (leadId) => !!pending[leadId];
 })(typeof window !== 'undefined' ? window : null);

@@ -2322,6 +2322,57 @@ async function run() {
     throw new Error('47 security batch: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
   }
 
+  // ─── 48. Tasks: ONE collection-group load + tenant-safe stamps (2026-10-03,
+  // Today home). The dashboard reads every task with
+  // collectionGroup('tasks').where(companyId|userId).orderBy(createdAt); the
+  // recursive rule grants READ on the task's own stamps, and a writer may only
+  // stamp values inside the task's tenant (taskStampOk) — else a stamp could
+  // push a task into another tenant's Today list.
+  const s48Fail = []; let s48Pass = 0;
+  async function x48(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s48Pass++;
+    } catch (e) { s48Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'leads/lead47'), { userId: 'own48', companyId: 'co47', stage: 'new' });
+      await setDoc(doc(db, 'leads/lead47/tasks/t1'), { text: 'call back', done: false, dueDate: '2026-10-03', userId: 'own48', companyId: 'co47', createdAt: new Date() });
+      await setDoc(doc(db, 'leads/lead47/tasks/legacy'), { text: 'unstamped legacy', done: false, createdAt: new Date() });
+      await setDoc(doc(db, 'leads/lead47other'), { userId: 'other47', companyId: 'coOther47', stage: 'new' });
+      await setDoc(doc(db, 'leads/lead47other/tasks/t9'), { text: 'not yours', userId: 'other47', companyId: 'coOther47', createdAt: new Date() });
+    });
+    const own48 = env.authenticatedContext('own48', { role: 'sales_rep', companyId: 'co47' }).firestore();
+    const mgr48 = env.authenticatedContext('mgr48', { role: 'company_admin', companyId: 'co47' }).firestore();
+    const vw48 = env.authenticatedContext('vw48', { role: 'viewer', companyId: 'co47' }).firestore();
+    const evil48 = env.authenticatedContext('other47', { role: 'company_admin', companyId: 'coOther47' }).firestore();
+    const byCo48 = (db, co) => getDocs(query(collectionGroup(db, 'tasks'), where('companyId', '==', co), orderBy('createdAt', 'asc')));
+    const byUser48 = (db, u) => getDocs(query(collectionGroup(db, 'tasks'), where('userId', '==', u), orderBy('createdAt', 'asc')));
+    await x48('company admin loads the tenant\'s tasks in one query', 'allow', byCo48(mgr48, 'co47'));
+    await x48('a viewer loads them too (read-only role)', 'allow', byCo48(vw48, 'co47'));
+    await x48('a rep loads their OWN tasks', 'allow', byUser48(own48, 'own48'));
+    await x48('a rep asks for the whole company\'s tasks', 'deny', byCo48(own48, 'co47'));
+    await x48('another tenant asks for co47\'s tasks', 'deny', byCo48(evil48, 'co47'));
+    await x48('another user\'s tasks by userId', 'deny', byUser48(own48, 'other47'));
+    await x48('an unfiltered collection-group read', 'deny', getDocs(collectionGroup(mgr48, 'tasks')));
+    const t48 = (db, lead, id) => doc(db, 'leads/' + lead + '/tasks/' + id);
+    await x48('owner adds a task stamped with the lead\'s owner + tenant', 'allow', setDoc(t48(own48, 'lead47', 'n1'), { text: 'x', done: false, userId: 'own48', companyId: 'co47', leadId: 'lead47' }));
+    await x48('owner adds an unstamped task (every legacy writer)', 'allow', setDoc(t48(own48, 'lead47', 'n2'), { text: 'x', done: false }));
+    await x48('company admin adds one stamped with the writer\'s own uid as userId', 'allow', setDoc(t48(mgr48, 'lead47', 'n3'), { text: 'x', userId: 'mgr48', companyId: 'co47' }));
+    await x48('stamping ANOTHER tenant onto a task (inject into their Today list)', 'deny', setDoc(t48(evil48, 'lead47other', 'n4'), { text: 'spam', userId: 'other47', companyId: 'co47' }));
+    await x48('stamping another user as the owner', 'deny', setDoc(t48(evil48, 'lead47other', 'n5'), { text: 'spam', userId: 'own48' }));
+    await x48('ticking a legacy task done (stamps untouched) still works', 'allow', updateDoc(t48(own48, 'lead47', 'legacy'), { done: true }));
+    await x48('re-stamping a task to another tenant', 'deny', updateDoc(t48(own48, 'lead47', 't1'), { companyId: 'coOther47' }));
+    await x48('owner deletes a task', 'allow', deleteDoc(t48(own48, 'lead47', 'n2')));
+    await x48('a viewer adds a task', 'deny', setDoc(t48(vw48, 'lead47', 'n6'), { text: 'x' }));
+  }
+  console.log('  48: ' + s48Pass + ' task one-query / stamp checks passed, ' + s48Fail.length + ' failed');
+  if (s48Fail.length) {
+    throw new Error('48 tasks: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

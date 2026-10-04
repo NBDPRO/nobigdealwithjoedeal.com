@@ -259,19 +259,13 @@
       return d && d.getMonth() === thisMonth && d.getFullYear() === thisYear;
     }).length;
 
-    // F7: skip in-production (job-role) leads too — aligned with the CRM's
-    // overdue-followup definition (#12). A crew-scheduled job isn't a
-    // follow-up you're late on.
-    var overdueFollowUps = leads.filter(function (l) {
-      if (_isDecided(l) || _isJob(l) || !l.followUp) return false;
-      // Phone-less door-knock leads aren't CRM follow-ups — same rule as the
-      // pipeline's "Follow-ups Due" (crm-pipeline.js _unreachableKnockLead).
-      if (typeof window.nbdUnreachableKnockLead === 'function' && window.nbdUnreachableKnockLead(l)) return false;
-      // Local day ('YYYY-MM-DD' parses as UTC — a day early in the US).
-      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(l.followUp));
-      var d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(l.followUp); d.setHours(0, 0, 0, 0);
-      return d < today;
-    }).length;
+    // ONE follow-up rule (2026-10-03, today-plan.js followUpDue): due today
+    // or earlier, local day; skips won / lost / in-production (F7) and
+    // phone-less knock leads — the same count the CRM banner, the bell and
+    // Today show. (This tile used to count strictly-overdue only, so it read
+    // lower than the banner every morning.)
+    var fuDue = window.NBDTodayPlan && window.NBDTodayPlan.followUpDue;
+    var overdueFollowUps = fuDue ? leads.filter(function (l) { return fuDue(l, now.getTime()); }).length : 0;
 
     var closedWithValue = recs.filter(function (l) {
       return _isClosedWon(l) && parseFloat(l.jobValue) > 0;
@@ -358,7 +352,7 @@
               '<div class="kpi-icon">⚠️</div>' +
               '<div class="kpi-data">' +
                 '<div class="kpi-value">' + k.overdueFollowUps + '</div>' +
-                '<div class="kpi-label">Overdue Follow-Ups</div>' +
+                '<div class="kpi-label">Follow-Ups Due</div>' +
                 '<div class="kpi-sub">Click to view</div>' +
               '</div>' +
             '</div>'
