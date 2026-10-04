@@ -36,11 +36,13 @@ const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
+const EVA = require('./estimate-view-alert');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const { spineAfterRemoteSign } = require('./job-spine');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -370,6 +372,15 @@ exports.getSignDocument = onRequest(
     db.doc(`doc_sign_tokens/${token}`).update({
       viewedAt: FieldValue.serverTimestamp(),
     }).catch(() => {});
+    // 2026-10-03: this open used to be silent. Stamp lead.lastViewedAt and
+    // send Jo the ONE estimate_viewed alert (throttled per lead per 6h across
+    // portal / review link / deal room / here). Fire-and-forget; never throws.
+    if (tok.leadId) {
+      EVA.recordEstimateView(db, {
+        leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'remote_sign',
+        customerName: tok.signerName || '', what: tok.docTypeName || 'the document',
+      }).catch(() => {});
+    }
 
     // Only the minimum the sign page needs — no lead internals.
     res.status(200).json({
@@ -553,6 +564,10 @@ exports.submitSignature = onRequest(
         signedSha256: require('crypto').createHash('sha256').update(signedHtml, 'utf8').digest('hex'),
       }, { merge: true });
     } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
+    // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
+    // way an in-person signing already stamps it. Best-effort — the signature
+    // is recorded; a failure here only leaves the card where it was.
+    await spineAfterRemoteSign(db, info);
     try {
       await db.collection('notifications').add({
         userId: info.ownerUid,

@@ -361,6 +361,9 @@ const CASES = [
   { fn: 'sendEstimateForSignature', file: 'integrations/esign.js', kind: 'call', data: { estimateId: 'est-1', signerName: 'Sam', signerEmail: 'sam@example.com', html: '<p>' + 'x'.repeat(200) + '</p>' } },
   { fn: 'createDealAcceptToken', file: 'deal-acceptance.js', kind: 'call', data: { dealId: 'deal-123456' } },
   { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' } },
+  { fn: 'createEstimateReviewLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1' } },
+  { fn: 'recordEstimateShared', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1', token: 'ABCDEFGHJKLMNPQRSTUV2345' } },
+  { fn: 'freshEstimateLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1' } },
   { fn: 'transcribeVoiceMemo', file: 'integrations/voice-memo.js', kind: 'call', data: { leadId: 'lead-1', audioBase64: 'A'.repeat(400), mimeType: 'audio/webm' } },
   { fn: 'analyzePhotoVision', file: 'photo-vision.js', kind: 'call', data: { photoId: 'photo-1' } },
   { fn: 'backfillAnalytics', file: 'handlers/migrations.js', kind: 'call', data: {} },
@@ -429,6 +432,8 @@ const VERDICTS = {
   createConnectDashboardLink: 'role-gated', createConnectOnboardingLink: 'role-gated',
   createDealAcceptToken: 'refused', createEsignEnvelope: 'refused', createPortalToken: 'refused',
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
+  // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.
+  createEstimateReviewLink: 'refused', recordEstimateShared: 'refused', freshEstimateLink: 'refused',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
@@ -456,6 +461,9 @@ const VERDICTS = {
   // The Call Center 'Said you'd do' deck list: owner or platform admin only
   // (call-center.js promisesList), so a viewer is refused by role.
   callPromisesList: 'role-gated',
+  // "Match my tagged contacts": owner or platform admin only (call-center.js
+  // taggedMatch), proven in tests/call-center-action-2026-10-01.test.js.
+  callTaggedMatch: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
   // HTTP functions

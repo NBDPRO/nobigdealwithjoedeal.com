@@ -40,7 +40,10 @@ const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { fillLeadInstallDate } = require('./deal-install-date');
+const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
+const ESL = require('./estimate-send-logic');
+const EVA = require('./estimate-view-alert');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -62,6 +65,35 @@ const VALID_TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 // overwrote the accepted tier, price and signature and re-notified the rep.
 // The DEAL's status is now the gate at all three entry points.
 const DONE_STATUSES = ['accepted', 'signed', 'scheduled'];
+
+// The deal-room page is TENANT-AUTHORED HTML (the rep's client uploads it to
+// Storage) served on the main domain. The site-wide Hosting CSP already bars
+// inline script, but it still allows every same-origin script ('self') and
+// form posts anywhere — so a crafted deal room could load the CRM's own JS on
+// our origin or post a fake login form off-site. This policy is enforced on
+// top of it (security batch 2026-10-03): the ONE script the page needs
+// (deal-room.js, by exact path), XHR/beacon only to our own /api endpoints,
+// no forms, no framing, no <base>. Not `sandbox`: an opaque origin would turn
+// the same-origin ACCEPT POST into a CORS request and break acceptance.
+const DEAL_ROOM_SCRIPT_URLS = [
+  'https://nobigdealwithjoedeal.com/pro/deal-room.js',
+  'https://www.nobigdealwithjoedeal.com/pro/deal-room.js',
+  'https://nobigdeal-pro.web.app/pro/deal-room.js',
+].join(' ');
+const DEAL_ROOM_CSP = [
+  "default-src 'none'",
+  'script-src ' + DEAL_ROOM_SCRIPT_URLS,
+  'script-src-elem ' + DEAL_ROOM_SCRIPT_URLS,
+  "script-src-attr 'none'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join('; ');
 const ALREADY_ACCEPTED_MSG = 'This deal has already been accepted — your rep will reach out to confirm your installation.';
 
 // 32-char no-confusable alphabet (no 0/O, 1/I/L) — same as portal.js / remote-signing.js.
@@ -127,7 +159,15 @@ exports.createDealAcceptToken = onCall(
     VALID_TIERS.forEach((t) => { tierPrices[t] = Number(tiers[t] && tiers[t].price) || 0; });
 
     const now = Date.now();
-    const ttlDays = 14;
+    // Link life is a company setting since 2026-10-03
+    // (companyProfile/{tenant}.salesLinks.dealLinkDays, 1–90, default still
+    // 14): stuck leads median 46 days in an estimate stage, so a 14-day link
+    // was usually dead by the time the homeowner came back to it.
+    let ttlDays = ESL.DEAL_LINK_DEFAULT_DAYS;
+    try {
+      const cp = await db.doc(`companyProfile/${deal.companyId || deal.userId}`).get();
+      ttlDays = ESL.dealLinkDays(cp.exists ? cp.data() : null);
+    } catch (e) { logger.warn('[createDealAcceptToken] link-days read failed', { msg: e && e.message }); }
     const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
     const token = mintToken();
 
@@ -145,8 +185,16 @@ exports.createDealAcceptToken = onCall(
       expiresAt,
     });
 
-    logger.info('[createDealAcceptToken] minted', { dealId });
-    return { token, acceptUrl: DEAL_URL_BASE + token, expiresAt: expiresAt.toMillis() };
+    logger.info('[createDealAcceptToken] minted', { dealId, ttlDays });
+    // integrations/sms.a2pApproved (default false): while the Twilio number is
+    // not A2P-registered a server text is accepted and never delivered, so the
+    // Close Board sends the link from Jo's own phone instead (close-board.js).
+    let a2pApproved = false;
+    try {
+      const s = await db.doc('integrations/sms').get();
+      a2pApproved = ESL.smsA2pApproved(s.exists ? s.data() : null);
+    } catch (_) { /* default: phone */ }
+    return { token, acceptUrl: DEAL_URL_BASE + token, expiresAt: expiresAt.toMillis(), ttlDays, a2pApproved };
   }
 );
 
@@ -250,6 +298,9 @@ exports.getDealRoom = onRequest(
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')
       .set('Cache-Control', 'no-store')
+      .set('Content-Security-Policy', DEAL_ROOM_CSP)
+      .set('X-Content-Type-Options', 'nosniff')
+      .set('Referrer-Policy', 'no-referrer')
       .send(html);
   }
 );
@@ -393,7 +444,12 @@ exports.submitDealAcceptance = onRequest(
     // deal-install-date.js has the rule and why.
     const leadFill = await fillLeadInstallDate(db, info, scheduledDate, { logger });
 
-    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill });
+    // Job spine (2026-10-03): the homeowner accepted and signed → the job
+    // moves to Contract Signed (Service Approved on a repair), forward only.
+    // Once per deal; never throws — the acceptance is already committed.
+    const spine = await spineAfterDealAccept(db, info, tier);
+
+    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill, stageMoved: !!(spine && spine.moved) });
     res.status(200).json({ ok: true });
   }
 );
@@ -407,23 +463,30 @@ module.exports = exports;
 // ═══════════════════════════════════════════════════════════════
 async function notifyDealView(db, tok, room) {
   const now = Date.now();
-  if (!DV.shouldNotifyView(room, now)) return;
   const ownerUid = tok.ownerUid || room.userId;
-  if (!ownerUid) return;
+  const leadId = tok.leadId || room.leadId || null;
   // Claim the heads-up first so two near-simultaneous opens send one.
   const ref = db.doc(`deal_rooms/${tok.dealId}`);
-  const claimed = await db.runTransaction(async (tx) => {
+  const claimed = (ownerUid && DV.shouldNotifyView(room, now)) ? await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists || !DV.shouldNotifyView(snap.data() || {}, now)) return null;
     tx.update(ref, { lastViewNotifiedAt: FieldValue.serverTimestamp() });
     return snap.data() || {};
-  });
+  }) : null;
+  const viewNumber = (Number((claimed || room).viewCount) || 0) + 1;
+  const msg = DV.viewMessage((claimed || room).customerName || room.customerName, viewNumber, (claimed || room).readSeconds);
+  // 2026-10-03: ONE "they opened it" alert per lead (estimate_viewed), shared
+  // with the portal, the Send-for-review link and remote signing, throttled
+  // to once per lead per 6h — and every real open stamps lead.lastViewedAt,
+  // claimed or not. A deal with no lead falls through to the bell below.
+  if (leadId) {
+    await EVA.recordEstimateView(db, { leadId, ownerUid, source: 'deal_room', title: msg.title, body: msg.body, alert: !!claimed });
+    return;
+  }
   if (!claimed) return;
-  const viewNumber = (Number(claimed.viewCount) || 0) + 1;
-  const msg = DV.viewMessage(claimed.customerName || room.customerName, viewNumber, claimed.readSeconds);
   await db.collection('notifications').add({
     userId: ownerUid,
-    type: 'deal_viewed',
+    type: 'estimate_viewed',
     leadId: tok.leadId || claimed.leadId || null,
     title: msg.title,
     message: msg.body,
@@ -433,7 +496,7 @@ async function notifyDealView(db, tok, room) {
   });
   try {
     const push = require('./push-functions');
-    await push.sendCustomNotification(ownerUid, msg.title, msg.body, { type: 'deal_viewed', leadId: String(tok.leadId || claimed.leadId || '') });
+    await push.sendCustomNotification(ownerUid, msg.title, msg.body, { type: 'estimate_viewed', leadId: '' });
   } catch (e) { logger.warn('[dealView] push failed', { msg: e && e.message }); }
 }
 

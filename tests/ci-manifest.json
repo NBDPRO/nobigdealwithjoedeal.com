@@ -30,6 +30,8 @@
     "analytics-stage-labels-2026-09-28.test.js",
     "events-not-open-tasks-2026-09-28.test.js",
     "stripe-payoff-advance-guard-2026-09-28.test.js",
+    "job-spine-2026-10-03.test.js",
+    "deposit-draft-2026-10-03.test.js",
     "bulk-carrier-field-2026-09-28.test.js",
     "bulk-move-honest-count-2026-09-28.test.js",
     "settings-deep-link-tab-2026-09-28.test.js",
@@ -40,6 +42,7 @@
     "lead-deep-link-2026-09-28.test.js",
     "deal-room-sibling-links-2026-09-28.test.js",
     "deal-room-views-2026-10-02.test.js",
+    "estimate-send-track-2026-10-03.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
     "customer-photo-fetch-unification-2026-09-17.test.js",
@@ -176,6 +179,7 @@
     "call-center-notes-2026-10-01.test.js",
     "five-tier-crm-2026-10-02.test.js",
     "estimate-v3-wizard-2026-10-02.test.js",
+    "close-flow-2026-10-03.test.js",
     "materials-list-2026-10-02.test.js",
     "dol-suggested-badge-2026-10-02.test.js",
     "dol-fill-2026-10-02.test.js",
@@ -195,6 +199,7 @@
     "text-notes-2026-10-01.test.js",
     "call-center-sweep-2026-10-01.test.js",
     "call-center-action-2026-10-01.test.js",
+    "call-center-matching-2026-10-03.test.js",
     "month-close-2026-10-01.test.js",
     "kanban-board-logic-2026-10-01.test.js",
     "clarity-2026-10-01.test.js",
@@ -339,7 +344,9 @@
     "check-js-syntax.test.js",
     "bounded-live-listeners-2026-10-03.test.js",
     "faq-schema-sync-2026-10-03.test.js",
-    "site-round2-2026-10-03.test.js"
+    "site-round2-2026-10-03.test.js",
+    "security-batch-2026-10-03.test.js",
+    "stage-actor-no-next-step-2026-10-03.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

@@ -369,6 +369,14 @@ Object.assign(exports, esignEnvelopeFunctions);
 const dealAcceptanceFunctions = require('./deal-acceptance');
 Object.assign(exports, dealAcceptanceFunctions);
 
+// Send for review / record the share / Fresh link (2026-10-03): the CRM mints
+// the tracked link for an attached estimate PDF and Jo sends it from his own
+// phone (share sheet). Nothing here texts or emails. See functions/estimate-send.js.
+const estimateSend = require('./estimate-send');
+exports.createEstimateReviewLink = estimateSend.createEstimateReviewLink;
+exports.recordEstimateShared = estimateSend.recordEstimateShared;
+exports.freshEstimateLink = estimateSend.freshEstimateLink;
+
 // NBD CRM connection for the Grok Bot team (2026-10-02): MCP at /api/mcp with
 // per-bot keys; bots read minimized CRM data and FILE notes / reminders /
 // reports into the Agent inbox. See functions/agent-mcp.js.
@@ -732,6 +740,9 @@ exports.callCenterAction = require('./call-center').callCenterAction;
 // The Call Center "Said you'd do" deck: every open item the sweep email is
 // built from, uncapped (owner / platform admin only).
 exports.callPromisesList = require('./call-center').callPromisesList;
+// "Match my tagged contacts": preview calls to "NBD Customer" phone contacts
+// on no lead, then file only the rows the owner confirms (owner/admin only).
+exports.callTaggedMatch = require('./call-center').callTaggedMatch;
 // Optional game card (2026-10-03): level, XP and this week vs last week,
 // derived on request from the caller's own records — nothing stored.
 exports.getGameCard = require('./game').getGameCard;

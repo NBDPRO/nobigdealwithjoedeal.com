@@ -56,6 +56,7 @@ const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 // duplicated copy was first flagged.
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { applyRepReplyEffects } = require('./portal-reply-effects');
+const EVA = require('./estimate-view-alert');
 const { reencodePhoto } = require('./photo-reencode');
 // Customer-safe line items for the shared-estimate view. This is a byte-copy
 // of docs/pro/js/customer-estimate-rows.js (Functions deploys only functions/;
@@ -63,6 +64,7 @@ const { reencodePhoto } = require('./photo-reencode');
 // stay identical). NEVER emit est.rows raw — pre-sweep V2 rows carry the
 // contractor's COST basis.
 const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
+const { isOwedInvoice } = require('./invoice-owed');
 // The estimate's deposit-rule stamp, validated + whitelisted (2026-09-25).
 const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
@@ -999,6 +1001,10 @@ exports.getHomeownerPortalView = onRequest(
     const _unpaidInvoice = invSnap.docs
       .map(d => d.data())
       .filter(inv => recordInPortalTenant(inv, ['createdBy'], tenant))
+      // A draft (incl. the server's draft deposit invoice, 2026-10-03) was
+      // never sent — showing it here would bill the homeowner before Jo
+      // taps Send. Void / cancelled / deleted are not owed either.
+      .filter(inv => isOwedInvoice(inv))
       .filter(inv => Number(inv.balanceDue) > 0)
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))[0] || null;
     const _balance = _unpaidInvoice ? {
@@ -1194,6 +1200,14 @@ exports.getHomeownerPortalView = onRequest(
     // no new query, no new subscription.
     if (!isPoll) {
       db.doc(`leads/${tok.leadId}`).update({ lastPortalOpenAt: FieldValue.serverTimestamp() }).catch(() => {});
+      // 2026-10-03: also stamp lead.lastViewedAt and — when Jo has sent this
+      // homeowner something (lastSharedAt / sharedDocId) — the ONE
+      // estimate_viewed alert, throttled per lead per 6h across every open
+      // path (functions/estimate-view-alert.js). Fire-and-forget.
+      EVA.recordEstimateView(db, {
+        leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'portal',
+        alert: !!(lead.sharedDocId || lead.lastSharedAt),
+      }).catch(() => {});
     }
 
     res.status(200).json(view);

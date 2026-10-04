@@ -2162,7 +2162,14 @@ async function moveCard(id, newStage, opts){
   // the move.
   let lostReason = null;
   const isLostMove = /^lost$/i.test(String(newStage || ''));
-  if (isLostMove && !lead.lostReason) {
+  // opts.lostReason: a caller that already asked (a bulk "mark lost — no
+  // contact info" after ONE confirm, no-next-step.js) supplies the reason so
+  // N leads don't open N sheets.
+  const _givenLostReason = (opts && typeof opts.lostReason === 'string' && opts.lostReason.trim())
+    ? opts.lostReason.trim().slice(0, 300) : null;
+  if (isLostMove && !lead.lostReason && _givenLostReason) {
+    lostReason = _givenLostReason;
+  } else if (isLostMove && !lead.lostReason) {
     lostReason = await promptLostReason(lead);
     if (lostReason === false) {
       // User canceled the prompt — do NOT move the card

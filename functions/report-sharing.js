@@ -55,6 +55,9 @@ const { getStorage } = require('firebase-admin/storage');
 const { defineSecret } = require('firebase-functions/params');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
+const ESL = require('./estimate-send-logic');
+const EVA = require('./estimate-view-alert');
+const DV = require('./deal-view-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -100,6 +103,26 @@ const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 // A rendered PDF lives at pdf-renders/{uid}/{ts}-{filename} (render-pdf.js:588).
 // Nothing else in the bucket is shareable through this function.
 const RENDER_PATH_RE = /^pdf-renders\/[A-Za-z0-9_-]{1,128}\/[^/\\]{1,240}$/;
+
+// A saved report's HTML is TENANT-AUTHORED (reports/{id}.html is written by
+// the rep's client) and served on the main domain at /report/<token>. Both
+// report generators emit static HTML — no script, no handlers — so the page
+// is served SANDBOXED (security batch 2026-10-03): an opaque origin with no
+// scripts, forms, popups or top navigation, so a crafted report can neither
+// run the site's own JS on our origin nor post a fake login form. Images and
+// styles still load; this is enforced on top of the site-wide Hosting CSP.
+const SHARED_REPORT_CSP = [
+  'sandbox',
+  "default-src 'none'",
+  "img-src 'self' data: blob: https:",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "media-src 'self' blob: https:",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join('; ');
 
 // ── Subject resolvers ────────────────────────────────────────────
 // Each returns the common descriptor the mint path writes into the token doc,
@@ -492,7 +515,22 @@ exports.getSharedReport = onRequest(
     // the objects to be client-readable.
     if (tok.kind === 'lead_document') {
       const path = typeof tok.storagePath === 'string' ? tok.storagePath : '';
-      if (!RENDER_PATH_RE.test(path)) { errPage(404, 'This report is no longer available.'); return; }
+      // A render (pdf-renders/) or, since 2026-10-03, an estimate PDF Jo
+      // attached and sent for review (docs/{owner}/{leadId}_… upload or a
+      // documents/{uid}/{leadId}/… filed PDF) — still pinned to the TOKEN's
+      // lead. estimate-send-logic.js isServableLeadDocPath.
+      if (!RENDER_PATH_RE.test(path) && !ESL.isServableLeadDocPath(path, tok.leadId)) {
+        errPage(404, 'This report is no longer available.'); return;
+      }
+      // "They opened it" (2026-10-03): stamp lead.lastViewedAt + the ONE
+      // estimate_viewed alert, throttled per lead per 6h. A link preview
+      // (iMessage fetches the link the moment Jo texts it) is not an open.
+      if (tok.leadId && !DV.isPreviewBot(req.get('user-agent'))) {
+        EVA.recordEstimateView(db, {
+          leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'review_link',
+          what: tok.docLabel || tok.filename || '',
+        }).catch(() => {});
+      }
       let file, meta;
       try {
         file = getStorage().bucket().file(path);
@@ -542,6 +580,9 @@ exports.getSharedReport = onRequest(
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')
       .set('Cache-Control', 'no-store')
+      .set('Content-Security-Policy', SHARED_REPORT_CSP)
+      .set('X-Content-Type-Options', 'nosniff')
+      .set('Referrer-Policy', 'no-referrer')
       .send(html);
   }
 );

@@ -106,6 +106,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         body: a.body || a.text || (a.html ? toMailtoBody(a.html) : ''),
         html: a.html || null,
         leadId: a.leadId || null,
+        invoiceId: a.invoiceId || null,
         replyTo: a.replyTo || null,
         forceHandoff: !!a.forceHandoff,
         kind: typeof a.kind === 'string' ? a.kind : null,
@@ -117,6 +118,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       body: c || '',
       html: (d && d.html) || null,
       leadId: (d && d.leadId) || null,
+      invoiceId: (d && d.invoiceId) || null,
       replyTo: (d && d.replyTo) || null,
       forceHandoff: !!(d && d.forceHandoff),
       kind: (d && typeof d.kind === 'string') ? d.kind : null,
@@ -410,7 +412,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
      * @returns {Promise<{success:boolean, mode:string, id?:string, error?:string}>}
      */
     async sendEmail() {
-      const { to, subject, body, html, leadId, replyTo, forceHandoff, kind } = normalizeEmailArgs.apply(null, arguments);
+      const { to, subject, body, html, leadId, invoiceId, replyTo, forceHandoff, kind } = normalizeEmailArgs.apply(null, arguments);
       if (!to) {
         const msg = 'No recipient — add an email to the customer record first.';
         if (window.showToast) window.showToast(msg, 'error');
@@ -434,6 +436,9 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
           html: html || undefined,
           replyTo: replyTo || undefined,
           leadId: leadId || undefined,
+          // The server sends only to an address on a record the caller can
+          // open (lead and/or invoice) — security batch 2026-10-03.
+          invoiceId: invoiceId || undefined,
           // What this email IS (see header). Omitted = commercial.
           kind: kind || undefined,
         });

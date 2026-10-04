@@ -106,6 +106,15 @@ async function openWizard(page, arg) {
   await page.waitForTimeout(300);
 }
 
+// Opened from a lead with a name + address on file, the wizard skips the
+// Customer step (2026-10-03) — prove that, then go Back to it so the walk
+// below still covers every step from the start.
+async function backToCustomerFromSkip(page) {
+  await expect(page.locator('#estV2Modal .v3-title'), 'a prefilled lead skips Customer').toHaveText('Measure');
+  await page.locator('#estV2Modal .v3-back').tap();
+  await expect(page.locator('#estV2Modal .v3-title')).toHaveText('Customer & job');
+}
+
 // Host toasts are transient and sit above every overlay by design; clear them
 // before hit-testing (same rule as phone-estbuilder.spec.js).
 async function reachable(locator) {
@@ -189,6 +198,7 @@ test.describe('phone V3 wizard: installed iPhone app @shard2', () => {
     expect(lead && lead.id, 'a seeded customer').toBeTruthy();
     expect(await forceStandalone(page), 'found the standalone rules to force').toBeGreaterThan(200);
     await openWizard(page, { leadId: lead.id });
+    await backToCustomerFromSkip(page);
 
     const titles = ['Customer & job', 'Measure', 'Roof lines', 'Roof details', 'Penetrations & flashing', 'Package', 'Shingle & add-ons', 'Insurance claim', 'Photos', 'Review', 'Finish'];
     const total = titles.length;
@@ -299,10 +309,13 @@ test.describe('phone V3 wizard: installed iPhone app @shard2', () => {
       await tapNext(page);
     });
     let shown = 0;
-    await test.step('11 Finish — no Next; Save is reachable and saves', async () => {
+    await test.step('11 Finish — no Next; Save (under More) is reachable and saves', async () => {
       await checkStep(page, titles[10], 11, total);
       await expect(page.locator('#estV2Modal .v3-next')).toBeHidden();
       shown = money(await page.locator('#estV2Modal .v3-bar-val').textContent());
+      // One primary on Finish (2026-10-03): Save sits under More.
+      await expect(page.locator('#v2saveBtn'), 'Save is tucked under More').toBeHidden();
+      await page.locator('#estV2Modal .v3-more').tap();
       const save = page.locator('#v2saveBtn');
       await save.scrollIntoViewIfNeeded();
       expect(await reachable(save), 'Save is not covered').toBe(true);
@@ -331,6 +344,7 @@ test.describe('phone V3 wizard: installed iPhone app @shard2', () => {
     const lead = await seedLead(page);
     expect(await forceStandalone(page)).toBeGreaterThan(200);
     await openWizard(page, { leadId: lead.id });
+    await backToCustomerFromSkip(page);
     await page.locator('#v2jobCash').tap();
     await expect(page.locator('#v2jobCash')).toHaveClass(/active/);
     await tapNext(page);
@@ -361,6 +375,7 @@ test.describe('phone V3 wizard: installed iPhone app @shard2', () => {
     const lead = await seedLead(page);
     expect(await forceStandalone(page)).toBeGreaterThan(200);
     await openWizard(page, { leadId: lead.id });
+    await backToCustomerFromSkip(page);
 
     await page.locator('#v2jobCash').tap();
     await expect(page.locator('#v2jobCash')).toHaveClass(/active/);

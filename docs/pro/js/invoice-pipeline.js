@@ -48,6 +48,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // UTILITIES
   // ═══════════════════════════════════════════════════════════════════════
 
+  // nbd:invoice-customer-name:start — byte-identical in
+  // functions/invoice-from-estimate.js (the server's draft deposit invoice,
+  // 2026-10-03), pinned by tests/deposit-draft-2026-10-03.test.js.
   // ── Customer name for "Bill To" (phone audit 2026-09-25, estimate#9) ────
   // createInvoiceFromEstimate read `est.customerName || lead.name`, and
   // NEITHER field is ever written: no estimate writer stamps customerName
@@ -71,6 +74,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     est = est || {};
     return _cleanName(est.customerName) || leadDisplayName(lead) || _cleanName(est.owner);
   }
+  // nbd:invoice-customer-name:end
   // Render-time fallback for invoices ALREADY saved with a blank name (every
   // one made before the fix above): resolve the linked lead from the page's
   // lead cache so their Bill To and list row show the homeowner, not a
@@ -82,6 +86,16 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const leads = (typeof window !== 'undefined' && Array.isArray(window._leads)) ? window._leads : [];
     const lead = inv.leadId ? leads.find(l => l && l.id === inv.leadId) : null;
     return leadDisplayName(lead);
+  }
+
+  // The DRAFT deposit invoice the server makes when a contract is signed
+  // (functions/deposit-draft.js, Jo 2026-10-03). Nothing sends it but the
+  // rep's own Send tap; this chip says so wherever the invoice is shown.
+  function isDepositDraft(inv) {
+    return !!(inv && inv.status === 'draft' && inv.autoDraft && inv.autoDraft.kind === 'deposit_on_sign');
+  }
+  function depositDraftChipHtml(inv) {
+    return isDepositDraft(inv) ? '<span class="ipx-draft-chip" data-deposit-draft>Draft deposit — review &amp; send</span>' : '';
   }
 
   /**
@@ -694,6 +708,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * DISPLAY STRINGS ('20.00 SQ', '$595/SQ', '1 EA'), so a bare
    * parseFloat('$595/SQ') is NaN and dropped unit prices to $0 on the invoice.
    */
+  // nbd:invoice-from-estimate:start — how an estimate becomes invoice lines
+  // and totals. Byte-identical in functions/invoice-from-estimate.js, which
+  // the server's draft deposit invoice (functions/deposit-draft.js,
+  // 2026-10-03) builds from, so a server draft and a rep-made invoice for the
+  // same estimate carry the same lines and the same total.
+  // tests/deposit-draft-2026-10-03.test.js pins the two copies.
   function numFrom(v) {
     if (typeof v === 'number') return v;
     const m = String(v == null ? '' : v).match(/-?\d[\d,]*\.?\d*/);
@@ -774,6 +794,98 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   /**
+   * An estimate's invoice lines and totals, BEFORE supplements and the
+   * deposit (createInvoiceFromEstimate folds those in after). Was inline in
+   * createInvoiceFromEstimate; moved here unchanged so the server draft
+   * (functions/deposit-draft.js) reuses it instead of a second copy.
+   *   opts.estimateValue(est) — the two-shape total reader
+   *     (NBDCustomerEstimateRows.estimateValue); absent → grandTotal/total/amount
+   *   opts.tierLabel(key)     — customer-facing tier name
+   *     (NBD_ESTIMATE_CONFIG.tierLabel); absent → the built-in names
+   * → { items, subtotal, tax, taxRate, total }
+   */
+  function invoiceTotalsFromEstimate(est, opts) {
+    est = est || {};
+    opts = opts || {};
+    // Audit #3 F-3: inherit the tax rate the estimate was priced at (insurance
+    // scope skips tax → 0 honored; fall back to 7.5% only when no rate saved).
+    const taxRate = (typeof est.taxRate === 'number') ? est.taxRate : 0.075;
+
+    // Two-shape read, not grandTotal alone. Classic estimates (title /
+    // amount|total / lineItems) carry no grandTotal, so this scored NaN,
+    // hasLockedTotal went false, and buildRowItems — which mapped est.rows
+    // only — returned []. Every downstream number then computed 0 and a
+    // `total: 0` invoice was written to Firestore before Stripe rejected it,
+    // leaving an orphan $0 draft in the AR rollups. The picker that chose the
+    // estimate had shown the right figure all along; it uses estimateValue.
+    const savedGrand = (typeof opts.estimateValue === 'function')
+      ? opts.estimateValue(est)
+      : numFrom(est.grandTotal != null ? est.grandTotal
+          : est.total != null ? est.total : est.amount);
+    const hasLockedTotal = Number.isFinite(savedGrand) && savedGrand > 0;
+    const isPerSq = (est.priceMode === 'per-sq') || (est.prices != null);
+
+    let items, subtotal, tax, total;
+    if (isPerSq && hasLockedTotal) {
+      // PER-SQ V2: the customer price is the LOCKED selected-tier grandTotal,
+      // not the internal cost-basis rows. Invoice it as a single summary line
+      // so the invoice total == the signed quote.
+      total = savedGrand;
+      subtotal = taxRate > 0 ? (total / (1 + taxRate)) : total;
+      tax = total - subtotal;
+      subtotal = Math.round(subtotal * 100) / 100;
+      tax = Math.round(tax * 100) / 100;
+      // Customer-facing name (Economy/Standard/Preferred/Elite/Beyond) from
+      // the shared config — the invoice printed the raw key ("Good tier").
+      const _tierKey = String(est.selectedTier || est.tier || '');
+      const tierLabel = (typeof opts.tierLabel === 'function')
+        ? opts.tierLabel(_tierKey)
+        : (({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[_tierKey]
+          || _tierKey.replace(/^./, c => c.toUpperCase()));
+      items = [{
+        description: 'Roofing system' + (tierLabel ? ' — ' + tierLabel + ' tier' : ''),
+        quantity: 1,
+        unitPrice: subtotal,
+        total: subtotal
+      }];
+    } else {
+      // Row-based (classic builder + V2 line-item/insurance). Line items map
+      // at the CUSTOMER price — incl. the retail derivation for older V2 docs
+      // that persisted the cost basis, and the O&P line that makes the items
+      // foot to the subtotal — in buildRowItems (pure, unit-tested).
+      items = buildRowItems(est);
+      if (hasLockedTotal) {
+        // Trust the estimate's saved locked totals — the signed quote bakes in
+        // the job-minimum floor + nearest-$25 rounding that a naive row-sum
+        // recompute would drop, making the invoice disagree with the quote.
+        total = savedGrand;
+        const savedSub = Number(est.subtotal);
+        // Classic builder saves `taxAmount`; V2 (estimate-v2-ui.js) saves the
+        // SAME value under `tax` instead — a field-naming mismatch, not a
+        // missing value. Reading only `taxAmount` made every V2 doc read NaN
+        // here and fall through to `total - subtotal`, which is real tax ONLY
+        // for a non-insurance job; for insurance (taxRate 0, true tax exactly
+        // $0) that fallback instead measures the nearest-$25 ROUNDING NOISE
+        // baked into `total` — negative about half the time (round-down),
+        // and a fabricated positive "tax" on a tax-exempt invoice the other
+        // half (round-up). `??` (not `||`) so an explicit 0 is trusted, not
+        // treated as missing.
+        const savedTax = Number(est.taxAmount ?? est.tax);
+        subtotal = Number.isFinite(savedSub) ? savedSub : (taxRate > 0 ? total / (1 + taxRate) : total);
+        tax = Number.isFinite(savedTax) ? savedTax : (total - subtotal);
+        subtotal = Math.round(subtotal * 100) / 100;
+        tax = Math.round(tax * 100) / 100;
+      } else {
+        subtotal = items.reduce((sum, item) => sum + item.total, 0);
+        tax = subtotal * taxRate;
+        total = subtotal + tax;
+      }
+    }
+    return { items, subtotal, tax, taxRate, total };
+  }
+  // nbd:invoice-from-estimate:end
+
+  /**
    * Load this user's supplements for a parent estimate.
    *
    * Query: where('parentEstimateId','==',id) + where('userId','==',uid) on the
@@ -833,83 +945,18 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
       const est = estSnap.exists() ? estSnap.data() : window._estimates?.find(e => e.id === estimateId);
 
-      // Build invoice from estimate
-      // Audit #3 F-3: inherit the tax rate the estimate was priced at (insurance
-      // scope skips tax → 0 honored; fall back to 7.5% only when no rate saved).
-      const taxRate = (typeof est.taxRate === 'number') ? est.taxRate : 0.075;
-
-      // Two-shape read, not grandTotal alone. Classic estimates (title /
-      // amount|total / lineItems) carry no grandTotal, so this scored NaN,
-      // hasLockedTotal went false, and buildRowItems — which mapped est.rows
-      // only — returned []. Every downstream number then computed 0 and a
-      // `total: 0` invoice was written to Firestore before Stripe rejected it,
-      // leaving an orphan $0 draft in the AR rollups. The picker that chose the
-      // estimate had shown the right figure all along; it uses estimateValue.
+      // Build invoice from estimate — invoiceTotalsFromEstimate (above, shared
+      // with the server draft deposit invoice) holds the per-SQ / row-based
+      // totals that used to be inline here, unchanged.
       const _rowsApi = window.NBDCustomerEstimateRows;
-      const savedGrand = (_rowsApi && typeof _rowsApi.estimateValue === 'function')
-        ? _rowsApi.estimateValue(est)
-        : numFrom(est.grandTotal != null ? est.grandTotal
-            : est.total != null ? est.total : est.amount);
-      const hasLockedTotal = Number.isFinite(savedGrand) && savedGrand > 0;
-      const isPerSq = (est.priceMode === 'per-sq') || (est.prices != null);
+      const _icfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+      const _base = invoiceTotalsFromEstimate(est, {
+        estimateValue: (_rowsApi && typeof _rowsApi.estimateValue === 'function') ? _rowsApi.estimateValue : null,
+        tierLabel: (_icfg && typeof _icfg.tierLabel === 'function') ? _icfg.tierLabel : null
+      });
+      const taxRate = _base.taxRate;
+      let items = _base.items, subtotal = _base.subtotal, tax = _base.tax, total = _base.total;
 
-      let items, subtotal, tax, total;
-      if (isPerSq && hasLockedTotal) {
-        // PER-SQ V2: the customer price is the LOCKED selected-tier grandTotal,
-        // not the internal cost-basis rows. Invoice it as a single summary line
-        // so the invoice total == the signed quote.
-        total = savedGrand;
-        subtotal = taxRate > 0 ? (total / (1 + taxRate)) : total;
-        tax = total - subtotal;
-        subtotal = Math.round(subtotal * 100) / 100;
-        tax = Math.round(tax * 100) / 100;
-        // Customer-facing name (Economy/Standard/Preferred/Elite/Beyond) from
-        // the shared config — the invoice printed the raw key ("Good tier").
-        const _tierKey = String(est.selectedTier || est.tier || '');
-        const _icfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
-        const tierLabel = (_icfg && typeof _icfg.tierLabel === 'function')
-          ? _icfg.tierLabel(_tierKey)
-          : (({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[_tierKey]
-            || _tierKey.replace(/^./, c => c.toUpperCase()));
-        items = [{
-          description: 'Roofing system' + (tierLabel ? ' — ' + tierLabel + ' tier' : ''),
-          quantity: 1,
-          unitPrice: subtotal,
-          total: subtotal
-        }];
-      } else {
-        // Row-based (classic builder + V2 line-item/insurance). Line items map
-        // at the CUSTOMER price — incl. the retail derivation for older V2 docs
-        // that persisted the cost basis, and the O&P line that makes the items
-        // foot to the subtotal — in buildRowItems (pure, unit-tested).
-        items = buildRowItems(est);
-        if (hasLockedTotal) {
-          // Trust the estimate's saved locked totals — the signed quote bakes in
-          // the job-minimum floor + nearest-$25 rounding that a naive row-sum
-          // recompute would drop, making the invoice disagree with the quote.
-          total = savedGrand;
-          const savedSub = Number(est.subtotal);
-          // Classic builder saves `taxAmount`; V2 (estimate-v2-ui.js) saves the
-          // SAME value under `tax` instead — a field-naming mismatch, not a
-          // missing value. Reading only `taxAmount` made every V2 doc read NaN
-          // here and fall through to `total - subtotal`, which is real tax ONLY
-          // for a non-insurance job; for insurance (taxRate 0, true tax exactly
-          // $0) that fallback instead measures the nearest-$25 ROUNDING NOISE
-          // baked into `total` — negative about half the time (round-down),
-          // and a fabricated positive "tax" on a tax-exempt invoice the other
-          // half (round-up). `??` (not `||`) so an explicit 0 is trusted, not
-          // treated as missing.
-          const savedTax = Number(est.taxAmount ?? est.tax);
-          subtotal = Number.isFinite(savedSub) ? savedSub : (taxRate > 0 ? total / (1 + taxRate) : total);
-          tax = Number.isFinite(savedTax) ? savedTax : (total - subtotal);
-          subtotal = Math.round(subtotal * 100) / 100;
-          tax = Math.round(tax * 100) / 100;
-        } else {
-          subtotal = items.reduce((sum, item) => sum + item.total, 0);
-          tax = subtotal * taxRate;
-          total = subtotal + tax;
-        }
-      }
       // ── Fold in approved/partial insurance supplements ──────────────────
       // Supplements are newly-discovered scope the adjuster approved AFTER the
       // estimate was priced. They live in their own `supplements` collection
@@ -1396,6 +1443,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             subject: `Invoice ${invoiceId} from ${_invoiceCompany()}`,
             html: invoiceHtml,
             leadId: invoice.leadId || null,
+            invoiceId: invoiceId, // the server checks `to` against invoice.customerEmail
             kind: 'invoice', // transactional: never blocked by an email unsubscribe
           });
           if (!emailResult || emailResult.success === false) {
@@ -1588,49 +1636,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         }
       }
 
-      // If fully paid, advance lead stage. Post-crm-stages migration the
-      // canonical key for this transition is 'contract_signed' (the legacy
-      // display name 'Approved' maps to S.CONTRACT_SIGNED via LEGACY_MAP in
-      // crm-stages.js). v159.4 swept most legacy writes; this one was
-      // missed. Writing the canonical key keeps the Firestore doc in sync
-      // with the schema instead of relying on normalizeStage() at read time.
-      // ONLY forward: a lead already at Contract Signed or beyond (a job, or
-      // Closed/won) must not move. This ran unconditionally, so paying the
-      // final invoice on a Closed job dragged it BACK to Contract Signed —
-      // out of won revenue and onto the board as an active contract.
-      let _advance = false;
-      let _advFrom = null, _advJobType = null;
-      if (newBalanceDue === 0 && invoice.leadId) {
-        let _lead = (window._leads || []).find(l => l && l.id === invoice.leadId) || null;
-        if (!_lead) {
-          try { const ls = await window.getDoc(window.doc(db, 'leads', invoice.leadId)); if (ls.exists()) _lead = ls.data(); } catch (_) {}
-        }
-        const _k = (_lead && (_lead._stageKey || _lead.stage)) || 'new';
-        const _role = (_lead && _lead._stageRole) || (typeof window.stageRole === 'function' ? window.stageRole(_k) : null);
-        const _isJob = typeof window.isJobStage === 'function' ? window.isJobStage(_k) : false;
-        _advance = _k !== 'contract_signed' && !_isJob && (_role === 'new' || _role === 'active');
-        _advFrom = (_lead && _lead.stage) || null;
-        _advJobType = (_lead && _lead.jobType) || null;
-      }
-      if (_advance) {
-        // Through stage-write.js's commitStageChange, like every other stage
-        // move (CRM sweep R14, 2026-09-28). This was a plain updateDoc: no
-        // stageStartedAt (days-in-stage, bottleneck, the dormant-lead nudge
-        // kept counting from the OLD stage), no stageHistory, no timeline
-        // note, no stage-entry task / drip — emulator: a paid-off lead sat in
-        // Contract Signed with an empty history. commitStageChange also stamps
-        // stageRole and is race-guarded. The payment is already recorded, so
-        // a failed advance warns instead of failing the payment.
-        try {
-          const { commitStageChange } = await import('./stage-write.js');
-          await commitStageChange(invoice.leadId, 'contract_signed', _advFrom, { jobType: _advJobType });
-        } catch (advErr) {
-          const m = advErr && advErr.message;
-          if (m !== 'STAGE_RACE_NOOP' && m !== 'STAGE_RACE_LOST') {
-            console.warn('markPaid: stage advance to Contract Signed failed', m);
-          }
-        }
-      }
+      // No stage write here any more (job spine, 2026-10-03). This payment
+      // lands on the invoice doc, and the server's invoice trigger
+      // (functions/money-paper.js moneyPaperOnInvoice → job-spine.js) moves
+      // the lead: paid in full → Final Payment, a deposit → Contract Signed,
+      // forward only, with history, timeline note and stage-entry task. It
+      // used to advance only a New/Active lead to Contract Signed from here
+      // while a card payoff (stripe.js) went to Final Payment — the same
+      // payoff landed the card in two places depending on how it was paid.
 
       // Send receipt
       if (window.NBDComms?.sendEmail && invoice.customerEmail) {
@@ -1639,6 +1652,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           subject: `Payment Received - ${_invoiceCompany()} Invoice ${invoiceId}`,
           html: `<p>Thank you! We received your payment of ${formatCurrency(amount)}.</p><p>Your invoice is now ${newBalanceDue === 0 ? 'fully paid' : 'partially paid'}.</p>`,
           leadId: invoice.leadId || null,
+          invoiceId: invoiceId,
           kind: 'receipt', // transactional: payment confirmation
         });
       }
@@ -1699,6 +1713,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               <div class="ipx-flex1">
                 <div class="ipx-b ipx-fs12">${formatCurrency(inv.total)}</div>
                 <div class="ipx-m11">${statusTxt}</div>
+                ${depositDraftChipHtml(inv)}
                 ${stripeSourceHtml(inv)}
               </div>
               <div class="ipx-row6">
@@ -1787,6 +1802,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             <div>
               <div class="ipx-brand">${_esc(_invoiceBrandName())}</div>
               <div class="ipx-m12">Invoice ${_esc(invoiceId)}</div>
+              ${depositDraftChipHtml(inv)}
+              ${isDepositDraft(inv) ? '<div class="ipx-m12" data-deposit-draft-note>Made automatically when the contract was signed. Nothing has been sent — check it, then tap Send to Customer.</div>' : ''}
               ${stripeSourceHtml(inv)}
             </div>
             <div class="ipx-r">
@@ -1959,7 +1976,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         html += `
           <tr class="ipx-row">
             <td class="ipx-td10 ipx-fs12 ipx-b">${escHtml(inv.id.slice(0, 8))}</td>
-            <td class="ipx-td10 ipx-fs12">${escHtml(invoiceCustomerName(inv) || '—')}${inv.source === 'stripe' ? '<br>' + stripeSourceHtml(inv) : ''}</td>
+            <td class="ipx-td10 ipx-fs12">${escHtml(invoiceCustomerName(inv) || '—')}${isDepositDraft(inv) ? '<br>' + depositDraftChipHtml(inv) : ''}${inv.source === 'stripe' ? '<br>' + stripeSourceHtml(inv) : ''}</td>
             <td class="ipx-td10 ipx-r ipx-fs12 ipx-b">${formatCurrency(inv.total)}</td>
             <td class="ipx-td10 ipx-r ipx-fs12">${dueDate.toLocaleDateString()}</td>
             <td class="ipx-td10">
@@ -2673,6 +2690,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     markEmergencyUI,
     // Pure helpers, exported for unit tests
     // (tests/invoice-pipeline.test.js) — no DOM/Firestore dependency.
+    invoiceTotalsFromEstimate,
     isOwedInvoice,
     owedDollarsOf,
     supplementBillableAmount,
@@ -2682,6 +2700,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // Bill-To name resolution (estimate#9, 2026-09-25) — pure, unit-testable.
     resolveCustomerName,
     invoiceCustomerName,
+    isDepositDraft,
+    depositDraftChipHtml,
     // buildInvoiceHtml takes a plain invoice object and formatCurrency is a
     // local pure function — no DOM/Firestore dependency either, exported the
     // same way for the deposit/balance display regression test.

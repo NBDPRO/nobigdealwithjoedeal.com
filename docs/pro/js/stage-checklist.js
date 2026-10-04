@@ -39,10 +39,18 @@
     try {
       if (!leadId || !newStage) return;
 
-      // No "what's next" once the deal is decided.
+      // No "what's next" on a lost deal or a closed job. Every OTHER won
+      // stage does get its task (2026-10-03, job spine): won also covers
+      // Install Done / Final Photos / Deductible / Final Payment /
+      // Collections — the after-the-sale work (Close-Out Checklist, Final
+      // Invoice, Request Final Payment, Warranty Certificate, Close Job) that
+      // the old "skip every won stage" rule meant never became a task.
+      // Closed stays skipped: its preferred action is File Warranty Claim, a
+      // reaction to a problem, not a next step. functions/job-spine-logic.js
+      // stageGetsTask is the server twin of this rule.
+      if (String(newStage) === 'closed') return;
       if (typeof window.stageRole === 'function') {
-        const role = window.stageRole(newStage);
-        if (role === 'won' || role === 'lost') return;
+        if (window.stageRole(newStage) === 'lost') return;
       }
 
       if (typeof window.preferredActionFor !== 'function') return;
