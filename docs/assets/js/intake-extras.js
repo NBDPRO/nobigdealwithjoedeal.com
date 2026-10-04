@@ -6,7 +6,9 @@
  *
  *   NBDIntake.html(prefix, opts)     → markup for the block (static pages paste
  *                                      the same markup; JS-built forms call it)
- *   NBDIntake.read(root, prefix)     → { error } | { fields, files }
+ *   NBDIntake.read(root, prefix, o)  → { error } | { fields, files }
+ *                                      (o.optional: no scheduling choice is
+ *                                      fine — the /estimate thank-you screen)
  *   NBDIntake.afterSubmit(box, info) → uploads photos with the submission's
  *                                      one-time photoToken, then shows the
  *                                      calendar button (prefilled) when the
@@ -49,7 +51,7 @@
     const insurance = o.insurance !== false;
     return '' +
       '<fieldset class="nbd-intake-sched" id="' + p + 'Sched">' +
-        '<legend>How should we schedule? <span class="nbd-intake-req">*</span></legend>' +
+        '<legend>How should we schedule?' + (o.optional ? '' : ' <span class="nbd-intake-req">*</span>') + '</legend>' +
         (o.calUrl ? '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="calendar"> <span><b>Pick a date &amp; time now</b><small>The calendar opens right after you send this.</small></span></label>' : '') +
         '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="contact_me"> <span><b>Please contact me to coordinate scheduling</b><small>' + esc(o.who) + ' will call or text you to set a time.</small></span></label>' +
       '</fieldset>' +
@@ -66,10 +68,12 @@
 
   function valOf(root, id) { const e = root.querySelector('#' + id) || document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
 
-  /** Validate + collect. The scheduling choice is REQUIRED. */
-  function read(root, p) {
+  /** Validate + collect. The scheduling choice is REQUIRED unless opts.optional
+   *  (the /estimate thank-you screen, where every question is optional — the
+   *  lead was already sent on first name + phone). */
+  function read(root, p, opts) {
     const picked = root.querySelector('input[name="' + p + 'Scheduling"]:checked');
-    if (!picked) {
+    if (!picked && !(opts && opts.optional)) {
       const fs = root.querySelector('#' + p + 'Sched');
       // A microsite has no calendar option — don't offer one in the error.
       const hasCal = !!root.querySelector('input[name="' + p + 'Scheduling"][value="calendar"]');
@@ -78,7 +82,8 @@
     const input = root.querySelector('#' + p + 'Photos');
     const files = input && input.files ? [...input.files].filter((f) => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name)) : [];
     if (files.length > MAX_PHOTOS) return { error: 'Please choose up to ' + MAX_PHOTOS + ' photos.', el: input };
-    const fields = { scheduling: picked.value };
+    const fields = {};
+    if (picked) fields.scheduling = picked.value;
     const bt = valOf(root, p + 'BestTime'); if (bt) fields.bestTime = bt;
     const ins = valOf(root, p + 'Insurance'); if (ins) fields.insuranceClaim = ins;
     const hh = valOf(root, p + 'HowHeard'); if (hh) fields.howHeard = hh;
