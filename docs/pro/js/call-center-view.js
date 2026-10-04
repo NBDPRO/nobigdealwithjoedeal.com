@@ -109,10 +109,19 @@
 
   // THE rule lives in home-attention.js (callNeedsYou), shared with the Home
   // strip so the two never disagree. The fallback is only for a page without it.
+  // Who Jo has reached since a missed call (home-attention.js reachIndex),
+  // rebuilt whenever the call list is reloaded.
+  var reach = { rows: null, ctx: null };
+  function reachCtx() {
+    var HA = window.NBDHomeAttention;
+    if (!HA || typeof HA.reachIndex !== 'function') return null;
+    if (reach.rows !== state.calls) { reach.rows = state.calls; reach.ctx = HA.reachIndex(state.calls); }
+    return reach.ctx;
+  }
   function needsAttention(c) {
-    if (window.NBDHomeAttention && typeof window.NBDHomeAttention.callNeedsYou === 'function') return window.NBDHomeAttention.callNeedsYou(c, Date.now());
-    if (c.handledAtMs || c.status === 'personal') return false;
-    var mine = (c.promises || []).some(function (p) { return p && p.who === 'jo'; });
+    if (window.NBDHomeAttention && typeof window.NBDHomeAttention.callNeedsYou === 'function') return window.NBDHomeAttention.callNeedsYou(c, Date.now(), reachCtx());
+    if (c.handledAtMs || c.status === 'personal' || c.taskDone === true || c.callType === 'spam') return false;
+    var mine =(c.promises || []).some(function (p) { return p && p.who === 'jo'; });
     var dueNow = c.followUpDate && c.followUpDate <= todayYmd();
     return !!(mine || dueNow || c.urgent);
   }
@@ -184,6 +193,24 @@
     return hay.indexOf(q) !== -1 || (digits.length >= 3 && String(c.phoneDigits || '').indexOf(digits) !== -1);
   }
 
+  // Call / Text straight from a card (2026-10-03): the call's number, else
+  // the customer's. Plain tel: / sms: links — no handler needed.
+  function telOf(c, lead) {
+    var d = String((c && c.phoneDigits) || '').replace(/\D/g, '').slice(-10);
+    if (d.length !== 10 && lead) d = String(lead.phone || lead.altPhone || '').replace(/\D/g, '').slice(-10);
+    return d.length === 10 ? '+1' + d : '';
+  }
+  function reachButtons(c, lead) {
+    var t = telOf(c, lead);
+    if (!t) return '';
+    return '<a class="btn btn-ghost pc-play cc-reach" href="tel:' + t + '" data-cc-reach="call">📞 Call</a>' +
+      '<a class="btn btn-ghost pc-play cc-reach" href="sms:' + t + '" data-cc-reach="text">💬 Text</a>';
+  }
+  function reachMenu(c, lead) {
+    var t = telOf(c, lead);
+    return t ? [{ label: '📞 Call', href: 'tel:' + t }, { label: '💬 Text', href: 'sms:' + t }] : [];
+  }
+
   function chip(text, cls) { return '<span class="cc-chip ' + (cls || '') + '">' + esc(text) + '</span>'; }
 
   // A day of texts: who, how many messages, the AI notes, Handled.
@@ -197,7 +224,7 @@
       return '<li class="pc-promise pc-promise-' + (p.who === 'jo' ? 'jo' : 'them') + '"><span class="pc-promise-who">' + (p.who === 'jo' ? 'You' : 'They') + '</span> ' +
         esc(p.text) + (p.due ? ' <span class="pc-meta">by ' + esc(p.due) + '</span>' : '') + '</li>';
     }).join('') + '</ul>' : '';
-    var actions = '';
+    var actions = reachButtons(c, lead);
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
     return '<div class="panel pc-card cc-card cc-text' + (c.handledAtMs ? ' is-handled' : '') + '" data-call-id="' + esc(c.id) + '">' +
@@ -231,7 +258,7 @@
         esc(p.text) + (p.due ? ' <span class="pc-meta">by ' + esc(p.due) + '</span>' : '') + '</li>';
     }).join('') + '</ul>' : '';
     var busy = state.busy[c.id];
-    var actions = '';
+    var actions = reachButtons(c, lead);
     if (c.storagePath) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(c.id) + '">▶ Play</button>';
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
@@ -290,7 +317,7 @@
           '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div><div class="pc-meta pc-status" data-cc-status="' + esc(c.id) + '"></div>' : '') +
         '</li>';
     }).join('');
-    var actions = '';
+    var actions = reachButtons(latest, lead);
     // Filing goes through a CALL (texts are matched by the text ingest; the
     // server re-files the number's texts with it).
     var anchor = g.calls.filter(function (c) { return c.channel !== 'text'; })[0] || null;
@@ -340,7 +367,7 @@
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
       }).join('') + '</div></div>';
     var body;
-    if (state.loading && !state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
+    if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
     else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? 'Nothing needs you. Every call is handled or filed.' : 'No calls match.') + '</div>';
@@ -355,6 +382,7 @@
       (rows.length > 150 ? '<div class="cc-empty">Showing the newest 150. Search to narrow it down.</div>' : '');
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
     el.innerHTML = '<div class="cc-wrap">' + head + '<div class="cc-list">' + body + '</div></div>';
+    focusedCard();
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
   }
 
@@ -516,7 +544,8 @@
       left: { label: 'Later' },
       more: function (g) {
         var latest = g.calls[0];
-        return latest.leadId ? [{ label: 'Open customer ↗', href: '/pro/customer.html?id=' + encodeURIComponent(latest.leadId) }] : [];
+        var lead = latest.leadId ? leadsById()[latest.leadId] : null;
+        return reachMenu(latest, lead).concat(latest.leadId ? [{ label: 'Open customer ↗', href: '/pro/customer.html?id=' + encodeURIComponent(latest.leadId) }] : []);
       },
       doneText: 'Nothing needs you. Every call is handled or filed.',
       onClose: function () { render(); },
@@ -779,9 +808,55 @@
   });
 
   // Deep link from the email: ?open=promises[&item=<callId>].
+  // One call's card (2026-10-03): ?call=<callId> — the urgent push, callWatch
+  // with one person, the sweep email's names. Opens the tab the call shows
+  // on (Needs attention when it is still open, else All), scrolls its card
+  // into view and marks it (.cc-focus). Pure part exported for the test.
+  function focusTarget(calls, id, needs) {
+    var c = (calls || []).filter(function (x) { return x && x.id === id; })[0];
+    if (!c) return null;
+    return { call: c, filter: needs(c) ? 'attention' : 'all' };
+  }
+  // The opened card keeps its mark through later re-renders (render() calls this).
+  function focusedCard() {
+    if (!state.focusId) return null;
+    var row = document.querySelector('#view-calls [data-call-id="' + CSS.escape(state.focusId) + '"]');
+    var card = row && row.closest('.cc-card');
+    if (card) card.classList.add('cc-focus');
+    return card;
+  }
+  function focusCall(id) {
+    var tries = 0, refetch = 0;
+    (function wait() {
+      if (!state.loaded) { if (++tries <= 80) setTimeout(wait, 250); return; }
+      var t = focusTarget(state.calls, id, needsAttention);
+      // A cold-boot read can come back from the empty local cache (Firestore
+      // still connecting): read again a few times before giving up.
+      if (!t) {
+        if (++refetch <= 4) setTimeout(function () { load().then(wait); }, 1500);
+        return;
+      }
+      state.filter = t.filter; state.q = ''; state.focusId = id;
+      render();
+      var card = focusedCard();
+      if (!card) return;
+      try { card.scrollIntoView({ block: 'start' }); } catch (_) { card.scrollIntoView(); }
+    })();
+  }
+
   function deepLink() {
     var q;
     try { q = new URLSearchParams(window.location.search); } catch (_) { return; }
+    var callId = q.get('call') || '';
+    if (callId && /^[A-Za-z0-9_-]{5,140}$/.test(callId)) {
+      try {
+        q.delete('call');
+        var left = q.toString();
+        history.replaceState(null, '', window.location.pathname + (left ? '?' + left : '') + window.location.hash);
+      } catch (_) {}
+      focusCall(callId);
+      return;
+    }
     if (q.get('open') !== 'promises') return;
     var item = q.get('item') || '';
     try {
@@ -909,8 +984,21 @@
     render();
   });
 
+
+  // A cold start straight onto #/calls (a push, the email, a bookmark) runs
+  // init() before Firestore and the signed-in user exist: fetchFrom() then
+  // read nothing and the screen said "No calls yet". Wait for them (up to
+  // ~30 s) so a ?call= link lands on a loaded list.
+  var bootWait = 0;
+  function dataReady() { return !!(window.db && window._user && window._user.uid && window.query && window.getDocs); }
   async function load() {
     if (state.loading) return;
+    if (!dataReady() && bootWait < 120) {
+      bootWait++;
+      render();
+      setTimeout(load, 250);
+      return;
+    }
     state.loading = true; state.error = '';
     render();
     state.calls = await fetchCalls();
@@ -922,7 +1010,7 @@
     var b = e.target && e.target.closest ? e.target.closest('[data-cc]') : null;
     if (!b || !b.closest('#view-calls')) return;
     var a = b.getAttribute('data-cc'), id = b.getAttribute('data-id');
-    if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; render(); }
+    if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; state.focusId = null; render(); }
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
@@ -955,5 +1043,8 @@
     _promises: promises,
     _state: state,
     _needsAttention: needsAttention,
+    _focusTarget: focusTarget,
+    _telOf: telOf,
+    focusCall: focusCall,
   };
 })();

@@ -39,6 +39,12 @@ function injectCSS() {
 #nbd-conn-btn:active {
   transform:scale(.88);
 }
+/* Phones (2026-10-03): the button measured 31x19 — a dot and a 11px ↻ —
+   in a header where every neighbour is 40-44px. 44x44 like them; the
+   glyphs stay centred and the same size. */
+@media (max-width:768px), (pointer:coarse) {
+  #nbd-conn-btn { min-width:44px; min-height:44px; padding:0 4px; }
+}
 
 /* The dot indicator */
 .conn-dot {

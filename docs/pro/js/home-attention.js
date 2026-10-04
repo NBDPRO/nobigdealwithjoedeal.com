@@ -16,7 +16,8 @@
  * and is urgent, carries a promise Jo made, has a follow-up date that has
  * come, or is an insurance line / unknown number with no customer on file
  * (a missed call from an unknown number counts: it may be a lead). A saved
- * contact with no customer only counts through a promise.
+ * contact with no customer only counts through a promise — or a missed call
+ * (2026-10-03, as for customers). Done follow-up task, spam: never.
  *
  * Both lists already exist on their own views; Jo asked for the Stripe one
  * to surface on Home (2026-09-29) so a payment never sits unassigned because
@@ -65,19 +66,51 @@
 
   const CALL_WINDOW = 14 * DAY;
   const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  function callNeedsYou(c, now) {
+  // A missed call: they rang, it was under 15 s (Cube ACR keeps no real audio).
+  const isMissedCall = (c) => !!c && c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound';
+  /**
+   * When each person was last REACHED by phone: any later call that isn't
+   * itself a missed one (Jo rang back, or they got through). A missed call
+   * with a reach after it is dealt with. Texts don't count. ctx for
+   * callNeedsYou, built from the same rows.
+   */
+  function reachIndex(rows) {
+    const m = new Map();
+    (rows || []).forEach((r) => {
+      if (!r || r.channel === 'text' || isMissedCall(r) || (r.direction !== 'inbound' && r.direction !== 'outbound')) return;
+      const k = callerKey(r), at = toMs(r.startedAtMs) || 0;
+      if (at > (m.get(k) || 0)) m.set(k, at);
+    });
+    return { reachedAt: m };
+  }
+  /**
+   * 2026-10-03 ("the CRM knows I called"):
+   *   - the call's follow-up task is done (taskDone, mirrored server-side by
+   *     onCallTaskWrite) → the promise is kept, it no longer needs you;
+   *   - spam never counts; a sub / supplier counts only through a promise;
+   *   - a MISSED call counts for customers and saved contacts too (it used
+   *     to count only from unknown numbers), until Jo reaches them.
+   */
+  function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
+    if (c.callType === 'spam' || c.taskDone === true) return false;
     if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
+    const promised = (c.promises || []).some((p) => p && p.who === 'jo');
+    if (c.callType === 'sub' || c.callType === 'supplier') return promised;
     if (c.urgent === true) return true;
-    if ((c.promises || []).some((p) => p && p.who === 'jo')) return true;
+    if (promised) return true;
     if (c.followUpDate && c.followUpDate <= etYmd(t)) return true;
+    if (isMissedCall(c)) {
+      const reached = ctx && ctx.reachedAt ? (ctx.reachedAt.get(callerKey(c)) || 0) : 0;
+      return reached <= (toMs(c.startedAtMs) || 0);
+    }
     if (c.leadId) return false;
     if (c.bucket === 'insurance') return true;
-    if (c.bucket === 'unknown') return c.status !== 'short' || c.direction === 'inbound';
+    if (c.bucket === 'unknown') return c.status !== 'short';
     return false;
   }
-  function callsNeedingYou(rows, now) { return (rows || []).filter((c) => callNeedsYou(c, now)).length; }
+  function callsNeedingYou(rows, now) { const ctx = reachIndex(rows); return (rows || []).filter((c) => callNeedsYou(c, now, ctx)).length; }
 
   // Who a call / text day is with: the customer it is filed on, else the
   // number. Jo, 2026-10-02: "group them by customer" — 78 open calls were
@@ -93,7 +126,8 @@
   /** Open calls grouped by caller, newest caller first; calls newest first. */
   function groupNeeds(rows, now) {
     const by = new Map();
-    (rows || []).filter((c) => callNeedsYou(c, now)).forEach((c) => {
+    const ctx = reachIndex(rows);
+    (rows || []).filter((c) => callNeedsYou(c, now, ctx)).forEach((c) => {
       const k = callerKey(c);
       if (!by.has(k)) by.set(k, { key: k, calls: [] });
       by.get(k).calls.push(c);
@@ -118,7 +152,7 @@
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
