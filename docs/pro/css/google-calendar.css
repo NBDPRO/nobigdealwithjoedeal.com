@@ -39,3 +39,12 @@
 .sc-busy-lbl { font-size: 12px; color: var(--m); }
 .sc-busy-list { margin-top: 14px; text-align: left; }
 .sc-busy-head { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--m); margin-bottom: 4px; }
+/* Past appointments still "booked" — need an outcome (smart-calendar.js, 2026-10-03). */
+.sc-outcome-chip { display: inline-block; margin-top: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--gold, #f59e0b); border: 1px solid currentColor; border-radius: 4px; padding: 2px 6px; }
+.sc-outcome-list { margin-bottom: 14px; text-align: left; border: 1px solid var(--gold, #f59e0b); border-radius: 8px; padding: 8px 12px; background: var(--s2); }
+.sc-outcome-head { font-size: 12px; font-weight: 700; color: var(--gold, #f59e0b); margin-bottom: 2px; }
+.sc-outcome-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--br); }
+.sc-outcome-main { min-width: 0; }
+.sc-outcome-title { font-size: 13px; font-weight: 600; color: var(--t); overflow-wrap: anywhere; }
+.sc-outcome-when { font-size: 11px; color: var(--m); }
+.sc-outcome-open { background: none; border: none; color: var(--orange); font-size: 12px; cursor: pointer; padding: 6px 0; text-decoration: underline; white-space: nowrap; min-height: 32px; }

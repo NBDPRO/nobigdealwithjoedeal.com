@@ -7,6 +7,10 @@
  * Closed job dragged it back to Contract Signed — out of won revenue and onto
  * the board as an active contract.
  *
+ * Since 2026-10-03 (job spine) markPaid writes no stage at all: the server's
+ * invoice trigger moves the lead for every payment method. This suite now
+ * pins that the browser stays out of it.
+ *
  * Behavioral: runs the real InvoicePipeline.markPaid against a fake Firestore
  * (window.doc/getDoc/updateDoc) and inspects the writes.
  *
@@ -77,20 +81,21 @@ function setup(leadStage) {
       writes.some(w => w.path === 'invoices/inv1' && w.data.status === 'paid'));
   }
 
-  for (const stage of ['new', 'estimate_submitted']) {
+  // 2026-10-03 (job spine): the browser writes NO stage on any payoff. The
+  // invoice write is enough — the server's invoice trigger
+  // (functions/money-paper.js → job-spine.js) moves the lead, the same way
+  // for a card payoff and a Mark-Paid check/Zelle/cash payoff (it used to be
+  // Contract Signed from here vs Final Payment from the Stripe webhook).
+  // tests/job-spine-2026-10-03.test.js covers the server move.
+  for (const stage of ['new', 'estimate_submitted', 'contract_signed']) {
     const { IP, writes } = setup(stage);
     await IP.markPaid('inv1', 1000, 'check');
     const leadWrite = writes.find(w => w.path === 'leads/lead1');
-    ok(`a lead at "${stage}" advances to contract_signed on full payment`,
-      !!leadWrite && leadWrite.data.stage === 'contract_signed');
-    // R14: through commitStageChange — the bookkeeping every stage move gets.
-    ok(`…with stageStartedAt, a stageHistory entry and stageRole (${stage})`,
-      !!leadWrite && leadWrite.data.stageStartedAt === 'SERVER_TS'
-        && leadWrite.data.stageHistory && leadWrite.data.stageHistory.arrayUnion
-        && leadWrite.data.stageHistory.arrayUnion.from === stage
-        && leadWrite.data.stageRole === 'active',
-      leadWrite ? JSON.stringify(leadWrite.data) : 'no write');
-    ok(`…and a timeline note (${stage})`, writes.some(w => w.path === 'notes/+' && /Stage moved/.test(w.data.text)));
+    ok(`a lead at "${stage}" is NOT moved from the browser on full payment (the server does it)`, !leadWrite,
+      leadWrite ? 'wrote ' + JSON.stringify(leadWrite.data) : '');
+    ok(`…no client stage note either (${stage})`, !writes.some(w => w.path === 'notes/+' && /Stage moved/.test(w.data.text)));
+    ok(`…and the invoice is marked paid, which is what the server trigger acts on (${stage})`,
+      writes.some(w => w.path === 'invoices/inv1' && w.data.status === 'paid'));
   }
 
   {

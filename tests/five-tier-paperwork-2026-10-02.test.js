@@ -364,16 +364,15 @@ function liftedSection() {
     /: esc\(_roofPeriod\)\}/.test(cb) && /: esc\(_roofBody\)\}/.test(cb) && !/: 'Lifetime Workmanship'\}<\/span>/.test(cb));
   ok('estimate-list chip has Economy and Beyond colours', /tier==='beyond'\?/.test(cb) && /tier==='economy'\?/.test(cb));
 
-  const ip = read('docs/pro/js/invoice-pipeline.js').replace(/\r\n/g, '\n');
-  const ia = ip.indexOf('        const _tierKey = String(est.selectedTier');
-  const ib = ip.indexOf('        items = [{', ia);
-  ok('invoice tier-label block found', ia > 0 && ib > ia);
+  // The invoice's per-SQ summary line now lives in invoiceTotalsFromEstimate
+  // (shared with the server's draft deposit invoice, 2026-10-03) — run it.
+  const IPm = require(path.join(ROOT, 'docs/pro/js/invoice-pipeline.js'));
+  ok('invoice tier-label block found', typeof IPm.invoiceTotalsFromEstimate === 'function');
   for (const withCfg of [true, false]) {
     const lab = (tier) => {
-      const ctx = { window: withCfg ? { NBD_ESTIMATE_CONFIG: CFG } : {}, est: { selectedTier: tier }, String };
-      vm.createContext(ctx);
-      vm.runInContext(ip.slice(ia, ib) + '\nthis.__l = tierLabel;', ctx);
-      return ctx.__l;
+      const t = IPm.invoiceTotalsFromEstimate({ priceMode: 'per-sq', grandTotal: 1000, taxRate: 0, selectedTier: tier },
+        withCfg ? { tierLabel: CFG.tierLabel } : {});
+      return t.items[0].description.replace(/^Roofing system — /, '').replace(/ tier$/, '');
     };
     ok('invoice line prints customer names, not raw keys' + (withCfg ? ' (config)' : ' (fallback)'),
       FIVE.map(lab).join() === LABELS.join(), FIVE.map(lab).join());

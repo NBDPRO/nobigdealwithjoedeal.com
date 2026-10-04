@@ -510,7 +510,7 @@ function buildReview() {
   // Deposit: deposit-rule.js (2026-09-25) — cash under $2,000 none, cash
   // $2,000+ 50%, insurance the deductible + the ACV payment — with the rep's
   // Override % honored and labelled. Was "Cash 50/50, Insurance 0%".
-  const deposit = calcDeposit(grandTotal, d.mode, d.depositPctOverride, insuranceFields);
+  const deposit = calcDeposit(grandTotal, d.mode, d.depositPctOverride, insuranceFields, _estLinkedLead());
   const depositPlan = deposit.plan || null;
   estData.deposit = { pct: deposit.pct, amount: deposit.amount, remainder: deposit.remainder };
   estData.depositPlan = (depositPlan && window.NBDDepositRule) ? window.NBDDepositRule.toStored(depositPlan) : null;
@@ -1175,17 +1175,39 @@ function collectInsuranceFields() {
 // cent-rounding fallback that ran when V2 wasn't loaded was a second copy of
 // the old rule — gone; the rule module is eager on every page that loads
 // this file, so it answers directly.
-function calcDeposit(grandTotal, mode, overridePct, claim) {
+// lead (2026-10-03, optional): the linked lead. Its claim number / carrier /
+// jobType make a Kentucky job an insurance job for deposit-rule.js's hold
+// (KRS 367.626: nothing at signing) even when priced in cash mode — the same
+// test that puts the KY notices on the contract. No lead = the rule as before.
+function calcDeposit(grandTotal, mode, overridePct, claim, lead) {
   const V2 = (typeof window !== 'undefined') && window.EstimateBuilderV2;
   const c = claim || {};
+  const L = (lead && typeof lead === 'object') ? lead : null;
   if (V2 && typeof V2.calcDeposit === 'function') {
-    return V2.calcDeposit(grandTotal, mode, { overridePct, deductible: c.deductible, acv: c.acv });
+    const o = { overridePct, deductible: c.deductible, acv: c.acv };
+    if (L) o.lead = L;
+    return V2.calcDeposit(grandTotal, mode, o);
   }
   _warnDeprecatedOnce('calcDeposit', 'EstimateBuilderV2.calcDeposit');
   const R = (typeof window !== 'undefined') && window.NBDDepositRule;
   if (!R || !(grandTotal > 0)) return { pct: 0, amount: 0, remainder: grandTotal > 0 ? grandTotal : 0, plan: null };
-  const plan = R.compute({ total: grandTotal, mode, overridePct, deductible: c.deductible, acv: c.acv });
+  const input = { total: grandTotal, mode, overridePct, deductible: c.deductible, acv: c.acv };
+  if (L) input.lead = L;
+  const plan = R.compute(input);
   return { pct: plan.pct, amount: plan.depositCents / 100, remainder: plan.balanceCents / 100, plan };
+}
+
+// The lead the classic builder is linked to (URL / QM import flow), for the
+// deposit's Kentucky hold. Address-matching happens only at save, so an
+// unlinked draft has none.
+function _estLinkedLead() {
+  const id = (typeof window !== 'undefined') && window._estLinkedLeadId;
+  if (!id) return null;
+  try {
+    const cur = window._leadDoc;
+    if (cur && cur.id === id) return cur;
+    return (Array.isArray(window._leads) && window._leads.find((l) => l && l.id === id)) || null;
+  } catch (_) { return null; }
 }
 
 // Revisions: when an estimate is moved from any status → a later stage,

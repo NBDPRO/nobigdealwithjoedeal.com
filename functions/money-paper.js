@@ -35,6 +35,8 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const P = require('./money-paper-logic');
+const SPINE = require('./job-spine-logic');
+const stageRoles = require('./stage-roles');
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
@@ -248,8 +250,62 @@ async function markJobPaid(db, inv) {
   return jobId;
 }
 
+/**
+ * Job spine (2026-10-03): the invoice trigger is the ONE place a payment
+ * moves the lead's stage, whatever the method — card (the Stripe webhook
+ * writes the invoice), or cash / check / Zelle (Mark Paid writes it). Before
+ * this, Mark Paid advanced only a New/Active lead to Contract Signed from the
+ * browser while the Stripe webhook advanced to Final Payment, so the same
+ * payoff landed the card in two different places depending on how the
+ * homeowner paid.
+ *   paid in full → paid_in_full (Final Payment, main job track, forward only)
+ *   deposit paid → deposit_paid (at least Contract Signed, forward only)
+ * Runs for every tenant, BEFORE the money-paper work, so anything later in
+ * this handler that reads the lead (the "paid in full but not closed" task,
+ * PR #2118) sees the advanced stage and stays quiet when the spine moved it.
+ * Only on a real write (before !== undefined) — never on history. Separate
+ * from the money-paper kill switch. Never throws (recordJobEvent).
+ */
+async function spineOnInvoice(deps, invoiceId, before, after) {
+  if (before === undefined || !after) return null;
+  const events = SPINE.invoiceEvents(before, after);
+  if (!events.length) return null;
+  const record = deps.recordJobEvent || require('./job-spine').recordJobEvent;
+  const last = P.lastPayment(after);
+  const method = last && last.method ? String(last.method) : '';
+  const out = {};
+  for (const event of events) {
+    out[event] = await record(deps.db, {
+      leadId: String(after.leadId), companyId: after.companyId || null, event,
+      sourceId: String(invoiceId),
+      actor: method === 'stripe' ? 'online payment (Stripe)' : (method ? 'payment recorded (' + method + ')' : 'payment recorded'),
+      at: deps.now(),
+      meta: { invoiceId: String(invoiceId), method, detail: 'invoice ' + String(invoiceId) },
+    });
+  }
+  return out;
+}
+
+/** File the "paid in full — not closed" task on the invoice's lead. → task id | null. */
+async function flagPaidNotClosed(deps, invoiceId, inv) {
+  const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
+  const ls = await leadRef.get();
+  if (!ls.exists) return null;
+  const et = P.etParts(deps.now());               // { y, md: 'MMDD' } — the task wants 'YYYY-MM-DD'
+  const today = et.y + '-' + et.md.slice(0, 2) + '-' + et.md.slice(2);
+  const task = P.paidNotClosedTask(ls.data(), inv, invoiceId, today, stageRoles);
+  if (!task) return null;
+  const taskId = P.paidNotClosedTaskId(invoiceId);
+  const ref = leadRef.collection('tasks').doc(taskId);
+  if ((await ref.get()).exists) return taskId;   // already filed (and maybe already done) — never reopen
+  await ref.set(Object.assign(task, { createdAt: FieldValue.serverTimestamp() }));
+  logger.info('[moneyPaper] paid in full but not closed — task filed', { invoiceId, leadId: inv.leadId, taskId });
+  return taskId;
+}
+
 async function handle(invoiceId, after, deps, before) {
-  if (process.env.NBD_MONEY_PAPER === 'off') return { skipped: 'killswitch' };
+  const spine = await spineOnInvoice(deps, invoiceId, before, after);
+  if (process.env.NBD_MONEY_PAPER === 'off') return spine ? { skipped: 'killswitch', spine } : { skipped: 'killswitch' };
   const d = P.decide(after, { ownerUid: OWNER });
   // before === undefined → a caller that cannot tell (tests of the rules
   // alone); the trigger always passes the real before (null for a create).
@@ -258,7 +314,7 @@ async function handle(invoiceId, after, deps, before) {
     if (!t.newStripeInvoice) d.fileInvoice = false;
     if (!t.becamePaid) { d.fileReceipt = false; d.markOob = false; }
   }
-  const out = {};
+  const out = spine ? { spine } : {};
   // Multi-job stage 2b: an invoice paid in full ON THIS WRITE marks its job
   // paid (the invoice's own jobId, else the customer's active job). A job is
   // done only when closed out AND paid in full (Jo, J3); jobsOnJobWrite then
@@ -266,6 +322,11 @@ async function handle(invoiceId, after, deps, before) {
   if (before !== undefined && after && transitions(before, after).becamePaid
       && (after.companyId || after.userId) === OWNER && after.leadId) {
     out.jobPaid = await markJobPaid(deps.db, after).catch((e) => { logger.warn('[moneyPaper] job paid mark failed', { invoiceId, err: e && e.message }); return null; });
+  }
+  // Paid in full ON THIS WRITE but the lead is not on a won stage → one task
+  // for the owner to confirm the close (never moves the stage). Any tenant.
+  if (before !== undefined && after && transitions(before, after).becamePaid && after.leadId) {
+    out.paidNotClosed = await flagPaidNotClosed(deps, invoiceId, after).catch((e) => { logger.warn('[moneyPaper] paid-not-closed flag failed', { invoiceId, err: e && e.message }); return null; });
   }
   if (!d.fileInvoice && !d.fileReceipt && !d.markOob
       && !(after && after.paper && ['invoice', 'receipt'].some((k) => retriable(after.paper[k], deps.now())))) {
@@ -294,4 +355,4 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
   }
 );
 
-exports._internal = { handle, payQr, markJobPaid, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, payQr, markJobPaid, flagPaidNotClosed, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };

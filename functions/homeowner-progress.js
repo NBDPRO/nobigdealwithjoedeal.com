@@ -21,6 +21,7 @@
 'use strict';
 
 const { roleFor } = require('./stage-roles');
+const { isOwedInvoice } = require('./invoice-owed');
 
 // ═══════════════════════════════════════════════════════════════════════
 // ALL CUSTOMER-FACING WORDING FOR THE TRACKER. Edit here, nowhere else.
@@ -128,9 +129,13 @@ function stageKeyFor(lead) {
 }
 
 /** Does this invoice still have money owed on it? (one predicate: the
- *  portal's balance card and the tracker's payment step both use it) */
+ *  portal's balance card, the tracker's payment step and the paid-in-full
+ *  gate all use it). Status goes through invoice-owed.js — the shared owed
+ *  rule (#2112/#2131): a DRAFT was never sent, so it owes nothing (the
+ *  server's draft deposit invoice must not hold back "paid in full" nor show
+ *  as a balance); void / cancelled / paid / deleted owe nothing either. */
 function invoiceOwes(inv) {
-  return !!inv && Number(inv.balanceDue) > 0;
+  return isOwedInvoice(inv) && Number(inv.balanceDue) > 0;
 }
 
 function _validYmd(v) {

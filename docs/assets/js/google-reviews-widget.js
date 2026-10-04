@@ -200,23 +200,36 @@
     }
   }
 
+  // Last good payload, so hooks rendered AFTER the fetch (the quick form on
+  // service/area pages builds its trust line in JS) can be hydrated too.
+  let _lastData = null;
+  window.nbdHydrateReviewHooks = function () { if (_lastData) hydrateStaticHooks(_lastData); };
+
   async function load() {
     const container = document.querySelector('[data-nbd-google-reviews]');
-    if (!container) return;
+    // 2026-10-03: the trust line above every lead form's Submit carries a
+    // data-nbd-gr-rating hook on pages with NO review cards (/estimate,
+    // /storm-check, /storm-alerts, /inspect, the quick form). Hydrate those
+    // too; with neither cards nor hooks there is nothing to fetch for.
+    const hasHooks = !!document.querySelector('[data-nbd-gr-rating],[data-nbd-gr-total],[data-nbd-gr-count],[data-nbd-gr-stars]');
+    if (!container && !hasHooks) return;
 
-    container.innerHTML =
-      '<div style="text-align:center;padding:32px;color:#5d6673;font-size:.9rem">Loading Google reviews&hellip;</div>';
+    if (container) {
+      container.innerHTML =
+        '<div style="text-align:center;padding:32px;color:#5d6673;font-size:.9rem">Loading Google reviews&hellip;</div>';
+    }
 
     try {
       const res = await fetch(ENDPOINT, { credentials: 'omit' });
       if (!res.ok) throw new Error('bad_status:' + res.status);
       const data = await res.json();
       if (data && data.error) throw new Error(data.error);
+      _lastData = data || {};
       hydrateStaticHooks(data || {});
-      renderAll(container, data || {});
+      if (container) renderAll(container, data || {});
     } catch (err) {
       console.warn('[google-reviews] load failed:', err);
-      renderFallback(container);
+      if (container) renderFallback(container);
     }
   }
 

@@ -141,8 +141,10 @@ ok('V2 exposes calcDeposit', typeof V2.calcDeposit === 'function');
   const zero = V2.calcDeposit(0, 'cash', {});
   ok('D-5 zero total → zero deposit', zero.pct === 0 && zero.amount === 0);
   // Classic source delegates (same pattern as D-2's waste delegation).
-  ok('D-5 classic calcDeposit delegates to V2 (with the claim figures, 2026-09-25)',
-    /V2\.calcDeposit\(grandTotal, mode, \{ overridePct, deductible: c\.deductible, acv: c\.acv \}\)/.test(ESTSRC_D5()));
+  // 2026-10-03: the options object is built first so the linked lead can ride
+  // along (Kentucky hold); behaviour is pinned in deposit-rule.test.js §13.
+  ok('D-5 classic calcDeposit delegates to V2 (with the claim figures + linked lead, 2026-10-03)',
+    /const o = \{ overridePct, deductible: c\.deductible, acv: c\.acv \};[\s\S]{0,80}V2\.calcDeposit\(grandTotal, mode, o\)/.test(ESTSRC_D5()));
 }
 function ESTSRC_D5(){ return fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/estimates.js'), 'utf8'); }
 

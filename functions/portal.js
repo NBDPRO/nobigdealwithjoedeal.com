@@ -936,7 +936,11 @@ exports.getHomeownerPortalView = onRequest(
     // exactly one, but this doesn't assume that.
     // Same tenant-filtered list and the same "still owes" predicate the
     // tracker's Final payment step used above — the card and the step cannot
-    // disagree about whether money is owed.
+    // disagree about whether money is owed. invoiceOwes goes through
+    // invoice-owed.js's isOwedInvoice: a draft (incl. the server's draft
+    // deposit invoice, #2131) was never sent — showing it here would bill
+    // the homeowner before Jo taps Send. Void / cancelled / deleted are not
+    // owed either.
     const _unpaidInvoice = tenantInvoices
       .filter(invoiceOwes)
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))[0] || null;

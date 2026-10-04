@@ -1388,9 +1388,10 @@
     //    most embarrassing thing on the page if forwarded before anything
     //    happened, and it poisons the referral channel it exists to grow.
     //
-    //    'complete' is the same gate the rating card uses (view.rating
-    //    .canRate, computed server-side as progressKey === 'complete' and
-    //    re-enforced when a rating is submitted). Asking for a referral at
+    //    It is the same gate the rating card uses (view.rating.canRate —
+    //    PAID IN FULL since 2026-10-03, computed server-side by
+    //    functions/homeowner-progress.js and re-enforced when a rating is
+    //    submitted). Asking for a referral at
     //    the moment you ask for a rating is the correct pairing: both claim
     //    the work is done, so both wait until it is.
     const customerId = view.homeowner && view.homeowner.customerId;

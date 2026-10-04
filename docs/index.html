@@ -149,6 +149,7 @@ section{padding:80px 40px}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
 .hero h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(3rem,5.5vw,5.5rem);color:white;line-height:.92;letter-spacing:.02em;margin-bottom:10px;animation:fadeUp .6s ease .1s both}
 .hero h1 span{color:#BD5728}
+.hero h1 .hero-h1-kicker{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:clamp(.95rem,1.5vw,1.2rem);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);line-height:1.2;margin-bottom:12px}
 .hero-tagline{font-family:'Dancing Script',cursive;font-size:1.45rem;color:var(--orange-light);margin-bottom:22px;animation:fadeUp .6s ease .2s both}
 .hero p{color:rgba(255,255,255,.72);font-size:.95rem;line-height:1.7;margin-bottom:32px;max-width:500px;animation:fadeUp .6s ease .3s both}
 .hero-btns{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:36px;animation:fadeUp .6s ease .35s both}
@@ -333,6 +334,9 @@ a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:12px 14px;border:1.5px solid var(--light-gray);border-radius:6px;font-family:'Montserrat',sans-serif;font-size:.87rem;color:var(--navy-dark);background:var(--off-white);transition:border-color .2s;outline:none}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--orange);background:white}
 .form-group textarea{resize:vertical;min-height:100px}
+/* trust line above Submit (2026-10-03); rating hydrated live by google-reviews-widget.js */
+.nbd-trust-line{margin:4px 0 10px;font-size:.78rem;font-weight:600;color:#5b6572;text-align:center;line-height:1.4}
+.nbd-trust-line span[aria-hidden]{color:#b07d00}
 .form-submit{width:100%;padding:15px;background:#BD5728;color:white;font-family:'Montserrat',sans-serif;font-size:.9rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border:none;border-radius:6px;cursor:pointer;transition:all .25s;margin-top:4px}
 .form-submit:hover{background:var(--orange-light);transform:translateY(-2px);box-shadow:0 6px 20px rgba(189,87,40,.4)}
 .form-note{font-size:.7rem;color:var(--gray);text-align:center;margin-top:8px}
@@ -412,6 +416,10 @@ footer{background:var(--navy-dark);border-top:3px solid var(--orange);padding:60
   .hero-btns{flex-direction:column;gap:10px}
   .hero-btns .btn-primary{width:100%;justify-content:center}
   .hero-btns .btn-ghost{display:none}
+  /* ...except the Instant Estimate button (2026-10-03): with every other
+     secondary hidden, a phone visitor who won't call had no way into the
+     estimate funnel from the hero. It sits directly under "Call Joe". */
+  .hero-btns .btn-ghost.hero-btn-estimate{display:inline-flex;width:100%;justify-content:center}
   .hero-btns-sub{display:none!important}
 }
 
@@ -770,6 +778,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 }
 </script>
 <!-- /nbd:partial schema-entity -->
+<link rel="stylesheet" href="/assets/css/nbd-nav.css">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -834,7 +843,6 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav">
     <span></span><span></span><span></span>
   </button>
-  <link rel="stylesheet" href="/assets/css/nbd-nav.css">
   <script defer src="/assets/js/nbd-nav.js"></script>
 </nav>
 
@@ -887,13 +895,14 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <div class="hero-bg"></div>
   <div class="hero-content">
     <div class="hero-left">
-      <div class="hero-badge">Cincinnati Area, OH · Owner-Operated</div>
-      <h1>No Big Deal.<br><span>Seriously — it's in the name.</span></h1>
+      <div class="hero-badge">Owner-Operated · I'm on every roof</div>
+      <h1><span class="hero-h1-kicker">Cincinnati &amp; Northern KY Roofing</span>No Big Deal.<br><span>Seriously — it's in the name.</span></h1>
       <div class="hero-tagline">One call. One guy. One job done right.</div>
       <p>I'm Joe Deal. I pick up the phone.<span class="trim-mobile"> I walk your roof. I put my name on every install.</span> Roofing, siding, gutters, storm damage &mdash; start to finish, no call centers, no handoffs, no BS.<span class="trim-mobile"> That's it. That's the pitch.</span></p>
       <p class="trim-mobile" style="color:rgba(255,255,255,.55);font-size:.86rem;font-style:italic;margin-top:-14px;margin-bottom:28px;max-width:500px">Seven years on Cincinnati roofs under other companies &mdash; now finally under my own name.</p>
       <div class="hero-btns">
         <a href="tel:+18594207382" class="btn-primary"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg>Call Joe — (859) 420-7382</a>
+        <a href="/estimate" class="btn-ghost hero-btn-estimate"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Get an instant estimate</a>
       </div>
       <a href="/book" class="hero-link-secondary" style="display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,.82);font-size:.92rem;text-decoration:underline;text-underline-offset:4px;margin-top:14px;transition:color .2s ease"><svg class="ico" viewBox="0 0 24 24" style="width:14px;height:14px"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>Or pick a time on my calendar →</a>
       <div class="hero-trust">
@@ -1671,12 +1680,12 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    {"@type": "Question", "name": "How much does a new roof cost in the Cincinnati area?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on your roof's size, pitch, and the shingle you pick. Most architectural-shingle replacements in Greater Cincinnati run about $740 to $825 per roofing square installed, with budget and premium tiers landing roughly $615 to $965 per square. Our free Instant Estimate tool gives you a tailored ballpark in about 60 seconds with no phone call required."}},
-    {"@type": "Question", "name": "Do you offer financing?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, through Acorn Finance, a lending marketplace that lets you check your options with a soft credit pull that doesn't affect your credit score. You'll see the actual lender, rate, and full terms before you commit to anything. If financing isn't the right move for your project, Joe will tell you straight."}},
-    {"@type": "Question", "name": "Do you do storm damage insurance jobs?", "acceptedAnswer": {"@type": "Answer", "text": "Absolutely. Storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon."}},
-    {"@type": "Question", "name": "What areas do you serve?", "acceptedAnswer": {"@type": "Answer", "text": "We cover Greater Cincinnati, across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. If you're not sure whether you're in range, just call Joe and ask."}},
-    {"@type": "Question", "name": "Are you licensed, insured, and certified?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. No Big Deal is licensed and insured, and we're factory-certified by GAF (GAF Certified) and TAMKO (Pro Gold). Those certifications unlock the strongest manufacturer warranties available, and you can verify each one directly with the manufacturer. On siding, I'm a member of the James Hardie Alliance. As of 2026, No Big Deal is also certified Locally Owned & Operated by American Operator — one local owner, not a franchise."}},
-    {"@type": "Question", "name": "What actually happens when I call?", "acceptedAnswer": {"@type": "Answer", "text": "You get Joe, not a call center and not a salesperson reading a script. Tell him what's going on and he'll give you a straight answer, usually the same day. If you need an inspection, he'll set one up. No pressure, no obligation, no runaround."}}
+    {"@type": "Question", "name": "How much does a new roof cost in the Cincinnati area?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on your roof's size, pitch, and the shingle you pick — but to give you a real number: most architectural-shingle replacements in Greater Cincinnati run about $740–$825 per roofing square installed, with budget and premium tiers landing roughly $615–$965 per square. Our free Instant Estimate gives you a tailored ballpark in about 60 seconds — no phone call, no pressure."}},
+    {"@type": "Question", "name": "Do you offer financing?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — through Acorn Finance, a lending marketplace that lets you check your options with a soft credit pull that doesn't affect your credit score. You'll see the actual lender, rate, and full terms before you commit to anything. If financing isn't the right move for your project, Joe will tell you straight."}},
+    {"@type": "Question", "name": "Do you do storm damage insurance jobs?", "acceptedAnswer": {"@type": "Answer", "text": "Absolutely — storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon."}},
+    {"@type": "Question", "name": "What areas do you serve?", "acceptedAnswer": {"@type": "Answer", "text": "We cover Greater Cincinnati — across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 I also serve the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. Not sure if you're in range? Just call Joe and ask."}},
+    {"@type": "Question", "name": "Are you licensed, insured, and certified?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — No Big Deal is licensed and insured, and we're factory-certified by the biggest names in roofing: GAF (GAF Certified) and TAMKO (Pro Gold). Those certifications unlock the strongest manufacturer warranties available — and you can verify each one directly with the manufacturer. On siding, I'm a member of the James Hardie Alliance. And as of 2026, No Big Deal is certified Locally Owned & Operated by American Operator — one local owner, not a franchise."}},
+    {"@type": "Question", "name": "What actually happens when I call?", "acceptedAnswer": {"@type": "Answer", "text": "You get Joe — not a call center, not a salesperson reading a script. Tell him what's going on and he'll give you a straight answer, usually the same day. If you need an inspection, he'll set one up. No pressure, no obligation, no runaround — that's kind of the whole point."}}
   ]
 }
 </script>
@@ -1808,6 +1817,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
             <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="fieldNbdHp">Leave blank</label><input type="text" id="fieldNbdHp" tabindex="-1" autocomplete="off"></div>
             <label class="sc-consent"><input type="checkbox" id="fieldConsent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
             <p id="formError" class="form-error" role="alert" hidden></p>
+            <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof</p>
             <button class="form-submit" id="leadFormSubmit">Get My Free Estimate →</button>
             <script defer  src="/assets/js/inline/72fb917108.js"></script>
             <p class="form-note">🔒 No spam, no pressure. I will reach out personally — usually same day.</p>

@@ -162,6 +162,23 @@ group('Paid in full opens Review', () => {
     noCert.steps.find((s) => s.key === 'warranty').state === 'skipped' && noCert.total === 8, JSON.stringify(noCert.steps));
   assert('paidInFullFor is the same answer as the resolver',
     HP.paidInFullFor({ stage: 'closed' }, []) === true && HP.paidInFullFor({ stage: 'final_photos' }, []) === false);
+  // The shared owed rule (functions/invoice-owed.js, #2112/#2131): a draft
+  // was never sent — e.g. the server's draft deposit invoice on a signed
+  // contract — so it owes nothing; void / cancelled / deleted neither.
+  const draft = { status: 'draft', balanceDue: 15000, total: 15000 };
+  assert('a DRAFT with a balance does not owe (drafts were never sent)', HP.invoiceOwes(draft) === false);
+  assert('void / cancelled / deleted with a balance do not owe; sent and partial do',
+    !HP.invoiceOwes({ status: 'void', balanceDue: 10 }) && !HP.invoiceOwes({ status: 'Cancelled', balanceDue: 10 })
+      && !HP.invoiceOwes({ status: 'sent', balanceDue: 10, deleted: true })
+      && HP.invoiceOwes({ status: 'sent', balanceDue: 10 }) && HP.invoiceOwes({ status: 'partial', balanceDue: 10 }));
+  assert('a draft never holds back paid in full, and never becomes the Final payment step',
+    R({ stage: 'final_payment' }, [draft]).paidInFull === true
+      && R({ stage: 'deductible_collected' }, [draft]).currentKey === 'walkthrough');
+  assert('…but a sent invoice beside the draft still does',
+    R({ stage: 'final_payment' }, [draft, { status: 'sent', balanceDue: 2000 }]).paidInFull === false);
+  assert('the module uses invoice-owed.js, not its own status list',
+    /require\('\.\/invoice-owed'\)/.test(read('functions/homeowner-progress.js'))
+      && !/['"]draft['"]/.test(code(read('functions/homeowner-progress.js'))));
   assert('an invoice with a negative/zero/blank balance does not owe',
     !HP.invoiceOwes({ balanceDue: 0 }) && !HP.invoiceOwes({ balanceDue: -5 }) && !HP.invoiceOwes({}) && HP.invoiceOwes({ balanceDue: '12.50' }));
 });

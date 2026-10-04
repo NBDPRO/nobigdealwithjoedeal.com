@@ -82,3 +82,9 @@
 .ipx-mt2.ipx-mt2.ipx-mt2.ipx-mt2 { margin-top: 2px; }
 .ipx-mt8.ipx-mt8.ipx-mt8.ipx-mt8 { margin-top: 8px; }
 .ipx-title-14.ipx-title-14.ipx-title-14.ipx-title-14 { margin-bottom: 14px; }
+/* "Draft deposit — review & send" (2026-10-03): the draft deposit invoice the
+   server makes on a signed contract. Shown in the invoice panel/list/detail
+   and on the customer page's Invoices & Payments list. */
+.ipx-draft-chip.ipx-draft-chip.ipx-draft-chip { display: inline-block; margin-top: 4px; padding: 3px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orange) 40%, transparent); white-space: nowrap; }
