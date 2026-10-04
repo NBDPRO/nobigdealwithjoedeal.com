@@ -573,6 +573,22 @@ async function run() {
   await assertFails(setDoc(doc(alice, 'companies/squatUid'), { ownerId: 'alice', name: 'squat' })); // ❌ create pinned to own uid
   await assertSucceeds(setDoc(doc(alice, 'companies/alice'), { ownerId: 'alice', name: 'Alice solo co' })); // ✅ own-uid create
 
+  // 23e-2. Public-site publication (2026-10-04): status + sitePublished decide
+  //        whether /sites/t/<id> serves a page on Jo's domain. Only the admin
+  //        SDK (createCompany / publishTenantSite) may write them — an owner
+  //        must not self-publish by client write, at create OR update.
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { sitePublished: true }));              // ❌ self-publish
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { sitePublishedAt: 'now' }));           // ❌ forged publish stamp
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { status: 'active' }));                 // ❌ status (the legacy gate) frozen too
+  await assertFails(setDoc(doc(alice, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ❌ merge-set same
+  // Create-time (companies/bob and companies/dave don't exist yet — 23f
+  // creates them below with the plain shape, which must still succeed).
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', sitePublished: true })); // ❌ born published
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', sitePublished: false })); // ❌ flag is admin-SDK-only either way
+  await assertFails(setDoc(doc(dave, 'companies/dave'), { ownerId: 'dave', name: 'Dave Co', status: 'active' }));     // ❌ born status-active (legacy gate = published)
+  await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ✅ admin SDK path (publishTenantSite)
+  await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing' }));          // ✅ unrelated owner edit still fine with the flag present
+
   // 23f. CRITICAL (audit 2026-09-15): the create branch pinned ownerId but
   //      never checked `plan` — the didNotChange(['plan','ownerId']) freeze
   //      right above only guards UPDATE, so a self-serve owner could squat

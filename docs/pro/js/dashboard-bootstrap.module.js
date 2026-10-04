@@ -6071,14 +6071,61 @@
     const key = _siteCompanyKey();
     if (!key || !db) return;
     let slug = '';
+    let co = null;
     try {
       const snap = await getDoc(doc(db, 'companies', key));
-      if (snap.exists()) slug = (snap.data() || {}).siteSlug || '';
+      if (snap.exists()) { co = snap.data() || {}; slug = co.siteSlug || ''; }
     } catch (_) { /* solo owners may have no doc yet */ }
     const input = document.getElementById('cp_siteSlug');
     if (input) input.value = slug;
     _renderSiteLink(slug);
+    _renderSitePublishState(co);
   }
+
+  // ── Publish my site (2026-10-04) ──────────────────────────────────
+  // Mirrors functions/handlers/public-site.js isPublishedCompany: live only
+  // when status is 'active' AND sitePublished is true — or, for a tenant that
+  // predates the flag, absent. The flag is server-written (publishTenantSite);
+  // firestore.rules refuse a client write, so this panel only reads it.
+  function _sitePublishedFromDoc(co) {
+    if (!co || String(co.status || '') !== 'active') return false;
+    if (!Object.prototype.hasOwnProperty.call(co, 'sitePublished')) return true;
+    return co.sitePublished === true;
+  }
+  function _renderSitePublishState(co) {
+    const status = document.getElementById('cp-site-status');
+    const pubBtn = document.getElementById('cp-site-publish-btn');
+    const unpubBtn = document.getElementById('cp-site-unpublish-btn');
+    if (!status) return;
+    const live = _sitePublishedFromDoc(co);
+    status.classList.toggle('is-live', live);
+    status.textContent = live
+      ? '✓ Your site is published — anyone with the link above can see it.'
+      : 'Your site is private. Add your brand name, phone and service area above, save, then publish it.';
+    if (pubBtn) pubBtn.hidden = live || !co;
+    if (unpubBtn) unpubBtn.hidden = !live;
+  }
+  async function _callPublishTenantSite(publish) {
+    if (!(window._functions && window._httpsCallable)) {
+      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      window._functions = window._functions || mod.getFunctions();
+      await connectEmulatorsIfLocal({ functions: window._functions }); // no-op in prod
+      window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+    }
+    const fn = window._httpsCallable(window._functions, 'publishTenantSite');
+    try {
+      await fn({ publish: publish });
+      if (typeof showToast === 'function') {
+        showToast(publish ? '✓ Your site is published' : 'Your site is private again', 'success');
+      }
+    } catch (e) {
+      // failed-precondition carries the human "add your phone, service area…" message.
+      if (typeof showToast === 'function') showToast((e && e.message) || 'Could not change your site', 'error');
+    }
+    await _loadSiteSlug().catch(() => {});
+  }
+  const _publishSite = function () { return _callPublishTenantSite(true); };
+  const _unpublishSite = function () { return _callPublishTenantSite(false); };
   const _saveSiteSlug = async function () {
     const input = document.getElementById('cp_siteSlug');
     const msg = document.getElementById('cp-slug-msg');
@@ -6096,7 +6143,7 @@
       if (input) input.value = out.slug || '';
       _renderSiteLink(out.slug);
       if (msg) {
-        msg.textContent = out.slug ? '✓ Address saved — your site is live at the link above' : '✓ Custom address cleared — the account-id link still works';
+        msg.textContent = out.slug ? '✓ Address saved — your site uses the link above once it is published' : '✓ Custom address cleared — the account-id link still works';
         msg.style.color = 'var(--green)';
         msg.style.display = 'block';
         setTimeout(() => { msg.style.display = 'none'; }, 4000);
@@ -6558,6 +6605,8 @@ Object.assign(window.__NBD_CALL_REGISTRY, {
   // The My Jurisdictions failure message's "↻ Try again" (2026-09-25).
   _retryJurisdictions: _retryJurisdictions,
   _saveSiteSlug: _saveSiteSlug,
+  _publishSite: _publishSite,
+  _unpublishSite: _unpublishSite,
   _saveCompanyProfileSettings: _saveCompanyProfileSettings,
   _resetCompanyProfileSettings: _resetCompanyProfileSettings,
   _exportAllData: _exportAllData,

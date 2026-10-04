@@ -219,6 +219,7 @@ exports.setCompanySeatCount = seatHandlers.setCompanySeatCount;
 const publicSiteHandlers = require('./handlers/public-site');
 exports.getPublicSiteConfig = publicSiteHandlers.getPublicSiteConfig;
 exports.setSiteSlug = publicSiteHandlers.setSiteSlug;
+exports.publishTenantSite = publicSiteHandlers.publishTenantSite;
 
 // Browser monitoring (CSP violation report sink)
 const monitoringHandlers = require('./handlers/monitoring');
