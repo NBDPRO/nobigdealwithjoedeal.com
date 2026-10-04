@@ -93,7 +93,8 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 - [HOME-DEPOT-EXPENSES](runbooks/HOME-DEPOT-EXPENSES.md) — Home Depot Pro Xtra purchases → job expenses: the checkout rules (customer # in the PO/Job Name, SHOP/TOOLS words, one job per receipt), the monthly export → Expenses › Import Home Depot review, and how matching, categories and duplicate-skipping decide
 - [HEALTHCHECKS-SETUP](runbooks/HEALTHCHECKS-SETUP.md) — dead-man's-switch pings from all 25 crons; Jo's ten-minute setup, the slug table, which five to skip on the free tier, what a red check means
 - [ROLLBACK](runbooks/ROLLBACK.md)
-- [RESTORE_FROM_BACKUP](runbooks/RESTORE_FROM_BACKUP.md)
+- [BACKUP-RESTORE](runbooks/BACKUP-RESTORE.md) — every backup in one table (PITR 7 days, daily native Firestore backups kept 14 weeks, daily managed export, off-project copies in `nobigdeal-backups`, Storage versioning, and the weekly vendor-config export of Bland "Thursday" + the Stripe catalog to the private `nobigdeal-pro-vendor-backups` bucket), how to restore each piece into a NEW place, the 2026-10-04 drills, and Jo's to-dos (Cal.com API key)
+- [RESTORE_FROM_BACKUP](runbooks/RESTORE_FROM_BACKUP.md) — detailed Firestore import steps (dated 2026-10-04 corrections at the top)
 - [SECRET_ROTATION](runbooks/SECRET_ROTATION.md) — linked from the admin integrationStatus readout
 - [SPEND_KILLSWITCH](runbooks/SPEND_KILLSWITCH.md)
 - [COST-ROTATION](runbooks/COST-ROTATION.md) — closing the Grok Pro/CRM audit's cost-basis leak: worksheets prepared and gitignored in `.local/`, Jo fills real labor/xact/v2 figures and runs apply → import → ledger-paste (Jo action, writes prod Firestore)

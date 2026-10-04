@@ -73,6 +73,7 @@
     "cron-gate-drift.test.js",
     "address-audit-script.test.js",
     "backup-freshness.test.js",
+    "vendor-config-export.test.js",
     "billing-gate.test.js",
     "calendar-feed.test.js",
     "company-stale-fields-cleanup.test.js",
