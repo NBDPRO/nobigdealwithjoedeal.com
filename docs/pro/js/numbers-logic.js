@@ -74,7 +74,7 @@
     return stageKeyOf(lead) === CONTRACT_SIGNED;
   }
   function isLostLead(lead, roleFn) { return !!lead && roleOf(lead, roleFn) === 'lost'; }
-  function counts(lead) { return !!lead && !lead.deleted && !lead.isProspect && !lead.e2eTestData; }
+  function counts(lead) { return !!lead && !lead.deleted && !lead.isProspect; }
 
   /**
    * THE close rate. won ÷ (won + lost); rate null when nothing is decided.

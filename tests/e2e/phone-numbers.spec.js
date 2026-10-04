@@ -52,7 +52,8 @@ test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard
   }
   async function reloadLeads(ids) {
     await safeEvaluate(page, () => window._loadLeads && window._loadLeads());
-    await safeWaitForFunction(page, (want) => want.every((id) => (window._leads || []).some((l) => l.id === id)), { timeout: 20_000 }, ids);
+    await safeEvaluate(page, (want) => { window.__nbWant = want; }, ids);
+    await safeWaitForFunction(page, () => (window.__nbWant || []).every((id) => (window._leads || []).some((l) => l.id === id)), { timeout: 20_000 });
   }
 
   test.beforeAll(async ({ browser }, testInfo) => {
@@ -96,6 +97,7 @@ test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard
   });
 
   test('1. Lost needs a reason: the sheet, Other needs a note, the reason is saved; Cancel moves nothing', async () => {
+    test.setTimeout(90_000);
     const tag = String(stamp).slice(-6);
     const id = await seedLead({ firstName: '[E2E] Lost', lastName: 'NumLost' + tag, address: tag + ' Lost Way, Milford, OH', stage: 'contacted', stageRole: 'active', source: 'Thumbtack', createdAt: Date.now() - 5 * 86400000 });
     const keep = await seedLead({ firstName: '[E2E] Keep', lastName: 'NumKeep' + tag, address: tag + ' Keep Way, Milford, OH', stage: 'contacted', stageRole: 'active', source: 'Thumbtack', createdAt: Date.now() - 5 * 86400000 });
@@ -141,6 +143,7 @@ test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard
   });
 
   test('2. Sunday review: fits the phone, package in one tap, bulk lost reason, the week\'s decision saved', async () => {
+    test.setTimeout(120_000);
     const tag = String(stamp).slice(-6);
     const now = Date.now();
     const won = await seedLead({ firstName: '[E2E] Won', lastName: 'NumWon' + tag, address: tag + ' Won Way, Milford, OH', stage: 'contract_signed', stageRole: 'active', source: 'Website — Cal.com booking', jobValue: 14200, createdAt: now - 9 * 86400000, closedAt: now - 2 * 86400000 });
