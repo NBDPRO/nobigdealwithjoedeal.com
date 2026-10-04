@@ -293,8 +293,12 @@ section('Phase 3: homeowner presentation mode (Good/Better/Best)');
     /cardOrder\.length >= 2/.test(src) && /Full scope as reviewed with your estimator\./.test(src));
   // Homeowner-clean + handoff: Sign Now → existing BoldSign flow; close()
   // never leaves the overlay armed.
+  // …except a Kentucky insurance job (2026-10-03): the BoldSign body has no
+  // KRS 367.624 notices, so Sign Now goes to Sign on this phone (deal page).
   assert('Sign Now hands off to sendForSignature',
-    /case 'pres-sign':[\s\S]{0,120}sendForSignature\(\)/.test(src));
+    /case 'pres-sign':[\s\S]{0,400}else sendForSignature\(\)/.test(src));
+  assert('Sign Now on a Kentucky insurance job → Sign on this phone',
+    /case 'pres-sign':[\s\S]{0,400}if \(_kySigningBlocked\(\)\) signOnThisPhone\(\)/.test(src));
   assert('builder close() also closes the presentation',
     /m\.classList\.remove\('open'\);\s*closePresentation\(\)/.test(src));
 }

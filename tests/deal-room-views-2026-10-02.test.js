@@ -119,7 +119,9 @@ console.log('E. Close Board');
   ok('"👁 Viewed 3× · 12 min"', viewBadge({ viewCount: 3, readSeconds: 720 }) === '👁 Viewed 3× · 12 min', viewBadge({ viewCount: 3, readSeconds: 720 }));
   ok('an older deal with only viewedAt reads "👁 Viewed"', viewBadge({ viewedAt: {} }) === '👁 Viewed');
   ok('one open, 40 sec', viewBadge({ viewCount: 1, readSeconds: 40 }) === '👁 Viewed · 40 sec');
-  ok('new deal pages load deal-room.js ?v=2 (the beacon)', /pro\/deal-room\.js\?v=2/.test(cb));
+  // ?v=2 shipped the beacon; later bumps (v=3: the financing band) keep it.
+  const _drv = /pro\/deal-room\.js\?v=(\d+)/.exec(cb);
+  ok('new deal pages load deal-room.js ?v=2+ (the beacon)', !!_drv && Number(_drv[1]) >= 2);
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
