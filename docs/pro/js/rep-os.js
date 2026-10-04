@@ -51,7 +51,7 @@
     ],
     storm_opportunity: [
       { cat: 'opener', text: 'Storm damage in your area! Lead with urgency: "We\'ve been inspecting roofs in the neighborhood and finding damage homeowners can\'t see from the ground."' },
-      { cat: 'closing', text: 'After a storm, the close is easier: "Most insurance policies cover this 100%. We handle the entire process — you just pay your deductible."' }
+      { cat: 'closing', text: 'After a storm, lead with proof: "I\'ll photo-document everything I find so you can decide whether to file with your insurance company. It\'s your claim — I\'ll give you a clear written estimate for the work either way."' }
     ]
   };
 
