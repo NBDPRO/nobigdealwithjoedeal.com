@@ -1,5 +1,5 @@
 /**
- * integrations/parcel.js — parcel intel adapter (Regrid | Swath)
+ * integrations/parcel.js — parcel intel adapter (Regrid)
  *
  * `property-intel.js` currently uses OSM Nominatim + whatever it
  * can scrape. A parcel provider gives us structured nationwide data:
@@ -9,23 +9,16 @@
  *   - Year built / last sale / assessed value
  *   - School district, flood zone, zoning
  *
- * Providers (NBD_PARCEL_PROVIDER):
- *   regrid (default) — ~$0.01/lookup on their Tier 2 plan
- *   swath            — swathapi.com GET /v1/property (2 credits/lookup,
- *                      adds roof age + owner-occupancy; free plan serves
- *                      cached parcel data only). integrations/swath.js.
- * Fallback is one-way: NBD_PARCEL_PROVIDER=swath keeps Regrid as the
- * fallback (error OR no-record), but the regrid default never falls back
- * to Swath — a configured SWATH_API_KEY with the flag unflipped must not
- * bill anything (billing surprise > resilience here).
+ * Provider: Regrid — ~$0.01/lookup on their Tier 2 plan. The Swath
+ * alternate (NBD_PARCEL_PROVIDER=swath) was removed 2026-10-04 with the rest
+ * of the never-configured Swath integration
+ * (documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md, Lane C).
  *
  * Cacheable — 90 days is fine, parcels don't change often. We cache in
- * `parcel_cache/{addressHash}` (both providers share the cache — a hit
- * is a hit no matter who fetched it).
+ * `parcel_cache/{addressHash}`.
  *
  * SETUP:
  *   regrid.com → API → generate token → firebase functions:secrets:set REGRID_API_TOKEN
- *   and/or documentation/runbooks/SWATH-SETUP.md → firebase functions:secrets:set SWATH_API_KEY
  */
 
 'use strict';
@@ -35,8 +28,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
-const { getSecret, hasSecret, PROVIDERS, SECRETS } = require('./_shared');
-const { querySwathProperty } = require('./swath');
+const { getSecret, hasSecret, SECRETS } = require('./_shared');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -107,7 +99,7 @@ exports.lookupParcel = onCall(
     enforceAppCheck: true,
     timeoutSeconds: 15,
     memory: '256MiB',
-    secrets: [SECRETS.REGRID_API_TOKEN, SECRETS.SWATH_API_KEY]
+    secrets: [SECRETS.REGRID_API_TOKEN]
   },
   async (request) => {
     const uid = request.auth && request.auth.uid;
@@ -131,17 +123,8 @@ exports.lookupParcel = onCall(
       throw new HttpsError('invalid-argument', 'Valid address required');
     }
 
-    // Provider selection (Swath wiring 2026-08-06): Swath participates
-    // ONLY when NBD_PARCEL_PROVIDER=swath — deliberately one-way. With the
-    // flag at its 'regrid' default, a configured SWATH_API_KEY changes
-    // nothing here (the runbook promises "with only the key set, nothing
-    // changes", and Swath lookups bill 2 credits each on a hard-stopping
-    // plan — no billing surprises from a fallback nobody flipped on).
-    // When the flag IS swath, Regrid remains the one-shot fallback. Not
-    // configured at all → same failed-precondition as the Regrid-only era.
-    const wantSwath = PROVIDERS.parcel === 'swath' && hasSecret('SWATH_API_KEY');
+    // Not configured → failed-precondition before any cache read or spend.
     const providers = [];
-    if (wantSwath) providers.push('swath');
     if (hasSecret('REGRID_API_TOKEN')) providers.push('regrid');
     if (providers.length === 0) {
       throw new HttpsError('failed-precondition', 'Parcel provider not configured.');
@@ -171,14 +154,10 @@ exports.lookupParcel = onCall(
     let answered = false; // some provider returned a substantive answer (incl. a legit no-record null)
     for (const provider of providers) {
       try {
-        const got = provider === 'swath'
-          ? await querySwathProperty(address)
-          : await queryRegrid(address);
+        const got = await queryRegrid(address);
         answered = true;
         if (got) { parcel = got; break; }
-        // null = this provider has no record (200-with-no-match — expected
-        // on Swath's cache-only free plan). Let the fallback provider try
-        // before we conclude "no parcel" and cache the miss for 90 days.
+        // null = no record (200-with-no-match). Cached as a miss below.
       } catch (e) {
         logger.warn(provider + ' parcel lookup failed:', e.message);
         lastErr = e;
@@ -192,8 +171,8 @@ exports.lookupParcel = onCall(
 
     // Cache even nulls so repeat misses don't re-bill the provider.
     // GeoJSON coordinates are nested arrays, which Firestore REJECTS —
-    // store geometry as a JSON string and rehydrate on cache read. (The
-    // pre-Swath version wrote `parcel.geometry` raw: any geometry-bearing
+    // store geometry as a JSON string and rehydrate on cache read. (An
+    // earlier version wrote `parcel.geometry` raw: any geometry-bearing
     // Regrid result made this set() throw after the paid lookup had
     // already succeeded, 500ing the request. Best-effort now — a cache
     // failure must never fail a lookup we already paid for.)
@@ -204,8 +183,8 @@ exports.lookupParcel = onCall(
         delete cacheParcel.geometry;
       }
       // Non-merge set: this write owns the whole doc. merge:true would keep
-      // provider-specific keys from a PRIOR provider's pull (e.g. a stale
-      // Swath geometryJson/roofAge surviving under a fresh Regrid result —
+      // keys from a PRIOR pull (e.g. a stale geometryJson/roofAge from the
+      // retired Swath provider surviving under a fresh Regrid result —
       // mixed-provenance parcels; adversarial review 2026-08-06, finding #4).
       await cacheRef.set({
         parcel: cacheParcel,

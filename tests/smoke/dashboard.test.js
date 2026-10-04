@@ -5700,8 +5700,10 @@ section('Metrics audit F1-F9: one honest definition per number');
 
   // F7 — the mobile KPI row's overdue count skips in-production leads, same
   // as the CRM's #12 definition.
+  // 2026-10-03: via THE follow-up rule (today-plan.js followUpDue skips
+  // won / lost / job by role — tests/today-plan-2026-10-03.test.js).
   assert('F7: overdueFollowUps skips job-role leads',
-    /if \(_isDecided\(l\) \|\| _isJob\(l\) \|\| !l\.followUp\) return false;/.test(kpi));
+    /var overdueFollowUps = fuDue \? leads\.filter\(function \(l\) \{ return fuDue\(l, now\.getTime\(\)\); \}\)\.length : 0;/.test(kpi));
 
   // F8 — in-production (job role) money is closed-won everywhere, never
   // "active pipeline".

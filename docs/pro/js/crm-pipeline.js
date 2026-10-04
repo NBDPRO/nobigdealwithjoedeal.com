@@ -102,31 +102,21 @@ window.nbdFollowUpDay = _followUpDay;
 // placeholder name carried auto-set follow-up dates and buried the real
 // ones in "Follow-ups Due"). They stay on the board and on D2D's own
 // re-knock list; they just don't count as overdue CRM follow-ups.
+// The rule itself lives in today-plan.js (isUnreachableKnock) since
+// 2026-10-03 — followUpDue there applies it for every follow-up surface.
 function _unreachableKnockLead(l) {
-  if (!l) return false;
-  const knock = !!l.d2dKnockId || /door|d2d|knock/i.test(String(l.source || ''));
-  if (!knock) return false;
-  const digits = String(l.phone || l.phoneDigits || '').replace(/\D/g, '');
-  return digits.length < 10;
+  return window.NBDTodayPlan.isUnreachableKnock(l);
 }
 window.nbdUnreachableKnockLead = _unreachableKnockLead;
 // Leads whose follow-up is due today or earlier — the "N Follow-ups Due"
-// banner, the header pill and the follow-up deck. Skips effectively-closed
-// deals by semantic stageRole (won / lost / in-production job) rather than a
-// hardcoded name list, which missed final_payment + any custom won/lost
-// stage and so nagged "due" on done deals; the name list stays as a
-// fallback for before stageRole is loaded.
+// banner, the header pill and the follow-up deck. ONE rule since 2026-10-03:
+// today-plan.js followUpDue (local day; skips won / lost / in-production by
+// stageRole, terminal stage names, deleted leads and phone-less knock leads),
+// the same call the KPI tile, the bell's follow-up notices and Today make.
 function _overdueFollowUps(all, today) {
-  const _terminalStages = ['closed','lost','Complete','Lost','final_payment'];
-  return (all || []).filter(l=>{
-    if(!l || !l.followUp) return false;
-    if(_unreachableKnockLead(l)) return false;
-    const sk = l._stageKey || l.stage || '';
-    const role = l._stageRole || (typeof window.stageRole === 'function' ? window.stageRole(sk) : 'active');
-    if(role === 'won' || role === 'lost' || role === 'job') return false;
-    if(_terminalStages.includes(sk) || _terminalStages.includes(l.stage||'')) return false;
-    const d=_followUpDay(l.followUp); return d<=today;
-  });
+  const due = window.NBDTodayPlan.followUpDue;
+  const at = today && typeof today.getTime === 'function' ? today.getTime() : Date.now();
+  return (all || []).filter(l => due(l, at));
 }
 // "Due today" / "Due Sep 29" / "3 days overdue" — the banner printed the raw
 // "Due: 2026-09-29".

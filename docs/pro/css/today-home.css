@@ -1,0 +1,28 @@
+/* today-home.css — the "Today" list on Home (js/today-home.js, 2026-10-03).
+   Thumb-sized actions (≥44px), one row per thing, sections collapse when empty. */
+.tp{display:block;margin-bottom:14px;border:1px solid var(--br);border-radius:14px;background:var(--s2,#1a1d23);padding:12px 12px 6px;}
+.tp[hidden]{display:none;}
+.tp-hd{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:6px;}
+.tp-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--t);letter-spacing:.2px;}
+.tp-storm{font-size:12px;font-weight:700;color:var(--gold,#f59e0b);}
+.tp-sub{font-size:12px;color:var(--m);}
+.tp-empty{font-size:13px;color:var(--m);padding:10px 2px 12px;}
+.tp-sec{border-top:1px solid var(--br);padding:8px 0 4px;}
+.tp-sec-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
+.tp-sec-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--m);}
+.tp-count{display:inline-block;min-width:18px;padding:0 6px;border-radius:9px;background:var(--br);color:var(--t);font-size:10px;text-align:center;}
+.tp-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-bottom:1px dashed var(--br);}
+.tp-row:last-of-type{border-bottom:0;}
+.tp-main{flex:1 1 180px;min-width:0;}
+.tp-name{font-size:14px;font-weight:700;color:var(--t);overflow-wrap:anywhere;}
+.tp-dim{font-weight:500;color:var(--m);}
+.tp-hot{color:var(--red,#ef4444);font-weight:800;}
+.tp-acts{display:flex;flex-wrap:wrap;gap:6px;}
+.tp-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 12px;border-radius:10px;border:1px solid var(--br);background:transparent;color:var(--t);font:inherit;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;}
+.tp-btn.tp-go{border-color:var(--orange,#e8720c);color:var(--orange,#e8720c);}
+.tp-more{font:inherit;font-size:12px;font-weight:700;color:var(--orange,#e8720c);background:transparent;border:0;padding:8px 0;min-height:44px;cursor:pointer;}
+.tp-hd-btn{padding:0 4px;min-height:32px;}
+@media (max-width:480px){
+  .tp-acts{width:100%;}
+  .tp-btn{flex:1 1 auto;}
+}

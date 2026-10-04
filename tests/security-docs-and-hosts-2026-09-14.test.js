@@ -44,8 +44,7 @@ console.log('security-docs-and-hosts-2026-09-14: PR-4b regression guard\n');
   ok('SECURITY.md production domains include the authDomain nobigdeal-pro.firebaseapp.com',
     /nobigdeal-pro\.firebaseapp\.com/.test(sec));
 
-  ok('SECURITY.md webhook list includes swathWebhook',
-    /swathWebhook/.test(sec));
+  // swathWebhook left the list when the Swath code was removed (2026-10-04).
   ok('SECURITY.md webhook list includes thumbtackWebhook',
     /thumbtackWebhook/.test(sec));
   ok('SECURITY.md webhook list includes stripeConnectWebhook',
