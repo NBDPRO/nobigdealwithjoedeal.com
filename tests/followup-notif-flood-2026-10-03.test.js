@@ -93,6 +93,8 @@ function makeTab(server, uid) {
   const M = server.mod();
   const win = {
     _user: { uid }, _auth: { currentUser: { uid } }, _db: {},
+    // dashboard.html loads today-plan.js (THE follow-up rule, 2026-10-03) before crm-snooze.js.
+    NBDTodayPlan: require(path.join(__dirname, '..', 'docs/pro/js/today-plan.js')),
     addEventListener() {}, removeEventListener() {}, dispatchEvent() {},
     nbdFollowUpDay(v) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v)); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v); },
     stageRole(k) { return /^(closed|install_complete)$/.test(k) ? 'won' : /^lost$/.test(k) ? 'lost' : 'active'; },
