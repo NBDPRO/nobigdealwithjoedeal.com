@@ -951,8 +951,13 @@ input[type="color"].nbd-color-native {
 
 @media (max-width: 768px) {
   .nbd-editor-overlay.nbd-daylight .nbd-toolbar { width: auto; height: 64px; }
-  .nbd-editor-overlay.nbd-daylight .nbd-tool-btn { width: 56px; height: 56px; }
-  .nbd-editor-overlay.nbd-daylight .nbd-tool-sep { height: 40px; }
+  /* The strip scrolls sideways; the first eight tools (Select → Text) must
+     still fit a 412px phone without a swipe (phone-chrome.spec.js). So the
+     buttons hug their 13px label (44px floor kept) instead of a fixed 56px,
+     and the group separators and strip padding are trimmed. */
+  .nbd-editor-overlay.nbd-daylight .nbd-toolbar { padding: 4px 6px; }
+  .nbd-editor-overlay.nbd-daylight .nbd-tool-btn { width: auto; min-width: 46px; height: 56px; padding: 0 2px; }
+  .nbd-editor-overlay.nbd-daylight .nbd-tool-sep { height: 40px; margin: 0 2px; }
   .nbd-editor-overlay.nbd-daylight .nbd-panel { bottom: 64px; }
   .nbd-editor-overlay.nbd-daylight .nbd-propbar { min-height: 60px; flex-wrap: nowrap; overflow-x: auto; }
   .nbd-editor-overlay.nbd-daylight .nbd-photostrip { height: 72px; }

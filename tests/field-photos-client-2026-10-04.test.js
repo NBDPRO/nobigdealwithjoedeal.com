@@ -548,4 +548,9 @@ const blob = () => new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])], { 
   console.log('\n──────────────────────────────────────────────────');
   console.log(passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('Failures:\n - ' + fails.join('\n - ')); process.exit(1); }
+  // Every assertion above has been awaited. Exit now: the modules under test
+  // leave browser-lifetime timers armed (inspection-report-engine's 60 s blob
+  // URL revoke, photo-engine's 10 s save-confirm races) that would otherwise
+  // hold Node open ~60 s and trip the manifest runner's per-suite timeout.
+  process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
