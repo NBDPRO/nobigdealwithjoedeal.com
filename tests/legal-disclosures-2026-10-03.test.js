@@ -62,7 +62,7 @@ console.log('1. privacy policy — vendors the code uses');
     /xAI's Grok/.test(text) && /phone numbers, email addresses, and insurance claim and policy numbers are never provided/.test(text)
     && /cannot send messages/.test(text));
 
-  ok('"Last Updated" is October 3, 2026', /Last Updated: October 3, 2026/.test(priv));
+  ok('"Last Updated" is October 4, 2026', /Last Updated: October 4, 2026/.test(priv));
 }
 
 console.log('2. privacy policy — Do Not Track says what the code does');

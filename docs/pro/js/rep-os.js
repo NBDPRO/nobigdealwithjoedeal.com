@@ -1,7 +1,7 @@
 /**
  * NBD Pro — Rep OS v1
  * AI-powered daily briefing & coaching engine
- * Morning auto-brief: weather, follow-ups, coaching, hot neighborhoods, route
+ * Morning auto-brief: follow-ups, coaching, hot neighborhoods, route
  * Ties together D2D, Sales Training, Gamification, and Joe AI
  */
 
@@ -13,8 +13,9 @@
   // ============================================================================
 
   const BRIEFING_STORAGE_KEY = 'nbd_rep_briefings';
-  const WEATHER_API = 'https://api.openweathermap.org/data/2.5/weather';
-  const FORECAST_API = 'https://api.openweathermap.org/data/2.5/forecast';
+  // The OpenWeatherMap weather card was removed 2026-10-04 (vendor audit
+  // Lane D): nothing ever set its localStorage key and api.openweathermap.org
+  // was never in connect-src, so the card could not have rendered.
 
   // Coaching tip categories
   const COACHING_CATEGORIES = {
@@ -167,71 +168,6 @@
     return { active: 0, pending: 0, signed: 0 };
   }
 
-  async function getWeatherData() {
-    const key = localStorage.getItem('nbd_weather_key') || localStorage.getItem('openweather_key');
-    if (!key) return null;
-
-    try {
-      let lat = 39.1031, lng = -84.5120; // Cincinnati default
-      if (navigator.geolocation) {
-        const pos = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
-        }).catch(() => null);
-        if (pos) { lat = pos.coords.latitude; lng = pos.coords.longitude; }
-      }
-
-      const resp = await fetch(`${WEATHER_API}?lat=${lat}&lon=${lng}&appid=${key}&units=imperial`);
-      if (!resp.ok) return null;
-      const data = await resp.json();
-
-      // Also get forecast for canvassing window
-      const fResp = await fetch(`${FORECAST_API}?lat=${lat}&lon=${lng}&appid=${key}&units=imperial&cnt=8`);
-      const fData = fResp.ok ? await fResp.json() : null;
-
-      return {
-        temp: Math.round(data.main.temp),
-        feelsLike: Math.round(data.main.feels_like),
-        description: data.weather?.[0]?.description || 'Unknown',
-        icon: data.weather?.[0]?.icon,
-        humidity: data.main.humidity,
-        windSpeed: Math.round(data.wind?.speed || 0),
-        city: data.name,
-        canvassingWindow: getCanvassingWindow(fData),
-        isGoodForKnocking: data.main.temp > 40 && data.main.temp < 95 && (data.wind?.speed || 0) < 25 && !data.weather?.[0]?.main?.includes('Rain')
-      };
-    } catch (e) { return null; }
-  }
-
-  function getCanvassingWindow(forecast) {
-    if (!forecast?.list) return { label: '10am – 7pm', quality: 'good' };
-
-    const windows = forecast.list.map(f => ({
-      time: new Date(f.dt * 1000),
-      temp: f.main.temp,
-      rain: f.rain?.['3h'] || 0,
-      wind: f.wind?.speed || 0,
-      weather: f.weather?.[0]?.main || ''
-    }));
-
-    const goodWindows = windows.filter(w => {
-      const hour = w.time.getHours();
-      return hour >= 10 && hour <= 19 && w.temp > 40 && w.temp < 95 && w.rain === 0 && w.wind < 20;
-    });
-
-    if (goodWindows.length >= 3) {
-      const start = goodWindows[0].time;
-      const end = goodWindows[goodWindows.length - 1].time;
-      return {
-        label: `${fmtTime(start)} – ${fmtTime(end)}`,
-        quality: 'excellent',
-        hours: goodWindows.length
-      };
-    } else if (goodWindows.length >= 1) {
-      return { label: `${fmtTime(goodWindows[0].time)} – limited window`, quality: 'fair', hours: goodWindows.length };
-    }
-    return { label: 'Poor conditions — consider follow-up calls instead', quality: 'poor', hours: 0 };
-  }
-
   // ============================================================================
   // COACHING ENGINE
   // ============================================================================
@@ -288,14 +224,12 @@
     const gamify = getGamificationData();
     const storms = getStormData();
     const deals = getDealData();
-    const weather = await getWeatherData();
     const tips = generateCoachingTips(metrics);
 
     const briefing = {
       date: todayKey(),
       generatedAt: new Date().toISOString(),
       greeting: getGreeting(),
-      weather,
       metrics,
       gamification: gamify,
       storms: {
@@ -305,7 +239,7 @@
       },
       deals,
       coachingTips: tips,
-      todayPlan: generateTodayPlan(metrics, weather, storms, deals),
+      todayPlan: generateTodayPlan(metrics, storms, deals),
       motivationalQuote: getMotivationalQuote()
     };
 
@@ -328,12 +262,11 @@
     return `Good evening, ${name}`;
   }
 
-  function generateTodayPlan(metrics, weather, storms, deals) {
+  function generateTodayPlan(metrics, storms, deals) {
     const plan = [];
     const hasFollowUps = metrics && metrics.followUpsDue > 0;
     const hasStorms = storms.alerts.length > 0 || storms.zones.filter(z => z.status === 'active').length > 0;
     const hasDeals = deals.pending > 0;
-    const goodWeather = weather?.isGoodForKnocking !== false;
 
     // Morning block (8-10am)
     if (hasFollowUps) {
@@ -345,10 +278,8 @@
     // Mid-morning (10am-12pm)
     if (hasStorms) {
       plan.push({ time: '10:00am – 12:00pm', action: '🌩️ Drive storm zones, photograph damage, start knocking affected areas', priority: 'high', type: 'storm' });
-    } else if (goodWeather) {
-      plan.push({ time: '10:00am – 12:00pm', action: '🚪 Morning knock block — focus on previously "not home" addresses', priority: 'normal', type: 'knock' });
     } else {
-      plan.push({ time: '10:00am – 12:00pm', action: '📋 Indoor work — update CRM, send estimates, follow up on deals', priority: 'normal', type: 'admin' });
+      plan.push({ time: '10:00am – 12:00pm', action: '🚪 Morning knock block — focus on previously "not home" addresses', priority: 'normal', type: 'knock' });
     }
 
     // Afternoon (1-4pm)
@@ -425,14 +356,13 @@
         <div class="rpx-tacenter-p60px20px">
           <div class="rpx-fs40px-mb16px">🧠</div>
           <div class="rpx-fs18px-w700-ct">Generating Your Daily Briefing...</div>
-          <div class="rpx-fs12px-cm-mt6px">Analyzing your performance, weather, and opportunities</div>
+          <div class="rpx-fs12px-cm-mt6px">Analyzing your performance and opportunities</div>
         </div>
       `;
       return;
     }
 
     const b = todayBriefing;
-    const w = b.weather;
     const m = b.metrics;
 
     let html = `<div class="rpx-p16px20px">`;
@@ -456,27 +386,6 @@
         <div class="rpx-fs10px-corange-mt4px">— ${esc(b.motivationalQuote.author)}</div>
       </div>
     `;
-
-    // Weather Card
-    if (w) {
-      const windowColor = w.canvassingWindow?.quality === 'excellent' ? 'var(--green)' :
-                          w.canvassingWindow?.quality === 'fair' ? '#ffab00' : 'var(--red)';
-      html += `
-        <div class="rpx-bgs2-bd1pxsolid-r10px">
-          <div class="rpx-dflex-aicenter-jcspacebet-2">
-            <div>
-              <div class="rpx-fs11px-w700-cblue">☁️ Weather — ${esc(w.city || 'Your Area')}</div>
-              <div class="rpx-fs22px-w700-ct">${w.temp}°F <span class="rpx-fs12px-w400-cm">feels ${w.feelsLike}°</span></div>
-              <div class="rpx-fs12px-cm-ttcapitali">${esc(w.description)} · 💨 ${w.windSpeed}mph · 💧 ${w.humidity}%</div>
-            </div>
-            <div class="rpx-taright">
-              <div style="font-size:10px;color:${windowColor};font-weight:700;text-transform:uppercase;">${w.isGoodForKnocking ? '✅ GOOD FOR KNOCKING' : '⚠️ CHECK CONDITIONS'}</div>
-              <div class="rpx-fs11px-cm-mt4px">Window: ${w.canvassingWindow?.label || '10am-7pm'}</div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
 
     // Performance Snapshot
     if (m) {
@@ -612,7 +521,7 @@
         <div class="rpx-mt40px">
           <div class="rpx-fs60px-mb16px">🧠</div>
           <div class="rpx-fs24px-w800-ffbarlowco">REP OS</div>
-          <div class="rpx-fs14px-cm-mt6px">Your AI-powered daily briefing. Weather, follow-ups, coaching, and optimized route — all in one view.</div>
+          <div class="rpx-fs14px-cm-mt6px">Your AI-powered daily briefing. Follow-ups, coaching, and optimized route — all in one view.</div>
           <button data-repos-action="generate" class="rpx-mt20px-p14px28px-bgorange">
             ⚡ GENERATE TODAY'S BRIEFING
           </button>

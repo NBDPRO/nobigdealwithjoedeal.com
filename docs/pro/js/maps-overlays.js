@@ -11,7 +11,7 @@
  *
  * Depends on the sibling-scope globals declared in maps-core.js
  * (mainMap, pinMarkers, pinClusterGroup, overlayState, heatLayer,
- * jobMarkers, weatherLayer, stormTileLayer, pendingPin,
+ * jobMarkers, stormTileLayer, pendingPin,
  * curPinStatus, curPinColor, PIN_LABELS, PIN_COLORS, STAGE_COLORS,
  * hav, mid). Classic-script — no import/export.
  *
@@ -97,7 +97,7 @@ function showJobsLayer() {
 }
 function hideJobsLayer() { jobMarkers.forEach(m=>mainMap.removeLayer(m)); }
 
-// ── STORM LAYER (NOAA via RainViewer / mesonet tile) ───────
+// ── STORM LAYER (NOAA NEXRAD via the Iowa Environmental Mesonet tile) ──
 function showStormLayer() {
   if(stormTileLayer) { stormTileLayer.addTo(mainMap); return; }
   // NOAA Ridge2 latest composite reflectivity — free, no key
@@ -110,18 +110,9 @@ function showStormLayer() {
 }
 function hideStormLayer() { if(stormTileLayer) mainMap.removeLayer(stormTileLayer); }
 
-// ── WEATHER LAYER (OpenWeatherMap precipitation — free tier key optional) ──
-function showWeatherLayer() {
-  if(weatherLayer) { weatherLayer.addTo(mainMap); return; }
-  // RainViewer public precipitation overlay — no API key needed
-  weatherLayer = L.tileLayer(
-    'https://tilecache.rainviewer.com/v2/coverage/0/256/{z}/{x}/{y}/1/1_1.png',
-    {opacity:0.55, attribution:'RainViewer', maxZoom:20}
-  );
-  weatherLayer.addTo(mainMap);
-  showToast('Live weather overlay active');
-}
-function hideWeatherLayer() { if(weatherLayer) mainMap.removeLayer(weatherLayer); }
+// (The "Live Weather" RainViewer overlay was removed 2026-10-04 — vendor
+// audit Lane D: tilecache.rainviewer.com was never in img-src, so the toggle
+// never drew a tile. The Storm layer above is the radar.)
 
 // ── PIN CONFIRM FLOW ─────────────────────────────
 function openPinConfirm(lat, lng) {
