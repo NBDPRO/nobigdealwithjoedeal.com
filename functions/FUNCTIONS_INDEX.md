@@ -39,6 +39,7 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `revokeMySessions` | onCall | Self-service "Sign Out Everywhere" (2026-09-08) — revokes the CALLER's own refresh tokens. Self-scoped by construction: uid comes from the verified token, no target parameter, so it cannot become an admin path. The only caller-scoped revoke in the tree; the five `revokeRefreshTokens` calls in `handlers/admin.js` / `invites.js` / `compliance.js` / `lapse-enforcement.js` are all admins acting on someone else. Rate-limited per-uid + per-IP via `guardCallable` (5/hr, 20/hr). Kills refresh tokens only — an ID token already issued survives up to ~1h, which is why the UI promises "within an hour at most" |
 | `createCompany` | onCall | Pillar 1 phase 2 — self-serve tenant provisioning (companies/{uid} + companyProfile seed + owner claims) |
 | `setSiteSlug` | onCall | Pillar 5 — tenant sets a human slug for their public microsite (validated + reserved-word list) |
+| `publishTenantSite` | onCall | Owner's "Publish my site" / "Unpublish" — the only writer of `companies/{id}.sitePublished`; needs brand name + phone + service area (2026-10-04) |
 | `createPortalToken` | onCall | Mints a portal-share token for a lead |
 | `revokePortalToken` | onCall | Revokes outstanding portal tokens |
 | `replyToPortalMessage` | onCall | Rep reply to a homeowner message |
@@ -59,10 +60,10 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `trackUsage` | onCall | Plan-usage increment (atomic, server-side) |
 | `integrationAvailability` | onCall | Non-admin-safe counterpart to the admin-gated `integrationStatus` below — any authenticated caller, no role check. Returns ONLY the booleans that gate `requestMeasurement` / `sendEstimateForSignature` / `lookupParcel` (instantroofer, boldsign, regrid) plus the active provider per category; none of the H-06-restricted fields (Turnstile/Upstash/Sentry/Slack/webhook secrets/rotationRunbook). Added 2026-09-14: `integrations-client.js`'s `status()` used to short-circuit for non-admins into a permanently-empty `configured: {}` without ever calling the server, which made every ordinary rep's Auto-measure / e-sign / parcel-lookup buttons report "not set up" regardless of actual config |
 | `lookupParcel` | onCall | Parcel lookup w/ 90-day cache — Regrid (the Swath alternate was removed 2026-10-04) |
-| `requestMeasurement` | onCall | Roof measurement request — Instant Roofer (default: coordinates-in AI measure, synchronous; or `reportType:'human'` for the ~1 h certified report) — the only provider since Hover / EagleView / Nearmap were removed 2026-10-04; any other `NBD_MEASUREMENT_PROVIDER` fails loudly |
+| `requestMeasurement` | onCall | Roof measurement request — Instant Roofer (default: coordinates-in AI measure, synchronous; or `reportType:'human'` for the ~1 h certified report) — Hover / EagleView / Nearmap were removed 2026-10-04; `NBD_MEASUREMENT_PROVIDER=solar` (Google Solar API, `integrations/solar-measure.js`) or `auto` (Solar first, Instant Roofer fallback) since 2026-10-04; any other value fails loudly |
 | `sendEstimateForSignature` | onCall | BoldSign embedded-signing flow (was listed here as `sendForSignature` — actual export name is `sendEstimateForSignature`) |
 | `getHailHistory` | onCall | Storm history within radius — NOAA (default) / NCEI SWDI per `NBD_HAIL_PROVIDER`, NOAA fallback (routes through shared `lookupHail`); HailTrace + Swath removed 2026-10-04 |
-| `transcribeVoiceMemo` | onCall | Deepgram audio transcription — the card-detail "Voice Memo" button. `DEEPGRAM_API_KEY` is still the deploy stub, so it answers "not configured"; the last Deepgram consumer (dictate's fallback was removed 2026-10-04) |
+| `transcribeVoiceMemo` | onCall | Voice memo transcription — Groq Whisper via the shared `transcribeGroqBuffer` (same key + helpers as `dictate`), `isAiDisabled` kill switch, 20/hr/uid; writes a `voice_memo` activity on the lead (customer timeline). Deepgram removed 2026-10-04 |
 | `dictate` | onCall | Whisper unified transcribe + AI cleanup — Groq only (Deepgram fallback removed 2026-10-04) |
 | `renderPdf` | onCall | Server-side Puppeteer PDF render (warranty/inspection/estimate/etc.), 2GiB, minInstances:0 since 2026-09-05 — expect a ~10-20s Chromium cold start after an idle window |
 | `sendVerificationCode` | onCall | SMS OTP via Twilio Verify (per-phone attempt cap) |
@@ -124,10 +125,13 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `submitEsignEnvelope` | onRequest | Envelope signing: stamps a FLATTENED signed PDF with pdf-lib, verifies the source digest is unchanged, requires consent, records signer IP + user agent + both SHA-256 digests. Stamps BEFORE the burn so a bad payload cannot grief a real signing. Never overwrites the source. Job spine (2026-10-03): an envelope titled as the contract stamps `contractFiledAt` and records `contract_signed` |
 | `getDealRoom` | onRequest | Deal acceptance: ~120-bit single-use token, 14-day expiry, served same-origin via `/deal/**` rewrite |
 | `submitDealAcceptance` | onRequest | Deal acceptance: burns token, records tier + signature, notifies rep. Job spine (2026-10-03): records `deal_accepted` (Contract Signed; Service Approved on a repair) |
-| `crmMcp` | onRequest | NBD CRM connection for the Grok Bot team: MCP (JSON-RPC) at `/api/mcp`, per-bot hashed keys, minimized reads, files notes/reminders/reports into `agent_inbox`; no send/edit/delete tools; `AGENT_MCP_DISABLED=true` kills it |
-| `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256) |
-| `listAgentKeys` | onCall | The company's bot keys (no secrets) + bot tool lists |
-| `revokeAgentKey` | onCall | Turns one bot key off |
+| `crmMcp` | onRequest | CRM connection for bots (NBD's house team + any paid company's own bots): MCP (JSON-RPC) at `/api/mcp`, per-bot hashed keys, minimized reads, files notes/reminders/reports into `agent_inbox`; no send/edit/delete tools; `AGENT_MCP_DISABLED=true` kills it |
+| `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256); house roster NBD-only, personal tracker keys self-serve |
+| `listAgentKeys` | onCall | The Bots & API page: own keys (owner/admin: every company key), company bots, switch, plan, timezone — no secrets |
+| `revokeAgentKey` | onCall | Turns one bot key off (owner/admin: any company key; anyone: their own) |
+| `saveAgentBot` | onCall | Owner/company_admin makes or edits a company bot (name, role, allowed tools, who it notifies); paid plan + company switch on |
+| `deleteAgentBot` | onCall | Owner/company_admin removes a company bot and revokes its keys |
+| `saveAgentSettings` | onCall | Owner/company_admin: the company's bots on/off switch, timezone, house rules for bots |
 | `dealRoomReadPing` | onRequest | Deal room time-on-page beacon via `/api/deal-read` rewrite: token-authed, adds clamped seconds to deal_rooms.readSeconds; preview bots ignored |
 | `getSharedReport` | onRequest | Report share: ~120-bit REUSABLE token, 30-day default expiry, per-IP rate limit (view-only) |
 | `getCalendarFeed` | onRequest | Read-only `.ics` feed served at `/calendar/<token>.ics` for the iPhone Calendar app. ~120-bit token, deliberately NO expiry (a subscription that stops refreshing is silent), per-IP + per-token rate limits, `text/calendar`, never an empty 200 — a calendar client reads that as "all events deleted" |
@@ -171,6 +175,7 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `setupGoogleCalendar` | onCall | requireOwner: platform owner, its company_admin, or role admin | Google Calendar — creates the "NBD Jobs" calendar (owned by the functions service account), shares it READ-ONLY with the given Google account, fills it (functions/google-calendar.js) |
 | `getGoogleCalendarStatus` | onCall | requireOwner | Google Calendar — set up? shared with whom, the service-account email to share free/busy with, whether Jo's main calendar is readable |
 | `getBusyTimes` | onCall | requireOwner | Google Calendar — merged busy blocks (NBD Jobs + Jo's main calendar) for the double-booking warning; ≤62-day window |
+| `getJobWeather` | onCall | requireOwner | Production flow (2026-10-04) — the free weather.gov forecast for the owner's jobs scheduled in the next 7 days (Plan Jobs badge); cached 2 h per ~1 km grid point in `weather_cache` (admin-only), identifying User-Agent; warns only (functions/job-weather.js) |
 | `reverifyCompanyKnocks` | onCall | `requireTeamAdmin` | D2D — re-geocodes/verifies the company's knock addresses (540s sweep) |
 | `convertUnmatchedSms` | onCall | `isOwnerCaller` or `role === 'admin'` | Turns an `unmatched_sms` triage row into a real lead + AI draft (handlers/inbound-sms-convert.js) |
 
@@ -201,7 +206,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `runMigrations` | onCall | `role === 'admin'` (see ADMIN note) | Manual versioned-migration trigger (was mislabeled "scheduler-triggered" in the previous index) |
 | `migrationsTick` | scheduled (every 24h) | n/a (server-only) | Idempotent daily migration cron (also listed in SCHEDULED) |
 
-## SCHEDULED CRONS (server-only, no client traffic) — 28
+## SCHEDULED CRONS (server-only, no client traffic) — 29
 | Export | Schedule | Purpose |
 |---|---|---|
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
@@ -221,6 +226,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `googleCalendarReconcile` | daily 05:45 ET | Google Calendar — makes "NBD Jobs" match the CRM (jobs + adjuster meetings from 30 days back; removes stale events). No-op until set up; kill switch `GOOGLE_CALENDAR_SYNC_DISABLED=true` |
 | `stripeLedgerReconcile` | daily 06:15 ET | Stripe ledger — re-ingests the last 4 days of Stripe activity so a missed webhook can never lose a payment (idempotent; kill switch `STRIPE_LEDGER_DISABLED=true`, also honoured by the webhook path) |
 | `onYardSignPickupDue` | daily 07:30 ET | Push: yard signs due for pickup today or overdue (one per rep, repeats daily until handled) |
+| `onAfterInstallDay` | daily 07:15 ET | Push: the morning after a job's last day, "Mark Install Done? Take After photos." — once per lead per last day (`push_markers` create() marker); jobs still in a production stage only (production flow, 2026-10-04) |
 | `migrationsTick` | every 24h | Idempotent versioned-migration runner tick |
 | `auditLogRetentionCron` | daily 03:30 | Prunes `audit_log` rows past retention (keys on `ts`) |
 | `recordingRetentionCron` | daily 05:00 | Prunes aged voice-intelligence recordings |
@@ -228,6 +234,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `dailyFirestoreBackup` | daily 03:15 ET | Full Firestore export to `gs://nobigdeal-pro-firestore-backups/YYYY-MM-DD/` (firestore-backup.js) |
 | `firestoreBackupRetention` | daily 03:45 ET | Prunes backups older than 30 days (firestore-backup.js) |
 | `backupFreshnessCron` | daily 06:00 ET | **The alarm for the above.** Emails if no `overall_export_metadata` newer than 26h is in the backup bucket. No enable-gate on purpose (backup-freshness.js) |
+| `weeklyVendorConfigExport` | Sundays 04:30 ET | Backs up config that lives only at a vendor (Bland "Thursday" agent/pathway/persona/numbers, Cal.com event types once `CALCOM_API_KEY` exists, BoldSign templates, Stripe catalog) to the PRIVATE `gs://nobigdeal-pro-vendor-backups/vendor-config/YYYY-MM-DD/`, token-redacted. Same logic as `scripts/export-vendor-config.js`; runbook `documentation/runbooks/BACKUP-RESTORE.md` (vendor-config-export.js) |
 | `enforceLapsedSeats` | daily 09:00 | Pillar 4 — deactivates members past their seat lapse grace window (lapse-enforcement.js) |
 | `reviewRequestNudge` | daily 08:15 ET | Google-review request nudge emails for recently-won jobs (review-request-nudge.js) |
 | `morningBrief` | daily 06:45 ET | Today's appointments (Cal.com bookings, job days, other jobs, adjuster meetings) with CRM property history → ONE email to the owner (`NBD_OWNER_UID`), never a homeowner; nothing today → no send; opt-out `users/{owner}.morningBriefEnabled === false`; DRY-RUN unless `MORNING_BRIEF_ENABLED=true` (morning-brief.js / morning-brief-logic.js) |
@@ -240,7 +247,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 
-## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 39 Firestore + 2 Storage
+## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 41 Firestore + 2 Storage
 | Export | Watches | Purpose |
 |---|---|---|
 | `onPhotoUploaded` | Storage finalize (`nobigdeal-pro.appspot.com`) | 200/600/1600 px WebP variant pipeline; stamps `photo.urls` (or `knock.photoVariants[idx]` for `/d2d/` sources, mirrored to the converted lead) |
@@ -255,6 +262,8 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `onLeadCalendarWrite` | `leads/{leadId}` written | Google Calendar — updates that lead's "NBD Jobs" events (job + adjuster meeting) when a field the calendar shows changes; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onJobCalendarWrite` | `leads/{leadId}/jobs/{jobId}` written | Google Calendar — multi-job: a customer's OTHER (non-active) job gets its own "NBD Jobs" events, keyed per job, titled with the job; the active job's events stay the lead's; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onYardSignCalendarWrite` | `yardSigns/{signId}` written | Google Calendar — a yard sign's pickup reminder: one all-day FREE "🪧 Pick up yard sign" event on its New York pickup day (overdue → rolled to today by the nightly reconcile), removed on pickup / missing / remove; platform tenant only; no-op until set up (functions/google-calendar.js) |
+| `onLeadEventCalendarWrite` | `leads/{leadId}/tasks/{taskId}` written | Google Calendar — a CRM-booked appointment (type:'event', lead-events.js: Add Event, door-knock Appointment Set) → a timed BUSY "📅" event (Cal.com sees it busy); removed when deleted/cancelled; plain tasks ignored; platform tenant only (production flow, 2026-10-04) |
+| `onOrderCalendarWrite` | `leads/{leadId}/jobs/{jobId}/orders/{orderId}` written | Google Calendar — a material order's delivery day → an all-day FREE "🚚 Delivery" event, flagged when it lands after the job's start; cancelled → removed (production flow, 2026-10-04) |
 | `onKnockCalendarWrite` | `knocks/{knockId}` written | Google Calendar — D2D follow-ups that carry a time: the NEWEST knock at a door decides (Jo, 2026-09-30) — a 30-minute BUSY "📞 Follow up" event keyed per door, removed when the newest knock has no timed follow-up; spelling variants merged by the nightly reconcile; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onClaimStageChange` | `leads/{leadId}` updated | Push notification on claim-stage transitions |
 | `onAiDraftApproved` | `leads/{leadId}/ai_drafts/{draftId}` updated | Sends approved AI-drafted SMS via Twilio (pending→approved transition only; idempotent) |

@@ -27,6 +27,16 @@ async function openCrm(page) {
   }
 }
 
+// Leads an earlier attempt of this file saved (first-name match).
+async function clearTestLeads(email, re) {
+  const { initializeApp, getApps } = require('firebase-admin/app');
+  if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro' });
+  const db = require('firebase-admin/firestore').getFirestore();
+  const uid = (await require('firebase-admin/auth').getAuth().getUserByEmail(email)).uid;
+  const snap = await db.collection('leads').where('userId', '==', uid).get();
+  for (const d of snap.docs) if (re.test(String(d.data().firstName || ''))) await d.ref.delete();
+}
+
 test.describe.serial('CRM handoff 2026-09-30 — hotkeys, job block, search, double save @shard2', () => {
   let creds;
   test.beforeEach(async ({ page }) => {
@@ -80,10 +90,32 @@ test.describe.serial('CRM handoff 2026-09-30 — hotkeys, job block, search, dou
     await expect(page.locator('#leadModal')).toHaveClass(/open/, { timeout: 5_000 });
     await expect(page.locator('#jobFieldsBlock'), 'Job Details (Scheduled Date) visible on a new lead').toBeVisible();
     await expect(page.locator('#lScheduledDate')).toBeVisible();
-    // Web fonts (Barlow, via Google Fonts) finishing mid-test grew every block
-    // by 1–2 px between the two measurements — a false "Notes jumped 3–7 px"
-    // on first attempts in 4 of 8 main runs (never on a retry, fonts cached).
-    await safeEvaluate(page, () => document.fonts && document.fonts.ready.then(() => true));
+    // Web fonts (Barlow / Barlow Condensed, Google Fonts, display=swap)
+    // finishing mid-test grew every block between the two measurements — a
+    // false "Notes jumped 3–7 px" on first attempts (never on a retry, fonts
+    // cached). Measured 2026-10-04: with Google Fonts blocked the two blocks
+    // are 299/310 px, with them 308/320 px; CI's failures were exactly
+    // 304→308/316→320 and 307→308/319→320 (the 10px Barlow Condensed block
+    // headers swapping in). document.fonts.ready alone did not cover it: it
+    // only waits for loads ALREADY started, and a face is requested lazily,
+    // so it could resolve before the modal's faces were even asked for. Load
+    // every face the open modal renders with, by name, then wait for ready.
+    const fontsLoaded = await safeEvaluate(page, async () => {
+      if (!document.fonts || !document.fonts.load) return 'no FontFaceSet';
+      const want = new Set();
+      document.querySelectorAll('#leadModal, #leadModal *').forEach((el) => {
+        const cs = getComputedStyle(el);
+        if (cs.display !== 'none') want.add(cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily);
+      });
+      // A face that fails to download settles as 'error' and the fallback is
+      // final — also a stable layout. Only a face still in flight is not.
+      await Promise.all([...want].map((f) => document.fonts.load(f).catch(() => null)));
+      await document.fonts.ready;
+      const pending = [];
+      document.fonts.forEach((ff) => { if (ff.status === 'loading') pending.push(ff.family + ' ' + ff.weight); });
+      return pending.length ? 'still loading: ' + pending.join(', ') : 'ok';
+    });
+    expect(fontsLoaded, 'every font the Edit Lead modal uses is loaded before measuring').toBe('ok');
     // Position of Notes relative to the top of the modal card: immune to scroll.
     const y = () => safeEvaluate(page, () => {
       const card = document.querySelector('#leadModal .modal');
@@ -109,6 +141,11 @@ test.describe.serial('CRM handoff 2026-09-30 — hotkeys, job block, search, dou
   });
 
   test('pipeline search survives Board/List toggles and a bare re-render', async ({ page }) => {
+    // Start clean: the ZZHS leads an earlier attempt saved carry the same
+    // addresses and phones, so a retry's _saveLead stopped on the duplicate
+    // prompt and the test hung to its timeout (9 of 10 under --repeat-each).
+    await clearTestLeads(creds.email, /^ZZHS/);
+    await safeEvaluate(page, async () => { if (typeof window._loadLeads === 'function') await window._loadLeads(); });
     const stamp = Date.now();
     const saved = await safeEvaluate(page, async (s) => {
       const ids = [];
@@ -152,6 +189,10 @@ test.describe.serial('CRM handoff 2026-09-30 — hotkeys, job block, search, dou
   });
 
   test('header Save + bottom Save Lead back to back write ONE lead', async ({ page }) => {
+    // Same address every attempt: a leftover ZZDS lead turns the save into a
+    // duplicate prompt and nothing is written (0, not 1, on every retry).
+    await clearTestLeads(creds.email, /^ZZDS$/);
+    await safeEvaluate(page, async () => { if (typeof window._loadLeads === 'function') await window._loadLeads(); });
     const stamp = Date.now();
     await safeEvaluate(page, () => window.openLeadModal());
     await expect(page.locator('#leadModal')).toHaveClass(/open/, { timeout: 5_000 });
