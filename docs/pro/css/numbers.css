@@ -10,6 +10,14 @@
 .nb-dim { color: var(--m, #8892A4); font-weight: normal; }
 .nb-xs { font-size: 10px; }
 .nb-home-link { font-size: 11px; padding: 8px 14px; }
+/* Home header actions (2026-10-05): four buttons since "Catch up my numbers"
+   joined Sunday review — they wrap instead of pushing "New Estimate" off a
+   phone screen (tests/e2e/phone-fit.spec.js, 360 + 412 px). */
+.nb-home-actions { flex-wrap: wrap; }
+@media (max-width: 768px) {
+  .nb-home-actions { width: 100%; }
+  .nb-home-actions > .btn { flex: 1 1 auto; width: auto; justify-content: center; }
+}
 .nb-foot { margin-top: 10px; font-size: 11px; color: var(--m, #8892A4); line-height: 1.45; }
 
 /* Lead-source table v2: all eight columns stay on a phone; the wrap scrolls. */
