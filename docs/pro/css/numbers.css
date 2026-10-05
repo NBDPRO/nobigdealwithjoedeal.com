@@ -1,0 +1,127 @@
+/* numbers.css — "knowing your numbers" (2026-10-04): the Sunday review
+   (#/weekreview, js/week-review.js), the required lost-reason sheet
+   (js/lost-reason-picker.js), the Reports panels (js/reports-numbers.js), the
+   lead-source table (js/lead-source-roi.js .lsroi-v2) and the customer page's
+   Numbers panel (js/customer-numbers.js). Phone first: 390 px wide, 44 px tap
+   targets, no horizontal page scroll (wide tables scroll inside their wrap). */
+
+.nb-green { color: var(--green, #22c55e); }
+.nb-red { color: var(--red, #E5484D); }
+.nb-dim { color: var(--m, #8892A4); font-weight: normal; }
+.nb-xs { font-size: 10px; }
+.nb-home-link { font-size: 11px; padding: 8px 14px; }
+.nb-foot { margin-top: 10px; font-size: 11px; color: var(--m, #8892A4); line-height: 1.45; }
+
+/* Lead-source table v2: all eight columns stay on a phone; the wrap scrolls. */
+.lsroi-table.lsroi-v2 { min-width: 560px; }
+@media (max-width: 600px) {
+  .lsroi-table.lsroi-v2 th, .lsroi-table.lsroi-v2 td { display: table-cell; }
+}
+
+/* ── Required lost-reason sheet ── */
+.nb-sheet-bg { position: fixed; inset: 0; z-index: 9998; background: rgba(0, 0, 0, .7); display: flex; align-items: flex-end; justify-content: center; }
+.nb-sheet { background: var(--s, #1a1d23); color: var(--t, #e8eaf0); border: 1px solid var(--br, #2a2d35); border-radius: 16px 16px 0 0; width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; box-sizing: border-box; padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 700px) {
+  .nb-sheet-bg { align-items: center; }
+  .nb-sheet { border-radius: 14px; }
+}
+.nb-sheet-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
+.nb-sheet-sub { font-size: 13px; color: var(--m, #8892A4); margin: 4px 0 14px; overflow-wrap: anywhere; }
+.nb-reason-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.nb-reason { min-height: 48px; background: var(--s2, #22262e); border: 1px solid var(--br, #2a2d35); color: var(--t, #e8eaf0); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+.nb-reason.nb-on { border-color: var(--orange, #BD5728); background: rgba(189, 87, 40, .14); box-shadow: inset 0 0 0 1px var(--orange, #BD5728); }
+.nb-note-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--m, #8892A4); margin-bottom: 6px; }
+.nb-note { width: 100%; box-sizing: border-box; background: var(--s2, #22262e); border: 1px solid var(--br, #2a2d35); color: var(--t, #e8eaf0); border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 16px; resize: vertical; }
+.nb-sheet-err { min-height: 18px; color: var(--red, #E5484D); font-size: 13px; margin-top: 6px; }
+.nb-sheet-foot { display: flex; gap: 10px; margin-top: 10px; }
+.nb-btn { flex: 1 1 0; min-height: 48px; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; border: 1px solid var(--br, #2a2d35); }
+.nb-btn-ghost { background: transparent; color: var(--m, #8892A4); }
+.nb-btn-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: var(--accent-fg, #fff); box-shadow: inset 0 0 0 1px var(--accent-ring, transparent); }
+.nb-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Sunday review page ── */
+.wr-page { max-width: 880px; margin: 0 auto; padding: 14px 16px 40px; box-sizing: border-box; }
+.wr-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.wr-title { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--t, #e8eaf0); }
+.wr-sub { font-size: 13px; color: var(--m, #8892A4); }
+.wr-empty { padding: 40px 16px; text-align: center; color: var(--m, #8892A4); font-size: 14px; }
+.wr-card { background: var(--s, #13171d); border: 1px solid var(--br, #2a2f35); border-radius: 12px; padding: 14px; margin-bottom: 12px; min-width: 0; }
+.wr-h { font-size: 15px; font-weight: 800; margin: 0 0 10px; color: var(--t, #e8eaf0); }
+.wr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.wr-stat { background: var(--s2, #1b2028); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.wr-stat-v { font-size: 22px; font-weight: 800; color: var(--t, #e8eaf0); font-variant-numeric: tabular-nums; line-height: 1.1; overflow-wrap: anywhere; }
+.wr-stat.wr-good .wr-stat-v { color: var(--green, #22c55e); }
+.wr-stat-l { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m, #8892A4); margin-top: 3px; }
+.wr-stat-s { font-size: 12px; color: var(--m, #8892A4); margin-top: 2px; }
+.wr-proj, .wr-dim { color: var(--m, #8892A4); }
+.wr-proj { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.wr-small { font-size: 12px; margin-top: 8px; line-height: 1.45; }
+.wr-trend { margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--t, #e8eaf0); }
+.wr-callout { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: rgba(189, 87, 40, .10); border: 1px solid rgba(189, 87, 40, .35); font-size: 13px; }
+.wr-link { color: var(--t, #e8eaf0); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.wr-list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.wr-list-tight { line-height: 1.45; }
+.wr-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--br, #2a2f35); list-style: none; margin-left: -18px; }
+.wr-row:last-child { border-bottom: none; }
+.wr-row .wr-link { flex: 1 1 140px; min-width: 0; }
+.wr-row-end { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.wr-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px; }
+.wr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wr-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--m, #8892A4); padding: 6px 8px; border-bottom: 1px solid var(--br, #2a2f35); white-space: nowrap; }
+.wr-table td { padding: 7px 8px; border-bottom: 1px solid var(--br, #2a2f35); }
+.wr-table tr:last-child td { border-bottom: none; }
+.wr-table .wr-muted td { color: var(--m, #8892A4); }
+.wr-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wr-btn { min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--br, #2a2f35); background: var(--s2, #1b2028); color: var(--t, #e8eaf0); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.wr-btn-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: var(--accent-fg, #fff); }
+.wr-btn-ghost { background: transparent; }
+.wr-sel, .wr-input, .wr-date, .wr-money, .wr-file { min-height: 40px; box-sizing: border-box; background: var(--s2, #1b2028); color: var(--t, #e8eaf0); border: 1px solid var(--br, #2a2f35); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 16px; max-width: 100%; }
+.wr-money { width: 96px; text-align: right; }
+.wr-input { flex: 1 1 160px; min-width: 0; }
+.wr-check { display: flex; align-items: center; gap: 8px; min-height: 40px; flex: 1 1 160px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.wr-check input { width: 20px; height: 20px; }
+.wr-note { width: 100%; box-sizing: border-box; background: var(--s2, #1b2028); color: var(--t, #e8eaf0); border: 1px solid var(--br, #2a2f35); border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 16px; resize: vertical; }
+.wr-gap { border: 1px solid var(--br, #2a2f35); border-radius: 10px; margin-top: 8px; overflow: hidden; }
+.wr-gap-head { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: transparent; border: 0; color: var(--t, #e8eaf0); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.wr-gap-head:disabled { cursor: default; }
+.wr-gap-n { min-width: 34px; text-align: center; font-weight: 800; font-size: 15px; padding: 3px 8px; border-radius: 999px; background: rgba(229, 72, 77, .16); color: var(--red, #E5484D); }
+.wr-gap-ok .wr-gap-n { background: rgba(34, 197, 94, .14); color: var(--green, #22c55e); }
+.wr-gap-t { flex: 1 1 auto; min-width: 0; }
+.wr-gap-chev { color: var(--m, #8892A4); }
+.wr-gap-body { padding: 0 12px 12px; }
+.wr-gap-actions, .wr-bulk { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 4px 0 6px; }
+.wr-csv { margin-top: 12px; font-size: 12px; }
+.wr-csv-preview { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--s2, #1b2028); font-size: 13px; }
+
+/* ── Reports panels ── */
+.rn-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.rn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 12px; }
+.rn-grid .wr-card { margin-bottom: 0; }
+.nb-bars { list-style: none; margin: 0 0 10px; padding: 0; font-size: 13px; }
+.nb-bars li { display: grid; grid-template-columns: minmax(90px, 40%) 1fr auto; gap: 8px; align-items: center; padding: 4px 0; }
+.nb-bar-l { overflow-wrap: anywhere; }
+.nb-bar { height: 8px; border-radius: 4px; background: var(--s2, #1b2028); overflow: hidden; }
+.nb-bar-f { display: block; height: 100%; width: 2%; background: var(--orange, #BD5728); }
+.nb-bar-n { font-variant-numeric: tabular-nums; color: var(--m, #8892A4); white-space: nowrap; }
+.nb-w2 { width: 2%; } .nb-w4 { width: 4%; } .nb-w6 { width: 6%; } .nb-w8 { width: 8%; } .nb-w10 { width: 10%; }
+.nb-w12 { width: 12%; } .nb-w14 { width: 14%; } .nb-w16 { width: 16%; } .nb-w18 { width: 18%; } .nb-w20 { width: 20%; }
+.nb-w22 { width: 22%; } .nb-w24 { width: 24%; } .nb-w26 { width: 26%; } .nb-w28 { width: 28%; } .nb-w30 { width: 30%; }
+.nb-w32 { width: 32%; } .nb-w34 { width: 34%; } .nb-w36 { width: 36%; } .nb-w38 { width: 38%; } .nb-w40 { width: 40%; }
+.nb-w42 { width: 42%; } .nb-w44 { width: 44%; } .nb-w46 { width: 46%; } .nb-w48 { width: 48%; } .nb-w50 { width: 50%; }
+.nb-w52 { width: 52%; } .nb-w54 { width: 54%; } .nb-w56 { width: 56%; } .nb-w58 { width: 58%; } .nb-w60 { width: 60%; }
+.nb-w62 { width: 62%; } .nb-w64 { width: 64%; } .nb-w66 { width: 66%; } .nb-w68 { width: 68%; } .nb-w70 { width: 70%; }
+.nb-w72 { width: 72%; } .nb-w74 { width: 74%; } .nb-w76 { width: 76%; } .nb-w78 { width: 78%; } .nb-w80 { width: 80%; }
+.nb-w82 { width: 82%; } .nb-w84 { width: 84%; } .nb-w86 { width: 86%; } .nb-w88 { width: 88%; } .nb-w90 { width: 90%; }
+.nb-w92 { width: 92%; } .nb-w94 { width: 94%; } .nb-w96 { width: 96%; } .nb-w98 { width: 98%; } .nb-w100 { width: 100%; }
+
+/* ── Customer page Numbers panel ── */
+.cn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px; }
+.cn-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cn-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m, #8892A4); }
+.cn-flag { color: var(--orange, #BD5728); text-transform: none; letter-spacing: 0; font-weight: 700; }
+.cn-val { font-size: 14px; color: var(--t, #e8eaf0); overflow-wrap: anywhere; }
+.cn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cn-sel, .cn-date { min-height: 44px; box-sizing: border-box; background: var(--s2, #1b2028); color: var(--t, #e8eaf0); border: 1px solid var(--br, #2a2f35); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 16px; max-width: 100%; }
+.cn-btn { min-height: 44px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--br, #2a2f35); background: var(--s2, #1b2028); color: var(--t, #e8eaf0); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; align-self: flex-start; }
+.cn-btn-ghost { background: transparent; }
+.cn-btn-warn { border-color: var(--orange, #BD5728); color: var(--orange, #BD5728); }

@@ -77,7 +77,9 @@ const routeConfig = {
   'money':        { label: 'Money',             parent: null },
   'refrewards':   { label: 'Referrals',         parent: null },
   'signs':        { label: 'Yard Signs',        parent: null },
-  'winback':      { label: 'Past Customers',    parent: null }
+  'winback':      { label: 'Past Customers',    parent: null },
+  // Sunday business review (2026-10-04, js/week-review.js).
+  'weekreview':   { label: 'Sunday Review',     parent: null }
 };
 
 /**
