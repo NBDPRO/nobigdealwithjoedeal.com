@@ -22,7 +22,7 @@
  *      homeowner.
  *   3. Homeowner opens portal.html → client POSTs to
  *      getHomeownerPortalView({token}) → redacted view of lead + rep
- *      + latest estimate + optional BoldSign signing URL.
+ *      + latest estimate + its in-house signing link while it awaits signature.
  *
  * Redaction: homeowner never sees claim details, internal notes,
  * rep commission, or other leads.
@@ -40,12 +40,6 @@ const { logger } = require('firebase-functions/v2');
 const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
-
-const {
-  SECRETS: INT_SECRETS,
-  hasSecret: hasInt,
-  getSecret: getInt,
-} = require('./integrations/_shared');
 
 // R-01 rate-limit adapter (Upstash → Firestore fallback) for the
 // per-IP gate on getHomeownerPortalView.
@@ -559,7 +553,6 @@ exports.getHomeownerPortalView = onRequest(
     concurrency: 80,
     timeoutSeconds: 15,
     memory: '256MiB',
-    secrets: [INT_SECRETS.BOLDSIGN_API_KEY]
   },
   async (req, res) => {
     // F-06: POST only. Previously accepted GET with the token in the
@@ -639,9 +632,9 @@ exports.getHomeownerPortalView = onRequest(
       // so it cannot fail closed the way an index-less filtered query does.
       // The generated/shared split happens in memory below.
       db.doc(`leads/${tok.leadId}`).collection('documents').get(),
-      // Signed non-contract paperwork (change orders, inspection reports —
-      // anything routed through esign.html rather than the main BoldSign
-      // contract embed above). Top-level collection, own leadId field.
+      // Signed envelope paperwork (change orders, inspection reports, and
+      // since 2026-10-04 the estimate contract itself — anything signed
+      // through esign.html). Top-level collection, own leadId field.
       db.collection('esign_envelopes')
         .where('leadId', '==', tok.leadId)
         .where('status', '==', 'completed')
@@ -747,41 +740,44 @@ exports.getHomeownerPortalView = onRequest(
     // No claim details, no internal notes, no rep commission, no
     // other leads.
 
-    // If the estimate is awaiting signature AND BoldSign is
-    // configured AND the signer email on file matches the one
-    // stored on the estimate, request a fresh embed signing URL.
-    let signEmbedUrl = null;
-    if (latest
-        && (latest.signatureStatus === 'sent' || latest.signatureStatus === 'viewed')
-        && latest.signatureProvider === 'boldsign'
-        && latest.signatureDocumentId
-        && latest.signerEmail
-        && hasInt('BOLDSIGN_API_KEY')) {
+    // In-house signing link (2026-10-04 — BoldSign retired; this used to
+    // mint a BoldSign embed URL with a key that was never set). When the
+    // shared estimate is out for signature through an envelope
+    // (esign-envelope.js sendEstimateEnvelope), hand the homeowner the live
+    // single-use esign.html link — the same one their email carries — and
+    // once it is signed, a short-lived link to the executed PDF.
+    //
+    // Only while it is the FIRST signer's turn: the portal token is the
+    // homeowner's, and handing it a co-owner's link would let one person
+    // sign for both. A co-owner signs from their own email.
+    let signUrl = null;
+    let signedEnvelopeUrl = null;
+    if (latest && latest.signatureProvider === 'nbd-esign'
+        && typeof latest.signatureEnvelopeId === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(latest.signatureEnvelopeId)) {
       try {
-        const apiKey = getInt('BOLDSIGN_API_KEY');
-        const embedRes = await fetch(
-          `https://api.boldsign.com/v1/document/getEmbeddedSignLink?documentId=${encodeURIComponent(latest.signatureDocumentId)}&signerEmail=${encodeURIComponent(latest.signerEmail)}`,
-          { headers: { 'X-API-KEY': apiKey } }
-        );
-        if (embedRes.ok) {
-          const d = await embedRes.json();
-          // Wave 87: validate the URL points at app.boldsign.com
-          // BEFORE we hand it to portal.html for iframe embedding.
-          // BoldSign's API normally returns a https://app.boldsign.com/...
-          // URL, but a future API change or a redirect-style response
-          // could return an attacker-controlled origin. The portal
-          // page iframes whatever URL we hand back — if that's
-          // anywhere other than BoldSign, we just embedded a third
-          // party site for the homeowner.
-          const candidate = d.signLink || d.signUrl || null;
-          if (candidate && /^https:\/\/app\.boldsign\.com\//i.test(candidate)) {
-            signEmbedUrl = candidate;
-          } else if (candidate) {
-            logger.warn('portal embed url rejected — wrong origin', { candidate });
+        const oneEnv = await db.doc(`esign_envelopes/${latest.signatureEnvelopeId}`).get();
+        const e = oneEnv.exists ? (oneEnv.data() || {}) : null;
+        if (e && e.leadId === tok.leadId && recordInPortalTenant(e, ['ownerUid'], tenant)) {
+          const firstId = (Array.isArray(e.signers) && e.signers[0] && e.signers[0].id) || 'signer';
+          if ((e.status === 'sent' || e.status === 'viewed') && (e.currentSignerId || firstId) === firstId) {
+            const now = Date.now();
+            const toks = await db.collection('esign_tokens')
+              .where('envelopeId', '==', latest.signatureEnvelopeId).where('status', '==', 'pending').get();
+            toks.forEach((d) => {
+              const t = d.data() || {};
+              const exp = t.expiresAt && t.expiresAt.toMillis ? t.expiresAt.toMillis() : 0;
+              if (!signUrl && exp > now && (t.signerId || 'signer') === firstId && /^[A-Za-z0-9]{10,64}$/.test(d.id)) {
+                signUrl = 'https://nobigdealwithjoedeal.com/pro/esign.html?t=' + d.id;
+              }
+            });
+          } else if (e.status === 'completed' && typeof e.signedPath === 'string' && e.signedPath) {
+            [signedEnvelopeUrl] = await getStorage().bucket().file(e.signedPath).getSignedUrl({
+              action: 'read', expires: Date.now() + HOMEOWNER_URL_TTL_MS,
+            });
           }
         }
-      } catch (e) {
-        logger.warn('portal embed link fetch failed', { err: e.message });
+      } catch (err) {
+        logger.warn('portal in-house sign link failed', { err: err && err.message });
       }
     }
 
@@ -897,9 +893,8 @@ exports.getHomeownerPortalView = onRequest(
       };
     }).filter(d => d.url || d.viaHtml); // nothing safe to show → drop it
 
-    // Signed non-contract paperwork (change orders, inspection reports —
-    // anything routed through esign.html rather than the main BoldSign
-    // contract embed above). These ARE plain PDFs in Storage (signed.pdf,
+    // Signed envelope paperwork (change orders, inspection reports, the
+    // estimate contract — anything signed through esign.html). These ARE plain PDFs in Storage (signed.pdf,
     // application/pdf) — the HTML-execution concern above doesn't apply, so
     // a short-lived signed URL is the right, standard tool here, same as
     // _refreshHomeownerPhotoUrls above.
@@ -1047,8 +1042,10 @@ exports.getHomeownerPortalView = onRequest(
           : null,
         signatureStatus: latest.signatureStatus || 'none',
         signedAt:        latest.signedAt?.toDate?.()?.toISOString() || null,
-        signedDocumentUrl: latest.signedDocumentUrl || null,
-        signEmbedUrl:    signEmbedUrl,
+        // signedDocumentUrl: historical BoldSign-signed estimates carry the
+        // webhook's URL (kept readable); in-house ones get a fresh signed URL.
+        signedDocumentUrl: latest.signedDocumentUrl || signedEnvelopeUrl || null,
+        signUrl:         signUrl,
         lineCount: Array.isArray(latest.lines) ? latest.lines.length : null,
         // What is due at signing, in the rule's own words (deposit-rule.js via
         // the saved stamp, 2026-09-25) — the same sentence the homeowner's
@@ -2435,8 +2432,8 @@ exports.getPortalMessages = onRequest(
 // ═══════════════════════════════════════════════════════════════
 //
 // The lightweight preview path for estimates. Distinct from the
-// BoldSign signature flow (which is heavyweight + requires
-// envelope creation). Lets the rep send a "preview link" the
+// signature flow (esign-envelope.js, which mints a signing
+// envelope). Lets the rep send a "preview link" the
 // customer can click to see the estimate inside a branded HTML
 // shell without committing to sign.
 //
@@ -2445,7 +2442,7 @@ exports.getPortalMessages = onRequest(
 // path that Wave 91's engagement-tier signal + the W57+W58
 // almost-there-widget have been waiting for. Without it, the
 // "estimate viewed" tier never fires for a V2 estimate that's
-// shared via this link rather than a BoldSign envelope.
+// shared via this link rather than a signing envelope.
 //
 // Auth: portal_tokens entry validates the lead context. The
 // estimate must belong to the same lead as the token.

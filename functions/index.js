@@ -282,7 +282,6 @@ const measurementIntegration = require('./integrations/measurement');
 // (measureNewWebLead), and the anonymous wizard reads the homeowner-safe
 // subset back (publicRoofMeasure — read-only, never spends).
 const publicMeasureIntegration = require('./integrations/public-measure');
-const esignIntegration       = require('./integrations/esign');
 const parcelIntegration      = require('./integrations/parcel');
 const hailIntegration        = require('./integrations/hail');
 const calcomIntegration      = require('./integrations/calcom');
@@ -318,7 +317,6 @@ exports.publicRoofMeasure = publicMeasureIntegration.publicRoofMeasure;
 const measureAutoOrder = require('./integrations/measure-auto-order');
 exports.autoMeasureOnStage = measureAutoOrder.autoMeasureOnStage;
 exports.autoMeasureOnAppointment = measureAutoOrder.autoMeasureOnAppointment;
-Object.assign(exports, esignIntegration);
 Object.assign(exports, parcelIntegration);
 Object.assign(exports, hailIntegration);
 Object.assign(exports, calcomIntegration);
@@ -372,6 +370,10 @@ exports.recordInPersonSignature = require('./in-person-signing').recordInPersonS
 // esign-envelope.js and the pure stamping engine in functions/esign-stamp.js.
 const esignEnvelopeFunctions = require('./esign-envelope');
 Object.assign(exports, esignEnvelopeFunctions);
+// 2026-10-04: BoldSign (integrations/esign.js — sendEstimateForSignature +
+// esignWebhook) is retired. The estimate builder's "Send for signature" is
+// sendEstimateEnvelope above; reminders + link expiry run here, daily.
+exports.esignReminderSweep = require('./esign-reminders').esignReminderSweep;
 
 // Close Board deal acceptance (1a): no-login remote accept of a shared deal
 // room (deal_accept_tokens + /deal/<token> + /api/deal-accept). Same

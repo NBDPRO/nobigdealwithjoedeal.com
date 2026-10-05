@@ -394,7 +394,7 @@ const SEND_PATHS = Object.freeze({
   'estimate-email.js': 'transactional',       // homeowner explicitly asked "Email My Estimate"
   'storm-report-email.js': 'transactional',   // homeowner asked for their storm report copy
   'lead-alert.js': 'transactional',           // tenant alert (internal) + homeowner ack of their own request
-  'esign-envelope.js': 'transactional',       // signing envelope
+  'esign-io.js': 'transactional',             // signing link / reminder / signed copy (esign-envelope.js + esign-reminders.js send through it)
   'remote-signing.js': 'transactional',       // document signing link
   'report-sharing.js': 'transactional',       // report / document share link
   'anniversary-touch.js': 'internal',         // rep digest
