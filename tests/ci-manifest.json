@@ -362,6 +362,7 @@
     "indexnow-ping.test.js",
     "build-llms-modes.test.js",
     "ky-insurance-contracts.test.js",
+    "contract-cancel-forms.test.js",
     "ky-claims-wording-scan.test.js",
     "voice-intel-anthropic-key.test.js",
     "check-js-syntax.test.js",
