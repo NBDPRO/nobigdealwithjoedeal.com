@@ -115,6 +115,11 @@ function anthropicStub(caption, calls) {
     ok('the in-flight claim is cleared afterwards', !('aiClassifyClaimAt' in db.data['photos/p1']));
     ok('spend is metered on the lead and the owner, like the callable', db.data['leadCostMeter/L1'].visionUsd > 0
       && Object.keys(db.data).some((k) => /^userCostMeter\/u1__/.test(k)));
+    // #2148 AI spend counters: the shared classifier records the call, so the
+    // trigger door shows up in AI spend too (not only the callable).
+    const spendKey = Object.keys(db.data).find((k) => /^ai_spend_daily\//.test(k));
+    ok('the trigger door is counted in AI spend (feature photo-vision)', spendKey && /photo-vision/.test(JSON.stringify(db.data[spendKey]))
+      && Object.keys(db.data).some((k) => /^ai_spend_monthly\//.test(k)), spendKey && JSON.stringify(db.data[spendKey]));
 
     const again = await T.handlePhotoCreated('p1', db.data['photos/p1'],
       { db, killswitch: killOff, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });

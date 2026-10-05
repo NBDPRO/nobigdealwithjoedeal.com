@@ -112,6 +112,7 @@ async function callClaude(params) {
 const _MODEL_PRICING = {
   'claude-haiku-4-5-20251001':  { input: 1.00, output: 5.00 },
   'claude-sonnet-4-20250514':   { input: 3.00, output: 15.00 },
+  'claude-sonnet-5-5':          { input: 2.00, output: 10.00 },
   'claude-opus-4-20250514':     { input: 15.00, output: 75.00 },
 };
 function _trackUsage(response, model) {

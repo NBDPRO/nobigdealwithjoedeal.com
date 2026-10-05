@@ -348,6 +348,7 @@ exports.extractReceiptData = onCall({
     // an unsupported format), not a 500 with raw provider text (QA finding).
     return { skipped: true, reason: 'ocr-unavailable', status: response.status };
   }
+  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('receipt-vision', MODEL, data), { log: logger });
 
   // ── Parse + sanitize ──
   const textBlock = data.content && Array.isArray(data.content)
