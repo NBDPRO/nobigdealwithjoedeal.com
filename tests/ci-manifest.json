@@ -164,6 +164,7 @@
     "yard-signs-2026-09-29.test.js",
     "yard-signs-edit-2026-09-30.test.js",
     "mark-paid-methods-2026-09-29.test.js",
+    "markpaid-concurrent-payments-2026-10-05.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
     "home-attention-yard-chip-2026-09-29.test.js",
