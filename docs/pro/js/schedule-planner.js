@@ -64,7 +64,11 @@
         '<label>Days<input type="number" class="sp-days" min="1" max="14" inputmode="numeric" value="' + esc(v.days) + '"></label>' +
         '<button type="button" class="btn btn-orange sp-save" data-sp-action="save">Save</button>' +
         (kind === 'scheduled' ? '<button type="button" class="btn btn-ghost sp-clear" data-sp-action="clear" title="Remove the date">Clear</button>' : '') +
-      '</div><div class="sp-conflict gcal-conflict" aria-live="polite">' + (_warn[r.id] || '') + '</div>' +
+      '</div>' +
+      // Production flow (2026-10-04, production.js): the sub picker, the
+      // weather.gov badge and the rain-day push.
+      (window.NBDProduction && typeof window.NBDProduction.rowExtrasHtml === 'function' ? window.NBDProduction.rowExtrasHtml(Object.assign({}, r, { subDraft: _drafts[r.id] && _drafts[r.id].sub }), kind) : '') +
+      '<div class="sp-conflict gcal-conflict" aria-live="polite">' + (_warn[r.id] || '') + '</div>' +
       '<div class="sp-msg" aria-live="polite"></div>' +
       (_offer[r.id] ? '<div class="sp-stage-offer">' +
         '<button type="button" class="sp-stage-chip" data-sp-action="stage">Move to ' + esc(stageLabel('crew_scheduled')) + '?</button>' +
@@ -138,9 +142,14 @@
       start: row.querySelector('.sp-start').value,
       days: row.querySelector('.sp-days').value,
     };
-    if (!clear && !input.date && !input.week) { msg.textContent = 'Pick a week or a day first.'; return; }
-    const out = P().fieldsFor(input);
+    // The row's sub (production flow, 2026-10-04): {} when it didn't change.
+    const leadNow = (window._leads || []).find((l) => l && l.id === id);
+    const subPatch = !clear && window.NBDProduction && typeof window.NBDProduction.rowSubPatch === 'function' ? window.NBDProduction.rowSubPatch(row, leadNow) : {};
+    const subOnly = !clear && !input.date && !input.week && Object.keys(subPatch).length > 0;
+    if (!clear && !input.date && !input.week && !subOnly) { msg.textContent = 'Pick a week or a day first.'; return; }
+    const out = subOnly ? { ok: true, fields: {} } : P().fieldsFor(input);
     if (!out.ok) { msg.textContent = out.message; return; }
+    Object.assign(out.fields, subPatch);
     if (!window.updateDoc || !window.doc || !window.db) { msg.textContent = 'Not connected yet — try again in a moment.'; return; }
     _saving[id] = true;
     row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
@@ -155,6 +164,7 @@
       if (!clear && out.fields.scheduledDate && offerFor(lead)) _offer[id] = true;
       else delete _offer[id];
       toast(clear ? 'Schedule cleared'
+        : subOnly ? (subPatch.crew ? subPatch.crew + ' is on this job ✓' : 'Sub cleared')
         : out.fields.scheduledWeek ? 'Planned for the week of ' + weekLabel(out.fields.scheduledWeek) + ' ✓'
         : 'Scheduled ✓ — on your Google Calendar in a few seconds', 'success');
       render();
@@ -196,6 +206,7 @@
       date: row.querySelector('.sp-date').value,
       start: row.querySelector('.sp-start').value,
       days: row.querySelector('.sp-days').value,
+      sub: row.querySelector('.sp-sub-sel') ? row.querySelector('.sp-sub-sel').value : undefined,
     };
   }
   document.addEventListener('input', keepDraft);

@@ -49,16 +49,59 @@ async function seedLead(page, db, fields) {
   return ref.id;
 }
 
+// The server's writes for each callCenterAction (functions/call-center.js),
+// reduced to the fields this view reads. Text days are phone_text_days.
+async function applyAction(body) {
+  const id = String((body && body.id) || '');
+  if (!/^(cube_zzcv|txt_5135557)/.test(id)) return;
+  const ref = admin().db.doc((id.startsWith('txt_') ? 'phone_text_days/' : 'phone_calls/') + id);
+  const now = Date.now();
+  if (body.action === 'handled' || body.action === 'unhandled') {
+    await ref.set({ handledAtMs: body.action === 'handled' ? now : null }, { merge: true });
+  } else if (body.action === 'attach' && body.leadId) {
+    await ref.set(id.startsWith('txt_') ? { leadId: body.leadId, attachedAtMs: now }
+      : { leadId: body.leadId, bucket: 'customer', alternateLeadIds: [], attachedAtMs: now, suggestedLeadId: null, suggestedLeadName: null, suggestedWhy: null }, { merge: true });
+  } else if (body.action === 'notpersonal') {
+    await ref.set({ status: 'stored', notPersonal: true, summary: null, callType: null }, { merge: true });
+  }
+}
+
+// What an earlier attempt of this spec seeded (ids cube_zzcv<ms><k>,
+// txt_5135557<nnn>_20261001, leads named ZZCV Cust<ms>).
+async function clearLeftovers(email) {
+  const { db } = admin();
+  const { FieldPath } = require('firebase-admin/firestore');
+  const range = async (col, lo, hi) => (await db.collection(col).where(FieldPath.documentId(), '>=', lo).where(FieldPath.documentId(), '<', hi).get()).docs;
+  for (const d of await range('phone_calls', 'cube_zzcv', 'cube_zzcw')) await d.ref.delete();
+  for (const d of await range('phone_text_days', 'txt_5135557', 'txt_5135558')) if (/^ZZCV/.test(String(d.data().summary || ''))) await d.ref.delete();
+  let uid = null;
+  try { uid = (await require('firebase-admin/auth').getAuth().getUserByEmail(email)).uid; } catch (_) {}
+  if (uid) {
+    for (const d of (await db.collection('leads').where('userId', '==', uid).where('firstName', '==', 'ZZCV').get()).docs) {
+      if (d.data().e2eTestData === true) await d.ref.delete();
+    }
+  }
+}
+
 test.describe.serial('Call Center view @shard2', () => {
   test('list, filter, search, play, handle, attach', async ({ page }) => {
     test.setTimeout(150_000);
     const creds = requireTestUser();
     const actions = [];
+    // Start clean: a failed attempt never reaches the cleanup at the end, and
+    // its calls stayed on the list for the retry ("4 open" where 2 are seeded).
+    await clearLeftovers(creds.email);
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); localStorage.setItem('nbd_push_optin_snoozed_until', String(Date.now() + 3600_000)); } catch (_) {} });
     await page.route(/callCenterAction/, async (route) => {
       let body = {};
       try { body = JSON.parse(route.request().postData() || '{}').data || {}; } catch (_) {}
       actions.push(body);
+      // Write what the server writes for this call before answering, so a
+      // re-read (closing a deck reloads the list) agrees with what the screen
+      // was told. A browser-only answer left the emulator copy unhandled and
+      // unfiled: the reload brought call a and the texts back, and "File on"
+      // then merged g into the customer's card (no card g → "not found").
+      await applyAction(body);
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, leadId: body.leadId || null, phoneAdded: true, requeued: body.action === 'notpersonal' } }) });
     });
     await page.route(/cloudfunctions\.net|\.run\.app/, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":{}}' }));
@@ -230,6 +273,11 @@ test.describe.serial('Call Center view @shard2', () => {
     expect(db2.x + db2.width).toBeLessThanOrEqual(391);
     await page.screenshot({ path: 'test-results/call-center-looks-like-deck-phone.png' });
     await page.locator('#nbdTriageDeck .deck-close').click();
+    // Closing the deck re-reads the calls and the promise list (onClose); wait
+    // for both to land, or their render can replace the card under the tap
+    // and wipe the "Filed on" line it is about to show.
+    await safeWaitForFunction(page, () => !!window.NBDCallCenter && !window.NBDCallCenter._state.loading && !window.NBDCallCenter._promises.loading, null, { timeout: 15_000 });
+    await expect(fileBtn).toHaveText('File on ZZCV Cust' + s);
     // The tap on the main card files it.
     await fileBtn.click();
     await expect.poll(() => actions.some((x) => x.id === 'cube_zzcv' + s + 'g' && x.action === 'attach' && x.leadId === leadId), { timeout: 10_000 }).toBe(true);

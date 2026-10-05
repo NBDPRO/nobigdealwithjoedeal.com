@@ -95,10 +95,25 @@ async function listManaged(calendarId, timeMinMs) {
 }
 
 const isOwnerLead = (d) => !!d && (d.companyId === OWNER || d.userId === OWNER);
+// The lead fields a CRM appointment's event shows (or that remove it).
+const LEAD_EVENT_FIELDS = ['firstName', 'lastName', 'address', 'phone', 'customerId', 'deleted', 'companyId', 'userId'];
+
+// The weather.gov forecast for a job's days (production flow, 2026-10-04) —
+// a line per day in the job's event. job-weather.js answers null with no
+// network call for a job with no point or no day in the next week, and never
+// throws; tests swap it with setWeather.
+let _weatherFn = null;
+async function weatherFor(lead) {
+  try {
+    const fn = _weatherFn || ((l) => require('./job-weather')._internal.weatherByDay(getFirestore(), l));
+    return (await fn(lead)) || null;
+  } catch (_) { return null; }
+}
 
 /** One lead → its events in Google (create / update / delete as needed). */
 async function syncLead(calendarId, leadId, lead) {
-  const want = isOwnerLead(lead) ? G.desiredEventsForLead(Object.assign({ id: leadId }, lead)) : [];
+  const ctx = isOwnerLead(lead) && lead && !lead.deleted ? { weather: await weatherFor(lead) } : null;
+  const want = isOwnerLead(lead) ? G.desiredEventsForLead(Object.assign({ id: leadId }, lead), undefined, ctx) : [];
   const wantIds = new Set(want.map((e) => e.id));
   for (const e of want) await upsertEvent(calendarId, e);
   let removed = 0;
@@ -129,6 +144,31 @@ async function syncSwappedJobs(db, calendarId, leadId, lead, jobIds) {
     out[jid] = await syncJob(calendarId, leadId, lead, jid, s.exists ? s.data() : null);
   }
   return out;
+}
+
+/** One CRM-booked appointment (leads/{id}/tasks, type:'event') → its event (or none). */
+async function syncLeadEvent(calendarId, leadId, taskId, task, lead) {
+  const want = isOwnerLead(lead) ? G.desiredEventForLeadEvent(task, lead, leadId, taskId) : null;
+  if (want) { await upsertEvent(calendarId, want); return { upserted: 1, removed: 0 }; }
+  return { upserted: 0, removed: (await deleteEvent(calendarId, G.leadEventEventId(leadId, taskId))) ? 1 : 0 };
+}
+
+/** Every CRM event on one lead — after a lead edit (name / address) or delete. */
+async function syncLeadEvents(db, calendarId, leadId, lead) {
+  const snap = await db.collection('leads').doc(String(leadId)).collection('tasks').where('type', '==', 'event').get();
+  const out = { upserted: 0, removed: 0 };
+  for (const d of snap.docs || []) {
+    const r = await syncLeadEvent(calendarId, leadId, d.id, d.data(), lead);
+    out.upserted += r.upserted; out.removed += r.removed;
+  }
+  return out;
+}
+
+/** One material order → its delivery event (or none). */
+async function syncOrder(calendarId, leadId, jobId, orderId, order, lead) {
+  const want = isOwnerLead(lead) ? G.desiredEventForOrder(order, lead, leadId, jobId, orderId) : null;
+  if (want) { await upsertEvent(calendarId, want); return { upserted: 1, removed: 0 }; }
+  return { upserted: 0, removed: (await deleteEvent(calendarId, G.orderEventId(leadId, jobId, orderId))) ? 1 : 0 };
 }
 
 /** One yard sign → its pickup reminder (or none). */
@@ -203,17 +243,58 @@ async function reconcile(db, calendarId) {
       jobsByLead.get(leadId).push(Object.assign({ id: d.id }, d.data()));
     }));
   }
-  const leadIds = new Set();
+  // CRM-booked appointments (leads/{id}/tasks, type:'event') and material
+  // deliveries (leads/{id}/jobs/{jobId}/orders) — production flow
+  // 2026-10-04. Both MUST be in `desired` (planSync deletes every managed
+  // event nobody wants). Read up front, grouped by lead, so each lead's page
+  // turns them into events with the lead's name and address at hand. Tasks
+  // are read by the owner's uid (the single-field COLLECTION_GROUP index on
+  // tasks.userId); orders by both stamps, like jobs.
+  const eventsByLead = new Map();
+  let eventTasks = 0;
+  await forEachPage(db.collectionGroup('tasks').where('userId', '==', OWNER), (docs) => docs.forEach((d) => {
+    const t = d.data() || {};
+    if (t.type !== 'event') return;
+    const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+    if (!leadId) return;
+    eventTasks++;
+    if (!eventsByLead.has(leadId)) eventsByLead.set(leadId, []);
+    eventsByLead.get(leadId).push({ id: d.id, data: t });
+  }));
+  const ordersByLead = new Map();
+  const orderKeys = new Set();
   for (const field of ['companyId', 'userId']) {
-    await forEachPage(db.collection('leads').where(field, '==', OWNER), (docs) => docs.forEach((d) => {
-      if (leadIds.has(d.id)) return;      // matched both stamps — same doc
-      leadIds.add(d.id);
-      const l = Object.assign({ id: d.id }, d.data());
-      G.desiredEventsForLead(l).forEach(keep);
-      for (const job of jobsByLead.get(d.id) || []) G.desiredEventsForJob(l, job).forEach(keep);
+    await forEachPage(db.collectionGroup('orders').where(field, '==', OWNER), (docs) => docs.forEach((d) => {
+      const jobRef = d.ref && d.ref.parent && d.ref.parent.parent;
+      const leadId = jobRef && jobRef.parent && jobRef.parent.parent && jobRef.parent.parent.id;
+      if (!leadId || !jobRef.id) return;
+      const k = leadId + '/' + jobRef.id + '/' + d.id;
+      if (orderKeys.has(k)) return;
+      orderKeys.add(k);
+      if (!ordersByLead.has(leadId)) ordersByLead.set(leadId, []);
+      ordersByLead.get(leadId).push({ jobId: jobRef.id, id: d.id, data: d.data() || {} });
     }));
   }
+  const leadIds = new Set();
+  for (const field of ['companyId', 'userId']) {
+    await forEachPage(db.collection('leads').where(field, '==', OWNER), async (docs) => {
+      for (const d of docs) {
+        if (leadIds.has(d.id)) continue;    // matched both stamps — same doc
+        leadIds.add(d.id);
+        const l = Object.assign({ id: d.id }, d.data());
+        // The same forecast lines the per-lead trigger writes, or the nightly
+        // run would strip them and the next edit put them back.
+        const ctx = l.deleted ? null : { weather: await weatherFor(l) };
+        G.desiredEventsForLead(l, undefined, ctx).forEach(keep);
+        for (const job of jobsByLead.get(d.id) || []) G.desiredEventsForJob(l, job).forEach(keep);
+        for (const t of eventsByLead.get(d.id) || []) { const e = G.desiredEventForLeadEvent(t.data, l, d.id, t.id); if (e) keep(e); }
+        for (const o of ordersByLead.get(d.id) || []) { const e = G.desiredEventForOrder(o.data, l, d.id, o.jobId, o.id); if (e) keep(e); }
+      }
+    });
+  }
   jobsByLead.clear();
+  eventsByLead.clear();
+  ordersByLead.clear();
   // Yard-sign pickups. They MUST be in `desired`: planSync deletes every
   // managed event nobody wants, so a sign left out here would be wiped nightly.
   const signIds = new Set();
@@ -243,7 +324,7 @@ async function reconcile(db, calendarId) {
   const plan = G.planSync(desired, existing);
   for (const e of plan.upserts) await upsertEvent(calendarId, e);
   for (const id of plan.deletes) await deleteEvent(calendarId, id);
-  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leadIds.size, jobs: jobKeys.size, signs: signIds.size, knocks: knockIds.size };
+  return { upserted: plan.upserts.length, deleted: plan.deletes.length, unchanged: plan.same, leads: leadIds.size, jobs: jobKeys.size, signs: signIds.size, knocks: knockIds.size, events: eventTasks, orders: orderKeys.size };
 }
 
 // ── owner gate (same shape as stripe-ledger.js) ───────────────────────────
@@ -359,6 +440,11 @@ exports.onLeadCalendarWrite = onDocumentWritten(
       // gets its own events, the new one's move onto the lead's.
       const was = before && before.activeJobId, now = after && after.activeJobId;
       if (after && was !== now) r.jobs = await syncSwappedJobs(db, cfg.calendarId, event.params.leadId, after, [was, now]);
+      // The lead's CRM appointments carry its name / address / phone, and go
+      // with it when it is deleted (production flow, 2026-10-04).
+      if (LEAD_EVENT_FIELDS.some((k) => JSON.stringify((before || {})[k] === undefined ? null : (before || {})[k]) !== JSON.stringify((after || {})[k] === undefined ? null : (after || {})[k]))) {
+        r.events = await syncLeadEvents(db, cfg.calendarId, event.params.leadId, after);
+      }
       logger.info('[googleCalendar] lead synced', { leadId: event.params.leadId, ...r });
     } catch (e) {
       // The nightly reconcile repairs anything missed here.
@@ -390,6 +476,59 @@ exports.onJobCalendarWrite = onDocumentWritten(
       logger.info('[googleCalendar] job synced', { leadId, jobId, ...r });
     } catch (e) {
       logger.warn('[googleCalendar] job sync failed', { leadId, jobId, status: statusOf(e), msg: e && e.message });
+    }
+  }
+);
+
+// A CRM-booked appointment (Add Event / door-knock Appointment Set) created,
+// moved or removed → its own BUSY event (production flow, 2026-10-04). It used
+// to reach no calendar at all: this sync, the .ics feed, the 30-minute push
+// and the morning brief all read the Cal.com-only /appointments collection.
+exports.onLeadEventCalendarWrite = onDocumentWritten(
+  { document: 'leads/{leadId}/tasks/{taskId}', region: 'us-central1', timeoutSeconds: 60, retry: false },
+  async (event) => {
+    if (disabled()) return;
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    if ((!before || before.type !== 'event') && (!after || after.type !== 'event')) return;   // a plain task
+    if (before && after && !G.eventTaskFieldsChanged(before, after)) return;
+    const db = getFirestore();
+    const cfg = await loadConfig(db);
+    if (!cfg || !cfg.calendarId) return;
+    const { leadId, taskId } = event.params;
+    try {
+      const ls = await db.collection('leads').doc(leadId).get();
+      const lead = ls.exists ? ls.data() : null;
+      if (!isOwnerLead(lead)) return;                                   // another tenant's lead
+      const r = await syncLeadEvent(cfg.calendarId, leadId, taskId, after, lead);
+      logger.info('[googleCalendar] event synced', { leadId, taskId, ...r });
+    } catch (e) {
+      logger.warn('[googleCalendar] event sync failed', { leadId, taskId, status: statusOf(e), msg: e && e.message });
+    }
+  }
+);
+
+// A material order's delivery day set, moved, delivered or cancelled → its
+// all-day FREE delivery event (production flow, 2026-10-04).
+exports.onOrderCalendarWrite = onDocumentWritten(
+  { document: 'leads/{leadId}/jobs/{jobId}/orders/{orderId}', region: 'us-central1', timeoutSeconds: 60, retry: false },
+  async (event) => {
+    if (disabled()) return;
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    if (!isOwnerLead(before) && !isOwnerLead(after)) return;          // another tenant's order
+    if (before && after && !G.orderFieldsChanged(before, after)) return;
+    const db = getFirestore();
+    const cfg = await loadConfig(db);
+    if (!cfg || !cfg.calendarId) return;
+    const { leadId, jobId, orderId } = event.params;
+    try {
+      const ls = await db.collection('leads').doc(leadId).get();
+      const lead = ls.exists ? ls.data() : null;
+      const r = await syncOrder(cfg.calendarId, leadId, jobId, orderId, after, lead);
+      logger.info('[googleCalendar] delivery synced', { leadId, jobId, orderId, ...r });
+    } catch (e) {
+      logger.warn('[googleCalendar] delivery sync failed', { leadId, jobId, orderId, status: statusOf(e), msg: e && e.message });
     }
   }
 );
@@ -455,4 +594,6 @@ exports.googleCalendarReconcile = onSchedule(
 );
 
 module.exports._internal = { setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, syncKnockDoor, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
-  setClient: (c) => { _testClient = c; } };
+  syncLeadEvent, syncLeadEvents, syncOrder,
+  setClient: (c) => { _testClient = c; },
+  setWeather: (fn) => { _weatherFn = fn; } };

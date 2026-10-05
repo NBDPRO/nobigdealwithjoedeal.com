@@ -52,6 +52,9 @@ test.describe('phone: no next step @shard2', () => {
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!(window._user && window.NBDNoNextStep && window.NBDFollowUpDeck && window.NBDFollowUpDeck.setFollowUp), null, { timeout: 30_000 });
     const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    // Start clean: an earlier attempt's 2019-dated ZZNext leads sit above this
+    // attempt's and fail "oldest first" on every retry.
+    for (const d of (await adb().collection('leads').where('userId', '==', who.uid).where('firstName', '==', 'ZZNext').get()).docs) await d.ref.delete();
     const s = String(Date.now()).slice(-7);
     const base = { userId: who.uid, companyId: who.co, stage: 'contacted', e2eTestData: true, deleted: false };
     const old = new Date('2019-01-02T12:00:00Z');   // older than anything seeded → top of the list
