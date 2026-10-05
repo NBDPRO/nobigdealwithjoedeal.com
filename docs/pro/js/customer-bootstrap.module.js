@@ -485,6 +485,7 @@ function _revalidateLeadInBackground(id, hydratedLead) {
           stageEl.textContent = window.stageLabel(fresh.stage) || fresh.stage;
           stageEl.className = 'stage-badge stage-' + String(fresh.stage).toLowerCase().replace(/[_\s]+/g, '-');
         }
+        _renderCancelWindowChip(fresh);
       } catch (e) { /* non-fatal */ }
     } catch (e) {
       console.warn('[customer] background revalidate failed:', e.message);
@@ -700,6 +701,7 @@ async function loadCustomerData(id) {
     // bare import normalizes an unknown custom key to 'new' → "New Lead".
     stageBadge.textContent = window.stageLabel(stage) || stage;
     stageBadge.className = 'stage-badge stage-' + stage.toLowerCase().replace(/[_\s]+/g, '-');
+    _renderCancelWindowChip(lead);
 
     // ── Days-in-stage badge ──
     // Spec gap closed: shows how many days the lead has sat at the
@@ -2304,6 +2306,28 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// "Cancellation window ends <date>" (2026-10-04). Every contract signed in
+// the app records lead.cancelBy — the last day of the homeowner's 3-business-
+// day right to cancel (ky-insurance-law.js). Shown beside the stage badge
+// while the window is open (through midnight of that day), hidden after.
+function _renderCancelWindowChip(lead) {
+  const el = document.getElementById('cancelWindowChip');
+  if (!el) return;
+  const J = window.NBDJurisdiction;
+  const l = lead || window._currentLead || window._leadDoc || {};
+  let open = false;
+  try {
+    open = !!(J && typeof J.cancelWindowOpen === 'function' && l.cancelBy &&
+      J.cancelWindowOpen(l.cancelBy, new Date(), J.resolveTimeZone(window._legal ? window._legal() : window._companyProfile)));
+  } catch (_) { open = false; }
+  if (!open) { el.hidden = true; el.textContent = ''; return; }
+  const day = J.cancelByText(l.cancelBy);
+  el.textContent = 'Cancellation window ends ' + day;
+  el.title = 'The homeowner can cancel this contract without penalty until midnight on ' + day + '.';
+  el.hidden = false;
+}
+window.NBDCancelWindow = { render: (lead) => _renderCancelWindowChip(lead) };
+
 // Stage progression — picks the right pipeline based on lead jobType.
 //
 // 2026-09-15 foundation rework. Three things changed from the original
@@ -2341,7 +2365,20 @@ window.progressStage = async function() {
   // means the user never actually sees the prompt. nbdConfirm renders
   // a real themed modal in both modes.
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-  const ok = await ask(`Move customer to "${label}" stage?`);
+  // 3-day cancellation window (2026-10-04): a move that starts the work
+  // (materials ordered, crew scheduled, …) before lead.cancelBy says so in
+  // the confirm. Warn, never block — "Move" still moves.
+  let cxlWarn = '';
+  try {
+    const J = window.NBDJurisdiction;
+    if (J && typeof J.workStartWarning === 'function') {
+      cxlWarn = J.workStartWarning(window._currentLead || lead, nextStage, new Date(),
+        J.resolveTimeZone(window._legal ? window._legal() : window._companyProfile));
+    }
+  } catch (_) { cxlWarn = ''; }
+  const ok = await ask(cxlWarn
+    ? `⚠ ${cxlWarn}\n\nMove customer to "${label}" stage anyway?`
+    : `Move customer to "${label}" stage?`);
   if (!ok) return;
 
   // Pre-flight: surface common failure causes immediately rather than
