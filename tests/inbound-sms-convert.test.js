@@ -46,7 +46,7 @@ console.log('INBOUND-SMS CONVERT — lead builder');
   ok('stamps companyId to the caller company', lead.companyId === 'co1');
   ok('carries phoneDigits for inbound-SMS re-matching', lead.phoneDigits === '5135551234');
   ok('keeps the raw phone', lead.phone === '+15135551234');
-  ok('lands in the canonical first stage', lead.stage === 'New');
+  ok('lands in the canonical first stage key + role (2026-10-04)', lead.stage === 'new' && lead.stageRole === 'new');
   ok('status new', lead.status === 'new');
   ok('source tags the origin', lead.source === 'Inbound SMS');
   ok('original text becomes the notes', lead.notes === 'Hey, saw your truck — how much for a new roof?');
@@ -71,7 +71,7 @@ console.log('INBOUND-SMS CONVERT — lead builder');
 {
   const lead = C.buildConvertedLead({});
   ok('empty input does not throw and yields a stable shape',
-    lead.stage === 'New' && lead.notes === '' && lead.phone === '' && lead.phoneDigits === '');
+    lead.stage === 'new' && lead.notes === '' && lead.phone === '' && lead.phoneDigits === '');
   ok('null-ish body → empty notes', lead.notes === '');
 }
 

@@ -305,14 +305,16 @@
 
   async function markLost(p, reason) {
     if (typeof w.moveCard !== 'function') { toast('Pipeline not loaded — open the board once and try again', 'error'); return false; }
-    var moved = 0, carry = reason || null;
+    var moved = 0, carry = reason || null, carryKey = null;
     for (var i = 0; i < p.leadIds.length; i++) {
-      var opts = carry ? { lostReason: carry } : undefined;
+      // The reason asked once (the required picker on the first lead) rides
+      // on to the rest, key and all, so N leads don't open N sheets.
+      var opts = carry ? { lostReason: carry, lostReasonKey: carryKey || undefined } : undefined;
       var ok = await w.moveCard(p.leadIds[i], 'lost', opts);
       if (ok !== true) { if (!moved) return false; break; }
       moved++;
       var l = leadById(p.leadIds[i]);
-      if (!carry && l && l.lostReason) carry = l.lostReason;
+      if (!carry && l && l.lostReason) { carry = l.lostReason; carryKey = l.lostReasonKey || null; }
     }
     if (moved) handled.add(p.key);
     return moved > 0;
@@ -360,7 +362,7 @@
       var p = list[i], okAll = true;
       for (var j = 0; j < p.leadIds.length; j++) {
         var ok = false;
-        try { ok = (await w.moveCard(p.leadIds[j], 'lost', { lostReason: KNOCK_REASON })) === true; } catch (_) { ok = false; }
+        try { ok = (await w.moveCard(p.leadIds[j], 'lost', { lostReason: KNOCK_REASON, lostReasonKey: 'no_response' })) === true; } catch (_) { ok = false; }
         if (!ok) okAll = false;
       }
       if (okAll) { done++; handled.add(p.key); } else failed++;

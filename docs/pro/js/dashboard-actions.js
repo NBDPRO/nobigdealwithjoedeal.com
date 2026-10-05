@@ -581,6 +581,7 @@ function goTo(name, params = {}) {
   if(name==='money')      { _lazyPreload.then(() => { if (window.MoneyDashboard) window.MoneyDashboard.init(); }); }
   if(name==='signs')      { _lazyPreload.then(() => { if (window.YardSigns)   window.YardSigns.init();   }); }
   if(name==='winback')    { _lazyPreload.then(() => { if (window.NBDWinback)  window.NBDWinback.init();  }); }
+  if(name==='weekreview') { _lazyPreload.then(() => { if (window.NBDWeekReview) window.NBDWeekReview.init(); }); }
   if(name==='refrewards') { if (window.ReferralRewards) window.ReferralRewards.render(); }
   if(name==='repos')      { _lazyPreload.then(() => { if (window.RepOS)       window.RepOS.init();       }); }
   if(name==='talk-tank')  { _lazyPreload.then(() => { if (window.TalkTank)  window.TalkTank.init();  }); }
@@ -719,6 +720,8 @@ function goTo(name, params = {}) {
     } else if (window.LeadSourceROI) {
       window.LeadSourceROI.render('leadSourceROIPanel');
     }
+    // Package mix / losses by reason / results per storm (2026-10-04).
+    if (window.NBDReportsNumbers) { try { window.NBDReportsNumbers.render(); } catch (e) { console.warn('[reports] numbers panel failed', e); } }
     // Pipeline Forecast — same init-once-then-live-update pattern.
     if (window.Forecasting && !window.Forecasting._inited) {
       window.Forecasting.init('forecastPanel');

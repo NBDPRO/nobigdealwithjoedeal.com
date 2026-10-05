@@ -183,7 +183,8 @@ async function main() {
   const lead = (await db.doc('leads/' + T.leadDocIdForCall(idN)).get()).data();
   ok('lead scoped to NBD', lead && lead.companyId === NBD && lead.userId === NBD);
   ok('lead source Google + intake Phone — Thursday', lead && lead.source === 'Google' && lead.intake === 'Phone — Thursday');
-  ok('lead stage New', lead && lead.stage === 'New');
+  // Canonical key since #2150 (stage-key migration): 'new' + stageRole 'new', not the legacy 'New'.
+  ok('lead stage new + stageRole new', lead && lead.stage === 'new' && lead.stageRole === 'new');
   ok('lead has phoneDigits for SMS matching', lead && lead.phoneDigits === '5135550888');
 
   section('4. Thumbtack proxy lead → possible match, no duplicate');

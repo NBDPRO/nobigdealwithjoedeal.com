@@ -78,6 +78,9 @@ async function run(opts) {
     _leads: opts.stored ? [opts.stored] : [],
     _currentUser: { email: 'rep@example.com' },
     _saveLead: async (data) => { rec.saved.push(data); return data.id || 'new-id'; },
+    // The required lost-reason picker (2026-10-04): opts.lostChoice is what
+    // it resolves to (false = cancelled).
+    NBDLostReason: Object.prototype.hasOwnProperty.call(opts, 'lostChoice') ? { prompt: async () => opts.lostChoice } : undefined,
   };
   const sandbox = {
     window: win, document, console: { log() {}, warn() {}, error() {} },
@@ -116,10 +119,17 @@ async function run(opts) {
     assert('the rep is told which fields, by label', /fill in: Warranty Cert Filed, COC Filed/.test(r.err), r.err);
   }
   {
-    const r = await run({ editId: 'lead-1', stored: { id: 'lead-1', stage: 'contacted', jobType: 'insurance' }, formStage: 'lost', missing: ['whatever'] });
+    const lostChoice = { key: 'price', note: '', fields: { lostReasonKey: 'price', lostReason: 'Price', lostReasonNote: null } };
+    const r = await run({ editId: 'lead-1', stored: { id: 'lead-1', stage: 'contacted', jobType: 'insurance' }, formStage: 'lost', missing: ['whatever'], lostChoice });
     const tx = r.txUpdates[0] && r.txUpdates[0].p;
     assert('a move to Lost is NOT gated (kanban exemption)', r.saved.length === 1 && !!tx && tx.stage === 'lost');
     assert('…and is recorded as a lost move (closedAt)', !!tx && tx.closedAt === 'SERVER_TS');
+    assert('…with the reason from the required picker (2026-10-04)', !!tx && tx.lostReasonKey === 'price' && tx.lostReason === 'Price');
+  }
+  {
+    // Cancelling the picker saves nothing — a loss always carries a reason.
+    const r = await run({ editId: 'lead-1', stored: { id: 'lead-1', stage: 'contacted', jobType: 'insurance' }, formStage: 'lost', lostChoice: false });
+    assert('lost with the reason picker cancelled → nothing written, the rep is told', r.saved.length === 0 && r.txUpdates.length === 0 && /why it was lost/i.test(r.err), r.err);
   }
 
   console.log('EDIT LEAD — unchanged paths');
