@@ -39,7 +39,7 @@ const { logger } = require('firebase-functions/v2');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { httpRateLimit, enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
-const { buildCalendar } = require('./calendar-feed-logic');
+const { buildCalendar, leadEventToAppointment } = require('./calendar-feed-logic');
 const JOBS = require('./jobs-logic');
 
 const CORS_ORIGINS = [
@@ -296,6 +296,28 @@ exports.getCalendarFeed = onRequest(
         });
       } catch (e) {
         logger.warn('[getCalendarFeed] jobs read failed — serving customers only', { uid, err: e && e.message });
+      }
+      // CRM-booked appointments (2026-10-04, production flow): Add Event and
+      // the door-knock "Appointment Set" write leads/{id}/tasks with
+      // type:'event' (lead-events.js), which the feed never read. One
+      // collection-group read by the rep's uid (the single-field
+      // COLLECTION_GROUP index on tasks.userId), events on the rep's own
+      // leads only, in the window. Fed in as appointments, so they show
+      // timed, with their own UID. Same rule as the jobs read: a failure
+      // serves everything else instead of 503-ing the feed.
+      try {
+        const evSnap = await db.collectionGroup('tasks').where('userId', '==', uid).limit(LEAD_SCAN_CAP).get();
+        evSnap.forEach((d) => {
+          const t = d.data() || {};
+          if (t.type !== 'event') return;
+          const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+          const lead = leadId ? leadsById.get(leadId) : null;
+          if (!lead) return;
+          const appt = leadEventToAppointment(t, lead, leadId, d.id);
+          if (appt && appt.startTime >= fromMs && appt.startTime <= toMsWindow) appointments.push(appt);
+        });
+      } catch (e) {
+        logger.warn('[getCalendarFeed] CRM events read failed — serving the rest', { uid, err: e && e.message });
       }
       if (leadSnap.size === LEAD_SCAN_CAP) {
         logger.warn('[getCalendarFeed] lead scan hit the cap', { uid, cap: LEAD_SCAN_CAP });

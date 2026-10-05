@@ -406,7 +406,7 @@
     drawtool: [
       'css/maps-routing-view.css?v=2',
       'js/draw-geom.js?v=2',
-      'js/maps-routing.js?v=8',
+      'js/maps-routing.js?v=9',
       'css/draw-reticle.css?v=1',
       'js/draw-reticle.js?v=1'
     ],
