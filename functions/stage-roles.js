@@ -92,14 +92,76 @@ function payoffAdvanceAllowed(lead) {
   return role === ROLE.WON && PRE_FINAL_WON.has(key);
 }
 
-// Does moving `lead` to `nextStage` need a fresh closedAt? Yes when the move
-// lands on a WON stage and the lead was not already won with a close date
-// (2026-10-03 data audit: 10 won leads had no closedAt). Mirrors
-// docs/pro/js/stage-write.js's commitStageChange rule.
-function needsClosedAt(lead, nextStage) {
-  if (roleFromKey(nextStage) !== ROLE.WON) return false;
-  if (!lead) return true;
-  return !lead.closedAt || roleFor(lead) !== ROLE.WON;
+// ── Every built-in stage key (crm-stages.js S) ──────────────────────────────
+// tests/numbers-you-can-trust-2026-10-04.test.js pins this list to the client
+// config, so a stage added there without a mirror here fails CI.
+const BUILTIN_KEYS = new Set([
+  'new', 'contacted', 'inspected',
+  'claim_filed', 'adjuster_meeting_scheduled', 'adjuster_inspection_done', 'scope_received',
+  'estimate_submitted', 'supplement_requested', 'supplement_approved',
+  'estimate_sent_cash', 'negotiating', 'prequal_sent', 'loan_approved',
+  'contract_signed',
+  'job_created', 'permit_pulled', 'materials_ordered', 'materials_delivered', 'crew_scheduled',
+  'install_in_progress', 'install_complete', 'final_photos', 'deductible_collected', 'final_payment',
+  'collections', 'closed', 'warranty_claim',
+  'warranty_scheduled', 'warranty_repaired', 'service_quoted', 'service_approved',
+  'lost',
+]);
+// Legacy display names → key (crm-stages.js LEGACY_MAP, matched case-
+// insensitively the way normalizeStage does) plus the won/lost spellings ALIAS
+// above already understood.
+const LEGACY_KEY = {
+  'new': 'new', 'new lead': 'new', 'inspected': 'inspected', 'estimate sent': 'estimate_submitted',
+  'approved': 'contract_signed', 'in progress': 'install_in_progress', 'complete': 'closed',
+  'lost': 'lost', 'contacted': 'contacted', 'negotiating': 'negotiating',
+  'closed won': 'closed', 'closed lost': 'lost', 'won': 'closed', 'closed_won': 'closed', 'closed-won': 'closed',
+};
+
+/**
+ * The canonical built-in key for a stored stage value, or null when it is a
+ * tenant CUSTOM stage (or anything else the server cannot place) — callers
+ * must leave those alone. '' / missing → 'new'. 'New' → 'new',
+ * 'Closed Won' → 'closed', 'Install In Progress' → 'install_in_progress'.
+ */
+function canonicalStageKey(stage) {
+  const s = String(stage == null ? '' : stage).trim();
+  if (!s) return 'new';
+  if (BUILTIN_KEYS.has(s)) return s;
+  const lower = s.toLowerCase();
+  if (LEGACY_KEY[lower]) return LEGACY_KEY[lower];
+  const snake = lower.replace(/[\s-]+/g, '_');
+  if (BUILTIN_KEYS.has(snake)) return snake;
+  return null;
 }
 
-module.exports = { ROLE, WON_STAGES, WON_ALIASES, normKey, roleFromKey, roleFor, isWon, isLost, isDecided, payoffAdvanceAllowed, needsClosedAt };
+/**
+ * THE "is this a sale" test (Jo, 2026-09-15: a signed contract IS a job): the
+ * lead is won, in production, or on contract_signed. Same rule as the client
+ * crm-stages.js isJobStage() + role won/job, so the close rate, the close date
+ * and the sold package all agree on what a win is.
+ */
+function isSale(lead) {
+  if (!lead) return false;
+  const r = roleFor(lead);
+  if (r === ROLE.WON || r === ROLE.JOB) return true;
+  if (r === ROLE.LOST) return false;
+  return canonicalStageKey(lead._stageKey || lead.stage) === 'contract_signed';
+}
+
+// Does moving `lead` to `nextStage` need a fresh closedAt? Yes when the move
+// is a SALE — it lands on contract_signed, a job stage or a won stage — and
+// the lead was not already a sale with a close date (2026-10-03 data audit: 10
+// won leads had no closedAt; 2026-10-04: a signed contract is the close, so
+// the date is the signing, not the day the crew finished). A won → won or
+// signed → job step is not a second close. Mirrors docs/pro/js/stage-write.js
+// commitStageChange.
+function needsClosedAt(lead, nextStage) {
+  if (!isSale({ stage: nextStage })) return false;
+  if (!lead) return true;
+  return !lead.closedAt || !isSale(lead);
+}
+
+module.exports = {
+  ROLE, WON_STAGES, WON_ALIASES, BUILTIN_KEYS, normKey, roleFromKey, roleFor, isWon, isLost, isDecided,
+  payoffAdvanceAllowed, needsClosedAt, canonicalStageKey, isSale,
+};

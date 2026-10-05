@@ -56,11 +56,15 @@ function buildJoeContext() {
   // Post-crm-stages migration the canonical exit keys are 'closed' / 'lost'.
   // Match BOTH canonical and legacy ('Complete' / 'Lost') so old Firestore
   // docs aren't double-counted as active. v159.4 missed this filter.
-  const _terminal = new Set(['closed', 'lost', 'Complete', 'Lost']);
-  const active = leads.filter(l => !_terminal.has(l.stage || ''));
-  const closed = leads.filter(l => l.stage === 'closed' || l.stage === 'Complete');
+  // Role-based (2026-10-04, numbers-logic.js): every won stage is closed, not
+  // just the two spellings 'closed' / 'Complete'; 'New' and 'new' are one stage.
+  const _N = window.NBDNumbers;
+  const _role = (l) => _N ? _N.roleOf(l) : ((l.stage === 'closed' || l.stage === 'Complete') ? 'won' : (/^lost$/i.test(l.stage || '') ? 'lost' : 'active'));
+  const _isTerminal = (l) => { const r = _role(l); return r === 'won' || r === 'lost'; };
+  const active = leads.filter(l => !_isTerminal(l));
+  const closed = leads.filter(l => _role(l) === 'won');
   const overdue = leads.filter(l => {
-    if (!l.followUp || _terminal.has(l.stage || '')) return false;
+    if (!l.followUp || _isTerminal(l)) return false;
     // Local day ('YYYY-MM-DD' parses as UTC — a day early in the US).
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(l.followUp));
     return (m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(l.followUp)) <= today;
@@ -68,14 +72,14 @@ function buildJoeContext() {
   // Money counts every JOB (a customer's second job's value is its own —
   // jobs-store.js recordsFor); customer counts and follow-ups stay on leads.
   const recs = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(leads) : leads;
-  const activeJobs = recs.filter(l => !_terminal.has(l.stage || ''));
-  const closedJobs = recs.filter(l => l.stage === 'closed' || l.stage === 'Complete');
+  const activeJobs = recs.filter(l => !_isTerminal(l));
+  const closedJobs = recs.filter(l => _role(l) === 'won');
   const pipeVal = activeJobs.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);
   const closedRev = closedJobs.reduce((s,l)=>s+parseFloat(l.jobValue||0),0);
 
   // Stage breakdown
   const byStage = {};
-  leads.forEach(l=>{ byStage[l.stage||'New']=(byStage[l.stage||'New']||0)+1; });
+  leads.forEach(l=>{ const k = _N ? _N.stageKeyOf(l) : (l.stage||'new'); byStage[k]=(byStage[k]||0)+1; });
   const stageStr = Object.entries(byStage).map(([k,v])=>`${k}:${v}`).join(', ');
 
   // Top leads to call out

@@ -173,6 +173,13 @@ function botAllows(botOrId, tool) {
 
 // ── Data shaping (minimization) ────────────────────────────────────────
 const CLOSED = /^(closed|lost|cold|dead|archived|cancel)/;
+// Stored stage → canonical key before any test (2026-10-04): 'New' / 'Closed
+// Won' / 'Complete' were their own buckets here and 'Closed Won' slipped past
+// the case-sensitive CLOSED test into the open pipeline. Custom stages keep
+// their key; a won-role stage is closed.
+const _SRK = require('./stage-roles');
+function stageKeyOf(l) { return _SRK.canonicalStageKey(l && l.stage) || String((l && l.stage) || 'new'); }
+function isClosedLead(l) { const r = _SRK.roleFor(Object.assign({}, l, { _stageKey: stageKeyOf(l) })); return r === 'won' || r === 'lost' || CLOSED.test(stageKeyOf(l)); }
 function ms(v) {
   if (!v) return 0;
   if (typeof v === 'number') return v;
@@ -210,10 +217,11 @@ function summary(leads, todayYmd) {
   const byStage = {};
   let pipeline = 0, dueToday = 0, overdue = 0;
   act.forEach((l) => {
-    const st = String(l.stage || 'new');
+    const st = stageKeyOf(l);
     byStage[st] = (byStage[st] || 0) + 1;
-    if (!CLOSED.test(st)) pipeline += Number(l.jobValue) || 0;
-    if (isYmd(l.followUp) && !CLOSED.test(st)) {
+    const closed = isClosedLead(l);
+    if (!closed) pipeline += Number(l.jobValue) || 0;
+    if (isYmd(l.followUp) && !closed) {
       if (l.followUp === todayYmd) dueToday++;
       else if (l.followUp < todayYmd) overdue++;
     }
@@ -223,7 +231,7 @@ function summary(leads, todayYmd) {
 
 function overdueFollowups(leads, todayYmd, limit) {
   return activeLeads(leads)
-    .filter((l) => isYmd(l.followUp) && l.followUp < todayYmd && !CLOSED.test(String(l.stage || '')))
+    .filter((l) => isYmd(l.followUp) && l.followUp < todayYmd && !isClosedLead(l))
     .sort((a, b) => (a.followUp < b.followUp ? -1 : 1))
     .slice(0, clampLimit(limit))
     .map(minimalLead);

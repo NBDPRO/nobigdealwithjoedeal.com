@@ -22,6 +22,7 @@ const { logger } = require('firebase-functions/v2');
 const { Resend } = require('resend');
 const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const L = require('./lead-bridge-logic');
+const SR = require('./stage-roles');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -74,7 +75,9 @@ function aggregate({ leadDocsBySource, funnelDocs, crmDocs, stormCount }) {
   const crmStages = {};
   for (const d of crmDocs) {
     if (!d.webLead) continue;
-    const stage = String(d.stage || 'new');
+    // Canonical key (2026-10-04): 'New' and 'new' are one stage, not two
+    // rows. A tenant custom stage keeps its own key.
+    const stage = SR.canonicalStageKey(d.stage) || String(d.stage || 'new');
     crmStages[stage] = (crmStages[stage] || 0) + 1;
   }
 

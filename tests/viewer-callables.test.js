@@ -508,6 +508,7 @@ const VERDICTS = {
   sendQueuedSMS: 'refused', sendSMS: 'refused', setStorageCors: 'role-gated', shareSSR: 'public',
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
   submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
+  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', referralLinkOpened: 'public', submitSignature: 'public',
   submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
   // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup

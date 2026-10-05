@@ -568,6 +568,16 @@ async function run() {
   // claim holders (any role) may READ the roster; writes stay server-only;
   // cross-tenant claims stay denied.
   await assertSucceeds(getDoc(doc(coAdmin, 'companies/co-a/members/exist@x.com'))); // carol (company_admin, co-a claim)
+  // 23z (2026-10-04, knowing your numbers): companies/{co}/owner_numbers —
+  // lead spend, weekly review notes, referral-link open counts — the OWNER
+  // only. co-a names alice as ownerId; companies/alice is keyed by her uid.
+  await assertSucceeds(setDoc(doc(alice, 'companies/co-a/owner_numbers/lead_spend'), { months: { '2026-09': { thumbtack: 30000 } } }, { merge: true }));
+  await assertSucceeds(getDoc(doc(alice, 'companies/co-a/owner_numbers/lead_spend')));
+  await assertSucceeds(setDoc(doc(alice, 'companies/alice/owner_numbers/week_2026-10-04'), { decision: 'raise Thumbtack budget' }));
+  await assertFails(getDoc(doc(coAdmin, 'companies/co-a/owner_numbers/lead_spend')));   // a company_admin is not the owner
+  await assertFails(setDoc(doc(coAdmin, 'companies/co-a/owner_numbers/lead_spend'), { months: {} }));
+  await assertFails(getDoc(doc(bob, 'companies/co-a/owner_numbers/lead_spend')));       // cross-tenant
+  await assertFails(setDoc(doc(alice, 'companies/co-a/owner_numbers/referral_clicks_2026-10'), { clicks: 999 })); // server-written only
   await assertSucceeds(getDoc(doc(alice, 'companies/co-a/members/exist@x.com')));   // alice (sales_rep, co-a claim) reads own roster
   await assertFails(getDoc(doc(bob, 'companies/co-a/members/exist@x.com')));        // bob (co-b claim) cross-tenant denied
   await assertFails(setDoc(doc(coAdmin, 'companies/co-a/members/exist@x.com'), { status: 'disabled' }, { merge: true })); // claim grants READ only
