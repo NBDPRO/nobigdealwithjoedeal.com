@@ -98,7 +98,7 @@ const decide = (o) => D.decideDepositDraft(Object.assign({ leadId: 'L1', event: 
       && big.invoice.balanceDue === 15000 && big.invoice.amountPaid === 0 && big.invoice.depositPaid === false);
     ok('…the same fields createInvoiceFromEstimate writes (owner createdBy, companyId, jobId, terms, Bill To)',
       big.invoice.createdBy === 'u1' && big.invoice.companyId === 'u1' && big.invoice.leadId === 'L1' && big.invoice.estimateId === 'E1'
-      && big.invoice.customerName === 'Pat Jones' && big.invoice.customerEmail === 'pat@x.test' && /^Net 14\. 50% deposit of \$7,500 due at signing/.test(big.invoice.terms)
+      && big.invoice.customerName === 'Pat Jones' && big.invoice.customerEmail === 'pat@x.test' && /^Net 7\. 50% deposit of \$7,500 due at signing/.test(big.invoice.terms)
       && big.invoice.taxRate === 0 && big.invoice.total === 15000 && 'jobId' in big.invoice && big.invoice.kyInsuranceHold === false);
     ok('…one per-SQ summary line at the tier price, named for the customer', big.invoice.items.length === 1 && big.invoice.items[0].description === 'Roofing system — Preferred tier' && big.invoice.items[0].total === 15000);
     ok('…marked as the server draft (autoDraft.kind deposit_on_sign) and recognised by isDepositDraft',
@@ -363,7 +363,7 @@ const decide = (o) => D.decideDepositDraft(Object.assign({ leadId: 'L1', event: 
   {
     const css = read('docs/pro/css/invoice-pipeline.css');
     ok('the chip is styled by class (no inline style), loaded on both pages at a bumped ?v=',
-      /\.ipx-draft-chip/.test(css) && /css\/invoice-pipeline\.css\?v=2/.test(read('docs/pro/customer.html')) && /css\/invoice-pipeline\.css\?v=2/.test(read('docs/pro/dashboard.html')));
+      /\.ipx-draft-chip/.test(css) && /css\/invoice-pipeline\.css\?v=(?:[2-9]|\d\d+)"/.test(read('docs/pro/customer.html')) && /css\/invoice-pipeline\.css\?v=(?:[2-9]|\d\d+)"/.test(read('docs/pro/dashboard.html')));
   }
   {
     // Nothing in the draft path can send.

@@ -144,6 +144,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    */
   function formatCurrency(amount) {
     const n = parseFloat(amount);
+    // A "Less deposit paid" credit line is negative: print "-$5,000.00",
+    // not "$-5,000.00".
+    if (Number.isFinite(n) && n < 0) return '-' + formatCurrency(-n);
     return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -323,6 +326,86 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     return window._db;
   }
 
+  /**
+   * The pay link a HOMEOWNER may be given for this invoice (2026-10-03):
+   * ky-insurance-law.js payUrlUnlessHeld — stripePaymentLink OR
+   * stripeHostedUrl (a Stripe Invoice; every surface read only the first),
+   * and '' while the Kentucky insurance hold (KRS 367.626) applies.
+   * FAIL CLOSED: no jurisdiction module, or an invoice that names a lead we
+   * cannot read → ''. deps.readLead(leadId) → lead | null (tests inject it).
+   */
+  async function _homeownerPayUrl(invoice, deps) {
+    const J = (deps && deps.J) || (typeof window !== 'undefined' ? window.NBDJurisdiction : null);
+    if (!J || typeof J.payUrlUnlessHeld !== 'function' || typeof J.payUrlOf !== 'function') return '';
+    if (!invoice || !J.payUrlOf(invoice)) return '';
+    let lead = null;
+    if (invoice.leadId) {
+      try {
+        const read = (deps && deps.readLead) || _readLeadForHold;
+        lead = await read(String(invoice.leadId));
+      } catch (_) { lead = null; }
+      if (!lead) return '';
+    }
+    return J.payUrlUnlessHeld(lead, invoice, (deps && deps.now) || new Date());
+  }
+  /**
+   * Every invoice on a lead this user may read — the customer page's scope
+   * (customer-tasks-ui.js loadInvoices, mirroring the /invoices read rule):
+   * company admin / manager / viewer / owner read the tenant's, everyone
+   * else their own. Two equality filters, no composite index. Throws on a
+   * failed read (the caller refuses to bill blind).
+   */
+  async function _loadLeadInvoices(db, leadId) {
+    const uid = (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
+      || (window.auth && window.auth.currentUser && window.auth.currentUser.uid)
+      || (window._user && window._user.uid) || '';
+    // Signed out there is nothing to scope a read by — and nothing to bill
+    // with either: the /invoices create rule refuses an unauthenticated write.
+    if (!uid) return [];
+    const claims = window._userClaims || {};
+    const role = claims.role || '';
+    const companyId = claims.companyId || null;
+    const teamScope = !!(companyId && (role === 'company_admin' || role === 'manager' || role === 'viewer' || claims.owner === true));
+    const ref = window.collection(db, 'invoices');
+    const q = teamScope
+      ? window.query(ref, window.where('leadId', '==', leadId), window.where('companyId', '==', companyId))
+      : window.query(ref, window.where('leadId', '==', leadId), window.where('createdBy', '==', uid));
+    const snap = await window.getDocs(q);
+    return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+  }
+
+  /** The payment's timeline note (nbd:payment-timeline), at its stable doc id. */
+  async function _writePaymentTimeline(db, invoiceId, leadId, entry) {
+    const id = paymentTimelineNoteId(invoiceId, entry);
+    if (!id || typeof window.setDoc !== 'function') return false;
+    const uid = _currentUid();
+    if (!uid) return false;
+    await window.setDoc(window.doc(db, 'notes', id), {
+      leadId: String(leadId),
+      userId: uid,
+      text: paymentTimelineText(invoiceId, entry),
+      type: 'payment',
+      source: 'payment',
+      invoiceId: String(invoiceId),
+      paymentId: paymentIdOf(entry),
+      amount: Number(entry.amount) || 0,
+      method: String(entry.method || ''),
+      // The timeline sorts by createdAt: the day the money arrived.
+      createdAt: entry.at instanceof Date ? entry.at : new Date(),
+      loggedAt: new Date(),
+      createdBy: uid,
+    });
+    return true;
+  }
+
+  async function _readLeadForHold(leadId) {
+    const cached = (Array.isArray(window._leads) ? window._leads : []).find(l => l && l.id === leadId);
+    if (cached) return cached;
+    if (window._currentLead && window._customerId === leadId) return window._currentLead;
+    const snap = await window.getDoc(window.doc(getDb(), 'leads', leadId));
+    return snap.exists() ? Object.assign({ id: leadId }, snap.data() || {}) : null;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // MANUAL PAYMENTS — methods, cents math, ledger entry, proof (2026-09-29)
   // ═══════════════════════════════════════════════════════════════════════
@@ -340,9 +423,25 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     { key: 'check', label: 'Check', icon: '🧾', refLabel: 'Check #' },
     { key: 'zelle', label: 'Zelle', icon: '⚡', refLabel: 'Zelle confirmation #' },
     { key: 'cash',  label: 'Cash',  icon: '💵', refLabel: 'Receipt # (optional)' },
-    { key: 'ach',   label: 'ACH / bank transfer', icon: '🏦', refLabel: 'Transfer / trace #' },
+    // Card / ACH taken OUTSIDE Stripe (a terminal, the bank) — Stripe's own
+    // payments are recorded by the webhook and the ledger, never by hand.
+    { key: 'card',  label: 'Card (not Stripe)', icon: '💳', refLabel: 'Approval / last 4' },
+    { key: 'ach',   label: 'ACH / bank (not Stripe)', icon: '🏦', refLabel: 'Transfer / trace #' },
     { key: 'other', label: 'Other', icon: '➕', refLabel: 'Reference' },
   ];
+  // Who paid (2026-10-03): the homeowner, the insurance carrier's check, or
+  // the mortgage company (a carrier check endorsed through the lender).
+  const PAYERS = [
+    { key: 'homeowner', label: 'Homeowner' },
+    { key: 'insurance', label: 'Insurance carrier' },
+    { key: 'mortgage',  label: 'Mortgage company' },
+  ];
+  function isPayer(p) { return PAYERS.some(x => x.key === p); }
+  // A stable id per payment, so the timeline entry the server writes for it
+  // (functions/payment-timeline.js) is written exactly once.
+  function newPaymentId(nowMs) {
+    return 'mp_' + (Number(nowMs) || Date.now()).toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  }
   const PROOF_MAX_BYTES = 25 * 1024 * 1024;     // storage.rules payment-proofs/ cap
   const PAYMENT_REF_MAX = 80;
   const PAYMENT_NOTE_MAX = 500;
@@ -461,7 +560,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       method,
       recordedBy: String(input.recordedBy || ''),
       recordedAt,
+      paymentId: (typeof input.paymentId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(input.paymentId))
+        ? input.paymentId : newPaymentId(recordedAt.getTime()),
     };
+    if (isPayer(input.payer)) entry.payer = input.payer;
     const reference = _cleanText(input.reference, PAYMENT_REF_MAX);
     const note = _cleanText(input.note, PAYMENT_NOTE_MAX);
     if (reference) entry.reference = reference;
@@ -885,6 +987,159 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
   // nbd:invoice-from-estimate:end
 
+  // nbd:job-billing:start — ONE live invoice per job, and a final invoice
+  // that credits what the job was already billed (2026-10-03). Byte-identical
+  // in functions/invoice-from-estimate.js (the server's install-day final
+  // draft), pinned by tests/money-getting-paid-2026-10-03.test.js.
+  //
+  // createInvoiceFromEstimate billed the full estimate every time, with no
+  // look at the job's other invoices — including the draft deposit invoice
+  // the server makes on a signed contract — so a second tap billed the job
+  // twice. Now:
+  //   - a LIVE invoice (not paid / void / cancelled / deleted) that bills the
+  //     whole job is opened instead of making another;
+  //   - otherwise a new invoice is the FINAL one: each earlier invoice for
+  //     the job (a paid deposit, or a deposit invoice already issued) is
+  //     credited as its own "Less deposit …" line, so the total due is what
+  //     is actually left;
+  //   - nothing is made when those invoices already bill the whole job.
+  // A credit line carries credit:true and a negative total; the online pay
+  // link charges the balance as one line (functions/stripe.js).
+  var JOB_BILLING_DEAD = { void: 1, voided: 1, cancelled: 1, canceled: 1, uncollectible: 1 };
+  function _jbCents(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
+  }
+  function _jbJobId(v) {
+    return (typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v)) ? v : null;
+  }
+  function _jbMs(v) {
+    if (!v) return 0;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.toDate === 'function') return v.toDate().getTime();
+    if (typeof v.seconds === 'number') return v.seconds * 1000;
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+  /**
+   * This job's invoices: not deleted / void / cancelled; the same job, or —
+   * when either side has no job stamp — an unpaid one (a PAID invoice with
+   * no job stamp is an earlier job's history). The deposit draft's filter
+   * (functions/deposit-draft-logic.js). Oldest first.
+   */
+  function jobInvoicesOf(invoices, jobId) {
+    const jid = _jbJobId(jobId);
+    return (Array.isArray(invoices) ? invoices : []).filter(function (inv) {
+      if (!inv || inv.deleted === true || inv.deletedAt) return false;
+      const st = String(inv.status || '').toLowerCase();
+      if (JOB_BILLING_DEAD[st]) return false;
+      const ij = _jbJobId(inv.jobId);
+      if (jid && ij) return ij === jid;
+      return st !== 'paid';
+    }).sort(function (a, b) { return _jbMs(a.createdAt) - _jbMs(b.createdAt); });
+  }
+  /** Live = still in play for its job: anything but paid (after jobInvoicesOf). */
+  function isLiveInvoice(inv) {
+    return !!inv && String(inv.status || '').toLowerCase() !== 'paid';
+  }
+  /**
+   * planJobInvoice(jobTotalCents, invoices, jobId) — what billing this job
+   * needs now.
+   *  → { action: 'open', invoiceId, reason: 'live_invoice' }
+   *      a live invoice bills the whole job: use it (with no job total to
+   *      compare, any live invoice for the job is the job's bill);
+   *  | { action: 'open', invoiceId, reason: 'billed_in_full' }
+   *      earlier invoices already bill the whole job;
+   *  | { action: 'create', credits: [{ invoiceId, label, cents, paid }], creditCents }
+   */
+  function planJobInvoice(jobTotalCents, invoices, jobId) {
+    const mine = jobInvoicesOf(invoices, jobId);
+    const totalC = Math.max(0, Math.round(Number(jobTotalCents) || 0));
+    const covering = mine.filter(function (inv) {
+      return isLiveInvoice(inv) && (totalC === 0 || _jbCents(inv.total) >= totalC);
+    });
+    if (covering.length) return { action: 'open', invoiceId: covering[0].id || null, reason: 'live_invoice' };
+    const credits = [];
+    let creditCents = 0;
+    mine.forEach(function (inv) {
+      const c = _jbCents(inv.total);
+      if (!(c > 0)) return;
+      const paid = String(inv.status || '').toLowerCase() === 'paid' || _jbCents(inv.amountPaid) >= c;
+      credits.push({ invoiceId: inv.id || null, label: paid ? 'Less deposit paid' : 'Less deposit invoiced', cents: c, paid: paid });
+      creditCents += c;
+    });
+    if (totalC > 0 && creditCents >= totalC) {
+      return { action: 'open', invoiceId: mine.length ? (mine[mine.length - 1].id || null) : null, reason: 'billed_in_full' };
+    }
+    return { action: 'create', credits: credits, creditCents: creditCents };
+  }
+  /**
+   * The final invoice's lines and total: one negative "Less deposit …" line
+   * per credit (credit: true), total = the job total − the credits. Subtotal
+   * and tax stay the job's own, so the paper shows what the job costs and
+   * what is left to pay.
+   */
+  function applyJobCredits(base, credits) {
+    base = base || {};
+    const items = (Array.isArray(base.items) ? base.items : []).slice();
+    let creditC = 0;
+    (Array.isArray(credits) ? credits : []).forEach(function (cr) {
+      const c = Math.max(0, Math.round(Number(cr && cr.cents) || 0));
+      if (!c) return;
+      creditC += c;
+      items.push({
+        description: String(cr.label || 'Less deposit paid') + (cr.invoiceId ? ' (invoice ' + String(cr.invoiceId).slice(0, 12) + ')' : ''),
+        quantity: 1,
+        unitPrice: -c / 100,
+        total: -c / 100,
+        credit: true,
+        creditInvoiceId: cr.invoiceId || null
+      });
+    });
+    const totalC = Math.max(0, _jbCents(base.total) - creditC);
+    return Object.assign({}, base, { items: items, total: totalC / 100, creditTotal: creditC / 100 });
+  }
+  // nbd:job-billing:end
+
+  // nbd:payment-timeline:start — every payment gets ONE line on the
+  // customer's timeline (2026-10-03). Byte-identical in
+  // functions/payment-timeline.js, pinned by
+  // tests/money-getting-paid-2026-10-03.test.js. The line is a /notes doc
+  // (the timeline reads notes by leadId) whose id is derived from the
+  // payment's own id, so whichever path writes it first — the Record Payment
+  // sheet / Mark Paid in the browser, or the server's invoice trigger for a
+  // Stripe webhook / ledger credit — every later write lands on the SAME doc:
+  // one entry per payment, however many paths see it.
+  var PAYMENT_TIMELINE_METHODS = {
+    check: 'check', zelle: 'Zelle', cash: 'cash', card: 'card (not Stripe)', ach: 'ACH / bank (not Stripe)',
+    other: 'other', manual: 'manual entry', stripe: 'online card (Stripe)', apple_pay: 'Apple Pay (Stripe)',
+    google_pay: 'Google Pay (Stripe)', link: 'Link (Stripe)', us_bank_account: 'bank transfer (Stripe)', cashapp: 'Cash App (Stripe)'
+  };
+  var PAYMENT_TIMELINE_PAYERS = { homeowner: 'the homeowner', insurance: 'the insurance carrier', mortgage: 'the mortgage company' };
+  function _ptlSeg(s) {
+    return String(s == null ? '' : s).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120);
+  }
+  /** The payment's own stable id, or '' (a legacy entry with none). */
+  function paymentIdOf(p) {
+    p = p || {};
+    return String(p.paymentId || p.paymentIntentId || p.stripeRef || '');
+  }
+  /** The timeline note's doc id for this payment, or '' without a payment id. */
+  function paymentTimelineNoteId(invoiceId, p) {
+    const pid = paymentIdOf(p);
+    return pid ? 'pay-' + _ptlSeg(invoiceId) + '-' + _ptlSeg(pid) : '';
+  }
+  function paymentTimelineText(invoiceId, p) {
+    p = p || {};
+    const n = Number(p.amount) || 0;
+    const amt = '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const method = PAYMENT_TIMELINE_METHODS[p.method] || (p.method ? String(p.method).slice(0, 40) : 'payment');
+    const ref = p.reference ? ' #' + String(p.reference).slice(0, 40) : '';
+    const payer = PAYMENT_TIMELINE_PAYERS[p.payer] ? ' from ' + PAYMENT_TIMELINE_PAYERS[p.payer] : '';
+    return '💵 Payment received: ' + amt + ' by ' + method + ref + payer + ' — invoice ' + String(invoiceId || '').slice(0, 12) + '.';
+  }
+  // nbd:payment-timeline:end
+
   /**
    * Load this user's supplements for a parent estimate.
    *
@@ -930,6 +1185,18 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * @returns {Promise<string>} invoiceId
    */
   async function createInvoiceFromEstimate(estimateId) {
+    const r = await createOrOpenJobInvoice(estimateId);
+    return r.invoiceId;
+  }
+
+  /**
+   * The job's invoice for this estimate: the live one if the job already has
+   * it, else a new one — a FINAL invoice crediting the job's earlier invoices
+   * when there are any (nbd:job-billing above). Never a second bill for the
+   * same work.
+   * @returns {Promise<{ invoiceId: string, reused: boolean, reason?: string, creditCents?: number }>}
+   */
+  async function createOrOpenJobInvoice(estimateId) {
     const db = getDb();
 
     try {
@@ -1003,9 +1270,37 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const customerEmail = est.customerEmail || (lead && lead.email) || '';
       const customerPhone = est.customerPhone || (lead && lead.phone) || '';
 
-      if (_depRule) {
+      // Multi-job (2026-09-30): the job this invoice bills — the estimate's
+      // own job if it names one, else the job on the customer's card right
+      // now. money-paper.js marks exactly this job paid in full, and a later
+      // job taking over the card can never be marked paid by this invoice.
+      const jobId = (est.jobId && /^[A-Za-z0-9_-]{1,40}$/.test(String(est.jobId)) ? String(est.jobId) : null)
+        || (lead && typeof lead.activeJobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(lead.activeJobId) ? lead.activeJobId : null);
+
+      // One live invoice per job (2026-10-03, nbd:job-billing). Read the
+      // customer's invoices first; a live one that bills the whole job is
+      // OPENED, not duplicated, and a new one credits the earlier ones.
+      // Unreadable → refuse rather than risk billing the job twice.
+      let jobCredits = [];
+      if (est.leadId) {
+        let existing;
+        try { existing = await _loadLeadInvoices(db, est.leadId); }
+        catch (e) { throw new Error('Could not check the other invoices for this job — try again so it is not billed twice.'); }
+        const plan = planJobInvoice(Math.round(Number(total) * 100), existing, jobId);
+        if (plan.action === 'open' && plan.invoiceId) return { invoiceId: plan.invoiceId, reused: true, reason: plan.reason };
+        if (plan.action === 'create') jobCredits = plan.credits;
+      }
+
+      if (_depRule && !jobCredits.length) {
         depositPlan = _depRule.fromEstimate(est, { totalCents: Math.round(Number(total) * 100), lead: lead || null });
         depositAmount = depositPlan.depositCents / 100;
+      }
+      // A FINAL invoice: the deposit was billed on the earlier invoice(s), so
+      // no deposit here — each one is a "Less deposit …" line instead.
+      if (jobCredits.length) {
+        const credited = applyJobCredits({ items, subtotal, tax, total }, jobCredits);
+        items = credited.items;
+        total = credited.total;
       }
 
       // Create invoice doc
@@ -1036,7 +1331,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         balanceDue: total,
         stripeInvoiceId: null,
         stripePaymentLink: null,
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+        // ONE due-date rule (deposit-rule.js INVOICE_DUE_DAYS) — the Stripe
+        // invoice's days_until_due reads the same value; this said 14 days
+        // while the Stripe invoice the homeowner opened said 7.
+        // (The fallback is only for a bare unit-test sandbox with no
+        // deposit-rule.js; tests/money-getting-paid-2026-10-03.test.js pins
+        // it to INVOICE_DUE_DAYS.)
+        dueDate: new Date(_depRule ? _depRule.invoiceDueDateMs(Date.now()) : Date.now() + 7 * 86400000),
         sentAt: null,
         paidAt: null,
         viewedAt: null,
@@ -1058,7 +1359,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // (367.626(3)). Informational here; the server re-derives it.
         kyInsuranceHold: !!(depositPlan && depositPlan.kyHold),
         emergencyServices: false,
-        terms: 'Net 14.' + (depositPlan && depositPlan.summary ? ' ' + depositPlan.summary : ''),
+        terms: (_depRule ? _depRule.netTermsText() : 'Net 7.') + (depositPlan && depositPlan.summary ? ' ' + depositPlan.summary : ''),
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: window._auth?.currentUser?.uid || 'system',
@@ -1070,9 +1371,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // own job if it names one, else the job on the customer's card right
         // now. money-paper.js marks exactly this job paid in full, and a later
         // job taking over the card can never be marked paid by this invoice.
-        jobId: (est.jobId && /^[A-Za-z0-9_-]{1,40}$/.test(String(est.jobId)) ? String(est.jobId) : null)
-          || (lead && typeof lead.activeJobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(lead.activeJobId) ? lead.activeJobId : null)
+        jobId
       };
+      if (jobCredits.length) {
+        invoiceData.kind = 'final';
+        invoiceData.creditTotal = jobCredits.reduce((s, c) => s + c.cents, 0) / 100;
+        invoiceData.creditedInvoiceIds = jobCredits.map(c => c.invoiceId).filter(Boolean);
+      }
 
       // Backstop — refuse to persist a zero invoice, whatever produced it.
       // The two-shape reads above fix the known cause, but an invoice for $0 is
@@ -1104,7 +1409,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           });
         }));
       }
-      return invoiceRef.id;
+      return { invoiceId: invoiceRef.id, reused: false, creditCents: jobCredits.reduce((s, c) => s + c.cents, 0) };
 
     } catch (error) {
       console.error('createInvoiceFromEstimate error:', error);
@@ -1233,6 +1538,22 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // double-counted). The lock now remembers the status it replaced
   // (sendingPriorStatus) and everything that ends a send restores it; only a
   // DRAFT becomes 'sent'.
+
+  /**
+   * Part paid: money in, money still owed (2026-10-03). The Stripe webhook
+   * left a part-paid invoice 'sent' (only Mark Paid and the Stripe ledger
+   * wrote 'partial'), and sendInvoice refuses 'sent' with "Use Resend" — a
+   * button that never existed — so the balance could not be billed at all.
+   */
+  function isPartPaid(inv) {
+    if (!inv || inv.deleted === true) return false;
+    const st = String(inv.status || '').toLowerCase();
+    if (st === 'paid' || st === 'draft' || st === 'void' || st === 'voided' || st === 'cancelled' || st === 'canceled') return false;
+    return toCents(Math.max(0, Number(inv.amountPaid) || 0)) > 0
+      && toCents(Math.max(0, Number(inv.balanceDue) || 0)) > 0;
+  }
+  /** "Send balance" is offered on a part-paid invoice (the same send flow, one tap). */
+  function canSendBalance(inv) { return isPartPaid(inv); }
 
   /** What the invoice was before this send — a stale lock keeps ITS prior status. */
   function _priorStatusOf(inv) {
@@ -1386,7 +1707,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // 'draft' so the next "Send" tap delivered the same invoice
       // twice to the customer. Even more important: an in-flight send
       // (status:'sending') blocks concurrent taps from doubling up.
-      if (invoice.status === 'sent') {
+      // A part-paid invoice is a BALANCE send — the rep's deliberate "Send
+      // balance" tap — not a duplicate of the first send.
+      if (invoice.status === 'sent' && !isPartPaid(invoice)) {
         const sentDate = invoice.sentAt?.toDate?.() || invoice.sentAt;
         const niceDate = sentDate ? new Date(sentDate).toLocaleString() : 'previously';
         if (window.showToast) {
@@ -1449,15 +1772,37 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         console.warn('sendInvoice lock acquire failed, proceeding cautiously:', lockErr && lockErr.message);
       }
 
+      // Balance send: a CRM pay link was minted for the FULL amount (and a
+      // card deposit spends the single-use link), so re-mint it for the
+      // balance first — the server deactivates the old one and re-checks the
+      // Kentucky hold. A failed re-mint sends NO link rather than a stale one.
+      const balanceSend = isPartPaid(invoice);
+      let linkSource = invoice;
+      if (balanceSend && invoice.stripePaymentLink) {
+        try {
+          const minted = await generateStripePaymentLink(invoiceId);
+          linkSource = Object.assign({}, invoice, { stripePaymentLink: (minted && minted.url) || null });
+        } catch (regenErr) {
+          console.warn('sendInvoice: balance link re-mint failed — sending without a link', regenErr && regenErr.message);
+          linkSource = Object.assign({}, invoice, { stripePaymentLink: null, stripeHostedUrl: null });
+        }
+      }
+      // The homeowner's pay link: stripePaymentLink OR stripeHostedUrl, and
+      // '' while the Kentucky insurance hold applies (_homeownerPayUrl).
+      const payUrl = await _homeownerPayUrl(Object.assign({ id: invoiceId }, linkSource));
+      const balanceText = balanceSend ? formatCurrency(invoice.balanceDue) : '';
+
       if (method === 'email') {
         // Build invoice HTML
-        const invoiceHtml = buildInvoiceHtml(invoice);
+        const invoiceHtml = buildInvoiceHtml(invoice, { payUrl });
 
         // Send via NBDComms
         if (window.NBDComms?.sendEmail) {
           const emailResult = await window.NBDComms.sendEmail({
             to: invoice.customerEmail || '',
-            subject: `Invoice ${invoiceId} from ${_invoiceCompany()}`,
+            subject: balanceSend
+              ? `Balance due ${balanceText} — Invoice ${invoiceId} from ${_invoiceCompany()}`
+              : `Invoice ${invoiceId} from ${_invoiceCompany()}`,
             html: invoiceHtml,
             leadId: invoice.leadId || null,
             invoiceId: invoiceId, // the server checks `to` against invoice.customerEmail
@@ -1471,15 +1816,18 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         }
 
       } else if (method === 'sms') {
-        const link = invoice.stripePaymentLink || '';
+        const link = payUrl;
         // Two fixes on one line. The company was hardcoded "NBD Roofing", so a
         // tenant's homeowner was told the invoice came from the platform owner.
         // And the link was interpolated unconditionally — with none (which is
         // now the normal case for a tenant) the customer got "Payment link: "
         // with nothing after it.
+        const opener = balanceSend
+          ? `Thank you for your payment — your ${_invoiceCompany()} invoice has a remaining balance of ${balanceText}.`
+          : `Your ${_invoiceCompany()} invoice is ready.`;
         const message = link
-          ? `Your ${_invoiceCompany()} invoice is ready. Payment link: ${link}`
-          : `Your ${_invoiceCompany()} invoice is ready — reply here with any questions.`;
+          ? `${opener} Payment link: ${link}`
+          : `${opener.replace(/\.$/, '')} — reply here with any questions.`;
 
         if (window.NBDComms?.sendSMS) {
           const smsResult = await window.NBDComms.sendSMS({
@@ -1605,6 +1953,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         note: details.note,
         proofStoragePath: details.proofStoragePath,
         proofName: details.proofName,
+        payer: details.payer,
+        paymentId: details.paymentId,
         recordedBy: (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
           || (window._user && window._user.uid) || '',
         recordedAt: new Date(),
@@ -1617,6 +1967,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // partial deposits) so the money dashboard attributes collected cash to
       // the year it was received; paidAt only fires on full payoff.
       await window.updateDoc(invRef, Object.assign({}, patch, { updatedAt: entry.recordedAt }));
+
+      // One timeline line per payment (nbd:payment-timeline). The server's
+      // invoice trigger writes the SAME doc id for every payment path, so
+      // this is just the fast copy (and the only one on a stack without the
+      // functions runtime). Best-effort: the payment is already recorded.
+      if (invoice.leadId) {
+        try { await _writePaymentTimeline(db, invoiceId, invoice.leadId, entry); }
+        catch (tlErr) { console.warn('markPaid: timeline note failed', tlErr && (tlErr.code || tlErr.message)); }
+      }
 
       // Regenerate the online payment link to the NEW outstanding balance.
       // The link is minted at invoice creation for the full total; once a
@@ -1662,8 +2021,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // while a card payoff (stripe.js) went to Final Payment — the same
       // payoff landed the card in two places depending on how it was paid.
 
-      // Send receipt
-      if (window.NBDComms?.sendEmail && invoice.customerEmail) {
+      // Send receipt. details.sendReceipt === false skips it (Record payment
+      // passes its "Email a receipt" box, default OFF — Jo entering weeks-old
+      // checks must not surprise customers). Every other caller leaves it
+      // unset and keeps the existing behaviour (Jo has not decided that one).
+      if (details.sendReceipt !== false && window.NBDComms?.sendEmail && invoice.customerEmail) {
         await window.NBDComms.sendEmail({
           to: invoice.customerEmail,
           subject: `Payment Received - ${_invoiceCompany()} Invoice ${invoiceId}`,
@@ -1797,6 +2159,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // Before the send (2026-10-04): can this company take a card payment?
       const _canCollect = (inv && inv.status !== 'paid' && !inv.stripePaymentLink)
         ? await _canCollectOnline() : true;
+      // Copy Payment Link copies what the homeowner will be sent — so it
+      // goes through the same Kentucky hold as the SMS / email / portal.
+      const _payUrl = await _homeownerPayUrl(Object.assign({ id: invoiceId }, inv));
       const _esc = (s) => String(s == null ? '' : s)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -1910,9 +2275,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
           <div class="ipx-toolbar">
             <button type="button" class="btn btn-ghost" data-ip-action="print">Print Invoice</button>
-            <button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>
+            ${canSendBalance(inv)
+              ? `<button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_esc(invoiceId)}" data-ip-send-balance>Send balance (${_esc(formatCurrency(inv.balanceDue))})</button>`
+              : `<button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>`}
             ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Record Payment (Check/Zelle/Cash)</button>` : ''}
-            ${inv.stripePaymentLink ? `<button type="button" class="btn btn-ghost" data-ip-action="copyStripeLink" data-ip-id="${_escJs(inv.stripePaymentLink)}">Copy Payment Link</button>` : ''}
+            ${_payUrl ? `<button type="button" class="btn btn-ghost" data-ip-action="copyStripeLink" data-ip-id="${_esc(_payUrl)}">Copy Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
@@ -2032,7 +2399,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   /**
    * Build invoice HTML for email
    */
-  function buildInvoiceHtml(invoice) {
+  // opts.payUrl — the Pay Online link, already through _homeownerPayUrl (the
+  // Kentucky hold). Absent → no button: this builder never reads the
+  // invoice's link fields itself, so no caller can skip the hold by accident.
+  function buildInvoiceHtml(invoice, opts) {
+    const _payUrl = (opts && opts.payUrl) || '';
     // Escape every interpolated user-controlled field — this builder
     // composes the EMAIL BODY sent to homeowners. PR #28 fixed
     // renderInvoiceDetail (the in-app preview) but missed this
@@ -2120,7 +2491,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               </tbody>
             </table>
             <p><strong>Payment Terms:</strong> ${_esc(invoice.terms)}</p>
-            ${_safeUrl(invoice.stripePaymentLink) ? `<a href="${_esc(_safeUrl(invoice.stripePaymentLink))}" class="cta">Pay Online</a>` : ''}
+            ${_safeUrl(_payUrl) ? `<a href="${_esc(_safeUrl(_payUrl))}" class="cta">Pay Online</a>` : ''}
             <p style="margin-top: 30px; font-size: 12px; color: #999;">Thank you for choosing ${_esc(_invoiceCompany())}!</p>
           </div>
         </body>
@@ -2211,7 +2582,17 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       closeModal();
       try {
         showToast('Creating invoice...', 'info');
-        const invoiceId = await createInvoiceFromEstimate(estimateId);
+        // One live invoice per job (nbd:job-billing): a job that already has
+        // its live invoice gets THAT one opened, never a second bill.
+        const made = await createOrOpenJobInvoice(estimateId);
+        const invoiceId = made.invoiceId;
+        if (made.reused) {
+          showToast(made.reason === 'billed_in_full'
+            ? 'This job is already invoiced in full — opened its invoice.'
+            : 'This job already has an open invoice — opened it instead of billing twice.', 'info');
+          showInvoiceDetailModal(invoiceId);
+          return;
+        }
 
         // The invoice EXISTS from here on. Minting the payment link used to sit
         // inside this same try, so any link failure — a Stripe hiccup, a $0 line
@@ -2670,11 +3051,352 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // RECORD PAYMENT on a job — with or without an invoice (2026-10-03)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // A read-only prod audit (2026-10-03) found 30 jobs at install or later and
+  // only 4 with invoices; not one check, Zelle or cash payment had ever been
+  // recorded. Mark Paid needs an EXISTING invoice, and making one needs an
+  // estimate — none of the 30 won leads is linked to one. So the money that
+  // did come in had nowhere to go, and revenue (collected only) read $3,650.
+  //
+  // One sheet on the customer page: amount, method, payer, date, reference.
+  // It records against the job's live invoice; with none, it makes the
+  // invoice first — from the primary estimate, else from the lead's job
+  // value, which the rep must CONFIRM in the sheet (never a guess, never a
+  // backfill) — then records the payment through markPaid, unchanged.
+
+  /**
+   * Where a payment for this lead's job lands. Pure.
+   *   { lead, invoices, estimate?, estimateId?, totalsOpts? }
+   * → { kind: 'existing', invoices: [live…] }   pay the job's live invoice
+   *   | { kind: 'estimate', estimateId, totalCents }   make it from the estimate
+   *   | { kind: 'jobValue', suggestedCents }    the rep confirms a total
+   */
+  function recordPaymentTarget(ctx) {
+    ctx = ctx || {};
+    const lead = ctx.lead || {};
+    const jobId = _jbJobId(lead.activeJobId);
+    const live = jobInvoicesOf(ctx.invoices, jobId).filter(isLiveInvoice);
+    if (live.length) return { kind: 'existing', invoices: live, jobId };
+    const estId = (typeof ctx.estimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(ctx.estimateId)) ? ctx.estimateId : null;
+    if (estId && ctx.estimate && ctx.estimate.deleted !== true) {
+      const t = invoiceTotalsFromEstimate(ctx.estimate, ctx.totalsOpts || {});
+      const c = Math.round(Number(t.total) * 100);
+      if (c > 0) return { kind: 'estimate', estimateId: estId, totalCents: c, jobId };
+    }
+    const jv = toCents(Math.max(0, Number(lead.jobValue) || 0));
+    return { kind: 'jobValue', suggestedCents: Number.isFinite(jv) && jv > 0 ? jv : 0, jobId };
+  }
+
+  /**
+   * The invoice made from a CONFIRMED job total (no estimate on file). Pure.
+   * One line, no tax split (a job value is the all-in price), the job's
+   * earlier invoices credited (nbd:job-billing), the same fields
+   * createInvoiceFromEstimate writes, and who confirmed the total.
+   */
+  function jobValueInvoiceDoc(o) {
+    o = o || {};
+    const lead = o.lead || {};
+    const totalC = Math.round(Number(o.totalCents) || 0);
+    if (!(totalC > 0)) throw new Error('Enter the job total');
+    const now = o.now instanceof Date ? o.now : new Date();
+    const dr = o.depRule || null;
+    let base = { items: [{ description: 'Roofing work — job total', quantity: 1, unitPrice: totalC / 100, total: totalC / 100 }], subtotal: totalC / 100, tax: 0, total: totalC / 100 };
+    const credits = Array.isArray(o.credits) ? o.credits : [];
+    if (credits.length) base = applyJobCredits(base, credits);
+    const J = o.J || null;
+    const ky = !!(J && typeof J.classifyLead === 'function' && (J.classifyLead(lead) || {}).kyInsurance === true);
+    const doc = {
+      leadId: o.leadId || null,
+      estimateId: null,
+      customerId: lead.customerId || null,
+      customerName: leadDisplayName(lead),
+      customerEmail: lead.email || '',
+      customerPhone: lead.phone || '',
+      status: 'draft',
+      items: base.items,
+      subtotal: base.subtotal,
+      tax: 0,
+      taxRate: 0,
+      total: base.total,
+      supplementTotal: 0,
+      depositAmount: 0,
+      depositPaid: false,
+      amountPaid: 0,
+      balanceDue: base.total,
+      stripeInvoiceId: null,
+      stripePaymentLink: null,
+      // (The fallback is only for a bare unit-test sandbox; pinned to
+      // INVOICE_DUE_DAYS by tests/money-getting-paid-2026-10-03.test.js.)
+      dueDate: new Date(dr ? dr.invoiceDueDateMs(now.getTime()) : now.getTime() + 7 * 86400000),
+      sentAt: null,
+      paidAt: null,
+      viewedAt: null,
+      notes: '',
+      depositTerms: '',
+      depositRepNote: '',
+      kyInsuranceHold: ky,
+      emergencyServices: false,
+      terms: dr ? dr.netTermsText() : 'Net 7.',
+      createdAt: now,
+      updatedAt: now,
+      createdBy: o.uid || 'system',
+      companyId: o.companyId || o.uid || null,
+      jobId: _jbJobId(o.jobId),
+      source: 'record_payment',
+      totalConfirmedBy: o.uid || null,
+      totalConfirmedAt: now,
+    };
+    if (credits.length) {
+      doc.kind = 'final';
+      doc.creditTotal = base.creditTotal;
+      doc.creditedInvoiceIds = credits.map(c => c.invoiceId).filter(Boolean);
+    }
+    return doc;
+  }
+
+  async function _readEstimate(db, id) {
+    if (!id) return null;
+    const cached = (window._estimates || []).find(e => e && e.id === id);
+    try {
+      const s = await window.getDoc(window.doc(db, 'estimates', id));
+      if (s.exists()) return Object.assign({ id }, s.data());
+    } catch (_) { /* fall back to the page cache */ }
+    return cached || null;
+  }
+
+  function _totalsOpts() {
+    const rows = window.NBDCustomerEstimateRows;
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    return {
+      estimateValue: (rows && typeof rows.estimateValue === 'function') ? rows.estimateValue : null,
+      tierLabel: (cfg && typeof cfg.tierLabel === 'function') ? cfg.tierLabel : null,
+    };
+  }
+
+  /**
+   * The Record Payment sheet's write, without the DOM (tests drive it):
+   * resolve / make the job's invoice, then markPaid. o = { leadId, lead,
+   * target (recordPaymentTarget), invoiceId (existing), totalCents
+   * (jobValue), amount, method, payer, at, reference, sendReceipt }.
+   * sendReceipt defaults OFF here: only an explicit true emails the
+   * customer (markPaid's own default is unchanged for its other callers).
+   * → invoiceId
+   */
+  async function recordPaymentCommit(o) {
+    o = o || {};
+    const db = getDb();
+    const target = o.target || {};
+    let invoiceId;
+    if (target.kind === 'existing') {
+      invoiceId = o.invoiceId || (target.invoices && target.invoices[0] && target.invoices[0].id);
+    } else if (target.kind === 'estimate') {
+      invoiceId = (await createOrOpenJobInvoice(target.estimateId)).invoiceId;
+    } else {
+      // Re-read the job's invoices right before writing: another device
+      // may have made one since the sheet opened.
+      const fresh = await _loadLeadInvoices(db, o.leadId);
+      const plan = planJobInvoice(o.totalCents, fresh, target.jobId);
+      if (plan.action === 'open') {
+        invoiceId = plan.invoiceId;
+      } else {
+        const uid = _currentUid();
+        const doc = jobValueInvoiceDoc({
+          lead: o.lead, leadId: o.leadId, totalCents: o.totalCents, jobId: target.jobId, credits: plan.credits, uid,
+          companyId: (window._userClaims && window._userClaims.companyId) || uid,
+          depRule: window.NBDDepositRule || null, J: window.NBDJurisdiction || null, now: new Date(),
+        });
+        invoiceId = (await window.addDoc(window.collection(db, 'invoices'), doc)).id;
+      }
+    }
+    if (!invoiceId) throw new Error('No invoice to record the payment on');
+    const cur = await window.getDoc(window.doc(db, 'invoices', invoiceId));
+    if (cur.exists() && String((cur.data() || {}).status || '') === 'paid') {
+      throw new Error('The invoice for this job is already paid in full — record extra money on the invoice itself.');
+    }
+    await markPaid(invoiceId, o.amount, o.method, {
+      at: o.at, reference: o.reference, payer: o.payer, sendReceipt: o.sendReceipt === true,
+    });
+    return invoiceId;
+  }
+
+  /**
+   * UI: the Record Payment sheet. Resolves true once a payment is recorded,
+   * false when dismissed. Nothing is sent to the homeowner from here except
+   * what markPaid has always sent (its receipt email — unchanged, Jo's call).
+   */
+  async function recordPaymentUI(leadId) {
+    if (!leadId) return false;
+    const db = getDb();
+    let lead = null, invoices = [], estimate = null;
+    try {
+      const ls = await window.getDoc(window.doc(db, 'leads', leadId));
+      lead = ls.exists() ? Object.assign({ id: leadId }, ls.data()) : null;
+      if (!lead) throw new Error('Customer not found');
+      invoices = await _loadLeadInvoices(db, leadId);
+      const estId = lead.primaryEstimateId
+        || ((window._estimates || []).find(e => e && e.leadId === leadId && e.deleted !== true) || {}).id || null;
+      estimate = estId ? await _readEstimate(db, estId) : null;
+    } catch (e) {
+      _toast('Could not load the invoices for this customer — try again.', 'error');
+      return false;
+    }
+    const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts() });
+
+    const today = localDateInputValue(new Date());
+    const fmt = (c) => formatCurrency((Number(c) || 0) / 100);
+    let targetHtml = '';
+    let amountDefault = '';
+    if (target.kind === 'existing') {
+      const opts = target.invoices.map((inv, i) => {
+        const bal = (inv.balanceDue != null) ? inv.balanceDue : inv.total;
+        return `<option value="${escHtml(inv.id)}"${i === 0 ? ' selected' : ''}>${escHtml(formatCurrency(bal))} owed · ${escHtml(String(inv.status || 'draft'))} · ${escHtml(String(inv.id).slice(0, 8))}</option>`;
+      }).join('');
+      const first = target.invoices[0];
+      const firstBal = (first.balanceDue != null) ? first.balanceDue : first.total;
+      const c = toCents(Math.max(0, Number(firstBal) || 0));
+      if (Number.isFinite(c) && c > 0) amountDefault = (c / 100).toFixed(2);
+      targetHtml = target.invoices.length > 1
+        ? `<label for="nbd-rp-inv" class="ipx-label">Invoice</label>
+           <select id="nbd-rp-inv" class="fi ipx-field ipx-rp-input">${opts}</select>`
+        : `<div class="ipx-rp-target" data-rp-target="existing">Applies to the open invoice — ${escHtml(formatCurrency(firstBal))} owed.</div>`;
+    } else if (target.kind === 'estimate') {
+      targetHtml = `<div class="ipx-rp-target" data-rp-target="estimate">No invoice yet — saving makes one from the estimate (${escHtml(fmt(target.totalCents))}), then records this payment.</div>`;
+    } else {
+      targetHtml = `<div class="ipx-rp-target" data-rp-target="jobValue">No invoice and no estimate on file. Confirm the job total — saving makes the invoice, then records this payment.</div>
+        <label for="nbd-rp-total" class="ipx-label">Job total</label>
+        <input id="nbd-rp-total" type="number" inputmode="decimal" step="0.01" min="0" class="fi ipx-field ipx-rp-input" value="${target.suggestedCents ? escHtml((target.suggestedCents / 100).toFixed(2)) : ''}">
+        <label class="ipx-rp-confirm"><input id="nbd-rp-confirm" type="checkbox" class="ipx-rp-check"> This is the job total</label>`;
+    }
+
+    const methodBtns = PAYMENT_METHODS.map((m, i) => `
+          <button type="button" class="nbd-rp-method btn btn-ghost ipx-method ipx-rp-pick" data-method="${escHtml(m.key)}" aria-pressed="${i === 0 ? 'true' : 'false'}">${escHtml(m.icon)} ${escHtml(m.label)}</button>`).join('');
+    const payerBtns = PAYERS.map((p, i) => `
+          <button type="button" class="nbd-rp-payer btn btn-ghost ipx-rp-pick" data-payer="${escHtml(p.key)}" aria-pressed="${i === 0 ? 'true' : 'false'}">${escHtml(p.label)}</button>`).join('');
+
+    destroyExisting('nbd-recordpay-modal');
+    const overlay = document.createElement('div');
+    overlay.id = 'nbd-recordpay-modal';
+    overlay.className = 'modal-bg ipx-rp-bg';
+    overlay.innerHTML = `
+      <div class="modal ipx-max420w ipx-rp" role="dialog" aria-modal="true" aria-labelledby="nbd-rp-title">
+        <div id="nbd-rp-title" class="ipx-title ipx-title-14">Record payment</div>
+        ${targetHtml}
+        <div class="ipx-label ipx-rp-k">Method</div>
+        <div role="group" aria-label="Payment method" class="ipx-g2 ipx-mb14">${methodBtns}
+        </div>
+        <div class="ipx-label ipx-rp-k">Paid by</div>
+        <div role="group" aria-label="Who paid" class="ipx-rp-payers ipx-mb14">${payerBtns}
+        </div>
+        <label for="nbd-rp-amount" class="ipx-label">Amount</label>
+        <input id="nbd-rp-amount" type="number" inputmode="decimal" step="0.01" min="0" class="fi ipx-field ipx-rp-input" value="${escHtml(amountDefault)}">
+        <label for="nbd-rp-date" class="ipx-label">Date received</label>
+        <input id="nbd-rp-date" type="date" class="fi ipx-field ipx-rp-input" value="${escHtml(today)}" max="${escHtml(today)}">
+        <label for="nbd-rp-ref" id="nbd-rp-ref-label" class="ipx-label">${escHtml(PAYMENT_METHODS[0].refLabel)}</label>
+        <input id="nbd-rp-ref" type="text" class="fi ipx-field ipx-rp-input" maxlength="${PAYMENT_REF_MAX}" autocomplete="off">
+        <label class="ipx-rp-confirm"><input id="nbd-rp-receipt" type="checkbox" class="ipx-rp-check"> Email a receipt to the customer</label>
+        <button id="nbd-rp-save" type="button" class="btn btn-green ipx-btn-save">Save payment</button>
+        <button id="nbd-rp-cancel" type="button" class="btn btn-ghost ipx-btn-full44">Cancel</button>
+      </div>
+    `;
+    const closeModal = openOverlay(overlay);
+
+    return await new Promise((resolve) => {
+      let settled = false;
+      const settle = (v) => { if (!settled) { settled = true; resolve(v); } };
+      const mo = new MutationObserver(() => {
+        if (!document.body.contains(overlay)) { mo.disconnect(); settle(false); }
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+      const $ = (sel) => overlay.querySelector(sel);
+      let method = PAYMENT_METHODS[0].key;
+      let payer = PAYERS[0].key;
+      overlay.querySelectorAll('.nbd-rp-method').forEach(btn => {
+        btn.addEventListener('click', () => {
+          method = btn.dataset.method;
+          overlay.querySelectorAll('.nbd-rp-method').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+          const m = PAYMENT_METHODS.find(x => x.key === method);
+          $('#nbd-rp-ref-label').textContent = m ? m.refLabel : 'Reference';
+        });
+      });
+      overlay.querySelectorAll('.nbd-rp-payer').forEach(btn => {
+        btn.addEventListener('click', () => {
+          payer = btn.dataset.payer;
+          overlay.querySelectorAll('.nbd-rp-payer').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+        });
+      });
+      const invSel = $('#nbd-rp-inv');
+      if (invSel) {
+        invSel.addEventListener('change', () => {
+          const inv = target.invoices.find(x => x.id === invSel.value);
+          if (!inv) return;
+          const c = toCents(Math.max(0, Number(inv.balanceDue != null ? inv.balanceDue : inv.total) || 0));
+          if (Number.isFinite(c)) $('#nbd-rp-amount').value = (c / 100).toFixed(2);
+        });
+      }
+      $('#nbd-rp-cancel').addEventListener('click', () => { mo.disconnect(); closeModal(); settle(false); });
+
+      const saveBtn = $('#nbd-rp-save');
+      saveBtn.addEventListener('click', async () => {
+        const amount = $('#nbd-rp-amount').value;
+        if (!(toCents(amount) > 0)) { _toast('Enter a valid amount', 'error'); return; }
+        const at = receivedAtFromDateInput($('#nbd-rp-date').value, new Date());
+        if (!at) { _toast('Pick the date the payment was received (not a future date)', 'error'); return; }
+        if (!isManualPaymentMethod(method)) { _toast('Pick a payment method', 'error'); return; }
+        if (!isPayer(payer)) { _toast('Pick who paid', 'error'); return; }
+        let totalCents = 0;
+        if (target.kind === 'jobValue') {
+          totalCents = toCents($('#nbd-rp-total').value);
+          if (!(totalCents > 0)) { _toast('Enter the job total', 'error'); return; }
+          if (!$('#nbd-rp-confirm').checked) { _toast('Confirm the job total first', 'error'); return; }
+        }
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+        try {
+          await recordPaymentCommit({
+            leadId, lead, target, totalCents, amount, method, payer, at,
+            invoiceId: (target.kind === 'existing') ? (invSel ? invSel.value : target.invoices[0].id) : null,
+            reference: $('#nbd-rp-ref').value,
+            // Default OFF (unticked): no surprise receipt for an old check.
+            sendReceipt: $('#nbd-rp-receipt').checked === true,
+          });
+          _toast('Payment recorded', 'success');
+          mo.disconnect();
+          closeModal();
+          settle(true);
+        } catch (error) {
+          _toast('Error: ' + ((error && error.message) || 'could not record the payment'), 'error');
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save payment';
+        }
+      });
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // EXPORTS
   // ═══════════════════════════════════════════════════════════════════════
 
   const _api = {
     createInvoiceFromEstimate,
+    // Getting paid (2026-10-03, tests/money-getting-paid-2026-10-03.test.js)
+    createOrOpenJobInvoice,
+    recordPaymentUI,
+    recordPaymentCommit,
+    recordPaymentTarget,
+    jobValueInvoiceDoc,
+    PAYERS,
+    isPartPaid,
+    canSendBalance,
+    jobInvoicesOf,
+    isLiveInvoice,
+    planJobInvoice,
+    applyJobCredits,
+    homeownerPayUrl: _homeownerPayUrl,
+    paymentIdOf,
+    paymentTimelineNoteId,
+    paymentTimelineText,
     generateStripePaymentLink,
     sendInvoice,
     markPaid,

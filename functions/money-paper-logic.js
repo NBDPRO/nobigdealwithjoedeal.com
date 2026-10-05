@@ -24,6 +24,9 @@
  */
 'use strict';
 
+// The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS).
+const DR = require('./deposit-rule');
+
 const CODES = { invoice: 'NBD-500', receipt: 'NBD-510' };
 
 // Eastern-time calendar parts of a moment.
@@ -130,7 +133,7 @@ function invoicePayload(inv, lead, id, nowMs, plate) {
   const tax = inv.tax != null ? (Number(inv.tax) || 0) : Math.max(0, Math.round((total - subtotal) * 100) / 100);
   const paid = Number(inv.amountPaid) || 0;
   const balanceDue = Math.max(0, Math.round((total - paid) * 100) / 100);
-  const due = fmtDate(nowMs + 7 * 86400000);
+  const due = fmtDate(DR.invoiceDueDateMs(nowMs));
   return {
     docNumber: id,
     coverTagline: 'Invoice for<br>your project.',

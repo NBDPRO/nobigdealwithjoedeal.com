@@ -128,7 +128,7 @@
       'js/stripe-ledger-ui-logic.js?v=1',
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=4',
+      'js/invoice-reminder.js?v=5',
       'js/money-dashboard.js?v=8'
     ],
     repos: [
@@ -234,15 +234,15 @@
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=8',
+      'js/product-library.js?v=9',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=11',
+      'js/estimate-builder-v2.js?v=12',
       'js/estimate-catalog-xactimate.js?v=3',
-      'js/estimate-logic-engine.js?v=7',
+      'js/estimate-logic-engine.js?v=8',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
       'js/estimates.js?v=13',

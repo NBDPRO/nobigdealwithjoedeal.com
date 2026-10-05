@@ -480,7 +480,24 @@ function soldTierNeedsEstimate(lead, event, meta) {
   return SOLD_TIERS.indexOf(pick) === -1 && typeof lead.primaryEstimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(lead.primaryEstimateId);
 }
 
+/**
+ * Did this lead write ENTER the given stage? before null = a new lead.
+ * Legacy display names normalise first (normalizeStageKey), so "Install
+ * Complete" → "install_complete" is not a fresh entry. A deleted lead never
+ * enters anything. Used by install-final-invoice.js (2026-10-03): any write
+ * that lands the lead on Install Done — the client's commitStageChange, a
+ * bulk move, the spine's own 'installed' move — fires the final invoice.
+ */
+function enteredStage(before, after, key) {
+  if (!after || isDeleted(after)) return false;
+  const a = normalizeStageKey(after.stage);
+  if (a !== key) return false;
+  const b = before ? normalizeStageKey(before.stage) : null;
+  return b !== key;
+}
+
 module.exports = {
+  enteredStage,
   EVENTS, EVENT_TABLE, EVENT_LABELS, JOB_TYPE_KEYS, STAGE_RANK, STAGE_LABELS, LEGACY_MAP, STAGE_ACTIONS,
   FILED_FIELD_BY_DOC_TYPE, SOLD_TIERS,
   normalizeStageKey, jobTypeOf, isDeleted, planJobEvent, needsClosedAt, movePayload, stageLabel,

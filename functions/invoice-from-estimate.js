@@ -221,4 +221,121 @@
   }
   // nbd:invoice-from-estimate:end
 
-module.exports = { numFrom, buildRowItems, invoiceTotalsFromEstimate, resolveCustomerName, leadDisplayName };
+  // nbd:job-billing:start — ONE live invoice per job, and a final invoice
+  // that credits what the job was already billed (2026-10-03). Byte-identical
+  // in functions/invoice-from-estimate.js (the server's install-day final
+  // draft), pinned by tests/money-getting-paid-2026-10-03.test.js.
+  //
+  // createInvoiceFromEstimate billed the full estimate every time, with no
+  // look at the job's other invoices — including the draft deposit invoice
+  // the server makes on a signed contract — so a second tap billed the job
+  // twice. Now:
+  //   - a LIVE invoice (not paid / void / cancelled / deleted) that bills the
+  //     whole job is opened instead of making another;
+  //   - otherwise a new invoice is the FINAL one: each earlier invoice for
+  //     the job (a paid deposit, or a deposit invoice already issued) is
+  //     credited as its own "Less deposit …" line, so the total due is what
+  //     is actually left;
+  //   - nothing is made when those invoices already bill the whole job.
+  // A credit line carries credit:true and a negative total; the online pay
+  // link charges the balance as one line (functions/stripe.js).
+  var JOB_BILLING_DEAD = { void: 1, voided: 1, cancelled: 1, canceled: 1, uncollectible: 1 };
+  function _jbCents(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
+  }
+  function _jbJobId(v) {
+    return (typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v)) ? v : null;
+  }
+  function _jbMs(v) {
+    if (!v) return 0;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.toDate === 'function') return v.toDate().getTime();
+    if (typeof v.seconds === 'number') return v.seconds * 1000;
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+  /**
+   * This job's invoices: not deleted / void / cancelled; the same job, or —
+   * when either side has no job stamp — an unpaid one (a PAID invoice with
+   * no job stamp is an earlier job's history). The deposit draft's filter
+   * (functions/deposit-draft-logic.js). Oldest first.
+   */
+  function jobInvoicesOf(invoices, jobId) {
+    const jid = _jbJobId(jobId);
+    return (Array.isArray(invoices) ? invoices : []).filter(function (inv) {
+      if (!inv || inv.deleted === true || inv.deletedAt) return false;
+      const st = String(inv.status || '').toLowerCase();
+      if (JOB_BILLING_DEAD[st]) return false;
+      const ij = _jbJobId(inv.jobId);
+      if (jid && ij) return ij === jid;
+      return st !== 'paid';
+    }).sort(function (a, b) { return _jbMs(a.createdAt) - _jbMs(b.createdAt); });
+  }
+  /** Live = still in play for its job: anything but paid (after jobInvoicesOf). */
+  function isLiveInvoice(inv) {
+    return !!inv && String(inv.status || '').toLowerCase() !== 'paid';
+  }
+  /**
+   * planJobInvoice(jobTotalCents, invoices, jobId) — what billing this job
+   * needs now.
+   *  → { action: 'open', invoiceId, reason: 'live_invoice' }
+   *      a live invoice bills the whole job: use it (with no job total to
+   *      compare, any live invoice for the job is the job's bill);
+   *  | { action: 'open', invoiceId, reason: 'billed_in_full' }
+   *      earlier invoices already bill the whole job;
+   *  | { action: 'create', credits: [{ invoiceId, label, cents, paid }], creditCents }
+   */
+  function planJobInvoice(jobTotalCents, invoices, jobId) {
+    const mine = jobInvoicesOf(invoices, jobId);
+    const totalC = Math.max(0, Math.round(Number(jobTotalCents) || 0));
+    const covering = mine.filter(function (inv) {
+      return isLiveInvoice(inv) && (totalC === 0 || _jbCents(inv.total) >= totalC);
+    });
+    if (covering.length) return { action: 'open', invoiceId: covering[0].id || null, reason: 'live_invoice' };
+    const credits = [];
+    let creditCents = 0;
+    mine.forEach(function (inv) {
+      const c = _jbCents(inv.total);
+      if (!(c > 0)) return;
+      const paid = String(inv.status || '').toLowerCase() === 'paid' || _jbCents(inv.amountPaid) >= c;
+      credits.push({ invoiceId: inv.id || null, label: paid ? 'Less deposit paid' : 'Less deposit invoiced', cents: c, paid: paid });
+      creditCents += c;
+    });
+    if (totalC > 0 && creditCents >= totalC) {
+      return { action: 'open', invoiceId: mine.length ? (mine[mine.length - 1].id || null) : null, reason: 'billed_in_full' };
+    }
+    return { action: 'create', credits: credits, creditCents: creditCents };
+  }
+  /**
+   * The final invoice's lines and total: one negative "Less deposit …" line
+   * per credit (credit: true), total = the job total − the credits. Subtotal
+   * and tax stay the job's own, so the paper shows what the job costs and
+   * what is left to pay.
+   */
+  function applyJobCredits(base, credits) {
+    base = base || {};
+    const items = (Array.isArray(base.items) ? base.items : []).slice();
+    let creditC = 0;
+    (Array.isArray(credits) ? credits : []).forEach(function (cr) {
+      const c = Math.max(0, Math.round(Number(cr && cr.cents) || 0));
+      if (!c) return;
+      creditC += c;
+      items.push({
+        description: String(cr.label || 'Less deposit paid') + (cr.invoiceId ? ' (invoice ' + String(cr.invoiceId).slice(0, 12) + ')' : ''),
+        quantity: 1,
+        unitPrice: -c / 100,
+        total: -c / 100,
+        credit: true,
+        creditInvoiceId: cr.invoiceId || null
+      });
+    });
+    const totalC = Math.max(0, _jbCents(base.total) - creditC);
+    return Object.assign({}, base, { items: items, total: totalC / 100, creditTotal: creditC / 100 });
+  }
+  // nbd:job-billing:end
+
+module.exports = {
+  numFrom, buildRowItems, invoiceTotalsFromEstimate, resolveCustomerName, leadDisplayName,
+  jobInvoicesOf, isLiveInvoice, planJobInvoice, applyJobCredits,
+};

@@ -1303,7 +1303,22 @@ exports.createStripePaymentLink = onRequest(
       const MIN_CENTS = 100;            // $1.00 minimum per line
       const MAX_CENTS = 10_000_000;     // $100k maximum per line
       const lineItems = [];
+      // A FINAL invoice (2026-10-03, invoice-pipeline.js nbd:job-billing)
+      // credits the deposit the job was already billed as its own negative
+      // "Less deposit paid" line (credit: true). Stripe takes no negative
+      // line, so credits are summed here, checked, and the link charges the
+      // balance as one line (below) — the same as after a recorded deposit.
+      let creditCents = 0;
       for (const item of (invoice.items || [])) {
+        if (item && item.credit === true) {
+          const c = Math.round(Number(item.total || 0) * 100);
+          if (!Number.isFinite(c) || c >= 0 || -c > MAX_CENTS) {
+            res.status(400).json({ error: 'Credit line amount out of allowed range' });
+            return;
+          }
+          creditCents += -c;
+          continue;
+        }
         let cents;
         if (item.productId) {
           const prodSnap = await db.doc(`products/${item.productId}`).get();
@@ -1378,7 +1393,7 @@ exports.createStripePaymentLink = onRequest(
       // diverges from the client total) still trips the guard and we refuse
       // to charge rather than bill the wrong amount.
       const linkTotalCents = lineItems.reduce(
-        (sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
+        (sum, li) => sum + li.price_data.unit_amount * li.quantity, 0) - creditCents;
       const reconcileTolCents = Math.max(2, lineItems.length);
       if (Math.abs(linkTotalCents - expectedTotalCents) > reconcileTolCents) {
         logger.error('payment_link_total_mismatch', {
@@ -1407,13 +1422,16 @@ exports.createStripePaymentLink = onRequest(
         return;
       }
       let chargeLineItems = lineItems;
-      if (amountPaidCents > 0) {
+      if (amountPaidCents > 0 || creditCents > 0) {
+        const _after = [];
+        if (creditCents > 0) _after.push(`$${(creditCents / 100).toFixed(2)} deposit credited`);
+        if (amountPaidCents > 0) _after.push(`$${(amountPaidCents / 100).toFixed(2)} already paid`);
         chargeLineItems = [{
           price_data: {
             currency: 'usd',
             product_data: {
               name: `Balance due — Invoice ${invoiceId}`,
-              description: `Remaining balance after $${(amountPaidCents / 100).toFixed(2)} already paid`,
+              description: `Remaining balance after ${_after.join(' and ')}`,
             },
             unit_amount: balanceDueCents,
           },
@@ -1824,7 +1842,11 @@ exports.invoiceWebhook = onRequest(
             tx.update(invRef, {
               // status/paidAt flip to 'paid' ONLY when the balance reaches zero
               // — a deposit-sized online payment leaves the invoice open.
-              status: fullyPaid ? 'paid' : (inv.status || 'sent'),
+              // A part payment makes it 'partial' — what Mark Paid and the
+              // Stripe ledger (stripe-ledger-logic.js planCredit) write. This
+              // left it 'sent', and the CRM refuses to re-send a 'sent'
+              // invoice, so a card deposit's balance could not be billed.
+              status: fullyPaid ? 'paid' : (newPaid > 0 ? 'partial' : (inv.status || 'sent')),
               paidAt: fullyPaid ? FieldValue.serverTimestamp() : (inv.paidAt || null),
               // Stamped on EVERY payment (incl. partials) so the money dashboard
               // can attribute collected cash to the year it was received, not

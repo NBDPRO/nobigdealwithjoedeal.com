@@ -83,6 +83,8 @@
     'NBDCustomerInvoices.markPaid', 'ReviewEngine.sendReviewSMS',
     // the review ask by email (lead-brief.js, 2026-10-04)
     'NBDLeadAI.askReview',
+    // record a payment (may create the job's invoice) / send a balance (2026-10-03)
+    'NBDCustomerInvoices.recordPayment', 'NBDCustomerInvoices.sendBalance',
   ];
   // dashboard.html: <el data-action="call" data-fn="fnName">.
   var WRITE_FNS = [

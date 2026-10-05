@@ -609,7 +609,22 @@
       'The deductible is the homeowner’s responsibility and is never waived or reduced.';
   }
 
+  // ONE due-date rule for every invoice (2026-10-03). The Stripe invoice
+  // (functions/stripe-crm-invoice.js days_until_due) and the NBD-500 PDF
+  // (money-paper-logic.js) said 7 days — Jo's live-CRM handoff, 2026-09-30:
+  // "7 days; was 14" — while the CRM invoice doc and its terms said Net 14,
+  // so one bill carried two due dates. Every writer now reads this value.
+  var INVOICE_DUE_DAYS = 7;
+  function invoiceDueDateMs(nowMs) {
+    var n = Number(nowMs);
+    return (Number.isFinite(n) ? n : Date.now()) + INVOICE_DUE_DAYS * 86400000;
+  }
+  function netTermsText() { return 'Net ' + INVOICE_DUE_DAYS + '.'; }
+
   var API = {
+    INVOICE_DUE_DAYS: INVOICE_DUE_DAYS,
+    invoiceDueDateMs: invoiceDueDateMs,
+    netTermsText: netTermsText,
     DEFAULTS: DEFAULTS,
     config: config,
     compute: compute,

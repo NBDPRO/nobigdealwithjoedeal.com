@@ -951,7 +951,8 @@ console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
     && !/amountPaid: Number\(inv\.total\) \|\| 0/.test(st),
     'hard-setting amountPaid=inv.total erases a prior deposit and assumes full payment');
   assert('webhook flips paid/paidAt only when fully paid + stamps lastPaymentAt',
-    /status: fullyPaid \? 'paid' : \(inv\.status/.test(st)
+    // A part payment is 'partial' since 2026-10-03 (#2135), never 'paid'.
+    /status: fullyPaid \? 'paid' : \(newPaid > 0 \? 'partial' : \(inv\.status/.test(st)
     && /lastPaymentAt: FieldValue\.serverTimestamp\(\)/.test(st));
   // Since 2026-10-03 (job spine) the payoff advance is no longer in the
   // webhook: the webhook flips the invoice to 'paid' only when fully paid
@@ -962,6 +963,7 @@ console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
   assert('kanban auto-advance gated on fullyPaid (a deposit must not advance to final_payment)',
     JSON.stringify(_spineL.invoiceEvents({ status: 'sent' }, { leadId: 'L', status: 'sent', amountPaid: 500, depositAmount: 0, depositPaid: true })) === '[]'
     && JSON.stringify(_spineL.invoiceEvents({ status: 'sent' }, { leadId: 'L', status: 'paid', amountPaid: 1000 })) === '["paid_in_full"]'
+    && JSON.stringify(_spineL.invoiceEvents({ status: 'sent' }, { leadId: 'L', status: 'partial', amountPaid: 500, balanceDue: 500 })) === '[]'
     && !/stage: 'final_payment'/.test(st));
   // 2026-07-18 post-sprint certification (pre-existing, not sprint-caused):
   // invoiceWebhook's auto-advance stamped stage:'final_payment' with NO

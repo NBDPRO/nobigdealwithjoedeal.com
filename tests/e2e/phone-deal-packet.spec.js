@@ -15,9 +15,9 @@
 // Nothing is sent from the server: the createDealAcceptToken callable and the
 // /deal/<token> page + photos are answered in the browser (the functions
 // emulator is not started). The page is served through the REAL server rule
-// (functions/deal-packet-logic.js injectPhotos) and each photo through the
-// REAL re-encode (functions/photo-reencode.js), and navigator.share is
-// recorded, not shown.
+// (functions/deal-packet-logic.js injectPhotos); each photo is the bytes the
+// REAL re-encode (functions/photo-reencode.js) produces, and navigator.share
+// is recorded, not shown.
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
@@ -43,12 +43,16 @@ const DEAL_ROOM_JS = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'deal-room.j
 const THUMB = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64');
 
 async function photoBytes() {
-  // The server path: a camera JPEG (with EXIF) re-encoded by photo-reencode.js.
-  const sharp = require(path.join(ROOT, 'functions', 'node_modules', 'sharp'));
-  const { reencodePhoto } = require(path.join(ROOT, 'functions', 'photo-reencode.js'));
-  const src = await sharp({ create: { width: 400, height: 300, channels: 3, background: '#8a5a2b' } })
-    .jpeg().withExif({ IFD0: { Make: 'E2ECAM' } }).toBuffer();
-  return reencodePhoto(src, 'jpeg', { maxEdge: 1600 });
+  // The server path's output: a 400×300 camera JPEG (with EXIF Make=E2ECAM)
+  // after photo-reencode.js reencodePhoto(src, 'jpeg', { maxEdge: 1600 }),
+  // checked in as a fixture. This shard runs functions-less — CI installs
+  // functions/node_modules (sharp) only for @stranger / @gauntlet — so
+  // requiring sharp here threw "Cannot find module" on every @shard2 run.
+  // The re-encode itself is unit-tested (tests/portal-photo-exif-2026-10-03
+  // .test.js); this spec proves
+  // the deal page shows what it serves. To regenerate, run that call with
+  // functions/ deps installed and write the Buffer to this path.
+  return fs.readFileSync(path.join(__dirname, 'fixtures', 'deal-packet-photo.jpg'));
 }
 
 async function signIn(page, token) {
@@ -104,6 +108,7 @@ async function seedLeadWithPhotos(page) {
       phone: '513' + String(stamp).slice(-7), email: 'e2e-packet-' + stamp + '@nbd.test',
       stage: 'new', jobType: 'cash', e2eTestData: true,
       userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
+      meter: 'manual', // server lead meter (firestore.rules leadMeterOk, #2152)
     })).id;
     const photoIds = [];
     for (let i = 0; i < 3; i++) {

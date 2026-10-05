@@ -116,6 +116,20 @@ test.describe('phone tenant setup: a new contractor sets up alone @shard2', () =
       await expect(page.locator('#stab-panel-estimates')).toBeVisible({ timeout: 15_000 });
       await safeWaitForFunction(page, () => !!window.EstimateBuilderV2, { timeout: 20_000 });
       await expect(page.locator('#tenantRulesPanel')).toHaveAttribute('data-state', 'ready', { timeout: 15_000 });
+      // The price inputs are painted from the company profile only once the
+      // WHOLE 'estimates' bundle has loaded (ui.js switchSettingsTab defers
+      // _loadEstimateDefaultsV2 to loadBundle('estimates').then — one paint
+      // per call), not when EstimateBuilderV2 first appears. Typing before
+      // that is either saved before the company inputs are resolved (Save
+      // All skips the company write: tierRates never reached the profile) or
+      // painted over with the defaults (550/660/770 saved instead). Wait for
+      // the bundle, let every queued paint run (a macrotask turn), and for
+      // the painted marker the panel sets on each company input.
+      await safeEvaluate(page, async () => {
+        await window.ScriptLoader.loadBundle('estimates');
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      await expect(page.locator('#v2rateGood'), 'the price inputs were painted from the company profile').toHaveAttribute('data-nbd-painted', /\S/);
       const enabled = await page.locator('#tenantRulesPanel input[data-tr="enabled"]:checked').evaluateAll((els) => els.map((e) => e.getAttribute('data-tier')));
       expect(enabled, 'a new company offers three tiers').toEqual(['good', 'better', 'best']);
       await expect(page.locator('#tenantRulesPanel input[data-tr="label"][data-tier="good"]')).toHaveValue('Good');

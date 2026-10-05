@@ -35,7 +35,9 @@ const SRC = (f) => fs.readFileSync(path.join(PRO_JS, f), 'utf8');
 const DATA_SRC = SRC('product-data.js');
 const RIV_SRC = SRC('roofivent-catalog.js');
 const COSTS_SRC = SRC('catalog-costs.js');
-const LIB_SRC = SRC('product-library.js');
+// NBD_PLIB_SRC=<file> runs the suite against another copy (break-test only).
+const LIB_SRC = process.env.NBD_PLIB_SRC ? fs.readFileSync(process.env.NBD_PLIB_SRC, 'utf8') : SRC('product-library.js');
+const CFG_SRC = SRC('estimate-config.js');
 const DATA_VERSION = Number((LIB_SRC.match(/const DATA_VERSION = (\d+);/) || [])[1]);
 const TENANT = 'co_lib';
 const LIB_PATH = 'productLibrary/' + TENANT;
@@ -102,6 +104,7 @@ function boot(o) {
     Date, Math, JSON, Set, Map, Object, Array, String, Number, Promise, isFinite, setTimeout, navigator: {},
   };
   vm.createContext(sandbox);
+  if (cfg.estimateConfig) vm.runInContext(CFG_SRC, sandbox);
   vm.runInContext(DATA_SRC, sandbox);
   vm.runInContext(RIV_SRC, sandbox);
   win._userClaims = cfg.claims || { companyId: TENANT, role: 'company_admin' };
@@ -224,6 +227,50 @@ function ownerDeviceStorage() {
   const rr = boot({ docs: rdocs, storage: owner.storage, claims: { companyId: TENANT, role: 'sales_rep' }, uid: 'u_rep' });
   await rr.settle();
   ok('no company doc created by a rep', !rdocs[LIB_PATH]);
+
+  console.log('\n8. Rate sync (window.R, the classic builder\'s internal cost view) covers all five tiers');
+  // Jo 2026-10-05: syncRatesFromProductLibrary knew good/better/best only, so
+  // an Economy or Beyond estimate's internal cost view ran on DEFAULT_RATES.
+  // It now reads estimate-config.js PRODUCT_TIER: Economy -> Good column,
+  // Beyond -> Best. Synthetic sell prices per column on every product
+  // PRODUCT_MAP reads, so each column gives a distinct rate and none equals a
+  // DEFAULT_RATES value.
+  const MAPPED = ['shingle_001', 'under_001', 'flash_008', 'flash_003', 'flash_007', 'under_006', 'flash_002'];
+  const rateStorage = (() => {
+    const env = boot({ docs: {}, fs: { failRead: true } });
+    const items = env.store().items;
+    MAPPED.forEach((id, i) => {
+      const it = items.find((x) => x.id === id);
+      it.pricing = { good: { sell: 1000 + i }, better: { sell: 2000 + i }, best: { sell: 3000 + i } };
+      it.updatedAt = '2026-10-05T12:00:00.000Z';
+    });
+    return { nbd_product_library: JSON.stringify({ _v: DATA_VERSION, items, _deleted: [] }) };
+  })();
+  const KEYS = ['shingle', 'felt', 'starter', 'drip', 'ridge', 'iws', 'hip', 'pipe'];
+  for (const withCfg of [true, false]) {
+    const tag = withCfg ? '' : ' (estimate-config missing: inline fallback)';
+    const e = boot({ docs: {}, storage: rateStorage, fs: { failRead: true }, estimateConfig: withCfg });
+    await e.settle();
+    const M = e.win.NBD_ESTIMATE_PRODUCT_MAP;
+    const prods = e.lib.getProducts();
+    // Expected = the column's synthetic sell x the map's unit conversion (inputs, not the function under test).
+    const expect = (col) => { const o = {}; KEYS.forEach((k) => { o[k] = prods.find((x) => x.id === M[k].id).pricing[col].sell * M[k].unitConvert; }); return o; };
+    const sync = (t) => { const r = e.win.syncRatesFromProductLibrary(t); const o = {}; KEYS.forEach((k) => { o[k] = r[k]; }); return o; };
+    const tiers = withCfg ? Array.from(e.win.NBD_ESTIMATE_CONFIG.TIER_ORDER) : ['economy', 'good', 'better', 'best', 'beyond'];
+    const byTier = {};
+    tiers.forEach((t) => { byTier[t] = sync(t); });
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    ok('control: the synthetic sells are in the library (Good shingle 1000)' + tag, prods.find((x) => x.id === 'shingle_001').pricing.good.sell === 1000);
+    ok('all five tiers get synced rates, none left at DEFAULT_RATES' + tag,
+      tiers.length === 5 && tiers.every((t) => KEYS.every((k) => byTier[t][k] >= 1000 * M[k].unitConvert)), JSON.stringify(byTier.economy));
+    ok('good / better / best each still read their own column' + tag,
+      same(byTier.good, expect('good')) && same(byTier.better, expect('better')) && same(byTier.best, expect('best')), JSON.stringify(byTier.better));
+    ok('economy reads the Good column' + tag, same(byTier.economy, expect('good')), JSON.stringify(byTier.economy));
+    ok('beyond reads the Best column' + tag, same(byTier.beyond, expect('best')), JSON.stringify(byTier.beyond));
+    ok('window.R holds the last synced tier\'s rates' + tag, e.win.R.shingle === byTier.beyond.shingle);
+    ok('unmapped keys keep their defaults on every tier' + tag,
+      tiers.every((t) => { const r = e.win.syncRatesFromProductLibrary(t); return r.tear === 75 && r.deck === 145 && r.gutter === 8.5 && r.deckPct === 0.15; }));
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('Failures:'); fails.forEach((x) => console.log('  - ' + x)); process.exit(1); }

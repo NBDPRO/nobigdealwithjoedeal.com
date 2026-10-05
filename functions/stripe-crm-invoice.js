@@ -105,9 +105,10 @@ async function mintCrmStripeInvoice(stripe, db, args) {
   const draft = await stripe.invoices.create({
     customer: customerId,
     collection_method: 'send_invoice',
-    // 7 days (Jo's live-CRM handoff, 2026-09-30); was 14. The NBD-500 PDF
-    // filed by money-paper.js states the same due date.
-    days_until_due: 7,
+    // 7 days (Jo's live-CRM handoff, 2026-09-30); was 14. ONE value for
+    // every invoice since 2026-10-03 — deposit-rule.js INVOICE_DUE_DAYS, which
+    // the CRM invoice doc, its "Net N" terms and the NBD-500 PDF all read.
+    days_until_due: require('./deposit-rule').INVOICE_DUE_DAYS,
     auto_advance: false,
     pending_invoice_items_behavior: 'exclude',
     metadata,
@@ -128,7 +129,12 @@ async function mintCrmStripeInvoice(stripe, db, args) {
     try { await stripe.invoices.voidInvoice(fin.id); } catch (_) { /* reported below */ }
     throw new Error('Stripe invoice total ' + fin.amount_due + ' ≠ balance ' + balanceDueCents + ' — voided');
   }
-  await invRef.update({ stripeHostedUrl: fin.hosted_invoice_url || null, stripePdfUrl: fin.invoice_pdf || null, stripeInvoiceNumber: fin.number || null, updatedAt: new Date() });
+  const finPatch = { stripeHostedUrl: fin.hosted_invoice_url || null, stripePdfUrl: fin.invoice_pdf || null, stripeInvoiceNumber: fin.number || null, updatedAt: new Date() };
+  // The CRM invoice shows the SAME due date as the Stripe invoice the
+  // homeowner opens (both are INVOICE_DUE_DAYS, but counted from different
+  // days — the CRM doc's creation vs this mint).
+  if (Number(fin.due_date) > 0) finPatch.dueDate = new Date(Number(fin.due_date) * 1000);
+  await invRef.update(finPatch);
   return { url: fin.hosted_invoice_url, id: fin.id, pdf: fin.invoice_pdf, reused: false };
 }
 

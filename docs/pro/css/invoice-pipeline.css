@@ -88,3 +88,22 @@
 .ipx-draft-chip.ipx-draft-chip.ipx-draft-chip { display: inline-block; margin-top: 4px; padding: 3px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--orange) 40%, transparent); white-space: nowrap; }
+/* Record payment sheet (2026-10-03) — recordPaymentUI in invoice-pipeline.js,
+   opened from the customer page's Invoices & Payments panel. Phone-first:
+   every target is at least 44px, inputs are 16px (no iOS zoom), and the sheet
+   scrolls inside the viewport. */
+.ipx-rp-bg.ipx-rp-bg.ipx-rp-bg { z-index: var(--z-overlay-top, 10001); }
+.ipx-rp.ipx-rp.ipx-rp { max-height: calc(100dvh - 24px); overflow-y: auto; box-sizing: border-box; }
+.ipx-rp-target.ipx-rp-target.ipx-rp-target { font-size: 13px; line-height: 1.45; padding: 10px 12px; border-radius: 8px;
+  background: var(--s2); margin: 0 0 12px; }
+.ipx-rp-k.ipx-rp-k.ipx-rp-k { margin-bottom: 6px; }
+.ipx-rp-pick.ipx-rp-pick.ipx-rp-pick.ipx-rp-pick { min-height: 44px; justify-content: center; white-space: normal; line-height: 1.2; }
+.ipx-rp-payers.ipx-rp-payers.ipx-rp-payers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ipx-rp-payers .ipx-rp-pick.ipx-rp-pick.ipx-rp-pick.ipx-rp-pick { font-size: 13px; padding: 6px; }
+.ipx-rp .ipx-rp-pick[aria-pressed="true"] { border-color: var(--orange); color: var(--orange); background: rgba(232,114,12,.10); }
+.ipx-rp-input.ipx-rp-input.ipx-rp-input { font-size: 16px; min-height: 44px; box-sizing: border-box; }
+.ipx-rp-confirm.ipx-rp-confirm.ipx-rp-confirm { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; margin: -4px 0 12px; }
+.ipx-rp-check.ipx-rp-check.ipx-rp-check { width: 22px; height: 22px; margin: 0; flex: none; }
+/* The panel's "Record payment" button and a part-paid row's "Send balance". */
+.ipx-rp-open.ipx-rp-open.ipx-rp-open { min-height: 44px; width: 100%; justify-content: center; margin: 0 0 12px; font-weight: 700; }
+.ipx-send-balance.ipx-send-balance.ipx-send-balance { min-height: 44px; }

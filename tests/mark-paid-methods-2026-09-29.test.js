@@ -36,7 +36,8 @@ function throws(fn, re) {
 (async () => {
   console.log('\n1. payment methods');
   const keys = IP.PAYMENT_METHODS.map(m => m.key);
-  ok('check, zelle, cash, ach, other — in that order', keys.join(',') === 'check,zelle,cash,ach,other', keys.join(','));
+  // 2026-10-03: card taken outside Stripe joins the list (Record payment).
+  ok('check, zelle, cash, card, ach, other — in that order', keys.join(',') === 'check,zelle,cash,card,ach,other', keys.join(','));
   ok('each method has a label and a reference label', IP.PAYMENT_METHODS.every(m => m.label && m.refLabel));
   for (const k of keys) ok('valid: ' + k, IP.isManualPaymentMethod(k));
   for (const k of ['stripe', 'manual', '', null, undefined, 'CHECK', 'venmo', '<b>']) {
@@ -44,7 +45,8 @@ function throws(fn, re) {
   }
   ok('Stripe entries label as Stripe', IP.paymentMethodLabel('stripe') === 'Stripe');
   ok('legacy method-less entries label as Manual', IP.paymentMethodLabel(undefined) === 'Manual' && IP.paymentMethodLabel('manual') === 'Manual');
-  ok('ach labels as ACH / bank transfer', IP.paymentMethodLabel('ach') === 'ACH / bank transfer');
+  ok('ach labels as ACH / bank (not Stripe)', IP.paymentMethodLabel('ach') === 'ACH / bank (not Stripe)');
+  ok('card labels as Card (not Stripe)', IP.paymentMethodLabel('card') === 'Card (not Stripe)');
 
   console.log('\n2. cents rounding');
   ok('Math.round(1.005*100) really is wrong — 100, not 101 (the reason toCents exists)', Math.round(1.005 * 100) === 100);
@@ -77,7 +79,7 @@ function throws(fn, re) {
   ok('proof path + name kept', full.proofStoragePath === 'payment-proofs/zzqa-uid/inv1/1_check.jpg' && full.proofName === 'check.jpg');
   ok('recordedBy / recordedAt stamped', full.recordedBy === 'zzqa-uid' && full.recordedAt === recordedAt);
   ok('exactly the documented keys', Object.keys(full).sort().join(',') ===
-    ['amount', 'at', 'method', 'note', 'proofName', 'proofStoragePath', 'recordedAt', 'recordedBy', 'reference'].sort().join(','),
+    ['amount', 'at', 'method', 'note', 'paymentId', 'proofName', 'proofStoragePath', 'recordedAt', 'recordedBy', 'reference'].sort().join(','),
     Object.keys(full).join(','));
 
   console.log('\n4. proof (and reference/note) optional');

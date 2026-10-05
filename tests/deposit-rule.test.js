@@ -544,14 +544,14 @@ function closeBoardPage(price, mode, deductible) {
     invSource = doc;
     try { await IP.createInvoiceFromEstimate(doc.id); } catch (e) { invErr = e; }
     ok(tag + 'F invoice (pre-rule doc, stale deposit ' + doc.deposit + '): depositAmount === rule', !invErr && !!captured
-      && cents(captured.depositAmount) === c.dep && captured.terms === 'Net 14. ' + c.summary, captured && captured.depositAmount);
+      && cents(captured.depositAmount) === c.dep && captured.terms === 'Net 7. ' + c.summary, captured && captured.depositAmount);
     captured = null; invErr = null; invSource = savedDoc;
     try { await IP.createInvoiceFromEstimate(doc.id); } catch (e) { invErr = e; }
     ok(tag + 'F invoice: created', !!captured && !invErr, invErr && invErr.message);
     if (captured) {
       ok(tag + 'F invoice: depositAmount === rule', cents(captured.depositAmount) === c.dep, captured.depositAmount);
       ok(tag + 'F invoice: total unchanged, balanceDue = full total', cents(captured.total) === totalC && cents(captured.balanceDue) === totalC);
-      ok(tag + 'F invoice: terms carry the rule\'s sentence', captured.terms === 'Net 14. ' + c.summary && captured.depositTerms === c.summary, captured.terms);
+      ok(tag + 'F invoice: terms carry the rule\'s sentence', captured.terms === 'Net 7. ' + c.summary && captured.depositTerms === c.summary, captured.terms);
       const invHtml = IP.buildInvoiceHtml(Object.assign({ invoiceNumber: 'INV-' + seq, customerName: 'Jane', customerAddress: '1 Elm St', items: [] }, captured));
       ok(tag + 'F invoice HTML: prints the terms sentence', stripTags(invHtml).indexOf(c.summary) !== -1);
     }
@@ -869,7 +869,7 @@ function closeBoardPage(price, mode, deductible) {
     ok('invoice from the reviewer\'s legacy doc: no "$2,500 deductible"', !invErr && !!cap && !/2,500/.test(String(cap.terms)), (invErr && invErr.message) || (cap && cap.terms));
     if (cap) {
       ok('invoice: the deposit is the lead\'s $1,000 (window._leads carries it)', cents(cap.depositAmount) === 100000
-        && cap.terms === 'Net 14. Your $1,000 deductible is due at signing. Your ' + ACV_SENT + ' is due when your carrier releases it, and the rest of the $13,000 balance is due on completion.',
+        && cap.terms === 'Net 7. Your $1,000 deductible is due at signing. Your ' + ACV_SENT + ' is due when your carrier releases it, and the rest of the $13,000 balance is due on completion.',
         cap.depositAmount + ' | ' + cap.terms);
       ok('invoice: the rep-only note is stored for the invoice view', /old \$2,500 placeholder/.test(String(cap.depositRepNote)), cap.depositRepNote);
       const invHtml = IP.buildInvoiceHtml(Object.assign({ invoiceNumber: 'INV-L', customerName: 'Jane', customerAddress: '1 Elm St', items: [] }, cap));
