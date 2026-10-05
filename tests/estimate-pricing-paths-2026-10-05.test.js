@@ -8,6 +8,13 @@
  * happens and what should happen. When Jo approves a fix, that test is
  * flipped on purpose in the fix PR.
  *
+ * 2026-10-05 fix PR ("minimum fixes", Jo-approved): #1 #2 #3 #5 #9 are
+ * flipped to FIXED (was KNOWN BUG #n) and assert the correct behaviour, each
+ * with edge cases. Minimum-charge value rule (engine _floorCentsOrNull):
+ *   a number > 0 → that floor · 0 or negative → NO floor (deliberate) ·
+ *   missing / blank / non-numeric → not set, fall back to the next level.
+ * #6 #7 #8 #10 stay pinned as known bugs.
+ *
  * Expected dollars are worked out by hand from the RULES (inputs → dollars,
  * shown in the comments), never by calling the function under test twice.
  * Every fixture cost is synthetic (tests/catalog-cost-seed.test.js).
@@ -224,16 +231,34 @@ section('A. JOB MINIMUM — per-SQ (estimate-builder-v2.js calculatePerSq: tax �
   ok('minJobCharge NaN → falls back to the $2,500 default', eco(NaN).total === 2500);
   ok("minJobCharge 'abc' → falls back to the $2,500 default", eco('abc').total === 2500);
   const zero = eco(0);
-  ok('KNOWN BUG #1 (reported 2026-10-05): a $0 per-SQ minimum (`_toCents(0) || DEFAULT`, estimate-builder-v2.js:1038) floors the job to $2,500 — expected no floor, $2,175',
-    zero.total === 2500 && zero.minJobApplied === true, j([zero.total, zero.minJobApplied]));
+  ok('FIXED (was KNOWN BUG #1, reported 2026-10-05): a $0 per-SQ minimum means NO floor — $2,175, minJobApplied false, minJobCharge 0 (was `_toCents(0) || DEFAULT` → $2,500)',
+    zero.total === 2175 && zero.minJobApplied === false && zero.minJobCharge === 0, j([zero.total, zero.minJobApplied, zero.minJobCharge]));
   // Same bug through the real device path: Settings → Estimates saves minJobCharge 0 to localStorage.
   {
     const E = stack(PRICING_FILES, ACTIVE_MUTATION);
     E.store.nbd_est_settings_v3 = JSON.stringify({ minJobCharge: 0 });
     const viaSaved = E.win.EstimateBuilderV2.calculatePerSq({ tier: 'economy', mode: 'insurance', rawSqft: 300, pitch: '6/12', wasteFactorOverride: 1.0 });
-    ok('KNOWN BUG #1 (reported 2026-10-05): a device that SAVED minJobCharge 0 still floors to $2,500 — expected no floor, $2,175',
-      viaSaved.total === 2500 && viaSaved.minJobApplied === true, j(viaSaved.total));
+    ok('FIXED (was KNOWN BUG #1, reported 2026-10-05): a device that SAVED minJobCharge 0 → no floor, $2,175',
+      viaSaved.total === 2175 && viaSaved.minJobApplied === false, j(viaSaved.total));
   }
+  // #1 edge cases — 0 vs blank vs invalid, and the floor amount returned.
+  {
+    const E = stack(PRICING_FILES, ACTIVE_MUTATION);
+    E.store.nbd_est_settings_v3 = JSON.stringify({ minJobCharge: '' });
+    const blankSaved = E.win.EstimateBuilderV2.calculatePerSq({ tier: 'economy', mode: 'insurance', rawSqft: 300, pitch: '6/12', wasteFactorOverride: 1.0 });
+    ok('#1 edge: a device that saved a BLANK minJobCharge still gets the $2,500 default (blank ≠ 0)', blankSaved.total === 2500 && blankSaved.minJobApplied === true, j(blankSaved.total));
+  }
+  ok("#1 edge: minJobCharge '0' (a string zero from a form) → no floor, $2,175", eco('0').total === 2175 && eco('0').minJobApplied === false, j(eco('0').total));
+  ok("#1 edge: minJobCharge '   ' (whitespace) → treated as blank → $2,500 default", eco('   ').total === 2500 && eco('   ').minJobApplied === true, j(eco('   ').total));
+  ok('#1 edge: minJobCharge null → $2,500 default', eco(null).total === 2500 && eco(null).minJobApplied === true);
+  ok('#1 edge: calculatePerSq returns the floor in force — minJobCharge 3000 / 2500 default / 0 when none', eco(3000).minJobCharge === 3000 && eco('').minJobCharge === 2500 && eco(0).minJobCharge === 0 && eco(-100).minJobCharge === 0, j([eco(3000).minJobCharge, eco('').minJobCharge, eco(0).minJobCharge]));
+  // #5 engine half — input.minJobCharge (the preset/template floor) wins over the per-SQ setting.
+  const ecoIn = (inputMin, settingsMin) => perSq({ tier: 'economy', rawSqft: 300, minJobCharge: inputMin }, settingsMin === undefined ? undefined : { minJobCharge: settingsMin });
+  ok('#5 engine: input minJobCharge 500 (preset floor BELOW the job) → $2,175, no floor — the $2,500 roof default no longer applies', ecoIn(500).total === 2175 && ecoIn(500).minJobApplied === false && ecoIn(500).minJobCharge === 500, j([ecoIn(500).total, ecoIn(500).minJobCharge]));
+  ok('#5 engine: input minJobCharge 3000 (preset floor ABOVE the job) → $3,000, floored', ecoIn(3000).total === 3000 && ecoIn(3000).minJobApplied === true);
+  ok('#5 engine: the preset floor beats the shop setting both ways — preset 500 / shop 3000 → $2,175; preset 3000 / shop 0 → $3,000', ecoIn(500, 3000).total === 2175 && ecoIn(3000, 0).total === 3000, j([ecoIn(500, 3000).total, ecoIn(3000, 0).total]));
+  ok('#5 engine: preset 0 → no floor even though the shop minimum is $3,000', ecoIn(0, 3000).total === 2175 && ecoIn(0, 3000).minJobApplied === false);
+  ok("#5 engine: an invalid preset ('abc') is ignored → the shop setting / default applies ($3,000 / $2,500)", ecoIn('abc', 3000).total === 3000 && ecoIn('abc').total === 2500, j([ecoIn('abc', 3000).total, ecoIn('abc').total]));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -266,11 +291,44 @@ section('B. JOB MINIMUM — line-item path (calculateLineItem) and the logic eng
   ok('calculateLineItem: material ×1.25 + labor, then O&P 10%+10% — $350 → $420 → $425', r.retailBeforeOHP === 350 && r.subtotal === 420 && r.total === 425, j([r.retailBeforeOHP, r.subtotal, r.total]));
 
   const repair = li(500);
-  ok('KNOWN BUG #2 (reported 2026-10-05): calculateLineItem floors a $600 repair to $2,500 — it reads the per-SQ minJobCharge and ignores minRepairCharge 0 (#1470); latent, no live caller today — expected $600',
-    EB.getDefaultSettings().minRepairCharge === 0 && repair.total === 2500 && repair.minJobApplied === true, j([repair.total, repair.minJobApplied]));
+  ok('FIXED (was KNOWN BUG #2, reported 2026-10-05): calculateLineItem no longer applies the per-SQ $2,500 roof minimum to a $600 repair — no preset floor + minRepairCharge 0 → $600, no floor (the live builder\'s precedence, #1470)',
+    EB.getDefaultSettings().minRepairCharge === 0 && repair.total === 600 && repair.minJobApplied === false && repair.minJobCharge === 0, j([repair.total, repair.minJobApplied, repair.minJobCharge]));
   const zero = li(500, { minJobCharge: 0 });
-  ok('KNOWN BUG #1 (reported 2026-10-05): calculateLineItem with minJobCharge 0 (estimate-builder-v2.js:1320) still floors to $2,500 — expected $600',
-    zero.total === 2500 && zero.minJobApplied === true, j(zero.total));
+  ok('FIXED (was KNOWN BUG #1, reported 2026-10-05): calculateLineItem with minJobCharge 0 → no floor, $600',
+    zero.total === 600 && zero.minJobApplied === false, j(zero.total));
+  // #2 edge cases — precedence: preset/template floor → shop repair minimum → nothing.
+  // A settingsOverride's minJobCharge IS the preset floor (how the live builder
+  // hands its floor to the engine); null there = no preset set.
+  const li2 = (labor, inputMin, settings) => EB.calculateLineItem(Object.assign({
+    mode: 'insurance', tier: 'better', rawSqft: 0,
+    lineItems: [{ code: 'TST LAB', name: 'Synthetic labor', unit: 'JOB', qty: 1, materialCost: 0, laborCost: labor }],
+    settingsOverride: Object.assign(EB.getDefaultSettings(), { minJobCharge: null }, settings || {}),
+  }, inputMin === undefined ? {} : { minJobCharge: inputMin }));
+  r = li2(500, undefined, { minRepairCharge: 750 });
+  ok('#2 edge: repair minimum PRESENT ($750), no preset → $750, floored, minJobCharge 750', r.total === 750 && r.minJobApplied === true && r.minJobCharge === 750, j([r.total, r.minJobCharge]));
+  r = li2(500, undefined, { minRepairCharge: 400 });
+  ok('#2 edge: repair minimum $400 below the $600 job → $600, no floor', r.total === 600 && r.minJobApplied === false);
+  r = li2(500, undefined, { minRepairCharge: 0 });
+  ok('#2 edge: repair minimum ABSENT (0), no preset → $600, no floor', r.total === 600 && r.minJobApplied === false && r.minJobCharge === 0);
+  r = li2(500, 900, { minRepairCharge: 750 });
+  ok('#2 edge: preset floor $900 beats the $750 repair minimum → $900', r.total === 900 && r.minJobApplied === true && r.minJobCharge === 900, j(r.total));
+  r = li2(500, 400, { minRepairCharge: 750 });
+  ok('#2 edge: preset floor $400 BELOW the job wins over the $750 repair minimum → $600, no floor', r.total === 600 && r.minJobApplied === false && r.minJobCharge === 400, j(r.total));
+  r = li2(500, 0, { minRepairCharge: 750 });
+  ok('#2 edge: preset 0 = deliberately no floor, even with a $750 repair minimum → $600', r.total === 600 && r.minJobApplied === false, j(r.total));
+  r = li2(500, 'abc', { minRepairCharge: 750 });
+  ok("#2 edge: an invalid preset ('abc') is ignored → the $750 repair minimum applies", r.total === 750 && r.minJobApplied === true, j(r.total));
+  {
+    // The device path: saved Settings → Estimates (per-SQ $2,500 + repair minimum), no override.
+    const E = stack(PRICING_FILES, ACTIVE_MUTATION);
+    const dev = () => E.win.EstimateBuilderV2.calculateLineItem({ mode: 'insurance', tier: 'better', rawSqft: 0,
+      lineItems: [{ code: 'TST LAB', name: 'Synthetic labor', unit: 'JOB', qty: 1, materialCost: 0, laborCost: 500 }] });
+    E.store.nbd_est_settings_v3 = JSON.stringify({ minJobCharge: 2500, minRepairCharge: 0 });
+    const a = dev();
+    E.store.nbd_est_settings_v3 = JSON.stringify({ minJobCharge: 2500, minRepairCharge: 750 });
+    const b = dev();
+    ok('#2 edge: a device with the per-SQ $2,500 saved prices a $600 repair at $600 (repair min 0) / $750 (repair min $750)', a.total === 600 && a.minJobApplied === false && b.total === 750 && b.minJobApplied === true, j([a.total, b.total]));
+  }
 
   // Logic engine (estimate-logic-engine.js resolveEstimate). Floats, O&P zeroed
   // where the test is about the floor so the subtotal is the labor itself.
@@ -473,11 +531,25 @@ const FULL = stack(FULL_FILES, ACTIVE_MUTATION);
 
   // KNOWN BUG #9 — Math.max(400, Number('abc')) is NaN, and `total < NaN` is false.
   r = rs(['tst_a', 'tst_c']);
-  ok('KNOWN BUG #9 (reported 2026-10-05): a non-numeric template minJobCharge ("abc") makes the job floor NaN (job-templates.js:958) and silently drops A\'s valid $400 floor — $250 quoted; expected $400 (the highest VALID minimum)',
-    Number.isNaN(r.minJobCharge) && r.totals.total === 250 && r.totals.minJobApplied === false, j([r.minJobCharge, r.totals.total]));
+  ok('FIXED (was KNOWN BUG #9, reported 2026-10-05): a non-numeric template minJobCharge ("abc") is ignored — A\'s valid $400 floor stands, $400 quoted (the highest VALID minimum)',
+    r.minJobCharge === 400 && r.totals.total === 400 && r.totals.minJobApplied === true, j([r.minJobCharge, r.totals.total]));
   r = rs(['tst_c']);
-  ok('KNOWN BUG #9 (reported 2026-10-05): a lone "abc" template minimum → NaN floor, $125 quoted with no floor — expected the bad value ignored (or rejected) rather than NaN',
-    Number.isNaN(r.minJobCharge) && r.totals.total === 125, j([r.minJobCharge, r.totals.total]));
+  ok('FIXED (was KNOWN BUG #9, reported 2026-10-05): a lone "abc" template minimum is ignored → no floor (minJobCharge null), $125, never NaN',
+    r.minJobCharge === null && r.totals.total === 125 && r.totals.minJobApplied === false, j([r.minJobCharge, r.totals.total]));
+  // #9 edge cases. Extra synthetic templates appended for these checks only.
+  W.NBD_JOB_TEMPLATES.push(
+    { id: 'tst_z', name: 'Z', category: 'roof_repair', jobType: 'repair', warrantyKind: 'repair', minJobCharge: 0, items: [custom('Z work', 100)] },
+    { id: 'tst_blank', name: 'Blank', category: 'roof_repair', jobType: 'repair', warrantyKind: 'repair', minJobCharge: '', items: [custom('Blank work', 100)] },
+    { id: 'tst_s', name: 'S', category: 'roof_repair', jobType: 'repair', warrantyKind: 'repair', minJobCharge: '650', items: [custom('S work', 100)] },
+  );
+  r = rs(['tst_a', 'tst_c', 'tst_b']);
+  ok('#9 edge: A $400 + "abc" + B $900 → the highest valid floor, $900 (order-independent)', r.minJobCharge === 900 && r.totals.total === 900 && rs(['tst_c', 'tst_b', 'tst_a']).totals.total === 900, j([r.minJobCharge, r.totals.total]));
+  r = rs(['tst_c', 'tst_blank']);
+  ok('#9 edge: "abc" + a blank minimum → no floor (null), $250 — blank is not $0 and not NaN', r.minJobCharge === null && r.totals.total === 250 && r.totals.minJobApplied === false, j([r.minJobCharge, r.totals.total]));
+  r = rs(['tst_z']);
+  ok('#9 edge: a template minimum of 0 → floor 0, no floor applied, $125', r.minJobCharge === 0 && r.totals.total === 125 && r.totals.minJobApplied === false, j([r.minJobCharge, r.totals.total]));
+  r = rs(['tst_s', 'tst_a']);
+  ok('#9 edge: a numeric-string minimum "650" still counts → $650 beats $400', r.minJobCharge === 650 && r.totals.total === 650, j([r.minJobCharge, r.totals.total]));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -593,16 +665,28 @@ section('H. V2 BUILDER UI — getCurrentEstimate on the real engines (estimate-v
   const better = est && est.perSqTiers && est.perSqTiers.better;
   ok('control: the per-SQ overlay set the price (priceMode per-sq) and the Better tier floored $1,725 → $2,500',
     !!better && est.priceMode === 'per-sq' && est.total === 2500 && better.subtotal === 1609 && better.minJobApplied === true, j(est && (est.__threw || [est.priceMode, est.total, better && better.minJobApplied])));
-  ok('KNOWN BUG #3 (reported 2026-10-05): a floored per-SQ quote reaches finalization with minJobApplied false / minJobCharge 0 (estimate-v2-ui.js:2779-2796 copies total/tax but not the tier\'s floor flag), so the $775 floor gap prints as "Rounding" — expected minJobApplied true, minJobCharge 2500',
-    !!better && est.minJobApplied === false && !est.minJobCharge, j(est && [est.minJobApplied, est.minJobCharge]));
+  ok('FIXED (was KNOWN BUG #3, reported 2026-10-05): a floored per-SQ quote reaches finalization with the chosen tier\'s minJobApplied true / minJobCharge 2500 (the overlay now carries the floor, not just total/tax)',
+    !!better && est.minJobApplied === true && est.minJobCharge === 2500, j(est && [est.minJobApplied, est.minJobCharge]));
   const iv = safe(() => FIN.formatEstimate(est, 'internal-view', { customer: { name: 'Pat Doe', address: '1 Elm St' }, estimate: { number: 'EST-1', date: '2026-10-05' } }).html);
-  ok('KNOWN BUG #3 (reported 2026-10-05): the Internal View footer of that floored per-SQ quote says "Min job applied: No" (estimate-finalization.js:1284) — expected "YES ($2,500.00 floor)"',
-    typeof iv === 'string' && /Min job applied:<\/strong> No/.test(iv), typeof iv === 'string' ? (iv.match(/Min job applied:<\/strong>[^·]*/) || [''])[0] : j(iv));
+  ok('FIXED (was KNOWN BUG #3, reported 2026-10-05): the Internal View footer of that floored per-SQ quote says "Min job applied: YES ($2,500.00 floor)"',
+    typeof iv === 'string' && /Min job applied:<\/strong> YES \(\$2,500\.00 floor\)/.test(iv), typeof iv === 'string' ? (iv.match(/Min job applied:<\/strong>[^·]*/) || [''])[0] : j(iv));
+  // The customer quote ladder labels the floor gap as the minimum, not rounding.
+  const pay = safe(() => V2.buildEstimatePayload('retail-quote', est, {}));
+  ok('#3 edge: the quote payload labels the $778.37 gap ($775 floor + $3.37 rounding; $2,500 − $1,609 − $112.63 tax) "Minimum job charge adjustment", not "Rounding"',
+    !!pay && !pay.__threw && pay.rounding === 778.37 && pay.roundingLabel === 'Minimum job charge adjustment', j(pay && (pay.__threw || [pay.rounding, pay.roundingLabel])));
+  // An UNfloored per-SQ quote (a 30 SQ roof) stays minJobApplied false.
+  const big = priced((st) => { st.measurements.rawSqft = 3000; });
+  ok('#3 edge: an unfloored per-SQ quote keeps minJobApplied false (the floor amount, $2,500, is still reported)', !!big && big.priceMode === 'per-sq' && big.total > 2500 && big.minJobApplied === false && big.minJobCharge === 2500, j(big && (big.__threw || [big.total, big.minJobApplied, big.minJobCharge])));
 
-  // KNOWN BUG #5 — the preset/template floor (state.minJobCharge) never reaches the per-SQ engine.
+  // #5 — the preset/template floor (state.minJobCharge) now reaches the per-SQ engine.
   const patch = priced((st) => { st.minJobCharge = 500; });
-  ok('KNOWN BUG #5 (reported 2026-10-05): a preset/template $500 floor is ignored on a per-SQ quote — buildPerSqInput sends no settings override (estimate-v2-ui.js:2423-2446), so it quotes $2,500 — expected $1,725 (the job, above its $500 floor)',
-    !!patch && patch.priceMode === 'per-sq' && patch.total === 2500, j(patch && (patch.__threw || patch.total)));
+  ok('FIXED (was KNOWN BUG #5, reported 2026-10-05): a preset/template $500 floor is honoured on a per-SQ quote — $1,725 (the job, above its $500 floor), not the $2,500 roof default',
+    !!patch && patch.priceMode === 'per-sq' && patch.total === 1725 && patch.minJobApplied === false, j(patch && (patch.__threw || [patch.total, patch.minJobApplied])));
+  const high = priced((st) => { st.minJobCharge = 3000; });
+  ok('#5 edge: a preset floor ABOVE the job ($3,000) → $3,000 on every tier, minJobApplied true, minJobCharge 3000',
+    !!high && high.total === 3000 && high.minJobApplied === true && high.minJobCharge === 3000 && TIERS.every((t) => high.prices[t] === 3000), j(high && (high.__threw || [high.total, high.prices])));
+  const none = priced((st) => { st.minJobCharge = 0; });
+  ok('#5 edge: a preset floor of 0 → no floor at all, $1,725', !!none && none.total === 1725 && none.minJobApplied === false, j(none && (none.__threw || none.total)));
 
   // #4 is NOT a bug: pass-through fees are charged at face on top of the price
   // by design (estimate-v2-ui.js:2720-2722: a fee added after the floor must
