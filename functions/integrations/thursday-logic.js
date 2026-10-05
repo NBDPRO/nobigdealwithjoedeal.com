@@ -36,11 +36,15 @@ const PUBLIC_LEAD_KIND = 'thursday_call';
 const CUSTOMER_URL = 'https://nobigdealwithjoedeal.com/pro/customer.html?id=';
 const INBOX_URL = 'https://nobigdealwithjoedeal.com/pro/dashboard.html#thursday';
 
-// Extraction model. Opus 5 at low effort: a 3–5 minute receptionist call is a
+// Extraction model. Opus 5.5 at low effort: a 3–5 minute receptionist call is a
 // few thousand tokens, so a call costs a few cents, and name/address accuracy
 // is the whole point of the pipeline (a misheard street is a missed match).
-const EXTRACTION_MODEL = 'claude-opus-5';
-const MODEL_PRICE_PER_MTOK = { input: 5, output: 25 };
+// 2026-10-04: claude-opus-5 → claude-opus-5-5 (list price $4 in / $20 out per
+// MTok, down from $5 / $25 — same as functions/ai-spend.js PRICES). Only the
+// model id changed: the request (effort low, json_schema output, fallbacks)
+// and the prompt are untouched — Opus 5.5 accepts every field it sends.
+const EXTRACTION_MODEL = 'claude-opus-5-5';
+const MODEL_PRICE_PER_MTOK = { input: 4, output: 20 };
 
 // The twelve canonical lead sources (scripts/normalize-lead-source.js:19).
 // Never invent a new one — the funnel is recorded separately as `intake`.

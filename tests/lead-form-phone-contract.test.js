@@ -67,7 +67,7 @@ const FORMS = [
   ['docs/assets/js/storm-check.js', 'function submitLead()', "window.submitPublicLead('inspect', payload)"],
   ['docs/assets/js/roof-score.js', 'function submitLead()', "window.submitPublicLead('inspect', payload)"],
   ['docs/assets/js/inline/c5a2295382.js', "const hp = document.getElementById('alertHoneypot')", 'window._saveStormAlert'],
-  ['docs/assets/js/inline/72f02d79d0.js', 'async function submitForm()', 'window._captureContactLead({'],
+  ['docs/assets/js/inline/72f02d79d0.js', 'async function submitForm()', 'window._captureContactLead(lead)'],
   ['docs/assets/js/inspect-form.js', 'function isUsPhone(v)', "window.submitPublicLead('inspect', data)"],
 ];
 for (const [rel, from, to] of FORMS) {

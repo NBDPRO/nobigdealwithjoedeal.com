@@ -282,7 +282,6 @@ const measurementIntegration = require('./integrations/measurement');
 // (measureNewWebLead), and the anonymous wizard reads the homeowner-safe
 // subset back (publicRoofMeasure — read-only, never spends).
 const publicMeasureIntegration = require('./integrations/public-measure');
-const esignIntegration       = require('./integrations/esign');
 const parcelIntegration      = require('./integrations/parcel');
 const hailIntegration        = require('./integrations/hail');
 const calcomIntegration      = require('./integrations/calcom');
@@ -318,7 +317,6 @@ exports.publicRoofMeasure = publicMeasureIntegration.publicRoofMeasure;
 const measureAutoOrder = require('./integrations/measure-auto-order');
 exports.autoMeasureOnStage = measureAutoOrder.autoMeasureOnStage;
 exports.autoMeasureOnAppointment = measureAutoOrder.autoMeasureOnAppointment;
-Object.assign(exports, esignIntegration);
 Object.assign(exports, parcelIntegration);
 Object.assign(exports, hailIntegration);
 Object.assign(exports, calcomIntegration);
@@ -363,6 +361,10 @@ Object.assign(exports, remoteSigningFunctions);
 // esign-envelope.js and the pure stamping engine in functions/esign-stamp.js.
 const esignEnvelopeFunctions = require('./esign-envelope');
 Object.assign(exports, esignEnvelopeFunctions);
+// 2026-10-04: BoldSign (integrations/esign.js — sendEstimateForSignature +
+// esignWebhook) is retired. The estimate builder's "Send for signature" is
+// sendEstimateEnvelope above; reminders + link expiry run here, daily.
+exports.esignReminderSweep = require('./esign-reminders').esignReminderSweep;
 
 // Close Board deal acceptance (1a): no-login remote accept of a shared deal
 // room (deal_accept_tokens + /deal/<token> + /api/deal-accept). Same
@@ -579,9 +581,12 @@ exports.dailyLeadDigest = require('./lead-digest').dailyLeadDigest;
 // card is still untouched (functions/lead-followup.js).
 exports.leadFollowUpSweep = require('./lead-followup').leadFollowUpSweep;
 
-// Every-30min NWS storm-report watcher: alerts Joe on qualifying hail/wind/
-// tornado in the service area; subscriber texting gated (functions/storm-watch.js).
-exports.stormWatch = require('./storm-watch').stormWatch;
+// ONE every-30-minutes storm poller (2026-10-04): the NWS storm-REPORTS watcher
+// (storm-watch.js runStormWatch — alerts Joe; subscriber texts gated by
+// STORM_TEXT_ENABLED) and the NWS ALERTS texter (sms-functions.js
+// runCheckStormAlerts), back to back, same TCPA guards (storm-sms-guard.js).
+// Replaces the separate stormWatch + checkStormAlerts crons.
+exports.stormPoller = require('./storm-poller').stormPoller;
 
 // 1st-of-month 7am ET marketing rollup (functions/marketing-report.js).
 exports.monthlyMarketingReport = require('./marketing-report').monthlyMarketingReport;
@@ -732,6 +737,16 @@ exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudg
 // Ships DRY-RUN by default. Set MORNING_BRIEF_ENABLED=true on the
 // morningBrief Cloud Run revision to go live.
 exports.morningBrief = require('./morning-brief').morningBrief;
+
+// "Brief me" (2026-10-04): one-tap pre-visit summary on the customer page —
+// calls, promises, estimates, owed, photos, next appointment. Claude Haiku 4.5
+// server-side only, cached per lead for 4 h (functions/lead-brief.js).
+exports.leadBrief = require('./lead-brief').leadBrief;
+
+// Nightly 02:30 ET: Haiku marks a call/text promise kept only on explicit,
+// quoted later evidence; every change logged (functions/promise-cleanup.js).
+// DRY-RUN unless PROMISE_CLEANUP_ENABLED=true.
+exports.promiseCleanup = require('./promise-cleanup').promiseCleanup;
 
 // ═══════════════════════════════════════════════════════════════
 // CALL CENTER — Cube ACR recordings (Drive) → phone_calls, every 30 min

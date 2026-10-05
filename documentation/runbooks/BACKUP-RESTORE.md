@@ -78,8 +78,8 @@ One run writes, under `vendor-config/YYYY-MM-DD/`:
 - `calcom/event-types.json`, `schedules.json`, `webhooks.json`: **skipped
   today**, because no `CALCOM_API_KEY` exists (only the webhook secret).
   See §6.
-- `boldsign/templates.json`: skipped, because `BOLDSIGN_API_KEY` is the
-  deploy's `__unset__` stub (BoldSign is dark).
+- BoldSign: not exported. BoldSign was retired 2026-10-04 (in-house
+  e-sign replaced it), so there are no templates to back up.
 - `manifest.json`: per-file status, byte size and redaction count, plus
   which vendors were skipped and why. It never holds a value.
 

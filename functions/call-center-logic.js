@@ -553,7 +553,12 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
     if ((Number(c.startedAtMs) || 0) < nowMs - SWEEP_LOOKBACK_MS) continue;
     // Snoozed from the deck: a call with no task to move carries the date.
     if (c.snoozeUntilYmd && String(c.snoozeUntilYmd) > todayYmd) continue;
-    const mine = (Array.isArray(c.promises) ? c.promises : []).filter((p) => p && p.who === 'jo');
+    const joPromises = (Array.isArray(c.promises) ? c.promises : []).filter((p) => p && p.who === 'jo');
+    // Nightly promise cleanup (promise-cleanup.js, 2026-10-04) stamps keptAtMs
+    // on a promise only on explicit later evidence. A call whose promises are
+    // ALL kept leaves the list; one with some kept lists only the rest.
+    const mine = joPromises.filter((p) => !p.keptAtMs);
+    if (joPromises.length && !mine.length && !(c.urgent && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS)) continue;
     const task = c.leadId ? tasks.get(c.id) : null;
     const who = c.contactName || (c.phoneDigits ? '(' + c.phoneDigits.slice(0, 3) + ') ' + c.phoneDigits.slice(3, 6) + '-' + c.phoneDigits.slice(6) : 'Unknown number');
     const base = { callId: c.id, channel: c.channel === 'text' ? 'text' : 'call', leadId: c.leadId || null, who, startedAtMs: c.startedAtMs, summary: c.summary || '', promises: mine.map((p) => p.text), phoneDigits: c.phoneDigits || '', hasTask: !!task, contactName: c.contactName || '', callType: c.callType || '' };

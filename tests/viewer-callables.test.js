@@ -358,7 +358,9 @@ const CASES = [
   { fn: 'sendEsignEnvelope', file: 'esign-envelope.js', kind: 'call', data: { envelopeId: 'env-123456', signerName: 'Sam', signerEmail: 'sam@example.com' } },
   { fn: 'voidEsignEnvelope', file: 'esign-envelope.js', kind: 'call', data: { envelopeId: 'env-123456' } },
   { fn: 'createSignRequest', file: 'remote-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1', signerEmail: 'sam@example.com', signerName: 'Sam' } },
-  { fn: 'sendEstimateForSignature', file: 'integrations/esign.js', kind: 'call', data: { estimateId: 'est-1', signerName: 'Sam', signerEmail: 'sam@example.com', html: '<p>' + 'x'.repeat(200) + '</p>' } },
+  // 2026-10-04: BoldSign's sendEstimateForSignature retired; the estimate's
+  // send-for-signature is the in-house sendEstimateEnvelope.
+  { fn: 'sendEstimateEnvelope', file: 'esign-envelope.js', kind: 'call', data: { estimateId: 'est-1', signers: [{ name: 'Sam', email: 'sam@example.com' }] } },
   { fn: 'createDealAcceptToken', file: 'deal-acceptance.js', kind: 'call', data: { dealId: 'deal-123456' } },
   { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' } },
   { fn: 'createEstimateReviewLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1' } },
@@ -449,7 +451,7 @@ const VERDICTS = {
   reserveCompanyPrefix: 'self', resolveAddress: 'refused', reverifyCompanyKnocks: 'role-gated',
   revokeMySessions: 'self', revokePortalToken: 'refused', rotateAccessCodes: 'role-gated',
   runMigrations: 'role-gated', saveEsignFields: 'refused', sendEsignEnvelope: 'refused',
-  sendEstimateForSignature: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
+  sendEstimateEnvelope: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
   setSiteSlug: 'role-gated',
   // Publish my site (2026-10-04): requireTeamAdmin ownerOnly — owner / platform admin.
   publishTenantSite: 'role-gated',
@@ -474,11 +476,21 @@ const VERDICTS = {
   callTaggedMatch: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
+  // "Brief me" (lead-brief.js, 2026-10-04): returns a summary of a lead the
+  // caller may already READ (canReadLead mirrors the /leads read rule, which
+  // admits a same-company viewer). Writes only the server-derived cache and
+  // the per-uid daily quota (lead_brief_quota caps fresh AI generations), so
+  // a viewer reading a customer may be briefed on it.
+  leadBrief: 'read-paid',
   // HTTP functions
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
-  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public', esignWebhook: 'public',
+  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
   getCalendarFeed: 'public', getDealRoom: 'public', getDealPhoto: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
+  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
+  // The signer's Decline button (2026-10-04): token-authed like getEsignEnvelope.
+  declineEsignEnvelope: 'public',
+  getCalendarFeed: 'public', getDealRoom: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
   getGoogleReviews: 'public', getHomeownerPortalView: 'public', getPortalDocumentHtml: 'public',
   getPortalMessages: 'public', getPublicSiteConfig: 'public', getSharedReport: 'public',
   getSignDocument: 'public', getSubscriptionStatus: 'read', imageProxy: 'public', incomingSMS: 'public',

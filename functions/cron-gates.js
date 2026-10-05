@@ -24,6 +24,12 @@ const CRON_GATES = [
   { name: 'LEAD_ACK_SMS_ENABLED', polarity: 'enabled', file: 'lead-alert.js' },
   { name: 'LEAD_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'lead-followup.js' },
   { name: 'MORNING_BRIEF_ENABLED', polarity: 'enabled', file: 'morning-brief.js' },
+  // One morning email (2026-10-04): the 6:45 brief absorbs the 07:00 lead
+  // digest, the 07:15 "said you'd do" sweep and the owner's 08:15 review asks.
+  { name: 'MORNING_BRIEF_ABSORB_ENABLED', polarity: 'enabled', file: 'morning-brief-absorb.js' },
+  // Nightly promise cleanup (2026-10-04): Haiku marks a call promise kept only
+  // on explicit later evidence; every change logged to promise_cleanup_log.
+  { name: 'PROMISE_CLEANUP_ENABLED', polarity: 'enabled', file: 'promise-cleanup.js' },
   // Call Center ingest: dry-run (list + count) until Jo says go.
   { name: 'CALL_CENTER_INGEST_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   // Call Center transcripts + AI notes: OFF until Jo OKs a one-call test.
@@ -48,6 +54,8 @@ const CRON_GATES = [
   { name: 'GOOGLE_CALENDAR_SYNC_DISABLED', polarity: 'disabled', file: 'google-calendar.js' },
   // Not a cron: the Grok Bot team's CRM connection (crmMcp). ON unless set.
   { name: 'AGENT_MCP_DISABLED', polarity: 'disabled', file: 'agent-mcp.js' },
+  // E-sign reminders + link expiry (2026-10-04, replaced BoldSign's). ON unless set.
+  { name: 'ESIGN_REMINDERS_DISABLED', polarity: 'disabled', file: 'esign-reminders.js' },
 ];
 
 /**

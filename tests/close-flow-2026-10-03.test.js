@@ -2,7 +2,8 @@
 /**
  * tests/close-flow-2026-10-03.test.js — the estimate → homeowner close flow.
  *
- *   A. Kentucky legal block. "Send for Signature" (BoldSign) sent the retail
+ *   A. Kentucky legal block. "Send for Signature" (BoldSign until 2026-10-04,
+ *      in-house e-sign since — section A2/A3) sent the retail
  *      quote titled "Roofing Contract" with NO KRS 367.624 insurance-job
  *      notices. On a Kentucky insurance job — classified by the SAME
  *      ky-insurance-law.js classifyLead the contract notices use — the button
@@ -82,7 +83,7 @@ function fakeDoc(ids) {
 function loadV2(opts) {
   opts = opts || {};
   const SRC = read('docs/pro/js/estimate-v2-ui.js');
-  const doc = fakeDoc(['v2signBtn', 'v2signStatus', 'v2kyNote', 'v2kyContractBtn', 'v2sendHoBtn', 'v2shareStatus', 'v2shareBox', 'v2saveBtn', 'v2saveStatus', 'estV2Modal']);
+  const doc = fakeDoc(['v2signBtn', 'v2signStatus', 'v2kyNote', 'v2kyContractBtn', 'v2sendHoBtn', 'v2shareStatus', 'v2shareBox', 'v2saveBtn', 'v2saveStatus', 'estV2Modal', 'v2coName', 'v2coEmail', 'v2cosign']);
   const calls = [];
   const win = {};
   win.window = win;
@@ -117,6 +118,14 @@ function loadV2(opts) {
   };
   win.showToast = () => {};
   win.goTo = () => { calls.push(['goTo']); };
+  // The in-house e-sign callable (2026-10-04). Records every call; the
+  // server's answer is opts.callableResult (default: emailed, link returned).
+  win._functions = {};
+  win._httpsCallable = (_fns, name) => async (data) => {
+    calls.push(['callable', name, data]);
+    if (opts.callableThrows) throw new Error(opts.callableThrows);
+    return { data: opts.callableResult || { ok: true, emailed: true, link: 'https://nobigdealwithjoedeal.com/pro/esign.html?t=ABCDEFGHJKMNPQRS' } };
+  };
   const nav = {};
   if (opts.share) nav.share = async (data) => { calls.push(['share', data]); if (opts.share === 'abort') { const e = new Error('x'); e.name = 'AbortError'; throw e; } };
   const loc = { href: 'https://example.test/pro/dashboard' };
@@ -170,23 +179,70 @@ section('A. Kentucky legal block — same classifier as the contract notices', (
 });
 
 async function asyncTests() {
-  await asection('A2. sendForSignature refuses a Kentucky insurance job before BoldSign', async () => {
+  await asection('A2. sendForSignature refuses a Kentucky insurance job before anything is sent', async () => {
     const V = loadV2({ leads: [{ id: 'L1', address: KY_ADDR, jobType: 'insurance' }], customer: { address: KY_ADDR, email: 'pat@example.test' } });
     V.st.jobMode = 'insurance';
-    let boldsign = 0;
-    V.win.NBDIntegrations = { sendForSignature: async () => { boldsign++; return { ok: true }; } };
     await V.T.sendForSignature();
-    ok('KY insurance: BoldSign never called', boldsign === 0);
+    ok('KY insurance: the e-sign callable is never called', !V.calls.some((x) => x[0] === 'callable'));
     ok('KY insurance: the status names the Kentucky notices', /Kentucky insurance job/.test(V.doc.els.v2signStatus.textContent), V.doc.els.v2signStatus.textContent);
     ok('KY insurance: nothing saved for the envelope', !V.calls.some((x) => x[0] === 'save'));
 
     const O = loadV2({ leads: [{ id: 'L1', address: OH_ADDR, jobType: 'insurance' }], customer: { address: OH_ADDR, email: 'pat@example.test' } });
     O.st.jobMode = 'insurance';
-    await O.T.sendForSignature(); // no NBDIntegrations → it gets past the KY gate to the next check
-    ok('OH insurance: passes the Kentucky gate (next check runs)', /Integrations client not ready/.test(O.doc.els.v2signStatus.textContent), O.doc.els.v2signStatus.textContent);
+    await O.T.sendForSignature();
+    ok('OH insurance: passes the Kentucky gate and sends', O.calls.some((x) => x[0] === 'callable' && x[1] === 'sendEstimateEnvelope'),
+      JSON.stringify(O.calls.map((c) => c[0])));
 
     const N = loadV2({ noLaw: true, customer: { address: OH_ADDR } });
     ok('law module missing → fail closed (blocked)', N.T.kySigningBlocked() === true);
+  });
+
+  await asection('A3. Send for Signature goes to the in-house e-sign (BoldSign retired 2026-10-04)', async () => {
+    const V = loadV2({ customer: { email: 'Pat@Example.test' } });
+    const r = await V.T.sendForSignature();
+    const order = V.calls.map((c) => c[0]).filter((k) => k === 'save' || k === 'callable').join('>');
+    ok('save happens BEFORE the send (the server builds the contract from the saved estimate)', order === 'save>callable', order);
+    const call = V.calls.find((c) => c[0] === 'callable');
+    ok('calls sendEstimateEnvelope (not a vendor)', call && call[1] === 'sendEstimateEnvelope', call && call[1]);
+    ok('sends the SAVED estimate id', call && call[2].estimateId === 'est_1', call && JSON.stringify(call[2]));
+    ok('one signer: the customer, email lower-cased', call && call[2].signers.length === 1 && call[2].signers[0].name === 'Pat Homeowner' && call[2].signers[0].email === 'pat@example.test');
+    ok('emails the link (remote send)', call && call[2].sendEmail === true);
+    ok('no client-rendered HTML goes to the server any more', call && !('html' in call[2]));
+    ok('result: sent', r === 'sent', r);
+    ok('status confirms the send', /Sent to pat@example\.test/.test(V.doc.els.v2signStatus.textContent), V.doc.els.v2signStatus.textContent);
+    ok('the signing link is shown to copy / open', /esign\.html\?t=ABCDEFGHJKMNPQRS/.test(V.doc.els.v2shareBox.innerHTML) && V.doc.els.v2shareBox.hidden === false);
+
+    // Co-owner: a second signer rides along.
+    const C = loadV2({ customer: { email: 'pat@example.test' } });
+    C.doc.els.v2coName.value = 'Sam Homeowner';
+    C.doc.els.v2coEmail.value = 'Sam@Example.test';
+    await C.T.sendForSignature();
+    const cc = C.calls.find((c) => c[0] === 'callable');
+    ok('co-owner becomes signer 2', cc && cc[2].signers.length === 2 && cc[2].signers[1].name === 'Sam Homeowner' && cc[2].signers[1].email === 'sam@example.test', cc && JSON.stringify(cc[2].signers));
+    const H = loadV2({ customer: { email: 'pat@example.test' } });
+    H.doc.els.v2coName.value = 'Sam Homeowner';
+    await H.T.sendForSignature();
+    ok('co-owner with no email is refused before anything is sent', !H.calls.some((c) => c[0] === 'save' || c[0] === 'callable'), JSON.stringify(H.calls.map((c) => c[0])));
+
+    // No email on file: refused for a remote send (nothing saved, nothing sent).
+    const E = loadV2({ customer: { email: '' } });
+    await E.T.sendForSignature();
+    ok('remote send without an email is refused before saving', !E.calls.some((c) => c[0] === 'save' || c[0] === 'callable'));
+
+    // In person (Present → Sign Now): no email needed; the signing page opens in the tab opened inside the tap.
+    const P = loadV2({ customer: { email: '' } });
+    const pr = await P.T.sendForSignature({ inPerson: true });
+    const pc = P.calls.find((c) => c[0] === 'callable');
+    ok('in person: link only, no email', pc && pc[2].sendEmail === false, pc && JSON.stringify(pc[2]));
+    const tab = P.calls.find((c) => c[0] === 'open');
+    ok('in person: the tab opened inside the tap now shows the signing page', tab && /esign\.html\?t=/.test(tab[1].location.href) && pr === 'opened', pr);
+
+    // A server refusal surfaces and closes the pre-opened tab.
+    const F = loadV2({ customer: { email: 'pat@example.test' }, callableThrows: 'Price the estimate first' });
+    const fr = await F.T.sendForSignature({ inPerson: true });
+    const ftab = F.calls.find((c) => c[0] === 'open');
+    ok('server refusal: shown to the rep', /Price the estimate first/.test(F.doc.els.v2signStatus.textContent) && fr === 'failed');
+    ok('server refusal: the blank tab is closed', ftab && ftab[1].closed === true);
   });
 
   await asection('D. Send to homeowner — save → deal → link → share, stays on screen', async () => {

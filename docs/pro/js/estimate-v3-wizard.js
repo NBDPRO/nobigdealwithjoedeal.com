@@ -80,6 +80,8 @@
     ['#v2saveBtn', 'finish', 'more'], ['#v2saveStatus', 'finish', 'more'],
     ['#v2signPhoneBtn', 'finish', 'more'], ['#v2kyNote', 'finish', 'more'], ['#v2kyContractBtn', 'finish', 'more'],
     ['#v2signBtn', 'finish', 'more'], ['#v2signStatus', 'finish', 'more'],
+    // In-house e-sign (2026-10-04): the optional co-owner rides with Send for Signature.
+    ['#v2cosign', 'finish', 'more'],
   ];
 
   // Count fields get −/+ steppers; selects become tap chips.

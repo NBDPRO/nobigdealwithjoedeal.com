@@ -85,7 +85,7 @@
       'js/sales-training.js?v=2'
     ],
     storm: [
-      'js/storm-center.js?v=5',
+      'js/storm-center.js?v=6',
       'js/storm-integration.js?v=2',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
@@ -132,7 +132,7 @@
       'js/money-dashboard.js?v=8'
     ],
     repos: [
-      'js/rep-os.js?v=3'
+      'js/rep-os.js?v=4'
     ],
     // Yard-sign tracker (2026-09-29): placements, photos, pickup dates +
     // reminders. Pure rules first so the view can use them at init.
@@ -181,7 +181,7 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=7',
+      'js/customer-documents.js?v=8',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -318,8 +318,8 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=13',
-      'js/d2d-tracker-ui-2026b.js?v=7',
+      'js/d2d-tracker-core-2026b.js?v=14',
+      'js/d2d-tracker-ui-2026b.js?v=8',
       'js/d2d-tracker-2026b.js?v=3'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf

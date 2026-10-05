@@ -9,7 +9,7 @@
 //      share sheet — and the builder stays on screen. A second send updates
 //      the same estimate instead of adding a copy.
 //   3. "Sign on this phone" on a Kentucky insurance job with NO email: the
-//      BoldSign button is hidden, and the accept page opens in-app with the
+//      e-mail e-sign button is hidden, and the accept page opens in-app with the
 //      signature pad, the KRS 367.624 notices and Call / Text buttons.
 //
 // Nothing is sent from the server: the createDealAcceptToken callable and
@@ -220,7 +220,7 @@ test.describe('phone close flow: send to homeowner + sign on this phone @shard2'
     });
   });
 
-  test('Kentucky insurance, no email: BoldSign hidden; Sign on this phone opens the accept page with the notices', async ({ page, context }) => {
+  test('Kentucky insurance, no email: e-mail e-sign hidden; Sign on this phone opens the accept page with the notices', async ({ page, context }) => {
     test.setTimeout(180_000);
     const token = 'tok-e2e-sign-' + Date.now();
     await signIn(page, token);

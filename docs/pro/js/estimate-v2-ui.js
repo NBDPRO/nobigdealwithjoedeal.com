@@ -23,9 +23,9 @@
   //
   // These were hardcoded `preparedBy: 'Joe Deal'` and `number: 'NBD-V2-' + …`.
   // Both reach paper a homeowner signs: formatEstimate() renders "Scope
-  // Prepared By" into the retail quote, and sendForSignature passes that HTML
-  // verbatim to BoldSign — so the executed instrument named the wrong
-  // contracting party. estimate-finalization.js already HAS the correct
+  // Prepared By" into the retail quote — the paper a homeowner signs (the
+  // e-sign path was a BoldSign send of that HTML until 2026-10-04) — so the
+  // executed instrument named the wrong contracting party. estimate-finalization.js already HAS the correct
   // non-NBD gate; it just never fired, because `est.preparedBy` was always
   // truthy and short-circuited it.
   //
@@ -951,6 +951,13 @@
       }
       .v2-ky-note[hidden], .v2-ky-contract[hidden] { display:none !important; }
       #estV2Modal .v2-ky-off { display:none !important; }
+      /* In-house e-sign (2026-10-04): optional co-owner, signs after the homeowner. */
+      .v2-cosign { display:grid; gap:6px; margin:4px 0 8px; }
+      .v2-cosign-lbl { font-size:11px; color:var(--m,#888); }
+      .v2-cosign-in {
+        width:100%; min-height:44px; box-sizing:border-box; padding:10px; border-radius:6px;
+        border:1px solid var(--br,#2a2f35); background:var(--s2,#181c22); color:var(--t,#e8eaf0); font:inherit; font-size:14px;
+      }
       #estV2Modal .v2-status-err { color:var(--red,#ff6b6b) !important; }
       </style>
 
@@ -1290,6 +1297,11 @@
           <button id="v2kyContractBtn" type="button" class="btn btn-ghost v2-ky-contract" data-action="ky-contract" hidden>
             📄 Generate contract (Kentucky notices)
           </button>
+          <div class="v2-cosign" id="v2cosign">
+            <label class="v2-cosign-lbl" for="v2coName">Co-owner signing too? (optional — signs after the homeowner)</label>
+            <input id="v2coName" class="v2-cosign-in" type="text" autocomplete="off" placeholder="Co-owner full name">
+            <input id="v2coEmail" class="v2-cosign-in" type="email" autocomplete="off" inputmode="email" placeholder="Co-owner email">
+          </div>
           <button id="v2signBtn" type="button" class="btn btn-ghost" data-action="send-for-signature"
             style="width:100%;justify-content:center;padding:12px;margin-bottom:6px;border-color:var(--orange,#BD5728);color:var(--orange,#BD5728);">
             ✍️ Send for Signature
@@ -1446,7 +1458,7 @@
           // Kentucky insurance job: the e-mail e-signature body has no KRS
           // 367.624 notices — sign on this phone (the deal page carries them).
           if (_kySigningBlocked()) signOnThisPhone();
-          else sendForSignature();
+          else sendForSignature({ inPerson: true });
           break;
         case 'load-preset':
           if (arg) loadPreset(arg);
@@ -1496,6 +1508,9 @@
           break;
         case 'send-for-signature':
           sendForSignature();
+          break;
+        case 'sign-copy':
+          _copySignLink();
           break;
         case 'set-category':
           setCategory(arg || 'all');
@@ -2834,7 +2849,7 @@
   // ═════════════════════════════════════════════════════════
   // Deposit (2026-09-25) — deposit-rule.js is the ONE answer. Every V2
   // surface (the builder's deposit line, the on-screen Retail / Single Quote,
-  // the server Retail Quote PDF, the BoldSign body, the saved doc the invoice
+  // the server Retail Quote PDF, the signed contract PDF, the saved doc the invoice
   // and portal read) takes it from here, computed on the estimate's all-in
   // customer total with the live claim fields. Before: an on-screen 50/50
   // fallback, a hard-coded 25% on the server PDF and a $0 insurance deposit.
@@ -2996,7 +3011,7 @@
   // Good/Better/Best side-by-side for the kitchen table: the rep hands
   // the phone over instead of reading numbers aloud. Tapping a tier IS
   // a real tier change (setTierChoice — same path as the Setup tabs),
-  // and "Sign Now" hands off to the existing BoldSign flow. Homeowner-
+  // and "Sign Now" opens the in-house signing page on this device. Homeowner-
   // clean: no margins, costs, or internal numbers anywhere.
   // ═════════════════════════════════════════════════════════
 
@@ -4785,8 +4800,8 @@
       const savedId = await window._saveEstimate(payload);
 
       if (savedId) {
-        // Expose the id so sendForSignature() can scope the BoldSign
-        // envelope metadata back to this estimate.
+        // Expose the id so sendForSignature() can send THIS estimate (the
+        // server builds the contract from the saved doc).
         window._v2SavedEstimateId = savedId;
         _savedIdOut = savedId;
         // F7: saved estimate → draft is obsolete.
@@ -4812,46 +4827,39 @@
   }
 
   // ═════════════════════════════════════════════════════════
-  // SEND FOR SIGNATURE — BoldSign via NBDIntegrations.
+  // SEND FOR SIGNATURE — in-house e-sign (BoldSign retired 2026-10-04).
   //
   // Flow:
-  //   1. Require an estimate with saved id (we need it to scope the
-  //      webhook callback). If the user hasn't saved yet, trigger
-  //      save() first to mint an estimateId.
-  //   2. Render a retail-quote format as the PDF body (that's what
-  //      homeowners sign — insurance scope is internal).
-  //   3. Call NBDIntegrations.sendForSignature with the HTML +
-  //      signer name/email from state.customer.
-  //   4. If the server returns an embedUrl, open it in the
-  //      NBDDocViewer iframe so the homeowner can sign inside the
-  //      app (no popup, no email bounce).
+  //   1. Save the estimate (a second tap UPDATES the same doc), because the
+  //      server builds the contract from the SAVED estimate — what is signed
+  //      is what the rep just built.
+  //   2. sendEstimateEnvelope (functions/esign-envelope.js) builds the
+  //      contract PDF with each signer's boxes placed, emails the homeowner
+  //      a single-use link (unless in person), and returns the link.
+  //   3. In person (Present → Sign Now): the signing page opens on THIS
+  //      device; the tab is opened inside the tap (Safari blocks it after an
+  //      await). Otherwise the link shows under the button to copy or open.
+  // The homeowner gets the signed PDF by email; the rep gets a bell, the
+  // estimate flips to signed, and the PDF files on the customer.
   // ═════════════════════════════════════════════════════════
-  async function sendForSignature() {
-    // Same hydration gate as finalize() — the retail-quote body sent for
-    // signature is rendered by the same synchronous formatters.
-    await _awaitBrandHydration();
-    const statusEl = document.getElementById('v2signStatus');
-    const btn = document.getElementById('v2signBtn');
-    const setStatus = (msg, color) => {
-      if (statusEl) {
-        statusEl.textContent = msg || '';
-        statusEl.style.color = color || 'var(--m,#8b8e96)';
-      }
-    };
+  let _signBusy = false;
+  let _lastSignLink = '';
+  async function sendForSignature(opts) {
+    const inPerson = !!(opts && opts.inPerson);
+    if (_signBusy) return 'busy';
+    const say = _statusSetter('v2signStatus');
+    const btn = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('v2signBtn') : null;
+    const closeTab = (w) => { if (w) { try { w.close(); } catch (_) {} } };
 
-    // Kentucky insurance job (2026-10-03): this sends the retail quote as a
-    // "Roofing Contract" with NO KRS 367.624 notices or cancellation form.
-    // Same test the contract notices use (ky-insurance-law.js classifyLead);
-    // the button is hidden for these jobs, and this refuses if reached anyway.
+    // Kentucky insurance job (2026-10-03): the e-sign contract carries no
+    // KRS 367.624 notices or KY cancellation form. Same test the contract
+    // notices use (ky-insurance-law.js classifyLead); the button is hidden
+    // for these jobs, this refuses if reached anyway, and the server refuses
+    // too (sendEstimateEnvelope).
     if (_kySigningBlocked()) {
-      setStatus(KY_SIGN_MSG, 'var(--red,#ff6b6b)');
+      say(KY_SIGN_MSG, 'error');
       if (typeof window.showToast === 'function') window.showToast(KY_SIGN_MSG, 'warning');
-      return;
-    }
-
-    if (!window.NBDIntegrations || typeof window.NBDIntegrations.sendForSignature !== 'function') {
-      setStatus('Integrations client not ready. Refresh and retry.', 'var(--red,#ff6b6b)');
-      return;
+      return 'ky';
     }
 
     // B2: if name/email missing and we have a linked lead, try to
@@ -4862,169 +4870,101 @@
     const customer = state.customer || {};
     const signerName  = (customer.name || '').trim();
     const signerEmail = (customer.email || '').trim().toLowerCase();
-    if (!signerName || !signerEmail || !signerEmail.includes('@')) {
-      setStatus('Customer name + email required — link this estimate to a lead with an email on file, or type them into the Customer panel.', 'var(--red,#ff6b6b)');
-      return;
+    if (!signerName) { say('Add the customer name (Customer step) first.', 'error'); return 'failed'; }
+    if (!inPerson && (!signerEmail || signerEmail.indexOf('@') === -1)) {
+      say('Customer email required to send the link — add it in the Customer panel, or use "Present" and Sign Now in person.', 'error');
+      return 'failed';
     }
+    const leadId = state.leadId || customer.leadId || null;
+    if (!leadId) { say('Link this estimate to a customer first — the signed contract is filed on the customer.', 'error'); return 'failed'; }
+    if (!effectiveEstimate()) { say('Add line items to the scope first.', 'error'); return 'failed'; }
 
-    // Make sure there's an estimate scope.
-    const estimate = getCurrentEstimate();
-    if (!estimate) {
-      setStatus('Add line items to the scope first.', 'var(--red,#ff6b6b)');
-      return;
-    }
-
-    if (btn) { btn.disabled = true; btn.textContent = '✍️ Preparing...'; }
-    setStatus('Saving estimate before signature...');
-
-    // Ensure the estimate is persisted — webhook needs a stable id.
-    let estimateId = window._v2SavedEstimateId || null;
-    if (!estimateId) {
-      try {
-        await save();
-        estimateId = window._v2SavedEstimateId || null;
-      } catch (e) { /* save() surfaces its own error */ }
-    }
-    if (!estimateId) {
-      if (btn) { btn.disabled = false; btn.textContent = '✍️ Send for Signature'; }
-      setStatus('Could not save estimate — resolve errors above.', 'var(--red,#ff6b6b)');
-      return;
-    }
-
-    // Render a retail-quote PDF body. This is what the homeowner sees.
-    if (!window.EstimateFinalization) {
-      if (btn) { btn.disabled = false; btn.textContent = '✍️ Send for Signature'; }
-      setStatus('Preview engine still loading — try again.', 'var(--red,#ff6b6b)');
-      return;
-    }
-    let result;
-    try {
-      _stampLineNotes(estimate);
-      result = window.EstimateFinalization.formatEstimate(estimate, 'retail-quote', {
-        customer,
-        claim: state.claim,
-        estimate: { number: await _v2EstNumber(estimateId), date: new Date().toISOString().split('T')[0], preparedBy: _v2PreparedBy() }
-      });
-    } catch (e) {
-      if (btn) { btn.disabled = false; btn.textContent = '✍️ Send for Signature'; }
-      setStatus('Preview render failed: ' + e.message, 'var(--red,#ff6b6b)');
-      return;
-    }
-    if (!result || typeof result.html !== 'string' || !result.html.length) {
-      if (btn) { btn.disabled = false; btn.textContent = '✍️ Send for Signature'; }
-      setStatus('Empty estimate body — nothing to sign.', 'var(--red,#ff6b6b)');
-      return;
-    }
-
-    setStatus('Sending to BoldSign...');
-    const send = await window.NBDIntegrations.sendForSignature({
-      estimateId,
-      html: result.html,
-      signerName,
-      signerEmail,
-      title: 'Roofing Contract — ' + (customer.address || 'NBD Estimate')
-    });
-
-    if (btn) { btn.disabled = false; btn.textContent = '✍️ Send for Signature'; }
-
-    if (!send || !send.ok) {
-      setStatus(send && send.error ? send.error : 'Send failed.', 'var(--red,#ff6b6b)');
-      return;
-    }
-
-    setStatus('✓ Sent to ' + signerEmail, 'var(--green, #2ecc8a)');
-
-    // If the server returned an embed URL, open it so the rep can
-    // hand the iPad over right now.
-    if (send.embedUrl && window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
-      // BoldSign loads cross-origin in the inner iframe. Brave Shields
-      // (and Firefox ETP strict) block this kind of embed by swapping
-      // in a same-origin block page — the iframe fires `load`, not
-      // `error`, so an onerror handler never catches it and the rep
-      // sees a tiny "blocked" notice instead of the signing UI.
-      //
-      // Same probe pattern as the Customer Portal preview (#499): after
-      // `load`, try iframe.contentWindow.location.href — SecurityError
-      // = real cross-origin success (hide overlay), accessible value =
-      // browser injected a block page (switch overlay to blocked state
-      // and show an "Open in new tab" CTA). 3.5s timeout safety net
-      // for browsers that fully cancel the navigation.
-      //
-      // The detection script lives INSIDE this srcdoc because
-      // NBDDocViewer's outer iframe is sandboxed without
-      // allow-same-origin (H-2), so a parent reach-in would itself
-      // SecurityError. A small "Open ↗" pin in the corner is always
-      // visible as a universal escape hatch regardless of probe outcome.
-      const escAttr = (s) => String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-      const safeUrl = escAttr(send.embedUrl);
-      const iframeHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:-apple-system,system-ui,'Barlow',sans-serif;}
-.nbd-wrap{position:relative;width:100vw;height:100vh;}
-.nbd-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff;}
-.nbd-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;background:#f7f8fb;color:#1a1f2a;text-align:center;z-index:1;}
-.nbd-spin{width:36px;height:36px;border-radius:50%;border:3px solid #e1e5ec;border-top-color:var(--orange,#BD5728);animation:nbdEsignSpin .9s linear infinite;}
-@keyframes nbdEsignSpin{to{transform:rotate(360deg);}}
-.nbd-cta{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:7px;background:var(--orange,#BD5728);color:#fff;text-decoration:none;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
-.nbd-pin{position:absolute;right:12px;bottom:12px;z-index:2;background:rgba(255,255,255,.92);color:#1a1f2a;border:1px solid #d8dde6;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.08);font-family:inherit;}
-</style></head><body>
-<div class="nbd-wrap">
-  <iframe class="nbd-frame" id="nbdEsignFrame" src="${safeUrl}"></iframe>
-  <div class="nbd-overlay" id="nbdEsignOverlay" data-state="loading">
-    <div data-loading style="display:flex;flex-direction:column;align-items:center;gap:14px;">
-      <div class="nbd-spin"></div>
-      <div style="font-size:13px;color:#5a6478;">Loading signature page…</div>
-    </div>
-    <div data-blocked style="display:none;flex-direction:column;align-items:center;gap:14px;">
-      <div style="font-size:32px;line-height:1;">🛡️</div>
-      <div style="font-size:14px;font-weight:700;max-width:340px;">Your browser blocked the embedded signature page</div>
-      <div style="font-size:12px;color:#5a6478;max-width:340px;line-height:1.45;">Privacy shields (Brave, Firefox strict mode) often block cross-origin embeds. Open the signing page in a new tab to finish.</div>
-      <a class="nbd-cta" href="${safeUrl}" target="_blank" rel="noopener">Open signing page ↗</a>
-    </div>
-  </div>
-  <a class="nbd-pin" href="${safeUrl}" target="_blank" rel="noopener" title="Open signing page in a new tab">Open ↗</a>
-</div>
-<script>(function(){
-  var iframe=document.getElementById('nbdEsignFrame');
-  var overlay=document.getElementById('nbdEsignOverlay');
-  var resolved=false;
-  function showBlocked(){
-    if(resolved)return; resolved=true;
-    if(!overlay)return;
-    overlay.setAttribute('data-state','blocked');
-    var l=overlay.querySelector('[data-loading]');
-    var b=overlay.querySelector('[data-blocked]');
-    if(l)l.style.display='none';
-    if(b)b.style.display='flex';
-  }
-  function hideOverlay(){
-    if(resolved)return; resolved=true;
-    if(overlay)overlay.style.display='none';
-  }
-  if(iframe){
-    iframe.addEventListener('load',function(){
-      try{
-        var _probe=iframe.contentWindow.location.href;
-        showBlocked();
-      }catch(_){
-        hideOverlay();
+    // Optional co-owner (signs after the homeowner, on their own link).
+    const signers = [{ name: signerName, email: signerEmail }];
+    const coEl = (id) => (typeof document !== 'undefined' && document.getElementById) ? document.getElementById(id) : null;
+    const coName = ((coEl('v2coName') || {}).value || '').trim();
+    const coEmail = ((coEl('v2coEmail') || {}).value || '').trim().toLowerCase();
+    if (coName || coEmail) {
+      if (!coName || (!inPerson && coEmail.indexOf('@') === -1)) {
+        say('Co-owner needs a name and an email (or clear both).', 'error');
+        return 'failed';
       }
-    });
-    iframe.addEventListener('error',showBlocked);
-  }
-  setTimeout(showBlocked,3500);
-})();</script>
-</body></html>`;
-      // Tenant-resolved prefix — this is the signing surface the homeowner sees.
-      const _sigBase = 'Signature-' + estimateId + '.pdf';
-      const _sigName = window._tenantFileName ? await window._tenantFileName(_sigBase) : _sigBase;
-      window.NBDDocViewer.open({
-        html: iframeHtml,
-        title: 'Sign Contract — ' + (customer.address || ''),
-        filename: _sigName
-      });
+      signers.push({ name: coName, email: coEmail });
     }
+
+    let w = null;
+    if (inPerson) { try { w = (typeof window.open === 'function') ? window.open('', '_blank') : null; } catch (_) { w = null; } }
+    _signBusy = true;
+    if (btn) btn.disabled = true;
+    try {
+      // 1. Save — re-sending the same estimate updates it instead of adding a copy.
+      say('Saving the estimate…');
+      let pinned = null;
+      if (window._v2SavedEstimateId && !window._editingEstimateId) {
+        pinned = window._v2SavedEstimateId;
+        window._editingEstimateId = pinned;
+      }
+      let estimateId = null;
+      try { estimateId = await save(); }
+      finally { if (pinned && window._editingEstimateId === pinned) window._editingEstimateId = null; }
+      if (!estimateId) { closeTab(w); say('The estimate did not save — nothing was sent.', 'error'); return 'failed'; }
+
+      // 2. Send.
+      say(inPerson ? 'Preparing the contract…' : 'Sending the contract…');
+      if (!window._functions || !window._httpsCallable) {
+        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        window._functions = mod.getFunctions();
+        window._httpsCallable = mod.httpsCallable;
+      }
+      let data = null;
+      try {
+        const fn = window._httpsCallable(window._functions, 'sendEstimateEnvelope');
+        const r = await fn({ estimateId, signers, sendEmail: !inPerson });
+        data = (r && r.data) || null;
+      } catch (e) {
+        closeTab(w);
+        say((e && e.message) || 'Could not send for signature — try again.', 'error');
+        return 'failed';
+      }
+      if (!data || !data.ok || !data.link) { closeTab(w); say('Could not send for signature — try again.', 'error'); return 'failed'; }
+      _lastSignLink = data.link;
+      _renderSignBox(data.link);
+
+      // 3. Hand-off.
+      if (inPerson) {
+        if (w && !w.closed) {
+          try { w.location.href = data.link; say('Signing page open — hand the phone to the homeowner.', 'ok'); return 'opened'; }
+          catch (_) { /* fall through to the link below */ }
+        }
+        say('Tap "Sign on this device", then hand the phone to the homeowner.', 'ok');
+        return 'link';
+      }
+      say(data.emailed ? '✓ Sent to ' + signerEmail + ' — you will get a bell when it is signed.'
+        : 'Link ready — the email did not go out. Copy the link below and text it.', data.emailed ? 'ok' : 'error');
+      if (typeof window.showToast === 'function') window.showToast(data.emailed ? 'Contract sent for signature' : 'Signing link ready', data.emailed ? 'success' : 'warning');
+      return data.emailed ? 'sent' : 'link';
+    } finally {
+      _signBusy = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  // The signing link under the E-Signature button: open it here (in person)
+  // or copy it to text. Plain controls — each tap is a fresh user gesture.
+  function _renderSignBox(link) {
+    const box = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('v2shareBox') : null;
+    if (!box || !link) return;
+    box.innerHTML =
+      '<a class="v2-share-act" target="_blank" rel="noopener" href="' + _escAttr(link) + '">📱 Sign on this device</a>' +
+      '<button type="button" class="v2-share-act" data-action="sign-copy">📋 Copy signing link</button>' +
+      '<div class="v2-share-url">' + _escAttr(link) + '</div>';
+    box.hidden = false;
+  }
+  async function _copySignLink() {
+    if (!_lastSignLink) return;
+    let okCopy = false;
+    try { await navigator.clipboard.writeText(_lastSignLink); okCopy = true; } catch (_) { okCopy = false; }
+    if (window.showToast) window.showToast(okCopy ? 'Signing link copied' : 'Link ready — copy it from below', okCopy ? 'success' : 'info');
   }
 
   // ═════════════════════════════════════════════════════════
@@ -5289,13 +5229,13 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
   // ═════════════════════════════════════════════════════════
   // KENTUCKY SIGNING GATE (2026-10-03)
   //
-  // "Send for Signature" (BoldSign) sends the retail quote titled "Roofing
-  // Contract" with none of the KRS 367.624 insurance-job notices or the
-  // cancellation form — those live only on the deal page and the generated
-  // contract. On a Kentucky insurance job (the SAME test the contract notices
+  // "Send for Signature" (in-house e-sign since 2026-10-04; BoldSign before)
+  // sends a "Roofing Contract" PDF with none of the KRS 367.624 insurance-job
+  // notices or the KY cancellation form — those live only on the deal page
+  // and the generated contract. On a Kentucky insurance job (the SAME test the contract notices
   // use: ky-insurance-law.js classifyLead — Kentucky address/ZIP, or an
-  // insurance job whose state can't be read; fail closed) the BoldSign button
-  // is hidden and refuses, and the rep is routed to "Sign on this phone" (the
+  // insurance job whose state can't be read; fail closed) the e-sign button
+  // is hidden and refuses (the server refuses too), and the rep is routed to "Sign on this phone" (the
   // deal page) or the generated contract, which both carry the notices.
   // ═════════════════════════════════════════════════════════
   const KY_SIGN_MSG = 'Kentucky insurance job: e-mail e-signature does not include the KRS 367.624 notices. ' +
@@ -5338,6 +5278,8 @@ html,body{margin:0;padding:0;height:100%;width:100%;background:#fff;font-family:
     const blocked = _kySigningBlocked();
     const sign = document.getElementById('v2signBtn');
     if (sign && sign.classList) sign.classList.toggle('v2-ky-off', blocked);
+    const co = document.getElementById('v2cosign');
+    if (co && co.classList) co.classList.toggle('v2-ky-off', blocked);
     const note = document.getElementById('v2kyNote');
     if (note) note.hidden = !blocked;
     const kc = document.getElementById('v2kyContractBtn');

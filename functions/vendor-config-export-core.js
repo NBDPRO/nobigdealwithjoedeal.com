@@ -1,6 +1,6 @@
 /**
  * functions/vendor-config-export-core.js — pull the config that lives ONLY at a
- * vendor (Bland "Thursday", Cal.com, BoldSign, Stripe catalog) into JSON, with
+ * vendor (Bland "Thursday", Cal.com, Stripe catalog) into JSON, with
  * every token-looking string scrubbed, ready to upload to the PRIVATE bucket
  * gs://nobigdeal-pro-vendor-backups/vendor-config/YYYY-MM-DD/.
  *
@@ -111,7 +111,6 @@ function listOf(j, keys) {
 const VENDOR_SECRETS = {
   bland: 'BLAND_API_KEY',
   calcom: 'CALCOM_API_KEY',
-  boldsign: 'BOLDSIGN_API_KEY',
   stripe: 'STRIPE_SECRET_KEY',
 };
 // Not used to call anything — loaded only so its literal is scrubbed (the
@@ -227,14 +226,8 @@ async function collectVendorConfig(opts) {
     vendors.calcom = 'skipped: CALCOM_API_KEY not set (create a Cal.com API key and store it in Secret Manager)';
   }
 
-  // ── BoldSign (templates) ────────────────────────────────────────────
-  if (keys.boldsign) {
-    vendors.boldsign = 'exported';
-    await get('boldsign', 'boldsign/templates.json',
-      'https://api.boldsign.com/v1/template/list?PageSize=100&Page=1', { 'X-API-KEY': keys.boldsign });
-  } else {
-    vendors.boldsign = 'skipped: BOLDSIGN_API_KEY not set';
-  }
+  // (BoldSign templates were exported here until BoldSign was retired
+  // 2026-10-04 for the in-house e-sign; its secret is no longer bound.)
 
   // ── Stripe catalog config (not customer data) ───────────────────────
   if (keys.stripe) {

@@ -72,7 +72,7 @@ group('Phones collapse the bar instead of surrendering the screen', () => {
 
 group('The module is loaded, CSP-clean, and decides membership safely', () => {
   assert('customer.html loads customer-quick-actions.js with defer',
-    /<script defer src="js\/customer-quick-actions\.js\?v=1"><\/script>/.test(HTML));
+    /<script defer src="js\/customer-quick-actions\.js\?v=\d+"><\/script>/.test(HTML));
   assert('module has no inline handler and uses a data-action toggle',
     /setAttribute\('data-action', 'toggleQuickActions'\)/.test(MOD));
   assert('the toggle function is on window for the delegate to resolve',

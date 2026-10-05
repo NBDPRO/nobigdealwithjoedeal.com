@@ -522,8 +522,8 @@
   /* Print stylesheet (2026-09-16). A homeowner's real use case: handing an
      insurance adjuster a paper copy. Without this, the page printed as-is
      — interactive controls and all — which meant 6 pages, most of them
-     blank boxes, because a cross-origin iframe (the BoldSign/Cal.com
-     embeds) doesn't rasterize in browser print at all. nbd-brand.css
+     blank boxes, because a cross-origin iframe (the Cal.com embed; the
+     BoldSign one was retired 2026-10-04) doesn't rasterize in browser print at all. nbd-brand.css
      already swaps the color tokens for toner savings on print; this adds
      the missing LAYOUT half: strip everything a homeowner can't act on
      once it's on paper (embeds, buttons, form controls, the sandboxed
@@ -588,6 +588,6 @@
 <!-- Arrival-window wording for the install-date line (2026-09-29). Pure, no
      Firebase; before portal.js, which reads window.NBDScheduleWindow. -->
 <script defer src="js/schedule-window.js?v=2"></script>
-<script src="js/portal.js?v=7" defer></script>
+<script src="js/portal.js?v=8" defer></script>
 </body>
 </html>

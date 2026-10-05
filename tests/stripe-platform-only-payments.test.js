@@ -34,7 +34,7 @@
  *   Part 3 — the client capability mirror fails closed, caches only definitive
  *            answers, and an invoice is never lost because a link failed.
  *   Part 4 — the OTHER homeowner→contractor path (esign C5 auto-invoices) is
- *            STILL platform-only; phase 3 deliberately did not port it.
+ *            GONE: it lived in the BoldSign webhook, retired 2026-10-04.
  *
  * Zero deps.  Run: node tests/stripe-platform-only-payments.test.js
  */
@@ -440,75 +440,27 @@ console.log('STRIPE — where homeowner money lands: confinement + the three-way
     'a field nobody writes renders a button nobody can click');
 }
 
-// ── Part 4: the OTHER homeowner→contractor path is gated too ──────────
-// UNCHANGED BY PHASE 3, deliberately: phase 3 lifted the payment-link gate but
-// did NOT port C5 — tenant esign auto-invoices stay platform-only, because a
-// paid hosted invoice carries no invoiceId metadata and would never credit the
-// CRM ledger (see the Stripe Connect runbook, kept outside this repo, and the note in esign.js).
-// So every assertion below still asserts what it always did.
-// Found while scoping Connect (2026-07-29): createStripePaymentLink was gated
-// by #1123, but functions/integrations/esign.js createStripeInvoiceForEstimate
-// — which runs from the BoldSign signature webhook on every signed estimate —
-// had NO tenant check at all. It creates a Stripe CUSTOMER for the homeowner and
-// an INVOICE on the PLATFORM account. Nothing is charged (the invoice is a draft:
-// auto_advance:false + collection_method:'send_invoice'), but for a non-platform
-// tenant it still parks their homeowner's PII and their job amount in our
-// dashboard, one "send" click from collecting another business's money.
+// ── Part 4: the OTHER homeowner→contractor path — retired (2026-10-04) ──
+// C5 (createStripeInvoiceForEstimate) drafted a Stripe invoice on the PLATFORM
+// account from the BoldSign signature webhook, gated platform-only by this
+// suite since 2026-07-29. The webhook never had a secret, so C5 never ran; it
+// was deleted with BoldSign rather than ported to in-house signing (no
+// idempotency key, its only guard written last — STABILITY-AUDIT-2026-09-04 —
+// and the invoice pipeline already bills a signed estimate). Pinned here so a
+// signing path cannot quietly start minting platform-account Stripe objects for
+// another tenant's homeowner again.
 {
-  const e = decomment(read('functions/integrations/esign.js'));
-
-  ok('esign auto-invoice resolves the tenant from the estimate (no token in a webhook)',
-    /const ownerUid = est\.userId \|\| null;/.test(e) && /const companyId = est\.companyId \|\| null;/.test(e),
-    'the BoldSign webhook has no decoded token, so the gate must read the estimate');
-
-  ok('esign auto-invoice computes the platform check',
-    /const isPlatform = ownerUid === NBD_OWNER_UID \|\| companyId === NBD_OWNER_UID;/.test(e));
-
-  // The refusal must RETURN. "Warn and continue" is the explicitly forbidden
-  // shape (see the block comment in stripe.js): minting the customer/invoice IS
-  // the act, and a log line nobody reads does not change where the money can go.
-  // Scoped to the text BETWEEN the gate and the first Stripe call — a loose
-  // whole-file window matches an unrelated later `return;` and passes over a
-  // deleted one (verified by mutation).
-  {
-    // Brace-match the gate's OWN block. Anything looser passes over a deleted
-    // return by matching an unrelated one — a whole-file window matched a later
-    // return, and a gate→first-Stripe-call window matched the adjacent
-    // `if (!signerEmail) { … return; }`. Both verified by mutation.
-    const gateAt = e.indexOf('if (!isPlatform) {');
-    let block = '';
-    if (gateAt !== -1) {
-      const open = e.indexOf('{', gateAt);
-      let depth = 0;
-      for (let i = open; i < e.length; i++) {
-        if (e[i] === '{') depth++;
-        else if (e[i] === '}') { depth--; if (depth === 0) { block = e.slice(open, i + 1); break; } }
-      }
-    }
-    ok('the non-platform branch RETURNS (never warn-and-continue)',
-      gateAt !== -1 && block !== '' && /\breturn;/.test(block),
-      'the refusal block must return; a log line nobody reads does not stop the Stripe writes');
+  const fnDir = path.join(__dirname, '..', 'functions');
+  const files = fs.readdirSync(fnDir).filter((f) => f.endsWith('.js'));
+  const c5 = files.filter((f) => /createStripeInvoiceForEstimate/.test(fs.readFileSync(path.join(fnDir, f), 'utf8')));
+  ok('no function still defines or calls createStripeInvoiceForEstimate (C5)', c5.length === 0, c5.join(', '));
+  ok('the BoldSign webhook module that ran C5 is gone',
+    !fs.existsSync(path.join(fnDir, 'integrations', 'esign.js')));
+  for (const f of ['esign-envelope.js', 'esign-io.js', 'esign-reminders.js']) {
+    const s = decomment(read('functions/' + f));
+    ok(f + ' touches no Stripe API (signing never mints platform customers or invoices)',
+      !/require\(['"]stripe['"]\)/.test(s) && !/stripe\.(customers|invoices|invoiceItems)\./.test(s));
   }
-
-  // Order matters: the refusal has to precede the Stripe calls, exactly like the
-  // payment-link gate. A check placed after the customer create would still
-  // leave their homeowner on our account.
-  const gateIdx = e.indexOf('const isPlatform = ownerUid === NBD_OWNER_UID');
-  const custIdx = e.indexOf('stripe.customers.search');
-  const invIdx = e.indexOf('stripe.invoices.create');
-  ok('the gate sits BEFORE the customer search and the invoice create',
-    gateIdx !== -1 && custIdx !== -1 && invIdx !== -1 && gateIdx < custIdx && gateIdx < invIdx,
-    `gate@${gateIdx} customers.search@${custIdx} invoices.create@${invIdx}`);
-
-  // stripe.js keeps isPlatformTenant() private (it takes a decoded token), so
-  // esign.js re-reads the same env override. The two defaults must not drift —
-  // a mismatch would silently gate the platform owner out of our own invoicing,
-  // or let a tenant through.
-  const s = read('functions/stripe.js');
-  const grab = (src) => (src.match(/NBD_OWNER_UID \|\| '([^']+)'/) || [])[1] || null;
-  ok('esign.js and stripe.js resolve the SAME platform owner uid',
-    grab(s) && grab(e) && grab(s) === grab(e),
-    `stripe.js=${grab(s)} esign.js=${grab(e)}`);
 }
 
 console.log('\n──────────────────────────────');
