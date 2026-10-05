@@ -434,6 +434,8 @@ const VERDICTS = {
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
   // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.
   createEstimateReviewLink: 'refused', recordEstimateShared: 'refused', freshEstimateLink: 'refused',
+  // Job-day weather (production flow, 2026-10-04): owner-only via requireOwner, like the other Google-calendar callables.
+  getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
@@ -448,10 +450,16 @@ const VERDICTS = {
   revokeMySessions: 'self', revokePortalToken: 'refused', rotateAccessCodes: 'role-gated',
   runMigrations: 'role-gated', saveEsignFields: 'refused', sendEsignEnvelope: 'refused',
   sendEstimateForSignature: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
-  setSiteSlug: 'role-gated', trackUsage: 'refused', transcribeVoiceMemo: 'refused',
+  setSiteSlug: 'role-gated',
+  // Publish my site (2026-10-04): requireTeamAdmin ownerOnly — owner / platform admin.
+  publishTenantSite: 'role-gated',
+  trackUsage: 'refused', transcribeVoiceMemo: 'refused',
   updateUserRole: 'role-gated', validateAccessCode: 'public', verifyCode: 'public',
-  // Bot keys (agent-mcp.js requireKeyAdmin refuses viewer / sales_rep).
-  createAgentKey: 'role-gated', listAgentKeys: 'role-gated', revokeAgentKey: 'role-gated',
+  // Bot keys (agent-mcp.js requireKeyAdmin refuses viewer / sales_rep). Since
+  // 2026-10-04 anyone may list and revoke their OWN keys (personal tracker
+  // keys); company bots, keys for them and the bot settings stay owner/admin.
+  createAgentKey: 'role-gated', listAgentKeys: 'self', revokeAgentKey: 'self',
+  saveAgentBot: 'role-gated', deleteAgentBot: 'role-gated', saveAgentSettings: 'role-gated',
   voidEsignEnvelope: 'refused',
   // Thursday (Bland receptionist, #1783/#1787, classified when #1780 landed
   // 2026-09-27): the recording stream reads only; the inbox action refuses
