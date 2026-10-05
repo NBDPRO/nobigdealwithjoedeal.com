@@ -34,8 +34,9 @@
   letter-spacing: .05em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all .15s;
+  transition: background-color var(--ui-dur-hover) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease);
 }
+.ui-seg:hover:not(.is-on) { border-color: var(--ui-line-strong); color: var(--t); }
 .ui-seg.ui-seg-tall { padding: 9px 8px; }
 /* The Comfort "Text size" choices preview their own size. */
 .ui-seg.ui-seg-text-sm { font-size: 10px; }
@@ -125,9 +126,11 @@
 .ui-modal-title { margin-bottom: 20px; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; }
 .ui-sec-title { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; color: var(--t); margin-bottom: 6px; }
 /* Large choice card (a button that picks a path). */
-.ui-choice { text-align: left; background: var(--s2); border: 1px solid var(--br); border-radius: 12px; padding: 18px; cursor: pointer; color: var(--t); font-family: inherit; transition: border-color .15s, transform .08s; }
+.ui-choice { text-align: left; background: var(--s2); border: 1px solid var(--br); border-radius: 12px; padding: 18px; cursor: pointer; color: var(--t); font-family: inherit; transition: border-color var(--ui-dur-hover) var(--ui-ease), box-shadow var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease); }
+.ui-choice:hover { border-color: var(--ui-line-strong); box-shadow: var(--ui-elev-2); }
 /* Outline pill button. */
-.ui-pill { padding: 6px 10px; min-height: 36px; border: 1px solid var(--br); border-radius: 999px; background: transparent; color: var(--t); font-size: 12px; cursor: pointer; }
+.ui-pill { padding: 6px 10px; min-height: 36px; border: 1px solid var(--br); border-radius: 999px; background: transparent; color: var(--t); font-size: 12px; cursor: pointer; transition: border-color var(--ui-dur-hover) var(--ui-ease), background-color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease); }
+.ui-pill:hover { border-color: var(--ui-line-strong); background: color-mix(in srgb, var(--t) 5%, transparent); }
 /* Plain (not small-caps) label above a field. */
 .ui-label-plain { font-size: 11px; color: var(--m); font-weight: 600; display: block; margin-bottom: 4px; }
 /* Modal form fields (product editor). The surface is the shared .ui-input
@@ -187,3 +190,226 @@
 
 /* A date of loss picked from NWS storm reports — to confirm (claim-core.js). */
 .dol-suggested { color: var(--gold, #f59e0b); font-size: 11px; font-weight: 600; }
+
+/* ═══ FOUNDATION (A1, 2026-10-05) ════════════════════════════════════════
+ * The shared layer every rep-dashboard screen and every theme reads: a type
+ * ramp, a 4/8 spacing rhythm, an elevation ladder, radii, hairlines, a focus
+ * ring and motion tokens. DESIGN.md → "Foundation tokens" and "Motion" are
+ * the rules for using them.
+ *
+ * Every new token is prefixed --ui- (the --nbd-* family belongs to the
+ * customer-facing brand sheet, the --r-* / --elevation-* role tokens to
+ * Settings > Appearance > Shape). Colour comes ONLY from the theme's own
+ * tokens (--t, --bg, --s*, --orange, --green …) through color-mix, so all
+ * ~186 themes, light and dark, inherit this without a per-theme line.
+ * Shadow ink is derived from --bg: near-black on a dark theme, a mid grey on
+ * a light one, so one ladder reads right in both modes (customer.html has no
+ * ThemeEngine and never stamps data-mode, so nothing here keys off it).
+ *
+ * Global rules here use :where() (zero specificity): they fill in only what
+ * no component decided, so no existing screen is overridden by accident.
+ */
+:root {
+  /* Type ramp. Display/title use the condensed brand face; everything a rep
+     reads in a sentence uses Barlow. Line-heights tighten as size grows. */
+  --ui-font-display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+  --ui-font-body: 'Barlow', system-ui, sans-serif;
+  --ui-fs-display: 28px;  --ui-lh-display: 1.1;  --ui-ls-display: .005em;
+  --ui-fs-title: 20px;    --ui-lh-title: 1.2;    --ui-ls-title: .01em;
+  --ui-fs-heading: 16px;  --ui-lh-heading: 1.3;
+  --ui-fs-body: 14px;     --ui-lh-body: 1.45;
+  --ui-fs-body-sm: 13px;  --ui-lh-body-sm: 1.4;
+  --ui-fs-caption: 12px;  --ui-lh-caption: 1.35;
+  --ui-fs-label: 11px;    --ui-ls-label: .07em;   /* small caps: 1–3 words only */
+  --ui-fs-num-lg: 28px;   --ui-fs-num: 20px;      /* the one number that matters */
+  --ui-fw-regular: 400; --ui-fw-medium: 500; --ui-fw-semibold: 600; --ui-fw-bold: 700; --ui-fw-heavy: 800;
+
+  /* Spacing rhythm (4/8). Inside a component: 4·8·12. Between components:
+     16·24. Between sections: 32·48. Never one value everywhere. */
+  --ui-space-1: 4px;  --ui-space-2: 8px;   --ui-space-3: 12px; --ui-space-4: 16px;
+  --ui-space-5: 20px; --ui-space-6: 24px;  --ui-space-8: 32px; --ui-space-10: 40px;
+  --ui-space-12: 48px;
+
+  /* Radii: one per role, not per screen. */
+  --ui-radius-xs: 4px;    /* badges, counts */
+  --ui-radius-sm: 6px;    /* chips, inputs, small buttons */
+  --ui-radius-md: 8px;    /* buttons, cards */
+  --ui-radius-lg: 12px;   /* panels, sheets, hero cards */
+  --ui-radius-pill: 999px;
+
+  /* Lines: a hairline separates items inside a card; a divider separates
+     groups; strong is for a hovered/selected edge. */
+  --ui-line-hair: color-mix(in srgb, var(--t, #e8eaf0) 8%, transparent);
+  --ui-line-divider: color-mix(in srgb, var(--t, #e8eaf0) 13%, transparent);
+  --ui-line-strong: color-mix(in srgb, var(--t, #e8eaf0) 24%, transparent);
+
+  /* Elevation ladder (theme-aware: the ink follows --bg).
+     0 flat · 1 resting card · 2 raised/hover/popover · 3 sheet/modal. */
+  --ui-shadow-ink: color-mix(in srgb, var(--bg, #0a0c0f) 30%, black);
+  --ui-elev-0: 0 0 transparent;
+  --ui-elev-1: 0 1px 2px color-mix(in srgb, var(--ui-shadow-ink) 22%, transparent),
+               0 2px 6px -2px color-mix(in srgb, var(--ui-shadow-ink) 18%, transparent);
+  --ui-elev-2: 0 2px 4px color-mix(in srgb, var(--ui-shadow-ink) 18%, transparent),
+               0 8px 20px -6px color-mix(in srgb, var(--ui-shadow-ink) 32%, transparent);
+  --ui-elev-3: 0 4px 10px color-mix(in srgb, var(--ui-shadow-ink) 20%, transparent),
+               0 24px 56px -12px color-mix(in srgb, var(--ui-shadow-ink) 48%, transparent);
+  /* A 1px top-edge light on raised dark surfaces (invisible on light ones). */
+  --ui-edge-light: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+
+  /* Focus: the accent pulled toward the text colour, so it clears 3:1 on
+     both dark and light surfaces (plain #BD5728 on navy is ~2.5:1). */
+  --ui-focus: color-mix(in srgb, var(--orange, #BD5728) 60%, var(--t, #e8eaf0));
+  --ui-focus-ring: 0 0 0 2px var(--bg, #0a0c0f), 0 0 0 4px var(--ui-focus);
+
+  /* Motion. Durations by job, not by whim. Easing: standard for state
+     changes, enter (decelerate) for things arriving, exit (accelerate) for
+     things leaving. No bounce/overshoot on working UI. */
+  --ui-dur-press: 80ms;     /* :active scale */
+  --ui-dur-hover: 140ms;    /* colour, border, shadow on hover/focus */
+  --ui-dur-enter: 220ms;    /* a card, row or panel arriving */
+  --ui-dur-exit: 160ms;     /* leaving is faster than arriving */
+  --ui-dur-sheet: 300ms;    /* sheets, drawers, route changes */
+  --ui-dur-reorder: 200ms;  /* list re-sort / row move */
+  --ui-ease: cubic-bezier(.2, 0, 0, 1);
+  --ui-ease-enter: cubic-bezier(0, 0, .2, 1);
+  --ui-ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --ui-press-scale: .97;
+  --ui-enter-y: 6px;
+  --ui-stagger: 30ms;
+}
+/* Default shape (no data-shape, or "sharp"): resting cards sit on elevation
+   1 instead of floating flat on the page. Every named Shape preset keeps its
+   own values (it sets these on a matching :root[data-shape="…"]). */
+:root:not([data-shape]),
+:root[data-shape="sharp"] {
+  --elevation-card: var(--ui-elev-1), var(--ui-edge-light);
+  --elevation-card-hover: var(--ui-elev-2), var(--ui-edge-light);
+}
+/* The shared card surfaces that never read --elevation-card get the same
+   resting lift. :where() keeps it zero-specificity: a card that declares its
+   own box-shadow (hover glows, aging accents, a skin) keeps it. */
+:where(:root:not([data-shape]), :root[data-shape="sharp"]) :where(.w-card, .stat-card, .ui-card, .ui-stat, .ui-stat-box, .ui-tile, .tp, .cl-card, .panel) {
+  box-shadow: var(--ui-elev-1), var(--ui-edge-light);
+}
+/* Reduced motion — the OS setting and the app's own Comfort switch both
+   collapse every duration and the press/enter travel. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ui-dur-press: 0ms; --ui-dur-hover: 0ms; --ui-dur-enter: 0ms; --ui-dur-exit: 0ms;
+    --ui-dur-sheet: 0ms; --ui-dur-reorder: 0ms; --ui-press-scale: 1; --ui-enter-y: 0px; --ui-stagger: 0ms;
+  }
+}
+:root[data-motion="reduce"] {
+  --ui-dur-press: 0ms; --ui-dur-hover: 0ms; --ui-dur-enter: 0ms; --ui-dur-exit: 0ms;
+  --ui-dur-sheet: 0ms; --ui-dur-reorder: 0ms; --ui-press-scale: 1; --ui-enter-y: 0px; --ui-stagger: 0ms;
+}
+
+/* ── Global craft (zero specificity: components that decided keep theirs) ── */
+:where(body) { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+::selection { background: color-mix(in srgb, var(--orange, #BD5728) 32%, transparent); }
+/* Numbers line up: money, counts and table cells use tabular figures. */
+:where(td, th, .ui-num, .ui-money, .ui-stat, .ui-stat-box, .ui-count, .ui-kv, .ui-badge, .stat-card, [data-money]) { font-variant-numeric: tabular-nums; }
+/* One keyboard focus ring for everything that didn't define its own. */
+:where(a[href], button, summary, select, input, textarea, [role="button"], [role="tab"], [role="menuitem"], [role="switch"], [role="checkbox"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+/* Press feedback for every button with no transform of its own. */
+:where(button, [role="button"], .ui-seg, .ui-pill, .ui-choice, .ui-chip):active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(var(--ui-press-scale));
+}
+
+/* ── Type primitives ── */
+.ui-display { font-family: var(--ui-font-display); font-size: var(--ui-fs-display); line-height: var(--ui-lh-display); letter-spacing: var(--ui-ls-display); font-weight: var(--ui-fw-heavy); color: var(--t); }
+.ui-title { font-family: var(--ui-font-display); font-size: var(--ui-fs-title); line-height: var(--ui-lh-title); letter-spacing: var(--ui-ls-title); font-weight: var(--ui-fw-bold); color: var(--t); }
+.ui-heading { font-family: var(--ui-font-body); font-size: var(--ui-fs-heading); line-height: var(--ui-lh-heading); font-weight: var(--ui-fw-bold); color: var(--t); }
+.ui-body { font-family: var(--ui-font-body); font-size: var(--ui-fs-body); line-height: var(--ui-lh-body); font-weight: var(--ui-fw-regular); color: var(--t); }
+.ui-body-sm { font-size: var(--ui-fs-body-sm); line-height: var(--ui-lh-body-sm); }
+.ui-caption { font-size: var(--ui-fs-caption); line-height: var(--ui-lh-caption); color: var(--m); }
+.ui-eyebrow { font-family: var(--ui-font-body); font-size: var(--ui-fs-label); line-height: 1.2; font-weight: var(--ui-fw-bold); letter-spacing: var(--ui-ls-label); text-transform: uppercase; color: var(--m); }
+.ui-num { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.ui-money { font-variant-numeric: tabular-nums; letter-spacing: -.01em; font-weight: var(--ui-fw-bold); }
+.ui-num-lg { font-family: var(--ui-font-display); font-size: var(--ui-fs-num-lg); line-height: 1; font-weight: var(--ui-fw-heavy); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+
+/* ── Surface primitives ── */
+.ui-surface { background: var(--s); border: 1px solid var(--ui-line-hair); border-radius: var(--r-card, var(--ui-radius-md)); box-shadow: var(--elevation-card, var(--ui-elev-1)); }
+.ui-surface-raised { background: var(--s2); border: 1px solid var(--ui-line-divider); border-radius: var(--ui-radius-lg); box-shadow: var(--ui-elev-2), var(--ui-edge-light); }
+.ui-hairline { border: 0; border-top: 1px solid var(--ui-line-hair); margin: 0; }
+.ui-divider { border: 0; border-top: 1px solid var(--ui-line-divider); margin: var(--ui-space-4) 0; }
+
+/* ── Badges and chips ── */
+.ui-badge { display: inline-flex; align-items: center; gap: var(--ui-space-1); padding: 2px 7px; border-radius: var(--ui-radius-xs); font-size: var(--ui-fs-label); font-weight: var(--ui-fw-bold); line-height: 1.35; letter-spacing: .02em; background: color-mix(in srgb, var(--t) 8%, transparent); color: var(--m); white-space: nowrap; }
+.ui-badge.is-accent { background: color-mix(in srgb, var(--orange) 16%, transparent); color: color-mix(in srgb, var(--orange) 35%, var(--t)); }
+.ui-badge.is-success { background: color-mix(in srgb, var(--green) 15%, transparent); color: color-mix(in srgb, var(--green) 35%, var(--t)); }
+.ui-badge.is-warn { background: color-mix(in srgb, var(--gold) 16%, transparent); color: color-mix(in srgb, var(--gold) 35%, var(--t)); }
+.ui-badge.is-danger { background: color-mix(in srgb, var(--red) 15%, transparent); color: color-mix(in srgb, var(--red) 35%, var(--t)); }
+.ui-badge.is-info { background: color-mix(in srgb, var(--blue) 15%, transparent); color: color-mix(in srgb, var(--blue) 35%, var(--t)); }
+.ui-chip { display: inline-flex; align-items: center; gap: var(--ui-space-1); min-height: 32px; padding: 0 var(--ui-space-3); border: 1px solid var(--ui-line-divider); border-radius: var(--ui-radius-pill); background: transparent; color: var(--t); font: inherit; font-size: var(--ui-fs-caption); font-weight: var(--ui-fw-semibold); cursor: pointer; transition: background-color var(--ui-dur-hover) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease); }
+.ui-chip:hover { border-color: var(--ui-line-strong); background: color-mix(in srgb, var(--t) 5%, transparent); }
+.ui-chip.is-on { background: color-mix(in srgb, var(--orange) 16%, transparent); border-color: color-mix(in srgb, var(--orange) 60%, transparent); color: var(--t); }
+
+/* ── Buttons: a quiet third tier under .btn-orange (primary) and .btn-ghost
+   (secondary). One primary per region; everything else steps down. ── */
+.ui-btn-quiet { background: transparent; border-color: transparent; color: var(--m); box-shadow: none; }
+.ui-btn-quiet:hover { color: var(--t); background: color-mix(in srgb, var(--t) 7%, transparent); border-color: transparent; }
+
+/* ── Field craft: hover, focus and placeholder for every shared field ── */
+:is(.ui-input, .ui-field, .ui-field-sm, .ui-field-md, .ui-field-xs, .ui-input-lg, .ui-input-sm) {
+  transition: border-color var(--ui-dur-hover) var(--ui-ease), box-shadow var(--ui-dur-hover) var(--ui-ease), background-color var(--ui-dur-hover) var(--ui-ease);
+}
+:is(.ui-input, .ui-field, .ui-field-sm, .ui-field-md, .ui-field-xs, .ui-input-lg, .ui-input-sm):hover { border-color: var(--ui-line-strong); }
+:is(.ui-input, .ui-field, .ui-field-sm, .ui-field-md, .ui-field-xs, .ui-input-lg, .ui-input-sm):focus {
+  outline: none;
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 24%, transparent);
+}
+:is(.ui-input, .ui-field, .ui-field-sm, .ui-field-md, .ui-field-xs, .ui-input-lg, .ui-input-sm)::placeholder { color: var(--m); opacity: .8; }
+
+/* ── Tables: caption-style heads, hairline rows, right-aligned numbers ── */
+.ui-table { width: 100%; border-collapse: collapse; font-size: var(--ui-fs-body-sm); }
+.ui-table th { text-align: left; font-size: var(--ui-fs-label); font-weight: var(--ui-fw-bold); letter-spacing: var(--ui-ls-label); text-transform: uppercase; color: var(--m); padding: var(--ui-space-2) var(--ui-space-3); border-bottom: 1px solid var(--ui-line-divider); }
+.ui-table td { padding: var(--ui-space-3); border-bottom: 1px solid var(--ui-line-hair); color: var(--t); }
+.ui-table .is-num { text-align: right; font-variant-numeric: tabular-nums; }
+.ui-table tbody tr { transition: background-color var(--ui-dur-hover) var(--ui-ease); }
+.ui-table tbody tr:hover { background: color-mix(in srgb, var(--t) 4%, transparent); }
+
+/* ── Empty state: icon, one-line title, why, and the one action ── */
+.ui-empty { display: flex; flex-direction: column; align-items: center; gap: var(--ui-space-2); padding: var(--ui-space-10) var(--ui-space-6); text-align: center; }
+.ui-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; margin-bottom: var(--ui-space-2); border-radius: var(--ui-radius-lg); background: color-mix(in srgb, var(--orange) 12%, transparent); color: color-mix(in srgb, var(--orange) 75%, var(--t)); font-size: 24px; line-height: 1; }
+.ui-empty-icon svg { width: 24px; height: 24px; }
+.ui-empty-title { font-family: var(--ui-font-body); font-size: var(--ui-fs-heading); line-height: var(--ui-lh-heading); font-weight: var(--ui-fw-bold); color: var(--t); }
+.ui-empty-body { max-width: 38ch; font-size: var(--ui-fs-body-sm); line-height: var(--ui-lh-body-sm); color: var(--m); }
+.ui-empty-action { margin-top: var(--ui-space-3); }
+
+/* ── Loading: skeleton blocks (shimmer only when motion is allowed) ── */
+.ui-skel { display: block; border-radius: var(--ui-radius-sm); background: color-mix(in srgb, var(--t) 7%, transparent); color: transparent; user-select: none; }
+.ui-skel-line { height: 12px; margin: var(--ui-space-2) 0; }
+.ui-skel-line.is-short { width: 40%; }
+.ui-skel-line.is-mid { width: 65%; }
+.ui-skel-block { height: 64px; border-radius: var(--ui-radius-md); }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .ui-skel {
+    background-image: linear-gradient(90deg, transparent 0, color-mix(in srgb, var(--t) 7%, transparent) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: ui-shimmer 1.3s linear infinite;
+  }
+}
+@keyframes ui-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
+/* ── Enter / stagger: things arrive, they don't pop ── */
+@keyframes ui-enter { from { opacity: 0; transform: translateY(var(--ui-enter-y)); } to { opacity: 1; transform: none; } }
+.ui-enter { animation: ui-enter var(--ui-dur-enter) var(--ui-ease-enter) both; }
+.ui-stagger > * { animation: ui-enter var(--ui-dur-enter) var(--ui-ease-enter) both; }
+.ui-stagger > :nth-child(2) { animation-delay: calc(var(--ui-stagger) * 1); }
+.ui-stagger > :nth-child(3) { animation-delay: calc(var(--ui-stagger) * 2); }
+.ui-stagger > :nth-child(4) { animation-delay: calc(var(--ui-stagger) * 3); }
+.ui-stagger > :nth-child(5) { animation-delay: calc(var(--ui-stagger) * 4); }
+.ui-stagger > :nth-child(6) { animation-delay: calc(var(--ui-stagger) * 5); }
+.ui-stagger > :nth-child(n+7) { animation-delay: calc(var(--ui-stagger) * 6); }
+/* Reorder: a moved row eases into place instead of jumping. */
+.ui-reorder { transition: transform var(--ui-dur-reorder) var(--ui-ease), opacity var(--ui-dur-reorder) var(--ui-ease); }
+@media (prefers-reduced-motion: reduce) {
+  .ui-enter, .ui-stagger > * { animation: none; }
+}
+:root[data-motion="reduce"] :is(.ui-enter, .ui-stagger > *) { animation: none; }
