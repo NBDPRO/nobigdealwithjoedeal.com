@@ -26,6 +26,13 @@ const CEILING = {
   localBytes: 4.4 * 1024 * 1024, // measured 4.08 MB
   htmlBytes: 520 * 1024,        // measured 477 KB
 };
+// +1 local tag, deliberate (2026-10-05, #2155): js/photo-cache.js (window.NBDPhotoCache).
+// It REPLACES the boot-time read of every photos doc, and its consumers (job-detail hero,
+// Photos tab, photo hub, inspection report) read window.NBDPhotoCache
+// synchronously behind a guard — lazy-loading it would turn a missing helper into silent
+// "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
+// localScripts on the line above merge without a conflict.
+CEILING.localScripts += 1;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

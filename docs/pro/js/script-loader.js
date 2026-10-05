@@ -177,13 +177,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=15',
+      'js/document-generator.js?v=16',
       'js/document-generator-templates.js?v=12',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=4',
-      'js/document-generator.js?v=15',
-      'js/document-generator-templates.js?v=11',
-      'js/doc-preflight.js?v=3',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -254,7 +251,7 @@
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
       'js/estimate-finalization.js?v=6',
-      'js/estimate-v2-ui.js?v=22',
+      'js/estimate-v2-ui.js?v=23',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=4',

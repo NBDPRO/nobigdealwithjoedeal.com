@@ -51,9 +51,9 @@ rethrows. Until the key is set, every ping is a no-op — nothing changes.
    the slug each instance used the first time it pinged — if a slug there
    differs from this table, use the logged one.
 
-## The 18 checks to create (37 crons)
+## The 19 checks to create (40 crons)
 
-**Updated 2026-10-04.** There are now 37 scheduled functions and the free tier
+**Updated 2026-10-05.** There are now 40 scheduled functions and the free tier
 holds 20 checks, so the slug each cron pings comes from an explicit plan,
 [`functions/integrations/heartbeat-plan.js`](../../functions/integrations/heartbeat-plan.js),
 not just its name. `tests/cron-heartbeat.test.js` fails CI if a cron is
@@ -78,17 +78,22 @@ table drifts from it.
 | `enforce-lapsed-seats` | enforceLapsedSeats | 1 day | 6 hours | billing / seat access |
 | `health-digest-cron` | healthDigestCron | 1 day | 6 hours | daily health digest |
 | `lead-follow-up-sweep` | leadFollowUpSweep | 3 hours | 4 hours | follow-up to untouched new leads |
-| `storm-crons` | checkStormAlerts, stormWatch | 30 minutes | 1 hour | storm alert texts + NWS storm watch |
+| `storm-poller` | stormPoller | 30 minutes | 1 hour | the one storm poller (#2148) — storm alert texts + NWS watch |
+| `social-publisher` | socialPublisher | 5 minutes | 30 minutes | scheduled Social Studio posts go out (#2162) |
 | `calls-texts-ingest` | callCenterIngest, callCenterTranscribe, textInboxIngest | 30 minutes | 1 hour | call recordings, transcripts, texts in |
 | `hourly-crons` | runAbandonRecovery, textInboxNotes | 1 hour | 2 hours | abandoned-estimate recovery + text notes |
 | `call-followups` | callWatch, callCenterSweep | 12 hours | 1 hour | call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET) |
-| `daily-retention` | firestoreBackupRetention, auditLogRetentionCron, recordingRetentionCron, pdfRenderRetention | 1 day | 6 hours | cleanup / retention jobs |
-| `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge, onAfterInstallDay | 1 day | 6 hours | morning digests + nudges to Jo (not homeowners) |
+| `daily-retention` | firestoreBackupRetention, auditLogRetentionCron, recordingRetentionCron, pdfRenderRetention, promiseCleanup, reelCleanup | 1 day | 6 hours | cleanup / retention jobs (incl. promise cleanup, Reel cleanup) |
+| `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge, onAfterInstallDay, esignReminderSweep | 1 day | 6 hours | morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET) |
 | `daily-syncs` | syncGbpReviews, googleCalendarReconcile, hailMatchCron | 1 day | 6 hours | GBP reviews, Google Calendar reconcile, hail match |
 | `weekly-crons` | weeklyDigest, dormantLeadNudge, weeklyVendorConfigExport | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun) |
 | `monthly-crons` | monthlyMarketingReport, monthlyOverheadAlertCron | cron 0 7 1 * * (America/New_York) | 12 hours | marketing report + overhead alert, 1st of month |
 
-That is 18 of 20 — two spare for the next high-stakes cron.
+That is 19 of 20 — one spare for the next high-stakes cron.
+
+**2026-10-05:** `storm-crons` (checkStormAlerts + stormWatch) is gone — #2148
+replaced both with one `stormPoller`, which pings `storm-poller`. If you
+created `storm-crons`, delete it and create `storm-poller`.
 
 **If you created checks from the old 25-slug table:** the dedicated ones above
 keep working. These old slugs no longer receive pings and will go red — delete
