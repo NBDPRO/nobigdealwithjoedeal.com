@@ -114,8 +114,93 @@ function paidInFull(lead, invoices) {
   return isPaidInFull(lead, invoices, owedDollarsOf);
 }
 
+// ── Did paying THIS invoice pay the job off? (2026-10-05) ────────────────
+// The invoice trigger (money-paper.js) fired the job spine's paid_in_full on
+// ANY invoice reaching 'paid'. A paid $4,620 deposit invoice moved the job
+// from Contract Signed to Final Payment, filed the review ask before the
+// install, skipped Install Done (so the final invoice was never drafted and
+// the balance never billed), marked the job paidInFull and filed a "paid in
+// full — not closed" task. Now an invoice going 'paid' settles the job only
+// when:
+//   1. it is not a deposit invoice (isDepositInvoice), and
+//   2. no other invoice on the lead/job still owes money (invoicesForLead +
+//      the owed rule above), and
+//   3. it is not a partial bill short of the job: an invoice that does not
+//      bill the whole job (billsWholeJob) settles it only when everything
+//      collected on the lead reaches the lead's jobValue (when one is set).
+// Cents throughout. invoices null = could not be read: rules 1 and 3 still
+// apply on what the invoice and lead carry.
+const _DEAD = { void: 1, voided: 1, cancelled: 1, canceled: 1, uncollectible: 1 };
+function _c(v) { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) : 0; }
+function _tag(v) { return String(v == null ? '' : v).trim().toLowerCase(); }
+
+/**
+ * A deposit invoice: tagged deposit (kind / type / invoiceType), or the whole
+ * invoice is the deposit (total ≤ depositAmount), or every billed line is a
+ * deposit line. A final invoice (kind 'final', which credits the deposit as
+ * "Less deposit paid" lines) never is.
+ */
+function isDepositInvoice(inv) {
+  if (!inv) return false;
+  if (_tag(inv.kind) === 'final') return false;
+  if ([inv.kind, inv.type, inv.invoiceType].some((v) => _tag(v) === 'deposit')) return true;
+  const totalC = _c(inv.total);
+  const depC = _c(inv.depositAmount);
+  if (depC > 0 && totalC > 0 && totalC <= depC) return true;
+  const lines = (Array.isArray(inv.items) ? inv.items : []).filter((l) => l && l.credit !== true && _c(l.total != null ? l.total : l.unitPrice) > 0);
+  return lines.length > 0 && lines.every((l) => /\bdeposit\b/i.test(String(l.description || l.name || '')));
+}
+
+/**
+ * An invoice that bills the whole job: the final invoice, one made from the
+ * estimate or from a rep-confirmed job total (Record payment), or one that
+ * carries deposit terms on a larger total (the signing-day invoice).
+ */
+function billsWholeJob(inv) {
+  if (!inv) return false;
+  if (_tag(inv.kind) === 'final') return true;
+  if (inv.estimateId) return true;
+  if (inv.source === 'record_payment') return true;
+  const depC = _c(inv.depositAmount);
+  return depC > 0 && _c(inv.total) > depC;
+}
+
+/** Money collected on one invoice, in cents (a paid invoice = its total). */
+function paidCentsOf(inv) {
+  if (!inv || inv.deleted === true || _DEAD[_tag(inv.status)]) return 0;
+  const paid = Math.max(0, _c(inv.amountPaid));
+  return _tag(inv.status) === 'paid' ? Math.max(paid, _c(inv.total)) : paid;
+}
+
+/**
+ * inv = the invoice that just went 'paid' (with its id), lead = its lead doc
+ * (or null), invoices = the lead's invoices (loadLeadInvoices) or null.
+ * → { settles: true } | { settles: false, reason, … }
+ */
+function invoiceSettlesJob(inv, lead, invoices) {
+  if (!inv || _tag(inv.status) !== 'paid') return { settles: false, reason: 'not_paid' };
+  if (isDepositInvoice(inv)) return { settles: false, reason: 'deposit_invoice' };
+  const L = lead || {};
+  const id = inv.id != null ? String(inv.id) : null;
+  const jobId = typeof inv.jobId === 'string' && inv.jobId ? inv.jobId : null;
+  const others = Array.isArray(invoices)
+    ? invoicesForLead(invoices, L, inv.leadId || null, jobId).filter((o) => !(id && o.id != null && String(o.id) === id))
+    : [];
+  const owing = others.find((o) => owedDollarsOf(o) > 0);
+  if (owing) return { settles: false, reason: 'balance_owed', invoiceId: owing.id || null };
+  if (!billsWholeJob(inv)) {
+    const jobValueCents = _c(L.jobValue);
+    if (jobValueCents > 0) {
+      const collectedCents = others.reduce((s, o) => s + paidCentsOf(o), paidCentsOf(inv));
+      if (collectedCents < jobValueCents) return { settles: false, reason: 'short_of_job_value', collectedCents, jobValueCents };
+    }
+  }
+  return { settles: true };
+}
+
 module.exports = {
   isPaidStage, isPaidInFull, paidInFull, pifStageKey,
   invoicesForLead, lastPaidMs, loadLeadInvoices,
+  isDepositInvoice, billsWholeJob, paidCentsOf, invoiceSettlesJob,
   PIF_PRE_FINAL,
 };
