@@ -85,6 +85,11 @@ function isPlatformTenant(decoded) {
 }
 
 const connectLogic = require('./stripe-connect-logic');
+// Roof Care Plan (care-plan.js, 2026-10-05) sells homeowner memberships on
+// this SAME Stripe account through its own webhook endpoint. Its objects carry
+// metadata.nbdProduct === 'roof_care_plan' and must never be read as NBD Pro
+// billing here: stripeWebhook skips them in every case below.
+const { isCarePlanObject } = require('./care-plan-logic');
 // Tenant-ready (2026-10-04): cancellation grace + trial-ending email copy.
 const TenantOps = require('./tenant-ops-logic');
 
@@ -508,6 +513,7 @@ exports.stripeWebhook = onRequest(
 
         case 'checkout.session.completed': {
           const session = event.data.object;
+          if (isCarePlanObject(session)) { logger.info('stripeWebhook.care_plan_session_skipped', { sessionId: session.id }); break; }
           const uid = session.client_reference_id;
           const customerId = session.customer;
 
@@ -653,6 +659,7 @@ exports.stripeWebhook = onRequest(
 
         case 'customer.subscription.updated': {
           const subscription = event.data.object;
+          if (isCarePlanObject(subscription)) break;
           const customerId = subscription.customer;
 
           const snapshot = await db
@@ -744,6 +751,7 @@ exports.stripeWebhook = onRequest(
 
         case 'customer.subscription.deleted': {
           const subscription = event.data.object;
+          if (isCarePlanObject(subscription)) break;
           const customerId = subscription.customer;
 
           const snapshot = await db
@@ -868,6 +876,7 @@ exports.stripeWebhook = onRequest(
 
         case 'invoice.payment_failed': {
           const invoice = event.data.object;
+          if (isCarePlanObject(invoice)) break;
           const customerId = invoice.customer;
 
           const snapshot = await db
@@ -971,7 +980,7 @@ exports.stripeWebhook = onRequest(
         case 'invoice.paid': {
           const invoice = event.data.object;
           const customerId = invoice.customer;
-          if (invoice.billing_reason !== 'subscription_cycle') break;
+          if (invoice.billing_reason !== 'subscription_cycle' || isCarePlanObject(invoice)) break;
 
           const snapshot = await db
             .collection('subscriptions')
