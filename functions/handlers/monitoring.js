@@ -3,6 +3,7 @@
  *
  * Step 4c extraction. Moved verbatim from functions/index.js:
  *   - cspReport (onRequest, accepts CSP violation reports → logs only)
+ *   - clientError (onRequest, 2026-10-04: browser error reports → one log line)
  *
  * No behavioral changes; pure structural move.
  */
@@ -12,7 +13,7 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 
-const { httpRateLimit } = require('../integrations/upstash-ratelimit');
+const { httpRateLimit, enforceRateLimit } = require('../integrations/upstash-ratelimit');
 
 // ═════════════════════════════════════════════════════════════
 // F-09: CSP violation report receiver.
@@ -114,5 +115,85 @@ exports.cspReport = onRequest(
   }
 );
 
+// ═════════════════════════════════════════════════════════════
+// clientError — browser error reports from the CRM (2026-10-04).
+//
+// The dashboard's window 'error' / 'unhandledrejection' handlers only
+// console.error'd, so an error on Jo's iPhone never reached anyone.
+// docs/pro/js/client-error-reporter.js now posts one small JSON report per
+// distinct error (deduped by signature, capped per session) to
+// /api/client-error, which the hosting rewrite routes here.
+//
+// Public on purpose: an error can happen before sign-in, or BECAUSE auth
+// broke. Guards, in order: POST only, a 4 KiB body cap, 30/min per IP and
+// 30/min per uid-hash through the existing limiter, then
+// client-error-logic.js parseReport (bounded, re-scrubbed fields; the
+// signature is recomputed here, never trusted from the client).
+//
+// Output is ONE structured ERROR log line, written with logger.write so its
+// message is exactly 'client_error' plus event: 'client_error'.
+// logger.error(msg, …) would NOT do: firebase-functions replaces an ERROR
+// message with new Error(msg).stack ("Error: client_error" + a stack), so an
+// exact jsonPayload.message filter never matches it. The alert policies
+// (monitoring/alert-client-error-*.json) match jsonPayload.event.
+// Nothing is written to Firestore per error (the limiter's own counter doc
+// is the only write).
+// ═════════════════════════════════════════════════════════════
+const clientErrorLogic = require('../client-error-logic');
+const CLIENT_ERROR_IP_LIMIT = 30;
+const CLIENT_ERROR_UID_LIMIT = 30;
+
+function makeClientErrorHandler(deps) {
+  const log = deps.logger;
+  return async (req, res) => {
+    if (req.method !== 'POST') { res.status(405).end(); return; }
+    try {
+      const raw = req.rawBody;
+      if (raw && raw.length > clientErrorLogic.MAX_BODY_BYTES) {
+        res.status(413).end(); return;
+      }
+      let allowed = true;
+      try {
+        allowed = await deps.httpRateLimit(req, res, 'clientError:ip', CLIENT_ERROR_IP_LIMIT, 60_000);
+      } catch (_) { /* limiter backend down: fail open, the body cap still bounds us */ }
+      if (!allowed) return;
+
+      const parsed = clientErrorLogic.parseReport(req.body, raw);
+      if (!parsed.ok) {
+        const status = parsed.reason === 'too_large' ? 413 : 400;
+        log.warn('client_error_rejected', { reason: parsed.reason });
+        res.status(status).end(); return;
+      }
+      const e = parsed.entry;
+      if (e.uidHash) {
+        try {
+          await deps.enforceRateLimit('clientError:uid', e.uidHash, CLIENT_ERROR_UID_LIMIT, 60_000);
+        } catch (err) {
+          if (err && err.rateLimited) { res.status(429).end(); return; }
+        }
+      }
+      const { message, ...rest } = e;
+      log.write({ severity: 'ERROR', message: 'client_error', event: 'client_error', errorMessage: message, ...rest });
+      res.status(204).end();
+    } catch (err) {
+      log.warn('clientError handler error', { err: String(err && err.message || err).slice(0, 200) });
+      res.status(204).end();
+    }
+  };
+}
+
+exports.clientError = onRequest(
+  {
+    region: 'us-central1',
+    invoker: 'public',
+    cors: false,          // same-origin via the /api/client-error hosting rewrite
+    maxInstances: 5,
+    concurrency: 80,
+    timeoutSeconds: 10,
+    memory: '256MiB'      // see cspReport above: 128MiB fails the cold start
+  },
+  makeClientErrorHandler({ logger, httpRateLimit, enforceRateLimit })
+);
+
 // Test hook (exported by name from index.js, so this never deploys).
-exports._test = { parseCspBody };
+exports._test = { parseCspBody, makeClientErrorHandler };
