@@ -108,7 +108,7 @@
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=4"></script>
+<script defer src="js/role-gate.js?v=5"></script>
 <!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
@@ -6838,13 +6838,13 @@
 <script defer src="js/roof-report.js?v=2"></script>
 <script defer src="js/property-intel.js?v=6"></script>
 <!-- LAZY: warranty-cert (docs view wizard) loaded via ScriptLoader -->
-<script defer src="js/tools.js?v=8"></script>
+<script defer src="js/tools.js?v=9"></script>
 <!-- ALL scripts use defer for consistent load ordering.
      Defer scripts execute in document order after DOM ready.
      The loading spinner covers the gap. billing-gate and
      doc-viewer must come BEFORE crm/widgets since those
      reference NBDBilling and NBDDocGen at call-time. -->
-<script defer src="js/claude-proxy.js?v=4"></script>
+<script defer src="js/claude-proxy.js?v=5"></script>
 <!-- Audit batch 6: repository pattern layer. Centralizes userId/
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
@@ -6916,7 +6916,7 @@
 <script defer src="js/customer-engagement-score.js?v=2"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
-<script defer src="js/smart-followup.js?v=3"></script>
+<script defer src="js/smart-followup.js?v=4"></script>
 <!-- W135: Lead Intelligence — unified 0-100 score engine -->
 <script defer src="js/lead-score.js?v=2"></script>
 <!-- W139: Hot-lead threshold-crossing alert -->
@@ -7013,7 +7013,7 @@
 <script defer src="js/ask-joe-rules.js?v=1"></script>
 <script defer src="js/ask-joe-actions.js?v=2"></script>
 <script defer src="js/ai.js?v=10"></script>
-<script defer src="js/review-engine.js?v=6"></script>
+<script defer src="js/review-engine.js?v=7"></script>
 <script defer src="js/review-deck.js?v=1"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
 <script defer src="js/company-profile.js?v=5"></script>

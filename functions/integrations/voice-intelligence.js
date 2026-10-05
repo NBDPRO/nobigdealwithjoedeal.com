@@ -273,7 +273,7 @@ async function transcribeGroq({ bucket, path, mimeType }) {
 // `words: true` (Reel Studio burned captions, 2026-10-04) ALSO asks Groq for
 // word timestamps and returns them as `words: [{ word, start, end }]`.
 // Default off, so every existing caller's request and result are unchanged.
-async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words }) {
+async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature }) {
   if (!hasSecret('GROQ_API_KEY')) {
     throw new VoiceError('groq-not-configured',
       'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.');
@@ -310,6 +310,8 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, wor
   if (!data || typeof data.text !== 'string') {
     throw new VoiceError('groq-empty-response', 'Groq returned no transcript text');
   }
+  // AI spend in one place: Groq bills by audio seconds.
+  await require('../ai-spend').recordAiSpend({ feature: feature || 'voice-transcribe', model: 'whisper-large-v3-turbo', audioSec: Number(data.duration) || 0 });
   return {
     text: data.text,
     segments: Array.isArray(data.segments) ? data.segments.map(s => ({
@@ -394,6 +396,7 @@ async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose }) 
     throw new VoiceError('analysis-api-error',
       purpose + ' rejected: ' + String(msg).slice(0, 300));
   }
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('voice-' + String(purpose || 'analysis').toLowerCase(), VOICE_ANALYSIS_MODEL, data));
   const text = data && data.content && Array.isArray(data.content)
     ? data.content.map(c => (c && c.type === 'text' ? c.text : '')).join('')
     : '';
