@@ -109,21 +109,26 @@ console.log('\nCSP — both dashboard headers allow both tile hosts');
      read('firebase.json').split('\n').filter((l) => /Content-Security-Policy/.test(l)).length >= 2);
 }
 
-console.log('\nD2D — KyFromAbove is a basemap choice, layered over Google outside Kentucky');
+console.log('\nD2D — KyFromAbove is a basemap choice, layered over Esri imagery outside Kentucky');
 {
+  // 2026-10-04 (vendor audit Lane D): the satellite base under ky3in is Esri
+  // World Imagery (+ a USGS underlay), no longer raw Google mt* tiles, and an
+  // entry's extra layers live in an `overlays` array. The builder itself is
+  // executed in tests/client-dead-vendors-2026-10-04.test.js.
   const src = codeOnly(read('docs/pro/js/d2d-tracker-core-2026b.js'));
   const bm = /const BASEMAPS\s*=\s*\{([\s\S]*?)\n\s*\};/.exec(src);
   ok('BASEMAPS is declared', !!bm);
   const body = bm ? bm[1] : '';
   ok('ky3in entry exists', /\bky3in:\s*\{/.test(body));
+  const ky = body.slice(body.indexOf('ky3in:'));
   ok('ky3in overlay is the KyFromAbove Phase 3 3-inch MapServer tile URL',
-     /overlay:\s*'https:\/\/kygisserver\.ky\.gov\/arcgis\/rest\/services\/WGS84WM_Services\/Ky_Imagery_Phase3_3IN_WGS84WM\/MapServer\/tile\/\{z\}\/\{y\}\/\{x\}'/.test(body));
-  ok('ky3in keeps Google satellite underneath (blank KY tiles outside the state must not show a void)',
-     /ky3in:\s*\{[^}]*url:\s*'https:\/\/mt\{s\}\.google\.com\/vt\/lyrs=s/.test(body));
+     /overlays:\s*\[\s*\{\s*url:\s*'https:\/\/kygisserver\.ky\.gov\/arcgis\/rest\/services\/WGS84WM_Services\/Ky_Imagery_Phase3_3IN_WGS84WM\/MapServer\/tile\/\{z\}\/\{y\}\/\{x\}'/.test(ky));
+  ok('ky3in keeps satellite imagery underneath (blank KY tiles outside the state must not show a void)',
+     /ky3in:\s*\{[^}]*url:\s*ESRI_TILE\('World_Imagery'\)[^}]*imagery:\s*true/.test(body));
   ok('ky3in is in BASEMAP_ORDER (so it gets a button)', /BASEMAP_ORDER\s*=\s*\[[^\]]*'ky3in'/.test(src));
-  ok('_makeBasemapLayer builds a layerGroup when an overlay is declared',
-     /if \(b\.overlay\)[\s\S]{0,600}L\.layerGroup\(\[layer, over\]\)/.test(src));
-  ok('the overlay honours the server\'s native LOD ceiling (21) via overlayMaxNativeZoom', /overlayMaxNativeZoom:\s*21/.test(body));
+  ok('_makeBasemapLayer builds a layerGroup when overlays/underlay are declared',
+     /\(b\.overlays \|\| \[\]\)\.forEach[\s\S]{0,600}L\.layerGroup\(parts\)/.test(src));
+  ok('the overlay honours the server\'s native LOD ceiling (21) via maxNativeZoom', /kygisserver[^\n]*\n\s*maxNativeZoom:\s*21/.test(ky));
   ok('setBasemap guards bringToBack (a layerGroup has none)', /if \(layer\.bringToBack\) layer\.bringToBack\(\)/.test(src));
 }
 

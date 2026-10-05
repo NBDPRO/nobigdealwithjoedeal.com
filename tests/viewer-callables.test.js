@@ -485,6 +485,12 @@ const VERDICTS = {
   callTaggedMatch: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
+  // "Brief me" (lead-brief.js, 2026-10-04): returns a summary of a lead the
+  // caller may already READ (canReadLead mirrors the /leads read rule, which
+  // admits a same-company viewer). Writes only the server-derived cache and
+  // the per-uid daily quota (lead_brief_quota caps fresh AI generations), so
+  // a viewer reading a customer may be briefed on it.
+  leadBrief: 'read-paid',
   // HTTP functions
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',

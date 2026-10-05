@@ -433,6 +433,23 @@ async function markReviewNudged(db, leadId, jobId) {
   }
 }
 
+/**
+ * One user's nudge pass: find the due review asks and, for each, write the
+ * activity row + bell + the once-ever mark. Returns the due leads. Shared by
+ * the 08:15 run and the 06:45 morning brief (which carries the OWNER's list
+ * in its email when it absorbs this one — morning-brief-absorb.js).
+ */
+async function nudgeUser(db, uid) {
+  const dueLeads = await findReviewDueLeads(db, uid);
+  let notified = 0;
+  for (const lead of dueLeads) {
+    await writeReviewActivity(db, lead.id, uid);
+    if (await writeReviewNotification(db, lead, uid)) notified++;
+    await markReviewNudged(db, lead.id, lead.jobId || null);
+  }
+  return { dueLeads, notified };
+}
+
 // ─── Scheduled function ──────────────────────────────────────────
 // Daily at 8:15am Eastern — offset from anniversaryAutoTouch (8:00)
 // so the two morning sweeps don't contend for the same quota window.
@@ -454,7 +471,10 @@ exports.reviewRequestNudge = onSchedule(
       : null;
     const fromAddress = process.env.EMAIL_FROM || 'Joe Deal <jd@nobigdealwithjoedeal.com>';
 
-    let emailed = 0, skippedOptOut = 0, skippedNothing = 0, failed = 0;
+    let emailed = 0, skippedOptOut = 0, skippedNothing = 0, failed = 0, skippedAbsorbed = 0;
+    // The owner's asks went out in the 06:45 brief (bell + mark included).
+    const absorbedOwner = await require('./morning-brief-absorb').briefAbsorbs(db);
+    const OWNER_UID = require('./morning-brief-absorb').OWNER;
     let nudged = 0, notified = 0;
 
     // Paginate ALL users (the anniversary 2.6 lesson: a bare limit(500)
@@ -477,6 +497,7 @@ exports.reviewRequestNudge = onSchedule(
         if (!user.email || !isValidEmail(user.email)) { skippedOptOut++; continue; }
         if (user.reviewNudgeEnabled === false)        { skippedOptOut++; continue; }
         if (user.e2eTestAccount)                      { skippedOptOut++; continue; }
+        if (absorbedOwner && uid === OWNER_UID)       { skippedAbsorbed++; continue; }
 
         try {
           const dueLeads = await findReviewDueLeads(db, uid);
@@ -524,11 +545,12 @@ exports.reviewRequestNudge = onSchedule(
 
     logger.info('review_nudge_complete', {
       mode: enabled ? 'live' : 'dry-run',
-      emailed, skippedOptOut, skippedNothing, failed,
+      emailed, skippedOptOut, skippedNothing, failed, skippedAbsorbed,
       nudged, notified,
       total: totalUsers,
     });
   }
 );
 
-exports._test = { reviewAskDue, findReviewDueLeads, markReviewNudged, writeReviewNotification, REVIEW_GAP_DAYS, paidAnchor, buildEmailHtml };
+exports.nudgeUser = nudgeUser;
+exports._test = { reviewAskDue, findReviewDueLeads, markReviewNudged, writeReviewNotification, nudgeUser, REVIEW_GAP_DAYS, paidAnchor, buildEmailHtml };
