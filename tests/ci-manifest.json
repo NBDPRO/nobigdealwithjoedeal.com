@@ -388,7 +388,11 @@
     "field-photos-client-2026-10-04.test.js",
     "field-photos-server-2026-10-04.test.js",
     "estimate-pricing-paths-2026-10-05.test.js",
-    "review-paid-in-full-2026-10-03.test.js"
+    "review-paid-in-full-2026-10-03.test.js",
+    "today-home-visual-2026-10-05.test.js",
+    "pipeline-cards-visual-2026-10-05.test.js",
+    "customer-header-visual-2026-10-05.test.js",
+    "close-board-visual-2026-10-05.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
