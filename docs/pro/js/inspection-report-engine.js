@@ -58,7 +58,7 @@
     STORM_DAMAGE: {
       id: 'storm-damage',
       name: 'Storm Damage Assessment',
-      description: 'Hail/wind damage documentation and insurance claim support',
+      description: 'Hail/wind damage documentation — what was observed, for the homeowner’s records',
       icon: '⛈️'
     },
     SUPPLEMENT: {
@@ -274,6 +274,9 @@
         showToast('Invalid template', 'error');
         return null;
       }
+
+      // KY claim wording: filter every report string before rendering.
+      data = this._claimSafe(data || {});
 
       let html = '';
       switch (templateId) {
@@ -744,11 +747,15 @@
             </div>
             ` : ''}
 
-            <!-- INSURANCE RECOMMENDATION & NEXT STEPS -->
+            <!-- FINDINGS & NEXT STEPS — observation only (KY KRS 367.628,
+                 2026-10-04). This page used to read "Insurance
+                 Recommendation — File Insurance Claim: YES": the contractor
+                 advising the insured on the claim. It now states what was
+                 observed and that the claim decision is the homeowner's. -->
             <div class="page">
-              <h1>Insurance Recommendation</h1>
+              <h1>Findings &amp; Next Steps</h1>
 
-              <p><strong>File Insurance Claim:</strong> ${recommendations.fileClaim ? 'YES' : 'NO'}</p>
+              <p>${this._stormFindingSentence(recommendations, stormType)}</p>
 
               ${recommendations.estimatedScope ? `
               <h2 style="margin-top: 20px;">Estimated Scope</h2>
@@ -756,7 +763,7 @@
               ` : ''}
 
               ${recommendations.nextSteps ? `
-              <h2 style="margin-top: 20px;">Recommended Next Steps</h2>
+              <h2 style="margin-top: 20px;">Next Steps</h2>
               <p>${this._escapeHtml(recommendations.nextSteps)}</p>
               ` : ''}
 
@@ -765,18 +772,11 @@
               <p>${this._escapeHtml(notes)}</p>
               ` : ''}
             </div>
-
-            <!-- ADJUSTER MEETING NOTES -->
-            <div class="page">
-              <h1>Adjuster Meeting Notes</h1>
-
-              <p style="margin-bottom: 15px;"><strong>Adjuster Name:</strong> ___________________________</p>
-              <p style="margin-bottom: 30px;"><strong>Meeting Date:</strong> ___________________________</p>
-
-              <div style="border: 1px solid #ccc; padding: 20px; height: 300px; background: #fafafa;">
-                <!-- Space for notes -->
-              </div>
-            </div>
+            <!-- The blank "Adjuster Meeting Notes" page is gone from this
+                 homeowner-facing report on purpose: a contractor-branded
+                 claim-meeting worksheet reads as running the claim. A rep
+                 who meets the adjuster (allowed AFTER the homeowner files,
+                 KRS 367.628(1)(c)2) records it on the lead's claim card. -->
           </div>
         </body>
         </html>
@@ -1909,11 +1909,11 @@
             ).join('')}
           </form>
 
-          <h3 style="margin-top: 30px;">Insurance Recommendation</h3>
+          <h3 style="margin-top: 30px;">Findings &amp; Next Steps</h3>
           <form id="storm-rec-form">
-            <div class="form-group"><label><input type="checkbox" name="recFileClaim" ${state.data.recommendations?.fileClaim ? 'checked' : ''}> Recommend filing an insurance claim</label></div>
+            <div class="form-group"><label><input type="checkbox" name="recDamageObserved" ${(state.data.recommendations?.damageObserved ?? state.data.recommendations?.fileClaim) ? 'checked' : ''}> Storm damage observed (the report says what you saw — it never tells the homeowner to file)</label></div>
             <div class="form-group"><label>Estimated Scope</label><textarea name="recEstimatedScope" rows="3">${this._escapeHtml(state.data.recommendations?.estimatedScope || '')}</textarea></div>
-            <div class="form-group"><label>Recommended Next Steps</label><textarea name="recNextSteps" rows="3">${this._escapeHtml(state.data.recommendations?.nextSteps || '')}</textarea></div>
+            <div class="form-group"><label>Next Steps</label><textarea name="recNextSteps" rows="3">${this._escapeHtml(state.data.recommendations?.nextSteps || '')}</textarea></div>
             <div class="form-group"><label>Inspector Notes</label><textarea name="stormNotes" rows="3">${this._escapeHtml(state.data.notes || '')}</textarea></div>
           </form>
         </div>
@@ -2623,7 +2623,9 @@
           landscaping: d.collateral_landscaping || ''
         };
         d.recommendations = {
-          fileClaim: !!d.recFileClaim,
+          // Was `fileClaim` ("Recommend filing an insurance claim") until the
+          // KY wording fix, 2026-10-04 — now an observation, never advice.
+          damageObserved: !!d.recDamageObserved,
           estimatedScope: d.recEstimatedScope || '',
           nextSteps: d.recNextSteps || ''
         };
@@ -2788,8 +2790,11 @@
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }
-      const payload = this._buildInspectionPayload(state);
-      if (!payload) return false;
+      // KY claim wording: the server template prints these strings (photo
+      // captions included) verbatim, so filter them here too.
+      const rawPayload = this._buildInspectionPayload(state);
+      if (!rawPayload) return false;
+      const payload = this._claimSafe(rawPayload);
 
       showToast('Rendering report…', 'info');
 
@@ -3205,6 +3210,54 @@
         "'": '&#039;'
       };
       return String(text).replace(/[&<>"']/g, m => map[m]);
+    },
+
+    /**
+     * KY claim wording (2026-10-04): the Storm Damage report's one line about
+     * insurance. Observation only — never a recommendation to file, never a
+     * promise about the claim. `damageObserved` is the wizard checkbox
+     * ("Storm damage observed"); `fileClaim` is the same checkbox's old key,
+     * still read so saved drafts keep their answer.
+     */
+    _stormFindingSentence(recommendations, stormType) {
+      const r = recommendations || {};
+      const observed = r.damageObserved != null ? !!r.damageObserved : !!r.fileClaim;
+      const t = String(stormType || '').trim().toLowerCase();
+      const kind = (t === 'hail' || t === 'wind' || t === 'tornado') ? t : 'storm';
+      return observed
+        ? 'Damage consistent with ' + this._escapeHtml(kind) + ' was observed at this property. The homeowner may contact their insurer; whether to file a claim is the homeowner’s decision.'
+        : 'No damage consistent with ' + this._escapeHtml(kind) + ' was observed during this inspection.';
+    },
+
+    /**
+     * KY claim wording (2026-10-04): every string a report renders — the
+     * rep's notes, scope text, AI photo captions and AI observations — goes
+     * through the shared filter (claim-wording-filter.js, the same rules as
+     * tests/claim-wording.test.js) before it reaches the template, so a
+     * caption like "recommend filing a claim; insurance will cover a new
+     * roof" never lands on the homeowner's PDF. Returns a COPY (the wizard
+     * draft keeps what the rep typed). If the filter somehow didn't load,
+     * fail closed on the machine-written text: AI analysis + AI captions are
+     * dropped rather than printed unchecked.
+     */
+    _claimSafe(data) {
+      const CW = window.NBDClaimWording;
+      if (CW && typeof CW.cleanDeep === 'function') return CW.cleanDeep(data);
+      console.warn('[inspection] claim-wording filter missing — AI text omitted from the report');
+      const strip = (v) => {
+        if (Array.isArray(v)) return v.map(strip);
+        const proto = v && typeof v === 'object' ? Object.getPrototypeOf(v) : undefined;
+        if (proto !== undefined && (proto === null || Object.getPrototypeOf(proto) === null)) {
+          const o = {};
+          Object.keys(v).forEach((k) => {
+            if (k === 'aiAnalysis' || k === 'aiSuggestion' || k === 'aiCaption') return;
+            o[k] = strip(v[k]);
+          });
+          return o;
+        }
+        return v;
+      };
+      return strip(data);
     },
 
     /**

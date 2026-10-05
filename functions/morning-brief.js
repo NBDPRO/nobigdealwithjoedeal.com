@@ -49,6 +49,7 @@ const Absorb = require('./morning-brief-absorb');
 // Brief me's model call needs the key bound on THIS function too.
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const MAX_BRIEF_LINES = 10;
+const PF = require('./production-flow-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
@@ -114,6 +115,26 @@ async function readDay(db, owner, nowMs, log) {
     jobs = [...byKey.values()];
   } catch (e) {
     log.warn('morning_brief_jobs_read_failed', { err: e && e.message });
+  }
+
+  // CRM-booked appointments (production flow, 2026-10-04): leads/{id}/tasks
+  // type:'event' (lead-events.js). Read by the owner's uid (single-field
+  // COLLECTION_GROUP index on tasks.userId) and fed in as appointments, today
+  // only, on the owner's own leads. Its own try, like the jobs read.
+  try {
+    const leadsById = new Map(leads.map((l) => [String(l.id), l]));
+    const ev = await db.collectionGroup('tasks').where('userId', '==', owner).get();
+    for (const d of snapDocs(ev)) {
+      const t = d.data() || {};
+      if (t.type !== 'event') continue;
+      const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+      const lead = leadId ? leadsById.get(String(leadId)) : null;
+      if (!lead) continue;
+      const appt = CF.leadEventToAppointment(t, lead, leadId, d.id);
+      if (appt && appt.startTime >= fromMs && appt.startTime < toMs) appointments.push(appt);
+    }
+  } catch (e) {
+    log.warn('morning_brief_events_read_failed', { err: e && e.message });
   }
   return { today, appointments, leads, jobs };
 }
@@ -216,7 +237,10 @@ async function runMorningBrief(deps) {
   const day = await readDay(db, owner, nowMs, log);
   const pre = MB.collectTodayItems({ appointments: day.appointments, leads: day.leads, jobs: day.jobs, nowMs });
   const sections = absorb ? await ((deps && deps.sections) || gatherSections)({ db, owner, nowMs, log }) : null;
-  if (pre.length === 0 && !MB.sectionsHaveContent(sections)) {
+  // Production flow (2026-10-04): signed jobs with no day and no week. The
+  // brief goes out for these alone too — they are the reason it exists.
+  const needsWeek = PF.needsWeek(day.leads, day.jobs);
+  if (pre.length === 0 && needsWeek.length === 0 && !MB.sectionsHaveContent(sections)) {
     log.info('morning_brief_nothing_today', { owner, date: day.today, mode: enabled ? 'live' : 'dry-run' });
     return { status: 'nothing-today', items: 0 };
   }
@@ -229,10 +253,21 @@ async function runMorningBrief(deps) {
     ? await ((deps && deps.briefLines) || gatherBriefLines)({ db, leadIds, leadsById, nowMs, log }).catch(() => ({}))
     : {};
 
+  // The weather.gov forecast for today's job days (warns only). Never fails
+  // the brief: job-weather answers null on any trouble.
+  const weatherFor = (deps && deps.weatherFor) || ((lead) => require('./job-weather')._internal.weatherByDay(db, lead, nowMs));
+  const weatherByLead = {};
+  for (const id of new Set(pre.filter((it) => it.source === 'job').map((it) => it.leadId))) {
+    const lead = leadsById.get(String(id));
+    if (!lead) continue;
+    try { const w = await weatherFor(lead); if (w) weatherByLead[id] = w; } catch (_) { /* no weather line */ }
+  }
+
   const brief = MB.buildBrief({
     appointments: day.appointments, leads: day.leads, jobs: day.jobs, nowMs,
     invoices: hist.invoices, activityByLead: hist.activityByLead, stormProofsByLead: hist.stormProofsByLead,
     sections, briefLines,
+    weatherByLead, needsWeek,
   });
 
   if (!enabled) {

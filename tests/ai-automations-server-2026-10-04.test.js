@@ -353,6 +353,37 @@ const DAY = 24 * 3600 * 1000;
     const sent4 = []; let briefCalled = false;
     await MBR._test.runMorningBrief({ db: makeDb(Object.assign({}, base, appt)), env: {}, nowMs: NOW, makeResend: () => ({ emails: { send: async (x) => { sent4.push(x); } } }), log: silent, owner: OWNER, briefLines: async () => { briefCalled = true; return {}; } });
     ok('a dry run spends no AI on brief lines', !briefCalled && sent4.length === 0);
+    // Merge with main's production flow (#2147): the ONE email also carries
+    // "signed jobs need a week" and today's job-day forecast, beside the sections.
+    const unsched = { 'leads/U1': { id: 'U1', userId: OWNER, companyId: OWNER, firstName: 'Una', lastName: 'Signed', stage: 'contract_signed' } };
+    const sent5 = [];
+    const out5 = await MBR._test.runMorningBrief({ db: makeDb(Object.assign({}, base, unsched)), env, nowMs: NOW,
+      makeResend: () => ({ emails: { send: async (x) => { sent5.push(x); return { data: {}, error: null }; } } }), log: silent, owner: OWNER,
+      sections: async () => sections, briefLines: async () => ({}), weatherFor: async () => null });
+    const m5 = sent5[0] || {};
+    ok('0 appointments + a signed job needing a week + sections → ONE email with both', out5.status === 'sent' && sent5.length === 1, out5);
+    ok('…subject: needs-a-week first, then the sections', /Today \([^)]+\): 1 signed job needs a week · 1 new lead · 1 said you'd do · 1 review ask$/.test(m5.subject || ''), m5.subject);
+    ok('…html: Plan Jobs block AND every section, needs-a-week above the sections', /1 signed job needs a week/.test(m5.html) && /#\/schedule/.test(m5.html)
+      && m5.html.includes('New leads — last 24h (1)') && m5.html.includes('Ready for a review ask (1)')
+      && m5.html.indexOf('needs a week') < m5.html.indexOf('New leads — last 24h'));
+    ok('…text: needs-a-week line AND the sections', /1 signed job needs a week: Una Signed/.test(m5.text) && /NEW LEADS/.test(m5.text) && /READY FOR A REVIEW ASK/.test(m5.text));
+    ok('…headline says no appointments (not "0 appointments")', /No appointments today/.test(m5.text) && !/0 appointments/.test(m5.text));
+    const sent6 = [];
+    const out6 = await MBR._test.runMorningBrief({ db: makeDb(Object.assign({}, base, unsched)), env, nowMs: NOW,
+      makeResend: () => ({ emails: { send: async (x) => { sent6.push(x); return { data: {}, error: null }; } } }), log: silent, owner: OWNER,
+      sections: async () => ({ newLeads: [], promises: [], reviewAsks: [] }), weatherFor: async () => null });
+    ok('needs-a-week alone (empty sections) still sends — production flow behaviour kept', out6.status === 'sent' && /: 1 signed job needs a week$/.test((sent6[0] || {}).subject || ''), sent6[0] && sent6[0].subject);
+    // A job day today: forecast line + Brief line + needs-a-week + sections, all in one email.
+    const jobDay = { 'leads/J1': { id: 'J1', userId: OWNER, companyId: OWNER, firstName: 'Jay', lastName: 'Jobday', address: '9 Oak St', stage: 'crew_scheduled', scheduledDate: '2026-10-04', lat: 39.1, lng: -84.5 } };
+    const sent7 = [];
+    const out7 = await MBR._test.runMorningBrief({ db: makeDb(Object.assign({}, base, unsched, jobDay)), env, nowMs: NOW,
+      makeResend: () => ({ emails: { send: async (x) => { sent7.push(x); return { data: {}, error: null }; } } }), log: silent, owner: OWNER,
+      sections: async () => sections, briefLines: async () => ({ J1: 'Crew day; balance due at completion.' }),
+      weatherFor: async (l) => (l.lat ? { '2026-10-04': { label: '80% Rain', level: 'warn' } } : null) });
+    const m7 = sent7[0] || {};
+    ok('job day + needs-a-week + sections → one email', out7.status === 'sent' && sent7.length === 1, out7);
+    ok("…the job day carries today's forecast (main) AND its Brief line (this PR)", /Jay Jobday/.test(m7.text) && /Weather: 80% Rain/.test(m7.text) && /Brief: Crew day; balance due at completion\./.test(m7.text), m7.text);
+    ok('…subject: 1 appointment · needs a week · sections', /: 1 appointment.* · 1 signed job needs a week · 1 new lead · 1 said you'd do · 1 review ask$/.test(m7.subject || ''), m7.subject);
     // The separate emails stand down only when it is safe.
     const udb = (u) => makeDb({ 'users/owner-uid': u });
     ok('absorbs: flag + live brief + owner email → yes', await Absorb.briefAbsorbs(udb({ email: 'jo@x.test' }), { MORNING_BRIEF_ABSORB_ENABLED: 'true', MORNING_BRIEF_ENABLED: 'true' }, 'owner-uid'));
