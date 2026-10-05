@@ -379,6 +379,7 @@
     "field-photos-client-2026-10-04.test.js",
     "field-photos-server-2026-10-04.test.js",
     "estimate-pricing-paths-2026-10-05.test.js",
+    "review-paid-in-full-2026-10-03.test.js",
     "authed-spec-list-2026-10-04.test.js",
     "merge-queue-ready-2026-10-04.test.js",
     "deploy-verify-2026-10-04.test.js",

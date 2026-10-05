@@ -54,6 +54,24 @@ const CORS_ORIGINS = [
 const MAX_REFERRALS_PER_SOURCE_PER_DAY = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The submitted code, when it is the source lead's OWN referral code (minted
+ * by review-engine.js assignReferralCode into referrals/), else null. Never
+ * throws — a lookup failure just drops the code.
+ */
+async function ownReferralCode(db, raw, sourceLead) {
+  const code = String(raw || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,12}-[A-Z0-9]{2,8}$/.test(code) || !sourceLead || !sourceLead.id) return null;
+  try {
+    const snap = await db.collection('referrals').where('code', '==', code).limit(10).get();
+    const mine = snap.docs.some((d) => (d.data() || {}).referrerLeadId === sourceLead.id);
+    return mine ? code : null;
+  } catch (e) {
+    logger.warn('[submitReferral] code lookup failed', { err: e.message });
+    return null;
+  }
+}
+
 function validEmail(s) { return /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(String(s || '')); }
 function digitsOnly(s) { return String(s || '').replace(/\D/g, ''); }
 
@@ -78,6 +96,8 @@ function applyCors(req, res) {
 // Body: { ref: <customerId>, firstName, lastName, phone, email,
 //         address?, notes? }
 // Resolves: 200 { ok: true } | 4xx { error }
+exports._ownReferralCode = ownReferralCode;
+
 exports.submitReferral = onRequest(
   {
     region: 'us-central1',
@@ -219,6 +239,15 @@ exports.submitReferral = onRequest(
     const companyId = sourceLead.companyId || ownerUid || null;
     if (!ownerUid) return bad(res, 500, 'Internal error');
 
+    // ─── The referrer's personal code (2026-10-03) ──────────────
+    // The review ask carries the homeowner's referral link with their code
+    // (review-engine.js referralLinkFor). Stamp it as redeemReferralCode so
+    // referral-rewards.js attributes the friend to them — but ONLY when the
+    // code is this referrer's own (referrals/{…}.referrerLeadId === the
+    // source lead): a friend editing the URL cannot credit someone else.
+    // Anything else is dropped silently; the link lane above still works.
+    const redeemCode = await ownReferralCode(db, body.code, sourceLead);
+
     const leadData = {
       firstName,
       lastName,
@@ -241,6 +270,7 @@ exports.submitReferral = onRequest(
       referredByCustomerId: sourceLead.customerId || null,
       referredByName: `${sourceLead.firstName || ''} ${sourceLead.lastName || ''}`.trim() || null,
       referredAt: FieldValue.serverTimestamp(),
+      ...(redeemCode ? { redeemReferralCode: redeemCode } : {}),
       userId: ownerUid,
       companyId,
       createdAt: FieldValue.serverTimestamp(),

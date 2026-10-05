@@ -176,6 +176,7 @@
   "publishTenantSite": "./handlers/public-site",
   "recordCustomerEvent": "./customer-audit",
   "recordEstimateShared": "./estimate-send",
+  "recordInPersonSignature": "./in-person-signing",
   "recordingRetentionCron": "./integrations/voice-intelligence",
   "reelAiImagePost": "./reel-studio",
   "reelApplyBlur": "./reel-studio",

@@ -74,3 +74,4 @@ contract-cancel-forms.spec.js
 phone-client-errors.spec.js
 phone-deal-packet.spec.js
 phone-tenant-setup.spec.js
+phone-inperson-sign.spec.js

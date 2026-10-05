@@ -389,6 +389,15 @@ Object.assign(exports, portalFunctions);
 const remoteSigningFunctions = require('./remote-signing');
 Object.assign(exports, remoteSigningFunctions);
 
+// In-person signing (2026-10-03): the rep's doc viewer saves the signed
+// contract from the browser, then calls this so the job spine moves the card
+// to Contract Signed (and #2131 drafts the deposit invoice) — the same
+// contract_signed path remote / e-sign / deal-room signing already take. The
+// server re-reads the lead + document and refuses viewers, other companies'
+// leads and unsigned documents. By name only: in-person-signing.js also
+// exports _test. See functions/in-person-signing.js.
+exports.recordInPersonSignature = require('./in-person-signing').recordInPersonSignature;
+
 // PDF-native envelope signing: a rep uploads ANY PDF (supplier form,
 // insurance scope, manufacturer warranty), places typed fields on it, and the
 // homeowner completes it from a single-use link — pan/zoom on a real PDF, out
