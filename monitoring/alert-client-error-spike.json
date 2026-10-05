@@ -1,0 +1,34 @@
+{
+  "displayName": "NBD Pro — Client error spike (> 20 CRM browser errors in 15 min)",
+  "documentation": {
+    "content": "More than 20 client_error reports reached the clientError function in a 15-minute window. Each browser tab sends a given error once and at most 10 per page load / 25 per tab session, so 20 in 15 minutes means several sessions or many distinct errors — typically a bad deploy of a docs/pro script.\n\nCounts ERROR log entries from the clienterror service (the free logging.googleapis.com/log_entry_count metric, summed across revisions so a deploy does not split the count). The service logs nothing else at ERROR.\n\nInvestigate:\n  gcloud logging read 'resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"clienterror\" AND jsonPayload.event=\"client_error\"' --project nobigdeal-pro --freshness 1h --limit 100 --format 'value(jsonPayload.sig,jsonPayload.build,jsonPayload.view,jsonPayload.errorMessage)'\nGroup by sig and build; if one build introduced it, roll back per documentation/runbooks/ROLLBACK.md. Runbook: documentation/runbooks/CLIENT-ERROR-ALERTS.md.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "enabled": true,
+  "conditions": [
+    {
+      "displayName": "clienterror ERROR entries > 20 in 15 min",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"clienterror\" AND metric.type=\"logging.googleapis.com/log_entry_count\" AND metric.labels.severity=\"ERROR\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 20,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "900s",
+            "perSeriesAligner": "ALIGN_DELTA",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ]
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "3600s"
+  },
+  "notificationChannels": [
+    "projects/nobigdeal-pro/notificationChannels/11974029248665804510",
+    "projects/nobigdeal-pro/notificationChannels/7729093229259591605"
+  ]
+}
