@@ -211,6 +211,21 @@
     var v = Number(n) || 0;
     return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  // −$51.40, never $-51.40 (the Roof Care Plan member line is the one negative).
+  function signedMoney(n) {
+    var v = Number(n) || 0;
+    return (v < 0 ? '−' : '') + money(Math.abs(v));
+  }
+  // The payload Create estimate would save, with the member discount applied
+  // (null when there is none, or the engine is not loaded).
+  function memberDiscountPreview(res, upPay) {
+    var JT = engine();
+    if (!JT || typeof JT.applyMemberDiscount !== 'function' || !res || !res.totals) return null;
+    try {
+      var base = upPay || (typeof JT.buildEstimatePayload === 'function' ? JT.buildEstimatePayload(res, resolveOpts()) : null);
+      return base ? JT.applyMemberDiscount(base, res, resolveOpts()) : null;
+    } catch (e) { console.warn('[job-templates-ui] member discount preview failed:', e); return null; }
+  }
   function money0(n) {
     var v = Number(n) || 0;
     return '$' + Math.round(v).toLocaleString('en-US');
@@ -490,6 +505,9 @@
 
   function resolveOpts() {
     return {
+      // The customer (2026-10-05): a Roof Care Plan member's repair work
+      // carries the 10% member line — job-templates.js applyMemberDiscount.
+      leadId: state.leadId || null,
       tier: state.tier,
       repairWarranty: state.repairWarranty === true,
       jobMode: state.jobMode,
@@ -2277,6 +2295,19 @@
       });
     }
 
+    // Roof Care Plan member — 10% off repairs (2026-10-05): the SAME
+    // applyMemberDiscount Create estimate runs, on the same payload (upgrades
+    // included), so this paper shows the saved line and total.
+    var mdPay = memberDiscountPreview(res, upPay);
+    if (mdPay && mdPay.memberDiscount) {
+      var mdc = mdPay.memberDiscount;
+      lines.push({ name: mdc.label, quantity: 1, unit: 'ea', category: 'Discounts',
+        retailPerUnit: -mdc.preTaxCents / 100, retailTotal: -mdc.preTaxCents / 100, memberDiscount: true });
+      totals = Object.assign({}, totals || {}, {
+        subtotal: Number(mdPay.subtotal), tax: Number(mdPay.tax), total: Number(mdPay.grandTotal)
+      });
+    }
+
     // Scope descriptions — template.description is the customer-facing text
     // (scopeNotes is rep-internal and deliberately NOT shown here).
     var scopes = state.selected.map(function (tid) {
@@ -2313,8 +2344,8 @@
           '<td>' + esc(nm) + (unset ? ' <span class="jt-chip jt-chip-warn">Cost not set</span>' : '') + '</td>' +
           '<td class="num">' + esc(q % 1 ? q.toFixed(1) : q) + '</td>' +
           '<td>' + esc(l.unit || '') + '</td>' +
-          '<td class="num">' + (per != null ? esc(money(per)) : '—') + '</td>' +
-          '<td class="num">' + (rt != null ? esc(money(rt)) : '—') + '</td>' +
+          '<td class="num">' + (per != null ? esc(signedMoney(per)) : '—') + '</td>' +
+          '<td class="num">' + (rt != null ? esc(signedMoney(rt)) : '—') + '</td>' +
           '</tr>';
       });
     });

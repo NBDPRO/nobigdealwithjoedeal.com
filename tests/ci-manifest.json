@@ -382,6 +382,7 @@
     "field-photos-client-2026-10-04.test.js",
     "field-photos-server-2026-10-04.test.js",
     "estimate-pricing-paths-2026-10-05.test.js",
+    "care-plan-crm-2026-10-05.test.js",
     "review-paid-in-full-2026-10-03.test.js"
   ],
   "smoke": {
