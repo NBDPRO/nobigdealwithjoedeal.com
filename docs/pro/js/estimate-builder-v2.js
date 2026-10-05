@@ -523,6 +523,19 @@
   // as the 2-dp decimal literal, so returned dollars are exactly 2-dp.
   const _toCents = (d) => Math.round((Number(d) || 0) * 100);
   const _fromCents = (c) => c / 100;
+  // A minimum-charge value → cents, or null when it is not a usable number.
+  //   a number > 0           → that floor
+  //   0 or a negative number → 0 = NO floor (a shop that set $0 meant it)
+  //   missing / blank / non-numeric → null = not set; the caller falls back
+  // `_toCents(v) || DEFAULT` used to turn an explicit 0 into the $2,500
+  // default (2026-10-05 bug #1).
+  function _floorCentsOrNull(v) {
+    if (v === null || v === undefined || typeof v === 'boolean') return null;
+    if (typeof v === 'string' && v.trim() === '') return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    return n > 0 ? _toCents(n) : 0;
+  }
   function _roundToNearestCents(cents, stepCents) {
     const s = stepCents > 0 ? stepCents : ROUND_TO_CENTS_DEFAULT;
     return Math.round(cents / s) * s;
@@ -1061,9 +1074,17 @@
     const roundToCents = _toCents(s.roundTo) || ROUND_TO_CENTS_DEFAULT;
     let totalCents = _roundToNearestCents(subtotalCents + taxCents, roundToCents);
 
-    // Minimum job
+    // Minimum job, in precedence order:
+    //   1. input.minJobCharge — the preset / job template's own floor
+    //      (estimate-v2-ui.js buildPerSqInput passes state.minJobCharge)
+    //   2. the per-SQ roof minimum setting (s.minJobCharge)
+    //   3. the config default ($2,500) when neither is a usable number
+    // An explicit 0 (or negative) at either level means NO floor.
     let minJobApplied = false;
-    const minJobCents = _toCents(s.minJobCharge) || MIN_JOB_CHARGE_CENTS_DEFAULT;
+    let minJobCents = _floorCentsOrNull(input.minJobCharge);
+    if (minJobCents === null) minJobCents = _floorCentsOrNull(s.minJobCharge);
+    if (minJobCents === null) minJobCents = MIN_JOB_CHARGE_CENTS_DEFAULT;
+    // (0 = no floor: a total is never below 0¢, so this never fires.)
     if (totalCents < minJobCents) {
       totalCents = minJobCents;
       minJobApplied = true;
@@ -1118,6 +1139,7 @@
       tax: _fromCents(taxCents),
       total: _fromCents(totalCents),
       minJobApplied,
+      minJobCharge: _fromCents(minJobCents),   // the floor in force (0 = none)
       deposit,
       internal: {
         costPerSq,
@@ -1343,9 +1365,23 @@
     const roundToCents = _toCents(s.roundTo) || ROUND_TO_CENTS_DEFAULT;
     let totalCents = _roundToNearestCents(subtotalCents + taxCents, roundToCents);
 
-    // Minimum job
+    // Minimum charge — the SAME precedence as the live V2 builder
+    // (estimate-v2-ui.js getCurrentEstimate / tierSettings):
+    //   1. the preset / job template's own floor — input.minJobCharge, or the
+    //      minJobCharge of a settingsOverride the caller built (the live
+    //      builder hands resolveEstimate settings.minJobCharge = that floor)
+    //   2. the shop's opt-in repair minimum (s.minRepairCharge, > 0 only)
+    //   3. nothing.
+    // The device's per-SQ roof minimum (loadSettings().minJobCharge, $2,500)
+    // never floors a line-item job: that is what quoted a $600 repair at
+    // $2,500 (2026-10-05 bug #2, the #1470 class). An explicit 0 = no floor.
     let minJobApplied = false;
-    const minJobCents = _toCents(s.minJobCharge) || MIN_JOB_CHARGE_CENTS_DEFAULT;
+    let minJobCents = _floorCentsOrNull(input.minJobCharge);
+    if (minJobCents === null && input.settingsOverride) minJobCents = _floorCentsOrNull(input.settingsOverride.minJobCharge);
+    if (minJobCents === null) {
+      const repairCents = _floorCentsOrNull(s.minRepairCharge);
+      minJobCents = repairCents === null ? 0 : repairCents;
+    }
     if (totalCents < minJobCents) {
       totalCents = minJobCents;
       minJobApplied = true;
@@ -1398,6 +1434,7 @@
       tax: _fromCents(taxCents),
       total: _fromCents(totalCents),
       minJobApplied,
+      minJobCharge: _fromCents(minJobCents),   // the floor in force (0 = none)
       deposit,
 
       internal: {
