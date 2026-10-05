@@ -314,3 +314,47 @@ without asking Google.
 
 Still open from Phase 3: drawing Google's busy blocks on the Schedule view
 itself (an overlay). Phase 4 polish is unchanged.
+
+## Update 2026-10-04 — the after-contract production flow (closes Phase 3's open item)
+
+Jo approved the production group from the 2026-10-04 audit: 8 committed
+jobs in prod, only 2 with dates; no lead had ever sat in Permit / Materials
+Ordered / Materials Here / Crew Scheduled; crew set on 0 leads; 30 finished
+jobs with 0 After photos. Branch `feat/production-flow`. Calendar rules
+unchanged: warn, never block; a job is a start day + a length.
+
+- **CRM-booked appointments reach everything.** `leads/{id}/tasks`
+  `type:'event'` (lead-events.js — Add Event, door-knock Appointment Set)
+  was read by nothing outside the CRM. Now:
+  - `onLeadEventCalendarWrite` → a timed **BUSY** "📅" event on NBD Jobs
+    (so Cal.com, which reads Google busy, won't offer the slot); the
+    nightly reconcile reads them (collectionGroup `tasks` by uid) so
+    `planSync` never deletes them; a lead edit/delete re-syncs them.
+  - the .ics feed, the 30-minute push (`onAppointmentReminder`, range on
+    `tasks.eventAt` — new COLLECTION_GROUP index) and the morning brief.
+  - Shared shape: `calendar-feed-logic.leadEventToAppointment`.
+- **Material deliveries** (`leads/{id}/jobs/{job}/orders`) → all-day
+  **FREE** "🚚 Delivery" events (`onOrderCalendarWrite` + reconcile), flagged
+  when they land after the start day.
+- **The sub** (company roster `companies/{tenant}/subs`; `lead.subId` +
+  the name in `crew`) rides in the job event's description; `crew` joined
+  `WATCHED`.
+- **Weather.gov** forecast lines in job events for the next 7 days
+  (`job-weather.js`, cached 2 h per ~1 km point, identifying User-Agent);
+  the reconcile writes the same lines so nothing churns.
+- **Phase 3's open item — busy blocks on the Schedule view:** Plan Jobs now
+  opens with a 7-day busy strip (7 am–7 pm hourly cells): Google busy
+  (`getBusyTimes`), CRM jobs and deliveries, each its own shade.
+- Also: the production strip on the job card (Permit → Ordered → Delivery
+  → Sub → Start; stages kept but optional; permit "not required" reuses
+  #2128's `permitNotRequired`), "Send to sub" job sheet (share sheet, no
+  prices), rain-day push (N working days, previewed with `checkRow`, saved
+  through `NBDScheduleWindow.check`), the after-install push + checklist +
+  soft Final Photos warning, "N signed jobs need a week" (brief + Today if
+  #2137 is in), the Crew Scheduled email as a filled DRAFT, and
+  "Tomorrow's installs" reminders sent from Jo's phone.
+- Tests: [production-flow](../../tests/production-flow-2026-10-04.test.js)
+  (behaviour, against fakes), firestore-rules §48, and the 390×844 E2E
+  [phone-production-flow](../../tests/e2e/phone-production-flow.spec.js).
+
+Phase 4 polish is unchanged.

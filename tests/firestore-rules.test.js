@@ -2390,6 +2390,58 @@ async function run() {
     throw new Error('48 tasks: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
   }
 
+  // ─── 49. Production flow 2026-10-04 ───
+  // (a) companies/{tenant}/subs — the sub roster: the tenant reads, the solo
+  //     owner / same-company staff write (shape-checked), viewers and
+  //     sales_reps don't, other tenants see nothing.
+  // (b) leads/{id}/jobs/{job}/orders — the lead's writers, owner + tenant
+  //     pinned to the lead, NO money keys; the collection-group read is the
+  //     caller's own rows only.
+  const s49Fail = []; let s49Pass = 0;
+  async function x49(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s49Pass++;
+    } catch (e) { s49Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const solo49  = env.authenticatedContext('solo49', {}).firestore();
+  const other49 = env.authenticatedContext('other49', {}).firestore();
+  const staff49 = env.authenticatedContext('mgr49', { role: 'manager', companyId: 'co-49' }).firestore();
+  const rep49   = env.authenticatedContext('rep49', { role: 'sales_rep', companyId: 'co-49' }).firestore();
+  const view49  = env.authenticatedContext('view49', { role: 'viewer', companyId: 'co-49' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'companies/solo49/subs/s1'), { name: 'ZZ_QA Ridge Bros', trade: 'Roofing', active: true });
+    await setDoc(doc(db, 'leads/lead49'), { userId: 'solo49', companyId: 'solo49', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'leads/lead49/jobs/j1/orders/o1'), { userId: 'solo49', companyId: 'solo49', store: 'Home Depot', deliveryDate: '2026-10-09', status: 'ordered' });
+    await setDoc(doc(db, 'leads/lead49o/jobs/j1/orders/o1'), { userId: 'other49', companyId: 'other49', store: 'Home Depot', status: 'ordered' });
+  });
+  const SUB49 = { name: 'ZZ_QA Shingle Co', phone: '513-555-0149', trade: 'Roofing', insuranceExpiry: '2027-01-31', notes: '', active: true };
+  await x49('solo owner adds a sub to their own roster', 'allow', setDoc(doc(solo49, 'companies/solo49/subs/s2'), SUB49));
+  await x49('solo owner reads their roster', 'allow', getDoc(doc(solo49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot read it', 'deny', getDoc(doc(other49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot write it', 'deny', setDoc(doc(other49, 'companies/solo49/subs/s3'), SUB49));
+  await x49('a sub with no name is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s4'), Object.assign({}, SUB49, { name: '' })));
+  await x49('a garbage expiry is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s5'), Object.assign({}, SUB49, { insuranceExpiry: 'Jan 2027' })));
+  await x49('same-company manager writes the roster', 'allow', setDoc(doc(staff49, 'companies/co-49/subs/m1'), SUB49));
+  await x49('a sales_rep reads but cannot write', 'deny', setDoc(doc(rep49, 'companies/co-49/subs/r1'), SUB49));
+  await x49('...reads it', 'allow', getDoc(doc(rep49, 'companies/co-49/subs/m1')));
+  await x49('a viewer cannot write', 'deny', setDoc(doc(view49, 'companies/co-49/subs/v1'), SUB49));
+  const ORD49 = { userId: 'solo49', companyId: 'solo49', store: 'Gulf Eagle Supply', orderedDate: '2026-10-05', deliveryDate: '2026-10-08', status: 'ordered', items: [{ name: 'Shingles', qty: 84, unit: 'bundles' }] };
+  await x49('the lead owner adds a material order', 'allow', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o2'), ORD49));
+  await x49('an order carrying a cost key is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o3'), Object.assign({}, ORD49, { costCents: 410000 })));
+  await x49('an order whose owner is not the lead\'s is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o4'), Object.assign({}, ORD49, { userId: 'other49' })));
+  await x49('a bad status is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o5'), Object.assign({}, ORD49, { status: 'lost' })));
+  await x49('another tenant cannot write orders on the lead', 'deny', setDoc(doc(other49, 'leads/lead49/jobs/j1/orders/o6'), Object.assign({}, ORD49, { userId: 'other49', companyId: 'other49' })));
+  await x49('collection-group read of the owner\'s own orders', 'allow',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'solo49'))));
+  await x49('collection-group read of someone else\'s orders is refused', 'deny',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'other49'))));
+  console.log('  49: ' + s49Pass + ' production-flow checks passed, ' + s49Fail.length + ' failed');
+  if (s49Fail.length) {
+    throw new Error('49 production flow: ' + s49Fail.length + ' check(s) went the wrong way:\n    ' + s49Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }
