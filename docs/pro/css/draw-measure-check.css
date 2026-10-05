@@ -1,0 +1,23 @@
+/* draw-measure-check.css — the Instant Roofer cross-check card in the Draw
+   tool (docs/pro/js/draw-measure-check.js, 2026-10-04). */
+.dmc-card {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--br, rgba(255,255,255,.15));
+  background: var(--s2, #181c22);
+  color: var(--t, #e8eaf0);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.dmc-card[hidden] { display: none; }
+.dmc-title { font-weight: 800; font-size: 13px; letter-spacing: .03em; margin-bottom: 4px; }
+.dmc-row { display: flex; justify-content: space-between; gap: 8px; }
+.dmc-key { color: var(--m, #9aa3b2); }
+.dmc-val { font-weight: 700; text-align: right; }
+.dmc-note { margin-top: 4px; font-size: 13px; }
+.dmc-card.dmc-ok { border-color: var(--green, #2ecc8a); }
+.dmc-card.dmc-ok .dmc-note { color: var(--green, #2ecc8a); }
+.dmc-card.dmc-warn { border-color: var(--gold, #eab308); }
+.dmc-card.dmc-warn .dmc-note { color: var(--gold, #eab308); font-weight: 700; }
+.dmc-img { display: block; width: 100%; max-height: 220px; object-fit: contain; margin-top: 8px; border-radius: 6px; background: #000; }
