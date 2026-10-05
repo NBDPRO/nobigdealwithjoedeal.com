@@ -28,7 +28,9 @@ const { CORS_ORIGINS } = require('./_shared');
 // ALLOWED_CLAUDE_MODELS). Estimate only, shown to admins; not billing-critical.
 const MODEL_RATES_PER_M = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
+  // Historical rows (removed from the allowlist 2026-10-04 — deprecated).
   'claude-sonnet-4-20250514': { input: 3, output: 15 },
+  'claude-sonnet-5-5': { input: 2, output: 10 },
 };
 const DEFAULT_RATE = { input: 3, output: 15 }; // sonnet-tier fallback for an unrecognized model string
 

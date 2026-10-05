@@ -399,6 +399,11 @@ const STYLES = `
   .meta { font-size:13px; color:#4b5563; margin-top:2px; }
   .hist { font-size:12px; color:#6b7280; margin:6px 0 0; padding:0 0 0 16px; }
   .footer { background:#1a3057; color:#94a3b8; padding:14px 20px; text-align:center; font-size:11px; }
+  .brief { font-size:13px; color:#1a3057; background:#eef2f7; border-radius:6px; padding:6px 8px; margin-top:6px; }
+  .section { margin-top:18px; }
+  .section h2 { font-size:15px; margin:0 0 8px; color:#1a3057; border-bottom:2px solid #BD5728; padding-bottom:4px; }
+  .row { font-size:13px; padding:6px 0; border-bottom:1px solid #eee; }
+  .sub { font-size:12px; color:#6b7280; }
   a { color:#BD5728; }
 `;
 
@@ -463,6 +468,7 @@ function itemHtml(it) {
     <div class="item">
       <div><span class="when">${escapeHtml(it.timeLabel)}</span><span class="pill">${escapeHtml(it.type)}</span></div>
       <div style="margin-top:4px;">${nameHtml}</div>
+      ${it.briefLine ? `<div class="brief">Brief: ${escapeHtml(it.briefLine)}</div>` : ''}
       ${meta.map((m) => `<div class="meta">${m}</div>`).join('')}
       ${hist ? `<ul class="hist">${hist}</ul>` : ''}
     </div>`;
@@ -471,6 +477,7 @@ function itemHtml(it) {
 function itemText(it) {
   const out = [];
   out.push(plain(it.timeLabel) + ' — ' + plain(it.type) + ' — ' + plain(it.name));
+  if (it.briefLine) out.push('  Brief: ' + plain(it.briefLine));
   if (it.title) out.push('  ' + plain(it.title));
   if (it.address) out.push('  ' + plain(it.address) + '  ' + mapsUrl(it.address));
   if (it.phone) out.push('  ' + plain(it.phone));
@@ -481,6 +488,94 @@ function itemText(it) {
   if (it.weather && it.weather.label) out.push('  ' + plain(weatherText(it.weather)));
   for (const l of historyLines(it.history)) out.push('  - ' + plain(l));
   if (it.leadId) out.push('  ' + customerUrl(it.leadId));
+  return out.join('\n');
+}
+
+// ─── absorbed sections (2026-10-04: ONE morning email) ─────────────
+// newLeads    — functions/lead-digest.js gatherDigestRows rows (was 07:00)
+// promises    — functions/call-center.js gatherSweep items (was 07:15)
+// reviewAsks  — functions/review-request-nudge.js nudgeUser leads (was 08:15)
+const SECTION_SHOW = 15;
+
+function sectionCounts(sec) {
+  const s = sec || {};
+  return {
+    newLeads: (s.newLeads || []).length,
+    promises: (s.promises || []).length,
+    reviewAsks: (s.reviewAsks || []).length,
+  };
+}
+function sectionsHaveContent(sec) {
+  const c = sectionCounts(sec);
+  return c.newLeads + c.promises + c.reviewAsks > 0;
+}
+function promiseLine(i) {
+  const label = { urgent: 'URGENT', due: 'Due', nofile: 'No customer on file' }[i.kind] || 'Due';
+  const what = (i.promises && i.promises.length ? i.promises.join('; ') : i.summary) || '';
+  return { label, who: i.who || 'Unknown', what, due: i.due || '', leadId: i.leadId || null };
+}
+function leadRowName(r) { return r.name || '(no name)'; }
+function reviewAskName(l) { return ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || 'Customer'; }
+
+function sectionsHtml(sec) {
+  const s = sec || {};
+  const parts = [];
+  const nl = s.newLeads || [];
+  if (nl.length) {
+    parts.push('<div class="section"><h2>New leads — last 24h (' + nl.length + ')</h2>'
+      + nl.slice(0, SECTION_SHOW).map((r) => {
+        const tel = telHref(r.phone);
+        return '<div class="row"><strong>' + escapeHtml(leadRowName(r)) + '</strong>'
+          + (tel ? ' · <a href="' + escapeHtml(tel) + '">' + escapeHtml(r.phone) + '</a>' : '')
+          + '<div class="sub">' + escapeHtml([r.label, r.when, r.address].filter(Boolean).join(' · ')) + '</div></div>';
+      }).join('')
+      + (nl.length > SECTION_SHOW ? '<div class="sub">…and ' + (nl.length - SECTION_SHOW) + ' more in the CRM.</div>' : '')
+      + '</div>');
+  }
+  const pr = s.promises || [];
+  if (pr.length) {
+    parts.push('<div class="section"><h2>You said you&#39;d… (' + pr.length + ')</h2>'
+      + pr.slice(0, SECTION_SHOW).map((i) => {
+        const p = promiseLine(i);
+        const who = p.leadId ? '<a href="' + escapeHtml(customerUrl(p.leadId)) + '">' + escapeHtml(p.who) + '</a>' : escapeHtml(p.who);
+        return '<div class="row"><span class="pill">' + escapeHtml(p.label) + '</span> ' + who
+          + (p.due ? ' <span class="sub">· ' + escapeHtml(p.due) + '</span>' : '')
+          + '<div class="sub">' + escapeHtml(truncate(p.what, 220)) + '</div></div>';
+      }).join('')
+      + (pr.length > SECTION_SHOW ? '<div class="sub">…and ' + (pr.length - SECTION_SHOW) + ' more on the Call Center&#39;s &quot;Said you&#39;d do&quot; list.</div>' : '')
+      + '</div>');
+  }
+  const ra = s.reviewAsks || [];
+  if (ra.length) {
+    parts.push('<div class="section"><h2>Ready for a review ask (' + ra.length + ')</h2>'
+      + ra.slice(0, SECTION_SHOW).map((l) => '<div class="row"><a href="' + escapeHtml(customerUrl(l.id)) + '">' + escapeHtml(reviewAskName(l)) + '</a>'
+        + '<div class="sub">' + escapeHtml(l.jobTitle ? l.jobTitle + ' job wrapped' : 'Job wrapped') + ' — tap "Ask for review" on the customer.</div></div>').join('')
+      + '</div>');
+  }
+  return parts.join('');
+}
+
+function sectionsText(sec) {
+  const s = sec || {};
+  const out = [];
+  const nl = s.newLeads || [];
+  if (nl.length) {
+    out.push('NEW LEADS — last 24h (' + nl.length + ')');
+    for (const r of nl.slice(0, SECTION_SHOW)) out.push('  ' + plain(leadRowName(r)) + (r.phone ? '  ' + plain(r.phone) : '') + '  [' + plain([r.label, r.when].filter(Boolean).join(' · ')) + ']' + (r.address ? '\n    ' + plain(r.address) : ''));
+    out.push('');
+  }
+  const pr = s.promises || [];
+  if (pr.length) {
+    out.push("YOU SAID YOU'D… (" + pr.length + ')');
+    for (const i of pr.slice(0, SECTION_SHOW)) { const p = promiseLine(i); out.push('  [' + p.label + '] ' + plain(p.who) + (p.due ? ' · ' + p.due : '') + ' — ' + truncate(p.what, 220) + (p.leadId ? '\n    ' + customerUrl(p.leadId) : '')); }
+    out.push('');
+  }
+  const ra = s.reviewAsks || [];
+  if (ra.length) {
+    out.push('READY FOR A REVIEW ASK (' + ra.length + ')');
+    for (const l of ra.slice(0, SECTION_SHOW)) out.push('  ' + plain(reviewAskName(l)) + '  ' + customerUrl(l.id));
+    out.push('');
+  }
   return out.join('\n');
 }
 
@@ -518,6 +613,18 @@ function buildBrief(o) {
     activityByLead: toMap(opts.activityByLead),
     stormProofsByLead: toMap(opts.stormProofsByLead),
   };
+  // One line per appointment from "Brief me" (lead-brief.js), by lead id.
+  const briefLines = toMap(opts.briefLines);
+  for (const it of items) if (it.leadId && briefLines.get(String(it.leadId))) it.briefLine = truncate(briefLines.get(String(it.leadId)), 200);
+  const sections = opts.sections || null;
+  const hasSections = sectionsHaveContent(sections);
+  const counts = sectionCounts(sections);
+  const extra = [
+    counts.newLeads ? counts.newLeads + ' new lead' + (counts.newLeads === 1 ? '' : 's') : '',
+    counts.promises ? counts.promises + " said you'd do" : '',
+    counts.reviewAsks ? counts.reviewAsks + ' review ask' + (counts.reviewAsks === 1 ? '' : 's') : '',
+  ].filter(Boolean).join(' · ');
+
   const today = nyDateOf(nowMs);
   const weatherByLead = toMap(opts.weatherByLead);
   for (const it of items) {
@@ -533,12 +640,18 @@ function buildBrief(o) {
   const k = needsWeek.length;
   const firstTimed = items.find((it) => !it.allDay);
   const needsLabel = `${k} signed job${k === 1 ? '' : 's'} need${k === 1 ? 's' : ''} a week`;
-  const subject = n === 0
-    ? (k === 0 ? '' : `Today (${dateLabel}): ${needsLabel}`)
+  // Everything besides appointments, for the subject: signed jobs needing a
+  // week (production flow) first, then the absorbed sections.
+  const tail = [k ? needsLabel : '', extra].filter(Boolean).join(' · ');
+  // One morning email: sends on a day with no appointments when signed jobs
+  // need a week or another section has content.
+  const sendable = n > 0 || k > 0 || hasSections;
+  const subject = !sendable ? '' : n === 0
+    ? (k ? `Today (${dateLabel}): ${tail}` : `Today (${dateLabel}): no appointments — ${extra}`)
     : `Today (${dateLabel}): ${n} appointment${n === 1 ? '' : 's'}`
       + (firstTimed ? ` — first at ${SW.fmtTime12(hmToMin(nyHm(firstTimed.sortMs)))}` : '')
-      + (k ? ` · ${needsLabel}` : '');
-  const sendable = n > 0 || k > 0;
+      + (tail ? ` · ${tail}` : '');
+  const headline = n === 0 ? 'No appointments today' : `${n} appointment${n === 1 ? '' : 's'} today`;
 
   const html = !sendable ? '' : `<!DOCTYPE html>
 <html>
@@ -551,12 +664,13 @@ function buildBrief(o) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>${n} appointment${n === 1 ? '' : 's'} today</h1>
+      <h1>${headline}</h1>
       <p>NBD Pro · Morning brief · ${escapeHtml(dateLabel)}</p>
     </div>
     <div class="content">
       ${items.map(itemHtml).join('')}
       ${needsWeekHtml(needsWeek)}
+      ${hasSections ? sectionsHtml(sections) : ''}
       <p style="font-size:12px;color:#6b7280;text-align:center;margin-top:16px;">
         From the CRM only — open a customer for the full record. <a href="${DASHBOARD_URL}#settings">Manage email preferences</a>.
       </p>
@@ -569,15 +683,16 @@ function buildBrief(o) {
 </html>`;
 
   const text = !sendable ? '' : [
-    `${n} appointment${n === 1 ? '' : 's'} today — ${dateLabel}`,
+    `${headline} — ${dateLabel}`,
     '',
     items.map(itemText).join('\n\n'),
     k ? '\n' + needsWeekText(needsWeek) : '',
     '',
+    hasSections ? sectionsText(sections) : '',
     'Internal brief for the account owner. Preferences: ' + DASHBOARD_URL + '#settings',
   ].join('\n');
 
-  return { today, items, subject, html, text };
+  return { today, items, subject, html, text, sendable, sectionCounts: counts };
 }
 
 module.exports = {
@@ -595,4 +710,7 @@ module.exports = {
   stormLines,
   propertyHistory,
   buildBrief,
+  sectionsHaveContent,
+  sectionsHtml,
+  sectionsText,
 };

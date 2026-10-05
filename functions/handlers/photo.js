@@ -25,6 +25,9 @@ const { requireAuth, viewOnlyRefusal } = require('../shared');
 const { CORS_ORIGINS } = require('./_shared');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const { recordAiSpend, rowFromAnthropic } = require('../ai-spend');
+// analyzeRoofPhoto's model (2026-10-04: claude-sonnet-4-6 → claude-sonnet-5-5).
+const ROOF_ANALYSIS_MODEL = 'claude-sonnet-5-5';
 
 /**
  * One-time function to set CORS on the Firebase Storage bucket.
@@ -416,10 +419,14 @@ exports.analyzeRoofPhoto = onRequest(
       }
       const imageBase64 = buf.toString('base64');
 
-      // Call Claude (Sonnet for better vision accuracy on small details)
+      // Call Claude (Sonnet for better vision accuracy on small details).
+      // Sonnet 5.5 (2026-10-04; was claude-sonnet-4-6): thinking is off
+      // ({type:'between_tools'}, its documented off-switch) so the 800-token
+      // answer budget is not spent thinking — the same one-shot JSON as before.
       const anthropicBody = {
-        model: 'claude-sonnet-4-6',
+        model: ROOF_ANALYSIS_MODEL,
         max_tokens: 800,
+        thinking: { type: 'between_tools' },
         system: ROOF_ANALYSIS_SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -446,6 +453,7 @@ exports.analyzeRoofPhoto = onRequest(
         return;
       }
 
+      await recordAiSpend(rowFromAnthropic('roof-photo', anthropicBody.model, aiData), { log: logger });
       const text = Array.isArray(aiData.content)
         ? aiData.content.map(c => (c && c.type === 'text' ? c.text : '')).join('').trim()
         : '';

@@ -41,7 +41,9 @@
    * Everything else — the four portal-link buttons, the share panel, PDF
    * export, edit, photo report, review SMS, referral code — is a deliberate
    * trip to the More list, not something a rep needs one thumb away. */
-  var PRIMARY_IDS = ['callLink', 'smsBookingLink', 'emailLink', 'stageProgressBtn', 'bookingKindSelect'];
+  // briefMeBtn (2026-10-04): "Brief me" is the pre-visit tool — one thumb away
+  // standing in the driveway, not a trip to More.
+  var PRIMARY_IDS = ['callLink', 'smsBookingLink', 'emailLink', 'stageProgressBtn', 'bookingKindSelect', 'briefMeBtn'];
   var PRIMARY_ACTIONS = ['progressStage'];
 
   function isPrimary(el) {
