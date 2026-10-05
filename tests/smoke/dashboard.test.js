@@ -6387,7 +6387,7 @@ section('Mobile Details-tab parity round 2: Warranty Claim, Insurance Details, J
   assert('dashboard.html: the Details tab reuses the SAME #checklistPanel id customer.html uses (render() hardcodes it, not container-agnostic)',
     /id="checklistPanel"/.test(html));
   assert('dashboard.html now loads customer-checklist.js (not loaded there before this round)',
-    /<script defer src="js\/customer-checklist\.js\?v=2"><\/script>/.test(html));
+    /<script defer src="js\/customer-checklist\.js\?v=\d+"><\/script>/.test(html));
   assert('openMobileJobDetail calls window.JobChecklist.render UNMODIFIED',
     /window\.JobChecklist && typeof window\.JobChecklist\.render === 'function'\)[\s\S]{0,60}window\.JobChecklist\.render\(lead\)/.test(openMobileFn3));
   assert('a document-level change delegate dispatches checklist checkbox taps to the REAL window.toggleJobChecklistItem (customer-tasks-ui.js\'s own delegate isn\'t loaded on this page)',

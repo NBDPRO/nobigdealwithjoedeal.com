@@ -359,13 +359,6 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     return hit ? hit.label : String(m);
   }
 
-  // HTML-escape every user value that reaches innerHTML (& < > " ').
-  function escHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
-
   // Dollars (number or "$1,234.56" string) → integer cents, rounded half-up
   // on the DECIMAL digits, not on the binary float: 1.005 * 100 is
   // 100.49999999999999 in IEEE-754, so Math.round(x * 100) loses the cent.

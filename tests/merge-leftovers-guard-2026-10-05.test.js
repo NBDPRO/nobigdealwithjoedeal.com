@@ -61,72 +61,35 @@ const diff = (got, want) => 'new: [' + got.filter((x) => !want.includes(x)).join
 // ── KNOWN violations on origin/main, 2026-10-05 ─────────────────────────
 const KNOWN = {
   // A. pages
-  dupTags: {
-    'KNOWN BUG R1-10-1 (reported 2026-10-05): dashboard.html links three stylesheets twice, the old ?v=1 tag kept next to the ?v=2 bump (keep-both residue of #2068/#2084, #2075/#2089) — expected one <link> each, at ?v=2': [
-      '/pro/dashboard.html /pro/css/templates-library-view.css',
-      '/pro/dashboard.html /pro/css/data-import-view.css',
-      '/pro/dashboard.html /pro/css/lead-snooze-view.css',
-    ],
-    'KNOWN BUG R1-10-2 (reported 2026-10-05): customer.html links three stylesheets twice, ?v=1 next to ?v=2 (keep-both residue of #2040/a5a1f4eb, #2075/#2089, #2069/#2084) — expected one <link> each, at ?v=2': [
-      '/pro/customer.html /pro/css/customer-tasks.css',
-      '/pro/customer.html /pro/css/lead-snooze-view.css',
-      '/pro/customer.html /pro/css/templates-library-view.css',
-    ],
-  },
-  crossPageV: {
-    'KNOWN BUG R1-10-3 (reported 2026-10-05): the same file carries a different ?v on dashboard.html and customer.html (google-calendar.css 7 vs 5 after a5a1f4eb changed it; customer-checklist.js 2 vs 3; icons.js 4 vs none; theme-system.css 10 vs none) — expected one ?v per file across both pages': [
-      '/pro/css/google-calendar.css',
-      '/pro/js/customer-checklist.js',
-      '/pro/js/icons.js',
-      '/pro/css/theme-system.css',
-    ],
-  },
+  // R1-10-1 + R1-10-2 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  dupTags: {},
+  // R1-10-3 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  crossPageV: {},
   // C. functions
-  indexDupRows: {
-    'KNOWN BUG R1-10-4 (reported 2026-10-05): FUNCTIONS_INDEX.md lists six functions twice — keep-both kept the superseded row next to the new one (measurementWebhook still claims the Hover/EagleView HMAC branches removed 2026-10-04; measureNewWebLead claims "the only automated spender"; the crmMcp/agent-key rows pre-date #2152 bring-your-own-bot) — expected one current row each': [
-      'measurementWebhook', 'measureNewWebLead', 'crmMcp', 'createAgentKey', 'listAgentKeys', 'revokeAgentKey',
-    ],
-  },
-  indexRowsNotExported: {
-    'KNOWN BUG R1-10-5 (reported 2026-10-05): FUNCTIONS_INDEX.md has rows for four functions no longer exported (sendEstimateForSignature + esignWebhook retired with BoldSign in #2166; stormWatch + checkStormAlerts merged into stormPoller in #2148, then re-added by the 8d16cbb0 merge) — expected those rows deleted (and the console functions deleted with gcloud)': [
-      'sendEstimateForSignature', 'esignWebhook', 'stormWatch', 'checkStormAlerts',
-    ],
-  },
-  verdictDupKeys: {
-    'KNOWN BUG R1-10-6 (reported 2026-10-05): viewer-callables.test.js VERDICTS repeats keys (same value today; a later edit to only one copy would be silently overridden by the other) — expected each function once': [
-      'createStripePaymentLink', 'cspReport', 'emailUnsubscribe', 'getCalendarFeed', 'getDealRoom', 'getEsignEnvelope',
-      'getEstimateForView', 'submitPublicLead', 'uploadPublicLeadPhoto', 'updatePublicLeadIntake', 'submitReferral', 'submitSignature',
-    ],
-  },
+  // R1-10-4 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  indexDupRows: {},
+  // R1-10-5 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  indexRowsNotExported: {},
+  // R1-10-6 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  verdictDupKeys: {},
   // D. tests
-  authedListDups: {
-    'KNOWN BUG R1-10-7 (reported 2026-10-05): tests/package.json test:e2e:authed:emu names roof-rep.spec.js twice (harmless: Playwright filters, it runs once) — expected once': ['roof-rep.spec.js'],
-  },
+  // R1-10-7 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  authedListDups: {},
   emulatorOnlyInNodeBucket: {
     'KNOWN BUG R1-10-8 (reported 2026-10-05): four node-bucket suites keep their end-to-end section behind FIRESTORE_EMULATOR_HOST, which the unit-suite-manifest job never sets — CI logs print "(skipped — no FIRESTORE_EMULATOR_HOST)", so the bot-API cross-tenant refusal, the server-side KY wording refusal and the personal-key scope checks have never run in CI — expected those sections moved to an emulators:exec step (emulator bucket) or the suites run under one': [
       'agent-mcp-2026-10-02.test.js', 'agent-mcp-roles-v2-2026-10-02.test.js', 'agent-personal-keys-2026-10-02.test.js', 'call-watch-2026-10-02.test.js',
     ],
   },
   // E. keep-both residue
-  dupDecls: {
-    'KNOWN BUG R1-10-9 (reported 2026-10-05): docs/pro/js/invoice-pipeline.js declares escHtml twice in the same IIFE (lines ~211 and ~363, identical bodies; the later one wins) — expected one declaration': [
-      'docs/pro/js/invoice-pipeline.js escHtml',
-    ],
-  },
-  dupIndexes: {
-    'KNOWN BUG R1-10-10 (reported 2026-10-05): firestore.indexes.json carries the members (email, status) collection-group index twice — expected once': [
-      'members|COLLECTION_GROUP|email:ASCENDING,status:ASCENDING',
-    ],
-  },
-  dupVaultRows: {
-    'KNOWN BUG R1-10-11 (reported 2026-10-05): documentation/INDEX.md repeats two rows verbatim (BIG_ROCKS under Standing notes and Projects; FREE-API-INTEGRATIONS-RESEARCH-2026-09-02 twice in the audit list) — expected each once': [
-      '- [BIG_ROCKS](projects/BIG_ROCKS.md)',
-      '- [FREE-API-INTEGRATIONS-RESEARCH-2026-09-02](audit/FREE-API-INTEGRATIONS-RESEARCH-2026-09-02.md)',
-    ],
-  },
+  // R1-10-9 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  dupDecls: {},
+  // R1-10-10 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  dupIndexes: {},
+  // R1-10-11 fixed 2026-10-05 (chore/merge-leftovers-cleanup).
+  dupVaultRows: {},
 };
 const known = (k) => Object.values(KNOWN[k]).flat();
-const knownName = (k) => Object.keys(KNOWN[k]).join(' + ');
+const knownName = (k) => Object.keys(KNOWN[k]).join(' + ') || 'no known leftover (fixed 2026-10-05)';
 
 // ── Allowed by design (verified 2026-10-05, not bugs) ───────────────────
 // ScriptLoader dedupes on the RESOLVED PATH (cacheKey in script-loader.js),

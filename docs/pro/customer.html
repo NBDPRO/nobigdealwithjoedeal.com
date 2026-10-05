@@ -78,7 +78,7 @@
 <!-- Audit #28: switched from inline one-theme to shared theme-system.css so this
      page honors whatever theme the user picked across the app instead of being
      permanently locked to nbd-original. -->
-<link rel="stylesheet" href="css/theme-system.css">
+<link rel="stylesheet" href="css/theme-system.css?v=10">
 <link rel="stylesheet" href="css/theme-art.css?v=2">
 <style id="theme-system">
 /* Shared theme vars now live in css/theme-system.css — all 80+ themes supported. */
@@ -1543,27 +1543,24 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/customer-bootstrap.css?v=1">
-<link rel="stylesheet" href="css/customer-tasks.css?v=2">
 <link rel="stylesheet" href="css/lead-brief.css?v=1">
-<link rel="stylesheet" href="css/customer-tasks.css?v=1">
+<link rel="stylesheet" href="css/customer-tasks.css?v=2">
 <link rel="stylesheet" href="css/estimate-send.css?v=1">
-<link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
-<link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/profit-tracker-view.css?v=1">
 <link rel="stylesheet" href="css/claim-core-view.css?v=1">
 <link rel="stylesheet" href="css/insurance-claim-view.css?v=1">
-<link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
+<link rel="stylesheet" href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
-<link rel="stylesheet" href="css/templates-library-view.css?v=1">
+<link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/my-skin.css?v=1">
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/customer">
 <link rel="stylesheet" href="css/photo-editor.css?v=6">
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 <link rel="stylesheet" href="css/phone-calls.css?v=10">
-<link rel="stylesheet" href="css/google-calendar.css?v=5">
+<link rel="stylesheet" href="css/google-calendar.css?v=7">
 <link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/stage-gate-sheet.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
@@ -2739,7 +2736,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
 <script defer src="js/script-loader.js?v=142"></script>
-<script defer src="js/icons.js"></script>
+<script defer src="js/icons.js?v=4"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
      before the modal-consuming scripts below. -->

@@ -510,12 +510,9 @@ const VERDICTS = {
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
   createStripePaymentLink: 'refused', cspReport: 'public', clientError: 'public', emailUnsubscribe: 'public',
-  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
   getCalendarFeed: 'public', getDealRoom: 'public', getDealPhoto: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
-  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
   // The signer's Decline button (2026-10-04): token-authed like getEsignEnvelope.
   declineEsignEnvelope: 'public',
-  getCalendarFeed: 'public', getDealRoom: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
   getGoogleReviews: 'public', getHomeownerPortalView: 'public', getPortalDocumentHtml: 'public',
   getPortalMessages: 'public', getPublicSiteConfig: 'public', getSharedReport: 'public',
   getSignDocument: 'public', getSubscriptionStatus: 'read', imageProxy: 'public', incomingSMS: 'public',
@@ -527,7 +524,6 @@ const VERDICTS = {
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
   submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
   submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', referralLinkOpened: 'public', submitSignature: 'public',
-  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
   // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup
   // (Bland's bearer token, no signed-in user).

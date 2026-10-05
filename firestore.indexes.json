@@ -899,20 +899,6 @@
       ]
     },
     {
-      "collectionGroup": "members",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        {
-          "fieldPath": "email",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "_comment": "QA 2026-06-23 query-index audit: Smart Calendar daily timeline (smart-calendar.js _fetchTodaysAppointments) — where('repUid'/'userId','==') + range/orderBy('startTime'). Without these the appointments query throws 'requires an index' and the whole Today's Schedule panel silently renders the empty state.",
       "collectionGroup": "appointments",
       "queryScope": "COLLECTION",
