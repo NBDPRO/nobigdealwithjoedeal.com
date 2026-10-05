@@ -21,7 +21,7 @@
     stats  [{ label, value, sub }],   // 3 cards
     property [{ label, value }],
     findings [{ component, condition, notes }],
-    photos   [{ url, caption, area, severity? }],
+    photos   [{ url, caption, area, severity?, stamp? }],   // stamp: "date · time · On-site"
     scope    [{ area, item, severity, quantity?, notes? }],
     totalScope (currency, optional),
     recommendations (string)
@@ -116,6 +116,8 @@
       </div>
       <div class="photo-meta">
         <div class="photo-caption">{{this.caption}}</div>
+        {{!-- Capture date, time and "On-site" (2026-10-04). Never coordinates. --}}
+        {{#if this.stamp}}<div class="photo-loc photo-stamp">{{this.stamp}}</div>{{/if}}
         {{#if this.severity}}<div class="photo-loc"><span class="sev {{severityClass this.severity}}" style="font-size:7pt;padding:1pt 5pt;">{{this.severity}}</span></div>{{/if}}
       </div>
     </div>
