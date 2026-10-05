@@ -164,7 +164,9 @@ function _leadModalReset(){
   // EntityResolver.openQuickCreate) — reset it back to New on every dismiss.
   const st=document.getElementById('lStage'); if(st) st.value='new';
   // Clear insurance/finance/job fields
-  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  // The sub picker (production flow, 2026-10-04) — back to "No sub yet".
+  if (window.NBDProduction) window.NBDProduction.fillSubSelect('lSubId', {});
   // The arrival window rides with #lScheduledDate — back to "All day".
   if (window.NBDScheduleWindowUI) window.NBDScheduleWindowUI.reset('l');
   ['lClaimFiledBy','lSupplementStatus','lLoanStatus'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
@@ -211,7 +213,7 @@ const _leadModal = document.getElementById('leadModal');
 const _LEAD_TYPED_FIELDS = [
   'lFname','lLname','lAddr','lPhone','lEmail','lNotes','lJobValue','lLeadCost','lFollowUp',
   'lInsCarrier','lReferralCode','lClaimNumber','lPolicyNumber','lDateOfLoss','lCarrierDecisionAt','lEstimateAmount','lDeductible',
-  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lCrew'
+  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lSubId'
 ];
 function _leadFormHasContent(){
   return _LEAD_TYPED_FIELDS.some(id => {
@@ -452,7 +454,10 @@ async function saveLead(){
       // same rule as `trades` above: a guessed null would wipe a real window.
       ...(_schedWinUI ? _schedWinUI.read('l') : {}),
       ..._weekPatch,
-      crew: document.getElementById('lCrew')?.value?.trim()||'',
+      // The sub picker (production flow, 2026-10-04): subId + the sub's name
+      // in `crew` (every older reader shows crew). {} when the picker never
+      // loaded (a stale cached page) — a guessed '' would wipe a real sub.
+      ...(window.NBDProduction ? window.NBDProduction.subFieldsFromSelect('lSubId') : {}),
       // 2026-09-15 (Paperwork Filing) — gate fields for REQUIRED_FIELDS_BY_TYPE
       // (crm-stages.js). '' when unchecked, never false/0 — missingRequiredFields
       // only treats undefined/null/'' as missing. editLead() (crm-portal-bridge.js)

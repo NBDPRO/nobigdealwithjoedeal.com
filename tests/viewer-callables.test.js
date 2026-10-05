@@ -434,6 +434,8 @@ const VERDICTS = {
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
   // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.
   createEstimateReviewLink: 'refused', recordEstimateShared: 'refused', freshEstimateLink: 'refused',
+  // Job-day weather (production flow, 2026-10-04): owner-only via requireOwner, like the other Google-calendar callables.
+  getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
