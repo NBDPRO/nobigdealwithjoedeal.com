@@ -22,6 +22,9 @@
     "stripe": "^22.6.2",
     "twilio": "^6.1.1"
   },
+  "optionalDependencies": {
+    "ffmpeg-static": "5.2.0"
+  },
   "overrides": {
     "brace-expansion": "5.0.12",
     "minimatch": "^10.2.6"
