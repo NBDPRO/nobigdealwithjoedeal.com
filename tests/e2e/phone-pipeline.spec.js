@@ -139,7 +139,7 @@ async function seedLeads(page, token) {
     };
     const out = {};
     for (const [k, v] of Object.entries(rows)) {
-      const ref = await window.addDoc(window.collection(window.db, 'leads'), Object.assign({}, base, v));
+      const ref = await window.addDoc(window.collection(window.db, 'leads'), Object.assign({ meter: 'manual' }, base, v)); // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
       out[k] = ref.id;
     }
     await window._loadLeads();

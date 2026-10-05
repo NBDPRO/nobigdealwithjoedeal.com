@@ -49,6 +49,7 @@ async function seed(page) {
     phone: '513' + String(stamp).slice(-7), email: 'e2e-cxl-' + stamp + '@nbd.test',
     stage: 'permit_pulled', jobType: 'cash', jobValue: 15000,
     scopeOfWork: 'Full tear-off and replacement.', e2eTestData: true, userId: uid, companyId,
+    meter: 'manual', // server lead meter (firestore.rules leadMeterOk, #2152)
   };
   const est = {
     userId: uid, companyId, name: 'E2E cancel ' + stamp, e2eTestData: true,

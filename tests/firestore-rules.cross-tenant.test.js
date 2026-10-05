@@ -289,15 +289,15 @@ async function run() {
   //    caller's own tenant on create. Foreign id rejected; own claim/uid OK.
   //    leads REQUIRE companyId; the company-scoped collections pin-if-present.
   // ═══════════════════════════════════════════════════════════
-  await check('leads create: foreign companyId (co-a)',       'deny',  setDoc(doc(bob, 'leads/x-foreign'),       { userId: 'bob', companyId: 'co-a', name: 'x' }));
-  await check('leads create: own claim companyId (co-b)',     'allow', setDoc(doc(bob, 'leads/x-own'),           { userId: 'bob', companyId: 'co-b', name: 'x' }));
+  await check('leads create: foreign companyId (co-a)',       'deny',  setDoc(doc(bob, 'leads/x-foreign'),       { userId: 'bob', companyId: 'co-a', name: 'x', meter: 'manual' }));
+  await check('leads create: own claim companyId (co-b)',     'allow', setDoc(doc(bob, 'leads/x-own'),           { userId: 'bob', companyId: 'co-b', name: 'x', meter: 'manual' }));
   // #12 guard extended 2026-08-10: a CLAIM-CARRYING member stamping their own
   // uid as companyId hides the doc from the company rollup (the expenses
   // threat model, now applied to every rollup-feeding create). uid-as-
   // companyId is legal ONLY for true solos (no companyId claim).
-  await check('leads create: own uid as companyId (claim-carrier — rollup evasion)', 'deny', setDoc(doc(bob, 'leads/x-uid'), { userId: 'bob', companyId: 'bob',  name: 'x' }));
-  await check('leads create: solo (no claim) pins own uid',   'allow', setDoc(doc(noClaim, 'leads/x-solo'),      { userId: 'nc', companyId: 'nc', name: 'x' }));
-  await check('leads create: missing companyId (required)',   'deny',  setDoc(doc(bob, 'leads/x-none'),          { userId: 'bob', name: 'x' }));
+  await check('leads create: own uid as companyId (claim-carrier — rollup evasion)', 'deny', setDoc(doc(bob, 'leads/x-uid'), { userId: 'bob', companyId: 'bob',  name: 'x', meter: 'manual' }));
+  await check('leads create: solo (no claim) pins own uid',   'allow', setDoc(doc(noClaim, 'leads/x-solo'),      { userId: 'nc', companyId: 'nc', name: 'x', meter: 'manual' }));
+  await check('leads create: missing companyId (required)',   'deny',  setDoc(doc(bob, 'leads/x-none'),          { userId: 'bob', name: 'x', meter: 'manual' }));
   await check('knocks create: foreign companyId (co-a)',      'deny',  setDoc(doc(bob, 'knocks/k-foreign'),      { userId: 'bob', companyId: 'co-a' }));
   await check('knocks create: own companyId (co-b)',          'allow', setDoc(doc(bob, 'knocks/k-own'),          { userId: 'bob', companyId: 'co-b' }));
   await check('knocks create: companyId omitted (degrades)',  'allow', setDoc(doc(bob, 'knocks/k-none'),         { userId: 'bob' }));
@@ -374,7 +374,7 @@ async function run() {
   // is write-once, and BOTH halves need proving — the mint-then-stamp flow
   // must still work, or lead creation breaks in production.
   // ═══════════════════════════════════════════════════════════
-  await check('leads: bob creates own lead without customerId',   'allow', setDoc(doc(bob, 'leads/l-cid'), { userId: 'bob', companyId: 'co-b', name: 'Bob Lead' }));
+  await check('leads: bob creates own lead without customerId',   'allow', setDoc(doc(bob, 'leads/l-cid'), { userId: 'bob', companyId: 'co-b', name: 'Bob Lead', meter: 'manual' }));
   await check('leads: client CAN stamp customerId when absent',   'allow', updateDoc(doc(bob, 'leads/l-cid'), { customerId: 'BOB-0001-Z9' }));
   await check('leads: normal edits still work once stamped',      'allow', updateDoc(doc(bob, 'leads/l-cid'), { stage: 'contacted' }));
   await check('leads: cannot REPOINT customerId once set',        'deny',  updateDoc(doc(bob, 'leads/l-cid'), { customerId: 'ACO-0042-Q1' }));
@@ -428,7 +428,7 @@ async function run() {
   // tenant wall around it: the viewer's own tenant staff can still work the
   // viewer's lead, another tenant still cannot, and the viewer still reads.
   // ═══════════════════════════════════════════════════════════
-  await check('viewer: creates a lead',                       'deny',  setDoc(doc(vicA,   'leads/l-vica'),               { userId: 'vica', companyId: 'co-a', name: 'x' }));
+  await check('viewer: creates a lead',                       'deny',  setDoc(doc(vicA,   'leads/l-vica'),               { userId: 'vica', companyId: 'co-a', name: 'x', meter: 'manual' }));
   await check('viewer-owner: adds a task on own lead',        'deny',  setDoc(doc(vicA,   'leads/leadVA/tasks/t1'),      { title: 'x' }));
   await check('viewer-owner: edits a contract row',           'deny',  updateDoc(doc(vicA,'leads/leadVA/documents/docV'),{ name: 'x' }));
   await check('viewer-owner: deletes a contract row',         'deny',  deleteDoc(doc(vicA,'leads/leadVA/documents/docV')));
@@ -569,7 +569,7 @@ async function run() {
       : { label: 'Z: the /notes step removed the top-level note', expect: 'swept', outcome: 'FAIL', note: `>>> ${notesSweep.deleted} docs, failures: ${notesSweep.failures.join('; ')}` });
 
     await check('Z: B can still create leads/leadGone as their own', 'allow',
-      setDoc(doc(bob, 'leads/leadGone'), { userId: 'bob', companyId: 'co-b', name: 'mine now' }));
+      setDoc(doc(bob, 'leads/leadGone'), { userId: 'bob', companyId: 'co-b', name: 'mine now', meter: 'manual' }));
     for (const sub of SUBS) {
       await checkEmpty(`Z: B re-created it; reads none of A's ${sub}`, getDocs(collection(bob, `leads/leadGone/${sub}`)));
     }

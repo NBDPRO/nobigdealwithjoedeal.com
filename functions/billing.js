@@ -133,6 +133,24 @@ exports.trackUsage = onCall({
     const prevUsage = (!rolled && data.usage && typeof data.usage[feature] === 'number')
       ? data.usage[feature]
       : 0;
+
+    // LEADS are metered on the server now (2026-10-04, lead-cap.js
+    // meterLeadCreate counts every client-created lead as it lands, and
+    // firestore.rules enforce the cap). The browser still calls this after a
+    // lead create; counting here too would count every lead twice. Report the
+    // meter instead of moving it.
+    if (feature === 'leads') {
+      const capL = limits.leads;
+      return {
+        feature,
+        plan,
+        usage: prevUsage,
+        limit: capL === Infinity ? null : capL,
+        overage: false,
+        meteredBy: 'server',
+      };
+    }
+
     const nextUsage = prevUsage + 1;
 
     // Server-side cap check. Owner accounts bypass entirely — keyed on

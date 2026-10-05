@@ -166,6 +166,7 @@ test.describe.serial('phone estimate data @audit', () => {
       // of this hook would find the previous attempt's lead and sit on that
       // prompt until the hook times out. loadLeads() below is the real loader.
       const leadRef = await window.addDoc(window.collection(window.db, 'leads'), {
+        meter: 'manual', // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
         firstName: '[E2E] Estdata', lastName: String(stamp),
         address: `${String(stamp).slice(-3)} Estdata Ln, Milford, OH`,
         phone: '513' + String(stamp).slice(-7), email: `e2e-estdata-${stamp}@nbd.test`,

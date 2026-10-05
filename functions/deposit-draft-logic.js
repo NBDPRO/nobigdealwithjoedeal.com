@@ -165,7 +165,9 @@ function decideDepositDraft(ctx) {
   const totalCents = Math.round(Number(t.total) * 100);
 
   // The deposit — deposit-rule.js, exactly as createInvoiceFromEstimate asks it.
-  const plan = DR.fromEstimate(est, { totalCents, lead });
+  // The COMPANY's cash deposit rule (2026-10-04, tenant-ready): the caller
+  // passes it (tenant-ops-logic depositConfigFor); absent = NBD's rule.
+  const plan = DR.fromEstimate(est, ctx.depositConfig ? { totalCents, lead, config: ctx.depositConfig } : { totalCents, lead });
   // Kentucky insurance job → nothing at signing. deposit-rule.js decides it
   // from the estimate's mode; the contract decides it from the LEAD too (a
   // claim number or carrier makes it an insurance job). classifyLead is that
