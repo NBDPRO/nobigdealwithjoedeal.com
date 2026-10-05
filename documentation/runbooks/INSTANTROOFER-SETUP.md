@@ -66,6 +66,14 @@ There is no other provider to go back to: HOVER, EagleView and Nearmap were
 removed 2026-10-04 (never configured), and any other `NBD_MEASUREMENT_PROVIDER`
 value makes `requestMeasurement` fail loudly instead of billing anyone.
 
+**Update 2026-10-04 (Lane G):** two more values exist. `solar` measures with
+the Google Solar API (`functions/integrations/solar-measure.js`, secret
+`SOLAR_API_KEY`); `auto` tries Solar first and falls back to Instant Roofer
+when Solar fails, is unconfigured, or its imagery is LOW. Human Certified
+Reports always go to Instant Roofer. Set the value as a non-secret line
+(`NBD_MEASUREMENT_PROVIDER=auto`) in `functions/.env.nobigdeal-pro` — only
+after `scripts/measure-compare.js` has been run on ~10 known roofs.
+
 ## 3. Human-report webhook (needed before any `reportType:'human'` order)
 
 Their dashboard refuses a human order without a webhook destination, and

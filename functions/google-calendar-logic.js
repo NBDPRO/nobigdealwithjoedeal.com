@@ -47,7 +47,7 @@ const iso = (ms) => new Date(ms).toISOString();
  * offer those hours; a date-only job with no time shows FREE (it is a
  * reminder, not a block), the same choice the .ics feed made.
  */
-function toGoogleEvent(ev, lead, job) {
+function toGoogleEvent(ev, lead, job, ctx) {
   if (!ev) return null;
   const isAdj = ev.kind === 'adjuster';
   // A customer's other job names itself, so two jobs for one customer read apart.
@@ -61,6 +61,12 @@ function toGoogleEvent(ev, lead, job) {
   } else {
     if (ev.stage) lines.push('Stage: ' + ev.stage);
     if (ev.phone) lines.push('Homeowner: ' + ev.phone);
+    // Production flow (2026-10-04): the sub on the job — an independent
+    // subcontractor from the company's roster (lead.crew holds the name).
+    const sub = String((lead && lead.crew) || '').trim();
+    if (sub) lines.push('Sub: ' + sub.slice(0, 80));
+    // The weather.gov forecast for the job's days in the next week (warns only).
+    for (const l of weatherLines(ev, ctx && ctx.weather)) lines.push(l);
   }
   if (lead && lead.customerId) lines.push('Customer # ' + lead.customerId);
   lines.push('Open in NBD Pro: ' + APP_URL + encodeURIComponent(ev.id));
@@ -85,16 +91,34 @@ function toGoogleEvent(ev, lead, job) {
 }
 
 /**
+ * The forecast lines for a job event: one per job day that has a forecast in
+ * `weather` ({ 'YYYY-MM-DD': { label, level } } from job-weather.js). A warn
+ * day is flagged so it stands out on the phone.
+ */
+function weatherLines(ev, weather) {
+  if (!ev || !weather || typeof weather !== 'object') return [];
+  const first = ev.date || (ev.startMs != null ? nyDate(ev.startMs) : null);
+  if (!first) return [];
+  const lastExcl = ev.endExclusive || FEED.nextDate(first);
+  const out = [];
+  for (let d = first, i = 0; d && d < lastExcl && i < 14; d = FEED.nextDate(d), i++) {
+    const w = weather[d];
+    if (w && w.label) out.push((w.level === 'warn' ? '⚠ ' : '') + 'Weather ' + d + ': ' + w.label);
+  }
+  return out;
+}
+
+/**
  * Every Google event a lead should have right now (0, 1 or 2).
  * Tenant scoping is the caller's job — only the platform tenant's leads come
- * in here.
+ * in here. ctx (optional): { weather } — see weatherLines.
  */
-function desiredEventsForLead(lead, job) {
+function desiredEventsForLead(lead, job, ctx) {
   if (!lead || lead.deleted === true) return [];
   const doc = Object.assign({}, lead, { id: lead.id });
   const out = [];
   const ev = FEED.normalizeLead(doc);
-  if (ev) out.push(toGoogleEvent(ev, lead, job));
+  if (ev) out.push(toGoogleEvent(ev, lead, job, ctx));
   else {
     const wk = weekEventFor(doc, lead, job);
     if (wk) out.push(wk);
@@ -111,10 +135,97 @@ function desiredEventsForLead(lead, job) {
  * a second job never overwrites the first job's event. A job that is the
  * active one, or has no id → none (its events are the lead's).
  */
-function desiredEventsForJob(lead, job) {
+function desiredEventsForJob(lead, job, ctx) {
   if (!lead || !job || !job.id || job.id === lead.activeJobId) return [];
   const view = Object.assign(JOBS.jobView(lead, job), { id: lead.id });
-  return desiredEventsForLead(view, { id: String(job.id), title: job.title || null });
+  return desiredEventsForLead(view, { id: String(job.id), title: job.title || null }, ctx);
+}
+
+// ── CRM-booked appointments (production flow, 2026-10-04) ─────────────────
+// leads/{leadId}/tasks/{taskId} with type:'event' (lead-events.js) — the
+// customer page's Add Event and the door-knock "Appointment Set". A set time
+// is a commitment: a timed BUSY event, so Cal.com (which checks Jo's Google
+// calendars) will not offer that slot to an online booker. 'e' + lead/task.
+// The lead id rides in nbdEventLeadId (not nbdLeadId) so the double-booking
+// check's "skip the lead being edited" rule never hides a real appointment.
+function leadEventEventId(leadId, taskId) {
+  return 'nbde' + Buffer.from(String(leadId) + '/' + String(taskId), 'utf8').toString('hex');
+}
+function desiredEventForLeadEvent(task, lead, leadId, taskId) {
+  if (!lead) return null;
+  const a = FEED.normalizeAppointment(FEED.leadEventToAppointment(task, lead, leadId, taskId));
+  if (!a) return null;
+  const lines = [];
+  if (a.description) lines.push(a.description.slice(0, 500));
+  if (a.attendeePhone) lines.push('Homeowner: ' + a.attendeePhone);
+  if (lead.customerId) lines.push('Customer # ' + lead.customerId);
+  lines.push('Open in NBD Pro: ' + APP_URL + encodeURIComponent(String(leadId)));
+  lines.push('(Booked in NBD Pro — change it there; edits here are overwritten.)');
+  const out = {
+    id: leadEventEventId(leadId, taskId),
+    summary: '📅 ' + a.title,
+    location: a.location || undefined,
+    description: lines.join('\n'),
+    start: { dateTime: iso(a.startMs), timeZone: TZ },
+    end: { dateTime: iso(a.endMs), timeZone: TZ },
+    transparency: 'opaque',
+    extendedProperties: { private: { nbdManaged: '1', nbdKind: 'event', nbdEventLeadId: String(leadId), nbdTaskId: String(taskId) } },
+    source: { title: 'NBD Pro', url: APP_URL + encodeURIComponent(String(leadId)) },
+  };
+  if (!out.location) delete out.location;
+  return out;
+}
+const EVENT_TASK_WATCHED = ['type', 'title', 'text', 'eventAt', 'durationMin', 'notes', 'deleted', 'cancelled', 'status'];
+function eventTaskFieldsChanged(before, after) {
+  const a = before || {}, b = after || {};
+  if (a.type !== 'event' && b.type !== 'event') return false;           // a plain task — nothing on the calendar
+  return EVENT_TASK_WATCHED.some((k) => JSON.stringify(a[k] === undefined ? null : a[k]) !== JSON.stringify(b[k] === undefined ? null : b[k]));
+}
+
+// ── material deliveries (production flow, 2026-10-04) ─────────────────────
+// leads/{leadId}/jobs/{jobId}/orders/{orderId}: { store, orderedDate,
+// deliveryDate, status }. One all-day FREE event on the delivery day — a
+// heads-up, not a slot (Jo needn't be there for a drop-off). Flags a delivery
+// that lands after the job's start day. 'o' + lead/job/order.
+function orderEventId(leadId, jobId, orderId) {
+  return 'nbdo' + Buffer.from([leadId, jobId, orderId].map(String).join('/'), 'utf8').toString('hex');
+}
+function desiredEventForOrder(order, lead, leadId, jobId, orderId) {
+  if (!order || !lead || lead.deleted === true || order.deleted === true) return null;
+  if (order.status === 'cancelled') return null;
+  const date = String(order.deliveryDate || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !FEED.nextDate(date)) return null;
+  const name = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || String(lead.address || '') || 'Job';
+  const store = String(order.store || '').trim().slice(0, 60);
+  const lines = [];
+  if (store) lines.push('Store: ' + store);
+  if (order.orderNumber) lines.push('Order #: ' + String(order.orderNumber).slice(0, 40));
+  if (order.orderedDate) lines.push('Ordered: ' + String(order.orderedDate).slice(0, 10));
+  if (Array.isArray(order.items) && order.items.length) lines.push(order.items.length + ' line' + (order.items.length === 1 ? '' : 's') + ' on the materials list');
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(String(lead.scheduledDate || '')) ? lead.scheduledDate : null;
+  if (start && date > start) lines.push('⚠ Arrives AFTER the job starts (' + start + ')');
+  else if (start) lines.push('Job starts ' + start);
+  lines.push('Open in NBD Pro: ' + APP_URL + encodeURIComponent(String(leadId)));
+  lines.push('(Managed by NBD Pro — change it in the CRM; edits here are overwritten.)');
+  const out = {
+    id: orderEventId(leadId, jobId, orderId),
+    summary: '🚚 Delivery' + (store ? ' (' + store + ')' : '') + ' — ' + name + (order.status === 'delivered' ? ' ✓' : ''),
+    location: String(lead.address || '') || undefined,
+    description: lines.join('\n'),
+    start: { date },
+    end: { date: FEED.nextDate(date) },
+    transparency: 'transparent',
+    extendedProperties: { private: { nbdManaged: '1', nbdKind: 'delivery', nbdOrderLeadId: String(leadId), nbdOrderId: String(orderId) } },
+    source: { title: 'NBD Pro', url: APP_URL + encodeURIComponent(String(leadId)) },
+  };
+  if (!out.location) delete out.location;
+  return out;
+}
+const ORDER_WATCHED = ['store', 'orderNumber', 'orderedDate', 'deliveryDate', 'status', 'deleted', 'items'];
+function orderFieldsChanged(before, after) {
+  const a = before || {}, b = after || {};
+  const norm = (k, v) => (k === 'items' ? (Array.isArray(v) ? v.length : 0) : (v === undefined ? null : v));
+  return ORDER_WATCHED.some((k) => JSON.stringify(norm(k, a[k])) !== JSON.stringify(norm(k, b[k])));
 }
 
 /** The two ids one of a customer's other jobs can own. */
@@ -329,7 +440,9 @@ const WATCHED = ['scheduledDate', 'scheduledWeek', 'scheduledStart', 'scheduledD
   'adjusterMeetingStart', 'adjusterName', 'adjusterPhone', 'firstName', 'lastName', 'address', 'deleted', 'stage', 'phone',
   'customerId', 'insCarrier', 'insuranceCarrier', 'claimNumber', 'companyId', 'userId',
   // Multi-job: a promotion swaps which job the lead's events describe.
-  'activeJobId'];
+  'activeJobId',
+  // Production flow (2026-10-04): the sub's name rides in the job's description.
+  'crew'];
 // A job doc: its own fields plus what its event title / place come from.
 const JOB_WATCHED = JOBS.JOB_FIELDS.filter((f) => WATCHED.includes(f)).concat(['title', 'property', 'companyId', 'userId']);
 function jobCalendarFieldsChanged(before, after) {
@@ -393,4 +506,6 @@ module.exports = {
   desiredEventsForJob, allIdsForJob, jobCalendarFieldsChanged, JOB_WATCHED,
   signEventId, desiredEventForSign, signCalendarFieldsChanged, nyDate,
   knockAddrKey, knockEventId, latestKnockPerDoor, desiredEventForKnock, desiredKnockEvents, knockCalendarFieldsChanged, keepNewestPerDoor,
+  weatherLines, leadEventEventId, desiredEventForLeadEvent, eventTaskFieldsChanged,
+  orderEventId, desiredEventForOrder, orderFieldsChanged,
 };
