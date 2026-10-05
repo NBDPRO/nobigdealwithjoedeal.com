@@ -529,7 +529,9 @@ console.log('\n7. Filed on the lead');
   ok('filing cannot fail the render',
     /catch \(e\) \{[\s\S]{0,200}could not file the report on the lead/.test(code));
   ok('and it is fired without being awaited by the render path',
-    /^\s*_fileReportOnLead\(lead\.id,/m.test(code));
+    // Held in _filing so the AUTOMATIC Before & After report (2026-10-04,
+    // opts.auto) can await it; the interactive path never does.
+    /^\s*(const _filing = )?_fileReportOnLead\(lead\.id,/m.test(code) && !/^\s*await _fileReportOnLead\(/m.test(code));
 
   const RULES = read('firestore.rules');
   // The rule filing depends on. This assertion originally pinned the

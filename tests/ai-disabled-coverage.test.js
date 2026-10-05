@@ -77,7 +77,9 @@ const ENDPOINTS = [
   { file: 'functions/handlers/ai.js', export: 'publicVisualizerAI', gate: 'isAiDisabled', spend: VENDOR_FETCH },
   { file: 'functions/handlers/ai.js', export: 'publicFunnelAI', gate: 'isAiDisabled', spend: VENDOR_FETCH },
   { file: 'functions/handlers/ai.js', export: 'adminAI', gate: 'isAiDisabled', spend: VENDOR_FETCH },
-  { file: 'functions/photo-vision.js', export: 'analyzePhotoVision', gate: 'isAiDisabled', spend: VENDOR_FETCH },
+  // The Anthropic fetch moved into the shared classifyPhoto() (also used by the
+  // photo-created trigger door); the callable's spend is its call to it.
+  { file: 'functions/photo-vision.js', export: 'analyzePhotoVision', gate: 'isAiDisabled', spend: /\bclassifyPhoto\(/ },
   { file: 'functions/visualizer-image-gen.js', export: 'visualizerImageGen', gate: 'isAiDisabled', spend: /generateViaReplicate\(|generateViaKie\(/ },
   { file: 'functions/receipt-vision.js', export: 'extractReceiptData', gate: 'isAiDisabled', spend: VENDOR_FETCH },
   { file: 'functions/dictate.js', export: 'dictate', gate: 'isAiDisabled', spend: /callClaudeForDictate\(/ },
@@ -122,6 +124,17 @@ section('SPEND_KILLSWITCH.md names every endpoint aiDisabled actually covers');
     ok(`runbook mentions ${exportName}`, new RegExp(exportName).test(runbook));
   }
   ok('the doc no longer claims only three endpoints are covered', !/claudeProxy.*analyzePhotoVision.*and\s*\n`visualizerImageGen`\s*all check it/s.test(runbook));
+}
+
+section('photo-vision — classifyPhoto() is where the vendor spend lives');
+{
+  const src = codeOnly(read('functions/photo-vision.js'));
+  const start = src.indexOf('async function classifyPhoto(');
+  const next = src.indexOf('\nasync function ', start + 1);
+  const body = start > -1 ? src.slice(start, next > -1 ? next : undefined) : '';
+  ok('classifyPhoto() exists', start > -1);
+  ok('classifyPhoto() makes the Anthropic call (so gating its callers gates the spend)',
+    /fetchImpl\(['"]https:\/\/api\.anthropic\.com/.test(body) || VENDOR_FETCH.test(body));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

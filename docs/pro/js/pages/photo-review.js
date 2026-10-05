@@ -164,6 +164,12 @@ function isReviewed(photo) {
   // A photo is "reviewed" once it has a confirmed phase (rep accepted
   // OR rep entered manually). Caption/damage/severity are nice-to-have
   // but phase is the bucket signal.
+  //
+  // 2026-10-04: burst capture stamps phase from the lead's stage
+  // (phaseSource 'stage') so photos land in the right Before/During/After
+  // bucket straight away — but nobody has LOOKED at them yet. Such a photo
+  // counts as reviewed only once the rep has given it a location.
+  if (photo.phaseSource === 'stage') return !!(photo.phase && photo.location);
   return !!photo.phase;
 }
 function chipState(photo, field) {
@@ -425,6 +431,9 @@ async function updatePhotoField(photoId, field, value) {
     // Normalize on write. `null` is the picker's explicit clear sentinel and
     // must survive as null, so only fold real values.
     patch[field] = (field === 'damageType' && value != null) ? dmgNorm(value) : value;
+    // A phase the rep sets here is a confirmed one (2026-10-04): it replaces
+    // the phase photo-engine stamped from the lead's stage at capture.
+    if (field === 'phase') patch.phaseSource = value ? 'review' : null;
     patch.updatedAt = serverTimestamp();
     await updateDoc(doc(db, 'photos', photoId), patch);
   } catch (e) {

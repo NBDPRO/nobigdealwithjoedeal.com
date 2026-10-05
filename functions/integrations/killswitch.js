@@ -19,6 +19,11 @@
  *                              flags.
  *   webLeadMeasureDisabled: true → stop measuring public estimate leads
  *                              (integrations/public-measure.js; $3 a lead)
+ *   autoMeasureDisabled: true → stop the CRM auto-order of the same measure
+ *                              (integrations/measure-auto-order.js, 2026-10-04);
+ *                              autoMeasureDailyCap / autoMeasureMonthlyCap
+ *                              (numbers) override its default caps. Read via
+ *                              getFlags(), not a dedicated isX() helper.
  *   voiceIntelDisabled: true → stop the voice-memo transcribe+analyze
  *                              pipeline (integrations/voice-intelligence.js
  *                              onAudioUploaded; Groq + Anthropic spend)
