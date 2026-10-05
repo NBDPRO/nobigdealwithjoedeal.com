@@ -58,8 +58,6 @@ const SECRETS = {
   // provider behind NBD_MEASUREMENT_PROVIDER=solar|auto
   // (integrations/solar-measure.js). A key restricted to solar.googleapis.com.
   SOLAR_API_KEY:         defineSecret('SOLAR_API_KEY'),
-  BOLDSIGN_API_KEY:      defineSecret('BOLDSIGN_API_KEY'),
-  BOLDSIGN_WEBHOOK_SECRET: defineSecret('BOLDSIGN_WEBHOOK_SECRET'),
   REGRID_API_TOKEN:      defineSecret('REGRID_API_TOKEN'),
   CALCOM_WEBHOOK_SECRET: defineSecret('CALCOM_WEBHOOK_SECRET'),
   // Shared token Thumbtack presents on every webhook delivery (Custom Header
@@ -95,7 +93,8 @@ const PROVIDERS = {
   // 'solar' (Google Solar API only) and 'auto' (Solar first, Instant Roofer
   // fallback) are integrations/solar-measure.js, added 2026-10-04.
   measurement:       (process.env.NBD_MEASUREMENT_PROVIDER  || 'instantroofer').toLowerCase(),
-  esign:             (process.env.NBD_ESIGN_PROVIDER        || 'boldsign').toLowerCase(),
+  // (esign: retired 2026-10-04 with BoldSign — signing is in-house only,
+  // functions/esign-envelope.js. NBD_ESIGN_PROVIDER had zero readers.)
   // parcel: 'regrid' (the only provider)  ·  hail: 'noaa' (default,
   // free) | 'swdi' (free, keyless radar hail — integrations/swdi-hail.js).
   // The paid 'hailtrace' and 'swath' options were removed 2026-10-04.

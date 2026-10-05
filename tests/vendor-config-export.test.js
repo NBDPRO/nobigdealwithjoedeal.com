@@ -3,7 +3,7 @@
  * credential, and exports what it claims to.
  *
  * functions/vendor-config-export-core.js pulls the Bland "Thursday" agent,
- * pathway, persona and numbers (plus Cal.com, BoldSign and the Stripe catalog)
+ * pathway, persona and numbers (plus Cal.com and the Stripe catalog)
  * and uploads them to a private bucket. The one way this goes badly wrong is a
  * key or token inside an export (a tool header, a webhook ?token=, a prompt
  * that quotes a key), so most of this suite drives redactTokens() and
@@ -133,7 +133,7 @@ function fakeFetchFactory(log) {
     BLAND_API_KEY: BLAND_KEY + '\n',          // trailing newline, as pasted secrets often have
     THURSDAY_LOOKUP_TOKEN: LOOKUP,
     STRIPE_SECRET_KEY: STRIPE_KEY,
-    BOLDSIGN_API_KEY: '__unset__',            // the deploy stub
+    BOLDSIGN_API_KEY: 'bs-live-key',          // retired 2026-10-04: a real-looking key must still not be used
     // CALCOM_API_KEY absent
   };
   const { files, manifest } = await core.collectVendorConfig({
@@ -160,7 +160,7 @@ function fakeFetchFactory(log) {
   ok('the trimmed key was used to authenticate', log.some((l) => l.auth === BLAND_KEY));
   ok('autosave draft (semver null) not requested', !log.some((l) => /draft-1/.test(l.url)));
   ok('Cal.com skipped and named', /^skipped: CALCOM_API_KEY/.test(manifest.vendors.calcom), manifest.vendors.calcom);
-  ok('BoldSign __unset__ stub treated as not set', /^skipped/.test(manifest.vendors.boldsign));
+  ok('BoldSign retired: no vendors.boldsign entry even with a key present', !('boldsign' in manifest.vendors));
   ok('no request sent to BoldSign or Cal.com', !log.some((l) => /boldsign|cal\.com/.test(l.url)));
   ok('optional /tools failure is not a required failure', manifest.summary.failed === 0 && manifest.summary.optionalFailed === 1,
     JSON.stringify(manifest.summary));

@@ -89,8 +89,6 @@ exports.integrationStatus = onCall(
         // usable when either provider is, since it falls back to Instant Roofer.
         solar:              _hasInt('SOLAR_API_KEY'),
         auto:               _hasInt('SOLAR_API_KEY') || _hasInt('INSTANTROOFER_API_KEY'),
-        boldsign:           _hasInt('BOLDSIGN_API_KEY'),
-        boldsignWebhook:    _hasInt('BOLDSIGN_WEBHOOK_SECRET'),
         regrid:             _hasInt('REGRID_API_TOKEN'),
         calcom:             _hasInt('CALCOM_WEBHOOK_SECRET'),
         // Thumbtack lead/message/review webhook — Custom Header shared
@@ -123,8 +121,9 @@ exports.integrationStatus = onCall(
 // ═══════════════════════════════════════════════════════════════
 // integrationAvailability — the non-admin-safe subset of integrationStatus.
 //
-// requestMeasurement / sendForSignature / lookupParcel (the only three
-// callers of requireConfigured() in docs/pro/js/integrations-client.js) need
+// requestMeasurement / lookupParcel (the callers of requireConfigured() in
+// docs/pro/js/integrations-client.js; e-sign left it with BoldSign on
+// 2026-10-04 — in-house signing needs no vendor key) need
 // to know whether their own gating provider is configured, but they run for
 // EVERY rep, not just admin/company_admin. integrationStatus is deliberately
 // admin-gated (H-06, above) to stop a free-tier caller from enumerating the
@@ -144,7 +143,6 @@ exports.integrationAvailability = onCall(
     secrets: [
       _intSecrets.INSTANTROOFER_API_KEY,
       _intSecrets.SOLAR_API_KEY,
-      _intSecrets.BOLDSIGN_API_KEY,
       _intSecrets.REGRID_API_TOKEN
     ]
   },
@@ -154,7 +152,7 @@ exports.integrationAvailability = onCall(
     }
     // No role check by design — this is the point of the callable: every
     // authenticated rep, not just admin/company_admin, needs this to light
-    // up their own Auto-measure / e-sign / parcel-lookup buttons.
+    // up their own Auto-measure / parcel-lookup buttons.
     return {
       // Which named provider is active per category — an env-var selection
       // (functions/integrations/_shared.js PROVIDERS), not a secret.
@@ -162,7 +160,6 @@ exports.integrationAvailability = onCall(
       // the `configured` keys below gates its own call.
       providers: {
         measurement: _intProviders.measurement,
-        esign: _intProviders.esign,
         parcel: _intProviders.parcel
       },
       configured: {
@@ -171,7 +168,6 @@ exports.integrationAvailability = onCall(
         // the solar|auto values need their own keys here or the button refuses.
         solar:         _hasInt('SOLAR_API_KEY'),
         auto:          _hasInt('SOLAR_API_KEY') || _hasInt('INSTANTROOFER_API_KEY'),
-        boldsign:      _hasInt('BOLDSIGN_API_KEY'),
         regrid:        _hasInt('REGRID_API_TOKEN')
       }
     };

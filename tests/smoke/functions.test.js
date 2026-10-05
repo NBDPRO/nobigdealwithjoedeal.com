@@ -1,6 +1,6 @@
 /**
  * tests/smoke/functions.test.js — Cloud Functions exports, all
- * integrations (Slack, Turnstile, Upstash, measurement, BoldSign, parcel,
+ * integrations (Slack, Turnstile, Upstash, measurement, e-sign, parcel,
  * hail, Cal.com), Stripe webhook hardening, GDPR cron/backup/retention,
  * CI workflow, CODEOWNERS, service-worker kill switch, email queue,
  * TCPA, deploy runbook, Voice Intel pipeline (C1–C5), per-route rate
@@ -420,7 +420,7 @@ section('Integration module skeleton');
 {
   const dir = path.join(FUNCTIONS, 'integrations');
   for (const f of ['_shared.js','sentry.js','slack.js','turnstile.js',
-                    'upstash-ratelimit.js','measurement.js','esign.js',
+                    'upstash-ratelimit.js','measurement.js',
                     'parcel.js','hail.js','calcom.js']) {
     assert('integrations/' + f + ' present', fs.existsSync(path.join(dir, f)));
   }
@@ -603,16 +603,25 @@ section('Measurement adapter');
     /PROVIDERS\.measurement/.test(src));
 }
 
-section('E-sign (BoldSign)');
+section('E-sign (in-house — BoldSign retired 2026-10-04)');
 {
-  const src = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  for (const name of ['sendEstimateForSignature','esignWebhook']) {
+  // The vendor adapter is gone; its estimate entry point lives in the
+  // envelope engine. Behaviour is pinned by tests/esign-gaps-2026-10-04.test.js
+  // (which runs the handlers); these are the structural guards.
+  assert('integrations/esign.js (BoldSign) is deleted',
+    !fs.existsSync(path.join(FUNCTIONS, 'integrations/esign.js')));
+  const src = read(path.join(FUNCTIONS, 'esign-envelope.js'));
+  for (const name of ['sendEstimateEnvelope','declineEsignEnvelope','submitEsignEnvelope','getEsignEnvelope']) {
     assert('exports ' + name, new RegExp('exports\\.' + name + '\\s*=').test(src));
   }
-  assert('HMAC-verifies BoldSign webhook signature',
-    /createHmac\('sha256', getSecret\('BOLDSIGN_WEBHOOK_SECRET'\)\)/.test(src));
-  assert('verifies caller owns the estimate before sending',
-    /est\.userId !== uid[\s\S]{0,100}'admin'/.test(src));
+  assert('verifies caller owns the estimate AND the customer before sending',
+    /est\.userId !== uid[\s\S]{0,1500}lead\.userId !== uid/.test(src));
+  const idx = readFunctionsIndex();
+  assert('index.js no longer mounts the BoldSign module', !/integrations\/esign'/.test(idx));
+  assert('index.js mounts the reminder sweep',
+    /exports\.esignReminderSweep\s*=\s*require\('\.\/esign-reminders'\)\.esignReminderSweep/.test(idx));
+  const shared = read(path.join(FUNCTIONS, 'integrations/_shared.js'));
+  assert('no BOLDSIGN_* secret is declared any more', !/BOLDSIGN_/.test(shared));
 }
 
 section('Parcel (Regrid)');
@@ -702,7 +711,7 @@ section('Unified client + status endpoint');
 {
   const src = read(path.join(PRO_JS, 'integrations-client.js'));
   assert('exposes window.NBDIntegrations', /window\.NBDIntegrations\s*=/.test(src));
-  for (const fn of ['requestMeasurement','sendForSignature','lookupParcel','getHailHistory']) {
+  for (const fn of ['requestMeasurement','lookupParcel','getHailHistory']) {
     assert('NBDIntegrations.' + fn, new RegExp('async function ' + fn + '\\(').test(src));
   }
   const idx = readFunctionsIndex();
@@ -817,7 +826,8 @@ section('Wave A2: Turnstile widgets');
 section('Wave A3: privacy sub-processor disclosure');
 {
   const pv = read(path.join(ROOT, 'docs/privacy.html'));
-  for (const vendor of ['Resend','Twilio','Anthropic','BoldSign','Instant Roofer','HOVER','EagleView','Nearmap','Regrid','HailTrace','Cal.com','Sentry','Cloudflare Turnstile']) {
+  // BoldSign left the list 2026-10-04 (retired; e-sign is in-house).
+  for (const vendor of ['Resend','Twilio','Anthropic','Instant Roofer','HOVER','EagleView','Nearmap','Regrid','HailTrace','Cal.com','Sentry','Cloudflare Turnstile']) {
     assert('privacy lists ' + vendor, new RegExp(vendor.replace('.','\\.'), 'i').test(pv));
   }
 }
@@ -1056,17 +1066,15 @@ section('Signatures PR4/5: remote canvas signing');
     /onSendForSignature:[\s\S]{0,120}hasSigners && _leadIdEarly/.test(read(path.join(PRO_JS, 'document-generator.js'))));
 }
 
-section('Wave C5: Stripe invoice auto-generation');
+section('Wave C5: Stripe invoice auto-generation — retired with BoldSign (2026-10-04)');
 {
-  const src = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  assert('createStripeInvoiceForEstimate defined',
-    /async function createStripeInvoiceForEstimate/.test(src));
-  assert('webhook calls invoice helper on signed transition',
-    /justSigned[\s\S]{0,200}createStripeInvoiceForEstimate/.test(src));
-  assert('invoice created as draft (no auto_advance)',
-    /auto_advance: false/.test(src));
-  assert('idempotent: skips when stripeInvoiceId already set',
-    /est\.stripeInvoiceId/.test(src));
+  // C5 ran only from the BoldSign webhook, which never had a secret, so it
+  // never ran. It is NOT ported to in-house signing: STABILITY-AUDIT-2026-09-04
+  // flagged it (no idempotency key, guard written last → duplicate drafts) and
+  // the invoice pipeline already bills a signed estimate.
+  const fnDir = fs.readdirSync(FUNCTIONS).filter((f) => f.endsWith('.js'));
+  const hits = fnDir.filter((f) => /createStripeInvoiceForEstimate/.test(read(path.join(FUNCTIONS, f))));
+  assert('nothing in functions/ still defines or calls createStripeInvoiceForEstimate', hits.length === 0, hits.join(', '));
 }
 
 section('Wave C6: per-lead Claude cost attribution');
@@ -1105,9 +1113,9 @@ section('D1: mutation callables rate-limited');
   const meas = read(path.join(FUNCTIONS, 'integrations/measurement.js'));
   assert('requestMeasurement rate-limited',
     /callable:requestMeasurement:uid/.test(meas));
-  const es = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  assert('sendEstimateForSignature rate-limited',
-    /callable:sendEstimateForSignature:uid/.test(es));
+  const es = read(path.join(FUNCTIONS, 'esign-envelope.js'));
+  assert('sendEstimateEnvelope rate-limited',
+    /callableRateLimit\(request, 'sendEstimateEnvelope'/.test(es));
 }
 
 section('D2: Storage rules — content-type + size guards');
@@ -1622,11 +1630,8 @@ section('F1b: monthly overhead alert cron');
 
 section('F2 / M3: webhooks fail closed (every HTTP webhook signed)');
 {
-  const es = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  assert('esignWebhook rejects unsigned requests when secret unset',
-    /BOLDSIGN_WEBHOOK_SECRET not set[\s\S]{0,200}res\.status\(503\)/.test(es));
-  assert('esignWebhook uses timingSafeEqual',
-    /crypto\.timingSafeEqual/.test(es));
+  // esignWebhook (BoldSign) retired 2026-10-04 — no inbound e-sign webhook exists.
+  assert('no esignWebhook export remains', !/exports\.esignWebhook\s*=/.test(readFunctionsIndex()));
 
   const cal = read(path.join(FUNCTIONS, 'integrations/calcom.js'));
   assert('calcomWebhook rejects unsigned requests when secret unset',
@@ -2778,7 +2783,7 @@ section('Phase D.3 — integrationStatus secret-readout completeness');
     missing.length === 0,
     'expected every secret in _shared.js to appear in the configured readout; missing: ' + missing.join(', '));
   // Spot-check the new D.3 additions
-  for (const k of ['instantrooferWebhook','boldsignWebhook','groq']) {
+  for (const k of ['instantrooferWebhook','groq']) {
     assert('configured.' + k + ' present in integrationStatus',
       new RegExp('\\b' + k + ':\\s+_hasInt').test(idx),
       'expected configured.' + k);
@@ -2791,7 +2796,7 @@ section('Phase D.3 — integrationStatus secret-readout completeness');
 section('Phase D.3 — integrationAvailability (non-admin-safe availability readout)');
 {
   // integrationStatus is deliberately admin-gated (H-06). requestMeasurement /
-  // sendForSignature / lookupParcel need a status readout for EVERY signed-in
+  // lookupParcel need a status readout for EVERY signed-in
   // rep, so integrationAvailability exists alongside it in the same file
   // with no role check — see tests/smoke/auth.test.js's H-06 section for the
   // proof that integrationStatus itself stays unchanged.
@@ -2808,10 +2813,10 @@ section('Phase D.3 — integrationAvailability (non-admin-safe availability read
       /!request\.auth \|\| !request\.auth\.uid/.test(m[0]) && /unauthenticated/.test(m[0]));
     assert('integrationAvailability does NOT contain a role/permission-denied check in its body',
       !/callerRole/.test(m[0]) && !/permission-denied/.test(m[0]) && !/admin/.test(m[0].replace(/\/\/.*$/gm, '')));
-    // Only the booleans that actually gate requestMeasurement / sendForSignature /
+    // Only the booleans that actually gate requestMeasurement /
     // lookupParcel — never the H-06-restricted fields (Turnstile, Upstash,
     // Sentry, Slack, webhook secrets, rateLimitProvider, rotationRunbook).
-    for (const key of ['instantroofer', 'boldsign', 'regrid']) {
+    for (const key of ['instantroofer', 'regrid']) {
       assert('integrationAvailability.configured exposes ' + key,
         new RegExp('\\b' + key + ':\\s+_hasInt').test(m[0]));
     }
