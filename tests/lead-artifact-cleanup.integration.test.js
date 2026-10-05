@@ -42,7 +42,8 @@
  *   B. a row written AFTER the delete, to a lead that stays gone (a late
  *      webhook), survives: rows newer than the cutoff are never swept. It is
  *      written once the trigger has provably started (its first page is
- *      gone), because under the emulator the cutoff is the invocation start:
+ *      gone; if that never happens the suite fails on that, and never
+ *      writes the row early — 2026-10-05), because under the emulator the cutoff is the invocation start:
  *      the emulator's event time is truncated to the second (see
  *      deleteCutoffNs in functions/lead-artifact-paths.js). 450 old rows
  *      make three pages, so the late row, last by id, is normally read after
@@ -330,10 +331,20 @@ async function run() {
   // B: delete, and once the trigger is under way, append the way a late
   // webhook would (admin SDK).
   await db.doc(`leads/${leadId4}`).delete();
+  // 2026-10-05: never write on a TIMEOUT. This waited 40s and then wrote
+  // regardless; on a cold functions emulator lead4's trigger starts ~50s
+  // after the delete (the ~8 cleanup triggers queue), so the "late" row
+  // landed BEFORE the invocation started, i.e. before the emulator's cutoff,
+  // and was rightly swept: 4 of 6 CI runs red, 2026-10-05. Measured locally:
+  // row written 13:40:21.80, trigger started 13:40:30.56. A row is only
+  // "late" once old000 is provably gone, so wait as long as the cold start
+  // takes, and if it never goes, fail on that instead of on a false premise.
   const lateWritten = (async () => {
-    await waitFor(async () => !(await exists(`leads/${leadId4}/activity/old000`)), 40000, 25);
+    const started = await waitFor(async () => !(await exists(`leads/${leadId4}/activity/old000`)), 180000, 25);
+    if (!started) return false;
     await db.doc(`leads/${leadId4}/activity/zzzz_late`).set({ type: 'measurement_ready', source: 'webhook' });
     await putObj(lateObj4);
+    return true;
   })();
   // C: delete, then at once re-create the id as someone else, with a row.
   await db.doc(`leads/${leadId5}`).delete();
@@ -419,7 +430,7 @@ async function run() {
 
   // B.
   console.log('\n  B. a row written after the delete, lead still gone');
-  await lateWritten;
+  ok('B: the trigger started sweeping (old000 gone) before the late write', await lateWritten);
   const oldGone = await waitFor(async () => !(await exists(`leads/${leadId4}/activity/old449`))
     && !(await exists(`leads/${leadId4}/activity/old000`)));
   ok('B: the 450 old activity rows are swept (three pages)', oldGone
