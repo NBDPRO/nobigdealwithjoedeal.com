@@ -32,7 +32,7 @@ test.describe.serial('Sort my customers @shard2', () => {
     const ids = await safeEvaluate(page, async (tok) => {
       const uid = window._user.uid;
       const base = { userId: uid, companyId: (window._userClaims && window._userClaims.companyId) || uid, stage: 'new', source: 'Thumbtack', createdAt: new Date(), updatedAt: new Date(), e2eTestData: true };
-      const add = async (extra) => (await window.addDoc(window.collection(window.db, 'leads'), Object.assign({}, base, extra))).id;
+      const add = async (extra) => (await window.addDoc(window.collection(window.db, 'leads'), Object.assign({ meter: 'manual' }, base, extra))).id;
       const out = {
         gutter: await add({ firstName: tok, lastName: 'Gutter', address: '1 Sort St, Mason OH 45040', notes: 'Thumbtack request · Zip code: 45040 · Category: Gutter Repair · Insurance claim coverage: No, the project is not covered by an insurance claim' }),
         carrier: await add({ firstName: tok, lastName: 'Carrier', address: '2 Sort St, Mason OH 45040', insCarrier: 'Example Mutual' }),

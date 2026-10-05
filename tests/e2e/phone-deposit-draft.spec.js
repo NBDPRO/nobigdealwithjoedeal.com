@@ -79,7 +79,7 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
     const ids = await safeEvaluate(page, async ({ lead, est }) => {
       const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
-      const leadId = (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({}, lead, { createdAt: fs.serverTimestamp() }))).id;
+      const leadId = (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }))).id;
       const estimateId = (await fs.addDoc(fs.collection(db, 'estimates'), Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }))).id;
       await fs.updateDoc(fs.doc(db, 'leads', leadId), { primaryEstimateId: estimateId });
       return { leadId, estimateId };

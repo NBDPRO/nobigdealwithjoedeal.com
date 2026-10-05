@@ -82,6 +82,10 @@
       companyId: ctx.companyId,
       createdAt: st,
       updatedAt: st,
+      // Server lead meter (2026-10-04): firestore.rules require it on every
+      // client lead create; functions/lead-cap.js counts it. A caller may
+      // pass its own ('import' / 'sample').
+      meter:     'manual',
     }, data);
   }
 

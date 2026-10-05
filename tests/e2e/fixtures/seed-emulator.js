@@ -24,6 +24,31 @@
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const path = require('path');
+
+// Since 2026-10-04 (tenant-ready) a company other than NBD starts from
+// NEUTRAL business rules (three tiers, no shingle locks, no cash deposit, 0%
+// fallback tax, $0 permits — docs/pro/js/tenant-rules.js). The E2E company
+// has always been priced like NBD by the engine specs, so it ADOPTS NBD's
+// rules explicitly here — a company that chose NBD's settings. A brand-new
+// company's neutral start is proven by e2e/phone-tenant-setup.spec.js.
+function nbdRulesForSeed() {
+  const CFG = require(path.join(__dirname, '..', '..', '..', 'docs', 'pro', 'js', 'estimate-config.js'));
+  const TR = require(path.join(__dirname, '..', '..', '..', 'docs', 'pro', 'js', 'tenant-rules.js'));
+  const tiers = { enabled: CFG.TIER_ORDER.slice(), labels: {}, notes: {}, warranty: {}, shingleLocks: {} };
+  CFG.TIER_ORDER.forEach((t) => {
+    tiers.labels[t] = CFG.tierLabel(t, true);
+    tiers.notes[t] = TR.NBD_NOTES[t];
+    tiers.warranty[t] = CFG.tierWarrantyText(t, true);
+    const r = CFG.TIER_SHINGLE_RULES[t];
+    tiers.shingleLocks[t] = r ? { onlyCodes: (r.onlyCodes || []).slice(), onlyName: r.onlyName || '', no3Tab: !!(r.forbidSubs && r.forbidSubs.indexOf('shingles-3tab') !== -1) } : null;
+  });
+  const D = CFG.DEPOSIT_RULE;
+  return {
+    businessRules: { tiers, deposit: { noDepositUnderCents: D.CASH_NO_DEPOSIT_UNDER_CENTS, depositPct: D.CASH_DEPOSIT_PCT, roundToCents: D.CASH_DEPOSIT_ROUND_TO_CENTS } },
+    pricing: { tierRates: Object.assign({}, CFG.TIER_RATES), fallbackTaxRate: CFG.DEFAULT_TAX_RATE, permits: JSON.parse(JSON.stringify(CFG.PERMIT_COSTS_BY_COUNTY)) },
+  };
+}
 
 const EMAIL = process.env.PLAYWRIGHT_TEST_USER_EMAIL || 'playwright-e2e@nbd.test';
 const PASSWORD = process.env.PLAYWRIGHT_TEST_USER_PASSWORD || 'nbd-e2e-password-1';
@@ -88,6 +113,7 @@ async function main() {
     },
     provisionedBy: 'seed-emulator',
     createdAt: now,
+    ...nbdRulesForSeed(),
   }, { merge: true });
   batch.set(db.doc(`subscriptions/${uid}`), {
     plan: 'growth',

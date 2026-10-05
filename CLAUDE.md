@@ -8,6 +8,79 @@ root — what's committed is what ships) plus a multi-tenant contractor CRM
 suite. Strict CSP: no inline scripts, no inline handlers
 (`script-src-attr 'none'`).
 
+## Stack
+
+- **Backend: Firebase.** Firestore (`firestore.rules`, `firestore.indexes.json`),
+  Cloud Functions gen2 in `functions/` (exports in `functions/index.js`, catalog
+  in `functions/FUNCTIONS_INDEX.md`), Storage (`storage.rules`), Auth + App Check.
+- **Hosting: Firebase Hosting.** `firebase.json` serves `docs/`; a push to `main`
+  deploys (`.github/workflows/firebase-deploy.yml`). Cloudflare appears only as
+  Turnstile (`challenges.cloudflare.com`) in the CSP. It is not the host.
+- **Anthropic API: server-side only.** The browser calls `claudeProxy`
+  (`functions/handlers/ai.js`); server callers include `call-center.js`,
+  `dictate.js`, `handlers/ai-texting.js`, `handlers/photo.js`. The key is the
+  `ANTHROPIC_API_KEY` secret, never shipped to a client. Transcription is Groq.
+- **Multi-tenant.** Every tenant is keyed by `companyId` (an auth claim; a solo
+  owner's own uid). Company data lives in `companies/{companyId}` and
+  `companyProfile/{companyId}`; rules gate it through `myCompanyId()` in
+  `firestore.rules`. NBD is one tenant: read tenant values, never hard-code NBD's.
+
+## Where key logic lives
+
+- **Estimate engine** (`docs/pro/js/`): `estimate-config.js`
+  (`window.NBD_ESTIMATE_CONFIG`), `estimate-logic-engine.js`,
+  `estimate-builder-v2.js` / `estimate-v2-ui.js` / `estimate-v3-wizard.js`,
+  `estimates.js`, `estimate-finalization.js`, `deposit-rule.js`; job templates in
+  `job-templates.js` / `job-templates-data.js` / `job-templates-ui.js`. Server
+  mirrors: `functions/deposit-rule.js`, `functions/customer-estimate-rows.js`,
+  `functions/deal-accepted-tier.js`.
+- **Document templates**: `docs/pro/js/document-generator.js`,
+  `document-generator-templates.js`, `document-generator-library.js` (OH/KY
+  template library), `doc-preflight.js`; server PDFs in `functions/render-pdf.js`.
+- **Importers**:
+  - `docs/pro/js/data-import.js`: CSV lead import (from another CRM or a spreadsheet)
+  - `docs/pro/js/hd-import.js`: Home Depot Pro Xtra purchases as job expenses
+  - `functions/call-center.js` + `call-center-logic.js`: call recordings (Cube ACR,
+    a shared Drive folder) filed as `phone_calls`, matched to leads, every 30 min
+  - `scripts/import-catalog-costs.js`, `import-cost-rotation.js`,
+    `import-job-template-costs.js`: one company's cost book / cost basis /
+    job-template costs (admin, run by hand)
+  - `scripts/import-drive-docs-to-crm.js`: Drive documents into the CRM
+    (admin; `scripts/audit-imported-docs-placement.js` checks placement)
+
+## Brand palette and the NBD Document Standard
+
+- **Brand palette (locked): `DESIGN.md` → "Color" is the source.** Brand orange
+  `#BD5728` (hover `#A14A22`, light `#DD875F`); navy `#1a3057` / `#12223d`.
+  `#E8720C` and `#F08030` are the old oranges. Never reintroduce them. CRM
+  customer-facing tokens: `docs/pro/css/nbd-brand.css`.
+- **NBD Document Standard (locked 2026-09-07)** is defined in the palette block
+  at the top of `docs/pro/js/document-generator-templates.js`: navy `#1A3057`,
+  navy-deep `#12223D`, orange `#BD5728`, grey `#4C4C4D`, rule `#DFE2E7`, wash
+  `#F6F7F8`, ink `#14181F`; Montserrat display / Lato body with mandatory
+  fallback stacks; numbered sections (e.g. §5 credential badges, §7 how-to-pay).
+  Mirrored in `document-generator.js` and `functions/render-pdf.js`; guarded by
+  `tests/docgen-brand.test.js`. Tenants override through their companyProfile
+  brand colors; NBD must stay byte-identical.
+
+## Standing rules (Jo)
+
+a. Ask clarifying questions before building anything non-trivial.
+b. Only touch files relevant to the task. No unrequested refactors.
+c. Commit after every working change with a clear, descriptive message, on a
+   feature branch or worktree. `main` only changes through a PR and the merge
+   queue (a push to `main` deploys to production).
+d. Never commit secrets or API keys. Fake keys in tests are built at runtime
+   (`'sk-' + 'ant-…'`); CI runs gitleaks and GitHub push protection.
+e. Run the tests before calling any change to pricing logic done:
+   `node scripts/run-test-manifest.js --bucket node` and `node tests/smoke.test.js`.
+   The estimate suites are `estimate-pricing-paths-2026-10-05` (every pricing path,
+   job-minimum and tier edges, plus the `KNOWN BUG #n` pins), `estimate-pricing`,
+   `estimate-min-job-optin`, `five-tier-crm-2026-10-02`, `estimate-engine-parity`,
+   `deposit-rule`, `job-templates`, `estimate-money-ladder`. A `KNOWN BUG` test pins
+   today's behaviour on purpose; flip it only in the PR that fixes that bug, with
+   Jo's OK.
+
 ## Read first
 
 - `documentation/INDEX.md` — the knowledge-base home note (Obsidian vault)

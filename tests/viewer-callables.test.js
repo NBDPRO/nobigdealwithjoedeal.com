@@ -414,8 +414,11 @@ const COMPLETE_CASES = [
     done: 'write:job_events/', value: (v) => !!v && v.ok === true && v.moved === true && v.to === 'contract_signed' },
   { fn: 'createCalendarFeedToken', file: 'calendar-feed.js', kind: 'call', data: {},
     done: 'write:calendar_feed_tokens/', value: (v) => !!v && typeof v.token === 'string' },
-  { fn: 'trackUsage', file: 'billing.js', kind: 'call', data: { feature: 'leads' },
-    done: 'write:subscriptions/', value: (v) => !!v && v.feature === 'leads' && v.usage === 1 },
+  // 'reports': leads are metered by the server's create trigger since
+  // 2026-10-04 (functions/lead-cap.js), so trackUsage('leads') reports the
+  // meter without writing; the other features still count here.
+  { fn: 'trackUsage', file: 'billing.js', kind: 'call', data: { feature: 'reports' },
+    done: 'write:subscriptions/', value: (v) => !!v && v.feature === 'reports' && v.usage === 1 },
 ];
 
 // ── Section C: the sweep. Every exported callable / HTTP function ───────
@@ -491,6 +494,12 @@ const VERDICTS = {
   callTaggedMatch: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
+  // Tenant-ready (2026-10-04, tenant-ops.js): the admin Tenants list is
+  // platform-admin only; the company export and logo upload go through
+  // requireTeamAdmin (owner / company_admin of the caller's own company);
+  // /tenant-logo/** serves public logos.
+  adminListTenants: 'role-gated', exportCompanyData: 'role-gated', uploadCompanyLogo: 'role-gated',
+  tenantLogo: 'public',
   // "Brief me" (lead-brief.js, 2026-10-04): returns a summary of a lead the
   // caller may already READ (canReadLead mirrors the /leads read rule, which
   // admits a same-company viewer). Writes only the server-derived cache and
