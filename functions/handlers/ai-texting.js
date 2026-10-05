@@ -126,6 +126,7 @@ async function callClaudeForDraft({ system, userText, maxTokens, apiKey }) {
     throw new Error('AI draft generation failed');
   }
   const data = await res.json();
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('ai-texting', 'claude-haiku-4-5-20251001', data), { log: logger });
   const text = (data?.content?.[0]?.text || '').trim();
   return { text, usage: data?.usage || null };
 }

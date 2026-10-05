@@ -27,6 +27,8 @@ const { logger } = require('firebase-functions/v2');
 const { Timestamp, getFirestore, FieldPath } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { gateStatus } = require('./cron-gates');
+const AiSpend = require('./ai-spend');
+const Scorecard = require('./ops-scorecard');
 
 // Destination — single recipient, the platform owner. Could become a
 // multi-recipient allowlist if we ever onboard ops staff.
@@ -303,7 +305,17 @@ function renderCronGatesSection() {
   return '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;"><thead><tr style="text-align:left;color:#888;text-transform:uppercase;letter-spacing:.06em;font-size:10px;"><th style="padding:6px 12px;">Gate</th><th style="padding:6px 12px;">Function</th><th style="padding:6px 12px;text-align:right;">State</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
-function buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel }) {
+// "AI spend yesterday / this month" (functions/ai-spend.js counters), with the
+// top features for the month. aiSpend null = the read failed → says so.
+function renderAiSpendSection(aiSpend) {
+  if (!aiSpend) return '<div style="font-size:13px;margin-bottom:14px;color:#999;">AI spend unavailable (counter read failed).</div>';
+  const top = (aiSpend.month.features || []).slice(0, 6).map((f) =>
+    escHtml(f.feature) + ' ' + AiSpend.fmtUsdMicros(f.usdMicros) + ' (' + fmtNum(f.calls) + ')').join(' · ');
+  return '<div style="font-size:13px;margin-bottom:6px;"><strong>' + escHtml(AiSpend.aiSpendLine(aiSpend)) + '</strong></div>'
+    + '<div style="font-size:12px;color:#666;margin-bottom:14px;">This month by feature: ' + (top || '—') + '</div>';
+}
+
+function buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel, aiSpend, scorecard }) {
   const topLeadsRows = vision.topLeads.length
     ? vision.topLeads.map(l =>
         '<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;font-family:monospace;font-size:11px;">' + l.leadId.slice(0, 14) + '…</td>' +
@@ -330,6 +342,12 @@ function buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, p
     '<div style="font-family:-apple-system,system-ui,sans-serif;max-width:600px;margin:0 auto;color:#1a1612;">',
     '<h2 style="font-size:18px;margin:0 0 4px;letter-spacing:.04em;text-transform:uppercase;color:#bd5728;">NBD Pro · Health Digest</h2>',
     '<div style="color:#888;font-size:12px;margin-bottom:18px;">' + periodLabel + '</div>',
+
+    '<h3 style="font-size:14px;color:#1a1612;margin:18px 0 8px;border-bottom:2px solid #bd5728;padding-bottom:4px;">AI Spend</h3>',
+    renderAiSpendSection(aiSpend === undefined ? null : aiSpend),
+
+    '<h3 style="font-size:14px;color:#1a1612;margin:18px 0 8px;border-bottom:2px solid #bd5728;padding-bottom:4px;">Weekly Scorecard — Bots &amp; Thursday</h3>',
+    Scorecard.scorecardHtml(scorecard || null),
 
     '<h3 style="font-size:14px;color:#1a1612;margin:18px 0 8px;border-bottom:2px solid #bd5728;padding-bottom:4px;">Cron Gates</h3>',
     renderCronGatesSection(),
@@ -396,9 +414,13 @@ exports.healthDigestCron = onSchedule(
       // silence, not as a false alarm — same convention as the gathers above.
       gatherRenderPdf(db, cutoffMs).catch(e => { logger.warn('health_digest.render_pdf_failed', e.message); return { attempted: false, okCount: 0, failCount: 0, failRecent: false, okRecent: false, neverOk: false, lastFailStage: '', lastFailErr: '', lastFailAtIso: '', lastOkAtIso: '' }; }),
     ]);
+    const [aiSpend, scorecard] = await Promise.all([
+      AiSpend.readAiSpend(db, now).catch(e => { logger.warn('health_digest.ai_spend_failed', e.message); return null; }),
+      Scorecard.gatherScorecard(db, now).catch(e => { logger.warn('health_digest.scorecard_failed', e.message); return null; }),
+    ]);
 
     const periodLabel = cutoff.toUTCString() + ' → ' + new Date(now).toUTCString();
-    const bodyHtml = buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel });
+    const bodyHtml = buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel, aiSpend, scorecard });
     const subject = 'NBD Pro · Health Digest · ' + fmtUsd(vision.userTotal) + ' Vision · ' + fmtNum(activity.photos) + ' photos'
       + (imagePipe.genuineRecent ? ' · ⚠ pipeline orphan' : '')
       // In the subject because the body went unread for eleven weeks while this
@@ -409,7 +431,8 @@ exports.healthDigestCron = onSchedule(
       to: RECIPIENT,
       subject,
       bodyHtml,
-      bodyPlain: 'Health digest for ' + periodLabel + ' — Vision ' + fmtUsd(vision.userTotal) + ', ' + fmtNum(activity.photos) + ' photo uploads, ' + fmtNum(stripe.total) + ' Stripe events.',
+      bodyPlain: 'Health digest for ' + periodLabel + ' — Vision ' + fmtUsd(vision.userTotal) + ', ' + fmtNum(activity.photos) + ' photo uploads, ' + fmtNum(stripe.total) + ' Stripe events.'
+        + (aiSpend ? ' ' + AiSpend.aiSpendLine(aiSpend) + '.' : ''),
       kind: 'health_digest',
       // The emailQueueWorker query filters on status=='pending'; a doc
       // without it is never claimed, so the digest silently never sends.
@@ -428,4 +451,4 @@ exports.healthDigestCron = onSchedule(
   }
 );
 
-exports._test = { buildEmailBody, fmtUsd, fmtNum, escHtml, gatherImagePipeline, gatherRenderPdf, renderPdfBroken, renderPdfSection, renderCronGatesSection };
+exports._test = { buildEmailBody, fmtUsd, fmtNum, escHtml, gatherImagePipeline, gatherRenderPdf, renderPdfBroken, renderPdfSection, renderCronGatesSection, renderAiSpendSection };

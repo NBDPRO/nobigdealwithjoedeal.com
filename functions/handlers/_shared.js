@@ -29,9 +29,12 @@ const CORS_ORIGINS = [
 ];
 
 // ── Anthropic model allowlist — Opus removed; too expensive. ─────────
+// 2026-10-04: claude-sonnet-4-20250514 is deprecated — removed; Sonnet 5.5
+// replaces it (claudeProxy turns its thinking off and drops sampling params,
+// which Sonnet 5.5 rejects — see handlers/ai.js shapeForModel).
 const ALLOWED_CLAUDE_MODELS = new Set([
   'claude-haiku-4-5-20251001',
-  'claude-sonnet-4-20250514',
+  'claude-sonnet-5-5',
 ]);
 const CLAUDE_MAX_TOKENS_CAP = 1024;
 const CLAUDE_DAILY_TOKEN_BUDGET = 200000; // per uid per calendar day

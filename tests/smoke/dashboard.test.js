@@ -1924,9 +1924,11 @@ section('Phase C.4 cluster 5 — arg-bearing toggle handlers');
     'expected 2 mapSidebar conversions; got ' + mapSb);
 
   const mapOv = (dash.match(/data-action="mapOverlay"\s+data-target="[a-z]+"/g) || []).length;
-  assert('mapOverlay conversions: 6 (heat/pins/jobs/customers/storm/weather)',
-    mapOv === 6,
-    'expected 6 mapOverlay conversions; got ' + mapOv);
+  // 5 since 2026-10-04: the "Live Weather" toggle (RainViewer tiles, a host
+  // never in img-src) was removed — vendor audit Lane D.
+  assert('mapOverlay conversions: 5 (heat/pins/jobs/customers/storm)',
+    mapOv === 5,
+    'expected 5 mapOverlay conversions; got ' + mapOv);
 
   // Inline arg-bearing toggles retired (except the documented ternary).
   const argRemain = (dash.match(/onclick="toggle(NavSection|MapSidebar|Overlay|TradeChip|CrmToolsMenu)\(/g) || []).length;

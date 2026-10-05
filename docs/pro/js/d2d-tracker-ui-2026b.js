@@ -938,7 +938,6 @@
     const filtered = state.applyFilters();
     const gamify = state.getGamificationData();
     const insMetrics = state.getInsuranceMetrics();
-    const weatherAlerts = state.getWeatherAlerts();
 
     const funnel = revenue.conversionFunnel;
     const maxFunnelVal = Math.max(funnel.doors, funnel.conversations, funnel.appointments, funnel.estimates, funnel.closed, 1);
@@ -957,8 +956,6 @@
       <div class="dk-pad">
 
         ${!state.isOnline ? `<div class="dk-banner-gold">⚡ Offline — ${state.offlineQueue.length} queued</div>` : ''}
-
-        ${weatherAlerts.length > 0 ? `<div class="dk-banner-red"><strong class="dk-c-text">⛈️ Storm Alert:</strong> <span class="dk-c-muted">${esc(weatherAlerts[0].event)} — knock now!</span></div>` : ''}
 
         <!-- Revenue Banner -->
         <div class="d2d-revenue-banner">
