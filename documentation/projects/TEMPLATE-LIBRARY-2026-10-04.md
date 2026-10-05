@@ -101,3 +101,37 @@ document carries it (`tests/doc-template-library.test.js`).
    Right to Cancel notice with every home-signed contract until the contract
    carries them. The default `cancellationContractClause` cites "KRS
    § 367.390"; Kentucky's home solicitation sales law is KRS 367.410–.460.
+
+## Update 2026-10-04 — finding 4 fixed (branch `feat/contract-cancel-forms`)
+
+Every contract signed in the app now carries the Notice of Right to Cancel
+with the two completed FTC forms (+ the KRS 367.624(4) 5-day forms on a
+Kentucky insurance job). The workaround in finding 4 ("generate the Right to
+Cancel notice with every home-signed contract") is no longer needed.
+
+- One packet, `ky-insurance-law.js` `cancelPacketHtml` (both copies): the
+  same notice, steps and forms as the library template, which now reads its
+  law names and steps from there.
+- Where it rides: the generated contract and signable proposal (in-person
+  signing in the doc viewer; the HTML a remote link serves), the deal page
+  ("Sign on this phone" / the homeowner link), and contract e-sign envelopes
+  (pages appended to the signed PDF, `functions/cancel-notice-pdf.js`).
+- Rebuilt on main 2026-10-05 after #2166 retired BoldSign: Send for
+  signature is now an estimate envelope whose contract PDF already carries
+  the two FTC forms and sets `cancelFormsIncluded`. Its title is "Roofing
+  Contract — …", so `cancel-window.js` `envelopeNeedsCancelNotice` skips any
+  envelope with that flag — one set of forms, never two
+  (`tests/esign-gaps-2026-10-04.test.js` J + D).
+- Dated the day the homeowner signs: the viewer, `getSignDocument`,
+  `submitSignature`, `getDealRoom` and `submitDealAcceptance` re-date it
+  (`restampCancelPacket`). The server re-renders it from the copy it served,
+  never the signer's bytes. `createSignRequest` refuses a contract generated
+  before the packet existed.
+- `cancelBy` ("YYYY-MM-DD", 3 business days under 16 CFR 429.0) is stored on
+  the document / deal / envelope and on the lead. The customer page shows
+  "Cancellation window ends <date>". A move to Materials Ordered / Delivered,
+  Crew Scheduled or Install inside the window warns (customer-page confirm,
+  kanban toast) and never blocks.
+- The "KRS § 367.390" citation is unchanged — it stays for Jo's attorney.
+- Tests: `tests/contract-cancel-forms.test.js`; E2E
+  `tests/e2e/contract-cancel-forms.spec.js` (390x844, in-person signing).
