@@ -360,7 +360,6 @@ const CASES = [
   { fn: 'createSignRequest', file: 'remote-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1', signerEmail: 'sam@example.com', signerName: 'Sam' } },
   // 2026-10-03: in-person signing moves the card + drafts the deposit invoice.
   { fn: 'recordInPersonSignature', file: 'in-person-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' } },
-  { fn: 'sendEstimateForSignature', file: 'integrations/esign.js', kind: 'call', data: { estimateId: 'est-1', signerName: 'Sam', signerEmail: 'sam@example.com', html: '<p>' + 'x'.repeat(200) + '</p>' } },
   // 2026-10-04: BoldSign's sendEstimateForSignature retired; the estimate's
   // send-for-signature is the in-house sendEstimateEnvelope.
   { fn: 'sendEstimateEnvelope', file: 'esign-envelope.js', kind: 'call', data: { estimateId: 'est-1', signers: [{ name: 'Sam', email: 'sam@example.com' }] } },
