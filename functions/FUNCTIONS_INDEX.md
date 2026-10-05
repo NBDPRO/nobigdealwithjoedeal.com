@@ -134,6 +134,11 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `declineEsignEnvelope` | onRequest | Envelope signing (2026-10-04): the signer declines from the signing page. Same token checks as submit; burns the link (`declined`), records who / when / IP / UA / optional reason, stops reminders, bells the rep, mirrors `declined` onto a linked estimate. 10/min per IP |
 | `getDealRoom` | onRequest | Deal acceptance: ~120-bit single-use token, 14-day expiry, served same-origin via `/deal/**` rewrite |
 | `submitDealAcceptance` | onRequest | Deal acceptance: burns token, records tier + signature, notifies rep. Job spine (2026-10-03): records `deal_accepted` (Contract Signed; Service Approved on a repair) |
+| `crmMcp` | onRequest | NBD CRM connection for the Grok Bot team: MCP (JSON-RPC) at `/api/mcp`, per-bot hashed keys, minimized reads, files notes/reminders/reports into `agent_inbox`; no send/edit/delete tools; `AGENT_MCP_DISABLED=true` kills it |
+| `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256) |
+| `listAgentKeys` | onCall | The company's bot keys (no secrets) + bot tool lists |
+| `revokeAgentKey` | onCall | Turns one bot key off |
+| `getDealPhoto` | onRequest | Deal packet photos (2026-10-04) via `/deal/*/photo/*` rewrite (before `/deal/**`): one inspection photo of a FULL packet, token re-checked on every load (expired / revoked / accepted → 410), owner + lead + `photos/<owner>/` path checked, re-encoded (EXIF/GPS stripped), `private, no-store`. Never a Storage URL. Rules: `deal-packet-logic.js` |
 | `crmMcp` | onRequest | CRM connection for bots (NBD's house team + any paid company's own bots): MCP (JSON-RPC) at `/api/mcp`, per-bot hashed keys, minimized reads, files notes/reminders/reports into `agent_inbox`; no send/edit/delete tools; `AGENT_MCP_DISABLED=true` kills it |
 | `createAgentKey` | onCall | Owner/company_admin mints one bot's CRM key (shown once; stored as SHA-256); house roster NBD-only, personal tracker keys self-serve |
 | `listAgentKeys` | onCall | The Bots & API page: own keys (owner/admin: every company key), company bots, switch, plan, timezone — no secrets |

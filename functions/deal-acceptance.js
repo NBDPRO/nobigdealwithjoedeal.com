@@ -44,6 +44,8 @@ const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
 const ESL = require('./estimate-send-logic');
 const EVA = require('./estimate-view-alert');
+const DP = require('./deal-packet-logic');
+const { reencodePhoto } = require('./photo-reencode');
 const KyLaw = require('./ky-insurance-law');
 const CW = require('./cancel-window');
 
@@ -285,6 +287,16 @@ exports.getDealRoom = onRequest(
     // homeowner reads and signs it — not the day the rep made the link.
     try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
 
+    // Packet (2026-10-04): a FULL packet's inspection photos go in where the
+    // page left its marker, each one at /deal/<token>/photo/<n> (getDealPhoto
+    // below — token-checked, EXIF-stripped). A paperwork packet, or a full
+    // one with nothing servable, just loses the marker. The uploaded page
+    // never carries a photo URL itself. deal-packet-logic.js has the rules.
+    let photoItems = [];
+    try { photoItems = await packetPhotoItems(db, tok, dealRoomSnap.data() || {}); }
+    catch (e) { logger.warn('[getDealRoom] packet photos skipped', { msg: e && e.message }); photoItems = []; }
+    html = DP.injectPhotos(html, { token, packet: (dealRoomSnap.data() || {}).packet, items: photoItems });
+
     // Inject the token + same-origin submit endpoint so the page's ACCEPT
     // button can record the acceptance. The deal-room's submitDeal() reads
     // window.__NBD_DEAL_TOKEN / __NBD_DEAL_SUBMIT_URL. Injected before </head>.
@@ -501,6 +513,111 @@ exports.submitDealAcceptance = onRequest(
     res.status(200).json({ ok: true });
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+// Deal packet photos (2026-10-04). See deal-packet-logic.js for the rules.
+// ═══════════════════════════════════════════════════════════════
+
+/** The servable photos of a full packet → [{ i, caption }] (i = index in packetPhotoIds). */
+async function packetPhotoItems(db, tok, room) {
+  const ids = DP.packetPhotoIds(room);
+  if (!ids.length) return [];
+  const snaps = await Promise.all(ids.map((id) => db.doc(`photos/${id}`).get().catch(() => null)));
+  const items = [];
+  snaps.forEach((s, i) => {
+    const p = s && s.exists ? (s.data() || {}) : null;
+    if (!DP.checkPacketPhoto(p, { ownerUid: tok.ownerUid, leadId: room.leadId }).ok) return;
+    const caption = typeof p.homeownerCaption === 'string' ? p.homeownerCaption : '';
+    items.push({ i, caption });
+  });
+  return items;
+}
+
+const MAX_PHOTO_SOURCE_BYTES = 25 * 1024 * 1024;
+const DEAL_PHOTO_EDGE = 1600;
+
+/**
+ * /deal/<token>/photo/<n> → one inspection photo of that deal's full packet.
+ * The link's own token is re-checked on EVERY load (live, pending, not
+ * revoked, deal not accepted), so the photo expires with the deal link. The
+ * bytes are re-encoded here (EXIF / GPS dropped, orientation baked in) and
+ * streamed — the homeowner never gets a Storage URL. Hosting rewrite
+ * /deal/{token}/photo/{n} sits before /deal/** in firebase.json.
+ */
+async function serveDealPhoto(req, res, deps) {
+  const d = deps || {};
+  const db = d.db || getFirestore();
+  const storage = d.storage || getStorage();
+  const reencode = d.reencode || reencodePhoto;
+  const limit = d.rateLimit || httpRateLimit;
+  const nowMs = d.now ? d.now() : Date.now();
+  const fail = (code) => {
+    res.status(code).set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex, nofollow').end();
+  };
+  const m = (req.path || '').match(/\/deal\/([A-Za-z0-9]{10,64})\/photo\/(\d{1,2})\/?$/);
+  if (!m || Number(m[2]) >= DP.MAX_PACKET_PHOTOS) { fail(404); return; }
+  const token = m[1];
+  const idx = Number(m[2]);
+  if (!(await limit(req, res, 'dealphoto-get:ip', 120, 60_000))) return;
+
+  const tokSnap = await db.doc(`deal_accept_tokens/${token}`).get();
+  const tok = tokSnap.exists ? (tokSnap.data() || {}) : null;
+  let room = null;
+  if (tok && typeof tok.dealId === 'string' && DP.ID_RE.test(tok.dealId)) {
+    const rs = await db.doc(`deal_rooms/${tok.dealId}`).get();
+    room = rs.exists ? (rs.data() || {}) : null;
+  }
+  const refusal = DP.linkRefusal(tok, room, nowMs);
+  if (refusal) { fail(refusal.status); return; }
+  const ids = DP.packetPhotoIds(room); // [] on a paperwork packet
+  if (idx >= ids.length) { fail(404); return; }
+  const ps = await db.doc(`photos/${ids[idx]}`).get();
+  const chk = DP.checkPacketPhoto(ps.exists ? ps.data() : null, { ownerUid: tok.ownerUid, leadId: room.leadId });
+  if (!chk.ok) { fail(404); return; }
+
+  // The pipeline's 1600px variant when it exists (smaller to decode), else
+  // the original. Either way re-encoded below — never sent as stored.
+  let buf = null;
+  for (const p of [DP.variantFullPath(chk.path), chk.path]) {
+    if (!p) continue;
+    try {
+      const [b] = await storage.bucket().file(p).download();
+      if (b && b.length && b.length <= MAX_PHOTO_SOURCE_BYTES) { buf = b; break; }
+    } catch (_) { /* next */ }
+  }
+  if (!buf) { fail(404); return; }
+  let out;
+  try { out = await reencode(buf, 'jpeg', { maxEdge: DEAL_PHOTO_EDGE }); }
+  catch (e) { logger.warn('[getDealPhoto] re-encode failed', { msg: e && e.message }); fail(404); return; }
+  res.status(200)
+    .set('Content-Type', 'image/jpeg')
+    // private + no-store: no shared or browser cache keeps it past the link.
+    .set('Cache-Control', 'private, no-store')
+    .set('X-Robots-Tag', 'noindex, nofollow')
+    .set('X-Content-Type-Options', 'nosniff')
+    .set('Referrer-Policy', 'no-referrer')
+    .set('Content-Security-Policy', "default-src 'none'")
+    .send(out);
+}
+
+exports.getDealPhoto = onRequest(
+  {
+    region: 'us-central1',
+    invoker: 'public',
+    maxInstances: 20,
+    // sharp decodes a full photo per request — keep a few per instance.
+    concurrency: 4,
+    timeoutSeconds: 30,
+    memory: '1GiB',
+  },
+  (req, res) => serveDealPhoto(req, res)
+);
+
+// For tests only — index.js copies every export, so this one is hidden.
+Object.defineProperty(exports, '_packetInternals', {
+  enumerable: false,
+  value: { packetPhotoItems, serveDealPhoto },
+});
 
 module.exports = exports;
 
