@@ -54,6 +54,17 @@ console.log('\nNO GSTATIC SDK LEFT');
   const left = files.filter((f) => /gstatic\.com\/firebasejs/.test(fs.readFileSync(f, 'utf8'))).map(rel);
   ok('no docs/ file references www.gstatic.com/firebasejs', left.length === 0, left.join(', '));
 }
+{
+  // E2E specs that page.evaluate(import(<sdk>)) must import the SAME copy the
+  // page loaded: a gstatic import there is a second SDK whose collection() rejects
+  // the page's Firestore ("Expected first argument to collection() to be a
+  // CollectionReference…") — 5 specs added on main after #2155 failed @gauntlet
+  // and @shard2 this way (2026-10-05). fixtures/local-sdk.js only ROUTES gstatic.
+  const E2E = path.join(ROOT, 'tests', 'e2e');
+  const specs = walk(E2E).filter((p) => rel(p) !== 'tests/e2e/fixtures/local-sdk.js');
+  const bad = specs.filter((p) => /import\(\s*['"]https:\/\/www\.gstatic\.com\/firebasejs/.test(fs.readFileSync(p, 'utf8'))).map(rel);
+  ok('no E2E spec/fixture imports the SDK from gstatic (one SDK copy per page)', specs.length >= 50 && bad.length === 0, bad.join(', ') || String(specs.length));
+}
 
 console.log('\nONE VERSION, EVERY FILE PRESENT');
 const refRe = /\/assets\/vendor\/firebase\/(\d+\.\d+\.\d+)(?:\/(firebase-[a-z-]+\.js))?/g;

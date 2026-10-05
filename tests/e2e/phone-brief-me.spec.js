@@ -72,7 +72,7 @@ test.describe('@shard2 Brief me on a phone (390x844)', () => {
         await window._saveLead({ firstName: '[E2E] Brief', lastName: String(stamp), address: String(stamp).slice(-4) + ' Main St, Milford, OH 45150',
           phone: '513' + String(stamp).slice(-7), email: 'e2e-brief-' + stamp + '@nbd.test', stage: 'closed', e2eTestData: true });
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const uid = (window._auth || window.auth).currentUser.uid;
       let id = null;
@@ -137,7 +137,7 @@ test.describe('@shard2 Brief me on a phone (390x844)', () => {
     await expect.poll(() => emailCalls.length, { message: 'one review email through the platform sender' }).toBe(1);
     expect(emailCalls[0]).toMatchObject({ leadId, kind: 'review_request' });
     await expect.poll(async () => safeEvaluate(page, async (id) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await fs.getDoc(fs.doc(window.db || window._db, 'leads', id));
       const d = snap.data() || {};
       return !!(d.reviewRequested && d.reviewRequestedAt);

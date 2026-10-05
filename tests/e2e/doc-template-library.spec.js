@@ -57,7 +57,7 @@ async function seed(page) {
   const leadId = 'e2e-tpl-lead-' + stamp;
   const estimateId = 'e2e-tpl-est-' + stamp;
   return safeEvaluate(page, async ({ lead, est, leadId, estimateId }) => {
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     await fs.setDoc(fs.doc(db, 'leads', leadId), Object.assign({}, lead, { primaryEstimateId: estimateId, createdAt: fs.serverTimestamp() }));
     await fs.setDoc(fs.doc(db, 'estimates', estimateId), Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }));

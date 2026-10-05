@@ -85,7 +85,7 @@ async function forceStandalone(page) {
 async function seedLead(page) {
   return safeEvaluate(page, async () => {
     const stamp = Date.now();
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const companyId = (window._userClaims && window._userClaims.companyId) || uid;
@@ -173,7 +173,7 @@ test.describe('phone e-sign: Send for signature → homeowner signs → signed P
     });
 
     const est = await safeEvaluate(page, async (id) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const uid = (window._auth || window.auth).currentUser.uid;
       const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'estimates'), fsMod.where('leadId', '==', id), fsMod.where('userId', '==', uid)));
