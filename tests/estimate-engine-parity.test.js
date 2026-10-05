@@ -11,6 +11,8 @@
  *     pitches onto V2's exact buckets — i.e. Classic now == V2 for every pitch.
  *   D-4 (extra pipe boot): unified at $85 in estimate-config.js
  *     (ADDON_EXTRA_PIPE_BOOT), which Classic now reads instead of its legacy $45.
+ *   D-7 (2026-10-05, bug #6): classic per-SQ price === V2 per-SQ price on all
+ *     five tiers, including a non-$25 job minimum (round THEN floor).
  *   D-1 (permit): Classic's per-city defaults realigned to each city's COUNTY
  *     V2 value (asserted against the committed estimates.js source text).
  *
@@ -217,6 +219,60 @@ console.log('\nENGINE PARITY — D-6 V2 cents discipline (no float drift persist
     perSq.minJobApplied || Math.round(perSq.total * 100) % 2500 === 0);
   ok('D-6 line-item total is a $25 multiple (or exact min-job)',
     li.minJobApplied || Math.round(li.total * 100) % 2500 === 0);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// D-7 — classic per-SQ price == V2 per-SQ price, all five tiers (bug #6,
+// fixed 2026-10-05). The classic builder used to floor THEN round (a
+// non-$25 minimum came back under itself) and priced good/better/best only.
+// Both engines load from the committed files into one window with the real
+// estimate-config.js; the classic engine is fed V2's own SQ, add-ons and tax
+// rate, so any difference is the price math itself.
+// ════════════════════════════════════════════════════════════════════
+console.log('\nENGINE PARITY — D-7 classic vs V2 per-SQ, five tiers');
+function loadBoth(minDollars) {
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  let cfgSrc = read('docs/pro/js/estimate-config.js');
+  if (minDollars) {
+    const a = cfgSrc.replace(/JOB_MINIMUM_DOLLARS: 2500,/, 'JOB_MINIMUM_DOLLARS: ' + minDollars + ',')
+      .replace(/JOB_MINIMUM_CENTS: {3}250000,/, 'JOB_MINIMUM_CENTS:   ' + (minDollars * 100) + ',');
+    if ((a.match(new RegExp(String(minDollars), 'g')) || []).length < 2) throw new Error('D-7 minimum mutation did not apply');
+    cfgSrc = a;
+  }
+  const el = () => ({ style: {}, dataset: {}, classList: { add() {}, remove() {} }, setAttribute() {}, appendChild(c) { return c; } });
+  const doc = { getElementById: () => null, createElement: el, querySelector: () => null, querySelectorAll: () => [], addEventListener() {} };
+  const win = { document: doc, localStorage: { getItem: () => null, setItem() {}, removeItem() {} } }; win.window = win;
+  const ctx = vm.createContext({ window: win, document: doc, localStorage: win.localStorage, console: { log() {}, warn() {}, error() {}, info() {} },
+    Math, JSON, Object, Number, Date, setTimeout, clearTimeout, estData: {}, selectedTier: null, R: { deckPct: 0.15 } });
+  for (const [rel, src] of [['estimate-config.js', cfgSrc], ['ky-insurance-law.js', read('docs/pro/js/ky-insurance-law.js')],
+    ['deposit-rule.js', read('docs/pro/js/deposit-rule.js')], ['estimate-builder-v2.js', read('docs/pro/js/estimate-builder-v2.js')],
+    ['estimates.js', read('docs/pro/js/estimates.js')]]) vm.runInContext(src, ctx, { filename: rel });
+  return { V2: win.EstimateBuilderV2, classic: ctx.calcEstimateTotalCents, CFG: win.NBD_ESTIMATE_CONFIG };
+}
+for (const minDollars of [0, 2510]) {
+  const E = loadBoth(minDollars);
+  const tag = minDollars ? ' ($' + minDollars + ' minimum)' : '';
+  ok('D-7 five tiers in TIER_ORDER' + tag, E.CFG.TIER_ORDER.length === 5);
+  let cases = 0, floored = 0;
+  const diffs = [];
+  for (const tier of E.CFG.TIER_ORDER) {
+    for (const rawSqft of [180, 300, 450, 1234, 2600]) {
+      for (const mode of ['cash', 'insurance']) {
+        const v = E.V2.calculatePerSq({ tier, mode, rawSqft, pitch: '6/12' });
+        const c = E.classic(v.sq, tier, { totalCents: Math.round(v.addOnsTotal * 100) }, { taxRate: v.taxRate });
+        cases++; if (v.minJobApplied) floored++;
+        if (c !== Math.round(v.total * 100)) diffs.push([tier, rawSqft, mode, c / 100, v.total]);
+      }
+    }
+  }
+  ok('D-7 classic price === V2 price for every tier × size × mode' + tag + ' (diffs: ' + JSON.stringify(diffs.slice(0, 4)) + ')', diffs.length === 0);
+  // The grid must reach the floor, or the floor-order half proves nothing.
+  ok('D-7 the grid exercises the job minimum' + tag + ' (' + floored + '/' + cases + ' floored)', floored > 0 && floored < cases);
+  if (minDollars) {
+    const v = E.V2.calculatePerSq({ tier: 'economy', mode: 'insurance', rawSqft: 180, pitch: '6/12' });
+    ok('D-7 a floored $2,510 job quotes exactly $2,510 on both engines', v.minJobApplied && v.total === 2510
+      && E.classic(v.sq, 'economy', { totalCents: Math.round(v.addOnsTotal * 100) }, { taxRate: v.taxRate }) === 251000);
+  }
 }
 
 console.log('\n──────────────────────────────────────────────────');
