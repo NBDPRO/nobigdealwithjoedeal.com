@@ -270,9 +270,14 @@ console.log('\nCompany-keyed billing reads (AI surfaces)');
     /sub\.status === 'active' \|\| sub\.status === 'trialing'/.test(ai),
     'a Growth trial is the conversion window — AI must work during it');
   const pv = read('functions/photo-vision.js');
+  // photo-vision's spend path is one classifyPhoto() shared by the callable
+  // and the onCreate trigger door; each door passes the billing key in. The
+  // callable keys on the companyId claim, the trigger on the photo doc's
+  // companyId, and classifyPhoto reads subscriptions/{billingKey}.
   assert('photo-vision.js plan read keyed by companyId claim',
-    /billingKey = \(request\.auth\.token && request\.auth\.token\.companyId\) \|\| uid/.test(pv)
-    && /subscriptions\/\$\{billingKey\}/.test(pv));
+    /billingKey: \(request\.auth\.token && request\.auth\.token\.companyId\) \|\| uid/.test(pv)
+    && /billingKey: photo\.companyId \|\| photo\.userId/.test(pv)
+    && /subscriptions\/\$\{billingKey \|\| uid\}/.test(pv));
   const rv = read('functions/receipt-vision.js');
   assert('receipt-vision.js plan read keyed by companyId claim',
     /billingKey = \(request\.auth\.token && request\.auth\.token\.companyId\) \|\| uid/.test(rv)

@@ -148,8 +148,33 @@ function buildRequestBody(lat, lng, opts) {
     if (opts.address)        body.originalAddress = String(opts.address).slice(0, 1000);
   } else {
     body.resultOptions = Object.assign({}, AI_RESULT_OPTIONS);
+    // The outline image, on request only (2026-10-04: the auto-order shows it
+    // in the Draw tool as a cross-check). The caller stores it in Storage —
+    // never in Firestore, where a base64 PNG would crowd the 1 MiB doc cap.
+    if (opts.outline) body.resultOptions.mapWithOutlineFromImageModel = true;
   }
   return body;
+}
+
+/**
+ * The outline image from an AI response, as bytes ready for Storage, or null.
+ * Tolerates a bare base64 string and a `data:image/...;base64,` URL. The
+ * content type is read from the bytes' own signature (PNG / JPEG / WebP),
+ * never trusted from the vendor string, and anything else is refused.
+ */
+function outlineImage(body) {
+  const raw = body && body.imagery && body.imagery.mapWithOutline;
+  if (typeof raw !== 'string' || raw.length < 16) return null;
+  const b64 = raw.replace(/^data:[^,]*,/, '').replace(/\s+/g, '');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) return null;
+  const buf = Buffer.from(b64, 'base64');
+  if (buf.length < 8 || buf.length > 8 * 1024 * 1024) return null;
+  let contentType = null;
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) contentType = 'image/png';
+  else if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) contentType = 'image/jpeg';
+  else if (buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') contentType = 'image/webp';
+  if (!contentType) return null;
+  return { buffer: buf, contentType };
 }
 
 /**
@@ -347,6 +372,7 @@ module.exports = {
   COMPLEXITY_LABEL,
   HTTP_ERRORS,
   buildRequestBody,
+  outlineImage,
   normalizeAiResponse,
   parseHumanAccepted,
   parseHumanWebhook,
