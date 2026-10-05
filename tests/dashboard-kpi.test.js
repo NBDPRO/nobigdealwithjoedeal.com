@@ -18,8 +18,10 @@ const vm = require('vm');
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond) { if (cond) { passed++; console.log('  ✓ ' + name); } else { failed++; fails.push(name); console.log('  ✗ ' + name); } }
 
-function loadIIFE(file) {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js', file), 'utf8');
+// files: one name or a list run in order in ONE sandbox (numbers-logic.js —
+// THE close rate since 2026-10-04 — loads before analytics-kpi.js, as on the page).
+function loadIIFE(files) {
+  const list = Array.isArray(files) ? files : [files];
   const noop = () => ({ style: {}, appendChild() {}, addEventListener() {}, remove() {}, classList: { add() {}, remove() {} }, dataset: {} });
   const win = { addEventListener() {}, removeEventListener() {}, location: { pathname: '/pro/dashboard' } };
   win.window = win;
@@ -29,11 +31,12 @@ function loadIIFE(file) {
     console: { log() {}, warn() {}, error() {} },
     setTimeout, clearTimeout, Date, Math, JSON, Object,
   };
-  vm.runInNewContext(src, sandbox, { filename: file });
+  vm.createContext(sandbox);
+  list.forEach((file) => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js', file), 'utf8'), sandbox, { filename: file }));
   return win;
 }
 
-const win = loadIIFE('analytics-kpi.js');
+const win = loadIIFE(['numbers-logic.js', 'analytics-kpi.js']);
 const now = new Date().toISOString();
 
 // Controlled pipeline. WON stage key = 'closed'; LOST = 'lost'.
@@ -71,7 +74,8 @@ ok('topSource = referral (3 non-deleted)', k.topSource === 'referral' && k.topSo
   win._leads = []; win._estimates = [];
   const z = win.computeKPIs();
   ok('empty pipeline → pipelineValue 0', z.pipelineValue === 0);
-  ok('empty pipeline → closeRate 0 (no divide-by-zero)', z.closeRate === 0);
+  // 2026-10-04: no decided leads → no rate (the card shows "—"), never 0%.
+  ok('empty pipeline → closeRate null (shown as —, no divide-by-zero)', z.closeRate === null);
   ok('empty pipeline → avgDealSize 0', z.avgDealSize === 0);
   ok('empty pipeline → topSource N/A', z.topSource === 'N/A');
 }
