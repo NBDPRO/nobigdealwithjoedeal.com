@@ -273,7 +273,7 @@ console.log('\nTHURSDAY — builders + notifications');
   const route = T.decideRoute(e, { confidence: 'none', possible: [] });
   const lead = T.buildLeadDoc({ extraction: e, call: c, ownerUid: NBD, companyId: NBD });
   ok('lead scoped to NBD (userId + companyId)', lead.userId === NBD && lead.companyId === NBD);
-  ok('lead stage New / status new', lead.stage === 'New' && lead.status === 'new');
+  ok('lead stage new (canonical key + role) / status new', lead.stage === 'new' && lead.stageRole === 'new' && lead.status === 'new');
   ok('source = canonical heard-about value', lead.source === 'Google');
   ok('intake records the phone funnel separately', lead.intake === 'Phone — Thursday' && lead.sourcePage === 'phone:thursday');
   ok('names title-cased', lead.firstName === 'Halina' && lead.lastName === 'Nowicka');

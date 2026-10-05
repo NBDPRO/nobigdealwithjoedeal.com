@@ -224,7 +224,9 @@ const C = sb.__out;
       Array.isArray(lead.stageHistory) && lead.stageHistory.length === 1 && lead.stageHistory[0].from === 'estimate_submitted'
       && lead.stageHistory[0].to === 'contract_signed' && lead.stageHistory[0].user === 'remote signing' && lead.stageHistory[0].event === 'contract_signed'
       && lead.stageHistory[0].timestamp === new Date(NOW).toISOString());
-    ok('no closedAt on a non-won stage', !('closedAt' in lead));
+    // 2026-10-04 (numbers): a signed contract IS the close (Jo, 2026-09-15), so
+    // the close date is the signing — stage-roles.js needsClosedAt sale rule.
+    ok('closedAt stamped on contract_signed (the sale is the close)', lead.closedAt === '__TS__');
     const note = db.store.get('notes/spine-' + L.markerId('L1', 'contract_signed', 'doc_d1'));
     ok('writes a timeline note on the top-level notes collection (leadId, owner userId, stage_change)',
       note && note.leadId === 'L1' && note.userId === 'u1' && note.type === 'stage_change' && /Stage moved to "Contract Signed" — automatic: contract signed \(Pat signed remotely\)/.test(note.text));

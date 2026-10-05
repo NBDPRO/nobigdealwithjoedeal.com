@@ -1884,14 +1884,15 @@ section('Phase C.4 mobile-nav — bottom-nav and More-drawer items');
   // (Yard Signs added 2026-09-29. Schedule added 2026-09-29 evening: the
   // Google Calendar panel lives there and Jo could not find the view.)
   // (Past Customers / win-back added 2026-10-01. Call Center added 2026-10-01.)
-  assert('mobileNav conversions: 30 (3 bottom-nav + 27 more-drawer)',
-    mnCount === 30,
-    'expected 30 mobileNav data-actions; got ' + mnCount);
+  // (Sunday Review added 2026-10-04 — the weekly business review.)
+  assert('mobileNav conversions: 31 (3 bottom-nav + 28 more-drawer)',
+    mnCount === 31,
+    'expected 31 mobileNav data-actions; got ' + mnCount);
 
   const closeMoreCount = (dash.match(/data-action="mobileNav"\s+data-target="[a-z]+"\s+data-close-more/g) || []).length;
-  assert('27 mobileNav items carry data-close-more (More-drawer items)',
-    closeMoreCount === 27,
-    'expected 27 data-close-more flags; got ' + closeMoreCount);
+  assert('28 mobileNav items carry data-close-more (More-drawer items)',
+    closeMoreCount === 28,
+    'expected 28 data-close-more flags; got ' + closeMoreCount);
 
   // C.4 finale: every mobileNav handler is delegated (no inline onclicks).
   const remaining = (dash.match(/onclick="mobileNav\(/g) || []).length;
@@ -2380,9 +2381,15 @@ section('Wave 5d (A.4) — accent contract on remaining toggle-active states');
   assert('crm.js search-highlight <mark> uses var(--accent-fg)',
     /mark\.style\.cssText\s*=\s*'background:var\(--orange\);color:var\(--accent-fg\)/.test(crmJs),
     'expected the search-highlight <mark> to color via --accent-fg');
-  assert('crm.js saveBtn.style.cssText uses var(--accent-fg) + accent-ring',
-    /saveBtn\.style\.cssText\s*=\s*'background:var\(--orange\);border:1px solid var\(--orange\);color:var\(--accent-fg\);box-shadow:inset 0 0 0 1px var\(--accent-ring\)/.test(crmJs),
-    'expected saveBtn inline cssText to use --accent-fg + inset --accent-ring');
+  // 2026-10-04: the lost-reason sheet's "Mark Lost" button moved out of
+  // crm-pipeline.js inline cssText into lost-reason-picker.js + numbers.css
+  // (.nb-btn-primary). Same theme contract: text via --accent-fg, inset
+  // --accent-ring boundary.
+  const nbCss = read(path.join(ROOT, 'docs/pro/css/numbers.css'));
+  const picker = read(path.join(ROOT, 'docs/pro/js/lost-reason-picker.js'));
+  assert('lost-reason Mark Lost button uses var(--accent-fg) + accent-ring',
+    /\.nb-btn-primary \{[^}]*color: var\(--accent-fg[^}]*box-shadow: inset 0 0 0 1px var\(--accent-ring/.test(nbCss) && /save\.className = 'nb-btn nb-btn-primary'/.test(picker),
+    'expected .nb-btn-primary to use --accent-fg + inset --accent-ring');
 }
 
 section('Wave 2E.3 (A.3) — m-modal-bar on the last 5 dashboard modals');

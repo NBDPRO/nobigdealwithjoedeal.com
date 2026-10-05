@@ -184,11 +184,14 @@ const WIDGETS = [
 
   {id:'win-rate', name:'Win Rate', icon:'🏆', cat:'Pipeline & Sales', size:'sm',
     render(el){
+      // THE close rate (numbers-logic.js, 2026-10-04): won ÷ (won + lost),
+      // won = won / in production / contract signed. Nothing decided → "—".
       const leads = window._leads || [];
-      const decided = leads.filter(l => { const r = _roleOf(l); return r === 'won' || r === 'lost'; });
-      const won = decided.filter(l => _roleOf(l) === 'won').length;
-      const closed = decided;
-      const rate = closed.length > 0 ? (won / closed.length * 100) : 0;
+      const cr = window.NBDNumbers ? window.NBDNumbers.closeRate(leads) : { won: 0, decided: 0, rate: null };
+      const won = cr.won;
+      const closed = { length: cr.decided };
+      const rate = cr.rate == null ? 0 : cr.rate * 100;
+      const rateTxt = cr.rate == null ? '—' : rate.toFixed(0) + '%';
       const circumference = 2 * Math.PI * 36;
       const offset = circumference - (rate / 100) * circumference;
       el.innerHTML = `
@@ -196,7 +199,7 @@ const WIDGETS = [
           <circle cx="42" cy="42" r="36" stroke="var(--br)" stroke-width="6" fill="none"/>
           <circle cx="42" cy="42" r="36" stroke="var(--orange)" stroke-width="6" fill="none"
             stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" transform="rotate(-90 42 42)" stroke-linecap="round"/>
-          <text x="42" y="46" text-anchor="middle" fill="var(--t)" font-family="'Barlow Condensed',sans-serif" font-size="20" font-weight="800">${rate.toFixed(0)}%</text>
+          <text x="42" y="46" text-anchor="middle" fill="var(--t)" font-family="'Barlow Condensed',sans-serif" font-size="20" font-weight="800">${rateTxt}</text>
         </svg>
         <div class="w-sub">${won} won / ${closed.length} closed</div>`;
     }},
