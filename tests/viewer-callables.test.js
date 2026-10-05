@@ -494,6 +494,8 @@ const VERDICTS = {
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
   createStripePaymentLink: 'refused', cspReport: 'public', clientError: 'public', emailUnsubscribe: 'public',
   createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
+  getCalendarFeed: 'public', getDealRoom: 'public', getDealPhoto: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
+  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
   // The signer's Decline button (2026-10-04): token-authed like getEsignEnvelope.
   declineEsignEnvelope: 'public',
   getCalendarFeed: 'public', getDealRoom: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',

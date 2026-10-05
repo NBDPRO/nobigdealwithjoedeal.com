@@ -914,6 +914,28 @@
         width:100%; justify-content:center; min-height:48px; padding:12px; margin-bottom:6px;
         border-color:var(--green,#2ecc8a); color:var(--green,#2ecc8a);
       }
+      /* Full packet / Paperwork only (2026-10-04) */
+      .v2-packet { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
+      .v2-packet-opt {
+        min-height:48px; border-radius:8px; border:2px solid var(--br,#2a2f35); background:var(--s2,#181c22);
+        color:var(--t,#e8eaf0); font:inherit; font-size:14px; font-weight:700; cursor:pointer; padding:6px 8px;
+      }
+      .v2-packet-opt.active { border-color:var(--orange,#BD5728); color:var(--orange,#BD5728); }
+      .v2-packet-hint { font-size:12px; color:var(--m,#888); text-align:center; margin-bottom:6px; line-height:1.4; }
+      .v2-packet-photos { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:8px; }
+      .v2-packet-photos[hidden] { display:none; }
+      .v2-packet-ph {
+        position:relative; padding:0; aspect-ratio:1; border-radius:8px; overflow:hidden; cursor:pointer;
+        border:2px solid var(--orange,#BD5728); background:var(--s,#111418); min-height:44px;
+      }
+      .v2-packet-ph img { width:100%; height:100%; object-fit:cover; display:block; }
+      .v2-packet-ph.off { border-color:var(--br,#2a2f35); }
+      .v2-packet-ph.off img { opacity:.35; }
+      .v2-packet-ph .v2-packet-check {
+        position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%; display:flex;
+        align-items:center; justify-content:center; background:var(--orange,#BD5728); color:#fff; font-size:12px; font-weight:800;
+      }
+      .v2-packet-ph.off .v2-packet-check { display:none; }
       .v2-share-status { font-size:12px; color:var(--m,#888); text-align:center; min-height:1em; margin-bottom:6px; }
       .v2-share-box { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
       .v2-share-box[hidden] { display:none; }
@@ -1239,6 +1261,12 @@
           </div>
 
           <div class="v2-section">Send to Homeowner</div>
+          <div class="v2-packet" role="group" aria-label="What the homeowner gets">
+            <button type="button" id="v2packetFull" class="v2-packet-opt active" data-action="set-packet" data-arg="full" aria-pressed="true">📦 Full packet</button>
+            <button type="button" id="v2packetPaper" class="v2-packet-opt" data-action="set-packet" data-arg="paperwork" aria-pressed="false">📄 Paperwork only</button>
+          </div>
+          <div id="v2packetHint" class="v2-packet-hint"></div>
+          <div id="v2packetPhotos" class="v2-packet-photos" hidden></div>
           <button id="v2sendHoBtn" type="button" class="btn btn-orange v2-send-ho" data-action="send-to-homeowner">
             📲 Send to homeowner
           </button>
@@ -1412,6 +1440,12 @@
           break;
         case 'toggle-photo':
           if (arg) togglePhoto(arg);
+          break;
+        case 'set-packet':
+          if (arg) setPacket(arg);
+          break;
+        case 'toggle-packet-photo':
+          if (arg) togglePacketPhoto(arg);
           break;
         case 'pres-tier':
           if (arg) { setTierChoice(arg); openPresentation(); }
@@ -2893,7 +2927,10 @@
       const list = [];
       snap.forEach(d => {
         const p = d.data() || {};
-        if (p.url && !p.deleted) list.push({ id: d.id, url: p.url, _ms: (p.createdAt && p.createdAt.toMillis) ? p.createdAt.toMillis() : 0 });
+        // userId / category / phase / damageType / tags rank the deal packet's
+        // inspection photos (deal-packet.js candidates); url is the rep's own
+        // thumbnail here and never goes to the homeowner.
+        if (p.url && !p.deleted) list.push({ id: d.id, url: p.url, userId: p.userId || null, category: p.category || '', phase: p.phase || '', damageType: p.damageType || '', tags: Array.isArray(p.tags) ? p.tags : [], _ms: (p.createdAt && p.createdAt.toMillis) ? p.createdAt.toMillis() : 0 });
       });
       list.sort((a, b) => b._ms - a._ms);
       state._leadPhotos = { _leadId: leadId, list: list.slice(0, 60) };
@@ -2904,6 +2941,7 @@
   }
 
   function renderPhotos() {
+    renderPacket();
     const grid = document.getElementById('v2photosGrid');
     const hint = document.getElementById('v2photosHint');
     if (!grid) return;
@@ -5105,6 +5143,11 @@
     // A previous session's pending undo / open row editor belong to it.
     _dismissUndo();
     _rowEdit = null;
+    // Full packet / Paperwork only (2026-10-04): the rep's remembered choice.
+    _packetChoice = null; // the rep's remembered choice, re-read below
+    if (_DP() && typeof _DP().load === 'function') {
+      _DP().load().then(() => { if (!_packetChoice) renderPacket(); }).catch(() => {});
+    }
     const pendingImport = opts.importMeasurements || null;
     // 3B: reopen a saved V2 estimate (routed here from the estimates list).
     // Rehydrate its state and render — takes precedence over draft restore.
@@ -5308,6 +5351,94 @@
     };
   }
 
+  // ── Full packet / Paperwork only (2026-10-04) ──────────────────────────
+  // The rep's choice, remembered per user (deal-packet.js → userSettings).
+  // Kept OUT of state: a new estimate must not reset it to the default.
+  let _packetChoice = null;
+  // Photos Jo deselected, for the lead they belong to.
+  let _packetOff = { leadId: null, ids: [] };
+  function _DP() { return window.NBDDealPacket || null; }
+  function packetChoice() {
+    if (_packetChoice) return _packetChoice;
+    const DP = _DP();
+    return DP ? DP.current() : 'full';
+  }
+  function _packetLeadId() { return state.leadId || (state.customer && state.customer.leadId) || null; }
+  function _packetExcluded() {
+    const lid = _packetLeadId();
+    if (_packetOff.leadId !== lid) _packetOff = { leadId: lid, ids: [] };
+    return _packetOff.ids;
+  }
+  // The lead's photos the full packet offers (up to 6, best first).
+  function _packetCandidates() {
+    const DP = _DP();
+    const list = (state._leadPhotos && state._leadPhotos.list) || [];
+    if (!DP) return [];
+    return DP.candidates(list, {
+      uid: (window._user && window._user.uid) || null,
+      estimatePhotoIds: (state.photos || []).map((p) => p.id).filter(Boolean),
+    });
+  }
+  // The IDs that go on the deal — none on a paperwork packet.
+  function packetPhotoIds() {
+    if (packetChoice() !== 'full') return [];
+    const off = _packetExcluded();
+    return _packetCandidates().map((p) => p.id).filter((id) => off.indexOf(id) === -1);
+  }
+  function setPacket(v) {
+    const DP = _DP();
+    _packetChoice = DP ? DP.normalize(v) : (v === 'paperwork' ? 'paperwork' : 'full');
+    if (DP) DP.remember(_packetChoice);
+    renderPacket();
+    return _packetChoice;
+  }
+  function togglePacketPhoto(id) {
+    const off = _packetExcluded();
+    const i = off.indexOf(id);
+    if (i >= 0) off.splice(i, 1); else off.push(id);
+    renderPacket();
+  }
+  function renderPacket() {
+    if (typeof document === 'undefined' || !document.getElementById) return;
+    const pk = packetChoice();
+    const full = document.getElementById('v2packetFull');
+    const paper = document.getElementById('v2packetPaper');
+    if (full && full.classList) { full.classList.toggle('active', pk === 'full'); if (full.setAttribute) full.setAttribute('aria-pressed', String(pk === 'full')); }
+    if (paper && paper.classList) { paper.classList.toggle('active', pk === 'paperwork'); if (paper.setAttribute) paper.setAttribute('aria-pressed', String(pk === 'paperwork')); }
+    const hint = document.getElementById('v2packetHint');
+    const grid = document.getElementById('v2packetPhotos');
+    const e = (x) => String(x == null ? '' : x).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    if (pk !== 'full') {
+      if (hint) hint.textContent = 'Estimate, terms and signature — no photos.';
+      if (grid) { grid.innerHTML = ''; grid.hidden = true; }
+      return;
+    }
+    const cands = _packetCandidates();
+    const off = _packetExcluded();
+    const on = cands.filter((p) => off.indexOf(p.id) === -1).length;
+    if (hint) {
+      hint.textContent = 'Estimate, ' + (on ? on + ' inspection photo' + (on === 1 ? '' : 's') : 'no photos') +
+        ', scope, warranty and reviews.' + (cands.length ? ' Tap a photo to leave it out.' : '');
+    }
+    if (!grid) return;
+    grid.innerHTML = cands.map((p) => {
+      const isOff = off.indexOf(p.id) !== -1;
+      return '<button type="button" class="v2-packet-ph' + (isOff ? ' off' : '') + '" data-action="toggle-packet-photo" data-arg="' + e(p.id) + '"' +
+        ' aria-pressed="' + (!isOff) + '" aria-label="' + (isOff ? 'Add' : 'Leave out') + ' this photo">' +
+        '<img src="' + e(p.url) + '" alt="" loading="lazy"><span class="v2-packet-check">✓</span></button>';
+    }).join('');
+    grid.hidden = !cands.length;
+  }
+  // Line names only — the deal page's "What's included" (no cost, no qty).
+  function _scopeNames(estimate) {
+    const out = [];
+    ((estimate && estimate.lines) || []).forEach((l) => {
+      const n = String((l && (l.name || l.description)) || '').trim();
+      if (n && out.indexOf(n) === -1 && out.length < 15) out.push(n);
+    });
+    return out;
+  }
+
   let _dealBusy = false;
   let _lastShare = null;
 
@@ -5362,7 +5493,10 @@
       insuranceClaim: !!(j && j.insurance) || state.jobMode === 'insurance'
     };
     let deal;
-    try { deal = CB.createFromEstimate({ id: estimateId, prices }, leadData); }
+    // The packet chosen above (2026-10-04): photo IDs only, never URLs.
+    const packet = packetChoice();
+    const dealEst = { id: estimateId, prices, packet, packetPhotoIds: packetPhotoIds(), scopeSummary: _scopeNames(estimate) };
+    try { deal = CB.createFromEstimate(dealEst, leadData); }
     catch (e) {
       console.error('[v2] deal create failed:', e);
       say('Could not create the deal — try again.', 'error');
@@ -5569,6 +5703,12 @@
       sendToHomeowner: sendToHomeowner,
       signOnThisPhone: signOnThisPhone,
       lastShare: () => _lastShare,
+      // Deal packet (2026-10-04) — tests/deal-packet-2026-10-04.test.js.
+      setPacket: setPacket,
+      packetChoice: packetChoice,
+      packetPhotoIds: packetPhotoIds,
+      togglePacketPhoto: togglePacketPhoto,
+      renderPacket: renderPacket,
     },
   };
 

@@ -408,6 +408,94 @@ const NBD_WORDS = /\bJo\b|Jo's|\bNBD\b|No Big Deal|Quinn|TAMKO|HailGuard|jd@|inf
     /Connect your own AI bot/.test(sec) && /https:\/\/nobigdealwithjoedeal\.com\/api\/mcp/.test(sec) && /Authorization: Bearer/.test(sec) && /mcp-remote/.test(sec)
     && /Nothing is sent to a customer/.test(sec) && /file notes, reminders and reports, and nothing else/.test(sec) && /href="#connect-bots"/.test(howto));
 
+  // J. Opening the tab runs load() several times (deep link + goTo's tab timer
+  // + the hashchange re-entry). Each render replaced the mount, so what the
+  // owner had typed was wiped and "Create bot" stopped at "Give the bot a
+  // name" (phone-bots-api.spec.js red on main, 2026-10-05). Behaviour, in a
+  // sandbox whose innerHTML makes FRESH inputs every render, like a browser.
+  console.log('J. the form survives a re-render; the tab loads if it opened before the hook');
+  await (async () => {
+    function fakeMount() {
+      let els = {}, tools = [];
+      const m = {};
+      Object.defineProperty(m, 'innerHTML', { set(h) {
+        els = {}; tools = [];
+        (String(h).match(/<(input|textarea|select)\b[^>]*\bid="(ab\w+)"[^>]*>/g) || []).forEach((tag) => {
+          const id = tag.match(/id="(ab\w+)"/)[1];
+          const kind = tag.slice(1).split(/\s/)[0].toUpperCase();
+          const el = { id, tagName: kind, value: '' };
+          if (kind === 'SELECT') {
+            const body = String(h).slice(String(h).indexOf(tag)).split('</select>')[0];
+            el.options = (body.match(/<option value="([^"]*)"/g) || []).map((o) => ({ value: o.match(/value="([^"]*)"/)[1] }));
+            el.value = el.options.length ? el.options[0].value : '';
+          }
+          els[id] = el;
+        });
+        (String(h).match(/<input type="checkbox" name="abTool" value="[^"]*"[^>]*>/g) || []).forEach((tag) => {
+          tools.push({ value: tag.match(/value="([^"]*)"/)[1], checked: / checked/.test(tag) });
+        });
+      }, get() { return ''; } });
+      m.querySelector = (sel) => {
+        if (sel === '#abNewBot, #abTz') return (els.abBotName || els.abTz) ? {} : null;
+        if (sel === 'input[name="abTool"]') return tools[0] || null;
+        return els[sel.replace(/^#/, '')] || null;
+      };
+      m.querySelectorAll = (sel) => (sel === 'input[name="abTool"]:checked' ? tools.filter((t) => t.checked) : sel === 'input[name="abTool"]' ? tools : []);
+      m.el = (id) => els[id];
+      m.tools = () => tools;
+      return m;
+    }
+    function sandbox(opts) {
+      const mount = fakeMount();
+      const panel = { style: { display: opts.panelShown ? 'block' : '' } };
+      const calls = [];
+      const pending = [];
+      const w = { location: { search: '' }, _functions: {} };
+      w.window = w;
+      w._httpsCallable = (_f, name) => (payload) => { calls.push(name); return new Promise((res) => pending.push(() => res({ data: base }))); };
+      let tick = null;
+      const doc = { readyState: 'complete', addEventListener() {}, querySelectorAll() { return []; },
+        getElementById: (id) => (id === 'agentBotsMount' ? mount : id === 'stab-panel-bots' ? panel : null) };
+      if (opts.hookReady) w.switchSettingsTab = function () {};
+      vm.runInContext(ui, vm.createContext({ window: w, document: doc, console, setTimeout, setInterval: (fn) => { tick = fn; return 1; }, clearInterval() {}, JSON, Math, String, Intl, Date, Array, Promise, Object }));
+      return { w, mount, calls, pending, tickNow: () => tick && tick() };
+    }
+    const flush = () => new Promise((r) => setImmediate(r));
+
+    const s = sandbox({ hookReady: true });
+    const first = s.w.NBDAgentBots.load();
+    s.pending.shift()(); await first; await flush();
+    ok('first load renders the make-a-bot form', !!s.mount.el('abBotName'));
+    s.mount.el('abBotName').value = 'Follow-up Fox';
+    s.mount.el('abBotRole').value = 'Finds quiet customers';
+    s.mount.el('abBotRoute').value = 'creator';
+    const lastTool = s.mount.tools().filter((t) => t.checked).pop();
+    lastTool.checked = false;
+    // Two more loads in flight (the tab opened again) — answer them OUT of order.
+    const a = s.w.NBDAgentBots.load(); const b = s.w.NBDAgentBots.load();
+    const resA = s.pending.shift(), resB = s.pending.shift();
+    resB(); await b; await flush();
+    const afterB = s.mount.el('abBotName');
+    resA(); await a; await flush();
+    ok('a re-render keeps the typed name, what-it-does and the route', s.mount.el('abBotName').value === 'Follow-up Fox' && s.mount.el('abBotRole').value === 'Finds quiet customers' && s.mount.el('abBotRoute').value === 'creator');
+    ok('a re-render keeps the tool choices', !s.mount.tools().find((t) => t.value === lastTool.value).checked);
+    ok('only the newest load renders (an older answer arriving late is dropped)', s.mount.el('abBotName') === afterB);
+    const reset = s.w.NBDAgentBots.load({ reset: true });
+    s.pending.shift()(); await reset; await flush();
+    ok('after a bot is made the form starts over', s.mount.el('abBotName').value === '');
+
+    // The tab opened (panel shown) before switchSettingsTab existed to wrap.
+    const late = sandbox({ hookReady: false, panelShown: true });
+    ok('nothing loads before the hook can go on', late.calls.length === 0);
+    late.w.switchSettingsTab = function () {};
+    late.tickNow();
+    ok('the hook catches up: an already-open Bots tab loads', late.calls.indexOf('listAgentKeys') !== -1);
+    const closed = sandbox({ hookReady: false, panelShown: false });
+    closed.w.switchSettingsTab = function () {};
+    closed.tickNow();
+    ok('a closed Bots tab does not load early', closed.calls.length === 0);
+  })();
+
   Module._load = origLoad;
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

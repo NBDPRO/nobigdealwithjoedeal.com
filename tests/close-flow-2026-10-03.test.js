@@ -458,8 +458,10 @@ section('F. V3 wizard — skip Customer when prefilled; one primary on Finish', 
 
   const fin = a.T.TAGS.filter((t) => String(t[1]).split(' ').indexOf('finish') !== -1);
   const primary = fin.filter((t) => t[2] !== 'more').map((t) => t[0]);
-  ok('Finish primary is ONLY Send to homeowner (+ its status / share box)',
-    primary.join() === '[data-action="send-to-homeowner"],#v2shareStatus,#v2shareBox', primary.join());
+  // 2026-10-04: the Full packet / Paperwork only choice (+ its hint and photo
+  // picker) is the question asked AT send time, so it sits with the primary.
+  ok('Finish primary is ONLY Send to homeowner (+ its packet choice / status / share box)',
+    primary.join() === '.v2-packet,#v2packetHint,#v2packetPhotos,[data-action="send-to-homeowner"],#v2shareStatus,#v2shareBox', primary.join());
   const more = fin.filter((t) => t[2] === 'more').map((t) => t[0]).join();
   ok('Present / Save / Sign / exports sit under More',
     ['[data-action="present"]', '#v2saveBtn', '#v2signBtn', '#v2signPhoneBtn', '.v2-export-btns'].every((s) => more.indexOf(s) !== -1), more);

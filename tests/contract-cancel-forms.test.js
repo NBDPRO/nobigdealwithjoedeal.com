@@ -253,7 +253,7 @@ function packetComplete(html) {
       _files: m,
     };
   }
-  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', 'crypto'];
+  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', 'crypto'];
   function loadFn(rel, db, storage, extra) {
     const file = path.join(FN, rel);
     const dir = path.dirname(file);
@@ -273,6 +273,7 @@ function packetComplete(html) {
       './integrations/_shared': { secretOr: (_s, d) => d },
       './resend-guard': { resendRejected: () => false, resendErrorMessage: () => '' },
       './job-spine': { spineAfterRemoteSign: async () => ({}), spineAfterDealAccept: async () => ({}), spineAfterEsign: async () => ({}) },
+      './photo-reencode': { reencodePhoto: async (b) => b },   // #2139 deal photos (sharp) — not under test here
       resend: { Resend: class { constructor() { this.emails = { send: async () => ({ data: { id: 'm1' } }) }; } } },
     }, extra || {});
     const req = (id) => {
