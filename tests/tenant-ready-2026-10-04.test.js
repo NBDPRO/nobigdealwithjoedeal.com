@@ -41,6 +41,7 @@ function section(t) { console.log('\n' + t); }
 function safe(fn) { try { fn(); } catch (e) { ok('section threw: ' + (e && e.message), false); } }
 
 const NBD = '1phDvAVXHSg82wDLegAbQFq14Ci1';
+let lazyDone = Promise.resolve(); // §5b's loader run
 const OAKS = 'oaksOwnerUid000000000001';
 
 // A browser-ish sandbox that loads the given docs/pro/js files in order.
@@ -308,6 +309,66 @@ safe(() => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+// Boot budget (2026-10-05): only tenant-rules.js is a dashboard boot tag.
+// The settings editor + logo/export UI load with the Settings view, the
+// checklist once a non-NBD company's profile lands — and each paints on
+// arrival, because the events it listens for have already fired by then.
+section('5b. Tenant-ready UI loads lazily, and still paints');
+safe(() => {
+  const dash = read('docs/pro/dashboard.html').replace(/<!--[\s\S]*?-->/g, '');
+  ok('tenant-rules.js stays a boot tag (estimate-config / deposit-rule read it synchronously)', /<script defer src="js\/tenant-rules\.js\?v=\d+"><\/script>/.test(dash));
+  ok('settings editor, checklist and logo/export UI are not boot tags',
+    !/<script[^>]+(tenant-rules-settings|setup-checklist|tenant-account-ui)\.js/.test(dash));
+
+  // The real loader, with a fake DOM that records what it injects.
+  const injected = [];
+  const doc = {
+    baseURI: 'https://x.test/pro/dashboard.html',
+    querySelector: () => null, querySelectorAll: () => [],
+    createElement: () => ({}),
+    head: { appendChild(el) { injected.push(el.src || el.href); setTimeout(() => el.onload && el.onload(), 0); } },
+  };
+  const sb = { window: {}, document: doc, console: { log() {}, warn() {}, group() {}, groupEnd() {} }, setTimeout, URL, Promise };
+  sb.window.window = sb.window;
+  vm.createContext(sb);
+  vm.runInContext(read('docs/pro/js/script-loader.js'), sb, { filename: 'script-loader.js' });
+  const SL = sb.window.ScriptLoader;
+  ok('goTo(\'settings\') maps to the tenantsettings bundle', (SL.views.settings || []).indexOf('tenantsettings') !== -1);
+  ok('docgen bundle lists doc-preflight.js once (a stale duplicate rode a merge)',
+    SL.bundles.docgen.filter((s) => /doc-preflight\.js/.test(s)).length === 1);
+  lazyDone = Promise.all([SL.loadBundle('tenantsettings'), SL.loadBundle('setup')]).then(() => {
+    ok('tenantsettings injects the rules editor and the logo/export UI',
+      injected.some((s) => /js\/tenant-rules-settings\.js/.test(s)) && injected.some((s) => /js\/tenant-account-ui\.js/.test(s)));
+    ok('setup injects the checklist', injected.some((s) => /js\/setup-checklist\.js/.test(s)));
+  });
+
+  // Arriving late: the checklist queues its own first paint at load.
+  const timers = [];
+  const w = { addEventListener() {} };
+  w.window = w;
+  const csb = { window: w, document: { getElementById: () => null, addEventListener() {}, readyState: 'complete' },
+    setTimeout: (fn) => { timers.push(fn); return timers.length; }, setInterval: () => 0, clearInterval() {},
+    MutationObserver: function () { this.observe = () => {}; }, Promise, console: { log() {} } };
+  vm.createContext(csb);
+  vm.runInContext(read('docs/pro/js/setup-checklist.js'), csb, { filename: 'setup-checklist.js' });
+  ok('a lazily loaded checklist schedules its first paint on arrival', timers.length >= 1);
+  let painted = false;
+  const rw = { addEventListener() {}, NBDTenantRules: { resolved: () => { painted = true; return null; } }, _companyProfileLoaded: false };
+  rw.window = rw;
+  const rsb = { window: rw, document: { getElementById: (id) => (id === 'tenantRulesPanel' ? { setAttribute() {}, set innerHTML(v) { painted = true; } } : null), addEventListener() {} }, setTimeout, console: { log() {} } };
+  vm.createContext(rsb);
+  vm.runInContext(read('docs/pro/js/tenant-rules-settings.js'), rsb, { filename: 'tenant-rules-settings.js' });
+  ok('a lazily loaded rules editor paints the open panel on arrival', painted === true);
+
+  const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
+  const trig = (boot.match(/const _loadSetupChecklist = \(\) => \{[\s\S]*?\n  \};/) || [''])[0];
+  ok('the checklist bundle loads only for a non-platform tenant, after the profile lands',
+    /TR\.isPlatformTenant\(\)\) return;/.test(trig) && /SL\.loadBundle\('setup'\)/.test(trig)
+    && /addEventListener\('nbd:company-profile-loaded', _loadSetupChecklist\)/.test(boot)
+    && /if \(window\._companyProfileLoaded === true\) _loadSetupChecklist\(\);/.test(boot));
+});
+
+// ═══════════════════════════════════════════════════════════════════════
 section('7. Connect Stripe prompt on the invoice screen');
 safe(() => {
   const IP = require(path.join(ROOT, 'docs/pro/js/invoice-pipeline.js'));
@@ -467,7 +528,7 @@ safe(() => {
   ok('onboarding placeholders are neutral', !/Cincinnati/.test(read('docs/pro/onboarding.html')));
 });
 
-tenantOpsDone.then(() => new Promise((r) => setTimeout(r, 50))).then(() => {
+Promise.all([tenantOpsDone, lazyDone]).then(() => new Promise((r) => setTimeout(r, 50))).then(() => {
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   if (fail) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 });

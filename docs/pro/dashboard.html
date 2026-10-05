@@ -113,7 +113,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=140"></script>
+<script src="js/script-loader.js?v=141"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -132,7 +132,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=34"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=35"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -7075,10 +7075,11 @@
      defaults. After company-profile.js (reads _companyProfile at call time);
      estimate-config.js and deposit-rule.js ask it first. -->
 <script defer src="js/tenant-rules.js?v=1"></script>
-<script defer src="js/tenant-rules-settings.js?v=1"></script>
-<!-- New-owner setup checklist on Home + logo upload / full export (2026-10-04). -->
-<script defer src="js/setup-checklist.js?v=1"></script>
-<script defer src="js/tenant-account-ui.js?v=1"></script>
+<!-- LAZY (2026-10-05, boot budget): the Business Rules editor and the logo
+     upload / company export buttons ride ScriptLoader's 'tenantsettings'
+     bundle (goTo('settings')); the new-owner setup checklist rides 'setup',
+     loaded by dashboard-bootstrap.module.js once the company profile lands
+     for a company that isn't NBD. -->
 <!-- LAZY: doc-generation cluster (nbd-logo-asset, document-generator,
      document-generator-templates, doc-preflight) loaded via ScriptLoader's
      `docgen` bundle. Was eager here (~420 KB on every load); PR 2b moved it

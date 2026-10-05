@@ -247,6 +247,21 @@
   // retried — or started late by company-profile.js itself — left the
   // built-in stages up all session (2026-09-25, lane profretry).
   window.addEventListener('nbd:company-profile-loaded', () => { applyPipelineConfig(); });
+  // New-owner setup checklist (2026-10-05, boot budget): lazy ScriptLoader
+  // 'setup' bundle, fetched only for a company that isn't NBD's own — NBD
+  // never shows it. tenant-rules.js is eager, so isPlatformTenant() is
+  // defined by the time the profile lands. The checklist paints on arrival.
+  const _loadSetupChecklist = () => {
+    const TR = window.NBDTenantRules;
+    const SL = window.ScriptLoader;
+    if (!TR || typeof TR.isPlatformTenant !== 'function' || TR.isPlatformTenant()) return;
+    if (!SL || typeof SL.loadBundle !== 'function') return;
+    SL.loadBundle('setup').then(() => {
+      if (window.NBDSetupChecklist) window.NBDSetupChecklist.refresh();
+    }).catch(() => { /* loader never rejects; belt only */ });
+  };
+  window.addEventListener('nbd:company-profile-loaded', _loadSetupChecklist);
+  if (window._companyProfileLoaded === true) _loadSetupChecklist();
   window.stageOptionsForType = stageOptionsForType;
   window.inferJobType = inferJobType;
   window.suggestJobType = suggestJobType; // "Sort my customers" (sort-customers.js)

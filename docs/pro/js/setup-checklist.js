@@ -242,4 +242,7 @@
   var _iv = setInterval(function () { schedule(); if (++_ticks > 20) clearInterval(_iv); }, 3000);
 
   window.NBDSetupChecklist = { steps: steps, render: render, eligible: eligible, refresh: function () { STATE.loadedFor = null; schedule(); }, _state: STATE, _act: act };
+  // Lazy (ScriptLoader 'setup', loaded after 'nbd:company-profile-loaded'):
+  // that event has already fired by the time this runs, so paint now.
+  schedule();
 })();

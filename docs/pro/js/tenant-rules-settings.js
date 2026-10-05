@@ -165,4 +165,8 @@
   } catch (_) { /* never block boot */ }
 
   window.NBDTenantRulesSettings = { render: render, collect: collect, save: save };
+  // Lazy (ScriptLoader 'tenantsettings', loaded by goTo('settings')): the
+  // Estimates tab may already be open and the profile already landed by the
+  // time this arrives — both events above have fired. Paint now.
+  try { render(); } catch (_) { /* the next tab open repaints */ }
 })();

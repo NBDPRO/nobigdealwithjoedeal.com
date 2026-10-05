@@ -181,7 +181,6 @@
       'js/document-generator-templates.js?v=12',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=4',
-      'js/doc-preflight.js?v=3',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -428,6 +427,23 @@
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
       'js/call-center-view.js?v=11'
+    ],
+    // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
+    // Rules editor (Settings → Estimates) and the logo upload / company export
+    // buttons (Company Profile, Access). Their markup only exists inside the
+    // Settings view, and goTo('settings') loads this bundle. Both files paint
+    // on arrival, so a tab opened before they land still renders.
+    // tenant-rules.js itself stays EAGER: estimate-config.js and
+    // deposit-rule.js read it synchronously.
+    tenantsettings: [
+      'js/tenant-rules-settings.js?v=1',
+      'js/tenant-account-ui.js?v=1'
+    ],
+    // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).
+    // Never needed by NBD's own company: dashboard-bootstrap.module.js loads
+    // it once the company profile lands, only for a non-platform tenant.
+    setup: [
+      'js/setup-checklist.js?v=1'
     ]
   };
 
@@ -457,7 +473,7 @@
     reports:     ['reports'],
     map:         ['mapvendor'],
     draw:        ['mapvendor', 'drawtool'],
-    settings:    ['theme']
+    settings:    ['theme', 'tenantsettings']
   };
 
   // A bundle entry ending in .css is injected as a stylesheet instead of a
