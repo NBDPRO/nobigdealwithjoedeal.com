@@ -2359,7 +2359,8 @@
           userId: window._user.uid,
           companyId: window._userClaims?.companyId || window._user.uid,
           createdAt: window.serverTimestamp(),
-          stageStartedAt: window.serverTimestamp()
+          stageStartedAt: window.serverTimestamp(),
+          meter: 'manual' // server lead meter (firestore.rules leadMeterOk)
         });
         _newLeadId = (_fbRef && _fbRef.id) || null;
         _locked = false;

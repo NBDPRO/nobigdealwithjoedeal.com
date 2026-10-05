@@ -183,7 +183,13 @@
   // never zero the whole rule.
   function config(override) {
     var r = _root();
-    var src = override || (r && r.NBD_ESTIMATE_CONFIG && r.NBD_ESTIMATE_CONFIG.DEPOSIT_RULE) || {};
+    // The company's own rule (tenant-rules.js, Settings → Business rules,
+    // 2026-10-04) sits between an explicit override and the configured NBD
+    // rule. null for NBD with no saved rule → unchanged. Kentucky insurance
+    // jobs never reach these numbers: _kyHold below runs first, per property.
+    var tr = r && r.NBDTenantRules;
+    var own = (!override && tr && typeof tr.depositConfig === 'function') ? tr.depositConfig() : null;
+    var src = override || own || (r && r.NBD_ESTIMATE_CONFIG && r.NBD_ESTIMATE_CONFIG.DEPOSIT_RULE) || {};
     var out = {};
     Object.keys(DEFAULTS).forEach(function (k) {
       var v = _int(src[k]);
@@ -587,8 +593,15 @@
   function policyText(override) {
     var c = config(override);
     var under = fmtCents(c.CASH_NO_DEPOSIT_UNDER_CENTS);
-    return 'Cash jobs under ' + under + ': no deposit — payment in full on completion. ' +
-      'Cash jobs of ' + under + ' or more: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. ' +
+    // A company that takes no cash deposit (pct 0 — a new company's neutral
+    // default until it sets its own rule, 2026-10-04) says exactly that.
+    var cash = (c.CASH_DEPOSIT_PCT <= 0)
+      ? 'Cash jobs: no deposit — payment in full on completion. '
+      : (c.CASH_NO_DEPOSIT_UNDER_CENTS > 0
+        ? 'Cash jobs under ' + under + ': no deposit — payment in full on completion. ' +
+          'Cash jobs of ' + under + ' or more: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. '
+        : 'Cash jobs: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. ');
+    return cash +
       'Insurance claims: the homeowner’s deductible is due at signing and the insurance ACV payment (the carrier’s first check) ' +
       'is due as soon as the carrier releases it; the balance is due on completion. ' +
       'Kentucky insurance claims: nothing is due at signing; the deductible and the ACV payment are due after the insurer’s ' +

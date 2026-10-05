@@ -776,6 +776,11 @@
   function _withTenantCounties(s) {
     const cp = (typeof window !== 'undefined' && window._companyProfile && window._companyProfile.pricing) || null;
     const tj = _tenantJurisdictions();
+    // A company other than NBD starts from a NEUTRAL base (2026-10-04,
+    // tenant-ready): 0% fallback tax and $0 permit rows — NBD's 7% and its
+    // seven Ohio/Kentucky county permit fees are NBD's numbers. The company's
+    // own saved values (below) still win. NBD: tenant-rules answers null.
+    s = _neutralCountyBase(s);
     if (!cp && !Object.keys(tj.permits).length && !Object.keys(tj.countyTax).length) return s;
 
     // countyTax entries are bare DECIMALS; a blank/garbage field is DROPPED so
@@ -897,6 +902,29 @@
   // untouched device state.
   function getResolvedCountySettings() {
     return _withTenantCounties(loadSettings());
+  }
+
+  function _neutralCountyBase(s) {
+    const tr = (typeof window !== 'undefined' && window.NBDTenantRules) || null;
+    if (!tr || typeof tr.neutralFallbackTaxRate !== 'function') return s;
+    const fb = tr.neutralFallbackTaxRate();
+    const pc = tr.neutralPermitCost();
+    if (fb == null && pc == null) return s;
+    const out = Object.assign({}, s);
+    if (fb != null) out.fallbackTaxRate = fb;
+    if (pc != null) {
+      const p = {};
+      Object.keys(s.permits || {}).forEach((k) => { p[k] = Object.assign({}, s.permits[k], { cost: pc }); });
+      out.permits = p;
+    }
+    return out;
+  }
+
+  // The package rates every surface should QUOTE (2026-10-04): the company's
+  // saved rates (companyProfile.pricing.tierRates) over this device's saved
+  // copy over estimate-config — the same resolution the engine prices with.
+  function effectiveTierRates() {
+    return Object.assign({}, applyCompanyPricing(loadSettings()).tierRates);
   }
 
   // ═════════════════════════════════════════════════════════
@@ -1530,6 +1558,7 @@
     getCountyTaxMap,
     getResolvedCountySettings,
     getFallbackTaxRate,
+    effectiveTierRates,
 
     // Calculation
     calcDeposit,

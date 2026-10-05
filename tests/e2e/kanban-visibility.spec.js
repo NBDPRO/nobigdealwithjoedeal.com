@@ -114,6 +114,7 @@ async function seed(page, token) {
     const out = [];
     for (let i = 0; i < stages.length; i++) {
       const ref = await window.addDoc(window.collection(window.db, 'leads'), {
+        meter: 'manual', // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
         userId: uid, companyId: (window._userClaims && window._userClaims.companyId) || uid,
         firstName: 'Kv', lastName: tok + 'S' + i, stage: stages[i], // no jobType: every pipeline tab shows an untyped lead
         jobValue: 5000 + i * 1000, address: (20 + i) + ' Card St, Milford OH 45150', phone: '(513) 555-01' + (40 + i),

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Tenants — NBD Pro</title>
+<link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
+<!-- Platform-admin only (2026-10-04, tenant-ready). The gate below redirects
+     anyone without the role 'admin' claim (or the NBD owner account); the
+     adminListTenants callable refuses them server-side regardless. -->
+<script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
+<script type="module" src="js/pages/tenants-gate.js?v=1"></script>
+<style>
+:root { --void:#050608; --card:#111722; --border:#1C2535; --gold:#C9A84C; --green:#3DD68C; --red:#E05252; --blue:#4E9BF5; --text:#E2E8F0; --text2:#8892A4; --text3:#4A5568; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--void); color:var(--text); min-height:100vh; min-height:100dvh; padding:16px; }
+.container { max-width:1400px; margin:0 auto; }
+.page-eyebrow { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); margin-bottom:6px; }
+.page-title { font-size:28px; font-weight:800; margin-bottom:6px; }
+.page-subtitle { font-size:13px; color:var(--text2); margin-bottom:18px; }
+.toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+.btn { background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
+.meta { font-size:12px; color:var(--text2); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+.t-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+.t-name { font-size:16px; font-weight:700; margin-bottom:2px; word-break:break-word; }
+.t-sub { font-size:12px; color:var(--text2); margin-bottom:10px; word-break:break-all; }
+.t-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:12px; }
+.t-k { color:var(--text3); text-transform:uppercase; font-size:10px; letter-spacing:1px; }
+.t-v { color:var(--text); }
+.ok { color:var(--green); } .warn { color:var(--gold); } .bad { color:var(--red); }
+.empty, .error { padding:40px 16px; text-align:center; color:var(--text2); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="page-eyebrow">Platform admin</div>
+  <h1 class="page-title">Tenants</h1>
+  <p class="page-subtitle">Every company on NBD Pro: plan, status, records, Stripe Connect, last active and whether its public site is published.</p>
+  <div class="toolbar">
+    <button type="button" class="btn" id="tenantsRefresh">↻ Refresh</button>
+    <span class="meta" id="tenantsMeta">Loading…</span>
+  </div>
+  <div id="tenantsList" class="cards"><div class="empty">Loading companies…</div></div>
+</div>
+<script src="js/pages/tenants.js?v=1"></script>
+</body>
+</html>

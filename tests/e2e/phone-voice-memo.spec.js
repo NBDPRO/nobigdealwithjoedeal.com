@@ -92,6 +92,7 @@ test.describe.serial('phone voice memo @audit', () => {
         firstName: '[E2E] Memo', lastName: String(s), address: `${String(s).slice(-3)} Memo Ln, Milford, OH`,
         phone: '513' + String(s).slice(-7), stage: 'new', deleted: false, userId: uid, companyId,
         createdAt: window.serverTimestamp(), e2eTestData: true,
+        meter: 'manual', // server lead meter (firestore.rules leadMeterOk, #2152)
       });
       await window._loadLeads();
       return ref.id;

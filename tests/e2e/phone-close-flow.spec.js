@@ -91,7 +91,7 @@ async function seedLead(page, extra) {
       userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
     }, x || {});
     Object.keys(lead).forEach((k) => { if (lead[k] === null) delete lead[k]; });
-    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), lead)).id;
+    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead))).id; // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
     if (typeof window.loadLeads === 'function') await window.loadLeads();
     for (let i = 0; i < 75 && !(window._leads || []).some((l) => l.id === id); i++) {
       await new Promise((r) => setTimeout(r, 200));

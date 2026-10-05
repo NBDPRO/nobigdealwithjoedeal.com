@@ -43,6 +43,13 @@
 (function () {
   'use strict';
 
+  // Per-company business rules (tenant-rules.js, 2026-10-04). Read at CALL
+  // time; absent (Node, or a page that does not load it) → the NBD values
+  // in this file, exactly as before.
+  function _tenantRules() {
+    return (typeof window !== 'undefined' && window.NBDTenantRules) || null;
+  }
+
   const CFG = Object.freeze({
     // Per-SQ flat tier rates. Customer price = SQ × TIER_RATE + add-ons + tax
     // (cash mode). FIVE tiers since 2026-10-02 (Jo): Economy and Beyond join
@@ -73,6 +80,15 @@
     isTier: function (tier) {
       return CFG.TIER_ORDER.indexOf(tier) !== -1;
     },
+    // The tiers THIS company offers, cheapest first (2026-10-04, tenant-
+    // ready). NBD: TIER_ORDER above, unchanged. Another company: its own
+    // Settings → Business rules list (tenant-rules.js), three tiers until set.
+    // Pricing and storage still loop over TIER_ORDER — this is what to SHOW.
+    tierOrder: function () {
+      var tr = _tenantRules();
+      var o = tr && typeof tr.tierOrder === 'function' ? tr.tierOrder() : null;
+      return (Array.isArray(o) && o.length) ? o : CFG.TIER_ORDER.slice();
+    },
 
     // Shingle rules per tier (Jo, 2026-10-02). A shingle is a catalog item
     // whose sub starts with "shingles-".
@@ -90,7 +106,11 @@
       return !!item && /^shingles-/.test(String(item.sub || ''));
     },
     checkTierShingles: function (tier, items) {
-      var rule = CFG.TIER_SHINGLE_RULES[tier];
+      // A company's own shingle lock (tenant-rules.js) wins; undefined = no
+      // override (NBD's locks above), null = this company set no lock.
+      var tr = _tenantRules();
+      var own = tr && typeof tr.shingleRuleOverride === 'function' ? tr.shingleRuleOverride(tier) : undefined;
+      var rule = (own === undefined) ? CFG.TIER_SHINGLE_RULES[tier] : own;
       var problems = [];
       if (!rule) return { ok: true, problems: problems };
       (items || []).forEach(function (it) {
@@ -248,7 +268,12 @@
     // tierLabel(key) -> the customer-facing name ('Standard'/'Preferred'/
     // 'Elite'). Falls back to a capitalized version of an unknown/legacy
     // key so a bad tier value degrades to something readable, not a throw.
-    tierLabel: function (tier) {
+    // builtin === true skips the company override (tenant-rules.js asks for
+    // NBD's own wording that way, to tell "saved the same text" from "changed it").
+    tierLabel: function (tier, builtin) {
+      var tr = builtin === true ? null : _tenantRules();
+      var own = tr && typeof tr.labelOverride === 'function' ? tr.labelOverride(tier) : null;
+      if (own) return own;
       var t = CFG.TIER_DISPLAY[tier];
       if (t) return t.label;
       return tier ? String(tier).charAt(0).toUpperCase() + String(tier).slice(1) : '';
@@ -259,7 +284,13 @@
     // model, replacing the 5/10/20-year scheme the audit found in 8+ places).
     // Kept as one formatted string, not just the raw object, so the wording
     // only ever needs to change here.
-    tierWarrantyText: function (tier) {
+    tierWarrantyText: function (tier, builtin) {
+      // A company's own warranty sentence (tenant-rules.js) wins; a company
+      // that has not written one gets a neutral sentence, never NBD's
+      // lifetime ladder below (2026-10-04). NBD: null → unchanged.
+      var tr = builtin === true ? null : _tenantRules();
+      var own = tr && typeof tr.warrantyTextOverride === 'function' ? tr.warrantyTextOverride(tier) : null;
+      if (own != null) return own;
       var t = CFG.TIER_DISPLAY[tier];
       if (!t) return 'Lifetime workmanship warranty.';
       var w = t.warranty;
@@ -282,7 +313,10 @@
     // tierWarrantyBlurb(key) -> just the differentiator phrase (no "Lifetime
     // workmanship warranty" prefix), for compact spots — tier cards, badges —
     // where the duration is already stated once elsewhere on the page.
-    tierWarrantyBlurb: function (tier) {
+    tierWarrantyBlurb: function (tier, builtin) {
+      var tr = builtin === true ? null : _tenantRules();
+      var own = tr && typeof tr.warrantyBlurbOverride === 'function' ? tr.warrantyBlurbOverride(tier) : null;
+      if (own != null) return own;
       var t = CFG.TIER_DISPLAY[tier];
       if (!t) return '';
       var w = t.warranty;

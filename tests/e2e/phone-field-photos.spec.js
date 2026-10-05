@@ -92,6 +92,7 @@ async function seedLead(page, extra) {
       address: stamp + ' Ridge Rd, Milford, OH 45150',
       phone: '513' + String(stamp).slice(-7),
       stage: 'new', e2eTestData: true, userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
+      meter: 'manual', // server lead meter (firestore.rules leadMeterOk, #2152)
     }, x || {});
     // A fixed id + setDoc, and ALREADY_EXISTS swallowed: the emulator's
     // commit retry can land the first attempt and then reject the retry

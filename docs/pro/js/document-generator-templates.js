@@ -492,10 +492,30 @@
   function cpDefaults() {
     return (typeof window !== 'undefined' && window.NBD_COMPANY_PROFILE_DEFAULTS) || {};
   }
+  // NBD-only marketing defaults (2026-10-04, tenant-ready). The Acorn Finance
+  // partnership, NBD's services list and its value props ("Lifetime
+  // workmanship warranty on every tier") belong to NBD. Another company gets
+  // them BLANK — company-profile.js _legal() blanks the profile copies the
+  // same way it neutralizes the legal text — and these fallbacks follow suit,
+  // so the financing / services / value blocks are simply left out.
+  function isNbdDoc() {
+    return !C || !C.name || C.name === 'No Big Deal Home Solutions';
+  }
+  // The company profile a renderer should read: the caller's explicit copy,
+  // else the tenant-resolved one (_legal), else the raw merged profile.
+  function tenantCp(d) {
+    if (d && d.companyProfile) return d.companyProfile;
+    if (typeof window !== 'undefined' && typeof window._legal === 'function') {
+      try { return window._legal() || {}; } catch (_) { /* fall through */ }
+    }
+    return (typeof window !== 'undefined' && window._companyProfile) || cpDefaults();
+  }
   function defaultFinancePartner() {
+    if (!isNbdDoc()) return '';
     return cpDefaults().financePartner || 'our financing marketplace partner';
   }
   function defaultValueProps() {
+    if (!isNbdDoc()) return [];
     const vp = cpDefaults().valueProps;
     if (Array.isArray(vp) && vp.length) return vp;
     return [
@@ -1104,7 +1124,7 @@
   // TEMPLATE 7: INVOICE
   // ═══════════════════════════════════════════════════════════════
   DG.renderInvoice = function(data) {
-    const _cpInv = (data && data.companyProfile) || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const _cpInv = tenantCp(data);
     const _invFinancePartner = _cpInv.financePartner || defaultFinancePartner();
     const _invLateText = _cpInv.latePaymentChargeText || '1.5% monthly finance charge';
     const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
@@ -1218,7 +1238,7 @@
             'Check — payable to <strong>' + esc(C.name) + '</strong>',
             C.email ? 'Zelle — ' + esc(C.email) : '',
             d.payUrl ? '' : 'Credit Card — ask for secure link',
-            'Financing — through ' + esc(_invFinancePartner),
+            _invFinancePartner ? 'Financing — through ' + esc(_invFinancePartner) : '',
           ],
           wallets: d.wallets || [],
         })}
@@ -1487,7 +1507,7 @@
   // ═══════════════════════════════════════════════════════════════
   DG.renderCompanyIntro = function(data) {
     const d = Object.assign({}, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     // Rep-entered "Services Offered" (DocPreflight `services` textarea) overrides
     // the companyProfile/hardcoded list. It arrives as a comma-separated string
     // (e.g. "Roofing, Siding, Gutters") → one name-only card per entry. Fallback
@@ -1495,7 +1515,7 @@
     const servicesOverride = (typeof d.services === 'string' && d.services.trim())
       ? d.services.split(',').map(s => s.trim()).filter(Boolean).map(name => ({icon:'🔧',name:name,desc:''}))
       : null;
-    const services = servicesOverride || (Array.isArray(cp.services) && cp.services.length ? cp.services : [
+    const services = servicesOverride || (Array.isArray(cp.services) && cp.services.length ? cp.services : !isNbdDoc() ? [] : [
       {icon:'🏠',name:'Roofing',desc:'Full replacements, repairs, and storm damage restoration'},
       {icon:'🧱',name:'Siding',desc:'Vinyl, fiber cement, LP SmartSide, and board & batten'},
       {icon:'🌧️',name:'Gutters',desc:'Seamless gutters, guards, downspouts, and drainage'},
@@ -1553,23 +1573,23 @@
           We handle everything from the first inspection to the final nail — so you don't have to stress.</p>
       </div>
 
-      <div class="section">
+      ${services.length || d.serviceArea ? `<div class="section">
         <div class="section-title">Our Services</div>
         ${d.serviceArea ? `<p style="font-size:13px;color:#555;margin:0 0 12px;">Proudly serving <strong>${esc(d.serviceArea)}</strong>.</p>` : ''}
         <div class="svc-grid">
           ${services.map(s => `<div class="svc-card"><div class="svc-icon">${esc(s.icon)}</div>
             <div class="svc-name">${esc(s.name)}</div>${s.desc ? `<div class="svc-desc">${esc(s.desc)}</div>` : ''}</div>`).join('')}
         </div>
-      </div>
+      </div>` : ''}
 
-      <div class="section">
+      ${valueProps.length ? `<div class="section">
         <div class="section-title">Why Choose ${C.name.split(' ')[0] === 'No' ? 'NBD' : C.name}?</div>
         <div class="value-grid">
           ${valueProps.map(v => `<div class="value-card"><div class="value-icon">${v.icon}</div><div>
             <div class="value-title">${esc(v.title)}</div>
             <div class="value-desc">${esc(v.desc)}</div></div></div>`).join('')}
         </div>
-      </div>
+      </div>` : ''}
 
       ${d.testimonialsNote ? `<div class="section">
         <div class="section-title">What Our Customers Say</div>
@@ -1583,10 +1603,10 @@
         ${photoGrid(4,2)}
       </div>
 
-      <div class="finance-cta">
+      ${financePartner ? `<div class="finance-cta">
         <div style="font-size:20px;font-weight:700;">Flexible Financing Available</div>
         <div style="font-size:14px;margin-top:8px;opacity:0.9;">Through our partnership with ${esc(financePartner)} — affordable monthly payments with quick approval.</div>
-      </div>
+      </div>` : ''}
 
       ${affiliateRow()}
 
@@ -1690,11 +1710,13 @@
   // ═══════════════════════════════════════════════════════════════
   DG.renderFinancingOptions = function(data) {
     const d = Object.assign({ homeownerName:'', totalPrice:10000 }, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     // totalPrice arrives $-formatted from the preflight bridge (jobTotal→totalPrice),
     // so strip non-numerics before parsing or it would NaN→fabricate the $10k default.
     const price = parseFloat(String(d.totalPrice).replace(/[^0-9.]/g, '')) || 10000;
-    const financePartner = cp.financePartner || defaultFinancePartner();
+    // A company with no finance partner on file (every non-NBD company until
+    // it enters one) gets a generic lender phrase, never NBD's Acorn Finance.
+    const financePartner = cp.financePartner || defaultFinancePartner() || 'a third-party lender';
     // apr 0 is the "rate set by the lender" sentinel: under a lending
     // marketplace (Acorn) the contractor doesn't control terms, so the
     // defaults must not print fabricated APRs or payments on customer
@@ -2323,7 +2345,7 @@
   // ═══════════════════════════════════════════════════════════════
   DG.renderDoorHanger = function(data) {
     const d = Object.assign({}, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     // Door-hanger services: a per-doc override the rep types in DocPreflight
     // (the `services` field) wins; it's a free-text list separated by bullets,
     // newlines, or commas. When blank, derive from the profile services list so
@@ -2334,7 +2356,7 @@
       ? repServices
       : (Array.isArray(cp.services) && cp.services.length
         ? cp.services.map(s => `${s.name} — ${s.desc}`)
-        : [
+        : !isNbdDoc() ? [] : [
             'Roofing — replacements, repairs, storm damage',
             'Siding — vinyl, fiber cement, LP SmartSide',
             'Gutters — seamless systems and guards',
@@ -2634,7 +2656,7 @@
       progressAmount:'0.00', progressDue:'Upon material delivery',
       finalAmount:'0.00', finalDue:'Upon project completion',
       projectDescription:'' }, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     const latePaymentText = cp.latePaymentChargeText || '1.5% monthly finance charge';
     const financePartner = cp.financePartner || defaultFinancePartner();
 
@@ -2710,7 +2732,7 @@
           <li>Checks should be made payable to <strong>${C.name}</strong>.</li>
           ${C.email ? `<li>For Zelle payments, send to <strong>${C.email}</strong>.</li>` : ''}
           <li>Credit card payments are accepted via secure link provided by ${C.name}. A convenience fee may apply.</li>
-          <li>Financing is available through ${esc(financePartner)}, subject to credit approval and separate terms.</li>
+          ${financePartner ? `<li>Financing is available through ${esc(financePartner)}, subject to credit approval and separate terms.</li>` : ''}
           <li>Work will not commence until the deposit payment has been received and verified.</li>
           <li>Final payment is due upon completion of the project and successful final walkthrough.</li>
           <li>Any disputed amounts must be communicated in writing within 10 days of the payment due date.</li>

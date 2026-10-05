@@ -45,6 +45,7 @@ async function seed(page) {
     phone: '859' + String(stamp).slice(-7), email: 'e2e-lien-' + stamp + '@nbd.test',
     stage: 'install_complete', jobType: 'insurance', insCarrier: 'State Farm', claimNumber: 'SF-' + stamp,
     scopeOfWork: 'Full roof replacement.', e2eTestData: true, userId: uid, companyId,
+    meter: 'manual', // server lead meter (firestore.rules leadMeterOk, #2152)
   };
   const est = {
     userId: uid, companyId, name: 'E2E lien ' + stamp, e2eTestData: true,

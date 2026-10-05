@@ -398,8 +398,10 @@ console.log('\nOPEN IN GOOGLE SHEETS — the clipboard/TSV path (2026-09-05)');
     ok(fn + ' is actually defined on window by data-export.js',
       new RegExp('window\\.' + fn + '\\s*=').test(src));
   }
+  // At least the bump that shipped the Sheets export (v=4); later changes
+  // bump it further (v=5: company-named export files, 2026-10-04).
   ok('the script tag was version-bumped so phones do not run the cached copy',
-    /js\/data-export\.js\?v=4/.test(dash));
+    Number((dash.match(/js\/data-export\.js\?v=(\d+)/) || [])[1]) >= 4);
 }
 
 console.log('\nSTORM BACKTEST COLUMNS — date of loss + pin (2026-09-24)');

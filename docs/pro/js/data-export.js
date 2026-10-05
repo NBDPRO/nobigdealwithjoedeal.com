@@ -139,6 +139,13 @@
     }, 0);
   }
 
+  // File names carry the company (2026-10-04, tenant-ready): 'nbd' for NBD,
+  // the company's own name for everyone else (tenant-rules.js filePrefix).
+  function exportPrefix() {
+    const TR = (typeof window !== 'undefined') && window.NBDTenantRules;
+    return (TR && typeof TR.filePrefix === 'function') ? TR.filePrefix() : 'nbd';
+  }
+
   function todayStamp() {
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
@@ -211,7 +218,7 @@
     }
 
     const csv = toCsv(rows, LEAD_HEADERS);
-    const fname = `nbd-leads-${todayStamp()}.csv`;
+    const fname = `${exportPrefix()}-leads-${todayStamp()}.csv`;
     downloadCsv(fname, csv);
     _toast(`Exported ${rows.length} lead${rows.length === 1 ? '' : 's'} → ${fname}`, 'success');
   }
@@ -258,7 +265,7 @@
     const headers = estimateHeaders(leadIndex());
 
     const csv = toCsv(estimates, headers);
-    const fname = `nbd-estimates-${todayStamp()}.csv`;
+    const fname = `${exportPrefix()}-estimates-${todayStamp()}.csv`;
     downloadCsv(fname, csv);
     _toast(`Exported ${estimates.length} estimate${estimates.length === 1 ? '' : 's'} → ${fname}`, 'success');
   }

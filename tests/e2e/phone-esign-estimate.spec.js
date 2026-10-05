@@ -96,6 +96,7 @@ async function seedLead(page) {
       email: 'e2e-esign-' + stamp + '@nbd.test',
       jobType: 'cash', stage: 'new', e2eTestData: true,
       userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
+      meter: 'manual', // server lead meter (firestore.rules leadMeterOk, #2152)
     };
     const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), lead)).id;
     if (typeof window.loadLeads === 'function') await window.loadLeads();

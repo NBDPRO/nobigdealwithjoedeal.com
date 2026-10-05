@@ -1333,10 +1333,12 @@ async function profileRetryWalk(page, { act, openEstimatesTab, widths }) {
     // event can repaint the tab inside 5s. And that repaint must keep what
     // the rep typed into this device's own fields.
     await test.step('another panel\'s read lands while the retry is stuck: the event repaints the tab, keeping the rep\'s typing', async () => {
-      const rate = page.locator('#v2rateGood');
+      // A per-device field (cost basis): package prices are company-wide
+      // since 2026-10-04, so the cost basis is what stays the rep's own.
+      const rate = page.locator('#v2costGood');
       const steep = page.locator('#v2addonSteep');
       const rateSaved = await rate.inputValue();
-      await rate.fill('777'); // this device's tier rate, not yet saved
+      await rate.fill('777'); // this device's cost basis, not yet saved
       await steep.fill('99'); // company-wide, and not saveable while unloaded
       const hung = await page.evaluate(() => window.__e2eProfileHung);
       await page.evaluate(() => {
@@ -1356,7 +1358,7 @@ async function profileRetryWalk(page, { act, openEstimatesTab, widths }) {
       await expect(page.locator(`${JUR} [data-jur-name][value="${E2E_JUR.name}"]`), 'the saved jurisdiction painted by the landing event, not the parked retry').toHaveCount(1, { timeout: 5_000 });
       await expect(page.locator(JUR)).not.toHaveAttribute('data-jur-wait', /.*/);
       await expect(page.locator('#upgPriceRows')).toHaveAttribute('data-state', 'ready');
-      await expect(rate, 'the rep\'s unsaved tier rate survives the landing').toHaveValue('777');
+      await expect(rate, 'the rep\'s unsaved cost basis survives the landing').toHaveValue('777');
       await expect(steep, 'the add-on rate now shows the company value').not.toHaveValue('99');
       const msg = page.locator('#v2save-msg');
       await expect(msg).toHaveAttribute('data-kind', 'warn');

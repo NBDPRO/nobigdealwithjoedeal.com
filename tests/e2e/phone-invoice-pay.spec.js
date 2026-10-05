@@ -85,7 +85,7 @@ async function seedLeadAndEstimate(page) {
     const leadId = await add('leads', {
       firstName: '[E2E] Pay', lastName: last, address: stamp + ' Payment Pl, Milford, OH 45150',
       phone: '513' + String(stamp).slice(-7), email: 'e2e-pay-' + stamp + '@nbd.test',
-      stage: 'closed', e2eTestData: true, userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
+      stage: 'closed', e2eTestData: true, meter: 'manual', userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
     }, 'lastName', last);
     const estName = 'E2E pay ' + stamp;
     const estimateId = await add('estimates', {

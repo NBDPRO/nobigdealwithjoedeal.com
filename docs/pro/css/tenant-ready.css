@@ -1,0 +1,47 @@
+/* tenant-ready.css (2026-10-04) — the new-owner setup checklist on Home,
+   Settings → Estimates → Business Rules, the logo upload and the full
+   company export. Theme tokens only, so every theme and Professional Mode
+   paint it. Phone-first: everything stacks at 390px. */
+
+/* ── Setup checklist (js/setup-checklist.js) ── */
+.sc-card { margin: 12px; padding: 14px 16px; background: var(--s, #161b22); border: 1px solid var(--br, #2a2f36); border-left: 3px solid var(--orange, #BD5728); border-radius: 10px; }
+.sc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.sc-kicker { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--orange, #BD5728); font-weight: 700; }
+.sc-title { font-size: 16px; font-weight: 700; color: var(--t, #e6e6e6); margin-top: 2px; }
+.sc-hide { background: none; border: 0; color: var(--m, #8b949e); font-size: 12px; cursor: pointer; padding: 4px 6px; min-height: 32px; }
+.sc-bar { height: 6px; border-radius: 3px; background: var(--s2, #21262d); margin: 10px 0 12px; overflow: hidden; }
+.sc-bar-fill { display: block; height: 100%; background: var(--orange, #BD5728); width: 0; }
+.sc-w0 { width: 0; } .sc-w1 { width: 10%; } .sc-w2 { width: 20%; } .sc-w3 { width: 30%; } .sc-w4 { width: 40%; } .sc-w5 { width: 50%; }
+.sc-w6 { width: 60%; } .sc-w7 { width: 70%; } .sc-w8 { width: 80%; } .sc-w9 { width: 90%; } .sc-w10 { width: 100%; }
+.sc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sc-step { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--br, #2a2f36); }
+.sc-step:first-child { border-top: 0; }
+.sc-dot { flex: 0 0 22px; height: 22px; border-radius: 50%; border: 2px solid var(--br, #2a2f36); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #fff; }
+.sc-step.is-done .sc-dot { background: var(--green, #2ea043); border-color: var(--green, #2ea043); }
+.sc-step.is-next .sc-dot { border-color: var(--orange, #BD5728); }
+.sc-body { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sc-name { font-size: 14px; font-weight: 600; color: var(--t, #e6e6e6); }
+.sc-step.is-done .sc-name { color: var(--m, #8b949e); text-decoration: line-through; }
+.sc-why { font-size: 12px; color: var(--m, #8b949e); line-height: 1.45; }
+.sc-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: 32px; }
+.sc-go, .sc-skip { font-size: 12px; min-height: 36px; }
+
+/* ── Business rules editor (js/tenant-rules-settings.js) ── */
+.tr-muted { font-size: 12px; color: var(--m, #8b949e); line-height: 1.5; margin: 0 0 10px; }
+.tr-tier { padding: 10px 0; border-top: 1px solid var(--br, #2a2f36); }
+.tr-tier:first-of-type { border-top: 0; }
+.tr-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--t, #e6e6e6); margin: 4px 0; }
+.tr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 12px; margin-top: 6px; }
+.tr-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--m, #8b949e); }
+.tr-field input, .tr-field textarea { width: 100%; box-sizing: border-box; background: var(--s2, #21262d); color: var(--t, #e6e6e6); border: 1px solid var(--br, #2a2f36); border-radius: 6px; padding: 8px; font-size: 13px; font-family: inherit; }
+.tr-wide { grid-column: 1 / -1; }
+.tr-deposit { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--br, #2a2f36); }
+.tr-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--t, #e6e6e6); }
+.tr-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.tr-msg, .ta-msg { font-size: 12px; color: var(--m, #8b949e); }
+.tr-msg.is-ok, .ta-msg.is-ok { color: var(--green, #2ea043); }
+.tr-msg.is-warn, .ta-msg.is-warn { color: var(--orange, #BD5728); }
+
+/* ── Logo upload + full export (js/tenant-account-ui.js) ── */
+.ta-logo-row, .ta-export-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.ta-file { max-width: 100%; font-size: 12px; color: var(--m, #8b949e); }

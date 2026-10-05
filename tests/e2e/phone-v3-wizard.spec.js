@@ -80,7 +80,7 @@ async function seedLead(page) {
     };
     let id = null;
     try {
-      id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), lead)).id;
+      id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead))).id; // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
     } catch (e) {
       if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e;
       const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'leads'),

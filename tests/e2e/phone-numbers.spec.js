@@ -44,7 +44,7 @@ test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard
       const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
       const uid = window._user.uid;
       const co = (window._userClaims && window._userClaims.companyId) || uid;
-      const data = Object.assign({ userId: uid, companyId: co, e2eTestData: true, e2eRun: tag }, f);
+      const data = Object.assign({ userId: uid, companyId: co, e2eTestData: true, e2eRun: tag, meter: 'manual' }, f); // server lead meter (firestore.rules leadMeterOk, #2152)
       ['createdAt', 'closedAt', 'stageStartedAt'].forEach((k) => { if (typeof data[k] === 'number') data[k] = fs.Timestamp.fromMillis(data[k]); });
       const ref = await fs.addDoc(fs.collection(window.db, 'leads'), data);
       return ref.id;

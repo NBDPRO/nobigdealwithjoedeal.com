@@ -135,7 +135,7 @@ async function run() {
     const cred = await signInWithEmailAndPassword(auth, 'salesrep@demo.test', PASSWORD);
     const myUid = cred.user.uid;
     await allowed('sales_rep creates lead with own companyId',
-      addDoc(collection(db, 'leads'), { userId: myUid, companyId: COMPANY_ID, name: 'New', stage: 'new', deleted: false }));
+      addDoc(collection(db, 'leads'), { userId: myUid, companyId: COMPANY_ID, name: 'New', stage: 'new', deleted: false, meter: 'manual' }));
     await denied('sales_rep CANNOT create lead with FOREIGN companyId',
       addDoc(collection(db, 'leads'), { userId: myUid, companyId: 'someone-else', name: 'X', stage: 'new', deleted: false }));
     await denied('sales_rep CANNOT create lead with NO companyId',
