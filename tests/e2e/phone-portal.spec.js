@@ -12,7 +12,8 @@
 //
 // Both pages call Cloud Functions the CI rig does not run, so every
 // function is answered by context.route() with payloads shaped like
-// functions/portal.js returns. Cal.com and BoldSign are stubbed too: nothing
+// functions/portal.js returns. Cal.com is stubbed too (the BoldSign embed was
+// retired 2026-10-04 — signing is a link to esign.html now): nothing
 // leaves the machine except Google Fonts.
 //
 // Tagged @shard2 for the authed emulator job. Run locally:
@@ -59,7 +60,7 @@ function progressFor(lead, invoices) {
   };
 }
 
-// kind: 'estimate' (awaiting signature: sign + booking embeds) or
+// kind: 'estimate' (awaiting signature: the sign link + booking) or
 // 'complete' (sliders, rating, warranty, referral — every input on the page).
 function portalView(kind) {
   const done = kind === 'complete';
@@ -77,7 +78,7 @@ function portalView(kind) {
       id: EST_ID, grandTotal: 18430, tierName: 'Preferred',
       signatureStatus: done ? 'signed' : 'sent',
       signedAt: done ? '2026-09-09T15:00:00Z' : null,
-      signEmbedUrl: done ? null : 'https://app.boldsign.com/document/sign/?documentId=phone-portal',
+      signUrl: done ? null : 'https://nobigdealwithjoedeal.com/pro/esign.html?t=PHONEPORTALTOKEN23456789',
     },
     bookingUrl: 'https://cal.com/joedeal/roof-inspection',
     photos: [],
@@ -128,7 +129,7 @@ async function mockBackend(context, { kind = 'estimate', estimate, doc } = {}) {
   const stub = (title) => '<!doctype html><html><body style="font-family:sans-serif;margin:0;padding:12px">'
     + '<h3>' + title + '</h3>' + '<p>Stub line.</p>'.repeat(120) + '</body></html>';
   await context.route(/^https:\/\/cal\.com\//, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: stub('Booking') }));
-  await context.route(/^https:\/\/app\.boldsign\.com\//, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: stub('Signer') }));
+  await context.route(/^https:\/\/nobigdealwithjoedeal\.com\/pro\/esign\.html/, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: stub('Signer') }));
 }
 
 async function openPortal(page, kind, { mocked = false, doc } = {}) {
@@ -334,27 +335,19 @@ test.describe('phone portal: the project page @shard2 @phoneportal', () => {
   });
 
   // homeowner#5 — both embeds were 820px on phones, taller than the
-  // screen, so every swipe landed inside one.
-  test('the signing embed leaves page to scroll by, and booking is a button on a phone', async ({ page, context }) => {
+  // screen, so every swipe landed inside one. Since 2026-10-04 there is no
+  // signing embed at all (BoldSign retired): signing is a thumb-sized link to
+  // the in-house signing page, so nothing on the portal can trap a swipe.
+  test('signing is a link (no embed to get trapped in), and booking is a button on a phone', async ({ page, context }) => {
     await openPortal(page, 'estimate');
     for (const width of [412, 360]) {
       await page.setViewportSize({ width, height: 860 });
-      const frame = await safeEvaluate(page, () => {
-        const f = document.querySelector('iframe[title="Sign Contract"]');
-        window.scrollTo(0, f.getBoundingClientRect().top + window.scrollY - 20);
-        const r = f.getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom, h: r.height, vh: window.innerHeight };
-      });
-      await page.waitForTimeout(300);
-      expect(frame.h, `${width}px: signing frame is shorter than the screen`).toBeLessThanOrEqual(frame.vh - 200);
-      // With the frame at the top of the screen, a thumb in the lower part
-      // of the screen is on the PAGE and scrolls it.
-      const sx = width / 2, sy = frame.vh - 60;
-      const under = await safeEvaluate(page, ([x, y]) => document.elementFromPoint(x, y).tagName, [sx, sy]);
-      expect(under, `${width}px: thumb zone below the frame is page, not frame`).not.toBe('IFRAME');
-      const y0 = await scrollY(page);
-      await touchDrag(page, sx, sy, 0, -300);
-      expect((await scrollY(page)) - y0, `${width}px: swipe below the frame scrolls the page`).toBeGreaterThan(100);
+      expect(await page.locator('iframe[title="Sign Contract"]').count(), `${width}px: no signing iframe`).toBe(0);
+      const sign = page.locator('#portalSignLink');
+      await sign.scrollIntoViewIfNeeded();
+      expect(await sign.getAttribute('href'), `${width}px: it is the esign.html link`).toMatch(/^https:\/\/nobigdealwithjoedeal\.com\/pro\/esign\.html\?t=/);
+      expect((await sign.boundingBox()).height, `${width}px: thumb-sized`).toBeGreaterThanOrEqual(44);
+      expect(await hitsItself(page, '#portalSignLink'), `${width}px: nothing covers it`).toBe('ok');
 
       const cal = await safeEvaluate(page, () => {
         const f = document.querySelector('iframe[title="Schedule"]');
@@ -530,8 +523,9 @@ test.describe('phone portal: desktop unchanged @shard2 @phoneportal', () => {
     expect(row.qtyW).toBe(80);
 
     await openPortal(page, 'estimate', { mocked: true });
-    const h = await safeEvaluate(page, () => ['Sign Contract', 'Schedule'].map((t) => Math.round(document.querySelector('iframe[title="' + t + '"]').getBoundingClientRect().height)));
-    expect(h, 'desktop: both embeds keep 680px').toEqual([680, 680]);
+    const h = await safeEvaluate(page, () => ['Schedule'].map((t) => Math.round(document.querySelector('iframe[title="' + t + '"]').getBoundingClientRect().height)));
+    expect(h, 'desktop: the booking embed keeps 680px (the signing embed is gone — a link now)').toEqual([680]);
+    expect(await page.locator('iframe[title="Sign Contract"]').count(), 'desktop: no signing iframe').toBe(0);
     expect(await page.evaluate(() => getComputedStyle(document.getElementById('pm-text')).fontSize)).toBe('14px');
     await page.locator('#pm-text').click();
     expect(await page.evaluate(() => document.activeElement.id)).toBe('pm-text');

@@ -24,7 +24,7 @@
 - [ ] Does this add a new Firestore collection? If so:
   - [ ] Is the rule default-deny with explicit allow?
   - [ ] Is there a rules test?
-- [ ] Does this introduce a new sub-processor (BoldSign, HOVER, etc.)?
+- [ ] Does this introduce a new sub-processor (HOVER, Regrid, etc.)?
   - [ ] If yes, update `docs/privacy.html` sub-processor list
 - [ ] Does this add any new PII field to a Firestore doc?
   - [ ] If yes, does the audit trigger redact it? (see `functions/audit-triggers.js`)

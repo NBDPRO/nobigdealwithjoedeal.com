@@ -485,7 +485,7 @@ section('H-2: iframe sandbox');
     /querySelectorAll\('script, iframe, object, embed'\)[\s\S]{0,200}removeAttribute/.test(src));
 }
 
-section('UI-B: BoldSign send-for-signature + badges');
+section('UI-B: send-for-signature (in-house e-sign) + badges');
 {
   const src = read(path.join(PRO_JS, 'estimate-v2-ui.js'));
   assert('Send-for-signature button present', /data-action="send-for-signature"/.test(src));
