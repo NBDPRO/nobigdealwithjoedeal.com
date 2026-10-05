@@ -312,6 +312,12 @@ Object.assign(exports, slackIntegration);
 Object.assign(exports, measurementIntegration);
 exports.measureNewWebLead = publicMeasureIntegration.measureNewWebLead;
 exports.publicRoofMeasure = publicMeasureIntegration.publicRoofMeasure;
+// 2026-10-04: auto-order the Instant Roofer measure when a CRM lead gets an
+// appointment or reaches Inspected — once per lead, daily + monthly capped,
+// feature_flags/global.autoMeasureDisabled stops it (integrations/measure-auto-order.js).
+const measureAutoOrder = require('./integrations/measure-auto-order');
+exports.autoMeasureOnStage = measureAutoOrder.autoMeasureOnStage;
+exports.autoMeasureOnAppointment = measureAutoOrder.autoMeasureOnAppointment;
 Object.assign(exports, esignIntegration);
 Object.assign(exports, parcelIntegration);
 Object.assign(exports, hailIntegration);
@@ -846,6 +852,9 @@ exports.syncGbpReviews = gbpReviewsSync.syncGbpReviews;
 // for the Review UI (Phase 4) to render as 1-tap-accept chips.
 const photoVision = require('./photo-vision');
 exports.analyzePhotoVision = photoVision.analyzePhotoVision;
+// 2026-10-04: the same classifier on EVERY created /photos doc (imported,
+// drag-dropped, customer page) — not just the in-app camera's callable.
+exports.onPhotoCreatedClassify = photoVision.onPhotoCreatedClassify;
 
 // Receipt OCR (Phase 2 expense subsystem) — Claude-vision extraction of a
 // receipt/invoice into structured fields the expense form pre-fills.

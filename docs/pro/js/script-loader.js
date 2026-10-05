@@ -248,7 +248,7 @@
       'js/estimate-v2-ui.js?v=21',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
-      'js/estimate-v3-wizard.js?v=3',
+      'js/estimate-v3-wizard.js?v=4',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
@@ -286,7 +286,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=7',
+      'js/photo-engine.js?v=8',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
@@ -296,7 +296,7 @@
       // existing dedupe trap this file documents elsewhere: ScriptLoader
       // dedupes on resolved path, so an eager tag for either file would make
       // loadBundle('photos') a no-op for it and nothing would load lazily.
-      'js/photo-queue-store.js?v=2',
+      'js/photo-queue-store.js?v=3',
       'js/photo-queue-recovery.js?v=2',
       // KY claim-wording filter (2026-10-04) — BEFORE the two report
       // builders, which run every caption / report string through it.
@@ -405,7 +405,11 @@
       'js/draw-geom.js?v=2',
       'js/maps-routing.js?v=9',
       'css/draw-reticle.css?v=1',
-      'js/draw-reticle.js?v=1'
+      'js/draw-reticle.js?v=1',
+      // Instant Roofer cross-check card + the V3 wizard's "Draw it" hand-off
+      // (2026-10-04). Last: it binds to the engine seam like draw-reticle.
+      'css/draw-measure-check.css?v=1',
+      'js/draw-measure-check.js?v=1'
     ],
     // Talk Tank inbox (2026-09-14, boot-weight containment) — a single-view
     // module with zero callers outside goTo('talk-tank'); was two static
