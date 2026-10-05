@@ -200,11 +200,7 @@
     "dol-suggested-badge-2026-10-02.test.js",
     "dol-fill-2026-10-02.test.js",
     "agent-inbox-2026-10-02.test.js",
-    "agent-mcp-2026-10-02.test.js",
     "agent-mcp-more-tools-2026-10-02.test.js",
-    "agent-personal-keys-2026-10-02.test.js",
-    "call-watch-2026-10-02.test.js",
-    "agent-mcp-roles-v2-2026-10-02.test.js",
     "social-studio-2026-10-04.test.js",
     "reel-studio-2026-10-04.test.js",
     "agent-tenant-bots-2026-10-04.test.js",
@@ -920,6 +916,10 @@
     "lead-lifecycle.test.js": "test:leadlifecycle",
     "portal-token.test.js": "test:portal",
     "rate-limit.test.js": "test:ratelimit",
+    "agent-mcp-2026-10-02.test.js": "test:agentmcp",
+    "agent-mcp-roles-v2-2026-10-02.test.js": "test:agentroles",
+    "agent-personal-keys-2026-10-02.test.js": "test:agentpersonal",
+    "call-watch-2026-10-02.test.js": "test:callwatch",
     "thursday-pipeline.integration.test.js": "test:thursday"
   },
   "wired-individually": [

@@ -87,6 +87,7 @@ const L = require(path.join(ROOT, 'functions', 'agent-mcp-logic.js'));
 
   if (process.env.FIRESTORE_EMULATOR_HOST) {
     console.log('F. emulator end to end');
+    const ranBefore = passed + failed;
     const { initializeApp, getApps } = require(path.join(ROOT, 'functions', 'node_modules', 'firebase-admin', 'lib', 'app'));
     if (!getApps().length) initializeApp({ projectId: 'nbd-test' });
     const { getFirestore } = require(path.join(ROOT, 'functions', 'node_modules', 'firebase-admin', 'lib', 'firestore'));
@@ -121,6 +122,15 @@ const L = require(path.join(ROOT, 'functions', 'agent-mcp-logic.js'));
     const v = (await call(quinn, 'verify_item', { item_id: fid, ok: true, note: 'Matches the June estimate date.' })).result;
     const after = (await db.doc('agent_inbox/' + fid).get()).data();
     ok('Quinn\'s verify_item marks it checked', !v.isError && after.verified === true && /Quinn/.test(after.verifiedBy));
+    // CI runs this suite in the emulator-orphan-suites job (ci.yml), which sets
+    // NBD_REQUIRE_EMULATOR=1: there the section must run in full, never shrink.
+    const ran = passed + failed - ranBefore;
+    console.log('F. emulator section ran ' + ran + ' checks');
+    if (process.env.NBD_REQUIRE_EMULATOR) ok('F. all 8 end-to-end checks ran', ran === 8, 'ran ' + ran);
+  } else if (process.env.NBD_REQUIRE_EMULATOR) {
+    // Fail, never skip, where CI promised an emulator (R1-10-8, 2026-10-05:
+    // this section printed "skipped" in every CI run until then).
+    ok('F. NBD_REQUIRE_EMULATOR is set but FIRESTORE_EMULATOR_HOST is not — the end-to-end section cannot run', false);
   } else {
     console.log('F. (skipped — no FIRESTORE_EMULATOR_HOST)');
   }

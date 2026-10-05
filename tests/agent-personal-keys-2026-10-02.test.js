@@ -72,6 +72,7 @@ function ok(label, cond, detail) {
 
   if (process.env.FIRESTORE_EMULATOR_HOST) {
     console.log('E. emulator end to end');
+    const ranBefore = passed + failed;
     const { initializeApp, getApps } = require(path.join(ROOT, 'functions', 'node_modules', 'firebase-admin', 'lib', 'app'));
     if (!getApps().length) initializeApp({ projectId: 'nbd-test' });
     const { getFirestore } = require(path.join(ROOT, 'functions', 'node_modules', 'firebase-admin', 'lib', 'firestore'));
@@ -99,6 +100,15 @@ function ok(label, cond, detail) {
     ok('a CRM key cannot read Jo\'s tracker (role check AND second lock)', reach.isError === true && reach2.isError === true);
     const noOwner = await M.runTool('my_week', {}, { id: 'x', botId: 'coach', companyId: JO, scope: 'personal', ownerUid: null });
     ok('a personal key without an owner reads nothing', noOwner.isError === true);
+    // CI runs this suite in the emulator-orphan-suites job (ci.yml), which sets
+    // NBD_REQUIRE_EMULATOR=1: there the section must run in full, never shrink.
+    const ran = passed + failed - ranBefore;
+    console.log('E. emulator section ran ' + ran + ' checks');
+    if (process.env.NBD_REQUIRE_EMULATOR) ok('E. all 7 end-to-end checks ran', ran === 7, 'ran ' + ran);
+  } else if (process.env.NBD_REQUIRE_EMULATOR) {
+    // Fail, never skip, where CI promised an emulator (R1-10-8, 2026-10-05:
+    // this section printed "skipped" in every CI run until then).
+    ok('E. NBD_REQUIRE_EMULATOR is set but FIRESTORE_EMULATOR_HOST is not — the end-to-end section cannot run', false);
   } else {
     console.log('E. (skipped — no FIRESTORE_EMULATOR_HOST)');
   }

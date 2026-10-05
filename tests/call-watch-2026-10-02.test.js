@@ -203,6 +203,7 @@ function ok(label, cond, detail) {
 
   if (process.env.FIRESTORE_EMULATOR_HOST) {
     console.log('F. emulator end to end');
+    const ranBefore = passed + failed;
     const { initializeApp, getApps } = require(path.join(ROOT, 'functions', 'node_modules', 'firebase-admin', 'lib', 'app'));
     if (!getApps().length) initializeApp({ projectId: 'nbd-test' });
     const { getFirestore } = require(path.join(ROOT, 'functions', 'node_modules', 'firebase-admin', 'lib', 'firestore'));
@@ -236,6 +237,15 @@ function ok(label, cond, detail) {
     await runWatch({ db, nowMs: at + 20 * MIN, live: true, push: async () => ({ sent: 1 }), texts });
     const o1 = (await db.doc('alert_outbox/obx1').get()).data(), o2 = (await db.doc('alert_outbox/obx2').get()).data();
     ok('alert_outbox rows get the real result: undelivered:30034 / delivered', o1.smsDelivery === 'undelivered:30034' && o2.smsDelivery === 'delivered' && o1.smsStatus === 'sent', JSON.stringify([o1.smsDelivery, o2.smsDelivery]));
+    // CI runs this suite in the emulator-orphan-suites job (ci.yml), which sets
+    // NBD_REQUIRE_EMULATOR=1: there the section must run in full, never shrink.
+    const ran = passed + failed - ranBefore;
+    console.log('F. emulator section ran ' + ran + ' checks');
+    if (process.env.NBD_REQUIRE_EMULATOR) ok('F. all 4 end-to-end checks ran', ran === 4, 'ran ' + ran);
+  } else if (process.env.NBD_REQUIRE_EMULATOR) {
+    // Fail, never skip, where CI promised an emulator (R1-10-8, 2026-10-05:
+    // this section printed "skipped" in every CI run until then).
+    ok('F. NBD_REQUIRE_EMULATOR is set but FIRESTORE_EMULATOR_HOST is not — the end-to-end section cannot run', false);
   } else {
     console.log('F. (skipped — no FIRESTORE_EMULATOR_HOST)');
   }

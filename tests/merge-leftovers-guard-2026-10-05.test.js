@@ -102,11 +102,8 @@ const KNOWN = {
   authedListDups: {
     'KNOWN BUG R1-10-7 (reported 2026-10-05): tests/package.json test:e2e:authed:emu names roof-rep.spec.js twice (harmless: Playwright filters, it runs once) — expected once': ['roof-rep.spec.js'],
   },
-  emulatorOnlyInNodeBucket: {
-    'KNOWN BUG R1-10-8 (reported 2026-10-05): four node-bucket suites keep their end-to-end section behind FIRESTORE_EMULATOR_HOST, which the unit-suite-manifest job never sets — CI logs print "(skipped — no FIRESTORE_EMULATOR_HOST)", so the bot-API cross-tenant refusal, the server-side KY wording refusal and the personal-key scope checks have never run in CI — expected those sections moved to an emulators:exec step (emulator bucket) or the suites run under one': [
-      'agent-mcp-2026-10-02.test.js', 'agent-mcp-roles-v2-2026-10-02.test.js', 'agent-personal-keys-2026-10-02.test.js', 'call-watch-2026-10-02.test.js',
-    ],
-  },
+  // R1-10-8 fixed 2026-10-05: the four suites moved to the emulator bucket (see D).
+  emulatorOnlyInNodeBucket: {},
   // E. keep-both residue
   dupDecls: {
     'KNOWN BUG R1-10-9 (reported 2026-10-05): docs/pro/js/invoice-pipeline.js declares escHtml twice in the same IIFE (lines ~211 and ~363, identical bodies; the later one wins) — expected one declaration': [
@@ -538,7 +535,21 @@ console.log('\nD. test wiring: manifest, authed-emu list, never-run sections');
   // built at runtime, but a guard matching its own text is the classic vacuous trap.
   const gated = nodeBucket.filter((f) => f !== path.basename(__filename) && fs.existsSync(path.join(__dirname, f)) && emulatorOnlySection(fs.readFileSync(path.join(__dirname, f), 'utf8')));
   ok(nodeBucket.length > 300, 'node bucket read (' + nodeBucket.length + ' suites)');
-  ok(same(gated, known('emulatorOnlyInNodeBucket')), knownName('emulatorOnlyInNodeBucket') + ' — and no other node-bucket suite hides a section behind the emulator', diff(gated, known('emulatorOnlyInNodeBucket')));
+  ok(same(gated, known('emulatorOnlyInNodeBucket')), 'no node-bucket suite hides a section behind FIRESTORE_EMULATOR_HOST (R1-10-8 fixed)', diff(gated, known('emulatorOnlyInNodeBucket')));
+
+  // R1-10-8 stays fixed: the four suites run under an emulator in CI, and
+  // there a missing emulator FAILS them instead of printing "skipped".
+  const R108 = ['agent-mcp-2026-10-02.test.js', 'agent-mcp-roles-v2-2026-10-02.test.js', 'agent-personal-keys-2026-10-02.test.js', 'call-watch-2026-10-02.test.js'];
+  const ciLines = rd('.github/workflows/ci.yml').split(/\r?\n/);
+  for (const f of R108) {
+    const src = fs.readFileSync(path.join(__dirname, f), 'utf8');
+    const i = ciLines.findIndex((l) => !/^\s*#/.test(l) && l.includes('emulators:exec') && l.includes("'node ./" + f + "'"));
+    let s = i; while (s > 0 && !/^\s*-\s+name:/.test(ciLines[s])) s--;
+    const step = i < 0 ? '' : ciLines.slice(s, i + 1).join('\n');
+    ok(!!(man.emulator || {})[f] && i >= 0 && /NBD_REQUIRE_EMULATOR:\s*'1'/.test(step) && !/continue-on-error|\|\|\s*true|^\s*if:/m.test(step)
+      && /\}\s*else if \(process\.env\.NBD_REQUIRE_EMULATOR\) \{\s*(\/\/[^\n]*\s*)*ok\([^\n]*, false\);/.test(src),
+      f + ': emulator bucket, its own emulators:exec step sets NBD_REQUIRE_EMULATOR, and a missing emulator fails the suite');
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════

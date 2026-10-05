@@ -423,6 +423,36 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project demo-nbd-thursday 'node ./thursday-pipeline.integration.test.js'
+      # R1-10-8 (2026-10-05): these four sat in the node bucket with their
+      # end-to-end section behind FIRESTORE_EMULATOR_HOST, which that job never
+      # sets, so every CI run printed "skipped". They run here instead, in
+      # process against the firestore emulator (no functions emulator, so no
+      # secrets are loaded). NBD_REQUIRE_EMULATOR=1 makes each suite FAIL, not
+      # skip, if the emulator is missing, and assert its section's full count.
+      - name: Run bot API end to end (another company's customer refused, KY wording refused on the server) under firestore emulator
+        env:
+          NBD_REQUIRE_EMULATOR: '1'
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-agentmcp 'node ./agent-mcp-2026-10-02.test.js'
+      - name: Run bot roles v2 end to end (storm/profit/post-job read only this company) under firestore emulator
+        env:
+          NBD_REQUIRE_EMULATOR: '1'
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-agentroles 'node ./agent-mcp-roles-v2-2026-10-02.test.js'
+      - name: Run personal-key scope end to end (owner's tracker only, no CRM tools) under firestore emulator
+        env:
+          NBD_REQUIRE_EMULATOR: '1'
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-agentpersonal 'node ./agent-personal-keys-2026-10-02.test.js'
+      - name: Run call-watch end to end (own calls only, quiet repeat, carrier delivery stamped) under firestore emulator
+        env:
+          NBD_REQUIRE_EMULATOR: '1'
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-callwatch 'node ./call-watch-2026-10-02.test.js'
 
   syntax-check:
     name: Node syntax check
