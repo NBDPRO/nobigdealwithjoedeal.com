@@ -520,7 +520,10 @@ function makeDom() {
   console.log('\n7. trust line above every listed form + live rating');
   // ═══════════════════════════════════════════════════════════════════════
   {
-    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating>5\.0<\/span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof<\/p>/;
+    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating>5\.0<\/span> on Google &middot; (?:Fully insured|Licensed &amp; insured) &middot; Joe on every roof<\/p>/;
+    // 2026-10-05: "Fully insured" (Jo has no OH/KY registration number to back
+    // "Licensed"). docs/index.html keeps the old line until the home-page PR
+    // lands; tests/homeowner-claims-honesty-2026-10-05.test.js bans it elsewhere.
     const pages = [
       ['docs/estimate.html', 'id="btnSubmit"'],
       ['docs/storm-check.html', 'id="sc-submit"'],
@@ -541,7 +544,7 @@ function makeDom() {
     ok('...and hydrates the rating (widget hook or a one-time load)', /hydrateRating\(\);/.test(q) && /nbdHydrateReviewHooks/.test(q));
     const hosts = fs.readdirSync(path.join(ROOT, 'docs', 'areas')).filter((f) => f.endsWith('.html')).map((f) => read('docs/areas/' + f)).filter((h) => /data-nbd-quick-form/.test(h) && /quick-lead-form\.js/.test(h)).length;
     ok('generated area pages still host the quick form (> 20)', hosts > 20, hosts);
-    ok('Kentucky wording: the line makes no claim-handling promise', !/claim|insurance|deductible|negotiat/i.test('★ 5.0 on Google · Licensed & insured · Joe on every roof'));
+    ok('Kentucky wording: the line makes no claim-handling promise', !/claim|insurance|deductible|negotiat/i.test('★ 5.0 on Google · Fully insured · Joe on every roof'));
 
     // The widget hydrates hooks on a page WITHOUT the review cards.
     const { document, El } = makeDom();
