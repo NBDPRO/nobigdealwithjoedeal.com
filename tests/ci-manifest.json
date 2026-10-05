@@ -166,6 +166,7 @@
     "mark-paid-methods-2026-09-29.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
+    "care-plan-2026-10-05.test.js",
     "home-attention-yard-chip-2026-09-29.test.js",
     "tracker-weight-history-2026-09-29.test.js",
     "tracker-sunday-review-2026-10-02.test.js",
