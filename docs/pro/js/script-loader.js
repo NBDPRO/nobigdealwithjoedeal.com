@@ -240,9 +240,9 @@
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=11',
+      'js/estimate-builder-v2.js?v=12',
       'js/estimate-catalog-xactimate.js?v=3',
-      'js/estimate-logic-engine.js?v=7',
+      'js/estimate-logic-engine.js?v=8',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
       'js/estimates.js?v=13',

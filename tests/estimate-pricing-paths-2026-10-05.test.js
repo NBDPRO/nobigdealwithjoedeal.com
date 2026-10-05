@@ -13,7 +13,8 @@
  * with edge cases. Minimum-charge value rule (engine _floorCentsOrNull):
  *   a number > 0 → that floor · 0 or negative → NO floor (deliberate) ·
  *   missing / blank / non-numeric → not set, fall back to the next level.
- * #6 #7 #8 #10 stay pinned as known bugs.
+ * #6 (old builder) and #10 were flipped in their own fix PRs; #7 #8 (pitch
+ * fixes, 2026-10-05) are flipped too — every pinned bug is now FIXED.
  *
  * Expected dollars are worked out by hand from the RULES (inputs → dollars,
  * shown in the comments), never by calling the function under test twice.
@@ -369,14 +370,30 @@ section('B. JOB MINIMUM — line-item path (calculateLineItem) and the logic eng
   e = res(600, { mode: 'insurance', county: 'hamilton-oh' });
   ok('resolveEstimate: insurance → tax 0 whatever the county', e.taxRate === 0 && e.total === 600);
 
-  // KNOWN BUG #7 — buildContext: `pitch: Number(input.pitch) || 8` turns a flat
-  // roof (pitch 0) into 8/12, and 'LAB ADR-SS' is `pitch >= 8 ? sq : 0`.
+  // FIXED #7 — buildContext used `pitch: Number(input.pitch) || 8`, which turned
+  // a flat roof (pitch 0) into 8/12, and 'LAB ADR-SS' is `pitch >= 8 ? sq : 0`.
+  // Now only a MISSING pitch defaults to 8; an explicit 0 stays 0.
   const ADR = [{ code: 'LAB ADR-SS', name: 'Steep adder (synthetic cost)', unit: 'SQ', materialCost: 0, laborCost: 10 }];
-  const flat = EL.resolveEstimate(ADR, { rawSqft: 1000, waste: 1, pitch: 0 }, { mode: 'insurance', overheadPct: 0, profitPct: 0 });
-  const six = EL.resolveEstimate(ADR, { rawSqft: 1000, waste: 1, pitch: 6 }, { mode: 'insurance', overheadPct: 0, profitPct: 0 });
+  const adr = (meas) => EL.resolveEstimate(ADR, Object.assign({ rawSqft: 1000, waste: 1 }, meas), { mode: 'insurance', overheadPct: 0, profitPct: 0 });
+  const flat = adr({ pitch: 0 });
+  const six = adr({ pitch: 6 });
   ok('control: at 6/12 the steep adder line has qty 0', six.lines[0].quantity === 0);
-  ok('KNOWN BUG #7 (reported 2026-10-05): a flat roof (pitch 0) becomes pitch 8 in buildContext (estimate-logic-engine.js:86) and gets the steep labor adder (LAB ADR-SS qty 10 SQ) — expected qty 0',
-    flat.context.pitch === 8 && flat.lines[0].quantity === 10, j([flat.context.pitch, flat.lines[0].quantity]));
+  ok('FIXED (was KNOWN BUG #7, reported 2026-10-05): a flat roof (pitch 0) stays pitch 0 in buildContext and gets NO steep labor adder (LAB ADR-SS qty 0, $0)',
+    flat.context.pitch === 0 && flat.lines[0].quantity === 0 && flat.total === 0, j([flat.context.pitch, flat.lines[0].quantity, flat.total]));
+  ok('#7: pitch "0" (string, e.g. a form field) is also a flat roof — qty 0', adr({ pitch: '0' }).context.pitch === 0 && adr({ pitch: '0' }).lines[0].quantity === 0);
+  ok('#7: a flat roof\'s pitchRatio is 0 (pitch / 12), not the 0.667 default', flat.context.pitchRatio === 0, flat.context.pitchRatio);
+  ok('#7: low slopes stay as given — pitch 2 → 2, ratio 2/12, qty 0', (() => { const c = EL.buildContext({ pitch: 2 }); return c.pitch === 2 && Math.abs(c.pitchRatio - 2 / 12) < 1e-12 && adr({ pitch: 2 }).lines[0].quantity === 0; })());
+  // A MISSING pitch still defaults to 8/12 (unchanged), so the adder still fires.
+  [['missing', {}], ['undefined', { pitch: undefined }], ['null', { pitch: null }], ['""', { pitch: '' }], ['"  "', { pitch: '  ' }], ['NaN', { pitch: NaN }], ['"abc"', { pitch: 'abc' }]].forEach(([lbl, m]) => {
+    const e = adr(m);
+    ok('#7: pitch ' + lbl + ' (missing) still defaults to 8 (ratio 0.667) — steep adder qty 10', e.context.pitch === 8 && e.context.pitchRatio === 0.667 && e.lines[0].quantity === 10, j([e.context.pitch, e.context.pitchRatio, e.lines[0].quantity]));
+  });
+  // Thresholds unchanged: 7.99 no, 8 yes (SS); 11.99 no, 12 yes (VS).
+  ok('#7: steep thresholds unchanged — 7.99 → 0, 8 → 10 SQ', adr({ pitch: 7.99 }).lines[0].quantity === 0 && adr({ pitch: 8 }).lines[0].quantity === 10);
+  const VS = [{ code: 'LAB ADR-VS', name: 'Very steep adder (synthetic cost)', unit: 'SQ', materialCost: 0, laborCost: 10 }];
+  const vs = (p) => EL.resolveEstimate(VS, { rawSqft: 1000, waste: 1, pitch: p }, { mode: 'insurance', overheadPct: 0, profitPct: 0 }).lines[0].quantity;
+  ok('#7: very-steep threshold unchanged — 0 → 0, 11.99 → 0, 12 → 10 SQ', vs(0) === 0 && vs(11.99) === 0 && vs(12) === 10, j([vs(0), vs(11.99), vs(12)]));
+  ok('#7: an explicit pitchRatio still wins over pitch / 12', EL.buildContext({ pitch: 0, pitchRatio: 0.25 }).pitchRatio === 0.25 && EL.buildContext({ pitchRatio: 0 }).pitchRatio === 0);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -430,11 +447,30 @@ section('C. TIER PRICING — rates, waste, cut-up, pitch / story / access adders
   ok('per-job add-ons: blank county permit $150 · dump $550 · delivery $150 (never × SQ)', fx.addOns.permit === 150 && fx.addOns.dumpFee === 550 && fx.addOns.matDelivery === 150);
   ok('known county permit: Hamilton $185', perSq({ county: 'hamilton-oh' }).addOns.permit === 185);
 
-  // KNOWN BUG #8 — parsePitch("8") is read as a RATIO of 8 (8:1), not 8/12.
+  // FIXED #8 — parsePitch("8") was read as a RATIO of 8 (8:1), not 8/12.
+  // Rule now: "a/b" or "a:b" → a ÷ b; a bare number (string OR number) > 2 is a
+  // rise per 12; a bare number ≤ 2 is already a ratio (no real roof is > 24/12).
   const bare = perSq({ tier: 'better', rawSqft: 2000, pitch: '8', wasteFactorOverride: undefined });
-  ok('KNOWN BUG #8 (reported 2026-10-05): parsePitch("8") returns ratio 8 (estimate-builder-v2.js:491) → waste 1.25 + all three steep adders; latent, the UI always sends "<rise>/12" — expected ratio 0.667 (8/12)',
-    EB.parsePitch('8') === 8 && bare.waste === 1.25 && bare.addOns.extremeSteep > 0, j([EB.parsePitch('8'), bare.waste, bare.addOns.extremeSteep]));
-  ok('control: parsePitch("8/12") = 0.667 and the number 8 is (by contract) a ratio', Math.abs(EB.parsePitch('8/12') - 8 / 12) < 1e-12 && EB.parsePitch(8) === 8);
+  const slash = perSq({ tier: 'better', rawSqft: 2000, pitch: '8/12', wasteFactorOverride: undefined });
+  ok('FIXED (was KNOWN BUG #8, reported 2026-10-05): parsePitch("8") = 0.667 (8/12) → waste 1.17, steep adder only ($25 × 23.4 SQ), no very/extreme-steep',
+    Math.abs(EB.parsePitch('8') - 8 / 12) < 1e-12 && bare.waste === 1.17 && bare.addOns.steep === 585 && bare.addOns.verySteep === 0 && bare.addOns.extremeSteep === 0,
+    j([EB.parsePitch('8'), bare.waste, bare.addOns.steep, bare.addOns.verySteep, bare.addOns.extremeSteep]));
+  ok('#8: a bare "8" now prices exactly like "8/12"', bare.total === slash.total && j(bare.addOns) === j(slash.addOns), j([bare.total, slash.total]));
+  const PP = [
+    ['"4"', '4', 4 / 12], ['"4/12"', '4/12', 4 / 12], ['"4:12"', '4:12', 4 / 12], ['"8:12"', '8:12', 8 / 12],
+    ['"12"', '12', 1], ['"12/12"', '12/12', 1], ['"0.333"', '0.333', 0.333], ['"0.667"', '0.667', 0.667],
+    ['"0"', '0', 0], ['"0/12"', '0/12', 0], ['"2" (≤ 2 → ratio)', '2', 2], ['"2.01" (> 2 → rise)', '2.01', 2.01 / 12],
+    ['number 8', 8, 8 / 12], ['number 0.667', 0.667, 0.667], ['number 0', 0, 0], ['" 6 / 12 "', ' 6 / 12 ', 0.5],
+    ['missing', undefined, 0.667], ['""', '', 0.667], ['"abc"', 'abc', 0.667], ['NaN', NaN, 0.667],
+  ];
+  PP.forEach(([lbl, v, want]) => ok('#8: parsePitch(' + lbl + ') → ' + (+want.toFixed(4)), Math.abs(EB.parsePitch(v) - want) < 1e-12, EB.parsePitch(v)));
+  // Waste by the parsed ratio: "4" and "4/12" agree (1.15); "12" and "12/12" agree (1.20); 0 → lowest band 1.12.
+  const wv = (p) => EB.prepGeometry({ rawSqft: 1000, pitch: p }).waste;
+  ok('#8: waste "4" = "4/12" = 1.15 · "12" = "12/12" = 1.20 · "0.333" = 1.15 · 0 / "0" = 1.12',
+    wv('4') === 1.15 && wv('4/12') === 1.15 && wv('12') === 1.20 && wv('12/12') === 1.20 && wv('0.333') === 1.15 && wv(0) === 1.12 && wv('0') === 1.12,
+    j([wv('4'), wv('4/12'), wv('12'), wv('12/12'), wv('0.333'), wv(0), wv('0')]));
+  // The builder UI sends "<rise>/12" — unchanged.
+  ok('control: the UI\'s "<rise>/12" shape is unchanged — "8/12" = 0.667, "16/12" = 1.333', Math.abs(EB.parsePitch('8/12') - 8 / 12) < 1e-12 && Math.abs(EB.parsePitch('16/12') - 16 / 12) < 1e-12);
 }
 
 // ════════════════════════════════════════════════════════════════════
