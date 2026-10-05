@@ -363,6 +363,9 @@ async function classifyPhoto(args) {
       logger.warn('photo-vision.api_error', { status: response.status, msg, source });
       throw new HttpsError('internal', 'Vision API error: ' + msg);
     }
+    // AI spend counters (#2148) — both doors (callable + trigger) pass here.
+    // Never throws; a failed counter write never fails the classification.
+    await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('photo-vision', MODEL, data), { db, log: logger });
 
     // ── Parse + sanitize ──
     const textBlock = data.content && Array.isArray(data.content)

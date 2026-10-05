@@ -25,7 +25,7 @@ The only exceptions are:
 
 3. Third-party components bundled in this repository — the libraries under
    docs/assets/vendor/ (Leaflet and its plugins, Chart.js, ApexCharts,
-   jsPDF, html2pdf, Font Awesome Free, EmailJS) and the font files under
+   jsPDF, html2pdf, Font Awesome Free) and the font files under
    docs/assets/fonts/ — are NOT owned by No Big Deal Home Solutions and
    remain under their own upstream licenses (MIT, BSD, SIL OFL 1.1,
    CC BY 4.0, as stated in each file or by its publisher). The copyright

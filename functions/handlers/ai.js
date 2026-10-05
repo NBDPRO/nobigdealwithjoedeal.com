@@ -61,6 +61,31 @@ const {
 } = require('./_shared');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const { recordAiSpend, rowFromAnthropic } = require('../ai-spend');
+
+/**
+ * The upstream /v1/messages body for an allowlisted model (2026-10-04).
+ * Haiku 4.5 takes the request as the browser shaped it. Sonnet 5.5 rejects
+ * non-default sampling (temperature → 400) and runs adaptive thinking by
+ * default, which would spend the proxy's 1024-token cap thinking and put a
+ * thinking block where callers read content[0].text — so its thinking is
+ * turned off ({type:'between_tools'}, the documented off-switch, accepted at
+ * the default effort) and temperature is dropped.
+ */
+function shapeForModel({ model, max_tokens, messages, system, temperature, tools }) {
+  // `tools` is ONLY the server-side named list (ask-joe-tools.toolsFor) — the
+  // caller never passes browser tool definitions through here.
+  const anthropicBody = { model, max_tokens, messages };
+  if (system !== undefined) anthropicBody.system = system;
+  if (tools) anthropicBody.tools = tools;
+  if (model === 'claude-sonnet-5-5') {
+    anthropicBody.thinking = { type: 'between_tools' };
+  } else if (temperature !== undefined) {
+    anthropicBody.temperature = temperature;
+  }
+  return anthropicBody;
+}
+exports._shapeForModel = shapeForModel;
 
 exports.claudeProxy = onRequest(
   {
@@ -239,10 +264,7 @@ exports.claudeProxy = onRequest(
 
       // Budget reserved. Any error path below MUST refund or the
       // caller loses tokens to a failed upstream.
-      const anthropicBody = { model: safeModel, max_tokens: safeMaxTokens, messages };
-      if (safeSystem !== undefined) anthropicBody.system = safeSystem;
-      if (safeTemperature !== undefined) anthropicBody.temperature = safeTemperature;
-      if (tools) anthropicBody.tools = tools;
+      const anthropicBody = shapeForModel({ model: safeModel, max_tokens: safeMaxTokens, messages, system: safeSystem, temperature: safeTemperature, tools });
 
       let response, data;
       try {
@@ -311,6 +333,9 @@ exports.claudeProxy = onRequest(
             timestamp: srv,
           }),
           adjustClaudeBudget(uidCounterRef, coCounterRef, delta),
+          // AI spend in one place (ai_spend_daily / ai_spend_monthly): the
+          // smart follow-up drafts and every other browser AI feature land here.
+          recordAiSpend(rowFromAnthropic(feature || 'claude-proxy', anthropicBody.model, data), { log: logger }),
         ]);
       } catch (e) {
         logger.warn('api_usage logging failed', { err: e.message });
@@ -433,6 +458,7 @@ exports.publicVisualizerAI = onRequest(
         res.status(response.status).json({ error: 'Upstream AI error' });
         return;
       }
+      await recordAiSpend(rowFromAnthropic('public-visualizer', anthropicBody.model, data), { log: logger });
 
       // Return only the text content, never the full upstream payload.
       const text = Array.isArray(data.content)
@@ -542,6 +568,7 @@ exports.publicFunnelAI = onRequest(
         res.status(response.status).json({ error: 'Upstream AI error' });
         return;
       }
+      await recordAiSpend(rowFromAnthropic('public-funnel', anthropicBody.model, data), { log: logger });
 
       // Return only the joined text — never the raw upstream payload.
       const text = Array.isArray(data.content)
@@ -650,6 +677,7 @@ exports.adminAI = onRequest(
         res.status(response.status).json({ error: 'Upstream AI error' });
         return;
       }
+      await recordAiSpend(rowFromAnthropic('admin-ai', anthropicBody.model, data), { log: logger });
 
       const text = Array.isArray(data.content)
         ? data.content.map(c => (c && c.type === 'text' ? c.text : '')).join('')

@@ -243,7 +243,7 @@ function deps() {
   if (_deps) return _deps;
   const { transcribeGroqBuffer } = require('./integrations/voice-intelligence');
   return {
-    transcribe: (buffer, ext) => transcribeGroqBuffer({ buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg', filename: 'call.' + (ext || 'm4a'), timeoutMs: 300_000 }),
+    transcribe: (buffer, ext) => transcribeGroqBuffer({ buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg', filename: 'call.' + (ext || 'm4a'), timeoutMs: 300_000, feature: 'call-center-transcribe' }),
     notes: claudeNotes,
     // callWatch's push sender (Jo's own devices; never a customer).
     push: (uid, title, body, data) => require('./push-functions').sendCustomNotification(uid, title, body, data),
@@ -251,17 +251,19 @@ function deps() {
 }
 
 // Shared with text-inbox.js (textInboxNotes binds its own ANTHROPIC_API_KEY).
-async function claudeNotes({ system, prompt }) {
+async function claudeNotes({ system, prompt, feature, maxTokens }) {
   const key = secretValue(ANTHROPIC_API_KEY);
   if (!key) throw new Error('anthropic-not-configured');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
-    body: JSON.stringify({ model: NOTES_MODEL, max_tokens: 900, system, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({ model: NOTES_MODEL, max_tokens: Number(maxTokens) || 900, system, messages: [{ role: 'user', content: prompt }] }),
     signal: AbortSignal.timeout(60_000),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error('anthropic ' + res.status + ': ' + String((data && data.error && data.error.message) || '').slice(0, 200));
+  // AI spend in one place (functions/ai-spend.js) — one counter row per call.
+  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic(feature || 'call-center-notes', NOTES_MODEL, data), { log: logger });
   const text = ((data && data.content) || []).map((c) => (c && c.type === 'text' ? c.text : '')).join('').trim();
   const m = /\{[\s\S]*\}/.exec(text);
   if (!m) throw new Error('notes: no JSON');
@@ -369,7 +371,7 @@ async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads }) {
     }
     out.aiCalls++;
     try {
-      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.FACTS_SYSTEM, prompt: L.buildFactsPrompt({ transcript: c.transcript }) }));
+      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.FACTS_SYSTEM, prompt: L.buildFactsPrompt({ transcript: c.transcript }), feature: 'call-center-facts' }));
       Object.assign(c, { callerFacts: facts, factsV: L.FACTS_VERSION });
       const sp = suggestionPatch(c, await getLeads(), nowMs);
       await ref.set(Object.assign({ callerFacts: facts, factsV: L.FACTS_VERSION, factsAtMs: nowMs }, sp), { merge: true });
@@ -472,7 +474,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         const ls = await db.doc('leads/' + call.leadId).get();
         if (ls.exists) { leadDoc = ls.data(); leadName = ((leadDoc.firstName || '') + ' ' + (leadDoc.lastName || '')).trim(); }
       }
-      const notes = L.sanitizeNotes(await d.notes({ system: L.NOTES_SYSTEM, prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName }) }));
+      const notes = L.sanitizeNotes(await d.notes({ system: L.NOTES_SYSTEM, prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName }), feature: 'call-center-notes' }));
       // Jo said "it wasn't personal" (callCenterAction notpersonal): the
       // model's personal verdict is overridden; the call is filed as business.
       if (call.notPersonal === true && notes.callType === 'personal') notes.callType = 'other';
@@ -632,7 +634,10 @@ async function gatherSweep({ db, nowMs }) {
   return { today, items, counts };
 }
 
-async function runSweep({ db, live, nowMs, send, slot }) {
+async function runSweep({ db, live, nowMs, send, slot, absorbed }) {
+  // One morning email (2026-10-04): the 07:15 list rides in the 06:45 brief
+  // when it absorbs this email (morning-brief-absorb.js). 15:15 always sends.
+  if (slot === 'am' && absorbed) return { state: 'absorbed' };
   const user = await db.collection('users').doc(OWNER).get();
   const email = user.exists ? String((user.data() || {}).email || '') : '';
   const { today, items, counts } = await gatherSweep({ db, nowMs });
@@ -650,8 +655,11 @@ exports.callCenterSweep = onSchedule(
     try {
       const nowMs = Date.now();
       const hour = Number(new Date(nowMs).toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+      const slot = hour >= 12 ? 'pm' : 'am';
+      const db = getFirestore();
       const r = await runSweep({
-        db: getFirestore(), live: sweepEnabled(), nowMs, slot: hour >= 12 ? 'pm' : 'am',
+        db, live: sweepEnabled(), nowMs, slot,
+        absorbed: slot === 'am' && await require('./morning-brief-absorb').briefAbsorbs(db),
         send: async (m) => {
           const key = secretValue(RESEND_API_KEY);
           if (!key) throw new Error('no-resend-key');
@@ -1033,6 +1041,8 @@ exports.callTaggedMatch = onCall(
 );
 
 exports.claudeNotes = claudeNotes;
+// The morning brief's "You said you'd…" section reads the same list.
+exports.gatherSweep = gatherSweep;
 
 exports._test = {
   runIngest,

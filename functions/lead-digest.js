@@ -14,6 +14,7 @@ const { logger } = require('firebase-functions/v2');
 const { Resend } = require('resend');
 const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const L = require('./lead-bridge-logic');
+const Absorb = require('./morning-brief-absorb');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -32,6 +33,41 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/**
+ * The digest's rows: every public lead from the 24h before nowMs across the
+ * five sources. Shared with the 6:45 morning brief, which carries these as
+ * its "New leads" section when it absorbs this email (2026-10-04).
+ */
+async function gatherDigestRows(db, nowMs) {
+  const since = Timestamp.fromMillis((Number(nowMs) || Date.now()) - 24 * 60 * 60 * 1000);
+  const rows = [];
+
+  for (const [collection, label] of SOURCES) {
+    const snap = await db.collection(collection)
+      .where('createdAt', '>=', since)
+      .limit(100)
+      .get();
+    for (const doc of snap.docs) {
+      const d = doc.data() || {};
+      // estimate_leads carries follow-up event docs alongside real leads —
+      // same skip the instant alerts use.
+      if (L.isFollowUpEvent(collection, d)) continue;
+      rows.push({
+        label,
+        name: [d.firstName, d.lastName].filter(Boolean).join(' ') || d.name || '(no name)',
+        phone: d.phone || d.phoneNumber || '',
+        address: d.address || '',
+        when: d.createdAt && d.createdAt.toDate
+          ? d.createdAt.toDate().toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          : '',
+        acked: !!d.ackEmailSentAt,
+      });
+    }
+  }
+
+  return rows;
+}
+
 exports.dailyLeadDigest = onSchedule(
   {
     schedule: '0 7 * * *',
@@ -43,31 +79,13 @@ exports.dailyLeadDigest = onSchedule(
   },
   async () => {
     const db = getFirestore();
-    const since = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
-    const rows = [];
-
-    for (const [collection, label] of SOURCES) {
-      const snap = await db.collection(collection)
-        .where('createdAt', '>=', since)
-        .limit(100)
-        .get();
-      for (const doc of snap.docs) {
-        const d = doc.data() || {};
-        // estimate_leads carries follow-up event docs alongside real leads —
-        // same skip the instant alerts use.
-        if (L.isFollowUpEvent(collection, d)) continue;
-        rows.push({
-          label,
-          name: [d.firstName, d.lastName].filter(Boolean).join(' ') || d.name || '(no name)',
-          phone: d.phone || d.phoneNumber || '',
-          address: d.address || '',
-          when: d.createdAt && d.createdAt.toDate
-            ? d.createdAt.toDate().toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-            : '',
-          acked: !!d.ackEmailSentAt,
-        });
-      }
+    // One morning email (2026-10-04): when the 6:45 brief is live and absorbs
+    // this digest, the same rows reach Jo there instead. Code path kept.
+    if (await Absorb.briefAbsorbs(db)) {
+      logger.info('leadDigest: absorbed by the morning brief — skipping send');
+      return;
     }
+    const rows = await gatherDigestRows(db, Date.now());
 
     if (!rows.length) {
       logger.info('leadDigest: no leads in window — skipping send');
@@ -112,3 +130,7 @@ exports.dailyLeadDigest = onSchedule(
     }
   }
 );
+
+exports.gatherDigestRows = gatherDigestRows;
+exports.SOURCES = SOURCES;
+exports.DIGEST_EMAILS = DIGEST_EMAILS;

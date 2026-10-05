@@ -446,9 +446,14 @@ section('Photos Tier-1: analyzeRoofPhoto pins current Sonnet build');
   const src = read(path.join(FUNCTIONS, 'handlers/photo.js'));
   // §1.4 — bump off the May 2025 dated Sonnet. The handler builds the
   // Anthropic body inline (no allowlist gate), so this is isolated.
-  assert('analyzeRoofPhoto uses claude-sonnet-4-6',
-    /model:\s*'claude-sonnet-4-6'/.test(src),
-    'expected analyzeRoofPhoto to pin model: claude-sonnet-4-6');
+  // 2026-10-04: claude-sonnet-4-6 → claude-sonnet-5-5, thinking off.
+  assert('analyzeRoofPhoto uses claude-sonnet-5-5',
+    /const ROOF_ANALYSIS_MODEL = 'claude-sonnet-5-5'/.test(src) && /model:\s*ROOF_ANALYSIS_MODEL/.test(src),
+    'expected analyzeRoofPhoto to pin model: claude-sonnet-5-5');
+  assert('analyzeRoofPhoto turns Sonnet 5.5 thinking off (between_tools)',
+    /thinking:\s*\{\s*type:\s*'between_tools'\s*\}/.test(src));
+  assert('analyzeRoofPhoto no longer pins claude-sonnet-4-6',
+    !/'claude-sonnet-4-6'/.test(src));
   assert('analyzeRoofPhoto no longer pins claude-sonnet-4-20250514',
     !/'claude-sonnet-4-20250514'/.test(src),
     'expected the stale Sonnet pin to be gone from photo.js');
