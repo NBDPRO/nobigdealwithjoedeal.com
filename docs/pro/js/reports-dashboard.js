@@ -131,9 +131,20 @@
     // BOTH sent and signed within the window. (signedInWindow stays as-is for the
     // period revenue / avg-ticket figures above.)
     const signedOfSent = estsInWindow.filter(e => e.signedAt && inWindow(_toMillis(e.signedAt)));
-    const closeRate = estsInWindow.length
+    // Estimates signed ÷ estimates sent — an estimate-level ratio, kept for
+    // the funnel sub-line. NOT the close rate.
+    const estimateSignRate = estsInWindow.length
       ? signedOfSent.length / estsInWindow.length
       : 0;
+    // THE close rate (numbers-logic.js, 2026-10-04): leads DECIDED in the
+    // window, won ÷ (won + lost), won = won / in production / contract
+    // signed. Same function as the Home KPI card and the lead-source table.
+    // Nothing decided → null → "—" (it used to read 0%).
+    const N = window.NBDNumbers;
+    const cr = N && typeof N.rateBetween === 'function'
+      ? N.rateBetween(leads, start, end + 1)
+      : { won: 0, lost: 0, decided: 0, rate: null };
+    const closeRate = cr.rate;
 
     // Conversion funnel — uses lead.stage progression for in-window leads
     // plus their estimate state. Five stages of interest.
@@ -185,6 +196,9 @@
       revenue,
       avgTicket,
       closeRate,
+      closeWon: cr.won,
+      closeDecided: cr.decided,
+      estimateSignRate,
       funnel,
     };
   }
@@ -270,7 +284,9 @@
              'collected · ' + cur.paymentCount + ' payment' + (cur.paymentCount === 1 ? '' : 's') + (cur.signedCount ? ' · ' + _money(cur.signedValue) + ' signed' : '')) +
         tile('Avg ticket',  _money(cur.avgTicket),     _delta(cur.avgTicket, prev.avgTicket),   prev.avgTicket ? 'was ' + _money(prev.avgTicket) : '') +
         tile('Leads added', String(cur.leadCount),     _delta(cur.leadCount, prev.leadCount),   prev.leadCount + ' previous') +
-        tile('Close rate',  Math.round(cur.closeRate * 100) + '%', _delta(cur.closeRate, prev.closeRate), cur.signedCount + ' / ' + cur.estimateCount + ' sent') +
+        tile('Close rate',  cur.closeRate == null ? '—' : Math.round(cur.closeRate * 100) + '%',
+             (cur.closeRate == null || prev.closeRate == null) ? '' : _delta(cur.closeRate, prev.closeRate),
+             cur.closeDecided ? cur.closeWon + ' won / ' + cur.closeDecided + ' decided' : 'nothing won or lost in this period') +
       '</div>' +
 
       '<div style="background:var(--s, #13171d);border:1px solid var(--br, #2a2f35);border-radius:8px;padding:14px 16px;">' +

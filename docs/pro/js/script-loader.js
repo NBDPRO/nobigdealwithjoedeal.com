@@ -111,7 +111,7 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=4',
-      'js/expenses.js?v=8',
+      'js/expenses.js?v=9',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=3',
@@ -143,6 +143,12 @@
       'js/winback-logic.js?v=1',
       'css/winback-view.css?v=1',
       'js/winback.js?v=2'
+    ],
+    // Sunday business review (2026-10-04): the rules (numbers-logic.js) and
+    // the owner-only data reads (numbers-data.js) are eager on the page; this
+    // is just the view.
+    weekreview: [
+      'js/week-review.js?v=1'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -440,6 +446,7 @@
     money:       ['money'],
     signs:       ['mapvendor', 'signs'],
     winback:     ['winback'],
+    weekreview:  ['weekreview'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     calls:       ['callcenter'],
