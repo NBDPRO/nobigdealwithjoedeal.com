@@ -260,25 +260,48 @@
    * when either side has no job stamp — an unpaid one (a PAID invoice with
    * no job stamp is an earlier job's history). The deposit draft's filter
    * (functions/deposit-draft-logic.js). Oldest first.
+   *
+   * opts (2026-10-05) = { soleJob, since }: a PAID invoice with no job stamp
+   * — a deposit mirrored in from the Stripe dashboard (stripe-ledger-logic.js
+   * mirrorInvoice never knew the job) — IS this job's when the customer has
+   * exactly ONE job (soleJob: the caller read leads/{id}/jobs, see soleJobOf)
+   * AND it was made on or after this job's estimate (since = the estimate's
+   * createdAt), so an earlier roof's payment never credits this one. With two
+   * or more jobs, or no estimate date, it stays out as before: the final
+   * invoice then shows no credit for it (visible on the paper, the rep fixes
+   * it) — never a silent credit to the wrong job.
    */
-  function jobInvoicesOf(invoices, jobId) {
+  function jobInvoicesOf(invoices, jobId, opts) {
     const jid = _jbJobId(jobId);
+    const o = opts || {};
+    const sinceMs = _jbMs(o.since);
+    const adopt = !!jid && o.soleJob === true && sinceMs > 0;
     return (Array.isArray(invoices) ? invoices : []).filter(function (inv) {
       if (!inv || inv.deleted === true || inv.deletedAt) return false;
       const st = String(inv.status || '').toLowerCase();
       if (JOB_BILLING_DEAD[st]) return false;
       const ij = _jbJobId(inv.jobId);
       if (jid && ij) return ij === jid;
-      return st !== 'paid';
+      if (st !== 'paid') return true;
+      return adopt && !ij && _jbMs(inv.createdAt) >= sinceMs;
     }).sort(function (a, b) { return _jbMs(a.createdAt) - _jbMs(b.createdAt); });
+  }
+  /**
+   * soleJobOf(jobs, jobId) — true when leads/{id}/jobs (not deleted) holds
+   * exactly one job and it is jobId. Unread / empty / two or more → false.
+   */
+  function soleJobOf(jobs, jobId) {
+    const jid = _jbJobId(jobId);
+    const live = (Array.isArray(jobs) ? jobs : []).filter(function (j) { return j && j.deleted !== true; });
+    return !!jid && live.length === 1 && live[0].id === jid;
   }
   /** Live = still in play for its job: anything but paid (after jobInvoicesOf). */
   function isLiveInvoice(inv) {
     return !!inv && String(inv.status || '').toLowerCase() !== 'paid';
   }
   /**
-   * planJobInvoice(jobTotalCents, invoices, jobId) — what billing this job
-   * needs now.
+   * planJobInvoice(jobTotalCents, invoices, jobId, opts) — what billing this
+   * job needs now (opts: jobInvoicesOf's).
    *  → { action: 'open', invoiceId, reason: 'live_invoice' }
    *      a live invoice bills the whole job: use it (with no job total to
    *      compare, any live invoice for the job is the job's bill);
@@ -286,8 +309,8 @@
    *      earlier invoices already bill the whole job;
    *  | { action: 'create', credits: [{ invoiceId, label, cents, paid }], creditCents }
    */
-  function planJobInvoice(jobTotalCents, invoices, jobId) {
-    const mine = jobInvoicesOf(invoices, jobId);
+  function planJobInvoice(jobTotalCents, invoices, jobId, opts) {
+    const mine = jobInvoicesOf(invoices, jobId, opts);
     const totalC = Math.max(0, Math.round(Number(jobTotalCents) || 0));
     const covering = mine.filter(function (inv) {
       return isLiveInvoice(inv) && (totalC === 0 || _jbCents(inv.total) >= totalC);
@@ -337,5 +360,5 @@
 
 module.exports = {
   numFrom, buildRowItems, invoiceTotalsFromEstimate, resolveCustomerName, leadDisplayName,
-  jobInvoicesOf, isLiveInvoice, planJobInvoice, applyJobCredits,
+  jobInvoicesOf, soleJobOf, isLiveInvoice, planJobInvoice, applyJobCredits,
 };
