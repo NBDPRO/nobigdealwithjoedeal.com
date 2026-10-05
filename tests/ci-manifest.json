@@ -236,6 +236,7 @@
     "css-no-js-escapes-2026-10-03.test.js",
     "dashboard-boot-budget-2026-10-03.test.js",
     "ops-audit-2026-10-03.test.js",
+    "client-error-reporting-2026-10-04.test.js",
     "roof-rep-game-2026-10-03.test.js",
     "invoice-reminder-2026-10-01.test.js",
     "ky-pay-link-gate-2026-10-03.test.js",
