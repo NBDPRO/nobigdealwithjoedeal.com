@@ -63,3 +63,4 @@ phone-voice-memo.spec.js
 phone-bots-api.spec.js
 phone-production-flow.spec.js
 phone-field-photos.spec.js
+phone-esign-estimate.spec.js

@@ -4001,7 +4001,7 @@
   window.loadEstimates = loadEstimates;
 
   // B3: Live Firestore listener for estimates. Wire-once on auth.
-  // BoldSign webhooks land on the server, flip
+  // E-sign envelope events (functions/esign-io.js syncEstimate) flip
   // estimates/{id}.signatureStatus → the snapshot fires → UI rerenders.
   // Handles create + update + delete. Idempotent re-subscribe safe.
   let _estimatesUnsub = null;

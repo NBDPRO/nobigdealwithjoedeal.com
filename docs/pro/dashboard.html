@@ -1571,7 +1571,7 @@
                (Customer/Claim/Tier/County), W143 (per-SQ add-ons),
                W144 (supplements), so it now covers every workflow
                the Classic builder did, plus the 270-item catalog,
-               presets, county/tier selectors, BoldSign signing, and
+               presets, county/tier selectors, e-signing, and
                draft autosave. The drift risk noted in the April
                2026 estimate-engines audit is closed by promoting V2
                to default — every new estimate goes through the
@@ -5974,7 +5974,7 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=8"></script>
+<script defer src="js/dashboard-widgets.js?v=9"></script>
 <script defer src="js/dashboard-ui.js?v=11"></script>
 <script defer src="js/dashboard-actions.js?v=17"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
@@ -7078,7 +7078,7 @@
 <script defer src="js/inbound-sms-triage.js?v=1"></script>
 <script defer src="js/admin-manager.js?v=4"></script>
 <!-- Integrations client — exposes window.NBDIntegrations for HOVER,
-     BoldSign, Regrid, HailTrace, Cal.com. No-op when providers are
+     Regrid, HailTrace, Cal.com (e-sign is in-house since 2026-10-04). No-op when providers are
      not configured server-side. -->
 <script defer src="js/integrations-client.js?v=3"></script>
 <!-- Signed Storage URL helper — lets photo grids fetch images

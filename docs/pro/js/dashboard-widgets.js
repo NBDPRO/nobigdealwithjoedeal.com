@@ -171,7 +171,8 @@ function renderEstimatesList(ests) {
       : _isLoggedEstimate(e)
         ? '<span class="est-src-chip classic logged">LOGGED</span>'
         : '<span class="est-src-chip classic">CLASSIC</span>';
-    // Signature status — emitted by BoldSign webhook. Distinct colors
+    // Signature status — mirrored from the e-sign envelope (BoldSign's
+    // webhook wrote it until 2026-10-04; old estimates keep it). Distinct colors
     // so reps can eyeball the pipeline without clicking into each.
     let sigTag = '';
     if (e.signatureStatus === 'signed') {

@@ -1,8 +1,10 @@
 /**
  * integrations-client.js — thin client wrappers around the server
  * callable functions. Exposes window.NBDIntegrations so any view can
- * trigger a roof measurement (Instant Roofer by default), send an estimate for signature, look
- * up a parcel, or pull hail history.
+ * trigger a roof measurement (Instant Roofer by default), look up a parcel,
+ * or pull hail history. (E-signature left this file with BoldSign on
+ * 2026-10-04 — the estimate builder calls sendEstimateEnvelope itself; there
+ * is no vendor to gate on.)
  *
  * Every call:
  *   1. Lazy-imports the Firebase Functions SDK (reuses window._functions
@@ -13,7 +15,6 @@
  *
  * Public API:
  *   NBDIntegrations.requestMeasurement({ address, leadId })
- *   NBDIntegrations.sendForSignature({ estimateId, html, signerName, signerEmail, title })
  *   NBDIntegrations.lookupParcel(address)
  *   NBDIntegrations.getHailHistory(lat, lng, { radiusMi, daysBack })
  *   NBDIntegrations.status()       // forces reload of the status cache
@@ -108,20 +109,6 @@
     }
   }
 
-  async function sendForSignature({ estimateId, html, signerName, signerEmail, title }) {
-    await status();
-    if (!requireConfigured('boldsign', 'E-signature')) return { ok: false };
-    try {
-      const fn = await callable('sendEstimateForSignature');
-      const res = await fn({ estimateId, html, signerName, signerEmail, title });
-      toast('Contract sent for signature', 'success');
-      return { ok: true, ...res.data };
-    } catch (e) {
-      toast(e.message || 'Send-for-signature failed', 'error');
-      return { ok: false, error: e.message };
-    }
-  }
-
   async function lookupParcel(address) {
     await status();
     if (!requireConfigured('regrid', 'Parcel intel')) return { ok: false };
@@ -153,7 +140,6 @@
     __sentinel: 'nbd-int-v1',
     status,
     requestMeasurement,
-    sendForSignature,
     lookupParcel,
     getHailHistory
   };
