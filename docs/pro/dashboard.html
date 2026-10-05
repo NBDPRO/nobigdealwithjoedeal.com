@@ -1182,10 +1182,6 @@
             <div class="overlay-label"><div class="overlay-dot" style="background:var(--gold);"></div>Storm Activity</div>
             <div class="overlay-toggle" id="tog-storm" data-action="mapOverlay" data-target="storm" title="NOAA hail & wind data"></div>
           </div>
-          <div class="overlay-row">
-            <div class="overlay-label"><div class="overlay-dot" style="background:#34D399;"></div>Live Weather</div>
-            <div class="overlay-toggle" id="tog-weather" data-action="mapOverlay" data-target="weather" title="Current precipitation radar"></div>
-          </div>
         </div>
 
         <!-- TERRITORY ZONES -->
@@ -1270,7 +1266,6 @@
           <button class="map-fab" id="fab-jobs"    data-action="call" data-fn="fabToggle" data-arg="jobs" data-pass-el    title="Jobs"><span class="map-fab-icon">💰</span><span>Jobs</span></button>
           <button class="map-fab" id="fab-customers" data-action="call" data-fn="fabToggle" data-arg="customers" data-pass-el title="All Customers"><span class="map-fab-icon">🏠</span><span>Customers</span></button>
           <button class="map-fab" id="fab-storm"   data-action="call" data-fn="fabToggle" data-arg="storm" data-pass-el   title="Storm Radar"><span class="map-fab-icon">⛈</span><span>Storm</span></button>
-          <button class="map-fab" id="fab-weather" data-action="call" data-fn="fabToggle" data-arg="weather" data-pass-el title="Live Weather"><span class="map-fab-icon">🌧</span><span>Weather</span></button>
           <div class="map-fab-div"></div>
           <button class="map-fab" id="fab-zone" data-action="call" data-fn="startZoneDraw" title="Draw Territory"><span class="map-fab-icon">🗺</span><span>Zone</span></button>
           <button class="map-fab" data-action="call" data-fn="quickStormCheck" title="Storm check at my location"><span class="map-fab-icon">⚡</span><span>Storm Here</span></button>
@@ -6970,8 +6965,8 @@
      no Leaflet global defined, it executes cleanly (no top-level code
      calls into L.*), and neither maps-core.js nor maps-overlays.js
      references anything drawing-tool-specific. -->
-<script defer src="js/maps-core.js?v=8"></script>
-<script defer src="js/maps-overlays.js?v=8"></script>
+<script defer src="js/maps-core.js?v=9"></script>
+<script defer src="js/maps-overlays.js?v=9"></script>
 <script defer src="js/maps-customers.js?v=12"></script>
 <script defer src="js/maps.js?v=12"></script>
 <!-- Smart Calendar — Today's Schedule with travel-time + priority. Reads
