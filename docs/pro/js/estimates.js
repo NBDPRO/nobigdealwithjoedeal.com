@@ -29,6 +29,9 @@ if (!_NBD_CFG && typeof console !== 'undefined') {
   try { console.warn('[estimates.js] NBD_ESTIMATE_CONFIG missing — using inline fallbacks. Check that estimate-config.js loaded before estimates.js.'); } catch (_) {}
 }
 const TIER_RATES        = (_NBD_CFG && _NBD_CFG.TIER_RATES)         || { economy: 440, good: 550, better: 660, best: 770, beyond: 880 };
+// Every tier, cheapest first — the same five V2 prices (estimate-config.js
+// TIER_ORDER). Bug #6 (2026-10-05): this builder hard-coded good/better/best.
+const TIER_ORDER        = (_NBD_CFG && _NBD_CFG.TIER_ORDER)         || ['economy', 'good', 'better', 'best', 'beyond'];
 const JOB_MINIMUM_CENTS = (_NBD_CFG && _NBD_CFG.JOB_MINIMUM_CENTS)  || 250000; // $2,500
 const ROUND_TO_CENTS    = (_NBD_CFG && _NBD_CFG.ROUND_TO_CENTS)     || 2500;   // Nearest $25
 
@@ -318,7 +321,10 @@ function lookupPermitCost(city) {
 }
 
 // EBv2 price: flat per-SQ tier rate × squares + add-ons + tax.
-// Enforces the $2,500 job minimum and rounds to the nearest $25.
+// Rounds to the nearest $25, THEN enforces the $2,500 job minimum — the
+// same order as EstimateBuilderV2.calculatePerSq. (Bug #6, 2026-10-05:
+// flooring first let the rounding pull a non-$25 minimum back under
+// itself — a $2,510 minimum quoted $2,500.)
 // All intermediate math is in cents so we don't accrue float drift
 // before rounding. Tax is applied to (base + add-ons) then added.
 /** @deprecated Use EstimateBuilderV2.calculateEstimate — see docs/dev/estimate-engines-audit.md */
@@ -331,8 +337,7 @@ function calcEstimateTotalCents(sq, tier, addOns, opts) {
   const subtotalCents = baseCents + addOnsCents;
   const taxRate = opts.taxRate != null ? opts.taxRate : 0;
   const taxCents = Math.round(subtotalCents * taxRate);
-  const preRound = _applyJobMin(subtotalCents + taxCents);
-  return _roundNearest25(preRound);
+  return _applyJobMin(_roundNearest25(subtotalCents + taxCents));
 }
 
 /** @deprecated Use EstimateBuilderV2.calculateAllTiers — see docs/dev/estimate-engines-audit.md */
@@ -360,9 +365,8 @@ function calcTierPrices() {
   const taxRate = lookupTaxRate(county, mode);
   estData.mode = mode; estData.county = county; estData.taxRate = taxRate;
 
-  const goodCents   = calcEstimateTotalCents(sq, 'good',   addOns, { taxRate });
-  const betterCents = calcEstimateTotalCents(sq, 'better', addOns, { taxRate });
-  const bestCents   = calcEstimateTotalCents(sq, 'best',   addOns, { taxRate });
+  const tierCents = {};
+  TIER_ORDER.forEach((t) => { tierCents[t] = calcEstimateTotalCents(sq, t, addOns, { taxRate }); });
 
   // Capture pre-tax subtotal + tax amount for the selected tier so
   // buildReview() can render the tax line without recomputing.
@@ -377,21 +381,48 @@ function calcTierPrices() {
   estData.ridge = ridge; estData.eave = eave; estData.hip = hip; estData.pipes = pipes;
   estData.deckSq = deckSq; estData.iwsSq = iwsSq;
   estData.addOns = addOns;
-  estData.prices = {
-    good:   _fromCents(goodCents),
-    better: _fromCents(betterCents),
-    best:   _fromCents(bestCents)
-  };
+  estData.prices = {};
+  TIER_ORDER.forEach((t) => { estData.prices[t] = _fromCents(tierCents[t]); });
 
+  renderTierCards();
   const setPrice = (id, cents) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = '$' + _fromCents(cents).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   };
-  setPrice('price-good',   goodCents);
-  setPrice('price-better', betterCents);
-  setPrice('price-best',   bestCents);
+  TIER_ORDER.forEach((t) => setPrice('price-' + t, tierCents[t]));
 }
+
+// Step 3 package cards — one per tier in TIER_ORDER, built from
+// estimate-config.js (label, per-SQ rate, warranty blurb) so the HTML holds
+// no second copy of the tier ladder. Idempotent: builds once per grid; the
+// tier keys stay the internal economy…beyond keys selectTier() and the
+// saved estimate's `tier` field use (old 3-tier docs load unchanged).
+function renderTierCards() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const grid = document.getElementById('estTierGrid');
+  if (!grid || grid.getAttribute('data-tiers') === TIER_ORDER.join(',')) return;
+  const sel = (typeof selectedTier !== 'undefined') ? selectedTier : null;
+  const div = (cls, text) => { const d = document.createElement('div'); d.className = cls; d.textContent = text; return d; };
+  grid.textContent = '';
+  TIER_ORDER.forEach((t) => {
+    const card = div('tier-card' + (t === sel ? ' selected' : ''), '');
+    card.setAttribute('data-action', 'call');
+    card.setAttribute('data-fn', 'selectTier');
+    card.setAttribute('data-arg', t);
+    card.setAttribute('data-pass-el', '');
+    const blurb = (_NBD_CFG && typeof _NBD_CFG.tierWarrantyBlurb === 'function') ? _NBD_CFG.tierWarrantyBlurb(t) : '';
+    card.appendChild(div('tier-badge tier-' + t, t.charAt(0).toUpperCase() + t.slice(1)));
+    card.appendChild(div('tier-name', tierLabel(t)));
+    card.appendChild(div('tier-items', '$' + TIER_RATES[t] + '/SQ' + (blurb ? ' · ' + blurb : '')));
+    const price = div('tier-price', '—');
+    price.id = 'price-' + t;
+    card.appendChild(price);
+    grid.appendChild(card);
+  });
+  grid.setAttribute('data-tiers', TIER_ORDER.join(','));
+}
+try { renderTierCards(); } catch (_) {}
 
 function selectTier(tier,el) {
   document.querySelectorAll('.tier-card').forEach(c=>c.classList.remove('selected'));
@@ -460,7 +491,10 @@ function getInternalCostBasis() {
   const better = good + iwsSq * R.iws + pipes * R.pipe + hip * R.hip + deckSq * R.deck;
   const best = better + sq * R.deck + eave * R.gutter;
   const byTier = { good, better, best };
-  return byTier[tier] || better;
+  // Economy costs off the Good column, Beyond off Best (estimate-config.js
+  // PRODUCT_TIER) — the cost basis only has three material columns.
+  const costTier = (_NBD_CFG && typeof _NBD_CFG.productTier === 'function') ? _NBD_CFG.productTier(tier) : tier;
+  return byTier[costTier] || better;
 }
 
 function buildReview() {
@@ -1055,10 +1089,10 @@ function showEstimateTypeSelector() {
     badge: 'Classic — Tiers',
     badgeColor: '#60a5fa',
     name: 'Classic Builder',
-    desc: '4-step walkthrough with Good / Better / Best package tiers. Fast for standard reroofs.',
+    desc: '4-step walkthrough with five package tiers (Economy to Beyond). Fast for standard reroofs.',
     features: [
       '4-step wizard (Measure, Pitch, Package, Review)',
-      'Good / Better / Best pricing tiers',
+      'Economy / Good / Better / Best / Beyond pricing tiers',
       'Product library sync',
       'Quick Measure PDF import'
     ],

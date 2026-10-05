@@ -212,6 +212,13 @@
     return Array.isArray(window.NBD_JOB_TEMPLATES) ? window.NBD_JOB_TEMPLATES : [];
   }
 
+  // A template's minJobCharge as a number, or NaN when it is missing, blank
+  // or non-numeric (callers skip NaN — an invalid minimum is ignored).
+  function _templateMinOrNaN(v) {
+    if (v == null || typeof v === 'boolean' || String(v).trim() === '') return NaN;
+    return Number(v);
+  }
+
   function list() {
     const customs = loadCustoms();
     const usage = loadUsage();
@@ -954,8 +961,12 @@
       }
       // Floor: MAX across selected templates — merging a repair into a
       // full job must never lower the job's trip-charge floor.
-      if (tpl.minJobCharge != null) {
-        minJobCharge = Math.max(minJobCharge != null ? minJobCharge : 0, Number(tpl.minJobCharge));
+      // Only a real number counts (2026-10-05 bug #9): Number('abc') is NaN,
+      // Math.max(…, NaN) is NaN and `total < NaN` is false, so one bad
+      // template value used to drop EVERY valid floor in the selection.
+      const tplMin = _templateMinOrNaN(tpl.minJobCharge);
+      if (Number.isFinite(tplMin)) {
+        minJobCharge = Math.max(minJobCharge != null ? minJobCharge : 0, tplMin);
       }
 
       (tpl.items || []).forEach((item, i) => {
@@ -1557,8 +1568,12 @@
       if (tpl.measurements && typeof tpl.measurements === 'object') {
         measurements = Object.assign(measurements || {}, tpl.measurements);
       }
-      if (tpl.minJobCharge != null) {
-        minJobCharge = Math.max(minJobCharge != null ? minJobCharge : 0, Number(tpl.minJobCharge));
+      // Only a real number counts (2026-10-05 bug #9): Number('abc') is NaN,
+      // Math.max(…, NaN) is NaN and `total < NaN` is false, so one bad
+      // template value used to drop EVERY valid floor in the selection.
+      const tplMin = _templateMinOrNaN(tpl.minJobCharge);
+      if (Number.isFinite(tplMin)) {
+        minJobCharge = Math.max(minJobCharge != null ? minJobCharge : 0, tplMin);
       }
       (tpl.items || []).forEach((item, i) => {
         if (!item) return;

@@ -2474,7 +2474,12 @@
       county:           state.county,
       city:             state.county,   // permit lookup uses city or county
       mode:             state.jobMode,
-      tier:             state.tier
+      tier:             state.tier,
+      // The preset / job template's own floor wins over the per-SQ roof
+      // minimum (calculatePerSq precedence). null = none set → the engine
+      // uses the shop's per-SQ minimum. Before 2026-10-05 (bug #5) this was
+      // never sent, so a $500 preset still quoted the $2,500 roof floor.
+      minJobCharge:     state.minJobCharge
     };
   }
 
@@ -2817,6 +2822,11 @@
         estimate.subtotal = (Number(chosen.subtotal) || 0) + passThruSum;
         estimate.taxRate  = chosen.taxRate;
         estimate.tax      = chosen.tax;
+        // The chosen tier's floor, not the line-item basis's (2026-10-05
+        // bug #3): without these a floored per-SQ quote printed the floor gap
+        // as "Rounding" and the Internal View said "Min job applied: No".
+        estimate.minJobApplied = !!chosen.minJobApplied;
+        estimate.minJobCharge  = Number(chosen.minJobCharge) || 0;   // floor in force, like resolveEstimate
         // The deposit is stamped on the ALL-IN customer total at the end of
         // getCurrentEstimate (_stampDeposit → deposit-rule.js). This line used
         // to be its own "cash 50% / insurance 0%" copy (2026-09-25).

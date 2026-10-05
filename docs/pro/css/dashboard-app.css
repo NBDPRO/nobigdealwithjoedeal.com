@@ -2354,16 +2354,19 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .est-step.active .step-circle{border-color:var(--orange);background:var(--orange);color:var(--accent-fg);}
 .est-step.done .step-circle{border-color:var(--green);background:var(--green);color:var(--t);}
 .est-step.active .step-label,.est-step.done .step-label{color:var(--t);}
-.tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0;}
+/* Classic builder Step 3: five tier cards (economy…beyond) — wrap, never a fixed 3 columns. */
+.tier-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0;}
 @media (max-width:520px){ .tier-grid{ grid-template-columns:1fr; gap:10px; } }
 .tier-card{background:var(--s2);border:2px solid var(--br);border-radius:10px;padding:16px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;}
 .tier-card:hover{border-color:rgba(255,255,255,.2);}
 .tier-card.selected{border-color:var(--orange);background:color-mix(in srgb, var(--orange) 7%, transparent);}
 .tier-card.selected::before{content:'✓';position:absolute;top:8px;right:10px;color:var(--orange);font-weight:700;font-size:14px;}
 .tier-badge{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;padding:2px 8px;border-radius:12px;margin-bottom:8px;display:inline-block;}
+.tier-economy{background:rgba(107,114,128,.15);color:var(--m);}
 .tier-good{background:rgba(74,158,255,.15);color:var(--blue);}
 .tier-better{background:color-mix(in srgb, var(--orange) 15%, transparent);color:var(--orange);}
 .tier-best{background:rgba(46,204,138,.15);color:var(--green);}
+.tier-beyond{background:color-mix(in srgb, var(--purple) 15%, transparent);color:var(--purple);}
 .tier-name{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;margin-bottom:6px;}
 .tier-items{font-size:11px;color:var(--m);line-height:1.7;}
 .tier-price{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;color:var(--orange);margin-top:10px;}
