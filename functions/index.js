@@ -481,6 +481,11 @@ exports.onJobCalendarWrite      = googleCalendar.onJobCalendarWrite;
 exports.onYardSignCalendarWrite = googleCalendar.onYardSignCalendarWrite;
 exports.onKnockCalendarWrite    = googleCalendar.onKnockCalendarWrite;
 exports.googleCalendarReconcile = googleCalendar.googleCalendarReconcile;
+// Production flow (2026-10-04): CRM-booked appointments + material deliveries
+// → NBD Jobs; the weather.gov forecast for scheduled job days.
+exports.onLeadEventCalendarWrite = googleCalendar.onLeadEventCalendarWrite;
+exports.onOrderCalendarWrite     = googleCalendar.onOrderCalendarWrite;
+exports.getJobWeather            = require('./job-weather').getJobWeather;
 
 // Automated Firestore daily backup + retention. Needs a one-time bucket + IAM
 // setup documented in functions/firestore-backup.js. Both are scheduled-only.

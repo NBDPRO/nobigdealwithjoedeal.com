@@ -65,12 +65,12 @@ async function run() {
     const db = ctx.firestore();
     // Original fixture
     // §40 Stripe ledger rows (written only by the admin SDK in production).
-    // §49 Social Studio posts (companies/co-49/social_posts), one per state.
+    // §50 Social Studio posts (companies/co-49/social_posts), one per state.
     const P49 = (status, extra) => Object.assign({ companyId: 'co-49', createdBy: 'co-49', platform: 'facebook', kind: 'tip', caption: 'Clean gutters matter.', hashtags: ['#roofing'], media: [], status, scheduledAt: new Date('2026-11-01T14:00:00Z'), publish: { attempts: 0 } }, extra || {});
     for (const st of ['draft', 'approved', 'scheduled', 'ready', 'publishing', 'posted', 'failed']) {
       await setDoc(doc(db, 'companies/co-49/social_posts/p49-' + st), P49(st, st === 'posted' ? { postUrl: 'https://www.facebook.com/1' } : {}));
     }
-    // §49 Reel Studio: an AI-graphic tip draft, a reel draft, a reel + its media.
+    // §50 Reel Studio: an AI-graphic tip draft, a reel draft, a reel + its media.
     await setDoc(doc(db, 'companies/co-49/social_posts/p49-ai'), P49('draft', { aiGenerated: true, kind: 'tip', media: [{ key: 'd'.repeat(32), role: 'ai_image' }] }));
     await setDoc(doc(db, 'companies/co-49/social_posts/p49-reel'), P49('draft', { format: 'reel', reelId: 'r49', video: { key: 'a'.repeat(32) }, media: [{ key: 'a'.repeat(32), role: 'video' }], kind: 'job_showcase' }));
     await setDoc(doc(db, 'companies/co-49/reels/r49'), { companyId: 'co-49', status: 'rendered', privacy: { status: 'flagged' }, output: { key: 'a'.repeat(32) } });
@@ -2400,10 +2400,13 @@ async function run() {
     throw new Error('48 tasks: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
   }
 
-  // ─── 49. Social Studio — companies/{id}/social_posts + social_settings (2026-10-04) ───
-  // Owner + company_admin only. A client creates DRAFTS; only the
-  // socialApprovePost callable (admin SDK) approves; a content edit sends a
-  // post back to draft; server fields are frozen; 'publishing' is untouchable.
+  // ─── 49. Production flow 2026-10-04 ───
+  // (a) companies/{tenant}/subs — the sub roster: the tenant reads, the solo
+  //     owner / same-company staff write (shape-checked), viewers and
+  //     sales_reps don't, other tenants see nothing.
+  // (b) leads/{id}/jobs/{job}/orders — the lead's writers, owner + tenant
+  //     pinned to the lead, NO money keys; the collection-group read is the
+  //     caller's own rows only.
   const s49Fail = []; let s49Pass = 0;
   async function x49(label, want, promise) {
     try {
@@ -2411,72 +2414,121 @@ async function run() {
       s49Pass++;
     } catch (e) { s49Fail.push(label + ' (wanted ' + want + ')'); }
   }
-  const own49   = env.authenticatedContext('co-49',  { companyId: 'co-49' }).firestore();
-  const cadm49  = env.authenticatedContext('cadm49', { role: 'company_admin', companyId: 'co-49' }).firestore();
-  const rep49   = env.authenticatedContext('rep49',  { role: 'sales_rep', companyId: 'co-49' }).firestore();
-  const mgr49   = env.authenticatedContext('mgr49',  { role: 'manager', companyId: 'co-49' }).firestore();
-  const view49  = env.authenticatedContext('vw49',   { role: 'viewer', companyId: 'co-49' }).firestore();
-  const other49 = env.authenticatedContext('oth49',  { role: 'company_admin', companyId: 'co-other49' }).firestore();
-  const sp = (db, id) => doc(db, 'companies/co-49/social_posts/' + id);
-  const NEW49 = (extra) => Object.assign({ companyId: 'co-49', createdBy: 'co-49', platform: 'x', kind: 'tip', caption: 'Hi.', hashtags: [], media: [], status: 'draft' }, extra || {});
-  await x49('owner reads a post', 'allow', getDoc(sp(own49, 'p49-draft')));
-  await x49('company_admin reads a post', 'allow', getDoc(sp(cadm49, 'p49-draft')));
-  await x49('sales rep cannot read', 'deny', getDoc(sp(rep49, 'p49-draft')));
-  await x49('manager cannot read', 'deny', getDoc(sp(mgr49, 'p49-draft')));
-  await x49('viewer cannot read', 'deny', getDoc(sp(view49, 'p49-draft')));
-  await x49('another company cannot read', 'deny', getDoc(sp(other49, 'p49-draft')));
-  await x49('owner creates a draft', 'allow', setDoc(sp(own49, 'n49a'), NEW49()));
-  await x49('create as approved is refused', 'deny', setDoc(sp(own49, 'n49b'), NEW49({ status: 'approved' })));
-  await x49('create carrying approvedAt is refused', 'deny', setDoc(sp(own49, 'n49c'), NEW49({ approvedAt: new Date() })));
-  await x49('create for another company id is refused', 'deny', setDoc(sp(own49, 'n49d'), NEW49({ companyId: 'co-other49' })));
-  await x49('viewer cannot create', 'deny', setDoc(sp(view49, 'n49e'), NEW49({ createdBy: 'vw49' })));
-  await x49('draft → approved by a client is refused (approval is server-side)', 'deny', updateDoc(sp(own49, 'p49-draft'), { status: 'approved' }));
-  await x49('draft → scheduled by a client is refused', 'deny', updateDoc(sp(own49, 'p49-draft'), { status: 'scheduled' }));
-  await x49('edit a draft caption', 'allow', updateDoc(sp(own49, 'p49-draft'), { caption: 'Edited.' }));
-  await x49('editing an approved caption without going back to draft is refused', 'deny', updateDoc(sp(own49, 'p49-approved'), { caption: 'Sneaky edit.' }));
-  await x49('approved → scheduled with a time (reschedule)', 'allow', updateDoc(sp(own49, 'p49-approved'), { status: 'scheduled', scheduledAt: new Date('2026-11-02T14:00:00Z') }));
-  await x49('scheduled: move the time', 'allow', updateDoc(sp(cadm49, 'p49-scheduled'), { scheduledAt: new Date('2026-11-03T14:00:00Z') }));
-  await x49('client cannot write the publish claim', 'deny', updateDoc(sp(own49, 'p49-scheduled'), { publish: { attempts: 0, claimId: 'x' } }));
-  await x49('client cannot set platformPostId', 'deny', updateDoc(sp(own49, 'p49-scheduled'), { platformPostId: 'fake' }));
-  await x49('client cannot touch a publishing post', 'deny', updateDoc(sp(own49, 'p49-publishing'), { status: 'cancelled' }));
-  await x49('client cannot delete a publishing post', 'deny', deleteDoc(sp(own49, 'p49-publishing')));
-  await x49('ready → posted with a URL (manual queue)', 'allow', updateDoc(sp(own49, 'p49-ready'), { status: 'posted', postUrl: 'https://www.tiktok.com/@nbd/video/1' }));
-  await x49('mark posted without a URL is refused', 'deny', updateDoc(sp(own49, 'p49-failed'), { status: 'posted' }));
-  await x49('a posted post cannot go back to draft', 'deny', updateDoc(sp(own49, 'p49-posted'), { status: 'draft' }));
-  await x49('client cannot set failed', 'deny', updateDoc(sp(own49, 'p49-scheduled'), { status: 'failed' }));
-  await x49('failed → draft (edit and re-approve)', 'allow', updateDoc(sp(own49, 'p49-failed'), { status: 'draft', caption: 'Fixed.' }));
-  await x49('sales rep cannot write', 'deny', updateDoc(sp(rep49, 'p49-draft'), { caption: 'rep' }));
-  await x49('owner writes the switches', 'allow', setDoc(doc(own49, 'companies/co-49/social_settings/config'), { enabled: true, platforms: { facebook: true } }));
-  await x49('sales rep cannot flip the switches', 'deny', setDoc(doc(rep49, 'companies/co-49/social_settings/config'), { enabled: false }));
-  await x49('nobody reads the media index from a client', 'deny', getDoc(doc(own49, 'social_media/' + 'a'.repeat(32))));
-  // ─── 49b. Reel Studio (2026-10-04) — reels / reel_media server-only; reel + AI fields frozen ───
-  await x49('owner reads a reel', 'allow', getDoc(doc(own49, 'companies/co-49/reels/r49')));
-  await x49('company_admin reads reel media', 'allow', getDoc(doc(cadm49, 'companies/co-49/reel_media/m49')));
-  await x49('sales rep cannot read reels', 'deny', getDoc(doc(rep49, 'companies/co-49/reels/r49')));
-  await x49('another company cannot read reels', 'deny', getDoc(doc(other49, 'companies/co-49/reels/r49')));
-  await x49('owner cannot confirm privacy from the client (server-only)', 'deny', updateDoc(doc(own49, 'companies/co-49/reels/r49'), { 'privacy.status': 'confirmed' }));
-  await x49('owner cannot create a reel doc from the client', 'deny', setDoc(doc(own49, 'companies/co-49/reels/n49'), { status: 'rendered', privacy: { status: 'clear' } }));
-  await x49('owner cannot mark an upload ready from the client', 'deny', updateDoc(doc(own49, 'companies/co-49/reel_media/m49'), { status: 'ready', workPath: 'x' }));
-  await x49('client cannot bump the daily render counter', 'deny', setDoc(doc(own49, 'companies/co-49/reel_usage/2026-10-04'), { renders: 0 }));
-  // Review hardening (2026-10-04): UPDATE paths too — cross-tenant, rep, company_admin — and the Reel Studio switch.
-  await x49('another company cannot update a reel', 'deny', updateDoc(doc(other49, 'companies/co-49/reels/r49'), { 'privacy.status': 'confirmed' }));
-  await x49('company_admin cannot update a reel from the client', 'deny', updateDoc(doc(cadm49, 'companies/co-49/reels/r49'), { status: 'queued' }));
-  await x49('sales rep cannot update reel media', 'deny', updateDoc(doc(rep49, 'companies/co-49/reel_media/m49'), { aiGenerated: false }));
-  await x49('another company cannot read reel media', 'deny', getDoc(doc(other49, 'companies/co-49/reel_media/m49')));
-  await x49('owner turns Reel Studio on (social_settings.reels)', 'allow', setDoc(doc(own49, 'companies/co-49/social_settings/config'), { reels: true }, { merge: true }));
-  await x49('sales rep cannot turn Reel Studio on', 'deny', updateDoc(doc(rep49, 'companies/co-49/social_settings/config'), { reels: true }));
-  await x49('another company cannot turn Reel Studio on', 'deny', updateDoc(doc(other49, 'companies/co-49/social_settings/config'), { reels: true }));
-  await x49('create a post carrying aiGenerated is refused', 'deny', setDoc(sp(own49, 'n49x'), NEW49({ aiGenerated: true })));
-  await x49('create a post carrying reelId / video is refused', 'deny', setDoc(sp(own49, 'n49y'), NEW49({ reelId: 'r49', video: { key: 'a'.repeat(32) } })));
-  await x49('an AI post cannot be re-kinded into a job showcase', 'deny', updateDoc(sp(own49, 'p49-ai'), { kind: 'job_showcase' }));
-  await x49('an AI post cannot drop its aiGenerated tag', 'deny', updateDoc(sp(own49, 'p49-ai'), { aiGenerated: false }));
-  await x49('an AI tip draft can still be edited', 'allow', updateDoc(sp(own49, 'p49-ai'), { caption: 'Check your flashing.' }));
-  await x49('a reel post cannot swap its video', 'deny', updateDoc(sp(own49, 'p49-reel'), { video: { key: 'b'.repeat(32) } }));
-  await x49('a reel post cannot unlink its reel', 'deny', updateDoc(sp(own49, 'p49-reel'), { reelId: 'other' }));
-  await x49('a reel draft cannot be approved from the client', 'deny', updateDoc(sp(own49, 'p49-reel'), { status: 'scheduled', scheduledAt: new Date('2026-11-04T14:00:00Z') }));
-  console.log('  49: ' + s49Pass + ' social studio checks passed, ' + s49Fail.length + ' failed');
+  const solo49  = env.authenticatedContext('solo49', {}).firestore();
+  const other49 = env.authenticatedContext('other49', {}).firestore();
+  const staff49 = env.authenticatedContext('mgr49', { role: 'manager', companyId: 'co-49' }).firestore();
+  const rep49   = env.authenticatedContext('rep49', { role: 'sales_rep', companyId: 'co-49' }).firestore();
+  const view49  = env.authenticatedContext('view49', { role: 'viewer', companyId: 'co-49' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'companies/solo49/subs/s1'), { name: 'ZZ_QA Ridge Bros', trade: 'Roofing', active: true });
+    await setDoc(doc(db, 'leads/lead49'), { userId: 'solo49', companyId: 'solo49', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'leads/lead49/jobs/j1/orders/o1'), { userId: 'solo49', companyId: 'solo49', store: 'Home Depot', deliveryDate: '2026-10-09', status: 'ordered' });
+    await setDoc(doc(db, 'leads/lead49o/jobs/j1/orders/o1'), { userId: 'other49', companyId: 'other49', store: 'Home Depot', status: 'ordered' });
+  });
+  const SUB49 = { name: 'ZZ_QA Shingle Co', phone: '513-555-0149', trade: 'Roofing', insuranceExpiry: '2027-01-31', notes: '', active: true };
+  await x49('solo owner adds a sub to their own roster', 'allow', setDoc(doc(solo49, 'companies/solo49/subs/s2'), SUB49));
+  await x49('solo owner reads their roster', 'allow', getDoc(doc(solo49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot read it', 'deny', getDoc(doc(other49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot write it', 'deny', setDoc(doc(other49, 'companies/solo49/subs/s3'), SUB49));
+  await x49('a sub with no name is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s4'), Object.assign({}, SUB49, { name: '' })));
+  await x49('a garbage expiry is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s5'), Object.assign({}, SUB49, { insuranceExpiry: 'Jan 2027' })));
+  await x49('same-company manager writes the roster', 'allow', setDoc(doc(staff49, 'companies/co-49/subs/m1'), SUB49));
+  await x49('a sales_rep reads but cannot write', 'deny', setDoc(doc(rep49, 'companies/co-49/subs/r1'), SUB49));
+  await x49('...reads it', 'allow', getDoc(doc(rep49, 'companies/co-49/subs/m1')));
+  await x49('a viewer cannot write', 'deny', setDoc(doc(view49, 'companies/co-49/subs/v1'), SUB49));
+  const ORD49 = { userId: 'solo49', companyId: 'solo49', store: 'Gulf Eagle Supply', orderedDate: '2026-10-05', deliveryDate: '2026-10-08', status: 'ordered', items: [{ name: 'Shingles', qty: 84, unit: 'bundles' }] };
+  await x49('the lead owner adds a material order', 'allow', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o2'), ORD49));
+  await x49('an order carrying a cost key is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o3'), Object.assign({}, ORD49, { costCents: 410000 })));
+  await x49('an order whose owner is not the lead\'s is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o4'), Object.assign({}, ORD49, { userId: 'other49' })));
+  await x49('a bad status is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o5'), Object.assign({}, ORD49, { status: 'lost' })));
+  await x49('another tenant cannot write orders on the lead', 'deny', setDoc(doc(other49, 'leads/lead49/jobs/j1/orders/o6'), Object.assign({}, ORD49, { userId: 'other49', companyId: 'other49' })));
+  await x49('collection-group read of the owner\'s own orders', 'allow',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'solo49'))));
+  await x49('collection-group read of someone else\'s orders is refused', 'deny',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'other49'))));
+  console.log('  49: ' + s49Pass + ' production-flow checks passed, ' + s49Fail.length + ' failed');
   if (s49Fail.length) {
-    throw new Error('49 social studio: ' + s49Fail.length + ' check(s) went the wrong way:\n    ' + s49Fail.join('\n    '));
+    throw new Error('49 production flow: ' + s49Fail.length + ' check(s) went the wrong way:\n    ' + s49Fail.join('\n    '));
+  }
+
+  // ─── 50. Social Studio — companies/{id}/social_posts + social_settings (2026-10-04) ───
+  // Owner + company_admin only. A client creates DRAFTS; only the
+  // socialApprovePost callable (admin SDK) approves; a content edit sends a
+  // post back to draft; server fields are frozen; 'publishing' is untouchable.
+  const s50Fail = []; let s50Pass = 0;
+  async function x50(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s50Pass++;
+    } catch (e) { s50Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own50   = env.authenticatedContext('co-49',  { companyId: 'co-49' }).firestore();
+  const cadm50  = env.authenticatedContext('cadm50', { role: 'company_admin', companyId: 'co-49' }).firestore();
+  const rep50   = env.authenticatedContext('rep50',  { role: 'sales_rep', companyId: 'co-49' }).firestore();
+  const mgr50   = env.authenticatedContext('mgr50',  { role: 'manager', companyId: 'co-49' }).firestore();
+  const view50  = env.authenticatedContext('vw49',   { role: 'viewer', companyId: 'co-49' }).firestore();
+  const other50 = env.authenticatedContext('oth49',  { role: 'company_admin', companyId: 'co-other50' }).firestore();
+  const sp = (db, id) => doc(db, 'companies/co-49/social_posts/' + id);
+  const NEW50 = (extra) => Object.assign({ companyId: 'co-49', createdBy: 'co-49', platform: 'x', kind: 'tip', caption: 'Hi.', hashtags: [], media: [], status: 'draft' }, extra || {});
+  await x50('owner reads a post', 'allow', getDoc(sp(own50, 'p49-draft')));
+  await x50('company_admin reads a post', 'allow', getDoc(sp(cadm50, 'p49-draft')));
+  await x50('sales rep cannot read', 'deny', getDoc(sp(rep50, 'p49-draft')));
+  await x50('manager cannot read', 'deny', getDoc(sp(mgr50, 'p49-draft')));
+  await x50('viewer cannot read', 'deny', getDoc(sp(view50, 'p49-draft')));
+  await x50('another company cannot read', 'deny', getDoc(sp(other50, 'p49-draft')));
+  await x50('owner creates a draft', 'allow', setDoc(sp(own50, 'n49a'), NEW50()));
+  await x50('create as approved is refused', 'deny', setDoc(sp(own50, 'n49b'), NEW50({ status: 'approved' })));
+  await x50('create carrying approvedAt is refused', 'deny', setDoc(sp(own50, 'n49c'), NEW50({ approvedAt: new Date() })));
+  await x50('create for another company id is refused', 'deny', setDoc(sp(own50, 'n49d'), NEW50({ companyId: 'co-other50' })));
+  await x50('viewer cannot create', 'deny', setDoc(sp(view50, 'n49e'), NEW50({ createdBy: 'vw49' })));
+  await x50('draft → approved by a client is refused (approval is server-side)', 'deny', updateDoc(sp(own50, 'p49-draft'), { status: 'approved' }));
+  await x50('draft → scheduled by a client is refused', 'deny', updateDoc(sp(own50, 'p49-draft'), { status: 'scheduled' }));
+  await x50('edit a draft caption', 'allow', updateDoc(sp(own50, 'p49-draft'), { caption: 'Edited.' }));
+  await x50('editing an approved caption without going back to draft is refused', 'deny', updateDoc(sp(own50, 'p49-approved'), { caption: 'Sneaky edit.' }));
+  await x50('approved → scheduled with a time (reschedule)', 'allow', updateDoc(sp(own50, 'p49-approved'), { status: 'scheduled', scheduledAt: new Date('2026-11-02T14:00:00Z') }));
+  await x50('scheduled: move the time', 'allow', updateDoc(sp(cadm50, 'p49-scheduled'), { scheduledAt: new Date('2026-11-03T14:00:00Z') }));
+  await x50('client cannot write the publish claim', 'deny', updateDoc(sp(own50, 'p49-scheduled'), { publish: { attempts: 0, claimId: 'x' } }));
+  await x50('client cannot set platformPostId', 'deny', updateDoc(sp(own50, 'p49-scheduled'), { platformPostId: 'fake' }));
+  await x50('client cannot touch a publishing post', 'deny', updateDoc(sp(own50, 'p49-publishing'), { status: 'cancelled' }));
+  await x50('client cannot delete a publishing post', 'deny', deleteDoc(sp(own50, 'p49-publishing')));
+  await x50('ready → posted with a URL (manual queue)', 'allow', updateDoc(sp(own50, 'p49-ready'), { status: 'posted', postUrl: 'https://www.tiktok.com/@nbd/video/1' }));
+  await x50('mark posted without a URL is refused', 'deny', updateDoc(sp(own50, 'p49-failed'), { status: 'posted' }));
+  await x50('a posted post cannot go back to draft', 'deny', updateDoc(sp(own50, 'p49-posted'), { status: 'draft' }));
+  await x50('client cannot set failed', 'deny', updateDoc(sp(own50, 'p49-scheduled'), { status: 'failed' }));
+  await x50('failed → draft (edit and re-approve)', 'allow', updateDoc(sp(own50, 'p49-failed'), { status: 'draft', caption: 'Fixed.' }));
+  await x50('sales rep cannot write', 'deny', updateDoc(sp(rep50, 'p49-draft'), { caption: 'rep' }));
+  await x50('owner writes the switches', 'allow', setDoc(doc(own50, 'companies/co-49/social_settings/config'), { enabled: true, platforms: { facebook: true } }));
+  await x50('sales rep cannot flip the switches', 'deny', setDoc(doc(rep50, 'companies/co-49/social_settings/config'), { enabled: false }));
+  await x50('nobody reads the media index from a client', 'deny', getDoc(doc(own50, 'social_media/' + 'a'.repeat(32))));
+  // ─── 50b. Reel Studio (2026-10-04) — reels / reel_media server-only; reel + AI fields frozen ───
+  await x50('owner reads a reel', 'allow', getDoc(doc(own50, 'companies/co-49/reels/r49')));
+  await x50('company_admin reads reel media', 'allow', getDoc(doc(cadm50, 'companies/co-49/reel_media/m49')));
+  await x50('sales rep cannot read reels', 'deny', getDoc(doc(rep50, 'companies/co-49/reels/r49')));
+  await x50('another company cannot read reels', 'deny', getDoc(doc(other50, 'companies/co-49/reels/r49')));
+  await x50('owner cannot confirm privacy from the client (server-only)', 'deny', updateDoc(doc(own50, 'companies/co-49/reels/r49'), { 'privacy.status': 'confirmed' }));
+  await x50('owner cannot create a reel doc from the client', 'deny', setDoc(doc(own50, 'companies/co-49/reels/n49'), { status: 'rendered', privacy: { status: 'clear' } }));
+  await x50('owner cannot mark an upload ready from the client', 'deny', updateDoc(doc(own50, 'companies/co-49/reel_media/m49'), { status: 'ready', workPath: 'x' }));
+  await x50('client cannot bump the daily render counter', 'deny', setDoc(doc(own50, 'companies/co-49/reel_usage/2026-10-04'), { renders: 0 }));
+  // Review hardening (2026-10-04): UPDATE paths too — cross-tenant, rep, company_admin — and the Reel Studio switch.
+  await x50('another company cannot update a reel', 'deny', updateDoc(doc(other50, 'companies/co-49/reels/r49'), { 'privacy.status': 'confirmed' }));
+  await x50('company_admin cannot update a reel from the client', 'deny', updateDoc(doc(cadm50, 'companies/co-49/reels/r49'), { status: 'queued' }));
+  await x50('sales rep cannot update reel media', 'deny', updateDoc(doc(rep50, 'companies/co-49/reel_media/m49'), { aiGenerated: false }));
+  await x50('another company cannot read reel media', 'deny', getDoc(doc(other50, 'companies/co-49/reel_media/m49')));
+  await x50('owner turns Reel Studio on (social_settings.reels)', 'allow', setDoc(doc(own50, 'companies/co-49/social_settings/config'), { reels: true }, { merge: true }));
+  await x50('sales rep cannot turn Reel Studio on', 'deny', updateDoc(doc(rep50, 'companies/co-49/social_settings/config'), { reels: true }));
+  await x50('another company cannot turn Reel Studio on', 'deny', updateDoc(doc(other50, 'companies/co-49/social_settings/config'), { reels: true }));
+  await x50('create a post carrying aiGenerated is refused', 'deny', setDoc(sp(own50, 'n49x'), NEW50({ aiGenerated: true })));
+  await x50('create a post carrying reelId / video is refused', 'deny', setDoc(sp(own50, 'n49y'), NEW50({ reelId: 'r49', video: { key: 'a'.repeat(32) } })));
+  await x50('an AI post cannot be re-kinded into a job showcase', 'deny', updateDoc(sp(own50, 'p49-ai'), { kind: 'job_showcase' }));
+  await x50('an AI post cannot drop its aiGenerated tag', 'deny', updateDoc(sp(own50, 'p49-ai'), { aiGenerated: false }));
+  await x50('an AI tip draft can still be edited', 'allow', updateDoc(sp(own50, 'p49-ai'), { caption: 'Check your flashing.' }));
+  await x50('a reel post cannot swap its video', 'deny', updateDoc(sp(own50, 'p49-reel'), { video: { key: 'b'.repeat(32) } }));
+  await x50('a reel post cannot unlink its reel', 'deny', updateDoc(sp(own50, 'p49-reel'), { reelId: 'other' }));
+  await x50('a reel draft cannot be approved from the client', 'deny', updateDoc(sp(own50, 'p49-reel'), { status: 'scheduled', scheduledAt: new Date('2026-11-04T14:00:00Z') }));
+  console.log('  50: ' + s50Pass + ' social studio checks passed, ' + s50Fail.length + ' failed');
+  if (s50Fail.length) {
+    throw new Error('50 social studio: ' + s50Fail.length + ' check(s) went the wrong way:\n    ' + s50Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

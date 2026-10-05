@@ -181,6 +181,7 @@
     "claim-panel-logic-2026-09-30.test.js",
     "security-checklist-2026-10-01.test.js",
     "morning-brief-2026-10-01.test.js",
+    "production-flow-2026-10-04.test.js",
     "roof-3d-2026-10-02.test.js",
     "perf-watch-2026-10-02.test.js",
     "suggest-job-type-2026-10-01.test.js",
@@ -363,7 +364,8 @@
     "site-round2-2026-10-03.test.js",
     "security-batch-2026-10-03.test.js",
     "stage-actor-no-next-step-2026-10-03.test.js",
-    "boot-offline-reads-2026-10-04.test.js"
+    "boot-offline-reads-2026-10-04.test.js",
+    "no-conflict-markers-2026-10-04.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

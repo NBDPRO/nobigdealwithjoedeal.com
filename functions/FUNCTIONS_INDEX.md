@@ -62,17 +62,9 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `lookupParcel` | onCall | Parcel lookup w/ 90-day cache — Regrid (the Swath alternate was removed 2026-10-04) |
 | `requestMeasurement` | onCall | Roof measurement request — Instant Roofer (default: coordinates-in AI measure, synchronous; or `reportType:'human'` for the ~1 h certified report) — Hover / EagleView / Nearmap were removed 2026-10-04; `NBD_MEASUREMENT_PROVIDER=solar` (Google Solar API, `integrations/solar-measure.js`) or `auto` (Solar first, Instant Roofer fallback) since 2026-10-04; any other value fails loudly |
 | `sendEstimateForSignature` | onCall | BoldSign embedded-signing flow (was listed here as `sendForSignature` — actual export name is `sendEstimateForSignature`) |
-<<<<<<< HEAD
-| `getHailHistory` | onCall | Storm history within radius — NOAA (default) / HailTrace / Swath per `NBD_HAIL_PROVIDER`, NOAA fallback (routes through shared `lookupHail`) |
-| `getSwathReport` | onCall | Swath per-property exposure report — quote-first (`confirm:true` required to spend credits), **admin/company_admin gate in-body**, 30-day Firestore cache (integrations/swath.js) |
-| `getSwathUsage` | onCall | Swath month-to-date credit meter — **admin/company_admin gate in-body**, 10/hr limiter (integrations/swath.js) |
-| `transcribeVoiceMemo` | onCall | Voice memo transcription — Groq Whisper via the shared `transcribeGroqBuffer` (same key + helpers as `dictate`), `isAiDisabled` kill switch, 20/hr/uid; writes a `voice_memo` activity on the lead (customer timeline). Deepgram removed 2026-10-04 |
-| `dictate` | onCall | Whisper unified transcribe + AI cleanup |
-=======
 | `getHailHistory` | onCall | Storm history within radius — NOAA (default) / NCEI SWDI per `NBD_HAIL_PROVIDER`, NOAA fallback (routes through shared `lookupHail`); HailTrace + Swath removed 2026-10-04 |
-| `transcribeVoiceMemo` | onCall | Deepgram audio transcription — the card-detail "Voice Memo" button. `DEEPGRAM_API_KEY` is still the deploy stub, so it answers "not configured"; the last Deepgram consumer (dictate's fallback was removed 2026-10-04) |
+| `transcribeVoiceMemo` | onCall | Voice memo transcription — Groq Whisper via the shared `transcribeGroqBuffer` (same key + helpers as `dictate`), `isAiDisabled` kill switch, 20/hr/uid; writes a `voice_memo` activity on the lead (customer timeline). Deepgram removed 2026-10-04 |
 | `dictate` | onCall | Whisper unified transcribe + AI cleanup — Groq only (Deepgram fallback removed 2026-10-04) |
->>>>>>> origin/main
 | `renderPdf` | onCall | Server-side Puppeteer PDF render (warranty/inspection/estimate/etc.), 2GiB, minInstances:0 since 2026-09-05 — expect a ~10-20s Chromium cold start after an idle window |
 | `sendVerificationCode` | onCall | SMS OTP via Twilio Verify (per-phone attempt cap) |
 | `verifyCode` | onCall | Verifies a Twilio Verify OTP |
@@ -196,6 +188,7 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `reelToPosts` | onCall | requireSocialManager | Reel Studio — a rendered reel → Social Studio drafts (format `reel`), approval gated by the privacy check |
 | `reelAiImagePost` | onCall | requireSocialManager | Reel Studio — an uploaded AI graphic → tip / storm-season drafts tagged `aiGenerated` (never a job showcase) |
 | `getBusyTimes` | onCall | requireOwner | Google Calendar — merged busy blocks (NBD Jobs + Jo's main calendar) for the double-booking warning; ≤62-day window |
+| `getJobWeather` | onCall | requireOwner | Production flow (2026-10-04) — the free weather.gov forecast for the owner's jobs scheduled in the next 7 days (Plan Jobs badge); cached 2 h per ~1 km grid point in `weather_cache` (admin-only), identifying User-Agent; warns only (functions/job-weather.js) |
 | `reverifyCompanyKnocks` | onCall | `requireTeamAdmin` | D2D — re-geocodes/verifies the company's knock addresses (540s sweep) |
 | `convertUnmatchedSms` | onCall | `isOwnerCaller` or `role === 'admin'` | Turns an `unmatched_sms` triage row into a real lead + AI draft (handlers/inbound-sms-convert.js) |
 
@@ -248,6 +241,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `googleCalendarReconcile` | daily 05:45 ET | Google Calendar — makes "NBD Jobs" match the CRM (jobs + adjuster meetings from 30 days back; removes stale events). No-op until set up; kill switch `GOOGLE_CALENDAR_SYNC_DISABLED=true` |
 | `stripeLedgerReconcile` | daily 06:15 ET | Stripe ledger — re-ingests the last 4 days of Stripe activity so a missed webhook can never lose a payment (idempotent; kill switch `STRIPE_LEDGER_DISABLED=true`, also honoured by the webhook path) |
 | `onYardSignPickupDue` | daily 07:30 ET | Push: yard signs due for pickup today or overdue (one per rep, repeats daily until handled) |
+| `onAfterInstallDay` | daily 07:15 ET | Push: the morning after a job's last day, "Mark Install Done? Take After photos." — once per lead per last day (`push_markers` create() marker); jobs still in a production stage only (production flow, 2026-10-04) |
 | `migrationsTick` | every 24h | Idempotent versioned-migration runner tick |
 | `auditLogRetentionCron` | daily 03:30 | Prunes `audit_log` rows past retention (keys on `ts`) |
 | `recordingRetentionCron` | daily 05:00 | Prunes aged voice-intelligence recordings |
@@ -268,7 +262,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 
-## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 40 Firestore + 3 Storage
+## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 37 Firestore + 3 Storage
 | Export | Watches | Purpose |
 |---|---|---|
 | `reelIngestUpload` | Storage finalize (`reel-uploads/` only) | Reel Studio — refuses an object without a matching server-minted slot; transcodes the clip with ffmpeg-static to a normalized H.264/AAC intermediate (`reel-work/`) with ALL metadata + data streams stripped (GPS), or re-encodes a photo with sharp; always deletes the raw upload. 4 GiB / 4 vCPU / 540 s |
@@ -285,6 +279,8 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `onLeadCalendarWrite` | `leads/{leadId}` written | Google Calendar — updates that lead's "NBD Jobs" events (job + adjuster meeting) when a field the calendar shows changes; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onJobCalendarWrite` | `leads/{leadId}/jobs/{jobId}` written | Google Calendar — multi-job: a customer's OTHER (non-active) job gets its own "NBD Jobs" events, keyed per job, titled with the job; the active job's events stay the lead's; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onYardSignCalendarWrite` | `yardSigns/{signId}` written | Google Calendar — a yard sign's pickup reminder: one all-day FREE "🪧 Pick up yard sign" event on its New York pickup day (overdue → rolled to today by the nightly reconcile), removed on pickup / missing / remove; platform tenant only; no-op until set up (functions/google-calendar.js) |
+| `onLeadEventCalendarWrite` | `leads/{leadId}/tasks/{taskId}` written | Google Calendar — a CRM-booked appointment (type:'event', lead-events.js: Add Event, door-knock Appointment Set) → a timed BUSY "📅" event (Cal.com sees it busy); removed when deleted/cancelled; plain tasks ignored; platform tenant only (production flow, 2026-10-04) |
+| `onOrderCalendarWrite` | `leads/{leadId}/jobs/{jobId}/orders/{orderId}` written | Google Calendar — a material order's delivery day → an all-day FREE "🚚 Delivery" event, flagged when it lands after the job's start; cancelled → removed (production flow, 2026-10-04) |
 | `onKnockCalendarWrite` | `knocks/{knockId}` written | Google Calendar — D2D follow-ups that carry a time: the NEWEST knock at a door decides (Jo, 2026-09-30) — a 30-minute BUSY "📞 Follow up" event keyed per door, removed when the newest knock has no timed follow-up; spelling variants merged by the nightly reconcile; platform tenant only; no-op until set up (functions/google-calendar.js) |
 | `onClaimStageChange` | `leads/{leadId}` updated | Push notification on claim-stage transitions |
 | `onAiDraftApproved` | `leads/{leadId}/ai_drafts/{draftId}` updated | Sends approved AI-drafted SMS via Twilio (pending→approved transition only; idempotent) |

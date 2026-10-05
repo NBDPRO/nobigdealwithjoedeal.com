@@ -53,11 +53,11 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=8" as="script">
+<link rel="preload" href="js/crm-leads.js?v=9" as="script">
 <link rel="preload" href="js/crm-pipeline.js?v=16" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
 <link rel="preload" href="js/crm.js?v=35" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -204,6 +204,7 @@
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
 <link rel="stylesheet" href="css/google-calendar.css?v=7">
+<link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
 <link rel="stylesheet" href="css/estimate-send.css?v=1">
@@ -5089,6 +5090,12 @@
            30 days, each row saved on its own (2026-09-29). -->
       <div class="panel" id="schedPlanPanel" hidden>
         <div class="panel-hdr"><div><div class="panel-label">Fill in your month</div><div class="panel-title">Plan Jobs</div></div></div>
+        <!-- Production flow (2026-10-04, js/production.js): homeowner
+             reminders for tomorrow's installs (sent from Jo's phone, never
+             automatic) and the 7-day busy strip — Google busy, CRM jobs,
+             deliveries. -->
+        <div class="panel-body" id="schedTomorrow" hidden></div>
+        <div class="panel-body" id="schedBusyStrip" hidden></div>
         <div class="panel-body" id="schedPlanBody"></div>
       </div>
 
@@ -5575,7 +5582,10 @@
       <div style="font-size:10px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--green);margin-bottom:8px;font-weight:600;">Job Details</div>
       <div class="mrow">
         <div class="mfield"><label>Scheduled Date</label><input type="date" id="lScheduledDate"></div>
-        <div class="mfield"><label>Crew</label><input type="text" id="lCrew" placeholder="Crew name or lead installer"></div>
+        <!-- Sub picker (production flow, 2026-10-04): the company's roster of
+             independent subs (js/production.js fills it). Replaced the
+             free-text Crew box; an old crew name stays selectable. -->
+        <div class="mfield"><label for="lSubId">Sub</label><select id="lSubId"><option value="">— No sub yet —</option></select></div>
       </div>
       <!-- 2026-09-29 (calendar hub Phase 0): arrival window beside the date.
            Wired by js/schedule-window-ui.js (delegated, no inline handlers);
@@ -6856,7 +6866,7 @@
 <!-- Today (2026-10-03): the pure plan + THE follow-up rule (followUpDue) that
      crm-pipeline / crm-snooze / analytics-kpi read — before them. -->
 <script defer src="js/today-plan.js?v=1"></script>
-<script defer src="js/crm-leads.js?v=8"></script>
+<script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
 <script defer src="js/crm-pipeline.js?v=16"></script>
@@ -6867,7 +6877,7 @@
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=6"></script>
 <script defer src="js/push-actions.js?v=3"></script>
-<script defer src="js/crm-portal-bridge.js?v=7"></script>
+<script defer src="js/crm-portal-bridge.js?v=8"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
 <script defer src="js/sort-customers.js?v=2"></script>
@@ -6932,7 +6942,7 @@
 <script defer src="js/ui.js?v=9"></script>
 <script defer src="js/demo.js?v=4"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=4"></script>
+<script defer src="js/nbd-comms.js?v=5"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
@@ -6974,7 +6984,9 @@
 <script defer src="js/google-calendar-ui.js?v=6"></script>
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
 <script defer src="js/schedule-planner-logic.js?v=2"></script>
-<script defer src="js/schedule-planner.js?v=3"></script>
+<script defer src="js/production-logic.js?v=1"></script>
+<script defer src="js/production.js?v=1"></script>
+<script defer src="js/schedule-planner.js?v=4"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.

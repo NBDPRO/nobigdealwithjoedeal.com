@@ -1015,6 +1015,36 @@
       ]
     },
     {
+      "_comment": "CRM-booked appointments (production flow, 2026-10-04): onAppointmentReminder reads collectionGroup('tasks').where('eventAt','>=',now).where('eventAt','<=',+30min) — a range on ONE field across every lead's tasks (type:'event' docs from lead-events.js carry an ISO eventAt). A single-field COLLECTION_GROUP index serves it; COLLECTION asc/desc kept so default single-parent indexing is preserved. The emulator never enforces indexes — this entry is what makes it work in prod.",
+      "collectionGroup": "tasks",
+      "fieldPath": "eventAt",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "Material orders (production flow, 2026-10-04): the nightly googleCalendarReconcile and the Schedule view's busy strip read collectionGroup('orders').where('userId','==') (equality-only, paged on __name__). Single-field COLLECTION_GROUP index; COLLECTION asc/desc kept.",
+      "collectionGroup": "orders",
+      "fieldPath": "userId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "Material orders (production flow, 2026-10-04): same reads by tenant — collectionGroup('orders').where('companyId','==').",
+      "collectionGroup": "orders",
+      "fieldPath": "companyId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "_comment": "Offline SMS outbox (2026-09-18): sendSMS idempotency claims (sms_client_ids/{uid}_{clientMsgId}) carry expireAt = claim time + 8 days (sms-outbox-guard.js CLAIM_TTL_MS, one day past the 7-day queuedAt bound, so no replay can outlive its claim). TTL deletes them so the rep uid + homeowner phone key are not kept forever. indexes: [] = no single-field index on the TTL timestamp (nothing queries it; avoids a hot-spot index on a monotonically increasing field).",
       "collectionGroup": "sms_client_ids",
       "fieldPath": "expireAt",
