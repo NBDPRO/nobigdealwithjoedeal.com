@@ -161,7 +161,7 @@ function checkoutParams(args) {
       },
     }],
     metadata: meta,
-    subscription_data: { metadata: meta, description: PRODUCT_NAME + ' (' + (interval === 'year' ? 'yearly' : 'monthly') + ')' },
+    subscription_data: { metadata: meta },
     custom_text: { submit: { message: disclosureText(interval) } },
     success_url: base + '?careplan=joined&session_id={CHECKOUT_SESSION_ID}',
     cancel_url: base + '?careplan=cancelled',
