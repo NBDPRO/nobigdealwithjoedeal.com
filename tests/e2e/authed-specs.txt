@@ -69,3 +69,4 @@ phone-oaks-intake.spec.js
 social-studio.spec.js
 reel-studio.spec.js
 phone-numbers.spec.js
+doc-template-library.spec.js
