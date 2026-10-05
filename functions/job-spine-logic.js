@@ -213,9 +213,10 @@ function planJobEvent(lead, event) {
 // move lands on a WON stage unless the lead was already won with a close date.
 // Uses #2118's helper once it's on main, so the two can never drift.
 function _needsClosedAtLocal(lead, nextStage) {
-  if (stageRoles.roleFromKey(nextStage) !== stageRoles.ROLE.WON) return false;
+  const sale = (l) => { const r = stageRoles.roleFor(l); return r === stageRoles.ROLE.WON || r === stageRoles.ROLE.JOB || stageRoles.normKey(l._stageKey || l.stage) === 'contract_signed'; };
+  if (!sale({ stage: nextStage })) return false;
   if (!lead) return true;
-  return !lead.closedAt || stageRoles.roleFor(lead) !== stageRoles.ROLE.WON;
+  return !lead.closedAt || !sale(lead);
 }
 function needsClosedAt(lead, nextStage) {
   if (typeof stageRoles.needsClosedAt === 'function') return stageRoles.needsClosedAt(lead, nextStage);
@@ -446,10 +447,43 @@ function invoiceEvents(before, after) {
   return [];
 }
 
+// ── The sold package (2026-10-04, "knowing your numbers") ────────────────
+// Which of the five packages a job was sold on was nowhere on the lead: the
+// deal room kept acceptedTier, the estimate its selectedTier, and Reports
+// could not say what sells. At a signing event the spine records it once as
+// lead.soldTier — the homeowner's accepted pick first (this event's meta.tier
+// for deal_accepted, then lead.acceptedTier), else the primary estimate's
+// tier. Never overwrites a soldTier already set (a rep's manual pick on the
+// customer page wins). Pure; the caller stamps soldTierAt.
+const SOLD_TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
+const SOLD_TIER_EVENTS = ['contract_signed', 'deal_accepted'];
+function soldTierPatch(lead, event, meta, estimate) {
+  if (SOLD_TIER_EVENTS.indexOf(event) === -1 || !lead || isDeleted(lead)) return null;
+  if (SOLD_TIERS.indexOf(String(lead.soldTier || '').toLowerCase()) !== -1) return null;
+  const cands = [
+    [meta && meta.tier, 'deal_room'],
+    [lead.acceptedTier, 'deal_room'],
+    [estimate && estimate.deleted !== true ? (estimate.selectedTier || estimate.tier) : null, 'estimate'],
+  ];
+  for (let i = 0; i < cands.length; i++) {
+    const t = String(cands[i][0] || '').toLowerCase();
+    if (SOLD_TIERS.indexOf(t) !== -1) return { soldTier: t, soldTierSource: cands[i][1] };
+  }
+  return null;
+}
+// Does this event need the primary estimate read to decide? (Transaction
+// reads must come before writes, so the caller asks first.)
+function soldTierNeedsEstimate(lead, event, meta) {
+  if (SOLD_TIER_EVENTS.indexOf(event) === -1 || !lead || isDeleted(lead)) return false;
+  if (SOLD_TIERS.indexOf(String(lead.soldTier || '').toLowerCase()) !== -1) return false;
+  const pick = String((meta && meta.tier) || lead.acceptedTier || '').toLowerCase();
+  return SOLD_TIERS.indexOf(pick) === -1 && typeof lead.primaryEstimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(lead.primaryEstimateId);
+}
+
 module.exports = {
   EVENTS, EVENT_TABLE, EVENT_LABELS, JOB_TYPE_KEYS, STAGE_RANK, STAGE_LABELS, LEGACY_MAP, STAGE_ACTIONS,
-  FILED_FIELD_BY_DOC_TYPE,
+  FILED_FIELD_BY_DOC_TYPE, SOLD_TIERS,
   normalizeStageKey, jobTypeOf, isDeleted, planJobEvent, needsClosedAt, movePayload, stageLabel,
   actionsForStage, preferredActionFor, stageGetsTask, stageEntryTask, todayYmdEt, markerId, moveNoteText,
-  cleanMeta, envelopeIsContract, invoiceEvents, reviewTaskId, reviewRequestTask,
+  cleanMeta, envelopeIsContract, invoiceEvents, soldTierPatch, soldTierNeedsEstimate, reviewTaskId, reviewRequestTask,
 };

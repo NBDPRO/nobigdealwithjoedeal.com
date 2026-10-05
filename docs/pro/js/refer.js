@@ -51,6 +51,20 @@
   }
   show(form);
 
+  // Count the open for the owner's referral numbers (2026-10-04,
+  // functions/referral-clicks.js) — once per browser session, a counter only;
+  // the answer is always 204, so the page learns nothing about the code.
+  try {
+    const k = 'nbd_ref_open_' + ref;
+    if (!sessionStorage.getItem(k)) {
+      sessionStorage.setItem(k, '1');
+      fetch(FUNCTIONS_BASE + '/referralLinkOpened', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref: ref }), keepalive: true,
+      }).catch(function () {});
+    }
+  } catch (e) { /* storage blocked or offline: the open just is not counted */ }
+
   // show() on every message: the clear at the top of each submit sets an INLINE
   // display:none, which beats the .status.error { display:block } class — so
   // until 2026-09-28 every error on this page (missing name, bad phone, daily
