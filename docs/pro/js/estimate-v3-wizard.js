@@ -227,6 +227,14 @@
         '</div>' +
         '<div class="v3-label">Cash or insurance?</div>' +
       '</div>' +
+      // "Draw it" (2026-10-04): the measure step's way into the Draw tool for
+      // this address — the cross-check card there shows the Instant Roofer
+      // measure beside the drawing. The estimate draft autosaves, so leaving
+      // for the map loses nothing.
+      '<div data-v3="measure" class="v3-draw-it">' +
+        '<button type="button" class="v3-big v3-draw-btn" data-v3-act="draw-it">✏️ Draw it on the map</button>' +
+        '<div class="v3-draw-msg" aria-live="polite"></div>' +
+      '</div>' +
       '<div data-v3="package" class="v3-pkg"></div>' +
       '<div data-v3="scope repairType" class="v3-review-hint">Start from a preset — you can add or remove any item after.</div>' +
       // Photos are taken in the driveway, mid-estimate: shoot or pick them
@@ -292,6 +300,7 @@
       if (input) input.click();
       return;
     }
+    if (act === 'draw-it') return drawIt();
     if (act === 'jump-open') return openSheet();
     if (act === 'jump') { closeSheet(); ui.step = t.dataset.v3Val; return paint(true); }
     if (act === 'sheet-close') return closeSheet();
@@ -326,6 +335,31 @@
       if (btn) btn.click();
       paintPackage();
     }
+  }
+
+  // Hand the address (and lead) to the Draw tool. draw-measure-check.js
+  // reads the hand-off from sessionStorage, fills the address and binds its
+  // Instant Roofer cross-check card to this lead.
+  const DRAW_PREFILL_KEY = 'nbd_draw_prefill';
+  function drawIt() {
+    const addrEl = document.getElementById('v2custAddress');
+    const address = String((addrEl && addrEl.value) || '').trim();
+    const msg = $('.v3-draw-msg');
+    if (!address) {
+      if (msg) msg.textContent = 'Add the address on the Customer step first.';
+      return false;
+    }
+    const st = v2state();
+    const leadId = st.leadId || (st.customer && st.customer.leadId) || null;
+    try { sessionStorage.setItem(DRAW_PREFILL_KEY, JSON.stringify({ address: address.slice(0, 300), leadId: leadId })); } catch (_) {}
+    if (typeof window.goTo === 'function' && document.getElementById('view-draw')) {
+      const close = ui.modal && ui.modal.querySelector('.v2-close');
+      if (close) close.click();
+      window.goTo('draw');
+    } else {
+      window.location.href = '/pro/dashboard.html#/draw';
+    }
+    return true;
   }
 
   async function addPhotos(input) {
@@ -649,6 +683,9 @@
       '#estV2Modal .v3-photo-add .v3-big { width:100%; }',
       '#estV2Modal .v3-photo-add .v3-big:disabled { opacity:.5; cursor:default; }',
       '#estV2Modal .v3-photo-msg { font-size:14px; color:var(--t,#e8eaf0); margin-top:8px; min-height:1em; }',
+      '#estV2Modal .v3-draw-it { margin-bottom:14px; }',
+      '#estV2Modal .v3-draw-it .v3-big { width:100%; }',
+      '#estV2Modal .v3-draw-msg { font-size:14px; color:var(--t,#e8eaf0); margin-top:8px; min-height:1em; }',
       '#estV2Modal.v3-on #v2photosHint { font-size:14px !important; }',
       '#estV2Modal .v3-tier-price.v3-tier-pending { font-size:14px; font-weight:700; color:var(--m,#8b8e96); }',
       '#estV2Modal .v3-tier-note { font-size:13px; color:var(--m,#8b8e96); }',
