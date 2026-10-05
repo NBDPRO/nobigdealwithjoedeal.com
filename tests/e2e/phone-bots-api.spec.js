@@ -56,6 +56,16 @@ test.describe.serial('Bots & API — an owner connects their own bot @stranger',
     const name = 'E2E Bot ' + Date.now().toString(36);
     await page.locator('#abBotName').fill(name);
     await page.locator('#abBotRole').fill('Finds customers who went quiet');
+    // Opening the tab loads it more than once (deep link, goTo's tab timer,
+    // the hashchange re-entry), and a render that lands after the owner typed
+    // used to wipe the form — "Create bot" then stopped at "Give the bot a
+    // name" (this spec, red on main 2026-10-05). Force one more render now,
+    // deterministically, and the typing must survive it.
+    const reloaded = page.waitForResponse((r) => /\/listAgentKeys$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST', { timeout: 30_000 });
+    await page.evaluate(() => window.switchSettingsTab('bots'));
+    await reloaded;
+    await expect(page.locator('#abBotName')).toHaveValue(name);
+    await expect(page.locator('#abBotRole')).toHaveValue('Finds customers who went quiet');
     await page.locator('#abMkBot').click();
     const card = page.locator('.ab-bot', { hasText: name });
     await expect(card).toBeVisible({ timeout: 30_000 });
