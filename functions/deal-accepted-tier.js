@@ -28,6 +28,14 @@
  * field (deal tier prices, estimate grandTotal, lead jobValue), rounded to
  * cents.
  *
+ * 2026-10-05 (bug #10, Jo's call): writing the accepted price onto a tier-less
+ * estimate now RECOMPUTES ALL THREE — subtotal and tax for that tier's total,
+ * and the deposit re-run through deposit-rule.js on the new total — so every
+ * number on the estimate matches the tier picked (retierFields below). Before,
+ * only grandTotal moved: a $10,000 → $15,000 pick kept a $5,000 deposit and a
+ * $9,300 subtotal. Money already collected on the estimate is never rewritten:
+ * the deposit stays and acceptedTierDepositKept flags it for the rep.
+ *
  * Best-effort and never throws (like deal-install-date.js): the acceptance is
  * already committed. One transaction, so a rep edit landing at the same
  * moment is re-read rather than overwritten. No firebase import — the caller
@@ -37,9 +45,68 @@
 
 const TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 const cents = (n) => Math.round(Number(n) * 100) / 100;
+const DR = require('./deposit-rule');
+
+// ── retier block: byte-identical in functions/deal-accepted-tier.js and
+//    docs/pro/js/accepted-tier-chip.js (tests/deal-accepted-tier-2026-10-03 holds them equal) ──
+/**
+ * The homeowner's tier price → every money number on the estimate (Jo,
+ * 2026-10-05, bug #10): grandTotal, subtotal + tax, and the deposit.
+ *   Tax: a saved estimate stores subtotal / tax for its SELECTED tier only
+ *   (prices{} holds each tier's TOTAL), so the picked tier's tax is backed out
+ *   of its total at the estimate's own taxRate (else its tax / subtotal, else
+ *   0): tax = total x r / (1 + r), subtotal = total - tax. Insurance estimates
+ *   carry taxRate 0, so no tax.
+ *   Deposit: deposit-rule.js fromEstimate on the new total with the estimate's
+ *   own inputs (mode, claim deductible / ACV, address, a stored rep override)
+ *   and the lead (its deductible, claim signals, Kentucky address), so a
+ *   Kentucky insurance job stays $0 at signing.
+ *   Money already collected (opts.depositCollected) or no rule loaded: the
+ *   deposit and its plan stay as they were and acceptedTierDepositKept flags
+ *   it for the rep. A paid deposit is never silently rewritten.
+ * Cents inside; dollar fields out (the estimate's own units).
+ */
+function retierFields(est, price, opts) {
+  var e = est || {};
+  var o = opts || {};
+  var totalCents = Math.round(Number(price) * 100);
+  var rate = Number(e.taxRate);
+  if (e.taxRate == null || e.taxRate === '' || !isFinite(rate) || rate < 0) {
+    var st = Number(e.subtotal);
+    var tx = Number(e.tax != null ? e.tax : e.taxAmount);
+    rate = (st > 0 && isFinite(tx) && tx >= 0) ? tx / st : 0;
+  }
+  var taxCents = Math.round(totalCents * rate / (1 + rate));
+  var out = { grandTotal: totalCents / 100, subtotal: (totalCents - taxCents) / 100, tax: taxCents / 100 };
+  if (e.taxAmount != null) out.taxAmount = out.tax;
+  if (e.total != null) out.total = out.grandTotal;
+  var R = o.depositRule;
+  if (o.depositCollected || !R) {
+    out.acceptedTierDepositKept = true;
+  } else {
+    var plan = R.fromEstimate(e, { totalCents: totalCents, lead: o.lead || null });
+    out.deposit = plan.depositCents / 100;
+    out.depositPlan = R.toStored(plan);
+    out.acceptedTierDepositKept = false;
+  }
+  return out;
+}
+
+/** Has money been collected on this estimate? (the lead's invoices) */
+function depositCollected(invoices, estimateId) {
+  return (invoices || []).some(function (inv) {
+    if (!inv || inv.deleted === true) return false;
+    if (inv.estimateId && inv.estimateId !== estimateId) return false;
+    var st = String(inv.status || '').toLowerCase();
+    if (st === 'void' || st === 'voided' || st === 'cancelled' || st === 'canceled') return false;
+    return Number(inv.amountPaid) > 0 || inv.depositPaid === true || st === 'paid' || st === 'partial';
+  });
+}
+// ── end retier block ──
 
 /**
- * Pure decision.
+ * Pure decision. o.depositCollected (money already taken on the estimate)
+ * keeps the deposit; o.depositRule overrides deposit-rule.js (tests).
  * @returns {{ reason: string, lead: object|null, estimate: object|null }}
  *   the field updates for leads/{id} and estimates/{id} (null = no write)
  */
@@ -63,7 +130,9 @@ function planAcceptedTier(o) {
   // A template estimate that is not a roofing tier (tierApplies:false) has no
   // tier to fill — record only.
   if (!chosen && estimate.tierApplies !== false) {
-    const estUpd = Object.assign({}, stamp, { tier, selectedTier: tier, grandTotal: p, acceptedTierApplied: true });
+    // grandTotal + subtotal + tax + deposit for the picked tier (bug #10).
+    const estUpd = Object.assign({}, stamp, { tier, selectedTier: tier, acceptedTierApplied: true },
+      retierFields(estimate, p, { lead, depositRule: o.depositRule || DR, depositCollected: o.depositCollected === true }));
     const isPrimary = !lead.primaryEstimateId || lead.primaryEstimateId === estimateId;
     if (isPrimary) {
       leadUpd.jobValue = p;
@@ -76,7 +145,7 @@ function planAcceptedTier(o) {
 }
 
 /**
- * @param {object} db    Firestore (admin): doc() + runTransaction()
+ * @param {object} db    Firestore (admin): doc() + collection() + runTransaction()
  * @param {object} info  { dealId, leadId, ownerUid } from the accept token
  * @param {string} tier  accepted tier key
  * @param {number} price accepted price (dollars, the server snapshot)
@@ -100,8 +169,16 @@ async function applyAcceptedTier(db, info, tier, price, deps) {
       let estimate = null;
       const estRef = estimateId ? db.doc('estimates/' + estimateId) : null;
       if (estRef) { const s = await tx.get(estRef); estimate = s.exists ? s.data() : null; }
+      // Money already taken on this estimate (a paid / part-paid invoice for
+      // the lead) → the deposit is kept, never rewritten (bug #10).
+      let invoices = [];
+      if (estimate) {
+        const q = await tx.get(db.collection('invoices').where('leadId', '==', info.leadId));
+        invoices = (q && q.docs ? q.docs : []).map((x) => x.data());
+      }
       const at = now();
-      const plan = planAcceptedTier({ lead, estimate, estimateId, leadId: info.leadId, ownerUid: info.ownerUid, tier, price, dealId: info.dealId, now: at });
+      const plan = planAcceptedTier({ lead, estimate, estimateId, leadId: info.leadId, ownerUid: info.ownerUid, tier, price, dealId: info.dealId, now: at,
+        depositCollected: depositCollected(invoices, estimateId) });
       if (plan.estimate && estRef) tx.update(estRef, Object.assign({}, plan.estimate, { updatedAt: at }));
       if (plan.lead) tx.update(leadRef, Object.assign({}, plan.lead, { updatedAt: at }));
       if (d.logger) d.logger.info('[deal-accepted-tier]', { leadId: info.leadId, estimateId, reason: plan.reason });
@@ -113,4 +190,4 @@ async function applyAcceptedTier(db, info, tier, price, deps) {
   }
 }
 
-module.exports = { planAcceptedTier, applyAcceptedTier, TIERS };
+module.exports = { planAcceptedTier, applyAcceptedTier, retierFields, depositCollected, TIERS };
