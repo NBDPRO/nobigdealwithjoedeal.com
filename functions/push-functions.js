@@ -404,6 +404,60 @@ exports.onAppointmentReminder = onSchedule(
         );
       });
 
+      // CRM-booked appointments (production flow, 2026-10-04): Add Event and
+      // the door-knock "Appointment Set" write leads/{id}/tasks with
+      // type:'event' and an ISO eventAt (lead-events.js) — this reminder only
+      // ever read the Cal.com /appointments collection, so an appointment Jo
+      // booked in the CRM never pinged him. A range on the single field
+      // eventAt across every lead's tasks needs the COLLECTION_GROUP index
+      // declared in firestore.indexes.json (fieldOverrides tasks.eventAt).
+      // Its own try: a failure here never costs the Cal.com reminders above.
+      // Same cross-tick marker (reminderSentAt), set on the task doc.
+      try {
+        const evSnap = await db.collectionGroup('tasks')
+          .where('eventAt', '>=', now.toISOString())
+          .where('eventAt', '<=', in30min.toISOString())
+          .get();
+        const evSends = [];
+        evSnap.forEach((taskDoc) => {
+          const t = taskDoc.data() || {};
+          if (t.type !== 'event' || t.done === true || t.deleted === true || t.cancelled === true || t.reminderSentAt) return;
+          const uid = t.userId;
+          if (!uid) return;
+          const dedupeKey = `${uid}|evt-${taskDoc.id}`;
+          if (recentlySentSet.has(dedupeKey)) return;
+          recentlySentSet.add(dedupeKey);
+          const leadRef = taskDoc.ref && taskDoc.ref.parent && taskDoc.ref.parent.parent;
+          evSends.push((async () => {
+            const enabled = await isNotificationEnabled(uid, 'appointmentReminder');
+            if (!enabled) return;
+            await taskDoc.ref.update({ reminderSentAt: FieldValue.serverTimestamp() }).catch(() => {});
+            let lead = {};
+            try { const ls = leadRef ? await leadRef.get() : null; lead = (ls && ls.exists && ls.data()) || {}; } catch (_) { lead = {}; }
+            if (lead.deleted === true) return;
+            const name = `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
+            const what = String(t.title || t.text || 'Appointment');
+            const who = what + (name && what.indexOf(name) === -1 ? ' — ' + name : '');
+            const startMs = Date.parse(t.eventAt);
+            const mins = isFinite(startMs) ? Math.max(1, Math.round((startMs - now.getTime()) / 60000)) : 30;
+            const leadId = leadRef ? leadRef.id : '';
+            await sendPushNotification(uid, 'Appointment Reminder',
+              `${who} starts in ${mins} minute${mins === 1 ? '' : 's'}`, {
+                type: 'appointmentReminder',
+                appointmentId: 'evt-' + taskDoc.id,
+                appointmentTitle: what,
+                clickUrl: leadId ? `/pro/customer.html?id=${encodeURIComponent(leadId)}` : '/pro/dashboard',
+                notificationId: `appt-evt-${taskDoc.id}`,
+                requireInteraction: 'true'
+              });
+            await logNotificationSent(uid, 'appointmentReminder', { appointmentId: 'evt-' + taskDoc.id, leadId });
+          })());
+        });
+        await Promise.allSettled(evSends);
+      } catch (evErr) {
+        logger.warn('[Push] CRM event reminder check failed:', evErr && evErr.message);
+      }
+
       await Promise.allSettled(sendPromises);
       logger.info('[Push] Appointment reminder check complete');
 
@@ -626,6 +680,60 @@ exports.onYardSignPickupDue = onSchedule(
 );
 
 /**
+ * TRIGGER: Daily 7:15 AM ET (production flow, 2026-10-04)
+ * ACTION: The morning after a job's LAST day, push its rep
+ *         "Mark Install Done? Take After photos."
+ *
+ * The audit behind it: 30 finished jobs, 0 After photos. Nothing reminded
+ * anyone the day after the roof went on. A lead qualifies while it is still
+ * in a production stage (sold, not marked done) and its last job day
+ * (scheduledEndDate, else scheduledDate) was yesterday in New York
+ * (production-flow-logic.afterInstallDue). `stage in [...]` is a single-field
+ * query (automatic index). One push per lead per last day: the marker
+ * push_markers/afterInstall_<leadId>_<day> is create()d first (admin-only
+ * collection), so a retry or an overlapping run never pushes twice.
+ */
+exports.onAfterInstallDay = onSchedule(
+  { schedule: 'every day 07:15', timeZone: FOLLOWUP_TZ },
+  async () => {
+    const PF = require('./production-flow-logic');
+    const todayEt = etYmd(new Date());
+    try {
+      const snap = await db.collection('leads').where('stage', 'in', PF.JOB_STAGES).get();
+      const sends = [];
+      snap.forEach((doc) => {
+        const lead = doc.data() || {};
+        if (!PF.afterInstallDue(lead, todayEt)) return;
+        const uid = lead.userId;
+        if (!uid) return;
+        const lastDay = PF.lastJobDay(lead);
+        sends.push((async () => {
+          const enabled = await isNotificationEnabled(uid, 'appointmentReminder');
+          if (!enabled) return;
+          try {
+            await db.collection('push_markers').doc(`afterInstall_${doc.id}_${lastDay}`)
+              .create({ leadId: doc.id, userId: uid, lastDay, createdAt: FieldValue.serverTimestamp() });
+          } catch (_) { return; }                 // already pushed for this job day
+          const name = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.address || 'Yesterday\'s job';
+          await sendPushNotification(uid, '✅ Mark Install Done?',
+            `${name} — Mark Install Done? Take After photos.`, {
+              type: 'afterInstall',
+              leadId: doc.id,
+              clickUrl: `/pro/customer.html?id=${encodeURIComponent(doc.id)}#production`,
+              notificationId: `after-install-${doc.id}-${lastDay}`,
+            });
+          await logNotificationSent(uid, 'afterInstall', { leadId: doc.id, lastDay });
+        })());
+      });
+      await Promise.allSettled(sends);
+      logger.info('[Push] After-install check complete', { candidates: snap.size, pushed: sends.length });
+    } catch (err) {
+      logger.error('[Push] Error checking finished installs:', err);
+    }
+  }
+);
+
+/**
  * TRIGGER: Claim stage changes
  * ACTION: Send notification to rep about stage update
  */
@@ -775,6 +883,7 @@ module.exports = {
   onAppointmentReminder: exports.onAppointmentReminder,
   onFollowUpDue: exports.onFollowUpDue,
   onYardSignPickupDue: exports.onYardSignPickupDue,
+  onAfterInstallDay: exports.onAfterInstallDay,
   onClaimStageChange: exports.onClaimStageChange,
   sendTeamNotification: exports.sendTeamNotification,
   sendStreakNotification: exports.sendStreakNotification,
