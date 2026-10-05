@@ -653,6 +653,10 @@ const tierBlock = (v2.match(/tierList = \[\s*buildTier\('economy'[\s\S]*?\]\.fil
 const cardOf = (k) => tierBlock.split("buildTier('").filter((c) => c.indexOf(k + "'") === 0).join('');
 ok('V2 tier cards: Standard/Preferred/Elite add the System Plus bullet', INCL.every((k) => /\.concat\(_sp/.test(cardOf(k))), INCL.map((k) => cardOf(k).length).join());
 ok('V2 tier cards: Economy/Beyond never get it', EXCL.every((k) => cardOf(k) && !/_sp|System Plus/.test(cardOf(k))));
+// Jo, 2026-10-05: Standard's shingle is GAF (System Plus needs GAF shingles).
+// GAF Timberline HD is what the CRM already prices for the Good tier
+// (jt_fr_asphalt_good default RFG 240-GAF-HD); text only, no price moved.
+ok('V2 Standard card names the GAF shingle, never Owens Corning', /'GAF Timberline HD or equivalent'/.test(cardOf('good')) && !/Owens Corning|Oakridge/.test(cardOf('good')), cardOf('good').slice(0, 120));
 ok('V2 System Plus bullet text + platform-tenant gate', /const _sp = \(!_trSp \|\| typeof _trSp\.isPlatformTenant !== 'function' \|\| _trSp\.isPlatformTenant\(\)\)\s*\?\s*\['GAF System Plus warranty included/.test(v2));
 ok('V2 Elite card no longer says "Full system warranty by GAF" (it was Elite-only)', !/Full system warranty by GAF/.test(v2));
 

@@ -3890,7 +3890,7 @@
         buildTier('economy', _v2TierLabel('economy'), 'Economy-grade architectural shingle · standard install',
           ['Economy-grade architectural shingle (never a 3-tab)', 'Standard ridge vent + flashing', 'Labor warranty: 1 year', "Shingle manufacturer's standard limited warranty — no system warranty", 'Full tear-off included']),
         buildTier('good',   _v2TierLabel('good'),   '25-yr architectural shingle · standard install',
-          ['Owens Corning Oakridge or equivalent', 'Standard ridge vent + flashing', 'Labor warranty: Lifetime (non-transferable)'].concat(_sp, ['Full tear-off included'])),
+          ['GAF Timberline HD or equivalent', 'Standard ridge vent + flashing', 'Labor warranty: Lifetime (non-transferable)'].concat(_sp, ['Full tear-off included'])),
         buildTier('better', _v2TierLabel('better'), '30-yr architectural · upgraded underlayment',
           ['GAF Timberline HDZ or equivalent', 'Synthetic underlayment upgrade', 'Ice & water shield on eaves + valleys', 'Labor warranty: Lifetime (transferable to 1 subsequent owner)'].concat(_sp, ['Full tear-off included'])),
         buildTier('best',   _v2TierLabel('best'),   'Lifetime designer · premium system',
