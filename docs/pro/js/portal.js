@@ -27,6 +27,14 @@
     const s = String(u == null ? '' : u).trim();
     return /^https?:\/\//i.test(s) ? s : '';
   };
+  // The signing link must be OUR signing page with a token, nothing else —
+  // the same origin pin the old BoldSign embed carried (Wave 87): the server
+  // hands this back and the page links it, so a wrong origin would send the
+  // homeowner somewhere we never meant to.
+  const signLink = (u) => {
+    const s = String(u == null ? '' : u).trim();
+    return /^https:\/\/nobigdealwithjoedeal\.com\/pro\/esign\.html\?t=[A-Za-z0-9]{10,64}$/.test(s) ? s : '';
+  };
 
   // Whole dollars as before; cents when the amount has them. Review of #1763
   // (2026-09-25): an upgraded estimate's total carries exact upgrade tax, so
@@ -83,26 +91,9 @@
   const POLL_INTERVAL_MS = 30_000;
   let _lastView = null;
 
-  // ── Signature-safe repaint ──
-  // A repaint recreates the BoldSign iframe and destroys whatever the
-  // homeowner had typed or drawn inside it. Defer while a signature is
-  // actually in flight — but bounded, because an unbounded defer would
-  // reintroduce the stale "Review & sign" card this poll exists to prevent.
-  // ~10 minutes at the 30s interval, which is longer than signing takes.
-  const MAX_SIGN_DEFERRALS = 20;
-  let _signDeferrals = 0;
-  let _signDeferAnnounced = false;
-
-  // True only when a signing embed is mounted AND the incoming view still
-  // wants one. Both halves matter: the status alone would defer on a page
-  // that never rendered an iframe (no signEmbedUrl), and the iframe alone
-  // would keep deferring after the contract was signed in another tab.
-  function _signatureInFlight(nextView) {
-    const est = nextView && nextView.estimate;
-    const status = est && est.signatureStatus;
-    if (status !== 'sent' && status !== 'viewed') return false;
-    return !!document.querySelector('iframe[title="Sign Contract"]');
-  }
+  // (2026-10-04) The signature-safe repaint deferral is gone with BoldSign:
+  // signing happens on its own page (esign.html), not in an iframe here, so a
+  // repaint has nothing in flight to destroy.
   let _pollTimer = null;
   let _pollInflight = false;
 
@@ -375,23 +366,6 @@
       if (!res.ok) return; // transient failure — try again on next tick
       const view = await res.json();
       const events = _diffView(_lastView, view);
-
-      // Do not wipe a signature in progress. _lastView is deliberately NOT
-      // advanced here, so the change stays pending and lands the moment the
-      // signing session ends rather than being silently dropped.
-      if (events && _signatureInFlight(view) && _signDeferrals < MAX_SIGN_DEFERRALS) {
-        _signDeferrals++;
-        // Announce once per deferral streak, not once per tick — the diff is
-        // recomputed against the same stale _lastView every 30s and would
-        // otherwise re-banner the same news repeatedly.
-        if (!_signDeferAnnounced) {
-          _showUpdateBanner(events);
-          _signDeferAnnounced = true;
-        }
-        return;
-      }
-      _signDeferrals = 0;
-      _signDeferAnnounced = false;
 
       _lastView = view;
       if (events) {
@@ -975,21 +949,23 @@
       );
     }
 
-    // ── B1: BoldSign signing embed ──
-    // When the estimate is awaiting signature AND the server was
-    // able to mint a signEmbedUrl, render the iframe so the
-    // homeowner can sign without leaving the page.
-    const signEmbedUrl = view.estimate && view.estimate.signEmbedUrl;
-    if (awaitingSign && signEmbedUrl) {
+    // ── Sign your contract (in-house e-sign, 2026-10-04) ──
+    // While the estimate awaits the homeowner's signature the server returns
+    // the live single-use signing link (functions/portal.js — the same link
+    // their email carries). It opens the signing page; there is no
+    // third-party iframe any more (BoldSign's embed never had a key, so this
+    // card only ever said "Check your email").
+    const signUrl = signLink(view.estimate && view.estimate.signUrl);
+    if (awaitingSign && signUrl) {
       parts.push(
         '<div class="card" style="border-color:var(--orange);">' +
           '<div class="card-label">Sign Your Contract</div>' +
-          '<div class="card-title">Review &amp; sign below</div>' +
-          '<p style="color:var(--muted);margin:0 0 14px;">Once signed, your rep gets a confirmation and we\'ll coordinate next steps.</p>' +
-          '<iframe class="cal-embed" src="' + esc(signEmbedUrl) + '" title="Sign Contract" referrerpolicy="no-referrer" allow="clipboard-write *"></iframe>' +
+          '<div class="card-title">Ready for your signature</div>' +
+          '<p style="color:var(--muted);margin:0 0 14px;">Review it on your phone and sign in about a minute. Once signed, you get a copy by email and your rep gets a confirmation.</p>' +
+          '<a id="portalSignLink" class="btn" href="' + esc(signUrl) + '" target="_blank" rel="noopener">Review &amp; sign →</a>' +
         '</div>'
       );
-    } else if (awaitingSign && !signEmbedUrl) {
+    } else if (awaitingSign && !signUrl) {
       // Awaiting but no embed — fall back to the emailed link.
       parts.push(
         '<div class="card" style="border-color:var(--orange);">' +

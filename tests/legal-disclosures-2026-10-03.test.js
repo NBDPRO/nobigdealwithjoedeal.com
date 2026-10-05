@@ -64,8 +64,11 @@ console.log('1. privacy policy — vendors the code uses');
     /xAI's Grok/.test(text) && /phone numbers, email addresses, and insurance claim and policy numbers are never provided/.test(text)
     && /cannot send messages/.test(text));
 
-  // Bumped 2026-10-04 for the A2P 10DLC text-message terms (section 6 below).
-  ok('"Last Updated" is October 4, 2026', /Last Updated: October 4, 2026/.test(priv));
+  // Bumped to October 4 by the BoldSign retirement (2026-10-04: the
+  // E-Signature section now describes the in-house system). Any later date
+  // still means this section's disclosures are in.
+  ok('"Last Updated" is October 3, 2026 or later',
+    /Last Updated: (October ([3-9]|[12][0-9]|3[01])|November [0-9]+|December [0-9]+), 2026/.test(priv));
 }
 
 console.log('2. privacy policy — Do Not Track says what the code does');

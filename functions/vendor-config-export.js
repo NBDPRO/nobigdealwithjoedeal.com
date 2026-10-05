@@ -3,7 +3,7 @@
  *
  * weeklyVendorConfigExport runs Sundays 04:30 America/New_York and writes the
  * Bland "Thursday" agent/pathway/persona/numbers, Cal.com event types (once a
- * CALCOM_API_KEY exists), BoldSign templates (if the key is real) and the
+ * CALCOM_API_KEY exists) and the
  * Stripe catalog config to the PRIVATE bucket
  *   gs://<project>-vendor-backups/vendor-config/YYYY-MM-DD/
  * Same logic as `node scripts/export-vendor-config.js` (both drive
@@ -41,7 +41,6 @@ const BUCKET = PROJECT_ID + core.BUCKET_SUFFIX;
 const PARAMS = {
   BLAND_API_KEY: SECRETS.BLAND_API_KEY,
   THURSDAY_LOOKUP_TOKEN: SECRETS.THURSDAY_LOOKUP_TOKEN,
-  BOLDSIGN_API_KEY: SECRETS.BOLDSIGN_API_KEY,
   CALCOM_API_KEY: defineSecret('CALCOM_API_KEY'),
   STRIPE_SECRET_KEY: defineSecret('STRIPE_SECRET_KEY'),
 };
