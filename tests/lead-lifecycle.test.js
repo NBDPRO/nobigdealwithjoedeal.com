@@ -69,6 +69,7 @@ async function run() {
     userId: uid, companyId: COMPANY_ID, firstName: 'Dana', lastName: 'Reed',
     name: 'Dana Reed', phone: '555-0190', address: '12 Birch Ln, Austin TX',
     stage: 'new', source: 'referral', jobValue: 18000, deleted: false,
+    meter: 'manual', // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
   });
   ok('create lead → returns id', !!ref.id);
 

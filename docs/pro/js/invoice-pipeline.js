@@ -1160,6 +1160,23 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     }
   }
 
+  // "Connect Stripe" prompt (2026-10-04, tenant-ready). A company whose
+  // Connect account is not ready can still send an invoice — but it goes out
+  // with NO "Pay online" button, and the payment-link mint refuses
+  // (functions/stripe.js). Say so on the invoice screen BEFORE the send, with
+  // the way to fix it. Pure: the caller passes whether the company can collect
+  // online. Not shown on a paid invoice, one that already has a link, or a
+  // Kentucky insurance hold (that note explains its own missing link).
+  function connectStripeNoteHtml(inv, canCollect) {
+    const i = inv || {};
+    if (canCollect || i.status === 'paid' || i.stripePaymentLink || i.kyInsuranceHold) return '';
+    return '<div data-ip-connect-note class="ipx-note">'
+      + '<strong>Card payments are not set up yet.</strong> This invoice will go out without a “Pay online” button '
+      + 'until you connect Stripe. Checks, cash and Zelle still work — record them with Record Payment. '
+      + '<button type="button" class="btn btn-ghost" data-ip-action="connectStripe">Connect Stripe</button>'
+      + '</div>';
+  }
+
   async function generateStripePaymentLink(invoiceId) {
     if (!(await _canCollectOnline())) {
       const err = new Error('Online card payment isn\'t set up for your company yet — '
@@ -1777,6 +1794,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       if (!snap.exists()) throw new Error('Invoice not found');
 
       const inv = snap.data();
+      // Before the send (2026-10-04): can this company take a card payment?
+      const _canCollect = (inv && inv.status !== 'paid' && !inv.stripePaymentLink)
+        ? await _canCollectOnline() : true;
       const _esc = (s) => String(s == null ? '' : s)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -1896,6 +1916,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
+          ${connectStripeNoteHtml(inv, _canCollect)}
           ${(inv.kyInsuranceHold && !inv.stripePaymentLink && inv.status !== 'paid') ? `
           <div data-ip-ky-hold class="ipx-note">
             ${_esc(((typeof window !== 'undefined' && window.NBDJurisdiction) ? window.NBDJurisdiction.MSG.payLinkHeld : 'Online payment link withheld: Kentucky insurance job (KRS 367.626).'))}
@@ -2683,6 +2704,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     renderInvoicePanel,
     renderInvoiceDetail,
     renderInvoiceList,
+    connectStripeNoteHtml,
     createInvoiceUI,
     sendInvoiceUI,
     showInvoiceDetailModal,
@@ -2753,6 +2775,23 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         case 'createPayLink':   if (typeof IP.createPayLinkUI === 'function') IP.createPayLinkUI(id); break;
         case 'markEmergency':   if (typeof IP.markEmergencyUI === 'function') IP.markEmergencyUI(id); break;
         case 'print':           window.print(); break;
+        // "Connect Stripe" on an invoice (2026-10-04): Settings → Billing,
+        // where the Stripe Connect card lives.
+        case 'connectStripe': {
+          if (typeof window.goTo === 'function') window.goTo('settings');
+          // Settings hydrates late and opens on Profile: switch once the
+          // Billing panel exists, a few times, so Profile cannot win the race.
+          let tries = 0;
+          (function attempt() {
+            const p = document.getElementById('stab-panel-billing');
+            if (p && typeof window.switchSettingsTab === 'function') {
+              window.switchSettingsTab('billing');
+              if (p.style.display === 'block' && tries > 2) return;
+            }
+            if (++tries < 25) setTimeout(attempt, 120);
+          })();
+          break;
+        }
         case 'copyStripeLink':  {
           if (id) navigator.clipboard.writeText(id);
           if (typeof showToast === 'function') showToast('Payment link copied!', 'ok');

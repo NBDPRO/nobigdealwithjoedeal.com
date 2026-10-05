@@ -85,6 +85,8 @@ function isPlatformTenant(decoded) {
 }
 
 const connectLogic = require('./stripe-connect-logic');
+// Tenant-ready (2026-10-04): cancellation grace + trial-ending email copy.
+const TenantOps = require('./tenant-ops-logic');
 
 // D6: Connect-routed mints additionally require a LIVE subscription. Same
 // status set as createCheckoutSession's double-bill guard — which keeps its
@@ -586,6 +588,10 @@ exports.stripeWebhook = onRequest(
             // the enforcement cron keys off it).
             lapseEnforced: false,
             cancelledAt: FieldValue.delete(),
+            // A new subscription ends a cancelled plan's read-only grace
+            // (2026-10-04, tenant-ready) and its lead-cap block.
+            readOnlyUntil: FieldValue.delete(),
+            leadCap: FieldValue.delete(),
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
             // Usage counters — reset on subscription start
@@ -773,9 +779,18 @@ exports.stripeWebhook = onRequest(
             break;
           }
 
+          // Cancellation grace (2026-10-04, tenant-ready; Jo-approved): a
+          // PAID plan that ends keeps the company's account READ-ONLY for 30
+          // days — everything visible and exportable, nothing new added
+          // (firestore.rules refuse new leads; the CRM hides write controls) —
+          // then it is simply on the Free plan's limits. A trial that ends
+          // without ever being paid goes straight to Free, as before.
+          const wasPaid = stored.status && stored.status !== 'trialing' && stored.status !== 'none';
+          const graceUntil = wasPaid ? TenantOps.readOnlyUntilFrom(Date.now()) : null;
           await subDoc.ref.update({
             plan: 'free',
             status: 'cancelled',
+            readOnlyUntil: graceUntil || FieldValue.delete(),
             // The Stripe subscription is gone — any per-seat add-on items
             // died with it. Server cap sites already ignore purchasedSeats on
             // a non-entitled sub; clearing it keeps the client mirror honest.
@@ -801,6 +816,53 @@ exports.stripeWebhook = onRequest(
           } catch (e) { logger.warn('claims_downgrade_failed', { uid, err: e.message }); }
 
           logger.info('subscription_cancelled', { uid });
+          break;
+        }
+
+        // Trial ending in 3 days (2026-10-04, tenant-ready): tell the
+        // CONTRACTOR (the subscription's owner) — when the trial ends, what
+        // the card will be charged, how to change plans or cancel. Platform
+        // onboarding mail, never a homeowner. One email per subscription per
+        // trial end (deterministic email_queue id; Stripe retries are no-ops).
+        // Needs the event enabled on the Stripe webhook endpoint (Jo: Stripe
+        // Dashboard → Developers → Webhooks → add customer.subscription.trial_will_end).
+        case 'customer.subscription.trial_will_end': {
+          const subscription = event.data.object;
+          const customerId = subscription.customer;
+          const snapshot = await db
+            .collection('subscriptions')
+            .where('stripeCustomerId', '==', customerId)
+            .limit(1)
+            .get();
+          if (snapshot.empty) {
+            logger.warn('stripeWebhook.trial_will_end no matching user', { customerId });
+            break;
+          }
+          const uid = snapshot.docs[0].id;
+          const stored = snapshot.docs[0].data() || {};
+          let email = '';
+          try { email = (await getAuth().getUser(uid)).email || ''; } catch (_) { email = ''; }
+          const trialEndMs = (Number(subscription.trial_end) || 0) * 1000;
+          if (!email || !trialEndMs) break;
+          const item = subscription.items && subscription.items.data && subscription.items.data[0];
+          const unit = item && item.price && Number(item.price.unit_amount);
+          const amountText = Number.isFinite(unit) && unit > 0 ? ('$' + (unit / 100).toFixed(2)) : '';
+          const label = { starter: 'Starter', team: 'Team', growth: 'Growth' }[stored.plan] || '';
+          const msg = TenantOps.trialEndingEmail(label, trialEndMs, amountText);
+          try {
+            await db.doc('email_queue/trial-ending-' + subscription.id + '-' + subscription.trial_end).create({
+              to: email,
+              subject: msg.subject,
+              bodyPlain: msg.bodyPlain,
+              status: 'pending',
+              source: 'platform_trial_ending',
+              companyId: uid,
+              createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            if (!(e.code === 6 || /already exists/i.test(String(e.message)))) throw e;
+          }
+          logger.info('trial_will_end_email_queued', { uid });
           break;
         }
 

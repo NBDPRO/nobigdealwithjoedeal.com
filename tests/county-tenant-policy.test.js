@@ -1078,7 +1078,10 @@ atest('the per-device inputs keep unsaved typing; the company inputs take the co
   p.type('taxHamOh', '9.99'); // company-wide, and not saveable yet
   p.land();
   await flushTimers();
-  eq(p.val('v2rateGood'), '777', 'the rep\'s unsaved tier rate after the landing');
+  // Package prices are COMPANY-wide since 2026-10-04 (tenant-ready): a
+  // landing paints the company's rate over unsaved typing, like the county
+  // inputs, and the rep is told. Cost basis stays per device.
+  eq(p.val('v2rateGood'), '545', 'the tier rate shows the company value after the landing');
   eq(p.val('v2costGood'), '321', 'the rep\'s unsaved cost basis after the landing');
   eq(p.val('taxHamOh'), '7.80', 'county tax shows the company value');
   eq(p.val('permHamOh'), '150', 'permit cost shows the company value');
@@ -1089,17 +1092,18 @@ atest('the per-device inputs keep unsaved typing; the company inputs take the co
   eq(p.flag('_jurRowsResolved'), true, '_jurRowsResolved after the landing');
   const msg = p.byId('v2save-msg');
   eq(msg.getAttribute('data-kind'), 'warn', 'panel message kind');
-  if (!/replaced a county, tax or add-on rate you had changed/.test(msg.textContent)) throw new Error('panel message: ' + msg.textContent);
+  // Two now: the county tax AND the package price (company-wide since 2026-10-04).
+  if (!/replaced 2 county, tax or add-on rates you had changed/.test(msg.textContent)) throw new Error('panel message: ' + msg.textContent);
   eq(p.log.toasts.length, 1, 'toasts');
   eq(p.log.toasts[0].k, 'info', 'toast kind');
 });
 atest('control: a landing with no company input changed says nothing, and still keeps device typing', async () => {
   const p = loadPanel();
   p.ctx._loadEstimateDefaultsV2();
-  p.type('v2rateGood', '777');
+  p.type('v2costGood', '321'); // a per-device input (tier rates are company-wide now)
   p.land();
   await flushTimers();
-  eq(p.val('v2rateGood'), '777', 'the rep\'s unsaved tier rate after the landing');
+  eq(p.val('v2costGood'), '321', 'the rep\'s unsaved cost basis after the landing');
   eq(p.val('taxHamOh'), '7.80', 'county tax shows the company value');
   eq(p.log.toasts.length, 0, 'toasts');
   eq(p.byId('v2save-msg').getAttribute('data-kind'), null, 'panel message kind');
@@ -1287,7 +1291,7 @@ atest('control: a panel painted from the hydrated profile DOES publish (the gate
   eq(s.log.replace.length, 1, 'full-replace writes');
   eq(s.log.replace[0].keys.join(','), 'pricing.countyTax,pricing.customJurisdictions,pricing.permits', 'replaced paths');
   eq(s.log.company.length, 1, 'company-profile merge writes');
-  eq(Object.keys(s.log.company[0].pricing).sort().join(','), 'addonPrices,countyTax,customJurisdictions,fallbackTaxRate,permits', 'merged pricing keys');
+  eq(Object.keys(s.log.company[0].pricing).sort().join(','), 'addonPrices,countyTax,customJurisdictions,fallbackTaxRate,permits,tierRates', 'merged pricing keys');
   eq(s.msg.attrs['data-kind'], 'ok', 'message kind');
   eq(s.log.fades, 1, 'a clean save fades');
   eq(s.log.toasts[0].k, 'success', 'toast kind');
@@ -1428,7 +1432,7 @@ atest('control: Reset to Defaults loaded for the tenant it clears does clear it'
   await r.reset();
   eq(r.log.replace.length, 1, 'company-wide county wipes');
   eq(r.log.replace[0].ref, 'companyProfile/cX', 'wipe target');
-  eq(r.log.replace[0].keys.join(','), 'pricing.countyTax,pricing.fallbackTaxRate,pricing.permits', 'wiped paths');
+  eq(r.log.replace[0].keys.join(','), 'pricing.countyTax,pricing.fallbackTaxRate,pricing.permits,pricing.tierRates', 'wiped paths');
   eq(hamPermit(r.win), null, 'this tenant\'s in-memory permits are cleared');
   eq(r.log.resets, 0, 'nothing forgotten');
   eq(r.log.toasts[0].k, 'success', 'toast kind');
