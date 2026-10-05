@@ -93,7 +93,7 @@ function creditPayment(inv, paymentIntent) {
     priorPayments.push({ amount: received, at: new Date(), method: 'stripe', paymentIntentId: paymentIntent.id });
   }
   const update = {
-    status: fullyPaid ? 'paid' : (inv.status || 'sent'),
+    status: fullyPaid ? 'paid' : (newPaid > 0 ? 'partial' : (inv.status || 'sent')),
     paidAt: fullyPaid ? SERVER_TS : (inv.paidAt || null),
     lastPaymentAt: SERVER_TS,
     payments: priorPayments,
@@ -147,7 +147,9 @@ console.log('INVOICE PAYMENT WEBHOOK — reconciliation invariants');
   ok('A2 amountPaid = 3000', update.amountPaid === 3000);
   ok('A2 balanceDue = 7000', update.balanceDue === 7000);
   ok('A2 NOT fullyPaid', result.fullyPaid === false);
-  ok('A2 status stays sent (open)', update.status === 'sent');
+  // 2026-10-03: a part payment is 'partial' (as Mark Paid + the ledger write),
+  // so the CRM's "Send balance" can bill the rest; still open, still owed.
+  ok('A2 status becomes partial (open, not paid)', update.status === 'partial');
   ok('A2 paidAt NOT stamped on partial', update.paidAt === null);
 }
 
@@ -185,7 +187,7 @@ console.log('INVOICE PAYMENT WEBHOOK — reconciliation invariants');
   ok('B2 partial replay skipped', replay.result.skipped === 'already_applied');
   ok('B2 amountPaid still 3000', partial.amountPaid === 3000);
   ok('B2 balanceDue still 7000', partial.balanceDue === 7000);
-  ok('B2 status still sent (not flipped)', partial.status === 'sent');
+  ok('B2 status still partial (not flipped to paid)', partial.status === 'partial');
 }
 
 // C — tamper defense, REKEYED TO TENANCY (Connect phase 3).

@@ -170,7 +170,7 @@ function loadIIFE(file, pre) {
   // deposit. This used to assert the 50% fallback ($268.75) the rule retired.
   ok('deposit follows the rule: $537.50 cash is under $2,000 → no deposit (0)', captured.depositAmount === 0);
   ok('invoice terms carry the rule\'s sentence, not "50% deposit due upon scheduling"',
-    /^Net 14\. No deposit\. The full \$537\.50 is due on completion\.$/.test(captured.terms) && !/50%/.test(captured.terms));
+    /^Net 7\. No deposit\. The full \$537\.50 is due on completion\.$/.test(captured.terms) && !/50%/.test(captured.terms));
   // balanceDue = FULL total at create time — deliberately not total-deposit.
   // invoice-pipeline.js:225 books nothing as collected until a real payment
   // lands (recordPayment maintains balanceDue = total - amountPaid).
@@ -204,7 +204,7 @@ function loadIIFE(file, pre) {
   EST.depositPctOverride = 40;
   await IP.createInvoiceFromEstimate('est1');
   ok('classic rep override (40%) is honored on the invoice ($225)', near(captured.depositAmount, 225)
-    && /^Net 14\. 40% deposit of \$225 due at signing; balance of \$312\.50 due on completion\.$/.test(captured.terms));
+    && /^Net 7\. 40% deposit of \$225 due at signing; balance of \$312\.50 due on completion\.$/.test(captured.terms));
   delete EST.depositPctOverride;
   delete EST.deposit;
 

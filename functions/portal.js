@@ -58,6 +58,9 @@ const { reencodePhoto } = require('./photo-reencode');
 // stay identical). NEVER emit est.rows raw — pre-sweep V2 rows carry the
 // contractor's COST basis.
 const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
+// Pay link (stripePaymentLink OR stripeHostedUrl) + the Kentucky hold in one
+// call: the homeowner never sees a link the KRS 367.626 window still holds.
+const KyLaw = require('./ky-insurance-law');
 // The estimate's deposit-rule stamp, validated + whitelisted (2026-09-25).
 const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
@@ -676,11 +679,15 @@ exports.getHomeownerPortalView = onRequest(
     // NBD logo/footer stay byte-identical.
     let tenantLogoUrl = '';
     let tenantColors = null;
+    // The tenant's time zone for the Kentucky pay-link hold (the same read as
+    // functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
+    let kyTz = KyLaw.DEFAULT_TIME_ZONE;
     const tenantKey = lead.companyId || tok.ownerUid;
     if (tenantKey) {
       try {
         const cpSnap = await db.doc(`companyProfile/${tenantKey}`).get();
         if (cpSnap.exists) {
+          try { kyTz = KyLaw.resolveTimeZone(cpSnap.data() || {}); } catch (_) { /* default zone */ }
           const _b = (cpSnap.data() || {}).brand || {};
           const _ln = _b.legalName || '';
           const _isTenant = _ln && _ln !== 'No Big Deal Home Solutions';
@@ -940,11 +947,14 @@ exports.getHomeownerPortalView = onRequest(
     const _unpaidInvoice = tenantInvoices
       .filter(invoiceOwes)
       .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))[0] || null;
+    // Pay link: stripePaymentLink OR stripeHostedUrl (a Stripe Invoice —
+    // this read only the first, so a Stripe invoice showed no Pay Now), and
+    // never while the Kentucky insurance hold applies: a hosted Stripe
+    // invoice is minted outside createStripePaymentLink's gate. https only.
+    const _payUrl = _unpaidInvoice ? KyLaw.payUrlUnlessHeld(lead, _unpaidInvoice, Date.now(), kyTz) : '';
     const _balance = _unpaidInvoice ? {
       amountCents: Math.round(Number(_unpaidInvoice.balanceDue) * 100),
-      stripePaymentLink: typeof _unpaidInvoice.stripePaymentLink === 'string' && /^https:\/\//i.test(_unpaidInvoice.stripePaymentLink)
-        ? _unpaidInvoice.stripePaymentLink
-        : null,
+      stripePaymentLink: /^https:\/\//i.test(_payUrl) ? _payUrl : null,
     } : null;
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
     // never a new one. A Kentucky insurance job's link is withheld at

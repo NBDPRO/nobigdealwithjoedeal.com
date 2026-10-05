@@ -114,7 +114,7 @@
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=5"></script>
+<script defer src="js/role-gate.js?v=6"></script>
 <!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
@@ -145,7 +145,7 @@
      /pro/css revalidation policy instead of shipping in every HTML load. -->
 <link rel="stylesheet" href="css/dashboard-app.css?v=11">
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=1">
 <link rel="stylesheet" href="css/tenant-ready.css?v=1">
@@ -6997,7 +6997,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=14"></script>
+<script defer src="js/invoice-pipeline.js?v=15"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -7041,12 +7041,12 @@
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
-<script defer src="js/deposit-rule.js?v=3"></script>
+<script defer src="js/deposit-rule.js?v=4"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
      the Close Board deal room all read it. -->
-<script defer src="js/ky-insurance-law.js?v=4"></script>
+<script defer src="js/ky-insurance-law.js?v=5"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->
