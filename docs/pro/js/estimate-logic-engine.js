@@ -71,19 +71,37 @@
    * Build a safe measurement context from raw inputs. Ensures
    * every variable exists with a numeric value, never undefined.
    */
+  // A finite number when v was actually supplied, else null. Unlike
+  // `Number(v) || dflt`, a legit 0 survives.
+  function _explicitNum(v) {
+    if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
   function buildContext(input) {
     input = input || {};
     const rawSqft = Number(input.rawSqft) || 0;
     const waste = Number(input.waste) || 1.17;
     const adjustedSqft = rawSqft * waste;
     const sq = adjustedSqft / 100;
+    // Pitch: only a MISSING value (undefined / null / '' / non-numeric)
+    // defaults to 8/12. An explicit 0 is a flat roof and stays 0 — it used to
+    // be `Number(input.pitch) || 8`, which priced flat roofs as 8/12 and fired
+    // the steep labor adder ('LAB ADR-SS': pitch >= 8). pitchRatio follows the
+    // same rule; when it is missing but a pitch was given it is pitch / 12, so
+    // a flat roof is never carried as 0.667.
+    const pitchGiven = _explicitNum(input.pitch);
+    const pitch = pitchGiven != null ? pitchGiven : 8;
+    const ratioGiven = _explicitNum(input.pitchRatio);
+    const pitchRatio = ratioGiven != null ? ratioGiven : (pitchGiven != null ? pitchGiven / 12 : 0.667);
 
     return {
       rawSqft:         rawSqft,
       sq:              sq,
       adjustedSqft:    adjustedSqft,
-      pitchRatio:      Number(input.pitchRatio) || 0.667,
-      pitch:           Number(input.pitch) || 8,
+      pitchRatio:      pitchRatio,
+      pitch:           pitch,
       waste:           waste,
       stories:         Number(input.stories) || 1,
       cutUpRoof:       input.cutUpRoof ? 1 : 0,
