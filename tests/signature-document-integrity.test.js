@@ -54,7 +54,11 @@ function extractFn(name) {
   return SRC.slice(at, end);
 }
 
-const sandbox = { console };
+// 2026-10-04: the gate leaves the server-authored Notice of Right to Cancel
+// packet out of the compare (it is re-dated on serve and re-rendered on
+// submit) — it needs the server's copy of ky-insurance-law.js.
+const KyLaw = require(path.join(ROOT, 'functions', 'ky-insurance-law.js'));
+const sandbox = { console, KyLaw };
 vm.createContext(sandbox);
 vm.runInContext(
   [extractFn('endOfDivAt'), extractFn('stripSignatureBlocks'), extractFn('visibleText'), extractFn('signedDocMatchesOriginal'), extractFn('signedDocHasSignature')].join('\n\n'),
@@ -207,6 +211,19 @@ ok('stripping the finalized marker out of a signed doc is refused',
     ORIGINAL,
     legitimatelySigned(ORIGINAL, PNG).replace(/data-nbd-sig-finalized\s*=\s*["']1["']/, '')
   ).ok);
+
+// ── 4. the cancellation packet (2026-10-04) ──────────────────────────────
+console.log('\n4. the Notice of Right to Cancel packet');
+{
+  const PACKET_OPTS = { timeZone: 'America/New_York', sellerName: 'No Big Deal Home Solutions', sellerAddress: '4400 Test Pike, Cincinnati, OH 45202',
+    homeownerName: 'Pat Doe', propertyAddress: '12 Elm St, Cincinnati, OH 45230', state: 'OH', kyInsurance: false };
+  const withPacket = ORIGINAL.replace('</body>', KyLaw.cancelPacketHtml(Object.assign({ transactionDate: '2026-10-05' }, PACKET_OPTS)) + '</body>');
+  const servedLater = KyLaw.restampCancelPacket(withPacket, '2026-10-07');
+  ok('a packet re-dated on serve (Oct 5 → Oct 7) still matches the original',
+    servedLater !== withPacket && matches(withPacket, legitimatelySigned(servedLater, PNG)));
+  ok('…but a tamper OUTSIDE the packet is still refused',
+    !matches(withPacket, legitimatelySigned(servedLater, PNG).replace('$28,400.00', '$1.00')));
+}
 
 console.log('\n' + '─'.repeat(50));
 console.log(`${passed} passed, ${failed} failed`);

@@ -27,6 +27,9 @@
  *   F. REMINDERS + EXPIRY — esign-reminders.js runSweep.
  *   G. A pre-multi-signer envelope (no signers[], token without signerId)
  *      still signs.
+ *   J. The cancellation notice (#2149) is appended to a contract envelope's
+ *      signed PDF — never to one that already carries its forms
+ *      (cancelFormsIncluded, the estimate path above).
  *
  * Pure Node (pdf-lib from functions/node_modules). No emulator, no network.
  * Run: node tests/esign-gaps-2026-10-04.test.js
@@ -214,6 +217,8 @@ function load(db, storage) {
     './ky-insurance-law': require(path.join(FN, 'ky-insurance-law.js')),
     './customer-estimate-rows': require(path.join(FN, 'customer-estimate-rows.js')),
     './deposit-plan-view': require(path.join(FN, 'deposit-plan-view.js')),
+    './cancel-window': require(path.join(FN, 'cancel-window.js')),
+    './cancel-notice-pdf': require(path.join(FN, 'cancel-notice-pdf.js')),
     './integrations/heartbeat': { onSchedule: (o, h) => { const f = async () => h(); f.__options = o; return f; } },
   };
   // The Functions emulator sets FUNCTIONS_EMULATOR=true; esign-io's sendMail
@@ -461,6 +466,12 @@ const tokenFor = (db, envelopeId, signerId) => {
   const ky = require(path.join(FN, 'ky-insurance-law.js'));
   const today = ky.formatDay(ky.todayIn('America/New_York'));
   ok('the FTC forms are dated the signing day (system fields filled)', (stext.match(new RegExp(today.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length >= 2, today);
+  // #2149 appends the notice + forms to envelopes titled as the contract;
+  // this one's title is "Roofing Contract — …" but its PDF already has them
+  // (cancelFormsIncluded) — exactly one set, no appended notice pages.
+  ok('ONE set of FTC forms: 2 completed NOTICE OF CANCELLATION copies, no appended notice (cancelFormsIncluded)',
+    done.cancelFormsIncluded === true && (stext.match(/NOTICE OF CANCELLATION/g) || []).length === 2 && !/Notice of Right to Cancel/i.test(stext),
+    'forms=' + (stext.match(/NOTICE OF CANCELLATION/g) || []).length);
   ok('cancelBy recorded on the envelope and the lead', /^\d{4}-\d{2}-\d{2}$/.test(done.cancelBy || '') && db._get('leads/LEAD1').cancelBy === done.cancelBy);
   const copies = L.mails.slice(mailsBefore).filter((m) => /^Signed copy:/.test(m.subject));
   ok('the signed copy goes to EVERY signer', copies.length === 2 && copies.map((m) => m.to).sort().join() === 'pat@example.test,sam@example.test', JSON.stringify(copies));
@@ -587,6 +598,8 @@ const tokenFor = (db, envelopeId, signerId) => {
       './job-spine': { spineAfterDealAccept: async () => ({}) },
       './deal-view-logic': {}, './estimate-send-logic': {}, './estimate-view-alert': {},
       './deal-accepted-tier': { applyAcceptedTier: async () => ({}) },
+      './ky-insurance-law': require(path.join(FN, 'ky-insurance-law.js')),
+      './cancel-window': require(path.join(FN, 'cancel-window.js')),
     };
     const mod = { exports: {} };
     new Function('module', 'exports', 'require', fs.readFileSync(path.join(FN, 'deal-acceptance.js'), 'utf8'))(
@@ -603,6 +616,46 @@ const tokenFor = (db, envelopeId, signerId) => {
     const dealRoom = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'deal-room.js'), 'utf8');
     ok('the deal page asks for that consent and gates ACCEPT on it',
       /CONSENT_TEXT = 'I agree to sign electronically/.test(dealRoom) && /consentBox\.checked/.test(dealRoom) && /consent: !!\(consentBox && consentBox\.checked\)/.test(dealRoom));
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  console.log('\nJ. Cancellation notice on contract envelopes (#2149) — never twice');
+  // ═══════════════════════════════════════════════════════════
+  // A rep-uploaded PDF titled as the contract carries no forms of its own:
+  // the signed copy gains the Notice of Right to Cancel + two completed FTC
+  // forms. The same envelope flagged cancelFormsIncluded (what
+  // sendEstimateEnvelope sets — its PDF already has them) gets nothing more.
+  {
+    const { PDFDocument: P } = require(path.join(FN, 'node_modules', 'pdf-lib'));
+    const signOne = async (title, extra) => {
+      const doc = await P.create(); doc.addPage([612, 792]);
+      const bytes = Buffer.from(await doc.save());
+      const stJ = makeStorage();
+      const srcPath = `esign/${UID}/LEAD1/ENVJ1/source.pdf`;
+      stJ.files.set(srcPath, bytes);
+      const dbJ = makeDb(seed({
+        'esign_envelopes/ENVJ1': Object.assign({
+          ownerUid: UID, leadId: 'LEAD1', status: 'sent', title, sourcePath: srcPath, sourceSha256: sha256(bytes),
+          pages: [{ w: 612, h: 792, rotation: 0 }], pageCount: 1, signerName: 'Pat', signerEmail: 'pat@example.test',
+          fields: [{ id: 'sig', type: 'signature', page: 0, x: 72, y: 100, w: 200, h: 50, required: true, label: '', role: 'signer' }],
+        }, extra || {}),
+        'esign_tokens/JTOKEN000001': { envelopeId: 'ENVJ1', ownerUid: UID, leadId: 'LEAD1', status: 'pending', expiresAt: { toMillis: () => Date.now() + 86_400_000 } },
+      }));
+      const LJ = load(dbJ, stJ);
+      const r = await http(LJ.fns.submitEsignEnvelope, { token: 'JTOKEN000001', consent: true, signerName: 'Pat', values: { sig: { png: PNG } } });
+      const signed = stJ.files.get(`esign/${UID}/LEAD1/ENVJ1/signed.pdf`);
+      return { r, env: dbJ._get('esign_envelopes/ENVJ1'), lead: dbJ._get('leads/LEAD1'), pages: signed ? (await P.load(signed)).getPageCount() : -1, text: signed ? pdfText(signed) : '' };
+    };
+    const forms = (t) => (t.match(/NOTICE OF CANCELLATION/g) || []).length;
+    const c = await signOne('Roofing Contract');
+    ok('a contract envelope: signed page + certificate + notice + 2 FTC forms (5 pages)', c.r.statusCode === 200 && c.pages === 5, c.pages + ' ' + JSON.stringify(c.r.body));
+    ok('…exactly two completed FTC forms, and the notice', forms(c.text) === 2 && /Notice of Right to Cancel/i.test(c.text), 'forms=' + forms(c.text));
+    ok('…cancelBy on the envelope and the lead', /^\d{4}-\d{2}-\d{2}$/.test(c.env.cancelBy || '') && c.lead.cancelBy === c.env.cancelBy, JSON.stringify([c.env.cancelBy, c.lead.cancelBy]));
+    const f = await signOne('Roofing Contract — 5 Vine St, Cincinnati, OH 45202', { cancelFormsIncluded: true });
+    ok('cancelFormsIncluded: nothing appended (signed page + certificate only)', f.r.statusCode === 200 && f.pages === 2, f.pages);
+    ok('cancelFormsIncluded: no second set of forms, no notice', forms(f.text) === 0 && !/Notice of Right to Cancel/i.test(f.text), 'forms=' + forms(f.text));
+    const w = await signOne('Manufacturer Warranty Registration');
+    ok('a side document is left as signed (no notice, no cancelBy)', w.pages === 2 && !w.env.cancelBy && !w.lead.cancelBy, w.pages);
   }
 
   // ═══════════════════════════════════════════════════════════

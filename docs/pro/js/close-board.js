@@ -827,6 +827,37 @@
         '</div>';
     }
 
+    // The 3-day right to cancel (2026-10-04). Accepting here IS signing the
+    // contract at the homeowner's home, so EVERY deal page — any state, cash
+    // or insurance — carries the FTC 429.1(a) statement beside the signature
+    // pad and the Notice of Right to Cancel with the two completed FTC
+    // forms after it (on a Kentucky insurance deal the packet also carries
+    // the KRS 367.624(4) forms, replacing kyForms above). The server re-dates
+    // the packet to the day the page is opened and again on acceptance
+    // (functions/deal-acceptance.js), so the dates are the signing day's.
+    let cxlStatement = '', cxlPacket = '';
+    if (_KY && typeof _KY.cancelPacketHtml === 'function') {
+      const _cpx = (window._legal ? window._legal() : window._companyProfile) || {};
+      let _bx = null;
+      try { _bx = window._brand ? window._brand() : null; } catch (_) { _bx = null; }
+      cxlStatement = '<div class="cxl-box">' + _KY.ftcStatementHtml() +
+        '<div class="nbd-statutory">By signing, you acknowledge receiving the Notice of Right to Cancel below and two completed copies of the Notice of Cancellation form.</div></div>';
+      cxlPacket = _KY.cancelPacketHtml({
+        transactionDate: new Date(),
+        timeZone: _KY.resolveTimeZone(_cpx),
+        sellerName: BRAND.name,
+        sellerAddress: _KY.contractorMailingAddress(_bx) || _KY.contractorMailingAddress(_cpx),
+        email: (_bx && _bx.contact && _bx.contact.email) || deal.repEmail || '',
+        fax: _cpx.businessFax || '',
+        homeownerName: deal.customerName || '',
+        propertyAddress: deal.address || '',
+        state: (_kyJ && _kyJ.state) || '',
+        kyInsurance: !!(_kyJ && _kyJ.kyInsurance),
+        kyNoticesInDocument: !!kyNotices
+      });
+      kyForms = '';
+    }
+
     return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -891,6 +922,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 .success-icon{font-size:60px;}
 .success-text{font-size:22px;font-weight:700;font-family:'Barlow Condensed',sans-serif;}
 .success-sub{font-size:14px;line-height:1.5;color:#c9ccd2;max-width:320px;text-align:center;}
+.cxl-box{background:#fff;color:#111;border-radius:10px;padding:14px;margin:16px 0;text-align:left;}
 @media(max-width:500px){.tier-price{font-size:22px;}.tier-name{font-size:17px;}}
 </style>
 </head><body>
@@ -938,6 +970,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 
   <div class="section-title">Sign & Schedule</div>
   ${kyNotices}
+  ${cxlStatement}
   <div class="sign-section">
     <p style="font-size:13px;color:#8b8e96;margin-bottom:8px;">By signing below, you authorize ${BRAND.nameEsc} to proceed with the selected roof package.</p>
     <div class="sign-canvas-wrap">
@@ -951,6 +984,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     <button class="sign-btn" id="submitBtn" data-deal-action="submit" disabled>✓ ACCEPT & SCHEDULE</button>
   </div>
   ${kyForms}
+  ${cxlPacket}
 
   <div class="footer">
     <div>${BRAND.nameEsc} · Licensed & Insured</div>

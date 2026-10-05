@@ -204,6 +204,11 @@ function loadEsignHandlers(db) {
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => 'rejected' },
     // Job spine (2026-10-03) — its own suite is tests/job-spine-2026-10-03.test.js.
     './job-spine': { spineAfterEsign: async () => ({ skipped: 'stub' }) },
+    // The 3-day cancellation notice on contract envelopes (2026-10-04) — its
+    // own suite is tests/contract-cancel-forms.test.js. These envelopes are
+    // not contracts, so the appender is never reached.
+    './job-spine-logic': { envelopeIsContract: () => false },
+    './cancel-window': { loadPacketOpts: async () => ({}), stampLeadCancelBy: async () => false },
   };
 
   const requireStub = (id) => {
