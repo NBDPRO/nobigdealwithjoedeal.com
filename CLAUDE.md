@@ -73,8 +73,13 @@ c. Commit after every working change with a clear, descriptive message, on a
 d. Never commit secrets or API keys. Fake keys in tests are built at runtime
    (`'sk-' + 'ant-…'`); CI runs gitleaks and GitHub push protection.
 e. Run the tests before calling any change to pricing logic done:
-   `node scripts/run-test-manifest.js --bucket node` and `node tests/smoke.test.js`
-   (task 2 will name the exact estimate suites here).
+   `node scripts/run-test-manifest.js --bucket node` and `node tests/smoke.test.js`.
+   The estimate suites are `estimate-pricing-paths-2026-10-05` (every pricing path,
+   job-minimum and tier edges, plus the `KNOWN BUG #n` pins), `estimate-pricing`,
+   `estimate-min-job-optin`, `five-tier-crm-2026-10-02`, `estimate-engine-parity`,
+   `deposit-rule`, `job-templates`, `estimate-money-ladder`. A `KNOWN BUG` test pins
+   today's behaviour on purpose; flip it only in the PR that fixes that bug, with
+   Jo's OK.
 
 ## Read first
 
