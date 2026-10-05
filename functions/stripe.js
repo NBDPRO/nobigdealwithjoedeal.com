@@ -1309,6 +1309,13 @@ exports.createStripePaymentLink = onRequest(
       // line, so credits are summed here, checked, and the link charges the
       // balance as one line (below) — the same as after a recorded deposit.
       let creditCents = 0;
+      // A Rounding / Minimum job charge adjustment line (adjustment: true,
+      // 2026-10-05, invoice-pipeline.js nbd:invoice-from-estimate): the
+      // quote's total − subtotal − tax, untaxed. Either sign, any size up to
+      // the cap — a round-down is negative and a few cents is below the $1
+      // product-line floor — so it is not a product line: a positive one is
+      // charged as its own line, a negative one nets off like a credit.
+      let roundDownCents = 0;
       for (const item of (invoice.items || [])) {
         if (item && item.credit === true) {
           const c = Math.round(Number(item.total || 0) * 100);
@@ -1317,6 +1324,26 @@ exports.createStripePaymentLink = onRequest(
             return;
           }
           creditCents += -c;
+          continue;
+        }
+        if (item && item.adjustment === true) {
+          const a = Math.round(Number(item.total || 0) * 100);
+          if (!Number.isFinite(a) || a === 0 || Math.abs(a) > MAX_CENTS) {
+            res.status(400).json({ error: 'Adjustment line amount out of allowed range' });
+            return;
+          }
+          if (a < 0) { creditCents += -a; roundDownCents += -a; continue; }
+          lineItems.push({
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: String(item.description || 'Rounding').slice(0, 250),
+                description: `Invoice ${invoiceId}`,
+              },
+              unit_amount: a,
+            },
+            quantity: 1,
+          });
           continue;
         }
         let cents;
@@ -1424,7 +1451,8 @@ exports.createStripePaymentLink = onRequest(
       let chargeLineItems = lineItems;
       if (amountPaidCents > 0 || creditCents > 0) {
         const _after = [];
-        if (creditCents > 0) _after.push(`$${(creditCents / 100).toFixed(2)} deposit credited`);
+        if (creditCents - roundDownCents > 0) _after.push(`$${((creditCents - roundDownCents) / 100).toFixed(2)} deposit credited`);
+        if (roundDownCents > 0) _after.push(`$${(roundDownCents / 100).toFixed(2)} rounding`);
         if (amountPaidCents > 0) _after.push(`$${(amountPaidCents / 100).toFixed(2)} already paid`);
         chargeLineItems = [{
           price_data: {
