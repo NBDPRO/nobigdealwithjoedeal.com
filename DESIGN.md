@@ -94,7 +94,11 @@ and `crm-theme-contract.test.js` guard this.
   - 4px grid: `--nbd-space-*`, `--sp-*`.
   - Radii: 4/8/12/18/999 (brand) and `--r-xs`…`--r-2xl` (dashboard).
   - Shadows: `--nbd-shadow-sm/md/lg`, warm and low.
-  - Motion timings: `--t-fast/mid/slow`. Respect `prefers-reduced-motion`.
+  - Motion timings: `--t-fast/mid/slow` (legacy); new work uses the
+    `--ui-dur-*` tokens in "Motion" below. Respect `prefers-reduced-motion`
+    and `data-motion="reduce"`.
+  - The type, space, radius, line and elevation scales new work uses are
+    in "Foundation tokens" below.
 - **Breakpoints:**
   - **768px** is the mobile breakpoint; the sticky CTA bar collapses there.
   - The nav collapses at **1024px** (contract-enforced).
@@ -150,6 +154,90 @@ wallpaper, a card texture, a corner mascot and an optional accent.
 
 The CSP blocks CDNs, so any animation or graphics library is vendored under
 `docs/`. Prefer hand-written WebGL or CSS (see `CLAUDE.md` "Code taste").
+
+## Foundation tokens (rep dashboard, 2026-10-05)
+
+The shared layer lives at the bottom of `docs/pro/css/ui-primitives.css`
+(the "FOUNDATION" block). It's loaded by `dashboard.html` and `customer.html`,
+and every token is prefixed `--ui-`. Colour inside it comes only from theme
+tokens through `color-mix`, so every theme inherits it with no per-theme line.
+`tests/ui-foundation-2026-10-05.test.js` guards it.
+
+| Role | Tokens | Rule |
+|---|---|---|
+| Type | `--ui-fs-display` 28 · `title` 20 · `heading` 16 · `body` 14 · `body-sm` 13 · `caption` 12 · `label` 11 | Classes `.ui-display`, `.ui-title`, `.ui-heading`, `.ui-body`, `.ui-caption`, `.ui-eyebrow`. Condensed face for display/title only; anything read as a sentence is Barlow. |
+| Numbers | `.ui-num`, `.ui-money`, `.ui-num-lg` | Money and counts use tabular figures (`td`, `th`, stats and badges get them automatically). |
+| Space | `--ui-space-1…12` (4, 8, 12, 16, 20, 24, 32, 40, 48) | Inside a component 4·8·12; between components 16·24; between sections 32·48. |
+| Radius | `--ui-radius-xs` 4 badge · `sm` 6 chip/input · `md` 8 button/card · `lg` 12 panel/sheet · `pill` | One radius per role, never per screen. |
+| Lines | `--ui-line-hair` (items in a card) · `--ui-line-divider` (groups) · `--ui-line-strong` (hover/selected edge) | A border has to separate something. |
+| Elevation | `--ui-elev-0…3` (flat · resting card · raised/hover/popover · sheet/modal) | The shadow ink follows `--bg`, so one ladder works in light and dark. The default Shape now sets `--elevation-card` to level 1. |
+| Focus | `--ui-focus`, `--ui-focus-ring` | Accent pulled toward `--t` so it clears 3:1 on dark and light; every control that didn't define a ring gets this one. |
+
+Primitives built on them: `.ui-surface`, `.ui-surface-raised`, `.ui-badge`
+(`.is-accent/-success/-warn/-danger/-info`), `.ui-chip` (`.is-on`),
+`.ui-btn-quiet` (the third button tier under `.btn-orange` and `.btn-ghost`),
+`.ui-table` (`.is-num` cells), `.ui-empty` (icon, title, body, action),
+`.ui-skel` (skeleton), `.ui-enter`, `.ui-stagger`, `.ui-reorder`.
+
+## Motion
+
+Motion explains a change; it never decorates. All durations are tokens:
+
+| Job | Token | Value | Easing |
+|---|---|---|---|
+| Press (`:active`) | `--ui-dur-press` | 80ms, scale `--ui-press-scale` .97 | `--ui-ease` |
+| Hover / focus colour, border, shadow | `--ui-dur-hover` | 140ms | `--ui-ease` |
+| A card, row or panel arriving | `--ui-dur-enter` | 220ms, rises `--ui-enter-y` 6px | `--ui-ease-enter` (decelerate) |
+| Leaving | `--ui-dur-exit` | 160ms (leaving is faster than arriving) | `--ui-ease-exit` (accelerate) |
+| Sheets, drawers, route changes | `--ui-dur-sheet` | 300ms | `--ui-ease-enter` |
+| List re-sort / row move | `--ui-dur-reorder` | 200ms | `--ui-ease` |
+| Stagger between list items | `--ui-stagger` | 30ms, capped at 6 steps | — |
+
+- **Both switches turn it off.** `prefers-reduced-motion: reduce` and the
+  Comfort tab's `data-motion="reduce"` set every `--ui-dur-*` to 0, the press
+  scale to 1 and the enter travel to 0, and drop `.ui-enter` / `.ui-stagger`
+  / the skeleton shimmer. Never write a duration literal that skips this.
+- Animate `opacity` and `transform` only. Never `transition: all` (it animates
+  every incidental change; the 2026-07 `.k-card` jiggle post-mortem).
+- No bounce or overshoot on working UI. `--ease-out` (the overshoot curve in
+  `dashboard-app.css`) is for celebration moments only.
+- Loops are for loading (the skeleton shimmer) and wallpapers that follow the
+  overlay rules above. Nothing else loops.
+
+## Never do (per surface)
+
+**Everywhere**
+- No Inter-on-zinc grey "default SaaS" look. Our faces are Barlow / Barlow
+  Condensed (Pro) and Bebas / Montserrat (marketing); our neutrals are navy-
+  tinted, not zinc.
+- No purple gradients (or any decorative gradient that isn't the brand's).
+- No equal 16px padding on everything. Use the rhythm on purpose: tight
+  inside, looser between, widest between sections.
+- No three identical feature cards unless the content really is three equal
+  things.
+- No new accent colour, no new font family (brand proofs go to Jo as static
+  pages first).
+
+**Rep dashboard (`docs/pro/dashboard.html`, `customer.html`, views)**
+- No hex literals where a token exists; no colour that skips `color-mix` from
+  a theme token.
+- No more than one filled orange (primary) button per region. Secondary is
+  `.btn-ghost`; everything else is `.ui-btn-quiet` or a chip.
+- No small caps for sentences. `.ui-eyebrow` is for 1–3 word labels.
+- No money or counts without tabular figures.
+- No empty state that is just an emoji and a sentence: use `.ui-empty` with
+  the one action that fixes it.
+- No hard-coded shadow: use `--ui-elev-*` (or the Shape role tokens).
+- No duration literal and no `transition: all`.
+- No text under 11px on a phone, and no tap target under 44px.
+
+**NBD Pro, customer-facing (portal, estimate view, documents)**
+- Don't theme it: it stays on `nbd-brand.css` (warm paper, Barlow).
+- Don't use the rep dashboard's `--ui-*` tokens there; that sheet isn't loaded.
+
+**Marketing site**
+- Radii are 8px and pills only; no third radius.
+- Never `#6b7280` grey, never the old oranges.
 
 ## Components (reuse; don't fork)
 
