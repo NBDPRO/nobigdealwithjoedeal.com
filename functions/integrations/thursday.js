@@ -268,6 +268,8 @@ async function extract(call) {
   if (!r.ok) {
     throw new T.ExtractionError('api-' + r.status, String((json && json.error && json.error.message) || '').slice(0, 300));
   }
+  // AI spend in one place — counted even when the parse below fails.
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('thursday', T.EXTRACTION_MODEL, json), { log: logger });
   const p = T.parseExtractionResponse(json);
   return {
     extraction: T.sanitizeExtraction(p.parsed),

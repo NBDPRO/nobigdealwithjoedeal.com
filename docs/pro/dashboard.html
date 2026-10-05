@@ -1182,10 +1182,6 @@
             <div class="overlay-label"><div class="overlay-dot" style="background:var(--gold);"></div>Storm Activity</div>
             <div class="overlay-toggle" id="tog-storm" data-action="mapOverlay" data-target="storm" title="NOAA hail & wind data"></div>
           </div>
-          <div class="overlay-row">
-            <div class="overlay-label"><div class="overlay-dot" style="background:#34D399;"></div>Live Weather</div>
-            <div class="overlay-toggle" id="tog-weather" data-action="mapOverlay" data-target="weather" title="Current precipitation radar"></div>
-          </div>
         </div>
 
         <!-- TERRITORY ZONES -->
@@ -1270,7 +1266,6 @@
           <button class="map-fab" id="fab-jobs"    data-action="call" data-fn="fabToggle" data-arg="jobs" data-pass-el    title="Jobs"><span class="map-fab-icon">💰</span><span>Jobs</span></button>
           <button class="map-fab" id="fab-customers" data-action="call" data-fn="fabToggle" data-arg="customers" data-pass-el title="All Customers"><span class="map-fab-icon">🏠</span><span>Customers</span></button>
           <button class="map-fab" id="fab-storm"   data-action="call" data-fn="fabToggle" data-arg="storm" data-pass-el   title="Storm Radar"><span class="map-fab-icon">⛈</span><span>Storm</span></button>
-          <button class="map-fab" id="fab-weather" data-action="call" data-fn="fabToggle" data-arg="weather" data-pass-el title="Live Weather"><span class="map-fab-icon">🌧</span><span>Weather</span></button>
           <div class="map-fab-div"></div>
           <button class="map-fab" id="fab-zone" data-action="call" data-fn="startZoneDraw" title="Draw Territory"><span class="map-fab-icon">🗺</span><span>Zone</span></button>
           <button class="map-fab" data-action="call" data-fn="quickStormCheck" title="Storm check at my location"><span class="map-fab-icon">⚡</span><span>Storm Here</span></button>
@@ -6866,13 +6861,13 @@
 <script defer src="js/roof-report.js?v=2"></script>
 <script defer src="js/property-intel.js?v=6"></script>
 <!-- LAZY: warranty-cert (docs view wizard) loaded via ScriptLoader -->
-<script defer src="js/tools.js?v=8"></script>
+<script defer src="js/tools.js?v=9"></script>
 <!-- ALL scripts use defer for consistent load ordering.
      Defer scripts execute in document order after DOM ready.
      The loading spinner covers the gap. billing-gate and
      doc-viewer must come BEFORE crm/widgets since those
      reference NBDBilling and NBDDocGen at call-time. -->
-<script defer src="js/claude-proxy.js?v=4"></script>
+<script defer src="js/claude-proxy.js?v=5"></script>
 <!-- Audit batch 6: repository pattern layer. Centralizes userId/
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
@@ -6944,7 +6939,7 @@
 <script defer src="js/customer-engagement-score.js?v=2"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
-<script defer src="js/smart-followup.js?v=3"></script>
+<script defer src="js/smart-followup.js?v=4"></script>
 <!-- W135: Lead Intelligence — unified 0-100 score engine -->
 <script defer src="js/lead-score.js?v=2"></script>
 <!-- W139: Hot-lead threshold-crossing alert -->
@@ -6998,8 +6993,8 @@
      no Leaflet global defined, it executes cleanly (no top-level code
      calls into L.*), and neither maps-core.js nor maps-overlays.js
      references anything drawing-tool-specific. -->
-<script defer src="js/maps-core.js?v=8"></script>
-<script defer src="js/maps-overlays.js?v=8"></script>
+<script defer src="js/maps-core.js?v=9"></script>
+<script defer src="js/maps-overlays.js?v=9"></script>
 <script defer src="js/maps-customers.js?v=12"></script>
 <script defer src="js/maps.js?v=12"></script>
 <!-- Smart Calendar — Today's Schedule with travel-time + priority. Reads
@@ -7041,7 +7036,7 @@
 <script defer src="js/ask-joe-rules.js?v=1"></script>
 <script defer src="js/ask-joe-actions.js?v=2"></script>
 <script defer src="js/ai.js?v=10"></script>
-<script defer src="js/review-engine.js?v=6"></script>
+<script defer src="js/review-engine.js?v=7"></script>
 <script defer src="js/review-deck.js?v=1"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
 <script defer src="js/company-profile.js?v=6"></script>

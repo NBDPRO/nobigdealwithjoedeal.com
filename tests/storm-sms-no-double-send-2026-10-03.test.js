@@ -237,7 +237,7 @@ function makeWorld(opts) {
   return { db, sent, logs, slackPosts, twilio, fetchLog, stubs, nwsFeatures: [], lsrFeatures: [] };
 }
 
-const FRESH = ['sms-functions.js', 'storm-watch.js', 'storm-sms-guard.js', 'sms-optout.js', 'phone-utils.js',
+const FRESH = ['storm-poller.js', 'sms-functions.js', 'storm-watch.js', 'storm-sms-guard.js', 'sms-optout.js', 'phone-utils.js',
   'integrations/slack.js', 'integrations/storm-briefing.js'];
 function load(w, rel) {
   world = w;
@@ -280,10 +280,10 @@ console.log('1. checkStormAlerts');
   w.db.hooks.failCreate = (p, d) => p.startsWith('storm_alerts_sent/') && !(d && d.status === 'claimed');
   w.db.hooks.failUpdate = (p, d) => p.startsWith('storm_alerts_sent/') && d && d.status === 'sent';
   const mod = load(w, 'sms-functions.js');
-  await mod.checkStormAlerts.__handler({});
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
+  await mod.runCheckStormAlerts({});
   clock.ms += 30 * 60_000;
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   ok('1a. a failed post-send bookkeeping write never replays as a second text (3 runs → 1 text)',
     sentTo(w, SUB_E164) === 1, { texts: sentTo(w, SUB_E164) });
 }
@@ -293,11 +293,11 @@ console.log('1. checkStormAlerts');
   seedSub(w.db, 'sub-b');
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.bbb.001.1')];
   const mod = load(w, 'sms-functions.js');
-  const run1 = mod.checkStormAlerts.__handler({});
+  const run1 = mod.runCheckStormAlerts({});
   await Promise.race([run1, sleepReal(300)]);   // the instance is killed here
   w.twilio.mode = 'ok';
   clock.ms += 30 * 60_000;
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   ok('1b. a kill between send and bookkeeping does not re-send next run (1 text)',
     sentTo(w, SUB_E164) === 1, { texts: sentTo(w, SUB_E164) });
 }
@@ -307,17 +307,17 @@ console.log('1. checkStormAlerts');
   seedSub(w.db, 'sub-c');
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.ccc.001.1')];
   const mod = load(w, 'sms-functions.js');
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   clock.ms += 2 * HOUR;
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.ccc.002.1', {
     references: [{ identifier: 'urn:oid:2.49.0.1.840.0.ccc.001.1' }],
   })];
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   ok('1c. an NWS update under a new alert id 2h later is absorbed by the cooldown (1 text)',
     sentTo(w, SUB_E164) === 1, { texts: sentTo(w, SUB_E164) });
   clock.ms += 25 * HOUR;
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.ddd.001.1')];
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   ok('1c. a new storm after the cooldown does text again (positive control, 2 texts)',
     sentTo(w, SUB_E164) === 2, { texts: sentTo(w, SUB_E164) });
 }
@@ -329,7 +329,7 @@ console.log('1. checkStormAlerts');
   w.db.store.set('sms_opt_outs/8595550134', { phone: SUB_E164, source: 'incomingSMS' });
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.eee.001.1')];
   const mod = load(w, 'sms-functions.js');
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   ok('1d. an opted-out subscriber is not texted', sentTo(w, SUB_E164) === 0, { texts: sentTo(w, SUB_E164) });
   ok('1d. a clean subscriber in the same run is (positive control)', sentTo(w, '+18595550199') === 1);
 }
@@ -339,10 +339,11 @@ console.log('1. checkStormAlerts');
   seedSub(w.db, 'sub-e');
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.fff.001.1')];
   const mod = load(w, 'sms-functions.js');
-  const opts = mod.checkStormAlerts.__opts || {};
+  // 2026-10-04: checkStormAlerts runs inside the merged stormPoller (storm-poller.js).
+  const opts = (load(w, 'storm-poller.js').stormPoller || {}).__opts || {};
   ok('1e. timeoutSeconds fits the 250-text cap at 1.1s pacing (>= 250 × 1.1s + 60s)',
     Number(opts.timeoutSeconds) * 1000 >= 250 * 1100 + 60_000, { timeoutSeconds: opts.timeoutSeconds });
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   const nws = w.fetchLog.find((f) => f.url.includes('api.weather.gov'));
   ok('1e. the NWS fetch carries an abort signal (timeout)', !!(nws && nws.init && nws.init.signal));
 }
@@ -354,7 +355,7 @@ console.log('1. checkStormAlerts');
   }
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.ggg.001.1')];
   const mod = load(w, 'sms-functions.js');
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   ok('1f. the 1203rd subscriber (the only one in the alert area) is texted', w.sent.length === 1, { texts: w.sent.length });
 }
 
@@ -376,7 +377,7 @@ process.env.STORM_TEXT_ENABLED = 'true';
   }
   w.lsrFeatures = LSR;
   const mod = load(w, 'storm-watch.js');
-  await mod.stormWatch.__handler({});
+  await mod.runStormWatch({});
   ok('2a. all 1201 in-range subscribers are texted (no silent .limit(1000) drop)',
     subscriberTexts(w).length === 1201, { texts: subscriberTexts(w).length });
 }
@@ -388,7 +389,7 @@ process.env.STORM_TEXT_ENABLED = 'true';
   w.db.store.set('sms_opt_outs/18595550134', { phone: SUB_E164 });   // legacy-key record
   w.lsrFeatures = LSR;
   const mod = load(w, 'storm-watch.js');
-  await mod.stormWatch.__handler({});
+  await mod.runStormWatch({});
   ok('2b. an opted-out subscriber (legacy-key record) is not texted', sentTo(w, SUB_E164) === 0);
   ok('2b. a clean subscriber is (positive control)', sentTo(w, '+18595550177') === 1);
 }
@@ -399,10 +400,10 @@ process.env.STORM_TEXT_ENABLED = 'true';
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.hhh.001.1')];
   w.lsrFeatures = LSR;
   const sms = load(w, 'sms-functions.js');
-  await sms.checkStormAlerts.__handler({});
+  await sms.runCheckStormAlerts({});
   clock.ms += 20 * 60_000;
   const sw = load(w, 'storm-watch.js');
-  await sw.stormWatch.__handler({});
+  await sw.runStormWatch({});
   ok('2c. checkStormAlerts then stormWatch for the same storm → one text, not two',
     sentTo(w, SUB_E164) === 1, { texts: sentTo(w, SUB_E164) });
 }
@@ -414,7 +415,7 @@ process.env.STORM_TEXT_ENABLED = 'true';
   w.db.hooks.failCommit = (p, d) => p.startsWith('storm_alert_subscribers/') && d && 'lastStormTextAt' in d;
   w.lsrFeatures = LSR;
   const mod = load(w, 'storm-watch.js');
-  await mod.stormWatch.__handler({});
+  await mod.runStormWatch({});
   ok('2d. when the cooldown stamp cannot be written, nothing is sent (it would be re-textable)',
     sentTo(w, SUB_E164) === 0, { texts: sentTo(w, SUB_E164) });
   ok('2d. and the failure is logged, not swallowed',
@@ -499,7 +500,7 @@ const TEN_PM_EDT = Date.parse('2026-10-04T02:00:00Z');   // 22:00 America/New_Yo
   seedSub(w.db, 'night-west', { phone: '859-555-0166', tz: 'America/Los_Angeles' });   // 19:00 local
   w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.qqq.001.1')];
   const mod = load(w, 'sms-functions.js');
-  await mod.checkStormAlerts.__handler({});
+  await mod.runCheckStormAlerts({});
   ok('6a. checkStormAlerts at 22:00 Eastern does not text a subscriber with no tz (default America/New_York)',
     sentTo(w, SUB_E164) === 0, { texts: sentTo(w, SUB_E164) });
   ok('6a. a subscriber whose own tz is at 19:00 is texted (positive control)', sentTo(w, '+18595550166') === 1);
@@ -512,7 +513,7 @@ const TEN_PM_EDT = Date.parse('2026-10-04T02:00:00Z');   // 22:00 America/New_Yo
   w.lsrFeatures = LSR;
   process.env.STORM_TEXT_ENABLED = 'true';
   const mod = load(w, 'storm-watch.js');
-  await mod.stormWatch.__handler({});
+  await mod.runStormWatch({});
   delete process.env.STORM_TEXT_ENABLED;
   ok('6a. stormWatch at 22:00 Eastern does not text the subscriber', sentTo(w, SUB_E164) === 0, { texts: sentTo(w, SUB_E164) });
   ok('6a. stormWatch logs the quiet-hours count',
@@ -528,16 +529,16 @@ const TEN_PM_EDT = Date.parse('2026-10-04T02:00:00Z');   // 22:00 America/New_Yo
   w.lsrFeatures = LSR;
   process.env.STORM_TEXT_ENABLED = 'true';
   const sms = load(w, 'sms-functions.js');
-  await sms.checkStormAlerts.__handler({});
+  await sms.runCheckStormAlerts({});
   const sw = load(w, 'storm-watch.js');
-  await sw.stormWatch.__handler({});
+  await sw.runStormWatch({});
   delete process.env.STORM_TEXT_ENABLED;
   ok('6b. integrations/stormAlerts.enabled === false → neither cron texts a homeowner',
     subscriberTexts(w).length === 0, subscriberTexts(w).map((m) => m.to));
   ok('6b. Joe\'s own internal storm alert still goes out (switch is homeowner texts only)', sentTo(w, JOE) === 1);
   w.db.store.delete('integrations/stormAlerts');
   for (const k of [...w.db.store.keys()]) if (k.startsWith('storm_events/')) w.db.store.delete(k);
-  await load(w, 'sms-functions.js').checkStormAlerts.__handler({});
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
   ok('6b. with the switch doc absent the default is ENABLED (positive control)', sentTo(w, SUB_E164) === 1);
 }
 {

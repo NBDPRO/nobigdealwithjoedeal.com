@@ -81,6 +81,8 @@
     'newEstimate',
     // money + outreach that files a record
     'NBDCustomerInvoices.markPaid', 'ReviewEngine.sendReviewSMS',
+    // the review ask by email (lead-brief.js, 2026-10-04)
+    'NBDLeadAI.askReview',
   ];
   // dashboard.html: <el data-action="call" data-fn="fnName">.
   var WRITE_FNS = [

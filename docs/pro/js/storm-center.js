@@ -737,22 +737,29 @@
 
     L.control.zoom({ position: 'topright' }).addTo(stormMap);
 
-    // Satellite tiles — Google primary (mt{s}.google.com, on the CSP img-src
-    // allow-list); Esri/ArcGIS as a per-tile fallback. Esri alone is blocked
-    // by Brave Shields at the network layer => gray void (NEW-D12 / PR #486).
-    // Mirrors docs/pro/js/d2d-tracker-core-2026b.js initD2DMap.
-    const stormSat = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-      subdomains: '0123',
-      attribution: 'Imagery © Google',
-      maxNativeZoom: 22,
+    // Satellite tiles — Esri World Imagery, with the public-domain USGS
+    // orthoimagery underneath so a tile a blocker fails (Brave Shields has
+    // been seen failing server.arcgisonline.com — NEW-D12 / PR #486) shows
+    // USGS imagery instead of a gray void; a failed Esri tile also gets one
+    // retry on Esri's alternate host. Was raw Google mt*.google.com tiles
+    // until 2026-10-04 (vendor audit Lane D). Mirrors the D2D basemap.
+    L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'USGS/NAIP',
+      maxNativeZoom: 16,
+      maxZoom: 19
+    }).addTo(stormMap);
+    const stormSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri, Maxar, Earthstar Geographics',
+      maxNativeZoom: 19,
       maxZoom: 19
     });
     stormSat.on('tileerror', function (ev) {
-      if (!ev.tile || !ev.coords || ev.tile.dataset.nbdFallbackTried === '1') return;
+      if (!ev.tile || ev.tile.dataset.nbdFallbackTried === '1') return;
       ev.tile.dataset.nbdFallbackTried = '1';
-      const c = ev.coords;
-      ev.tile.src = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/'
-        + c.z + '/' + c.y + '/' + c.x;
+      const src = String(ev.tile.src || '');
+      if (src.indexOf('https://server.arcgisonline.com/') === 0) {
+        ev.tile.src = 'https://services.arcgisonline.com/' + src.slice('https://server.arcgisonline.com/'.length);
+      }
     });
     stormSat.addTo(stormMap);
 
