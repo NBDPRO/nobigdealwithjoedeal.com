@@ -260,6 +260,11 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
     }
   } catch (e) { console.warn('[stage-write] stage-checklist trigger failed:', e && e.message); }
 
+  // Before & After report on install complete (2026-10-04). Not awaited:
+  // a side effect of a stage change that already succeeded.
+  try { autoBeforeAfterOnStage(id, oldStage, newStage); }
+  catch (e) { console.warn('[stage-write] before/after trigger failed:', e && e.message); }
+
   // Production flow (2026-10-04, production.js): a soft warning when a job
   // reaches Final Photos with no After photos (the move has already gone
   // through — it warns, never blocks), and the "After photos + walkthrough"
@@ -273,4 +278,28 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   // enteredWon: this move took the lead from a non-won stage onto a won one —
   // the caller's cue to offer "Create invoice" (crm-pipeline.js moveCard).
   return { historyEvent, enteredWon };
+}
+
+/**
+ * When a lead moves ONTO install_complete, hand it to photo-report.js's
+ * NBDAutoBeforeAfter (lazy `photos` bundle), which files the homeowner
+ * Before & After report in Documents — or, with no After photo yet, waits
+ * for the first one. Returns true when it fired. Never throws, never awaits.
+ */
+export function autoBeforeAfterOnStage(id, oldStage, newStage) {
+  if (!id || newStage !== 'install_complete' || oldStage === 'install_complete') return false;
+  const run = () => {
+    const ba = window.NBDAutoBeforeAfter;
+    if (ba && typeof ba.onInstallComplete === 'function') {
+      Promise.resolve(ba.onInstallComplete(id)).catch((e) =>
+        console.warn('[stage-write] before/after report failed:', e && e.message));
+    }
+  };
+  if (window.NBDAutoBeforeAfter) { run(); return true; }
+  const loader = window.ScriptLoader;
+  if (loader && typeof loader.loadBundle === 'function') {
+    Promise.resolve(loader.loadBundle('photos')).then(run).catch(() => {});
+    return true;
+  }
+  return false;
 }

@@ -11,6 +11,13 @@
  * the upload flow fires fire-and-forget to pre-populate suggestions
  * before the rep ever opens Review.
  *
+ * 2026-10-04: a second door, onPhotoCreatedClassify, runs the same
+ * classifier on EVERY created /photos doc (imported, drag-dropped,
+ * customer-page, camera) — the callable alone reached 1 photo of 111.
+ * Both doors share classifyPhoto(): the same caps, the same cache, an
+ * in-flight claim so they never pay twice, and photo-caption-safety.js
+ * over every caption (no claim talk on homeowner documents).
+ *
  * ── TWO AI PATHS, BY DESIGN ──
  * This file's analyzePhotoVision pairs with handlers/photo.js's
  * analyzeRoofPhoto. The split is intentional, not legacy:
@@ -42,14 +49,16 @@
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
-const { FieldValue } = require('firebase-admin/firestore');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { withSentry } = require('./integrations/sentry');
 
 const { callableRateLimit, assertNotViewer } = require('./shared');
+const { safeCaption } = require('./photo-caption-safety');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
@@ -129,7 +138,13 @@ const SYSTEM_PROMPT = [
   '- "confidence" reflects HOW SURE you are. 0.5 = best guess, 0.9 = very confident.',
   '',
   "If the photo is clearly not a roof / property (e.g. a screenshot, document, or",
-  'unrelated subject), return damageType:"other" with low confidence and caption explaining what you see.'
+  'unrelated subject), return damageType:"other" with low confidence and caption explaining what you see.',
+  '',
+  // KRS 367.628 (2026-10-04): the caption lands on homeowner documents. The
+  // server also filters it (photo-caption-safety.js) — this line just keeps
+  // the model from spending tokens on sentences that will be dropped.
+  'The caption describes ONLY what is visible. Never mention insurance, claims, adjusters,',
+  'coverage, deductibles, or what anyone will pay or approve.'
 ].join('\n');
 
 // ─── Suggestion validator ──────────────────────────────────────────
@@ -147,7 +162,8 @@ function sanitizeSuggestion(raw) {
     if (ALLOWED_PHASES.has(raw.phase))     out.phase = raw.phase;
     if (ALLOWED_DAMAGE.has(raw.damageType)) out.damageType = raw.damageType;
     if (ALLOWED_SEVERITY.has(raw.severity)) out.severity = raw.severity;
-    if (typeof raw.caption === 'string')   out.caption = raw.caption.slice(0, 200).trim();
+    // Claim talk is dropped sentence by sentence (photo-caption-safety.js).
+    if (typeof raw.caption === 'string')   out.caption = safeCaption(raw.caption.slice(0, 200).trim());
     if (typeof raw.confidence === 'number' && !isNaN(raw.confidence)) {
       out.confidence = Math.max(0, Math.min(1, raw.confidence));
     }
@@ -155,7 +171,267 @@ function sanitizeSuggestion(raw) {
   return out;
 }
 
-// ─── Main handler ──────────────────────────────────────────────────
+// ─── Core classifier ───────────────────────────────────────────────
+// ONE implementation, two doors: the analyzePhotoVision callable (the
+// in-app camera path, bulk re-classify) and onPhotoCreatedClassify (every
+// photo doc, however it was stored — imported, drag-dropped, customer-page
+// upload, annotated copy excluded). Both run the same caps, the same cache
+// and the same caption filter.
+//
+// Until 2026-10-04 only the callable existed, and only photo-engine's camera
+// and the customer-page uploader called it — an audit found the classifier
+// had run on ONE photo of 111. The trigger is what makes "AI tags every
+// photo" true; the in-flight claim below is what stops the two doors from
+// paying twice for the same photo when both fire.
+
+// A claim older than this is a crashed attempt, not a live one.
+const CLAIM_TTL_MS = 2 * 60 * 1000;
+
+function claimMs(v) {
+  if (!v) return 0;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (typeof v === 'number') return v;
+  return 0;
+}
+
+/**
+ * Should the trigger classify this freshly created /photos doc? Pure.
+ * Returns null to go ahead, or the skip reason.
+ */
+function triggerSkipReason(photo) {
+  const p = photo || {};
+  if (!p.userId) return 'no-owner';
+  if (!p.leadId) return 'no-lead';
+  if (p.aiSuggestion) return 'already-classified';
+  // An annotated copy (photo-editor "save as") is a drawing over a photo that
+  // was already classified — paying again would describe the marker strokes.
+  if (p.originalPhotoId) return 'annotated-copy';
+  const url = (p.urls && p.urls.med) || p.url;
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return 'no-url';
+  return null;
+}
+
+/**
+ * Classify one photo. Never trusts the caller for ownership — callers check
+ * that first (the callable: photo.userId === auth.uid; the trigger: the doc
+ * was written under the owner's own rules).
+ *
+ * @param {object} args
+ *   db, photoRef, photo  — the photo doc (already read)
+ *   uid                  — whose meters pay
+ *   billingKey           — subscriptions/{billingKey} resolves the plan
+ *   apiKey               — Anthropic key
+ *   source               — 'callable' | 'trigger' (stamped for audits)
+ *   skipIfClassified     — the trigger never re-classifies
+ *   fetchImpl, now       — test seams
+ * @returns {Promise<object>} {suggestion,cached,costUsd} | {skipped,reason,…} | {pending:true}
+ */
+async function classifyPhoto(args) {
+  const { db, photoRef, photo, uid, billingKey, apiKey } = args;
+  const fetchImpl = args.fetchImpl || fetch;
+  const now = args.now || Date.now;
+  const source = args.source || 'callable';
+
+  const leadId = photo.leadId;
+  if (!leadId) return { skipped: true, reason: 'no-lead' };
+
+  // ── In-flight claim — the two doors must not both spend ──
+  const claim = await db.runTransaction(async (tx) => {
+    const s = await tx.get(photoRef);
+    if (!s.exists) return 'gone';
+    const d = s.data() || {};
+    if (args.skipIfClassified && d.aiSuggestion) return 'done';
+    if (now() - claimMs(d.aiClassifyClaimAt) < CLAIM_TTL_MS) return 'busy';
+    tx.update(photoRef, { aiClassifyClaimAt: Timestamp.fromMillis(now()), aiClassifySource: source });
+    return 'ok';
+  });
+  if (claim === 'gone') return { skipped: true, reason: 'gone' };
+  if (claim === 'done') return { skipped: true, reason: 'already-classified' };
+  // Not `skipped`: the client toasts every skip as a cap message.
+  if (claim === 'busy') return { pending: true };
+
+  const release = () => photoRef.update({ aiClassifyClaimAt: FieldValue.delete() }).catch(() => {});
+
+  try {
+    // ── Cap checks (read meters, decide before spending money) ──
+    const monthKey = new Date(now()).toISOString().slice(0, 7);
+    const leadMeterRef = db.doc(`leadCostMeter/${leadId}`);
+    const userMeterRef = db.doc(`userCostMeter/${uid}__${monthKey}`);
+
+    // Plan resolves from the COMPANY's subscription (companyId claim || uid) —
+    // an invited rep has no subscriptions/{uid} doc, so keying on uid capped
+    // every rep of a paying tenant at the 'lite' budget (gauntlet gap). The
+    // per-user spend METERS stay uid-keyed on purpose.
+    const [leadMeterSnap, userMeterSnap, subSnap] = await Promise.all([
+      leadMeterRef.get(),
+      userMeterRef.get(),
+      db.doc(`subscriptions/${billingKey || uid}`).get(),
+    ]);
+    const leadUsd = (leadMeterSnap.exists && leadMeterSnap.data().visionUsd) || 0;
+    const userUsd = (userMeterSnap.exists && userMeterSnap.data().visionUsd) || 0;
+    const plan = (subSnap.exists && subSnap.data().plan) || 'lite';
+    const userMonthlyCap = PER_USER_MONTHLY_USD_CAP_BY_PLAN[plan] ?? PER_USER_MONTHLY_USD_CAP;
+
+    if (leadUsd >= PER_LEAD_USD_CAP) {
+      logger.info('photo-vision.cap.lead', { leadId, leadUsd, source });
+      await release();
+      return { skipped: true, reason: 'lead-cap', leadUsd };
+    }
+    if (userUsd >= userMonthlyCap) {
+      logger.info('photo-vision.cap.user', { uid, monthKey, userUsd, plan, cap: userMonthlyCap, source });
+      await release();
+      return { skipped: true, reason: 'user-cap', userUsd, cap: userMonthlyCap };
+    }
+
+    // ── Cache check ──
+    // Prefer the med variant (~600px) if the image pipeline has produced
+    // it. Falls back to the original URL when the trigger hasn't fired
+    // yet. Either way we hash the URL so the cache key matches across
+    // identical photos.
+    const imageUrl = (photo.urls && photo.urls.med) || photo.url;
+    if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl)) {
+      await release();
+      throw new HttpsError('invalid-argument', 'Photo has no usable URL');
+    }
+    const cacheKey = crypto.createHash('sha256').update(imageUrl).digest('hex').slice(0, 32);
+    const cacheRef = db.doc(`visionCache/${cacheKey}`);
+    const cacheSnap = await cacheRef.get();
+    if (cacheSnap.exists) {
+      // Re-sanitized on the way out: a suggestion cached before the caption
+      // filter existed must not reach a report unfiltered.
+      const cachedSuggestion = sanitizeSuggestion(cacheSnap.data().suggestion);
+      await photoRef.update({
+        aiSuggestion: cachedSuggestion,
+        aiSuggestionAt: FieldValue.serverTimestamp(),
+        aiSuggestionCached: true,
+        aiClassifyClaimAt: FieldValue.delete(),
+      });
+      return { suggestion: cachedSuggestion, cached: true, costUsd: 0 };
+    }
+
+    // ── Build user prompt with priors (cheap signal boost) ──
+    const priors = [];
+    if (photo.exif && photo.exif.takenAt) priors.push(`Taken at: ${photo.exif.takenAt}`);
+    if (photo.inferredLocation && photo.inferredLocation.label) {
+      priors.push(`Inferred location: ${photo.inferredLocation.label}`);
+    }
+    // Lead-stage prior so phase has a strong hint.
+    try {
+      const leadSnap = await db.doc(`leads/${leadId}`).get();
+      if (leadSnap.exists) {
+        const stage = leadSnap.data()._stageKey || leadSnap.data().stage;
+        if (stage) priors.push(`Lead currently at stage: ${stage}`);
+      }
+    } catch (_) { /* non-fatal */ }
+
+    const userText = priors.length
+      ? `Context: ${priors.join(' | ')}\n\nAnalyze this photo:`
+      : 'Analyze this photo:';
+
+    // ── Call Anthropic ──
+    const body = {
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'url', url: imageUrl } },
+          { type: 'text',  text: userText },
+        ],
+      }],
+    };
+
+    let response, data;
+    try {
+      response = await fetchImpl('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'x-api-key': apiKey,
+        },
+        body: JSON.stringify(body),
+      });
+      data = await response.json();
+    } catch (e) {
+      logger.error('photo-vision.fetch_failed', { err: e.message, source });
+      throw new HttpsError('internal', 'Vision API request failed');
+    }
+    if (!response.ok) {
+      const msg = (data && data.error && data.error.message) || ('HTTP ' + response.status);
+      logger.warn('photo-vision.api_error', { status: response.status, msg, source });
+      throw new HttpsError('internal', 'Vision API error: ' + msg);
+    }
+
+    // ── Parse + sanitize ──
+    const textBlock = data.content && Array.isArray(data.content)
+      ? data.content.find(b => b && b.type === 'text')
+      : null;
+    const text = (textBlock && textBlock.text) || '';
+    let rawSuggestion;
+    try {
+      // Strip optional ```json fences (Claude sometimes ignores the
+      // "no markdown" instruction on the first call).
+      const cleaned = text.replace(/^```(?:json)?\s*|\s*```\s*$/g, '').trim();
+      rawSuggestion = JSON.parse(cleaned);
+    } catch (e) {
+      logger.warn('photo-vision.unparseable', { snippet: text.slice(0, 200), source });
+      throw new HttpsError('internal', 'AI returned unparseable response');
+    }
+    const suggestion = sanitizeSuggestion(rawSuggestion);
+
+    // ── Compute actual cost from usage block ──
+    const usage = data.usage || {};
+    const inputTokens  = usage.input_tokens  || 0;
+    const outputTokens = usage.output_tokens || 0;
+    const callCostUsd = (inputTokens * COST_INPUT_PER_TOKEN) + (outputTokens * COST_OUTPUT_PER_TOKEN);
+
+    // ── Atomically record cost + cache + photo update ──
+    await db.runTransaction(async (tx) => {
+      tx.set(leadMeterRef, {
+        leadId,
+        ownerUid: uid,
+        visionUsd:   FieldValue.increment(callCostUsd),
+        visionCount: FieldValue.increment(1),
+        updatedAt:   FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.set(userMeterRef, {
+        uid,
+        monthKey,
+        visionUsd:   FieldValue.increment(callCostUsd),
+        visionCount: FieldValue.increment(1),
+        updatedAt:   FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.set(cacheRef, {
+        cacheKey,
+        suggestion,
+        model:       MODEL,
+        tokensIn:    inputTokens,
+        tokensOut:   outputTokens,
+        costUsd:     callCostUsd,
+        createdAt:   FieldValue.serverTimestamp(),
+      });
+
+      tx.update(photoRef, {
+        aiSuggestion:        suggestion,
+        aiSuggestionAt:      FieldValue.serverTimestamp(),
+        aiSuggestionCostUsd: callCostUsd,
+        aiSuggestionCached:  false,
+        aiClassifyClaimAt:   FieldValue.delete(),
+      });
+    });
+
+    return { suggestion, cached: false, costUsd: callCostUsd };
+  } catch (e) {
+    await release();
+    throw e;
+  }
+}
+
+// ─── Callable door ─────────────────────────────────────────────────
 exports.analyzePhotoVision = onCall({
   region: 'us-central1',
   cors: CORS_ORIGINS,
@@ -197,177 +473,60 @@ exports.analyzePhotoVision = onCall({
   if (!isAdmin && photo.userId !== uid) {
     throw new HttpsError('permission-denied', 'Not your photo');
   }
+  if (!photo.leadId) throw new HttpsError('invalid-argument', 'Photo has no leadId');
 
-  const leadId = photo.leadId;
-  if (!leadId) throw new HttpsError('invalid-argument', 'Photo has no leadId');
-
-  // ── Cap checks (read meters, decide before spending money) ──
-  const monthKey = new Date().toISOString().slice(0, 7);
-  const leadMeterRef = db.doc(`leadCostMeter/${leadId}`);
-  const userMeterRef = db.doc(`userCostMeter/${uid}__${monthKey}`);
-
-  // Plan resolves from the COMPANY's subscription (companyId claim || uid) —
-  // an invited rep has no subscriptions/{uid} doc, so keying on uid capped
-  // every rep of a paying tenant at the 'lite' budget (gauntlet gap). The
-  // per-user spend METERS stay uid-keyed on purpose.
-  const billingKey = (request.auth.token && request.auth.token.companyId) || uid;
-  const [leadMeterSnap, userMeterSnap, subSnap] = await Promise.all([
-    leadMeterRef.get(),
-    userMeterRef.get(),
-    db.doc(`subscriptions/${billingKey}`).get(),
-  ]);
-  const leadUsd = (leadMeterSnap.exists && leadMeterSnap.data().visionUsd) || 0;
-  const userUsd = (userMeterSnap.exists && userMeterSnap.data().visionUsd) || 0;
-  const plan = (subSnap.exists && subSnap.data().plan) || 'lite';
-  const userMonthlyCap = PER_USER_MONTHLY_USD_CAP_BY_PLAN[plan] ?? PER_USER_MONTHLY_USD_CAP;
-
-  if (leadUsd >= PER_LEAD_USD_CAP) {
-    logger.info('photo-vision.cap.lead', { leadId, leadUsd });
-    return { skipped: true, reason: 'lead-cap', leadUsd };
-  }
-  if (userUsd >= userMonthlyCap) {
-    logger.info('photo-vision.cap.user', { uid, monthKey, userUsd, plan, cap: userMonthlyCap });
-    return { skipped: true, reason: 'user-cap', userUsd, cap: userMonthlyCap };
-  }
-
-  // ── Cache check ──
-  // Prefer the med variant (~600px) if the image pipeline has produced
-  // it. Falls back to the original URL when the trigger hasn't fired
-  // yet. Either way we hash the URL so the cache key matches across
-  // identical photos.
-  const imageUrl = (photo.urls && photo.urls.med) || photo.url;
-  if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl)) {
-    throw new HttpsError('invalid-argument', 'Photo has no usable URL');
-  }
-  const cacheKey = crypto.createHash('sha256').update(imageUrl).digest('hex').slice(0, 32);
-  const cacheRef = db.doc(`visionCache/${cacheKey}`);
-  const cacheSnap = await cacheRef.get();
-  if (cacheSnap.exists) {
-    const cached = cacheSnap.data();
-    await photoRef.update({
-      aiSuggestion: cached.suggestion,
-      aiSuggestionAt: FieldValue.serverTimestamp(),
-      aiSuggestionCached: true,
-    });
-    return { suggestion: cached.suggestion, cached: true, costUsd: 0 };
-  }
-
-  // ── Build user prompt with priors (cheap signal boost) ──
-  const priors = [];
-  if (photo.exif && photo.exif.takenAt) priors.push(`Taken at: ${photo.exif.takenAt}`);
-  if (photo.inferredLocation && photo.inferredLocation.label) {
-    priors.push(`Inferred location: ${photo.inferredLocation.label}`);
-  }
-  // Lead-stage prior so phase has a strong hint.
-  try {
-    const leadSnap = await db.doc(`leads/${leadId}`).get();
-    if (leadSnap.exists) {
-      const stage = leadSnap.data()._stageKey || leadSnap.data().stage;
-      if (stage) priors.push(`Lead currently at stage: ${stage}`);
-    }
-  } catch (_) { /* non-fatal */ }
-
-  const userText = priors.length
-    ? `Context: ${priors.join(' | ')}\n\nAnalyze this photo:`
-    : 'Analyze this photo:';
-
-  // ── Call Anthropic ──
-  const body = {
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    system: SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'url', url: imageUrl } },
-        { type: 'text',  text: userText },
-      ],
-    }],
-  };
-
-  let response, data;
-  try {
-    response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        'x-api-key': ANTHROPIC_API_KEY.value(),
-      },
-      body: JSON.stringify(body),
-    });
-    data = await response.json();
-  } catch (e) {
-    logger.error('photo-vision.fetch_failed', { err: e.message });
-    throw new HttpsError('internal', 'Vision API request failed');
-  }
-  if (!response.ok) {
-    const msg = (data && data.error && data.error.message) || ('HTTP ' + response.status);
-    logger.warn('photo-vision.api_error', { status: response.status, msg });
-    throw new HttpsError('internal', 'Vision API error: ' + msg);
-  }
-
-  // ── Parse + sanitize ──
-  const textBlock = data.content && Array.isArray(data.content)
-    ? data.content.find(b => b && b.type === 'text')
-    : null;
-  const text = (textBlock && textBlock.text) || '';
-  let rawSuggestion;
-  try {
-    // Strip optional ```json fences (Claude sometimes ignores the
-    // "no markdown" instruction on the first call).
-    const cleaned = text.replace(/^```(?:json)?\s*|\s*```\s*$/g, '').trim();
-    rawSuggestion = JSON.parse(cleaned);
-  } catch (e) {
-    logger.warn('photo-vision.unparseable', { snippet: text.slice(0, 200) });
-    throw new HttpsError('internal', 'AI returned unparseable response');
-  }
-  const suggestion = sanitizeSuggestion(rawSuggestion);
-
-  // ── Compute actual cost from usage block ──
-  const usage = data.usage || {};
-  const inputTokens  = usage.input_tokens  || 0;
-  const outputTokens = usage.output_tokens || 0;
-  const callCostUsd = (inputTokens * COST_INPUT_PER_TOKEN) + (outputTokens * COST_OUTPUT_PER_TOKEN);
-
-  // ── Atomically record cost + cache + photo update ──
-  await db.runTransaction(async (tx) => {
-    tx.set(leadMeterRef, {
-      leadId,
-      ownerUid: uid,
-      visionUsd:   FieldValue.increment(callCostUsd),
-      visionCount: FieldValue.increment(1),
-      updatedAt:   FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    tx.set(userMeterRef, {
-      uid,
-      monthKey,
-      visionUsd:   FieldValue.increment(callCostUsd),
-      visionCount: FieldValue.increment(1),
-      updatedAt:   FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    tx.set(cacheRef, {
-      cacheKey,
-      suggestion,
-      model:       MODEL,
-      tokensIn:    inputTokens,
-      tokensOut:   outputTokens,
-      costUsd:     callCostUsd,
-      createdAt:   FieldValue.serverTimestamp(),
-    });
-
-    tx.update(photoRef, {
-      aiSuggestion:        suggestion,
-      aiSuggestionAt:      FieldValue.serverTimestamp(),
-      aiSuggestionCostUsd: callCostUsd,
-      aiSuggestionCached:  false,
-    });
+  return classifyPhoto({
+    db, photoRef, photo, uid,
+    billingKey: (request.auth.token && request.auth.token.companyId) || uid,
+    apiKey: ANTHROPIC_API_KEY.value(),
+    source: 'callable',
   });
-
-  return { suggestion, cached: false, costUsd: callCostUsd };
 }));
 
-// Export the sanitizer for unit testing.
-exports._test = { sanitizeSuggestion };
+// ─── Trigger door — every newly stored photo ───────────────────────
+// Fires once per created /photos doc, whatever wrote it. Same caps as the
+// callable (the photo OWNER's meters pay — the doc's userId is pinned to the
+// writer by firestore.rules), same kill switch. Never throws: a trigger retry
+// would be a second paid call, and the photo itself is already saved.
+async function handlePhotoCreated(photoId, photo, deps) {
+  deps = deps || {};
+  const reason = triggerSkipReason(photo);
+  if (reason) return { skipped: true, reason };
+  const killswitch = deps.killswitch || require('./integrations/killswitch');
+  if (await killswitch.isAiDisabled()) return { skipped: true, reason: 'ai-disabled' };
+  const db = deps.db || getFirestore();
+  return classifyPhoto({
+    db,
+    photoRef: db.doc(`photos/${photoId}`),
+    photo,
+    uid: photo.userId,
+    billingKey: photo.companyId || photo.userId,
+    apiKey: deps.apiKey || ANTHROPIC_API_KEY.value(),
+    source: 'trigger',
+    skipIfClassified: true,
+    fetchImpl: deps.fetchImpl,
+    now: deps.now,
+  });
+}
+
+exports.onPhotoCreatedClassify = onDocumentCreated({
+  document: 'photos/{photoId}',
+  region: 'us-central1',
+  secrets: [ANTHROPIC_API_KEY],
+  timeoutSeconds: 60,
+  memory: '256MiB',
+  retry: false,
+}, async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const photoId = event.params && event.params.photoId;
+  try {
+    const out = await handlePhotoCreated(photoId, snap.data() || {});
+    if (out && out.skipped) logger.info('photo-vision.trigger.skip', { photoId, reason: out.reason });
+  } catch (e) {
+    logger.warn('photo-vision.trigger.failed', { photoId, err: e && e.message });
+  }
+});
+
+// Export the sanitizer + core for unit testing.
+exports._test = { sanitizeSuggestion, classifyPhoto, handlePhotoCreated, triggerSkipReason, CLAIM_TTL_MS };
