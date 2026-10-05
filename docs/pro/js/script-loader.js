@@ -302,8 +302,11 @@
       // loadBundle('photos') a no-op for it and nothing would load lazily.
       'js/photo-queue-store.js?v=2',
       'js/photo-queue-recovery.js?v=2',
-      'js/inspection-report-engine.js?v=6',
-      'js/photo-report.js?v=4'
+      // KY claim-wording filter (2026-10-04) — BEFORE the two report
+      // builders, which run every caption / report string through it.
+      'js/claim-wording-filter.js?v=1',
+      'js/inspection-report-engine.js?v=7',
+      'js/photo-report.js?v=5'
     ],
     // D2D tracker (PR 2e). The door-to-door knock tracker — only the D2D
     // view uses it. ~180 KB off boot. Load order locked: core publishes
@@ -404,7 +407,7 @@
     drawtool: [
       'css/maps-routing-view.css?v=2',
       'js/draw-geom.js?v=2',
-      'js/maps-routing.js?v=8',
+      'js/maps-routing.js?v=9',
       'css/draw-reticle.css?v=1',
       'js/draw-reticle.js?v=1'
     ],

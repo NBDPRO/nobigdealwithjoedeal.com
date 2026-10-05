@@ -10,9 +10,13 @@
  * such doc into a timeline row; customer-bootstrap.module.js loadTimeline and
  * the PDF report gather call it.
  *
- * Only cube- / sms- docs: the other writers to that subcollection
- * (thursday-<id>, measurement, rep notes) are already shown from their own
- * sources, and showing them here would list them twice.
+ * Only cube- / sms- docs, plus voice memos: the other writers to that
+ * subcollection (thursday-<id>, measurement, rep notes) are already shown
+ * from their own sources, and showing them here would list them twice.
+ *
+ * Voice memos (2026-10-04): transcribeVoiceMemo (the card-detail Voice Memo
+ * button) files { type: 'voice_memo', transcript } under an auto id. Nothing
+ * else shows them, so without this row a saved memo was invisible.
  *
  * The summary and promises are AI output from what a CUSTOMER said — treat
  * them as untrusted. This returns plain strings; the timeline escapes every
@@ -34,6 +38,7 @@
 
   /** One activity doc → { time, kind, title, desc, type } or null. */
   function fromActivity(id, a) {
+    if (a && typeof a === 'object' && a.type === 'voice_memo') return fromVoiceMemo(a);
     const m = /^(cube|sms)-/.exec(String(id || ''));
     if (!m || !a || typeof a !== 'object') return null;
     const text = m[1] === 'sms';
@@ -52,6 +57,20 @@
       title: (str(a.label, 120) || (text ? 'Texts' : 'Phone call')) + (!text && dur ? ' · ' + Math.floor(dur / 60) + 'm ' + String(dur % 60).padStart(2, '0') + 's' : ''),
       desc: parts.filter(Boolean).join(' — '),
       type: 'communication',
+    };
+  }
+
+  // A voice memo is the rep's own spoken note: Notes filter, mic icon. The
+  // transcript is speech-to-text, so it is untrusted text like the rest.
+  function fromVoiceMemo(a) {
+    const dur = Math.round(Number(a.durationSec) || 0);
+    return {
+      time: toDate(a.createdAt) || new Date(0),
+      kind: 'memo',
+      icon: '🎙',
+      title: (str(a.label, 120) || 'Voice memo') + (dur ? ' · ' + Math.floor(dur / 60) + 'm ' + String(dur % 60).padStart(2, '0') + 's' : ''),
+      desc: str(a.transcript, 1500),
+      type: 'note',
     };
   }
 

@@ -224,6 +224,44 @@ service cloud.firestore {
         && valueOk && titleOk && jobReferralFieldsOk();
     }
 
+    // Production flow (2026-10-04) — a material order's shape. Owner + tenant
+    // match the lead (the collection-group read trusts them); dates are
+    // 'YYYY-MM-DD' or empty; status is an enum; the materials list is bounded
+    // and carries NO money fields (a sub's job sheet is built from it, and
+    // retail/cost figures have no business in an order row).
+    function _orderYmdOk(f) {
+      let v = request.resource.data.get(f, null);
+      return v == null || v == '' || (v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+    function orderWriteOk(leadId) {
+      let lead = get(/databases/$(database)/documents/leads/$(leadId)).data;
+      let d = request.resource.data;
+      return d.get('userId', '') == lead.get('userId', '')
+        && d.get('companyId', '') == lead.get('companyId', '')
+        && (!('store' in d) || (d.store is string && d.store.size() <= 80))
+        && (!('orderNumber' in d) || d.orderNumber == null || (d.orderNumber is string && d.orderNumber.size() <= 40))
+        && (!('notes' in d) || d.notes == null || (d.notes is string && d.notes.size() <= 1000))
+        && (!('status' in d) || d.status in ['planned', 'ordered', 'delivered', 'cancelled'])
+        && _orderYmdOk('orderedDate') && _orderYmdOk('deliveryDate')
+        && (!('items' in d) || (d.items is list && d.items.size() <= 200))
+        && !d.keys().hasAny(['cost', 'costCents', 'price', 'priceCents', 'total', 'totalCents', 'materialTotal', 'margin']);
+    }
+
+    // Production flow (2026-10-04) — one subcontractor on a company's roster
+    // (companies/{companyId}/subs). Crews are independent subs who carry their
+    // own insurance; insuranceExpiry drives the expired-certificate warning.
+    function subWriteOk() {
+      let d = request.resource.data;
+      let exp = d.get('insuranceExpiry', null);
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && (!('phone' in d) || d.phone == null || (d.phone is string && d.phone.size() <= 40))
+        && (!('email' in d) || d.email == null || (d.email is string && d.email.size() <= 120))
+        && (!('trade' in d) || d.trade == null || (d.trade is string && d.trade.size() <= 40))
+        && (!('notes' in d) || d.notes == null || (d.notes is string && d.notes.size() <= 1000))
+        && (!('active' in d) || d.active is bool)
+        && (exp == null || exp == '' || (exp is string && exp.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
+    }
+
     function stageWriteOk() {
       let newRole = request.resource.data.get('stageRole', null);
       let roleOk = newRole == null || newRole in ['new', 'active', 'job', 'won', 'lost'];
@@ -782,6 +820,28 @@ service cloud.firestore {
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
+
+        // ── MATERIAL ORDERS (production flow, 2026-10-04) ──
+        // leads/{id}/jobs/{jobId}/orders/{orderId}: store, ordered date,
+        // delivery date, status, and the saved materials list (quantities and
+        // names — never prices; the sub's job sheet is built from it). The
+        // job doc need not exist (a lead whose jobs mirror has not run yet
+        // keys its orders under 'j1', the id the mirror will create). Same
+        // writer set as the job itself; the order carries its lead's owner +
+        // tenant so the collection-group read below can trust them.
+        // onOrderCalendarWrite turns a delivery day into a FREE all-day event.
+        match /orders/{orderId} {
+          allow read: if isAuth() && (isAdmin()
+            || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+            || parentLeadInMyCompany(leadId));
+          allow create, update: if isAuth() && notViewer()
+            && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+                || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
+            && orderWriteOk(leadId);
+          allow delete: if isAuth() && notViewer()
+            && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+                || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
+        }
       }
 
       // ── DRAWINGS (roof measurements, sketches) ────────
@@ -1652,6 +1712,10 @@ service cloud.firestore {
     // Bot keys (hashed) and the bot audit trail — server only (agent-mcp.js).
     match /agent_keys/{keyId}   { allow read, write: if false; }
     match /agent_audit/{auditId} { allow read, write: if false; }
+    // A company's own bots and its bot settings (on/off switch, house rules)
+    // — server only, managed through the Bots & API callables (2026-10-04).
+    match /agent_bots/{botId}       { allow read, write: if false; }
+    match /agent_settings/{companyId} { allow read, write: if false; }
 
     match /agent_inbox/{itemId} {
       allow read: if isAdmin()
@@ -1838,12 +1902,20 @@ service cloud.firestore {
       // admin SDK ever writes there (createCompany always seeds plan:'free').
       // notViewer() (decision B, 2026-09-25): a viewer belongs to another
       // tenant, so a companies/{their uid} doc could only be a squat.
+      // Public-site publication (2026-10-04): `status` and `sitePublished` /
+      // `sitePublishedAt` decide whether /sites/t/<id> serves a page on Jo's
+      // domain (functions/handlers/public-site.js isPublishedCompany). Only the
+      // admin SDK writes them — createCompany / setSiteSlug (status, and
+      // sitePublished:false) and the owner's publishTenantSite callable (which
+      // checks name + phone + service area first). A client create carrying
+      // any of them, or an update that changes one, would be a self-publish.
       allow create: if isAuth() && notViewer()
         && companyId == request.auth.uid
         && request.resource.data.ownerId == request.auth.uid
-        && (!('plan' in request.resource.data) || request.resource.data.plan == 'free');
+        && (!('plan' in request.resource.data) || request.resource.data.plan == 'free')
+        && !request.resource.data.keys().hasAny(['status', 'sitePublished', 'sitePublishedAt']);
       allow update: if ((isAuth() && notViewer() && resource.data.ownerId == request.auth.uid)
-            && didNotChange(['plan', 'ownerId'])) || isAdmin();
+            && didNotChange(['plan', 'ownerId', 'status', 'sitePublished', 'sitePublishedAt'])) || isAdmin();
       allow delete: if (isAuth() && notViewer() && resource.data.ownerId == request.auth.uid) || isAdmin();
 
       // Members subcollection is writable only by the company owner or admin.
@@ -1875,6 +1947,27 @@ service cloud.firestore {
         //     since Firestore authorizes by claim, not roster membership).
         // Admin-SDK callables bypass rules; platform admins keep client access.
         allow create, update, delete: if isAdmin();
+      }
+
+      // ── SUB ROSTER (production flow, 2026-10-04) ──
+      // The company's independent subcontractors: name, phone, trade,
+      // insurance-certificate expiry, notes. Keyed under the TENANT key the
+      // client stamps on leads (claims.companyId, or a solo operator's own
+      // uid) — the same key the members rule above accepts. Readable by the
+      // tenant; writable by the solo owner or same-company staff (never a
+      // viewer, never a sales_rep). Soft delete (active:false) keeps a sub a
+      // past job names.
+      match /subs/{subId} {
+        allow read: if isAdmin()
+          || (isAuth() && request.auth.uid == companyId)
+          || (isAuth() && request.auth.token.get('companyId', '') == companyId);
+        allow create, update: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
+          && subWriteOk();
+        allow delete: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
       }
     }
 
@@ -2502,6 +2595,19 @@ service cloud.firestore {
     // a platform admin. The only 'jobs' collection in the database is the one
     // under /leads.
     match /{path=**}/jobs/{jobId} {
+      allow read: if isAuth() && (isAdmin()
+        || resource.data.get('userId', '') == request.auth.uid
+        || (isCompanyReader()
+            && request.auth.token.get('companyId', '') != ''
+            && resource.data.get('companyId', '') == request.auth.token.get('companyId', '')));
+    }
+
+    // Material orders across a tenant's jobs (production flow, 2026-10-04):
+    // the Schedule view's 7-day busy strip and delivery warnings load them
+    // with collectionGroup('orders').where('userId'|'companyId','==',…). Same
+    // shape as the jobs grant directly above; orderWriteOk pins both fields
+    // to the parent lead's.
+    match /{path=**}/orders/{orderId} {
       allow read: if isAuth() && (isAdmin()
         || resource.data.get('userId', '') == request.auth.uid
         || (isCompanyReader()

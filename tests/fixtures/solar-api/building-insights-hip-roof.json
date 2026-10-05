@@ -1,0 +1,82 @@
+{
+  "name": "buildings/ChIJx7Qm3bS1QYgRk9fZ0w2nE1o",
+  "center": { "latitude": 38.9987012, "longitude": -84.6265498 },
+  "imageryDate": { "year": 2022, "month": 4, "day": 18 },
+  "imageryProcessedDate": { "year": 2023, "month": 1, "day": 27 },
+  "postalCode": "41042",
+  "administrativeArea": "KY",
+  "statisticalArea": "Census Tract 703.07",
+  "regionCode": "US",
+  "solarPotential": {
+    "maxArrayPanelsCount": 52,
+    "maxArrayAreaMeters2": 101.6,
+    "maxSunshineHoursPerYear": 1402.6,
+    "carbonOffsetFactorKgPerMwh": 760.3,
+    "wholeRoofStats": {
+      "areaMeters2": 192.8,
+      "sunshineQuantiles": [362.1, 788.4, 942.7, 1011.2, 1068.9, 1121.5, 1177.3, 1239.8, 1306.2, 1360.4, 1402.6],
+      "groundAreaMeters2": 172.9
+    },
+    "roofSegmentStats": [
+      {
+        "pitchDegrees": 26.6, "azimuthDegrees": 181.4,
+        "stats": { "areaMeters2": 62.4, "sunshineQuantiles": [701.2, 1260.4, 1345.8, 1381.0, 1402.6], "groundAreaMeters2": 55.8 },
+        "center": { "latitude": 38.9986705, "longitude": -84.6265521 },
+        "boundingBox": { "sw": { "latitude": 38.9986402, "longitude": -84.6266703 }, "ne": { "latitude": 38.9987009, "longitude": -84.6264312 } },
+        "planeHeightAtCenterMeters": 6.9
+      },
+      {
+        "pitchDegrees": 26.5, "azimuthDegrees": 1.6,
+        "stats": { "areaMeters2": 61.9, "sunshineQuantiles": [362.1, 702.5, 811.3, 887.9, 951.0], "groundAreaMeters2": 55.4 },
+        "center": { "latitude": 38.9987321, "longitude": -84.6265488 },
+        "boundingBox": { "sw": { "latitude": 38.9987013, "longitude": -84.6266690 }, "ne": { "latitude": 38.9987618, "longitude": -84.6264301 } },
+        "planeHeightAtCenterMeters": 6.9
+      },
+      {
+        "pitchDegrees": 26.4, "azimuthDegrees": 91.2,
+        "stats": { "areaMeters2": 18.3, "sunshineQuantiles": [598.3, 1003.6, 1088.1, 1140.7, 1188.2], "groundAreaMeters2": 16.4 },
+        "center": { "latitude": 38.9987010, "longitude": -84.6264101 },
+        "boundingBox": { "sw": { "latitude": 38.9986601, "longitude": -84.6264420 }, "ne": { "latitude": 38.9987420, "longitude": -84.6263880 } },
+        "planeHeightAtCenterMeters": 6.4
+      },
+      {
+        "pitchDegrees": 26.4, "azimuthDegrees": 271.0,
+        "stats": { "areaMeters2": 18.1, "sunshineQuantiles": [541.9, 955.2, 1047.6, 1102.3, 1150.8], "groundAreaMeters2": 16.2 },
+        "center": { "latitude": 38.9987008, "longitude": -84.6266902 },
+        "boundingBox": { "sw": { "latitude": 38.9986598, "longitude": -84.6267120 }, "ne": { "latitude": 38.9987417, "longitude": -84.6266581 } },
+        "planeHeightAtCenterMeters": 6.4
+      },
+      {
+        "pitchDegrees": 22.6, "azimuthDegrees": 180.2,
+        "stats": { "areaMeters2": 16.2, "sunshineQuantiles": [655.0, 1201.7, 1290.3, 1330.9, 1360.4], "groundAreaMeters2": 15.0 },
+        "center": { "latitude": 38.9986390, "longitude": -84.6267702 },
+        "boundingBox": { "sw": { "latitude": 38.9986102, "longitude": -84.6268405 }, "ne": { "latitude": 38.9986683, "longitude": -84.6267003 } },
+        "planeHeightAtCenterMeters": 4.1
+      },
+      {
+        "pitchDegrees": 22.5, "azimuthDegrees": 0.4,
+        "stats": { "areaMeters2": 15.9, "sunshineQuantiles": [388.6, 731.0, 822.4, 879.1, 930.5], "groundAreaMeters2": 14.7 },
+        "center": { "latitude": 38.9986958, "longitude": -84.6267699 },
+        "boundingBox": { "sw": { "latitude": 38.9986684, "longitude": -84.6268401 }, "ne": { "latitude": 38.9987262, "longitude": -84.6267009 } },
+        "planeHeightAtCenterMeters": 4.1
+      }
+    ],
+    "solarPanelConfigs": [
+      { "panelsCount": 4, "yearlyEnergyDcKwh": 1811.2, "roofSegmentSummaries": [{ "pitchDegrees": 26.6, "azimuthDegrees": 181.4, "panelsCount": 4, "yearlyEnergyDcKwh": 1811.2, "segmentIndex": 0 }] }
+    ],
+    "panelCapacityWatts": 400,
+    "panelHeightMeters": 1.879,
+    "panelWidthMeters": 1.045,
+    "panelLifetimeYears": 20,
+    "buildingStats": {
+      "areaMeters2": 201.3,
+      "sunshineQuantiles": [362.1, 788.4, 942.7, 1011.2, 1068.9, 1121.5, 1177.3, 1239.8, 1306.2, 1360.4, 1402.6],
+      "groundAreaMeters2": 180.2
+    }
+  },
+  "boundingBox": {
+    "sw": { "latitude": 38.9986102, "longitude": -84.6268405 },
+    "ne": { "latitude": 38.9987618, "longitude": -84.6263880 }
+  },
+  "imageryQuality": "HIGH"
+}
