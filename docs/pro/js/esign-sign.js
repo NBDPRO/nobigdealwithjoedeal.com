@@ -82,6 +82,90 @@ function buildCheckWrap() {
 }
 buildCheckWrap();
 
+/* Decline (2026-10-04 — BoldSign retired; it had a decline and we did not).
+   Built here, not in esign.html, for the same cache reason as the checkbox
+   sheet above. A header button opens a sheet with an optional reason; the
+   server burns the link, stops reminders and tells the rep. */
+function buildDecline() {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'es-decline';
+  btn.id = 'esDeclineBtn';
+  btn.textContent = 'Decline';
+  btn.hidden = true;
+  document.querySelector('.es-bar').appendChild(btn);
+
+  const sheet = document.createElement('div');
+  sheet.className = 'es-sheet';
+  sheet.id = 'esDecline';
+  sheet.hidden = true;
+  const panel = document.createElement('div');
+  panel.className = 'es-sheet-panel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  panel.setAttribute('aria-labelledby', 'esDeclineTitle');
+  const head = document.createElement('div');
+  head.className = 'es-sheet-head';
+  const h3 = document.createElement('h3');
+  h3.id = 'esDeclineTitle';
+  h3.textContent = 'Decline to sign?';
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'es-x'; x.setAttribute('aria-label', 'Close'); x.textContent = '✕';
+  head.append(h3, x);
+  const body = document.createElement('div');
+  body.className = 'es-consent';
+  const p = document.createElement('p');
+  p.className = 'es-fineprint';
+  p.textContent = 'Your rep will be told you declined, and this link will stop working. If you change your mind, ask them for a new one.';
+  const label = document.createElement('label');
+  label.className = 'es-namewrap';
+  const span = document.createElement('span');
+  span.textContent = 'Reason (optional)';
+  const reason = document.createElement('textarea');
+  reason.className = 'es-reason'; reason.id = 'esDeclineReason'; reason.maxLength = 500;
+  reason.placeholder = 'Anything you want your rep to know';
+  label.append(span, reason);
+  const err = document.createElement('div');
+  err.className = 'es-err'; err.id = 'esDeclineErr'; err.hidden = true;
+  body.append(p, label, err);
+  const foot = document.createElement('div');
+  foot.className = 'es-sheet-foot';
+  const back = document.createElement('button');
+  back.type = 'button'; back.className = 'es-ghost'; back.textContent = 'Back';
+  const go = document.createElement('button');
+  go.type = 'button'; go.className = 'es-danger'; go.id = 'esDeclineGo'; go.textContent = 'Decline';
+  foot.append(back, go);
+  panel.append(head, body, foot);
+  sheet.appendChild(panel);
+  document.body.appendChild(sheet);
+
+  const close = () => { sheet.hidden = true; };
+  btn.addEventListener('click', () => { err.hidden = true; sheet.hidden = false; });
+  x.addEventListener('click', close);
+  back.addEventListener('click', close);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) close(); });
+  go.addEventListener('click', async () => {
+    go.disabled = true;
+    err.hidden = true;
+    const r = await post('declineEsignEnvelope', { token, reason: reason.value.trim() })
+      .catch(() => ({ ok: false, status: 0, data: {} }));
+    go.disabled = false;
+    if (r.ok && r.data.ok) {
+      close();
+      btn.hidden = true;
+      el.foot.hidden = true;
+      el.zoomCtl.hidden = true;
+      el.done.hidden = true;
+      showMsg('👋', 'You declined to sign', 'Your rep has been told. If you change your mind, ask them for a new link.');
+      return;
+    }
+    err.textContent = r.data.error || (r.status === 0 ? 'Connection problem — check your signal and try again.' : 'Could not record that. Please try again.');
+    err.hidden = false;
+  });
+  el.declineBtn = btn;
+}
+buildDecline();
+
 let pdfDoc = null;
 let envelope = null;      // { title, fields, pages, signerName, companyName }
 let scale = 1;
@@ -720,8 +804,16 @@ el.submit.addEventListener('click', async () => {
     el.done.hidden = true;
     el.foot.hidden = true;
     el.zoomCtl.hidden = true;
-    showMsg('🎉', 'All done — thank you!',
-      'Your signature has been recorded and sent to your rep. You can close this page.');
+    if (el.declineBtn) el.declineBtn.hidden = true;
+    if (r.data.complete === false) {
+      // Multi-signer: someone signs after this person, on their own link.
+      showMsg('✅', 'Thank you — your signature is recorded',
+        (r.data.nextSigner ? r.data.nextSigner : 'The next signer') +
+        ' will get their own link to sign next. Once everyone has signed, a copy comes to your email.');
+    } else {
+      showMsg('🎉', 'All done — thank you!',
+        'Your signature has been recorded. A signed copy is on its way to your email, and your rep has been told. You can close this page.');
+    }
     return;
   }
 
@@ -737,6 +829,7 @@ el.submit.addEventListener('click', async () => {
     // leaves them nothing to act on.
     const reason = r.data.reason || '';
     if (reason === 'revoked') showMsg('🚫', 'Link cancelled', r.data.error || 'This link was cancelled. Please use the latest link.');
+    else if (reason === 'declined') showMsg('👋', 'Declined', r.data.error || 'This document was declined.');
     else if (reason === 'expired') showMsg('⏳', 'This link expired', r.data.error || 'This signing link has expired.');
     else showMsg('✅', 'Already signed', r.data.error || 'This document has already been signed.');
     return;
@@ -783,6 +876,7 @@ async function boot() {
     if (r.status === 410 && reason === 'signed') showMsg('✅', 'Already signed', r.data.error);
     else if (r.status === 410 && reason === 'expired') showMsg('⏳', 'This link expired', r.data.error);
     else if (r.status === 410 && reason === 'revoked') showMsg('🚫', 'Link cancelled', r.data.error);
+    else if (r.status === 410 && reason === 'declined') showMsg('👋', 'Declined', r.data.error);
     else if (r.status === 404) showMsg('🔗', 'Invalid link', r.data.error || 'This signing link is not valid.');
     else if (r.status === 429) showMsg('⏳', 'Too many tries', 'Please wait a minute and reload the page.');
     else showMsg('⚠️', 'Could not load', r.data.error || 'Something went wrong. Please try again shortly.');
@@ -795,6 +889,15 @@ async function boot() {
     try { document.title = `Review & Sign · ${envelope.companyName}`; } catch (_) {}
   }
   el.title.textContent = envelope.title ? `· ${envelope.title}` : '';
+  if (Number(envelope.signerCount) > 1) {
+    // Multi-signer: say whose turn this is, so a co-owner knows the first
+    // signature is not missing — it is drawn in when everyone has signed.
+    const of = document.createElement('span');
+    of.className = 'es-signer-of';
+    of.textContent = ` · Signer ${(Number(envelope.signerIndex) || 0) + 1} of ${envelope.signerCount}`;
+    el.title.appendChild(of);
+  }
+  if (el.declineBtn && envelope.canDecline !== false) el.declineBtn.hidden = false;
   el.consentText.textContent = envelope.consentText || 'I agree to sign electronically.';
   el.signerName.value = envelope.signerName || '';
 

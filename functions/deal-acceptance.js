@@ -94,6 +94,9 @@ const DEAL_ROOM_CSP = [
   "base-uri 'none'",
   "object-src 'none'",
 ].join('; ');
+// Shown on the deal page beside the signature (deal-room.js prints the same
+// words) and stored with the acceptance when the homeowner ticks it.
+const DEAL_CONSENT_TEXT = 'I agree to sign electronically. My electronic signature is the legal equivalent of my handwritten signature.';
 const ALREADY_ACCEPTED_MSG = 'This deal has already been accepted — your rep will reach out to confirm your installation.';
 
 // 32-char no-confusable alphabet (no 0/O, 1/I/L) — same as portal.js / remote-signing.js.
@@ -345,6 +348,23 @@ exports.submitDealAcceptance = onRequest(
     }
     if (signature.length > 600 * 1024) { res.status(413).json({ error: 'Signature too large' }); return; }
 
+    // ESIGN evidence (2026-10-04, BoldSign retired — "Sign on this phone" is
+    // the in-house signing path for Kentucky insurance jobs): who signed from
+    // where, on what device, whether they ticked the consent the page shows
+    // (deal-room.js), and a digest of the signature itself. Recorded in the
+    // SAME transaction as the acceptance. The consent text is the server's
+    // own copy — never free text from the wire.
+    let ip = null;
+    try { ip = require('./integrations/upstash-ratelimit').clientIp(req) || null; } catch (_) { ip = null; }
+    const evidence = {
+      at: Date.now(),
+      ip,
+      ua: String((typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null,
+      consent: b.consent === true,
+      consentText: b.consent === true ? DEAL_CONSENT_TEXT : null,
+      signatureSha256: require('crypto').createHash('sha256').update(signature, 'utf8').digest('hex'),
+    };
+
     const db = getFirestore();
     const tokRef = db.doc(`deal_accept_tokens/${token}`);
 
@@ -409,16 +429,29 @@ exports.submitDealAcceptance = onRequest(
           scheduledInstallDate: scheduledDate || null,
           acceptedAt: FieldValue.serverTimestamp(),
           acceptedVia: 'remote',
+          acceptedEvidence: evidence,
         });
         return {
           dealId: t.dealId, ownerUid: t.ownerUid, leadId: t.leadId || null,
-          customerName: t.customerName || '', price,
+          customerName: t.customerName || '', price, htmlPath: t.htmlPath || null,
         };
       });
     } catch (err) {
       if (err && err._http) { res.status(err._http).json({ error: err._msg }); return; }
       logger.error('[submitDealAcceptance] burn+record txn failed', { msg: err.message });
       res.status(500).json({ error: 'Could not record your acceptance. Try again.' }); return;
+    }
+
+    // The digest of the deal page as stored when they accepted — what they
+    // were shown. Best-effort: the acceptance is already committed.
+    if (info.htmlPath) {
+      try {
+        const [buf] = await getStorage().bucket().file(info.htmlPath).download();
+        await db.doc(`deal_rooms/${info.dealId}`).update({
+          'acceptedEvidence.pageSha256': require('crypto').createHash('sha256').update(buf).digest('hex'),
+          'acceptedEvidence.pagePath': info.htmlPath,
+        });
+      } catch (e) { logger.warn('[submitDealAcceptance] page digest failed', { msg: e && e.message }); }
     }
 
     // Token is burned AND the deal is recorded — both committed together
