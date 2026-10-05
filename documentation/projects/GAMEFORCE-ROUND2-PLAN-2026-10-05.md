@@ -109,3 +109,45 @@ tests, a rules/tenant test, and a 390x844 E2E.
 Not in this plan, but noted: a real **Do Not Call check** before AI texting
 goes live (today the code only mentions DNC; quiet hours are enforced for storm
 SMS in #2114). That belongs with the A2P launch work.
+
+## Appendix: small and niche GameForce perks (deep dive, 2026-10-05)
+
+Jo: "I want even more of its small and niche abilities and perks." This covers every
+public page: home (including the collapsed panels and the hidden "full list"),
+pricing with the full plan comparison and FAQ, developers, the affiliate program,
+SMS opt-in, and the weekly webinar page. **The app itself is behind a login.** We
+can't create an account, and the trial needs a card. If Jo starts the 7-day trial
+and shares screenshots, a third pass can go deeper.
+
+Ranked by value to NBD. None of these is approved to build yet.
+
+| # | GameForce perk | What we have | Why it's worth it |
+|---|---|---|---|
+| 1 | **Number health**: "keeps phone numbers healthy", spam monitoring, warm-up mode | Nothing | 0 of 23 texts delivered for 45 days and nothing noticed. A delivery-rate monitor ("texts delivered this week: 0%" goes red) would have caught it on day 2. |
+| 2 | **Bulk-send safety preview**: "14 found · 2 skipped: no consent · 1 skipped: DNC · Send 11? Needs your OK". Afterwards it reports who was skipped; a cancel says "Dismissed. Nothing was done." | Ask Joe confirms single texts (#2019) | Needed before AI texting goes live after A2P; the right shape for TCPA. |
+| 3 | **Auto-takeover after 10 minutes**: if no rep answers a new lead's text, the AI picks it up | AI texting (blocked on A2P) | Speed-to-lead wins roofing leads; a small rule on top of AI texting. |
+| 4 | **"Watches"**: tell the agent "let me know when…" (e.g. a Mason lead opens a proposal) | Fixed alerts only | Ask Joe already acts; this makes alerts user-defined. |
+| 5 | **Escalation flags**: an inbound "Can I talk to a manager?" becomes a "Wants a manager today" chip with Reply | Call/text matching and promise detection | One more intent tag on inbound texts and calls. |
+| 6 | **Usage wallet**: every call, text, number and AI charge itemized, with spending limits on the agent | AI spend tracking (#2148) | Extends to Twilio and Bland. It's how NBD Pro tenants pay their usage fairly. |
+| 7 | **Digital business card** per rep | Yard-sign QR (`/r`), booking links | A rep card page plus QR at the door. Cheap, good for D2D. |
+| 8 | **Streak counter** ("12-day streak") and "#8 this week, #15 all time" | XP + ghost (`functions/game-logic.js`) | Fits the 10/3 "compete with yourself" rule. Trivial on the game card. |
+| 9 | **"Moves leads, with undo"** | Unknown, check first | An undo toast on bulk moves and stage changes. |
+| 10 | **Themed loading screens** ("📞 Polishing the leaderboard", "🏠 Warming up the phones") | Generic spinners | Pure polish, about an hour, makes the app feel alive. |
+| 11 | **Client affiliate**: customers earn 20% of referrals' bills for life, credited to their own bill (outside affiliates: 10% for 12 months, paid on cash collected) | $200 homeowner referral code | A growth engine for NBD Pro, separate from homeowner referrals. |
+| 12 | **Post-job customer surveys** (in their app list) | Review asks | Fine as a separate feedback step. Never use it to decide who gets a review ask (that's against Google's review policy). |
+
+**Also seen, lower priority:**
+- "Count my squad" seat helper.
+- A clear definition of a seat: everyone who logs in, including office staff and field techs.
+- Plan unlocks by team size: logo at 10, white label, domain and login styling at 30, plus the customer portal, recruiting and dispatch.
+- A free weekly live walkthrough with a countdown in the visitor's own time zone.
+- Consent copy that names "automated and AI calls and texts".
+- "Sample data" labels on every demo screen.
+
+**Skip:**
+- Dialer extras (40 lines, voicemail drops, hold message, listen/whisper/barge).
+- Skip tracing (paid data per lookup).
+- Loot boxes, pets, raids and Sales City.
+- Their own funnel and webinar builder (the site and Cal.com cover it).
+- Recruiting / Checkr (until NBD hires).
+- "Apps Atlas builds".
