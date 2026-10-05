@@ -635,19 +635,24 @@ section('Review engine — role-aware nudges, tenant-safe copy, Settings-sourced
 {
   const rev = read(path.join(ROOT, 'docs/pro/js/review-engine.js'));
 
-  // Won detection is role-based: persisted stageRole wins, isWonStage covers
-  // key classification. The old hardcoded closedStages allowlist missed
-  // final_payment/final_photos/deductible_collected and custom won stages —
-  // it must not come back.
-  assert('review nudge classifies won by persisted stageRole, then isWonStage',
-    /l\.stageRole \|\| l\._stageRole/.test(rev)
-    && /window\.isWonStage/.test(rev)
+  // 2026-10-03 (Jo): the nudge waits for PAID IN FULL — the shared
+  // nbd:paid-in-full-rule (byte-identical with functions/paid-in-full.js,
+  // behaviour-tested in tests/review-paid-in-full-2026-10-03.test.js): the
+  // persisted stageRole first (custom won stages count), Install Done /
+  // Final Photos / Deductible / Collections never, and no invoice owing.
+  // The old hardcoded closedStages allowlist must not come back either.
+  assert('review nudge gates on paid in full (shared rule, persisted stageRole first)',
+    /nbd:paid-in-full-rule:start/.test(rev)
+    && /typeof lead\.stageRole === 'string'/.test(rev)
+    && /if \(!paidInFullFor\(l\)\) return false;/.test(rev)
     && !/const closedStages\s*=/.test(rev),
-    'expected isWonLead(stageRole → isWonStage) and no hardcoded closedStages list');
+    'expected the paid-in-full gate (shared block) and no hardcoded closedStages list');
 
-  // Recency keys off entering the won stage — updatedAt resets on any edit.
-  assert('review nudge recency uses stageStartedAt (updatedAt fallback only)',
-    /l\.stageStartedAt \|\| l\.updatedAt/.test(rev));
+  // Recency keys off becoming paid: stage entry (stageStartedAt; updatedAt
+  // only as the pre-rollout fallback — it resets on any edit) or the last
+  // payment, whichever is later.
+  assert('review nudge recency uses stageStartedAt (updatedAt fallback only) or the last payment',
+    /lead\.stageStartedAt \|\| lead\.updatedAt/.test(rev) && /return paidSinceMs\(l\) > recently;/.test(rev));
 
   // Review link resolves from the SAME Settings field the homeowner portal
   // reads, and the deep-merged NBD /r default never leaks to another tenant.

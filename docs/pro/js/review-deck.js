@@ -2,8 +2,12 @@
  * review-deck.js — ask for Google reviews one at a time (Jo, 2026-10-02:
  * "make things addressable one thing at a time").
  *
- * The won jobs from the last 60 days that haven't been asked, newest win
- * first, as a triage deck (triage-deck.js):
+ * The jobs PAID IN FULL in the last 60 days that haven't been asked, newest
+ * first, as a triage deck (triage-deck.js). Paid in full is the shared rule
+ * (ReviewEngine.paidInFullFor — review-engine.js nbd:paid-in-full-rule, Jo
+ * 2026-10-03): a won stage at or after Final Payment and no invoice owing.
+ * Until then any won stage counted, so Install Done jobs were asked before
+ * they paid.
  *   right = Text the ask    (ReviewEngine.sendReviewSMS — the platform sender,
  *                            which checks the STOP list; marks reviewRequested)
  *   left  = Later
@@ -26,40 +30,44 @@
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-  function isWon(l) {
-    const persisted = l.stageRole || l._stageRole;
-    if (persisted) return persisted === 'won';
-    const key = l._stageKey || l.stage || '';
-    return typeof window.isWonStage === 'function' ? window.isWonStage(key) : ['closed', 'install_complete', 'Complete'].includes(key);
-  }
+  // Paid in full + when, from ReviewEngine (one rule with the bell and the
+  // server). invoices undefined → the shared NBDRevenue cache; not loaded yet
+  // (null) → nothing is paid in full (never ask on a guess).
+  const RE = () => window.ReviewEngine || null;
+  const paid = (l, invoices) => { const r = RE(); return !!(r && typeof r.paidInFullFor === 'function' && r.paidInFullFor(l, invoices)); };
+  const paidAt = (l, invoices) => { const r = RE(); return r && typeof r.paidSinceMs === 'function' ? r.paidSinceMs(l, invoices) : toMs(l.stageStartedAt || l.updatedAt); };
 
-  /** Won in the last 60 days, own lead, not asked, not declined (pure over the leads). */
-  function candidates(leads, uid, now) {
+  /** Paid in full in the last 60 days, own lead, not asked, not declined (pure over leads + invoices). */
+  function candidates(leads, uid, now, invoices) {
     const t = now == null ? Date.now() : now;
     const me = uid === undefined ? (window._user && window._user.uid) : uid;
     return (leads || []).filter((l) => l && !l.deleted && !l.isProspect && (!l.userId || l.userId === me)
-      && isWon(l) && !l.reviewRequested && !l.reviewAskDeclined
-      && toMs(l.stageStartedAt || l.updatedAt) > t - WINDOW)
-      .sort((a, b) => toMs(b.stageStartedAt || b.updatedAt) - toMs(a.stageStartedAt || a.updatedAt));
+      && !l.reviewRequested && !l.reviewAskDeclined
+      && paid(l, invoices) && paidAt(l, invoices) > t - WINDOW)
+      .sort((a, b) => paidAt(b, invoices) - paidAt(a, invoices));
   }
 
   function card(l) {
     const name = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || 'Customer';
-    const days = Math.max(0, Math.round((Date.now() - toMs(l.stageStartedAt || l.updatedAt)) / DAY));
+    const days = Math.max(0, Math.round((Date.now() - paidAt(l)) / DAY));
     const town = String(l.address || '').split(',').slice(1, 2).join('').trim();
     const what = l.jobType ? (window.JOB_TYPE_META && window.JOB_TYPE_META[l.jobType] && window.JOB_TYPE_META[l.jobType].label) || l.jobType : '';
     return '<div class="deck-name">' + esc(name) + '</div>' +
-      '<div><span class="deck-tag">Won ' + (days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago') + '</span></div>' +
+      '<div><span class="deck-tag">Paid in full ' + (days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago') + '</span></div>' +
       '<div class="deck-sub">' + esc([what, town].filter(Boolean).join(' · ')) + '</div>' +
       '<div class="deck-sub">' + (l.phone ? '📱 ' + esc(l.phone) : 'No phone on file') + (l.email ? ' · ✉ ' + esc(l.email) : '') + '</div>' +
-      '<div class="deck-why">The ask: a thank-you and your Google review link, asking them to mention their town and the job.</div>' +
+      '<div class="deck-why">The ask: a thank-you and your Google review link, asking them to mention their town and the job — plus their own referral link, in the same message.</div>' +
       '<a class="deck-link" href="/pro/customer.html?id=' + encodeURIComponent(l.id) + '" target="_blank" rel="noopener">Open customer ↗</a>';
   }
 
   async function sentOrThrow(p) { if (!(await p)) throw new Error('Not sent — see the message above.'); }
 
-  function open() {
+  async function open() {
     if (!window.NBDTriageDeck || !window.ReviewEngine) return;
+    // Paid in full is judged from the invoices — load them first.
+    if (window.NBDRevenue && typeof window.NBDRevenue.loadInvoices === 'function') {
+      try { await window.NBDRevenue.loadInvoices(); } catch (_) { /* nothing counts as paid then */ }
+    }
     const RE = window.ReviewEngine;
     const items = candidates(window._leads).map((l) => ({ id: l.id, lead: l }));
     window.NBDTriageDeck.open({
@@ -80,7 +88,7 @@
           { label: 'Open customer ↗', href: '/pro/customer.html?id=' + encodeURIComponent(it.lead.id) },
         ]
       ),
-      doneText: 'Every recent job has been asked. Nice.',
+      doneText: 'Every job paid in full lately has been asked. Nice.',
       onClose: () => { if (window.NBDHomeAttention && typeof window.NBDHomeAttention.render === 'function') window.NBDHomeAttention.render(true); },
     });
   }

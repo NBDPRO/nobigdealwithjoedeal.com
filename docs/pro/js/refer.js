@@ -20,6 +20,13 @@
   function hide(el) { el.style.display = 'none'; }
 
   const ref = getRef();
+  // The referrer's personal code (review-engine.js puts it on the link the
+  // review ask carries, 2026-10-03). Passed through as-is; the server only
+  // honours it when it is THIS referrer's own code.
+  const code = (function () {
+    try { return (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24); }
+    catch (e) { return ''; }
+  })();
   // White-label (2026-07-19): portal.js appends &co=<tenant name> for non-NBD
   // tenants so this landing page brands itself. textContent only (never HTML),
   // length-capped; absent param -> NBD literals untouched.
@@ -97,7 +104,7 @@
         method: 'POST',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ref, firstName, lastName, phone, email, address, notes }),
+        body: JSON.stringify(Object.assign({ ref, firstName, lastName, phone, email, address, notes }, code ? { code } : {})),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
