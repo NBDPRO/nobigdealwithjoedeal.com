@@ -80,6 +80,7 @@
   "getBusyTimes": "./google-calendar",
   "getCalendarFeed": "./calendar-feed",
   "getConnectStatus": "./handlers/stripe-connect",
+  "getDealPhoto": "./deal-acceptance",
   "getDealRoom": "./deal-acceptance",
   "getDocumentHtml": "./document-view",
   "getDocumentPdfUrl": "./document-view",

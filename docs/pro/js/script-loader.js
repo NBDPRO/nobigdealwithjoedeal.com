@@ -95,6 +95,9 @@
       // The shared financing APR band (public estimator + deal page, 2026-10-03)
       // — close-board.js prints payments only from it.
       '/assets/js/financing-band.js?v=1',
+      // Full packet / Paperwork only (2026-10-04) — also in the estimates
+      // bundle; the loader runs it once.
+      'js/deal-packet.js?v=1',
       'js/close-board.js?v=10'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
@@ -251,6 +254,9 @@
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
       'js/estimate-finalization.js?v=6',
+      // The send-time packet choice (2026-10-04), before the builder uses it.
+      'js/deal-packet.js?v=1',
+      'js/estimate-v2-ui.js?v=22',
       'js/estimate-v2-ui.js?v=23',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.

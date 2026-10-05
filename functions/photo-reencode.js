@@ -30,13 +30,18 @@ const QUALITY = 85;
  * so a caller can keep the format (and therefore the file extension /
  * contentType) the client declared. → Promise<Buffer>; rejects on a
  * payload that does not decode as an image.
+ *
+ * opts.maxEdge (optional, ≤ MAX_EDGE) caps the long edge lower — the deal
+ * page's inspection photos (getDealPhoto, 2026-10-04) are served at 1600.
  */
-async function reencodePhoto(buffer, format) {
+async function reencodePhoto(buffer, format, opts) {
   const fmt = String(format || 'jpeg').replace(/^image\//, '');
+  const want = Math.floor(Number(opts && opts.maxEdge));
+  const edge = want > 0 ? Math.min(want, MAX_EDGE) : MAX_EDGE;
   const sharp = require('sharp');
   const p = sharp(buffer, { limitInputPixels: LIMIT_INPUT_PIXELS, failOn: 'error' })
     .rotate()
-    .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true });
+    .resize({ width: edge, height: edge, fit: 'inside', withoutEnlargement: true });
   if (fmt === 'png') return p.png({ compressionLevel: 9 }).toBuffer();
   if (fmt === 'webp') return p.webp({ quality: QUALITY }).toBuffer();
   return p.jpeg({ quality: QUALITY, mozjpeg: true }).toBuffer();

@@ -211,6 +211,17 @@ async function submitDeal() {
   window.addEventListener('pagehide', flush);
 })();
 
+// ── Packet photos (2026-10-04) ──
+// A full packet's inspection photos load from /deal/<token>/photo/<n>; one
+// that fails (link just expired, photo removed) is hidden, not a broken icon.
+// Image errors don't bubble — listen in the capture phase.
+document.addEventListener('error', function (ev) {
+  const img = ev.target;
+  if (!img || img.tagName !== 'IMG' || !img.closest) return;
+  const fig = img.closest('.deal-photo');
+  if (fig) fig.classList.add('is-broken');
+}, true);
+
 // ── Delegated interactions (replaces the CSP-dead inline handlers) ──
 document.addEventListener('click', function (ev) {
   const tier = ev.target.closest && ev.target.closest('[data-deal-tier]');

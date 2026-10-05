@@ -181,7 +181,9 @@ test.describe('phone close flow: send to homeowner + sign on this phone @shard2'
         await expect(page.locator('#estV2Modal ' + sel).first(), sel + ' waits under More').toBeHidden();
       }
       const visibleButtons = await page.locator('#estV2Modal .v2-body button:visible').evaluateAll((els) => els.filter((e) => !e.closest('.v3-head')).map((e) => (e.textContent || '').trim()));
-      expect(visibleButtons, 'Finish shows the primary + More, nothing else').toEqual(['📲 Send to homeowner', 'More ▾']);
+      // 2026-10-04: the Full packet / Paperwork only choice is asked at send
+      // time, beside the primary (this lead has no photos to pick).
+      expect(visibleButtons, 'Finish shows the packet choice + the primary + More, nothing else').toEqual(['📦 Full packet', '📄 Paperwork only', '📲 Send to homeowner', 'More ▾']);
       if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'close-finish-390.png') });
       await page.locator('#estV2Modal .v3-more').tap();
       for (const sel of ['#v2saveBtn', '#v2signPhoneBtn', '#v2signBtn']) await expect(page.locator(sel)).toBeVisible();
