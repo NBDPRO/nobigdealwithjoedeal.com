@@ -386,6 +386,11 @@ exports.crmMcp = agentMcp.crmMcp;
 exports.createAgentKey = agentMcp.createAgentKey;
 exports.listAgentKeys = agentMcp.listAgentKeys;
 exports.revokeAgentKey = agentMcp.revokeAgentKey;
+// Settings → Bots & API (2026-10-04): any company on a paid plan makes its
+// own bots; per-company on/off switch, timezone and house rules.
+exports.saveAgentBot = agentMcp.saveAgentBot;
+exports.deleteAgentBot = agentMcp.deleteAgentBot;
+exports.saveAgentSettings = agentMcp.saveAgentSettings;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;
@@ -482,6 +487,11 @@ exports.onJobCalendarWrite      = googleCalendar.onJobCalendarWrite;
 exports.onYardSignCalendarWrite = googleCalendar.onYardSignCalendarWrite;
 exports.onKnockCalendarWrite    = googleCalendar.onKnockCalendarWrite;
 exports.googleCalendarReconcile = googleCalendar.googleCalendarReconcile;
+// Production flow (2026-10-04): CRM-booked appointments + material deliveries
+// → NBD Jobs; the weather.gov forecast for scheduled job days.
+exports.onLeadEventCalendarWrite = googleCalendar.onLeadEventCalendarWrite;
+exports.onOrderCalendarWrite     = googleCalendar.onOrderCalendarWrite;
+exports.getJobWeather            = require('./job-weather').getJobWeather;
 
 // Automated Firestore daily backup + retention. Needs a one-time bucket + IAM
 // setup documented in functions/firestore-backup.js. Both are scheduled-only.
@@ -503,6 +513,12 @@ Object.assign(exports, firestoreBackup);
 // ever did — so it stays independent of whatever breaks next.
 const backupFreshness = require('./backup-freshness');
 Object.assign(exports, backupFreshness);
+
+// Weekly backup of the config that lives only at a vendor (Bland "Thursday",
+// Cal.com, BoldSign, Stripe catalog) into the private vendor-backups bucket.
+// Vendor audit 2026-10-04 Lane B; runbook documentation/runbooks/BACKUP-RESTORE.md.
+const vendorConfigExport = require('./vendor-config-export');
+Object.assign(exports, vendorConfigExport);
 
 // ── Verification Functions (SMS OTP + Lead Notifications) ──
 const verifyFunctions = require('./verify-functions');

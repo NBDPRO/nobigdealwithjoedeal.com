@@ -258,6 +258,27 @@ function anthropicStub(caption, calls) {
     sentBody = null;
     await PM._test.measureLeadAndPublish(makeDb(), { leadId: 'W1', lead, deps: { fetchImpl, bucket } });
     ok('the public web-lead path still asks for no outline', sentBody && sentBody.resultOptions && sentBody.resultOptions.mapWithOutlineFromImageModel === false);
+    // Merged with #2164 (NBD_MEASUREMENT_PROVIDER solar|auto): the provider
+    // prefixes externalJobId; the web lead keeps '<provider>-weblead-<id>' and
+    // the auto-order gets its own '<provider>-auto-<id>'.
+    ok('auto-order externalJobId = <provider>-auto-<leadId>', db.data['measurements/auto-L1'].externalJobId === 'instantroofer-auto-L1', db.data['measurements/auto-L1'].externalJobId);
+    const wdb = makeDb();
+    await PM._test.measureLeadAndPublish(wdb, { leadId: 'W2', lead, deps: { fetchImpl, bucket } });
+    ok('web-lead externalJobId stays <provider>-weblead-<leadId>', wdb.data['measurements/weblead-W2'] && wdb.data['measurements/weblead-W2'].externalJobId === 'instantroofer-weblead-W2');
+    // 'auto' with no Solar key falls back to Instant Roofer — the outline
+    // request must survive the Solar wrapper's ctx hand-off.
+    const { PROVIDERS } = require(path.join(FN, 'integrations', '_shared.js'));
+    const prevMode = PROVIDERS.measurement, prevSolar = process.env.SOLAR_API_KEY;
+    PROVIDERS.measurement = 'auto'; delete process.env.SOLAR_API_KEY;
+    try {
+      sentBody = null; saved.length = 0;
+      const adb = makeDb();
+      const aout = await PM._test.measureLeadAndPublish(adb, { leadId: 'A1', lead, jobDocId: 'auto-A1', source: 'auto-order:stage', withOutline: true, deps: { fetchImpl, bucket } });
+      ok('provider=auto (Solar unconfigured) still asks Instant Roofer for the outline', aout.ok === true && sentBody && sentBody.resultOptions && sentBody.resultOptions.mapWithOutlineFromImageModel === true);
+      ok('provider=auto saves the fallback outline too', saved.length === 1 && saved[0][0] === 'docs/u1/measurements/A1-outline.png');
+    } finally {
+      PROVIDERS.measurement = prevMode; if (prevSolar !== undefined) process.env.SOLAR_API_KEY = prevSolar;
+    }
     const IR = require(path.join(FN, 'integrations', 'instantroofer-logic.js'));
     ok('outlineImage refuses bytes that are not an image', IR.outlineImage({ imagery: { mapWithOutline: Buffer.from('<svg onload=x>hello</svg>').toString('base64') } }) === null);
     delete process.env.INSTANTROOFER_API_KEY;

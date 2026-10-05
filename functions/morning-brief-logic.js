@@ -172,7 +172,9 @@ function collectTodayItems(o) {
   for (const raw of (Array.isArray(opts.appointments) ? opts.appointments : [])) {
     const a = CF.normalizeAppointment(raw);
     if (!a || nyDateOf(a.startMs) !== today) continue;
-    appts.push(a);
+    // A CRM-booked appointment (lead-events.js, via leadEventToAppointment)
+    // is a visit of its own — it never stands in for the lead's job day.
+    if (!(raw && raw.source === 'crm-event')) appts.push(a);
     const lead = a.leadId ? leadsById.get(String(a.leadId)) : null;
     const startHm = nyHm(a.startMs);
     const durMin = Math.max(0, Math.round((a.endMs - a.startMs) / 60000));
@@ -416,6 +418,31 @@ function historyLines(h) {
   return lines;
 }
 
+/** A job day's forecast line — it warns, it never cancels anything. */
+function weatherText(w) {
+  return (w.level === 'warn' ? '⚠ ' : '') + 'Weather: ' + w.label + (w.level === 'warn' ? ' — check before the crew rolls' : '');
+}
+
+/** "N signed jobs need a week" — Plan Jobs on the Schedule view. */
+function needsWeekHtml(list) {
+  if (!list || !list.length) return '';
+  const n = list.length;
+  const names = list.slice(0, 6).map((r) => `<a href="${escapeHtml(customerUrl(r.leadId))}">${escapeHtml(r.name)}</a>`).join(' · ');
+  return `
+    <div class="item">
+      <div><span class="when">${n} signed job${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} a week</span><span class="pill">Plan</span></div>
+      <div class="meta">${names}${n > 6 ? ' · …' : ''}</div>
+      <div class="meta"><a href="${DASHBOARD_URL}#/schedule">Plan them in Schedule → Plan Jobs</a></div>
+    </div>`;
+}
+function needsWeekText(list) {
+  if (!list || !list.length) return '';
+  const n = list.length;
+  return `${n} signed job${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} a week: `
+    + list.slice(0, 6).map((r) => plain(r.name)).join(', ') + (n > 6 ? ', …' : '')
+    + '\n  Plan them: ' + DASHBOARD_URL + '#/schedule';
+}
+
 function itemHtml(it) {
   const name = escapeHtml(it.name);
   const nameHtml = it.leadId
@@ -430,6 +457,7 @@ function itemHtml(it) {
     const adj = [it.carrier, it.adjusterName, it.adjusterPhone, it.claimNumber ? 'Claim #' + it.claimNumber : ''].filter(Boolean);
     if (adj.length) meta.push('Adjuster: ' + escapeHtml(adj.join(' · ')));
   }
+  if (it.weather && it.weather.label) meta.push(escapeHtml(weatherText(it.weather)));
   const hist = historyLines(it.history).map((l) => `<li>${escapeHtml(l)}</li>`).join('');
   return `
     <div class="item">
@@ -450,6 +478,7 @@ function itemText(it) {
     const adj = [it.carrier, it.adjusterName, it.adjusterPhone, it.claimNumber ? 'Claim #' + it.claimNumber : ''].filter(Boolean);
     if (adj.length) out.push('  Adjuster: ' + plain(adj.join(' · ')));
   }
+  if (it.weather && it.weather.label) out.push('  ' + plain(weatherText(it.weather)));
   for (const l of historyLines(it.history)) out.push('  - ' + plain(l));
   if (it.leadId) out.push('  ' + customerUrl(it.leadId));
   return out.join('\n');
@@ -489,16 +518,29 @@ function buildBrief(o) {
     activityByLead: toMap(opts.activityByLead),
     stormProofsByLead: toMap(opts.stormProofsByLead),
   };
-  for (const it of items) it.history = propertyHistory(it, ctx);
-
   const today = nyDateOf(nowMs);
+  const weatherByLead = toMap(opts.weatherByLead);
+  for (const it of items) {
+    it.history = propertyHistory(it, ctx);
+    // Today's forecast on a job day (production flow, 2026-10-04).
+    const w = it.source === 'job' && it.leadId ? weatherByLead.get(String(it.leadId)) : null;
+    if (w && w[today]) it.weather = w[today];
+  }
+  const needsWeek = Array.isArray(opts.needsWeek) ? opts.needsWeek : [];
+
   const dateLabel = nyLongDate(nowMs);
   const n = items.length;
+  const k = needsWeek.length;
   const firstTimed = items.find((it) => !it.allDay);
-  const subject = n === 0 ? '' : `Today (${dateLabel}): ${n} appointment${n === 1 ? '' : 's'}`
-    + (firstTimed ? ` — first at ${SW.fmtTime12(hmToMin(nyHm(firstTimed.sortMs)))}` : '');
+  const needsLabel = `${k} signed job${k === 1 ? '' : 's'} need${k === 1 ? 's' : ''} a week`;
+  const subject = n === 0
+    ? (k === 0 ? '' : `Today (${dateLabel}): ${needsLabel}`)
+    : `Today (${dateLabel}): ${n} appointment${n === 1 ? '' : 's'}`
+      + (firstTimed ? ` — first at ${SW.fmtTime12(hmToMin(nyHm(firstTimed.sortMs)))}` : '')
+      + (k ? ` · ${needsLabel}` : '');
+  const sendable = n > 0 || k > 0;
 
-  const html = n === 0 ? '' : `<!DOCTYPE html>
+  const html = !sendable ? '' : `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -514,6 +556,7 @@ function buildBrief(o) {
     </div>
     <div class="content">
       ${items.map(itemHtml).join('')}
+      ${needsWeekHtml(needsWeek)}
       <p style="font-size:12px;color:#6b7280;text-align:center;margin-top:16px;">
         From the CRM only — open a customer for the full record. <a href="${DASHBOARD_URL}#settings">Manage email preferences</a>.
       </p>
@@ -525,10 +568,11 @@ function buildBrief(o) {
 </body>
 </html>`;
 
-  const text = n === 0 ? '' : [
+  const text = !sendable ? '' : [
     `${n} appointment${n === 1 ? '' : 's'} today — ${dateLabel}`,
     '',
     items.map(itemText).join('\n\n'),
+    k ? '\n' + needsWeekText(needsWeek) : '',
     '',
     'Internal brief for the account owner. Preferences: ' + DASHBOARD_URL + '#settings',
   ].join('\n');

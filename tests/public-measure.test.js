@@ -54,8 +54,9 @@ section('exactly one code path may spend money');
     && /ref\.get\(\)/.test(src));
   ok('the read-only endpoint has NO enforceAppCheck (dead config on onRequest, and CI rejects it)',
     !/enforceAppCheck/.test(src));
-  ok('only the trigger binds the API key',
-    /secrets: \[SECRETS\.INSTANTROOFER_API_KEY\]/.test(src)
+  ok('only the trigger binds the API keys (Instant Roofer + Google Solar for NBD_MEASUREMENT_PROVIDER=solar|auto)',
+    /secrets: \[SECRETS\.INSTANTROOFER_API_KEY, SECRETS\.SOLAR_API_KEY\]/.test(src)
+    && (src.match(/SECRETS\.SOLAR_API_KEY/g) || []).length === 1
     && (src.match(/SECRETS\.INSTANTROOFER_API_KEY/g) || []).length === 1);
   ok('both exports keep the literal factory RHS the deploy allowlist greps for',
     /^exports\.measureNewWebLead = onDocumentCreated/m.test(src)

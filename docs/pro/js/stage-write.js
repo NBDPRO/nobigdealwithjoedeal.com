@@ -228,6 +228,16 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   try { autoBeforeAfterOnStage(id, oldStage, newStage); }
   catch (e) { console.warn('[stage-write] before/after trigger failed:', e && e.message); }
 
+  // Production flow (2026-10-04, production.js): a soft warning when a job
+  // reaches Final Photos with no After photos (the move has already gone
+  // through — it warns, never blocks), and the "After photos + walkthrough"
+  // checklist task on entering Install Done. Not awaited, best-effort.
+  try {
+    if (window.NBDProduction && typeof window.NBDProduction.onStageChange === 'function') {
+      window.NBDProduction.onStageChange(id, oldStage, newStage);
+    }
+  } catch (e) { console.warn('[stage-write] production hook failed:', e && e.message); }
+
   // enteredWon: this move took the lead from a non-won stage onto a won one —
   // the caller's cue to offer "Create invoice" (crm-pipeline.js moveCard).
   return { historyEvent, enteredWon };
