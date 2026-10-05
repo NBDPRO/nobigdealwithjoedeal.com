@@ -195,6 +195,7 @@
     "five-tier-crm-2026-10-02.test.js",
     "estimate-v3-wizard-2026-10-02.test.js",
     "close-flow-2026-10-03.test.js",
+    "deal-packet-2026-10-04.test.js",
     "materials-list-2026-10-02.test.js",
     "dol-suggested-badge-2026-10-02.test.js",
     "dol-fill-2026-10-02.test.js",

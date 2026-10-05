@@ -83,6 +83,8 @@
       { "source": "/api/storm-report", "function": { "functionId": "stormReport", "region": "us-central1" } },
       { "_comment": "Server-rendered preview for portal share links. The function reads the token off req.path, validates it, and renders an HTML page with og: meta so messaging apps show a real preview card. See functions/share-ssr.js.",
         "source": "/share/**", "function": { "functionId": "shareSSR", "region": "us-central1" } },
+      { "_comment": "Deal packet photos (2026-10-04). /deal/<token>/photo/<n> streams one inspection photo of a FULL packet, re-encoded server-side (EXIF/GPS stripped) and token-checked on every load, so it dies with the deal link. MUST sit before /deal/** (first matching rewrite wins). See functions/deal-packet-logic.js.",
+        "source": "/deal/*/photo/*", "function": { "functionId": "getDealPhoto", "region": "us-central1" } },
       { "_comment": "Close Board deal acceptance (1a). /deal/<token> serves the interactive deal-room HTML FIRST-PARTY so the homeowner's ACCEPT POST to /api/deal-accept is same-origin (a raw Storage URL would CORS-block it). Token-authed, no login. See functions/deal-acceptance.js.",
         "source": "/deal/**", "function": { "functionId": "getDealRoom", "region": "us-central1" } },
       { "source": "/api/deal-accept", "function": { "functionId": "submitDealAcceptance", "region": "us-central1" } },
