@@ -134,7 +134,20 @@ async function _recordJobEventCore(db, args, deps) {
         }
       }
 
+      // The sold package (soldTier) at a signing event — reads first.
+      let tierPatch = null;
+      if (lead && plan.reason !== 'tenant_mismatch' && plan.reason !== 'lost') {
+        let est = null;
+        if (L.soldTierNeedsEstimate(lead, event, meta)) {
+          const es = await tx.get(db.collection('estimates').doc(String(lead.primaryEstimateId)));
+          est = es.exists ? (es.data() || null) : null;
+          if (est && lead.userId && est.userId && est.userId !== lead.userId) est = null;
+        }
+        tierPatch = L.soldTierPatch(lead, event, meta, est);
+      }
+
       const result = { action: plan.action, reason: plan.reason || null, from: plan.action === 'move' ? plan.from : (lead ? (lead.stage == null ? null : lead.stage) : null), to: plan.to || null };
+      if (tierPatch) result.soldTier = tierPatch.soldTier;
       tx.create(markerRef, {
         leadId, companyId: args.companyId || (lead && lead.companyId) || null,
         event, sourceId: sourceId || null, actor, at: atIso,
@@ -156,6 +169,7 @@ async function _recordJobEventCore(db, args, deps) {
 
       if (plan.action === 'move') {
         const { payload } = L.movePayload(lead, plan, { actor, atIso, event }, FieldValue);
+        if (tierPatch) Object.assign(payload, tierPatch, { soldTierAt: FieldValue.serverTimestamp() });
         tx.update(leadRef, payload);
         tx.set(noteRef, Object.assign({}, noteBase, {
           text: L.moveNoteText(plan.to, event, meta.detail),
@@ -164,6 +178,10 @@ async function _recordJobEventCore(db, args, deps) {
         if (task) tx.set(taskRef, Object.assign({}, task.doc, { createdAt: FieldValue.serverTimestamp(), createdBy: 'system: job spine' }));
         return { moved: true, from: plan.from, to: plan.to, taskId: task ? task.id : null, markerId: mid };
       }
+
+      // No move (the lead was already past contract_signed, say) — the sold
+      // package is still recorded.
+      if (tierPatch) tx.update(leadRef, Object.assign({}, tierPatch, { soldTierAt: FieldValue.serverTimestamp() }));
 
       // No move — still leave the caller's note (e.g. "Inspection booked
       // via Cal.com…") on a live lead, once.

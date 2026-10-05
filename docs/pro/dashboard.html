@@ -54,7 +54,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=16" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=17" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
@@ -113,7 +113,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=140"></script>
+<script src="js/script-loader.js?v=141"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -210,6 +210,8 @@
 <link rel="stylesheet" href="css/estimate-send.css?v=1">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
+<!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
+<link rel="stylesheet" href="css/numbers.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -799,6 +801,7 @@
     <div class="nav-section-content open" id="section-insights">
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="board" id="nav-board"><span class="ni-icon">🏆</span>Leaderboard</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="reports" id="nav-reports"><span class="ni-icon">📈</span>Reports</div>
+      <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="weekreview" id="nav-weekreview"><span class="ni-icon">🗓️</span>Sunday Review</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="expenses" id="nav-expenses"><span class="ni-icon">🧾</span>Expenses</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="money" id="nav-money"><span class="ni-icon">💵</span>Money</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="refrewards" id="nav-refrewards"><span class="ni-icon">🎁</span>Referrals</div>
@@ -863,6 +866,7 @@
         </div>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-ghost" style="font-size:11px;padding:8px 14px;" data-action="module" data-target="NBDWidgets.openPicker">⚙️ Customize</button>
+          <button class="btn btn-ghost nb-home-link" id="homeWeekReviewBtn" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
@@ -2419,6 +2423,9 @@
   <!-- Past Customers (win-back): template-hydrated mount; winback.js (lazy 'winback' bundle) renders the list into .view-scroll on init. -->
   <div class="view" id="view-winback" data-view-template="tpl-view-winback"></div>
   <template id="tpl-view-winback"><div class="view-scroll" id="winbackScroll"></div></template>
+  <!-- Sunday business review (2026-10-04): template-hydrated mount; week-review.js (lazy 'weekreview' bundle) renders into .view-scroll on init. Owner-only figures. -->
+  <div class="view" id="view-weekreview" data-view-template="tpl-view-weekreview"></div>
+  <template id="tpl-view-weekreview"><div class="view-scroll" id="weekReviewScroll"></div></template>
   <template id="tpl-view-closeboard">
     <div class="view-scroll">
       <div class="page-hdr">
@@ -2925,6 +2932,7 @@
         </div>
         <div class="flex-g8">
           <button class="btn btn-ghost" id="btnEnrichData" data-action="call" data-fn="enrichReportData" title="One-time analytics enrichment: reverse-geocode knock GPS coords into city/zip and derive time-of-day buckets. Enables the Top Territories and Heatmap metrics on historical data.">✨ Enrich Data</button>
+          <button class="btn btn-ghost" id="btnReportsWeekReview" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
           <button class="btn btn-orange" id="btnOpenReportGenerator" data-action="call" data-fn="openReportGenerator">＋ New Report</button>
         </div>
       </div>
@@ -2946,14 +2954,22 @@
         </div>
       </div>
 
-      <!-- Lead Source ROI panel — instant read on which sources actually
-           generate revenue. Computed live off window._leads — no backend
-           call. Re-renders on leadsChanged. -->
+      <!-- Knowing your numbers (2026-10-04): package mix, losses by reason,
+           results per storm — js/reports-numbers.js. -->
+      <div class="panel mb-lg">
+        <div class="panel-body" id="reportsNumbersPanel">
+          <div class="empty"><div class="empty-icon">📦</div>Loading…</div>
+        </div>
+      </div>
+
+      <!-- Lead-source table (2026-10-04): one row per source — leads, won %,
+           booked (projected), collected, spend, cost per job won, booked per $1.
+           js/lead-source-roi.js off window._leads; re-renders on leadsChanged. -->
       <div class="panel mb-lg">
         <div class="panel-hdr">
           <div>
             <div class="panel-label">Insights</div>
-            <div class="panel-title">Lead Source ROI</div>
+            <div class="panel-title">Lead Sources — what each one earns</div>
           </div>
           <div class="meta-11">All-time · live</div>
         </div>
@@ -5934,7 +5950,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=8"></script>
+<script defer src="js/dashboard-state.js?v=9"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=6"></script>
@@ -6184,6 +6200,9 @@
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="money" data-close-more>
     <span class="mm-item-icon">💵</span>Money
+  </div>
+  <div class="mm-item" data-action="mobileNav" data-target="weekreview" data-close-more>
+    <span class="mm-item-icon">🗓️</span>Sunday Review
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="refrewards" data-close-more>
     <span class="mm-item-icon">🎁</span>Referrals
@@ -6867,7 +6886,7 @@
      replaces the unbounded every-photo read loadLeads used to do at boot. -->
 <script defer src="js/photo-cache.js?v=2"></script>
 <script defer src="js/jobs-store.js?v=5"></script>
-<script defer src="js/crm-pipeline.js?v=16"></script>
+<script defer src="js/crm-pipeline.js?v=17"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6882,7 +6901,7 @@
 <script defer src="js/crm.js?v=35"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=8"></script>
-<script defer src="js/dol-fill.js?v=1"></script>
+<script defer src="js/dol-fill.js?v=2"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
 <script defer src="js/agent-inbox.js?v=6"></script>
 <script defer src="js/agent-bots-settings.js?v=3"></script>
@@ -6903,7 +6922,7 @@
 <script defer src="js/needs-attention-filter.js?v=4"></script>
 <!-- "No next step" (2026-10-03): open leads with no follow-up and no open
      task — Home card #homeNoNextStep + the board filter #noNextStepBtn. -->
-<script defer src="js/no-next-step.js?v=2"></script>
+<script defer src="js/no-next-step.js?v=3"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=3"></script>
@@ -6933,6 +6952,13 @@
 <script defer src="js/stale-shares-widget.js?v=2"></script>
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
 <script defer src="js/collected-revenue.js?v=2"></script>
+<!-- Knowing your numbers (2026-10-04): ONE close rate, the lead-source table,
+     spend + cost per lead, the required lost reason. numbers-logic.js is the
+     pure rules; numbers-data.js the owner-only reads/writes; the picker is
+     the required "Why was it lost?" sheet (crm-pipeline / crm-leads). -->
+<script defer src="js/numbers-logic.js?v=1"></script>
+<script defer src="js/numbers-data.js?v=1"></script>
+<script defer src="js/lost-reason-picker.js?v=1"></script>
 <script defer src="js/widgets.js?v=13"></script>
 <script defer src="js/today-home.js?v=2"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
@@ -7010,7 +7036,7 @@
 
 <script defer src="js/ask-joe-rules.js?v=1"></script>
 <script defer src="js/ask-joe-actions.js?v=2"></script>
-<script defer src="js/ai.js?v=10"></script>
+<script defer src="js/ai.js?v=11"></script>
 <script defer src="js/review-engine.js?v=7"></script>
 <script defer src="js/review-deck.js?v=1"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
@@ -7054,7 +7080,7 @@
 <script defer src="js/estimate-analytics.js?v=3"></script>
 <!-- W153: Reports view performance dashboard — KPI tiles +
      period-over-period comparison + conversion funnel. -->
-<script defer src="js/reports-dashboard.js?v=2"></script>
+<script defer src="js/reports-dashboard.js?v=3"></script>
 <!-- W154: revenue trend sparkline + top customers/sources/engaged. -->
 <script defer src="js/reports-trends.js?v=3"></script>
 <!-- LAZY: estimate-v2-ui + product-library load via the `estimates` bundle (PR 2c). -->
@@ -7062,7 +7088,9 @@
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js
      when a saved theme exists, else with the Settings view / theme picker. -->
 <script defer src="js/prospects.js?v=5"></script>
-<script defer src="js/lead-source-roi.js?v=2"></script>
+<script defer src="js/lead-source-roi.js?v=3"></script>
+<!-- Reports: package mix, losses by reason, results per storm (2026-10-04). -->
+<script defer src="js/reports-numbers.js?v=1"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
 <script defer src="js/forecasting.js?v=3"></script>
 <script defer src="js/onboarding-tour.js?v=4"></script>

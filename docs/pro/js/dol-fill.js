@@ -166,12 +166,31 @@
   }
   function close() { const o = document.getElementById('dolOverlay'); if (o) o.remove(); }
 
+  /**
+   * The lead update for an accepted date (pure). A date accepted FROM a storm
+   * report names the storm, so the lead joins that storm's results in Reports
+   * (stormId 'storm-YYYY-MM-DD' — the same id functions/storm-tag-logic.js
+   * gives a lead that came in after the storm). A typed date is the
+   * homeowner's / adjuster's word, not a storm report, so it does not tag; an
+   * existing stormId is never replaced.
+   */
+  function savePatch(lead, date, source) {
+    const patch = { dateOfLoss: date, dateOfLossSource: source };
+    if (source === 'storm_report_suggested' && isYmd(date) && !(lead && lead.stormId)) {
+      patch.stormId = 'storm-' + date;
+      patch.stormDate = date;
+      patch.stormTaggedBy = 'date_of_loss';
+    }
+    return patch;
+  }
+
   async function save(id, date, source) {
     const row = _rows.find((r) => r.lead.id === id);
     if (!row || !isYmd(date)) { if (window.showToast) window.showToast('Pick or type a date first', 'error'); return; }
     try {
-      await window.updateDoc(window.doc(window.db || window._db, 'leads', id), { dateOfLoss: date, dateOfLossSource: source, updatedAt: window.serverTimestamp() });
-      row.lead.dateOfLoss = date; row.lead.dateOfLossSource = source;
+      const patch = savePatch(row.lead, date, source);
+      await window.updateDoc(window.doc(window.db || window._db, 'leads', id), Object.assign({}, patch, { updatedAt: window.serverTimestamp() }));
+      Object.assign(row.lead, patch);
       row.state = 'saved'; row.saved = date + (source === 'storm_report_suggested' ? ' (from storm reports — confirm)' : '');
       paint();
     } catch (e) {
@@ -200,5 +219,5 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tick); else tick();
   })();
 
-  window.NBDDolFill = { open, close, needsDol, suggest, cells, label, NEAR_MI, LOOKBACK_DAYS };
+  window.NBDDolFill = { open, close, needsDol, suggest, cells, label, savePatch, NEAR_MI, LOOKBACK_DAYS };
 })();

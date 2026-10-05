@@ -624,6 +624,11 @@ exports.leadFollowUpSweep = require('./lead-followup').leadFollowUpSweep;
 // Replaces the separate stormWatch + checkStormAlerts crons.
 exports.stormPoller = require('./storm-poller').stormPoller;
 
+// A new lead created within 14 days of a stored storm report within 10 mi of
+// its pin gets stormId 'storm-YYYY-MM-DD' (functions/storm-tag.js) — Reports'
+// results per storm.
+exports.stormTagOnLeadCreate = require('./storm-tag').stormTagOnLeadCreate;
+
 // 1st-of-month 7am ET marketing rollup (functions/marketing-report.js).
 exports.monthlyMarketingReport = require('./marketing-report').monthlyMarketingReport;
 
@@ -845,6 +850,11 @@ exports.textInboxNotes = require('./text-inbox').textInboxNotes;
 // identifies in the form.
 const referrals = require('./referrals');
 exports.submitReferral = referrals.submitReferral;
+
+// Referral-link opens, counted per month for the owner's numbers (2026-10-04,
+// functions/referral-clicks.js). POST { ref } from /pro/refer.html once per
+// session; counter only — no lead lookup result is ever returned.
+exports.referralLinkOpened = require('./referral-clicks').referralLinkOpened;
 
 // Referral-CODE redemption + $100 bonus crediting on close. A single
 // leads/{leadId} onWrite trigger: attributes a redeemed code to its referrer,

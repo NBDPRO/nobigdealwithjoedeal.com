@@ -71,7 +71,7 @@ console.log('\nF1 — the documented shape: phone in responses, address in the l
   ok('email carried', lead.email === 'pat@example.com');
   ok('booked notes carried with no NO-PHONE line', lead.notes === 'Two shingles missing after the storm', lead.notes);
   ok('event slug + id + attribution recorded', lead.calcomEventSlug === 'roof-inspection' && lead.calcomEventTypeId === 5279797 && lead.sourcePage === 'calcom:roof-inspection');
-  ok('provenance unchanged from the pre-fix doc (source label, kind, webLead)', lead.source === 'Website — Cal.com booking' && lead.publicLeadKind === 'calcom_booking' && lead.webLead === true && lead.stage === 'New' && lead.status === 'new');
+  ok('provenance unchanged from the pre-fix doc (source label, kind, webLead)', lead.source === 'Website — Cal.com booking' && lead.publicLeadKind === 'calcom_booking' && lead.webLead === true && lead.stage === 'new' && lead.stageRole === 'new' && lead.status === 'new');
   ok('booking id carried', lead.calcomBookingId === 'bk_documented_1');
   const legacyRead = (documented().attendees[0].phoneNumber || '');
   ok('…and the field the old code read is empty on this shape (the bug, pinned)', legacyRead === '');

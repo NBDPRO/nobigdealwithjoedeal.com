@@ -912,7 +912,9 @@
   }
 
   // ── entry form (modal) ──────────────────────────────────────────────
-  function openForm() {
+  // opts.leadId (2026-10-04): the Sunday review's "Costs needed" list opens
+  // the form already on that job, category Materials — one tap to a cost.
+  function openForm(opts) {
     var c = EC();
     if (document.getElementById('expFormOverlay')) return;
     var cats = (c ? c.CATEGORIES : []).map(function (x) {
@@ -995,6 +997,11 @@
       if (amtEl) { amtEl.readOnly = isMileage; amtEl.style.opacity = isMileage ? '.6' : '1'; } // mileage amount is computed
       if (isMileage) recomputeMileage();
     }
+    if (opts && opts.leadId) {
+      var leadSel = document.getElementById('expLead');
+      if (leadSel) leadSel.value = String(opts.leadId);
+      if (catSel && opts.category) catSel.value = String(opts.category);
+    }
     if (catSel) catSel.addEventListener('change', syncCategoryFields);
     if (milesEl) milesEl.addEventListener('input', recomputeMileage);
     var dateEl = document.getElementById('expDate');
@@ -1070,6 +1077,8 @@
         await createRecurringTemplate({ amount: v('expAmount'), date: v('expDate'), supplier: v('expSupplier'), category: v('expCategory') }, repeat);
       }
       closeForm(); await refresh();
+      // The Sunday review's "Costs needed" list re-reads on this.
+      try { window.dispatchEvent(new CustomEvent('nbd:expenses-changed')); } catch (_) { /* old browser */ }
     } else if (btn) { btn.disabled = false; btn.textContent = 'Save Expense'; }
   }
 
@@ -1242,6 +1251,7 @@
 
   window.Expenses = {
     init: init,
+    openForm: openForm,
     render: render,
     refresh: refresh,
     // data-layer (used by Phase 2 OCR + future surfaces)
