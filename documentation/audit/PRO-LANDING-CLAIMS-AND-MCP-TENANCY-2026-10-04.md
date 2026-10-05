@@ -5,6 +5,29 @@ Each section claim on `docs/pro/index.html` is pinned to its code in
 `tests/pro-claims-honesty-2026-09-13.test.js` (LANDING 2026-10-04 block).
 This note keeps the parts that are not obvious from the test.
 
+## Update 2026-10-05: copy refresh + visual pass
+
+The verdict below is **superseded for bots**: #2158 made bring-your-own-bot
+self-serve (Settings → Bots & API, any active/trialing paid plan,
+`planAllowsBots` in `functions/agent-mcp-logic.js`), so the page now says
+"Live on paid plans". The page also now credits, each pinned in the test:
+the 9-step portal tracker (#2130, step names read from
+`HOMEOWNER_PROGRESS_COPY`), the six Today sections (#2137), in-app e-sign with
+the right-to-cancel notice and two cancellation forms (#2166/#2149), the
+production strip (#2147), the close rate and lost reasons (#2150), the 75 m
+on-site photo tag (#2153), and 33 document types (#2141, counted by loading
+the three generator files in a VM).
+
+Deliberately **not** claimed, with a negative pin each:
+- Solar measurement: the default provider is still `instantroofer`.
+- Offline-safe field work: #2145 is not merged.
+- #2135's getting-paid features: not merged. Its spot is an HTML comment,
+  `PENDING #2135`, in the Paid tour step.
+- Facebook/Instagram auto-publishing: one global page token, which is Jo's.
+- Job weather and Google Calendar sync: these answer Jo's account only.
+
+The morning email is Jo-only, so it sits under "Running in my shop".
+
 ## Bring-your-own-bot: PARTIAL, so the page says "coming soon for your account"
 
 The crmMcp API (`/api/mcp` → `functions/agent-mcp.js`) **is company-scoped**.

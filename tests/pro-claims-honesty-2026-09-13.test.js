@@ -113,19 +113,27 @@ console.log('\nLEGAL (2026-10-04) — no AOB on the public Pro pages; the FAQ ne
   const idx = PUB[0];
   const faq = "line-item estimates that document the damage and the paperwork for the homeowner's own claim, which the homeowner files and decides";
   ok('the reworded FAQ is in BOTH the visible answer and the JSON-LD mirror', idx.split(faq).length - 1 === 2);
-  ok('the document count still matches the 25 DOCUMENT_TYPES the generator ships',
+  // 2026-10-05: the document COUNT is pinned by the LANDING docs check (the
+  // three generator files VM-loaded, 33 types after #2141). This one keeps AOB
+  // out of the base generator and the stale "25" claim off the page.
+  ok('no AOB document type, and the stale "25 branded document types" claim is gone',
      (() => {
        const g = read('docs/pro/js/document-generator.js');
        const a = g.indexOf('DOCUMENT_TYPES: {');
        const body = g.slice(a, g.indexOf('\n  },', a));
        const n = (body.match(/^\s{4}[a-zA-Z_]+:\s+\{ name:/gm) || []).length;
-       return n === 25 && !/assignment_of_benefits:\s+\{/.test(body) && /25 branded document types/.test(idx);
+       return n > 0 && !/assignment_of_benefits:\s+\{/.test(body) && !/25 branded document types/.test(idx);
      })());
   // 2026-10-04: the hand-drawn storm mockup is gone with the rebuild; every
-  // screen is now a real capture, and each one is captioned as sample data.
+  // screen is a real capture. 2026-10-05: every capture sits inside a
+  // <figure> whose caption says sample data (the hero's computer + phone
+  // share one caption).
   const imgs = (idx.match(/<img\b[^>]*>/g) || []).length;
-  ok('every phone capture on /pro carries a visible "sample data" caption',
-     imgs >= 8 && (idx.match(/<figcaption class="pl-cap">[^<]*sample data<\/figcaption>/g) || []).length === imgs);
+  const figs = idx.match(/<figure\b[\s\S]*?<\/figure>/g) || [];
+  const inFigs = figs.reduce((n, fg) => n + (fg.match(/<img\b/g) || []).length, 0);
+  ok('every capture on /pro is in a figure captioned "sample data"',
+     imgs >= 8 && inFigs === imgs && figs.every((fg) => /<figcaption class="pl-cap">[^<]*sample data<\/figcaption>/.test(fg)),
+     figs.length + ' figures, ' + inFigs + '/' + imgs + ' images');
   ok('pricing.html has no dashboard link for logged-out visitors', !/>Back to Dashboard</.test(PUB[1]));
 }
 
@@ -224,7 +232,7 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
   tie('03 the V3 wizard is the default estimate builder', /estimate wizard asks one thing per screen/, 'docs/pro/js/estimate-v3-wizard.js', 'V3 is what opens by default');
   tie('03 five packages, Economy to Beyond', /Five packages, Economy to Beyond/, 'docs/pro/js/estimate-config.js', "TIER_ORDER: Object.freeze(['economy', 'good', 'better', 'best', 'beyond'])");
   tie('03 open alert covers estimate, portal and signing link', /alert when the homeowner opens the estimate, portal or signing link/, 'functions/estimate-view-alert.js', "const SOURCES = ['portal', 'review_link', 'deal_room', 'remote_sign'];");
-  tie('03 signing links expire after 14 days', /Signing links expire after 14 days/, 'functions/esign-envelope.js', 'const TTL_DAYS = 14');
+  tie('03 signing links expire after 14 days', /Signing links expire after 14 days/, 'functions/esign-io.js', 'const TTL_DAYS = 14');
   // 04 getting paid
   ok('04 every recorded-payment method named on /pro exists in the Record Payment sheet',
     has(/Log a check, cash, Zelle or a bank transfer/) && ["key: 'check'", "key: 'zelle'", "key: 'cash'", "key: 'ach'"].every((k) => code('docs/pro/js/invoice-pipeline.js', k)));
@@ -233,13 +241,65 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
       && code('docs/pro/js/deposit-rule.js', 'CASH_NO_DEPOSIT_UNDER_CENTS: 200000') && code('docs/pro/js/deposit-rule.js', 'CASH_DEPOSIT_PCT: 50'));
   ok('04 online ACH is not claimed (only "once activated" in Stripe)', !/pay (by|with) ACH online|online ACH/i.test(idx));
   ok('04 receipts are not claimed as emailed (the receipt PDF is NBD-only and not emailed)', !/receipt[s]? (is |are )?emailed|emails? (a |the )?receipt/i.test(idx));
-  // 05 portal — main ships 5 steps (#2130's 9-step tracker is not merged)
+  // 05 portal — the 9-step tracker (#2130). Step names come from the ONE
+  // copy constant, loaded (not regexed), so a renamed step goes red here.
   {
-    const portal = read('functions/portal.js');
-    const a = portal.indexOf('const HOMEOWNER_PROGRESS = [');
-    const steps = (portal.slice(a, portal.indexOf('];', a)).match(/\{ key: '/g) || []).length;
-    ok('05 the portal tracker step count on /pro matches HOMEOWNER_PROGRESS', steps === 5 && has(/a 5-step tracker \(Inspection, Estimate, Contract, Installation, Complete\)/), 'HOMEOWNER_PROGRESS has ' + steps);
+    const HP = require(path.join(ROOT, 'functions/homeowner-progress.js'));
+    const labels = HP.HOMEOWNER_PROGRESS_COPY.steps.map((x) => x.label);
+    const want = 'a ' + labels.length + '-step tracker (' + labels.join(', ') + ')';
+    ok('05 the portal tracker on /pro names every HOMEOWNER_PROGRESS_COPY step, in order', idx.includes(want), want);
+    ok('05 the rating/referral ask waits for paid in full (canRate is paidInFull)',
+      has(/rating and refer-a-friend asks wait until the job is paid in full/) && code('functions/portal.js', 'canRate: hp.paidInFull'));
   }
+  // Today (#2137) — the six sections Home renders
+  tie('02 Today lists the sections today-home.js renders (appointments … estimates)', /appointments, calls you owe, promised follow-ups, estimates to follow up, money to collect and stalled leads/,
+    'docs/pro/js/today-home.js', "section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e)");
+  tie('02 Today: money to collect + stalled leads sections', /money to collect and stalled leads/, 'docs/pro/js/today-home.js', "section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck)");
+  // E-sign (#2166) + cancel forms (#2149)
+  tie('03 every in-app contract carries the right-to-cancel notice + forms', /Notice of Right to Cancel and two Notice of Cancellation forms/, 'functions/cancel-notice-pdf.js', ".text('NOTICE OF CANCELLATION'");
+  tie('03 up to 4 signers', /Up to 4 signers/, 'functions/esign-logic.js', 'const MAX_SIGNERS = 4;');
+  ok('03 reminders every 2 days, 3 at most', has(/Reminders go out every 2 days, 3 at most/)
+    && code('functions/esign-logic.js', 'const REMINDER_EVERY_MS = 2 * 86_400_000;') && code('functions/esign-logic.js', 'const REMINDER_MAX = 3;'));
+  // Production (#2147) — the strip's five labels; weather / calendar sync are Jo-only and not claimed
+  ok('04 the production strip names the five steps production-logic.js builds',
+    has(/Permit, Ordered, Delivery, Sub, Start/) && ['Permit', 'Ordered', 'Delivery', 'Sub', 'Start'].every((k) => code('docs/pro/js/production-logic.js', "label: '" + k + "'")));
+  ok('04 Jo-only production pieces are not claimed (job weather, Google Calendar sync)', !/weather forecast|calendar sync|syncs? to google calendar/i.test(idx));
+  // Numbers (#2150)
+  tie('numbers: one close rate, won ÷ (won + lost)', /won ÷ \(won \+ lost\)/, 'docs/pro/js/numbers-logic.js', 'rate: decided ? won / decided : null');
+  ok('numbers: the six lost reasons on /pro are LOST_REASONS', has(/Six lost reasons/)
+    && ["label: 'Price'", "label: 'Went with someone else'", "label: 'No damage'", "label: 'No response'", "label: 'Insurance denied'", "label: 'Other'"].every((k) => code('docs/pro/js/numbers-logic.js', k)));
+  // Photos (#2153) — on-site radius
+  tie('07 photos: on-site within 75 m', /within 75 m of the address/, 'docs/pro/js/photo-engine.js', 'const ON_SITE_RADIUS_M = 75;');
+  // Documents (#2141) — the count is what the three generator files register,
+  // loaded in a VM (a regex count of the source would miss Object.assign).
+  {
+    const vm = require('vm');
+    const noop = () => {};
+    const el = { style: {}, appendChild: noop, setAttribute: noop, addEventListener: noop, classList: { add: noop, remove: noop } };
+    const ctx = { console: { log: noop, warn: noop, error: noop }, setTimeout, clearTimeout, navigator: {}, location: { href: '', hostname: 'x' },
+      document: { createElement: () => el, addEventListener: noop, querySelector: () => null, querySelectorAll: () => [], getElementById: () => null, head: el, body: el },
+      localStorage: { getItem: () => null, setItem: noop } };
+    ctx.window = ctx; ctx.self = ctx; vm.createContext(ctx);
+    ['document-generator.js', 'document-generator-templates.js', 'document-generator-library.js']
+      .forEach((n) => vm.runInContext(read('docs/pro/js/' + n), ctx, { filename: n }));
+    const types = ctx.NBDDocGen.DOCUMENT_TYPES;
+    const n = Object.keys(types).length;
+    const listed = (idx.match(/<ul class="pl-doclist"[\s\S]*?<\/ul>/) || [''])[0];
+    const pills = (listed.match(/<li>([^<]+)<\/li>/g) || []).map((x) => x.replace(/<\/?li>/g, ''));
+    ok('docs: the document count on /pro is NBDDocGen.DOCUMENT_TYPES', has(new RegExp('<h2 id="docs-h">' + n + ' documents')) && listed.includes('and ' + (n - pills.length) + ' more'), n + ' types, ' + pills.length + ' listed');
+    const names = Object.values(types).map((t) => String(t.name).replace(/&/g, '&amp;'));
+    const bare = pills.map((p) => p.replace(/ \(signable\)$|, Ohio or Kentucky$/, ''));
+    ok('docs: every document named on /pro is a registered type', bare.length > 0 && bare.every((p) => names.includes(p)), bare.filter((p) => !names.includes(p)).join(', '));
+    ok('docs: the attorney-review drafts are disclosed', has(/marked as drafts for your attorney to review/)
+      && code('docs/pro/js/document-generator-library.js', "var ATTORNEY_REVIEW_TYPES = ['lien_waiver', 'change_order', 'right_to_cancel'];"));
+  }
+  // Social Studio (#2162) — owner/admin, town only. Meta publishing runs on ONE
+  // global page token (Jo's page), so auto-publishing is not sold.
+  tie('social: owner or admin only', /The owner or an admin runs it/, 'functions/social-studio.js', "'Social Studio is for the owner or a company admin.'");
+  ok('social: auto-publishing to Facebook/Instagram is not claimed', !/auto-?publish|posts? (it )?(straight|directly|automatically) to (facebook|instagram)/i.test(idx));
+  ok('not claimed: Solar roof measurement (off for every tenant) or offline-safe field work (#2145 not merged)', !/solar|works offline|offline-safe|no signal/i.test(idx));
+  ok('not claimed: #2135 getting-paid features (not merged); its spot is marked',
+    !/Send balance|without an invoice|payment timeline/i.test(idx.replace(/<!--[\s\S]*?-->/g, '')) && /PENDING #2135/.test(idx));
   // 06 storm + D2D
   tie('06 Storm Watch reads live NWS alerts', /Storm Watch pulls live National Weather Service alerts/, 'docs/pro/js/storm-center.js', 'api.weather.gov/alerts/active');
   {
@@ -264,12 +324,15 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
   tie('10 KY insurance: nothing due at signing (KRS 367.626)', /Kentucky insurance job, the deductible and the first insurance payment come due only after/, 'docs/pro/js/deposit-rule.js', 'KRS 367.626');
   tie('10 KY insurance: the online pay link is refused until then', /online pay link is refused until then/, 'functions/stripe.js', "error: 'KY_CANCELLATION_WINDOW'");
   // 11 running in my shop — labelled as Jo's own business, not self-serve.
-  // crmMcp keys + tools are company-scoped, but issuance UI, docs, per-tenant
-  // controls and Jo-specific wording are not ready (audit 2026-10-04), so the
-  // bring-your-own-bot claim must stay "coming soon for your account".
   ok('11 the shop section says these are not self-serve yet', has(/They are not self-serve for your account yet/));
-  ok('11 bring-your-own-bot is "coming soon for your account", not offered today',
-    has(/Coming soon for your account<\/span><h3>Connect your own AI bots/) && !/bring your own agent through the NBD Pro API/i.test(idx));
+  tie('11 the morning email is Jo-only, so it sits in the shop section', /<dt>The morning email<\/dt>/, 'functions/morning-brief.js', 'process.env.NBD_OWNER_UID');
+  // Bring your own bot went self-serve in #2158 (Settings → Bots & API, any
+  // active/trialing paid plan): the copy says live on paid plans, and the
+  // plan gate + the free-plan card back it.
+  ok('11 bring-your-own-bot is live on paid plans (Settings → Bots & API), not "coming soon"',
+    has(/<p class="pl-tag">Live on paid plans<\/p>\s*<h3>Connect your own AI bots/) && has(/Settings → Bots &amp; API/)
+      && code('functions/agent-mcp-logic.js', "sub.plan && sub.plan !== 'free'") && code('docs/pro/js/agent-bots-settings.js', 'Bots need a paid plan')
+      && !/coming soon for your account/i.test(idx));
   tie('11 the bot team cannot text anyone', /None of them can text anyone/, 'functions/agent-mcp.js', 'There is no tool that texts');
   tie('11 Call Center transcribes calls', /Calls from my phone are transcribed/, 'functions/call-center.js', 'transcribeGroqBuffer');
   tie('11 Thursday answers the line and files to an inbox', /AI phone receptionist answers my line/, 'functions/integrations/thursday.js', 'thursdayWebhook');
