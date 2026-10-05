@@ -520,7 +520,9 @@ function makeDom() {
   console.log('\n7. trust line above every listed form + live rating');
   // ═══════════════════════════════════════════════════════════════════════
   {
-    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating>5\.0<\/span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof<\/p>/;
+    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating>5\.0<\/span> on Google &middot; (?:Licensed &amp; insured|Fully insured) &middot; Joe on every roof<\/p>/;
+    // The homepage says "Fully insured" (Jo, 2026-10-05: there are no OH/KY
+    // registration numbers to back "Licensed"); other pages follow in their own PRs.
     const pages = [
       ['docs/estimate.html', 'id="btnSubmit"'],
       ['docs/storm-check.html', 'id="sc-submit"'],
@@ -560,15 +562,22 @@ function makeDom() {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  console.log('\n8. home hero — an Instant-estimate button that phones keep');
+  console.log('\n8. home hero — one action; the estimate funnel stays reachable from the home body');
   // ═══════════════════════════════════════════════════════════════════════
+  // REWRITTEN 2026-10-05 (homepage rebuild, Jo-approved): the hero used to
+  // carry Call + an Instant-estimate button that phones kept. The rebuilt
+  // hero has exactly ONE button (Book a free inspection) and a "Rather talk?
+  // Call or text Joe" text link. What this section protected — a visitor who
+  // won't call can still reach /estimate from the home page body (FAQ #1) —
+  // is still pinned; it just no longer lives in the hero.
   {
     const h = read('docs/index.html');
-    const btns = (h.match(/<div class="hero-btns">([\s\S]*?)<\/div>/) || [])[1] || '';
-    ok('the hero buttons hold "Call Joe" then an Instant-estimate link to /estimate', /href="tel:\+18594207382"[\s\S]*href="\/estimate" class="btn-ghost hero-btn-estimate"/.test(btns), btns.slice(0, 200));
+    const hero = (h.match(/<section class="hx-hero"[\s\S]*?<\/section>/) || [''])[0];
+    ok('the hero holds exactly one button, to the booking page', (hero.match(/class="hx-btn"/g) || []).length === 1 && /class="hx-btn" href="\/inspect"/.test(hero), hero.slice(0, 200));
+    ok('...plus a call/text text link for people who would rather talk', /Rather talk\? <a href="tel:\+18594207382">/.test(hero));
+    const main = h.slice(h.indexOf('<main id="main">'), h.indexOf('</main>'));
+    ok('the home page body still links the Instant Estimate (/estimate)', /href="\/estimate"/.test(main));
     ok('/estimate exists to link to', fs.existsSync(path.join(ROOT, 'docs', 'estimate.html')));
-    const mq = h.slice(h.indexOf('.hero-btns .btn-ghost{display:none}'));
-    ok('phones hide the other secondary buttons but SHOW this one, full width', /\.hero-btns \.btn-ghost\.hero-btn-estimate\{display:inline-flex;width:100%;justify-content:center\}/.test(mq.slice(0, 600)));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
