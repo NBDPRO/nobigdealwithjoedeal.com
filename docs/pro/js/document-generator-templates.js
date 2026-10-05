@@ -1153,8 +1153,12 @@
       return `<tr><td>${esc(i.description || i.item)}</td><td class="right">${i.qty}</td><td>${esc(i.unit)}</td>
         <td class="right">${money(unitPrice)}</td><td class="right">${money(amt)}</td></tr>`;
     }).join('');
-    const tax = subtotal * (d.taxRate||0);
-    const total = subtotal + tax;
+    // doc-preflight hands a cents-rounded `tax` and, while the invoice is the
+    // estimate's own, the quote's rounding / job-minimum `roundingAdjustment`
+    // (2026-10-05). Neither is set by any other caller, which keep the old math.
+    const tax = (d.tax != null && d.tax !== '' && isFinite(Number(d.tax))) ? Number(d.tax) : subtotal * (d.taxRate||0);
+    const rounding = Number(d.roundingAdjustment) || 0;
+    const total = subtotal + tax + rounding;
     const balance = total - (d.paymentsReceived||0);
 
     // .inv-balance is navy-deep, NOT the accent. A money block is structure,
@@ -1217,6 +1221,8 @@
             <span>Subtotal</span><span>${money(subtotal)}</span></div>
           ${d.taxRate ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;">
             <span>Tax (${(d.taxRate*100).toFixed(1)}%)</span><span>${money(tax)}</span></div>` : ''}
+          ${rounding ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;">
+            <span>${esc(d.roundingLabel || 'Rounding')}</span><span>${rounding < 0 ? '−' : ''}${money(Math.abs(rounding))}</span></div>` : ''}
           <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-weight:700;">
             <span>Total</span><span>${money(total)}</span></div>
           ${d.paymentsReceived ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;color:#16a34a;">
