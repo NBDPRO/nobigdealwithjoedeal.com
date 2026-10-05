@@ -54,6 +54,8 @@ const CRON_GATES = [
   { name: 'GOOGLE_CALENDAR_SYNC_DISABLED', polarity: 'disabled', file: 'google-calendar.js' },
   // Not a cron: the Grok Bot team's CRM connection (crmMcp). ON unless set.
   { name: 'AGENT_MCP_DISABLED', polarity: 'disabled', file: 'agent-mcp.js' },
+  // E-sign reminders + link expiry (2026-10-04, replaced BoldSign's). ON unless set.
+  { name: 'ESIGN_REMINDERS_DISABLED', polarity: 'disabled', file: 'esign-reminders.js' },
 ];
 
 /**
