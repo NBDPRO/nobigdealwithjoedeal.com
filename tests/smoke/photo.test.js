@@ -1342,13 +1342,16 @@ section('customer.html: every inline event handler migrated to data-action deleg
   assert('CSS upload-zone hover rule present',
     /\[data-action="openUploadModal"\]:hover\s*\{[\s\S]{0,100}border-color:\s*var\(--orange\)/.test(customer));
 
-  // ── Doc-template card grid still has its 16 wirings ──
+  // ── Doc-template card grid still has its 22 wirings ──
   // 16, not 15: +1 for storm_history_report (2026-09-09) — the free
-  // NOAA/NWS 5-year storm history doc.
+  // NOAA/NWS 5-year storm history doc. 22: +6 for the template library
+  // (2026-10-04) — lien waiver, right to cancel, material selection,
+  // Good-Better-Best options, insurance next steps, and the Receipt (its
+  // renderer + pre-flight existed, no tile reached them).
   const cardCount = (customer.match(/class="doc-template-card(?: [^"]*)?"[^>]*data-action="generateCustomerDoc"/g) || []).length;
-  assert('all 16 doc-template cards still wired (regression guard)',
-    cardCount === 16,
-    'expected 16 doc-template-card data-action wirings, got ' + cardCount);
+  assert('all 22 doc-template cards still wired (regression guard)',
+    cardCount === 22,
+    'expected 22 doc-template-card data-action wirings, got ' + cardCount);
 
   // ── Photo action popup now has a Preview button (3-button row) ──
   // Originally the popup only offered Open Editor + Delete — clicking

@@ -50,8 +50,10 @@ group('No mouse-only controls remain', () => {
   // 16, not 15: +1 for storm_history_report (2026-09-09) — the free
   // NOAA/NWS 5-year storm history doc. Same count pinned in
   // tests/smoke/photo.test.js — keep both in sync.
-  assert('the doc-template card wiring count is still 16 (smoke pins this)',
-    (HTML.match(/class="doc-template-card(?: [^"]*)?"[^>]*data-action="generateCustomerDoc"/g) || []).length === 16);
+  // 22 since the template library (2026-10-04): +lien waiver, right to cancel, material selection,
+  // good-better-best, insurance scope letter, receipt.
+  assert('the doc-template card wiring count is 22 (smoke pins this)',
+    (HTML.match(/class="doc-template-card(?: [^"]*)?"[^>]*data-action="generateCustomerDoc"/g) || []).length === 22);
 
   assert('focused controls are visible',
     /\[data-action\]\[tabindex="0"\]:focus-visible \{[\s\S]{0,120}outline:/.test(HTML),
