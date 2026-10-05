@@ -278,10 +278,9 @@
   // ══════════════════════════════════════════════════════════════════
   // RIGHT TO CANCEL (3-day home solicitation notice)
   // ══════════════════════════════════════════════════════════════════
-  var HOME_SOLICITATION = {
-    OH: "Ohio's Home Solicitation Sales Act (Ohio Revised Code 1345.21 to 1345.28)",
-    KY: "Kentucky's home solicitation sales law (Kentucky Revised Statutes 367.410 to 367.460)"
-  };
+  // The law names and the "How to cancel" steps live in ky-insurance-law.js
+  // (2026-10-04): the same packet is attached to every contract signed in the
+  // app, so the wording has one copy.
 
   DG.renderRightToCancel = function (data) {
     T.refresh();
@@ -300,17 +299,10 @@
     var st = stateOf(d);
     var jur = jurisdictionOf(d);
     var ky = !!(jur && jur.kyInsurance);
-    var lawName = HOME_SOLICITATION[st]
-      ? 'federal law (the FTC Cooling-Off Rule) and ' + HOME_SOLICITATION[st]
+    var lawName = j ? j.homeSolicitationLawText(st)
       : 'federal law (the FTC Cooling-Off Rule) and your state’s home solicitation sales law';
 
-    var steps = [
-      'Fill in and sign one of the two Notice of Cancellation forms attached to this notice.',
-      'Mail it, or deliver it, to ' + coE + (addr ? ' at ' + esc(addr) : ' at the address on the form') +
-        (deadline ? ' — it must be sent before midnight of <span class="lib-strong">' + esc(deadline) + '</span>.' : ' — before midnight of the third business day after the contract date.'),
-      'Keep the other copy for your records.',
-      'If you cancel, anything you paid is returned within 10 business days of our receiving your notice.'
-    ];
+    var steps = j ? j.cancelHowToSteps({ sellerName: co, sellerAddress: addr, deadlineText: deadline, strongClass: 'lib-strong' }) : [];
 
     var kyPart = '';
     if (ky && j) {

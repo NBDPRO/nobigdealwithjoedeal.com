@@ -101,7 +101,9 @@ function loadDocGen() {
 console.log('\ndocument-generator.js — onPersistFinalized auto-derivation (source-text)');
 {
   const src = fs.readFileSync(path.join(PRO_JS, 'document-generator.js'), 'utf8');
-  const block = src.slice(src.indexOf('onPersistFinalized: async'), src.indexOf('onPersistFinalized: async') + 3000);
+  // 5000 (was 3000): the 2026-10-04 cancellation-notice re-date + cancelBy
+  // stamp sit ahead of the filed-stamp block in the same callback.
+  const block = src.slice(src.indexOf('onPersistFinalized: async'), src.indexOf('onPersistFinalized: async') + 5000);
   ok('reads the FILED_FIELD_BY_DOC_TYPE lookup keyed by the doc type', /this\.FILED_FIELD_BY_DOC_TYPE\[type\]/.test(block));
   ok('stamps the lead field via updateDoc, not the document row', /window\.updateDoc\(window\.doc\(window\.db, 'leads', _leadIdEarly\)/.test(block));
   ok('wrapped in its own try/catch (a failure here must not break the signature persistence above)',
