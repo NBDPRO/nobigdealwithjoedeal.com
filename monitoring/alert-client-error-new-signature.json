@@ -1,0 +1,33 @@
+{
+  "displayName": "NBD Pro — New client error (CRM browser, per signature)",
+  "documentation": {
+    "content": "The CRM in someone's browser (usually Jo's iPhone) hit an error that has not been reported in the last 7 days.\n\nSource: docs/pro/js/client-error-reporter.js posts to /api/client-error; the clientError function (functions/handlers/monitoring.js) writes ONE ERROR log line with jsonPayload.event=\"client_error\". The labels on this alert are the error's signature (sig), page, view and build.\n\nHow 'new' works: this is a log-match condition with label extractors, so every distinct sig gets its own alert timeline. A sig that keeps happening re-notifies at most once a day (notificationRateLimit 86400s) and its alert auto-closes 7 days after it opened; a sig seen after that notifies again. Google caps a log-based policy at 20 notifications/day and 2 new alerts/minute — a flood of distinct sigs is the spike policy's job.\n\nInvestigate:\n  gcloud logging read 'resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"clienterror\" AND jsonPayload.event=\"client_error\" AND jsonPayload.sig=\"<sig>\"' --project nobigdeal-pro --limit 20 --format json\nRead errorMessage, stack, view, build, standalone, online. Runbook: documentation/runbooks/CLIENT-ERROR-ALERTS.md.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "enabled": true,
+  "conditions": [
+    {
+      "displayName": "client_error (one alert per signature)",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"clienterror\" AND jsonPayload.event=\"client_error\"",
+        "labelExtractors": {
+          "sig": "EXTRACT(jsonPayload.sig)",
+          "page": "EXTRACT(jsonPayload.page)",
+          "view": "EXTRACT(jsonPayload.view)",
+          "build": "EXTRACT(jsonPayload.build)"
+        }
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": {
+      "period": "86400s"
+    },
+    "autoClose": "604800s"
+  },
+  "notificationChannels": [
+    "projects/nobigdeal-pro/notificationChannels/11974029248665804510",
+    "projects/nobigdeal-pro/notificationChannels/7729093229259591605"
+  ]
+}
