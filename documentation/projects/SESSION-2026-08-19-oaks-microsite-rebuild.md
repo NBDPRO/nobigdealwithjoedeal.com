@@ -11,6 +11,16 @@ oaksroofingandconstruction.com, in `G:\My Drive\COMPANIES\ORC\ORC SITE\`.
 **Outcome:** an 11-page, self-contained, portable static site at `docs/sites/oaks/`,
 rebuilt from the archived pages — real copy, real photography, real logo. All gates green.
 
+> **Update 2026-10-04 — the form-destination notes in §7 item 1 are superseded.** The quote
+> form now posts through our own lead intake (`submitPublicLead`, via
+> `/assets/js/public-lead-submit.js`) tagged `siteKey: 'oaks'`, so leads land in the Oaks
+> company's CRM (companies/oaks) and the alert follows `companyProfile/oaks`'s alert
+> routing. Turnstile + honeypot + rate limit as on NBD's forms. The `formEmail` mail-app
+> route is now only the fallback when the intake fails; the FormSubmit relay option was
+> removed from `site.js` and the README, and `privacy.html`'s "Third parties" section was
+> rewritten to match. Guards: `tests/oaks-own-intake-2026-10-04.test.js` and
+> `tests/e2e/phone-oaks-intake.spec.js`.
+
 ---
 
 ## 1. The two decisions Jo made up front
