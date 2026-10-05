@@ -54,7 +54,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=17" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=18" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
@@ -113,7 +113,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=141"></script>
+<script src="js/script-loader.js?v=142"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -6837,7 +6837,7 @@
      doc-phone-layout.js (2026-09-25) is its phone reading layout for a
      generated document, shared with sign.html and the portal. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
-<script defer src="js/nbd-doc-viewer.js?v=4"></script>
+<script defer src="js/nbd-doc-viewer.js?v=5"></script>
 <!-- Talk Tank: unified voice-capture inbox under #/talk-tank. Reads
      users/<uid>/captures (written by quick-capture.js). REC button on
      the page invokes window.NBDQuickCapture.open() — no duplicate
@@ -6884,7 +6884,7 @@
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=17"></script>
+<script defer src="js/crm-pipeline.js?v=18"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -7029,7 +7029,7 @@
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
      the Close Board deal room all read it. -->
-<script defer src="js/ky-insurance-law.js?v=3"></script>
+<script defer src="js/ky-insurance-law.js?v=4"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->

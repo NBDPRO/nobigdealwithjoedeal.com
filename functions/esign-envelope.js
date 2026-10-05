@@ -74,6 +74,7 @@ const { stampPdf, readPdfGeometry, validateFields, appendAuditCertificate } = re
 const { spineAfterEsign } = require('./job-spine');
 const ESL = require('./esign-logic');
 const IO = require('./esign-io');
+const CW = require('./cancel-window');
 
 const { RESEND_API_KEY, EMAIL_FROM, TTL_DAYS, sha256 } = IO;
 
@@ -1085,6 +1086,31 @@ exports.submitEsignEnvelope = onRequest(
     // HTML path wrote the counterparty's bytes over the served original and
     // had to archive it aside first to have anything left to compare against.
     const signedPath = `esign/${env.ownerUid}/${env.leadId}/${tok.envelopeId}/signed.pdf`;
+    // The 3-day right to cancel (2026-10-04). An envelope that IS the
+    // contract (envelopeIsContract — the same test that moves the job to
+    // Contract Signed) gets the Notice of Right to Cancel and the two
+    // completed FTC forms (+ the KRS 367.624(4) forms on a Kentucky insurance
+    // job) appended to the signed PDF (after the audit certificate), dated
+    // today — the homeowner's copy in the portal is this file. A failure
+    // keeps the signed PDF as stamped and is logged loudly; the signature
+    // itself is already recorded.
+    // An estimate envelope's contract PDF already carries the FTC forms
+    // (cancelFormsIncluded, #2166) — its own system fields date them — so it
+    // is never given a second set (CW.envelopeNeedsCancelNotice).
+    let noticeCancelBy = '';
+    if (CW.envelopeNeedsCancelNotice(env)) {
+      try {
+        const opts = await CW.loadPacketOpts(db, env.leadId);
+        const withNotice = await require('./cancel-notice-pdf').appendCancelNotice(signedBytes, Object.assign({ transactionDate: when }, opts));
+        signedBytes = withNotice.bytes;
+        noticeCancelBy = withNotice.cancelBy;
+      } catch (e) {
+        logger.error('[submitEsignEnvelope] cancellation notice NOT appended', { envelopeId: tok.envelopeId, err: e.message });
+      }
+    }
+    // The last day to cancel: the estimate PDF's own dated forms, else the
+    // appended notice's.
+    const cancelBy = sys.cancelBy || noticeCancelBy;
     const signedBuf = Buffer.from(signedBytes);
     let stored = false;
     try {
@@ -1129,17 +1155,14 @@ exports.submitEsignEnvelope = onRequest(
         // completed the envelope. Every signer's own record is in signers[].
         consent: { agreed: true, at: when, ip, ua },
         copiesDelivered: copies,
-        ...(sys.cancelBy ? { cancelBy: sys.cancelBy } : {}),
+        ...(cancelBy ? { cancelBy } : {}),
         remindNextAt: FieldValue.delete(),
         linkExpiresAt: FieldValue.delete(),
         currentSignerId: FieldValue.delete(),
         audit: FieldValue.arrayUnion({ event: 'signed', at: when, ip, ua, stored, signerId: (last && last.id) || signer.id }),
       }, { merge: true });
     } catch (e) { logger.error('[submitEsignEnvelope] envelope stamp failed', { err: e.message }); }
-    if (sys.cancelBy && env.leadId) {
-      try { await db.doc(`leads/${env.leadId}`).update({ cancelBy: sys.cancelBy }); }
-      catch (e) { logger.warn('[submitEsignEnvelope] lead cancelBy stamp failed', { err: e.message }); }
-    }
+    if (cancelBy) await CW.stampLeadCancelBy(db, env.leadId, cancelBy, logger);
 
     await IO.syncEstimate(db, tok.envelopeId, env, 'completed', {
       signerName: (signersAfter[0] && signersAfter[0].name) || null,

@@ -43,6 +43,8 @@ const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const { spineAfterRemoteSign } = require('./job-spine');
+const KyLaw = require('./ky-insurance-law');
+const CW = require('./cancel-window');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -139,8 +141,12 @@ function visibleText(html) {
  * content into logs.
  */
 function signedDocMatchesOriginal(originalHtml, signedHtml) {
-  const a = visibleText(stripSignatureBlocks(originalHtml));
-  const b = visibleText(stripSignatureBlocks(signedHtml));
+  // The Notice of Right to Cancel packet is re-dated by getSignDocument (the
+  // day the page is opened) and re-rendered from the ORIGINAL on submit
+  // (cancel-window.js finalizeSignedPacket), so whatever the signer sends
+  // back inside it never reaches the record — it is left out of the compare.
+  const a = visibleText(stripSignatureBlocks(KyLaw.stripCancelPacket(originalHtml)));
+  const b = visibleText(stripSignatureBlocks(KyLaw.stripCancelPacket(signedHtml)));
   if (a === b) return { ok: true };
   // Report only sizes and the first divergence offset — never the text.
   let i = 0;
@@ -231,6 +237,23 @@ exports.createSignRequest = onCall(
     const docMeta = docSnap.data();
     const htmlPath = docMeta.htmlPath || null;
     if (!htmlPath) throw new HttpsError('failed-precondition', 'This document has no signable HTML on file');
+    // 2026-10-04: a contract goes out for signature only with the Notice of
+    // Right to Cancel + both completed FTC forms attached. A contract
+    // generated before they were added has none — it is refused with the fix.
+    if (CW.isContractDocType(docMeta.type)) {
+      let contractHtml = '';
+      try {
+        const [buf] = await getStorage().bucket().file(htmlPath).download();
+        contractHtml = buf.toString('utf8');
+      } catch (e) {
+        logger.error('[createSignRequest] contract html unreadable', { leadId, docId, err: e.message });
+        throw new HttpsError('unavailable', 'Could not read the contract. Try again shortly.');
+      }
+      if (!KyLaw.hasCancelPacket(contractHtml)) {
+        throw new HttpsError('failed-precondition',
+          'This contract was made before the 3-day cancellation forms were added. Generate the contract again, then send that one.');
+      }
+    }
 
     const now = Date.now();
     const ttlDays = 7;
@@ -367,6 +390,9 @@ exports.getSignDocument = onRequest(
       logger.error('[getSignDocument] html fetch failed', { token: token.slice(0, 6), err: e.message });
       res.status(500).json({ error: 'Could not load the document. Try again shortly.' }); return;
     }
+    // The cancellation notice the homeowner reads is dated today (the day
+    // they sign), not the day the rep generated the contract.
+    try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
 
     // Fire-and-forget viewed stamp (does not gate the response).
     db.doc(`doc_sign_tokens/${token}`).update({
@@ -528,6 +554,13 @@ exports.submitSignature = onRequest(
     // looking at an unsigned contract — a security fix that silently breaks
     // the feature. So the original is copied aside, and the overwrite now
     // carries content the integrity gate above has already proven matches it.
+    // The record carries the Notice of Right to Cancel re-rendered from the
+    // copy we served and dated today, the signing day (2026-10-04).
+    const signedAtNow = new Date();
+    let recordHtml = signedHtml;
+    try { recordHtml = CW.finalizeSignedPacket(originalHtml, signedHtml, signedAtNow); }
+    catch (e) { logger.warn('[submitSignature] cancel packet re-date failed', { msg: e.message }); }
+    const cancelBy = KyLaw.hasCancelPacket(recordHtml) ? CW.cancelByFor(recordHtml, signedAtNow) : '';
     let archivePath = null;
     try {
       if (originalHtml != null) {
@@ -543,7 +576,7 @@ exports.submitSignature = onRequest(
     }
     try {
       const file = getStorage().bucket().file(info.htmlPath);
-      await file.save(Buffer.from(signedHtml, 'utf8'), { contentType: 'text/html', resumable: false });
+      await file.save(Buffer.from(recordHtml, 'utf8'), { contentType: 'text/html', resumable: false });
     } catch (e) {
       logger.warn('[submitSignature] signed html upload failed', { msg: e.message });
     }
@@ -561,9 +594,11 @@ exports.submitSignature = onRequest(
         originalSha256: originalHtml
           ? require('crypto').createHash('sha256').update(originalHtml, 'utf8').digest('hex')
           : null,
-        signedSha256: require('crypto').createHash('sha256').update(signedHtml, 'utf8').digest('hex'),
+        signedSha256: require('crypto').createHash('sha256').update(recordHtml, 'utf8').digest('hex'),
+        ...(cancelBy ? { cancelBy } : {}),
       }, { merge: true });
     } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
+    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger);
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.

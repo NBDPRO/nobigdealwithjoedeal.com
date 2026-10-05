@@ -605,6 +605,216 @@
       '</div>';
   }
 
+  // ── The Notice of Right to Cancel packet (2026-10-04) ─────────────────────
+  // Contracts signed IN THE APP (in person on the phone, the deal page's
+  // "Sign on this phone", a remote signing link) carried no FTC Notice of
+  // Cancellation: only the server-rendered PDF attached it. 16 CFR 429.1 and
+  // the Ohio / Kentucky home solicitation laws want the buyer to get the
+  // notice and two completed forms AT THE TIME OF SALE. This packet is the
+  // body of the template library's "Notice of Right to Cancel" (the same
+  // statement, steps and forms), attached to every contract-class document.
+  //
+  // It is wrapped in two comment markers and carries its own inputs
+  // (data-nbd-cancel-opts), so whoever records the signature can re-date it
+  // to the day the buyer actually signed (restampCancelPacket) — a contract
+  // generated Monday and signed Wednesday must say Wednesday, and count the
+  // three business days from Wednesday. The server re-dates remote and
+  // deal-page signings itself, from the copy it served, never from the
+  // signer's bytes.
+  var HOME_SOLICITATION_LAW = {
+    OH: "Ohio's Home Solicitation Sales Act (Ohio Revised Code 1345.21 to 1345.28)",
+    KY: "Kentucky's home solicitation sales law (Kentucky Revised Statutes 367.410 to 367.460)"
+  };
+  var PACKET_START = '<!--nbd-cancel-packet:start-->';
+  var PACKET_END = '<!--nbd-cancel-packet:end-->';
+  var PACKET_RE = /<!--nbd-cancel-packet:start-->[\s\S]*?<!--nbd-cancel-packet:end-->/g;
+  // Stages that start the work. Moving a job into one of them inside the
+  // cancellation window gets a warning (never a block).
+  var WORK_START_STAGES = ['materials_ordered', 'materials_delivered', 'crew_scheduled', 'install_in_progress', 'install_complete'];
+
+  /** The last day to cancel (UTC-midnight ms): 3 business days after the local transaction date. */
+  function cancelByDay(transactionDate, tz) {
+    var t = toUtcDay(transactionDate == null || transactionDate === '' ? new Date() : transactionDate, tz);
+    return t == null ? null : addBusinessDays(t, 3);
+  }
+  /** The last day to cancel as "2026-10-07", or ''. */
+  function cancelBy(transactionDate, tz) {
+    var t = cancelByDay(transactionDate, tz);
+    return t == null ? '' : isoDay(t);
+  }
+  function _isoToDay(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(_str(iso).trim());
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null;
+  }
+  /** Is the buyer still inside the window? True through the whole cancelBy day (midnight). */
+  function cancelWindowOpen(cancelByIso, now, tz) {
+    var end = _isoToDay(cancelByIso);
+    if (end == null) return false;
+    var today = toUtcDay(now == null ? new Date() : now, tz);
+    return today != null && today <= end;
+  }
+  /** "October 7, 2026" for a stored cancelBy, or ''. */
+  function cancelByText(cancelByIso) {
+    var t = _isoToDay(cancelByIso);
+    return t == null ? '' : formatDay(t);
+  }
+  /**
+   * The soft warning for a stage move that starts work inside the window, or
+   * ''. Warn, never block (Jo, 2026-10-04).
+   */
+  function workStartWarning(lead, nextStage, now, tz) {
+    if (WORK_START_STAGES.indexOf(_str(nextStage)) === -1) return '';
+    var cb = lead && lead.cancelBy;
+    if (!cancelWindowOpen(cb, now, tz)) return '';
+    return 'This job is still in the 3-day cancellation window (it ends at midnight on ' + cancelByText(cb) +
+      '). The homeowner can still cancel without penalty.';
+  }
+
+  /**
+   * The "How to cancel" steps (escaped HTML), shared with the library template.
+   * o.strongClass: wrap the deadline in <span class="…"> instead of <strong>
+   * (the library's own emphasis class, so its document is unchanged).
+   */
+  function cancelHowToSteps(o) {
+    o = o || {};
+    var co = esc(o.sellerName || 'us');
+    var sOpen = o.strongClass ? '<span class="' + esc(o.strongClass) + '">' : '<strong>';
+    var sClose = o.strongClass ? '</span>' : '</strong>';
+    return [
+      'Fill in and sign one of the two Notice of Cancellation forms attached to this notice.',
+      'Mail it, or deliver it, to ' + co + (o.sellerAddress ? ' at ' + esc(o.sellerAddress) : ' at the address on the form') +
+        (o.deadlineText ? ' — it must be sent before midnight of ' + sOpen + esc(o.deadlineText) + sClose + '.'
+          : ' — before midnight of the third business day after the contract date.'),
+      'Keep the other copy for your records.',
+      'If you cancel, anything you paid is returned within 10 business days of our receiving your notice.'
+    ];
+  }
+  function homeSolicitationLawText(state) {
+    var s = HOME_SOLICITATION_LAW[_str(state).toUpperCase()];
+    return s ? 'federal law (the FTC Cooling-Off Rule) and ' + s
+      : 'federal law (the FTC Cooling-Off Rule) and your state’s home solicitation sales law';
+  }
+
+  var CANCEL_PACKET_CSS =
+    '<style>' +
+    '.nbd-cxl{background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;padding:16px;border-radius:8px;margin:16px 0 0;page-break-before:always;break-before:page;text-align:left;}' +
+    '.nbd-cxl h2{font-size:18px;letter-spacing:.04em;text-transform:uppercase;text-align:center;margin:0 0 4px;color:#111;}' +
+    '.nbd-cxl-sub{text-align:center;color:#444;font-size:12px;margin:0 0 12px;}' +
+    '.nbd-cxl-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;color:#111;}' +
+    '.nbd-cxl-kv{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 6px;}' +
+    '.nbd-cxl-kv div{flex:1 1 180px;min-width:0;}' +
+    '.nbd-cxl-kv dt{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#555;margin:0;}' +
+    '.nbd-cxl-kv dd{margin:2px 0 0;font-weight:700;overflow-wrap:anywhere;}' +
+    '.nbd-cxl ol{margin:0;padding-left:20px;}.nbd-cxl li{margin:0 0 6px;}' +
+    '.nbd-cxl p{margin:0 0 8px;}' +
+    '.nbd-cxl-ack{margin-top:12px;font-size:12px;color:#222;}' +
+    // Read on a phone (the doc viewer, sign.html, the deal page): no text
+    // under 12px and nothing wider than the screen. Screen only — the
+    // printed / PDF'd record keeps the paper sizes above.
+    '@media screen and (max-width:600px){' +
+      '.nbd-cxl{padding:12px;}' +
+      '.nbd-cxl-kv dt,.nbd-cxl .nbd-noc-copy,.nbd-cxl .nbd-noc-cut span,.nbd-cxl .nbd-noc-page>div[style*="font-size:11px"]{font-size:12px !important;}' +
+      '.nbd-cxl .nbd-noc{padding:12px;}' +
+      '.nbd-cxl .nbd-noc-blank{min-width:0 !important;width:75%;max-width:100%;}' +
+    '}' +
+    '</style>';
+
+  /**
+   * The Notice of Right to Cancel + the two completed FTC forms (+ the KY
+   * 367.624(3) notices and (4) forms on a Kentucky insurance job).
+   * opts: { transactionDate, timeZone, sellerName, sellerAddress, email, fax,
+   *         homeownerName, propertyAddress, state, kyInsurance,
+   *         kyNoticesInDocument }
+   * kyNoticesInDocument: the document the packet is attached to already prints
+   * the KRS 367.624(3) notices before its signatures (the contract, the deal
+   * page) — the packet then points to them instead of printing them twice.
+   */
+  function cancelPacketHtml(opts) {
+    opts = opts || {};
+    var tz = _validZone(opts.timeZone) ? opts.timeZone : DEFAULT_TIME_ZONE;
+    var tx = (opts.transactionDate == null || opts.transactionDate === '') ? new Date() : opts.transactionDate;
+    var t = toUtcDay(tx, tz);
+    var dateText = t != null ? formatDay(t) : _str(tx);
+    var endT = t != null ? addBusinessDays(t, 3) : null;
+    var deadline = endT != null ? formatDay(endT) : '';
+    var ky = opts.kyInsurance === true;
+    var stored = {
+      timeZone: tz, sellerName: _str(opts.sellerName), sellerAddress: _str(opts.sellerAddress),
+      email: _str(opts.email), fax: _str(opts.fax), homeownerName: _str(opts.homeownerName),
+      propertyAddress: _str(opts.propertyAddress), state: _str(opts.state), kyInsurance: ky,
+      kyNoticesInDocument: opts.kyNoticesInDocument === true
+    };
+    var kv = [['Homeowner', stored.homeownerName], ['Property', stored.propertyAddress], ['Contract date', dateText],
+      ['Last day to cancel', deadline ? deadline + ' (before midnight)' : '']];
+    var steps = cancelHowToSteps({ sellerName: stored.sellerName, sellerAddress: stored.sellerAddress, deadlineText: deadline });
+    var kyPart = ky
+      ? '<div class="nbd-cxl-h">Kentucky insurance job: a second right to cancel</div>' +
+        '<p>Because this work may be paid by your insurance, Kentucky law gives you another right: if your insurer tells you in ' +
+        'writing that any part of the work is not covered, you may cancel within five business days of getting that notice. ' +
+        'A separate form for that is attached.</p>' +
+        (stored.kyNoticesInDocument ? '<p>The two Kentucky notices this right comes from are printed above your signature on the contract.</p>' : kyNoticesHtml())
+      : '';
+    return PACKET_START +
+      '<div class="nbd-cxl" data-nbd-cancel-packet="1" data-nbd-cancel-by="' + (endT != null ? isoDay(endT) : '') +
+        '" data-nbd-cancel-opts="' + encodeURIComponent(JSON.stringify(stored)) + '">' +
+      STATUTORY_CSS + CANCEL_PACKET_CSS +
+      '<h2>Notice of Right to Cancel</h2>' +
+      '<p class="nbd-cxl-sub">Contract date: ' + esc(dateText) + '</p>' +
+      '<p>You signed a contract with ' + esc(stored.sellerName || 'us') + ' at your home. Under ' + esc(homeSolicitationLawText(stored.state)) +
+        ', you can cancel it within three business days without any penalty or obligation.</p>' +
+      '<dl class="nbd-cxl-kv">' + kv.map(function (r) {
+        return '<div><dt>' + esc(r[0]) + '</dt><dd>' + (r[1] ? esc(r[1]) : '&mdash;') + '</dd></div>';
+      }).join('') + '</dl>' +
+      '<div class="nbd-cxl-h">How to cancel</div>' +
+      '<ol>' + steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
+      ftcStatementHtml() +
+      kyPart +
+      '<p class="nbd-cxl-ack">The homeowner received this notice and two completed copies of the Notice of Cancellation form on ' +
+        esc(dateText) + '.</p>' +
+      ftcCancellationFormsHtml({ transactionDate: tx, timeZone: tz, sellerName: stored.sellerName, sellerAddress: stored.sellerAddress }) +
+      (ky ? kyCancellationFormsHtml({ transactionDate: tx, timeZone: tz, physicalAddress: stored.sellerAddress, email: stored.email, fax: stored.fax }) : '') +
+      '</div>' + PACKET_END;
+  }
+
+  function _packetOpts(block) {
+    var m = /data-nbd-cancel-opts="([^"]*)"/.exec(block);
+    if (!m) return null;
+    try { return JSON.parse(decodeURIComponent(m[1].replace(/&amp;/g, '&'))); } catch (_) { return null; }
+  }
+  /** Does this HTML carry the packet (and its two FTC forms)? */
+  function hasCancelPacket(html) {
+    var s = _str(html);
+    var m = s.match(PACKET_RE);
+    if (!m) return false;
+    return (m[0].match(/data-nbd-noc="ftc"/g) || []).length === 2;
+  }
+  /** The stored "last day to cancel" of the packet in this HTML, or ''. */
+  function packetCancelBy(html) {
+    var m = _str(html).match(PACKET_RE);
+    if (!m) return '';
+    var b = /data-nbd-cancel-by="(\d{4}-\d{2}-\d{2})"/.exec(m[0]);
+    return b ? b[1] : '';
+  }
+  /** The HTML with every packet removed (for comparing a signed copy to its original). */
+  function stripCancelPacket(html) {
+    return _str(html).replace(PACKET_RE, '');
+  }
+  /**
+   * Re-date the packet(s) in `html` to `transactionDate` (default now), from
+   * the inputs stored in `sourceHtml`'s packet (default: `html`'s own).
+   * HTML without a packet comes back unchanged.
+   */
+  function restampCancelPacket(html, transactionDate, sourceHtml) {
+    var s = _str(html);
+    var src = _str(sourceHtml == null ? html : sourceHtml).match(PACKET_RE);
+    var opts = src ? _packetOpts(src[0]) : null;
+    if (!opts) return s;
+    var packet = cancelPacketHtml(Object.assign({}, opts, {
+      transactionDate: transactionDate == null || transactionDate === '' ? new Date() : transactionDate
+    }));
+    return s.replace(PACKET_RE, function () { return packet; });
+  }
+
   /**
    * Remove the "Insurance assignment(s) accepted." sentence from a payment
    * terms string. Applied to every job since the AOB was retired (2026-09-27):
@@ -683,6 +893,20 @@
     kyCancellationFormsHtml: kyCancellationFormsHtml,
     ftcCancellationFormsHtml: ftcCancellationFormsHtml,
     stripAssignmentSentences: stripAssignmentSentences,
+    HOME_SOLICITATION_LAW: HOME_SOLICITATION_LAW,
+    WORK_START_STAGES: WORK_START_STAGES.slice(),
+    cancelByDay: cancelByDay,
+    cancelBy: cancelBy,
+    cancelWindowOpen: cancelWindowOpen,
+    cancelByText: cancelByText,
+    workStartWarning: workStartWarning,
+    cancelHowToSteps: cancelHowToSteps,
+    homeSolicitationLawText: homeSolicitationLawText,
+    cancelPacketHtml: cancelPacketHtml,
+    hasCancelPacket: hasCancelPacket,
+    packetCancelBy: packetCancelBy,
+    stripCancelPacket: stripCancelPacket,
+    restampCancelPacket: restampCancelPacket,
     PAYMENT_CLAUSE: PAYMENT_CLAUSE,
     contractorMailingAddress: contractorMailingAddress
   };
