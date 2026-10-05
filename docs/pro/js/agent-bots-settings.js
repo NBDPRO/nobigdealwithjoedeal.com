@@ -167,14 +167,51 @@
     return freshHtml(d) + head + gate + off + body;
   }
 
-  async function load() {
+  // What the owner has typed but not saved. Opening the tab fires load() more
+  // than once (the ?settings=bots deep link, goTo's own tab timer, the
+  // hashchange re-entry), and every load replaces the whole mount. A form
+  // rendered by the first answer and filled in was wiped by the next one, so
+  // "Create bot" read an empty name and stopped at "Give the bot a name" —
+  // on a slow phone, and in CI (phone-bots-api.spec.js). Each render now
+  // carries the unsaved form across, and only the newest load may render.
+  const FORM_IDS = ['abBotName', 'abBotRole', 'abBotRoute', 'abTz', 'abRules'];
+  function readForm(mount) {
+    if (!mount.querySelector('#abNewBot, #abTz')) return null;
+    const vals = {};
+    FORM_IDS.forEach((id) => { const el = mount.querySelector('#' + id); if (el) vals[id] = el.value; });
+    const tools = mount.querySelector('input[name="abTool"]')
+      ? Array.prototype.slice.call(mount.querySelectorAll('input[name="abTool"]:checked')).map((i) => i.value) : null;
+    return { vals, tools };
+  }
+  function restoreForm(mount, snap) {
+    if (!snap) return;
+    FORM_IDS.forEach((id) => {
+      const el = mount.querySelector('#' + id);
+      if (!el || !(id in snap.vals)) return;
+      // A select keeps its fresh value when the saved one is no longer offered.
+      if (el.tagName === 'SELECT' && !Array.prototype.some.call(el.options || [], (o) => o.value === snap.vals[id])) return;
+      el.value = snap.vals[id];
+    });
+    if (snap.tools) {
+      Array.prototype.slice.call(mount.querySelectorAll('input[name="abTool"]')).forEach((i) => { i.checked = snap.tools.indexOf(i.value) !== -1; });
+    }
+  }
+
+  let _loadSeq = 0;
+  async function load(opts) {
     const mount = document.getElementById('agentBotsMount');
     if (!mount) return;
+    const seq = ++_loadSeq;
     if (!_data) mount.innerHTML = '<div class="ab-meta ab-pad">Loading…</div>';
     try {
-      _data = await callable('listAgentKeys');
+      const d = await callable('listAgentKeys');
+      if (seq !== _loadSeq) return; // a newer load is on its way; it renders
+      _data = d;
+      const snap = opts && opts.reset ? null : readForm(mount);
       mount.innerHTML = pageHtml(_data);
+      restoreForm(mount, snap);
     } catch (e) {
+      if (seq !== _loadSeq) return;
       mount.innerHTML = '<div class="ab-card"><div class="ab-meta">Could not load bots: ' + esc((e && e.message) || 'error') + '</div></div>';
     }
   }
@@ -206,7 +243,7 @@
         const r = await callable('saveAgentBot', { name, role, tools, routeTo, timezone: browserTz() });
         toast('Bot created — now create its key', 'success');
         _fresh = null;
-        await load();
+        await load({ reset: true }); // the bot is made: start the form over
         const card = r && r.botId && document.querySelector('[data-ab-bot="' + r.botId + '"]');
         if (card && card.scrollIntoView) card.scrollIntoView({ block: 'center' });
       } else if (a === 'mkkey') {
@@ -272,6 +309,12 @@
     };
     wrapped.__abWrapped = true;
     window.switchSettingsTab = wrapped;
+    // This file loads BEFORE ui.js defines switchSettingsTab, so the hook goes
+    // on up to one poll tick late. A deep link (?settings=bots) or the hash
+    // router can open the tab inside that gap — the panel showed, nothing ever
+    // called load(), and the tab sat empty. Catch up if it is already open.
+    const panel = document.getElementById('stab-panel-bots');
+    if (panel && panel.style && panel.style.display === 'block' && !_loadSeq) load();
     return true;
   }
   function boot() {
