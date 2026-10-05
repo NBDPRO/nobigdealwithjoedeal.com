@@ -134,7 +134,13 @@ function publicSummary(m) {
  * `lead.measurementJobId` short-circuits a retry; and requestInstantRoofer's
  * own 90-day same-roof reuse means even a duplicated call does not re-bill.
  */
-async function measureLeadAndPublish(db, { leadId, lead, deps }) {
+async function measureLeadAndPublish(db, { leadId, lead, deps, jobDocId, source, withOutline }) {
+  // jobDocId / source / withOutline (2026-10-04): the CRM auto-order
+  // (measure-auto-order.js) runs this same path for appointment-set and
+  // inspected leads under its own deterministic id, and asks for the outline
+  // image so the Draw tool can show it as a cross-check.
+  const jobId = jobDocId || ('weblead-' + leadId);
+  const jobSource = source || 'web-lead';
   if (!lead) return { ok: false, reason: 'no-lead' };
   if (lead.measurementJobId) return { ok: false, reason: 'already-measured' };
 
@@ -155,6 +161,7 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
   // rep who already measured this address, must not buy a second report.
   let measurements = null;
   let reusedFrom = null;
+  let outline = null;
   let provider = 'instantroofer';
   const prior = await measurement.findReusableMeasurement(db, {
     coordKey, uid: ownerId, companyId: lead.companyId || null, reportType: 'ai'
@@ -165,7 +172,8 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
   } else {
     const ctx = {
       lat: coords.lat, lng: coords.lng, reportType: 'ai', address,
-      customerName: [lead.firstName, lead.lastName].filter(Boolean).join(' ') || null
+      customerName: [lead.firstName, lead.lastName].filter(Boolean).join(' ') || null,
+      withOutline: withOutline === true
     };
     const callIR = (c) => measurement.requestInstantRoofer(c, deps || {});
     const result = mode === 'instantroofer'
@@ -178,6 +186,7 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
       return { ok: false, reason: result.reason || 'vendor-error' };
     }
     measurements = result.measurements;
+    outline = result.outline || null;
     provider = result.provider || 'instantroofer';
   }
   if (!measurements || !measurements.rawSqft) return { ok: false, reason: 'no-measurement' };
@@ -185,7 +194,7 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
   // Deterministic id, written with create(): a Firestore trigger is
   // at-least-once, so a redelivery must collide here rather than buy a second
   // report. ALREADY_EXISTS is the success case for a duplicate.
-  const jobRef = db.collection('measurements').doc('weblead-' + leadId);
+  const jobRef = db.collection('measurements').doc(jobId);
   const jobDoc = {
     ownerId,
     companyId: lead.companyId || null,
@@ -193,13 +202,15 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
     address: address || null,
     provider,
     reportType: 'ai',
-    externalJobId: reusedFrom ? null : (provider + '-weblead-' + leadId),
+    // provider + the job id: 'instantroofer-weblead-<leadId>' for a web lead
+    // (unchanged), 'instantroofer-auto-<leadId>' for the CRM auto-order.
+    externalJobId: reusedFrom ? null : (provider + '-' + jobId),
     status: 'ready',
     estimatedMinutes: 0,
     lat: coords.lat, lng: coords.lng,
     coordKey: reusedFrom ? null : coordKey,
     coordSource: 'lead', coordPrecision: 'geocoded',
-    source: 'web-lead',
+    source: jobSource,
     ...(reusedFrom ? { reusedFrom, billed: false } : {}),
     // Billable like any other measurement (Jo, 2026-09-06); no document, so
     // the line reads as a service performed rather than a report.
@@ -225,6 +236,28 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
     measurementJobId: jobRef.id, measurements, dedupeKey: leadId + '|' + coordKey
   }).catch((e) => logger.warn('public-measure: lead attach failed', { leadId, err: e.message }));
 
+  // The vendor's outline image, when it was asked for — stored under the lead
+  // owner's private docs/ path (storage.rules: owner or platform admin read;
+  // not under photos/, so the image pipeline never treats it as a job photo).
+  // The Draw tool shows it beside the drawn totals as a cross-check.
+  let outlinePath = null;
+  if (outline && outline.buffer) {
+    try {
+      const ext = outline.contentType === 'image/png' ? 'png' : (outline.contentType === 'image/webp' ? 'webp' : 'jpg');
+      outlinePath = `docs/${ownerId}/measurements/${leadId}-outline.${ext}`;
+      const bucket = (deps && deps.bucket) || require('firebase-admin/storage').getStorage().bucket();
+      await bucket.file(outlinePath).save(outline.buffer, {
+        resumable: false,
+        contentType: outline.contentType,
+        metadata: { cacheControl: 'private, max-age=3600' }
+      });
+      await jobRef.set({ outlinePath }, { merge: true });
+    } catch (e) {
+      outlinePath = null;
+      logger.warn('public-measure: outline save failed', { leadId, err: e && e.message });
+    }
+  }
+
   // Put the numbers somewhere Joe actually sees them. lead.measurementReady
   // only renders a chip, and leads/{id}/activity has no client reader at all —
   // without this the whole slice would be invisible in the CRM.
@@ -244,7 +277,12 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
       measurementSqft: summary.sqft,
       measurementSquares: summary.squares,
       measurementPitch: safePitch,
-      measurementConfidence: summary.confidence || null
+      measurementConfidence: summary.confidence || null,
+      // Draw-tool cross-check (2026-10-04): the vendor footprint + perimeter
+      // to compare with what the rep draws, and the outline image if stored.
+      measurementFootprintSqft: (measurements.footprintSqft != null && isFinite(measurements.footprintSqft)) ? Math.round(measurements.footprintSqft) : null,
+      measurementPerimeterLf: (measurements.perimeterLf != null && isFinite(measurements.perimeterLf)) ? Math.round(measurements.perimeterLf) : null,
+      ...(outlinePath ? { measurementOutlinePath: outlinePath } : {})
     }, { merge: true }).catch((e) => logger.warn('public-measure: lead summary write failed', { leadId, err: e.message }));
   }
 
