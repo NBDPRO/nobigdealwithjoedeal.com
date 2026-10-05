@@ -143,7 +143,7 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=10">
+<link rel="stylesheet" href="css/dashboard-app.css?v=11">
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
@@ -1800,31 +1800,13 @@
         </div>
       </div>
 
-      <!-- STEP 3: Good / Better / Best -->
+      <!-- STEP 3: Package tiers — one card per tier in estimate-config.js
+           TIER_ORDER (economy…beyond), built by estimates.js renderTierCards() -->
       <div id="estStep3" class="dn">
         <div class="panel">
           <div class="panel-hdr"><div><div class="panel-label">Step 3</div><div class="panel-title">Select Package</div></div></div>
           <div class="panel-body">
-            <div class="tier-grid">
-              <div class="tier-card" data-action="call" data-fn="selectTier" data-arg="good" data-pass-el>
-                <div class="tier-badge tier-good">Good</div>
-                <div class="tier-name">Standard Reroof</div>
-                <div class="tier-items">✓ Architectural shingles<br>✓ Felt underlayment<br>✓ Tear off existing<br>✓ Starter strip<br>✓ Drip edge<br>✓ Ridge cap</div>
-                <div class="tier-price" id="price-good">—</div>
-              </div>
-              <div class="tier-card" data-action="call" data-fn="selectTier" data-arg="better" data-pass-el>
-                <div class="tier-badge tier-better">Better</div>
-                <div class="tier-name">Reroof Plus</div>
-                <div class="tier-items">✓ Everything in Standard<br>✓ Ice & water shield<br>✓ Pipe boots (all)<br>✓ Hip cap shingles<br>✓ 15% decking allowance</div>
-                <div class="tier-price" id="price-better">—</div>
-              </div>
-              <div class="tier-card" data-action="call" data-fn="selectTier" data-arg="best" data-pass-el>
-                <div class="tier-badge tier-best">Best</div>
-                <div class="tier-name">Full Redeck</div>
-                <div class="tier-items">✓ Everything in Reroof Plus<br>✓ Full OSB decking<br>✓ Seamless gutters (6")<br>✓ Premium warranty<br>✓ Full redeck labor</div>
-                <div class="tier-price" id="price-best">—</div>
-              </div>
-            </div>
+            <div class="tier-grid" id="estTierGrid"></div>
           </div>
         </div>
         <div style="display:flex;gap:10px;">

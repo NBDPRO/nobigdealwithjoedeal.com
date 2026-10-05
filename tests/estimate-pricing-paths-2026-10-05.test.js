@@ -29,7 +29,7 @@
  *   D. Five tiers — monotonic, only the rate differs, line-item column mapping
  *   E. Job templates — resolveSelection
  *   F. Deposit boundaries (beyond tests/deposit-rule.test.js)
- *   G. Old builder (estimates.js)
+ *   G. Old builder (estimates.js) — bug #6 FIXED 2026-10-05 (round then floor; five tiers)
  *   H. V2 builder UI composition (estimate-v2-ui.js getCurrentEstimate on the real engines)
  *   I. Deal room accepted tier (functions/deal-accepted-tier.js)
  *   M. Mutation proof — the floor assertions go RED against mutated in-memory copies
@@ -591,7 +591,7 @@ section('F. DEPOSIT BOUNDARIES (deposit-rule.js; only cases tests/deposit-rule.t
 }
 
 // ════════════════════════════════════════════════════════════════════
-section('G. OLD BUILDER — estimates.js (floor THEN round; prices three tiers)');
+section('G. OLD BUILDER — estimates.js (round THEN floor, like V2; prices all five tiers — bug #6 fixed)');
 // ════════════════════════════════════════════════════════════════════
 function classicEnv(configMutation) {
   const env = makeSandbox();
@@ -623,12 +623,40 @@ function classicEnv(configMutation) {
     let prices = null;
     try { S.calcTierPrices(); prices = S.estData.prices; } catch (e) { prices = { __threw: String(e && e.message) }; }
     ok('classic calcTierPrices: good $2,525 · better $2,875 · best $3,225', !!prices && prices.good === 2525 && prices.better === 2875 && prices.best === 3225, j(prices));
-    ok('KNOWN BUG #6 (reported 2026-10-05): the old builder prices only three tiers (estimates.js:363-365, good/better/best only) — expected all five (economy + beyond too)',
-      !!prices && j(Object.keys(prices)) === j(['good', 'better', 'best']), j(prices && Object.keys(prices)));
+    // Economy 1320+700=2020 → +7% 141.40 = 2161.40 → $2,150 → floored $2,500;
+    // Beyond 2640+700=3340 → +7% 233.80 = 3573.80 → $3,575.
+    ok('FIXED (was KNOWN BUG #6): the old builder prices all five tiers in TIER_ORDER — economy $2,500 (floored) · good $2,525 · better $2,875 · best $3,225 · beyond $3,575',
+      !!prices && j(Object.keys(prices)) === j(['economy', 'good', 'better', 'best', 'beyond'])
+        && prices.economy === 2500 && prices.good === 2525 && prices.better === 2875 && prices.best === 3225 && prices.beyond === 3575, j(prices));
+    // The Step 3 cards: one per tier, labels/rates from estimate-config.js,
+    // data-arg = the internal key selectTier() + the saved doc's tier use.
+    {
+      const R = makeSandbox();
+      const kids = [];
+      const attrs = {};
+      const grid = { textContent: '', appendChild(c) { kids.push(c); return c; }, setAttribute(k, v) { attrs[k] = v; }, getAttribute(k) { return k in attrs ? attrs[k] : null; } };
+      const mk = (tag) => { const a = {}; const ch = []; return { tagName: tag, className: '', textContent: '', id: '', attrs: a, kids: ch, setAttribute(k, v) { a[k] = v; }, appendChild(c) { ch.push(c); return c; } }; };
+      R.sandbox.document.createElement = mk;
+      R.sandbox.document.getElementById = (id) => (id === 'estTierGrid' ? grid : null);
+      R.sandbox.estData = {}; R.sandbox.selectedTier = 'beyond'; R.sandbox.R = { deckPct: 0.15 };
+      load(R, CFG_FILE); load(R, 'docs/pro/js/ky-insurance-law.js'); load(R, 'docs/pro/js/deposit-rule.js'); load(R, V2_FILE);
+      load(R, 'docs/pro/js/estimates.js');
+      const CF = R.win.NBD_ESTIMATE_CONFIG;
+      const txt = (card, cls) => ((card.kids.find((k) => k.className.split(' ').indexOf(cls) !== -1) || {}).textContent);
+      ok('FIXED (was KNOWN BUG #6): Step 3 renders five tier cards — data-arg economy…beyond, names from TIER_DISPLAY, $rate/SQ from TIER_RATES, a price slot per tier',
+        kids.length === 5 && j(kids.map((c) => c.attrs['data-arg'])) === j(CF.TIER_ORDER)
+          && kids.every((c) => c.attrs['data-fn'] === 'selectTier' && c.attrs['data-action'] === 'call')
+          && kids.every((c, i) => txt(c, 'tier-name') === CF.tierLabel(CF.TIER_ORDER[i]) && txt(c, 'tier-items').indexOf('$' + CF.TIER_RATES[CF.TIER_ORDER[i]] + '/SQ') === 0)
+          && kids.every((c, i) => (c.kids.find((k) => k.className === 'tier-price') || {}).id === 'price-' + CF.TIER_ORDER[i]),
+        j(kids.map((c) => [c.attrs['data-arg'], txt(c, 'tier-name'), txt(c, 'tier-items')])));
+      ok('the saved tier card renders selected (an old 3-tier doc saved as "good" selects the same way)', kids.length === 5 && kids[4].className === 'tier-card selected' && kids[1].className === 'tier-card');
+      R.sandbox.calcTierPrices();
+      ok('re-pricing does not rebuild the cards (built once per grid)', kids.length === 5);
+    }
     // Floor-then-round vs round-then-floor only part ways for a minimum that is
     // not a $25 multiple. In-memory config with a $2,510 minimum:
-    //   classic: max(217000, 251000) = 251000 → round to $25 → 250000 = $2,500 (below its own minimum)
-    //   V2:      2170 → 2175 → floor 2510 → $2,510
+    //   classic (was): max(217000, 251000) = 251000 → round to $25 → 250000 = $2,500 (below its own minimum)
+    //   classic (now) and V2: 2170 → 2175 → floor 2510 → $2,510
     let C2 = null;
     try {
       C2 = classicEnv({ file: CFG_FILE, apply: (s) => mustReplace(mustReplace(s, /JOB_MINIMUM_DOLLARS: 2500,/, 'JOB_MINIMUM_DOLLARS: 2510,'), /JOB_MINIMUM_CENTS: {3}250000,/, 'JOB_MINIMUM_CENTS:   251000,') });
@@ -636,8 +664,8 @@ function classicEnv(configMutation) {
     if (C2) {
       const classic = C2.sandbox.calcEstimateTotalCents(3, 'economy', { totalCents: 85000 }, { taxRate: 0 });
       const v2 = C2.win.EstimateBuilderV2.calculatePerSq({ tier: 'economy', mode: 'insurance', rawSqft: 300, pitch: '6/12', wasteFactorOverride: 1.0 });
-      ok('KNOWN BUG #6 (reported 2026-10-05): the old builder floors BEFORE rounding (estimates.js:334-335), so a $2,510 minimum quotes $2,500 — below its own floor — while V2 quotes $2,510; expected the two engines to agree ($2,510)',
-        classic === 250000 && v2.total === 2510, j([classic, v2.total]));
+      ok('FIXED (was KNOWN BUG #6): the old builder rounds to $25 THEN floors, like V2 — a $2,510 minimum quotes $2,510 (was $2,500, below its own floor); both engines agree',
+        classic === 251000 && v2.total === 2510, j([classic, v2.total]));
     }
   }
 }
