@@ -76,7 +76,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     const leadId = await safeEvaluate(page, async (lead) => {
       const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
-      return (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({}, lead, { createdAt: fs.serverTimestamp() }))).id;
+      return (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }))).id;
     }, lead);
 
     await page.goto('/pro/customer.html?id=' + leadId);
@@ -159,12 +159,13 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     // (collected-revenue.js) counts this $3,000 today.
     await page.goto('/pro/dashboard.html');
     await safeWaitForFunction(page, () => !!(window.NBDRevenue && typeof window.NBDRevenue.loadInvoices === 'function' && window._user), { timeout: 30_000 });
-    const revenue = await safeEvaluate(page, async (leadId) => {
+    // loadInvoices resolves [] (uncached) while the dashboard is still booting
+    // its auth/db, so poll until the load lands.
+    await expect.poll(() => safeEvaluate(page, async (leadId) => {
       const invs = await window.NBDRevenue.loadInvoices({ force: true });
       const start = new Date(); start.setHours(0, 0, 0, 0);
-      return window.NBDRevenue.collectedBetween(invs, start.getTime(), Date.now() + 1000, (id) => id === leadId);
-    }, leadId);
-    expect(revenue.total).toBe(3000);
+      return window.NBDRevenue.collectedBetween(invs, start.getTime(), Date.now() + 1000, (id) => id === leadId).total;
+    }, leadId), { timeout: 20_000 }).toBe(3000);
 
     // One timeline line for the payment, at the payment's own id.
     const note = await safeEvaluate(page, async ({ leadId, invId, pid }) => {
