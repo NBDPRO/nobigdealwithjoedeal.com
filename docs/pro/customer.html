@@ -211,6 +211,13 @@ header {
   border-radius:12px; font-size:11px; font-weight:600;
   font-family:'Barlow Condensed',sans-serif; letter-spacing:.06em;
 }
+/* 3-day right to cancel (2026-10-04) — amber: work should wait. */
+.cancel-window-chip {
+  padding:3px 9px; border-radius:12px; font-size:11px; font-weight:700; letter-spacing:.02em;
+  background:rgba(245,158,11,.14); color:#d97706; border:1px solid rgba(245,158,11,.5);
+  max-width:100%; overflow-wrap:anywhere;
+}
+.cancel-window-chip[hidden] { display:none; }
 .stage-badge.stage-new, .stage-badge.stage-new-lead { background:#1e2a3a; color:#9CA3AF; border-color:#374151; }
 .stage-badge.stage-contacted { background:#1a2440; color:#60a5fa; border-color:#2563eb; }
 .stage-badge.stage-inspected, .stage-badge.stage-inspection { background:#1a2e4a; color:var(--blue); border-color:#2d5a8e; }
@@ -1627,6 +1634,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
     <div class="customer-meta">
       <div class="meta-item">
         <span class="stage-badge" id="customerStage">New</span>
+        <!-- 2026-10-04: the homeowner's 3-day right to cancel. Filled from
+             lead.cancelBy by customer-bootstrap.module.js; hidden outside the window. -->
+        <span id="cancelWindowChip" class="cancel-window-chip" role="status" hidden></span>
         <span id="daysInStageBadge" style="display:none;font-size:11px;color:var(--m);font-weight:600;background:var(--s);border:1px solid var(--br);padding:3px 9px;border-radius:12px;letter-spacing:.02em;" title="How long this lead has been at the current stage"></span>
         <!-- Wave 52: last-shared chip mirrors the W44 kanban badge
              so the rep sees the same "📤 SMS 3d ago" cue on
@@ -2722,7 +2732,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=141"></script>
+<script defer src="js/script-loader.js?v=142"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2742,14 +2752,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager and small; the lazy docgen bundle reads it. -->
-<script defer src="js/ky-insurance-law.js?v=3"></script>
+<script defer src="js/ky-insurance-law.js?v=4"></script>
 <script defer src="js/booking-events.js?v=2"></script>
 <script defer src="js/customer-quick-actions.js?v=2"></script>
 <!-- Stage gate bottom sheet: progressStage asks for missing required fields here (2026-10-03). -->
 <script defer src="js/stage-gate-sheet.js?v=1"></script>
 <!-- Calls + texts from the Call Center on the timeline (NBDCallTimeline; loadTimeline reads it). -->
 <script defer src="js/call-timeline.js?v=2"></script>
-<script type="module" src="js/customer-bootstrap.module.js?v=17"></script>
+<script type="module" src="js/customer-bootstrap.module.js?v=18"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 
@@ -2800,7 +2810,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      doc-phone-layout.js (2026-09-25) is its phone reading layout for a
      generated document, shared with sign.html and the portal. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
-<script defer src="js/nbd-doc-viewer.js?v=4"></script>
+<script defer src="js/nbd-doc-viewer.js?v=5"></script>
 <!-- Photo system Phase 2: client-side EXIF + heading-to-slope inference.
      Loaded BEFORE upload code so analyze() is available at upload time. -->
 <script defer src="js/photo-smart-ingest.js?v=2"></script>

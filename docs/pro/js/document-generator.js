@@ -156,8 +156,40 @@ window.NBDDocGen = {
   },
 
   /**
+   * Inputs for ky-insurance-law.js cancelPacketHtml: the tenant's name and
+   * mailing address (the address the law requires on the form — never the
+   * letterhead address), the homeowner and property, the property state for
+   * the home-solicitation law it names, and whether the KY insurance forms
+   * ride along. The transaction date is the contract date, else now in the
+   * tenant's timezone; whoever records the signature re-dates it to the
+   * signing day (restampCancelPacket).
+   */
+  _cancelPacketOpts(data, cp, j) {
+    const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
+    const d = data || {};
+    const co = this._resolveCompany();
+    const B = (typeof window !== 'undefined' && typeof window._brand === 'function') ? (() => { try { return window._brand() || {}; } catch (_) { return {}; } })() : {};
+    return {
+      transactionDate: d.contractDate || new Date(),
+      timeZone: J ? J.resolveTimeZone(cp) : undefined,
+      sellerName: (B && B.legalName) || co.name || '',
+      sellerAddress: this._contractorPhysicalAddress(cp),
+      email: co.email || '',
+      fax: String((cp && cp.businessFax) || '').trim(),
+      homeownerName: d.homeownerName || (d.customer && d.customer.name) || '',
+      propertyAddress: d.address || d.homeownerAddress || d.propertyAddress || '',
+      state: (j && j.state) || '',
+      kyInsurance: !!(j && j.kyInsurance),
+      // renderContract / renderProposal print the KRS 367.624(3) notices
+      // before the signatures on a KY insurance job (_statutoryBlocks).
+      kyNoticesInDocument: !!(j && j.kyInsurance)
+    };
+  },
+
+  /**
    * Statutory blocks for a contract-class document (contract, signable
-   * proposal). Every string is '' when the job is not a Kentucky insurance job.
+   * proposal). `ftcStatement` + `cancelPacket` print on every one; the rest
+   * is '' when the job is not a Kentucky insurance job.
    */
   _statutoryBlocks(data, cp) {
     const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
@@ -165,7 +197,21 @@ window.NBDDocGen = {
     // The plain Payment clause prints on EVERY contract (Jo, 2026-09-27: no
     // AOB, no direction to pay, no co-payee instrument, any state).
     const out = { j, css: '', notices: '', forms: '', lien: '', partiesExtra: '',
-      paymentClause: J ? J.PAYMENT_CLAUSE : '' };
+      paymentClause: J ? J.PAYMENT_CLAUSE : '', ftcStatement: '', cancelPacket: '' };
+    // 2026-10-04: EVERY contract-class document (any state, cash or
+    // insurance) carries the FTC 429.1(a) statement beside the signatures and
+    // the Notice of Right to Cancel with the two completed cancellation forms
+    // after them — the packet the server PDF and the template library's
+    // "Notice of Right to Cancel" print. Before, only the server-rendered PDF
+    // attached the forms; a contract signed on the phone had none. On a
+    // Kentucky insurance job the packet also carries the KRS 367.624(4)
+    // forms, so `forms` below stays '' when the packet is present.
+    if (J && typeof J.cancelPacketHtml === 'function') {
+      out.ftcStatement = J.ftcStatementHtml() +
+        '<div class="nbd-statutory nbd-cxl-receipt">By signing, the homeowner acknowledges receiving the attached ' +
+        'Notice of Right to Cancel and two completed copies of the Notice of Cancellation form.</div>';
+      out.cancelPacket = J.cancelPacketHtml(this._cancelPacketOpts(data, cp, j));
+    }
     if (!J || !j || !j.kyInsurance) return out;
     const co = this._resolveCompany();
     const addr = this._contractorPhysicalAddress(cp);
@@ -175,7 +221,7 @@ window.NBDDocGen = {
     out.lien = J.KY_LIEN_CLAUSE;
     // The signing date in the tenant's timezone (default America/New_York) —
     // "now" read there, never the UTC date or the rep's browser clock.
-    out.forms = J.kyCancellationFormsHtml({
+    out.forms = out.cancelPacket ? '' : J.kyCancellationFormsHtml({
       transactionDate: data.contractDate || new Date(),
       timeZone: J.resolveTimeZone(cp),
       physicalAddress: addr,
@@ -514,6 +560,14 @@ window.NBDDocGen = {
         _say(_J.MSG.addressRequired);
         return;
       }
+      // Every contract now carries the FTC Notice of Cancellation, which
+      // names the seller's address (2026-10-04). Outside a Kentucky insurance
+      // job (refused above) a missing address leaves that blank for the
+      // homeowner to fill — warn, don't block.
+      if ((type === 'contract' || type === 'proposal') && !data._isBlankPreview
+          && !this._contractorPhysicalAddress(data.companyProfile) && typeof showToast === 'function') {
+        showToast('Add your mailing address in Settings → Company Profile ("Mailing Address (one line)") so the 3-day cancellation forms print it.', 'warning');
+      }
     }
 
     // ─── QA fix: reconcile single-total docs against their rendered lines ───
@@ -751,6 +805,16 @@ window.NBDDocGen = {
         // and stamps signedAt + signedSigners on the Firestore doc.
         onPersistFinalized: async (signedHtml, signedSigners) => {
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
+          // The Notice of Right to Cancel is dated the day the homeowner
+          // signs (the viewer re-dates it on finalize; this is the belt for
+          // any other caller), and that packet's "last day to cancel" is
+          // recorded as cancelBy on the document AND the lead — the customer
+          // page shows it and stage moves that start work warn inside it.
+          const _Jc = window.NBDJurisdiction;
+          if (_Jc && typeof _Jc.restampCancelPacket === 'function') {
+            try { signedHtml = _Jc.restampCancelPacket(signedHtml, new Date()); } catch (_) {}
+          }
+          const _cancelBy = (_Jc && typeof _Jc.packetCancelBy === 'function') ? _Jc.packetCancelBy(signedHtml) : '';
           try {
             if (_htmlPath && window.storage && window.ref && window.uploadBytes) {
               const sRef = window.ref(window.storage, _htmlPath);
@@ -774,10 +838,20 @@ window.NBDDocGen = {
                 signedSigners: Array.isArray(signedSigners)
                   ? signedSigners.map(s => ({ role: s.role, label: s.label || null, signedAt: s.signedAt || null }))
                   : null,
+                ...(_cancelBy ? { cancelBy: _cancelBy } : {}),
               });
             }
           } catch (e) {
             console.warn('Signed metadata update failed:', e && e.message);
+          }
+          try {
+            if (_cancelBy && _leadIdEarly && window.db && window.doc && window.updateDoc) {
+              await window.updateDoc(window.doc(window.db, 'leads', _leadIdEarly), { cancelBy: _cancelBy });
+              [window._currentLead, window._leadDoc].forEach((o) => { if (o && (!o.id || o.id === _leadIdEarly)) o.cancelBy = _cancelBy; });
+              if (window.NBDCancelWindow && typeof window.NBDCancelWindow.render === 'function') window.NBDCancelWindow.render();
+            }
+          } catch (e) {
+            console.warn('Lead cancelBy stamp failed:', e && e.message);
           }
           // 2026-09-15 (Paperwork Filing) — auto-derive the lead-level *FiledAt
           // gate field (crm-stages.js's REQUIRED_FIELDS_BY_TYPE) from this real
@@ -2460,6 +2534,7 @@ window.NBDDocGen = {
             <!-- ACCEPTANCE -->
             <div class="section">
               <div class="section-title">Acceptance</div>
+              ${stat.ftcStatement}
               ${this.renderSignatureBlock(
                 (Array.isArray(data.signers) && data.signers.length)
                   ? data.signers
@@ -2467,6 +2542,7 @@ window.NBDDocGen = {
               )}
             </div>
             ${stat.forms}
+            ${stat.cancelPacket}
           </div>
 
           ${this.affiliateRow ? this.affiliateRow() : ''}
@@ -2681,6 +2757,7 @@ window.NBDDocGen = {
             <!-- SIGNATURES -->
             <div class="section">
               <div class="section-title">Contract Execution</div>
+              ${stat.ftcStatement}
               <div style="margin-top: 0.15in;">
                 ${this.renderSignatureBlock(
                   (Array.isArray(data.signers) && data.signers.length)
@@ -2690,6 +2767,7 @@ window.NBDDocGen = {
               </div>
             </div>
             ${stat.forms}
+            ${stat.cancelPacket}
           </div>
 
           ${this.affiliateRow ? this.affiliateRow() : ''}
