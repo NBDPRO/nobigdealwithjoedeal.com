@@ -216,7 +216,10 @@ function makeDom() {
     ok('Submit sends the lead with only the required fields (no scheduling choice demanded)', saves.length === 1 && saves[0].firstName === 'Pat' && saves[0].phone === '(513) 555-0100' && saves[0].tcpaConsent === true, saves[0]);
     ok('...asks for the follow-up grant (wantsFollowUp)', saves[0] && saves[0].wantsFollowUp === true);
     ok('...carries no intake answers up front', saves[0] && !('scheduling' in saves[0]) && !('bestTime' in saves[0]));
-    ok("...and Joe's notice names the homeowner with no trailing space", notes.length === 1 && notes[0].name === 'Pat');
+    // notifyNewLead is no longer called from the funnel (H3, 2026-10-05) —
+    // Joe's alert is leadAlertEstimate on the saved doc; see
+    // estimate-funnel-lost-lead-banner-2026-10-05.test.js.
+    ok('...and no notifyNewLead call (Joe is alerted by the estimate_leads trigger)', notes.length === 0, notes.length);
     await tick(900);
     ok('the results screen shows the optional "help Joe prepare" block (lead saved, grant held)', d.getElementById('estFollowUp').hidden === false && d.getElementById('estIntake').innerHTML.length > 0);
     ok('a funnel_step for the results screen fires', W.events.some((e) => e.name === 'funnel_step' && e.params.step === 6 && e.params.step_name === 'results'));
