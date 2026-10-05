@@ -241,6 +241,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 ## SCHEDULED CRONS (server-only, no client traffic) — 29
 | Export | Schedule | Purpose |
 |---|---|---|
+| `invoiceOverdueSweep` | daily 08:15 ET | Getting paid (2026-10-03): every open invoice (status sent / partial / overdue / viewed) past its due date gets ONE internal task on its lead, "💸 Invoice overdue — follow up" (task id = the invoice's, so later runs are no-ops). Owed = #2112's rule (`invoice-owed.js`, `partial` counts); a Kentucky insurance invoice inside its KRS 367.626 window is skipped. NOTHING is sent to a customer. Kill switch `NBD_INVOICE_OVERDUE=off` (invoice-overdue.js / invoice-overdue-logic.js) |
 | `weeklyDigest` | Mon 07:00 ET | Rep recap of previous 7 days; opt-out `users/{uid}.weeklyDigestEnabled === false`; DRY-RUN unless `WEEKLY_DIGEST_ENABLED=true` |
 | `dormantLeadNudge` | Wed 08:00 ET | Leads stuck >30 days at non-terminal stages → rep email; opt-out per user; DRY-RUN unless `DORMANT_NUDGE_ENABLED=true` |
 | `anniversaryAutoTouch` | daily 08:00 ET | 1-year install-anniversary digest + `anniversary_due` activity write (rep sends the touch, not us — TCPA); DRY-RUN unless `ANNIVERSARY_TOUCH_ENABLED=true` |
@@ -285,11 +286,12 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `syncGbpReviews` | daily 06:00 ET | Pulls Google Business Profile reviews into the reviews widget cache (gbp-reviews-sync.js) |
 | `monthlyOverheadAlertCron` | 1st of month 09:00 | Emails the overhead-vs-margin summary for the month just ended (monthly-overhead-alert.js) |
 
-## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 37 Firestore + 3 Storage
+## FIRESTORE / STORAGE TRIGGERS (no direct client traffic) — 38 Firestore + 3 Storage
 | Export | Watches | Purpose |
 |---|---|---|
 | `reelIngestUpload` | Storage finalize (`reel-uploads/` only) | Reel Studio — refuses an object without a matching server-minted slot; transcodes the clip with ffmpeg-static to a normalized H.264/AAC intermediate (`reel-work/`) with ALL metadata + data streams stripped (GPS), or re-encodes a photo with sharp; always deletes the raw upload. 4 GiB / 4 vCPU / 540 s |
 | `reelRenderWorker` | `companies/{c}/reels/{id}` written (acts on `status: queued`) | Reel Studio — claims the reel, renders it with ffmpeg (brand intro/outro, templates, Whisper captions for talking-head), stores the MP4 under `social-media/` (served by `socialMedia`), runs the Claude-vision privacy frame check (AI kill switch + shared vision budget) + hero thumbnail; or applies the blur. 4 GiB / 4 vCPU / 540 s, one render per instance |
+| `finalInvoiceOnInstall` | `leads/{leadId}` updated | Getting paid (2026-10-03): a write that lands the lead on Install Done from another stage (client `commitStageChange`, a bulk move, or the spine's own move — `job-spine-logic.js` `enteredStage`) records the spine's `installed` event; `recordJobEvent` then runs `deposit-draft.js` `draftFinalAtInstall`: the job's FINAL invoice as a **draft** (`finaldraft_<lead>_<job>`, the estimate's lines less each earlier invoice as a "Less deposit paid" credit line) — or, when a live invoice already bills the whole job (the signing-day deposit draft does), that one — plus a "🧾 Send final invoice" task. Idempotent per job; NEVER sends (install-final-invoice.js) |
 | `onPhotoUploaded` | Storage finalize (`nobigdeal-pro.appspot.com`) | 200/600/1600 px WebP variant pipeline; stamps `photo.urls` (or `knock.photoVariants[idx]` for `/d2d/` sources, mirrored to the converted lead) |
 | `onKnockCreated` | `knocks/{knockId}` created | Race-heal for d2d photo variants: photos upload BEFORE the knock doc exists, so early photos' Storage triggers miss — this stamps `photoVariants` for any `photoPaths` entry whose variants already exist (tokens recovered from variant object metadata) |
 | `onAudioUploaded` | Storage finalize (`nobigdeal-pro.firebasestorage.app`) | Voice intelligence — recording → transcribe + analyze (was listed as `voiceIntelligenceTrigger`). 2026-09-25: ignores `audio/{uid}/d2d/...` and other reserved lead ids, which used to land every D2D memo under one phantom `leads/d2d` |
