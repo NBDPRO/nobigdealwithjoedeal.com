@@ -23,7 +23,7 @@
  *   handlers/integrations.js— integrationStatus, submitPublicLead
  *   handlers/portal.js      — validateAccessCode (the inline access-code
  *                             callable; NOT the sibling functions/portal.js)
- *   handlers/monitoring.js  — cspReport
+ *   handlers/monitoring.js  — cspReport, clientError
  *   handlers/_shared.js     — CORS_ORIGINS, Claude budget consts +
  *                             helpers, requireTeamAdmin, normalizeRole,
  *                             normalizeEmail, parseAddress, reverseGeocode,
@@ -257,9 +257,10 @@ exports.getPublicSiteConfig = publicSiteHandlers.getPublicSiteConfig;
 exports.setSiteSlug = publicSiteHandlers.setSiteSlug;
 exports.publishTenantSite = publicSiteHandlers.publishTenantSite;
 
-// Browser monitoring (CSP violation report sink)
+// Browser monitoring (CSP violation report sink + CRM client error reports)
 const monitoringHandlers = require('./handlers/monitoring');
 exports.cspReport = monitoringHandlers.cspReport;
+exports.clientError = monitoringHandlers.clientError;
 
 // ═══════════════════════════════════════════════════════════════
 // PUSH NOTIFICATION FUNCTIONS

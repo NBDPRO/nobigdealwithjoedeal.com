@@ -34,6 +34,7 @@
   "claimInvite": "./handlers/invites",
   "claudeProxy": "./handlers/ai",
   "cleanupE2ETestData": "./handlers/auth",
+  "clientError": "./handlers/monitoring",
   "confirmAccountErasure": "./integrations/compliance",
   "convertUnmatchedSms": "./handlers/inbound-sms-convert",
   "createAgentKey": "./agent-mcp",

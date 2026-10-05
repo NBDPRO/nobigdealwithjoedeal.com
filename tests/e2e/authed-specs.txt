@@ -71,3 +71,4 @@ reel-studio.spec.js
 phone-numbers.spec.js
 doc-template-library.spec.js
 contract-cancel-forms.spec.js
+phone-client-errors.spec.js
