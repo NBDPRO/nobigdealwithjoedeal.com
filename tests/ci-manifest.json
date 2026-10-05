@@ -461,6 +461,15 @@
       "rep's entered value (carrier, payment amounts, job total, scope, dates…)",
       "actually reaches the rendered legal document instead of a fabricated default."
     ],
+    "doc-template-library.test.js": [
+      "Template library (2026-10-04): lien waivers (4 kinds x OH/KY), right-to-cancel",
+      "notice, material selection, Good-Better-Best options, insurance next-steps",
+      "letter, plus the extended change order / completion / warranty certificate.",
+      "Renders each from a fixture lead + estimate + profile; change-order money in",
+      "cents; signable templates emit e-sign canvases; Kentucky claim wording (the",
+      "claim-wording.test.js RULES) on every template; the attorney DRAFT badge is",
+      "CRM picker chrome only, never in a customer document."
+    ],
     "ai-persona-prompt.test.js": [
       "T-4 AI-texting persona gate: the customizable persona (presets,",
       "trait sliders, identity, free-text notes) must NEVER strip or",
