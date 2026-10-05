@@ -87,11 +87,15 @@ module.exports.run = function run(ctx) {
       /if \(resendRejected\(response\)\) \{[\s\S]{0,250}logEmailToFirestore\(db, to, subject, decoded\.uid, 'failed'[\s\S]{0,150}res\.status\(502\)\.json\(\{ error: 'Failed to send email', detail: msg \}\);/.test(ef));
 
     // ── functions/esign-envelope.js (sendEsignEnvelope) ──
-    const ee = read(path.join(FUNCTIONS, 'esign-envelope.js'));
+    // 2026-10-04: every e-sign email (link, reminder, next signer, signed
+    // copy) goes through ONE sender, esign-io.js sendMail.
+    const ee = read(path.join(FUNCTIONS, 'esign-io.js'));
     assert('sendEsignEnvelope requires resend-guard',
       /require\('\.\/resend-guard'\)/.test(ee));
     assert('sendEsignEnvelope throws on resendRejected(response) before setting emailed = true',
-      /if \(resendRejected\(response\)\) \{[\s\S]{0,60}throw new Error\(resendErrorMessage\(response\)\);[\s\S]{0,20}\}\s*emailed = true;/.test(ee));
+      /if \(resendRejected\(response\)\) throw new Error\(resendErrorMessage\(response\)\);\s*return \{ emailed: true/.test(ee));
+    assert('esign-envelope.js sends no email except through esign-io.js',
+      !/resend\.emails\.send/.test(read(path.join(FUNCTIONS, 'esign-envelope.js'))));
 
     // ── functions/lead-alert.js — TWO call sites ──
     const la = read(path.join(FUNCTIONS, 'lead-alert.js'));

@@ -21,7 +21,8 @@ function run(ctx) {
   const { assert, section } = ctx;
 
   const stripe      = read(path.join(FUNCTIONS, 'stripe.js'));
-  const esign       = read(path.join(FUNCTIONS, 'integrations/esign.js'));
+  // integrations/esign.js (BoldSign + esignWebhook) was retired 2026-10-04.
+  const fs          = require('fs');
   const calcom      = read(path.join(FUNCTIONS, 'integrations/calcom.js'));
   const measurement = read(path.join(FUNCTIONS, 'integrations/measurement.js'));
   const irLogic     = read(path.join(FUNCTIONS, 'integrations/instantroofer-logic.js'));
@@ -38,10 +39,10 @@ function run(ctx) {
     /signature verification failed/i.test(stripe) || /Invalid signature/.test(stripe));
   assert('stripeWebhook fails closed when its secret is missing/stub',
     /secretValue\(STRIPE_WEBHOOK_SECRET\)/.test(stripe) && /rejecting unsigned request/i.test(stripe));
-  assert('esignWebhook HMAC-verifies (x-boldsign-signature + timingSafeEqual)',
-    /x-boldsign-signature/.test(esign) && /timingSafeEqual/.test(esign));
-  assert('esignWebhook fails closed when its secret is unset',
-    /BOLDSIGN_WEBHOOK_SECRET/.test(esign) && /rejecting unsigned request/i.test(esign));
+  // The BoldSign webhook is gone (2026-10-04). An unsigned public endpoint
+  // that flips estimates to "signed" must not come back by accident.
+  assert('the retired esignWebhook (BoldSign) does not exist',
+    !fs.existsSync(path.join(FUNCTIONS, 'integrations/esign.js')));
   assert('calcomWebhook HMAC-verifies (+ timingSafeEqual)',
     /CALCOM_WEBHOOK_SECRET/.test(calcom) && /timingSafeEqual/.test(calcom));
   assert('calcomWebhook fails closed when its secret is unset',
