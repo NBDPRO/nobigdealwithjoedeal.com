@@ -343,6 +343,37 @@ function stageEntryTask(stageKey, jobType, todayYmd) {
   };
 }
 
+// ── The "Request Review" task (Jo, 2026-10-03) ─────────────────────────
+// crm-stages.js lists Request Review as a CLOSED action, and Closed never
+// gets a stage-entry task (stageGetsTask) — so nothing ever made one, and
+// 0 of 36 won/paid jobs in prod were asked. The ask belongs at PAID IN FULL
+// (functions/paid-in-full.js): job-spine.js makes this task when a payment
+// leaves the job at Final Payment (or later) with nothing owed. One id per
+// job, so a customer's next job a year on gets its own task, and a task the
+// rep already finished is never reopened (create-only).
+const REVIEW_TASK_ACTION = A('request_review', 'Request Review', '⭐', 'action');
+function reviewTaskId(jobId) {
+  const j = typeof jobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(jobId) ? jobId : '';
+  return 'stage-final_payment-' + REVIEW_TASK_ACTION.id + (j ? '-' + j : '');
+}
+function reviewRequestTask(jobId, todayYmd) {
+  const a = REVIEW_TASK_ACTION;
+  return {
+    id: reviewTaskId(jobId),
+    doc: {
+      text: a.icon + ' ' + a.label,
+      title: a.label,
+      notes: 'Paid in full — ask for a Google review. The ask carries their referral link in the same message.',
+      source: 'stage_entry',
+      stageKey: 'final_payment',
+      actionId: a.id,
+      actionKind: a.kind,
+      dueDate: String(todayYmd || ''),
+      done: false,
+    },
+  };
+}
+
 // Today in Eastern time as YYYY-MM-DD — the business's local day (the client
 // writes the rep's local day; a UTC date is a day early every US evening).
 function todayYmdEt(nowMs) {
@@ -454,5 +485,5 @@ module.exports = {
   FILED_FIELD_BY_DOC_TYPE, SOLD_TIERS,
   normalizeStageKey, jobTypeOf, isDeleted, planJobEvent, needsClosedAt, movePayload, stageLabel,
   actionsForStage, preferredActionFor, stageGetsTask, stageEntryTask, todayYmdEt, markerId, moveNoteText,
-  cleanMeta, envelopeIsContract, invoiceEvents, soldTierPatch, soldTierNeedsEstimate,
+  cleanMeta, envelopeIsContract, invoiceEvents, soldTierPatch, soldTierNeedsEstimate, reviewTaskId, reviewRequestTask,
 };

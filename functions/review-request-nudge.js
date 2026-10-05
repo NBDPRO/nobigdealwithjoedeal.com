@@ -3,8 +3,12 @@
  * ═══════════════════════════════════════════════════════════════
  *
  * Mirrors the anniversary-touch.js pattern: a scheduled Cloud Function
- * that scans every rep's book for jobs that recently entered a WON-role
- * stage without a review request, then nudges the rep. Reviews are the
+ * that scans every rep's book for jobs that recently became PAID IN FULL
+ * (functions/paid-in-full.js — a won stage at or after Final Payment and no
+ * invoice still owing; Jo, 2026-10-03) without a review request, then
+ * nudges the rep. Until 2026-10-03 any won stage counted, Install Done
+ * included, so the ask came before the money — 0 of 36 won/paid jobs in
+ * prod had ever been asked. Reviews are the
  * highest-ROI marketing asset a local contractor has, and the ask is
  * almost always forgotten in the post-install rush — the client-side
  * engine (docs/pro/js/review-engine.js) only fires when the rep opens
@@ -16,9 +20,9 @@
  *      custom stages count) plus the legacy won-key list for
  *      pre-backfill leads; every candidate is re-verified in memory
  *      with the shared role map (stage-roles.roleFor).
- *   2. Window: stageStartedAt 3–21 days ago — late enough that the job
- *      has settled, fresh enough that the homeowner still remembers
- *      the crew's name.
+ *   2. Gate + window: paid in full, 3–21 days ago (the later of entering
+ *      the paid stage and the last invoice payment) — fresh enough that
+ *      the homeowner still remembers the crew's name.
  *   3. Idempotency: skip leads already asked (`reviewRequested`, which
  *      the client engine stamps when the rep actually sends) or
  *      already nudged (`reviewNudgedAt`, stamped HERE on every run
@@ -52,15 +56,20 @@ const { logger } = require('firebase-functions/v2');
 const { FieldPath, FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
 const roles = require('./stage-roles');
+// Paid in full (Jo, 2026-10-03): the ask waits until the job's money is in —
+// the ONE rule the client bell / review deck / spine task also use.
+const PIF = require('./paid-in-full');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-// Ask window: 3-21 days after entering the won stage. The lower bound
-// keeps the ask out of the final-payment conversation; the upper bound
-// stops stale wins (rep on vacation, backfilled data) from generating
-// awkward months-later asks.
+// Ask window: 3-21 days after the job became PAID IN FULL (the later of
+// entering its paid stage and its last invoice payment — paid-in-full.js).
+// Before 2026-10-03 this counted from ANY won stage, Install Done included,
+// so the ask landed in the middle of the final-payment conversation. The
+// upper bound stops stale payoffs (rep on vacation, backfilled data) from
+// generating awkward months-later asks.
 const NUDGE_MIN_DAYS = 3;
 const NUDGE_MAX_DAYS = 21;
 
@@ -146,10 +155,14 @@ function buildEmailHtml({ firstName, dueLeads }) {
   // Drop-in script mirroring the CRM's one-tap SMS (ReviewEngine.
   // sendReviewSMS resolves the tenant's own name + review link at send
   // time — this preview stays brand-neutral on purpose).
+  // Since 2026-10-03 the ask carries the homeowner's own referral link in the
+  // same message (one tap, not two). No reward is mentioned next to a review
+  // ask — Google's policy forbids review incentives.
   const sampleScript =
     `Hi {firstName}, thank you so much for trusting us with your project! ` +
     `We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: {your review link} ` +
-    `If you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.`;
+    `If you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us. ` +
+    `And if a friend or neighbor ever needs roof work, here's your own link to send them our way: {their referral link}`;
 
   const rowsHtml = dueLeads.map(l => {
     const name = `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Customer';
@@ -161,7 +174,7 @@ function buildEmailHtml({ firstName, dueLeads }) {
         <div class="rev-name">${escapeHtml(name)}</div>
         <div style="margin-bottom:6px;">
           <span class="rev-pill">review ask due</span>
-          <span style="font-size:12px;color:#6b7280;">Job won ${escapeHtml(wonOn)}</span>
+          <span style="font-size:12px;color:#6b7280;">Paid in full ${escapeHtml(wonOn)}</span>
         </div>
         <div class="rev-meta">${meta || '&nbsp;'}</div>
       </a>`;
@@ -183,7 +196,7 @@ function buildEmailHtml({ firstName, dueLeads }) {
     </div>
     <div class="content">
       <p>${greeting}</p>
-      <p>${total === 1 ? 'A job' : `${total} jobs`} wrapped recently and ${total === 1 ? 'hasn’t' : 'haven’t'} been asked for a Google review yet. The ask converts best in the first couple of weeks, while the crew's name is still fresh — after that the moment is gone.</p>
+      <p>${total === 1 ? 'A job' : `${total} jobs`} ${total === 1 ? 'is' : 'are'} paid in full and ${total === 1 ? 'hasn’t' : 'haven’t'} been asked for a Google review yet. The ask converts best in the first couple of weeks, while the crew's name is still fresh — after that the moment is gone.</p>
 
       <h2 style="margin-top:24px;">Due today</h2>
       <div style="margin:14px 0;">
@@ -238,6 +251,28 @@ function reviewAskDue(lead, job, jobId, wonMs, now) {
   return true;
 }
 
+// ─── Paid in full (2026-10-03) ───────────────────────────────────
+// A payoff landing more than a year after the job entered its paid stage is
+// not worth a daily invoice read per closed customer, forever.
+const PAID_LOOKBACK_DAYS = 365;
+
+/**
+ * null when `rec` (a lead, or a job doc carrying its lead's tenant) is not
+ * paid in full — or its invoices can't be read: fail closed, never ask on a
+ * guess. Else { ms }: when it became paid in full, the later of entering the
+ * paid stage and the last invoice payment.
+ */
+async function paidAnchor(db, rec, leadId, jobId, fallbackTs) {
+  if (!PIF.isPaidStage(rec)) return null;
+  const stageMs = timestampMillis(rec.stageStartedAt) || timestampMillis(fallbackTs) || timestampMillis(rec.updatedAt);
+  if (stageMs && stageMs < Date.now() - PAID_LOOKBACK_DAYS * DAY_MS) return null;
+  let invoices;
+  try { invoices = await PIF.loadLeadInvoices(db, leadId, rec, jobId || null); }
+  catch (e) { logger.warn('review_nudge_invoices_read_failed', { leadId, err: e.message }); return null; }
+  if (!PIF.paidInFull(rec, invoices)) return null;
+  return { ms: Math.max(stageMs, PIF.lastPaidMs(invoices)) };
+}
+
 // ─── Per-user aggregation ────────────────────────────────────────
 async function findReviewDueLeads(db, uid) {
   const now = Date.now();                            // the 3–21 day window lives in reviewAskDue
@@ -272,11 +307,20 @@ async function findReviewDueLeads(db, uid) {
     // string matched but whose persisted role says otherwise.
     if (roles.roleFor(lead) !== roles.ROLE.WON) continue;
 
-    // Won recently enough? stageStartedAt is stamped by every moveCard;
-    // updatedAt is the pre-rollout fallback. The lead's fields are its
-    // ACTIVE job's; that job's own latch lives on its job doc.
-    const wonMs = timestampMillis(lead.stageStartedAt) || timestampMillis(lead.updatedAt);
+    // Paid in full (2026-10-03) — a won stage at or after Final Payment AND
+    // no invoice still owing. The stage half is free (no read), so Install
+    // Done / Final Photos / Collections never cost an invoice query.
     const jobId = validJobId(lead.activeJobId);
+    if (!jobId && (lead.reviewRequested || timestampMillis(lead.reviewNudgedAt))) continue;   // asked once, ever (no read)
+    if (!lead.phone && !lead.email) continue;                                                  // nothing to send with
+    const paid = await paidAnchor(db, lead, lead.id, jobId);
+    if (!paid) continue;
+
+    // Paid recently enough? The later of entering the paid stage
+    // (stageStartedAt, stamped by every moveCard; updatedAt is the
+    // pre-rollout fallback) and the last invoice payment. The lead's fields
+    // are its ACTIVE job's; that job's own latch lives on its job doc.
+    const wonMs = paid.ms;
     let job = null;
     if (jobId && reviewAskDue(lead, null, jobId, wonMs, now)) {
       try { const js = await db.collection('leads').doc(lead.id).collection('jobs').doc(jobId).get(); job = js.exists ? js.data() : null; }
@@ -297,14 +341,18 @@ async function findReviewDueLeads(db, uid) {
   for (const d of jobSnap.docs) {
     const job = d.data() || {};
     const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
-    if (!leadId || roles.roleFor(job) !== roles.ROLE.WON) continue;
-    const wonMs = timestampMillis(job.stageStartedAt) || timestampMillis(job.closedAt);
-    if (!reviewAskDue({ phone: 1 }, job, d.id, wonMs, now)) continue;     // cheap pre-check before reading the lead
+    if (!leadId || roles.roleFor(job) !== roles.ROLE.WON || !PIF.isPaidStage(job)) continue;
+    // A job's latches first (no read): already nudged or asked → skip.
+    if (timestampMillis(job.reviewNudgedAt) || timestampMillis(job.reviewRequestedAt)) continue;
     let lead;
     try { const ls = await db.collection('leads').doc(leadId).get(); lead = ls.exists ? { id: leadId, ...ls.data() } : null; }
     catch (_) { lead = null; }
     if (!lead || lead.deleted || lead.isProspect) continue;
     if (lead.activeJobId === d.id) continue;                               // covered above
+    // The job's own invoices (its jobId, or none stamped) must owe nothing.
+    const paid = await paidAnchor(db, Object.assign({}, job, { companyId: lead.companyId, userId: lead.userId }), leadId, d.id, job.closedAt);
+    if (!paid) continue;
+    const wonMs = paid.ms;
     if (!reviewAskDue(lead, job, d.id, wonMs, now)) continue;
     out.push({ ...lead, wonMs, jobId: d.id, jobTitle: job.title || null });
   }
@@ -323,7 +371,7 @@ async function writeReviewActivity(db, leadId, uid) {
       userId: uid,
       type: 'review_request_due',
       label: 'Google review ask due',
-      message: 'This job wrapped recently — a review ask converts best in the first two weeks.',
+      message: 'This job is paid in full — a review ask converts best in the first two weeks.',
       createdAt: FieldValue.serverTimestamp(),
     });
   } catch (e) {
@@ -505,4 +553,4 @@ exports.reviewRequestNudge = onSchedule(
 );
 
 exports.nudgeUser = nudgeUser;
-exports._test = { reviewAskDue, findReviewDueLeads, markReviewNudged, writeReviewNotification, nudgeUser, REVIEW_GAP_DAYS };
+exports._test = { reviewAskDue, findReviewDueLeads, markReviewNudged, writeReviewNotification, nudgeUser, REVIEW_GAP_DAYS, paidAnchor, buildEmailHtml };
