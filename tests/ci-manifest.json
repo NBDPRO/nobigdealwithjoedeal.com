@@ -69,6 +69,7 @@
     "customer-invoice-markpaid.test.js",
     "esign-autodetect.test.js",
     "esign-envelope-guards.test.js",
+    "esign-gaps-2026-10-04.test.js",
     "address-match.test.js",
     "cron-gate-drift.test.js",
     "address-audit-script.test.js",
