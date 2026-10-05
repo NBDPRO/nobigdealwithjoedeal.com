@@ -119,6 +119,9 @@ const ROUTES = {
   // RECORD-ONLY: hand-rolled in handlers/monitoring.js (60/min — synced
   // 2026-08-10; the old entry here claimed 100/min).
   cspReport:          { uidLimit:   0, uidWindow: MINUTE, ipLimit:  60, ipWindow: MINUTE },
+  // RECORD-ONLY: hand-rolled in handlers/monitoring.js (2026-10-04) — per-IP
+  // via httpRateLimit, per-uid on the client's uid HASH (no raw uid is sent).
+  clientError:        { uidLimit:  30, uidWindow: MINUTE, ipLimit:  30, ipWindow: MINUTE },
 
   // ── Authenticated CRM — generous; legit reps make hundreds of writes/day.
   // RECORD-ONLY: hand-rolled in handlers/photo.js (300/min uid + 300/min ip

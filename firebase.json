@@ -78,6 +78,7 @@
       { "source": "/privacy", "destination": "/privacy.html" },
       { "source": "/pro/account-erasure", "function": { "functionId": "confirmAccountErasure", "region": "us-central1" } },
       { "source": "/cspReport", "function": { "functionId": "cspReport", "region": "us-central1" } },
+      { "source": "/api/client-error", "function": { "functionId": "clientError", "region": "us-central1" } },
       { "source": "/api/google-reviews", "function": { "functionId": "getGoogleReviews", "region": "us-central1" } },
       { "source": "/api/storm-report", "function": { "functionId": "stormReport", "region": "us-central1" } },
       { "_comment": "Server-rendered preview for portal share links. The function reads the token off req.path, validates it, and renders an HTML page with og: meta so messaging apps show a real preview card. See functions/share-ssr.js.",

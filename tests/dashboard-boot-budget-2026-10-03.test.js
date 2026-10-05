@@ -22,7 +22,7 @@ const PRO = path.join(__dirname, '..', 'docs', 'pro');
 const CEILING = {
   blockingScripts: 28,          // measured 28 (2026-10-03) — never grow
   blockingBytes: 300 * 1024,    // measured 278 KB
-  localScripts: 191,            // measured 178; 191 since 2026-10-05 (deliberate): + tenant-rules.js (#2152 — estimate-config.js / deposit-rule.js read it synchronously, so it can't be lazy; its settings editor, setup checklist and logo/export UI ride lazy bundles)
+  localScripts: 192,            // measured 178; 192 since 2026-10-05 (deliberate): + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145)
   localBytes: 4.4 * 1024 * 1024, // measured 4.08 MB
   htmlBytes: 520 * 1024,        // measured 477 KB
 };

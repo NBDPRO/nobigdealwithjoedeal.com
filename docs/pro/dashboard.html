@@ -103,6 +103,12 @@
      and feature modules so subscribers can register on first paint.
      See docs/pro/js/state-store.js. -->
 <script src="js/state-store.js?v=1"></script>
+<!-- 2026-10-04: errors on the phone reach Jo. Catches uncaught errors,
+     unhandled rejections and server-fault callable failures, scrubs PII and
+     posts one report per distinct error to /api/client-error (clientError
+     function → one log line → monitoring/alert-client-error-*.json). Before
+     the bootstrap module, so its window._httpsCallable assignment is wrapped. -->
+<script defer src="js/client-error-reporter.js?v=1"></script>
 <!-- 2026-09-25: the viewer role is read-only (Jo's decision B). role-gate.js
      hides write controls for a viewer and makes a refused write say so. Must
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
