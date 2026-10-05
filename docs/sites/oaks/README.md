@@ -42,36 +42,34 @@ Pages, GitHub Pages, Vercel, S3, or a plain Apache/nginx box. Nothing needs to
 be installed or configured.
 
 Every link inside the site is **relative**, so the folder works at a domain
-root or inside a subfolder without editing anything.
+root or inside a subfolder without editing anything. The one exception is the
+quote form's lead intake (see below): it is served by the No Big Deal site, so
+on any other host the form falls back to opening the visitor's mail app.
 
 ---
 
 ## Two things to do before launch
 
-### The quote form — already connected
+### The quote form — already connected (updated 2026-10-04)
 
-The form appears on Home, About, Service Areas and Contact, and it is wired to
-**scott@oaksroofingandconstruction.com**. When someone presses *Send Message*,
-their own mail app opens with every field filled in and addressed to you; they
-press send and it lands in your inbox. No account, no monthly fee, nothing to
-set up, and the details never pass through anyone else's system.
+The form appears on Home, About, Service Areas and Contact. When someone
+presses *Send Message*, the request goes straight into the **Oaks company's own
+CRM pipeline** as a new lead, and the new-lead alert goes to the inbox and phone
+set in Oaks' company settings in the CRM. It uses the same lead intake as every
+No Big Deal form: the page loads `/assets/js/public-lead-submit.js`, and
+`siteKey: 'oaks'` in **`assets/js/site.js`** tells the server which company the
+lead belongs to. The server checks that key against the companies registry, so
+the lead is filed under Oaks and not under No Big Deal. Spam protection matches
+the NBD forms: an invisible Cloudflare Turnstile check, a hidden honeypot field,
+and a per-visitor rate limit on the server.
 
-The one weak spot: a visitor on a desktop with no mail app configured (someone
-who only uses webmail in a browser) may see nothing happen. The form tells them
-so and points them at the phone number, but that lead needs the phone.
-
-If that becomes a real problem, switch to a form relay — one line in
-**`assets/js/site.js`**:
-
-```js
-formEndpoint: 'https://formsubmit.co/ajax/scott@oaksroofingandconstruction.com',
-```
-
-FormSubmit will email you a one-time activation link the first time someone
-submits; until you click it nothing is relayed. `formEndpoint` overrides
-`formEmail` when both are set. **If you do switch, update the "Third parties"
-section of `privacy.html`** — it currently tells visitors their details are not
-routed through an outside service, which would stop being true.
+**Last-resort fallback.** If the request fails, the visitor's own mail app opens
+with every field filled in and addressed to
+**scott@oaksroofingandconstruction.com** (`formEmail` in `site.js`), and the
+form shows the phone number. The same thing happens if this folder is hosted
+somewhere that does not serve `/assets/js/public-lead-submit.js`. The intake
+only accepts requests from the No Big Deal site's own web addresses, so a copy
+uploaded to another domain will always use the mail-app fallback.
 
 ### 1. Turn on search engines
 
