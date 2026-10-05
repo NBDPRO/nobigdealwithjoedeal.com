@@ -87,6 +87,19 @@ async function recordJobEvent(db, args, deps) {
       out.depositDraft = { created: false, reason: 'error', error: String((e && e.message) || e) };
     }
   }
+  // Install complete → the job's FINAL invoice as a DRAFT + "Send final
+  // invoice" task (2026-10-03, deposit-draft.js draftFinalAtInstall). Also on
+  // a duplicate / no-move event: the lead may already sit at Install Done
+  // (a client stage move — install-final-invoice.js records it), and the
+  // draft is idempotent per job. Never sent from here.
+  if (event === 'installed' && refused.indexOf(out.reason) === -1 && !(deps && deps.finalDraft === false)) {
+    const fin = (deps && deps.draftFinalAtInstall) || require('./deposit-draft').draftFinalAtInstall;
+    try {
+      out.finalDraft = await fin(db, { leadId: String(args.leadId || '').trim(), sourceId: args.sourceId != null ? String(args.sourceId) : '' }, deps);
+    } catch (e) {
+      out.finalDraft = { created: false, reason: 'error', error: String((e && e.message) || e) };
+    }
+  }
   if (event === 'paid_in_full' && refused.indexOf(out.reason) === -1 && !(deps && deps.reviewTask === false)) {
     out.reviewTask = await requestReviewTaskIfPaid(db, String(args.leadId || '').trim(), args.companyId || null, deps);
   }

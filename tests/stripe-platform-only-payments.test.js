@@ -412,7 +412,9 @@ console.log('STRIPE — where homeowner money lands: confinement + the three-way
 
   // The duplicate-invoice bug: link generation must not sit inside the same
   // try as invoice creation, or a link failure reads as a creation failure.
-  const createAt = c.indexOf('const invoiceId = await createInvoiceFromEstimate(estimateId);');
+  // 2026-10-03: createInvoiceUI asks createOrOpenJobInvoice (one live
+  // invoice per job); the ordering rule below is unchanged.
+  const createAt = c.indexOf('const made = await createOrOpenJobInvoice(estimateId);');
   const toastAt = c.indexOf("showToast('Invoice created successfully', 'success')");
   const linkAt = c.indexOf('await generateStripePaymentLink(invoiceId);', createAt);
   ok('invoice creation is reported BEFORE the payment link is attempted',
@@ -424,17 +426,20 @@ console.log('STRIPE — where homeowner money lands: confinement + the three-way
     /Mark Paid/.test(c));
 
   // An invoice SMS with no link must not send a dangling "Payment link: ".
+  // 2026-10-03: the opener varies (a balance send names the balance); the
+  // link line is still only added when there is a link.
   ok('the invoice SMS drops the link line when there is no link',
-    /link\s*\n?\s*\? `Your \$\{_invoiceCompany\(\)\} invoice is ready\. Payment link/.test(c)
-    || /\? `Your \$\{_invoiceCompany\(\)\} invoice is ready\. Payment link: \$\{link\}`/.test(c));
+    /const message = link\s*\n?\s*\? `\$\{opener\} Payment link: \$\{link\}`\s*\n?\s*: `\$\{opener\.replace\(/.test(c));
 
   // D12: the customer-tasks Pay button read `inv.paymentUrl`, a field nothing
   // has ever written — so the one place a homeowner-facing surface offered to
   // take a card payment was dead markup. Now that tenants can actually collect,
   // it must key on the field the pipeline really writes.
   const ct = decomment(read('docs/pro/js/customer-tasks-ui.js'));
+  // 2026-10-03: through ky-insurance-law.js payUrlUnlessHeld, which reads
+  // stripePaymentLink OR stripeHostedUrl and holds a Kentucky job's link.
   ok('the customer Pay anchor keys on the field the pipeline writes',
-    /inv\.stripePaymentLink/.test(ct));
+    /_J\.payUrlUnlessHeld\(_payLead, inv, /.test(ct));
   ok('no reference to the phantom paymentUrl field survives',
     !/inv\.paymentUrl/.test(ct),
     'a field nobody writes renders a button nobody can click');

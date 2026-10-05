@@ -202,7 +202,8 @@ function decideDepositDraft(ctx) {
     balanceDue: t.total,
     stripeInvoiceId: null,
     stripePaymentLink: null,
-    dueDate: new Date(nowMs + 14 * 24 * 60 * 60 * 1000),
+    // ONE due-date rule (deposit-rule.js INVOICE_DUE_DAYS = the Stripe invoice's).
+    dueDate: new Date(DR.invoiceDueDateMs(nowMs)),
     sentAt: null,
     paidAt: null,
     viewedAt: null,
@@ -211,7 +212,7 @@ function decideDepositDraft(ctx) {
     depositRepNote: plan.repNote || '',
     kyInsuranceHold: false, // a held job never gets here
     emergencyServices: false,
-    terms: 'Net 14.' + (plan.summary ? ' ' + plan.summary : ''),
+    terms: DR.netTermsText() + (plan.summary ? ' ' + plan.summary : ''),
     // The lead's owner: every invoice reader keys by createdBy (owner) or
     // companyId (team), and the rep made-invoice convention is the uid.
     createdBy: owner,
@@ -248,8 +249,165 @@ function reviewTask(invoiceId, depositAmount, todayYmd) {
   };
 }
 
+
+// ── The FINAL invoice, drafted when the install is complete (2026-10-03) ──
+//
+// The spine had an 'installed' event and nothing called it, so a finished
+// roof never asked for its money: 30 jobs at install or later, 4 invoices.
+// When the lead enters Install Done (a client stage move or a spine move —
+// functions/install-final-invoice.js), the server makes the job's FINAL
+// invoice as a DRAFT — never sent — plus a "Send final invoice" task.
+//   - The job already has a live invoice that bills the whole job (the
+//     signing-day deposit draft is one: it carries the full total and the
+//     deposit terms) → no new invoice; the task points at that one ("send
+//     the balance").
+//   - Otherwise a new draft from the same estimate, the same lines and
+//     totals, with each earlier invoice for the job credited as a
+//     "Less deposit paid" line (nbd:job-billing, invoice-from-estimate.js),
+//     so the total due is what is left.
+//   - Deterministic id per lead + job (like the deposit draft), so a
+//     re-entered stage, a retried trigger and the spine's own move all land
+//     on the same document.
+const FINAL_AUTO_DRAFT_KIND = 'final_on_install';
+function finalDraftInvoiceId(leadId, jobId) {
+  return 'finaldraft_' + _seg(leadId) + '_' + (_seg(jobId) || 'job');
+}
+function finalTaskId(jobId) { return 'send-final-invoice-' + (_seg(jobId) || 'job'); }
+
+/**
+ * Decide the install-day final invoice. Pure.
+ *   ctx = { leadId, lead, est?, estimateId?, invoices: [{ id, ...doc }], nowMs, sourceId? }
+ * → { action: 'create', invoiceId, invoice, jobId, credits }
+ *   | { action: 'use_existing', invoiceId, jobId, reason }
+ *   | { action: 'skip', reason, jobId? }
+ */
+function decideFinalDraft(ctx) {
+  ctx = ctx || {};
+  const lead = ctx.lead ? Object.assign({ id: ctx.leadId }, ctx.lead) : null;
+  if (!lead) return { action: 'skip', reason: 'no_lead' };
+  if (_isDeleted(lead)) return { action: 'skip', reason: 'deleted' };
+  const sk = _stageKey(lead);
+  if (sk === 'lost' || lead.stageRole === 'lost') return { action: 'skip', reason: 'lost' };
+  const owner = lead.userId ? String(lead.userId) : '';
+  if (!owner) return { action: 'skip', reason: 'no_owner' };
+
+  const est0 = (ctx.est && !_isDeleted(ctx.est) && _sameTenant(ctx.est, lead)) ? ctx.est : null;
+  const jobId = jobIdFor(est0, lead);
+  const invoices = Array.isArray(ctx.invoices) ? ctx.invoices : [];
+
+  // Already drafted (this id) and still in play → nothing new.
+  const mine = IFE.jobInvoicesOf(invoices, jobId);
+  const finalId = finalDraftInvoiceId(ctx.leadId, jobId);
+  if (invoices.some((inv) => inv && inv.id === finalId)) {
+    return { action: 'use_existing', invoiceId: finalId, jobId, reason: 'duplicate' };
+  }
+
+  if (!est0) {
+    // No estimate: never guess an amount. A live invoice is still the one to send.
+    const live = mine.filter(IFE.isLiveInvoice);
+    if (live.length) return { action: 'use_existing', invoiceId: live[0].id || null, jobId, reason: 'live_invoice' };
+    return { action: 'skip', reason: 'no_estimate', jobId };
+  }
+
+  const t = IFE.invoiceTotalsFromEstimate(est0, { estimateValue: CER.estimateValue });
+  const totalCents = Math.round(Number(t.total) * 100);
+  if (!(totalCents > 0)) return { action: 'skip', reason: 'no_total', jobId };
+
+  const plan = IFE.planJobInvoice(totalCents, invoices, jobId);
+  if (plan.action === 'open') {
+    if (plan.reason === 'billed_in_full') {
+      const live = mine.filter(IFE.isLiveInvoice);
+      if (!live.length) return { action: 'skip', reason: 'billed_in_full', jobId };
+      return { action: 'use_existing', invoiceId: live[0].id || null, jobId, reason: 'billed_in_full' };
+    }
+    return { action: 'use_existing', invoiceId: plan.invoiceId, jobId, reason: plan.reason };
+  }
+
+  const billed = IFE.applyJobCredits({ items: t.items, subtotal: t.subtotal, tax: t.tax, total: t.total }, plan.credits);
+  const nowMs = Number(ctx.nowMs) || Date.now();
+  const ky = J.classifyLead(lead, est0).kyInsurance === true;
+  const invoice = {
+    leadId: ctx.leadId,
+    estimateId: ctx.estimateId || null,
+    customerId: est0.customerId || null,
+    customerName: IFE.resolveCustomerName(est0, lead),
+    customerEmail: est0.customerEmail || lead.email || '',
+    customerPhone: est0.customerPhone || lead.phone || '',
+    status: 'draft',
+    items: billed.items,
+    subtotal: t.subtotal,
+    tax: t.tax,
+    taxRate: t.taxRate,
+    total: billed.total,
+    supplementTotal: 0,
+    // The deposit was billed on the earlier invoice(s): credited above.
+    depositAmount: 0,
+    depositPaid: false,
+    amountPaid: 0,
+    balanceDue: billed.total,
+    stripeInvoiceId: null,
+    stripePaymentLink: null,
+    dueDate: new Date(DR.invoiceDueDateMs(nowMs)),
+    sentAt: null,
+    paidAt: null,
+    viewedAt: null,
+    notes: '',
+    depositTerms: '',
+    depositRepNote: '',
+    // Informational, like the rep's invoice: the pay link is still held by
+    // createStripePaymentLink (ky-pay-link-gate) and every surface's
+    // payUrlUnlessHeld until the Kentucky window has run.
+    kyInsuranceHold: ky,
+    emergencyServices: false,
+    terms: DR.netTermsText() + ' Balance due on completion.',
+    createdBy: owner,
+    companyId: lead.companyId || owner,
+    jobId,
+    kind: 'final',
+    creditTotal: billed.creditTotal || 0,
+    creditedInvoiceIds: plan.credits.map((c) => c.invoiceId).filter(Boolean),
+    autoDraft: {
+      kind: FINAL_AUTO_DRAFT_KIND,
+      event: 'installed',
+      sourceId: ctx.sourceId ? String(ctx.sourceId).slice(0, 140) : null,
+    },
+  };
+  return { action: 'create', invoiceId: finalId, invoice, jobId, credits: plan.credits };
+}
+
+/** The "Send final invoice" task — a reminder for the rep; nothing is sent. */
+function finalTask(jobId, decision, todayYmd) {
+  const d = decision || {};
+  let notes;
+  if (d.action === 'create') {
+    notes = 'The job is installed. A draft final invoice was made from the estimate'
+      + (d.credits && d.credits.length ? ', less what was already billed' : '')
+      + '. Nothing has been sent — open it, check it, and tap Send.';
+  } else if (d.action === 'use_existing') {
+    notes = 'The job is installed. Open its invoice and send the balance — nothing has been sent.';
+  } else {
+    notes = 'The job is installed and there is no estimate to bill from. Open the customer and tap Record payment (or make the invoice) — nothing has been sent.';
+  }
+  return {
+    id: finalTaskId(jobId),
+    doc: {
+      text: '🧾 Send final invoice',
+      title: 'Send final invoice',
+      notes,
+      source: 'final_invoice',
+      invoiceId: d.invoiceId || null,
+      jobId: jobId || null,
+      actionId: 'send_final_invoice',
+      actionKind: 'action',
+      dueDate: String(todayYmd || ''),
+      done: false,
+    },
+  };
+}
+
 module.exports = {
   DRAFT_EVENTS, AUTO_DRAFT_KIND, COLLECT_DEPOSIT_TASK_ID,
   jobIdFor, draftInvoiceId, reviewTaskId, isDepositDraft, estimateIdFor, noDepositReason,
   decideDepositDraft, reviewTask,
+  FINAL_AUTO_DRAFT_KIND, finalDraftInvoiceId, finalTaskId, decideFinalDraft, finalTask,
 };

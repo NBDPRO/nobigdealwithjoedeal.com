@@ -514,6 +514,13 @@ exports.getStripeOverview       = stripeLedger.getStripeOverview;
 // payoff marks the open Stripe invoice paid out of band. See money-paper.js.
 exports.moneyPaperOnInvoice = require('./money-paper').moneyPaperOnInvoice;
 
+// Getting paid (2026-10-03): a lead entering Install Done drafts the job's
+// FINAL invoice (never sent) + a "Send final invoice" task, via the job
+// spine's 'installed' event; a daily sweep files an internal task for each
+// newly overdue invoice. Nothing here reaches a customer.
+exports.finalInvoiceOnInstall = require('./install-final-invoice').finalInvoiceOnInstall;
+exports.invoiceOverdueSweep = require('./invoice-overdue').invoiceOverdueSweep;
+
 // A customer can have more than one job (handoff 2026-09-30 #1), phase 1:
 // mirror each lead's job fields into leads/{id}/jobs/{activeJobId}.
 exports.jobsMirrorOnLead = require('./jobs-mirror').jobsMirrorOnLead;
