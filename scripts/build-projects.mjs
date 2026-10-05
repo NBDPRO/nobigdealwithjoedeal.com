@@ -360,11 +360,16 @@ const caseCard = (p, { withDesc = false } = {}) => {
 
 // Compact crawlable list for the jobs past a card cap — every job still gets
 // its link without a wall of images.
+// Folded behind a native <details> (2026-10-05): on a phone the 20-odd links ran
+// a screen and a half under the cards. Still plain <a href> in the HTML, so
+// crawlers and the internal-link gates see every one.
 const moreList = (ps, heading) => (ps.length ? `
-    <p class="nbd-recent-jobs-more-h">${heading}</p>
-    <ul class="nbd-recent-jobs-more">
-${ps.map((p) => `      <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}</span></li>`).join('\n')}
-    </ul>` : '');
+    <details class="nbd-recent-jobs-fold">
+      <summary class="nbd-recent-jobs-more-h">${heading} (${ps.length})</summary>
+      <ul class="nbd-recent-jobs-more">
+${ps.map((p) => `        <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}</span></li>`).join('\n')}
+      </ul>
+    </details>` : '');
 
 // The dated-price line with its "what it runs today" link — gallery cards and
 // case pages (both non-link containers). linkClass reuses an existing
@@ -1136,10 +1141,11 @@ for (const f of readdirSync(SERVICES_DIR)) {
 }
 
 // 2b. /areas/<town> — "Jobs we've done in <Town>" (OURWORK-AREA), placed
-// just before the page's <!-- SERVICES --> section.
+// right under the hero, before the page's <!-- WHY NBD --> section (moved up from
+// <!-- SERVICES --> in the 2026-10-05 revamp: real jobs are the proof, show them early).
 const AREA_START = '<!-- OURWORK-AREA-START -->';
 const AREA_END = '<!-- OURWORK-AREA-END -->';
-const AREA_ANCHOR = '<!-- SERVICES -->';
+const AREA_ANCHOR = '<!-- WHY NBD -->';
 let areaCount = 0;
 for (const f of readdirSync(AREAS_DIR)) {
   if (!f.endsWith('.html') || f === 'index.html') continue;
@@ -1155,12 +1161,12 @@ for (const f of readdirSync(AREAS_DIR)) {
 }
 
 // 2c. Town-specific service pages (/services/<prefix>-<town>.html) —
-// "Real <service> jobs in <Town>" (OURWORK-LOCAL), placed just before the
-// quick-quote form. Pages that already carry a service-wide OURWORK-STRIP
+// "Real <service> jobs in <Town>" (OURWORK-LOCAL), placed right under the hero,
+// before the transparency strip (moved up from the quick-quote form, 2026-10-05). Pages that already carry a service-wide OURWORK-STRIP
 // (the wood-siding town pages) are skipped: one jobs strip per page.
 const LOCAL_START = '<!-- OURWORK-LOCAL-START -->';
 const LOCAL_END = '<!-- OURWORK-LOCAL-END -->';
-const LOCAL_ANCHOR = '<section class="qlf-section" id="quote">';
+const LOCAL_ANCHOR = '<!-- Transparency strip (injected) -->';
 let localCount = 0;
 {
   const prefixes = Object.keys(TOWN_PAGE_PREFIX).sort((a, b) => b.length - a.length);
@@ -1179,7 +1185,7 @@ let localCount = 0;
     if (block) localCount++;
     stampFile(file, (src, eol) => {
       const out = syncRegion(src, eol, LOCAL_START, LOCAL_END, block, LOCAL_ANCHOR);
-      if (out === null) { console.error(`FATAL: docs/services/${f}: has ${jobs.length} matching job(s) but no quick-quote anchor to place OURWORK-LOCAL before`); process.exit(1); }
+      if (out === null) { console.error(`FATAL: docs/services/${f}: has ${jobs.length} matching job(s) but no transparency-strip anchor to place OURWORK-LOCAL before`); process.exit(1); }
       return out;
     }, false);
   }
