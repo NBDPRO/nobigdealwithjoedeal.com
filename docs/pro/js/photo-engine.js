@@ -88,6 +88,21 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  // customer.html's bootstrap publishes window.db / window.storage / window.auth;
+  // only the dashboard also sets the underscored names this engine reads. So on
+  // the customer page every upload failed its preflight ("Firebase not
+  // initialized") — the camera, burst and the editor queue included (found
+  // 2026-10-04 by the phone E2E). Alias the SAME instances, like
+  // customer-tasks-ui.js does for invoice-pipeline.js; on the dashboard both
+  // names already point at one object, so nothing changes there.
+  function _aliasFirebase() {
+    if (typeof window === 'undefined') return;
+    if (!window._db && window.db) window._db = window.db;
+    if (!window._storage && window.storage) window._storage = window.storage;
+    if (!window._auth && window.auth) window._auth = window.auth;
+  }
+  _aliasFirebase();
+
   // Ensure Firebase is initialized
   if (!window._storage || !window._db || !window._user || !window._auth) {
     console.warn('PhotoEngine: Firebase not fully initialized. Waiting...');
@@ -172,8 +187,18 @@
     photoCache: {}, // { leadId: [photoData] }
     sessionPhotoCount: 0,
     lastThumbUrl: null,
-    uploadQueue: [] // offline-safe queue
+    uploadQueue: [], // offline-safe queue
+    // 'burst' (default since 2026-10-04): the shutter only shoots — the
+    // camera stays open and tagging happens afterwards in Photo Review.
+    // 'tag': the old per-shot Review & Tag sheet. The rep's choice persists.
+    captureMode: _readCaptureMode()
   };
+
+  function _readCaptureMode() {
+    try {
+      return localStorage.getItem('photoEngineCaptureMode') === 'tag' ? 'tag' : 'burst';
+    } catch (_) { return 'burst'; }
+  }
 
   // ============================================================================
   // STYLES - Injected into DOM
@@ -254,6 +279,13 @@
         color: #fff; cursor: pointer;
       }
       .pe-preset-badge:active { opacity: .7; }
+      /* 2026-10-04 (phone E2E at 390): the top bar's tools pushed the back
+         button down to 23px wide and the preset badge was 22px tall. Every
+         camera control keeps a 44px target; the decorative title gives way. */
+      .pe-cam-back, .pe-cam-tool { flex-shrink: 0; min-width: 44px; }
+      .pe-preset-badge { min-height: 44px; flex-shrink: 0; font-size: 13px; }
+      .pe-cam-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; text-align: center; padding: 0 6px; }
+      @media (max-width: 420px) { .pe-cam-title { display: none; } .pe-cam-topbar { gap: 8px; } }
 
       /* ── VIEWFINDER ── */
       .pe-cam-viewfinder {
@@ -359,6 +391,44 @@
         letter-spacing: .06em;
         z-index: 15;
       }
+
+      /* ── BURST MODE (2026-10-04) ── */
+      .pe-mode-badge {
+        min-width: 64px; min-height: 44px;
+        padding: 0 12px;
+        background: var(--orange);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 22px;
+        font-size: 13px; font-weight: 800;
+        letter-spacing: .08em; text-transform: uppercase;
+        color: #fff; cursor: pointer;
+      }
+      .pe-mode-badge[data-mode="tag"] { background: rgba(255,255,255,.15); }
+      .pe-cam-counter.pe-bump { animation: pe-bump .25s ease-out; }
+      @keyframes pe-bump { 0%{transform:scale(1.25)} 100%{transform:scale(1)} }
+      .pe-cam-hint {
+        position: absolute; left: 0; right: 0;
+        bottom: calc(max(24px, env(safe-area-inset-bottom)) + 92px);
+        text-align: center; z-index: 10;
+        font-size: 14px; font-weight: 700; letter-spacing: .04em;
+        text-shadow: 0 1px 4px rgba(0,0,0,.8);
+      }
+      .pe-cam-hint[hidden] { display: none; }
+      .pe-burst-done {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        z-index: calc(var(--z-overlay,10000) + 1);
+        background: #111418; color: #fff;
+        border-top: 1px solid rgba(255,255,255,.15);
+        border-radius: 16px 16px 0 0;
+        padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+        display: flex; flex-direction: column; gap: 12px;
+        font-family: 'Barlow', -apple-system, sans-serif;
+      }
+      .pe-burst-done-title { font-size: 20px; font-weight: 800; }
+      .pe-burst-done-sub { font-size: 15px; color: #D7DCE5; line-height: 1.4; }
+      .pe-burst-done-row { display: flex; gap: 10px; }
+      .pe-burst-done-row .pe-btn { flex: 1; min-height: 48px; font-size: 16px; }
+      .pe-burst-done-row a.pe-btn { display: flex; align-items: center; justify-content: center; text-decoration: none; text-align: center; }
 
       /* ── REVIEW / TAG SCREEN ── */
       .pe-modal-header {
@@ -865,12 +935,178 @@
   }
 
   // ============================================================================
+  // FIELD CAPTURE CONTEXT — phase from the lead's stage, one GPS fix per
+  // camera session, on-site check (2026-10-04)
+  //
+  // An audit found 0 After photos and 0 geolocated photos of 111: phase came
+  // only from a tag the rep had to pick on every shot, and geoLocation was
+  // hard-coded null. Now every shot is stamped at capture:
+  //   phase      — from the lead's stage (before contract → Before, install
+  //                in progress → During, install complete or later → After).
+  //                A phase TAG the rep picks always wins (phaseSource 'tag').
+  //   geoLocation— ONE reading per camera session, taken only when the camera
+  //                opens (the browser asks permission once). Stored on the
+  //                CRM photo doc only. Canvas captures carry no EXIF, and the
+  //                public/portal copies never read these fields.
+  //   onSite     — true when that reading is within ON_SITE_RADIUS_M of the
+  //                lead's own lat/lng; false when it is clearly elsewhere;
+  //                null when either side is unknown or the fix is too vague.
+  // ============================================================================
+
+  // A residential lot plus phone-GPS error: a 30 m fix at the curb of a deep
+  // lot can sit 60 m from a geocoded rooftop. Wider than this starts calling
+  // the neighbour's house "on-site".
+  const ON_SITE_RADIUS_M = 75;
+  // A fix vaguer than this (cell-tower / wifi-only) says nothing either way.
+  const GEO_MAX_ACCURACY_M = 150;
+  // How long a shot waits for the session's GPS fix before saving without it.
+  const GEO_WAIT_MS = 1500;
+
+  const _PHASE_DURING = ['install_in_progress', 'in_progress'];
+  const _PHASE_AFTER = ['install_complete', 'final_photos', 'deductible_collected', 'final_payment',
+    'collections', 'closed', 'warranty_claim', 'warranty_repaired', 'complete', 'closed_won'];
+  const _PHASE_BEFORE = ['new', 'new_lead', 'contacted', 'inspected', 'claim_filed', 'adjuster_meeting_scheduled',
+    'adjuster_inspection_done', 'scope_received', 'estimate_submitted', 'estimate_sent', 'supplement_requested',
+    'supplement_approved', 'estimate_sent_cash', 'negotiating', 'prequal_sent', 'loan_approved', 'approved',
+    'contract_signed', 'job_created', 'permit_pulled', 'materials_ordered', 'materials_delivered', 'crew_scheduled',
+    'warranty_scheduled', 'service_quoted', 'service_approved', 'lost', 'closed_lost'];
+
+  /**
+   * Stage key (or legacy display name) → 'Before' | 'During' | 'After' | null.
+   * Pure. A tenant's custom stage returns null: guessing a phase for a stage
+   * we cannot place would put a wrong label on a homeowner report.
+   */
+  function phaseForStage(stage) {
+    const k = String(stage == null ? '' : stage).trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (!k) return null;
+    if (_PHASE_DURING.indexOf(k) !== -1) return 'During';
+    if (_PHASE_AFTER.indexOf(k) !== -1) return 'After';
+    if (_PHASE_BEFORE.indexOf(k) !== -1) return 'Before';
+    return null;
+  }
+
+  /** The phase a rep's TAGS name, or null. Pure. */
+  function phaseFromTags(tags) {
+    const t = Array.isArray(tags) ? tags : [];
+    if (t.includes('before')) return 'Before';
+    if (t.includes('after')) return 'After';
+    if (t.includes('during')) return 'During';
+    return null;
+  }
+
+  /** Great-circle distance in metres. Pure. */
+  function haversineMeters(a, b) {
+    const R = 6371000;
+    const toRad = (d) => d * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2
+      + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  function _finiteLatLng(lat, lng) {
+    const la = Number(lat), ln = Number(lng);
+    if (lat === null || lat === undefined || lat === '' || lng === null || lng === undefined || lng === '') return null;
+    if (!isFinite(la) || !isFinite(ln) || Math.abs(la) > 90 || Math.abs(ln) > 180) return null;
+    if (la === 0 && ln === 0) return null;
+    return { lat: la, lng: ln };
+  }
+
+  /**
+   * true / false / null — see the section header. Pure.
+   * @param geo  {lat,lng,accuracy}
+   * @param lead {lat,lng}
+   */
+  function onSiteFor(geo, lead, radiusM) {
+    const g = geo && _finiteLatLng(geo.lat, geo.lng);
+    const l = lead && _finiteLatLng(lead.lat, lead.lng);
+    if (!g || !l) return null;
+    const acc = Number(geo.accuracy);
+    if (isFinite(acc) && acc > GEO_MAX_ACCURACY_M) return null;
+    return haversineMeters(g, l) <= (radiusM || ON_SITE_RADIUS_M);
+  }
+
+  /**
+   * Everything a shot is stamped with besides the pixels, decided at capture
+   * and carried through the offline queue unchanged. Pure.
+   *   tags  — what the rep picked (a phase tag wins)
+   *   stage — the lead's stage at capture
+   *   geo   — the session fix, or null
+   *   lead  — {lat,lng} for the on-site check
+   */
+  function captureContext(tags, stage, geo, lead) {
+    const tagPhase = phaseFromTags(tags);
+    const stagePhase = phaseForStage(stage);
+    const g = geo && _finiteLatLng(geo.lat, geo.lng);
+    const acc = g && isFinite(Number(geo.accuracy)) ? Math.round(Number(geo.accuracy)) : null;
+    return {
+      phase: tagPhase || stagePhase || null,
+      phaseSource: tagPhase ? 'tag' : (stagePhase ? 'stage' : null),
+      geo: g ? { lat: g.lat, lng: g.lng, accuracy: acc, at: (geo && geo.at) || null } : null,
+      onSite: g ? onSiteFor(geo, lead) : null
+    };
+  }
+
+  /** The lead behind a capture, from whatever the page already holds. */
+  function _leadForCapture(leadId) {
+    if (!leadId) return null;
+    const cur = window._currentLead;
+    if (cur && (cur.id === leadId || window._customerId === leadId)) return cur;
+    const list = Array.isArray(window._leads) ? window._leads : [];
+    return list.find((l) => l && l.id === leadId) || null;
+  }
+
+  function _stageOf(lead) {
+    return lead ? (lead._stageKey || lead.stage || null) : null;
+  }
+
+  /**
+   * One GPS reading for this camera session. Resolves to {lat,lng,accuracy,at}
+   * or null (denied, unavailable, timed out). Never rejects. The browser shows
+   * its own permission prompt the first time.
+   */
+  function _readSessionGeo() {
+    return new Promise((resolve) => {
+      try {
+        if (typeof navigator === 'undefined' || !navigator.geolocation
+          || typeof navigator.geolocation.getCurrentPosition !== 'function') { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const c = pos && pos.coords;
+            resolve(c ? { lat: c.latitude, lng: c.longitude, accuracy: c.accuracy, at: Date.now() } : null);
+          },
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+        );
+      } catch (_) { resolve(null); }
+    });
+  }
+
+  /** The session fix if it arrives within `ms`, else null. */
+  function _geoWithin(promise, ms) {
+    if (!promise) return Promise.resolve(null);
+    return Promise.race([promise, new Promise((r) => setTimeout(() => r(null), ms))]);
+  }
+
+  // ============================================================================
   // CAMERA CAPTURE
   // ============================================================================
 
   async function openCamera(leadId) {
     state.currentLeadId = leadId;
     injectStyles();
+    // Burst count for THIS camera session (the done sheet reports it).
+    let burstShots = 0;
+    // One GPS reading per camera session — asked for here, when the camera
+    // opens, never per shot. The tag flow reopens the camera after each
+    // save, so a reading younger than two minutes is reused instead of
+    // asking again.
+    if (!state.sessionGeoPromise || !state.sessionGeoAt || Date.now() - state.sessionGeoAt > 120000) {
+      state.sessionGeoAt = Date.now();
+      state.sessionGeoPromise = _readSessionGeo();
+    }
+    const geoPromise = state.sessionGeoPromise;
 
     const modal = document.createElement('div');
     modal.className = 'pe-modal';
@@ -888,6 +1124,7 @@
           </button>
           <span class="pe-cam-title">NBD Camera</span>
           <div class="pe-cam-tools">
+            <button class="pe-mode-badge" id="mode-btn" type="button" data-mode="${state.captureMode}" aria-label="Capture mode — tap to switch between burst and tag each shot">${state.captureMode === 'tag' ? 'Tag' : 'Burst'}</button>
             <button class="pe-preset-badge" id="preset-btn">${QUALITY_PRESETS[state.currentPreset].label.toUpperCase()}</button>
             <button class="pe-cam-tool" id="flash-btn" title="Flash">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
@@ -898,22 +1135,18 @@
           </div>
         </div>
 
+        <div class="pe-cam-hint" id="cam-hint" ${state.captureMode === 'burst' ? '' : 'hidden'}>Burst — shoot away, tag later in Photo Review</div>
+
         <!-- Bottom Controls -->
         <div class="pe-cam-bottom">
-          <div class="pe-cam-counter" id="cam-counter">
+          <div class="pe-cam-counter" id="cam-counter" aria-live="polite">
             <span id="cam-count">${state.sessionPhotoCount}</span>
             <span class="pe-cam-counter-label">photos</span>
           </div>
-          <button class="pe-cam-capture" id="capture-btn" title="Capture"></button>
+          <button class="pe-cam-capture" id="capture-btn" title="Capture" aria-label="Take photo"></button>
           <div id="cam-thumb-slot">${state.lastThumbUrl ? `<img class="pe-cam-thumb" src="${state.lastThumbUrl}" alt="Last">` : '<div class="pe-cam-thumb-empty"></div>'}</div>
         </div>
       </div>
-
-      <!-- Upload Queue Indicator -->
-      <div class="pe-queue-bar" id="queue-bar" style="display:none">
-        <div class="pe-queue-progress" id="queue-progress" style="width:0%"></div>
-      </div>
-      <div class="pe-queue-label" id="queue-label" style="display:none"></div>
     `;
 
     document.body.appendChild(modal);
@@ -929,10 +1162,24 @@
     let imageCapture = null;
     let torch = false;
 
-    // Back button closes camera
+    const modeBtn = modal.querySelector('#mode-btn');
+
+    // Back button closes camera. After a burst it says what happened and
+    // offers the one next step — tagging, in Photo Review.
     backBtn.onclick = () => {
       if (state.cameraStream) state.cameraStream.getTracks().forEach(t => t.stop());
       modal.remove();
+      if (burstShots > 0) _showBurstDone(leadId, burstShots);
+    };
+
+    // Burst ⇄ tag-each-shot. Remembered for next time.
+    modeBtn.onclick = () => {
+      state.captureMode = state.captureMode === 'burst' ? 'tag' : 'burst';
+      try { localStorage.setItem('photoEngineCaptureMode', state.captureMode); } catch (_) {}
+      modeBtn.dataset.mode = state.captureMode;
+      modeBtn.textContent = state.captureMode === 'tag' ? 'Tag' : 'Burst';
+      const hint = modal.querySelector('#cam-hint');
+      if (hint) hint.hidden = state.captureMode !== 'burst';
     };
 
     // Start camera
@@ -1087,16 +1334,32 @@
 
         // Update thumbnail
         const thumbUrl = URL.createObjectURL(blob);
+        if (state.lastThumbUrl && state.captureMode === 'burst') {
+          try { URL.revokeObjectURL(state.lastThumbUrl); } catch (_) {}
+        }
         state.lastThumbUrl = thumbUrl;
         const thumbSlot = modal.querySelector('#cam-thumb-slot');
         if (thumbSlot) thumbSlot.innerHTML = `<img class="pe-cam-thumb" src="${thumbUrl}" alt="Last">`;
+
+        if (state.captureMode === 'burst') {
+          // Shutter only: the camera stays open. The count and thumbnail
+          // move now; the save runs behind the next shot.
+          burstShots++;
+          state.sessionPhotoCount++;
+          const countEl = modal.querySelector('#cam-count');
+          if (countEl) countEl.textContent = String(state.sessionPhotoCount);
+          const counter = modal.querySelector('#cam-counter');
+          if (counter) { counter.classList.remove('pe-bump'); void counter.offsetWidth; counter.classList.add('pe-bump'); }
+          _saveBurstShot(blob, leadId, geoPromise);
+          return;
+        }
 
         // Stop camera
         state.cameraStream.getTracks().forEach(t => t.stop());
         modal.remove();
 
         // Show preview with "Save & Next" flow
-        showPreview(blob, leadId);
+        showPreview(blob, leadId, geoPromise);
       } catch (err) {
         showToast('Failed to capture photo', 'error');
         console.error(err);
@@ -1108,7 +1371,7 @@
   // PREVIEW & TAGGING
   // ============================================================================
 
-  async function showPreview(blob, leadId) {
+  async function showPreview(blob, leadId, geoPromise) {
     const modal = document.createElement('div');
     modal.className = 'pe-modal';
     modal.id = 'photo-preview-modal';
@@ -1222,10 +1485,14 @@
         // persisted with the row AND used for this first attempt, so the
         // attempt and every later retry address the same Storage objects and
         // the same Firestore document.
+        const _lead = _leadForCapture(leadId);
         const shot = {
           uploadId: generateId(),
           capturedAt: Date.now(),
-          preset: state.currentPreset
+          preset: state.currentPreset,
+          // Phase (a picked phase tag wins over the stage), the session GPS
+          // fix and the on-site check — pinned now, carried by the queue.
+          capture: captureContext(selectedTags, _stageOf(_lead), await _geoWithin(geoPromise, GEO_WAIT_MS), _lead)
         };
 
         let outcome = null;
@@ -1239,7 +1506,8 @@
             location,
             timestamp: shot.capturedAt,
             uploadId: shot.uploadId,
-            preset: shot.preset
+            preset: shot.preset,
+            capture: shot.capture
           });
         } catch (queueErr) {
           console.warn('[PhotoEngine] enqueue threw:', queueErr && queueErr.message);
@@ -1311,6 +1579,238 @@
     };
 
     reader.readAsDataURL(blob);
+  }
+
+  // ============================================================================
+  // BURST SAVE (2026-10-04)
+  //
+  // The tag sheet after every shot (26 tags) closed the camera and restarted
+  // it — on a roof, that is the difference between shooting the slope and
+  // not. Burst keeps the camera open: each shot goes straight into the same
+  // durable IndexedDB queue Save & Next uses (enqueue BEFORE any network),
+  // stamped with phase / GPS / on-site, and the queue drains one photo at a
+  // time behind the shutter. Tagging moves to Photo Review afterwards.
+  // ============================================================================
+
+  // Warn once per page that photos are held in memory only.
+  let _burstMemoryWarned = false;
+
+  async function _saveBurstShot(blob, leadId, geoPromise) {
+    const preflight = _uploadPreflightError(leadId);
+    if (preflight) { showToast(preflight.message, 'error'); return { queued: false }; }
+    const lead = _leadForCapture(leadId);
+    const shot = {
+      uploadId: generateId(),
+      capturedAt: Date.now(),
+      preset: state.currentPreset,
+      capture: captureContext([], _stageOf(lead), await _geoWithin(geoPromise, GEO_WAIT_MS), lead)
+    };
+    let outcome = null;
+    try {
+      outcome = await enqueueForRetry({
+        blob, leadId, tags: [], description: '', location: '',
+        timestamp: shot.capturedAt, uploadId: shot.uploadId, preset: shot.preset,
+        capture: shot.capture
+      });
+    } catch (e) {
+      console.warn('[PhotoEngine] burst enqueue threw:', e && e.message);
+    }
+    if (outcome && outcome.queued === false) {
+      // Storage full: say so on every shot — the rep must stop shooting.
+      showToast(outcome.message, 'error');
+      return outcome;
+    }
+    if (!outcome) {
+      // Nothing could hold it: upload now, and say so if that fails.
+      try {
+        await uploadPhotoToFirebase(blob, leadId, [], '', '', shot);
+        return { queued: false, uploaded: true };
+      } catch (e) {
+        showToast('That photo could not be saved — take it again', 'error');
+        return { queued: false };
+      }
+    }
+    if (!outcome.durable && !_burstMemoryWarned) {
+      _burstMemoryWarned = true;
+      showToast('Photos are held in memory only — keep this page open until they upload.', 'warning');
+    }
+    _kickDrain();
+    return outcome;
+  }
+
+  // Drain behind the shutter. One drain at a time (flushUploadQueue is
+  // single-flight); a shot taken mid-drain asks for one more pass.
+  let _drainAgain = false;
+  function _kickDrain() {
+    if (_draining) { _drainAgain = true; return; }
+    flushUploadQueue({ quiet: true });
+  }
+
+  function _photoReviewUrl(leadId) {
+    try {
+      if (window.NBDUrl && typeof window.NBDUrl.photoReview === 'function') return window.NBDUrl.photoReview(leadId);
+    } catch (_) {}
+    return '/pro/photo-review.html?id=' + encodeURIComponent(leadId);
+  }
+
+  function _showBurstDone(leadId, count) {
+    const old = document.getElementById('pe-burst-done');
+    if (old) old.remove();
+    const sheet = document.createElement('div');
+    sheet.className = 'pe-burst-done';
+    sheet.id = 'pe-burst-done';
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-label', 'Photos saved');
+    sheet.innerHTML =
+      '<div class="pe-burst-done-title"></div>' +
+      '<div class="pe-burst-done-sub">They upload on their own, even with no signal. Tag them now in Photo Review, or any time later.</div>' +
+      '<div class="pe-burst-done-row">' +
+        '<button type="button" class="pe-btn pe-btn-secondary" data-burst="later">Later</button>' +
+        '<a class="pe-btn pe-btn-primary" data-burst="review"></a>' +
+      '</div>';
+    sheet.querySelector('.pe-burst-done-title').textContent =
+      count + ' photo' + (count === 1 ? '' : 's') + ' saved';
+    const link = sheet.querySelector('[data-burst="review"]');
+    link.textContent = 'Tag in Photo Review';
+    link.href = _photoReviewUrl(leadId);
+    sheet.querySelector('[data-burst="later"]').addEventListener('click', () => sheet.remove());
+    document.body.appendChild(sheet);
+    return sheet;
+  }
+
+  // ============================================================================
+  // PHOTO-EDITOR SAVES THROUGH THE SAME QUEUE (2026-10-04)
+  //
+  // photo-editor.js wrote straight to Storage + Firestore with no queue: a
+  // save on a roof with no signal hung on "Saving", and a reload lost the
+  // annotations outright. Editor saves now ride the durable upload queue
+  // exactly like camera shots — persisted first, attempted once in the
+  // foreground, drained later by flushUploadQueue (which recognises the row
+  // by capture.edit and hands it to _applyQueuedEdit).
+  //
+  //   mode 'meta' — tags / notes / annotations only (no image; the row holds
+  //                 an empty placeholder blob because the store needs one)
+  //   mode 'over' — flattened image replaces the photo (url + storagePath)
+  //   mode 'copy' — flattened image saved as a NEW photo doc. Its doc id and
+  //                 filename are pinned at enqueue, so a retry overwrites the
+  //                 same objects instead of minting a second copy.
+  // ============================================================================
+
+  function _cleanMeta(meta) {
+    // Structured-clone + Firestore safe: plain JSON only (no sentinels).
+    try { return JSON.parse(JSON.stringify(meta || {})); } catch (_) { return {}; }
+  }
+
+  /**
+   * Apply one queued editor save. Throws on failure so the drain stops and
+   * keeps the row (same contract as uploadPhotoToFirebase).
+   */
+  async function _applyQueuedEdit(blob, item) {
+    const edit = (item && item.capture && item.capture.edit) || {};
+    const uid = item.uid || _currentUid();
+    if (!uid) throw new Error('Not signed in');
+    _aliasFirebase();
+    if (!window._db) throw new Error('Firebase not initialized');
+    const { doc, setDoc, updateDoc, serverTimestamp } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+    );
+    const meta = _cleanMeta(edit.meta);
+    if (edit.mode === 'meta') {
+      if (!edit.photoId) throw Object.assign(new Error('No photo id'), { retryable: false });
+      await updateDoc(doc(window._db, 'photos', edit.photoId), meta);
+      return true;
+    }
+    if (!window._storage) throw new Error('Firebase not initialized');
+    const { ref, uploadBytes, getDownloadURL } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js'
+    );
+    const leadSegment = item.leadId ? (item.leadId + '/') : '';
+    const fileName = edit.mode === 'over' ? `photo_${edit.photoId}.jpg` : `photo_${edit.copyId}.jpg`;
+    // storagePath mirrors the upload key so the image pipeline can find this
+    // doc by equality and stamp fresh `urls` variants for the new pixels.
+    const storagePath = `photos/${uid}/${leadSegment}${fileName}`;
+    const sref = ref(window._storage, storagePath);
+    await uploadBytes(sref, blob);
+    const url = await getDownloadURL(sref);
+    const stamped = Object.assign({}, meta, { isAnnotated: true, annotatedAt: serverTimestamp() });
+    if (edit.mode === 'over') {
+      const patch = Object.assign({ url, storagePath }, stamped);
+      if (edit.originalUrl && edit.originalStoragePath) {
+        patch.originalUrl = edit.originalUrl;
+        patch.originalStoragePath = edit.originalStoragePath;
+      }
+      await updateDoc(doc(window._db, 'photos', edit.photoId), patch);
+    } else {
+      await setDoc(doc(window._db, 'photos', edit.copyId), Object.assign({
+        url, storagePath,
+        originalPhotoId: edit.photoId || null,
+        leadId: item.leadId || null,
+        userId: uid,
+        companyId: edit.companyId || uid,
+        createdAt: serverTimestamp()
+      }, stamped), { merge: true });
+    }
+    return true;
+  }
+
+  /**
+   * Queue an editor save, then try it once in the foreground.
+   * @returns {Promise<{status:'saved'|'held'|'held-memory'|'refused', message?:string}>}
+   *   saved       — reached the server
+   *   held        — durable on this device, will upload later
+   *   held-memory — memory only (IndexedDB refused) — keep the page open
+   *   refused     — the queue is full / device out of space (message says so)
+   */
+  async function enqueueEdit(opts) {
+    const o = opts || {};
+    const mode = o.mode === 'over' || o.mode === 'copy' ? o.mode : 'meta';
+    const leadId = o.leadId;
+    const pre = _uploadPreflightError(leadId);
+    if (pre) return { status: 'refused', message: pre.message };
+    const blob = mode === 'meta' ? new Blob([], { type: 'application/octet-stream' }) : o.blob;
+    if (!blob) return { status: 'refused', message: 'Nothing to save' };
+    const edit = {
+      mode,
+      photoId: o.photoId || null,
+      copyId: mode === 'copy' ? ('ann_' + generateId()) : null,
+      meta: _cleanMeta(o.meta),
+      companyId: (window._userClaims && window._userClaims.companyId) || null,
+      originalUrl: o.originalUrl || null,
+      originalStoragePath: o.originalStoragePath || null
+    };
+    const timestamp = Date.now();
+    let outcome = null;
+    try {
+      outcome = await enqueueForRetry({
+        blob, leadId,
+        tags: Array.isArray(edit.meta.tags) ? edit.meta.tags : [],
+        description: '', location: '',
+        timestamp,
+        uploadId: 'edit_' + generateId(),
+        preset: null,
+        capture: { edit }
+      });
+    } catch (e) {
+      console.warn('[PhotoEngine] edit enqueue threw:', e && e.message);
+    }
+    if (outcome && outcome.queued === false) return { status: 'refused', message: outcome.message };
+    const entry = outcome && outcome.entry;
+    if (entry) _inFlight.add(_inFlightKey(entry));
+    const fakeItem = { uid: _currentUid(), leadId, capture: { edit } };
+    const attempt = _applyQueuedEdit(blob, entry || fakeItem)
+      .then(async () => { if (entry) await _dropItem(entry); return true; })
+      .catch((e) => {
+        if (entry) _inFlight.delete(_inFlightKey(entry));
+        console.warn('[PhotoEngine] edit save failed, stays queued:', e && e.message);
+        return false;
+      });
+    if (!entry) return (await attempt) ? { status: 'saved' } : { status: 'refused', message: 'Save failed — check your connection and try again' };
+    const settled = await Promise.race([
+      attempt,
+      new Promise((r) => setTimeout(() => r('pending'), (o.waitMs != null ? o.waitMs : SAVE_CONFIRM_MS)))
+    ]);
+    if (settled === true) return { status: 'saved' };
+    return { status: outcome.durable ? 'held' : 'held-memory' };
   }
 
   // ============================================================================
@@ -1463,7 +1963,9 @@
           location: item.location || '',
           timestamp: item.timestamp,
           uploadId: item.uploadId || null,
-          preset: item.preset || null
+          preset: item.preset || null,
+          // Phase / GPS / on-site, pinned at capture (captureContext).
+          capture: item.capture || null
         };
         state.uploadQueue.push(entry);
         return { durable: true, queued: true, entry };
@@ -1499,7 +2001,9 @@
       location: item.location || '',
       timestamp: item.timestamp,
       uploadId: item.uploadId || null,
-      preset: item.preset || null
+      preset: item.preset || null,
+      // Phase / GPS / on-site, pinned at capture (captureContext).
+      capture: item.capture || null
     };
     state.uploadQueue.push(entry);
     return { durable: false, queued: true, entry };
@@ -1572,11 +2076,16 @@
     }
   }
 
-  async function flushUploadQueue() {
+  async function flushUploadQueue(opts) {
+    // quiet: the burst camera's own drain — no "N queued photos uploaded"
+    // toast over the viewfinder after every shot.
+    const quiet = !!(opts && opts.quiet);
     if (_draining) return 0;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
     _draining = true;
+    _drainAgain = false;
     let sent = 0;
+    let stalled = false;
     // Rows that LEFT the queue, uploaded or dropped. `sent` alone is the wrong
     // trigger for the marker sync below: an unrecoverable row is dropped
     // without ever being sent, so a drain can empty the queue entirely with
@@ -1597,31 +2106,46 @@
         if (!blob || !item.leadId) { await _dropItem(item); removed++; continue; }
 
         try {
-          await uploadPhotoToFirebase(blob, item.leadId, item.tags || [], item.description || '', item.location || '', {
-            // A legacy row queued before this field existed has no uploadId.
-            // Derive a stable one from uid + row id + capture time rather than
-            // minting a fresh one per retry: unique across devices and users
-            // (a bare row id would collide as a Firestore doc id), and the
-            // same on every attempt at that row.
-            uploadId: item.uploadId || _legacyUploadId(item),
-            capturedAt: item.timestamp,
-            preset: item.preset
-          });
+          if (item.capture && item.capture.edit) {
+            // A queued photo-editor save (2026-10-04) — same queue, its own
+            // apply step. See _applyQueuedEdit.
+            await _applyQueuedEdit(blob, item);
+          } else {
+            await uploadPhotoToFirebase(blob, item.leadId, item.tags || [], item.description || '', item.location || '', {
+              // A legacy row queued before this field existed has no uploadId.
+              // Derive a stable one from uid + row id + capture time rather than
+              // minting a fresh one per retry: unique across devices and users
+              // (a bare row id would collide as a Firestore doc id), and the
+              // same on every attempt at that row.
+              uploadId: item.uploadId || _legacyUploadId(item),
+              capturedAt: item.timestamp,
+              preset: item.preset,
+              capture: item.capture || null
+            });
+          }
           await _dropItem(item);
           sent++;
           removed++;
         } catch (e) {
           // Still offline (or the upload is failing for another reason).
           // Stop here and leave this item AND everything after it queued.
+          stalled = true;
           break;
         }
       }
-      if (sent && typeof showToast === 'function') {
+      if (sent && !quiet && typeof showToast === 'function') {
         showToast(sent === 1 ? '✓ 1 queued photo uploaded' : `✓ ${sent} queued photos uploaded`, 'success');
       }
       await _syncMarkerAfterDrain(removed);
     } finally {
       _draining = false;
+      // A burst shot landed mid-drain: one more pass for it — unless this
+      // pass stalled on a failure, where an immediate retry would only fail
+      // again (the `online` event and boot recovery take it from there).
+      if (_drainAgain && !stalled) {
+        _drainAgain = false;
+        setTimeout(() => { flushUploadQueue({ quiet: quiet }); }, 0);
+      }
     }
     return sent;
   }
@@ -1700,6 +2224,7 @@
    * photo is held and then drop it as unrecoverable on the next drain.
    */
   function _uploadPreflightError(leadId) {
+    _aliasFirebase();
     if (!window._storage || !window._db || !window._user) {
       const err = new Error('Firebase not initialized');
       err.retryable = false;
@@ -1801,11 +2326,17 @@
       // their existing 'During' default.
       // (This used to name share-gallery.js as the reader — that module was
       // deleted 2026-07-27; the field is still load-bearing for the panel above.)
-      let phase = null;
-      const _tagList = Array.isArray(tags) ? tags : [];
-      if (_tagList.includes('before')) phase = 'Before';
-      else if (_tagList.includes('after')) phase = 'After';
-      else if (_tagList.includes('during')) phase = 'During';
+      //
+      // 2026-10-04: a photo with no phase tag now takes its phase from the
+      // lead's stage at capture (captureContext) — a phase tag still wins.
+      // Callers that pinned the context at capture (camera, burst, queue
+      // drain) pass it in opts.capture; anything else (file picks, the
+      // customer-page hub) gets it derived here from the lead as it is now.
+      const _cap = (opts && opts.capture)
+        || captureContext(tags, _stageOf(_leadForCapture(leadId)), null, null);
+      const _tagPhase = phaseFromTags(tags);
+      const phase = _tagPhase || _cap.phase || null;
+      const phaseSource = _tagPhase ? 'tag' : (phase ? (_cap.phaseSource || 'stage') : null);
 
       // Store metadata in Firestore
       // The doc id IS the idempotency key: a retry setDoc()s the same
@@ -1834,6 +2365,9 @@
         thumbUrl,
         tags,
         phase,
+        // 'tag' (the rep picked it) | 'stage' (stamped from the lead's stage)
+        // — Photo Review still asks the rep to confirm a stage-stamped phase.
+        phaseSource,
         description,
         location,
         quality: preset,
@@ -1851,7 +2385,11 @@
         capturedAt,
         uploadedAt: serverTimestamp(),
         reportSections: [],
-        geoLocation: null
+        // One GPS reading per camera session ({lat,lng,accuracy,at}) or null.
+        // CRM-only: the portal and public pages project explicit fields and
+        // never read it; the reports print only "on-site", never coordinates.
+        geoLocation: _cap.geo || null,
+        onSite: typeof _cap.onSite === 'boolean' ? _cap.onSite : null
       };
 
       // A stable doc id makes the retry idempotent — but it also means the
@@ -1941,6 +2479,17 @@
         try {
           _autoTagPhotoBackground(photoId);
         } catch (e) { /* never let auto-tag break the upload flow */ }
+        // An After photo on a lead whose install completed before any After
+        // photo existed: the Before & After report was waiting for it
+        // (photo-report.js NBDAutoBeforeAfter). Same bundle, so normally
+        // present; guarded because a stale cache can split them.
+        if (phase === 'After') {
+          try {
+            if (window.NBDAutoBeforeAfter && typeof window.NBDAutoBeforeAfter.afterPhoto === 'function') {
+              window.NBDAutoBeforeAfter.afterPhoto(leadId);
+            }
+          } catch (e) { /* the report is a bonus; the photo saved */ }
+        }
       }
 
       return photoData;
@@ -2281,6 +2830,13 @@
     // Returns { durable, queued, entry } — see the function body for the
     // durable-vs-memory-fallback and queue-full/quota messaging contract.
     enqueueForRetry,
+    // 2026-10-04: photo-editor saves ride the same durable queue.
+    enqueueEdit,
+    // Pure capture helpers, exposed for tests and for the report engines.
+    _capture: { phaseForStage, phaseFromTags, haversineMeters, onSiteFor, captureContext, ON_SITE_RADIUS_M },
+    // Burst internals, exposed for the behavioural suite
+    // (tests/field-photos-client-2026-10-04.test.js) and the E2E.
+    _burst: { saveBurstShot: _saveBurstShot, readCaptureMode: _readCaptureMode, showBurstDone: _showBurstDone },
     // Synchronous, reads the in-memory mirror. Accurate once _syncMirror()
     // has run; use queuedPhotoCountDurable() if you need the storage truth
     // without depending on that having happened yet.
@@ -2319,7 +2875,7 @@
     // leaving a stale value behind.
     updatePhotoTags: async (photoId, tags) => {
       if (!window._db) throw new Error('Firestore not initialized');
-      const { doc, updateDoc } = await import(
+      const { doc, updateDoc, getDoc } = await import(
         'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
       );
       const _tagList = Array.isArray(tags) ? tags : [];
@@ -2327,7 +2883,18 @@
       if (_tagList.includes('before')) phase = 'Before';
       else if (_tagList.includes('after')) phase = 'After';
       else if (_tagList.includes('during')) phase = 'During';
-      await updateDoc(doc(window._db, 'photos', photoId), { tags, phase });
+      const ref = doc(window._db, 'photos', photoId);
+      // 2026-10-04: a phase stamped from the lead's stage at capture is not a
+      // tag, so a tag edit that names no phase leaves it alone — only a phase
+      // that came FROM a tag is cleared when that tag goes.
+      if (!phase) {
+        try {
+          const snap = await getDoc(ref);
+          const cur = snap && snap.exists() ? (snap.data() || {}) : {};
+          if (cur.phaseSource === 'stage' && cur.phase) { await updateDoc(ref, { tags }); return; }
+        } catch (_) { /* unreadable: fall through to the old behaviour */ }
+      }
+      await updateDoc(ref, { tags, phase, phaseSource: phase ? 'tag' : null });
     },
     updatePhotoDescription: async (photoId, description) => {
       if (!window._db) throw new Error('Firestore not initialized');

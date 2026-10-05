@@ -839,6 +839,24 @@ async function reason(fn) {
       ok('the customer-photo drain never picks up a knock row (it would drop it: no leadId)',
         pend.length === 1 && pend[0].id === lead && !pend.some((r) => r.kind === 'knock'), JSON.stringify(pend.map((r) => r.id + ':' + r.kind)));
     }
+
+    // #2153 (field photos) pins a `capture` stamp (stage phase, GPS, on-site,
+    // or a queued editor save) on each row. Both features share add()/all():
+    // the stamp must survive the reload on a customer row AND a knock row,
+    // and neither feature's fields may displace the other's.
+    const cap = { phase: 'before', phaseSource: 'stage', onSite: true, capturedAt: 1728050000000, geoLocation: { lat: 41.5, lng: -85.8, accuracy: 9 } };
+    const leadCap = await store.add(Object.assign(photo(), { capture: cap }));
+    const knockCap = await store.add({ kind: 'knock', knockTempId: 'T-cap', uid: UID, blob: jpeg(64), capture: { capturedAt: 7 } });
+    store = loadStore(disk);   // reload
+    const after2 = await store.all();
+    const lc = after2.find((r) => r.id === leadCap), kc = after2.find((r) => r.id === knockCap);
+    ok('a customer row keeps its capture stamp AND kind lead across a reload',
+      !!lc && lc.kind === 'lead' && lc.leadId === 'lead-x' && lc.knockTempId === null && !!lc.capture
+        && lc.capture.phase === 'before' && lc.capture.onSite === true && lc.capture.geoLocation.lat === 41.5,
+      JSON.stringify(lc && { kind: lc.kind, capture: lc.capture }));
+    ok('a knock row keeps kind + knock id AND its capture stamp across a reload',
+      !!kc && kc.kind === 'knock' && kc.knockTempId === 'T-cap' && kc.leadId === null && !!kc.capture && kc.capture.capturedAt === 7,
+      JSON.stringify(kc && { kind: kc.kind, t: kc.knockTempId, capture: kc.capture }));
   }
 
   console.log(`\n  ${passed} passed, ${failed} failed`);

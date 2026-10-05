@@ -80,7 +80,8 @@
   const S = {
     tool: TOOLS.PEN,
     color: '#ef4444',
-    lineWidth: 3,
+    // 6px default (2026-10-04): a 3px line vanished on a phone in sunlight.
+    lineWidth: 6,
     opacity: 100,
     fillShapes: false,
     stampId: 'hail',
@@ -914,6 +915,50 @@
   /* ==========================================
      SAVE WORKFLOWS
      ========================================== */
+  /* 2026-10-04 — every editor save goes through PhotoEngine's durable upload
+     queue (photo-engine.js enqueueEdit): persisted on the phone first, tried
+     once, and drained later if the roof has no signal. It used to write
+     straight to the server, so a save with no signal hung and a reload lost
+     the annotations. Resolves to the engine, or null when it cannot load. */
+  async function _editQueue() {
+    const ready = () => window.PhotoEngine && typeof window.PhotoEngine.enqueueEdit === 'function';
+    if (ready()) return window.PhotoEngine;
+    try {
+      if (window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
+        await window.ScriptLoader.loadBundle('photos');
+      }
+    } catch (_) { /* fall through */ }
+    return ready() ? window.PhotoEngine : null;
+  }
+
+  /* Queue one save and tell the rep the truth about where it is. Returns
+     true when the save is safe (sent, or held on the device). */
+  async function _queuedSave(mode, blob, meta, extra) {
+    const engine = await _editQueue();
+    if (!engine) return null; // caller falls back to the direct write
+    const res = await engine.enqueueEdit(Object.assign({
+      mode, blob, meta, leadId: S.leadId, photoId: S.photoId
+    }, extra || {}));
+    if (res.status === 'saved') { toast(mode === 'meta' ? 'Tags saved!' : 'Saved!', 'success'); return true; }
+    if (res.status === 'held') { toast('Saved on this phone — it uploads when you have signal.', 'success'); return true; }
+    if (res.status === 'held-memory') { toast('Held — keep this page open until it uploads.', 'info'); return true; }
+    toast(res.message || 'Save failed', 'error');
+    return false;
+  }
+
+  function _metaNow(flattened) {
+    // Flatten bakes the current brightness/contrast into the pixels, so the
+    // saved copy's stored adjustments reset to 0 — otherwise reopening would
+    // double-apply them. annotations: the vector shapes are persisted on
+    // every save so a photo reopens with its shapes still editable.
+    return {
+      damageType: _dmgNorm(S.damageType), severity: S.severity, location: S.location,
+      phase: S.phase, phaseSource: 'tag', notes: S.notes, tags: S.tags,
+      brightness: flattened ? 0 : S.brightness, contrast: flattened ? 0 : S.contrast,
+      annotations: JSON.parse(JSON.stringify(annotations))
+    };
+  }
+
   async function saveTagsOnly() {
     if (!S.photoId) { toast('No photo ID', 'error'); return; }
     try {
@@ -922,7 +967,10 @@
       // annotations: persist the vector shape data on a plain tags-only
       // save too — previously only a flatten (uploadBlob) ever wrote
       // anything, so "Save Tags" silently discarded every drawn shape.
-      const meta = { damageType: _dmgNorm(S.damageType), severity: S.severity, location: S.location, phase: S.phase, notes: S.notes, tags: S.tags, brightness: S.brightness, contrast: S.contrast, annotations: JSON.parse(JSON.stringify(annotations)) };
+      const meta = _metaNow(false);
+      const queued = await _queuedSave('meta', null, meta);
+      if (queued === true) { S.hasUnsaved = false; return; }
+      if (queued === false) return;
       await window.updateDoc(window.doc(window.db, 'photos', S.photoId), meta);
       toast('Tags saved!', 'success');
       S.hasUnsaved = false;
@@ -975,6 +1023,22 @@
   }
 
   async function uploadBlob(blob, overwrite) {
+    // Queued first (see _queuedSave). The direct write below is the fallback
+    // for a page where PhotoEngine cannot load at all.
+    try {
+      const extra = {};
+      if (overwrite && !S.hasOriginalBackup && S.origUrl && S.origStoragePath) {
+        extra.originalUrl = S.origUrl;
+        extra.originalStoragePath = S.origStoragePath;
+      }
+      const queued = await _queuedSave(overwrite && S.photoId ? 'over' : 'copy', blob, _metaNow(true), extra);
+      if (queued === true) {
+        if (extra.originalUrl) S.hasOriginalBackup = true;
+        S.hasUnsaved = false;
+        return;
+      }
+      if (queued === false) return;
+    } catch (err) { console.warn('[editor] queued save failed, writing directly:', err && err.message); }
     try {
       // Storage rules (2026-04-11 hardening) require `photos/{uid}/...`.
       // The local `uid()` helper in this file is the annotation ID
@@ -1044,7 +1108,9 @@
      ========================================== */
   function buildEditor() {
     root = document.createElement('div');
-    root.className = 'nbd-editor-overlay';
+    // nbd-daylight: the legibility layer at the end of photo-editor.css
+    // (13px+ text, 44px+ targets, high contrast) — 2026-10-04.
+    root.className = 'nbd-editor-overlay nbd-daylight';
     root.innerHTML = `
       <!-- TOP BAR -->
       <div class="nbd-topbar">
@@ -1250,16 +1316,16 @@
     return `
       <div class="nbd-prop-group">
         <span class="nbd-prop-label">Color</span>
-        ${COLOR_PALETTE.map(c => `<div class="nbd-swatch ${S.color === c ? 'active' : ''}" data-color="${c}" style="background:${c}"></div>`).join('')}
+        ${COLOR_PALETTE.map(c => `<div class="nbd-swatch ${S.color === c ? 'active' : ''}" data-color="${c}" role="button" aria-label="Colour ${c}"></div>`).join('')}
         <div class="nbd-color-picker-wrap">
-          <div class="nbd-color-picker-btn" id="nbd-custom-color" style="background:${S.color}"></div>
+          <div class="nbd-color-picker-btn" id="nbd-custom-color"></div>
           <input type="color" class="nbd-color-native" id="nbd-color-input" value="${S.color}">
         </div>
       </div>
       <div class="nbd-prop-sep"></div>
       <div class="nbd-prop-group">
         <span class="nbd-prop-label">Width</span>
-        <input type="range" class="nbd-slider" min="1" max="12" value="${S.lineWidth}" data-prop="lineWidth">
+        <input type="range" class="nbd-slider" min="2" max="20" value="${S.lineWidth}" data-prop="lineWidth" aria-label="Line width">
         <span class="nbd-slider-val" data-prop-val="lineWidth">${S.lineWidth}px</span>
       </div>
       <div class="nbd-prop-sep"></div>
@@ -1304,6 +1370,12 @@
      ========================================== */
   function wireEvents() {
     if (!root) return;
+
+    // No inline style attributes (2026-10-04): the palette swatches are
+    // coloured by CSS (photo-editor.css, by data-color), and the custom
+    // swatch — a value only known at runtime — through the CSSOM.
+    const _custom = root.querySelector('#nbd-custom-color');
+    if (_custom) _custom.style.background = S.color;
 
     // Top bar buttons
     root.querySelectorAll('[data-act]').forEach(btn => {
@@ -1548,7 +1620,7 @@
     if (window.innerWidth <= 768) {
       panel.classList.toggle('open');
     } else {
-      panel.style.display = panel.style.display === 'none' ? '' : 'none';
+      panel.classList.toggle('nbd-hidden');
     }
   }
 
@@ -1759,11 +1831,10 @@
 
     mainCanvas = document.createElement('canvas');
     mainCanvas.width = S.imgW; mainCanvas.height = S.imgH;
-    mainCanvas.style.cssText = 'position:absolute;top:0;left:0';
+    // Positioned by .nbd-canvas-wrapper canvas in photo-editor.css.
 
     annoCanvas = document.createElement('canvas');
     annoCanvas.width = S.imgW; annoCanvas.height = S.imgH;
-    annoCanvas.style.cssText = 'position:absolute;top:0;left:0';
 
     wrapper.appendChild(mainCanvas);
     wrapper.appendChild(annoCanvas);

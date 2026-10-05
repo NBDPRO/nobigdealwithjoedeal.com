@@ -58,7 +58,7 @@ const src = fs.readFileSync(path.join(ROOT, 'docs/pro/js/photo-engine.js'), 'utf
 console.log('\nphoto-offline-queue — the queue is real now\n');
 
 // ── the drain exists and is wired ───────────────────────────────────────
-ok('flushUploadQueue is defined', /async function flushUploadQueue\(\)/.test(src));
+ok('flushUploadQueue is defined', /async function flushUploadQueue\((opts)?\)/.test(src));
 
 ok('it is triggered by the `online` event',
   /addEventListener\('online',\s*function \(\) \{ flushUploadQueue\(\); \}\)/.test(src));
@@ -77,7 +77,9 @@ ok('the drain is re-entrancy guarded', /_draining\s*=\s*true/.test(src) && /if \
 // upload — so the old `state.uploadQueue.push(item)` re-queue is gone by
 // design. What replaced it is stricter: nothing is removed before it succeeds.
 ok('an item is removed ONLY after a confirmed upload',
-  /await uploadPhotoToFirebase\([\s\S]*?\);\s*\n\s*await _dropItem\(item\);/.test(src),
+  // 2026-10-04: the upload sits in an if/else beside the queued editor save,
+  // so a closing brace may stand between the await and the drop.
+  /await uploadPhotoToFirebase\([\s\S]*?\);\s*\n(\s*\}\s*\n)?\s*await _dropItem\(item\);/.test(src),
   'dropping before the await would lose the photo on a mid-drain failure');
 
 ok('the drain does NOT splice the whole queue out up front',

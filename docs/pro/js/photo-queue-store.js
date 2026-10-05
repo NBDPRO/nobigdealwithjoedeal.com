@@ -479,7 +479,12 @@
       // is recorded here because a drain days later would otherwise stamp the
       // photo with whatever quality the rep has selected NOW.
       uploadId: item.uploadId || null,
-      preset: item.preset || null
+      preset: item.preset || null,
+      // 2026-10-04: what the shot was stamped with at capture (phase from
+      // the lead's stage, the session GPS fix, on-site) — or, for a queued
+      // photo-editor save, `capture.edit`. Plain JSON, pinned like uploadId so
+      // a drain days later writes what was true when the photo was taken.
+      capture: _plainCapture(item.capture)
     };
 
     // A fresh transaction: the awaits above let the event loop turn, and an
@@ -538,8 +543,16 @@
         location: r.location || '',
         timestamp: r.timestamp || 0,
         uploadId: r.uploadId || null,
-        preset: r.preset || null
+        preset: r.preset || null,
+        capture: r.capture || null
       }));
+  }
+
+  // JSON round-trip: no functions, no sentinels, nothing that could make the
+  // structured clone throw DataCloneError at add() time.
+  function _plainCapture(c) {
+    if (!c || typeof c !== 'object') return null;
+    try { return JSON.parse(JSON.stringify(c)); } catch (_) { return null; }
   }
 
   /**

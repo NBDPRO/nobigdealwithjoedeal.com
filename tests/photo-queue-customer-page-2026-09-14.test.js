@@ -55,6 +55,17 @@ console.log('\n1. script-loader.js — queue files ride the lazy photos bundle, 
   ok('photo-queue-recovery.js is IN the photos bundle array', /photo-queue-recovery\.js/.test(bundleBody));
   ok('photo-engine.js is still the first entry (load order: engine before its own queue dependents is not required, but no entry was removed)',
     /photo-engine\.js/.test(bundleBody));
+  // Two branches each bumping the same entry can leave BOTH lines in the
+  // array after a merge (2026-10-04, #2145 x #2153: the duplicated lines also
+  // lost a comma and made script-loader.js a syntax error). Each file must be
+  // listed exactly once, and the array must parse.
+  const once = (f) => (bundleBody.match(new RegExp("'js/" + f + "\\?v=\\d+'", 'g')) || []).length;
+  const bundleFiles = ['photo-engine\\.js', 'photo-queue-store\\.js', 'photo-queue-recovery\\.js', 'inspection-report-engine\\.js', 'photo-report\\.js'];
+  ok('each photos-bundle file is listed exactly once',
+    bundleFiles.every((f) => once(f) === 1), bundleFiles.map(once).join());
+  let parses = false;
+  try { new (require('vm').Script)('([' + bundleBody.slice(bundleBody.indexOf('[') + 1) + '])'); parses = true; } catch (_) {}
+  ok('the photos bundle array parses', parses);
 
   const dash = read('docs/pro/dashboard.html');
   // Version-agnostic (the ?v= moves with every change to these files), but
