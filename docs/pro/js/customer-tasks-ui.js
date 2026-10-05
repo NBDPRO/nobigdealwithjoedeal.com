@@ -899,7 +899,7 @@ window.loadInvoices = async function(leadId) {
             ` : ''}
             ${safeStatus !== 'paid' && safePayUrl ? `
               <a href="${esc(safePayUrl)}" target="_blank" rel="noopener noreferrer" class="doc-btn">Pay</a>
-              <div class="invoice-paynote" data-pay-by-bank>Pay by bank (ACH) — lower fees</div>
+              ${(typeof window._isNbdPlatformTenant === 'function' && window._isNbdPlatformTenant() === true) ? '<div class="invoice-paynote" data-pay-by-bank>Pay by bank (ACH) — lower fees</div>' : ''}
             ` : ''}
             ${achPendingHtml(inv)}
             ${receiptBtns(inv)}

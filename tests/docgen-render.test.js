@@ -31,8 +31,12 @@ const DG_DIR = path.join(__dirname, '..', 'docs/pro/js');
 const SRC_DOCGEN    = fs.readFileSync(path.join(DG_DIR, 'document-generator.js'), 'utf8');
 const SRC_TEMPLATES = fs.readFileSync(path.join(DG_DIR, 'document-generator-templates.js'), 'utf8');
 
-function loadFullDocGen(brand) {
-  const win = { _brand: () => brand };
+function loadFullDocGen(brand, platform) {
+  // The NBD platform tenant is decided by companyId (company-profile.js
+  // _isNbdPlatformTenant); by default the harness signs in as the tenant the
+  // brand describes — an NBD brand is NBD's own companyId.
+  const _plat = (platform === undefined) ? (!brand || !brand.legalName || brand.legalName === 'No Big Deal Home Solutions') : platform;
+  const win = { _brand: () => brand, _isNbdPlatformTenant: () => _plat };
   win.window = win;
   const noop = () => ({ style: {}, appendChild() {}, setAttribute() {}, addEventListener() {} });
   const sandbox = {

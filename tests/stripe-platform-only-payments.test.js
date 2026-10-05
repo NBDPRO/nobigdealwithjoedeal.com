@@ -429,9 +429,11 @@ console.log('STRIPE — where homeowner money lands: confinement + the three-way
   // 2026-10-03: the opener varies (a balance send names the balance); the
   // link line is still only added when there is a link.
   ok('the invoice SMS drops the link line when there is no link',
-    // 2026-10-04: the link line also says bank (ACH) works on it, and a Zelle
-    // line rides along; still no "Payment link:" without a link.
-    /const message = link\s*\n?\s*\? `\$\{opener\} Payment link: \$\{link\} \(card or bank\/ACH[^`]*`\s*\n?\s*: \(zelle \? `\$\{opener\} Zelle: [^`]*`\s*\n?\s*: `\$\{opener\.replace\(/.test(c));
+    // 2026-10-04: the link line also says bank (ACH) works on it (NBD's own
+    // links only — achBit), and a Zelle line rides along; still no
+    // "Payment link:" without a link.
+    /const message = link\s*\n?\s*\? `\$\{opener\} Payment link: \$\{link\}\$\{achBit\}\.\$\{zelleBit\}`\s*\n?\s*: \(zelle \? `\$\{opener\} Zelle: [^`]*`\s*\n?\s*: `\$\{opener\.replace\(/.test(c)
+    && /const achBit = _platformTenant\(\) \? ' \(card or bank\/ACH — bank has lower fees\)' : '';/.test(c));
 
   // D12: the customer-tasks Pay button read `inv.paymentUrl`, a field nothing
   // has ever written — so the one place a homeowner-facing surface offered to

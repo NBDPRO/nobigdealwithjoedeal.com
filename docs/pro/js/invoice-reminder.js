@@ -69,7 +69,9 @@
     // Bank payment (ACH) is on the same page — lower fees (2026-10-04). The
     // Zelle line (opts.zelle — the company's Zelle pair) obeys the same hold.
     var zelle = (!hold.held && opts.zelle) ? ' Zelle: ' + String(opts.zelle) + '.' : '';
-    var line2 = (link ? 'You can pay here: ' + link + ' (card or bank/ACH — bank has lower fees).' : 'Reply here with any questions or to set up payment.') + zelle;
+    // The ACH note only where ACH is offered (opts.payByBank: the NBD
+    // platform tenant — functions/stripe.js requests ACH on no other link).
+    var line2 = (link ? 'You can pay here: ' + link + (opts.payByBank === true ? ' (card or bank/ACH — bank has lower fees)' : '') + '.' : 'Reply here with any questions or to set up payment.') + zelle;
     var sign = opts.repName ? ' Thanks, ' + opts.repName : ' Thanks!';
     var last = toDate(inv.lastReminderAt);
     return {
@@ -144,6 +146,7 @@
     } catch (_) { zelleText = ''; }
     var r = buildReminder(inv, lead, {
       company: companyName(), repName: repName(), now: new Date(), zelle: zelleText,
+      payByBank: (function () { try { return typeof root._isNbdPlatformTenant === 'function' && root._isNbdPlatformTenant() === true; } catch (_) { return false; } })(),
       holdFn: function (l, i, n) { return J.payLinkHold(l, i, n, tz); },
     });
     if (r.held) { toast('Kentucky insurance job — no payment requests until ' + (r.releaseDate || 'the cancellation window ends') + '.', 'error'); return; }

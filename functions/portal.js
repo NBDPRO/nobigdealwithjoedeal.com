@@ -685,7 +685,9 @@ exports.getHomeownerPortalView = onRequest(
     const tenantKey = lead.companyId || tok.ownerUid;
     // Where a Zelle payment goes (2026-10-04, zelle-contact.js): the tenant's
     // own brand.contact.zelle* pair; NBD's defaults ((859) 420-7382 or jd@ —
-    // never info@) only for an NBD brand. No profile at all → no Zelle line,
+    // never info@) only when tenantKey IS the NBD platform tenant — keyed on
+    // the companyId, never the brand strings (a tenant that never set
+    // legalName looks like NBD by brand). No profile at all → no Zelle line,
     // unless this IS the platform owner.
     let zelleBrand = (tenantKey && tenantKey === (process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1')) ? null : undefined;
     if (tenantKey) {
@@ -963,10 +965,12 @@ exports.getHomeownerPortalView = onRequest(
       stripePaymentLink: /^https:\/\//i.test(_payUrl) ? _payUrl : null,
       // "Pay by bank (ACH) — lower fees" shows only beside a real link (the
       // Kentucky hold above blanks the link, and with it this line).
-      payByBank: /^https:\/\//i.test(_payUrl),
+      // ACH is requested only on the NBD platform account's links
+      // (functions/stripe.js), so only its customers are told about it.
+      payByBank: /^https:\/\//i.test(_payUrl) && require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
       // Zelle is a way to pay, so it obeys the same Kentucky hold as the link.
       zelle: (typeof zelleBrand === 'undefined' || KyLaw.payLinkHold(lead, _unpaidInvoice, Date.now(), kyTz).held) ? null
-        : (require('./zelle-contact').zelleContactOf(zelleBrand).text || null),
+        : (require('./zelle-contact').zelleContactOf(zelleBrand, tenantKey ? String(tenantKey) : '').text || null),
     } : null;
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
     // never a new one. A Kentucky insurance job's link is withheld at

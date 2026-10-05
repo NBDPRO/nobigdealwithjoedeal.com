@@ -749,6 +749,29 @@
   // tenant must never print NBD's Zelle on its invoices.
   const _IDENTITY_CONTACT = ['phone', 'email', 'website', 'address', 'mailingAddress', 'alertEmail', 'alertSms', 'zelleEmail', 'zellePhone'];
 
+  // Is the signed-in identity the NBD PLATFORM tenant? Keyed on the
+  // companyId claim (or, with none, the uid) — never on brand strings, which
+  // any tenant that never set brand.legalName shares with NBD. Sync, so the
+  // render paths can call it; claims read for a different account (the same
+  // stale test as _resolveCompanyKey) and an unknown identity are false.
+  function _isNbdPlatformTenant() {
+    try {
+      const OWNER = window.__NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+      const claims = window._userClaims || null;
+      const cur = (window.auth && window.auth.currentUser) || window._user || null;
+      const claimUid = claims && (claims.user_id || claims.sub);
+      const stale = !!(claimUid && cur && cur.uid && String(claimUid) !== String(cur.uid));
+      const cid = (!stale && claims && claims.companyId) ? String(claims.companyId) : '';
+      if (cid) return cid === OWNER;
+      return !!(cur && cur.uid && String(cur.uid) === OWNER);
+    } catch (_) { return false; }
+  }
+  // Where money goes (Zelle, 2026-10-04): every Zelle consumer
+  // (invoice-pipeline.js zelleTextFor, document-generator.js _resolveCompany)
+  // prints NBD's pair only when this is true. _resolveBrand below still hands
+  // an NBD-looking brand its full defaults (same object, byte-identical).
+  window._isNbdPlatformTenant = _isNbdPlatformTenant;
+
   function _resolveBrand() {
     const profile = window._companyProfile || NBD_COMPANY_PROFILE_DEFAULTS;
     const merged = profile.brand || NBD_COMPANY_PROFILE_DEFAULTS.brand;

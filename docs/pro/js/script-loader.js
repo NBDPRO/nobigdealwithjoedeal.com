@@ -128,7 +128,7 @@
       'js/stripe-ledger-ui-logic.js?v=1',
       'js/stripe-ledger-panel.js?v=1',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=5',
+      'js/invoice-reminder.js?v=6',
       'js/money-dashboard.js?v=8'
     ],
     repos: [
@@ -180,8 +180,8 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=16',
-      'js/document-generator-templates.js?v=12',
+      'js/document-generator.js?v=17',
+      'js/document-generator-templates.js?v=13',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=4',
       // Mobile job-detail Documents tab (dashboard-actions.js

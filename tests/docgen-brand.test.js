@@ -19,9 +19,13 @@ const vm = require('vm');
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond) { if (cond) { passed++; console.log('  ✓ ' + name); } else { failed++; fails.push(name); console.log('  ✗ ' + name); } }
 
-function loadDocGen(brand) {
+function loadDocGen(brand, platform) {
   const src = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js', 'document-generator.js'), 'utf8');
-  const win = { _brand: () => brand };
+  // The NBD platform tenant is decided by companyId (company-profile.js
+  // _isNbdPlatformTenant); by default the harness signs in as the tenant the
+  // brand describes — an NBD brand is NBD's own companyId.
+  const _plat = (platform === undefined) ? (!brand || !brand.legalName || brand.legalName === 'No Big Deal Home Solutions') : platform;
+  const win = { _brand: () => brand, _isNbdPlatformTenant: () => _plat };
   win.window = win;
   const noop = () => ({ style: {}, appendChild() {}, setAttribute() {}, addEventListener() {} });
   const sandbox = {
@@ -58,6 +62,14 @@ ok('NBD: email unchanged (info@)', cNBD.email === 'info@nobigdealwithjoedeal.com
 // documents email above stays info@.
 ok('NBD: Zelle email is jd@ (not info@)', cNBD.zelleEmail === 'jd@nobigdealwithjoedeal.com');
 ok('NBD: Zelle phone is (859) 420-7382', cNBD.zellePhone === '(859) 420-7382');
+// NBD's Zelle is keyed on the NBD companyId, never the brand strings: a
+// tenant that never set legalName (or one that copied NBD's) is not NBD.
+for (const [label, br] of [['an NBD-named brand', NBD_BRAND],
+  ['an NBD-named brand carrying NBD\'s merged Zelle defaults', { legalName: 'No Big Deal Home Solutions', colors: {}, contact: { zelleEmail: 'jd@nobigdealwithjoedeal.com', zellePhone: '(859) 420-7382' } }],
+['no brand at all', null], ['a brand with no legalName', { contact: {} }]]) {
+  const cX = loadDocGen(br, false)._resolveCompany();
+  ok('another tenant with ' + label + ': no NBD Zelle pair', cX.zelleEmail === '' && cX.zellePhone === '');
+}
 // NBD DOCUMENT STANDARD, locked 2026-09-07: the palette was re-measured off the
 // master logo artwork. Retired #1e3a6e / #1a1a2e / #e8720c — the last of which
 // also failed WCAG AA on white at 3.07:1. Expected VALUES updated; the

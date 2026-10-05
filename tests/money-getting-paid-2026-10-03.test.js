@@ -213,7 +213,10 @@ function browser(seed, extra) {
     const code = (a >= 0 && b > a) ? src.slice(a, b + 9) : '';
     ok('portal: the balance build is liftable', !!code);
     const run = (lead, inv) => {
-      const ctx = { KyLaw: J, lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number };
+      // tenantKey + require: the balance build asks zelle-contact.js whether
+      // this tenant is NBD (Zelle / "Pay by bank" are NBD-only, 2026-10-04).
+      const ctx = { KyLaw: J, lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number,
+        tenantKey: 'co_other', require: (p) => require(path.join(ROOT, 'functions', p)) };
       vm.createContext(ctx);
       vm.runInContext(code + '\nthis.__b = _balance;', ctx);
       return ctx.__b;

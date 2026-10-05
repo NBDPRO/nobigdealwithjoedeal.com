@@ -50,7 +50,8 @@ function invoiceItemsFrom(lineItems) {
 
 // Zelle goes to the company profile's Zelle pair (Jo, 2026-10-04: (859)
 // 420-7382 or jd@ — never info@, which stays the documents address).
-// zelle-contact.js; NBD's defaults when the profile sets none. The ACH line
+// zelle-contact.js; NBD's defaults when the profile sets none AND tenantId is
+// the NBD platform tenant (companyId-keyed, never brand strings). The ACH line
 // appears only when the invoice really offers a bank payment.
 const ZC = require('./zelle-contact');
 const ACH = require('./ach-payments');
@@ -59,7 +60,7 @@ function footerFor(zelleText, offersAch) {
   return (offersAch ? 'Pay by bank (ACH) on this page — lower fees than a card. ' : '')
     + 'Also accepted: ' + z + ' payable to No Big Deal Home Solutions, LLC. Questions? Call or text (859) 420-7382.';
 }
-const FOOTER = footerFor(ZC.zelleContactOf(null).text, false);
+const FOOTER = footerFor(ZC.zelleContactOf(null, ZC.NBD_OWNER_UID).text, false);
 
 /**
  * @returns {Promise<{url, id, pdf, reused}>}
@@ -116,11 +117,11 @@ async function mintCrmStripeInvoice(stripe, db, args) {
   };
   // The tenant's Zelle pair (platform tenant: NBD's defaults unless Jo set
   // his own on the profile). Best-effort read — the defaults are right.
-  let zelleText = ZC.zelleContactOf(null).text;
+  let zelleText = ZC.zelleContactOf(null, String(tenantId || '')).text;
   try {
     const cp = await db.collection('companyProfile').doc(String(tenantId)).get();
-    if (cp && cp.exists) zelleText = ZC.zelleContactOf((cp.data() || {}).brand || null).text;
-  } catch (_) { /* NBD defaults */ }
+    if (cp && cp.exists) zelleText = ZC.zelleContactOf((cp.data() || {}).brand || null, String(tenantId || '')).text;
+  } catch (_) { /* defaults above (NBD's only for the NBD companyId) */ }
   // Card + Link + bank (ACH), stepping down to the account's defaults if
   // ACH is not switched on in the Stripe dashboard yet (ach-payments.js).
   const { result: draft } = await ACH.createWithAch((p, o) => stripe.invoices.create(p, o), {

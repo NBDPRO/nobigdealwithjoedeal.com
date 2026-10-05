@@ -980,10 +980,26 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // Where a Zelle payment goes: the company's Zelle pair (company-profile.js
   // brand.contact.zellePhone / zelleEmail; NBD: "(859) 420-7382 or jd@…",
   // never the info@ documents address). '' for a tenant that set none.
-  function zelleTextFor(brand) {
+  // NBD's pair needs an NBD brand AND the NBD platform tenant's companyId
+  // (company-profile.js _isNbdPlatformTenant; server twin
+  // functions/zelle-contact.js) — a tenant that never set legalName looks
+  // like NBD by brand and must not print Jo's Zelle. `isPlatform` overrides
+  // the identity check (tests / callers that already know the tenant).
+  function _platformTenant() {
+    try {
+      return typeof window !== 'undefined' && typeof window._isNbdPlatformTenant === 'function'
+        && window._isNbdPlatformTenant() === true;
+    } catch (_) { return false; }
+  }
+  function zelleTextFor(brand, isPlatform) {
     const b = brand || null;
     const c = (b && b.contact) || {};
-    const isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+    const platform = (typeof isPlatform === 'boolean') ? isPlatform : _platformTenant();
+    const nbdLooking = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
+    // An NBD-looking brand carries NBD's deep-merged defaults (company-profile
+    // _resolveBrand), so from any other identity it gets no Zelle line at all.
+    if (nbdLooking && !platform) return '';
+    const isNbd = nbdLooking;
     const email = String(c.zelleEmail || (isNbd ? 'jd@nobigdealwithjoedeal.com' : '')).trim();
     const phone = String(c.zellePhone || (isNbd ? '(859) 420-7382' : '')).trim();
     return phone && email ? phone + ' or ' + email : (phone || email);
@@ -2084,7 +2100,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
       if (method === 'email') {
         // Build invoice HTML
-        const invoiceHtml = buildInvoiceHtml(invoice, { payUrl, zelle });
+        // ACH is offered only on the NBD platform account (functions/stripe.js);
+        // no other tenant's message claims a bank option.
+        const invoiceHtml = buildInvoiceHtml(invoice, { payUrl, zelle, payByBank: _platformTenant() });
 
         // Send via NBDComms
         if (window.NBDComms?.sendEmail) {
@@ -2116,9 +2134,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           ? `Thank you for your payment — your ${_invoiceCompany()} invoice has a remaining balance of ${balanceText}.`
           : `Your ${_invoiceCompany()} invoice is ready.`;
         // Bank payment (ACH) is on the same link — lower fees (2026-10-04).
+        // NBD platform tenant only: ACH is requested only on its links.
+        const achBit = _platformTenant() ? ' (card or bank/ACH — bank has lower fees)' : '';
         const zelleBit = zelle ? ` Zelle: ${zelle}.` : '';
         const message = link
-          ? `${opener} Payment link: ${link} (card or bank/ACH — bank has lower fees).${zelleBit}`
+          ? `${opener} Payment link: ${link}${achBit}.${zelleBit}`
           : (zelle ? `${opener} Zelle: ${zelle}. Reply here with any questions.`
             : `${opener.replace(/\.$/, '')} — reply here with any questions.`);
 
@@ -2573,7 +2593,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
           ${connectStripeNoteHtml(inv, _canCollect)}
-          ${(_payUrl && inv.status !== 'paid') ? `<div data-pay-by-bank class="ipx-m11 ipx-mt8">🏦 ${_esc(PAY_BY_BANK_LINE)}</div>` : ''}
+          ${(_payUrl && inv.status !== 'paid' && _platformTenant()) ? `<div data-pay-by-bank class="ipx-m11 ipx-mt8">🏦 ${_esc(PAY_BY_BANK_LINE)}</div>` : ''}
           ${(inv.kyInsuranceHold && !inv.stripePaymentLink && inv.status !== 'paid') ? `
           <div data-ip-ky-hold class="ipx-note">
             ${_esc(((typeof window !== 'undefined' && window.NBDJurisdiction) ? window.NBDJurisdiction.MSG.payLinkHeld : 'Online payment link withheld: Kentucky insurance job (KRS 367.626).'))}
@@ -2783,7 +2803,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             </table>
             <p><strong>Payment Terms:</strong> ${_esc(invoice.terms)}</p>
             ${_safeUrl(_payUrl) ? `<a href="${_esc(_safeUrl(_payUrl))}" class="cta">Pay Online</a>
-            <p class="paynote">${_esc(PAY_BY_BANK_LINE)}</p>` : ''}
+            ${(opts && opts.payByBank === true) ? `<p class="paynote">${_esc(PAY_BY_BANK_LINE)}</p>` : ''}` : ''}
             ${(opts && opts.zelle) ? `<p class="paynote">Zelle: ${_esc(opts.zelle)}</p>` : ''}
             <p style="margin-top: 30px; font-size: 12px; color: #999;">Thank you for choosing ${_esc(_invoiceCompany())}!</p>
           </div>

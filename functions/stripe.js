@@ -1492,6 +1492,9 @@ exports.createStripePaymentLink = onRequest(
 
       // Card + Link + bank (ACH); steps down to the account's defaults when
       // ACH is not switched on in the Stripe dashboard (ach-payments.js).
+      // ACH is requested ONLY on the NBD platform account's own link; a
+      // Connect tenant's link keeps its account defaults, exactly as before.
+      const _achOnLink = !connectState && isPlatformTenant(decoded);
       const { result: paymentLink } = await AchPay.createWithAch((p) => stripe.paymentLinks.create(p), {
         line_items: chargeLineItems,
         // Single-use: without this the link is reusable and a homeowner (or a
@@ -1525,7 +1528,7 @@ exports.createStripePaymentLink = onRequest(
           transfer_data: { destination: connectState.accountId },
           application_fee_amount: feeCents,
         } : {}),
-      }, AchPay.applyToPaymentLink, null, logger);
+      }, _achOnLink ? AchPay.applyToPaymentLink : AchPay.noAch, null, logger);
 
       logger.info('payment_link_created', {
         invoiceId, uid: decoded.uid, paymentLinkId: paymentLink.id,

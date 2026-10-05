@@ -233,10 +233,17 @@ function serverDb(seed) {
   // ════════════════════════════════════════════════════════════════════
   console.log('\n2. Zelle → (859) 420-7382 or jd@ — the documents email stays info@');
   if (ZC) {
-    const nbd = ZC.zelleContactOf(null);
+    const OWNER = ZC.NBD_OWNER_UID;
+    const nbd = ZC.zelleContactOf(null, OWNER);
     ok('server: NBD Zelle = (859) 420-7382 or jd@', nbd.text === '(859) 420-7382 or jd@nobigdealwithjoedeal.com');
-    ok('server: a tenant with none set → empty (its surfaces keep their old behaviour)', ZC.zelleContactOf({ legalName: 'Oaks Roofing', contact: { email: 'joe@oaksrfc.com' } }).text === '');
-    ok('server: a tenant\'s own pair wins', ZC.zelleContactOf({ legalName: 'Oaks Roofing', contact: { zellePhone: '(513) 555-0100' } }).text === '(513) 555-0100');
+    // NBD-only is decided by the NBD companyId, never by brand strings: a
+    // tenant that never set legalName looks exactly like NBD by brand.
+    ok('server: an NBD-looking brand from ANOTHER companyId → no Zelle (Jo\'s pair never on another tenant\'s invoice)',
+      ZC.zelleContactOf(null, 'co_other').text === '' && ZC.zelleContactOf({ contact: { email: 'x@y.com' } }, 'co_other').text === ''
+      && ZC.zelleContactOf({ legalName: 'No Big Deal Home Solutions' }, 'co_other').text === '');
+    ok('server: no companyId → no NBD default (fail closed)', ZC.zelleContactOf(null).text === '' && ZC.zelleContactOf(null, '').text === '' && ZC.zelleContactOf({}, undefined).text === '');
+    ok('server: a tenant with none set → empty (its surfaces keep their old behaviour)', ZC.zelleContactOf({ legalName: 'Oaks Roofing', contact: { email: 'joe@oaksrfc.com' } }, 'co_oaks').text === '');
+    ok('server: a tenant\'s own pair wins', ZC.zelleContactOf({ legalName: 'Oaks Roofing', contact: { zellePhone: '(513) 555-0100' } }, 'co_oaks').text === '(513) 555-0100');
   }
   {
     // company-profile.js (browser): NBD defaults; documents email untouched.
@@ -246,35 +253,65 @@ function serverDb(seed) {
     const win = { addEventListener() {}, removeEventListener() {}, localStorage: ls };
     win.window = win;
     vm.runInNewContext(src, { window: win, localStorage: ls, console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, Date, Math, JSON }, { filename: 'company-profile.js' });
+    const OWNER_UID = '1phDvAVXHSg82wDLegAbQFq14Ci1';
+    ok('company profile: identity unknown → not the NBD platform tenant (fail closed)', win._isNbdPlatformTenant() === false);
+    win._userClaims = { companyId: 'co_unprovisioned' };
+    const bx = win._brand();
+    // A tenant that never set legalName looks like NBD by brand and carries
+    // NBD's merged defaults — the Zelle consumers must still print nothing.
+    ok('company profile: an unprovisioned tenant (NBD-looking brand) is NOT the platform tenant', win._isNbdPlatformTenant() === false);
+    if (IP) ok('browser: that tenant\'s Zelle text is empty even though its brand carries NBD\'s defaults',
+      bx.contact.zelleEmail === 'jd@nobigdealwithjoedeal.com' && IP.zelleTextFor(bx, win._isNbdPlatformTenant()) === '');
+    win._userClaims = { companyId: OWNER_UID, user_id: 'someone-else' };
+    win._user = { uid: 'me' };
+    ok('company profile: claims read for a different account never make you NBD', win._isNbdPlatformTenant() === false);
+    win._user = null;
+    win._userClaims = { companyId: OWNER_UID };
     const b = win._brand();
+    ok('company profile: _isNbdPlatformTenant is the NBD companyId', win._isNbdPlatformTenant() === true);
     ok('company profile: NBD zelleEmail jd@ + zellePhone (859) 420-7382', b.contact.zelleEmail === 'jd@nobigdealwithjoedeal.com' && b.contact.zellePhone === '(859) 420-7382');
     ok('company profile: the documents email is STILL info@', b.contact.email === 'info@nobigdealwithjoedeal.com');
     await win._saveCompanyProfile({ brand: { legalName: 'Oaks Roofing & Construction', contact: { email: 'joe@oaksrfc.com' } } });
     const ob = win._brand();
     ok('company profile: another tenant never inherits NBD\'s Zelle', ob.contact.zelleEmail === '' && ob.contact.zellePhone === '');
-    if (IP) ok('browser Zelle text agrees with the server (NBD + tenant)', typeof IP.zelleTextFor === 'function' && IP.zelleTextFor(b) === ZC.zelleContactOf(null).text && IP.zelleTextFor(ob) === '');
+    if (IP) ok('browser Zelle text agrees with the server (NBD + tenant)', typeof IP.zelleTextFor === 'function' && IP.zelleTextFor(b, win._isNbdPlatformTenant()) === ZC.zelleContactOf(null, ZC.NBD_OWNER_UID).text && IP.zelleTextFor(ob, win._isNbdPlatformTenant()) === '');
+    if (IP) ok('browser zelleTextFor: NBD defaults only for the platform tenant',
+      IP.zelleTextFor(null, true) === ZC.zelleContactOf(null, ZC.NBD_OWNER_UID).text
+      && IP.zelleTextFor(null, false) === '' && IP.zelleTextFor({ contact: {} }, false) === ''
+      && IP.zelleTextFor(null) === '' /* no identity helper loaded → fail closed */);
   }
   if (SCI) {
     ok('Stripe invoice footer: Zelle to (859) 420-7382 or jd@, never info@', /Zelle to \(859\) 420-7382 or jd@nobigdealwithjoedeal\.com/.test(SCI.FOOTER) && !/info@/.test(SCI.FOOTER));
   }
   if (IP && typeof IP.zelleTextFor === 'function') {
-    const html = IP.buildInvoiceHtml({ items: [], total: 100, terms: 'Net 7.' }, { payUrl: 'https://buy.stripe.com/x', zelle: IP.zelleTextFor(null) });
+    const html = IP.buildInvoiceHtml({ items: [], total: 100, terms: 'Net 7.' }, { payUrl: 'https://buy.stripe.com/x', zelle: IP.zelleTextFor(null, true), payByBank: true });
+    const htmlOther = IP.buildInvoiceHtml({ items: [], total: 100, terms: 'Net 7.' }, { payUrl: 'https://buy.stripe.com/x', zelle: '' });
+    ok('invoice email from another tenant: Pay Online, but no ACH claim (ACH is offered on NBD links only)', /Pay Online/.test(htmlOther) && !/ACH/.test(htmlOther));
     ok('invoice email: Zelle line with phone + jd@, ACH line beside Pay Online', /Zelle: \(859\) 420-7382 or jd@nobigdealwithjoedeal\.com/.test(html) && /Pay by bank \(ACH\) — lower fees/.test(html) && !/info@/.test(html));
     // Invoice text: the Kentucky hold blanks the link AND the Zelle line.
     const sendKy = browser({ 'invoices/k1': { leadId: 'L1', createdBy: 'u1', status: 'draft', total: 100, balanceDue: 100, customerPhone: '5135550100', stripePaymentLink: 'https://buy.stripe.com/k' } }, { _leads: [kyLeadHeld] });
     await IP.sendInvoice('k1', 'sms');
     ok('invoice text on a held Kentucky job: no link, no Zelle', sendKy.sms.length === 1 && !/stripe|Zelle/.test(sendKy.sms[0].message || sendKy.sms[0].body || ''), JSON.stringify(sendKy.sms));
-    const sendOh = browser({ 'invoices/o1': { leadId: 'L1', createdBy: 'u1', status: 'draft', total: 100, balanceDue: 100, customerPhone: '5135550100', stripePaymentLink: 'https://buy.stripe.com/o' } });
+    const sendOh = browser({ 'invoices/o1': { leadId: 'L1', createdBy: 'u1', status: 'draft', total: 100, balanceDue: 100, customerPhone: '5135550100', stripePaymentLink: 'https://buy.stripe.com/o' } }, { _isNbdPlatformTenant: () => true });
     await IP.sendInvoice('o1', 'sms');
     const t = (sendOh.sms[0] && (sendOh.sms[0].message || sendOh.sms[0].body)) || '';
     ok('invoice text: link + bank/ACH + Zelle (859) 420-7382 or jd@', /https:\/\/buy\.stripe\.com\/o \(card or bank\/ACH — bank has lower fees\)/.test(t) && /Zelle: \(859\) 420-7382 or jd@nobigdealwithjoedeal\.com/.test(t), t);
+    // Same send from a tenant that is NOT the NBD companyId (its brand looks
+    // like NBD's because it never set legalName): link yes, Jo's Zelle never.
+    const sendOther = browser({ 'invoices/o2': { leadId: 'L1', createdBy: 'u1', status: 'draft', total: 100, balanceDue: 100, customerPhone: '5135550100', stripePaymentLink: 'https://buy.stripe.com/o2' } }, { _isNbdPlatformTenant: () => false });
+    await IP.sendInvoice('o2', 'sms');
+    const t2 = (sendOther.sms[0] && (sendOther.sms[0].message || sendOther.sms[0].body)) || '';
+    ok('invoice text from another tenant: no NBD Zelle (jd@ / 420-7382), no ACH claim', /buy\.stripe\.com\/o2/.test(t2) && !/Zelle|jd@|420-7382|ACH/.test(t2), t2);
   } else {
     ok('invoice-pipeline.js exports zelleTextFor (invoice email / text Zelle + ACH lines)', false);
   }
   if (REM && J) {
     const inv = { id: 'i1', status: 'sent', total: 5000, balanceDue: 5000, stripeHostedUrl: 'https://invoice.stripe.com/i/x', dueDate: new Date(NOW - 10 * 864e5) };
-    const opts = { company: 'NBD', now: new Date(NOW), zelle: '(859) 420-7382 or jd@nobigdealwithjoedeal.com', holdFn: (l, i, n) => J.payLinkHold(l, i, n) };
+    const opts = { company: 'NBD', now: new Date(NOW), zelle: '(859) 420-7382 or jd@nobigdealwithjoedeal.com', payByBank: true, holdFn: (l, i, n) => J.payLinkHold(l, i, n) };
     ok('reminder text: bank/ACH + Zelle line', /bank\/ACH/.test(REM.buildReminder(inv, ohLead, opts).text) && /Zelle: \(859\) 420-7382 or jd@/.test(REM.buildReminder(inv, ohLead, opts).text));
+    const optsOther = { company: 'Oaks', now: new Date(NOW), zelle: '', holdFn: (l, i, n) => J.payLinkHold(l, i, n) };
+    ok('reminder from another tenant: the link, no ACH claim, no Zelle', /invoice\.stripe\.com/.test(REM.buildReminder(inv, ohLead, optsOther).text) && !/ACH|Zelle/.test(REM.buildReminder(inv, ohLead, optsOther).text));
+    ok('reminder UI passes payByBank from the NBD companyId check', /payByBank: \(function \(\) \{ try \{ return typeof root\._isNbdPlatformTenant === 'function' && root\._isNbdPlatformTenant\(\) === true;/.test(read('docs/pro/js/invoice-reminder.js')));
     ok('reminder on a held Kentucky job: no Zelle either', !/Zelle/.test(REM.buildReminder(inv, kyLeadHeld, opts).text));
   }
   {
@@ -283,8 +320,8 @@ function serverDb(seed) {
     const a = src.indexOf('    // Pay link: stripePaymentLink OR stripeHostedUrl');
     const b = src.indexOf('} : null;', a);
     const code = (a >= 0 && b > a) ? src.slice(a, b + 9) : '';
-    const run = (lead, inv, zelleBrand) => {
-      const ctx = { KyLaw: J, lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number, require: (p) => require(path.join(ROOT, 'functions', p)) };
+    const run = (lead, inv, zelleBrand, tenantKey) => {
+      const ctx = { KyLaw: J, lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number, tenantKey: tenantKey === undefined ? ZC.NBD_OWNER_UID : tenantKey, require: (p) => require(path.join(ROOT, 'functions', p)) };
       if (zelleBrand !== undefined) ctx.zelleBrand = zelleBrand;
       vm.createContext(ctx);
       vm.runInContext(code + '\nthis.__b = _balance;', ctx);
@@ -297,6 +334,9 @@ function serverDb(seed) {
     ok('portal: Kentucky hold → no link, no ACH line, no Zelle', !!ky && ky.stripePaymentLink === null && ky.payByBank === false && ky.zelle === null);
     const none = code && J ? run(ohLead, inv, undefined) : null;
     ok('portal: a tenant with no profile → no Zelle line', !!none && none.zelle === null);
+    const other = code && J ? run(ohLead, inv, {}, 'co_other') : null;
+    ok('portal: another tenant whose brand looks like NBD\'s (no legalName) → no Zelle line', !!other && other.zelle === null);
+    ok('portal: another tenant\'s link shows, but no "Pay by bank (ACH)" claim', !!other && !!other.stripePaymentLink && other.payByBank === false);
     const pjs = read('docs/pro/js/portal.js');
     ok('portal page renders both lines from the view (escaped, no inline style)', /data-pay-by-bank>Pay by bank \(ACH\) — lower fees/.test(pjs) && /data-zelle>Zelle: ' \+ esc\(view\.balance\.zelle\)/.test(pjs));
   }
@@ -322,7 +362,9 @@ function serverDb(seed) {
     try { await ACH.createWithAch(async () => { const e = new Error('card_declined'); e.type = 'StripeCardError'; throw e; }, {}, ACH.applyToInvoice); } catch (e) { threw = e; }
     ok('any other Stripe error is NOT swallowed', threw && threw.message === 'card_declined');
     const src = lf(read('functions/stripe.js'));
-    ok('createStripePaymentLink mints through createWithAch + applyToPaymentLink', /AchPay\.createWithAch\(\(p\) => stripe\.paymentLinks\.create\(p\)/.test(src) && /AchPay\.applyToPaymentLink, null, logger\)/.test(src));
+    ok('createStripePaymentLink mints through createWithAch + applyToPaymentLink', /AchPay\.createWithAch\(\(p\) => stripe\.paymentLinks\.create\(p\)/.test(src) && /_achOnLink \? AchPay\.applyToPaymentLink : AchPay\.noAch, null, logger\)/.test(src));
+    ok('…ACH only on the NBD platform account\'s own link (Connect tenants keep their defaults)',
+      /const _achOnLink = !connectState && isPlatformTenant\(decoded\);/.test(src) && ACH.noAch({ a: 1 }, ['card', 'us_bank_account']).payment_method_types === undefined);
     // BoldSign's e-sign auto-invoice (integrations/esign.js) was retired in
     // #2166; no other functions file may mint a Stripe invoice around ACH.
     ok('no Stripe invoice is minted outside stripe-crm-invoice.js (BoldSign auto-invoice retired)',
@@ -386,7 +428,7 @@ function serverDb(seed) {
     // The pay surfaces say it: customer page row, invoice detail, portal.
     const ct = read('docs/pro/js/customer-tasks-ui.js');
     ok('customer page: "Pay by bank (ACH) — lower fees" right under the Pay link, and an ACH in flight shows',
-      /class="doc-btn">Pay<\/a>\s*<div class="invoice-paynote" data-pay-by-bank>Pay by bank \(ACH\) — lower fees<\/div>/.test(ct) && /data-ach-pending/.test(ct));
+      /class="doc-btn">Pay<\/a>\s*\$\{\(typeof window\._isNbdPlatformTenant === 'function' && window\._isNbdPlatformTenant\(\) === true\) \? '<div class="invoice-paynote" data-pay-by-bank>Pay by bank \(ACH\) — lower fees<\/div>' : ''\}/.test(ct) && /data-ach-pending/.test(ct));
     ok('customer page: the Pay link still only through the Kentucky hold', /_J\.payUrlUnlessHeld\(_payLead, inv, new Date\(\)\)/.test(ct));
   }
 

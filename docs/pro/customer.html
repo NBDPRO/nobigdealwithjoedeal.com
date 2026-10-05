@@ -63,7 +63,7 @@
      hides write controls for a viewer and makes a refused write say so. Must
      stay BEFORE customer-bootstrap.module.js: it installs the accessors the
      bootstrap then assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=6"></script>
+<script defer src="js/role-gate.js?v=7"></script>
 <script defer src="js/standalone-compat.js"></script>
 <!-- The ONE vocabulary for /photos.damageType (window.NBD_PHOTO_DAMAGE).
      Four surfaces wrote this field in four spellings until 2026-09-08, so
@@ -2774,7 +2774,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/stage-gate-sheet.js?v=1"></script>
 <!-- Calls + texts from the Call Center on the timeline (NBDCallTimeline; loadTimeline reads it). -->
 <script defer src="js/call-timeline.js?v=2"></script>
-<script type="module" src="js/customer-bootstrap.module.js?v=18"></script>
+<script type="module" src="js/customer-bootstrap.module.js?v=19"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 
@@ -2788,7 +2788,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=1"></script>
 <script defer src="js/customer-numbers.js?v=1"></script>
-<script defer src="js/customer-tasks-ui.js?v=17"></script>
+<script defer src="js/customer-tasks-ui.js?v=18"></script>
 <script defer src="js/nbd-comms.js?v=5"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
@@ -2898,7 +2898,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      deposit rule and the tier names / warranty sentences documents print. -->
 <script defer src="js/tenant-rules.js?v=1"></script>
 <script defer src="js/photo-editor.js?v=8"></script>
-<script defer src="js/company-profile.js?v=6"></script>
+<script defer src="js/company-profile.js?v=7"></script>
 <!-- 2026-09-06 boot weight: the doc-generation cluster (nbd-logo-asset,
      document-generator, document-generator-templates, doc-preflight —
      498.7 KiB raw) was eager here while dashboard.html has shipped it

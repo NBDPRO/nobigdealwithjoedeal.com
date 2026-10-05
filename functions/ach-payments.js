@@ -92,6 +92,10 @@ function applyToPaymentLink(p, types) {
   return p;
 }
 
+/** No payment-method list at all (the account's defaults) — for links that
+ *  must not ask for ACH (Connect tenants). createWithAch's first try wins. */
+function noAch(p) { return p; }
+
 const offersAch = (types) => Array.isArray(types) && types.indexOf(ACH) !== -1;
 
 /** Was this PaymentIntent / its failure a bank debit? */
@@ -313,6 +317,6 @@ async function handleAchEvent(db, event, deps) {
 }
 
 module.exports = {
-  ACH, PM_VARIANTS, ACH_EVENTS, isPaymentMethodTypeError, createWithAch, applyToInvoice, applyToPaymentLink, offersAch,
+  ACH, PM_VARIANTS, ACH_EVENTS, isPaymentMethodTypeError, createWithAch, applyToInvoice, applyToPaymentLink, noAch, offersAch,
   isAchIntent, isAchCharge, achPendingPatch, planAchRevert, handleAchEvent,
 };
