@@ -80,8 +80,10 @@ ok('every registered gate is actually checked by some function (no stale entries
 // 15 → 16 on 2026-10-01: MORNING_BRIEF_ENABLED (06:45 owner brief, ships off).
 // 22 (2026-10-02): + AGENT_MCP_DISABLED, the Grok Bot team's CRM connection.
 // 23 (2026-10-02): + CALL_WATCH_ENABLED, the every-2-hours call check.
-ok('the registry has exactly 25 gates (update this pin deliberately if that changes; 25 since Social Studio, 2026-10-04)',
-  CRON_GATES.length === 25, String(CRON_GATES.length));
+// 24 since 2026-10-04: ESIGN_REMINDERS_DISABLED (esign-reminders.js).
+// 26 since 2026-10-04: + the Social Studio publisher gates.
+ok('the registry has exactly 26 gates (update this pin deliberately if that changes)',
+  CRON_GATES.length === 26, String(CRON_GATES.length));
 
 for (const g of CRON_GATES) {
   const files2 = foundInFile.get(g.name);

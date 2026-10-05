@@ -366,7 +366,9 @@
   // the signed agreement. Owner-scoped query (rules: ownerUid == auth.uid);
   // the signed PDF is fetched as a blob, never via a download-token URL
   // (tokens bypass storage.rules).
-  var ENV_LABEL = { draft: 'Draft', sent: 'Sent — waiting for signature', completed: 'Signed', voided: 'Voided' };
+  // viewed / declined / expired (2026-10-04): the in-house e-sign states that
+  // replaced BoldSign's — opened, said no, link ran out.
+  var ENV_LABEL = { draft: 'Draft', sent: 'Sent — waiting for signature', viewed: 'Opened — not signed yet', completed: 'Signed', voided: 'Voided', declined: 'Declined', expired: 'Link expired — resend' };
   async function loadEnvelopes(id) {
     var box = document.getElementById('esignEnvelopeList');
     var uid = window._user && window._user.uid || (window.auth && window.auth.currentUser && window.auth.currentUser.uid);
@@ -384,7 +386,7 @@
         var whenTxt = when ? new Date(when).toLocaleDateString() : '';
         var action = (e.status === 'completed' && e.signedPath)
           ? '<button type="button" class="btn btn-ghost" data-esign-open="' + esc(e.signedPath) + '" style="font-size:11px;padding:6px 12px;">Open signed PDF</button>'
-          : (e.status === 'draft' || e.status === 'sent')
+          : (e.status === 'draft' || e.status === 'sent' || e.status === 'viewed' || e.status === 'declined' || e.status === 'expired')
             ? '<a class="btn btn-ghost" href="/pro/esign-setup?lead=' + encodeURIComponent(id) + '&env=' + encodeURIComponent(e.id) + '" style="font-size:11px;padding:6px 12px;text-decoration:none;">Open</a>'
             : '';
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--br);">' +
