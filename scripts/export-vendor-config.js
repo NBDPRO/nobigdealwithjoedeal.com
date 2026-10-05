@@ -2,7 +2,7 @@
 /**
  * scripts/export-vendor-config.js — back up the config that lives only at a
  * vendor (Bland "Thursday" agent/pathway/persona/numbers, Cal.com event types,
- * BoldSign templates, Stripe catalog) to the PRIVATE bucket
+ * Stripe catalog) to the PRIVATE bucket
  *   gs://nobigdeal-pro-vendor-backups/vendor-config/YYYY-MM-DD/
  *
  * The same export runs weekly as the scheduled function

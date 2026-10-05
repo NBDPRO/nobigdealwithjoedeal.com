@@ -1,26 +1,23 @@
 /* portal-signature-repaint.test.js
  *
- * The homeowner portal's 30-second poll replaced #mainWrap.innerHTML
- * wholesale, which tears down and recreates the BoldSign signing iframe —
- * destroying whatever the homeowner had typed or drawn inside it. The src is
- * not even stable: functions/portal.js re-mints getEmbeddedSignLink on every
- * view fetch, so each repaint injects a different embed URL into a brand-new
- * element.
+ * HISTORY. The homeowner portal's 30-second poll replaced #mainWrap.innerHTML
+ * wholesale, which tore down and recreated the BoldSign signing iframe —
+ * destroying whatever the homeowner had drawn inside it. A bounded deferral
+ * (_signatureInFlight + MAX_SIGN_DEFERRALS) protected it.
  *
- * It is self-triggering. Opening the embed makes BoldSign report a view, and
- * functions/integrations/esign.js sets signatureStatus 'viewed' for any event
- * that is not complete/declined/expired. _diffView fires on that change. So
- * starting to sign is itself what causes the wipe — within 30s, or instantly
- * on tab-return from an OTP email via _onVisibility.
+ * 2026-10-04: BoldSign is retired. The portal no longer embeds a signing
+ * iframe at all — it LINKS the in-house signing page (esign.html), which is
+ * its own page, so a portal repaint has nothing in flight to destroy and the
+ * deferral is gone. This suite now pins the replacement:
  *
- * The fix REJECTED for this was "defer while the homeowner has unsent work":
- * unbounded, with signals that never self-clear (a selected callback chip, a
- * failed upload preview), which would freeze the live view permanently and
- * reintroduce the stale "Review & sign" card the poll exists to prevent.
- *
- * So the deferral here must be bounded three ways, and this suite pins all
- * three: it ends when the estimate stops awaiting signature, it ends if the
- * iframe leaves the DOM, and it gives up after a fixed number of ticks.
+ *   1. no signing iframe is rendered, and the deferral machinery is gone (a
+ *      deferral with nothing to protect only delays real updates);
+ *   2. the signing link is accepted ONLY if it is our esign.html link with a
+ *      token — the same origin pin the BoldSign embed carried (Wave 87),
+ *      lifted and RUN against hostile inputs, not regex-matched;
+ *   3. the server hands out only the FIRST signer's live link (the portal
+ *      token is the homeowner's; a co-owner signs from their own email), and
+ *      never calls BoldSign.
  */
 const fs = require('fs');
 const path = require('path');
@@ -30,7 +27,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
 
 const PORTAL = read('docs/pro/js/portal.js');
-const ESIGN = read('functions/integrations/esign.js');
+const SERVER = read('functions/portal.js');
 
 let passed = 0, failed = 0;
 function assert(label, cond, detail) {
@@ -39,91 +36,54 @@ function assert(label, cond, detail) {
 }
 function group(name, fn) { console.log('\n' + name); fn(); }
 
-/* ── lift and run the real predicate ── */
-const fnSrc = /function _signatureInFlight\(nextView\) \{[\s\S]*?\n  \}/.exec(PORTAL);
-
-group('The predicate is present and liftable', () => {
-  assert('_signatureInFlight found', !!fnSrc,
-    'if it moved, update the extractor — do not delete the suite');
-});
-
-function runPredicate(view, hasIframe) {
-  const sandbox = {
-    document: {
-      querySelector: (sel) => (sel === 'iframe[title="Sign Contract"]' && hasIframe ? {} : null),
-    },
-  };
-  sandbox.globalThis = sandbox;
-  vm.createContext(sandbox);
-  vm.runInContext(fnSrc[0] + '\nthis.__p = _signatureInFlight;', sandbox);
-  return sandbox.__p(view);
-}
-
-if (fnSrc) {
-  group('It defers only when a signature is genuinely in flight', () => {
-    const awaiting = { estimate: { signatureStatus: 'sent' } };
-    const viewed = { estimate: { signatureStatus: 'viewed' } };
-
-    assert('awaiting signature + iframe mounted -> defer',
-      runPredicate(awaiting, true) === true);
-    assert('"viewed" also defers (BoldSign flips sent->viewed when they open it)',
-      runPredicate(viewed, true) === true);
-
-    // Both halves are load-bearing.
-    assert('awaiting signature but NO iframe -> do not defer',
-      runPredicate(awaiting, false) === false,
-      'a page with no signEmbedUrl renders prose, not an iframe — nothing to protect');
-    assert('iframe present but already signed -> do not defer',
-      runPredicate({ estimate: { signatureStatus: 'signed' } }, true) === false,
-      'otherwise a contract signed in another tab freezes this one');
-
-    for (const s of ['declined', 'expired', 'none', undefined]) {
-      assert('status "' + s + '" -> do not defer',
-        runPredicate({ estimate: { signatureStatus: s } }, true) === false);
-    }
-    assert('no estimate at all -> do not defer', runPredicate({}, true) === false);
-    assert('no view at all -> do not defer', runPredicate(null, true) === false);
-  });
-}
-
-group('The poll defers without losing the update', () => {
+group('1. No iframe, no deferral', () => {
+  assert('the portal renders no signing iframe', !/title="Sign Contract"/.test(PORTAL) && !/<iframe[^>]*signEmbedUrl/.test(PORTAL));
+  assert('the repaint deferral is gone (nothing in flight to protect)',
+    !/_signatureInFlight\(/.test(PORTAL) && !/MAX_SIGN_DEFERRALS/.test(PORTAL));
   const i = PORTAL.indexOf('async function _pollOnce()');
-  const region = i === -1 ? '' : PORTAL.slice(i, i + 3000);
+  const region = i === -1 ? '' : PORTAL.slice(i, i + 2500);
   assert('_pollOnce found', i !== -1);
-
-  assert('the deferral is guarded by the predicate AND a cap',
-    /if \(events && _signatureInFlight\(view\) && _signDeferrals < MAX_SIGN_DEFERRALS\)/.test(region),
-    'without the cap an abandoned signing session freezes the view forever');
-  assert('_lastView is NOT advanced while deferring',
-    /_signDeferrals\+\+;[\s\S]{0,400}return;[\s\S]{0,200}_signDeferrals = 0;[\s\S]{0,120}_lastView = view;/.test(region),
-    'advancing it would drop the update entirely — the documented stale-card bug');
-  assert('the counter resets once a repaint happens',
-    /_signDeferrals = 0;/.test(region));
-  assert('the banner announces once per streak, not once per tick',
-    /if \(!_signDeferAnnounced\)/.test(region),
-    'the diff is recomputed against the same stale _lastView every 30s');
+  assert('a changed view repaints right away (_lastView advanced, then renderView)',
+    /_lastView = view;\s*if \(events\) \{[\s\S]{0,400}renderView\(view\);/.test(region));
+  assert('and the page still repaints wholesale (why the iframe used to break)',
+    /getElementById\('mainWrap'\)\.innerHTML = parts\.join\(''\);/.test(PORTAL));
 });
 
-group('The cap is real and finite', () => {
-  const m = /const MAX_SIGN_DEFERRALS = (\d+);/.exec(PORTAL);
-  assert('MAX_SIGN_DEFERRALS is defined', !!m);
-  if (m) {
-    const n = Number(m[1]);
-    assert('it is a finite, sane number of ticks', n > 0 && n <= 60, 'got ' + n);
+group('2. The signing link is ours or nothing (lifted and run)', () => {
+  const m = /const signLink = \(u\) => \{[\s\S]*?\n  \};/.exec(PORTAL);
+  assert('signLink found', !!m, 'if it moved, update the extractor — do not delete the suite');
+  if (!m) return;
+  const sb = {};
+  vm.createContext(sb);
+  vm.runInContext(m[0] + '\nthis.f = signLink;', sb);
+  const f = sb.f;
+  const good = 'https://nobigdealwithjoedeal.com/pro/esign.html?t=ABCDEFGHJKMNPQRSTUVWXYZ2';
+  assert('our signing link passes', f(good) === good);
+  for (const bad of [
+    'https://app.boldsign.com/document/sign/?documentId=x',
+    'https://evil.example/pro/esign.html?t=ABCDEFGHJKMN',
+    'https://nobigdealwithjoedeal.com.evil.example/pro/esign.html?t=ABCDEFGHJKMN',
+    'http://nobigdealwithjoedeal.com/pro/esign.html?t=ABCDEFGHJKMN',
+    'javascript:alert(1)//https://nobigdealwithjoedeal.com/pro/esign.html?t=ABCDEFGHJKMN',
+    'https://nobigdealwithjoedeal.com/pro/esign.html?t=ABC"><img src=x>',
+    'https://nobigdealwithjoedeal.com/pro/esign.html?t=SHORT',
+    '', null, undefined,
+  ]) {
+    assert('refused: ' + String(bad).slice(0, 70), f(bad) === '');
   }
+  assert('the card renders only with a passing link',
+    /const signUrl = signLink\(view\.estimate && view\.estimate\.signUrl\);[\s\S]{0,60}if \(awaitingSign && signUrl\)/.test(PORTAL));
 });
 
-group('The premise: opening the embed really does flip the status', () => {
-  // If this stops being true the self-triggering loop is gone and the
-  // deferral could be narrowed — so fail loudly rather than quietly guarding.
-  assert('esign webhook sets "viewed" for non-terminal events',
-    /signatureStatus\s*[:=]\s*'viewed'/.test(ESIGN),
-    'if this changed, re-derive whether the repaint is still self-triggering');
-  assert('the portal renders the signing iframe it is protecting',
-    /title="Sign Contract"/.test(PORTAL));
-  assert('and still repaints via a wholesale innerHTML replace',
-    /getElementById\('mainWrap'\)\.innerHTML = parts\.join\(''\);/.test(PORTAL),
-    'if this became surgical, this whole deferral could be removed');
+group('3. Server: first signer only, never BoldSign', () => {
+  assert('getHomeownerPortalView no longer calls BoldSign', !/api\.boldsign\.com/.test(SERVER) && !/BOLDSIGN/.test(SERVER));
+  assert('the link is looked up only for an in-house envelope on THIS lead',
+    /latest\.signatureProvider === 'nbd-esign'/.test(SERVER) && /e\.leadId === tok\.leadId/.test(SERVER));
+  assert('only while it is the FIRST signer\'s turn, and only that signer\'s token',
+    /\(e\.currentSignerId \|\| firstId\) === firstId/.test(SERVER) && /\(t\.signerId \|\| 'signer'\) === firstId/.test(SERVER));
+  assert('an expired token is never handed out', /exp > now/.test(SERVER));
+  assert('historical BoldSign signedDocumentUrl stays readable',
+    /signedDocumentUrl: latest\.signedDocumentUrl \|\| signedEnvelopeUrl \|\| null/.test(SERVER));
 });
 
 console.log('\n──────────────────────────────────────────────────');
