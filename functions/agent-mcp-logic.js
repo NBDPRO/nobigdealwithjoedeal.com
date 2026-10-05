@@ -47,23 +47,23 @@ const TOOLS = {
     inputSchema: { type: 'object', properties: { lead_id: { type: 'string' } }, required: ['lead_id'], additionalProperties: false },
   },
   file_note: {
-    description: 'File a NOTE about one customer into Jo\'s Agent inbox. Jo reviews it and adds it to the customer\'s card. Nothing is sent to the customer. Never promise to handle or negotiate an insurance claim.',
+    description: 'File a NOTE about one customer into your company\'s Agent inbox. The owner reviews it and adds it to the customer\'s card. Nothing is sent to the customer. Never promise to handle or negotiate an insurance claim.',
     inputSchema: { type: 'object', properties: { lead_id: { type: 'string' }, text: { type: 'string', maxLength: MAX_TEXT } }, required: ['lead_id', 'text'], additionalProperties: false },
   },
   file_reminder: {
-    description: 'File a dated REMINDER for Jo about one customer into the Agent inbox (e.g. "Call Bob about the gutter quote"). Jo reviews it before it becomes a task. Nothing is sent to the customer.',
+    description: 'File a dated REMINDER about one customer into the Agent inbox (e.g. "Call Bob about the gutter quote"). The owner reviews it before it becomes a task. Nothing is sent to the customer.',
     inputSchema: { type: 'object', properties: { lead_id: { type: 'string' }, due_date: { type: 'string', description: 'YYYY-MM-DD' }, text: { type: 'string', maxLength: MAX_TEXT } }, required: ['lead_id', 'due_date', 'text'], additionalProperties: false },
   },
   file_report: {
-    description: 'File a REPORT for Jo into the Agent inbox (digest, findings, plan). Not tied to one customer.',
+    description: 'File a REPORT into the Agent inbox (digest, findings, plan) for the owner to read. Not tied to one customer.',
     inputSchema: { type: 'object', properties: { title: { type: 'string', maxLength: 140 }, text: { type: 'string', maxLength: MAX_TEXT } }, required: ['title', 'text'], additionalProperties: false },
   },
   inbox_pending: {
-    description: 'Items waiting in Jo\'s Agent inbox (what the team has filed and Jo has not decided yet), so they can be fact-checked.',
+    description: 'Items waiting in the Agent inbox (what the bots have filed and the owner has not decided yet), so they can be fact-checked.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
   },
   verify_item: {
-    description: 'Fact & Compliance check on one pending Agent inbox item: mark it checked (ok=true) or flag it with what is wrong (ok=false). Also checks Kentucky claim wording (never "we handle/negotiate your claim"), price rules and warranty wording.',
+    description: 'Fact & compliance check on one pending Agent inbox item: mark it checked (ok=true) or flag it with what is wrong (ok=false). Check it against rules_reference: insurance-claim wording (never "we handle/negotiate your claim"), prices and warranty wording.',
     inputSchema: { type: 'object', properties: { item_id: { type: 'string' }, ok: { type: 'boolean' }, note: { type: 'string', maxLength: 500 } }, required: ['item_id', 'ok'], additionalProperties: false },
   },
   estimates_status: {
@@ -75,7 +75,7 @@ const TOOLS = {
     }, additionalProperties: false },
   },
   rules_reference: {
-    description: 'NBD\'s rules to check anything against: the five roof tiers (retail $/SQ, warranty wording, shingle limits), workmanship warranty years by job type, the deposit rule, the Kentucky insurance-job lines (what we never say or do), and house rules (crews are independent subs; "revenue" means collected money). Read only. Retail prices here are public; cost figures never are.',
+    description: 'The company\'s own rules to check anything against: its roof tiers and retail $/SQ, warranty wording and deposit rule where the company has set them, its house rules for bots, general guidance ("revenue" means collected money; cost and margin are never public), and the Kentucky insurance-job lines (what is never said or done on a Kentucky property). Read only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   post_job: {
@@ -95,24 +95,24 @@ const TOOLS = {
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 60 }, miles: { type: 'number', minimum: 0.5, maximum: 10 } }, additionalProperties: false },
   },
   team_activity: {
-    description: 'What each bot on the NBD team did over the last N days (default 7): tool calls, filings, and how Jo decided them — approved, tossed, still waiting — plus Quinn\'s checked / flagged counts. Use it to coach the team: a bot whose filings Jo keeps tossing needs a different approach. Personal bots are not included.',
+    description: 'What each of the company\'s bots did over the last N days (default 7): tool calls, filings, and how the owner decided them — approved, tossed, still waiting — plus fact-check counts (checked / flagged). Use it to coach the bots: a bot whose filings keep getting tossed needs a different approach. Personal bots are not included.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 30 } }, additionalProperties: false },
   },
   // ── Personal scope (Jo's own tracker; personal keys only) ─────────────
   my_today: {
-    description: 'Jo\'s day in his personal tracker: today\'s floors (his daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it), and his latest weight. Read only.',
+    description: 'The key owner\'s day in their personal tracker: today\'s floors (their daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it), and the latest weight. Read only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   my_week: {
-    description: 'Jo\'s week from his tracker: each floor out of 7, full days, the $5-per-miss tax and whether he moved it to savings, the weigh-in rule (7-day average vs last week; not down 0.5 lb → cut 200 calories), the goal weight, and the plain-text weekly scorecard. Read only.',
+    description: 'The key owner\'s week from their tracker: each floor out of 7, full days, the $5-per-miss tax and whether he moved it to savings, the weigh-in rule (7-day average vs last week; not down 0.5 lb → cut 200 calories), the goal weight, and the plain-text weekly scorecard. Read only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   my_money: {
-    description: 'Jo\'s money tab (Finance Board only): his paycheck and how often, the zero-based plan for one paycheck (bills, card minimums, kept subscriptions, auto-saves, spending buffer, emergency fund, extra to the highest-APR card), the emergency fund vs target, each card (nickname, balance, APR, minimum), the payoff order and debt-free estimate, and his subscriptions marked keep / cut. Nicknames and amounts only — never account or card numbers. Read only; Jo edits it in the tracker.',
+    description: 'The key owner\'s money tab (Finance Board only): their paycheck and how often, the zero-based plan for one paycheck (bills, card minimums, kept subscriptions, auto-saves, spending buffer, emergency fund, extra to the highest-APR card), the emergency fund vs target, each card (nickname, balance, APR, minimum), the payoff order and debt-free estimate, and their subscriptions marked keep / cut. Nicknames and amounts only — never account or card numbers. Read only; the owner edits it in the tracker.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   my_reviews: {
-    description: 'Jo\'s saved Sunday reviews, newest first: floors %, miss tax moved or not, last week\'s hard thing done or not, what he kept, where he bailed, and this week\'s hard thing with its deadline. Hold him to them. Read only.',
+    description: 'The key owner\'s saved Sunday reviews, newest first: floors %, miss tax moved or not, last week\'s hard thing done or not, what they kept, where they bailed, and this week\'s hard thing with its deadline. Hold them to it. Read only.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 12 } }, additionalProperties: false },
   },
   collected_revenue: {
@@ -157,13 +157,18 @@ function annotationsFor(name) {
   const w = WRITES.indexOf(name) !== -1;
   return { readOnlyHint: !w, destructiveHint: false, idempotentHint: !w, openWorldHint: false };
 }
-function toolsForBot(botId) {
-  const b = Object.prototype.hasOwnProperty.call(BOTS, botId) ? BOTS[botId] : null;
-  return b ? b.tools.map((n) => Object.assign({ name: n }, TOOLS[n], { annotations: annotationsFor(n) })) : [];
+// A house bot id ('marcus') or an already-resolved bot object → the bot.
+function botFor(botOrId) {
+  if (botOrId && typeof botOrId === 'object') return botOrId;
+  return Object.prototype.hasOwnProperty.call(BOTS, botOrId) ? BOTS[botOrId] : null;
 }
-function botAllows(botId, tool) {
-  const b = Object.prototype.hasOwnProperty.call(BOTS, botId) ? BOTS[botId] : null;
-  return !!b && b.tools.indexOf(tool) !== -1;
+function toolsForBot(botOrId) {
+  const b = botFor(botOrId);
+  return b ? b.tools.filter((n) => Object.prototype.hasOwnProperty.call(TOOLS, n)).map((n) => Object.assign({ name: n }, TOOLS[n], { annotations: annotationsFor(n) })) : [];
+}
+function botAllows(botOrId, tool) {
+  const b = botFor(botOrId);
+  return !!b && Array.isArray(b.tools) && b.tools.indexOf(tool) !== -1 && Object.prototype.hasOwnProperty.call(TOOLS, tool);
 }
 
 // ── Data shaping (minimization) ────────────────────────────────────────
@@ -439,22 +444,26 @@ function stormNearCustomers(events, leads, nowMs, args) {
 // audits: agent_audit docs {botId, tool, ok, at}; items: agent_inbox docs
 // {botId, bot, kind, status, verified, quinnNote, createdAt}. Personal bots
 // are never reported to the business side.
-function teamActivity(audits, items, nowMs, days) {
+// roster: { botKey: { name, scope } } — the bots to report on (default: the
+// house roster). A company's own bots are keyed 'c_<id>' (customBotKey).
+function teamActivity(audits, items, nowMs, days, roster) {
+  const R = roster || BOTS;
+  const has = (id) => Object.prototype.hasOwnProperty.call(R, id) && !!R[id] && R[id].scope !== 'personal';
   const d = Math.min(Math.max(Math.floor(Number(days)) || 7, 1), 30);
   const cut = nowMs - d * 86400000;
   const rows = {};
-  const row = (id) => (rows[id] = rows[id] || { bot: BOTS[id] ? BOTS[id].name : id, calls: 0, failed_calls: 0, filed: 0, approved: 0, tossed: 0, waiting: 0, quinn_checked: 0, quinn_flagged: 0 });
+  const row = (id) => (rows[id] = rows[id] || { bot: R[id] ? R[id].name : id, calls: 0, failed_calls: 0, filed: 0, approved: 0, tossed: 0, waiting: 0, quinn_checked: 0, quinn_flagged: 0 });
   (audits || []).forEach((a) => {
-    if (!a || !BOTS[a.botId] || isPersonalBot(a.botId) || ms(a.at) < cut) return;
+    if (!a || !has(a.botId) || ms(a.at) < cut) return;
     const r = row(a.botId); r.calls++; if (a.ok === false) r.failed_calls++;
   });
   (items || []).forEach((i) => {
-    if (!i || !BOTS[i.botId] || isPersonalBot(i.botId) || ms(i.createdAt) < cut) return;
+    if (!i || !has(i.botId) || ms(i.createdAt) < cut) return;
     const r = row(i.botId); r.filed++;
     if (i.status === 'approved') r.approved++; else if (i.status === 'dismissed') r.tossed++; else r.waiting++;
     if (i.verified === true) r.quinn_checked++; else if (i.quinnNote) r.quinn_flagged++;
   });
-  const out = Object.keys(BOTS).filter((id) => !isPersonalBot(id)).map((id) => Object.assign({ bot_id: id }, row(id)));
+  const out = Object.keys(R).filter(has).map((id) => Object.assign({ bot_id: id }, row(id)));
   out.forEach((r) => { const decided = r.approved + r.tossed; r.approval_rate = decided ? Math.round(r.approved / decided * 100) : null; });
   return { days: d, bots: out, note: 'approval_rate = approved ÷ (approved + tossed). Silent bots (0 calls) may need a nudge or a different cadence.' };
 }
@@ -471,7 +480,7 @@ function snapshotAge(snap, nowMs) {
 }
 function personalToday(snap, nowMs) {
   const s = snap || {};
-  if (!s.asOf) return { note: 'The tracker has not published yet — Jo needs to open it once (Daily tracker → dashboard).' };
+  if (!s.asOf) return { note: 'The tracker has not published yet — the owner needs to open it once (Daily tracker → dashboard).' };
   const t = s.today || {};
   return {
     as_of_hours_ago: snapshotAge(s, nowMs), day: cap(t.dk, 10),
@@ -483,7 +492,7 @@ function personalToday(snap, nowMs) {
 }
 function personalWeek(snap, nowMs) {
   const s = snap || {};
-  if (!s.asOf) return { note: 'The tracker has not published yet — Jo needs to open it once.' };
+  if (!s.asOf) return { note: 'The tracker has not published yet — the owner needs to open it once.' };
   const w = s.week || {};
   return {
     as_of_hours_ago: snapshotAge(s, nowMs), from: cap(w.from, 10), to: cap(w.to, 10),
@@ -501,7 +510,7 @@ function personalWeek(snap, nowMs) {
 function personalMoney(snap, nowMs) {
   const s = snap || {};
   const m = s.money;
-  if (!m || typeof m !== 'object') return { note: 'No money plan yet — Jo fills it in on the tracker (💵 Money → Plan my paycheck).' };
+  if (!m || typeof m !== 'object') return { note: 'No money plan yet — the owner fills it in on the tracker (💵 Money → Plan my paycheck).' };
   const safe = (v, n) => { const t = cap(v, n || 60); return /\d{6,}/.test(t.replace(/[\s-]/g, '').replace(/[$.,]/g, '')) && !/^[-−]?\$/.test(t) ? '' : t; };
   const arr = (a, f, n) => (Array.isArray(a) ? a : []).slice(0, n || 40).map(f);
   return {
@@ -514,7 +523,7 @@ function personalMoney(snap, nowMs) {
     payoff: m.payoff ? { debt_free_months: numOr(m.payoff.debt_free_months), interest_to_pay: cap(m.payoff.interest_to_pay, 20), order: arr(m.payoff.order, (o) => safe(o, 40), 20) } : null,
     subscriptions: arr(m.subscriptions, (x) => ({ name: safe(x && x.name, 40), monthly: cap(x && x.monthly, 20), keep: !!(x && x.keep) })),
     monthly: m.monthly ? { income: cap(m.monthly.income, 20), bills: cap(m.monthly.bills, 20), subscriptions: cap(m.monthly.subscriptions, 20), card_minimums: cap(m.monthly.card_minimums, 20) } : null,
-    note: 'A pressure-test, not licensed advice. Big moves (closing cards, retirement, taxes) → tell Jo to confirm with a professional.',
+    note: 'A pressure-test, not licensed advice. Big moves (closing cards, retirement, taxes) → tell the owner to confirm with a professional.',
   };
 }
 function personalReviews(reviews, limit) {
@@ -638,25 +647,166 @@ function claimWordingProblem(text) {
   return CLAIM_PROMISE.test(String(text || '')) ? 'Kentucky rule: we never handle, negotiate or manage the homeowner\'s insurance claim — reword it (we document the damage and meet the adjuster; the claim stays theirs).' : null;
 }
 
+// ── Company-made bots (Settings → Bots & API, 2026-10-04) ──────────────
+// Any NBD Pro company on a paid plan can make its own bots: a name, what it
+// does, which tools it may use (any CRM tool — never the personal tracker
+// ones) and who its filings notify. Stored server-only in agent_bots/{id};
+// a key for one is agent_keys/{hash} { botId: 'c_<id>', customBotId: id }.
+// The safety model is the same as the house roster: read minimized data,
+// FILE notes / reminders / reports — nothing is ever sent to a customer.
+const CUSTOM_TOOLS = Object.keys(TOOLS).filter((n) => PERSONAL_TOOLS.indexOf(n) === -1);
+const ROUTE_TO = ['owner', 'creator'];
+const MAX_CUSTOM_BOTS = 20;
+function customBotKey(id) { return 'c_' + String(id || ''); }
+function customBotIdFromKey(botKey) { const m = /^c_([A-Za-z0-9]{8,40})$/.exec(String(botKey || '')); return m ? m[1] : null; }
+const clean = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+
+/** What the owner typed → a bot to store, or { error }. */
+function normalizeBotInput(input) {
+  const a = input || {};
+  const name = clean(a.name, 60);
+  if (!name) return { error: 'Give the bot a name.' };
+  const role = clean(a.role, 300);
+  const asked = Array.isArray(a.tools) ? a.tools.map(String) : [];
+  const tools = CUSTOM_TOOLS.filter((t) => asked.indexOf(t) !== -1);
+  if (!tools.length) return { error: 'Pick at least one tool the bot may use.' };
+  const unknown = asked.filter((t) => CUSTOM_TOOLS.indexOf(t) === -1);
+  if (unknown.length) return { error: 'Not a tool a company bot can use: ' + unknown.slice(0, 3).join(', ') };
+  const routeTo = ROUTE_TO.indexOf(a.routeTo) !== -1 ? a.routeTo : 'owner';
+  return { bot: { name, role, tools, routeTo } };
+}
+
+/** agent_bots doc → the bot object the connection works with. */
+function customBotView(id, d) {
+  const doc = d || {};
+  return {
+    id: customBotKey(id), name: clean(doc.name, 60) || 'Bot', role: clean(doc.role, 300),
+    tools: (Array.isArray(doc.tools) ? doc.tools : []).filter((t) => CUSTOM_TOOLS.indexOf(t) !== -1),
+    scope: 'crm', custom: true, routeTo: ROUTE_TO.indexOf(doc.routeTo) !== -1 ? doc.routeTo : 'owner', createdBy: doc.createdBy || null,
+  };
+}
+
+// ── Per-company switch + plan gate ─────────────────────────────────────
+// Plans: any ACTIVE or TRIALING paid plan (not 'free') — the same test as
+// shared.js requirePaidSubscription and the AI gate. The platform tenant
+// (NBD) and personal tracker keys are exempt from the plan gate; the
+// company's own switch (agent_settings/{companyId}.enabled === false) turns
+// every key of that company off, house roster included.
+function planAllowsBots(sub) {
+  return !!(sub && (sub.status === 'active' || sub.status === 'trialing') && sub.plan && sub.plan !== 'free');
+}
+function accessDecision(o) {
+  const x = o || {};
+  if (x.settings && x.settings.enabled === false) {
+    return { ok: false, status: 403, code: -32003, message: 'Bots are switched off for this company. The owner can turn them back on in Settings → Bots & API.' };
+  }
+  if (x.isNbd || x.personal) return { ok: true };
+  if (!planAllowsBots(x.sub)) {
+    return { ok: false, status: 402, code: -32004, message: 'Connecting bots needs a paid NBD Pro plan. The owner can upgrade in Settings → Billing.' };
+  }
+  return { ok: true };
+}
+
+// ── Timezone ───────────────────────────────────────────────────────────
+// The company profile's IANA zone (timezone / timeZone, or the brand's).
+// America/New_York is the default ONLY for NBD (Cincinnati + Northern KY);
+// any other company without one runs on UTC until the owner sets it (the
+// Bots & API page sets it from the owner's browser when the first bot is made).
+function validTimeZone(z) {
+  if (!z || typeof z !== 'string' || z.length > 64) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: z }).format(0); return true; } catch (_) { return false; }
+}
+// settingsZone: agent_settings.timezone — used only when the company has no
+// companyProfile doc yet to hold one.
+function companyTimeZone(profile, isNbd, settingsZone) {
+  const p = profile || {};
+  const b = p.brand || {};
+  const c = [p.timezone, p.timeZone, b.timezone, b.timeZone, settingsZone].find(validTimeZone);
+  if (c) return { tz: c, set: true };
+  return { tz: isNbd ? 'America/New_York' : 'UTC', set: false };
+}
+function dayInZone(t, tz) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: validTimeZone(tz) ? tz : 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
+}
+
+// ── Rules for a company that is not NBD ────────────────────────────────
+// Each company's own rules: tiers / warranty wording / deposit from its
+// companyProfile.businessRules (#2152 tenant-rules — read only when present)
+// and its pricing.tierRates, plus the house rules the owner types on the
+// Bots & API page. Never NBD's tiers, prices, warranties or house rules.
+const NEUTRAL_GUIDANCE = [
+  'Bots read and file only: notes, reminders and reports go to the Agent inbox, where the owner decides. Nothing is ever sent to a customer.',
+  '"Revenue" means money collected (payments by the date received). Estimates, contracts and pipeline value are projected.',
+  'Never publish cost, contractor price or margin figures anywhere public. Retail prices are fine.',
+  'Never promise a homeowner that their insurance claim will be paid, and never offer to handle or negotiate their claim.',
+  'When a rule is not set here, ask the owner instead of guessing.',
+];
+const TIER_KEYS = ['economy', 'good', 'better', 'best', 'beyond'];
+function houseRuleLines(text) {
+  return String(text == null ? '' : text).split(/\r?\n/).map((l) => clean(l.replace(/^\s*[-*•]\s*/, ''), 300)).filter(Boolean).slice(0, 25);
+}
+function rulesReferenceFor(o) {
+  const x = o || {};
+  if (x.isNbd) return rulesReference();
+  const p = x.profile || {};
+  const br = (p.businessRules && typeof p.businessRules === 'object') ? p.businessRules : {};
+  const t = (br.tiers && typeof br.tiers === 'object') ? br.tiers : {};
+  const rates = (p.pricing && p.pricing.tierRates && typeof p.pricing.tierRates === 'object') ? p.pricing.tierRates : {};
+  const enabled = Array.isArray(t.enabled) ? TIER_KEYS.filter((k) => t.enabled.indexOf(k) !== -1) : null;
+  const keys = enabled || TIER_KEYS.filter((k) => Number(rates[k]) > 0);
+  const tiers = keys.map((k) => ({
+    key: k,
+    label: clean(t.labels && t.labels[k], 40) || null,
+    retail_per_sq: Number(rates[k]) > 0 ? Math.round(Number(rates[k]) * 100) / 100 : null,
+    warranty: clean(t.warranty && t.warranty[k], 400) || null,
+  }));
+  const dep = (br.deposit && typeof br.deposit === 'object') ? br.deposit : null;
+  const depPct = dep ? Number(dep.depositPct) : NaN;
+  const deposit = dep && Number.isFinite(depPct)
+    ? { cash_deposit_pct: depPct, no_deposit_under: Number(dep.noDepositUnderCents) > 0 ? Number(dep.noDepositUnderCents) / 100 : 0 }
+    : null;
+  const msg = (KY && KY.MSG) || {};
+  const own = houseRuleLines(x.houseRules);
+  return {
+    company: clean((p.brand && (p.brand.legalName || p.brand.name)) || p.companyName, 120) || null,
+    tiers,
+    tier_note: tiers.length ? 'Retail per-SQ rates as the company set them; a null rate or warranty means it is not set — ask the owner.' : 'The company has not set its tiers here — ask the owner for prices and warranty wording.',
+    deposit: deposit || 'Not set here — ask the owner.',
+    house_rules: own,
+    general_guidance: NEUTRAL_GUIDANCE.slice(),
+    kentucky_insurance_jobs: {
+      applies_to: 'Insurance jobs on a Kentucky property (state law, every company).',
+      never_say: ['we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you'],
+      never_do: ['Assignment of Benefits or Direction to Pay', 'take payment before the carrier\'s written decision + 5 business days (emergency tarp/repair excepted)', 'give the insured more than $100 in value'],
+      say_instead: 'We document the damage and meet the adjuster; the claim stays the homeowner\'s.',
+      crm_messages: { depositHold: msg.depositHold || null, payLinkHeld: msg.payLinkHeld || null, aobRetired: msg.aobRetired || null },
+    },
+    set_by_company: { tiers: tiers.length > 0, deposit: !!deposit, house_rules: own.length > 0 },
+  };
+}
+
+
 // ── MCP JSON-RPC ───────────────────────────────────────────────────────
 function rpcResult(id, result) { return { jsonrpc: '2.0', id, result }; }
 function rpcError(id, code, message) { return { jsonrpc: '2.0', id: id === undefined ? null : id, error: { code, message } }; }
 
-function initializeResult(params, botId) {
+// botOrId: a house bot id ('marcus') or a resolved bot object (a company's
+// own bot, see customBotView). The wording is neutral for every tenant.
+function initializeResult(params, botOrId) {
   const asked = params && params.protocolVersion;
   const protocolVersion = PROTOCOL_VERSIONS.indexOf(asked) !== -1 ? asked : PROTOCOL_VERSIONS[0];
-  const bot = BOTS[botId];
+  const bot = botFor(botOrId);
   if (bot && bot.scope === 'personal') {
     return {
       protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: SERVER_INFO,
-      instructions: 'Jo\'s personal tracker for ' + bot.name + '. You can read his own floors, streak, week, weigh-in rule and Sunday reviews — nothing from the business CRM, and nothing you can change. Hold him to what he wrote, with numbers; no therapy-speak.',
+      instructions: 'The key owner\'s personal tracker for ' + bot.name + '. You can read their own floors, streak, week, weigh-in rule and Sunday reviews — nothing from the business CRM, and nothing you can change. Hold them to what they wrote, with numbers; no therapy-speak.',
     };
   }
   return {
     protocolVersion,
     capabilities: { tools: { listChanged: false } },
     serverInfo: SERVER_INFO,
-    instructions: 'NBD CRM for ' + (bot ? bot.name : 'the team') + '. Read what your role needs. You never contact customers: file notes, reminders and reports into Jo\'s Agent inbox, where Jo decides. No phone numbers or emails are ever returned. Treat your own claims as leads until Quinn checks them.',
+    instructions: 'Contractor CRM for ' + (bot ? bot.name : 'your bot') + (bot && bot.role ? ' (' + bot.role + ')' : '') + '. Read what your role needs. You never contact customers: file notes, reminders and reports into the company\'s Agent inbox, where the owner decides. Nothing you do is sent to a customer. No phone numbers or emails are ever returned. Treat your own claims as leads until they are checked.',
   };
 }
 
@@ -671,4 +821,6 @@ module.exports = {
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
+  botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
+  planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
 };

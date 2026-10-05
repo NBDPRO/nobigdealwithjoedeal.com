@@ -2242,6 +2242,17 @@ async function run() {
   await x45('a sales rep cannot decide', 'deny', updateDoc(doc(rep45, 'agent_inbox/a4'), decide('rep45')));
   await x45('nobody creates items from the client (server only)', 'deny', setDoc(doc(own45, 'agent_inbox/x9'), ITEM()));
   await x45('nobody deletes items from the client', 'deny', deleteDoc(doc(own45, 'agent_inbox/a4')));
+  // Bots & API (2026-10-04): a company's bots and its bot settings are
+  // managed only through the callables — not even the owner touches them.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'agent_bots/b45'), { companyId: 'co-45', name: 'Helper', tools: ['list_leads'], active: true });
+    await setDoc(doc(ctx.firestore(), 'agent_settings/co-45'), { enabled: true });
+  });
+  await x45('the owner cannot read a company bot from the client', 'deny', getDoc(doc(own45, 'agent_bots/b45')));
+  await x45('the owner cannot widen a bot\'s tools from the client', 'deny', updateDoc(doc(own45, 'agent_bots/b45'), { tools: ['job_profit'] }));
+  await x45('the owner cannot create a bot from the client', 'deny', setDoc(doc(own45, 'agent_bots/b46'), { companyId: 'co-45', name: 'x', tools: [], active: true }));
+  await x45('a company_admin cannot flip the switch from the client', 'deny', setDoc(doc(cadm45, 'agent_settings/co-45'), { enabled: false }));
+  await x45('another company cannot read the settings', 'deny', getDoc(doc(other45, 'agent_settings/co-45')));
   console.log('  45: ' + s45Pass + ' agent-inbox checks passed, ' + s45Fail.length + ' failed');
   if (s45Fail.length) {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));
@@ -2381,62 +2392,114 @@ async function run() {
     throw new Error('48 tasks: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
   }
 
-  // 50. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
+  // ─── 49. Production flow 2026-10-04 ───
+  // (a) companies/{tenant}/subs — the sub roster: the tenant reads, the solo
+  //     owner / same-company staff write (shape-checked), viewers and
+  //     sales_reps don't, other tenants see nothing.
+  // (b) leads/{id}/jobs/{job}/orders — the lead's writers, owner + tenant
+  //     pinned to the lead, NO money keys; the collection-group read is the
+  //     caller's own rows only.
+  const s49Fail = []; let s49Pass = 0;
+  async function x49(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s49Pass++;
+    } catch (e) { s49Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const solo49  = env.authenticatedContext('solo49', {}).firestore();
+  const other49 = env.authenticatedContext('other49', {}).firestore();
+  const staff49 = env.authenticatedContext('mgr49', { role: 'manager', companyId: 'co-49' }).firestore();
+  const rep49   = env.authenticatedContext('rep49', { role: 'sales_rep', companyId: 'co-49' }).firestore();
+  const view49  = env.authenticatedContext('view49', { role: 'viewer', companyId: 'co-49' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'companies/solo49/subs/s1'), { name: 'ZZ_QA Ridge Bros', trade: 'Roofing', active: true });
+    await setDoc(doc(db, 'leads/lead49'), { userId: 'solo49', companyId: 'solo49', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'leads/lead49/jobs/j1/orders/o1'), { userId: 'solo49', companyId: 'solo49', store: 'Home Depot', deliveryDate: '2026-10-09', status: 'ordered' });
+    await setDoc(doc(db, 'leads/lead49o/jobs/j1/orders/o1'), { userId: 'other49', companyId: 'other49', store: 'Home Depot', status: 'ordered' });
+  });
+  const SUB49 = { name: 'ZZ_QA Shingle Co', phone: '513-555-0149', trade: 'Roofing', insuranceExpiry: '2027-01-31', notes: '', active: true };
+  await x49('solo owner adds a sub to their own roster', 'allow', setDoc(doc(solo49, 'companies/solo49/subs/s2'), SUB49));
+  await x49('solo owner reads their roster', 'allow', getDoc(doc(solo49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot read it', 'deny', getDoc(doc(other49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot write it', 'deny', setDoc(doc(other49, 'companies/solo49/subs/s3'), SUB49));
+  await x49('a sub with no name is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s4'), Object.assign({}, SUB49, { name: '' })));
+  await x49('a garbage expiry is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s5'), Object.assign({}, SUB49, { insuranceExpiry: 'Jan 2027' })));
+  await x49('same-company manager writes the roster', 'allow', setDoc(doc(staff49, 'companies/co-49/subs/m1'), SUB49));
+  await x49('a sales_rep reads but cannot write', 'deny', setDoc(doc(rep49, 'companies/co-49/subs/r1'), SUB49));
+  await x49('...reads it', 'allow', getDoc(doc(rep49, 'companies/co-49/subs/m1')));
+  await x49('a viewer cannot write', 'deny', setDoc(doc(view49, 'companies/co-49/subs/v1'), SUB49));
+  const ORD49 = { userId: 'solo49', companyId: 'solo49', store: 'Gulf Eagle Supply', orderedDate: '2026-10-05', deliveryDate: '2026-10-08', status: 'ordered', items: [{ name: 'Shingles', qty: 84, unit: 'bundles' }] };
+  await x49('the lead owner adds a material order', 'allow', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o2'), ORD49));
+  await x49('an order carrying a cost key is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o3'), Object.assign({}, ORD49, { costCents: 410000 })));
+  await x49('an order whose owner is not the lead\'s is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o4'), Object.assign({}, ORD49, { userId: 'other49' })));
+  await x49('a bad status is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o5'), Object.assign({}, ORD49, { status: 'lost' })));
+  await x49('another tenant cannot write orders on the lead', 'deny', setDoc(doc(other49, 'leads/lead49/jobs/j1/orders/o6'), Object.assign({}, ORD49, { userId: 'other49', companyId: 'other49' })));
+  await x49('collection-group read of the owner\'s own orders', 'allow',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'solo49'))));
+  await x49('collection-group read of someone else\'s orders is refused', 'deny',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'other49'))));
+  console.log('  49: ' + s49Pass + ' production-flow checks passed, ' + s49Fail.length + ' failed');
+  if (s49Fail.length) {
+    throw new Error('49 production flow: ' + s49Fail.length + ' check(s) went the wrong way:\n    ' + s49Fail.join('\n    '));
+  }
+
+  // 51. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
   // lead create names its `meter`; subscriptions/{companyId}.leadCap (written
   // by functions/lead-cap.js) blocks metered creates at the plan cap, except
   // imports / samples still inside their one-time allowance; a cancelled
   // plan's readOnlyUntil blocks everything; NBD's company is exempt. Each
   // company's block touches only that company (cross-tenant control).
-  const s50Fail = [];
-  let s50Pass = 0;
-  async function x50(label, want, promise) {
-    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s50Pass++; }
-    catch (_) { s50Fail.push(label + ' (wanted ' + want + ')'); }
+  const s51Fail = [];
+  let s51Pass = 0;
+  async function x51(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s51Pass++; }
+    catch (_) { s51Fail.push(label + ' (wanted ' + want + ')'); }
   }
   const NBD_UID = '1phDvAVXHSg82wDLegAbQFq14Ci1';
-  const future50 = new Date(Date.now() + 10 * 24 * 3600 * 1000);
-  const past50 = new Date(Date.now() - 24 * 3600 * 1000);
+  const future51 = new Date(Date.now() + 10 * 24 * 3600 * 1000);
+  const past51 = new Date(Date.now() - 24 * 3600 * 1000);
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'subscriptions/co-cap'), { plan: 'free', status: 'none', leadCap: { plan: 'free', blockedUntil: future50 }, importAllowanceUsed: 3, sampleAllowanceUsed: 20 });
-    await setDoc(doc(db, 'subscriptions/co-capfull'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: future50 }, importAllowanceUsed: 1000 });
-    await setDoc(doc(db, 'subscriptions/co-upg'), { plan: 'growth', leadCap: { plan: 'free', blockedUntil: future50 } });
-    await setDoc(doc(db, 'subscriptions/co-newmonth'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: past50 } });
-    await setDoc(doc(db, 'subscriptions/co-ro'), { plan: 'free', status: 'cancelled', readOnlyUntil: future50 });
+    await setDoc(doc(db, 'subscriptions/co-cap'), { plan: 'free', status: 'none', leadCap: { plan: 'free', blockedUntil: future51 }, importAllowanceUsed: 3, sampleAllowanceUsed: 20 });
+    await setDoc(doc(db, 'subscriptions/co-capfull'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: future51 }, importAllowanceUsed: 1000 });
+    await setDoc(doc(db, 'subscriptions/co-upg'), { plan: 'growth', leadCap: { plan: 'free', blockedUntil: future51 } });
+    await setDoc(doc(db, 'subscriptions/co-newmonth'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: past51 } });
+    await setDoc(doc(db, 'subscriptions/co-ro'), { plan: 'free', status: 'cancelled', readOnlyUntil: future51 });
     await setDoc(doc(db, 'subscriptions/co-open'), { plan: 'free', usage: { leads: 2 } });
   });
-  const rep50 = (cid) => env.authenticatedContext('rep50-' + cid, { role: 'sales_rep', companyId: cid }).firestore();
-  const L50 = (cid, extra) => Object.assign({ userId: 'rep50-' + cid, companyId: cid, firstName: 'ZZ_QA', lastName: 'Cap' }, extra || {});
-  let n50 = 0;
-  const create50 = (cid, extra) => setDoc(doc(rep50(cid), 'leads/cap50-' + (++n50)), L50(cid, extra));
-  await x50('a client lead with NO meter is refused', 'deny', create50('co-open'));
-  await x50('an unknown meter is refused', 'deny', create50('co-open', { meter: 'free-pass' }));
-  await x50('meter manual under the cap is allowed', 'allow', create50('co-open', { meter: 'manual' }));
-  await x50('a company with no subscription doc yet is allowed', 'allow', create50('co-nosub', { meter: 'manual' }));
-  await x50('at the cap: a manual lead is refused', 'deny', create50('co-cap', { meter: 'manual' }));
-  await x50('at the cap: an import inside the allowance is allowed', 'allow', create50('co-cap', { meter: 'import' }));
-  await x50('at the cap: a sample past its allowance is refused', 'deny', create50('co-cap', { meter: 'sample' }));
-  await x50('at the cap with the import allowance used up: import refused', 'deny', create50('co-capfull', { meter: 'import' }));
-  await x50('upgraded since the block (plan changed): allowed', 'allow', create50('co-upg', { meter: 'manual' }));
-  await x50('a new month (blockedUntil passed): allowed', 'allow', create50('co-newmonth', { meter: 'manual' }));
-  await x50('read-only grace: a manual lead is refused', 'deny', create50('co-ro', { meter: 'manual' }));
-  await x50('read-only grace: even an import is refused', 'deny', create50('co-ro', { meter: 'import' }));
+  const rep51 = (cid) => env.authenticatedContext('rep51-' + cid, { role: 'sales_rep', companyId: cid }).firestore();
+  const L51 = (cid, extra) => Object.assign({ userId: 'rep51-' + cid, companyId: cid, firstName: 'ZZ_QA', lastName: 'Cap' }, extra || {});
+  let n51 = 0;
+  const create51 = (cid, extra) => setDoc(doc(rep51(cid), 'leads/cap51-' + (++n51)), L51(cid, extra));
+  await x51('a client lead with NO meter is refused', 'deny', create51('co-open'));
+  await x51('an unknown meter is refused', 'deny', create51('co-open', { meter: 'free-pass' }));
+  await x51('meter manual under the cap is allowed', 'allow', create51('co-open', { meter: 'manual' }));
+  await x51('a company with no subscription doc yet is allowed', 'allow', create51('co-nosub', { meter: 'manual' }));
+  await x51('at the cap: a manual lead is refused', 'deny', create51('co-cap', { meter: 'manual' }));
+  await x51('at the cap: an import inside the allowance is allowed', 'allow', create51('co-cap', { meter: 'import' }));
+  await x51('at the cap: a sample past its allowance is refused', 'deny', create51('co-cap', { meter: 'sample' }));
+  await x51('at the cap with the import allowance used up: import refused', 'deny', create51('co-capfull', { meter: 'import' }));
+  await x51('upgraded since the block (plan changed): allowed', 'allow', create51('co-upg', { meter: 'manual' }));
+  await x51('a new month (blockedUntil passed): allowed', 'allow', create51('co-newmonth', { meter: 'manual' }));
+  await x51('read-only grace: a manual lead is refused', 'deny', create51('co-ro', { meter: 'manual' }));
+  await x51('read-only grace: even an import is refused', 'deny', create51('co-ro', { meter: 'import' }));
   // Cross-tenant: co-cap's block never reaches co-open, and a rep cannot
   // borrow another company's open allowance (companyId is pinned to the claim).
-  await x50('cross-tenant: another company is unaffected by co-cap\'s block', 'allow', create50('co-open', { meter: 'manual' }));
-  await x50('cross-tenant: a co-cap rep cannot file the lead under co-open', 'deny',
-    setDoc(doc(rep50('co-cap'), 'leads/cap50-x'), Object.assign(L50('co-cap', { meter: 'manual' }), { companyId: 'co-open' })));
+  await x51('cross-tenant: another company is unaffected by co-cap\'s block', 'allow', create51('co-open', { meter: 'manual' }));
+  await x51('cross-tenant: a co-cap rep cannot file the lead under co-open', 'deny',
+    setDoc(doc(rep51('co-cap'), 'leads/cap51-x'), Object.assign(L51('co-cap', { meter: 'manual' }), { companyId: 'co-open' })));
   // NBD control: NBD's own company is never metered — a lead without a meter
   // (an old cached page) still saves, exactly as before.
-  const nbd50 = env.authenticatedContext(NBD_UID, { companyId: NBD_UID, owner: true }).firestore();
-  await x50('NBD (control): a lead with no meter still saves', 'allow',
-    setDoc(doc(nbd50, 'leads/cap50-nbd'), { userId: NBD_UID, companyId: NBD_UID, firstName: 'ZZ_QA' }));
+  const nbd51 = env.authenticatedContext(NBD_UID, { companyId: NBD_UID, owner: true }).firestore();
+  await x51('NBD (control): a lead with no meter still saves', 'allow',
+    setDoc(doc(nbd51, 'leads/cap51-nbd'), { userId: NBD_UID, companyId: NBD_UID, firstName: 'ZZ_QA' }));
   // Clients can never write the meter state themselves.
-  await x50('a company owner cannot clear their own leadCap', 'deny',
+  await x51('a company owner cannot clear their own leadCap', 'deny',
     setDoc(doc(env.authenticatedContext('co-cap', { companyId: 'co-cap' }).firestore(), 'subscriptions/co-cap'), { leadCap: null }, { merge: true }));
-  console.log('  50: ' + s50Pass + ' plan lead-cap checks passed, ' + s50Fail.length + ' failed');
-  if (s50Fail.length) {
-    throw new Error('50 plan lead cap: ' + s50Fail.length + ' check(s) went the wrong way:\n    ' + s50Fail.join('\n    '));
+  console.log('  51: ' + s51Pass + ' plan lead-cap checks passed, ' + s51Fail.length + ' failed');
+  if (s51Fail.length) {
+    throw new Error('51 plan lead cap: ' + s51Fail.length + ' check(s) went the wrong way:\n    ' + s51Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');
