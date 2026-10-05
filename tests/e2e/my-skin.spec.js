@@ -24,10 +24,23 @@ async function makePicture(page, slot, w, h, color) {
   }, { slot, w, h, color });
 }
 
+// Start from no skin: an attempt that failed mid-way leaves its settings and
+// pictures behind, and the retry would begin from them instead of from zero.
+async function clearSkin(email) {
+  const { initializeApp, getApps } = require('firebase-admin/app');
+  if (!getApps().length) initializeApp({ projectId: 'nobigdeal-pro', storageBucket: 'nobigdeal-pro.firebasestorage.app' });
+  const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+  const uid = (await require('firebase-admin/auth').getAuth().getUserByEmail(email)).uid;
+  await getFirestore().doc('userSettings/' + uid).set({ mySkin: FieldValue.delete() }, { merge: true });
+  const bucket = require('firebase-admin/storage').getStorage().bucket('nobigdeal-pro.firebasestorage.app');
+  for (const slot of ['wallpaper', 'texture', 'mascot']) await bucket.file('skins/' + uid + '/' + slot).delete().catch(() => {});
+}
+
 test.describe.serial('My Skin @shard2', () => {
   test('upload a wallpaper and mascot, survive a reload, turn off, remove', async ({ page }) => {
     test.setTimeout(150_000);
     const creds = requireTestUser();
+    await clearSkin(creds.email);
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
     await page.route(/cloudfunctions\.net|\.run\.app/, (route) => route.abort());
     await page.setViewportSize({ width: 390, height: 844 });

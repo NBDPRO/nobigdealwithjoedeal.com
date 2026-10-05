@@ -113,6 +113,7 @@ summary:hover{background:var(--s2)}
 .detail-body li{margin-bottom:6px}
 .detail-body strong{color:var(--tx)}
 .detail-body code{background:var(--s2);color:var(--or);padding:1px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,'SF Mono',Menlo,Monaco,monospace}
+.detail-body pre{background:var(--s2);color:var(--tx);padding:12px;border-radius:8px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,'SF Mono',Menlo,Monaco,monospace;margin:10px 0}
 .detail-body a{color:var(--or);text-decoration:none;border-bottom:1px dashed currentColor}
 .detail-body a:hover{filter:brightness(1.15)}
 
@@ -244,6 +245,7 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
         <h3>Account</h3>
         <a href="#settings">Settings & themes</a>
         <a href="#ai-tools">AI tools</a>
+        <a href="#connect-bots">Connect your own AI bot</a>
         <a href="#billing">Billing & plans</a>
         <a href="#troubleshooting">Troubleshooting</a>
       </div>
@@ -1195,9 +1197,62 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
       </details>
     </section>
 
+    <!-- ══════════════════ CONNECT YOUR OWN AI BOT ══════════════════ -->
+    <section class="section" id="connect-bots" data-keywords="bot bots api mcp key claude chatgpt grok agent inbox connect assistant ai integration">
+      <div class="section-ey">17 · Account</div>
+      <h2 class="section-h">Connect your own AI bot</h2>
+      <p class="section-lede">Hook Claude, ChatGPT, Grok or any assistant that speaks MCP up to your CRM. A bot reads what you allow and files notes, reminders and reports into your Agent inbox. Nothing a bot does is ever sent to a customer.</p>
+
+      <div class="qs">
+        <div class="qs-title">Quick Start</div>
+        <ol>
+          <li>Open <strong>Settings → 🔌 Bots &amp; API</strong>. The owner or an admin sets bots up, on any paid plan.</li>
+          <li><strong>Make a bot</strong>: give it a name, say what it does, and tick the tools it may use. Start small; you can add tools later.</li>
+          <li>Tap <strong>Create key</strong> and copy the key right away. It is shown once.</li>
+          <li>In your AI app, add an MCP server at <code>https://nobigdealwithjoedeal.com/api/mcp</code> with the header <code>Authorization: Bearer &lt;your key&gt;</code>.</li>
+          <li>Ask the bot to do something, like "file a reminder for every customer whose follow-up is overdue". Then open <strong>📥 Agent inbox</strong> and add or toss what it filed.</li>
+        </ol>
+      </div>
+
+      <details>
+        <summary>Example setup for Claude Desktop and similar apps</summary>
+        <div class="detail-body">
+          <p>Apps that run MCP servers from a config file (Claude Desktop, Cursor and others) reach the CRM through the free <code>mcp-remote</code> helper. Add this to the app's MCP config, put your key where it says, and restart the app:</p>
+<pre>{
+  "mcpServers": {
+    "my-crm": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://nobigdealwithjoedeal.com/api/mcp",
+               "--header", "Authorization:Bearer ${CRM_KEY}"],
+      "env": { "CRM_KEY": "paste-your-key-here" }
+    }
+  }
+}</pre>
+          <p>Apps that connect to a remote MCP server directly (often called a custom connector or remote MCP server) need two things: the address <code>https://nobigdealwithjoedeal.com/api/mcp</code> and a request header <code>Authorization: Bearer &lt;your key&gt;</code>. Where the app has a secret or environment setting, keep the key there.</p>
+          <p>Each bot gets its own key, so you can see when it was last used and revoke one bot without touching the others.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What a bot can and cannot do</summary>
+        <div class="detail-body">
+          <ul>
+            <li><strong>It reads only what you allowed</strong>, and only your company's data. It never sees customers' phone numbers or email addresses.</li>
+            <li><strong>It can file notes, reminders and reports, and nothing else.</strong> They wait in your Agent inbox. You edit and add them to a customer's card, or toss them.</li>
+            <li><strong>Nothing is sent to a customer.</strong> There is no text, email, payment or delete tool.</li>
+            <li>Your <strong>rules</strong> tool gives bots your tiers, prices, warranty wording and deposit rule from Settings, plus the house rules you type on the Bots &amp; API page.</li>
+            <li>Bots count days in your company's timezone. Set it on the Bots &amp; API page.</li>
+            <li>Limits per key: 150 requests an hour and 150 filings a day.</li>
+          </ul>
+        </div>
+      </details>
+
+      <div class="warn">Treat a key like a password. Keep it in the app's secret setting and never paste it into a chat. If a key leaks, revoke it on the Bots &amp; API page and make a new one. The <strong>Bots are on</strong> switch there stops every bot of your company at once.</div>
+    </section>
+
     <!-- ══════════════════ BILLING ══════════════════ -->
     <section class="section" id="billing" data-keywords="billing plan upgrade downgrade subscription stripe">
-      <div class="section-ey">17 · Account</div>
+      <div class="section-ey">18 · Account</div>
       <h2 class="section-h">Billing & Plans</h2>
       <p class="section-lede">Free ($0, 10 leads/mo), Starter ($99/mo), Growth ($299/mo, up to 5 team seats). Self-serve upgrade/downgrade via Stripe.</p>
 
@@ -1220,7 +1275,7 @@ mark.hl{background:var(--gold);color:#000;border-radius:3px;padding:0 2px}
 
     <!-- ══════════════════ TROUBLESHOOTING ══════════════════ -->
     <section class="section" id="troubleshooting" data-keywords="troubleshooting load issue refresh reload connection offline error help">
-      <div class="section-ey">18 · Account</div>
+      <div class="section-ey">19 · Account</div>
       <h2 class="section-h">Troubleshooting</h2>
       <p class="section-lede">When something's off, here's what to try — in order — before opening a support ticket.</p>
 

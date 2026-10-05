@@ -60,3 +60,5 @@ phone-stage-flow.spec.js
 portal-progress-steps.spec.js
 phone-today.spec.js
 phone-voice-memo.spec.js
+phone-bots-api.spec.js
+phone-production-flow.spec.js

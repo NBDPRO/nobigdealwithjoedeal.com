@@ -52,7 +52,7 @@ const CHECKS = {
   'daily-retention':         { period: '1 day',     grace: '6 hours',    why: 'cleanup / retention jobs' },
   'daily-customer-touches':  { period: '1 day',     grace: '6 hours',    why: 'morning digests + nudges to Jo (not homeowners)' },
   'daily-syncs':             { period: '1 day',     grace: '6 hours',    why: 'GBP reviews, Google Calendar reconcile, hail match' },
-  'weekly-crons':            { period: '1 week',    grace: '12 hours',   why: 'weekly digest (Mon) + dormant-lead nudge (Wed)' },
+  'weekly-crons':            { period: '1 week',    grace: '12 hours',   why: 'weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun)' },
   'monthly-crons':           { period: 'cron 0 7 1 * * (America/New_York)', grace: '12 hours', why: 'marketing report + overhead alert, 1st of month' },
 };
 
@@ -92,6 +92,7 @@ const PLAN = {
   onYardSignPickupDue:       { slug: 'daily-customer-touches' },
   anniversaryAutoTouch:      { slug: 'daily-customer-touches' },
   reviewRequestNudge:        { slug: 'daily-customer-touches' },
+  onAfterInstallDay:         { slug: 'daily-customer-touches' }, // #2147: 07:15 ET push to Jo
 
   syncGbpReviews:            { slug: 'daily-syncs' },
   googleCalendarReconcile:   { slug: 'daily-syncs' },
@@ -99,6 +100,7 @@ const PLAN = {
 
   weeklyDigest:              { slug: 'weekly-crons' },
   dormantLeadNudge:          { slug: 'weekly-crons' },
+  weeklyVendorConfigExport:  { slug: 'weekly-crons' }, // Sun 04:30 ET config snapshot
 
   monthlyMarketingReport:    { slug: 'monthly-crons' },
   monthlyOverheadAlertCron:  { slug: 'monthly-crons' },

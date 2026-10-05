@@ -51,9 +51,9 @@ rethrows. Until the key is set, every ping is a no-op — nothing changes.
    the slug each instance used the first time it pinged — if a slug there
    differs from this table, use the logged one.
 
-## The 18 checks to create (35 crons)
+## The 18 checks to create (37 crons)
 
-**Updated 2026-10-04.** There are now 35 scheduled functions and the free tier
+**Updated 2026-10-04.** There are now 37 scheduled functions and the free tier
 holds 20 checks, so the slug each cron pings comes from an explicit plan,
 [`functions/integrations/heartbeat-plan.js`](../../functions/integrations/heartbeat-plan.js),
 not just its name. `tests/cron-heartbeat.test.js` fails CI if a cron is
@@ -83,9 +83,9 @@ table drifts from it.
 | `hourly-crons` | runAbandonRecovery, textInboxNotes | 1 hour | 2 hours | abandoned-estimate recovery + text notes |
 | `call-followups` | callWatch, callCenterSweep | 12 hours | 1 hour | call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET) |
 | `daily-retention` | firestoreBackupRetention, auditLogRetentionCron, recordingRetentionCron, pdfRenderRetention | 1 day | 6 hours | cleanup / retention jobs |
-| `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge | 1 day | 6 hours | morning digests + nudges to Jo (not homeowners) |
+| `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge, onAfterInstallDay | 1 day | 6 hours | morning digests + nudges to Jo (not homeowners) |
 | `daily-syncs` | syncGbpReviews, googleCalendarReconcile, hailMatchCron | 1 day | 6 hours | GBP reviews, Google Calendar reconcile, hail match |
-| `weekly-crons` | weeklyDigest, dormantLeadNudge | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) |
+| `weekly-crons` | weeklyDigest, dormantLeadNudge, weeklyVendorConfigExport | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun) |
 | `monthly-crons` | monthlyMarketingReport, monthlyOverheadAlertCron | cron 0 7 1 * * (America/New_York) | 12 hours | marketing report + overhead alert, 1st of month |
 
 That is 18 of 20 — two spare for the next high-stakes cron.

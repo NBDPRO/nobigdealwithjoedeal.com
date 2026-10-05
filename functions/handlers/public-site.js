@@ -21,7 +21,9 @@
  * Only companies EXPLICITLY marked status:'active' are served — publishing
  * a tenant microsite is a deliberate release to that company, and an absent
  * status means unpublished (see isPublishedCompany; this fails closed as of
- * 2026-08-17, where it previously served). A tenant superseded by a team
+ * 2026-08-17, where it previously served). Since 2026-10-04 a NEW tenant also
+ * needs sitePublished:true, set only by the owner's publishTenantSite call
+ * (isPublishedCompany has the details). A tenant superseded by a team
  * invite stops resolving for lead tagging too.
  *
  * The raw companyProfile doc stores only what the tenant actually set
@@ -98,8 +100,40 @@ async function resolveCompanyByKey(db, key) {
 //   status 'active'               → real tenant, PUBLISHED   (site + tagging)
 //   status absent                 → real tenant, unpublished (tagging only)
 //   'superseded-by-invite' / etc. → not a tenant at all      (neither)
+//
+// ── Separate site-publish flag (2026-10-04) ────────────────────
+// `status:'active'` ALSO means "a working CRM tenant", and createCompany
+// stamps it on every free self-serve signup — so before this flag anyone
+// could sign up and get a page under nobigdealwithjoedeal.com with any name
+// and phone the moment provisioning finished (a phishing page on Jo's
+// domain). The site now has its own flag, `sitePublished`:
+//   true            → published (set ONLY by publishTenantSite, below, after
+//                     the brand name, phone and service area are filled)
+//   false / any other value → unpublished (createCompany and setSiteSlug's
+//                     ensure-path write false for every new tenant)
+//   ABSENT          → a tenant that existed before the flag: keeps the
+//                     status-only behaviour, so no prod doc changes at
+//                     cutover. Only the admin SDK can create such a doc now —
+//                     firestore.rules forbid a client create/update from
+//                     setting status, sitePublished or sitePublishedAt.
+// To unpublish a legacy tenant, set sitePublished:false on its companies doc.
 function isPublishedCompany(co) {
-  return String((co || {}).status || '') === 'active';
+  const c = co || {};
+  if (String(c.status || '') !== 'active') return false;
+  if (!Object.prototype.hasOwnProperty.call(c, 'sitePublished')) return true;
+  return c.sitePublished === true;
+}
+
+// What publishTenantSite requires before it will flip sitePublished:true —
+// read through buildPublicConfig so "filled" means exactly what the public
+// page would show (a private alertSms number does not count as a phone).
+function sitePublishReadiness(companyId, companyDoc, profileDoc) {
+  const cfg = buildPublicConfig(companyId, companyDoc, profileDoc);
+  const missing = [];
+  if (!cfg.displayName) missing.push('brand name');
+  if (String(cfg.contact.phone || '').replace(/[^\d]/g, '').length < 10) missing.push('phone');
+  if (!cfg.serviceArea) missing.push('service area');
+  return { ready: missing.length === 0, missing };
 }
 
 // Pure whitelist builder — exported for unit tests. Takes the RAW
@@ -273,6 +307,8 @@ exports.setSiteSlug = onCall(
           ownerId: uid,
           name: request.auth.token.name || 'My Company',
           status: 'active',
+          // A new tenant's site starts unpublished (see isPublishedCompany).
+          sitePublished: false,
           plan: 'free',
           source: 'slug-ensure',
           createdAt: FieldValue.serverTimestamp(),
@@ -297,6 +333,67 @@ exports.setSiteSlug = onCall(
   }
 );
 
+// ───────────────────────────────────────────────────────────────
+// publishTenantSite — the owner's "Publish my site" / "Unpublish" action.
+// The ONLY writer of companies/{id}.sitePublished (firestore.rules make it
+// client-immutable). Publishing requires the brand name, a public phone and
+// a service area to be filled, so a half-configured signup can't put a page
+// on Jo's domain. Owner (or platform admin) only — a company_admin can edit
+// the profile but the public release is the owner's call.
+//   data: { publish?: boolean }   (default true; false unpublishes)
+// ───────────────────────────────────────────────────────────────
+exports.publishTenantSite = onCall(
+  {
+    region: 'us-central1',
+    cors: CORS_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 30,
+    memory: '256MiB',
+  },
+  async (request) => {
+    await callableRateLimit(request, 'publishTenantSite', 10, 3_600_000);
+    const { uid, companyId } = await requireTeamAdmin(request, null, { ownerOnly: true });
+    const publish = !(request.data && request.data.publish === false);
+
+    const db = getFirestore();
+    const coRef = db.doc(`companies/${companyId}`);
+    const coSnap = await coRef.get();
+    if (!coSnap.exists) {
+      throw new HttpsError('failed-precondition', 'Finish setting up your company first.');
+    }
+    const co = coSnap.data() || {};
+    if (String(co.status || '') !== 'active') {
+      throw new HttpsError('failed-precondition', 'This company is not active, so its site cannot be published.');
+    }
+
+    if (!publish) {
+      await coRef.set({
+        sitePublished: false,
+        siteUnpublishedAt: FieldValue.serverTimestamp(),
+        siteUnpublishedBy: uid,
+      }, { merge: true });
+      logger.info('publishTenantSite', { companyId, published: false });
+      return { ok: true, published: false };
+    }
+
+    const pSnap = await db.doc(`companyProfile/${companyId}`).get();
+    const r = sitePublishReadiness(companyId, co, pSnap.exists ? pSnap.data() : {});
+    if (!r.ready) {
+      throw new HttpsError('failed-precondition',
+        'Before publishing, add your ' + r.missing.join(', ') + ' in Settings → Company Profile.',
+        { missing: r.missing });
+    }
+
+    await coRef.set({
+      sitePublished: true,
+      sitePublishedAt: FieldValue.serverTimestamp(),
+      sitePublishedBy: uid,
+    }, { merge: true });
+    logger.info('publishTenantSite', { companyId, published: true });
+    return { ok: true, published: true, url: '/sites/t/' + (s(co.siteSlug, 64) || companyId) };
+  }
+);
+
 exports.resolveCompanyByKey = resolveCompanyByKey;
 exports.isPublishedCompany = isPublishedCompany;
-exports._test = { buildPublicConfig, validateSlug, resolveCompanyByKey, isPublishedCompany };
+exports._test = { buildPublicConfig, validateSlug, resolveCompanyByKey, isPublishedCompany, sitePublishReadiness };

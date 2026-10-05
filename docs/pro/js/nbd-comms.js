@@ -668,6 +668,9 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     },
   };
 
+  // Stage emails that only ever open as a draft for review (never a direct send).
+  const DRAFT_ONLY_STAGES = ['crew_scheduled'];
+
   // ── EmailDrip ──────────────────────────────────────────────────
   // Stage-change toast: Review opens the modal; Send now builds the
   // stage template and posts via platform NBDComms (no auto-send on move).
@@ -729,6 +732,13 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         if (!built || !built.to) {
           if (window.showToast) window.showToast('No customer email for this lead', 'error');
           return { success: false, error: 'no-email' };
+        }
+        // Crew Scheduled is ALWAYS a draft (production flow, 2026-10-04): it
+        // tells a homeowner a day and a time, so Jo reads it and taps Send
+        // himself in the review modal. Never sent from here.
+        if (DRAFT_ONLY_STAGES.includes(built.stage)) {
+          window.emailByStage(leadId);
+          return { success: true, mode: 'review' };
         }
         if (!window.NBDComms || typeof window.NBDComms.sendEmail !== 'function') {
           // Fall back to review modal.

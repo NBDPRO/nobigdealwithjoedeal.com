@@ -37,6 +37,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { SECRETS, PROVIDERS } = require('./_shared');
 const IR = require('./instantroofer-logic');
 const measurement = require('./measurement');
+const SOLAR = require('./solar-measure');
 const { isWebLeadMeasureDisabled } = require('./killswitch');
 const { bridgeDocId } = require('../lead-bridge-logic');
 
@@ -139,7 +140,10 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
 
   const coords = IR.validateCoords(lead.lat, lead.lng);
   if (!coords.ok) return { ok: false, reason: 'no-coords' };
-  if (PROVIDERS.measurement !== 'instantroofer') return { ok: false, reason: 'provider-not-instantroofer' };
+  // 'solar' / 'auto' (integrations/solar-measure.js) measure web leads too —
+  // the public funnel is where most of the per-measure spend is.
+  const mode = PROVIDERS.measurement;
+  if (mode !== 'instantroofer' && mode !== 'solar' && mode !== 'auto') return { ok: false, reason: 'provider-unsupported' };
 
   const ownerId = lead.userId;
   if (!ownerId) return { ok: false, reason: 'no-owner' };
@@ -151,6 +155,7 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
   // rep who already measured this address, must not buy a second report.
   let measurements = null;
   let reusedFrom = null;
+  let provider = 'instantroofer';
   const prior = await measurement.findReusableMeasurement(db, {
     coordKey, uid: ownerId, companyId: lead.companyId || null, reportType: 'ai'
   }).catch(() => null);
@@ -158,15 +163,22 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
     measurements = prior.data.measurements;
     reusedFrom = prior.id;
   } else {
-    const result = await measurement.requestInstantRoofer({
+    const ctx = {
       lat: coords.lat, lng: coords.lng, reportType: 'ai', address,
       customerName: [lead.firstName, lead.lastName].filter(Boolean).join(' ') || null
-    }, deps || {});
+    };
+    const callIR = (c) => measurement.requestInstantRoofer(c, deps || {});
+    const result = mode === 'instantroofer'
+      ? await callIR(ctx)
+      : await SOLAR.runSolarProvider(
+        Object.assign({}, ctx, { db, uid: ownerId, companyId: lead.companyId || null }),
+        Object.assign({}, deps || {}, { mode, instantRoofer: callIR }));
     if (!result.ok) {
       logger.warn('public-measure: vendor call failed', { leadId, reason: result.reason, status: result.status });
       return { ok: false, reason: result.reason || 'vendor-error' };
     }
     measurements = result.measurements;
+    provider = result.provider || 'instantroofer';
   }
   if (!measurements || !measurements.rawSqft) return { ok: false, reason: 'no-measurement' };
 
@@ -179,9 +191,9 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
     companyId: lead.companyId || null,
     leadId,
     address: address || null,
-    provider: 'instantroofer',
+    provider,
     reportType: 'ai',
-    externalJobId: reusedFrom ? null : ('instantroofer-weblead-' + leadId),
+    externalJobId: reusedFrom ? null : (provider + '-weblead-' + leadId),
     status: 'ready',
     estimatedMinutes: 0,
     lat: coords.lat, lng: coords.lng,
@@ -209,7 +221,7 @@ async function measureLeadAndPublish(db, { leadId, lead, deps }) {
 
   // Light the CRM up exactly like a rep-ordered measurement does.
   await measurement.attachMeasurementToLead(db, {
-    leadId, ownerId, address, provider: 'instantroofer', reportType: 'ai',
+    leadId, ownerId, address, provider, reportType: 'ai',
     measurementJobId: jobRef.id, measurements, dedupeKey: leadId + '|' + coordKey
   }).catch((e) => logger.warn('public-measure: lead attach failed', { leadId, err: e.message }));
 
@@ -263,7 +275,7 @@ exports.measureNewWebLead = onDocumentCreated(
     timeoutSeconds: 60,
     memory: '256MiB',
     retry: false,
-    secrets: [SECRETS.INSTANTROOFER_API_KEY]
+    secrets: [SECRETS.INSTANTROOFER_API_KEY, SECRETS.SOLAR_API_KEY]
   },
   async (event) => {
     const snap = event.data;

@@ -600,15 +600,13 @@ Thank you for trusting {companyName}. We're going to do a great job for you.
 
 Your installation at {address} is scheduled!
 
-Scheduled Date: {scheduledDate}
-Crew: {crew}
+Scheduled: {scheduledDate}
+{arrivalLine}
+{lengthLine}
 
-What to expect on installation day:
-- Crew arrives early morning (typically 7-8 AM)
-- Work usually takes 1-2 days depending on scope
-- We'll keep the area clean and professional throughout
+The crew will keep the work area clean and run a magnet sweep for nails before they leave.
 
-Please make sure vehicles are moved from the driveway. If you have any concerns, let me know before installation day.
+Please move vehicles out of the driveway and away from the house before the crew arrives. If you have any concerns, let me know before installation day.
 
 {repName}
 {companyName}
@@ -718,11 +716,21 @@ window.emailSystem.buildStageEmail = async function(leadId) {
     claimNumber: lead.claimNumber || '[pending]',
     estimateAmount: lead.estimateAmount ? '$' + parseFloat(lead.estimateAmount).toLocaleString() : '[pending]',
     scheduledDate: lead.scheduledDate || '[to be confirmed]',
-    crew: lead.crew || 'our installation team',
+    // Crews are independent subcontractors: a homeowner email says "the crew",
+    // never "our installation team" (production flow, 2026-10-04).
+    crew: 'the crew',
+    arrivalLine: '',
+    lengthLine: '',
     preQualLink: lead.preQualLink || '[link will be sent separately]',
     repName: window.emailSystem._repName(),
   };
   Object.assign(data, window.emailSystem._brandFields());
+  // Crew Scheduled is filled from the job's real start time, day count and
+  // week (production-logic.js crewEmailFields) — it used to hard-code
+  // "typically 7-8 AM" and "1-2 days" whatever the job was.
+  if (window.NBDProductionLogic && typeof window.NBDProductionLogic.crewEmailFields === 'function') {
+    Object.assign(data, window.NBDProductionLogic.crewEmailFields(lead));
+  }
 
   let subject = template.subject;
   let body = template.body;
@@ -730,6 +738,8 @@ window.emailSystem.buildStageEmail = async function(leadId) {
     subject = subject.replace(new RegExp(`\\{${key}\\}`, 'g'), data[key]);
     body = body.replace(new RegExp(`\\{${key}\\}`, 'g'), data[key]);
   });
+  // An empty fill-in line (no length known) leaves no blank gap.
+  body = body.replace(/\n{3,}/g, '\n\n');
 
   return { to: email, subject, body, stage, leadId, customerName };
 };

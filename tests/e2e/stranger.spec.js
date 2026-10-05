@@ -239,7 +239,10 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     expect(co.ownerId).toBe(STRANGER.uid);
     expect(co.source).toBe('self-serve');
     expect(co.status).toBe('active');
-    const profile = (await db.doc(`companyProfile/${STRANGER.uid}`).get()).data();
+    // 2026-10-04: the public microsite is a separate, owner-driven release —
+    // a fresh signup's site starts PRIVATE (no phishing page on Jo's domain).
+    expect(co.sitePublished, 'new tenant site starts unpublished').toBe(false);
+    const profile =(await db.doc(`companyProfile/${STRANGER.uid}`).get()).data();
     expect(profile, 'companyProfile/{uid} exists').toBeTruthy();
     expect(profile.brand && profile.brand.legalName).toBe(STRANGER.company);
     expect(profile.brand && profile.brand.colors && profile.brand.colors.primary,
@@ -285,6 +288,51 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     const lead = leads.docs[0].data();
     expect(lead.companyId, 'lead.companyId == stranger tenant').toBe(STRANGER.uid);
     expect(lead.userId, 'lead.userId == stranger uid').toBe(STRANGER.uid);
+  });
+
+  test('publish: the site is private until the owner fills brand + phone + service area and clicks Publish my site', async ({ page }) => {
+    expect(STRANGER.uid, 'provision test must have run').toBeTruthy();
+
+    // Negative first: before publishing, the public URL is the opaque
+    // not-found state — the same as an unknown key.
+    await page.goto(`/sites/t/${STRANGER.uid}`);
+    await expect(page.locator('#siteMissing'), 'unpublished microsite is siteMissing').toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#site'), 'unpublished microsite renders nothing').toBeHidden();
+
+    // The owner, through the real Settings UI.
+    await loginAs(page, { email: STRANGER.email, password: STRANGER.password });
+    await page.waitForLoadState('load');
+    await page.waitForFunction(() => typeof window.goTo === 'function' && window._user && window._user.uid, null, { timeout: 20_000 });
+    await page.evaluate(() => window.goTo('settings'));
+    const tab = page.locator('#stab-company-profile');
+    await tab.scrollIntoViewIfNeeded();
+    await tab.click();
+    await expect(page.locator('#stab-panel-company-profile')).toBeVisible({ timeout: 10_000 });
+
+    const status = page.locator('#cp-site-status');
+    await expect(status, 'panel says the site is private').toContainText(/private/i, { timeout: 15_000 });
+    const publishBtn = page.locator('#cp-site-publish-btn');
+    await expect(publishBtn, 'Publish my site offered').toBeVisible();
+
+    await page.fill('#cp_brand_legalName', STRANGER.company);
+    await page.fill('#cp_brand_phone', '(513) 555-0142');
+    await page.fill('#cp_serviceArea', 'Greater Cincinnati (E2E)');
+    await page.locator('[data-fn="_saveCompanyProfileSettings"]').first().click();
+    const { db } = admin();
+    await eventually(async () => {
+      const p = (await db.doc(`companyProfile/${STRANGER.uid}`).get()).data() || {};
+      return ((p.brand || {}).contact || {}).phone === '(513) 555-0142' && (p.serviceArea || (p.brand || {}).serviceArea);
+    }, { label: 'brand phone + service area saved', timeout: 20_000 });
+
+    await publishBtn.scrollIntoViewIfNeeded();
+    await publishBtn.click();
+    await eventually(async () => (await db.doc(`companies/${STRANGER.uid}`).get()).data().sitePublished === true,
+      { label: 'sitePublished:true written by publishTenantSite', timeout: 30_000 });
+    await expect(status, 'panel says the site is published').toContainText(/published/i, { timeout: 15_000 });
+    await expect(page.locator('#cp-site-unpublish-btn'), 'Unpublish offered once live').toBeVisible();
+    const co = (await db.doc(`companies/${STRANGER.uid}`).get()).data();
+    expect(co.status, 'company stays active for the CRM').toBe('active');
+    expect(co.sitePublishedBy, 'publish stamped by the owner').toBe(STRANGER.uid);
   });
 
   test('public face: microsite renders the tenant brand; quote form routes to THEIR pipeline', async ({ page }) => {

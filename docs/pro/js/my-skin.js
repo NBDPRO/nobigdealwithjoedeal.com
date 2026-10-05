@@ -77,8 +77,14 @@
     return new Promise(function (resolve) {
       var settled = false;
       var done = function () { if (!settled) { settled = true; resolve(); } };
-      window.onSnapshot(ref, function (snap) {
+      // includeMetadataChanges (2026-10-04): when the first snapshot came from
+      // the cache (client briefly offline) and the server then agrees with it
+      // — no settings doc yet, or nothing changed — only the sync state flips,
+      // and the SDK raises that only with this option. Without it cfg stayed
+      // null for the page's life. Our own pending writes are echoes: skipped.
+      window.onSnapshot(ref, { includeMetadataChanges: true }, function (snap) {
         var data = dataOf(snap);
+        if (snap.metadata && snap.metadata.hasPendingWrites) return;          // our own edit, already painted
         if (snap.metadata && snap.metadata.fromCache && !data.mySkin) return;   // wait for the server copy
         if (Date.now() - localEditAt < 3000) { done(); return; }             // don't undo an edit in progress
         apply(data).then(done, done);
