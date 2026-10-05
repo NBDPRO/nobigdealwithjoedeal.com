@@ -73,8 +73,11 @@
     return ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[key] || key;
   }
   // Five tiers, cheapest first (estimate-config.js TIER_ORDER, 2026-10-02).
+  // The tiers THIS company offers (2026-10-04, tenant-ready) — NBD's five, or
+  // a company's own list from Settings → Business rules (tenant-rules.js).
   function dealTiers() {
     const cfg = window.NBD_ESTIMATE_CONFIG;
+    if (cfg && typeof cfg.tierOrder === 'function') return cfg.tierOrder();
     return (cfg && Array.isArray(cfg.TIER_ORDER)) ? cfg.TIER_ORDER.slice() : ['economy', 'good', 'better', 'best', 'beyond'];
   }
 

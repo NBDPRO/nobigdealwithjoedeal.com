@@ -852,8 +852,36 @@
         if (out[k] === D[k]) out[k] = String(D[k]).replace(/\bNBD\b/g, tenantName);
       });
     }
+    // NBD's MARKETING defaults (2026-10-04, tenant-ready): the Acorn Finance
+    // partnership, NBD's six services, its value props ("Lifetime workmanship
+    // warranty on every tier") and its tagline are NBD's own claims. A tenant
+    // that kept them gets them BLANK — the renderers then leave the financing
+    // block / services grid / value cards out — exactly like the legal text
+    // above. Value-diff again, so a tenant's own list or partner always wins.
+    _NBD_ONLY_MARKETING.forEach(function (k) {
+      if (_sameValue(out[k], D[k])) out[k] = Array.isArray(D[k]) ? [] : '';
+    });
+    // Payment terms: NBD's deposit sentence → this company's own deposit rule
+    // (tenant-rules.js; "no deposit" until the company sets one).
+    ['paymentTermsContract', 'paymentTermsProposal'].forEach(function (k) {
+      if (out[k] === D[k]) {
+        const R = (typeof window !== 'undefined') && window.NBDDepositRule;
+        if (R && typeof R.policyText === 'function') out[k] = R.policyText();
+      }
+    });
     return out;
   }
+  const _NBD_ONLY_MARKETING = ['financePartner', 'services', 'valueProps', 'tagline'];
+  function _sameValue(a, b) {
+    if (a === b) return true;
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; }
+  }
+  // Exported so the document renderers can ask "is this the platform
+  // tenant?" with the SAME gate the profile uses.
+  window._isNbdBrandProfile = function () {
+    const profile = window._companyProfile || NBD_COMPANY_PROFILE_DEFAULTS;
+    return _isNbdBrand(profile.brand || NBD_COMPANY_PROFILE_DEFAULTS.brand);
+  };
   window._legal = function () { return _resolveLegal(); };
 
   // ── Per-tenant customer-ID minting (loose-end fix) ───────────────

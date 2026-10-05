@@ -94,7 +94,7 @@ async function forceStandalone(page) {
 async function seedLeadWithPhotos(page) {
   return safeEvaluate(page, async () => {
     const stamp = Date.now();
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const companyId = (window._userClaims && window._userClaims.companyId) || uid;
@@ -151,7 +151,7 @@ async function dealDoc(page) {
   return safeEvaluate(page, async () => {
     const d = (window.CloseBoard.getDeals() || [])[0];
     if (!d) return null;
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     for (let i = 0; i < 40; i++) {
       const s = await fsMod.getDoc(fsMod.doc(window.db || window._db, 'deal_rooms', d.id));
       const v = s.exists() ? s.data() : null;
@@ -174,7 +174,7 @@ test.describe('phone deal packet: Full packet vs Paperwork only @shard2', () => 
     expect(await forceStandalone(page)).toBeGreaterThan(200);
     // Start from the default, whatever an earlier run remembered.
     await safeEvaluate(page, async () => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       await fsMod.setDoc(fsMod.doc(window.db || window._db, 'userSettings', window._user.uid), { dealPacket: 'full' }, { merge: true });
     });
 
@@ -280,7 +280,7 @@ test.describe('phone deal packet: Full packet vs Paperwork only @shard2', () => 
 
     await test.step('remembered: userSettings says paperwork; a reopened builder starts there', async () => {
       const saved = await safeEvaluate(page, async () => {
-        const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const s = await fsMod.getDoc(fsMod.doc(window.db || window._db, 'userSettings', window._user.uid));
         return s.exists() ? s.data().dealPacket : null;
       });

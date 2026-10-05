@@ -531,7 +531,10 @@ function renderLeads(leads, filtered){
       // an empty account is exactly who wants to see a populated board.
       if (title) title.textContent = '👋 Your pipeline is ready';
       if (lede) {
-        lede.textContent = 'No leads yet — tap ＋ Add Lead to create your first one, '
+        // Import first (2026-10-04): a new company's customers live in a
+        // spreadsheet somewhere. Imports don't eat the monthly lead cap.
+        lede.textContent = 'No leads yet — import your customer list from a CSV '
+          + '(imports don’t count against your monthly lead limit), tap ＋ Add Lead, '
           + 'or load a few samples to see how the board works.';
       }
       _setDebugVisible(false);
