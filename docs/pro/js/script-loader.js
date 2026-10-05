@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=10'
+      'js/close-board.js?v=11'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -181,9 +181,9 @@
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
       'js/document-generator.js?v=16',
-      'js/document-generator-templates.js?v=12',
-      'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=4',
+      'js/document-generator-templates.js?v=13',
+      'js/document-generator-library.js?v=3', // 2026-10-04 template library; needs -templates' _tpl
+      'js/doc-preflight.js?v=5',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -240,8 +240,8 @@
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=12',
-      'js/estimate-catalog-xactimate.js?v=3',
+      'js/estimate-builder-v2.js?v=13',
+      'js/estimate-catalog-xactimate.js?v=4',
       'js/estimate-logic-engine.js?v=8',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
@@ -253,10 +253,10 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=6',
+      'js/estimate-finalization.js?v=7',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=23',
+      'js/estimate-v2-ui.js?v=24',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=4',
@@ -268,7 +268,7 @@
       // inserts into the V2 builder — end-of-bundle satisfies all three.
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
-      'js/job-templates-data.js?v=4',
+      'js/job-templates-data.js?v=5',
       'js/job-templates.js?v=7',
       'js/entity-resolver.js?v=2',
       'js/job-templates-ui.js?v=8',
@@ -340,7 +340,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=6'
+      'js/warranty-cert.js?v=7'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/

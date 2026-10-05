@@ -566,7 +566,7 @@
     // TIER_DISPLAY for a page that didn't load the config.
     const _fallbackWarranty = {
       economy: { workmanshipYears: 1, systemWarranty: false, transferable: false },
-      good: { transferable: false }, better: { transferable: true, transferWindowDays: 30 }, best: { transferable: true, inspection: true },
+      good: { transferable: false, systemPlus: true }, better: { transferable: true, transferWindowDays: 30, systemPlus: true }, best: { transferable: true, inspection: true, systemPlus: true },
       beyond: { transferable: true, inspection: true, hailWarranty: true }
     };
     const label = (cfg && typeof cfg.tierLabel === 'function') ? cfg.tierLabel(d.warrantyTier) : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[d.warrantyTier] || d.warrantyTier;
@@ -596,11 +596,18 @@
     // warranty, never a system warranty — and not the resolver's sentence,
     // which can say "Limited Lifetime". Beyond: TAMKO HailGuard's hail warranty.
     const _mfgRes = resolveDocManufacturer(d.estimateLineItems).manufacturerWarranty;
+    // GAF System Plus (Standard/Preferred/Elite, Jo 2026-10-05): included in
+    // the tier — GAF's manufacturer warranty, not workmanship. NBD's GAF
+    // certification, so the platform tenant only, and only on a GAF roof.
+    const _trSp = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    const _sysPlus = !!w.systemPlus && !termYears && !w.hailWarranty
+      && resolveDocManufacturer(d.estimateLineItems).manufacturer === 'GAF'
+      && (!_trSp || typeof _trSp.isPlatformTenant !== 'function' || _trSp.isPlatformTenant());
     const mfgSentence = termYears
       ? 'the shingle manufacturer\'s standard limited warranty (no system warranty is included)'
       : (w.hailWarranty && !/HAIL/i.test(_mfgRes)
         ? 'TAMKO\'s HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)'
-        : _mfgRes);
+        : (_sysPlus ? 'the GAF System Plus Limited Warranty, included with this tier — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply)' : _mfgRes));
     // The manufacturer warranty by NAME for the details grid (2026-10-04):
     // the tier decides Economy (standard limited, no system warranty) and
     // Beyond (HailGuard); otherwise the shingle actually on the estimate.
@@ -608,7 +615,8 @@
     const mfgShort = termYears
       ? _mfgRes2.manufacturer + ' standard limited warranty (no system warranty)'
       : (w.hailWarranty ? 'TAMKO HailGuard hail warranty'
-        : (_mfgRes2.manufacturerWarrantyFeature || (_mfgRes2.manufacturer + ' limited manufacturer warranty')));
+        : (_sysPlus ? 'GAF System Plus Limited Warranty (included)'
+          : (_mfgRes2.manufacturerWarrantyFeature || (_mfgRes2.manufacturer + ' limited manufacturer warranty'))));
     const badgeText = termYears
       ? termYears + '-YEAR WORKMANSHIP (LABOR) WARRANTY — ' + t.label + ' TIER'
       : 'LIFETIME WORKMANSHIP WARRANTY — ' + t.label + ' TIER';

@@ -77,6 +77,10 @@
     if (w.workmanshipYears) warranty = w.workmanshipYears + '-Year Labor Warranty';
     else if (w.hailWarranty) warranty = 'Lifetime Warranty + Hail Warranty';
     else warranty = 'Lifetime Warranty';
+    // GAF System Plus is included on Standard/Preferred/Elite (2026-10-05) —
+    // NBD's GAF certification, so the platform tenant only.
+    const tr = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    if (w.systemPlus && (!tr || typeof tr.isPlatformTenant !== 'function' || tr.isPlatformTenant())) warranty += ' + GAF System Plus';
     return (_TIER_MATERIAL[key] || 'Custom Scope') + ' · ' + warranty;
   }
 

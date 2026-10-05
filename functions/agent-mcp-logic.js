@@ -309,10 +309,13 @@ function estimatesStatus(estimates, deals, leads, args, nowMs) {
 // copy of the jurisdiction module.
 const TIERS = [
   { key: 'economy', label: 'Economy', ratePerSq: 440, warranty: '1-year workmanship plus the shingle maker\'s limited warranty; no system warranty; not transferable', crmOnly: true, notes: 'Never 3-tab shingles.' },
-  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: 'Lifetime system warranty; not transferable' },
-  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: 'Lifetime system warranty; transferable to one later owner within 30 days of sale' },
-  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: 'Lifetime system warranty; fully transferable; annual inspection' },
-  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: 'Elite warranty plus TAMKO\'s hail warranty', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
+  // "Lifetime" is NBD's WORKMANSHIP warranty. GAF System Plus (Standard and
+  // up, Jo 2026-10-05) is GAF's MANUFACTURER warranty, included in the tier
+  // price — never sold as a separate line, never described as workmanship.
+  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: 'Lifetime workmanship warranty; not transferable; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: 'Lifetime workmanship warranty; transferable to one later owner within 30 days of sale; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: 'Lifetime workmanship warranty; fully transferable; annual inspection; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: 'Elite workmanship terms (fully transferable, annual inspection) plus TAMKO\'s hail warranty; no GAF System Plus (not a GAF roof)', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
 ];
 const WORKMANSHIP_YEARS = { gutter_system: 5, guard_only: 2, install_default: 2, repair: 1, none: 0 };
 const DEPOSIT = { cashNoDepositUnderCents: 200000, cashDepositPct: 50, insurance: 'Kentucky insurance job: nothing due at signing; deductible + ACV due after the carrier\'s written decision and the 5-business-day cancellation window.' };
