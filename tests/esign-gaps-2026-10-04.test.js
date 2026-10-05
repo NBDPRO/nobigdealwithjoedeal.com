@@ -600,6 +600,8 @@ const tokenFor = (db, envelopeId, signerId) => {
       './deal-accepted-tier': { applyAcceptedTier: async () => ({}) },
       './ky-insurance-law': require(path.join(FN, 'ky-insurance-law.js')),
       './cancel-window': require(path.join(FN, 'cancel-window.js')),
+      './deal-packet-logic': require(path.join(FN, 'deal-packet-logic.js')),
+      './photo-reencode': { reencodePhoto: async (x) => x },
     };
     const mod = { exports: {} };
     new Function('module', 'exports', 'require', fs.readFileSync(path.join(FN, 'deal-acceptance.js'), 'utf8'))(
