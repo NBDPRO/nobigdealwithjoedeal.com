@@ -1311,9 +1311,21 @@ const PRODUCT_MAP = {
   gutter:  null                                         // gutters — use default rate
 };
 
+// Which product pricing column a tier reads. Products carry good/better/best
+// only; Economy reads Good and Beyond reads Best (estimate-config.js
+// PRODUCT_TIER, the same mapping the V2 engine and the old builder's internal
+// cost view use). Without it an Economy/Beyond sync found no column and fell
+// back to DEFAULT_RATES. Inline fallback only if estimate-config is missing.
+function _rateColumn(tier) {
+  const cfg = window.NBD_ESTIMATE_CONFIG;
+  if (cfg && typeof cfg.productTier === 'function') return cfg.productTier(tier);
+  return ({ economy: 'good', beyond: 'best' })[tier] || tier;
+}
+
 // Build window.R by pulling live pricing from product library, falling back to defaults
 function syncRatesFromProductLibrary(tier) {
   tier = tier || 'better';
+  const col = _rateColumn(tier);
   const rates = Object.assign({}, DEFAULT_RATES);
 
   if (window._productLib && typeof window._productLib.getProducts === 'function') {
@@ -1321,9 +1333,9 @@ function syncRatesFromProductLibrary(tier) {
     for (const [key, mapping] of Object.entries(PRODUCT_MAP)) {
       if (!mapping) continue;
       const product = products.find(p => p.id === mapping.id);
-      if (product && product.pricing && product.pricing[tier]) {
+      if (product && product.pricing && product.pricing[col]) {
         // Convert product sell price to per-unit rate used by estimates
-        rates[key] = product.pricing[tier].sell * mapping.unitConvert;
+        rates[key] = product.pricing[col].sell * mapping.unitConvert;
       }
     }
   }
