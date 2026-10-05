@@ -377,6 +377,7 @@
     "stage-actor-no-next-step-2026-10-03.test.js",
     "boot-offline-reads-2026-10-04.test.js",
     "no-conflict-markers-2026-10-04.test.js",
+    "merge-leftovers-guard-2026-10-05.test.js",
     "field-photos-client-2026-10-04.test.js",
     "field-photos-server-2026-10-04.test.js",
     "estimate-pricing-paths-2026-10-05.test.js",
