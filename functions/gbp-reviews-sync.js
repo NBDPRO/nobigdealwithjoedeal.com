@@ -174,4 +174,8 @@ exports.syncGbpReviews = onSchedule(
   }
 );
 
+// Reused by functions/social-studio.js (Social Studio's GBP local-posts adapter,
+// dormant behind SOCIAL_GBP_ENABLED) — one refresh-token OAuth for both.
+exports.fetchAccessToken = fetchAccessToken;
+
 exports._test = { configured, starRatingToNumber, relativeTimeFrom, mapGbpReview, GBP_DOC_PATH };
