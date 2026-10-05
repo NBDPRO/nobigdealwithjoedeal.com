@@ -479,17 +479,30 @@
   // SECTION 4 — Pure Helpers
   // ═════════════════════════════════════════════════════════
 
+  // Returns the rise/run RATIO (8/12 → 0.667). Accepts:
+  //   "8/12", "8:12", "8 / 12"   → rise ÷ run
+  //   a bare number (string or number):
+  //     > 2  → a RISE per 12 ("8" → 8/12 = 0.667, "12" → 1.0)
+  //     ≤ 2  → already a ratio ("0.667" stays 0.667, 0 = flat)
+  //   No real roof has a ratio above 2 (24/12), so a bare value above 2 can
+  //   only be a rise. A bare "8" used to come back as ratio 8 (8:1), which
+  //   fired every steep adder and 1.25 waste. Missing / unparseable → 0.667.
   function parsePitch(pitch) {
     if (pitch == null || pitch === '') return 0.667;
-    if (typeof pitch === 'number') return pitch;
-    const parts = String(pitch).split('/');
-    if (parts.length === 2) {
-      const rise = parseFloat(parts[0]);
-      const run  = parseFloat(parts[1]) || 12;
-      return run > 0 ? rise / run : 0.667;
+    let n;
+    if (typeof pitch === 'number') {
+      n = pitch;
+    } else {
+      const parts = String(pitch).split(/[/:]/);
+      if (parts.length === 2) {
+        const rise = parseFloat(parts[0]);
+        const run  = parseFloat(parts[1]) || 12;
+        return (run > 0 && Number.isFinite(rise)) ? rise / run : 0.667;
+      }
+      n = parseFloat(pitch);
     }
-    const n = parseFloat(pitch);
-    return isNaN(n) ? 0.667 : n;
+    if (!Number.isFinite(n)) return 0.667;
+    return n > 2 ? n / 12 : n;
   }
 
   function wasteFactorForPitch(pitchRatio) {
