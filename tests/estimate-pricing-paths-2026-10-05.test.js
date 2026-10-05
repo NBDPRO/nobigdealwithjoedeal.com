@@ -623,9 +623,15 @@ section('I. DEAL ROOM — accepted tier onto the estimate (functions/deal-accept
   const plan = planAcceptedTier({ lead: { userId: 'u1', primaryEstimateId: 'e1' }, estimate, estimateId: 'e1', leadId: 'l1', ownerUid: 'u1', tier: 'best', price: 15000, dealId: 'd1', now: 'T' });
   ok('control: the homeowner\'s Best $15,000 is applied to the tier-less estimate', plan.reason === 'applied' && plan.estimate.grandTotal === 15000 && plan.estimate.tier === 'best');
   const merged = Object.assign({}, estimate, plan.estimate);
-  ok('KNOWN BUG #10 (reported 2026-10-05): planAcceptedTier overwrites grandTotal ($10,000 → $15,000) without recomputing deposit/tax/subtotal (functions/deal-accepted-tier.js:66) — the saved estimate keeps a $5,000 deposit and a $9,300 subtotal; expected deposit $7,500 and subtotal/tax recomputed for $15,000',
-    !('deposit' in plan.estimate) && !('subtotal' in plan.estimate) && !('tax' in plan.estimate) && !('depositPlan' in plan.estimate)
-      && merged.grandTotal === 15000 && merged.deposit === 5000 && merged.subtotal === 9300, j(Object.keys(plan.estimate)));
+  // Fixed 2026-10-05 (Jo: recompute all three). By hand: cash $15,000 ≥ $2,000
+  // → 50% = $7,500 (already a $25 step). Tax backed out of the tier total at the
+  // stored 7.527%: 15,000 × 0.07527 / 1.07527 = 1,050.0153 → $1,050.02; subtotal
+  // = 15,000 − 1,050.02 = $13,949.98, so subtotal + tax = the total exactly.
+  ok('FIXED (was KNOWN BUG #10, reported 2026-10-05): planAcceptedTier recomputes deposit/tax/subtotal with grandTotal ($10,000 → $15,000) — deposit $7,500, tax $1,050.02, subtotal $13,949.98, stored plan on $15,000',
+    merged.grandTotal === 15000 && merged.deposit === 7500 && merged.tax === 1050.02 && merged.subtotal === 13949.98
+      && !!merged.depositPlan && merged.depositPlan.totalCents === 1500000 && merged.depositPlan.depositCents === 750000
+      && merged.acceptedTierDepositKept === false,
+    j([merged.grandTotal, merged.deposit, merged.tax, merged.subtotal, merged.depositPlan && merged.depositPlan.depositCents]));
 }
 
 // ════════════════════════════════════════════════════════════════════
