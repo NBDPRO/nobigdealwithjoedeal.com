@@ -348,6 +348,10 @@ const tick = () => new Promise((r) => setImmediate(r));
       'leads/L1': leadOf({ stage: 'estimate_sent_cash', primaryEstimateId: 'E1' }),
       'estimates/E1': perSq,
       'leads/L1/documents/d1': signed(),
+      // Since #2152 (tenant-ready) a company's OWN deposit rule decides, and a
+      // company with none takes no cash deposit, so no draft. Tenant 'u1' runs
+      // the same 50%-over-$2,000 rule as tests/deposit-draft-2026-10-03.test.js.
+      'companyProfile/u1': { businessRules: { deposit: { noDepositUnderCents: 200000, depositPct: 50, roundToCents: 2500 } } },
     });
     const refusal = async (p) => { try { await p; return null; } catch (e) { return e; } };
     const me = { uid: 'u1', token: {} };
