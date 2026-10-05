@@ -35,15 +35,32 @@
   function fmt(n) { return Math.round(Number(n) || 0).toLocaleString('en-US'); }
 
   // ── settings (userSettings/{uid}.game) ─────────────────────────────────
+  // A cold boot can catch Firestore mid-connect (2026-10-04): getDoc then
+  // REJECTS "client is offline", or answers from the empty local cache. Both
+  // used to land as { enabled: false } for the page's life — game mode on,
+  // card gone until a reload. Ask again a few times before settling on off;
+  // a choice made on this screen meanwhile is never overwritten.
+  var READ_TRIES = 6;
+  var localEditAt = 0;
+  function transient(e) { return /offline|unavailable|deadline|backend|network/i.test(String((e && (e.code || e.message)) || '')); }
   async function loadSettings() {
     if (!uid() || !window.getDoc || !window.doc || !window.db) return null;
-    try {
-      var snap = await window.getDoc(window.doc(window.db, 'userSettings', uid()));
-      st.settings = (snap.exists() && (snap.data() || {}).game) || { enabled: false };
-    } catch (_) { st.settings = st.settings || { enabled: false }; }
-    return st.settings;
+    for (var n = 0; ; n++) {
+      var editAt = localEditAt;
+      try {
+        var snap = await window.getDoc(window.doc(window.db, 'userSettings', uid()));
+        var game = snap.exists() && (snap.data() || {}).game;
+        if (!game && snap.metadata && snap.metadata.fromCache && n < READ_TRIES - 1) throw Object.assign(new Error('cached read'), { code: 'unavailable' });
+        if (localEditAt === editAt) st.settings = game || { enabled: false };
+        return st.settings;
+      } catch (e) {
+        if (!transient(e) || n >= READ_TRIES - 1) { st.settings = st.settings || { enabled: false }; return st.settings; }
+      }
+      await new Promise(function (r) { setTimeout(r, 1500 * (n + 1)); });
+    }
   }
   async function saveSettings(patch) {
+    localEditAt = Date.now();
     st.settings = Object.assign({}, st.settings || {}, patch);
     if (!uid() || !window.setDoc) return;
     await window.setDoc(window.doc(window.db, 'userSettings', uid()), { game: st.settings }, { merge: true });

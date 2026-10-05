@@ -162,6 +162,7 @@ function loadEsignHandlers(db) {
     bucket: () => ({
       file: () => ({
         download: async () => [Buffer.from('%PDF-FAKE')],
+        save: async () => {},
       }),
     }),
   };
@@ -181,6 +182,7 @@ function loadEsignHandlers(db) {
       FieldValue: {
         serverTimestamp: () => ({ __fv: 'serverTimestamp' }),
         arrayUnion: (...items) => ({ __fv: 'arrayUnion', items }),
+        delete: () => ({ __fv: 'delete' }),
       },
     },
     'firebase-admin/storage': { getStorage: () => storageStub },
@@ -192,15 +194,30 @@ function loadEsignHandlers(db) {
       stampPdf: async () => ({ bytes: Buffer.from('%PDF-SIGNED'), missingRequired: [] }),
       readPdfGeometry: async () => [{ w: 612, h: 792 }],
       validateFields: () => {},
+      appendAuditCertificate: async (b) => ({ bytes: b, pagesAdded: 1 }),
       FIELD_TYPES: ['signature', 'initials', 'date', 'text', 'checkbox'],
     },
+    // 2026-10-04: the pure rules (real module) and the shared I/O helpers
+    // (real source, run under these same stubs — see loadIo below).
+    './esign-logic': require(path.join(ROOT, 'functions', 'esign-logic.js')),
     './integrations/_shared': { secretOr: (_secret, def) => def },
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => 'rejected' },
     // Job spine (2026-10-03) — its own suite is tests/job-spine-2026-10-03.test.js.
     './job-spine': { spineAfterEsign: async () => ({ skipped: 'stub' }) },
+    // The 3-day cancellation notice on contract envelopes (2026-10-04) — its
+    // own suite is tests/contract-cancel-forms.test.js. These envelopes are
+    // not contracts, so the appender is never reached.
+    './job-spine-logic': { envelopeIsContract: () => false },
+    './cancel-window': { loadPacketOpts: async () => ({}), stampLeadCancelBy: async () => false },
   };
 
   const requireStub = (id) => {
+    if (id === './esign-io' && !stubs['./esign-io']) {
+      const io = { exports: {} };
+      new Function('module', 'exports', 'require', 'process', fs.readFileSync(path.join(ROOT, 'functions', 'esign-io.js'), 'utf8'))(
+        io, io.exports, requireStub, { env: {} });
+      stubs['./esign-io'] = io.exports;
+    }
     if (!Object.prototype.hasOwnProperty.call(stubs, id)) throw new Error('unstubbed require(' + id + ')');
     return stubs[id];
   };

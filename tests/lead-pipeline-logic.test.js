@@ -16,8 +16,8 @@ const JS = path.join(__dirname, '..', 'docs/pro/js');
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond) { if (cond) { passed++; console.log('  ✓ ' + name); } else { failed++; fails.push(name); console.log('  ✗ ' + name); } }
 
-function loadIIFE(file) {
-  const src = fs.readFileSync(path.join(JS, file), 'utf8');
+function loadIIFE(files) {
+  const list = Array.isArray(files) ? files : [files];
   const noop = () => ({ style: {}, appendChild() {}, addEventListener() {}, remove() {}, classList: { add() {}, remove() {} }, dataset: {} });
   const win = { addEventListener() {}, removeEventListener() {}, dispatchEvent() {}, localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} } };
   win.window = win;
@@ -27,7 +27,8 @@ function loadIIFE(file) {
     console: { log() {}, warn() {}, error() {} },
     setTimeout, clearTimeout, Date, Math, JSON,
   };
-  vm.runInNewContext(src, sandbox, { filename: file });
+  vm.createContext(sandbox);
+  list.forEach((file) => vm.runInContext(fs.readFileSync(path.join(JS, file), 'utf8'), sandbox, { filename: file }));
   return win;
 }
 
@@ -117,7 +118,8 @@ function loadIIFE(file) {
 // ── lead-source-roi.js ───────────────────────────────────────
 {
   console.log('\nLEAD SOURCE ROI — computeMetrics aggregation');
-  const roiWin = loadIIFE('lead-source-roi.js');
+  // numbers-logic.js first, as on the page: the table's rules live there (2026-10-04).
+  const roiWin = loadIIFE(['numbers-logic.js', 'lead-source-roi.js']);
   const R = roiWin.LeadSourceROI;
   ok('exposes LeadSourceROI.compute', R && typeof R.compute === 'function');
   const leads = [
@@ -149,7 +151,9 @@ function loadIIFE(file) {
   ok('Referral total === 3 (2 closed + 1 open)', ref && ref.total === 3);
   ok('Referral closed === 2, collectedRev === 26500 (cash, incl. the open job\'s deposit)', ref.closed === 2 && ref.collectedRev === 26500);
   ok('booked value is NOT revenue: bookedRev === 50000 is kept only for Avg Deal', ref.bookedRev === 50000 && m.totals.collectedRev === 26500);
-  ok('Referral conversionRate === 67 (2/3)', ref.conversionRate === 67);
+  // THE close rate (2026-10-04): won ÷ (won + lost). The open lead is not
+  // decided, so Referral is 2/2 — it used to be 2/3 (won ÷ all leads).
+  ok('Referral won % === 100 (2 won ÷ 2 decided; the open lead is undecided)', ref.conversionRate === 100 && ref.winRate === 1);
   ok('Referral avgDealSize === 25000', ref.avgDealSize === 25000);
   ok("canonical bucket is 'Door Knock', not 'Door-to-Door'",
     !!d2d && !m.rows.find(r => r.source === 'Door-to-Door'));

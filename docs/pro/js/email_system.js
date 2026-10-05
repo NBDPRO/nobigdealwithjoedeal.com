@@ -2,9 +2,9 @@
 // EMAIL INTEGRATION SYSTEM - Send estimates, reports, and follow-ups
 // ═══════════════════════════════════════════════════════════════════════
 
-// Email service configuration (using EmailJS or similar)
-// For now, we'll use mailto: links with pre-populated content
-// In production, integrate with SendGrid, Mailgun, or AWS SES
+// Opens the email modal with pre-populated content; real sends go through
+// NBDComms / the server (Resend). The dormant EmailJS path (never configured,
+// provider defaulted to mailto, no callers) was removed 2026-10-04.
 
 let _NBD_ES_DELEGATE, openEmailModal, closeEmailModal, emailEstimatePDF, emailFollowUp, _emailAttachment, _emailContext, _emailLeadId; // module-local (globals Tranche 1 — was window.*)
 window.emailSystem = {
@@ -600,15 +600,13 @@ Thank you for trusting {companyName}. We're going to do a great job for you.
 
 Your installation at {address} is scheduled!
 
-Scheduled Date: {scheduledDate}
-Crew: {crew}
+Scheduled: {scheduledDate}
+{arrivalLine}
+{lengthLine}
 
-What to expect on installation day:
-- Crew arrives early morning (typically 7-8 AM)
-- Work usually takes 1-2 days depending on scope
-- We'll keep the area clean and professional throughout
+The crew will keep the work area clean and run a magnet sweep for nails before they leave.
 
-Please make sure vehicles are moved from the driveway. If you have any concerns, let me know before installation day.
+Please move vehicles out of the driveway and away from the house before the crew arrives. If you have any concerns, let me know before installation day.
 
 {repName}
 {companyName}
@@ -718,11 +716,21 @@ window.emailSystem.buildStageEmail = async function(leadId) {
     claimNumber: lead.claimNumber || '[pending]',
     estimateAmount: lead.estimateAmount ? '$' + parseFloat(lead.estimateAmount).toLocaleString() : '[pending]',
     scheduledDate: lead.scheduledDate || '[to be confirmed]',
-    crew: lead.crew || 'our installation team',
+    // Crews are independent subcontractors: a homeowner email says "the crew",
+    // never "our installation team" (production flow, 2026-10-04).
+    crew: 'the crew',
+    arrivalLine: '',
+    lengthLine: '',
     preQualLink: lead.preQualLink || '[link will be sent separately]',
     repName: window.emailSystem._repName(),
   };
   Object.assign(data, window.emailSystem._brandFields());
+  // Crew Scheduled is filled from the job's real start time, day count and
+  // week (production-logic.js crewEmailFields) — it used to hard-code
+  // "typically 7-8 AM" and "1-2 days" whatever the job was.
+  if (window.NBDProductionLogic && typeof window.NBDProductionLogic.crewEmailFields === 'function') {
+    Object.assign(data, window.NBDProductionLogic.crewEmailFields(lead));
+  }
 
   let subject = template.subject;
   let body = template.body;
@@ -730,6 +738,8 @@ window.emailSystem.buildStageEmail = async function(leadId) {
     subject = subject.replace(new RegExp(`\\{${key}\\}`, 'g'), data[key]);
     body = body.replace(new RegExp(`\\{${key}\\}`, 'g'), data[key]);
   });
+  // An empty fill-in line (no length known) leaves no blank gap.
+  body = body.replace(/\n{3,}/g, '\n\n');
 
   return { to: email, subject, body, stage, leadId, customerName };
 };
@@ -751,77 +761,7 @@ window.emailByStage = async function(leadId) {
   });
 };
 
-// ═══════════════════════════════════════════════════════════════════════
-// EMAILJS INTEGRATION (optional — for real server-side sending)
-// Configure in Firebase: users/{uid}/settings/emailjs
-// ═══════════════════════════════════════════════════════════════════════
-
-window.emailSystem.config = {
-  provider: 'mailto', // 'mailto' | 'emailjs'
-  emailjsServiceId: null,
-  emailjsTemplateId: null,
-  emailjsPublicKey: null,
-};
-
-/**
- * Load EmailJS config from Firestore (if configured)
- */
-window.emailSystem.loadConfig = async function() {
-  try {
-    if (!window.db || !window._user) return;
-    const configSnap = await window.getDoc(window.doc(window.db, 'users', window._user.uid, 'settings', 'emailjs'));
-    if (configSnap.exists()) {
-      const data = configSnap.data();
-      if (data.serviceId && data.templateId && data.publicKey) {
-        this.config.provider = 'emailjs';
-        this.config.emailjsServiceId = data.serviceId;
-        this.config.emailjsTemplateId = data.templateId;
-        this.config.emailjsPublicKey = data.publicKey;
-        console.log('✓ EmailJS configured — real email sending enabled');
-      }
-    }
-  } catch (e) {
-    console.warn('EmailJS config not found, using mailto fallback');
-  }
-};
-
-/**
- * Send via EmailJS (when configured) or fall back to mailto
- */
-window.emailSystem.send = async function(to, subject, body, options = {}) {
-  if (this.config.provider === 'emailjs' && this.config.emailjsPublicKey) {
-    try {
-      // Load EmailJS SDK if not already loaded
-      if (!window.emailjs) {
-        const script = document.createElement('script');
-        script.src = '/assets/vendor/emailjs/email.min.js';
-        document.head.appendChild(script);
-        await new Promise(resolve => script.onload = resolve);
-        window.emailjs.init(this.config.emailjsPublicKey);
-      }
-
-      const _bf = window.emailSystem._brandFields();
-      await window.emailjs.send(this.config.emailjsServiceId, this.config.emailjsTemplateId, {
-        to_email: to,
-        subject: subject,
-        message: body,
-        from_name: `${window.emailSystem._repName()} — ${_bf.companyNameShort}`,
-        reply_to: _bf.companyEmail,
-      });
-
-      return { success: true, method: 'emailjs' };
-    } catch (e) {
-      console.error('EmailJS send failed, falling back to mailto:', e);
-    }
-  }
-
-  // Fallback: mailto
-  const mailtoLink = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailtoLink;
-  return { success: true, method: 'mailto' };
-};
-
-console.log('✓ Email system loaded (with stage templates + EmailJS support)');
+console.log('✓ Email system loaded (with stage templates)');
 
 
 // CSP-safe delegation (replaces 3 inline onclicks killed by script-src-attr 'none')

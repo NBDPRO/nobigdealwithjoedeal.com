@@ -11,10 +11,10 @@
  * before anything happened — and it poisons the referral channel it exists
  * to grow.
  *
- * The correct gate already existed for the rating card: the server computes
- * progressKey and sets rating.canRate = (progressKey === 'complete'),
- * re-enforced when a rating is submitted. Both cards assert the work is
- * done, so both wait until it is.
+ * The correct gate already existed for the rating card: the server sets
+ * rating.canRate, re-enforced when a rating is submitted. Since 2026-10-03
+ * (functions/homeowner-progress.js) that gate is PAID IN FULL. Both cards
+ * assert the work is done, so both wait until it is.
  */
 const fs = require('fs');
 const path = require('path');
@@ -57,24 +57,27 @@ group('The card still exists and still says what it says', () => {
   assert('the referral card is still rendered here', /Refer a friend/.test(CODE));
 });
 
-group('It renders only when the job is complete', () => {
-  assert('a jobComplete flag is derived from progress.currentKey',
-    /const jobComplete = !!\(view\.progress && view\.progress\.currentKey === 'complete'\);/.test(CODE));
+group('It renders only when the job is paid in full', () => {
+  assert('a jobComplete flag is derived from the rating card\'s own canRate',
+    /const jobComplete = !!\(view\.rating && view\.rating\.canRate === true\);/.test(CODE));
   assert('the gate requires BOTH a referral code and completion',
     /if \(customerId && jobComplete\) \{/.test(CODE));
   assert('customerId alone no longer gates it',
     !/const customerId = view\.homeowner && view\.homeowner\.customerId;\s*if \(customerId\) \{/.test(CODE),
     'this is the exact shape that shipped the bug');
+  assert('the retired 5-step "complete" key is not consulted',
+    !/currentKey === 'complete'/.test(CODE));
 });
 
-group("'complete' is a real progress key, not a guess", () => {
-  assert('the server defines a complete milestone', /key: 'complete'/.test(PORTAL_FN));
-  assert('and computes progressKey', /progressKey/.test(PORTAL_FN));
-  assert('the rating card uses the same completion notion',
-    /canRate: progressKey === 'complete'/.test(PORTAL_FN),
+group('canRate is the server\'s paid-in-full gate', () => {
+  assert('the rating card flag is the resolver\'s paidInFull',
+    /canRate: hp\.paidInFull,/.test(PORTAL_FN),
     'refer + rate should agree; if this moves, move the referral gate with it');
-  assert('progress.currentKey is what the client receives',
-    /currentKey:\s*progressKey/.test(PORTAL_FN));
+  const HP = require(path.join(ROOT, 'functions', 'homeowner-progress.js'));
+  assert('an unpaid finished roof does not unlock it',
+    HP.paidInFullFor({ stage: 'final_photos' }, [{ balanceDue: 4200 }]) === false);
+  assert('a paid one does',
+    HP.paidInFullFor({ stage: 'final_payment' }, [{ balanceDue: 0 }]) === true);
 });
 
 console.log('\n──────────────────────────────────────────────────');

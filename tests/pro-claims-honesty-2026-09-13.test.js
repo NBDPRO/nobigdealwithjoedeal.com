@@ -80,7 +80,9 @@ console.log('\nTRIAL — Team AND Growth get 14 days (functions/stripe.js grants
 
 console.log('\nE-SIGN — 3 of 25 doc types ship a default signer block; links expire in 14 days (functions/esign-envelope.js TTL_DAYS)');
 {
-  const ttl = read('functions/esign-envelope.js');
+  // TTL_DAYS moved to esign-io.js (2026-10-04) — shared by the envelope
+  // functions and the reminder sweep.
+  const ttl = read('functions/esign-io.js');
   const m = ttl.match(/const TTL_DAYS\s*=\s*(\d+)/);
   ok('code truth: TTL_DAYS is still 14 (this test needs updating if that ever changes)', m && m[1] === '14');
   ok('demo.html no longer says 9 are e-sign ready', countAcross('9 e-sign ready with homeowner') === 0);

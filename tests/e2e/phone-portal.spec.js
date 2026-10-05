@@ -12,7 +12,8 @@
 //
 // Both pages call Cloud Functions the CI rig does not run, so every
 // function is answered by context.route() with payloads shaped like
-// functions/portal.js returns. Cal.com and BoldSign are stubbed too: nothing
+// functions/portal.js returns. Cal.com is stubbed too (the BoldSign embed was
+// retired 2026-10-04 — signing is a link to esign.html now): nothing
 // leaves the machine except Google Fonts.
 //
 // Tagged @shard2 for the authed emulator job. Run locally:
@@ -44,35 +45,40 @@ function skipWithoutCreds() {
 const FN_RE = /^(?:http:\/\/127\.0\.0\.1:5001\/nobigdeal-pro\/us-central1|https:\/\/us-central1-nobigdeal-pro\.cloudfunctions\.net)\/([A-Za-z]+)/;
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
 const img = (n) => '/assets/images/' + n;
-const MILESTONES = [
-  { key: 'inspected', label: 'Inspection', blurb: 'We have looked at your property.' },
-  { key: 'estimate_sent', label: 'Estimate', blurb: 'You have a written quote.' },
-  { key: 'contract_signed', label: 'Contract', blurb: 'Signed and ready to schedule.' },
-  { key: 'install', label: 'Installation', blurb: 'The crew is on the job.' },
-  { key: 'complete', label: 'Complete', blurb: 'Project finished.' },
-];
+// The progress payload comes from the REAL resolver + wording constant
+// (functions/homeowner-progress.js, pure), shaped as getHomeownerPortalView
+// sends it — so this spec renders the 9 steps the homeowner actually gets.
+const HP = require('../../functions/homeowner-progress');
+function progressFor(lead, invoices) {
+  const hp = HP.resolveHomeownerProgress(lead, { invoices: invoices || [], repName: 'Joe Deal' });
+  return {
+    milestones: hp.steps, currentKey: hp.currentKey, currentIndex: hp.currentIndex, currentLabel: hp.currentLabel,
+    currentBlurb: hp.currentBlurb, pending: hp.pending, doneCount: hp.doneCount, total: hp.total,
+    nextLabel: hp.nextLabel, paidInFull: hp.paidInFull, paidLine: hp.paidLine, warrantyOnFile: hp.warrantyOnFile,
+    payLink: null, copy: HP.HOMEOWNER_PROGRESS_COPY.ui,
+    scheduledDate: lead.scheduledDate || null, scheduleWindow: null, scheduledWeek: null, milestoneDates: {}, otherJobs: [],
+  };
+}
 
-// kind: 'estimate' (awaiting signature: sign + booking embeds) or
+// kind: 'estimate' (awaiting signature: the sign link + booking) or
 // 'complete' (sliders, rating, warranty, referral — every input on the page).
 function portalView(kind) {
-  const idx = kind === 'complete' ? 4 : 1;
   const done = kind === 'complete';
+  const warranty = done ? { tier: 'preferred', tierLabel: 'NBD Preferred Warranty', installDate: '2026-09-20', certNumber: 'NBD-W-0042', openWarrantyClaimId: null } : null;
+  // 'complete' = closed and paid in full (the only state the rating card and
+  // referral card open in since 2026-10-03); 'estimate' = quote out.
+  const progress = progressFor(done ? { stage: 'closed', warranty } : { stage: 'estimate_submitted' });
   const pair = (b, a, location) => ({ location, before: { url: img(b) }, after: { url: img(a) } });
   return {
     homeowner: { firstName: 'Pat', lastName: 'Homeowner', address: '100 Test Ln, Loveland OH', customerId: 'NBD-0042' },
     rep: { displayName: 'Joe Deal', phone: '(859) 555-0100', calcomUsername: 'joedeal', calcomEventSlug: 'roof-inspection' },
     company: { name: 'No Big Deal Home Solutions', logoUrl: null, colors: null },
-    progress: {
-      milestones: MILESTONES, currentKey: MILESTONES[idx].key, currentIndex: idx, currentLabel: MILESTONES[idx].label,
-      nextLabel: MILESTONES[idx + 1] ? MILESTONES[idx + 1].label : null,
-      nextBlurb: MILESTONES[idx + 1] ? MILESTONES[idx + 1].blurb : null,
-      scheduledDate: null, milestoneDates: {},
-    },
+    progress,
     estimate: {
       id: EST_ID, grandTotal: 18430, tierName: 'Preferred',
       signatureStatus: done ? 'signed' : 'sent',
       signedAt: done ? '2026-09-09T15:00:00Z' : null,
-      signEmbedUrl: done ? null : 'https://app.boldsign.com/document/sign/?documentId=phone-portal',
+      signUrl: done ? null : 'https://nobigdealwithjoedeal.com/pro/esign.html?t=PHONEPORTALTOKEN23456789',
     },
     bookingUrl: 'https://cal.com/joedeal/roof-inspection',
     photos: [],
@@ -80,7 +86,7 @@ function portalView(kind) {
       pair('roofing-2.webp', 'roofing-4.webp', 'Back slope'), pair('roofing-3.webp', 'drone-hero-curb.webp', 'Garage')] : [],
     documents: [{ id: 'doc1', name: 'Roofing Contract', date: '2026-09-09T15:00:00Z', url: null, viaHtml: true }],
     balance: null,
-    warranty: done ? { tier: 'preferred', tierLabel: 'NBD Preferred Warranty', installDate: '2026-09-20', certNumber: 'NBD-W-0042', openWarrantyClaimId: null } : null,
+    warranty,
     tokenInfo: { daysRemaining: 27 },
     rating: { canRate: done, submitted: false, stars: null },
   };
@@ -123,7 +129,7 @@ async function mockBackend(context, { kind = 'estimate', estimate, doc } = {}) {
   const stub = (title) => '<!doctype html><html><body style="font-family:sans-serif;margin:0;padding:12px">'
     + '<h3>' + title + '</h3>' + '<p>Stub line.</p>'.repeat(120) + '</body></html>';
   await context.route(/^https:\/\/cal\.com\//, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: stub('Booking') }));
-  await context.route(/^https:\/\/app\.boldsign\.com\//, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: stub('Signer') }));
+  await context.route(/^https:\/\/nobigdealwithjoedeal\.com\/pro\/esign\.html/, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: stub('Signer') }));
 }
 
 async function openPortal(page, kind, { mocked = false, doc } = {}) {
@@ -329,27 +335,19 @@ test.describe('phone portal: the project page @shard2 @phoneportal', () => {
   });
 
   // homeowner#5 — both embeds were 820px on phones, taller than the
-  // screen, so every swipe landed inside one.
-  test('the signing embed leaves page to scroll by, and booking is a button on a phone', async ({ page, context }) => {
+  // screen, so every swipe landed inside one. Since 2026-10-04 there is no
+  // signing embed at all (BoldSign retired): signing is a thumb-sized link to
+  // the in-house signing page, so nothing on the portal can trap a swipe.
+  test('signing is a link (no embed to get trapped in), and booking is a button on a phone', async ({ page, context }) => {
     await openPortal(page, 'estimate');
     for (const width of [412, 360]) {
       await page.setViewportSize({ width, height: 860 });
-      const frame = await safeEvaluate(page, () => {
-        const f = document.querySelector('iframe[title="Sign Contract"]');
-        window.scrollTo(0, f.getBoundingClientRect().top + window.scrollY - 20);
-        const r = f.getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom, h: r.height, vh: window.innerHeight };
-      });
-      await page.waitForTimeout(300);
-      expect(frame.h, `${width}px: signing frame is shorter than the screen`).toBeLessThanOrEqual(frame.vh - 200);
-      // With the frame at the top of the screen, a thumb in the lower part
-      // of the screen is on the PAGE and scrolls it.
-      const sx = width / 2, sy = frame.vh - 60;
-      const under = await safeEvaluate(page, ([x, y]) => document.elementFromPoint(x, y).tagName, [sx, sy]);
-      expect(under, `${width}px: thumb zone below the frame is page, not frame`).not.toBe('IFRAME');
-      const y0 = await scrollY(page);
-      await touchDrag(page, sx, sy, 0, -300);
-      expect((await scrollY(page)) - y0, `${width}px: swipe below the frame scrolls the page`).toBeGreaterThan(100);
+      expect(await page.locator('iframe[title="Sign Contract"]').count(), `${width}px: no signing iframe`).toBe(0);
+      const sign = page.locator('#portalSignLink');
+      await sign.scrollIntoViewIfNeeded();
+      expect(await sign.getAttribute('href'), `${width}px: it is the esign.html link`).toMatch(/^https:\/\/nobigdealwithjoedeal\.com\/pro\/esign\.html\?t=/);
+      expect((await sign.boundingBox()).height, `${width}px: thumb-sized`).toBeGreaterThanOrEqual(44);
+      expect(await hitsItself(page, '#portalSignLink'), `${width}px: nothing covers it`).toBe('ok');
 
       const cal = await safeEvaluate(page, () => {
         const f = document.querySelector('iframe[title="Schedule"]');
@@ -390,25 +388,29 @@ test.describe('phone portal: the project page @shard2 @phoneportal', () => {
   });
 
   // homeowner#11 — 9px labels, ellipsized to "Installa…" at 320 and in the
-  // rep's 318px Preview Portal frame.
+  // rep's 318px Preview Portal frame. Since 2026-10-03 the 9 steps are a
+  // vertical list inside the tracker's <details>; the same three guarantees
+  // (readable size, nothing cut off, no two names colliding) still hold.
   test('milestone names are readable and whole at 412, 360 and 320', async ({ page }) => {
     await openPortal(page, 'complete');
     await page.evaluate(() => document.fonts.ready);
+    await safeEvaluate(page, () => { document.querySelector('details.progress-all').open = true; });
     for (const width of [412, 360, 320]) {
       await page.setViewportSize({ width, height: 860 });
       await page.waitForTimeout(200);
-      const labels = await safeEvaluate(page, () => [...document.querySelectorAll('.progress-step-label')].map((el) => {
+      const labels = await safeEvaluate(page, () => [...document.querySelectorAll('.progress-item-label')].map((el) => {
         const range = document.createRange();
         range.selectNodeContents(el);
         const t = range.getBoundingClientRect();
         return { text: el.textContent, px: parseFloat(getComputedStyle(el).fontSize),
-          clipped: el.scrollWidth > el.clientWidth + 0.5, left: t.left, right: t.right };
+          clipped: el.scrollWidth > el.clientWidth + 0.5, top: t.top, bottom: t.bottom, right: t.right, vw: innerWidth };
       }));
-      expect(labels.length).toBe(5);
+      expect(labels.length).toBe(9);
       labels.forEach((l, i) => {
         expect(l.px, `${width}px "${l.text}" font-size`).toBeGreaterThanOrEqual(11);
         expect(l.clipped, `${width}px "${l.text}" is not cut off`).toBe(false);
-        if (i) expect(l.left, `${width}px "${l.text}" does not run into "${labels[i - 1].text}"`).toBeGreaterThanOrEqual(labels[i - 1].right);
+        expect(l.right, `${width}px "${l.text}" stays on screen`).toBeLessThanOrEqual(l.vw);
+        if (i) expect(l.top, `${width}px "${l.text}" does not run into "${labels[i - 1].text}"`).toBeGreaterThanOrEqual(labels[i - 1].bottom);
       });
     }
   });
@@ -521,8 +523,9 @@ test.describe('phone portal: desktop unchanged @shard2 @phoneportal', () => {
     expect(row.qtyW).toBe(80);
 
     await openPortal(page, 'estimate', { mocked: true });
-    const h = await safeEvaluate(page, () => ['Sign Contract', 'Schedule'].map((t) => Math.round(document.querySelector('iframe[title="' + t + '"]').getBoundingClientRect().height)));
-    expect(h, 'desktop: both embeds keep 680px').toEqual([680, 680]);
+    const h = await safeEvaluate(page, () => ['Schedule'].map((t) => Math.round(document.querySelector('iframe[title="' + t + '"]').getBoundingClientRect().height)));
+    expect(h, 'desktop: the booking embed keeps 680px (the signing embed is gone — a link now)').toEqual([680]);
+    expect(await page.locator('iframe[title="Sign Contract"]').count(), 'desktop: no signing iframe').toBe(0);
     expect(await page.evaluate(() => getComputedStyle(document.getElementById('pm-text')).fontSize)).toBe('14px');
     await page.locator('#pm-text').click();
     expect(await page.evaluate(() => document.activeElement.id)).toBe('pm-text');
@@ -594,20 +597,21 @@ test.describe('phone portal: the rep preview @shard2 @phoneportal', () => {
     if (!(await btn.isVisible().catch(() => false))) await page.locator('#qaMoreBtn').tap();
     await btn.tap();
     const frame = page.frameLocator('#nbd-portal-preview-iframe');
-    await frame.locator('.progress-step-label').first().waitFor({ timeout: 20_000 });
+    await frame.locator('details.progress-all > summary').first().waitFor({ timeout: 20_000 });
     const box = await page.locator('#nbd-portal-preview-iframe').boundingBox();
     expect(box.width, 'the preview frame is narrower than the phone').toBeLessThan(340);
-    const labels = await frame.locator('.progress-step-label').evaluateAll((els) => els.map((el) => {
+    await frame.locator('details.progress-all').evaluate((d) => { d.open = true; });
+    const labels = await frame.locator('.progress-item-label').evaluateAll((els) => els.map((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
       const t = range.getBoundingClientRect();
-      return { text: el.textContent, px: parseFloat(getComputedStyle(el).fontSize), clipped: el.scrollWidth > el.clientWidth + 0.5, left: t.left, right: t.right };
+      return { text: el.textContent, px: parseFloat(getComputedStyle(el).fontSize), clipped: el.scrollWidth > el.clientWidth + 0.5, top: t.top, bottom: t.bottom };
     }));
-    expect(labels.length).toBe(5);
+    expect(labels.length).toBe(9);
     labels.forEach((l, i) => {
       expect(l.px, `preview "${l.text}" font-size`).toBeGreaterThanOrEqual(11);
       expect(l.clipped, `preview "${l.text}" is not cut off`).toBe(false);
-      if (i) expect(l.left, `preview "${l.text}" clear of "${labels[i - 1].text}"`).toBeGreaterThanOrEqual(labels[i - 1].right);
+      if (i) expect(l.top, `preview "${l.text}" clear of "${labels[i - 1].text}"`).toBeGreaterThanOrEqual(labels[i - 1].bottom);
     });
   });
 });

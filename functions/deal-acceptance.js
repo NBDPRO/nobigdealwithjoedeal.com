@@ -44,6 +44,10 @@ const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
 const ESL = require('./estimate-send-logic');
 const EVA = require('./estimate-view-alert');
+const DP = require('./deal-packet-logic');
+const { reencodePhoto } = require('./photo-reencode');
+const KyLaw = require('./ky-insurance-law');
+const CW = require('./cancel-window');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -94,6 +98,9 @@ const DEAL_ROOM_CSP = [
   "base-uri 'none'",
   "object-src 'none'",
 ].join('; ');
+// Shown on the deal page beside the signature (deal-room.js prints the same
+// words) and stored with the acceptance when the homeowner ticks it.
+const DEAL_CONSENT_TEXT = 'I agree to sign electronically. My electronic signature is the legal equivalent of my handwritten signature.';
 const ALREADY_ACCEPTED_MSG = 'This deal has already been accepted — your rep will reach out to confirm your installation.';
 
 // 32-char no-confusable alphabet (no 0/O, 1/I/L) — same as portal.js / remote-signing.js.
@@ -276,6 +283,19 @@ exports.getDealRoom = onRequest(
       logger.error('[getDealRoom] html fetch failed', { token: token.slice(0, 6), err: e.message });
       errPage(500, 'We could not load this deal right now. Please try again shortly.'); return;
     }
+    // The Notice of Right to Cancel on the page is dated today — the day the
+    // homeowner reads and signs it — not the day the rep made the link.
+    try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
+
+    // Packet (2026-10-04): a FULL packet's inspection photos go in where the
+    // page left its marker, each one at /deal/<token>/photo/<n> (getDealPhoto
+    // below — token-checked, EXIF-stripped). A paperwork packet, or a full
+    // one with nothing servable, just loses the marker. The uploaded page
+    // never carries a photo URL itself. deal-packet-logic.js has the rules.
+    let photoItems = [];
+    try { photoItems = await packetPhotoItems(db, tok, dealRoomSnap.data() || {}); }
+    catch (e) { logger.warn('[getDealRoom] packet photos skipped', { msg: e && e.message }); photoItems = []; }
+    html = DP.injectPhotos(html, { token, packet: (dealRoomSnap.data() || {}).packet, items: photoItems });
 
     // Inject the token + same-origin submit endpoint so the page's ACCEPT
     // button can record the acceptance. The deal-room's submitDeal() reads
@@ -345,6 +365,23 @@ exports.submitDealAcceptance = onRequest(
     }
     if (signature.length > 600 * 1024) { res.status(413).json({ error: 'Signature too large' }); return; }
 
+    // ESIGN evidence (2026-10-04, BoldSign retired — "Sign on this phone" is
+    // the in-house signing path for Kentucky insurance jobs): who signed from
+    // where, on what device, whether they ticked the consent the page shows
+    // (deal-room.js), and a digest of the signature itself. Recorded in the
+    // SAME transaction as the acceptance. The consent text is the server's
+    // own copy — never free text from the wire.
+    let ip = null;
+    try { ip = require('./integrations/upstash-ratelimit').clientIp(req) || null; } catch (_) { ip = null; }
+    const evidence = {
+      at: Date.now(),
+      ip,
+      ua: String((typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null,
+      consent: b.consent === true,
+      consentText: b.consent === true ? DEAL_CONSENT_TEXT : null,
+      signatureSha256: require('crypto').createHash('sha256').update(signature, 'utf8').digest('hex'),
+    };
+
     const db = getFirestore();
     const tokRef = db.doc(`deal_accept_tokens/${token}`);
 
@@ -409,16 +446,36 @@ exports.submitDealAcceptance = onRequest(
           scheduledInstallDate: scheduledDate || null,
           acceptedAt: FieldValue.serverTimestamp(),
           acceptedVia: 'remote',
+          acceptedEvidence: evidence,
         });
         return {
           dealId: t.dealId, ownerUid: t.ownerUid, leadId: t.leadId || null,
-          customerName: t.customerName || '', price,
+          customerName: t.customerName || '', price, htmlPath: t.htmlPath || null,
         };
       });
     } catch (err) {
       if (err && err._http) { res.status(err._http).json({ error: err._msg }); return; }
       logger.error('[submitDealAcceptance] burn+record txn failed', { msg: err.message });
       res.status(500).json({ error: 'Could not record your acceptance. Try again.' }); return;
+    }
+
+    // The 3-day right to cancel (2026-10-04): accepting here is signing the
+    // contract. The stored page's Notice of Right to Cancel is re-dated to
+    // today (the record), and the last day to cancel is recorded on the deal
+    // and the lead. Best-effort — the acceptance is already committed.
+    const cancelBy = await recordDealCancelWindow(db, info, new Date());
+
+    // The digest of the deal page as stored when they accepted — what they
+    // were shown (after the re-date above, so it matches the stored record).
+    // Best-effort: the acceptance is already committed.
+    if (info.htmlPath) {
+      try {
+        const [buf] = await getStorage().bucket().file(info.htmlPath).download();
+        await db.doc(`deal_rooms/${info.dealId}`).update({
+          'acceptedEvidence.pageSha256': require('crypto').createHash('sha256').update(buf).digest('hex'),
+          'acceptedEvidence.pagePath': info.htmlPath,
+        });
+      } catch (e) { logger.warn('[submitDealAcceptance] page digest failed', { msg: e && e.message }); }
     }
 
     // Token is burned AND the deal is recorded — both committed together
@@ -452,12 +509,141 @@ exports.submitDealAcceptance = onRequest(
     // Once per deal; never throws — the acceptance is already committed.
     const spine = await spineAfterDealAccept(db, info, tier);
 
-    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill, stageMoved: !!(spine && spine.moved) });
+    logger.info('[submitDealAcceptance] accepted', { dealId: info.dealId, tier, leadFill, stageMoved: !!(spine && spine.moved), cancelBy });
     res.status(200).json({ ok: true });
   }
 );
 
+// ═══════════════════════════════════════════════════════════════
+// Deal packet photos (2026-10-04). See deal-packet-logic.js for the rules.
+// ═══════════════════════════════════════════════════════════════
+
+/** The servable photos of a full packet → [{ i, caption }] (i = index in packetPhotoIds). */
+async function packetPhotoItems(db, tok, room) {
+  const ids = DP.packetPhotoIds(room);
+  if (!ids.length) return [];
+  const snaps = await Promise.all(ids.map((id) => db.doc(`photos/${id}`).get().catch(() => null)));
+  const items = [];
+  snaps.forEach((s, i) => {
+    const p = s && s.exists ? (s.data() || {}) : null;
+    if (!DP.checkPacketPhoto(p, { ownerUid: tok.ownerUid, leadId: room.leadId }).ok) return;
+    const caption = typeof p.homeownerCaption === 'string' ? p.homeownerCaption : '';
+    items.push({ i, caption });
+  });
+  return items;
+}
+
+const MAX_PHOTO_SOURCE_BYTES = 25 * 1024 * 1024;
+const DEAL_PHOTO_EDGE = 1600;
+
+/**
+ * /deal/<token>/photo/<n> → one inspection photo of that deal's full packet.
+ * The link's own token is re-checked on EVERY load (live, pending, not
+ * revoked, deal not accepted), so the photo expires with the deal link. The
+ * bytes are re-encoded here (EXIF / GPS dropped, orientation baked in) and
+ * streamed — the homeowner never gets a Storage URL. Hosting rewrite
+ * /deal/{token}/photo/{n} sits before /deal/** in firebase.json.
+ */
+async function serveDealPhoto(req, res, deps) {
+  const d = deps || {};
+  const db = d.db || getFirestore();
+  const storage = d.storage || getStorage();
+  const reencode = d.reencode || reencodePhoto;
+  const limit = d.rateLimit || httpRateLimit;
+  const nowMs = d.now ? d.now() : Date.now();
+  const fail = (code) => {
+    res.status(code).set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex, nofollow').end();
+  };
+  const m = (req.path || '').match(/\/deal\/([A-Za-z0-9]{10,64})\/photo\/(\d{1,2})\/?$/);
+  if (!m || Number(m[2]) >= DP.MAX_PACKET_PHOTOS) { fail(404); return; }
+  const token = m[1];
+  const idx = Number(m[2]);
+  if (!(await limit(req, res, 'dealphoto-get:ip', 120, 60_000))) return;
+
+  const tokSnap = await db.doc(`deal_accept_tokens/${token}`).get();
+  const tok = tokSnap.exists ? (tokSnap.data() || {}) : null;
+  let room = null;
+  if (tok && typeof tok.dealId === 'string' && DP.ID_RE.test(tok.dealId)) {
+    const rs = await db.doc(`deal_rooms/${tok.dealId}`).get();
+    room = rs.exists ? (rs.data() || {}) : null;
+  }
+  const refusal = DP.linkRefusal(tok, room, nowMs);
+  if (refusal) { fail(refusal.status); return; }
+  const ids = DP.packetPhotoIds(room); // [] on a paperwork packet
+  if (idx >= ids.length) { fail(404); return; }
+  const ps = await db.doc(`photos/${ids[idx]}`).get();
+  const chk = DP.checkPacketPhoto(ps.exists ? ps.data() : null, { ownerUid: tok.ownerUid, leadId: room.leadId });
+  if (!chk.ok) { fail(404); return; }
+
+  // The pipeline's 1600px variant when it exists (smaller to decode), else
+  // the original. Either way re-encoded below — never sent as stored.
+  let buf = null;
+  for (const p of [DP.variantFullPath(chk.path), chk.path]) {
+    if (!p) continue;
+    try {
+      const [b] = await storage.bucket().file(p).download();
+      if (b && b.length && b.length <= MAX_PHOTO_SOURCE_BYTES) { buf = b; break; }
+    } catch (_) { /* next */ }
+  }
+  if (!buf) { fail(404); return; }
+  let out;
+  try { out = await reencode(buf, 'jpeg', { maxEdge: DEAL_PHOTO_EDGE }); }
+  catch (e) { logger.warn('[getDealPhoto] re-encode failed', { msg: e && e.message }); fail(404); return; }
+  res.status(200)
+    .set('Content-Type', 'image/jpeg')
+    // private + no-store: no shared or browser cache keeps it past the link.
+    .set('Cache-Control', 'private, no-store')
+    .set('X-Robots-Tag', 'noindex, nofollow')
+    .set('X-Content-Type-Options', 'nosniff')
+    .set('Referrer-Policy', 'no-referrer')
+    .set('Content-Security-Policy', "default-src 'none'")
+    .send(out);
+}
+
+exports.getDealPhoto = onRequest(
+  {
+    region: 'us-central1',
+    invoker: 'public',
+    maxInstances: 20,
+    // sharp decodes a full photo per request — keep a few per instance.
+    concurrency: 4,
+    timeoutSeconds: 30,
+    memory: '1GiB',
+  },
+  (req, res) => serveDealPhoto(req, res)
+);
+
+// For tests only — index.js copies every export, so this one is hidden.
+Object.defineProperty(exports, '_packetInternals', {
+  enumerable: false,
+  value: { packetPhotoItems, serveDealPhoto },
+});
+
 module.exports = exports;
+
+// Re-date the accepted deal page's Notice of Right to Cancel to the signing
+// day, store it back (the page IS the signed record), and stamp cancelBy on
+// the deal + the lead. Never throws; returns the cancelBy written ('' if none).
+async function recordDealCancelWindow(db, info, when) {
+  let cancelBy = '';
+  let html = '';
+  if (info.htmlPath) {
+    try {
+      const file = getStorage().bucket().file(info.htmlPath);
+      const [buf] = await file.download();
+      html = buf.toString('utf8');
+      if (KyLaw.hasCancelPacket(html)) {
+        html = KyLaw.restampCancelPacket(html, when);
+        await file.save(Buffer.from(html, 'utf8'), { contentType: 'text/html', resumable: false });
+      }
+    } catch (e) { logger.warn('[submitDealAcceptance] cancel packet re-date failed', { msg: e && e.message }); }
+  }
+  cancelBy = CW.cancelByFor(html, when);
+  try { await db.doc(`deal_rooms/${info.dealId}`).update({ cancelBy }); }
+  catch (e) { logger.warn('[submitDealAcceptance] deal cancelBy stamp failed', { msg: e && e.message }); }
+  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger);
+  return cancelBy;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Proposal views (2026-10-02): tell the rep when the homeowner opens the deal

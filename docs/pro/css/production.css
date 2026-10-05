@@ -1,0 +1,92 @@
+/* Production flow (2026-10-04) — js/production.js. The customer page's
+   production strip + editors, Plan Jobs row extras, the rain-day sheet, the
+   Schedule view's 7-day busy strip and "Tomorrow's installs". Phone first:
+   everything wraps, taps are 44px, inputs are 16px so iOS does not zoom. */
+
+/* ── the strip ─────────────────────────────────────────────────────────── */
+#productionPanel { margin-bottom: 16px; }
+.pr-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pr-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.pr-step { min-width: 0; }
+.pr-step-btn { width: 100%; min-height: 64px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); color: var(--t); font: inherit; text-align: left; cursor: pointer; }
+.pr-open .pr-step-btn { border-color: var(--orange, #e8720c); }
+.pr-step-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--br); font-size: 11px; line-height: 14px; text-align: center; color: #fff; }
+.pr-done .pr-step-dot { background: var(--green, #22c55e); border-color: var(--green, #22c55e); }
+.pr-step-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+.pr-step-val { font-size: 11px; color: var(--m); overflow-wrap: anywhere; line-height: 1.3; }
+.pr-has-warn .pr-step-btn { border-color: var(--gold, #f59e0b); }
+.pr-step-warn, .pr-warn, .pr-delivwarn { font-size: 12px; line-height: 1.4; color: var(--gold, #f59e0b); margin-top: 4px; overflow-wrap: anywhere; }
+.pr-delivwarn:empty { margin: 0; }
+@media (max-width: 600px) {
+  .pr-strip { grid-template-columns: 1fr; }
+  .pr-step-btn { min-height: 48px; flex-direction: row; align-items: center; gap: 8px; }
+  .pr-step-label { min-width: 72px; }
+  .pr-step-val { font-size: 13px; }
+}
+
+/* ── editors ───────────────────────────────────────────────────────────── */
+.pr-edit { border: 1px solid var(--br); border-radius: 8px; padding: 10px 12px; margin-top: 10px; background: var(--s); display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.pr-field { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--m); flex: 1 1 140px; min-width: 0; }
+.pr-field input, .pr-field select, .pr-field textarea { font: inherit; font-size: 16px; min-height: 44px; padding: 6px 10px; border: 1px solid var(--br); border-radius: 6px; background: var(--s2); color: var(--t); width: 100%; box-sizing: border-box; }
+.pr-field textarea { min-height: 64px; }
+.pr-radios { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+.pr-radio, .pr-check { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; color: var(--t); flex: 1 1 100%; }
+.pr-radio { flex: 0 1 auto; padding: 0 12px; border: 1px solid var(--br); border-radius: 22px; }
+.pr-radio input, .pr-check input { width: 20px; height: 20px; }
+.pr-save { min-height: 44px; font-size: 14px; padding: 10px 16px; }
+.pr-small { min-height: 44px; font-size: 13px; padding: 8px 12px; }
+.pr-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1 1 100%; }
+.pr-msg { font-size: 12px; color: var(--gold, #f59e0b); margin-top: 6px; }
+.pr-msg:empty { margin: 0; }
+.pr-muted { font-size: 12px; color: var(--m); line-height: 1.45; flex: 1 1 100%; }
+.pr-h { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; color: var(--t); margin: 4px 0 6px; flex: 1 1 100%; }
+.pr-order, .pr-sub { flex: 1 1 100%; border-top: 1px solid var(--br); padding: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; font-size: 13px; }
+.pr-order-main { min-width: 0; overflow-wrap: anywhere; flex: 1 1 200px; }
+.pr-order-form { flex: 1 1 100%; border-style: dashed; }
+.pr-archived { opacity: .55; }
+.pr-cert { font-size: 12px; flex: 1 1 100%; }
+.pr-cert-expired, .pr-cert-none { color: var(--gold, #f59e0b); }
+.pr-cert-soon { color: var(--gold, #f59e0b); }
+.pr-cert-ok { color: var(--green, #22c55e); }
+.pr-subform { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; border-top: 1px solid var(--br); padding-top: 8px; }
+.pr-sheet { flex: 1 1 100%; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45; background: var(--s2); border: 1px solid var(--br); border-radius: 6px; padding: 10px; margin: 0; max-height: 260px; overflow: auto; }
+.pr-after { margin-top: 12px; border-top: 1px solid var(--br); padding-top: 8px; }
+
+/* ── Plan Jobs row extras ──────────────────────────────────────────────── */
+.sp-prod { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; }
+.sp-sublbl { display: flex; flex-direction: column; font-size: 10px; color: var(--m); gap: 3px; flex: 1 1 180px; min-width: 0; }
+.sp-sub-sel { font: inherit; font-size: 16px; min-height: 44px; padding: 4px 8px; border: 1px solid var(--br); border-radius: 6px; background: var(--s); color: var(--t); max-width: 100%; }
+.sp-rain { min-height: 44px; font-size: 13px; padding: 8px 12px; }
+.sp-subwarn .pr-warn { margin-top: 4px; }
+.pr-wx { display: inline-block; font-size: 12px; padding: 4px 8px; border-radius: 12px; border: 1px solid var(--br); color: var(--t); overflow-wrap: anywhere; }
+.pr-wx-warn { border-color: var(--gold, #f59e0b); color: var(--gold, #f59e0b); }
+.pr-wx-watch { border-color: var(--blue, #3b82f6); }
+
+/* ── rain-day sheet ────────────────────────────────────────────────────── */
+.pr-overlay { position: fixed; inset: 0; z-index: 10040; background: rgba(0, 0, 0, .6); display: flex; align-items: flex-end; justify-content: center; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.pr-sheet-card { width: 100%; max-width: 560px; max-height: 88vh; overflow: auto; background: var(--s); color: var(--t); border-radius: 12px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.pr-rain-list { flex: 1 1 100%; margin: 0; padding-left: 18px; font-size: 13px; }
+.pr-rain-row { padding: 6px 0; border-bottom: 1px solid var(--br); overflow-wrap: anywhere; }
+.pr-sheet-card .btn { min-height: 44px; font-size: 14px; padding: 10px 16px; }
+
+/* ── 7-day busy strip (Schedule view) ──────────────────────────────────── */
+#schedBusyStrip, #schedTomorrow { margin-bottom: 12px; }
+.bs-legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11px; color: var(--m); margin-bottom: 6px; }
+.bs-legend .bs-cell { width: 14px; height: 10px; flex: 0 0 auto; }
+.bs-hours, .bs-day { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 6px; align-items: center; }
+.bs-hrs { display: flex; justify-content: space-between; font-size: 9px; color: var(--m); }
+.bs-day { margin: 3px 0; }
+.bs-label { font-size: 11px; font-weight: 600; color: var(--t); white-space: nowrap; }
+.bs-cells { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; height: 16px; }
+.bs-cell { display: block; border-radius: 2px; background: var(--s2); border: 1px solid var(--br); min-height: 10px; }
+.bs-busy { background: rgba(127, 127, 127, .45); border-color: transparent; }
+.bs-job { background: var(--orange, #e8720c); border-color: transparent; }
+.bs-deliv { background: rgba(59, 130, 246, .25); border-color: transparent; }
+.bs-note { grid-column: 2; font-size: 11px; color: var(--m); overflow-wrap: anywhere; }
+.bs-note:empty { display: none; }
+
+/* ── Tomorrow's installs + Today "needs a week" ────────────────────────── */
+.pr-tom { border: 1px solid var(--br); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--s2); font-size: 13px; overflow-wrap: anywhere; }
+.pr-tom-text { font-size: 12px; color: var(--m); margin: 6px 0; line-height: 1.45; }
+.pr-needs { margin: 10px 0; }
+.pr-needs-link { display: block; min-height: 44px; padding: 10px 12px; border: 1px solid var(--gold, #f59e0b); border-radius: 8px; color: var(--t); text-decoration: none; font-size: 13px; overflow-wrap: anywhere; }

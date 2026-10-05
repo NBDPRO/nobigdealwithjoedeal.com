@@ -71,6 +71,11 @@ export function stageActor(labelOverride) {
  * @param {Object} [opts]
  * @param {boolean} [opts.isLostMove]   stamp closedAt/lostReason
  * @param {string}  [opts.lostReason]
+ * @param {Object}  [opts.lostFields]   { lostReasonKey, lostReason,
+ *   lostReasonNote } from the required lost-reason picker
+ *   (lost-reason-picker.js / numbers-logic.js lostReasonFields). A lost move
+ *   with no reason and no reason already on the lead is refused with
+ *   'LOST_REASON_REQUIRED' (2026-10-04: every loss carries a reason).
  * @param {boolean} [opts.isDrag]       true ONLY for genuine drag-and-drop
  *   call sites where `newStage` is a COLUMN key, not necessarily an exact
  *   stage match — enables the column-collapse NOOP guard. See moveCard's
@@ -98,7 +103,8 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   opts = opts || {};
   const isDrag = !!opts.isDrag;
   const isLostMove = !!opts.isLostMove;
-  const lostReason = opts.lostReason || null;
+  const lostFields = (opts.lostFields && typeof opts.lostFields === 'object' && opts.lostFields.lostReason) ? opts.lostFields : null;
+  const lostReason = (lostFields && lostFields.lostReason) || opts.lostReason || null;
   // jobType (2026-09-15): threaded through from the caller's already-loaded
   // lead object so the StageChecklist hook below can pick the right
   // per-track action (STAGE_ACTIONS is jobType-scoped) without this
@@ -128,6 +134,35 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   const _roleOf = (k) => (typeof window.stageRole === 'function' ? window.stageRole(k) : null);
   const enteringWon = _roleOf(newStage) === 'won';
   let enteredWon = false;
+  // The close date is the SALE (2026-10-04, Jo 2026-09-15: a signed contract
+  // IS a job): entering contract signed, a job stage or a won stage stamps
+  // closedAt unless the lead was already a sale with a date. Same rule as
+  // functions/stage-roles.js needsClosedAt and numbers-logic.js isSale.
+  const _N = window.NBDNumbers;
+  const _isSale = (k) => {
+    if (_N && typeof _N.isSale === 'function') return _N.isSale({ stage: k });
+    const r = _roleOf(k);
+    return r === 'won' || r === 'job' || String(k || '').toLowerCase() === 'contract_signed';
+  };
+  const enteringSale = _isSale(newStage);
+  // Sold package: carry the homeowner's accepted pick onto soldTier at the
+  // sale when nothing has set one yet (the spine does the same server-side).
+  const _TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
+  const _soldTierPatch = (cur) => {
+    if (!enteringSale || !cur || _TIERS.indexOf(String(cur.soldTier || '').toLowerCase()) !== -1) return null;
+    const t = String(cur.acceptedTier || '').toLowerCase();
+    return _TIERS.indexOf(t) !== -1 ? { soldTier: t, soldTierSource: 'deal_room' } : null;
+  };
+  const _lostPayload = (cur) => {
+    const reason = lostReason || (cur && cur.lostReason) || null;
+    if (!reason) throw new Error('LOST_REASON_REQUIRED');
+    const out = { lostReason: reason };
+    if (lostFields) {
+      out.lostReasonKey = lostFields.lostReasonKey || null;
+      out.lostReasonNote = lostFields.lostReasonNote || null;
+    }
+    return out;
+  };
 
   if (typeof window.runTransaction === 'function') {
     await window.runTransaction(window.db, async (tx) => {
@@ -160,10 +195,12 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
       };
       if (isLostMove) {
         payload.closedAt = window.serverTimestamp();
-        if (lostReason) payload.lostReason = lostReason;
-      } else if (enteringWon && (!cur.closedAt || _roleOf(cur.stage) !== 'won')) {
+        Object.assign(payload, _lostPayload(cur));
+      } else if (enteringSale && (!cur.closedAt || !_isSale(cur.stage))) {
         payload.closedAt = window.serverTimestamp();
       }
+      const _tier = _soldTierPatch(cur);
+      if (_tier) Object.assign(payload, _tier);
       enteredWon = enteringWon && _roleOf(cur.stage) !== 'won';
       tx.update(leadRef, payload);
     });
@@ -179,8 +216,8 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
     };
     if (isLostMove) {
       payload.closedAt = window.serverTimestamp();
-      if (lostReason) payload.lostReason = lostReason;
-    } else if (enteringWon && _roleOf(oldStage) !== 'won') {
+      Object.assign(payload, _lostPayload(null));
+    } else if (enteringSale && !_isSale(oldStage)) {
       // No server read on this path: the caller's oldStage decides.
       payload.closedAt = window.serverTimestamp();
     }
@@ -223,7 +260,46 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
     }
   } catch (e) { console.warn('[stage-write] stage-checklist trigger failed:', e && e.message); }
 
+  // Before & After report on install complete (2026-10-04). Not awaited:
+  // a side effect of a stage change that already succeeded.
+  try { autoBeforeAfterOnStage(id, oldStage, newStage); }
+  catch (e) { console.warn('[stage-write] before/after trigger failed:', e && e.message); }
+
+  // Production flow (2026-10-04, production.js): a soft warning when a job
+  // reaches Final Photos with no After photos (the move has already gone
+  // through — it warns, never blocks), and the "After photos + walkthrough"
+  // checklist task on entering Install Done. Not awaited, best-effort.
+  try {
+    if (window.NBDProduction && typeof window.NBDProduction.onStageChange === 'function') {
+      window.NBDProduction.onStageChange(id, oldStage, newStage);
+    }
+  } catch (e) { console.warn('[stage-write] production hook failed:', e && e.message); }
+
   // enteredWon: this move took the lead from a non-won stage onto a won one —
   // the caller's cue to offer "Create invoice" (crm-pipeline.js moveCard).
   return { historyEvent, enteredWon };
+}
+
+/**
+ * When a lead moves ONTO install_complete, hand it to photo-report.js's
+ * NBDAutoBeforeAfter (lazy `photos` bundle), which files the homeowner
+ * Before & After report in Documents — or, with no After photo yet, waits
+ * for the first one. Returns true when it fired. Never throws, never awaits.
+ */
+export function autoBeforeAfterOnStage(id, oldStage, newStage) {
+  if (!id || newStage !== 'install_complete' || oldStage === 'install_complete') return false;
+  const run = () => {
+    const ba = window.NBDAutoBeforeAfter;
+    if (ba && typeof ba.onInstallComplete === 'function') {
+      Promise.resolve(ba.onInstallComplete(id)).catch((e) =>
+        console.warn('[stage-write] before/after report failed:', e && e.message));
+    }
+  };
+  if (window.NBDAutoBeforeAfter) { run(); return true; }
+  const loader = window.ScriptLoader;
+  if (loader && typeof loader.loadBundle === 'function') {
+    Promise.resolve(loader.loadBundle('photos')).then(run).catch(() => {});
+    return true;
+  }
+  return false;
 }

@@ -330,6 +330,21 @@ async function verifyAuth(req) {
  * sendEmail — HTTP function (POST, authenticated)
  * Sends a generic email via Resend
  */
+// The From / Reply-To a tenant's homeowner email goes out with (see
+// tenant-ops-logic.js senderFor). A profile read failure falls back to the
+// platform sender — an email must never fail over its display name.
+async function tenantSenderFor(db, tenantKey, fromEmail) {
+  const TenantOps = require('./tenant-ops-logic');
+  if (!tenantKey || tenantKey === TenantOps.NBD_OWNER_UID) return TenantOps.senderFor(tenantKey, null, fromEmail);
+  try {
+    const snap = await db.doc(`companyProfile/${tenantKey}`).get();
+    return TenantOps.senderFor(tenantKey, snap.exists ? snap.data() : null, fromEmail);
+  } catch (e) {
+    logger.warn('sendEmail tenant_sender_lookup_failed', { err: e && e.message });
+    return { from: fromEmail, replyTo: null };
+  }
+}
+
 exports.sendEmail = onRequest(
   {
     // Declared, not defaulted (2026-10-02): the live service had lost its
@@ -520,14 +535,23 @@ exports.sendEmail = onRequest(
         ? SendGuard.sanitizeEmailHtml(html)
         : SendGuard.plainTextToHtml(body);
       const bodyHtml = Suppression.applyFooter(unsubGate, contentHtml, null).html;
+      // Homeowner emails show the CONTRACTOR (2026-10-04, tenant-ready): a
+      // company other than NBD sends as "<its brand name>" on the platform's
+      // verified address, with its business email as Reply-To — so the
+      // homeowner sees who they are dealing with and their reply reaches the
+      // contractor, not NBD. NBD itself: byte-identical (platform From, no
+      // company Reply-To). Custom sending domains per company are a later
+      // step (Resend domain verification per tenant).
+      const sender = await tenantSenderFor(db, tenantKey, fromEmail);
       const message = {
-        from: fromEmail,
+        from: sender.from,
         to,
         subject,
         html: bodyHtml,
       };
       const safeReply = SendGuard.safeReplyTo(replyTo, decoded);
-      if (safeReply) message.reply_to = safeReply;
+      if (sender.replyTo) message.reply_to = sender.replyTo;
+      else if (safeReply) message.reply_to = safeReply;
       if (unsubGate && unsubGate.headers) message.headers = unsubGate.headers;
       // Carries the unsubscribe token so Resend's bounce/complaint webhook can
       // attribute the event to this tenant (functions/resend-webhook.js).

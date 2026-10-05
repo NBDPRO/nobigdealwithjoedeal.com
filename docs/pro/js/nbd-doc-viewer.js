@@ -437,6 +437,13 @@
         // The record, not the screen: take the phone sheet back out before
         // anything below (or any caller of this function) sees the HTML.
         reply.html = stripPhoneLayout(reply.html);
+        // A contract's Notice of Right to Cancel is dated the day it is
+        // SIGNED, and its 3 business days count from then (2026-10-04) —
+        // the copy printed / downloaded from here and the stored record both.
+        const _J = window.NBDJurisdiction;
+        if (_J && typeof _J.restampCancelPacket === 'function') {
+          try { reply.html = _J.restampCancelPacket(reply.html, new Date()); } catch (_) { /* keep as rendered */ }
+        }
         currentContext.html = reply.html;
         currentContext.signedSigners = Array.isArray(reply.signers) ? reply.signers : [];
         if (typeof currentContext.onPersistFinalized === 'function') {

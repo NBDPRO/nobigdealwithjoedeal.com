@@ -89,12 +89,13 @@ document.querySelectorAll('a[href^="#"]').forEach(link=>{
 // Service cards are now full-card anchors linking to /services/* detail pages.
 // (The old pre-fill-form intercept was removed so the detail pages finally get traffic.)
 
-// ── CONTACT FORM — CRM capture primary, FormSubmit backup ──
+// ── CONTACT FORM — our own lead intake only ──
 // The CRM capture (window._captureContactLead → submitPublicLead) is the
-// gate for the user-visible success card. FormSubmit.co still emails a
-// copy to jd@nobigdealwithjoedeal.com but is fire-and-forget — its
-// failure is ignored. If the CRM bridge never loaded, we fall back to
-// gating on the FormSubmit response so the form keeps working.
+// gate for the user-visible success card. Joe's email/SMS alert comes from
+// the server (functions/lead-alert.js on contact_leads), so nothing else is
+// needed. The old FormSubmit.co "backup" copy — every lead's name, phone and
+// address sent to a free third party — was removed 2026-10-04
+// (documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md, Lane D).
 
 // Inline accessible errors (2026-08-07) — replaces the old alert() modals.
 // Mirrors quick-lead-form.js: role="alert" slot + aria-invalid + focus the
@@ -183,40 +184,24 @@ async function submitForm(){
   btn.textContent = 'Sending…';
   btn.disabled = true;
 
-  // Backup email relay — fire-and-forget; failures are ignored.
-  const body = new FormData();
-  body.append('name',    `${first} ${last}`.trim());
-  body.append('phone',   phone);
-  body.append('email',   email || '(not provided)');
-  body.append('address', address || '(not provided)');
-  body.append('service', service || '(not selected)');
-  body.append('message', message || '(no message)');
-  body.append('scheduling', intake.fields.scheduling === 'calendar' ? 'Booking a time on the calendar' : 'Contact me to coordinate');
-  if (intake.files.length) body.append('photos', intake.files.length + ' photo(s) — attached in the CRM');
-  body.append('_subject', `New Estimate Request — ${service || 'General'} — ${first} ${last}`);
-  body.append('_captcha', 'false');
-  body.append('_template', 'table');
-  const relay = fetch('https://formsubmit.co/jd@nobigdealwithjoedeal.com', {
-    method: 'POST',
-    body
-  }).catch(() => null);
-
-  // Primary gate — the lead must land in the CRM.
+  // The only gate — the lead must land in the CRM.
+  const lead = {
+    firstName: first, lastName: last, phone, email,
+    address, service, message, ...intake.fields,
+    tcpaConsent: consent === true
+  };
   let captured = false;
-  if (window._captureContactLead) {
-    try {
-      captured = await window._captureContactLead({
-        firstName: first, lastName: last, phone, email,
-        address, service, message, ...intake.fields,
-        tcpaConsent: consent === true
-      });
-    } catch(err){
-      captured = false;
+  try {
+    if (window._captureContactLead) {
+      captured = await window._captureContactLead(lead);
+    } else if (typeof window.submitPublicLead === 'function') {
+      // Bridge stub missing: call the gateway client directly.
+      const res = await window.submitPublicLead('contact', Object.assign({ source: 'homepage' }, lead));
+      window._lastLeadResult = res;
+      captured = !!(res && res.ok);
     }
-  } else {
-    // CRM bridge missing entirely — legacy behavior: gate on the relay.
-    const res = await relay;
-    captured = !!(res && res.ok);
+  } catch(err){
+    captured = false;
   }
 
   if(captured){

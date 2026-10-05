@@ -126,6 +126,7 @@ async function callClaudeForDraft({ system, userText, maxTokens, apiKey }) {
     throw new Error('AI draft generation failed');
   }
   const data = await res.json();
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('ai-texting', 'claude-haiku-4-5-20251001', data), { log: logger });
   const text = (data?.content?.[0]?.text || '').trim();
   return { text, usage: data?.usage || null };
 }
@@ -143,7 +144,9 @@ async function buildLeadContext(db, leadId, lead, incomingBody) {
   const lastName  = lead.lastName  || '';
   const stage     = lead.stage     || 'new';
   const address   = lead.address   || '';
-  const isCustomer= (lead.stage === 'Complete') || lead.completedAt || lead.installCompletedAt;
+  // Won by role (2026-10-04), not the one legacy spelling 'Complete' — a
+  // closed / final-payment / install-complete customer is a customer too.
+  const isCustomer= require('../stage-roles').isWon(lead) || lead.completedAt || lead.installCompletedAt;
   const isProspect= !!lead.isProspect;
 
   // ── Conversation history: SMS thread, homeowner-portal thread, activity ──

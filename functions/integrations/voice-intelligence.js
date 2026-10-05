@@ -210,7 +210,6 @@ async function transcribeAudio({ bucket, path, mimeType, provider }) {
   const p = (provider || PROVIDERS.voiceTranscription || 'groq').toLowerCase();
   switch (p) {
     case 'groq':     return transcribeGroq({ bucket, path, mimeType });
-    case 'deepgram': return transcribeDeepgram({ bucket, path, mimeType });
     default:
       throw new VoiceError('transcription-provider-unknown',
         'PROVIDERS.voiceTranscription="' + p + '" not implemented');
@@ -270,7 +269,11 @@ async function transcribeGroq({ bucket, path, mimeType }) {
 // `timeoutMs` defaults to the pipeline's 8-minute budget; dictate passes
 // something far shorter because its clips are ≤60 s and the callable itself
 // has a 60 s ceiling.
-async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs }) {
+//
+// `words: true` (Reel Studio burned captions, 2026-10-04) ALSO asks Groq for
+// word timestamps and returns them as `words: [{ word, start, end }]`.
+// Default off, so every existing caller's request and result are unchanged.
+async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature }) {
   if (!hasSecret('GROQ_API_KEY')) {
     throw new VoiceError('groq-not-configured',
       'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.');
@@ -282,6 +285,7 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs }) {
   form.append('model', 'whisper-large-v3-turbo');
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'segment');
+  if (words) form.append('timestamp_granularities[]', 'word');
   form.append('language', 'en');
 
   let res;
@@ -306,6 +310,8 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs }) {
   if (!data || typeof data.text !== 'string') {
     throw new VoiceError('groq-empty-response', 'Groq returned no transcript text');
   }
+  // AI spend in one place: Groq bills by audio seconds.
+  await require('../ai-spend').recordAiSpend({ feature: feature || 'voice-transcribe', model: 'whisper-large-v3-turbo', audioSec: Number(data.duration) || 0 });
   return {
     text: data.text,
     segments: Array.isArray(data.segments) ? data.segments.map(s => ({
@@ -314,16 +320,15 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs }) {
       text: String(s.text || '')
     })) : [],
     durationSec: Number(data.duration) || 0,
-    providerJobId: null   // Groq is synchronous; no job id to track
+    providerJobId: null,  // Groq is synchronous; no job id to track
+    ...(words ? {
+      words: Array.isArray(data.words) ? data.words.map(w => ({
+        word: String(w.word || ''),
+        start: Number(w.start) || 0,
+        end: Number(w.end) || 0
+      })) : []
+    } : {})
   };
-}
-
-// Deepgram Nova-2 stub for Phase 2. Kept as a not-implemented
-// throw so the provider dispatch table above reads cleanly today.
-// Full adapter lands with the Pro-tier launch.
-async function transcribeDeepgram(/* { bucket, path, mimeType } */) {
-  throw new VoiceError('deepgram-not-implemented',
-    'Deepgram adapter ships with Phase 2. Set NBD_VOICE_TRANSCRIPTION_PROVIDER=groq in the meantime.');
 }
 
 // ─── Analysis + consent (C1c) ────────────────────────────────────
@@ -391,6 +396,7 @@ async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose }) 
     throw new VoiceError('analysis-api-error',
       purpose + ' rejected: ' + String(msg).slice(0, 300));
   }
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('voice-' + String(purpose || 'analysis').toLowerCase(), VOICE_ANALYSIS_MODEL, data));
   const text = data && data.content && Array.isArray(data.content)
     ? data.content.map(c => (c && c.type === 'text' ? c.text : '')).join('')
     : '';

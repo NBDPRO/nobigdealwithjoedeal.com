@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="css/theme-system.css?v=10">
 <link rel="stylesheet" href="css/theme-art.css?v=2">
 <link rel="stylesheet" href="css/agent-inbox.css?v=4">
+<link rel="stylesheet" href="css/agent-bots.css?v=1">
 <link rel="stylesheet" href="css/sort-customers.css?v=1">
 <link rel="stylesheet" href="css/triage-deck.css?v=2">
 <link rel="stylesheet" href="css/no-next-step.css?v=1">
@@ -52,11 +53,11 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=8" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=14" as="script">
+<link rel="preload" href="js/crm-leads.js?v=9" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=18" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
-<link rel="preload" href="js/crm-snooze.js?v=5" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=7" as="script">
+<link rel="preload" href="js/crm-snooze.js?v=6" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
 <link rel="preload" href="js/crm.js?v=35" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,17 +103,23 @@
      and feature modules so subscribers can register on first paint.
      See docs/pro/js/state-store.js. -->
 <script src="js/state-store.js?v=1"></script>
+<!-- 2026-10-04: errors on the phone reach Jo. Catches uncaught errors,
+     unhandled rejections and server-fault callable failures, scrubs PII and
+     posts one report per distinct error to /api/client-error (clientError
+     function → one log line → monitoring/alert-client-error-*.json). Before
+     the bootstrap module, so its window._httpsCallable assignment is wrapped. -->
+<script defer src="js/client-error-reporter.js?v=1"></script>
 <!-- 2026-09-25: the viewer role is read-only (Jo's decision B). role-gate.js
      hides write controls for a viewer and makes a refused write say so. Must
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=4"></script>
+<script defer src="js/role-gate.js?v=5"></script>
 <!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=106"></script>
+<script src="js/script-loader.js?v=143"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -131,21 +138,23 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=31"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=35"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=9">
+<link rel="stylesheet" href="css/dashboard-app.css?v=11">
 <link rel="stylesheet" href="css/ui-primitives.css?v=11">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=2">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=1">
+<link rel="stylesheet" href="css/tenant-ready.css?v=1">
 <link rel="stylesheet" href="css/money-dashboard.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=3">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
+<link rel="stylesheet" href="css/today-home.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
@@ -202,11 +211,14 @@
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
 <link rel="stylesheet" href="css/google-calendar.css?v=7">
+<link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
 <link rel="stylesheet" href="css/estimate-send.css?v=1">
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
+<!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
+<link rel="stylesheet" href="css/numbers.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -758,7 +770,7 @@
 <nav class="sidebar">
   
   <!-- TIER 1: PRIMARY WORKFLOW -->
-  <div class="ni active" role="button" tabindex="0" data-action="goTo" data-target="home" id="nav-home"><span class="ni-icon">🏠</span>Home</div>
+  <div class="ni active" role="button" tabindex="0" data-action="goTo" data-target="home" id="nav-home"><span class="ni-icon">🏠</span>Today</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="dash" id="nav-dash"><span class="ni-icon">📊</span>Dashboard</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="crm"  id="nav-crm"><span class="ni-icon">👥</span>Pipeline <span class="nbadge" id="leadBadge">0</span><span class="health-indicator" id="crmHealthBadge" title="CRM connection status"></span></div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="schedule" id="nav-schedule"><span class="ni-icon">🗓️</span>Schedule</div>
@@ -796,6 +808,7 @@
     <div class="nav-section-content open" id="section-insights">
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="board" id="nav-board"><span class="ni-icon">🏆</span>Leaderboard</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="reports" id="nav-reports"><span class="ni-icon">📈</span>Reports</div>
+      <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="weekreview" id="nav-weekreview"><span class="ni-icon">🗓️</span>Sunday Review</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="expenses" id="nav-expenses"><span class="ni-icon">🧾</span>Expenses</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="money" id="nav-money"><span class="ni-icon">💵</span>Money</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="refrewards" id="nav-refrewards"><span class="ni-icon">🎁</span>Referrals</div>
@@ -807,6 +820,7 @@
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="repos" id="nav-repos"><span class="ni-icon">🧠</span>Rep OS</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="talk-tank" id="nav-talk-tank"><span class="ni-icon">🎙️</span>Talk Tank</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="calls" id="nav-calls"><span class="ni-icon">📞</span>Call Center<span class="nbadge dn" id="callsNavBadge"></span></div>
+      <a class="ni" href="/pro/social.html" id="nav-social"><span class="ni-icon">📣</span>Social Studio</a>
     </div>
   </div>
 
@@ -826,6 +840,7 @@
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="understand" id="nav-understand"><span class="ni-icon">🔬</span>Deep Dive</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="projectcodex" id="nav-projectcodex"><span class="ni-icon">📋</span>Project Intel</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="aiusage" id="nav-aiusage"><span class="ni-icon">📊</span>AI Usage</div>
+      <div class="ni dn" role="button" tabindex="0" data-action="module" data-target="NBDAgentInbox.open" id="nav-agentinbox"><span class="ni-icon">📥</span>Agent inbox</div>
     </div>
   </div>
 
@@ -854,13 +869,19 @@
       <div class="page-hdr">
         <div>
           <div class="page-title" id="homeGreeting" data-user-greeting>Welcome Back</div>
-          <div class="page-sub">Your personalized command center</div>
+          <div class="page-sub">Today</div>
         </div>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-ghost" style="font-size:11px;padding:8px 14px;" data-action="module" data-target="NBDWidgets.openPicker">⚙️ Customize</button>
+          <button class="btn btn-ghost nb-home-link" id="homeWeekReviewBtn" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
+      <!-- Today (js/today-plan.js + js/today-home.js, 2026-10-03): the ONE
+           list of what is on Jo's plate — appointments, calls owed, promised
+           follow-ups, money to collect, stalled leads. Boot view and phone Home tab. -->
+      <section id="todayPlan" class="tp" aria-label="Today" hidden></section>
+
       <!-- Needs-you strip (js/home-attention.js): Stripe payments to assign,
            yard signs to pick up, phone calls that need you. Hidden when all are zero. -->
       <div id="homeAttention" class="ha-strip mb-md" hidden></div>
@@ -868,10 +889,9 @@
            no open task, oldest first, one-tap rows. Hidden when empty. -->
       <section id="homeNoNextStep" class="nns-card mb-md" aria-label="Leads with no next step" hidden></section>
       <div id="homeGameCard" class="mb-md" hidden></div>
-      <!-- Estimate follow-ups (js/estimate-followups.js): estimates out 2 / 5 / 10+
-           days, opened or not, each with a pre-written follow-up sent from
-           Jo's phone. Hidden when nothing is due. Nothing sends by itself. -->
-      <div id="homeEstimateFollowups" class="mb-md" hidden></div>
+      <!-- Estimate follow-ups (js/estimate-followups.js) are a section of the
+           Today list above (#todayPlan, "Estimates to follow up") since
+           2026-10-03 — one list, one row per lead. Nothing sends by itself. -->
       <style>
         .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
         .ha-strip[hidden]{display:none;}
@@ -1173,10 +1193,6 @@
             <div class="overlay-label"><div class="overlay-dot" style="background:var(--gold);"></div>Storm Activity</div>
             <div class="overlay-toggle" id="tog-storm" data-action="mapOverlay" data-target="storm" title="NOAA hail & wind data"></div>
           </div>
-          <div class="overlay-row">
-            <div class="overlay-label"><div class="overlay-dot" style="background:#34D399;"></div>Live Weather</div>
-            <div class="overlay-toggle" id="tog-weather" data-action="mapOverlay" data-target="weather" title="Current precipitation radar"></div>
-          </div>
         </div>
 
         <!-- TERRITORY ZONES -->
@@ -1261,7 +1277,6 @@
           <button class="map-fab" id="fab-jobs"    data-action="call" data-fn="fabToggle" data-arg="jobs" data-pass-el    title="Jobs"><span class="map-fab-icon">💰</span><span>Jobs</span></button>
           <button class="map-fab" id="fab-customers" data-action="call" data-fn="fabToggle" data-arg="customers" data-pass-el title="All Customers"><span class="map-fab-icon">🏠</span><span>Customers</span></button>
           <button class="map-fab" id="fab-storm"   data-action="call" data-fn="fabToggle" data-arg="storm" data-pass-el   title="Storm Radar"><span class="map-fab-icon">⛈</span><span>Storm</span></button>
-          <button class="map-fab" id="fab-weather" data-action="call" data-fn="fabToggle" data-arg="weather" data-pass-el title="Live Weather"><span class="map-fab-icon">🌧</span><span>Weather</span></button>
           <div class="map-fab-div"></div>
           <button class="map-fab" id="fab-zone" data-action="call" data-fn="startZoneDraw" title="Draw Territory"><span class="map-fab-icon">🗺</span><span>Zone</span></button>
           <button class="map-fab" data-action="call" data-fn="quickStormCheck" title="Storm check at my location"><span class="map-fab-icon">⚡</span><span>Storm Here</span></button>
@@ -1563,7 +1578,7 @@
                (Customer/Claim/Tier/County), W143 (per-SQ add-ons),
                W144 (supplements), so it now covers every workflow
                the Classic builder did, plus the 270-item catalog,
-               presets, county/tier selectors, BoldSign signing, and
+               presets, county/tier selectors, e-signing, and
                draft autosave. The drift risk noted in the April
                2026 estimate-engines audit is closed by promoting V2
                to default — every new estimate goes through the
@@ -1785,31 +1800,13 @@
         </div>
       </div>
 
-      <!-- STEP 3: Good / Better / Best -->
+      <!-- STEP 3: Package tiers — one card per tier in estimate-config.js
+           TIER_ORDER (economy…beyond), built by estimates.js renderTierCards() -->
       <div id="estStep3" class="dn">
         <div class="panel">
           <div class="panel-hdr"><div><div class="panel-label">Step 3</div><div class="panel-title">Select Package</div></div></div>
           <div class="panel-body">
-            <div class="tier-grid">
-              <div class="tier-card" data-action="call" data-fn="selectTier" data-arg="good" data-pass-el>
-                <div class="tier-badge tier-good">Good</div>
-                <div class="tier-name">Standard Reroof</div>
-                <div class="tier-items">✓ Architectural shingles<br>✓ Felt underlayment<br>✓ Tear off existing<br>✓ Starter strip<br>✓ Drip edge<br>✓ Ridge cap</div>
-                <div class="tier-price" id="price-good">—</div>
-              </div>
-              <div class="tier-card" data-action="call" data-fn="selectTier" data-arg="better" data-pass-el>
-                <div class="tier-badge tier-better">Better</div>
-                <div class="tier-name">Reroof Plus</div>
-                <div class="tier-items">✓ Everything in Standard<br>✓ Ice & water shield<br>✓ Pipe boots (all)<br>✓ Hip cap shingles<br>✓ 15% decking allowance</div>
-                <div class="tier-price" id="price-better">—</div>
-              </div>
-              <div class="tier-card" data-action="call" data-fn="selectTier" data-arg="best" data-pass-el>
-                <div class="tier-badge tier-best">Best</div>
-                <div class="tier-name">Full Redeck</div>
-                <div class="tier-items">✓ Everything in Reroof Plus<br>✓ Full OSB decking<br>✓ Seamless gutters (6")<br>✓ Premium warranty<br>✓ Full redeck labor</div>
-                <div class="tier-price" id="price-best">—</div>
-              </div>
-            </div>
+            <div class="tier-grid" id="estTierGrid"></div>
           </div>
         </div>
         <div style="display:flex;gap:10px;">
@@ -2195,9 +2192,14 @@
       </div>
       
       <div class="flex-g8">
+        <!-- An empty account's first move is bringing its customer list
+             over (2026-10-04, tenant-ready): Import comes first. Imports run
+             on a one-time allowance, not the monthly cap; sample leads use
+             their own small allowance too (functions/lead-cap.js). -->
+        <button class="btn btn-orange" id="crmEmptyImportBtn" data-action="call" data-fn="openLeadImport">⬆ Import leads (CSV)</button>
         <!-- Load Sample Data is useful in BOTH modes — an empty account is
              exactly who wants to see what a populated board looks like. -->
-        <button class="btn btn-orange" data-action="call" data-fn="loadSampleData">🎲 Load Sample Data</button>
+        <button class="btn btn-ghost" data-action="call" data-fn="loadSampleData">🎲 Load Sample Data</button>
         <span id="crmDiagnosticDebugTools" style="display:contents;">
           <button class="btn btn-ghost" data-action="call" data-fn="retryLoadLeads">🔄 Retry Load</button>
           <button class="btn btn-ghost" data-action="call" data-fn="testFirestoreRules">🔐 Test Rules</button>
@@ -2415,6 +2417,9 @@
   <!-- Past Customers (win-back): template-hydrated mount; winback.js (lazy 'winback' bundle) renders the list into .view-scroll on init. -->
   <div class="view" id="view-winback" data-view-template="tpl-view-winback"></div>
   <template id="tpl-view-winback"><div class="view-scroll" id="winbackScroll"></div></template>
+  <!-- Sunday business review (2026-10-04): template-hydrated mount; week-review.js (lazy 'weekreview' bundle) renders into .view-scroll on init. Owner-only figures. -->
+  <div class="view" id="view-weekreview" data-view-template="tpl-view-weekreview"></div>
+  <template id="tpl-view-weekreview"><div class="view-scroll" id="weekReviewScroll"></div></template>
   <template id="tpl-view-closeboard">
     <div class="view-scroll">
       <div class="page-hdr">
@@ -2921,6 +2926,7 @@
         </div>
         <div class="flex-g8">
           <button class="btn btn-ghost" id="btnEnrichData" data-action="call" data-fn="enrichReportData" title="One-time analytics enrichment: reverse-geocode knock GPS coords into city/zip and derive time-of-day buckets. Enables the Top Territories and Heatmap metrics on historical data.">✨ Enrich Data</button>
+          <button class="btn btn-ghost" id="btnReportsWeekReview" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
           <button class="btn btn-orange" id="btnOpenReportGenerator" data-action="call" data-fn="openReportGenerator">＋ New Report</button>
         </div>
       </div>
@@ -2942,14 +2948,22 @@
         </div>
       </div>
 
-      <!-- Lead Source ROI panel — instant read on which sources actually
-           generate revenue. Computed live off window._leads — no backend
-           call. Re-renders on leadsChanged. -->
+      <!-- Knowing your numbers (2026-10-04): package mix, losses by reason,
+           results per storm — js/reports-numbers.js. -->
+      <div class="panel mb-lg">
+        <div class="panel-body" id="reportsNumbersPanel">
+          <div class="empty"><div class="empty-icon">📦</div>Loading…</div>
+        </div>
+      </div>
+
+      <!-- Lead-source table (2026-10-04): one row per source — leads, won %,
+           booked (projected), collected, spend, cost per job won, booked per $1.
+           js/lead-source-roi.js off window._leads; re-renders on leadsChanged. -->
       <div class="panel mb-lg">
         <div class="panel-hdr">
           <div>
             <div class="panel-label">Insights</div>
-            <div class="panel-title">Lead Source ROI</div>
+            <div class="panel-title">Lead Sources — what each one earns</div>
           </div>
           <div class="meta-11">All-time · live</div>
         </div>
@@ -3030,6 +3044,7 @@
         <button class="stab-btn" data-action="settingsTab" data-target="billing" id="stab-billing">💳 Billing</button>
         <button class="stab-btn" data-action="settingsTab" data-target="notifications" id="stab-notifications">🔔 Notifications</button>
         <button class="stab-btn" data-action="settingsTab" data-target="ai-texting" id="stab-ai-texting">🤖 AI Texting</button>
+        <button class="stab-btn" data-action="settingsTab" data-target="bots" id="stab-bots">🔌 Bots &amp; API</button>
         <button class="stab-btn" data-action="settingsTab" data-target="access" id="stab-access">🔐 Access</button>
         <button class="stab-btn" data-action="settingsTab" data-target="help" id="stab-help">❓ Help</button>
       </div>
@@ -3614,7 +3629,7 @@
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">V2 Engine · Per-SQ Mode</div><div class="panel-title">Tier Rates</div></div></div>
           <div class="panel-body">
-            <p class="meta-12-mb16">Flat per-square pricing used when V2 Estimate Builder is in Per-SQ mode. Five tiers since October 2026: Economy and Beyond are in-person options (Beyond is TAMKO HailGuard only).</p>
+            <p class="meta-12-mb16">Your package prices, per square. Company-wide: Save All Estimate Settings saves them for every rep and device, and the estimate builder, deal room and close board all quote them. Which tiers you offer, their names, warranties and shingle rules are under Business Rules below.</p>
             <div class="sf-row">
               <div class="sf"><label>Economy Tier ($/SQ)</label><input type="number" id="v2rateEconomy" value="440" step="5"></div>
               <div class="sf"><label>Good Tier ($/SQ)</label><input type="number" id="v2rateGood" value="550" step="5"></div>
@@ -3634,6 +3649,16 @@
               <div class="sf"><label>Minimum Job Charge (Per-SQ)</label><input type="number" id="v2minJob" value="2500" step="50"></div>
               <div class="sf"><label>Round To Nearest ($)</label><input type="number" id="v2roundTo" value="25" step="5"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- ▸ Business rules (2026-10-04, tenant-ready): tiers offered, names,
+             warranties, shingle locks, deposit rule → companyProfile.businessRules.
+             Rendered by js/tenant-rules-settings.js (own Save button). -->
+        <div class="panel mb-md">
+          <div class="panel-hdr"><div><div class="panel-label">Company-wide</div><div class="panel-title">Business Rules</div></div></div>
+          <div class="panel-body">
+            <div id="tenantRulesPanel" data-state="loading"><p class="tr-muted">Loading your company settings…</p></div>
           </div>
         </div>
 
@@ -3967,6 +3992,14 @@
             </div>
             <div class="sf"><label>Logo URL</label>
               <input type="text" id="cp_brand_logoUrl" placeholder="https://yourdomain.com/logo.png"></div>
+            <!-- Logo upload (2026-10-04, tenant-ready): the server re-encodes the
+                 image (EXIF/GPS stripped) and saves a public first-party URL —
+                 never a Storage ?token= link. js/tenant-account-ui.js. -->
+            <div class="ta-logo-row">
+              <input type="file" id="cp_logoFile" accept="image/png,image/jpeg,image/webp,image/gif" class="ta-file">
+              <button type="button" class="btn btn-ghost fs-11" id="cp_logoUpload">⬆ Upload logo</button>
+              <span id="cp_logoMsg" class="ta-msg" role="status"></span>
+            </div>
             <div class="sf-row">
               <div class="sf" style="flex:0 0 160px;"><label>Primary Color</label>
                 <input type="color" id="cp_brand_colorPrimary" value="#1A3057"></div>
@@ -4108,7 +4141,7 @@
               <div class="sf"><label>Tagline</label>
                 <input type="text" id="cp_tagline" placeholder="No Big Deal — We've Got You Covered"></div>
               <div class="sf"><label>Service Area</label>
-                <input type="text" id="cp_serviceArea" placeholder="Greater Cincinnati & Northern Kentucky"></div>
+                <input type="text" id="cp_serviceArea" placeholder="e.g. Your City & surrounding counties"></div>
             </div>
 
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Services (6 slots)</div>
@@ -4221,6 +4254,14 @@
               <a id="cp-site-link" href="#" target="_blank" rel="noopener" style="color:var(--orange);word-break:break-all;">—</a>
             </div>
             <div id="cp-slug-msg" style="display:none;margin-top:8px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;"></div>
+            <!-- Publish my site (2026-10-04): a new company's page starts
+                 PRIVATE. Publishing is a server call (publishTenantSite) that
+                 needs your brand name, phone and service area filled first. -->
+            <div class="cp-site-publish">
+              <div id="cp-site-status" class="cp-site-status">Checking whether your site is published…</div>
+              <button id="cp-site-publish-btn" class="btn btn-orange" data-action="call" data-fn="_publishSite" hidden>🌐 Publish my site</button>
+              <button id="cp-site-unpublish-btn" class="btn btn-ghost" data-action="call" data-fn="_unpublishSite" hidden>Unpublish</button>
+            </div>
             <div style="margin-top:14px;border-top:1px solid var(--br);padding-top:12px;font-size:12px;color:var(--m);">
               Want a guided do-over of your name, colors, seal, and contact info?
               <a href="/pro/onboarding.html?redo=1" style="color:var(--orange);">Re-run the setup wizard →</a>
@@ -4424,6 +4465,14 @@
               <button class="btn btn-ghost fs-11" data-action="call" data-fn="_exportAllData">📥 Export All Leads (CSV)</button>
               <button class="btn btn-ghost fs-11" data-action="call" data-fn="_exportEstimates">📥 Export Estimates (CSV)</button>
               <button class="btn btn-ghost fs-11" data-action="call" data-fn="_exportPhotos">📥 Export Photos (ZIP)</button>
+            </div>
+            <!-- Full company export (2026-10-04, tenant-ready): leads, estimates,
+                 invoices, contracts, documents and photo list as JSON + CSV in
+                 one ZIP named after the company. Owner / company admin only
+                 (functions/tenant-ops.js exportCompanyData). -->
+            <div class="ta-export-row">
+              <button type="button" class="btn btn-orange fs-11" id="taExportAll">📦 Export all company data (ZIP)</button>
+              <span id="taExportMsg" class="ta-msg" role="status"></span>
             </div>
           </div>
         </div>
@@ -4683,6 +4732,11 @@
         <h3 style="margin:0 0 4px;font-family:'Barlow Condensed',sans-serif;font-size:18px;color:var(--t);">🤖 AI Texting Persona</h3>
         <div id="aiPersonaMount"></div>
       </div><!-- /stab-panel-ai-texting -->
+
+      <!-- ══ TAB: BOTS & API (connect your own AI bots — rendered by agent-bots-settings.js) ══ -->
+      <div class="stab-panel dn" id="stab-panel-bots">
+        <div id="agentBotsMount"></div>
+      </div><!-- /stab-panel-bots -->
 
       <!-- ══ TAB: HELP ══ -->
       <div class="stab-panel dn" id="stab-panel-help">
@@ -5067,6 +5121,12 @@
            30 days, each row saved on its own (2026-09-29). -->
       <div class="panel" id="schedPlanPanel" hidden>
         <div class="panel-hdr"><div><div class="panel-label">Fill in your month</div><div class="panel-title">Plan Jobs</div></div></div>
+        <!-- Production flow (2026-10-04, js/production.js): homeowner
+             reminders for tomorrow's installs (sent from Jo's phone, never
+             automatic) and the 7-day busy strip — Google busy, CRM jobs,
+             deliveries. -->
+        <div class="panel-body" id="schedTomorrow" hidden></div>
+        <div class="panel-body" id="schedBusyStrip" hidden></div>
         <div class="panel-body" id="schedPlanBody"></div>
       </div>
 
@@ -5553,7 +5613,10 @@
       <div style="font-size:10px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--green);margin-bottom:8px;font-weight:600;">Job Details</div>
       <div class="mrow">
         <div class="mfield"><label>Scheduled Date</label><input type="date" id="lScheduledDate"></div>
-        <div class="mfield"><label>Crew</label><input type="text" id="lCrew" placeholder="Crew name or lead installer"></div>
+        <!-- Sub picker (production flow, 2026-10-04): the company's roster of
+             independent subs (js/production.js fills it). Replaced the
+             free-text Crew box; an old crew name stays selectable. -->
+        <div class="mfield"><label for="lSubId">Sub</label><select id="lSubId"><option value="">— No sub yet —</option></select></div>
       </div>
       <!-- 2026-09-29 (calendar hub Phase 0): arrival window beside the date.
            Wired by js/schedule-window-ui.js (delegated, no inline handlers);
@@ -5907,7 +5970,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=8"></script>
+<script defer src="js/dashboard-state.js?v=9"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=5"></script>
@@ -5924,7 +5987,7 @@
      load, and must precede every photo consumer (including the lazy
      ScriptLoader 'photos' bundle). See docs/pro/js/photo-damage-types.js. -->
 <script defer src="js/photo-damage-types.js?v=1"></script>
-<script defer src="js/photo-queue-store.js?v=2"></script>
+<script defer src="js/photo-queue-store.js?v=3"></script>
 <script defer src="js/photo-queue-recovery.js?v=2"></script>
 <!-- Canonical two-shape estimate money reader (window.NBDCustomerEstimateRows).
      Must load BEFORE its consumers below (customer-estimate-hub, invoice-pipeline,
@@ -5943,9 +6006,9 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=8"></script>
+<script defer src="js/dashboard-widgets.js?v=9"></script>
 <script defer src="js/dashboard-ui.js?v=11"></script>
-<script defer src="js/dashboard-actions.js?v=16"></script>
+<script defer src="js/dashboard-actions.js?v=17"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -5981,7 +6044,7 @@
      pattern while staying NBD-orange. Tapping it opens the create
      popover (toggleMobileCreatePopover, defined in Wave 2C). -->
 <nav id="mobile-nav">
-  <div class="mn-item active" id="mni-dash" data-action="mobileNav" data-target="dash" role="button" aria-label="Home">
+  <div class="mn-item active" id="mni-dash" data-action="mobileNav" data-target="home" role="button" aria-label="Home">
     <svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-home"/></svg>
     <span class="mn-lbl">Home</span>
   </div>
@@ -6071,10 +6134,10 @@
 
   <div class="mm-section">Core</div>
   <div class="mm-item" data-action="mobileNav" data-target="home" data-close-more>
-    <span class="mm-item-icon">🏠</span>Home
+    <span class="mm-item-icon">🏠</span>Today
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="dash" data-close-more>
-    <span class="mm-item-icon">📊</span>Dashboard
+    <span class="mm-item-icon">📊</span>Dashboard (KPIs)
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="crm" data-close-more>
     <span class="mm-item-icon">👥</span>Pipeline
@@ -6158,12 +6221,18 @@
   <div class="mm-item" data-action="mobileNav" data-target="money" data-close-more>
     <span class="mm-item-icon">💵</span>Money
   </div>
+  <div class="mm-item" data-action="mobileNav" data-target="weekreview" data-close-more>
+    <span class="mm-item-icon">🗓️</span>Sunday Review
+  </div>
   <div class="mm-item" data-action="mobileNav" data-target="refrewards" data-close-more>
     <span class="mm-item-icon">🎁</span>Referrals
   </div>
   <div class="mm-item" data-action="call" data-fn="openDailyProgramFromMore">
     <span class="mm-item-icon">📅</span>Daily Program
   </div>
+  <a class="mm-item" href="/pro/social.html" id="mm-social">
+    <span class="mm-item-icon">📣</span>Social Studio
+  </a>
   <a class="mm-item" href="/pro/roof-rep.html" id="mm-roofrep">
     <span class="mm-item-icon">🎮</span>Roof Rep
   </a>
@@ -6174,6 +6243,9 @@
   <div class="mm-section">System</div>
   <div class="mm-item" data-action="mobileNav" data-target="joe" data-close-more>
     <span class="mm-item-icon">🤖</span>Ask Joe AI
+  </div>
+  <div class="mm-item dn" data-action="module" data-target="NBDAgentInbox.open" id="mm-agentinbox">
+    <span class="mm-item-icon">📥</span>Agent inbox
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="settings" data-close-more>
     <span class="mm-item-icon">⚙️</span>Settings
@@ -6784,7 +6856,7 @@
      doc-phone-layout.js (2026-09-25) is its phone reading layout for a
      generated document, shared with sign.html and the portal. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
-<script defer src="js/nbd-doc-viewer.js?v=4"></script>
+<script defer src="js/nbd-doc-viewer.js?v=5"></script>
 <!-- Talk Tank: unified voice-capture inbox under #/talk-tank. Reads
      users/<uid>/captures (written by quick-capture.js). REC button on
      the page invokes window.NBDQuickCapture.open() — no duplicate
@@ -6794,24 +6866,24 @@
      that view. -->
 <!-- Legendary Rep Report Generator — bold-editorial visual
      reports for rep coaching + owner meetings. -->
-<script defer src="js/billing-gate.js?v=2"></script>
+<script defer src="js/billing-gate.js?v=3"></script>
 <!-- LAZY: rep-report-generator (reports view) loaded via ScriptLoader -->
 
 <script defer src="js/roof-report.js?v=2"></script>
 <script defer src="js/property-intel.js?v=6"></script>
 <!-- LAZY: warranty-cert (docs view wizard) loaded via ScriptLoader -->
-<script defer src="js/tools.js?v=8"></script>
+<script defer src="js/tools.js?v=9"></script>
 <!-- ALL scripts use defer for consistent load ordering.
      Defer scripts execute in document order after DOM ready.
      The loading spinner covers the gap. billing-gate and
      doc-viewer must come BEFORE crm/widgets since those
      reference NBDBilling and NBDDocGen at call-time. -->
-<script defer src="js/claude-proxy.js?v=4"></script>
+<script defer src="js/claude-proxy.js?v=5"></script>
 <!-- Audit batch 6: repository pattern layer. Centralizes userId/
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
      existing call sites migrate at their own pace. -->
-<script defer src="js/repos.js?v=2"></script>
+<script defer src="js/repos.js?v=3"></script>
 <!-- Step 4b (2026-05-16): crm.js (175KB) was split into four sibling
      modules + a thin shim. Load order is locked:
        leads → pipeline → snooze → portal-bridge → crm (shim)
@@ -6825,36 +6897,40 @@
      crm-leads.js (saveLead reads them) and smart-calendar.js. -->
 <script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/schedule-window-ui.js?v=1"></script>
-<script defer src="js/crm-leads.js?v=8"></script>
+<!-- Today (2026-10-03): the pure plan + THE follow-up rule (followUpDue) that
+     crm-pipeline / crm-snooze / analytics-kpi read — before them. -->
+<script defer src="js/today-plan.js?v=1"></script>
+<script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=14"></script>
-<script defer src="js/crm-snooze.js?v=5"></script>
+<script defer src="js/crm-pipeline.js?v=18"></script>
+<script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
      users/{uid}/fcmTokens so the backend reminder/lead pushes have recipients.
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=6"></script>
 <script defer src="js/push-actions.js?v=3"></script>
-<script defer src="js/crm-portal-bridge.js?v=7"></script>
+<script defer src="js/crm-portal-bridge.js?v=8"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
 <script defer src="js/sort-customers.js?v=2"></script>
 <script defer src="js/crm.js?v=35"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
-<script defer src="js/tasks.js?v=6"></script>
-<script defer src="js/dol-fill.js?v=1"></script>
+<script defer src="js/tasks.js?v=7"></script>
+<script defer src="js/dol-fill.js?v=2"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
-<script defer src="js/agent-inbox.js?v=5"></script>
+<script defer src="js/agent-inbox.js?v=6"></script>
+<script defer src="js/agent-bots-settings.js?v=3"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
 <script defer src="js/dup-review.js?v=1"></script>
 <script defer src="js/global-search.js?v=2"></script>
 <script defer src="js/bottleneck-widget.js?v=2"></script>
 <script defer src="js/pwa-install-nudge.js?v=6"></script>
-<script defer src="js/data-export.js?v=4"></script>
+<script defer src="js/data-export.js?v=5"></script>
 <script defer src="js/shortcuts-help.js?v=2"></script>
-<script defer src="js/data-import.js?v=5"></script>
+<script defer src="js/data-import.js?v=6"></script>
 <script defer src="js/activity-feed.js?v=3"></script>
 <!-- Single owner of kanban filter state. MUST load before the two filter
      modules below: each registers with it at init, and without it they
@@ -6863,7 +6939,7 @@
 <script defer src="js/needs-attention-filter.js?v=4"></script>
 <!-- "No next step" (2026-10-03): open leads with no follow-up and no open
      task — Home card #homeNoNextStep + the board filter #noNextStepBtn. -->
-<script defer src="js/no-next-step.js?v=2"></script>
+<script defer src="js/no-next-step.js?v=3"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=3"></script>
@@ -6874,32 +6950,40 @@
 <script defer src="js/customer-engagement-score.js?v=2"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
-<script defer src="js/smart-followup.js?v=3"></script>
+<script defer src="js/smart-followup.js?v=4"></script>
 <!-- W135: Lead Intelligence — unified 0-100 score engine -->
 <script defer src="js/lead-score.js?v=2"></script>
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
-<script defer src="js/home-attention.js?v=7"></script>
+<script defer src="js/home-attention.js?v=9"></script>
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
 <script defer src="js/phone-share.js?v=1"></script>
-<script defer src="js/estimate-followups.js?v=1"></script>
+<script defer src="js/estimate-followups.js?v=2"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
-<script defer src="js/game-card.js?v=2"></script>
+<script defer src="js/game-card.js?v=3"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
 <script defer src="js/collected-revenue.js?v=2"></script>
-<script defer src="js/widgets.js?v=12"></script>
+<!-- Knowing your numbers (2026-10-04): ONE close rate, the lead-source table,
+     spend + cost per lead, the required lost reason. numbers-logic.js is the
+     pure rules; numbers-data.js the owner-only reads/writes; the picker is
+     the required "Why was it lost?" sheet (crm-pipeline / crm-leads). -->
+<script defer src="js/numbers-logic.js?v=1"></script>
+<script defer src="js/numbers-data.js?v=1"></script>
+<script defer src="js/lost-reason-picker.js?v=1"></script>
+<script defer src="js/widgets.js?v=13"></script>
+<script defer src="js/today-home.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
-<script defer src="js/my-skin.js?v=2"></script>
+<script defer src="js/my-skin.js?v=3"></script>
 <script defer src="js/ui.js?v=9"></script>
-<script defer src="js/demo.js?v=4"></script>
+<script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=4"></script>
+<script defer src="js/nbd-comms.js?v=5"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
@@ -6913,7 +6997,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=13"></script>
+<script defer src="js/invoice-pipeline.js?v=14"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -6927,8 +7011,8 @@
      no Leaflet global defined, it executes cleanly (no top-level code
      calls into L.*), and neither maps-core.js nor maps-overlays.js
      references anything drawing-tool-specific. -->
-<script defer src="js/maps-core.js?v=8"></script>
-<script defer src="js/maps-overlays.js?v=8"></script>
+<script defer src="js/maps-core.js?v=9"></script>
+<script defer src="js/maps-overlays.js?v=9"></script>
 <script defer src="js/maps-customers.js?v=12"></script>
 <script defer src="js/maps.js?v=12"></script>
 <!-- Smart Calendar — Today's Schedule with travel-time + priority. Reads
@@ -6941,7 +7025,9 @@
 <script defer src="js/google-calendar-ui.js?v=6"></script>
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
 <script defer src="js/schedule-planner-logic.js?v=2"></script>
-<script defer src="js/schedule-planner.js?v=3"></script>
+<script defer src="js/production-logic.js?v=1"></script>
+<script defer src="js/production.js?v=1"></script>
+<script defer src="js/schedule-planner.js?v=4"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.
@@ -6950,28 +7036,38 @@
 <script defer src="js/voicemail.js?v=3"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
-<script defer src="js/estimate-config.js?v=5"></script>
+<script defer src="js/estimate-config.js?v=6"></script>
 <!-- deposit-rule.js (2026-09-25): the ONE deposit rule every quote, contract,
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
-<script defer src="js/deposit-rule.js?v=2"></script>
+<script defer src="js/deposit-rule.js?v=3"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
      the Close Board deal room all read it. -->
-<script defer src="js/ky-insurance-law.js?v=3"></script>
+<script defer src="js/ky-insurance-law.js?v=4"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->
 
 <script defer src="js/ask-joe-rules.js?v=1"></script>
 <script defer src="js/ask-joe-actions.js?v=2"></script>
-<script defer src="js/ai.js?v=10"></script>
-<script defer src="js/review-engine.js?v=6"></script>
-<script defer src="js/review-deck.js?v=1"></script>
+<script defer src="js/ai.js?v=11"></script>
+<script defer src="js/review-engine.js?v=7"></script>
+<script defer src="js/review-deck.js?v=2"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=5"></script>
+<script defer src="js/company-profile.js?v=6"></script>
+<!-- tenant-rules.js (2026-10-04, tenant-ready): each company's own business
+     rules (tiers, names, warranties, shingle locks, deposit) with NBD-only
+     defaults. After company-profile.js (reads _companyProfile at call time);
+     estimate-config.js and deposit-rule.js ask it first. -->
+<script defer src="js/tenant-rules.js?v=1"></script>
+<!-- LAZY (2026-10-05, boot budget): the Business Rules editor and the logo
+     upload / company export buttons ride ScriptLoader's 'tenantsettings'
+     bundle (goTo('settings')); the new-owner setup checklist rides 'setup',
+     loaded by dashboard-bootstrap.module.js once the company profile lands
+     for a company that isn't NBD. -->
 <!-- LAZY: doc-generation cluster (nbd-logo-asset, document-generator,
      document-generator-templates, doc-preflight) loaded via ScriptLoader's
      `docgen` bundle. Was eager here (~420 KB on every load); PR 2b moved it
@@ -6980,7 +7076,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=8"></script>
+<script defer src="js/analytics-kpi.js?v=9"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -6996,7 +7092,7 @@
      composes window.D2D; goTo('d2d')'s existing waitForD2D() poller handles the
      late load. The maps engine stays eager (maps.js doubles as the theme
      engine — deferring it would defer theme application + the picker). -->
-<script defer src="js/ask-joe-proactive.js?v=4"></script>
+<script defer src="js/ask-joe-proactive.js?v=5"></script>
 <!-- LAZY: estimate engine (PR 2c) — product-data, roofivent-catalog,
      product-library, estimate-labor-catalog, estimate-builder-v2,
      estimate-catalog-xactimate, estimate-logic-engine, estimates,
@@ -7011,7 +7107,7 @@
 <script defer src="js/estimate-analytics.js?v=3"></script>
 <!-- W153: Reports view performance dashboard — KPI tiles +
      period-over-period comparison + conversion funnel. -->
-<script defer src="js/reports-dashboard.js?v=2"></script>
+<script defer src="js/reports-dashboard.js?v=3"></script>
 <!-- W154: revenue trend sparkline + top customers/sources/engaged. -->
 <script defer src="js/reports-trends.js?v=3"></script>
 <!-- LAZY: estimate-v2-ui + product-library load via the `estimates` bundle (PR 2c). -->
@@ -7019,14 +7115,16 @@
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js
      when a saved theme exists, else with the Settings view / theme picker. -->
 <script defer src="js/prospects.js?v=5"></script>
-<script defer src="js/lead-source-roi.js?v=2"></script>
+<script defer src="js/lead-source-roi.js?v=3"></script>
+<!-- Reports: package mix, losses by reason, results per storm (2026-10-04). -->
+<script defer src="js/reports-numbers.js?v=1"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>
 <script defer src="js/forecasting.js?v=3"></script>
 <script defer src="js/onboarding-tour.js?v=4"></script>
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
 <script src="js/dashboard-sw-bootstrap.js?v=2"></script>
-<script defer src="js/mobile-nav-customizer.js?v=6"></script>
+<script defer src="js/mobile-nav-customizer.js?v=7"></script>
 <script defer src="js/connection-status-btn.js?v=4"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
      based on the user's claims. Lazy-loading would hide the nav entry
@@ -7034,14 +7132,14 @@
 <script defer src="js/inbound-sms-triage.js?v=1"></script>
 <script defer src="js/admin-manager.js?v=3"></script>
 <!-- Integrations client — exposes window.NBDIntegrations for HOVER,
-     BoldSign, Regrid, HailTrace, Cal.com. No-op when providers are
+     Regrid, HailTrace, Cal.com (e-sign is in-house since 2026-10-04). No-op when providers are
      not configured server-side. -->
-<script defer src="js/integrations-client.js?v=2"></script>
+<script defer src="js/integrations-client.js?v=3"></script>
 <!-- Signed Storage URL helper — lets photo grids fetch images
      directly from Storage (C1) instead of streaming through
      the deprecated imageProxy. -->
 <script defer src="js/signed-image-url.js?v=1"></script>
-<!-- Voice memo recorder + Deepgram client (F8) -->
+<!-- Voice memo recorder + transcribeVoiceMemo client (F8; Groq server-side) -->
 <script defer src="js/voice-memo.js?v=1"></script>
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=2"></script>

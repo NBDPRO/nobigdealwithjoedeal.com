@@ -37,6 +37,12 @@ let selectedTier = null;
 let selectedFinance = null;
 let sigDrawing = false;
 let sigHasContent = false;
+// Consent to sign electronically (2026-10-04, ESIGN evidence — BoldSign is
+// retired and this page is the in-house in-person signing path). Built here
+// so every stored deal page gets it; submitDealAcceptance stores the answer
+// with the server's copy of the same words.
+const CONSENT_TEXT = 'I agree to sign electronically. My electronic signature is the legal equivalent of my handwritten signature.';
+let consentBox = null;
 
 function formatCurrency(n) {
   return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -44,8 +50,26 @@ function formatCurrency(n) {
 
 function checkReady() {
   const btn = document.getElementById('submitBtn');
-  if (btn) btn.disabled = !(selectedTier && sigHasContent);
+  if (btn) btn.disabled = !(selectedTier && sigHasContent && (!consentBox || consentBox.checked));
 }
+
+(function addConsent() {
+  const btn = document.getElementById('submitBtn');
+  if (!btn || !btn.parentNode || document.getElementById('dealConsent')) return;
+  const label = document.createElement('label');
+  label.className = 'deal-consent';
+  label.style.cssText = 'display:flex;gap:10px;align-items:flex-start;text-align:left;font-size:13px;line-height:1.45;margin:14px auto 0;max-width:520px;cursor:pointer;';
+  consentBox = document.createElement('input');
+  consentBox.type = 'checkbox';
+  consentBox.id = 'dealConsent';
+  consentBox.style.cssText = 'width:22px;height:22px;flex:0 0 auto;margin:1px 0 0;';
+  const span = document.createElement('span');
+  span.textContent = CONSENT_TEXT;
+  label.appendChild(consentBox);
+  label.appendChild(span);
+  btn.parentNode.insertBefore(label, btn);
+  consentBox.addEventListener('change', checkReady);
+})();
 
 function selectTier(tier) {
   selectedTier = tier;
@@ -130,6 +154,7 @@ function readMeta(name) {
 
 async function submitDeal() {
   if (!selectedTier || !sigHasContent || !canvas) return;
+  if (consentBox && !consentBox.checked) return;
   const sigData = canvas.toDataURL('image/png');
   const schedDate = (document.getElementById('schedDate') || {}).value || '';
   const btn = document.getElementById('submitBtn');
@@ -144,7 +169,7 @@ async function submitDeal() {
     try {
       const r = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token, tier: selectedTier, financing: selectedFinance, signature: sigData, scheduledDate: schedDate })
+        body: JSON.stringify({ token: token, tier: selectedTier, financing: selectedFinance, signature: sigData, scheduledDate: schedDate, consent: !!(consentBox && consentBox.checked) })
       });
       if (!r.ok) {
         const j = await r.json().catch(function () { return {}; });
@@ -185,6 +210,17 @@ async function submitDeal() {
   });
   window.addEventListener('pagehide', flush);
 })();
+
+// ── Packet photos (2026-10-04) ──
+// A full packet's inspection photos load from /deal/<token>/photo/<n>; one
+// that fails (link just expired, photo removed) is hidden, not a broken icon.
+// Image errors don't bubble — listen in the capture phase.
+document.addEventListener('error', function (ev) {
+  const img = ev.target;
+  if (!img || img.tagName !== 'IMG' || !img.closest) return;
+  const fig = img.closest('.deal-photo');
+  if (fig) fig.classList.add('is-broken');
+}, true);
 
 // ── Delegated interactions (replaces the CSP-dead inline handlers) ──
 document.addEventListener('click', function (ev) {

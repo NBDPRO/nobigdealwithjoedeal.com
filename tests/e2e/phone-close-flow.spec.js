@@ -9,7 +9,7 @@
 //      share sheet — and the builder stays on screen. A second send updates
 //      the same estimate instead of adding a copy.
 //   3. "Sign on this phone" on a Kentucky insurance job with NO email: the
-//      BoldSign button is hidden, and the accept page opens in-app with the
+//      e-mail e-sign button is hidden, and the accept page opens in-app with the
 //      signature pad, the KRS 367.624 notices and Call / Text buttons.
 //
 // Nothing is sent from the server: the createDealAcceptToken callable and
@@ -91,7 +91,7 @@ async function seedLead(page, extra) {
       userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
     }, x || {});
     Object.keys(lead).forEach((k) => { if (lead[k] === null) delete lead[k]; });
-    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), lead)).id;
+    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead))).id; // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
     if (typeof window.loadLeads === 'function') await window.loadLeads();
     for (let i = 0; i < 75 && !(window._leads || []).some((l) => l.id === id); i++) {
       await new Promise((r) => setTimeout(r, 200));
@@ -181,7 +181,9 @@ test.describe('phone close flow: send to homeowner + sign on this phone @shard2'
         await expect(page.locator('#estV2Modal ' + sel).first(), sel + ' waits under More').toBeHidden();
       }
       const visibleButtons = await page.locator('#estV2Modal .v2-body button:visible').evaluateAll((els) => els.filter((e) => !e.closest('.v3-head')).map((e) => (e.textContent || '').trim()));
-      expect(visibleButtons, 'Finish shows the primary + More, nothing else').toEqual(['📲 Send to homeowner', 'More ▾']);
+      // 2026-10-04: the Full packet / Paperwork only choice is asked at send
+      // time, beside the primary (this lead has no photos to pick).
+      expect(visibleButtons, 'Finish shows the packet choice + the primary + More, nothing else').toEqual(['📦 Full packet', '📄 Paperwork only', '📲 Send to homeowner', 'More ▾']);
       if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'close-finish-390.png') });
       await page.locator('#estV2Modal .v3-more').tap();
       for (const sel of ['#v2saveBtn', '#v2signPhoneBtn', '#v2signBtn']) await expect(page.locator(sel)).toBeVisible();
@@ -218,7 +220,7 @@ test.describe('phone close flow: send to homeowner + sign on this phone @shard2'
     });
   });
 
-  test('Kentucky insurance, no email: BoldSign hidden; Sign on this phone opens the accept page with the notices', async ({ page, context }) => {
+  test('Kentucky insurance, no email: e-mail e-sign hidden; Sign on this phone opens the accept page with the notices', async ({ page, context }) => {
     test.setTimeout(180_000);
     const token = 'tok-e2e-sign-' + Date.now();
     await signIn(page, token);

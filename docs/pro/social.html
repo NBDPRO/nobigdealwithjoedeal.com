@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en" data-theme="nbd-original">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Social Studio · NBD Pro</title>
+<link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="/pro/css/theme-system.css">
+<link rel="stylesheet" href="/pro/css/social-studio.css?v=2">
+</head>
+<body>
+<header class="ss-header">
+  <a href="/pro/dashboard.html" class="ss-back" id="ssBack">&larr; CRM</a>
+  <div class="ss-title">
+    <div class="ss-eyebrow">Social Studio</div>
+    <div class="ss-sub" id="ssSub">Loading…</div>
+  </div>
+</header>
+
+<nav class="ss-tabs" role="tablist" aria-label="Social Studio sections">
+  <button class="ss-tab" role="tab" data-tab="calendar" aria-selected="true">Calendar</button>
+  <button class="ss-tab" role="tab" data-tab="drafts" aria-selected="false">Approve<span class="ss-count" id="ssCountDrafts">0</span></button>
+  <button class="ss-tab" role="tab" data-tab="ready" aria-selected="false">Ready to post<span class="ss-count" id="ssCountReady">0</span></button>
+  <button class="ss-tab" role="tab" data-tab="reels" aria-selected="false">Reels<span class="ss-count" id="ssCountReels">0</span></button>
+  <button class="ss-tab" role="tab" data-tab="all" aria-selected="false">All &amp; export</button>
+  <button class="ss-tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>
+</nav>
+
+<div class="ss-actions" id="ssActions">
+  <button class="ss-btn ss-btn-primary" id="ssNewFromJob" disabled>+ Draft from a job</button>
+  <button class="ss-btn" id="ssPlan" disabled>Plan weeks</button>
+</div>
+
+<main class="ss-main" id="ssMain">
+  <section data-panel="calendar">
+    <div class="ss-cal-bar">
+      <button class="ss-btn ss-btn-small" id="ssPrev" aria-label="Previous">&lsaquo;</button>
+      <div class="ss-cal-label" id="ssCalLabel"></div>
+      <button class="ss-btn ss-btn-small" id="ssNext" aria-label="Next">&rsaquo;</button>
+      <div class="ss-seg" role="group" aria-label="Calendar view">
+        <button id="ssViewWeek" aria-pressed="true">Week</button>
+        <button id="ssViewMonth" aria-pressed="false">Month</button>
+      </div>
+    </div>
+    <div class="ss-lane-filter" id="ssLaneFilter"></div>
+    <div id="ssCal"><div class="ss-empty">Loading…</div></div>
+    <p class="ss-note">Tap a post to edit or move it. On a computer you can also drag a post to another day.</p>
+  </section>
+  <section data-panel="drafts" hidden>
+    <p class="ss-note">Every caption runs through the privacy and Kentucky wording rules when you approve it. Nothing posts until it is approved and scheduled.</p>
+    <div class="ss-list" id="ssDrafts"></div>
+  </section>
+  <section data-panel="ready" hidden>
+    <p class="ss-note">Posts for TikTok, Nextdoor, LinkedIn and X — and any post whose platform is not connected yet. Copy the caption, share the photos, post it, then tap Mark posted.</p>
+    <div class="ss-list" id="ssReady"></div>
+  </section>
+  <section data-panel="reels" hidden>
+    <div class="ss-card-actions">
+      <button class="ss-btn ss-btn-primary" id="srNew" data-act="rnew" disabled>+ New reel</button>
+      <button class="ss-btn" id="srUpload" data-act="rupload" disabled>Upload clips</button>
+      <button class="ss-btn" id="srAi" data-act="rai" disabled>AI graphic</button>
+    </div>
+    <input type="file" id="srFile" class="sr-file" accept="video/*,image/*" multiple>
+    <input type="file" id="srAiFile" class="sr-file" accept="image/*">
+    <p class="ss-note">Drone clips, walk-arounds, talking to camera, job photos → a 9:16 or square reel with the brand intro and outro, rendered on our server. GPS and phone metadata are stripped from every upload. A privacy check looks at the frames for house numbers, plates, street signs and faces before a reel can be approved.</p>
+    <div class="ss-list" id="srList"><div class="ss-empty">Loading…</div></div>
+    <h3 class="sr-h">Your uploads</h3>
+    <div id="srMedia"></div>
+  </section>
+  <section data-panel="all" hidden>
+    <div class="ss-card-actions">
+      <button class="ss-btn" id="ssExportJson">Export JSON</button>
+      <button class="ss-btn" id="ssExportCsv">Export CSV</button>
+    </div>
+    <p class="ss-note">Every post — caption, photos, schedule and result link — is stored in your CRM. These files are yours.</p>
+    <div class="ss-list" id="ssAll"></div>
+  </section>
+  <section data-panel="settings" hidden>
+    <div class="ss-switch-row"><label for="ssEnabled"><strong>Auto-publish</strong><br><span class="ss-note">Off = nothing posts by itself. Scheduled posts wait.</span></label><input type="checkbox" id="ssEnabled"></div>
+    <div class="ss-switch-row"><label for="ssPfFacebook">Facebook Page</label><input type="checkbox" id="ssPfFacebook" data-platform="facebook"></div>
+    <div class="ss-switch-row"><label for="ssPfInstagram">Instagram</label><input type="checkbox" id="ssPfInstagram" data-platform="instagram"></div>
+    <div class="ss-switch-row"><label for="ssPfGbp">Google Business (waiting on Google's API approval)</label><input type="checkbox" id="ssPfGbp" data-platform="gbp"></div>
+    <div class="ss-switch-row"><label for="ssReels"><strong>Reel Studio</strong><br><span class="ss-note">Off = no uploads, no renders, no AI privacy checks or captions (they cost money). Up to 20 renders a day when on.</span></label><input type="checkbox" id="ssReels"></div>
+    <p class="ss-note">A platform that is switched on but not connected sends its posts to Ready to post when they come due, and you get a bell notification. Setup steps: documentation/runbooks/SOCIAL-PUBLISHER-SETUP.md.</p>
+  </section>
+</main>
+
+<div class="ss-sheet" id="ssSheet" hidden>
+  <div class="ss-sheet-card" role="dialog" aria-modal="true" aria-labelledby="ssSheetTitle">
+    <h2 class="ss-sheet-title" id="ssSheetTitle"></h2>
+    <div id="ssSheetBody"></div>
+  </div>
+</div>
+<div class="ss-toast" id="ssToast" role="status" aria-live="polite" hidden></div>
+
+<script src="/pro/js/dashboard-appcheck-config.js"></script>
+<script src="/pro/js/claude-proxy.js?v=4" defer></script>
+<script src="/pro/js/social-studio-logic.js?v=1" defer></script>
+<script src="/pro/js/reel-studio-logic.js?v=1" defer></script>
+<script type="module" src="/pro/js/pages/social-studio.js?v=3"></script>
+</body>
+</html>

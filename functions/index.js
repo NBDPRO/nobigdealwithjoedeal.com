@@ -23,7 +23,7 @@
  *   handlers/integrations.js— integrationStatus, submitPublicLead
  *   handlers/portal.js      — validateAccessCode (the inline access-code
  *                             callable; NOT the sibling functions/portal.js)
- *   handlers/monitoring.js  — cspReport
+ *   handlers/monitoring.js  — cspReport, clientError
  *   handlers/_shared.js     — CORS_ORIGINS, Claude budget consts +
  *                             helpers, requireTeamAdmin, normalizeRole,
  *                             normalizeEmail, parseAddress, reverseGeocode,
@@ -219,10 +219,12 @@ exports.setCompanySeatCount = seatHandlers.setCompanySeatCount;
 const publicSiteHandlers = require('./handlers/public-site');
 exports.getPublicSiteConfig = publicSiteHandlers.getPublicSiteConfig;
 exports.setSiteSlug = publicSiteHandlers.setSiteSlug;
+exports.publishTenantSite = publicSiteHandlers.publishTenantSite;
 
-// Browser monitoring (CSP violation report sink)
+// Browser monitoring (CSP violation report sink + CRM client error reports)
 const monitoringHandlers = require('./handlers/monitoring');
 exports.cspReport = monitoringHandlers.cspReport;
+exports.clientError = monitoringHandlers.clientError;
 
 // ═══════════════════════════════════════════════════════════════
 // PUSH NOTIFICATION FUNCTIONS
@@ -281,7 +283,6 @@ const measurementIntegration = require('./integrations/measurement');
 // (measureNewWebLead), and the anonymous wizard reads the homeowner-safe
 // subset back (publicRoofMeasure — read-only, never spends).
 const publicMeasureIntegration = require('./integrations/public-measure');
-const esignIntegration       = require('./integrations/esign');
 const parcelIntegration      = require('./integrations/parcel');
 const hailIntegration        = require('./integrations/hail');
 const calcomIntegration      = require('./integrations/calcom');
@@ -311,7 +312,12 @@ Object.assign(exports, slackIntegration);
 Object.assign(exports, measurementIntegration);
 exports.measureNewWebLead = publicMeasureIntegration.measureNewWebLead;
 exports.publicRoofMeasure = publicMeasureIntegration.publicRoofMeasure;
-Object.assign(exports, esignIntegration);
+// 2026-10-04: auto-order the Instant Roofer measure when a CRM lead gets an
+// appointment or reaches Inspected — once per lead, daily + monthly capped,
+// feature_flags/global.autoMeasureDisabled stops it (integrations/measure-auto-order.js).
+const measureAutoOrder = require('./integrations/measure-auto-order');
+exports.autoMeasureOnStage = measureAutoOrder.autoMeasureOnStage;
+exports.autoMeasureOnAppointment = measureAutoOrder.autoMeasureOnAppointment;
 Object.assign(exports, parcelIntegration);
 Object.assign(exports, hailIntegration);
 Object.assign(exports, calcomIntegration);
@@ -326,16 +332,10 @@ Object.assign(exports, stormBriefingIntegration);
 Object.assign(exports, thumbtackIntegration);
 Object.assign(exports, thursdayIntegration);
 
-// Swath (swathapi.com) — storm-verified property intel: hail-swath +
-// parcel providers (mounted inside hail.js/parcel.js), storm.verified
-// webhook, and the quote-first Swath Report callables. Mounted
-// selectively because the module also exports plain helpers
-// (fetchSwathHail, querySwathProperty, verifySwathSignature) that don't
-// belong in the deploy surface. See runbooks/SWATH-SETUP.md.
-const swathIntegration = require('./integrations/swath');
-exports.getSwathReport = swathIntegration.getSwathReport;
-exports.getSwathUsage  = swathIntegration.getSwathUsage;
-exports.swathWebhook   = swathIntegration.swathWebhook;
+// Swath (getSwathReport, getSwathUsage, swathWebhook) was removed
+// 2026-10-04 — its key was never set (VENDOR-COST-LOCKIN Lane C).
+// Retiring an export does NOT undeploy it: the three functions must be
+// deleted by hand (gcloud functions delete … --region=us-central1).
 
 // ═══════════════════════════════════════════════════════════════
 // HOMEOWNER PORTAL (createPortalToken, revokePortalToken,
@@ -353,6 +353,15 @@ Object.assign(exports, portalFunctions);
 const remoteSigningFunctions = require('./remote-signing');
 Object.assign(exports, remoteSigningFunctions);
 
+// In-person signing (2026-10-03): the rep's doc viewer saves the signed
+// contract from the browser, then calls this so the job spine moves the card
+// to Contract Signed (and #2131 drafts the deposit invoice) — the same
+// contract_signed path remote / e-sign / deal-room signing already take. The
+// server re-reads the lead + document and refuses viewers, other companies'
+// leads and unsigned documents. By name only: in-person-signing.js also
+// exports _test. See functions/in-person-signing.js.
+exports.recordInPersonSignature = require('./in-person-signing').recordInPersonSignature;
+
 // PDF-native envelope signing: a rep uploads ANY PDF (supplier form,
 // insurance scope, manufacturer warranty), places typed fields on it, and the
 // homeowner completes it from a single-use link — pan/zoom on a real PDF, out
@@ -362,6 +371,10 @@ Object.assign(exports, remoteSigningFunctions);
 // esign-envelope.js and the pure stamping engine in functions/esign-stamp.js.
 const esignEnvelopeFunctions = require('./esign-envelope');
 Object.assign(exports, esignEnvelopeFunctions);
+// 2026-10-04: BoldSign (integrations/esign.js — sendEstimateForSignature +
+// esignWebhook) is retired. The estimate builder's "Send for signature" is
+// sendEstimateEnvelope above; reminders + link expiry run here, daily.
+exports.esignReminderSweep = require('./esign-reminders').esignReminderSweep;
 
 // Close Board deal acceptance (1a): no-login remote accept of a shared deal
 // room (deal_accept_tokens + /deal/<token> + /api/deal-accept). Same
@@ -385,6 +398,11 @@ exports.crmMcp = agentMcp.crmMcp;
 exports.createAgentKey = agentMcp.createAgentKey;
 exports.listAgentKeys = agentMcp.listAgentKeys;
 exports.revokeAgentKey = agentMcp.revokeAgentKey;
+// Settings → Bots & API (2026-10-04): any company on a paid plan makes its
+// own bots; per-company on/off switch, timezone and house rules.
+exports.saveAgentBot = agentMcp.saveAgentBot;
+exports.deleteAgentBot = agentMcp.deleteAgentBot;
+exports.saveAgentSettings = agentMcp.saveAgentSettings;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;
@@ -465,6 +483,9 @@ exports.moneyPaperOnInvoice = require('./money-paper').moneyPaperOnInvoice;
 exports.jobsMirrorOnLead = require('./jobs-mirror').jobsMirrorOnLead;
 // Stage 2b: a job changed → promote the next open job when the active one is done.
 exports.jobsOnJobWrite = require('./jobs-mirror').jobsOnJobWrite;
+// Today home (2026-10-03): a new lead task gets its lead's userId/companyId
+// (the one collection-group task load filters on them).
+exports.tasksStampOwner = require('./tasks-stamp').tasksStampOwner;
 
 // Google Calendar sync (2026-09-29, calendar hub Phase 2): CRM jobs + adjuster
 // meetings → an "NBD Jobs" calendar the service account owns and shares with
@@ -478,6 +499,11 @@ exports.onJobCalendarWrite      = googleCalendar.onJobCalendarWrite;
 exports.onYardSignCalendarWrite = googleCalendar.onYardSignCalendarWrite;
 exports.onKnockCalendarWrite    = googleCalendar.onKnockCalendarWrite;
 exports.googleCalendarReconcile = googleCalendar.googleCalendarReconcile;
+// Production flow (2026-10-04): CRM-booked appointments + material deliveries
+// → NBD Jobs; the weather.gov forecast for scheduled job days.
+exports.onLeadEventCalendarWrite = googleCalendar.onLeadEventCalendarWrite;
+exports.onOrderCalendarWrite     = googleCalendar.onOrderCalendarWrite;
+exports.getJobWeather            = require('./job-weather').getJobWeather;
 
 // Automated Firestore daily backup + retention. Needs a one-time bucket + IAM
 // setup documented in functions/firestore-backup.js. Both are scheduled-only.
@@ -499,6 +525,12 @@ Object.assign(exports, firestoreBackup);
 // ever did — so it stays independent of whatever breaks next.
 const backupFreshness = require('./backup-freshness');
 Object.assign(exports, backupFreshness);
+
+// Weekly backup of the config that lives only at a vendor (Bland "Thursday",
+// Cal.com, BoldSign, Stripe catalog) into the private vendor-backups bucket.
+// Vendor audit 2026-10-04 Lane B; runbook documentation/runbooks/BACKUP-RESTORE.md.
+const vendorConfigExport = require('./vendor-config-export');
+Object.assign(exports, vendorConfigExport);
 
 // ── Verification Functions (SMS OTP + Lead Notifications) ──
 const verifyFunctions = require('./verify-functions');
@@ -559,9 +591,17 @@ exports.dailyLeadDigest = require('./lead-digest').dailyLeadDigest;
 // card is still untouched (functions/lead-followup.js).
 exports.leadFollowUpSweep = require('./lead-followup').leadFollowUpSweep;
 
-// Every-30min NWS storm-report watcher: alerts Joe on qualifying hail/wind/
-// tornado in the service area; subscriber texting gated (functions/storm-watch.js).
-exports.stormWatch = require('./storm-watch').stormWatch;
+// ONE every-30-minutes storm poller (2026-10-04): the NWS storm-REPORTS watcher
+// (storm-watch.js runStormWatch — alerts Joe; subscriber texts gated by
+// STORM_TEXT_ENABLED) and the NWS ALERTS texter (sms-functions.js
+// runCheckStormAlerts), back to back, same TCPA guards (storm-sms-guard.js).
+// Replaces the separate stormWatch + checkStormAlerts crons.
+exports.stormPoller = require('./storm-poller').stormPoller;
+
+// A new lead created within 14 days of a stored storm report within 10 mi of
+// its pin gets stormId 'storm-YYYY-MM-DD' (functions/storm-tag.js) — Reports'
+// results per storm.
+exports.stormTagOnLeadCreate = require('./storm-tag').stormTagOnLeadCreate;
 
 // 1st-of-month 7am ET marketing rollup (functions/marketing-report.js).
 exports.monthlyMarketingReport = require('./marketing-report').monthlyMarketingReport;
@@ -713,6 +753,16 @@ exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudg
 // morningBrief Cloud Run revision to go live.
 exports.morningBrief = require('./morning-brief').morningBrief;
 
+// "Brief me" (2026-10-04): one-tap pre-visit summary on the customer page —
+// calls, promises, estimates, owed, photos, next appointment. Claude Haiku 4.5
+// server-side only, cached per lead for 4 h (functions/lead-brief.js).
+exports.leadBrief = require('./lead-brief').leadBrief;
+
+// Nightly 02:30 ET: Haiku marks a call/text promise kept only on explicit,
+// quoted later evidence; every change logged (functions/promise-cleanup.js).
+// DRY-RUN unless PROMISE_CLEANUP_ENABLED=true.
+exports.promiseCleanup = require('./promise-cleanup').promiseCleanup;
+
 // ═══════════════════════════════════════════════════════════════
 // CALL CENTER — Cube ACR recordings (Drive) → phone_calls, every 30 min
 // ═══════════════════════════════════════════════════════════════
@@ -775,6 +825,11 @@ exports.textInboxNotes = require('./text-inbox').textInboxNotes;
 const referrals = require('./referrals');
 exports.submitReferral = referrals.submitReferral;
 
+// Referral-link opens, counted per month for the owner's numbers (2026-10-04,
+// functions/referral-clicks.js). POST { ref } from /pro/refer.html once per
+// session; counter only — no lead lookup result is ever returned.
+exports.referralLinkOpened = require('./referral-clicks').referralLinkOpened;
+
 // Referral-CODE redemption + $100 bonus crediting on close. A single
 // leads/{leadId} onWrite trigger: attributes a redeemed code to its referrer,
 // then records the bonus as OWED when the referred project closes. Self-
@@ -795,8 +850,8 @@ exports.onReferralJobWrite  = referralRewards.onReferralJobWrite;
 // ~$0.08 on flux-kontext-max (the default for shingle edits).
 //
 // Ships DISABLED by default. Set VISUALIZER_IMAGEGEN_ENABLED=true to go
-// live; it needs the REPLICATE_API_TOKEN secret populated (or
-// KIE_API_KEY with IMAGEGEN_PROVIDER=kie for the alternate provider).
+// live; it needs the REPLICATE_API_TOKEN secret populated. (The kie.ai
+// alternate provider was removed 2026-10-04.)
 //
 // CORRECTED 2026-09-05 — this block was wrong on all three counts. It
 // named Gemini 2.5 Flash Image as the model, quoted ~$0.02-$0.04, and
@@ -805,8 +860,8 @@ exports.onReferralJobWrite  = referralRewards.onReferralJobWrite;
 // (2026-04-18): it would not commit to material swaps, returning tinted
 // asphalt for asphalt→metal. Nothing in functions/ declares
 // GOOGLE_AI_API_KEY — no defineSecret() references it — and the
-// provider seam in visualizer-image-gen.js is 'replicate' | 'kie', with
-// no Gemini path at all. See that file's header for the full swap
+// only provider in visualizer-image-gen.js is Replicate, with no Gemini
+// path at all. See that file's header for the full swap
 // history; it is the source of truth for this feature.
 const visualizerImageGen = require('./visualizer-image-gen');
 exports.visualizerImageGen = visualizerImageGen.visualizerImageGen;
@@ -826,12 +881,47 @@ exports.getGoogleReviews = googleReviews.getGoogleReviews;
 const gbpReviewsSync = require('./gbp-reviews-sync');
 exports.syncGbpReviews = gbpReviewsSync.syncGbpReviews;
 
+// Social Studio (2026-10-04) — the CRM's own social media system (replaces
+// Metricool): drafts from finished jobs, Plan N weeks, approval through the
+// privacy + Kentucky caption filter, the every-5-min publisher (Facebook /
+// Instagram via Meta Graph; GBP stub behind SOCIAL_GBP_ENABLED; manual
+// queue for the rest) and the public re-encoded media endpoint.
+const socialStudio = require('./social-studio');
+exports.socialEligibleJobs = socialStudio.socialEligibleJobs;
+exports.socialDraftFromJob = socialStudio.socialDraftFromJob;
+exports.socialPlanWeeks = socialStudio.socialPlanWeeks;
+exports.socialApprovePost = socialStudio.socialApprovePost;
+exports.socialPublisher = socialStudio.socialPublisher;
+exports.socialMedia = socialStudio.socialMedia;
+
+// Reel Studio (2026-10-04) — Social Studio's short-form video pipeline:
+// phone/drone clip uploads (metadata-stripped transcode), data-driven
+// templates rendered with ffmpeg-static on 2nd-gen functions, Whisper
+// captions, the Claude-vision privacy frame check with confirm / auto-blur
+// gating, rendered reels → Social Studio drafts, AI-graphic posts (tip /
+// storm PSA only). functions/reel-studio.js.
+const reelStudio = require('./reel-studio');
+exports.reelStartUpload = reelStudio.reelStartUpload;
+exports.reelJobMedia = reelStudio.reelJobMedia;
+exports.reelCreate = reelStudio.reelCreate;
+exports.reelConfirmPrivacy = reelStudio.reelConfirmPrivacy;
+exports.reelApplyBlur = reelStudio.reelApplyBlur;
+exports.reelRetry = reelStudio.reelRetry;
+exports.reelToPosts = reelStudio.reelToPosts;
+exports.reelAiImagePost = reelStudio.reelAiImagePost;
+exports.reelRenderWorker = reelStudio.reelRenderWorker;
+exports.reelIngestUpload = reelStudio.reelIngestUpload;
+exports.reelCleanup = reelStudio.reelCleanup;
+
 // Photo-vision classifier (Phase 3 of the photo system rebuild).
 // Single-photo Claude Vision call with $10/lead + $50/uid-month caps
 // and sha256(url) cache. Surfaces suggestions in photo.aiSuggestion
 // for the Review UI (Phase 4) to render as 1-tap-accept chips.
 const photoVision = require('./photo-vision');
 exports.analyzePhotoVision = photoVision.analyzePhotoVision;
+// 2026-10-04: the same classifier on EVERY created /photos doc (imported,
+// drag-dropped, customer page) — not just the in-app camera's callable.
+exports.onPhotoCreatedClassify = photoVision.onPhotoCreatedClassify;
 
 // Receipt OCR (Phase 2 expense subsystem) — Claude-vision extraction of a
 // receipt/invoice into structured fields the expense form pre-fills.
@@ -867,3 +957,16 @@ exports.healthDigestCron = healthDigest.healthDigestCron;
 // MONTHLY_OVERHEAD_ALERT_DISABLED=true pauses without a rollback.
 const monthlyOverheadAlert = require('./monthly-overhead-alert');
 exports.monthlyOverheadAlertCron = monthlyOverheadAlert.monthlyOverheadAlertCron;
+
+// Tenant-ready (2026-10-04): NBD Pro works for a new contractor without Jo.
+// Server lead meter behind the plan lead cap (firestore.rules leadMeterOk).
+const leadCap = require('./lead-cap');
+exports.meterLeadCreate = leadCap.meterLeadCreate;
+// Admin Tenants page, signup alert + welcome email, full company export,
+// logo upload + its public first-party route (/tenant-logo/**).
+const tenantOps = require('./tenant-ops');
+exports.adminListTenants = tenantOps.adminListTenants;
+exports.onCompanyCreated = tenantOps.onCompanyCreated;
+exports.exportCompanyData = tenantOps.exportCompanyData;
+exports.uploadCompanyLogo = tenantOps.uploadCompanyLogo;
+exports.tenantLogo = tenantOps.tenantLogo;

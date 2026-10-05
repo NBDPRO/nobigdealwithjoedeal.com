@@ -2,6 +2,8 @@
 
 **Status:** code-complete, **dark** until one Stripe price + one secret exist. No engineering work remains — this is a Stripe/config task.
 
+> **Update 2026-10-04 (tenant-ready lane — verified on main):** the stepper is now **hidden for everyone**, card-billed owners included, until a client switch is flipped: `docs/pro/js/dashboard-team-tab.js` renders it only when `window.NBD_SEAT_ADDON_ENABLED === true`. The 2026-09-14 correction below ("any card-billed owner DOES see the stepper") is no longer true. So activation is the four steps below **plus step 5**. `STRIPE_PRICE_SEAT` does not exist in Secret Manager yet; until it does, nothing a contractor can click reaches `setCompanySeatCount`.
+
 ## How it already works
 
 - **Server:** `functions/handlers/seats.js` → `setCompanySeatCount` callable. Adds/removes a per-seat line item (`STRIPE_PRICE_SEAT` × qty) on the company's existing plan subscription, with proration (`always_invoice`), `payment_behavior: error_if_incomplete`, an occupied-seat guard (can't reduce below active members), and reduction rollback. Wired at `functions/index.js`.
@@ -27,6 +29,8 @@
    - Open **Team** as an owner → the seat stepper should now render.
    - Buy 1 seat → confirm the Stripe subscription gains a seat line item, proration invoices correctly, and `subscriptions/{companyId}.purchasedSeats` increments.
    - Reduce back down → confirm the occupied-seat guard blocks reducing below active members, and a valid reduction removes the line item.
+
+5. **Turn the stepper on** (after step 4 passes): add `window.NBD_SEAT_ADDON_ENABLED = true;` to an always-loaded config script on `docs/pro/dashboard.html` (e.g. a one-line `js/seat-addon-flag.js`, loaded with `defer` — never an inline script), bump its `?v=`, and deploy hosting. Removing that line hides the stepper again without touching Stripe.
 
 ## Notes
 

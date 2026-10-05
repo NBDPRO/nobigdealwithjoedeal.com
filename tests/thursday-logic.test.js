@@ -94,11 +94,22 @@ console.log('\nTHURSDAY — ids + call normalization');
 
 console.log('\nTHURSDAY — extraction parsing + sanitizing');
 {
-  const resp = { stop_reason: 'end_turn', model: 'claude-opus-5', usage: { input_tokens: 2000, output_tokens: 400 },
+  const resp = { stop_reason: 'end_turn', model: 'claude-opus-5-5', usage: { input_tokens: 2000, output_tokens: 400 },
     content: [{ type: 'text', text: '```json\n{"caller_name":"Maria Castellano","caller_type":"new_lead"}\n```' }] };
   const p = T.parseExtractionResponse(resp);
   ok('fenced JSON parsed', p.parsed.caller_name === 'Maria Castellano');
-  ok('cost computed from usage ($5/$25 per MTok)', Math.abs(p.costUsd - 0.02) < 1e-9, String(p.costUsd));
+  // 2026-10-04: Opus 5.5 list price, $4 in / $20 out per MTok (was Opus 5, $5/$25 → 0.02).
+  ok('cost computed from usage ($4/$20 per MTok)', Math.abs(p.costUsd - 0.016) < 1e-9, String(p.costUsd));
+  ok('extraction model is claude-opus-5-5', T.EXTRACTION_MODEL === 'claude-opus-5-5', T.EXTRACTION_MODEL);
+  // Only the model id moved: the request keeps effort low, the JSON schema,
+  // the server-side fallback and its 8000-token ceiling.
+  const rq = T.buildExtractionRequest({ from: '+15135550100', transcript: 'hi' });
+  ok('extraction request shape unchanged apart from the model',
+    rq.model === 'claude-opus-5-5' && rq.max_tokens === 8000 && rq.fallbacks === 'default'
+      && rq.output_config.effort === 'low' && rq.output_config.format.type === 'json_schema'
+      && !('thinking' in rq) && !('temperature' in rq) && !('tool_choice' in rq)
+      && JSON.stringify(Object.keys(rq)) === JSON.stringify(['model', 'max_tokens', 'fallbacks', 'output_config', 'system', 'messages']),
+    Object.keys(rq));
   const codeOf = (r) => { try { T.parseExtractionResponse(r); return 'none'; } catch (e) { return e.code; } };
   ok('refusal → typed error', codeOf({ stop_reason: 'refusal', content: [] }) === 'refusal');
   ok('max_tokens → typed error', codeOf({ stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"a":' }] }) === 'max-tokens');
@@ -262,7 +273,7 @@ console.log('\nTHURSDAY — builders + notifications');
   const route = T.decideRoute(e, { confidence: 'none', possible: [] });
   const lead = T.buildLeadDoc({ extraction: e, call: c, ownerUid: NBD, companyId: NBD });
   ok('lead scoped to NBD (userId + companyId)', lead.userId === NBD && lead.companyId === NBD);
-  ok('lead stage New / status new', lead.stage === 'New' && lead.status === 'new');
+  ok('lead stage new (canonical key + role) / status new', lead.stage === 'new' && lead.stageRole === 'new' && lead.status === 'new');
   ok('source = canonical heard-about value', lead.source === 'Google');
   ok('intake records the phone funnel separately', lead.intake === 'Phone — Thursday' && lead.sourcePage === 'phone:thursday');
   ok('names title-cased', lead.firstName === 'Halina' && lead.lastName === 'Nowicka');

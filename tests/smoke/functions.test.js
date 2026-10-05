@@ -1,6 +1,6 @@
 /**
  * tests/smoke/functions.test.js — Cloud Functions exports, all
- * integrations (Slack, Turnstile, Upstash, measurement, BoldSign, parcel,
+ * integrations (Slack, Turnstile, Upstash, measurement, e-sign, parcel,
  * hail, Cal.com), Stripe webhook hardening, GDPR cron/backup/retention,
  * CI workflow, CODEOWNERS, service-worker kill switch, email queue,
  * TCPA, deploy runbook, Voice Intel pipeline (C1–C5), per-route rate
@@ -420,7 +420,7 @@ section('Integration module skeleton');
 {
   const dir = path.join(FUNCTIONS, 'integrations');
   for (const f of ['_shared.js','sentry.js','slack.js','turnstile.js',
-                    'upstash-ratelimit.js','measurement.js','esign.js',
+                    'upstash-ratelimit.js','measurement.js',
                     'parcel.js','hail.js','calcom.js']) {
     assert('integrations/' + f + ' present', fs.existsSync(path.join(dir, f)));
   }
@@ -571,15 +571,15 @@ section('Turnstile');
     /verifyTurnstile\(\s*\(req\.body && req\.body\.turnstileToken\)/.test(idx));
 }
 
-section('Upstash rate limiter adapter');
+section('Rate limiter entry point (integrations/upstash-ratelimit.js)');
 {
+  // The Upstash backend was removed 2026-10-04 (never provisioned); the
+  // module keeps its path and delegates to the Firestore limiter.
   const src = read(path.join(FUNCTIONS, 'integrations/upstash-ratelimit.js'));
   assert('exports enforceRateLimit + httpRateLimit',
     /module\.exports\s*=\s*\{[\s\S]*enforceRateLimit[\s\S]*httpRateLimit/.test(src));
-  assert('falls back to Firestore limiter when not configured',
-    /firestoreLimiter\.enforceRateLimit/.test(src));
-  assert('uses pipeline INCR + EXPIRE NX',
-    /\['INCR', key\][\s\S]{0,100}\['EXPIRE', key/.test(src));
+  assert('delegates to the Firestore limiter',
+    /firestoreLimiter\.enforceRateLimit/.test(src) && /firestoreLimiter\.httpRateLimit/.test(src));
   const idx = readFunctionsIndex();
   assert('index.js now requires the adapter',
     /require\(['"]\.\/integrations\/upstash-ratelimit['"]\)/.test(idx));
@@ -591,8 +591,8 @@ section('Measurement adapter');
   for (const name of ['requestMeasurement','measurementWebhook']) {
     assert('exports ' + name, new RegExp('exports\\.' + name + '\\s*=').test(src));
   }
-  assert('supports hover + eagleview + nearmap',
-    /requestHOVER/.test(src) && /requestEagleView/.test(src) && /requestNearmap/.test(src));
+  assert('never-configured hover / eagleview / nearmap adapters stay removed (2026-10-04)',
+    !/requestHOVER|requestEagleView|requestNearmap|api\.hover\.to|eagleview\.com|nearmap\.com/.test(src.replace(/^\s*(\/\/|\*).*$/gm, '')));
   assert('supports instantroofer (coordinates-in, synchronous — the default since 2026-09-06)',
     /requestInstantRoofer/.test(src) && /instantroofer-logic/.test(src));
   assert('requestMeasurement binds INSTANTROOFER_API_KEY (Gen2 mounts only declared secrets)',
@@ -603,16 +603,25 @@ section('Measurement adapter');
     /PROVIDERS\.measurement/.test(src));
 }
 
-section('E-sign (BoldSign)');
+section('E-sign (in-house — BoldSign retired 2026-10-04)');
 {
-  const src = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  for (const name of ['sendEstimateForSignature','esignWebhook']) {
+  // The vendor adapter is gone; its estimate entry point lives in the
+  // envelope engine. Behaviour is pinned by tests/esign-gaps-2026-10-04.test.js
+  // (which runs the handlers); these are the structural guards.
+  assert('integrations/esign.js (BoldSign) is deleted',
+    !fs.existsSync(path.join(FUNCTIONS, 'integrations/esign.js')));
+  const src = read(path.join(FUNCTIONS, 'esign-envelope.js'));
+  for (const name of ['sendEstimateEnvelope','declineEsignEnvelope','submitEsignEnvelope','getEsignEnvelope']) {
     assert('exports ' + name, new RegExp('exports\\.' + name + '\\s*=').test(src));
   }
-  assert('HMAC-verifies BoldSign webhook signature',
-    /createHmac\('sha256', getSecret\('BOLDSIGN_WEBHOOK_SECRET'\)\)/.test(src));
-  assert('verifies caller owns the estimate before sending',
-    /est\.userId !== uid[\s\S]{0,100}'admin'/.test(src));
+  assert('verifies caller owns the estimate AND the customer before sending',
+    /est\.userId !== uid[\s\S]{0,1500}lead\.userId !== uid/.test(src));
+  const idx = readFunctionsIndex();
+  assert('index.js no longer mounts the BoldSign module', !/integrations\/esign'/.test(idx));
+  assert('index.js mounts the reminder sweep',
+    /exports\.esignReminderSweep\s*=\s*require\('\.\/esign-reminders'\)\.esignReminderSweep/.test(idx));
+  const shared = read(path.join(FUNCTIONS, 'integrations/_shared.js'));
+  assert('no BOLDSIGN_* secret is declared any more', !/BOLDSIGN_/.test(shared));
 }
 
 section('Parcel (Regrid)');
@@ -702,7 +711,7 @@ section('Unified client + status endpoint');
 {
   const src = read(path.join(PRO_JS, 'integrations-client.js'));
   assert('exposes window.NBDIntegrations', /window\.NBDIntegrations\s*=/.test(src));
-  for (const fn of ['requestMeasurement','sendForSignature','lookupParcel','getHailHistory']) {
+  for (const fn of ['requestMeasurement','lookupParcel','getHailHistory']) {
     assert('NBDIntegrations.' + fn, new RegExp('async function ' + fn + '\\(').test(src));
   }
   const idx = readFunctionsIndex();
@@ -817,7 +826,8 @@ section('Wave A2: Turnstile widgets');
 section('Wave A3: privacy sub-processor disclosure');
 {
   const pv = read(path.join(ROOT, 'docs/privacy.html'));
-  for (const vendor of ['Resend','Twilio','Anthropic','BoldSign','Instant Roofer','HOVER','EagleView','Nearmap','Regrid','HailTrace','Cal.com','Sentry','Cloudflare Turnstile']) {
+  // BoldSign left the list 2026-10-04 (retired; e-sign is in-house).
+  for (const vendor of ['Resend','Twilio','Anthropic','Instant Roofer','HOVER','EagleView','Nearmap','Regrid','HailTrace','Cal.com','Sentry','Cloudflare Turnstile']) {
     assert('privacy lists ' + vendor, new RegExp(vendor.replace('.','\\.'), 'i').test(pv));
   }
 }
@@ -1056,17 +1066,15 @@ section('Signatures PR4/5: remote canvas signing');
     /onSendForSignature:[\s\S]{0,120}hasSigners && _leadIdEarly/.test(read(path.join(PRO_JS, 'document-generator.js'))));
 }
 
-section('Wave C5: Stripe invoice auto-generation');
+section('Wave C5: Stripe invoice auto-generation — retired with BoldSign (2026-10-04)');
 {
-  const src = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  assert('createStripeInvoiceForEstimate defined',
-    /async function createStripeInvoiceForEstimate/.test(src));
-  assert('webhook calls invoice helper on signed transition',
-    /justSigned[\s\S]{0,200}createStripeInvoiceForEstimate/.test(src));
-  assert('invoice created as draft (no auto_advance)',
-    /auto_advance: false/.test(src));
-  assert('idempotent: skips when stripeInvoiceId already set',
-    /est\.stripeInvoiceId/.test(src));
+  // C5 ran only from the BoldSign webhook, which never had a secret, so it
+  // never ran. It is NOT ported to in-house signing: STABILITY-AUDIT-2026-09-04
+  // flagged it (no idempotency key, guard written last → duplicate drafts) and
+  // the invoice pipeline already bills a signed estimate.
+  const fnDir = fs.readdirSync(FUNCTIONS).filter((f) => f.endsWith('.js'));
+  const hits = fnDir.filter((f) => /createStripeInvoiceForEstimate/.test(read(path.join(FUNCTIONS, f))));
+  assert('nothing in functions/ still defines or calls createStripeInvoiceForEstimate', hits.length === 0, hits.join(', '));
 }
 
 section('Wave C6: per-lead Claude cost attribution');
@@ -1105,9 +1113,9 @@ section('D1: mutation callables rate-limited');
   const meas = read(path.join(FUNCTIONS, 'integrations/measurement.js'));
   assert('requestMeasurement rate-limited',
     /callable:requestMeasurement:uid/.test(meas));
-  const es = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  assert('sendEstimateForSignature rate-limited',
-    /callable:sendEstimateForSignature:uid/.test(es));
+  const es = read(path.join(FUNCTIONS, 'esign-envelope.js'));
+  assert('sendEstimateEnvelope rate-limited',
+    /callableRateLimit\(request, 'sendEstimateEnvelope'/.test(es));
 }
 
 section('D2: Storage rules — content-type + size guards');
@@ -1622,11 +1630,8 @@ section('F1b: monthly overhead alert cron');
 
 section('F2 / M3: webhooks fail closed (every HTTP webhook signed)');
 {
-  const es = read(path.join(FUNCTIONS, 'integrations/esign.js'));
-  assert('esignWebhook rejects unsigned requests when secret unset',
-    /BOLDSIGN_WEBHOOK_SECRET not set[\s\S]{0,200}res\.status\(503\)/.test(es));
-  assert('esignWebhook uses timingSafeEqual',
-    /crypto\.timingSafeEqual/.test(es));
+  // esignWebhook (BoldSign) retired 2026-10-04 — no inbound e-sign webhook exists.
+  assert('no esignWebhook export remains', !/exports\.esignWebhook\s*=/.test(readFunctionsIndex()));
 
   const cal = read(path.join(FUNCTIONS, 'integrations/calcom.js'));
   assert('calcomWebhook rejects unsigned requests when secret unset',
@@ -1659,8 +1664,8 @@ section('F2 / M3: webhooks fail closed (every HTTP webhook signed)');
 
   // M3: measurementWebhook completed the sweep — ensure the fix sticks.
   const m = read(path.join(FUNCTIONS, 'integrations/measurement.js'));
-  assert('measurementWebhook verifies HMAC (F-02 + M3 regression guard)',
-    /verifyWebhookHmac\(provider,\s*req\.rawBody/.test(m));
+  assert('measurementWebhook verifies the vendor credential (F-02 + M3 regression guard)',
+    /verifyInstantRooferBearer\(req\.headers\['authorization'\]/.test(m) && /if \(!sigResult\.ok\)/.test(m));
 
   // Stripe webhooks: both stripeWebhook and invoiceWebhook must verify.
   // L-03 cont.: Stripe handlers moved to functions/stripe.js.
@@ -2773,17 +2778,12 @@ section('Phase D.3 — integrationStatus secret-readout completeness');
   const declared = (sh.match(/[A-Z_]+:\s*defineSecret\('([A-Z_]+)'\)/g) || [])
     .map(s => s.match(/'([A-Z_]+)'/)[1]);
   const configuredBlock = (idx.match(/configured:\s*\{[\s\S]*?\},?\s*rateLimitProvider/) || [''])[0];
-  // These are intentionally aggregated under a single key.
-  const AGGREGATED = new Set(['UPSTASH_REDIS_REST_URL','UPSTASH_REDIS_REST_TOKEN']);
-  const missing = declared.filter(name => {
-    if (AGGREGATED.has(name)) return false;
-    return !configuredBlock.includes("'" + name + "'");
-  });
+  const missing = declared.filter(name => !configuredBlock.includes("'" + name + "'"));
   assert('integrationStatus.configured covers every declared secret',
     missing.length === 0,
     'expected every secret in _shared.js to appear in the configured readout; missing: ' + missing.join(', '));
   // Spot-check the new D.3 additions
-  for (const k of ['hoverWebhook','eagleviewWebhook','boldsignWebhook','groq']) {
+  for (const k of ['instantrooferWebhook','groq']) {
     assert('configured.' + k + ' present in integrationStatus',
       new RegExp('\\b' + k + ':\\s+_hasInt').test(idx),
       'expected configured.' + k);
@@ -2796,7 +2796,7 @@ section('Phase D.3 — integrationStatus secret-readout completeness');
 section('Phase D.3 — integrationAvailability (non-admin-safe availability readout)');
 {
   // integrationStatus is deliberately admin-gated (H-06). requestMeasurement /
-  // sendForSignature / lookupParcel need a status readout for EVERY signed-in
+  // lookupParcel need a status readout for EVERY signed-in
   // rep, so integrationAvailability exists alongside it in the same file
   // with no role check — see tests/smoke/auth.test.js's H-06 section for the
   // proof that integrationStatus itself stays unchanged.
@@ -2813,10 +2813,10 @@ section('Phase D.3 — integrationAvailability (non-admin-safe availability read
       /!request\.auth \|\| !request\.auth\.uid/.test(m[0]) && /unauthenticated/.test(m[0]));
     assert('integrationAvailability does NOT contain a role/permission-denied check in its body',
       !/callerRole/.test(m[0]) && !/permission-denied/.test(m[0]) && !/admin/.test(m[0].replace(/\/\/.*$/gm, '')));
-    // Only the booleans that actually gate requestMeasurement / sendForSignature /
+    // Only the booleans that actually gate requestMeasurement /
     // lookupParcel — never the H-06-restricted fields (Turnstile, Upstash,
     // Sentry, Slack, webhook secrets, rateLimitProvider, rotationRunbook).
-    for (const key of ['hover', 'eagleview', 'nearmap', 'instantroofer', 'boldsign', 'regrid']) {
+    for (const key of ['instantroofer', 'regrid']) {
       assert('integrationAvailability.configured exposes ' + key,
         new RegExp('\\b' + key + ':\\s+_hasInt').test(m[0]));
     }
@@ -2830,29 +2830,19 @@ section('Phase D.3 — integrationAvailability (non-admin-safe availability read
   }
 }
 
-section('Visualizer image-gen provider seam (kie.ai, ships dark)');
+section('Visualizer image-gen — one provider (Replicate), flag-off');
 {
+  // kie.ai was removed 2026-10-04 (VENDOR-COST-LOCKIN Lane C): its key was
+  // never set, so Replicate was the only provider that could ever run.
   const vig = read(path.join(FUNCTIONS, 'visualizer-image-gen.js'));
-  assert('provider seam defaults to replicate',
-    /process\.env\.IMAGEGEN_PROVIDER \|\| 'replicate'/.test(vig),
-    'flipping providers must be an explicit env change, never a silent default');
-  assert('KIE_API_KEY declared and registered on the endpoint',
-    /defineSecret\('KIE_API_KEY'\)/.test(vig)
-    && /secrets: \[REPLICATE_API_TOKEN, KIE_API_KEY\]/.test(vig));
-  assert('kie path refuses loudly when the key is unset (no silent fallback)',
-    /provider_not_configured/.test(vig));
-  assert('both providers exist behind one response contract',
+  assert('still gated by VISUALIZER_IMAGEGEN_ENABLED (default off)',
+    /process\.env\.VISUALIZER_IMAGEGEN_ENABLED !== 'true'/.test(vig));
+  assert('Replicate is the only provider, bound to its one secret',
     /async function generateViaReplicate\(/.test(vig)
-    && /async function generateViaKie\(/.test(vig)
+    && /secrets: \[REPLICATE_API_TOKEN\]/.test(vig)
     && /result\.imgBuf\.toString\('base64'\)/.test(vig));
-  assert('kie staged input (homeowner PII) is deleted in a finally block',
-    /finally \{[\s\S]{0,400}file\.delete\(\{ ignoreNotFound: true \}\)/.test(vig));
-  assert('kie polling is bounded (no infinite loop inside the function timeout)',
-    /attempt < 30/.test(vig) && /sleep\(3000\)/.test(vig));
-  assert('integrationStatus surfaces the kie key',
-    /kie:\s+_hasInt\('KIE_API_KEY'\)/.test(readFunctionsIndex().includes('KIE_API_KEY')
-      ? readFunctionsIndex()
-      : read(path.join(FUNCTIONS, 'handlers', 'integrations.js'))));
+  assert('kie.ai provider stays removed (no second image vendor, no stray secret)',
+    !/defineSecret\('KIE_API_KEY'\)|generateViaKie|api\.kie\.ai|IMAGEGEN_PROVIDER/.test(vig.replace(/^\s*(\/\/|\*).*$/gm, '')));
 }
 
 };

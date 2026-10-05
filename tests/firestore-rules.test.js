@@ -65,6 +65,16 @@ async function run() {
     const db = ctx.firestore();
     // Original fixture
     // §40 Stripe ledger rows (written only by the admin SDK in production).
+    // §50 Social Studio posts (companies/co-49/social_posts), one per state.
+    const P49 = (status, extra) => Object.assign({ companyId: 'co-49', createdBy: 'co-49', platform: 'facebook', kind: 'tip', caption: 'Clean gutters matter.', hashtags: ['#roofing'], media: [], status, scheduledAt: new Date('2026-11-01T14:00:00Z'), publish: { attempts: 0 } }, extra || {});
+    for (const st of ['draft', 'approved', 'scheduled', 'ready', 'publishing', 'posted', 'failed']) {
+      await setDoc(doc(db, 'companies/co-49/social_posts/p49-' + st), P49(st, st === 'posted' ? { postUrl: 'https://www.facebook.com/1' } : {}));
+    }
+    // §50 Reel Studio: an AI-graphic tip draft, a reel draft, a reel + its media.
+    await setDoc(doc(db, 'companies/co-49/social_posts/p49-ai'), P49('draft', { aiGenerated: true, kind: 'tip', media: [{ key: 'd'.repeat(32), role: 'ai_image' }] }));
+    await setDoc(doc(db, 'companies/co-49/social_posts/p49-reel'), P49('draft', { format: 'reel', reelId: 'r49', video: { key: 'a'.repeat(32) }, media: [{ key: 'a'.repeat(32), role: 'video' }], kind: 'job_showcase' }));
+    await setDoc(doc(db, 'companies/co-49/reels/r49'), { companyId: 'co-49', status: 'rendered', privacy: { status: 'flagged' }, output: { key: 'a'.repeat(32) } });
+    await setDoc(doc(db, 'companies/co-49/reel_media/m49'), { companyId: 'co-49', status: 'ready', kind: 'video' });
     await setDoc(doc(db, 'stripeLedger/ch_zz40'), { companyId: 'owner40', userId: 'owner40', kind: 'charge', amountCents: 145000, status: 'succeeded' });
     // §41 signed-document lock: a lead owned by owner41 in tenant owner41.
     await setDoc(doc(db, 'leads/lead41'), { userId: 'owner41', companyId: 'owner41', firstName: 'ZZ_QA', lastName: 'Lock' });
@@ -415,9 +425,11 @@ async function run() {
     { userId: 'alice', name: 'Lead with numeric companyId', companyId: 42 }));
 
   // ✅ create with non-empty string companyId → succeeds.
+  // (meter: every client lead create names its meter since 2026-10-04 —
+  // section 48 below tests the plan lead cap it feeds.)
   await assertSucceeds(setDoc(
     doc(alice, 'leads/with-companyid'),
-    { userId: 'alice', name: 'Lead with companyId', companyId: 'co-a' }));
+    { userId: 'alice', name: 'Lead with companyId', companyId: 'co-a', meter: 'manual' }));
 
   // 24. Referral money-field freeze (QA sweep 2026-07-08). Server-owned referral
   //     fields are admin-SDK-only (onReferralLeadWrite); the client's ONLY writes
@@ -558,6 +570,16 @@ async function run() {
   // claim holders (any role) may READ the roster; writes stay server-only;
   // cross-tenant claims stay denied.
   await assertSucceeds(getDoc(doc(coAdmin, 'companies/co-a/members/exist@x.com'))); // carol (company_admin, co-a claim)
+  // 23z (2026-10-04, knowing your numbers): companies/{co}/owner_numbers —
+  // lead spend, weekly review notes, referral-link open counts — the OWNER
+  // only. co-a names alice as ownerId; companies/alice is keyed by her uid.
+  await assertSucceeds(setDoc(doc(alice, 'companies/co-a/owner_numbers/lead_spend'), { months: { '2026-09': { thumbtack: 30000 } } }, { merge: true }));
+  await assertSucceeds(getDoc(doc(alice, 'companies/co-a/owner_numbers/lead_spend')));
+  await assertSucceeds(setDoc(doc(alice, 'companies/alice/owner_numbers/week_2026-10-04'), { decision: 'raise Thumbtack budget' }));
+  await assertFails(getDoc(doc(coAdmin, 'companies/co-a/owner_numbers/lead_spend')));   // a company_admin is not the owner
+  await assertFails(setDoc(doc(coAdmin, 'companies/co-a/owner_numbers/lead_spend'), { months: {} }));
+  await assertFails(getDoc(doc(bob, 'companies/co-a/owner_numbers/lead_spend')));       // cross-tenant
+  await assertFails(setDoc(doc(alice, 'companies/co-a/owner_numbers/referral_clicks_2026-10'), { clicks: 999 })); // server-written only
   await assertSucceeds(getDoc(doc(alice, 'companies/co-a/members/exist@x.com')));   // alice (sales_rep, co-a claim) reads own roster
   await assertFails(getDoc(doc(bob, 'companies/co-a/members/exist@x.com')));        // bob (co-b claim) cross-tenant denied
   await assertFails(setDoc(doc(coAdmin, 'companies/co-a/members/exist@x.com'), { status: 'disabled' }, { merge: true })); // claim grants READ only
@@ -570,6 +592,22 @@ async function run() {
   await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { plan: 'growth' }, { merge: true })); // ✅ admin/webhook can set plan
   await assertFails(setDoc(doc(alice, 'companies/squatUid'), { ownerId: 'alice', name: 'squat' })); // ❌ create pinned to own uid
   await assertSucceeds(setDoc(doc(alice, 'companies/alice'), { ownerId: 'alice', name: 'Alice solo co' })); // ✅ own-uid create
+
+  // 23e-2. Public-site publication (2026-10-04): status + sitePublished decide
+  //        whether /sites/t/<id> serves a page on Jo's domain. Only the admin
+  //        SDK (createCompany / publishTenantSite) may write them — an owner
+  //        must not self-publish by client write, at create OR update.
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { sitePublished: true }));              // ❌ self-publish
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { sitePublishedAt: 'now' }));           // ❌ forged publish stamp
+  await assertFails(updateDoc(doc(alice, 'companies/co-a'), { status: 'active' }));                 // ❌ status (the legacy gate) frozen too
+  await assertFails(setDoc(doc(alice, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ❌ merge-set same
+  // Create-time (companies/bob and companies/dave don't exist yet — 23f
+  // creates them below with the plain shape, which must still succeed).
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', sitePublished: true })); // ❌ born published
+  await assertFails(setDoc(doc(bob, 'companies/bob'), { ownerId: 'bob', name: 'Bob Roofing', sitePublished: false })); // ❌ flag is admin-SDK-only either way
+  await assertFails(setDoc(doc(dave, 'companies/dave'), { ownerId: 'dave', name: 'Dave Co', status: 'active' }));     // ❌ born status-active (legacy gate = published)
+  await assertSucceeds(setDoc(doc(admin, 'companies/co-a'), { sitePublished: true }, { merge: true })); // ✅ admin SDK path (publishTenantSite)
+  await assertSucceeds(updateDoc(doc(alice, 'companies/co-a'), { name: 'Alice Roofing' }));          // ✅ unrelated owner edit still fine with the flag present
 
   // 23f. CRITICAL (audit 2026-09-15): the create branch pinned ownerId but
   //      never checked `plan` — the didNotChange(['plan','ownerId']) freeze
@@ -1511,7 +1549,7 @@ async function run() {
   // the payload is otherwise valid, so the ❌ above it can only be the guard.
   const guardDoc = {
     // { userId, companyId } unless the rule wants something else.
-    leads:              (uid, cid) => ({ userId: uid, companyId: cid, name: 'Guard Lead' }),
+    leads:              (uid, cid) => ({ userId: uid, companyId: cid, name: 'Guard Lead', meter: 'manual' }),
     estimates:          (uid, cid) => ({ userId: uid, companyId: cid, total: 1000 }),
     recurringExpenses:  (uid, cid) => ({ userId: uid, companyId: cid, amountCents: 5000, costType: 'overhead' }),
     // hasOnly: extra keys are refused, so keep to the allowlist.
@@ -1672,7 +1710,7 @@ async function run() {
 
   // ── Lead doc: create (new), and update/delete of the lead the viewer owns.
   await x34('leads create: viewer',     'deny',  setDoc(doc(vx, 'leads/s34-new-vx'), { userId: 'vx', companyId: CO, name: 'n' }));
-  await x34('leads create: rep',        'allow', setDoc(doc(rx, 'leads/s34-new-rx'), { userId: 'rx', companyId: CO, name: 'n' }));
+  await x34('leads create: rep',        'allow', setDoc(doc(rx, 'leads/s34-new-rx'), { userId: 'rx', companyId: CO, name: 'n', meter: 'manual' }));
   await x34('leads update: viewer-owner', 'deny', updateDoc(doc(vx, 'leads/leadVX'), { stage: 'contacted' }));
   await x34('leads update: rep-owner',  'allow', updateDoc(doc(rx, 'leads/leadRX'), { stage: 'contacted' }));
 
@@ -1758,9 +1796,9 @@ async function run() {
   await x34('manager soft-deletes a lead document',       'allow', updateDoc(doc(mx, 'leads/leadRX/documents/s34-mgr'), { deleted: true }));
   await x34('manager hard-deletes a lead document',       'deny',  deleteDoc(doc(mx, 'leads/leadRX/documents/s34-mgr')));  // decision A
   await x34('manager creates own estimate',               'allow', setDoc(doc(mx, 'estimates/s34-mx'), { userId: 'mx', companyId: CO, total: 1 }));
-  await x34('solo (no claims) creates a lead',            'allow', setDoc(doc(sx, 'leads/s34-sx'), { userId: 'sx34', companyId: 'sx34', name: 's' }));
+  await x34('solo (no claims) creates a lead',            'allow', setDoc(doc(sx, 'leads/s34-sx'), { userId: 'sx34', companyId: 'sx34', name: 's', meter: 'manual' }));
   await x34('solo (no claims) creates an estimate',       'allow', setDoc(doc(sx, 'estimates/s34-sx'), { userId: 'sx34', total: 1 }));
-  await x34('no-role member creates a lead',              'allow', setDoc(doc(dx, 'leads/s34-dx'), { userId: 'dx34', companyId: 'co-dx', name: 'd' }));
+  await x34('no-role member creates a lead',              'allow', setDoc(doc(dx, 'leads/s34-dx'), { userId: 'dx34', companyId: 'co-dx', name: 'd', meter: 'manual' }));
   await x34('no-role member uploads a photo doc',         'allow', setDoc(doc(dx, 'photos/s34-dx'), { userId: 'dx34', companyId: 'co-dx', url: 'p/d.jpg' }));
   await x34('platform admin edits any estimate',          'allow', updateDoc(doc(admin, 'estimates/s34-vx'), { note: 'admin' }));
 
@@ -1953,7 +1991,7 @@ async function run() {
     } catch (e) { s39Fail.push(label + ' (wanted ' + want + ')'); }
   }
   const L38 = doc(alice, 'leads/zzqaWin38');
-  const base38 = { userId: 'alice', companyId: 'co-a', firstName: 'ZZ_QA', lastName: 'Window', scheduledDate: '2026-10-06' };
+  const base38 = { userId: 'alice', companyId: 'co-a', firstName: 'ZZ_QA', lastName: 'Window', scheduledDate: '2026-10-06', meter: 'manual' };
   await x39('create with a full project window', 'allow', setDoc(L38, Object.assign({}, base38, { scheduledStart: '07:00', scheduledDurationMin: null, scheduledEndDate: '2026-10-07' })));
   await x39('create with a bad start time', 'deny', setDoc(doc(alice, 'leads/zzqaWin38b'), Object.assign({}, base38, { scheduledStart: '7am' })));
   await x39('create with no window at all (the pre-2026-09-29 lead)', 'allow', setDoc(doc(alice, 'leads/zzqaWin38c'), base38));
@@ -2091,7 +2129,7 @@ async function run() {
   await x42('owner edits a lead that has no job yet', 'allow', updateDoc(doc(own42, 'leads/lead42b'), { firstName: 'Yan' }));
   await x42('owner claims an activeJobId on a lead', 'deny', updateDoc(doc(own42, 'leads/lead42b'), { activeJobId: 'j1' }));
   await x42('a new lead carrying activeJobId', 'deny', setDoc(doc(own42, 'leads/lead42c'), { userId: 'own42', companyId: 'co42', stage: 'new', activeJobId: 'j1' }));
-  await x42('a new lead without it (unchanged)', 'allow', setDoc(doc(own42, 'leads/lead42d'), { userId: 'own42', companyId: 'co42', stage: 'new' }));
+  await x42('a new lead without it (unchanged)', 'allow', setDoc(doc(own42, 'leads/lead42d'), { userId: 'own42', companyId: 'co42', stage: 'new', meter: 'manual' }));
   console.log('  42: ' + s42Pass + ' jobs-phase-1 checks passed, ' + s42Fail.length + ' failed');
   if (s42Fail.length) {
     throw new Error('42 jobs phase 1: ' + s42Fail.length + ' check(s) went the wrong way:\n    ' + s42Fail.join('\n    '));
@@ -2224,6 +2262,17 @@ async function run() {
   await x45('a sales rep cannot decide', 'deny', updateDoc(doc(rep45, 'agent_inbox/a4'), decide('rep45')));
   await x45('nobody creates items from the client (server only)', 'deny', setDoc(doc(own45, 'agent_inbox/x9'), ITEM()));
   await x45('nobody deletes items from the client', 'deny', deleteDoc(doc(own45, 'agent_inbox/a4')));
+  // Bots & API (2026-10-04): a company's bots and its bot settings are
+  // managed only through the callables — not even the owner touches them.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'agent_bots/b45'), { companyId: 'co-45', name: 'Helper', tools: ['list_leads'], active: true });
+    await setDoc(doc(ctx.firestore(), 'agent_settings/co-45'), { enabled: true });
+  });
+  await x45('the owner cannot read a company bot from the client', 'deny', getDoc(doc(own45, 'agent_bots/b45')));
+  await x45('the owner cannot widen a bot\'s tools from the client', 'deny', updateDoc(doc(own45, 'agent_bots/b45'), { tools: ['job_profit'] }));
+  await x45('the owner cannot create a bot from the client', 'deny', setDoc(doc(own45, 'agent_bots/b46'), { companyId: 'co-45', name: 'x', tools: [], active: true }));
+  await x45('a company_admin cannot flip the switch from the client', 'deny', setDoc(doc(cadm45, 'agent_settings/co-45'), { enabled: false }));
+  await x45('another company cannot read the settings', 'deny', getDoc(doc(other45, 'agent_settings/co-45')));
   console.log('  45: ' + s45Pass + ' agent-inbox checks passed, ' + s45Fail.length + ' failed');
   if (s45Fail.length) {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));
@@ -2288,7 +2337,7 @@ async function run() {
     await setDoc(doc(db, 'leads/lead46b'), { userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA' });
     await setDoc(doc(db, 'emails/e46'), { sentBy: 'victim46@x.test', sentByUid: 'real-victim', to: 'h@x.test' });
   });
-  const NEWLEAD47 = (extra) => Object.assign({ userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA', lastName: 'New' }, extra || {});
+  const NEWLEAD47 = (extra) => Object.assign({ userId: 'rep47', companyId: 'co-46', firstName: 'ZZ_QA', lastName: 'New', meter: 'manual' }, extra || {});
   // (a) referral fields on create
   await x47('plain lead create (control)', 'allow', setDoc(doc(rep47, 'leads/n46-ok'), NEWLEAD47()));
   for (const [k, v] of [['referralRewardStatus', 'owed'], ['referralDocId', 'refdocX'], ['referrerLeadId', 'leadX'],
@@ -2303,13 +2352,253 @@ async function run() {
   await x47("first stamp (update) with another tenant's reserved prefix", 'deny', updateDoc(doc(rep47, 'leads/lead46a'), { customerId: 'OAK46-0002-ABCD' }));
   await x47('first stamp (update) with the own prefix — the client mint', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { customerId: 'REP46-0008-ABCD' }));
   await x47('ordinary edit on a stamped lead still works', 'allow', updateDoc(doc(rep47, 'leads/lead46b'), { lastName: 'Edited' }));
-  await x47('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo47, 'leads/n46-solo'), { userId: 'solo47', companyId: 'solo47', firstName: 'ZZ_QA' }));
+  await x47('solo (uid tenant) plain create still works', 'allow', setDoc(doc(solo47, 'leads/n46-solo'), { userId: 'solo47', companyId: 'solo47', firstName: 'ZZ_QA', meter: 'manual' }));
   // (c) /emails read
   await x47('unverified account with the sender\'s email cannot read the row', 'deny', getDoc(doc(unver47, 'emails/e46')));
   await x47('verified owner of that email can read it', 'allow', getDoc(doc(ver47, 'emails/e46')));
   console.log('  47: ' + s47Pass + ' security-batch checks passed, ' + s47Fail.length + ' failed');
   if (s47Fail.length) {
     throw new Error('47 security batch: ' + s47Fail.length + ' check(s) went the wrong way:\n    ' + s47Fail.join('\n    '));
+  }
+
+  // ─── 48. Tasks: ONE collection-group load + tenant-safe stamps (2026-10-03,
+  // Today home). The dashboard reads every task with
+  // collectionGroup('tasks').where(companyId|userId).orderBy(createdAt); the
+  // recursive rule grants READ on the task's own stamps, and a writer may only
+  // stamp values inside the task's tenant (taskStampOk) — else a stamp could
+  // push a task into another tenant's Today list.
+  const s48Fail = []; let s48Pass = 0;
+  async function x48(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s48Pass++;
+    } catch (e) { s48Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'leads/lead47'), { userId: 'own48', companyId: 'co47', stage: 'new' });
+      await setDoc(doc(db, 'leads/lead47/tasks/t1'), { text: 'call back', done: false, dueDate: '2026-10-03', userId: 'own48', companyId: 'co47', createdAt: new Date() });
+      await setDoc(doc(db, 'leads/lead47/tasks/legacy'), { text: 'unstamped legacy', done: false, createdAt: new Date() });
+      await setDoc(doc(db, 'leads/lead47other'), { userId: 'other47', companyId: 'coOther47', stage: 'new' });
+      await setDoc(doc(db, 'leads/lead47other/tasks/t9'), { text: 'not yours', userId: 'other47', companyId: 'coOther47', createdAt: new Date() });
+    });
+    const own48 = env.authenticatedContext('own48', { role: 'sales_rep', companyId: 'co47' }).firestore();
+    const mgr48 = env.authenticatedContext('mgr48', { role: 'company_admin', companyId: 'co47' }).firestore();
+    const vw48 = env.authenticatedContext('vw48', { role: 'viewer', companyId: 'co47' }).firestore();
+    const evil48 = env.authenticatedContext('other47', { role: 'company_admin', companyId: 'coOther47' }).firestore();
+    const byCo48 = (db, co) => getDocs(query(collectionGroup(db, 'tasks'), where('companyId', '==', co), orderBy('createdAt', 'asc')));
+    const byUser48 = (db, u) => getDocs(query(collectionGroup(db, 'tasks'), where('userId', '==', u), orderBy('createdAt', 'asc')));
+    await x48('company admin loads the tenant\'s tasks in one query', 'allow', byCo48(mgr48, 'co47'));
+    await x48('a viewer loads them too (read-only role)', 'allow', byCo48(vw48, 'co47'));
+    await x48('a rep loads their OWN tasks', 'allow', byUser48(own48, 'own48'));
+    await x48('a rep asks for the whole company\'s tasks', 'deny', byCo48(own48, 'co47'));
+    await x48('another tenant asks for co47\'s tasks', 'deny', byCo48(evil48, 'co47'));
+    await x48('another user\'s tasks by userId', 'deny', byUser48(own48, 'other47'));
+    await x48('an unfiltered collection-group read', 'deny', getDocs(collectionGroup(mgr48, 'tasks')));
+    const t48 = (db, lead, id) => doc(db, 'leads/' + lead + '/tasks/' + id);
+    await x48('owner adds a task stamped with the lead\'s owner + tenant', 'allow', setDoc(t48(own48, 'lead47', 'n1'), { text: 'x', done: false, userId: 'own48', companyId: 'co47', leadId: 'lead47' }));
+    await x48('owner adds an unstamped task (every legacy writer)', 'allow', setDoc(t48(own48, 'lead47', 'n2'), { text: 'x', done: false }));
+    await x48('company admin adds one stamped with the writer\'s own uid as userId', 'allow', setDoc(t48(mgr48, 'lead47', 'n3'), { text: 'x', userId: 'mgr48', companyId: 'co47' }));
+    await x48('stamping ANOTHER tenant onto a task (inject into their Today list)', 'deny', setDoc(t48(evil48, 'lead47other', 'n4'), { text: 'spam', userId: 'other47', companyId: 'co47' }));
+    await x48('stamping another user as the owner', 'deny', setDoc(t48(evil48, 'lead47other', 'n5'), { text: 'spam', userId: 'own48' }));
+    await x48('ticking a legacy task done (stamps untouched) still works', 'allow', updateDoc(t48(own48, 'lead47', 'legacy'), { done: true }));
+    await x48('re-stamping a task to another tenant', 'deny', updateDoc(t48(own48, 'lead47', 't1'), { companyId: 'coOther47' }));
+    await x48('owner deletes a task', 'allow', deleteDoc(t48(own48, 'lead47', 'n2')));
+    await x48('a viewer adds a task', 'deny', setDoc(t48(vw48, 'lead47', 'n6'), { text: 'x' }));
+  }
+  console.log('  48: ' + s48Pass + ' task one-query / stamp checks passed, ' + s48Fail.length + ' failed');
+  if (s48Fail.length) {
+    throw new Error('48 tasks: ' + s48Fail.length + ' check(s) went the wrong way:\n    ' + s48Fail.join('\n    '));
+  }
+
+  // ─── 49. Production flow 2026-10-04 ───
+  // (a) companies/{tenant}/subs — the sub roster: the tenant reads, the solo
+  //     owner / same-company staff write (shape-checked), viewers and
+  //     sales_reps don't, other tenants see nothing.
+  // (b) leads/{id}/jobs/{job}/orders — the lead's writers, owner + tenant
+  //     pinned to the lead, NO money keys; the collection-group read is the
+  //     caller's own rows only.
+  const s49Fail = []; let s49Pass = 0;
+  async function x49(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s49Pass++;
+    } catch (e) { s49Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const solo49  = env.authenticatedContext('solo49', {}).firestore();
+  const other49 = env.authenticatedContext('other49', {}).firestore();
+  const staff49 = env.authenticatedContext('mgr49', { role: 'manager', companyId: 'co-49' }).firestore();
+  const rep49   = env.authenticatedContext('rep49', { role: 'sales_rep', companyId: 'co-49' }).firestore();
+  const view49  = env.authenticatedContext('view49', { role: 'viewer', companyId: 'co-49' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'companies/solo49/subs/s1'), { name: 'ZZ_QA Ridge Bros', trade: 'Roofing', active: true });
+    await setDoc(doc(db, 'leads/lead49'), { userId: 'solo49', companyId: 'solo49', firstName: 'ZZ_QA' });
+    await setDoc(doc(db, 'leads/lead49/jobs/j1/orders/o1'), { userId: 'solo49', companyId: 'solo49', store: 'Home Depot', deliveryDate: '2026-10-09', status: 'ordered' });
+    await setDoc(doc(db, 'leads/lead49o/jobs/j1/orders/o1'), { userId: 'other49', companyId: 'other49', store: 'Home Depot', status: 'ordered' });
+  });
+  const SUB49 = { name: 'ZZ_QA Shingle Co', phone: '513-555-0149', trade: 'Roofing', insuranceExpiry: '2027-01-31', notes: '', active: true };
+  await x49('solo owner adds a sub to their own roster', 'allow', setDoc(doc(solo49, 'companies/solo49/subs/s2'), SUB49));
+  await x49('solo owner reads their roster', 'allow', getDoc(doc(solo49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot read it', 'deny', getDoc(doc(other49, 'companies/solo49/subs/s1')));
+  await x49('another tenant cannot write it', 'deny', setDoc(doc(other49, 'companies/solo49/subs/s3'), SUB49));
+  await x49('a sub with no name is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s4'), Object.assign({}, SUB49, { name: '' })));
+  await x49('a garbage expiry is refused', 'deny', setDoc(doc(solo49, 'companies/solo49/subs/s5'), Object.assign({}, SUB49, { insuranceExpiry: 'Jan 2027' })));
+  await x49('same-company manager writes the roster', 'allow', setDoc(doc(staff49, 'companies/co-49/subs/m1'), SUB49));
+  await x49('a sales_rep reads but cannot write', 'deny', setDoc(doc(rep49, 'companies/co-49/subs/r1'), SUB49));
+  await x49('...reads it', 'allow', getDoc(doc(rep49, 'companies/co-49/subs/m1')));
+  await x49('a viewer cannot write', 'deny', setDoc(doc(view49, 'companies/co-49/subs/v1'), SUB49));
+  const ORD49 = { userId: 'solo49', companyId: 'solo49', store: 'Gulf Eagle Supply', orderedDate: '2026-10-05', deliveryDate: '2026-10-08', status: 'ordered', items: [{ name: 'Shingles', qty: 84, unit: 'bundles' }] };
+  await x49('the lead owner adds a material order', 'allow', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o2'), ORD49));
+  await x49('an order carrying a cost key is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o3'), Object.assign({}, ORD49, { costCents: 410000 })));
+  await x49('an order whose owner is not the lead\'s is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o4'), Object.assign({}, ORD49, { userId: 'other49' })));
+  await x49('a bad status is refused', 'deny', setDoc(doc(solo49, 'leads/lead49/jobs/j1/orders/o5'), Object.assign({}, ORD49, { status: 'lost' })));
+  await x49('another tenant cannot write orders on the lead', 'deny', setDoc(doc(other49, 'leads/lead49/jobs/j1/orders/o6'), Object.assign({}, ORD49, { userId: 'other49', companyId: 'other49' })));
+  await x49('collection-group read of the owner\'s own orders', 'allow',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'solo49'))));
+  await x49('collection-group read of someone else\'s orders is refused', 'deny',
+    require('firebase/firestore').getDocs(require('firebase/firestore').query(collectionGroup(solo49, 'orders'), require('firebase/firestore').where('userId', '==', 'other49'))));
+  console.log('  49: ' + s49Pass + ' production-flow checks passed, ' + s49Fail.length + ' failed');
+  if (s49Fail.length) {
+    throw new Error('49 production flow: ' + s49Fail.length + ' check(s) went the wrong way:\n    ' + s49Fail.join('\n    '));
+  }
+
+  // ─── 50. Social Studio — companies/{id}/social_posts + social_settings (2026-10-04) ───
+  // Owner + company_admin only. A client creates DRAFTS; only the
+  // socialApprovePost callable (admin SDK) approves; a content edit sends a
+  // post back to draft; server fields are frozen; 'publishing' is untouchable.
+  const s50Fail = []; let s50Pass = 0;
+  async function x50(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s50Pass++;
+    } catch (e) { s50Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own50   = env.authenticatedContext('co-49',  { companyId: 'co-49' }).firestore();
+  const cadm50  = env.authenticatedContext('cadm50', { role: 'company_admin', companyId: 'co-49' }).firestore();
+  const rep50   = env.authenticatedContext('rep50',  { role: 'sales_rep', companyId: 'co-49' }).firestore();
+  const mgr50   = env.authenticatedContext('mgr50',  { role: 'manager', companyId: 'co-49' }).firestore();
+  const view50  = env.authenticatedContext('vw49',   { role: 'viewer', companyId: 'co-49' }).firestore();
+  const other50 = env.authenticatedContext('oth49',  { role: 'company_admin', companyId: 'co-other50' }).firestore();
+  const sp = (db, id) => doc(db, 'companies/co-49/social_posts/' + id);
+  const NEW50 = (extra) => Object.assign({ companyId: 'co-49', createdBy: 'co-49', platform: 'x', kind: 'tip', caption: 'Hi.', hashtags: [], media: [], status: 'draft' }, extra || {});
+  await x50('owner reads a post', 'allow', getDoc(sp(own50, 'p49-draft')));
+  await x50('company_admin reads a post', 'allow', getDoc(sp(cadm50, 'p49-draft')));
+  await x50('sales rep cannot read', 'deny', getDoc(sp(rep50, 'p49-draft')));
+  await x50('manager cannot read', 'deny', getDoc(sp(mgr50, 'p49-draft')));
+  await x50('viewer cannot read', 'deny', getDoc(sp(view50, 'p49-draft')));
+  await x50('another company cannot read', 'deny', getDoc(sp(other50, 'p49-draft')));
+  await x50('owner creates a draft', 'allow', setDoc(sp(own50, 'n49a'), NEW50()));
+  await x50('create as approved is refused', 'deny', setDoc(sp(own50, 'n49b'), NEW50({ status: 'approved' })));
+  await x50('create carrying approvedAt is refused', 'deny', setDoc(sp(own50, 'n49c'), NEW50({ approvedAt: new Date() })));
+  await x50('create for another company id is refused', 'deny', setDoc(sp(own50, 'n49d'), NEW50({ companyId: 'co-other50' })));
+  await x50('viewer cannot create', 'deny', setDoc(sp(view50, 'n49e'), NEW50({ createdBy: 'vw49' })));
+  await x50('draft → approved by a client is refused (approval is server-side)', 'deny', updateDoc(sp(own50, 'p49-draft'), { status: 'approved' }));
+  await x50('draft → scheduled by a client is refused', 'deny', updateDoc(sp(own50, 'p49-draft'), { status: 'scheduled' }));
+  await x50('edit a draft caption', 'allow', updateDoc(sp(own50, 'p49-draft'), { caption: 'Edited.' }));
+  await x50('editing an approved caption without going back to draft is refused', 'deny', updateDoc(sp(own50, 'p49-approved'), { caption: 'Sneaky edit.' }));
+  await x50('approved → scheduled with a time (reschedule)', 'allow', updateDoc(sp(own50, 'p49-approved'), { status: 'scheduled', scheduledAt: new Date('2026-11-02T14:00:00Z') }));
+  await x50('scheduled: move the time', 'allow', updateDoc(sp(cadm50, 'p49-scheduled'), { scheduledAt: new Date('2026-11-03T14:00:00Z') }));
+  await x50('client cannot write the publish claim', 'deny', updateDoc(sp(own50, 'p49-scheduled'), { publish: { attempts: 0, claimId: 'x' } }));
+  await x50('client cannot set platformPostId', 'deny', updateDoc(sp(own50, 'p49-scheduled'), { platformPostId: 'fake' }));
+  await x50('client cannot touch a publishing post', 'deny', updateDoc(sp(own50, 'p49-publishing'), { status: 'cancelled' }));
+  await x50('client cannot delete a publishing post', 'deny', deleteDoc(sp(own50, 'p49-publishing')));
+  await x50('ready → posted with a URL (manual queue)', 'allow', updateDoc(sp(own50, 'p49-ready'), { status: 'posted', postUrl: 'https://www.tiktok.com/@nbd/video/1' }));
+  await x50('mark posted without a URL is refused', 'deny', updateDoc(sp(own50, 'p49-failed'), { status: 'posted' }));
+  await x50('a posted post cannot go back to draft', 'deny', updateDoc(sp(own50, 'p49-posted'), { status: 'draft' }));
+  await x50('client cannot set failed', 'deny', updateDoc(sp(own50, 'p49-scheduled'), { status: 'failed' }));
+  await x50('failed → draft (edit and re-approve)', 'allow', updateDoc(sp(own50, 'p49-failed'), { status: 'draft', caption: 'Fixed.' }));
+  await x50('sales rep cannot write', 'deny', updateDoc(sp(rep50, 'p49-draft'), { caption: 'rep' }));
+  await x50('owner writes the switches', 'allow', setDoc(doc(own50, 'companies/co-49/social_settings/config'), { enabled: true, platforms: { facebook: true } }));
+  await x50('sales rep cannot flip the switches', 'deny', setDoc(doc(rep50, 'companies/co-49/social_settings/config'), { enabled: false }));
+  await x50('nobody reads the media index from a client', 'deny', getDoc(doc(own50, 'social_media/' + 'a'.repeat(32))));
+  // ─── 50b. Reel Studio (2026-10-04) — reels / reel_media server-only; reel + AI fields frozen ───
+  await x50('owner reads a reel', 'allow', getDoc(doc(own50, 'companies/co-49/reels/r49')));
+  await x50('company_admin reads reel media', 'allow', getDoc(doc(cadm50, 'companies/co-49/reel_media/m49')));
+  await x50('sales rep cannot read reels', 'deny', getDoc(doc(rep50, 'companies/co-49/reels/r49')));
+  await x50('another company cannot read reels', 'deny', getDoc(doc(other50, 'companies/co-49/reels/r49')));
+  await x50('owner cannot confirm privacy from the client (server-only)', 'deny', updateDoc(doc(own50, 'companies/co-49/reels/r49'), { 'privacy.status': 'confirmed' }));
+  await x50('owner cannot create a reel doc from the client', 'deny', setDoc(doc(own50, 'companies/co-49/reels/n49'), { status: 'rendered', privacy: { status: 'clear' } }));
+  await x50('owner cannot mark an upload ready from the client', 'deny', updateDoc(doc(own50, 'companies/co-49/reel_media/m49'), { status: 'ready', workPath: 'x' }));
+  await x50('client cannot bump the daily render counter', 'deny', setDoc(doc(own50, 'companies/co-49/reel_usage/2026-10-04'), { renders: 0 }));
+  // Review hardening (2026-10-04): UPDATE paths too — cross-tenant, rep, company_admin — and the Reel Studio switch.
+  await x50('another company cannot update a reel', 'deny', updateDoc(doc(other50, 'companies/co-49/reels/r49'), { 'privacy.status': 'confirmed' }));
+  await x50('company_admin cannot update a reel from the client', 'deny', updateDoc(doc(cadm50, 'companies/co-49/reels/r49'), { status: 'queued' }));
+  await x50('sales rep cannot update reel media', 'deny', updateDoc(doc(rep50, 'companies/co-49/reel_media/m49'), { aiGenerated: false }));
+  await x50('another company cannot read reel media', 'deny', getDoc(doc(other50, 'companies/co-49/reel_media/m49')));
+  await x50('owner turns Reel Studio on (social_settings.reels)', 'allow', setDoc(doc(own50, 'companies/co-49/social_settings/config'), { reels: true }, { merge: true }));
+  await x50('sales rep cannot turn Reel Studio on', 'deny', updateDoc(doc(rep50, 'companies/co-49/social_settings/config'), { reels: true }));
+  await x50('another company cannot turn Reel Studio on', 'deny', updateDoc(doc(other50, 'companies/co-49/social_settings/config'), { reels: true }));
+  await x50('create a post carrying aiGenerated is refused', 'deny', setDoc(sp(own50, 'n49x'), NEW50({ aiGenerated: true })));
+  await x50('create a post carrying reelId / video is refused', 'deny', setDoc(sp(own50, 'n49y'), NEW50({ reelId: 'r49', video: { key: 'a'.repeat(32) } })));
+  await x50('an AI post cannot be re-kinded into a job showcase', 'deny', updateDoc(sp(own50, 'p49-ai'), { kind: 'job_showcase' }));
+  await x50('an AI post cannot drop its aiGenerated tag', 'deny', updateDoc(sp(own50, 'p49-ai'), { aiGenerated: false }));
+  await x50('an AI tip draft can still be edited', 'allow', updateDoc(sp(own50, 'p49-ai'), { caption: 'Check your flashing.' }));
+  await x50('a reel post cannot swap its video', 'deny', updateDoc(sp(own50, 'p49-reel'), { video: { key: 'b'.repeat(32) } }));
+  await x50('a reel post cannot unlink its reel', 'deny', updateDoc(sp(own50, 'p49-reel'), { reelId: 'other' }));
+  await x50('a reel draft cannot be approved from the client', 'deny', updateDoc(sp(own50, 'p49-reel'), { status: 'scheduled', scheduledAt: new Date('2026-11-04T14:00:00Z') }));
+  console.log('  50: ' + s50Pass + ' social studio checks passed, ' + s50Fail.length + ' failed');
+  if (s50Fail.length) {
+    throw new Error('50 social studio: ' + s50Fail.length + ' check(s) went the wrong way:\n    ' + s50Fail.join('\n    '));
+  }
+
+  // 52. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
+  // lead create names its `meter`; subscriptions/{companyId}.leadCap (written
+  // by functions/lead-cap.js) blocks metered creates at the plan cap, except
+  // imports / samples still inside their one-time allowance; a cancelled
+  // plan's readOnlyUntil blocks everything; NBD's company is exempt. Each
+  // company's block touches only that company (cross-tenant control).
+  const s52Fail = [];
+  let s52Pass = 0;
+  async function x52(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s52Pass++; }
+    catch (_) { s52Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const NBD_UID = '1phDvAVXHSg82wDLegAbQFq14Ci1';
+  const future52 = new Date(Date.now() + 10 * 24 * 3600 * 1000);
+  const past52 = new Date(Date.now() - 24 * 3600 * 1000);
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'subscriptions/co-cap'), { plan: 'free', status: 'none', leadCap: { plan: 'free', blockedUntil: future52 }, importAllowanceUsed: 3, sampleAllowanceUsed: 20 });
+    await setDoc(doc(db, 'subscriptions/co-capfull'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: future52 }, importAllowanceUsed: 1000 });
+    await setDoc(doc(db, 'subscriptions/co-upg'), { plan: 'growth', leadCap: { plan: 'free', blockedUntil: future52 } });
+    await setDoc(doc(db, 'subscriptions/co-newmonth'), { plan: 'free', leadCap: { plan: 'free', blockedUntil: past52 } });
+    await setDoc(doc(db, 'subscriptions/co-ro'), { plan: 'free', status: 'cancelled', readOnlyUntil: future52 });
+    await setDoc(doc(db, 'subscriptions/co-open'), { plan: 'free', usage: { leads: 2 } });
+  });
+  const rep52 = (cid) => env.authenticatedContext('rep52-' + cid, { role: 'sales_rep', companyId: cid }).firestore();
+  const L52 = (cid, extra) => Object.assign({ userId: 'rep52-' + cid, companyId: cid, firstName: 'ZZ_QA', lastName: 'Cap' }, extra || {});
+  let n52 = 0;
+  const create52 = (cid, extra) => setDoc(doc(rep52(cid), 'leads/cap52-' + (++n52)), L52(cid, extra));
+  await x52('a client lead with NO meter is refused', 'deny', create52('co-open'));
+  await x52('an unknown meter is refused', 'deny', create52('co-open', { meter: 'free-pass' }));
+  await x52('meter manual under the cap is allowed', 'allow', create52('co-open', { meter: 'manual' }));
+  await x52('a company with no subscription doc yet is allowed', 'allow', create52('co-nosub', { meter: 'manual' }));
+  await x52('at the cap: a manual lead is refused', 'deny', create52('co-cap', { meter: 'manual' }));
+  await x52('at the cap: an import inside the allowance is allowed', 'allow', create52('co-cap', { meter: 'import' }));
+  await x52('at the cap: a sample past its allowance is refused', 'deny', create52('co-cap', { meter: 'sample' }));
+  await x52('at the cap with the import allowance used up: import refused', 'deny', create52('co-capfull', { meter: 'import' }));
+  await x52('upgraded since the block (plan changed): allowed', 'allow', create52('co-upg', { meter: 'manual' }));
+  await x52('a new month (blockedUntil passed): allowed', 'allow', create52('co-newmonth', { meter: 'manual' }));
+  await x52('read-only grace: a manual lead is refused', 'deny', create52('co-ro', { meter: 'manual' }));
+  await x52('read-only grace: even an import is refused', 'deny', create52('co-ro', { meter: 'import' }));
+  // Cross-tenant: co-cap's block never reaches co-open, and a rep cannot
+  // borrow another company's open allowance (companyId is pinned to the claim).
+  await x52('cross-tenant: another company is unaffected by co-cap\'s block', 'allow', create52('co-open', { meter: 'manual' }));
+  await x52('cross-tenant: a co-cap rep cannot file the lead under co-open', 'deny',
+    setDoc(doc(rep52('co-cap'), 'leads/cap52-x'), Object.assign(L52('co-cap', { meter: 'manual' }), { companyId: 'co-open' })));
+  // NBD control: NBD's own company is never metered — a lead without a meter
+  // (an old cached page) still saves, exactly as before.
+  const nbd52 = env.authenticatedContext(NBD_UID, { companyId: NBD_UID, owner: true }).firestore();
+  await x52('NBD (control): a lead with no meter still saves', 'allow',
+    setDoc(doc(nbd52, 'leads/cap52-nbd'), { userId: NBD_UID, companyId: NBD_UID, firstName: 'ZZ_QA' }));
+  // Clients can never write the meter state themselves.
+  await x52('a company owner cannot clear their own leadCap', 'deny',
+    setDoc(doc(env.authenticatedContext('co-cap', { companyId: 'co-cap' }).firestore(), 'subscriptions/co-cap'), { leadCap: null }, { merge: true }));
+  console.log('  52: ' + s52Pass + ' plan lead-cap checks passed, ' + s52Fail.length + ' failed');
+  if (s52Fail.length) {
+    throw new Error('52 plan lead cap: ' + s52Fail.length + ' check(s) went the wrong way:\n    ' + s52Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

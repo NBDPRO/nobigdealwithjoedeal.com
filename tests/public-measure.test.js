@@ -54,8 +54,9 @@ section('exactly one code path may spend money');
     && /ref\.get\(\)/.test(src));
   ok('the read-only endpoint has NO enforceAppCheck (dead config on onRequest, and CI rejects it)',
     !/enforceAppCheck/.test(src));
-  ok('only the trigger binds the API key',
-    /secrets: \[SECRETS\.INSTANTROOFER_API_KEY\]/.test(src)
+  ok('only the trigger binds the API keys (Instant Roofer + Google Solar for NBD_MEASUREMENT_PROVIDER=solar|auto)',
+    /secrets: \[SECRETS\.INSTANTROOFER_API_KEY, SECRETS\.SOLAR_API_KEY\]/.test(src)
+    && (src.match(/SECRETS\.SOLAR_API_KEY/g) || []).length === 1
     && (src.match(/SECRETS\.INSTANTROOFER_API_KEY/g) || []).length === 1);
   ok('both exports keep the literal factory RHS the deploy allowlist greps for',
     /^exports\.measureNewWebLead = onDocumentCreated/m.test(src)
@@ -78,7 +79,9 @@ section('the trigger is gated so it cannot bill the wrong things');
 section('spend guards');
 {
   ok('a redelivery collides on a deterministic doc id instead of re-billing',
-    /doc\('weblead-' \+ leadId\)/.test(src) && /jobRef\.create\(jobDoc\)/.test(src) && /e\.code === 6/.test(src));
+    // jobId defaults to 'weblead-'+leadId; the CRM auto-order passes 'auto-'+leadId.
+    /const jobId = jobDocId \|\| \('weblead-' \+ leadId\)/.test(src) && /\.doc\(jobId\)/.test(src)
+      && /jobRef\.create\(jobDoc\)/.test(src) && /e\.code === 6/.test(src));
   ok('same-roof reuse is attempted before the vendor is called',
     src.indexOf('findReusableMeasurement') < src.indexOf('requestInstantRoofer'));
   ok('a daily cap on AUTOMATED spend exists', /trigger:measureNewWebLead:daily/.test(src) && /AUTO_MEASURE_DAILY_CAP/.test(src));

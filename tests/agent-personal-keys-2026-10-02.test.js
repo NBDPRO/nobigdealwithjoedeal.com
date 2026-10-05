@@ -66,8 +66,9 @@ function ok(label, cond, detail) {
   ok('the tracker publishes its snapshot through the userSettings sync', /\{ key: 'nbd_ds_snapshot', field: 'dsSnapshot' \}/.test(sync));
   const ui = read('docs/pro/daily-success/js/review-ui.js');
   ok('the dashboard paint publishes, skipping unchanged snapshots', /paintGoalBars\(box\);\s*publish\(\);/.test(ui) && /prev\.sig === doc\.sig/.test(ui));
-  const inbox = read('docs/pro/js/agent-inbox.js');
-  ok('the Connect bots panel puts personal bots in their own section', /Personal — reads only your own tracker, never the CRM/.test(inbox) && /fresh\.personal \? 'Jo Tracker' : 'NBD CRM'/.test(inbox));
+  // Bot keys moved from the Agent inbox to Settings → Bots & API (2026-10-04).
+  const botsUi = read('docs/pro/js/agent-bots-settings.js');
+  ok('the Bots & API page puts personal bots in their own section', /Personal — reads only your own Daily tracker, never the CRM/.test(botsUi) && /const personal = \(d\.bots \|\| \[\]\)\.filter\(\(b\) => b\.personal\);/.test(botsUi));
 
   if (process.env.FIRESTORE_EMULATOR_HOST) {
     console.log('E. emulator end to end');

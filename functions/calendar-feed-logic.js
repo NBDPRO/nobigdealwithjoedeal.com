@@ -158,6 +158,51 @@ function normalizeAppointment(doc) {
 }
 
 /**
+ * A CRM-booked appointment → an appointments-shaped doc, or null (2026-10-04,
+ * production flow). The customer page's Add Event and the door-knock
+ * "Appointment Set" flow both write leads/{leadId}/tasks/{taskId} with
+ * type:'event' and an ISO `eventAt` (docs/pro/js/lead-events.js — the CRM's
+ * one appointment writer; the top-level /appointments collection is
+ * Cal.com-only). The feed, the 30-minute reminder push, the morning brief and
+ * the Google sync used to read /appointments alone, so an appointment Jo booked
+ * in the CRM reached none of them. Every one of those readers now runs a CRM
+ * event through here and then through normalizeAppointment, the same as a
+ * Cal.com booking. An hour long unless the doc says otherwise (durationMin).
+ * Deleted / cancelled events, events on a deleted lead, and anything that is
+ * not an event (a plain task) → null.
+ */
+function leadEventToAppointment(task, lead, leadId, taskId) {
+  if (!task || typeof task !== 'object' || task.type !== 'event') return null;
+  if (task.deleted === true || task.cancelled === true || task.status === 'cancelled') return null;
+  if (lead && lead.deleted === true) return null;
+  const startMs = toMs(task.eventAt);
+  if (startMs == null) return null;
+  const dur = Number(task.durationMin);
+  const endMs = startMs + (Number.isFinite(dur) && dur >= 1 && dur <= 1440 ? Math.round(dur) * 60000 : DEFAULT_DURATION_MS);
+  const lid = String(leadId || task.leadId || '');
+  const tid = String(taskId || task.id || '');
+  if (!lid || !tid) return null;
+  const name = lead ? `${lead.firstName || ''} ${lead.lastName || ''}`.trim() : '';
+  const what = String(task.title || task.text || 'Appointment').trim() || 'Appointment';
+  return {
+    id: 'evt-' + lid + '-' + tid,
+    bookingId: 'evt-' + lid + '-' + tid,
+    source: 'crm-event',
+    taskId: tid,
+    startTime: startMs,
+    endTime: endMs,
+    title: what + (name && what.indexOf(name) === -1 ? ' — ' + name : ''),
+    location: String((lead && lead.address) || ''),
+    description: String(task.notes || ''),
+    attendeeName: name,
+    attendeePhone: String((lead && lead.phone) || ''),
+    leadId: lid,
+    userId: task.userId || null,
+    updatedAt: task.updatedAt || task.createdAt || null,
+  };
+}
+
+/**
  * leads/{id} → an event, or null. A rep-typed Scheduled Date is a date-only
  * string; anything that is not exactly YYYY-MM-DD is skipped rather than
  * guessed at, because a malformed DTSTART makes iOS drop the whole feed.
@@ -409,6 +454,7 @@ module.exports = {
   nyDateOf,
   toMs,
   normalizeAppointment,
+  leadEventToAppointment,
   normalizeLead,
   normalizeLeadWeek,
   normalizeAdjusterMeeting,

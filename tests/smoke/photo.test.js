@@ -446,9 +446,14 @@ section('Photos Tier-1: analyzeRoofPhoto pins current Sonnet build');
   const src = read(path.join(FUNCTIONS, 'handlers/photo.js'));
   // §1.4 — bump off the May 2025 dated Sonnet. The handler builds the
   // Anthropic body inline (no allowlist gate), so this is isolated.
-  assert('analyzeRoofPhoto uses claude-sonnet-4-6',
-    /model:\s*'claude-sonnet-4-6'/.test(src),
-    'expected analyzeRoofPhoto to pin model: claude-sonnet-4-6');
+  // 2026-10-04: claude-sonnet-4-6 → claude-sonnet-5-5, thinking off.
+  assert('analyzeRoofPhoto uses claude-sonnet-5-5',
+    /const ROOF_ANALYSIS_MODEL = 'claude-sonnet-5-5'/.test(src) && /model:\s*ROOF_ANALYSIS_MODEL/.test(src),
+    'expected analyzeRoofPhoto to pin model: claude-sonnet-5-5');
+  assert('analyzeRoofPhoto turns Sonnet 5.5 thinking off (between_tools)',
+    /thinking:\s*\{\s*type:\s*'between_tools'\s*\}/.test(src));
+  assert('analyzeRoofPhoto no longer pins claude-sonnet-4-6',
+    !/'claude-sonnet-4-6'/.test(src));
   assert('analyzeRoofPhoto no longer pins claude-sonnet-4-20250514',
     !/'claude-sonnet-4-20250514'/.test(src),
     'expected the stale Sonnet pin to be gone from photo.js');
@@ -1337,13 +1342,16 @@ section('customer.html: every inline event handler migrated to data-action deleg
   assert('CSS upload-zone hover rule present',
     /\[data-action="openUploadModal"\]:hover\s*\{[\s\S]{0,100}border-color:\s*var\(--orange\)/.test(customer));
 
-  // ── Doc-template card grid still has its 16 wirings ──
+  // ── Doc-template card grid still has its 22 wirings ──
   // 16, not 15: +1 for storm_history_report (2026-09-09) — the free
-  // NOAA/NWS 5-year storm history doc.
+  // NOAA/NWS 5-year storm history doc. 22: +6 for the template library
+  // (2026-10-04) — lien waiver, right to cancel, material selection,
+  // Good-Better-Best options, insurance next steps, and the Receipt (its
+  // renderer + pre-flight existed, no tile reached them).
   const cardCount = (customer.match(/class="doc-template-card(?: [^"]*)?"[^>]*data-action="generateCustomerDoc"/g) || []).length;
-  assert('all 16 doc-template cards still wired (regression guard)',
-    cardCount === 16,
-    'expected 16 doc-template-card data-action wirings, got ' + cardCount);
+  assert('all 22 doc-template cards still wired (regression guard)',
+    cardCount === 22,
+    'expected 22 doc-template-card data-action wirings, got ' + cardCount);
 
   // ── Photo action popup now has a Preview button (3-button row) ──
   // Originally the popup only offered Open Editor + Delete — clicking
@@ -1446,9 +1454,13 @@ section('Photo-report PDF filename never leaks NBD onto a tenant download (2026-
     assert('finalize() awaits hydration before anything else',
       /async function finalize\(format\)\s*\{\s*await _awaitBrandHydration\(\)/.test(v2),
       'finalize() calls EstimateFinalization.formatEstimate, which derives the doc prefix and seal from window._brand()');
-    assert('sendForSignature() awaits hydration before anything else',
-      /async function sendForSignature\(\)\s*\{\s*await _awaitBrandHydration\(\)/.test(v2),
-      'the retail-quote body sent for signature runs through the same synchronous formatters');
+    // sendForSignature no longer renders anything client-side (2026-10-04:
+    // the server builds the contract from the saved estimate), so it needs no
+    // hydration gate — but it must not quietly start formatting again without one.
+    const sfs = (v2.match(/async function sendForSignature\([\s\S]*?\n  \}\n/) || [''])[0];
+    assert('sendForSignature() renders no client-side document (server builds the contract)',
+      sfs.length > 0 && !/formatEstimate\(/.test(sfs),
+      'if it formats again, it needs await _awaitBrandHydration() first, like finalize()');
   }
 
   // NBDDocGen.generate() must AWAIT company-profile hydration before rendering.

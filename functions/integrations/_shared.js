@@ -40,31 +40,26 @@ const SECRETS = {
   // Human verification
   TURNSTILE_SECRET:      defineSecret('TURNSTILE_SECRET'),
 
-  // Rate limiting
-  UPSTASH_REDIS_REST_URL:   defineSecret('UPSTASH_REDIS_REST_URL'),
-  UPSTASH_REDIS_REST_TOKEN: defineSecret('UPSTASH_REDIS_REST_TOKEN'),
+  // Removed 2026-10-04 (never configured; each was the deploy's __unset__
+  // stub): the Upstash rate-limit pair, HOVER, EagleView and Nearmap
+  // measurement keys + webhook secrets, HailTrace, Swath (key + webhook
+  // secret) and kie.ai. The Deepgram fallback left dictate, but the key
+  // stays (below) because transcribeVoiceMemo still calls Deepgram.
+  // documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md, Lane C. Re-adding
+  // a name here recreates its stub secret on the next deploy.
 
   // Business integrations
-  HOVER_API_KEY:         defineSecret('HOVER_API_KEY'),
-  HOVER_WEBHOOK_SECRET:  defineSecret('HOVER_WEBHOOK_SECRET'),
-  EAGLEVIEW_API_KEY:     defineSecret('EAGLEVIEW_API_KEY'),
-  EAGLEVIEW_WEBHOOK_SECRET: defineSecret('EAGLEVIEW_WEBHOOK_SECRET'),
-  NEARMAP_API_KEY:       defineSecret('NEARMAP_API_KEY'),
   // Instant Roofer — AI measure from coordinates (synchronous) and the ~1 h
   // Human Certified Report; the webhook secret is a bearer token WE mint and
   // paste into their dashboard (runbooks/INSTANTROOFER-SETUP.md).
   INSTANTROOFER_API_KEY: defineSecret('INSTANTROOFER_API_KEY'),
   INSTANTROOFER_WEBHOOK_SECRET: defineSecret('INSTANTROOFER_WEBHOOK_SECRET'),
-  BOLDSIGN_API_KEY:      defineSecret('BOLDSIGN_API_KEY'),
-  BOLDSIGN_WEBHOOK_SECRET: defineSecret('BOLDSIGN_WEBHOOK_SECRET'),
+  // Google Solar API (buildingInsights:findClosest) — the cheap roof-measure
+  // provider behind NBD_MEASUREMENT_PROVIDER=solar|auto
+  // (integrations/solar-measure.js). A key restricted to solar.googleapis.com.
+  SOLAR_API_KEY:         defineSecret('SOLAR_API_KEY'),
   REGRID_API_TOKEN:      defineSecret('REGRID_API_TOKEN'),
-  HAILTRACE_API_KEY:     defineSecret('HAILTRACE_API_KEY'),
   CALCOM_WEBHOOK_SECRET: defineSecret('CALCOM_WEBHOOK_SECRET'),
-  // Swath (swathapi.com) — storm-verified property intel. One key for
-  // both the hail-swath and property-lookup surfaces; the webhook secret
-  // comes back from POST /v1/monitors (see runbooks/SWATH-SETUP.md).
-  SWATH_API_KEY:         defineSecret('SWATH_API_KEY'),
-  SWATH_WEBHOOK_SECRET:  defineSecret('SWATH_WEBHOOK_SECRET'),
   // Shared token Thumbtack presents on every webhook delivery (Custom Header
   // auth — Thumbtack offers no HMAC signing, so this is a bearer-style secret
   // and the receiver fails closed without it). See integrations/thumbtack.js.
@@ -77,17 +72,14 @@ const SECRETS = {
   BLAND_WEBHOOK_SECRET:  defineSecret('BLAND_WEBHOOK_SECRET'),
   THURSDAY_LOOKUP_TOKEN: defineSecret('THURSDAY_LOOKUP_TOKEN'),
 
-  // Image generation (visualizer) — kie.ai alternate provider
-  // (visualizer-image-gen.js; Replicate's token is declared there, not here,
-  // because it predates this registry).
-  KIE_API_KEY:           defineSecret('KIE_API_KEY'),
-
-  // Voice transcription (F8)
+  // Deepgram — ONLY transcribeVoiceMemo (integrations/voice-memo.js, the
+  // card-detail "Voice Memo" button) uses it now; dictate's Deepgram fallback
+  // was removed 2026-10-04. Still the deploy stub in prod, so that button
+  // answers "not configured" until it is moved to Groq or retired.
   DEEPGRAM_API_KEY:      defineSecret('DEEPGRAM_API_KEY'),
 
-  // Voice Intelligence (Voice Intel — C1)
-  // Phase 1 transcription = Groq Whisper-large-v3-turbo ($0.04/hr).
-  // Phase 2 may add Deepgram for native diarization on Pro+ tiers.
+  // Voice transcription — dictate, Voice Intelligence, call center.
+  // Groq Whisper-large-v3-turbo ($0.04/hr).
   GROQ_API_KEY:          defineSecret('GROQ_API_KEY')
 };
 
@@ -96,21 +88,20 @@ const SECRETS = {
 // Defaults chosen for biggest-bang-for-buck in roofing CRM context.
 const PROVIDERS = {
   // measurement default flipped hover → instantroofer on 2026-09-06: it is the
-  // first provider that ever had a real key (the other three have been the
-  // deploy stub since April). hover/eagleview/nearmap remain selectable.
+  // first provider that ever had a real key. hover/eagleview/nearmap were
+  // removed 2026-10-04, so instantroofer is the only valid value.
+  // 'solar' (Google Solar API only) and 'auto' (Solar first, Instant Roofer
+  // fallback) are integrations/solar-measure.js, added 2026-10-04.
   measurement:       (process.env.NBD_MEASUREMENT_PROVIDER  || 'instantroofer').toLowerCase(),
-  esign:             (process.env.NBD_ESIGN_PROVIDER        || 'boldsign').toLowerCase(),
-  // parcel: 'regrid' (default) | 'swath'  ·  hail: 'noaa' (default,
-  // free) | 'swdi' (free, keyless radar hail — integrations/swdi-hail.js)
-  // | 'hailtrace' | 'swath'. Swath is one key for both slots —
-  // integrations/swath.js.
+  // (esign: retired 2026-10-04 with BoldSign — signing is in-house only,
+  // functions/esign-envelope.js. NBD_ESIGN_PROVIDER had zero readers.)
+  // parcel: 'regrid' (the only provider)  ·  hail: 'noaa' (default,
+  // free) | 'swdi' (free, keyless radar hail — integrations/swdi-hail.js).
+  // The paid 'hailtrace' and 'swath' options were removed 2026-10-04.
   parcel:            (process.env.NBD_PARCEL_PROVIDER       || 'regrid').toLowerCase(),
   hail:              (process.env.NBD_HAIL_PROVIDER         || 'noaa').toLowerCase(),
-  rateLimit:         (process.env.NBD_RATE_LIMIT_PROVIDER   || 'firestore').toLowerCase(),
-  // Voice transcription for the Voice Intelligence pipeline.
-  //   'groq'     → Groq Whisper-large-v3-turbo ($0.04/hr, no speakers)
-  //   'deepgram' → Deepgram Nova-2 ($0.26/hr, native diarization)
-  // Flip via env var — no code deploy needed when switching tiers.
+  // Voice transcription for the Voice Intelligence pipeline. 'groq' is the
+  // only implemented provider (Groq Whisper-large-v3-turbo, $0.04/hr).
   voiceTranscription:(process.env.NBD_VOICE_TRANSCRIPTION_PROVIDER || 'groq').toLowerCase()
 };
 

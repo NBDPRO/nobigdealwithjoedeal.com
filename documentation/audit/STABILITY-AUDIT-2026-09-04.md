@@ -26,6 +26,18 @@
 > another tenant's CRM through `voiceConsumer`. Production had 0 recordings,
 > so nobody was affected. See
 > [VOICE-INTEL-ANTHROPIC-KEY-2026-09-26](VOICE-INTEL-ANTHROPIC-KEY-2026-09-26.md).
+>
+> **Update 2026-10-04: three BoldSign findings below are closed by deletion.**
+> BoldSign is retired: `functions/integrations/esign.js` (`sendEstimateForSignature`,
+> `esignWebhook`, C5 `createStripeInvoiceForEstimate`) is gone, so the HIGH "C5
+> auto-invoice … can mint duplicate draft invoices" (`esign.js:443`) and the LOW
+> "NBD_ESIGN_PROVIDER is a switch with zero readers" (§641) no longer describe
+> code that exists, and the HIGH "every non-admin rep sees e-signature as not
+> set up" no longer applies to e-sign (the estimate's Send for Signature calls
+> the in-house `sendEstimateEnvelope` directly; measurement and parcel still
+> use `requireConfigured`). §641's point that the two in-house paths "are not
+> interchangeable" was the parity audit's starting line — see
+> [BOLDSIGN-RETIREMENT-2026-10-04](BOLDSIGN-RETIREMENT-2026-10-04.md).
 
 ## Read this before using the lists below
 

@@ -1,26 +1,25 @@
 /**
  * integrations/hail.js — hail / storm swath data source
  *
- * Four providers, all live:
- *   hailtrace (premium)    — paid subscription, polygon swaths per storm
- *   swath     (metered)    — swathapi.com radar-measured events + swath
- *                            polygons (integrations/swath.js; Firestore-
- *                            cached because the free plan hard-stops at
- *                            100 credits/month)
+ * Two providers, both free and keyless:
  *   swdi      (free)       — NCEI Severe Weather Data Inventory nx3hail:
  *                            radar-derived hail size per storm cell, keyless,
  *                            no quota; the range is chunked into ≤31-day
  *                            windows (integrations/swdi-hail.js). Selected
- *                            with NBD_HAIL_PROVIDER=swdi — no key to check.
+ *                            with NBD_HAIL_PROVIDER=swdi.
  *   noaa      (free)       — IEM Local Storm Reports (ground-truth spotter
  *                            reports of hail size); only where someone
  *                            filed a report.
  *
- * NOAA is the default so the feature works out-of-the-box. HailTrace
- * provides real-time within ~15 min of storm end; Swath is
- * measured-events-only (never forecasts); SWDI is the radar algorithm's own
- * estimate for every cell, reports or not. Select via NBD_HAIL_PROVIDER.
- * Whatever is preferred, a failure falls back to NOAA (see lookupHail).
+ * NOAA is the default. SWDI is the radar algorithm's own estimate for every
+ * cell, reports or not. Select via NBD_HAIL_PROVIDER. Whatever is preferred,
+ * a failure falls back to NOAA (see lookupHail).
+ *
+ * The paid HailTrace and Swath providers were removed 2026-10-04
+ * (documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md, Lane C): neither
+ * key was ever set (both are the deploy's `__unset__` stub) and prod sets no
+ * NBD_HAIL_PROVIDER, so prod runs NOAA. NBD_HAIL_PROVIDER=hailtrace
+ * or =swath now selects NOAA, exactly as an unset key always did.
  *
  * Used for the D2D pitch: "your neighborhood had verified 1.5"+ hail
  * 6 weeks ago — here's the polygon and the timestamp."
@@ -30,8 +29,7 @@
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
-const { getSecret, hasSecret, PROVIDERS, SECRETS } = require('./_shared');
-const { fetchSwathHail } = require('./swath');
+const { PROVIDERS } = require('./_shared');
 const { fetchSwdiHail } = require('./swdi-hail');
 
 const CORS_ORIGINS = [
@@ -93,46 +91,18 @@ async function fetchNoaaHail(lat, lng, radiusMi, daysBack) {
   }).filter(h => h.lat != null && h.lng != null);
 }
 
-async function fetchHailTrace(lat, lng, radiusMi, daysBack) {
-  const key = getSecret('HAILTRACE_API_KEY');
-  const url = 'https://api.hailtrace.com/v1/hail/query?'
-    + 'lat=' + encodeURIComponent(lat)
-    + '&lon=' + encodeURIComponent(lng)
-    + '&radius_mi=' + encodeURIComponent(radiusMi)
-    + '&days=' + encodeURIComponent(daysBack);
-  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + key }, signal: AbortSignal.timeout(HAIL_FETCH_TIMEOUT_MS) });
-  if (!res.ok) throw new Error('HailTrace ' + res.status);
-  const data = await res.json();
-  // Normalize — HailTrace returns `events`, each with
-  // { start_time, end_time, polygon, max_size, storm_id }.
-  return (data.events || []).map(e => ({
-    at: e.start_time,
-    lat: (e.centroid && e.centroid.lat) || null,
-    lng: (e.centroid && e.centroid.lng) || null,
-    sizeInches: e.max_size || null,
-    polygon: e.polygon || null,
-    source: 'hailtrace',
-    stormId: e.storm_id
-  }));
-}
-
 // ─── Shared lookup — provider selection + NOAA fallback ───
 // Extracted so both getHailHistory (below) and the server-side attachStormProof
 // callable (handlers/storm-proof.js, idea #1 Phase 2) resolve hail the same
 // way. Returns { provider, hits, count, maxSizeInches }. Throws on total
-// failure (caller maps to an HttpsError). getHailHistory now routes through
-// this too (Swath wiring, 2026-08-06) — three providers × two inline copies
-// was drift waiting to happen.
+// failure (caller maps to an HttpsError). getHailHistory routes through this
+// too, so provider selection and the NOAA fallback live in one place.
 const HAIL_FETCHERS = {
-  hailtrace: fetchHailTrace,
-  swath:     fetchSwathHail,
   swdi:      fetchSwdiHail,
   noaa:      fetchNoaaHail,
 };
 
 function preferredHailProvider() {
-  if (PROVIDERS.hail === 'hailtrace' && hasSecret('HAILTRACE_API_KEY')) return 'hailtrace';
-  if (PROVIDERS.hail === 'swath' && hasSecret('SWATH_API_KEY')) return 'swath';
   // Keyless — the env switch alone selects it. Both its failure modes (NCEI
   // down, a window rejected) throw, and lookupHail then falls back to NOAA.
   if (PROVIDERS.hail === 'swdi') return 'swdi';
@@ -147,8 +117,8 @@ async function lookupHail(lat, lng, radiusMi, daysBack) {
     hits = await HAIL_FETCHERS[preferredProvider](lat, lng, radiusMi, daysBack);
   } catch (e) {
     if (preferredProvider !== 'noaa') {
-      // Keep the historical 'noaa-fallback' label regardless of which paid
-      // provider failed — client code only distinguishes fallback-vs-not.
+      // Keep the historical 'noaa-fallback' label — client code only
+      // distinguishes fallback-vs-not.
       hits = await fetchNoaaHail(lat, lng, radiusMi, daysBack); // fallback (may throw → caller handles)
       provider = 'noaa-fallback';
     } else {
@@ -172,15 +142,14 @@ exports.getHailHistory = onCall(
     cors: CORS_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 20,
-    memory: '256MiB',
-    secrets: [SECRETS.HAILTRACE_API_KEY, SECRETS.SWATH_API_KEY]
+    memory: '256MiB'
   },
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
 
-    // Per-uid cap: when HailTrace is the active provider this bills the shared
-    // key per call, and there was no limit (unlike the sibling paid callables).
+    // Per-uid cap: the upstream feeds are free but shared, so one runaway
+    // client must not exhaust them for everyone.
     const { enforceRateLimit } = require('./upstash-ratelimit');
     try {
       await enforceRateLimit('callable:getHailHistory:uid', uid, 60, 60 * 60_000);
@@ -198,11 +167,8 @@ exports.getHailHistory = onCall(
       throw new HttpsError('invalid-argument', 'Valid lat/lng required');
     }
 
-    // Swath wiring (2026-08-06): route through the shared lookupHail so the
-    // three-provider selection + NOAA fallback lives in exactly one place.
-    // Behavior notes vs the old inline block: identical selection and
-    // fallback order; the fallback response now also carries maxSizeInches
-    // (the inline copy dropped it on that path — additive fix).
+    // Route through the shared lookupHail so provider selection + the NOAA
+    // fallback live in exactly one place.
     try {
       const result = await lookupHail(lat, lng, radiusMi, daysBack);
       return {

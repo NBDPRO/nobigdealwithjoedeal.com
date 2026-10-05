@@ -623,7 +623,7 @@ window.NBDCustomerInvoices = {
       if (!window._db && window.db) window._db = window.db;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=13');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=14');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -649,7 +649,7 @@ window.NBDCustomerInvoices = {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=13');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=14');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -1906,7 +1906,13 @@ const DOC_PREREQUISITES = {
   testimonial_sheet:    { needs: [], label: 'Testimonial Sheet' },
   thank_you:            { needs: [], label: 'Thank You' },
   payment_agreement:    { needs: ['jobValue','contact'], label: 'Payment Agreement', msg: 'Add job value and customer contact info.' },
-  storm_history_report: { needs: ['address'], label: 'Storm History Report', msg: 'Add a property address first — it\'s used to pull the NOAA storm history.' }
+  storm_history_report: { needs: ['address'], label: 'Storm History Report', msg: 'Add a property address first — it\'s used to pull the NOAA storm history.' },
+  // Template library (2026-10-04) — document-generator-library.js.
+  lien_waiver:          { needs: ['address'], label: 'Lien Waiver', msg: 'Add the property address first.' },
+  right_to_cancel:      { needs: ['address'], label: 'Right to Cancel', msg: 'Add the property address first.' },
+  material_selection:   { needs: ['address'], label: 'Material & Color Selection', msg: 'Add the property address first.' },
+  proposal_options:     { needs: ['estimate'], label: 'Good-Better-Best Options', msg: 'Build an estimate first — its package prices fill the page.' },
+  insurance_next_steps: { needs: ['address'], label: 'Insurance Next Steps', msg: 'Add the property address first.' }
 };
 
 function getCustomerDocData() {
@@ -1968,6 +1974,10 @@ function getCustomerDocData() {
     // warranty certificates and proposals claimed GAF Timberline on TAMKO
     // jobs. buildDocLineItems reads both shapes at the RETAIL ladder.
     estimateLineItems: (window.NBDCustomerEstimateRows?.buildDocLineItems?.(est)) || est?.lineItems || [],
+    // Every package price the estimate saved + the one it was quoted at
+    // (Good-Better-Best options page, 2026-10-04).
+    tierPrices: (est && est.prices && typeof est.prices === 'object') ? est.prices : null,
+    selectedTier: est ? (est.selectedTier || est.tier || '') : '',
 
     // Property
     roofAge: lead.roofAge || '', roofType: lead.roofType || '',
@@ -2161,7 +2171,15 @@ window._DOC_TEMPLATE_CATALOG = [
   { type:'warranty_certificate',      icon:'🛡', name:'Warranty Certificate',     desc:'Branded warranty with tier details',        cats:['closeout'],          kw:'warranty guarantee coverage tier' },
   { type:'certificate_of_completion', icon:'🏆', name:'Certificate of Completion',desc:'Final sign-off & completion record',        cats:['closeout'],          kw:'completion final sign-off coc finish done' },
   { type:'invoice',                   icon:'💰', name:'Invoice',                  desc:'Professional payment invoice',              cats:['closeout'],          kw:'bill payment pay due balance receipt' },
-  { type:'change_order',              icon:'🔄', name:'Change Order',             desc:'Scope or price modification form',          cats:['install'],           kw:'change order co modify modification scope price' },
+  { type:'receipt',                   icon:'🧾', name:'Receipt',                  desc:'Proof of payment for money received',       cats:['closeout'],          kw:'receipt paid payment proof thank' },
+  { type:'change_order',              icon:'🔄', name:'Change Order',             desc:'Scope or price modification form',          cats:['install'],           kw:'change order co modify modification scope price', draft:true },
+  // Template library (2026-10-04). draft:true = Jo's attorney has not yet
+  // reviewed it: the card says so here, never on the customer's copy.
+  { type:'lien_waiver',               icon:'🔐', name:'Lien Waiver',              desc:'Conditional / unconditional, progress / final (OH & KY)', cats:['closeout','claim'], kw:'lien waiver release mortgage check endorse conditional unconditional progress final', draft:true },
+  { type:'right_to_cancel',           icon:'⏱️', name:'Right to Cancel',          desc:'3-business-day cancellation notice + forms', cats:['sales'],          kw:'cancel cancellation rescind 3 day three day notice home solicitation ftc cooling off', draft:true },
+  { type:'material_selection',        icon:'🎨', name:'Material & Color Selection', desc:'Shingle, drip edge, vents, gutters — homeowner sign-off', cats:['sales','install'], kw:'color colour shingle drip edge vent gutter selection materials sign off' },
+  { type:'proposal_options',          icon:'⚖️', name:'Good-Better-Best Options', desc:'One-page comparison of every priced package', cats:['sales'],             kw:'good better best tiers options compare comparison packages economy beyond' },
+  { type:'insurance_next_steps',      icon:'📬', name:'Insurance Next Steps',     desc:'Homeowner letter: who does what on an insurance job', cats:['claim','inspection'], kw:'insurance claim letter next steps scope adjuster homeowner kentucky' },
   { type:'before_after_report',       icon:'📷', name:'Before & After Report',    desc:'Visual transformation with photos',         cats:['closeout','sales'],  kw:'before after photos comparison transformation review' },
   { type:'financing_options',         icon:'💳', name:'Financing Options',        desc:'Payment plan options for customer',         cats:['sales'],             kw:'finance financing loan payment plan monthly' },
   { type:'company_intro',             icon:'🏠', name:'Company Introduction',     desc:'About us packet for new prospects',         cats:['sales'],             kw:'about us intro company brochure packet new prospect' },
@@ -2236,6 +2254,7 @@ function _renderDocCreateGrid(filter) {
       + '<div class="ct-icon">' + t.icon + '</div>'
       + '<div class="ct-title-sm">' + esc(t.name) + '</div>'
       + '<div class="ct-sub">' + esc(t.desc) + '</div>'
+      + (t.draft ? '<div class="dt-draft-badge" data-attorney-review="true">DRAFT — have your attorney review before first use</div>' : '')
       + '</div>';
   }).join('');
 }

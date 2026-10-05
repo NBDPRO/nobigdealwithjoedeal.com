@@ -20,6 +20,13 @@
   function hide(el) { el.style.display = 'none'; }
 
   const ref = getRef();
+  // The referrer's personal code (review-engine.js puts it on the link the
+  // review ask carries, 2026-10-03). Passed through as-is; the server only
+  // honours it when it is THIS referrer's own code.
+  const code = (function () {
+    try { return (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24); }
+    catch (e) { return ''; }
+  })();
   // White-label (2026-07-19): portal.js appends &co=<tenant name> for non-NBD
   // tenants so this landing page brands itself. textContent only (never HTML),
   // length-capped; absent param -> NBD literals untouched.
@@ -43,6 +50,20 @@
     return;
   }
   show(form);
+
+  // Count the open for the owner's referral numbers (2026-10-04,
+  // functions/referral-clicks.js) — once per browser session, a counter only;
+  // the answer is always 204, so the page learns nothing about the code.
+  try {
+    const k = 'nbd_ref_open_' + ref;
+    if (!sessionStorage.getItem(k)) {
+      sessionStorage.setItem(k, '1');
+      fetch(FUNCTIONS_BASE + '/referralLinkOpened', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref: ref }), keepalive: true,
+      }).catch(function () {});
+    }
+  } catch (e) { /* storage blocked or offline: the open just is not counted */ }
 
   // show() on every message: the clear at the top of each submit sets an INLINE
   // display:none, which beats the .status.error { display:block } class — so
@@ -83,7 +104,7 @@
         method: 'POST',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ref, firstName, lastName, phone, email, address, notes }),
+        body: JSON.stringify(Object.assign({ ref, firstName, lastName, phone, email, address, notes }, code ? { code } : {})),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {

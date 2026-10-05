@@ -358,7 +358,11 @@ const CASES = [
   { fn: 'sendEsignEnvelope', file: 'esign-envelope.js', kind: 'call', data: { envelopeId: 'env-123456', signerName: 'Sam', signerEmail: 'sam@example.com' } },
   { fn: 'voidEsignEnvelope', file: 'esign-envelope.js', kind: 'call', data: { envelopeId: 'env-123456' } },
   { fn: 'createSignRequest', file: 'remote-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1', signerEmail: 'sam@example.com', signerName: 'Sam' } },
-  { fn: 'sendEstimateForSignature', file: 'integrations/esign.js', kind: 'call', data: { estimateId: 'est-1', signerName: 'Sam', signerEmail: 'sam@example.com', html: '<p>' + 'x'.repeat(200) + '</p>' } },
+  // 2026-10-03: in-person signing moves the card + drafts the deposit invoice.
+  { fn: 'recordInPersonSignature', file: 'in-person-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' } },
+  // 2026-10-04: BoldSign's sendEstimateForSignature retired; the estimate's
+  // send-for-signature is the in-house sendEstimateEnvelope.
+  { fn: 'sendEstimateEnvelope', file: 'esign-envelope.js', kind: 'call', data: { estimateId: 'est-1', signers: [{ name: 'Sam', email: 'sam@example.com' }] } },
   { fn: 'createDealAcceptToken', file: 'deal-acceptance.js', kind: 'call', data: { dealId: 'deal-123456' } },
   { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' } },
   { fn: 'createEstimateReviewLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1' } },
@@ -403,10 +407,18 @@ const COMPLETE_CASES = [
   { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' },
     seed: (who) => ({ 'reports/report-123456': { userId: who.uid, companyId: who.token.companyId || who.uid, html: '<p>Inspection</p>', type: 'inspection report' } }),
     done: 'write:report_share_tokens/', value: (v) => !!v && typeof v.token === 'string' && !!v.shareUrl },
+  // In-person signing: the caller's own lead + a signed contract under it →
+  // the spine's job_events marker is written and the card moves.
+  { fn: 'recordInPersonSignature', file: 'in-person-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' },
+    seed: (who) => Object.assign(ownLead(who), { 'leads/lead-1/documents/doc-1': { type: 'contract', status: 'signed', signedAt: '2026-10-03T15:00:00Z', signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner', signedAt: 1 }] } }),
+    done: 'write:job_events/', value: (v) => !!v && v.ok === true && v.moved === true && v.to === 'contract_signed' },
   { fn: 'createCalendarFeedToken', file: 'calendar-feed.js', kind: 'call', data: {},
     done: 'write:calendar_feed_tokens/', value: (v) => !!v && typeof v.token === 'string' },
-  { fn: 'trackUsage', file: 'billing.js', kind: 'call', data: { feature: 'leads' },
-    done: 'write:subscriptions/', value: (v) => !!v && v.feature === 'leads' && v.usage === 1 },
+  // 'reports': leads are metered by the server's create trigger since
+  // 2026-10-04 (functions/lead-cap.js), so trackUsage('leads') reports the
+  // meter without writing; the other features still count here.
+  { fn: 'trackUsage', file: 'billing.js', kind: 'call', data: { feature: 'reports' },
+    done: 'write:subscriptions/', value: (v) => !!v && v.feature === 'reports' && v.usage === 1 },
 ];
 
 // ── Section C: the sweep. Every exported callable / HTTP function ───────
@@ -426,19 +438,29 @@ const VERDICTS = {
   assignStripeTransaction: 'role-gated', getStripeOverview: 'role-gated', stripeLedgerSync: 'role-gated',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
+  // Social Studio (2026-10-04): requireSocialManager refuses viewer / rep / manager.
+  socialEligibleJobs: 'role-gated', socialDraftFromJob: 'role-gated', socialPlanWeeks: 'role-gated', socialApprovePost: 'role-gated',
+  // Re-encoded social media copies by unguessable key (Meta fetches these).
+  socialMedia: 'public',
+  // Reel Studio (2026-10-04): the same requireSocialManager gate (viewer / rep / manager refused).
+  reelStartUpload: 'role-gated', reelJobMedia: 'role-gated', reelCreate: 'role-gated', reelConfirmPrivacy: 'role-gated',
+  reelApplyBlur: 'role-gated', reelRetry: 'role-gated', reelToPosts: 'role-gated', reelAiImagePost: 'role-gated',
   attachStormProof: 'refused', backfillAnalytics: 'refused', claimInvite: 'self',
   cleanupE2ETestData: 'role-gated', convertUnmatchedSms: 'role-gated',
   createCalendarFeedToken: 'refused', createCompany: 'self', createConnectAccount: 'role-gated',
   createConnectDashboardLink: 'role-gated', createConnectOnboardingLink: 'role-gated',
   createDealAcceptToken: 'refused', createEsignEnvelope: 'refused', createPortalToken: 'refused',
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
+  recordInPersonSignature: 'refused',
   // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.
   createEstimateReviewLink: 'refused', recordEstimateShared: 'refused', freshEstimateLink: 'refused',
+  // Job-day weather (production flow, 2026-10-04): owner-only via requireOwner, like the other Google-calendar callables.
+  getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', getAdjusterTacticBoard: 'read',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
-  getHailHistory: 'read-paid', getSwathReport: 'role-gated', getSwathUsage: 'role-gated',
+  getHailHistory: 'read-paid',
   integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
@@ -447,11 +469,17 @@ const VERDICTS = {
   reserveCompanyPrefix: 'self', resolveAddress: 'refused', reverifyCompanyKnocks: 'role-gated',
   revokeMySessions: 'self', revokePortalToken: 'refused', rotateAccessCodes: 'role-gated',
   runMigrations: 'role-gated', saveEsignFields: 'refused', sendEsignEnvelope: 'refused',
-  sendEstimateForSignature: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
-  setSiteSlug: 'role-gated', trackUsage: 'refused', transcribeVoiceMemo: 'refused',
+  sendEstimateEnvelope: 'refused', sendVerificationCode: 'public', setCompanySeatCount: 'role-gated',
+  setSiteSlug: 'role-gated',
+  // Publish my site (2026-10-04): requireTeamAdmin ownerOnly — owner / platform admin.
+  publishTenantSite: 'role-gated',
+  trackUsage: 'refused', transcribeVoiceMemo: 'refused',
   updateUserRole: 'role-gated', validateAccessCode: 'public', verifyCode: 'public',
-  // Bot keys (agent-mcp.js requireKeyAdmin refuses viewer / sales_rep).
-  createAgentKey: 'role-gated', listAgentKeys: 'role-gated', revokeAgentKey: 'role-gated',
+  // Bot keys (agent-mcp.js requireKeyAdmin refuses viewer / sales_rep). Since
+  // 2026-10-04 anyone may list and revoke their OWN keys (personal tracker
+  // keys); company bots, keys for them and the bot settings stay owner/admin.
+  createAgentKey: 'role-gated', listAgentKeys: 'self', revokeAgentKey: 'self',
+  saveAgentBot: 'role-gated', deleteAgentBot: 'role-gated', saveAgentSettings: 'role-gated',
   voidEsignEnvelope: 'refused',
   // Thursday (Bland receptionist, #1783/#1787, classified when #1780 landed
   // 2026-09-27): the recording stream reads only; the inbox action refuses
@@ -466,10 +494,27 @@ const VERDICTS = {
   callTaggedMatch: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
+  // Tenant-ready (2026-10-04, tenant-ops.js): the admin Tenants list is
+  // platform-admin only; the company export and logo upload go through
+  // requireTeamAdmin (owner / company_admin of the caller's own company);
+  // /tenant-logo/** serves public logos.
+  adminListTenants: 'role-gated', exportCompanyData: 'role-gated', uploadCompanyLogo: 'role-gated',
+  tenantLogo: 'public',
+  // "Brief me" (lead-brief.js, 2026-10-04): returns a summary of a lead the
+  // caller may already READ (canReadLead mirrors the /leads read rule, which
+  // admits a same-company viewer). Writes only the server-derived cache and
+  // the per-uid daily quota (lead_brief_quota caps fresh AI generations), so
+  // a viewer reading a customer may be briefed on it.
+  leadBrief: 'read-paid',
   // HTTP functions
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
-  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public', esignWebhook: 'public',
+  createStripePaymentLink: 'refused', cspReport: 'public', clientError: 'public', emailUnsubscribe: 'public',
+  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
+  getCalendarFeed: 'public', getDealRoom: 'public', getDealPhoto: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
+  createStripePaymentLink: 'refused', cspReport: 'public', emailUnsubscribe: 'public',
+  // The signer's Decline button (2026-10-04): token-authed like getEsignEnvelope.
+  declineEsignEnvelope: 'public',
   getCalendarFeed: 'public', getDealRoom: 'public', getEsignEnvelope: 'public', getEstimateForView: 'public',
   getGoogleReviews: 'public', getHomeownerPortalView: 'public', getPortalDocumentHtml: 'public',
   getPortalMessages: 'public', getPublicSiteConfig: 'public', getSharedReport: 'public',
@@ -481,7 +526,8 @@ const VERDICTS = {
   sendQueuedSMS: 'refused', sendSMS: 'refused', setStorageCors: 'role-gated', shareSSR: 'public',
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
   submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
-  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public', swathWebhook: 'public',
+  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', referralLinkOpened: 'public', submitSignature: 'public',
+  submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
   // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup
   // (Bland's bearer token, no signed-in user).

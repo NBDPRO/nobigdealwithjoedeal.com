@@ -37,7 +37,11 @@ function buildConvertedLead({ from, body, phoneDigits, ownerUid, companyId, unma
     phone: typeof from === 'string' ? from : '',
     phoneDigits: typeof phoneDigits === 'string' ? phoneDigits : '',
     address: '',
-    stage: 'New',
+    // Canonical key + role (2026-10-04 numbers audit: 64 leads stored the
+    // legacy display name 'New' and 62 had no stageRole). Migration 008
+    // heals the ones already written.
+    stage: 'new',
+    stageRole: 'new',
     status: 'new',
     source: 'Inbound SMS',
     notes: String(body == null ? '' : body).slice(0, 2000),

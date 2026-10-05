@@ -247,6 +247,21 @@
   // retried — or started late by company-profile.js itself — left the
   // built-in stages up all session (2026-09-25, lane profretry).
   window.addEventListener('nbd:company-profile-loaded', () => { applyPipelineConfig(); });
+  // New-owner setup checklist (2026-10-05, boot budget): lazy ScriptLoader
+  // 'setup' bundle, fetched only for a company that isn't NBD's own — NBD
+  // never shows it. tenant-rules.js is eager, so isPlatformTenant() is
+  // defined by the time the profile lands. The checklist paints on arrival.
+  const _loadSetupChecklist = () => {
+    const TR = window.NBDTenantRules;
+    const SL = window.ScriptLoader;
+    if (!TR || typeof TR.isPlatformTenant !== 'function' || TR.isPlatformTenant()) return;
+    if (!SL || typeof SL.loadBundle !== 'function') return;
+    SL.loadBundle('setup').then(() => {
+      if (window.NBDSetupChecklist) window.NBDSetupChecklist.refresh();
+    }).catch(() => { /* loader never rejects; belt only */ });
+  };
+  window.addEventListener('nbd:company-profile-loaded', _loadSetupChecklist);
+  if (window._companyProfileLoaded === true) _loadSetupChecklist();
   window.stageOptionsForType = stageOptionsForType;
   window.inferJobType = inferJobType;
   window.suggestJobType = suggestJobType; // "Sort my customers" (sort-customers.js)
@@ -2419,7 +2434,7 @@
       // ALLOWLIST, not passthrough: switchSettingsTab() hides EVERY .stab-panel
       // and then shows one only `if (panel)`, so an unrecognised value from the
       // URL leaves the user staring at a blank Settings screen.
-      const SETTINGS_TABS = ['access', 'ai-texting', 'appearance', 'billing', 'company',
+      const SETTINGS_TABS = ['access', 'ai-texting', 'appearance', 'billing', 'bots', 'company',
         'company-profile', 'daily', 'estimates', 'help', 'notifications', 'pipelines',
         'profile', 'team'];
       const wantTab = String(urlParams.get('settings') || '').toLowerCase();
@@ -3351,6 +3366,9 @@
         stage: 'New',
         createdAt: serverTimestamp(),
         deleted: false,
+        // A rules probe, not a real lead: metered against the sample
+        // allowance so it never eats the plan's monthly cap.
+        meter: 'sample',
         _test: true
       });
       results.push(`✅ Write leads: Success (id: ${testDoc.id})`);
@@ -3689,6 +3707,7 @@
                   ...data,
                   createdAt: serverTimestamp(),
                   stageStartedAt: serverTimestamp(),
+                  meter: 'manual', // server lead meter (firestore.rules leadMeterOk)
                   userId: window._user?.uid,
                   companyId: window._userClaims?.companyId || window._user?.uid || null
                 });
@@ -3788,6 +3807,7 @@
           ...data,
           createdAt: serverTimestamp(),
           stageStartedAt: serverTimestamp(),
+          meter: 'manual', // server lead meter (firestore.rules leadMeterOk)
           userId: window._user?.uid,
           companyId: window._userClaims?.companyId || window._user?.uid || null
         });
@@ -4007,7 +4027,7 @@
   window.loadEstimates = loadEstimates;
 
   // B3: Live Firestore listener for estimates. Wire-once on auth.
-  // BoldSign webhooks land on the server, flip
+  // E-sign envelope events (functions/esign-io.js syncEstimate) flip
   // estimates/{id}.signatureStatus → the snapshot fires → UI rerenders.
   // Handles create + update + delete. Idempotent re-subscribe safe.
   let _estimatesUnsub = null;
@@ -4811,11 +4831,9 @@
   function _paintDeviceEstimateInputs(s) {
     const byId = (id) => document.getElementById(id);
 
-    // Five tiers (2026-10-02). Defaults come from estimate-config.js, never
-    // a literal here (the old 545/595/660 literals outlived the repricing).
-    const _cfgRates = (window.NBD_ESTIMATE_CONFIG && window.NBD_ESTIMATE_CONFIG.TIER_RATES) || {};
+    // Cost basis stays per device. The tier RATES moved to the company half
+    // (2026-10-04, _paintCompanyEstimateInputs): they are company-wide now.
     for (const [t, id] of [['economy', 'Economy'], ['good', 'Good'], ['better', 'Better'], ['best', 'Best'], ['beyond', 'Beyond']]) {
-      if (byId('v2rate' + id)) byId('v2rate' + id).value = s.tierRates?.[t] ?? _cfgRates[t] ?? '';
       if (byId('v2cost' + id)) byId('v2cost' + id).value = s.costBasis?.[t] ?? 0;
     }
 
@@ -4849,6 +4867,19 @@
     const ids = ['defTaxRate'];
 
     if (byId('defTaxRate'))    byId('defTaxRate').value    = ((s.fallbackTaxRate ?? 0.07) * 100).toFixed(2);
+
+    // Package prices are COMPANY-WIDE (2026-10-04). They used to be saved
+    // only to this device's localStorage — wiped at sign-out, dropped on a
+    // rate-generation bump, invisible to every other rep. The resolved
+    // settings already carry companyProfile.pricing.tierRates over the
+    // device copy and the config (applyCompanyPricing), so paint those.
+    const _cfgRates = (window.NBD_ESTIMATE_CONFIG && window.NBD_ESTIMATE_CONFIG.TIER_RATES) || {};
+    const _cpRates = (window._companyProfile && window._companyProfile.pricing && window._companyProfile.pricing.tierRates) || {};
+    for (const [t, id] of [['economy', 'Economy'], ['good', 'Good'], ['better', 'Better'], ['best', 'Best'], ['beyond', 'Beyond']]) {
+      ids.push('v2rate' + id);
+      const _cpR = _cpRates[t];
+      if (byId('v2rate' + id)) byId('v2rate' + id).value = (_cpR != null && _cpR !== '' && Number.isFinite(Number(_cpR))) ? _cpR : (s.tierRates?.[t] ?? _cfgRates[t] ?? '');
+    }
 
     // Permit costs
     const permits = s.permits || {};
@@ -5437,6 +5468,10 @@
           && window._companyProfile.pricing.customJurisdictions) || {});
         const pricing = {};
         if (addonReady) pricing.addonPrices = addonPrices;
+        // Package prices → the company (2026-10-04): every rep, every
+        // device, the V3 cards, the deal room and close board quote these.
+        // Same hydration gate as the add-on rates (painted from the profile).
+        if (addonReady) pricing.tierRates = patch.tierRates;
         if (customJurisdictions) pricing.customJurisdictions = customJurisdictions;
         // Upgrade prices ride the same company write (2026-09-25), so Save
         // All never silently discards an edit made in that panel — the
@@ -5623,6 +5658,9 @@
           'pricing.permits': {},
           'pricing.countyTax': {},
           'pricing.fallbackTaxRate': null,
+          // Package prices are company-wide since 2026-10-04 — a factory
+          // reset clears the company's copy too, or it would win at calc time.
+          'pricing.tierRates': {},
         });
         // Only into THAT tenant's copy: the account can change while the
         // write is out (offline, until reconnect).
@@ -5631,6 +5669,7 @@
           window._companyProfile.pricing.permits = {};
           window._companyProfile.pricing.countyTax = {};
           window._companyProfile.pricing.fallbackTaxRate = null;
+          window._companyProfile.pricing.tierRates = {};
         }
       } catch (e) {
         tenantResetFailed = true;
@@ -6047,14 +6086,61 @@
     const key = _siteCompanyKey();
     if (!key || !db) return;
     let slug = '';
+    let co = null;
     try {
       const snap = await getDoc(doc(db, 'companies', key));
-      if (snap.exists()) slug = (snap.data() || {}).siteSlug || '';
+      if (snap.exists()) { co = snap.data() || {}; slug = co.siteSlug || ''; }
     } catch (_) { /* solo owners may have no doc yet */ }
     const input = document.getElementById('cp_siteSlug');
     if (input) input.value = slug;
     _renderSiteLink(slug);
+    _renderSitePublishState(co);
   }
+
+  // ── Publish my site (2026-10-04) ──────────────────────────────────
+  // Mirrors functions/handlers/public-site.js isPublishedCompany: live only
+  // when status is 'active' AND sitePublished is true — or, for a tenant that
+  // predates the flag, absent. The flag is server-written (publishTenantSite);
+  // firestore.rules refuse a client write, so this panel only reads it.
+  function _sitePublishedFromDoc(co) {
+    if (!co || String(co.status || '') !== 'active') return false;
+    if (!Object.prototype.hasOwnProperty.call(co, 'sitePublished')) return true;
+    return co.sitePublished === true;
+  }
+  function _renderSitePublishState(co) {
+    const status = document.getElementById('cp-site-status');
+    const pubBtn = document.getElementById('cp-site-publish-btn');
+    const unpubBtn = document.getElementById('cp-site-unpublish-btn');
+    if (!status) return;
+    const live = _sitePublishedFromDoc(co);
+    status.classList.toggle('is-live', live);
+    status.textContent = live
+      ? '✓ Your site is published — anyone with the link above can see it.'
+      : 'Your site is private. Add your brand name, phone and service area above, save, then publish it.';
+    if (pubBtn) pubBtn.hidden = live || !co;
+    if (unpubBtn) unpubBtn.hidden = !live;
+  }
+  async function _callPublishTenantSite(publish) {
+    if (!(window._functions && window._httpsCallable)) {
+      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      window._functions = window._functions || mod.getFunctions();
+      await connectEmulatorsIfLocal({ functions: window._functions }); // no-op in prod
+      window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+    }
+    const fn = window._httpsCallable(window._functions, 'publishTenantSite');
+    try {
+      await fn({ publish: publish });
+      if (typeof showToast === 'function') {
+        showToast(publish ? '✓ Your site is published' : 'Your site is private again', 'success');
+      }
+    } catch (e) {
+      // failed-precondition carries the human "add your phone, service area…" message.
+      if (typeof showToast === 'function') showToast((e && e.message) || 'Could not change your site', 'error');
+    }
+    await _loadSiteSlug().catch(() => {});
+  }
+  const _publishSite = function () { return _callPublishTenantSite(true); };
+  const _unpublishSite = function () { return _callPublishTenantSite(false); };
   const _saveSiteSlug = async function () {
     const input = document.getElementById('cp_siteSlug');
     const msg = document.getElementById('cp-slug-msg');
@@ -6072,7 +6158,7 @@
       if (input) input.value = out.slug || '';
       _renderSiteLink(out.slug);
       if (msg) {
-        msg.textContent = out.slug ? '✓ Address saved — your site is live at the link above' : '✓ Custom address cleared — the account-id link still works';
+        msg.textContent = out.slug ? '✓ Address saved — your site uses the link above once it is published' : '✓ Custom address cleared — the account-id link still works';
         msg.style.color = 'var(--green)';
         msg.style.display = 'block';
         setTimeout(() => { msg.style.display = 'none'; }, 4000);
@@ -6370,6 +6456,13 @@
     if (typeof showToast === 'function') showToast('✓ ' + filename + ' downloaded.', 'success');
   }
 
+  // Export file names carry the COMPANY (2026-10-04): 'nbd-…' for NBD as
+  // before, the company's own name for everyone else (tenant-rules.js).
+  function _exportPrefix() {
+    const TR = window.NBDTenantRules;
+    return (TR && typeof TR.filePrefix === 'function') ? TR.filePrefix() : 'nbd';
+  }
+
   const _exportAllData = function () {
     const leads = (window._leads || []).map(l => ({
       id:         l.id,
@@ -6391,7 +6484,7 @@
       createdAt:  l.createdAt?.toDate?.()?.toISOString() || '',
       updatedAt:  l.updatedAt?.toDate?.()?.toISOString() || ''
     }));
-    _downloadCsv(leads, 'nbd-leads-' + new Date().toISOString().slice(0, 10) + '.csv');
+    _downloadCsv(leads, _exportPrefix() + '-leads-' + new Date().toISOString().slice(0, 10) + '.csv');
   };
 
   const _exportEstimates = function () {
@@ -6406,7 +6499,7 @@
       leadId:      e.leadId || '',
       createdAt:   e.createdAt?.toDate?.()?.toISOString() || ''
     }));
-    _downloadCsv(rows, 'nbd-estimates-' + new Date().toISOString().slice(0, 10) + '.csv');
+    _downloadCsv(rows, _exportPrefix() + '-estimates-' + new Date().toISOString().slice(0, 10) + '.csv');
   };
 
   // Photos ZIP — we don't bundle every photo blob client-side (too
@@ -6431,7 +6524,7 @@
           uploadedAt: p.uploadedAt?.toDate?.()?.toISOString() || (p.capturedAt ? new Date(p.capturedAt).toISOString() : '')
         };
       });
-      _downloadCsv(rows, 'nbd-photos-manifest-' + new Date().toISOString().slice(0, 10) + '.csv');
+      _downloadCsv(rows, _exportPrefix() + '-photos-manifest-' + new Date().toISOString().slice(0, 10) + '.csv');
     } catch (e) {
       console.error('export photos failed:', e);
       if (typeof showToast === 'function') showToast('Export failed: ' + e.message, 'error');
@@ -6527,6 +6620,8 @@ Object.assign(window.__NBD_CALL_REGISTRY, {
   // The My Jurisdictions failure message's "↻ Try again" (2026-09-25).
   _retryJurisdictions: _retryJurisdictions,
   _saveSiteSlug: _saveSiteSlug,
+  _publishSite: _publishSite,
+  _unpublishSite: _unpublishSite,
   _saveCompanyProfileSettings: _saveCompanyProfileSettings,
   _resetCompanyProfileSettings: _resetCompanyProfileSettings,
   _exportAllData: _exportAllData,

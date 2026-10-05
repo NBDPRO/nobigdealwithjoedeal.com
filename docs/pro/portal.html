@@ -411,60 +411,80 @@
   }
   footer a { color: var(--nbd-orange); text-decoration: none; }
 
-  /* ── Project progress timeline ─────────────────────────────────── */
+  /* ── Project progress tracker (9 steps, 2026-10-03) ──────────────
+     Phone-first: the current step + "N of 9 done", a 9-segment bar, the
+     step's sentence, its one action, the next step; the full list sits in a
+     native <details>. Every state is a data-state attribute, so the render
+     carries no inline style (CSP + the inline-style ratchet). Tap targets
+     (summary, list rows, actions) are 44px. */
   .progress-card{ overflow:hidden; }
-  .progress-track{
-    display:flex; align-items:flex-start; justify-content:space-between;
-    margin-top: var(--nbd-space-4); gap: var(--nbd-space-2);
-    position:relative;
+  .progress-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    gap: var(--nbd-space-3); flex-wrap:wrap;
   }
-  .progress-track::before{
-    content:''; position:absolute; top:13px; left:14px; right:14px;
-    height:3px; background: var(--nbd-line); border-radius:2px;
-    z-index:0;
+  .progress-count{
+    font-size: var(--nbd-text-sm); font-weight:700; color: var(--nbd-ink-subtle);
+    white-space:nowrap;
   }
-  .progress-track-fill{
-    position:absolute; top:13px; left:14px; height:3px;
-    background: linear-gradient(90deg, var(--nbd-orange), var(--nbd-success));
-    border-radius:2px; z-index:1;
-    transition: width .4s cubic-bezier(.16,1,.3,1);
+  .progress-bar{ display:flex; gap:4px; margin-top: var(--nbd-space-3); }
+  .progress-seg{ flex:1; height:6px; border-radius:3px; background: var(--nbd-line); }
+  .progress-seg[data-state="done"]{ background: var(--nbd-success); }
+  .progress-seg[data-state="current"]{ background: var(--nbd-orange); }
+  .progress-seg[data-state="skipped"]{ opacity:.4; }
+  .progress-blurb{
+    margin: var(--nbd-space-3) 0 0; font-size: var(--nbd-text-md);
+    line-height:1.5; color: var(--nbd-ink);
   }
-  .progress-step{
-    flex:1; text-align:center; position:relative; z-index:2;
-    min-width:0;
+  .progress-paid{
+    margin: var(--nbd-space-2) 0 0; font-size: var(--nbd-text-sm);
+    font-weight:700; color: var(--nbd-ink);
   }
+  .progress-actions{
+    display:flex; flex-wrap:wrap; gap: var(--nbd-space-2);
+    margin-top: var(--nbd-space-3);
+  }
+  .progress-action{
+    min-height:44px; display:inline-flex; align-items:center; justify-content:center;
+  }
+  .progress-all{ margin-top: var(--nbd-space-3); }
+  .progress-all > summary{
+    min-height:44px; display:flex; align-items:center; cursor:pointer;
+    font-size: var(--nbd-text-sm); font-weight:700; color: var(--nbd-orange);
+    list-style:none;
+  }
+  .progress-all > summary::-webkit-details-marker{ display:none; }
+  .progress-all > summary::after{ content:'▾'; margin-left:6px; }
+  .progress-all[open] > summary::after{ content:'▴'; }
+  .progress-list{ list-style:none; margin:0; padding:0; }
+  .progress-item{
+    display:flex; align-items:center; gap: var(--nbd-space-3);
+    min-height:44px; border-top:1px solid var(--nbd-line);
+  }
+  .progress-item-label{
+    flex:1; min-width:0; font-size: var(--nbd-text-sm); font-weight:600;
+    color: var(--nbd-ink-subtle);
+  }
+  .progress-item[data-state="done"] .progress-item-label,
+  .progress-item[data-state="current"] .progress-item-label{ color: var(--nbd-ink); }
+  .progress-item[data-state="current"] .progress-item-label{ font-weight:800; }
   .progress-dot{
-    width:28px; height:28px; border-radius:50%;
-    margin:0 auto var(--nbd-space-2); display:flex; align-items:center; justify-content:center;
+    flex:none; width:28px; height:28px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
     background: var(--nbd-bg-elevated); border: 2px solid var(--nbd-line);
     font-size: var(--nbd-text-sm); font-weight:800; color: var(--nbd-ink-subtle);
-    transition:all .2s;
   }
-  .progress-step.done .progress-dot{
+  .progress-item[data-state="done"] .progress-dot{
     background: var(--nbd-success); border-color: var(--nbd-success); color:#fff;
   }
-  .progress-step.current .progress-dot{
+  .progress-item[data-state="current"] .progress-dot{
     background: var(--nbd-orange); border-color: var(--nbd-orange); color:#fff;
-    box-shadow:0 0 0 6px var(--nbd-orange-glow);
-    animation:progress-pulse 2s ease-in-out infinite;
+    box-shadow:0 0 0 4px var(--nbd-orange-glow);
   }
-  @keyframes progress-pulse {
-    0%,100% { box-shadow: 0 0 0 6px var(--nbd-orange-glow); }
-    50%     { box-shadow: 0 0 0 9px rgba(189,87,40,.12); }
-  }
-  .progress-step-label{
-    font-size: var(--nbd-text-xs); font-weight:700; color: var(--nbd-ink-subtle);
-    letter-spacing: var(--nbd-tracking-wide); line-height:1.2;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  .progress-step.done .progress-step-label,
-  .progress-step.current .progress-step-label{ color: var(--nbd-ink); }
-  /* Only completed steps carry one (see portal.js's render — the current
-     step's date isn't known yet, future steps have none). */
+  .progress-item[data-state="skipped"] .progress-dot{ border-style:dashed; }
+  /* Only finished steps carry one (the current step isn't done yet). */
   .progress-step-date{
-    font-size:10px; font-weight:600; color: var(--nbd-ink-subtle);
-    margin-top:2px; line-height:1.2;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size: var(--nbd-text-xs); font-weight:600; color: var(--nbd-ink-subtle);
+    white-space:nowrap;
   }
   .progress-next{
     margin-top: var(--nbd-space-4); padding: var(--nbd-space-3) var(--nbd-space-4);
@@ -495,41 +515,15 @@
     font-weight:600; color: var(--nbd-ink-subtle);
   }
   .progress-schedule + .progress-next{ margin-top: var(--nbd-space-2); }
+  .progress-next-done{ background: transparent; border-color: var(--nbd-success); font-weight:700; }
   /* A week-planned job: the line plus what happens next (2026-09-29). */
   .progress-schedule-note{ margin-top: 4px; font-size: var(--nbd-text-sm, 13px); font-weight: 500; color: var(--nbd-ink-subtle); }
-  @media (max-width:520px){
-    /* Phone audit (2026-09-25): was font-size 9px with the base rule's
-       nowrap + ellipsis, so every phone got 9px milestone names and a 320px
-       phone — or the rep's Preview Portal modal, whose frame is 318px wide
-       at a 360 viewport — got "Inspect…", "Installa…", "Comple…". Now the
-       brand's condensed display face (the one every other small label on
-       this page uses) at 12px, untracked, with the track's 8px gaps handed
-       to the labels: "Installation", the longest, is 49px against a 55px
-       step at 360. At 340 and below it steps to 11px (45px against 47px in
-       the 318px preview frame), so no width a phone or the preview reaches
-       cuts a name. Wrapping stays on as the last resort for a longer tenant
-       label — a second line beats a lost ending. */
-    .progress-track{ gap:0; }
-    .progress-step-label{
-      font-family: var(--nbd-font-display); font-size:12px; letter-spacing:0;
-      white-space:normal; overflow:visible; text-overflow:clip;
-      overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto;
-    }
-    .progress-dot{ width:24px; height:24px; font-size:11px; }
-    .progress-track::before, .progress-track-fill{ top:11px; }
-    /* Too tight at this width for another line under the label — the
-       label + checkmark already carry the essential information. */
-    .progress-step-date{ display:none; }
-  }
-  @media (max-width:340px){
-    .progress-step-label{ font-size: var(--nbd-text-xs); }
-  }
 
   /* Print stylesheet (2026-09-16). A homeowner's real use case: handing an
      insurance adjuster a paper copy. Without this, the page printed as-is
      — interactive controls and all — which meant 6 pages, most of them
-     blank boxes, because a cross-origin iframe (the BoldSign/Cal.com
-     embeds) doesn't rasterize in browser print at all. nbd-brand.css
+     blank boxes, because a cross-origin iframe (the Cal.com embed; the
+     BoldSign one was retired 2026-10-04) doesn't rasterize in browser print at all. nbd-brand.css
      already swaps the color tokens for toner savings on print; this adds
      the missing LAYOUT half: strip everything a homeowner can't act on
      once it's on paper (embeds, buttons, form controls, the sandboxed
@@ -594,6 +588,6 @@
 <!-- Arrival-window wording for the install-date line (2026-09-29). Pure, no
      Firebase; before portal.js, which reads window.NBDScheduleWindow. -->
 <script defer src="js/schedule-window.js?v=2"></script>
-<script src="js/portal.js?v=6" defer></script>
+<script src="js/portal.js?v=8" defer></script>
 </body>
 </html>

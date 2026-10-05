@@ -66,12 +66,10 @@ exports.integrationStatus = onCall(
     if (!['admin', 'company_admin'].includes(callerRole)) {
       throw new HttpsError('permission-denied', 'Admin access required');
     }
-    // R-01: the RUNTIME-active rate-limit provider. Derived from
-    // both NBD_RATE_LIMIT_PROVIDER env AND whether the Upstash secrets
-    // are populated. 'firestore' means the hot-doc path is live —
-    // under 10k-user carrier-NAT load this is the documented R-01
-    // throughput ceiling. Admin-visible so post-deploy verification
-    // doesn't require grepping Cloud Logging.
+    // R-01: the RUNTIME-active rate-limit provider. Always 'firestore'
+    // since the never-provisioned Upstash adapter was removed 2026-10-04
+    // (VENDOR-COST-LOCKIN Lane C); kept in the payload so existing admin
+    // readouts and post-deploy checks keep their field.
     const { provider: rateLimitProvider } = require('../integrations/upstash-ratelimit');
     return {
       providers: _intProviders,
@@ -79,29 +77,19 @@ exports.integrationStatus = onCall(
         sentry:             _hasInt('SENTRY_DSN_FUNCTIONS'),
         slack:              _hasInt('SLACK_WEBHOOK_URL'),
         turnstile:          _hasInt('TURNSTILE_SECRET'),
-        upstash:            _hasInt('UPSTASH_REDIS_REST_URL') && _hasInt('UPSTASH_REDIS_REST_TOKEN'),
-        hover:              _hasInt('HOVER_API_KEY'),
         // Webhook secrets are tracked separately so admin can see when
         // the inbound webhook auth is missing without conflating it
         // with the API-key state.
-        hoverWebhook:       _hasInt('HOVER_WEBHOOK_SECRET'),
-        eagleview:          _hasInt('EAGLEVIEW_API_KEY'),
-        eagleviewWebhook:   _hasInt('EAGLEVIEW_WEBHOOK_SECRET'),
-        nearmap:            _hasInt('NEARMAP_API_KEY'),
         // Instant Roofer — coordinates-in AI measure (the default provider) and
         // the bearer token its human-report webhook presents
         // (integrations/measurement.js; runbooks/INSTANTROOFER-SETUP.md).
         instantroofer:      _hasInt('INSTANTROOFER_API_KEY'),
         instantrooferWebhook: _hasInt('INSTANTROOFER_WEBHOOK_SECRET'),
-        boldsign:           _hasInt('BOLDSIGN_API_KEY'),
-        boldsignWebhook:    _hasInt('BOLDSIGN_WEBHOOK_SECRET'),
+        // Google Solar API measure (integrations/solar-measure.js). 'auto' is
+        // usable when either provider is, since it falls back to Instant Roofer.
+        solar:              _hasInt('SOLAR_API_KEY'),
+        auto:               _hasInt('SOLAR_API_KEY') || _hasInt('INSTANTROOFER_API_KEY'),
         regrid:             _hasInt('REGRID_API_TOKEN'),
-        hailtrace:          _hasInt('HAILTRACE_API_KEY'),
-        // Swath (swathapi.com) — one API key serves both the hail-swath
-        // and parcel slots; the webhook secret is minted separately by
-        // POST /v1/monitors (runbooks/SWATH-SETUP.md).
-        swath:              _hasInt('SWATH_API_KEY'),
-        swathWebhook:       _hasInt('SWATH_WEBHOOK_SECRET'),
         calcom:             _hasInt('CALCOM_WEBHOOK_SECRET'),
         // Thumbtack lead/message/review webhook — Custom Header shared
         // token (no HMAC offered); receiver fails closed without it
@@ -113,13 +101,10 @@ exports.integrationStatus = onCall(
         bland:              _hasInt('BLAND_API_KEY'),
         blandWebhook:       _hasInt('BLAND_WEBHOOK_SECRET'),
         thursdayLookup:     _hasInt('THURSDAY_LOOKUP_TOKEN'),
-        // Voice transcription pair — Phase 1 uses Groq, Phase 2 may
-        // add Deepgram for native diarization on Pro+.
+        // Voice transcription — Groq Whisper (dictate, Voice Intelligence,
+        // call center); Deepgram backs only transcribeVoiceMemo.
         deepgram:           _hasInt('DEEPGRAM_API_KEY'),
         groq:               _hasInt('GROQ_API_KEY'),
-        // Image generation — kie.ai alternate visualizer provider
-        // (dark until IMAGEGEN_PROVIDER=kie; see visualizer-image-gen.js).
-        kie:                _hasInt('KIE_API_KEY'),
         // Healthchecks.io dead-man's-switch for every scheduled function
         // (integrations/heartbeat.js; runbooks/HEALTHCHECKS-SETUP.md).
         healthchecks:       _hasInt('HEALTHCHECKS_PING_KEY')
@@ -136,8 +121,9 @@ exports.integrationStatus = onCall(
 // ═══════════════════════════════════════════════════════════════
 // integrationAvailability — the non-admin-safe subset of integrationStatus.
 //
-// requestMeasurement / sendForSignature / lookupParcel (the only three
-// callers of requireConfigured() in docs/pro/js/integrations-client.js) need
+// requestMeasurement / lookupParcel (the callers of requireConfigured() in
+// docs/pro/js/integrations-client.js; e-sign left it with BoldSign on
+// 2026-10-04 — in-house signing needs no vendor key) need
 // to know whether their own gating provider is configured, but they run for
 // EVERY rep, not just admin/company_admin. integrationStatus is deliberately
 // admin-gated (H-06, above) to stop a free-tier caller from enumerating the
@@ -155,11 +141,8 @@ exports.integrationAvailability = onCall(
     timeoutSeconds: 10,
     memory: '256MiB',
     secrets: [
-      _intSecrets.HOVER_API_KEY,
-      _intSecrets.EAGLEVIEW_API_KEY,
-      _intSecrets.NEARMAP_API_KEY,
       _intSecrets.INSTANTROOFER_API_KEY,
-      _intSecrets.BOLDSIGN_API_KEY,
+      _intSecrets.SOLAR_API_KEY,
       _intSecrets.REGRID_API_TOKEN
     ]
   },
@@ -169,23 +152,22 @@ exports.integrationAvailability = onCall(
     }
     // No role check by design — this is the point of the callable: every
     // authenticated rep, not just admin/company_admin, needs this to light
-    // up their own Auto-measure / e-sign / parcel-lookup buttons.
+    // up their own Auto-measure / parcel-lookup buttons.
     return {
       // Which named provider is active per category — an env-var selection
       // (functions/integrations/_shared.js PROVIDERS), not a secret.
       // requestMeasurement() reads providers.measurement to know which of
-      // the four `configured` keys below gates its own call.
+      // the `configured` keys below gates its own call.
       providers: {
         measurement: _intProviders.measurement,
-        esign: _intProviders.esign,
         parcel: _intProviders.parcel
       },
       configured: {
-        hover:         _hasInt('HOVER_API_KEY'),
-        eagleview:     _hasInt('EAGLEVIEW_API_KEY'),
-        nearmap:       _hasInt('NEARMAP_API_KEY'),
         instantroofer: _hasInt('INSTANTROOFER_API_KEY'),
-        boldsign:      _hasInt('BOLDSIGN_API_KEY'),
+        // requestMeasurement() gates on configured[providers.measurement], so
+        // the solar|auto values need their own keys here or the button refuses.
+        solar:         _hasInt('SOLAR_API_KEY'),
+        auto:          _hasInt('SOLAR_API_KEY') || _hasInt('INSTANTROOFER_API_KEY'),
         regrid:        _hasInt('REGRID_API_TOKEN')
       }
     };

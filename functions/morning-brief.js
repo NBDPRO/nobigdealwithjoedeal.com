@@ -18,7 +18,15 @@
  *   invoices / leads/{id}/activity / leads/{id}/storm_proofs — per item
  * All decisions live in morning-brief-logic.js (pure).
  *
- * No appointments today → nothing is sent (logged only).
+ * No appointments today AND nothing else to say → nothing is sent (logged
+ * only). Since 2026-10-04 the brief is ONE morning email: when
+ * MORNING_BRIEF_ABSORB_ENABLED=true (morning-brief-absorb.js) it also carries
+ *   - New leads in the last 24h        (was dailyLeadDigest, 07:00)
+ *   - "You said you'd…"                (was callCenterSweep's 07:15 run)
+ *   - Ready for a review ask (owner)   (was reviewRequestNudge's 08:15 email;
+ *                                       the bell + once-ever mark are written here)
+ * and sends on a day with no appointments when any of those has content.
+ * Each appointment also gets ONE line from "Brief me" (lead-brief.js).
  *
  * Per-user opt-out: users/{owner}.morningBriefEnabled === false.
  * Ships DRY-RUN by default: unless MORNING_BRIEF_ENABLED=true on the
@@ -37,6 +45,11 @@ const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const SW = require('./schedule-window');
 const CF = require('./calendar-feed-logic');
 const MB = require('./morning-brief-logic');
+const Absorb = require('./morning-brief-absorb');
+// Brief me's model call needs the key bound on THIS function too.
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const MAX_BRIEF_LINES = 10;
+const PF = require('./production-flow-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
@@ -103,6 +116,26 @@ async function readDay(db, owner, nowMs, log) {
   } catch (e) {
     log.warn('morning_brief_jobs_read_failed', { err: e && e.message });
   }
+
+  // CRM-booked appointments (production flow, 2026-10-04): leads/{id}/tasks
+  // type:'event' (lead-events.js). Read by the owner's uid (single-field
+  // COLLECTION_GROUP index on tasks.userId) and fed in as appointments, today
+  // only, on the owner's own leads. Its own try, like the jobs read.
+  try {
+    const leadsById = new Map(leads.map((l) => [String(l.id), l]));
+    const ev = await db.collectionGroup('tasks').where('userId', '==', owner).get();
+    for (const d of snapDocs(ev)) {
+      const t = d.data() || {};
+      if (t.type !== 'event') continue;
+      const leadId = d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+      const lead = leadId ? leadsById.get(String(leadId)) : null;
+      if (!lead) continue;
+      const appt = CF.leadEventToAppointment(t, lead, leadId, d.id);
+      if (appt && appt.startTime >= fromMs && appt.startTime < toMs) appointments.push(appt);
+    }
+  } catch (e) {
+    log.warn('morning_brief_events_read_failed', { err: e && e.message });
+  }
   return { today, appointments, leads, jobs };
 }
 
@@ -136,6 +169,42 @@ async function readHistory(db, leadIds, tenantKeyOf, log) {
 }
 
 /**
+ * The absorbed sections (live + absorbing only). Each fails soft: one broken
+ * read must not cost Jo the rest of the brief.
+ */
+async function gatherSections({ db, owner, nowMs, log }) {
+  const soft = async (what, fn) => {
+    try { return await fn(); } catch (e) { log.warn('morning_brief_section_failed', { what, err: e && e.message }); return []; }
+  };
+  const [newLeads, promises, reviewAsks] = await Promise.all([
+    soft('new-leads', () => require('./lead-digest').gatherDigestRows(db, nowMs)),
+    soft('promises', async () => (await require('./call-center').gatherSweep({ db, nowMs })).items),
+    // Writes the owner's review bells + once-ever marks, exactly as the 08:15
+    // run would have (it skips the owner while this absorbs it).
+    soft('review-asks', async () => (await require('./review-request-nudge').nudgeUser(db, owner)).dueLeads),
+  ]);
+  return { newLeads, promises, reviewAsks };
+}
+
+/** "Brief me" one-liners for the day's appointment leads (cache → Haiku → fallback). */
+async function gatherBriefLines({ db, leadIds, leadsById, nowMs, log }) {
+  const out = {};
+  const { getBrief } = require('./lead-brief');
+  // The global AI kill switch turns these into the deterministic line.
+  let useAi = true;
+  try { useAi = !(await require('./integrations/killswitch').isAiDisabled()); } catch (_) { useAi = false; }
+  for (const id of leadIds.slice(0, MAX_BRIEF_LINES)) {
+    try {
+      const b = await getBrief({ db, leadId: id, lead: leadsById.get(id) || {}, nowMs, log, useAi });
+      if (b && b.oneLine) out[id] = b.oneLine;
+    } catch (e) {
+      log.warn('morning_brief_brief_line_failed', { leadId: id, err: e && e.message });
+    }
+  }
+  return out;
+}
+
+/**
  * One run. Every dependency is injected so tests drive it with fakes.
  * @param {object} deps
  * @param {object} deps.db           Firestore (or a fake)
@@ -144,12 +213,15 @@ async function readHistory(db, leadIds, tenantKeyOf, log) {
  * @param {function} deps.makeResend (apiKey) → { emails: { send } }
  * @param {object} deps.log          logger (info / warn / error)
  * @param {string} [deps.owner]      platform owner uid
+ * @param {function} [deps.sections]  ({db,owner,nowMs,log}) → {newLeads,promises,reviewAsks}
+ * @param {function} [deps.briefLines] ({db,leadIds,leadsById,nowMs,log}) → {leadId: line}
  * @returns {Promise<{status:string, items?:number, emailed?:boolean}>}
  */
 async function runMorningBrief(deps) {
   const { db, env = {}, nowMs, makeResend, log = logger } = deps || {};
   const owner = (deps && deps.owner) || OWNER;
   const enabled = env.MORNING_BRIEF_ENABLED === 'true';
+  const absorb = Absorb.absorbConfigured(env);
 
   const userSnap = await db.collection('users').doc(owner).get();
   const user = (userSnap && userSnap.exists && userSnap.data()) || {};
@@ -164,7 +236,11 @@ async function runMorningBrief(deps) {
 
   const day = await readDay(db, owner, nowMs, log);
   const pre = MB.collectTodayItems({ appointments: day.appointments, leads: day.leads, jobs: day.jobs, nowMs });
-  if (pre.length === 0) {
+  const sections = absorb ? await ((deps && deps.sections) || gatherSections)({ db, owner, nowMs, log }) : null;
+  // Production flow (2026-10-04): signed jobs with no day and no week. The
+  // brief goes out for these alone too — they are the reason it exists.
+  const needsWeek = PF.needsWeek(day.leads, day.jobs);
+  if (pre.length === 0 && needsWeek.length === 0 && !MB.sectionsHaveContent(sections)) {
     log.info('morning_brief_nothing_today', { owner, date: day.today, mode: enabled ? 'live' : 'dry-run' });
     return { status: 'nothing-today', items: 0 };
   }
@@ -172,10 +248,26 @@ async function runMorningBrief(deps) {
   const leadsById = new Map(day.leads.map((l) => [String(l.id), l]));
   const leadIds = [...new Set(pre.map((it) => it.leadId).filter((id) => id && leadsById.has(id)))];
   const hist = await readHistory(db, leadIds, (id) => (leadsById.get(id) || {}).companyId || owner, log);
+  // One line per appointment (live runs only — a dry run spends no AI).
+  const briefLines = enabled && leadIds.length
+    ? await ((deps && deps.briefLines) || gatherBriefLines)({ db, leadIds, leadsById, nowMs, log }).catch(() => ({}))
+    : {};
+
+  // The weather.gov forecast for today's job days (warns only). Never fails
+  // the brief: job-weather answers null on any trouble.
+  const weatherFor = (deps && deps.weatherFor) || ((lead) => require('./job-weather')._internal.weatherByDay(db, lead, nowMs));
+  const weatherByLead = {};
+  for (const id of new Set(pre.filter((it) => it.source === 'job').map((it) => it.leadId))) {
+    const lead = leadsById.get(String(id));
+    if (!lead) continue;
+    try { const w = await weatherFor(lead); if (w) weatherByLead[id] = w; } catch (_) { /* no weather line */ }
+  }
 
   const brief = MB.buildBrief({
     appointments: day.appointments, leads: day.leads, jobs: day.jobs, nowMs,
     invoices: hist.invoices, activityByLead: hist.activityByLead, stormProofsByLead: hist.stormProofsByLead,
+    sections, briefLines,
+    weatherByLead, needsWeek,
   });
 
   if (!enabled) {
@@ -193,7 +285,8 @@ async function runMorningBrief(deps) {
   const resend = makeResend(env.RESEND_API_KEY);
   const response = await resend.emails.send({
     from: env.EMAIL_FROM || 'Joe Deal <jd@nobigdealwithjoedeal.com>',
-    to: user.email,
+    // Absorbing the lead digest: its two inboxes still get the morning mail.
+    to: absorb ? [...new Set([user.email].concat(require('./lead-digest').DIGEST_EMAILS))] : user.email,
     subject: brief.subject,
     html: brief.html,
     text: brief.text,
@@ -202,8 +295,8 @@ async function runMorningBrief(deps) {
     log.error('morning_brief_send_rejected', { owner, err: resendErrorMessage(response) });
     return { status: 'rejected', items: brief.items.length };
   }
-  log.info('morning_brief_sent', { owner, date: brief.today, items: brief.items.length });
-  return { status: 'sent', items: brief.items.length, emailed: true };
+  log.info('morning_brief_sent', { owner, date: brief.today, items: brief.items.length, sections: brief.sectionCounts });
+  return { status: 'sent', items: brief.items.length, emailed: true, sections: brief.sectionCounts };
 }
 
 // ─── Scheduled function ──────────────────────────────────────────
@@ -213,7 +306,7 @@ exports.morningBrief = onSchedule(
   {
     schedule: '45 6 * * *',
     timeZone: 'America/New_York',
-    secrets: [RESEND_API_KEY, EMAIL_FROM],
+    secrets: [RESEND_API_KEY, EMAIL_FROM, ANTHROPIC_API_KEY],
     maxInstances: 1,
     timeoutSeconds: 300,
     memory: '512MiB',
@@ -221,6 +314,7 @@ exports.morningBrief = onSchedule(
   async () => {
     const env = {
       MORNING_BRIEF_ENABLED: process.env.MORNING_BRIEF_ENABLED,
+      MORNING_BRIEF_ABSORB_ENABLED: process.env.MORNING_BRIEF_ABSORB_ENABLED,
       RESEND_API_KEY: process.env.RESEND_API_KEY,
       EMAIL_FROM: process.env.EMAIL_FROM,
     };
@@ -235,4 +329,4 @@ exports.morningBrief = onSchedule(
   }
 );
 
-exports._test = { runMorningBrief, readDay, readHistory, OWNER };
+exports._test = { runMorningBrief, readDay, readHistory, gatherSections, gatherBriefLines, OWNER };

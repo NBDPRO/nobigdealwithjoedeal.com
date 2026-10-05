@@ -62,17 +62,19 @@ section('Push-4: homeowner portal page + token callables');
     /_sharePortalLink\s*=\s*async function/.test(readDashboard()));
 }
 
-section('Wave B1: portal BoldSign signing embed');
+section('Wave B1: portal signing link (in-house e-sign since 2026-10-04)');
 {
-  // L-03: portal view lives in portal.js, not index.js.
+  // L-03: portal view lives in portal.js, not index.js. BoldSign's embed was
+  // retired; the portal now links the live single-use esign.html link.
   const psrc = read(path.join(FUNCTIONS, 'portal.js'));
-  assert('portal view requests fresh embed URL when awaiting signature',
-    /signatureStatus === 'sent'.+signatureStatus === 'viewed'|signature[Ss]tatus === 'sent' \|\| latest\.signatureStatus === 'viewed'/.test(psrc));
-  assert('portal view returns signEmbedUrl field',
-    /signEmbedUrl:\s*signEmbedUrl/.test(psrc));
+  assert('portal view looks up the live envelope link while awaiting signature',
+    /e\.status === 'sent' \|\| e\.status === 'viewed'/.test(psrc) && /collection\('esign_tokens'\)/.test(psrc));
+  assert('portal view returns signUrl field', /signUrl:\s*signUrl/.test(psrc));
+  assert('portal view never calls BoldSign any more', !/api\.boldsign\.com/.test(psrc));
   const p = readPortal();
-  assert('portal.html renders signing iframe when signEmbedUrl present',
-    /awaitingSign && signEmbedUrl/.test(p));
+  assert('portal renders the signing link only when it is OUR esign.html link',
+    /awaitingSign && signUrl/.test(p) && /nobigdealwithjoedeal\\.com\\\/pro\\\/esign\\.html/.test(p));
+  assert('portal renders no signing iframe', !/title="Sign Contract"/.test(p));
 }
 
 section('Wave B4+B5: revoke / regenerate portal link');
@@ -138,7 +140,11 @@ section('2026-09-25 (review of PR #1777): portal records scoped to the token\'s 
   assert('portal view filters e-sign envelopes by tenant',
     /if \(!recordInPortalTenant\(e, \['ownerUid'\], tenant\)\) return null;/.test(psrc));
   assert('portal view filters invoices by tenant',
-    /\.filter\(inv => recordInPortalTenant\(inv, \['createdBy'\], tenant\)\)/.test(psrc));
+    /\.filter\(inv => recordInPortalTenant\(inv, \['createdBy'\], tenant\)\)/.test(psrc)
+      // 2026-10-03: the filter lives in _tenantInvoices, shared by the view
+      // and the rating gate — both must actually go through it.
+      && /const tenantInvoices = _tenantInvoices\(invSnap\.docs, tenant\);/.test(psrc)
+      && /_tenantInvoices\(invDocs, portalTenant\(tok, lead\)\)/.test(psrc));
   assert('getEstimateForView checks the estimate\'s tenant',
     /recordInPortalTenant\(est, \['userId'\], portalTenant\(tok, tokLead\)\)/.test(psrc));
 }

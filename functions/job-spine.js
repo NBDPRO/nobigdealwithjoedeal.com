@@ -25,6 +25,13 @@
  * + job, never sent (Jo, 2026-10-03). Its result rides back on
  * `depositDraft`.
  *
+ * After a paid_in_full event (moved or not — the rep may have dragged the
+ * card to Final Payment before the money cleared), if the job is now PAID IN
+ * FULL (paid-in-full.js: a won stage at or after Final Payment and no invoice
+ * owing) the "⭐ Request Review" task is created, once per job. Its result
+ * rides back on `reviewTask`. The task is a reminder for the rep — nothing is
+ * sent from here (2026-10-03).
+ *
  * Never sends anything to a customer. Never throws: callers are webhooks and
  * triggers whose real work already succeeded, so a spine failure is logged
  * and returned as { error }.
@@ -80,9 +87,47 @@ async function recordJobEvent(db, args, deps) {
       out.depositDraft = { created: false, reason: 'error', error: String((e && e.message) || e) };
     }
   }
+  if (event === 'paid_in_full' && refused.indexOf(out.reason) === -1 && !(deps && deps.reviewTask === false)) {
+    out.reviewTask = await requestReviewTaskIfPaid(db, String(args.leadId || '').trim(), args.companyId || null, deps);
+  }
   return out;
 }
 const DEPOSIT_DRAFT_EVENTS = ['contract_signed', 'deal_accepted'];
+
+/**
+ * The "⭐ Request Review" task, when the job is paid in full. Never throws.
+ * → { created: true, taskId } | { created: false, reason, taskId? }
+ */
+async function requestReviewTaskIfPaid(db, leadId, companyId, deps) {
+  const { FieldValue, logger, now } = _deps(deps);
+  try {
+    if (!db || !leadId || !/^[A-Za-z0-9_-]{1,128}$/.test(leadId)) return { created: false, reason: 'bad_lead_id' };
+    const PIF = require('./paid-in-full');
+    const leadRef = db.collection('leads').doc(leadId);
+    const ls = await leadRef.get();
+    const lead = ls.exists ? (ls.data() || {}) : null;
+    if (!lead || L.isDeleted(lead)) return { created: false, reason: 'no_lead' };
+    if (companyId && lead.companyId && String(lead.companyId) !== String(companyId)) return { created: false, reason: 'tenant_mismatch' };
+    const jobId = typeof lead.activeJobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(lead.activeJobId) ? lead.activeJobId : null;
+    if (lead.reviewAskDeclined === true) return { created: false, reason: 'declined' };
+    if (!jobId && lead.reviewRequested === true) return { created: false, reason: 'already_asked' };
+    if (!PIF.isPaidStage(lead)) return { created: false, reason: 'not_paid_stage' };
+    const invoices = await PIF.loadLeadInvoices(db, leadId, lead, jobId);
+    if (!PIF.paidInFull(lead, invoices)) return { created: false, reason: 'balance_owed' };
+    const t = L.reviewRequestTask(jobId, L.todayYmdEt(now()));
+    try {
+      await leadRef.collection('tasks').doc(t.id).create(Object.assign({}, t.doc, { createdAt: FieldValue.serverTimestamp(), createdBy: 'system: job spine' }));
+    } catch (e) {
+      if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) return { created: false, reason: 'exists', taskId: t.id };
+      throw e;
+    }
+    logger.info('[jobSpine] request-review task created', { leadId, taskId: t.id });
+    return { created: true, taskId: t.id };
+  } catch (e) {
+    logger.warn('[jobSpine] request-review task failed', { leadId, err: e && e.message });
+    return { created: false, reason: 'error', error: String((e && e.message) || e) };
+  }
+}
 
 async function _recordJobEventCore(db, args, deps) {
   const { FieldValue, logger, now } = _deps(deps);
@@ -134,7 +179,20 @@ async function _recordJobEventCore(db, args, deps) {
         }
       }
 
+      // The sold package (soldTier) at a signing event — reads first.
+      let tierPatch = null;
+      if (lead && plan.reason !== 'tenant_mismatch' && plan.reason !== 'lost') {
+        let est = null;
+        if (L.soldTierNeedsEstimate(lead, event, meta)) {
+          const es = await tx.get(db.collection('estimates').doc(String(lead.primaryEstimateId)));
+          est = es.exists ? (es.data() || null) : null;
+          if (est && lead.userId && est.userId && est.userId !== lead.userId) est = null;
+        }
+        tierPatch = L.soldTierPatch(lead, event, meta, est);
+      }
+
       const result = { action: plan.action, reason: plan.reason || null, from: plan.action === 'move' ? plan.from : (lead ? (lead.stage == null ? null : lead.stage) : null), to: plan.to || null };
+      if (tierPatch) result.soldTier = tierPatch.soldTier;
       tx.create(markerRef, {
         leadId, companyId: args.companyId || (lead && lead.companyId) || null,
         event, sourceId: sourceId || null, actor, at: atIso,
@@ -156,6 +214,7 @@ async function _recordJobEventCore(db, args, deps) {
 
       if (plan.action === 'move') {
         const { payload } = L.movePayload(lead, plan, { actor, atIso, event }, FieldValue);
+        if (tierPatch) Object.assign(payload, tierPatch, { soldTierAt: FieldValue.serverTimestamp() });
         tx.update(leadRef, payload);
         tx.set(noteRef, Object.assign({}, noteBase, {
           text: L.moveNoteText(plan.to, event, meta.detail),
@@ -164,6 +223,10 @@ async function _recordJobEventCore(db, args, deps) {
         if (task) tx.set(taskRef, Object.assign({}, task.doc, { createdAt: FieldValue.serverTimestamp(), createdBy: 'system: job spine' }));
         return { moved: true, from: plan.from, to: plan.to, taskId: task ? task.id : null, markerId: mid };
       }
+
+      // No move (the lead was already past contract_signed, say) — the sold
+      // package is still recorded.
+      if (tierPatch) tx.update(leadRef, Object.assign({}, tierPatch, { soldTierAt: FieldValue.serverTimestamp() }));
 
       // No move — still leave the caller's note (e.g. "Inspection booked
       // via Cal.com…") on a live lead, once.
@@ -289,4 +352,4 @@ async function spineAfterBooking(db, { leadId, companyId, bookingId, startTime, 
   }, deps);
 }
 
-module.exports = { recordJobEvent, spineAfterRemoteSign, spineAfterEsign, spineAfterDealAccept, spineAfterBooking };
+module.exports = { recordJobEvent, requestReviewTaskIfPaid, spineAfterRemoteSign, spineAfterEsign, spineAfterDealAccept, spineAfterBooking };

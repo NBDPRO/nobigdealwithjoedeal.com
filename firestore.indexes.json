@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "social_posts",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "funnel_abandoned",
       "queryScope": "COLLECTION",
       "fields": [
@@ -965,13 +973,71 @@
         { "fieldPath": "companyId", "order": "ASCENDING"  },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "_comment": "Today home (2026-10-03): the dashboard's ONE task load — collectionGroup('tasks').where('userId','==',uid).orderBy('createdAt','asc') (docs/pro/js/tasks.js, shape in today-plan.js tasksQuery; tests/today-plan-2026-10-03.test.js ties them). Replaced one query per lead.",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Today home (2026-10-03): the same load for company staff — collectionGroup('tasks').where('companyId','==',companyId).orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
     {
+      "_comment": "Reel Studio cleanup (2026-10-04): reelCleanup sweeps collectionGroup('reel_media').where('createdAtMs','<',…) daily to expire intermediates and abandoned upload slots. Single-field COLLECTION_GROUP index on createdAtMs (the emulator never enforces it; prod would throw FAILED_PRECONDITION without it). COLLECTION asc/desc kept so default single-parent indexing is preserved.",
+      "collectionGroup": "reel_media",
+      "fieldPath": "createdAtMs",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
       "_comment": "Optional game card (2026-10-03): getGameCard reads collectionGroup('tasks').where('userId','==') (equality-only) to count follow-ups done across every customer. Single-field COLLECTION_GROUP index on userId; COLLECTION asc/desc kept so default single-parent indexing is preserved. Without it the card degrades (partial: tasks) instead of failing.",
       "collectionGroup": "tasks",
       "fieldPath": "userId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "CRM-booked appointments (production flow, 2026-10-04): onAppointmentReminder reads collectionGroup('tasks').where('eventAt','>=',now).where('eventAt','<=',+30min) — a range on ONE field across every lead's tasks (type:'event' docs from lead-events.js carry an ISO eventAt). A single-field COLLECTION_GROUP index serves it; COLLECTION asc/desc kept so default single-parent indexing is preserved. The emulator never enforces indexes — this entry is what makes it work in prod.",
+      "collectionGroup": "tasks",
+      "fieldPath": "eventAt",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "Material orders (production flow, 2026-10-04): the nightly googleCalendarReconcile and the Schedule view's busy strip read collectionGroup('orders').where('userId','==') (equality-only, paged on __name__). Single-field COLLECTION_GROUP index; COLLECTION asc/desc kept.",
+      "collectionGroup": "orders",
+      "fieldPath": "userId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "Material orders (production flow, 2026-10-04): same reads by tenant — collectionGroup('orders').where('companyId','==').",
+      "collectionGroup": "orders",
+      "fieldPath": "companyId",
       "indexes": [
         { "order": "ASCENDING", "queryScope": "COLLECTION" },
         { "order": "DESCENDING", "queryScope": "COLLECTION" },

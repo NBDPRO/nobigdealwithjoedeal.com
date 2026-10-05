@@ -202,10 +202,27 @@ const decide = (o) => D.decideDepositDraft(Object.assign({ leadId: 'L1', event: 
 
   console.log('\nC. idempotency (fake Firestore)');
   if (DD && SPINE && D) {
+    // Since 2026-10-04 a company's own deposit rule decides (tenant-ops-logic
+    // depositConfigFor; a company with none takes no cash deposit). This
+    // tenant ('u1') runs a 50%-over-$2,000 rule — the cases below exercise it.
     const seed = () => ({
       'leads/L1': leadOf({ primaryEstimateId: 'E1' }),
       'estimates/E1': perSq(),
+      'companyProfile/u1': { businessRules: { deposit: { noDepositUnderCents: 200000, depositPct: 50, roundToCents: 2500 } } },
     });
+    {
+      // A company that never set a deposit rule: no cash deposit → no draft.
+      const s = seed(); delete s['companyProfile/u1'];
+      const db = makeDb(s);
+      await DD.draftDepositAfterSign(db, { leadId: 'L1', event: 'contract_signed', sourceId: 'doc_n1' }, deps);
+      ok('a company with no deposit rule gets no draft deposit (neutral default)', invoicesIn(db).length === 0);
+      // Company with a 30% rule: the draft is 30%.
+      const s3 = seed(); s3['companyProfile/u1'] = { businessRules: { deposit: { noDepositUnderCents: 0, depositPct: 30, roundToCents: 100 } } };
+      const db3 = makeDb(s3);
+      await DD.draftDepositAfterSign(db3, { leadId: 'L1', event: 'contract_signed', sourceId: 'doc_n3' }, deps);
+      const i3 = db3.store.get('invoices/depdraft_L1_job');
+      ok('the company\'s own 30% rule sets the draft deposit', !!i3 && Math.round(i3.depositAmount * 100) === Math.round(i3.total * 30));
+    }
     {
       const db = makeDb(seed());
       const r1 = await DD.draftDepositAfterSign(db, { leadId: 'L1', event: 'contract_signed', sourceId: 'doc_d1' }, deps);
@@ -289,9 +306,20 @@ const decide = (o) => D.decideDepositDraft(Object.assign({ leadId: 'L1', event: 
       rows.length === 1 && rows[0].balance_owed === 0 && rows2[0].balance_owed === 2000, JSON.stringify(rows2));
   }
   {
+    // Since #2130 the portal's balance card and its progress tracker share
+    // ONE predicate, homeowner-progress.js invoiceOwes, which goes through
+    // isOwedInvoice before balanceDue > 0. Wiring + behaviour, run for real.
     const portal = lf(read('functions/portal.js'));
-    ok('homeowner portal: "balance due" filters through isOwedInvoice before balanceDue > 0 (a draft is never shown as owed)',
-      /\.filter\(inv => isOwedInvoice\(inv\)\)\s*\n\s*\.filter\(inv => Number\(inv\.balanceDue\) > 0\)/.test(portal) && /require\('\.\/invoice-owed'\)/.test(portal));
+    const hpSrc = lf(read('functions/homeowner-progress.js'));
+    const HPm = require(path.join(ROOT, 'functions', 'homeowner-progress.js'));
+    ok('homeowner portal: "balance due" filters through invoiceOwes = isOwedInvoice && balanceDue > 0 (a draft is never shown as owed)',
+      /tenantInvoices\s*\n\s*\.filter\(invoiceOwes\)/.test(portal)
+      && /return isOwedInvoice\(inv\) && Number\(inv\.balanceDue\) > 0;/.test(hpSrc)
+      && /require\('\.\/invoice-owed'\)/.test(hpSrc));
+    ok('homeowner portal: the draft owes nothing, the sent one does (and a draft never blocks "paid in full")',
+      HPm.invoiceOwes(draftInv) === false && HPm.invoiceOwes(sentInv) === true
+      && HPm.paidInFullFor({ stage: 'final_payment' }, [draftInv]) === true
+      && HPm.paidInFullFor({ stage: 'final_payment' }, [draftInv, sentInv]) === false);
   }
   {
     // The customer page's Invoices & Payments list, run for real.

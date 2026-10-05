@@ -168,37 +168,46 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // Google satellite primary (mt{s}.google.com — already on the CSP
-  // script-src/img-src allow-list). Esri/ArcGIS as a per-tile fallback
-  // via tileerror in initD2DMap. Esri was the previous primary, but
-  // Brave Shields (and several other tracker-blocker extensions) block
-  // server.arcgisonline.com at the network layer — the request fails
-  // before it ever hits the server, the SW falls through to a synthetic
-  // 503, and Leaflet renders a black void. Google's tile endpoint is on
-  // every blocker's allowlist, so it ships universally. We keep Esri
-  // around for the rare case Google rate-limits a specific tile.
-  const SAT_TILES_PRIMARY = 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}';
-  const SAT_TILES_FALLBACK = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-  // Base-map choices — all on the CSP-allowed Google tile host. Google `lyrs`:
-  // s=satellite, y=hybrid (imagery+labels), m=roadmap, p=terrain. Satellite +
-  // hybrid keep the Esri imagery fallback; streets/terrain have no imagery
-  // fallback (they'd look wrong), so they render Google-only.
+  // Base maps (2026-10-04, vendor audit Lane D): Esri / ArcGIS Online tiles,
+  // with the public-domain USGS National Map orthoimagery (USDA NAIP) as an
+  // UNDERLAY beneath every imagery choice. These used to be raw Google
+  // "mt{s}.google.com/vt" tiles — an undocumented endpoint Google can block or
+  // bill at any time (documentation/audit/VENDOR-COST-LOCKIN-2026-10-04.md §3).
+  //
+  // Why the underlay: Brave Shields and some tracker blockers have been seen
+  // failing server.arcgisonline.com (NEW-D12 / PR #486), which is why Google
+  // was primary. A failed Esri tile now gets one retry on Esri's alternate
+  // host (services.arcgisonline.com), and if that fails too it stays empty
+  // and the USGS tile underneath shows through — never a black void. USGS is
+  // cached to z16, so it upscales at house-level zoom; Esri is cached to z19
+  // around Cincinnati (z20+ returns a "Map data not yet available" image, so
+  // maxNativeZoom 19 upscales instead of fetching it). Both hosts are in
+  // img-src (firebase.json). Attribution is required by Esri's terms; it is kept
+  // short so it fits one line on a 390px phone map.
+  const ESRI_TILE = (svc) => 'https://server.arcgisonline.com/ArcGIS/rest/services/' + svc + '/MapServer/tile/{z}/{y}/{x}';
+  const ESRI_IMAGERY_ATTR = '© Esri, Maxar, Earthstar Geographics';
+  const ESRI_STREET_ATTR = '© Esri, HERE, Garmin, © OpenStreetMap';
+  const ESRI_TOPO_ATTR = '© Esri, HERE, Garmin, NOAA, USGS, © OpenStreetMap';
+  const USGS_IMAGERY_TILE = 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}';
+  const USGS_IMAGERY_ATTR = 'USGS/NAIP';
   const BASEMAPS = {
-    satellite: { label: 'Satellite', icon: '🛰️', url: 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', fallback: true },
-    hybrid:    { label: 'Hybrid',    icon: '🗺️', url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', fallback: true },
-    streets:   { label: 'Streets',   icon: '🛣️', url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', fallback: false },
-    terrain:   { label: 'Terrain',   icon: '⛰️', url: 'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', fallback: false },
+    satellite: { label: 'Satellite', icon: '🛰️', url: ESRI_TILE('World_Imagery'), attribution: ESRI_IMAGERY_ATTR, imagery: true },
+    // Hybrid = imagery + Esri's road and place-name reference layers.
+    hybrid:    { label: 'Hybrid',    icon: '🗺️', url: ESRI_TILE('World_Imagery'), attribution: ESRI_IMAGERY_ATTR, imagery: true,
+                 overlays: [{ url: ESRI_TILE('Reference/World_Transportation') }, { url: ESRI_TILE('Reference/World_Boundaries_and_Places') }] },
+    streets:   { label: 'Streets',   icon: '🛣️', url: ESRI_TILE('World_Street_Map'), attribution: ESRI_STREET_ATTR },
+    terrain:   { label: 'Terrain',   icon: '⛰️', url: ESRI_TILE('World_Topo_Map'), attribution: ESRI_TOPO_ATTR },
     // KyFromAbove Phase 3 — 3-inch leaf-off orthoimagery of the whole
     // Commonwealth (public domain, keyless, no quota; LODs 0–21; measured
     // 2026-09-04: z16/z19 Lexington → 200 image/png). Roughly 4× the detail of
-    // the 12-inch Google/Esri tiles on the Northern-Kentucky and Lexington
-    // lanes — shingle courses and vent boots are readable from the map.
+    // the 12-inch Esri tiles on the Northern-Kentucky and Lexington lanes —
+    // shingle courses and vent boots are readable from the map.
     // Outside Kentucky the server returns a blank transparent PNG (190 bytes),
-    // so this is an OVERLAY on the Google satellite basemap: Kentucky gets
-    // 3-inch imagery, everything else stays Google. Host is in img-src.
-    ky3in:     { label: 'KY 3-in',   icon: '🐎', url: 'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', fallback: true,
-                 overlay: 'https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_Imagery_Phase3_3IN_WGS84WM/MapServer/tile/{z}/{y}/{x}',
-                 overlayMaxNativeZoom: 21, overlayAttribution: 'Imagery © Commonwealth of Kentucky (KyFromAbove)' }
+    // so this is an OVERLAY on the satellite basemap: Kentucky gets 3-inch
+    // imagery, everything else stays Esri. Host is in img-src.
+    ky3in:     { label: 'KY 3-in',   icon: '🐎', url: ESRI_TILE('World_Imagery'), attribution: ESRI_IMAGERY_ATTR, imagery: true,
+                 overlays: [{ url: 'https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_Imagery_Phase3_3IN_WGS84WM/MapServer/tile/{z}/{y}/{x}',
+                              maxNativeZoom: 21, attribution: 'Imagery © Commonwealth of Kentucky (KyFromAbove)' }] }
   };
   const BASEMAP_ORDER = ['satellite', 'hybrid', 'ky3in', 'streets', 'terrain'];
   const BASEMAP_PREF = 'nbd_d2d_basemap';
@@ -209,7 +218,6 @@
   const MARK_STYLE_PREF = 'nbd_d2d_mark_style';
   const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=5&q=';
   const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1';
-  const WEATHER_KEY_STORE = 'nbd_weather_key';
   const SYNC_QUEUE_KEY = 'nbd_d2d_sync_queue';
   const PAGE_SIZE = 200;
 
@@ -309,7 +317,6 @@
   state.walkingRoute = null;
   state.walkingRouteLine = null;
   state.streetSequences = {};
-  state.weatherData = null;
   state.neighborhoodScores = {};
   state.offlineQueue = [];
   state.isOnline = navigator.onLine;
@@ -1355,41 +1362,6 @@
   }
 
   // ============================================================================
-  // WEATHER INTEGRATION
-  // ============================================================================
-  async function loadWeather() {
-    const key = localStorage.getItem(WEATHER_KEY_STORE);
-    if (!key) return;
-    const loc = state.currentLocation || CINCINNATI;
-    try {
-      const resp = await fetch(`https://api.openweathermap.org/data/2.5/onecall?lat=${loc[0]}&lon=${loc[1]}&exclude=minutely,hourly&appid=${key}&units=imperial`);
-      if (resp.ok) {
-        state.weatherData = await resp.json();
-      }
-    } catch(e) { console.warn('Weather load failed:', e); }
-  }
-
-  function getWeatherAlerts() {
-    if (!state.weatherData) return [];
-    const alerts = [];
-    if (state.weatherData.alerts) {
-      state.weatherData.alerts.forEach(a => {
-        if (/hail|wind|storm|tornado|thunder/i.test(a.event)) {
-          alerts.push({ event: a.event, description: a.description?.substring(0, 200), start: new Date(a.start * 1000), end: new Date(a.end * 1000) });
-        }
-      });
-    }
-    // Check recent weather for storm indicators
-    const recent = state.weatherData.daily?.slice(0, 3) || [];
-    recent.forEach(day => {
-      if (day.wind_speed > 30 || day.weather?.some(w => /storm|hail|thunder/i.test(w.main))) {
-        alerts.push({ event: 'Recent Storm Activity', description: `Wind: ${Math.round(day.wind_speed)}mph — ${day.weather?.[0]?.description || ''}`, start: new Date(day.dt * 1000) });
-      }
-    });
-    return alerts;
-  }
-
-  // ============================================================================
   // NEIGHBORHOOD SCORING
   // ============================================================================
   function calculateNeighborhoodScores() {
@@ -2387,7 +2359,8 @@
           userId: window._user.uid,
           companyId: window._userClaims?.companyId || window._user.uid,
           createdAt: window.serverTimestamp(),
-          stageStartedAt: window.serverTimestamp()
+          stageStartedAt: window.serverTimestamp(),
+          meter: 'manual' // server lead meter (firestore.rules leadMeterOk)
         });
         _newLeadId = (_fbRef && _fbRef.id) || null;
         _locked = false;
@@ -3909,35 +3882,38 @@
   let _layerPanelOpen = false; // panel collapsed by default behind the "Layers" toggle (frees the map)
   let d2dCustomerMarkers = [];
   let d2dStormLayer = null;
-  let d2dWeatherLayer = null;
   let d2dDrawControl = null;
   let d2dTerritoryGroup = null;  // L.featureGroup holding drawn polygons
 
   // ── Base-map switcher (satellite / hybrid / streets / terrain) ──────
+  // One retry per failed Esri tile on Esri's alternate host; after that the
+  // tile stays empty and the USGS underlay (imagery choices) shows through.
+  function _esriTileRetry(ev) {
+    if (!ev.tile || ev.tile.dataset.nbdFallbackTried === '1') return;
+    ev.tile.dataset.nbdFallbackTried = '1';
+    const src = String(ev.tile.src || '');
+    if (src.indexOf('https://server.arcgisonline.com/') === 0) {
+      ev.tile.src = 'https://services.arcgisonline.com/' + src.slice('https://server.arcgisonline.com/'.length);
+    }
+  }
   function _makeBasemapLayer(key) {
     const b = BASEMAPS[key] || BASEMAPS.satellite;
-    const layer = L.tileLayer(b.url, { subdomains: '0123', attribution: 'Imagery © Google', maxNativeZoom: 22, maxZoom: 23 });
-    if (b.fallback) {
-      // Per-tile Esri fallback (imagery basemaps only) — same one-retry guard.
-      layer.on('tileerror', function (ev) {
-        if (!ev.tile || !ev.coords || ev.tile.dataset.nbdFallbackTried === '1') return;
-        ev.tile.dataset.nbdFallbackTried = '1';
-        const c = ev.coords;
-        ev.tile.src = SAT_TILES_FALLBACK.replace('{z}', c.z).replace('{x}', c.x).replace('{y}', c.y);
-      });
+    // zIndex keeps every basemap part UNDER the weather/radar overlays even
+    // when the basemap is switched after an overlay was turned on (tile layers
+    // otherwise stack in the order they were added).
+    const layer = L.tileLayer(b.url, { attribution: b.attribution || '', maxNativeZoom: 19, maxZoom: 23, zIndex: -1 });
+    layer.on('tileerror', _esriTileRetry);
+    const parts = [];
+    if (b.imagery) {
+      parts.push(L.tileLayer(USGS_IMAGERY_TILE, { attribution: USGS_IMAGERY_ATTR, maxNativeZoom: 16, maxZoom: 23, zIndex: -2 }));
     }
-    if (b.overlay) {
-      // Base + overlay travel as one group so setBasemap()'s remove/add and
-      // the saved preference treat them as a single choice. Both are tile
-      // layers in Leaflet's tilePane, so markers/drawn territories stay above
-      // them without bringToBack (which a layerGroup does not have).
-      const over = L.tileLayer(b.overlay, {
-        maxNativeZoom: b.overlayMaxNativeZoom || 19, maxZoom: 23,
-        attribution: b.overlayAttribution || ''
-      });
-      return L.layerGroup([layer, over]);
-    }
-    return layer;
+    parts.push(layer);
+    (b.overlays || []).forEach((o) => {
+      parts.push(L.tileLayer(o.url, { maxNativeZoom: o.maxNativeZoom || 19, maxZoom: 23, attribution: o.attribution || '', zIndex: 0 }));
+    });
+    // Base, underlay and overlays travel as one group so setBasemap()'s
+    // remove/add and the saved preference treat them as a single choice.
+    return parts.length === 1 ? layer : L.layerGroup(parts);
   }
 
   function setBasemap(key) {
@@ -4292,7 +4268,6 @@
           showD2DWeatherLayer();
         } else {
           if (d2dStormLayer) state.d2dMap.removeLayer(d2dStormLayer);
-          if (d2dWeatherLayer) state.d2dMap.removeLayer(d2dWeatherLayer);
         }
         break;
       case 'heat':
@@ -4456,7 +4431,10 @@
   }
 
   // ── Weather layer (ported from maps.js) ──
-  // NOAA NEXRAD radar composite + RainViewer precipitation
+  // NOAA NEXRAD radar composite (Iowa Environmental Mesonet tiles; host in
+  // img-src). A RainViewer precipitation layer used to be added on top, but
+  // tilecache.rainviewer.com was never in the CSP, so it never drew a tile —
+  // removed 2026-10-04 (vendor audit Lane D).
   function showD2DWeatherLayer() {
     if (!state.d2dMap) return;
     if (!d2dStormLayer) {
@@ -4466,16 +4444,7 @@
       );
     }
     d2dStormLayer.addTo(state.d2dMap);
-    // RainViewer layer
-    if (!d2dWeatherLayer) {
-      const now = Math.floor(Date.now() / 600000) * 600;
-      d2dWeatherLayer = L.tileLayer(
-        'https://tilecache.rainviewer.com/v2/radar/' + now + '/256/{z}/{x}/{y}/2/1_1.png',
-        { opacity: 0.45, attribution: 'RainViewer', maxZoom: 20 }
-      );
-    }
-    d2dWeatherLayer.addTo(state.d2dMap);
-    window.showToast?.('Storm radar + precipitation loaded', 'info');
+    window.showToast?.('Storm radar loaded', 'info');
   }
 
   // ── Territory drawing (Leaflet.Draw) ──
@@ -4918,7 +4887,6 @@
       // Async background tasks
       if (state.isOnline) {
         flushOfflineQueue();
-        loadWeather();
       }
     } catch (e) {
       state.d2dInitializing = false;
@@ -4964,8 +4932,6 @@
   state.runCoach = runCoach;
   state.loadPropertyIntel = loadPropertyIntel;
   state.orderRoofReport = orderRoofReport;
-  state.loadWeather = loadWeather;
-  state.getWeatherAlerts = getWeatherAlerts;
   state.calculateWalkingRoute = calculateWalkingRoute;
   state.openRouteInMaps = openRouteInMaps;
   state.setBasemap = setBasemap;

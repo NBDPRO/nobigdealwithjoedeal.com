@@ -529,6 +529,12 @@ to 100) now fails CI.
 
 ## 18. Rate-limit provider (R-01) — flip to Upstash before launch
 
+> **Superseded 2026-10-04.** The Upstash adapter was never provisioned and
+> was removed (VENDOR-COST-LOCKIN-2026-10-04, Lane C). The Firestore limiter
+> is the only backend; `integrations/upstash-ratelimit.js` keeps its path as
+> a thin re-export. If the R-01 hot-doc ceiling ever bites, add a new backend
+> in that file. The steps below no longer apply.
+
 **Who:** ops (Joe). **When:** before 10k-user launch. **Why:**
 Firestore documents have a ~1 write/sec/doc ceiling. `_rate_limits_ip/*`
 is one doc per (namespace, hashed-IP), so when a mobile carrier NATs

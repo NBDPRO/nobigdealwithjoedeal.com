@@ -142,7 +142,9 @@ console.log('PHOTO HUB — lazy engine stub, batch lead pinning, ordering, phase
 {
   const fn = ENGINE.slice(ENGINE.indexOf('updatePhotoTags:'), ENGINE.indexOf('updatePhotoDescription:'));
   ok('updatePhotoTags writes phase alongside tags',
-    /\{ tags, phase \}/.test(fn),
+    // `{ tags, phase, phaseSource }` since 2026-10-04 (a stage-stamped phase
+    // survives a tag edit that names none — see the getDoc branch).
+    /\{ tags, phase(?: \}|,)/.test(fn),
     'Before/After buckets and the portal pairing read phase, not tags');
   ok('phase derivation matches the upload path exactly',
     /includes\('before'\)/.test(fn) && /includes\('after'\)/.test(fn) && /includes\('during'\)/.test(fn));

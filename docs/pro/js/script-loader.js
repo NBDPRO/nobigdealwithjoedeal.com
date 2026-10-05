@@ -85,7 +85,7 @@
       'js/sales-training.js?v=2'
     ],
     storm: [
-      'js/storm-center.js?v=5',
+      'js/storm-center.js?v=6',
       'js/storm-integration.js?v=2',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
@@ -95,7 +95,10 @@
       // The shared financing APR band (public estimator + deal page, 2026-10-03)
       // — close-board.js prints payments only from it.
       '/assets/js/financing-band.js?v=1',
-      'js/close-board.js?v=9'
+      // Full packet / Paperwork only (2026-10-04) — also in the estimates
+      // bundle; the loader runs it once.
+      'js/deal-packet.js?v=1',
+      'js/close-board.js?v=10'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -111,7 +114,7 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=4',
-      'js/expenses.js?v=8',
+      'js/expenses.js?v=9',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=3',
@@ -129,7 +132,7 @@
       'js/money-dashboard.js?v=8'
     ],
     repos: [
-      'js/rep-os.js?v=3'
+      'js/rep-os.js?v=4'
     ],
     // Yard-sign tracker (2026-09-29): placements, photos, pickup dates +
     // reminders. Pure rules first so the view can use them at init.
@@ -143,6 +146,12 @@
       'js/winback-logic.js?v=1',
       'css/winback-view.css?v=1',
       'js/winback.js?v=2'
+    ],
+    // Sunday business review (2026-10-04): the rules (numbers-logic.js) and
+    // the owner-only data reads (numbers-data.js) are eager on the page; this
+    // is just the view.
+    weekreview: [
+      'js/week-review.js?v=1'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -171,14 +180,15 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=14',
-      'js/document-generator-templates.js?v=11',
-      'js/doc-preflight.js?v=3',
+      'js/document-generator.js?v=16',
+      'js/document-generator-templates.js?v=12',
+      'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
+      'js/doc-preflight.js?v=4',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=7',
+      'js/customer-documents.js?v=8',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -224,18 +234,18 @@
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=8',
+      'js/product-library.js?v=9',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=9',
+      'js/estimate-builder-v2.js?v=12',
       'js/estimate-catalog-xactimate.js?v=3',
-      'js/estimate-logic-engine.js?v=7',
+      'js/estimate-logic-engine.js?v=8',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
-      'js/estimates.js?v=12',
+      'js/estimates.js?v=13',
       // Rock 2 PR 6: the New-Estimate front door (chooser) split out of
       // estimates.js. Loads after it — showNewEstimateChooser falls back to
       // estimates.js's showEstimateTypeSelector when V2 is missing.
@@ -244,10 +254,12 @@
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
       'js/estimate-finalization.js?v=6',
-      'js/estimate-v2-ui.js?v=21',
+      // The send-time packet choice (2026-10-04), before the builder uses it.
+      'js/deal-packet.js?v=1',
+      'js/estimate-v2-ui.js?v=23',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
-      'js/estimate-v3-wizard.js?v=3',
+      'js/estimate-v3-wizard.js?v=4',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
@@ -257,7 +269,7 @@
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
       'js/job-templates-data.js?v=4',
-      'js/job-templates.js?v=6',
+      'js/job-templates.js?v=7',
       'js/entity-resolver.js?v=2',
       'js/job-templates-ui.js?v=8',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
@@ -285,7 +297,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=7',
+      'js/photo-engine.js?v=8',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
@@ -295,10 +307,13 @@
       // existing dedupe trap this file documents elsewhere: ScriptLoader
       // dedupes on resolved path, so an eager tag for either file would make
       // loadBundle('photos') a no-op for it and nothing would load lazily.
-      'js/photo-queue-store.js?v=2',
+      'js/photo-queue-store.js?v=3',
       'js/photo-queue-recovery.js?v=2',
-      'js/inspection-report-engine.js?v=6',
-      'js/photo-report.js?v=4'
+      // KY claim-wording filter (2026-10-04) — BEFORE the two report
+      // builders, which run every caption / report string through it.
+      'js/claim-wording-filter.js?v=1',
+      'js/inspection-report-engine.js?v=7',
+      'js/photo-report.js?v=5'
     ],
     // D2D tracker (PR 2e). The door-to-door knock tracker — only the D2D
     // view uses it. ~180 KB off boot. Load order locked: core publishes
@@ -310,8 +325,8 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=13',
-      'js/d2d-tracker-ui-2026b.js?v=7',
+      'js/d2d-tracker-core-2026b.js?v=14',
+      'js/d2d-tracker-ui-2026b.js?v=8',
       'js/d2d-tracker-2026b.js?v=3'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
@@ -399,9 +414,13 @@
     drawtool: [
       'css/maps-routing-view.css?v=2',
       'js/draw-geom.js?v=2',
-      'js/maps-routing.js?v=8',
+      'js/maps-routing.js?v=9',
       'css/draw-reticle.css?v=1',
-      'js/draw-reticle.js?v=1'
+      'js/draw-reticle.js?v=1',
+      // Instant Roofer cross-check card + the V3 wizard's "Draw it" hand-off
+      // (2026-10-04). Last: it binds to the engine seam like draw-reticle.
+      'css/draw-measure-check.css?v=1',
+      'js/draw-measure-check.js?v=1'
     ],
     // Talk Tank inbox (2026-09-14, boot-weight containment) — a single-view
     // module with zero callers outside goTo('talk-tank'); was two static
@@ -413,6 +432,23 @@
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
       'js/call-center-view.js?v=11'
+    ],
+    // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
+    // Rules editor (Settings → Estimates) and the logo upload / company export
+    // buttons (Company Profile, Access). Their markup only exists inside the
+    // Settings view, and goTo('settings') loads this bundle. Both files paint
+    // on arrival, so a tab opened before they land still renders.
+    // tenant-rules.js itself stays EAGER: estimate-config.js and
+    // deposit-rule.js read it synchronously.
+    tenantsettings: [
+      'js/tenant-rules-settings.js?v=1',
+      'js/tenant-account-ui.js?v=1'
+    ],
+    // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).
+    // Never needed by NBD's own company: dashboard-bootstrap.module.js loads
+    // it once the company profile lands, only for a non-platform tenant.
+    setup: [
+      'js/setup-checklist.js?v=1'
     ]
   };
 
@@ -433,6 +469,7 @@
     money:       ['money'],
     signs:       ['mapvendor', 'signs'],
     winback:     ['winback'],
+    weekreview:  ['weekreview'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     calls:       ['callcenter'],
@@ -441,7 +478,7 @@
     reports:     ['reports'],
     map:         ['mapvendor'],
     draw:        ['mapvendor', 'drawtool'],
-    settings:    ['theme']
+    settings:    ['theme', 'tenantsettings']
   };
 
   // A bundle entry ending in .css is injected as a stylesheet instead of a

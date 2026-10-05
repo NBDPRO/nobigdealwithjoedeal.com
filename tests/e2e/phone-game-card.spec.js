@@ -54,6 +54,12 @@ test.describe('phone: optional game card @shard2', () => {
       await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: CARD }) });
     });
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); localStorage.setItem('nbd_push_optin_snoozed_until', String(Date.now() + 3600_000)); } catch (_) {} });
+    // Off BEFORE the first page load: an attempt that failed mid-way left game
+    // mode on, so the retry's first boot fetched the card (calls === 1) before
+    // the reset below could run.
+    adb();
+    const preUid = (await require('firebase-admin/auth').getAuth().getUserByEmail(creds.email)).uid;
+    await adb().doc('userSettings/' + preUid).set({ game: { enabled: false } }, { merge: true });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!(window._user && window.NBDGameCard && typeof window.goTo === 'function'), null, { timeout: 60_000 });
     const uid = await safeEvaluate(page, () => window._user.uid);
@@ -74,6 +80,9 @@ test.describe('phone: optional game card @shard2', () => {
     await sw.scrollIntoViewIfNeeded();
     await sw.check();
     await expect.poll(async () => (((await adb().doc('userSettings/' + uid).get()).data() || {}).game || {}).enabled, { timeout: 10_000 }).toBe(true);
+    // Turning it on fetches the card and re-renders the editor when it lands;
+    // a swatch located before that is detached under the tap.
+    await safeWaitForFunction(page, () => !!(window.NBDGameCard._state.card && !window.NBDGameCard._state.loading), null, { timeout: 15_000 });
     // Pick a red hard hat and a ladder; each saves at once.
     const red = page.locator('#gameSettingsMount [data-key="hatColor"][data-val="2"]');
     await red.scrollIntoViewIfNeeded();

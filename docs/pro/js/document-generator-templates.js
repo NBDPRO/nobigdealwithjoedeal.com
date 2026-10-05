@@ -107,8 +107,20 @@
     ? ((window.NBD_LOGO_DATA_URI.match(/^data:([^;,]+)/) || [, 'image/png'])[1])
     : 'image/png';
 
+  // Register document types by MERGING into the core entries, never
+  // replacing them (2026-10-04). A plain Object.assign here replaced the
+  // core change_order / certificate_of_completion / scope_of_work /
+  // work_authorization / payment_agreement entries with {name, template},
+  // dropping their defaultSigners — so the pre-flight seeded no signers and
+  // none of those documents could be signed in-app or sent for signature.
+  function registerTypes(map) {
+    Object.keys(map).forEach(function (k) {
+      DG.DOCUMENT_TYPES[k] = Object.assign({}, DG.DOCUMENT_TYPES[k] || {}, map[k]);
+    });
+  }
+
   // Register new document types
-  Object.assign(DG.DOCUMENT_TYPES, {
+  registerTypes({
     warranty_certificate: { name: 'Warranty Certificate', template: 'renderWarrantyCertificate' },
     supplement_request: { name: 'Supplement Request', template: 'renderSupplementRequest' },
     scope_of_work: { name: 'Scope of Work', template: 'renderScopeOfWork' },
@@ -299,7 +311,19 @@
     </div>`;
   }
 
-  function sigBlock(labels) {
+  // `data` (optional): the document's merge data. When the pre-flight modal
+  // seeded signers (DOCUMENT_TYPES[..].defaultSigners → data.signers), the
+  // block is the interactive one from renderSignatureBlock — the
+  // [data-nbd-sig] canvases the doc viewer's in-person signing and the remote
+  // sign link (createSignRequest) both need. Before 2026-10-04 every template
+  // in this file printed bare lines, so a change order, completion
+  // certificate, scope, work authorization or payment agreement offered
+  // "Send for Signature" on a document with nothing to sign.
+  function sigBlock(labels, data) {
+    const signers = data && Array.isArray(data.signers) ? data.signers.filter(Boolean) : [];
+    if (signers.length && typeof DG.renderSignatureBlock === 'function') {
+      return `<div class="section" style="margin-top:36px;">` + DG.renderSignatureBlock(signers) + `</div>`;
+    }
     return `<div class="section" style="margin-top:36px;">` + labels.map(l =>
       `<div style="margin-bottom:28px;"><span class="sig-line"></span>
       <span style="margin-left:20px;"><span class="sig-line" style="width:140px;"></span></span>
@@ -437,6 +461,28 @@
   // & and quotes too — used in alt="…" (security audit 2026-09-29).
   function esc(s) { return String(s||'').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function money(n) { return '$' + (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  // Cents helpers (2026-10-04): money math stays in integer cents (CLAUDE.md).
+  // toCents reads a number or a "$1,234.50"-style string; a blank or
+  // unreadable value is 0. The string is split at the point, never
+  // multiplied as a float, so "0.29" is 29 cents and not 28.
+  function toCents(v) {
+    if (typeof v === 'number') return isFinite(v) ? Math.round(v * 100) : 0;
+    const s = String(v == null ? '' : v).replace(/[^0-9.\-]/g, '');
+    const m = /^(-?)(\d*)(?:\.(\d*))?$/.exec(s);
+    if (!m || (!m[2] && !m[3])) return 0;
+    const c = (parseInt(m[2] || '0', 10) * 100) + parseInt(((m[3] || '') + '00').slice(0, 2), 10);
+    return m[1] === '-' ? -c : c;
+  }
+  function centsText(c) { const n = Math.round(Number(c) || 0); const neg = n < 0; const a = Math.abs(n);
+    return (neg ? '-' : '') + '$' + Math.floor(a / 100).toLocaleString('en-US') + '.' + String(a % 100).padStart(2, '0'); }
+  // A date-input value ("2026-10-04") printed the way a person writes it.
+  // Anything else (already written out, or blank) passes through.
+  function longDate(v) {
+    const s = String(v == null ? '' : v).trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return s;
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+  }
 
   // Partner identity + value props resolve through the shared company-profile
   // defaults (company-profile.js loads first on customer.html and exposes
@@ -446,10 +492,30 @@
   function cpDefaults() {
     return (typeof window !== 'undefined' && window.NBD_COMPANY_PROFILE_DEFAULTS) || {};
   }
+  // NBD-only marketing defaults (2026-10-04, tenant-ready). The Acorn Finance
+  // partnership, NBD's services list and its value props ("Lifetime
+  // workmanship warranty on every tier") belong to NBD. Another company gets
+  // them BLANK — company-profile.js _legal() blanks the profile copies the
+  // same way it neutralizes the legal text — and these fallbacks follow suit,
+  // so the financing / services / value blocks are simply left out.
+  function isNbdDoc() {
+    return !C || !C.name || C.name === 'No Big Deal Home Solutions';
+  }
+  // The company profile a renderer should read: the caller's explicit copy,
+  // else the tenant-resolved one (_legal), else the raw merged profile.
+  function tenantCp(d) {
+    if (d && d.companyProfile) return d.companyProfile;
+    if (typeof window !== 'undefined' && typeof window._legal === 'function') {
+      try { return window._legal() || {}; } catch (_) { /* fall through */ }
+    }
+    return (typeof window !== 'undefined' && window._companyProfile) || cpDefaults();
+  }
   function defaultFinancePartner() {
+    if (!isNbdDoc()) return '';
     return cpDefaults().financePartner || 'our financing marketplace partner';
   }
   function defaultValueProps() {
+    if (!isNbdDoc()) return [];
     const vp = cpDefaults().valueProps;
     if (Array.isArray(vp) && vp.length) return vp;
     return [
@@ -535,6 +601,14 @@
       : (w.hailWarranty && !/HAIL/i.test(_mfgRes)
         ? 'TAMKO\'s HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)'
         : _mfgRes);
+    // The manufacturer warranty by NAME for the details grid (2026-10-04):
+    // the tier decides Economy (standard limited, no system warranty) and
+    // Beyond (HailGuard); otherwise the shingle actually on the estimate.
+    const _mfgRes2 = resolveDocManufacturer(d.estimateLineItems);
+    const mfgShort = termYears
+      ? _mfgRes2.manufacturer + ' standard limited warranty (no system warranty)'
+      : (w.hailWarranty ? 'TAMKO HailGuard hail warranty'
+        : (_mfgRes2.manufacturerWarrantyFeature || (_mfgRes2.manufacturer + ' limited manufacturer warranty')));
     const badgeText = termYears
       ? termYears + '-YEAR WORKMANSHIP (LABOR) WARRANTY — ' + t.label + ' TIER'
       : 'LIFETIME WORKMANSHIP WARRANTY — ' + t.label + ' TIER';
@@ -598,8 +672,11 @@
         </div>
         <dl class="cert-details">
           <div><dt>Certificate #</dt><dd>${esc(d.certificateNumber)}</dd></div>
-          <div><dt>Issue Date</dt><dd>${esc(d.issueDate)}</dd></div>
+          <div><dt>Issue Date</dt><dd>${esc(longDate(d.issueDate))}</dd></div>
+          <div><dt>Install Date</dt><dd>${esc(longDate(d.installDate || d.issueDate))}</dd></div>
           <div><dt>Coverage</dt><dd>${job ? job.coverage : coverageText}</dd></div>
+          ${job ? '' : `<div><dt>Manufacturer Warranty</dt><dd>${esc(mfgShort)}</dd></div>`}
+          ${job || _mfgRes2.manufacturerName === _mfgRes2.manufacturer + ' shingles' ? '' : `<div><dt>Shingles</dt><dd>${esc(_mfgRes2.manufacturerName)}</dd></div>`}
           <div><dt>Expiration</dt><dd>${esc(job ? job.expiration : d.expirationDate)}</dd></div>
           ${d.workPerformed ? `<div><dt>Work Performed</dt><dd>${esc(d.workPerformed)}</dd></div>` : ''}
           ${job ? '' : `<div><dt>Warranty Tier</dt><dd>${esc(t.label)}</dd></div>`}
@@ -607,7 +684,7 @@
         ${d.coverageDetails ? `<p style="max-width:520px;margin:16px auto 0;font-size:13px;color:#555;text-align:center;">${esc(d.coverageDetails)}</p>` : ''}
         <div class="cert-seal">&#10003;</div>
       </div>
-      ${sigBlock(['Homeowner Acknowledgment','Authorized ' + SEAL + ' Representative'])}
+      ${sigBlock(['Homeowner Acknowledgment','Authorized ' + SEAL + ' Representative'], d)}
       ${affiliateRow()}
       ${footer('Certificate #' + d.certificateNumber)}
     `);
@@ -782,7 +859,7 @@
         <p style="font-size:14px;color:#666;">${esc(d.exclusions)}</p>
       </div>
 
-      ${sigBlock(['Homeowner','Contractor — '+C.name])}
+      ${sigBlock(['Homeowner','Contractor — '+C.name], d)}
       ${affiliateRow()}
       ${footer('Scope of Work')}
     `);
@@ -844,7 +921,7 @@
         </p>
       </div>
 
-      ${sigBlock(['Property Owner','Witness (Optional)','Authorized ' + SEAL + ' Representative'])}
+      ${sigBlock(['Property Owner','Witness (Optional)','Authorized ' + SEAL + ' Representative'], d)}
       ${affiliateRow()}
       ${footer('Work Authorization')}
     `);
@@ -926,7 +1003,7 @@
           </p>
         </div>
       </div>
-      ${sigBlock(['Homeowner','Authorized ' + SEAL + ' Representative'])}
+      ${sigBlock(['Homeowner','Authorized ' + SEAL + ' Representative'], d)}
       ${affiliateRow()}
       ${footer('Certificate of Completion')}
     `);
@@ -937,48 +1014,70 @@
   // ═══════════════════════════════════════════════════════════════
   DG.renderChangeOrder = function(data) {
     const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
-      originalContractNumber:'[Contract #]', originalContractDate:'',
+      originalContractNumber:'', originalContractDate:'',
       changeOrderNumber:'CO-001', changesDescription:'Additional work identified during project execution.',
       itemsAdded:[],
       itemsRemoved:[],
-      originalTotal:0, scheduleImpact:'No change to estimated completion date.' }, data);
+      originalTotal:0, scheduleImpact:'No change to estimated completion date.',
+      scheduleDays:'', newCompletionDate:'' }, data);
+    // The pre-flight field is changeDescription; hydrateDerivedFields bridges
+    // it, but a direct generate() caller would print the placeholder.
+    if (data && !data.changesDescription && data.changeDescription) d.changesDescription = data.changeDescription;
 
-    let addedTotal=0, removedTotal=0;
+    // Money in CENTS (2026-10-04). The old math multiplied float dollars, and
+    // its New Total trusted the form's "0" default: a rep who entered only the
+    // change amount printed "New Total $0.00" on a document the homeowner signs.
+    let addedC = 0, removedC = 0;
     const _price = (i) => (i.price != null ? i.price : (i.unitPrice != null ? i.unitPrice : i.rate)) || 0;
-    const addedRows = d.itemsAdded.map(i => { const t=(i.qty||0)*_price(i); addedTotal+=t;
-      return `<tr><td>${esc(i.item || i.description)}</td><td class="right">${i.qty}</td><td>${esc(i.unit)}</td><td class="right">${money(_price(i))}</td><td class="right">${money(t)}</td></tr>`; }).join('');
-    const removedRows = d.itemsRemoved.map(i => { const t=(i.qty||0)*_price(i); removedTotal+=t;
-      return `<tr><td>${esc(i.item || i.description)}</td><td class="right">${i.qty}</td><td>${esc(i.unit)}</td><td class="right">${money(_price(i))}</td><td class="right" style="color:#dc2626;">-${money(t)}</td></tr>`; }).join('');
+    const _lineC = (i) => Math.round((Number(i.qty) || 0) * toCents(_price(i)));
+    const addedRows = d.itemsAdded.map(i => { const t = _lineC(i); addedC += t;
+      return `<tr><td>${esc(i.item || i.description)}</td><td class="right">${esc(i.qty)}</td><td>${esc(i.unit)}</td><td class="right">${centsText(toCents(_price(i)))}</td><td class="right">${centsText(t)}</td></tr>`; }).join('');
+    const removedRows = d.itemsRemoved.map(i => { const t = _lineC(i); removedC += t;
+      return `<tr><td>${esc(i.item || i.description)}</td><td class="right">${esc(i.qty)}</td><td>${esc(i.unit)}</td><td class="right">${centsText(toCents(_price(i)))}</td><td class="right" style="color:#dc2626;">-${centsText(t)}</td></tr>`; }).join('');
     // The DocPreflight modal collects a single changeAmount + newTotal (no itemized
     // add/remove rows), so when no line items were supplied reflect the rep's
-    // entered figures instead of computing 0. Itemized callers still drive the
-    // math from their own rows.
+    // entered figures. Itemized callers drive the math from their own rows.
     const _hasItems = (d.itemsAdded && d.itemsAdded.length) || (d.itemsRemoved && d.itemsRemoved.length);
-    const netChange = _hasItems ? (addedTotal - removedTotal) : (parseFloat(d.changeAmount) || 0);
-    const _repNewTotal = parseFloat(d.newTotal);
-    const newTotal = (!_hasItems && !isNaN(_repNewTotal) && String(d.newTotal).trim() !== '')
-      ? _repNewTotal
-      : (parseFloat(d.originalTotal)||0) + netChange;
+    const netC = _hasItems ? (addedC - removedC) : toCents(d.changeAmount);
+    const origC = toCents(d.originalTotal);
+    // A New Total the rep typed wins; blank (or the old form's 0 default) is
+    // original + change, so the three figures always foot.
+    const _repNewC = toCents(d.newTotal);
+    const newC = (!_hasItems && _repNewC !== 0) ? _repNewC : origC + netC;
+
+    const days = parseInt(String(d.scheduleDays == null ? '' : d.scheduleDays).replace(/[^0-9\-]/g, ''), 10);
+    const scheduleLines = [];
+    if (days > 0) scheduleLines.push('This change adds ' + days + ' working day' + (days === 1 ? '' : 's') + ' to the schedule.');
+    else if (days < 0) scheduleLines.push('This change shortens the schedule by ' + (-days) + ' working day' + (days === -1 ? '' : 's') + '.');
+    if (d.newCompletionDate) scheduleLines.push('New estimated completion: ' + longDate(d.newCompletionDate) + '.');
+    if (d.scheduleImpact) scheduleLines.push(d.scheduleImpact);
+
+    const refBits = ['Change Order #' + esc(d.changeOrderNumber)];
+    if (d.originalContractNumber) refBits.push('Original Contract: ' + esc(d.originalContractNumber));
 
     return page('Change Order', `
       ${letterhead()}
       <h1 style="text-align:center;font-size:24px;color:${S};margin:24px 0 8px;">CHANGE ORDER</h1>
-      <p style="text-align:center;color:#666;margin-bottom:28px;font-size:13px;">
-        Change Order #${esc(d.changeOrderNumber)} | Original Contract: ${esc(d.originalContractNumber)}</p>
+      <p style="text-align:center;color:#666;margin-bottom:20px;font-size:13px;">${refBits.join(' | ')}</p>
+
+      <div class="section" style="background:${WSH};border-left:4px solid ${A};padding:14px 18px;border-radius:4px;font-size:14px;">
+        This is a written change to your contract. It takes effect only when you and ${esc(C.name)} have both signed it.
+        Everything else in your original contract stays the same.
+      </div>
 
       <div class="section">
         <div class="section-title">Reference Information</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px 28px;font-size:14px;">
           <div><strong>Homeowner:</strong> ${esc(d.homeownerName)}</div>
-          ${d.originalContractDate ? `<div><strong>Original Contract Date:</strong> ${esc(d.originalContractDate)}</div>` : ''}
           <div><strong>Property:</strong> ${esc(d.address)}</div>
+          ${d.originalContractDate ? `<div><strong>Original Contract Date:</strong> ${esc(longDate(d.originalContractDate))}</div>` : ''}
           <div><strong>Change Order Date:</strong> ${today()}</div>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title">Description of Changes</div>
-        <p style="font-size:14px;">${esc(d.changesDescription)}</p>
+        <div class="section-title">What Is Changing</div>
+        <p style="font-size:14px;white-space:pre-line;">${esc(d.changesDescription)}</p>
       </div>
 
       ${addedRows ? `<div class="section">
@@ -994,27 +1093,28 @@
       </div>` : ''}
 
       <div class="section" style="background:#f8f8f8;padding:24px;border-radius:8px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;text-align:center;">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-around;gap:16px;text-align:center;">
           <div><div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.06em;">Original Total</div>
-            <div style="font-size:22px;font-weight:700;color:#333;">${money(d.originalTotal)}</div></div>
+            <div data-co-figure="original" style="font-size:22px;font-weight:700;color:#333;">${centsText(origC)}</div></div>
           <div><div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.06em;">Change Amount</div>
-            <div style="font-size:22px;font-weight:700;color:${netChange>=0?A:'#16a34a'};">${netChange>=0?'+':''}${money(netChange)}</div></div>
+            <div data-co-figure="change" style="font-size:22px;font-weight:700;color:${netC>=0?A:'#16a34a'};">${netC>=0?'+':'-'}${centsText(Math.abs(netC))}</div></div>
           <div><div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.06em;">New Total</div>
-            <div style="font-size:22px;font-weight:700;color:${S};">${money(newTotal)}</div></div>
+            <div data-co-figure="new" style="font-size:22px;font-weight:700;color:${S};">${centsText(newC)}</div></div>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title">Schedule Impact</div>
-        <p style="font-size:14px;">${esc(d.scheduleImpact)}</p>
+        <div class="section-title">Effect on Schedule</div>
+        ${scheduleLines.map(l => `<p style="font-size:14px;margin:0 0 6px;">${esc(l)}</p>`).join('')}
       </div>
 
       <div class="section" style="font-size:13px;color:#555;">
-        <p>By signing below, both parties agree to the changes described in this change order. All other terms and
-        conditions of the original contract remain in full force and effect.</p>
+        <p>Payment for this change follows the payment terms of your original contract. By signing below, both
+        parties agree to the changes described in this change order. All other terms and conditions of the
+        original contract remain in full force and effect.</p>
       </div>
 
-      ${sigBlock(['Homeowner','Contractor — '+C.name])}
+      ${sigBlock(['Homeowner','Contractor — '+C.name], d)}
       ${affiliateRow()}
       ${footer('Change Order #'+d.changeOrderNumber)}
     `);
@@ -1024,7 +1124,7 @@
   // TEMPLATE 7: INVOICE
   // ═══════════════════════════════════════════════════════════════
   DG.renderInvoice = function(data) {
-    const _cpInv = (data && data.companyProfile) || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const _cpInv = tenantCp(data);
     const _invFinancePartner = _cpInv.financePartner || defaultFinancePartner();
     const _invLateText = _cpInv.latePaymentChargeText || '1.5% monthly finance charge';
     const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
@@ -1138,7 +1238,7 @@
             'Check — payable to <strong>' + esc(C.name) + '</strong>',
             C.email ? 'Zelle — ' + esc(C.email) : '',
             d.payUrl ? '' : 'Credit Card — ask for secure link',
-            'Financing — through ' + esc(_invFinancePartner),
+            _invFinancePartner ? 'Financing — through ' + esc(_invFinancePartner) : '',
           ],
           wallets: d.wallets || [],
         })}
@@ -1407,7 +1507,7 @@
   // ═══════════════════════════════════════════════════════════════
   DG.renderCompanyIntro = function(data) {
     const d = Object.assign({}, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     // Rep-entered "Services Offered" (DocPreflight `services` textarea) overrides
     // the companyProfile/hardcoded list. It arrives as a comma-separated string
     // (e.g. "Roofing, Siding, Gutters") → one name-only card per entry. Fallback
@@ -1415,7 +1515,7 @@
     const servicesOverride = (typeof d.services === 'string' && d.services.trim())
       ? d.services.split(',').map(s => s.trim()).filter(Boolean).map(name => ({icon:'🔧',name:name,desc:''}))
       : null;
-    const services = servicesOverride || (Array.isArray(cp.services) && cp.services.length ? cp.services : [
+    const services = servicesOverride || (Array.isArray(cp.services) && cp.services.length ? cp.services : !isNbdDoc() ? [] : [
       {icon:'🏠',name:'Roofing',desc:'Full replacements, repairs, and storm damage restoration'},
       {icon:'🧱',name:'Siding',desc:'Vinyl, fiber cement, LP SmartSide, and board & batten'},
       {icon:'🌧️',name:'Gutters',desc:'Seamless gutters, guards, downspouts, and drainage'},
@@ -1473,23 +1573,23 @@
           We handle everything from the first inspection to the final nail — so you don't have to stress.</p>
       </div>
 
-      <div class="section">
+      ${services.length || d.serviceArea ? `<div class="section">
         <div class="section-title">Our Services</div>
         ${d.serviceArea ? `<p style="font-size:13px;color:#555;margin:0 0 12px;">Proudly serving <strong>${esc(d.serviceArea)}</strong>.</p>` : ''}
         <div class="svc-grid">
           ${services.map(s => `<div class="svc-card"><div class="svc-icon">${esc(s.icon)}</div>
             <div class="svc-name">${esc(s.name)}</div>${s.desc ? `<div class="svc-desc">${esc(s.desc)}</div>` : ''}</div>`).join('')}
         </div>
-      </div>
+      </div>` : ''}
 
-      <div class="section">
+      ${valueProps.length ? `<div class="section">
         <div class="section-title">Why Choose ${C.name.split(' ')[0] === 'No' ? 'NBD' : C.name}?</div>
         <div class="value-grid">
           ${valueProps.map(v => `<div class="value-card"><div class="value-icon">${v.icon}</div><div>
             <div class="value-title">${esc(v.title)}</div>
             <div class="value-desc">${esc(v.desc)}</div></div></div>`).join('')}
         </div>
-      </div>
+      </div>` : ''}
 
       ${d.testimonialsNote ? `<div class="section">
         <div class="section-title">What Our Customers Say</div>
@@ -1503,10 +1603,10 @@
         ${photoGrid(4,2)}
       </div>
 
-      <div class="finance-cta">
+      ${financePartner ? `<div class="finance-cta">
         <div style="font-size:20px;font-weight:700;">Flexible Financing Available</div>
         <div style="font-size:14px;margin-top:8px;opacity:0.9;">Through our partnership with ${esc(financePartner)} — affordable monthly payments with quick approval.</div>
-      </div>
+      </div>` : ''}
 
       ${affiliateRow()}
 
@@ -1610,11 +1710,13 @@
   // ═══════════════════════════════════════════════════════════════
   DG.renderFinancingOptions = function(data) {
     const d = Object.assign({ homeownerName:'', totalPrice:10000 }, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     // totalPrice arrives $-formatted from the preflight bridge (jobTotal→totalPrice),
     // so strip non-numerics before parsing or it would NaN→fabricate the $10k default.
     const price = parseFloat(String(d.totalPrice).replace(/[^0-9.]/g, '')) || 10000;
-    const financePartner = cp.financePartner || defaultFinancePartner();
+    // A company with no finance partner on file (every non-NBD company until
+    // it enters one) gets a generic lender phrase, never NBD's Acorn Finance.
+    const financePartner = cp.financePartner || defaultFinancePartner() || 'a third-party lender';
     // apr 0 is the "rate set by the lender" sentinel: under a lending
     // marketplace (Acorn) the contractor doesn't control terms, so the
     // defaults must not print fabricated APRs or payments on customer
@@ -2243,7 +2345,7 @@
   // ═══════════════════════════════════════════════════════════════
   DG.renderDoorHanger = function(data) {
     const d = Object.assign({}, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     // Door-hanger services: a per-doc override the rep types in DocPreflight
     // (the `services` field) wins; it's a free-text list separated by bullets,
     // newlines, or commas. When blank, derive from the profile services list so
@@ -2254,7 +2356,7 @@
       ? repServices
       : (Array.isArray(cp.services) && cp.services.length
         ? cp.services.map(s => `${s.name} — ${s.desc}`)
-        : [
+        : !isNbdDoc() ? [] : [
             'Roofing — replacements, repairs, storm damage',
             'Siding — vinyl, fiber cement, LP SmartSide',
             'Gutters — seamless systems and guards',
@@ -2554,7 +2656,7 @@
       progressAmount:'0.00', progressDue:'Upon material delivery',
       finalAmount:'0.00', finalDue:'Upon project completion',
       projectDescription:'' }, data);
-    const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+    const cp = tenantCp(d);
     const latePaymentText = cp.latePaymentChargeText || '1.5% monthly finance charge';
     const financePartner = cp.financePartner || defaultFinancePartner();
 
@@ -2630,7 +2732,7 @@
           <li>Checks should be made payable to <strong>${C.name}</strong>.</li>
           ${C.email ? `<li>For Zelle payments, send to <strong>${C.email}</strong>.</li>` : ''}
           <li>Credit card payments are accepted via secure link provided by ${C.name}. A convenience fee may apply.</li>
-          <li>Financing is available through ${esc(financePartner)}, subject to credit approval and separate terms.</li>
+          ${financePartner ? `<li>Financing is available through ${esc(financePartner)}, subject to credit approval and separate terms.</li>` : ''}
           <li>Work will not commence until the deposit payment has been received and verified.</li>
           <li>Final payment is due upon completion of the project and successful final walkthrough.</li>
           <li>Any disputed amounts must be communicated in writing within 10 days of the payment due date.</li>
@@ -2644,7 +2746,7 @@
         </p>
       </div>
 
-      ${sigBlock(['Property Owner','Authorized ' + SEAL + ' Representative'])}
+      ${sigBlock(['Property Owner','Authorized ' + SEAL + ' Representative'], d)}
       ${affiliateRow()}
       ${footer('Payment Agreement')}
     `);
@@ -2653,7 +2755,7 @@
   // ═══════════════════════════════════════════════════════════════
   // REGISTER ALL DOCUMENT TYPES (extended)
   // ═══════════════════════════════════════════════════════════════
-  Object.assign(DG.DOCUMENT_TYPES, {
+  registerTypes({
     material_delivery: { name: 'Material Delivery Notice', template: 'renderMaterialDelivery' },
     storm_checklist: { name: 'Storm Damage Checklist', template: 'renderStormChecklist' },
     claim_guide: { name: 'Insurance Claim Process Guide', template: 'renderClaimGuide' },
@@ -2759,6 +2861,20 @@
       DG[k] = function () { _refreshBrand(); return _orig.apply(this, arguments); };
     }
   });
+
+  // Shared building blocks for document-generator-library.js (2026-10-04),
+  // so the template library renders in THIS file's letterhead, footer, page
+  // shell and tenant brand instead of a second copy of them. refresh() is the
+  // same per-render brand resolve every render* above runs; brand() reads the
+  // values it set. Not a render* name, so the loop above leaves it alone.
+  DG._tpl = {
+    page: page, letterhead: letterhead, footer: footer, sigBlock: sigBlock,
+    affiliateRow: affiliateRow, esc: esc, money: money, today: today,
+    toCents: toCents, centsText: centsText, longDate: longDate,
+    resolveDocManufacturer: resolveDocManufacturer,
+    refresh: _refreshBrand,
+    brand: function () { return { C: C, P: P, S: S, A: A, G: G, RL: RL, WSH: WSH, INK: INK, FD: FD, FB: FB, SEAL: SEAL }; }
+  };
 })();
 
 

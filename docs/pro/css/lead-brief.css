@@ -1,0 +1,57 @@
+/* lead-brief.css — "Brief me" panel on the customer page (js/lead-brief.js, 2026-10-04).
+   Phone first: full width, wraps, no horizontal scroll at 390px. */
+.lead-brief {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--br, #e5e7eb);
+  border-left: 3px solid var(--orange, #BD5728);
+  border-radius: 8px;
+  background: var(--s, #fff);
+  color: var(--t, #111827);
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+.lead-brief[hidden] { display: none; }
+.lead-brief__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lead-brief__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.lead-brief__actions { display: flex; gap: 6px; }
+.lead-brief__btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.lead-brief__one {
+  margin: 8px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.lead-brief__list {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.lead-brief__list li { margin: 3px 0; }
+.lead-brief__muted {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--m, #6b7280);
+}
+.lead-brief__error {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--red, #b91c1c);
+}

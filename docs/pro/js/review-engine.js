@@ -1,8 +1,12 @@
 /**
  * NBD Pro — Google Review Request Engine
- * Auto-nudges the rep when a job enters ANY won-role stage (role-based,
- * custom-stage-aware — 2026-07): bell notification → one-tap prefilled
- * SMS/email carrying the tenant's brand + review link. Rep-in-the-loop by
+ * Auto-nudges the rep when a job is PAID IN FULL (Jo, 2026-10-03 — a won
+ * stage at or after Final Payment and no invoice still owing; the shared
+ * nbd:paid-in-full-rule below, byte-identical with functions/paid-in-full.js).
+ * Until then the nudge fired at ANY won stage, Install Done included — before
+ * the money — and 0 of 36 won/paid jobs in prod were ever asked. Bell
+ * notification → one-tap prefilled SMS/email carrying the tenant's brand +
+ * review link + the homeowner's own referral link (one message, not two). Rep-in-the-loop by
  * design (same TCPA/CAN-SPAM posture as anniversary-touch: we prep the
  * message, a human sends it).
  *
@@ -51,6 +55,70 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // PAID IN FULL — when a review ask is due (2026-10-03)
+  // ═══════════════════════════════════════════════════════════════
+  // nbd:paid-in-full-rule:start — ONE "paid in full" rule, kept byte-identical
+  // in functions/paid-in-full.js and docs/pro/js/review-engine.js
+  // (tests/review-paid-in-full-2026-10-03.test.js). A WON stage at or after
+  // Final Payment (a custom won stage counts; Install Done, Final Photos,
+  // Deductible and Collections never do), and no invoice still owes money
+  // under the owed rule (owedDollarsOf — passed in, so both copies use their
+  // own side's owed rule). invoices null/undefined = not known yet = NOT paid.
+  var PIF_WON = { closed: 1, final_payment: 1, warranty_claim: 1, install_complete: 1, final_photos: 1, deductible_collected: 1, collections: 1 };
+  var PIF_PRE_FINAL = { install_complete: 1, final_photos: 1, deductible_collected: 1, collections: 1 };
+  var PIF_ALIAS = { complete: 'closed', 'closed won': 'closed', closed_won: 'closed', 'closed-won': 'closed', won: 'closed' };
+  var PIF_ROLES = { 'new': 1, active: 1, job: 1, won: 1, lost: 1 };
+  function pifStageKey(lead) {
+    var raw = String((lead && (lead._stageKey || lead.stage)) || '').trim().toLowerCase();
+    return PIF_ALIAS[raw] || raw.replace(/\s+/g, '_');
+  }
+  function isPaidStage(lead) {
+    if (!lead) return false;
+    var key = pifStageKey(lead);
+    if (PIF_PRE_FINAL[key]) return false;
+    var role = (typeof lead.stageRole === 'string' && PIF_ROLES[lead.stageRole]) ? lead.stageRole : (PIF_WON[key] ? 'won' : '');
+    return role === 'won';
+  }
+  function isPaidInFull(lead, invoices, owedDollarsOf) {
+    if (!lead || lead.deleted === true || !isPaidStage(lead)) return false;
+    if (!Array.isArray(invoices) || typeof owedDollarsOf !== 'function') return false;
+    for (var i = 0; i < invoices.length; i++) {
+      if (owedDollarsOf(invoices[i]) > 0) return false;
+    }
+    return true;
+  }
+  // nbd:paid-in-full-rule:end
+
+  // The owed rule is collected-revenue.js's (window.NBDRevenue — the same
+  // nbd:owed-rule block functions/invoice-owed.js copies). Without it the
+  // invoices can't be judged, so nothing counts as paid (no ask on a guess).
+  function _owedFn() {
+    const R = window.NBDRevenue;
+    return (R && typeof R.owedDollarsOf === 'function') ? R.owedDollarsOf : null;
+  }
+  /** The lead's invoices from the shared cache, or null when not loaded yet. */
+  function invoicesForLead(lead, invoices) {
+    const all = invoices !== undefined ? invoices
+      : ((window.NBDRevenue && typeof window.NBDRevenue.cached === 'function') ? window.NBDRevenue.cached() : null);
+    if (!Array.isArray(all) || !lead) return null;
+    const jobId = typeof lead.activeJobId === 'string' ? lead.activeJobId : '';
+    return all.filter((inv) => inv && inv.leadId === lead.id && inv.deleted !== true && !(jobId && inv.jobId && inv.jobId !== jobId));
+  }
+  /** Paid in full, judged from the shared invoice cache (null cache → false). */
+  function paidInFullFor(lead, invoices) {
+    return isPaidInFull(lead, invoicesForLead(lead, invoices), _owedFn());
+  }
+  const _toMs = (v) => v?.toDate ? v.toDate().getTime() : (v?.seconds ? v.seconds * 1000 : (v instanceof Date ? v.getTime() : (typeof v === 'number' ? v : (typeof v === 'string' ? (Date.parse(v) || 0) : 0))));
+  /** When it became paid in full: the later of entering the paid stage and the last payment. */
+  function paidSinceMs(lead, invoices) {
+    let m = _toMs(lead && (lead.stageStartedAt || lead.updatedAt));
+    for (const inv of (invoicesForLead(lead, invoices) || [])) {
+      if (String(inv.status || '').toLowerCase() === 'paid') m = Math.max(m, _toMs(inv.paidAt));
+    }
+    return m;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // GOOGLE REVIEW REQUEST
   // ═══════════════════════════════════════════════════════════════
 
@@ -92,6 +160,32 @@
   }
 
   /**
+   * The homeowner's own referral link, for the review message (2026-10-03:
+   * one message, not a second tap). The code comes from the existing
+   * generator (assignReferralCode — idempotent, reuses a minted code); the
+   * link is the public refer page the portal's "Refer a friend" card uses,
+   * keyed by the customer id, carrying the code so the friend's lead is
+   * attributed to this homeowner. NO reward is named next to a review ask —
+   * Google's policy forbids review incentives (and KY: nothing tied to a
+   * claim). If the code can't be minted, the link still works without it.
+   */
+  async function referralLinkFor(leadId) {
+    const lead = (window._leads || []).find(l => l.id === leadId);
+    if (!lead) return '';
+    let code = lead.referralCode || null;
+    if (!code) { try { code = await assignReferralCode(leadId, { quiet: true }); } catch (e) { code = null; } }
+    const ref = lead.customerId || lead.id;
+    const co = _isNbdBrand() ? '' : brandName();
+    return 'https://nobigdealwithjoedeal.com/pro/refer.html?ref=' + encodeURIComponent(ref)
+      + (code ? '&code=' + encodeURIComponent(code) : '')
+      + (co ? '&co=' + encodeURIComponent(co) : '');
+  }
+  // The referral paragraph both review messages carry (tenant-neutral wording).
+  function referralLine(link) {
+    return link ? `\n\nAnd if a friend or neighbor ever needs work done, here's your own link to send them our way: ${link}` : '';
+  }
+
+  /**
    * Send a review request SMS to a customer
    * @param {string} leadId
    */
@@ -103,11 +197,12 @@
     }
 
     const reviewLink = await getReviewLink();
+    const referLink = await referralLinkFor(leadId);
     const firstName = lead.firstName || lead.fname || '';
     const phone = lead.phone.replace(/\D/g, '');
 
     const message =
-      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nThank you! — ${brandSignOff()}`;
+      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.${referralLine(referLink)}\n\nThank you! — ${brandSignOff()}`;
 
     // Through the platform sender, not a raw sms: link (2026-10-01). The raw
     // link opened the phone's Messages app and skipped the server's STOP
@@ -133,11 +228,12 @@
     if (!lead) return;
 
     const reviewLink = await getReviewLink();
+    const referLink = await referralLinkFor(leadId);
     const name = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim();
 
     const subject = `How did we do? — ${brandName()}`;
     const text =
-      `Hi ${name || 'there'},\n\nThank you for choosing ${brandName()} for your project! We truly enjoyed working with you.\n\nIf you have a moment, we'd be incredibly grateful for a Google review. It helps other homeowners find trustworthy contractors:\n\n${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.\n\nIf there's anything we could have done better, please let us know directly — we're always improving.\n\nThank you!\n${brandSignOff()}\n${brandPhone()}`;
+      `Hi ${name || 'there'},\n\nThank you for choosing ${brandName()} for your project! We truly enjoyed working with you.\n\nIf you have a moment, we'd be incredibly grateful for a Google review. It helps other homeowners find trustworthy contractors:\n\n${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.${referralLine(referLink)}\n\nIf there's anything we could have done better, please let us know directly — we're always improving.\n\nThank you!\n${brandSignOff()}\n${brandPhone()}`;
 
     if (!lead.email) {
       if (typeof showToast === 'function') showToast('No email address for this lead', 'error');
@@ -155,7 +251,10 @@
     const html = '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>';
     const res = await window.NBDComms.sendEmail({ to: lead.email, subject, html, leadId, kind: 'review_request' });
     if (!res || res.success === false) return false;   // refused (e.g. unsubscribed): NBDComms showed why
-    await logReviewRequest(leadId, 'email');
+    // Stamp reviewRequestedAt only when the platform actually SENT it
+    // (2026-10-04). A mailto: handoff just opened the mail app — nothing was
+    // sent yet, so the lead must not read "asked".
+    if (res.mode === 'platform') await logReviewRequest(leadId, 'email');
     if (typeof showToast === 'function') showToast(res.mode === 'mailto' ? 'Opened in your mail app' : 'Review request emailed', 'ok');
     return true;
   }
@@ -186,9 +285,21 @@
 
   /**
    * Auto-check for leads that should get review requests
-   * Called after leads load — finds recently closed jobs without review requests
+   * Called after leads load — finds jobs that recently became PAID IN FULL
+   * without a review request (2026-10-03; was: any won stage).
    */
+  let _autoWaitedForInvoices = false;
   function checkAutoReviewRequests() {
+    // Paid in full needs the invoices: load them once, then run. Without the
+    // revenue module nothing can be judged paid, so nothing fires.
+    const R = window.NBDRevenue;
+    if (!R || typeof R.cached !== 'function') return;
+    if (!R.cached()) {
+      if (_autoWaitedForInvoices || typeof R.loadInvoices !== 'function') return;
+      _autoWaitedForInvoices = true;
+      R.loadInvoices().then(() => { if (R.cached()) checkAutoReviewRequests(); }).catch(() => {});
+      return;
+    }
     // OWN leads only (team visibility, 2026-07): staff caches now hold the
     // whole tenant book, but review requests act on the lead (updateDoc
     // reviewRequested) which is owner-only at the rules layer — running
@@ -196,31 +307,19 @@
     // denied-write re-fire loop.
     const _me = window._user && window._user.uid;
     const leads = (window._leads || []).filter(l => !l.userId || l.userId === _me);
-    // Won detection is ROLE-based (freeform pipelines, 2026-07): the lead's
-    // persisted stageRole wins (moveCard stamps it, so tenant-invented custom
-    // stages carry it), else the key classifies through the resolved config's
-    // isWonStage. The old hardcoded 3-key list missed final_payment /
-    // final_photos / deductible_collected AND every custom won stage.
-    const LEGACY_WON = ['closed', 'install_complete', 'Complete'];
-    const isWonLead = (l) => {
-      const persisted = l.stageRole || l._stageRole;
-      if (persisted) return persisted === 'won';
-      const key = l._stageKey || l.stage || '';
-      return (typeof window.isWonStage === 'function') ? window.isWonStage(key) : LEGACY_WON.includes(key);
-    };
-    const toMs = (v) => v?.toDate ? v.toDate().getTime() : (v?.seconds ? v.seconds * 1000 : (v instanceof Date ? v.getTime() : 0));
+    // PAID IN FULL (2026-10-03), the shared rule: a won stage at or after
+    // Final Payment (custom won stages count; Install Done, Final Photos,
+    // Deductible and Collections never do) and no invoice still owing. The
+    // old gate was any won stage — the ask landed before the money.
     const recently = Date.now() - (7 * 24 * 60 * 60 * 1000); // Last 7 days
 
     const candidates = leads.filter(l => {
-      if (!isWonLead(l)) return false;
-      if (l.reviewRequested) return false;
-      // Recency keys off ENTERING the won stage (stageStartedAt, stamped by
-      // moveCard since PR #31) — the old updatedAt check reset on ANY edit,
-      // so a note added months later re-armed the nudge, while a win older
-      // than the last unrelated edit could never fire. updatedAt stays only
-      // as the pre-rollout fallback for leads without stageStartedAt.
-      const t = toMs(l.stageStartedAt || l.updatedAt);
-      return t > recently;
+      if (l.deleted || l.reviewRequested || l.reviewAskDeclined) return false;
+      if (!paidInFullFor(l)) return false;
+      // Recency keys off BECOMING paid in full: the later of entering the
+      // paid stage (stageStartedAt, stamped by moveCard — the old updatedAt
+      // check reset on ANY edit) and the last invoice payment.
+      return paidSinceMs(l) > recently;
     });
 
     if (candidates.length > 0) {
@@ -254,7 +353,7 @@
         leadId,
         type: 'review_request',
         title: '⭐ Request a Review',
-        message: `${customerName}'s project is complete — send a review request?`,
+        message: `${customerName}'s project is paid in full — send a review request?`,
         read: false,
         dismissed: false,
         createdAt: window.serverTimestamp()
@@ -291,7 +390,7 @@
   /**
    * Create and assign a referral code to a lead
    */
-  async function assignReferralCode(leadId) {
+  async function assignReferralCode(leadId, opts) {
     if (!window.db || !window._user) return null;
     const lead = (window._leads || []).find(l => l.id === leadId);
     if (!lead) return null;
@@ -353,7 +452,7 @@
       });
 
       lead.referralCode = code;
-      if (typeof showToast === 'function') showToast(`Referral code: ${code}`, 'ok');
+      if (!(opts && opts.quiet) && typeof showToast === 'function') showToast(`Referral code: ${code}`, 'ok');
       return code;
     } catch(e) {
       console.error('Referral code creation failed:', e);
@@ -422,6 +521,11 @@
     // 'manual' = asked in person / by phone; the deck's "Already asked".
     markAsked: logReviewRequest,
     checkAutoReviews: checkAutoReviewRequests,
+    // The paid-in-full gate (review deck, Home count) and the referral link.
+    isPaidInFull: isPaidInFull,
+    paidInFullFor: paidInFullFor,
+    paidSinceMs: paidSinceMs,
+    referralLinkFor: referralLinkFor,
     assignReferralCode,
     sendReferralSMS,
     getReferralStats
