@@ -2780,7 +2780,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=1"></script>
 <script defer src="js/customer-numbers.js?v=1"></script>
-<script defer src="js/customer-tasks-ui.js?v=17"></script>
+<script defer src="js/customer-tasks-ui.js?v=18"></script>
 <script defer src="js/nbd-comms.js?v=5"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
@@ -2834,8 +2834,13 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      must stay REMOVED, not merely reordered: ScriptLoader dedupes on the
      resolved path, so an eager tag for this file would make
      loadBundle('photos') a no-op and nothing would actually be deferred. -->
+<!-- collected-revenue.js (window.NBDRevenue) BEFORE review-engine.js: the
+     paid-in-full gate on "Ask for review" (#2132) judges the invoices with its
+     owed rule and invoice cache, and fails closed without it — which blocked
+     every customer here until 2026-10-05. -->
+<script defer src="js/collected-revenue.js?v=2"></script>
 <script defer src="js/review-engine.js?v=7"></script>
-<script defer src="js/lead-brief.js?v=1"></script>
+<script defer src="js/lead-brief.js?v=2"></script>
 <script defer src="js/profit-tracker.js?v=4"></script>
 <script defer src="js/lead-scoring.js?v=3"></script>
 <!-- Persisted per-job workflow checklist (RoofLink "View Checklist"). -->
