@@ -155,7 +155,10 @@
     const html = '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>';
     const res = await window.NBDComms.sendEmail({ to: lead.email, subject, html, leadId, kind: 'review_request' });
     if (!res || res.success === false) return false;   // refused (e.g. unsubscribed): NBDComms showed why
-    await logReviewRequest(leadId, 'email');
+    // Stamp reviewRequestedAt only when the platform actually SENT it
+    // (2026-10-04). A mailto: handoff just opened the mail app — nothing was
+    // sent yet, so the lead must not read "asked".
+    if (res.mode === 'platform') await logReviewRequest(leadId, 'email');
     if (typeof showToast === 'function') showToast(res.mode === 'mailto' ? 'Opened in your mail app' : 'Review request emailed', 'ok');
     return true;
   }

@@ -1,5 +1,5 @@
 /**
- * NBD — Storm watcher (direction C)
+ * NBD — Storm watcher (direction C) — runs inside stormPoller (storm-poller.js)
  * ═══════════════════════════════════════════════════════════════
  * Every 30 minutes, checks NWS Local Storm Reports (via IEM — the same
  * NOAA-sourced feed /api/storm-report already uses) for NEW qualifying
@@ -28,7 +28,6 @@
  * a failed stamp can no longer leave a person textable again.
  */
 
-const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { Resend } = require('resend');
@@ -138,140 +137,140 @@ async function fetchRecentLsrs() {
   return (j && j.features) || [];
 }
 
-exports.stormWatch = onSchedule(
-  {
-    schedule: '*/30 * * * *',
-    timeZone: 'America/New_York',
-    secrets: [RESEND_API_KEY, EMAIL_FROM, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
-    maxInstances: 1,
-    timeoutSeconds: 300,
-    memory: '256MiB',
-  },
-  async () => {
-    const db = getFirestore();
-    let feats;
-    try { feats = await fetchRecentLsrs(); }
-    catch (e) { logger.warn('stormWatch: IEM fetch failed', { err: e.message }); return; }
+// The storm-REPORTS half of the merged storm poller (functions/storm-poller.js,
+// 2026-10-04). It used to be its own every-30-minutes stormWatch cron next to
+// checkStormAlerts; one poller now runs both, back to back, with the same
+// guards (storm-sms-guard.js): master switch, opt-out register, quiet hours,
+// cooldown claimed before the send, STORM_TEXT_ENABLED for subscriber texts.
+async function runStormWatch() {
+  const db = getFirestore();
+  let feats;
+  try { feats = await fetchRecentLsrs(); }
+  catch (e) { logger.warn('stormWatch: IEM fetch failed', { err: e.message }); return; }
 
-    // New qualifying events in the service area
-    const events = [];
-    for (const f of feats) {
-      const c = f.geometry && f.geometry.coordinates; const p = f.properties || {};
-      if (!c) continue;
-      const kind = normType(p.typetext || p.type);
-      const mag = (p.magf != null && p.magf !== '') ? Number(p.magf) : null;
-      if (!kind || !qualifies(kind, mag, p.typetext)) continue;
-      const inArea = CITY_COORDS.some(([la, lo]) => haversineMi(la, lo, c[1], c[0]) <= SERVICE_RADIUS_MI);
-      if (!inArea) continue;
-      const key = eventKey(p, c);
-      const ref = db.collection('storm_events').doc(key);
-      if ((await ref.get()).exists) continue; // already handled
-      const ev = {
-        key, kind, mag, lat: c[1], lon: c[0],
-        city: p.city || '', county: p.county || '', st: p.st || p.state || '',
-        valid: p.valid || p.utc_valid || '', typetext: p.typetext || '',
-      };
-      await ref.set({ ...ev, processedAt: FieldValue.serverTimestamp() });
-      events.push(ev);
-    }
-    if (!events.length) { logger.info('stormWatch: no new qualifying events'); return; }
-
-    // Affected subscribers (within radius of ANY new event)
-    // TCPA master switch (integrations/stormAlerts.enabled; absent = on) —
-    // read every run; Joe's own alert still goes out with texting shown OFF.
-    const switchOn = await StormGuard.stormAlertsEnabled(db, logger);
-    if (!switchOn) logger.info('stormWatch: storm texts switched off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
-    const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn;
-    const nowMs = Date.now();
-    // active:true is server-stamped on every subscriber (functions/handlers/
-    // integrations.js's serverDefaults, never client-trusted) specifically so
-    // an opted-out subscriber stops matching every alert query — sms-
-    // functions.js's sibling checkStormAlerts cron already filters on it.
-    // This query queried unfiltered, so an unsubscribed homeowner kept
-    // receiving stormWatch's texts even after opting out.
-    //
-    // 2026-10-03: was .limit(1000) on an unordered query — every subscriber
-    // past the first 1000 was silently never texted. Paged by documentId now.
-    const subDocs = await StormGuard.loadActiveSubscribers(db, { logger });
-    const affected = [];
-    let unknownZips = 0;
-    for (const doc of subDocs) {
-      const s = doc.data() || {};
-      const digits = String(s.phone || '').replace(/[^\d]/g, '');
-      if (digits.length !== 10 && !(digits.length === 11 && digits[0] === '1')) continue;
-      const zc = zipCoords(s.zip);
-      if (!zc) { unknownZips++; continue; }
-      const near = events.find((ev) => haversineMi(zc[0], zc[1], ev.lat, ev.lon) <= SUBSCRIBER_RADIUS_MI);
-      if (!near) continue;
-      if (StormGuard.inStormCooldown(s, nowMs)) continue;
-      affected.push({ ref: doc.ref, to: '+1' + digits.slice(-10), zip: String(s.zip || ''), tz: s.tz, event: near });
-    }
-
-    // 1) Joe's alert — always
-    const evLines = events.map((ev) =>
-      `${eventLabel(ev)} near ${ev.city || ev.county}, ${ev.st} at ${ev.valid}`);
-    // Storm Watch on the D2D map (2026-10-02): the text links straight to the
-    // door-knocking map on the first report, with the Storms layer on.
-    const mapLink = 'https://nobigdealwithjoedeal.com/pro/dashboard.html?storm=' + events[0].lat.toFixed(3) + ',' + events[0].lon.toFixed(3);
-    const smsToJoe =
-      `⛈️ NBD Storm Watch — map: ${mapLink} — ${evLines.join(' | ')}. ` +
-      `${affected.length} subscriber${affected.length === 1 ? '' : 's'} in range` +
-      (textEnabled ? ' — texting them now.' : ' (texting OFF — see email).');
-    try {
-      const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
-      await client.messages.create({ to: JOE_SMS, from: TWILIO_PHONE_NUMBER.value(), body: smsToJoe.slice(0, 480) });
-    } catch (e) { logger.error('stormWatch: joe sms failed', { err: e.message }); }
-    try {
-      const resend = new Resend(RESEND_API_KEY.value());
-      const zipCounts = {};
-      for (const a of affected) zipCounts[a.zip] = (zipCounts[a.zip] || 0) + 1;
-      const html = `<!DOCTYPE html><html><body style="font-family:'Barlow','Segoe UI',Roboto,sans-serif;color:#333">
-  <h2 style="color:#BD5728">⛈️ Storm Watch — ${events.length} new report${events.length === 1 ? '' : 's'} in the service area</h2>
-  <ul>${events.map((ev) => `<li><b>${esc(eventLabel(ev))}</b> near ${esc(ev.city || ev.county)}, ${esc(ev.st)} — ${esc(ev.valid)} <span style="color:#6b7280">(${ev.lat.toFixed(2)}, ${ev.lon.toFixed(2)})</span></li>`).join('')}</ul>
-  <p><b>${affected.length}</b> subscriber${affected.length === 1 ? '' : 's'} within ${SUBSCRIBER_RADIUS_MI} mi${unknownZips ? ` (+${unknownZips} with unmappable zips, not texted)` : ''}: ${esc(Object.entries(zipCounts).map(([z, n]) => `${z}×${n}`).join(', ')) || '—'}</p>
-  <p>${textEnabled ? 'Subscriber texts are GOING OUT now.' : '<b>Subscriber texting is OFF</b> (STORM_TEXT_ENABLED not set) — this is the list that WOULD have been texted.'}</p>
-  <p>Go time: <a href="https://nobigdealwithjoedeal.com/storm-check">storm-check</a> traffic usually follows within hours.</p>
-</body></html>`;
-      await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@nobigdealwithjoedeal.com',
-        to: ALERT_EMAILS,
-        subject: `⛈️ Storm Watch: ${evLines[0]}${events.length > 1 ? ` (+${events.length - 1} more)` : ''}`,
-        html,
-      });
-    } catch (e) { logger.error('stormWatch: joe email failed', { err: e.message }); }
-
-    // 2) Subscriber texts — gated
-    // Each text: opt-out register → cooldown claim (transaction, BEFORE the
-    // send; a claim failure is logged and nothing is sent) → send.
-    let texted = 0;
-    const skipped = {};
-    if (textEnabled && affected.length) {
-      const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
-      for (const a of affected) {
-        const result = await StormGuard.sendGuardedStormText({
-          db,
-          subscriberRef: a.ref,
-          phone: a.to,
-          source: 'stormWatch',
-          eventKey: a.event.key,
-          logger,
-          tz: a.tz,
-          serverTimestamp: () => FieldValue.serverTimestamp(),
-          send: () => client.messages.create({
-            to: a.to,
-            from: TWILIO_PHONE_NUMBER.value(),
-            body: `NBD Storm Alert: ${eventLabel(a.event)} reported near ${a.event.city || 'your area'}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.`,
-          }),
-        });
-        if (result.status === 'sent') texted++;
-        else skipped[result.status] = (skipped[result.status] || 0) + 1;
-      }
-    }
-    if (skipped.quiet_hours) {
-      logger.info('stormWatch: quiet hours skipped', { count: skipped.quiet_hours, window: StormGuard.STORM_QUIET_HOURS });
-    }
-    logger.info('stormWatch: done', { events: events.length, affected: affected.length, texted, textEnabled, skipped });
+  // New qualifying events in the service area
+  const events = [];
+  for (const f of feats) {
+    const c = f.geometry && f.geometry.coordinates; const p = f.properties || {};
+    if (!c) continue;
+    const kind = normType(p.typetext || p.type);
+    const mag = (p.magf != null && p.magf !== '') ? Number(p.magf) : null;
+    if (!kind || !qualifies(kind, mag, p.typetext)) continue;
+    const inArea = CITY_COORDS.some(([la, lo]) => haversineMi(la, lo, c[1], c[0]) <= SERVICE_RADIUS_MI);
+    if (!inArea) continue;
+    const key = eventKey(p, c);
+    const ref = db.collection('storm_events').doc(key);
+    if ((await ref.get()).exists) continue; // already handled
+    const ev = {
+      key, kind, mag, lat: c[1], lon: c[0],
+      city: p.city || '', county: p.county || '', st: p.st || p.state || '',
+      valid: p.valid || p.utc_valid || '', typetext: p.typetext || '',
+    };
+    await ref.set({ ...ev, processedAt: FieldValue.serverTimestamp() });
+    events.push(ev);
   }
-);
+  if (!events.length) { logger.info('stormWatch: no new qualifying events'); return; }
+
+  // Affected subscribers (within radius of ANY new event)
+  // TCPA master switch (integrations/stormAlerts.enabled; absent = on) —
+  // read every run; Joe's own alert still goes out with texting shown OFF.
+  const switchOn = await StormGuard.stormAlertsEnabled(db, logger);
+  if (!switchOn) logger.info('stormWatch: storm texts switched off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
+  const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn;
+  const nowMs = Date.now();
+  // active:true is server-stamped on every subscriber (functions/handlers/
+  // integrations.js's serverDefaults, never client-trusted) specifically so
+  // an opted-out subscriber stops matching every alert query — sms-
+  // functions.js's sibling checkStormAlerts cron already filters on it.
+  // This query queried unfiltered, so an unsubscribed homeowner kept
+  // receiving stormWatch's texts even after opting out.
+  //
+  // 2026-10-03: was .limit(1000) on an unordered query — every subscriber
+  // past the first 1000 was silently never texted. Paged by documentId now.
+  const subDocs = await StormGuard.loadActiveSubscribers(db, { logger });
+  const affected = [];
+  let unknownZips = 0;
+  for (const doc of subDocs) {
+    const s = doc.data() || {};
+    const digits = String(s.phone || '').replace(/[^\d]/g, '');
+    if (digits.length !== 10 && !(digits.length === 11 && digits[0] === '1')) continue;
+    const zc = zipCoords(s.zip);
+    if (!zc) { unknownZips++; continue; }
+    const near = events.find((ev) => haversineMi(zc[0], zc[1], ev.lat, ev.lon) <= SUBSCRIBER_RADIUS_MI);
+    if (!near) continue;
+    if (StormGuard.inStormCooldown(s, nowMs)) continue;
+    affected.push({ ref: doc.ref, to: '+1' + digits.slice(-10), zip: String(s.zip || ''), tz: s.tz, event: near });
+  }
+
+  // 1) Joe's alert — always
+  const evLines = events.map((ev) =>
+    `${eventLabel(ev)} near ${ev.city || ev.county}, ${ev.st} at ${ev.valid}`);
+  // Storm Watch on the D2D map (2026-10-02): the text links straight to the
+  // door-knocking map on the first report, with the Storms layer on.
+  const mapLink = 'https://nobigdealwithjoedeal.com/pro/dashboard.html?storm=' + events[0].lat.toFixed(3) + ',' + events[0].lon.toFixed(3);
+  const smsToJoe =
+    `⛈️ NBD Storm Watch — map: ${mapLink} — ${evLines.join(' | ')}. ` +
+    `${affected.length} subscriber${affected.length === 1 ? '' : 's'} in range` +
+    (textEnabled ? ' — texting them now.' : ' (texting OFF — see email).');
+  try {
+    const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+    await client.messages.create({ to: JOE_SMS, from: TWILIO_PHONE_NUMBER.value(), body: smsToJoe.slice(0, 480) });
+  } catch (e) { logger.error('stormWatch: joe sms failed', { err: e.message }); }
+  try {
+    const resend = new Resend(RESEND_API_KEY.value());
+    const zipCounts = {};
+    for (const a of affected) zipCounts[a.zip] = (zipCounts[a.zip] || 0) + 1;
+    const html = `<!DOCTYPE html><html><body style="font-family:'Barlow','Segoe UI',Roboto,sans-serif;color:#333">
+<h2 style="color:#BD5728">⛈️ Storm Watch — ${events.length} new report${events.length === 1 ? '' : 's'} in the service area</h2>
+<ul>${events.map((ev) => `<li><b>${esc(eventLabel(ev))}</b> near ${esc(ev.city || ev.county)}, ${esc(ev.st)} — ${esc(ev.valid)} <span style="color:#6b7280">(${ev.lat.toFixed(2)}, ${ev.lon.toFixed(2)})</span></li>`).join('')}</ul>
+<p><b>${affected.length}</b> subscriber${affected.length === 1 ? '' : 's'} within ${SUBSCRIBER_RADIUS_MI} mi${unknownZips ? ` (+${unknownZips} with unmappable zips, not texted)` : ''}: ${esc(Object.entries(zipCounts).map(([z, n]) => `${z}×${n}`).join(', ')) || '—'}</p>
+<p>${textEnabled ? 'Subscriber texts are GOING OUT now.' : '<b>Subscriber texting is OFF</b> (STORM_TEXT_ENABLED not set) — this is the list that WOULD have been texted.'}</p>
+<p>Go time: <a href="https://nobigdealwithjoedeal.com/storm-check">storm-check</a> traffic usually follows within hours.</p>
+</body></html>`;
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@nobigdealwithjoedeal.com',
+      to: ALERT_EMAILS,
+      subject: `⛈️ Storm Watch: ${evLines[0]}${events.length > 1 ? ` (+${events.length - 1} more)` : ''}`,
+      html,
+    });
+  } catch (e) { logger.error('stormWatch: joe email failed', { err: e.message }); }
+
+  // 2) Subscriber texts — gated
+  // Each text: opt-out register → cooldown claim (transaction, BEFORE the
+  // send; a claim failure is logged and nothing is sent) → send.
+  let texted = 0;
+  const skipped = {};
+  if (textEnabled && affected.length) {
+    const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+    for (const a of affected) {
+      const result = await StormGuard.sendGuardedStormText({
+        db,
+        subscriberRef: a.ref,
+        phone: a.to,
+        source: 'stormWatch',
+        eventKey: a.event.key,
+        logger,
+        tz: a.tz,
+        serverTimestamp: () => FieldValue.serverTimestamp(),
+        send: () => client.messages.create({
+          to: a.to,
+          from: TWILIO_PHONE_NUMBER.value(),
+          body: `NBD Storm Alert: ${eventLabel(a.event)} reported near ${a.event.city || 'your area'}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.`,
+        }),
+      });
+      if (result.status === 'sent') texted++;
+      else skipped[result.status] = (skipped[result.status] || 0) + 1;
+    }
+  }
+  if (skipped.quiet_hours) {
+    logger.info('stormWatch: quiet hours skipped', { count: skipped.quiet_hours, window: StormGuard.STORM_QUIET_HOURS });
+  }
+  logger.info('stormWatch: done', { events: events.length, affected: affected.length, texted, textEnabled, skipped });
+}
+
+// Secrets this half reads (storm-poller.js binds the union).
+const STORM_WATCH_SECRETS = [RESEND_API_KEY, EMAIL_FROM, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER];
+exports.runStormWatch = runStormWatch;
+exports.STORM_WATCH_SECRETS = STORM_WATCH_SECRETS;
 
 exports._test = { qualifies, normType, zipCoords, haversineMi, eventKey };

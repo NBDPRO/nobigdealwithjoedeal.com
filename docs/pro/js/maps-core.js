@@ -16,7 +16,7 @@
  *   - PIN_LABELS / PIN_COLORS / STAGE_COLORS — pin colour palette
  *   - the module-state vars (mainMap, curPinStatus, curPinColor,
  *     pinMarkers, pinClusterGroup, overlayState, heatLayer,
- *     jobMarkers, weatherLayer, stormTileLayer, pendingPin)
+ *     jobMarkers, stormTileLayer, pendingPin)
  *   - initMainMap() / toggleOverlay() / heat + pin show/hide
  *
  * Classic-script (non-ESM): every let/const declared at top level
@@ -69,8 +69,8 @@ const STAGE_COLORS = {
 // ══════════════════════════════════════════════
 // MAP OVERLAY SYSTEM
 // ══════════════════════════════════════════════
-let overlayState = { heat:false, pins:true, jobs:false, storm:false, weather:false, customers:false };
-let heatLayer = null, jobMarkers = [], weatherLayer = null, stormTileLayer = null;
+let overlayState = { heat:false, pins:true, jobs:false, storm:false, customers:false };
+let heatLayer = null, jobMarkers = [], stormTileLayer = null;
 let pendingPin = null; // { lat, lng, status, color } — waiting for confirm
 
 function initMainMap() {
@@ -82,18 +82,27 @@ function initMainMap() {
   if (mainMap) { try { mainMap.invalidateSize(); } catch (e) {} return; }
   mainMap = L.map('mainMap').setView([39.07,-84.17],14);
   // Esri World Imagery primary. Native z=19, upscale to 22. Esri free tier
-  // returns sporadic 503s in burst conditions — on tileerror we swap the
-  // failed tile <img>.src to Google's mt{0-3}.google.com satellite endpoint.
+  // returns sporadic 503s in burst conditions — on tileerror the failed tile
+  // gets one retry on Esri's alternate host, and the public-domain USGS
+  // orthoimagery (cached to z16, upscaled) sits underneath so a tile that
+  // still fails shows imagery, not a hole. (Was a fallback to raw Google
+  // mt*.google.com tiles until 2026-10-04 — vendor audit Lane D.)
+  L.tileLayer(
+    'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'USGS/NAIP', maxNativeZoom: 16, maxZoom: 22 }
+  ).addTo(mainMap);
   const sat = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { attribution: 'Tiles © Esri', maxNativeZoom: 19, maxZoom: 22 }
+    { attribution: '© Esri, Maxar, Earthstar Geographics', maxNativeZoom: 19, maxZoom: 22 }
   );
   sat.on('tileerror', function (ev) {
-    if (!ev.tile || !ev.coords) return;
+    if (!ev.tile) return;
     if (ev.tile.dataset.nbdFallbackTried === '1') return;
     ev.tile.dataset.nbdFallbackTried = '1';
-    const c = ev.coords;
-    ev.tile.src = `https://mt${(c.x + c.y) % 4}.google.com/vt/lyrs=s&x=${c.x}&y=${c.y}&z=${c.z}`;
+    const src = String(ev.tile.src || '');
+    if (src.indexOf('https://server.arcgisonline.com/') === 0) {
+      ev.tile.src = 'https://services.arcgisonline.com/' + src.slice('https://server.arcgisonline.com/'.length);
+    }
   });
   sat.addTo(mainMap);
   // Initialize marker cluster group for performance with many pins
@@ -122,7 +131,6 @@ function toggleOverlay(type, el) {
   if(type==='jobs')    { overlayState.jobs    ? showJobsLayer()    : hideJobsLayer();    }
   if(type==='customers'){overlayState.customers? showCustomersLayer(): hideCustomersLayer();}
   if(type==='storm')   { overlayState.storm   ? showStormLayer()   : hideStormLayer();   }
-  if(type==='weather') { overlayState.weather ? showWeatherLayer() : hideWeatherLayer(); }
 }
 
 // ── HEAT MAP ─────────────────────────────────────
