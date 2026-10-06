@@ -73,6 +73,12 @@
    * Find all CRM leads that fall within a storm zone's polygon.
    * Returns array of leads with a `distanceFromCenter` field.
    */
+  // The server-written lead mirror (functions/care-plan.js): active or past_due.
+  function isCarePlanMember(lead) {
+    const c = lead && lead.carePlan;
+    return !!(c && c.member === true && (c.status === 'active' || c.status === 'past_due'));
+  }
+
   function findLeadsInZone(zone, leads) {
     if (!zone) return [];
     leads = leads || window._leads || [];
@@ -102,12 +108,16 @@
           jobValue: lead.jobValue,
           lat: lead.lat,
           lng: lead.lng,
-          distanceFromCenter: center ? distanceMiles(center, point) : null
+          distanceFromCenter: center ? distanceMiles(center, point) : null,
+          // Roof Care Plan members get priority after storms (2026-10-05).
+          carePlanMember: isCarePlanMember(lead)
         });
       }
     });
-    // Sort by distance from storm center (hardest hit first)
-    inside.sort((a, b) => (a.distanceFromCenter || 0) - (b.distanceFromCenter || 0));
+    // Roof Care Plan members first (the plan promises priority scheduling
+    // after storms), then by distance from storm center (hardest hit first).
+    inside.sort((a, b) => ((b.carePlanMember ? 1 : 0) - (a.carePlanMember ? 1 : 0))
+      || ((a.distanceFromCenter || 0) - (b.distanceFromCenter || 0)));
     return inside;
   }
 
