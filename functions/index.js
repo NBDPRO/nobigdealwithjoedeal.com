@@ -243,8 +243,8 @@ const stormReportFn = require('./storm-report');
 Object.assign(exports, stormReportFn);
 
 // Homeowner follow-up email when a /storm-report lead is captured (additive trigger).
-const stormReportEmailFn = require('./storm-report-email');
-Object.assign(exports, stormReportEmailFn);
+// By name only: storm-report-email.js also exports _test (2026-10-06 gust line).
+exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
@@ -260,6 +260,17 @@ Object.assign(exports, leadBridgeFns);
 // ═══════════════════════════════════════════════════════════════
 const smsFunctions = require('./sms-functions');
 Object.assign(exports, smsFunctions);
+
+// NBD's Twilio line (+1 937 764 4855, 2026-10-06): inbound texts, delivery
+// callbacks, inbound calls forwarded to Jo's cell + the <Dial> action. Served
+// at /api/twilio/* (firebase.json). SHIPS DARK — TWILIO_INBOUND_ENABLED unset
+// = fixed TwiML, nothing read or written. Named exports only (twilio-line.js
+// also exports a test seam).
+const twilioLine = require('./twilio-line');
+exports.twilioSmsWebhook      = twilioLine.twilioSmsWebhook;
+exports.twilioSmsStatus       = twilioLine.twilioSmsStatus;
+exports.twilioVoiceWebhook    = twilioLine.twilioVoiceWebhook;
+exports.twilioVoiceDialStatus = twilioLine.twilioVoiceDialStatus;
 
 // ═══════════════════════════════════════════════════════════════
 // AUDIT LOG TRIGGERS (H-4)

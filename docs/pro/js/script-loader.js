@@ -86,7 +86,7 @@
     ],
     storm: [
       'js/storm-center.js?v=6',
-      'js/storm-integration.js?v=2',
+      'js/storm-integration.js?v=3',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
       'js/storm-outlook.js?v=1'
@@ -196,7 +196,7 @@
       'js/document-generator.js?v=17',
       'js/document-generator-templates.js?v=13',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=4',
+      'js/doc-preflight.js?v=5',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
