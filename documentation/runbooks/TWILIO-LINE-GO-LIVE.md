@@ -15,7 +15,7 @@ submitted 2026-10-06, must be approved first).
 |---|---|---|
 | `https://nobigdealwithjoedeal.com/api/twilio/sms` | `twilioSmsWebhook` | Matches the sender to an NBD lead by `phoneDigits`, writes an `sms_log` row (direction inbound, leadId + uid + date), a timeline note and a bell. Unknown number: an Agent inbox item "Text from an unknown number" (last 4 digits only) plus an `unmatched_sms` row (Admin → Inbound texts, where it can become a customer). STOP / STOPALL / UNSUBSCRIBE / CANCEL / END / QUIT / REVOKE / OPTOUT go into `sms_opt_outs` (canonical key) and flag the lead; START / UNSTOP clears both key shapes; HELP is logged only. Always returns an empty `<Response/>`. |
 | `https://nobigdealwithjoedeal.com/api/twilio/sms-status` | `twilioSmsStatus` | On delivered / failed / undelivered, stamps `deliveryStatus` on the outbound `sms_log` row with that MessageSid. The first final answer wins. |
-| `https://nobigdealwithjoedeal.com/api/twilio/voice` | `twilioVoiceWebhook` | Forwards the call to `TWILIO_VOICE_FORWARD_TO` (Jo's cell), caller ID = the Twilio number, 25 s ring. No recording, no AI. |
+| `https://nobigdealwithjoedeal.com/api/twilio/voice` | `twilioVoiceWebhook` | Forwards the call to `TWILIO_VOICE_FORWARD_TO` (Jo's cell). Caller ID = the **caller's own number** (Jo's decision, 2026-10-06), falling back to the Twilio number when the caller is missing, anonymous/restricted or not a valid US number. 25 s ring. No recording, no AI. |
 | `https://nobigdealwithjoedeal.com/api/twilio/voice-status` | `twilioVoiceDialStatus` | The `<Dial>` action (Twilio calls it by itself; nothing to configure). Logs "answered (duration)" or "missed" on the matching lead, plus a bell for a missed call; an unknown missed caller becomes an Agent inbox item (last 4 only). |
 
 Every live request must carry a valid `X-Twilio-Signature` made with the
@@ -64,7 +64,7 @@ status callbacks get 200 + empty TwiML, and nothing is recorded. A call hears
      the timeline and the bell rings.
    - Text STOP from a test phone. Twilio replies, and `sms_opt_outs` gets a
      10-digit doc. Then text START to clear it.
-   - Call the number. Jo's cell rings and shows (937) 764-4855. Decline the
+   - Call the number. Jo's cell rings and shows the CALLING phone's number (a withheld number shows (937) 764-4855). Decline the
      call: a "Missed call" note lands on the card.
 
 **Rollback:** set `TWILIO_INBOUND_ENABLED=false` (PR + deploy), or point the
@@ -72,10 +72,10 @@ webhooks back. Both work without the other.
 
 ## Known limits (decide later; none of these block go-live)
 
-- **Caller ID.** Forwarded calls show the Twilio number, so Jo's phone can't
-  tell who is calling. Matched callers get a note on their card. Unknown
-  missed callers get an inbox item that shows the last 4 digits only. Passing
-  the caller's own number through is a one-line change if Jo prefers it.
+- **Caller ID.** Forwarded calls show the caller's own number (Jo, 2026-10-06),
+  so Jo can't tell from the screen alone that a call came in on the NBD line.
+  A withheld/anonymous caller shows the Twilio number. Unknown missed callers
+  also get an inbox item (last 4 digits only).
 - **Voicemail counts as answered.** If Jo's cell sends the call to voicemail,
   Twilio reports the call as completed, so the note says answered.
 - **Delivery receipts.** The CRM's send paths send with `from` = the number,

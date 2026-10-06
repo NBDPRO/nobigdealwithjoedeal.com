@@ -359,7 +359,12 @@ const docsIn = (db, col) => [...db.store.keys()].filter((k) => k.startsWith(col 
   {
     const res = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(70, 'CA'), From: '+15135550100', To: '+19375550144' }), trapDb());
     ok('live voice → <Dial> to the configured cell', /<Dial [^>]*><Number>\+18595550199<\/Number><\/Dial>/.test(res.body), res.body);
-    ok('callerId = the Twilio number that was called', /callerId="\+19375550144"/.test(res.body));
+    ok('callerId = the CALLER\'s own number (Jo sees who is calling)', /callerId="\+15135550100"/.test(res.body) && !/callerId="\+19375550144"/.test(res.body), res.body);
+    for (const anon of ['', 'Anonymous', 'Restricted', '+266696687', '+86753091', '+442071234567', '+15135550', '<x>']) {
+      const ra = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(70, 'CA'), From: anon, To: '+19375550144' }), trapDb());
+      ok('caller ' + JSON.stringify(anon) + ' → callerId falls back to the Twilio number', /callerId="\+19375550144"/.test(ra.body) && /<Dial /.test(ra.body), ra.body);
+    }
+    ok('forwardCallerId: caller first, Twilio number second, never junk', L.forwardCallerId('+15135550100', '+19375550144') === '+15135550100' && L.forwardCallerId('Anonymous', '+19375550144') === '+19375550144' && L.forwardCallerId('', 'junk') === '');
     ok('Dial action → /api/twilio/voice-status (POST)', /action="\/api\/twilio\/voice-status" method="POST"/.test(res.body));
     ok('no recording, no AI, no <Message>', !/record|Record|<Gather|<Connect|<Stream|<Message/.test(res.body));
     ok('voice webhook reads/writes no Firestore (trap db untouched)', res.statusCode === 200);

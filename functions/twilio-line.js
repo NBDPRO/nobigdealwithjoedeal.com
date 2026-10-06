@@ -239,8 +239,10 @@ async function handleVoice(req, res, deps) {
   const dark = L.darkVoiceTwiml(process.env);
   if (!enabled()) { sendXml(res, 200, dark); return; }
   if (!gate(req, res, deps, 'twilioVoiceWebhook', dark)) return;
-  // `To` is the number that was called — ours (the request is signed).
-  sendXml(res, 200, L.forwardTwiml(process.env, String((req.body || {}).To || '')));
+  // Caller ID on Jo's cell = the caller's own number (`From`); `To` (ours —
+  // the request is signed) is the fallback for an anonymous/invalid caller.
+  const b = req.body || {};
+  sendXml(res, 200, L.forwardTwiml(process.env, String(b.To || ''), String(b.From || '')));
 }
 
 async function handleVoiceDialStatus(req, res, deps) {

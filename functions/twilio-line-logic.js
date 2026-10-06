@@ -279,10 +279,23 @@ function darkVoiceTwiml(env) {
     : 'Thanks for calling No Big Deal Home Solutions. Please call back later. Goodbye.');
 }
 
-/** Forward to Jo's cell, showing the Twilio number as caller ID. No recording. */
-function forwardTwiml(env, twilioNumber) {
+const isUsE164 = (s) => /^\+1[2-9]\d{2}[2-9]\d{6}$/.test(String(s || ''));
+
+/**
+ * The caller ID Jo's cell shows (Jo, 2026-10-06): the CALLER's own number, so
+ * he can see who is calling. Falls back to the Twilio number when the caller's
+ * is missing, anonymous/restricted (Twilio sends e.g. "Anonymous" or
+ * "+266696687"), or not a valid US number.
+ */
+function forwardCallerId(from, twilioNumber) {
+  if (isUsE164(from)) return String(from);
+  return isUsE164(twilioNumber) ? String(twilioNumber) : '';
+}
+
+/** Forward to Jo's cell, showing the caller's number as caller ID. No recording. */
+function forwardTwiml(env, twilioNumber, from) {
   const to = forwardTo(env);
-  const callerId = /^\+1\d{10}$/.test(String(twilioNumber || '')) ? String(twilioNumber) : '';
+  const callerId = forwardCallerId(from, twilioNumber);
   if (!to || !callerId) return darkVoiceTwiml(env);
   return '<?xml version="1.0" encoding="UTF-8"?><Response>'
     + '<Dial callerId="' + xmlEsc(callerId) + '" timeout="25" action="' + PATHS.voiceStatus + '" method="POST">'
@@ -350,6 +363,6 @@ module.exports = {
   keywordOf, cleanBody, isSid, nbdLeads,
   inboundSmsLogRow, smsNoteText, leadNote, unknownTextInboxItem, bellForText,
   deliveryUpdate,
-  xmlEsc, darkVoiceTwiml, forwardTwiml, callOutcome, afterDialTwiml, fmtDuration, callNote,
+  xmlEsc, darkVoiceTwiml, forwardCallerId, forwardTwiml, callOutcome, afterDialTwiml, fmtDuration, callNote,
   unknownMissedCallInboxItem,
 };
