@@ -251,7 +251,7 @@ function load(w, rel) {
 const SUB_PHONE = '(859) 555-0134';
 const SUB_E164 = '+18595550134';
 function seedSub(db, id, fields) {
-  db.store.set('storm_alert_subscribers/' + id, Object.assign({ active: true, zip: '41017', phone: SUB_PHONE }, fields || {}));
+  db.store.set('storm_alert_subscribers/' + id, Object.assign({ active: true, zip: '41017', phone: SUB_PHONE, tcpaConsent: true }, fields || {}));
 }
 function nwsAlert(id, extra) {
   return {

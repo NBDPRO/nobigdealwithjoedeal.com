@@ -944,11 +944,19 @@ service cloud.firestore {
       // SENDS a text.
       match /ai_drafts/{draftId} {
         allow read: if isAuth() && (isAdmin() || isOwner(resource.data.userId));
+        // Status moves a rep may make (review R2-3-3, 2026-10-06):
+        //   pending → approved | dismissed   (approve sends — onAiDraftApproved)
+        //   failed  → pending  | dismissed   ("edit and try again" re-queues it)
+        // NEVER sent / approved / failed → approved: a stale tab tapping
+        // Approve on a draft already sent must not text the homeowner again.
         allow update: if isAuth()
           && isOwner(resource.data.userId) && notViewer()
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['status', 'draftText', 'approvedAt', 'approvedBy', 'editedByRep', 'dismissedAt'])
-          && request.resource.data.status in ['approved', 'dismissed'];
+          && ((resource.data.status == 'pending'
+                && request.resource.data.status in ['approved', 'dismissed'])
+            || (resource.data.status == 'failed'
+                && request.resource.data.status in ['pending', 'dismissed']));
         allow create, delete: if false; // admin SDK only
       }
 
@@ -1234,10 +1242,15 @@ service cloud.firestore {
       // an image in that company's shared gallery (audit 2026-08-02 — the
       // 2026-07-08 /pins fix never reached this rule). Delete is untouched.
       // notViewer() on the owner branch of every write (decision B, 2026-09-25).
+      // source + path are frozen too, and a client may never CREATE a
+      // source:'homeowner' photo: getHomeownerPortalView signs a homeowner
+      // photo's `path` with the admin SDK (review R3-3, 2026-10-06). Only the
+      // portal upload (admin SDK) writes those photos.
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && didNotChange(['userId', 'companyId']);
+        && didNotChange(['userId', 'companyId', 'source', 'path']);
       allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('source', '') != 'homeowner'
         && (request.resource.data.get('companyId', '') == ''
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
@@ -1445,12 +1458,18 @@ service cloud.firestore {
 
     // ── USER SETTINGS / PROFILE ───────────────────────
     // Profile is self-owned but privileged fields are locked to the server.
+    // e2eTestAccount (+ its provisioning stamps) is written only by
+    // provisionE2ETestUser and is the gate on cleanupE2ETestData, which
+    // deletes Storage objects with the admin SDK; it was client-settable
+    // until 2026-10-06 (review R3-2).
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid)
-        && !request.resource.data.keys().hasAny(['role','plan','accessCode','isAdmin','companyId']);
+        && !request.resource.data.keys().hasAny(['role','plan','accessCode','isAdmin','companyId',
+                                                 'e2eTestAccount','provisionedBy','provisionedAt','provisionAction']);
       allow update: if isOwner(uid)
-        && didNotChange(['role','plan','accessCode','isAdmin','companyId']);
+        && didNotChange(['role','plan','accessCode','isAdmin','companyId',
+                         'e2eTestAccount','provisionedBy','provisionedAt','provisionAction']);
       allow delete: if isAdmin();
 
       // ── Template sync subcollections (feat/template-sync) ──
@@ -2608,6 +2627,16 @@ service cloud.firestore {
     // isOptedOut. A client write could take a number off the list (texting
     // someone who asked not to be texted) or plant one on another company's.
     match /sms_dnc/{id} {
+      allow read, write: if false;
+    }
+
+    // ── SMS TEXTING MASTER SWITCH (admin-SDK only, 2026-10-05) ──
+    // sms_settings/{companyId}: { enabled, registered }. Read and written only
+    // through functions (manageSmsCompliance getSettings / setEnabled; every
+    // send path reads it, sms-texting-gate.js). A client write could set
+    // registered: true and text another business's customers under NBD's
+    // registered brand, or switch a company's texting back on.
+    match /sms_settings/{id} {
       allow read, write: if false;
     }
 

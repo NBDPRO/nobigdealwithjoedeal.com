@@ -2782,8 +2782,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=1"></script>
 <script defer src="js/customer-numbers.js?v=1"></script>
-<script defer src="js/customer-tasks-ui.js?v=20"></script>
-<script defer src="js/nbd-comms.js?v=5"></script>
+<script defer src="js/customer-tasks-ui.js?v=21"></script>
+<script defer src="js/nbd-comms.js?v=6"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
@@ -2796,10 +2796,10 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      Reads leads/{leadId}/documents and publishes window.loadDocuments, which
      the bootstrap calls from loadCustomerData once the lead resolves. Must
      load before the upload modules that call NBDCustomerDocs.refresh(). -->
-<script defer src="js/customer-documents.js?v=8"></script>
+<script defer src="js/customer-documents.js?v=9"></script>
 <!-- Send for review (2026-10-03): the share sheet + the message copy. -->
-<script defer src="js/phone-share.js?v=1"></script>
-<script defer src="js/estimate-followups.js?v=2"></script>
+<script defer src="js/phone-share.js?v=2"></script>
+<script defer src="js/estimate-followups.js?v=3"></script>
 <script defer src="js/customer-signed-doc-upload.js?v=3"></script>
 <script defer src="js/customer-portal.js?v=4"></script>
 <script defer src="js/clipboard-fix.js?v=2"></script>
@@ -2882,7 +2882,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/lead-score-panel.js?v=2"></script>
 <script defer src="js/customer-smart-followup-panel.js?v=3"></script>
 <!-- T-2: AI texting rep UI — surfaces pending /leads/{id}/ai_drafts -->
-<script defer src="js/customer-ai-drafts-panel.js?v=2"></script>
+<script defer src="js/customer-ai-drafts-panel.js?v=4"></script>
 <!-- share-gallery.js is NOT loaded here anymore. Its only caller on this
      page was the Photos-tab "Share Gallery" button, which now routes to
      PortalLinkHelpers.copyForLead; the module's own upload path is dead
@@ -3012,8 +3012,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       </div>
       <div>
         <label for="editDamageType" class="ui-label">Additional Service Locations</label>
-        <!-- A job can cover more than one property. Invoice NBD-2026-0810-RK
-             (Red Knight Properties) bills 1944 AND 1942 Kentucky Ave on one
+        <!-- A job can cover more than one property. Invoice NBD-2026-0810-XXXX
+             (Example Properties LLC) bills 100 AND 102 Kentucky Ave on one
              document; before this field the second building had nowhere to
              live and was lost. `address` stays the primary/billing address;
              these are extra properties worked under the same job and print
@@ -3101,7 +3101,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/schedule-planner-logic.js?v=2"></script>
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=1"></script>
+<script defer src="js/production.js?v=2"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      Voice Intelligence mount (C4)

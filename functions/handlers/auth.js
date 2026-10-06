@@ -32,6 +32,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { FieldValue } = require('firebase-admin/firestore');
 const { findPendingInvite } = require('./invite-lookup');
+const { isOwnE2ECleanupPath } = require('../lead-artifact-paths');
 
 const {
   CORS_ORIGINS,
@@ -223,9 +224,18 @@ exports.cleanupE2ETestData = onCall(
 
     // Best-effort Storage object delete — a missing object (already
     // cleaned, emulator restart, manual delete) must never fail the sweep.
+    // The paths come from client-written docs and the admin SDK ignores
+    // storage.rules, so only the caller's own prefixes are ever deleted
+    // (review R3-2, 2026-10-06: a planted storagePath deleted any object).
     const bucket = getStorage().bucket();
+    let storageRefused = 0;
     const deleteStorageObject = async (objectPath) => {
       if (!objectPath || typeof objectPath !== 'string') return;
+      if (!isOwnE2ECleanupPath(objectPath, uid)) {
+        storageRefused++;
+        logger.warn('cleanupE2ETestData: refused a path outside the caller prefix', { uid, objectPath });
+        return;
+      }
       try {
         await bucket.file(objectPath).delete();
         storageDeleted++;
@@ -363,7 +373,7 @@ exports.cleanupE2ETestData = onCall(
 
     logger.info('cleanupE2ETestData: done', {
       uid, leadsDeleted, estimatesDeleted, activityDeleted, notesDeleted,
-      documentsDeleted, topLevelNotesDeleted, flatDeleted, storageDeleted
+      documentsDeleted, topLevelNotesDeleted, flatDeleted, storageDeleted, storageRefused
     });
 
     return {
@@ -374,7 +384,8 @@ exports.cleanupE2ETestData = onCall(
       documentsDeleted,
       topLevelNotesDeleted,
       flatDeleted,
-      storageDeleted
+      storageDeleted,
+      storageRefused
     };
   }
 );

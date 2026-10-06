@@ -113,9 +113,9 @@ function runAudit(rows, argv, opts) {
   })();
 }
 
-const CLEAN = { id: 'A1', firstName: 'Clean', lastName: 'Row', address: '5448 Hagewa Dr, Blue Ash, OH 45242', jobValue: 100 };
+const CLEAN = { id: 'A1', firstName: 'Clean', lastName: 'Row', address: '5448 Wickhaven Dr, Blue Ash, OH 45242', jobValue: 100 };
 const THIN  = { id: 'A2', firstName: 'Thin', lastName: 'Row', address: 'Cincinnati, OH 45229', jobValue: 100 };
-const MANGLED = { id: 'A3', firstName: 'Mangled', lastName: 'Row', address: '7003, Greenstone Trace, O’Bannon Creek', jobValue: 100 };
+const MANGLED = { id: 'A3', firstName: 'Mangled', lastName: 'Row', address: '7003, Wrenfield Trace, O’Bannon Creek', jobValue: 100 };
 const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobValue: 100 };
 
 (async function main() {
@@ -162,12 +162,12 @@ const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobV
     ok('CI --list still fails on the mangled row', code === 1);
     ok('CI --list prints the offending doc ids', /^\s+A3$/m.test(out) && /^\s+A2$/m.test(out));
     ok('CI --list prints no names', !/Mangled|Thin Row|Clean Row/.test(out));
-    ok('CI --list prints no addresses', !/Greenstone|Cincinnati|Hagewa/.test(out));
+    ok('CI --list prints no addresses', !/Wrenfield|Cincinnati|Wickhaven/.test(out));
     ok('CI output prints no dollar figures', !/\$/.test(out));
     const local = await runAudit([CLEAN, MANGLED], ['--list']);
-    ok('locally --list still shows name + address (the redaction is CI-only)', /Mangled Row/.test(local.out) && /Greenstone/.test(local.out));
+    ok('locally --list still shows name + address (the redaction is CI-only)', /Mangled Row/.test(local.out) && /Wrenfield/.test(local.out));
     const red = await runAudit([CLEAN, MANGLED], ['--list', '--redact']);
-    ok('--redact gives the CI output locally', !/Mangled Row|Greenstone/.test(red.out) && /^\s+A3$/m.test(red.out));
+    ok('--redact gives the CI output locally', !/Mangled Row|Wrenfield/.test(red.out) && /^\s+A3$/m.test(red.out));
     const csv = await runAudit([CLEAN, MANGLED], ['--csv'], { ci: true });
     ok('--csv is refused in CI (exit 2)', csv.code === 2);
   }

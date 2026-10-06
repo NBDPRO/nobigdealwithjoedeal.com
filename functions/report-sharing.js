@@ -63,6 +63,7 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const { awaitBriefly } = require('./await-briefly');
 // Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
 const REPORT_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
@@ -125,6 +126,12 @@ const SHARED_REPORT_CSP = [
   "base-uri 'none'",
   "object-src 'none'",
 ].join('; ');
+
+// A lead document served at /report/<token> is a PDF and nothing else (R3-4,
+// 2026-10-06). Sandboxed with nothing allowed: the browser's own PDF viewer
+// still renders it (checked in Chrome), and if anything other than a PDF
+// ever got through, it would get an opaque origin with no scripts or forms.
+const PDF_ONLY_CSP = "sandbox; default-src 'none'";
 
 // ── Subject resolvers ────────────────────────────────────────────
 // Each returns the common descriptor the mint path writes into the token doc,
@@ -518,11 +525,13 @@ exports.getSharedReport = onRequest(
       errPage(410, 'This report link has expired. Ask your rep for a fresh one.'); return;
     }
 
-    // Fire-and-forget viewed stamp (do not gate the response).
-    db.doc(`report_share_tokens/${token}`).update({
+    // Viewed stamp. R4-10 (2026-10-06): awaited briefly before the response
+    // (awaitBriefly) so Cloud Run's post-response CPU throttle can't drop it.
+    const pendingWrites = [];
+    pendingWrites.push(db.doc(`report_share_tokens/${token}`).update({
       viewedAt: FieldValue.serverTimestamp(),
       viewCount: FieldValue.increment(1),
-    }).catch(() => {});
+    }).catch(() => {}));
 
     // A lead-scoped document is a PDF in Storage, not inline HTML.
     //
@@ -554,24 +563,52 @@ exports.getSharedReport = onRequest(
       // estimate_viewed alert, throttled per lead per 6h. A link preview
       // (iMessage fetches the link the moment Jo texts it) is not an open.
       if (tok.leadId && !DV.isPreviewBot(req.get('user-agent'))) {
-        EVA.recordEstimateView(db, {
+        pendingWrites.push(EVA.recordEstimateView(db, {
           leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'review_link',
           what: tok.docLabel || tok.filename || '',
-        }).catch(() => {});
+        }).catch(() => {}));
       }
+      await awaitBriefly(pendingWrites);
+      // R3-4 (2026-10-06): PDF ONLY, re-checked on EVERY view. The mint path
+      // checks the type once, but the object can be overwritten afterwards
+      // (a documents/ upload is client-writable HTML), and serving its
+      // current Content-Type put tenant HTML on our origin. So: refuse
+      // unless the stored type is application/pdf AND the bytes start with
+      // %PDF; read both off ONE generation so a swap between the check and
+      // the stream is not served; and always send a fixed application/pdf
+      // with nosniff and a sandbox CSP (PDF_ONLY_CSP).
       let file, meta;
       try {
-        file = getStorage().bucket().file(path);
-        [meta] = await file.getMetadata();
+        const bucket = getStorage().bucket();
+        [meta] = await bucket.file(path).getMetadata();
+        file = meta && meta.generation != null ? bucket.file(path, { generation: meta.generation }) : bucket.file(path);
       } catch (e) {
         logger.error('[getSharedReport] document fetch failed', { token: token.slice(0, 6), err: e.message });
         errPage(404, 'This report is no longer available.'); return;
+      }
+      let head = '';
+      if (ESL.isPdfContentType(meta && meta.contentType)) {
+        try {
+          const [buf] = await file.download({ start: 0, end: 4 });
+          head = Buffer.from(buf || '').subarray(0, 4).toString('latin1');
+        } catch (e) {
+          logger.error('[getSharedReport] document head read failed', { token: token.slice(0, 6), err: e.message });
+          errPage(404, 'This report is no longer available.'); return;
+        }
+      }
+      if (head !== '%PDF') {
+        logger.warn('[getSharedReport] refused a non-PDF lead document', {
+          token: token.slice(0, 6), contentType: String((meta && meta.contentType) || '').slice(0, 80),
+        });
+        errPage(415, 'This report is no longer available.'); return;
       }
       // Headers before the first byte; once the stream starts there is no way
       // to send an error page, so a mid-stream failure can only end the
       // response.
       res.status(200)
-        .set('Content-Type', String(meta.contentType || 'application/pdf'))
+        .set('Content-Type', 'application/pdf')
+        .set('X-Content-Type-Options', 'nosniff')
+        .set('Content-Security-Policy', PDF_ONLY_CSP)
         .set('Content-Length', String(meta.size || 0))
         // inline, so a phone opens it in the browser's PDF viewer instead of
         // downloading a file the homeowner then has to find.
@@ -604,6 +641,7 @@ exports.getSharedReport = onRequest(
     }
     if (!html) { errPage(404, 'This report has no content to display.'); return; }
 
+    await awaitBriefly(pendingWrites);
     res.status(200)
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')

@@ -195,18 +195,18 @@ same as "never applied", and the two got conflated.
 
 Two specific worries in the brief both cleared:
 
-- **`JoKt4d0yJeF51MTmjaJh`** (Morgan-McCane), whose byte-equality gate depends
+- **`JoKt4d0yJeF51MTmjaJh`** (Customer DR), whose byte-equality gate depends
   on a `U+2019` in `scripts/legacy-address-corrections.json`, reported
   `ALREADY` — not `SKIPPED`. The apostrophe survived. JSON is git-clean.
 - **`inspect_leads__GgomiGANIbdd8zPmzqwH`**, whose id looks like a
   copy-paste artifact, is a real document — reported `ALREADY`, not `MISSING`.
 
-The single remaining correction was **Anthony Scandariato**
+The single remaining correction was **Customer ET**
 (`HEiG1d11LRfpaMyIgqNq`, jobValue $2,500):
 
 ```
-"Red Knight Properties - Kentucky Ave, Cincinnati, OH 45223"
-  →  "1944 Kentucky Ave, Cincinnati, OH 45223"     src: Invoice NBD-2026-0810-RK
+"[customer's property LLC] - Kentucky Ave, Cincinnati, OH 45223"
+  →  "[street address], Cincinnati, OH 45223"     src: Invoice NBD-2026-0810-XXXX
 ```
 
 Note it is classified **`noStreet`**, not `legacyMangled` — one of the 60 THIN
@@ -220,7 +220,7 @@ three ways rather than trusting the script's own summary —
 
 | Check | Result |
 | --- | --- |
-| Read-back of the doc | `address` = `"1944 Kentucky Ave, Cincinnati, OH 45223"` ✅ |
+| Read-back of the doc | `address` = `"[street address], Cincinnati, OH 45223"` ✅ |
 | `updatedAt` after the write | still `2026-08-18T03:55:15.479Z` — **untouched**, so the $2,500 stays in August ✅ |
 | Re-run of the audit | `noStreet` 60 → 59, `OK` 119 → 120, and exactly $2,500 moved between the two buckets ✅ |
 

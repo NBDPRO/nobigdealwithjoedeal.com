@@ -22,14 +22,20 @@ const MAX_LIST = 50;
 const LIST_CURSOR_MAX = 400;
 // Draft limits (2026-10-06; the draft rules sit above the company-bot section).
 const SMS_MAX = 480;
-const STOP_LINE = 'Reply STOP to opt out.';
+// The STOP line on a draft the owner sends from their OWN phone (review R2-3-1,
+// Jo 2026-10-06). "to opt out" promised an opt-out system that never sees the
+// reply — it lands on the owner's phone. This wording is true: the owner reads
+// it, and records it with "They replied STOP" (phone-text-check.js 'stop').
+// TODO(TWILIO_INBOUND_ENABLED): once the business line's inbound is live,
+// drafts should go through it, where a STOP is recorded by itself.
+const STOP_LINE = "Reply STOP and we'll stop texting.";
 const REASON_MAX = 300;
 const EMAIL_SUBJECT_MAX = 140;
 
 // ── Tools ──────────────────────────────────────────────────────────────
 const TOOLS = {
   crm_summary: {
-    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — booked/estimated, not money received), follow-ups due today and overdue.',
+    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — deals still in play; a signed contract or a job in production is booked, not pipeline; never money received), follow-ups due today and overdue.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   schedule: {
@@ -221,6 +227,11 @@ const { moneyValue } = require('./customer-estimate-rows');
 const { jobRecords } = require('./jobs-logic');
 function stageKeyOf(l) { return _SRK.canonicalStageKey(l && l.stage) || String((l && l.stage) || 'new'); }
 function isClosedLead(l) { const r = _SRK.roleFor(Object.assign({}, l, { _stageKey: stageKeyOf(l) })); return r === 'won' || r === 'lost' || CLOSED.test(stageKeyOf(l)); }
+// Out of the OPEN pipeline: closed/lost above, or BOOKED — a signed contract
+// or an in-production job (Jo, 2026-10-06; stage-roles.js isSale, the test
+// the kanban header, Home KPI tiles and weekly digest use). Follow-ups keep
+// isClosedLead: a signed job still has production follow-ups.
+function isOutOfPipeline(l) { return isClosedLead(l) || _SRK.isSale(l); }
 function ms(v) {
   if (!v) return 0;
   if (typeof v === 'number') return v;
@@ -261,7 +272,7 @@ function summary(leads, todayYmd, jobsByLead) {
   const byStage = {};
   let pipeline = 0, dueToday = 0, overdue = 0;
   jobRecords(act, jobsByLead).forEach((r) => {
-    if (!isClosedLead(r)) pipeline += moneyValue(r.jobValue);
+    if (!isOutOfPipeline(r)) pipeline += moneyValue(r.jobValue);
   });
   act.forEach((l) => {
     const st = stageKeyOf(l);
@@ -272,7 +283,7 @@ function summary(leads, todayYmd, jobsByLead) {
       else if (l.followUp < todayYmd) overdue++;
     }
   });
-  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected (estimates / booked), not money collected.' };
+  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected: open deals only (a signed contract or a job in production is booked, not pipeline), not money collected.' };
 }
 
 function overdueFollowups(leads, todayYmd, limit) {
@@ -816,6 +827,26 @@ function companyNames(profile, isNbd) {
 }
 function hasStopLine(body) { return /\b(reply|text)\s+["']?stop\b/i.test(String(body || '')); }
 
+/**
+ * The checks a text draft must pass — at filing AND again on the edited text
+ * when the owner taps send (review R2-3-1): the company name, a STOP line, the
+ * Kentucky claim wording. Never appends: an edit that removed the
+ * STOP line is refused, not repaired behind the owner's back.
+ * @returns {string|null} what is wrong, or null
+ */
+function editedTextProblem(body, names) {
+  const b = draftText(body);
+  if (!b) return 'The text is empty.';
+  const ns = (names || []).filter(Boolean);
+  if (!ns.length) return 'The company has no name set on its profile, so a text cannot say who it is from.';
+  const low = b.toLowerCase();
+  if (!ns.some((n) => low.indexOf(n.toLowerCase()) !== -1)) return 'Say who it is from: the text must include the company name ("' + ns[ns.length - 1] + '").';
+  if (!hasStopLine(b)) return 'Keep the STOP line in the text ("' + STOP_LINE + '").';
+  const claim = claimWordingProblem(b);
+  if (claim) return claim;
+  return null;
+}
+
 /** draft_text args → { body } (company name checked, STOP line appended) or { error }. */
 function buildTextDraft(args, names) {
   const a = args || {};
@@ -1071,6 +1102,6 @@ module.exports = {
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
-  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
+  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
   planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
 };
