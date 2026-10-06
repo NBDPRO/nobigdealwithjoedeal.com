@@ -332,7 +332,13 @@ const PUBLIC_LEAD_KINDS = {
     // field and the send-time gate refuses to text them (no_stored_consent).
     // Declared as a boolean here for the same reason as `estimate`: the
     // string-only optional loop dropped it silently.
-    boolOptional: ['tcpaConsent']
+    boolOptional: ['tcpaConsent'],
+    // Coordinates (2026-10-06). /storm-report already geocodes the address to
+    // build the report; it now posts that point so stormReportEmail can find
+    // the SAME server-built report (public_cache/storm_*) for the measured-
+    // gust line, and lead-bridge carries it onto the CRM lead (lat/lng) like
+    // estimate leads. Range-checked; 0/0 dropped by the shared loop below.
+    numOptional: { lat: { min: -90, max: 90 }, lon: { min: -180, max: 180 } }
   }
 };
 
