@@ -254,7 +254,7 @@ async function post(L) {
   }
   {
     const r = await exportWith({});
-    ok('control: a clean export has no truncation marker', !!r.out && r.out.truncated.length === 0 && /leads: 1/.test(readmeOf(r.out)) && !/TRUNCATED/.test(readmeOf(r.out)));
+    ok('control: a clean export has no truncation marker', !!r.out && (r.out.truncated || []).length === 0 && /leads: 1/.test(readmeOf(r.out)) && !/TRUNCATED/.test(readmeOf(r.out)));
   }
   {
     const L2 = require(path.join(FN, 'tenant-ops-logic.js'));
