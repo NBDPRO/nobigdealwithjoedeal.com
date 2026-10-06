@@ -41,6 +41,7 @@
 'use strict';
 
 const { phoneDigits10 } = require('./phone-utils');
+const TextingGate = require('./sms-texting-gate');
 
 const COLLECTION = 'sms_opt_outs';
 
@@ -334,6 +335,35 @@ async function clearStopReplyDnc(db, phone) {
   return mine.length;
 }
 
+/**
+ * A homeowner's STOP, copied onto the Do Not Text list of each company that
+ * has a lead with this number ('stop_reply'), so each company SEES who stopped
+ * it — the global register (recordOptOut) is what enforces it. Shared by every
+ * inbound STOP path: incomingSMS (sms-functions.js) and NBD's Twilio line
+ * (twilio-line.js). Bounded (10 leads); NEVER throws — a failure here must
+ * never undo the opt-out or block the confirmation. Errors go to opts.onError.
+ *
+ * @param {{serverTimestamp?: Function, onError?: Function}} [opts]
+ * @returns {Promise<string[]>} the tenant keys the STOP was copied to
+ */
+async function copyStopToTenantLists(db, phone, opts) {
+  const o = opts || {};
+  const fail = (e) => { try { if (o.onError) o.onError(e); } catch (_) { /* never throw */ } };
+  const key = optOutKey(phone);
+  if (!key) return [];
+  try {
+    const snap = await db.collection('leads').where('phoneDigits', '==', key).limit(10).get();
+    const tenants = [...new Set(snap.docs.map((d) => TextingGate.tenantKeyOfRecord(d.data() || {})).filter(Boolean))];
+    await Promise.all(tenants.map((companyId) => addDnc(db, {
+      companyId, phone, source: 'stop_reply',
+    }, o.serverTimestamp).catch(fail)));
+    return tenants;
+  } catch (e) {
+    fail(e);
+    return [];
+  }
+}
+
 module.exports = {
   COLLECTION,
   DNC_COLLECTION,
@@ -343,6 +373,7 @@ module.exports = {
   removeDnc,
   listDnc,
   clearStopReplyDnc,
+  copyStopToTenantLists,
   optOutKey,
   legacyOptOutKey,
   isOptedOut,
