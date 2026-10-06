@@ -1366,31 +1366,42 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   </div>
 </section>
 
-<!-- INTRO VIDEO (T10): hidden until Jo sets a real 11-char YouTube ID in data-yt below.
-     Opens the video in a new tab (no iframe) so NO CSP change is required. -->
+<!-- WELCOME VIDEO: "Meet Thursday", a 32-second self-hosted look at the free
+     inspection (Jo, 2026-10-05). One place to swap it: replace the files
+     /assets/video/thursday-welcome.mp4 + .en.vtt and
+     /assets/img/thursday-welcome-poster.webp, then bump ?v= in this block.
+     No autoplay; preload="none" fetches nothing until Play. The width/height
+     attributes + aspect-ratio reserve the box (CLS 0). media-src 'self' is
+     already in the firebase.json CSP. tests/home-welcome-video-2026-10-05.test.js -->
 <style>
-.intro-video-section{background:var(--navy-dark)}
-.intro-video-section .eyebrow,.intro-video-section .sec-title,.intro-video-section .sec-desc{text-align:center}
-.iv-frame{position:relative;max-width:760px;margin:36px auto 0;aspect-ratio:16/9;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1)}
-.iv-facade{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-decoration:none;background:radial-gradient(circle at 50% 42%,rgba(26,48,87,.5),rgba(18,34,61,.92))}
-.iv-play{width:78px;height:78px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.45);transition:transform .2s,background .2s}
-.iv-facade:hover .iv-play{transform:scale(1.08);background:var(--orange-light,#dd875f)}
-.iv-facade:focus-visible{outline:3px solid var(--orange);outline-offset:3px}
-.iv-play svg{width:32px;height:32px;fill:#fff;margin-left:5px}
-.iv-facade b{color:#fff;font-size:.98rem;font-weight:700;letter-spacing:.02em}
-.iv-facade small{color:rgba(255,255,255,.6);font-size:.76rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.intro-video-section{background:var(--off-white)}
+.iv-grid{display:grid;gap:24px;align-items:center}
+.iv-copy{text-align:center}
+.intro-video-section .eyebrow{color:var(--orange-dark);margin-bottom:6px}
+.intro-video-section .sec-title{margin:0 0 10px}
+.iv-desc{color:var(--gray);line-height:1.6;font-size:1rem;max-width:34em;margin:0 auto}
+.iv-frame{width:100%;max-width:260px;margin:0 auto}
+.iv-video{display:block;width:100%;height:auto;aspect-ratio:9/16;border-radius:8px;background:var(--navy-dark);box-shadow:0 14px 40px rgba(18,34,61,.25)}
+.iv-video:focus-visible{outline:3px solid var(--orange);outline-offset:3px}
+@media(min-width:769px){
+  .iv-grid{grid-template-columns:minmax(0,1fr) 300px;gap:56px}
+  .iv-copy{text-align:left}
+  .iv-desc{margin:0}
+  .iv-frame{max-width:300px}
+}
 </style>
-<section class="section intro-video-section" id="intro-video" data-yt="" hidden aria-hidden="true">
-  <div class="section-inner">
-    <div class="eyebrow" style="color:rgba(255,255,255,.5)">60 Seconds With Joe</div>
-    <h2 class="sec-title" style="color:#fff">Meet the Guy Who <span>Answers the Phone</span></h2>
-    <p class="sec-desc" style="color:rgba(255,255,255,.72);margin-left:auto;margin-right:auto">No script, no sales team &mdash; just Joe, in his own words.</p>
+<section class="intro-video-section" id="intro-video" aria-labelledby="iv-h">
+  <div class="section-inner iv-grid">
+    <div class="iv-copy">
+      <p class="eyebrow">Meet Thursday</p>
+      <h2 class="sec-title" id="iv-h">A quick look at your <span>free inspection</span></h2>
+      <p class="iv-desc">32 seconds on what happens when Joe comes out: what he checks on the roof, the photos you get, and your options after.</p>
+    </div>
     <div class="iv-frame">
-      <a class="iv-facade" data-iv-link href="#" target="_blank" rel="noopener" aria-label="Play Joe's 60-second intro video on YouTube">
-        <span class="iv-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
-        <b>Play Joe's 60-Second Intro</b>
-        <small>Opens on YouTube</small>
-      </a>
+      <video class="iv-video" controls playsinline preload="none" width="540" height="960" poster="/assets/img/thursday-welcome-poster.webp?v=1" aria-label="Meet Thursday: a quick look at your free inspection">
+        <source src="/assets/video/thursday-welcome.mp4?v=1" type="video/mp4">
+        <track kind="captions" src="/assets/video/thursday-welcome.en.vtt?v=1" srclang="en" label="English">
+      </video>
     </div>
   </div>
 </section>
@@ -1576,7 +1587,6 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 </section>
 <script src="/assets/js/google-reviews-widget.js" defer></script>
 <script src="/assets/js/homeowner-wall.js" defer></script>
-<script src="/assets/js/intro-video.js" defer></script>
 
 <!-- CERTIFICATIONS & BRAND PARTNERS -->
 <section style="background:var(--navy);padding:56px 5%;border-top:3px solid var(--orange)">
