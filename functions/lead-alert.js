@@ -40,6 +40,11 @@ const _twilio = () => (_twilioSdk = _twilioSdk || require('twilio'));
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const L = require('./lead-bridge-logic');
 const C = require('./tcpa-consent');
+// Homeowner-ack text: the checks every send path makes (2026-10-05).
+const OptOut = require('./sms-optout');
+const TextingGate = require('./sms-texting-gate');
+const SendWindow = require('./sms-send-window');
+const Outbox = require('./sms-outbox-guard');   // nowMs: the one clock seam the send paths share
 const CL = require('./integrations/calcom-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -413,6 +418,25 @@ async function ackHomeownerSms(collection, d, leadId, target) {
   const digits = String(d.phone || d.phoneNumber || '').replace(/[^\d]/g, '');
   if (digits.length !== 10 && !(digits.length === 11 && digits[0] === '1')) return;
   const to = '+1' + digits.slice(-10);
+  // 2026-10-05 (texting review): the same three checks as every other send
+  // path — the STOP register + the company's Do Not Text list, the company's
+  // texting master switch, and texting hours in the homeowner's time. Any
+  // read error skips the ack (fail closed); the ack is a courtesy, never
+  // worth a text to someone who said stop.
+  const tenantKey = TextingGate.tenantKeyOfRecord(d) || TextingGate.NBD_OWNER_UID;
+  try {
+    const opt = await OptOut.isOptedOut(getFirestore(), to, { companyId: tenantKey, timeoutMs: OptOut.READ_TIMEOUT_MS });
+    if (opt.optedOut) { logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'opted_out' }); return; }
+    const status = await TextingGate.textingStatus(getFirestore(), tenantKey);
+    if (!status.allowed) { logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'texting_' + status.reason }); return; }
+  } catch (e) {
+    logger.error('leadAck: sms suppressed — compliance check unreadable', { collection, leadId, err: e && e.message });
+    return;
+  }
+  if (!SendWindow.withinRecipientWindow(Outbox.nowMs(), d)) {
+    logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'quiet_hours' });
+    return;
+  }
   try {
     const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
     const firstName = String(d.firstName || '').trim();

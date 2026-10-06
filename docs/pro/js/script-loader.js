@@ -325,9 +325,9 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=14',
-      'js/d2d-tracker-ui-2026b.js?v=8',
-      'js/d2d-tracker-2026b.js?v=3'
+      'js/d2d-tracker-core-2026b.js?v=15',
+      'js/d2d-tracker-ui-2026b.js?v=9',
+      'js/d2d-tracker-2026b.js?v=4'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
     // bundles html2canvas + its own jsPDF). The ONLY dashboard consumer is the
