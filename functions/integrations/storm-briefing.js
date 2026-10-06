@@ -39,6 +39,8 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { getSecret, hasSecret, SECRETS } = require('./_shared');
 
+// Platform tenant (NBD) — same env override as lead-bridge.js / care-plan.js.
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const BRIEFING_LEAD_LIMIT = 10;       // top N in the Slack message
 const LEAD_LOOKUP_LIMIT   = 250;      // safety: don't iterate >250 leads per briefing
 const RECENT_LEAD_DAYS    = 30;       // boost score for leads created within window
@@ -165,17 +167,27 @@ async function _findAffectedLeads(db, alert) {
   // every NBD lead.
   const zip = alert.zip || '';
   if (!zip) return [];
+  // ONE company per lookup (2026-10-05): this used to match zipCode alone, so
+  // every tenant's lead in the ZIP landed in the platform's Slack briefing.
+  // The alert's own company when it names one, else the platform tenant —
+  // the storm-alert pipeline and the Slack channel are NBD's.
+  const companyId = String(alert.companyId || NBD_OWNER_UID);
   const snap = await db.collection('leads')
+    .where('companyId', '==', companyId)
     .where('zipCode', '==', String(zip))
     .limit(LEAD_LOOKUP_LIMIT)
     .get();
   const leads = [];
   snap.forEach(d => {
     const data = d.data();
+    if (data.companyId !== companyId) return;   // belt and braces
     if (!data.isProspect) leads.push({ id: d.id, ...data });
   });
   return leads;
 }
+// Test seam (tests/storm-briefing-tenant-scope-2026-10-05.test.js); index.js
+// re-exports this module by name only, so it is never deployed.
+module.exports._findAffectedLeads = _findAffectedLeads;
 
 /**
  * Build the structured Slack briefing for an alert + its affected leads.
