@@ -242,7 +242,7 @@ footprint alongside the off-site sprint. Status:
   queries: *emergency roof tarping cincinnati*, *roof tarp service near me*,
   *does insurance pay for roof tarping*, *emergency roof cover storm*.
 - **Gutter guards / gutter screens** — next candidate page once install
-  photos land (Gary Yeates job = the anchor story; "sized for tree coverage"
+  photos land (Customer FV job = the anchor story; "sized for tree coverage"
   angle from the proposal). Target queries: *gutter guards cincinnati*,
   *gutter screen installation*, *gutter guards worth it*. Until then, the
   guards story lives on `/services/gutter-replacement`.

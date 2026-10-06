@@ -2,7 +2,7 @@
 
 Branch: `fix/invoice-pdf-rendering` · commits `5f065174`, `6fcc3d23` · PR #1460
 
-Joe's ask, in order: "i just checked some of these like john reynolds and i
+Joe's ask, in order: "i just checked some of these like one customer and i
 wanted a completed copy in PDF not just the gdocs" → "just add the logo to
 each" → "make sure everything is in its proper folder".
 
@@ -15,21 +15,21 @@ Drive `Docs` folder and imported onto its CRM card.
 
 | Customer | Document | Value |
 |---|---|---|
-| John Reynolds | `NBD-2026-0814-REY` invoice | $1,050 |
-| Albeliz Santiago | `NBD-2026-0902-SANT` invoice | $125 |
-| Brad Musuraca | `NBD-2026-0903-MUSU` invoice | $225 |
-| Becca Hildeman | `NBD-2026-0902-HILD` estimate | $5,038 / $4,306 |
-| Bryan Eppert | `NBD-2026-0902-EPPE` estimate | $7,500 |
-| Jim & Liza Gilkey | `NBD-2026-0902-GILK` estimate | $8,350 |
-| Carmen Thiemann | `NBD-2026-0902-THIE` estimate | $1,800 / $2,400 |
+| Customer CG | `NBD-2026-0814-XXXX` invoice | $1,050 |
+| Customer C | `NBD-2026-0902-XXXX` invoice | $125 |
+| Customer DU | `NBD-2026-0903-XXXX` invoice | $225 |
+| Customer CA | `NBD-2026-0902-XXXX` estimate | $5,038 / $4,306 |
+| Customer BF | `NBD-2026-0902-XXXX` estimate | $7,500 |
+| Customer BQ | `NBD-2026-0902-XXXX` estimate | $8,350 |
+| Customer FI | `NBD-2026-0902-XXXX` estimate | $1,800 / $2,400 |
 
 Two documents were deliberately **not** converted:
 
-- **Sarah Storey's** Drive gdoc is a sales talk-track — "Say them before the
+- **Customer ER's** Drive gdoc is a sales talk-track — "Say them before the
   price", tier reasoning, open items. Rendering it into a branded client PDF
   would have handed the customer Joe's own notes. Her real 8-page proposal
   turned up during the tidy, sitting at her folder root.
-- **Rita Hatley's** "Estimate and COI Packet" gdoc is a text extraction of an
+- **Customer BX's** "Estimate and COI Packet" gdoc is a text extraction of an
   existing PDF, and its back half is a mangled transcription of a real ACORD 25
   certificate of liability insurance. Regenerating an insurance certificate is
   not something to do; the original from Next Insurance is the only valid copy,
@@ -48,7 +48,7 @@ through it and three defects showed on the page:
   the house style calls for
 
 Fixed, plus five more found on the way through: letterhead detection keyed on
-"Licensed & Insured"/"TAMKO Pro Gold" and the Musuraca invoice carries neither,
+"Licensed & Insured"/"TAMKO Pro Gold" and the Customer DU invoice carries neither,
 so its entire letterhead printed as body text under a fallback title; a priced
 section heading was being captured as a line item; dot-leader rows only matched
 when the value was a price, so a measurement schedule printed its literal dots
@@ -78,9 +78,9 @@ and orange `#BD5728`, both sampled from the mark. The previous `#1A3A5C` /
 `#E8720C` were close enough to read as a mistake once the real logo was on the
 same page.
 
-## THE CATCH — Hildeman
+## THE CATCH — Customer CA
 
-**The estimate filed for Becca Hildeman was the wrong pricing.** It was rendered
+**The estimate filed for Customer CA was the wrong pricing.** It was rendered
 from the newest Google Doc in her folder. That doc was the Sep 2 draft, which had
 been superseded on Sep 3 by a reprice: $17/lf two-story gutter rate rather than
 $14/lf, five new downspouts at $250 each, and a fascia allowance.
@@ -113,7 +113,7 @@ real one was filed — one click from the customer.
 
 It also **only walks subfolders.** A file at a customer folder root is invisible
 to it. Twelve real documents had never reached the CRM for that reason alone,
-including Storey's 8-page proposal and her GAF QuickMeasure.
+including Customer ER's 8-page proposal and her GAF QuickMeasure.
 
 New: `scripts/prune-superseded-lead-docs.js` removes named documents from lead
 cards and their Storage objects — scoped to one company, dry-run by default. It
@@ -129,14 +129,14 @@ without a BOM: match by pattern, not by literal name.
 - images → `Photos` · Full Report / Property Owner Report / Codes and Weather /
   QuickMeasure → `Reports` · zips, competitor analysis, build scripts, blank
   templates → `Internal` · everything else → `Docs`
-- Bourgeois's `build_estimate.py`, `build_leavebehind.py` and builder prompt came
+- Customer U's `build_estimate.py`, `build_leavebehind.py` and builder prompt came
   out of her client-facing `Docs`
-- Erin Waters had a blank `NBD_Estimate_Template.pdf` sitting in her `Docs`
-- a `_test_write.txt` left in Rita Hatley's `Internal` by an earlier session was
+- Customer BJ had a blank `NBD_Estimate_Template.pdf` sitting in her `Docs`
+- a `_test_write.txt` left in Customer BX's `Internal` by an earlier session was
   deleted
-- the empty duplicate folder "Hilton" was removed — Joe confirmed Hilton and
-  Holton are the same person, and his documents are in `Chuck Holton\Docs`
-- a blank estimate template attached to Louie & Martha Bourgeois's CRM card was
+- the empty duplicate folder (a misspelling of a customer's name) was removed — Joe confirmed the two spellings
+  are the same person, and his documents are in `Customer CC\Docs`
+- a blank estimate template attached to Customer U's CRM card was
   deleted, record and Storage object both
 
 Result: all 145 customer folders carry the full Docs/Reports/Photos/Internal
@@ -148,10 +148,10 @@ cards** — Drive and the CRM agree exactly.
 
 ## Unblocked mid-session by Joe
 
-- **Musuraca**: phone (513) 207-4285, email brad@tronkdesign.com, service date
-  Tue Aug 11 2026, address 1211 Isis Ave, Cincinnati OH 45208. Invoice went from
+- **Customer DU**: phone [phone removed], email [email removed], service date
+  Tue Aug 11 2026, address [street address], Cincinnati OH 45208. Invoice went from
   three `[CONFIRM]` holes to complete.
-- **Eppert**: 3414 Marmet Ave, Cincinnati OH 45220. This was the *only* thing
+- **Customer BF**: [street address], Cincinnati OH 45220. This was the *only* thing
   blocking his $7,500 conversion estimate since early September. It is now
   sendable with no placeholder left in the document.
 
@@ -168,14 +168,14 @@ check.** A silent failure mid-script is how work ends up on someone else's branc
 
 ## Open, for Joe
 
-1. **Hildeman may already be closed.** She is recorded as having approved $4,300
+1. **Customer CA may already be closed.** She is recorded as having approved $4,300
    on Sep 6 and moved to Contract Signed — within $6 of Option 2 ($4,306). If so
    her document is a signed-contract record, not a live estimate. Confirm which
    option she took before sending anything.
-2. Send: Reynolds $1,050 (with the 20+ jobsite photos he was promised, and the
-   apology — he was told documentation was coming and it never was), Santiago
-   $125, Musuraca $225, Eppert $7,500, Gilkey $8,350, Thiemann $1,800/$2,400.
-3. Greene's Aug 11 proposal expires around Sep 10.
+2. Send: Customer CG $1,050 (with the 20+ jobsite photos he was promised, and the
+   apology — he was told documentation was coming and it never was), Customer C
+   $125, Customer DU $225, Customer BF $7,500, Customer BQ $8,350, Customer FI $1,800/$2,400.
+3. Customer DN's Aug 11 proposal expires around Sep 10.
 4. `documentation/INDEX.md` was not touched this session — there were uncommitted
    edits to it in the working tree and a conflict was not worth causing. An index
    line for this file may be wanted.

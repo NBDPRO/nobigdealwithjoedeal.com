@@ -237,7 +237,7 @@
       const street = key(String(l.address || '').split(',')[0]);
       let s = 0;
       if (full && (k === full || k.includes(full))) s = Math.max(s, 90);
-      // "Rita Hatley" for "Rita Hatley Jr", "Dealroom Homeowner"-style partials:
+      // "Customer BX" for "Customer BX Jr", "Dealroom Homeowner"-style partials:
       // two or more job-name words that all appear in the full name.
       else if (full && words.length >= 2 && words.every((w) => full.split(' ').includes(w))) s = Math.max(s, 80);
       if (street) {
