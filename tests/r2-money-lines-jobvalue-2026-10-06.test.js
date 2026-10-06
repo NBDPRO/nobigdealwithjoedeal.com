@@ -107,12 +107,23 @@ const sum = (rows) => rows.reduce((s, r) => s + cents(Number(r.total)), 0) / 100
   ok('the classic 3-row legacy shape (no V2 pricing) still maps rows at face, then foots',
     sum(CER.buildDisplayRows({ rows: [{ desc: 'Roof', qty: '30 SQ', rate: '$400/SQ', total: 12000 }], subtotal: 12000, taxAmount: 900, taxRate: 0.075, grandTotal: 12900 })) === 12900);
 
+  {
+    // The engine rounds each row: lines a cent off the saved subtotal still foot to the price exactly.
+    const drift = { rows: [{ desc: 'A', qty: '1', retailTotal: 333.33, total: 333.33 }, { desc: 'B', qty: '1', retailTotal: 333.33, total: 333.33 }, { desc: 'C', qty: '1', retailTotal: 333.33, total: 333.33 }],
+      materialMarkupPct: 0.25, subtotal: 1000, tax: 70, taxRate: 0.07, grandTotal: 1075 };
+    ok('a 1-cent per-row rounding drift is absorbed: the printed lines foot to $1,075 to the cent', sum(CER.buildDisplayRows(drift)) === 1075, String(sum(CER.buildDisplayRows(drift))));
+    // An old doc whose lines are far from the subtotal: the adjustment is the invoice's (from the subtotal), never a big "Rounding" that hides the gap.
+    const gap = { rows: [{ desc: 'A', qty: '1', retailTotal: 600, total: 600 }], materialMarkupPct: 0.25, subtotal: 1000, tax: 70, taxRate: 0.07, grandTotal: 1075 };
+    const g = CER.buildDisplayRows(gap), gi = IFE.invoiceTotalsFromEstimate(gap, { estimateValue: CER.estimateValue }).items.find((i) => i.adjustment);
+    ok('lines $400 short of the subtotal: the adjustment row equals the invoice\'s ($5), it does not swallow the gap', (g.find((r) => r.code === 'ADJ') || {}).total === 5 && gi && gi.total === 5, JSON.stringify(g));
+  }
+
   // buildDocLineItems (the contract pre-flight's scope, getEstimateForView's
   // lineItems fallback, esign-envelope's lineItems fallback).
   const d1 = CER.buildDocLineItems(taxed), d2 = CER.buildDocLineItems(minJob);
   ok('buildDocLineItems: V2 rows foot to the price ($11,300 / $2,500)', sum(d1) === 11300 && sum(d2) === 2500, sum(d1) + ' / ' + sum(d2));
   ok('buildDocLineItems: the footing rows read as qty 1 at their own total (doc templates print qty × unit)',
-    d2.slice(-2).every((r) => r.qty === 1 && r.unitPrice === r.total) && d2[2].description === 'Minimum job charge adjustment');
+    d2.length === 3 && d2.slice(-2).every((r) => r.qty === 1 && r.unitPrice === r.total) && d2[2].description === 'Minimum job charge adjustment');
   const classic = { lineItems: [{ description: 'Roof', quantity: 1, amount: 10000 }], subtotal: 10000, taxAmount: 700, taxRate: 0.07, total: 10725 };
   const dc = CER.buildDocLineItems(classic);
   ok('buildDocLineItems: classic lineItems foot to the price too (tax + rounding)', sum(dc) === 10725 && dc.length === 3, JSON.stringify(dc.map((r) => [r.description, r.total])));

@@ -101,7 +101,7 @@
         total: round2(ohp)
       });
     }
-    if (rows.length) footingRows(est).forEach(function (r) { rows.push(r); });
+    if (rows.length) footingRows(est, rows).forEach(function (r) { rows.push(r); });
     return rows;
   }
 
@@ -117,8 +117,15 @@
    * Only when the estimate saved a subtotal and a price: without a saved
    * subtotal there is no way to tell what the lines already include, so
    * nothing is added (the old behaviour).
+   *
+   * The adjustment is measured from the PRINTED lines when they sit within
+   * $1 of the saved subtotal (the engine rounds each row, which leaves a cent
+   * or two), so what is printed adds up to the price to the cent. Further
+   * apart (an old doc whose lines never footed) it is measured from the
+   * subtotal, exactly like the invoice, so a real gap is never relabelled
+   * "Rounding".
    */
-  function footingRows(est) {
+  function footingRows(est, printed) {
     const grand = estimateValue(est);
     const sub = Number(est && est.subtotal);
     if (!(Number.isFinite(grand) && grand > 0) || est.subtotal == null || !Number.isFinite(sub)) return [];
@@ -130,7 +137,10 @@
       const pct = (Number.isFinite(rate) && rate > 0) ? String(Math.round(rate * 100000) / 1000) + '%' : '';
       out.push({ code: 'TAX', desc: 'Sales tax' + (pct ? ' (' + pct + ')' : ''), qty: '', rate: '', total: taxCents / 100 });
     }
-    const adjCents = Math.round(grand * 100) - Math.round(sub * 100) - taxCents;
+    const subCents = Math.round(sub * 100);
+    const linesCents = (printed || []).reduce(function (s, r) { return s + Math.round((Number(r.total) || 0) * 100); }, 0);
+    const baseCents = Math.abs(linesCents - subCents) <= 100 ? linesCents : subCents;
+    const adjCents = Math.round(grand * 100) - baseCents - taxCents;
     if (adjCents !== 0) {
       out.push({
         code: 'ADJ',
@@ -215,7 +225,7 @@
           qty: q, rate: Number.isFinite(rate) ? rate : null, total: t,
         });
       }).filter(Boolean);
-      return lines.length ? lines.concat(footingRows(est).map(footShape)) : lines;
+      return lines.length ? lines.concat(footingRows(est, lines).map(footShape)) : lines;
     }
 
     // Per-SQ: the customer price is the locked selected-tier total.
