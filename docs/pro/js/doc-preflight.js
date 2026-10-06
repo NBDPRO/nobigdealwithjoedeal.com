@@ -525,7 +525,7 @@
 
   // Jo, 2026-10-06 (final): each package carries a WRITTEN labor warranty —
   // Economy 1, Good/Standard 5, Better/Preferred 10, Best/Elite 20 years
-  // (estimate-config.js TIER_LABOR_YEARS; Beyond = Elite's 20 pending Jo) —
+  // (estimate-config.js TIER_LABOR_YEARS; Beyond = Elite's 20) —
   // plus the NBD Pledge (a promise, never a "lifetime warranty").
   // Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
   // shingle maker's standard limited warranty, NO system warranty; Beyond is

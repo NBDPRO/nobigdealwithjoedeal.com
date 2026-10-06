@@ -446,7 +446,7 @@ const TIERS = [
   { key: 'good', label: 'Standard', ratePerSq: 550, warranty: '5-year written workmanship (labor) warranty; not transferable' },
   { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: '10-year written workmanship (labor) warranty; transferable to one later owner within 30 days of sale' },
   { key: 'best', label: 'Elite', ratePerSq: 770, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection' },
-  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection (Elite terms) plus TAMKO\'s hail warranty', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles. 20-year labor term pending Jo confirmation.' },
+  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection (Elite terms) plus TAMKO\'s hail warranty', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
 ];
 // The NBD Pledge (Jo, 2026-10-06): a PROMISE on every NBD job, every tier —
 // never call it (or anything) a "lifetime warranty". Same text as

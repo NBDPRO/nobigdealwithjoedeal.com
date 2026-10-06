@@ -9,8 +9,8 @@
  *     "lifetime warranty" (that would contradict the written terms below).
  *     One shared constant: estimate-config.js PLEDGE_PROMISE.
  *   - A separate WRITTEN labor (workmanship) warranty by package: Economy 1,
- *     Standard 5, Preferred 10, Elite 20 years. Beyond (the fifth package)
- *     takes its nearest tier's 20 years until Jo confirms. One shared map:
+ *     Standard 5, Preferred 10, Elite 20 years; Beyond (the fifth package)
+ *     20 years, like Elite (Jo confirmed). One shared map:
  *     estimate-config.js TIER_LABOR_YEARS; every fallback copy is pinned to it.
  *   - The manufacturer warranty stays its own line (per package / extended).
  *   - Other companies never inherit the Pledge or NBD's years.

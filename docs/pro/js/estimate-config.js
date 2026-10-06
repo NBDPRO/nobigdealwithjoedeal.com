@@ -242,8 +242,7 @@
     //      tests/warranty-pledge-labor-years-2026-10-06.test.js.
     // The manufacturer warranty is a third, separate line (tenant-rules.js
     // manufacturerWarranty: per package + any extended warranty sold).
-    // Beyond (the fifth package) was not in Jo's list; it gets its nearest
-    // tier's term (Elite, 20 years) until Jo confirms.
+    // Beyond (the fifth package) carries Elite's term, 20 years (Jo, 2026-10-06).
     PLEDGE_PROMISE: 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.',
     TIER_LABOR_YEARS: Object.freeze({ economy: 1, good: 5, better: 10, best: 20, beyond: 20 }),
 
