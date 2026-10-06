@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" role="img" aria-label="Sample drawing: front of a house with an asphalt shingle roof">
+<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9cc4e4"/><stop offset="1" stop-color="#dbeaf5"/></linearGradient>
+<pattern id="sh" width="40" height="20" patternUnits="userSpaceOnUse"><rect width="40" height="20" fill="#4a4f57"/><path d="M0 19.5h40M20 0v10M0 10v10M40 10v10" stroke="#3a3e45" stroke-width="2"/><path d="M0 10h40" stroke="#555b64" stroke-width="1"/></pattern></defs>
+<rect width="800" height="600" fill="url(#sky)"/><rect y="470" width="800" height="130" fill="#7aa35a"/>
+<rect x="160" y="300" width="480" height="190" fill="#e9e1d3"/>
+<polygon points="120,310 400,120 680,310" fill="url(#sh)" stroke="#2b2f35" stroke-width="6" stroke-linejoin="round"/>
+<rect x="540" y="150" width="48" height="110" fill="#8a4b36"/><rect x="532" y="142" width="64" height="14" fill="#6e3a2a"/>
+<rect x="370" y="380" width="64" height="110" fill="#1a3057"/><circle cx="422" cy="438" r="4" fill="#d9b24a"/>
+<rect x="220" y="350" width="90" height="70" fill="#bcd3e6" stroke="#fff" stroke-width="6"/><rect x="490" y="350" width="90" height="70" fill="#bcd3e6" stroke="#fff" stroke-width="6"/>
+<path d="M150 312h500" stroke="#c9ccd1" stroke-width="10"/>
+<rect x="584" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="688" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
+</svg>

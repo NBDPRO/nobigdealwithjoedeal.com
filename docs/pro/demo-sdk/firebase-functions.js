@@ -3,7 +3,9 @@
 // callables gets a canned, honest answer; every other name rejects with a
 // clear "not in the sample account" error (and a visible notice) instead of
 // hanging, so a screen that needs a server says so.
-import { ready, demoNotice } from './_store.js';
+import { ready, demoNotice, rawGet } from './_store.js';
+import { previewFor } from './send-preview.js';
+import { getStorage, ref, getBlob } from './firebase-storage.js';
 
 const FUNCTIONS = { __nbdDemo: true, region: 'us-central1', app: null };
 
@@ -19,7 +21,24 @@ const CANNED = {
   // no pending team invite and no third-party integrations connected.
   claimInvite: () => ({ claimed: false, reason: 'no_invite', sample: true }),
   integrationAvailability: () => ({ configured: {}, sample: true }),
-  getGameCard: () => ({ ok: false, sample: true, reason: 'Leaderboards fill in from a real team.' })
+  getGameCard: () => ({ ok: false, sample: true, reason: 'Leaderboards fill in from a real team.' }),
+  // Wave 2: reopening a generated document from the customer's Documents
+  // list. The real callable reads the saved HTML out of Storage after an
+  // ownership check; here the CRM's own upload is still in this tab's fake
+  // Storage (memory only, like every sample upload).
+  getDocumentHtml: async (p) => {
+    const meta = (p && p.leadId && p.docId) ? rawGet('leads/' + p.leadId + '/documents/' + p.docId) : null;
+    let html = '';
+    if (meta && meta.htmlPath) {
+      try { html = await (await getBlob(ref(getStorage(), meta.htmlPath))).text(); } catch (_) { html = ''; }
+    }
+    if (!html) {
+      const e = new Error('The sample account keeps generated documents in this tab only. Generate it again to see it.');
+      e.code = 'functions/not-found';
+      throw e;
+    }
+    return { html, typeName: meta.typeName || 'Document', filename: meta.filename || 'document.pdf', sample: true };
+  }
 };
 
 // Callables whose real job is to contact someone, publish something or move
@@ -47,7 +66,8 @@ const WOULD = {
   claimInvite: 'join a company',
   publishTenantSite: 'publish your website',
   setSiteSlug: 'reserve your website address',
-  previewAiPersona: 'preview the AI texting persona'
+  previewAiPersona: 'preview the AI texting persona',
+  recordInPersonSignature: 'record the in-person signature on NBD Pro servers'
 };
 
 export function sampleCallableMessage(name) {
@@ -69,11 +89,15 @@ export function getFunctions(app, region) { if (app) FUNCTIONS.app = app; if (re
 export function connectFunctionsEmulator() {}
 
 export function httpsCallable(_functions, name) {
-  const fn = async () => {
+  const fn = async (payload) => {
     await ready();
-    if (Object.prototype.hasOwnProperty.call(CANNED, name)) return { data: CANNED[name]() };
+    if (Object.prototype.hasOwnProperty.call(CANNED, name)) return { data: await CANNED[name](payload) };
+    // Wave 2: a send-to-sign callable shows exactly what it would have sent
+    // (read-only) before it says no. send-preview.js.
+    const shown = await previewFor(name, payload);
     const e = callableError(name);
-    demoNotice(e.message, { kind: 'callable', callable: name });
+    // The preview already says it; a second toast on top of it is noise.
+    if (!shown) demoNotice(e.message, { kind: 'callable', callable: name });
     throw e;
   };
   fn.stream = async () => { throw callableError(name); };

@@ -78,3 +78,51 @@
 @media (max-width: 560px) {
   .nbd-demo-long { display: none; }
 }
+/* Wave 2 (2026-10-06): the estimate builder is a full-screen sheet with its
+   own Back / Next bar at the bottom. While it is open the strip drops to the
+   very bottom and the bar gets that much extra padding, so the strip sits in
+   reserved space and never covers Next (it used to intercept every tap). */
+/* Same for the document viewer's action row (Save / Email / Print / PDF /
+   Send for Signature). */
+html.nbd-demo body:has(#estV2Modal.open) .nbd-demo-strip,
+html.nbd-demo body:has(#nbd-doc-viewer-overlay.open) .nbd-demo-strip { bottom: calc(8px + env(safe-area-inset-bottom)); }
+html.nbd-demo body:has(#estV2Modal.open) .nbd-demo-toast,
+html.nbd-demo body:has(#nbd-doc-viewer-overlay.open) .nbd-demo-toast { bottom: calc(112px + env(safe-area-inset-bottom)); }
+html.nbd-demo #estV2Modal.v3-on .v3-bar { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+html.nbd-demo #estV2Modal.open:not(.v3-on) { padding-bottom: 48px; box-sizing: border-box; }
+html.nbd-demo #nbd-doc-viewer-overlay .nbdv-footer { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+
+/* Wave 2: "Nothing was sent" — the read-only preview of what a send would
+   have sent (demo-sdk/send-preview.js). Above the builder and the viewer,
+   below the strip. */
+.nbd-sp-back {
+  position: fixed; inset: 0; z-index: 10007;
+  background: rgba(8, 12, 20, .72);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0;
+}
+@media (min-width: 720px) { .nbd-sp-back { align-items: center; padding: 24px; } }
+.nbd-sp {
+  width: 100%; max-width: 640px; max-height: calc(100vh - 24px); overflow: auto;
+  box-sizing: border-box;
+  background: #fff; color: #14181F;
+  border-radius: 16px 16px 0 0;
+  padding: 18px 16px calc(64px + env(safe-area-inset-bottom));
+  font: 400 14px/1.45 Lato, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .4);
+}
+@media (min-width: 720px) { .nbd-sp { border-radius: 14px; padding: 22px 24px 70px; } }
+.nbd-sp-kicker { display: inline-block; font: 800 11px/1 Barlow, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #fff; background: #BD5728; border-radius: 999px; padding: 5px 10px; }
+.nbd-sp h2 { margin: 10px 0 4px; font: 800 22px/1.2 Montserrat, Barlow, system-ui, sans-serif; color: #12223D; }
+.nbd-sp-lede { margin: 0 0 14px; color: #4C4C4D; }
+.nbd-sp-sec { border: 1px solid #DFE2E7; border-radius: 10px; margin: 0 0 12px; padding: 0; overflow: hidden; max-width: none; }
+.nbd-sp-sec-h { background: #F6F7F8; padding: 8px 12px; font: 800 12px/1.2 Barlow, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #1A3057; }
+.nbd-sp-rows { margin: 0; padding: 10px 12px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; }
+.nbd-sp-rows dt { color: #4C4C4D; font-weight: 700; }
+.nbd-sp-rows dd { margin: 0; overflow-wrap: anywhere; }
+.nbd-sp-msg { margin: 0; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nbd-sp-frame { display: block; width: 100%; height: 420px; border: 0; background: #fff; }
+.nbd-sp-note { padding: 8px 12px; font-size: 12px; color: #4C4C4D; border-top: 1px solid #DFE2E7; }
+.nbd-sp-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.nbd-sp-btn { appearance: none; border: 1px solid #1A3057; background: #1A3057; color: #fff; font: 700 14px/1 Barlow, system-ui, sans-serif; padding: 11px 18px; border-radius: 8px; cursor: pointer; min-height: 44px; }
+.nbd-sp-btn:hover, .nbd-sp-btn:focus-visible { background: #12223D; }

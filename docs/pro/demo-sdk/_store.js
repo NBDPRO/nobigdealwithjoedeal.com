@@ -213,6 +213,9 @@ export function reviveSeed(v) {
   if (v.__date) return ymd(relDate(v.__date));
   if (v.__ms) return relDate(v.__ms).getTime();
   if (v.__iso) return relDate(v.__iso).toISOString();
+  // Wave 2: {"__media": "roof-front.svg"} -> this origin's /pro/demo-sdk/media/ URL
+  // (the CRM renders photo URLs only when they are absolute).
+  if (v.__media) return /^[\w-]+\.(svg|png|jpg|webp)$/.test(String(v.__media)) ? (typeof location !== 'undefined' ? location.origin : '') + '/pro/demo-sdk/media/' + v.__media : '';
   const out = {};
   for (const k of Object.keys(v)) out[k] = reviveSeed(v[k]);
   return out;

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" role="img" aria-label="Sample drawing: a dented aluminum gutter and downspout">
+<rect width="800" height="600" fill="#e9e1d3"/><rect width="800" height="150" fill="#4a4f57"/>
+<path d="M0 150h800v70H0z" fill="#f2f3f4" stroke="#b9bcc1" stroke-width="4"/>
+<path d="M0 220h800" stroke="#9ea2a8" stroke-width="6"/>
+<g fill="#c9ccd0"><ellipse cx="180" cy="190" rx="22" ry="12"/><ellipse cx="390" cy="185" rx="20" ry="11"/><ellipse cx="600" cy="192" rx="24" ry="12"/></g>
+<rect x="640" y="220" width="56" height="380" fill="#f2f3f4" stroke="#b9bcc1" stroke-width="4"/>
+<g fill="#c9ccd0"><ellipse cx="668" cy="320" rx="16" ry="10"/><ellipse cx="668" cy="430" rx="17" ry="10"/></g>
+<g fill="none" stroke="#BD5728" stroke-width="5"><circle cx="180" cy="190" r="40"/><circle cx="390" cy="185" r="38"/><circle cx="600" cy="192" r="42"/><circle cx="668" cy="320" r="34"/></g>
+<text x="300" y="320" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700" fill="#12223D" text-anchor="middle">Gutter and downspout dents</text>
+<rect x="584" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="688" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
+</svg>

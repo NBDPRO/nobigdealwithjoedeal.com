@@ -33,7 +33,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const STORY = path.join(ROOT, 'docs', 'pro', 'js', 'sandbox-story.js');
 const OUT = path.join(ROOT, 'docs', 'pro', 'demo-sdk', 'sample-company.json');
-const SEED_VERSION = 1;
+const SEED_VERSION = 2; // 2 = wave 2 (brand, business rules, line items, photos)
 const UID = 'demo-owner';
 
 function readSample() {
@@ -105,6 +105,36 @@ function build() {
     // The new-owner setup checklist is for a real account; the sample one
     // opens straight onto its work.
     setupChecklist: { hidden: true },
+    // Wave 2 (2026-10-06): the sample company's OWN brand. Without it the
+    // profile deep-merges NBD's defaults and every generated document would
+    // wear NBD's name, phone and GAF/TAMKO numbers (company-profile.js
+    // _isNbdBrand). No logo, no credential badges: a sample company has none.
+    brand: {
+      legalName: S.company, displayName: S.company, tagline: '', logoUrl: '', affiliates: [],
+      contact: {
+        phone: '(859) 555-0100', email: 'office@sample-roofing.example', website: '',
+        address: '100 Sample Way, Fort Thomas, KY 41075', mailingAddress: '100 Sample Way, Fort Thomas, KY 41075',
+        alertEmail: '', alertSms: ''
+      }
+    },
+    businessAddress: '100 Sample Way, Fort Thomas, KY 41075',
+    // The story's three packages, through the real per-company rules
+    // (tenant-rules.js): GAF System Plus on Standard and up, every price
+    // marked as a sample. Deposit: the same 50%-at-$2,000 cash rule NBD uses,
+    // so a retail job shows its deposit; Kentucky insurance jobs still take
+    // nothing at signing (deposit-rule.js keys that to the property's state,
+    // which no company setting can switch off).
+    businessRules: {
+      tiers: {
+        enabled: S.tiers.map((t) => t.key),
+        labels: Object.fromEntries(S.tiers.map((t) => [t.key, t.label])),
+        notes: Object.fromEntries(S.tiers.map((t) => [t.key, t.shingle + ' · System Plus · sample price'])),
+        warranty: Object.fromEntries(S.tiers.map((t) => [t.key, S.systemPlus + ' on the ' + t.label + ' package (sample). Workmanship warranty terms are as stated in your written agreement.']))
+      },
+      deposit: { noDepositUnderCents: 200000, depositPct: 50, roundToCents: 2500 }
+    },
+    // Per-square package prices = the story's prices over its 26 squares.
+    pricing: { addonPrices: {}, tierRates: Object.fromEntries(S.tiers.map((t) => [t.key, Math.round(t.priceCents / 100 / S.squares)])) },
     isSample: true, updatedAt: ts(-30)
   });
 
@@ -130,6 +160,9 @@ function build() {
     if (i === 0) {
       lead.deductible = S.deductible; lead.squares = S.squares; lead.pitch = S.pitch;
       lead.carrierDecisionDate = S.decisionDate; lead.stormZone = S.zone; lead.hailHit = true;
+      // Wave 2: the contract's "Description of Work" reads lead.scopeOfWork.
+      lead.scopeOfWork = 'Tear off the existing shingles to the deck and install a new ' + preferred.shingle + ' roof system (' +
+        preferred.label + ' package) on ' + S.squares + ' squares at ' + S.pitch + ' pitch: ' + preferred.items.join(', ').toLowerCase() + '.';
     }
     add('leads/' + id, lead);
     add('notes/sample-note-' + String(i + 1).padStart(2, '0'), {
@@ -165,7 +198,49 @@ function build() {
     add('estimates/sample-est-0' + (k + 2), {
       leadId: 'sample-lead-' + String(n).padStart(2, '0'), userId: UID, companyId: UID, isSample: true,
       owner: L[0] + ' ' + L[1], address: L[2] + ', ' + L[3] + ', ' + L[4] + ' ' + L[5], name: 'Roof replacement',
-      package: pkg, total, grandTotal: total, status: n === 16 ? 'accepted' : 'sent', createdAt: ts(-5 - k, 13), updatedAt: ts(-4 - k, 13)
+      package: pkg, total, grandTotal: total, status: n === 16 ? 'accepted' : 'sent', createdAt: ts(-5 - k, 13), updatedAt: ts(-4 - k, 13),
+      tier: pkg.toLowerCase(), lineItems: [{ description: 'Roof replacement, ' + pkg + ' package (sample price)', qty: 1, unit: 'job', rate: total, total }]
+    });
+  });
+
+  // Wave 2: Jordan's estimate carries its scope as classic line items (retail
+  // only) so the contract / proposal generators fill from it, like a real
+  // saved estimate does (doc-preflight.js mapEstimateLineItems).
+  Object.assign(docs['estimates/sample-est-01'], {
+    tier: preferred.key, mode: 'insurance',
+    lineItems: [{
+      description: 'Roof replacement, ' + preferred.label + ' package: ' + preferred.shingle + ', ' + preferred.items.join(', ').toLowerCase() + ' (sample price)',
+      qty: S.squares, unit: 'SQ', rate: Math.round(preferred.priceCents / 100 / S.squares), total: preferred.priceCents / 100
+    }]
+  });
+  docs['leads/sample-lead-01'].primaryEstimateId = 'sample-est-01';
+
+  // Wave 2: sample job photos. Simple drawings committed under
+  // docs/pro/demo-sdk/media/ (no real customer photo, no camera metadata,
+  // nothing fetched from another site). {"__media": file} resolves to this
+  // origin's URL in the browser (_store.js), because the CRM only renders
+  // photo URLs that are absolute.
+  const PHOTOS = [
+    [1, 'roof-front.svg', 'Before', 'Property', '', '', 'Front elevation', 'Front of the house before work'],
+    [1, 'hail-hits.svg', 'Before', 'Damage', 'Hail', '3', 'North slope', 'Hail bruising on the north slope, marked in chalk'],
+    [1, 'test-square.svg', 'Before', 'Damage', 'Hail', '3', 'West slope', 'Ten-by-ten test square, west slope'],
+    [1, 'vent-boot.svg', 'Before', 'Damage', 'Hail', '2', 'Rear slope', 'Cracked pipe boot on the rear slope'],
+    [1, 'gutter-dent.svg', 'Before', 'Damage', 'Hail', '1', 'Front gutter', 'Dented gutter and downspout'],
+    [7, 'roof-front.svg', 'Before', 'Property', '', '', 'Front elevation', 'Front of the house'],
+    [7, 'hail-hits.svg', 'Before', 'Damage', 'Hail', '3', 'All slopes', 'Hail on all slopes'],
+    [7, 'vent-boot.svg', 'Before', 'Damage', 'Hail', '2', 'Rear slope', 'Two cracked vent boots'],
+    [4, 'ridge-cap.svg', 'Before', 'Damage', 'Wind', '2', 'Back ridge', 'Missing ridge caps on the back'],
+    [20, 'roof-front.svg', 'Before', 'Property', '', '', 'Front elevation', 'Before the new roof'],
+    [20, 'roof-after.svg', 'After', 'Completed', '', '', 'Front elevation', 'New roof, install complete']
+  ];
+  PHOTOS.forEach(([n, file, phase, category, damage, sev, where, caption], k) => {
+    const leadId = 'sample-lead-' + String(n).padStart(2, '0');
+    const when = ts(-Math.min(ROWS[n - 1][12], 6) + (phase === 'After' ? 5 : 0), 11);
+    add('photos/sample-photo-' + String(k + 1).padStart(2, '0'), {
+      leadId, userId: UID, companyId: UID, isSample: true,
+      url: { __media: file }, storagePath: 'sample/' + file, filename: file, type: 'image/svg+xml',
+      phase, category, damageType: damage, severity: sev, location: where,
+      caption: caption + ' (sample drawing)', createdAt: when, date: when, uploadedAt: when
     });
   });
 

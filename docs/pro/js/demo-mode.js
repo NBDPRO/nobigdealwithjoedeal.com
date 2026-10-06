@@ -206,7 +206,7 @@
     if (document.getElementById('nbd-demo-strip')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/pro/css/demo-mode.css?v=1';
+    link.href = '/pro/css/demo-mode.css?v=2';
     document.head.appendChild(link);
     var bar = document.createElement('div');
     bar.id = 'nbd-demo-strip';
