@@ -123,7 +123,9 @@ export class EmailAuthProvider {
 
 export async function signInWithEmailAndPassword() { throw notReal('Signing in'); }
 export async function createUserWithEmailAndPassword() { throw notReal('Creating a login'); }
-export async function signInWithPopup() { throw notReal('Google sign-in'); }
+// Arrow form on purpose: tests/google-signin-popup.test.js finds popup-auth
+// CALLS by name + '(' and maps them to pages; this stub is never a popup.
+export const signInWithPopup = async () => { throw notReal('Google sign-in'); };
 export async function signInWithRedirect() { throw notReal('Google sign-in'); }
 export async function getRedirectResult() { return null; }
 export async function signInWithCustomToken() { throw notReal('Signing in'); }

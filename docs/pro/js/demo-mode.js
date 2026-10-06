@@ -189,8 +189,12 @@
   }
 
   // ── 5. the strip ───────────────────────────────────────────────────────
-  function resetAccount() {
-    if (!window.confirm('Reset the sample account? Every change you made here is cleared.')) return;
+  async function resetAccount() {
+    // nbdConfirm (standalone-compat.js) on both pages; without it, reset
+    // straight away: it only clears this browser's sample data.
+    var msg = 'Reset the sample account? Every change you made here is cleared.';
+    var yes = typeof window.nbdConfirm === 'function' ? await window.nbdConfirm(msg) : true;
+    if (!yes) return;
     try { if (state.clearStorage) state.clearStorage(); } catch (_) {}
     var done = function () { location.replace(PREFIX + 'dashboard'); };
     try {
