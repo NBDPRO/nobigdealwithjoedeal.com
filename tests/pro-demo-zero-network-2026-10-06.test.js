@@ -19,6 +19,21 @@
  *      customer card renders the story customer.
  *   5. A note is saved through the page's own saveNote().
  *   6. A "send" callable answers with what it would do, never a fake send.
+ *   Wave 2 (2026-10-06):
+ *   7. The customer card's photo grid shows the sample drawings (loaded).
+ *   8. Contract, proposal and homeowner inspection report generate from the
+ *      sample data through the real pre-flight sheet and viewer: the sample
+ *      company's brand, Jordan's line items, Kentucky notices and nothing
+ *      due at signing, the sample photos, no "lifetime workmanship".
+ *   9. The viewer's Send for Signature opens the read-only "Nothing was
+ *      sent" preview (the email + the page in a no-permission sandbox).
+ *  10. The dashboard's V3 builder, every Next a REAL click (the strip used
+ *      to cover the bar): a retail job, per-square, Standard / Preferred /
+ *      Elite with System Plus and "sample price", 50% deposit, saved.
+ *  11. Its Send for Signature and Send to homeowner show their previews;
+ *      the builder's own status line says nothing was sent.
+ *  12. The Kentucky insurance job: $0 due at signing, e-mail e-sign off
+ *      (the real KY gate), the deal page preview carries the KY notices.
  *
  * Fails if ANY of these happened during the walk:
  *   - a request left 127.0.0.1, other than (a) the gstatic SDK URLs the
@@ -167,6 +182,133 @@ async function waitFor(page, fn, arg, ms) {
       catch (e) { return { code: e.code, msg: e.message }; }
     });
     ok('sendEstimateEnvelope says what it would do and sends nothing', !call.sent && /In your real account this would email the estimate/.test(call.msg || ''), JSON.stringify(call));
+    await page.evaluate(() => { const s = document.getElementById('nbd-send-preview'); if (s) s.remove(); });
+
+    // ── wave 2: photos, documents, the e-sign preview, the estimate builder ──
+    console.log('7. the customer card shows the sample photos');
+    await waitFor(page, () => document.querySelectorAll('#photoList img').length >= 4, null, 20000);
+    const pics = await page.evaluate(() => [...document.querySelectorAll('#photoList img')].map((i) => ({ src: i.src, w: i.naturalWidth })));
+    ok('Jordan\'s photo grid shows the sample drawings, served from this origin', pics.length >= 4 && pics.every((p) => p.src.indexOf(ORIGIN + '/pro/demo-sdk/media/') === 0), JSON.stringify(pics));
+    await waitFor(page, () => [...document.querySelectorAll('#photoList img')].every((i) => i.complete && i.naturalWidth > 0), null, 15000).catch(() => {});
+    ok('…and every one actually loaded', (await page.evaluate(() => [...document.querySelectorAll('#photoList img')].every((i) => i.naturalWidth > 0))));
+
+    // Generate a document the way the rep does: the Documents tile → the
+    // pre-flight sheet → Generate → the viewer.
+    async function generateDoc(type) {
+      await page.evaluate(() => { const v = document.getElementById('nbd-doc-viewer-overlay'); if (v) v.classList.remove('open'); });
+      await page.locator('[data-action="generateCustomerDoc"][data-doc-type="' + type + '"]').evaluate((el) => el.click());
+      await page.waitForSelector('.dpf-card', { timeout: 20000 });
+      const missing = await page.evaluate(() => [...document.querySelectorAll('.dpf-card .missing')].map((w) => w.getAttribute('data-field-wrap')));
+      await page.evaluate(() => { const s = document.getElementById('nbdv-iframe'); if (s) s.srcdoc = ''; });
+      await page.locator('.dpf-card button', { hasText: /Generate/i }).last().click();
+      await page.waitForSelector('#nbd-doc-viewer-overlay.open', { timeout: 20000 });
+      await waitFor(page, () => ((document.getElementById('nbdv-iframe') || {}).srcdoc || '').length > 2000, null, 20000);
+      return { missing, html: await page.evaluate(() => document.getElementById('nbdv-iframe').srcdoc) };
+    }
+    const textOf = (h) => String(h).replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' ');
+
+    console.log('8. generate the contract, the estimate and the inspection report');
+    const contract = await generateDoc('contract');
+    ok('the contract pre-flight is complete from the sample data (nothing to type)', contract.missing.length === 0, contract.missing.join(','));
+    const ct = textOf(contract.html);
+    ok('the contract is the sample company\'s, for Jordan Avery, with the estimate\'s line items', /Sample Roofing Co\./.test(ct) && /Jordan Avery/.test(ct) && /Preferred package/.test(ct) && /\$17,160/.test(ct), ct.slice(0, 600));
+    ok('a Kentucky insurance contract: nothing due at signing, the KRS notices, no NBD identity', /nothing is due at signing/i.test(ct) && /367\.62/.test(ct) && !/No Big Deal|1162011|181382/.test(contract.html));
+    const proposal = await generateDoc('proposal');
+    ok('the estimate (proposal) renders with the sample photos as real images', /Sample Roofing Co\./.test(textOf(proposal.html)) && /\/pro\/demo-sdk\/media\/[\w-]+\.svg/.test(proposal.html) && !/object Object/.test(proposal.html));
+    const report = await generateDoc('inspectionHomeowner');
+    const rt = textOf(report.html);
+    ok('the inspection report renders from the sample photos', (report.html.match(/\/pro\/demo-sdk\/media\/[\w-]+\.svg/g) || []).length >= 4 && /Jordan Avery/.test(rt) && /Inspection/i.test(rt));
+    ok('no document promises a lifetime warranty', ![contract, proposal, report].some((d) => /lifetime workmanship/i.test(textOf(d.html))));
+
+    console.log('9. e-sign from the viewer: a read-only preview, nothing sent');
+    // The real (contract) document goes back on screen for the send.
+    await generateDoc('contract');
+    page.once('dialog', (d) => d.accept('jordan.avery@example.com'));
+    await page.locator('#nbdv-sign-btn').click(); // a real click: the strip must not cover the viewer's row
+    await page.waitForSelector('#nbd-send-preview[data-kind="sign-request"]', { timeout: 15000 });
+    const sp1 = await page.evaluate(() => {
+      const s = document.getElementById('nbd-send-preview');
+      const f = s.querySelector('iframe');
+      return { text: s.innerText, sandbox: f && f.getAttribute('sandbox'), doc: f ? f.srcdoc : '' };
+    });
+    ok('the preview says nothing was sent and shows the email (to Jordan, subject)', /Nothing was sent/.test(sp1.text) && /Jordan Avery <jordan\.avery@example\.com>/.test(sp1.text) && /Please sign: Roofing Contract from Sample Roofing Co\./.test(sp1.text), sp1.text.slice(0, 500));
+    ok('…and the page Jordan would open, read-only (sandboxed, no scripts)', sp1.sandbox === '' && /ROOFING CONTRACT/i.test(sp1.doc) && !/<script/i.test(sp1.doc));
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+    await page.waitForSelector('#nbd-send-preview', { state: 'detached', timeout: 5000 });
+
+    console.log('10. open the dashboard and build a retail estimate in the V3 builder');
+    await page.evaluate(() => { const v = document.getElementById('nbd-doc-viewer-overlay'); if (v) v.classList.remove('open'); window.location.href = '/pro/dashboard.html'; });
+    await page.waitForURL(ORIGIN + '/pro/explore/dashboard', { timeout: 30000 });
+    await waitFor(page, () => Array.isArray(window._leads) && window._leads.length >= 20 && typeof window.startNewEstimate === 'function');
+    // Every Next below is a REAL click: the Sample account strip used to sit
+    // on top of the builder's bottom bar and swallow it.
+    async function buildEstimate(leadId, perSq) {
+      await page.evaluate((id) => window.startNewEstimate(id), leadId);
+      await page.locator('#est-new-chooser button', { hasText: 'Start Blank' }).click();
+      await waitFor(page, () => window.EstimateV3 && window.EstimateV3._test.ui.step === 'measure', null, 20000);
+      await page.locator('#v2rawSqft').fill('2600');
+      await page.locator('#v2rawSqft').dispatchEvent('change');
+      const out = {};
+      for (let i = 0; i < 14; i++) {
+        const s = await page.evaluate(() => window.EstimateV3._test.ui.step);
+        if (s === 'package') {
+          await page.locator('#estV2Modal [data-v3-act="preset"]').first().click();
+          if (perSq) await page.locator('#estV2Modal #v2modePerSq').click();
+          await page.locator('#estV2Modal [data-v3-act="tier"][data-v3-val="better"]').click();
+          out.pkg = await page.evaluate(() => document.querySelector('#estV2Modal .v3-pkg').innerText);
+        }
+        if (s === 'review') out.deposit = await page.evaluate(() => document.getElementById('v2deposit').innerText);
+        if (s === 'finish') break;
+        await page.locator('#estV2Modal .v3-next').click();
+      }
+      out.step = await page.evaluate(() => window.EstimateV3._test.ui.step);
+      out.state = await page.evaluate(() => { const s = window.EstimateV2UI.getState(); return { tier: s.tier, mode: s.mode, jobMode: s.jobMode, scope: s.scope.length }; });
+      return out;
+    }
+    const cash = await buildEstimate('sample-lead-13', true);
+    ok('the V3 builder walked every step to Finish with real taps', cash.step === 'finish' && cash.state.scope > 0, JSON.stringify(cash.state));
+    const pk = cash.pkg || '';
+    ok('packages: Standard / Preferred / Elite, each with GAF System Plus and "sample price"', /STANDARD[\s\S]*PREFERRED[\s\S]*ELITE/i.test(pk) && (pk.match(/System Plus · sample price/g) || []).length === 3, pk);
+    ok('per-square pricing shows all three packages side by side', (pk.match(/\$\d[\d,]*/g) || []).length >= 3 && !/Tap to price/.test(pk), pk);
+    ok('retail job: the deposit shows (50% due at signing)', /50% deposit of \$[\d,]+ due at signing/.test(cash.deposit || ''), cash.deposit);
+    const savedId = await page.evaluate(() => window.EstimateV2UI.save());
+    const saved = await page.evaluate(async (id) => {
+      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const s = await F.getDoc(F.doc(F.getFirestore(), 'estimates', id));
+      return s.exists() ? { leadId: s.data().leadId, tier: s.data().tier } : null;
+    }, savedId);
+    ok('Save writes the estimate to the in-browser store', !!saved && saved.leadId === 'sample-lead-13', JSON.stringify(saved));
+
+    console.log('11. Send for Signature and Send to homeowner: previews, nothing sent');
+    await page.locator('#estV2Modal [data-v3-act="more"]').first().click().catch(() => {});
+    await page.locator('#v2signBtn').click();
+    await page.waitForSelector('#nbd-send-preview[data-kind="esign-envelope"]', { timeout: 15000 });
+    const sp2 = await page.evaluate(() => document.getElementById('nbd-send-preview').innerText);
+    ok('e-sign preview: to Caleb, the contract subject, the package, total and deposit', /Nothing was sent/.test(sp2) && /Caleb Ross <caleb\.ross@example\.com>/.test(sp2) && /Preferred/.test(sp2) && /50% deposit/.test(sp2), sp2.slice(0, 700));
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+    const signStatus = await page.evaluate(() => (document.getElementById('v2signStatus') || {}).textContent || '');
+    ok('the builder\'s own status line says it was not sent', /In your real account this would/.test(signStatus), signStatus);
+    await page.locator('#estV2Modal [data-action="send-to-homeowner"]').first().click();
+    await page.waitForSelector('#nbd-send-preview[data-kind="deal-link"]', { timeout: 20000 });
+    const sp3 = await page.evaluate(() => { const s = document.getElementById('nbd-send-preview'); const f = s.querySelector('iframe'); return { text: s.innerText, sandbox: f && f.getAttribute('sandbox'), doc: f ? f.srcdoc : '' }; });
+    ok('deal-link preview: the text Caleb would get and his deal page, read-only', /Hi Caleb!/.test(sp3.text) && sp3.sandbox === '' && /Sample Roofing Co\./.test(sp3.doc) && /Due at signing: <strong>\$[1-9]/.test(sp3.doc), sp3.text.slice(0, 400));
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+    await page.evaluate(() => window.closeEstimateV2Builder());
+
+    console.log('12. the Kentucky insurance job: nothing due at signing');
+    const ins = await buildEstimate('sample-lead-01', false);
+    ok('Jordan\'s estimate is an insurance job that reached Finish', ins.step === 'finish' && ins.state.jobMode === 'insurance', JSON.stringify(ins.state));
+    ok('Kentucky insurance: "Due at signing $0", nothing is due at signing', /Due at signing\s*\$0\b/.test(ins.deposit || '') && /Nothing is due at signing/.test(ins.deposit || ''), ins.deposit);
+    ok('e-mail e-sign is off for a Kentucky insurance job (the real KY gate)', await page.evaluate(() => document.getElementById('v2signBtn').classList.contains('v2-ky-off')));
+    await page.locator('#estV2Modal [data-action="send-to-homeowner"]').first().click();
+    await page.waitForSelector('#nbd-send-preview[data-kind="deal-link"]', { timeout: 20000 });
+    const kyDeal = await page.evaluate(() => (document.querySelector('#nbd-send-preview iframe') || {}).srcdoc || '');
+    ok('Jordan\'s deal page preview: $0 due at signing and the Kentucky notices', /Due at signing: <strong>\$0(\.00)?<\/strong>/.test(kyDeal) && !/Due at signing: <strong>\$[1-9]/.test(kyDeal) && /367\.62/.test(kyDeal));
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+    await page.evaluate(() => window.closeEstimateV2Builder());
+    const previews = await page.evaluate(() => (window.__NBD_DEMO__.previews || []).map((p) => p.callable));
+    // (the viewer's sign request was on the customer page, checked in step 9)
+    ok('every send on the dashboard went to a preview (one envelope, two deal links)', previews.join(',') === 'sendEstimateEnvelope,createDealAcceptToken,createDealAcceptToken', previews.join(','));
 
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');
