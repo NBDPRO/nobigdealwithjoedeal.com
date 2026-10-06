@@ -187,7 +187,7 @@ async function _findAffectedLeads(db, alert) {
 }
 // Test seam (tests/storm-briefing-tenant-scope-2026-10-05.test.js); index.js
 // re-exports this module by name only, so it is never deployed.
-exports._findAffectedLeads = _findAffectedLeads;
+module.exports._findAffectedLeads = _findAffectedLeads;
 
 /**
  * Build the structured Slack briefing for an alert + its affected leads.
