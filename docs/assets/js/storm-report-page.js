@@ -121,6 +121,9 @@
     // gates on a stored record (TCPA fix, 2026-09-04; see #1377).
     var payload = { name: fn, phone: ph, address: S.address, source: '/storm-report', story: story, tcpaConsent: $('sr-consent').checked === true };
     if (em) payload.email = em;
+    // The point the report was built for (2026-10-06): lets the follow-up
+    // email find the same server-built report for its measured-gust line.
+    if (isFinite(S.lat) && isFinite(S.lon)) { payload.lat = S.lat; payload.lon = S.lon; }
     Object.assign(payload, S.intake.fields);
     var cap = (typeof window.submitPublicLead === 'function') ? window.submitPublicLead('inspect', payload) : Promise.resolve({ ok: false });
     cap.then(function (res) { renderReport(res && res.ok); afterIntake(res, 'sr-intake-after'); });
@@ -131,7 +134,7 @@
     var hailNear = near.filter(function (e) { return e.type === 'hail'; }).length;
     var sev = (S.data.events || []).some(function (e) { return e.severity === 'severe'; });
     if ((hailNear || c.tornado) && sev) return { h: 'Severe storm activity near you — worth a free inspection.', d: 'Severe storm activity this close to your home is worth a trained eye on the roof — only an inspection can show whether there’s real damage. Joe inspects free and documents anything he finds; if you file, he meets your adjuster on the roof — the claim stays yours.' };
-    if (c.hail || c.tornado || c.wind > 3) return { h: 'Worth a free inspection.', d: 'There’s real storm history here. Joe will get on the roof, document anything claimable, and tell you straight whether it’s worth filing.' };
+    if (c.hail || c.tornado || c.wind > 3) return { h: 'Worth a free inspection.', d: 'There’s real storm history here. Joe will get on the roof and document what he finds so you can decide your next step.' };
     return { h: 'A free inspection is the only way to be sure.', d: 'Light storm history on record near you — but damage isn’t always obvious from the ground. Joe checks it free, no obligation.' };
   }
   function renderReport(saved) {
@@ -148,11 +151,33 @@
       return '<tr><td>' + fmtDate(e.date) + '</td><td><span class="sr-tag sr-' + e.type + '">' + e.type + '</span></td><td>' +
         (e.magnitude ? e.magnitude + (e.unit ? e.unit : '') : '—') + '</td><td>' + e.distanceMi + ' mi</td></tr>';
     }).join('') || '<tr><td colspan="4" style="text-align:center;color:#5d6673">No individual reports on file near this address.</td></tr>';
+    renderGusts();
     $('sr-rep-source').textContent = 'Source: ' + (S.data.source || 'NWS Local Storm Reports (NOAA)') + '. Report range: ' + (S.data.years || 5) + ' years within ' + (S.data.radiusMi || 30) + ' miles.';
     if (!saved) { var w = $('sr-rep-warn'); w.style.display = 'block'; w.textContent = 'Note: we couldn’t auto-save your info — please call/text Joe at (859) 420-7382 so your report request isn’t lost.'; }
     show('sr-report');
     initMap();
     if (window.gtag) window.gtag('event', 'storm_report_complete', { events: c.total || 0 });
+  }
+  /* "Wind measured nearby" (2026-10-06): the nearest weather station's
+     strongest gust on the top storm days, built server-side (stormReport →
+     windGusts[].line). Text only via textContent; a day without a reading
+     simply has no entry, and the block stays hidden when there are none. */
+  function renderGusts() {
+    var box = $('sr-rep-gusts'), list = $('sr-rep-gust-list');
+    if (!box || !list) return;
+    list.textContent = '';
+    var g = (S.data && Array.isArray(S.data.windGusts)) ? S.data.windGusts : [];
+    // The inspection/insurer context line must sit with the readings — no
+    // context from the server, no readings shown.
+    if (!(S.data && S.data.windGustContext)) g = [];
+    var n = 0;
+    g.forEach(function (x) {
+      if (!x || typeof x.line !== 'string' || !x.line || !(Number(x.gustMph) > 0)) return;
+      var li = document.createElement('li'); li.textContent = x.line; list.appendChild(li); n++;
+    });
+    $('sr-rep-gust-note').textContent = n ? String(S.data.windGustContext || '') : '';
+    $('sr-rep-gust-source').textContent = (n && S.data.windGustSource) ? 'Wind gusts: ' + S.data.windGustSource : '';
+    box.hidden = !n;
   }
   function stat(v, l) { return '<div class="sr-stat"><b>' + v + '</b><span>' + l + '</span></div>'; }
   function fmtDate(s) { try { return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return '—'; } }
