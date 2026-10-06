@@ -36,8 +36,11 @@ function _c(v) {
  */
 function chargeDueNow(inv, o) {
   const i = inv || {};
-  const totalC = (o && o.totalCents != null) ? Math.round(Number(o.totalCents)) : _c(i.total);
   const paidC = Math.max(0, _c(i.amountPaid));
+  // No total on the doc (a thin legacy / mirror row): what is owed + paid.
+  const hasTotal = i.total != null && i.total !== '' && Number.isFinite(Number(i.total));
+  const totalC = (o && o.totalCents != null) ? Math.round(Number(o.totalCents))
+    : (hasTotal ? _c(i.total) : Math.max(0, _c(i.balanceDue)) + paidC);
   const balanceC = Math.max(0, totalC - paidC);
   const depC = Math.max(0, _c(i.depositAmount));
   const split = depC > 0 && depC < totalC;

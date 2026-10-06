@@ -1022,7 +1022,7 @@
       const isDeposit = view.balance.kind === 'deposit';
       const owedCents = Number(view.balance.totalOwedCents);
       const owedLine = (isDeposit && owedCents > view.balance.amountCents)
-        ? '<p style="color:var(--muted);margin:6px 0 0;">Total owed ' + esc((owedCents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' }))
+        ? '<p class="progress-schedule-note">Total owed ' + esc((owedCents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' }))
           + ' — the rest is due later, as your contract says.</p>'
         : '';
       parts.push(
