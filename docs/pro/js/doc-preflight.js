@@ -406,8 +406,14 @@
         return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       case 'todayISO':
         return toDateInput(new Date());
-      case 'jobValue':
-        return lead.jobValue || est.grandTotal || est.total || est.amount || 0;
+      case 'jobValue': {
+        // The estimate being documented wins over lead.jobValue (review
+        // R2-2-4, 2026-10-06): a revised estimate's contract prefilled the
+        // lead's older number. lead.jobValue only when no estimate is selected
+        // or it carries no price.
+        var estPrice = Number(est.grandTotal || est.total || est.amount) || 0;
+        return estPrice > 0 ? estPrice : (lead.jobValue || 0);
+      }
       case 'invoiceNumber':
         return 'INV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-5);
       case 'receiptNumber':

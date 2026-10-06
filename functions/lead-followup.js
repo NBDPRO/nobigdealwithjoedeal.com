@@ -42,19 +42,13 @@ const SOURCES = ['estimate_leads', 'inspect_leads', 'contact_leads', 'free_roof_
 // untagged public lead is NBD's, so its unsubscribe lives under this key.
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
-// Same tenant rule as lead-alert's ack: a configured tenant's homeowners are
-// not ours to email. (Mirror of resolveAlertTarget's fallback logic — a lead
-// with no companyId, or one whose companyProfile has no alert contact, is NBD.)
+// Same tenant rule as lead-alert's ack (resolveAlertTarget isNbd): a lead is
+// NBD's only when it has no companyId (an untagged public lead) or its
+// companyId IS the NBD owner uid. Another company's homeowners are never ours
+// to email — even when that company has not set alert contacts yet (the old
+// rule treated a company with no alert contact as NBD).
 async function isNbdLead(companyId) {
-  if (!companyId) return true;
-  try {
-    const snap = await getFirestore().collection('companyProfile').doc(String(companyId)).get();
-    if (!snap.exists) return true;
-    const c = ((snap.data() || {}).brand || {}).contact || {};
-    return !(c.alertEmail || c.alertSms);
-  } catch (e) {
-    return false; // unknown tenant state — don't email
-  }
+  return !companyId || String(companyId) === NBD_OWNER_UID;
 }
 
 function esc(s) {

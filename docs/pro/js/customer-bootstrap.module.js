@@ -941,8 +941,11 @@ async function loadCustomerData(id) {
     }
 
     // Populate info
-    document.getElementById('infoJobValue').textContent = 
-      lead.jobValue ? `$${parseFloat(lead.jobValue).toLocaleString()}` : '—';
+    // One money reader (customer-estimate-rows.js moneyValue): '$45,000' is 45000, not 45.
+    const _jvNum = window.NBDCustomerEstimateRows?.moneyValue
+      ? window.NBDCustomerEstimateRows.moneyValue(lead.jobValue)
+      : (parseFloat(String(lead.jobValue ?? '').replace(/[^0-9.-]/g, '')) || 0);
+    document.getElementById('infoJobValue').textContent = _jvNum ? `$${_jvNum.toLocaleString()}` : '—';
     document.getElementById('infoDamageType').textContent = lead.damageType || '—';
     document.getElementById('infoSource').textContent = lead.source || '—';
     document.getElementById('infoCarrier').textContent = lead.insCarrier || lead.insuranceCarrier || '—';

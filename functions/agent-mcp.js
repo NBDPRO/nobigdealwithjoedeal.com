@@ -121,6 +121,21 @@ async function companyLeads(companyId) {
   return Object.values(byId);
 }
 
+// The company's jobs (leads/{id}/jobs), grouped by lead, so crm_summary counts
+// a customer's second open job the way the Home KPI tiles do (review R2-2-7,
+// 2026-10-06). Same two owner fields as companyLeads; the single-field
+// COLLECTION_GROUP indexes exist for both (firestore.indexes.json). Best-effort:
+// a failed read falls back to the leads alone (the old number), never an error.
+async function companyJobsByLead(companyId) {
+  try {
+    const snaps = await Promise.all(['companyId', 'userId'].map((f) =>
+      db().collectionGroup('jobs').where(f, '==', companyId).limit(5000).get()));
+    return require('./jobs-logic').jobsByLeadFromDocs(snaps.reduce((all, sn) => all.concat(sn.docs), []));
+  } catch (e) {
+    return null;
+  }
+}
+
 // Every doc of a collection owned by the company under any of its owner
 // fields (solo accounts own by uid, team accounts by companyId), de-duplicated.
 async function companyDocs(collection, companyId, fields) {
@@ -153,9 +168,17 @@ async function runTool(name, args, key) {
   const company = key.companyId;
   const tz = key.tz;
   const today = L.dayInZone(Date.now(), tz);
-  if (name === 'crm_summary') return L.toolText(Object.assign(L.summary(await companyLeads(company), today), { today, timezone: tz }));
+  if (name === 'crm_summary') {
+    const [leads, jobsByLead] = await Promise.all([companyLeads(company), companyJobsByLead(company)]);
+    return L.toolText(Object.assign(L.summary(leads, today, jobsByLead), { today, timezone: tz }));
+  }
   if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit) });
-  if (name === 'list_leads') return L.toolText({ customers: L.listLeads(await companyLeads(company), args, Date.now()) });
+  if (name === 'list_leads') {
+    // Paged (2026-10-06): customers + total + next_cursor; the cursor is
+    // bound to THIS key's company and filters, so a cursor from elsewhere is refused.
+    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company);
+    return page.error ? L.toolErr(page.error) : L.toolText(page);
+  }
 
   if (name === 'lead_detail') {
     const leads = await companyLeads(company);
