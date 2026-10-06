@@ -139,6 +139,7 @@
     "solar-measure.test.js",
     "lead-dedup.test.js",
     "lead-photo-reaping.test.js",
+    "sec-r3-e2e-flag-portal-path-2026-10-06.test.js",
     "lead-filter-registry.test.js",
     "legacy-documents-audit.test.js",
     "lead-pipeline-logic.test.js",

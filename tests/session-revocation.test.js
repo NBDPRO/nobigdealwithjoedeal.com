@@ -134,6 +134,9 @@ function loadRevokeHandler(opts) {
     '../rate-limit-policy': {
       guardCallable: (name, handler) => { calls.guard.push(name); return handler; },
     },
+    // 2026-10-06 (review R3-2): cleanupE2ETestData's path confinement. Pure,
+    // firebase-free, so the real module is used.
+    '../lead-artifact-paths': require('../functions/lead-artifact-paths'),
   };
 
   const requireStub = (id) => {
