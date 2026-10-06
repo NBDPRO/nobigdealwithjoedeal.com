@@ -37,6 +37,8 @@ const {
 // enforces the SAME plan→seat limit as createTeamInvite (single source of
 // truth; invites.js does not require admin.js, so this edge is one-way/safe).
 const { seatLimitForPlan, isInviteExpired } = require('./invites');
+// R3-1 (2026-10-06): what a removed / deactivated / demoted member loses.
+const { reassignMemberRecords, revokeMemberAccessTokens } = require('../member-offboarding');
 
 // ═══════════════════════════════════════════════════════════════
 // getAdminAnalytics — C3: ops dashboard numbers for the Team Manager.
@@ -634,6 +636,13 @@ exports.updateUserRole = onCall(
       throw new HttpsError('failed-precondition', 'Cannot demote the company owner');
     }
 
+    // R3-1: a viewer may not hold a bot key or a calendar feed link (neither
+    // can be minted by one), so a demotion to viewer turns theirs off. Before
+    // the claim change, so a failure leaves the role as it was for a retry.
+    if (role === 'viewer') {
+      await revokeMemberAccessTokens(getFirestore(), userRecord.uid, 'role-viewer');
+    }
+
     await getAuth().setCustomUserClaims(userRecord.uid, {
       ...existingClaims,
       companyId,
@@ -719,6 +728,15 @@ exports.deactivateUser = onCall(
       throw new HttpsError('failed-precondition', 'Cannot deactivate your own account');
     }
 
+    // R3-1: turn off the member's bot keys and calendar feed links before the
+    // account is disabled (a failure throws with nothing changed yet). Records
+    // are NOT reassigned here: deactivation is reversible, and a disabled
+    // account cannot sign in. Reactivating does not bring the keys/links back;
+    // the member makes new ones.
+    if (!reactivate) {
+      await revokeMemberAccessTokens(getFirestore(), userRecord.uid, 'member-deactivated');
+    }
+
     await getAuth().updateUser(userRecord.uid, { disabled: !reactivate });
     // Revoke tokens when deactivating so existing sessions die.
     if (!reactivate) {
@@ -766,12 +784,31 @@ exports.deactivateUser = onCall(
 //   - invited (no uid yet — never signed up): just delete the roster doc.
 //   - active/deactivated (has a uid): clear claims + revoke, then delete.
 // Guards mirror deactivateUser: not the owner, not yourself, same company.
+// R3-1: an active member's records are reassigned to the owner first, which
+// is why the timeout is 120s rather than 30s.
+//
+// offboardMember (R3-1, 2026-10-06): before the claims go, take back what the
+// claims never covered. Rules authorize company records on the owner field
+// (isOwner(userId)) with no tenant check, so a removed rep who signed back in
+// still owned every lead, estimate, photo... they had made. Those move to the
+// company owner (the caller when the company has no ownerId), and the rep's
+// bot keys + calendar feed links are revoked. Both run BEFORE the claim strip:
+// if either throws, the rep still carries this company's claim, so
+// callerMayManageTarget lets the admin retry. Why reassign rather than a
+// rules change: see functions/member-offboarding.js.
+async function offboardMember(db, uid, toUid, companyId) {
+  const revoked = await revokeMemberAccessTokens(db, uid, 'member-removed');
+  const reassigned = await reassignMemberRecords(db, { fromUid: uid, toUid, companyId });
+  logger.info('removeMember.offboarded', {
+    companyId, targetUid: uid, ...revoked, reassigned: reassigned.total, skipped: reassigned.skipped,
+  });
+}
 exports.removeMember = onCall(
   {
     region: 'us-central1',
     cors: CORS_ORIGINS,
     enforceAppCheck: true,
-    timeoutSeconds: 30,
+    timeoutSeconds: 120,
     memory: '256MiB'
   },
   async (request) => {
@@ -830,6 +867,7 @@ exports.removeMember = onCall(
         throw new HttpsError('permission-denied', 'User belongs to another company');
       }
       if (managesTarget) {
+        await offboardMember(db, userRecord.uid, ownerId || callerUid, companyId);
         // Strip companyId + role; PRESERVE everything else (plan/subscription/
         // billing claims the Stripe webhook maintains).
         const stripped = { ...existingClaims };
