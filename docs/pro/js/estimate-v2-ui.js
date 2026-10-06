@@ -4136,8 +4136,21 @@
         // A job-type estimate prints its own sentence instead, or nothing at
         // all when the job carries no workmanship warranty (estimate.hbs
         // drops the row on a falsy value) — 2026-09-25.
+        // 2026-10-06 (Jo): the lifetime workmanship warranty is the NBD
+        // Pledge — NBD's alone, and not on Economy (1-year labor). Another
+        // company's estimate never prints it: its own per-option sentences
+        // (shown above) or no row; the manufacturer warranty follows the
+        // package chosen plus any extended manufacturer warranty sold.
         warranty:     jobWarranty === null
-          ? 'Lifetime workmanship warranty on every tier; transferability varies by tier — see above'
+          ? (function () {
+            var TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+            if (TR && typeof TR.isPlatformTenant === 'function' && TR.isPlatformTenant() === false) {
+              var own = (typeof TR.ownWarrantyText === 'function' && typeof TR.tierOrder === 'function')
+                && TR.tierOrder().some(function (t) { return !!TR.ownWarrantyText(t); });
+              return own ? 'Workmanship warranty as stated for each option above; manufacturer warranty per the package you choose' : null;
+            }
+            return 'NBD Pledge — lifetime workmanship warranty (Economy: 1-year labor warranty); transferability varies by tier — see above. Manufacturer warranty: per the package you choose, plus any extended manufacturer warranty sold on this job';
+          })()
           : (jobWarranty || null),
       },
       notes: null,

@@ -159,11 +159,13 @@ for (const withCfg of [true, false]) {
   }
 
   const badgeE = text(DG.renderWarrantyBadge('economy'));
-  ok('Economy badge: 1-Year Workmanship + Standard Limited, never lifetime', /1-Year Workmanship/.test(badgeE) && /Standard Limited/.test(badgeE) && !economyClean(badgeE), badgeE);
+  ok('Economy badge: 1-Year Workmanship + standard limited manufacturer warranty, never lifetime', /1-Year Workmanship/.test(badgeE) && /standard limited warranty/.test(badgeE) && !economyClean(badgeE), badgeE);
   const badgeB = text(DG.renderWarrantyBadge('beyond'));
   ok('Beyond badge: Beyond + HailGuard hail warranty', /Beyond/.test(badgeB) && /HailGuard hail warranty/.test(badgeB), badgeB);
   const badgeU = text(DG.renderWarrantyBadge('platinum'));
-  ok('unknown-tier badge: not Elite, not Premium (falls back to Preferred\'s Enhanced)', !/Elite|Premium/.test(badgeU) && /Enhanced/.test(badgeU), badgeU);
+  // 2026-10-06: no tier-guessed "Enhanced/Premium" manufacturer level any more;
+  // an unknown package names no manufacturer term.
+  ok('unknown-tier badge: not Elite, not Premium, manufacturer "per manufacturer"', !/Elite|Premium/.test(badgeU) && /per manufacturer — see your estimate/.test(badgeU), badgeU);
 
   // Rep pickers: every warrantyTier <select> offers all five, default 'good'.
   const pickers = [];
@@ -257,7 +259,7 @@ async function wcSection() {
 // ═══════════════════════════════════════════════════════════════════
 let Handlebars = null, RENDER = null;
 try {
-  Handlebars = require(path.join(ROOT, 'functions/node_modules/handlebars'));
+  try { Handlebars = require(path.join(ROOT, 'functions/node_modules/handlebars')); } catch (_) { Handlebars = require('handlebars'); }
   RENDER = require(path.join(ROOT, 'functions/render-pdf.js'));
 } catch (e) { ok('functions/ deps load (handlebars, render-pdf.js)', false, e && e.message); }
 async function printSection() {
@@ -285,12 +287,14 @@ async function printSection() {
     /TAMKO HailGuard hail warranty/.test(bey) && /Annual courtesy inspection/.test(bey) && /TAMKO manufacturer shingle warranty \(including the HailGuard hail warranty\)/.test(bey), bey.slice(-600));
 
   const std = body(WARRANTY(Object.assign({}, base, { company: COMPANY, tier: 'standard', tierLabel: 'Standard', tierLabelLong: 'Standard', tierTerms: 'x' })));
-  ok('warranty.hbs Standard unchanged: still the Lifetime Pledge', /NBD Lifetime Pledge/.test(std) && /Lifetime Pledge — no expiration/.test(std));
+  // 2026-10-06: the workmanship line is the NBD Pledge, printed apart from the manufacturer line.
+  ok('warranty.hbs Standard: still the NBD Lifetime Pledge, as the NBD Pledge line', /NBD Lifetime Pledge/.test(std) && /NBD Pledge — lifetime workmanship warranty/.test(std));
 
   // The layout chrome's seal: render-pdf.js swaps "Lifetime Pledge" on Economy.
   const ecoDoc = await RENDER.buildDocHtml('warranty', Object.assign({}, base, { tier: 'economy', isEconomy: true, tierLabel: 'E', tierLabelLong: 'E', tierTerms: 'x' }), null);
   ok('render-pdf: an Economy warranty\'s chrome seal is not "Lifetime Pledge"', !/lifetime/i.test(text(ecoDoc.html)), (text(ecoDoc.html).match(/.{0,60}lifetime.{0,30}/i) || [''])[0]);
-  const stdDoc = await RENDER.buildDocHtml('warranty', Object.assign({}, base, { tier: 'standard', tierLabel: 'S', tierLabelLong: 'S', tierTerms: 'x' }), null);
+  // NBD = the owner's companyId (a null companyId is now a neutral company, whose seal is not the Pledge).
+  const stdDoc = await RENDER.buildDocHtml('warranty', Object.assign({}, base, { tier: 'standard', tierLabel: 'S', tierLabelLong: 'S', tierTerms: 'x' }), '1phDvAVXHSg82wDLegAbQFq14Ci1');
   ok('render-pdf: a Standard warranty keeps the Lifetime Pledge seal', /Lifetime Pledge/.test(text(stdDoc.html)));
 
   const ESTIMATE = Handlebars.compile(read('functions/print/templates/estimate.hbs'));
@@ -358,7 +362,7 @@ function liftedSection() {
       e.period === '1-Year Workmanship (Labor)' && !economyClean(e.period + ' ' + e.body) && e.label === 'Economy', JSON.stringify(e));
     const bb = run('beyond');
     ok('customer cert Beyond: lifetime + HailGuard hail warranty' + tag, /HailGuard hail warranty/.test(bb.body) && bb.label === 'Beyond', JSON.stringify(bb));
-    ok('customer cert Standard unchanged: Lifetime Workmanship' + tag, run('good').period === 'Lifetime Workmanship');
+    ok('customer cert Standard: NBD Pledge — Lifetime Workmanship' + tag, run('good').period === 'NBD Pledge — Lifetime Workmanship');
   }
   ok('customer cert prints the computed period/body (not a hardcoded lifetime)',
     /: esc\(_roofPeriod\)\}/.test(cb) && /: esc\(_roofBody\)\}/.test(cb) && !/: 'Lifetime Workmanship'\}<\/span>/.test(cb));

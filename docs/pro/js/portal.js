@@ -1309,7 +1309,7 @@
       // Lifetime Pledge — even when an older card carries no saved label.
       const pledgeTitle = w.tier === 'economy'
         ? 'Economy — 1-Year Labor Warranty'
-        : (isNbdCompany ? 'NBD Lifetime Pledge' : (companyName ? companyName + ' Lifetime Pledge' : 'Lifetime Pledge'));
+        : (isNbdCompany ? 'NBD Lifetime Pledge' : (companyName ? companyName + ' Warranty' : 'Warranty'));
       const installLabel = w.installDate
         ? new Date(w.installDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
         : '—';
@@ -1339,7 +1339,8 @@
             '<div style="background:' + tierAccent + ';color:#fff;font-family:\'Barlow Condensed\',sans-serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:3px;white-space:nowrap;">' + esc(w.tier || 'standard') + '</div>' +
           '</div>' +
 
-          (w.tierDesc ? '<p style="color:var(--text);margin:0 0 14px;font-size:13px;line-height:1.55;">' + esc(w.tierDesc) + '</p>' : '') +
+          // The manufacturer warranty this job bought, on its own line (2026-10-06).
+          ((w.tierDesc || w.manufacturerLine) ? '<p style="color:var(--text);margin:0 0 14px;font-size:13px;line-height:1.55;">' + [w.tierDesc, w.manufacturerLine].filter(Boolean).map(esc).join('<br>') + '</p>' : '') +
 
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">' +
             '<div style="background:var(--nbd-bg-tint);border:1px solid var(--br,#2a3344);border-radius:7px;padding:10px 12px;">' +

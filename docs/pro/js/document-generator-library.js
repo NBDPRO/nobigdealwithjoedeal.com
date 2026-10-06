@@ -421,10 +421,24 @@
     var jur = jurisdictionOf(d);
     var insurance = !!(jur && jur.insurance);
     var tiers = order.filter(function (t) { return T.toCents(prices[t]) > 0; });
+    // Two warranty lines per option (Jo, 2026-10-06): workmanship — NBD's
+    // NBD Pledge, another company's OWN sentence or none — and the
+    // manufacturer warranty for that package (the quoted option reads the
+    // estimate's own shingle + any extended warranty sold; the others name
+    // only what the package itself fixes, else "per manufacturer").
+    var TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    var tenant = !!(TR && typeof TR.isPlatformTenant === 'function' && TR.isPlatformTenant() === false);
+    var lines = function (t) {
+      return (TR && typeof TR.warrantyLines === 'function')
+        ? TR.warrantyLines({ tier: t, isNbd: !tenant, lineItems: t === quoted ? d.estimateLineItems : [], extendedWarranty: t === quoted ? d.extendedWarranty : null })
+        : null;
+    };
 
     var cards = tiers.map(function (t) {
       var c = T.toCents(prices[t]);
-      var mfg = DG.MANUFACTURER_COVERAGE && DG.MANUFACTURER_COVERAGE[t];
+      var wl = lines(t);
+      var work = tenant ? ((wl && wl.workmanship) || '') : warranty(t);
+      var mfg = wl ? String(wl.manufacturer).replace(/^Manufacturer warranty:\s*/, '') : '';
       var due = '';
       if (R && typeof R.fromEstimate === 'function') {
         try {
@@ -439,8 +453,8 @@
         '<div class="lib-tier-price">' + esc(T.centsText(c)) + '</div>' +
         '<dl>' +
           (TIER_SHINGLE[t] ? '<dt>Shingles</dt><dd>' + esc(TIER_SHINGLE[t]) + '</dd>' : '') +
-          '<dt>Workmanship</dt><dd>' + esc(warranty(t)) + '</dd>' +
-          (mfg ? '<dt>Manufacturer coverage</dt><dd>' + esc(mfg.level + ' — ' + mfg.note) + '</dd>' : '') +
+          (work ? '<dt>' + ((wl && wl.isPledge) ? 'NBD Pledge' : 'Workmanship') + '</dt><dd>' + esc(work) + '</dd>' : '') +
+          (mfg ? '<dt>Manufacturer warranty</dt><dd>' + esc(mfg) + '</dd>' : '') +
           (due ? '<dt>Payment</dt><dd>' + esc(due) + '</dd>' : '') +
         '</dl></div>';
     }).join('');

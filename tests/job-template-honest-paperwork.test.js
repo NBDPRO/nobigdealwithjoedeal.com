@@ -559,7 +559,7 @@ function throughPreflight(env, type, est) {
     const one = await throughPreflight(env, 'contract', payloadFor(['jt_fr_asphalt_good']));
     const expectSentence = withConfig ? CFG.tierWarrantyText('better') : 'Lifetime workmanship warranty.';
     ok(tag + ' roofing contract still prints the existing wording ("' + expectSentence.slice(0, 40) + '…")',
-      one.html && one.html.indexOf(expectSentence) !== -1 && /Preferred: Lifetime Workmanship/.test(one.html));
+      one.html && one.html.indexOf(expectSentence) !== -1 && /Preferred: NBD Pledge — Lifetime Workmanship/.test(one.html));
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -786,7 +786,7 @@ function throughPreflight(env, type, est) {
       ok('roofing template ' + id + ': server PDF payload identical', JSON.stringify(a.pdf) === JSON.stringify(b.pdf)
         && JSON.stringify(a.pdfSingle) === JSON.stringify(b.pdfSingle));
       ok('roofing template ' + id + ': still the lifetime wording', /Lifetime/.test(workLine(a.retail) || '')
-        && /^Lifetime workmanship warranty on every tier/.test(a.pdf.terms.warranty || ''));
+        && /^NBD Pledge — lifetime workmanship warranty \(Economy: 1-year labor warranty\)/.test(a.pdf.terms.warranty || ''));
       ok('plain V2 estimate: save payload gains no job-type keys',
         !('warrantyKind' in V2.buildSavePayload(b.est, b.state)) && !('sourceTemplates' in V2.buildSavePayload(b.est, b.state)));
     }

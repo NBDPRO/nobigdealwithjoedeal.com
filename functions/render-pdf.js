@@ -682,8 +682,10 @@ async function buildDocHtml(templateKey, payload, companyId) {
     title:           tmplCfg.docType,
     docType:         tmplCfg.docType,
     // An Economy-tier warranty is a 1-year labor warranty (Jo, 2026-10-02):
-    // its chrome must not stamp "Lifetime Pledge".
-    seal:            (templateKey === 'warranty' && payload.isEconomy) ? 'Labor Warranty' : tmplCfg.seal,
+    // its chrome must not stamp "Lifetime Pledge". The Lifetime Pledge is
+    // NBD's own (Jo, 2026-10-06): another company's certificate never stamps it.
+    seal:            (templateKey === 'warranty' && payload.isEconomy) ? 'Labor Warranty'
+      : ((templateKey === 'warranty' && !company.isNbd) ? 'Warranty' : tmplCfg.seal),
     docNumber:       docNumberForChrome,
     designSystemCss: loadDesignSystemCss(),
     brandVars:       brandVars,

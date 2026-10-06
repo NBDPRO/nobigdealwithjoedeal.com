@@ -14,7 +14,10 @@
       deductible nobody has entered, "Set by your carrier" for the ACV check)
     paymentTerms (string)
     materials (string)
-    warranty (string)
+    warranty (string)              — the workmanship warranty (NBD: the NBD Pledge
+                                     when warrantyIsPledge; another company: its own)
+    manufacturerWarranty (string)  — the manufacturer warranty this job bought
+                                     (2026-10-06), printed as its own line
     rightToCancel (string)
     additionalTerms (array of {title, body})
     transactionDate, jurisdiction { address, zip, jobType, claimNumber,
@@ -99,11 +102,25 @@
   <h2>5 · Warranty</h2>
   <div class="pull">
     <div>
-      <div class="pull-title">NBD Workmanship Warranty</div>
+      <div class="pull-title">{{#if company.isNbd}}{{#if warrantyIsPledge}}NBD Pledge — Lifetime Workmanship Warranty{{else}}NBD Workmanship Warranty{{/if}}{{else}}Workmanship Warranty{{/if}}</div>
       <div class="pull-body">{{warranty}}</div>
     </div>
   </div>
+  {{#if manufacturerWarranty}}
+  <div class="pull">
+    <div>
+      <div class="pull-body">{{manufacturerWarranty}}</div>
+    </div>
+  </div>
   {{/if}}
+  {{else}}{{#if manufacturerWarranty}}
+  <h2>5 · Warranty</h2>
+  <div class="pull">
+    <div>
+      <div class="pull-body">{{manufacturerWarranty}}</div>
+    </div>
+  </div>
+  {{/if}}{{/if}}
 
   {{#if rightToCancel}}
   <h2>6 · Right to Cancel</h2>

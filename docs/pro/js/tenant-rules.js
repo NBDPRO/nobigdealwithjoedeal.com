@@ -247,6 +247,135 @@
     return s || 'company';
   }
 
+  // ── Warranty lines on certificates, contracts and proposals (Jo, 2026-10-06) ──
+  // "I offer a lifetime warranty but that's the NBD Pledge. My system
+  // warranties are based on package selected and if extended manufacturer
+  // warranty was sold." So every warranty block prints TWO separate lines:
+  //   1. workmanship — NBD: the NBD Pledge (Standard and up; Economy stays the
+  //      1-year labor warranty, Jo 2026-10-02). Another company: ITS OWN
+  //      configured sentence (businessRules.tiers.warranty), never NBD's
+  //      Pledge; none configured → no line at all.
+  //   2. manufacturer — what THIS job bought: the package's manufacturer
+  //      warranty, plus an extended manufacturer warranty only when one was
+  //      sold on the job (a WAR line on the estimate, or an explicit
+  //      extendedWarranty field). Nothing known → "per manufacturer — see
+  //      your estimate", never an invented term.
+  var PLEDGE_LINE = 'NBD Pledge — lifetime workmanship warranty';
+  var MFG_UNKNOWN = 'per manufacturer — see your estimate';
+  var CERT_TIER_TO_KEY = { standard: 'good', preferred: 'better', elite: 'best' };
+  var TIER_FALLBACK_LABEL = { economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' };
+
+  function _tierKey(tier) {
+    var t = String(tier || '').toLowerCase().trim();
+    t = CERT_TIER_TO_KEY[t] || t;
+    return TIER_KEYS.indexOf(t) !== -1 ? t : '';
+  }
+
+  // The company's OWN workmanship sentence for a tier, or '' when it never
+  // wrote one. For NBD this is NBD's saved override (normally '').
+  function ownWarrantyText(tier) {
+    return _ownWarranty(_tierKey(tier) || String(tier || ''));
+  }
+
+  function _items(lineItems) {
+    return (Array.isArray(lineItems) ? lineItems : []).map(function (li) {
+      return { code: String((li && li.code) || '').toUpperCase(), name: String((li && (li.name || li.desc || li.description)) || '') };
+    }).filter(function (li) { return li.code || li.name; });
+  }
+
+  // The shingle on the job and who makes it — null when the estimate names
+  // none (no default: a guess here would print a warranty nobody bought).
+  var SHINGLE_CODE = /^RFG\s*(240|ARM|3T|CAM|GS\b|SL\b|BK\b|PRES|GM\b)/;
+  var SHINGLE_NAME = /TIMBERLINE|CAMELOT|SLATELINE|SEQUOIA|HAILGUARD|TITAN XT|STORMFIGHTER|HERITAGE|DURATION|OAKRIDGE|BERKSHIRE|LANDMARK|PRESIDENTIAL|GRAND MANOR|PINNACLE|STORMMASTER|VISTA|HIGHLANDER|CAMBRIDGE|SHINGLE/i;
+  var MAKERS = [
+    [/TAMKO/, 'TAMKO'], [/\bGAF\b|TIMBERLINE|CAMELOT|SLATELINE|SEQUOIA/, 'GAF'],
+    [/\bOC\b|OWENS|DURATION|OAKRIDGE|BERKSHIRE/, 'Owens Corning'], [/\bCT\b|CERTAINTEED|LANDMARK|PRESIDENTIAL|GRAND MANOR/, 'CertainTeed'],
+    [/\bATL\b|ATLAS|PINNACLE|STORMMASTER/, 'Atlas'], [/\bMAL\b|MALARKEY|HIGHLANDER/, 'Malarkey'], [/\bIKO\b|CAMBRIDGE/, 'IKO']
+  ];
+  function _shingle(items) {
+    var s = null;
+    for (var i = 0; i < items.length && !s; i++) {
+      if (SHINGLE_CODE.test(items[i].code) || (!/^RFG\s*(SYN|IWS|STRT|RIDG)/.test(items[i].code) && SHINGLE_NAME.test(items[i].name))) s = items[i];
+    }
+    if (!s) return null;
+    var key = (s.code + ' ' + s.name).toUpperCase().replace(/-/g, ' ');
+    var maker = null;
+    for (var j = 0; j < MAKERS.length && !maker; j++) if (MAKERS[j][0].test(key)) maker = MAKERS[j][1];
+    return { maker: maker, name: s.name, hail: /HAIL/.test(key) };
+  }
+
+  // Extended manufacturer warranties SOLD on this job: the estimate's WAR
+  // lines (not the registration / labor-paperwork lines), plus any explicit
+  // extendedWarranty value the job carries.
+  function _extended(items, extra) {
+    var out = [];
+    items.forEach(function (li) {
+      if (/^WAR\b/.test(li.code) && !/^WAR\s*(MFG|LAB)\b/.test(li.code) && li.name) out.push(li.name.trim());
+    });
+    [].concat(extra || []).forEach(function (x) { if (typeof x === 'string' && x.trim()) out.push(x.trim().slice(0, 160)); });
+    return out.filter(function (x, i) { return out.indexOf(x) === i; });
+  }
+
+  // The manufacturer line's terms (no "Manufacturer warranty:" prefix).
+  // opts: { tier, lineItems, extendedWarranty, isNbd, label }
+  function manufacturerWarranty(opts) {
+    opts = opts || {};
+    var nbd = (typeof opts.isNbd === 'boolean') ? opts.isNbd : isPlatformTenant();
+    var tier = _tierKey(opts.tier);
+    var items = _items(opts.lineItems);
+    var sh = _shingle(items);
+    var maker = sh && sh.maker;
+    var cfg = _cfg();
+    var label = opts.label || (tier && cfg && typeof cfg.tierLabel === 'function' ? cfg.tierLabel(tier) : TIER_FALLBACK_LABEL[tier]) || '';
+    var base = '';
+    if (tier === 'economy') {
+      base = (maker ? maker + '’s' : 'The shingle manufacturer’s') + ' standard limited warranty on the shingles; no system warranty';
+    } else if (tier === 'beyond' && nbd) {
+      // NBD's Beyond package is TAMKO HailGuard by rule (estimate-config).
+      base = 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)';
+    } else if (sh && sh.hail && maker === 'TAMKO') {
+      base = 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)';
+    } else if (tier && nbd && maker === 'GAF') {
+      // GAF System Plus is included on Standard and up (Jo, 2026-10-05).
+      base = 'GAF System Plus Limited Warranty, included with the ' + label + ' package (registered with GAF; GAF’s terms apply)';
+    } else if (maker) {
+      base = maker + '’s standard limited warranty on the ' + (sh.name || 'shingles') + ' (manufacturer terms apply)';
+    }
+    var ext = _extended(items, opts.extendedWarranty).filter(function (x) { return !base || base.indexOf(x) === -1; });
+    if (!base && !ext.length) return MFG_UNKNOWN;
+    var extText = ext.length ? ext.join(', ') + ' (extended manufacturer warranty sold on this job)' : '';
+    if (!base) return extText;
+    return base + (extText ? '; plus ' + extText : '');
+  }
+
+  // Both lines for one document. Returns
+  //   { workmanship: string|null, isPledge: boolean, manufacturer: string }
+  // workmanship null = print no workmanship line (a company with no
+  // configured warranty). manufacturer always carries its prefix.
+  function warrantyLines(opts) {
+    opts = opts || {};
+    var nbd = (typeof opts.isNbd === 'boolean') ? opts.isNbd : isPlatformTenant();
+    var tier = _tierKey(opts.tier);
+    var work = null, pledge = false;
+    if (nbd) {
+      var own = ownWarrantyText(tier);
+      if (own) work = own;
+      else if (tier === 'economy') work = '1-year workmanship (labor) warranty from the installation date';
+      else { work = PLEDGE_LINE; pledge = true; }
+    } else {
+      work = ownWarrantyText(tier) || null;
+    }
+    var sh = _shingle(_items(opts.lineItems));
+    return {
+      workmanship: work,
+      isPledge: pledge,
+      manufacturer: 'Manufacturer warranty: ' + manufacturerWarranty(Object.assign({}, opts, { isNbd: nbd })),
+      // Who makes the shingle, for "provided directly by …" disclaimers; null
+      // when the job names none.
+      maker: (sh && sh.maker) || ((nbd && tier === 'beyond') ? 'TAMKO' : null)
+    };
+  }
+
   // Everything resolved, for the Settings editor.
   function resolved() {
     var cfg = _cfg() || {};
@@ -289,7 +418,12 @@
     neutralPermitCost: neutralPermitCost,
     ratesSet: ratesSet,
     filePrefix: filePrefix,
-    resolved: resolved
+    resolved: resolved,
+    PLEDGE_LINE: PLEDGE_LINE,
+    MFG_UNKNOWN: MFG_UNKNOWN,
+    ownWarrantyText: ownWarrantyText,
+    manufacturerWarranty: manufacturerWarranty,
+    warrantyLines: warrantyLines
   };
 
   if (typeof window !== 'undefined') window.NBDTenantRules = API;

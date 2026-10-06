@@ -3744,11 +3744,18 @@ window.generateCertFromEstimate = async function(estimateId) {
   const _tierW = (_cfg && _cfg.TIER_DISPLAY && _cfg.TIER_DISPLAY[_tierKey] && _cfg.TIER_DISPLAY[_tierKey].warranty)
     || ({ economy: { workmanshipYears: 1 }, beyond: { hailWarranty: true } })[_tierKey] || {};
   const _tierYears = Number(_tierW.workmanshipYears) > 0 ? Number(_tierW.workmanshipYears) : 0;
-  const _roofPeriod = _tierYears ? _tierYears + '-Year Workmanship (Labor)' : 'Lifetime Workmanship';
-  const _roofBody = _tierYears
+  // The lifetime workmanship warranty is the NBD Pledge, NBD's own (Jo,
+  // 2026-10-06). Another company prints ITS OWN configured warranty sentence,
+  // or no workmanship line at all — never NBD's lifetime terms.
+  const _TRc = window.NBDTenantRules;
+  const _certNbd = !(_TRc && typeof _TRc.isPlatformTenant === 'function' && _TRc.isPlatformTenant() === false);
+  const _certOwnW = (!_certNbd && typeof _TRc.ownWarrantyText === 'function') ? (_TRc.ownWarrantyText(_tierKey) || '') : '';
+  const _roofPeriod = !_certNbd ? (_certOwnW ? 'As stated below' : '')
+    : (_tierYears ? _tierYears + '-Year Workmanship (Labor)' : 'NBD Pledge — Lifetime Workmanship');
+  const _roofBody = !_certNbd ? _certOwnW : (_tierYears
     ? 'This warranty covers defects in workmanship for ' + (_tierYears === 1 ? 'one (1) year' : _tierYears + ' years') + ' from the completion date. The shingles carry the manufacturer\'s standard limited warranty; no system warranty is included.'
-    : 'This warranty covers defects in workmanship for the lifetime of the installation.'
-      + (_tierW.hailWarranty ? ' The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' : '');
+    : 'NBD Pledge — lifetime workmanship warranty: this warranty covers defects in workmanship for the lifetime of the installation.'
+      + (_tierW.hailWarranty ? ' The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' : ''));
 
   // Accent is a literal here, not var(--orange): this popup links only
   // nbd-mobile.css, which never DECLARES --orange (it only reads it with a
@@ -3769,6 +3776,14 @@ window.generateCertFromEstimate = async function(estimateId) {
   // into the popup. That keeps the popup on-theme for white-label tenants
   // instead of hardcoding NBD orange, and satisfies the bare-hex drift guard
   // in tests/crm-theme-contract.test.js.
+  // The manufacturer warranty THIS job bought, on its own line (2026-10-06):
+  // the package's warranty plus any extended manufacturer warranty sold on the
+  // estimate. Nothing known → "per manufacturer — see your estimate".
+  const _certItems = (window.NBDCustomerEstimateRows && typeof window.NBDCustomerEstimateRows.buildDocLineItems === 'function'
+    && window.NBDCustomerEstimateRows.buildDocLineItems(est)) || est.lineItems || [];
+  const _mfgLine = _jobW ? '' : ((_TRc && typeof _TRc.warrantyLines === 'function')
+    ? _TRc.warrantyLines({ tier: _tierKey, isNbd: _certNbd, lineItems: _certItems, extendedWarranty: est.extendedWarranty || lead.extendedWarranty || null }).manufacturer
+    : 'Manufacturer warranty: per manufacturer — see your estimate');
   const accent = (getComputedStyle(document.documentElement)
     .getPropertyValue('--orange') || '').trim() || '#BD5728';
   const html = `<!DOCTYPE html>
@@ -3807,7 +3822,8 @@ window.generateCertFromEstimate = async function(estimateId) {
     <div class="row"><span class="label">Work Performed</span><span class="value">${esc(est.title || (_jobW && est.name) || 'Roofing Installation')}</span></div>
     <div class="row"><span class="label">Completion Date</span><span class="value">${installDay.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</span></div>
     ${tierLabelStr ? `<div class="row"><span class="label">Guarantee Tier</span><span class="value">${esc(tierLabelStr)}</span></div>` : ''}
-    <div class="row"><span class="label">Warranty Period</span><span class="value">${_jobW ? esc(_jobW.years ? _jobW.years + '-Year Workmanship' : 'As stated below') : esc(_roofPeriod)}</span></div>
+    ${(_jobW || _roofPeriod) ? `<div class="row"><span class="label">Warranty Period</span><span class="value">${_jobW ? esc(_jobW.years ? _jobW.years + '-Year Workmanship' : 'As stated below') : esc(_roofPeriod)}</span></div>` : ''}
+    ${_mfgLine ? `<div class="row"><span class="label">Manufacturer Warranty</span><span class="value">${esc(_mfgLine.replace(/^Manufacturer warranty:\s*/, ''))}</span></div>` : ''}
     ${warrantyBlurb ? `<div class="row"><span class="label">${_tierYears ? 'Coverage' : 'Transferability'}</span><span class="value">${esc(warrantyBlurb)}</span></div>` : ''}
     <div class="row"><span class="label">Certificate #</span><span class="value">NBD-${estimateId.slice(0,8).toUpperCase()}</span></div>
   </div>

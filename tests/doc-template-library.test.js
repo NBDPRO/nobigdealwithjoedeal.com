@@ -67,7 +67,7 @@ function loadEnv(opts) {
     setTimeout, clearTimeout, Date, Math, JSON, Intl,
   };
   vm.createContext(sb);
-  const files = ['ky-insurance-law.js', 'deposit-rule.js', 'estimate-config.js', 'document-generator.js',
+  const files = ['ky-insurance-law.js', 'deposit-rule.js', 'estimate-config.js', 'tenant-rules.js', 'document-generator.js',
     'document-generator-templates.js', 'document-generator-library.js', 'doc-preflight.js'];
   for (const f of files) {
     const src = opts.override && opts.override[f] != null ? opts.override[f] : fs.readFileSync(path.join(JS, f), 'utf8');
@@ -235,11 +235,13 @@ for (const kind of ['conditional_progress', 'unconditional_progress', 'condition
 {
   const items = [{ code: 'RFG 240-TAMKO-TITAN', name: 'TAMKO Titan XT' }];
   const want = {
-    economy: ['1-YEAR WORKMANSHIP (LABOR) WARRANTY — ECONOMY TIER', 'TAMKO standard limited warranty (no system warranty)'],
-    good: ['LIFETIME WORKMANSHIP WARRANTY — STANDARD TIER', 'TAMKO Limited Lifetime manufacturer shingle warranty'],
-    better: ['LIFETIME WORKMANSHIP WARRANTY — PREFERRED TIER', 'TAMKO Limited Lifetime manufacturer shingle warranty'],
-    best: ['LIFETIME WORKMANSHIP WARRANTY — ELITE TIER', 'TAMKO Limited Lifetime manufacturer shingle warranty'],
-    beyond: ['LIFETIME WORKMANSHIP WARRANTY — BEYOND TIER', 'TAMKO HailGuard hail warranty'],
+    // 2026-10-06: the workmanship badge names the NBD Pledge; the manufacturer
+    // warranty is what the job bought (tenant-rules.js warrantyLines).
+    economy: ['1-YEAR WORKMANSHIP (LABOR) WARRANTY — ECONOMY TIER', "TAMKO's standard limited warranty on the shingles; no system warranty"],
+    good: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — STANDARD TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
+    better: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — PREFERRED TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
+    best: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — ELITE TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
+    beyond: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — BEYOND TIER', 'TAMKO HailGuard hail warranty'],
   };
   for (const [tier, [badge, mfg]] of Object.entries(want)) {
     const tx = text(render('renderWarrantyCertificate', Object.assign({}, OH, { warrantyTier: tier, installDate: '2026-09-30', issueDate: '2026-10-01', estimateLineItems: items })));

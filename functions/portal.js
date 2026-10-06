@@ -1011,6 +1011,10 @@ exports.getHomeownerPortalView = onRequest(
         work:        lead.warranty.work || '',
         installDate: lead.warranty.installDate || null,
         certNumber:  lead.warranty.certNumber || null,
+        // The certificate's two warranty lines (2026-10-06): workmanship (the
+        // NBD Pledge / the company's own) and the manufacturer warranty sold.
+        workmanshipLine:  lead.warranty.workmanshipLine || '',
+        manufacturerLine: lead.warranty.manufacturerLine || '',
         // 2026-09-15 (Warranty Claim lane): lets the portal swap the "Start a
         // warranty claim" button for a "Claim in progress" state instead of
         // letting the homeowner file a second report on top of an open one.

@@ -251,7 +251,7 @@ Module._load = function (request) {
     ok('portal client: a blank name flagged isNbd:false stays neutral (not read as NBD)',
       /const _coNotNbd = !_coNamed && !!view\.company && view\.company\.isNbd === false;/.test(pc)
       && /const isNbdCompany = _coNotNbd \? false : \(!_coNamed \|\| view\.company\.name === 'No Big Deal Home Solutions'\);/.test(pc));
-    ok('portal.js cache-bust bumped', /js\/portal\.js\?v=9/.test(read('docs/pro/portal.html')));
+    ok('portal.js cache-bust bumped (v9 or later)', Number((/js\/portal\.js\?v=(\d+)/.exec(read('docs/pro/portal.html')) || [])[1]) >= 9);
 
     // share-ssr: run the real renderPage/projectPage
     const ssr = read('functions/share-ssr.js');

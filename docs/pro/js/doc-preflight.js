@@ -3171,9 +3171,20 @@
     if (data.warranty == null && data.warrantyTier) {                                                                // contract (renderer's "5 · Warranty"
       // section is dropped entirely when warranty is null/empty). Mirrors
       // renderWarrantyBadge's composition. Five tiers since 2026-10-02.
-      var _wTxt = tierWarrantySentence(data.warrantyTier);
-      var _wMfg = window.NBDDocGen && window.NBDDocGen.MANUFACTURER_COVERAGE && window.NBDDocGen.MANUFACTURER_COVERAGE[data.warrantyTier]; // (2026-09-09 GBB
-      data.warranty = _wMfg ? (_wTxt + ' ' + _wMfg.level + ' manufacturer coverage — ' + _wMfg.note) : _wTxt;          // tier consolidation, #1529)
+      // Two separate lines (Jo, 2026-10-06): the workmanship warranty — NBD's
+      // NBD Pledge, or another company's OWN configured sentence ('' = none,
+      // never NBD's ladder) — and the manufacturer warranty THIS job bought
+      // (the estimate's shingle + any extended manufacturer warranty sold).
+      // Replaces the tier-guessed "Enhanced/Premium manufacturer coverage".
+      var _wTR = window.NBDTenantRules;
+      var _wTenant = !!(_wTR && typeof _wTR.isPlatformTenant === 'function' && _wTR.isPlatformTenant() === false);
+      var _wEst = state.estimate || null;
+      var _wLines = (_wTR && typeof _wTR.warrantyLines === 'function')
+        ? _wTR.warrantyLines({ tier: data.warrantyTier, isNbd: !_wTenant, lineItems: manufacturerItems(_wEst), extendedWarranty: (_wEst && _wEst.extendedWarranty) || data.extendedWarranty || null })
+        : null;
+      data.warranty = _wTenant ? ((_wLines && _wLines.workmanship) || '') : tierWarrantySentence(data.warrantyTier);
+      if (data.manufacturerWarranty == null && _wLines) data.manufacturerWarranty = _wLines.manufacturer;
+      if (_wLines) data.warrantyIsPledge = !_wTenant && !!_wLines.isPledge;
     }
     if (data.scopeSummary == null && data.scopeCompleted) data.scopeSummary = data.scopeCompleted;                     // certificate_of_completion
 
@@ -3185,7 +3196,7 @@
     // Scoped to the documents that read each field, so every other
     // document's merge data stays exactly what it was.
     var _est = state.estimate || null;
-    if ((state.type === 'warranty_certificate' || state.type === 'material_selection') && data.estimateLineItems == null) {
+    if ((state.type === 'warranty_certificate' || state.type === 'material_selection' || state.type === 'proposal_options') && data.estimateLineItems == null) {
       data.estimateLineItems = manufacturerItems(_est);
     }
     // Good-Better-Best options: every tier price the estimate saved (dollars,

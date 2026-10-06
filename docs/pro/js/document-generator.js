@@ -378,23 +378,9 @@ window.NBDDocGen = {
     return this._nbdGate().isNbd ? 'NBD Home Solutions' : this._escHtml(this._resolveCompany().name || '');
   },
 
-  /**
-   * Manufacturer coverage tier — a DIFFERENT axis from workmanship duration
-   * (which used to live here as 5/10/20-Year and is now the lifetime model
-   * in estimate-config.js's TIER_DISPLAY, per the 2026-09-09 GBB audit).
-   * Manufacturer warranty language was deliberately left untouched by the
-   * 2026-09-08 claims-audit session and stays that way here.
-   */
-  // Five tiers (Jo, 2026-10-02): Economy = the shingle maker's standard
-  // limited warranty, NO system warranty; Beyond = TAMKO HailGuard, whose
-  // hail warranty is TAMKO's (manufacturer terms apply).
-  MANUFACTURER_COVERAGE: {
-    economy: { level: 'Standard Limited', note: 'The shingle manufacturer\'s standard limited warranty applies; no system warranty is included.' },
-    good: { level: 'Standard', note: 'Manufacturer warranties vary by material.' },
-    better: { level: 'Enhanced', note: 'Enhanced manufacturer coverage on select products.' },
-    best: { level: 'Premium', note: 'Maximum manufacturer coverage on premium materials.' },
-    beyond: { level: 'Premium + Hail', note: 'TAMKO HailGuard shingles carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' }
-  },
+  // (MANUFACTURER_COVERAGE — a tier-guessed "Standard / Enhanced / Premium"
+  // manufacturer level — was removed 2026-10-06: the manufacturer line now
+  // names what the job actually bought, NBDTenantRules.warrantyLines.)
 
   /**
    * Registry of available document types
@@ -1231,6 +1217,9 @@ window.NBDDocGen = {
         paymentTerms: data.paymentTerms || scheduleText || (plan && plan.summary) || _cpTerms || _rulePolicy,
         materials: data.materials || null,
         warranty: data.warranty || null,
+        // The manufacturer warranty this job bought, its own line (2026-10-06).
+        manufacturerWarranty: data.manufacturerWarranty || null,
+        warrantyIsPledge: !!data.warrantyIsPledge,
         rightToCancel: data.rightToCancel || 'You, the buyer, may cancel this transaction at any time prior to midnight of the third business day after the date of this transaction. See the attached Notice of Cancellation form for an explanation of this right.',
         additionalTerms: data.additionalTerms || [],
         // Kentucky SB 153 / FTC Cooling-Off (2026-09-27). The FACTS the server
@@ -2327,33 +2316,64 @@ window.NBDDocGen = {
 
   /**
    * Render warranty badge and details
+   * Two separate lines (Jo, 2026-10-06: "I offer a lifetime warranty but
+   * that's the NBD Pledge. My system warranties are based on package selected
+   * and if extended manufacturer warranty was sold."):
+   *   workmanship  — NBD: the NBD Pledge (Economy: 1-year labor). Another
+   *                  company (tenant-rules.js): its OWN configured sentence,
+   *                  or no workmanship line — never NBD's lifetime ladder.
+   *   manufacturer — the warranty this job bought, from the estimate's line
+   *                  items (data.estimateLineItems) + data.extendedWarranty;
+   *                  nothing known → "per manufacturer — see your estimate".
    * @param {string} tier - Warranty tier (economy, good, better, best, beyond)
+   * @param {object} [data] - the document's merge data (line items, extended warranty)
    * @returns {string} HTML
    */
-  renderWarrantyBadge(tier = 'better') {
+  renderWarrantyBadge(tier = 'better', data) {
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+    const TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    const tenant = !!(TR && typeof TR.isPlatformTenant === 'function' && TR.isPlatformTenant() === false);
+    const own = (fn) => (tenant && typeof TR[fn] === 'function') ? TR[fn](tier) : null;
     const label = (cfg && typeof cfg.tierLabel === 'function')
       ? cfg.tierLabel(tier)
-      : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[tier] || tier;
-    const warrantyText = (cfg && typeof cfg.tierWarrantyText === 'function')
-      ? cfg.tierWarrantyText(tier)
-      : (tier === 'economy'
-        ? '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.'
-        : 'Lifetime workmanship warranty.');
-    const mfg = this.MANUFACTURER_COVERAGE[tier] || this.MANUFACTURER_COVERAGE.better;
-    // Economy's workmanship is 1 year, not lifetime (2026-10-02).
-    const yrs = tier === 'economy'
-      ? ((cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY.economy && cfg.TIER_DISPLAY.economy.warranty.workmanshipYears) || 1)
-      : 0;
-    const work = yrs ? (yrs + '-Year Workmanship') : 'Lifetime Workmanship';
+      : (own('labelOverride') || ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[tier] || tier);
+    const lines = (TR && typeof TR.warrantyLines === 'function')
+      ? TR.warrantyLines({ tier, isNbd: !tenant, lineItems: data && data.estimateLineItems, extendedWarranty: data && data.extendedWarranty })
+      : { workmanship: null, manufacturer: 'Manufacturer warranty: ' + (tier === 'economy'
+        ? 'the shingle manufacturer’s standard limited warranty on the shingles; no system warranty'
+        : (tier === 'beyond' ? 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)' : 'per manufacturer — see your estimate')) };
+    const e = (x) => this._escHtml(x);
+
+    let head, strong, workText;
+    if (tenant) {
+      // The company's own words, escaped; no workmanship line when it set none.
+      const ownW = lines.workmanship || '';
+      head = e(label) + ': ' + (ownW ? 'Workmanship Warranty' : 'Warranty');
+      strong = ownW ? '<div><strong>Workmanship Warranty</strong></div>' : '';
+      workText = ownW ? e(ownW) + '<br>' : '';
+    } else {
+      const warrantyText = (cfg && typeof cfg.tierWarrantyText === 'function')
+        ? cfg.tierWarrantyText(tier)
+        : (tier === 'economy'
+          ? '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.'
+          : 'Lifetime workmanship warranty.');
+      // Economy's workmanship is 1 year, not lifetime (2026-10-02).
+      const yrs = tier === 'economy'
+        ? ((cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY.economy && cfg.TIER_DISPLAY.economy.warranty.workmanshipYears) || 1)
+        : 0;
+      const work = yrs ? (yrs + '-Year Workmanship') : 'NBD Pledge — Lifetime Workmanship';
+      head = label + ': ' + work;
+      strong = '<div><strong>' + work + ' Warranty</strong></div>';
+      workText = warrantyText + '<br>';
+    }
 
     return `
       <div class="warranty-badge">
-        ${label}: ${work} + ${mfg.level} Manufacturer
+        ${head}
       </div>
       <div class="warranty-details">
-        <div><strong>${work} Warranty + ${mfg.level} Manufacturer Warranty</strong></div>
-        <div style="margin-top: 0.08in;">${warrantyText} ${mfg.note}</div>
+        ${strong}
+        <div style="margin-top: 0.08in;">${workText}${e(lines.manufacturer)}</div>
       </div>
     `;
   },
@@ -2378,7 +2398,7 @@ window.NBDDocGen = {
   /** The Warranty Coverage body: the job-type sentence, else the tier badge. */
   renderWarrantyFor(data) {
     const text = this._jobWarrantyText(data);
-    if (text === null) return this.renderWarrantyBadge(data.warrantyTier);
+    if (text === null) return this.renderWarrantyBadge(data.warrantyTier, data);
     const years = Number(data.workmanshipWarrantyYears);
     const headline = (Number.isFinite(years) && years > 0)
       ? years + '-Year Workmanship Warranty'

@@ -157,7 +157,7 @@
       { icon: '⛈️', name: 'Storm Damage',    desc: 'Damage inspection, photo documentation and a detailed repair estimate for your claim' }
     ],
     valueProps: [
-      { icon: '🛡️', title: 'Warranty Protection',  desc: 'Lifetime workmanship warranty on every tier, plus full manufacturer coverage on all materials.' },
+      { icon: '🛡️', title: 'Warranty Protection',  desc: 'NBD Pledge — lifetime workmanship warranty on Standard and up (Economy: 1-year labor), plus the manufacturer warranty for the package you choose and any extended manufacturer warranty you buy.' },
       { icon: '📋',  title: 'Storm Damage Documentation', desc: 'We document the damage and give you a detailed repair estimate. You manage your claim, and we can meet your adjuster after you file.' },
       { icon: '⭐',  title: '5-Star Service',        desc: 'Exceptional service from first contact through final walkthrough and beyond.' },
       { icon: '💰',  title: 'Flexible Financing',    desc: 'Affordable monthly payments through our partnership with Acorn Finance.' }
