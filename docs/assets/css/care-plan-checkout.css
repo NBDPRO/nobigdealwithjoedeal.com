@@ -26,6 +26,7 @@
 .cp-terms input { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--orange, #BD5728); }
 .cp-submit { justify-self: start; min-height: 48px; border: 0; cursor: pointer; font: inherit; font-weight: 800; }
 .cp-submit[disabled] { opacity: .7; cursor: progress; }
+.cp-refund { margin: 0; line-height: 1.5; color: var(--dark, #14181f); }
 .cp-fine { font-size: .85rem; color: var(--gray, #5d6673); margin: 0; }
 .cp-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .cp-joined p { line-height: 1.6; }

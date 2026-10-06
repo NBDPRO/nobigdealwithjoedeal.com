@@ -169,6 +169,29 @@ exports.createDealAcceptToken = onCall(
       throw new HttpsError('failed-precondition', 'This deal is already accepted — no new link needed.');
     }
 
+    // The deal's company: the minting owner's own claim (never the client-
+    // written deal.companyId) — an admin minting someone else's deal falls
+    // back to the deal's fields.
+    const claimCo = request.auth.token && typeof request.auth.token.companyId === 'string' ? request.auth.token.companyId : '';
+    const ownerCompanyId = deal.userId === uid ? (claimCo || uid) : (deal.companyId || deal.userId);
+    // deal_rooms.leadId is client-written and unbound by the rules: the
+    // accepted deal writes to that lead (cancelBy, install date, tier, job
+    // stage), so it must be the deal owner's lead (or their company's). A
+    // lead that no longer exists is dropped, never carried.
+    let leadId = null;
+    if (deal.leadId != null && deal.leadId !== '') {
+      if (typeof deal.leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(deal.leadId)) {
+        throw new HttpsError('failed-precondition', 'This deal is linked to an invalid lead.');
+      }
+      const leadSnap = await db.doc(`leads/${deal.leadId}`).get();
+      if (leadSnap.exists) {
+        if (!CW.leadBelongsTo(leadSnap.data(), { ownerUid: deal.userId, companyId: ownerCompanyId })) {
+          throw new HttpsError('permission-denied', 'This deal is linked to a lead you do not own.');
+        }
+        leadId = deal.leadId;
+      }
+    }
+
     // The interactive deal-room HTML must already be uploaded to Storage by
     // the client (uploadDealPage → deal_rooms/<uid>/<dealId>.html). We serve
     // THAT, not arbitrary HTML.
@@ -196,8 +219,8 @@ exports.createDealAcceptToken = onCall(
     await db.doc(`deal_accept_tokens/${token}`).set({
       dealId,
       ownerUid: deal.userId,
-      companyId: deal.companyId || deal.userId,
-      leadId: deal.leadId || null,
+      companyId: ownerCompanyId,
+      leadId,
       customerName: String(deal.customerName || '').slice(0, 120),
       htmlPath,
       tierPrices,
@@ -467,7 +490,7 @@ exports.submitDealAcceptance = onRequest(
           acceptedEvidence: evidence,
         });
         return {
-          dealId: t.dealId, ownerUid: t.ownerUid, leadId: t.leadId || null,
+          dealId: t.dealId, ownerUid: t.ownerUid, companyId: t.companyId || null, leadId: t.leadId || null,
           customerName: t.customerName || '', price, htmlPath: t.htmlPath || null,
         };
       });
@@ -659,7 +682,7 @@ async function recordDealCancelWindow(db, info, when) {
   cancelBy = CW.cancelByFor(html, when);
   try { await db.doc(`deal_rooms/${info.dealId}`).update({ cancelBy }); }
   catch (e) { logger.warn('[submitDealAcceptance] deal cancelBy stamp failed', { msg: e && e.message }); }
-  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger);
+  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid, companyId: info.companyId });
   return cancelBy;
 }
 

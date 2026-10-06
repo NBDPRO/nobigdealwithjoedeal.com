@@ -2533,13 +2533,31 @@ service cloud.firestore {
               'acceptedTier', 'acceptedPrice', 'acceptedFinancing',
               'acceptedSignature', 'acceptedAt', 'acceptedVia']));
     }
+    // deal_rooms.leadId (2026-10-05): a deal names only the writer's own lead
+    // or one in the writer's company. The accepted deal writes to that lead
+    // (createDealAcceptToken re-checks the same thing server-side). A lead id
+    // with no doc yet is allowed — nothing to write to, and the server drops
+    // it at mint time. Checked on create and whenever leadId changes.
+    function dealLeadOk(d) {
+      let lid = d.get('leadId', null);
+      return lid == null || lid == ''
+        || (lid is string && lid.matches('^[A-Za-z0-9_-]{1,128}$')
+            && (!exists(/databases/$(database)/documents/leads/$(lid))
+                || get(/databases/$(database)/documents/leads/$(lid)).data.get('userId', '') == request.auth.uid
+                || (request.auth.token.get('companyId', '') != ''
+                    && get(/databases/$(database)/documents/leads/$(lid)).data.get('companyId', '')
+                         == request.auth.token.get('companyId', ''))));
+    }
     match /deal_rooms/{dealId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && dealAcceptanceIntact();
+        && dealAcceptanceIntact()
+        && (request.resource.data.get('leadId', null) == resource.data.get('leadId', null)
+            || isAdmin() || dealLeadOk(request.resource.data));
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !dealIsClosed(resource.data);
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && dealLeadOk(request.resource.data);
     }
 
     // Close Board deal acceptance (1a). createDealAcceptToken mints these;
