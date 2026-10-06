@@ -127,6 +127,31 @@ h1 span{color:#BD5728}
 .sc-consent{display:flex;gap:10px;align-items:flex-start;margin:4px 0 12px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
 .sc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
 
+/* QR kicker (CRO #7, 2026-10-06): one line for known QR sources, set by
+   inspect-form.js with textContent; hidden for everyone else. */
+.qr-kicker{font-size:.95rem;font-weight:700;color:var(--orange-light);margin:0 0 10px}
+.qr-kicker[hidden]{display:none}
+/* Referral code from ?ref= (CRO #8) */
+.ins-ref-note{font-size:.85rem;color:var(--navy);background:rgba(34,160,107,.08);border:1px solid rgba(34,160,107,.35);border-radius:8px;padding:10px 12px;margin:0 0 14px}
+.ins-ref-note[hidden]{display:none}
+.ins-ref{margin:0 0 14px}
+.ins-ref[hidden]{display:none}
+.ins-ref summary{cursor:pointer;font-size:.85rem;font-weight:700;color:var(--navy);padding:10px 0;min-height:44px;display:flex;align-items:center}
+.ins-ref .form-row{margin-top:4px}
+/* What happens + FAQ (CRO #6, 2026-10-06) */
+.ins-next{background:#fff;padding:48px 5% 40px;color:var(--navy)}
+.ins-next-inner{max-width:880px;margin:0 auto}
+.ins-next h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.6rem,4vw,2.2rem);letter-spacing:.02em;margin-bottom:18px;color:var(--navy)}
+.ins-steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 36px;padding:0;counter-reset:step}
+.ins-steps li{counter-increment:step;background:var(--light-gray);border-radius:10px;padding:18px 16px;font-size:.92rem;line-height:1.55;color:var(--gray-sub)}
+.ins-steps li::before{content:counter(step);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--orange);color:#fff;font-weight:800;margin-bottom:8px}
+.ins-steps strong{display:block;color:var(--navy);margin-bottom:4px}
+.ins-faq details{border-top:1px solid rgba(26,48,87,.15)}
+.ins-faq details:last-child{border-bottom:1px solid rgba(26,48,87,.15)}
+.ins-faq summary{cursor:pointer;font-weight:700;padding:14px 0;min-height:44px;display:flex;align-items:center;color:var(--navy)}
+.ins-faq details p{padding:0 0 14px;font-size:.92rem;line-height:1.6;color:var(--gray-sub)}
+@media(max-width:720px){.ins-steps{grid-template-columns:minmax(0,1fr)}}
+
 /* Tagline footer */
 .tagline-bar{background:var(--navy-dark);color:#fff;text-align:center;padding:36px 5%;font-family:'Bebas Neue',sans-serif;font-size:clamp(1.1rem,2.6vw,1.55rem);letter-spacing:.04em}
 .tagline-bar span{color:var(--orange)}
@@ -368,6 +393,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 <section class="hero">
   <div class="hero-grid">
     <div class="hero-left">
+      <p class="qr-kicker" id="insKicker" hidden></p>
       <div class="hero-badge">Free &middot; 24-Hour Turnaround</div>
       <h1>Free 24-Hour <span>Roof Inspection</span></h1>
       <p class="subhead"><strong>No pressure. No obligation.</strong> Owner-operated by Joe Deal &mdash; 7+ years insurance restoration experience.</p>
@@ -395,6 +421,9 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         <input type="hidden" name="utm_source" id="utm_source" value="">
         <input type="hidden" name="utm_medium" id="utm_medium" value="">
         <input type="hidden" name="utm_campaign" id="utm_campaign" value="">
+        <!-- ?ref=CODE (CRO #8): stamped by inspect-form.js, posted with the submit. -->
+        <input type="hidden" name="referralCode" id="insRefCode" value="">
+        <p class="ins-ref-note" id="insRefNote" hidden>Referred by a neighbor? Your code <strong id="insRefNoteCode"></strong> is applied.</p>
 
         <div class="form-row">
           <label for="f-name">Your Name</label>
@@ -445,10 +474,13 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
             <label for="f-email">Email <span class="opt">(optional)</span></label>
             <input type="email" id="f-email" autocomplete="email" maxlength="200">
           </div>
-          <div class="form-row">
-            <label for="f-referral">Referral code <span class="opt">(optional — if a friend referred you)</span></label>
-            <input type="text" id="f-referral" placeholder="e.g. JOHN-AB12" autocapitalize="characters" maxlength="32">
-          </div>
+          <details class="ins-ref" id="insRefWrap">
+            <summary>Have a referral code?</summary>
+            <div class="form-row">
+              <label for="f-referral">Referral code <span class="opt">(optional — if a friend referred you)</span></label>
+              <input type="text" id="f-referral" placeholder="e.g. JOHN-AB12" autocapitalize="characters" maxlength="32">
+            </div>
+          </details>
           <button type="button" class="submit-btn" id="insDetailsSave">Send to Joe</button>
           <div class="ins-details-status" id="insDetailsStatus" role="status" aria-live="polite"></div>
         </div>
@@ -456,6 +488,24 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         <div id="insIntakeAfter"></div>
       </div>
     </aside>
+  </div>
+</section>
+
+<section class="ins-next" aria-labelledby="insNextTitle">
+  <div class="ins-next-inner">
+    <h2 id="insNextTitle">What happens next</h2>
+    <ol class="ins-steps">
+      <li><strong>You pick a time, or Joe calls to set one.</strong> Book it on the next screen, or he calls or texts you, usually the same day.</li>
+      <li><strong>Joe gets on the roof himself.</strong> He photographs every concern. A standard home usually takes 45 minutes to an hour.</li>
+      <li><strong>You get a straight answer.</strong> What needs fixing now, what can wait, and what doesn&rsquo;t need anything. A written photo report is $150 if you want one.</li>
+    </ol>
+    <h2>Questions people ask</h2>
+    <div class="ins-faq">
+      <details><summary>Is it really free?</summary><p>Yes. The inspection and Joe&rsquo;s rundown cost nothing. The written photo report is the only paid part, and only if you ask for it.</p></details>
+      <details><summary>Do I need to be home?</summary><p>You don&rsquo;t have to be home, but you&rsquo;re welcome to walk it with Joe.</p></details>
+      <details><summary>Who shows up?</summary><p>Joe Deal, the owner. He gets on every roof himself. No salesmen.</p></details>
+      <details><summary>What about insurance?</summary><p>If there&rsquo;s storm damage, I&rsquo;ll document it with photos. If you file, I can meet your adjuster. Whether to file is your call.</p></details>
+    </div>
   </div>
 </section>
 
@@ -473,7 +523,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 <script src="/assets/js/public-lead-submit.js" defer></script>
 <script defer src="/assets/js/google-reviews-widget.js"></script>
 <script src="/assets/js/intake-extras.js?v=4" defer></script>
-<script src="/assets/js/inspect-form.js?v=4" defer></script>
+<script src="/assets/js/inspect-form.js?v=5" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <div class="mobile-cta-strip" aria-label="Quick contact options">
   <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
