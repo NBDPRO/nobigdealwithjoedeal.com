@@ -2601,6 +2601,24 @@ async function run() {
     throw new Error('52 plan lead cap: ' + s52Fail.length + ' check(s) went the wrong way:\n    ' + s52Fail.join('\n    '));
   }
 
+  // 53. sms_dnc — a company's internal Do Not Text list (2026-10-05). Server
+  //     only (manageSmsCompliance + incomingSMS); enforced in sms-optout.js
+  //     isOptedOut. No client may read it, or write it as CREATE (plant a
+  //     number on a list) or UPDATE / DELETE (take one off — then text someone
+  //     who asked not to be texted), not even the company's own admin.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'sms_dnc/co-a__8595550134'), { companyId: 'co-a', key: '8595550134', source: 'manual', addedAt: 1 });
+  });
+  await assertFails(getDoc(doc(alice,   'sms_dnc/co-a__8595550134')));
+  await assertFails(getDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
+  await assertFails(getDocs(query(collection(coAdmin, 'sms_dnc'), where('companyId', '==', 'co-a'))));
+  await assertFails(setDoc(doc(alice,   'sms_dnc/co-a__5135550123'), { companyId: 'co-a', key: '5135550123', source: 'manual', addedAt: 1 }));
+  await assertFails(setDoc(doc(coAdmin, 'sms_dnc/co-b__5135550123'), { companyId: 'co-b', key: '5135550123', source: 'manual', addedAt: 1 }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134'), { source: 'manual' }));
+  await assertFails(updateDoc(doc(alice,   'sms_dnc/co-a__8595550134'), { companyId: 'co-z' }));
+  await assertFails(deleteDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
+  console.log('  53: sms_dnc client read / create / update / delete all denied');
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

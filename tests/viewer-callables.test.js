@@ -463,6 +463,10 @@ const VERDICTS = {
   getHailHistory: 'read-paid',
   integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
+  // Texting compliance (2026-10-05, sms-dnc.js): list is a read; add refuses a
+  // viewer / member itself; remove goes through requireTeamAdmin. Proven in
+  // tests/sms-dnc-2026-10-05.test.js section D.
+  manageSmsCompliance: 'already',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',
