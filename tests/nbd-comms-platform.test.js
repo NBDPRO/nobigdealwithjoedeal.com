@@ -288,8 +288,11 @@ const tick = () => new Promise((r) => setImmediate(r));
   {
     // d2d-tracker-core-2026b.js sendFollowUpSMS opened sms: on ANY failure,
     // including the 403 opted_out that NBDComms had just refused.
-    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate',
-      extractFunction(D2D, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
+    // (canTextKnock — the door-knock consent check, 2026-10-05 — is extracted
+    // with it; NO_CONSENT_MSG is a const beside it. The knock below carries
+    // smsConsent so these checks reach the NBDComms refusal they are about.)
+    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate', 'NO_CONSENT_MSG',
+      extractFunction(D2D, 'canTextKnock') + '\n' + extractFunction(D2D, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
     async function d2d(result) {
       const opened = [];
       const toasts = [];
@@ -300,8 +303,8 @@ const tick = () => new Promise((r) => setImmediate(r));
         _user: { displayName: 'Joe' },
       };
       const send = factory(win, { currentRep: { name: 'Joe' } },
-        { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon');
-      send({ id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up' }, 'follow_up');
+        { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon', 'no consent');
+      send({ id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up', smsConsent: true }, 'follow_up');
       await tick(); await tick();
       return { opened, toasts };
     }
