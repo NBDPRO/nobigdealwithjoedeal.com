@@ -73,17 +73,25 @@ for (const p of live) {
   // The long form made 52 of 53 detail titles overflow (2026-09-24).
   // Since 2026-10-03 the <title> LEADS with service + town — "Roof
   // Replacement in Milford, OH — Forty-Five Squares | NBD" — then the job's
-  // own words (whole, or cut back to whole clauses), aimed at 65 chars with
-  // slack to 75 for a whole phrase over a chopped one (titleCandidates() in
+  // own words (whole, or cut back to whole clauses) (titleCandidates() in
   // build-projects.mjs). Until then it led with the job phrase alone, which
   // matched nothing a homeowner searches. og:title / twitter:title carry the
   // same lead with the untrimmed phrase; the H1 keeps the job title as written.
+  // Since 2026-10-05 every title is <= 65 chars (check-seo-surface warns
+  // above that; 11 sat at 66-75 on the old slack tier): a whole phrase that
+  // won't fit sheds " | NBD" first, then the town's state ("Cincinnati").
   {
     const tm = html.match(/<title>([^<]*)<\/title>/);
     const shown = tm ? unesc(tm[1]) : '';
-    const lead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${p.city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} — `);
-    ok(`${p.slug}: <title> leads with "<Service> in ${p.city} — " and ends "| NBD", <= 75 chars`,
-      lead.test(shown) && shown.endsWith(' | NBD') && shown.length <= 75, `got "${shown}" (${shown.length} chars)`);
+    const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const lead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${reEsc(p.city)} — `);
+    const town = p.city.replace(/, [A-Z]{2}$/, '');
+    const titleLead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${reEsc(town)}(, [A-Z]{2})? — `);
+    ok(`${p.slug}: <title> leads with "<Service> in ${p.city} — " (state optional), <= 65 chars`,
+      titleLead.test(shown) && shown.length <= 65 && (shown.endsWith(' | NBD') || !shown.includes('|')),
+      `got "${shown}" (${shown.length} chars)`);
+    ok(`${p.slug}: <title> drops the state only once "| NBD" is gone`,
+      lead.test(shown) || !shown.endsWith(' | NBD'), `got "${shown}"`);
     titles.set(shown, (titles.get(shown) || []).concat(p.slug));
     const phrase = p.title.replace(/ — /g, ', ');
     for (const prop of ['property="og:title"', 'name="twitter:title"']) {
@@ -108,6 +116,13 @@ for (const p of live) {
   ok(`${p.slug}: every photo appears in the gallery`,
     p.photos.every((ph) => html.includes(esc(ph.src))));
   ok(`${p.slug}: links back to the listing`, html.includes('href="/our-work"'));
+  // "Book an inspection like this" (2026-10-05): right under the write-up and
+  // again at the end; a plain /inspect link (no slug/UTM on an internal link).
+  ok(`${p.slug}: "Book an inspection like this" under the write-up and at the end`,
+    (html.match(/<div class="pd-book(?: pd-book-end)?"><a class="project-book" href="\/inspect">Book an inspection like this &rarr;<\/a><\/div>/g) || []).length === 2
+      && html.indexOf('class="pd-book"') > html.indexOf('class="pd-desc"'));
+  ok(`${p.slug}: photo figures carry no inline style attributes`,
+    !/<figure[^>]*style=|<figcaption[^>]*style=/.test(html));
 }
 
 {
@@ -122,6 +137,14 @@ console.log('\nCARD LINK — the listing gallery links out to each detail page')
   const missing = live.filter((p) => !ourWorkHtml.includes(`href="/our-work/${p.slug}"`));
   ok('every live project card links to its own /our-work/<slug> page',
     missing.length === 0, missing.map((p) => p.slug).join(', '));
+  // Every card carries the booking link; the "View full project" link is not a
+  // .project-view (our-work.js opens the lightbox on .project-view clicks, so
+  // the link used to open the lightbox AND navigate).
+  const books = (ourWorkHtml.match(/<a class="project-book" href="\/inspect">Book an inspection like this &rarr;<\/a>/g) || []).length;
+  ok('every gallery card has "Book an inspection like this"', books === live.length, `${books}/${live.length}`);
+  ok('no <a> on the gallery carries .project-view', !/<a class="project-view/.test(ourWorkHtml));
+  ok('Show-more button ships hidden (no-JS shows every card)',
+    /<button type="button" class="ow-more" id="owMore" data-step="12" hidden>/.test(ourWorkHtml));
 }
 
 console.log('\nSITEMAP — every detail page is discoverable');
