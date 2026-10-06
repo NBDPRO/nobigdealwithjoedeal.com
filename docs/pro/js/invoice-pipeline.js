@@ -977,6 +977,24 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         tax = Number.isFinite(savedTax) ? savedTax : (total - subtotal);
         subtotal = Math.round(subtotal * 100) / 100;
         tax = Math.round(tax * 100) / 100;
+        // The quote prints total − subtotal − tax as its own row: the
+        // nearest-$25 rounding or the job-minimum lift (estimate-v2-ui.js /
+        // estimate-finalization.js, same rule, same label). Without it the
+        // lines + tax fell short of the total and createStripePaymentLink
+        // refused the link ($120 material / $250 labor at 7%: $525 quoted,
+        // $513.60 of lines + tax). Untaxed — tax is already the quote's.
+        // adjustment:true lets the pay link take either sign (stripe.js).
+        const adjCents = Math.round(total * 100) - Math.round(subtotal * 100) - Math.round(tax * 100);
+        if (adjCents !== 0) {
+          items.push({
+            description: (est.minJobApplied && adjCents > 0) ? 'Minimum job charge adjustment' : 'Rounding',
+            quantity: 1,
+            unitPrice: adjCents / 100,
+            total: adjCents / 100,
+            adjustment: true,
+            taxable: false
+          });
+        }
       } else {
         subtotal = items.reduce((sum, item) => sum + item.total, 0);
         tax = subtotal * taxRate;
@@ -1736,9 +1754,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // second one's status check above will catch it on the next
       // call attempt. For tighter guarantees we'd use a transaction;
       // this lock is sufficient for the iPhone/desktop double-tap case.
-      // BOUND THE ACQUIRE. This app runs Firestore with NO local persistence
-      // (nbd-auth.js's initializeFirestore has no localCache), so offline a
-      // write does not reject — it never settles until the connection returns.
+      // BOUND THE ACQUIRE. Offline a Firestore write does not reject — it
+      // never settles until the server acknowledges it. (Written when the app
+      // ran with no local cache; since 2026-10-04 nbd-auth.js uses a
+      // persistent one, which keeps the queued write across an app kill but
+      // does not change this: the promise still waits for the server.)
       // An unconditional await here therefore parked the whole function before
       // it ever reached NBDComms.sendSMS, making the offline queue unreachable
       // in exactly the state it exists for: the rep saw "Sending invoice via

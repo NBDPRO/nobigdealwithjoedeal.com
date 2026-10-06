@@ -83,7 +83,7 @@ test.describe('phone estimate funnel — no text code @shard2', () => {
     // Step 5 — no code to wait for.
     await expect(page.locator('#btnSendCode')).toBeHidden();
     await expect(page.locator('#otpSkip')).toBeHidden();
-    await expect(page.locator('#step5 .nbd-trust-line')).toContainText('on Google · Licensed & insured · Joe on every roof');
+    await expect(page.locator('#step5 .nbd-trust-line')).toContainText('on Google · Fully insured · Joe on every roof');
     const submit = page.locator('#btnSubmit');
     await expect(submit).toBeDisabled();
     await page.locator('#firstName').fill('Pat');

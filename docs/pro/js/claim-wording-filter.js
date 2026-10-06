@@ -176,6 +176,15 @@
     { id: 'aob', why: 'KRS 304.20-105 assignment of benefits (void in Kentucky; retired)',
       re: /\bAOBs?\b|\bassignments? of benefits\b/i,
       unless: /\b(no|never|not|don't|do not|won't|retired|void|voids|banned|forbid\w*|prohibit\w*|illegal|unlawful|avoid|hands? control)\b/i },
+    // 2026-10-05 (homeowner honesty audit): predicting the claim outcome. The
+    // /storm-check result said "You likely have a claimable loss", /storm-report
+    // said "Strong claim potential … exactly what insurers act on", and a blog
+    // FAQ said "insurance should cover it regardless of age". Jo: never promise
+    // an insurance outcome. Saying an inspection is worth it passes.
+    { id: 'claim-outcome-prediction', why: '(1)(a)1 predicting / promising the claim outcome',
+      re: /\bclaimable loss(es)?\b|\b(strong|good|high|great|real|significant) (insurance )?claim potential\b|\binsurers? (act|acts|will act) on\b/i },
+    { id: 'covers-regardless', why: '(1)(a)1 promising the claim outcome (coverage "regardless")',
+      re: /\b(insurance|insurer|carrier|policy|polic(y|ies)|coverage)\b[^.;!?]{0,40}\b(should|will|must|is going to)( still)? (cover|pay)\b[^.;!?]{0,40}\bregardless\b|\b(get|gets|pays?|paid) the full amount regardless\b/i },
   ];
 
   // ── Report-only phrasings (2026-10-04) ────────────────────────────────

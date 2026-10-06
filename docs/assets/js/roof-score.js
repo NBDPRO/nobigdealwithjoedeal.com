@@ -210,7 +210,7 @@
       summary: 'Solid overall, with a few things worth keeping an eye on.' };
     if (score >= 50) return { key: 'fair', label: 'Fair — showing wear', color: '#d98a0b',
       summary: 'Your roof is showing real wear. A professional look is a smart move.' };
-    if (score >= 30) return { key: 'poor', label: 'Poor — get it checked soon', color: '#e8720c',
+    if (score >= 30) return { key: 'poor', label: 'Poor — get it checked soon', color: '#bd5728',
       summary: 'Several warning signs are stacking up. Don’t wait too long on this one.' };
     return { key: 'critical', label: 'Critical — likely end of life', color: '#c23a2b',
       summary: 'Your answers point to a roof at or near the end of its service life.' };
