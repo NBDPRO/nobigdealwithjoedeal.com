@@ -538,6 +538,28 @@ async function run() {
   await assertSucceeds(getBytes(ref(alice, 'photos/alice/lock-ctl.jpg')));
   console.log('  offboarding lock: 11 storage checks passed');
 
+  // R3-4 (2026-10-06): a FILED money-paper PDF is locked. money-paper saves it
+  // (admin SDK) with the metadata from money-paper-logic filedPdfMetadata —
+  // seeded here from that same function, so dropping its signed: 'true' makes
+  // these go red. The owner could otherwise overwrite the invoice with
+  // text/html behind a live /report/<token> link.
+  {
+    const MPL = require(path.join(__dirname, '..', 'functions', 'money-paper-logic.js'));
+    const fm = MPL.filedPdfMetadata('invoice', 'inv-r3', 'invoice-r3');
+    const filed = MPL.pdfPathFor('alice', 'r3lead', 'inv-r3');
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(ref(ctx.storage(), filed), buf(2048),
+        { contentType: fm.contentType, cacheControl: fm.cacheControl, customMetadata: fm.metadata });
+    });
+    await assertFails(uploadBytes(ref(alice, filed),                                                              // overwrite with HTML
+      Buffer.from('<html><body><script>alert(1)</script></body></html>'), { contentType: 'text/html' }));
+    await assertFails(uploadBytes(ref(alice, filed), buf(1024),                                                   // ...even re-tagged signed
+      { contentType: 'text/html', customMetadata: { signed: 'true' } }));
+    await assertFails(deleteObject(ref(alice, filed)));                                                           // owner delete
+    await assertSucceeds(getBytes(ref(alice, filed)));                                                            // owner still reads it
+    console.log('  R3-4 filed money-paper PDF: 4 storage checks passed');
+  }
+
   console.log('✓ All storage rules tests passed');
   await env.cleanup();
 }

@@ -170,9 +170,11 @@ async function fileOne(deps, invRef, invoiceId, kind) {
     const pdf = await render(kind, payload, inv.companyId || OWNER);
     const ownerUid = String(lead.userId || inv.userId || OWNER);
     const pdfPath = P.pdfPathFor(ownerUid, leadId, c.id);
+    // filedPdfMetadata stamps signed: 'true' — the storage.rules lock, so no
+    // client overwrites or deletes a filed record (R3-4, 2026-10-06).
     await bucket.file(pdfPath).save(pdf, {
       resumable: false,
-      metadata: { contentType: 'application/pdf', cacheControl: 'private, max-age=31536000', metadata: { docCode: P.CODES[kind], instanceId: c.id, invoiceId } },
+      metadata: P.filedPdfMetadata(kind, c.id, invoiceId),
     });
     await db.collection('leads').doc(leadId).collection('documents').doc(c.id).set(Object.assign(
       P.documentRow(kind, c.id, inv, pdfPath, pdf.length),
