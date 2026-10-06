@@ -742,6 +742,13 @@
       "toast. Pins label honesty, that the action is still the real delete, and",
       "that the dashboard's own unassigning default is unchanged."
     ],
+    "estimate-delete-lead-sync-2026-10-06.test.js": [
+      "Review R5-8-2: the dashboard Delete hard-deleted an estimate and the",
+      "customer Archive soft-deleted it, and neither touched the lead — its",
+      "primaryEstimateId/jobValue kept the gone estimate's dollars. Runs the",
+      "shared estimate-lead-sync.js (promote next live / clear / leave alone)",
+      "and checks both pages call it and the readers drop deleted estimates."
+    ],
     "empty-tenant-load-banner.test.js": [
       "Empty-tenant first run: the load-status banner gated success on",
       "(loaded && count > 0), so an account with ZERO leads — i.e. every brand",

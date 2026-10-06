@@ -22,6 +22,9 @@ import {
   subTypeOptionsFor as _subTypeOptionsFor,
 } from "./crm-stages.js";
 import { commitStageChange as _commitStageChange } from "./stage-write.js";
+// Estimate archive + lead primary/jobValue sync, shared with the dashboard's
+// Delete (review R5-8-2).
+import { archiveEstimateAndSyncLead } from "./estimate-lead-sync.js";
 // dashboard-bootstrap.module.js exposes these identically; mirrored here so
 // stage-checklist.js's auto-task generator (window.StageChecklist, a plain
 // script loaded on both pages) has the same functions to call regardless
@@ -1960,6 +1963,47 @@ async function setPrimaryEstimate(estId) {
   }
 }
 
+// Archive (soft-delete) one of this lead's estimates. Both Archive buttons
+// (the preview sheet and the legacy viewer modal) come through here, and the
+// write itself is archiveEstimateAndSyncLead — the same call the dashboard's
+// Delete makes — so archiving the PRIMARY estimate also promotes the next
+// live one (or clears the pointer and its jobValue) instead of leaving the
+// pipeline, KPIs and leaderboard on a ghost (review R5-8-2). Throws when the
+// archive itself fails; the callers toast that.
+async function _archiveCustomerEstimate(estimateId) {
+  const leadId = window._customerId;
+  const list = window._customerEstimates || [];
+  const rowsApi = window.NBDCustomerEstimateRows || {};
+  const { leadPatch } = await archiveEstimateAndSyncLead({
+    estimateId,
+    estimate: list.find(e => e && e.id === estimateId) || null,
+    estimates: list,
+    fs: { db, doc, getDoc, updateDoc, serverTimestamp },
+    // Same reader + fallback as setPrimaryEstimate above.
+    estValue: (e) => typeof rowsApi.estimateValue === 'function'
+      ? rowsApi.estimateValue(e)
+      : Number(e.grandTotal != null ? e.grandTotal : e.total != null ? e.total : e.amount) || 0,
+    ask: window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m))),
+  });
+  // No leads snapshot listener on this page: refresh the in-memory lead and
+  // the header cell like setPrimaryEstimate does.
+  if (leadPatch) {
+    if (window._currentLead) Object.assign(window._currentLead, leadPatch);
+    if (window._leadDoc) Object.assign(window._leadDoc, leadPatch);
+    if ('jobValue' in leadPatch) {
+      const jv = document.getElementById('infoJobValue');
+      const v = Number(leadPatch.jobValue) || 0;
+      if (jv) jv.textContent = v ? '$' + v.toLocaleString() : '—';
+    }
+  }
+  window._currentEstimateId = null;
+  await loadEstimates(leadId);
+  const leadSnap = await getDoc(doc(db, 'leads', leadId));
+  if (leadSnap.exists()) {
+    await loadTimeline(leadId, leadSnap.data());
+  }
+}
+
 async function loadEstimates(leadId) {
   try {
     const estDocs = await _getEstimateDocsForLead(leadId);
@@ -3340,17 +3384,8 @@ window.viewEstimate = function(estimateId) {
         const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
         if (!(await ask('Archive this estimate? It will be hidden but never permanently deleted.'))) return;
         try {
-          // SOFT DELETE — never deleteDoc on estimates (standing rule).
-          await updateDoc(doc(db, 'estimates', estimateId), {
-            deleted: true,
-            deletedAt: serverTimestamp()
-          });
-          window._currentEstimateId = null;
-          await loadEstimates(window._customerId);
-          const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
-          if (leadSnap.exists()) {
-            await loadTimeline(window._customerId, leadSnap.data());
-          }
+          // SOFT DELETE + lead sync — never deleteDoc on estimates (standing rule).
+          await _archiveCustomerEstimate(estimateId);
         } catch (error) {
           console.error('Archive error:', error);
           _cbNotify('Could not archive estimate: ' + ((error && error.message) || 'unknown error'), 'error');
@@ -3466,22 +3501,12 @@ window.viewEstimate = function(estimateId) {
     if (!(await ask('Archive this estimate? It will be hidden but never permanently deleted.'))) return;
 
     try {
-      // SOFT DELETE — never use deleteDoc on estimates (standing rule: never lose a job)
-      await updateDoc(doc(db, 'estimates', estimateId), {
-        deleted: true,
-        deletedAt: serverTimestamp()
-      });
+      // SOFT DELETE + lead sync — never use deleteDoc on estimates (standing rule: never lose a job)
+      await _archiveCustomerEstimate(estimateId);
       // Close the viewer (not the create modal). Pre-fix this called
       // closeEstimateModal() which would have hidden the wrong modal
       // even if the viewer had been working.
       closeEstimateViewerModal();
-      await loadEstimates(window._customerId);
-      
-      // Reload timeline
-      const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
-      if (leadSnap.exists()) {
-        await loadTimeline(window._customerId, leadSnap.data());
-      }
     } catch (error) {
       console.error('Archive error:', error);
       _cbNotify('Could not archive estimate: ' + ((error && error.message) || 'unknown error'), 'error');
