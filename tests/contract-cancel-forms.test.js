@@ -253,7 +253,7 @@ function packetComplete(html) {
       _files: m,
     };
   }
-  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './esign-logic', 'crypto'];
+  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './esign-logic', './await-briefly', 'crypto'];
   function loadFn(rel, db, storage, extra) {
     const file = path.join(FN, rel);
     const dir = path.dirname(file);

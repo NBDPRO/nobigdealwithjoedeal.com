@@ -24,11 +24,25 @@ const KyLaw = require('./ky-insurance-law');
 async function runOverdueSweep(db, nowMs, deps) {
   const log = (deps && deps.logger) || logger;
   const FV = (deps && deps.FieldValue) || FieldValue;
-  const snap = await db.collection('invoices').where('status', 'in', O.OPEN_STATUSES).limit(1000).get();
-  const docs = (snap.docs || []).map((d) => Object.assign({ id: d.id }, d.data() || {}));
+  // R4-7 (2026-10-06): this was one `.limit(1000)` read, so open invoice
+  // #1001+ never got its overdue task. Page through all of them; startAfter
+  // a snapshot continues in document order (no orderBy, so no new index).
+  const PAGE = (deps && deps.pageSize) || 1000;
+  const raw = [];
+  let cursor = null;
+  for (;;) {
+    let q = db.collection('invoices').where('status', 'in', O.OPEN_STATUSES).limit(PAGE);
+    if (cursor) q = q.startAfter(cursor);
+    const snap = await q.get();
+    const page = snap.docs || [];
+    raw.push(...page);
+    if (page.length < PAGE) break;
+    cursor = page[page.length - 1];
+  }
+  const docs = raw.map((d) => Object.assign({ id: d.id }, d.data() || {}));
   const leads = new Map();
   const tzByTenant = new Map();
-  const out = { scanned: docs.length, created: 0, existing: 0, skipped: {} };
+  const out = { scanned: docs.length, created: 0, existing: 0, failed: 0, skipped: {} };
   for (const inv of docs) {
     try {
       let lead = null;
@@ -60,7 +74,8 @@ async function runOverdueSweep(db, nowMs, deps) {
         throw e;
       }
     } catch (e) {
-      log.warn('[invoiceOverdue] invoice failed', { invoiceId: inv.id, err: e && e.message });
+      out.failed++;
+      log.error('[invoiceOverdue] invoice failed', { invoiceId: inv.id, err: e && e.message });
     }
   }
   return out;

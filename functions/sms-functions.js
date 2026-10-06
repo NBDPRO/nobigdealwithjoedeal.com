@@ -91,6 +91,7 @@ function escForStore(s) {
 }
 
 // Secrets
+const { secretValue } = require('./integrations/_shared');
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
@@ -903,8 +904,11 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       await enforceRateLimit('sendSMS:to', toDigits, 5, 86_400_000);
     } catch (e) {
       if (e.rateLimited) {
+        // code: the browser refuses THIS 429 instead of handing the 6th text
+        // to the rep's Messages app (review R2-3-4, nbd-comms.js).
         res.status(429).json({
-          error: 'This recipient has received the maximum SMS for today. Try tomorrow or contact them directly.'
+          error: 'This recipient has received the maximum SMS for today. Try tomorrow or contact them directly.',
+          code: 'recipient_daily_cap',
         });
         return;
       }
@@ -1321,6 +1325,7 @@ exports.sendD2DSMS = onRequest(
       } catch (e) {
         if (e.rateLimited) {
           res.status(429).json({
+            code: 'recipient_daily_cap',
             error: 'This recipient has received the max SMS for today.'
           });
           return;
@@ -1468,7 +1473,16 @@ exports.incomingSMS = onRequest(
       // it returns a function, not a boolean, so the `if (!isValid)` branch
       // was never taken and the signature check was effectively off.
       const twilioSignature = req.headers['x-twilio-signature'] || '';
-      const authToken = TWILIO_AUTH_TOKEN.value();
+      // R4-7-4 (2026-10-06): secretValue(), not bare .value(). With the
+      // deploy's '__unset__' stub a bare read "validates" a signature forged
+      // with that string (a forged START would clear an opt-out). Refuse like
+      // twilio-line.js and the Stripe webhooks do.
+      const authToken = secretValue(TWILIO_AUTH_TOKEN);
+      if (!authToken) {
+        logger.error('incomingSMS: TWILIO_AUTH_TOKEN missing or stub — refusing');
+        res.status(503).json({ error: 'not configured' });
+        return;
+      }
       const url = `https://${req.get('host')}${req.originalUrl}`;
 
       // Twilio signs the sorted set of POSTed form fields as an object.
@@ -2169,10 +2183,14 @@ exports.onAiDraftApproved = onDocumentUpdated(
     const after  = event.data?.after?.data();
     if (!before || !after) return;
 
-    // Only act on the first pending→approved flip. Any other write
-    // (dismiss, the trigger's own status:'sent' update, an edit after
-    // send) is a no-op so we never double-send.
-    if (before.status === 'approved') return;
+    // Only act on a pending → approved flip. Any other write (dismiss, the
+    // trigger's own status:'sent' update, an edit after send) is a no-op so
+    // we never double-send. Review R2-3-3 (2026-10-06): this used to skip
+    // only before.status === 'approved', so a stale tab (the panel loads with
+    // getDocs, no listener) tapping Approve on a draft already SENT — sent →
+    // approved — texted the homeowner a second time. firestore.rules now
+    // also allows 'approved' only from 'pending'; this is the server's half.
+    if (before.status !== 'pending') return;
     if (after.status !== 'approved') return;
 
     const { leadId, draftId } = event.params;

@@ -613,6 +613,7 @@ const tokenFor = (db, envelopeId, signerId) => {
       './cancel-window': require(path.join(FN, 'cancel-window.js')),
       './deal-packet-logic': require(path.join(FN, 'deal-packet-logic.js')),
       './photo-reencode': { reencodePhoto: async (x) => x },
+      './await-briefly': require(path.join(FN, 'await-briefly.js')),
     };
     const mod = { exports: {} };
     new Function('module', 'exports', 'require', fs.readFileSync(path.join(FN, 'deal-acceptance.js'), 'utf8'))(

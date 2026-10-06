@@ -473,6 +473,10 @@ const VERDICTS = {
   // viewer / member itself; remove goes through requireTeamAdmin. Proven in
   // tests/sms-dnc-2026-10-05.test.js section D.
   manageSmsCompliance: 'already',
+  // "Ok to text from my phone?" + phone-send log + "They replied STOP"
+  // (phone-text-check.js, 2026-10-06): refuses viewer / member itself before
+  // any read. Proven in tests/texting-r2-fixes-2026-10-06.test.js.
+  phoneTextAction: 'already',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',

@@ -12,9 +12,9 @@
  *  3. R3-6   An invoice on another company's lead gets no payment note
  *            (payment-timeline.js) and no "paid, not closed" task
  *            (money-paper.js flagPaidNotClosed). The rules half is
- *            tests/firestore-rules.test.js section 56.
+ *            tests/firestore-rules.test.js section 58.
  *  4. R3-5   onReferralLeadWrite ignores a referral doc whose owner is not
- *            in the referred lead's company. Rules half: section 56.
+ *            in the referred lead's company. Rules half: section 58.
  *  5. R3-11  createSignRequest and e-sign envelopes only email an address on
  *            the lead's record (lead.email or lead.altEmails), with a daily
  *            per-user cap.
