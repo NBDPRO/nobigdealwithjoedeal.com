@@ -451,9 +451,14 @@
           return (_m && _m.manufacturerName && _m.manufacturerName !== _m.manufacturer + ' shingles') ? _m.manufacturerName : '';
         } catch (e) { return ''; }
       case 'dueDate':
-        var d = new Date();
-        d.setDate(d.getDate() + 30);
-        return toDateInput(d);
+        // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS —
+        // Jo 2026-10-05: 7 days everywhere). This said +30, so a generated
+        // invoice disagreed with the CRM invoice and the Stripe invoice.
+        var _drDue = window.NBDDepositRule;
+        return toDateInput(new Date(_drDue ? _drDue.invoiceDueDateMs(Date.now()) : Date.now() + 7 * 86400000));
+      case 'invoiceTerms':
+        var _drTerms = window.NBDDepositRule;
+        return (_drTerms ? _drTerms.netTermsText() : 'Net 7.') + ' Check, ACH, or credit card accepted.';
       case 'scopeItems':
         // Prefer lead.scopeOfWork as newline list, else estimate description
         var raw = lead.scopeOfWork || est.description || '';
@@ -960,7 +965,7 @@
           id: 'terms', title: 'Payment Terms', collapsed: true,
           fields: [
             { key: 'paymentTerms', label: 'Payment Terms', type: 'textarea', rows: 2,
-              source: 'literal:Net 30. Check, ACH, or credit card accepted.',
+              source: 'computed.invoiceTerms',
               persist: PERSIST.DOCUMENT }
           ]
         }
