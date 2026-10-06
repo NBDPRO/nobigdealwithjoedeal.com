@@ -1048,12 +1048,19 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * or more jobs, or no estimate date, it stays out as before: the final
    * invoice then shows no credit for it (visible on the paper, the rep fixes
    * it) — never a silent credit to the wrong job.
+   *
+   * opts.noEstimate (2026-10-05): the caller saw NO estimate on the lead at
+   * all (a repair recorded straight from a Stripe payment). With soleJob
+   * too, every paid un-stamped invoice on the lead is this job's — there is
+   * no estimate date to compare and no other job it could belong to. Two or
+   * more jobs → unchanged.
    */
   function jobInvoicesOf(invoices, jobId, opts) {
     const jid = _jbJobId(jobId);
     const o = opts || {};
     const sinceMs = _jbMs(o.since);
     const adopt = !!jid && o.soleJob === true && sinceMs > 0;
+    const adoptAll = !!jid && o.soleJob === true && o.noEstimate === true;
     return (Array.isArray(invoices) ? invoices : []).filter(function (inv) {
       if (!inv || inv.deleted === true || inv.deletedAt) return false;
       const st = String(inv.status || '').toLowerCase();
@@ -1061,7 +1068,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const ij = _jbJobId(inv.jobId);
       if (jid && ij) return ij === jid;
       if (st !== 'paid') return true;
-      return adopt && !ij && _jbMs(inv.createdAt) >= sinceMs;
+      if (ij) return false;
+      return adoptAll || (adopt && _jbMs(inv.createdAt) >= sinceMs);
     }).sort(function (a, b) { return _jbMs(a.createdAt) - _jbMs(b.createdAt); });
   }
   /**
@@ -3206,6 +3214,17 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     return cached || null;
   }
 
+  /**
+   * True only when the lead names no estimate and the page holds none for
+   * it — any sign of an estimate → false (the estimate-date rule applies).
+   */
+  function _leadHasNoEstimate(lead, leadId) {
+    if (!lead || !leadId) return false;
+    if (lead.primaryEstimateId) return false;
+    const cached = (window._estimates || []).some(e => e && e.leadId === leadId && e.deleted !== true);
+    return !cached;
+  }
+
   function _totalsOpts() {
     const rows = window.NBDCustomerEstimateRows;
     const cfg = window.NBD_ESTIMATE_CONFIG;
@@ -3237,7 +3256,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // Re-read the job's invoices right before writing: another device
       // may have made one since the sheet opened.
       const fresh = await _loadLeadInvoices(db, o.leadId);
-      const plan = planJobInvoice(o.totalCents, fresh, target.jobId);
+      // One job and no estimate on the lead (a repair recorded from a Stripe
+      // payment): its paid un-stamped invoices are this job's, so the total
+      // is not billed a second time (nbd:job-billing opts.noEstimate).
+      const jobs = target.jobId ? await _loadLeadJobs(db, o.leadId) : null;
+      const plan = planJobInvoice(o.totalCents, fresh, target.jobId,
+        { soleJob: soleJobOf(jobs, target.jobId), noEstimate: _leadHasNoEstimate(o.lead, o.leadId) });
       if (plan.action === 'open') {
         invoiceId = plan.invoiceId;
       } else {
