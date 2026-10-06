@@ -2313,8 +2313,15 @@ window.NBDDocGen = {
       }
     } else {
       photos.forEach(photo => {
-        if (photo) {
-          html += `<div class="photo-zone has-image"><img src="${photo}" alt="Photo" /></div>`;
+        // The pre-flight photo selector hands over photo RECORDS ({ id, url,
+        // … }), not URL strings, so this printed src="[object Object]" for
+        // every photo on a proposal (2026-10-06, found by the sample
+        // account's photos). Take the record's url, and escape it: it sits
+        // inside an attribute.
+        const url = typeof photo === 'string' ? photo : ((photo && photo.url) || '');
+        if (url) {
+          const safe = String(url).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          html += `<div class="photo-zone has-image"><img src="${safe}" alt="Photo" /></div>`;
         } else {
           html += '<div class="photo-zone">Photo</div>';
         }
