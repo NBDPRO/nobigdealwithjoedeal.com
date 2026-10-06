@@ -445,9 +445,9 @@ const WHY = [
     ['🤝 The owner shows up', 'I’m the one on your roof for the inspection, the one who writes the number, and the one who supervises the crew when the work happens.'],
   ],
   [
-    ['🛡️ Insurance jobs, documented right', 'Seven years of insurance restoration work. I document the damage, write the line-item estimate and meet your adjuster on the roof after you file. The claim stays yours.'],
+    ['🛡️ Insurance jobs, documented right', '7+ years of insurance restoration work. I document the damage, write the line-item estimate and meet your adjuster on the roof after you file. The claim stays yours.'],
     ['🛡️ Storm work done by the book', 'Once you’ve filed, I meet the adjuster on the roof with photos of every hit and a line-item estimate. You own the claim and make the calls.'],
-    ['🛡️ Your claim, my documentation', 'I bring seven years of restoration experience, a photo record of the damage and a line-item estimate. You file the claim and decide what happens with it; I meet the adjuster on the roof when they come.'],
+    ['🛡️ Your claim, my documentation', 'I bring 7+ years of restoration experience, a photo record of the damage and a line-item estimate. You file the claim and decide what happens with it; I meet the adjuster on the roof when they come.'],
     ['🛡️ Photos first, then numbers', 'Every damaged spot gets photographed before anything gets priced. That record and my line-item estimate are what I walk your adjuster through after you file.'],
   ],
   [

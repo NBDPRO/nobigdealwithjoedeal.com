@@ -947,25 +947,12 @@ async function skipOtpAndRequestCall(btn) {
     if (!saved) saved = !!(await window._saveLead(leadData));
   } catch (e) { console.error('OTP-skip lead save threw:', e); }
 
-  var notified = false;
-  if (window._notifyJoe) {
-    try {
-      await window._notifyJoe({
-        name: _fullName(),
-        phone: funnelData.phone,
-        email: funnelData.email,
-        address: funnelData.address,
-        service: funnelData.service,
-        timeline: funnelData.timeline,
-        verified: false,
-        requestType: 'otp_skipped_call_request'
-      });
-      notified = true;
-    } catch (e) { console.error('OTP-skip notify failed:', e); }
-  }
-
+  // Delivered = the lead SAVED. Joe's alert is the leadAlertEstimate trigger
+  // on that estimate_leads doc; the old notifyNewLead call could never count
+  // (it swallowed its own error and 401'd without App Check) — see
+  // submitAndGetEstimate and the H3 note there (2026-10-05).
   _otpSkipBusy = false;
-  if (saved || notified) {
+  if (saved) {
     _otpSkipDone = true;
     btn.textContent = 'Request sent ✓';
     status.className = 'otp-skip-status';
@@ -980,7 +967,6 @@ async function skipOtpAndRequestCall(btn) {
 }
 
 function _emailOk(email) { return !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
-function _fullName() { return (funnelData.firstName + ' ' + (funnelData.lastName || '')).trim(); }
 
 /* ── "Help Joe prepare" — the optional questions, AFTER the lead (2026-10-03) ──
    The contact step used to require a scheduling choice and show best time,
@@ -1174,29 +1160,15 @@ async function submitAndGetEstimate() {
     console.error('Lead save threw:', saveErr);
   }
 
-  // Notify Joe (await so we know if it fails)
-  var _joeNotified = false;
-  if (window._notifyJoe) {
-    try {
-      await window._notifyJoe({
-        name: _fullName(),
-        phone: funnelData.phone,
-        email: funnelData.email,
-        address: funnelData.address,
-        service: funnelData.service,
-        timeline: funnelData.timeline,
-        verified: _otpVerified
-      });
-      _joeNotified = true;
-      console.log('Joe notified successfully');
-    } catch(notifyErr) {
-      console.error('Joe notification failed:', notifyErr);
-    }
-  }
-
-  // Either channel landing means Joe has the lead; only if BOTH failed does
-  // the results screen show the call-Joe fallback banner.
-  window._leadDeliveryFailed = !_leadSaved && !_joeNotified;
+  // Joe's alert (email + text) is the leadAlertEstimate Firestore trigger on
+  // this estimate_leads doc, so the lead SAVING is the only delivery signal.
+  // H3 (2026-10-05): this used to also await window._notifyJoe and count it
+  // as a second channel — but that helper swallowed its own error and always
+  // resolved, and the notifyNewLead callable it wrapped enforces App Check,
+  // which /estimate never initialises (401 on every submit). So "notified"
+  // was always true, this flag was never set, and a lost lead still got the
+  // success screen. If the save failed, the results screen says call Joe.
+  window._leadDeliveryFailed = !_leadSaved;
 
   // Real roof measurement. The server measures this property from aerial
   // imagery the moment the CRM lead is created; this only READS the result,
@@ -1449,9 +1421,9 @@ function showResults(est) {
   document.getElementById('stepResults').classList.add('active');
 
   // Lead-delivery fallback: the estimate below is computed client-side and
-  // is fine either way, but if neither the CRM write nor Joe's notification
-  // went through, Joe has no record of this homeowner — say so instead of
-  // faking success.
+  // is fine either way, but if the lead never saved (no estimate_leads doc,
+  // so no leadAlertEstimate alert), Joe has no record of this homeowner —
+  // say so instead of faking success.
   var failBanner = document.getElementById('leadDeliveryFail');
   if (window._leadDeliveryFailed) {
     if (!failBanner) {
@@ -1573,19 +1545,8 @@ function switchTier(tier) {
 
 /* ── CTA Actions ── */
 function trackCTA(type) {
-  // Update lead with chosen action
-  if (window._notifyJoe) {
-    window._notifyJoe({
-      name: funnelData.firstName + ' ' + funnelData.lastName,
-      phone: funnelData.phone,
-      email: funnelData.email,
-      address: funnelData.address,
-      service: funnelData.service,
-      timeline: funnelData.timeline,
-      verified: _otpVerified,
-      requestType: type
-    });
-  }
+  // Update lead with chosen action (the notifyNewLead call that sat here
+  // 401'd on every click — no App Check on /estimate; removed 2026-10-05).
   if (window._saveLead) {
     window._saveLead({
       address: funnelData.address,
