@@ -1,7 +1,7 @@
 {
   "displayName": "NBD Pro — Cloud Functions error rate spike",
   "documentation": {
-    "content": "Cloud Functions are logging errors at an elevated rate. Check Cloud Logging for the specific function and error. Common causes: a deploy regression, an upstream dependency (Stripe/Twilio/Anthropic) outage, or an attack triggering unhandled paths.\n\n---\nFIXED 2026-09-04. Two defects, either one fatal: the filter used `=~\"^(...)\"`, which is not Cloud Monitoring filter syntax (the sibling alert-function-latency.json gets this right with monitoring.regex.full_match), and it carried no metric.type. The service names were also camelCase; Cloud Run service names are lowercase, so they would have matched nothing regardless. Third defect found during validation: the filter still carried a bare severity=\"ERROR\", which is a LOG field — on the log_entry_count system metric it is the metric LABEL metric.labels.severity.\n\n---\nFIXED 2026-09-13 (before going live). The aligner was ALIGN_RATE, which turns the 5-minute count into errors PER SECOND, so the threshold of 50 meant >15,000 errors in 5 min and the policy could never fire. Replayed over the previous 7 days: max 0.02/s as written; with ALIGN_DELTA the worst 5-minute window was 6 errors (renderpdf). ALIGN_DELTA makes the threshold what the name says: >50 ERROR log entries in a 5-minute window, per service.",
+    "content": "Cloud Functions are logging errors at an elevated rate. Check Cloud Logging for the specific function and error. Common causes: a deploy regression, an upstream dependency (Stripe/Twilio/Anthropic) outage, or an attack triggering unhandled paths.\n\n---\nFIXED 2026-09-04. Two defects, either one fatal: the filter used `=~\"^(...)\"`, which is not Cloud Monitoring filter syntax (the sibling alert-function-latency.json gets this right with monitoring.regex.full_match), and it carried no metric.type. The service names were also camelCase; Cloud Run service names are lowercase, so they would have matched nothing regardless. Third defect found during validation: the filter still carried a bare severity=\"ERROR\", which is a LOG field — on the log_entry_count system metric it is the metric LABEL metric.labels.severity.\n\n---\nFIXED 2026-09-13 (before going live). The aligner was ALIGN_RATE, which turns the 5-minute count into errors PER SECOND, so the threshold of 50 meant >15,000 errors in 5 min and the policy could never fire. Replayed over the previous 7 days: max 0.02/s as written; with ALIGN_DELTA the worst 5-minute window was 6 errors (renderpdf). ALIGN_DELTA makes the threshold what the name says: >50 ERROR log entries in a 5-minute window, per service.\n\n---\nADDED 2026-10-06 (review R4-7): a second condition for the low-volume BACKGROUND functions that used to swallow their failures and now throw / log them at error — the web-lead bridge (leadbridge*), the Stripe CRM-invoice webhook (invoicewebhook) and the money-paper trigger (moneypaperoninvoice, job-spine stage moves). They run a handful of times a day, so the >50 threshold above can never fire for them: ANY error entry in 5 minutes alerts. Scheduled jobs are covered by the heartbeat wrapper instead (functions/integrations/heartbeat.js pings /fail when a run logged errors).",
     "mimeType": "text/markdown"
   },
   "combiner": "OR",
@@ -14,6 +14,21 @@
         "comparison": "COMPARISON_GT",
         "thresholdValue": 50,
         "duration": "300s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_DELTA"
+          }
+        ]
+      }
+    },
+    {
+      "displayName": "Background function errors > 0 in 5 min (lead bridge, invoice webhook, money paper)",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=monitoring.regex.full_match(\"leadbridge(contact|estimate|inspect|freeroof|storm|thumbtack)|invoicewebhook|moneypaperoninvoice\") AND metric.type=\"logging.googleapis.com/log_entry_count\" AND metric.labels.severity=\"ERROR\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
         "aggregations": [
           {
             "alignmentPeriod": "300s",
