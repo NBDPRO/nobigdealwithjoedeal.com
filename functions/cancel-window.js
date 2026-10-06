@@ -60,11 +60,33 @@ function cancelByFor(html, when, timeZone) {
   return KyLaw.packetCancelBy(html) || KyLaw.cancelBy(when == null ? new Date() : when, timeZone);
 }
 
-/** Stamp lead.cancelBy. Best-effort; never throws. */
-async function stampLeadCancelBy(db, leadId, cancelBy, logger) {
-  if (!leadId || !/^\d{4}-\d{2}-\d{2}$/.test(String(cancelBy || ''))) return false;
+/**
+ * Does `lead` belong to this owner? Its userId is the owner's, or (a teammate's
+ * lead) both carry the same companyId. A lead with neither match is another
+ * tenant's — a public signing link must never write to it.
+ */
+function leadBelongsTo(lead, owner) {
+  const l = lead || {};
+  const o = owner || {};
+  if (o.ownerUid && l.userId === o.ownerUid) return true;
+  return !!(o.companyId && l.companyId && String(l.companyId) === String(o.companyId));
+}
+
+/**
+ * Stamp lead.cancelBy — only on a lead that belongs to `owner`
+ * ({ ownerUid, companyId } of the signed record). Best-effort; never throws.
+ */
+async function stampLeadCancelBy(db, leadId, cancelBy, logger, owner) {
+  if (!leadId || !/^[A-Za-z0-9_-]{1,128}$/.test(String(leadId))) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(cancelBy || ''))) return false;
   try {
-    await db.doc(`leads/${leadId}`).update({ cancelBy: String(cancelBy) });
+    const ref = db.doc(`leads/${leadId}`);
+    const snap = await ref.get();
+    if (!snap.exists || !leadBelongsTo(snap.data(), owner)) {
+      if (logger) logger.warn('[cancel-window] lead cancelBy refused: not the owner\'s lead', { leadId });
+      return false;
+    }
+    await ref.update({ cancelBy: String(cancelBy) });
     return true;
   } catch (e) {
     if (logger) logger.warn('[cancel-window] lead cancelBy stamp failed', { leadId, msg: e && e.message });
@@ -127,6 +149,6 @@ async function loadPacketOpts(db, leadId) {
 }
 
 module.exports = {
-  CONTRACT_DOC_TYPES, isContractDocType, finalizeSignedPacket, cancelByFor, stampLeadCancelBy,
+  CONTRACT_DOC_TYPES, isContractDocType, finalizeSignedPacket, cancelByFor, stampLeadCancelBy, leadBelongsTo,
   packetOptsFrom, loadPacketOpts, envelopeNeedsCancelNotice,
 };
