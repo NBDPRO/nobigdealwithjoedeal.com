@@ -210,6 +210,12 @@ function guardCallable(name, handler) {
  * limit applies — anonymous traffic still gets throttled but doesn't
  * silently bypass uid limits because the user lied about their token.
  */
+function limiterUnavailable(res, name, scope, e) {
+  logger().error('guardHttp: rate limiter unavailable — refusing', { fn: name, scope, err: e && e.message });
+  res.set('Retry-After', '30');
+  res.status(503).json({ error: 'Temporarily unavailable. Try again shortly.', code: 'rate_limiter_unavailable' });
+}
+
 function guardHttp(name, handler) {
   const policy = policyFor(name);
   return async function (req, res) {
@@ -223,7 +229,10 @@ function guardHttp(name, handler) {
           res.status(429).json({ error: 'Rate limit exceeded. Try again shortly.', code: 'rate_limited:ip', retryAfterMs: e.retryAfterMs });
           return;
         }
-        throw e;
+        // R4-13 (2026-10-06): a limiter that cannot be checked refuses with
+        // a clean 503 (was an unhandled throw).
+        limiterUnavailable(res, name, 'ip', e);
+        return;
       }
     }
     // Per-uid (best-effort — if token verify fails we don't bail,
@@ -246,7 +255,12 @@ function guardHttp(name, handler) {
           res.status(429).json({ error: 'Rate limit exceeded. Try again in a minute.', code: 'rate_limited:uid', retryAfterMs: e.retryAfterMs });
           return;
         }
-        // Token verification errors are non-fatal — just skip uid clamp.
+        // Token verification errors never reach here (verifyIdToken is
+        // .catch(() => null) above, so a bad token just skips the uid clamp).
+        // R4-13 (2026-10-06): anything else is the LIMITER failing, which
+        // used to fail OPEN here. Refuse with 503 like the per-IP path.
+        limiterUnavailable(res, name, 'uid', e);
+        return;
       }
     }
     return handler(req, res);

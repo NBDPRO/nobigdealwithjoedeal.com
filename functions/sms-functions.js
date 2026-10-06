@@ -91,6 +91,7 @@ function escForStore(s) {
 }
 
 // Secrets
+const { secretValue } = require('./integrations/_shared');
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
@@ -1468,7 +1469,16 @@ exports.incomingSMS = onRequest(
       // it returns a function, not a boolean, so the `if (!isValid)` branch
       // was never taken and the signature check was effectively off.
       const twilioSignature = req.headers['x-twilio-signature'] || '';
-      const authToken = TWILIO_AUTH_TOKEN.value();
+      // R4-7-4 (2026-10-06): secretValue(), not bare .value(). With the
+      // deploy's '__unset__' stub a bare read "validates" a signature forged
+      // with that string (a forged START would clear an opt-out). Refuse like
+      // twilio-line.js and the Stripe webhooks do.
+      const authToken = secretValue(TWILIO_AUTH_TOKEN);
+      if (!authToken) {
+        logger.error('incomingSMS: TWILIO_AUTH_TOKEN missing or stub — refusing');
+        res.status(503).json({ error: 'not configured' });
+        return;
+      }
       const url = `https://${req.get('host')}${req.originalUrl}`;
 
       // Twilio signs the sorted set of POSTed form fields as an object.
