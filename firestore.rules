@@ -183,7 +183,9 @@ service cloud.firestore {
       return !request.resource.data.keys().hasAny([
         'referralRewardStatus', 'referralRewardAmount', 'referralAttributedAt',
         'referrerLeadId', 'referralDocId', 'referralRewardOwedAt', 'referredBy',
-        'referralCodeInvalid', 'referralRewardJobCount', 'referralRewardPaidAt'
+        'referralCodeInvalid', 'referralRewardJobCount', 'referralRewardPaidAt',
+        // Roof Care Plan mirror (functions/care-plan.js) — server-written only.
+        'carePlan'
       ]);
     }
     // A customerId whose leading segment is a RESERVED prefix
@@ -402,6 +404,28 @@ service cloud.firestore {
       return status == null || status in ['draft', 'sent', 'signed'];
     }
 
+    // 2026-10-05 (security review) — htmlPath names the Storage object that
+    // remote signing (functions/remote-signing.js) serves to a no-login
+    // signer and then OVERWRITES with the executed record. A client that can
+    // write this row used to be able to point it at any object in the bucket.
+    // A NEW or CHANGED htmlPath must be the writer's own upload for THIS lead,
+    // documents/<auth uid>/<leadId>/<file>.html — the exact shape the
+    // generator (document-generator.js) and the inspection report
+    // (inspection-report-engine.js) write. An UNCHANGED htmlPath passes, so
+    // every existing row (whoever generated it) keeps updating as before. The
+    // functions re-check the path too (the server is the authority).
+    function documentHtmlPathOk(leadId) {
+      let p = request.resource.data.get('htmlPath', null);
+      let prev = resource == null ? null : resource.data.get('htmlPath', null);
+      return p == null || p == prev
+        || (p is string && p.size() < 600
+            && p.split('/').size() == 4
+            && p.split('/')[0] == 'documents'
+            && p.split('/')[1] == request.auth.uid
+            && p.split('/')[2] == leadId
+            && p.split('/')[3].matches('[A-Za-z0-9._-]+[.]html'));
+    }
+
     // 2026-09-29 — a SIGNED document is locked (Jo, 2026-09-25: "nobody can
     // change its content or status; the lead owner or a company_admin can
     // only archive it"). Signed = status 'signed', or a signedAt stamp (rows
@@ -558,6 +582,10 @@ service cloud.firestore {
           // (functions/jobs-mirror.js). Server-owned in phase 1: a client
           // re-saving the same value is fine, changing it is not.
           && didNotChange(['activeJobId'])
+          // leads/{id}.carePlan mirrors the Roof Care Plan membership
+          // (functions/care-plan.js webhook). It drives the member badge, the
+          // 10% repair discount and storm priority, so only the server sets it.
+          && didNotChange(['carePlan'])
           // customerId is the key the PUBLIC referral resolver matches on, so
           // a lead whose customerId can be repointed can be aimed at another
           // tenant's customer. Write-once rather than frozen because the
@@ -793,13 +821,15 @@ service cloud.firestore {
         allow create: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
-          && documentStatusWriteOk();
+          && documentStatusWriteOk()
+          && documentHtmlPathOk(leadId);
         // Split from create (2026-09-29): an update reads `resource`, which a
         // create does not have. A signed row is locked — see documentIsSigned().
         allow update: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
           && documentStatusWriteOk()
+          && documentHtmlPathOk(leadId)
           && (!documentIsSigned() || signedDocumentUpdateOk(leadId));
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
@@ -2203,6 +2233,25 @@ service cloud.firestore {
     // outside Stripe), matched to a CRM customer. Written ONLY by the admin
     // SDK (functions/stripe-ledger.js); a review assignment goes through the
     // assignStripeTransaction callable. Read: owner, same-company staff, admin.
+    // Roof Care Plan memberships (2026-10-05, functions/care-plan.js). Written
+    // only by the server (checkout, Stripe webhook, the owner's invite
+    // callable). Readable inside the tenant, like phone_calls. The event
+    // markers and the Stripe portal config are server-internal.
+    match /careplans/{planId} {
+      allow read: if isOwner(resource.data.userId)
+        || isAdmin()
+        || (isCompanyReader()
+            && resource.data.companyId != null
+            && resource.data.companyId == myCompanyId());
+      allow write: if false;
+    }
+    match /careplan_events/{eventId} {
+      allow read, write: if false;
+    }
+    match /careplan_config/{docId} {
+      allow read, write: if false;
+    }
+
     match /stripeLedger/{rowId} {
       allow read: if isOwner(resource.data.userId)
         || isAdmin()

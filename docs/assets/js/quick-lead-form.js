@@ -86,7 +86,7 @@
         // same wording; required, and posted as tcpaConsent for the record.
         '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>' +
         // Trust line above Submit (2026-10-03). Rating hydrated live (hydrateRating).
-        '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof</p>' +
+        '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>' +
         '<button class="qlf-btn" type="submit" id="' + uid + '-btn">Send &mdash; Joe calls you back</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
       '</form>';

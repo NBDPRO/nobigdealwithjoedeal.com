@@ -66,3 +66,62 @@
 .cbr-c-amber.cbr-c-amber.cbr-c-amber.cbr-c-amber { color: #ffab00; }
 .cbr-card-16.cbr-card-16.cbr-card-16.cbr-card-16 { padding: 16px; }
 .cbr-card-mb.cbr-card-mb.cbr-card-mb.cbr-card-mb { margin-bottom: 10px; }
+
+/* ══ CLOSE BOARD on the A1 foundation (A5, 2026-10-05) ════════════════════
+   Tokens in ui-primitives.css → FOUNDATION. Scoped #view-closeboard (1,1,0)
+   so it outranks the tripled .cbr-* rules above; CSS only — markup,
+   handlers and the homeowner deal page are untouched.
+   - The four stat tiles become ONE panel split by hairlines; the numbers
+     read in --t with tabular figures (the blue / orange / green zeros had no
+     meaning). Closed Value — the number that matters — keeps a green tint.
+   - Deal cards rest on elevation 1 with hairline edges.
+   - Buttons that painted white text on a fill: the primary uses
+     --accent-fg (white on the paper theme's black accent was fine, but white
+     on --green is ~2:1); Mark-signed / Send become tinted, ink --t.
+   - The empty state gets a tinted icon tile and the heading/body steps. */
+#view-closeboard .cb-stats-row{
+  gap:0;
+  background:var(--s2);
+  border:1px solid var(--ui-line-hair);
+  border-radius:var(--ui-radius-lg);
+  box-shadow:var(--ui-elev-1), var(--ui-edge-light);
+}
+#view-closeboard .cb-stats-row > .ui-stat{
+  background:transparent;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  padding:var(--ui-space-4) var(--ui-space-3);
+}
+#view-closeboard .cb-stats-row > .ui-stat + .ui-stat{border-left:1px solid var(--ui-line-hair);}
+#view-closeboard .cb-stats-row :is(.cbr-v22-blue, .cbr-v22-orange, .cbr-v22-green){
+  font-family:var(--ui-font-display);
+  font-size:var(--ui-fs-num-lg);
+  line-height:1;
+  font-weight:var(--ui-fw-heavy);
+  color:var(--t);
+  font-variant-numeric:tabular-nums;
+  margin-bottom:var(--ui-space-1);
+}
+#view-closeboard .cb-stats-row > .ui-stat:last-child .cbr-v22-green{color:color-mix(in srgb, var(--green) 35%, var(--t));}
+#view-closeboard .cbr-label{font-size:var(--ui-fs-label);font-weight:var(--ui-fw-bold);letter-spacing:var(--ui-ls-label);}
+#view-closeboard .cbr-title{font-family:var(--ui-font-display);font-size:var(--ui-fs-display);line-height:var(--ui-lh-display);font-weight:var(--ui-fw-heavy);letter-spacing:var(--ui-ls-display);}
+#view-closeboard :is(.cbr-btn-new, .cbr-btn-create, .cbr-act-orange){color:var(--accent-fg);border-radius:var(--ui-radius-md);box-shadow:inset 0 0 0 1px var(--accent-ring), var(--ui-elev-1);}
+#view-closeboard .cbr-act-green{background:color-mix(in srgb, var(--green) 18%, transparent);border:1px solid color-mix(in srgb, var(--green) 60%, transparent);color:var(--t);}
+#view-closeboard .cbr-act-blue{background:color-mix(in srgb, var(--blue) 18%, transparent);border:1px solid color-mix(in srgb, var(--blue) 60%, transparent);color:var(--t);}
+#view-closeboard :is(.cbr-act, .cbr-btn-new, .cbr-btn-create){transition:background-color var(--ui-dur-hover) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease);}
+#view-closeboard .cbr-card{border-color:var(--ui-line-hair);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-elev-1), var(--ui-edge-light);}
+#view-closeboard .cbr-pill{border-radius:var(--ui-radius-xs);border-color:var(--ui-line-divider);font-variant-numeric:tabular-nums;}
+#view-closeboard .cbr-c-amber{color:color-mix(in srgb, var(--gold) 35%, var(--t));}
+#view-closeboard .cbr-empty{display:flex;flex-direction:column;align-items:center;gap:var(--ui-space-2);padding:var(--ui-space-12) var(--ui-space-6);}
+#view-closeboard .cbr-empty-icon{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;margin-bottom:var(--ui-space-2);border-radius:var(--ui-radius-lg);background:color-mix(in srgb, var(--orange) 12%, transparent);font-size:26px;line-height:1;}
+#view-closeboard .cbr-empty .cbr-name{font-size:var(--ui-fs-heading);font-weight:var(--ui-fw-bold);}
+#view-closeboard .cbr-empty .cbr-m12-mt4{max-width:38ch;font-size:var(--ui-fs-body-sm);line-height:var(--ui-lh-body-sm);}
+/* Phones: a 2x2 grid instead of a sideways-scrolling strip, so Closed Value
+   (the 4th tile, the number that matters) is on screen without a swipe. */
+@media (max-width:600px){
+  #view-closeboard .cb-stats-row{display:grid;grid-template-columns:1fr 1fr;overflow:visible;}
+  #view-closeboard .cb-stats-row > .ui-stat{min-width:0;}
+  #view-closeboard .cb-stats-row > .ui-stat:nth-child(3){border-left:0;}
+  #view-closeboard .cb-stats-row > .ui-stat:nth-child(n+3){border-top:1px solid var(--ui-line-hair);}
+}

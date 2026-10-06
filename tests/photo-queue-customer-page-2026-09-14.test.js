@@ -55,10 +55,29 @@ console.log('\n1. script-loader.js — queue files ride the lazy photos bundle, 
   ok('photo-queue-recovery.js is IN the photos bundle array', /photo-queue-recovery\.js/.test(bundleBody));
   ok('photo-engine.js is still the first entry (load order: engine before its own queue dependents is not required, but no entry was removed)',
     /photo-engine\.js/.test(bundleBody));
+  // Two branches each bumping the same entry can leave BOTH lines in the
+  // array after a merge (2026-10-04, #2145 x #2153: the duplicated lines also
+  // lost a comma and made script-loader.js a syntax error). Each file must be
+  // listed exactly once, and the array must parse.
+  const once = (f) => (bundleBody.match(new RegExp("'js/" + f + "\\?v=\\d+'", 'g')) || []).length;
+  const bundleFiles = ['photo-engine\\.js', 'photo-queue-store\\.js', 'photo-queue-recovery\\.js', 'inspection-report-engine\\.js', 'photo-report\\.js'];
+  ok('each photos-bundle file is listed exactly once',
+    bundleFiles.every((f) => once(f) === 1), bundleFiles.map(once).join());
+  let parses = false;
+  try { new (require('vm').Script)('([' + bundleBody.slice(bundleBody.indexOf('[') + 1) + '])'); parses = true; } catch (_) {}
+  ok('the photos bundle array parses', parses);
 
   const dash = read('docs/pro/dashboard.html');
+  // Version-agnostic (the ?v= moves with every change to these files), but
+  // the static tag and the bundle entry must carry the SAME version, or the
+  // loader's dedupe sees two different URLs and loads the file twice.
+  const staticV = (f) => (dash.match(new RegExp('src="js/' + f + '\\?v=(\\d+)"')) || [])[1];
+  const bundleV = (f) => (bundleBody.match(new RegExp("'js/" + f + "\\?v=(\\d+)'")) || [])[1];
   ok('dashboard.html KEEPS its static tags (no regression for the page that already worked)',
-    /js\/photo-queue-store\.js\?v=\d+/.test(dash) && /js\/photo-queue-recovery\.js\?v=\d+/.test(dash));
+    !!staticV('photo-queue-store\\.js') && !!staticV('photo-queue-recovery\\.js'));
+  ok('…at the same ?v= as the photos bundle entries',
+    staticV('photo-queue-store\\.js') === bundleV('photo-queue-store\\.js') && staticV('photo-queue-recovery\\.js') === bundleV('photo-queue-recovery\\.js'),
+    [staticV('photo-queue-store\\.js'), bundleV('photo-queue-store\\.js'), staticV('photo-queue-recovery\\.js'), bundleV('photo-queue-recovery\\.js')].join());
 
   const customer = read('docs/pro/customer.html');
   ok('customer.html does NOT get a static tag for either file — that would make loadBundle(\'photos\') a no-op for it (the documented dedupe trap)',
