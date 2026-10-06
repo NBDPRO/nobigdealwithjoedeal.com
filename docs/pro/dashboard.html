@@ -54,7 +54,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=19" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=20" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
@@ -138,7 +138,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=36"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=37"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -3938,7 +3938,7 @@
               <div class="sf"><label>Business Email</label><input type="text" id="coEmail" placeholder="JD@nobigdealwithjoedeal.com"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Street Address</label><input type="text" id="coAddress" placeholder="6563 Manila Rd"></div>
+              <div class="sf"><label>Street Address</label><input type="text" id="coAddress" placeholder="123 Main St"></div>
               <div class="sf"><label>City, State ZIP</label><input type="text" id="coCity" placeholder="Goshen, OH 45122"></div>
             </div>
             <div class="sf-row">
@@ -4056,7 +4056,7 @@
             </div>
             <div class="sf-row">
               <div class="sf"><label>Letterhead Address (one line, optional)</label>
-                <input type="text" id="cp_businessAddress" placeholder="6563 Manila Rd, Goshen OH 45122"></div>
+                <input type="text" id="cp_businessAddress" placeholder="123 Main St, Goshen OH 45122"></div>
               <div class="sf"><label>License # (shown in footer disclaimer)</label>
                 <input type="text" id="cp_businessLicense" placeholder="OH-HIC-12345 / KY-CON-98765"></div>
             </div>
@@ -5394,7 +5394,7 @@
     </div>
     <div class="mfield"><label>Address</label>
       <div class="ac-wrap">
-        <input type="text" id="lAddr" placeholder="1054 Klondyke Rd, Goshen OH 45122" autocomplete="off">
+        <input type="text" id="lAddr" placeholder="456 Example Rd, Goshen OH 45122" autocomplete="off">
         <div class="ac-drop dn" id="ac-lAddr"></div>
       </div>
     </div>
@@ -5720,7 +5720,7 @@
       </div>
       <div class="mfield">
         <label>Property Address</label>
-        <input type="text" id="wcAddr" placeholder="1054 Klondyke Rd, Goshen OH 45122" class="w-full">
+        <input type="text" id="wcAddr" placeholder="456 Example Rd, Goshen OH 45122" class="w-full">
       </div>
       <div class="mfield">
         <label>Installation Date</label>
@@ -5983,7 +5983,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=9"></script>
+<script defer src="js/dashboard-state.js?v=10"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=5"></script>
@@ -6010,7 +6010,7 @@
      because this file was only ever loaded on customer.html, so the dashboard
      silently ran the fallbacks. Dependency-free and already unit-tested
      (tests/customer-estimate-rows.test.js). -->
-<script defer src="js/customer-estimate-rows.js?v=3"></script>
+<script defer src="js/customer-estimate-rows.js?v=5"></script>
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/customer-estimate-hub.js?v=4"></script>
 <script defer src="js/customer-photo-hub.js?v=2"></script>
@@ -6020,7 +6020,7 @@
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=10"></script>
-<script defer src="js/dashboard-ui.js?v=11"></script>
+<script defer src="js/dashboard-ui.js?v=12"></script>
 <script defer src="js/dashboard-actions.js?v=17"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
@@ -6919,7 +6919,7 @@
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=19"></script>
+<script defer src="js/crm-pipeline.js?v=20"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6994,7 +6994,7 @@
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=1"></script>
-<script defer src="js/widgets.js?v=13"></script>
+<script defer src="js/widgets.js?v=14"></script>
 <script defer src="js/today-home.js?v=2"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
@@ -7097,7 +7097,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=9"></script>
+<script defer src="js/analytics-kpi.js?v=10"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->

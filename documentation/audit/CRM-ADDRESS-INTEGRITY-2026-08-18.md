@@ -39,12 +39,12 @@ Nominatim hamlet/subdivision where the post town belongs, and no state or ZIP.
 
 > Wave 141: produce a proper USPS-style mailing address using the structured
 > nominatim addressdetails … Replaces the old `display_name.split(',').slice(0,3)`
-> which produced "1054, Klondyke Road, Goshen" (wrong on every count: comma
+> which produced "456, Example Road, Goshen" (wrong on every count: comma
 > after house number, full road name instead of "Rd", missing ZIP, state
 > spelled out, county included).
 
 **The write path is sound.** `formatMailingAddress()` emits
-`1054 Klondyke Rd, Goshen, OH 45122`. `customer-edit-modal.js saveCustomerEdits()`
+`456 Example Rd, Goshen, OH 45122`. `customer-edit-modal.js saveCustomerEdits()`
 only `.trim()`s — it does not reformat. Nothing overwrites a typed address today.
 
 Corroborating evidence: every mangled row is **105–137 days old**; every record

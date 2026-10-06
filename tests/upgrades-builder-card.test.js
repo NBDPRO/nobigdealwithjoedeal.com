@@ -558,7 +558,9 @@ const LEAF = ['amerimax_lockin_mesh', 'leafblaster_pro_micromesh', 'leafblaster_
     ok('proposal / contract line items (buildDocLineItems)', doc && cents(doc.total) === want && doc.qty === dAlu.qty && doc.unit === 'LF' && doc.rate === 18);
     const inv = pick(IP.buildRowItems(savedAlu));
     ok('invoice items (InvoicePipeline.buildRowItems)', inv && cents(inv.total) === want && inv.unitPrice === 18 && inv.quantity === dAlu.qty, JSON.stringify(inv));
-    const sum = (rows) => rows.reduce((s, r) => s + cents(r.total), 0);
+    // Scope lines only — the footing rows (sales tax, Rounding / minimum job,
+    // customer-estimate-rows.js footingRows 2026-10-06) follow the tax, not the quote.
+    const sum = (rows) => rows.filter((r) => r.code !== 'TAX' && r.code !== 'ADJ').reduce((s, r) => s + cents(r.total), 0);
     const baseDoc = JT.buildEstimatePayload(res0, {});
     // The engine's own per-row rounding already leaves a cent or two between
     // the printed lines and the subtotal; an upgrade must add NO drift to it.
@@ -568,6 +570,7 @@ const LEAF = ['amerimax_lockin_mesh', 'leafblaster_pro_micromesh', 'leafblaster_
     ok('each reader\'s lines move by exactly the quote', sum(CR.buildDisplayRows(savedAlu)) - sum(CR.buildDisplayRows(baseDoc)) === want
       && sum(CR.buildDocLineItems(savedAlu)) - sum(CR.buildDocLineItems(baseDoc)) === want
       && sum(IP.buildRowItems(savedAlu)) - sum(IP.buildRowItems(baseDoc)) === want);
+    ok('every printed row (scope + tax + rounding) foots to the upgraded price', CR.buildDisplayRows(savedAlu).reduce((s, r) => s + cents(r.total), 0) === cents(savedAlu.grandTotal));
     ok('estimateValue (pipeline / lead job value) reads the upgraded total', CR.estimateValue(savedAlu) === savedAlu.grandTotal);
 
     // The real proposal + contract HTML (DocPreflight → NBDDocGen).
