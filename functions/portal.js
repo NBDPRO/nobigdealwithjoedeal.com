@@ -61,6 +61,7 @@ const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer
 // Pay link (stripePaymentLink OR stripeHostedUrl) + the Kentucky hold in one
 // call: the homeowner never sees a link the KRS 367.626 window still holds.
 const KyLaw = require('./ky-insurance-law');
+const InvoiceCharge = require('./invoice-charge');
 // The estimate's deposit-rule stamp, validated + whitelisted (2026-09-25).
 const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
@@ -970,10 +971,11 @@ exports.getHomeownerPortalView = onRequest(
     // never while the Kentucky insurance hold applies: a hosted Stripe
     // invoice is minted outside createStripePaymentLink's gate. https only.
     const _payUrl = _unpaidInvoice ? KyLaw.payUrlUnlessHeld(lead, _unpaidInvoice, Date.now(), kyTz) : '';
-    const _balance = _unpaidInvoice ? {
-      amountCents: Math.round(Number(_unpaidInvoice.balanceDue) * 100),
-      stripePaymentLink: /^https:\/\//i.test(_payUrl) ? _payUrl : null,
-    } : null;
+    // What is due NOW (review R2-2-6): the rest of the deposit while it is
+    // unmet, else the balance — invoice-charge.js, the same rule
+    // createStripePaymentLink charges — and Pay Now only when the link
+    // charges exactly that (portalBalanceCard).
+    const _balance = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
     // never a new one. A Kentucky insurance job's link is withheld at
     // creation (stripe.js runs ky-insurance-law.js server-side), so a held

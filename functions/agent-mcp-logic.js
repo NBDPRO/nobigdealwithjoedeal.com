@@ -29,7 +29,7 @@ const EMAIL_SUBJECT_MAX = 140;
 // ── Tools ──────────────────────────────────────────────────────────────
 const TOOLS = {
   crm_summary: {
-    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — booked/estimated, not money received), follow-ups due today and overdue.',
+    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — deals still in play; a signed contract or a job in production is booked, not pipeline; never money received), follow-ups due today and overdue.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   schedule: {
@@ -221,6 +221,11 @@ const { moneyValue } = require('./customer-estimate-rows');
 const { jobRecords } = require('./jobs-logic');
 function stageKeyOf(l) { return _SRK.canonicalStageKey(l && l.stage) || String((l && l.stage) || 'new'); }
 function isClosedLead(l) { const r = _SRK.roleFor(Object.assign({}, l, { _stageKey: stageKeyOf(l) })); return r === 'won' || r === 'lost' || CLOSED.test(stageKeyOf(l)); }
+// Out of the OPEN pipeline: closed/lost above, or BOOKED — a signed contract
+// or an in-production job (Jo, 2026-10-06; stage-roles.js isSale, the test
+// the kanban header, Home KPI tiles and weekly digest use). Follow-ups keep
+// isClosedLead: a signed job still has production follow-ups.
+function isOutOfPipeline(l) { return isClosedLead(l) || _SRK.isSale(l); }
 function ms(v) {
   if (!v) return 0;
   if (typeof v === 'number') return v;
@@ -261,7 +266,7 @@ function summary(leads, todayYmd, jobsByLead) {
   const byStage = {};
   let pipeline = 0, dueToday = 0, overdue = 0;
   jobRecords(act, jobsByLead).forEach((r) => {
-    if (!isClosedLead(r)) pipeline += moneyValue(r.jobValue);
+    if (!isOutOfPipeline(r)) pipeline += moneyValue(r.jobValue);
   });
   act.forEach((l) => {
     const st = stageKeyOf(l);
@@ -272,7 +277,7 @@ function summary(leads, todayYmd, jobsByLead) {
       else if (l.followUp < todayYmd) overdue++;
     }
   });
-  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected (estimates / booked), not money collected.' };
+  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected: open deals only (a signed contract or a job in production is booked, not pipeline), not money collected.' };
 }
 
 function overdueFollowups(leads, todayYmd, limit) {
