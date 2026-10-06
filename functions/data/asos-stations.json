@@ -1,0 +1,241 @@
+{
+  "//": "Active ASOS/AWOS weather stations within ~40 mi of the NBD service area (Greater Cincinnati, NKY, Dayton south, Lexington/Bluegrass). Verified 2026-10-06 against IEM network metadata (mesonet.agron.iastate.edu/geojson/network/{OH,KY,IN}_ASOS.geojson): every station below had online=true and archive_end=null. iemName is IEM's own label; name is the homeowner-facing label. Used by functions/asos-gust-logic.js (nearest-station pick). Re-verify before adding/removing a station.",
+  "verifiedAt": "2026-10-06",
+  "source": "https://mesonet.agron.iastate.edu/geojson/network/",
+  "stations": [
+    {
+      "id": "27K",
+      "name": "Georgetown (KY) airport",
+      "iemName": "Georgetown",
+      "network": "KY_ASOS",
+      "lat": 38.2344,
+      "lng": -84.4347,
+      "archiveBegin": "2017-12-06"
+    },
+    {
+      "id": "CVG",
+      "name": "Cincinnati/Northern Kentucky Airport",
+      "iemName": "Cincinnati / N Kentucky Intl",
+      "network": "KY_ASOS",
+      "lat": 39.0431,
+      "lng": -84.6717,
+      "archiveBegin": "1947-12-31"
+    },
+    {
+      "id": "DAY",
+      "name": "Dayton International Airport",
+      "iemName": "DAYTON",
+      "network": "OH_ASOS",
+      "lat": 39.9061,
+      "lng": -84.2186,
+      "archiveBegin": "1929-12-31"
+    },
+    {
+      "id": "DVK",
+      "name": "Danville airport",
+      "iemName": "Danville",
+      "network": "KY_ASOS",
+      "lat": 37.5779,
+      "lng": -84.7697,
+      "archiveBegin": "2008-03-25"
+    },
+    {
+      "id": "FFO",
+      "name": "Wright-Patterson AFB",
+      "iemName": "WRIGHT PATERSON",
+      "network": "OH_ASOS",
+      "lat": 39.8261,
+      "lng": -84.0483,
+      "archiveBegin": "1936-05-01"
+    },
+    {
+      "id": "FFT",
+      "name": "Capital City Airport",
+      "iemName": "CAPITAL CITY AIRPORT/FRANKFORT",
+      "network": "KY_ASOS",
+      "lat": 38.1847,
+      "lng": -84.9033,
+      "archiveBegin": "1996-07-01"
+    },
+    {
+      "id": "GDK",
+      "name": "Greene County airport",
+      "iemName": "Dayton",
+      "network": "OH_ASOS",
+      "lat": 39.6907,
+      "lng": -83.9928,
+      "archiveBegin": "2016-01-07"
+    },
+    {
+      "id": "HAO",
+      "name": "Hamilton airport",
+      "iemName": "HAMILTON",
+      "network": "OH_ASOS",
+      "lat": 39.3638,
+      "lng": -84.5219,
+      "archiveBegin": "1997-05-31"
+    },
+    {
+      "id": "HLB",
+      "name": "Batesville airport",
+      "iemName": "Batesville",
+      "network": "IN_ASOS",
+      "lat": 39.3445,
+      "lng": -85.2583,
+      "archiveBegin": "2017-09-28"
+    },
+    {
+      "id": "I23",
+      "name": "Washington Court House airport",
+      "iemName": "Washington Court House",
+      "network": "OH_ASOS",
+      "lat": 39.5704,
+      "lng": -83.4205,
+      "archiveBegin": "2017-03-14"
+    },
+    {
+      "id": "I67",
+      "name": "Harrison airport",
+      "iemName": "Harrison",
+      "network": "OH_ASOS",
+      "lat": 39.2589,
+      "lng": -84.7743,
+      "archiveBegin": "2014-09-23"
+    },
+    {
+      "id": "I68",
+      "name": "Lebanon airport",
+      "iemName": "Lebanon",
+      "network": "OH_ASOS",
+      "lat": 39.4664,
+      "lng": -84.2532,
+      "archiveBegin": "2017-04-28"
+    },
+    {
+      "id": "I69",
+      "name": "Batavia airport",
+      "iemName": "Batavia",
+      "network": "OH_ASOS",
+      "lat": 39.0784,
+      "lng": -84.2102,
+      "archiveBegin": "2013-03-20"
+    },
+    {
+      "id": "ILN",
+      "name": "Wilmington airport",
+      "iemName": "WILMINGTON",
+      "network": "OH_ASOS",
+      "lat": 39.4203,
+      "lng": -83.8217,
+      "archiveBegin": "1943-08-01"
+    },
+    {
+      "id": "IOB",
+      "name": "Mount Sterling airport",
+      "iemName": "Mount Sterling",
+      "network": "KY_ASOS",
+      "lat": 38.0575,
+      "lng": -83.9829,
+      "archiveBegin": "2012-06-01"
+    },
+    {
+      "id": "K62",
+      "name": "Falmouth airport",
+      "iemName": "Falmouth",
+      "network": "KY_ASOS",
+      "lat": 38.7041,
+      "lng": -84.3918,
+      "archiveBegin": "2022-01-07"
+    },
+    {
+      "id": "LEX",
+      "name": "Blue Grass Airport",
+      "iemName": "LEXINGTON/BLUEGRASS",
+      "network": "KY_ASOS",
+      "lat": 38.0408,
+      "lng": -84.6058,
+      "archiveBegin": "1948-01-01"
+    },
+    {
+      "id": "LUK",
+      "name": "Lunken Airport",
+      "iemName": "CINCINNAT/LUNKEN",
+      "network": "OH_ASOS",
+      "lat": 39.1033,
+      "lng": -84.4186,
+      "archiveBegin": "1928-10-28"
+    },
+    {
+      "id": "MGY",
+      "name": "Dayton-Wright Brothers Airport",
+      "iemName": "DAYTON",
+      "network": "OH_ASOS",
+      "lat": 39.589,
+      "lng": -84.2249,
+      "archiveBegin": "1997-10-31"
+    },
+    {
+      "id": "MWO",
+      "name": "Middletown airport",
+      "iemName": "Middletown",
+      "network": "OH_ASOS",
+      "lat": 39.531,
+      "lng": -84.3953,
+      "archiveBegin": "2006-04-28"
+    },
+    {
+      "id": "OXD",
+      "name": "Oxford airport",
+      "iemName": "Oxford",
+      "network": "OH_ASOS",
+      "lat": 39.5022,
+      "lng": -84.7844,
+      "archiveBegin": "2018-09-29"
+    },
+    {
+      "id": "RGA",
+      "name": "Richmond (KY) airport",
+      "iemName": "Richmond",
+      "network": "KY_ASOS",
+      "lat": 37.6315,
+      "lng": -84.3324,
+      "archiveBegin": "2019-11-05"
+    },
+    {
+      "id": "RID",
+      "name": "Richmond (IN) airport",
+      "iemName": "Richmond",
+      "network": "IN_ASOS",
+      "lat": 39.7572,
+      "lng": -84.8428,
+      "archiveBegin": "2017-03-09"
+    },
+    {
+      "id": "SGH",
+      "name": "Springfield airport",
+      "iemName": "Springfield",
+      "network": "OH_ASOS",
+      "lat": 39.8403,
+      "lng": -83.8402,
+      "archiveBegin": "1961-11-01"
+    },
+    {
+      "id": "SYM",
+      "name": "Fleming County airport",
+      "iemName": "Fleming",
+      "network": "KY_ASOS",
+      "lat": 38.215,
+      "lng": -83.5874,
+      "archiveBegin": "2014-02-28"
+    },
+    {
+      "id": "UYF",
+      "name": "London (OH) airport",
+      "iemName": "London",
+      "network": "OH_ASOS",
+      "lat": 39.9327,
+      "lng": -83.462,
+      "archiveBegin": "2014-09-24"
+    }
+  ]
+}

@@ -279,8 +279,8 @@ const stormReportFn = require('./storm-report');
 Object.assign(exports, stormReportFn);
 
 // Homeowner follow-up email when a /storm-report lead is captured (additive trigger).
-const stormReportEmailFn = require('./storm-report-email');
-Object.assign(exports, stormReportEmailFn);
+// By name only: storm-report-email.js also exports _test (2026-10-06 gust line).
+exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');

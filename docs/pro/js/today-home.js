@@ -192,8 +192,10 @@
     });
     var m = p.money.map(function (r) {
       if (r.kind === 'stripe') return row(r.key, '💳 ' + r.count + ' Stripe payment' + (r.count === 1 ? '' : 's') + ' need' + (r.count === 1 ? 's' : '') + ' a customer', '', btn('goto', 'money', 'Assign', 'tp-go'));
-      if (r.kind === 'deposit') return row(r.key, esc(r.name), 'Draft deposit ' + esc(P.fmtCents(r.cents)) + ' · not sent', link(r.leadId ? custUrl(r.leadId) : '', 'Review', 'tp-go') + (r.leadId ? '' : btn('goto', 'money', 'Review', 'tp-go')));
-      return row(r.key, esc(r.name), esc(P.fmtCents(r.cents)) + ' owed' + (r.overdue ? ' · <b class="tp-hot">past due</b>' : '') + (r.number ? ' · #' + esc(r.number) : ''),
+      // Money figures carry .ui-money (the --font-money face, tabular).
+      var money = '<span class="ui-money">' + esc(P.fmtCents(r.cents)) + '</span>';
+      if (r.kind === 'deposit') return row(r.key, esc(r.name), 'Draft deposit ' + money + ' · not sent', link(r.leadId ? custUrl(r.leadId) : '', 'Review', 'tp-go') + (r.leadId ? '' : btn('goto', 'money', 'Review', 'tp-go')));
+      return row(r.key, esc(r.name), money + ' owed' + (r.overdue ? ' · <b class="tp-hot">past due</b>' : '') + (r.number ? ' · #' + esc(r.number) : ''),
         link(tel(r.phone), 'Call') + (r.leadId ? link(custUrl(r.leadId), 'Open', 'tp-go') : btn('goto', 'money', 'Open', 'tp-go')));
     });
     var s = p.stalled.map(function (r) {
