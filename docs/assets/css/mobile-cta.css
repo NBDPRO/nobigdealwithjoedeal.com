@@ -13,3 +13,21 @@
   /* Reserve space so the fixed bar never covers footer content / iPhone home indicator. */
   body{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
 }
+/* Book-first bar (2026-10-05, homeowner revamp, owner-approved). Pages that
+   carry the nbd:partial mobile-cta region (site-src/partials/mobile-cta.html)
+   get ONE filled brand-orange "Book free inspection" button plus small Call /
+   Text icon buttons. Pages still on the old two-button markup (homepage,
+   /our-work, careers, partners) keep the rules above unchanged.
+   Every target is >=44px tall; icon buttons are 52px wide. The !important
+   padding/font-size beat nbd-mobile.css's compact `.mobile-cta-strip a`
+   rule, which is !important too but less specific. */
+@media(max-width:768px){
+  .mobile-cta-strip.mobile-cta-bookfirst{padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));gap:8px;align-items:stretch}
+  .mobile-cta-strip.mobile-cta-bookfirst a{min-height:48px}
+  .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-book{flex:1 1 auto;background:#BD5728;color:#fff;border:2px solid #BD5728;font-size:.84rem!important;letter-spacing:.05em!important;padding:12px 10px!important}
+  .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-book:active{background:#A14A22;border-color:#A14A22}
+  .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-icon{flex:0 0 52px;flex-direction:column;gap:2px;padding:4px 0!important;background:transparent;color:#fff;border:2px solid rgba(255,255,255,.4);font-size:.62rem!important;letter-spacing:.06em!important}
+  .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-icon:active{background:rgba(255,255,255,.12)}
+  .mobile-cta-strip.mobile-cta-bookfirst .mobile-cta-icon svg{width:18px;height:18px}
+  body:has(.mobile-cta-bookfirst){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+}

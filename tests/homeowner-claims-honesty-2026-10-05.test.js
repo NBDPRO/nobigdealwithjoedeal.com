@@ -35,6 +35,11 @@
  * regions (partials PR) and llms-full.txt (regenerated at deploy from those
  * pages).
  *
+ * 2026-10-06: the "Licensed" pin (section 5) no longer uses PENDING_OWNER —
+ * #2203 fixed the partials and the SEO-audit PR fixed the homepage body and
+ * regenerated llms-full.txt, so it reads the whole tree plus the partial and
+ * generator sources. PENDING_OWNER now applies to the years pin only.
+ *
  * Pure-Node, zero-dep. Run: node tests/homeowner-claims-honesty-2026-10-05.test.js
  */
 'use strict';
@@ -174,8 +179,20 @@ console.log('\n5. no "Licensed" claim (it is "Fully insured")');
   // A capital-L "Licensed" is a badge/label claim; the lowercase forms are
   // first-person claims. Advice ("pick anyone local, licensed …", "a licensed
   // public adjuster") passes.
-  const lic = hits(/\bLicensed\b(?! under)/).concat(hits(/\b(?:we're|we are|I'm|I am|NBD is|Joe is|No Big Deal is|is)\s+(?:fully\s+)?licensed\b|\blicensed (?:roofing|roofer)\b|\bown licensed contractor\b|\bmy license\b|Kentucky licensing knowledge/i));
-  ok('no homeowner page claims a license', lic.length === 0, show(lic));
+  // STRICT since 2026-10-06 (#2203 + the SEO-audit PR): the whole tree —
+  // partial regions, the homepage and llms-full.txt included. Nothing pending.
+  const LIC_LABEL = /\bLicensed\b(?! under)/;
+  const LIC_FIRST = /\b(?:we're|we are|I'm|I am|NBD is|Joe is|No Big Deal is|is)\s+(?:fully\s+)?licensed\b|\blicensed (?:roofing|roofer)\b|\bown licensed contractor\b|\bmy license\b|Kentucky licensing knowledge|\blicensed (?:and|&|&amp;) (?:fully )?insured\b/i; // the comma list ("pick anyone local, licensed, insured") is advice and passes
+  const lic = hits(LIC_LABEL, true).concat(hits(LIC_FIRST, true));
+  ok('no homeowner page claims a license (whole tree: partials, homepage, llms-full.txt)', lic.length === 0, show(lic));
+  // The sources that stamp those pages can't bring it back either.
+  const SRC = fs.readdirSync(path.join(ROOT, 'site-src', 'partials')).map((n) => 'site-src/partials/' + n)
+    .concat(['scripts/build-town-pages.mjs', 'scripts/build-llms.mjs', 'scripts/build-projects.mjs', 'scripts/add-transparency-strip-services.js']);
+  const srcHits = SRC.filter((rel) => { const t = stripComments(read(rel), rel.replace(/\.mjs$/, '.js')); return LIC_LABEL.test(t) || LIC_FIRST.test(t); });
+  ok('no partial or page generator carries a "Licensed" claim', srcHits.length === 0, srcHits.join(', '));
+  ok('the #org schema description says "Fully insured"', /"description": "[^"]*Fully insured[^"]*"/.test(read('site-src/partials/schema-entity.html')));
+  const home = stripComments(read('docs/index.html'), 'x.html');
+  ok('homepage FAQ asks "Are you insured and certified?" and answers "fully insured" (visible + JSON-LD)', (home.match(/Are you insured and certified\?/g) || []).length === 2 && (home.match(/No Big Deal is fully insured/g) || []).length === 2);
   ok('the replacement is in place (service-page transparency strip)', /Fully insured/i.test(read('docs/services/gutter-cleaning.html')));
   ok('the transparency-strip generator emits "Fully insured", not "Licensed"', /Fully insured/.test(read('scripts/add-transparency-strip-services.js')) && !/Licensed/.test(read('scripts/add-transparency-strip-services.js')));
 }
