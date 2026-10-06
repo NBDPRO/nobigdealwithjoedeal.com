@@ -268,7 +268,7 @@
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
-      'js/estimate-supplement.js?v=2',
+      'js/estimate-supplement.js?v=3',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
       // resolves through EstimateLogic + registers custom items into

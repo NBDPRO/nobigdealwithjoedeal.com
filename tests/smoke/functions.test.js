@@ -892,7 +892,7 @@ section('T-2: AI draft send-on-approve');
   // because this file used to write it under an 11-digit key and read it under
   // a 10-digit one. Same invariant, pinned at the new call.
   assert('trigger honors STOP opt-out before sending',
-    /OptOut\.isOptedOut\([\s\S]{0,300}fail\('opted_out'\)/.test(src));
+    /OptOut\.isOptedOut\([\s\S]{0,400}fail\('opted_out'\)/.test(src));
   assert('trigger logs outbound note as direction:outgoing for thread+AI coherence',
     /direction:\s*'outgoing'[\s\S]{0,200}source:\s*'ai_draft'/.test(src));
   assert('trigger flips draft to sent with twilioSid',
@@ -1714,14 +1714,18 @@ section('F3: TCPA STOP/HELP + opt-out list');
   // STOP was ever honoured on an outbound send. The register now has one owner
   // (functions/sms-optout.js), so these pin the invariants at the new calls
   // rather than at a string that must never come back.
+  // 2026-10-05: the keyword decision is functions/sms-stop-intent.js
+  // classifyInbound (punctuation stripped, REVOKE/OPTOUT, revocation phrases;
+  // tests/sms-stop-intent-2026-10-05.test.js drives the real webhook).
   assert('STOP keyword records an opt-out',
-    /STOP_WORDS[\s\S]{0,400}OptOut\.recordOptOut\(/.test(sms));
+    /StopIntent\.classifyInbound\(messageBody\)/.test(sms)
+    && /intent\.intent === 'stop'[\s\S]{0,400}OptOut\.recordOptOut\(/.test(sms));
   assert('HELP keyword replies with compliance message',
-    /HELP_WORDS[\s\S]{0,500}Msg & data rates may apply/.test(sms));
+    /intent\.intent === 'help'[\s\S]{0,500}Msg & data rates may apply/.test(sms));
   assert('START keyword resumes (clears the opt-out, both keys)',
-    /START_WORDS[\s\S]{0,400}OptOut\.clearOptOut\(/.test(sms));
+    /intent\.intent === 'start'[\s\S]{0,400}OptOut\.clearOptOut\(/.test(sms));
   assert('sendSMS checks the opt-out register before sending',
-    /OptOut\.isOptedOut\([\s\S]{0,400}replied STOP/.test(sms));
+    /OptOut\.isOptedOut\([\s\S]{0,700}replied STOP/.test(sms));
   assert('no send path hand-derives an opt-out key any more',
     (sms.match(/doc\((['"`])sms_opt_outs\//g) || []).length === 0);
   const rules = read(path.join(ROOT, 'firestore.rules'));

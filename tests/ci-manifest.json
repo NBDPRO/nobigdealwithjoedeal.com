@@ -23,6 +23,7 @@
     "reports-sent-definition-2026-09-28.test.js",
     "intake-forms-2026-09-30.test.js",
     "inspect-hero-grid-no-clip-2026-10-06.test.js",
+    "inspect-cro-light-2026-10-06.test.js",
     "care-plan-page-2026-10-05.test.js",
     "oaks-own-intake-2026-10-04.test.js",
     "estimate-funnel-unblock-2026-10-03.test.js",
@@ -60,6 +61,7 @@
     "deal-room-views-2026-10-02.test.js",
     "thursday-video-card-2026-10-05.test.js",
     "estimate-send-track-2026-10-03.test.js",
+    "tenant-branding-by-company-2026-10-05.test.js",
     "tenant-ownership-checks-2026-10-05.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
@@ -190,6 +192,7 @@
     "stripe-crm-invoice-2026-09-29.test.js",
     "money-paper-2026-09-30.test.js",
     "data-integrity-guards-2026-10-03.test.js",
+    "lead-bridge-updatedat-2026-10-06.test.js",
     "jobs-phase1-2026-09-30.test.js",
     "jobs-stage2b-2026-09-30.test.js",
     "referral-per-job-2026-09-30.test.js",
@@ -224,6 +227,7 @@
     "reel-studio-2026-10-04.test.js",
     "agent-tenant-bots-2026-10-04.test.js",
     "agent-drafts-2026-10-06.test.js",
+    "agent-list-leads-paging-2026-10-06.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
@@ -270,6 +274,8 @@
     "schedule-window-2026-09-29.test.js",
     "calendar-phase0-2026-09-29.test.js",
     "sms-optout-key.test.js",
+    "sms-stop-intent-2026-10-05.test.js",
+    "sms-dnc-2026-10-05.test.js",
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
     "sms-send-optout-order.test.js",
@@ -414,6 +420,7 @@
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
     "invoice-due-7-days-2026-10-05.test.js",
+    "deposit-credit-ledger-mirror-2026-10-05.test.js",
     "authed-spec-list-2026-10-04.test.js",
     "merge-queue-ready-2026-10-04.test.js",
     "deploy-verify-2026-10-04.test.js",
@@ -945,7 +952,8 @@
     "crm-loop-complete.test.js": [
       "2026-07-19 CRM-loop sweep certification (homepage intro-video slot guard,",
       "estimate-email kill switch). Its git branch-report section is",
-      "try/catch-wrapped and degrades harmlessly under fetch-depth:1."
+      "try/catch-wrapped and degrades harmlessly under fetch-depth:1.",
+      "2026-07-19 CRM-loop sweep certification (intro-video data-yt guard,"
     ],
     "honeypot-autofill-contract.test.js": [
       "Audit P6 (2026-08-05): a honeypot NAMED \"website\" matches browser",

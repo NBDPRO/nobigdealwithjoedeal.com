@@ -136,6 +136,7 @@
   "listAgentKeys": "./agent-mcp",
   "listTeamMembers": "./handlers/admin",
   "lookupParcel": "./integrations/parcel",
+  "manageSmsCompliance": "./sms-dnc",
   "markEmailUnsubscribed": "./email-unsubscribe",
   "measureNewWebLead": "./integrations/public-measure",
   "measurementWebhook": "./integrations/measurement",

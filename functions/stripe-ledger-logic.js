@@ -382,12 +382,43 @@ function isPaidOutOfBand(inv) {
 }
 
 /**
+ * The job + estimate a mirror belongs to, when the customer leaves no doubt
+ * (2026-10-05). A mirror used to carry neither, so the final invoice at
+ * install (nbd:job-billing jobInvoicesOf) skipped a deposit paid through the
+ * Stripe dashboard and billed the whole job again: $4,620 paid, $9,240
+ * billed. Stamped only when ALL hold:
+ *   - leads/{id}/jobs (not deleted) is exactly ONE job, and it is the
+ *     lead's activeJobId (when the lead names one);
+ *   - the lead has a primary estimate, it exists and is not deleted;
+ *   - the Stripe object was made on or after that estimate — a payment for
+ *     an earlier roof (a backlog sync) is never stamped onto this job.
+ * Anything else → {} (the mirror stays un-stamped, as before).
+ * → { jobId, estimateId } | {}
+ */
+function mirrorJobStamp(lead, jobs, est, srcCreatedMs) {
+  const l = lead || {};
+  const okId = (v, n) => (typeof v === 'string' && v.length <= n && /^[A-Za-z0-9_-]+$/.test(v)) ? v : null;
+  const live = (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.deleted !== true);
+  if (live.length !== 1) return {};
+  const jobId = okId(live[0].id, 40);
+  if (!jobId) return {};
+  if (l.activeJobId && l.activeJobId !== jobId) return {};
+  const estimateId = okId(l.primaryEstimateId, 128);
+  if (!estimateId || !est || est.deleted === true) return {};
+  const c = est.createdAt;
+  const estMs = !c ? 0 : (typeof c.toMillis === 'function' ? c.toMillis()
+    : (c instanceof Date ? c.getTime() : (typeof c === 'number' ? c : (Date.parse(c) || 0))));
+  if (!(estMs > 0) || !(Number(srcCreatedMs) >= estMs)) return {};
+  return { jobId, estimateId };
+}
+
+/**
  * A CRM invoice mirroring a Stripe invoice (or a bare charge), for a customer
  * the CRM had no matching invoice for. Everything a CRM screen needs to show
  * it, and the Stripe links to open the original. `payments` starts empty —
- * planCredit adds the money in the same transaction.
+ * planCredit adds the money in the same transaction. `stamp` = mirrorJobStamp's.
  */
-function mirrorInvoice(src, lead, companyId, nowMs) {
+function mirrorInvoice(src, lead, companyId, nowMs, stamp) {
   const isInv = src && src.object === 'invoice';
   const lines = isInv ? ((src.lines && src.lines.data) || []) : [];
   const items = lines.length
@@ -396,7 +427,7 @@ function mirrorInvoice(src, lead, companyId, nowMs) {
     : [{ description: (src && src.description) || 'Stripe payment', quantity: 1, unitPrice: ((src && (src.amount_captured || src.amount)) || 0) / 100, total: ((src && (src.amount_captured || src.amount)) || 0) / 100 }];
   const totalC = isInv ? (src.total || 0) : ((src && (src.amount_captured || src.amount)) || 0);
   const createdMs = ((src && src.created) || Math.floor(nowMs / 1000)) * 1000;
-  return {
+  const out = {
     leadId: lead.id,
     customerId: lead.customerId || null,
     customerName: leadName(lead) || (isInv ? src.customer_name : '') || '',
@@ -430,6 +461,10 @@ function mirrorInvoice(src, lead, companyId, nowMs) {
     companyId,
     notes: 'Created from Stripe' + (isInv && src.number ? ' invoice ' + src.number : ' payment') + ' — the customer was billed in Stripe.',
   };
+  // The job it belongs to, when mirrorJobStamp could tell (else none, as before).
+  if (stamp && stamp.jobId) out.jobId = stamp.jobId;
+  if (stamp && stamp.estimateId) out.estimateId = stamp.estimateId;
+  return out;
 }
 
 module.exports = {
@@ -437,5 +472,5 @@ module.exports = {
   buildLeadIndex, matchLead, nameAgrees,
   cents, pickInvoice, findManualDuplicate, planCredit,
   methodOfCharge, partyFromCustomer, nbdNumberOf,
-  chargeEntry, refundEntry, disputeEntry, payoutEntry, outOfBandEntry, isPaidOutOfBand, oobAmountCents, mirrorInvoice,
+  chargeEntry, refundEntry, disputeEntry, payoutEntry, outOfBandEntry, isPaidOutOfBand, oobAmountCents, mirrorInvoice, mirrorJobStamp,
 };

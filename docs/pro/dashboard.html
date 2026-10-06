@@ -143,7 +143,7 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=11">
+<link rel="stylesheet" href="css/dashboard-app.css?v=12">
 <link rel="stylesheet" href="css/ui-primitives.css?v=13">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
@@ -4014,6 +4014,12 @@
                 <input type="color" id="cp_brand_colorAccent" value="#BD5728"></div>
             </div>
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Contact — used on your portal, texts &amp; lead alerts</div>
+            <!-- 2026-10-05 (Jo): a company with no lead-alert contact gets its
+                 website / form leads alerted to NOBODY (functions/lead-alert.js
+                 resolveAlertTarget). Shown by dashboard-bootstrap.module.js
+                 _cpAlertContactsWarning for a non-NBD company until it saves an
+                 Email here. NBD never sees it. -->
+            <div id="cp_alertWarn" role="status" hidden class="cp-alert-warn"><strong>Set your lead alert contacts.</strong> New leads from your website and forms are not sent to anyone until you add your company Email below and save — lead alerts go to that address.</div>
             <div class="sf-row">
               <div class="sf"><label>Phone</label>
                 <input type="text" id="cp_brand_phone" placeholder="(859) 420-7382"></div>

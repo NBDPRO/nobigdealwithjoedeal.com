@@ -6,14 +6,14 @@
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
 <script defer  src="/assets/js/inline/2a90205f1b.js"></script>
 <title>Free 24-Hour Roof Inspection | No Big Deal Home Solutions</title>
-<meta name="description" content="Free 24-hour roof inspection from Joe Deal. No pressure, no obligation. Owner-operated, 7+ years insurance restoration in Greater Cincinnati.">
+<meta name="description" content="Free 24-hour roof inspection from Joe Deal, the owner. 7+ years on roofs across Greater Cincinnati and Northern Kentucky. You get photos and a straight answer.">
 <link rel="canonical" href="https://nobigdealwithjoedeal.com/inspect">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"NBD Free Roof Inspection Request","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"provider":{"@id":"https://nobigdealwithjoedeal.com/#org"}}
 </script>
 <meta property="og:type" content="website">
 <meta property="og:title" content="Free 24-Hour Roof Inspection — Joe Deal NBD">
-<meta property="og:description" content="No pressure. No obligation. Owner-operated by Joe Deal — 7+ years insurance restoration.">
+<meta property="og:description" content="Joe Deal, owner. 7+ years on roofs across Greater Cincinnati and Northern Kentucky. You get photos and a straight answer.">
 <meta property="og:url" content="https://nobigdealwithjoedeal.com/inspect">
 <meta property="og:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -67,6 +67,8 @@ h1 span{color:#BD5728}
 .trust-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:28px}
 .trust-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);padding:8px 14px;border-radius:20px;font-size:.78rem;font-weight:600;color:rgba(255,255,255,.88)}
 .trust-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+/* CRO #5 (2026-10-06): four proof pills fit two rows on a 375px phone */
+@media(max-width:480px){.trust-row{gap:6px}.trust-pill{padding:6px 10px;gap:6px;font-size:.74rem}}
 
 .owner-line{font-size:.88rem;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:24px;padding:14px 16px;background:rgba(255,255,255,.04);border-left:3px solid var(--orange);border-radius:0 8px 8px 0}
 .owner-line strong{color:#fff}
@@ -330,6 +332,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 </script>
 <!-- /nbd:partial schema-entity -->
 <script defer src="/assets/js/clarity-loader.js"></script>
+<script defer src="/assets/js/inspect-analytics.js"></script>
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -352,11 +355,13 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
     <div class="hero-left">
       <div class="hero-badge">Free &middot; 24-Hour Turnaround</div>
       <h1>Free 24-Hour <span>Roof Inspection</span></h1>
-      <p class="subhead"><strong>No pressure. No obligation.</strong> Owner-operated by Joe Deal &mdash; 7+ years insurance restoration experience.</p>
+      <p class="subhead"><strong>Photos and a straight answer. Hiring me is up to you.</strong> Joe Deal, owner. 7+ years on roofs across Cincinnati and Northern Kentucky.</p>
 
       <div class="trust-row">
-        <span class="trust-pill"><span class="dot"></span> Insured</span>
-        <span class="trust-pill"><span class="dot"></span> Locally Owned</span>
+        <span class="trust-pill"><span aria-hidden="true">&#9733;</span><span><span data-nbd-gr-rating>5.0</span> on Google (<span data-nbd-gr-total>29</span> reviews)</span></span>
+        <span class="trust-pill"><span class="dot"></span> GAF Certified</span>
+        <span class="trust-pill"><span class="dot"></span> TAMKO Pro Gold</span>
+        <span class="trust-pill"><span class="dot"></span> Fully insured</span>
       </div>
 
       <div class="owner-line">
@@ -366,7 +371,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
       <a href="tel:+18594207382" class="phone-cta">
         <span class="ico" aria-hidden="true">&#9742;</span> Call or Text (859) 420-7382
       </a>
-      <span class="phone-sub">Faster than the form &mdash; usually back to you within the hour.</span>
+      <span class="phone-sub">Faster than the form. If Joe&rsquo;s on a roof, he calls back, usually the same day.</span>
     </div>
 
     <aside class="form-panel">

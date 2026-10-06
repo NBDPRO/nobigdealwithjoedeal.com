@@ -475,6 +475,11 @@ Object.assign(exports, calendarFeedFunctions);
 const emailUnsubscribeFunctions = require('./email-unsubscribe');
 Object.assign(exports, emailUnsubscribeFunctions);
 
+// Texting compliance (2026-10-05): a company's internal Do Not Text list,
+// managed from the CRM. Enforced in functions/sms-optout.js isOptedOut,
+// which every send path calls. See functions/sms-dnc.js.
+exports.manageSmsCompliance = require('./sms-dnc').manageSmsCompliance;
+
 // Resend's own bounce / spam-complaint signal, folded into the same register
 // (sources 'bounce' and 'complaint'). DARK until the owner adds the endpoint
 // in the Resend dashboard and sets RESEND_WEBHOOK_SECRET — unconfigured, it
