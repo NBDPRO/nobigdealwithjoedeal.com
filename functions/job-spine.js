@@ -175,7 +175,12 @@ async function _recordJobEventCore(db, args, deps) {
       const lead = ls.exists ? (ls.data() || {}) : null;
 
       let plan;
-      if (lead && args.companyId && lead.companyId && String(lead.companyId) !== String(args.companyId)) {
+      const sameCompany = !!(args.companyId && lead && lead.companyId && String(lead.companyId) === String(args.companyId));
+      if (lead && args.companyId && lead.companyId && !sameCompany) {
+        plan = { action: 'skip', reason: 'tenant_mismatch' };
+      } else if (lead && args.ownerUid && lead.userId !== args.ownerUid && !sameCompany) {
+        // A caller that names the record's owner (a public deal-room accept):
+        // the lead must be that owner's, or the same company's.
         plan = { action: 'skip', reason: 'tenant_mismatch' };
       } else {
         plan = L.planJobEvent(lead, event);
@@ -336,8 +341,10 @@ async function spineAfterEsign(db, env, envelopeId, signerName, deps) {
  */
 async function spineAfterDealAccept(db, info, tier, deps) {
   if (!info || !info.leadId) return { skipped: 'no_lead' };
+  // The deal's owner + company from the accept token: the tenant check in
+  // recordJobEvent refuses a lead that is not theirs.
   return recordJobEvent(db, {
-    leadId: String(info.leadId), event: 'deal_accepted', sourceId: 'deal_' + info.dealId,
+    leadId: String(info.leadId), companyId: info.companyId || null, ownerUid: info.ownerUid || null, event: 'deal_accepted', sourceId: 'deal_' + info.dealId,
     actor: 'deal room acceptance',
     meta: { dealId: String(info.dealId || ''), tier: String(tier || ''), detail: String(tier || '').toUpperCase() + ' package accepted online' },
   }, deps);
