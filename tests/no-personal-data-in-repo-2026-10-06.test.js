@@ -73,7 +73,7 @@ const ALLOWED_EMAILS = new Set([
 ]);
 
 // Never scanned: lockfiles, vendored third-party code, binaries, and SVG vector
-// art (path data like "443 306-1057" reads as a phone number).
+// art (a run of three path coordinates can read as a phone number).
 const SKIP = [/(^|\/)package-lock\.json$/, /^docs\/assets\/vendor\//, /\.min\.(js|css)$/, /\.svg$/i];
 const BINARY = /\.(png|jpe?g|gif|webp|avif|ico|heic|pdf|woff2?|ttf|otf|eot|mp3|mp4|mov|webm|zip|gz|xlsx|docx|pptx)$/i;
 
