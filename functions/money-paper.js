@@ -87,7 +87,10 @@ async function plateFor(db, bucket, lead, leadId) {
   try {
     const snap = await db.collection('photos').where('leadId', '==', leadId).limit(200).get();
     const photos = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-    const p = P.pickPlatePhoto(lead, photos);
+    // Only this lead's tenant's photos, each naming an object in its own
+    // upload folder (P.platePhotosForLead): photo docs are client-written, and
+    // the path below is signed with the admin SDK (2026-10-06).
+    const p = P.pickPlatePhoto(lead, P.platePhotosForLead(lead, photos));
     if (!p) return null;
     const path = p.path || p.storagePath;
     let url = null;

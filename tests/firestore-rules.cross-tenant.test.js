@@ -343,6 +343,60 @@ async function run() {
       updateDoc(doc(bob, 'photos/r3fxRep'), { url: 'https://x.test/a', storagePath: 'photos/bob/leadB/photo_r3fxRep.jpg', isAnnotated: true }));
   }
 
+  // D3. PHOTO OBJECT PATHS (follow-up to R3-2/R3-3, 2026-10-06)
+  //     storagePath / thumbStoragePath / path are read by admin-SDK servers that
+  //     sign, download or publish the object (reel + social studio, invoice
+  //     plate, tenant export). A client may name only an object under its OWN
+  //     photos/{uid}/ prefix, on create, and on update (unless unchanged).
+  //     `path` stays frozen on update (D2). Server halves:
+  //     sec-photo-path-confinement-2026-10-06.test.js.
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'photos/d3Own'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        storagePath: 'photos/bob/leadB/a.jpg', thumbStoragePath: 'photos/bob/leadB/thumbs/a_thumb.jpg' });
+      await setDoc(doc(db, 'photos/d3Legacy'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        storagePath: 'legacy/bob/old.jpg' });
+    });
+    const base = { userId: 'bob', companyId: 'co-b', leadId: 'leadB' };
+    const VICTIM = 'pdf-renders/alice/1700000000000-contract.pdf';
+    await check('D3: CREATE with storagePath of another tenant\'s object', 'deny',
+      setDoc(doc(bob, 'photos/d3c1'), { ...base, storagePath: VICTIM }));
+    await check('D3: CREATE with storagePath under another uid\'s photos/', 'deny',
+      setDoc(doc(bob, 'photos/d3c2'), { ...base, storagePath: 'photos/alice/leadA/a.jpg' }));
+    await check('D3: CREATE with storagePath under a uid that merely starts with mine', 'deny',
+      setDoc(doc(bob, 'photos/d3c3'), { ...base, storagePath: 'photos/bobby/a.jpg' }));
+    await check('D3: CREATE with storagePath climbing out via ..', 'deny',
+      setDoc(doc(bob, 'photos/d3c4'), { ...base, storagePath: 'photos/bob/../alice/a.jpg' }));
+    await check('D3: CREATE with an empty path segment (photos/bob//...)', 'deny',
+      setDoc(doc(bob, 'photos/d3c4b'), { ...base, storagePath: 'photos/bob//a.jpg' }));
+    await check('D3: CREATE with a foreign thumbStoragePath', 'deny',
+      setDoc(doc(bob, 'photos/d3c5'), { ...base, storagePath: 'photos/bob/leadB/a.jpg', thumbStoragePath: 'calls/alice/rec.mp3' }));
+    await check('D3: CREATE with a foreign path (non-homeowner photo)', 'deny',
+      setDoc(doc(bob, 'photos/d3c6'), { ...base, path: 'homeowner-uploads/alice/leadA/1.jpg' }));
+    await check('D3: CREATE with a non-string storagePath', 'deny',
+      setDoc(doc(bob, 'photos/d3c7'), { ...base, storagePath: ['photos/bob/a.jpg'] }));
+    await check('D3 control: CREATE with own storagePath + thumbStoragePath (photo-engine shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok1'), { ...base, storagePath: 'photos/bob/leadB/u1_std.jpg', thumbStoragePath: 'photos/bob/leadB/thumbs/u1_thumb.jpg' }));
+    await check('D3 control: CREATE with own flat storagePath (customer-page shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok2'), { ...base, storagePath: 'photos/bob/1700000000000_a.jpg' }));
+    await check('D3 control: CREATE with no path fields (url-only legacy shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok3'), { ...base, url: 'https://x.test/a' }));
+    await check('D3 control: CREATE with storagePath null', 'allow',
+      setDoc(doc(bob, 'photos/d3ok4'), { ...base, storagePath: null }));
+
+    await check('D3: UPDATE re-points storagePath at another tenant\'s object', 'deny',
+      updateDoc(doc(bob, 'photos/d3Own'), { storagePath: VICTIM }));
+    await check('D3: UPDATE re-points thumbStoragePath at another uid\'s photo', 'deny',
+      updateDoc(doc(bob, 'photos/d3Own'), { thumbStoragePath: 'photos/alice/leadA/thumbs/x.jpg' }));
+    await check('D3: UPDATE via setDoc-merge re-points storagePath', 'deny',
+      setDoc(doc(bob, 'photos/d3Own'), { storagePath: VICTIM }, { merge: true }));
+    await check('D3 control: UPDATE other fields on a legacy off-prefix photo (path unchanged)', 'allow',
+      updateDoc(doc(bob, 'photos/d3Legacy'), { description: 'ridge', phase: 'After' }));
+    await check('D3 control: annotation save-over moves storagePath to own prefix', 'allow',
+      updateDoc(doc(bob, 'photos/d3Own'), { url: 'https://x.test/b', storagePath: 'photos/bob/leadB/photo_d3Own.jpg', isAnnotated: true }));
+  }
+
   // ═══════════════════════════════════════════════════════════
   // E. CREATE-PIN ENFORCEMENT (Phase-1.5) — companyId pinned to the
   //    caller's own tenant on create. Foreign id rejected; own claim/uid OK.

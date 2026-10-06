@@ -35,6 +35,7 @@ const { getAuth } = require('firebase-admin/auth');
 const { CORS_ORIGINS, requireTeamAdmin } = require('./handlers/_shared');
 const { callableRateLimit } = require('./shared');
 const T = require('./tenant-ops-logic');
+const LAP = require('./lead-artifact-paths');
 const { buildZip } = require('./zip-lite');
 
 const NBD_OWNER_UID = T.NBD_OWNER_UID;
@@ -204,7 +205,10 @@ async function buildCompanyExport(db, bucket, companyId, opts) {
         const path = typeof row.storagePath === 'string' ? row.storagePath : (typeof row.path === 'string' ? row.path : '');
         row.storagePath = path || null;
         delete row.url; delete row.downloadURL; delete row.thumbUrl;
-        if (path && bucket && signed < SIGN_LIMIT && o.sign !== false) {
+        // Sign only an object in the photo's own upload folder: the doc is
+        // client-written and the link is minted with the admin SDK
+        // (2026-10-06). Anything else is listed by path, unsigned.
+        if (path && bucket && signed < SIGN_LIMIT && o.sign !== false && LAP.isPhotoObjectOf(path, row)) {
           try {
             const [url] = await bucket.file(path).getSignedUrl({ action: 'read', expires: now.getTime() + 24 * 3600 * 1000 });
             row.signedUrl24h = url;

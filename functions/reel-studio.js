@@ -57,6 +57,7 @@ const { CORS_ORIGINS } = require('./handlers/_shared');
 const L = require('./social-logic');
 const RL = require('./reel-logic');
 const SR = require('./stage-roles');
+const LAP = require('./lead-artifact-paths');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
@@ -226,7 +227,11 @@ async function resolveClips(db, companyId, uid, leadId, lead, clips) {
       const p = s.exists ? s.data() : null;
       const pathStr = p && (p.storagePath || p.path);
       const sameTenant = p && (p.companyId ? String(p.companyId) === companyId : (p.userId === uid || p.userId === (lead && lead.userId)));
-      if (!p || p.leadId !== leadId || !sameTenant || typeof pathStr !== 'string' || !PHOTO_PATH_RE.test(pathStr) || p.deleted) {
+      // The path must also sit in the photo's OWN upload folder: the doc is
+      // client-written, and this object is downloaded with the admin SDK and
+      // rendered into a reel the caller can watch (2026-10-06).
+      if (!p || p.leadId !== leadId || !sameTenant || typeof pathStr !== 'string' || !PHOTO_PATH_RE.test(pathStr)
+        || !LAP.isPhotoObjectOf(pathStr, p) || p.deleted) {
         throw new HttpsError('not-found', 'A picked photo is not part of this job.');
       }
       out.push({ source: 'job_photo', photoId: c.photoId, type: 'photo', storagePath: pathStr, phase: String(p.phase || '').toLowerCase() });

@@ -104,6 +104,40 @@ function isOwnE2ECleanupPath(p, uid) {
   return p.startsWith(`photos/${uid}/`) || p.startsWith(`documents/${uid}/`);
 }
 
+/**
+ * Is `p` an object inside the upload folder of the /photos doc `photo`?
+ *
+ * For the servers that sign, download or serve a photo's object with the
+ * admin SDK (reel-studio, social-studio, money-paper's invoice plate,
+ * exportCompanyData). storagePath / thumbStoragePath / path come off a
+ * CLIENT-written doc, and before 2026-10-06 any value was accepted, so a doc
+ * could name another tenant's contract or recording and have it signed or
+ * rendered for the doc's owner. `userId` on a photo is trustworthy (create
+ * pins it to the writer, update freezes it), so the object must sit under
+ * that uid's own prefix:
+ *
+ *   photos/{userId}/...                      every client uploader
+ *   homeowner-uploads/{userId}/{leadId}/...  portal + web-form uploads
+ *                                            (admin SDK; userId = lead owner)
+ *
+ * Fails closed: anything else, or anything path-like (`..`, `//`, `\`).
+ *
+ * @param {string} p     object path taken from the photo doc
+ * @param {object} photo the photo doc's data
+ * @returns {boolean}
+ */
+function isPhotoObjectOf(p, photo) {
+  if (typeof p !== 'string' || !p || p.length > 1024) return false;
+  if (p.includes('..') || p.includes('//') || p.includes('\\')) return false;
+  const ph = photo || {};
+  const uid = typeof ph.userId === 'string' ? ph.userId : '';
+  if (!uid || uid.includes('/')) return false;
+  if (p.startsWith(`photos/${uid}/`)) return true;
+  const leadId = typeof ph.leadId === 'string' ? ph.leadId : '';
+  if (!leadId || leadId.includes('/')) return false;
+  return p.startsWith(`homeowner-uploads/${uid}/${leadId}/`);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 2026-09-25 — helpers for the whole-subtree sweep (lead-subtree-sweep.js).
 //
@@ -442,6 +476,7 @@ module.exports = {
   variantPathsFor,
   isReapablePhotoPath,
   isOwnE2ECleanupPath,
+  isPhotoObjectOf,
   LEAD_ARTIFACT_PREFIXES,
   RESERVED_LEAD_ID_NAMES,
   isReservedLeadId,

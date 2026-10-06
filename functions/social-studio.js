@@ -41,6 +41,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { CORS_ORIGINS } = require('./handlers/_shared');
 const L = require('./social-logic');
 const SR = require('./stage-roles');
+const LAP = require('./lead-artifact-paths');
 const { makeAdapters } = require('./social-adapters');
 const { runPublisher, postBlockers: approvalBlockers } = require('./social-publisher');
 // Platform tenant (same convention as lead-alert.js / render-pdf.js): NBD is
@@ -99,7 +100,9 @@ async function leadPhotos(db, leadId, lead, ctx) {
     const p = d.data() || {};
     const sameTenant = p.companyId ? String(p.companyId) === ctx.companyId : (p.userId === ctx.uid || p.userId === lead.userId);
     const path = p.storagePath || p.path;
-    if (sameTenant && typeof path === 'string' && PHOTO_PATH_RE.test(path)) out.push(Object.assign({ id: d.id }, p));
+    // ...and in the photo's OWN upload folder: the doc is client-written, and
+    // the object is downloaded with the admin SDK and published (2026-10-06).
+    if (sameTenant && typeof path === 'string' && PHOTO_PATH_RE.test(path) && LAP.isPhotoObjectOf(path, p)) out.push(Object.assign({ id: d.id }, p));
   });
   return out;
 }

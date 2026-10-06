@@ -26,6 +26,7 @@
 
 // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS).
 const DR = require('./deposit-rule');
+const LAP = require('./lead-artifact-paths');
 
 const CODES = { invoice: 'NBD-500', receipt: 'NBD-510' };
 
@@ -83,6 +84,25 @@ function decide(after, opts) {
     out.markOob = true;
   }
   return out;
+}
+
+// The photos plateFor may use for `lead` (2026-10-06). Photo docs are
+// client-written and their path is signed with the admin SDK, so a photo
+// counts only when it is the lead's tenant's (same owner, or same companyId)
+// AND its object sits in the photo's own upload folder (isPhotoObjectOf). A
+// legacy url-only photo counts when the Storage object inside its url passes
+// the same check; any other url is dropped (Chromium would fetch it).
+function platePhotosForLead(lead, photos) {
+  const l = lead || {};
+  return (photos || []).filter((p) => {
+    if (!p) return false;
+    const sameTenant = (typeof p.userId === 'string' && p.userId && p.userId === l.userId)
+      || (typeof l.companyId === 'string' && l.companyId && p.companyId === l.companyId);
+    if (!sameTenant) return false;
+    const path = p.path || p.storagePath;
+    if (path) return LAP.isPhotoObjectOf(path, p);
+    return LAP.isPhotoObjectOf(LAP.storagePathFromUrl(p.url), p);
+  });
 }
 
 // P4 (Jo, 2026-09-30): the cover photo, else the newest After photo, else none.
@@ -250,4 +270,4 @@ function paidNotClosedTaskId(invoiceId) {
   return 'paid-not-closed-' + String(invoiceId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
 }
 
-module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };
+module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, platePhotosForLead, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };
