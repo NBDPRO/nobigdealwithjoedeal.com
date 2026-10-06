@@ -63,6 +63,8 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+// Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
+const REPORT_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -417,7 +419,11 @@ exports.createReportShareToken = onCall(
         const response = await resend.emails.send({
           from: fromEmail,
           to: toEmail,
-          subject: `Your ${subject.subjectNoun} from ${tenantName || 'No Big Deal Home Solutions'}`,
+          // NBD's name only on NBD's own report (tenant key = the NBD owner
+          // uid); another company with no name set gets a neutral subject.
+          subject: (tenantName || String(subject.companyId || '') === REPORT_NBD_OWNER_UID)
+            ? `Your ${subject.subjectNoun} from ${tenantName || 'No Big Deal Home Solutions'}`
+            : `Your ${subject.subjectNoun} is ready`,
           html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
             <p>Hi ${escHtml(firstName || 'there')},</p>
             <p>Your <strong>${reportName}</strong> is ready. Tap the button below to view it — no login needed.</p>

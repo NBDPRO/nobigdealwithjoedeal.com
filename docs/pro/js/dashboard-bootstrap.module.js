@@ -6054,6 +6054,23 @@
     // A fresh populate = user hasn't moved a swatch yet (mirror onboarding.js).
     _cpColorsTouched = false;
     _cpWireColorInputs();
+    _cpAlertContactsWarning(rawContact);
+  }
+
+  // "Set your lead alert contacts" (2026-10-05, Jo): a non-NBD company whose
+  // profile has no alertEmail / alertSms gets its public leads alerted to
+  // nobody (functions/lead-alert.js). NBD — decided by the company key
+  // (tenant-rules.js isPlatformTenant), never the brand — never sees it.
+  function _cpAlertContactsWarning(rawContact) {
+    const el = document.getElementById('cp_alertWarn');
+    if (!el) return;
+    let isNbd = true;
+    try {
+      const TR = window.NBDTenantRules;
+      if (TR && typeof TR.isPlatformTenant === 'function') isNbd = TR.isPlatformTenant();
+    } catch (_) { isNbd = true; }
+    const c = rawContact || {};
+    el.hidden = isNbd || !!(c.alertEmail || c.alertSms);
   }
 
   async function _loadCompanyProfileSettings() {
