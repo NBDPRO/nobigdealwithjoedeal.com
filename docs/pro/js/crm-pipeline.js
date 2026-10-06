@@ -155,6 +155,16 @@ function _renderFollowUpRows(box, overdue) {
   if (deck) deck.addEventListener('click', () => window.NBDFollowUpDeck.open(overdue));
 }
 
+// A stored dollar field as a number: the ONE money reader
+// (customer-estimate-rows.js moneyValue), so legacy text like '$45,000' reads
+// 45000 on the cards, the column totals and the header alike (review R2,
+// 2026-10-06). Fallback strips the same characters if that file is absent.
+function _crmMoney(v) {
+  const R = window.NBDCustomerEstimateRows;
+  if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+  return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+}
+
 // Customers → pipeline cards. Without jobs-store.js (or before its first load)
 // every customer is its own single card, exactly as before multi-job.
 function _expandJobCards(list) {
@@ -348,12 +358,16 @@ function renderLeads(leads, filtered){
   // ── stat helpers ──
   const setEl = (id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
 
-  // Revenue calcs — use stage keys when available
+  // Revenue calcs — use stage keys when available.
+  // Every JOB, like the Home KPI tiles (review R2-2-7, 2026-10-06): a
+  // customer's second job adds its own value and stage (jobs-store.js
+  // recordsFor). The customer counts below stay on the leads.
+  const _jobRecs = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(all) : all;
   let pipeVal=0, closedRev=0, approvedCount=0;
   const _lostKeys = ['lost', 'Lost'];
   const _approvedKeys = ['contract_signed','Approved'];
-  all.forEach(l=>{
-    const v=parseFloat(l.jobValue||0);
+  _jobRecs.forEach(l=>{
+    const v=_crmMoney(l.jobValue);
     const sk = l._stageKey || l.stage || 'new';
     // Role-aware buckets so CUSTOM/freeform won/lost stages count correctly.
     // The built-in key lists still match built-in stages exactly (no behavior
@@ -668,7 +682,7 @@ function renderLeads(leads, filtered){
       // counting in their head. Hidden when 0 cards or 0 total value
       // (e.g. all leads at this stage are pre-estimate).
       if (total) {
-        const sumVal = cards.reduce((s, l) => s + (Number(l && l.jobValue) || 0), 0);
+        const sumVal = cards.reduce((s, l) => s + _crmMoney(l && l.jobValue), 0);
         if (cards.length && sumVal > 0) {
           const fmt = sumVal >= 1000
             ? (sumVal >= 1000000
@@ -821,7 +835,7 @@ function renderHiddenStageChip(leads) {
 
   const META = window.STAGE_META || {};
   const _norm = window.normalizeStage;
-  const sumVal = leads.reduce((s, l) => s + (Number(l && l.jobValue) || 0), 0);
+  const sumVal = leads.reduce((s, l) => s + _crmMoney(l && l.jobValue), 0);
   const fmtMoney = (n) => n >= 1000000
     ? '$' + (n / 1000000).toFixed(n >= 10000000 ? 0 : 1) + 'M'
     : (n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + n.toLocaleString());
@@ -968,7 +982,7 @@ function buildCard(l){
   // below.
   const _addrRaw = String(l.address||'').replace(/^(\d+),\s+/, '$1 ');
   const addr  = escHtml(_addrRaw.split(',').slice(0,2).join(','));
-  const val   = l.jobValue ? '$'+parseFloat(l.jobValue).toLocaleString() : '';
+  const val   = _crmMoney(l.jobValue) ? '$'+_crmMoney(l.jobValue).toLocaleString() : '';
   const today = new Date(); today.setHours(0,0,0,0);
   const _sk = l._stageKey || (window.normalizeStage ? window.normalizeStage(l.stage) : l.stage || 'new');
   const isTerminal = ['closed','lost','Complete','Lost'].includes(_sk) || ['closed','lost','Complete','Lost'].includes(l.stage||'');
