@@ -286,9 +286,25 @@ async function loadSeed() {
   return res.json();
 }
 
+// The real SDK answers over the network, so in the CRM every first result
+// lands after the page's deferred scripts have run; some module code calls
+// globals those scripts define (renderEstimatesList, …). Answering from memory
+// before DOMContentLoaded would invent a race the live app never has, so the
+// store opens only once the document has finished its deferred scripts.
+function documentSettled() {
+  return new Promise((resolve) => {
+    if (typeof document === 'undefined' || document.readyState === 'complete') return resolve();
+    let done = false;
+    const go = () => { if (!done) { done = true; resolve(); } };
+    document.addEventListener('DOMContentLoaded', go, { once: true });
+    window.addEventListener('load', go, { once: true });
+  });
+}
+
 export function ready() {
   if (_ready) return _ready;
   _ready = (async () => {
+    await documentSettled();
     let seed = null;
     try { seed = await loadSeed(); } catch (e) { console.error('[demo] seed load failed:', e); seed = { docs: {} }; }
     _seedMeta = { version: seed.version || 0, company: seed.company || {}, user: seed.user || {}, claims: seed.claims || {} };
