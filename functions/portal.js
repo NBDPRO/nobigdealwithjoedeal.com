@@ -94,6 +94,8 @@ function scheduleWindowFor(lead) {
 // short title and the raw schedule fields leave the server — never a value,
 // claim, crew or note — and the reader's browser decides past/future.
 const JOBS = require('./jobs-logic');
+// Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
+const PORTAL_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 function otherJobsFor(lead, jobs) {
   const l = lead || {};
@@ -685,6 +687,7 @@ exports.getHomeownerPortalView = onRequest(
     // functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
     let kyTz = KyLaw.DEFAULT_TIME_ZONE;
     const tenantKey = lead.companyId || tok.ownerUid;
+    const _portalIsNbd = !tenantKey || String(tenantKey) === PORTAL_NBD_OWNER_UID;
     if (tenantKey) {
       try {
         const cpSnap = await db.doc(`companyProfile/${tenantKey}`).get();
@@ -1022,7 +1025,12 @@ exports.getHomeownerPortalView = onRequest(
         // wrong-tenant branding for a non-NBD rep. Read both. Per-tenant
         // companyProfile (tenantName, from brand.legalName) is the canonical
         // source and wins when present; the rep.* reads cover pre-profile data.
-        name: tenantName || rep.companyName || rep.company || 'No Big Deal Home Solutions',
+        // Blank-name fallback (2026-10-05): NBD's name only on NBD's own
+        // portal (tenant key = the NBD owner uid); another company with no
+        // name set gets '' and isNbd:false so the client stays neutral
+        // instead of reading a blank name as NBD.
+        name: tenantName || rep.companyName || rep.company || (_portalIsNbd ? 'No Big Deal Home Solutions' : ''),
+        isNbd: _portalIsNbd,
         // Tenant-set only (server-guarded https/hex); null/absent for NBD so
         // the client keeps its hardcoded NBD logo + footer byte-identical.
         logoUrl: tenantLogoUrl || null,

@@ -152,7 +152,8 @@ async function draftDepositAfterSign(db, args, deps) {
  * never sent, plus the "Send final invoice" task, in ONE transaction:
  *
  *   reads   leads/{leadId}, estimates/{primaryEstimateId},
- *           invoices where leadId == leadId, invoices/{finaldraft_…},
+ *           invoices where leadId == leadId, leads/{leadId}/jobs,
+ *           invoices/{finaldraft_…},
  *           leads/{leadId}/tasks/send-final-invoice-…
  *   writes  invoices/{finaldraft_<lead>_<job>}   tx.create (only when needed)
  *           leads/{leadId}/tasks/send-final-invoice-<job>   only if absent
@@ -183,7 +184,11 @@ async function draftFinalAtInstall(db, args, deps) {
       }
       const invSnap = await tx.get(db.collection('invoices').where('leadId', '==', leadId).limit(50));
       const invoices = (invSnap.docs || []).map((d) => Object.assign({ id: d.id }, d.data() || {}));
-      const decision = D.decideFinalDraft({ leadId, lead, est, estimateId, invoices, nowMs, sourceId });
+      // The customer's jobs: with exactly one, an un-stamped paid deposit
+      // (mirrored from the Stripe dashboard) is credited (soleJobOf).
+      const jobSnap = await tx.get(leadRef.collection('jobs').limit(5));
+      const jobs = (jobSnap.docs || []).map((d) => Object.assign({ id: d.id }, d.data() || {}));
+      const decision = D.decideFinalDraft({ leadId, lead, est, estimateId, invoices, jobs, nowMs, sourceId });
       if (decision.action === 'skip' && decision.reason !== 'no_estimate') {
         return { created: false, reason: decision.reason, invoiceId: null, taskId: null };
       }

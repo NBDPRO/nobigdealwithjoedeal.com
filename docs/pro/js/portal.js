@@ -646,18 +646,24 @@
     const fullName = (firstName + ' ' + lastName).trim();
     const address = (view.homeowner && view.homeowner.address) || '';
     repName = (view.rep && view.rep.displayName) || 'Your Rep';
-    const companyName = (view.company && view.company.name) || 'No Big Deal Home Solutions';
     // NBD-gate for the few customer-visible fallback labels that hardcode the
     // 'NBD' abbreviation (e.g. the warranty tier fallback): NBD keeps its literal
     // byte-identical, a tenant gets a companyName-derived label instead.
-    const isNbdCompany = !(view.company && view.company.name) || view.company.name === 'No Big Deal Home Solutions';
+    // 2026-10-05: a blank name is NBD only when the server did not say
+    // otherwise — getPortalView sends company.isNbd:false (decided by the
+    // tenant key) for a company that has not set its name, which then stays
+    // neutral instead of wearing NBD's name.
+    const _coNamed = !!(view.company && view.company.name);
+    const _coNotNbd = !_coNamed && !!view.company && view.company.isNbd === false;
+    const companyName = (view.company && view.company.name) || (_coNotNbd ? '' : 'No Big Deal Home Solutions');
+    const isNbdCompany = _coNotNbd ? false : (!_coNamed || view.company.name === 'No Big Deal Home Solutions');
 
     // Full white-label (2026-07-19): tenant portals get the tenant's title,
     // logo (server-guarded https, tenant-set only), footer, and accent —
     // NBD keeps every literal byte-identical.
     if (!isNbdCompany) {
       try {
-        document.title = 'Your Project · ' + companyName;
+        document.title = companyName ? 'Your Project · ' + companyName : 'Your Project';
         var _logo = document.querySelector('.hero-logo');
         if (_logo) {
           if (view.company.logoUrl) {
@@ -671,7 +677,7 @@
           else { _logo.style.display = 'none'; }
         }
         var _foot = document.getElementById('portalFooterBrand');
-        if (_foot) _foot.textContent = '© 2026 ' + companyName;
+        if (_foot) _foot.textContent = companyName ? '© 2026 ' + companyName : '';
         var _footSite = document.getElementById('portalFooterSite');
         if (_footSite) _footSite.style.display = 'none';
         var _cols = view.company.colors || null;
@@ -1312,7 +1318,7 @@
       // Lifetime Pledge — even when an older card carries no saved label.
       const pledgeTitle = w.tier === 'economy'
         ? 'Economy — 1-Year Labor Warranty'
-        : (isNbdCompany ? 'NBD Lifetime Pledge' : companyName + ' Lifetime Pledge');
+        : (isNbdCompany ? 'NBD Lifetime Pledge' : (companyName ? companyName + ' Lifetime Pledge' : 'Lifetime Pledge'));
       const installLabel = w.installDate
         ? new Date(w.installDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
         : '—';
@@ -1402,11 +1408,11 @@
         ? '<span style="background:rgba(46,204,138,.16);color:var(--nbd-success);border:1px solid rgba(46,204,138,.4);font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;letter-spacing:.04em;">✓ ' + sent + ' sent your way</span>'
         : '';
       const smsBody = encodeURIComponent(
-        "Hey — wanted to share my roofing guys (" + companyName + "). They did a great job for me. " + referLink
+        "Hey — wanted to share my roofing guys" + (companyName ? " (" + companyName + ")" : "") + ". They did a great job for me. " + referLink
       );
       const emailSubject = encodeURIComponent('My roofing recommendation');
       const emailBody = encodeURIComponent(
-        "Hey,\n\nIf you ever need roof work, the guys who did mine were great — " + companyName + ". Sharing my referral link below:\n\n" + referLink + "\n\nNo pressure, just thought I'd pass it along."
+        "Hey,\n\nIf you ever need roof work, the guys who did mine were great" + (companyName ? " — " + companyName : "") + ". Sharing my referral link below:\n\n" + referLink + "\n\nNo pressure, just thought I'd pass it along."
       );
       parts.push(
         '<div class="card" id="rf-card">' +
