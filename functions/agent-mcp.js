@@ -49,6 +49,8 @@ const SW = require('./schedule-window');
 const OptOut = require('./sms-optout');
 const Suppress = require('./email-suppression');
 const TextingGate = require('./sms-texting-gate');
+const PhoneText = require('./phone-text-check');
+const Outbox = require('./sms-outbox-guard');
 
 // Whose Do Not Text list a draft text is checked against: the bot's company
 // and the lead's own tenant key (the same value for every lead the bot can
@@ -660,16 +662,25 @@ async function draftCheck(c, it) {
   if (!lead) return { ok: false, reason: 'That customer is no longer on your board.' };
   const name = L.minimalLead(lead).name;
   if (it.kind === 'draft_text') {
-    const optOut = await OptOut.isOptedOut(db(), lead.phone, { companyId: draftTenants(c.company, lead), timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
-    const gate = L.textGate(lead, optOut);
-    if (gate.error) return { ok: false, reason: gate.error, name };
-    return { ok: true, to: '+1' + OptOut.optOutKey(lead.phone), name, consentOnFile: gate.consentOnFile };
+    // The same "ok to text?" answer every phone send asks (phone-text-check.js):
+    // STOP register (both key shapes) + Do Not Text list, consent === false,
+    // the company's texting switch, texting hours in the homeowner's time.
+    const chk = await textCheck(c, lead);
+    if (!chk.ok) return { ok: false, reason: chk.reason, code: chk.code, name };
+    // TODO(TWILIO_INBOUND_ENABLED): when the business line's inbound is live,
+    // send drafts through it instead of the owner's phone (`businessLine`).
+    return { ok: true, to: chk.to, name, consentOnFile: lead.tcpaConsent === true, businessLine: chk.businessLine === true };
   }
   const sup = L.emailGate(lead, { suppressed: false }).error ? null
     : await Suppress.isSuppressed(db(), c.company, lead.email, { timeoutMs: Suppress.READ_TIMEOUT_MS }).catch(() => null);
   const gate = L.emailGate(lead, sup);
   if (gate.error) return { ok: false, reason: gate.error, name };
   return { ok: true, to: String(lead.email).trim(), name };
+}
+function textCheck(c, lead) {
+  return PhoneText.okToText(db(), {
+    phone: lead.phone, tenants: draftTenants(c.company, lead), switchTenant: c.company, lead, nowMs: Outbox.nowMs(),
+  }).then((r) => Object.assign(r, { businessLine: process.env.TWILIO_INBOUND_ENABLED === 'true' }));
 }
 async function draftAction(request) {
   const c = requireKeyAdmin(request);
@@ -691,6 +702,20 @@ async function draftAction(request) {
   const body = String(data.body == null ? it.text || '' : data.body).replace(/\r\n?/g, '\n').trim().slice(0, isText ? DRAFT_SMS_MAX : L.MAX_TEXT);
   const subject = isText ? '' : String(data.subject == null ? it.title || '' : data.subject).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
   if (!body) throw new HttpsError('invalid-argument', 'The message is empty.');
+  // Review R2-3-1: the EDITED text is checked again before anything is marked
+  // sent — and the client opens Messages / Mail only after this answers ok.
+  // An edit must not drop the company name or the STOP line, or add the
+  // claim wording the bot itself was refused; and the customer must still be
+  // textable right now (STOP / Do Not Text / consent / switch / hours).
+  const claim = L.claimWordingProblem(body) || (isText ? null : L.claimWordingProblem(subject));
+  if (claim) throw new HttpsError('failed-precondition', claim);
+  if (isText) {
+    const names = L.companyNames(await readDoc('companyProfile/' + c.company), c.isNbd);
+    const bad = L.editedTextProblem(body, names);
+    if (bad) throw new HttpsError('failed-precondition', bad);
+    const chk = await textCheck(c, lead);
+    if (!chk.ok) throw new HttpsError(chk.code === 'unverified' ? 'unavailable' : 'failed-precondition', chk.reason);
+  }
   // Claim the item first, so a double tap logs once.
   const claimed = await db().runTransaction(async (tx) => {
     const s = await tx.get(ref);

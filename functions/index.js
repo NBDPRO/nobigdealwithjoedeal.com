@@ -444,6 +444,12 @@ Object.assign(exports, emailUnsubscribeFunctions);
 // which every send path calls. See functions/sms-dnc.js.
 exports.manageSmsCompliance = require('./sms-dnc').manageSmsCompliance;
 
+// "Ok to text this customer from my phone?" (review R2-3-1 / R2-3-2,
+// 2026-10-06): the server check every phone send asks before Messages opens
+// (STOP register + Do Not Text, consent, switch, homeowner-time hours), the
+// sms_log row for a phone send, and "They replied STOP". phone-text-check.js.
+exports.phoneTextAction = require('./phone-text-check').phoneTextAction;
+
 // Resend's own bounce / spam-complaint signal, folded into the same register
 // (sources 'bounce' and 'complaint'). DARK until the owner adds the endpoint
 // in the Resend dashboard and sets RESEND_WEBHOOK_SECRET — unconfigured, it

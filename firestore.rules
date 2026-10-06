@@ -944,11 +944,19 @@ service cloud.firestore {
       // SENDS a text.
       match /ai_drafts/{draftId} {
         allow read: if isAuth() && (isAdmin() || isOwner(resource.data.userId));
+        // Status moves a rep may make (review R2-3-3, 2026-10-06):
+        //   pending → approved | dismissed   (approve sends — onAiDraftApproved)
+        //   failed  → pending  | dismissed   ("edit and try again" re-queues it)
+        // NEVER sent / approved / failed → approved: a stale tab tapping
+        // Approve on a draft already sent must not text the homeowner again.
         allow update: if isAuth()
           && isOwner(resource.data.userId) && notViewer()
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['status', 'draftText', 'approvedAt', 'approvedBy', 'editedByRep', 'dismissedAt'])
-          && request.resource.data.status in ['approved', 'dismissed'];
+          && ((resource.data.status == 'pending'
+                && request.resource.data.status in ['approved', 'dismissed'])
+            || (resource.data.status == 'failed'
+                && request.resource.data.status in ['pending', 'dismissed']));
         allow create, delete: if false; // admin SDK only
       }
 
