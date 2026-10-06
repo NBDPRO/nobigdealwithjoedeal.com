@@ -503,6 +503,38 @@ async function run() {
   await check('phone_texts: B manager queries co-a',           'deny',  tget(tq(tcol(bobMgr, 'phone_texts'), tw('companyId', '==', 'co-a'))));
   await check('phone_texts: owner cannot edit a text',         'deny',  updateDoc(doc(alice, 'phone_texts/sms_A1'), { body: 'x' }));
   await check('phone_texts: owner cannot create a text',       'deny',  setDoc(doc(alice,    'phone_texts/sms_fake'), { userId: 'alice', companyId: 'co-a' }));
+
+  // ROOF CARE PLAN (2026-10-05) — careplans/* memberships are server-written
+  // only and tenant-readable; leads/{id}.carePlan (the mirror that drives the
+  // member badge, the 10% repair discount and storm priority) can be set by
+  // neither a CREATE nor an UPDATE from a client. Event markers + the Stripe
+  // portal config are server-internal.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'careplans/cp_A1'), { userId: 'alice', companyId: 'co-a', leadId: 'cpLeadA', status: 'active', interval: 'year' });
+    await setDoc(doc(ctx.firestore(), 'careplan_events/evt_A1'), { type: 'invoice.paid' });
+    await setDoc(doc(ctx.firestore(), 'careplan_config/stripe'), { portalConfigId: 'bpc_1' });
+    await setDoc(doc(ctx.firestore(), 'leads/cpLeadA'), { userId: 'alice', companyId: 'co-a', name: 'Member', meter: 'manual',
+      carePlan: { carePlanId: 'cp_A1', status: 'active', member: true } });
+  });
+  await check('careplans: owner reads own membership',          'allow', getDoc(doc(alice,  'careplans/cp_A1')));
+  await check('careplans: same-tenant manager reads',           'allow', getDoc(doc(eveMgr, 'careplans/cp_A1')));
+  await check('careplans: manager companyId query',             'allow', tget(tq(tcol(eveMgr, 'careplans'), tw('companyId', '==', 'co-a'))));
+  await check('careplans: same-tenant sales_rep denied',        'deny',  getDoc(doc(dave,   'careplans/cp_A1')));
+  await check('careplans: B reads A membership',                'deny',  getDoc(doc(bob,    'careplans/cp_A1')));
+  await check('careplans: B manager queries co-a',              'deny',  tget(tq(tcol(bobMgr, 'careplans'), tw('companyId', '==', 'co-a'))));
+  await check('careplans: anon reads A membership',             'deny',  getDoc(doc(anon,   'careplans/cp_A1')));
+  await check('careplans: owner cannot CREATE a membership',    'deny',  setDoc(doc(alice,  'careplans/cp_fake'), { userId: 'alice', companyId: 'co-a', leadId: 'cpLeadA', status: 'active' }));
+  await check('careplans: owner cannot UPDATE a membership',    'deny',  updateDoc(doc(alice, 'careplans/cp_A1'), { status: 'cancelled' }));
+  await check('careplans: company_admin cannot UPDATE',         'deny',  updateDoc(doc(aliceCA, 'careplans/cp_A1'), { status: 'active' }));
+  await check('careplan_events: owner cannot read',             'deny',  getDoc(doc(alice,  'careplan_events/evt_A1')));
+  await check('careplan_config: company_admin cannot read',     'deny',  getDoc(doc(aliceCA, 'careplan_config/stripe')));
+  await check('lead CREATE without carePlan (control)',         'allow', setDoc(doc(alice,  'leads/cpLeadNew'), { userId: 'alice', companyId: 'co-a', name: 'New', meter: 'manual' }));
+  await check('lead CREATE carrying carePlan denied',           'deny',  setDoc(doc(alice,  'leads/cpLeadSpoof'), { userId: 'alice', companyId: 'co-a', name: 'Spoof', meter: 'manual',
+    carePlan: { status: 'active', member: true } }));
+  await check('lead UPDATE other field keeps carePlan (control)', 'allow', updateDoc(doc(alice, 'leads/cpLeadA'), { name: 'Member Renamed' }));
+  await check('lead UPDATE carePlan by owner denied',           'deny',  updateDoc(doc(alice, 'leads/cpLeadA'), { carePlan: { status: 'cancelled', member: false } }));
+  await check('lead UPDATE adds carePlan to a non-member denied', 'deny', updateDoc(doc(alice, 'leads/cpLeadNew'), { carePlan: { status: 'active', member: true } }));
+  await check('lead UPDATE carePlan by same-tenant manager denied', 'deny', updateDoc(doc(eveMgr, 'leads/cpLeadA'), { 'carePlan.member': false }));
   // phone_text_days: AI notes per conversation-day; same readers, no client writes.
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'phone_text_days/txt_A1'), { userId: 'alice', companyId: 'co-a', status: 'noted', summary: 's', startedAtMs: 1 });

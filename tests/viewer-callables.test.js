@@ -436,6 +436,9 @@ const VERDICTS = {
   activateInvitedRep: 'self', analyzePhotoVision: 'refused', assignSeats: 'role-gated',
   // Stripe ledger (2026-09-29): owner / owner's company_admin / platform admin only.
   assignStripeTransaction: 'role-gated', getStripeOverview: 'role-gated', stripeLedgerSync: 'role-gated',
+  // Roof Care Plan (care-plan.js): the CRM actions are owner / NBD company_admin
+  // only; the checkout + portal endpoint and the Stripe webhook are public.
+  carePlanAdmin: 'role-gated', carePlanPublic: 'public', carePlanWebhook: 'public',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
   // Social Studio (2026-10-04): requireSocialManager refuses viewer / rep / manager.
