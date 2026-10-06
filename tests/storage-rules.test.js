@@ -518,6 +518,26 @@ async function run() {
   await assertSucceeds(uploadBytes(ref(soloTok, 'reel-uploads/solo2/solo2/m12'), buf(4096), { contentType: 'video/mp4' }));  // solo owner, companyId claim == uid
   console.log('  reel studio: 17 storage checks passed');
 
+  // ── Offboarding lock (2026-10-06, Jo) ──
+  // removeMember sets the offboardLock claim while the member's files move to
+  // the owner (functions/member-storage-move.js). With it, the member owns
+  // nothing under their own uid: no read, write or delete. Same uid without
+  // the claim (an active user) is unaffected.
+  const lockedC = env.authenticatedContext('leaver', { offboardLock: true }).storage();
+  const leaver  = env.authenticatedContext('leaver', {}).storage();
+  await assertSucceeds(uploadBytes(ref(leaver, 'photos/leaver/L1/a.jpg'), buf(1024), { contentType: 'image/jpeg' }));        // control: before the lock
+  await assertSucceeds(uploadBytes(ref(leaver, 'documents/leaver/L1/d.html'), buf(64), { contentType: 'text/html' }));      // control
+  await assertFails(getBytes(ref(lockedC, 'photos/leaver/L1/a.jpg')));                                                     // locked: read
+  await assertFails(getBytes(ref(lockedC, 'documents/leaver/L1/d.html')));                                                 // locked: read
+  await assertFails(deleteObject(ref(lockedC, 'photos/leaver/L1/a.jpg')));                                                 // locked: delete
+  await assertFails(uploadBytes(ref(lockedC, 'photos/leaver/L1/b.jpg'), buf(1024), { contentType: 'image/jpeg' }));        // locked: write
+  await assertFails(uploadBytes(ref(lockedC, 'skins/leaver/wallpaper'), buf(1024), { contentType: 'image/jpeg' }));        // locked: even personal
+  await assertSucceeds(getBytes(ref(leaver, 'photos/leaver/L1/a.jpg')));                                                   // lock cleared: theirs again
+  await assertSucceeds(getBytes(ref(admin, 'photos/leaver/L1/a.jpg')));                                                    // platform admin unaffected
+  await assertSucceeds(uploadBytes(ref(alice, 'photos/alice/lock-ctl.jpg'), buf(1024), { contentType: 'image/jpeg' })); // active user (no claim): unaffected
+  await assertSucceeds(getBytes(ref(alice, 'photos/alice/lock-ctl.jpg')));
+  console.log('  offboarding lock: 11 storage checks passed');
+
   console.log('✓ All storage rules tests passed');
   await env.cleanup();
 }

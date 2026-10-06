@@ -431,7 +431,8 @@
     "r2-money-lines-jobvalue-2026-10-06.test.js",
     "r2-money-parse-multijob-2026-10-06.test.js",
     "no-personal-data-in-repo-2026-10-06.test.js",
-    "member-offboarding-2026-10-06.test.js"
+    "member-offboarding-2026-10-06.test.js",
+    "member-storage-move-2026-10-06.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -988,6 +989,7 @@
     "lead-artifact-cleanup.integration.test.js",
     "lead-bridge.integration.test.js",
     "marketing-polish-contract.test.js",
+    "member-storage-move.integration.test.js",
     "public-intake.test.js",
     "referral-rewards.test.js",
     "smoke.test.js",

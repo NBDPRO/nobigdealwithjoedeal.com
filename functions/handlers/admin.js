@@ -866,7 +866,7 @@ exports.removeMember = onCall(
     // guard must gate the CLAIM MUTATION, not the roster-row delete: deleting
     // our own tenant's invite row harms no one.
     const isPendingInvite = member.status === 'invited' && !lookupUid;
-    let storageMoveId = null;
+    let moveId = null;
 
     if (userRecord) {
       // Never remove the owner or yourself.
@@ -887,14 +887,12 @@ exports.removeMember = onCall(
         throw new HttpsError('permission-denied', 'User belongs to another company');
       }
       if (managesTarget) {
-        storageMoveId = await offboardMember(db, userRecord.uid, ownerId || callerUid, companyId);
+        moveId = await offboardMember(db, userRecord.uid, ownerId || callerUid, companyId);
         // Strip companyId + role; PRESERVE everything else (plan/subscription/
-        // billing claims the Stripe webhook maintains). offboardLock locks
-        // their Storage folder until the file move finishes (it clears it).
-        const stripped = { ...existingClaims };
+        // billing claims the Stripe webhook maintains).
+        const stripped = { ...existingClaims, [LOCK_CLAIM]: true };
         delete stripped.companyId;
         delete stripped.role;
-        stripped[LOCK_CLAIM] = true;
         await getAuth().setCustomUserClaims(userRecord.uid, stripped);
         await getAuth().revokeRefreshTokens(userRecord.uid);
       }
@@ -908,14 +906,14 @@ exports.removeMember = onCall(
     // The removal is done. Start the file move; whatever this slice does not
     // finish, the cron does, so a failure here never fails the removal.
     let filesMove = null;
-    if (storageMoveId) {
+    if (moveId) {
       try {
         const { getStorage } = require('firebase-admin/storage');
-        filesMove = (await runMemberStorageMove(db, getStorage().bucket(), storageMoveId, {
+        filesMove = (await runMemberStorageMove(db, getStorage().bucket(), moveId, {
           auth: getAuth(), logger, deadlineMs: 45_000,
         })).status;
       } catch (e) {
-        logger.warn('removeMember.storageMove deferred to cron', { storageMoveId, msg: e && e.message });
+        logger.warn('removeMember.storageMove deferred to cron', { moveId, msg: e && e.message });
         filesMove = 'running';
       }
     }
