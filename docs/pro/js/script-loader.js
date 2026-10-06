@@ -440,9 +440,12 @@
     // on arrival, so a tab opened before they land still renders.
     // tenant-rules.js itself stays EAGER: estimate-config.js and
     // deposit-rule.js read it synchronously.
+    // + Texting rules (2026-10-05): the texting switch and Do Not Text list
+    // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=1'
+      'js/tenant-account-ui.js?v=1',
+      'js/sms-compliance-settings.js?v=1'
     ],
     // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).
     // Never needed by NBD's own company: dashboard-bootstrap.module.js loads
