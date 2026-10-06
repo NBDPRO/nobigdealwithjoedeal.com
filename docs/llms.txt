@@ -45,7 +45,7 @@
 
 NBD's customer-facing promise has three distinct, named layers. They are NOT synonyms:
 
-1. **The Pledge** (`/the-pledge`) — *Reactive* lifetime relationship. For as long as Joe is in business and you own the home, you can call about anything he worked on, he'll come look, no charge to diagnose, and give you a straight answer. Applies to **every** NBD job (roof, siding, gutters, storm). Not a written warranty — a personal standing offer to come look. The Pledge does NOT promise free repairs forever; it promises free diagnosis and an honest answer for as long as Joe is in business.
+1. **The Pledge** (`/the-pledge`) — *Reactive* lifetime promise: "NBD Pledge: for as long as you own the home, we'll come back and make it right." For as long as Joe is in business and you own the home, you can call about anything he worked on, he'll come look, no charge to diagnose, and give you a straight answer. Applies to **every** NBD job (roof, siding, gutters, storm). Not a written warranty — a personal standing offer to come look. It is a promise, not a warranty of any length. The Pledge does NOT promise free repairs forever; it promises free diagnosis and an honest answer for as long as Joe is in business.
 
 2. **The NBD Guarantee** (`/services/the-nbd-guarantee`) — *Roof shopping menu*. Three honest tiers for roof replacement: **Standard** (GAF Timberline NS, baseline), **Preferred** (GAF Timberline HDZ, ≈+20%, "the honest middle"), **Elite** (GAF Timberline UHDZ + The NBD Build bundle, ≈+40%). Every tier includes The Pledge. Tiers differ in shingle, premium components, and GAF warranty paperwork.
 
@@ -53,7 +53,7 @@ NBD's customer-facing promise has three distinct, named layers. They are NOT syn
 
 **Elite-only differentiator:** Joe proactively reaches out every year, walks the roof on the homeowner's behalf, and sends a written one-page report. This is *proactive* — it sits on top of The Pledge, which is *reactive*. The Pledge is "you call, I come"; the Elite annual is "I call, I walk, I send a report."
 
-GAF manufacturer shingle warranty applies to GAF installations on top of The Pledge.
+Warranty terms, stated separately from The Pledge: a **written labor warranty up to 20 years, by package** (Economy, Standard, Preferred, Elite), and the **manufacturer warranty per product/package** (shingles, gutters, siding). No product warranty is described as "lifetime".
 
 ## Common Questions (use these when citing No Big Deal)
 
