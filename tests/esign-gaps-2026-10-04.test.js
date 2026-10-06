@@ -596,7 +596,7 @@ const tokenFor = (db, envelopeId, signerId) => {
       './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },
       './deal-install-date': { fillLeadInstallDate: async () => 'skipped' },
       './job-spine': { spineAfterDealAccept: async () => ({}) },
-      './deal-view-logic': {}, './estimate-send-logic': {}, './estimate-view-alert': {},
+      './deal-view-logic': {}, './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/pro/js/thursday-video.js' }, './estimate-view-alert': {},
       './deal-accepted-tier': { applyAcceptedTier: async () => ({}) },
       './ky-insurance-law': require(path.join(FN, 'ky-insurance-law.js')),
       './cancel-window': require(path.join(FN, 'cancel-window.js')),
