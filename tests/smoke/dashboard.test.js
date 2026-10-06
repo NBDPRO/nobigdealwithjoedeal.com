@@ -1885,14 +1885,16 @@ section('Phase C.4 mobile-nav — bottom-nav and More-drawer items');
   // Google Calendar panel lives there and Jo could not find the view.)
   // (Past Customers / win-back added 2026-10-01. Call Center added 2026-10-01.)
   // (Sunday Review added 2026-10-04 — the weekly business review.)
-  assert('mobileNav conversions: 31 (3 bottom-nav + 28 more-drawer)',
-    mnCount === 31,
-    'expected 31 mobileNav data-actions; got ' + mnCount);
+  // (Care Plan added 2026-10-05 — the Roof Care Plan members view; ships
+  // hidden, shown only while the plan is on.)
+  assert('mobileNav conversions: 32 (3 bottom-nav + 29 more-drawer)',
+    mnCount === 32,
+    'expected 32 mobileNav data-actions; got ' + mnCount);
 
   const closeMoreCount = (dash.match(/data-action="mobileNav"\s+data-target="[a-z]+"\s+data-close-more/g) || []).length;
-  assert('28 mobileNav items carry data-close-more (More-drawer items)',
-    closeMoreCount === 28,
-    'expected 28 data-close-more flags; got ' + closeMoreCount);
+  assert('29 mobileNav items carry data-close-more (More-drawer items)',
+    closeMoreCount === 29,
+    'expected 29 data-close-more flags; got ' + closeMoreCount);
 
   // C.4 finale: every mobileNav handler is delegated (no inline onclicks).
   const remaining = (dash.match(/onclick="mobileNav\(/g) || []).length;
