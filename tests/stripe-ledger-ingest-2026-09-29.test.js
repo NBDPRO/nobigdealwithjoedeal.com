@@ -139,6 +139,10 @@ const seedInvoices = [
       charge('ch_failed', 35000, cEmail, { status: 'failed', amount_captured: 0, failure_message: 'Your card was declined.' }),
       charge('ch_sub', 9900, cust('cus_sub', 'A Contractor', 'contractor@example.com'), { invoice: stripeInvoice('in_sub', 9900, null, { billing_reason: 'subscription_cycle', subscription: 'sub_1' }) }),
       charge('ch_link', 9900, cEmail, { payment_intent: { id: 'pi_ch_link', metadata: { invoiceId: 'INV_LINK' } } }),
+      // A Roof Care Plan membership charge (care-plan.js, 2026-10-05): a
+      // subscription invoice whose subscription_details carry the plan's tag.
+      charge('ch_care', 19900, cEmail, { invoice: stripeInvoice('in_care', 19900, null, { billing_reason: 'subscription_create', subscription: 'sub_care',
+        subscription_details: { metadata: { nbdProduct: 'roof_care_plan', carePlanId: 'cp_1', leadId: 'L_EMAIL', companyId: 'OWNER' } } }) }),
     ],
     invoices: [
       stripeInvoice('in_oob', 60000, cOob, { amount_paid: 0, paid_out_of_band: true, charge: null, payment_intent: null, status_transitions: { paid_at: T0 + DAY } }),
@@ -191,6 +195,10 @@ const seedInvoices = [
       && !db._dump('invoices').some((i) => i.leadId === 'L_NAME'));
     ok('a declined card is recorded for the history, books $0, not in review', row('ch_failed').status === 'failed' && row('ch_failed').amountCents === 0 && row('ch_failed').needsReview === false);
     ok('subscription billing: recorded as platform revenue, never matched', row('ch_sub').kind === 'platform_subscription' && !row('ch_sub').match.leadId && row('ch_sub').needsReview === false);
+    ok('NBD Pro subscription billing is tagged nbd_pro', row('ch_sub').product === 'nbd_pro');
+    ok('a Roof Care Plan charge is tagged roof_care_plan (never NBD Pro revenue), names its member, books no job invoice, not in review',
+      row('ch_care').product === 'roof_care_plan' && row('ch_care').carePlan && row('ch_care').carePlan.leadId === 'L_EMAIL'
+      && row('ch_care').needsReview === false && !row('ch_care').match.invoiceId && !db._dump('invoices').some((i) => (i.stripeCreditKeys || []).includes('ch_care')));
     ok('another company\'s lead is never matched (tenant-scoped)', !db._dump('leads').find((l) => l.id === 'L_OTHER').stripeCustomerId);
   }
 
