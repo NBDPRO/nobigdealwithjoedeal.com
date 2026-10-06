@@ -275,6 +275,7 @@
     "viewer-callables.test.js",
     "state-store.test.js",
     "storm-geo.test.js",
+    "wind-gust-2026-10-06.test.js",
     "storm-briefing-tenant-scope-2026-10-05.test.js",
     "storm-outlook.test.js",
     "stripe-dispute-branches.test.js",
