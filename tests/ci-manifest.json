@@ -409,6 +409,7 @@
     "ky-insurance-contracts.test.js",
     "contract-cancel-forms.test.js",
     "ky-claims-wording-scan.test.js",
+    "oh-claims-wording-scan.test.js",
     "voice-intel-anthropic-key.test.js",
     "check-js-syntax.test.js",
     "bounded-live-listeners-2026-10-03.test.js",
