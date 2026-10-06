@@ -191,6 +191,38 @@ for (const f of fs.readdirSync(mediaDir)) {
   ok('the URL is escaped inside the attribute', /c\.jpg\?x=&quot;&gt;&lt;b&gt;/.test(grid) && !/x="><b>/.test(grid), grid);
   ok('no photos still renders the two empty placeholders', (win.NBDDocGen.renderPhotoGrid([], 2).match(/photo-zone">Photo/g) || []).length === 2);
 
+  // ── G. contract / proposal warranty block for a company other than NBD ──
+  console.log('G. warranty block (document-generator.js renderWarrantyBadge)');
+  // Another real-CRM bug the sample account surfaced: the Warranty Coverage
+  // block printed "Lifetime Workmanship" for EVERY company, and on
+  // customer.html (no estimate-config.js) its sentence fell back to NBD's
+  // "Lifetime workmanship warranty." too, ignoring the company's own rules
+  // (tenant-rules.js) that the rest of the paperwork already follows.
+  function docgenEnv(prof, withConfig) {
+    const w = { _companyProfile: prof, _userClaims: { companyId: prof === null ? 'x' : UID }, _user: { uid: UID }, _brand: () => ({ legalName: 'X', colors: {}, contact: {} }) };
+    w.window = w;
+    const c = { window: w, document: sb.document, console: sb.console, setTimeout, clearTimeout, Date, Math, JSON, Intl };
+    vm.createContext(c);
+    const files = (withConfig ? ['estimate-config.js'] : []).concat(['tenant-rules.js', 'document-generator.js']);
+    for (const f of files) vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), c, { filename: f });
+    return w;
+  }
+  const plain = (h) => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const withConfig of [false, true]) {
+    const where = withConfig ? 'dashboard (estimate-config loaded)' : 'customer.html (no estimate-config)';
+    const w = docgenEnv(profile, withConfig);
+    const b = plain(w.NBDDocGen.renderWarrantyBadge('better'));
+    ok(where + ': the sample company\'s contract promises no lifetime workmanship', !/lifetime/i.test(b), b);
+    ok(where + ': it prints the company\'s own warranty sentence (System Plus) and package name', /System Plus/.test(b) && /Preferred/.test(b), b);
+    const e = plain(w.NBDDocGen.renderWarrantyBadge('economy'));
+    ok(where + ': no NBD "1-year labor" Economy term for a company that never set one either', !/lifetime|1-Year Workmanship/i.test(e), e);
+  }
+  // NBD itself: byte-identical to before (the platform tenant keeps its ladder).
+  const nbdProfile = { brand: { legalName: 'No Big Deal Home Solutions' } };
+  const wNbd = (() => { const w = docgenEnv(nbdProfile, true); w._userClaims = { companyId: w.NBDTenantRules.OWNER_UID }; return w; })();
+  const nbdB = plain(wNbd.NBDDocGen.renderWarrantyBadge('better'));
+  ok('control: NBD\'s own contract still prints its Lifetime Workmanship ladder', /Preferred: Lifetime Workmanship \+ Enhanced Manufacturer/.test(nbdB) && /Lifetime workmanship warranty/.test(nbdB), nbdB);
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

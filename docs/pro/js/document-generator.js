@@ -2339,20 +2339,42 @@ window.NBDDocGen = {
    */
   renderWarrantyBadge(tier = 'better') {
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
+    // A company other than NBD (tenant-rules.js, 2026-10-04) never prints
+    // NBD's lifetime / 1-year-labor ladder: its own package name and its own
+    // warranty sentence (or the neutral one), and a plain "Workmanship"
+    // headline. Before 2026-10-06 the headline said "Lifetime Workmanship"
+    // for every company, and on customer.html (no estimate-config.js) the
+    // sentence fell back to NBD's too. NBD: tenant is false, output unchanged.
+    const TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    const tenant = !!(TR && typeof TR.isPlatformTenant === 'function' && TR.isPlatformTenant() === false);
+    const own = (fn) => (tenant && typeof TR[fn] === 'function') ? TR[fn](tier) : null;
     const label = (cfg && typeof cfg.tierLabel === 'function')
       ? cfg.tierLabel(tier)
-      : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[tier] || tier;
+      : (own('labelOverride') || ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[tier] || tier);
     const warrantyText = (cfg && typeof cfg.tierWarrantyText === 'function')
       ? cfg.tierWarrantyText(tier)
-      : (tier === 'economy'
+      : (own('warrantyTextOverride') || (tier === 'economy'
         ? '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.'
-        : 'Lifetime workmanship warranty.');
+        : 'Lifetime workmanship warranty.'));
     const mfg = this.MANUFACTURER_COVERAGE[tier] || this.MANUFACTURER_COVERAGE.better;
-    // Economy's workmanship is 1 year, not lifetime (2026-10-02).
-    const yrs = tier === 'economy'
+    // Economy's workmanship is 1 year, not lifetime (2026-10-02) — NBD's term.
+    const yrs = (!tenant && tier === 'economy')
       ? ((cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY.economy && cfg.TIER_DISPLAY.economy.warranty.workmanshipYears) || 1)
       : 0;
-    const work = yrs ? (yrs + '-Year Workmanship') : 'Lifetime Workmanship';
+    const work = yrs ? (yrs + '-Year Workmanship') : (tenant ? 'Workmanship' : 'Lifetime Workmanship');
+    if (tenant) {
+      // A company's own words: escaped (NBD's built-in strings stay byte-identical below).
+      const e = (s) => this._escHtml(s);
+      return `
+      <div class="warranty-badge">
+        ${e(label)}: ${work} + ${mfg.level} Manufacturer
+      </div>
+      <div class="warranty-details">
+        <div><strong>${work} Warranty + ${mfg.level} Manufacturer Warranty</strong></div>
+        <div style="margin-top: 0.08in;">${e(warrantyText)} ${e(mfg.note)}</div>
+      </div>
+    `;
+    }
 
     return `
       <div class="warranty-badge">
