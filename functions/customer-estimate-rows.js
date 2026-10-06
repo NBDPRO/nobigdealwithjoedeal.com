@@ -22,6 +22,9 @@
  *     as one summary line; the server quote suppresses lines the same way)
  *   - V2 docs with an O&P ladder get an 'Overhead & Profit (N%)' row appended
  *     so the printed lines foot to the subtotal, matching the signed scope.
+ *   - then the sales tax row and the Rounding / Minimum job charge
+ *     adjustment row (footingRows, 2026-10-06), so the lines foot to the
+ *     PRICE — the e-sign contract and the estimate link print no other tax.
  *
  * Pure + dependency-free: unit-tested in tests/customer-estimate-rows.test.js.
  */
@@ -98,7 +101,46 @@
         total: round2(ohp)
       });
     }
+    if (rows.length) footingRows(est).forEach(function (r) { rows.push(r); });
     return rows;
+  }
+
+  /**
+   * The rows that take a saved estimate's lines from its subtotal to its
+   * price (review R2-2-2, 2026-10-06): a "Sales tax (r%)" row, then the
+   * difference the quote bakes in — nearest-$25 rounding or the job-minimum
+   * lift — as "Rounding" / "Minimum job charge adjustment". Same rule, same
+   * cents and same label as the invoice's adjustment line
+   * (invoiceTotalsFromEstimate, #2200) and the estimate preview, so the
+   * contract and the estimate link foot to the price they print.
+   *
+   * Only when the estimate saved a subtotal and a price: without a saved
+   * subtotal there is no way to tell what the lines already include, so
+   * nothing is added (the old behaviour).
+   */
+  function footingRows(est) {
+    const grand = estimateValue(est);
+    const sub = Number(est && est.subtotal);
+    if (!(Number.isFinite(grand) && grand > 0) || est.subtotal == null || !Number.isFinite(sub)) return [];
+    const taxRaw = Number(est.taxAmount != null ? est.taxAmount : est.tax);
+    const taxCents = Number.isFinite(taxRaw) ? Math.round(taxRaw * 100) : 0;
+    const out = [];
+    if (taxCents !== 0) {
+      const rate = Number(est.taxRate);
+      const pct = (Number.isFinite(rate) && rate > 0) ? String(Math.round(rate * 100000) / 1000) + '%' : '';
+      out.push({ code: 'TAX', desc: 'Sales tax' + (pct ? ' (' + pct + ')' : ''), qty: '', rate: '', total: taxCents / 100 });
+    }
+    const adjCents = Math.round(grand * 100) - Math.round(sub * 100) - taxCents;
+    if (adjCents !== 0) {
+      out.push({
+        code: 'ADJ',
+        desc: (est.minJobApplied && adjCents > 0) ? 'Minimum job charge adjustment' : 'Rounding',
+        qty: '',
+        rate: '',
+        total: adjCents / 100
+      });
+    }
+    return out;
   }
 
   /**
@@ -155,10 +197,14 @@
         amount: total,
       };
     }
+    function footShape(r) {
+      return shape({ code: r.code, desc: r.desc, unit: 'ea', qty: 1, rate: r.total, total: r.total });
+    }
 
     // Classic estimates already carry the customer-facing ladder.
     if (Array.isArray(est.lineItems) && est.lineItems.length) {
-      return est.lineItems.map(function (it) {
+      const lines = est.lineItems.map(function (it) {
+        if (it && (it.code === 'TAX' || it.code === 'ADJ')) return null; // a footing row saved back from pre-flight
         const qty = numFrom(it.quantity != null ? it.quantity : it.qty);
         const amt = numFrom(it.amount != null ? it.amount : it.total);
         const rate = numFrom(it.unitPrice != null ? it.unitPrice : it.rate);
@@ -168,7 +214,8 @@
           code: it.code, desc: it.description || it.name, unit: it.unit,
           qty: q, rate: Number.isFinite(rate) ? rate : null, total: t,
         });
-      });
+      }).filter(Boolean);
+      return lines.length ? lines.concat(footingRows(est).map(footShape)) : lines;
     }
 
     // Per-SQ: the customer price is the locked selected-tier total.
