@@ -11,6 +11,7 @@
   ],
   "node": [
     "google-signin-popup.test.js",
+    "ci-concurrency.test.js",
     "crm-logo-legibility-2026-09-16.test.js",
     "portal-timeline-docs-balance-2026-09-16.test.js",
     "portal-photo-self-announce-2026-09-16.test.js",
@@ -56,7 +57,9 @@
     "lead-deep-link-2026-09-28.test.js",
     "deal-room-sibling-links-2026-09-28.test.js",
     "deal-room-views-2026-10-02.test.js",
+    "thursday-video-card-2026-10-05.test.js",
     "estimate-send-track-2026-10-03.test.js",
+    "tenant-ownership-checks-2026-10-05.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
     "customer-photo-fetch-unification-2026-09-17.test.js",
@@ -275,6 +278,7 @@
     "stripe-dispute-branches.test.js",
     "swdi-hail.test.js",
     "tcpa-consent.test.js",
+    "sms-consent-a2p-2026-10-05.test.js",
     "account-erasure-billing.test.js",
     "legal-disclosures-2026-10-03.test.js",
     "tenant-brand.test.js",
@@ -399,6 +403,7 @@
     "pipeline-cards-visual-2026-10-05.test.js",
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
+    "care-plan-crm-2026-10-05.test.js",
     "deposit-credit-ledger-mirror-2026-10-05.test.js"
   ],
   "smoke": {
