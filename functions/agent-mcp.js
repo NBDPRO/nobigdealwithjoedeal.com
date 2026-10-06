@@ -147,7 +147,12 @@ async function runTool(name, args, key) {
   const today = L.dayInZone(Date.now(), tz);
   if (name === 'crm_summary') return L.toolText(Object.assign(L.summary(await companyLeads(company), today), { today, timezone: tz }));
   if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit) });
-  if (name === 'list_leads') return L.toolText({ customers: L.listLeads(await companyLeads(company), args, Date.now()) });
+  if (name === 'list_leads') {
+    // Paged (2026-10-06): customers + total + next_cursor; the cursor is
+    // bound to THIS key's company and filters, so a cursor from elsewhere is refused.
+    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company);
+    return page.error ? L.toolErr(page.error) : L.toolText(page);
+  }
 
   if (name === 'lead_detail') {
     const leads = await companyLeads(company);
