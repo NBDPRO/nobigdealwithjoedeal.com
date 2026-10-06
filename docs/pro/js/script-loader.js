@@ -305,7 +305,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=8',
+      'js/photo-engine.js?v=9',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
@@ -315,8 +315,8 @@
       // existing dedupe trap this file documents elsewhere: ScriptLoader
       // dedupes on resolved path, so an eager tag for either file would make
       // loadBundle('photos') a no-op for it and nothing would load lazily.
-      'js/photo-queue-store.js?v=3',
-      'js/photo-queue-recovery.js?v=2',
+      'js/photo-queue-store.js?v=4',
+      'js/photo-queue-recovery.js?v=3',
       // KY claim-wording filter (2026-10-04) — BEFORE the two report
       // builders, which run every caption / report string through it.
       'js/claim-wording-filter.js?v=1',
@@ -333,8 +333,8 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=14',
-      'js/d2d-tracker-ui-2026b.js?v=8',
+      'js/d2d-tracker-core-2026b.js?v=15',
+      'js/d2d-tracker-ui-2026b.js?v=9',
       'js/d2d-tracker-2026b.js?v=3'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf

@@ -2040,9 +2040,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // second one's status check above will catch it on the next
       // call attempt. For tighter guarantees we'd use a transaction;
       // this lock is sufficient for the iPhone/desktop double-tap case.
-      // BOUND THE ACQUIRE. This app runs Firestore with NO local persistence
-      // (nbd-auth.js's initializeFirestore has no localCache), so offline a
-      // write does not reject — it never settles until the connection returns.
+      // BOUND THE ACQUIRE. Offline a Firestore write does not reject — it
+      // never settles until the server acknowledges it. (Written when the app
+      // ran with no local cache; since 2026-10-04 nbd-auth.js uses a
+      // persistent one, which keeps the queued write across an app kill but
+      // does not change this: the promise still waits for the server.)
       // An unconditional await here therefore parked the whole function before
       // it ever reached NBDComms.sendSMS, making the offline queue unreachable
       // in exactly the state it exists for: the rep saw "Sending invoice via

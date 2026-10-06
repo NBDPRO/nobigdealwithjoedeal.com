@@ -41,7 +41,7 @@
     row.className = 'author-credentials';
     row.innerHTML =
       '<span class="author-cred">GAF Certified&trade; Contractor</span>'+
-      '<span class="author-cred">Licensed &amp; Insured in Ohio</span>'+
+      '<span class="author-cred">Fully Insured</span>'+
       '<span class="author-cred">Goshen / Greater Cincinnati</span>';
     info.appendChild(row);
   }
