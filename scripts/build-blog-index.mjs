@@ -87,7 +87,7 @@ const schema = {
       '@id': `${ORIGIN}/blog#blog`,
       name: 'The No Big Deal Blog',
       url: `${ORIGIN}/blog`,
-      description: 'Straight-talk roofing, siding, and insurance-claim advice for Cincinnati-area homeowners from Joe Deal — 7 years in insurance restoration, no fluff.',
+      description: 'Straight-talk roofing, siding, and insurance-claim advice for Cincinnati-area homeowners from Joe Deal — 7+ years in insurance restoration, no fluff.',
       // The business and Joe are defined ONCE, in the schema-entity partial
       // (site-src/partials/schema-entity.html) stamped into this page's <head>;
       // everything here references them by @id. An inline copy is a second,

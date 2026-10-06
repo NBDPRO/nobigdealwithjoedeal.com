@@ -1776,9 +1776,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // second one's status check above will catch it on the next
       // call attempt. For tighter guarantees we'd use a transaction;
       // this lock is sufficient for the iPhone/desktop double-tap case.
-      // BOUND THE ACQUIRE. This app runs Firestore with NO local persistence
-      // (nbd-auth.js's initializeFirestore has no localCache), so offline a
-      // write does not reject — it never settles until the connection returns.
+      // BOUND THE ACQUIRE. Offline a Firestore write does not reject — it
+      // never settles until the server acknowledges it. (Written when the app
+      // ran with no local cache; since 2026-10-04 nbd-auth.js uses a
+      // persistent one, which keeps the queued write across an app kill but
+      // does not change this: the promise still waits for the server.)
       // An unconditional await here therefore parked the whole function before
       // it ever reached NBDComms.sendSMS, making the offline queue unreachable
       // in exactly the state it exists for: the rep saw "Sending invoice via
@@ -1975,11 +1977,6 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
     try {
       const invRef = window.doc(db, 'invoices', invoiceId);
-      const invSnap = await window.getDoc(invRef);
-
-      if (!invSnap.exists()) throw new Error('Invoice not found');
-
-      const invoice = invSnap.data();
       // Append-only cash ledger: each credit keeps its own date so Money +
       // Analytics can attribute multi-payment invoices by receipt period
       // (deposit in May ≠ balance payoff in July). `at` is the day the money
@@ -1999,14 +1996,49 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           || (window._user && window._user.uid) || '',
         recordedAt: new Date(),
       });
+      // The entry (and its paymentId) is built ONCE, outside the write, so a
+      // transaction retry re-applies the very same payment.
+      //
+      // Read + append + write as ONE step (2026-10-05). This was getDoc then
+      // updateDoc of the whole payments[] / amountPaid / status: a card
+      // payment the Stripe webhook credited between the two (its own
+      // transaction, functions/stripe.js) was overwritten by this page's stale
+      // copy — the card money vanished from the invoice, the webhook's retry
+      // was idempotent-skipped (paidIntentIds), and the homeowner got chased
+      // for money already paid. Inside runTransaction the read is re-done if
+      // anything else wrote the invoice first, so both payments survive.
       // Cumulative paid ledger in cents (applyPaymentToInvoice): balanceDue =
       // total − amountPaid, so multiple partial payments accumulate correctly.
-      const { patch, newBalanceDue } = applyPaymentToInvoice(invoice, entry);
-
-      // Update invoice. lastPaymentAt is stamped on EVERY payment (incl.
-      // partial deposits) so the money dashboard attributes collected cash to
-      // the year it was received; paidAt only fires on full payoff.
-      await window.updateDoc(invRef, Object.assign({}, patch, { updatedAt: entry.recordedAt }));
+      // lastPaymentAt is stamped on EVERY payment (incl. partial deposits) so
+      // the money dashboard attributes collected cash to the year it was
+      // received; paidAt only fires on full payoff.
+      const decide = (snap) => {
+        if (!snap.exists()) throw new Error('Invoice not found');
+        const cur = snap.data() || {};
+        // Same paymentId already on the invoice (a retried call whose first
+        // write landed): a no-op, never a second credit.
+        const dup = Array.isArray(cur.payments)
+          && cur.payments.some((p) => p && p.paymentId === entry.paymentId);
+        if (dup) return { invoice: cur, duplicate: true };
+        const applied = applyPaymentToInvoice(cur, entry);
+        return { invoice: cur, patch: Object.assign({}, applied.patch, { updatedAt: entry.recordedAt }), newBalanceDue: applied.newBalanceDue };
+      };
+      let result;
+      if (typeof window.runTransaction === 'function') {
+        result = await window.runTransaction(db, async (tx) => {
+          const r = decide(await tx.get(invRef));
+          if (r.patch) tx.update(invRef, r.patch);
+          return r;
+        });
+      } else {
+        // A page without runTransaction (none of the CRM pages today — both
+        // bootstraps expose it): the old read-then-write.
+        result = decide(await window.getDoc(invRef));
+        if (result.patch) await window.updateDoc(invRef, result.patch);
+      }
+      const invoice = result.invoice;
+      if (result.duplicate) return;
+      const newBalanceDue = result.newBalanceDue;
 
       // One timeline line per payment (nbd:payment-timeline). The server's
       // invoice trigger writes the SAME doc id for every payment path, so
