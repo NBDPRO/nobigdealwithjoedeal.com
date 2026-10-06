@@ -245,6 +245,7 @@
     "my-skin-2026-10-01.test.js",
     "ui-primitives-2026-10-01.test.js",
     "ui-foundation-2026-10-05.test.js",
+    "money-font-2026-10-05.test.js",
     "inline-style-ratchet-2026-10-01.test.js",
     "voicemail-error-visible-2026-10-03.test.js",
     "game-xp-2026-10-03.test.js",
@@ -277,6 +278,7 @@
     "viewer-callables.test.js",
     "state-store.test.js",
     "storm-geo.test.js",
+    "wind-gust-2026-10-06.test.js",
     "storm-briefing-tenant-scope-2026-10-05.test.js",
     "storm-outlook.test.js",
     "stripe-dispute-branches.test.js",
@@ -293,6 +295,7 @@
     "thumbtack-webhook.test.js",
     "thursday-logic.test.js",
     "thursday-ui-wiring.test.js",
+    "home-welcome-video-2026-10-05.test.js",
     "turnstile-contract.test.js",
     "webhook-signatures.test.js",
     "booking-events-tenancy.test.js",
@@ -931,7 +934,7 @@
       "Job templates: vm-loads the three real job-templates modules."
     ],
     "crm-loop-complete.test.js": [
-      "2026-07-19 CRM-loop sweep certification (intro-video data-yt guard,",
+      "2026-07-19 CRM-loop sweep certification (homepage intro-video slot guard,",
       "estimate-email kill switch). Its git branch-report section is",
       "try/catch-wrapped and degrades harmlessly under fetch-depth:1."
     ],
