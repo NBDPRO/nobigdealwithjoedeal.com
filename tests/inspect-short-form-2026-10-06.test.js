@@ -48,7 +48,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('visible inputs are exactly name, address, phone, consent (+ hidden UTMs + honeypot)',
       JSON.stringify(ids.filter((i) => !/^utm_/.test(i) && i !== 'f-nbd-hp')) === JSON.stringify(['f-name', 'f-address', 'f-phone', 'ins-consent']), ids);
     ok('name, address and phone stay required', ['f-name', 'f-address', 'f-phone'].every((id) => new RegExp('id="' + id + '"[^>]*required').test(FORM)));
-    ok('the intake block on the form is the scheduling choice only', /<div data-nbd-intake="ins" data-extras="false"><\/div>/.test(FORM));
+    ok('the intake block on the form is the scheduling choice only', /<div data-nbd-intake="ins" data-extras="false" data-cal-hint="Pick your time on the next screen\."><\/div>/.test(FORM));
     ok('no email / story / referral / photo field on the form', !/f-email|f-story|f-referral|Photos/.test(FORM.replace(/<!--[\s\S]*?-->/g, '')));
     ok('the consent sentence is byte-for-byte the live one (#2225 owns its change)', FORM.includes('<label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>'));
     ok('the box is not pre-checked', !/id="ins-consent"[^>]*checked/.test(FORM));
@@ -57,7 +57,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('the default thank-you headline is the same-day one (no "within 24 hours" there)', /<h3 id="insThanksTitle">Joe will reach out, usually the same day<\/h3>/.test(SUCCESS) && !/24 hours|within the hour/.test(SUCCESS));
     ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
     ok('no inline handlers', !/\son[a-z]+=/i.test(FORM + SUCCESS));
-    ok('cache-busters bumped', /intake-extras\.js\?v=3/.test(HTML) && /inspect-form\.js\?v=4/.test(HTML));
+    ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=4/.test(HTML));
   }
 
   console.log('\n2. intake-extras: the block splits in two, the popup is opt-out');
@@ -78,6 +78,11 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('extras:false → the scheduling choice and nothing else', /insScheduling/.test(form) && /value="calendar"/.test(form) && !/Photos|BestTime|Insurance|HowHeard/.test(form));
     ok('sched:false → photos, best time, insurance, how heard and no scheduling radios', !/Scheduling/.test(thanks) && /insXPhotos/.test(thanks) && /insXBestTime/.test(thanks) && /insXInsurance/.test(thanks) && /insXHowHeard/.test(thanks));
     ok('every other page still gets the whole block (default unchanged)', /hpScheduling/.test(full) && /hpPhotos/.test(full) && /hpBestTime/.test(full));
+    ok('/inspect only: calHint rewords the calendar helper (escaped); the default stays for the other forms',
+      /Pick your time on the next screen\./.test(NBD.html('ins', { extras: false, calHint: 'Pick your time on the next screen.' }))
+      && /&lt;b&gt;/.test(NBD.html('z', { calHint: '<b>' }))
+      && /The calendar opens right after you send this\./.test(full) && !/next screen/.test(full));
+    ok('the static mount honours data-cal-hint', /if \(el\.hasAttribute\('data-cal-hint'\)\) opts\.calHint = el\.getAttribute\('data-cal-hint'\);/.test(IE));
     ok('the static mount honours data-extras="false"', /if \(el\.getAttribute\('data-extras'\) === 'false'\) opts\.extras = false;/.test(IE));
 
     let box = mk();
