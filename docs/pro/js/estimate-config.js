@@ -58,9 +58,9 @@
     // public site keeps three tiers whose prices follow these.
     TIER_RATES: Object.freeze({
       economy: 440,  // Jo's choice of economy-grade architectural (never 3-tab); 1-yr labor
-      good:    550,  // Standard system + standard accessories
-      better:  660,  // Upgraded materials + system warranty
-      best:    770,  // Impact-rated + workmanship warranty package
+      good:    550,  // Standard system + standard accessories; GAF System Plus included
+      better:  660,  // Upgraded materials; GAF System Plus included
+      best:    770,  // Impact-rated; GAF System Plus included + annual inspection
       beyond:  880   // TAMKO HailGuard ONLY (the one shingle with a hail warranty)
     }),
 
@@ -237,6 +237,13 @@
     // schemas), but every CUSTOMER-FACING surface renders the tier through
     // TIER_DISPLAY instead of hardcoding its own label/warranty text.
     // Rep-facing/internal tool UI may keep saying Good/Better/Best.
+    // The ONE customer-facing phrase for the GAF System Plus inclusion
+    // (Standard/Preferred/Elite — TIER_DISPLAY[tier].warranty.systemPlus).
+    // GAF's own framing: a manufacturer warranty on the GAF shingles and
+    // qualifying GAF accessories. No year counts here — GAF sets and changes
+    // them, and the registered certificate is the homeowner's record.
+    SYSTEM_PLUS_TEXT: 'GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply)',
+
     TIER_DISPLAY: Object.freeze({
       // Economy (Jo, 2026-10-02): "only one year labor warranty, and then
       // just the limited warranty from the shingle package itself — no
@@ -245,20 +252,28 @@
         label: 'Economy',
         warranty: Object.freeze({ workmanshipYears: 1, systemWarranty: false, transferable: false, transferWindowDays: 0, inspection: false })
       }),
+      // systemPlus (Jo, 2026-10-05: "System Plus is Standard and up"): the
+      // GAF System Plus Limited Warranty is INCLUDED in Standard, Preferred
+      // and Elite — built into the tier price, never a separate line. It is
+      // GAF's manufacturer (materials) warranty on the GAF shingles and
+      // qualifying GAF accessories, NOT a workmanship warranty (GAF's
+      // workmanship coverage is Golden Pledge, Master Elite only). Economy
+      // keeps the maker's standard limited warranty; Beyond is TAMKO HailGuard.
       good: Object.freeze({
         label: 'Standard',
-        warranty: Object.freeze({ transferable: false, transferWindowDays: 0, inspection: false })
+        warranty: Object.freeze({ transferable: false, transferWindowDays: 0, inspection: false, systemPlus: true })
       }),
       better: Object.freeze({
         label: 'Preferred',
-        warranty: Object.freeze({ transferable: true, transferWindowDays: 30, inspection: false })
+        warranty: Object.freeze({ transferable: true, transferWindowDays: 30, inspection: false, systemPlus: true })
       }),
       best: Object.freeze({
         label: 'Elite',
-        warranty: Object.freeze({ transferable: true, transferWindowDays: 0, inspection: true })
+        warranty: Object.freeze({ transferable: true, transferWindowDays: 0, inspection: true, systemPlus: true })
       }),
       // Beyond: Elite's workmanship terms, on TAMKO HailGuard — the only
-      // shingle with a manufacturer hail warranty.
+      // shingle with a manufacturer hail warranty. No GAF System Plus (not a
+      // GAF roof).
       beyond: Object.freeze({
         label: 'Beyond',
         warranty: Object.freeze({ transferable: true, transferWindowDays: 0, inspection: true, hailWarranty: true })
@@ -306,6 +321,7 @@
         parts.push('fully transferable — follows the property through all subsequent owners');
       }
       if (w.inspection) parts.push('annual courtesy inspection included');
+      if (w.systemPlus) parts.push(CFG.SYSTEM_PLUS_TEXT);
       if (w.hailWarranty) parts.push('plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply)');
       return parts.join('; ') + '.';
     },
@@ -322,9 +338,10 @@
       var w = t.warranty;
       if (w.workmanshipYears) return w.workmanshipYears + '-year labor warranty';
       if (w.hailWarranty) return 'Fully transferable + annual inspection + hail warranty';
-      if (!w.transferable) return 'Non-transferable';
-      if (w.transferWindowDays) return 'Transferable to 1 subsequent owner';
-      return w.inspection ? 'Fully transferable + annual inspection' : 'Fully transferable';
+      var sp = w.systemPlus ? ' + GAF System Plus' : '';
+      if (!w.transferable) return 'Non-transferable' + sp;
+      if (w.transferWindowDays) return 'Transferable to 1 subsequent owner' + sp;
+      return (w.inspection ? 'Fully transferable + annual inspection' : 'Fully transferable') + sp;
     },
 
     // ── Workmanship warranty by JOB TYPE (2026-09-25, Jo-confirmed) ──

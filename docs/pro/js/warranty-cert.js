@@ -30,6 +30,19 @@ function _wcTierFlags(tier) {
   };
 }
 
+// GAF System Plus (Jo, 2026-10-05: "System Plus is Standard and up"). It is
+// INCLUDED in the Standard / Preferred / Elite tiers — GAF's manufacturer
+// (materials) warranty on the GAF shingles + qualifying GAF accessories, not a
+// workmanship warranty. Named only on NBD's certificates (NBD's GAF
+// certification), only on a GAF roof, never on Economy or Beyond.
+var WC_SYSTEM_PLUS_FEATURE = 'GAF System Plus Limited Warranty — GAF’s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply)';
+function _wcSystemPlus(tier, isNbd, work) {
+  if (!isNbd || ['standard', 'preferred', 'elite'].indexOf(tier) === -1) return false;
+  var R = window.NBDDocGen && window.NBDDocGen.resolveDocManufacturer;
+  var mfg = R ? R([{ name: work || '' }]).manufacturer : 'GAF';
+  return mfg === 'GAF';
+}
+
 // Step 17: track the lead id that opened the wizard so the generator
 // can persist the warranty payload back onto the lead doc. Previously
 // the PDF was one-shot — generated, downloaded, gone. Now the same
@@ -177,7 +190,8 @@ async function generateWarrantyCertPDF() {
   const termFeature = isEconomy ? '1-year labor warranty from the installation date' : (pledgeName + ' — no expiration');
   const mfgFeature = isEconomy
     ? 'Shingle manufacturer’s standard limited warranty (no system warranty)'
-    : (isBeyond ? 'TAMKO HailGuard hail warranty on the shingles (manufacturer terms apply)' : 'GAF Timberline lifetime manufacturer shingle warranty');
+    : (isBeyond ? 'TAMKO HailGuard hail warranty on the shingles (manufacturer terms apply)'
+      : (_wcSystemPlus(tier, isNbd, work) ? WC_SYSTEM_PLUS_FEATURE : 'GAF Timberline lifetime manufacturer shingle warranty'));
   const mfgName = isBeyond ? 'TAMKO' : (isEconomy ? 'shingle' : 'GAF');
   const sealWord = isEconomy ? '1-Year<br>Labor<br>Warranty' : 'Lifetime<br>Guarantee';
 
@@ -460,7 +474,7 @@ async function _tryServerRender(payload) {
       manufacturer:                payload.isBeyond ? 'TAMKO' : _wMfg.manufacturer,
       manufacturerWarrantyFeature: (payload.isBeyond && !/HAIL/i.test(_wMfg.manufacturerWarrantyFeature || ''))
         ? 'TAMKO HailGuard hail warranty on the shingles (manufacturer terms apply)'
-        : _wMfg.manufacturerWarrantyFeature,
+        : (_wcSystemPlus(payload.tier, isNbd, payload.work) ? WC_SYSTEM_PLUS_FEATURE : _wMfg.manufacturerWarrantyFeature),
       // D-2.5 cover fields
       preparedFor,
       preparedBy,
