@@ -439,6 +439,9 @@ const VERDICTS = {
   // Roof Care Plan (care-plan.js): the CRM actions are owner / NBD company_admin
   // only; the checkout + portal endpoint and the Stripe webhook are public.
   carePlanAdmin: 'role-gated', carePlanPublic: 'public', carePlanWebhook: 'public',
+  // NBD's Twilio line (twilio-line.js, 2026-10-06): Twilio webhooks — no user
+  // auth, X-Twilio-Signature verified instead (like incomingSMS).
+  twilioSmsWebhook: 'public', twilioSmsStatus: 'public', twilioVoiceWebhook: 'public', twilioVoiceDialStatus: 'public',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
   // Social Studio (2026-10-04): requireSocialManager refuses viewer / rep / manager.
