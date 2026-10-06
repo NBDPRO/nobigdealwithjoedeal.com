@@ -253,7 +253,7 @@ function packetComplete(html) {
       _files: m,
     };
   }
-  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', 'crypto'];
+  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', 'crypto'];
   function loadFn(rel, db, storage, extra) {
     const file = path.join(FN, rel);
     const dir = path.dirname(file);
@@ -291,7 +291,13 @@ function packetComplete(html) {
       send(b) { this.sent = b; return this; }, end() { return this; } };
     return { req: Object.assign({ method: 'POST', body, get: () => 'Mozilla/5.0 (iPhone)', path: '' }, extra || {}), res };
   }
-  const signIt = (html) => html.replace(/data-nbd-sig="homeowner"/, 'data-nbd-sig="homeowner" data-nbd-sig-finalized="1"');
+  // What the widget does: canvas -> a PNG <img>, block stamped finalized. The
+  // record is rebuilt from the original + that PNG (2026-10-05), so a
+  // finalized block with no real PNG in it is refused.
+  const SIG_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const signIt = (html) => html
+    .replace(/<canvas\b[^>]*>\s*<\/canvas>/, '<img src="' + SIG_PNG + '" class="nbd-sig-img">')
+    .replace(/data-nbd-sig="homeowner"/, 'data-nbd-sig="homeowner" data-nbd-sig-finalized="1"');
 
   // ════════════════════════════════════════════════════════════════════
   section('C3. remote signing — createSignRequest / getSignDocument / submitSignature');
