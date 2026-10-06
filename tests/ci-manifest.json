@@ -428,6 +428,7 @@
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
+    "r4-silent-jobs-2026-10-06.test.js",
     "invoice-due-7-days-2026-10-05.test.js",
     "deposit-credit-ledger-mirror-2026-10-05.test.js",
     "r2-money-lines-jobvalue-2026-10-06.test.js",
