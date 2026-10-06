@@ -101,7 +101,9 @@
   function fmtMoney(n, showZero) {
     const v = Number(n) || 0;
     if (v === 0 && !showZero) return '—';
-    return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // −$51.40, never $-51.40 — the Roof Care Plan member line (2026-10-05)
+    // is a negative row on the customer's paper.
+    return (v < 0 ? '−' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   // Whole dollars print as they always did ("$7,464"); an amount with cents

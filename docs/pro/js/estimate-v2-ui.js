@@ -219,7 +219,13 @@
     // reopened from (_jobTypeFieldsOf) — null for every V2-built estimate.
     // Rides every estimate this builder renders or saves, so its paperwork
     // prints the JOB TYPE's workmanship warranty, not roofing's lifetime one.
-    jobType: null
+    jobType: null,
+    // Roof Care Plan (2026-10-05): what kind of work this estimate is —
+    // 'repair' | 'replacement' | null (not said). The member discount
+    // (care-plan-discount.js) applies only to 'repair'. Set by the repair /
+    // replacement presets, the V3 Repair-or-roof choice, Job Template
+    // inserts, and the rep's "This is repair work" button; saved and reopened.
+    workKind: null
   };
 
   // The per-estimate half of `state` as it stands at page load — what "a new
@@ -229,7 +235,7 @@
     mode: state.mode, tier: state.tier, jobMode: state.jobMode, county: state.county,
     measurements: state.measurements, scope: state.scope, photos: state.photos,
     customer: state.customer, claim: state.claim, passThru: state.passThru,
-    minJobCharge: state.minJobCharge, jobType: state.jobType,
+    minJobCharge: state.minJobCharge, jobType: state.jobType, workKind: state.workKind,
     upgrades: state.upgrades, upgradeLog: state.upgradeLog,
   });
 
@@ -1434,6 +1440,10 @@
           // setTierChoice so Phase-3 presentation tier cards share it.)
           if (arg) setTierChoice(arg);
           break;
+        case 'cp-work-kind':
+          // Roof Care Plan: the rep says what kind of work this is.
+          setWorkKind(arg);
+          break;
         case 'present':
           // Phase 3: homeowner-facing Good/Better/Best compare screen.
           openPresentation();
@@ -2406,6 +2416,8 @@
     // so a Shingle Patch quote shows the real cost instead of the
     // full-job crew-rollout minimum.
     state.minJobCharge = (preset.minJobCharge != null) ? preset.minJobCharge : null;
+    // The two repair presets are repair work; every other preset is a roof.
+    state.workKind = REPAIR_PRESET_KEYS.indexOf(presetKey) !== -1 ? 'repair' : 'replacement';
     (preset.codes || []).forEach(c => state.scope.push({ code: c, overrides: {} }));
     state._reopenedClean = false;   // 3B: loading a preset is an edit
     render();
@@ -2436,6 +2448,10 @@
       }
       if (opts.minJobCharge != null) state.minJobCharge = opts.minJobCharge;
     }
+    // Roof Care Plan: replacement work anywhere in the job makes it a
+    // replacement (no member discount); repair work marks an unmarked job.
+    if (opts.workKind === 'replacement') state.workKind = 'replacement';
+    else if (opts.workKind === 'repair' && (wasEmpty || !state.workKind)) state.workKind = 'repair';
     if (added || skipped) {
       state._reopenedClean = false;
       render();
@@ -2709,6 +2725,64 @@
     estimate.upgradeTaxCents = taxCents;
   }
 
+  // ── Roof Care Plan member discount (2026-10-05) ─────────────────────
+  // Repair work for a member: a visible "Roof Care Plan member — 10% off
+  // repairs" line (care-plan-discount.js). Never on a replacement (per-SQ
+  // pricing or a replacement preset/template) and never on an insurance claim.
+  const REPAIR_PRESET_KEYS = ['small-repair', 'shingle-patch'];
+  const _CPD = () => window.NBDCarePlanDiscount || null;
+  function _isMemberDiscountLine(line) {
+    const D = _CPD();
+    return !!(D && D.isDiscountLine(line));
+  }
+  function _memberDiscountDecision() {
+    const D = _CPD();
+    if (!D) return null;
+    return D.decide({
+      lead: _linkedLeadForDeposit(),
+      workKind: state.workKind,
+      jobMode: state.jobMode,
+      priceMode: _perSqOverlayApplies() ? 'per-sq' : 'line-item',
+    });
+  }
+  function _applyMemberDiscount(estimate) {
+    const D = _CPD();
+    const d = _memberDiscountDecision();
+    estimate.memberDiscountReason = d ? d.reason : null;   // read by renderScope, never persisted
+    if (D && d && d.applies) D.apply(estimate);
+  }
+  function setWorkKind(kind) {
+    const k = (kind === 'repair' || kind === 'replacement') ? kind : null;
+    if (state.workKind === k) return;
+    state.workKind = k;
+    state._reopenedClean = false;   // it changes the price — an edit
+    render();
+  }
+  function _fmtSignedTotal(n) {
+    const c = Math.round((Number(n) || 0) * 100);
+    return (c < 0 ? '−' : '') + _fmtTotal(Math.abs(c) / 100);
+  }
+  // A saved discount row keeps its tag and reads −$X.XX, not $-X.XX.
+  function _memberDiscountTagOf(line) {
+    if (!_isMemberDiscountLine(line)) return {};
+    const c = Math.round((Number(line.retailPerUnit) || 0) * 100);
+    return { source: 'care_plan_discount', rate: (c < 0 ? '−' : '') + '$' + (Math.abs(c) / 100).toFixed(2) };
+  }
+  // The note above the scope list on a member's estimate ('' otherwise).
+  function _memberDiscountHtml(estimate) {
+    const D = _CPD();
+    const reason = estimate && estimate.memberDiscountReason;
+    if (!D || !reason || reason === 'not_member') return '';
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    let btn = '';
+    if (reason === 'applied') btn = '<button type="button" class="ui-btn-quiet cp-note-btn" data-action="cp-work-kind" data-arg="replacement">Not repair work</button>';
+    else if (reason === 'not_repair' || (reason === 'replacement' && state.mode !== 'per-sq')) btn = '<button type="button" class="ui-btn-quiet cp-note-btn" data-action="cp-work-kind" data-arg="repair">This is repair work</button>';
+    const amt = reason === 'applied' && estimate.memberDiscount
+      ? ' <strong class="ui-money">' + esc('−' + _fmtTotal(estimate.memberDiscount.cents / 100)) + '</strong>' : '';
+    return '<div class="cp-note' + (reason === 'applied' ? ' is-on' : '') + '" role="status" data-cp-note="' + esc(reason) + '">' +
+      '<span class="cp-note-text">🛡 ' + esc(D.reasonText(reason)) + amt + '</span>' + btn + '</div>';
+  }
+
   function getCurrentEstimate() {
     const cat = window.NBD_XACT_CATALOG;
     if (!cat) return null;
@@ -2760,6 +2834,10 @@
     // _applyUpgradeLines must see the engine's own totals only (a Services
     // fee added after the floor would otherwise be pulled under it).
     _applyUpgradeLines(estimate, items.length);
+    // Roof Care Plan member — 10% off repairs (2026-10-05): on the job's own
+    // price (engine + upgrades), BEFORE pass-through fees, which are never
+    // discounted. care-plan-discount.js decides and does the math.
+    _applyMemberDiscount(estimate);
     // Read by renderScope / the Selected list (never persisted:
     // buildSavePayload names its fields).
     estimate.upgradesOffReason = _upgradesOffReason(items.length);
@@ -3476,7 +3554,7 @@
       ? { value: prevEditEl.value, focused: document.activeElement === prevEditEl }
       : null;
 
-    listDiv.innerHTML = _upgradesOffHtml(estimate.upgradesOffReason) + visibleLines.map(line => {
+    listDiv.innerHTML = _upgradesOffHtml(estimate.upgradesOffReason) + _memberDiscountHtml(estimate) + visibleLines.map(line => {
       const safeQty = fmtQty(line.quantity, line.unit);
       const overridden = !!line.qtyOverridden;
       // Per-line rep note (overrides.note) — annotation only, shown here
@@ -3492,6 +3570,14 @@
       // An upgrade row is a quoted, frozen price the homeowner picked: it can
       // be removed (with undo) but not re-quantified or annotated here.
       const isUpg = line.upgrade === true;
+      // The Roof Care Plan member line: shown, never edited or removed here
+      // (the note above the list says why it is on and how to change it).
+      if (_isMemberDiscountLine(line)) {
+        return '<div class="v2-scope-item cp-discount-row" data-code="' + escLocal(line.code) + '">' +
+          '<div class="total">' + escLocal(_fmtSignedTotal(line.retailTotal)) + '</div>' +
+          '<div class="name">' + escLocal(line.name || '') + '</div>' +
+          '<div class="qty">Roof Care Plan member price</div></div>';
+      }
       return `
         <div class="v2-scope-item${overridden ? ' overridden' : ''}${isUpg ? ' upgrade' : ''}" data-code="${escLocal(line.code)}">
           <div class="actions">
@@ -3584,6 +3670,7 @@
       // An edited Job Template estimate restored from this draft must still
       // print its job type's warranty, not roofing's (2026-09-25).
       jobType: state.jobType,
+      workKind: state.workKind,
       // …and still carry the homeowner's upgrades (stage 2, 2026-09-25).
       upgrades: state.upgrades,
       upgradeLog: state.upgradeLog,
@@ -4199,7 +4286,7 @@
         qtyOverride:         ((state.scope || []).find(s => s.code === line.code)?.overrides?.qty ?? null),
         // Per-line rep note — annotation printed under the line on documents.
         note:                ((state.scope || []).find(s => s.code === line.code)?.overrides?.note ?? null),
-        }, _upgradeTagsOf(line));
+        }, _upgradeTagsOf(line), _memberDiscountTagOf(line));
       }),
       // Totals — grandTotal is the canonical customer total: the selected
       // per-SQ tier price for per-SQ estimates, the scope total for line-item.
@@ -4245,7 +4332,12 @@
       // Internal margin view
       internal:         estimate.internal || null,
       // Timestamp handled by _saveEstimate (serverTimestamp)
-    }, _savedJobTypeFields(estimate), _savedUpgradeFields(estimate, state));
+    }, _savedJobTypeFields(estimate), _savedUpgradeFields(estimate, state), {
+      // Roof Care Plan (2026-10-05): the kind of work, and the member discount
+      // in cents when it is on this estimate (null = not applied).
+      workKind:       state.workKind || null,
+      memberDiscount: estimate.memberDiscount ? Object.assign({}, estimate.memberDiscount) : null,
+    });
   }
 
   // The estimate-level upgrade fields a re-save must carry (stage 2,
@@ -4455,6 +4547,10 @@
     // A Job Template estimate keeps its job type (and so its workmanship
     // warranty) through this builder; null for a V2/classic doc.
     state.jobType = _jobTypeFieldsOf(doc);
+    // Roof Care Plan: an estimate saved with the member discount was repair
+    // work; otherwise whatever it was saved as.
+    state.workKind = (doc.workKind === 'repair' || doc.workKind === 'replacement') ? doc.workKind
+      : (doc.memberDiscount ? 'repair' : null);
     if (doc.county) state.county = doc.county;
     // Fully reset measurements to defaults + the doc's saved values, so a field
     // a PREVIOUS reopen/session set (stories, accessLevel, chimney flags, …)
@@ -4503,7 +4599,7 @@
     // Only trusted when BOTH halves are finite: a partially-written legacy row
     // must fall through to the catalog rather than resolve at half its cost.
     state.scope = (doc.rows || [])
-      .filter((r) => r && r.code && !/^SVC /.test(r.code) && r.source !== 'passthru' && !_isUpgradeRow(r))
+      .filter((r) => r && r.code && !/^SVC /.test(r.code) && r.source !== 'passthru' && !_isUpgradeRow(r) && !_isMemberDiscountLine(r))
       .map((r) => ({
         code: r.code,
         savedCost: (Number.isFinite(Number(r.materialCostPerUnit))
@@ -4521,7 +4617,7 @@
     // them from the live re-resolve (getCurrentEstimate reads state.passThru)
     // and the next save loses the fee + understates grandTotal/deposit.
     state.passThru = (doc.rows || [])
-      .filter((r) => r && r.code && (/^SVC /.test(r.code) || r.source === 'passthru') && !_isUpgradeRow(r))
+      .filter((r) => r && r.code && (/^SVC /.test(r.code) || r.source === 'passthru') && !_isUpgradeRow(r) && !_isMemberDiscountLine(r))
       .map((r) => ({ code: r.code, desc: r.desc,
         amount: Number(r.total) || Number(r.unitPrice) || 0, source: r.source || 'passthru' }));
     // Upgrade rows (stage 2, 2026-09-25): kept whole, out of the catalog
@@ -5673,6 +5769,8 @@
     clearScope,
     loadPreset,
     addScopeEntries,
+    // Roof Care Plan (2026-10-05): V3's Repair-or-roof choice lands here.
+    setWorkKind,
     finalize,
     save,
     // 2026-10-03: the one homeowner flow (V3's Finish primary calls it too).

@@ -401,6 +401,7 @@
     "pipeline-cards-visual-2026-10-05.test.js",
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
+    "care-plan-crm-2026-10-05.test.js",
     "system-plus-standard-and-up-2026-10-05.test.js"
   ],
   "smoke": {
