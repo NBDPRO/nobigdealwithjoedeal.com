@@ -1209,6 +1209,10 @@ function openCardDetailModal(leadId) {
   if (!modal) return;
 
   window._cardDetailLeadId = leadId;
+  // The Storm Proof "Wind measured nearby" note belongs to the lead it was
+  // fetched for (storm-integration.js) — drop it when a different card opens.
+  const _stormWind = document.getElementById('cdStormWind');
+  if (_stormWind && _stormWind.getAttribute('data-lead-id') !== leadId) _stormWind.remove();
 
   // Populate modal
   document.getElementById('cardDetailName').textContent =

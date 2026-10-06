@@ -32,6 +32,8 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const GUST = require('./asos-gust-logic');
+const { gustForAddressDay } = require('./integrations/asos-gust');
 
 const PHONE_DISPLAY = '(859) 420-7382';
 const PHONE_TEL = 'tel:+18594207382';
@@ -60,8 +62,19 @@ function summaryLine(story) {
 
 // Branded HTML — orange header / navy footer, matching the other NBD emails.
 // First-person voice ("I'll …", "— Joe"), consistent with the marketing site.
-const EMAIL_HTML = ({ firstName, address, summary }) => {
+const EMAIL_HTML = ({ firstName, address, summary, gust }) => {
   const nearLine = address ? ` near ${esc(address)}` : '';
+  // "Wind measured nearby" (2026-10-06): one line for the biggest storm day,
+  // nearest station only, and only when that station has a reading. Escaped
+  // like every other interpolation; the context line (inspection / insurer)
+  // always rides directly under it.
+  const gustBlock = (gust && gust.line) ? `
+      <div class="callout">
+        <div style="font-weight:700; color:#1a3057;">Wind measured nearby</div>
+        <div style="margin-top:4px;">${esc(gust.line)}</div>
+        <div class="muted" style="margin-top:6px;">${esc(GUST.GUST_CONTEXT_LINE)}</div>
+        <div class="muted" style="margin-top:6px;">Wind gusts: ${esc(GUST.GUST_SOURCE_LINE)}</div>
+      </div>` : '';
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -95,7 +108,7 @@ const EMAIL_HTML = ({ firstName, address, summary }) => {
       <div class="callout">
         <div class="big">${esc(summary)}</div>
         <div class="muted" style="margin-top:6px;">Source: NWS Local Storm Reports (NOAA), last 5 years.</div>
-      </div>
+      </div>${gustBlock}
       <p>Storms like these are exactly what homeowners insurance is meant to cover. The catch: hail and wind damage usually isn't visible from the ground &mdash; but it's the first thing an adjuster looks for.</p>
       <p>The next step is simple, and it's free: I'll come out, get on the roof, and document any damage. You'll get my photos and a written repair estimate you can share with your insurer if you decide to file a claim.</p>
       <p style="text-align:center;">
@@ -116,6 +129,27 @@ const EMAIL_HTML = ({ firstName, address, summary }) => {
 </body>
 </html>`;
 };
+
+// The gust line for the biggest storm day near this lead, or null (= hide).
+// Reads the storm history stormReport already cached for the SAME point the
+// homeowner looked up (public_cache/storm_*, server-built — the email never
+// trusts a client-sent number), picks the top storm day, and asks the nearest
+// station for that day (station+date cache; only station + date go to IEM).
+// Fail-closed: no coordinates, no cached report, no reading, or any error → null.
+async function gustForLead(d, db) {
+  try {
+    const lat = Number(d && d.lat), lon = Number(d && d.lon);
+    if (d == null || d.lat == null || d.lon == null || !isFinite(lat) || !isFinite(lon)) return null;
+    const snap = await db.doc('public_cache/' + GUST.stormReportCacheKey(lat, lon)).get();
+    const events = snap && snap.exists && snap.data() && snap.data().data && snap.data().data.events;
+    const day = GUST.pickTopStormDays(events || [], 1)[0];
+    if (!day) return null;
+    return await gustForAddressDay(lat, lon, day, { db, logger });
+  } catch (e) {
+    logger.warn('stormReportEmail: gust line skipped', { err: e && e.message });
+    return null;
+  }
+}
 
 exports.stormReportEmail = onDocumentCreated(
   {
@@ -165,7 +199,8 @@ exports.stormReportEmail = onDocumentCreated(
     const firstName = (String(d.name || '').trim().split(/\s+/)[0]) || 'there';
     const address = String(d.address || '').trim();
     const summary = summaryLine(d.story);
-    const html = EMAIL_HTML({ firstName, address, summary });
+    const gust = await gustForLead(d, getFirestore());
+    const html = EMAIL_HTML({ firstName, address, summary, gust });
 
     try {
       const resend = new Resend(RESEND_API_KEY.value());
@@ -196,3 +231,6 @@ exports.stormReportEmail = onDocumentCreated(
     }
   }
 );
+
+// Pure renderers, exposed for tests only (not Cloud Functions).
+exports._test = { EMAIL_HTML, gustForLead };

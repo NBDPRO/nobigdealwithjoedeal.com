@@ -34,10 +34,12 @@ const bg = read('docs/pro/js/billing-gate.js');
 ok('login resumes nbd_plan_intent; billing getPlan exposes loaded',
   /nbd_plan_intent/.test(login) && /loaded:\s*_loaded/.test(bg));
 
-// Intro video still data-yt driven (item 7 content from Jo)
-const intro = read('docs/assets/js/intro-video.js');
-ok('intro video stays hidden until data-yt is set (Jo content)',
-  /data-yt/.test(intro) && /getAttribute\(['"]data-yt['"]\)/.test(intro));
+// Intro video (item 7): since 2026-10-05 the homepage slot is a self-hosted
+// <video> (no YouTube ID, no intro-video.js); its rules are pinned in
+// tests/home-welcome-video-2026-10-05.test.js.
+const home = read('docs/index.html');
+ok('homepage #intro-video is the self-hosted welcome video',
+  /id="intro-video"/.test(home) && /<video class="iv-video"/.test(home) && !/data-yt=/.test(home));
 
 // Estimate email global cap still env-driven (item 8)
 const ee = read('functions/estimate-email.js');
@@ -72,7 +74,7 @@ console.log(`
   [ ] 5. Stage drip: move a lead with email → toast "Send now" → platform send
   [ ] 6. Comm Log: see the send on the lead (manager: team thread if companyId stamped)
   [ ] 7. Twilio/A2P: if SMS fails, finish Twilio paid + A2P; check toast guidance
-  [ ] 8. Content (optional): set homepage #intro-video data-yt + OH/KY reg # on area pages
+  [ ] 8. Content (optional): OH/KY reg # on area pages
 `);
 
 ok('Jo checklist printed', true);
