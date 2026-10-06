@@ -135,3 +135,13 @@ admin-only audit trail. All bots share one hard rule:
 2. **First bots:** CoS + Marcus + Quinn (recommended) or more.
 3. **Screen access:** to read the team's current state, either open the app
    with Claude, or Jo pastes CoS's latest digest.
+
+## Update 2026-10-06: bots may DRAFT customer messages (server 1.2.0)
+
+Jo's call: bots may draft outbound customer messages; nothing ever auto-sends; Jo sends with one tap.
+
+- New tools: `draft_text` / `draft_email` (Marcus, Tucker) and `file_social_draft` (Dana, Priya). Each files an Agent inbox item (`draft_text` / `draft_email` / `social_draft`). The server reads the phone / email only to refuse a customer on the Do-Not-Text register (`sms_opt_outs`, canonical + legacy key), one who declined texting on a form (`tcpaConsent === false`) or one who unsubscribed (`email_suppressions`); no MCP answer or inbox item ever carries the number or address. Texts: max 480 chars, must name the company, "Reply STOP to opt out." appended if missing.
+- Agent inbox: "Text from my phone" is an `sms:` link (iOS `&body=`, Android `?body=`); email has Copy / Open in Mail / Mark sent; social has Send to Social Studio (creates a `social_posts` draft). The callable `agentDraftAction` re-checks the lists when the inbox opens (`check`) and, on send, marks the item `sent_by_owner` and writes the `sms_log` / `email_log` row (leadId + uid + date) plus a customer note (`sent`).
+- Company-made bots cannot pick the draft tools (house roster only).
+- Frank also gets `post_job` + `file_reminder` (unpaid balances on finished jobs → his own reminders).
+- Tests: `tests/agent-drafts-2026-10-06.test.js`.
