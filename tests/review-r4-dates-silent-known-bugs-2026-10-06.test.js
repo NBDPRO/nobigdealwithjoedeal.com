@@ -17,6 +17,15 @@
  * comments: comments are stripped (line-oriented, so a `//` inside a URL
  * survives) and each pin is brace-scoped to the one function it is about.
  *
+ * Status (2026-10-06, after main 590e8593):
+ *   - R4-7-4..7  FIXED by #2269; pins dropped (duplicated by
+ *                r4-silent-jobs-2026-10-06.test.js).
+ *   - R4-6-1..16 still KNOWN BUG, waiting on #2268 (dates).
+ *   - R4-7-1..3  still KNOWN BUG, waiting on #2264 (erasure + export).
+ *   - R4-7-8..10 still KNOWN BUG, waiting on #2266 (CRM screen fixes).
+ *   Each fix PR adds its own regression suite from these repros, so the
+ *   pin is DROPPED (not flipped) when that PR merges.
+ *
  * Pure Node (needs functions/ deps for the tenant-ops pin).
  * Run: node tests/review-r4-dates-silent-known-bugs-2026-10-06.test.js
  */
@@ -375,44 +384,12 @@ async function pinExport() {
   ok('KNOWN BUG R4-7-3: ...that reports invoices: 0 next to real counts', !!out && out.counts && out.counts.invoices === 0 && out.counts.leads === 1 && out.zip && out.zip.length > 0);
 }
 
-// R4-7-4 (LOW, latent: prod has a real token). incomingSMS reads the Twilio
-// token with bare .value(); the deploy's '__unset__' stub would validate a
-// forged signature (a forged START clears an opt-out). twilio-line.js and the
-// Stripe webhooks use secretValue() and refuse instead.
-{
-  const reg = exportRegion(src('functions/sms-functions.js'), 'exports.incomingSMS = onRequest(');
-  ok('KNOWN BUG R4-7-4: incomingSMS uses TWILIO_AUTH_TOKEN.value() with no stub check',
-    !!reg && /const authToken = TWILIO_AUTH_TOKEN\.value\(\);/.test(reg) && !/secretValue\(TWILIO_AUTH_TOKEN\)/.test(reg));
-}
-
-// R4-7-5 (MED). emailQueueWorker returns quietly (info log) when Resend is
-// not configured, so the heartbeat stays green while dunning, dispute and
-// backup alarms pile up.
-{
-  const reg = exportRegion(src('functions/integrations/email-queue-worker.js'), 'exports.emailQueueWorker = onSchedule(');
-  const b = reg ? bodyAfter(reg, 'if (!resendKey || !fromAddr)') : null;
-  ok('KNOWN BUG R4-7-5: unconfigured Resend = logger.info + return (no throw, no error log)',
-    !!b && /logger\.info\(/.test(b) && /return;/.test(b) && !/throw|logger\.error/.test(b));
-}
-
-// R4-7-6 (MED). leadBridge: a failed CRM mirror is logged and swallowed and
-// the triggers have no retry, so the web lead never reaches the board.
-{
-  const s = src('functions/lead-bridge.js');
-  const opts = bodyAfter(s, 'const TRIGGER_OPTS =');
-  ok('KNOWN BUG R4-7-6: leadBridge TRIGGER_OPTS has no retry', !!opts && !/retry/.test(opts));
-  const body = bodyAfter(s, 'async function bridgeToCrm(');
-  ok('KNOWN BUG R4-7-6: CRM mirror failure is logger.error with no rethrow',
-    !!body && /logger\.error\('leadBridge: CRM mirror failed'[^;]*;\s*\}\s*\}\s*\}$/.test(body.trim()) && !/throw\s/.test(body));
-}
-
-// R4-7-7 (LOW-MED). Recording retention deletes the Firestore doc even when
-// the audio delete failed, orphaning the audio in Storage forever.
-{
-  const reg = exportRegion(src('functions/integrations/voice-intelligence.js'), 'exports.recordingRetentionCron = onSchedule(');
-  ok('KNOWN BUG R4-7-7: audio-delete failure is warn-only and the doc is deleted anyway',
-    !!reg && /catch \(e\) \{ logger\.warn\('retention: audio delete failed'[^;]*;\s*\}(?:(?!continue)[\s\S]){0,300}?await d\.ref\.delete\(\)/.test(reg));
-}
+// R4-7-4 .. R4-7-7: FIXED on main by #2269 (db31a5fe). Their pins were
+// dropped here: tests/r4-silent-jobs-2026-10-06.test.js runs the real
+// modules for each (incomingSMS 503 on the stub token, emailQueueWorker
+// throws + logs at error, leadBridge retry:true + rethrow, retention keeps
+// the doc when the audio delete fails), and each goes red with its fix
+// reverted (checked 2026-10-06).
 
 // R4-7-8 (MED). "Connect Stripe" on an invoice calls goTo('settings') behind
 // a typeof guard. invoice-pipeline.js is lazy-loaded on customer.html, which
