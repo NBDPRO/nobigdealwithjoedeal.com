@@ -43,6 +43,9 @@ const L = require('./social-logic');
 const SR = require('./stage-roles');
 const { makeAdapters } = require('./social-adapters');
 const { runPublisher, postBlockers: approvalBlockers } = require('./social-publisher');
+// Platform tenant (same convention as lead-alert.js / render-pdf.js): NBD is
+// the company whose key is the NBD owner uid, never decided by brand name.
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 const META_PAGE_ACCESS_TOKEN = defineSecret('META_PAGE_ACCESS_TOKEN');
 const META_PAGE_ID = defineSecret('META_PAGE_ID');
@@ -226,12 +229,17 @@ exports.socialPlanWeeks = onCall(Object.assign({}, callOpts, { timeoutSeconds: 3
   const startMs = Number(data.startMs) > Date.now() - 86400000 ? Number(data.startMs) : Date.now();
   const jobs = (await eligibleJobs(db, ctx, 40)).filter((j) => !j.alreadyPosted).slice(0, weeks);
   let reviews = [];
-  try {
-    const r = await db.doc('siteContent/googleReviews').get();
-    const list = (r.exists && r.data().data && r.data().data.reviews) || [];
-    reviews = list.filter((x) => x && Number(x.rating) >= 5 && typeof x.text === 'string' && x.text.length >= 40 && x.text.length <= 400)
-      .map((x) => ({ text: x.text }));
-  } catch (_) { reviews = []; }
+  // siteContent/googleReviews is NBD's own Google reviews (the marketing
+  // site's feed) — only NBD's plan may quote them; any other company gets a
+  // plan without review posts rather than another company's customers' words.
+  if (String(ctx.companyId) === NBD_OWNER_UID) {
+    try {
+      const r = await db.doc('siteContent/googleReviews').get();
+      const list = (r.exists && r.data().data && r.data().data.reviews) || [];
+      reviews = list.filter((x) => x && Number(x.rating) >= 5 && typeof x.text === 'string' && x.text.length >= 40 && x.text.length <= 400)
+        .map((x) => ({ text: x.text }));
+    } catch (_) { reviews = []; }
+  }
   const proposals = L.planWeeks({ weeks, platforms, startMs, jobs: jobs.map((j) => ({ leadId: j.leadId, facts: j, format: j.format })), reviews, seed: Math.floor(Math.random() * 1000) });
   const created = [];
   const doneLeads = new Set();

@@ -138,12 +138,12 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=35"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=36"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=11">
+<link rel="stylesheet" href="css/dashboard-app.css?v=12">
 <link rel="stylesheet" href="css/ui-primitives.css?v=13">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
@@ -241,7 +241,7 @@
     <a href="/pro/ai-tool-finder.html" class="nnav-link" data-page="codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h12a1 1 0 011 1v10l-4 4H4a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M13 14v4"/><path d="M7 7h6M7 10h3"/></svg></span><span class="nnav-lbl">Codex</span></a>
     <a href="/pro/project-codex.html" class="nnav-link" data-page="project-codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></span><span class="nnav-lbl">My Codex</span></a>
     <a href="/pro/understand.html" class="nnav-link" data-page="understand"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5A3 3 0 004 7.5c0 1.2.7 2.2 1.7 2.7A3 3 0 007 15h3"/><path d="M13 4.5A3 3 0 0116 7.5c0 1.2-.7 2.2-1.7 2.7A3 3 0 0013 15h-3"/><circle cx="10" cy="3" r="1.5"/><path d="M10 18V9"/></svg></span><span class="nnav-lbl">Understand</span></a>
-    <a href="/pro/demo.html" class="nnav-link demo-link" data-page="demo"><span class="nnav-icon">▶</span><span class="nnav-lbl">Demo</span></a>
+    <a href="/pro/sandbox" class="nnav-link demo-link" data-page="demo"><span class="nnav-icon">▶</span><span class="nnav-lbl">Demo</span></a>
   </div>
 
   <div class="nnav-right">
@@ -263,7 +263,7 @@
     <a href="/pro/ai-tool-finder.html" class="nnav-drawer-link" data-page="codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h12a1 1 0 011 1v10l-4 4H4a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M13 14v4"/><path d="M7 7h6M7 10h3"/></svg></span> Codex</a>
     <a href="/pro/project-codex.html" class="nnav-drawer-link" data-page="project-codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></span> My Codex</a>
     <a href="/pro/understand.html" class="nnav-drawer-link" data-page="understand"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5A3 3 0 004 7.5c0 1.2.7 2.2 1.7 2.7A3 3 0 007 15h3"/><path d="M13 4.5A3 3 0 0116 7.5c0 1.2-.7 2.2-1.7 2.7A3 3 0 0013 15h-3"/><circle cx="10" cy="3" r="1.5"/><path d="M10 18V9"/></svg></span> Understand</a>
-    <a href="/pro/demo.html" class="nnav-drawer-link demo-link" data-page="demo"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 4l10 6-10 6V4z"/></svg></span> Live Demo</a>
+    <a href="/pro/sandbox" class="nnav-drawer-link demo-link" data-page="demo"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 4l10 6-10 6V4z"/></svg></span> Live Demo</a>
   </div>
   <div class="nnav-drawer-footer">
     <span id="nnav-drawer-user" style="font-size:10px;color:#8b9bb4;text-align:center;letter-spacing:.5px;"></span>
@@ -4014,6 +4014,12 @@
                 <input type="color" id="cp_brand_colorAccent" value="#BD5728"></div>
             </div>
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Contact — used on your portal, texts &amp; lead alerts</div>
+            <!-- 2026-10-05 (Jo): a company with no lead-alert contact gets its
+                 website / form leads alerted to NOBODY (functions/lead-alert.js
+                 resolveAlertTarget). Shown by dashboard-bootstrap.module.js
+                 _cpAlertContactsWarning for a non-NBD company until it saves an
+                 Email here. NBD never sees it. -->
+            <div id="cp_alertWarn" role="status" hidden class="cp-alert-warn"><strong>Set your lead alert contacts.</strong> New leads from your website and forms are not sent to anyone until you add your company Email below and save — lead alerts go to that address.</div>
             <div class="sf-row">
               <div class="sf"><label>Phone</label>
                 <input type="text" id="cp_brand_phone" placeholder="(859) 420-7382"></div>
