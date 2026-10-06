@@ -71,6 +71,7 @@ const { canManageLead, portalTenant, recordInPortalTenant, tokenMatchesLead } = 
 // The lead's arrival window (2026-09-29) — byte-identical copy of
 // docs/pro/js/schedule-window.js; see scheduleWindowFor() below.
 const ScheduleWindow = require('./schedule-window');
+const ThursdayGate = require('./thursday-video-gate');
 
 // The arrival window the homeowner may see, and nothing else from the lead:
 // the three window fields, validated together with scheduledDate, raw (the
@@ -1032,7 +1033,11 @@ exports.getHomeownerPortalView = onRequest(
         // Tenant-set only (server-guarded https/hex); null/absent for NBD so
         // the client keeps its hardcoded NBD logo + footer byte-identical.
         logoUrl: tenantLogoUrl || null,
-        colors: tenantColors
+        colors: tenantColors,
+        // NBD-only features (the "A video from Thursday" card): the tenant
+        // key against NBD's owner uid, never the company name. A boolean, so
+        // no uid reaches the page.
+        isNbd: ThursdayGate.isNbdTenant(tenantKey)
       },
       progress,
       estimate: latest ? {

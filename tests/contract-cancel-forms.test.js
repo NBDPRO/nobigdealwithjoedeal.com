@@ -365,6 +365,7 @@ function packetComplete(html) {
       './deal-install-date': { fillLeadInstallDate: async () => null },
       './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
       './estimate-send-logic': {},
+      './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/pro/js/thursday-video.js' },
       './deal-accepted-tier': { applyAcceptedTier: async () => {} },
     });
     const g = reqRes(null, { method: 'GET', path: '/deal/TOKDEAL00001' });
