@@ -3,9 +3,9 @@
  * Remove named documents from lead cards, Storage object included.
  *
  * Written for one narrow job: the branded PDFs were regenerated (logo added,
- * Musuraca's placeholders filled) and the earlier copies are still sitting on
+ * Customer DU's placeholders filled) and the earlier copies are still sitting on
  * the CRM cards. The importer skips a filename it has already seen, so without
- * this the cards keep the superseded file — and in Musuraca's case a document
+ * this the cards keep the superseded file — and in Customer DU's case a document
  * literally titled "DRAFT - do not send" stays one click from being sent.
  *
  * Deletes only filenames listed on the command line, only within one company,

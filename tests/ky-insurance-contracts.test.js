@@ -84,7 +84,7 @@ const FTC_STATEMENT = 'You, the buyer, may cancel this transaction at any time p
   'after the date of this transaction. See the attached notice of cancellation form for an explanation of this right.';
 const LIEN = "Contractor will not file or claim a mechanic's lien for any amount in excess of what your insurer pays or is expected to pay.";
 
-const KY_ADDR = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+const KY_ADDR = '100 Kentucky Ave, Fort Thomas, KY 41075';
 const OH_ADDR = '1 Elm St, Cincinnati, OH 45202';
 const BIZ_ADDR = '100 Test Plaza, Florence, KY 41042';
 

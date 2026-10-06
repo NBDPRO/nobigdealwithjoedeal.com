@@ -990,7 +990,7 @@ function closeBoardPage(price, mode, deductible) {
   section('11. KENTUCKY INSURANCE — nothing at signing (Jo, 2026-09-27; KRS 367.626)');
   // ══════════════════════════════════════════════════════════════════
   {
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OHA = '1 Elm St, Cincinnati, OH 45202';
     const WHEN = 'After your insurer’s written coverage decision and the 5-business-day cancellation window';
     const k1 = R.compute({ total: 15000, mode: 'insurance', deductible: 2000, acv: 10500, address: KY });
@@ -1057,7 +1057,7 @@ function closeBoardPage(price, mode, deductible) {
   // used to look at est.mode only, so the same KY lead priced in cash mode
   // printed those notices AND a 50% deposit at signing (KRS 367.626).
   {
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OHA = '1 Elm St, Cincinnati, OH 45202';
     const J = W.NBDJurisdiction;
     const kyClaimLead = { id: 'lead_kyc', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-77' };
@@ -1113,7 +1113,7 @@ function closeBoardPage(price, mode, deductible) {
   // Same law as section 12: a KY lead with a claim on file is an insurance
   // job even when priced in cash mode; nothing may be due at signing.
   {
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OHA = '1 Elm St, Cincinnati, OH 45202';
     const kyClaimLead = { id: 'lead_kyc2', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-88' };
     const ohClaimLead = { id: 'lead_ohc2', firstName: 'Oh', lastName: 'Io', address: OHA, claimNumber: 'CLM-89' };

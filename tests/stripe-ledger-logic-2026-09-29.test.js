@@ -23,7 +23,7 @@ function ok(label, cond, detail) {
 }
 
 const leads = [
-  { id: 'L1', firstName: 'Zed', lastName: 'Qalander', email: 'zq@example.com', phone: '(513) 555-0101', address: '5760 Farm Field Dr, Cincinnati, OH 45040' },
+  { id: 'L1', firstName: 'Zed', lastName: 'Qalander', email: 'zq@example.com', phone: '(513) 555-0101', address: '5760 Bellwether Dr, Cincinnati, OH 45040' },
   { id: 'L2', firstName: 'Mary', lastName: 'Quorn', email: '', phone: '513-555-0202', address: '929 W Wolfram St Apt 3, Chicago IL' },
   { id: 'L3', firstName: 'Pat', lastName: 'Quorn', email: 'pq@example.com', phone: '513-555-0202', address: '12 Other Rd' },
   { id: 'L4', firstName: 'Ann', lastName: 'Zyzzle', address: '44 Main Street, Newport KY', stripeCustomerId: 'cus_KNOWN' },
@@ -34,7 +34,7 @@ const idx = L.buildLeadIndex(leads);
 
 console.log('\n1. normalizers');
 ok('phone keeps the last 10 digits', L.normPhone('+1 (513) 555-0101') === '5135550101' && L.normPhone('555-0101') === '');
-ok('address key: number + first street word, "Drive" = "Dr"', L.addressKey('5760 Farm Field Drive') === '5760 farm' && L.addressKey('5760 Farm Field Dr, Cincinnati OH 45040') === '5760 farm');
+ok('address key: number + first street word, "Drive" = "Dr"', L.addressKey('5760 Bellwether Drive') === '5760 bellwether' && L.addressKey('5760 Bellwether Dr, Cincinnati OH 45040') === '5760 bellwether');
 ok('address key skips a leading directional', L.addressKey('929 W Wolfram St') === '929 wolfram');
 ok('a PO box has no address key', L.addressKey('PO Box 12164, Cincinnati') === '');
 
@@ -44,7 +44,7 @@ console.log('\n2. matching a Stripe customer to a lead');
   ok('email, case/space-insensitive → high', m.leadId === 'L1' && m.confidence === 'high' && m.method === 'email');
   m = L.matchLead({ phone: '5135550101' }, idx);
   ok('phone → high', m.leadId === 'L1' && m.confidence === 'high');
-  m = L.matchLead({ address: '5760 Farm Field Drive, Cincinnati OH' }, idx);
+  m = L.matchLead({ address: '5760 Bellwether Drive, Cincinnati OH' }, idx);
   ok('house number + street → high', m.leadId === 'L1' && m.confidence === 'high');
   m = L.matchLead({ stripeCustomerId: 'cus_KNOWN', email: 'someone-else@example.com' }, idx);
   ok('a Stripe customer already linked to a lead wins', m.leadId === 'L4' && m.method === 'stripe_customer');
@@ -126,13 +126,13 @@ console.log('\n5. ledger rows from Stripe objects');
     id: 'ch_1', object: 'charge', status: 'succeeded', amount: 145000, amount_captured: 145000, amount_refunded: 0, created: 1790000000,
     balance_transaction: { fee: 4235, net: 140765 }, payment_intent: { id: 'pi_1', metadata: {} }, invoice: 'in_9',
     payment_method_details: { type: 'card', card: { brand: 'visa', last4: '4242', wallet: { type: 'apple_pay' } } },
-    customer: { id: 'cus_1', name: 'Zed Qalander', email: 'zq@example.com', phone: null, address: { line1: '5760 Farm Field Dr', postal_code: '45040' } },
+    customer: { id: 'cus_1', name: 'Zed Qalander', email: 'zq@example.com', phone: null, address: { line1: '5760 Bellwether Dr', postal_code: '45040' } },
     billing_details: {}, receipt_url: 'https://pay.stripe.test/r',
   };
   const e = L.chargeEntry(ch, 'OWNER');
   ok('charge row: amount, fee, net, method, invoice link', e.amountCents === 145000 && e.feeCents === 4235 && e.netCents === 140765
     && e.method === 'apple_pay' && e.stripeInvoiceId === 'in_9' && e.companyId === 'OWNER' && e.atMs === 1790000000000);
-  ok('charge row carries the customer for matching', e.party.stripeCustomerId === 'cus_1' && e.party.email === 'zq@example.com' && /5760 Farm Field Dr/.test(e.party.address));
+  ok('charge row carries the customer for matching', e.party.stripeCustomerId === 'cus_1' && e.party.email === 'zq@example.com' && /5760 Bellwether Dr/.test(e.party.address));
   const failedCh = Object.assign({}, ch, { status: 'failed', amount_captured: 0, failure_message: 'Your card was declined.' });
   ok('a failed attempt books $0 but keeps what was tried and why', L.chargeEntry(failedCh, 'O').amountCents === 0 && L.chargeEntry(failedCh, 'O').attemptedCents === 145000 && /declined/.test(L.chargeEntry(failedCh, 'O').failure));
   ok('Link / Cash App methods come through as-is', L.methodOfCharge({ payment_method_details: { type: 'link' } }) === 'link');

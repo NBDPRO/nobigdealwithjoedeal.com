@@ -20,7 +20,7 @@
  *
  * CATEGORIES
  *   legacyMangled  Pre-Wave-141 residue: leading number followed by a comma
- *                  ("7003, Greenstone Trace, O'Bannon Creek"). Always wrong.
+ *                  ("7003, Wrenfield Trace, O'Bannon Creek"). Always wrong.
  *   blank          No address at all.
  *   noStreet       City/ZIP only, no house number — the shape Thumbtack
  *                  hands over before the customer shares their street.

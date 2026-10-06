@@ -99,7 +99,7 @@ invoice 2026-08-31 — this is rank-3 from the 08-28 sweep, live as
    photos landed yet.
 
 **Not opened for any of the above:** invoice PDFs beyond what the search
-tool's snippet already surfaced for Chris R. and the Fukudas (an
+tool's snippet already surfaced for Chris R. and the Customer BMs (an
 unavoidable side effect of the Drive search tool defaulting to
 `DETAILED` content snippets on a folder listing before this session learned
 to pass `excludeContentSnippets: true` — no full address, phone number, or
