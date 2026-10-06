@@ -261,6 +261,17 @@ Object.assign(exports, leadBridgeFns);
 const smsFunctions = require('./sms-functions');
 Object.assign(exports, smsFunctions);
 
+// NBD's Twilio line (+1 937 764 4855, 2026-10-06): inbound texts, delivery
+// callbacks, inbound calls forwarded to Jo's cell + the <Dial> action. Served
+// at /api/twilio/* (firebase.json). SHIPS DARK — TWILIO_INBOUND_ENABLED unset
+// = fixed TwiML, nothing read or written. Named exports only (twilio-line.js
+// also exports a test seam).
+const twilioLine = require('./twilio-line');
+exports.twilioSmsWebhook      = twilioLine.twilioSmsWebhook;
+exports.twilioSmsStatus       = twilioLine.twilioSmsStatus;
+exports.twilioVoiceWebhook    = twilioLine.twilioVoiceWebhook;
+exports.twilioVoiceDialStatus = twilioLine.twilioVoiceDialStatus;
+
 // ═══════════════════════════════════════════════════════════════
 // AUDIT LOG TRIGGERS (H-4)
 // Loaded from a sibling module to keep index.js tractable.

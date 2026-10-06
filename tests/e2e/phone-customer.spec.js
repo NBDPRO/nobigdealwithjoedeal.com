@@ -83,9 +83,11 @@ async function seedLead(page, { photos }) {
       name: 'signed-contract-scan.png', url: img('joe-hero.jpg'), size: 4096,
       uploadedAt: new Date(), source: 'signed_upload', status: 'signed', signedAt: new Date(),
     });
+    // htmlPath has the shape document-generator.js writes; the rules
+    // (documentHtmlPathOk, #2213) refuse any other path on create.
     await fs.addDoc(fs.collection(db, 'leads', id, 'documents'), {
       filename: 'Roofing Contract', typeName: 'Roofing Contract', type: 'contract',
-      htmlPath: 'e2e/none.html', createdAt: new Date(Date.now() - 86_400_000), status: 'draft',
+      htmlPath: 'documents/' + uid + '/' + id + '/e2e-none.html', createdAt: new Date(Date.now() - 86_400_000), status: 'draft',
     });
     const files = ['drone-hero-crew-800.webp', 'drone-completed-brick.webp', 'joe-hero.webp', 'drone-hero-curb.webp'];
     for (let i = 0; i < n; i++) {

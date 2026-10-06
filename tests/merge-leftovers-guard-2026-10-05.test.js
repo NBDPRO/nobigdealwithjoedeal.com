@@ -349,7 +349,9 @@ const slSrc = rd('docs/pro/js/script-loader.js');
 console.log('S. every detector goes red on a planted leftover');
 {
   // The 2026-10-05 docgen incident shape: a second document-generator entry + an older -templates.
-  const planted = slSrc.replace("'js/doc-preflight.js?v=4',", "'js/doc-preflight.js?v=4',\n      'js/document-generator.js?v=16',\n      'js/document-generator-templates.js?v=9',");
+  // Anchored on the doc-preflight entry whatever its ?v= is, so a routine
+  // cache-bust bump doesn't break the plant.
+  const planted = slSrc.replace(/'js\/doc-preflight\.js\?v=\d+',/, (m) => m + "\n      'js/document-generator.js?v=16',\n      'js/document-generator-templates.js?v=9',");
   ok(planted !== slSrc, 'plant: docgen entry duplicated in a copy of script-loader.js');
   const bp = bundleProblems(loadBundles(planted).bundles);
   ok(bp.within.includes('docgen /pro/js/document-generator.js') && bp.within.includes('docgen /pro/js/document-generator-templates.js'), 'duplicate entry inside one bundle → detected', JSON.stringify(bp.within));
