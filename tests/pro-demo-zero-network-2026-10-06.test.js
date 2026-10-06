@@ -315,7 +315,13 @@ async function waitFor(page, fn, arg, ms) {
     await page.evaluate(() => window.goTo('d2d'));
     await waitFor(page, () => window._D2DState && window._D2DState.d2dMap && (window._D2DState.knocks || []).length >= 60, null, 30000);
     await waitFor(page, () => document.querySelectorAll('#d2dMap .nbd-demo-tile svg').length > 0, null, 15000);
-    const d2d = await page.evaluate(() => {
+    // The territory and the fit to it land after the territories load.
+    await waitFor(page, () => {
+      const c = window._D2DState.d2dMap.getCenter();
+      return Math.abs(c.lat - 39.075) < 0.02 && Math.abs(c.lng + 84.447) < 0.02 &&
+        [...document.querySelectorAll('#d2dMap path')].some((p) => p.getAttribute('stroke') === '#BD5728');
+    }, null, 20000).catch(() => {});
+    const d2d =await page.evaluate(() => {
       const m = window._D2DState.d2dMap, c = m.getCenter(), sw = window.NBD_DEMO_BASEMAP;
       return {
         tiles: document.querySelectorAll('#d2dMap .nbd-demo-tile svg').length,

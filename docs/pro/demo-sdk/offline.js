@@ -183,6 +183,32 @@ async function seedLocal() {
   } catch (_) { /* storage blocked: Storm Center starts empty */ }
 }
 
+// The door-knocking map opens on Cincinnati (its built-in default) unless the
+// one-shot hint above fits it to a storm. The sample account always opens on
+// the story's storm: when a new D2D map appears and is still sitting on that
+// default view (nobody has moved it), fit it to the swath. Belt and braces
+// behind the hint, which a map rebuilt in the same visit has already used.
+function watchD2dMap() {
+  if (typeof window === 'undefined' || typeof setInterval !== 'function') return;
+  let seen = null;
+  setInterval(() => {
+    const st = window._D2DState;
+    const m = st && st.d2dMap;
+    if (!m || m === seen) return;
+    seen = m;
+    setTimeout(() => {
+      try {
+        const b = off().swathBounds, c = m.getCenter();
+        if (!b || st.d2dMap !== m) return;
+        if (m.getZoom() === 13 && Math.abs(c.lat - 39.10) < 1e-6 && Math.abs(c.lng + 84.51) < 1e-6) {
+          m.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [40, 40], maxZoom: 15 });
+        }
+      } catch (_) { /* map gone */ }
+    }, 1500);
+  }, 500);
+}
+watchD2dMap();
+
 const api = { answer, position, callClaude, ready: seedLocal() };
 if (typeof window !== 'undefined' && window.__NBD_DEMO__ && typeof window.__NBD_DEMO__.offlineLoaded === 'function') {
   window.__NBD_DEMO__.offlineLoaded(api);
