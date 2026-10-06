@@ -1171,7 +1171,7 @@ function closeBoardPage(price, mode, deductible) {
       };
       sb.window = sb; sb.addEventListener = () => {}; sb.showToast = () => {}; sb.open = () => null;
       sb._db = null; sb._user = { uid: 'u1' }; sb._userClaims = { companyId: 'c1' };
-      sb._companyProfile = { brand: { contact: { mailingAddress: '6563 Manila Rd, Goshen, OH 45122', email: 'x@nbd.test' } } };
+      sb._companyProfile = { brand: { contact: { mailingAddress: '123 Main St, Goshen, OH 45122', email: 'x@nbd.test' } } };
       sb.getLineItems = () => [];
       vm.createContext(sb);
       vm.runInContext(read('docs/pro/js/deposit-rule.js'), sb, { filename: 'deposit-rule.js' });
