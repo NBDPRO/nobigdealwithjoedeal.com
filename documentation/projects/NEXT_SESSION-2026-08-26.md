@@ -67,7 +67,7 @@ blocking for the first time — watch the first one or two rather than assuming.
 6. **2 blog drafts** still need your `JO:` inputs
    ([drafts README](../drafts/README.md)).
 7. ~~**Clear the address-audit gate**~~ **DONE 2026-08-27** (Jo-delegated):
-   four $0 leads retired, Galfrey written fully mailable (the blocker was a
+   four $0 leads retired, Customer BN written fully mailable (the blocker was a
    Murdoch→Murdock road-name typo). Gate confirmed green by replicated scan
    — [CRM-ADDRESS-INTEGRITY-2026-08-18](../audit/CRM-ADDRESS-INTEGRITY-2026-08-18.md)
    §2026-08-27.

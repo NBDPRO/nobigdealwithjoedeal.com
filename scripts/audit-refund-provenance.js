@@ -6,14 +6,18 @@
  * settles which by dating the ingest and sweeping the raw event collections.
  *
  * RUN
- *   node scripts/audit-refund-provenance.js
+ *   node scripts/audit-refund-provenance.js --data=<lead-cost-refunds.json>
  */
 'use strict';
 
 const { initAdmin, getFirestore } = require('./_admin');
 const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
 
-const NAMES = ['Daulton', 'Evans', 'Simms', 'Madison', 'Greene'];
+// Surnames of the five refunded customers with no lead — kept out of this
+// public repo since 2026-10-06: --data=<lead-cost-refunds.json> or NBD_REFUNDS_FILE.
+const { loadPrivateJson } = require('./_private-data');
+const NAMES = loadPrivateJson({ envVar: 'NBD_REFUNDS_FILE', what: 'the Thumbtack refund list' })
+  .missingTargets.map((t) => t[1]);
 const dt = (v) => (v && v.toDate ? v.toDate().toISOString().slice(0, 10) : (typeof v === 'string' ? v.slice(0, 10) : null));
 
 (async () => {

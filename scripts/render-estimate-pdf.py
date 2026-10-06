@@ -2,7 +2,7 @@
 """
 Render an NBD estimate from its Google Doc plain-text export into a branded PDF.
 
-House style per the Veronica Matthews / Santiago documents: Montserrat wordmark
+House style per the two finished customer documents: Montserrat wordmark
 over an orange rule, navy section headings with orange numerals, Lato body,
 navy-header pricing tables, GAF/TAMKO badge row, checkbox acceptance page,
 closing tagline.
@@ -99,7 +99,7 @@ def letterhead_end(lines: list[str]) -> int:
     """Index just past the letterhead block at the top of the document.
 
     Earlier this keyed on "Licensed & Insured"/"TAMKO Pro Gold" alone. The
-    Musuraca invoice carries neither, so its whole letterhead was rendered as
+    Customer DU invoice carries neither, so its whole letterhead was rendered as
     body text under a fallback title. Scan the leading block instead and stop
     at the first line that is not letterhead.
     """
@@ -402,10 +402,10 @@ def render(text: str, title_hint: str) -> str:
         if set(u.replace(" ", "")) <= {"_"} and len(u) > 10:
             flush_para(para)
             close_list()
-            # The caption ("Jim Gilkey        Date") sits below the rule, but the
+            # The caption ("Customer BQ        Date") sits below the rule, but the
             # Docs export puts a blank line between them. Look past blanks —
             # otherwise the caption falls through and gets rendered as a
-            # detail row, which is how "Jim Gilkey / Date" ended up looking
+            # detail row, which is how "Customer BQ / Date" ended up looking
             # like an estimate field.
             names = []
             j = i + 1
@@ -456,7 +456,7 @@ def render(text: str, title_hint: str) -> str:
 
     # An unfilled [PLACEHOLDER] must be impossible to miss. Left as plain text
     # it reads as part of the document and can be sent by accident — which is
-    # exactly what the internal note on the Eppert estimate warns about.
+    # exactly what the internal note on the Customer BF estimate warns about.
     body = re.sub(
         r"\[([A-Z][A-Z ]{2,})\]",
         r'<span class="todo">\1 — TO BE FILLED</span>',
