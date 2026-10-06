@@ -111,7 +111,31 @@ function dealRoomCsp(withThursday) {
     "frame-ancestors 'none'",
     "base-uri 'none'",
     "object-src 'none'",
+    DEAL_ROOM_SANDBOX,
   ].join('; ');
+}
+
+// R3-4 deal-room note (2026-10-06): the tenant page is also served with the
+// `sandbox` directive. allow-same-origin is REQUIRED — without it the page gets
+// an opaque origin and the ACCEPT POST to /api/deal-accept turns into a CORS
+// request (checked in Chrome: with it, location.origin and the POST's Origin
+// stay ours). allow-scripts runs deal-room.js (script-src above still limits
+// WHICH script); allow-modals is its alert() on a failed submit;
+// allow-popups(+escape) keeps the target=_blank reviews / financing links;
+// allow-top-navigation-to-custom-protocols keeps tel:/sms:. NOT granted:
+// forms, top-navigation, downloads, pointer-lock — and the sandbox also turns
+// off <meta http-equiv=refresh>, which stripDealRoomHtml removes anyway.
+const DEAL_ROOM_SANDBOX = 'sandbox allow-scripts allow-same-origin allow-modals allow-popups'
+  + ' allow-popups-to-escape-sandbox allow-top-navigation-to-custom-protocols';
+
+// Tenant-authored deal-room HTML loses every <meta http-equiv> (refresh =
+// open redirect, a page-level CSP/Set-Cookie/etc.) and every <base> (rewrites
+// where relative links and the ACCEPT POST go) before it is served. Our own
+// injected tags are <meta name=…> and are added after this runs.
+function stripDealRoomHtml(html) {
+  return String(html || '')
+    .replace(/<meta\b[^>]*?\bhttp-equiv\b[^>]*>/gi, '')
+    .replace(/<base\b[^>]*>/gi, '');
 }
 const DEAL_ROOM_CSP = dealRoomCsp(false);
 // Shown on the deal page beside the signature (deal-room.js prints the same
@@ -329,6 +353,7 @@ exports.getDealRoom = onRequest(
     // The Notice of Right to Cancel on the page is dated today — the day the
     // homeowner reads and signs it — not the day the rep made the link.
     try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
+    html = stripDealRoomHtml(html);
 
     // Packet (2026-10-04): a FULL packet's inspection photos go in where the
     // page left its marker, each one at /deal/<token>/photo/<n> (getDealPhoto
