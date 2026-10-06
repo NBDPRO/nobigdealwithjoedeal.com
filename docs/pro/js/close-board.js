@@ -346,7 +346,10 @@
       const data = {
         ...deal,
         userId: uid,
-        companyId: window._userClaims?.companyId || uid,
+        // R3-12: companyId is write-once in firestore.rules. A deal the server
+        // already holds keeps the companyId it carries (a sync that ran before
+        // the claims loaded would otherwise send the uid and be refused).
+        companyId: deal.companyId || window._userClaims?.companyId || uid,
         updatedAt: new Date().toISOString()
       };
       // The homeowner's acceptance is server-written (deal-acceptance.js) and
