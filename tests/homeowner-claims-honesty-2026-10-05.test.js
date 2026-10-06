@@ -242,5 +242,43 @@ console.log('\n9. 24-hour promise = reply within 24 hours');
   ok('/inspect mini-footer copy is light on navy (>= 75% white)', /\.mini-footer p\{color:rgba\(255,255,255,\.(7[5-9]|[89]\d?)\)\}/.test(inspect));
 }
 
+// ── 10. No promise about what the carrier pays or approves (2026-10-06) ─
+// The Mason hail hero said "how to make sure your carrier pays what your
+// Mason roof actually needs"; ~25 hail/storm/area pages sold the same result
+// in other words ("what adjusters need to approve a complete scope",
+// "Documentation is what gets a claim approved", "the threshold for full
+// replacement under most policies", "build claims"). Jo: Joe inspects,
+// photographs, documents and writes the estimate; what a claim pays is the
+// insurer's call. The neutral line is "so you have clear photos and an
+// itemized estimate to share with your insurer". Homeowner QUESTIONS ("How
+// long does it take to get a claim approved?") and conditionals ("insurance
+// covers the rest when a claim is approved") still pass.
+console.log('\n10. no carrier-pays / claim-approval promises');
+{
+  const OUTCOME = new RegExp([
+    /\b(make sure|ensure|so that)\b[^.;!?<]{0,40}\b(carriers?|insurers?|insurance|adjusters?)\b[^.;!?<]{0,30}\b(pays?|covers?|approves?)\b/,
+    /\b(need|needs|require|requires)\b[^.;!?<]{0,25}\bto (approve|pay out)\b/,
+    /\bgets? (a |the |your )?claims? approved\b(?!\s+in\b)/, // "get a claim approved in Ohio?" is the blog's question
+    /\bgetting the claim paid\b/,
+    /\bsupports? (the )?full replacement\b/,
+    /\bthreshold (that triggers|for) full replacement\b/,
+    /\bqualify as insurance work\b|\bstorm damage that qualifies for a claim\b|\boften qualifies for a claim\b/,
+    /\bapproved at full value\b|\bpay out a legitimate claim in full\b/,
+    /\bdifference between a partial and full approval\b/,
+    /\binsurance companies take damage seriously and will pay\b/,
+    /\bbuild claims\b/,
+  ].map((r) => r.source).join('|'), 'i');
+  const promise = hits(OUTCOME, true);
+  ok('no homeowner page promises what the carrier pays or approves (whole tree)', promise.length === 0, show(promise));
+  const SRC = ['scripts/merge-hail-claim-content.js', 'scripts/build-town-pages.mjs', 'site-src/data/towns.json']
+    .concat(fs.readdirSync(path.join(ROOT, 'site-src', 'partials')).map((n) => 'site-src/partials/' + n));
+  const srcHits = SRC.filter((rel) => OUTCOME.test(stripComments(read(rel), rel.replace(/\.mjs$/, '.js'))));
+  ok('no partial, town data or page generator carries one either', srcHits.length === 0, srcHits.join(', '));
+  const mason = stripComments(read('docs/services/hail-damage-mason-oh.html'), 'x.html');
+  ok('the Mason hail page uses the neutral documentation line', /how to document every strike, so you have clear photos and an itemized estimate to share with your insurer\./.test(mason));
+  const neutral = FILES.filter((f) => /so you have clear photos and an itemized estimate to share with your insurer/.test(f.text)).length;
+  ok('the neutral line replaced the promises across the hail/storm/area pages (>= 20 files)', neutral >= 20, String(neutral));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('\nFailures:'); fails.forEach((f) => console.log('  - ' + f)); process.exit(1); }

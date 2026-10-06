@@ -1023,10 +1023,19 @@
       const payAction = view.balance.stripePaymentLink
         ? '<a class="btn" style="margin-top:12px;" href="' + esc(safeUrl(view.balance.stripePaymentLink)) + '" target="_blank" rel="noopener">Pay Now →</a>'
         : '<p style="color:var(--muted);margin:12px 0 0;">Ask your rep for a payment link to pay online.</p>';
+      // A deposit invoice (review R2-2-6): the server sends what is due NOW —
+      // the deposit while it is unpaid — and the whole amount owed beside it.
+      const isDeposit = view.balance.kind === 'deposit';
+      const owedCents = Number(view.balance.totalOwedCents);
+      const owedLine = (isDeposit && owedCents > view.balance.amountCents)
+        ? '<p class="progress-schedule-note">Total owed ' + esc((owedCents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' }))
+          + ' — the rest is due later, as your contract says.</p>'
+        : '';
       parts.push(
         '<div class="card">' +
-          '<div class="card-label">💳 Balance Due</div>' +
+          '<div class="card-label">💳 ' + (isDeposit ? 'Deposit Due' : 'Balance Due') + '</div>' +
           '<div class="card-title">' + esc(amount) + '</div>' +
+          owedLine +
           payAction +
         '</div>'
       );
