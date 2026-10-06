@@ -2703,7 +2703,7 @@ async function run() {
   await assertFails(deleteDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
   console.log('  55: sms_dnc client read / create / update / delete all denied');
 
-  // 54. sms_settings — the per-company texting master switch (2026-10-05).
+  // 56. sms_settings — the per-company texting master switch (2026-10-05).
   //     Server only. A client CREATE (registered: true on a company that has
   //     no registration) or UPDATE (switch it back on) must both fail, even
   //     for the company's own admin.
@@ -2716,7 +2716,7 @@ async function run() {
   await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { enabled: true }));
   await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { registered: true }));
   await assertFails(deleteDoc(doc(coAdmin, 'sms_settings/co-a')));
-  console.log('  54: sms_settings client read / create / update / delete all denied');
+  console.log('  56: sms_settings client read / create / update / delete all denied');
 
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
