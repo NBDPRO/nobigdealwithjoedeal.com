@@ -286,19 +286,13 @@ async function recordCarrierOptOut(db, phone, fn) {
 
 // A homeowner's STOP, copied onto the Do Not Text list of each company that
 // has a lead with this number — so the company SEES who stopped it (the
-// global register is what enforces it). Bounded, best-effort, never throws.
-async function copyStopToTenantLists(db, phone, key) {
-  try {
-    const snap = await db.collection('leads').where('phoneDigits', '==', key).limit(10).get();
-    const tenants = [...new Set(snap.docs.map((d) => TextingGate.tenantKeyOfRecord(d.data() || {})).filter(Boolean))];
-    await Promise.all(tenants.map((companyId) => OptOut.addDnc(db, {
-      companyId, phone, source: 'stop_reply',
-    }, () => FieldValue.serverTimestamp()).catch((e) => {
-      logger.error('dnc_stop_reply_copy_failed', { err: e && e.message });
-    })));
-  } catch (e) {
-    logger.error('dnc_stop_reply_copy_failed', { err: e && e.message });
-  }
+// global register is what enforces it). The logic lives in sms-optout.js
+// (shared with the Twilio line, twilio-line.js); bounded, never throws.
+function copyStopToTenantLists(db, phone) {
+  return OptOut.copyStopToTenantLists(db, phone, {
+    serverTimestamp: () => FieldValue.serverTimestamp(),
+    onError: (e) => logger.error('dnc_stop_reply_copy_failed', { err: e && e.message }),
+  });
 }
 
 // ── Offline outbox: queued sends (sendQueuedSMS, or body.queued === true) ──
@@ -1332,7 +1326,7 @@ exports.incomingSMS = onRequest(
         // this number, so each can see it (the register above is what
         // enforces it). Best-effort and bounded: a failure here never undoes
         // the opt-out or delays the confirmation.
-        await copyStopToTenantLists(db, fromPhone, phoneDigits);
+        await copyStopToTenantLists(db, fromPhone);
         // TwiML reply confirming opt-out. Twilio sends this back.
         res.set('Content-Type', 'text/xml');
         res.status(200).send(

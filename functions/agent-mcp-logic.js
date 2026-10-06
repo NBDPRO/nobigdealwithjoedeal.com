@@ -747,6 +747,8 @@ function textGate(lead, optOut) {
   // phone does not need the written-consent record an automated text does —
   // the inbox shows whether one is on file.
   if (l.tcpaConsent === false) return { error: 'This customer declined texting on their form. No text draft — file a note instead.' };
+  // source 'dnc' = the company's own Do Not Text list (sms-optout.js), not a STOP reply.
+  if (optOut && optOut.optedOut && optOut.source === 'dnc') return { error: 'This customer is on your company\'s Do-Not-Text list. No text draft — file a note instead.' };
   if (!optOut || optOut.optedOut !== false) return { error: optOut && optOut.optedOut ? 'This customer is on the Do-Not-Text list (they replied STOP). No text draft — file a note instead.' : 'The Do-Not-Text list could not be checked. Try again later.' };
   return { ok: true, consentOnFile: l.tcpaConsent === true };
 }

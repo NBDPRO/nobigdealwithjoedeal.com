@@ -2684,7 +2684,6 @@ async function run() {
   if (s54Fail.length) {
     throw new Error('54 deal leadId: ' + s54Fail.length + ' check(s) went the wrong way:\n    ' + s54Fail.join('\n    '));
   }
-  }
 
   // 55. sms_dnc — a company's internal Do Not Text list (2026-10-05). Server
   //     only (manageSmsCompliance + incomingSMS); enforced in sms-optout.js
