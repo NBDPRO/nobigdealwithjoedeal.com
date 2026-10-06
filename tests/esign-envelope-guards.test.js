@@ -208,7 +208,7 @@ function loadEsignHandlers(db) {
     // own suite is tests/contract-cancel-forms.test.js. These envelopes are
     // not contracts, so the appender is never reached.
     './job-spine-logic': { envelopeIsContract: () => false },
-    './cancel-window': { loadPacketOpts: async () => ({}), stampLeadCancelBy: async () => false },
+    './cancel-window': { loadPacketOpts: async () => ({}), stampLeadCancelBy: async () => false, envelopeNeedsCancelNotice: () => false, SELLER_NAME_REQUIRED_MSG: 'name required' },
   };
 
   const requireStub = (id) => {

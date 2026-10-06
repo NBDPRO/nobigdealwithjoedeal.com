@@ -16,9 +16,10 @@
  */
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const SERVER_INFO = { name: 'nbd-crm', version: '1.2.0' };
+const SERVER_INFO = { name: 'nbd-crm', version: '1.3.0' };
 const MAX_TEXT = 2000;
 const MAX_LIST = 50;
+const LIST_CURSOR_MAX = 400;
 // Draft limits (2026-10-06; the draft rules sit above the company-bot section).
 const SMS_MAX = 480;
 const STOP_LINE = 'Reply STOP to opt out.';
@@ -40,11 +41,12 @@ const TOOLS = {
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
   },
   list_leads: {
-    description: 'Customers, filtered by stage and/or "stale" (no update in N days), newest first. Returns lead_id, name, address, stage, follow-up date and last update — never phone or email.',
+    description: 'Customers, filtered by stage and/or "stale" (no update in N days), newest added first. Returns ONE PAGE (limit, default 20, max 50) of lead_id, name, address, stage, follow-up date and last update — never phone or email — plus total (how many customers match the filters) and next_cursor. One page is NOT the whole list: while next_cursor is not null, call list_leads again with the SAME stage / stale_days and cursor = next_cursor, and keep going until next_cursor is null. Only then do you have every match (check your count against total).',
     inputSchema: { type: 'object', properties: {
-      stage: { type: 'string', description: 'Pipeline stage key, e.g. new, contacted, inspected, estimate_sent_cash, negotiating, contract_signed' },
+      stage: { type: 'string', maxLength: 60, description: 'Pipeline stage key, the same keys crm_summary counts in by_stage, e.g. new, contacted, inspected, estimate_sent_cash, negotiating, contract_signed' },
       stale_days: { type: 'integer', minimum: 1, maximum: 3650, description: 'Only customers not updated in this many days' },
-      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST },
+      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST, description: 'Page size (default 20, max 50)' },
+      cursor: { type: 'string', maxLength: LIST_CURSOR_MAX, description: 'The next_cursor from the previous page of the SAME query. Leave it out for the first page.' },
     }, additionalProperties: false },
   },
   lead_detail: {
@@ -272,15 +274,98 @@ function overdueFollowups(leads, todayYmd, limit) {
     .map(minimalLead);
 }
 
-function listLeads(leads, args, nowMs) {
-  const a = args || {};
+// ── list_leads paging (2026-10-06) ─────────────────────────────────────
+// One page was all a bot ever saw (max 50) — NBD has 76 'new' leads, so the
+// office sweep could not see 26 of them. Now: a STABLE order (date added,
+// newest first; lead id breaks ties — createdAt never changes, so a lead
+// edited between pages cannot jump pages), a keyset cursor, and the total.
+// The stage filter uses the same canonical stage key as crm_summary's
+// by_stage ('New' / '' / 'new' are one bucket), so total matches that count.
+//
+// The cursor is opaque base64url JSON {v, k, i, t}: k/i = the last lead's
+// createdAt ms + id, t = a tag over (company, filters, k, i). A cursor from
+// another company or another filter, or with any field edited, fails the tag
+// and is refused. It is NOT a secret-keyed MAC: someone who reads this file
+// can mint a valid tag for their OWN company + filters, which only moves
+// where their own page starts — the company still comes only from the key
+// and every row is still minimalLead. No data a bot could not list anyway.
+const LIST_CURSOR_RE = /^[A-Za-z0-9_-]{1,400}$/;
+const LEAD_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const CURSOR_ERR = 'invalid cursor — it must be the next_cursor from the previous page of the same list_leads query. Start again without a cursor.';
+const _crypto = require('crypto');
+function createdMs(l) { const t = Math.floor(ms(l && l.createdAt)); return Number.isFinite(t) && t > 0 ? t : 0; }
+function cmpListOrder(x, y) {
+  const d = createdMs(y) - createdMs(x);
+  if (d) return d;
+  return x.id < y.id ? -1 : (x.id > y.id ? 1 : 0);
+}
+function wantStage(stage) {
+  const s = String(stage == null ? '' : stage).trim();
+  if (!s) return '';
+  return _SRK.canonicalStageKey(s) || s;
+}
+function cursorTag(scope, stage, staleDays, k, i) {
+  return _crypto.createHash('sha256').update(['nbd-list-leads-v1', String(scope || ''), stage, String(staleDays || 0), String(k), String(i)].join('')).digest('hex').slice(0, 24);
+}
+function encodeListCursor(scope, stage, staleDays, lead) {
+  const k = createdMs(lead), i = String(lead.id);
+  return Buffer.from(JSON.stringify({ v: 1, k, i, t: cursorTag(scope, stage, staleDays, k, i) }), 'utf8').toString('base64url');
+}
+function decodeListCursor(cur, scope, stage, staleDays) {
+  if (typeof cur !== 'string' || !LIST_CURSOR_RE.test(cur)) return null;
+  let o;
+  try { o = JSON.parse(Buffer.from(cur, 'base64url').toString('utf8')); } catch (e) { return null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  if (Object.keys(o).sort().join() !== 'i,k,t,v' || o.v !== 1) return null;
+  if (!Number.isSafeInteger(o.k) || o.k < 0) return null;
+  if (typeof o.i !== 'string' || !LEAD_ID_RE.test(o.i)) return null;
+  if (typeof o.t !== 'string' || o.t !== cursorTag(scope, stage, staleDays, o.k, o.i)) return null;
+  return { k: o.k, i: o.i };
+}
+
+/**
+ * One page of list_leads → { customers, total, next_cursor, page_size } or
+ * { error }. scope = the key's company id (binds the cursor to it).
+ */
+function listLeadsPage(leads, args, nowMs, scope) {
+  const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {};
+  if (a.stage != null && (typeof a.stage !== 'string' || a.stage.length > 60)) return { error: 'stage must be a pipeline stage key (text)' };
+  if (a.stale_days != null && !(Number.isInteger(Number(a.stale_days)) && Number(a.stale_days) >= 1 && Number(a.stale_days) <= 3650)) return { error: 'stale_days must be a whole number from 1 to 3650' };
+  if (a.cursor != null && typeof a.cursor !== 'string') return { error: CURSOR_ERR };
+  const stage = wantStage(a.stage);
+  const staleDays = a.stale_days != null ? Number(a.stale_days) : 0;
   let out = activeLeads(leads);
-  if (a.stage) out = out.filter((l) => String(l.stage || '') === String(a.stage));
-  if (a.stale_days) {
-    const cut = nowMs - Number(a.stale_days) * 86400000;
+  if (stage) out = out.filter((l) => stageKeyOf(l) === stage);
+  if (staleDays) {
+    const cut = nowMs - staleDays * 86400000;
     out = out.filter((l) => ms(l.updatedAt) && ms(l.updatedAt) < cut && !CLOSED.test(String(l.stage || '')));
   }
-  return out.sort((x, y) => ms(y.updatedAt) - ms(x.updatedAt)).slice(0, clampLimit(a.limit)).map(minimalLead);
+  out.sort(cmpListOrder);
+  const total = out.length;
+  let start = 0;
+  if (a.cursor != null && a.cursor !== '') {
+    const c = decodeListCursor(a.cursor, scope, stage, staleDays);
+    if (!c) return { error: CURSOR_ERR };
+    // Keyset: the first lead strictly after (k, i) in the order — a lead
+    // deleted since the last page does not shift anything.
+    start = out.findIndex((l) => createdMs(l) < c.k || (createdMs(l) === c.k && l.id > c.i));
+    if (start === -1) start = out.length;
+  }
+  const size = clampLimit(a.limit);
+  const page = out.slice(start, start + size);
+  const more = start + page.length < out.length;
+  return {
+    customers: page.map(minimalLead),
+    total,
+    next_cursor: more && page.length ? encodeListCursor(scope, stage, staleDays, page[page.length - 1]) : null,
+    page_size: size,
+  };
+}
+
+// First page only (kept for callers that want just the rows).
+function listLeads(leads, args, nowMs, scope) {
+  const p = listLeadsPage(leads, Object.assign({}, args || {}, { cursor: undefined }), nowMs, scope);
+  return p.error ? [] : p.customers;
 }
 
 function clampLimit(n) { const v = Math.floor(Number(n)); return Number.isFinite(v) && v > 0 ? Math.min(v, MAX_LIST) : 20; }
@@ -747,6 +832,8 @@ function textGate(lead, optOut) {
   // phone does not need the written-consent record an automated text does —
   // the inbox shows whether one is on file.
   if (l.tcpaConsent === false) return { error: 'This customer declined texting on their form. No text draft — file a note instead.' };
+  // source 'dnc' = the company's own Do Not Text list (sms-optout.js), not a STOP reply.
+  if (optOut && optOut.optedOut && optOut.source === 'dnc') return { error: 'This customer is on your company\'s Do-Not-Text list. No text draft — file a note instead.' };
   if (!optOut || optOut.optedOut !== false) return { error: optOut && optOut.optedOut ? 'This customer is on the Do-Not-Text list (they replied STOP). No text draft — file a note instead.' : 'The Do-Not-Text list could not be checked. Try again later.' };
   return { ok: true, consentOnFile: l.tcpaConsent === true };
 }
@@ -968,7 +1055,7 @@ function toolErr(msg) { return { content: [{ type: 'text', text: msg }], isError
 
 module.exports = {
   PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, BOTS, FIRST_WAVE, MAX_TEXT, MAX_LIST, FORBIDDEN_KEYS,
-  toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, validateFiling,
+  toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, listLeadsPage, encodeListCursor, LIST_CURSOR_MAX, validateFiling,
   claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
