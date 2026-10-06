@@ -61,7 +61,7 @@ const LOCAL_BOX_MERGE = {
   },
   cincinnati: {
     mode: 'append',
-    html: 'Hamilton County processes thousands of hail claims after a major storm, and that volume means some get underpaid on the first pass. My documentation process is built around what Ohio adjusters and Xactimate software require to approve a claim at full value — not the minimum.',
+    html: 'Hamilton County processes thousands of hail claims after a major storm, and that volume means some get underpaid on the first pass. My documentation is thorough and line-itemized, so you have clear photos and an itemized estimate to share with your insurer. What the claim pays is up to your insurer.',
   },
   loveland: {
     mode: 'replace',
@@ -69,7 +69,7 @@ const LOCAL_BOX_MERGE = {
   },
   mason: {
     mode: 'append',
-    html: 'Warren County processes hundreds of hail claims every year after major storms — but not all of them get approved at full value. My documentation process is designed specifically around what Ohio adjusters and Xactimate software require to pay out a legitimate claim in full.',
+    html: 'Warren County processes hundreds of hail claims every year after major storms — and some get missed on the first pass. My documentation is thorough and line-itemized, so you have clear photos and an itemized estimate to share with your insurer. What the claim pays is up to your insurer.',
   },
   'west-chester': {
     mode: 'append',

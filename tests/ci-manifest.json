@@ -35,6 +35,7 @@
     "dashboard-stage-tiles-2026-10-03.test.js",
     "stage-flow-ui-2026-10-03.test.js",
     "deal-accepted-tier-2026-10-03.test.js",
+    "money-one-number-r2-fix-2026-10-06.test.js",
     "customer-pipeline-order-warranty-reasons-2026-09-28.test.js",
     "next-stage-never-lost-2026-09-28.test.js",
     "analytics-stage-labels-2026-09-28.test.js",
@@ -141,7 +142,6 @@
     "lead-dedup.test.js",
     "lead-photo-reaping.test.js",
     "sec-r3-e2e-flag-portal-path-2026-10-06.test.js",
-    "sec-photo-path-confinement-2026-10-06.test.js",
     "lead-filter-registry.test.js",
     "legacy-documents-audit.test.js",
     "lead-pipeline-logic.test.js",
@@ -281,6 +281,7 @@
     "sms-stop-intent-2026-10-05.test.js",
     "sms-dnc-2026-10-05.test.js",
     "sms-consent-quiet-switch-2026-10-05.test.js",
+    "sms-compliance-settings-ui-2026-10-05.test.js",
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
     "sms-send-optout-order.test.js",
@@ -427,11 +428,14 @@
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
+    "r4-silent-jobs-2026-10-06.test.js",
     "invoice-due-7-days-2026-10-05.test.js",
     "deposit-credit-ledger-mirror-2026-10-05.test.js",
     "r2-money-lines-jobvalue-2026-10-06.test.js",
     "r2-money-parse-multijob-2026-10-06.test.js",
+    "contract-signed-is-booked-2026-10-06.test.js",
     "no-personal-data-in-repo-2026-10-06.test.js",
+    "sec-photo-path-confinement-2026-10-06.test.js",
     "member-offboarding-2026-10-06.test.js",
     "member-storage-move-2026-10-06.test.js"
   ],
@@ -990,11 +994,11 @@
     "lead-artifact-cleanup.integration.test.js",
     "lead-bridge.integration.test.js",
     "marketing-polish-contract.test.js",
-    "member-storage-move.integration.test.js",
     "public-intake.test.js",
     "referral-rewards.test.js",
     "smoke.test.js",
-    "storage-rules.test.js"
+    "storage-rules.test.js",
+    "member-storage-move.integration.test.js"
   ],
   "quarantined": {}
 }
