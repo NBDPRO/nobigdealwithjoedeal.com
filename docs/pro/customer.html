@@ -2882,7 +2882,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/lead-score-panel.js?v=2"></script>
 <script defer src="js/customer-smart-followup-panel.js?v=3"></script>
 <!-- T-2: AI texting rep UI — surfaces pending /leads/{id}/ai_drafts -->
-<script defer src="js/customer-ai-drafts-panel.js?v=2"></script>
+<script defer src="js/customer-ai-drafts-panel.js?v=3"></script>
 <!-- share-gallery.js is NOT loaded here anymore. Its only caller on this
      page was the Photos-tab "Share Gallery" button, which now routes to
      PortalLinkHelpers.copyForLead; the module's own upload path is dead
@@ -3012,8 +3012,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       </div>
       <div>
         <label for="editDamageType" class="ui-label">Additional Service Locations</label>
-        <!-- A job can cover more than one property. Invoice NBD-2026-0810-RK
-             (Red Knight Properties) bills 1944 AND 1942 Kentucky Ave on one
+        <!-- A job can cover more than one property. Invoice NBD-2026-0810-XXXX
+             (Example Properties LLC) bills 100 AND 102 Kentucky Ave on one
              document; before this field the second building had nowhere to
              live and was lost. `address` stays the primary/billing address;
              these are extra properties worked under the same job and print

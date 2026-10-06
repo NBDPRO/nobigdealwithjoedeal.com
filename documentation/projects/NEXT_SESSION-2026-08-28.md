@@ -30,17 +30,17 @@ twice. Do not "fix" this by summing them.
    plan: build the site out first, then do a per-platform posting session
    with all 39 cards to draw from. Add the six Central-KY towns to the GBP
    service area BEFORE the Lexington post.
-2. **Five photos with no home**: the frames wrongly attributed to Higgins are
+2. **Five photos with no home**: the frames wrongly attributed to Customer BZ are
    a DIFFERENT customer's 2026-07-29 job (one-piece siding repair plus a
    walk-and-caulk). Jo identified the error; EXIF confirmed it (07-29 13:39–
-   13:47 vs Higgins closing 07-30). No closed 07-29 job exists in the CRM, so
+   13:47 vs Customer BZ closing 07-30). No closed 07-29 job exists in the CRM, so
    they cannot be attributed. Staged in the session scratchpad. **Ask Jo who
    the customer was — it is a ready-made card.**
 3. **Four cards held with reasons**: Robert Wilson (no town in ANY document —
    just needs the town) · By Golly's Bar & Grill, Milford, $64,011.90
    commercial flat roof (identifiable named business — courtesy call first;
-   only 2 usable frames) · Dan Philpot TAMKO sample pull (brand-sensitive
-   against the Pro Gold partnership) · Diane Garrity (invoice and photos both
+   only 2 usable frames) · Customer EE TAMKO sample pull (brand-sensitive
+   against the Pro Gold partnership) · Customer BP (invoice and photos both
    good, no town on any document).
 4. **Sharon Batavia gutters is NOT a job** — an agent pulled EXIF and proved
    the supposed "after" is a different eave photographed 2.3 seconds later,
@@ -61,12 +61,11 @@ NBD, ORC, MLR, JKRC, SPR, THP and Spagnotti. Findings:
 - **"James Hardie" is a false-positive magnet** — it matches only the
   boilerplate "James Hardie Alliance Installer" credential line in every NBD
   estimate footer. Zero actual Hardie jobs.
-- **JKRC DID do big full re-sides, document-only, zero photos**: 1116 Fuller
-  St (~6,570 SF across four elevations, siding 56% of an $80,657 RCV job) and
-  Howland, 6482 E Gingham Rd, Loveland (1,611 SF four-elevation aluminum,
+- **JKRC DID do big full re-sides, document-only, zero photos**: [street address] (~6,570 SF across four elevations, siding 56% of an $80,657 RCV job) and
+  a second job in Loveland (1,611 SF four-elevation aluminum,
   $42,888 total). Capability is proven; photography never happened.
-- **The live path to filling the gap is a SALE, not a search**: Southman,
-  West Chester, proposal NBD-2026-0811-STH Option B "full half-wall re-side"
+- **The live path to filling the gap is a SALE, not a search**: Customer EZ,
+  West Chester, proposal NBD-2026-0811-XXXX Option B "full half-wall re-side"
   **$4,600** — strip to sheathing, new weather barrier, flashing integration,
   ~280 LF LP SmartSide. Unsold as of 2026-08-28. If Jo closes it, document it
   as it happens.
@@ -80,13 +79,13 @@ NBD, ORC, MLR, JKRC, SPR, THP and Spagnotti. Findings:
 - **GPS→CRM matching is the highest-leverage trick found.** 108 of 198 leads
   carry `lat`/`lng`. Haversine an unattributed drone job's EXIF GPS against
   them and unattributed SD-card sets resolve to named, priced customers. This
-  is how **Jen Stith's "missing" after-photos were found** (an "unattributed
+  is how **Customer FB's "missing" after-photos were found** (an "unattributed
   Norwood EPDM set" sat 17 m from her address; confirmed visually by twin
   chimneys, rear deck and the neighbouring turreted Victorian) and how the
-  Seymour Ave set was confirmed as Goddard's. Script pattern:
+  [street] set was confirmed as Customer BR's. Script pattern:
   `scripts/_admin.js` → read `leads`, compare `lat`/`lng`.
 - **EXIF beats assumption for attribution.** Two separate errors this session
-  were caught by timestamps alone (the Higgins mix-up; the Batavia "after").
+  were caught by timestamps alone (the Customer BZ mix-up; the Batavia "after").
   Check capture times before grouping frames into one job.
 - **Drive folders are frequently multi-job SD dumps.** Never group adjacent
   frames without confirming architectural details match.
@@ -120,10 +119,10 @@ multi-section card its first BEFORE.
 - Milford's crew-face problem covers ALL of DJI_0304-0308, which is the only
   completed-front-elevation burst; there is no usable true "after" of the
   money shot. Jo could reshoot it.
-- **Lynch and Stith have NO after-state photos anywhere in Drive** (verified
+- **Lynch and Customer FB have NO after-state photos anywhere in Drive** (verified
   by exhaustive folder walks, not sampling). Both jobs are complete and paid,
   so an after-shoot on either would finish those cards.
-- Waters' photo subfolders are genuinely empty; her photos were located by
+- Customer BJ' photo subfolders are genuinely empty; her photos were located by
   reading the completion date off the receipt and matching SD-card drone
   rolls. Same trick will work for other photo-less jobs.
 - Some job docs 404 by ID even when they exist — fall back to folder listing.
@@ -131,8 +130,8 @@ multi-section card its first BEFORE.
 ## §FINAL STATE (round 1 — earlier the same day)
 
 Four content PRs **merged and verified live** the same day: #1285 (real towns
-+ 3 new priced projects), #1286 (photo expansion + Dindar), #1287 (Goddard
-three-layer fix, real Roofivent close-ups, Dindar panels-off), #1289 (gallery
++ 3 new priced projects), #1286 (photo expansion + Customer AW), #1287 (Customer BR
+three-layer fix, real Roofivent close-ups, Customer AW panels-off), #1289 (gallery
 expansion: 46 photos across 14 cards → Jo's "10 per reel" target met on the
 four flagship cards). `/our-work` now carries 18 projects, zero "Greater
 Cincinnati" placeholders.
@@ -144,8 +143,8 @@ Cincinnati" placeholders.
    + 4 posters in `../marketing/gbp-kit-2026-08-28/`. Nothing has been posted
    anywhere. Before the Lexington post goes up, add the six Central-KY towns
    to the GBP service area.
-2. **Two photo judgment calls** he hasn't answered: the Goddard coating frame
-   with an identifiable crew face, and a Hatley "before" aerial that could not
+2. **Two photo judgment calls** he hasn't answered: the Customer BR coating frame
+   with an identifiable crew face, and a Customer BX "before" aerial that could not
    be confirmed as Rita's roof vs a neighbor's (he already caught one
    neighbor-roof mix-up on that card — the Ty Nicodemus one, itself a future
    card candidate).
@@ -167,13 +166,13 @@ broader queue — nothing there is superseded except as noted.
 
 Branch `content/our-work-areas-galleries-2026-08-28` (draft PR) holds:
 real towns on all 12 legacy /our-work cards (EXIF-verified), 3 new priced
-projects (Goddard $22.5–23.5k re-roof · Hatley $3–3.5k thermal+vents ·
-Higgins $300–500 same-day siding), a 2nd photo on the apartment-tearoff
+projects (Customer BR $22.5–23.5k re-roof · Customer BX $3–3.5k thermal+vents ·
+Customer BZ $300–500 same-day siding), a 2nd photo on the apartment-tearoff
 card, and the [GBP post kit](../marketing/gbp-post-kit-2026-08-28.md).
 
 **Jo answered same day (2026-08-28):** consent ✓ for all three projects
-("yes, I gave you permission"); towns unchallenged; Higgins re-priced to
-**$600–1,000** per Jo (applied). He noted the Goddard tear-off and the
+("yes, I gave you permission"); towns unchallenged; Customer BZ re-priced to
+**$600–1,000** per Jo (applied). He noted the Customer BR tear-off and the
 existing Tudor-duplex card are similar — both stay ("either great"), but
 **keep hunting more job variety** (a second Drive sweep of the unreached
 folders was launched that session). PR flipped to ready; **merge is Jo's
@@ -185,19 +184,19 @@ kit + posters first (`../marketing/gbp-post-kit-2026-08-28.md` +
 so. When he does: add the Central-KY towns to the GBP service area BEFORE
 the Lexington announcement.
 
-## §0b — Same-day round 2 (PR #1286): expansion + corrections + Dindar
+## §0b — Same-day round 2 (PR #1286): expansion + corrections + Customer AW
 
 #1285 merged and VERIFIED LIVE same day (deploy green; served /our-work
 carries the towns/prices, zero "Greater Cincinnati" left). Jo then, live in
-session: (a) flagged that Hatley's third photo was **Ty Nicodemus's roof**
+session: (a) flagged that Customer BX's third photo was **Ty Nicodemus's roof**
 (neighbor, ANOTHER customer — future card candidate) → replaced with
-Roofivent Roto-turbine/Eco-vent close-ups per his ask; (b) corrected Higgins
-to THIRD-story; (c) asked for **5–10 photos per project** → Goddard 3→6,
-Hatley 3→5, Higgins 2→4, A-frame/Evansville +1 each (Photo Library
-companions); (d) approved **Dindar** (Sharonville, $1,000–1,500,
+Roofivent Roto-turbine/Eco-vent close-ups per his ask; (b) corrected Customer BZ
+to THIRD-story; (c) asked for **5–10 photos per project** → Customer BR 3→6,
+Customer BX 3→5, Customer BZ 2→4, A-frame/Evansville +1 each (Photo Library
+companions); (d) approved **Customer AW** (Sharonville, $1,000–1,500,
 siding-repair + storm-damage, 4 photos; crew-face close-up excluded, his
-call to add). The second Drive sweep's full report (Dindar find, soft-wash
-job description, McGlynn hold-until-invoice-sent, SD-roll GPS fixes) is in
+call to add). The second Drive sweep's full report (Customer AW find, soft-wash
+job description, Customer DI hold-until-invoice-sent, SD-roll GPS fixes) is in
 the sweep agent record; top leads folded into §5 below. Mesh-screens Content
 photos were REJECTED for Gary's card — they read as pre-job existing
 screens, not the new install.
@@ -208,7 +207,7 @@ screens, not the new install.
   feature/imagery (needs Jo's job ID).
 - Walgreens commercial set + Schumacher "New Build" set — Jo's call on
   third-party branding, then easy features.
-- Coleman (Loveland) feature auto-unlocks when her proposal books.
+- Customer G (Loveland) feature auto-unlocks when her proposal books.
 - A-frame card: two recognizable people on the live photo — swap candidate
   `REAL_2026-03-06_DJI_0680` if Jo wants.
 
