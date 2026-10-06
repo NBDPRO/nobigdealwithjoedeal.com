@@ -2645,7 +2645,6 @@ async function run() {
   if (s53Fail.length) {
     throw new Error('53 documents.htmlPath: ' + s53Fail.length + ' check(s) went the wrong way:\n    ' + s53Fail.join('\n    '));
   }
-  }
 
   // 55. sms_dnc — a company's internal Do Not Text list (2026-10-05). Server
   //     only (manageSmsCompliance + incomingSMS); enforced in sms-optout.js
