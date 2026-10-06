@@ -3748,7 +3748,11 @@ window.generateCertFromEstimate = async function(estimateId) {
   const _roofBody = _tierYears
     ? 'This warranty covers defects in workmanship for ' + (_tierYears === 1 ? 'one (1) year' : _tierYears + ' years') + ' from the completion date. The shingles carry the manufacturer\'s standard limited warranty; no system warranty is included.'
     : 'This warranty covers defects in workmanship for the lifetime of the installation.'
-      + (_tierW.hailWarranty ? ' The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' : '');
+      + (_tierW.hailWarranty ? ' The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' : '')
+      // GAF System Plus (Standard and up, 2026-10-05) — NBD's GAF certification,
+      // so the platform tenant only.
+      + (_tierW.systemPlus && (!window.NBDTenantRules || typeof window.NBDTenantRules.isPlatformTenant !== 'function' || window.NBDTenantRules.isPlatformTenant())
+        ? ' The GAF shingles and qualifying GAF accessories also carry the GAF System Plus Limited Warranty, GAF\'s manufacturer warranty (GAF terms apply).' : '');
 
   // Accent is a literal here, not var(--orange): this popup links only
   // nbd-mobile.css, which never DECLARES --orange (it only reads it with a
