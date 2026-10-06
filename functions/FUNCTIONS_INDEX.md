@@ -155,7 +155,7 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `getPublicSiteConfig` | onRequest | Pillar 5 tenant-microsite config read — strict public-marketing whitelist, active-tenant check, rate-limited |
 | `submitReferral` | onRequest | Per-IP (5/10min) + per-source-customer (10/24h) rate limit, phone/email validation |
 | `referralLinkOpened` | onRequest | (referral-clicks.js, 2026-10-04) POST { ref } from /pro/refer.html once per session; counts the open into companies/{co}/owner_numbers/referral_clicks_YYYY-MM (owner-only read). Per-IP 20/10min; always 204; unknown/ambiguous codes not counted |
-| `stormReport` | onRequest | Public IEM storm-history proxy for /storm-report — server-side yearly chunking + Firestore cache (no API key needed) |
+| `stormReport` | onRequest | Public IEM storm-history proxy for /storm-report — server-side yearly chunking + Firestore cache (no API key needed); adds `windGusts` (nearest ASOS station's measured gust on the top storm days, integrations/asos-gust.js) |
 | `getGoogleReviews` | onRequest | Cached Google Places reviews proxy (6-hour Firestore cache; keeps API key server-side); 60/min/IP via `guardHttp` (2026-08-10 — previously the ONLY unlimited public endpoint) |
 | `shareSSR` | onRequest | Server-rendered share-link preview HTML with og:/twitter: meta (token-authed lookup) |
 | `cspReport` | onRequest | Logs only, no side effects; 60/min/IP (boolean honored 2026-08-10 — was advisory-only) |
@@ -314,7 +314,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `onClaimStageChange` | `leads/{leadId}` updated | Push notification on claim-stage transitions |
 | `onAiDraftApproved` | `leads/{leadId}/ai_drafts/{draftId}` updated | Sends approved AI-drafted SMS via Twilio (pending→approved transition only; idempotent) |
 | `estimateEmail` | `estimate_leads/{id}` created | Emails homeowner their estimate on `email_estimate_request`; LIVE by default (2026-07-18), `ESTIMATE_EMAIL_ENABLED=false` forces DRY-RUN |
-| `stormReportEmail` | `inspect_leads/{leadId}` created | Homeowner follow-up email for /storm-report leads |
+| `stormReportEmail` | `inspect_leads/{leadId}` created | Homeowner follow-up email for /storm-report leads (+ measured-gust line for the biggest storm day, when the nearest station has a reading) |
 | `teamInviteEmail` | `companies/{companyId}/members/{memberId}` created | Sends the invite email when a roster invite doc is created |
 | `leadAlertContact` / `leadAlertEstimate` / `leadAlertFreeRoof` / `leadAlertInspect` / `leadAlertStorm` | `contact_leads` / `estimate_leads` / `free_roof_entries` / `inspect_leads` / `storm_alert_subscribers` created | Text + email Joe the moment a public marketing lead lands |
 | `leadAlertCalcom` | `leads/{leadId}` created | Text + email Joe for two kinds of lead create. (1) The Cal.com webhook's booking lead (`publicLeadKind: 'calcom_booking'` + `webLead: true`); a `needsPhone` booking leads with a NO PHONE row/line. (2) Since 2026-09-26, `leadBridgeThumbtack`'s mirror (`publicLeadKind: 'thumbtack'`), only when the doc id is the bridge's own `thumbtack_leads__<publicLeadId>`. Nothing alerts on `thumbtack_leads` itself. Manual, web-form-bridged and backfilled leads return early. No homeowner ack. Name kept: renaming would deploy a second trigger beside the old one |
@@ -341,6 +341,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 Exported for unit tests or internal reuse; they carry no `__endpoint` and Firebase deploy ignores them.
 
 - `_test` (storm-watch.js and integrations/storm-briefing.js each export one), `_constants`, `_bridgeCollections` (lead-bridge.js)
+- `gustForAddressDay` / `gustsForTopStormDays` — plain async helpers (integrations/asos-gust.js, pure rules in asos-gust-logic.js, stations in data/asos-stations.json): nearest ASOS station's max measured gust for a local day from IEM, cached in `public_cache/gust_{STATION}_{YYYYMMDD}`; used by `stormReport`, `stormReportEmail`, `attachStormProof`; not Cloud Functions. (2026-10-06)
 - `lookupHail` — plain async hail-history helper (integrations/hail.js) shared by `getHailHistory` + `attachStormProof` (handlers/storm-proof.js); not a Cloud Function. (2026-08-06 correction: previously said "storm briefing", but storm-briefing.js never imports it.)
 - Voice-intelligence internals: `_VoiceError`, `_analyzeTranscript`, `_checkBudget`, `_checkVerbalConsent`, `_getCompanyContext`, `_incrementVoiceUsage`, `_parseAudioPath`, `_processRecording`, `_transcribeAudio`
 - Push-notification helpers (plain async functions): `sendTeamNotification`, `sendStreakNotification`, `sendCustomNotification`

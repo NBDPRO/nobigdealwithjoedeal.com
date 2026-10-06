@@ -443,6 +443,7 @@
       var fn = window._httpsCallable(window._functions, 'attachStormProof');
       var res = await fn({ leadId: leadId });
       var out = (res && res.data) || {};
+      renderStormProofWind(leadId, out.windLine);
       if (out.verified) {
         var sz = out.maxSizeInches ? (Math.round(out.maxSizeInches * 100) / 100) + '" hail' : (out.hitCount + ' reports');
         if (window.showToast) window.showToast('✅ Verified storm proof attached — ' + sz, 'ok');
@@ -453,6 +454,36 @@
       var msg = (e && (e.message || (e.details && e.details.message))) || 'error';
       if (window.showToast) window.showToast('Storm check failed: ' + msg, 'error');
     }
+  }
+
+  // Measured wind on the proof's storm day (2026-10-06): one line under the
+  // card-detail actions, from the server's windLine (nearest ASOS station; null
+  // when that station had no reading → nothing shown). textContent only. The
+  // note is tied to the lead it was fetched for; openCardDetailModal removes it
+  // when another card opens.
+  var WIND_CONTEXT = 'A reading at a weather station is not a reading at this address. Only an inspection can show whether there’s real damage, and whether a claim is approved is up to the insurer.';
+  function renderStormProofWind(leadId, line) {
+    var old = document.getElementById('cdStormWind');
+    if (old) old.remove();
+    if (typeof line !== 'string' || !line || window._cardDetailLeadId !== leadId) return;
+    var btn = document.querySelector('[data-fn="verifyStormProofForLead"]');
+    var row = btn && btn.closest('.cd-actions');
+    if (!row || !row.parentNode) return;
+    var box = document.createElement('div');
+    box.id = 'cdStormWind';
+    box.className = 'cd-storm-wind';
+    box.setAttribute('data-lead-id', leadId);
+    box.style.cssText = 'margin:8px 0 4px;padding:8px 10px;border:1px solid var(--br,rgba(127,127,127,.25));border-radius:8px;font-size:12px;line-height:1.45;color:var(--t,inherit);overflow-wrap:anywhere;';
+    var title = document.createElement('div');
+    title.style.fontWeight = '700';
+    title.textContent = 'Wind measured nearby';
+    var body = document.createElement('div');
+    body.textContent = line;
+    var ctx = document.createElement('div');
+    ctx.style.cssText = 'opacity:.75;margin-top:3px;';
+    ctx.textContent = WIND_CONTEXT + ' Source: NOAA/NWS weather-station observations via the Iowa Environmental Mesonet (Iowa State University).';
+    box.appendChild(title); box.appendChild(body); box.appendChild(ctx);
+    row.parentNode.insertBefore(box, row.nextSibling);
   }
 
   // Register on the CSP-safe call registry (resolved by the data-action="call"
