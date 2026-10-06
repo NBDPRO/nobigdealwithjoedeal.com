@@ -777,7 +777,7 @@ exports.submitSignature = onRequest(
         ...(cancelBy ? { cancelBy } : {}),
       }, { merge: true });
     } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
-    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger);
+    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid });
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.
