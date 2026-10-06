@@ -329,7 +329,7 @@ check('T29 each of those three forms presents an express-written-consent TEXTING
     const i = html.indexOf('id="' + f.checkbox + '"');
     assert.ok(i > 0, route + ': checkbox ' + f.checkbox + ' missing');
     const label = html.slice(i, html.indexOf('</label>', i));
-    for (const must of ['text', 'Message &amp; data rates', 'Reply STOP', 'Not a condition of purchase', 'No Big Deal Home Solutions']) {
+    for (const must of ['text', 'Message &amp; data rates', 'Reply STOP', 'Consent is not a condition of purchase', 'No Big Deal Home Solutions']) {
       assert.ok(label.includes(must), route + ": consent label lacks '" + must + "' — a contact-me checkbox is not texting consent");
     }
   }
@@ -354,7 +354,7 @@ check('T31 consentRecord stamps when / which text / which page / which IP for a 
   });
   assert.deepStrictEqual(rec, {
     tcpaConsentAt: '__server_ts__',
-    tcpaConsentText: 'tcpa-v1-2026-10-03',
+    tcpaConsentText: 'tcpa-storm-alerts-v2-2026-10-05',
     tcpaConsentSource: '/storm-alerts',
     tcpaConsentIp: '203.0.113.9',
   });
@@ -374,10 +374,15 @@ check('T33 source falls back to the form tag without a usable Referer; IP omitte
   assert.ok(!('tcpaConsentIp' in rec));
 });
 
-check('T34 the /estimate funnel records ITS wording version; every other kind the shared one', () => {
+check('T34 /estimate and /storm-alerts record THEIR wording versions; every other kind the shared one', () => {
   assert.strictEqual(C.consentVersionForKind('estimate'), C.ESTIMATE_CONSENT_VERSION);
-  for (const k of ['inspect', 'storm', 'contact']) assert.strictEqual(C.consentVersionForKind(k), C.CONSENT_VERSION);
-  assert.ok(C.CONSENT_TEXTS[C.CONSENT_VERSION] && C.CONSENT_TEXTS[C.ESTIMATE_CONSENT_VERSION]);
+  assert.strictEqual(C.consentVersionForKind('storm'), C.STORM_ALERTS_CONSENT_VERSION);
+  for (const k of ['inspect', 'contact']) assert.strictEqual(C.consentVersionForKind(k), C.CONSENT_VERSION);
+  assert.ok(C.CONSENT_TEXTS[C.CONSENT_VERSION] && C.CONSENT_TEXTS[C.ESTIMATE_CONSENT_VERSION]
+    && C.CONSENT_TEXTS[C.STORM_ALERTS_CONSENT_VERSION]);
+  // Old versions are never deleted: records already stamped with them must
+  // keep pointing at the words those people saw.
+  for (const v of ['tcpa-v1-2026-10-03', 'tcpa-estimate-v1-2026-10-03']) assert.ok(C.CONSENT_TEXTS[v], v + ' was removed');
   assert.strictEqual(Object.isFrozen(C.CONSENT_TEXTS), true);
 });
 
@@ -393,7 +398,7 @@ function labelText(src, id) {
 const PAGES_V1 = [
   ['docs/storm-check.html', 'sc-consent'], ['docs/roof-score.html', 'rs-consent'],
   ['docs/storm-report.html', 'sr-consent'], ['docs/inspect.html', 'ins-consent'],
-  ['docs/storm-alerts.html', 'sa-consent'], ['docs/index.html', 'fieldConsent'],
+  ['docs/index.html', 'fieldConsent'],
   ['docs/assets/js/quick-lead-form.js', "' + uid + '-consent"],
 ];
 
@@ -405,6 +410,8 @@ check('T35 every consent label is word-for-word the text its stored version id n
   }
   const est = fs.readFileSync(path.join(ROOT, 'docs', 'estimate.html'), 'utf8');
   assert.strictEqual(labelText(est, 'tcpaConsent'), C.CONSENT_TEXTS[C.ESTIMATE_CONSENT_VERSION]);
+  const sa = fs.readFileSync(path.join(ROOT, 'docs', 'storm-alerts.html'), 'utf8');
+  assert.strictEqual(labelText(sa, 'sa-consent'), C.CONSENT_TEXTS[C.STORM_ALERTS_CONSENT_VERSION]);
 });
 
 check('T36 the three newly-gated forms read their box, refuse without it, and post tcpaConsent', () => {
@@ -486,7 +493,7 @@ for (const [kind, body, referer, coll, srcPath] of ROUND_TRIPS) {
     assert.strictEqual(name, coll);
     assert.strictEqual(row.tcpaConsent, true, kind + ': the boolean was dropped');
     assert.strictEqual(row.tcpaConsentAt, '__server_ts__', kind + ': no server timestamp on the consent');
-    assert.strictEqual(row.tcpaConsentText, C.CONSENT_VERSION);
+    assert.strictEqual(row.tcpaConsentText, C.consentVersionForKind(kind));
     assert.strictEqual(row.tcpaConsentSource, srcPath);
     assert.strictEqual(row.tcpaConsentIp, '198.51.100.7');
   }]);

@@ -171,7 +171,23 @@ const BAD = {
   // 2026-10-04 — the shipped NBD Pro lines each was written for.
   'claims-management': 'NBD Pro supports full workflows for insurance restoration (claims management, adjuster coordination, damage documentation) and retail roofing.',
   'aob': '25 branded document types: contracts, AOBs, change orders, warranties',
+  // 2026-10-05 — the shipped homeowner lines each was written for.
+  'claim-outcome-prediction': 'You likely have a claimable loss — worth a free inspection.',
+  'covers-regardless': 'If the damage was caused by a covered peril like hail or wind, insurance should cover it regardless of age.',
 };
+// The outcome-prediction family (2026-10-05), each caught by SOME rule.
+for (const s of [
+  'Strong claim potential — get it documented.',
+  'Severe storm activity this close to your home is exactly what insurers act on.',
+  'If you have RCV coverage on your policy, you get the full amount regardless of age.',
+]) ok(checkSentence(s).length > 0, `claim-outcome family is caught: "${s.slice(0, 70)}"`);
+// ...and the reworded lines pass.
+for (const s of [
+  'Storm activity near you is worth a free inspection.',
+  'Severe storm activity near you — worth a free inspection.',
+  "It depends on your policy. If a covered peril like hail or wind caused the damage, many policies still pay on an older roof, but some pay older roofs on a depreciation schedule (actual cash value), so you get less.",
+  'Joe will get on the roof and document what he finds so you can decide your next step.',
+]) ok(checkSentence(s).length === 0, `claim-outcome rewording passes: "${s.slice(0, 70)}"${checkSentence(s).length ? ' — fired ' + checkSentence(s).join(',') : ''}`);
 for (const r of RULES) {
   const fx = BAD[r.id] || 'NO FIXTURE';
   const [prev, s] = Array.isArray(fx) ? fx : ['', fx];

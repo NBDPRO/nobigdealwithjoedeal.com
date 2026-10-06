@@ -436,6 +436,12 @@ const VERDICTS = {
   activateInvitedRep: 'self', analyzePhotoVision: 'refused', assignSeats: 'role-gated',
   // Stripe ledger (2026-09-29): owner / owner's company_admin / platform admin only.
   assignStripeTransaction: 'role-gated', getStripeOverview: 'role-gated', stripeLedgerSync: 'role-gated',
+  // Roof Care Plan (care-plan.js): the CRM actions are owner / NBD company_admin
+  // only; the checkout + portal endpoint and the Stripe webhook are public.
+  carePlanAdmin: 'role-gated', carePlanPublic: 'public', carePlanWebhook: 'public',
+  // NBD's Twilio line (twilio-line.js, 2026-10-06): Twilio webhooks — no user
+  // auth, X-Twilio-Signature verified instead (like incomingSMS).
+  twilioSmsWebhook: 'public', twilioSmsStatus: 'public', twilioVoiceWebhook: 'public', twilioVoiceDialStatus: 'public',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
   // Social Studio (2026-10-04): requireSocialManager refuses viewer / rep / manager.
@@ -480,6 +486,8 @@ const VERDICTS = {
   // keys); company bots, keys for them and the bot settings stay owner/admin.
   createAgentKey: 'role-gated', listAgentKeys: 'self', revokeAgentKey: 'self',
   saveAgentBot: 'role-gated', deleteAgentBot: 'role-gated', saveAgentSettings: 'role-gated',
+  // Agent inbox drafts (2026-10-06): requireKeyAdmin, same as the bot settings.
+  agentDraftAction: 'role-gated',
   voidEsignEnvelope: 'refused',
   // Thursday (Bland receptionist, #1783/#1787, classified when #1780 landed
   // 2026-09-27): the recording stream reads only; the inbox action refuses

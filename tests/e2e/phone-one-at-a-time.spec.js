@@ -75,6 +75,11 @@ test.describe('phone: one at a time @shard2', () => {
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!(window._user && window.NBDSortCustomers && window.NBDTriageDeck), null, { timeout: 30_000 });
     const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    // Seed only after the dashboard's own first lead load has finished
+    // (dashboard-bootstrap.module.js loadLeads() sets _leadsLoaded). A boot
+    // load still in flight can resolve after our _loadLeads() below and
+    // replace window._leads with a snapshot taken before the seed.
+    await safeWaitForFunction(page, () => window._leadsLoaded === true, null, { timeout: 30_000 });
     const s = Date.now();
     const base = { userId: who.uid, companyId: who.co, stage: 'new', e2eTestData: true, createdAt: new Date(), deleted: false };
     const ids = [];
@@ -155,6 +160,11 @@ test.describe('phone: one at a time @shard2', () => {
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!(window._user && window.NBDFollowUpDeck && window.NBDTriageDeck), { timeout: 30_000 });
     const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    // Seed only after the dashboard's own first lead load has finished
+    // (dashboard-bootstrap.module.js loadLeads() sets _leadsLoaded). A boot
+    // load still in flight can resolve after our _loadLeads() below and
+    // replace window._leads with a snapshot taken before the seed.
+    await safeWaitForFunction(page, () => window._leadsLoaded === true, null, { timeout: 30_000 });
     const yday = await safeEvaluate(page, () => window.NBDFollowUpDeck._inDays(-1));
     const s = Date.now();
     const base = { userId: who.uid, companyId: who.co, stage: 'contacted', e2eTestData: true, createdAt: new Date(), deleted: false, followUp: yday };
@@ -227,6 +237,11 @@ test.describe('phone: one at a time @shard2', () => {
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => !!(window._user && window.NBDReviewDeck && window.ReviewEngine && window.NBDTriageDeck), { timeout: 30_000 });
     const who = await safeEvaluate(page, () => ({ uid: window._user.uid, co: (window._userClaims && window._userClaims.companyId) || window._user.uid }));
+    // Seed only after the dashboard's own first lead load has finished
+    // (dashboard-bootstrap.module.js loadLeads() sets _leadsLoaded). A boot
+    // load still in flight can resolve after our _loadLeads() below and
+    // replace window._leads with a snapshot taken before the seed.
+    await safeWaitForFunction(page, () => window._leadsLoaded === true, null, { timeout: 30_000 });
     const s = Date.now();
     const won = { userId: who.uid, companyId: who.co, stage: 'closed', stageRole: 'won', e2eTestData: true, createdAt: new Date(), deleted: false, stageStartedAt: new Date(s - 3 * 86400000) };
     const askId = (await adb().collection('leads').add(Object.assign({}, won, { firstName: 'ZZReview', lastName: 'Ask' + s, phone: '(513) 555-0166', email: 'delivered@resend.dev', address: '9 Review Rd, Mason, OH 45040' }))).id;

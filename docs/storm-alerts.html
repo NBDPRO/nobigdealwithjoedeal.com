@@ -78,6 +78,7 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 /* consent (TCPA, 2026-10-03) — same markup as /storm-check's .sc-consent */
 .sc-consent { display:flex; gap:10px; align-items:flex-start; margin:4px 0 14px; font-size:.78rem; color:rgba(255,255,255,.62); line-height:1.4; text-align:left; }
 .sc-consent input { margin-top:2px; width:18px; height:18px; flex-shrink:0; accent-color:var(--orange); }
+.sc-consent a { color:inherit; text-decoration:underline; }
 .field input[aria-invalid="true"] { border-color:#f87171; }
 
 /* Success */
@@ -464,9 +465,9 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       </select>
     </div>
     <div style="position:absolute;left:-9999px;" aria-hidden="true"><input type="text" id="alertHoneypot" tabindex="-1" autocomplete="off" aria-label="Leave this field blank"></div>
-    <label class="sc-consent"><input type="checkbox" id="sa-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
+    <label class="sc-consent"><input type="checkbox" id="sa-consent"><span>I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a></span></label>
     <div class="signup-err" id="sa-error" role="alert"></div>
-    <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof</p>
+    <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>
     <button class="signup-btn" id="alertSignupBtn">🔔 Sign Me Up — Free</button>
     <script defer  src="/assets/js/inline/ba974607f0.js"></script>
     <div class="signup-note">We'll only text you when severe weather actually hits your zip code. Usually 2-4 times per season. Reply STOP to unsubscribe anytime.</div>

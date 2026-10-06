@@ -86,7 +86,7 @@
     ],
     storm: [
       'js/storm-center.js?v=6',
-      'js/storm-integration.js?v=2',
+      'js/storm-integration.js?v=3',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
       'js/storm-outlook.js?v=1'
@@ -147,6 +147,11 @@
       'css/winback-view.css?v=1',
       'js/winback.js?v=2'
     ],
+    // Roof Care Plan members view (#/careplan, 2026-10-05). Its stylesheet
+    // (care-plan.css) is eager on dashboard.html — the badge needs it too.
+    careplan: [
+      'js/care-plan-members.js?v=1'
+    ],
     // Sunday business review (2026-10-04): the rules (numbers-logic.js) and
     // the owner-only data reads (numbers-data.js) are eager on the page; this
     // is just the view.
@@ -180,10 +185,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=16',
-      'js/document-generator-templates.js?v=12',
+      'js/document-generator.js?v=17',
+      'js/document-generator-templates.js?v=13',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=4',
+      'js/doc-preflight.js?v=5',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -243,6 +248,9 @@
       'js/estimate-builder-v2.js?v=12',
       'js/estimate-catalog-xactimate.js?v=3',
       'js/estimate-logic-engine.js?v=8',
+      // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
+      // builder and the Job Templates engine call at price time — before both.
+      'js/care-plan-discount.js?v=1',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
       'js/estimates.js?v=13',
@@ -253,13 +261,13 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=6',
+      'js/estimate-finalization.js?v=7',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=23',
+      'js/estimate-v2-ui.js?v=24',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
-      'js/estimate-v3-wizard.js?v=4',
+      'js/estimate-v3-wizard.js?v=5',
       'js/estimate-supplement.js?v=2',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
@@ -269,9 +277,9 @@
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
       'js/job-templates-data.js?v=4',
-      'js/job-templates.js?v=7',
+      'js/job-templates.js?v=8',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=8',
+      'js/job-templates-ui.js?v=9',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle
@@ -297,7 +305,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=8',
+      'js/photo-engine.js?v=9',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
@@ -307,8 +315,8 @@
       // existing dedupe trap this file documents elsewhere: ScriptLoader
       // dedupes on resolved path, so an eager tag for either file would make
       // loadBundle('photos') a no-op for it and nothing would load lazily.
-      'js/photo-queue-store.js?v=3',
-      'js/photo-queue-recovery.js?v=2',
+      'js/photo-queue-store.js?v=4',
+      'js/photo-queue-recovery.js?v=3',
       // KY claim-wording filter (2026-10-04) — BEFORE the two report
       // builders, which run every caption / report string through it.
       'js/claim-wording-filter.js?v=1',
@@ -325,8 +333,8 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=14',
-      'js/d2d-tracker-ui-2026b.js?v=8',
+      'js/d2d-tracker-core-2026b.js?v=15',
+      'js/d2d-tracker-ui-2026b.js?v=9',
       'js/d2d-tracker-2026b.js?v=3'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
@@ -469,6 +477,7 @@
     money:       ['money'],
     signs:       ['mapvendor', 'signs'],
     winback:     ['winback'],
+    careplan:    ['careplan'],
     weekreview:  ['weekreview'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],

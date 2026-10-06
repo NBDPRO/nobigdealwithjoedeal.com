@@ -1,28 +1,92 @@
 /* today-home.css — the "Today" list on Home (js/today-home.js, 2026-10-03).
-   Thumb-sized actions (≥44px), one row per thing, sections collapse when empty. */
-.tp{display:block;margin-bottom:14px;border:1px solid var(--br);border-radius:14px;background:var(--s2,#1a1d23);padding:12px 12px 6px;}
+   Thumb-sized actions (≥44px), one row per thing, sections collapse when empty.
+
+   A2 (2026-10-05): restyled on the A1 foundation tokens (ui-primitives.css
+   → FOUNDATION; DESIGN.md → "Foundation tokens" / "Motion"). Hierarchy:
+     1. the headline count is the one number on the screen (display size);
+     2. section labels are small-caps eyebrows with a tabular count;
+     3. a row is name → why, and "overdue / past due / urgent" reads as a
+        red chip at a glance instead of red words in a sentence;
+     4. each row has ONE tinted primary action (.tp-go); the rest are quiet.
+   The card follows Settings > Appearance > Shape (radius and elevation role
+   tokens). Colour only from theme tokens. Markup and behaviour unchanged. */
+.tp{
+  display:block;
+  margin-bottom:var(--ui-space-5);
+  padding:var(--ui-space-4) var(--ui-space-5) var(--ui-space-2);
+  background:var(--s2);
+  border:1px solid var(--ui-line-hair);
+  border-radius:max(var(--r-card, 8px), var(--ui-radius-lg));
+  box-shadow:var(--elevation-card, var(--ui-elev-1));
+}
 .tp[hidden]{display:none;}
-.tp-hd{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:6px;}
-.tp-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--t);letter-spacing:.2px;}
-.tp-storm{font-size:12px;font-weight:700;color:var(--gold,#f59e0b);}
-.tp-sub{font-size:12px;color:var(--m);}
-.tp-empty{font-size:13px;color:var(--m);padding:10px 2px 12px;}
-.tp-sec{border-top:1px solid var(--br);padding:8px 0 4px;}
-.tp-sec-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
-.tp-sec-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--m);}
-.tp-count{display:inline-block;min-width:18px;padding:0 6px;border-radius:9px;background:var(--br);color:var(--t);font-size:10px;text-align:center;}
-.tp-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-bottom:1px dashed var(--br);}
+/* nbd-mobile.css (the marketing sheet, loaded on this page too) pads EVERY
+   <section> with !important: max(5%) on desktop, 16px on phones. The Today
+   card is a <section>, so its title sat ~60px in at 1440. Beat it here. */
+section.tp{padding-left:var(--ui-space-5) !important;padding-right:var(--ui-space-5) !important;}
+/* Arrives once when the list is ready (loading → ready); re-renders keep the
+   state, so the animation never replays. Zeroed by both motion switches. */
+.tp[data-tp-state="ready"]{animation:ui-enter var(--ui-dur-enter) var(--ui-ease-enter) both;}
+.tp-hd{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--ui-space-1) var(--ui-space-3);margin-bottom:var(--ui-space-3);}
+.tp-title{font-family:var(--ui-font-display);font-size:var(--ui-fs-display);line-height:var(--ui-lh-display);font-weight:var(--ui-fw-heavy);letter-spacing:var(--ui-ls-display);color:var(--t);font-variant-numeric:tabular-nums;}
+.tp-storm{display:inline-flex;align-items:center;gap:var(--ui-space-1);padding:2px var(--ui-space-2);border-radius:var(--ui-radius-pill);background:color-mix(in srgb, var(--orange) 16%, transparent);color:color-mix(in srgb, var(--orange) 35%, var(--t));font-size:var(--ui-fs-caption);font-weight:var(--ui-fw-bold);}
+.tp-sub{font-size:var(--ui-fs-body-sm);line-height:var(--ui-lh-body-sm);color:var(--m);font-variant-numeric:tabular-nums;margin-top:2px;}
+.tp-empty{display:flex;flex-direction:column;align-items:center;padding:var(--ui-space-8) var(--ui-space-4) var(--ui-space-6);text-align:center;font-size:var(--ui-fs-body);color:var(--m);}
+.tp-empty::before{content:"✓";display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;margin-bottom:var(--ui-space-3);border-radius:var(--ui-radius-lg);background:color-mix(in srgb, var(--green) 14%, transparent);color:color-mix(in srgb, var(--green) 35%, var(--t));font-size:22px;font-weight:var(--ui-fw-heavy);}
+.tp-sec{border-top:1px solid var(--ui-line-divider);padding:var(--ui-space-3) 0 var(--ui-space-1);}
+.tp-sec-hd{display:flex;align-items:center;justify-content:space-between;gap:var(--ui-space-2);margin-bottom:var(--ui-space-1);}
+.tp-sec-title{display:inline-flex;align-items:center;gap:var(--ui-space-2);font-size:var(--ui-fs-label);font-weight:var(--ui-fw-bold);text-transform:uppercase;letter-spacing:var(--ui-ls-label);color:var(--m);}
+.tp-count{display:inline-block;min-width:20px;padding:0 6px;border-radius:var(--ui-radius-xs);background:color-mix(in srgb, var(--t) 10%, transparent);color:var(--t);font-size:var(--ui-fs-label);line-height:18px;letter-spacing:0;text-align:center;font-variant-numeric:tabular-nums;}
+.tp-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ui-space-2) var(--ui-space-3);padding:var(--ui-space-3) 0;border-bottom:1px solid var(--ui-line-hair);}
 .tp-row:last-of-type{border-bottom:0;}
 .tp-main{flex:1 1 180px;min-width:0;}
-.tp-name{font-size:14px;font-weight:700;color:var(--t);overflow-wrap:anywhere;}
-.tp-dim{font-weight:500;color:var(--m);}
-.tp-hot{color:var(--red,#ef4444);font-weight:800;}
-.tp-acts{display:flex;flex-wrap:wrap;gap:6px;}
-.tp-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 12px;border-radius:10px;border:1px solid var(--br);background:transparent;color:var(--t);font:inherit;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;}
-.tp-btn.tp-go{border-color:var(--orange,#e8720c);color:var(--orange,#e8720c);}
-.tp-more{font:inherit;font-size:12px;font-weight:700;color:var(--orange,#e8720c);background:transparent;border:0;padding:8px 0;min-height:44px;cursor:pointer;}
-.tp-hd-btn{padding:0 4px;min-height:32px;}
+.tp-name{font-size:15px;line-height:var(--ui-lh-heading);font-weight:var(--ui-fw-bold);color:var(--t);overflow-wrap:anywhere;}
+.tp-dim{font-weight:var(--ui-fw-medium);color:var(--m);}
+/* overdue / past due / urgent: a chip, readable at arm's length. */
+.tp-hot{display:inline-block;padding:0 6px;border-radius:var(--ui-radius-xs);background:color-mix(in srgb, var(--red) 15%, transparent);color:color-mix(in srgb, var(--red) 35%, var(--t));font-size:var(--ui-fs-label);font-weight:var(--ui-fw-bold);line-height:18px;letter-spacing:.04em;text-transform:uppercase;}
+.tp-acts{display:flex;flex-wrap:wrap;gap:var(--ui-space-2);}
+.tp-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;min-width:44px;padding:0 var(--ui-space-4);
+  border-radius:var(--ui-radius-md);
+  border:1px solid transparent;
+  background:color-mix(in srgb, var(--t) 7%, transparent);
+  color:var(--t);
+  font:inherit;font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);
+  text-decoration:none;cursor:pointer;
+  transition:background-color var(--ui-dur-hover) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease);
+}
+.tp-btn:hover{background:color-mix(in srgb, var(--t) 12%, transparent);}
+.tp-btn:active{transform:scale(var(--ui-press-scale));}
+/* The one primary per row: tinted accent; the ink is pulled toward --t so it
+   clears 4.5:1 on dark and light themes (bare --orange on navy is ~2.5:1). */
+.tp-btn.tp-go{background:color-mix(in srgb, var(--orange) 22%, transparent);border-color:color-mix(in srgb, var(--orange) 75%, transparent);color:var(--t);}
+.tp-btn.tp-go:hover{background:color-mix(in srgb, var(--orange) 32%, transparent);border-color:var(--orange);}
+.tp-more{font:inherit;font-size:var(--ui-fs-caption);font-weight:var(--ui-fw-bold);color:color-mix(in srgb, var(--orange) 35%, var(--t));background:transparent;border:0;padding:var(--ui-space-2) 0;min-height:44px;cursor:pointer;}
+.tp-more:hover{text-decoration:underline;text-underline-offset:3px;}
+.tp-hd-btn{padding:0 var(--ui-space-1);min-height:32px;}
+/* Loading: a skeleton of the list instead of a blank card. Static (no
+   shimmer) — it shows for well under a second. */
+.tp[data-tp-state="loading"]::after{
+  content:"";display:block;height:132px;margin-top:var(--ui-space-2);
+  --tp-sk:color-mix(in srgb, var(--t) 8%, transparent);
+  background:
+    linear-gradient(var(--tp-sk) 0 0) 0 0 / 32% 10px no-repeat,
+    linear-gradient(var(--tp-sk) 0 0) 0 26px / 62% 14px no-repeat,
+    linear-gradient(var(--tp-sk) 0 0) 0 48px / 44% 11px no-repeat,
+    linear-gradient(var(--tp-sk) 0 0) 0 82px / 56% 14px no-repeat,
+    linear-gradient(var(--tp-sk) 0 0) 0 104px / 38% 11px no-repeat;
+}
+/* Home header actions (dashboard.html): one primary (New Estimate), one
+   secondary (Sunday review), Customize steps down to quiet. */
+.home-hdr-acts{display:flex;align-items:center;gap:var(--ui-space-2);}
 @media (max-width:480px){
+  .tp{padding:var(--ui-space-4) var(--ui-space-4) var(--ui-space-1);}
+  section.tp{padding-left:var(--ui-space-4) !important;padding-right:var(--ui-space-4) !important;}
   .tp-acts{width:100%;}
   .tp-btn{flex:1 1 auto;}
+}
+@media (max-width:768px){
+  .home-hdr-acts{width:100%;}
+  .home-hdr-acts > .btn{flex:1 1 0;width:auto;min-height:44px;justify-content:center;}
 }
