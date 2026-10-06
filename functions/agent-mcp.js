@@ -48,6 +48,16 @@ const L = require('./agent-mcp-logic');
 const SW = require('./schedule-window');
 const OptOut = require('./sms-optout');
 const Suppress = require('./email-suppression');
+const TextingGate = require('./sms-texting-gate');
+const PhoneText = require('./phone-text-check');
+const Outbox = require('./sms-outbox-guard');
+
+// Whose Do Not Text list a draft text is checked against: the bot's company
+// and the lead's own tenant key (the same value for every lead the bot can
+// see; a solo lead is owned by userId). sms-optout.js de-duplicates.
+function draftTenants(company, lead) {
+  return [company, TextingGate.tenantKeyOfRecord(lead)].filter(Boolean);
+}
 
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const CALLS_PER_HOUR = 150;
@@ -113,6 +123,21 @@ async function companyLeads(companyId) {
   return Object.values(byId);
 }
 
+// The company's jobs (leads/{id}/jobs), grouped by lead, so crm_summary counts
+// a customer's second open job the way the Home KPI tiles do (review R2-2-7,
+// 2026-10-06). Same two owner fields as companyLeads; the single-field
+// COLLECTION_GROUP indexes exist for both (firestore.indexes.json). Best-effort:
+// a failed read falls back to the leads alone (the old number), never an error.
+async function companyJobsByLead(companyId) {
+  try {
+    const snaps = await Promise.all(['companyId', 'userId'].map((f) =>
+      db().collectionGroup('jobs').where(f, '==', companyId).limit(5000).get()));
+    return require('./jobs-logic').jobsByLeadFromDocs(snaps.reduce((all, sn) => all.concat(sn.docs), []));
+  } catch (e) {
+    return null;
+  }
+}
+
 // Every doc of a collection owned by the company under any of its owner
 // fields (solo accounts own by uid, team accounts by companyId), de-duplicated.
 async function companyDocs(collection, companyId, fields) {
@@ -145,7 +170,10 @@ async function runTool(name, args, key) {
   const company = key.companyId;
   const tz = key.tz;
   const today = L.dayInZone(Date.now(), tz);
-  if (name === 'crm_summary') return L.toolText(Object.assign(L.summary(await companyLeads(company), today), { today, timezone: tz }));
+  if (name === 'crm_summary') {
+    const [leads, jobsByLead] = await Promise.all([companyLeads(company), companyJobsByLead(company)]);
+    return L.toolText(Object.assign(L.summary(leads, today, jobsByLead), { today, timezone: tz }));
+  }
   if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit) });
   if (name === 'list_leads') {
     // Paged (2026-10-06): customers + total + next_cursor; the cursor is
@@ -223,7 +251,9 @@ async function runTool(name, args, key) {
       if (d.error) return L.toolErr(d.error);
       const wording = L.claimWordingProblem(d.body);
       if (wording) return L.toolErr(wording);
-      const optOut = await OptOut.isOptedOut(db(), lead.phone, { timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
+      // companyId: the bot's company (and the lead's own tenant key) — whose
+      // Do Not Text list applies. isOptedOut refuses without it (sms-optout.js).
+      const optOut = await OptOut.isOptedOut(db(), lead.phone, { companyId: draftTenants(company, lead), timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
       const gate = L.textGate(lead, optOut);
       if (gate.error) return L.toolErr(gate.error);
       item = { kind: 'draft_text', leadId: lead.id, title: '', text: d.body, reason: d.reason, consentOnFile: gate.consentOnFile, dueDate: null };
@@ -655,16 +685,25 @@ async function draftCheck(c, it) {
   if (!lead) return { ok: false, reason: 'That customer is no longer on your board.' };
   const name = L.minimalLead(lead).name;
   if (it.kind === 'draft_text') {
-    const optOut = await OptOut.isOptedOut(db(), lead.phone, { timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
-    const gate = L.textGate(lead, optOut);
-    if (gate.error) return { ok: false, reason: gate.error, name };
-    return { ok: true, to: '+1' + OptOut.optOutKey(lead.phone), name, consentOnFile: gate.consentOnFile };
+    // The same "ok to text?" answer every phone send asks (phone-text-check.js):
+    // STOP register (both key shapes) + Do Not Text list, consent === false,
+    // the company's texting switch, texting hours in the homeowner's time.
+    const chk = await textCheck(c, lead);
+    if (!chk.ok) return { ok: false, reason: chk.reason, code: chk.code, name };
+    // TODO(TWILIO_INBOUND_ENABLED): when the business line's inbound is live,
+    // send drafts through it instead of the owner's phone (`businessLine`).
+    return { ok: true, to: chk.to, name, consentOnFile: lead.tcpaConsent === true, businessLine: chk.businessLine === true };
   }
   const sup = L.emailGate(lead, { suppressed: false }).error ? null
     : await Suppress.isSuppressed(db(), c.company, lead.email, { timeoutMs: Suppress.READ_TIMEOUT_MS }).catch(() => null);
   const gate = L.emailGate(lead, sup);
   if (gate.error) return { ok: false, reason: gate.error, name };
   return { ok: true, to: String(lead.email).trim(), name };
+}
+function textCheck(c, lead) {
+  return PhoneText.okToText(db(), {
+    phone: lead.phone, tenants: draftTenants(c.company, lead), switchTenant: c.company, lead, nowMs: Outbox.nowMs(),
+  }).then((r) => Object.assign(r, { businessLine: process.env.TWILIO_INBOUND_ENABLED === 'true' }));
 }
 async function draftAction(request) {
   const c = requireKeyAdmin(request);
@@ -686,6 +725,20 @@ async function draftAction(request) {
   const body = String(data.body == null ? it.text || '' : data.body).replace(/\r\n?/g, '\n').trim().slice(0, isText ? DRAFT_SMS_MAX : L.MAX_TEXT);
   const subject = isText ? '' : String(data.subject == null ? it.title || '' : data.subject).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
   if (!body) throw new HttpsError('invalid-argument', 'The message is empty.');
+  // Review R2-3-1: the EDITED text is checked again before anything is marked
+  // sent — and the client opens Messages / Mail only after this answers ok.
+  // An edit must not drop the company name or the STOP line, or add the
+  // claim wording the bot itself was refused; and the customer must still be
+  // textable right now (STOP / Do Not Text / consent / switch / hours).
+  const claim = L.claimWordingProblem(body) || (isText ? null : L.claimWordingProblem(subject));
+  if (claim) throw new HttpsError('failed-precondition', claim);
+  if (isText) {
+    const names = L.companyNames(await readDoc('companyProfile/' + c.company), c.isNbd);
+    const bad = L.editedTextProblem(body, names);
+    if (bad) throw new HttpsError('failed-precondition', bad);
+    const chk = await textCheck(c, lead);
+    if (!chk.ok) throw new HttpsError(chk.code === 'unverified' ? 'unavailable' : 'failed-precondition', chk.reason);
+  }
   // Claim the item first, so a double tap logs once.
   const claimed = await db().runTransaction(async (tx) => {
     const s = await tx.get(ref);

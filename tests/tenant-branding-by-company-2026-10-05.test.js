@@ -181,7 +181,7 @@ Module._load = function (request) {
       ok('hidden once the company has an alert email', show(false, { alertEmail: 'a@b.test' }) === false);
       ok('never shown to NBD (decided by company key)', show(true, {}) === false);
     }
-    ok('dashboard-bootstrap cache-bust bumped', /dashboard-bootstrap\.module\.js\?v=36/.test(read('docs/pro/dashboard.html')));
+    ok('dashboard-bootstrap cache-bust bumped', +((read('docs/pro/dashboard.html').match(/dashboard-bootstrap\.module\.js\?v=(\d+)/) || [])[1] || 0) >= 36);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -251,7 +251,7 @@ Module._load = function (request) {
     ok('portal client: a blank name flagged isNbd:false stays neutral (not read as NBD)',
       /const _coNotNbd = !_coNamed && !!view\.company && view\.company\.isNbd === false;/.test(pc)
       && /const isNbdCompany = _coNotNbd \? false : \(!_coNamed \|\| view\.company\.name === 'No Big Deal Home Solutions'\);/.test(pc));
-    ok('portal.js cache-bust bumped', /js\/portal\.js\?v=9/.test(read('docs/pro/portal.html')));
+    ok('portal.js cache-bust bumped', +((read('docs/pro/portal.html').match(/js\/portal\.js\?v=(\d+)/) || [])[1] || 0) >= 9);
 
     // share-ssr: run the real renderPage/projectPage
     const ssr = read('functions/share-ssr.js');
@@ -278,7 +278,7 @@ Module._load = function (request) {
     const sup = read('docs/pro/js/estimate-supplement.js');
     ok('supplement: NBD decided by company key (tenant-rules), with blank fallbacks for others',
       /_TR\.isPlatformTenant\(\)/.test(sup) && /legalName: _rawBrand\.legalName \|\| \(isNbd \? 'No Big Deal Home Solutions' : ''\)/.test(sup)
-      && /\(isNbd \? 'NBD' : ''\)/.test(sup) && /estimate-supplement\.js\?v=3/.test(read('docs/pro/customer.html')));
+      && /\(isNbd \? 'NBD' : ''\)/.test(sup) && /estimate-supplement\.js\?v=4/.test(read('docs/pro/customer.html')));
 
     // AI texting persona: run resolvePersona against a fake db
     const AIT = require(fn('handlers/ai-texting.js'));

@@ -44,7 +44,7 @@ const STREET_WORDS = {
 };
 
 /**
- * "5760 Farm Field Dr, Cincinnati OH 45040" → "5760 farm". House number + the
+ * "5760 Bellwether Dr, Cincinnati OH 45040" → "5760 bellwether". House number + the
  * first street word: survives "Dr" vs "Drive", a missing city, a unit suffix.
  * '' when there is no leading house number (a PO box, a bare city).
  */
@@ -139,7 +139,7 @@ function nameAgrees(lead, name) {
   const a = nameTokens(leadName(lead));
   const b = nameTokens(name);
   if (!a.length || !b.length) return false;
-  // "Emily & Caesar Fukuda": any token of the Stripe name may be a first name.
+  // "Jane & John Example": any token of the Stripe name may be a first name.
   if (!b.includes(a[a.length - 1])) return false;
   if (a.length === 1 || b.length === 1) return true;
   const firstA = a[0][0];
