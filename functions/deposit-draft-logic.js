@@ -281,7 +281,10 @@ function finalTaskId(jobId) { return 'send-final-invoice-' + (_seg(jobId) || 'jo
 
 /**
  * Decide the install-day final invoice. Pure.
- *   ctx = { leadId, lead, est?, estimateId?, invoices: [{ id, ...doc }], nowMs, sourceId? }
+ *   ctx = { leadId, lead, est?, estimateId?, invoices: [{ id, ...doc }], jobs?: [{ id, ...doc }], nowMs, sourceId? }
+ *   jobs = leads/{leadId}/jobs: with exactly one, a PAID deposit mirrored in
+ *   from the Stripe dashboard (no job stamp) and made on or after the
+ *   estimate is credited (nbd:job-billing jobInvoicesOf opts, 2026-10-05).
  * → { action: 'create', invoiceId, invoice, jobId, credits }
  *   | { action: 'use_existing', invoiceId, jobId, reason }
  *   | { action: 'skip', reason, jobId? }
@@ -299,9 +302,10 @@ function decideFinalDraft(ctx) {
   const est0 = (ctx.est && !_isDeleted(ctx.est) && _sameTenant(ctx.est, lead)) ? ctx.est : null;
   const jobId = jobIdFor(est0, lead);
   const invoices = Array.isArray(ctx.invoices) ? ctx.invoices : [];
+  const jobOpts = { soleJob: IFE.soleJobOf(ctx.jobs, jobId), since: est0 ? est0.createdAt : null };
 
   // Already drafted (this id) and still in play → nothing new.
-  const mine = IFE.jobInvoicesOf(invoices, jobId);
+  const mine = IFE.jobInvoicesOf(invoices, jobId, jobOpts);
   const finalId = finalDraftInvoiceId(ctx.leadId, jobId);
   if (invoices.some((inv) => inv && inv.id === finalId)) {
     return { action: 'use_existing', invoiceId: finalId, jobId, reason: 'duplicate' };
@@ -318,7 +322,7 @@ function decideFinalDraft(ctx) {
   const totalCents = Math.round(Number(t.total) * 100);
   if (!(totalCents > 0)) return { action: 'skip', reason: 'no_total', jobId };
 
-  const plan = IFE.planJobInvoice(totalCents, invoices, jobId);
+  const plan = IFE.planJobInvoice(totalCents, invoices, jobId, jobOpts);
   if (plan.action === 'open') {
     if (plan.reason === 'billed_in_full') {
       const live = mine.filter(IFE.isLiveInvoice);

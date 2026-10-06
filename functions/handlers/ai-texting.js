@@ -67,6 +67,8 @@ function cleanInbound(s, max) {
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const { secretValue } = require('../integrations/_shared');
 const { isAiDraftDisabled } = require('../integrations/killswitch');
+// Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
+const AI_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 // ─── Persona system prompt ─────────────────────────────────────
 // Locked in this module so every draft uses the same identity +
@@ -291,8 +293,16 @@ async function resolvePersona(db, userId, companyId, repDisplayName) {
   } catch (e) { logger.warn('[ai-texting] persona read (user) failed', { userId, err: e.message }); }
   if (!persona) persona = companyPersona;
 
-  const legalName = brand.legalName || '';
-  const isNBD = !legalName || legalName === 'No Big Deal Home Solutions';
+  // NBD is decided by the tenant key (2026-10-05), never the brand name: a
+  // company that has not set a legal name is NOT NBD, and must never get the
+  // "Joe Deal of No Big Deal" persona. NBD_OWNER_UID: lead-alert.js convention.
+  const isNBD = !cid || String(cid) === AI_NBD_OWNER_UID;
+  const rawLegal = String(brand.legalName || '').trim();
+  const legalName = (!isNBD && rawLegal === 'No Big Deal Home Solutions') ? '' : rawLegal;
+  // Neutral stand-ins for a non-NBD company with no name / rep name yet —
+  // buildPersonaPrompt would otherwise fill its 'Joe' / NBD defaults.
+  const NEUTRAL_REP = 'the team';
+  const NEUTRAL_CO = 'our company';
   let repName = (repDisplayName && String(repDisplayName).slice(0, 40)) || '';
   // Callers pass lead.repName, which the lead form never writes — so a tenant
   // draft fell back to the COMPANY name as the rep ("this is Demo Roofing Co's
@@ -320,11 +330,12 @@ async function resolvePersona(db, userId, companyId, repDisplayName) {
     // NBD keeps buildPersonaPrompt's 'Joe' default → byte-identical.
     const p = Object.assign({}, persona);
     if (!p.companyName && legalName) p.companyName = legalName;
+    if (!p.companyName && !isNBD) p.companyName = NEUTRAL_CO;
     // Fill identityName for ANY non-NBD tenant, even when repName is empty —
     // otherwise buildPersonaPrompt falls to DEFAULT_REP_NAME='Joe', leaking
     // Joe's name into a stranger tenant's homeowner SMS. Falls back to legalName
     // (matches the no-persona branch below). NBD keeps the 'Joe' default.
-    if (!p.identityName && !isNBD) p.identityName = repName || legalName;
+    if (!p.identityName && !isNBD) p.identityName = repName || legalName || NEUTRAL_REP;
     return p;
   }
 
@@ -332,7 +343,7 @@ async function resolvePersona(db, userId, companyId, repDisplayName) {
   // NBD-hardcoded PERSONA_PROMPT — synthesize a minimal branded config so the
   // caller routes it through buildPersonaPrompt with the tenant's own identity.
   if (!isNBD) {
-    return { companyName: legalName, identityName: repName || legalName };
+    return { companyName: legalName || NEUTRAL_CO, identityName: repName || legalName || NEUTRAL_REP };
   }
   // NBD (or brand-less): null → caller uses the locked PERSONA_PROMPT, unchanged.
   return null;

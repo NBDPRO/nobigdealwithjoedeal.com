@@ -86,6 +86,13 @@ async function bridgeToCrm(collection, data, sourceId) {
   });
   leadDoc.createdAt = FieldValue.serverTimestamp();
   leadDoc.stageStartedAt = FieldValue.serverTimestamp();
+  // updatedAt on create too (2026-10-06). Every other lead writer stamps it
+  // (CRM saves, thursday.js, calcom.js); the bridge did not, so 60 of NBD's 76
+  // 'new' cards had none. Readers that order or filter by updatedAt then
+  // treated them as never touched: the agent MCP's list_leads sorted them to
+  // the bottom and cut them off its 50-row page, so the office sweep reported
+  // two fresh Thumbtack leads as "no CRM card", and stale_days skipped them.
+  leadDoc.updatedAt = FieldValue.serverTimestamp();
 
   // Marketplace repeat (Thumbtack): the same phone already has a card in this
   // tenant → attach the request to it rather than mint a duplicate. A lookup

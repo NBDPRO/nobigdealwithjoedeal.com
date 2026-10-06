@@ -2674,6 +2674,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── SMS DO NOT TEXT LIST (admin-SDK only, 2026-10-05) ──
+    // sms_dnc/{companyId}__{phoneKey}: a company's internal Do Not Text
+    // list. Written and read ONLY by functions (manageSmsCompliance, and
+    // incomingSMS copying a STOP reply); enforced in sms-optout.js
+    // isOptedOut. A client write could take a number off the list (texting
+    // someone who asked not to be texted) or plant one on another company's.
+    match /sms_dnc/{id} {
+      allow read, write: if false;
+    }
+
     // ── EMAIL UNSUBSCRIBE REGISTER (2026-09-22, CAN-SPAM) ──
     // email_suppressions/{companyId}__{sha256(email)} — per TENANT. Written
     // ONLY by the admin SDK (functions/email-unsubscribe.js: the public

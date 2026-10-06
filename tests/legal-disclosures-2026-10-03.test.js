@@ -150,12 +150,15 @@ console.log('6. privacy policy — text-message terms TCR reviewers check');
 
   // Code agreement: the inbound webhook really answers STOP and HELP, and
   // the HELP reply carries the same phone number the terms give.
+  // 2026-10-05: the keyword decision moved to functions/sms-stop-intent.js
+  // (punctuation-tolerant, plus revocation phrases) — asked of that module
+  // rather than of a Set literal in the webhook.
   const smsFn = read('functions/sms-functions.js');
-  const stopWords = (smsFn.match(/const STOP_WORDS = new Set\(\[([^\]]*)\]\)/) || [])[1] || '';
-  const helpWords = (smsFn.match(/const HELP_WORDS = new Set\(\[([^\]]*)\]\)/) || [])[1] || '';
-  ok('code: inbound webhook treats STOP as an opt-out keyword', /'STOP'/.test(stopWords), stopWords);
-  ok('code: inbound webhook treats HELP as a help keyword', /'HELP'/.test(helpWords), helpWords);
-  const helpIdx = smsFn.indexOf('HELP_WORDS.has(opt)');
+  const Intent = require('../functions/sms-stop-intent.js');
+  ok('code: inbound webhook treats STOP as an opt-out keyword',
+    Intent.classifyInbound('STOP').intent === 'stop' && /StopIntent\.classifyInbound\(messageBody\)/.test(smsFn));
+  ok('code: inbound webhook treats HELP as a help keyword', Intent.classifyInbound('HELP').intent === 'help');
+  const helpIdx = smsFn.indexOf("intent.intent === 'help'");
   ok('code: the HELP reply gives (859) 420-7382, as the terms do',
     helpIdx !== -1 && /\(859\) 420-7382/.test(smsFn.slice(helpIdx, helpIdx + 600)) && /\(859\) 420-7382/.test(sms));
 
