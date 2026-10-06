@@ -8,7 +8,7 @@
  * ──────────
  * Before Wave 141, the address autocomplete stored
  * `display_name.split(',').slice(0,3)` — which produced strings like
- * "1054, Klondyke Road, Goshen": a comma after the house number, the full
+ * "456, Example Road, Goshen": a comma after the house number, the full
  * road name instead of the USPS suffix, no ZIP, no 2-letter state, and a
  * Nominatim locality (hamlet / subdivision / township) where the post town
  * belongs. dashboard-ui.js formatMailingAddress() fixed the WRITE path, but

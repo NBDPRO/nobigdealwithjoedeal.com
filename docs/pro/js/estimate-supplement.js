@@ -457,7 +457,7 @@
       name: 'No Big Deal Home Solutions',
       phone: '(859) 420-7382',
       email: 'JD@nobigdealwithjoedeal.com',
-      address: '6563 Manila Rd · Goshen, OH'
+      address: '' // no public street address
     } : {
       name: _b.legalName,
       phone: _b.contact.phone,
