@@ -392,7 +392,10 @@ function labelText(src, id) {
   const i = src.indexOf('id="' + id + '"');
   assert.ok(i > 0, 'checkbox ' + id + ' missing');
   const raw = src.slice(i, src.indexOf('</label>', i));
-  return raw.replace(/^[^>]*>/, '').replace(/<a [^>]*>[^<]*<\/a>/g, '').replace(/<[^>]+>/g, '')
+  // Link text is not part of the stored words: drop the link group
+  // ("Privacy Policy · Terms", Twilio 30564, 2026-10-06) — the anchors AND the
+  // separator between them, nothing else.
+  return raw.replace(/^[^>]*>/, '').replace(/<a [^>]*>[^<]*<\/a>(?:\s*&middot;\s*<a [^>]*>[^<]*<\/a>)*/g, '').replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 }
 const PAGES_V1 = [
