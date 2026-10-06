@@ -1645,10 +1645,15 @@ section('D2D photo variants: knock-doc stamping end-to-end (2026-08-17)');
   // and a stale core returning a plain array must leave the fresh UI's
   // photoPaths safely empty. Regressing to `return { urls, paths }`
   // corrupts knock.photoUrls for every mixed-bundle rep.
+  // 2026-10-04: the upload moved into _uploadKnockBlob (shared with the
+  // held-photo drain) and photos that could not upload are held in the
+  // durable queue — the return keeps the ARRAY shape, now also carrying a
+  // non-index `queued` count. tests/offline-safety-2026-10-04.test.js runs it.
   assert('d2d uploadPhotos collects index-aligned storage paths on an ARRAY return',
-    /const storagePath = `photos\/\$\{uid\}\/d2d\/\$\{knockId\}\/\$\{Date\.now\(\)\}_\$\{safeName\}`/.test(d2dCore)
-    && /paths\.push\(storagePath\)/.test(d2dCore)
-    && /urls\.paths = paths;\s*\n\s*return urls;/.test(d2dCore)
+    /const storagePath = 'photos\/' \+ uid \+ '\/d2d\/' \+ knockTempId \+ '\/' \+ name;/.test(d2dCore)
+    && /return \{ url, path: storagePath \};/.test(d2dCore)
+    && /urls\.push\(up\.url\);\s*\n\s*paths\.push\(up\.path\);/.test(d2dCore)
+    && /urls\.paths = paths;\s*\n\s*urls\.queued = queued;\s*\n\s*return urls;/.test(d2dCore)
     && !/return \{ urls, paths \}/.test(d2dCore));
   assert('knock doc persists photoPaths (index-aligned with photoUrls)',
     /photoPaths:\s*Array\.isArray\(data\.photoPaths\)\s*\?\s*data\.photoPaths\s*:\s*\[\]/.test(d2dCore));
