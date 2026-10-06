@@ -737,8 +737,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -1559,11 +1559,14 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     </div>
     <!-- The score, star row and review count are hydrated from the live
          Places payload by js/google-reviews-widget.js (data-nbd-gr-* hooks).
-         The values below are the static fallback: they are what a visitor
-         sees if the fetch fails, so they must stay TRUE at rest, not zeroed.
-         Do not hardcode a number here without updating the profile — before
-         2026-09-20 this row was static-only and would have kept claiming 5.0
-         forever if the rating ever moved.
+         The rating and stars below are the static fallback a visitor sees if
+         the fetch fails, so they must stay TRUE at rest, not zeroed. The
+         review COUNT has no static fallback (2026-10-06): a hard-coded count
+         goes stale the day the next review lands, so data-nbd-gr-total ships
+         empty inside a hidden data-nbd-gr-total-wrap that the widget reveals
+         only when the live payload carries a count. Before 2026-09-20 this
+         row was static-only and would have kept claiming 5.0 forever if the
+         rating ever moved.
          data-nbd-gr-recent ships EMPTY on purpose: it is filled with
          " · N new this month" only when the payload carries `recent`
          (Google's count grew against a real baseline), and never gets a
@@ -1571,7 +1574,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <div class="reviews-rating reveal">
       <div class="reviews-stars" data-nbd-gr-stars>★★★★★</div>
       <div>
-        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google &middot; <span data-nbd-gr-total>29</span> reviews<span data-nbd-gr-recent></span></div>
+        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google<span data-nbd-gr-total-wrap hidden> &middot; <span data-nbd-gr-total></span> reviews</span><span data-nbd-gr-recent></span></div>
         <div class="reviews-score-sub"><a href="https://g.page/r/CXzIjLwvtRPdEBM" target="_blank" rel="noopener noreferrer" style="color:inherit">Verified Google Business Profile</a> — real reviews from Cincinnati &amp; N. Kentucky homeowners</div>
       </div>
       <a href="/#contact" class="btn-primary" style="margin-left:auto">Get My Free Estimate →</a>
