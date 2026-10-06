@@ -202,9 +202,9 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('...and the CRM card gets note lines, the email and the referral code', /What happened: Leak over the porch/.test(crm.notes) && /Email: pat@example\.com/.test(crm.notes) && crm.email === 'pat@example.com' && crm.redeemReferralCode === 'JOHN-AB12');
     ok('...phone and phoneDigits on the card are untouched', crm.phoneDigits === '8595550100' && !('phone' in crm));
 
-    db = fakeDb({ [GKEY]: grant('inspect_leads'), 'inspect_leads/pub-9': {}, [crmKey]: { notes: 'x', email: 'rep@typed.com', redeemReferralCode: 'OLD-1' } });
+    db = fakeDb({ [GKEY]: grant('inspect_leads'), 'inspect_leads/pub-9': {}, [crmKey]: { notes: 'x', email: 'rep-typed@example.com', redeemReferralCode: 'OLD-1' } });
     await PLP.saveIntakeUpdate(db, { token: TOKEN, email: 'pat@example.com', referralCode: 'NEW-2' });
-    ok('fill-only: an email or referral code already on the card is never overwritten', db.store.get(crmKey).email === 'rep@typed.com' && db.store.get(crmKey).redeemReferralCode === 'OLD-1');
+    ok('fill-only: an email or referral code already on the card is never overwritten', db.store.get(crmKey).email === 'rep-typed@example.com' && db.store.get(crmKey).redeemReferralCode === 'OLD-1');
 
     db = fakeDb({ [GKEY]: grant('estimate_leads'), 'estimate_leads/pub-9': {} });
     out = await PLP.saveIntakeUpdate(db, { token: TOKEN, story: 'hello', email: 'pat@example.com' });
