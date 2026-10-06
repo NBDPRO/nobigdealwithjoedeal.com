@@ -98,6 +98,12 @@
     if (!uid) return null;
     try {
       const snap = await window.getDoc(window.doc(window.db, 'users', uid));
+      // An answer from the on-phone cache (offline / boot connection cycle,
+      // persistent cache since 2026-10-04) is not the account's prefs: a
+      // cached "no doc" read as {} would let this device's local values
+      // overwrite the real ones. Treat it like a failed read (null): local
+      // becomes the baseline and nothing is written.
+      if (snap.metadata && snap.metadata.fromCache) return null;
       if (!snap.exists()) return {};
       const data = snap.data() || {};
       const prefs = (data.uiPrefs && typeof data.uiPrefs === 'object') ? data.uiPrefs : {};

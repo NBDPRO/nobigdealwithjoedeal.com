@@ -388,6 +388,48 @@ async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads }) {
   return out;
 }
 
+/**
+ * A stored recording's bytes, without the library's streamed download.
+ *
+ * `file.download()` reads through createReadStream(), and inside it
+ * teeny-request and @google-cloud/storage each pipe the SAME node-fetch
+ * response body: one 300 KB download leaves 11 'error' and 11 'close'
+ * listeners on that PassThrough, so every recording this job read logged two
+ * MaxListenersExceededWarning lines (~500 a week, rising with call volume).
+ * Reproduced on the Storage emulator 2026-10-04: 15 downloads → 30 warnings,
+ * 15 distinct streams, each one ended and destroyed afterwards — fan-out per
+ * file, not a stream kept across files, but noise that buries real warnings.
+ *
+ * So: one buffered, authenticated GET of the object's media URL through the
+ * storage client's own auth (no stream at all). Where that client is absent
+ * or points at a custom endpoint (the emulator, test fakes), read the stream
+ * ourselves and END it — destroy() in `finally`, whatever happened — so a
+ * download that throws half way never leaves its stream open. Plain
+ * download() remains only for a fake that offers nothing else.
+ */
+async function readStoredAudio(bucket, path) {
+  const file = bucket.file(path);
+  const st = (file && file.storage) || (bucket && bucket.storage) || null;
+  if (st && !st.customEndpoint && st.authClient && typeof st.authClient.request === 'function' && st.apiEndpoint) {
+    const url = String(st.apiEndpoint).replace(/\/+$/, '') + '/storage/v1/b/' + encodeURIComponent(bucket.name)
+      + '/o/' + encodeURIComponent(path) + '?alt=media';
+    const res = await st.authClient.request({ url, method: 'GET', responseType: 'arraybuffer', retry: true });
+    return Buffer.from(res.data);
+  }
+  if (file && typeof file.createReadStream === 'function') {
+    const stream = file.createReadStream({ validation: false });
+    const chunks = [];
+    try {
+      for await (const c of stream) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+    } finally {
+      if (!stream.destroyed && typeof stream.destroy === 'function') stream.destroy();
+    }
+    return Buffer.concat(chunks);
+  }
+  const [buf] = await file.download();
+  return buf;
+}
+
 /** One transcription pass. Exported for the integration test (stubbed deps). */
 async function runTranscribe({ db, bucket, live, nowMs }) {
   const ref = db.doc(CONFIG);
@@ -422,7 +464,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         await callRef.set({ status: 'too_large' }, { merge: true });
         continue;
       }
-      const [buf] = await bucket.file(call.storagePath).download();
+      const buf = await readStoredAudio(bucket, call.storagePath);
       const t = await d.transcribe(buf, String(call.storagePath).split('.').pop());
       out.audioSec += Number(t.durationSec) || L.estimateAudioSec(call.sizeBytes);
 
@@ -1016,6 +1058,7 @@ exports._test = {
   backfillSuggestions,
   reextractFacts,
   FACTS_PER_RUN, FACTS_DAY_CAP,
+  readStoredAudio,
   setActionDeps(x) { deps_ = x || {}; },
   setClient(c) { _testClient = c; },
   setDeps(x) { _deps = x; },
