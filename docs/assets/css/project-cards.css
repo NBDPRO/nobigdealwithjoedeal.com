@@ -52,6 +52,10 @@ a.project-link{display:block;color:inherit;text-decoration:none}
 
 /* Jobs past a strip's card cap — still crawlable links, no image wall */
 .nbd-recent-jobs-more-h{margin:24px 0 8px;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gray,#5d6673)}
+.nbd-recent-jobs-fold>summary.nbd-recent-jobs-more-h{display:inline-flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;list-style:none;color:#A14A22}
+.nbd-recent-jobs-fold>summary::-webkit-details-marker{display:none}
+.nbd-recent-jobs-fold>summary::after{content:"+";font-size:1.1rem;line-height:1}
+.nbd-recent-jobs-fold[open]>summary::after{content:"\2212"}
 .nbd-recent-jobs-more{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px 24px}
 .nbd-recent-jobs-more li{font-size:.85rem;line-height:1.5}
 .nbd-recent-jobs-more a{color:#A14A22;font-weight:700;text-decoration:none}
@@ -71,4 +75,70 @@ a.project-link{display:block;color:inherit;text-decoration:none}
 @media(max-width:768px){
   .gallery,.nbd-recent-jobs .gallery,.nbd-recent-jobs-more{grid-template-columns:1fr}
   .nbd-recent-jobs{padding:40px 20px}
+}
+
+/* ── /our-work gallery + case pages (homeowner revamp 2026-10-05) ──────────
+   Card actions, "Book an inspection like this", the sticky filter bar, the
+   Show-more cap and the two-column phone grid. Scoped to .filters / #gallery
+   / .pd-* — the hub/area/town strips (a.project-link cards in a plain
+   .gallery) are untouched. */
+.project-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.project-actions .project-view{margin-top:0}
+.project-full{display:inline-flex;align-items:center;border:1.5px solid var(--light-gray,#e8e5e0);border-radius:8px;padding:8px 14px;font-size:.76rem;font-weight:700;color:var(--navy-dark,#12223d);text-decoration:none;font-family:'Montserrat',sans-serif;transition:all .2s}
+.project-full:hover{border-color:var(--orange,#bd5728);color:#A14A22}
+.project-book{display:inline-flex;align-items:center;min-height:44px;margin-top:4px;font-size:.8rem;font-weight:700;color:#A14A22;text-decoration:none}
+.project-book:hover{text-decoration:underline}
+
+/* Filter chips stay pinned under the sticky nav (70px desktop, 60px <=768)
+   for as long as the gallery is on screen — sticky is bounded by .inner. */
+.filters{position:sticky;top:70px;z-index:20;background:#fff;padding:10px 0;margin-bottom:18px;box-shadow:0 6px 10px -10px rgba(18,34,61,.35)}
+
+/* Show-more cap (our-work.js). .ow-collapsed is separate from .hidden so the
+   filter contract stays "hidden = filtered out". */
+.project.ow-collapsed{display:none}
+.ow-more-wrap{text-align:center;margin-top:28px}
+.ow-more{min-height:48px;padding:12px 28px;background:#fff;border:2px solid var(--navy-dark,#12223d);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:.85rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--navy-dark,#12223d);cursor:pointer;transition:all .2s}
+.ow-more:hover{background:var(--navy-dark,#12223d);color:#fff}
+.ow-more[hidden]{display:none}
+
+/* Case page: photos as classes (were inline styles), booking CTA */
+.pd-photo{margin:0}
+.pd-photo img{width:100%;height:200px;object-fit:cover;border-radius:8px;display:block}
+.pd-photo figcaption{font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px}
+.pd-book{margin:0 0 32px}
+.pd-book .project-book{background:#BD5728;color:#fff;padding:12px 24px;border-radius:8px;min-height:48px;margin:0;font-size:.88rem}
+.pd-book .project-book:hover{background:#A14A22;text-decoration:none}
+.pd-book-end{margin:8px 0 20px}
+
+@media(max-width:768px){
+  /* One swipeable row of chips instead of five wrapped rows */
+  .filters{top:60px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 0 16px;padding:8px 0}
+  .filters::-webkit-scrollbar{display:none}
+  .filter-btn{flex:0 0 auto;min-height:44px;white-space:nowrap}
+
+  /* Two-column photo grid: photo, tag, title, price, town. The write-up,
+     service pills and lightbox button stay in the HTML (crawl, no-JS) and
+     on the case page; the photo itself still opens the lightbox. */
+  #gallery{grid-template-columns:1fr 1fr;gap:12px}
+  #gallery .project{border-radius:8px}
+  #gallery .project:hover{transform:none}
+  #gallery .project-img{height:auto;aspect-ratio:4/3}
+  #gallery .project-body{padding:10px 10px 8px;display:flex;flex-direction:column;flex:1}
+  #gallery .project{display:flex;flex-direction:column}
+  #gallery .project.hidden,#gallery .project.ow-collapsed{display:none}
+  #gallery .project-tag{font-size:.6rem;padding:3px 8px;margin-bottom:6px;align-self:flex-start;letter-spacing:.06em}
+  #gallery .project h3{font-size:.95rem;line-height:1.2;margin-bottom:4px}
+  #gallery .project-price{font-size:1.1rem;margin:0 0 4px}
+  #gallery .project [data-price-context]{font-size:.68rem;line-height:1.4;margin:0 0 6px}
+  #gallery .project-desc,#gallery .project-services,#gallery .project-view{display:none}
+  #gallery .project-meta{font-size:.68rem;margin-top:2px;gap:4px}
+  #gallery .project-meta > span:nth-child(n+4){display:none}
+  #gallery .project-actions{margin-top:auto;padding-top:8px}
+  #gallery .project-full{width:100%;justify-content:center;min-height:44px;padding:6px 8px;font-size:.72rem}
+  #gallery .project-book{width:100%;justify-content:center;text-align:center;font-size:.72rem;line-height:1.25;margin-top:2px}
+
+  .pd-wrap .pd-hero{max-height:300px}
+  .pd-wrap .pd-photos{grid-template-columns:1fr 1fr;gap:10px}
+  .pd-photo img{height:auto;aspect-ratio:4/3}
+  .pd-book .project-book{width:100%;justify-content:center}
 }
