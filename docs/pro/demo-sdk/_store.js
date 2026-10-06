@@ -213,6 +213,9 @@ export function reviveSeed(v) {
   if (v.__date) return ymd(relDate(v.__date));
   if (v.__ms) return relDate(v.__ms).getTime();
   if (v.__iso) return relDate(v.__iso).toISOString();
+  // Wave 3: {"__isoNow": {"minutes": -45}} -> ISO time relative to NOW (a
+  // sample weather alert that is live right now, not at a set hour).
+  if (v.__isoNow) return new Date(Date.now() + Number(v.__isoNow.minutes || 0) * 60000).toISOString();
   // Wave 2: {"__media": "roof-front.svg"} -> this origin's /pro/demo-sdk/media/ URL
   // (the CRM renders photo URLs only when they are absolute).
   if (v.__media) return /^[\w-]+\.(svg|png|jpg|webp)$/.test(String(v.__media)) ? (typeof location !== 'undefined' ? location.origin : '') + '/pro/demo-sdk/media/' + v.__media : '';
@@ -310,7 +313,7 @@ export function ready() {
     await documentSettled();
     let seed = null;
     try { seed = await loadSeed(); } catch (e) { console.error('[demo] seed load failed:', e); seed = { docs: {} }; }
-    _seedMeta = { version: seed.version || 0, company: seed.company || {}, user: seed.user || {}, claims: seed.claims || {} };
+    _seedMeta = { version: seed.version || 0, company: seed.company || {}, user: seed.user || {}, claims: seed.claims || {}, offline: seed.offline || {} };
     const saved = await idbGet();
     if (saved && saved.docs && saved.seedVersion === _seedMeta.version) {
       for (const p of Object.keys(saved.docs)) _docs.set(p, decode(saved.docs[p]));

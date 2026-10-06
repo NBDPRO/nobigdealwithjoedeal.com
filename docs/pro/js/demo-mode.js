@@ -23,6 +23,15 @@
 //      the CRM pages that exist in the demo are rewritten to /pro/explore/;
 //      other CRM pages say they are in the real account instead.
 //   5. Shows the fixed "Sample account" strip with Reset and Start free.
+//   Wave 3 (2026-10-06), so the maps and Ask Joe work with nothing leaving
+//   the browser:
+//   6. Swaps Leaflet's tile layers for the offline SVG sample map
+//      (/pro/demo-sdk/basemap.js) the moment Leaflet loads.
+//   7. Answers the maps' weather / storm-report / geocoder reads from sample
+//      data (/pro/demo-sdk/offline.js) instead of making the request, and
+//      reports the sample neighbourhood as the visitor's location.
+//   8. Keeps window.callClaude on sample answers (Ask Joe), and stops sms: /
+//      mailto: / tel: links from opening the visitor's own apps.
 (function () {
   'use strict';
   var PREFIX = '/pro/explore/';
@@ -84,11 +93,40 @@
     if (m !== 'GET' && m !== 'HEAD') return false;
     return !FUNCTION_PATHS.test(x.pathname);
   }
+  // Wave 3: the maps' weather, storm-report and geocoder reads are answered
+  // from sample data (/pro/demo-sdk/offline.js) BEFORE they could leave the
+  // browser: the request is never made, so it is not "blocked" either.
+  var OFFLINE = /^(https:\/\/(nominatim\.openstreetmap\.org\/(reverse|search)\b|api\.weather\.gov\/(points\/|alerts\b)|www\.spc\.noaa\.gov\/products\/outlook\/)|\/api\/storm-report\b)/;
+  var offlineApi = null, offlineWaiters = [];
+  state.offlineLoaded = function (api) {
+    offlineApi = api;
+    var w = offlineWaiters; offlineWaiters = [];
+    w.forEach(function (fn) { try { fn(api); } catch (_) {} });
+  };
+  function withOffline(fn) {
+    if (offlineApi) return Promise.resolve(fn(offlineApi));
+    return new Promise(function (resolve, reject) {
+      offlineWaiters.push(function (api) { try { resolve(fn(api)); } catch (e) { reject(e); } });
+    });
+  }
+  function offlineKey(url, method) {
+    var m = String(method || 'GET').toUpperCase();
+    if (m !== 'GET' && m !== 'HEAD') return null;
+    var x;
+    try { x = new URL(String(url), location.href); } catch (_) { return null; }
+    var key = x.origin === location.origin ? x.pathname + x.search : x.href;
+    return OFFLINE.test(key) ? key : null;
+  }
+  state.say = function (msg) { notice(msg); };
+
   var realFetch = window.fetch;
   if (realFetch) {
     window.fetch = function (input, init) {
       var url = input && typeof input === 'object' && 'url' in input ? input.url : input;
       var method = (init && init.method) || (input && typeof input === 'object' && input.method) || 'GET';
+      if (offlineKey(url, method)) {
+        return withOffline(function (api) { return api.answer(url); });
+      }
       if (!allowed(url, method)) {
         block(url, 'fetch ' + String(method).toUpperCase());
         return Promise.reject(new TypeError('Blocked in the sample account: nothing is sent from here.'));
@@ -122,6 +160,59 @@
       throw new DOMException('Blocked in the sample account', 'SecurityError');
     };
   });
+
+  // ── wave 3: maps, location and Ask Joe, all offline ───────────────────
+  // a. Leaflet's tile layers → the offline SVG sample map. Leaflet loads
+  //    lazily (the map views' bundle) and ends by setting window.L; the trap
+  //    swaps L.tileLayer right there, before any map asks for a tile, so no
+  //    tile request is ever made (the demo CSP's img-src would refuse them).
+  var leaflet;
+  function swapTiles(L) {
+    if (!L || L.__nbdDemoBasemap) return;
+    if (window.NBD_DEMO_BASEMAP) { window.NBD_DEMO_BASEMAP.install(L); return; }
+    basemapWaiters.push(L);
+  }
+  var basemapWaiters = [];
+  try {
+    Object.defineProperty(window, 'L', {
+      configurable: true, enumerable: true,
+      get: function () { return leaflet; },
+      set: function (v) { leaflet = v; swapTiles(v); }
+    });
+  } catch (_) { /* cannot trap: the CSP still stops the tiles */ }
+  function loadScript(src, isModule) {
+    var s = document.createElement('script');
+    if (isModule) s.type = 'module';
+    s.src = src;
+    if (!isModule) s.async = false;
+    s.addEventListener('load', function () {
+      if (/basemap\.js/.test(src) && window.NBD_DEMO_BASEMAP) {
+        var q = basemapWaiters; basemapWaiters = [];
+        q.forEach(function (L) { window.NBD_DEMO_BASEMAP.install(L); });
+      }
+    });
+    (document.head || document.documentElement).appendChild(s);
+  }
+  loadScript('/pro/demo-sdk/basemap.js?v=1', false);
+  loadScript('/pro/demo-sdk/offline.js?v=1', true);
+
+  // b. The visitor's position: the sample neighbourhood. The maps never ask
+  //    the browser for the real location.
+  try {
+    var geo = navigator.geolocation;
+    if (geo) {
+      var watchN = 0;
+      var fix = function (ok) { withOffline(function (api) { if (typeof ok === 'function') ok(api.position()); }); };
+      geo.getCurrentPosition = function (ok) { fix(ok); };
+      geo.watchPosition = function (ok) { fix(ok); return ++watchN; };
+      geo.clearWatch = function () {};
+    }
+  } catch (_) { /* no geolocation */ }
+
+  // c. Ask Joe: the CRM's js/claude-proxy.js would POST to claudeProxy. The
+  //    demo worker serves /pro/demo-sdk/claude-proxy.js in its place, whose
+  //    window.callClaude lands here: sample answers, no model.
+  state.sampleClaude = function (req) { return withOffline(function (api) { return api.callClaude(req); }); };
 
   // ── 3. storage namespace ───────────────────────────────────────────────
   try {
@@ -170,6 +261,20 @@
     if (e.defaultPrevented || e.button !== 0) return;
     var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
     if (!a || a.hasAttribute('download')) return;
+    // Wave 3: a text / email / call link would open the visitor's own
+    // Messages, Mail or Phone app with a sample customer's details. Not here.
+    // (The Agent inbox's "Text from my phone" still runs its own handler,
+    // which shows the "Nothing was sent" sheet.)
+    var scheme = /^\s*(sms|mailto|tel):/i.exec(a.getAttribute('href') || '');
+    if (scheme) {
+      e.preventDefault();
+      if (a.getAttribute('data-ai-act') !== 'text') {
+        var kind = scheme[1].toLowerCase();
+        notice(kind === 'tel' ? 'In your real account this calls the customer from your phone. The sample account never contacts anyone.'
+          : 'In your real account this opens your ' + (kind === 'sms' ? 'Messages' : 'Mail') + ' app with the message ready for you to send yourself. The sample account never contacts anyone.');
+      }
+      return;
+    }
     var to = remap(a.getAttribute('href'));
     if (to === null) return;
     e.preventDefault();
@@ -206,7 +311,7 @@
     if (document.getElementById('nbd-demo-strip')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/pro/css/demo-mode.css?v=2';
+    link.href = '/pro/css/demo-mode.css?v=3';
     document.head.appendChild(link);
     var bar = document.createElement('div');
     bar.id = 'nbd-demo-strip';

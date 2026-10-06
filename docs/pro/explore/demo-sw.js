@@ -15,6 +15,8 @@
 //      relative "js/x.js" references resolve under /pro/explore/).
 //   3. No config. The App Check / FCM / Sentry config scripts are answered
 //      with an empty script, so the demo never loads a production key.
+//      Wave 3: js/claude-proxy.js (the AI proxy client) is answered with the
+//      sample one, /pro/demo-sdk/claude-proxy.js (SWAPS below).
 //   4. Everything else that is not same-origin is refused with a 451-style
 //      error response and reported to the page (belt and braces behind the
 //      demo route's CSP, which already says connect-src 'self').
@@ -24,7 +26,7 @@
 // Firebase Hosting, which rewrites /pro/explore/<page> to the real page file.
 'use strict';
 
-const VERSION = 'nbd-demo-sw-2026-10-06a';
+const VERSION = 'nbd-demo-sw-2026-10-06b';
 const SCOPE_PATH = '/pro/explore/';
 const SDK_RE = /^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z-]+)\.js$/;
 // The fakes that exist. A compat or unknown module is refused, loudly.
@@ -37,6 +39,13 @@ const EMPTY_SCRIPTS = new Set([
   '/pro/js/dashboard-appcheck-config.js',
   '/pro/js/dashboard-fcm-config.js',
   '/pro/js/sentry-config.js'
+]);
+// Same-origin scripts the sample account swaps for its own (wave 3): the AI
+// proxy client (js/claude-proxy.js POSTs to the claudeProxy function) is
+// answered with /pro/demo-sdk/claude-proxy.js, so Ask Joe gets sample
+// answers and no model is ever called.
+const SWAPS = new Map([
+  ['/pro/js/claude-proxy.js', '/pro/demo-sdk/claude-proxy.js']
 ]);
 // Same-origin paths that are server functions, not files (firebase.json
 // rewrites). The demo never calls them.
@@ -106,6 +115,11 @@ self.addEventListener('fetch', (event) => {
   // 3. production config → empty
   if (EMPTY_SCRIPTS.has(path)) {
     event.respondWith(js('/* sample account: production config not loaded */\n'));
+    return;
+  }
+  // 3b. the sample account's own copy of a script (wave 3)
+  if (SWAPS.has(path)) {
+    event.respondWith(fetch(SWAPS.get(path), { credentials: 'same-origin', cache: 'no-store' }));
     return;
   }
 

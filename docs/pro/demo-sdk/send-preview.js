@@ -69,7 +69,7 @@ export function closeSendPreview() {
   if (old) old.remove();
 }
 
-// spec: { kind, would, to[], channel, subject, message, pageTitle, pageHtml,
+// spec: { kind, would, to[], from, channel, subject, message, pageTitle, pageHtml,
 //         pageNote, facts[[k,v]] }
 export function showSendPreview(spec) {
   if (typeof document === 'undefined' || !document.body) return null;
@@ -89,7 +89,7 @@ export function showSendPreview(spec) {
 
   box.appendChild(section(spec.channel || 'Email', rows([
     ['To', (spec.to || []).filter(Boolean).join(', ') || 'The homeowner on this job'],
-    ['From', companyName() + ' (through NBD Pro)'],
+    ['From', spec.from || companyName() + ' (through NBD Pro)'],
     ['Subject', spec.subject || '']
   ])));
   if (spec.message) box.appendChild(section('Message', el('p', 'nbd-sp-msg', spec.message)));
