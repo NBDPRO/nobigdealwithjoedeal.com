@@ -46,6 +46,7 @@
 const TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 const cents = (n) => Math.round(Number(n) * 100) / 100;
 const DR = require('./deposit-rule');
+const PIF = require('./paid-in-full');
 
 // ── retier block: byte-identical in functions/deal-accepted-tier.js and
 //    docs/pro/js/accepted-tier-chip.js (tests/deal-accepted-tier-2026-10-03 holds them equal) ──
@@ -174,7 +175,10 @@ async function applyAcceptedTier(db, info, tier, price, deps) {
       let invoices = [];
       if (estimate) {
         const q = await tx.get(db.collection('invoices').where('leadId', '==', info.leadId));
-        invoices = (q && q.docs ? q.docs : []).map((x) => x.data());
+        // Only this lead's own tenant's invoices (paid-in-full.js
+        // invoicesForLead): another company's invoice naming this lead is not
+        // money taken on it (2026-10-05).
+        invoices = PIF.invoicesForLead((q && q.docs ? q.docs : []).map((x) => x.data()), lead, info.leadId, null);
       }
       const at = now();
       const plan = planAcceptedTier({ lead, estimate, estimateId, leadId: info.leadId, ownerUid: info.ownerUid, tier, price, dealId: info.dealId, now: at,

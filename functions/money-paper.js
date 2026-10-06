@@ -38,6 +38,7 @@ const P = require('./money-paper-logic');
 const SPINE = require('./job-spine-logic');
 const stageRoles = require('./stage-roles');
 const PIF = require('./paid-in-full');
+const { isOwnerPhotoPath } = require('./lead-artifact-paths');
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
@@ -83,10 +84,25 @@ async function realRender(templateKey, payload, companyId) {
 }
 
 // A short-lived link for the photo plate (Chromium fetches it while printing).
+// 2026-10-05 (security review): /photos is a flat, client-written collection
+// keyed only by the leadId FIELD, so a stranger's photo doc can name this
+// lead — and its path is client-written too. Only the lead's own photos
+// (same owner, or same company) are candidates, and only an object under the
+// lead owner's photos/{uid}/ prefix is ever signed.
+function plateCandidate(p, lead) {
+  const L = lead || {};
+  if (!p) return false;
+  const sameOwner = !!L.userId && p.userId === L.userId;
+  const sameCompany = !!L.companyId && !!p.companyId && p.companyId === L.companyId;
+  if (!sameOwner && !sameCompany) return false;
+  const path = p.path || p.storagePath;
+  return path ? isOwnerPhotoPath(path, String(L.userId || '')) : true;
+}
 async function plateFor(db, bucket, lead, leadId) {
   try {
     const snap = await db.collection('photos').where('leadId', '==', leadId).limit(200).get();
-    const photos = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+    const photos = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()))
+      .filter((p) => plateCandidate(p, lead));
     const p = P.pickPlatePhoto(lead, photos);
     if (!p) return null;
     const path = p.path || p.storagePath;
@@ -150,6 +166,9 @@ async function fileOne(deps, invRef, invoiceId, kind) {
     const ls = await db.collection('leads').doc(leadId).get();
     const lead = ls.exists ? ls.data() : null;
     if (!lead) throw new Error('lead ' + leadId + ' not found');
+    // An invoice naming another tenant's lead must not file paper (with that
+    // customer's name and address on it) onto that lead (2026-10-05).
+    if (!PIF.invoiceInLeadTenant(inv, lead)) throw new Error('invoice tenant is not the lead tenant — refusing to file');
     const plate = await plateFor(db, bucket, lead, leadId);
     const payload = kind === 'invoice'
       ? P.invoicePayload(inv, lead, c.id, nowMs, plate)
@@ -329,6 +348,11 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
   const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
   const ls = await leadRef.get();
   if (!ls.exists) return null;
+  // Another tenant's invoice naming this lead files nothing here (2026-10-05).
+  if (!PIF.invoiceInLeadTenant(inv, ls.data())) {
+    logger.warn('[moneyPaper] paid-not-closed skipped — invoice tenant is not the lead tenant', { invoiceId, leadId: inv.leadId });
+    return null;
+  }
   const et = P.etParts(deps.now());               // { y, md: 'MMDD' } — the task wants 'YYYY-MM-DD'
   const today = et.y + '-' + et.md.slice(0, 2) + '-' + et.md.slice(2);
   const task = P.paidNotClosedTask(ls.data(), inv, invoiceId, today, stageRoles);
@@ -404,4 +428,4 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
   }
 );
 
-exports._internal = { handle, payQr, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, payQr, plateFor, plateCandidate, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };

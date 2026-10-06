@@ -702,8 +702,11 @@ section('Team visibility: lead-activity notes readable across the lead (rules + 
   assert('top-level /notes read is scoped to the parent lead (owner or same-company)',
     /allow read:[\s\S]{0,260}leads\/\$\(resource\.data\.leadId\)[\s\S]{0,140}parentLeadInMyCompany\(resource\.data\.leadId\)/.test(notesBlock));
   // 2026-09-25 (Jo's decision B): the author must also not be a viewer.
+  // 2026-10-05: update split out to freeze leadId + userId (a note could be
+  // moved onto another tenant's lead); delete is unchanged.
   assert('/notes update+delete stay author-only (and never a viewer)',
-    /allow update, delete:\s*if \(isOwner\(resource\.data\.userId\) && notViewer\(\)\) \|\| isAdmin\(\);/.test(notesBlock));
+    /allow update:\s*if \(\(isOwner\(resource\.data\.userId\) && notViewer\(\)\) \|\| isAdmin\(\)\)\s*&& didNotChange\(\['leadId', 'userId'\]\);/.test(notesBlock)
+    && /allow delete:\s*if \(isOwner\(resource\.data\.userId\) && notViewer\(\)\) \|\| isAdmin\(\);/.test(notesBlock));
 
   // Client: timeline + report note reads query by leadId ONLY (no author
   // filter), so teammates' notes appear; the rule authorizes it.

@@ -52,6 +52,7 @@ const { callableRateLimit, assertNotViewer } = require('./shared');
 const { applyRepReplyEffects } = require('./portal-reply-effects');
 const EVA = require('./estimate-view-alert');
 const { reencodePhoto } = require('./photo-reencode');
+const { isHomeownerUploadPathFor } = require('./lead-artifact-paths');
 // Customer-safe line items for the shared-estimate view. This is a byte-copy
 // of docs/pro/js/customer-estimate-rows.js (Functions deploys only functions/;
 // a smoke drift guard in tests/customer-estimate-rows.test.js asserts the two
@@ -507,11 +508,19 @@ function _homeownerUrlIsStale(p, nowMs) {
   return !exp || exp - nowMs < HOMEOWNER_URL_RENEW_MS;
 }
 
-async function _refreshHomeownerPhotoUrls(docs, nowMs) {
+// 2026-10-05 (security review): `source` and `path` are fields on a photo doc
+// a rep could write, so "source === 'homeowner'" proved nothing — a rep could
+// plant one naming ANY object in the bucket and mint themselves a 7-day link
+// to it through their own portal. Only an object in the exact prefix
+// uploadHomeownerPhoto writes for THIS token's owner and lead is ever signed
+// (and firestore.rules now refuses a client-written source:'homeowner').
+async function _refreshHomeownerPhotoUrls(docs, nowMs, tok) {
   const fresh = new Map();
+  const t = tok || {};
   const stale = docs.filter((d) => {
     const p = d.data();
     return p.source === 'homeowner' && typeof p.path === 'string' && p.path
+      && isHomeownerUploadPathFor(p.path, t.ownerUid, t.leadId)
       && _homeownerUrlIsStale(p, nowMs);
   });
   if (!stale.length) return fresh;
@@ -857,7 +866,7 @@ exports.getHomeownerPortalView = onRequest(
     // Refresh any homeowner-upload URL that is dead or nearly dead before
     // it reaches the gallery. Rep-uploaded photos carry permanent variant
     // URLs in `urls` and are untouched.
-    const _freshUrls = await _refreshHomeownerPhotoUrls(photoSnap.docs, Date.now());
+    const _freshUrls = await _refreshHomeownerPhotoUrls(photoSnap.docs, Date.now(), tok);
 
     // Documents shelf (2026-09-16). Two visibility rules on leads/{id}/documents:
     //   - generated === true (document-generator.js output: contract, estimate,
