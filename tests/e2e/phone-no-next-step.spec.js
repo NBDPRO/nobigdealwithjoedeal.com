@@ -85,8 +85,27 @@ test.describe('phone: no next step @shard2', () => {
     await expect(card.locator('#nnsList .nns-row', { hasText: 'Knock' + s })).toHaveCount(0);
 
     // Thumb-sized buttons; no sideways scroll at 390.
-    for (const b of await row.locator('button').all()) {
+    // The card redraws on a 200ms debounce (no-next-step.js schedule()) and
+    // each redraw replaces its innerHTML, so buttons read mid-redraw detach
+    // (boundingBox() → null). Wait until the card has been quiet for longer
+    // than the debounce, then re-query each button and wait for it.
+    await page.evaluate(() => {
+      const el = document.getElementById('homeNoNextStep');
+      window.__nnsLastMut = Date.now();
+      if (el && !window.__nnsObs) {
+        window.__nnsObs = new MutationObserver(() => { window.__nnsLastMut = Date.now(); });
+        window.__nnsObs.observe(el, { childList: true, subtree: true, attributes: true, characterData: true });
+      }
+    });
+    await page.waitForFunction(() => Date.now() - window.__nnsLastMut > 600, null, { timeout: 15_000, polling: 100 });
+    await expect(row, 'our quiet lead is still listed after the redraws').toBeVisible();
+    const nButtons = await row.locator('button').count();
+    expect(nButtons, 'the row has its action buttons').toBeGreaterThan(0);
+    for (let i = 0; i < nButtons; i++) {
+      const b = row.locator('button').nth(i);
+      await expect(b).toBeVisible();
       const box = await b.boundingBox();
+      expect(box, 'button ' + i + ' has a layout box').not.toBeNull();
       expect(box.height, 'tap target height').toBeGreaterThanOrEqual(44);
       expect(box.width, 'tap target width').toBeGreaterThanOrEqual(44);
       expect(box.x + box.width, 'button inside the viewport').toBeLessThanOrEqual(390);
