@@ -184,7 +184,13 @@ test.describe('phone invoice: record payments, installed iPhone app @shard2', ()
       // Balance Due is the part owed after the deposit (invoice-pipeline.js
       // paymentSummaryRows, 2026-09-14 convention): Deposit due (remaining) +
       // Balance Due = what is still owed, which is the saved balanceDue.
-      const txt = await detail.locator('.invoice-detail').innerText();
+      // The summary rows can land a render after .invoice-detail first shows,
+      // so wait for them (web-first, retried) before reading the text once.
+      const body = detail.locator('.invoice-detail');
+      await expect(body, 'the deposit-remaining row has rendered').toContainText(/Deposit due \(remaining\):?\s*\$[\d,]+\.\d\d/, { timeout: 15_000 });
+      await expect(body, 'the Balance Due row has rendered').toContainText(/Balance Due:?\s*\$[\d,]+\.\d\d/, { timeout: 15_000 });
+      await expect(body, 'the Total owed row has rendered').toContainText(/Total owed:?\s*\$[\d,]+\.\d\d/, { timeout: 15_000 });
+      const txt = await body.innerText();
       const row = (re) => { const m = re.exec(txt); return m ? cents(m[1].replace(/,/g, '')) : null; };
       const depLeft = row(/Deposit due \(remaining\):?\s*\$([\d,]+\.\d\d)/);
       const balance = row(/Balance Due:?\s*\$([\d,]+\.\d\d)/);

@@ -216,7 +216,10 @@ function makeDom() {
     ok('Submit sends the lead with only the required fields (no scheduling choice demanded)', saves.length === 1 && saves[0].firstName === 'Pat' && saves[0].phone === '(513) 555-0100' && saves[0].tcpaConsent === true, saves[0]);
     ok('...asks for the follow-up grant (wantsFollowUp)', saves[0] && saves[0].wantsFollowUp === true);
     ok('...carries no intake answers up front', saves[0] && !('scheduling' in saves[0]) && !('bestTime' in saves[0]));
-    ok("...and Joe's notice names the homeowner with no trailing space", notes.length === 1 && notes[0].name === 'Pat');
+    // notifyNewLead is no longer called from the funnel (H3, 2026-10-05) —
+    // Joe's alert is leadAlertEstimate on the saved doc; see
+    // estimate-funnel-lost-lead-banner-2026-10-05.test.js.
+    ok('...and no notifyNewLead call (Joe is alerted by the estimate_leads trigger)', notes.length === 0, notes.length);
     await tick(900);
     ok('the results screen shows the optional "help Joe prepare" block (lead saved, grant held)', d.getElementById('estFollowUp').hidden === false && d.getElementById('estIntake').innerHTML.length > 0);
     ok('a funnel_step for the results screen fires', W.events.some((e) => e.name === 'funnel_step' && e.params.step === 6 && e.params.step_name === 'results'));
@@ -520,7 +523,10 @@ function makeDom() {
   console.log('\n7. trust line above every listed form + live rating');
   // ═══════════════════════════════════════════════════════════════════════
   {
-    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating>5\.0<\/span> on Google &middot; Licensed &amp; insured &middot; Joe on every roof<\/p>/;
+    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating>5\.0<\/span> on Google &middot; (?:Fully insured|Licensed &amp; insured) &middot; Joe on every roof<\/p>/;
+    // 2026-10-05: "Fully insured" (Jo has no OH/KY registration number to back
+    // "Licensed"). docs/index.html keeps the old line until the home-page PR
+    // lands; tests/homeowner-claims-honesty-2026-10-05.test.js bans it elsewhere.
     const pages = [
       ['docs/estimate.html', 'id="btnSubmit"'],
       ['docs/storm-check.html', 'id="sc-submit"'],
@@ -541,7 +547,7 @@ function makeDom() {
     ok('...and hydrates the rating (widget hook or a one-time load)', /hydrateRating\(\);/.test(q) && /nbdHydrateReviewHooks/.test(q));
     const hosts = fs.readdirSync(path.join(ROOT, 'docs', 'areas')).filter((f) => f.endsWith('.html')).map((f) => read('docs/areas/' + f)).filter((h) => /data-nbd-quick-form/.test(h) && /quick-lead-form\.js/.test(h)).length;
     ok('generated area pages still host the quick form (> 20)', hosts > 20, hosts);
-    ok('Kentucky wording: the line makes no claim-handling promise', !/claim|insurance|deductible|negotiat/i.test('★ 5.0 on Google · Licensed & insured · Joe on every roof'));
+    ok('Kentucky wording: the line makes no claim-handling promise', !/claim|insurance|deductible|negotiat/i.test('★ 5.0 on Google · Fully insured · Joe on every roof'));
 
     // The widget hydrates hooks on a page WITHOUT the review cards.
     const { document, El } = makeDom();
