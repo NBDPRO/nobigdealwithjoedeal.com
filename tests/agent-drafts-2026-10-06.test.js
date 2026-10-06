@@ -7,7 +7,7 @@
  *      Dana + Priya social, CoS unchanged, company bots never), Frank's
  *      post_job + file_reminder, the STOP line appended once, the company
  *      name required, the 480-character cap, email From, social platforms,
- *      server version 1.2.0
+ *      server version 1.3.0 (bumped 2026-10-06 for list_leads paging)
  *   B. the real MCP handler over an in-memory Firestore: a draft lands in
  *      agent_inbox; NO tool answer ever carries the customer's phone or
  *      email; a customer on the Do-Not-Text register (canonical or legacy
@@ -152,7 +152,7 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('Frank gets post_job + file_reminder (and still no notes)', L.botAllows('frank', 'post_job') && L.botAllows('frank', 'file_reminder') && !L.botAllows('frank', 'file_note'));
   ok('company-made bots can never pick a draft tool', L.DRAFT_TOOLS.every((t) => L.CUSTOM_TOOLS.indexOf(t) === -1) && !!L.normalizeBotInput({ name: 'x', tools: ['draft_text'] }).error);
   ok('draft tools are marked as writes (not read-only)', L.DRAFT_TOOLS.every((t) => L.annotationsFor(t).readOnlyHint === false));
-  ok('server version 1.2.0', L.SERVER_INFO.version === '1.2.0');
+  ok('server version 1.3.0 (1.2.0 drafts; 1.3.0 list_leads paging)', L.SERVER_INFO.version === '1.3.0');
   const nbdNames = L.companyNames({}, true);
   let d = L.buildTextDraft({ body: 'Hi Maria, Joe with No Big Deal — still want the gutter quote?', reason: 'quiet 14 days' }, nbdNames);
   ok('STOP line appended when missing', d.body === 'Hi Maria, Joe with No Big Deal — still want the gutter quote?\nReply STOP to opt out.');

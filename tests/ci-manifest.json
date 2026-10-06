@@ -224,6 +224,7 @@
     "reel-studio-2026-10-04.test.js",
     "agent-tenant-bots-2026-10-04.test.js",
     "agent-drafts-2026-10-06.test.js",
+    "agent-list-leads-paging-2026-10-06.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
