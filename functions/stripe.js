@@ -1568,7 +1568,11 @@ exports.createStripePaymentLink = onRequest(
       res.json({ url: paymentLink.url, paymentLinkId: paymentLink.id });
 
     } catch (e) {
-      logger.error('createStripePaymentLink error', { uid: decoded.uid, err: e.message });
+      logger.error('createStripePaymentLink error', { uid: decoded.uid, err: e.message, code: e && e.code });
+      if (e && e.code === 'prior_invoice_partly_paid') {
+        res.status(409).json({ error: e.publicMessage, code: e.code });
+        return;
+      }
       res.status(500).json({ error: 'Failed to create payment link' });
     }
   }

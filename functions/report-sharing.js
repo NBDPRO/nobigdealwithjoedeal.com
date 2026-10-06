@@ -63,6 +63,7 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const { awaitBriefly } = require('./await-briefly');
 // Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
 const REPORT_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
@@ -518,11 +519,13 @@ exports.getSharedReport = onRequest(
       errPage(410, 'This report link has expired. Ask your rep for a fresh one.'); return;
     }
 
-    // Fire-and-forget viewed stamp (do not gate the response).
-    db.doc(`report_share_tokens/${token}`).update({
+    // Viewed stamp. R4-10 (2026-10-06): awaited briefly before the response
+    // (awaitBriefly) so Cloud Run's post-response CPU throttle can't drop it.
+    const pendingWrites = [];
+    pendingWrites.push(db.doc(`report_share_tokens/${token}`).update({
       viewedAt: FieldValue.serverTimestamp(),
       viewCount: FieldValue.increment(1),
-    }).catch(() => {});
+    }).catch(() => {}));
 
     // A lead-scoped document is a PDF in Storage, not inline HTML.
     //
@@ -554,11 +557,12 @@ exports.getSharedReport = onRequest(
       // estimate_viewed alert, throttled per lead per 6h. A link preview
       // (iMessage fetches the link the moment Jo texts it) is not an open.
       if (tok.leadId && !DV.isPreviewBot(req.get('user-agent'))) {
-        EVA.recordEstimateView(db, {
+        pendingWrites.push(EVA.recordEstimateView(db, {
           leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'review_link',
           what: tok.docLabel || tok.filename || '',
-        }).catch(() => {});
+        }).catch(() => {}));
       }
+      await awaitBriefly(pendingWrites);
       let file, meta;
       try {
         file = getStorage().bucket().file(path);
@@ -604,6 +608,7 @@ exports.getSharedReport = onRequest(
     }
     if (!html) { errPage(404, 'This report has no content to display.'); return; }
 
+    await awaitBriefly(pendingWrites);
     res.status(200)
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')

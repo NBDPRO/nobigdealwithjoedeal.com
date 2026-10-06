@@ -959,6 +959,7 @@ exports.recordingRetentionCron = onSchedule(
 
     // ── Phase 2: hard-delete (past the 30-day grace) ──
     let hardDeleted = 0;
+    let audioFailed = 0;
     try {
       let lastDoc = null;
       for (let page = 0; page < 50; page++) {
@@ -983,8 +984,15 @@ exports.recordingRetentionCron = onSchedule(
           // sits where processRecording writes it and names its own audio.
           const audioPath = retentionAudioPathFor(d.ref.path, rec.audioPath);
           if (audioPath) {
+            // R4-7-7 (2026-10-06): on failure KEEP the doc (it is the only
+            // pointer to the audio) so the next run retries. Deleting it
+            // anyway orphaned the recording in Storage forever.
             try { await bucket.file(audioPath).delete({ ignoreNotFound: true }); }
-            catch (e) { logger.warn('retention: audio delete failed', { path: audioPath, err: e.message }); }
+            catch (e) {
+              audioFailed++;
+              logger.error('retention: audio delete failed — doc kept for the next run', { path: audioPath, err: e.message });
+              continue;
+            }
           } else if (rec.audioPath) {
             logger.warn('retention: audio kept, doc path and audioPath do not match', { doc: d.ref.path });
           }
@@ -999,7 +1007,7 @@ exports.recordingRetentionCron = onSchedule(
     }
 
     logger.info('recordingRetentionCron', {
-      softDeleted, hardDeleted, companiesResolved: retentionByCompany.size
+      softDeleted, hardDeleted, audioFailed, companiesResolved: retentionByCompany.size
     });
   }
 );

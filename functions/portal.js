@@ -93,6 +93,7 @@ function scheduleWindowFor(lead) {
 // short title and the raw schedule fields leave the server — never a value,
 // claim, crew or note — and the reader's browser decides past/future.
 const JOBS = require('./jobs-logic');
+const { awaitBriefly } = require('./await-briefly');
 // Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
 const PORTAL_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -1164,10 +1165,14 @@ exports.getHomeownerPortalView = onRequest(
     // Bump use counter on a real OPEN only (fire-and-forget; don't fail the
     // response). Polls just refresh lastSeenAt so they don't burn the replay
     // budget (QA finding — see isPoll above).
-    tokRef.update(isPoll
+    // R4-10 (2026-10-06): collected and awaited (briefly) before the
+    // response below — after it, Cloud Run throttles the CPU and these writes
+    // (and the view alert) could be lost.
+    const pendingWrites = [];
+    pendingWrites.push(tokRef.update(isPoll
       ? { lastSeenAt: FieldValue.serverTimestamp() }
       : { uses: FieldValue.increment(1), lastSeenAt: FieldValue.serverTimestamp() }
-    ).catch(() => {});
+    ).catch(() => {}));
 
     // 2026-09-16 (view-tracking fix): this open-tracking write existed
     // already, but ONLY on portal_tokens/{token} — nothing rep-facing reads
@@ -1181,17 +1186,18 @@ exports.getHomeownerPortalView = onRequest(
     // read it for free off the same lead object they already have loaded —
     // no new query, no new subscription.
     if (!isPoll) {
-      db.doc(`leads/${tok.leadId}`).update({ lastPortalOpenAt: FieldValue.serverTimestamp() }).catch(() => {});
+      pendingWrites.push(db.doc(`leads/${tok.leadId}`).update({ lastPortalOpenAt: FieldValue.serverTimestamp() }).catch(() => {}));
       // 2026-10-03: also stamp lead.lastViewedAt and — when Jo has sent this
       // homeowner something (lastSharedAt / sharedDocId) — the ONE
       // estimate_viewed alert, throttled per lead per 6h across every open
       // path (functions/estimate-view-alert.js). Fire-and-forget.
-      EVA.recordEstimateView(db, {
+      pendingWrites.push(EVA.recordEstimateView(db, {
         leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'portal',
         alert: !!(lead.sharedDocId || lead.lastSharedAt),
-      }).catch(() => {});
+      }).catch(() => {}));
     }
 
+    await awaitBriefly(pendingWrites);
     res.status(200).json(view);
   }
 );

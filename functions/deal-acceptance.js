@@ -49,6 +49,7 @@ const DP = require('./deal-packet-logic');
 const { reencodePhoto } = require('./photo-reencode');
 const KyLaw = require('./ky-insurance-law');
 const CW = require('./cancel-window');
+const { awaitBriefly } = require('./await-briefly');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -306,11 +307,15 @@ exports.getDealRoom = onRequest(
     // (iMessage, Messenger, Slack…) opens the link the moment it is texted —
     // it gets the page but counts as nothing and pings no one.
     const isBot = DV.isPreviewBot(req.get('user-agent'));
+    // R4-10 (2026-10-06): started here, awaited (briefly) just before the
+    // response — after it, Cloud Run throttles the CPU and the view alert
+    // (whose 6h throttle is already claimed) could be lost.
+    const pendingWrites = [];
     if (!isBot) {
-      db.doc(`deal_accept_tokens/${token}`).update({ viewedAt: FieldValue.serverTimestamp() }).catch(() => {});
-      db.doc(`deal_rooms/${tok.dealId}`).update({ status: 'viewed', viewedAt: FieldValue.serverTimestamp(),
-        viewCount: FieldValue.increment(1), lastViewedAt: FieldValue.serverTimestamp() }).catch(() => {});
-      notifyDealView(db, tok, dealRoomSnap.data() || {}).catch((e) => logger.warn('[getDealRoom] view notify failed', { msg: e && e.message }));
+      pendingWrites.push(db.doc(`deal_accept_tokens/${token}`).update({ viewedAt: FieldValue.serverTimestamp() }).catch(() => {}));
+      pendingWrites.push(db.doc(`deal_rooms/${tok.dealId}`).update({ status: 'viewed', viewedAt: FieldValue.serverTimestamp(),
+        viewCount: FieldValue.increment(1), lastViewedAt: FieldValue.serverTimestamp() }).catch(() => {}));
+      pendingWrites.push(notifyDealView(db, tok, dealRoomSnap.data() || {}).catch((e) => logger.warn('[getDealRoom] view notify failed', { msg: e && e.message })));
     }
 
     let html = '';
@@ -355,6 +360,7 @@ exports.getDealRoom = onRequest(
       + (withThursday ? ThursdayGate.DEAL_ROOM_INJECT : '');
     html = html.includes('</head>') ? html.replace('</head>', inject + '</head>') : inject + html;
 
+    await awaitBriefly(pendingWrites);
     res.status(200)
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')
