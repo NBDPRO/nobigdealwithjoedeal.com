@@ -234,10 +234,16 @@ async function ingestCharge(ctx, chargeOrId, opts) {
   // through this same account. It is platform revenue, not a homeowner job:
   // record it, never match it to a customer, never put it in the review list.
   if (sInv && (sInv.subscription || (sInv.billing_reason && sInv.billing_reason !== 'manual'))) {
-    const sub = Object.assign({}, row, { kind: 'platform_subscription', match: { leadId: null, invoiceId: null, method: null, confidence: 'none', candidates: [], leadName: null }, needsReview: false });
+    // A Roof Care Plan membership (care-plan.js) bills through a subscription
+    // too: same "not a job invoice" handling, but tagged so it never reads as
+    // NBD Pro revenue. Its member is named by the subscription's metadata.
+    const careMeta = require('./care-plan-logic').metaOf(sInv);
+    const isCarePlan = careMeta.nbdProduct === 'roof_care_plan';
+    const sub = Object.assign({}, row, { kind: 'platform_subscription', product: isCarePlan ? 'roof_care_plan' : 'nbd_pro', match: { leadId: null, invoiceId: null, method: null, confidence: 'none', candidates: [], leadName: null }, needsReview: false });
+    if (isCarePlan) sub.carePlan = { carePlanId: careMeta.carePlanId || null, leadId: careMeta.leadId || null };
     delete sub._id;
     await writeRow(ctx, ch.id, sub, o.dryRun);
-    return { id: ch.id, kind: 'platform_subscription', status: row.status, amount: row.amountCents / 100, action: 'NBD Pro subscription — not a customer job' };
+    return { id: ch.id, kind: 'platform_subscription', status: row.status, amount: row.amountCents / 100, action: isCarePlan ? 'Roof Care Plan membership — not a job invoice' : 'NBD Pro subscription — not a customer job' };
   }
   if (sInv) {
     row.stripeInvoiceNumber = sInv.number || null;

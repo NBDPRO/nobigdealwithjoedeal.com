@@ -989,6 +989,24 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         tax = Number.isFinite(savedTax) ? savedTax : (total - subtotal);
         subtotal = Math.round(subtotal * 100) / 100;
         tax = Math.round(tax * 100) / 100;
+        // The quote prints total − subtotal − tax as its own row: the
+        // nearest-$25 rounding or the job-minimum lift (estimate-v2-ui.js /
+        // estimate-finalization.js, same rule, same label). Without it the
+        // lines + tax fell short of the total and createStripePaymentLink
+        // refused the link ($120 material / $250 labor at 7%: $525 quoted,
+        // $513.60 of lines + tax). Untaxed — tax is already the quote's.
+        // adjustment:true lets the pay link take either sign (stripe.js).
+        const adjCents = Math.round(total * 100) - Math.round(subtotal * 100) - Math.round(tax * 100);
+        if (adjCents !== 0) {
+          items.push({
+            description: (est.minJobApplied && adjCents > 0) ? 'Minimum job charge adjustment' : 'Rounding',
+            quantity: 1,
+            unitPrice: adjCents / 100,
+            total: adjCents / 100,
+            adjustment: true,
+            taxable: false
+          });
+        }
       } else {
         subtotal = items.reduce((sum, item) => sum + item.total, 0);
         tax = subtotal * taxRate;
