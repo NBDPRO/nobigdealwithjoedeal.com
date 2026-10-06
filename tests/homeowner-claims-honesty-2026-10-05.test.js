@@ -31,8 +31,7 @@
  * the CRM and private trees (pro/, admin/, sites/, dev/) and vendored
  * libraries. Owned by other in-flight changes and skipped ONLY for the
  * "Licensed" and years pins (listed in PENDING_OWNER below; drop an entry
- * once its PR lands): docs/index.html (home-page PR), the storm-damage and
- * roof-replacement service pages, the Roof Care Plan page, the nbd:partial
+ * once its PR lands): docs/index.html (home-page PR), the Roof Care Plan page, the nbd:partial
  * regions (partials PR) and llms-full.txt (regenerated at deploy from those
  * pages).
  *
@@ -65,8 +64,6 @@ const PARTIAL = /<!-- nbd:partial ([\w-]+)[^>]*-->[\s\S]*?<!-- \/nbd:partial \1 
 
 const PENDING_OWNER = new Set([
   'index.html',
-  'services/storm-damage.html',
-  'services/roof-replacement.html',
   'services/roof-care-plan.html',
   'llms-full.txt',
 ]);
