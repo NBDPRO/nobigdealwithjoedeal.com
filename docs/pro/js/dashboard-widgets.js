@@ -211,7 +211,7 @@ function renderEstimatesList(ests) {
           + '<button class="est-act-btn" data-act="duplicate" title="Duplicate this estimate">⎘ Duplicate</button>'
           + '<button class="est-act-btn" data-act="rename" title="Rename estimate">✏ Rename</button>'
           + '<button class="est-act-btn" data-act="assign" title="Assign to customer">👤 Assign</button>'
-          + '<button class="est-act-btn danger" data-act="delete" title="Delete estimate">🗑</button>'
+          + '<button class="est-act-btn danger" data-act="delete" title="Archive estimate" aria-label="Archive estimate">🗄</button>'
         + '</div>'
       + '</div>';
   }).join('');

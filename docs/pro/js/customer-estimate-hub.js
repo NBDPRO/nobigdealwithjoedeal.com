@@ -302,21 +302,13 @@
       // Recommended buy list from this estimate (materials-list.js, 2026-10-02).
       (Array.isArray(est.rows) && est.rows.length && window.NBDMaterials ? '<button type="button" class="ceh-btn" data-ceh-act="materials" data-ceh-id="' + id + '">🧾 Materials</button>' : '') +
       '<button type="button" class="ceh-btn" data-ceh-act="assign" data-ceh-id="' + id + '">👤 Assign</button>' +
-      // Labelled for what it DOES. This button read "🗄 Archive" — an archive
-      // box, the universal "filed away, still there" affordance — while
-      // dispatching deleteEstimateAction, which calls deleteDoc() and destroys
-      // the document. Its own confirm already said "This cannot be undone", so
-      // the control contradicted itself and the reassuring half was the part a
-      // rep reads first.
-      //
-      // Relabelled rather than converted to a soft delete: the tenant estimates
-      // snapshots that populate window._estimates apply no `deleted` filter, so
-      // a soft-deleted estimate would stay visible on the dashboard list and
-      // Archive would look broken. A real archive needs those readers updated
-      // first — worth doing, but it is a feature, not this fix. The dashboard's
-      // own estimates list already calls this exact action "delete"; the hub
-      // was the outlier.
-      '<button type="button" class="ceh-btn danger" data-ceh-act="archive" data-ceh-id="' + id + '">🗑 Delete</button>' +
+      // Labelled for what it DOES. This button was once relabelled "🗑 Delete"
+      // because deleteEstimateAction called deleteDoc() and destroyed the
+      // document. Since R5-8-2 (#2286) it is a SOFT delete: the estimate gets
+      // deleted:true, the dashboard/portal readers drop it, and the lead's
+      // primary + jobValue are re-synced. So it is an archive again, and the
+      // confirm says so (estimate-crm-ops.js deleteEstimateAction).
+      '<button type="button" class="ceh-btn danger" data-ceh-act="archive" data-ceh-id="' + id + '">🗄 Archive</button>' +
       '</div>';
     return html;
   }
