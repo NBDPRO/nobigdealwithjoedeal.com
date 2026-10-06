@@ -11,6 +11,7 @@
   ],
   "node": [
     "google-signin-popup.test.js",
+    "ci-concurrency.test.js",
     "crm-logo-legibility-2026-09-16.test.js",
     "portal-timeline-docs-balance-2026-09-16.test.js",
     "portal-photo-self-announce-2026-09-16.test.js",
@@ -58,6 +59,7 @@
     "deal-room-views-2026-10-02.test.js",
     "thursday-video-card-2026-10-05.test.js",
     "estimate-send-track-2026-10-03.test.js",
+    "tenant-ownership-checks-2026-10-05.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
     "customer-photo-fetch-unification-2026-09-17.test.js",
