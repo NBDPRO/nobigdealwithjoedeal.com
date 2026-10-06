@@ -126,6 +126,9 @@ function smsAckGate(args) {
 // NEW version — never edit an existing one, or every record already stamped
 // with that id silently starts pointing at words nobody agreed to.
 // tests/tcpa-consent.test.js pins each page's label to the text below.
+const SMS_TERMS_TAIL = 'by call or text at the number above. Message frequency varies. '
+  + 'Message & data rates may apply. Reply STOP to opt out, HELP for help. '
+  + 'Consent is not a condition of purchase.';
 const CONSENT_TEXTS = Object.freeze({
   // /storm-check, /roof-score, /storm-report, and (from 2026-10-03) /inspect,
   // /storm-alerts, the homepage form and the on-page quick form.
@@ -137,13 +140,32 @@ const CONSENT_TEXTS = Object.freeze({
   'tcpa-estimate-v1-2026-10-03':
     'I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions. '
     + 'Message & data rates may apply. Reply STOP to opt out.',
+  // 2026-10-05 (Twilio A2P campaign review): every form now carries the full
+  // carrier set — frequency, HELP, "Consent is not a condition of purchase" and
+  // a Privacy Policy link (the link text is not part of the stored words). The
+  // v1 texts above stay: records already stamped with them must keep meaning
+  // what those people saw.
+  'tcpa-v2-2026-10-05':
+    'I agree to receive my results and follow-up communication from No Big Deal Home Solutions '
+    + SMS_TERMS_TAIL,
+  'tcpa-estimate-v2-2026-10-05':
+    'I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions '
+    + SMS_TERMS_TAIL,
+  // /storm-alerts says what it actually sends (v1 there read "my results").
+  'tcpa-storm-alerts-v2-2026-10-05':
+    'I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions '
+    + SMS_TERMS_TAIL,
 });
-const CONSENT_VERSION = 'tcpa-v1-2026-10-03';
-const ESTIMATE_CONSENT_VERSION = 'tcpa-estimate-v1-2026-10-03';
+const CONSENT_VERSION = 'tcpa-v2-2026-10-05';
+const ESTIMATE_CONSENT_VERSION = 'tcpa-estimate-v2-2026-10-05';
+const STORM_ALERTS_CONSENT_VERSION = 'tcpa-storm-alerts-v2-2026-10-05';
 
 /** Which disclosure a submission of this public-lead kind was shown. */
 function consentVersionForKind(kind) {
-  return kind === 'estimate' ? ESTIMATE_CONSENT_VERSION : CONSENT_VERSION;
+  if (kind === 'estimate') return ESTIMATE_CONSENT_VERSION;
+  // 'storm' is only ever posted by /storm-alerts (window._saveStormAlert).
+  if (kind === 'storm') return STORM_ALERTS_CONSENT_VERSION;
+  return CONSENT_VERSION;
 }
 
 /**
@@ -193,6 +215,7 @@ module.exports = {
   CONSENT_TEXTS,
   CONSENT_VERSION,
   ESTIMATE_CONSENT_VERSION,
+  STORM_ALERTS_CONSENT_VERSION,
   parseSubmittedConsent,
   hasWrittenConsent,
   smsAckGate,
