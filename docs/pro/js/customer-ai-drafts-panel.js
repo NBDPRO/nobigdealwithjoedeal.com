@@ -276,6 +276,23 @@
       if (!edited) { setStatus('Add some text before sending.'); if (ta) ta.focus(); return; }
       const original = card.getAttribute('data-aidp-original') || '';
       setBusy(true);
+      // Review R2-3-3 (2026-10-06): the list is a one-time getDocs, so this
+      // card can be stale — another tab or device may have sent it already.
+      // Approve only a draft that is STILL pending (the rules and the trigger
+      // refuse anything else too; this tells the rep why).
+      try {
+        const cur = window.getDoc ? await window.getDoc(ref) : null;
+        const st = cur && cur.exists() ? ((cur.data() || {}).status || '') : (cur ? 'gone' : 'pending');
+        if (st !== 'pending') {
+          setBusy(false);
+          setStatus(st === 'sent' ? 'Already sent — this reply went out from another tab or device.' : 'This draft was already handled (' + st + ').');
+          if (window.showToast) window.showToast(st === 'sent' ? 'That reply was already sent — not sending it again' : 'That draft was already handled', 'info');
+          return;
+        }
+      } catch (e) {
+        setBusy(false); setStatus('Could not check this draft — try again.');
+        return;
+      }
       setStatus(card.getAttribute('data-aidp-portal') === '1'
         ? 'Approving — posting to the portal thread…'
         : 'Approving — sending from the business line…');
