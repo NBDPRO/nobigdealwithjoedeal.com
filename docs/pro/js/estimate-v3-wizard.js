@@ -297,7 +297,15 @@
     if (act === 'back') return go(-1);
     if (act === 'toggle') { ui.on = !ui.on; return paint(); }
     if (act === 'more') { ui.more = !ui.more; return paint(); }
-    if (act === 'kind') { ui.kind = t.dataset.v3Val === 'repair' ? 'repair' : 'roof'; ui.inferKind = false; return paint(); }
+    if (act === 'kind') {
+      ui.kind = t.dataset.v3Val === 'repair' ? 'repair' : 'roof';
+      ui.inferKind = false;
+      // Roof Care Plan (2026-10-05): the rep's choice is what marks the work
+      // repair (member discount on) or a roof (off) — V2 reprices on it.
+      const api = v2();
+      if (api && typeof api.setWorkKind === 'function') api.setWorkKind(ui.kind === 'repair' ? 'repair' : 'replacement');
+      return paint();
+    }
     if (act === 'photo-add') {
       const input = $('.v3-photo-input');
       if (input) input.click();
@@ -581,7 +589,10 @@
     const st = v2state();
     const area = Number(st.measurements && st.measurements.rawSqft) || 0;
     const scope = Array.isArray(st.scope) ? st.scope : [];
-    if (Number(st.minJobCharge) > 0) ui.kind = 'repair';
+    // A kind already said (a preset, a template, a reopened estimate) wins.
+    if (st.workKind === 'repair') ui.kind = 'repair';
+    else if (st.workKind === 'replacement') ui.kind = 'roof';
+    else if (Number(st.minJobCharge) > 0) ui.kind = 'repair';
     else if (scope.length && area > 0 && area < REPAIR_MAX_SQFT) ui.kind = 'repair';
     else ui.kind = 'roof';
   }
