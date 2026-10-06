@@ -22,6 +22,7 @@
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
     "intake-forms-2026-09-30.test.js",
+    "inspect-hero-grid-no-clip-2026-10-06.test.js",
     "care-plan-page-2026-10-05.test.js",
     "oaks-own-intake-2026-10-04.test.js",
     "estimate-funnel-unblock-2026-10-03.test.js",
@@ -176,6 +177,7 @@
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
     "care-plan-2026-10-05.test.js",
+    "twilio-line-2026-10-06.test.js",
     "home-attention-yard-chip-2026-09-29.test.js",
     "tracker-weight-history-2026-09-29.test.js",
     "tracker-sunday-review-2026-10-02.test.js",
@@ -221,6 +223,7 @@
     "social-studio-2026-10-04.test.js",
     "reel-studio-2026-10-04.test.js",
     "agent-tenant-bots-2026-10-04.test.js",
+    "agent-drafts-2026-10-06.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
@@ -243,6 +246,7 @@
     "my-skin-2026-10-01.test.js",
     "ui-primitives-2026-10-01.test.js",
     "ui-foundation-2026-10-05.test.js",
+    "money-font-2026-10-05.test.js",
     "inline-style-ratchet-2026-10-01.test.js",
     "voicemail-error-visible-2026-10-03.test.js",
     "game-xp-2026-10-03.test.js",
@@ -273,6 +277,7 @@
     "viewer-callables.test.js",
     "state-store.test.js",
     "storm-geo.test.js",
+    "wind-gust-2026-10-06.test.js",
     "storm-briefing-tenant-scope-2026-10-05.test.js",
     "storm-outlook.test.js",
     "stripe-dispute-branches.test.js",
@@ -289,6 +294,7 @@
     "thumbtack-webhook.test.js",
     "thursday-logic.test.js",
     "thursday-ui-wiring.test.js",
+    "home-welcome-video-2026-10-05.test.js",
     "turnstile-contract.test.js",
     "webhook-signatures.test.js",
     "booking-events-tenancy.test.js",
@@ -389,6 +395,7 @@
     "check-js-syntax.test.js",
     "bounded-live-listeners-2026-10-03.test.js",
     "faq-schema-sync-2026-10-03.test.js",
+    "pro-landing-budget-2026-10-04.test.js",
     "site-round2-2026-10-03.test.js",
     "security-batch-2026-10-03.test.js",
     "stage-actor-no-next-step-2026-10-03.test.js",
@@ -404,6 +411,7 @@
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
+    "invoice-due-7-days-2026-10-05.test.js",
     "deposit-credit-ledger-mirror-2026-10-05.test.js"
   ],
   "smoke": {
@@ -927,9 +935,10 @@
       "Job templates: vm-loads the three real job-templates modules."
     ],
     "crm-loop-complete.test.js": [
-      "2026-07-19 CRM-loop sweep certification (intro-video data-yt guard,",
+      "2026-07-19 CRM-loop sweep certification (homepage intro-video slot guard,",
       "estimate-email kill switch). Its git branch-report section is",
-      "try/catch-wrapped and degrades harmlessly under fetch-depth:1."
+      "try/catch-wrapped and degrades harmlessly under fetch-depth:1.",
+      "2026-07-19 CRM-loop sweep certification (intro-video data-yt guard,"
     ],
     "honeypot-autofill-contract.test.js": [
       "Audit P6 (2026-08-05): a honeypot NAMED \"website\" matches browser",
