@@ -287,7 +287,7 @@ console.log('\n10. no carrier-pays / claim-approval promises');
 // and keep it there. Text is read with comments stripped AND with tags
 // replaced by a space, so a split like "Lifetime</div><div>Shingle Warranty"
 // still trips the ban.
-console.log('\n10. Pledge promise, written labor warranty, no "lifetime" warranty');
+console.log('\n11. Pledge promise, written labor warranty, no "lifetime" warranty');
 {
   const PROMISE = "NBD Pledge: for as long as you own the home, we'll come back and make it right";
   const untag = (t) => t.replace(/<[^>]+>/g, ' ').replace(/&rsquo;|&#8217;|’/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ');
