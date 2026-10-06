@@ -110,14 +110,17 @@
   function _renderSuggestion(host, lead, sug) {
 
     // Color register matches W112 kanban pill so cross-surface
-    // priorities read identically.
-    let bg, color, border, accent, icon, label;
+    // priorities read identically. A4 (2026-10-05): the look lives in
+    // css/customer-header.css (.csf-*), painted from theme tokens, so it
+    // reads on light themes too (the old #fca5a5-style label inks were
+    // pale-on-white there). Only the priority picks a class here.
+    let tone, icon, label;
     if (sug.priority === 'urgent') {
-      bg = 'rgba(239,68,68,0.10)'; color = '#fca5a5'; border = 'rgba(239,68,68,0.45)'; accent = 'var(--red)'; icon = '⚡'; label = 'Urgent';
+      tone = 'urgent'; icon = '⚡'; label = 'Urgent';
     } else if (sug.priority === 'today') {
-      bg = 'rgba(245,158,11,0.10)'; color = '#fcd34d'; border = 'rgba(245,158,11,0.45)'; accent = 'var(--gold)'; icon = '💡'; label = 'Today';
+      tone = 'today'; icon = '💡'; label = 'Today';
     } else { // this-week
-      bg = 'rgba(96,165,250,0.10)'; color = '#93c5fd'; border = 'rgba(96,165,250,0.45)'; accent = 'var(--blue)'; icon = '👁'; label = 'This week';
+      tone = 'week'; icon = '👁'; label = 'This week';
     }
 
     const phone = String(lead.phone || '').replace(/\D+/g, '');
@@ -125,79 +128,56 @@
     const channel = sug.channel || 'sms';
     const draft = sug.draft || '';
 
-    // Determine which channel buttons to highlight as primary.
-    // Primary = the suggestion's channel; secondary = others that
-    // are reachable. Disabled = no contact info on file.
+    // Determine which channel button is the primary.
+    // Primary = the suggestion's channel (tinted in the priority tone);
+    // the others are quiet. Disabled = no contact info on file.
     const callPrimary  = channel === 'call';
     const smsPrimary   = channel === 'sms';
     const emailPrimary = channel === 'email';
+    const cls = (primary, on) => 'csf-btn' + (primary ? ' is-primary' : '') + (on ? '' : ' is-off');
 
     const callBtnHtml = `
-      <a class="csf-btn" href="tel:${escapeHtml(phone)}"
+      <a class="${cls(callPrimary, phone)}" href="tel:${escapeHtml(phone)}"
         title="Call ${escapeHtml(lead.phone || '')}"
-        style="display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:7px;
-               background:${callPrimary ? accent : 'rgba(16,185,129,0.14)'}; color:${callPrimary ? 'var(--accent-fg)' : 'var(--green)'};
-               border:1px solid ${callPrimary ? accent : 'rgba(16,185,129,0.45)'};
-               text-decoration:none; font:inherit; font-size:12px; font-weight:700;
-               cursor:${phone ? 'pointer' : 'not-allowed'}; opacity:${phone ? 1 : 0.4};
-               -webkit-tap-highlight-color:transparent; transition:transform .12s;"
         ${phone ? "" : "data-csfp-stop-self=\"1\""}>📞 Call</a>`;
 
     const smsBtnHtml = `
-      <button class="csf-btn" type="button" data-csf-action="sms"
-        title="Send SMS with the draft below"
-        style="display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:7px;
-               background:${smsPrimary ? accent : 'rgba(59,130,246,0.14)'}; color:${smsPrimary ? 'var(--accent-fg)' : 'var(--blue)'};
-               border:1px solid ${smsPrimary ? accent : 'rgba(59,130,246,0.45)'};
-               font:inherit; font-size:12px; font-weight:700;
-               cursor:${phone ? 'pointer' : 'not-allowed'}; opacity:${phone ? 1 : 0.4};
-               -webkit-tap-highlight-color:transparent; transition:transform .12s;">💬 SMS</button>`;
+      <button class="${cls(smsPrimary, phone)}" type="button" data-csf-action="sms"
+        title="Send SMS with the draft below">💬 SMS</button>`;
 
     const emailBtnHtml = `
-      <button class="csf-btn" type="button" data-csf-action="email"
-        title="Compose email with the draft below"
-        style="display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:7px;
-               background:${emailPrimary ? accent : 'rgba(139,92,246,0.14)'}; color:${emailPrimary ? 'var(--accent-fg)' : 'var(--purple)'};
-               border:1px solid ${emailPrimary ? accent : 'rgba(139,92,246,0.45)'};
-               font:inherit; font-size:12px; font-weight:700;
-               cursor:${email ? 'pointer' : 'not-allowed'}; opacity:${email ? 1 : 0.4};
-               -webkit-tap-highlight-color:transparent; transition:transform .12s;">📧 Email</button>`;
+      <button class="${cls(emailPrimary, email)}" type="button" data-csf-action="email"
+        title="Compose email with the draft below">📧 Email</button>`;
 
     const dismissBtnHtml = `
-      <button class="csf-btn" type="button" data-csf-action="dismiss"
+      <button class="csf-btn csf-dismiss" type="button" data-csf-action="dismiss"
         title="Dismiss this suggestion (this session only)"
-        aria-label="Dismiss suggestion"
-        style="margin-left:auto; padding:9px 12px; border-radius:7px;
-               background:transparent; color:var(--m,#9aa3b2);
-               border:1px solid var(--br,#2a3344);
-               font:inherit; font-size:12px; font-weight:600;
-               cursor:pointer; -webkit-tap-highlight-color:transparent;">✕ Dismiss</button>`;
+        aria-label="Dismiss suggestion">✕ Dismiss</button>`;
 
     const draftHtml = draft ? `
-      <div style="margin-top:12px; padding:11px 13px; background:rgba(255,255,255,0.02); border:1px solid var(--br,#2a3344); border-radius:8px;">
-        <div style="font-size:10px; font-weight:600; color:var(--m,#9aa3b2); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">
+      <div class="csf-draft">
+        <div class="csf-draft-label">
           Suggested ${escapeHtml(channel === 'email' ? 'email' : 'SMS')} · SMS/Email buttons send this draft
         </div>
-        <div data-csf-draft style="font-size:13px; color:var(--t,#e8eaf0); line-height:1.5; white-space:pre-wrap;">${escapeHtml(draft)}</div>
+        <div data-csf-draft class="csf-draft-text">${escapeHtml(draft)}</div>
       </div>` : '';
 
     host.innerHTML = `
-      <div role="region" aria-label="Smart follow-up suggestion"
-        style="background:${bg}; border:1px solid ${border}; border-radius:10px; padding:14px 16px; margin:12px 0;">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-          <span aria-hidden="true" style="font-size:18px;">${icon}</span>
-          <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:${color};">${escapeHtml(label)}</span>
-          <span style="font-size:11px; color:var(--m,#9aa3b2); font-weight:500;">· ${escapeHtml(String(sug.confidence))}% confident</span>
-          ${sug._aiEnriched ? '<span title="AI-enriched suggestion" style="font-size:10px; color:var(--purple,#a78bfa); font-weight:600; padding:2px 7px; border-radius:9px; background:rgba(167,139,250,0.14); border:1px solid rgba(167,139,250,0.35); margin-left:4px;">✨ AI</span>' : ''}
+      <div role="region" aria-label="Smart follow-up suggestion" class="csf-card csf-${tone}">
+        <div class="csf-head">
+          <span aria-hidden="true" class="csf-icon">${icon}</span>
+          <span class="csf-label">${escapeHtml(label)}</span>
+          <span class="csf-conf">· ${escapeHtml(String(sug.confidence))}% confident</span>
+          ${sug._aiEnriched ? '<span title="AI-enriched suggestion" class="csf-ai">✨ AI</span>' : ''}
         </div>
-        <div style="font-size:14px; font-weight:700; color:var(--t,#e8eaf0); margin-bottom:4px;">
+        <div class="csf-headline">
           ${escapeHtml(sug.headline)}
         </div>
-        <div style="font-size:12px; color:var(--m,#9aa3b2); line-height:1.45;">
+        <div class="csf-why">
           ${escapeHtml(sug.reasoning)}
         </div>
         ${draftHtml}
-        <div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap;">
+        <div class="csf-acts">
           ${phone ? callBtnHtml + smsBtnHtml : ''}
           ${email ? emailBtnHtml : ''}
           ${dismissBtnHtml}
