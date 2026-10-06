@@ -180,7 +180,7 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=16',
+      'js/document-generator.js?v=17',
       'js/document-generator-templates.js?v=12',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=4',
@@ -256,7 +256,6 @@
       'js/estimate-finalization.js?v=6',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=22',
       'js/estimate-v2-ui.js?v=23',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
@@ -308,8 +307,8 @@
       // existing dedupe trap this file documents elsewhere: ScriptLoader
       // dedupes on resolved path, so an eager tag for either file would make
       // loadBundle('photos') a no-op for it and nothing would load lazily.
-      'js/photo-queue-store.js?v=3',
-      'js/photo-queue-recovery.js?v=2',
+      'js/photo-queue-store.js?v=4',
+      'js/photo-queue-recovery.js?v=3',
       // KY claim-wording filter (2026-10-04) — BEFORE the two report
       // builders, which run every caption / report string through it.
       'js/claim-wording-filter.js?v=1',
@@ -326,8 +325,8 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=14',
-      'js/d2d-tracker-ui-2026b.js?v=8',
+      'js/d2d-tracker-core-2026b.js?v=16',
+      'js/d2d-tracker-ui-2026b.js?v=9',
       'js/d2d-tracker-2026b.js?v=3'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf

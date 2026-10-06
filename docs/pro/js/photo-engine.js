@@ -2031,7 +2031,10 @@
     // Only this user's rows. On a shared device another rep may have signed
     // out with photos still held; they wait for that rep, they are not
     // uploaded under this account.
-    durable = durable.filter((r) => r && r.uid === uid && !_inFlight.has(r.id));
+    // Door-knock photos share the store but not this drain: they attach to a
+    // knock, not a customer, and have no leadId — this loop would drop them as
+    // "unrecoverable". d2d-tracker-core-2026b.js flushKnockPhotoQueue owns them.
+    durable = durable.filter((r) => r && r.uid === uid && r.kind !== 'knock' && !_inFlight.has(r.id));
     const memOnly = (state.uploadQueue || []).filter((x) =>
       x && x.id == null && x.uid === uid && !_inFlight.has(x));
     return durable.concat(memOnly);

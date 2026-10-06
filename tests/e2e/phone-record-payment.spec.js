@@ -74,7 +74,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
       e2eTestData: true, userId: uid, companyId,
     };
     const leadId = await safeEvaluate(page, async (lead) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       return (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }))).id;
     }, lead);
@@ -117,7 +117,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     await sheet.locator('#nbd-rp-save').click();
     await expect(sheet).toBeVisible();
     const none = await safeEvaluate(page, async (leadId) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await fs.getDocs(fs.query(fs.collection(window.db, 'invoices'), fs.where('leadId', '==', leadId), fs.where('createdBy', '==', window._user.uid)));
       return snap.size;
     }, leadId);
@@ -129,7 +129,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
 
     // The invoice exists, carries the payment, and is part paid.
     const inv = await safeEvaluate(page, async (leadId) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await fs.getDocs(fs.query(fs.collection(window.db, 'invoices'), fs.where('leadId', '==', leadId), fs.where('createdBy', '==', window._user.uid)));
       return snap.docs.map((d) => {
         const x = d.data();
@@ -169,7 +169,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
 
     // One timeline line for the payment, at the payment's own id.
     const note = await safeEvaluate(page, async ({ leadId, invId, pid }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await fs.getDocs(fs.query(fs.collection(window.db, 'notes'), fs.where('leadId', '==', leadId)));
       const pay = snap.docs.filter((d) => (d.data() || {}).type === 'payment');
       return { n: pay.length, id: pay[0] && pay[0].id, text: pay[0] && pay[0].data().text };

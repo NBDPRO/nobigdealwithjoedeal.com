@@ -1569,6 +1569,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Numbers panel + required lost-reason sheet (2026-10-04). -->
 <link rel="stylesheet" href="css/numbers.css?v=1">
+<link rel="stylesheet" href="css/offline-sync.css?v=1">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 </head>
 <body>
@@ -2779,7 +2780,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=1"></script>
 <script defer src="js/customer-numbers.js?v=1"></script>
-<script defer src="js/customer-tasks-ui.js?v=17"></script>
+<script defer src="js/customer-tasks-ui.js?v=18"></script>
 <script defer src="js/nbd-comms.js?v=5"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
@@ -3135,6 +3136,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      so dismissing one immediately surfaced the other. The nudge honors
      W150's stored dismiss/install state, so nobody gets re-nagged. -->
 <script defer src="/pro/js/pwa-install-nudge.js?v=6"></script>
+<!-- Offline edits: "N changes waiting to sync" badge + honest Saved toasts (2026-10-04). -->
+<script defer src="/pro/js/offline-sync-status.js?v=1"></script>
 <!-- W151: offline banner -->
 <script defer src="/pro/js/offline-banner.js?v=2"></script>
 <!-- W144: Supplement engine + UI entry point. Estimate-supplement.js

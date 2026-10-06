@@ -11,12 +11,33 @@
  */
 
 const CACHE_VERSIONS = {
-  shell: 'nbd-shell-v31', // v31 — INFRA-2 (2026-06-10): googleapis/gstatic requests are no longer SW-handled and the CDN network path is timeout-bounded (see isExternalCDN + handleCDNRequest). Bumping forces every active v30 SW to install→skipWaiting→activate and discard wedge-era cdn-cache entries.
-  cdn: 'nbd-cdn-v31',     // v31 — paired bump.
+  shell: 'nbd-shell-v32', // v32 (2026-10-04, offline safety): assets revalidate with 304s instead of re-downloading every launch, a 4 s timeout falls back to the cached copy, and an OFFLINE navigation is answered from the app-shell cache below. The byte change is what makes browsers install this worker; the name bump makes activate() post SW_UPDATE_AVAILABLE so open pages reload onto it.
+  cdn: 'nbd-cdn-v31',     // deliberately NOT bumped: this cache holds the ~4 MB of app JS/CSS. Renaming it would make every phone download all of it again — the cost this version exists to remove. Its entries are revalidated on every load anyway.
   tiles: 'nbd-tiles-v1',
   api: 'nbd-api-v1',
-  images: 'nbd-images-v2'
+  images: 'nbd-images-v2',
+  // Static HTML shells of the two installed-app pages, stored ONLY at the
+  // request of a signed-in page (CACHE_APP_SHELL) and served ONLY to an
+  // offline navigation. The shell holds no account data: every customer
+  // record comes from Firestore after nbd-auth.js's client-side auth check,
+  // which sends a signed-out visitor to login. Kept under synthetic keys
+  // (APP_SHELL_KEYS) so the auth-gated-HTML purge in activate() and the
+  // online no-cache rule below never apply to — or are weakened by — it.
+  appShell: 'nbd-appshell-v1'
 };
+
+// Offline navigation → which stored shell answers it. Canonical (cleanUrls)
+// paths are fetched, because a redirected Response cannot answer a navigation.
+const APP_SHELLS = [
+  { key: '/pro/__app-shell__/dashboard', src: '/pro/dashboard', paths: ['/pro/dashboard', '/pro/dashboard.html'] },
+  { key: '/pro/__app-shell__/customer', src: '/pro/customer', paths: ['/pro/customer', '/pro/customer.html'] },
+];
+const APP_SHELL_KEYS = new Set(APP_SHELLS.map((s) => s.key));
+
+// How long a same-origin JS/CSS fetch may take before the cached copy answers.
+// One bar of LTE on a roof can hold a request open for a minute; the page's
+// boot should not wait on it when a good copy is already on the phone.
+const ASSET_NETWORK_TIMEOUT_MS = 4000;
 
 // Auth-gated pages — never cached. A stale shell can render after logout or
 // after a policy change, which both leaks state and lets an ex-user see the
@@ -120,6 +141,7 @@ self.addEventListener('activate', event => {
         await Promise.all(requests.map(req => {
           try {
             const u = new URL(req.url);
+            if (cacheName === CACHE_VERSIONS.appShell && APP_SHELL_KEYS.has(u.pathname)) return;
             if (isAuthGatedHTML(u)) return cache.delete(req);
           } catch (_) { /* ignore */ }
         }));
@@ -176,7 +198,20 @@ self.addEventListener('fetch', event => {
   // offline page instead of /offline.html. Acceptable for an auth-gated CRM
   // that cannot function offline anyway, and far better than a wedged boot.
   // ─────────────────────────────────────────────────────────
+  //
+  // OFFLINE exception (2026-10-04). When the device itself reports no network,
+  // the native navigation can only fail — Jo reopening the installed app on a
+  // roof got the browser's error page instead of his CRM, and every edit he
+  // had waiting in Firestore's on-phone queue was out of reach. So an offline
+  // /pro/ navigation is answered from the stored app shell (a complete cached
+  // Response, not the streamed network pipe INFRA-1 is about); online
+  // navigations are still never touched. Lie-fi (onLine true, nothing
+  // answers) still gets the native path — the price of never re-arming
+  // INFRA-1's wedge on a working connection.
   if (request.mode === 'navigate') {
+    if (isDeviceOffline() && url.origin === self.location.origin && url.pathname.startsWith('/pro/')) {
+      event.respondWith(handleOfflineNavigation(url));
+    }
     return;
   }
 
@@ -248,7 +283,53 @@ self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+  // A signed-in installed-app page asks for the shells to be (re)stored so a
+  // later offline launch has something to open. Only a client of this origin
+  // can post here; the shells are the same static files hosting serves to
+  // anyone, so no account data is involved.
+  if (event.data && event.data.type === 'CACHE_APP_SHELL') {
+    event.waitUntil(cacheAppShells());
+  }
 });
+
+function isDeviceOffline() {
+  try { return !!(self.navigator && self.navigator.onLine === false); } catch (_) { return false; }
+}
+
+function shellFor(pathname) {
+  return APP_SHELLS.find((s) => s.paths.indexOf(pathname) !== -1) || null;
+}
+
+async function cacheAppShells() {
+  const cache = await caches.open(CACHE_VERSIONS.appShell);
+  await Promise.all(APP_SHELLS.map(async (s) => {
+    try {
+      const res = await fetch(s.src, { cache: 'no-store', credentials: 'same-origin' });
+      if (!res.ok || res.redirected) return;
+      // Re-wrap: a Response that went through a redirect, or that still
+      // carries its network body stream, must not answer a later navigation.
+      const body = await res.blob();
+      await cache.put(s.key, new Response(body, { status: 200, statusText: 'OK', headers: res.headers }));
+    } catch (_) { /* offline or quota — keep the previous copy */ }
+  }));
+}
+
+async function handleOfflineNavigation(url) {
+  const s = shellFor(url.pathname);
+  if (s) {
+    try {
+      const cache = await caches.open(CACHE_VERSIONS.appShell);
+      const hit = await cache.match(s.key);
+      if (hit) return hit;
+    } catch (_) { /* fall through */ }
+  }
+  const shell = await caches.open(CACHE_VERSIONS.shell);
+  const offline = await shell.match('/offline.html');
+  return offline || new Response('You are offline. Please reconnect to continue.', {
+    status: 503,
+    headers: { 'Content-Type': 'text/plain' },
+  });
+}
 
 // ═════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -340,27 +421,47 @@ function isJSorCSS(url) {
 async function handleAssetRequest(request, cacheName) {
   const cache = await caches.open(cacheName);
 
-  // Wave 127 belt-and-suspenders: pass `cache: 'reload'` on our own
-  // fetch so the browser's HTTP cache layer doesn't short-circuit
-  // this with a stale response (max-age=300 from the previous
-  // firebase.json). Combined with W127's must-revalidate header
-  // change, both layers (HTTP cache + SW cache) are now coherent:
-  // the browser revalidates via ETag, the SW always asks for fresh.
-  // 'reload' = force network, but DOES populate HTTP cache for
-  // subsequent same-origin <script> loads on the same page.
-  try {
-    const response = await fetch(request, { cache: 'reload' });
+  // 2026-10-04: `cache: 'no-cache'`, not 'reload'. 'reload' (Wave 127) told
+  // the browser to skip its HTTP cache outright, so every launch of the
+  // installed app downloaded every script and stylesheet in full — ~4 MB on
+  // a phone, on every open, on one bar of signal. 'no-cache' still always
+  // asks the server (fresh code on every load, the Wave 124/127 guarantee),
+  // but it sends the ETag (If-None-Match) and an unchanged file comes back as
+  // a body-less 304 that the browser fills from its own cache.
+  //
+  // Bounded: when a cached copy exists and the network has not answered in
+  // ASSET_NETWORK_TIMEOUT_MS, the cached copy answers and the fetch carries
+  // on in the background to refresh the cache for next time. With no cached
+  // copy there is nothing better to give, so we keep waiting.
+  const network = fetch(request, { cache: 'no-cache' }).then((response) => {
     if (response.ok) {
       // Update SW cache for offline fallback. Clone before consuming.
       try { cache.put(request, response.clone()); } catch (_) { /* quota */ }
     }
     return response;
+  });
+  network.catch(() => {});          // handled below; never an unhandled rejection
+  let cached;
+  try { cached = await cache.match(request); } catch (_) { cached = undefined; }
+  if (!cached) {
+    try {
+      return await network;
+    } catch (err) {
+      return new Response('Offline — please check connection', { status: 503 });
+    }
+  }
+  let timer;
+  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(null), ASSET_NETWORK_TIMEOUT_MS); });
+  try {
+    const winner = await Promise.race([network, timeout]);
+    if (winner) return winner;
+    return cached;                  // the fetch finishes refreshing the cache on its own
   } catch (err) {
-    // Network failed — try the SW cache so the page can degrade
-    // rather than hard-crashing on offline.
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    return new Response('Offline — please check connection', { status: 503 });
+    // Network failed — serve the SW cache so the page degrades instead of
+    // hard-crashing offline.
+    return cached;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

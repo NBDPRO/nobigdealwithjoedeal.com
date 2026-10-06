@@ -99,9 +99,9 @@ const KNOWN = {
     ],
   },
   // D. tests
-  authedListDups: {
-    'KNOWN BUG R1-10-7 (reported 2026-10-05): tests/package.json test:e2e:authed:emu names roof-rep.spec.js twice (harmless: Playwright filters, it runs once) — expected once': ['roof-rep.spec.js'],
-  },
+  // R1-10-7 (roof-rep.spec.js listed twice) FIXED by #2155: the list moved to
+  // tests/e2e/authed-specs.txt with one line per spec. No known duplicates remain.
+  authedListDups: {},
   emulatorOnlyInNodeBucket: {
     'KNOWN BUG R1-10-8 (reported 2026-10-05): four node-bucket suites keep their end-to-end section behind FIRESTORE_EMULATOR_HOST, which the unit-suite-manifest job never sets — CI logs print "(skipped — no FIRESTORE_EMULATOR_HOST)", so the bot-API cross-tenant refusal, the server-side KY wording refusal and the personal-key scope checks have never run in CI — expected those sections moved to an emulators:exec step (emulator bucket) or the suites run under one': [
       'agent-mcp-2026-10-02.test.js', 'agent-mcp-roles-v2-2026-10-02.test.js', 'agent-personal-keys-2026-10-02.test.js', 'call-watch-2026-10-02.test.js',
@@ -526,10 +526,12 @@ console.log('\nD. test wiring: manifest, authed-emu list, never-run sections');
   ok(dupKeys.length === 0, 'tests/package.json has no duplicate key (JSON.parse would keep only the last)', dupKeys.join(', '));
   const emu = (JSON.parse(pkgRaw).scripts || {})['test:e2e:authed:emu'] || '';
   const list = (emu.slice(emu.indexOf('--grep')).match(/[\w/.-]+\.spec\.js/g) || []).map((s) => s.replace(/^e2e\//, ''));
-  ok(list.length > 30, 'authed-emu spec list parsed (' + list.length + ')');
   let all = list;
   const specsTxt = path.join(ROOT, 'tests/e2e/authed-specs.txt');
   if (fs.existsSync(specsTxt)) all = all.concat(fs.readFileSync(specsTxt, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith('#')).map((s) => s.replace(/^(tests\/)?e2e\//, '')));
+  // After #2155 the npm script runs e2e/fixtures/run-authed-specs.js and the
+  // list lives in authed-specs.txt, so count the npm list plus the file.
+  ok(all.length > 30, 'authed-emu spec list parsed (' + all.length + ')');
   const specDups = [...new Set(all.filter((s, i) => all.indexOf(s) !== i))];
   ok(same(specDups, known('authedListDups')), knownName('authedListDups') + ' — and no other spec is listed twice', diff(specDups, known('authedListDups')));
 
