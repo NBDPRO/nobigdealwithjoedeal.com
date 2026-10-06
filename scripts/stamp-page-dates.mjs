@@ -163,7 +163,7 @@ function main() {
       if (!validDate(cur.line)) { problems.push(rel + `: bad or future date ${cur.line}`); continue; }
       let want;
       try { want = stamp(lf, rel, cur.line); } catch (e) { problems.push(e.message); continue; }
-      if (want !== lf) problems.push(rel + ': stamp regions drifted from the generator (hand edit?) — rerun --write --date=' + cur.line);
+      if (want !== lf) problems.push(rel + ': stamp regions drifted from the generator (the <title> or canonical changed, or a hand edit) — rerun --write --date=' + cur.line);
       continue;
     }
     const iso = dateArg || todayLocal();
