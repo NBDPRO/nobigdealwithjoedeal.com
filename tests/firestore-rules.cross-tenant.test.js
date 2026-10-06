@@ -609,6 +609,67 @@ async function run() {
       getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // OFFBOARD — review R3-1 fix (2026-10-06): a removed member loses the
+  // company's records. Rules authorize company records on isOwner(userId),
+  // so removeMember now hands the member's company records to the owner
+  // (functions/member-offboarding.js reassignMemberRecords — the REAL sweep
+  // runs here, against the emulator, with the admin SDK) before it strips
+  // their claims. Then the rules deny the ex-rep with no rule change:
+  // get, update, delete and their own userId list query alike. Owner and
+  // solo-owner controls prove nothing else moved.
+  // ═══════════════════════════════════════════════════════════
+  {
+    const { getDocs, collection, query, where } = require('firebase/firestore');
+    const { initializeApp: initAdminApp } = require('firebase-admin/app');
+    const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
+    let OFF = null;
+    try { OFF = require(path.resolve(__dirname, '../functions/member-offboarding.js')); } catch (_) { OFF = null; }
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'leads/offLead'),    { userId: 'offrep', companyId: 'co-a', name: 'Company customer', phone: '+15555550177' });
+      await setDoc(doc(db, 'estimates/offEst'), { userId: 'offrep', companyId: 'co-a', leadId: 'offLead', total: 12000 });
+      await setDoc(doc(db, 'photos/offPhoto'),  { userId: 'offrep', leadId: 'offLead', url: 'x' });        // no companyId (predates stamping)
+      await setDoc(doc(db, 'leads/offSolo'),    { userId: 'offrep', companyId: 'offrep', name: 'Rep solo-era customer' });
+      await setDoc(doc(db, 'leads/soloOwn'),    { userId: 'solo1', companyId: 'solo1', name: 'Solo owner customer' });
+    });
+    const offRepLive = env.authenticatedContext('offrep', { role: 'sales_rep', companyId: 'co-a' }).firestore();
+    await check('OFFBOARD control: rep reads own company lead while still a member', 'allow', getDoc(doc(offRepLive, 'leads/offLead')));
+
+    // removeMember: sweep to the owner (aliceca, co-a company_admin), then the claim strip.
+    let swept = null, sweepErr = null;
+    try {
+      const adminDb = getAdminFirestore(initAdminApp({ projectId: PROJECT_ID }, 'xtenant-offboard'));
+      swept = await OFF.reassignMemberRecords(adminDb, { fromUid: 'offrep', toUid: 'aliceca', companyId: 'co-a' });
+    } catch (e) { sweepErr = e; }
+    results.push(swept && swept.total === 3
+      ? { label: 'OFFBOARD: removeMember sweep moved lead + estimate + photo', expect: 'swept', outcome: 'PASS', note: JSON.stringify(swept.moved) }
+      : { label: 'OFFBOARD: removeMember sweep moved lead + estimate + photo', expect: 'swept', outcome: 'FAIL', note: '>>> ' + (sweepErr ? sweepErr.message : JSON.stringify(swept)) });
+    const offRemoved = env.authenticatedContext('offrep', {}).firestore();   // after removeMember: claims stripped
+
+    await check('OFFBOARD: removed rep cannot READ former company lead',    'deny', getDoc(doc(offRemoved, 'leads/offLead')));
+    await check('OFFBOARD: removed rep cannot UPDATE former company lead',  'deny', updateDoc(doc(offRemoved, 'leads/offLead'), { notes: 'exported before I left' }));
+    await check('OFFBOARD: removed rep cannot DELETE former company lead',  'deny', deleteDoc(doc(offRemoved, 'leads/offLead')));
+    await check('OFFBOARD: removed rep cannot READ former company estimate', 'deny', getDoc(doc(offRemoved, 'estimates/offEst')));
+    await check('OFFBOARD: removed rep cannot READ former company photo',   'deny', getDoc(doc(offRemoved, 'photos/offPhoto')));
+    try {
+      const snap = await getDocs(query(collection(offRemoved, 'leads'), where('userId', '==', 'offrep')));
+      const ids = snap.docs.map((d) => d.id).sort().join(',');
+      results.push(ids === 'offSolo'
+        ? { label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'PASS', note: ids }
+        : { label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'FAIL', note: '>>> listed ' + ids });
+    } catch (e) {
+      results.push({ label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'FAIL', note: '>>> query denied' });
+    }
+    await check("OFFBOARD control: removed rep still reads their own solo-era lead", 'allow', getDoc(doc(offRemoved, 'leads/offSolo')));
+    await check('OFFBOARD control: owner READS the reassigned lead',   'allow', getDoc(doc(aliceCA, 'leads/offLead')));
+    await check('OFFBOARD control: owner UPDATES the reassigned lead', 'allow', updateDoc(doc(aliceCA, 'leads/offLead'), { notes: 'taking this one' }));
+    await check('OFFBOARD control: owner READS the reassigned photo',  'allow', getDoc(doc(aliceCA, 'photos/offPhoto')));
+    await check('OFFBOARD control: owner DELETES the reassigned lead', 'allow', deleteDoc(doc(aliceCA, 'leads/offLead')));
+    await check('OFFBOARD control: solo owner still READS own lead',   'allow', getDoc(doc(solo, 'leads/soloOwn')));
+    await check('OFFBOARD control: solo owner still UPDATES own lead', 'allow', updateDoc(doc(solo, 'leads/soloOwn'), { notes: 'unaffected' }));
+  }
+
   // ── Summary ────────────────────────────────────────────────
   const pass = results.filter(r => r.outcome === 'PASS').length;
   const fail = results.filter(r => r.outcome === 'FAIL').length;

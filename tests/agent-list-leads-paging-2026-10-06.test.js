@@ -71,6 +71,9 @@ let DB = fakeDb();
 const origLoad = Module._load;
 Module._load = function (request) {
   if (request === 'firebase-admin/firestore') return { getFirestore: () => DB, FieldValue: { serverTimestamp: () => ({ toMillis: () => Date.now() }) } };
+  // R3-1 (2026-10-06): crmMcp re-checks every key's creator in Auth. Each
+  // test identity is an enabled member carrying its own claims.
+  if (request === 'firebase-admin/auth') return { getAuth: () => ({ getUser: async (uid) => ({ uid, disabled: false, customClaims: uid === 'ownerA' ? { companyId: 'coA', role: 'company_admin' } : {} }) }) };
   if (/upstash-ratelimit$/.test(request)) return { enforceRateLimit: async () => ({ count: 1 }) };
   return origLoad.apply(this, arguments);
 };
