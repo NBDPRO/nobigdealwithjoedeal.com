@@ -891,8 +891,10 @@ section('T-2: AI draft send-on-approve');
     /exports\.onAiDraftApproved\s*=\s*onDocumentUpdated/.test(src));
   assert('trigger bound to ai_drafts doc path',
     /document:\s*['"]leads\/\{leadId\}\/ai_drafts\/\{draftId\}['"]/.test(src));
+  // Review R2-3-3 (2026-10-06): skipping only before === 'approved' let a stale
+  // sent → approved write text the homeowner twice. Only pending → approved sends.
   assert('trigger fires only on pending->approved (idempotent)',
-    /before\.status === 'approved'[\s\S]{0,120}after\.status !== 'approved'/.test(src));
+    /before\.status !== 'pending'\) return;[\s\S]{0,120}after\.status !== 'approved'/.test(src));
   // 2026-09-04: the register is reached through functions/sms-optout.js now,
   // because this file used to write it under an 11-digit key and read it under
   // a 10-digit one. Same invariant, pinned at the new call.
@@ -908,10 +910,10 @@ section('T-2: AI draft send-on-approve');
   const rules = read(path.join(ROOT, 'firestore.rules'));
   assert('rules expose ai_drafts subcollection',
     /match \/ai_drafts\/\{draftId\}/.test(rules));
-  assert('rules: rep update constrained to approve/dismiss only',
-    /ai_drafts\/\{draftId\}[\s\S]{0,400}status in \['approved', 'dismissed'\]/.test(rules));
+  assert('rules: rep update constrained to approve/dismiss only (approve only from pending)',
+    /ai_drafts\/\{draftId\}[\s\S]{0,1000}resource\.data\.status == 'pending'\s*&& request\.resource\.data\.status in \['approved', 'dismissed'\]/.test(rules));
   assert('rules: ai_drafts create/delete admin-SDK only',
-    /ai_drafts\/\{draftId\}[\s\S]{0,500}allow create, delete: if false/.test(rules));
+    /ai_drafts\/\{draftId\}[\s\S]{0,1200}allow create, delete: if false/.test(rules));
 
   const panel = read(path.join(PRO_JS, 'customer-ai-drafts-panel.js'));
   // QA 2026-06-21 #5: the gate must match the canonical no-.html URL too

@@ -193,7 +193,7 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=8',
+      'js/customer-documents.js?v=9',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
