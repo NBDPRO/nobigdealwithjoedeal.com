@@ -30,6 +30,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 // docs/pro/js/ky-insurance-law.js.
 const KyLaw = require('./ky-insurance-law');
 const KyPayLinkGate = require('./ky-pay-link-gate-logic');
+const InvoiceCharge = require('./invoice-charge');
 // Lazy require (2026-08-07): the stripe SDK is ~20 MB of parse weight that
 // every deployed function paid at cold start (index.js pulls this module
 // eagerly). Required on first client construction instead.
@@ -1170,6 +1171,21 @@ exports.getSubscriptionStatus = onRequest(
   }
 );
 
+// What the minted link / Stripe invoice charges (review R2-2-6): stamped on the
+// CRM invoice by the SERVER, so the homeowner portal shows its Pay Now only
+// while the link charges exactly what is due now (a pre-fix link minted for
+// the whole job on a deposit invoice is never offered). Best-effort: the link
+// is already minted; a failed stamp only hides the portal's button.
+async function _stampCharge(db, invoiceId, due, chargedCents) {
+  try {
+    await db.collection('invoices').doc(String(invoiceId)).update({
+      stripeChargeCents: chargedCents, stripeChargeKind: due.kind, updatedAt: new Date(),
+    });
+  } catch (e) {
+    logger.warn('payment_link_charge_stamp_failed', { invoiceId, err: e && e.message });
+  }
+}
+
 exports.createStripePaymentLink = onRequest(
   {
     cors: CORS_ORIGINS,
@@ -1452,13 +1468,34 @@ exports.createStripePaymentLink = onRequest(
       // overstate the charge, so swap to a single balance-due line reconciled
       // to (total − amountPaid).
       const amountPaidCents = Math.max(0, Math.round(Number(invoice.amountPaid || 0) * 100));
-      const balanceDueCents = expectedTotalCents - amountPaidCents;
+      // ── A deposit invoice charges the DEPOSIT first (review R2-2-6) ──────
+      // invoice-charge.js chargeDueNow: while the invoice's deposit is not
+      // yet met, the link / Stripe invoice charges the rest of the deposit
+      // (never more than the balance); after it, the remaining balance. The
+      // homeowner portal shows the same number. balanceDueCents below is the
+      // amount THIS mint charges (the name every consumer already reads).
+      const due = InvoiceCharge.chargeDueNow(invoice, { totalCents: expectedTotalCents });
+      const balanceDueCents = due.chargeCents;
       if (balanceDueCents < MIN_CENTS) {
         res.status(400).json({ error: 'This invoice is already paid in full — nothing to charge.' });
         return;
       }
       let chargeLineItems = lineItems;
-      if (amountPaidCents > 0 || creditCents > 0) {
+      if (due.kind === 'deposit') {
+        chargeLineItems = [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Deposit due — Invoice ${invoiceId}`,
+              description: amountPaidCents > 0
+                ? `Remaining deposit after $${(amountPaidCents / 100).toFixed(2)} already paid; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due later`
+                : `Deposit due at signing; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due later`,
+            },
+            unit_amount: balanceDueCents,
+          },
+          quantity: 1,
+        }];
+      } else if (amountPaidCents > 0 || creditCents > 0) {
         const _after = [];
         if (creditCents - roundDownCents > 0) _after.push(`$${((creditCents - roundDownCents) / 100).toFixed(2)} deposit credited`);
         if (roundDownCents > 0) _after.push(`$${(roundDownCents / 100).toFixed(2)} rounding`);
@@ -1520,7 +1557,8 @@ exports.createStripePaymentLink = onRequest(
           invoiceId, invoice, tenantId, uid: decoded.uid, lineItems: chargeLineItems, balanceDueCents,
         });
         logger.info('crm_stripe_invoice_minted', { invoiceId, uid: decoded.uid, stripeInvoiceId: minted.id, reused: minted.reused, balanceDueCents });
-        res.json({ url: minted.url, paymentLinkId: minted.id, stripeInvoice: true, pdfUrl: minted.pdf || null });
+        await _stampCharge(db, invoiceId, due, balanceDueCents);
+        res.json({ url: minted.url, paymentLinkId: minted.id, stripeInvoice: true, pdfUrl: minted.pdf || null, chargedCents: balanceDueCents, chargeKind: due.kind });
         return;
       }
 
@@ -1565,7 +1603,8 @@ exports.createStripePaymentLink = onRequest(
         destination: connectState ? connectState.accountId : null,
         feeCents,
       });
-      res.json({ url: paymentLink.url, paymentLinkId: paymentLink.id });
+      await _stampCharge(db, invoiceId, due, balanceDueCents);
+      res.json({ url: paymentLink.url, paymentLinkId: paymentLink.id, chargedCents: balanceDueCents, chargeKind: due.kind });
 
     } catch (e) {
       logger.error('createStripePaymentLink error', { uid: decoded.uid, err: e.message });
