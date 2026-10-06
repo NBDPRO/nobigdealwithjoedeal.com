@@ -982,17 +982,13 @@ exports.recordingRetentionCron = onSchedule(
           // collection under ANY parent, and the Storage object it deletes is
           // named by the doc's own audioPath field. Only delete when the doc
           // sits where processRecording writes it and names its own audio.
+          // R4-7-7 (2026-10-06): if the audio delete fails, KEEP the doc (the
+          // only pointer to the audio) so the next run retries; deleting it
+          // anyway orphaned the recording in Storage forever.
           const audioPath = retentionAudioPathFor(d.ref.path, rec.audioPath);
           if (audioPath) {
-            // R4-7-7 (2026-10-06): on failure KEEP the doc (it is the only
-            // pointer to the audio) so the next run retries. Deleting it
-            // anyway orphaned the recording in Storage forever.
             try { await bucket.file(audioPath).delete({ ignoreNotFound: true }); }
-            catch (e) {
-              audioFailed++;
-              logger.error('retention: audio delete failed — doc kept for the next run', { path: audioPath, err: e.message });
-              continue;
-            }
+            catch (e) { audioFailed++; logger.error('retention: audio delete failed, doc kept', { path: audioPath, err: e.message }); continue; }
           } else if (rec.audioPath) {
             logger.warn('retention: audio kept, doc path and audioPath do not match', { doc: d.ref.path });
           }
