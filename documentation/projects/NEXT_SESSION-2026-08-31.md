@@ -6,9 +6,9 @@
 ## State of the world
 
 - **/our-work: 44 live projects, 37 priced** (was 39/34; the same-day
-  queue sweep added Philpot — see the session note's Addendum). New: Kalb
+  queue sweep added Customer EE — see the session note's Addendum). New: Kalb
   (Loveland, siding-repair — the first siding card since the strip gap
-  analysis), Wilson (Loveland, storm/repair), Garrity (Loveland,
+  analysis), Wilson (Loveland, storm/repair), Customer BP (Loveland,
   **first flat-roof/EPDM card**), By Golly's (Milford, commercial,
   $73–74k, business named with Jo's approval).
 - **Every PR from this session is merged**: #1301/#1302 (deps), #1303
@@ -57,14 +57,14 @@
 
 ## Held content (Jo's calls, no agent action)
 
-- ~~Philpot~~ PUBLISHED 08-31, manufacturer unnamed (Jo's call) — card
+- ~~Customer EE~~ PUBLISHED 08-31, manufacturer unnamed (Jo's call) — card
   `loveland-oh-shingle-samples-2026`, $300–500.
 - ~~Sharon Batavia gutter frames~~ SHIPPED 08-31 — two frames into the
   gutter page's failing-gutters grid (`gutter-condition-closeups-1/2`);
   the wide frames were refused for backyard exposure.
 - **Siding-replacement strip is still empty and unfillable from Drive**
-  (settled 08-28 — do not re-run the search). Live path: the Southman
-  proposal (NBD-2026-0811-STH Option B, $4,600) — if Jo closes it,
+  (settled 08-28 — do not re-run the search). Live path: the Customer EZ
+  proposal (NBD-2026-0811-XXXX Option B, $4,600) — if Jo closes it,
   document as it happens.
 
 ## Watch-outs

@@ -9,23 +9,23 @@
 
 ## What happened
 
-A background research pass on two candidate jobs (Brad Musuraca — gutter
-cleaning, Albeliz Santiago — downspout connector repair) found both
+A background research pass on two candidate jobs (Customer DU — gutter
+cleaning, Customer C — downspout connector repair) found both
 listed as **unpaid** in the "NBD MASTER Jobs Done Audit 2026" Google
-Sheet (docId `1Z4TqLtuAE1q6Mcq68NUtOO-q4nS7kcdvQrUHCVFQ72Y`) — Musuraca's
-row read `Paid = "NO"`, `Outstanding = "$225.00"`; Santiago's the same
+Sheet (docId `1Z4TqLtuAE1q6Mcq68NUtOO-q4nS7kcdvQrUHCVFQ72Y`) — Customer DU's
+row read `Paid = "NO"`, `Outstanding = "$225.00"`; Customer C's the same
 pattern for $125.00. Neither customer's Drive Docs folder had a receipt,
-and a Gmail search for "Musuraca" returned zero threads. Per this
+and a Gmail search for "Customer DU" returned zero threads. Per this
 session's own established discipline (verify a sweep's characterization
-against real documents, not just folder presence — see the Cheryl Horne
+against real documents, not just folder presence — see the Customer AD
 false positive in `PHOTO-SWEEP-2026-09-21.md`), this read as a genuine
 block: two jobs that looked done were actually still outstanding.
 
 **They weren't.** Querying Stripe directly (live account
 `acct_1TBe1s3O36Xz6RgK`, via `GetInvoicesSearch` / `GetInvoicesInvoice`)
 showed both invoices `status: "paid"`, `amount_remaining: 0`, with real
-`paid_at` timestamps: Musuraca's `NBD-2026-0903-MUSU` paid 2026-09-10
-01:00 UTC, Santiago's `NBD-2026-0902-SANT` paid 2026-09-09 17:23 UTC —
+`paid_at` timestamps: Customer DU's `NBD-2026-0903-XXXX` paid 2026-09-10
+01:00 UTC, Customer C's `NBD-2026-0902-XXXX` paid 2026-09-09 17:23 UTC —
 both **before** the master spreadsheet was apparently last touched. The
 spreadsheet is stale, not Stripe.
 
@@ -50,9 +50,9 @@ spreadsheet is stale, not Stripe.
 
 ## Outcome
 
-Both jobs published: `cincinnati-oh-gutter-cleaning-2026` (Musuraca, the
+Both jobs published: `cincinnati-oh-gutter-cleaning-2026` (Customer DU, the
 first card in the new `gutter-cleaning` category, see
 [services/gutter-cleaning](../../site-src/partials/) and
 [PR #1703](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/1703))
-and `cincinnati-oh-downspout-connector-repair-2026` (Santiago), in
+and `cincinnati-oh-downspout-connector-repair-2026` (Customer C), in
 [PR #1704](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/1704).
