@@ -2,6 +2,7 @@
   "activateInvitedRep": "./handlers/auth",
   "adminAI": "./handlers/ai",
   "adminListTenants": "./tenant-ops",
+  "agentDraftAction": "./agent-mcp",
   "analyzePhotoVision": "./photo-vision",
   "analyzeRoofPhoto": "./handlers/photo",
   "anniversaryAutoTouch": "./anniversary-touch",
