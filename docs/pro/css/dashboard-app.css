@@ -5476,3 +5476,5 @@ body {
 .cp-site-publish{ margin-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .cp-site-status{ flex:1 1 100%; font-size:12px; color:var(--m); }
 .cp-site-status.is-live{ color:var(--green); }
+/* Brand Identity: "Set your lead alert contacts" (non-NBD company with no alert Email). */
+.cp-alert-warn{ margin:0 0 10px; padding:10px 12px; border:1px solid #d97706; border-radius:6px; background:rgba(217,119,6,.10); font-size:12px; line-height:1.5; }
