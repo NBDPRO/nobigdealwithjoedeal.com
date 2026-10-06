@@ -394,6 +394,7 @@
     "strip-redundant-inline-css.test.js",
     "upgrade-pricing.test.js",
     "job-template-honest-paperwork.test.js",
+    "job-templates-late-refresh-2026-10-06.test.js",
     "estimate-gutter-source.test.js",
     "draw-geom.test.js",
     "draw-reticle-css-scope.test.js",
