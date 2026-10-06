@@ -157,7 +157,7 @@
       { icon: '⛈️', name: 'Storm Damage',    desc: 'Damage inspection, photo documentation and a detailed repair estimate for your claim' }
     ],
     valueProps: [
-      { icon: '🛡️', title: 'Warranty Protection',  desc: 'NBD Pledge — lifetime workmanship warranty on Standard and up (Economy: 1-year labor), plus the manufacturer warranty for the package you choose and any extended manufacturer warranty you buy.' },
+      { icon: '🛡️', title: 'Warranty Protection',  desc: 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right. Written labor warranty up to 20 years, by package, plus the manufacturer warranty for the package you choose and any extended manufacturer warranty you buy.' },
       { icon: '📋',  title: 'Storm Damage Documentation', desc: 'We document the damage and give you a detailed repair estimate. You manage your claim, and we can meet your adjuster after you file.' },
       { icon: '⭐',  title: '5-Star Service',        desc: 'Exceptional service from first contact through final walkthrough and beyond.' },
       { icon: '💰',  title: 'Flexible Financing',    desc: 'Affordable monthly payments through our partnership with Acorn Finance.' }

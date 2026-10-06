@@ -138,7 +138,8 @@ for (const withCfg of [true, false]) {
   // Economy with a TAMKO Heritage shingle — the manufacturer resolver's own
   // sentence for it says "Limited Lifetime", which Economy must not print.
   const eco = text(cert('economy', [{ code: 'RFG 240-TAMKO', name: 'TAMKO Heritage' }]));
-  ok('Economy cert: 1-YEAR WORKMANSHIP (LABOR) WARRANTY — ECONOMY TIER', /1-YEAR WORKMANSHIP \(LABOR\) WARRANTY — ECONOMY TIER/.test(eco), eco.slice(0, 300));
+  // Jo, 2026-10-06 (final): the NBD Pledge + the package's written labor years.
+  ok('Economy cert: NBD PLEDGE · 1-YEAR WRITTEN WORKMANSHIP (LABOR) WARRANTY — ECONOMY TIER', /NBD PLEDGE · 1-YEAR WRITTEN WORKMANSHIP \(LABOR\) WARRANTY — ECONOMY TIER/.test(eco), eco.slice(0, 300));
   ok('Economy cert: expires 1 year from issue date', /1 year from issue date/.test(eco));
   ok('Economy cert: never lifetime / never a system warranty', !economyClean(eco), economyClean(eco));
   ok('Economy cert: names the manufacturer\'s standard limited warranty', /standard limited warranty/.test(eco));
@@ -191,7 +192,7 @@ section('3. doc-preflight warranty sentence + cards');
     vm.runInContext(fnM ? fnM[0] : '', ctx);
     const s = (k) => vm.runInContext('tierWarrantySentence(' + JSON.stringify(k) + ')', ctx);
     const tag = withCfg ? ' (config)' : ' (fallback)';
-    ok('Economy contract sentence: 1-year labor, never lifetime' + tag, /1-year workmanship \(labor\)/.test(s('economy')) && !economyClean(s('economy')), s('economy'));
+    ok('Economy contract sentence: 1-year labor, never lifetime' + tag, /1-year written workmanship \(labor\)/.test(s('economy')) && !economyClean(s('economy')), s('economy'));
     ok('Beyond contract sentence: TAMKO HailGuard hail warranty' + tag, /HailGuard hail warranty/.test(s('beyond')), s('beyond'));
     ok('unknown tier sentence: no Elite perks (inspection/fully transferable)' + tag, !/inspection|fully transferable/.test(s('platinum')), s('platinum'));
   }
@@ -233,9 +234,9 @@ async function wcSection() {
   section('4. warranty-cert.js (wizard → server payload / legacy certificate)');
   const e = await wcRun('economy', true);
   ok('wizard preview: Economy description = one (1) year, never lifetime', /one \(1\) year/.test(e.desc) && !economyClean(e.desc), e.desc);
-  ok('…and the Standard option is still relabelled with Economy listed first', e.opts[1].textContent === 'Standard — NBD Lifetime Pledge');
-  ok('server payload: Economy label is the 1-Year Labor Warranty, not the Lifetime Pledge',
-    e.payload && e.payload.tierLabel === 'Economy — 1-Year Labor Warranty', e.payload && e.payload.tierLabel);
+  ok('…and the Standard option is still relabelled with Economy listed first', e.opts[1].textContent === 'Standard — NBD Pledge · 5-Year Labor', e.opts[1].textContent);
+  ok('server payload: Economy label is the NBD Pledge + 1-Year Labor Warranty, never lifetime',
+    e.payload && e.payload.tierLabel === 'Economy — NBD Pledge · 1-Year Labor Warranty', e.payload && e.payload.tierLabel);
   ok('server payload: Economy terms never lifetime / no system warranty', e.payload && !economyClean(e.payload.tierTerms), e.payload && e.payload.tierTerms);
   ok('server payload: isEconomy set, no Elite/Preferred perks', e.payload && e.payload.isEconomy === true && !e.payload.isElite && !e.payload.isPreferred);
 
@@ -245,7 +246,7 @@ async function wcSection() {
 
   const el = await wcRun('economy', false);
   const elt = text(el.viewerHtml);
-  ok('legacy Economy certificate renders', !!el.viewerHtml && /Economy — 1-Year Labor Warranty/.test(elt), elt.slice(0, 200));
+  ok('legacy Economy certificate renders', !!el.viewerHtml && /Economy — NBD Pledge · 1-Year Labor Warranty/.test(elt), elt.slice(0, 200));
   ok('legacy Economy certificate: never lifetime / never a system warranty', !economyClean(elt), economyClean(elt));
   const bl = text((await wcRun('beyond', false)).viewerHtml);
   ok('legacy Beyond certificate: TAMKO HailGuard hail warranty, TAMKO (not GAF) disclaimer', /TAMKO HailGuard hail warranty/.test(bl) && /The TAMKO manufacturer shingle warranty/.test(bl) && !/GAF/.test(bl), bl.slice(-700));
@@ -277,7 +278,11 @@ async function printSection() {
   const eco = body(WARRANTY(Object.assign({}, base, { company: COMPANY, tier: 'economy', isEconomy: true,
     tierLabel: 'Economy — 1-Year Labor Warranty', tierLabelLong: 'Economy — 1-Year Labor Warranty',
     tierTerms: 'NBD will return and correct any labor-related defect at no charge for one (1) year from the installation date.' })));
-  ok('warranty.hbs Economy: 1-Year Labor Warranty badge + cover', /economy · 1-Year Labor Warranty/i.test(eco) && /Warranty Certificate · 1-Year Labor Warranty/.test(eco), eco.slice(0, 300));
+  // Economy for NBD (Jo, 2026-10-06): the NBD Pledge cover + the 1-year labor feature line.
+  ok('warranty.hbs Economy (NBD): NBD Pledge cover + 1-year written labor line', /Warranty Certificate · NBD Pledge/.test(eco) && /Written workmanship \(labor\) warranty per your package|1-year|one \(1\) year/i.test(eco), eco.slice(0, 300));
+  const ecoOther = body(WARRANTY(Object.assign({}, base, { company: { footerName: 'Oaks Roofing', isNbd: false, seal: 'OAKS' }, tier: 'economy', isEconomy: true,
+    tierLabel: 'Economy', tierLabelLong: 'Economy', tierTerms: '' })));
+  ok('warranty.hbs Economy (another company): 1-Year Labor Warranty badge + cover, no Pledge', /economy · 1-Year Labor Warranty/i.test(ecoOther) && /Warranty Certificate · 1-Year Labor Warranty/.test(ecoOther) && !/Pledge/.test(ecoOther), ecoOther.slice(0, 300));
   ok('warranty.hbs Economy: never the Lifetime Pledge / never a system warranty', !economyClean(eco), economyClean(eco));
 
   const bey = body(WARRANTY(Object.assign({}, base, { company: COMPANY, tier: 'beyond', isBeyond: true, isElite: true,
@@ -288,14 +293,14 @@ async function printSection() {
 
   const std = body(WARRANTY(Object.assign({}, base, { company: COMPANY, tier: 'standard', tierLabel: 'Standard', tierLabelLong: 'Standard', tierTerms: 'x' })));
   // 2026-10-06: the workmanship line is the NBD Pledge, printed apart from the manufacturer line.
-  ok('warranty.hbs Standard: still the NBD Lifetime Pledge, as the NBD Pledge line', /NBD Lifetime Pledge/.test(std) && /NBD Pledge — lifetime workmanship warranty/.test(std));
+  ok('warranty.hbs Standard: the NBD Pledge promise as its own line, never "lifetime"', /NBD Pledge: for as long as you own the home, we'll come back and make it right\./.test(std) && !/lifetime/i.test(std), std.slice(0, 600));
 
   // The layout chrome's seal: render-pdf.js swaps "Lifetime Pledge" on Economy.
   const ecoDoc = await RENDER.buildDocHtml('warranty', Object.assign({}, base, { tier: 'economy', isEconomy: true, tierLabel: 'E', tierLabelLong: 'E', tierTerms: 'x' }), null);
   ok('render-pdf: an Economy warranty\'s chrome seal is not "Lifetime Pledge"', !/lifetime/i.test(text(ecoDoc.html)), (text(ecoDoc.html).match(/.{0,60}lifetime.{0,30}/i) || [''])[0]);
   // NBD = the owner's companyId (a null companyId is now a neutral company, whose seal is not the Pledge).
   const stdDoc = await RENDER.buildDocHtml('warranty', Object.assign({}, base, { tier: 'standard', tierLabel: 'S', tierLabelLong: 'S', tierTerms: 'x' }), '1phDvAVXHSg82wDLegAbQFq14Ci1');
-  ok('render-pdf: a Standard warranty keeps the Lifetime Pledge seal', /Lifetime Pledge/.test(text(stdDoc.html)));
+  ok('render-pdf: a Standard warranty\'s NBD seal is the NBD Pledge, never "Lifetime"', /NBD Pledge/.test(text(stdDoc.html)) && !/lifetime/i.test(text(stdDoc.html)));
 
   const ESTIMATE = Handlebars.compile(read('functions/print/templates/estimate.hbs'));
   const tierList = FIVE.map((k) => ({ name: CFG.tierLabel(k), subtitle: k, total: 1000, features: [], isRecommended: k === 'better' }));
@@ -359,10 +364,10 @@ function liftedSection() {
     const tag = withCfg ? ' (config)' : ' (fallback)';
     const e = run('economy');
     ok('customer cert Economy: 1-Year Workmanship (Labor), never lifetime' + tag,
-      e.period === '1-Year Workmanship (Labor)' && !economyClean(e.period + ' ' + e.body) && e.label === 'Economy', JSON.stringify(e));
+      e.period === '1-Year Written Workmanship (Labor)' && !economyClean(e.period + ' ' + e.body) && e.label === 'Economy', JSON.stringify(e));
     const bb = run('beyond');
     ok('customer cert Beyond: lifetime + HailGuard hail warranty' + tag, /HailGuard hail warranty/.test(bb.body) && bb.label === 'Beyond', JSON.stringify(bb));
-    ok('customer cert Standard: NBD Pledge — Lifetime Workmanship' + tag, run('good').period === 'NBD Pledge — Lifetime Workmanship');
+    ok('customer cert Standard: 5-Year Written Workmanship (Labor), never lifetime' + tag, run('good').period === '5-Year Written Workmanship (Labor)' && !/lifetime/i.test(run('good').body), JSON.stringify(run('good')));
   }
   ok('customer cert prints the computed period/body (not a hardcoded lifetime)',
     /: esc\(_roofPeriod\)\}/.test(cb) && /: esc\(_roofBody\)\}/.test(cb) && !/: 'Lifetime Workmanship'\}<\/span>/.test(cb));

@@ -6,9 +6,16 @@
  * system warranties are based on package selected and if extended
  * manufacturer warranty was sold."
  *
+ * Final model (Jo, 2026-10-06, later the same day): the NBD Pledge is a
+ * PROMISE — "NBD Pledge: for as long as you own the home, we'll come back and
+ * make it right" — on every NBD job, never a "lifetime warranty"; the written
+ * labor warranty is by package (Economy 1, Standard 5, Preferred 10, Elite 20
+ * years). tests/warranty-pledge-labor-years-2026-10-06.test.js covers that
+ * model end to end; this file keeps the manufacturer-line cases.
+ *
  * So, per document:
- *   1. workmanship  — NBD: "NBD Pledge — lifetime workmanship warranty"
- *                     (Economy stays the 1-year labor warranty). Another
+ *   1. workmanship  — NBD: the Pledge line + "Written workmanship (labor)
+ *                     warranty: N years". Another
  *                     company: ITS OWN configured warranty sentence
  *                     (companyProfile.businessRules.tiers.warranty), never
  *                     NBD's Pledge, never "lifetime" it didn't write; none
@@ -64,7 +71,8 @@ function text(html) {
     .replace(/\s+/g, ' ');
 }
 
-const PLEDGE = 'NBD Pledge — lifetime workmanship warranty';
+const PLEDGE = "NBD Pledge: for as long as you own the home, we'll come back and make it right.";
+const LABOR5 = 'Written workmanship (labor) warranty: 5 years from the installation date';
 const UNKNOWN = 'Manufacturer warranty: per manufacturer — see your estimate';
 const OAKS_OWN = '10-year workmanship warranty from Oaks Roofing on labor.';
 const GAF_HDZ = [{ code: 'RFG 240-GAF-HDZ', name: 'GAF Timberline HDZ' }, { code: 'RFG IWS', name: 'Ice & water shield' }];
@@ -104,7 +112,7 @@ function ruleSection() {
   ok('NBDTenantRules.warrantyLines exists', has);
   if (!has) return;
   const std = nbd.warrantyLines({ tier: 'good', lineItems: GAF_HDZ });
-  ok('NBD Standard: workmanship = the NBD Pledge', std.workmanship === PLEDGE && std.isPledge === true, JSON.stringify(std));
+  ok('NBD Standard: the NBD Pledge line + the 5-year written labor line', std.pledge === PLEDGE && std.workmanship === LABOR5 && std.isPledge === true, JSON.stringify(std));
   ok('NBD Standard (GAF): System Plus, included with the package', /^Manufacturer warranty: GAF System Plus Limited Warranty, included with the Standard package/.test(std.manufacturer), std.manufacturer);
   ok('NBD Standard without an extended warranty: names no extended warranty', !/extended/i.test(std.manufacturer), std.manufacturer);
   const pref = nbd.warrantyLines({ tier: 'better', lineItems: GAF_HDZ_EXT });
@@ -113,7 +121,7 @@ function ruleSection() {
   const none = nbd.warrantyLines({ tier: 'good', lineItems: [] });
   ok('NBD with no package info: "per manufacturer — see your estimate", no GAF guess', none.manufacturer === UNKNOWN, none.manufacturer);
   const eco = nbd.warrantyLines({ tier: 'economy', lineItems: GAF_HDZ });
-  ok('NBD Economy: 1-year labor, never the Pledge, no system warranty', /^1-year/.test(eco.workmanship) && !eco.isPledge
+  ok('NBD Economy: still the Pledge, 1-year written labor, no system warranty', eco.pledge === PLEDGE && /: 1 year from/.test(eco.workmanship) && eco.isPledge
     && /standard limited warranty on the shingles; no system warranty/.test(eco.manufacturer), JSON.stringify(eco));
   const tam = nbd.warrantyLines({ tier: 'better', lineItems: [{ code: 'RFG 240-TAMKO-TITAN', name: 'TAMKO Titan XT (Impact Class 3)' }] });
   ok('NBD TAMKO (not GAF): no System Plus claim, TAMKO\'s own warranty', !/System Plus/.test(tam.manufacturer) && /TAMKO/.test(tam.manufacturer), tam.manufacturer);
@@ -157,7 +165,7 @@ async function wcRun(who, tier, lineItems, serverOk) {
 async function certSection() {
   section('B. warranty-cert.js — server payload + legacy certificate');
   const std = await wcRun('nbd', 'standard', GAF_HDZ, true);
-  ok('NBD Standard payload: workmanship line = the NBD Pledge', std.payload.workmanshipLine === PLEDGE, std.payload.workmanshipLine);
+  ok('NBD Standard payload: Pledge line + 5-year written labor line', std.payload.pledgeLine === PLEDGE && std.payload.workmanshipLine === LABOR5 && std.payload.laborYears === 5, JSON.stringify(std.payload).slice(0, 400));
   ok('NBD Standard payload: manufacturer line = GAF System Plus with the package, no extended',
     /^Manufacturer warranty: GAF System Plus Limited Warranty, included with the Standard package/.test(std.payload.manufacturerLine || '') && !/extended/i.test(std.payload.manufacturerLine || ''), std.payload.manufacturerLine);
   const pref = await wcRun('nbd', 'preferred', GAF_HDZ_EXT, true);
@@ -175,7 +183,8 @@ async function certSection() {
 
   const oaks = await wcRun('oaks-own', 'standard', GAF_HDZ, true);
   ok('other company (configured): its own sentence is the workmanship line + terms', oaks.payload.workmanshipLine === OAKS_OWN && oaks.payload.tierTerms === OAKS_OWN, JSON.stringify(oaks.payload).slice(0, 300));
-  ok('other company: never a "Lifetime Pledge" / "lifetime" anywhere in the payload', oaks.payload.isPledge === false && !/lifetime|pledge/i.test(JSON.stringify(Object.assign({}, oaks.payload, { isPledge: undefined }))), (JSON.stringify(oaks.payload).match(/.{0,80}(lifetime|pledge).{0,40}/i) || [''])[0]);
+  const _vals = (o) => Object.keys(o).map((k) => (typeof o[k] === 'string' ? o[k] : '')).join(' | ');
+  ok('other company: never a Pledge / "lifetime" in any payload value, no NBD years', oaks.payload.isPledge === false && !oaks.payload.pledgeLine && !oaks.payload.laborYears && !/lifetime|pledge/i.test(_vals(oaks.payload)), (_vals(oaks.payload).match(/.{0,80}(lifetime|pledge).{0,40}/i) || [''])[0]);
   ok('other company: the Guarantee Tier option is the plain package name', oaks.opts[1].textContent === 'Standard', oaks.opts[1].textContent);
   const oaksLegacy = await wcRun('oaks-own', 'preferred', GAF_HDZ, false);
   ok('other company legacy certificate: own sentence, no lifetime, no NBD perks', oaksLegacy.html.includes(OAKS_OWN) && !/lifetime|pledge|Transferable to new owner/i.test(oaksLegacy.html), oaksLegacy.html.slice(0, 700));
@@ -221,15 +230,15 @@ async function printSection() {
   // companyId = the NBD owner → NBD's chrome; null → a neutral (non-NBD) company.
   const sealOf = (html) => (String(html).match(/class="seal">([\s\S]*?)<\/div>/) || ['', ''])[1];
   const nbdDoc = await RENDER.buildDocHtml('warranty', Object.assign({}, base, { tier: 'standard', tierLabel: 'S', tierLabelLong: 'S', tierTerms: 'x' }), OWNER_UID);
-  ok('render-pdf: NBD\'s warranty chrome keeps the Lifetime Pledge seal', /Lifetime Pledge/.test(sealOf(nbdDoc.html)), sealOf(nbdDoc.html));
+  ok('render-pdf: NBD\'s warranty chrome stamps the NBD Pledge seal, never "Lifetime"', /NBD Pledge/.test(sealOf(nbdDoc.html)) && !/lifetime/i.test(sealOf(nbdDoc.html)), sealOf(nbdDoc.html));
   const otherDoc = await RENDER.buildDocHtml('warranty', Object.assign({}, base, { tier: 'standard', tierLabel: 'S', tierLabelLong: 'S', tierTerms: '' }), null);
   ok('render-pdf: another company\'s warranty never stamps "Lifetime Pledge" (seal or body)', !/lifetime|pledge/i.test(text(otherDoc.html)),
     sealOf(otherDoc.html) + ' | ' + (text(otherDoc.html).match(/.{0,60}(lifetime|pledge).{0,40}/i) || [''])[0]);
 
   const CONTRACT = Handlebars.compile(read('functions/print/templates/contract.hbs'));
   const cbase = { preparedFor: {}, preparedBy: {}, projectMeta: [], contract: {}, homeowner: {}, paymentSchedule: [], additionalTerms: [] };
-  const cNbd = text(CONTRACT(Object.assign({}, cbase, { company: NBD, warranty: 'Lifetime workmanship warranty; does not transfer on sale of property.', warrantyIsPledge: true, manufacturerWarranty: std.manufacturerLine })));
-  ok('contract.hbs NBD: "NBD Pledge — Lifetime Workmanship Warranty" + a separate manufacturer line', /NBD Pledge — Lifetime Workmanship Warranty/.test(cNbd) && cNbd.includes('Manufacturer warranty: GAF System Plus'), cNbd.slice(0, 900));
+  const cNbd = text(CONTRACT(Object.assign({}, cbase, { company: NBD, warranty: '5-year written workmanship (labor) warranty; does not transfer on sale of property.', warrantyIsPledge: true, warrantyPledge: PLEDGE, manufacturerWarranty: std.manufacturerLine })));
+  ok('contract.hbs NBD: written labor warranty + a separate NBD Pledge block + a separate manufacturer line, never "lifetime"', /NBD Written Workmanship \(Labor\) Warranty 5-year/.test(cNbd) && /NBD Pledge NBD Pledge: for as long as you own the home/.test(cNbd) && cNbd.includes('Manufacturer warranty: GAF System Plus') && !/lifetime/i.test(cNbd), cNbd.slice(0, 900));
   const cOaks = text(CONTRACT(Object.assign({}, cbase, { company: OAKS, warranty: OAKS_OWN, warrantyIsPledge: true, manufacturerWarranty: oaks.manufacturerLine })));
   ok('contract.hbs other company: its own sentence under a plain title, never "NBD … Warranty"', cOaks.includes(OAKS_OWN) && !/NBD|Pledge/.test(cOaks.split('Right to Cancel')[0]), cOaks.slice(0, 900));
   const cBare = text(CONTRACT(Object.assign({}, cbase, { company: OAKS, warranty: null, manufacturerWarranty: UNKNOWN })));
@@ -254,7 +263,7 @@ function docgenSection() {
   const DG = docgen('nbd');
   const cert = (dg, tier, items) => text(dg.renderWarrantyCertificate({ homeownerName: 'Jane Smith', address: '1 Elm St', warrantyTier: tier, leadId: 'L1', estimateLineItems: items }));
   const s = cert(DG, 'good', GAF_HDZ);
-  ok('NBD certificate: NBD Pledge headline + System Plus manufacturer line', /NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — STANDARD TIER/.test(s) && s.includes('Manufacturer warranty: GAF System Plus Limited Warranty, included with the Standard package'), s.slice(0, 700));
+  ok('NBD certificate: NBD Pledge + 5-year written headline + System Plus manufacturer line', /NBD PLEDGE · 5-YEAR WRITTEN WORKMANSHIP \(LABOR\) WARRANTY — STANDARD TIER/.test(s) && s.includes(PLEDGE) && s.includes('Manufacturer warranty: GAF System Plus Limited Warranty, included with the Standard package'), s.slice(0, 700));
   const p = cert(DG, 'better', GAF_HDZ_EXT);
   ok('NBD certificate, Preferred + extended: the extended warranty sold is named', /Extended manufacturer warranty \(test fixture\)/.test(p), p.slice(0, 900));
   const u = cert(DG, 'good', []);
@@ -267,7 +276,7 @@ function docgenSection() {
   ok('other company certificate (none configured): no workmanship promise, manufacturer line only', !/lifetime|pledge|guarantees the quality/i.test(bare) && /Manufacturer warranty: /.test(bare), bare.slice(0, 900));
 
   const bN = text(DG.renderWarrantyFor({ warrantyTier: 'better', estimateLineItems: GAF_HDZ }));
-  ok('NBD contract/proposal block: NBD Pledge + a separate manufacturer line', /NBD Pledge — Lifetime Workmanship/.test(bN) && bN.includes('Manufacturer warranty: GAF System Plus Limited Warranty, included with the Preferred package'), bN);
+  ok('NBD contract/proposal block: NBD Pledge + written years + a separate manufacturer line', /Preferred: NBD Pledge \+ 10-Year Workmanship/.test(bN) && /for as long as you own the home/.test(bN) && !/lifetime/i.test(bN) && bN.includes('Manufacturer warranty: GAF System Plus Limited Warranty, included with the Preferred package'), bN);
   ok('NBD contract/proposal block: no tier-guessed "Enhanced Manufacturer" coverage', !/Enhanced Manufacturer|Premium Manufacturer|Enhanced manufacturer coverage/i.test(bN), bN);
   const bO = text(oaks.renderWarrantyFor({ warrantyTier: 'better', estimateLineItems: GAF_HDZ }));
   ok('other company contract block: own sentence, no lifetime (keeps the #2265 fix)', bO.includes(OAKS_OWN) && !/lifetime|pledge/i.test(bO), bO);
@@ -293,7 +302,7 @@ function customerSection() {
     return ctx.__o;
   };
   const n = run('nbd', 'good');
-  ok('NBD: the NBD Pledge period and body', n.period === 'NBD Pledge — Lifetime Workmanship' && /^NBD Pledge — lifetime workmanship warranty/.test(n.body), JSON.stringify(n));
+  ok('NBD: the 5-year written period and body, never "lifetime"', n.period === '5-Year Written Workmanship (Labor)' && /for 5 years from the completion date/.test(n.body) && !/lifetime/i.test(n.period + n.body), JSON.stringify(n));
   const o = run('oaks-own', 'good');
   ok('other company (configured): its own sentence, no lifetime', o.body === OAKS_OWN && !/lifetime|pledge/i.test(o.period + o.body), JSON.stringify(o));
   const z = run('oaks-none', 'good');

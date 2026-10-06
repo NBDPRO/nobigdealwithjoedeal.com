@@ -199,7 +199,8 @@ safe(() => {
   ok('a company\'s own finance partner is kept', oaks._legal().financePartner === 'Oaks Lending');
   const nbd = load(asNbd);
   ok('NBD control: profile untouched (Acorn, services, value props)', nbd._legal().financePartner === 'Acorn Finance'
-    && nbd._legal().services.length === 6 && /NBD Pledge — lifetime workmanship/.test(JSON.stringify(nbd._legal().valueProps)));
+    && nbd._legal().services.length === 6 && /NBD Pledge: for as long as you own the home/.test(JSON.stringify(nbd._legal().valueProps))
+    && !/lifetime/i.test(JSON.stringify(nbd._legal().valueProps)));
 
   // The renderers: Company Intro for a non-NBD company prints none of it.
   const tpl = read('docs/pro/js/document-generator-templates.js');

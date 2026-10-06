@@ -1220,6 +1220,8 @@ window.NBDDocGen = {
         // The manufacturer warranty this job bought, its own line (2026-10-06).
         manufacturerWarranty: data.manufacturerWarranty || null,
         warrantyIsPledge: !!data.warrantyIsPledge,
+        // NBD's Pledge (a promise, never a "lifetime warranty"), its own block.
+        warrantyPledge: data.warrantyPledge || null,
         rightToCancel: data.rightToCancel || 'You, the buyer, may cancel this transaction at any time prior to midnight of the third business day after the date of this transaction. See the attached Notice of Cancellation form for an explanation of this right.',
         additionalTerms: data.additionalTerms || [],
         // Kentucky SB 153 / FTC Cooling-Off (2026-09-27). The FACTS the server
@@ -2352,19 +2354,22 @@ window.NBDDocGen = {
       strong = ownW ? '<div><strong>Workmanship Warranty</strong></div>' : '';
       workText = ownW ? e(ownW) + '<br>' : '';
     } else {
+      // The package's WRITTEN labor years (estimate-config TIER_LABOR_YEARS)
+      // plus the NBD Pledge — a promise, never a "lifetime" warranty
+      // (Jo, 2026-10-06).
+      const yrs = (cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[tier] && cfg.TIER_DISPLAY[tier].warranty && cfg.TIER_DISPLAY[tier].warranty.workmanshipYears)
+        || (cfg && cfg.TIER_LABOR_YEARS && cfg.TIER_LABOR_YEARS[tier])
+        || ({ economy: 1, good: 5, better: 10, best: 20, beyond: 20 })[tier] || 0;
       const warrantyText = (cfg && typeof cfg.tierWarrantyText === 'function')
         ? cfg.tierWarrantyText(tier)
         : (tier === 'economy'
-          ? '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.'
-          : 'Lifetime workmanship warranty.');
-      // Economy's workmanship is 1 year, not lifetime (2026-10-02).
-      const yrs = tier === 'economy'
-        ? ((cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY.economy && cfg.TIER_DISPLAY.economy.warranty.workmanshipYears) || 1)
-        : 0;
-      const work = yrs ? (yrs + '-Year Workmanship') : 'NBD Pledge — Lifetime Workmanship';
-      head = label + ': ' + work;
-      strong = '<div><strong>' + work + ' Warranty</strong></div>';
-      workText = warrantyText + '<br>';
+          ? '1-year written workmanship (labor) warranty; does not transfer on sale of property; the shingle manufacturer\'s standard limited warranty applies; no system warranty.'
+          : (yrs ? yrs + '-year written workmanship (labor) warranty.' : 'Written workmanship (labor) warranty per your package — see your estimate.'));
+      const work = yrs ? (yrs + '-Year Workmanship') : 'Workmanship';
+      const pledge = lines.pledge || (cfg && cfg.PLEDGE_PROMISE) || 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.';
+      head = label + ': NBD Pledge + ' + work;
+      strong = '<div><strong>' + work + ' Warranty (written, labor)</strong></div>';
+      workText = e(pledge) + '<br>' + warrantyText + '<br>';
     }
 
     return `

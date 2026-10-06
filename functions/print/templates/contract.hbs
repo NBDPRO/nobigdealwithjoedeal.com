@@ -102,10 +102,20 @@
   <h2>5 · Warranty</h2>
   <div class="pull">
     <div>
-      <div class="pull-title">{{#if company.isNbd}}{{#if warrantyIsPledge}}NBD Pledge — Lifetime Workmanship Warranty{{else}}NBD Workmanship Warranty{{/if}}{{else}}Workmanship Warranty{{/if}}</div>
+      <div class="pull-title">{{#if company.isNbd}}NBD Written Workmanship (Labor) Warranty{{else}}Workmanship Warranty{{/if}}</div>
       <div class="pull-body">{{warranty}}</div>
     </div>
   </div>
+  {{!-- The NBD Pledge (Jo, 2026-10-06): NBD's promise on every job, printed
+       apart from the written warranty — never a "lifetime warranty". --}}
+  {{#if company.isNbd}}{{#if warrantyPledge}}
+  <div class="pull">
+    <div>
+      <div class="pull-title">NBD Pledge</div>
+      <div class="pull-body">{{warrantyPledge}}</div>
+    </div>
+  </div>
+  {{/if}}{{/if}}
   {{#if manufacturerWarranty}}
   <div class="pull">
     <div>

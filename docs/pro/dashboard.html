@@ -5730,9 +5730,9 @@
         <label>Guarantee Tier</label>
         <select id="wcTier" class="w-full" data-on-change="updateCertPreview">
           <option value="economy">Economy — 1-Year Labor Warranty (no system warranty)</option>
-          <option value="standard" selected>Standard — NBD Lifetime Pledge</option>
-          <option value="preferred">Preferred — Lifetime + Transferable to One Owner</option>
-          <option value="elite">Elite — Lifetime + Fully Transferable + Annual Inspection</option>
+          <option value="standard" selected>Standard — NBD Pledge · 5-Year Labor</option>
+          <option value="preferred">Preferred — 10-Year Labor + Transferable to One Owner</option>
+          <option value="elite">Elite — 20-Year Labor + Fully Transferable + Annual Inspection</option>
           <option value="beyond">Beyond — Elite terms + TAMKO HailGuard Hail Warranty</option>
         </select>
       </div>
@@ -6020,7 +6020,7 @@
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=10"></script>
-<script defer src="js/dashboard-ui.js?v=12"></script>
+<script defer src="js/dashboard-ui.js?v=13"></script>
 <script defer src="js/dashboard-actions.js?v=17"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
@@ -7054,7 +7054,7 @@
 <script defer src="js/voicemail.js?v=3"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
-<script defer src="js/estimate-config.js?v=6"></script>
+<script defer src="js/estimate-config.js?v=7"></script>
 <!-- deposit-rule.js (2026-09-25): the ONE deposit rule every quote, contract,
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
@@ -7075,12 +7075,12 @@
 <script defer src="js/review-engine.js?v=7"></script>
 <script defer src="js/review-deck.js?v=2"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=7"></script>
+<script defer src="js/company-profile.js?v=8"></script>
 <!-- tenant-rules.js (2026-10-04, tenant-ready): each company's own business
      rules (tiers, names, warranties, shingle locks, deposit) with NBD-only
      defaults. After company-profile.js (reads _companyProfile at call time);
      estimate-config.js and deposit-rule.js ask it first. -->
-<script defer src="js/tenant-rules.js?v=2"></script>
+<script defer src="js/tenant-rules.js?v=3"></script>
 <!-- Roof Care Plan (2026-10-05): member badge, nav reveal, invite / billing
      link dialog. After tenant-rules.js (isPlatformTenant). -->
 <script defer src="js/care-plan-crm.js?v=1"></script>

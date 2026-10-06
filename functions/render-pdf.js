@@ -70,7 +70,7 @@ const CORS_ORIGINS = [
 // key to a Handlebars file in print/templates/. As D-2..D-5 land,
 // they add lines here — that's the only API surface change.
 const TEMPLATES = {
-  warranty:   { file: 'warranty.hbs',   docType: 'Warranty Certificate', seal: 'Lifetime Pledge' },
+  warranty:   { file: 'warranty.hbs',   docType: 'Warranty Certificate', seal: 'NBD Pledge' },
   inspection: { file: 'inspection.hbs', docType: 'Inspection Report',    seal: 'Inspection' },
   estimate:   { file: 'estimate.hbs',   docType: 'Project Estimate',     seal: 'Estimate' },
   photoReport:{ file: 'photoReport.hbs',docType: 'Photo Report',         seal: 'Photo Report' },
@@ -681,11 +681,11 @@ async function buildDocHtml(templateKey, payload, companyId) {
   const html = layoutCompiled({
     title:           tmplCfg.docType,
     docType:         tmplCfg.docType,
-    // An Economy-tier warranty is a 1-year labor warranty (Jo, 2026-10-02):
-    // its chrome must not stamp "Lifetime Pledge". The Lifetime Pledge is
-    // NBD's own (Jo, 2026-10-06): another company's certificate never stamps it.
-    seal:            (templateKey === 'warranty' && payload.isEconomy) ? 'Labor Warranty'
-      : ((templateKey === 'warranty' && !company.isNbd) ? 'Warranty' : tmplCfg.seal),
+    // The NBD Pledge is NBD's own promise on every NBD job, every tier, and
+    // never a "lifetime" warranty (Jo, 2026-10-06): NBD's chrome stamps
+    // "NBD Pledge"; another company's certificate never stamps it.
+    seal:            templateKey !== 'warranty' ? tmplCfg.seal
+      : (company.isNbd ? tmplCfg.seal : (payload.isEconomy ? 'Labor Warranty' : 'Warranty')),
     docNumber:       docNumberForChrome,
     designSystemCss: loadDesignSystemCss(),
     brandVars:       brandVars,

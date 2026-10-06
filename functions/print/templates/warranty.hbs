@@ -6,7 +6,7 @@
   inherited from _layout.hbs so EVERY doc shares the same chrome.
 
   Layout philosophy:
-    - One commanding hero on page 1: "Lifetime Warranty"
+    - One commanding hero on page 1
     - Tier badge as a small, calm typographic moment (not screaming)
     - Property block as a 2-col key/value grid with hairline rules
     - Guarantee terms in a pull-block with orange accent rail
@@ -19,43 +19,44 @@
     tierLabel, tierLabelLong, tierTerms, certNumber, isElite, isPreferred,
     isEconomy, isBeyond
 
-  Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
-  shingle manufacturer's standard limited warranty, no system warranty — it
-  never prints the Lifetime Pledge. Beyond is Elite's terms (isElite is true)
-  plus TAMKO's HailGuard hail warranty.
+  Five tiers (Jo, 2026-10-02): Economy carries the shingle manufacturer's
+  standard limited warranty, no system warranty. Beyond is Elite's terms
+  (isElite is true) plus TAMKO's HailGuard hail warranty.
 
-  Two warranty lines (Jo, 2026-10-06: "I offer a lifetime warranty but that's
-  the NBD Pledge. My system warranties are based on package selected and if
-  extended manufacturer warranty was sold."):
-    workmanshipLine  — NBD: the NBD Pledge; another company: its own
-                       configured sentence, or '' (no line printed).
+  NBD's warranty model (Jo, 2026-10-06, final) — three separate lines:
+    pledgeLine       — the NBD Pledge, a PROMISE on every NBD job: "for as
+                       long as you own the home, we'll come back and make it
+                       right." Never called a "lifetime warranty".
+    workmanshipLine  — NBD: the package's WRITTEN labor warranty (Economy 1,
+                       Standard 5, Preferred 10, Elite 20 years —
+                       estimate-config.js TIER_LABOR_YEARS); another company:
+                       its own configured sentence, or '' (no line printed).
     manufacturerLine — the manufacturer warranty THIS job bought (package +
                        any extended warranty sold). Missing → "per
                        manufacturer — see your estimate", never a guess.
-  The NBD Lifetime Pledge prints only when company.isNbd (server-resolved).
+  The NBD Pledge prints only when company.isNbd (server-resolved).
 --}}
 
 {{!-- D-2.5: shared cover-page partial. Brand-consistent across every
      doc the platform produces; the variables here personalize the
      SAME structure to THIS customer + THIS project.
-     gauntlet Batch 3: the `sub` copy names the pledge, so it is gated on
-     company.isNbd — NBD keeps the exact "NBD Lifetime Pledge" wording
-     byte-identical; a stranger tenant renders the neutral "Lifetime Pledge"
-     so the cert never advertises NBD to another company's homeowner. --}}
-{{#if isEconomy}}
+     The `sub` copy names the NBD Pledge, so it is gated on company.isNbd —
+     a stranger tenant renders neutral copy so the cert never advertises
+     NBD to another company's homeowner. --}}
+{{#if company.isNbd}}
 {{> coverPage
-  eyebrow="Warranty Certificate · 1-Year Labor Warranty"
+  eyebrow="Warranty Certificate · NBD Pledge"
   tagline="Backed by our<br>name on the line."
-  sub="This certificate is the homeowner's record that the installation on the property below carries a one-year labor (workmanship) warranty from the installation date. The shingles carry the manufacturer's standard limited warranty; no system warranty is included. Keep it with your important home documents."
+  sub="This certificate is the homeowner's record of the NBD Pledge — for as long as you own the home, we'll come back and make it right — and of the written warranties on the installation at the property below. Keep it with your important home documents."
   preparedFor=preparedFor
   preparedBy=preparedBy
   projectMeta=projectMeta
 }}
-{{else if company.isNbd}}
+{{else if isEconomy}}
 {{> coverPage
-  eyebrow="Warranty Certificate · Lifetime Pledge"
+  eyebrow="Warranty Certificate · 1-Year Labor Warranty"
   tagline="Backed by our<br>name on the line."
-  sub="This certificate is the homeowner's permanent record that the installation on the property below is covered by the NBD Lifetime Pledge. Keep it with your important home documents — and if you ever sell, transfer it per the terms below."
+  sub="This certificate is the homeowner's record that the installation on the property below carries a one-year labor (workmanship) warranty from the installation date. The shingles carry the manufacturer's standard limited warranty; no system warranty is included. Keep it with your important home documents."
   preparedFor=preparedFor
   preparedBy=preparedBy
   projectMeta=projectMeta
@@ -72,10 +73,12 @@
 {{/if}}
 
 <div style="display:flex; align-items:center; gap:12pt; margin: var(--s-6) 0 var(--s-5); page-break-before: always; break-before: page;">
-  {{#if isEconomy}}
+  {{#if company.isNbd}}
+  <span class="badge tier-{{tier}}">{{tier}} · NBD Pledge{{#if laborYears}} · {{laborYears}}-Year Labor Warranty{{/if}}</span>
+  {{else if isEconomy}}
   <span class="badge tier-{{tier}}">{{tier}} · 1-Year Labor Warranty</span>
   {{else}}
-  {{#if company.isNbd}}<span class="badge tier-{{tier}}">{{tier}} · {{#if company.seal}}{{company.seal}} {{/if}}Lifetime Pledge</span>{{else}}<span class="badge tier-{{tier}}">{{tier}} · Warranty</span>{{/if}}
+  <span class="badge tier-{{tier}}">{{tier}} · Warranty</span>
   {{/if}}
   <span class="eyebrow muted">Certificate {{certNumber}}</span>
 </div>
@@ -111,12 +114,21 @@
 {{/if}}
 
 <div class="feature-grid">
+  {{#if company.isNbd}}
+  {{!-- NBD (Jo, 2026-10-06): the Pledge (a promise, every tier), then the
+       package's WRITTEN labor warranty, then the manufacturer's. Never
+       "lifetime warranty". --}}
+  <div class="feature">{{#if pledgeLine}}{{pledgeLine}}{{else}}NBD Pledge: for as long as you own the home, we'll come back and make it right.{{/if}}</div>
+  <div class="feature">{{#if workmanshipLine}}{{workmanshipLine}}{{else}}Written workmanship (labor) warranty per your package — see your estimate{{/if}}</div>
+  <div class="feature">{{#if manufacturerLine}}{{manufacturerLine}}{{else if isEconomy}}Shingle manufacturer's standard limited warranty (no system warranty){{else if manufacturerWarrantyFeature}}Manufacturer warranty: {{manufacturerWarrantyFeature}}{{else}}Manufacturer warranty: per manufacturer — see your estimate{{/if}}</div>
+  {{else}}
   {{#if isEconomy}}
   <div class="feature">1-year labor warranty from the installation date</div>
   <div class="feature">{{#if manufacturerLine}}{{manufacturerLine}}{{else}}Shingle manufacturer's standard limited warranty (no system warranty){{/if}}</div>
   {{else}}
-  {{#if company.isNbd}}<div class="feature">{{#if workmanshipLine}}{{workmanshipLine}}{{else}}NBD Pledge — lifetime workmanship warranty{{/if}}</div>{{else}}{{#if workmanshipLine}}<div class="feature">{{workmanshipLine}}</div>{{/if}}{{/if}}
+  {{#if workmanshipLine}}<div class="feature">{{workmanshipLine}}</div>{{/if}}
   <div class="feature">{{#if manufacturerLine}}{{manufacturerLine}}{{else if manufacturerWarrantyFeature}}Manufacturer warranty: {{manufacturerWarrantyFeature}}{{else}}Manufacturer warranty: per manufacturer — see your estimate{{/if}}</div>
+  {{/if}}
   {{/if}}
   {{#if company.isNbd}}
   {{#if isPreferred}}<div class="feature">Transferable to new owner on sale of property</div>{{/if}}

@@ -190,7 +190,8 @@ console.log('\nBRAND GUARD — warranty tier picker is tenant-named');
     return { opt: opt0.textContent, desc: els.wcTierDesc.textContent, eyebrow: els.wcEyebrow.textContent };
   }
   const nbd = relabel({ legalName: 'No Big Deal Home Solutions' });
-  ok('NBD keeps "Standard — NBD Lifetime Pledge"', nbd.opt === 'Standard — NBD Lifetime Pledge');
+  // Jo, 2026-10-06 (final): the Pledge is a promise, never "lifetime"; Standard's written labor term is 5 years.
+  ok('NBD sees "Standard — NBD Pledge · 5-Year Labor"', nbd.opt === 'Standard — NBD Pledge · 5-Year Labor', nbd.opt);
   ok('NBD keeps the "NBD Guarantee" eyebrow', nbd.eyebrow === 'NBD Guarantee');
   const t = relabel({ legalName: 'Demo Roofing Co', seal: 'DRC' });
   // 2026-10-06 (Jo): the Lifetime Pledge is NBD's own; another company's rep sees the plain package name.

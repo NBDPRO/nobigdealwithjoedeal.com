@@ -3,7 +3,7 @@
  *
  * WHY: NBD's own rules were fixed in estimate-config.js and deposit-rule.js —
  * five tiers named Economy/Standard/Preferred/Elite/Beyond, Beyond locked to
- * TAMKO HailGuard, Economy never a 3-tab, a lifetime-workmanship warranty
+ * TAMKO HailGuard, Economy never a 3-tab, a workmanship warranty
  * ladder, a 50%-over-$2,000 deposit, 7% fallback tax and permit costs for
  * seven Ohio/Kentucky counties. Every other company that signed up inherited
  * all of it, and none of it could be changed.
@@ -161,6 +161,9 @@
     var v = _str(raw[tier], 400);
     if (!v) return '';
     if (isPlatformTenant() && v === _builtin('tierWarrantyText', tier)) return '';
+    // NBD never prints a "lifetime" warranty term (Jo, 2026-10-06): a saved
+    // copy of the old lifetime ladder is stale — the package's written years win.
+    if (isPlatformTenant() && /lifetime/i.test(v)) return '';
     return v;
   }
   function warrantyTextOverride(tier) {
@@ -250,17 +253,31 @@
   // ── Warranty lines on certificates, contracts and proposals (Jo, 2026-10-06) ──
   // "I offer a lifetime warranty but that's the NBD Pledge. My system
   // warranties are based on package selected and if extended manufacturer
-  // warranty was sold." So every warranty block prints TWO separate lines:
-  //   1. workmanship — NBD: the NBD Pledge (Standard and up; Economy stays the
-  //      1-year labor warranty, Jo 2026-10-02). Another company: ITS OWN
+  // warranty was sold." Final model (Jo, 2026-10-06): the NBD Pledge is a
+  // PROMISE on every NBD job — "for as long as you own the home, we'll come
+  // back and make it right" — and the WRITTEN labor warranty is separate, by
+  // package (estimate-config.js TIER_LABOR_YEARS: Economy 1, Standard 5,
+  // Preferred 10, Elite 20). So an NBD warranty block prints THREE lines:
+  //   0. pledge — NBD only, every tier: PLEDGE_PROMISE (never "lifetime
+  //      warranty").
+  //   1. workmanship — NBD: "Written workmanship (labor) warranty: N years
+  //      from the installation date". Another company: ITS OWN
   //      configured sentence (businessRules.tiers.warranty), never NBD's
-  //      Pledge; none configured → no line at all.
+  //      Pledge or years; none configured → no line at all.
   //   2. manufacturer — what THIS job bought: the package's manufacturer
   //      warranty, plus an extended manufacturer warranty only when one was
   //      sold on the job (a WAR line on the estimate, or an explicit
   //      extendedWarranty field). Nothing known → "per manufacturer — see
   //      your estimate", never an invented term.
-  var PLEDGE_LINE = 'NBD Pledge — lifetime workmanship warranty';
+  // The Pledge text lives in estimate-config.js (PLEDGE_PROMISE); this copy
+  // only covers a page that never loaded the config (pinned equal by test).
+  var PLEDGE_FALLBACK = 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.';
+  function pledgeLine() { var c = _cfg(); return (c && c.PLEDGE_PROMISE) || PLEDGE_FALLBACK; }
+  function laborLine(tier) {
+    var c = _cfg();
+    var l = (c && typeof c.laborWarrantyLine === 'function') ? c.laborWarrantyLine(tier) : '';
+    return l || 'Written workmanship (labor) warranty per your package — see your estimate';
+  }
   var MFG_UNKNOWN = 'per manufacturer — see your estimate';
   var CERT_TIER_TO_KEY = { standard: 'good', preferred: 'better', elite: 'best' };
   var TIER_FALLBACK_LABEL = { economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' };
@@ -348,25 +365,26 @@
     return base + (extText ? '; plus ' + extText : '');
   }
 
-  // Both lines for one document. Returns
-  //   { workmanship: string|null, isPledge: boolean, manufacturer: string }
-  // workmanship null = print no workmanship line (a company with no
-  // configured warranty). manufacturer always carries its prefix.
+  // The lines for one document. Returns
+  //   { pledge: string|null, workmanship: string|null, isPledge: boolean,
+  //     manufacturer: string, maker: string|null }
+  // pledge: NBD's promise (NBD only, every tier). workmanship null = print no
+  // workmanship line (a company with no configured warranty). manufacturer
+  // always carries its prefix.
   function warrantyLines(opts) {
     opts = opts || {};
     var nbd = (typeof opts.isNbd === 'boolean') ? opts.isNbd : isPlatformTenant();
     var tier = _tierKey(opts.tier);
     var work = null, pledge = false;
     if (nbd) {
-      var own = ownWarrantyText(tier);
-      if (own) work = own;
-      else if (tier === 'economy') work = '1-year workmanship (labor) warranty from the installation date';
-      else { work = PLEDGE_LINE; pledge = true; }
+      work = ownWarrantyText(tier) || laborLine(tier);
+      pledge = true;
     } else {
       work = ownWarrantyText(tier) || null;
     }
     var sh = _shingle(_items(opts.lineItems));
     return {
+      pledge: pledge ? pledgeLine() : null,
       workmanship: work,
       isPledge: pledge,
       manufacturer: 'Manufacturer warranty: ' + manufacturerWarranty(Object.assign({}, opts, { isNbd: nbd })),
@@ -419,7 +437,7 @@
     ratesSet: ratesSet,
     filePrefix: filePrefix,
     resolved: resolved,
-    PLEDGE_LINE: PLEDGE_LINE,
+    pledgeLine: pledgeLine,
     MFG_UNKNOWN: MFG_UNKNOWN,
     ownWarrantyText: ownWarrantyText,
     manufacturerWarranty: manufacturerWarranty,

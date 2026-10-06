@@ -56,9 +56,10 @@
     return ['economy', 'good', 'better', 'best', 'beyond'];
   }
 
-  // Tier-card subtitle: material differentiator + warranty phrase. Economy is
-  // a 1-year LABOR warranty (never "lifetime"); Beyond is HailGuard + TAMKO's
-  // hail warranty. The warranty half comes from TIER_DISPLAY when loaded.
+  // Tier-card subtitle: material differentiator + warranty phrase: the
+  // package's WRITTEN labor years (Jo, 2026-10-06 — estimate-config
+  // TIER_LABOR_YEARS; never "lifetime"); Beyond adds TAMKO's hail warranty.
+  // The warranty half comes from TIER_DISPLAY when loaded.
   const _TIER_MATERIAL = {
     economy: 'Economy Architectural',
     good:    'Standard Materials',
@@ -71,12 +72,13 @@
     const disp = cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[key];
     const w = disp ? disp.warranty : ({
       economy: { workmanshipYears: 1 },
-      beyond:  { hailWarranty: true }
+      good:    { workmanshipYears: 5 },
+      better:  { workmanshipYears: 10 },
+      best:    { workmanshipYears: 20 },
+      beyond:  { workmanshipYears: 20, hailWarranty: true }
     })[key] || {};
-    let warranty;
-    if (w.workmanshipYears) warranty = w.workmanshipYears + '-Year Labor Warranty';
-    else if (w.hailWarranty) warranty = 'Lifetime Warranty + Hail Warranty';
-    else warranty = 'Lifetime Warranty';
+    const warranty = (w.workmanshipYears ? w.workmanshipYears + '-Year Labor Warranty' : 'Labor Warranty per Package')
+      + (w.hailWarranty ? ' + Hail Warranty' : '');
     return (_TIER_MATERIAL[key] || 'Custom Scope') + ' · ' + warranty;
   }
 
@@ -899,8 +901,8 @@ ${footer}
     if (tiers) {
       // GBB audit, 2026-09-09: "Impact + 20yr Warranty" was one of eight
       // independent warranty-duration schemes found live at once; the other
-      // two subs didn't even state a duration. Every tier is lifetime
-      // workmanship now (estimate-config.js TIER_DISPLAY) — the material
+      // two subs didn't even state a duration. Each tier states its written
+      // labor years (estimate-config.js TIER_DISPLAY) — the material
       // differentiator half matches TIER_RATES' own comments there.
       // Five tiers since 2026-10-02: every tier in TIER_ORDER that the data
       // carries gets a card; Economy says 1-year labor, Beyond says HailGuard.
@@ -1001,7 +1003,8 @@ ${footer}
       <h2>Warranty</h2>
       <p style="font-size:12px;color:#444;">
         <strong>Materials:</strong> Manufacturer warranty per product (see scope details).<br>
-        <strong>Workmanship:</strong> Lifetime ${escapeHtml(_b.isNbd ? 'NBD' : _b.seal)} labor warranty on all installation — transferability varies by tier, see above.<br>
+        ${_b.isNbd ? `<strong>NBD Pledge:</strong> for as long as you own the home, we'll come back and make it right.<br>
+        <strong>Workmanship:</strong> Written labor warranty by package — 1 to 20 years; length and transferability are listed on each option above.<br>` : `<strong>Workmanship:</strong> Workmanship warranty terms as stated in your written agreement.<br>`}
         <strong>System Warranty:</strong> Available with ${escapeHtml(((estimate.lines || []).find(l => /warranty/i.test(l.name)) || {}).name || 'Better/Best tier upgrades')}.
       </p>
     ` : `
