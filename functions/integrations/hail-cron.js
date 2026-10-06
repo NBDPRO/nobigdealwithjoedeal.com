@@ -24,7 +24,7 @@
 const { onSchedule } = require('./heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
-const { FieldValue } = require('firebase-admin/firestore');
+const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { SECRETS, hasSecret, getSecret } = require('./_shared');
 
 // The NOAA fetcher is duplicated lightly from hail.js rather than going
@@ -109,17 +109,36 @@ exports.hailMatchCron = onSchedule(
     // `if (lead.deleted) continue;` instead, which treats a missing field as
     // LIVE — the correct default. This file was the only `.where('deleted'`
     // in the repo. Match the siblings.
-    const snap = await db.collection('leads')
-      .limit(500)
-      .get();
+    //
+    // R4-7 (2026-10-06): the read was a single `.limit(500)` with no cursor,
+    // and the "rolls over to the next day" above was never true — lead #501+
+    // was simply never scored. Page through EVERY lead by document id (the
+    // dormant-leads.js pattern). Leads checked in the last 20h are skipped
+    // cheaply below; if the provider calls still outrun the timeout, stop
+    // with a logged count instead of being killed mid-loop.
+    const PAGE = 500;
+    const startedAt = Date.now();
+    const BUDGET_MS = 480 * 1000; // under the 540s timeout
+    const leadDocs = [];
+    let cursor = null;
+    for (;;) {
+      let q = db.collection('leads').orderBy(FieldPath.documentId()).limit(PAGE);
+      if (cursor) q = q.startAfter(cursor);
+      const page = await q.get();
+      leadDocs.push(...page.docs);
+      if (page.size < PAGE) break;
+      cursor = page.docs[page.docs.length - 1];
+    }
 
     const fetcher = fetchNoaaHail;
 
     const newHits = [];
     let checked = 0;
     let skipped = 0;
+    let unreached = 0;
 
-    for (const docSnap of snap.docs) {
+    for (const docSnap of leadDocs) {
+      if (Date.now() - startedAt > BUDGET_MS) { unreached++; continue; }
       const lead = docSnap.data();
       // Deleted-lead guard, in memory — same convention as the other three
       // lead-sweeping crons. Truthiness, not `=== false`: a lead with no
@@ -177,8 +196,9 @@ exports.hailMatchCron = onSchedule(
     }
 
     logger.info('hail-cron complete', {
-      checked, skipped, newHits: newHits.length
+      leads: leadDocs.length, checked, skipped, unreached, newHits: newHits.length
     });
+    if (unreached) logger.error('hail-cron: ran out of time; leads not checked this run', { unreached, leads: leadDocs.length });
 
     // Slack summary — only when there's news to report. Nobody wants
     // "0 new hail hits" every morning.

@@ -4744,6 +4744,8 @@
       <div class="stab-panel dn" id="stab-panel-ai-texting">
         <h3 style="margin:0 0 4px;font-family:'Barlow Condensed',sans-serif;font-size:18px;color:var(--t);">🤖 AI Texting Persona</h3>
         <div id="aiPersonaMount"></div>
+        <!-- Texting rules: the company's texting switch + Do Not Text list (rendered by sms-compliance-settings.js) -->
+        <div id="smsComplianceMount" class="mt-14"></div>
       </div><!-- /stab-panel-ai-texting -->
 
       <!-- ══ TAB: BOTS & API (connect your own AI bots — rendered by agent-bots-settings.js) ══ -->
@@ -6936,7 +6938,7 @@
 <script defer src="js/tasks.js?v=7"></script>
 <script defer src="js/dol-fill.js?v=2"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
-<script defer src="js/agent-inbox.js?v=7"></script>
+<script defer src="js/agent-inbox.js?v=8"></script>
 <script defer src="js/agent-bots-settings.js?v=3"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
@@ -6978,8 +6980,8 @@
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
-<script defer src="js/phone-share.js?v=1"></script>
-<script defer src="js/estimate-followups.js?v=2"></script>
+<script defer src="js/phone-share.js?v=2"></script>
+<script defer src="js/estimate-followups.js?v=3"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
 <script defer src="js/game-card.js?v=3"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
@@ -7001,7 +7003,7 @@
 <script defer src="js/ui.js?v=9"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=5"></script>
+<script defer src="js/nbd-comms.js?v=6"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
@@ -7044,7 +7046,7 @@
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
 <script defer src="js/schedule-planner-logic.js?v=2"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=1"></script>
+<script defer src="js/production.js?v=2"></script>
 <script defer src="js/schedule-planner.js?v=4"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
@@ -7097,7 +7099,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=10"></script>
+<script defer src="js/analytics-kpi.js?v=11"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->

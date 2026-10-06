@@ -147,13 +147,17 @@ const vm = require('vm');
 
 const D2D = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/d2d-tracker-core-2026b.js'), 'utf8');
 
-function loadComms(respond) {
+function loadComms(respond, phoneCheck) {
   const toasts = [];
   const opened = [];
   const posts = [];
   const events = [];
+  const checks = [];
   const window = {
     _user: { getIdToken: async () => 'id-token' },
+    // The server 'ok to text?' a hand-off asks first (review R2-3-2, phone-share.js).
+    // Default: ok. tests/texting-r2-fixes-2026-10-06.test.js drives the refusals.
+    NBDPhoneShare: { checkText: async (o) => { checks.push(o); return phoneCheck ? phoneCheck(o) : { ok: true }; } },
     showToast: (msg, type) => toasts.push({ msg, type }),
     dispatchEvent: (e) => events.push(e),
     location: {
@@ -180,7 +184,7 @@ function loadComms(respond) {
   };
   vm.createContext(sandbox);
   vm.runInContext(SRC, sandbox, { filename: 'nbd-comms.js' });
-  return { NBDComms: window.NBDComms, toasts, opened, posts, events };
+  return { NBDComms: window.NBDComms, toasts, opened, posts, events, checks };
 }
 
 const jsonRes = (status, body) => () => ({ ok: status >= 200 && status < 300, status, json: async () => body });
