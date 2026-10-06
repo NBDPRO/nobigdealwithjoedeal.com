@@ -126,6 +126,7 @@ h1 span{color:#BD5728}
 /* consent (TCPA, 2026-10-03) — same markup as /storm-check's .sc-consent */
 .sc-consent{display:flex;gap:10px;align-items:flex-start;margin:4px 0 12px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
 .sc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
+.sc-consent a{color:inherit;text-decoration:underline}
 
 /* Tagline footer */
 .tagline-bar{background:var(--navy-dark);color:#fff;text-align:center;padding:36px 5%;font-family:'Bebas Neue',sans-serif;font-size:clamp(1.1rem,2.6vw,1.55rem);letter-spacing:.04em}
@@ -146,7 +147,7 @@ h1 span{color:#BD5728}
 
 @media(max-width:880px){
   .hero{padding:32px 5% 40px}
-  .hero-grid{grid-template-columns:1fr;gap:28px}
+  .hero-grid{grid-template-columns:minmax(0,1fr);gap:28px}
   .form-panel{padding:22px}
   .topbar{padding:12px 16px}
   .topbar .logo .brand{font-size:1rem}
@@ -415,7 +416,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         <div data-nbd-intake="ins" data-extras="false" data-cal-hint="Pick your time on the next screen."></div>
 
         <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="f-nbd-hp">Leave blank</label><input type="text" id="f-nbd-hp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
-        <label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
+        <label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
         <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>
         <button type="submit" class="submit-btn" id="inspectSubmit">Request Free Inspection</button>
         <p class="fine-print">You don&rsquo;t have to be home, but you&rsquo;re welcome to walk it with Joe. I respect your time. I respond within 24 hours.</p>

@@ -88,7 +88,7 @@ const SKIP_DIRS = new Set(['assets', 'admin', 'pro', 'deploy', '_archive', 'arch
 // name. Anything requiring a session stays out — see crm-audit.js for those.
 const PRO_PUBLIC = [
   'index.html', 'pricing.html', 'how-to.html', 'terms.html',
-  'register.html', 'login.html', 'demo.html', 'sandbox.html',
+  'register.html', 'login.html', 'sandbox.html',
 ].map((f) => path.join(DOCS, 'pro', f));
 // Pages that are intentionally bare or non-visual. 404.html got real
 // nav/mobile-nav/footer chrome (2026-09-17) — it's exactly the

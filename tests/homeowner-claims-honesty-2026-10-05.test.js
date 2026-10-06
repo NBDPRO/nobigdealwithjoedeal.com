@@ -31,8 +31,7 @@
  * the CRM and private trees (pro/, admin/, sites/, dev/) and vendored
  * libraries. Owned by other in-flight changes and skipped ONLY for the
  * "Licensed" and years pins (listed in PENDING_OWNER below; drop an entry
- * once its PR lands): docs/index.html (home-page PR), the storm-damage and
- * roof-replacement service pages, the Roof Care Plan page, the nbd:partial
+ * once its PR lands): docs/index.html (home-page PR), the Roof Care Plan page, the nbd:partial
  * regions (partials PR) and llms-full.txt (regenerated at deploy from those
  * pages).
  *
@@ -65,8 +64,6 @@ const PARTIAL = /<!-- nbd:partial ([\w-]+)[^>]*-->[\s\S]*?<!-- \/nbd:partial \1 
 
 const PENDING_OWNER = new Set([
   'index.html',
-  'services/storm-damage.html',
-  'services/roof-replacement.html',
   'services/roof-care-plan.html',
   'llms-full.txt',
 ]);
@@ -150,6 +147,11 @@ console.log('\n3. no claim-outcome predictions');
   const sr = stripComments(read('docs/assets/js/storm-report-page.js'), 'x.js');
   ok('/storm-check strong result recommends an inspection, not a claim', sc.includes("headline = 'Storm activity near you is worth a free inspection.'"));
   ok('/storm-report strong result recommends an inspection, not a claim', sr.includes("h: 'Severe storm activity near you — worth a free inspection.'"));
+  // 2026-10-06 (Jo, #2233): "document anything claimable" predicted a claim
+  // outcome (OH/KY wording rules). Neutral replacement pinned; the word is
+  // banned anywhere in the page's shipped (comment-stripped) code.
+  ok('/storm-report never says "claimable"', !/claimable/i.test(sr));
+  ok('/storm-report middle verdict uses the neutral wording', sr.includes('Joe will get on the roof and document what he finds so you can decide your next step.'));
   const blog = read('docs/blog/my-roof-is-too-old-will-insurance-still-pay.html');
   ok('the old-roof FAQ answer says "it depends on your policy", visible AND in JSON-LD', (blog.match(/It depends on your policy\. If a covered peril like hail or wind caused the damage/g) || []).length === 2);
 }

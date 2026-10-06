@@ -8,7 +8,7 @@
  *   job_profit           Frank — collected minus direct costs per finished job (internal)
  *   storm_near_customers Marcus / Quinn — NWS storm reports with the customers within R miles
  *   team_activity        CoS / Priya — what each bot did and how Jo decided its filings
- * plus MCP tool annotations (read-only hints) and server version 1.1.0.
+ * plus MCP tool annotations (read-only hints) and server version (1.3.0 since the 2026-10-06 list_leads paging).
  *
  * Run: node tests/agent-mcp-roles-v2-2026-10-02.test.js  (section E needs FIRESTORE_EMULATOR_HOST)
  */
@@ -44,7 +44,7 @@ function ok(label, cond, detail) {
   const ann = L.toolsForBot('quinn');
   ok('tools/list carries MCP annotations: reads are read-only, filings are not, nothing destructive',
     ann.find((t) => t.name === 'rules_reference').annotations.readOnlyHint === true && ann.find((t) => t.name === 'verify_item').annotations.readOnlyHint === false && ann.every((t) => t.annotations.destructiveHint === false));
-  ok('server version 1.1.0', L.SERVER_INFO.version === '1.1.0');
+  ok('server version 1.3.0 (2026-10-06 drafts, then list_leads paging)', L.SERVER_INFO.version === '1.3.0');
 
   console.log('B. rules_reference matches the CRM\'s own config (no drift)');
   const CFG = require(path.join(ROOT, 'docs/pro/js/estimate-config.js'));

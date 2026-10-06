@@ -243,8 +243,8 @@ const stormReportFn = require('./storm-report');
 Object.assign(exports, stormReportFn);
 
 // Homeowner follow-up email when a /storm-report lead is captured (additive trigger).
-const stormReportEmailFn = require('./storm-report-email');
-Object.assign(exports, stormReportEmailFn);
+// By name only: storm-report-email.js also exports _test (2026-10-06 gust line).
+exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
@@ -260,6 +260,17 @@ Object.assign(exports, leadBridgeFns);
 // ═══════════════════════════════════════════════════════════════
 const smsFunctions = require('./sms-functions');
 Object.assign(exports, smsFunctions);
+
+// NBD's Twilio line (+1 937 764 4855, 2026-10-06): inbound texts, delivery
+// callbacks, inbound calls forwarded to Jo's cell + the <Dial> action. Served
+// at /api/twilio/* (firebase.json). SHIPS DARK — TWILIO_INBOUND_ENABLED unset
+// = fixed TwiML, nothing read or written. Named exports only (twilio-line.js
+// also exports a test seam).
+const twilioLine = require('./twilio-line');
+exports.twilioSmsWebhook      = twilioLine.twilioSmsWebhook;
+exports.twilioSmsStatus       = twilioLine.twilioSmsStatus;
+exports.twilioVoiceWebhook    = twilioLine.twilioVoiceWebhook;
+exports.twilioVoiceDialStatus = twilioLine.twilioVoiceDialStatus;
 
 // ═══════════════════════════════════════════════════════════════
 // AUDIT LOG TRIGGERS (H-4)
@@ -403,6 +414,9 @@ exports.revokeAgentKey = agentMcp.revokeAgentKey;
 exports.saveAgentBot = agentMcp.saveAgentBot;
 exports.deleteAgentBot = agentMcp.deleteAgentBot;
 exports.saveAgentSettings = agentMcp.saveAgentSettings;
+// Agent inbox drafts (2026-10-06): the owner sends a bot draft from their own
+// phone / mail app; this re-checks the Do-Not-Text / unsubscribe lists and logs it.
+exports.agentDraftAction = agentMcp.agentDraftAction;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;
@@ -424,6 +438,11 @@ Object.assign(exports, calendarFeedFunctions);
 // functions/email-suppression.js. See functions/email-unsubscribe.js.
 const emailUnsubscribeFunctions = require('./email-unsubscribe');
 Object.assign(exports, emailUnsubscribeFunctions);
+
+// Texting compliance (2026-10-05): a company's internal Do Not Text list,
+// managed from the CRM. Enforced in functions/sms-optout.js isOptedOut,
+// which every send path calls. See functions/sms-dnc.js.
+exports.manageSmsCompliance = require('./sms-dnc').manageSmsCompliance;
 
 // Resend's own bounce / spam-complaint signal, folded into the same register
 // (sources 'bounce' and 'complaint'). DARK until the owner adds the endpoint

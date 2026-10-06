@@ -56,7 +56,9 @@ const SKIP_TOP = /^(pro|admin|sites|dev)\//;
 // "claims management, adjuster coordination" and its feature list sold
 // "AOBs" (void in Kentucky, KRS 304.20-105) while the CRM-tree skip hid both.
 // These five are scanned; the CRM app pages under pro/ stay out of scope.
-const PUBLIC_PRO = new Set(['pro/index.html', 'pro/pricing.html', 'pro/register.html', 'pro/how-to.html', 'pro/demo.html']);
+// 2026-10-06: pro/demo.html retired (301 to /pro/sandbox); the guided demo's
+// page AND its story script (where the screen copy lives) are scanned instead.
+const PUBLIC_PRO = new Set(['pro/index.html', 'pro/pricing.html', 'pro/register.html', 'pro/how-to.html', 'pro/sandbox.html', 'pro/js/sandbox-story.js']);
 
 // The rule set lives in the RUNTIME module (2026-10-04) so the CRM's report
 // filter and this static gate share one copy: docs/pro/js/claim-wording-filter.js.
@@ -101,7 +103,7 @@ function walk(dir, base, acc) {
     if (e.isDirectory()) {
       if (SKIP_DIRS.has(e.name)) continue;
       // pro/ is entered only for its public pages (files are filtered below).
-      if (SKIP_TOP.test(rel + '/') && rel !== 'pro') continue;
+      if (SKIP_TOP.test(rel + '/') && rel !== 'pro' && rel !== 'pro/js') continue;
       walk(p, base, acc);
     } else if (SKIP_TOP.test(rel) && !PUBLIC_PRO.has(rel)) {
       continue;
@@ -186,7 +188,7 @@ for (const s of [
   'Storm activity near you is worth a free inspection.',
   'Severe storm activity near you — worth a free inspection.',
   "It depends on your policy. If a covered peril like hail or wind caused the damage, many policies still pay on an older roof, but some pay older roofs on a depreciation schedule (actual cash value), so you get less.",
-  "Joe will get on the roof, document anything claimable, and tell you straight whether it's worth filing.",
+  'Joe will get on the roof and document what he finds so you can decide your next step.',
 ]) ok(checkSentence(s).length === 0, `claim-outcome rewording passes: "${s.slice(0, 70)}"${checkSentence(s).length ? ' — fired ' + checkSentence(s).join(',') : ''}`);
 for (const r of RULES) {
   const fx = BAD[r.id] || 'NO FIXTURE';

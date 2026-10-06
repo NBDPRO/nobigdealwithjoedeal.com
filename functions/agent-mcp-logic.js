@@ -16,9 +16,15 @@
  */
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const SERVER_INFO = { name: 'nbd-crm', version: '1.1.0' };
+const SERVER_INFO = { name: 'nbd-crm', version: '1.3.0' };
 const MAX_TEXT = 2000;
 const MAX_LIST = 50;
+const LIST_CURSOR_MAX = 400;
+// Draft limits (2026-10-06; the draft rules sit above the company-bot section).
+const SMS_MAX = 480;
+const STOP_LINE = 'Reply STOP to opt out.';
+const REASON_MAX = 300;
+const EMAIL_SUBJECT_MAX = 140;
 
 // ── Tools ──────────────────────────────────────────────────────────────
 const TOOLS = {
@@ -35,11 +41,12 @@ const TOOLS = {
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
   },
   list_leads: {
-    description: 'Customers, filtered by stage and/or "stale" (no update in N days), newest first. Returns lead_id, name, address, stage, follow-up date and last update — never phone or email.',
+    description: 'Customers, filtered by stage and/or "stale" (no update in N days), newest added first. Returns ONE PAGE (limit, default 20, max 50) of lead_id, name, address, stage, follow-up date and last update — never phone or email — plus total (how many customers match the filters) and next_cursor. One page is NOT the whole list: while next_cursor is not null, call list_leads again with the SAME stage / stale_days and cursor = next_cursor, and keep going until next_cursor is null. Only then do you have every match (check your count against total).',
     inputSchema: { type: 'object', properties: {
-      stage: { type: 'string', description: 'Pipeline stage key, e.g. new, contacted, inspected, estimate_sent_cash, negotiating, contract_signed' },
+      stage: { type: 'string', maxLength: 60, description: 'Pipeline stage key, the same keys crm_summary counts in by_stage, e.g. new, contacted, inspected, estimate_sent_cash, negotiating, contract_signed' },
       stale_days: { type: 'integer', minimum: 1, maximum: 3650, description: 'Only customers not updated in this many days' },
-      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST },
+      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST, description: 'Page size (default 20, max 50)' },
+      cursor: { type: 'string', maxLength: LIST_CURSOR_MAX, description: 'The next_cursor from the previous page of the SAME query. Leave it out for the first page.' },
     }, additionalProperties: false },
   },
   lead_detail: {
@@ -98,6 +105,36 @@ const TOOLS = {
     description: 'What each of the company\'s bots did over the last N days (default 7): tool calls, filings, and how the owner decided them — approved, tossed, still waiting — plus fact-check counts (checked / flagged). Use it to coach the bots: a bot whose filings keep getting tossed needs a different approach. Personal bots are not included.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 30 } }, additionalProperties: false },
   },
+  // ── Drafts (2026-10-06): filed for the owner to send; nothing auto-sends ──
+  draft_text: {
+    description: 'DRAFT a text message to one customer for the owner to send from their own phone. It waits in the Agent inbox; nothing is sent by you or the CRM. The CRM finds the number itself (you never see it) and refuses a customer on the Do-Not-Text list or without a textable number. Max ' + SMS_MAX + ' characters; it must say the company name; "' + STOP_LINE + '" is added if missing. Never promise to handle or negotiate an insurance claim.',
+    inputSchema: { type: 'object', properties: {
+      lead_id: { type: 'string' },
+      body: { type: 'string', maxLength: SMS_MAX },
+      reason: { type: 'string', maxLength: REASON_MAX, description: 'Why this customer, why now (shown to the owner, not the customer)' },
+    }, required: ['lead_id', 'body', 'reason'], additionalProperties: false },
+  },
+  draft_email: {
+    description: 'DRAFT an email to one customer for the owner to send from their own mail app. It waits in the Agent inbox; nothing is sent by you or the CRM. The CRM finds the address itself (you never see it) and refuses a customer who unsubscribed. from: "jd" for marketing / follow-ups, "info" for documents / payments.',
+    inputSchema: { type: 'object', properties: {
+      lead_id: { type: 'string' },
+      subject: { type: 'string', maxLength: EMAIL_SUBJECT_MAX },
+      body: { type: 'string', maxLength: MAX_TEXT },
+      reason: { type: 'string', maxLength: REASON_MAX, description: 'Why this customer, why now (shown to the owner, not the customer)' },
+      from: { type: 'string', enum: ['jd', 'info'] },
+    }, required: ['lead_id', 'subject', 'body', 'reason', 'from'], additionalProperties: false },
+  },
+  file_social_draft: {
+    description: 'File a social media post DRAFT (caption, optional image link and wished-for date) into the Agent inbox; the owner sends it to Social Studio, where it is checked and approved before anything is posted. Never publishes. brand: "nbd" (the roofing company) or "pro" (the CRM product). No customer names or addresses in a caption.',
+    inputSchema: { type: 'object', properties: {
+      brand: { type: 'string', enum: ['nbd', 'pro'] },
+      platform: { type: 'string', enum: ['facebook', 'instagram', 'gbp', 'tiktok', 'nextdoor', 'linkedin', 'x'] },
+      caption: { type: 'string', maxLength: 5000 },
+      media_url: { type: 'string', description: 'Optional https:// link to the image or video to use' },
+      scheduled_for: { type: 'string', description: 'Optional YYYY-MM-DD or YYYY-MM-DDTHH:MM (Eastern)' },
+      reason: { type: 'string', maxLength: REASON_MAX },
+    }, required: ['brand', 'platform', 'caption', 'reason'], additionalProperties: false },
+  },
   // ── Personal scope (Jo's own tracker; personal keys only) ─────────────
   my_today: {
     description: 'The key owner\'s day in their personal tracker: today\'s floors (their daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it), and the latest weight. Read only.',
@@ -131,12 +168,12 @@ const FILE = ['file_note', 'file_reminder', 'file_report'];
 // Nova is deliberately absent: no NBD key can be made for her.
 const BOTS = {
   cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'collected_revenue', 'lead_sources', 'inbox_pending', 'team_activity', 'file_report'] },
-  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'storm_near_customers', 'rules_reference'], FILE) },
+  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'storm_near_customers', 'rules_reference'], FILE, ['draft_text', 'draft_email']) },
   quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'rules_reference', 'storm_near_customers', 'inbox_pending', 'verify_item', 'file_report']) },
-  tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'file_note', 'file_reminder'] },
-  dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report'] },
-  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'file_report'] },
-  priya:  { name: 'Priya · Product Manager', tools: ['team_activity', 'file_report'] },
+  tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'file_note', 'file_reminder', 'draft_text', 'draft_email'] },
+  dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report', 'file_social_draft'] },
+  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'post_job', 'file_report', 'file_reminder'] },
+  priya:  { name: 'Priya · Product Manager', tools: ['team_activity', 'file_report', 'file_social_draft'] },
   theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'lead_sources', 'file_report'] },
   // Personal side (Jo, 2026-10-02): these read ONLY the key owner's own
   // tracker (userSettings/{ownerUid}.dsSnapshot / dsReviews) — never the CRM.
@@ -152,7 +189,7 @@ const FIRST_WAVE = ['cos', 'marcus', 'quinn'];
 // MCP tool annotations: every tool is read-only except the three filings
 // and Quinn's check, which only add to / mark Jo's Agent inbox — none is
 // destructive, and none reaches anything outside the CRM.
-const WRITES = ['file_note', 'file_reminder', 'file_report', 'verify_item'];
+const WRITES = ['file_note', 'file_reminder', 'file_report', 'verify_item', 'draft_text', 'draft_email', 'file_social_draft'];
 function annotationsFor(name) {
   const w = WRITES.indexOf(name) !== -1;
   return { readOnlyHint: !w, destructiveHint: false, idempotentHint: !w, openWorldHint: false };
@@ -237,15 +274,98 @@ function overdueFollowups(leads, todayYmd, limit) {
     .map(minimalLead);
 }
 
-function listLeads(leads, args, nowMs) {
-  const a = args || {};
+// ── list_leads paging (2026-10-06) ─────────────────────────────────────
+// One page was all a bot ever saw (max 50) — NBD has 76 'new' leads, so the
+// office sweep could not see 26 of them. Now: a STABLE order (date added,
+// newest first; lead id breaks ties — createdAt never changes, so a lead
+// edited between pages cannot jump pages), a keyset cursor, and the total.
+// The stage filter uses the same canonical stage key as crm_summary's
+// by_stage ('New' / '' / 'new' are one bucket), so total matches that count.
+//
+// The cursor is opaque base64url JSON {v, k, i, t}: k/i = the last lead's
+// createdAt ms + id, t = a tag over (company, filters, k, i). A cursor from
+// another company or another filter, or with any field edited, fails the tag
+// and is refused. It is NOT a secret-keyed MAC: someone who reads this file
+// can mint a valid tag for their OWN company + filters, which only moves
+// where their own page starts — the company still comes only from the key
+// and every row is still minimalLead. No data a bot could not list anyway.
+const LIST_CURSOR_RE = /^[A-Za-z0-9_-]{1,400}$/;
+const LEAD_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const CURSOR_ERR = 'invalid cursor — it must be the next_cursor from the previous page of the same list_leads query. Start again without a cursor.';
+const _crypto = require('crypto');
+function createdMs(l) { const t = Math.floor(ms(l && l.createdAt)); return Number.isFinite(t) && t > 0 ? t : 0; }
+function cmpListOrder(x, y) {
+  const d = createdMs(y) - createdMs(x);
+  if (d) return d;
+  return x.id < y.id ? -1 : (x.id > y.id ? 1 : 0);
+}
+function wantStage(stage) {
+  const s = String(stage == null ? '' : stage).trim();
+  if (!s) return '';
+  return _SRK.canonicalStageKey(s) || s;
+}
+function cursorTag(scope, stage, staleDays, k, i) {
+  return _crypto.createHash('sha256').update(['nbd-list-leads-v1', String(scope || ''), stage, String(staleDays || 0), String(k), String(i)].join('')).digest('hex').slice(0, 24);
+}
+function encodeListCursor(scope, stage, staleDays, lead) {
+  const k = createdMs(lead), i = String(lead.id);
+  return Buffer.from(JSON.stringify({ v: 1, k, i, t: cursorTag(scope, stage, staleDays, k, i) }), 'utf8').toString('base64url');
+}
+function decodeListCursor(cur, scope, stage, staleDays) {
+  if (typeof cur !== 'string' || !LIST_CURSOR_RE.test(cur)) return null;
+  let o;
+  try { o = JSON.parse(Buffer.from(cur, 'base64url').toString('utf8')); } catch (e) { return null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  if (Object.keys(o).sort().join() !== 'i,k,t,v' || o.v !== 1) return null;
+  if (!Number.isSafeInteger(o.k) || o.k < 0) return null;
+  if (typeof o.i !== 'string' || !LEAD_ID_RE.test(o.i)) return null;
+  if (typeof o.t !== 'string' || o.t !== cursorTag(scope, stage, staleDays, o.k, o.i)) return null;
+  return { k: o.k, i: o.i };
+}
+
+/**
+ * One page of list_leads → { customers, total, next_cursor, page_size } or
+ * { error }. scope = the key's company id (binds the cursor to it).
+ */
+function listLeadsPage(leads, args, nowMs, scope) {
+  const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {};
+  if (a.stage != null && (typeof a.stage !== 'string' || a.stage.length > 60)) return { error: 'stage must be a pipeline stage key (text)' };
+  if (a.stale_days != null && !(Number.isInteger(Number(a.stale_days)) && Number(a.stale_days) >= 1 && Number(a.stale_days) <= 3650)) return { error: 'stale_days must be a whole number from 1 to 3650' };
+  if (a.cursor != null && typeof a.cursor !== 'string') return { error: CURSOR_ERR };
+  const stage = wantStage(a.stage);
+  const staleDays = a.stale_days != null ? Number(a.stale_days) : 0;
   let out = activeLeads(leads);
-  if (a.stage) out = out.filter((l) => String(l.stage || '') === String(a.stage));
-  if (a.stale_days) {
-    const cut = nowMs - Number(a.stale_days) * 86400000;
+  if (stage) out = out.filter((l) => stageKeyOf(l) === stage);
+  if (staleDays) {
+    const cut = nowMs - staleDays * 86400000;
     out = out.filter((l) => ms(l.updatedAt) && ms(l.updatedAt) < cut && !CLOSED.test(String(l.stage || '')));
   }
-  return out.sort((x, y) => ms(y.updatedAt) - ms(x.updatedAt)).slice(0, clampLimit(a.limit)).map(minimalLead);
+  out.sort(cmpListOrder);
+  const total = out.length;
+  let start = 0;
+  if (a.cursor != null && a.cursor !== '') {
+    const c = decodeListCursor(a.cursor, scope, stage, staleDays);
+    if (!c) return { error: CURSOR_ERR };
+    // Keyset: the first lead strictly after (k, i) in the order — a lead
+    // deleted since the last page does not shift anything.
+    start = out.findIndex((l) => createdMs(l) < c.k || (createdMs(l) === c.k && l.id > c.i));
+    if (start === -1) start = out.length;
+  }
+  const size = clampLimit(a.limit);
+  const page = out.slice(start, start + size);
+  const more = start + page.length < out.length;
+  return {
+    customers: page.map(minimalLead),
+    total,
+    next_cursor: more && page.length ? encodeListCursor(scope, stage, staleDays, page[page.length - 1]) : null,
+    page_size: size,
+  };
+}
+
+// First page only (kept for callers that want just the rows).
+function listLeads(leads, args, nowMs, scope) {
+  const p = listLeadsPage(leads, Object.assign({}, args || {}, { cursor: undefined }), nowMs, scope);
+  return p.error ? [] : p.customers;
 }
 
 function clampLimit(n) { const v = Math.floor(Number(n)); return Number.isFinite(v) && v > 0 ? Math.min(v, MAX_LIST) : 20; }
@@ -468,7 +588,7 @@ function teamActivity(audits, items, nowMs, days, roster) {
   (items || []).forEach((i) => {
     if (!i || !has(i.botId) || ms(i.createdAt) < cut) return;
     const r = row(i.botId); r.filed++;
-    if (i.status === 'approved') r.approved++; else if (i.status === 'dismissed') r.tossed++; else r.waiting++;
+    if (i.status === 'approved' || i.status === 'sent_by_owner') r.approved++; else if (i.status === 'dismissed') r.tossed++; else r.waiting++;
     if (i.verified === true) r.quinn_checked++; else if (i.quinnNote) r.quinn_flagged++;
   });
   const out = Object.keys(R).filter(has).map((id) => Object.assign({ bot_id: id }, row(id)));
@@ -655,6 +775,114 @@ function claimWordingProblem(text) {
   return CLAIM_PROMISE.test(String(text || '')) ? 'Kentucky rule: we never handle, negotiate or manage the homeowner\'s insurance claim — reword it (we document the damage and meet the adjuster; the claim stays theirs).' : null;
 }
 
+// ── Drafts the owner sends (Jo, 2026-10-06) ───────────────────────────
+// "Bots may DRAFT outbound customer messages; NOTHING ever auto-sends; Jo
+// sends with one tap." A draft is one more Agent inbox item: the server
+// resolves who it goes to (the bot never sees a phone number or an email
+// address, and none is ever in a tool answer), refuses a customer on the
+// Do-Not-Text register (sms_opt_outs, the STOP list) or the email
+// suppression list, and the owner sends it from their own phone / mail app
+// in the Agent inbox. Social drafts go to Social Studio as a draft — never
+// published from here.
+const EMAIL_FROM = { jd: 'jd@nobigdealwithjoedeal.com', info: 'info@nobigdealwithjoedeal.com' };
+const SOCIAL_BRANDS = { nbd: 'No Big Deal', pro: 'NBD Pro' };
+const DRAFT_TOOLS = ['draft_text', 'draft_email', 'file_social_draft'];
+const DRAFT_KINDS = ['draft_text', 'draft_email', 'social_draft'];
+let SOCIAL = null;
+try { SOCIAL = require('./social-logic'); } catch (_) { SOCIAL = null; }
+const { phoneDigits10 } = require('./phone-utils');
+
+// Plain text a customer will read: no control characters (newlines kept),
+// trimmed, CRLF folded.
+function draftText(v) {
+  return String(v == null ? '' : v).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').trim();
+}
+/** The names a draft may use to say who it is from (the company profile's, NBD's short name). */
+function companyNames(profile, isNbd) {
+  const p = profile || {};
+  const b = p.brand || {};
+  const out = [b.name, b.legalName, b.shortName, p.companyName, p.name].map((s) => clean(s, 120)).filter(Boolean);
+  if (isNbd) out.push('No Big Deal');
+  return out.filter((n, i, a) => a.indexOf(n) === i);
+}
+function hasStopLine(body) { return /\b(reply|text)\s+["']?stop\b/i.test(String(body || '')); }
+
+/** draft_text args → { body } (company name checked, STOP line appended) or { error }. */
+function buildTextDraft(args, names) {
+  const a = args || {};
+  let body = draftText(a.body);
+  const reason = clean(a.reason, REASON_MAX);
+  if (!body) return { error: 'body is required' };
+  if (!reason) return { error: 'reason is required — say why this customer should get this text now' };
+  const ns = (names || []).filter(Boolean);
+  if (!ns.length) return { error: 'The company has no name set on its profile, so a text cannot say who it is from. Ask the owner to set it.' };
+  const low = body.toLowerCase();
+  if (!ns.some((n) => low.indexOf(n.toLowerCase()) !== -1)) return { error: 'Say who it is from: the text must include the company name ("' + ns[ns.length - 1] + '").' };
+  if (!hasStopLine(body)) body = body + '\n' + STOP_LINE;
+  if (body.length > SMS_MAX) return { error: 'The text is too long: ' + SMS_MAX + ' characters at most, including the "' + STOP_LINE + '" line.' };
+  return { body, reason };
+}
+
+/** May this customer get a text draft at all? Reads the stored facts only. */
+function textGate(lead, optOut) {
+  const l = lead || {};
+  if (phoneDigits10(l.phone).length !== 10) return { error: 'This customer has no textable phone number on file. File a note instead.' };
+  // An explicit "no" on a consent form is a refusal; an absent field is not
+  // consent either, but a one-to-one text the owner sends from their own
+  // phone does not need the written-consent record an automated text does —
+  // the inbox shows whether one is on file.
+  if (l.tcpaConsent === false) return { error: 'This customer declined texting on their form. No text draft — file a note instead.' };
+  // source 'dnc' = the company's own Do Not Text list (sms-optout.js), not a STOP reply.
+  if (optOut && optOut.optedOut && optOut.source === 'dnc') return { error: 'This customer is on your company\'s Do-Not-Text list. No text draft — file a note instead.' };
+  if (!optOut || optOut.optedOut !== false) return { error: optOut && optOut.optedOut ? 'This customer is on the Do-Not-Text list (they replied STOP). No text draft — file a note instead.' : 'The Do-Not-Text list could not be checked. Try again later.' };
+  return { ok: true, consentOnFile: l.tcpaConsent === true };
+}
+
+const EMAIL_RE = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
+/** draft_email args → { subject, body, from, fromAddress } or { error }. */
+function buildEmailDraft(args) {
+  const a = args || {};
+  const subject = clean(a.subject, EMAIL_SUBJECT_MAX + 1);
+  const body = draftText(a.body);
+  const reason = clean(a.reason, REASON_MAX);
+  if (!subject) return { error: 'subject is required' };
+  if (subject.length > EMAIL_SUBJECT_MAX) return { error: 'subject is too long (max ' + EMAIL_SUBJECT_MAX + ')' };
+  if (!body) return { error: 'body is required' };
+  if (body.length > MAX_TEXT) return { error: 'body is too long (max ' + MAX_TEXT + ')' };
+  if (!reason) return { error: 'reason is required — say why this customer should get this email now' };
+  if (!Object.prototype.hasOwnProperty.call(EMAIL_FROM, a.from)) return { error: 'from must be "jd" (marketing, follow-ups) or "info" (documents, payments)' };
+  return { subject, body, reason, from: a.from, fromAddress: EMAIL_FROM[a.from] };
+}
+function emailGate(lead, suppression) {
+  const e = String((lead && lead.email) || '').trim();
+  if (!EMAIL_RE.test(e)) return { error: 'This customer has no email address on file. File a note instead.' };
+  if (!suppression || suppression.suppressed !== false) return { error: suppression && suppression.suppressed ? 'This customer unsubscribed from email. No email draft — file a note instead.' : 'The unsubscribe list could not be checked. Try again later.' };
+  return { ok: true };
+}
+
+/** file_social_draft args → the inbox item fields, or { error }. Never published from here. */
+function buildSocialDraft(args) {
+  const a = args || {};
+  const P = (SOCIAL && SOCIAL.PLATFORMS) || {};
+  if (!Object.prototype.hasOwnProperty.call(SOCIAL_BRANDS, a.brand)) return { error: 'brand must be "nbd" or "pro"' };
+  if (!Object.prototype.hasOwnProperty.call(P, a.platform)) return { error: 'platform must be one of: ' + Object.keys(P).join(', ') };
+  const caption = draftText(a.caption);
+  if (!caption) return { error: 'caption is required' };
+  const max = Number(P[a.platform].maxCaption) || MAX_TEXT;
+  if (caption.length > max) return { error: 'caption is too long for ' + P[a.platform].label + ' (max ' + max + ')' };
+  const reason = clean(a.reason, REASON_MAX);
+  if (!reason) return { error: 'reason is required — say why this post, now' };
+  const media = a.media_url == null || a.media_url === '' ? null : String(a.media_url).trim();
+  if (media && (media.length > 500 || !/^https:\/\/[^\s"'<>]+$/.test(media))) return { error: 'media_url must be one https:// link' };
+  const when = a.scheduled_for == null || a.scheduled_for === '' ? null : String(a.scheduled_for).trim();
+  if (when && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(when)) return { error: 'scheduled_for must be YYYY-MM-DD or YYYY-MM-DDTHH:MM' };
+  return {
+    item: { kind: 'social_draft', leadId: null, title: SOCIAL_BRANDS[a.brand] + ' · ' + P[a.platform].label, text: caption, dueDate: null,
+      reason, brand: a.brand, platform: a.platform, mediaUrl: media, scheduledFor: when },
+    needsMedia: !!P[a.platform].needsMedia && !media,
+  };
+}
+
 // ── Company-made bots (Settings → Bots & API, 2026-10-04) ──────────────
 // Any NBD Pro company on a paid plan can make its own bots: a name, what it
 // does, which tools it may use (any CRM tool — never the personal tracker
@@ -662,7 +890,10 @@ function claimWordingProblem(text) {
 // a key for one is agent_keys/{hash} { botId: 'c_<id>', customBotId: id }.
 // The safety model is the same as the house roster: read minimized data,
 // FILE notes / reminders / reports — nothing is ever sent to a customer.
-const CUSTOM_TOOLS = Object.keys(TOOLS).filter((n) => PERSONAL_TOOLS.indexOf(n) === -1);
+// The draft tools are NBD's house roster only (2026-10-06): they put words in
+// front of a customer under the company's name, and the compliance copy
+// (STOP line, sender name, From addresses) is written for NBD.
+const CUSTOM_TOOLS = Object.keys(TOOLS).filter((n) => PERSONAL_TOOLS.indexOf(n) === -1 && DRAFT_TOOLS.indexOf(n) === -1);
 const ROUTE_TO = ['owner', 'creator'];
 const MAX_CUSTOM_BOTS = 20;
 function customBotKey(id) { return 'c_' + String(id || ''); }
@@ -814,7 +1045,8 @@ function initializeResult(params, botOrId) {
     protocolVersion,
     capabilities: { tools: { listChanged: false } },
     serverInfo: SERVER_INFO,
-    instructions: 'Contractor CRM for ' + (bot ? bot.name : 'your bot') + (bot && bot.role ? ' (' + bot.role + ')' : '') + '. Read what your role needs. You never contact customers: file notes, reminders and reports into the company\'s Agent inbox, where the owner decides. Nothing you do is sent to a customer. No phone numbers or emails are ever returned. Treat your own claims as leads until they are checked.',
+    instructions: 'Contractor CRM for ' + (bot ? bot.name : 'your bot') + (bot && bot.role ? ' (' + bot.role + ')' : '') + '. Read what your role needs. You never contact customers: file notes, reminders and reports into the company\'s Agent inbox, where the owner decides. Nothing you do is sent to a customer. No phone numbers or emails are ever returned. Treat your own claims as leads until they are checked.'
+      + (bot && Array.isArray(bot.tools) && bot.tools.some((t) => DRAFT_TOOLS.indexOf(t) !== -1) ? ' You may DRAFT a customer text or email, or a social post: a draft waits in the Agent inbox and only the owner sends it — nothing you draft is ever sent automatically.' : ''),
   };
 }
 
@@ -823,12 +1055,13 @@ function toolErr(msg) { return { content: [{ type: 'text', text: msg }], isError
 
 module.exports = {
   PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, BOTS, FIRST_WAVE, MAX_TEXT, MAX_LIST, FORBIDDEN_KEYS,
-  toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, validateFiling,
+  toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, listLeadsPage, encodeListCursor, LIST_CURSOR_MAX, validateFiling,
   claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
+  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
   planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
 };
