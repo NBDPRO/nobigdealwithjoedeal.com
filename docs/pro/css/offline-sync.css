@@ -1,0 +1,31 @@
+/* offline-sync.css — the "N changes waiting to sync" badge
+   (js/offline-sync-status.js). A small pill pinned under the status bar /
+   notch, centred, never wider than the phone minus its 16px gutters, so it
+   cannot push the page sideways at 360–412px. Above page chrome, below
+   modals and toasts. */
+.nbd-sync-badge {
+  position: fixed;
+  /* --nbd-sync-top: set by the script to sit under offline-banner.js's
+     full-width notice while that is showing. */
+  top: var(--nbd-sync-top, calc(env(safe-area-inset-top, 0px) + 6px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9950;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--s, #1a1d23);
+  color: var(--t, #e8eaf0);
+  border: 1px solid var(--orange, #e8720c);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.nbd-sync-badge[hidden] { display: none; }
+.nbd-sync-badge.is-offline { border-color: var(--gold, #c9a227); }

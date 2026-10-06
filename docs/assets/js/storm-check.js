@@ -222,9 +222,9 @@
     var strong = (hail.length || wind.length) && (oldRoof || hasSigns);
     var headline, detail;
     if (strong) {
-      headline = 'You likely have a claimable loss — worth a free inspection.';
+      headline = 'Storm activity near you is worth a free inspection.';
       detail = 'A documented storm in your area plus ' + (hasSigns ? 'the signs you described' : 'your roof’s age') +
-        ' is exactly what insurers look for. Joe documents the damage, writes the estimate, and meets your adjuster on the roof — the claim stays yours.';
+        ' is a good reason to get a trained eye on the roof — only an inspection can show whether there’s real damage. Joe documents anything he finds and writes the estimate; if you file, he meets your adjuster on the roof — the claim stays yours.';
     } else if (hail.length || wind.length || hasSigns) {
       headline = 'It’s worth a free inspection.';
       detail = 'There’s enough here to get a trained eye on it. Joe will get on the roof, document anything claimable, and tell you straight whether it’s worth filing — no pressure.';
