@@ -32,6 +32,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 // PLAN_LIMITS is the server source of truth for seat caps (billing.js).
 const { _test: { PLAN_LIMITS } } = require('./billing');
+const { revokeMemberAccessTokens } = require('./member-offboarding');
 
 const LAPSE_GRACE_DAYS = 14;
 
@@ -66,6 +67,14 @@ async function enforceLapseForCompany(db, subDoc) {
         deactivatedReason: 'lapse',
       }, { merge: true });
       paused++;
+      // R3-1 (2026-10-06): a paused seat's bot keys + calendar feed links go
+      // off too. Own catch, so a failure here never counts as a failed pause;
+      // crmMcp and getCalendarFeed also refuse a disabled person on every call.
+      try {
+        await revokeMemberAccessTokens(db, md.uid, 'lapse');
+      } catch (e) {
+        logger.warn('lapse.revoke_tokens_failed', { companyId, member: m.id, err: e.message });
+      }
     } catch (e) {
       // One bad member must not block the rest (or the whole scan).
       logger.warn('lapse.pause_member_failed', { companyId, member: m.id, err: e.message });
