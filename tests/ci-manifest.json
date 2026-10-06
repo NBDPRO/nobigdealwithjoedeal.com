@@ -292,6 +292,7 @@
     "portal-error-states.test.js",
     "portal-preview-telemetry.test.js",
     "portal-preview-framing.test.js",
+    "csp-hardening-2026-10-05.test.js",
     "portal-share-recording.test.js",
     "portal-estimate-scope-link.test.js",
     "portal-completion-truth.test.js",
