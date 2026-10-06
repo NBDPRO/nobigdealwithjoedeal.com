@@ -46,6 +46,7 @@ const { spineAfterRemoteSign } = require('./job-spine');
 const KyLaw = require('./ky-insurance-law');
 const CW = require('./cancel-window');
 const { uidInLeadTenant } = require('./lead-artifact-paths');
+const { awaitBriefly } = require('./await-briefly');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -545,19 +546,22 @@ exports.getSignDocument = onRequest(
     // they sign), not the day the rep generated the contract.
     try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
 
-    // Fire-and-forget viewed stamp (does not gate the response).
-    db.doc(`doc_sign_tokens/${token}`).update({
+    // Viewed stamp. R4-10 (2026-10-06): awaited briefly before the response
+    // (awaitBriefly) so Cloud Run's post-response CPU throttle can't drop it.
+    const pendingWrites = [];
+    pendingWrites.push(db.doc(`doc_sign_tokens/${token}`).update({
       viewedAt: FieldValue.serverTimestamp(),
-    }).catch(() => {});
+    }).catch(() => {}));
     // 2026-10-03: this open used to be silent. Stamp lead.lastViewedAt and
     // send Jo the ONE estimate_viewed alert (throttled per lead per 6h across
     // portal / review link / deal room / here). Fire-and-forget; never throws.
     if (tok.leadId) {
-      EVA.recordEstimateView(db, {
+      pendingWrites.push(EVA.recordEstimateView(db, {
         leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'remote_sign',
         customerName: tok.signerName || '', what: tok.docTypeName || 'the document',
-      }).catch(() => {});
+      }).catch(() => {}));
     }
+    await awaitBriefly(pendingWrites);
 
     // Only the minimum the sign page needs — no lead internals.
     res.status(200).json({
