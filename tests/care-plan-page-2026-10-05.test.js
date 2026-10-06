@@ -44,6 +44,15 @@ console.log('\n1. the page markup ships dark');
   const shown = (PAGE.match(/<span data-cp-terms-text>([\s\S]*?)<\/span>/) || [])[1] || '';
   ok('the default terms shown are the yearly disclosure, word for word', shown.replace(/&mdash;/g, '—') === YEARLY, shown);
   ok('the page still promises $199 a year or $19 a month, cancel anytime', /\$199 a year or \$19 a month/.test(PAGE) && /cancel anytime/.test(PAGE));
+  // Jo, 2026-10-05: no refund on cancel — the plan runs to the end of the paid period.
+  const NOREFUND = 'your plan stays active until the end of the period you have already paid for';
+  ok('no-refund rule shown next to the renewal terms', PAGE.includes('<p class="cp-refund" data-cp-refund><strong>No refund on cancel:</strong> ' + NOREFUND + '.</p>'));
+  const faqVisible = (PAGE.split('Do I have to sign a long-term contract?</div><div class="faq-a"><p>')[1] || '').split('</p>')[0];
+  const faqLd = ((PAGE.split('"name": "Do I have to sign a long-term contract?"')[1] || '').split('"text": "')[1] || '').split('"')[0];
+  ok('FAQ answer (visible) says no refund on cancel', faqVisible.includes('There is no refund when you cancel: ' + NOREFUND), faqVisible);
+  ok('FAQ JSON-LD answer matches the visible answer', !!faqLd && faqLd === faqVisible, faqLd);
+  const joined = (PAGE.split('data-cp-joined')[1] || '').split('data-cp-manage')[0];
+  ok('thank-you / manage screen says no refund on cancel', joined.includes('There is no refund when you cancel: ' + NOREFUND + '.'));
   ok('says payment is on Stripe\'s page, card never touches the site', /Stripe&rsquo;s secure checkout page; your card never touches this site/.test(PAGE));
 }
 

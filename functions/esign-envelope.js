@@ -1162,7 +1162,7 @@ exports.submitEsignEnvelope = onRequest(
         audit: FieldValue.arrayUnion({ event: 'signed', at: when, ip, ua, stored, signerId: (last && last.id) || signer.id }),
       }, { merge: true });
     } catch (e) { logger.error('[submitEsignEnvelope] envelope stamp failed', { err: e.message }); }
-    if (cancelBy) await CW.stampLeadCancelBy(db, env.leadId, cancelBy, logger);
+    if (cancelBy) await CW.stampLeadCancelBy(db, env.leadId, cancelBy, logger, { ownerUid: env.ownerUid, companyId: env.companyId });
 
     await IO.syncEstimate(db, tok.envelopeId, env, 'completed', {
       signerName: (signersAfter[0] && signersAfter[0].name) || null,
