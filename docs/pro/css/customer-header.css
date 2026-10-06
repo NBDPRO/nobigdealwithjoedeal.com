@@ -1,0 +1,102 @@
+/* customer-header.css — the customer page header on the A1 foundation
+   (A4, 2026-10-05; tokens in ui-primitives.css → FOUNDATION, rules in
+   DESIGN.md → "Foundation tokens" / "Never do").
+
+   Hierarchy, top to bottom: the customer's name (display step) → stage and
+   status chips → contact facts → the action bar. In the action bar:
+     - ONE solid primary: #stageProgressBtn ("Move to Next Stage") when the
+       lead can advance;
+     - two accent secondaries: Brief me and Copy Portal Link. They keep the
+       .btn-orange class on purpose — customer.html's phone grid spans every
+       .btn-orange full width and customer-quick-actions.js keeps them in the
+       always-visible set — but read as tinted, not filled;
+     - everything else steps down to quiet tinted tiles.
+   Colour only from theme tokens. Markup, ids and handlers unchanged. */
+.customer-header{
+  border-color:var(--ui-line-hair);
+  border-radius:var(--ui-radius-lg);
+  box-shadow:var(--ui-elev-1), var(--ui-edge-light);
+}
+.customer-header .customer-name{
+  font-family:var(--ui-font-display);
+  font-size:var(--ui-fs-display);
+  line-height:var(--ui-lh-display);
+  letter-spacing:var(--ui-ls-display);
+  font-weight:var(--ui-fw-heavy);
+  color:var(--t);
+  margin-bottom:var(--ui-space-3);
+}
+.customer-header .customer-meta{gap:var(--ui-space-2) var(--ui-space-4);margin-bottom:var(--ui-space-4);}
+.customer-header .meta-item{font-variant-numeric:tabular-nums;}
+
+/* The action bar: a hairline above instead of a full-bleed rule. */
+.customer-header .quick-actions{
+  gap:var(--ui-space-2);
+  margin-top:var(--ui-space-4);
+  padding-top:var(--ui-space-4);
+  border-bottom:0;
+  border-top:1px solid var(--ui-line-hair);
+  background:transparent;
+}
+/* Quiet tier: every action that isn't primary or accent. */
+.customer-header .quick-actions > .btn:not(.btn-orange){
+  background:color-mix(in srgb, var(--t) 6%, transparent);
+  border-color:transparent;
+  color:var(--t);
+  border-radius:var(--ui-radius-md);
+  transition:background-color var(--ui-dur-hover) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease);
+}
+.customer-header .quick-actions > .btn:not(.btn-orange):hover{
+  background:color-mix(in srgb, var(--t) 11%, transparent);
+  border-color:var(--ui-line-strong);
+}
+/* Accent secondaries: tinted, ink in --t (clears AA on every theme). */
+.customer-header .quick-actions > :is(#briefMeBtn, #quickCopyPortalBtn).btn-orange{
+  background:color-mix(in srgb, var(--orange) 18%, transparent);
+  border-color:color-mix(in srgb, var(--orange) 60%, transparent);
+  color:var(--t);
+  box-shadow:none;
+  border-radius:var(--ui-radius-md);
+}
+.customer-header .quick-actions > :is(#briefMeBtn, #quickCopyPortalBtn).btn-orange:hover{
+  background:color-mix(in srgb, var(--orange) 28%, transparent);
+  border-color:var(--orange);
+  color:var(--t);
+}
+/* The one primary keeps the solid accent and gets the raised step. */
+.customer-header .quick-actions > #stageProgressBtn.btn-orange{
+  border-radius:var(--ui-radius-md);
+  box-shadow:inset 0 0 0 1px var(--accent-ring), var(--ui-elev-2);
+}
+.customer-header .quick-actions > .btn:active{transform:scale(var(--ui-press-scale));}
+
+/* ── Smart follow-up suggestion (js/customer-smart-followup-panel.js) ──
+   Was ~20 inline styles with fixed pastel inks (#fca5a5 / #fcd34d /
+   #93c5fd) that went pale-on-white on light themes, and three loud channel
+   buttons (the primary one a SOLID gold/red/blue fill). Now: the priority
+   tone tints the card edge and the label; the suggested channel is the one
+   tinted primary; the other channels and Dismiss are quiet. Layout values
+   (padding, gaps, sizes) are the old inline ones. */
+.csf-card{--csf-tone:var(--gold);background:color-mix(in srgb, var(--csf-tone) 8%, transparent);border:1px solid color-mix(in srgb, var(--csf-tone) 45%, transparent);border-radius:var(--ui-radius-lg);padding:14px 16px;margin:12px 0;}
+.csf-card.csf-urgent{--csf-tone:var(--red);}
+.csf-card.csf-today{--csf-tone:var(--gold);}
+.csf-card.csf-week{--csf-tone:var(--blue);}
+.csf-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.csf-icon{font-size:18px;}
+.csf-label{font-size:var(--ui-fs-label);font-weight:var(--ui-fw-bold);text-transform:uppercase;letter-spacing:.06em;color:color-mix(in srgb, var(--csf-tone) 35%, var(--t));}
+.csf-conf{font-size:var(--ui-fs-label);color:var(--m);font-weight:var(--ui-fw-medium);font-variant-numeric:tabular-nums;}
+.csf-ai{font-size:10px;color:color-mix(in srgb, var(--purple) 35%, var(--t));font-weight:var(--ui-fw-semibold);padding:2px 7px;border-radius:var(--ui-radius-pill);background:color-mix(in srgb, var(--purple) 14%, transparent);border:1px solid color-mix(in srgb, var(--purple) 35%, transparent);margin-left:4px;}
+.csf-headline{font-size:var(--ui-fs-body);font-weight:var(--ui-fw-bold);color:var(--t);margin-bottom:4px;}
+.csf-why{font-size:var(--ui-fs-caption);color:var(--m);line-height:1.45;}
+.csf-draft{margin-top:12px;padding:11px 13px;background:color-mix(in srgb, var(--t) 3%, transparent);border:1px solid var(--ui-line-hair);border-radius:var(--ui-radius-md);}
+.csf-draft-label{font-size:10px;font-weight:var(--ui-fw-semibold);color:var(--m);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+.csf-draft-text{font-size:var(--ui-fs-body-sm);color:var(--t);line-height:1.5;white-space:pre-wrap;}
+.csf-acts{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.csf-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:var(--ui-radius-md);background:color-mix(in srgb, var(--t) 6%, transparent);color:var(--t);border:1px solid transparent;text-decoration:none;font:inherit;font-size:var(--ui-fs-caption);font-weight:var(--ui-fw-bold);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color var(--ui-dur-hover) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease);}
+.csf-btn:hover{background:color-mix(in srgb, var(--t) 11%, transparent);}
+.csf-btn:active{transform:scale(var(--ui-press-scale));}
+.csf-btn.is-primary{background:color-mix(in srgb, var(--csf-tone) 22%, transparent);border-color:color-mix(in srgb, var(--csf-tone) 70%, transparent);}
+.csf-btn.is-primary:hover{background:color-mix(in srgb, var(--csf-tone) 32%, transparent);}
+.csf-btn.is-off{opacity:.4;cursor:not-allowed;}
+.csf-btn.csf-dismiss{margin-left:auto;padding:9px 12px;background:transparent;color:var(--m);border-color:var(--ui-line-divider);font-weight:var(--ui-fw-semibold);}
+.csf-btn.csf-dismiss:hover{color:var(--t);border-color:var(--ui-line-strong);}
