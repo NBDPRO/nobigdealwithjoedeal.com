@@ -186,7 +186,7 @@ for (const s of [
   'Storm activity near you is worth a free inspection.',
   'Severe storm activity near you — worth a free inspection.',
   "It depends on your policy. If a covered peril like hail or wind caused the damage, many policies still pay on an older roof, but some pay older roofs on a depreciation schedule (actual cash value), so you get less.",
-  "Joe will get on the roof, document anything claimable, and tell you straight whether it's worth filing.",
+  'Joe will get on the roof and document what he finds so you can decide your next step.',
 ]) ok(checkSentence(s).length === 0, `claim-outcome rewording passes: "${s.slice(0, 70)}"${checkSentence(s).length ? ' — fired ' + checkSentence(s).join(',') : ''}`);
 for (const r of RULES) {
   const fx = BAD[r.id] || 'NO FIXTURE';

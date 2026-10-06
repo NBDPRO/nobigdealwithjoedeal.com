@@ -18,6 +18,8 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
+const { gustsForTopStormDays } = require('./integrations/asos-gust');
+const GUST = require('./asos-gust-logic');
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;     // storm history changes slowly
 const YEARS = 5;
@@ -42,6 +44,24 @@ function normType(t) {
   return null;
 }
 function iso(d) { return d.toISOString().slice(0, 16) + 'Z'; }
+
+// "Wind measured nearby" (2026-10-06): the nearest ASOS station's strongest
+// gust on each of the top storm days. Computed per request from its OWN
+// station+date cache (integrations/asos-gust.js), deliberately NOT stored in
+// the 24 h storm_* doc — so a non-final "today" reading never rides a 24 h
+// cache, and old storm_* docs need no shape bump. Only station + date go to
+// IEM. Any failure → [] (the page hides the block). Never throws.
+async function withWindGusts(report, lat, lon, db) {
+  let windGusts = [];
+  try {
+    windGusts = await gustsForTopStormDays(lat, lon, (report && report.events) || [], { db, logger });
+  } catch (e) { logger.warn('stormReport: wind gusts skipped', { err: e && e.message }); windGusts = []; }
+  return Object.assign({}, report, {
+    windGusts,
+    windGustSource: windGusts.length ? GUST.GUST_SOURCE_LINE : null,
+    windGustContext: windGusts.length ? GUST.GUST_CONTEXT_LINE : null,
+  });
+}
 
 async function fetchYear(startISO, endISO) {
   const url = 'https://mesonet.agron.iastate.edu/geojson/lsr.geojson?sts=' +
@@ -106,8 +126,9 @@ exports.stormReport = onRequest(
     if (!isFinite(lat) || !isFinite(lon) || lat < 24 || lat > 50 || lon < -130 || lon > -60) {
       return res.status(400).json({ error: 'Valid US lat/lon required' });
     }
-    const key = 'storm_' + lat.toFixed(2).replace(/[.-]/g, '_') + '__' + lon.toFixed(2).replace(/[.-]/g, '_');
-    const ref = getFirestore().doc('public_cache/' + key);
+    const key = GUST.stormReportCacheKey(lat, lon);
+    const db = getFirestore();
+    const ref = db.doc('public_cache/' + key);
     const now = Date.now();
 
     let cached = null;
@@ -116,17 +137,20 @@ exports.stormReport = onRequest(
 
     if (cached && cached.fetchedAt && now - cached.fetchedAt < CACHE_TTL_MS) {
       res.set('Cache-Control', 'public, max-age=3600');
-      return res.status(200).json({ ...cached.data, cached: true, stale: false, fetchedAt: cached.fetchedAt });
+      const out = await withWindGusts(cached.data, lat, lon, db);
+      return res.status(200).json({ ...out, cached: true, stale: false, fetchedAt: cached.fetchedAt });
     }
     try {
       const fresh = await buildReport(lat, lon);
       await ref.set({ data: fresh, fetchedAt: now }, { merge: true });
       res.set('Cache-Control', 'public, max-age=3600');
-      return res.status(200).json({ ...fresh, cached: false, stale: false, fetchedAt: now });
+      const out = await withWindGusts(fresh, lat, lon, db);
+      return res.status(200).json({ ...out, cached: false, stale: false, fetchedAt: now });
     } catch (err) {
       logger.error('stormReport: build failed', err);
       if (cached && cached.data) {
-        return res.status(200).json({ ...cached.data, cached: true, stale: true, fetchedAt: cached.fetchedAt || 0 });
+        const out = await withWindGusts(cached.data, lat, lon, db);
+        return res.status(200).json({ ...out, cached: true, stale: true, fetchedAt: cached.fetchedAt || 0 });
       }
       return res.status(200).json({
         lat, lon, radiusMi: RADIUS_MI, years: YEARS,

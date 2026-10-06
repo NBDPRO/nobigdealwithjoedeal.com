@@ -28,8 +28,10 @@ const { callableRateLimit, assertNotViewer } = require('../shared');
 const { CORS_ORIGINS } = require('./_shared');
 const { secretValue } = require('../integrations/_shared'); // the secret registry, not handlers/_shared
 const { lookupHail } = require('../integrations/hail');
-const { buildStormProof } = require('../storm-proof-logic');
+const { buildStormProof, strongestHit } = require('../storm-proof-logic');
 const { _googleForward } = require('./geocode');
+const { gustForAddressDay } = require('../integrations/asos-gust');
+const { localDate } = require('../asos-gust-logic');
 
 // Forward-geocode fallback secret (same one resolveAddress uses). Declared here
 // so a lead with an address but no lat/lng can still be verified.
@@ -100,6 +102,15 @@ exports.attachStormProof = onCall(
       throw new HttpsError('unavailable', 'Storm data lookup failed — try again shortly.');
     }
 
+    // Measured wind on the strongest hit's day (2026-10-06): nearest ASOS
+    // station only; only station + date go to IEM. Hidden (null) when there
+    // is no hit date, no nearby station, no reading, or any error.
+    const top = strongestHit(result.hits);
+    const windDay = top && top.at ? localDate(top.at) : '';
+    const wind = windDay
+      ? await gustForAddressDay(lat, lng, windDay, { db, logger, timeoutMs: 6000 })
+      : null;
+
     const proof = buildStormProof({
       leadId,
       userId: lead.userId || null,
@@ -109,6 +120,7 @@ exports.attachStormProof = onCall(
       lat, lng, radiusMi, daysBack,
       hits: result.hits,
       address: lead.address || null,
+      wind,
     });
 
     const proofRef = await leadRef.collection('storm_proofs').add(
@@ -128,6 +140,7 @@ exports.attachStormProof = onCall(
       maxSizeInches: proof.maxSizeInches,
       hitCount: proof.hitCount,
       provider: result.provider,
+      windLine: proof.wind ? proof.wind.line : null,
     };
   }
 );

@@ -45,7 +45,25 @@ function maxSize(hits) {
 // Carries userId + companyId so the frozen-subcollection read rule can gate it
 // (mirrors the recordings rule: owner OR same-company manager). Never throws;
 // degrades to verified:false with an empty strongestHit.
-function buildStormProof({ leadId, userId, companyId, verifiedBy, provider, lat, lng, radiusMi, daysBack, hits, address }) {
+// Optional measured wind (2026-10-06): the nearest ASOS station's strongest
+// gust on the strongest hit's local date (integrations/asos-gust.js). Context
+// only — it NEVER changes `verified`, which stays the hail rule above.
+function windBlock(wind) {
+  if (!wind || !wind.line) return null;
+  const mph = num(wind.gustMph);
+  if (mph === null || mph <= 0) return null;
+  return {
+    stationId: String(wind.stationId || '').slice(0, 8) || null,
+    stationName: String(wind.stationName || '').slice(0, 80) || null,
+    distanceMi: num(wind.distanceMi),
+    gustMph: mph,
+    date: String(wind.date || '').slice(0, 10) || null,
+    line: String(wind.line).slice(0, 300),
+    source: 'NOAA/NWS ASOS via IEM',
+  };
+}
+
+function buildStormProof({ leadId, userId, companyId, verifiedBy, provider, lat, lng, radiusMi, daysBack, hits, address, wind }) {
   const strongest = strongestHit(hits);
   const max = maxSize(hits);
   return {
@@ -69,7 +87,8 @@ function buildStormProof({ leadId, userId, companyId, verifiedBy, provider, lat,
       lng: num(strongest.lng),
       source: strongest.source || null,
     } : null,
+    wind: windBlock(wind),
   };
 }
 
-module.exports = { HAIL_VERIFY_THRESHOLD_INCHES, strongestHit, maxSize, buildStormProof };
+module.exports = { HAIL_VERIFY_THRESHOLD_INCHES, strongestHit, maxSize, buildStormProof, windBlock };
