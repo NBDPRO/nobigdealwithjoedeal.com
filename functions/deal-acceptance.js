@@ -43,6 +43,7 @@ const { fillLeadInstallDate } = require('./deal-install-date');
 const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
 const ESL = require('./estimate-send-logic');
+const ThursdayGate = require('./thursday-video-gate');
 const EVA = require('./estimate-view-alert');
 const DP = require('./deal-packet-logic');
 const { reencodePhoto } = require('./photo-reencode');
@@ -84,20 +85,34 @@ const DEAL_ROOM_SCRIPT_URLS = [
   'https://www.nobigdealwithjoedeal.com/pro/deal-room.js',
   'https://nobigdeal-pro.web.app/pro/deal-room.js',
 ].join(' ');
-const DEAL_ROOM_CSP = [
-  "default-src 'none'",
-  'script-src ' + DEAL_ROOM_SCRIPT_URLS,
-  'script-src-elem ' + DEAL_ROOM_SCRIPT_URLS,
-  "script-src-attr 'none'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' data: https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https:",
-  "connect-src 'self'",
-  "form-action 'none'",
-  "frame-ancestors 'none'",
-  "base-uri 'none'",
-  "object-src 'none'",
-].join('; ');
+// NBD deals only (2026-10-05): the "A video from Thursday" card script, by
+// the same exact-path rule, plus same-origin media for its video + WebVTT
+// captions. Every other tenant's deal room keeps the policy above unchanged,
+// so a tenant page cannot pull NBD's card in by itself.
+const THURSDAY_SCRIPT_URLS = [
+  'https://nobigdealwithjoedeal.com' + ThursdayGate.DEAL_ROOM_SCRIPT_PATH,
+  'https://www.nobigdealwithjoedeal.com' + ThursdayGate.DEAL_ROOM_SCRIPT_PATH,
+  'https://nobigdeal-pro.web.app' + ThursdayGate.DEAL_ROOM_SCRIPT_PATH,
+].join(' ');
+function dealRoomCsp(withThursday) {
+  const scripts = withThursday ? DEAL_ROOM_SCRIPT_URLS + ' ' + THURSDAY_SCRIPT_URLS : DEAL_ROOM_SCRIPT_URLS;
+  return [
+    "default-src 'none'",
+    'script-src ' + scripts,
+    'script-src-elem ' + scripts,
+    "script-src-attr 'none'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    ...(withThursday ? ["media-src 'self'"] : []),
+    "connect-src 'self'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+    "object-src 'none'",
+  ].join('; ');
+}
+const DEAL_ROOM_CSP = dealRoomCsp(false);
 // Shown on the deal page beside the signature (deal-room.js prints the same
 // words) and stored with the acceptance when the homeowner ticks it.
 const DEAL_CONSENT_TEXT = 'I agree to sign electronically. My electronic signature is the legal equivalent of my handwritten signature.';
@@ -331,17 +346,20 @@ exports.getDealRoom = onRequest(
     // strict CSP (it is simply ignored where the CSP applies). Tokens are
     // hex, but escape for the attribute anyway.
     const escAttr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const withThursday = ThursdayGate.isNbdTenant(tok.companyId || tok.ownerUid);
     const inject = `<meta name="nbd-deal-token" content="${escAttr(token)}">`
       + `<meta name="nbd-deal-submit" content="${escAttr(SUBMIT_PATH)}">`
       + `<meta name="nbd-deal-read" content="${escAttr(READ_PATH)}">`
-      + `<script>window.__NBD_DEAL_TOKEN=${JSON.stringify(token)};window.__NBD_DEAL_SUBMIT_URL=${JSON.stringify(SUBMIT_PATH)};</script>`;
+      + `<script>window.__NBD_DEAL_TOKEN=${JSON.stringify(token)};window.__NBD_DEAL_SUBMIT_URL=${JSON.stringify(SUBMIT_PATH)};</script>`
+      // NBD deals only: the Thursday card marker + script (empty otherwise).
+      + (withThursday ? ThursdayGate.DEAL_ROOM_INJECT : '');
     html = html.includes('</head>') ? html.replace('</head>', inject + '</head>') : inject + html;
 
     res.status(200)
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')
       .set('Cache-Control', 'no-store')
-      .set('Content-Security-Policy', DEAL_ROOM_CSP)
+      .set('Content-Security-Policy', withThursday ? dealRoomCsp(true) : DEAL_ROOM_CSP)
       .set('X-Content-Type-Options', 'nosniff')
       .set('Referrer-Policy', 'no-referrer')
       .send(html);
