@@ -702,8 +702,13 @@ section('backfill — dropped Cal.com bookings repair tool');
       /findExistingLead/.test(bf) && /linked to existing/.test(bf));
     assert('backfill omits credentials against the emulator (never presents real ADC)',
       /FIRESTORE_EMULATOR_HOST/.test(bf) && /credential:\s*null/.test(bf));
+    // Generic on purpose: the old pin spelled out the very customer's email,
+    // phone and street it guarded against, in a public repo. Any non-example
+    // email or any non-555 phone literal in the script now fails it.
+    const realPhones = (bf.match(/\+?1?[ (.-]*\d{3}[ ).-]*\d{3}[ .-]*\d{4}\b/g) || [])
+      .map((p) => p.replace(/\D/g, '').slice(-10)).filter((d) => d.length === 10 && d.slice(0, 3) !== '555' && d.slice(3, 6) !== '555');
     assert('backfill hardcodes no customer PII',
-      !/seiya256|8594663151|Moock/i.test(bf));
+      !/[A-Za-z0-9._%+-]+@(?!example\.)[A-Za-z0-9-]+\.(?:com|net|org|me)\b/i.test(bf) && realPhones.length === 0);
   }
 }
 
