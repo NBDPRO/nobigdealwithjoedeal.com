@@ -1641,15 +1641,17 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
   }
   {
     // d2d-tracker-core-2026b.js sendFollowUpSMS.
-    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate',
-      extractFunction(D2D_SRC, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
+    // (canTextKnock — the door-knock consent check, 2026-10-05 — is extracted
+    // with it; NO_CONSENT_MSG is a const beside it.)
+    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate', 'NO_CONSENT_MSG',
+      extractFunction(D2D_SRC, 'canTextKnock') + '\n' + extractFunction(D2D_SRC, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
     const opened = []; const toasts = []; let args = null;
     const win = {
       NBDComms: { sendSMS: async (...a) => { args = a; return QUEUED; } },
       open: (u) => opened.push(u), showToast: (m, t) => toasts.push(m), _user: { displayName: 'Joe' },
     };
-    factory(win, { currentRep: { name: 'Joe' } }, { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon')(
-      { id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up' }, 'follow_up');
+    factory(win, { currentRep: { name: 'Joe' } }, { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon', 'no consent')(
+      { id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up', smsConsent: true }, 'follow_up');
     await wait(5);
     ok('D2D: a queued follow-up shows no "Text sent" toast and opens nothing',
       !toasts.some((m) => /Text sent/.test(m)) && opened.length === 0, JSON.stringify(toasts));

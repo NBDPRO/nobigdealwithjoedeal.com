@@ -1688,8 +1688,8 @@ decisions.
 
 - **W141 — Address autofill USPS mailing format.** User-reported
   daily friction: address autocomplete returned
-  `1054, Klondyke Road, Goshen` instead of
-  `1054 Klondyke Rd, Goshen, OH 45122`. Wrong on every count:
+  `456, Example Road, Goshen` instead of
+  `456 Example Rd, Goshen, OH 45122`. Wrong on every count:
   comma after house number, full road name, missing ZIP, state
   spelled out, county included. Root cause: `selectAcItem` was
   splitting Nominatim's `display_name` on commas instead of
@@ -1884,8 +1884,8 @@ viewedAt path was missing.
 
 - **W141 — Address autofill USPS mailing format** (PR #264, shipped
   during the eleventh push but logically belongs here). User flagged
-  that addresses came back as "1054, Klondyke Road, Goshen" instead
-  of "1054 Klondyke Rd, Goshen, OH 45122". Root cause: selectAcItem
+  that addresses came back as "456, Example Road, Goshen" instead
+  of "456 Example Rd, Goshen, OH 45122". Root cause: selectAcItem
   was splitting Nominatim's display_name on commas instead of using
   the structured addressdetails response. Fix: formatMailingAddress()
   helper using house_number + suffix-abbreviated road + city +
@@ -2172,7 +2172,7 @@ became clear.
   D2D module's reverseGeocode + address-autocomplete through
   window.formatMailingAddress (W141) instead of inline assembly.
   Same fix as W141 but in d2d-tracker.js's own code path. Result:
-  a knock at "1054 Klondyke Rd" now matches the lead at the same
+  a knock at "456 Example Rd" now matches the lead at the same
   address byte-for-byte, so the existing per-address attempt
   counter (getAttemptCount) actually works across the knock-to-
   lead conversion. Defense-in-depth fallback to the old inline

@@ -151,24 +151,24 @@ function renderViaPreflight(method, preflightData) {
 }
 
 // ── invoice SERVICE LOCATIONS: a customer with more than one building (Anthony
-//    Scandariato, 1944 + 1942 Kentucky Ave) must see BOTH addresses on the
+//    Juniperly, 100 + 102 Kentucky Ave) must see BOTH addresses on the
 //    invoice. Before multi-address support the second building existed nowhere in
 //    the schema, so the invoice named only one of the two roofs it billed for. ──
 {
   const html = renderViaPreflight('renderInvoice', {
-    address: '1944 Kentucky Ave, Cincinnati, OH 45223',
-    serviceAddresses: ['1942 Kentucky Ave, Cincinnati, OH 45223'],
+    address: '100 Kentucky Ave, Cincinnati, OH 45223',
+    serviceAddresses: ['102 Kentucky Ave, Cincinnati, OH 45223'],
     lineItems: [{ description: 'EPDM restoration', qty: 1, unit: 'EA', rate: 100 }],
   });
   console.log('PREFLIGHT CONTRACT — invoice service locations');
   ok('svcaddr: renders (no error)', html.indexOf('RENDER_ERROR') !== 0);
   ok('svcaddr: SERVICE LOCATIONS block present when extra addresses exist', /Service Locations/i.test(html));
-  ok('svcaddr: primary address 1944 Kentucky Ave reaches doc', html.indexOf('1944 Kentucky Ave, Cincinnati, OH 45223') !== -1);
-  ok('svcaddr: second building 1942 Kentucky Ave reaches doc', html.indexOf('1942 Kentucky Ave, Cincinnati, OH 45223') !== -1);
+  ok('svcaddr: primary address 100 Kentucky Ave reaches doc', html.indexOf('100 Kentucky Ave, Cincinnati, OH 45223') !== -1);
+  ok('svcaddr: second building 102 Kentucky Ave reaches doc', html.indexOf('102 Kentucky Ave, Cincinnati, OH 45223') !== -1);
 }
 {
   const html = renderViaPreflight('renderInvoice', {
-    address: '1944 Kentucky Ave, Cincinnati, OH 45223',
+    address: '100 Kentucky Ave, Cincinnati, OH 45223',
     lineItems: [{ description: 'EPDM restoration', qty: 1, unit: 'EA', rate: 100 }],
   });
   ok('svcaddr: single-property invoice omits the block entirely', !/Service Locations/i.test(html));
@@ -176,7 +176,7 @@ function renderViaPreflight(method, preflightData) {
 }
 {
   const html = renderViaPreflight('renderInvoice', {
-    address: '1944 Kentucky Ave, Cincinnati, OH 45223',
+    address: '100 Kentucky Ave, Cincinnati, OH 45223',
     serviceAddresses: ['', '   ', null],
     lineItems: [{ description: 'EPDM restoration', qty: 1, unit: 'EA', rate: 100 }],
   });
@@ -184,7 +184,7 @@ function renderViaPreflight(method, preflightData) {
 }
 {
   const html = renderViaPreflight('renderInvoice', {
-    address: '1944 Kentucky Ave, Cincinnati, OH 45223',
+    address: '100 Kentucky Ave, Cincinnati, OH 45223',
     serviceAddresses: ['<script>alert(1)</script>'],
     lineItems: [{ description: 'EPDM restoration', qty: 1, unit: 'EA', rate: 100 }],
   });
@@ -194,7 +194,7 @@ function renderViaPreflight(method, preflightData) {
 // ── receipt: a job that is PAID needs a closing document that is not an
 //    invoice with the balance zeroed. `receipt` existed in _buildPremiumData
 //    and the server-render map but was never registered in DOCUMENT_TYPES, so
-//    paid-in-full jobs (Higgins, Philpot) had no closing document at all.
+//    paid-in-full jobs (Elmsworth, Larchmont) had no closing document at all.
 {
   const html = renderViaPreflight('renderReceipt', {
     receiptNumber: 'RCT-2026-0818-HIG', paymentDate: '2026-07-30',
