@@ -51,6 +51,7 @@
 'use strict';
 
 const { FLAT_USER_COLLECTIONS } = require('./integrations/user-owned');
+const { keyOf, ledgerEntry } = require('./member-storage-move');
 
 // Registry collections that are about the member, not company records, or
 // credentials revoked separately (calendar_feed_tokens).
@@ -73,10 +74,18 @@ const LEAD_SUBCOLLECTIONS = ['recordings', 'storm_proofs', 'jobs', 'tasks'];
 
 const BATCH_MAX = 400;
 
-async function commitUpdates(db, refs, patch) {
-  for (let i = 0; i < refs.length; i += BATCH_MAX) {
+// With a ledger (member-storage-move.js), each moved doc's path is recorded
+// in the SAME batch as its reassignment, so a crash can never leave a moved
+// record the storage move does not know about. Two writes per doc, so half
+// the chunk size.
+async function commitUpdates(db, refs, patch, ledger) {
+  const step = ledger ? BATCH_MAX / 2 : BATCH_MAX;
+  for (let i = 0; i < refs.length; i += step) {
     const b = db.batch();
-    refs.slice(i, i + BATCH_MAX).forEach((r) => b.update(r, patch));
+    refs.slice(i, i + step).forEach((r) => {
+      b.update(r, patch);
+      if (ledger) b.set(ledger.doc(keyOf(r.path)), ledgerEntry(r, 'record'));
+    });
     await b.commit();
   }
 }
@@ -86,8 +95,10 @@ async function commitUpdates(db, refs, patch) {
  * Idempotent: a retry finds only what is still owned by `fromUid`. Throws on
  * any read or write failure, so the caller can stop before stripping claims.
  * Returns { moved: {collection: n}, skipped, total }.
+ * `ledger` (optional): a collection ref that receives one row per moved doc
+ * (removeMember passes the storage move's ledger).
  */
-async function reassignMemberRecords(db, { fromUid, toUid, companyId } = {}) {
+async function reassignMemberRecords(db, { fromUid, toUid, companyId, ledger } = {}) {
   const ids = [fromUid, toUid, companyId];
   if (!ids.every((v) => typeof v === 'string' && v.length > 0) || fromUid === toUid) {
     throw new Error('reassignMemberRecords: fromUid, toUid and companyId are required, and fromUid must differ from toUid');
@@ -123,10 +134,10 @@ async function reassignMemberRecords(db, { fromUid, toUid, companyId } = {}) {
       const snap = await db.collection('leads/' + lr.id + '/' + sub).where('userId', '==', fromUid).get();
       snap.docs.forEach((d) => refs.push(d.ref));
     }
-    await commitUpdates(db, refs, { userId: toUid });
+    await commitUpdates(db, refs, { userId: toUid }, ledger);
     if (refs.length) moved['leads/*/' + sub] = refs.length;
   }
-  await commitUpdates(db, leadRefs, { userId: toUid });
+  await commitUpdates(db, leadRefs, { userId: toUid }, ledger);
   if (leadRefs.length) moved.leads = leadRefs.length;
 
   for (const { name, ownerField } of REASSIGN_TARGETS) {
@@ -136,7 +147,7 @@ async function reassignMemberRecords(db, { fromUid, toUid, companyId } = {}) {
     for (const d of snap.docs) {
       if (await inCompany(d.data() || {})) refs.push(d.ref); else skipped++;
     }
-    await commitUpdates(db, refs, { [ownerField]: toUid });
+    await commitUpdates(db, refs, { [ownerField]: toUid }, ledger);
     if (refs.length) moved[name] = refs.length;
   }
 

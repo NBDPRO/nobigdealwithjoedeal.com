@@ -749,6 +749,13 @@ const lapseEnforcement = require('./lapse-enforcement');
 exports.enforceLapsedSeats = lapseEnforcement.enforceLapsedSeats;
 
 // ═══════════════════════════════════════════════════════════════
+// MEMBER FILE MOVE — a removed member's stored files go to the owner
+// ═══════════════════════════════════════════════════════════════
+// 2026-10-06 (Jo): removeMember starts the move (member-storage-move.js);
+// this cron finishes any move its inline slice did not, every 5 minutes.
+exports.resumeMemberStorageMoves = require('./member-storage-move-cron').resumeMemberStorageMoves;
+
+// ═══════════════════════════════════════════════════════════════
 // REVIEW REQUEST NUDGE — daily post-win review-ask sweep
 // ═══════════════════════════════════════════════════════════════
 //
