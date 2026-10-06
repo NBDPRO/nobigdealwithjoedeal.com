@@ -39,10 +39,9 @@
     "job-spine-2026-10-03.test.js",
     "paid-in-full-not-on-deposit-2026-10-05.test.js",
     "numbers-you-can-trust-2026-10-04.test.js",
-    "catchup-2026-10-04.test.js",
     "deposit-draft-2026-10-03.test.js",
     "money-getting-paid-2026-10-03.test.js",
-    "receipts-zelle-ach-2026-10-04.test.js",
+    "invoice-rounding-minjob-line-2026-10-05.test.js",
     "bulk-carrier-field-2026-09-28.test.js",
     "bulk-move-honest-count-2026-09-28.test.js",
     "settings-deep-link-tab-2026-09-28.test.js",
@@ -172,6 +171,7 @@
     "markpaid-concurrent-payments-2026-10-05.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",
+    "care-plan-2026-10-05.test.js",
     "home-attention-yard-chip-2026-09-29.test.js",
     "tracker-weight-history-2026-09-29.test.js",
     "tracker-sunday-review-2026-10-02.test.js",
@@ -395,7 +395,9 @@
     "today-home-visual-2026-10-05.test.js",
     "pipeline-cards-visual-2026-10-05.test.js",
     "customer-header-visual-2026-10-05.test.js",
-    "close-board-visual-2026-10-05.test.js"
+    "close-board-visual-2026-10-05.test.js",
+    "catchup-2026-10-04.test.js",
+    "receipts-zelle-ach-2026-10-04.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
