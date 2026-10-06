@@ -236,3 +236,39 @@ nav#mainNav {
     animation: none !important;
   }
 }
+
+/* ── Homeowner chrome on phones + footer legibility (2026-10-05) ────────────
+   Owner-approved homeowner revamp, shared-chrome slice. Lives here because
+   this is the one stylesheet every page carrying a nav partial links in
+   <head> (nav-contract pins that), so no page misses it.
+
+   1. Phones (<=768px, the sticky-bar breakpoint) drop the rotating orange announcement strip: it cost
+      ~40px of a ~180px header stack before any content. Desktop keeps it.
+   2. Site footers (the partial <footer> with no class, a direct child of
+      body) get a 75%-white floor for muted text on navy. Two sheets already
+      fight over these colours at equal specificity with !important, and
+      source order differs page to page (see nbd-footer-contrast.css), so
+      these selectors outrank both instead of joining the race.
+      .footer-desc is excluded: it already renders at 82%.
+   3. Footer text links are >=44px tap targets on phones. Direct children of
+      p/li only, so the cert-badge cards (already ~56px, display:flex) and
+      the social circles keep their own layout; the circles grow to 44px. */
+@media (max-width: 768px) {
+  html body .ann-bar { display: none !important; }
+}
+html body > footer:not([class]) p:not(.footer-desc) { color: rgba(255, 255, 255, 0.78) !important; }
+html body > footer:not([class]) .footer-bottom a,
+html body > footer:not([class]) .pro-door { color: rgba(255, 255, 255, 0.8) !important; }
+html body > footer:not([class]) .label { color: rgba(255, 255, 255, 0.85) !important; }
+@media (max-width: 768px) {
+  html body > footer:not([class]) p > a,
+  html body > footer:not([class]) li > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  html body > footer:not([class]) .nbd-social a {
+    width: 44px;
+    height: 44px;
+  }
+}
