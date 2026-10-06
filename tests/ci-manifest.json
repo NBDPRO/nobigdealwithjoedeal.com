@@ -41,6 +41,7 @@
     "numbers-you-can-trust-2026-10-04.test.js",
     "deposit-draft-2026-10-03.test.js",
     "money-getting-paid-2026-10-03.test.js",
+    "invoice-rounding-minjob-line-2026-10-05.test.js",
     "bulk-carrier-field-2026-09-28.test.js",
     "bulk-move-honest-count-2026-09-28.test.js",
     "settings-deep-link-tab-2026-09-28.test.js",
