@@ -156,11 +156,23 @@
   // A saved sentence that is just NBD's own built-in one (NBD pressed Save
   // without changing it) is NOT an override — so NBD's short card blurbs
   // keep coming from estimate-config, unchanged.
+  // NBD's built-in sentences BEFORE GAF System Plus joined Standard/Preferred/
+  // Elite (2026-10-05). NBD saving one of these meant "keep the built-in", so
+  // it must follow the built-in forward — not freeze the old wording (without
+  // System Plus) as if it were a company-written override.
+  var LEGACY_BUILTIN_WARRANTY = {
+    good: 'Lifetime workmanship warranty; does not transfer on sale of property.',
+    better: 'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
+    best: 'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.'
+  };
+  var LEGACY_BUILTIN_BLURB = {
+    good: 'Non-transferable', better: 'Transferable to 1 subsequent owner', best: 'Fully transferable + annual inspection'
+  };
   function _ownWarranty(tier) {
     var raw = (_rawRules().tiers || {}).warranty || {};
     var v = _str(raw[tier], 400);
     if (!v) return '';
-    if (isPlatformTenant() && v === _builtin('tierWarrantyText', tier)) return '';
+    if (isPlatformTenant() && (v === _builtin('tierWarrantyText', tier) || v === LEGACY_BUILTIN_WARRANTY[tier])) return '';
     return v;
   }
   function warrantyTextOverride(tier) {
@@ -174,6 +186,9 @@
     // A company that adopted NBD's own sentence for this tier gets NBD's
     // short blurb with it, not a truncation.
     if (v && v === _builtin('tierWarrantyText', tier)) return _builtin('tierWarrantyBlurb', tier);
+    // …and one that adopted NBD's pre-System-Plus sentence keeps that
+    // sentence's own short blurb (it says nothing about System Plus).
+    if (v && v === LEGACY_BUILTIN_WARRANTY[tier]) return LEGACY_BUILTIN_BLURB[tier];
     // A company-written sentence is its own blurb (cards print it short).
     if (v) return v.length > 90 ? v.slice(0, 87).replace(/\s+\S*$/, '') + '…' : v;
     if (isPlatformTenant()) return null;

@@ -3967,15 +3967,22 @@
       // economy-grade architectural (never 3-tab) with a 1-YEAR labor
       // warranty + the manufacturer's limited warranty, NO system warranty.
       // Beyond is TAMKO HailGuard only — the one shingle with a hail warranty.
+      // GAF System Plus (Jo, 2026-10-05: "System Plus is Standard and up"):
+      // included in Standard/Preferred/Elite, never a separate line. A GAF
+      // certification is NBD's, so the bullet prints for the platform tenant
+      // only — another company's quote never claims it.
+      const _trSp = window.NBDTenantRules;
+      const _sp = (!_trSp || typeof _trSp.isPlatformTenant !== 'function' || _trSp.isPlatformTenant())
+        ? ['GAF System Plus warranty included (GAF shingles + qualifying GAF accessories)'] : [];
       tierList = [
         buildTier('economy', _v2TierLabel('economy'), 'Economy-grade architectural shingle · standard install',
           ['Economy-grade architectural shingle (never a 3-tab)', 'Standard ridge vent + flashing', 'Labor warranty: 1 year', "Shingle manufacturer's standard limited warranty — no system warranty", 'Full tear-off included']),
         buildTier('good',   _v2TierLabel('good'),   '25-yr architectural shingle · standard install',
-          ['Owens Corning Oakridge or equivalent', 'Standard ridge vent + flashing', 'Labor warranty: Lifetime (non-transferable)', 'Full tear-off included']),
+          ['GAF Timberline HD', 'Standard ridge vent + flashing', 'Labor warranty: Lifetime (non-transferable)'].concat(_sp, ['Full tear-off included'])),
         buildTier('better', _v2TierLabel('better'), '30-yr architectural · upgraded underlayment',
-          ['GAF Timberline HDZ or equivalent', 'Synthetic underlayment upgrade', 'Ice & water shield on eaves + valleys', 'Labor warranty: Lifetime (transferable to 1 subsequent owner)', 'Full tear-off included']),
-        buildTier('best',   _v2TierLabel('best'),   'Lifetime designer · full system warranty',
-          ['GAF Timberline ULTRA HDZ Lifetime', 'Synthetic underlayment + ice & water full perimeter', 'Premium ridge vent', 'Labor warranty: Lifetime (fully transferable)', 'Full system warranty by GAF', 'Annual courtesy inspection']),
+          ['GAF Timberline HDZ', 'Synthetic underlayment upgrade', 'Ice & water shield on eaves + valleys', 'Labor warranty: Lifetime (transferable to 1 subsequent owner)'].concat(_sp, ['Full tear-off included'])),
+        buildTier('best',   _v2TierLabel('best'),   'Lifetime designer · premium system',
+          ['GAF Timberline ULTRA HDZ Lifetime', 'Synthetic underlayment + ice & water full perimeter', 'Premium ridge vent', 'Labor warranty: Lifetime (fully transferable)'].concat(_sp, ['Annual courtesy inspection'])),
         buildTier('beyond', _v2TierLabel('beyond'), 'TAMKO HailGuard Class 4 · hail warranty',
           ['TAMKO HailGuard — the only shingle with a manufacturer hail warranty', 'TAMKO Synthetic Guard + Moisture Guard (required for the hail warranty)', 'TAMKO starter + hip & ridge', 'Labor warranty: Lifetime (fully transferable)', 'Annual courtesy inspection']),
       ].filter(Boolean);

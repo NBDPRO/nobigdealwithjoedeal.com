@@ -396,9 +396,9 @@
   // keeps the same copy for pages that do not load the config).
   var TIER_FALLBACK_WARRANTY = {
     economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
-    good:    'Lifetime workmanship warranty; does not transfer on sale of property.',
-    better:  'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
-    best:    'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.',
+    good:    'Lifetime workmanship warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+    better:  'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+    best:    'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
     beyond:  'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
   };
   var TIER_SHINGLE = {
