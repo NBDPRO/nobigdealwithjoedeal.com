@@ -2705,64 +2705,80 @@ async function run() {
   await assertFails(deleteDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
   console.log('  55: sms_dnc client read / create / update / delete all denied');
 
-  // ─── 56. invoices.leadId + referrals stay inside the writer's company (2026-10-06, R3-5/R3-6) ───
+  // 56. sms_settings — the per-company texting master switch (2026-10-05).
+  //     Server only. A client CREATE (registered: true on a company that has
+  //     no registration) or UPDATE (switch it back on) must both fail, even
+  //     for the company's own admin.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'sms_settings/co-a'), { enabled: false });
+  });
+  await assertFails(getDoc(doc(coAdmin, 'sms_settings/co-a')));
+  await assertFails(setDoc(doc(coAdmin, 'sms_settings/co-b'), { registered: true, enabled: true }));
+  await assertFails(setDoc(doc(solo,    'sms_settings/solo1'), { registered: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { enabled: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { registered: true }));
+  await assertFails(deleteDoc(doc(coAdmin, 'sms_settings/co-a')));
+  console.log('  56: sms_settings client read / create / update / delete all denied');
+  }
+
+  // ─── 57. invoices.leadId + referrals stay inside the writer's company (2026-10-06, R3-5/R3-6) ───
   // payment-timeline.js writes a "Payment received" note onto an invoice's
   // lead, and onReferralLeadWrite trusts a referral doc's companyId / code /
   // referrerLeadId. So an invoice may only name a lead of the writer's own
   // company, and a referral doc is pinned to the writer's company and lead.
   // CREATE and UPDATE both checked.
-  const s56Fail = []; let s56Pass = 0;
-  async function x56(label, want, promise) {
+  const s57Fail = []; let s57Pass = 0;
+  async function x57(label, want, promise) {
     try {
       if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
-      s56Pass++;
-    } catch (e) { s56Fail.push(label + ' (wanted ' + want + ')'); }
+      s57Pass++;
+    } catch (e) { s57Fail.push(label + ' (wanted ' + want + ')'); }
   }
-  const a56 = env.authenticatedContext('a56', { role: 'sales_rep', companyId: 'co-a56' }).firestore();
-  const t56 = env.authenticatedContext('t56', { role: 'sales_rep', companyId: 'co-a56' }).firestore();
-  const b56 = env.authenticatedContext('b56', { role: 'sales_rep', companyId: 'co-b56' }).firestore();
-  const s56 = env.authenticatedContext('s56', {}).firestore();
+  const a57 = env.authenticatedContext('a57', { role: 'sales_rep', companyId: 'co-a57' }).firestore();
+  const t57 = env.authenticatedContext('t57', { role: 'sales_rep', companyId: 'co-a57' }).firestore();
+  const b57 = env.authenticatedContext('b57', { role: 'sales_rep', companyId: 'co-b57' }).firestore();
+  const s57 = env.authenticatedContext('s57', {}).firestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
-    await setDoc(doc(d, 'leads/lead56-own'), { userId: 'a56', companyId: 'co-a56', name: 'own' });
-    await setDoc(doc(d, 'leads/lead56-mate'), { userId: 't56', companyId: 'co-a56', name: 'teammate' });
-    await setDoc(doc(d, 'leads/lead56-victim'), { userId: 'b56', companyId: 'co-b56', name: 'victim' });
-    await setDoc(doc(d, 'leads/lead56-solo'), { userId: 's56', name: 'solo legacy' });
-    await setDoc(doc(d, 'invoices/inv56'), { createdBy: 'a56', companyId: 'co-a56', leadId: 'lead56-own', jobId: 'job1', createdAt: 1, total: 100, status: 'sent' });
-    await setDoc(doc(d, 'referrals/ref56'), { userId: 'a56', companyId: 'co-a56', code: 'OWNN-1111', referrerLeadId: 'lead56-own', status: 'active', rewardsPaid: 0 });
+    await setDoc(doc(d, 'leads/lead57-own'), { userId: 'a57', companyId: 'co-a57', name: 'own' });
+    await setDoc(doc(d, 'leads/lead57-mate'), { userId: 't57', companyId: 'co-a57', name: 'teammate' });
+    await setDoc(doc(d, 'leads/lead57-victim'), { userId: 'b57', companyId: 'co-b57', name: 'victim' });
+    await setDoc(doc(d, 'leads/lead57-solo'), { userId: 's57', name: 'solo legacy' });
+    await setDoc(doc(d, 'invoices/inv57'), { createdBy: 'a57', companyId: 'co-a57', leadId: 'lead57-own', jobId: 'job1', createdAt: 1, total: 100, status: 'sent' });
+    await setDoc(doc(d, 'referrals/ref57'), { userId: 'a57', companyId: 'co-a57', code: 'OWNN-1111', referrerLeadId: 'lead57-own', status: 'active', rewardsPaid: 0 });
   });
-  const inv56 = (lead) => ({ createdBy: 'a56', companyId: 'co-a56', leadId: lead, createdAt: 2, total: 100, status: 'sent' });
+  const inv57 = (lead) => ({ createdBy: 'a57', companyId: 'co-a57', leadId: lead, createdAt: 2, total: 100, status: 'sent' });
   // invoices — CREATE
-  await x56('invoice create: own lead', 'allow', setDoc(doc(a56, 'invoices/i56-1'), inv56('lead56-own')));
-  await x56('invoice create: a teammate\'s lead', 'allow', setDoc(doc(a56, 'invoices/i56-2'), inv56('lead56-mate')));
-  await x56('invoice create: no lead', 'allow', setDoc(doc(a56, 'invoices/i56-3'), { createdBy: 'a56', companyId: 'co-a56', createdAt: 2, total: 1 }));
-  await x56('invoice create: another company\'s lead', 'deny', setDoc(doc(a56, 'invoices/i56-4'), inv56('lead56-victim')));
-  await x56('invoice create: a leadId with a slash', 'deny', setDoc(doc(a56, 'invoices/i56-5'), inv56('a/b')));
-  await x56('invoice create: solo owner on own legacy lead', 'allow', setDoc(doc(s56, 'invoices/i56-6'), { createdBy: 's56', companyId: 's56', leadId: 'lead56-solo', createdAt: 2, total: 1 }));
+  await x57('invoice create: own lead', 'allow', setDoc(doc(a57, 'invoices/i57-1'), inv57('lead57-own')));
+  await x57('invoice create: a teammate\'s lead', 'allow', setDoc(doc(a57, 'invoices/i57-2'), inv57('lead57-mate')));
+  await x57('invoice create: no lead', 'allow', setDoc(doc(a57, 'invoices/i57-3'), { createdBy: 'a57', companyId: 'co-a57', createdAt: 2, total: 1 }));
+  await x57('invoice create: another company\'s lead', 'deny', setDoc(doc(a57, 'invoices/i57-4'), inv57('lead57-victim')));
+  await x57('invoice create: a leadId with a slash', 'deny', setDoc(doc(a57, 'invoices/i57-5'), inv57('a/b')));
+  await x57('invoice create: solo owner on own legacy lead', 'allow', setDoc(doc(s57, 'invoices/i57-6'), { createdBy: 's57', companyId: 's57', leadId: 'lead57-solo', createdAt: 2, total: 1 }));
   // invoices — UPDATE
-  await x56('invoice update: money fields, lead unchanged', 'allow', updateDoc(doc(a56, 'invoices/inv56'), { status: 'paid', balanceDue: 0 }));
-  await x56('invoice update: re-point leadId at another company\'s lead', 'deny', updateDoc(doc(a56, 'invoices/inv56'), { leadId: 'lead56-victim' }));
-  await x56('invoice update: re-point leadId at a teammate\'s lead (frozen)', 'deny', updateDoc(doc(a56, 'invoices/inv56'), { leadId: 'lead56-mate' }));
-  await x56('invoice update: change jobId (frozen)', 'deny', updateDoc(doc(a56, 'invoices/inv56'), { jobId: 'job2' }));
+  await x57('invoice update: money fields, lead unchanged', 'allow', updateDoc(doc(a57, 'invoices/inv57'), { status: 'paid', balanceDue: 0 }));
+  await x57('invoice update: re-point leadId at another company\'s lead', 'deny', updateDoc(doc(a57, 'invoices/inv57'), { leadId: 'lead57-victim' }));
+  await x57('invoice update: re-point leadId at a teammate\'s lead (frozen)', 'deny', updateDoc(doc(a57, 'invoices/inv57'), { leadId: 'lead57-mate' }));
+  await x57('invoice update: change jobId (frozen)', 'deny', updateDoc(doc(a57, 'invoices/inv57'), { jobId: 'job2' }));
   // referrals — CREATE
-  const ref56 = (o) => Object.assign({ userId: 'a56', companyId: 'co-a56', code: 'OWNN-2222', referrerLeadId: 'lead56-own', status: 'active', referredLeads: [], rewardsPaid: 0 }, o || {});
-  await x56('referral create: own company, own lead', 'allow', setDoc(doc(a56, 'referrals/r56-1'), ref56()));
-  await x56('referral create: a teammate\'s lead', 'allow', setDoc(doc(a56, 'referrals/r56-2'), ref56({ referrerLeadId: 'lead56-mate' })));
-  await x56('referral create: stamped with another company\'s companyId', 'deny', setDoc(doc(b56, 'referrals/000r56forged'), ref56({ userId: 'b56', companyId: 'co-a56', referrerLeadId: 'lead56-victim' })));
-  await x56('referral create: own companyId, another company\'s lead', 'deny', setDoc(doc(a56, 'referrals/r56-3'), ref56({ referrerLeadId: 'lead56-victim' })));
-  await x56('referral create: a lead that does not exist', 'deny', setDoc(doc(a56, 'referrals/r56-4'), ref56({ referrerLeadId: 'lead56-nope' })));
-  await x56('referral create: no companyId', 'deny', setDoc(doc(a56, 'referrals/r56-5'), ref56({ companyId: null })));
-  await x56('referral create: for someone else', 'deny', setDoc(doc(a56, 'referrals/r56-6'), ref56({ userId: 't56' })));
-  await x56('referral create: a solo owner keyed on their uid', 'allow', setDoc(doc(s56, 'referrals/r56-7'), ref56({ userId: 's56', companyId: 's56', referrerLeadId: 'lead56-solo' })));
+  const ref57 = (o) => Object.assign({ userId: 'a57', companyId: 'co-a57', code: 'OWNN-2222', referrerLeadId: 'lead57-own', status: 'active', referredLeads: [], rewardsPaid: 0 }, o || {});
+  await x57('referral create: own company, own lead', 'allow', setDoc(doc(a57, 'referrals/r57-1'), ref57()));
+  await x57('referral create: a teammate\'s lead', 'allow', setDoc(doc(a57, 'referrals/r57-2'), ref57({ referrerLeadId: 'lead57-mate' })));
+  await x57('referral create: stamped with another company\'s companyId', 'deny', setDoc(doc(b57, 'referrals/000r57forged'), ref57({ userId: 'b57', companyId: 'co-a57', referrerLeadId: 'lead57-victim' })));
+  await x57('referral create: own companyId, another company\'s lead', 'deny', setDoc(doc(a57, 'referrals/r57-3'), ref57({ referrerLeadId: 'lead57-victim' })));
+  await x57('referral create: a lead that does not exist', 'deny', setDoc(doc(a57, 'referrals/r57-4'), ref57({ referrerLeadId: 'lead57-nope' })));
+  await x57('referral create: no companyId', 'deny', setDoc(doc(a57, 'referrals/r57-5'), ref57({ companyId: null })));
+  await x57('referral create: for someone else', 'deny', setDoc(doc(a57, 'referrals/r57-6'), ref57({ userId: 't57' })));
+  await x57('referral create: a solo owner keyed on their uid', 'allow', setDoc(doc(s57, 'referrals/r57-7'), ref57({ userId: 's57', companyId: 's57', referrerLeadId: 'lead57-solo' })));
   // referrals — UPDATE
-  await x56('referral update: ledger fields', 'allow', updateDoc(doc(a56, 'referrals/ref56'), { rewardsPaid: 100, rewardsOwedTotal: 0 }));
-  await x56('referral update: change companyId', 'deny', updateDoc(doc(a56, 'referrals/ref56'), { companyId: 'co-b56' }));
-  await x56('referral update: change code', 'deny', updateDoc(doc(a56, 'referrals/ref56'), { code: 'ALIC-7K2Q' }));
-  await x56('referral update: change referrerLeadId', 'deny', updateDoc(doc(a56, 'referrals/ref56'), { referrerLeadId: 'lead56-mate' }));
-  await x56('referral update: hand to another user', 'deny', updateDoc(doc(a56, 'referrals/ref56'), { userId: 't56' }));
-  console.log('  56: ' + s56Pass + ' invoice/referral tenant checks passed, ' + s56Fail.length + ' failed');
-  if (s56Fail.length) {
-    throw new Error('56 invoice/referral tenant: ' + s56Fail.length + ' check(s) went the wrong way:\n    ' + s56Fail.join('\n    '));
+  await x57('referral update: ledger fields', 'allow', updateDoc(doc(a57, 'referrals/ref57'), { rewardsPaid: 100, rewardsOwedTotal: 0 }));
+  await x57('referral update: change companyId', 'deny', updateDoc(doc(a57, 'referrals/ref57'), { companyId: 'co-b57' }));
+  await x57('referral update: change code', 'deny', updateDoc(doc(a57, 'referrals/ref57'), { code: 'ALIC-7K2Q' }));
+  await x57('referral update: change referrerLeadId', 'deny', updateDoc(doc(a57, 'referrals/ref57'), { referrerLeadId: 'lead57-mate' }));
+  await x57('referral update: hand to another user', 'deny', updateDoc(doc(a57, 'referrals/ref57'), { userId: 't57' }));
+  console.log('  57: ' + s57Pass + ' invoice/referral tenant checks passed, ' + s57Fail.length + ' failed');
+  if (s57Fail.length) {
+    throw new Error('57 invoice/referral tenant: ' + s57Fail.length + ' check(s) went the wrong way:\n    ' + s57Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

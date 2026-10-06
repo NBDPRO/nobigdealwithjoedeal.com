@@ -2634,6 +2634,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── SMS TEXTING MASTER SWITCH (admin-SDK only, 2026-10-05) ──
+    // sms_settings/{companyId}: { enabled, registered }. Read and written only
+    // through functions (manageSmsCompliance getSettings / setEnabled; every
+    // send path reads it, sms-texting-gate.js). A client write could set
+    // registered: true and text another business's customers under NBD's
+    // registered brand, or switch a company's texting back on.
+    match /sms_settings/{id} {
+      allow read, write: if false;
+    }
+
     // ── EMAIL UNSUBSCRIBE REGISTER (2026-09-22, CAN-SPAM) ──
     // email_suppressions/{companyId}__{sha256(email)} — per TENANT. Written
     // ONLY by the admin SDK (functions/email-unsubscribe.js: the public

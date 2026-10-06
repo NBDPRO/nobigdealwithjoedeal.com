@@ -14,6 +14,13 @@
  *         entry never comes off this way: it is the homeowner's own STOP, and
  *         only their START reply lifts it.
  *
+ *     getSettings             → { allowed, reason, registered, enabled, needsRegistration }
+ *         Any member. The company's texting master switch.
+ *     setEnabled { enabled }  → { ok, allowed, ... }
+ *         Owner or company_admin. OFF is always allowed; ON only once the
+ *         company is registered (NBD is; `registered` is admin-SDK only and
+ *         this callable never writes it).
+ *
  * The list itself is sms_dnc/{companyId}__{key} (functions/sms-optout.js),
  * admin-SDK only — no client reads or writes it directly (firestore.rules).
  * It is ENFORCED in sms-optout.js isOptedOut, which every send path calls.
@@ -88,6 +95,36 @@ async function handleManageSmsCompliance(request) {
     const result = await OptOut.removeDnc(db, caller.companyId, phone);
     logger.info('sms_dnc_remove', { companyId: caller.companyId, result });
     return { ok: result !== 'stop_reply', result };
+  }
+
+  // ── The master switch (sms-texting-gate.js) ──
+  if (action === 'getSettings') {
+    const s = await TextingGate.textingStatus(db, caller.companyId);
+    return {
+      allowed: s.allowed, reason: s.reason, registered: s.registered, enabled: s.enabled,
+      // The CRM shows "needs registration — coming soon" from this.
+      needsRegistration: !s.registered,
+    };
+  }
+
+  if (action === 'setEnabled') {
+    // Owner or company_admin of the caller's own company.
+    await requireTeamAdmin(request);
+    if (typeof data.enabled !== 'boolean') throw new HttpsError('invalid-argument', 'enabled must be true or false');
+    const s = await TextingGate.textingStatus(db, caller.companyId);
+    // Turning OFF is always allowed. Turning ON cannot get past registration:
+    // `registered` is admin-SDK only and this callable never writes it.
+    if (data.enabled && !s.registered) {
+      throw new HttpsError('failed-precondition', 'Texting needs registration for your company — coming soon.');
+    }
+    await db.doc(TextingGate.SETTINGS_COLLECTION + '/' + caller.companyId).set({
+      enabled: data.enabled,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: caller.uid,
+    }, { merge: true });
+    logger.info('sms_texting_switch', { companyId: caller.companyId, enabled: data.enabled });
+    const after = await TextingGate.textingStatus(db, caller.companyId);
+    return { ok: true, allowed: after.allowed, reason: after.reason, registered: after.registered, enabled: after.enabled };
   }
 
   throw new HttpsError('invalid-argument', 'Unknown action');
