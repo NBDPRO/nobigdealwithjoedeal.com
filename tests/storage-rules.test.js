@@ -518,6 +518,26 @@ async function run() {
   await assertSucceeds(uploadBytes(ref(soloTok, 'reel-uploads/solo2/solo2/m12'), buf(4096), { contentType: 'video/mp4' }));  // solo owner, companyId claim == uid
   console.log('  reel studio: 17 storage checks passed');
 
+  // KNOWN BUG R3-4 (phased review round 3, 2026-10-06; report
+  // nbd-content/review-r3-2026-10-06.md). money-paper files invoice/receipt
+  // PDFs at documents/{ownerUid}/{leadId}/{id}.pdf with NO signed tag, and
+  // createEstimateReviewLink checks "is a PDF" only at mint. The owner can
+  // then overwrite that object with text/html, and getSharedReport serves
+  // the object's CURRENT Content-Type from a Cloud Function response that
+  // carries no CSP (live /report/* responses have none) — stored HTML on
+  // nobigdealwithjoedeal.com. This pins today's behaviour: the overwrite is
+  // ALLOWED. When the fix lands (freeze filed PDFs), flip assertSucceeds to
+  // assertFails in that PR, with Jo's OK.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await uploadBytes(ref(ctx.storage(), 'documents/alice/r3lead/inv-r3.pdf'), buf(2048), { contentType: 'application/pdf' });
+  });
+  await assertSucceeds(uploadBytes(
+    ref(alice, 'documents/alice/r3lead/inv-r3.pdf'),
+    Buffer.from('<html><body>not a pdf</body></html>'),
+    { contentType: 'text/html' }
+  ));
+  console.log('  KNOWN BUG R3-4: owner can overwrite a filed PDF with text/html (pinned)');
+
   console.log('✓ All storage rules tests passed');
   await env.cleanup();
 }

@@ -609,6 +609,94 @@ async function run() {
       getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // R3. KNOWN BUG pins — phased review round 3 (tenant isolation + auth),
+  //     2026-10-06. Report: nbd-content/review-r3-2026-10-06.md.
+  //
+  //     These pin TODAY'S behaviour on purpose: each 'allow' below is a hole.
+  //     The suite stays green while the bug exists; the day a rules change
+  //     closes one, its check FAILS here — flip that one line to 'deny' in the
+  //     PR that fixes it (with Jo's OK), and keep the label. Each case writes
+  //     its own document, so one hole can never mask another's control (the
+  //     2026-08-02 test-ordering lesson).
+  // ═══════════════════════════════════════════════════════════
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'leads/r3Leaver'),     { userId: 'r3rep', companyId: 'co-a', name: 'Leaver Customer', phone: '+15555550199' });
+      await setDoc(doc(db, 'estimates/r3LeaverEst'), { userId: 'r3rep', companyId: 'co-a', leadId: 'r3Leaver', total: 18000 });
+    });
+    // A rep after removeMember: same uid, companyId + role claims stripped.
+    const r3Removed = env.authenticatedContext('r3rep', {}).firestore();
+    // An Anonymous-provider account. Anonymous sign-in is ENABLED in prod
+    // (Identity Toolkit config read 2026-10-06) and no app page uses it.
+    const r3Anon = env.authenticatedContext('r3anon', { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+
+    // R3-1 — a removed member keeps every record they own. Rules authorize by
+    // isOwner(userId) with no tenant check, removeMember reassigns nothing,
+    // and userId is frozen so the company cannot take the lead back.
+    await check('KNOWN BUG R3-1: removed rep still READS former-tenant lead', 'allow',
+      getDoc(doc(r3Removed, 'leads/r3Leaver')));
+    await check('KNOWN BUG R3-1: removed rep still UPDATES former-tenant lead', 'allow',
+      updateDoc(doc(r3Removed, 'leads/r3Leaver'), { notes: 'exported before I left' }));
+    await check('KNOWN BUG R3-1: removed rep still READS former-tenant estimate', 'allow',
+      getDoc(doc(r3Removed, 'estimates/r3LeaverEst')));
+    await check('R3-1 control: company_admin cannot reassign the lead (userId frozen)', 'deny',
+      updateDoc(doc(aliceCA, 'leads/r3Leaver'), { userId: 'aliceca' }));
+
+    // R3-2 — users/{uid}.e2eTestAccount is client-settable; it is the ONLY
+    // gate on cleanupE2ETestData, which deletes photos.storagePath with the
+    // admin SDK — and the photo rule never checks storagePath.
+    await check('KNOWN BUG R3-2: user can CREATE own users doc with e2eTestAccount:true', 'allow',
+      setDoc(doc(bob, 'users/bob'), { firstName: 'Bob', e2eTestAccount: true }));
+    await check('KNOWN BUG R3-2: user can UPDATE own users doc to e2eTestAccount:true', 'allow',
+      updateDoc(doc(alice, 'users/alice'), { e2eTestAccount: true }));
+    await check("KNOWN BUG R3-2: photo create accepts another uid's storagePath", 'allow',
+      setDoc(doc(bob, 'photos/r3Wipe'), { userId: 'bob', companyId: 'co-b', e2eTestData: true,
+        storagePath: 'photos/alice/leadA/roof.jpg', thumbStoragePath: 'documents/alice/leadA/contract.html' }));
+
+    // R3-3 — a client photo can claim source:'homeowner' with any path; the
+    // portal (getHomeownerPortalView) signs that path for 7 days and writes
+    // the URL back onto the attacker's own photo doc.
+    await check("KNOWN BUG R3-3: photo create accepts source:'homeowner' + foreign path", 'allow',
+      setDoc(doc(bob, 'photos/r3Sign'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB-own',
+        source: 'homeowner', sharedWithHomeowner: true, path: 'pdf-renders/alice/1700000000000-contract.pdf' }));
+    await setDoc(doc(bob, 'photos/r3Sign2'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB-own', path: 'photos/bob/x.jpg' }).catch(() => {});
+    await check("KNOWN BUG R3-3: photo UPDATE can re-point path at another tenant's object", 'allow',
+      updateDoc(doc(bob, 'photos/r3Sign2'), { source: 'homeowner', sharedWithHomeowner: true, path: 'documents/alice/leadA/contract.html' }));
+
+    // R3-5 — referrals: companyId and referrerLeadId are client-forgeable,
+    // and onReferralLeadWrite trusts the doc's own companyId for its
+    // same-tenant guard (referral-rewards.js sameTenantDoc).
+    await check("KNOWN BUG R3-5: tenant B creates a referral stamped with tenant A's companyId", 'allow',
+      setDoc(doc(bob, 'referrals/000r3forged'), { userId: 'bob', companyId: 'co-a', code: 'ALIC-7K2Q', referrerLeadId: 'leadA', status: 'active' }));
+    await setDoc(doc(bob, 'referrals/r3own'), { userId: 'bob', companyId: 'co-b', code: 'BOBB-1111', status: 'active' }).catch(() => {});
+    await check('KNOWN BUG R3-5: referral UPDATE can change companyId / code / referrerLeadId', 'allow',
+      updateDoc(doc(bob, 'referrals/r3own'), { companyId: 'co-a', code: 'ALIC-7K2Q', referrerLeadId: 'leadA' }));
+
+    // R3-6 — invoices.leadId is never checked against the caller's tenant;
+    // payment-timeline.js then writes a "Payment received" note on that lead.
+    await check("KNOWN BUG R3-6: tenant B invoice may name tenant A's lead", 'allow',
+      setDoc(doc(bob, 'invoices/r3inv'), { createdBy: 'bob', companyId: 'co-b', leadId: 'leadA', total: 100, status: 'sent' }));
+
+    // R3-7 — an Anonymous-provider account is a full "authed user": it can
+    // enumerate every tenant's owner uid and squat a companies doc without
+    // the createCompany callable (no App Check, no rate limit).
+    await check('KNOWN BUG R3-7: anonymous account reads docPrefixes (tenant owner uid)', 'allow',
+      getDoc(doc(r3Anon, 'docPrefixes/ACO')));
+    await check('KNOWN BUG R3-7: anonymous account creates companies/{own uid}', 'allow',
+      setDoc(doc(r3Anon, 'companies/r3anon'), { ownerId: 'r3anon', name: 'Anon Roofing' }));
+
+    // R3-12 — flat owner-keyed collections: userId is not frozen on update,
+    // so an owner can hand a doc to any uid (it then appears in that user's
+    // UI). Sibling of the known flat /notes update hole; one doc each.
+    for (const coll of ['tasks', 'drawings', 'communications', 'lead_documents', 'review_requests', 'drip_queue', 'deal_rooms']) {
+      await setDoc(doc(bob, `${coll}/r3gift`), { userId: 'bob', companyId: 'co-b', title: 'call 1-800-SCAM' }).catch(() => {});
+      await check(`KNOWN BUG R3-12: ${coll} owner can re-gift userId to another tenant's user`, 'allow',
+        updateDoc(doc(bob, `${coll}/r3gift`), { userId: 'alice' }));
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────
   const pass = results.filter(r => r.outcome === 'PASS').length;
   const fail = results.filter(r => r.outcome === 'FAIL').length;
