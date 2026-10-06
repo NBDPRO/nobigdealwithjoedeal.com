@@ -21,6 +21,7 @@
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
     "intake-forms-2026-09-30.test.js",
+    "care-plan-page-2026-10-05.test.js",
     "oaks-own-intake-2026-10-04.test.js",
     "estimate-funnel-unblock-2026-10-03.test.js",
     "estimate-funnel-lost-lead-banner-2026-10-05.test.js",
@@ -390,7 +391,11 @@
     "field-photos-client-2026-10-04.test.js",
     "field-photos-server-2026-10-04.test.js",
     "estimate-pricing-paths-2026-10-05.test.js",
-    "review-paid-in-full-2026-10-03.test.js"
+    "review-paid-in-full-2026-10-03.test.js",
+    "today-home-visual-2026-10-05.test.js",
+    "pipeline-cards-visual-2026-10-05.test.js",
+    "customer-header-visual-2026-10-05.test.js",
+    "close-board-visual-2026-10-05.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

@@ -1550,6 +1550,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 </style>
 <link rel="stylesheet" href="css/ui-primitives.css?v=12">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
+<link rel="stylesheet" href="css/customer-header.css?v=1">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/customer-bootstrap.css?v=1">
 <link rel="stylesheet" href="css/customer-tasks.css?v=2">
@@ -1726,7 +1728,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
       <button class="btn" data-action="exportCustomerPDF" title="Export branded customer report as PDF">
         📄 Customer Report
       </button>
-      <button class="btn" data-action="openEditCustomerModal" title="Edit customer information" style="border-color:var(--orange);color:var(--orange);">
+      <button class="btn" data-action="openEditCustomerModal" title="Edit customer information">
         ✏️ Edit Info
       </button>
       <button class="btn btn-orange" id="stageProgressBtn" style="display:none;" data-action="progressStage">
@@ -2888,7 +2890,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/lead-score.js?v=2"></script>
 <!-- W137: Customer-page score chip + breakdown panel -->
 <script defer src="js/lead-score-panel.js?v=2"></script>
-<script defer src="js/customer-smart-followup-panel.js?v=2"></script>
+<script defer src="js/customer-smart-followup-panel.js?v=3"></script>
 <!-- T-2: AI texting rep UI — surfaces pending /leads/{id}/ai_drafts -->
 <script defer src="js/customer-ai-drafts-panel.js?v=2"></script>
 <!-- share-gallery.js is NOT loaded here anymore. Its only caller on this
