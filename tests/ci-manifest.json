@@ -389,6 +389,7 @@
     "check-js-syntax.test.js",
     "bounded-live-listeners-2026-10-03.test.js",
     "faq-schema-sync-2026-10-03.test.js",
+    "pro-landing-budget-2026-10-04.test.js",
     "site-round2-2026-10-03.test.js",
     "security-batch-2026-10-03.test.js",
     "stage-actor-no-next-step-2026-10-03.test.js",
