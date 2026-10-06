@@ -413,3 +413,42 @@
   .ui-enter, .ui-stagger > * { animation: none; }
 }
 :root[data-motion="reduce"] :is(.ui-enter, .ui-stagger > *) { animation: none; }
+
+/* ── Money face (2026-10-05, Jo's pick from the money-numerals proof) ──────
+   Barlow Semi Condensed carries CRM money figures: the same Barlow family,
+   wider counters than Barlow Condensed, so a $ figure reads at arm's length.
+   Self-hosted (the CSP blocks font CDNs), latin subset only (money is digits,
+   $ , . and a few letters), 700 + 800. SIL Open Font License 1.1, the same
+   licence as the Barlow files beside it (Barlow by Jeremy Tribby).
+   Customer-facing documents and PDFs keep the NBD Document Standard faces;
+   this sheet is only loaded by dashboard.html and customer.html. */
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/assets/fonts/barlow-semi-condensed-700-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(/assets/fonts/barlow-semi-condensed-800-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+:root {
+  --font-money: 'Barlow Semi Condensed', 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+}
+/* Every CRM money figure: Today amounts (.ui-money), pipeline card values,
+   the customer's job value, estimate and invoice totals, Close Board deal
+   values and Closed Value. Size, weight and colour stay with each element;
+   only the face and tabular figures are set here. (0,2,0) via :root so it
+   beats the single-class rules that named Barlow Condensed. */
+:root :is(.ui-money, .kc-val-badge, .cl-card-val, .est-card-total, .est-total-val, .ceh-card-amt, .ipx-total-row > span:last-child, .cbr-pill-t),
+:root #infoJobValue,
+:root #view-closeboard .cb-stats-row > .ui-stat:last-child .cbr-v22-green {
+  font-family: var(--font-money);
+  font-variant-numeric: tabular-nums;
+}
