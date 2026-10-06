@@ -2362,27 +2362,16 @@ window.NBDDocGen = {
       ? ((cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY.economy && cfg.TIER_DISPLAY.economy.warranty.workmanshipYears) || 1)
       : 0;
     const work = yrs ? (yrs + '-Year Workmanship') : (tenant ? 'Workmanship' : 'Lifetime Workmanship');
-    if (tenant) {
-      // A company's own words: escaped (NBD's built-in strings stay byte-identical below).
-      const e = (s) => this._escHtml(s);
-      return `
+    // A company's own words are escaped; NBD's built-in strings print as before (byte-identical).
+    const e = tenant ? ((x) => this._escHtml(x)) : ((x) => x);
+
+    return `
       <div class="warranty-badge">
         ${e(label)}: ${work} + ${mfg.level} Manufacturer
       </div>
       <div class="warranty-details">
         <div><strong>${work} Warranty + ${mfg.level} Manufacturer Warranty</strong></div>
         <div style="margin-top: 0.08in;">${e(warrantyText)} ${e(mfg.note)}</div>
-      </div>
-    `;
-    }
-
-    return `
-      <div class="warranty-badge">
-        ${label}: ${work} + ${mfg.level} Manufacturer
-      </div>
-      <div class="warranty-details">
-        <div><strong>${work} Warranty + ${mfg.level} Manufacturer Warranty</strong></div>
-        <div style="margin-top: 0.08in;">${warrantyText} ${mfg.note}</div>
       </div>
     `;
   },
