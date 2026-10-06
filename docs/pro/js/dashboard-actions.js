@@ -357,6 +357,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     // Catch up my numbers is owner-only: before sign-in it can't tell.
     const cu = document.getElementById('view-catchup');
     if (cu && cu.classList.contains('active') && window.NBDCatchUp) { try { window.NBDCatchUp.ensure(); } catch (_) {} }
+    const cpv = document.getElementById('view-careplan');
+    if (cpv && cpv.classList.contains('active') && window.NBDCarePlanMembers) { try { window.NBDCarePlanMembers.init(); } catch (_) {} }
   });
 }
 
@@ -584,6 +586,7 @@ function goTo(name, params = {}) {
   if(name==='money')      { _lazyPreload.then(() => { if (window.MoneyDashboard) window.MoneyDashboard.init(); }); }
   if(name==='signs')      { _lazyPreload.then(() => { if (window.YardSigns)   window.YardSigns.init();   }); }
   if(name==='winback')    { _lazyPreload.then(() => { if (window.NBDWinback)  window.NBDWinback.init();  }); }
+  if(name==='careplan')   { _lazyPreload.then(() => { if (window.NBDCarePlanMembers) window.NBDCarePlanMembers.init(); }); }
   if(name==='weekreview') { _lazyPreload.then(() => { if (window.NBDWeekReview) window.NBDWeekReview.init(); }); }
   if(name==='catchup')    { _lazyPreload.then(() => { if (window.NBDCatchUp) window.NBDCatchUp.init(); }); }
   if(name==='refrewards') { if (window.ReferralRewards) window.ReferralRewards.render(); }

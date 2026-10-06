@@ -402,7 +402,8 @@
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
     "catchup-2026-10-04.test.js",
-    "receipts-zelle-ach-2026-10-04.test.js"
+    "receipts-zelle-ach-2026-10-04.test.js",
+    "care-plan-crm-2026-10-05.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

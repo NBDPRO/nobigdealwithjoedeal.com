@@ -266,7 +266,10 @@ CU = req('docs/pro/js/catchup.js');
     try { await CU.paidInFull('L2', { method: 'zelle', payer: 'homeowner', ymd: '2026-09-20', expectCents: 950000 }); } catch (x) { threw = x.message; }
     ok('a stale total (the sheet showed $9,500, the invoice says $9,000) is refused, nothing written',
       /changed/.test(threw) && B.store.get('invoices/inv1').amountPaid === 0 && B.writes.length === 0, threw);
-    try { await CU.paidInFull('L2', { method: 'zelle', ymd: CL.ymdOf(NOW + 2 * DAY) }); threw = ''; } catch (x) { threw = x.message; }
+    // paidInFull judges "future" against the real clock (Date.now()), so the
+    // future date is built from it too — NOW is pinned to 2026-10-04 and
+    // NOW + 2 days stopped being the future on 2026-10-06.
+    try { await CU.paidInFull('L2', { method: 'zelle', ymd: CL.ymdOf(Date.now() + 2 * DAY) }); threw = ''; } catch (x) { threw = x.message; }
     ok('a future date is refused before any read or write', /date/i.test(threw) && B.writes.length === 0);
     await CU.paidInFull('L2', { method: 'zelle', payer: 'insurance', ymd: '2026-09-20', expectCents: 900000 });
     const inv = B.store.get('invoices/inv1');
