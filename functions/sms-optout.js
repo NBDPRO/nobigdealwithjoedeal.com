@@ -41,8 +41,55 @@
 'use strict';
 
 const { phoneDigits10 } = require('./phone-utils');
+const TextingGate = require('./sms-texting-gate');
 
 const COLLECTION = 'sms_opt_outs';
+
+/**
+ * The INTERNAL per-company Do Not Text list (Jo, 2026-10-05). No paid DNC
+ * registry service: a company's own list of numbers it must not text.
+ *
+ *   sms_dnc/{companyId}__{optOutKey}
+ *     { companyId, key, phone, source: 'manual' | 'stop_reply', addedAt,
+ *       addedBy, note? }
+ *
+ * Two ways in: a rep adds a number from the CRM (manageSmsDnc, source
+ * 'manual'), and a homeowner's STOP reply is copied onto the list of every
+ * company holding that number (incomingSMS, source 'stop_reply') so each
+ * company can SEE who stopped it. The global register above stays the
+ * enforcement for a STOP: one Twilio number serves every tenant, so a STOP
+ * there means stop for everyone.
+ *
+ * Enforced HERE, inside isOptedOut, so no send path can skip it: every
+ * sender already calls isOptedOut, and isOptedOut now refuses to answer
+ * (throws, which every caller treats as "do not send") unless it is told
+ * whose list to check. Admin-SDK only (firestore.rules: no client access).
+ */
+const DNC_COLLECTION = 'sms_dnc';
+
+function cleanTenant(c) {
+  const v = typeof c === 'string' ? c.trim() : '';
+  return (!v || v.indexOf('/') !== -1 || v.length > 128) ? '' : v;
+}
+
+/** The DNC doc id for a company + any phone format. '' when either is unusable. */
+function dncDocId(companyId, phone) {
+  const key = optOutKey(phone);
+  const co = cleanTenant(companyId);
+  return key && co ? co + '__' + key : '';
+}
+
+/** opts.companyId → a clean, de-duplicated list, or null when it is unusable. */
+function tenantList(companyId) {
+  const raw = Array.isArray(companyId) ? companyId : [companyId];
+  const out = [];
+  for (const c of raw) {
+    const v = cleanTenant(c);
+    if (!v) return null;
+    if (out.indexOf(v) === -1) out.push(v);
+  }
+  return out.length ? out : null;
+}
 
 /**
  * The canonical document id: last-10 US digits, country code dropped.
@@ -84,7 +131,8 @@ function legacyOptOutKey(phone) {
 const READ_TIMEOUT_MS = 10000;
 
 /**
- * Has this number opted out?
+ * Has this number opted out — of everything (the STOP register), or of this
+ * company (its Do Not Text list)?
  *
  * THROWS on a Firestore error rather than returning false. Every caller treats
  * a throw as "do not send" — sendSMS and sendD2DSMS answer 503 {code:
@@ -93,19 +141,30 @@ const READ_TIMEOUT_MS = 10000;
  * check_error'). Returning false on error would turn a transient blip into a
  * message to someone who said STOP.
  *
- * With an options object the whole lookup (every read, not each one) is
- * bounded, and it REJECTS with code 'optout_read_timeout' past the bound.
- * A missing or unusable `timeoutMs` falls back to READ_TIMEOUT_MS rather than
- * to no bound, so a typo'd option cannot quietly remove it. Without an options
- * object the lookup is unbounded (the AI-draft trigger, which never hands off).
+ * `opts.companyId` is REQUIRED (2026-10-05): the tenant key (companyId claim,
+ * or a solo owner's uid) whose Do Not Text list applies, or an array of them.
+ * Missing or unusable, the lookup REJECTS with code 'optout_no_tenant' — a
+ * new send path that forgets it fails closed instead of quietly skipping the
+ * list.
+ *
+ * The whole lookup (every read, not each one) is bounded, and it REJECTS with
+ * code 'optout_read_timeout' past the bound. A missing or unusable
+ * `timeoutMs` falls back to READ_TIMEOUT_MS rather than to no bound, so a
+ * typo'd option cannot quietly remove it.
  *
  * @param {FirebaseFirestore.Firestore} db
  * @param {string} phone  any format — E.164, rep-typed, digits
- * @param {{timeoutMs?: number}} [opts]
- * @returns {Promise<{optedOut: boolean, key: string, viaLegacyKey: boolean}>}
+ * @param {{companyId: string|string[], timeoutMs?: number}} opts
+ * @returns {Promise<{optedOut: boolean, key: string, viaLegacyKey: boolean,
+ *   source: 'register'|'dnc'|null, companyId?: string}>}
  */
 async function isOptedOut(db, phone, opts) {
-  if (!opts) return lookupOptOut(db, phone);
+  const tenants = tenantList(opts && opts.companyId);
+  if (!tenants) {
+    const e = new Error('isOptedOut needs opts.companyId (whose Do Not Text list applies)');
+    e.code = 'optout_no_tenant';
+    throw e;
+  }
 
   const asked = Number(opts.timeoutMs);
   const ms = Number.isFinite(asked) && asked > 0 ? asked : module.exports.READ_TIMEOUT_MS;
@@ -118,18 +177,18 @@ async function isOptedOut(db, phone, opts) {
     }, ms);
   });
   try {
-    return await Promise.race([lookupOptOut(db, phone), deadline]);
+    return await Promise.race([lookupOptOut(db, phone, tenants), deadline]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function lookupOptOut(db, phone) {
+async function lookupOptOut(db, phone, tenants) {
   const key = optOutKey(phone);
-  if (!key) return { optedOut: false, key: '', viaLegacyKey: false };
+  if (!key) return { optedOut: false, key: '', viaLegacyKey: false, source: null };
 
   const hit = await db.doc(COLLECTION + '/' + key).get();
-  if (hit.exists) return { optedOut: true, key, viaLegacyKey: false };
+  if (hit.exists) return { optedOut: true, key, viaLegacyKey: false, source: 'register' };
 
   // Pre-migration records only.
   //
@@ -149,10 +208,17 @@ async function lookupOptOut(db, phone) {
 
   for (const legacy of candidates) {
     const old = await db.doc(COLLECTION + '/' + legacy).get();
-    if (old.exists) return { optedOut: true, key: legacy, viaLegacyKey: true };
+    if (old.exists) return { optedOut: true, key: legacy, viaLegacyKey: true, source: 'register' };
   }
 
-  return { optedOut: false, key, viaLegacyKey: false };
+  // The company's own Do Not Text list (canonical key only — the list is new,
+  // so it has no legacy records).
+  for (const companyId of tenants) {
+    const dnc = await db.doc(DNC_COLLECTION + '/' + companyId + '__' + key).get();
+    if (dnc.exists) return { optedOut: true, key, viaLegacyKey: false, source: 'dnc', companyId };
+  }
+
+  return { optedOut: false, key, viaLegacyKey: false, source: null };
 }
 
 /**
@@ -186,9 +252,128 @@ async function clearOptOut(db, phone) {
   return keys;
 }
 
+function isAlreadyExists(err) {
+  return !!err && (err.code === 6 || err.code === 'already-exists'
+    || /ALREADY_EXISTS|already exists/i.test(String(err.message || '')));
+}
+
+/**
+ * Put a number on a company's Do Not Text list. Idempotent: an existing entry
+ * is left as it is (a manual add never rewrites a STOP-reply entry, and a
+ * second add keeps the first add's date).
+ * @returns {Promise<{id: string, created: boolean}>} id '' when unusable
+ */
+async function addDnc(db, entry, serverTimestamp) {
+  const e = entry || {};
+  const id = dncDocId(e.companyId, e.phone);
+  if (!id) return { id: '', created: false };
+  const doc = {
+    companyId: cleanTenant(e.companyId),
+    key: optOutKey(e.phone),
+    // Display copy only, never a key; trimmed so a pasted blob cannot grow it.
+    phone: String(e.phone).slice(0, 40),
+    source: e.source === 'stop_reply' ? 'stop_reply' : 'manual',
+    addedAt: serverTimestamp ? serverTimestamp() : new Date(),
+    addedBy: e.byUid || null,
+  };
+  if (e.note) doc.note = String(e.note).slice(0, 200);
+  try {
+    await db.doc(DNC_COLLECTION + '/' + id).create(doc);
+    return { id, created: true };
+  } catch (err) {
+    if (isAlreadyExists(err)) return { id, created: false };
+    throw err;
+  }
+}
+
+/**
+ * Take a number off a company's list. Only 'manual' entries come off this
+ * way: a 'stop_reply' entry is the homeowner's own instruction and only their
+ * START removes it (clearStopReplyDnc).
+ * @returns {Promise<'removed'|'absent'|'stop_reply'>}
+ */
+async function removeDnc(db, companyId, phone) {
+  const id = dncDocId(companyId, phone);
+  if (!id) return 'absent';
+  const ref = db.doc(DNC_COLLECTION + '/' + id);
+  const snap = await ref.get();
+  if (!snap.exists) return 'absent';
+  if ((snap.data() || {}).source === 'stop_reply') return 'stop_reply';
+  await ref.delete();
+  return 'removed';
+}
+
+/** A company's list, newest first. Bounded; single-field equality query. */
+async function listDnc(db, companyId, limit) {
+  const co = cleanTenant(companyId);
+  if (!co) return [];
+  const n = Math.max(1, Math.min(Number(limit) || 500, 1000));
+  const snap = await db.collection(DNC_COLLECTION).where('companyId', '==', co).limit(n).get();
+  const ms = (v) => (v && typeof v.toMillis === 'function') ? v.toMillis()
+    : (v instanceof Date ? v.getTime() : (typeof v === 'number' ? v : 0));
+  return snap.docs.map((d) => {
+    const x = d.data() || {};
+    return {
+      key: x.key || '', phone: x.phone || '', source: x.source || 'manual',
+      addedAtMs: ms(x.addedAt) || null, note: x.note || '',
+    };
+  }).sort((a, b) => (b.addedAtMs || 0) - (a.addedAtMs || 0));
+}
+
+/**
+ * START / UNSTOP: the homeowner's own STOP-reply entries go with the register
+ * record. Manual entries stay — a company that decided not to text a number
+ * keeps that decision.
+ * @returns {Promise<number>} entries removed
+ */
+async function clearStopReplyDnc(db, phone) {
+  const key = optOutKey(phone);
+  if (!key) return 0;
+  const snap = await db.collection(DNC_COLLECTION).where('key', '==', key).limit(50).get();
+  const mine = snap.docs.filter((d) => ((d.data() || {}).source) === 'stop_reply');
+  await Promise.all(mine.map((d) => d.ref.delete()));
+  return mine.length;
+}
+
+/**
+ * A homeowner's STOP, copied onto the Do Not Text list of each company that
+ * has a lead with this number ('stop_reply'), so each company SEES who stopped
+ * it — the global register (recordOptOut) is what enforces it. Shared by every
+ * inbound STOP path: incomingSMS (sms-functions.js) and NBD's Twilio line
+ * (twilio-line.js). Bounded (10 leads); NEVER throws — a failure here must
+ * never undo the opt-out or block the confirmation. Errors go to opts.onError.
+ *
+ * @param {{serverTimestamp?: Function, onError?: Function}} [opts]
+ * @returns {Promise<string[]>} the tenant keys the STOP was copied to
+ */
+async function copyStopToTenantLists(db, phone, opts) {
+  const o = opts || {};
+  const fail = (e) => { try { if (o.onError) o.onError(e); } catch (_) { /* never throw */ } };
+  const key = optOutKey(phone);
+  if (!key) return [];
+  try {
+    const snap = await db.collection('leads').where('phoneDigits', '==', key).limit(10).get();
+    const tenants = [...new Set(snap.docs.map((d) => TextingGate.tenantKeyOfRecord(d.data() || {})).filter(Boolean))];
+    await Promise.all(tenants.map((companyId) => addDnc(db, {
+      companyId, phone, source: 'stop_reply',
+    }, o.serverTimestamp).catch(fail)));
+    return tenants;
+  } catch (e) {
+    fail(e);
+    return [];
+  }
+}
+
 module.exports = {
   COLLECTION,
+  DNC_COLLECTION,
   READ_TIMEOUT_MS,
+  dncDocId,
+  addDnc,
+  removeDnc,
+  listDnc,
+  clearStopReplyDnc,
+  copyStopToTenantLists,
   optOutKey,
   legacyOptOutKey,
   isOptedOut,

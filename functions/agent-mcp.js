@@ -48,6 +48,14 @@ const L = require('./agent-mcp-logic');
 const SW = require('./schedule-window');
 const OptOut = require('./sms-optout');
 const Suppress = require('./email-suppression');
+const TextingGate = require('./sms-texting-gate');
+
+// Whose Do Not Text list a draft text is checked against: the bot's company
+// and the lead's own tenant key (the same value for every lead the bot can
+// see; a solo lead is owned by userId). sms-optout.js de-duplicates.
+function draftTenants(company, lead) {
+  return [company, TextingGate.tenantKeyOfRecord(lead)].filter(Boolean);
+}
 
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const CALLS_PER_HOUR = 150;
@@ -223,7 +231,9 @@ async function runTool(name, args, key) {
       if (d.error) return L.toolErr(d.error);
       const wording = L.claimWordingProblem(d.body);
       if (wording) return L.toolErr(wording);
-      const optOut = await OptOut.isOptedOut(db(), lead.phone, { timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
+      // companyId: the bot's company (and the lead's own tenant key) — whose
+      // Do Not Text list applies. isOptedOut refuses without it (sms-optout.js).
+      const optOut = await OptOut.isOptedOut(db(), lead.phone, { companyId: draftTenants(company, lead), timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
       const gate = L.textGate(lead, optOut);
       if (gate.error) return L.toolErr(gate.error);
       item = { kind: 'draft_text', leadId: lead.id, title: '', text: d.body, reason: d.reason, consentOnFile: gate.consentOnFile, dueDate: null };
@@ -655,7 +665,7 @@ async function draftCheck(c, it) {
   if (!lead) return { ok: false, reason: 'That customer is no longer on your board.' };
   const name = L.minimalLead(lead).name;
   if (it.kind === 'draft_text') {
-    const optOut = await OptOut.isOptedOut(db(), lead.phone, { timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
+    const optOut = await OptOut.isOptedOut(db(), lead.phone, { companyId: draftTenants(c.company, lead), timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
     const gate = L.textGate(lead, optOut);
     if (gate.error) return { ok: false, reason: gate.error, name };
     return { ok: true, to: '+1' + OptOut.optOutKey(lead.phone), name, consentOnFile: gate.consentOnFile };
