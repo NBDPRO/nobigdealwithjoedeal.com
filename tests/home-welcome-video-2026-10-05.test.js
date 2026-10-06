@@ -3,12 +3,13 @@
  * welcome video (Jo, 2026-10-05).
  *
  * The old #intro-video slot waited for a YouTube ID and never shipped. It is
- * now a self-hosted 32-second look at the free inspection, presented by
+ * now a self-hosted 30-second look at the free inspection, presented by
  * Thursday (NBD's assistant presenter). Pins:
  *   - exactly one <video> in #intro-video, with controls + playsinline +
  *     preload="none" + a poster, and NO autoplay / muted / loop;
- *   - a WebVTT captions <track> (the burned-in captions are pixels; the track
- *     is what screen readers and the CC button get);
+ *   - a WebVTT captions <track>. The web copy has NO burned-in captions
+ *     (Remotion re-finish, 2026-10-06), so the track is the only caption
+ *     layer: CC button, screen readers, and no doubled-up text;
  *   - width/height attributes, so the box is reserved before anything loads
  *     (CLS 0), and a plain visible label;
  *   - every referenced file exists under docs/assets/, the mp4 is web-sized
