@@ -185,6 +185,9 @@ async function _findAffectedLeads(db, alert) {
   });
   return leads;
 }
+// Test seam (tests/storm-briefing-tenant-scope-2026-10-05.test.js); index.js
+// re-exports this module by name only, so it is never deployed.
+exports._findAffectedLeads = _findAffectedLeads;
 
 /**
  * Build the structured Slack briefing for an alert + its affected leads.
@@ -310,5 +313,3 @@ exports.stormBriefing_onAlertSent = onDocumentCreated(
 
 // Test surface — pure functions so unit tests don't need the emulator.
 exports._test = { scoreLead, recencyWeight, _composeBriefing, formatLeadLine, _reserveSentinel };
-// Own line so it never collides with edits to the export list above.
-exports._test._findAffectedLeads = _findAffectedLeads;

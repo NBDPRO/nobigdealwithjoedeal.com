@@ -14,7 +14,7 @@
 'use strict';
 const path = require('path');
 process.env.NBD_OWNER_UID = 'OWNER';
-const SB = require(path.join(__dirname, '..', 'functions', 'integrations', 'storm-briefing.js'))._test;
+const SB = require(path.join(__dirname, '..', 'functions', 'integrations', 'storm-briefing.js'));
 
 let passed = 0, failed = 0;
 const fails = [];
