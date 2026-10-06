@@ -187,7 +187,7 @@
       'js/nbd-badge-assets.js?v=1',
       'js/document-generator.js?v=18',
       'js/document-generator-templates.js?v=13',
-      'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
+      'js/document-generator-library.js?v=3', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=7',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
@@ -245,8 +245,8 @@
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=12',
-      'js/estimate-catalog-xactimate.js?v=3',
+      'js/estimate-builder-v2.js?v=13',
+      'js/estimate-catalog-xactimate.js?v=4',
       'js/estimate-logic-engine.js?v=8',
       // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
       // builder and the Job Templates engine call at price time — before both.
@@ -264,7 +264,7 @@
       'js/estimate-finalization.js?v=9',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=25',
+      'js/estimate-v2-ui.js?v=28',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
@@ -276,7 +276,7 @@
       // inserts into the V2 builder — end-of-bundle satisfies all three.
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
-      'js/job-templates-data.js?v=4',
+      'js/job-templates-data.js?v=5',
       'js/job-templates.js?v=8',
       'js/entity-resolver.js?v=2',
       'js/job-templates-ui.js?v=9',
@@ -348,7 +348,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=6'
+      'js/warranty-cert.js?v=7'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
