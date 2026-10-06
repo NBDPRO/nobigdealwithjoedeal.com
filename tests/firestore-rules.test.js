@@ -2645,40 +2645,6 @@ async function run() {
   if (s53Fail.length) {
     throw new Error('53 documents.htmlPath: ' + s53Fail.length + ' check(s) went the wrong way:\n    ' + s53Fail.join('\n    '));
   }
-  }
-
-  // 55. sms_dnc — a company's internal Do Not Text list (2026-10-05). Server
-  //     only (manageSmsCompliance + incomingSMS); enforced in sms-optout.js
-  //     isOptedOut. No client may read it, or write it as CREATE (plant a
-  //     number on a list) or UPDATE / DELETE (take one off — then text someone
-  //     who asked not to be texted), not even the company's own admin.
-  await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'sms_dnc/co-a__8595550134'), { companyId: 'co-a', key: '8595550134', source: 'manual', addedAt: 1 });
-  });
-  await assertFails(getDoc(doc(alice,   'sms_dnc/co-a__8595550134')));
-  await assertFails(getDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
-  await assertFails(getDocs(query(collection(coAdmin, 'sms_dnc'), where('companyId', '==', 'co-a'))));
-  await assertFails(setDoc(doc(alice,   'sms_dnc/co-a__5135550123'), { companyId: 'co-a', key: '5135550123', source: 'manual', addedAt: 1 }));
-  await assertFails(setDoc(doc(coAdmin, 'sms_dnc/co-b__5135550123'), { companyId: 'co-b', key: '5135550123', source: 'manual', addedAt: 1 }));
-  await assertFails(updateDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134'), { source: 'manual' }));
-  await assertFails(updateDoc(doc(alice,   'sms_dnc/co-a__8595550134'), { companyId: 'co-z' }));
-  await assertFails(deleteDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
-  console.log('  55: sms_dnc client read / create / update / delete all denied');
-
-  // 54. sms_settings — the per-company texting master switch (2026-10-05).
-  //     Server only. A client CREATE (registered: true on a company that has
-  //     no registration) or UPDATE (switch it back on) must both fail, even
-  //     for the company's own admin.
-  await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'sms_settings/co-a'), { enabled: false });
-  });
-  await assertFails(getDoc(doc(coAdmin, 'sms_settings/co-a')));
-  await assertFails(setDoc(doc(coAdmin, 'sms_settings/co-b'), { registered: true, enabled: true }));
-  await assertFails(setDoc(doc(solo,    'sms_settings/solo1'), { registered: true }));
-  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { enabled: true }));
-  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { registered: true }));
-  await assertFails(deleteDoc(doc(coAdmin, 'sms_settings/co-a')));
-  console.log('  54: sms_settings client read / create / update / delete all denied');
 
   // ─── 54. deal_rooms.leadId names only the writer's own / company's lead (2026-10-05) ───
   // An accepted deal writes to its lead (cancelBy, install date, tier, job
@@ -2718,6 +2684,39 @@ async function run() {
   if (s54Fail.length) {
     throw new Error('54 deal leadId: ' + s54Fail.length + ' check(s) went the wrong way:\n    ' + s54Fail.join('\n    '));
   }
+
+  // 55. sms_dnc — a company's internal Do Not Text list (2026-10-05). Server
+  //     only (manageSmsCompliance + incomingSMS); enforced in sms-optout.js
+  //     isOptedOut. No client may read it, or write it as CREATE (plant a
+  //     number on a list) or UPDATE / DELETE (take one off — then text someone
+  //     who asked not to be texted), not even the company's own admin.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'sms_dnc/co-a__8595550134'), { companyId: 'co-a', key: '8595550134', source: 'manual', addedAt: 1 });
+  });
+  await assertFails(getDoc(doc(alice,   'sms_dnc/co-a__8595550134')));
+  await assertFails(getDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
+  await assertFails(getDocs(query(collection(coAdmin, 'sms_dnc'), where('companyId', '==', 'co-a'))));
+  await assertFails(setDoc(doc(alice,   'sms_dnc/co-a__5135550123'), { companyId: 'co-a', key: '5135550123', source: 'manual', addedAt: 1 }));
+  await assertFails(setDoc(doc(coAdmin, 'sms_dnc/co-b__5135550123'), { companyId: 'co-b', key: '5135550123', source: 'manual', addedAt: 1 }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134'), { source: 'manual' }));
+  await assertFails(updateDoc(doc(alice,   'sms_dnc/co-a__8595550134'), { companyId: 'co-z' }));
+  await assertFails(deleteDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
+  console.log('  55: sms_dnc client read / create / update / delete all denied');
+
+  // 54. sms_settings — the per-company texting master switch (2026-10-05).
+  //     Server only. A client CREATE (registered: true on a company that has
+  //     no registration) or UPDATE (switch it back on) must both fail, even
+  //     for the company's own admin.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'sms_settings/co-a'), { enabled: false });
+  });
+  await assertFails(getDoc(doc(coAdmin, 'sms_settings/co-a')));
+  await assertFails(setDoc(doc(coAdmin, 'sms_settings/co-b'), { registered: true, enabled: true }));
+  await assertFails(setDoc(doc(solo,    'sms_settings/solo1'), { registered: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { enabled: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { registered: true }));
+  await assertFails(deleteDoc(doc(coAdmin, 'sms_settings/co-a')));
+  console.log('  54: sms_settings client read / create / update / delete all denied');
 
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
