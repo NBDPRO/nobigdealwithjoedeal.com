@@ -39,9 +39,9 @@ const SUMMARY = PRE +
   'Date,Receipt Added Date,Order Origin,Purchaser,Transaction ID,Register Number,Project Name,Job Name,Program Disc Amt,Other Disc,Pre-tax Amount,Total Amount Paid,Order Number,Payment,Text2Confirm,Card/Account Nickname,Invoice Number\n' +
   '2026-09-26,2026-09-26,"#1111, Test Town",ZZ Buyer,2281,36,,NBD-0042 Smith,,$0.00,$61.44,$66.23,,X-0000,N,,\n' +
   '2026-09-25,2026-09-25,"#1111, Test Town",ZZ Buyer,1497,3,,LORA,,$0.00,$51.62,$55.65,,X-0000,N,,\n' +
-  '2026-09-19,2026-09-19,"#2222, Other Town",ZZ Buyer,6003,51,,Copperleaf,,-$18.00,"$1,161.10","$1,171.97",,X-0000,N,,\n' +
+  '2026-09-19,2026-09-19,"#2222, Other Town",ZZ Buyer,6003,51,,Foxglove,,-$18.00,"$1,161.10","$1,171.97",,X-0000,N,,\n' +
   '2026-06-24,2026-06-24,"#2222, Other Town",ZZ Buyer,7001,5,,M18 8 Tool Combo,,$0.00,$619.00,$660.78,,X-0000,N,,\n' +
-  '2026-06-04,2026-06-04,"#2222, Other Town",ZZ Buyer,7002,5,,4622 VICTORY AVE.,,$0.00,$240.00,$259.44,,X-0000,N,,\n' +
+  '2026-06-04,2026-06-04,"#2222, Other Town",ZZ Buyer,7002,5,,4622 ASHGROVE AVE.,,$0.00,$240.00,$259.44,,X-0000,N,,\n' +
   '2026-05-10,2026-05-10,Online,ZZ Buyer,,,,SHOP,,$0.00,$27.00,$28.84,WH00000001,X-0000,N,,\n' +
   '2026-05-09,2026-05-09,"#1111, Test Town",ZZ Buyer,8001,9,,,,$0.00,$29.00,$30.74,,X-0000,N,,\n';
 const DETAILS = PRE +
@@ -49,12 +49,12 @@ const DETAILS = PRE +
   '2026-09-26,1111,2281,0,,NBD-0042 Smith,1,C3 x 10 ft. Drip Edge Flashing,8,,BLDG. MATERIALS,,,$0.00,,$0.00,$61.44,$61.44,1,ZZ Buyer,,,\n' +
   '2026-06-24,2222,7001,0,,M18 8 Tool Combo,2,"M18 18V Cordless 8-Tool Combo Kit",1,,HARDWARE,,,$0.00,,$0.00,$619.00,$619.00,2,ZZ Buyer,,,\n' +
   '2026-05-09,1111,8001,0,,,3,Carpet cleaner rental 4 hr,1,,TOOL RENTAL,,,$0.00,,$0.00,$29.00,$29.00,3,ZZ Buyer,,,\n' +
-  '2026-06-04,2222,7002,0,,4622 VICTORY AVE.,4,203 Roll Roofing Adhesive 4.75 gal.,2,,PAINT,,,$0.00,,$0.00,$240.00,$240.00,4,ZZ Buyer,,,\n';
+  '2026-06-04,2222,7002,0,,4622 ASHGROVE AVE.,4,203 Roll Roofing Adhesive 4.75 gal.,2,,PAINT,,,$0.00,,$0.00,$240.00,$240.00,4,ZZ Buyer,,,\n';
 
 const LEADS = [
   { id: 'L42', customerId: 'NBD-0042', firstName: 'Pat', lastName: 'Smith', address: '1 Oak St, Town' },
-  { id: 'L52', customerId: 'NBD-0052', firstName: 'Rick', lastName: '', address: '4622 Victory Ave, Town' },
-  { id: 'L82', customerId: 'NBD-0082', firstName: 'Becca', lastName: 'Hill', address: '6365 Copperleaf Ln, Town' },
+  { id: 'L52', customerId: 'NBD-0052', firstName: 'Rick', lastName: '', address: '4622 Ashgrove Ave, Town' },
+  { id: 'L82', customerId: 'NBD-0082', firstName: 'Becca', lastName: 'Hill', address: '6365 Foxglove Ln, Town' },
   { id: 'L17', customerId: 'NBD-0017', firstName: 'Larry', lastName: '', address: '5 Hopewell Valley Dr' },
   { id: 'L90', customerId: 'NBD-0090', firstName: 'Scott', lastName: 'Steel', address: '9 Elm St' },
   { id: 'LX', customerId: 'NBD-0099', firstName: 'Old', lastName: 'Gone', address: '', deleted: true },
@@ -90,10 +90,10 @@ ok('rule 1: customer # anywhere, any case', m('smith nbd-0042').leadId === 'L42'
 ok('rule 2: a remembered name → its job', m('LORA', { lora: 'L17' }).status === 'alias' && m('LORA', { lora: 'L17' }).leadId === 'L17');
 ok('rule 3: SHOP → no job', m('SHOP').status === 'overhead' && m('SHOP').leadId === null);
 ok('rule 3: a tool name anywhere → no job (not the lead named Scott)', m('SCOTT TOOLS').status === 'overhead');
-ok('house number + street → that job', m('4622 VICTORY AVE.').leadId === 'L52' && m('4622 VICTORY AVE.').status === 'suggested');
-ok('street name alone → that job', m('victory ave').leadId === 'L52');
-ok('subdivision / street word → that job', m('Copperleaf').leadId === 'L82');
-ok('a typo in the street ("Victry"→ no; "Victor" → yes) matches on 4 letters', m('victor ave').leadId === 'L52');
+ok('house number + street → that job', m('4622 ASHGROVE AVE.').leadId === 'L52' && m('4622 ASHGROVE AVE.').status === 'suggested');
+ok('street name alone → that job', m('ashgrove ave').leadId === 'L52');
+ok('subdivision / street word → that job', m('Foxglove').leadId === 'L82');
+ok('a typo in the street ("Ashgrve"→ no; "Ashgro" → yes) matches on 4 letters', m('ashgro ave').leadId === 'L52');
 ok('first name alone is only a suggestion', m('Larry').status === 'suggested' && m('Larry').leadId === 'L17');
 ok('an unknown name → pick a job, never a guess', m('Lora').status === 'none' && m('Lora').leadId === null);
 ok('blank job name → pick a job', m('').status === 'none');

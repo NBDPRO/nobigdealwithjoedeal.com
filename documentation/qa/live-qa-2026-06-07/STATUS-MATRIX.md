@@ -36,7 +36,7 @@ PASS · PARTIAL · FAIL · BLOCKED · DEAD · ⏳ pending
 | System | Status | Evidence | Note |
 |--------|--------|----------|------|
 | Comms (email-system, email-drip, nbd-comms, push) | ⏳ | | |
-| Insurance claim system | ⏳ | | ZZ_QA_ claim only — never Sherrill/McCain |
+| Insurance claim system | ⏳ | | ZZ_QA_ claim only — never Customer EX/McCain |
 | Sales subsystems (D2D, close-board, rep-os, leaderboard) | 🟢 PASS | 09-phase2/ | Leaderboard (KPIs + Monthly Trend chart), Close Board (deal-room KPIs + empty state), Rep OS (AI daily-briefing landing), Prospects=D2D knock board (3 real leads) all render cleanly, console clean. |
 | Academy / training (insurance/retail trees, courses, masterclass) | 🟢 PASS | 09-phase2/ | Real Deal Academy renders: Overview/Insurance Process/Retail Process/Courses/Local tabs, progress KPIs (0/48 nodes, 0/33 lessons, quizzes, avg score), "No Activity Yet" empty state. Console clean. (Didn't drill into individual lessons.) |
 | Storm intel (storm-center, storm-alerts, property-intel) | 🟢 PASS | 09-phase2/ | Storm Center renders: KPIs (0 alerts/zones/knocks, $0k), Live Alerts/Storm Zones/Canvass Plans/Storm Analytics tabs, Leaflet map + location dot, "No Active Alerts" empty state. Console clean. Refresh Alerts present (not exercised). |

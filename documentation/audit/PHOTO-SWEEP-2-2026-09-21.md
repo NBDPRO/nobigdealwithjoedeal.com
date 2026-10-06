@@ -37,10 +37,10 @@
 
 ## Folders checked and ruled out
 
-- **Already done or excluded per this session's brief**: Chris Rice, Emily
-  & Caesar Fukuda, Bryce Williams (interior job), John Reynolds, Cheryl
-  Horne, Albeliz Santiago, the second (gutter-cleaning) Bryce W., Anastasios
-  "Tasso" R., Jen Stith — not re-opened.
+- **Already done or excluded per this session's brief**: Customer AG, Emily
+  & Caesar Customer BM, Customer Z (interior job), Customer CG, Customer AD
+  , Customer C, the second (gutter-cleaning) Bryce W., Anastasios
+  "Tasso" R., Customer FB — not re-opened.
 - **The bulk of the tree (~100+ folders) never has an invoice or receipt at
   all** — mostly two large bulk-import batches (folders stamped identically
   2026-08-15 and 2026-08-18, and a third cluster stamped 2026-09-06 that
@@ -62,10 +62,10 @@
   Albeliz S., and an internal `_NBD MASTER INDEX` / `_NBD DOCUMENT STANDARD`
   pair of process docs that matched the 'invoice' keyword incidentally.
 - **One invoice/receipt hit traced outside the CUSTOMERS tree entirely**: a
-  `NBD-Invoice-Williams-2026-0919.pdf` / matching receipt sits in a
+  `NBD-Invoice-Customer Z-2026-0919.pdf` / matching receipt sits in a
   differently-structured "files" folder (not the standard
   Docs/Photos/Reports/Internal layout), dated 09-19/20. Given the surname
-  and date, this is almost certainly the already-DONE Bryce Williams
+  and date, this is almost certainly the already-DONE Customer Z
   invoice generated through a different storage path, not a new customer —
   flagged, not re-investigated as new.
 

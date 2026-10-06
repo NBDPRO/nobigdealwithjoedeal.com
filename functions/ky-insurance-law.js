@@ -147,7 +147,7 @@
 
   /**
    * State written in a free-text address. Only positions an address puts a
-   * state in count, so "1944 Kentucky Ave" or a street ending in "Ct" never
+   * state in count, so "100 Kentucky Ave" or a street ending in "Ct" never
    * decides it:
    *   "…, KY 41075" / "… KY 41075"  (two letters followed by a ZIP)
    *   "…, KY" / "…, ky 41075"        (after the last comma, end of string)

@@ -1,6 +1,6 @@
 # Wood siding repair — the gap an organic Mason lead walked through anyway (2026-09-03)
 
-**Trigger.** Jo took an organic call from **5760 Farm Field Dr, Mason, OH**. The
+**Trigger.** Jo took an organic call from **[street address], Mason, OH**. The
 caller said she found him on Google by searching **"wood siding repair"** and then
 clicking through *more similar searches*. She sent three photos: rot breaches open
 in a painted wood **fascia** board, a closeup of a rot spot beside a gutter hanger,
