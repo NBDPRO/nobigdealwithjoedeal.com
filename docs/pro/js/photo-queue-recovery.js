@@ -207,11 +207,11 @@
    * first one, destroying the only evidence they were ever owed.
    */
   // How long any single marker write may hold the queue below. setDoc()'s
-  // promise does not settle until the backend acknowledges, and this app runs
-  // Firestore with no offline persistence (nbd-auth.js:299 —
-  // initializeFirestore with experimentalForceLongPolling only), so a write
-  // made on a dead connection stays pending until connectivity returns or the
-  // page goes away. Without a bound, ONE such write would stall every marker
+  // promise does not settle until the backend acknowledges, so a write made
+  // on a dead connection stays pending until connectivity returns. (Written
+  // when Firestore ran with no local cache; since 2026-10-04 nbd-auth.js uses
+  // a persistent one, so the write now also outlives the page — but the
+  // promise still waits for the server, and the bound is still needed.) Without a bound, ONE such write would stall every marker
   // write after it for the life of the page.
   //
   // Read through a window hook, matching photo-engine.js's

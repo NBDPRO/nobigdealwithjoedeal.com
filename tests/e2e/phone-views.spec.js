@@ -1285,14 +1285,24 @@ async function profileRetryWalk(page, { act, openEstimatesTab, widths }) {
         window.__e2ePendingAcked = false;
         window._saveCompanyProfile({ e2eProfretryProbe: 1 }).then(() => { window.__e2ePendingAcked = true; }, () => {});
       });
-      // Positive control: the SDK really does serve the device's partial copy
-      // now — the one written field, from cache, write pending.
+      // Positive control: the SDK really does serve the device's LOCAL copy
+      // now — from cache, write pending, the written field in it. With the
+      // memory cache (before 2026-10-04) that copy held ONLY the written
+      // field. With the persistent on-phone cache (nbd-auth.js since
+      // 2026-10-04) it is the written field laid over whatever this device
+      // last cached of the doc — possibly stale, possibly partial. Either way
+      // it is not the server's copy, and the product rule below must refuse
+      // it on the metadata alone (company-profile.js: fromCache ||
+      // hasPendingWrites), never on which keys happen to be present.
       const local = await safeEvaluate(page, async () => {
         const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
         const snap = await fs.getDoc(fs.doc(window.db, 'companyProfile', String(await window._resolveCompanyKey())));
-        return { fromCache: snap.metadata.fromCache, pending: snap.metadata.hasPendingWrites, keys: Object.keys(snap.data() || {}) };
+        return { fromCache: snap.metadata.fromCache, pending: snap.metadata.hasPendingWrites, keys: Object.keys(snap.data() || {}), mode: window.__NBD_FS_CACHE || 'memory' };
       });
-      expect(local, 'offline, the SDK hands out the partial doc (the hole under test)').toEqual({ fromCache: true, pending: true, keys: ['e2eProfretryProbe'] });
+      expect({ fromCache: local.fromCache, pending: local.pending, hasProbe: local.keys.includes('e2eProfretryProbe') },
+        'offline, the SDK hands out a local, write-pending copy (the hole under test): ' + JSON.stringify(local))
+        .toEqual({ fromCache: true, pending: true, hasProbe: true });
+      if (local.mode === 'memory') expect(local.keys, 'memory cache: only the written field').toEqual(['e2eProfretryProbe']);
       // Ask for the read the way a rep does: reopen the tab.
       const before = await page.evaluate(() => window.__e2eProfileReads);
       await openEstimatesTab();

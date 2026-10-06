@@ -187,6 +187,11 @@
     { id: 'aob', why: 'KRS 304.20-105 assignment of benefits (void in Kentucky; retired)',
       re: /\bAOBs?\b|\bassignments? of benefits\b/i,
       unless: /\b(no|never|not|don't|do not|won't|retired|void|voids|banned|forbid\w*|prohibit\w*|illegal|unlawful|avoid|hands? control)\b/i },
+    // 2026-10-05: claim-outcome predictions (mirrors docs/pro/js/claim-wording-filter.js).
+    { id: 'claim-outcome-prediction', why: '(1)(a)1 predicting / promising the claim outcome',
+      re: /\bclaimable loss(es)?\b|\b(strong|good|high|great|real|significant) (insurance )?claim potential\b|\binsurers? (act|acts|will act) on\b/i },
+    { id: 'covers-regardless', why: '(1)(a)1 promising the claim outcome (coverage "regardless")',
+      re: /\b(insurance|insurer|carrier|policy|polic(y|ies)|coverage)\b[^.;!?]{0,40}\b(should|will|must|is going to)( still)? (cover|pay)\b[^.;!?]{0,40}\bregardless\b|\b(get|gets|pays?|paid) the full amount regardless\b/i },
   ];
 
   // ── Report-only phrasings (2026-10-04) ────────────────────────────────

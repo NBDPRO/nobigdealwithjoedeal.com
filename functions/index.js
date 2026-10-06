@@ -478,6 +478,14 @@ exports.stripeLedgerReconcile   = stripeLedger.stripeLedgerReconcile;
 exports.assignStripeTransaction = stripeLedger.assignStripeTransaction;
 exports.getStripeOverview       = stripeLedger.getStripeOverview;
 
+// Roof Care Plan (2026-10-05): NBD's homeowner membership — checkout, its own
+// Stripe webhook, and the owner's CRM actions. SHIPS DARK (CARE_PLAN_MODE
+// unset = off). Named exports only; care-plan.js also exports a test seam.
+const carePlan = require('./care-plan');
+exports.carePlanPublic  = carePlan.carePlanPublic;
+exports.carePlanWebhook = carePlan.carePlanWebhook;
+exports.carePlanAdmin   = carePlan.carePlanAdmin;
+
 // Every charge gets a filed document (Jo's live-CRM handoff 2026-09-30 #7):
 // NBD-500 invoice / NBD-510 receipt PDFs filed on the lead, and a Mark-Paid
 // payoff marks the open Stripe invoice paid out of band. See money-paper.js.
