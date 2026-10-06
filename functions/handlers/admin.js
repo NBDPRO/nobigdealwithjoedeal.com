@@ -38,7 +38,7 @@ const {
 // truth; invites.js does not require admin.js, so this edge is one-way/safe).
 const { seatLimitForPlan, isInviteExpired } = require('./invites');
 // R3-1 (2026-10-06): what a removed / deactivated / demoted member loses.
-const { reassignMemberRecords, revokeMemberAccessTokens } = require('../member-offboarding');
+const { reassignMemberRecords, revokeMemberAccessTokens, roleChangeRevokesAccess } = require('../member-offboarding');
 
 // ═══════════════════════════════════════════════════════════════
 // getAdminAnalytics — C3: ops dashboard numbers for the Team Manager.
@@ -637,10 +637,13 @@ exports.updateUserRole = onCall(
     }
 
     // R3-1: a viewer may not hold a bot key or a calendar feed link (neither
-    // can be minted by one), so a demotion to viewer turns theirs off. Before
-    // the claim change, so a failure leaves the role as it was for a retry.
-    if (role === 'viewer') {
-      await revokeMemberAccessTokens(getFirestore(), userRecord.uid, 'role-viewer');
+    // can be minted by one), so a demotion to viewer turns theirs off, and so
+    // does any downgrade away from company_admin / manager (Jo 2026-10-06;
+    // roleChangeRevokesAccess). Before the claim change, so a failure leaves
+    // the role as it was for a retry.
+    if (roleChangeRevokesAccess(existingClaims.role, role)) {
+      await revokeMemberAccessTokens(getFirestore(), userRecord.uid,
+        role === 'viewer' ? 'role-viewer' : 'role-downgrade');
     }
 
     await getAuth().setCustomUserClaims(userRecord.uid, {

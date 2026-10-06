@@ -211,9 +211,29 @@ function feedOwnerAllowed(tok, user) {
   return effectiveCompany(user) === (t.companyId || t.uid);
 }
 
+// Team role order, highest first (handlers/_shared.js TEAM_ROLES).
+const ROLE_RANK = { company_admin: 3, manager: 2, sales_rep: 1, viewer: 0 };
+
+/**
+ * updateUserRole: does this role change turn off the member's bot keys and
+ * calendar feed links? (R3-1 follow-up, Jo 2026-10-06.) Yes for any move to
+ * viewer (neither can be minted by one), and for any DOWNGRADE away from
+ * company_admin or manager: the keys they made were made with that role's
+ * reach, and they can mint new ones if the lower role allows it. A move up,
+ * a no-op, or a change between the lower roles leaves them alone. An unknown
+ * old role (no claim yet) is not a downgrade.
+ */
+function roleChangeRevokesAccess(oldRole, newRole) {
+  if (newRole === 'viewer') return true;
+  if (oldRole !== 'company_admin' && oldRole !== 'manager') return false;
+  const to = ROLE_RANK[newRole];
+  return typeof to === 'number' && to < ROLE_RANK[oldRole];
+}
+
 module.exports = {
   reassignMemberRecords,
   revokeMemberAccessTokens,
+  roleChangeRevokesAccess,
   keyCreatorAllowed,
   feedOwnerAllowed,
   REASSIGN_TARGETS,

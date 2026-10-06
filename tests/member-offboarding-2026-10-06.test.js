@@ -355,6 +355,33 @@ try { OFF = require(path.join(FN, 'member-offboarding.js')); } catch (e) { OFF =
     await mod.updateUserRole.__handler(req({ uid: 'rep', role: 'manager' }));
     ok('updateUserRole → manager: nothing revoked', db.store.get('agent_keys/k1').active === true && db.store.get('calendar_feed_tokens/F1').status === 'active');
   }
+  // Follow-up (Jo 2026-10-06): any DOWNGRADE away from company_admin / manager
+  // revokes too, not only a move to viewer.
+  {
+    const R = OFF && OFF.roleChangeRevokesAccess;
+    ok('roleChangeRevokesAccess is exported', typeof R === 'function');
+    if (typeof R === 'function') {
+      ok('downgrades away from company_admin / manager revoke',
+        R('company_admin', 'manager') && R('company_admin', 'sales_rep') && R('manager', 'sales_rep'));
+      ok('any move to viewer revokes', R('sales_rep', 'viewer') && R('manager', 'viewer') && R(undefined, 'viewer'));
+      ok('upgrades, no-ops and lower-role moves do not revoke',
+        !R('sales_rep', 'manager') && !R('manager', 'company_admin') && !R('manager', 'manager')
+        && !R('company_admin', 'company_admin') && !R(undefined, 'sales_rep') && !R('viewer', 'sales_rep'));
+    }
+  }
+  for (const [from, to, revoked] of [['manager', 'sales_rep', true], ['company_admin', 'manager', true], ['company_admin', 'sales_rep', true], ['sales_rep', 'manager', false], ['manager', 'company_admin', false]]) {
+    const { db, users, events, mod, req } = adminRig();
+    users.rep.customClaims.role = from;
+    await mod.updateUserRole.__handler(req({ uid: 'rep', role: to }));
+    const off = db.store.get('agent_keys/k1').active === false && db.store.get('calendar_feed_tokens/F1').status === 'revoked';
+    const on = db.store.get('agent_keys/k1').active === true && db.store.get('calendar_feed_tokens/F1').status === 'active';
+    ok('updateUserRole ' + from + ' → ' + to + ': bot key + calendar feed ' + (revoked ? 'revoked' : 'kept'), revoked ? off : on);
+    if (revoked) {
+      const revokedAt = events.indexOf('update:agent_keys/k1');
+      const claimsAt = events.indexOf('claims:rep');
+      ok('updateUserRole ' + from + ' → ' + to + ': revokes BEFORE the claim change', revokedAt >= 0 && claimsAt > revokedAt, events.join(' '));
+    }
+  }
 
   // ═════════════════════════════════════════════════════════════════════
   console.log('F. lapse cron + seat benching revoke too');

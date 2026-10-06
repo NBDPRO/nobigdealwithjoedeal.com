@@ -197,6 +197,7 @@ async function buildCompanyExport(db, bucket, companyId, opts) {
   const files = [];
   const counts = {};
   let signed = 0, unsigned = 0;
+  const userMemo = new Map();
   for (const name of Object.keys(docs)) {
     const rows = [];
     for (const d of docs[name]) {
@@ -205,10 +206,12 @@ async function buildCompanyExport(db, bucket, companyId, opts) {
         const path = typeof row.storagePath === 'string' ? row.storagePath : (typeof row.path === 'string' ? row.path : '');
         row.storagePath = path || null;
         delete row.url; delete row.downloadURL; delete row.thumbUrl;
-        // Sign only an object in the photo's own upload folder: the doc is
-        // client-written and the link is minted with the admin SDK
-        // (2026-10-06). Anything else is listed by path, unsigned.
-        if (path && bucket && signed < SIGN_LIMIT && o.sign !== false && LAP.isPhotoObjectOf(path, row)) {
+        // Sign only an object in the photo's own upload folder, or a company
+        // member's (a removed rep's reassigned photo): the doc is client-
+        // written and the link is minted with the admin SDK (2026-10-06).
+        // Anything else is listed by path, unsigned.
+        if (path && bucket && signed < SIGN_LIMIT && o.sign !== false
+          && await LAP.photoObjectAllowed(db, path, row, userMemo)) {
           try {
             const [url] = await bucket.file(path).getSignedUrl({ action: 'read', expires: now.getTime() + 24 * 3600 * 1000 });
             row.signedUrl24h = url;

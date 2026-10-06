@@ -86,22 +86,27 @@ function decide(after, opts) {
   return out;
 }
 
+// The Storage object a plate photo names: path, else storagePath, else (legacy
+// url-only docs) the object inside its download url. '' when none.
+function plateObjectPath(p) {
+  if (!p) return '';
+  return p.path || p.storagePath || LAP.storagePathFromUrl(p.url) || '';
+}
+
 // The photos plateFor may use for `lead` (2026-10-06). Photo docs are
-// client-written and their path is signed with the admin SDK, so a photo
+// client-written and their object is signed with the admin SDK, so a photo
 // counts only when it is the lead's tenant's (same owner, or same companyId)
-// AND its object sits in the photo's own upload folder (isPhotoObjectOf). A
-// legacy url-only photo counts when the Storage object inside its url passes
-// the same check; any other url is dropped (Chromium would fetch it).
+// AND names a photo-shaped object (photos/{uid}/ or this lead's
+// homeowner-uploads/{uid}/{leadId}/). A url that is not a Storage object is
+// dropped (Chromium would fetch it). plateFor then checks the uid in the path
+// against the photo's owner or company (photoObjectAllowed) before signing.
 function platePhotosForLead(lead, photos) {
   const l = lead || {};
   return (photos || []).filter((p) => {
     if (!p) return false;
     const sameTenant = (typeof p.userId === 'string' && p.userId && p.userId === l.userId)
       || (typeof l.companyId === 'string' && l.companyId && p.companyId === l.companyId);
-    if (!sameTenant) return false;
-    const path = p.path || p.storagePath;
-    if (path) return LAP.isPhotoObjectOf(path, p);
-    return LAP.isPhotoObjectOf(LAP.storagePathFromUrl(p.url), p);
+    return sameTenant && !!LAP.photoObjectUid(plateObjectPath(p), p);
   });
 }
 
@@ -270,4 +275,4 @@ function paidNotClosedTaskId(invoiceId) {
   return 'paid-not-closed-' + String(invoiceId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
 }
 
-module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, platePhotosForLead, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };
+module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, platePhotosForLead, plateObjectPath, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };

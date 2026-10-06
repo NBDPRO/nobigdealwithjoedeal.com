@@ -105,37 +105,84 @@ function isOwnE2ECleanupPath(p, uid) {
 }
 
 /**
- * Is `p` an object inside the upload folder of the /photos doc `photo`?
+ * The uploader uid an object path names, for the /photos doc `photo`, or null.
  *
  * For the servers that sign, download or serve a photo's object with the
  * admin SDK (reel-studio, social-studio, money-paper's invoice plate,
  * exportCompanyData). storagePath / thumbStoragePath / path come off a
  * CLIENT-written doc, and before 2026-10-06 any value was accepted, so a doc
  * could name another tenant's contract or recording and have it signed or
- * rendered for the doc's owner. `userId` on a photo is trustworthy (create
- * pins it to the writer, update freezes it), so the object must sit under
- * that uid's own prefix:
+ * rendered for the doc's owner. Only two shapes name a photo's object:
  *
- *   photos/{userId}/...                      every client uploader
- *   homeowner-uploads/{userId}/{leadId}/...  portal + web-form uploads
- *                                            (admin SDK; userId = lead owner)
+ *   photos/{uid}/...                      every client uploader
+ *   homeowner-uploads/{uid}/{leadId}/...  portal + web-form uploads (admin
+ *                                         SDK; uid = lead owner, leadId =
+ *                                         this photo's lead)
  *
- * Fails closed: anything else, or anything path-like (`..`, `//`, `\`).
+ * Anything else, or anything path-like (`..`, `//`, a backslash), is null.
  *
  * @param {string} p     object path taken from the photo doc
  * @param {object} photo the photo doc's data
+ * @returns {string|null}
+ */
+function photoObjectUid(p, photo) {
+  if (typeof p !== 'string' || !p || p.length > 1024) return null;
+  if (p.includes('..') || p.includes('//') || p.includes('\\')) return null;
+  const parts = p.split('/');
+  if (parts.length < 3 || !parts[1]) return null;
+  if (parts[0] === 'photos') return parts[1];
+  if (parts[0] !== 'homeowner-uploads' || parts.length < 4) return null;
+  const leadId = photo && typeof photo.leadId === 'string' ? photo.leadId : '';
+  return leadId && parts[2] === leadId ? parts[1] : null;
+}
+
+/**
+ * Is `p` in the upload folder of the photo's OWN `userId`? `userId` on a
+ * photo is trustworthy: create pins it to the writer, update freezes it.
+ *
+ * @param {string} p
+ * @param {object} photo
  * @returns {boolean}
  */
 function isPhotoObjectOf(p, photo) {
-  if (typeof p !== 'string' || !p || p.length > 1024) return false;
-  if (p.includes('..') || p.includes('//') || p.includes('\\')) return false;
-  const ph = photo || {};
-  const uid = typeof ph.userId === 'string' ? ph.userId : '';
-  if (!uid || uid.includes('/')) return false;
-  if (p.startsWith(`photos/${uid}/`)) return true;
-  const leadId = typeof ph.leadId === 'string' ? ph.leadId : '';
-  if (!leadId || leadId.includes('/')) return false;
-  return p.startsWith(`homeowner-uploads/${uid}/${leadId}/`);
+  const uid = photo && typeof photo.userId === 'string' ? photo.userId : '';
+  return !!uid && photoObjectUid(p, photo) === uid;
+}
+
+/**
+ * May a server read `p` for `photo`? Own folder (isPhotoObjectOf), or the
+ * folder of a uid in the photo's company: removeMember (member-offboarding.js)
+ * moves a departing rep's photos to the owner by rewriting userId only, so
+ * those photos keep pointing into photos/{repUid}/. "In the company" means
+ * users/{uid}.companyId equals the photo's companyId. Clients cannot write
+ * that field (firestore.rules freezes companyId on /users), and a photo's
+ * companyId is pinned to its writer's tenant on create and frozen on update.
+ *
+ * Takes the Firestore handle as an argument (this module imports nothing).
+ * `memo` (a Map) caches users/{uid} lookups across one request.
+ *
+ * @param {object} db    Firestore (admin) handle
+ * @param {string} p     object path taken from the photo doc
+ * @param {object} photo the photo doc's data
+ * @param {Map} [memo]
+ * @returns {Promise<boolean>}
+ */
+async function photoObjectAllowed(db, p, photo, memo) {
+  const uid = photoObjectUid(p, photo);
+  if (!uid) return false;
+  if (photo && uid === photo.userId) return true;
+  const cid = photo && typeof photo.companyId === 'string' ? photo.companyId : '';
+  if (!cid || !db) return false;
+  const m = memo instanceof Map ? memo : new Map();
+  if (!m.has(uid)) {
+    let userCompany = null;
+    try {
+      const s = await db.doc('users/' + uid).get();
+      userCompany = s.exists ? ((s.data() || {}).companyId || null) : null;
+    } catch (_) { userCompany = null; }
+    m.set(uid, userCompany);
+  }
+  return m.get(uid) === cid;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -476,7 +523,9 @@ module.exports = {
   variantPathsFor,
   isReapablePhotoPath,
   isOwnE2ECleanupPath,
+  photoObjectUid,
   isPhotoObjectOf,
+  photoObjectAllowed,
   LEAD_ARTIFACT_PREFIXES,
   RESERVED_LEAD_ID_NAMES,
   isReservedLeadId,

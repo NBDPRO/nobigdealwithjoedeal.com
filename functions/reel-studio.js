@@ -220,6 +220,7 @@ async function loadLeadFor(db, leadId, companyId, uid) {
  */
 async function resolveClips(db, companyId, uid, leadId, lead, clips) {
   const out = [];
+  const memo = new Map();
   for (const c of (Array.isArray(clips) ? clips : []).slice(0, 20)) {
     if (c && c.source === 'job_photo' && ID_RE.test(String(c.photoId || ''))) {
       if (!leadId) throw new HttpsError('invalid-argument', 'Pick the job first.');
@@ -227,11 +228,12 @@ async function resolveClips(db, companyId, uid, leadId, lead, clips) {
       const p = s.exists ? s.data() : null;
       const pathStr = p && (p.storagePath || p.path);
       const sameTenant = p && (p.companyId ? String(p.companyId) === companyId : (p.userId === uid || p.userId === (lead && lead.userId)));
-      // The path must also sit in the photo's OWN upload folder: the doc is
+      // The path must also sit in the photo's own upload folder, or a
+      // company member's (a removed rep's reassigned photo): the doc is
       // client-written, and this object is downloaded with the admin SDK and
       // rendered into a reel the caller can watch (2026-10-06).
-      if (!p || p.leadId !== leadId || !sameTenant || typeof pathStr !== 'string' || !PHOTO_PATH_RE.test(pathStr)
-        || !LAP.isPhotoObjectOf(pathStr, p) || p.deleted) {
+      if (!p || p.leadId !== leadId || !sameTenant || typeof pathStr !== 'string' || !PHOTO_PATH_RE.test(pathStr) || p.deleted
+        || !(await LAP.photoObjectAllowed(db, pathStr, p, memo))) {
         throw new HttpsError('not-found', 'A picked photo is not part of this job.');
       }
       out.push({ source: 'job_photo', photoId: c.photoId, type: 'photo', storagePath: pathStr, phase: String(p.phase || '').toLowerCase() });
