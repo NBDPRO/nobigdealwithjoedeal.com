@@ -85,7 +85,7 @@ const feed = `<?xml version="1.0" encoding="UTF-8"?>
   <title>The No Big Deal Blog — Joe Deal</title>
   <link>${ORIGIN}/blog</link>
   <atom:link href="${ORIGIN}/feed.xml" rel="self" type="application/rss+xml"/>
-  <description>Straight-talk roofing, siding, and insurance-claim advice for Cincinnati-area homeowners from Joe Deal — 7 years in insurance restoration, no fluff.</description>
+  <description>Straight-talk roofing, siding, and insurance-claim advice for Cincinnati-area homeowners from Joe Deal — 7+ years in insurance restoration, no fluff.</description>
   <language>en-us</language>
   <lastBuildDate>${rfc822(live[0].published)}</lastBuildDate>
 ${live.map(item).join('\n')}

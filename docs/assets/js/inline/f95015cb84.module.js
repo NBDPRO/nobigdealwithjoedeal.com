@@ -69,15 +69,11 @@ window._verifyOTP = async (phone, code) => {
   }
 };
 
-// Notify Joe (email + SMS)
-window._notifyJoe = async (leadData) => {
-  try {
-    const notify = httpsCallable(functions, 'notifyNewLead');
-    await notify(leadData);
-  } catch(e) {
-    console.warn('Joe notification failed:', e);
-  }
-};
+// No window._notifyJoe (removed 2026-10-05, H3). It wrapped the notifyNewLead
+// callable, which enforces App Check — never initialised on /estimate, so it
+// 401'd on every call — and it swallowed that error, so the wizard counted
+// it as "Joe notified" and hid the call-Joe banner when the lead was lost.
+// Joe's alert is the leadAlertEstimate trigger on the saved estimate_leads doc.
 
 // Abandoned funnel recovery — silently save partial state so we can
 // send a warm recovery email an hour later if they don't complete.

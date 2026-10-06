@@ -690,7 +690,12 @@
     let voiceUrl = '';
     const tempId = Date.now().toString();
 
-    if (state.currentKnockEntry.photoFiles?.length > 0 && state.isOnline) {
+    // Photos go to uploadPhotos online OR offline (2026-10-04): it resizes
+    // them and, when there is no signal or the upload fails, holds them in
+    // the on-phone photo queue against this knock's tempId — the old
+    // `&& state.isOnline` gate silently dropped every photo taken offline.
+    let photosHeld = 0;
+    if (state.currentKnockEntry.photoFiles?.length > 0) {
       // uploadPhotos returns an ARRAY of urls carrying a `paths` property
       // (index-aligned storage paths, persisted so the image pipeline can
       // stamp photoVariants on the knock doc). The array-with-property
@@ -701,7 +706,10 @@
       const uploaded = await state.uploadPhotos(state.currentKnockEntry.photoFiles, tempId);
       photoUrls = Array.isArray(uploaded) ? uploaded.slice() : [];
       photoPaths = (uploaded && Array.isArray(uploaded.paths)) ? uploaded.paths : [];
+      photosHeld = (uploaded && Number(uploaded.queued)) || 0;
     }
+    state.currentKnockEntry.clientTempId = tempId;
+    state.currentKnockEntry.photosHeld = photosHeld;
     if (state.voiceBlob && state.isOnline) {
       voiceUrl = await state.uploadVoiceMemo(state.voiceBlob, tempId);
     }
