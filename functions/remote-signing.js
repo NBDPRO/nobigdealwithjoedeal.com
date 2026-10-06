@@ -45,6 +45,7 @@ const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const { spineAfterRemoteSign } = require('./job-spine');
 const KyLaw = require('./ky-insurance-law');
 const CW = require('./cancel-window');
+const { uidInLeadTenant } = require('./lead-artifact-paths');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -183,6 +184,139 @@ function signedDocHasSignature(originalHtml, signedHtml) {
   return { ok: true, sigBlocks, finalized };
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SIGNABLE PATH CONFINEMENT (security review 2026-10-05)
+//
+// leads/{leadId}/documents/{docId}.htmlPath is CLIENT-WRITTEN. createSignRequest
+// used to copy it into the token unchecked, getSignDocument downloaded it for
+// a no-login stranger and submitSignature overwrote it — any object in the
+// bucket, any tenant's. Same confinement as getDocumentHtml (document-view.js):
+// documents/<uid>/<leadId>/<file>.html, the leadId segment is THIS lead, and
+// the uid segment is in the lead's tenant (the generator writes the WRITER's
+// uid, so a teammate's document carries the teammate's uid, not the owner's).
+// Checked at mint AND on every use, so a token minted before this fix cannot
+// still reach a foreign object.
+// ═══════════════════════════════════════════════════════════════
+const SIGNABLE_HTML_PATH_RE = /^documents\/([A-Za-z0-9_-]{1,128})\/([^/]{1,256})\/[A-Za-z0-9._-]{1,200}\.html$/;
+
+/** Pure shape check. Returns the uid segment, or null. */
+function signablePathUid(htmlPath, leadId) {
+  if (typeof htmlPath !== 'string' || typeof leadId !== 'string' || !leadId) return null;
+  if (htmlPath.indexOf('..') !== -1 || htmlPath.indexOf('\\') !== -1) return null;
+  const m = SIGNABLE_HTML_PATH_RE.exec(htmlPath);
+  if (!m || m[2] !== leadId) return null;
+  return m[1];
+}
+
+/** Shape + tenant check. One users/{uid} read only for a teammate's path. */
+async function signableHtmlPathOk(db, htmlPath, leadId, lead) {
+  const uid = signablePathUid(htmlPath, leadId);
+  if (!uid || !lead) return false;
+  if (uidInLeadTenant(uid, lead, null)) return true;
+  if (!lead.companyId) return false;
+  try {
+    const u = await db.doc(`users/${uid}`).get();
+    return uidInLeadTenant(uid, lead, u.exists ? (u.data() || {}) : null);
+  } catch (e) {
+    logger.warn('[remote-signing] tenant check failed', { leadId, err: e.message });
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXECUTED RECORD = THE ORIGINAL + THE SIGNATURES (security review 2026-10-05)
+//
+// The visible-text gate above cannot see markup: a signer could add a
+// <script>, an on*= handler, a style= / <style> (CSS content: paints a new
+// price), an <img>/<link>/<iframe>/<object>/<form>, and the submitted bytes
+// became the record reps open (nbd-doc-viewer.js renders it with scripts on).
+// So the record is no longer the submission. It is rebuilt from the document
+// WE served; the only thing taken from the submission is, per signature
+// block, one PNG data URL that decodes to a real PNG. Every other byte —
+// inside the blocks too (the "Signed <date>" stamp, the finalized markers) —
+// is written here.
+// ═══════════════════════════════════════════════════════════════
+const MAX_SIG_PNG_CHARS = 2 * 1024 * 1024;
+
+/** Top-level <div data-nbd-sig="role"> blocks: [{ start, end, open, role, body }]. */
+function signatureBlocks(html) {
+  const src = String(html);
+  const out = [];
+  const re = /<div\b[^>]*\bdata-nbd-sig\s*=\s*(["'])([^"']*)\1[^>]*>/gi;
+  let m;
+  while ((m = re.exec(src))) {
+    const end = endOfDivAt(src, m.index);
+    if (end < 0) return null;                   // unbalanced — cannot trust either side
+    out.push({ start: m.index, end, open: m[0], role: m[2], body: src.slice(m.index + m[0].length, end - '</div>'.length) });
+    re.lastIndex = end;
+  }
+  return out;
+}
+
+/** The block's PNG data URL when it is a real PNG, else null. */
+function signaturePngIn(blockBody) {
+  const m = /<img\b[^>]*?\bsrc\s*=\s*(["'])(data:image\/png;base64,([A-Za-z0-9+/]+={0,2}))\1/i.exec(String(blockBody));
+  if (!m || m[2].length > MAX_SIG_PNG_CHARS) return null;
+  const bytes = Buffer.from(m[3], 'base64');
+  const MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 16 || MAGIC.some((b, i) => bytes[i] !== b)) return null;
+  return m[2];
+}
+
+/** The original block, finalized by the server with `png`. */
+function finalizeBlock(block, png, when) {
+  const attr = (name) => { const a = new RegExp('\\b' + name + '\\s*=\\s*(["\'])([^"\']*)\\1', 'i').exec(block.open); return a ? a[2] : ''; };
+  const role = block.role.replace(/[^A-Za-z0-9_-]/g, '');
+  const alt = escHtml(attr('data-label') || (role + ' signature'));
+  const img = `<img src="${png}" alt="${alt}" class="nbd-sig-img" style="max-width:100%;height:auto;display:block;background:#fff;">`;
+  const day = when.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/New_York' });
+  const stamp = `<div class="nbd-sig-date">Signed ${escHtml(day)}</div>`;
+  let body = block.body;
+  const canvas = /<canvas\b[^>]*>(\s*<\/canvas>)?/i.exec(body);
+  body = canvas ? body.slice(0, canvas.index) + img + body.slice(canvas.index + canvas[0].length) : img + body;
+  const ctrl = /<div\b[^>]*\bclass\s*=\s*(["'])[^"']*\bnbd-sig-controls\b[^"']*\1[^>]*>/i.exec(body);
+  const ctrlEnd = ctrl ? endOfDivAt(body, ctrl.index) : -1;
+  body = ctrlEnd > 0 ? body.slice(0, ctrl.index) + stamp + body.slice(ctrlEnd) : body + stamp;
+  const open = block.open.replace(/>$/, ` data-nbd-sig-finalized="1" data-nbd-sig-signed-at="${when.toISOString()}">`);
+  return open + body + '</div>';
+}
+
+/**
+ * Build the executed record from the ORIGINAL.
+ * Returns { ok:true, html, signed } or { ok:false, reason } (reason carries
+ * no document content). Blocks must line up one-for-one by role; a block the
+ * submission finalized must carry a real PNG; a block it left alone (an
+ * optional signer, or one already signed in person) stays as served.
+ */
+function rebuildSignedRecord(originalHtml, signedHtml, when) {
+  const orig = String(originalHtml);
+  const ob = signatureBlocks(orig);
+  const sb = signatureBlocks(signedHtml);
+  if (!ob || !sb) return { ok: false, reason: 'unbalanced' };
+  if (ob.length === 0) return { ok: false, reason: 'noFields' };
+  if (ob.length !== sb.length || ob.some((b, i) => b.role !== sb[i].role)) {
+    return { ok: false, reason: `blocks differ (original ${ob.length}, submitted ${sb.length})` };
+  }
+  const isFinal = (open) => /\bdata-nbd-sig-finalized\s*=\s*["']1["']/i.test(open);
+  let out = '', at = 0, signed = 0;
+  for (let i = 0; i < ob.length; i++) {
+    const o = ob[i], s = sb[i];
+    out += orig.slice(at, o.start);
+    if (!isFinal(o.open) && isFinal(s.open)) {
+      const png = signaturePngIn(s.body);
+      if (!png) return { ok: false, reason: `block ${i} has no valid PNG signature` };
+      out += finalizeBlock(o, png, when);
+      signed++;
+    } else {
+      out += orig.slice(o.start, o.end);
+    }
+    at = o.end;
+  }
+  out += orig.slice(at);
+  if (!signed) return { ok: false, reason: 'unsigned' };
+  return { ok: true, html: out, signed };
+}
+
 function escHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -237,6 +371,12 @@ exports.createSignRequest = onCall(
     const docMeta = docSnap.data();
     const htmlPath = docMeta.htmlPath || null;
     if (!htmlPath) throw new HttpsError('failed-precondition', 'This document has no signable HTML on file');
+    // htmlPath is client-written: confine it to THIS lead's own documents/
+    // object before anything reads it or a token carries it.
+    if (!(await signableHtmlPathOk(db, htmlPath, leadId, lead))) {
+      logger.error('[createSignRequest] htmlPath outside lead prefix — refusing', { leadId, docId });
+      throw new HttpsError('failed-precondition', 'This document cannot be sent for signature. Generate it again, then send that one.');
+    }
     // 2026-10-04: a contract goes out for signature only with the Notice of
     // Right to Cancel + both completed FTC forms attached. A contract
     // generated before they were added has none — it is refused with the fix.
@@ -380,6 +520,17 @@ exports.getSignDocument = onRequest(
       res.status(410).json({ error: 'This document has already been signed.' }); return;
     }
 
+    // Re-check the path on every use: a token minted before the 2026-10-05
+    // fix may name an object outside its lead.
+    {
+      let lead = null;
+      try { const ls = await db.doc(`leads/${tok.leadId}`).get(); lead = ls.exists ? ls.data() : null; } catch (_) { lead = null; }
+      if (!(await signableHtmlPathOk(db, tok.htmlPath, tok.leadId, lead))) {
+        logger.error('[getSignDocument] htmlPath outside lead prefix — refusing', { token: token.slice(0, 6), leadId: tok.leadId || null });
+        res.status(410).json({ error: 'This signing link is no longer valid. Contact your rep for a new one.' }); return;
+      }
+    }
+
     // Serve the interactive doc HTML the generator uploaded to Storage.
     let html = '';
     try {
@@ -459,11 +610,24 @@ exports.submitSignature = onRequest(
     // the transaction below re-reads it authoritatively, so this adds no
     // TOCTOU risk — the worst case is wasted work on a doomed request.
     let originalHtml = null;
+    let record = null;        // the executed record, rebuilt from the original
+    let verifiedPath = null;  // the htmlPath the checks below ran against
     {
       const pre = await tokRef.get();
       if (!pre.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
       const p = pre.data();
-      if (p.status === 'pending' && p.htmlPath) {
+      if (p.status === 'pending') {
+        // Fail CLOSED on a path outside the lead (or none at all): that token
+        // used to skip every gate below, burn, and write the counterparty's
+        // bytes to whatever it named.
+        let lead = null;
+        try { const ls = await db.doc(`leads/${p.leadId}`).get(); lead = ls.exists ? ls.data() : null; } catch (_) { lead = null; }
+        if (!(await signableHtmlPathOk(db, p.htmlPath, p.leadId, lead))) {
+          logger.error('[submitSignature] htmlPath outside lead prefix — refusing', { token: token.slice(0, 6), leadId: p.leadId || null });
+          res.status(410).json({ error: 'This signing link is no longer valid. Contact your rep for a new one.' });
+          return;
+        }
+        verifiedPath = p.htmlPath;
         try {
           const [buf] = await getStorage().bucket().file(p.htmlPath).download();
           originalHtml = buf.toString('utf8');
@@ -512,6 +676,18 @@ exports.submitSignature = onRequest(
           }
           return;
         }
+
+        // The record is the ORIGINAL plus validated signature images —
+        // never the submitted bytes. Before the burn, like the gates above.
+        const rebuilt = rebuildSignedRecord(originalHtml, signedHtml, new Date());
+        if (!rebuilt.ok) {
+          logger.error('[submitSignature] REFUSING — signature blocks could not be verified', {
+            token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reason: rebuilt.reason,
+          });
+          res.status(422).json({ error: 'Your signature could not be verified. Please reload the page and sign again.' });
+          return;
+        }
+        record = rebuilt.html;
       }
     }
 
@@ -529,6 +705,9 @@ exports.submitSignature = onRequest(
         }
         if (t.status !== 'pending') {
           const e = new Error('done'); e._http = 409; e._msg = 'This document has already been signed.'; throw e;
+        }
+        if (!verifiedPath || t.htmlPath !== verifiedPath || record == null) {
+          const e = new Error('unverified'); e._http = 409; e._msg = 'This document changed while you were signing. Please reload the page.'; throw e;
         }
         tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp() });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '' };
@@ -557,8 +736,8 @@ exports.submitSignature = onRequest(
     // The record carries the Notice of Right to Cancel re-rendered from the
     // copy we served and dated today, the signing day (2026-10-04).
     const signedAtNow = new Date();
-    let recordHtml = signedHtml;
-    try { recordHtml = CW.finalizeSignedPacket(originalHtml, signedHtml, signedAtNow); }
+    let recordHtml = record;
+    try { recordHtml = CW.finalizeSignedPacket(originalHtml, record, signedAtNow); }
     catch (e) { logger.warn('[submitSignature] cancel packet re-date failed', { msg: e.message }); }
     const cancelBy = KyLaw.hasCancelPacket(recordHtml) ? CW.cancelByFor(recordHtml, signedAtNow) : '';
     let archivePath = null;
@@ -598,7 +777,7 @@ exports.submitSignature = onRequest(
         ...(cancelBy ? { cancelBy } : {}),
       }, { merge: true });
     } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
-    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger);
+    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid });
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.

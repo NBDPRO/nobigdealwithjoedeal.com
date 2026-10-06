@@ -126,12 +126,32 @@ test.describe.serial('CRM handoff 2026-09-30 — hotkeys, job block, search, dou
       document.querySelectorAll('#leadModal .modal [id]').forEach((el) => { if (/Block|Row|Panel|Wrap|Section/.test(el.id)) out[el.id] = Math.round(el.getBoundingClientRect().height); });
       return out;
     });
+    // The card opens with modalSlideIn (dashboard-app.css: scale(.92) →
+    // scale(1) over .3s). getBoundingClientRect() reports TRANSFORMED boxes,
+    // so a measurement taken while that entrance is still running reads every
+    // block (and Notes' offset) scaled down: measured 2026-10-06, the card is
+    // matrix(0.9626) at +67ms (#jobFieldsBlock 308 of its 320px layout
+    // height) and 0.9948 at +137ms (318). CI's "jumps" were exactly those
+    // readings — 297/303/304/306→308 and 308/315/316/318→320 — once the font
+    // wait above stopped taking longer than the entrance (fonts already
+    // cached when the modal opens). offsetHeight never moved. Wait for every
+    // finite animation in the modal to finish, before AND after the change,
+    // so both readings are of the resting layout a rep actually sees.
+    const settled = () => safeEvaluate(page, async () => {
+      const anims = document.getElementById('leadModal').getAnimations({ subtree: true })
+        .filter((a) => Number.isFinite(a.effect && a.effect.getComputedTiming().endTime));
+      await Promise.all(anims.map((a) => a.finished.catch(() => null)));
+      const card = document.querySelector('#leadModal .modal');
+      return getComputedStyle(card).transform;
+    });
+    expect(await settled(), 'the modal card is at rest (no entrance transform) before measuring').toBe('none');
     const hBefore = await heights();
     const before = await y();
     const hasSigned = await safeEvaluate(page, () => !![...document.getElementById('lStage').options].find((o) => o.value === 'contract_signed'));
     expect(hasSigned, 'precondition: contract_signed is an option').toBe(true);
     await page.selectOption('#lStage', 'contract_signed');
     await page.waitForTimeout(300);
+    expect(await settled(), 'the modal card is at rest after the Stage change').toBe('none');
     const after = await y();
     const hAfter = await heights();
     const grew = Object.keys(hAfter).filter((k) => hAfter[k] !== hBefore[k]).map((k) => k + ':' + hBefore[k] + '→' + hAfter[k]);

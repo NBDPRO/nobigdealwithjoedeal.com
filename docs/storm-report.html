@@ -57,6 +57,7 @@ a{color:inherit}
 .sr-label{display:block;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gray-sub);margin:16px 0 8px}
 .sr-consent{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
 .sr-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
+.sr-consent a{color:inherit;text-decoration:underline}
 .sr-err{color:#b91c1c;font-size:.82rem;margin-top:10px;min-height:1em}
 .sr-spin{width:42px;height:42px;border:4px solid var(--light-gray);border-top-color:var(--orange);border-radius:50%;animation:srSpin 1s linear infinite;margin:24px auto 16px}
 @keyframes srSpin{to{transform:rotate(360deg)}}
@@ -82,6 +83,12 @@ table.sr-table{width:100%;border-collapse:collapse;font-size:.84rem}
 .sr-tag{font-size:.68rem;font-weight:800;text-transform:uppercase;padding:2px 7px;border-radius:4px;color:#fff}
 .sr-hail{background:#2563eb}.sr-wind{background:#16a34a}.sr-tornado{background:#dc2626}
 .sr-source{font-size:.72rem;color:var(--gray);margin:8px 0 20px;line-height:1.5}
+.sr-gusts{background:var(--off-white);border:1px solid var(--light-gray);border-radius:12px;padding:12px 14px;margin:0 0 20px;overflow-wrap:anywhere}
+.sr-gusts[hidden]{display:none}
+.sr-gust-list{margin:6px 0 8px;padding-left:18px;font-size:.88rem;color:var(--navy-dark);line-height:1.5}
+.sr-gust-list li+li{margin-top:4px}
+.sr-gust-note{font-size:.78rem;color:var(--gray-sub);line-height:1.5}
+.sr-gust-source{font-size:.72rem;color:var(--gray);margin-top:6px;line-height:1.5}
 .sr-cta{display:block;text-align:center;text-decoration:none;font-weight:800;border-radius:10px;padding:15px;margin-bottom:10px}
 .sr-cta-primary{background:#BD5728;color:#fff}.sr-cta-primary:hover{background:#A14A22}
 .sr-cta-phone{background:#fff;color:var(--navy-dark);border:2px solid var(--navy-dark)}
@@ -151,7 +158,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       "url": "https://nobigdealwithjoedeal.com",
       "telephone": "+18594207382",
       "email": "jd@nobigdealwithjoedeal.com",
-      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Licensed, insured, locally owned. Call Joe directly.",
+      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
       "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
@@ -371,7 +378,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
   <a href="/storm-alerts" style="color:#dd875f">Storm Alerts</a>
   <a href="/storm-report" style="color:#dd875f">5-Year Storm Report</a>
   <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
-  <a href="/inspect" style="color:#dd875f">Free 24-Hr Inspection</a>
+  <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
   <a href="/#contact" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
 </div>
@@ -420,7 +427,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
         <span class="sr-label">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--gray)">(optional — for your copy)</span></span>
         <input type="email" class="sr-input" id="sr-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email">
         <div id="sr-intake"></div>
-        <label class="sr-consent"><input type="checkbox" id="sr-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
+        <label class="sr-consent"><input type="checkbox" id="sr-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a></span></label>
         <div class="sr-err" id="sr-gate-err"></div>
         <button class="sr-btn" id="sr-unlock" data-action="unlock">Show my full report →</button>
       </div>
@@ -440,6 +447,12 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
         <table class="sr-table"><thead><tr><th>Date</th><th>Type</th><th>Size/Speed</th><th>Distance</th></tr></thead><tbody id="sr-rep-rows"></tbody></table>
       </div>
       <div class="sr-source" id="sr-rep-source"></div>
+      <div class="sr-gusts" id="sr-rep-gusts" hidden>
+        <span class="sr-label">Wind measured nearby</span>
+        <ul class="sr-gust-list" id="sr-rep-gust-list"></ul>
+        <div class="sr-gust-note" id="sr-rep-gust-note"></div>
+        <div class="sr-gust-source" id="sr-rep-gust-source"></div>
+      </div>
       <a class="sr-cta sr-cta-primary" href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener">📅 Book my free inspection →</a>
       <a class="sr-cta sr-cta-phone" href="tel:+18594207382">📞 Call Joe — (859) 420-7382</a>
       <div class="sr-cta-row"><button class="sr-ghost" data-action="print">🖨️ Save as PDF</button><button class="sr-ghost" data-action="restart">↺ Check another address</button></div>
@@ -460,11 +473,14 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 
 <script defer src="/assets/js/public-lead-submit.js"></script>
 <script defer src="/assets/js/intake-extras.js?v=2"></script>
-<script defer src="/assets/js/storm-report-page.js?v=2"></script>
+<script defer src="/assets/js/storm-report-page.js?v=4"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
-<div class="mobile-cta-strip" aria-label="Quick contact options">
-  <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
-  <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
+<!-- nbd:partial mobile-cta book_href="/inspect" -->
+<div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
+  <a href="/inspect" class="mobile-cta-book">Book free inspection</a>
+  <a href="tel:+18594207382" class="mobile-cta-call mobile-cta-icon" aria-label="Call Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg><span>Call</span></a>
+  <a href="sms:+18594207382" class="mobile-cta-text mobile-cta-icon" aria-label="Text Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Text</span></a>
 </div>
+<!-- /nbd:partial mobile-cta -->
 </body>
 </html>

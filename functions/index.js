@@ -243,8 +243,8 @@ const stormReportFn = require('./storm-report');
 Object.assign(exports, stormReportFn);
 
 // Homeowner follow-up email when a /storm-report lead is captured (additive trigger).
-const stormReportEmailFn = require('./storm-report-email');
-Object.assign(exports, stormReportEmailFn);
+// By name only: storm-report-email.js also exports _test (2026-10-06 gust line).
+exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
@@ -260,6 +260,17 @@ Object.assign(exports, leadBridgeFns);
 // ═══════════════════════════════════════════════════════════════
 const smsFunctions = require('./sms-functions');
 Object.assign(exports, smsFunctions);
+
+// NBD's Twilio line (+1 937 764 4855, 2026-10-06): inbound texts, delivery
+// callbacks, inbound calls forwarded to Jo's cell + the <Dial> action. Served
+// at /api/twilio/* (firebase.json). SHIPS DARK — TWILIO_INBOUND_ENABLED unset
+// = fixed TwiML, nothing read or written. Named exports only (twilio-line.js
+// also exports a test seam).
+const twilioLine = require('./twilio-line');
+exports.twilioSmsWebhook      = twilioLine.twilioSmsWebhook;
+exports.twilioSmsStatus       = twilioLine.twilioSmsStatus;
+exports.twilioVoiceWebhook    = twilioLine.twilioVoiceWebhook;
+exports.twilioVoiceDialStatus = twilioLine.twilioVoiceDialStatus;
 
 // ═══════════════════════════════════════════════════════════════
 // AUDIT LOG TRIGGERS (H-4)
@@ -403,6 +414,9 @@ exports.revokeAgentKey = agentMcp.revokeAgentKey;
 exports.saveAgentBot = agentMcp.saveAgentBot;
 exports.deleteAgentBot = agentMcp.deleteAgentBot;
 exports.saveAgentSettings = agentMcp.saveAgentSettings;
+// Agent inbox drafts (2026-10-06): the owner sends a bot draft from their own
+// phone / mail app; this re-checks the Do-Not-Text / unsubscribe lists and logs it.
+exports.agentDraftAction = agentMcp.agentDraftAction;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;
@@ -472,6 +486,14 @@ exports.stripeLedgerSync        = stripeLedger.stripeLedgerSync;
 exports.stripeLedgerReconcile   = stripeLedger.stripeLedgerReconcile;
 exports.assignStripeTransaction = stripeLedger.assignStripeTransaction;
 exports.getStripeOverview       = stripeLedger.getStripeOverview;
+
+// Roof Care Plan (2026-10-05): NBD's homeowner membership — checkout, its own
+// Stripe webhook, and the owner's CRM actions. SHIPS DARK (CARE_PLAN_MODE
+// unset = off). Named exports only; care-plan.js also exports a test seam.
+const carePlan = require('./care-plan');
+exports.carePlanPublic  = carePlan.carePlanPublic;
+exports.carePlanWebhook = carePlan.carePlanWebhook;
+exports.carePlanAdmin   = carePlan.carePlanAdmin;
 
 // Every charge gets a filed document (Jo's live-CRM handoff 2026-09-30 #7):
 // NBD-500 invoice / NBD-510 receipt PDFs filed on the lead, and a Mark-Paid

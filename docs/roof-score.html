@@ -80,6 +80,7 @@ a{color:inherit}
 /* consent + err */
 .sc-consent{display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
 .sc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
+.sc-consent a{color:inherit;text-decoration:underline}
 .sc-err{color:#b91c1c;font-size:.82rem;margin-top:10px;min-height:1em}
 /* loading */
 .sc-spin{width:42px;height:42px;border:4px solid var(--light-gray);border-top-color:var(--orange);border-radius:50%;animation:scSpin 1s linear infinite;margin:30px auto 18px}
@@ -185,7 +186,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       "url": "https://nobigdealwithjoedeal.com",
       "telephone": "+18594207382",
       "email": "jd@nobigdealwithjoedeal.com",
-      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Licensed, insured, locally owned. Call Joe directly.",
+      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
       "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
@@ -405,7 +406,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
   <a href="/storm-alerts" style="color:#dd875f">Storm Alerts</a>
   <a href="/storm-report" style="color:#dd875f">5-Year Storm Report</a>
   <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
-  <a href="/inspect" style="color:#dd875f">Free 24-Hr Inspection</a>
+  <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
   <a href="/#contact" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
 </div>
@@ -513,7 +514,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
         <span class="sc-label">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--gray)">(optional)</span></span>
         <input type="email" class="sc-input" id="rs-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email">
         <div id="rs-intake"></div>
-        <label class="sc-consent"><input type="checkbox" id="rs-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
+        <label class="sc-consent"><input type="checkbox" id="rs-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a></span></label>
         <div class="sc-err" id="rs-contact-err"></div>
         <div class="sc-btns"><button class="sc-back" data-step="4">← Back</button><button class="sc-next" id="rs-submit" data-action="submit">Show my full report →</button></div>
       </div>
@@ -558,9 +559,12 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <script defer src="/assets/js/intake-extras.js?v=2"></script>
 <script defer src="/assets/js/roof-score.js?v=2"></script>
 <!-- STICKY MOBILE CTA STRIP -->
-<div class="mobile-cta-strip" aria-label="Quick contact options">
-  <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
-  <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
+<!-- nbd:partial mobile-cta book_href="/inspect" -->
+<div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
+  <a href="/inspect" class="mobile-cta-book">Book free inspection</a>
+  <a href="tel:+18594207382" class="mobile-cta-call mobile-cta-icon" aria-label="Call Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg><span>Call</span></a>
+  <a href="sms:+18594207382" class="mobile-cta-text mobile-cta-icon" aria-label="Text Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Text</span></a>
 </div>
+<!-- /nbd:partial mobile-cta -->
 </body>
 </html>

@@ -12,6 +12,34 @@ permissions:
   contents: read
 
 # ─────────────────────────────────────────────────────────────
+# CONCURRENCY (added 2026-10-05)
+#
+# The Actions runner pool was badly backlogged: every push to a PR
+# stacked another full CI run (16 required checks, five E2E shards)
+# while the superseded run kept its runners to the end. Nobody reads
+# the result of a run on a commit the PR no longer points at.
+#
+#   pull_request  group ci-pr-<number>, cancel-in-progress: a newer
+#                 push to the same PR cancels the older run.
+#   merge_group   group ci-merge_group-<run_id>: unique per run, so it
+#   push (main)   ci-push-<run_id>: never cancelled and never replaced.
+#                 A queue run is the merge gate and a main run is the
+#                 record of what deployed — neither may be cut short.
+#
+# Deploys are NOT here: firebase-deploy.yml has its own group, and a
+# deploy must never be cancelled mid-run. Do not add a job-level
+# concurrency: key either. Pinned by tests/ci-concurrency.test.js.
+#
+# Not done: skipping draft PRs. A job-level if: on every job would
+# report SKIPPED, which branch protection treats as a pass, and the
+# skipped matrix job reports one unexpanded name instead of five
+# shard checks. Too many ways to look green without running.
+# ─────────────────────────────────────────────────────────────
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-{0}-{1}', github.event_name, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# ─────────────────────────────────────────────────────────────
 # JOB TIMEOUTS (added 2026-08-18)
 #
 # Every job here previously ran with NO timeout-minutes, so it
