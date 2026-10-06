@@ -972,8 +972,8 @@ function buildCard(l){
   const nameRaw = ((l.firstName||l.fname||'')+'  '+(l.lastName||l.lname||'')).trim() || l.name||'Unknown';
   const name  = escHtml(nameRaw);
   // T1.e: strip the leading-comma artifact some upstream USPS-style
-  // formatters insert between house number and street ("3424, Moria Drive").
-  // Display as plain "3424 Moria Drive, Cincinnati" by collapsing
+  // formatters insert between house number and street ("3424, Quarrystone Drive").
+  // Display as plain "3424 Quarrystone Drive, Cincinnati" by collapsing
   // "<digits>,<space>" → "<digits> ".
   // Audit C — wrap in String() so a malformed lead with `address` stored
   // as an object/array/number (possible via Firestore-console hand edits or

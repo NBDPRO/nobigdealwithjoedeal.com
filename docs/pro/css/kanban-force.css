@@ -540,7 +540,7 @@
     color: color-mix(in srgb, var(--orange, #BD5728) 60%, #fff) !important;
     border: 1px solid color-mix(in srgb, var(--orange, #BD5728) 30%, transparent) !important;
   }
-  /* Sweep R3: .kc-name 2-line clamp. 'Morgan-McCane' and other long
+  /* Sweep R3: .kc-name 2-line clamp. 'Customer DR' and other long
      surnames were wrapping unbounded and pushing the rest of the
      card down. Cap at 2 lines with ellipsis so card heights stay
      more uniform across the column. */
