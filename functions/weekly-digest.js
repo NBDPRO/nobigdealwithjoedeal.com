@@ -27,6 +27,10 @@ const { FieldPath, getFirestore, Timestamp } = require('firebase-admin/firestore
 const { FieldValue } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
 const stageRoles = require('./stage-roles');
+// The ONE money reader ('$45,000' → 45000) and the jobs rule the Home KPI
+// tiles use (review R2, 2026-10-06).
+const { moneyValue } = require('./customer-estimate-rows');
+const { jobRecords, jobsByLeadFromDocs } = require('./jobs-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
@@ -313,7 +317,7 @@ async function aggregateUserMetrics(db, uid) {
   const wonThisWeek = touchedThisWeek.filter(_isWonLead)
     .filter(l => !l.stageStartedAt || timestampMillis(l.stageStartedAt) >= cutoff);
   // BOOKED value of those wins — projected, not money (labelled so below).
-  const wonRevenue = wonThisWeek.reduce((s, l) => s + (Number(l.jobValue) || 0), 0);
+  const wonRevenue = wonThisWeek.reduce((s, l) => s + moneyValue(l.jobValue), 0);
 
   // Revenue = money COLLECTED this week (Jo, 2026-09-28: "Revenue is always
   // collected only"): each invoice payment by the date it arrived. Same
@@ -336,10 +340,13 @@ async function aggregateUserMetrics(db, uid) {
 
   const lostThisWeek = touchedThisWeek.filter(_isLostLead);
 
-  // Active pipeline = every non-terminal lead regardless of recency.
-  // Paginated field-mask read: ~3 fields/doc instead of full documents,
+  // Active pipeline = every non-terminal JOB regardless of recency — a
+  // customer's second open job adds its own value, like the Home KPI tiles
+  // (jobs-logic.js jobRecords; review R2-2-7, 2026-10-06).
+  // Paginated field-mask read: ~4 fields/doc instead of full documents,
   // and no truncation cap — big books just take more (cheap) pages.
   let activePipelineValue = 0;
+  const pipeLeads = [];
   let cursor = null;
   for (let page = 0; page < 200; page++) {
     let q = db.collection('leads')
@@ -348,18 +355,31 @@ async function aggregateUserMetrics(db, uid) {
       // stageRole added 2026-09-15 — without it in the field mask, _isTerminalLead's
       // role fallback would always see it as undefined and silently degrade to the
       // hardcoded-only check this fix exists to get past.
-      .select('stage', 'stageRole', 'jobValue', 'deleted')
+      .select('stage', 'stageRole', 'jobValue', 'deleted', 'activeJobId')
       .limit(1000);
     if (cursor) q = q.startAfter(cursor);
     const pageSnap = await q.get();
     for (const d of pageSnap.docs) {
       const l = d.data();
       if (l.deleted) continue;
-      if (_isTerminalLead(l)) continue;
-      activePipelineValue += Number(l.jobValue) || 0;
+      pipeLeads.push(Object.assign({ id: d.id }, l));
     }
     if (pageSnap.size < 1000) break;
     cursor = pageSnap.docs[pageSnap.docs.length - 1];
+  }
+  // The rep's jobs (userId equality on the jobs collection group — the index
+  // exists). Best-effort: a failed read leaves each customer counted once.
+  let jobsByLead = null;
+  try {
+    const jobSnap = await db.collectionGroup('jobs').where('userId', '==', uid)
+      .select('stage', 'stageRole', 'jobValue').limit(5000).get();
+    jobsByLead = jobsByLeadFromDocs(jobSnap.docs);
+  } catch (e) {
+    logger.warn('weekly_digest_jobs_read_failed', { uid, err: e && e.message });
+  }
+  for (const r of jobRecords(pipeLeads, jobsByLead)) {
+    if (_isTerminalLead(r)) continue;
+    activePipelineValue += moneyValue(r.jobValue);
   }
 
   // Sort new leads by creation time desc, take top 5 for display.
@@ -379,6 +399,10 @@ async function aggregateUserMetrics(db, uid) {
     hasAnyActivity: newLeads.length > 0 || wonThisWeek.length > 0 || lostThisWeek.length > 0 || collectedCents !== 0,
   };
 }
+
+// For tests (tests/r2-money-parse-multijob-2026-10-06.test.js runs it on a
+// fake db). index.js re-exports only weeklyDigest, so this deploys nothing.
+exports._aggregateUserMetrics = aggregateUserMetrics;
 
 // ─── Scheduled function ─────────────────────────────────────────
 exports.weeklyDigest = onSchedule(

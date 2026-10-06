@@ -216,6 +216,16 @@
   // Multi-job (2026-09-30): money and win/loss totals count every JOB (a
   // customer's second job has its own value and its own outcome); counts of
   // CUSTOMERS stay on the leads. jobs-store.js recordsFor.
+  // A stored dollar field as a number: the ONE money reader
+  // (customer-estimate-rows.js moneyValue) — legacy text like '$45,000' reads
+  // 45000 here, on the kanban and in the leaderboard widget alike (review R2,
+  // 2026-10-06). Fallback strips the same characters if that file is absent.
+  function _kpiMoney(v) {
+    var R = window.NBDCustomerEstimateRows;
+    if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+    return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+  }
+
   function _jobRecs(leads) {
     var J = window.NBDJobs;
     return J && typeof J.recordsFor === 'function' ? J.recordsFor(leads) : leads;
@@ -235,7 +245,7 @@
       return !_isDecided(l) && !_isJob(l) && !l.deleted;
     });
     var pipelineValue = activeLeads.reduce(function (sum, l) {
-      return sum + (parseFloat(l.jobValue) || 0);
+      return sum + (_kpiMoney(l.jobValue));
     }, 0);
 
     var closedThisMonth = recs.filter(function (l) {
@@ -248,7 +258,7 @@
       return d && d.getMonth() === thisMonth && d.getFullYear() === thisYear;
     });
     var monthlyRevenue = closedThisMonth.reduce(function (sum, l) {
-      return sum + (parseFloat(l.jobValue) || 0);
+      return sum + (_kpiMoney(l.jobValue));
     }, 0);
 
     // null = nothing decided yet → the card shows "—", not 0%.
@@ -268,10 +278,10 @@
     var overdueFollowUps = fuDue ? leads.filter(function (l) { return fuDue(l, now.getTime()); }).length : 0;
 
     var closedWithValue = recs.filter(function (l) {
-      return _isClosedWon(l) && parseFloat(l.jobValue) > 0;
+      return _isClosedWon(l) && _kpiMoney(l.jobValue) > 0;
     });
     var avgDealSize = closedWithValue.length > 0
-      ? closedWithValue.reduce(function (s, l) { return s + parseFloat(l.jobValue); }, 0) / closedWithValue.length
+      ? closedWithValue.reduce(function (s, l) { return s + _kpiMoney(l.jobValue); }, 0) / closedWithValue.length
       : 0;
 
     var sourceMap = {};
@@ -498,7 +508,7 @@
       return !_isDecided(l) && !l.deleted;
     });
     var pipelineValue = activeLeads.reduce(function (sum, l) {
-      return sum + (parseFloat(l.jobValue) || 0);
+      return sum + (_kpiMoney(l.jobValue));
     }, 0);
 
     // ── Conversion rate (per job: a customer's second job is its own win or loss) ──
@@ -513,9 +523,9 @@
     var conversionRate = _ratePct(_cr);
 
     // ── Average deal size ──
-    var wonWithValue = wonLeads.filter(function (l) { return parseFloat(l.jobValue) > 0; });
+    var wonWithValue = wonLeads.filter(function (l) { return _kpiMoney(l.jobValue) > 0; });
     var avgDealSize = wonWithValue.length > 0
-      ? wonWithValue.reduce(function (s, l) { return s + parseFloat(l.jobValue); }, 0) / wonWithValue.length
+      ? wonWithValue.reduce(function (s, l) { return s + _kpiMoney(l.jobValue); }, 0) / wonWithValue.length
       : 0;
 
     // ── Estimates ──
@@ -646,7 +656,7 @@
     // record would count one customer's costs once for each of their jobs.
     var wonCustomers = leads.filter(function (l) { return _isWon(l); });
     wonCustomers.forEach(function (l) {
-      var rev = parseFloat(l.jobValue) || 0;
+      var rev = _kpiMoney(l.jobValue);
       var dc = (directByJob[l.id] || 0) / 100;
       if (rev > 0 && dc > 0) { wonRev += rev; wonDirect += dc; costedJobs += 1; }
     });
@@ -1127,7 +1137,7 @@
       const knockById = {};
       knocks.forEach(k => { knockById[k.id] = k; });
       const wonD2D = d2dLeads.filter(_isWon);
-      const d2dRevenue = wonD2D.reduce((s, l) => s + (Number(l.jobValue) || 0), 0);
+      const d2dRevenue = wonD2D.reduce((s, l) => s + (_kpiMoney(l.jobValue)), 0);
 
       // Funnel counts are UNIQUE-DOOR based so stages stay monotonic (a door that
       // reached a stage counts once), matching the deduped Doors denominator.
@@ -1162,7 +1172,7 @@
         const k = knockById[l.d2dKnockId];
         const uid = (k && k.userId) || l.userId || null;
         const nm = (k && k.repName) || '';
-        bump(_repKey(uid, nm), uid, nm).revenue += Number(l.jobValue) || 0;
+        bump(_repKey(uid, nm), uid, nm).revenue += _kpiMoney(l.jobValue);
       });
       const _me = window._user && window._user.uid;
       const _nameOf = (r) => (window.NBDTeamNames && r.uid && window.NBDTeamNames.nameFor(r.uid))

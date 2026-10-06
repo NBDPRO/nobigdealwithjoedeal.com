@@ -126,10 +126,10 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=1',
+      'js/stripe-ledger-panel.js?v=2',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=5',
-      'js/money-dashboard.js?v=8'
+      'js/money-dashboard.js?v=9'
     ],
     repos: [
       'js/rep-os.js?v=4'
@@ -185,10 +185,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=17',
+      'js/document-generator.js?v=18',
       'js/document-generator-templates.js?v=13',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=5',
+      'js/doc-preflight.js?v=6',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -268,7 +268,7 @@
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
-      'js/estimate-supplement.js?v=2',
+      'js/estimate-supplement.js?v=3',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
       // resolves through EstimateLogic + registers custom items into
@@ -422,7 +422,7 @@
     drawtool: [
       'css/maps-routing-view.css?v=2',
       'js/draw-geom.js?v=2',
-      'js/maps-routing.js?v=9',
+      'js/maps-routing.js?v=10',
       'css/draw-reticle.css?v=1',
       'js/draw-reticle.js?v=1',
       // Instant Roofer cross-check card + the V3 wizard's "Draw it" hand-off
