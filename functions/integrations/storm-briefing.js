@@ -309,4 +309,6 @@ exports.stormBriefing_onAlertSent = onDocumentCreated(
 );
 
 // Test surface — pure functions so unit tests don't need the emulator.
-exports._test = { scoreLead, recencyWeight, _composeBriefing, formatLeadLine, _reserveSentinel, _findAffectedLeads };
+exports._test = { scoreLead, recencyWeight, _composeBriefing, formatLeadLine, _reserveSentinel };
+// Own line so it never collides with edits to the export list above.
+exports._test._findAffectedLeads = _findAffectedLeads;
