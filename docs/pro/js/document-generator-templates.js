@@ -1143,8 +1143,8 @@
       lineItems:[],
       taxRate:0, paymentsReceived:0,
       claimNumber:'', insuranceCompany:'',
-      // Extra properties worked under one job. Invoice NBD-2026-0810-RK bills
-      // 1944 AND 1942 Kentucky Ave together; before this the second building
+      // Extra properties worked under one job. Invoice NBD-2026-0810-XXXX bills
+      // 100 AND 102 Kentucky Ave together; before this the second building
       // could not be shown at all. Empty array = block is omitted entirely.
       serviceAddresses:[],
       notes:'Thank you for choosing ' + C.name + '. We appreciate your business and trust in our team.' }, data);
@@ -1278,7 +1278,7 @@
   // document-generator.js already had a `receipt` branch in _buildPremiumData
   // and in the server-render map, but `receipt` was never registered in
   // DOCUMENT_TYPES — so there was no way to produce one from the app. Jobs
-  // that were paid in full (Higgins, Philpot) had no closing document at all.
+  // that were paid in full (Customer BZ, Customer EE) had no closing document at all.
   DG.renderReceipt = function(data) {
     const d = Object.assign({
       homeownerName:'[Homeowner Name]', address:'[Property Address]',
