@@ -1164,6 +1164,16 @@
       '</div>'
     );
 
+    // ── A video from Thursday (NBD only, 2026-10-05) ──
+    // NBD's AI assistant presenter. company.isNbd is the server's companyId
+    // check (functions/portal.js), never the company name; and nothing renders
+    // until thursday-video.js has a portal video configured (ships dark).
+    const thursdayIsNbd = !!(view.company && view.company.isNbd === true);
+    const TV = window.NBDThursdayVideo;
+    if (TV && TV.shouldShow('portal', thursdayIsNbd)) {
+      parts.push('<div id="thursdayVideoSlot"></div>');
+    }
+
     // ── Rep contact card ──
     const phoneHref = view.rep && view.rep.phone ? 'tel:' + view.rep.phone.replace(/\D/g, '') : null;
     parts.push(
@@ -1419,6 +1429,10 @@
     }
 
     document.getElementById('mainWrap').innerHTML = parts.join('');
+
+    // Thursday card: built once, moved into each re-render's slot.
+    const thursdaySlot = document.getElementById('thursdayVideoSlot');
+    if (thursdaySlot && TV) TV.mountInto(thursdaySlot, 'portal', thursdayIsNbd);
 
     // A poll-driven re-render replaces #pm-thread, but the messaging poll
     // interval closed over the OLD (now-detached) node — rep replies would
