@@ -56,6 +56,7 @@
     "lead-deep-link-2026-09-28.test.js",
     "deal-room-sibling-links-2026-09-28.test.js",
     "deal-room-views-2026-10-02.test.js",
+    "thursday-video-card-2026-10-05.test.js",
     "estimate-send-track-2026-10-03.test.js",
     "photo-exif-self-hosted-2026-09-16.test.js",
     "customer-photos-by-phase-team-scope-2026-09-16.test.js",
@@ -403,7 +404,8 @@
     "today-home-visual-2026-10-05.test.js",
     "pipeline-cards-visual-2026-10-05.test.js",
     "customer-header-visual-2026-10-05.test.js",
-    "close-board-visual-2026-10-05.test.js"
+    "close-board-visual-2026-10-05.test.js",
+    "care-plan-crm-2026-10-05.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
