@@ -41,6 +41,17 @@
 
   function round2(n) { return Math.round(n * 100) / 100; }
 
+  // ONE money reader for a stored dollar field (lead.jobValue first of all;
+  // review R2, 2026-10-06). jobValue is a number on every current writer, but
+  // legacy / imported docs can hold text, and the surfaces parsed it three
+  // ways: parseFloat('45,000') is 45, parseFloat('$45,000') and Number('45,000')
+  // are NaN → 0. This reads '$45,000', '45,000' and '45000.50' alike; anything
+  // without a number ('', null, 'TBD') is 0, never NaN.
+  function moneyValue(v) {
+    const n = numFrom(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
   /**
    * @param {object} est saved estimate doc (classic or V2 shape)
    * @returns {Array<{code:string,desc:string,qty:string,rate:string,total:number}>}
@@ -508,6 +519,7 @@
     buildDocLineItems: buildDocLineItems,
     buildDisplayRows: buildDisplayRows,
     numFrom: numFrom,
+    moneyValue: moneyValue,
     estimateValue: estimateValue,
     estimateName: estimateName,
     tierApplies: tierApplies,

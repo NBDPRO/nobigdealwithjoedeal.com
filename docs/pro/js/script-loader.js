@@ -126,10 +126,10 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=1',
+      'js/stripe-ledger-panel.js?v=2',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=5',
-      'js/money-dashboard.js?v=8'
+      'js/money-dashboard.js?v=9'
     ],
     repos: [
       'js/rep-os.js?v=4'
