@@ -160,8 +160,9 @@ async function callPhone(token, data, docs, wopts) {
     ok('a crew text (no lead) still checks the sub\'s number against the register', r.out && r.out.ok === false && r.out.code === 'opted_out');
     r = await callPhone(REP, { action: 'check', recipient: 'crew', phone: '(513) 555-0199' }, {}, { clockMs: NIGHT });
     ok('…but not homeowner hours (a sub is not a homeowner)', r.out && r.out.ok === true);
-    const mod = (() => { const w = W.makeWorld({}); return W.load(w, 'phone-text-check.js'); })();
-    ok('the callable enforces App Check, 256MiB', mod.phoneTextAction.__opts.enforceAppCheck === true && mod.phoneTextAction.__opts.memory === '256MiB');
+    let mod = null;
+    try { mod = W.load(W.makeWorld({}), 'phone-text-check.js'); } catch (_) { mod = null; }
+    ok('the callable enforces App Check, 256MiB', !!mod && mod.phoneTextAction.__opts.enforceAppCheck === true && mod.phoneTextAction.__opts.memory === '256MiB');
     const idx = stripComments(rd('functions/index.js'));
     ok('exported from functions/index.js', /exports\.phoneTextAction = require\('\.\/phone-text-check'\)\.phoneTextAction/.test(idx));
   }
@@ -238,15 +239,15 @@ async function callPhone(token, data, docs, wopts) {
   }
   {
     const h = loadShare({});
-    h.api.precheck({ phone: PHONE, leadId: 'lead-1' });
+    if (typeof h.api.precheck === 'function') h.api.precheck({ phone: PHONE, leadId: 'lead-1' });
     await flush();
     await h.api.share({ text: 'Hi', phone: PHONE, leadId: 'lead-1' });
     ok('precheck + share ask the server ONCE (a yes is reused, so the share sheet keeps the tap)', h.calls.filter((c) => c.data.action === 'check').length === 1);
   }
   {
     const h = loadShare({ check: { ok: false, code: 'dnc', reason: 'Do Not Text' } });
-    await h.api.checkText({ phone: PHONE, leadId: 'lead-1' });
-    await h.api.checkText({ phone: PHONE, leadId: 'lead-1' });
+    if (typeof h.api.checkText === 'function') await h.api.checkText({ phone: PHONE, leadId: 'lead-1' });
+    if (typeof h.api.checkText === 'function') await h.api.checkText({ phone: PHONE, leadId: 'lead-1' });
     ok('a NO is not cached — asked again next time', h.calls.filter((c) => c.data.action === 'check').length === 2);
   }
   {
@@ -256,8 +257,8 @@ async function callPhone(token, data, docs, wopts) {
   }
   {
     const h = loadShare({});
-    const r = await h.api.reportStop({ leadId: 'lead-1', logId: 'log-9' });
-    ok('reportStop → phoneTextAction stop with the lead and the log row', r.ok === true && h.calls[0].data.action === 'stop' && h.calls[0].data.leadId === 'lead-1' && h.calls[0].data.logId === 'log-9');
+    const r = typeof h.api.reportStop === 'function' ? await h.api.reportStop({ leadId: 'lead-1', logId: 'log-9' }) : {};
+    ok('reportStop → phoneTextAction stop with the lead and the log row', r.ok === true && !!h.calls[0] && h.calls[0].data.action === 'stop' && h.calls[0].data.leadId === 'lead-1' && h.calls[0].data.logId === 'log-9');
   }
 
   // ═══ C. the callers ════════════════════════════════════════════════════
@@ -351,6 +352,8 @@ async function callPhone(token, data, docs, wopts) {
   console.log('\nF. R2-3-1: bot text drafts');
   {
     const L = require(path.join(W.FUNCTIONS, 'agent-mcp-logic.js'));
+    // On a tree without the fix the validator is absent: every check below fails, none crashes.
+    if (typeof L.editedTextProblem !== 'function') L.editedTextProblem = () => 'MISSING editedTextProblem';
     const d = L.buildTextDraft({ body: 'Hi Sam, Joe from No Big Deal — your estimate is ready.', reason: 'follow-up' }, ['No Big Deal']);
     ok('the STOP line on a phone-sent draft is honest: "Reply STOP and we\'ll stop texting."', /\nReply STOP and we'll stop texting\.$/.test(d.body) && !/to opt out/.test(d.body), d.body);
     ok('editedTextProblem: ok text passes', L.editedTextProblem(d.body, ['No Big Deal']) === null);

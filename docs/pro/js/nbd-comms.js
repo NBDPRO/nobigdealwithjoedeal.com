@@ -610,7 +610,8 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         const msg = (chk && chk.reason)
           || 'Couldn’t check whether this customer can be texted — nothing was sent. Call them instead.';
         if (window.showToast) window.showToast(msg, 'error');
-        return { success: false, mode: 'sms', error: (chk && chk.code) || 'unverified', message: msg };
+        // mode 'platform' like every other refusal: nothing was opened.
+        return { success: false, mode: 'platform', error: (chk && chk.code) || 'unverified', message: msg };
       }
       const link = 'sms:' + encodeURIComponent(to) + '?body=' + encodeURIComponent(body || '');
       _openHandoff(link);

@@ -2718,6 +2718,52 @@ async function run() {
   await assertFails(deleteDoc(doc(coAdmin, 'sms_settings/co-a')));
   console.log('  56: sms_settings client read / create / update / delete all denied');
 
+  // 57. ai_drafts status moves (review R2-3-3, 2026-10-06). onAiDraftApproved
+  //     texts the homeowner on → approved, so a rep may set 'approved' ONLY
+  //     from 'pending' — never from sent / failed / approved / dismissed (a
+  //     stale tab re-approving a sent draft texted them twice). A failed draft
+  //     may go back to 'pending' (the panel's "edit and try again") or be
+  //     dismissed; nothing else moves it. Every transition below.
+  const s57Fail = []; let s57Pass = 0;
+  async function x57(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s57Pass++; }
+    catch (_) { s57Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const STATUSES57 = ['pending', 'approved', 'sent', 'failed', 'dismissed'];
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'leads/lead57'), { userId: 'alice', companyId: 'co-a', name: 'Sam' });
+    await setDoc(doc(d, 'leads/lead57v'), { userId: 'vic', companyId: 'co-v', name: 'Vee' });
+    for (const from of STATUSES57) {
+      for (const to of STATUSES57) {
+        await setDoc(doc(d, 'leads/lead57/ai_drafts/' + from + '-' + to), { userId: 'alice', leadId: 'lead57', status: from, draftText: 'Thanks Sam' });
+      }
+    }
+    await setDoc(doc(d, 'leads/lead57/ai_drafts/bob-pending'), { userId: 'alice', leadId: 'lead57', status: 'pending', draftText: 'x' });
+    await setDoc(doc(d, 'leads/lead57v/ai_drafts/vic-pending'), { userId: 'vic', leadId: 'lead57v', status: 'pending', draftText: 'x' });
+    await setDoc(doc(d, 'leads/lead57/ai_drafts/edit-pending'), { userId: 'alice', leadId: 'lead57', status: 'pending', draftText: 'x' });
+    await setDoc(doc(d, 'leads/lead57/ai_drafts/nostatus'), { userId: 'alice', leadId: 'lead57', draftText: 'x' });
+  });
+  const ALLOWED57 = { 'pending-approved': 1, 'pending-dismissed': 1, 'failed-pending': 1, 'failed-dismissed': 1 };
+  for (const from of STATUSES57) {
+    for (const to of STATUSES57) {
+      const key = from + '-' + to;
+      const patch = to === 'approved'
+        ? { status: 'approved', draftText: 'Thanks Sam!', editedByRep: true, approvedBy: 'alice', approvedAt: 1 }
+        : (to === 'dismissed' ? { status: 'dismissed', dismissedAt: 1 } : { status: to });
+      await x57(from + ' → ' + to, ALLOWED57[key] ? 'allow' : 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/' + key), patch));
+    }
+  }
+  await x57('pending → approved by another tenant\'s rep', 'deny', updateDoc(doc(bob, 'leads/lead57/ai_drafts/bob-pending'), { status: 'approved' }));
+  await x57('pending → approved by a viewer on their own lead', 'deny', updateDoc(doc(viewer, 'leads/lead57v/ai_drafts/vic-pending'), { status: 'approved' }));
+  await x57('an edit that keeps status pending (no transition) is refused', 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/edit-pending'), { draftText: 'y' }));
+  await x57('a draft with no status cannot be approved', 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/nostatus'), { status: 'approved' }));
+  await x57('pending → approved may not smuggle a server field (twilioSid)', 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/edit-pending'), { status: 'approved', twilioSid: 'SM1' }));
+  console.log('  57: ' + s57Pass + ' ai_drafts status-move checks passed, ' + s57Fail.length + ' failed');
+  if (s57Fail.length) {
+    throw new Error('57 ai_drafts status moves: ' + s57Fail.length + ' check(s) went the wrong way:\n    ' + s57Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }
