@@ -54,7 +54,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=18" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=19" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
@@ -145,6 +145,7 @@
      /pro/css revalidation policy instead of shipping in every HTML load. -->
 <link rel="stylesheet" href="css/dashboard-app.css?v=11">
 <link rel="stylesheet" href="css/ui-primitives.css?v=12">
+<link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=2">
@@ -815,6 +816,8 @@
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="refrewards" id="nav-refrewards"><span class="ni-icon">🎁</span>Referrals</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="signs" id="nav-signs"><span class="ni-icon">🪧</span>Yard Signs</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="winback" id="nav-winback"><span class="ni-icon">🤝</span>Past Customers</div>
+      <!-- Roof Care Plan members (2026-10-05): hidden until care-plan-crm.js confirms the plan is on (CARE_PLAN_MODE) for the platform tenant's owner. -->
+      <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="careplan" id="nav-careplan" data-careplan-nav hidden><span class="ni-icon">🛡</span>Care Plan</div>
       <div class="ni" role="button" tabindex="0" data-action="windowOpen" data-target="/pro/daily-success/" id="nav-daily"><span class="ni-icon">📅</span>Success Tracker</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="storm" id="nav-storm"><span class="ni-icon">⛈️</span>Storm Watch</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="closeboard" id="nav-closeboard"><span class="ni-icon">📋</span>Close Board</div>
@@ -2418,6 +2421,9 @@
   <!-- Past Customers (win-back): template-hydrated mount; winback.js (lazy 'winback' bundle) renders the list into .view-scroll on init. -->
   <div class="view" id="view-winback" data-view-template="tpl-view-winback"></div>
   <template id="tpl-view-winback"><div class="view-scroll" id="winbackScroll"></div></template>
+  <!-- Roof Care Plan members: template-hydrated mount; care-plan-members.js (lazy 'careplan' bundle) renders into .view-scroll on init. -->
+  <div class="view" id="view-careplan" data-view-template="tpl-view-careplan"></div>
+  <template id="tpl-view-careplan"><div class="view-scroll" id="careplanScroll"></div></template>
   <!-- Sunday business review (2026-10-04): template-hydrated mount; week-review.js (lazy 'weekreview' bundle) renders into .view-scroll on init. Owner-only figures. -->
   <div class="view" id="view-weekreview" data-view-template="tpl-view-weekreview"></div>
   <template id="tpl-view-weekreview"><div class="view-scroll" id="weekReviewScroll"></div></template>
@@ -6225,6 +6231,9 @@
   <div class="mm-item" data-action="mobileNav" data-target="winback" data-close-more>
     <span class="mm-item-icon">🤝</span>Past Customers
   </div>
+  <div class="mm-item" data-action="mobileNav" data-target="careplan" data-close-more data-careplan-nav hidden>
+    <span class="mm-item-icon">🛡</span>Care Plan
+  </div>
   <div class="mm-item" data-action="mobileNav" data-target="money" data-close-more>
     <span class="mm-item-icon">💵</span>Money
   </div>
@@ -6910,7 +6919,7 @@
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=18"></script>
+<script defer src="js/crm-pipeline.js?v=19"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -7072,6 +7081,9 @@
      defaults. After company-profile.js (reads _companyProfile at call time);
      estimate-config.js and deposit-rule.js ask it first. -->
 <script defer src="js/tenant-rules.js?v=1"></script>
+<!-- Roof Care Plan (2026-10-05): member badge, nav reveal, invite / billing
+     link dialog. After tenant-rules.js (isPlatformTenant). -->
+<script defer src="js/care-plan-crm.js?v=1"></script>
 <!-- LAZY (2026-10-05, boot budget): the Business Rules editor and the logo
      upload / company export buttons ride ScriptLoader's 'tenantsettings'
      bundle (goTo('settings')); the new-owner setup checklist rides 'setup',

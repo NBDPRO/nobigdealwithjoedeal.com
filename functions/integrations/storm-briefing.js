@@ -106,6 +106,16 @@ function scoreLead(lead, fallbackSize) {
   return Number((size * stageW * recencyW).toFixed(3));
 }
 
+// Roof Care Plan members (functions/care-plan.js lead mirror) are promised
+// priority scheduling after storms: they lead the call order (2026-10-05).
+function isCarePlanMember(lead) {
+  const c = lead && lead.carePlan;
+  return !!(c && c.member === true && (c.status === 'active' || c.status === 'past_due'));
+}
+function byPriority(a, b) {
+  return ((isCarePlanMember(b) ? 1 : 0) - (isCarePlanMember(a) ? 1 : 0)) || (b._score - a._score);
+}
+
 function formatLeadLine(lead, index) {
   const name = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim()
     || lead.name || 'Lead ' + (lead.id || '').slice(0, 6);
@@ -122,7 +132,7 @@ function formatLeadLine(lead, index) {
   } else if (stage === 'inspected' || stage === 'estimate_submitted') {
     action = 'Re-quote with storm severity callout';
   }
-  return `*${index + 1}. ${escSlack(name)}*  ·  _${escSlack(stageLabel)}_\n` +
+  return `*${index + 1}. ${escSlack(name)}*  ·  _${escSlack(stageLabel)}_` + (isCarePlanMember(lead) ? '  ·  🛡 *Care Plan member — priority*' : '') + `\n` +
          `   📍 ${escSlack(addr)}` + (phone ? `  ·  📞 ${escSlack(phone)}` : '') + `\n` +
          `   → ${escSlack(action)}`;
 }
@@ -281,7 +291,7 @@ exports.stormBriefing_onAlertSent = onDocumentCreated(
       const fallbackSize = Number(data.sizeInches) || 1.0;
       const scored = leads
         .map(l => ({ ...l, _score: scoreLead(l, fallbackSize) }))
-        .sort((a, b) => b._score - a._score);
+        .sort(byPriority);
 
       const payload = _composeBriefing(data, scored);
       const slackResult = await postSlack(payload);
@@ -312,4 +322,4 @@ exports.stormBriefing_onAlertSent = onDocumentCreated(
 );
 
 // Test surface — pure functions so unit tests don't need the emulator.
-exports._test = { scoreLead, recencyWeight, _composeBriefing, formatLeadLine, _reserveSentinel };
+exports._test = { scoreLead, recencyWeight, _composeBriefing, formatLeadLine, _reserveSentinel, isCarePlanMember, byPriority };

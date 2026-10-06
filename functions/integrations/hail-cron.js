@@ -161,6 +161,10 @@ exports.hailMatchCron = onSchedule(
               leadId: docSnap.id,
               sizeInches: best.sizeInches,
               address: lead.address || '(no address)',
+              // Roof Care Plan member (functions/care-plan.js lead mirror):
+              // priority after storms, so first in the summary (2026-10-05).
+              carePlanMember: !!(lead.carePlan && lead.carePlan.member === true
+                && (lead.carePlan.status === 'active' || lead.carePlan.status === 'past_due')),
               ownerUid: lead.userId
             });
           }
@@ -181,7 +185,7 @@ exports.hailMatchCron = onSchedule(
     if (newHits.length > 0) {
       const top = newHits
         .slice()
-        .sort((a, b) => b.sizeInches - a.sizeInches)
+        .sort((a, b) => ((b.carePlanMember ? 1 : 0) - (a.carePlanMember ? 1 : 0)) || (b.sizeInches - a.sizeInches))
         .slice(0, 10);
       await postSlackSummary({
         text: '⛈ ' + newHits.length + ' new hail match(es) on pipeline leads',
@@ -192,7 +196,7 @@ exports.hailMatchCron = onSchedule(
             text:
               '*⛈ Hail match report*\n' +
               newHits.length + ' lead(s) now have verified hail within ' + RADIUS_MI + ' mi.\n\n' +
-              top.map(h => '• `' + h.sizeInches.toFixed(2) + '"` — ' + h.address).join('\n')
+              top.map(h => '• `' + h.sizeInches.toFixed(2) + '"` — ' + h.address + (h.carePlanMember ? '  🛡 Care Plan member — priority' : '')).join('\n')
           }
         }]
       });
