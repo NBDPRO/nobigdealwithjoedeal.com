@@ -10,8 +10,8 @@
  *
  * This checks the CRM half. Every drive_import row is matched to its lead by
  * NAME **or by STREET ADDRESS**, because NBD's measurement reports are named
- * by address, not by customer — "Full Report - 1004 River Forest Dr…" belongs
- * to David Wolfe and a name-only check calls that a mismatch. A first pass
+ * by address, not by customer — "Full Report - 1004 Larkspur Dr…" belongs
+ * to Customer AP and a name-only check calls that a mismatch. A first pass
  * flagged 26 such files; every one was correctly placed. Only a file matching
  * neither the lead's name nor its address is a real suspect.
  *
@@ -28,7 +28,7 @@ if (!COMPANY) { console.error('--company=<id> required'); process.exit(2); }
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-// "1004 River Forest Dr, Maineville, OH 45039" -> "1004 river forest"
+// "1004 Larkspur Dr, Maineville, OH 45039" -> "1004 Larkspur"
 function addrKey(s) {
   const t = norm(s);
   const m = t.match(/^(\d+)\s+([a-z]+(?:\s+[a-z]+)?)/);

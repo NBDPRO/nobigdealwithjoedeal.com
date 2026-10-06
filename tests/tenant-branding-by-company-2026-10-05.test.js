@@ -181,7 +181,7 @@ Module._load = function (request) {
       ok('hidden once the company has an alert email', show(false, { alertEmail: 'a@b.test' }) === false);
       ok('never shown to NBD (decided by company key)', show(true, {}) === false);
     }
-    ok('dashboard-bootstrap cache-bust bumped', /dashboard-bootstrap\.module\.js\?v=36/.test(read('docs/pro/dashboard.html')));
+    ok('dashboard-bootstrap cache-bust bumped', +((read('docs/pro/dashboard.html').match(/dashboard-bootstrap\.module\.js\?v=(\d+)/) || [])[1] || 0) >= 36);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -278,7 +278,7 @@ Module._load = function (request) {
     const sup = read('docs/pro/js/estimate-supplement.js');
     ok('supplement: NBD decided by company key (tenant-rules), with blank fallbacks for others',
       /_TR\.isPlatformTenant\(\)/.test(sup) && /legalName: _rawBrand\.legalName \|\| \(isNbd \? 'No Big Deal Home Solutions' : ''\)/.test(sup)
-      && /\(isNbd \? 'NBD' : ''\)/.test(sup) && /estimate-supplement\.js\?v=3/.test(read('docs/pro/customer.html')));
+      && /\(isNbd \? 'NBD' : ''\)/.test(sup) && /estimate-supplement\.js\?v=4/.test(read('docs/pro/customer.html')));
 
     // AI texting persona: run resolvePersona against a fake db
     const AIT = require(fn('handlers/ai-texting.js'));

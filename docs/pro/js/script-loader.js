@@ -126,10 +126,10 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=1',
+      'js/stripe-ledger-panel.js?v=2',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=5',
-      'js/money-dashboard.js?v=8'
+      'js/money-dashboard.js?v=9'
     ],
     repos: [
       'js/rep-os.js?v=4'
@@ -185,10 +185,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=17',
+      'js/document-generator.js?v=18',
       'js/document-generator-templates.js?v=13',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=5',
+      'js/doc-preflight.js?v=6',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -261,14 +261,14 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=7',
+      'js/estimate-finalization.js?v=8',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
       'js/estimate-v2-ui.js?v=24',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
-      'js/estimate-supplement.js?v=3',
+      'js/estimate-supplement.js?v=4',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
       // resolves through EstimateLogic + registers custom items into
@@ -333,9 +333,9 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=15',
-      'js/d2d-tracker-ui-2026b.js?v=9',
-      'js/d2d-tracker-2026b.js?v=3'
+      'js/d2d-tracker-core-2026b.js?v=16',
+      'js/d2d-tracker-ui-2026b.js?v=10',
+      'js/d2d-tracker-2026b.js?v=4'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
     // bundles html2canvas + its own jsPDF). The ONLY dashboard consumer is the

@@ -2,7 +2,7 @@
  * tests/e2e/jobs-cards.spec.js — multi-job stage 2a in a real browser on the
  * emulators (2026-09-30; plan CRM-JOBS-AND-MONEY-PAPER-PLAN, Jo J3).
  *
- * Pat Schwemlein's case: a $250 repair is closed but not yet paid in full,
+ * Pat Oakfield's case: a $250 repair is closed but not yet paid in full,
  * and a new caulk job starts → the pipeline shows TWO cards for one customer.
  * Moving the caulk card writes only that job (the customer's own stage is
  * untouched). Once the first job is paid in full, only the caulk card shows.
