@@ -75,6 +75,7 @@ const CORE_PAGES = [
   ['free-roof',    'free-roof/index.html',  '0.85', 'monthly'],
   ['free-tools',   'free-tools/index.html', '0.85', 'monthly'],
   ['privacy',      'privacy.html',          '0.6',  'monthly'],
+  ['terms',        'terms.html',            '0.5',  'yearly'],
   ['review',       'review.html',           '0.6',  'monthly'],
   ['partners',     'partners.html',         '0.6',  'monthly'],
   // ['careers',   'careers.html',          '0.5',  'monthly'],
