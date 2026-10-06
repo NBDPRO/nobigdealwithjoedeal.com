@@ -329,6 +329,11 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
   const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
   const ls = await leadRef.get();
   if (!ls.exists) return null;
+  // Never file a task on another company's lead (R3-6, 2026-10-06).
+  if (!require('./payment-timeline').invoiceLeadSameTenant(inv, ls.data() || {})) {
+    logger.warn('[moneyPaper] paid-not-closed skipped — invoice and lead are in different companies', { invoiceId, leadId: inv.leadId });
+    return null;
+  }
   const et = P.etParts(deps.now());               // { y, md: 'MMDD' } — the task wants 'YYYY-MM-DD'
   const today = et.y + '-' + et.md.slice(0, 2) + '-' + et.md.slice(2);
   const task = P.paidNotClosedTask(ls.data(), inv, invoiceId, today, stageRoles);

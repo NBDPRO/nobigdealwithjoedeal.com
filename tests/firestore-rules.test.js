@@ -1671,7 +1671,9 @@ async function run() {
     invoices:          { mk: (u) => ({ createdBy: u, companyId: CO, totalCents: 1000 }),          upd: { status: 'paid' } },
     drip_queue:        { mk: (u) => ({ userId: u, leadId: LEAD[u], step: 1 }),                    upd: { step: 2 } },
     lead_documents:    { mk: (u) => ({ userId: u, leadId: LEAD[u], name: 'x.pdf' }),              upd: { name: 'y.pdf' } },
-    referrals:         { mk: (u) => ({ userId: u, code: 'R1' }),                                  upd: { code: 'R2' }, noDelete: true }, // delete is admin-only for everyone
+    // referrals: companyId + referrerLeadId pinned to the writer's company, and
+    // code frozen after create (section 56, 2026-10-06).
+    referrals:         { mk: (u) => ({ userId: u, companyId: CO, code: 'R1', referrerLeadId: LEAD[u] }), upd: { rewardsPaid: 100 }, noDelete: true }, // delete is admin-only for everyone
     review_requests:   { mk: (u) => ({ userId: u, leadId: LEAD[u] }),                             upd: { status: 'sent' }, noDelete: true }, // same
     reports:           { mk: (u) => ({ userId: u, companyId: CO, kind: 'summary' }),              upd: null },   // update is admin-only for everyone
     deal_rooms:        { mk: (u) => ({ userId: u, leadId: LEAD[u] }),                             upd: { tier: 'better' } },

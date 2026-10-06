@@ -253,7 +253,7 @@ function packetComplete(html) {
       _files: m,
     };
   }
-  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', 'crypto'];
+  const REAL = ['./ky-insurance-law', '../ky-insurance-law', './cancel-window', '../cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './esign-logic', 'crypto'];
   function loadFn(rel, db, storage, extra) {
     const file = path.join(FN, rel);
     const dir = path.dirname(file);
@@ -307,7 +307,7 @@ function packetComplete(html) {
     const HTML_PATH = 'documents/U1/L-OH/d-1.html';
     const OLD_PATH = 'documents/U1/L-OH/d-old.html';
     const seed = () => ({
-      'leads/L-OH': { userId: 'U1', firstName: 'Marcus', address: OH_ADDR },
+      'leads/L-OH': { userId: 'U1', firstName: 'Marcus', address: OH_ADDR, email: 'marcus@example.test' },
       'leads/L-OH/documents/d1': { type: 'contract', typeName: 'Roofing Contract', htmlPath: HTML_PATH },
       'leads/L-OH/documents/dold': { type: 'contract', typeName: 'Roofing Contract', htmlPath: OLD_PATH },
     });

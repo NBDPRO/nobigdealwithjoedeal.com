@@ -475,8 +475,10 @@ function browser(seed, extra) {
       IP.paymentTimelineNoteId('inv1', manual) === PTL.noteIdFor('inv1', manual) && PTL.noteIdFor('inv1', card) === 'pay-inv1-pi_123' && PTL.noteIdFor('inv1', ledger) === 'pay-inv1-ch_9');
     ok('the line says what came in, how, and from whom', IP.paymentTimelineText('inv1', manual) === '💵 Payment received: $1,000.00 by check #1042 from the insurance carrier — invoice inv1.');
     const db = makeDb({ 'leads/L1': { userId: 'u1' } });
-    const before = { leadId: 'L1', payments: [] };
-    const after = { leadId: 'L1', payments: [manual, card, ledger] };
+    // Every writer stamps createdBy + companyId; the note goes only onto a
+    // lead of the invoice's own company (R3-6, 2026-10-06).
+    const before = { leadId: 'L1', createdBy: 'u1', companyId: 'u1', payments: [] };
+    const after = { leadId: 'L1', createdBy: 'u1', companyId: 'u1', payments: [manual, card, ledger] };
     const w1 = await PTL.writePaymentTimeline(db, 'inv1', before, after, { FieldValue: FV });
     const notes = () => [...db.store.keys()].filter((k) => /^notes\//.test(k));
     ok('Mark Paid / webhook / ledger entries → three timeline lines on the lead', w1.written === 3 && notes().length === 3 && db.store.get('notes/pay-inv1-pi_123').leadId === 'L1' && db.store.get('notes/pay-inv1-pi_123').userId === 'u1', JSON.stringify(w1));

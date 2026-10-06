@@ -29,6 +29,7 @@ const {
   LEGACY_ACCESS_CODES,
   requireTeamAdmin,
   callerMayManageTarget,
+  protectedTargetRefusal,
   normalizeRole,
   normalizeEmail,
   isOwnerCaller,
@@ -593,7 +594,7 @@ exports.updateUserRole = onCall(
     memory: '256MiB'
   },
   async (request) => {
-    const { uid: callerUid, companyId, companyRef } = await requireTeamAdmin(request);
+    const { uid: callerUid, companyId, companyRef, isOwner: callerIsOwner } = await requireTeamAdmin(request);
     await callableRateLimit(request, 'updateUserRole', 30, 60_000);
 
     const targetUid = typeof request.data?.uid === 'string' ? request.data.uid : null;
@@ -630,6 +631,9 @@ exports.updateUserRole = onCall(
     // transferring ownership first.
     const companySnap = await companyRef.get();
     const ownerId = companySnap.exists ? companySnap.data().ownerId : null;
+    // R3-9: a company_admin may not re-role a platform admin or the owner.
+    const protectedMsg = protectedTargetRefusal({ targetUid: userRecord.uid, targetClaims: existingClaims, ownerId, callerIsOwner, isGlobalAdmin });
+    if (protectedMsg) throw new HttpsError('permission-denied', protectedMsg);
     if (ownerId && userRecord.uid === ownerId && role !== 'company_admin' && !isGlobalAdmin) {
       throw new HttpsError('failed-precondition', 'Cannot demote the company owner');
     }
@@ -680,7 +684,7 @@ exports.deactivateUser = onCall(
     memory: '256MiB'
   },
   async (request) => {
-    const { uid: callerUid, companyId, companyRef } = await requireTeamAdmin(request);
+    const { uid: callerUid, companyId, companyRef, isOwner: callerIsOwner } = await requireTeamAdmin(request);
     await callableRateLimit(request, 'deactivateUser', 20, 60_000);
 
     const targetUid = typeof request.data?.uid === 'string' ? request.data.uid : null;
@@ -714,6 +718,9 @@ exports.deactivateUser = onCall(
     if (ownerId && userRecord.uid === ownerId) {
       throw new HttpsError('failed-precondition', 'Cannot deactivate the company owner');
     }
+    // R3-9: nor a platform admin, unless the caller is one.
+    const protectedMsg = protectedTargetRefusal({ targetUid: userRecord.uid, targetClaims: existingClaims, ownerId, callerIsOwner, isGlobalAdmin });
+    if (protectedMsg) throw new HttpsError('permission-denied', protectedMsg);
     // Don't let the caller lock themselves out.
     if (userRecord.uid === callerUid) {
       throw new HttpsError('failed-precondition', 'Cannot deactivate your own account');
@@ -775,7 +782,7 @@ exports.removeMember = onCall(
     memory: '256MiB'
   },
   async (request) => {
-    const { uid: callerUid, companyId, companyRef } = await requireTeamAdmin(request);
+    const { uid: callerUid, companyId, companyRef, isOwner: callerIsOwner } = await requireTeamAdmin(request);
     await callableRateLimit(request, 'removeMember', 20, 60_000);
 
     const targetEmail = normalizeEmail(request.data && request.data.email);
@@ -823,6 +830,10 @@ exports.removeMember = onCall(
       }
       const existingClaims = userRecord.customClaims || {};
       const isGlobalAdmin = request.auth.token.role === 'admin';
+      // R3-9: never strip a platform admin's claims unless the caller is one
+      // (a pending-invite cancel only drops our roster row — allowed).
+      const protectedMsg = protectedTargetRefusal({ targetUid: userRecord.uid, targetClaims: existingClaims, ownerId, callerIsOwner, isGlobalAdmin });
+      if (protectedMsg && !isPendingInvite) throw new HttpsError('permission-denied', protectedMsg);
       const managesTarget = callerMayManageTarget(existingClaims, companyId, isGlobalAdmin);
       if (!managesTarget && !isPendingInvite) {
         // Active/claimed member with foreign or absent claims: fail closed —
