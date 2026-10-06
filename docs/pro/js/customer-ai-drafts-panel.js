@@ -200,7 +200,7 @@
                    -webkit-tap-highlight-color:transparent;">✕ Dismiss</button>
         </div>
         <div class="aidp-status" role="status" aria-live="polite"
-          style="font-size:11px; color:var(--m,#9aa3b2); margin-top:8px; min-height:14px;"></div>
+          style="font-size:11px; color:var(--m,#9aa3b2); margin-top:8px; min-height:14px;">${draft.heldReason === 'quiet_hours' ? '⏸ ' + escapeHtml(draft.heldMessage || 'Held: outside texting hours in the homeowner\'s time zone.') : ''}</div>
       </div>`;
   }
 
@@ -331,6 +331,14 @@
               detail: { source: 'ai-draft-sent', leadId: window._customerId || null },
             }));
           } catch (_) {}
+        } else if (st === 'pending' && d.heldReason === 'quiet_hours') {
+          // onAiDraftApproved put it back: outside texting hours in the
+          // homeowner's time zone (2026-10-05). Nothing was sent; the card
+          // stays so the rep can approve it again inside the hours.
+          settled = true;
+          setBusy(false);
+          setStatus('⏸ ' + (d.heldMessage || 'Not sent: it is outside texting hours in the homeowner\'s time zone.'));
+          if (window.showToast) window.showToast('AI reply held: outside texting hours', 'warning');
         } else if (st === 'failed') {
           settled = true;
           setBusy(false);

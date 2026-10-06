@@ -117,7 +117,7 @@ Browser: normal Chrome window, tab group OK (last session's PWA-focus blocker cl
 | Forced-visibility CSS override (`#__qaMobileCss`) | Injected to reveal the mobile nav / kebab / shutter FAB at desktop width (window wouldn't shrink). **Removed** at pass end (verified `#mobile-nav` display back to `none`). DOM-only, no persistence. |
 | Dashboard nav state | Navigated through views (crm/d2d/photos/est/map) + opened the More drawer + Create popover during testing — all transient SPA view changes, **restored to #/home**. Lead modal / task modal opened by the `_mCreate` route tests were closed (0 modals open at end). No leads/tasks/data created. |
 | Crew calendar | `openCrewCalendarFromMore()` toggled it on then **toggled back off** (toggleCrewCalendar). No persisted state. |
-| /pro/photo-review?lead=JoKt4d0yJeF51MTmjaJh (John & Jennifer Morgan-McCane, 90 real photos) | **VIEW-ONLY** on Jo's real lead — opened the lightbox via long-press on image tiles only (never the `.pr-chip` review-pickers), closed via ✕/backdrop/Esc. No review-state mutated (was already 90/90 reviewed; unchanged). Tab closed. |
+| /pro/photo-review?lead=JoKt4d0yJeF51MTmjaJh (Customer DR, 90 real photos) | **VIEW-ONLY** on Jo's real lead — opened the lightbox via long-press on image tiles only (never the `.pr-chip` review-pickers), closed via ✕/backdrop/Esc. No review-state mutated (was already 90/90 reviewed; unchanged). Tab closed. |
 | Outbound | NONE. No leads/tasks/photos created, no emails/SMS, no Stripe. |
 
 ## 2026-06-10-C cont. — d7-settings detail pass artifacts

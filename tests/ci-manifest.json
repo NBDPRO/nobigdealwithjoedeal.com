@@ -141,6 +141,7 @@
     "solar-measure.test.js",
     "lead-dedup.test.js",
     "lead-photo-reaping.test.js",
+    "sec-r3-e2e-flag-portal-path-2026-10-06.test.js",
     "lead-filter-registry.test.js",
     "legacy-documents-audit.test.js",
     "lead-pipeline-logic.test.js",
@@ -230,6 +231,7 @@
     "agent-tenant-bots-2026-10-04.test.js",
     "agent-drafts-2026-10-06.test.js",
     "agent-list-leads-paging-2026-10-06.test.js",
+    "no-placeholder-home-addresses-2026-10-06.test.js",
     "d2d-storm-layer-2026-10-02.test.js",
     "ask-joe-actions-2026-10-02.test.js",
     "schedule-busy-blocks-2026-10-02.test.js",
@@ -278,6 +280,7 @@
     "sms-optout-key.test.js",
     "sms-stop-intent-2026-10-05.test.js",
     "sms-dnc-2026-10-05.test.js",
+    "sms-consent-quiet-switch-2026-10-05.test.js",
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
     "sms-send-optout-order.test.js",
@@ -346,6 +349,7 @@
     "pro-claims-honesty-2026-09-13.test.js",
     "pro-demo-story-2026-10-06.test.js",
     "homeowner-claims-honesty-2026-10-05.test.js",
+    "seo-audit-fixes-2026-10-06.test.js",
     "town-rr-pages-overlap-2026-10-06.test.js",
     "deal-acceptance-atomicity.test.js",
     "refer-form-errors-visible-2026-09-28.test.js",
@@ -425,7 +429,8 @@
     "invoice-due-7-days-2026-10-05.test.js",
     "deposit-credit-ledger-mirror-2026-10-05.test.js",
     "r2-money-lines-jobvalue-2026-10-06.test.js",
-    "r2-money-parse-multijob-2026-10-06.test.js"
+    "r2-money-parse-multijob-2026-10-06.test.js",
+    "no-personal-data-in-repo-2026-10-06.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

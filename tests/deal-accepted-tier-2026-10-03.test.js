@@ -161,7 +161,7 @@ const info = (extra) => Object.assign({ dealId: 'D1', leadId: 'L1', ownerUid: 'u
   console.log('\nbug #10 — subtotal, tax and deposit follow the accepted tier\n');
   if (T && T.applyAcceptedTier) {
     const DR = require(path.join(ROOT, 'functions', 'deposit-rule.js'));
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OH = '1 Main St, Cincinnati, OH 45202';
     const cashEst = () => ({ userId: 'u1', leadId: 'L1', grandTotal: 10000, subtotal: 9300, tax: 700, taxRate: 0.07527, deposit: 5000,
       depositPlan: DR.toStored(DR.compute({ total: 10000, mode: 'cash' })) });
