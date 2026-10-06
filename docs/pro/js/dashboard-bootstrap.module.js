@@ -2497,6 +2497,11 @@
         ? window.NBDSmsOutbox.purgeAll() : false);
     return Promise.resolve(purgeSms).catch(() => false)
       .then(() => signOut(auth))
+      // Firestore's on-phone cache (customer records) goes with the session —
+      // unless edits are still waiting to sync, which are kept for this user
+      // (nbd-auth.js clearFirestoreCache; bounded, never rejects).
+      .then(() => (window.NBDAuth && typeof window.NBDAuth.clearFirestoreCache === 'function')
+        ? window.NBDAuth.clearFirestoreCache() : null)
       .then(() => window.location.replace("/pro/login.html"));
   };
 
@@ -2789,6 +2794,28 @@
   // STAGES, _dragId, _filteredLeads now declared at top-level (lines 91-93)
 
   // ── LEADS ──────────────────────────────────────
+  // A lead load answered from the on-phone cache re-reads once the server can
+  // answer: on the next `online` event, else a bounded retry (the boot
+  // connection cycle case, where the device never went offline).
+  let _leadsCacheRetries = 0;
+  let _leadsCacheRetryTimer = null;
+  function _scheduleServerLeadsReload() {
+    if (_leadsCacheRetryTimer) return;
+    const rerun = () => {
+      _leadsCacheRetryTimer = null;
+      window.removeEventListener('online', rerun);
+      try { loadLeads(); } catch (_) {}
+    };
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      _leadsCacheRetryTimer = -1;
+      window.addEventListener('online', rerun);
+      return;
+    }
+    if (_leadsCacheRetries >= 5) return;
+    _leadsCacheRetries++;
+    _leadsCacheRetryTimer = setTimeout(rerun, 3000 * _leadsCacheRetries);
+  }
+
   async function loadLeads() {
     // Wave 120: clear any stale retry timer from a prior loadLeads
     // call. Without this, a setTimeout-scheduled retry from the
@@ -2932,9 +2959,16 @@
       const _leadScopes = _teamReader && _claims.companyId !== finalUid
         ? [where('companyId', '==', _claims.companyId), where('userId', '==', finalUid)]
         : [_teamReader ? where('companyId', '==', _claims.companyId) : where('userId', '==', finalUid)];
+      // Did any page come from the on-phone cache instead of the server?
+      // (Persistent cache since 2026-10-04: offline, and during the boot
+      // connection cycle above, getDocs answers from IndexedDB without an
+      // error.) Such a book is shown — it is the last known truth — but it is
+      // NOT a confirmed load: see the _leadsLoaded gate below.
+      let _anyFromCache = false;
       const _runQuery = async () => {
         const allDocs = [];
         const seenIds = new Set();
+        _anyFromCache = false;
         for (const scope of _leadScopes) {
           let cursor = null;
           // Hard ceiling so a pathological/corrupt cursor can't loop forever:
@@ -2946,6 +2980,7 @@
               getDocs(q),
               new Promise((_, reject) => setTimeout(() => reject(new Error('getDocs(leads) timeout after 10000ms')), 10000))
             ]);
+            if (pageSnap.metadata && pageSnap.metadata.fromCache) _anyFromCache = true;
             for (const d of pageSnap.docs) {
               if (!seenIds.has(d.id)) { seenIds.add(d.id); allDocs.push(d); }
             }
@@ -3030,7 +3065,16 @@
       });
       // Flag so downstream modules (Ask Joe Proactive morning briefing,
       // widgets, etc.) know the lead cache is hydrated vs still pending.
-      window._leadsLoaded = true;
+      //
+      // Only a SERVER answer confirms the book. A cache answer (offline, or
+      // the connection cycle) can be empty or behind; the guards that key off
+      // _leadsLoaded — Load Sample Data's "account is empty" seeding, the CSV
+      // import's duplicate check, Pipeline Builder's "stage is empty" delete —
+      // must not act on it. The cards still render; a re-read is scheduled
+      // for when the server can answer.
+      window._leadsFromCache = _anyFromCache;
+      if (!_anyFromCache) { window._leadsLoaded = true; _leadsCacheRetries = 0; }
+      else _scheduleServerLeadsReload();
       _leadsCacheUid = finalUid;
       console.log('✅ loadLeads: Processed', window._leads.length, 'leads after filtering deleted');
       // Multi-job (2026-09-30, stage 2a): the customers' jobs, in ONE
@@ -3056,8 +3100,10 @@
       
       // Update health indicator to healthy
       if (healthBadge) {
-        healthBadge.className = 'health-indicator healthy';
-        healthBadge.title = `CRM Connected • ${window._leads.length} leads loaded`;
+        healthBadge.className = _anyFromCache ? 'health-indicator loading' : 'health-indicator healthy';
+        healthBadge.title = _anyFromCache
+          ? `Offline — showing the ${window._leads.length} leads saved on this phone`
+          : `CRM Connected • ${window._leads.length} leads loaded`;
       }
       
     } catch(e) {
@@ -3884,16 +3930,27 @@
             } catch (_) { /* keep existing coords */ }
           }
         }
-        // EDIT EXISTING: Just update
-        await updateDoc(doc(db,'leads',editId), {
+        // EDIT EXISTING: Just update.
+        // Offline (2026-10-04): updateDoc's promise only settles when the
+        // SERVER acknowledges, so with no signal this await never returned —
+        // the Save button spun forever although the edit was already in
+        // Firestore's on-phone queue (persistent since 2026-10-04: it survives
+        // iOS killing the app). NBDOfflineSync.settle resolves 'queued' once
+        // the phone is offline (or the ack is slow); the write syncs itself.
+        const _write = updateDoc(doc(db,'leads',editId), {
           ...data,
           updatedAt: serverTimestamp()
         });
+        const _sync = (window.NBDOfflineSync && typeof window.NBDOfflineSync.settle === 'function')
+          ? await window.NBDOfflineSync.settle(_write)
+          : (await _write, 'synced');
         // Optimistic merge — reflect the edit on the kanban immediately
         // (e.g. stage changes that should move the card to a new column)
         // without waiting on the loadLeads round-trip.
         _optimisticInsertLead(editId, data);
-        await loadLeads();
+        // Queued: a re-read now could only answer from the on-phone cache;
+        // the optimistic merge already shows the edit. Reload once it syncs.
+        if (_sync !== 'queued') await loadLeads();
         // Return the edited lead's id so callers know which doc was touched.
         return editId;
       }

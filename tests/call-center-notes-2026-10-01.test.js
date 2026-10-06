@@ -406,6 +406,58 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   await runTranscribe({ db, bucket, live: true, nowMs: NOW });
   ok('paused → no re-read', calls.notes === 0);
 
+  // ── Reading the recording never leaves a stream open (2026-10-04) ──
+  // file.download() fans 11 'error'/'close' listeners onto one internal
+  // PassThrough per file (MaxListenersExceededWarning, ~500/week). The run now
+  // reads through the storage client's buffered request, or reads the stream
+  // itself and destroys it. download() must not be reached in either case.
+  console.log('\n13. Recording reads: no download(), the per-file stream is always ended');
+  const { Readable } = require('stream');
+  const { readStoredAudio } = M._test;
+  function streamBucket(opts) {
+    const made = [];
+    return {
+      made,
+      name: 'b',
+      file: (p) => ({
+        createReadStream: () => {
+          let sent = 0;
+          const s = new Readable({ read() {
+            if (opts && opts.failAfter != null && sent === opts.failAfter) { this.destroy(new Error('socket hang up')); return; }
+            if (sent < 3) { sent++; this.push(Buffer.from('ab')); } else this.push(null);
+          } });
+          made.push(s);
+          return s;
+        },
+        download: async () => { throw new Error('download() used — its stream fan-out is the leak'); },
+        delete: async () => { deleted.push(p); },
+      }),
+    };
+  }
+  stub(BUSINESS);
+  let sb = streamBucket();
+  db = fakeDb({ [CONFIG]: { transcribeOnly: ['cube_r1', 'cube_r2'] }, [COLLECTION + '/cube_r1']: call('cube_r1', { leadId: 'L1' }), [COLLECTION + '/cube_r2']: call('cube_r2', { leadId: 'L1' }), 'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER } });
+  r = await runTranscribe({ db, bucket: sb, live: false, nowMs: NOW });
+  ok('both calls transcribed from the stream (download() never called)', r.noted === 2 && r.failed === 0 && calls.transcribe === 2, JSON.stringify(r));
+  ok('one stream per file, each ended AND destroyed after the read', sb.made.length === 2 && sb.made.every((s) => s.destroyed && s.readableEnded), sb.made.map((s) => s.destroyed + '/' + s.readableEnded).join());
+  sb = streamBucket({ failAfter: 1 });
+  let threw = null;
+  try { await readStoredAudio(sb, 'calls/x.m4a'); } catch (e) { threw = e; }
+  ok('a read that dies half way rejects AND its stream is destroyed', threw && /hang up/.test(threw.message) && sb.made.length === 1 && sb.made[0].destroyed);
+  const reqs = [];
+  const prodBucket = {
+    name: 'nobigdeal-pro.appspot.com',
+    file: () => ({
+      storage: { apiEndpoint: 'https://storage.googleapis.com', customEndpoint: false, authClient: { request: async (o) => { reqs.push(o); return { data: new Uint8Array([1, 2, 3]).buffer }; } } },
+      createReadStream: () => { throw new Error('streamed in prod'); },
+      download: async () => { throw new Error('download() used in prod'); },
+    }),
+  };
+  const got = await readStoredAudio(prodBucket, 'calls/' + OWNER + '/cube-acr/2026-09-30/a b.m4a');
+  ok('prod: ONE buffered GET of the media URL through the storage auth client, no stream', reqs.length === 1 && reqs[0].responseType === 'arraybuffer'
+    && reqs[0].url === 'https://storage.googleapis.com/storage/v1/b/nobigdeal-pro.appspot.com/o/' + encodeURIComponent('calls/' + OWNER + '/cube-acr/2026-09-30/a b.m4a') + '?alt=media'
+    && Buffer.isBuffer(got) && got.length === 3, JSON.stringify(reqs));
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);
