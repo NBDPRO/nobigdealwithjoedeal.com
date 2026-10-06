@@ -41,6 +41,11 @@ const { phoneDigits10 } = require('./phone-utils');
 // used to write the register under an 11-digit key and read it under a
 // 10-digit one, so no STOP was ever honoured on an outbound send.
 const OptOut = require('./sms-optout');
+// What an inbound text asks for (STOP / HELP / START, plus plain-English
+// revocations like "stop texting me"). Pure; the decision table is tested.
+const StopIntent = require('./sms-stop-intent');
+// Whose texting a send is (tenant key) — whose Do Not Text list applies.
+const TextingGate = require('./sms-texting-gate');
 // Storm texts: opt-out → claim → send (never double-sends). See the module.
 const StormGuard = require('./storm-sms-guard');
 // Tenant-safe inbound routing (audit 2026-08-02 HIGH-5): one shared Twilio
@@ -229,6 +234,20 @@ const { requirePaidSubscription, viewOnlyRefusal } = require('./shared');
 //   provider_error     502 — Twilio failed AFTER the opt-out check passed
 const OPTOUT_UNVERIFIED_MSG = 'Could not verify this number can be texted — nothing was sent. Try again in a moment.';
 
+// The 403 body for a number the register or the company's Do Not Text list
+// refuses. Same code either way ('opted_out' — every client already refuses
+// it without a handoff); the words say which list it is on.
+function optedOutBody(optOut, fallbackMsg) {
+  if (optOut && optOut.source === 'dnc') {
+    return {
+      error: 'This number is on your company\'s Do Not Text list. Contact them by phone or email.',
+      code: 'opted_out',
+      list: 'dnc',
+    };
+  }
+  return { error: fallbackMsg, code: 'opted_out' };
+}
+
 // .catch() for the opt-out read in the two HTTP send paths. A throw, or a read
 // that outlives OptOut.READ_TIMEOUT_MS, lands here; the caller answers the
 // null with 503 optout_unverified. It never returns a verdict: an unknown
@@ -263,6 +282,17 @@ async function recordCarrierOptOut(db, phone, fn) {
   } catch (e) {
     logger.error('optout_record_error', { fn, source: 'twilio_21610', err: e && e.message });
   }
+}
+
+// A homeowner's STOP, copied onto the Do Not Text list of each company that
+// has a lead with this number — so the company SEES who stopped it (the
+// global register is what enforces it). The logic lives in sms-optout.js
+// (shared with the Twilio line, twilio-line.js); bounded, never throws.
+function copyStopToTenantLists(db, phone) {
+  return OptOut.copyStopToTenantLists(db, phone, {
+    serverTimestamp: () => FieldValue.serverTimestamp(),
+    onError: (e) => logger.error('dnc_stop_reply_copy_failed', { err: e && e.message }),
+  });
 }
 
 // ── Offline outbox: queued sends (sendQueuedSMS, or body.queued === true) ──
@@ -609,16 +639,18 @@ async function handleSendSMS(req, res, queuedEndpoint) {
     // Bounded (timeoutMs): a read that HANGS must also end in that 503. The
     // client aborts at 25s and hands the abort off like being offline, so a
     // read still pending then handed off a number nobody had checked.
-    const optOut = await OptOut.isOptedOut(getFirestore(), to, { timeoutMs: OptOut.READ_TIMEOUT_MS })
-      .catch(optOutCheckFailed('sendSMS'));
+    // companyId: the caller's tenant — its Do Not Text list is checked in the
+    // same lookup (sms-optout.js), so this path cannot skip it.
+    const optOut = await OptOut.isOptedOut(getFirestore(), to, {
+      companyId: TextingGate.tenantKeyOf(decoded),
+      timeoutMs: OptOut.READ_TIMEOUT_MS,
+    }).catch(optOutCheckFailed('sendSMS'));
     if (optOut && optOut.optedOut) {
       if (optOut.viaLegacyKey) {
         logger.info('optout.legacy_key_hit', { fn: 'sendSMS', key: optOut.key });
       }
-      res.status(403).json({
-        error: 'This recipient has opted out of SMS (replied STOP). Contact them by phone or email.',
-        code: 'opted_out',
-      });
+      res.status(403).json(optedOutBody(optOut,
+        'This recipient has opted out of SMS (replied STOP). Contact them by phone or email.'));
       return;
     }
     if (!optOut) {
@@ -1060,16 +1092,17 @@ exports.sendD2DSMS = onRequest(
       // neither burns that bucket nor comes back as a 429. Fails CLOSED with
       // a 503 on a read error or a read that outlives the bound, same as
       // sendSMS.
-      const optOut = await OptOut.isOptedOut(getFirestore(), phoneNumber, { timeoutMs: OptOut.READ_TIMEOUT_MS })
-        .catch(optOutCheckFailed('sendD2DSMS'));
+      // Both the caller's and the knock's tenant lists (they differ only for a
+      // platform admin acting on another tenant's knock).
+      const optOut = await OptOut.isOptedOut(getFirestore(), phoneNumber, {
+        companyId: [TextingGate.tenantKeyOf(decoded), TextingGate.tenantKeyOfRecord(knock)].filter(Boolean),
+        timeoutMs: OptOut.READ_TIMEOUT_MS,
+      }).catch(optOutCheckFailed('sendD2DSMS'));
       if (optOut && optOut.optedOut) {
         if (optOut.viaLegacyKey) {
           logger.info('optout.legacy_key_hit', { fn: 'sendD2DSMS', key: optOut.key });
         }
-        res.status(403).json({
-          error: 'This number has opted out of SMS (replied STOP).',
-          code: 'opted_out',
-        });
+        res.status(403).json(optedOutBody(optOut, 'This number has opted out of SMS (replied STOP).'));
         return;
       }
       if (!optOut) {
@@ -1262,26 +1295,38 @@ exports.incomingSMS = onRequest(
       // (per CTIA Short Code Monitoring Handbook § 5.2) must be
       // honored on the same day. We add the phone to
       // sms_opt_outs/{digits} and respond with TwiML confirming
-      // the opt-out. The sendSMS + sendD2DSMS functions check
-      // this collection before sending.
-      const opt = String(messageBody || '').trim().toUpperCase();
-      const STOP_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']);
-      const HELP_WORDS = new Set(['HELP', 'INFO']);
-      // CTIA-standard resume keywords ONLY. 'YES' was here too, but a customer
-      // replying "YES" to a rep's question would short-circuit the whole inbound
-      // pipeline — auto-send a "Welcome back" reply with NO rep approval and
-      // never create the AI draft / reach the rep. (TCPA resume ≠ "yes".)
-      const START_WORDS = new Set(['START', 'UNSTOP']);
+      // the opt-out. Every send path checks this register (sms-optout.js
+      // isOptedOut) before sending.
+      //
+      // 2026-10-05: the decision is StopIntent.classifyInbound — punctuation
+      // stripped ("Stop." is STOP), REVOKE / OPTOUT added, and plain-English
+      // revocations ("stop texting me", "don't text me", "remove me") count
+      // (FCC 2025: revocation by any reasonable means). An opt-out returns
+      // here, BEFORE the lead match and the AI draft step: no draft reply is
+      // ever written to someone who just said stop.
+      //
+      // START keywords are CTIA-standard resume words ONLY. 'YES' used to be
+      // one, but a customer replying "YES" to a rep's question would
+      // short-circuit the whole inbound pipeline — auto-send a "Welcome back"
+      // reply with NO rep approval and never create the AI draft / reach the
+      // rep. (TCPA resume ≠ "yes".)
+      const intent = StopIntent.classifyInbound(messageBody);
       // Canonical last-10 key — NOT a plain digit strip. Twilio delivers
       // E.164, so the old strip kept the leading country-code 1 and wrote a
       // key no sender ever looked up. See functions/sms-optout.js.
       const phoneDigits = OptOut.optOutKey(fromPhone);
-      if (phoneDigits && STOP_WORDS.has(opt)) {
+      if (phoneDigits && intent.intent === 'stop') {
         await OptOut.recordOptOut(db, fromPhone, {
           optedOutAt: FieldValue.serverTimestamp(),
-          keyword: opt,
+          keyword: intent.keyword,
+          match: intent.match,
           twilioSid: messageSid
         });
+        // Copy the STOP onto the Do Not Text list of every company that holds
+        // this number, so each can see it (the register above is what
+        // enforces it). Best-effort and bounded: a failure here never undoes
+        // the opt-out or delays the confirmation.
+        await copyStopToTenantLists(db, fromPhone);
         // TwiML reply confirming opt-out. Twilio sends this back.
         res.set('Content-Type', 'text/xml');
         res.status(200).send(
@@ -1291,7 +1336,7 @@ exports.incomingSMS = onRequest(
         );
         return;
       }
-      if (phoneDigits && HELP_WORDS.has(opt)) {
+      if (phoneDigits && intent.intent === 'help') {
         res.set('Content-Type', 'text/xml');
         res.status(200).send(
           '<?xml version="1.0" encoding="UTF-8"?><Response>' +
@@ -1300,12 +1345,16 @@ exports.incomingSMS = onRequest(
         );
         return;
       }
-      if (phoneDigits && START_WORDS.has(opt)) {
+      if (phoneDigits && intent.intent === 'start') {
         // Resume — delete the opt-out record so the phone is live again.
         // Clears BOTH the canonical and the legacy key: leaving a
         // pre-migration record behind would keep the lookup's legacy branch
         // suppressing someone who explicitly asked to resume.
         await OptOut.clearOptOut(db, fromPhone);
+        // ...and the STOP-reply entries on company Do Not Text lists. A
+        // company's MANUAL entry stays: that was the company's decision.
+        try { await OptOut.clearStopReplyDnc(db, fromPhone); }
+        catch (e) { logger.error('dnc_stop_reply_clear_failed', { err: e && e.message }); }
         res.set('Content-Type', 'text/xml');
         res.status(200).send(
           '<?xml version="1.0" encoding="UTF-8"?><Response>' +
@@ -1772,6 +1821,8 @@ async function runCheckStormAlerts(event) {
               sentAt: FieldValue.serverTimestamp(),
             },
             source: 'checkStormAlerts',
+            // Storm subscribers are NBD's own list: NBD's Do Not Text list.
+            companyId: TextingGate.NBD_OWNER_UID,
             eventKey: String(alertId),
             logger,
             tz: sub.tz,
@@ -1973,8 +2024,13 @@ exports.onAiDraftApproved = onDocumentUpdated(
 
     // TCPA: never message a number that replied STOP. incomingSMS
     // records opt-outs at sms_opt_outs/{digits}; honor them here too.
+    // companyId: the draft's tenant (its Do Not Text list). A draft with no
+    // tenant makes the lookup reject → optout_check_error → nothing sent.
     try {
-      const optOut = await OptOut.isOptedOut(db, to);
+      const optOut = await OptOut.isOptedOut(db, to, {
+        companyId: TextingGate.tenantKeyOfRecord(after),
+        timeoutMs: OptOut.READ_TIMEOUT_MS,
+      });
       if (optOut.optedOut) {
         if (optOut.viaLegacyKey) {
           logger.info('optout.legacy_key_hit', { fn: 'onAiDraftApproved', key: optOut.key });

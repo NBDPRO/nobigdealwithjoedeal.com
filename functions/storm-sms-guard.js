@@ -200,6 +200,8 @@ async function claimStormText(db, args) {
  * opt-out register → claim → send → stamp, for ONE subscriber.
  *
  * args: { db, subscriberRef, phone, claimRef?, claimData?, source, eventKey,
+ *         companyId (whose Do Not Text list applies — REQUIRED; without it
+ *         the opt-out lookup rejects and nothing is sent),
  *         send: async () => twilioResult, logger, nowMs?, serverTimestamp?,
  *         optOutTimeoutMs? }
  * Resolves { status } — 'sent' | 'opted_out' | 'optout_unverified' |
@@ -221,13 +223,16 @@ async function sendGuardedStormText(args) {
   // 1) TCPA register — the same OptOut.isOptedOut the CRM's sendSMS uses. An unreadable register is not a clean one: no send.
   let opt;
   try {
-    opt = await OptOut.isOptedOut(db, phone, { timeoutMs: args.optOutTimeoutMs || OptOut.READ_TIMEOUT_MS });
+    opt = await OptOut.isOptedOut(db, phone, {
+      companyId: args.companyId,
+      timeoutMs: args.optOutTimeoutMs || OptOut.READ_TIMEOUT_MS,
+    });
   } catch (e) {
     log.error('storm_sms_optout_unverified', { source, sub: subId, err: e && e.message });
     return { status: 'optout_unverified' };
   }
   if (opt.optedOut) {
-    log.info('storm_sms_opted_out', { source, sub: subId, viaLegacyKey: opt.viaLegacyKey });
+    log.info('storm_sms_opted_out', { source, sub: subId, viaLegacyKey: opt.viaLegacyKey, list: opt.source });
     return { status: 'opted_out' };
   }
 

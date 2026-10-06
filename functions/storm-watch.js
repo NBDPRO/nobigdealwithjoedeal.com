@@ -37,6 +37,7 @@ let _twilioSdk = null;
 const _twilio = () => (_twilioSdk = _twilioSdk || require('twilio'));
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const StormGuard = require('./storm-sms-guard');
+const TextingGate = require('./sms-texting-gate');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -248,6 +249,8 @@ async function runStormWatch() {
         subscriberRef: a.ref,
         phone: a.to,
         source: 'stormWatch',
+        // Storm subscribers are NBD's own list: NBD's Do Not Text list.
+        companyId: TextingGate.NBD_OWNER_UID,
         eventKey: a.event.key,
         logger,
         tz: a.tz,
