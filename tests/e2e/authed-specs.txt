@@ -77,3 +77,4 @@ phone-tenant-setup.spec.js
 phone-inperson-sign.spec.js
 phone-record-payment.spec.js
 phone-offline-safety.spec.js
+phone-inspect-no-clip.spec.js
