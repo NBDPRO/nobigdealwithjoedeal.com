@@ -550,8 +550,8 @@ function buildServerPayloadViaPreflight(preflightData) {
     payload.paymentTerms === '50% due upon contract execution; remaining balance due upon substantial completion.');
   ok('server payload: warrantyTier bridges to warranty text (contract.hbs "5 · Warranty" section is dropped entirely when warranty is null)',
     typeof payload.warranty === 'string' && payload.warranty.length > 0);
-  ok('server payload: warranty text reflects the selected "best"/Elite tier, not a fabricated/wrong one (lifetime + full transfer + inspection, per estimate-config.js TIER_DISPLAY.best; no tier-guessed "Premium" manufacturer level since 2026-10-06 — the manufacturer warranty is its own line)',
-    /Lifetime/.test(payload.warranty) && /fully transferable/.test(payload.warranty)
+  ok('server payload: warranty text reflects the selected "best"/Elite tier, not a fabricated/wrong one (20-year written labor + full transfer + inspection, per estimate-config.js TIER_DISPLAY.best — never "lifetime" (Jo, 2026-10-06); no tier-guessed "Premium" manufacturer level — the manufacturer warranty is its own line)',
+    /^20-year written workmanship \(labor\) warranty/.test(payload.warranty) && !/lifetime/i.test(payload.warranty) && /fully transferable/.test(payload.warranty)
       && /annual courtesy inspection/.test(payload.warranty) && !/Premium|Enhanced/.test(payload.warranty));
 }
 {

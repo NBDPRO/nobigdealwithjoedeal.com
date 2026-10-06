@@ -205,7 +205,7 @@ for (const kind of ['conditional_progress', 'unconditional_progress', 'condition
   ok('options: five priced packages, cheapest first, customer labels',
     /Economy \$9,680\.00.*Standard \$12,100\.00.*Preferred (As quoted )?\$14,520\.00.*Elite \$16,940\.00.*Beyond \$19,360\.00/.test(tx));
   ok('options: the quoted package is marked', /data-tier="better"/.test(html) && /lib-tier lib-quoted" data-tier="better"/.test(html) && tx.includes('As quoted'));
-  ok('options: Economy = 1-year labor + no system warranty; Beyond = TAMKO HailGuard', tx.includes('1-year workmanship (labor) warranty') && tx.includes('No system warranty') && tx.includes('TAMKO HailGuard shingles'));
+  ok('options: Economy = 1-year labor + no system warranty; Beyond = TAMKO HailGuard', tx.includes('1-year written workmanship (labor) warranty') && /no system warranty/i.test(tx) && tx.includes('TAMKO HailGuard shingles') && !/lifetime/i.test(tx));
   // The figure is deposit-rule.js's own (50%, rounded to its step) — asked of
   // the rule here, never re-derived.
   const dep = env.win.NBDDepositRule.fromEstimate({}, { totalCents: 1452000 });
@@ -235,13 +235,14 @@ for (const kind of ['conditional_progress', 'unconditional_progress', 'condition
 {
   const items = [{ code: 'RFG 240-TAMKO-TITAN', name: 'TAMKO Titan XT' }];
   const want = {
-    // 2026-10-06: the workmanship badge names the NBD Pledge; the manufacturer
+    // 2026-10-06 (Jo, final): the badge names the NBD Pledge (a promise) and
+    // the package's WRITTEN labor years — never "lifetime"; the manufacturer
     // warranty is what the job bought (tenant-rules.js warrantyLines).
-    economy: ['1-YEAR WORKMANSHIP (LABOR) WARRANTY — ECONOMY TIER', "TAMKO's standard limited warranty on the shingles; no system warranty"],
-    good: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — STANDARD TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
-    better: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — PREFERRED TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
-    best: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — ELITE TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
-    beyond: ['NBD PLEDGE — LIFETIME WORKMANSHIP WARRANTY — BEYOND TIER', 'TAMKO HailGuard hail warranty'],
+    economy: ['NBD PLEDGE · 1-YEAR WRITTEN WORKMANSHIP (LABOR) WARRANTY — ECONOMY TIER', "TAMKO's standard limited warranty on the shingles; no system warranty"],
+    good: ['NBD PLEDGE · 5-YEAR WRITTEN WORKMANSHIP (LABOR) WARRANTY — STANDARD TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
+    better: ['NBD PLEDGE · 10-YEAR WRITTEN WORKMANSHIP (LABOR) WARRANTY — PREFERRED TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
+    best: ['NBD PLEDGE · 20-YEAR WRITTEN WORKMANSHIP (LABOR) WARRANTY — ELITE TIER', "TAMKO's standard limited warranty on the TAMKO Titan XT (manufacturer terms apply)"],
+    beyond: ['NBD PLEDGE · 20-YEAR WRITTEN WORKMANSHIP (LABOR) WARRANTY — BEYOND TIER', 'TAMKO HailGuard hail warranty'],
   };
   for (const [tier, [badge, mfg]] of Object.entries(want)) {
     const tx = text(render('renderWarrantyCertificate', Object.assign({}, OH, { warrantyTier: tier, installDate: '2026-09-30', issueDate: '2026-10-01', estimateLineItems: items })));
