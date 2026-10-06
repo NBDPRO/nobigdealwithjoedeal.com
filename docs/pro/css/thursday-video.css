@@ -1,0 +1,38 @@
+/* "A video from Thursday" card — docs/pro/js/thursday-video.js links this on
+   first render. Two skins: the dark deal room (/deal/<token>, its own palette
+   in close-board.js) and the warm-paper portal (nbd-brand.css tokens). */
+.thv {
+  margin: 0 0 20px;
+  padding: 14px;
+  border-radius: 12px;
+  text-align: center;
+}
+.thv-label {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.3;
+  margin-bottom: 10px;
+}
+.thv-video {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  aspect-ratio: 9 / 16;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: #12223d;
+  object-fit: cover;
+}
+
+.thv--deal {
+  background: #1e2028;
+  border: 1px solid #2a2d35;
+  color: #e5e7eb;
+}
+
+.thv--portal {
+  background: var(--nbd-bg-elevated, #fff);
+  border: 1px solid var(--nbd-line, #e8e2d8);
+  color: var(--nbd-ink, #1a1612);
+}
