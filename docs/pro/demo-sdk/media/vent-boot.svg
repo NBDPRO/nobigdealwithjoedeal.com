@@ -7,5 +7,5 @@
 <path d="M352 318 l18 -22 l-6 20 l16 -18" fill="none" stroke="#f4f1e8" stroke-width="5" stroke-linecap="round"/>
 <circle cx="370" cy="306" r="58" fill="none" stroke="#f4f1e8" stroke-width="5"/>
 <text x="400" y="80" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700" fill="#f4f1e8" text-anchor="middle">Cracked pipe boot</text>
-<rect x="584" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="688" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
+<rect x="296" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="400" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
 </svg>

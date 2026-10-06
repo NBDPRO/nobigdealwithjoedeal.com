@@ -5,6 +5,6 @@
 <g fill="#5d636c" stroke="#33373d" stroke-width="3"><rect x="20" y="300" width="70" height="34" transform="rotate(-9 55 317)"/><rect x="100" y="287" width="70" height="34" transform="rotate(-9 135 304)"/><rect x="420" y="235" width="70" height="34" transform="rotate(-9 455 252)"/><rect x="500" y="222" width="70" height="34" transform="rotate(-9 535 239)"/><rect x="580" y="209" width="70" height="34" transform="rotate(-9 615 226)"/><rect x="660" y="196" width="70" height="34" transform="rotate(-9 695 213)"/></g>
 <path d="M185 300 L405 262" stroke="#c7a46a" stroke-width="10"/>
 <rect x="175" y="240" width="245" height="90" rx="12" fill="none" stroke="#f4f1e8" stroke-width="5" stroke-dasharray="18 8"/>
-<text x="300" y="400" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700" fill="#f4f1e8" text-anchor="middle">Ridge caps missing</text>
-<rect x="584" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="688" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
+<text x="400" y="400" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700" fill="#f4f1e8" text-anchor="middle">Ridge caps missing</text>
+<rect x="296" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="400" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
 </svg>

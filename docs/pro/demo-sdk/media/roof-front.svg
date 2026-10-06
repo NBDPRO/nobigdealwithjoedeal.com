@@ -8,5 +8,5 @@
 <rect x="370" y="380" width="64" height="110" fill="#1a3057"/><circle cx="422" cy="438" r="4" fill="#d9b24a"/>
 <rect x="220" y="350" width="90" height="70" fill="#bcd3e6" stroke="#fff" stroke-width="6"/><rect x="490" y="350" width="90" height="70" fill="#bcd3e6" stroke="#fff" stroke-width="6"/>
 <path d="M150 312h500" stroke="#c9ccd1" stroke-width="10"/>
-<rect x="584" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="688" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
+<rect x="296" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="400" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
 </svg>

@@ -3,6 +3,6 @@
 <rect width="800" height="600" fill="url(#tab)"/>
 <g fill="#2e3238"><circle cx="190" cy="160" r="13"/><circle cx="430" cy="120" r="11"/><circle cx="610" cy="250" r="14"/><circle cx="300" cy="330" r="12"/><circle cx="520" cy="420" r="13"/><circle cx="170" cy="460" r="10"/></g>
 <g fill="none" stroke="#f4f1e8" stroke-width="5" stroke-linecap="round"><circle cx="190" cy="160" r="34"/><circle cx="430" cy="120" r="32"/><circle cx="610" cy="250" r="36"/><circle cx="300" cy="330" r="33"/><circle cx="520" cy="420" r="34"/><circle cx="170" cy="460" r="31"/></g>
-<text x="40" y="70" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700" fill="#f4f1e8">North slope: hail</text>
-<rect x="584" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="688" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
+<text x="400" y="70" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700" fill="#f4f1e8" text-anchor="middle">North slope: hail</text>
+<rect x="296" y="560" width="208" height="30" rx="6" fill="#12223D" fill-opacity=".82"/><text x="400" y="580" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">SAMPLE DRAWING</text>
 </svg>
