@@ -454,6 +454,15 @@ exports.sendEsignEnvelope = onCall(
     const db = getFirestore();
     const { ref, env } = await loadOwnedEnvelope(db, envelopeId, uid);
 
+    // A contract envelope gets the Notice of Cancellation appended at signing
+    // (submitEsignEnvelope), naming the company as the seller. Refuse to send
+    // one for a company with no legal business name rather than print a
+    // blank seller (NBD always resolves its own name).
+    if (CW.envelopeNeedsCancelNotice(env)) {
+      const po = await CW.loadPacketOpts(db, env.leadId);
+      if (!po || !po.sellerName) throw new HttpsError('failed-precondition', CW.SELLER_NAME_REQUIRED_MSG);
+    }
+
     if (env.status === 'completed') {
       throw new HttpsError('failed-precondition', 'This envelope is already signed.');
     }
@@ -607,6 +616,11 @@ exports.sendEstimateEnvelope = onCall(
     } catch (e) { throw new HttpsError('invalid-argument', e.message); }
 
     const { companyName, profile } = await resolveCompanyName(db, lead);
+    // The seller on the contract and its Notice of Cancellation. NBD keeps its
+    // name; another company with no legal name set is refused here — a blank
+    // seller on a 3-day cancellation notice is worse than not sending.
+    const sellerName = ESL.senderName(companyName, lead.companyId || lead.userId);
+    if (!sellerName) throw new HttpsError('failed-precondition', CW.SELLER_NAME_REQUIRED_MSG);
     const { safeDepositPlan } = require('./deposit-plan-view');
     const { tierApplies } = require('./customer-estimate-rows');
     const timeZone = KyLaw.resolveTimeZone(profile);
@@ -616,7 +630,7 @@ exports.sendEstimateEnvelope = onCall(
     let pdf;
     try {
       pdf = await require('./estimate-esign-pdf').buildEstimateContractPdf({
-        companyName: companyName || 'No Big Deal Home Solutions',
+        companyName: sellerName,
         sellerAddress: KyLaw.contractorMailingAddress(profile),
         title: 'Roofing Contract',
         estimateNumber: est.number || estimateId.slice(0, 8),
@@ -1131,7 +1145,7 @@ exports.submitEsignEnvelope = onRequest(
     for (const s of signersAfter) {
       if (!s.email || !ESL.EMAIL_RE.test(s.email)) { copies.push({ signerId: s.id, emailed: false, reason: 'no email' }); continue; }
       try {
-        const m = ESL.signedCopyEmail({ brand: env.companyName, name: s.typedName || s.name, title: env.title, attached: attach });
+        const m = ESL.signedCopyEmail({ brand: env.companyName, tenantKey: env.companyId || env.ownerUid, name: s.typedName || s.name, title: env.title, attached: attach });
         const r = await IO.sendMail(Object.assign({ to: s.email, subject: m.subject, html: m.html },
           attach ? { attachments: [{ filename: 'signed-' + tok.envelopeId + '.pdf', content: signedBuf.toString('base64') }] } : {}));
         copies.push({ signerId: s.id, emailed: !!r.emailed, stubbed: !!r.stubbed, at: Date.now() });

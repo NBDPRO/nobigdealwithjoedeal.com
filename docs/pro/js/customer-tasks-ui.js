@@ -1645,11 +1645,15 @@ async function loadCommunicationLog(leadId) {
       const smsText = data.body || data.message || '';
       comms.push({
         type: 'sms',
+        id: doc.id,
         date: data.date?.toDate ? data.date.toDate() : new Date(data.date),
         subject: smsText || 'Text Message',
         preview: smsText.substring(0, 100),
         status: data.status || 'sent',
         fromUid: data.uid || null,
+        // An outbound text: a STOP reply to it may have landed on the
+        // sender's own phone (review R2-3-1) — offer "They replied STOP".
+        outbound: (data.status || 'sent') !== 'received',
       });
     });
 
@@ -1687,6 +1691,7 @@ async function loadCommunicationLog(leadId) {
           </div>
           <div class="comm-subject">${esc(comm.subject)}</div>
           ${comm.preview ? `<div class="comm-preview">${esc(comm.preview)}${comm.preview.length > 100 ? '...' : ''}</div>` : ''}
+          ${comm.type === 'sms' && comm.outbound && comm.id ? `<button type="button" class="btn btn-ghost btn-sm comm-stop" data-comm-stop="${esc(comm.id)}" data-comm-lead="${esc(leadId)}">They replied STOP</button>` : ''}
         </div>
       `;
     });
@@ -1698,6 +1703,31 @@ async function loadCommunicationLog(leadId) {
     document.getElementById('communicationLog').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Failed to load messages</div>';
   }
 }
+
+// "They replied STOP" on an outbound text in the Communication Log (review
+// R2-3-1, Jo 2026-10-06). A homeowner's STOP to a text sent from the owner's
+// own phone lands on that phone, where the CRM never sees it. One tap records
+// it exactly like an inbound STOP (the STOP register + Do Not Text lists),
+// server-side: phoneTextAction 'stop' via phone-share.js (loaded on this page).
+document.addEventListener('click', async function (ev) {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('[data-comm-stop]') : null;
+  if (!btn) return;
+  ev.preventDefault();
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return;
+  const PS = window.NBDPhoneShare;
+  if (!PS || typeof PS.reportStop !== 'function') { if (window.showToast) window.showToast('Still loading — try again in a moment', 'error'); return; }
+  const ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
+  if (!(await ask('Record that this customer replied STOP? Nobody at your company will be able to text this number again (they can text START to resume).'))) return;
+  btn.disabled = true;
+  const r = await PS.reportStop({ leadId: btn.getAttribute('data-comm-lead'), logId: btn.getAttribute('data-comm-stop') });
+  if (r && r.ok) {
+    btn.textContent = 'STOP recorded';
+    if (window.showToast) window.showToast('Recorded — this customer won’t be texted again', 'success');
+  } else {
+    btn.disabled = false;
+    if (window.showToast) window.showToast('Could not record it: ' + ((r && r.reason) || 'error'), 'error');
+  }
+});
 
 // ── Photo Quick Actions (Edit Tags, Delete, Phase) ──────
 window._quickEditPhotoId = null;

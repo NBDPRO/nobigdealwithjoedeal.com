@@ -1,0 +1,76 @@
+# Pro demo, phase 2: explore the whole sample account (plan only)
+
+2026-10-06. Plan, nothing built. Phase 1 (the guided job story at `/pro/sandbox`) shipped in the same PR as this note; its end screen carries a disabled "Explore the whole sample account — coming next" placeholder that this plan fills.
+
+Jo's decision (2026-10-06): the full account is a **browser-only sample company**. Nothing touches the live database, it resets anytime, and it is NOT a real throwaway Firebase tenant. A "save this as my real account" path starts the Free plan.
+
+## Goal
+
+A prospect taps "Explore the whole sample account" and lands in the real CRM (Today, pipeline, customer card, estimates, documents, D2D map, Storm Center, Agent inbox, invoices, Settings) filled with the same sample company the story used. Every button works against sample data in their own browser. Nothing they do reaches Firebase, Stripe, Twilio, email, or any other production service.
+
+## The approach: swap the SDK, not the pages
+
+The CRM pages do not talk to Firestore through one data layer. They import the Firebase SDK straight from `https://www.gstatic.com/firebasejs/10.12.2/firebase-*.js` (82 files), and most code then reaches it through window globals the bootstraps set (`window.db` ~490 uses, `window._db` ~200, `window._leads` ~515, `window.auth` ~260, plus `window.collection/doc/getDocs/setDoc/addDoc/updateDoc/onSnapshot` from `customer-bootstrap.module.js` and `dashboard-bootstrap.module.js`). Rewriting that to a repository layer is months of churn across ~350 files.
+
+Instead, serve the **same pages** under a demo path with **fake SDK modules** in place of the gstatic ones:
+
+1. **Fake SDK modules** under `docs/pro/demo-sdk/` with the same export names the pages import: `firebase-app.js`, `firebase-auth.js` (a signed-in sample owner with a `companyId` claim and `getIdTokenResult()`), `firebase-firestore.js` (an in-memory document store: `collection`, `doc`, `getDoc(s)`, `setDoc`, `addDoc`, `updateDoc`, `deleteDoc`, `query`/`where`/`orderBy`/`limit`, `onSnapshot`, `writeBatch`, `runTransaction`, `serverTimestamp`, `Timestamp`, `increment`, `arrayUnion`/`arrayRemove`), `firebase-functions.js` (`httpsCallable` returns canned, honest responses per callable name: "In the sample account this would send/charge/text…"), `firebase-storage.js` (object URLs over sample images), `firebase-app-check.js` (no-op).
+2. **Route the imports to them.** Two candidates, to settle with a spike:
+   - **Service worker scope** `/pro/explore/` that answers `www.gstatic.com/firebasejs/*` with the fake modules. Cross-origin module requests do reach a SW `fetch` handler. It must still never intercept `navigate` requests (the 2026 SW navigation-stall rule).
+   - **Import map** on demo copies of the page shells. Import maps can remap full-URL specifiers, but an inline `<script type="importmap">` needs a CSP hash, so the copies would need their own CSP block in `firebase.json`.
+   The SW route keeps one copy of every page. The import map route avoids a second service worker on `/pro`. A day-one spike decides.
+3. **Seed data**: one JSON file (`docs/pro/demo-sdk/sample-company.json`) with the story's company, about 25 leads across every pipeline stage (OH and KY, insurance and retail, one lost), estimates in all five tiers, one signed contract, invoices partly paid, D2D knocks, a storm zone, Agent inbox drafts, Sunday Review numbers. It is generated from the same `SAMPLE` object `sandbox-story.js` uses so the story and the account never disagree. All names and addresses are invented; `tests/catalog-cost-privacy.test.js` must still pass, so no cost or margin fields.
+4. **Persistence**: the store lives in memory and mirrors to IndexedDB per browser so a reload keeps the prospect's changes. A visible "Reset sample account" control clears it. Every screen shows a fixed "Sample account: nothing here is real or saved to NBD Pro" strip.
+
+## Guaranteeing zero writes to production
+
+Layered, so no single slip can leak a write:
+
+1. **CSP on the demo path** (`firebase.json` header block for `/pro/explore/**`): `connect-src 'self'` only. No `firestore.googleapis.com`, `*.cloudfunctions.net`, `identitytoolkit`, `securetoken`, Stripe or Twilio hosts. Even if a page loads the real SDK by mistake, the browser refuses every network call. This is the guarantee; the rest is defense in depth.
+2. **No real config**: the demo shell never loads `firebase-config` or the App Check key; the fake `initializeApp` ignores whatever config it is handed and returns a demo app tagged `__nbdDemo: true`.
+3. **Runtime tripwire**: the fake SDK installs a `fetch`/`XMLHttpRequest`/`sendBeacon` wrapper that throws on any non-same-origin URL and shows a visible "blocked" toast, so a bug is loud in QA instead of silent.
+4. **CI tests**: (a) a Playwright spec loads every demo page with `page.route('**/*')` failing anything that is not same-origin static, clicks through the main flows, and asserts zero blocked requests; (b) a Node test asserts the demo CSP block exists, has `connect-src 'self'`, and sits after `**` in the header order (same check style as `tests/google-signin-popup.test.js`); (c) the fake SDK's export list is compared with every name the CRM imports, so a newly used SDK function fails CI rather than silently doing nothing (the page-scoped-helper silent-failure rule).
+5. **Separate origin later, if wanted**: serving the demo from its own subdomain would also isolate cookies, IndexedDB and the production service worker. That needs DNS and a second hosting target, so it is optional.
+
+## Pages and modules, in rollout order
+
+| Wave | Pages | Notes |
+|---|---|---|
+| 1 | `dashboard.html` (Today, pipeline/kanban, Sunday Review), `customer.html` (card, notes, tasks, photos, estimates tab) | The core. Exercises `window._leads`, kanban stage moves, the stage-gate sheet. |
+| 2 | Estimate builder (V2/V3 wizard), document generator + doc viewer, e-sign preview (`esign.html` read-only, no envelope send) | Builders run client-side already; e-sign "send" becomes a canned callable. |
+| 3 | D2D tracker + Storm Center (sample zone, knocks), Agent inbox + Ask Joe (canned answers, never the real `claudeProxy`) | Map tiles: Esri/OSM are third-party, blocked by the CSP. Use a static sample tile image or an SVG basemap. |
+| 4 | Invoices + payments (record a payment works; Stripe links are canned and say so), production strip, Settings (read-mostly) | Kentucky pay-link hold runs on the real `ky-insurance-law.js`. |
+| Out | Billing/checkout, team invites, Bots & API keys, data import, Google sign-in, push notifications | Shown as "available in your real account" cards, never wired. |
+
+## Effort (one developer, with the test gates this repo needs)
+
+- Spike (SW versus import map), demo CSP, tripwire: 2 days.
+- Fake Firestore/Auth/Functions/Storage with the used API surface + seed generator: 4–5 days.
+- Wave 1: 3–4 days (most risk is the bootstraps' assumptions about real auth tokens, claims and App Check).
+- Waves 2–4: 2–3 days each.
+- "Save as my real account" (Free plan sign-up carrying the prospect's company name, NOT their sample data): 1 day.
+- Tests (no-network Playwright walk, CSP contract, export-surface parity, honesty copy): 2–3 days.
+
+Total: roughly 4 to 5 weeks. Wave 1 alone (dashboard + customer card) is a demo-able milestone at about 2 weeks.
+
+## Risks
+
+- **API-surface drift**: a CRM change starts using an SDK function the fake does not have. Mitigation: the export-parity test in CI.
+- **Pages that assume a real server**: callables that return data the UI needs (getEsignEnvelope, pricing, claim helpers). Each needs a canned answer; an unknown callable returns a clear "not in the sample account" error instead of hanging.
+- **Service worker collisions** with `/pro/sw.js`: a demo SW must not shadow or unregister the app's SW, and must not intercept navigations.
+- **Honesty**: the sample account must not show invented statistics or testimonials as real; every number is sample data and labelled.
+- **Cost privacy**: the seed must carry retail prices only (`tests/catalog-cost-privacy.test.js`).
+- **Kentucky rules**: the real deposit rule and KY hold run in the demo too; tests assert no KY insurance sample shows money due at signing, no AOB, no claim-outcome copy (same checks as phase 1, `tests/pro-demo-story-2026-10-06.test.js`).
+- **Perf**: dashboard.html is heavy. The demo should not ship a second copy of it; the SW/import-map route keeps one.
+
+## Open questions for Jo
+
+1. Keep the demo on `/pro/explore` (same origin), or put it on its own subdomain later for full isolation?
+2. Should prospects' changes survive a reload (IndexedDB) or reset on every visit?
+3. "Save as my real account": carry over only the company name and logo, or also let them import their own pasted leads on sign-up?
+
+## Related
+
+- Phase 1: `docs/pro/sandbox.html`, `docs/pro/js/sandbox-story.js`, `tests/pro-demo-story-2026-10-06.test.js`.
+- [TENANT-READY-2026-10-04](TENANT-READY-2026-10-04.md): NBD-only defaults must not leak into another company; the sample company is "another company".
+- [TENANT-BOTS-SELF-SERVE-2026-10-04](TENANT-BOTS-SELF-SERVE-2026-10-04.md): the Agent inbox the demo shows.

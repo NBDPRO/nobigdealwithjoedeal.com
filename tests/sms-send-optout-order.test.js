@@ -79,7 +79,13 @@ function makeWorld(opts) {
   const writes = [];
   const smsLog = [];
   const logs = { error: [], warn: [], info: [] };
-  const docs = Object.assign({}, opts.docs || {});
+  // 2026-10-05: co-1 is a registered company with a name (the texting master
+  // switch and the door-knock company line, sms-texting-gate.js /
+  // sms-functions.js complianceGate) — not what this suite is about.
+  const docs = Object.assign({
+    'sms_settings/co-1': { registered: true },
+    'companyProfile/co-1': { brand: { legalName: 'Acme Roofing' } },
+  }, opts.docs || {});
   const limited = new Set(opts.limited || []);
   const twilioCalls = [];
   let optOutReads = 0;
@@ -214,6 +220,9 @@ function load(opts) {
     delete require.cache[path.join(FUNCTIONS, f)];
   }
   const exported = require(MOD);
+  // Live sends are held to texting hours (2026-10-05): pin the clock to noon
+  // Eastern so this suite does not depend on when it runs.
+  require(path.join(FUNCTIONS, 'sms-outbox-guard.js')).nowMs = () => Date.parse('2026-10-05T16:00:00Z');
   // The copy of sms-optout.js this sms-functions.js is bound to. The handlers
   // read OptOut.READ_TIMEOUT_MS at call time, so a scenario can shorten the
   // bound here instead of waiting out the real 10s.
@@ -277,7 +286,7 @@ async function callSendSMS(opts, bodyOverride) {
 }
 
 async function callSendD2DSMS(opts) {
-  const knock = { userId: 'rep-1', companyId: 'co-1', phone: PHONE_TYPED, firstName: 'Sam', repName: 'Joe' };
+  const knock = { userId: 'rep-1', companyId: 'co-1', phone: PHONE_TYPED, firstName: 'Sam', repName: 'Joe', smsConsent: true };
   const docs = Object.assign({ 'knocks/knock-1': knock }, (opts && opts.docs) || {});
   const { exported, world: w } = load(Object.assign({}, opts, { docs }));
   const res = mkRes();

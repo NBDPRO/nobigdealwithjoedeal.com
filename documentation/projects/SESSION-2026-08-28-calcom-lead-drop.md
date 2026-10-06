@@ -14,7 +14,7 @@ Companion audit: [CALCOM-INTEGRATION-2026-08-25](../audit/CALCOM-INTEGRATION-202
 Same-day sibling lane: [SESSION-2026-08-28-ourwork-areas-galleries-gbp](SESSION-2026-08-28-ourwork-areas-galleries-gbp.md).
 
 State at close: **the code fix is live in production and verified at the
-deploy layer; it has never executed against a real booking.** Kevin Choi's
+deploy layer; it has never executed against a real booking.** Customer AF's
 own booking was never backfilled and remains Jo's call.
 
 ---
@@ -22,8 +22,8 @@ own booking was never backfilled and remains Jo's call.
 ## §1 — The trigger: one organic booking, and what could honestly be said about it
 
 A Cal.com "Free Roof Inspection" booking arrived 2026-08-28 11:35 for
-Kevin Choi — 69 Moock Rd, Wilder KY, inspection 2026-08-29 10:00, mobile
-`+18594663151`. Notes captured verbatim on the booking: about four shingles
+Customer AF — [street address], Wilder KY, inspection 2026-08-29 10:00, mobile
+`[phone removed]`. Notes captured verbatim on the booking: about four shingles
 blown off during the last big storm, roof ~14 years old, insurance denied
 replacing the entire roof, so repair-only on the damaged shingles.
 
@@ -79,7 +79,7 @@ depends on whether the rep resolved at all:
 | Cold / organic, rep resolves | ok | **`null`** | written, orphaned | **none, ever** |
 | **Any booking, `calcomUsername` unset** | **fails** | — | **never written** | **none, ever** |
 
-The third row is the one that almost certainly caught Kevin: he booked at
+The third row is the one that almost certainly caught this customer: he booked at
 11:35, and Jo did not set `calcomUsername` until later the same afternoon
 (§4). With the lookup failing, the handler logs
 `no matching rep — booking dropped`, returns 200, and returns **before** the
@@ -185,7 +185,7 @@ reading the code and on unit-level asserts, not on an executed booking.
 
 ## §6 — Open — in priority order
 
-1. **Kevin Choi is not backfilled yet — the tool exists, the run is Jo's.**
+1. **Customer AF is not backfilled yet — the tool exists, the run is Jo's.**
    The fix is forward-only, so his booking (and any other taken while
    `calcomUsername` was unset) still has no CRM record.
    `scripts/backfill-calcom-dropped-leads.js` repairs both drop states from

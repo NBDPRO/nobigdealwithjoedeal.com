@@ -41,7 +41,6 @@
   // above are the fallback set (identical behaviour for built-in stages).
   function _isWon(l)     { return l && l._stageRole ? l._stageRole === 'won'  : WON_STAGES.includes((l && (l._stageKey || l.stage)) || ''); }
   function _isLost(l)    { return l && l._stageRole ? l._stageRole === 'lost' : LOST_STAGES.includes((l && (l._stageKey || l.stage)) || ''); }
-  function _isDecided(l) { return _isWon(l) || _isLost(l); }
   // Metrics audit F8: 'job' role = in production — the deal is won and the
   // crew is working. That money belongs with closed revenue (crm-pipeline
   // already counts it there), NOT in "Active Pipeline". Same role resolution
@@ -51,8 +50,22 @@
       || (typeof window.stageRole === 'function' ? window.stageRole(l._stageKey || l.stage) : ''));
     return r === 'job';
   }
-  // Metrics audit F8: closed-won money = role won OR job (in production).
-  function _isClosedWon(l) { return _isWon(l) || _isJob(l); }
+  // Closed-won (booked) = THE sale test (numbers-logic.js isSale): won, in
+  // production, or Contract Signed — Jo 2026-10-06: a signed contract is
+  // booked, not open pipeline, same as the kanban header. Without the numbers
+  // module (a failed script load) the same rule is applied by hand.
+  function _isClosedWon(l) {
+    var N = window.NBDNumbers;
+    if (N && typeof N.isSale === 'function') return N.isSale(l);
+    if (_isLost(l)) return false;
+    return _isWon(l) || _isJob(l) || ((l && (l._stageKey || l.stage)) || '') === 'contract_signed';
+  }
+  // The close date: closedAt (stamped at signing), else the stage start.
+  function _closedAtDate(l) {
+    var N = window.NBDNumbers;
+    var ms = N && typeof N.saleDateMs === 'function' ? N.saleDateMs(l) : 0;
+    return ms ? new Date(ms) : toJSDate(l.stageStartedAt || l.updatedAt);
+  }
 
   // THE close rate (2026-10-04): numbers-logic.js closeRate — won ÷ (won +
   // lost), where won is the sale test (won, in production, or Contract Signed,
@@ -216,6 +229,16 @@
   // Multi-job (2026-09-30): money and win/loss totals count every JOB (a
   // customer's second job has its own value and its own outcome); counts of
   // CUSTOMERS stay on the leads. jobs-store.js recordsFor.
+  // A stored dollar field as a number: the ONE money reader
+  // (customer-estimate-rows.js moneyValue) — legacy text like '$45,000' reads
+  // 45000 here, on the kanban and in the leaderboard widget alike (review R2,
+  // 2026-10-06). Fallback strips the same characters if that file is absent.
+  function _kpiMoney(v) {
+    var R = window.NBDCustomerEstimateRows;
+    if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+    return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+  }
+
   function _jobRecs(leads) {
     var J = window.NBDJobs;
     return J && typeof J.recordsFor === 'function' ? J.recordsFor(leads) : leads;
@@ -230,25 +253,27 @@
     var thisYear = now.getFullYear();
     var today = new Date(); today.setHours(0, 0, 0, 0);
 
-    // F8: active = still in play — not won, not lost, not in production.
+    // F8: active = still in play — not booked (won, in production or
+    // contract signed) and not lost.
     var activeLeads = recs.filter(function (l) {
-      return !_isDecided(l) && !_isJob(l) && !l.deleted;
+      return !_isClosedWon(l) && !_isLost(l) && !l.deleted;
     });
     var pipelineValue = activeLeads.reduce(function (sum, l) {
-      return sum + (parseFloat(l.jobValue) || 0);
+      return sum + (_kpiMoney(l.jobValue));
     }, 0);
 
     var closedThisMonth = recs.filter(function (l) {
       if (!_isClosedWon(l)) return false;
-      // F3: stageStartedAt is stamped on every stage move (+ backfilled by
-      // migrations 002/003) — for a won lead it IS the close date. The old
+      // F3: closed in THIS month by its close date (closedAt, stamped at
+      // signing; else stageStartedAt, stamped on every stage move). The old
       // updatedAt proxy re-attributed a March close to July the moment you
-      // added a note to it.
-      var d = toJSDate(l.stageStartedAt || l.updatedAt);
+      // added a note to it, and stageStartedAt alone re-dated a September
+      // signing to October when the job moved to Permit Pulled.
+      var d = _closedAtDate(l);
       return d && d.getMonth() === thisMonth && d.getFullYear() === thisYear;
     });
     var monthlyRevenue = closedThisMonth.reduce(function (sum, l) {
-      return sum + (parseFloat(l.jobValue) || 0);
+      return sum + (_kpiMoney(l.jobValue));
     }, 0);
 
     // null = nothing decided yet → the card shows "—", not 0%.
@@ -268,10 +293,10 @@
     var overdueFollowUps = fuDue ? leads.filter(function (l) { return fuDue(l, now.getTime()); }).length : 0;
 
     var closedWithValue = recs.filter(function (l) {
-      return _isClosedWon(l) && parseFloat(l.jobValue) > 0;
+      return _isClosedWon(l) && _kpiMoney(l.jobValue) > 0;
     });
     var avgDealSize = closedWithValue.length > 0
-      ? closedWithValue.reduce(function (s, l) { return s + parseFloat(l.jobValue); }, 0) / closedWithValue.length
+      ? closedWithValue.reduce(function (s, l) { return s + _kpiMoney(l.jobValue); }, 0) / closedWithValue.length
       : 0;
 
     var sourceMap = {};
@@ -494,16 +519,20 @@
 
     // ── Pipeline value from active jobs (every job, multi-job) ──
     var recs = _jobRecs(leads);
+    // In play only: a signed contract or a job in production is booked
+    // (Jo 2026-10-06), the same split as the Home KPI tiles above.
     var activeLeads = recs.filter(function (l) {
-      return !_isDecided(l) && !l.deleted;
+      return !_isClosedWon(l) && !_isLost(l) && !l.deleted;
     });
     var pipelineValue = activeLeads.reduce(function (sum, l) {
-      return sum + (parseFloat(l.jobValue) || 0);
+      return sum + (_kpiMoney(l.jobValue));
     }, 0);
 
     // ── Conversion rate (per job: a customer's second job is its own win or loss) ──
+    // Won = the sale test (won, in production, contract signed) — the same
+    // set _closeRate counts, so "N closed deals" and the average agree.
     var wonLeads = recs.filter(function (l) {
-      return _isWon(l);
+      return _isClosedWon(l);
     });
     var lostLeads = recs.filter(function (l) {
       return _isLost(l);
@@ -513,9 +542,9 @@
     var conversionRate = _ratePct(_cr);
 
     // ── Average deal size ──
-    var wonWithValue = wonLeads.filter(function (l) { return parseFloat(l.jobValue) > 0; });
+    var wonWithValue = wonLeads.filter(function (l) { return _kpiMoney(l.jobValue) > 0; });
     var avgDealSize = wonWithValue.length > 0
-      ? wonWithValue.reduce(function (s, l) { return s + parseFloat(l.jobValue); }, 0) / wonWithValue.length
+      ? wonWithValue.reduce(function (s, l) { return s + _kpiMoney(l.jobValue); }, 0) / wonWithValue.length
       : 0;
 
     // ── Estimates ──
@@ -572,7 +601,7 @@
       // one was fixed, so until now ANY later write to a won lead — a note, an
       // address repair, a list re-save — moved its revenue out of the month it
       // actually closed in and into the month of the edit.
-      var ud = toJSDate(l.stageStartedAt || l.updatedAt);
+      var ud = _closedAtDate(l);
       if (ud) {
         var mk = monthKey(ud);
         if (monthlyTrend[mk]) monthlyTrend[mk].closed++;
@@ -646,7 +675,7 @@
     // record would count one customer's costs once for each of their jobs.
     var wonCustomers = leads.filter(function (l) { return _isWon(l); });
     wonCustomers.forEach(function (l) {
-      var rev = parseFloat(l.jobValue) || 0;
+      var rev = _kpiMoney(l.jobValue);
       var dc = (directByJob[l.id] || 0) / 100;
       if (rev > 0 && dc > 0) { wonRev += rev; wonDirect += dc; costedJobs += 1; }
     });
@@ -1127,7 +1156,7 @@
       const knockById = {};
       knocks.forEach(k => { knockById[k.id] = k; });
       const wonD2D = d2dLeads.filter(_isWon);
-      const d2dRevenue = wonD2D.reduce((s, l) => s + (Number(l.jobValue) || 0), 0);
+      const d2dRevenue = wonD2D.reduce((s, l) => s + (_kpiMoney(l.jobValue)), 0);
 
       // Funnel counts are UNIQUE-DOOR based so stages stay monotonic (a door that
       // reached a stage counts once), matching the deduped Doors denominator.
@@ -1162,7 +1191,7 @@
         const k = knockById[l.d2dKnockId];
         const uid = (k && k.userId) || l.userId || null;
         const nm = (k && k.repName) || '';
-        bump(_repKey(uid, nm), uid, nm).revenue += Number(l.jobValue) || 0;
+        bump(_repKey(uid, nm), uid, nm).revenue += _kpiMoney(l.jobValue);
       });
       const _me = window._user && window._user.uid;
       const _nameOf = (r) => (window.NBDTeamNames && r.uid && window.NBDTeamNames.nameFor(r.uid))

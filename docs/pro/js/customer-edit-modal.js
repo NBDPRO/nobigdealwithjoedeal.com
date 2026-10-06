@@ -41,8 +41,8 @@ function closeEditCustomerModal() {
 }
 
 // ── ADDITIONAL SERVICE LOCATIONS ────────────────────────────────────
-// A job can span several properties (Anthony Scandariato: 1944 AND 1942
-// Kentucky Ave on one invoice). `address` remains the primary/billing
+// A job can span several properties (one customer: two buildings on
+// one invoice). `address` remains the primary/billing
 // address; these are extras. Values are read back off the DOM at save
 // time rather than mirrored into JS state, so there is one source of
 // truth and no keystroke syncing to drift.
@@ -56,7 +56,7 @@ function _svcAddrRowHTML(value, idx) {
   return '<div class="svc-addr-row" style="display:flex;gap:6px;margin-bottom:6px;">' +
     '<input type="text" class="svc-addr-input" aria-label="Additional service address ' + (idx + 1) + '"' +
     ' value="' + esc(value) + '"' +
-    ' placeholder="1942 Kentucky Ave, Cincinnati, OH 45223"' +
+    ' placeholder="102 Kentucky Ave, Cincinnati, OH 45223"' +
     ' style="flex:1;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;" />' +
     '<button type="button" data-action="removeServiceAddressRow" data-arg="' + idx + '"' +
     ' aria-label="Remove this service address" title="Remove"' +

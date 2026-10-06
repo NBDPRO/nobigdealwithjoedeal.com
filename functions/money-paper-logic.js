@@ -212,6 +212,20 @@ function pdfPathFor(ownerUid, leadId, id) {
   return 'documents/' + ownerUid + '/' + leadId + '/' + id + '.pdf';
 }
 
+// The Storage object metadata a filed PDF is saved with. `signed: 'true'` in
+// the custom metadata is the storage.rules lock (storedObjectIsSigned): a
+// filed invoice/receipt is a record, so no client may overwrite or delete it
+// (R3-4, 2026-10-06 — an owner could overwrite one with text/html behind a
+// live /report/<token> link). Admin-SDK writes are unaffected.
+// tests/storage-rules.test.js seeds its object from THIS function.
+function filedPdfMetadata(kind, id, invoiceId) {
+  return {
+    contentType: 'application/pdf',
+    cacheControl: 'private, max-age=31536000',
+    metadata: { docCode: CODES[kind], instanceId: id, invoiceId, signed: 'true' },
+  };
+}
+
 // ── "Paid but not closed" (2026-10-03 data audit) ────────────────────────
 // Three owner-tenant invoices were paid in full while their lead sat on an
 // open stage: a Zelle/check payoff recorded with Mark Paid only advances a
@@ -250,4 +264,4 @@ function paidNotClosedTaskId(invoiceId) {
   return 'paid-not-closed-' + String(invoiceId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
 }
 
-module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };
+module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, invoicePayload, receiptPayload, documentRow, pdfPathFor, filedPdfMetadata, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };

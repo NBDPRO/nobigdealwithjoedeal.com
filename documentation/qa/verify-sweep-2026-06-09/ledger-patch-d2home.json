@@ -1,6 +1,6 @@
 [
   { "id": "d2-home-004", "status": "PASS", "session": "2026-06-09-B", "notes": "Widget ✕ remove (data-w-action=removeWidget) removes the widget from nbd_home_widgets + DOM (verified on quote-widget in gap-misc-019; every widget card carries the same ✕)." },
-  { "id": "d2-home-006", "status": "PASS", "session": "2026-06-09-B", "notes": "Hot Leads widget renders clickable lead rows (5472 Greentree Rd, 2013 Kenway Place, …); widget card-nav verified in the prior d2 pass (12 widget card-navs PASS)." },
+  { "id": "d2-home-006", "status": "PASS", "session": "2026-06-09-B", "notes": "Hot Leads widget renders clickable lead rows ([street address], [street address], …); widget card-nav verified in the prior d2 pass (12 widget card-navs PASS)." },
   { "id": "d2-home-015", "status": "PASS", "session": "2026-06-09-B", "notes": "Open Daily Tracker → opens /pro/daily-success/ (window.open captured)." },
   { "id": "d2-home-026", "status": "PASS", "session": "2026-06-09-B", "notes": "+ Add Widget card opens the Widget Library picker." },
   { "id": "d2-home-027", "status": "PASS", "session": "2026-06-09-B", "notes": "Picker overlay backdrop click closes the picker (closePickerIfSelf)." },

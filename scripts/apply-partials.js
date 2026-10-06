@@ -103,6 +103,13 @@ const REQUIRED_MARKUP = {
   'footer-area': ['<footer>', '</footer>'],
   'footer-extended': ['<footer>', '</footer>'],
   'footer-slim': ['<footer', '</footer>', 'tel:+18594207382', '/privacy'],
+  // The phone sticky bar (2026-10-05, book-first): Book is the one filled
+  // button, Call/Text are icon buttons. mobile-cta.css styles these classes
+  // and nbd-nav.css hides `.mobile-cta-strip` while the drawer is open — lose
+  // a class and the bar either renders unstyled or covers the drawer.
+  'mobile-cta': ['class="mobile-cta-strip', 'class="mobile-cta-book"',
+    'href="{{book_href}}"', 'href="tel:+18594207382"', 'href="sms:+18594207382"',
+    'mobile-cta-call', 'mobile-cta-text', 'mobile-cta-icon'],
   // The ONE definition of the business, Joe and the WebSite (2026-09-27).
   // ~500 JSON-LD nodes across the site reference these three @ids; a partial
   // that drops one leaves every reference on every page dangling while each

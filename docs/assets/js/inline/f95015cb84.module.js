@@ -46,9 +46,33 @@ window._saveLead = async (data) => {
   return res.id;
 };
 
+// App Check (2026-10-06). sendVerificationCode / verifyCode enforce App
+// Check, so without this they 401 the day OTP is switched back on (OTP_ENABLED
+// is false today). Initialised lazily on the first OTP call, so the reCAPTCHA
+// script never loads for the visitors who don't verify. The site key comes
+// from /pro/js/dashboard-appcheck-config.js, loaded before this module.
+let _appCheckReady = null;
+function ensureAppCheck() {
+  if (!_appCheckReady) {
+    _appCheckReady = (async () => {
+      try {
+        const emu = await import('/pro/js/nbd-emulator-connect.js');
+        if (await emu.emulatorAppCheckIfLocal(app)) return;
+        const key = typeof window.__NBD_APP_CHECK_KEY === 'string' ? window.__NBD_APP_CHECK_KEY.trim() : '';
+        if (!key) return;
+        const { initializeAppCheck, ReCaptchaEnterpriseProvider } =
+          await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
+        initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(key), isTokenAutoRefreshEnabled: true });
+      } catch (_) {}
+    })();
+  }
+  return _appCheckReady;
+}
+
 // Twilio Verify via Cloud Functions
 window._sendOTP = async (phone) => {
   try {
+    await ensureAppCheck();
     const sendOtp = httpsCallable(functions, 'sendVerificationCode');
     const result = await sendOtp({ phone });
     return result.data;
@@ -60,6 +84,7 @@ window._sendOTP = async (phone) => {
 
 window._verifyOTP = async (phone, code) => {
   try {
+    await ensureAppCheck();
     const verifyOtp = httpsCallable(functions, 'verifyCode');
     const result = await verifyOtp({ phone, code });
     return result.data;

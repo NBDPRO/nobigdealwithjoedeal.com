@@ -129,7 +129,12 @@ function parseCsp(v) {
       scripts.length > 0 && scripts.every((s) => /^https:\/\/[a-z.-]+\/pro\/deal-room\.js$/.test(s)), scripts.join(' '));
     ok("inline script stays barred (no 'unsafe-inline' in script-src)", !scripts.includes("'unsafe-inline'"));
     ok("connect-src 'self' only (the same-origin ACCEPT POST still works)", (csp['connect-src'] || []).join(' ') === "'self'");
-    ok('not sandboxed (an opaque origin would break the same-origin ACCEPT POST)', !('sandbox' in csp));
+    // 2026-10-06 (R3-4 deal-room note): sandboxed now, but ALWAYS with
+    // allow-same-origin — an opaque origin would break the same-origin ACCEPT
+    // POST. tests/report-link-pdf-only-2026-10-06.test.js pins the rest.
+    ok('sandbox keeps the real origin (allow-same-origin + allow-scripts) so the ACCEPT POST still works',
+      'sandbox' in csp && csp.sandbox.includes('allow-same-origin') && csp.sandbox.includes('allow-scripts'),
+      (csp.sandbox || []).join(' '));
     ok("default-src 'none'", (csp['default-src'] || []).join(' ') === "'none'");
   }
 

@@ -4125,7 +4125,7 @@
       "source_ref": "widgets.js:102 (delegate widgets.js:876)",
       "status": "PASS",
       "evidence": "",
-      "notes": "Hot Leads widget renders clickable lead rows (5472 Greentree Rd, 2013 Kenway Place, …); widget card-nav verified in the prior d2 pass (12 widget card-navs PASS).",
+      "notes": "Hot Leads widget renders clickable lead rows ([street address], [street address], …); widget card-nav verified in the prior d2 pass (12 widget card-navs PASS).",
       "session": "2026-06-09-B",
       "surface": "d2-home"
     },
@@ -10011,7 +10011,7 @@
       "source_ref": "photo-engine.js:1373 (+ dashboard-ui.js:444; openLightbox photo-engine.js:1396)",
       "status": "BLOCKED",
       "evidence": "",
-      "notes": "pe-gallery thumbnail / lightbox — camera-gated engine. NOTE: the simpler per-lead #photoModal gallery WAS exercised (90 real Morgan-McCane photos render; clicking a thumb opens the full-res image in a new tab).",
+      "notes": "pe-gallery thumbnail / lightbox — camera-gated engine. NOTE: the simpler per-lead #photoModal gallery WAS exercised (90 real Customer DR photos render; clicking a thumb opens the full-res image in a new tab).",
       "session": "2026-06-09-B",
       "surface": "d6-photos"
     },
@@ -10245,7 +10245,7 @@
       "source_ref": "dashboard.html:12851 (script load only); share-gallery.js:255",
       "status": "BLOCKED",
       "evidence": "",
-      "notes": "ShareGallery.generate(leadId) — invoked on the 90-photo Morgan-McCane lead; ran without error but no visible share overlay / copied link surfaced (likely needs the photo-engine context or uploads async). The gallery-share + portal-share patterns are verified elsewhere (customer-016/053, gap-carddetail-022).",
+      "notes": "ShareGallery.generate(leadId) — invoked on the 90-photo Customer DR lead; ran without error but no visible share overlay / copied link surfaced (likely needs the photo-engine context or uploads async). The gallery-share + portal-share patterns are verified elsewhere (customer-016/053, gap-carddetail-022).",
       "session": "2026-06-09-B",
       "surface": "d6-photos"
     },
@@ -20865,7 +20865,7 @@
       "source_ref": "photo-review.html:487 (+js/pages/photo-review.js:587)",
       "status": "PASS",
       "evidence": "",
-      "notes": "Photo-review lightbox: loaded /pro/photo-review?lead=<Morgan-McCane, 90 photos, VIEW-ONLY on Jo's real lead>. Synthetic 450ms long-press (pointerdown on a [data-tile-img], no move/up — matches the real LONG_PRESS_MS=450 setTimeout handler) OPENED the lightbox with a real https image. All 3 close paths verified: ✕ #prLightboxClose (real click -> closed, img src cleared), backdrop click (e.target===lightbox -> closed), and Esc keydown (-> closed). No review-state mutated (long-pressed image tiles only, never the .pr-chip picker).",
+      "notes": "Photo-review lightbox: loaded /pro/photo-review?lead=<Customer DR, 90 photos, VIEW-ONLY on Jo's real lead>. Synthetic 450ms long-press (pointerdown on a [data-tile-img], no move/up — matches the real LONG_PRESS_MS=450 setTimeout handler) OPENED the lightbox with a real https image. All 3 close paths verified: ✕ #prLightboxClose (real click -> closed, img src cleared), backdrop click (e.target===lightbox -> closed), and Esc keydown (-> closed). No review-state mutated (long-pressed image tiles only, never the .pr-chip picker).",
       "session": "2026-06-10-C",
       "surface": "pages-a"
     },

@@ -69,6 +69,8 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
+// Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
+const SSR_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 const TOKEN_RE = /^[A-Z0-9]{10,64}$/i;
 
@@ -89,12 +91,14 @@ function renderPage({ title, description, body, status, cacheSeconds, company, n
   // `neutral` pages (expired/not-found/invalid — tenant unresolvable) assert
   // NO brand at all: og:site_name and the "Powered by" footer are dropped so
   // a forwarded/expired link never stamps any company's identity.
-  const site = company || 'No Big Deal Home Solutions';
+  // 2026-10-05: no NBD fallback here — projectPage passes NBD's name for
+  // NBD's own link; a company with no name set gets no site name at all.
+  const site = company || '';
   const safeSite  = escHtml(site);
-  const safeTitle = escHtml(title || ('Your Project — ' + site));
+  const safeTitle = escHtml(title || ('Your Project' + (site ? ' — ' + site : '')));
   const safeDesc  = escHtml(description || '');
-  const siteMeta  = neutral ? '' : `<meta property="og:site_name" content="${safeSite}">\n`;
-  const footer    = neutral ? '' : `\n<div class="foot">Powered by ${safeSite}</div>`;
+  const siteMeta  = (neutral || !site) ? '' : `<meta property="og:site_name" content="${safeSite}">\n`;
+  const footer    = (neutral || !site) ? '' : `\n<div class="foot">Powered by ${safeSite}</div>`;
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -213,7 +217,7 @@ function invalidTokenPage() {
   });
 }
 
-function projectPage({ lead, rep, token, tenantName }) {
+function projectPage({ lead, rep, token, tenantName, isNbd }) {
   // Phase-2.2 PII minimization: link-preview crawlers (iMessage / Meta /
   // WhatsApp) cache og:/twitter: meta server-side, and a forwarded or
   // group-thread link renders the card with NO click. So the meta +
@@ -225,9 +229,13 @@ function projectPage({ lead, rep, token, tenantName }) {
   // tenantName (companyProfile brand.legalName) is the canonical tenant
   // identity and wins when present; rep.companyName covers pre-profile data;
   // NBD's resolved tenantName is 'No Big Deal Home Solutions' → byte-identical.
-  const company   = tenantName || rep.companyName || 'No Big Deal Home Solutions';
-  const title     = `Your roofing project — ${company}`;
-  const desc      = `${repName} at ${company} put together your project details. Tap to view your estimate and photos.`;
+  // NBD's name only on NBD's own link (isNbd: tenant key = the NBD owner
+  // uid); another company with no name set gets neutral wording.
+  const company   = tenantName || rep.companyName || (isNbd !== false ? 'No Big Deal Home Solutions' : '');
+  const title     = company ? `Your roofing project — ${company}` : 'Your roofing project';
+  const desc      = company
+    ? `${repName} at ${company} put together your project details. Tap to view your estimate and photos.`
+    : `${repName} put together your project details. Tap to view your estimate and photos.`;
 
   const safeFirst   = escHtml(firstName);
   const safeRepName = escHtml(repName);
@@ -247,7 +255,7 @@ function projectPage({ lead, rep, token, tenantName }) {
         <div class="rep">
           <div>
             <div class="rep-name">${safeRepName}</div>
-            <div class="rep-role">Your rep at ${safeCompany}</div>
+            <div class="rep-role">${safeCompany ? 'Your rep at ' + safeCompany : 'Your rep'}</div>
           </div>
         </div>
         <a class="cta" href="/pro/portal.html?token=${encodeURIComponent(safeToken)}">View full project →</a>
@@ -343,7 +351,7 @@ exports.shareSSR = onRequest(
         }
       }
 
-      send(projectPage({ lead, rep, token: rawToken, tenantName }));
+      send(projectPage({ lead, rep, token: rawToken, tenantName, isNbd: !tenantKey || String(tenantKey) === SSR_NBD_OWNER_UID }));
     } catch (err) {
       logger.error('shareSSR_failed', { err: String(err) });
       // Fail safe: render a neutral page rather than 500 so the

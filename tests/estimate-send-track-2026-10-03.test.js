@@ -426,7 +426,10 @@ function baseWorld(extra) {
     // phone-share.js outcomes
     const mk = (nav, confirmAns) => {
       const opened = [];
-      const win = { navigator: nav, location: { assign: (h) => opened.push(h) }, nbdConfirm: async () => confirmAns };
+      // phoneTextAction stub: the server's 'ok to text?' answers yes (review R2-3-2;
+      // the refusals are driven in tests/texting-r2-fixes-2026-10-06.test.js).
+      const win = { navigator: nav, location: { assign: (h) => opened.push(h) }, nbdConfirm: async () => confirmAns,
+        _functions: {}, _httpsCallable: () => async () => ({ data: { ok: true, to: '+15135550100' } }) };
       const sb = { window: win, module: { exports: {} }, console };
       vm.createContext(sb);
       vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/phone-share.js'), 'utf8').replace("typeof window !== 'undefined' ? window : null", 'window'), sb);
@@ -435,16 +438,16 @@ function baseWorld(extra) {
     const okShare = mk({ share: async () => {} });
     ok('share sheet resolved → shared via share', (await okShare.api.share({ text: 'Hi', url: 'https://x' })).shared === true);
     const abort = mk({ share: async () => { const e = new Error('x'); e.name = 'AbortError'; throw e; } });
-    const ra = await abort.api.share({ text: 'Hi', phone: '5135550100' });
+    const ra = await abort.api.share({ text: 'Hi', phone: '5135550100', leadId: 'lead-1' });
     ok('share sheet cancelled → NOT shared, nothing opened', ra.shared === false && ra.cancelled && abort.opened.length === 0);
     const na = mk({ share: async () => { const e = new Error('x'); e.name = 'NotAllowedError'; throw e; } });
-    ok('Safari refused (no user activation left) → needsTap, nothing opened', (await na.api.share({ text: 'Hi', phone: '5135550100' })).needsTap === true && na.opened.length === 0);
+    ok('Safari refused (no user activation left) → needsTap, nothing opened', (await na.api.share({ text: 'Hi', phone: '5135550100', leadId: 'lead-1' })).needsTap === true && na.opened.length === 0);
     const smsNo = mk({}, false);
-    const rn = await smsNo.api.share({ text: 'Hi', url: 'https://x/deal/T', phone: '(513) 555-0100' });
+    const rn = await smsNo.api.share({ text: 'Hi', url: 'https://x/deal/T', phone: '(513) 555-0100', leadId: 'lead-1' });
     ok('no share sheet → Messages opens with the text written', smsNo.opened[0] === 'sms:5135550100?&body=' + encodeURIComponent('Hi\n\nhttps://x/deal/T'), smsNo.opened[0]);
     ok('…but it is NOT "shared" unless Jo says it went out', rn.shared === false);
     const smsYes = mk({}, true);
-    ok('…and is shared (via sms) when he confirms', (await smsYes.api.share({ text: 'Hi', phone: '5135550100' })).via === 'sms');
+    ok('…and is shared (via sms) when he confirms', (await smsYes.api.share({ text: 'Hi', phone: '5135550100', leadId: 'lead-1' })).via === 'sms');
     ok('withLink puts the URL on its own line once', PS.withLink('Hi', 'https://u') === 'Hi\n\nhttps://u' && PS.withLink('Hi https://u', 'https://u') === 'Hi https://u');
   }
   {

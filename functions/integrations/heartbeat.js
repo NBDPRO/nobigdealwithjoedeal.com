@@ -46,6 +46,7 @@
 
 const { onSchedule: rawOnSchedule } = require('firebase-functions/v2/scheduler');
 const { logger } = require('firebase-functions/v2');
+const { AsyncLocalStorage } = require('async_hooks');
 const { SECRETS, hasSecret, getSecret } = require('./_shared');
 
 const HC_BASE = 'https://hc-ping.com/';
@@ -118,14 +119,57 @@ async function pingHeartbeat(slug, outcome = 'success', meta = {}) {
   }
 }
 
-/** Wrap a scheduled handler: success → ping, throw → ping /fail then rethrow. */
+// Caught-error counting (review R4-7, 2026-10-06). Most crons catch per-item
+// failures (one lead, one invoice, one email) and carry on, which is right,
+// but the run then "succeeds" and the check stays green however many items
+// failed. Every logger.error made while a wrapped run is in flight is counted
+// (AsyncLocalStorage keeps concurrent runs apart), and a run that finished
+// with errors logged pings /fail with the count instead of success. The
+// run's own result is untouched. This covers every scheduled job without
+// adding each one to the error-rate alert, whose >50-per-5-min threshold a
+// once-a-day job can never reach.
+const _runs = new AsyncLocalStorage();
+let _loggerPatched = false;
+function countLoggedErrors() {
+  if (_loggerPatched) return;
+  _loggerPatched = true;
+  const targets = new Set();
+  try { targets.add(require('firebase-functions/v2').logger); } catch (_) { /* not installed */ }
+  try { const m = require('firebase-functions/logger'); targets.add(m); if (m && m.logger) targets.add(m.logger); } catch (_) { /* not installed */ }
+  for (const t of targets) {
+    if (!t || typeof t.error !== 'function' || t.error.__nbdCounted) continue;
+    const orig = t.error;
+    const counted = function (...args) {
+      const run = _runs.getStore();
+      if (run) run.errors++;
+      return orig.apply(this, args);
+    };
+    counted.__nbdCounted = true;
+    try { t.error = counted; } catch (_) { /* read-only export: not counted */ }
+  }
+}
+
+/**
+ * Wrap a scheduled handler: success → ping, throw → ping /fail then rethrow,
+ * finished but logged errors → ping /fail with the count.
+ */
 function withHeartbeat(slugOrNull, handler) {
   if (typeof handler !== 'function') throw new TypeError('withHeartbeat: handler must be a function');
+  countLoggedErrors();
   return async function heartbeatWrapped(event) {
     const slug = slugOrNull || heartbeatSlug(currentFunctionName());
     const t0 = Date.now();
+    const run = { errors: 0 };
     try {
-      const result = await handler(event);
+      const result = await _runs.run(run, () => handler(event));
+      if (run.errors > 0) {
+        await pingHeartbeat(slug, 'fail', {
+          durationMs: Date.now() - t0,
+          caughtErrors: run.errors,
+          error: run.errors + ' error(s) logged during the run (caught; the run finished)',
+        });
+        return result;
+      }
       await pingHeartbeat(slug, 'success', { durationMs: Date.now() - t0 });
       return result;
     } catch (e) {

@@ -55,5 +55,5 @@ Legend: PASS · MATH-FAIL · DRIFT · FUNCTION-FAIL · GUARDRAIL-MISSING · DOC-
 | Save/generate from money-losing estimate | ⏳ | test in functional flow |
 
 ## Open investigations
-- **$642 CLASSIC estimate** ("6751 Loveland-Miamiville") below $2,500 min — investigate (view-only).
+- **$642 CLASSIC estimate** ("[street address]") below $2,500 min — investigate (view-only).
 - On-screen render of V2-1 (retail quote GBB prices) — confirm in save→generate flow.

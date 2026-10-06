@@ -10,7 +10,7 @@ power play list."
 | Source | Result |
 |---|---|
 | CRM photo hub (Firebase Storage) | **Unreachable from the web sandbox** — no prod credentials here. Photos came from Drive instead. |
-| Drive `COMPANIES/NBD/CUSTOMERS/*` | Mostly **empty scaffolding** (Photos/Docs/Reports subfolders created 2026-08-15 with nothing in them — incl. Gary's and Krista Taft's). A few hold real HEICs (Been Lisner ×27, Alison Coleman ×11, Pat S ×3) — unexamined this session, see follow-ups. |
+| Drive `COMPANIES/NBD/CUSTOMERS/*` | Mostly **empty scaffolding** (Photos/Docs/Reports subfolders created 2026-08-15 with nothing in them — incl. Gary's and Krista Taft's). A few hold real HEICs (Customer CX ×27, Customer G ×11, Pat S ×3) — unexamined this session, see follow-ups. |
 | Drive "Gutters" folder + loose files | 5 HEICs = hail-chalk on downspouts (storm documentation, not guards). 3 loose damaged-gutter JPEGs = **published** (see below). |
 | SD-card backup (synced 2026-08-17): DCIM/100MEDIA | 627 DJI photos (DJI_0362–0999), agent-sampled ~54 frames. Job documentation: re-roofs, chalk-marked hail inspections, gutter conditions, algae'd 3-tabs. **No roof tarps** (only ground-protection tarps at tear-offs). |
 | SD backup: 101MEDIA | 959 DJI photos, sampled ~28. **Found the tarp**: DJI_0306–0308, cap-nailed blue tarp at a gable base. Also box-gutter reline, failing perforated covers (DJI_0718). |
@@ -51,12 +51,12 @@ power play list."
 
 ## Business facts learned (for future featured projects)
 
-- **Gary Yeates, Cincinnati 45244** (proposal 2026-07-09, $2,450 retail):
+- **Customer FV, Cincinnati 45244** (proposal 2026-07-09, $2,450 retail):
   80 LF 5" seamless, fascia included, **new screens on the 45 LF run for tree
   coverage**, reuse attempt on 35 LF. Completion unconfirmed — no receipt in
   Drive. When Jo confirms completion + consent, this is the anchor
   **featured project** for a future gutter-guards page.
-- **Chris Tate, Cincinnati 45215** (proposal 2026-07-04, $4,800): box-gutter
+- **Customer AH, Cincinnati 45215** (proposal 2026-07-04, $4,800): box-gutter
   → 6" seamless conversion; Leaf Protection add-on +$1,170 across 130 LF.
 - Tarping history: JK Roofing invoice (2023) shows commercial emergency
   tarping billed to a carrier — legitimate experience, pre-NBD, not used on
@@ -70,7 +70,7 @@ power play list."
 - **Jo at PR review**: confirm Gary's job completed — then a session can
   build the featured project + a dedicated gutter-guards page (next
   power-play candidate, per rush-week addendum).
-- Unexamined: Been Lisner (27), Alison Coleman (11), Pat S (3) customer
+- Unexamined: Customer CX (27), Customer G (11), Pat S (3) customer
   HEICs — **HEIC decode needs `npm i heic-convert`** (repo sharp lacks HEVC;
   system libheif+libde265 exists). Also two 101MEDIA blocks (DJI_0685–0709,
   0737–0809, ~20MB 48MP frames) exceeded the Drive MCP download cap.

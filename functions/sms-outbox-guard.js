@@ -118,7 +118,7 @@ const HOLD_REASONS = Object.freeze([
 const ACTIVITY_OVERRIDABLE = Object.freeze(['recent_outbound', 'recent_inbound', 'lead_changed']);
 
 const HOLD_MESSAGES = Object.freeze({
-  quiet_hours: 'Held: outside 8am–9pm Eastern. It can go after 8am.',
+  quiet_hours: 'Held: outside texting hours (8am–9pm in the homeowner\'s time zone). It can go once those hours start.',
   stale: 'Held: this text was queued more than 15 minutes ago. Review it before it goes.',
   recent_outbound: 'Held: someone already texted this number after you queued this.',
   recent_inbound: 'Held: the homeowner texted since you queued this. Read their message first.',

@@ -499,6 +499,8 @@
 
       // Pricing tiers
       tiers: opts.tiers || blankTiers(),
+      // The estimate's deposit inputs (review R2-2-5) — see _depositBasisOf.
+      depositBasis: opts.depositBasis || null,
 
       // What the homeowner's link carries (2026-10-04): 'full' (default —
       // photos, scope summary, reviews) or 'paperwork' (tiers, terms,
@@ -660,6 +662,40 @@
     return _dealRoomsForCurrentUser().find(d => d && d.estimateId === estimateId && !_isClosedDeal(d)) || null;
   }
 
+  // The estimate's deposit inputs, snapshotted onto the deal (review R2-2-5):
+  // what deposit-rule.js fromEstimate reads off a saved estimate — mode, the
+  // claim's deductible + ACV, a stored rep override, the job address. The
+  // caller passes them as estimateData.depositBasis (estimate-v2-ui.js) or
+  // on the estimate itself (a saved estimate doc). null = nothing to snapshot.
+  function _num(v) { const n = Number(v); return (v == null || v === '' || !isFinite(n)) ? null : n; }
+  function _depositBasisOf(estimateData) {
+    const src = (estimateData && estimateData.depositBasis) || estimateData || {};
+    const claim = (src.claim && typeof src.claim === 'object') ? src.claim : {};
+    const mode = src.mode || src.jobMode || '';
+    const ov = src.depositPlan && src.depositPlan.override;
+    const basis = {
+      mode: String(mode || ''),
+      claim: { deductible: _num(claim.deductible), acv: _num(claim.acv) },
+      addr: String(src.addr || src.address || ''),
+      depositPlan: ov ? { override: { pct: _num(ov.pct), amountCents: _num(ov.amountCents) } } : null,
+      depositPctOverride: _num(src.depositPctOverride != null ? src.depositPctOverride : src.depositOverridePct),
+    };
+    const any = basis.mode || basis.claim.deductible != null || basis.claim.acv != null || basis.depositPlan || basis.depositPctOverride != null;
+    return any ? basis : null;
+  }
+  // The basis a deal page prices its tiers from: the snapshot, else (a deal
+  // made before it, or from no estimate) the deal's own claim fields.
+  function _dealDepositBasis(deal, dealMode) {
+    const b = deal && deal.depositBasis;
+    const claimDed = _num(deal && deal.deductible);
+    if (b && typeof b === 'object') {
+      const claim = Object.assign({}, b.claim || {});
+      if (!(Number(claim.deductible) > 0) && claimDed > 0) claim.deductible = claimDed;
+      return Object.assign({}, b, { mode: b.mode || dealMode, claim });
+    }
+    return { mode: dealMode, claim: { deductible: claimDed > 0 ? claimDed : null }, addr: (deal && deal.address) || '' };
+  }
+
   function createFromEstimate(estimateData, leadData) {
     // Pull pricing from current estimate
     const tiers = blankTiers(t => estimateData?.prices?.[t]);
@@ -698,6 +734,9 @@
     // full packet; a re-send carries the new choice onto the same deal.
     const _packet = _packetFields(estimateData?.packet, estimateData?.packetPhotoIds);
     const _scope = _scopeSummary(estimateData?.scopeSummary);
+    // The deposit inputs (R2-2-5); a refresh keeps an older snapshot when the
+    // caller passes none.
+    const _depBasis = _depositBasisOf(estimateData);
     // Same estimate, still open → refresh that deal in place.
     const existing = findOpenDealForEstimate(estimateId);
     if (existing) {
@@ -709,6 +748,7 @@
         customerPhone: leadData?.phone || existing.customerPhone || '',
         address: leadData?.address || existing.address || '',
         tiers,
+        depositBasis: _depBasis || existing.depositBasis || null,
         insuranceClaim: _isIns,
         insuranceCarrier: _carrier,
         claimNumber: leadData?.claimNumber || '',
@@ -726,6 +766,7 @@
       packet: _packet.packet,
       packetPhotoIds: _packet.packetPhotoIds,
       scopeSummary: _scope,
+      depositBasis: _depBasis,
       selectedProducts,
       insuranceClaim: _isIns,
       insuranceCarrier: _carrier,
@@ -852,8 +893,18 @@
       claimNumber: deal.claimNumber || (_linked && _linked.claimNumber) || '',
       insCarrier: deal.insuranceCarrier || (_linked && (_linked.insCarrier || _linked.insuranceCarrier)) || ''
     });
+    // ONE deposit path (review R2-2-5, 2026-10-06): deposit-rule.js
+    // fromEstimate on the linked estimate's own inputs (its mode, claim
+    // deductible + ACV, a stored rep override — snapshotted onto the deal as
+    // depositBasis when it was made from the estimate), exactly as the
+    // estimate, contract and invoice ask it. It priced each tier with
+    // compute({ mode from deal.insuranceClaim, deductible }) — no ACV, no
+    // override — so an Ohio claim with an $8,000 ACV said "$1,000 due at
+    // signing" here and $8,000 on the contract and invoice. A deal made
+    // before the snapshot reads its own claim fields (the old behaviour).
+    const _basis = _dealDepositBasis(deal, _dealMode);
     const _tierPlan = (price) => (_depRule && Number(price) > 0)
-      ? _depRule.compute({ total: Number(price), mode: _dealMode, deductible: deal.deductible, address: deal.address || '', lead: _depLead })
+      ? _depRule.fromEstimate(_basis, { totalCents: Math.round(Number(price) * 100), address: deal.address || _basis.addr || '', lead: _depLead })
       : null;
     const depositLine = (price) => {
       const p = _tierPlan(price);
@@ -1226,10 +1277,12 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       if (window.showToast) window.showToast('Sharing is still loading — try again', 'error');
       return;
     }
-    const res = await window.NBDPhoneShare.share({
+    // NBDPhoneShare asks the server "ok to text?" first (STOP / Do Not Text /
+    // consent / hours — review R2-3-2) and logs the send on the lead.
+    const res = await window.NBDPhoneShare.share(Object.assign({
       text: msg, phone: deal.customerPhone, title: 'Roof estimate',
-      noRetry: !!_phonePending[dealId],
-    });
+      noRetry: !!_phonePending[dealId], source: 'deal_link',
+    }, _dealTextWho(deal)));
     if (res.needsTap) {
       _phonePending[dealId] = msg;
       if (window.showToast) window.showToast('Link ready — tap 📱 Text again to send it from your phone', 'info');
@@ -1245,11 +1298,22 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     if (window.showToast) window.showToast('Shared from your phone ✓', 'success');
   }
 
+  // Who a deal text is about, for the server check: the deal's lead, or (a
+  // deal with no customer card) the number's own lists only.
+  function _dealTextWho(deal) {
+    return deal && deal.leadId ? { leadId: deal.leadId } : { recipient: 'number' };
+  }
+
   async function sendViaSMS(dealId) {
     const deal = _findDeal(dealId);
     if (!deal || !deal.customerPhone) {
       if (window.showToast) window.showToast('No phone number for this customer', 'error');
       return;
+    }
+    // Ask "ok to text?" while the link is minted, so the share sheet still
+    // has the tap when it opens.
+    if (!_serverSmsOk && window.NBDPhoneShare && typeof window.NBDPhoneShare.precheck === 'function') {
+      window.NBDPhoneShare.precheck(Object.assign({ phone: deal.customerPhone }, _dealTextWho(deal)));
     }
     // Second tap after Safari refused the first share: the link is already
     // minted and the message written — share it now, inside this tap.

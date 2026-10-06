@@ -74,12 +74,28 @@ const info = (extra) => Object.assign({ dealId: 'D1', leadId: 'L1', ownerUid: 'u
       ok('…the estimate takes the accepted tier and price', e.tier === 'best' && e.selectedTier === 'best' && e.grandTotal === 21450 && e.acceptedTier === 'best' && e.acceptedTierApplied === true);
       ok('…and the lead job value follows (primary estimate)', l.jobValue === 21450 && l.acceptedTier === 'best' && l.acceptedPrice === 21450);
     }
-    // 2. rep already chose a tier → never overwritten, recorded beside it
+    // 2a. (2026-10-06, review R2-2-1, Jo) a tier-PRICED estimate that already
+    //     names a tier (V2 always saves 'better') takes the accepted tier.
     {
       const db = fakeDb({
         'leads/L1': { userId: 'u1', jobValue: 18000, primaryEstimateId: 'E1' },
         'deal_rooms/D1': { userId: 'u1' },
-        'estimates/E1': { userId: 'u1', leadId: 'L1', selectedTier: 'better', tier: 'better', grandTotal: 18000, prices: { better: 18000, best: 21450 } },
+        'estimates/E1': { userId: 'u1', leadId: 'L1', priceMode: 'per-sq', selectedTier: 'better', tier: 'better', grandTotal: 18000, prices: { better: 18000, best: 21450 } },
+      });
+      const r = await T.applyAcceptedTier(db, info(), 'best', 21450, { now: () => NOW });
+      const e = db.store['estimates/E1'], l = db.store['leads/L1'];
+      ok('a per-SQ estimate with a tier already set → applied (the accepted tier wins)', r === 'applied', r);
+      ok('…the estimate takes the accepted tier and price, the old tier is kept for history', e.tier === 'best' && e.selectedTier === 'best' && e.grandTotal === 21450 && e.acceptedTierApplied === true && e.acceptedTierReplaced === 'better');
+      ok('…the lead job value follows', l.jobValue === 21450);
+      ok('…nothing is left for the chip to ask', !C || C.pendingPick(l, [Object.assign({ id: 'E1' }, e)]) === null);
+    }
+    // 2b. a LINE-ITEM estimate with a tier → never overwritten, recorded beside it
+    //     (its rows are priced at the rep's tier).
+    {
+      const db = fakeDb({
+        'leads/L1': { userId: 'u1', jobValue: 18000, primaryEstimateId: 'E1' },
+        'deal_rooms/D1': { userId: 'u1' },
+        'estimates/E1': { userId: 'u1', leadId: 'L1', priceMode: 'line-item', selectedTier: 'better', tier: 'better', grandTotal: 18000 },
       });
       const r = await T.applyAcceptedTier(db, info(), 'best', 21450, { now: () => NOW });
       const e = db.store['estimates/E1'], l = db.store['leads/L1'];
@@ -145,7 +161,7 @@ const info = (extra) => Object.assign({ dealId: 'D1', leadId: 'L1', ownerUid: 'u
   console.log('\nbug #10 — subtotal, tax and deposit follow the accepted tier\n');
   if (T && T.applyAcceptedTier) {
     const DR = require(path.join(ROOT, 'functions', 'deposit-rule.js'));
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OH = '1 Main St, Cincinnati, OH 45202';
     const cashEst = () => ({ userId: 'u1', leadId: 'L1', grandTotal: 10000, subtotal: 9300, tax: 700, taxRate: 0.07527, deposit: 5000,
       depositPlan: DR.toStored(DR.compute({ total: 10000, mode: 'cash' })) });

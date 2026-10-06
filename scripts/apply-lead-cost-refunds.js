@@ -45,8 +45,8 @@
  *   • Idempotent — a doc already carrying leadCostRefunded is skipped.
  *
  * RUN  (NBD's own companyId is 1phDvAVXHSg82wDLegAbQFq14Ci1)
- *   node scripts/apply-lead-cost-refunds.js --company=<id>
- *   node scripts/apply-lead-cost-refunds.js --company=<id> --apply --yes
+ *   node scripts/apply-lead-cost-refunds.js --company=<id> --data=<lead-cost-refunds.json>
+ *   node scripts/apply-lead-cost-refunds.js --company=<id> --data=<file> --apply --yes
  */
 'use strict';
 
@@ -58,13 +58,12 @@ const YES = args.includes('--yes');
 const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
 const PREFIX = 'thumbtack_leads__';
 
-// Verified against the Thumbtack payment ledger 2026-09-06. Must stay in step
-// with KNOWN_REFUNDS in backfill-lead-cost.js.
-const KNOWN_REFUNDS = [
-  ['Pam Gill', 51.96], ['Hannah Rice', 51.96], ['Veronica Matthews', 16.70],
-  ['Lois Daulton', 214.85], ['Vincent Evans', 214.85], ['Barbara Simms', 225.00],
-  ['Terry Greene', 225.00], ['Larn Madison', 78.60],
-];
+// Verified against the Thumbtack payment ledger 2026-09-06: eight [name, amount]
+// pairs. They are customer names, and this repo is public, so since 2026-10-06
+// the list lives in Jo's private notes folder (lead-cost-refunds.json, the same
+// file backfill-lead-cost.js reads). Pass --data=<file> or NBD_REFUNDS_FILE.
+const { loadPrivateJson } = require('./_private-data');
+const KNOWN_REFUNDS = loadPrivateJson({ envVar: 'NBD_REFUNDS_FILE', what: 'the Thumbtack refund list' }).knownRefunds;
 
 if (APPLY && !YES) {
   console.error('--apply also requires --yes. Refusing to write.');

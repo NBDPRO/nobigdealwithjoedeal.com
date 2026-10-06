@@ -37,6 +37,7 @@ let _twilioSdk = null;
 const _twilio = () => (_twilioSdk = _twilioSdk || require('twilio'));
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const StormGuard = require('./storm-sms-guard');
+const TextingGate = require('./sms-texting-gate');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -176,7 +177,17 @@ async function runStormWatch() {
   // read every run; Joe's own alert still goes out with texting shown OFF.
   const switchOn = await StormGuard.stormAlertsEnabled(db, logger);
   if (!switchOn) logger.info('stormWatch: storm texts switched off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
-  const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn;
+  // 2026-10-05: NBD's company-wide texting master switch (sms-texting-gate.js)
+  // as well — it stops EVERY outbound text, storm texts included. A read
+  // error is 'off' (fail closed), like the storm switch.
+  let companyOn = false;
+  try {
+    companyOn = (await TextingGate.textingStatus(db, TextingGate.NBD_OWNER_UID)).allowed;
+  } catch (e) {
+    logger.error('stormWatch: texting switch unreadable', { err: e && e.message });
+  }
+  if (!companyOn) logger.info('stormWatch: company texting switched off');
+  const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn && companyOn;
   const nowMs = Date.now();
   // active:true is server-stamped on every subscriber (functions/handlers/
   // integrations.js's serverDefaults, never client-trusted) specifically so
@@ -248,9 +259,12 @@ async function runStormWatch() {
         subscriberRef: a.ref,
         phone: a.to,
         source: 'stormWatch',
+        // Storm subscribers are NBD's own list: NBD's Do Not Text list.
+        companyId: TextingGate.NBD_OWNER_UID,
         eventKey: a.event.key,
         logger,
         tz: a.tz,
+        recipient: { zip: a.zip },
         serverTimestamp: () => FieldValue.serverTimestamp(),
         send: () => client.messages.create({
           to: a.to,

@@ -33,6 +33,22 @@
  * phoneDigits (the last-10 key every lead write stamps) with the exact-phone
  * fallback incomingSMS uses. Ties go through pickLeadForInbound.
  *
+ * A text from a number that only ANOTHER tenant's lead holds is not NBD's
+ * conversation: its body is filed nowhere (no sms_log, inbox, unmatched_sms
+ * or bell) — the claim is written and "unmatched for NBD" is logged. A STOP
+ * from it is still honoured (the register is global; each tenant holding the
+ * number gets the stop_reply Do Not Text entry). Routing such texts to their
+ * tenant is a later decision for Jo (multi-tenant use of this number).
+ *
+ * ── STOP / START ─────────────────────────────────────────────────────
+ * The same decision incomingSMS makes (sms-stop-intent.js): "Stop.",
+ * REVOKE, and plain-English revocations ("please stop texting me") are
+ * opt-outs. Twilio's Advanced Opt-Out only knows whole keywords, so for a
+ * phrase this register is the ONLY record. A STOP is also copied to the Do
+ * Not Text list of each company holding the number, and START / UNSTOP
+ * clears both the register and those stop_reply entries (a company's own
+ * manual entries stay) — sms-optout.js owns all of it.
+ *
  * ── IDEMPOTENCY ──────────────────────────────────────────────────────
  * Twilio retries on a timeout or 5xx. Each inbound text claims
  * sms_inbound_seen/{MessageSid} (the collection incomingSMS already uses);
@@ -92,8 +108,8 @@ function gate(req, res, deps, fn, voiceFallback) {
   return false;
 }
 
-/** NBD leads for this number (phoneDigits match + exact-phone fallback). */
-async function nbdCandidates(db, from) {
+/** Every lead for this number (phoneDigits match + exact-phone fallback), any tenant. */
+async function leadCandidates(db, from) {
   const digits = phoneDigits10(from);
   if (!digits) return [];
   const [a, b] = await Promise.all([
@@ -102,7 +118,12 @@ async function nbdCandidates(db, from) {
   ]);
   const byId = new Map();
   for (const d of [...a.docs, ...b.docs]) if (!byId.has(d.id)) byId.set(d.id, { id: d.id, data: d.data() || {} });
-  return L.nbdLeads([...byId.values()], NBD_OWNER_UID);
+  return [...byId.values()];
+}
+
+/** NBD leads for this number. */
+async function nbdCandidates(db, from) {
+  return L.nbdLeads(await leadCandidates(db, from), NBD_OWNER_UID);
 }
 
 function routeOf(cands) {
@@ -147,22 +168,42 @@ async function handleSms(req, res, deps) {
   if (await claimed(db, claimPath)) { sendXml(res, 200, L.EMPTY_TWIML); return; }
 
   const text = String(body.Body == null ? '' : body.Body);
-  const kind = L.keywordOf(text);
-  const cands = await nbdCandidates(db, from);
+  const intent = L.inboundIntent(text);
+  const kind = intent.intent;
+  const all = await leadCandidates(db, from);
+  const cands = L.nbdLeads(all, NBD_OWNER_UID);
   const lead = routeOf(cands);
   const ts = FieldValue.serverTimestamp();
 
   // The register first (idempotent, owned by sms-optout.js — canonical key;
-  // START clears canonical AND legacy keys). Twilio itself has already
-  // applied the keyword at the Messaging Service.
+  // START clears canonical AND legacy keys). Twilio has already applied a
+  // whole keyword at the Messaging Service, but NOT a phrase ("please stop
+  // texting me"): for that, this record is the only one.
   if (kind === 'stop') {
-    await OptOut.recordOptOut(db, from, { optedOutAt: ts, keyword: text.trim().toUpperCase().slice(0, 20), twilioSid: sid, source: 'twilio_line' });
+    await OptOut.recordOptOut(db, from, { optedOutAt: ts, keyword: intent.keyword, match: intent.match, twilioSid: sid, source: 'twilio_line' });
+    // Each company holding the number sees it on its Do Not Text list.
+    // Never throws; a failure never undoes the opt-out above.
+    await OptOut.copyStopToTenantLists(db, from, {
+      serverTimestamp: () => FieldValue.serverTimestamp(),
+      onError: (e) => logger.error('[twilioLine] dnc_stop_reply_copy_failed', { sid, err: e && e.message }),
+    });
   } else if (kind === 'start') {
     await OptOut.clearOptOut(db, from);
+    // ...and the stop_reply Do Not Text entries (manual entries stay).
+    try { await OptOut.clearStopReplyDnc(db, from); }
+    catch (e) { logger.error('[twilioLine] dnc_stop_reply_clear_failed', { sid, err: e && e.message }); }
   }
 
   const batch = db.batch();
   batch.create(db.doc(claimPath), { fromLast4: L.last4(from), source: 'twilio_line', kind: kind || 'text', at: ts });
+
+  // Another tenant's customer, not NBD's: file nothing but the claim.
+  if (L.heldOnlyByOtherTenant(all, NBD_OWNER_UID)) {
+    try { await batch.commit(); } catch (e) { if (!isAlreadyExists(e)) throw e; }
+    logger.info('[twilioLine] sms unmatched for NBD (number held by another tenant) — body not filed', { sid, kind: kind || 'text' });
+    sendXml(res, 200, L.EMPTY_TWIML);
+    return;
+  }
 
   const uid = lead ? (lead.data.userId || NBD_OWNER_UID) : NBD_OWNER_UID;
   const companyId = lead ? (lead.data.companyId || lead.data.userId || NBD_OWNER_UID) : NBD_OWNER_UID;

@@ -96,6 +96,8 @@ function load(nbdComms) {
 const KNOCK = {
   id: 'knock-42', phone: '(513) 555-0123', homeowner: 'Dana',
   address: '12 Oak St', disposition: 'interested',
+  // 2026-10-05: door-knock texts need the homeowner's OK on file.
+  smsConsent: true,
 };
 
 const smsOpens = (h) => h.opened.filter(([u]) => /^sms:/i.test(u));
@@ -210,6 +212,30 @@ const sentToast = (h) => h.toasts.some(([, m]) => /text sent to/i.test(m));
     await flush();
     ok('no phone: NBDComms not called, nothing opened',
       h.smsCalls.length === 0 && h.opened.length === 0, JSON.stringify({ c: h.smsCalls, o: h.opened }));
+  }
+
+  // ── 9. No texting OK on file → nothing at all (texting review 2026-10-05) ─
+  for (const consent of [undefined, false, 'true', 1]) {
+    const h = load(async () => ({ success: true, mode: 'platform' }));
+    h.send(Object.assign({}, KNOCK, { smsConsent: consent }), 'interested');
+    await flush();
+    ok('smsConsent ' + JSON.stringify(consent) + ': NBDComms not called, nothing opened, the rep is told why',
+      h.smsCalls.length === 0 && h.opened.length === 0
+      && h.toasts.some(([k, m]) => k === 'error' && /No texting OK on file/.test(m)),
+      JSON.stringify({ c: h.smsCalls, o: h.opened, t: h.toasts }));
+  }
+
+  // ── 10. Every template names the company and says how to stop ─────────
+  {
+    const h = load(async () => ({ success: true, mode: 'platform' }));
+    for (const key of ['interested', 'appointment', 'storm_damage', 'ins_has_claim', 'follow_up', 'not_home']) {
+      h.send(KNOCK, key);
+    }
+    await flush(); await flush();
+    const bodies = h.smsCalls.map((c) => String(c[1] || ''));
+    ok('all six door-knock templates end "Reply STOP to opt out." and name the company',
+      bodies.length === 6 && bodies.every((b) => /Reply STOP to opt out\.$/.test(b) && /NBD Home Solutions/.test(b)),
+      JSON.stringify(bodies));
   }
 
   console.log('\n──────────────────────────────');

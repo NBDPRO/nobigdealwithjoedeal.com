@@ -51,6 +51,49 @@ const PHOTO_COLLECTIONS = ['contact_leads', 'inspect_leads', 'estimate_leads', '
 
 const hashToken = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
 
+// ── Who the homeowner should contact when something fails (2026-10-05) ──
+// NBD's grant (no companyId, or the NBD owner uid) keeps the exact "text Joe
+// at (859) 420-7382" wording. Another company's grant names that company's
+// own phone / name from companyProfile, or says nothing about who — never Joe.
+// contact: null = NBD; { name, phone } = another company (either may be '').
+async function grantContact(db, companyId) {
+  if (!companyId || String(companyId) === NBD_OWNER_UID) return null;
+  try {
+    const s = await db.collection('companyProfile').doc(String(companyId)).get();
+    const b = (s && s.exists ? (s.data() || {}).brand : null) || {};
+    const name = String(b.legalName || '').trim();
+    const phone = String((b.contact && b.contact.phone) || '').trim();
+    return { name: name === 'No Big Deal Home Solutions' ? '' : name, phone };
+  } catch (_) { return { name: '', phone: '' }; }
+}
+/** Pure: the help sentence for one failure, per tenant (see grantContact). */
+function helpLine(kind, contact) {
+  const c = contact || null;
+  const phone = c ? c.phone : '';
+  const who = c ? (c.name || 'the company you contacted') : '';
+  switch (kind) {
+    case 'uploadClosed':
+      if (!c) return 'This upload window has closed. Text your photos to (859) 420-7382 instead.';
+      return phone ? 'This upload window has closed. Text your photos to ' + phone + ' instead.'
+        : 'This upload window has closed. Send your photos to ' + who + ' directly instead.';
+    case 'attachFailed':
+      if (!c) return 'We could not attach this photo. Text it to (859) 420-7382.';
+      return phone ? 'We could not attach this photo. Text it to ' + phone + '.'
+        : 'We could not attach this photo. Send it to ' + who + ' directly.';
+    case 'saveFailed':
+      if (!c) return 'The photo did not save. Try again, or text it to (859) 420-7382.';
+      return phone ? 'The photo did not save. Try again, or text it to ' + phone + '.' : 'The photo did not save. Try again.';
+    case 'intakeClosed':
+      if (!c) return 'This window has closed. Call or text Joe at (859) 420-7382 with anything else.';
+      return phone ? 'This window has closed. Call or text ' + (c.name ? c.name + ' at ' : '') + phone + ' with anything else.'
+        : 'This window has closed. Contact ' + who + ' directly with anything else.';
+    case 'intakeFailed':
+      if (!c) return 'Could not save that. Call or text Joe at (859) 420-7382.';
+      return phone ? 'Could not save that. Call or text ' + (c.name ? c.name + ' at ' : '') + phone + '.' : 'Could not save that. Try again later.';
+    default: return '';
+  }
+}
+
 /** Pure: parse + bound a data URL. → { mime, b64 } | { error } */
 function parseDataUrl(dataUrl) {
   if (typeof dataUrl !== 'string' || dataUrl.length > MAX_B64 + 64) return { error: 'too-large' };
@@ -61,9 +104,9 @@ function parseDataUrl(dataUrl) {
 }
 
 /** Pure: is this grant usable now? → { ok } | { ok:false, status, error } */
-function checkGrant(g, nowMs) {
+function checkGrant(g, nowMs, contact) {
   if (!g) return { ok: false, status: 404, error: 'This upload link is not valid.' };
-  if (!(g.exp > nowMs)) return { ok: false, status: 410, error: 'This upload window has closed. Text your photos to (859) 420-7382 instead.' };
+  if (!(g.exp > nowMs)) return { ok: false, status: 410, error: helpLine('uploadClosed', contact) };
   if ((g.used || 0) >= (g.max || MAX_PHOTOS)) return { ok: false, status: 429, error: 'That is the most photos one request can hold (10).' };
   if (!PHOTO_COLLECTIONS.includes(g.collection) || !/^[A-Za-z0-9_-]{1,128}$/.test(String(g.publicId || ''))) {
     return { ok: false, status: 400, error: 'This upload link is not valid.' };
@@ -115,9 +158,12 @@ exports.uploadPublicLeadPhoto = onRequest(
     // Cheap check first (no decode work for a bad or used-up link), then
     // decode BEFORE reserving a slot, so a file that isn't a photo never
     // uses up one of the ten. The transaction below re-checks the grant.
+    let contact = null;
     try {
       const pre = await ref.get();
-      const c = checkGrant(pre.exists ? pre.data() : null, Date.now());
+      const g0 = pre.exists ? pre.data() : null;
+      contact = await grantContact(db, g0 && g0.companyId);
+      const c = checkGrant(g0, Date.now(), contact);
       if (!c.ok) { res.status(c.status).json({ error: c.error }); return; }
     } catch (e) {
       logger.error('uploadPublicLeadPhoto: grant read failed', { err: e.message });
@@ -138,7 +184,7 @@ exports.uploadPublicLeadPhoto = onRequest(
       grant = await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         const g = snap.exists ? snap.data() : null;
-        const c = checkGrant(g, Date.now());
+        const c = checkGrant(g, Date.now(), contact);
         if (!c.ok) { const e = new Error('grant'); e._http = c.status; e._msg = c.error; throw e; }
         tx.update(ref, { used: FieldValue.increment(1), lastUploadAt: FieldValue.serverTimestamp() });
         return Object.assign({ n: (g.used || 0) + 1 }, g);
@@ -157,7 +203,7 @@ exports.uploadPublicLeadPhoto = onRequest(
         companyDoc = s && s.exists ? s.data() : null;
       }
       const target = L.resolveBridgeTarget(grant.companyId, companyDoc, { nbdOwnerUid: NBD_OWNER_UID });
-      if (!target) { res.status(409).json({ error: 'We could not attach this photo. Text it to (859) 420-7382.' }); return; }
+      if (!target) { res.status(409).json({ error: helpLine('attachFailed', contact) }); return; }
       const leadId = L.bridgeDocId(grant.collection, grant.publicId);
       const path = `homeowner-uploads/${target.ownerUid}/${leadId}/web-${Date.now()}-${grant.n}.jpg`;
       const file = getStorage().bucket().file(path);
@@ -187,7 +233,7 @@ exports.uploadPublicLeadPhoto = onRequest(
       res.status(200).json({ success: true, n: grant.n });
     } catch (e) {
       logger.error('uploadPublicLeadPhoto: store failed', { err: e.message });
-      res.status(500).json({ error: 'The photo did not save. Try again, or text it to (859) 420-7382.' });
+      res.status(500).json({ error: helpLine('saveFailed', contact) });
     }
   }
 );
@@ -216,9 +262,9 @@ const CRM_LEAD_TRIES = 3;
 const CRM_LEAD_WAIT_MS = 2500;
 
 /** Pure: may this grant save follow-up answers now? */
-function checkIntakeGrant(g, nowMs) {
+function checkIntakeGrant(g, nowMs, contact) {
   if (!g) return { ok: false, status: 404, error: 'This link is not valid.' };
-  if (!(g.exp > nowMs)) return { ok: false, status: 410, error: 'This window has closed. Call or text Joe at (859) 420-7382 with anything else.' };
+  if (!(g.exp > nowMs)) return { ok: false, status: 410, error: helpLine('intakeClosed', contact) };
   if ((g.intakeUpdates || 0) >= INTAKE_MAX_UPDATES) return { ok: false, status: 429, error: 'Those answers are already saved.' };
   if (!PHOTO_COLLECTIONS.includes(g.collection) || !/^[A-Za-z0-9_-]{1,128}$/.test(String(g.publicId || ''))) {
     return { ok: false, status: 400, error: 'This link is not valid.' };
@@ -241,21 +287,36 @@ async function saveIntakeUpdate(db, body, opts) {
   if (!Object.keys(fields).length) return { status: 400, json: { error: 'Nothing to save.' } };
 
   const ref = db.collection(GRANTS).doc(hashToken(token));
+  // Whose grant: the help wording names that company (grantContact).
+  let contact = null;
+  try {
+    const pre = await ref.get();
+    contact = await grantContact(db, pre && pre.exists ? (pre.data() || {}).companyId : null);
+  } catch (_) { contact = null; }
   let grant;
   try {
     grant = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const g = snap.exists ? snap.data() : null;
-      const c = checkIntakeGrant(g, now());
+      const c = checkIntakeGrant(g, now(), contact);
       if (!c.ok) { const e = new Error('grant'); e._http = c.status; e._msg = c.error; throw e; }
       tx.update(ref, { intakeUpdates: FieldValue.increment(1), lastIntakeAt: FieldValue.serverTimestamp() });
       return g;
     });
   } catch (e) {
     if (e && e._http) return { status: e._http, json: { error: e._msg } };
+    e._contact = contact;
     throw e;
   }
+  try {
+    return await _applyIntake(db, grant, fields, wait);
+  } catch (e) {
+    e._contact = contact;
+    throw e;
+  }
+}
 
+async function _applyIntake(db, grant, fields, wait) {
   // The public lead (what lead-alert / the funnel-recovery job read).
   await db.collection(grant.collection).doc(grant.publicId)
     .set(Object.assign({}, fields, { intakeUpdatedAt: FieldValue.serverTimestamp() }), { merge: true });
@@ -299,12 +360,12 @@ exports.updatePublicLeadIntake = onRequest(
       res.status(out.status).json(out.json);
     } catch (e) {
       logger.error('updatePublicLeadIntake failed', { err: e.message });
-      res.status(500).json({ error: 'Could not save that. Call or text Joe at (859) 420-7382.' });
+      res.status(500).json({ error: helpLine('intakeFailed', e && e._contact) });
     }
   }
 );
 
 exports._internal = {
   mintPhotoGrant, parseDataUrl, checkGrant, reencode, hashToken, PHOTO_COLLECTIONS, MAX_PHOTOS, GRANTS,
-  checkIntakeGrant, saveIntakeUpdate, INTAKE_MAX_UPDATES,
+  checkIntakeGrant, saveIntakeUpdate, INTAKE_MAX_UPDATES, helpLine, grantContact,
 };

@@ -3,7 +3,7 @@
 > **Superseded 2026-08-31.** The live brief is
 > [NEXT_SESSION-2026-08-31](NEXT_SESSION-2026-08-31.md) (see the **Current
 > handoff** pointer at the top of [INDEX](../INDEX.md)). This note is kept
-> for the Cal.com lane it records — **§0 is still open**: Kevin Choi's
+> for the Cal.com lane it records — **§0 is still open**: Customer AF's
 > backfill has not been run, and it is still the one command that needs Jo's
 > prod credentials. §3's carried-forward items have moved on; trust 08-31
 > over this note wherever they disagree.
@@ -16,7 +16,7 @@ section, per INDEX; the rest are mid-session snapshots.)*
 
 ---
 
-## §0 — THE LIVE ITEM: Kevin Choi's lead is still missing from the CRM
+## §0 — THE LIVE ITEM: Customer AF's lead is still missing from the CRM
 
 The bug is **fixed and deployed** (#1288) — every new Cal.com booking now
 creates a Pipeline card on its own. The fix is **forward-only**, so the one
@@ -32,10 +32,10 @@ export GOOGLE_APPLICATION_CREDENTIALS=~/.nbd/nobigdeal-pro-sa.json
 # DRY RUN — writes nothing without --apply --yes
 node scripts/backfill-calcom-dropped-leads.js \
   --booking-uid=uLAU3nHLXBa4HQZnUHAYfK \
-  --name="Kevin Choi" --email=seiya256@hotmail.com --phone=+18594663151 \
+  --name="Customer AF" --email=[email removed] --phone=[phone removed] \
   --start=2026-08-29T14:00:00Z --duration=30 \
   --title="Free Roof Inspection" \
-  --location="69 Moock Rd, Wilder, KY, USA" \
+  --location="[street address], Wilder, KY, USA" \
   --organizer-username=nobigdeal
 ```
 
@@ -82,8 +82,8 @@ these are the items still waiting:
 - **GBP + Facebook posts remain HELD** on Jo's explicit instruction (twice).
   Nothing has been posted anywhere. Before the Lexington post goes up, add the
   six Central-KY towns to the GBP service area.
-- **Two photo judgment calls** Jo hasn't answered: the Goddard coating frame
-  with an identifiable crew face, and the Hatley "before" aerial that could
+- **Two photo judgment calls** Jo hasn't answered: the Customer BR coating frame
+  with an identifiable crew face, and the Customer BX "before" aerial that could
   not be confirmed as Rita's roof vs a neighbor's.
 - **Two /our-work cards HELD:** Robert Wilson (needs a town — appears in no
   document) and By Golly's Bar & Grill (identifiable named business, Jo's

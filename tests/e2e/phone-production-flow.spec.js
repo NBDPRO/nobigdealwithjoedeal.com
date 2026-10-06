@@ -68,6 +68,7 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
   let leadA = null;           // the customer-page job
   const seededOrders = [];    // [leadId]
   const seededSubs = [];      // sub names (removed by name in afterAll)
+  const textChecks = [];      // phoneTextAction payloads (the ok-to-text stub)
 
   async function seedLead(fields) {
     return safeEvaluate(page, async ({ f, tag }) => {
@@ -113,6 +114,12 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
           blocks: [{ startMs: s, endMs: s + 2 * 3600000, calendars: ['jo@example.test'], titles: [] }] } }) });
       }
       if (/getJobWeather/.test(url)) return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ result: { byLead: {} } }) });
+      // phoneTextAction (review R2-3-2): a send to a sub's number is checked
+      // against the STOP / Do Not Text lists first and fails CLOSED, so yes.
+      if (/phoneTextAction/.test(url)) {
+        try { textChecks.push((JSON.parse(r.request().postData() || '{}').data) || {}); } catch (_) {}
+        return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ result: { ok: true } }) });
+      }
       return r.fulfill({ contentType: 'application/json', body: '{"result":null}' });
     });
     await loginAs(page, creds);
@@ -231,6 +238,7 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
     await page.locator('[data-pr-action="send-sheet"]').tap();
     await expect.poll(() => safeEvaluate(page, () => (window.__shared || []).length), { timeout: 10_000 }).toBe(1);
     const shared = await safeEvaluate(page, () => window.__shared[0]);
+    expect(textChecks.some((d) => d.action === 'check' && d.recipient === 'crew'), "the sub's number was checked (crew) before the sheet opened").toBe(true);
     expect(shared.text).toContain('Strip Way, Mason, OH');
     expect(shared.text).toContain('https://www.google.com/maps/search/?api=1&query=');
     expect(shared.text).toContain('Tear off, 24 SQ architectural');

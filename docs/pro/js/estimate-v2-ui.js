@@ -5601,7 +5601,17 @@
     let deal;
     // The packet chosen above (2026-10-04): photo IDs only, never URLs.
     const packet = packetChoice();
-    const dealEst = { id: estimateId, prices, packet, packetPhotoIds: packetPhotoIds(), scopeSummary: _scopeNames(estimate) };
+    // The deposit inputs the saved estimate carries (review R2-2-5): the deal
+    // page prices each tier through deposit-rule.js fromEstimate on these —
+    // the same mode / claim / address the estimate, contract and invoice use.
+    const _ov = estimate.depositPlan && estimate.depositPlan.override;
+    const depositBasis = {
+      mode: estimate.mode || state.jobMode,
+      claim: { deductible: cl.deductible, acv: cl.acv },
+      addr: c.address || '',
+      depositPlan: _ov ? { override: _ov } : null,
+    };
+    const dealEst = { id: estimateId, prices, packet, packetPhotoIds: packetPhotoIds(), scopeSummary: _scopeNames(estimate), depositBasis };
     try { deal = CB.createFromEstimate(dealEst, leadData); }
     catch (e) {
       console.error('[v2] deal create failed:', e);

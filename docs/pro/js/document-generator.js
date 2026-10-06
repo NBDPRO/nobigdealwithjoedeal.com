@@ -3573,6 +3573,11 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
       const lead = window._leads.find(l => l.id === leadId);
       if (!lead) return;
       const fullName = ((lead.firstName||'')+' '+(lead.lastName||'')).trim();
+      // The price is the lead's PRIMARY estimate's locked total when it has one
+      // (review R2-2-4, 2026-10-06) — lead.jobValue lagged a re-saved estimate.
+      const _pe = lead.primaryEstimateId ? (window._estimates || []).find(e => e && e.id === lead.primaryEstimateId) : null;
+      const _peVal = _pe ? (Number(_pe.grandTotal || _pe.total || _pe.amount) || 0) : 0;
+      const _price = _peVal > 0 ? _peVal : (lead.jobValue||lead.estimateAmount||'');
       const map = {
         homeownerName: fullName,
         address: lead.address||'',
@@ -3581,9 +3586,9 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         claimNumber: lead.claimNumber||'',
         policyNumber: lead.policyNumber||'',
         insuranceCompany: lead.insCarrier||lead.insuranceCompany||'',
-        totalPrice: lead.jobValue||lead.estimateAmount||'',
-        contractPrice: lead.jobValue||lead.estimateAmount||'',
-        totalAmount: lead.jobValue||lead.estimateAmount||'',
+        totalPrice: _price,
+        contractPrice: _price,
+        totalAmount: _price,
         originalApproved: lead.estimateAmount||lead.jobValue||'',
         estimatedRepairCost: lead.estimateAmount||lead.jobValue||'',
         projectDescription: lead.scopeOfWork||lead.notes||'',

@@ -7,8 +7,8 @@
  * (isEmpty). A Thumbtack lead that never shared its street arrives as
  * "Fairfield, OH 45014" — non-empty, so it passed the gate, and on 2026-08-18
  * five invoices generated carrying no street address at all ($4,636.25 across
- * Binford, Reynolds, Mbella, Land, Musuraca). A sixth class of damage —
- * pre-Wave-141 rows like "7003, Greenstone Trace, O'Bannon Creek" — was also
+ * five customers, names removed). A sixth class of damage —
+ * pre-Wave-141 rows like "7003, Wrenfield Trace, O'Bannon Creek" — was also
  * sailing through. See documentation/audit/CRM-ADDRESS-INTEGRITY-2026-08-18.md.
  *
  * The fix adds validateAddressCompleteness() + FIELD_VALIDATORS to
@@ -49,10 +49,10 @@ const v = sandbox.validateAddressCompleteness;
 ok('validateAddressCompleteness is callable', typeof v === 'function');
 
 console.log('\nADDRESS GUARD — complete addresses pass');
-ok('full OH address passes', v('1944 Kentucky Ave, Cincinnati, OH 45223') === null);
-ok('Goddard address passes', v('129 W Seymour Ave, Cincinnati, OH 45216') === null);
-ok('KY address passes', v('1912 Russel St, Covington, KY 41014') === null);
-ok('ZIP+4 passes', v('26 Park Ave, Loveland, OH 45140-1234') === null);
+ok('full OH address passes', v('100 Kentucky Ave, Cincinnati, OH 45223') === null);
+ok('Ginkgo address passes', v('129 W Marrowbone Ave, Cincinnati, OH 45216') === null);
+ok('KY address passes', v('1912 Ashgrove St, Covington, KY 41014') === null);
+ok('ZIP+4 passes', v('26 Brambleton Ave, Loveland, OH 45140-1234') === null);
 
 console.log('\nADDRESS GUARD — empty defers to `required`');
 ok('empty string returns null (required owns it)', v('') === null);
@@ -60,24 +60,24 @@ ok('null returns null', v(null) === null);
 ok('undefined returns null', v(undefined) === null);
 
 console.log('\nADDRESS GUARD — the five invoices that shipped thin on 2026-08-18');
-ok('Binford "Fairfield, OH 45014" flagged', /street number/.test(v('Fairfield, OH 45014') || ''));
-ok('Reynolds "Batavia, OH 45103" flagged', /street number/.test(v('Batavia, OH 45103') || ''));
-ok('Mbella "Cincinnati, OH 45211" flagged', /street number/.test(v('Cincinnati, OH 45211') || ''));
-ok('Land "Alexandria, KY 41001" flagged', /street number/.test(v('Alexandria, KY 41001') || ''));
-ok('Musuraca "Isis Ave, Cincinnati, OH" flagged', (v('Isis Ave, Cincinnati, OH') || '').length > 0);
+ok('Firman "Fairfield, OH 45014" flagged', /street number/.test(v('Fairfield, OH 45014') || ''));
+ok('Customer "Batavia, OH 45103" flagged', /street number/.test(v('Batavia, OH 45103') || ''));
+ok('Ivyson "Cincinnati, OH 45211" flagged', /street number/.test(v('Cincinnati, OH 45211') || ''));
+ok('Customer "Alexandria, KY 41001" flagged', /street number/.test(v('Alexandria, KY 41001') || ''));
+ok('Dogwoodson "Wrenmoor Ave, Cincinnati, OH" flagged', (v('Wrenmoor Ave, Cincinnati, OH') || '').length > 0);
 
 console.log('\nADDRESS GUARD — pre-Wave-141 mangled rows');
-ok('Morgan-McCane mangled row flagged as mangled',
-  /mangled/.test(v("7003, Greenstone Trace, O'Bannon Creek") || ''));
+ok('Cedarly mangled row flagged as mangled',
+  /mangled/.test(v("7003, Wrenfield Trace, O'Bannon Creek") || ''));
 ok('Larry mangled row flagged as mangled',
-  /mangled/.test(v('5368, Hopewell Valley Drive, The Village of Hopewell Valley') || ''));
-ok('Kevin Dewald mangled row flagged as mangled',
-  /mangled/.test(v('123, Franklin Township, Franklin County') || ''));
+  /mangled/.test(v('5368, Fernbrook Valley Drive, The Village of Fernbrook Valley') || ''));
+ok('Kevin Hazelton mangled row flagged as mangled',
+  /mangled/.test(v('123, Wrenfield, Franklin County') || ''));
 
 console.log('\nADDRESS GUARD — partial addresses name what is missing');
-ok('Higgins "5007 Guards Ln" reports state + ZIP', /state/.test(v('5007 Guards Ln') || '') && /ZIP/.test(v('5007 Guards Ln') || ''));
-ok('no ZIP is reported', /ZIP/.test(v('129 W Seymour Ave, Cincinnati, OH') || ''));
-ok('no state is reported', /state/.test(v('129 W Seymour Ave, Cincinnati 45216') || ''));
+ok('Elmsworth "5007 Kestrelwood Ln" reports state + ZIP', /state/.test(v('5007 Kestrelwood Ln') || '') && /ZIP/.test(v('5007 Kestrelwood Ln') || ''));
+ok('no ZIP is reported', /ZIP/.test(v('129 W Marrowbone Ave, Cincinnati, OH') || ''));
+ok('no state is reported', /state/.test(v('129 W Marrowbone Ave, Cincinnati 45216') || ''));
 
 console.log('\nADDRESS GUARD — wiring in doc-preflight.js');
 ok('FIELD_VALIDATORS maps the address keys',

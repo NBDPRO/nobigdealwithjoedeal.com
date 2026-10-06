@@ -211,7 +211,10 @@
   function monthHtml() {
     var t = L.monthTotals(state.rows, Date.now());
     var partial = state.rows.length >= 300 && state.rows.length && L.monthKey(state.rows[state.rows.length - 1].atMs) === t.month;
-    return '<div class="sl-sec">Collected through Stripe — this month</div><div class="sl-grid">' +
+    // "Stripe gross (card)", not "Collected" (review R2, 2026-10-06): Zelle and
+    // cash are not in it and refunds sit beside it, while Home revenue is net
+    // collected across every method — two different numbers.
+    return '<div class="sl-sec">Stripe gross (card) — this month</div><div class="sl-grid">' +
       '<div class="sl-tile"><div class="sl-lbl">Gross</div><div class="sl-val" style="color:var(--green,#16a34a);">' + esc(L.fmtMoney(t.grossCents)) + '</div><div class="sl-sub">' + t.count + ' payment' + (t.count === 1 ? '' : 's') + '</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Stripe fees</div><div class="sl-val" style="color:var(--orange,#BD5728);">' + esc(L.fmtMoney(t.feeCents)) + '</div><div class="sl-sub">' +
         (t.grossCents ? ((t.feeCents / t.grossCents) * 100).toFixed(1) + '% of gross' : 'no fees yet') + '</div></div>' +
@@ -448,7 +451,7 @@
     var m = L.previewModel(res, leadsById());
     var h = '<p>Preview of ' + esc(rangeLabel(sync.days)) + ' — <strong>nothing has been written yet.</strong></p>' +
       '<div class="sl-grid" style="margin-top:10px;">' +
-      '<div class="sl-tile"><div class="sl-lbl">Collected</div><div class="sl-val">' + esc(L.fmtMoney(m.collectedCents)) + '</div><div class="sl-sub">in this range</div></div>' +
+      '<div class="sl-tile"><div class="sl-lbl">Stripe gross (card)</div><div class="sl-val">' + esc(L.fmtMoney(m.collectedCents)) + '</div><div class="sl-sub">in this range</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Will record</div><div class="sl-val" style="color:var(--green,#16a34a);">' + (m.records + m.creates) + '</div><div class="sl-sub">' + m.creates + ' new CRM invoice' + (m.creates === 1 ? '' : 's') + '</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Needs review</div><div class="sl-val" style="color:var(--gold,#eab308);">' + m.review + '</div><div class="sl-sub">you pick the customer</div></div>' +
       '</div>';

@@ -251,7 +251,7 @@ function load(w, rel) {
 const SUB_PHONE = '(859) 555-0134';
 const SUB_E164 = '+18595550134';
 function seedSub(db, id, fields) {
-  db.store.set('storm_alert_subscribers/' + id, Object.assign({ active: true, zip: '41017', phone: SUB_PHONE }, fields || {}));
+  db.store.set('storm_alert_subscribers/' + id, Object.assign({ active: true, zip: '41017', phone: SUB_PHONE, tcpaConsent: true }, fields || {}));
 }
 function nwsAlert(id, extra) {
   return {
@@ -446,7 +446,7 @@ console.log('\n3. storm-sms-guard claim semantics');
     ok('3. an existing claim doc blocks a later run even after the cooldown', r3.claimed === false && r3.reason === 'already_claimed', r3);
     // and the send never happens without a claim
     let sends = 0;
-    const r4 = await Guard.sendGuardedStormText({ db: w.db, subscriberRef: subRef, phone: SUB_PHONE, claimRef, source: 't', send: async () => { sends++; } });
+    const r4 = await Guard.sendGuardedStormText({ db: w.db, subscriberRef: subRef, phone: SUB_PHONE, claimRef, source: 't', companyId: 'nbd-owner', send: async () => { sends++; } });
     ok('3. sendGuardedStormText does not send when the claim is taken', sends === 0 && r4.status === 'already_claimed', r4);
     ok('3. the shared cooldown is a named constant', Guard.STORM_TEXT_COOLDOWN_H > 0);
   }

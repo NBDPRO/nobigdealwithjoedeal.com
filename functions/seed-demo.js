@@ -88,7 +88,7 @@ const LEADS = [
   {
     firstName: 'Marcus', lastName: 'Williams',
     address: '4821 Wolfpen Pleasant Hill Rd, Milford, OH 45150',
-    phone: '(513) 555-0147', email: 'mwilliams@gmail.com',
+    phone: '(513) 555-0147', email: 'mwilliams@example.com',
     stage: 'new', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'door_knock', insCarrier: 'State Farm', jobValue: 14200,
     lat: 39.1745, lng: -84.2284, daysAgo: 2,
@@ -97,7 +97,7 @@ const LEADS = [
   {
     firstName: 'Sarah', lastName: 'Chen',
     address: '1035 Reading Rd, Mason, OH 45040',
-    phone: '(513) 555-0289', email: 'schen.home@yahoo.com',
+    phone: '(513) 555-0289', email: 'schen.home@example.com',
     stage: 'new', jobType: '', damageType: 'Roof - Wind',
     source: 'website', insCarrier: '', jobValue: 11500,
     lat: 39.3600, lng: -84.3100, daysAgo: 1,
@@ -117,7 +117,7 @@ const LEADS = [
   {
     firstName: 'Jennifer', lastName: 'Patel',
     address: '2290 Eight Mile Rd, Anderson Township, OH 45244',
-    phone: '(513) 555-0671', email: 'jpatel.home@outlook.com',
+    phone: '(513) 555-0671', email: 'jpatel.home@example.com',
     stage: 'contacted', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'referral', insCarrier: 'USAA', jobValue: 16800,
     lat: 39.0846, lng: -84.3522, daysAgo: 8,
@@ -127,7 +127,7 @@ const LEADS = [
   {
     firstName: 'Robert', lastName: 'Schneider',
     address: '450 Loveland-Miamiville Rd, Loveland, OH 45140',
-    phone: '(513) 555-0819', email: 'rschneider55@gmail.com',
+    phone: '(513) 555-0819', email: 'rschneider55@example.com',
     stage: 'contacted', jobType: 'cash', damageType: 'Roof - Age',
     source: 'google', insCarrier: '', jobValue: 9200,
     lat: 39.2689, lng: -84.2639, daysAgo: 12,
@@ -138,7 +138,7 @@ const LEADS = [
   {
     firstName: 'Angela', lastName: 'Torres',
     address: '1188 Clough Pike, Batavia, OH 45103',
-    phone: '(513) 555-0952', email: 'atorres88@icloud.com',
+    phone: '(513) 555-0952', email: 'atorres88@example.com',
     stage: 'inspected', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'door_knock', insCarrier: 'Erie', jobValue: 21400,
     lat: 39.0540, lng: -84.1860, daysAgo: 18,
@@ -147,7 +147,7 @@ const LEADS = [
   {
     firstName: 'Michael', lastName: 'Johnson',
     address: '6315 Branch Hill Guinea Pike, Loveland, OH 45140',
-    phone: '(513) 555-1044', email: 'mjohnson.builds@gmail.com',
+    phone: '(513) 555-1044', email: 'mjohnson.builds@example.com',
     stage: 'inspected', jobType: 'insurance', damageType: 'Roof - Wind',
     source: 'referral', insCarrier: 'Nationwide', jobValue: 13700,
     lat: 39.2340, lng: -84.2800, daysAgo: 15,
@@ -158,7 +158,7 @@ const LEADS = [
   {
     firstName: 'Lisa', lastName: 'Washington',
     address: '3405 Beechmont Ave, Cincinnati, OH 45208',
-    phone: '(513) 555-1198', email: 'lwashington@proton.me',
+    phone: '(513) 555-1198', email: 'lwashington@example.com',
     stage: 'claim_filed', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'door_knock', insCarrier: 'State Farm', jobValue: 19800,
     claimNumber: 'SF-2026-0044871', claimStatus: 'Filed',
@@ -168,7 +168,7 @@ const LEADS = [
   {
     firstName: 'James', lastName: 'Kim',
     address: '8901 Kenwood Rd, Blue Ash, OH 45242',
-    phone: '(513) 555-1302', email: 'jkim.property@gmail.com',
+    phone: '(513) 555-1302', email: 'jkim.property@example.com',
     stage: 'claim_filed', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'storm_alert', insCarrier: 'Hartford', jobValue: 24600,
     claimNumber: 'HTF-2026-339102', claimStatus: 'Filed',
@@ -180,7 +180,7 @@ const LEADS = [
   {
     firstName: 'Patricia', lastName: 'Ramirez',
     address: '1520 State Route 28, Goshen, OH 45122',
-    phone: '(513) 555-1455', email: 'pramirez.home@yahoo.com',
+    phone: '(513) 555-1455', email: 'pramirez.home@example.com',
     stage: 'estimate_submitted', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'door_knock', insCarrier: 'Allstate', jobValue: 17300,
     claimNumber: 'ALL-2026-88714', claimStatus: 'Estimate Sent',
@@ -192,7 +192,7 @@ const LEADS = [
   {
     firstName: 'Thomas', lastName: 'Baker',
     address: '2745 Indian Hill Rd, Indian Hill, OH 45243',
-    phone: '(513) 555-1588', email: 'tbaker.ih@gmail.com',
+    phone: '(513) 555-1588', email: 'tbaker.ih@example.com',
     stage: 'contract_signed', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'referral', insCarrier: 'USAA', jobValue: 27800,
     claimNumber: 'USAA-2026-771240', claimStatus: 'Approved',
@@ -204,7 +204,7 @@ const LEADS = [
   {
     firstName: 'Maria', lastName: 'Gonzalez',
     address: '985 Wards Corner Rd, Loveland, OH 45140',
-    phone: '(513) 555-1721', email: 'mgonzalez.family@gmail.com',
+    phone: '(513) 555-1721', email: 'mgonzalez.family@example.com',
     stage: 'install_in_progress', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'door_knock', insCarrier: 'State Farm', jobValue: 15900,
     claimNumber: 'SF-2026-0039145', claimStatus: 'Approved',
@@ -217,7 +217,7 @@ const LEADS = [
   {
     firstName: 'Kevin', lastName: 'Murphy',
     address: '5520 Tylersville Rd, West Chester, OH 45069',
-    phone: '(513) 555-1854', email: 'kmurphy.wc@outlook.com',
+    phone: '(513) 555-1854', email: 'kmurphy.wc@example.com',
     stage: 'closed', jobType: 'insurance', damageType: 'Roof - Hail',
     source: 'door_knock', insCarrier: 'Erie', jobValue: 22100,
     claimNumber: 'ERIE-2026-55291', claimStatus: 'Paid',
@@ -228,7 +228,7 @@ const LEADS = [
   {
     firstName: 'Diana', lastName: 'Foster',
     address: '3100 Hamilton Mason Rd, Monroe, OH 45050',
-    phone: '(513) 555-1987', email: 'dfoster.monroe@gmail.com',
+    phone: '(513) 555-1987', email: 'dfoster.monroe@example.com',
     stage: 'closed', jobType: 'cash', damageType: 'Roof - Age',
     source: 'google', insCarrier: '', jobValue: 8500,
     lat: 39.4403, lng: -84.3621, daysAgo: 48,

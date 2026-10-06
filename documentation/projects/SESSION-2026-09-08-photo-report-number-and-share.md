@@ -70,7 +70,7 @@ window collided outright.
 ```
 
 The date convention is the one the hand-built client PDFs already use
-(`NBD-2026-0902-HILD`,
+(`NBD-2026-0902-XXXX`,
 [SESSION-2026-09-07-client-pdfs-and-drive-tidy](SESSION-2026-09-07-client-pdfs-and-drive-tidy.md)).
 The type infix is the one the CRM's own generators already use — `-V2-` on
 estimates (`estimate-v2-ui.js:69`), `-WC` on warranty certs

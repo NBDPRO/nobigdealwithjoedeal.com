@@ -55,7 +55,7 @@ console.log('C. wiring');
 const src = read('docs/pro/js/agent-inbox.js');
 const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 ok('no send path at all (no SMS / email / comms call)', !/sendSMS|sendEmail|NBDComms|sendQueued/.test(code));
-ok('the only server calls are the bot-key callables', (code.match(/callable\('(\w+)'/g) || []).every((m) => /createAgentKey|listAgentKeys|revokeAgentKey|agentDraftAction/.test(m)));
+ok('the only server calls are the bot-key callables', (code.match(/callable\('(\w+)'/g) || []).every((m) => /createAgentKey|listAgentKeys|revokeAgentKey|agentDraftAction|phoneTextAction/.test(m)));
 ok('everything painted is escaped', /esc\(leadName\(it\.leadId\)\)/.test(src) && /esc\(it\.text \|\| ''\)/.test(src) && /esc\(it\.bot \|\| 'Agent'\)/.test(src) && /esc\(it\.title\)/.test(src));
 const bell = read('docs/pro/js/notif-bell.js');
 ok('the 🤖 bell notification opens the inbox', /agent_inbox: '🤖'/.test(bell) && /n\.type === 'agent_inbox' \? '\/pro\/dashboard\.html\?agentInbox=1'/.test(bell));

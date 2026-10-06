@@ -10,7 +10,9 @@
  *   I agree to receive [what] from No Big Deal Home Solutions by call or text
  *   at the number above. Message frequency varies. Message & data rates may
  *   apply. Reply STOP to opt out, HELP for help. Consent is not a condition of
- *   purchase. Privacy Policy   (linked to /privacy#sms-terms)
+ *   purchase. Privacy Policy · Terms
+ *   (Privacy Policy -> /privacy#sms-terms, Terms -> /terms. Twilio error
+ *   30564, 2026-10-06: reviewers want BOTH links right next to the opt-in.)
  *
  * The blocks are DISCOVERED (every checkbox under docs/ outside docs/pro whose
  * label talks about texts), not listed, so a new form that ships a weaker
@@ -85,10 +87,10 @@ function consentBlocks() {
 
 function labelText(label) {
   return label.replace(/^<label[^>]*>/, '').replace(/<input\b[^>]*>/g, '').replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+    .replace(/&amp;/g, '&').replace(/&middot;/g, '·').replace(/\s+/g, ' ').trim();
 }
 
-const SENTENCE = /^I agree to receive (.+?) from No Big Deal Home Solutions by call or text at the number above\. Message frequency varies\. Message & data rates may apply\. Reply STOP to opt out, HELP for help\. Consent is not a condition of purchase\. Privacy Policy$/;
+const SENTENCE = /^I agree to receive (.+?) from No Big Deal Home Solutions by call or text at the number above\. Message frequency varies\. Message & data rates may apply\. Reply STOP to opt out, HELP for help\. Consent is not a condition of purchase\. Privacy Policy · Terms$/;
 
 // Each form keeps its own "what".
 const EXPECTED = {
@@ -128,6 +130,11 @@ for (const b of blocks) {
   check('A4 ' + k + ' links the Privacy Policy SMS terms', () => {
     assert.ok(/<a href="\/privacy#sms-terms"[^>]*>Privacy Policy<\/a>/.test(b.label),
       k + ': missing <a href="/privacy#sms-terms">Privacy Policy</a>');
+  });
+  check('A4b ' + k + ' ends with the Privacy Policy and Terms links side by side (Twilio 30564)', () => {
+    assert.ok(/Consent is not a condition of purchase\. <a href="\/privacy#sms-terms">Privacy Policy<\/a> &middot; <a href="\/terms">Terms<\/a>(?:<\/span>)?<\/label>$/.test(b.label),
+      k + ': label must end "... purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a>"');
+    assert.ok(!/\son[a-z]+\s*=/i.test(b.label), k + ': inline on*= handler in the consent label (CSP)');
   });
   check('A5 ' + k + ' is unchecked by default', () => {
     assert.ok(!/\bchecked\b/.test(b.tag), k + ': consent checkbox is pre-checked: ' + b.tag);

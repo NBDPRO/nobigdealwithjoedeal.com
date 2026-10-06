@@ -27,11 +27,11 @@ Six records carry a signature no human types and no correct formatter emits:
 Nominatim hamlet/subdivision where the post town belongs, and no state or ZIP.
 
 ```
-5368, Hopewell Valley Drive, The Village of Hopewell Valley   (Larry)
-3424, Moria Drive, Rivendell Estates                          (Heather Clymer)
-7003, Greenstone Trace, O'Bannon Creek                        (Morgan-McCane)
-123, Franklin Township, Franklin County                       (Kevin Dewald — street name gone entirely)
-5448, Hagewa Drive, Blue Ash                                  (Rita Hatley)
+[street address, mangled the same way]   (Larry)
+[street address], Rivendell Estates                          (Customer AK)
+[street address], O'Bannon Creek                        (Customer DR)
+[street address], Franklin County                       (Customer AT — street name gone entirely)
+[street address], Blue Ash                                  (Customer BX)
 ```
 
 `docs/pro/js/dashboard-ui.js` already documents this exact bug and its fix at
@@ -39,12 +39,12 @@ Nominatim hamlet/subdivision where the post town belongs, and no state or ZIP.
 
 > Wave 141: produce a proper USPS-style mailing address using the structured
 > nominatim addressdetails … Replaces the old `display_name.split(',').slice(0,3)`
-> which produced "1054, Klondyke Road, Goshen" (wrong on every count: comma
+> which produced "456, Example Road, Goshen" (wrong on every count: comma
 > after house number, full road name instead of "Rd", missing ZIP, state
 > spelled out, county included).
 
 **The write path is sound.** `formatMailingAddress()` emits
-`1054 Klondyke Rd, Goshen, OH 45122`. `customer-edit-modal.js saveCustomerEdits()`
+`456 Example Rd, Goshen, OH 45122`. `customer-edit-modal.js saveCustomerEdits()`
 only `.trim()`s — it does not reformat. Nothing overwrites a typed address today.
 
 Corroborating evidence: every mangled row is **105–137 days old**; every record
@@ -56,15 +56,15 @@ The 35 city+ZIP-only rows are Thumbtack's shape — the marketplace withholds th
 street until the customer shares it. Those addresses are *thin*, not corrupt.
 The defect is that nothing in the product says so, and documents generate off
 them anyway. Five invoices were generated on 2026-08-18 carrying only a city
-and ZIP (Binford, Reynolds, Mbella, Land, Musuraca — $4,636.25).
+and ZIP (Customer Q, Customer CG, Customer DG, Customer CK, Customer DU — $4,636.25).
 
 ## Three rows where the CRM contradicts a shipped document
 
 | Customer | CRM | Document |
 |---|---|---|
-| Anthony Scandariato | `Kentucky Ave, Cincinnati, OH 45223` — no number | Invoice NBD-2026-0810-RK: **1944 _and_ 1942** Kentucky Ave |
-| Morgan-McCane | `7003, Greenstone Trace, O'Bannon Creek` | `7003 Greenstone Trce, Loveland, OH 45140` |
-| Craig & Robin Higgins | blank | Photo report: `5007 Guards Ln` |
+| Customer ET | `Kentucky Ave, Cincinnati, OH 45223` — no number | Invoice NBD-2026-0810-XXXX: **1944 _and_ 1942** Kentucky Ave |
+| Customer DR | `[street address], O'Bannon Creek` | `[street address], Loveland, OH 45140` |
+| Customer BZ | blank | Photo report: `[street address]` |
 
 Anthony's is the structural one: **one job, two multi-family buildings.** The
 schema has a single `address` string, so the second building cannot be
@@ -95,7 +95,7 @@ Both pass `node scripts/check-js-syntax.js` (466 files clean).
 5. **Add-lead UX:** `crm-leads.js:179` requires name AND address and renders the
    failure into an inline `mErr` element. A lead added without an address fails
    with no visible feedback in normal use — observed live 2026-08-18 while
-   adding Brian McGlynn.
+   adding Customer DI.
 
 ## Wave 2 — same day, later
 
@@ -153,31 +153,31 @@ before it is written down:
 2. first token of the street name byte-identical,
 3. result inside OH / KY / IN.
 
-12 of 13 cleared. The method independently reproduced the Morgan-McCane
+12 of 13 cleared. The method independently reproduced the Customer DR
 correction that had been transcribed from Drive — same string, character for
 character, which is the strongest evidence available that the approach is
 sound.
 
-The one rejection is the point of the guard: `123, Franklin Township, Franklin
-County` (Kevin Dewald, lost) geocoded to **123 Howard Rd, Phillips, Maine**.
+The one rejection is the point of the guard: `[street address], Franklin
+County` (Customer AT, lost) geocoded to **123 Howard Rd, Phillips, Maine**.
 Rejected on checks 2 and 3. It stays unfixed and stays in the audit.
 
 Corrections live in `scripts/legacy-address-corrections.json`;
 `backfill-legacy-addresses.js` now `require()`s that file and concatenates the
 hand-transcribed entries. `expectCurrent` still gates every write.
 
-> **Bug this fixed on the way past:** the hand-written Morgan-McCane entry had a
+> **Bug this fixed on the way past:** the hand-written Customer DR entry had a
 > straight apostrophe in `O'Bannon`, but Firestore holds U+2019 (`O’Bannon`).
 > The verify-before-write check would have skipped the row and reported drift.
 > Generating the file from the live values removed the whole class of error.
 
 ### Still open
 
-- **Rita Hatley is duplicated** — a `closed` record (corrupt address, fixed in
-  this batch) and a separate `Estimate Sent` record holding only "Hagewa dr".
+- **Customer BX is duplicated** — a `closed` record (corrupt address, fixed in
+  this batch) and a separate `Estimate Sent` record holding only "[street] dr".
   Needs a merge, not an address.
-- **41 rows need a street from the customer.** 4 are urgent: Binford, Dindar
-  and Anderson are `crew_scheduled`, and Musuraca is `contract_signed` with a
+- **41 rows need a street from the customer.** 4 are urgent: Customer Q, Customer AW
+  and Customer CO are `crew_scheduled`, and Customer DU is `contract_signed` with a
   street but no house number — jobs booked at addresses we do not hold.
 - **8 door-knock rows** spell the state as "Ohio"; mechanical, no contact needed.
 - **A recurring audit is NOT wired.** `audit-lead-addresses.js` reads live
@@ -199,13 +199,13 @@ All 12 corrections written to live Firestore. Re-audit over a fresh read of all
 | legacyMangled | 13 | **1** |
 | blank | 5 | 5 → 3 (see below) |
 
-The only gate failure that is genuinely corrupt is now Kevin Dewald's
+The only gate failure that is genuinely corrupt is now Customer AT's
 placeholder, which the guard is deliberately refusing to touch. Every write
 stored the original in `addressLegacy`.
 
 Two records were retired as duplicates/junk rather than repaired:
 
-- **Rita Hatley was in the CRM twice.** `jHQwrjX3CMtZgV7jZPkd` (NBD-0014,
+- **Customer BX was in the CRM twice.** `jHQwrjX3CMtZgV7jZPkd` (NBD-0014,
   closed, reconciled to $3,145, final payment 9 May) is the real record.
   `WjwIwbjqtXJq10818RQS` was the original March door-knock lead, still sitting
   at `Estimate Sent` under a *different* companyId — which is why neither view
@@ -220,7 +220,7 @@ Two records were retired as duplicates/junk rather than repaired:
 There was no way to remove a generated document from a customer record short
 of the Firebase console. On this date that meant two invoices for the same job
 — one with the wrong scope entirely (shingle repair language on a commercial
-EPDM coating job) — sat on Anthony Scandariato's live record with no way to
+EPDM coating job) — sat on Customer ET's live record with no way to
 take either down.
 
 `docs/pro/js/customer-signed-doc-upload.js` gained `deleteCustomerDoc`, routed
@@ -251,7 +251,7 @@ missing *registration*.
 `_buildPremiumData` and in the server-render map, with a comment reading
 "Receipt is a future call site (no client surface yet)" — but `receipt` was
 never in `DOCUMENT_TYPES`, so nothing could produce one. Jobs paid in full
-(Higgins, Philpot) had no closing document. Added `DG.renderReceipt`, the
+(Customer BZ, Customer EE) had no closing document. Added `DG.renderReceipt`, the
 `receipt` DOC_SCHEMA in doc-preflight (including PayPal and Venmo, which the
 invoice payment block still lacks), and a `computed.receiptNumber`.
 
@@ -263,7 +263,7 @@ settled when nobody said so is a worse failure than an ugly document.
 **Roof Assessment Report.** The existing inspection template is
 insurance-shaped — carrier, claim number and date of loss are all `required` —
 so a homeowner who simply pays for an opinion on their roof had no deliverable
-at all. Three paid inspections were outstanding (Garrity, Carry, Sutton).
+at all. Three paid inspections were outstanding (Customer BP, Customer FY, Customer FH).
 Added `DG.renderRoofAssessment`: findings as *what I saw → why it matters*,
 with rep-set severity (never inferred), and no placeholder photo boxes when
 there are no photos — a padded report reads as unfinished work to someone who
@@ -282,8 +282,8 @@ failures.
 ### Still open after Wave 3
 
 - **41 rows still need a street address from the customer.** Unchanged; this
-  is contact work, not code. Binford, Dindar, Anderson (`crew_scheduled`) and
-  Musuraca (`contract_signed`) remain the urgent four.
+  is contact work, not code. Customer Q, Customer AW, Customer CO (`crew_scheduled`) and
+  Customer DU (`contract_signed`) remain the urgent four.
 - **A recurring audit is still not wired.** Unchanged and still the weakest
   link in the "stays fixed" claim.
 - Add-lead UX (`crm-leads.js:179`) still fails silently.
@@ -326,20 +326,20 @@ red.
 
 ### Also cleared in this pass
 
-- **Higgins' address written** — `5007 Guards Ln, Cincinnati, OH 45244`,
+- **Customer BZ' address written** — `[street address], Cincinnati, OH 45244`,
   sourced from the filename of their own photo report in Drive. (An earlier
   attempt was blocked; retried successfully.)
 - **3 more `noState` rows repaired** by the same re-geocode + three-guard
-  method: 4157 Balfour Dr, 5814 Jeb Stuart Dr, 6446 Glade Ave. Two were
-  correctly REJECTED — Sofia Moriarty's geocode dropped the house number
-  entirely, and `10595 Cozaddale-Murdoch Rd` returned no match at all.
+  method: [street address], [street address], [street address]. Two were
+  correctly REJECTED — Customer DS's geocode dropped the house number
+  entirely, and `[street address]-Murdoch Rd` returned no match at all.
 
 ### Live-record state after Wave 4
 
 Excluding soft-deleted rows, of 162 live records: **118 fully mailable**,
 38 `noStreet` (need the customer), 2 `noState`, and 4 gate failures — three
-dead leads (George Broderick, AJ, Kevin Dewald's placeholder) plus Jerry
-Sharkey, parked at the user's request.
+dead leads (Customer X, AJ, Customer AT's placeholder) plus Customer EW
+, parked at the user's request.
 
 ### What is still not automated
 
@@ -365,9 +365,9 @@ The four, from the run output (all $0 leads):
 
 | id | lead | class |
 |---|---|---|
-| `DpjsBG8qzrJKLwhrU9oj` | Kevin Dewald | the pre-Wave-141 placeholder the backfill guard refuses to geocode (§Wave 2) |
-| `9WWbu37dEHt7u6MfiihW` | George Broderick | blank |
-| `KQASizQhFLDH0tjgfFf1` | Jerry Sharkey | blank (parked at Jo's request, §Wave 4) |
+| `DpjsBG8qzrJKLwhrU9oj` | Customer AT | the pre-Wave-141 placeholder the backfill guard refuses to geocode (§Wave 2) |
+| `9WWbu37dEHt7u6MfiihW` | Customer X | blank |
+| `KQASizQhFLDH0tjgfFf1` | Customer EW | blank (parked at Jo's request, §Wave 4) |
 | `kBNTUsTFSE7hBY8u5ukU` | AJ | blank |
 
 The fix is Jo's, in NBD Pro, ~2 min: open each lead and either complete the
@@ -377,10 +377,10 @@ soft-delete fix). The gate self-greens on the first 11:00 UTC fire after.
 Rest of the 08-25 snapshot, for the trendline: scanned 174 live (+19
 retired), 118 complete ($381,893 of pipeline), 50 street-less rows
 ($12,476.25 — Thumbtack shape, grown from 38 at Wave 4: a week of new
-inbound lands thin), and 2 no-state rows — Sofia Moriarty ($0) and
-`vs8xdVKbFT3g8rzhkIuf` **Nick/Gabby Galfrey at $23,600, missing only its
+inbound lands thin), and 2 no-state rows — Customer DS ($0) and
+`vs8xdVKbFT3g8rzhkIuf` **Nick/Gabby Customer BN at $23,600, missing only its
 state**. Those two are exactly the rows Wave 4's re-geocode correctly
-rejected, so they need a human. Galfrey is the money item: one field from
+rejected, so they need a human. Customer BN is the money item: one field from
 mailable on the biggest thin job in the book.
 
 ## 2026-08-27 — script ported to `_admin`, and the gate is green
@@ -412,8 +412,8 @@ four broken records inventoried on 2026-08-26 are gone (retired rows went
 19 → 23 — completed or retired in NBD Pro, exactly the fix that section
 prescribed), so the daily gate self-greens on its next 11:00 UTC fire.
 Trendline: 173 live (+23 retired), 119 complete ($405,493.19 of pipeline),
-53 street-less ($12,476.25), and **one** `noState` row left — Sofia Moriarty
-($0). The Galfrey record ($23,600, 08-26's money item) got its state and now
+53 street-less ($12,476.25), and **one** `noState` row left — Customer DS
+($0). The Customer BN record ($23,600, 08-26's money item) got its state and now
 sits in the OK bucket.
 
 ## Source
@@ -427,22 +427,22 @@ Jo delegated the queue item. All writes verify-before-write, prod, ADC:
 
 - **The four $0 gate-failers retired** (soft-delete: `deleted: true` +
   `deletedAt` + a `deletedReason` naming this action — recoverable, and the
-  shape the gate's skip predicate reads): Dewald `DpjsBG8qzrJKLwhrU9oj`
-  (the legacyMangled placeholder), Broderick `9WWbu37dEHt7u6MfiihW`,
-  Sharkey `KQASizQhFLDH0tjgfFf1`, AJ `kBNTUsTFSE7hBY8u5ukU` (blanks).
+  shape the gate's skip predicate reads): Customer AT `DpjsBG8qzrJKLwhrU9oj`
+  (the legacyMangled placeholder), Customer X `9WWbu37dEHt7u6MfiihW`,
+  Customer EW `KQASizQhFLDH0tjgfFf1`, AJ `kBNTUsTFSE7hBY8u5ukU` (blanks).
   Identities confirmed against this doc's table before writing.
-- **Galfrey `vs8xdVKbFT3g8rzhkIuf` ($23,600) is now fully MAILABLE**, not
+- **Customer BN `vs8xdVKbFT3g8rzhkIuf` ($23,600) is now fully MAILABLE**, not
   just state-patched. The reason Wave 4's re-geocode rejected it was a
-  one-letter typo: the road is Cozaddale **Murdock** Rd, not Murdoch.
+  one-letter typo: the road is [street] **Murdock** Rd, not Murdoch.
   Corrected spelling geocodes unambiguously (single road, single postcode:
-  Cozaddale, Hamilton Twp, Warren County, OH 45122; USPS post town Goshen).
-  Written: `10595 Cozaddale-Murdock Rd, Goshen, OH 45122`; prior string
+  [street], Hamilton Twp, Warren County, OH 45122; USPS post town Goshen).
+  Written: `[street address], Goshen, OH 45122`; prior string
   preserved in `addressPrev`. Classifies `ok`.
 - **Read-back by replicated gate scan** (same classify/skip logic, full
   collection): 173 live scanned, 23 retired skipped,
   `legacyMangled: 0, blank: 0` → **the 11:00Z fire self-greens**.
   Remaining non-gating trendline: 53 noStreet (thin Thumbtack inbound),
-  1 noState (Sofia Moriarty, $0 — still the one human-review row).
+  1 noState (Customer DS, $0 — still the one human-review row).
 
 Also noted for the next tooling pass: `audit-lead-addresses.js` still uses
 the legacy firebase-admin namespace (`admin.credential.applicationDefault`),

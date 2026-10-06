@@ -64,29 +64,29 @@ ok('objects are not stringified into an id', T.extractEventId({ id: { nope: 1 } 
 console.log('\nTHUMBTACK — lead normalization across plausible shapes');
 {
   const flat = T.normalizeLead({
-    customerName: 'Loletha Neal', phone: '(513) 555-0142',
+    customerName: 'Loletha Rowanly', phone: '(513) 555-0142',
     address: '123 Elm St, Cincinnati, OH 45225', service: 'Roof Install',
   });
   ok('flat: first name', flat.firstName === 'Loletha');
-  ok('flat: last name', flat.lastName === 'Neal');
+  ok('flat: last name', flat.lastName === 'Rowanly');
   ok('flat: phone kept verbatim', flat.phone === '(513) 555-0142');
   ok('flat: phoneDigits normalized', flat.phoneDigits === '5135550142');
   ok('flat: service', flat.service === 'Roof Install');
 }
 {
   const nested = T.normalizeLead({
-    customer: { firstName: 'Cat', lastName: 'Gaines', phone: '+1 513 555 0199' },
+    customer: { firstName: 'Cat', lastName: 'Gainsford', phone: '+1 513 555 0199' },
     request: { category: 'Roof Repair' },
   });
   ok('nested: firstName hint wins', nested.firstName === 'Cat');
-  ok('nested: lastName', nested.lastName === 'Gaines');
+  ok('nested: lastName', nested.lastName === 'Gainsford');
   ok('nested: E.164 → 10 digits', nested.phoneDigits === '5135550199');
   ok('nested: service from request.category', nested.service === 'Roof Repair');
 }
 {
-  const snake = T.normalizeLead({ first_name: 'Diane', last_name: 'Garrity', phone_number: '513-243-2995' });
-  ok('snake_case: names', snake.firstName === 'Diane' && snake.lastName === 'Garrity');
-  ok('snake_case: phone', snake.phoneDigits === '5132432995');
+  const snake = T.normalizeLead({ first_name: 'Diane', last_name: 'Sprucewood', phone_number: '513-555-0119' });
+  ok('snake_case: names', snake.firstName === 'Diane' && snake.lastName === 'Sprucewood');
+  ok('snake_case: phone', snake.phoneDigits === '5135550119');
 }
 {
   const bare = T.normalizeLead({});
@@ -96,7 +96,7 @@ console.log('\nTHUMBTACK — lead normalization across plausible shapes');
 }
 {
   // Thumbtack states it never sends email. Assert we tolerate that and say so.
-  const noEmail = T.normalizeLead({ customerName: 'James Hutsell', phone: '5135550111' });
+  const noEmail = T.normalizeLead({ customerName: 'James Tamarackson', phone: '5135550111' });
   ok('email absent → empty string, not undefined', noEmail.email === '');
   const notes = T.leadNotes(noEmail);
   ok('notes explain the missing email', /does not provide customer email/i.test(notes));
@@ -112,7 +112,7 @@ console.log('\nTHUMBTACK — CRM bridge mapping (channel attribution)');
 ok('thumbtack_leads has a bridge mapping', !!L.BRIDGE_KINDS.thumbtack_leads);
 ok('registered as an external source', L.EXTERNAL_SOURCE_COLLECTIONS.indexOf('thumbtack_leads') !== -1);
 {
-  const norm = T.normalizeLead({ customerName: 'Adam Moore', phone: '5135550188', service: 'Gutter Cleaning' });
+  const norm = T.normalizeLead({ customerName: 'Adam Willowby', phone: '5135550188', service: 'Gutter Cleaning' });
   norm.notes = T.leadNotes(norm);
   const lead = L.mapPublicLeadToLead({
     collection: 'thumbtack_leads', sourceId: 'tt-1',
@@ -196,7 +196,7 @@ ok('negotiationID outranks requestID (request can fan out to many pros)',
   // nobody "fixes" phoneDigits10 to satisfy a fake number.
   ok('phoneDigits strips the fixture\'s leading 1 (country-code rule)', n.phoneDigits === '234567890');
   ok('a real NANP number keeps all 10 digits',
-    T.normalizeLead({ data: { customer: { phone: '(513) 257-5875' } } }).phoneDigits === '5132575875');
+    T.normalizeLead({ data: { customer: { phone: '(513) 555-0120' } } }).phoneDigits === '5135550120');
   ok('address assembled from structured location',
     n.address === '123 Main St Apt 4B, San Francisco, CA 94103');
   ok('service from data.request.category.name', n.service === 'Full Service Lawn Care');
@@ -226,8 +226,8 @@ console.log('\nTHUMBTACK — location assembly edge cases');
 ok('empty location → empty string', T.joinLocation({}) === '');
 ok('null-safe', T.joinLocation(null) === '');
 ok('zip only', T.joinLocation({ zipCode: '45216' }) === '45216');
-ok('no address2', T.joinLocation({ address1: '133 W Seymour Ave', city: 'Cincinnati', state: 'OH', zipCode: '45216' })
-  === '133 W Seymour Ave, Cincinnati, OH 45216');
+ok('no address2', T.joinLocation({ address1: '133 W Marrowbone Ave', city: 'Cincinnati', state: 'OH', zipCode: '45216' })
+  === '133 W Marrowbone Ave, Cincinnati, OH 45216');
 
 console.log('\nTHUMBTACK — deterministic idempotency id');
 ok('same source+id → same doc id', L.bridgeDocId('thumbtack_leads', 'tt-1') === L.bridgeDocId('thumbtack_leads', 'tt-1'));

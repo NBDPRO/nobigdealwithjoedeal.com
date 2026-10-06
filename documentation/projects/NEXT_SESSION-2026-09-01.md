@@ -122,9 +122,9 @@ a customer's house to satisfy it.
 
 ## Held content (Jo's calls, no agent action)
 
-- **Sharon Batavia / Southman** — the siding-replacement strip is still
+- **Sharon Batavia / Customer EZ** — the siding-replacement strip is still
   empty and unfillable from Drive (settled 08-28, do not re-run that search).
-  Live path is the Southman proposal (NBD-2026-0811-STH Option B, $4,600); if
+  Live path is the Customer EZ proposal (NBD-2026-0811-XXXX Option B, $4,600); if
   Jo closes it, document as it happens.
 - **Review authenticity** — the 7–18-week review cluster has hallmarks of
   purchased reviews (one describes a *plumbing* job; one account is an Indian

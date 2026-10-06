@@ -78,6 +78,7 @@ ok('firestore.rules denies clients the whole system/ namespace',
 // ── 2. wiring contract across every guarded script ──
 const GUARDED = [
   'backfill-lead-stageRole',
+  'backfill-lead-updatedAt',
   'backfill-leads-phoneDigits',
   'backfill-photos-createdAt',
   'backfill-photos-variants',

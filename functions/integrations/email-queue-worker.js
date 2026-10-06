@@ -51,8 +51,11 @@ exports.emailQueueWorker = onSchedule(
     const resendKey = secretValue(RESEND_API_KEY) || '';
     const fromAddr  = secretValue(EMAIL_FROM) || '';
     if (!resendKey || !fromAddr) {
-      logger.info('emailQueueWorker: Resend not configured, skipping');
-      return;
+      // R4-7-5 (2026-10-06): this was logger.info + return, so the heartbeat
+      // stayed green while dunning, dispute alerts, erasure confirmations and
+      // the backup alarm piled up unsent. Throw so the run records a failure.
+      logger.error('emailQueueWorker: Resend not configured (RESEND_API_KEY / EMAIL_FROM missing or stub), queue NOT drained');
+      throw new Error('emailQueueWorker: Resend not configured');
     }
 
     const { Resend } = require('resend');
@@ -127,6 +130,7 @@ exports.emailQueueWorker = onSchedule(
           failedAt: FieldValue.serverTimestamp()
         });
         failed++;
+        logger.error('emailQueueWorker: row failed for good (bad recipient)', { docId: doc.id, source: data.source || null });
         continue;
       }
 
@@ -160,8 +164,13 @@ exports.emailQueueWorker = onSchedule(
           lastError: (e && e.message || 'unknown').slice(0, 400),
           lastAttemptAt: FieldValue.serverTimestamp()
         });
-        if (!shouldRetry) failed++;
-        logger.warn('emailQueueWorker send error', { docId: doc.id, attempts, err: e.message });
+        if (!shouldRetry) {
+          failed++;
+          // Terminal: this email will never be sent. Error, not warn.
+          logger.error('emailQueueWorker: row failed for good after max attempts', { docId: doc.id, attempts, source: data.source || null, err: e.message });
+        } else {
+          logger.warn('emailQueueWorker send error', { docId: doc.id, attempts, err: e.message });
+        }
       }
     }
 

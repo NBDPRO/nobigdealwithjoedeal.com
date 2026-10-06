@@ -351,6 +351,9 @@
             <div class="d2d-field">
               <label class="d2d-field-label">Phone</label>
               <input type="tel" id="d2d-qk-phone" class="d2d-input" value="${esc(state.currentKnockEntry.phone)}" placeholder="555-123-4567">
+              <label class="d2d-field-label dk-mt8" for="d2d-qk-sms-consent">
+                <input type="checkbox" id="d2d-qk-sms-consent"> Homeowner said OK to text this number
+              </label>
             </div>
             <div class="d2d-field">
               <label class="d2d-field-label">Email</label>
@@ -656,6 +659,9 @@
     state.currentKnockEntry.address = address;
     state.currentKnockEntry.homeowner = document.getElementById('d2d-qk-homeowner')?.value || '';
     state.currentKnockEntry.phone = document.getElementById('d2d-qk-phone')?.value || '';
+    // Door-knock texts need the homeowner's OK on file (texting review
+    // 2026-10-05) — the server refuses a knock text without it.
+    state.currentKnockEntry.smsConsent = !!(document.getElementById('d2d-qk-sms-consent')?.checked) && !!state.currentKnockEntry.phone;
     state.currentKnockEntry.email = document.getElementById('d2d-qk-email')?.value || '';
     state.currentKnockEntry.notes = document.getElementById('d2d-qk-notes')?.value || '';
     state.currentKnockEntry.followUpDate = document.getElementById('d2d-qk-followup')?.value || '';
@@ -714,6 +720,7 @@
 
     const savedDispo = state.currentKnockEntry.disposition;
     const savedPhone = state.currentKnockEntry.phone;
+    const savedConsent = state.currentKnockEntry.smsConsent === true;
     const knockId = await state.submitKnock(state.currentKnockEntry);
 
     if (!knockId) {
@@ -729,7 +736,7 @@
     // (core: convertToLead after save). A second "Convert Now?" prompt here
     // contradicted the "Converted to CRM Lead" toast and its Edit First path
     // could create a duplicate lead — so no prompt; just offer the follow-up text.
-    if (savedPhone && ['interested', 'appointment', 'storm_damage', 'ins_has_claim'].includes(savedDispo)) {
+    if (savedPhone && savedConsent && ['interested', 'appointment', 'storm_damage', 'ins_has_claim'].includes(savedDispo)) {
       setTimeout(async () => {
         if (await state.uiConfirm('Send follow-up text?', { okLabel: 'Yes, text them' })) {
           const knock = state.knocks.find(k => k.id === knockId);
@@ -895,7 +902,8 @@
             <button class="d2d-action-btn dk-bg-muted" disabled aria-label="Already converted to lead">✓ Lead Created</button>
           `}
           <button class="d2d-action-btn dk-bg-orange" data-d2d-action="openQuickKnock" data-d2d-args='{"address":"${esc(knock.address)}","lat":${Number(knock.lat) || 'null'},"lng":${Number(knock.lng) || 'null'}}' aria-label="Re-knock this address">↻ Re-Knock</button>
-          ${knock.phone ? `<button class="d2d-action-btn dk-bg-blue" data-d2d-action="openSMSChooser" data-d2d-id="${safeId}" aria-label="Send SMS follow-up">📱 Follow Up</button>` : ''}
+          ${knock.phone && knock.smsConsent !== true ? `<button class="d2d-action-btn dk-bg-muted" data-d2d-action="recordSmsConsent" data-d2d-id="${safeId}" aria-label="Record that the homeowner said OK to texts">✓ OK to text</button>` : ''}
+          ${knock.phone && knock.smsConsent === true ? `<button class="d2d-action-btn dk-bg-blue" data-d2d-action="openSMSChooser" data-d2d-id="${safeId}" aria-label="Send SMS follow-up">📱 Follow Up</button>` : ''}
           <button class="d2d-action-btn dk-bg-red" data-d2d-action="deleteKnock" data-d2d-id="${safeId}" aria-label="Delete this knock">🗑️ Delete</button>
         </div>
       </div>

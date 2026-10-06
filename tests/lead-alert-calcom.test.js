@@ -84,6 +84,9 @@ const stubs = {
   'firebase-admin/firestore': {
     FieldValue: { serverTimestamp: () => '__ts__' },
     getFirestore: () => ({
+      // 2026-10-05: the homeowner ack reads the STOP register, the company's
+      // Do Not Text list and texting switch (db.doc paths) — all empty here.
+      doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }),
       collection: (name) => ({
         add: async (doc) => { if (name === 'alert_outbox') rec.outbox.push(doc); return { id: 'obx_test' }; },
         doc: (id) => ({
@@ -101,6 +104,9 @@ process.env.NBD_OWNER_UID = OWNER_UID;
 // The homeowner SMS ack's master flag ON, so (d) proves the Cal.com path stays
 // silent to the homeowner on its own terms rather than because the flag is off.
 process.env.LEAD_ACK_SMS_ENABLED = 'true';
+// The ack is held to texting hours in the homeowner's time (2026-10-05): pin
+// the send paths' shared clock to noon Eastern so this suite runs any time.
+require('../functions/sms-outbox-guard').nowMs = () => Date.parse('2026-10-05T16:00:00Z');
 
 // Installed for the WHOLE run, not just the require: lead-alert.js loads
 // twilio lazily on first send (_twilio()), so a stub removed after the

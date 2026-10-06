@@ -173,4 +173,46 @@ function jobView(lead, job) {
   return v;
 }
 
-module.exports = { JOB_FIELDS, FIRST_JOB_ID, titleFor, firstJobFromLead, mirrorPatch, isOpen, same, pickPromotion, promotionPatch, jobView };
+/**
+ * Every job of these customers as a lead-shaped record, for MONEY totals
+ * (open pipeline, booked value): a customer's second job adds its own value
+ * and stage. Server mirror of docs/pro/js/jobs-store.js records() — the rule
+ * the Home KPI tiles use (review R2-2-7, 2026-10-06): the lead stands for its
+ * ACTIVE job; each other job is the lead with that job's per-job fields laid
+ * over it; a customer with no jobs (or whose activeJobId is not among them)
+ * counts once as the lead. Counts of CUSTOMERS must keep using the leads.
+ *   jobsByLead: { [leadId]: [{ id, ...jobDoc }] } (missing → leads as-is)
+ */
+function jobRecords(leads, jobsByLead) {
+  const out = [];
+  for (const l of leads || []) {
+    if (!l) continue;
+    const jobs = (jobsByLead && l.id && jobsByLead[l.id]) || [];
+    if (!jobs.length) { out.push(l); continue; }
+    if (!jobs.some((j) => j && j.id === l.activeJobId)) out.push(l);
+    for (const j of jobs) {
+      if (!j) continue;
+      if (j.id === l.activeJobId) { out.push(l); continue; }
+      const c = Object.assign({}, l);
+      JOB_FIELDS.forEach((f) => { c[f] = j[f] === undefined ? null : j[f]; });
+      c._jobId = j.id;
+      out.push(c);
+    }
+  }
+  return out;
+}
+
+/** Group collectionGroup('jobs') docs by their parent lead id (de-duplicated). */
+function jobsByLeadFromDocs(docs) {
+  const byLead = {};
+  const seen = {};
+  (docs || []).forEach((d) => {
+    const leadId = d && d.ref && d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+    if (!leadId || seen[leadId + '/' + d.id]) return;
+    seen[leadId + '/' + d.id] = 1;
+    (byLead[leadId] = byLead[leadId] || []).push(Object.assign({ id: d.id }, d.data()));
+  });
+  return byLead;
+}
+
+module.exports = { JOB_FIELDS, FIRST_JOB_ID, titleFor, firstJobFromLead, mirrorPatch, isOpen, same, pickPromotion, promotionPatch, jobView, jobRecords, jobsByLeadFromDocs };

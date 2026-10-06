@@ -51,8 +51,8 @@ const ids = (g) => g.leads.map((l) => l.id).sort().join(',');
 console.log('\nGROUPING');
 {
   const g = groups([
-    { id: 'a', firstName: 'Nicole', lastName: 'Kupper', phone: '513-555-0101', address: '1 Oak St' },
-    { id: 'b', firstName: 'Nicole', lastName: 'Kupper', phone: '(513) 555-0101', address: '' },
+    { id: 'a', firstName: 'Nicole', lastName: 'Nutmegger', phone: '513-555-0101', address: '1 Oak St' },
+    { id: 'b', firstName: 'Nicole', lastName: 'Nutmegger', phone: '(513) 555-0101', address: '' },
     { id: 'c', firstName: 'Sam', lastName: 'Roe', phone: '513-555-0199', address: '9 Elm St' },
   ]);
   ok('same phone (different formatting) groups two leads', g.length === 1 && ids(g[0]) === 'a,b');
@@ -78,12 +78,12 @@ ok('a deleted lead is never grouped', groups([
 
 console.log('\nTHUMBTACK PROXY NUMBERS');
 ok('two DIFFERENT customers on the same 669 proxy are NOT grouped', groups([
-  { id: 'a', firstName: 'Lea', lastName: 'Mitchell', source: 'Thumbtack', phone: '669-314-3687' },
-  { id: 'b', firstName: 'Sing', lastName: 'Way', source: 'Thumbtack', phone: '669-314-3687' },
+  { id: 'a', firstName: 'Lena', lastName: 'Marchetti', source: 'Thumbtack', phone: '669-555-0110' },
+  { id: 'b', firstName: 'Sam', lastName: 'Ortiz-Vale', source: 'Thumbtack', phone: '669-555-0110' },
 ]).length === 0);
-ok('the SAME customer twice on a 669 proxy IS grouped (Kim Martinez case)', groups([
-  { id: 'a', firstName: 'Kim', lastName: 'Martinez', source: 'Thumbtack', phone: '669-314-3722' },
-  { id: 'b', firstName: 'Kim', lastName: 'Martinez', source: 'Thumbtack', phone: '669-314-3722' },
+ok('the SAME customer twice on a 669 proxy IS grouped (Kit Mapleby case)', groups([
+  { id: 'a', firstName: 'Kit', lastName: 'Mapleby', source: 'Thumbtack', phone: '669-555-0111' },
+  { id: 'b', firstName: 'Kit', lastName: 'Mapleby', source: 'Thumbtack', phone: '669-555-0111' },
 ]).length === 1);
 ok('CONTROL a real (non-Thumbtack) shared number still groups without a name match', groups([
   { id: 'a', firstName: 'Pat', source: 'Website', phone: '513-555-0101' },

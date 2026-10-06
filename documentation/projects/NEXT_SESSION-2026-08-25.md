@@ -68,8 +68,8 @@ Part 2 of the [session note](SESSION-2026-08-25-lexington-call-posts.md)).
 7. Still yours from the drafts pipeline: the 2 remaining blog drafts need your
    `JO:` inputs (photos / report screenshots) — [drafts README](../drafts/README.md).
 8. **Clear the address-audit gate** (~2 min in NBD Pro): complete or retire the
-   4 failing leads (Dewald, Broderick, Sharkey, AJ — all $0), and add the
-   missing state on Nick/Gabby Galfrey ($23,600 — one field from mailable).
+   4 failing leads (Customer AT, Customer X, Customer EW, AJ — all $0), and add the
+   missing state on Nick/Gabby Customer BN ($23,600 — one field from mailable).
    IDs + detail:
    [CRM-ADDRESS-INTEGRITY-2026-08-18](../audit/CRM-ADDRESS-INTEGRITY-2026-08-18.md)
    §2026-08-26.
@@ -99,7 +99,7 @@ Part 2 of the [session note](SESSION-2026-08-25-lexington-call-posts.md)).
   inventoried the day it shipped. Now Jo's queue item 8 above —
   [CRM-ADDRESS-INTEGRITY-2026-08-18](../audit/CRM-ADDRESS-INTEGRITY-2026-08-18.md)
   §2026-08-26 has record IDs and the trendline (50 street-less rows at
-  $12,476, Galfrey $23,600 missing one field).
+  $12,476, Customer BN $23,600 missing one field).
 - **Main's Firebase-deploy run for the #1276 merge shows red but the deploy
   landed** (run 32925767669): one GCP "Deadline Exceeded" polling
   `onAiDraftApproved`'s update in chunk 2/3, and the wholesale guard misread

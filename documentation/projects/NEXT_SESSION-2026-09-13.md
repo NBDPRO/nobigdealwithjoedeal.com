@@ -57,7 +57,7 @@ editing, because `main` moves. Jo approved the plan and made four decisions
    ~20 pages, "My crew" on 4, "It's Just Me. That's the Point." at
    `docs/index.html:1395`); the **11-character YouTube ID** for
    `#intro-video`; confirm the **three featured reviews** (default:
-   Deborah Reynolds, Alin Roșu, George Hills from `docs/review.html:35-144`).
+   Customer AR, Alin Roșu, George Hills from `docs/review.html:35-144`).
 4. Optional: `grok login`, for the refuter pilot in §E.
 
 ## §2 — Execution order

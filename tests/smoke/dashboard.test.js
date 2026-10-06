@@ -5717,11 +5717,14 @@ section('Metrics audit F1-F9: one honest definition per number');
     /var overdueFollowUps = fuDue \? leads\.filter\(function \(l\) \{ return fuDue\(l, now\.getTime\(\)\); \}\)\.length : 0;/.test(kpi));
 
   // F8 — in-production (job role) money is closed-won everywhere, never
-  // "active pipeline".
-  assert('F8: analytics-kpi active pipeline excludes job-role leads',
-    /return !_isDecided\(l\) && !_isJob\(l\) && !l\.deleted;/.test(kpi));
-  assert('F8: analytics-kpi counts won OR job as closed-won',
-    /function _isClosedWon\(l\) \{ return _isWon\(l\) \|\| _isJob\(l\); \}/.test(kpi));
+  // "active pipeline". 2026-10-06 (Jo): so is a signed contract — closed-won
+  // is the shared sale test (numbers-logic.js isSale), behaviour pinned in
+  // tests/contract-signed-is-booked-2026-10-06.test.js.
+  assert('F8: analytics-kpi active pipeline excludes booked (sale) and lost leads',
+    (kpi.match(/return !_isClosedWon\(l\) && !_isLost\(l\) && !l\.deleted;/g) || []).length === 2);
+  assert('F8: analytics-kpi closed-won = the sale test (won, job, or contract signed)',
+    /if \(N && typeof N\.isSale === 'function'\) return N\.isSale\(l\);/.test(kpi)
+    && /return _isWon\(l\) \|\| _isJob\(l\) \|\| \(\(l && \(l\._stageKey \|\| l\.stage\)\) \|\| ''\) === 'contract_signed';/.test(kpi));
   assert('F8: rep report isWon is role-aware (won or job)',
     /return r === 'won' \|\| r === 'job';/.test(rep));
 

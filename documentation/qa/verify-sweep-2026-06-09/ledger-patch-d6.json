@@ -38,7 +38,7 @@
   { "id": "d6-photos-037", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "Photo-engine sort-by — pe-gallery (camera-gated)." },
   { "id": "d6-photos-038", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "Photo-engine view-mode (grid/list) — pe-gallery (camera-gated)." },
   { "id": "d6-photos-039", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "✨ Analyze All with AI — pe-gallery (camera-gated) + AI cost; boundary." },
-  { "id": "d6-photos-040", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "pe-gallery thumbnail / lightbox — camera-gated engine. NOTE: the simpler per-lead #photoModal gallery WAS exercised (90 real Morgan-McCane photos render; clicking a thumb opens the full-res image in a new tab)." },
+  { "id": "d6-photos-040", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "pe-gallery thumbnail / lightbox — camera-gated engine. NOTE: the simpler per-lead #photoModal gallery WAS exercised (90 real Customer DR photos render; clicking a thumb opens the full-res image in a new tab)." },
   { "id": "d6-photos-041", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "pe-gallery select checkbox — camera-gated." },
   { "id": "d6-photos-042", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "Stage for Report — pe-gallery (camera-gated)." },
   { "id": "d6-photos-043", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "Delete photo — pe-gallery (camera-gated) + destructive." },
@@ -51,5 +51,5 @@
   { "id": "d6-photos-050", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "+ Add Item (report builder) — camera-gated report flow." },
   { "id": "d6-photos-051", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "× remove item (report builder) — camera-gated report flow." },
   { "id": "d6-photos-052", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "generatePhotoReport — invoked on the 90-photo lead but produced no cleanly-observable output without the photo-engine context; the photo-report-picker itself (homeowner/adjuster) was verified PASS in customer-126/127." },
-  { "id": "d6-photos-053", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "ShareGallery.generate(leadId) — invoked on the 90-photo Morgan-McCane lead; ran without error but no visible share overlay / copied link surfaced (likely needs the photo-engine context or uploads async). The gallery-share + portal-share patterns are verified elsewhere (customer-016/053, gap-carddetail-022)." }
+  { "id": "d6-photos-053", "status": "BLOCKED", "session": "2026-06-09-B", "notes": "ShareGallery.generate(leadId) — invoked on the 90-photo Customer DR lead; ran without error but no visible share overlay / copied link surfaced (likely needs the photo-engine context or uploads async). The gallery-share + portal-share patterns are verified elsewhere (customer-016/053, gap-carddetail-022)." }
 ]

@@ -93,7 +93,21 @@ async function mintCrmStripeInvoice(stripe, db, args) {
     if (p.status === 'open' && p.amount_remaining === balanceDueCents) {
       return { url: p.hosted_invoice_url, id: p.id, pdf: p.invoice_pdf, reused: true };
     }
-    if (p.status === 'open' && !(p.amount_paid > 0)) await stripe.invoices.voidInvoice(prior);
+    // R4-11 (2026-10-06): an OPEN prior that already took part of a payment
+    // used to be left as is while a new invoice was minted, so the homeowner
+    // held two payable bills for the same job. It cannot be voided without
+    // losing track of that payment, so refuse and say why; the office
+    // reconciles the prior in Stripe first.
+    if (p.status === 'open' && p.amount_paid > 0) {
+      const err = new Error('Prior Stripe invoice ' + prior + ' is open and partly paid ('
+        + p.amount_paid + ' of ' + (p.amount_due || p.total || '?') + ' cents) — not minting a second payable invoice');
+      err.code = 'prior_invoice_partly_paid';
+      err.httpStatus = 409;
+      err.publicMessage = 'This invoice already has a partly paid Stripe invoice (' + (p.number || prior) + '). '
+        + 'Record or refund that payment in Stripe before sending a new pay link, so the homeowner is never asked to pay twice.';
+      throw err;
+    }
+    if (p.status === 'open') await stripe.invoices.voidInvoice(prior);
     else if (p.status === 'draft') await stripe.invoices.del(prior);
   }
 

@@ -1,27 +1,26 @@
 /**
  * scripts/audit-missing-leads.js — READ ONLY. Writes nothing.
  *
- * Four customers Thumbtack billed for — Lois Daulton, Vincent Evans, Barbara
- * Simms, Larn Madison ($733.30 of refunded lead spend) — plus Terry Greene,
- * have Drive customer folders but NO exact lead record. Before concluding they
- * were never ingested, rule out the boring explanations:
+ * Four customers Thumbtack billed for ($733.30 of refunded lead spend) — plus
+ * a fifth — have Drive customer folders but NO exact lead record. Before
+ * concluding they were never ingested, rule out the boring explanations:
  *
- *   1. a spelling variant (Daulton/Dalton, Simms/Sims, Larn/Lars)
+ *   1. a spelling variant (one or two letters off, in either name)
  *   2. a soft-deleted doc (deleted:true) still sitting in /leads
  *   3. a doc in some other collection (a deleted-leads recycle bin, prospects)
  *
  * RUN
- *   node scripts/audit-missing-leads.js
+ *   node scripts/audit-missing-leads.js --data=<lead-cost-refunds.json>
  */
 'use strict';
 
 const { initAdmin, getFirestore } = require('./_admin');
 const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
 
-const TARGETS = [
-  ['Lois', 'Daulton'], ['Vincent', 'Evans'], ['Barbara', 'Simms'],
-  ['Larn', 'Madison'], ['Terry', 'Greene'],
-];
+// [first, last] pairs — customer names, kept out of this public repo since
+// 2026-10-06: --data=<lead-cost-refunds.json> or NBD_REFUNDS_FILE (missingTargets).
+const { loadPrivateJson } = require('./_private-data');
+const TARGETS = loadPrivateJson({ envVar: 'NBD_REFUNDS_FILE', what: 'the Thumbtack refund list' }).missingTargets;
 
 // Cheap edit distance — good enough to catch one or two typo'd characters.
 function dist(a, b) {

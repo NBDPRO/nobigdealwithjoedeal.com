@@ -539,7 +539,7 @@
       tagline: 'Roofing · Siding · Storm Restoration',
       phone: '(859) 420-7382',
       email: 'JD@nobigdealwithjoedeal.com',
-      address: '6563 Manila Rd · Goshen, OH',
+      address: '', // no public street address
       license: 'OH / KY licensed'
     } : {
       name: _b.name,
@@ -865,7 +865,7 @@ ${footer}
       tagline: 'Contractor-Built · Contractor-Priced',
       phone: '(859) 420-7382',
       email: 'JD@nobigdealwithjoedeal.com',
-      address: '6563 Manila Rd · Goshen, OH'
+      address: '' // no public street address
     } : {
       name: _b.name,
       tagline: _b.tagline || 'Contractor-Built · Contractor-Priced',
@@ -1077,7 +1077,7 @@ ${footer}
       <div class="footer">
         <div style="display:flex;justify-content:space-between;">
           <span>${escapeHtml(company.name)} · ${escapeHtml(company.phone)}</span>
-          <span>${escapeHtml(company.email)} · ${escapeHtml(company.address)}</span>
+          <span>${escapeHtml(company.email)}${company.address ? ' · ' + escapeHtml(company.address) : ''}</span>
         </div>
       </div>
     `;

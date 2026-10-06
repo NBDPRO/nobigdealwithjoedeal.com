@@ -35,6 +35,19 @@ const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require(
 const UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36';
 const LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(process.env.PLAYWRIGHT_BASE_URL || '');
 
+// The Estimates list repaints whenever the estimates snapshot or a leads
+// refresh lands (dashboard-widgets.js renderEstimatesList; loadLeads re-runs
+// on a cache->server re-read). A repaint replaces every .nbd-est-card, so a
+// scroll started on the old node fails "Element is not attached to the DOM"
+// (CI flake on estimate#11 since 2026-10-06). Re-resolve and retry the
+// scroll until it lands on a settled card; what the test asserts after the
+// tap is unchanged.
+async function scrollToCard(card) {
+  await expect(async () => {
+    await card.scrollIntoViewIfNeeded({ timeout: 2_000 });
+  }, 'the estimate card settles and scrolls into view').toPass({ timeout: 20_000 });
+}
+
 // Centre-point hit test: is the element actually the thing a finger lands on?
 async function hitTest(target, selector) {
   return target.evaluate((sel) => {
@@ -299,7 +312,7 @@ test.describe.serial('phone estimate data @audit', () => {
   test('estimate#11: ✎ Edit on a Log Estimate record opens the amount editor — never Classic — and saves in cents', async () => {
     if (!(await page.locator('#view-est.active #estListWrap .nbd-est-card').count())) await moreNav(page, 'est');
     const card = page.locator(`#estListWrap .nbd-est-card[data-id="${S.loggedId}"]`);
-    await card.scrollIntoViewIfNeeded();
+    await scrollToCard(card);
     await card.locator('[data-act="open"]').tap();
     const editor = page.locator('#logged-est-editor');
     await expect(editor, 'the logged-estimate editor opens').toBeVisible({ timeout: 5_000 });
@@ -332,7 +345,7 @@ test.describe.serial('phone estimate data @audit', () => {
 
     // 360px: the editor still fits and Cancel leaves the price alone.
     await page.setViewportSize({ width: 360, height: 860 });
-    await card.scrollIntoViewIfNeeded();
+    await scrollToCard(card);
     await card.locator('[data-act="open"]').tap();
     await expect(editor).toBeVisible({ timeout: 5_000 });
     for (const [sel, label] of [['#logged-est-amount', 'Amount field @360'], ['#logged-est-save', 'Save @360'], ['#logged-est-cancel', 'Cancel @360']]) {
@@ -381,7 +394,7 @@ test.describe.serial('phone estimate data @audit', () => {
     if (!(await page.locator('#view-est.active #estListWrap .nbd-est-card').count())) await moreNav(page, 'est');
     await safeEvaluate(page, () => window.ScriptLoader && window.ScriptLoader.loadBundle && window.ScriptLoader.loadBundle('estimates'));
     const card = page.locator(`#estListWrap .nbd-est-card[data-id="${S.classicId}"]`);
-    await card.scrollIntoViewIfNeeded();
+    await scrollToCard(card);
     await card.locator('[data-act="open"]').tap();
     const table = page.locator('#estReviewBody .li-table');
     await expect(table, 'a real Classic doc still opens in Classic').toBeVisible({ timeout: 10_000 });

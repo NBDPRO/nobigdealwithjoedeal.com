@@ -73,8 +73,10 @@ function run(ctx) {
 
   // ── SMS opt-out / TCPA ──
   section('SECURITY GUARDS — SMS opt-out (TCPA)');
+  // 2026-10-05: the STOP-family decision lives in functions/sms-stop-intent.js.
   assert('incomingSMS honors STOP-family keywords',
-    /STOP_WORDS/.test(sms) && /UNSUBSCRIBE/.test(sms));
+    /StopIntent\.classifyInbound\(messageBody\)/.test(sms)
+    && require('../../functions/sms-stop-intent.js').classifyInbound('UNSUBSCRIBE').intent === 'stop');
   // 2026-09-04: these matched the bare string `sms_opt_outs`, which after the
   // key-normalisation fix survives ONLY in two explanatory comments — so both
   // assertions would have stayed green while every send path stopped checking

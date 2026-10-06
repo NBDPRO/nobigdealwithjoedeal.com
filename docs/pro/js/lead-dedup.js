@@ -139,7 +139,7 @@
         if (cPrefix && cPrefix === lPrefix) {
           matches.push({ lead, confidence: 'medium', reason: 'Same name on the same street' });
         } else if (!cAddr || !lAddr) {
-          // 2026-09-30 (Rose Mitchell): a Thumbtack card carries only
+          // 2026-09-30 (Customer EN): a Thumbtack card carries only
           // "Mason, OH 45040" and a proxy phone, so neither the address nor
           // the phone could ever match, and the same homeowner was added a
           // second time. Same full name where either side has NO street is
@@ -147,7 +147,7 @@
           matches.push({ lead, confidence: 'medium', reason: 'Same name — one of them has no street address' });
         } else if (zipOf(candidate.address) && zipOf(candidate.address) === zipOf(lead.address)) {
           // Same name in the same ZIP, different street: often the same
-          // customer at a second property (Brian McGlynn, Larry Cunningham).
+          // customer at a second property (Customer DI, Customer AL).
           matches.push({ lead, confidence: 'medium', reason: 'Same name in the same ZIP' });
         }
       }

@@ -7,8 +7,8 @@ Continuation of the day's earlier CRM/subcontracting session (see
 handoff). Jo's ask: sort through photos, find more real completed jobs
 for `/our-work` + GBP/Facebook + trust platforms, and move the
 "projects completed" stat from 150+ to something defensible. That stat
-move (to 300+) and the first four cards (Chris Rice, the Fukudas, Bryce
-Williams' interior job, John Reynolds) landed earlier the same day —
+move (to 300+) and the first four cards (Customer AG, the Customer BMs, Customer Z
+' interior job, Customer CG) landed earlier the same day —
 this handoff picks up from there.
 
 ---
@@ -17,9 +17,9 @@ this handoff picks up from there.
 
 | PR | What |
 |---|---|
-| #1702 | Rebecca Hildeman's two-story gutter replacement + micromesh screens ($4,025, paid), Rachel Henry's soffit repair in Franklin OH ($450, paid) |
+| #1702 | Rebecca Customer CA's two-story gutter replacement + micromesh screens ($4,025, paid), Customer EH's soffit repair in Franklin OH ($450, paid) |
 | #1703 | New `gutter-cleaning` service category (`/services/gutter-cleaning` + taxonomy in `build-projects.mjs`/`build-sitemap.js` + nav/footer partials) — zero live jobs at merge time, empty-state CTA verified |
-| #1704 | Brad Musuraca's gutter cleaning ($225, paid — first card in the new category), Albeliz Santiago's downspout base connector repair ($125, paid) |
+| #1704 | Customer DU's gutter cleaning ($225, paid — first card in the new category), Customer C's downspout base connector repair ($125, paid) |
 | (direct to main) | Two doc-only commits extending `marketing/gbp-post-kit-2026-09-21.md` to 9 posts / 8 FB variants and fixing INDEX.md lines that had drifted stale mid-day — see §5 below on why these went straight to main |
 
 Full recon trail: [PHOTO-SWEEP-2026-09-21](../audit/PHOTO-SWEEP-2026-09-21.md),
@@ -32,11 +32,11 @@ Site now has **53 live `/our-work` cards**, 17 service hub strips.
 
 ## 2. THE THING WORTH REMEMBERING — the jobs tracker lies about payment status
 
-Two candidates (Musuraca, Santiago) came back **unpaid** from the
+Two candidates (Customer DU, Customer C) came back **unpaid** from the
 internal "NBD MASTER Jobs Done Audit 2026" Google Sheet — no receipt in
 Drive, no Gmail thread either. Read as a real block at first, matching
 this session's own established discipline (verify a sweep's
-characterization, don't trust it — see the Cheryl Horne false positive
+characterization, don't trust it — see the Customer AD false positive
 in the first PHOTO-SWEEP note).
 
 **Both were actually paid days earlier.** Queried Stripe directly
@@ -107,7 +107,7 @@ contents are still the full current set.
   written (`marketing/gbp-post-kit-2026-09-21.md`, 9 posts). Nothing
   live yet — check `marketing/POSTING-LOG.md` before assuming otherwise.
 - **Yelp claim.** Has to be Jo personally.
-- **Bryce Williams' additional interior jobs.** He said more are coming,
+- **Customer Z' additional interior jobs.** He said more are coming,
   not yet handed over.
 - **Brad M.'s original gutter-*cleaning*** candidate is now closed out
   (published, §1) — the taxonomy gap that blocked it in the first sweep
@@ -144,7 +144,7 @@ it as established.
   (Stripe, here), check it there before reporting a block upward.
 - **Photo selection by filename order is unreliable; match the
   invoice's own described captions instead.** Used this on both
-  Henry's and Musuraca's photo sets — the invoice PDFs describe their
+  Customer EH's and Customer DU's photo sets — the invoice PDFs describe their
   own before/during/after photo call-outs, and sampling broadly across
   the file list (not just the first N) was necessary both times to find
   matches.

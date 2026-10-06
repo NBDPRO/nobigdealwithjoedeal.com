@@ -97,7 +97,7 @@ async function emailLink(env, signer, link, opts) {
   if (!signer || !signer.email || !ESL.EMAIL_RE.test(signer.email)) return { emailed: false, stubbed: false, error: 'no email' };
   try {
     const m = ESL.linkEmail({
-      brand: env.companyName, name: signer.name, title: env.title, link,
+      brand: env.companyName, tenantKey: env.companyId || env.ownerUid, name: signer.name, title: env.title, link,
       ttlDays: TTL_DAYS, reminder: !!(opts && opts.reminder),
     });
     const r = await sendMail({ to: signer.email, subject: m.subject, html: m.html });

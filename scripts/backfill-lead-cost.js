@@ -70,21 +70,25 @@ const BATCH = 400;  // Firestore batch write cap is 500; stay under it
 //
 // FIVE OF THESE CANNOT MATCH A LEAD, AND THAT IS CORRECT — do not "fix" it.
 // /thumbtack_leads (the raw ingest) starts 2026-08-16, but this window opens
-// 2026-07-31, so Daulton, Evans, Simms, Madison and Terry Greene were billed
+// 2026-07-31, so the five `missingTargets` in the refund file were billed
 // before the integration existed and were never going to be in Firestore.
 // They were worked manually and have Drive folders. Investigated and closed
 // 2026-09-06; scripts/audit-refund-provenance.js reproduces the finding.
 //
-// Terry Greene is the one to be careful with: the only "Greene" in the CRM is
-// MICHAEL Greene, a different customer. A surname join zeroes the wrong record.
+// One of the five is the one to be careful with: their surname matches a
+// DIFFERENT customer's in the CRM. A surname join zeroes the wrong record.
 //
 // scripts/apply-lead-cost-refunds.js applies this list under a unique-name AND
 // exact-amount AND ingest-prefix guard, and skips loudly rather than guessing.
-const KNOWN_REFUNDS = [
-  ['Pam Gill', 51.96], ['Hannah Rice', 51.96], ['Veronica Matthews', 16.70],
-  ['Lois Daulton', 214.85], ['Vincent Evans', 214.85], ['Barbara Simms', 225.00],
-  ['Terry Greene', 225.00], ['Larn Madison', 78.60],
-];
+//
+// The list is eight [customer name, amount] pairs, so since 2026-10-06 it lives
+// in Jo's private notes folder (lead-cost-refunds.json), not in this public
+// repo. Loaded only when the checklist is printed (--data=<file> or
+// NBD_REFUNDS_FILE); without it the backfill itself still runs.
+const { loadPrivateJson, resolvePrivatePath } = require('./_private-data');
+const KNOWN_REFUNDS = resolvePrivatePath({ envVar: 'NBD_REFUNDS_FILE' })
+  ? loadPrivateJson({ envVar: 'NBD_REFUNDS_FILE', what: 'the Thumbtack refund list' }).knownRefunds
+  : null;
 
 // "Lead cost: $51.96" / "lead cost:51.96" / "Lead Cost: $1,234". Anchored on the
 // label so a dollar figure elsewhere in a long notes blob can never match.
@@ -186,9 +190,13 @@ async function main() {
   }
 
   console.log('\n  Refunded leads — set leadCost to 0 by hand (gross was stamped):');
-  KNOWN_REFUNDS.forEach(function (r) {
-    console.log('    [ ] ' + r[0] + '  ($' + r[1].toFixed(2) + ')');
-  });
+  if (KNOWN_REFUNDS) {
+    KNOWN_REFUNDS.forEach(function (r) {
+      console.log('    [ ] ' + r[0] + '  ($' + r[1].toFixed(2) + ')');
+    });
+  } else {
+    console.log('    (refund list not loaded — pass --data=<lead-cost-refunds.json> or NBD_REFUNDS_FILE)');
+  }
   console.log('───────────────────────────────────────────────────────────');
 
   if (APPLY && !failures) await recordCompletion(MIGRATION);

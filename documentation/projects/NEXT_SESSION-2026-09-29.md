@@ -20,10 +20,10 @@ and deployed** unless it says otherwise.
   - The live `invoiceWebhook` endpoint (`we_1TtvCO…`) now sends 14 events
     (Jo approved the change, 09-29).
   - The backlog was applied on 09-29 after a dry run:
-    - **3 booked:** Reynolds $1,050, Musuraca $225, Santiago $125.
-    - **6 in Jo's review list:** Williams, Henry and Doerbeck are name-only
+    - **3 booked:** Customer CG $1,050, Customer DU $225, Customer C $125.
+    - **6 in Jo's review list:** Customer Z, Customer EH and Customer AZ are name-only
       suggestions (their CRM phones differ from the Stripe ones, and their CRM
-      addresses are a city only); Fukuda, Akins and Chris Rice have no lead.
+      addresses are a city only); Customer BM, Akins and Customer AG have no lead.
 - **Jo's decisions, 09-29 (recorded in memory as
   `calendar-and-tracker-decisions-2026-09-29`):**
   - Calendar: job windows are a start time plus a length (multi-day
@@ -65,8 +65,8 @@ and deployed** unless it says otherwise.
    `available:false` on the account; the API can't turn it on.
 3. **Cash App Pay:** keep it or turn it off. It fraud-declined one customer
    twice before they paid with Link.
-4. **Home Depot:** the unsure receipts (7139 US-22, 1815 Garden Ln, DEVINE,
-   6389 Mueller Lakes, BLUE STEM CT, fisher ln, "4622", "32", mark b, ETC,
+4. **Home Depot:** the unsure receipts (about a dozen whose PO/Job field holds a street,
+   a surname or nothing usable — list in Jo's private notes,
    the 5 blank ones including the $30.74 rental); whether to create leads for
    the jobs that are missing; then the real import and the PO/Job names.
 5. **Food logging preference** (tracker Phase 2).

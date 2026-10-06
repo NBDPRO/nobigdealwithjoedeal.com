@@ -4,7 +4,7 @@ name: Lead address audit
 # WHY THIS EXISTS
 # ─────────────────────────────────────────────────────────────
 # A pre-Wave-141 bug in the address autocomplete stored mangled strings
-# ("7003, Greenstone Trace, O'Bannon Creek" — comma after the house number,
+# ("7003, Wrenfield Trace, O'Bannon Creek" — comma after the house number,
 # no ZIP, no state, a Nominatim hamlet where the post town belongs). The write
 # path is fixed, doc generation now blocks on an incomplete address, and the
 # 2026-08-18 backfill repaired every affected record.
@@ -192,12 +192,12 @@ jobs:
             {
               echo "**A mangled or blank address is back in the CRM.**"
               echo ""
-              echo "Fix it in NBD Pro, or add a verified correction to"
-              echo "\`scripts/legacy-address-corrections.json\` and run:"
+              echo "Fix it in NBD Pro, or add a verified correction to the"
+              echo "PRIVATE corrections file (customer data, kept out of this public repo) and run:"
               echo ""
               echo '```'
-              echo "node scripts/backfill-legacy-addresses.js            # dry run"
-              echo "node scripts/backfill-legacy-addresses.js --apply --yes"
+              echo "node scripts/backfill-legacy-addresses.js --data=<corrections.json>               # dry run"
+              echo "node scripts/backfill-legacy-addresses.js --data=<corrections.json> --apply --yes"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             echo "::error::Address audit failed — see the job summary for the offending records."

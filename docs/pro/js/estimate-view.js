@@ -44,7 +44,8 @@
     if (!isFinite(v)) return '$0';
     const c = Math.round(v * 100);
     const d = (c % 100 === 0) ? 0 : 2;
-    return '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    // Sign before the $ — a Rounding line can be negative ('−$0.80', not '$-0.80').
+    return (c < 0 ? '−' : '') + '$' + (Math.abs(c) / 100).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   }
   // ─── "Back to your project" (phone audit, 2026-09-25) ───────────
   // The Back button used to be a bare history.back(). That only works when

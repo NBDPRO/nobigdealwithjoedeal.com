@@ -28,6 +28,13 @@ const { envelopeIsContract } = require('./job-spine-logic');
 // Generated document types that are contracts (they carry the packet).
 const CONTRACT_DOC_TYPES = ['contract', 'proposal'];
 
+// Platform tenant (same convention as lead-alert.js / render-pdf.js).
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+// Shown to the rep when a contract would print a blank seller on the Notice
+// of Cancellation (a company that has not set its legal business name).
+const SELLER_NAME_REQUIRED_MSG = 'Add your legal business name first (Settings → Company → Brand Identity → Legal / Company Name). '
+  + 'It is printed as the seller on the contract and its Notice of Cancellation, so this contract was not sent.';
+
 function isContractDocType(type) {
   return CONTRACT_DOC_TYPES.indexOf(String(type || '')) !== -1;
 }
@@ -107,9 +114,15 @@ function packetOptsFrom(lead, profile) {
   const cp = profile || {};
   const brand = cp.brand || {};
   const j = KyLaw.classifyLead(l) || {};
+  // The seller on the Notice of Cancellation. Only NBD's own lead (tenant key
+  // = the NBD owner uid; a key-less legacy lead is NBD's) falls back to NBD's
+  // name; another company with none set gets '' and the send is refused
+  // (SELLER_NAME_REQUIRED_MSG) — never NBD named as their seller.
+  const tenantKey = l.companyId || l.userId;
+  const nbd = !tenantKey || String(tenantKey) === NBD_OWNER_UID;
   return {
     timeZone: KyLaw.resolveTimeZone(cp),
-    sellerName: brand.legalName || cp.companyName || 'No Big Deal Home Solutions',
+    sellerName: brand.legalName || cp.companyName || (nbd ? 'No Big Deal Home Solutions' : ''),
     sellerAddress: KyLaw.contractorMailingAddress(cp),
     email: (brand.contact && brand.contact.email) || '',
     fax: String(cp.businessFax || '').trim(),
@@ -149,6 +162,7 @@ async function loadPacketOpts(db, leadId) {
 }
 
 module.exports = {
+  SELLER_NAME_REQUIRED_MSG,
   CONTRACT_DOC_TYPES, isContractDocType, finalizeSignedPacket, cancelByFor, stampLeadCancelBy, leadBelongsTo,
   packetOptsFrom, loadPacketOpts, envelopeNeedsCancelNotice,
 };

@@ -179,7 +179,10 @@ console.log('REVENUE — invoice load scoping + per-account cache');
     const wd = strip(WD);
     ok('digest headline stat is Revenue Collected (Wk); wins are labelled booked', /Revenue Collected \(Wk\)/.test(wd) && /Won This Week \(booked\)/.test(wd) && !/Won Revenue \(Wk\)/.test(wd));
     ok('digest subject quotes collected, not won value', /collectedThisWeek \|\| 0\)\} collected`/.test(wd));
-    ok('a win counts only if it reached a won stage this week (stageStartedAt)', /touchedThisWeek\.filter\(_isWonLead\)\s*\.filter\(l => !l\.stageStartedAt \|\| timestampMillis\(l\.stageStartedAt\) >= cutoff\)/.test(wd));
+    // 2026-10-06: the close date is closedAt (stamped at signing), else stageStartedAt.
+    ok('a win counts only if it closed this week (closedAt, else stageStartedAt)',
+      /touchedThisWeek\.filter\(_isWonLead\)\s*\.filter\(l => !_wonAtMs\(l\) \|\| _wonAtMs\(l\) >= cutoff\)/.test(wd)
+      && /function _wonAtMs\(l\)\s*\{\s*return timestampMillis\(l\.closedAt\) \|\| timestampMillis\(l\.stageStartedAt\);\s*\}/.test(wd));
   }
 
   console.log('REVENUE — Reports weekly trend (collected, right week)');

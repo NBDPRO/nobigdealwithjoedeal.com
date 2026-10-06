@@ -735,9 +735,11 @@
 
   async function _shareReview(docId, pend, btn) {
     var lead = window._currentLead || {};
+    // leadId: the server's "ok to text?" check + the Comm Log row (R2-3-2).
     var res = await window.NBDPhoneShare.share({
       text: pend.text, phone: lead.phone, email: lead.email,
-      subject: 'Your roof estimate', title: 'Roof estimate', noRetry: !!pend.retried
+      subject: 'Your roof estimate', title: 'Roof estimate', noRetry: !!pend.retried,
+      leadId: lead.id || window._customerId, source: 'estimate_review'
     });
     if (res.needsTap) {
       _reviewPending[docId] = { text: pend.text, link: pend.link, retried: true };
@@ -764,6 +766,8 @@
     var label = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = 'Getting link…'; }
     try {
+      var cur = window._currentLead || {};
+      if (cur.phone && typeof window.NBDPhoneShare.precheck === 'function') window.NBDPhoneShare.precheck({ phone: cur.phone, leadId: cur.id || window._customerId });
       var link = await _docCallable('createEstimateReviewLink', { leadId: window._customerId, documentId: docId });
       if (!link.shareUrl || !/^https:\/\//.test(link.shareUrl)) throw new Error('No link came back');
       if (btn) { btn.disabled = false; btn.textContent = label; }

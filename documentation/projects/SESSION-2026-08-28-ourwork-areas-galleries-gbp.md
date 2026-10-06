@@ -46,8 +46,8 @@ Gatlinburg TN). The old blanket label was factually wrong on those; if Jo
 prefers a different treatment (drop a card / region label instead of town),
 it's a one-line projects.json edit + restamp.
 
-Bonus finds recorded by the agent: Rita Hatley job GPS 39.0697,-84.3610;
-Brant Center = 6929 Lawyer Rd (Anderson Twp); Goddard = 129 W Seymour Ave;
+Bonus finds recorded by the agent: Customer BX job GPS 39.0697,-84.3610;
+Customer V = [street address] (Anderson Twp); Customer BR = [street address];
 `commercial-apartment-underlayment.jpg` original = `REAL_2023-11-25_DJI_0840`
 (that photo is now the 2nd photo on the apartment-tearoff card).
 
@@ -55,19 +55,19 @@ Brant Center = 6929 Lawyer Rd (Anderson Twp); Goddard = 129 W Seymour Ave;
 
 All three cross-referenced against prod CRM (read-only) for town + value:
 
-1. **cincinnati-oh-full-tearoff-reroof-2026** — Brian Goddard, 129 W Seymour
-   Ave, Cincinnati 45216, closed **$22,882** → published range $22,500–23,500.
+1. **cincinnati-oh-full-tearoff-reroof-2026** — Customer BR, [street address]
+   , Cincinnati 45216, closed **$22,882** → published range $22,500–23,500.
    Hero + deck top-down from Build Day drone (2026-07-24), finish shot from
    Content/"Aluminum coating" (attribution inferred — confirm). Crew visible
    from above, no faces.
-2. **blue-ash-oh-roof-vents-thermal-2026** — Rita Hatley, Blue Ash, closed
+2. **blue-ash-oh-roof-vents-thermal-2026** — Customer BX, Blue Ash, closed
    **$3,145** → range $3,000–3,500. Drone after (7 new Roofivent units),
    HSFTOOLS thermal rafter-bay image (the differentiated content), skylight
    slope before-contrast. GPS on originals matched Blue Ash.
-3. **cincinnati-oh-siding-repair-2026** — Craig & Robin Higgins, 45244,
+3. **cincinnati-oh-siding-repair-2026** — Customer BZ, 45244,
    completed 2026-07-30, **$400** same-day → range $300–500 + duration
    "Same day". Fills the previously-empty **siding-repair** strip. Photo
-   attribution to Higgins inferred from the 12-photo report (confirm).
+   attribution to Customer BZ inferred from the 12-photo report (confirm).
 
 Pipeline as per [PUBLISH-PROJECT](../runbooks/PUBLISH-PROJECT.md): originals
 downloaded from Drive → `prepare-project-images.mjs` (EXIF-stripped 800×600
@@ -94,7 +94,7 @@ item from 08-25).
 ## §4 — The three gates Jo must confirm before merge (asked in-session)
 
 1. **Consent**: the three new projects show real (unidentified) houses of
-   named customers — Goddard, Hatley, Higgins. `consentOnFile: true` is
+   named customers — Customer BR, Customer BX, Customer BZ. `consentOnFile: true` is
    staged but it is JO's attestation, not the session's. Confirm per job or
    the entry comes out before merge.
 2. **Towns**: the table in §1, esp. the three out-of-market reveals and the
@@ -112,21 +112,21 @@ item from 08-25).
   unknown attribution — Jo's call.
 - **"New Build" set** (8 JPGs): new-construction roof w/ Schumacher Homes
   signage — builder-brand visibility, Jo's call.
-- **Alison Coleman** (Loveland): gorgeous July drone survey on file; job is
+- **Customer G** (Loveland): gorgeous July drone survey on file; job is
   a 3-tier proposal not yet booked — the moment it closes it's a feature.
 - **A-frame card flag**: the live Gatlinburg photo has two recognizable
   people on the deck (one mid-workout). Library companion
   `REAL_2026-03-06_DJI_0680_mountain-cabins-misty` could swap in if Jo wants
   a people-free frame.
-- Jennifer Morgan-McCane (Loveland, $17.5k) blocked on the denied Hartford
+- Jennifer Customer DR (Loveland, $17.5k) blocked on the denied Hartford
   claim — not a "completed job" candidate; her folder is inspection-era.
-- Goddard glamour "after" (finished Timberline beauty shot) wasn't in
+- Customer BR glamour "after" (finished Timberline beauty shot) wasn't in
   reachable files (>10MB originals); his card ships during→deck→coating.
   Swap-in candidate if Jo exports one from his phone/CRM.
 
 ## Facts that cost time (don't re-derive)
 
-- CRM `photos` collection has **0 docs for the Goddard lead** — photo-report
+- CRM `photos` collection has **0 docs for the Customer BR lead** — photo-report
   images aren't keyed by leadId there.
 - `estimates` root collection is only 14 docs (mostly unnamed); lead money
   lives in `leads.jobValue` / `estValue`.

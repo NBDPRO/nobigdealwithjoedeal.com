@@ -72,7 +72,7 @@ function makeStorage(files) {
     _files: m, downloads, saves,
   };
 }
-const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', 'crypto'];
+const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './await-briefly', 'crypto'];
 function loadFn(db, storage) {
   const file = path.join(FN, 'remote-signing.js');
   class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }

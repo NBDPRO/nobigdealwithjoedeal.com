@@ -8,7 +8,7 @@
  * than loosened until it stops complaining.
  *
  * RUN
- *   node scripts/audit-refund-name-match.js --company=<id>
+ *   node scripts/audit-refund-name-match.js --company=<id> --data=<lead-cost-refunds.json>
  */
 'use strict';
 
@@ -18,8 +18,11 @@ const args = process.argv.slice(2);
 const COMPANY = (args.find((a) => a.startsWith('--company=')) || '').split('=')[1] || '';
 if (!COMPANY) { console.error('--company=<id> required'); process.exit(2); }
 
-const NAMES = ['Pam Gill', 'Hannah Rice', 'Veronica Matthews', 'Lois Daulton',
-               'Vincent Evans', 'Barbara Simms', 'Terry Greene', 'Larn Madison'];
+// Customer names — kept out of this public repo since 2026-10-06. Same private
+// file apply-lead-cost-refunds.js reads: --data=<lead-cost-refunds.json> or NBD_REFUNDS_FILE.
+const { loadPrivateJson } = require('./_private-data');
+const NAMES = loadPrivateJson({ envVar: 'NBD_REFUNDS_FILE', what: 'the Thumbtack refund list' })
+  .knownRefunds.map((r) => r[0]);
 
 (async () => {
   initAdmin({ projectId: PROJECT });

@@ -54,9 +54,9 @@ A `/leads/{id}` doc is both the customer and the job. It has one stage, one
 duplicate card (Jo's hard rule is no duplicates) or has the closed job
 overwritten. Current cases:
 
-- Pat Schwemlein: a $250 repair was closed, and a caulk job is set for Oct 1.
-- Brian McGlynn: two addresses.
-- Larry Cunningham: Morrow and Marlette Dr.
+- Customer EU: a $250 repair was closed, and a caulk job is set for Oct 1.
+- Customer DI: two addresses.
+- Customer AL: Morrow and Marlette Dr.
 
 "Additional Service Locations" (`lead.serviceAddresses`) only lists addresses.
 

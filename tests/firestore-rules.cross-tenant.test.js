@@ -284,6 +284,65 @@ async function run() {
   await check('subscriptions: rep self-upgrades plan',       'deny', setDoc(doc(bob, 'subscriptions/bob'), { plan: 'professional', status: 'active' }));
   await check('company_admin(co-b) reads co-a leaderboard',  'deny', getDoc(doc(bobCA, 'leaderboard/alice')));
 
+  // D2. SERVER-ONLY FLAGS + PORTAL-SIGNED PHOTO FIELDS (review R3, 2026-10-06)
+  //     R3-2: users/{uid}.e2eTestAccount gates cleanupE2ETestData, which deletes
+  //     Storage objects with the admin SDK. It was client-settable on create AND
+  //     update. R3-3: getHomeownerPortalView signs a source:'homeowner' photo's
+  //     `path` for 7 days; a client could create one, or re-point one, at any
+  //     object. Each case writes its own doc so one hole cannot mask another.
+  {
+    const fxNew  = env.authenticatedContext('r3fxnew',  { role: 'sales_rep', companyId: 'co-b' }).firestore();
+    const fxUser = env.authenticatedContext('r3fxuser', { role: 'sales_rep', companyId: 'co-b' }).firestore();
+    const fxE2E  = env.authenticatedContext('r3fxe2e',  {}).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users/r3fxuser'), { firstName: 'Fx' });
+      await setDoc(doc(db, 'users/r3fxe2e'),  { email: 'e2e@example.test', e2eTestAccount: true, provisionedBy: 'owner', provisionAction: 'created' });
+      await setDoc(doc(db, 'photos/r3fxRep'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB', storagePath: 'photos/bob/leadB/a.jpg' });
+      await setDoc(doc(db, 'photos/r3fxHo'),  { userId: 'bob', companyId: 'co-b', leadId: 'leadB', source: 'homeowner',
+        sharedWithHomeowner: true, path: 'homeowner-uploads/bob/leadB/1700000000000.jpg' });
+    });
+    await check('R3-2: user cannot CREATE own users doc with e2eTestAccount:true', 'deny',
+      setDoc(doc(fxNew, 'users/r3fxnew'), { firstName: 'New', e2eTestAccount: true }));
+    await check('R3-2: user cannot CREATE own users doc with provisionedBy', 'deny',
+      setDoc(doc(fxNew, 'users/r3fxnew'), { firstName: 'New', provisionedBy: 'r3fxnew' }));
+    await check('R3-2 control: user CREATES own users doc with plain profile fields', 'allow',
+      setDoc(doc(fxNew, 'users/r3fxnew'), { firstName: 'New' }));
+    await check('R3-2: user cannot UPDATE own users doc to e2eTestAccount:true', 'deny',
+      updateDoc(doc(fxUser, 'users/r3fxuser'), { e2eTestAccount: true }));
+    await check('R3-2: user cannot setDoc-merge e2eTestAccount onto own users doc', 'deny',
+      setDoc(doc(fxUser, 'users/r3fxuser'), { e2eTestAccount: true }, { merge: true }));
+    await check('R3-2: seeded user (alice) cannot UPDATE to e2eTestAccount:true', 'deny',
+      updateDoc(doc(alice, 'users/alice'), { e2eTestAccount: true }));
+    await check('R3-2 control: user UPDATES own profile fields', 'allow',
+      updateDoc(doc(fxUser, 'users/r3fxuser'), { firstName: 'Fx2' }));
+    await check('R3-2: the E2E account cannot clear its own flag', 'deny',
+      updateDoc(doc(fxE2E, 'users/r3fxe2e'), { e2eTestAccount: false }));
+    await check('R3-2: the E2E account cannot rewrite its provisioning stamp', 'deny',
+      updateDoc(doc(fxE2E, 'users/r3fxe2e'), { provisionAction: 'forged' }));
+    await check('R3-2 control: the E2E account still UPDATES its other fields', 'allow',
+      updateDoc(doc(fxE2E, 'users/r3fxe2e'), { displayName: 'E2E' }));
+
+    await check("R3-3: client cannot CREATE a source:'homeowner' photo", 'deny',
+      setDoc(doc(bob, 'photos/r3fxNewHo'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        source: 'homeowner', sharedWithHomeowner: true, path: 'pdf-renders/alice/1700000000000-contract.pdf' }));
+    await check('R3-3 control: client CREATES an ordinary photo', 'allow',
+      setDoc(doc(bob, 'photos/r3fxNewRep'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        sharedWithHomeowner: true, storagePath: 'photos/bob/leadB/b.jpg' }));
+    await check("R3-3: photo UPDATE cannot set source:'homeowner' + a path", 'deny',
+      updateDoc(doc(bob, 'photos/r3fxRep'), { source: 'homeowner', sharedWithHomeowner: true, path: 'documents/alice/leadA/contract.html' }));
+    await check('R3-3: photo UPDATE cannot add a path alone', 'deny',
+      updateDoc(doc(bob, 'photos/r3fxRep'), { path: 'documents/alice/leadA/contract.html' }));
+    await check("R3-3: homeowner photo UPDATE cannot re-point path at another tenant's object", 'deny',
+      updateDoc(doc(bob, 'photos/r3fxHo'), { path: 'pdf-renders/alice/1700000000000-contract.pdf' }));
+    await check('R3-3: homeowner photo UPDATE cannot change source', 'deny',
+      updateDoc(doc(bob, 'photos/r3fxHo'), { source: 'rep' }));
+    await check('R3-3 control: owner still toggles share / edits a homeowner photo', 'allow',
+      updateDoc(doc(bob, 'photos/r3fxHo'), { sharedWithHomeowner: false, description: 'gutter' }));
+    await check('R3-3 control: owner annotates over a rep photo (url + storagePath change)', 'allow',
+      updateDoc(doc(bob, 'photos/r3fxRep'), { url: 'https://x.test/a', storagePath: 'photos/bob/leadB/photo_r3fxRep.jpg', isAnnotated: true }));
+  }
+
   // ═══════════════════════════════════════════════════════════
   // E. CREATE-PIN ENFORCEMENT (Phase-1.5) — companyId pinned to the
   //    caller's own tenant on create. Foreign id rejected; own claim/uid OK.

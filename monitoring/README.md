@@ -118,6 +118,15 @@ renderpdf, submitpubliclead, stripewebhook) logs **more than 50 ERROR entries
 in a 5-minute window**. Until 2026-09-13 its `ALIGN_RATE` aligner made that a
 per-second threshold that could never be reached; it is `ALIGN_DELTA` now.
 
+A second condition (added 2026-10-06, review R4-7) fires on **any** ERROR
+entry in 5 minutes from the low-volume background functions: `leadbridge*`,
+`invoicewebhook` and `moneypaperoninvoice`. They run a few times a day, so the
+>50 threshold could never catch them. Scheduled jobs are covered by the
+heartbeat wrapper instead: a run that logged errors pings `/fail` with the
+count. **Not live until applied:** `gcloud alpha monitoring policies update
+projects/nobigdeal-pro/alertPolicies/9423454652957568708
+--policy-from-file=monitoring/alert-functions-error-rate.json`.
+
 ### 3. `alert-claude-budget-exceeded.json` — held, not deployable yet
 Meant to fire on a `Daily AI budget exceeded` response, but that text is only
 ever an HTTP response body (`functions/handlers/ai.js:201`), never a log line,

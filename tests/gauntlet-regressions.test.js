@@ -938,9 +938,20 @@ console.log('\nRoute 3 gap #6 — canonical free-tenant subscriptions doc');
 console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
 {
   const st = read('functions/stripe.js');
+  // Since review R2-2-6 (2026-10-06) the amount is computed by
+  // functions/invoice-charge.js chargeDueNow (deposit first, then the
+  // balance) — assert stripe.js charges THAT, and that the helper itself
+  // charges total − amountPaid on a plain invoice (behaviour, not regex).
+  const _ic = require(path.join(__dirname, '..', 'functions', 'invoice-charge.js'));
+  const _plain = _ic.chargeDueNow({ total: 1000, amountPaid: 400 }, { totalCents: 100000 });
+  const _paid = _ic.chargeDueNow({ total: 1000, amountPaid: 1000 }, { totalCents: 100000 });
   assert('payment link charges the OUTSTANDING BALANCE, not the full face value',
-    /balanceDueCents = expectedTotalCents - amountPaidCents/.test(st)
-    && /balanceDueCents < MIN_CENTS[\s\S]{0,120}already paid in full/.test(st),
+    /require\('\.\/invoice-charge'\)/.test(st)
+    && /InvoiceCharge\.chargeDueNow\(invoice, \{ totalCents: expectedTotalCents \}\)/.test(st)
+    && /balanceDueCents = due\.chargeCents/.test(st)
+    && /balanceDueCents < MIN_CENTS[\s\S]{0,120}already paid in full/.test(st)
+    && _plain.kind === 'balance' && _plain.chargeCents === 60000
+    && _paid.kind === 'none' && _paid.chargeCents === 0,
     'charging invoice.total after a deposit overcharges the homeowner by the deposit');
   assert('payment link is single-use (completed_sessions limit 1)',
     /restrictions: \{ completed_sessions: \{ limit: 1 \} \}/.test(st),

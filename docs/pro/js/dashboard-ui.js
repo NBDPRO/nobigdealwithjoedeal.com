@@ -1205,7 +1205,7 @@ function _abbreviateRoadSuffix(road) {
   const s = String(road || '').trim();
   if (!s) return '';
   // Tokenize on whitespace; abbreviate only the LAST token if it
-  // matches a known suffix. "Klondyke Road" → "Klondyke Rd";
+  // matches a known suffix. "Example Road" → "Example Rd";
   // "St James Court" → "St James Ct" (first "St" untouched, last
   // "Court" → "Ct"). Doesn't touch directional suffixes (N/S/E/W).
   const tokens = s.split(/\s+/);
@@ -1238,7 +1238,7 @@ function _state2letter(state, addrObj) {
  *
  *   formatMailingAddress({ display_name, address: { house_number,
  *     road, city, town, village, state, "ISO3166-2-lvl4", postcode } })
- *   → "1054 Klondyke Rd, Goshen, OH 45122"
+ *   → "456 Example Rd, Goshen, OH 45122"
  *
  * Falls back to a tidied display_name slice when structured fields
  * are missing (offline / non-US results / nominatim variants).
@@ -1286,7 +1286,7 @@ function selectAcItem(inputId, idx) {
   // structured nominatim addressdetails — house_number + road
   // (suffix-abbreviated) + city + 2-letter state + ZIP. Replaces the
   // old `display_name.split(',').slice(0,3)` which produced
-  // "1054, Klondyke Road, Goshen" (wrong on every count: comma
+  // "456, Example Road, Goshen" (wrong on every count: comma
   // after house number, full road name instead of "Rd", missing
   // ZIP, state spelled out, county included).
   const label = formatMailingAddress(r) || r.display_name || '';

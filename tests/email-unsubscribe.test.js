@@ -594,20 +594,21 @@ async function sendEmail(opts, body) {
 
   // ═══ D. lead-followup ══════════════════════════════════════════════════
   console.log('D. leadFollowUpSweep');
+  // The sweep follows up NBD's own leads only (isNbdLead: no companyId, or
+  // the NBD owner uid — 2026-10-05). These fixtures are NBD's leads.
+  const NBD_D = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
   {
     const card = (companyId) => [{ id: 'crm-1', data: { stage: 'new', status: 'new', companyId } }];
     const { mod, w } = load('lead-followup.js', {
-      docs: Object.assign(withPostal('co-t'), { ['email_suppressions/co-t__' + sha('no@example.com')]: { companyId: 'co-t' } }),
+      docs: Object.assign(withPostal(NBD_D), { ['email_suppressions/' + NBD_D + '__' + sha('no@example.com')]: { companyId: NBD_D } }),
       queries: {
         estimate_leads: [
-          { id: 'p-supp', data: { email: 'no@example.com', firstName: 'N', companyId: 'co-t' } },
-          { id: 'p-ok', data: { email: 'yes@example.com', firstName: 'Y', companyId: 'co-t' } },
+          { id: 'p-supp', data: { email: 'no@example.com', firstName: 'N', companyId: NBD_D } },
+          { id: 'p-ok', data: { email: 'yes@example.com', firstName: 'Y', companyId: NBD_D } },
         ],
-        leads: () => card('co-t'),
+        leads: () => card(NBD_D),
       },
     });
-    // companyProfile/co-t is absent → an unconfigured tenant, which the
-    // sweep's isNbdLead rule treats as NBD's to follow up.
     await mod.leadFollowUpSweep.__handler({});
     ok('suppressed homeowner: no follow-up email', !w.sends.some((m) => m.to === 'no@example.com'));
     ok('suppressed homeowner: stamped followUpEmailSuppressedAt, NOT followUpEmailSentAt',
@@ -617,14 +618,14 @@ async function sendEmail(opts, body) {
       !!m && m.headers['List-Unsubscribe-Post'] === 'List-Unsubscribe=One-Click' && /\/unsubscribe\//.test(m.html) && /\/unsubscribe\//.test(m.text));
     const tokPath = Object.keys(w.docs).find((p) => p.startsWith('email_unsub_tokens/'));
     ok('token filed under the CRM card\'s tenant with the CRM leadId',
-      !!tokPath && w.docs[tokPath].companyId === 'co-t' && w.docs[tokPath].leadId === 'crm-1');
+      !!tokPath && w.docs[tokPath].companyId === NBD_D && w.docs[tokPath].leadId === 'crm-1');
   }
 
   {
     const { mod, w } = load('lead-followup.js', {
       queries: {
-        estimate_leads: [{ id: 'p-np', data: { email: 'np@example.com', firstName: 'N', companyId: 'co-u' } }],
-        leads: () => [{ id: 'crm-2', data: { stage: 'new', status: 'new', companyId: 'co-u' } }],
+        estimate_leads: [{ id: 'p-np', data: { email: 'np@example.com', firstName: 'N', companyId: NBD_D } }],
+        leads: () => [{ id: 'crm-2', data: { stage: 'new', status: 'new', companyId: NBD_D } }],
       },
     });
     await mod.leadFollowUpSweep.__handler({});

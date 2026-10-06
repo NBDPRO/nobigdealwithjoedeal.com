@@ -98,8 +98,16 @@ function _leadName(l, fallback) {
 }
 // A lead's dollar amount lives in jobValue (see pipeline-value below);
 // estValue/value are legacy fallbacks.
+// The ONE money reader (customer-estimate-rows.js moneyValue): legacy text
+// like '$45,000' reads 45000 here and on the kanban / KPI tiles alike (review
+// R2, 2026-10-06). Fallback strips the same characters if that file is absent.
+function _wgMoney(v) {
+  const R = window.NBDCustomerEstimateRows;
+  if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+  return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+}
 function _leadValue(l) {
-  return parseFloat(l.jobValue || l.estValue || l.value || 0) || 0;
+  return _wgMoney(l.jobValue || l.estValue || l.value || 0);
 }
 function _bucketOf(l) {
   const k = _normStage(l);
@@ -138,7 +146,7 @@ const WIDGETS = [
         // widget summed `estValue || value`, fields that don't exist on a
         // lead, so Home's Pipeline Value always rendered $0 while the CRM
         // showed the real total. jobValue first, legacy fields as fallback.
-        const val = parseFloat(l.jobValue || l.estValue || l.value || 0);
+        const val = _leadValue(l);
         total += val;
         const bucket = _bucketOf(l);
         if (bucket && stages[bucket] !== undefined) stages[bucket] += val;
@@ -514,9 +522,12 @@ const WIDGETS = [
       // $48.5k, and reasonably conclude the product was showing someone else's
       // data — or that its numbers can't be trusted at all.
       //
-      // Same aggregation the real Leaderboard view uses: group non-deleted
-      // leads by owner, count won by stage ROLE (not a hardcoded name list, so
-      // custom pipelines work), and sum jobValue — the canonical money field.
+      // BOOKED, all time: group non-deleted leads by owner, count won by stage
+      // ROLE (not a hardcoded name list, so custom pipelines work), and sum the
+      // won jobs' jobValue — what was sold, not what was paid. This is NOT the
+      // Leaderboard page's ranking, which is money COLLECTED in the period
+      // (pages/leaderboard.js; revenue is collected only), so the widget says
+      // "Booked (all time)" on its face (review R2, 2026-10-06).
       // Every won JOB counts (multi-job, 2026-09-30): a customer's second job
       // is its own deal and its own value.
       const _all = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(window._leads || []) : (window._leads || []);
@@ -530,7 +541,7 @@ const WIDGETS = [
           || (typeof window.stageRole === 'function' ? window.stageRole(l._stageKey || l.stage) : '');
         if (role === 'won' || role === 'job') {
           byRep[owner].deals++;
-          byRep[owner].rev += parseFloat(l.jobValue) || 0;
+          byRep[owner].rev += _wgMoney(l.jobValue);
         }
       });
       const reps = Object.entries(byRep)
@@ -553,7 +564,7 @@ const WIDGETS = [
           + 'No closed jobs yet — reps appear here once deals start closing.</div>';
         return;
       }
-      el.innerHTML = reps.map((r,i) => `
+      el.innerHTML = '<div class="wg-tiny">Booked (all time)</div>' + reps.map((r,i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<reps.length-1?'border-bottom:1px solid var(--br);':''}">
           <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>
           <div class="wg-grow"><div class="wg-title-sm">${esc(r.name)}</div></div>
