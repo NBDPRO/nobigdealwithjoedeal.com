@@ -61,6 +61,9 @@ const CRON_GATES = [
   { name: 'AGENT_MCP_DISABLED', polarity: 'disabled', file: 'agent-mcp.js' },
   // E-sign reminders + link expiry (2026-10-04, replaced BoldSign's). ON unless set.
   { name: 'ESIGN_REMINDERS_DISABLED', polarity: 'disabled', file: 'esign-reminders.js' },
+  // Not a cron: NBD's Twilio line webhooks (/api/twilio/*, 2026-10-06). DARK
+  // until A2P is approved and Jo flips it (fixed TwiML, nothing written).
+  { name: 'TWILIO_INBOUND_ENABLED', polarity: 'enabled', file: 'twilio-line.js' },
 ];
 
 /**
