@@ -10,14 +10,23 @@
  * that bug, with Jo's OK — and keep the label so the history reads.
  *
  * The Firestore/Storage-rules halves of these findings live in
- * firestore-rules.cross-tenant.test.js (section R3) and storage-rules.test.js
- * (R3-4). This file pins the server and page halves.
+ * firestore-rules.cross-tenant.test.js (section R3). This file pins the
+ * server and page halves.
  *
  * Source pins follow rule-grep-guards-must-strip-comments: comments are
  * stripped (line-oriented stripper, so a `//` inside a URL survives), and each
  * pin is BRACE-SCOPED to the one function it is about, so a benign occurrence
  * elsewhere in the file can neither satisfy nor trip it. Behavioural pins
  * (R3-9) call the real exported function.
+ *
+ * Status (2026-10-06, after main 590e8593):
+ *   - R3-2, R3-3, R3-4, R3-8: FIXED; pins dropped (see the note below R3-1).
+ *   - R3-1 (calendar feeds, bot keys, leads): still KNOWN BUG, waiting on
+ *     #2259 (+ #2267 role downgrade, #2271 storage). Only the authenticate()
+ *     pin goes red with #2259; the removeMember source pins stay green
+ *     because the revocation lives in member-offboarding.js helpers, so
+ *     retire them (do not flip) when #2259 lands.
+ *   - R3-9, R3-10, R3-11: still KNOWN BUG, waiting on #2260.
  *
  * Pure Node. Run: node tests/review-r3-tenant-auth-known-bugs-2026-10-06.test.js
  */
@@ -131,79 +140,16 @@ function handlerAfter(src, anchor) {
     !!auth && !/getUser\(|getAuth\(|disabled|customClaims/.test(auth));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// R3-2 — cleanupE2ETestData is gated only on users/{uid}.e2eTestAccount
-// (client-settable — rules suite) and deletes each tagged photo's
-// storagePath / thumbStoragePath with the admin SDK, with no check that the
-// path is under the caller's own prefix. Any user can delete any Storage
-// object whose path they know.
-// ═══════════════════════════════════════════════════════════════════════
-{
-  const src = stripComments(read('functions/handlers/auth.js'));
-  const body = handlerAfter(src, 'exports.cleanupE2ETestData = onCall(');
-  ok('R3-2 anchor: cleanupE2ETestData body found', !!body && body.length > 500);
-  ok('R3-2 anchor: the only gate is the e2eTestAccount field on the users doc',
-    !!body && /e2eTestAccount\s*!==\s*true/.test(body));
-  ok('KNOWN BUG R3-2: photo storagePath is deleted as stored (no own-prefix check)',
-    !!body && /deleteStorageObject\(\s*data\.storagePath\s*\)/.test(body)
-      && !/startsWith\(|photos\/\$\{\s*uid\s*\}|indexOf\(\s*['"`]photos\//.test(body));
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// R3-3 — getHomeownerPortalView re-signs any photo with source:'homeowner'
-// for 7 days using the doc's own `path`, then writes the URL back onto that
-// doc. The rules let a client create/update such a photo with any path
-// (rules suite), so a user with a portal token for their own lead gets a
-// signed read URL for any object in the bucket.
-// ═══════════════════════════════════════════════════════════════════════
-{
-  const src = stripComments(read('functions/portal.js'));
-  const body = bodyAfter(src, 'async function _refreshHomeownerPhotoUrls(');
-  ok('R3-3 anchor: _refreshHomeownerPhotoUrls found', !!body && /getSignedUrl\(/.test(body));
-  ok("KNOWN BUG R3-3: the stored path is signed with no homeowner-uploads/ prefix or owner check",
-    !!body && /file\(\s*d\.data\(\)\.path\s*\)/.test(body)
-      && !/homeowner-uploads|startsWith\(|ownerUid/.test(body));
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// R3-4 — getSharedReport's lead_document branch streams the Storage
-// object with the object's CURRENT Content-Type and no CSP / nosniff. The
-// storage half (owner may overwrite a filed PDF with text/html) is pinned in
-// storage-rules.test.js. The inline-report branch is sandboxed; this one is
-// not.
-// ═══════════════════════════════════════════════════════════════════════
-{
-  const src = stripComments(read('functions/report-sharing.js'));
-  const at = src.indexOf("if (tok.kind === 'lead_document')");
-  const branch = at === -1 ? null : bodyAfter(src.slice(at), "if (tok.kind === 'lead_document')");
-  ok('R3-4 anchor: lead_document branch found', !!branch && /createReadStream\(/.test(branch));
-  ok("KNOWN BUG R3-4: Content-Type comes from the object's metadata, not a fixed application/pdf",
-    !!branch && /set\(\s*'Content-Type'\s*,\s*String\(\s*meta\.contentType/.test(branch));
-  ok('KNOWN BUG R3-4: the lead_document branch sets no Content-Security-Policy or nosniff',
-    !!branch && !/Content-Security-Policy|X-Content-Type-Options/.test(branch));
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// R3-8 — App Check is per page. /pro/esign-setup and /pro/photo-review
-// initialise App Check only when window.__NBD_APP_CHECK_KEY is set, which is
-// done ONLY by js/dashboard-appcheck-config.js — and neither page loads it
-// (live HTML checked 2026-10-06). Every callable they use enforces App
-// Check, so in prod those calls 401 (the emulator shim hides it).
-// ═══════════════════════════════════════════════════════════════════════
-{
-  const scriptSrcs = (html) => Array.from(html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)).map((m) => m[1]);
-  for (const [page, mod] of [['docs/pro/esign-setup.html', 'docs/pro/js/esign-setup.js'],
-                             ['docs/pro/photo-review.html', 'docs/pro/js/pages/photo-review.js']]) {
-    const html = read(page);
-    const srcs = scriptSrcs(html);
-    const js = stripComments(read(mod));
-    ok(`R3-8 anchor: ${page} loads ${path.basename(mod)}`, srcs.some((s) => s.includes(path.basename(mod))));
-    ok(`R3-8 anchor: ${path.basename(mod)} gates initializeAppCheck on window.__NBD_APP_CHECK_KEY`,
-      /initializeAppCheck\(/.test(js) && /__NBD_APP_CHECK_KEY/.test(js));
-    ok(`KNOWN BUG R3-8: ${page} never loads dashboard-appcheck-config.js`,
-      !srcs.some((s) => /dashboard-appcheck-config\.js/.test(s)));
-  }
-}
+// R3-2, R3-3, R3-4, R3-8: FIXED on main. Their pins were dropped here because
+// the fix PRs added regression suites from the same repros, each shown red
+// with its fix reverted (checked 2026-10-06):
+//   R3-2 + R3-3  #2256  sec-r3-e2e-flag-portal-path-2026-10-06.test.js and
+//                       firestore-rules.cross-tenant.test.js section D2
+//   R3-4         #2257  report-link-pdf-only-2026-10-06.test.js and
+//                       storage-rules.test.js (filed money-paper PDF lock)
+//   R3-8         #2249  appcheck-config-per-page-2026-10-06.test.js
+// (R3-2 photo storagePath in the rules is still pinned in the cross-tenant
+// suite: it waits on #2267.)
 
 // ═══════════════════════════════════════════════════════════════════════
 // R3-9 — callerMayManageTarget ignores the target's platform-admin role.
