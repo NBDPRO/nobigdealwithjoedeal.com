@@ -30,10 +30,13 @@ console.log('\n── tools and bots');
 ok('both tools are defined', !!L.TOOLS.estimates_status && !!L.TOOLS.collected_revenue);
 ok('every tool a bot lists exists', Object.values(L.BOTS).every((b) => b.tools.every((t) => !!L.TOOLS[t])));
 ok('Frank (finance) gets collected_revenue and estimates_status', L.botAllows('frank', 'collected_revenue') && L.botAllows('frank', 'estimates_status'));
+// 2026-10-06: the Claude office routine — Frank sees unpaid balances on
+// finished jobs (post_job) and files reminders under his own name.
+ok('Frank gets post_job + file_reminder (unpaid balances → his own reminders)', L.botAllows('frank', 'post_job') && L.botAllows('frank', 'file_reminder') && !L.botAllows('frank', 'file_note'));
 ok('Marcus gets estimates_status; Quinn can check both', L.botAllows('marcus', 'estimates_status') && L.botAllows('quinn', 'estimates_status') && L.botAllows('quinn', 'collected_revenue'));
 ok('Dana, Priya, Theo do not get money tools', ['dana', 'priya', 'theo'].every((b) => !L.botAllows(b, 'collected_revenue')));
 ok('Nova still has no bot entry', !L.BOTS.nova && L.toolsForBot('nova').length === 0);
-ok('no new tool can send anything', !Object.keys(L.TOOLS).some((t) => /send|text_|sms|email|call_|delete|pay/.test(t)));
+ok('no new tool can send anything (drafts only file for the owner)', !Object.keys(L.TOOLS).filter((t) => L.DRAFT_TOOLS.indexOf(t) === -1).some((t) => /send|text_|sms|email|call_|delete|pay/.test(t)));
 
 console.log('\n── estimates_status');
 const NOW = Date.parse('2026-10-02T15:00:00Z');

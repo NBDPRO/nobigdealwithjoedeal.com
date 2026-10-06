@@ -146,6 +146,7 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `saveAgentBot` | onCall | Owner/company_admin makes or edits a company bot (name, role, allowed tools, who it notifies); paid plan + company switch on |
 | `deleteAgentBot` | onCall | Owner/company_admin removes a company bot and revokes its keys |
 | `saveAgentSettings` | onCall | Owner/company_admin: the company's bots on/off switch, timezone, house rules for bots |
+| `agentDraftAction` | onCall | Owner/company_admin, Agent inbox drafts (2026-10-06): `check` re-reads the Do-Not-Text (sms_opt_outs) / email-unsubscribe lists for pending bot drafts and returns the recipient to the owner only; `sent` marks a draft `sent_by_owner` after the owner sent it from their own phone / mail app and writes the sms_log / email_log row (leadId + uid + date) and a customer note. Never sends anything |
 | `dealRoomReadPing` | onRequest | Deal room time-on-page beacon via `/api/deal-read` rewrite: token-authed, adds clamped seconds to deal_rooms.readSeconds; preview bots ignored |
 | `getSharedReport` | onRequest | Report share: ~120-bit REUSABLE token, 30-day default expiry, per-IP rate limit (view-only) |
 | `getCalendarFeed` | onRequest | Read-only `.ics` feed served at `/calendar/<token>.ics` for the iPhone Calendar app. ~120-bit token, deliberately NO expiry (a subscription that stops refreshing is silent), per-IP + per-token rate limits, `text/calendar`, never an empty 200 — a calendar client reads that as "all events deleted" |

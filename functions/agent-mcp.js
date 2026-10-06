@@ -24,7 +24,10 @@
  * Every tool is in agent-mcp-logic.js (pure). Bots READ minimized CRM data
  * and FILE notes / reminders / reports into agent_inbox (the owner decides in
  * the CRM's Agent inbox). There is no tool that texts, emails, charges, edits
- * a customer or deletes anything.
+ * a customer or deletes anything. Since 2026-10-06 Marcus / Tucker may DRAFT a
+ * text or email and Dana / Priya a social post (draft_text / draft_email /
+ * file_social_draft): drafts are inbox items the OWNER sends from their own
+ * phone or mail app (agentDraftAction logs it) — never sent from here.
  *
  * Gates, in order: the global kill switch (AGENT_MCP_DISABLED=true), the key
  * (active, its bot known and — for a company bot — still active in the same
@@ -43,6 +46,8 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const L = require('./agent-mcp-logic');
 const SW = require('./schedule-window');
+const OptOut = require('./sms-optout');
+const Suppress = require('./email-suppression');
 
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const CALLS_PER_HOUR = 150;
@@ -198,22 +203,46 @@ async function runTool(name, args, key) {
     if (v.error) return L.toolErr(v.error);
     const wording = L.claimWordingProblem(v.item.text) || L.claimWordingProblem(v.item.title);
     if (wording) return L.toolErr(wording);
-    const day = today;
-    const keyRef = db().collection('agent_keys').doc(key.id);
-    const counted = await db().runTransaction(async (tx) => {
-      const k = await tx.get(keyRef);
-      const n = Number(((k.data() || {}).filedByDay || {})[day]) || 0;
-      if (n >= FILINGS_PER_DAY) return false;
-      tx.update(keyRef, { ['filedByDay.' + day]: n + 1 });
-      return true;
-    });
-    if (!counted) return L.toolErr('Daily filing limit reached (' + FILINGS_PER_DAY + '). File the rest tomorrow.');
-    const bot = key.bot;
-    const ref = await db().collection('agent_inbox').add(Object.assign({
-      companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12),
-    }, v.item));
-    await bellNotice(company, key.routeUid, key.botId, bot.name, day).catch((e) => logger.warn('[crmMcp] bell notice failed', { msg: e.message }));
-    return L.toolText({ filed: true, item_id: ref.id, kind: v.item.kind, note: 'In your Agent inbox for the owner to review. Nothing was sent to anyone.' });
+    return fileItem(key, today, v.item, 'In your Agent inbox for the owner to review. Nothing was sent to anyone.');
+  }
+
+  // Drafts (2026-10-06). The phone / email is read here to check the
+  // Do-Not-Text and unsubscribe lists and is NEVER put in the answer or the
+  // inbox item — the owner's Agent inbox reads it from the lead at send time.
+  if (name === 'draft_text' || name === 'draft_email') {
+    const lead = L.activeLeads(await companyLeads(company)).find((l) => l.id === String(args.lead_id || ''));
+    if (!lead) return L.toolErr('unknown lead_id — use list_leads or overdue_followups first');
+    let item;
+    if (name === 'draft_text') {
+      const d = L.buildTextDraft(args, L.companyNames(key.profile, key.isNbd));
+      if (d.error) return L.toolErr(d.error);
+      const wording = L.claimWordingProblem(d.body);
+      if (wording) return L.toolErr(wording);
+      const optOut = await OptOut.isOptedOut(db(), lead.phone, { timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
+      const gate = L.textGate(lead, optOut);
+      if (gate.error) return L.toolErr(gate.error);
+      item = { kind: 'draft_text', leadId: lead.id, title: '', text: d.body, reason: d.reason, consentOnFile: gate.consentOnFile, dueDate: null };
+    } else {
+      const d = L.buildEmailDraft(args);
+      if (d.error) return L.toolErr(d.error);
+      const wording = L.claimWordingProblem(d.body) || L.claimWordingProblem(d.subject);
+      if (wording) return L.toolErr(wording);
+      const sup = L.emailGate(lead, { suppressed: false }).error ? null
+        : await Suppress.isSuppressed(db(), company, lead.email, { timeoutMs: Suppress.READ_TIMEOUT_MS }).catch(() => null);
+      const gate = L.emailGate(lead, sup);
+      if (gate.error) return L.toolErr(gate.error);
+      item = { kind: 'draft_email', leadId: lead.id, title: d.subject, text: d.body, reason: d.reason, from: d.from, fromAddress: d.fromAddress, dueDate: null };
+    }
+    return fileItem(key, today, item, 'Draft is in the Agent inbox. Nothing was sent — only the owner can send it.');
+  }
+
+  if (name === 'file_social_draft') {
+    const d = L.buildSocialDraft(args);
+    if (d.error) return L.toolErr(d.error);
+    const wording = L.claimWordingProblem(d.item.text);
+    if (wording) return L.toolErr(wording);
+    return fileItem(key, today, d.item, 'Social draft is in the Agent inbox for the owner to send to Social Studio. Nothing was posted.'
+      + (d.needsMedia ? ' This platform needs a photo or video before it can be approved.' : ''));
   }
 
   if (name === 'estimates_status') {
@@ -296,6 +325,26 @@ async function runTool(name, args, key) {
     return L.toolText({ ok: true, item_id: snap.id, verified: !!args.ok });
   }
   return L.toolErr('unknown tool');
+}
+
+// One Agent inbox item: the per-key daily filing cap, the item, the bell.
+async function fileItem(key, day, item, note) {
+  const company = key.companyId;
+  const keyRef = db().collection('agent_keys').doc(key.id);
+  const counted = await db().runTransaction(async (tx) => {
+    const k = await tx.get(keyRef);
+    const n = Number(((k.data() || {}).filedByDay || {})[day]) || 0;
+    if (n >= FILINGS_PER_DAY) return false;
+    tx.update(keyRef, { ['filedByDay.' + day]: n + 1 });
+    return true;
+  });
+  if (!counted) return L.toolErr('Daily filing limit reached (' + FILINGS_PER_DAY + '). File the rest tomorrow.');
+  const bot = key.bot;
+  const ref = await db().collection('agent_inbox').add(Object.assign({
+    companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12),
+  }, item));
+  await bellNotice(company, key.routeUid, key.botId, bot.name, day).catch((e) => logger.warn('[crmMcp] bell notice failed', { msg: e.message }));
+  return L.toolText({ filed: true, item_id: ref.id, kind: item.kind, note });
 }
 
 // One bell notification per bot per day, counting what it filed — to the
@@ -578,7 +627,81 @@ async function saveSettings(request) {
   return { ok: true };
 }
 
+// ── Drafts in the Agent inbox: check + "I sent it" (2026-10-06) ─────────
+// The owner sends a bot's draft from their OWN phone / mail app (an sms: or
+// mailto: link) — the CRM never sends it. This callable is the owner side:
+//   check  → for each pending draft, may it still go out (Do-Not-Text list /
+//            unsubscribe re-read NOW, not when the bot filed it), and to whom.
+//            The number / address goes to the owner's own screen only.
+//   sent   → the owner tapped send: mark the item sent_by_owner and write the
+//            Communication Log row (sms_log / email_log: leadId + uid + date,
+//            the comm-log contract) and a note on the customer's card.
+const DRAFT_SMS_MAX = 1600;
+async function draftLead(c, it) {
+  if (!it || !it.leadId) return null;
+  const lead = await readDoc('leads/' + String(it.leadId).replace(/[^A-Za-z0-9_-]/g, ''));
+  if (!lead || lead.deleted === true || (lead.companyId !== c.company && lead.userId !== c.company)) return null;
+  return Object.assign({ id: it.leadId }, lead);
+}
+async function draftCheck(c, it) {
+  if (!it || it.companyId !== c.company || (it.kind !== 'draft_text' && it.kind !== 'draft_email')) return { ok: false, reason: 'Not a draft in your inbox.' };
+  if (it.status !== 'pending') return { ok: false, reason: 'Already decided.' };
+  const lead = await draftLead(c, it);
+  if (!lead) return { ok: false, reason: 'That customer is no longer on your board.' };
+  const name = L.minimalLead(lead).name;
+  if (it.kind === 'draft_text') {
+    const optOut = await OptOut.isOptedOut(db(), lead.phone, { timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
+    const gate = L.textGate(lead, optOut);
+    if (gate.error) return { ok: false, reason: gate.error, name };
+    return { ok: true, to: '+1' + OptOut.optOutKey(lead.phone), name, consentOnFile: gate.consentOnFile };
+  }
+  const sup = L.emailGate(lead, { suppressed: false }).error ? null
+    : await Suppress.isSuppressed(db(), c.company, lead.email, { timeoutMs: Suppress.READ_TIMEOUT_MS }).catch(() => null);
+  const gate = L.emailGate(lead, sup);
+  if (gate.error) return { ok: false, reason: gate.error, name };
+  return { ok: true, to: String(lead.email).trim(), name };
+}
+async function draftAction(request) {
+  const c = requireKeyAdmin(request);
+  const data = request.data || {};
+  if (data.action === 'check') {
+    const ids = (Array.isArray(data.ids) ? data.ids : []).slice(0, L.MAX_LIST).map((id) => cleanId(id, /[^A-Za-z0-9_-]/g)).filter(Boolean);
+    const results = {};
+    for (const id of ids) results[id] = await draftCheck(c, await readDoc('agent_inbox/' + id));
+    return { results };
+  }
+  if (data.action !== 'sent') throw new HttpsError('invalid-argument', 'Unknown action.');
+  const id = cleanId(data.id, /[^A-Za-z0-9_-]/g);
+  const ref = db().doc('agent_inbox/' + id);
+  const it = id ? await readDoc('agent_inbox/' + id) : null;
+  if (!it || it.companyId !== c.company || (it.kind !== 'draft_text' && it.kind !== 'draft_email')) throw new HttpsError('not-found', 'No such draft.');
+  const lead = await draftLead(c, it);
+  if (!lead) throw new HttpsError('not-found', 'That customer is no longer on your board.');
+  const isText = it.kind === 'draft_text';
+  const body = String(data.body == null ? it.text || '' : data.body).replace(/\r\n?/g, '\n').trim().slice(0, isText ? DRAFT_SMS_MAX : L.MAX_TEXT);
+  const subject = isText ? '' : String(data.subject == null ? it.title || '' : data.subject).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
+  if (!body) throw new HttpsError('invalid-argument', 'The message is empty.');
+  // Claim the item first, so a double tap logs once.
+  const claimed = await db().runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    if (!s.exists || (s.data() || {}).status !== 'pending') return false;
+    tx.update(ref, { status: 'sent_by_owner', decidedAt: FieldValue.serverTimestamp(), decidedBy: c.uid, text: body, title: isText ? '' : subject });
+    return true;
+  });
+  if (!claimed) return { ok: true, already: true };
+  const ts = FieldValue.serverTimestamp();
+  const common = { uid: c.uid, leadId: lead.id, date: ts, sentAt: ts, status: 'sent_by_owner', companyId: c.company, via: 'owner_device', source: 'agent_draft', agentItemId: id, draftedBy: String(it.bot || 'Agent') };
+  let logRef;
+  if (isText) logRef = await db().collection('sms_log').add(Object.assign({ to: '+1' + OptOut.optOutKey(lead.phone), body, toDigits: OptOut.optOutKey(lead.phone) || null }, common));
+  else logRef = await db().collection('email_log').add(Object.assign({ to: String(lead.email || '').trim(), subject, from: it.fromAddress || null }, common));
+  const what = isText ? '📱 Texted from my phone: "' + body + '"' : '✉️ Emailed from my mail app — "' + subject + '":\n' + body;
+  await db().collection('notes').add({ leadId: lead.id, userId: c.uid, text: (what + '\n— drafted by ' + String(it.bot || 'Agent')).slice(0, 4000), createdBy: 'Agent inbox', source: 'agent_inbox', agentItemId: id, createdAt: ts });
+  await ref.update({ result: (isText ? 'sms_log:' : 'email_log:') + logRef.id }).catch(() => {});
+  return { ok: true };
+}
+
 const CALL_OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' };
+exports.agentDraftAction = onCall(CALL_OPTS, draftAction);
 exports.createAgentKey = onCall(CALL_OPTS, createKey);
 exports.listAgentKeys = onCall(CALL_OPTS, listKeys);
 exports.revokeAgentKey = onCall(CALL_OPTS, revokeKey);
@@ -588,5 +711,5 @@ exports.saveAgentSettings = onCall(CALL_OPTS, saveSettings);
 
 exports._internal = {
   handleRpc, runTool, sha256, contextFor, authenticate, handleHttp, bellNotice,
-  createKey, listKeys, revokeKey, saveBot, deleteBot, saveSettings, callerOf, NBD_OWNER_UID,
+  createKey, listKeys, revokeKey, saveBot, deleteBot, saveSettings, callerOf, NBD_OWNER_UID, draftAction, draftCheck, fileItem,
 };
