@@ -309,6 +309,138 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
   const seedText2 = JSON.stringify(seed.docs);
   ok('no lifetime or claim-outcome promise in the seed copy', !/lifetime|guarantee(d)? (approval|coverage)|we('| wi)ll get (it|your claim) (approved|paid)/i.test(seedText2));
 
+  // ── H. wave 3: the maps, Storm Center, Agent inbox and Ask Joe ──────────
+  console.log('H. wave 3 (D2D, Storm Center, Agent inbox, Ask Joe)');
+  const vm = require('vm');
+  const D = seed.docs;
+  // H1. The offline sample map: drawn here, never fetched.
+  const bmSrc = read('docs/pro/demo-sdk/basemap.js');
+  const bmCtx = { Math, Object, String, Number, Array, JSON };
+  bmCtx.window = bmCtx;
+  vm.runInNewContext(bmSrc, bmCtx);
+  const BM = bmCtx.NBD_DEMO_BASEMAP;
+  const NET = /\bfetch\s*\(|XMLHttpRequest|sendBeacon|new\s+WebSocket|EventSource|\bimport\s*\(|\.src\s*=/;
+  for (const f of ['basemap.js', 'offline.js', 'ask-joe-canned.js', 'claude-proxy.js']) {
+    const code = stripComments(read('docs/pro/demo-sdk/' + f));
+    ok('demo-sdk/' + f + ' makes no request of its own (no fetch / XHR / beacon / socket / import() / .src=)', !NET.test(code), (code.match(NET) || [])[0]);
+  }
+  ok('basemap.js names no other site (only the SVG namespace)', (stripComments(bmSrc).match(/https?:\/\/[^'"\s)]+/g) || []).every((u) => u === 'http://www.w3.org/2000/svg'));
+  ok('basemap.js: a base map is drawn, the USGS underlay and radar / label / Kentucky overlays draw nothing live',
+    BM.roleFor('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { zIndex: -1 }) === 'base' &&
+    BM.roleFor('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', {}) === 'underlay' &&
+    BM.roleFor('https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png', { opacity: 0.6 }) === 'overlay' &&
+    BM.roleFor('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { zIndex: 0 }) === 'overlay' &&
+    BM.roleFor('https://kygisserver.ky.gov/arcgis/rest/services/x/MapServer/tile/{z}/{y}/{x}', { zIndex: 0 }) === 'overlay');
+  // install() on a stand-in Leaflet: L.tileLayer stops making tile layers.
+  const fakeL = { GridLayer: { extend(proto) { function C(o) { this.options = Object.assign({}, proto.options, o); } Object.assign(C.prototype, proto); return C; }, prototype: {} }, tileLayer() { throw new Error('a real tile layer was made'); } };
+  BM.install(fakeL);
+  let swapped = null;
+  try { swapped = fakeL.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { zIndex: -1 }); } catch (e) { swapped = e; }
+  ok('basemap.install(L) swaps L.tileLayer for the drawn sample map (imagery look, sample attribution)',
+    swapped && !(swapped instanceof Error) && swapped.options.role === 'base' && swapped.options.variant === 'imagery' && /Sample map: invented streets/.test(swapped.options.attribution) && typeof fakeL.tileLayer.wms === 'function', swapped && swapped.message);
+  const streets = (BM.DATA.roads || []).map((r) => r.name);
+  ok('every street on the sample map is invented (Sample / Example / Placeholder / Demo / Test / Mock)', streets.length >= 8 && streets.every((n) => /\b(Sample|Example|Placeholder|Demo|Test|Mock)\b/.test(n)), streets.join(', '));
+
+  // H2. Knocks, the swath, the territory, the Storm Center zone and alert.
+  const houses = new Map(BM.houses().map((h) => [h.address + ', ' + seed.offline.city, h]));
+  const coreSrc = read('docs/pro/js/d2d-tracker-core-2026b.js');
+  const dispoKeys = new Set(Array.from((/const DISPOSITIONS = \{([\s\S]*?)\n {2}\};/.exec(coreSrc) || ['', ''])[1].matchAll(/^\s{4}(\w+):\s*\{/gm)).map((m) => m[1]));
+  const knocks = Object.entries(D).filter(([p]) => /^knocks\//.test(p)).map(([, d]) => d);
+  ok('the D2D disposition list was read from the real tracker (not vacuous)', dispoKeys.size >= 14 && dispoKeys.has('not_home') && dispoKeys.has('appointment'));
+  ok('~70 sample knocks, every one a real disposition, by the sample owner, with a createdAt (orderBy needs it)',
+    knocks.length >= 50 && knocks.every((k) => dispoKeys.has(k.disposition) && k.userId === 'demo-owner' && k.companyId === 'demo-owner' && k.createdAt && k.createdAt.__ts),
+    knocks.filter((k) => !dispoKeys.has(k.disposition)).map((k) => k.disposition).join(','));
+  ok('every knock sits on a house of the sample map (its address and coordinates)', knocks.every((k) => { const h = houses.get(k.address); return h && h.lat === k.lat && h.lng === k.lng; }),
+    knocks.filter((k) => !houses.has(k.address)).map((k) => k.address).slice(0, 3).join(' | '));
+  const swath = seed.offline.swath;
+  const jordanK = knocks.find((k) => k.leadId === 'sample-lead-01');
+  ok('the story customer\'s door: an appointment that became the lead, inside the hail swath, on her pin',
+    jordanK && jordanK.disposition === 'appointment' && jordanK.convertedToLead && BM.inRing([jordanK.lat, jordanK.lng], swath) && story.lat === jordanK.lat && story.lng === jordanK.lng);
+  const terr = D['territories/sample-territory-01'];
+  const ringT = terr && terr.geoJSON.geometry.coordinates[0];
+  ok('the storm territory is GeoJSON [lng, lat] (D2D order) and matches the swath', ringT && ringT.length === swath.length && ringT.every((p, i) => p[0] === swath[i][1] && p[1] === swath[i][0]) && ringT[0][0] < -80);
+  const zone = (seed.offline.stormZones || [])[0];
+  ok('the Storm Center zone is [lat, lng] (Storm Center order), names the story\'s zone and is linked from the territory',
+    zone && zone.polygon[0][0] > 30 && zone.polygon[0][1] < -80 && zone.id === terr.stormZoneId && zone.name.indexOf(S.zone) !== -1 && /sample/i.test(zone.name));
+  ok('every sample hail report lies in the swath and says it is sample data', seed.offline.hail.length >= 5 && seed.offline.hail.every((h) => BM.inRing([h.lat, h.lng], swath) && /sample/i.test(h.source)));
+  const al = (seed.offline.nwsAlerts || [])[0] || { properties: {} };
+  ok('the one weather alert is marked as sample data, not a National Weather Service warning', /^SAMPLE ALERT \(not a real warning\)/.test(al.properties.headline || '') && /not the National Weather Service/.test(al.properties.senderName || '') && /\(sample\)/.test(al.properties.areaDesc || ''));
+
+  // H3. The Agent inbox: the sample company's own bots, drafts waiting.
+  const inbox = Object.entries(D).filter(([p]) => /^agent_inbox\//.test(p)).map(([id, d]) => Object.assign({ id: id.split('/')[1] }, d));
+  const kinds = new Set(inbox.map((i) => i.kind));
+  ok('the inbox seeds every kind (text + email drafts, social draft, note, reminder, report), all pending, all the sample company\'s',
+    ['draft_text', 'draft_email', 'social_draft', 'note', 'reminder', 'report'].every((k) => kinds.has(k)) && inbox.every((i) => i.status === 'pending' && i.companyId === 'demo-owner'));
+  ok('the bots are the sample company\'s own, never NBD\'s (Marcus, Quinn, Tucker, Dana, …)', inbox.every((i) => !/marcus|quinn|tucker|dana|frank|priya|theo|nbd/i.test(String(i.bot) + ' ' + String(i.botId) + ' ' + String(i.verifiedBy || ''))), inbox.map((i) => i.bot).join(', '));
+  const storySrc = read('docs/pro/js/sandbox-story.js');
+  const storyDraft = (/var DRAFT = '([^'\n]*)';/.exec(storySrc) || [])[1];
+  ok('the text draft is the story\'s own follow-up text, for the story customer', !!storyDraft && inbox.some((i) => i.kind === 'draft_text' && i.text === storyDraft && i.leadId === 'sample-lead-01'));
+  const inboxText = JSON.stringify(inbox);
+  ok('no inbox item claims the NBD Pledge, an NBD warranty, "lifetime" or a claim outcome', !/pledge|no big deal|\bnbd\b|lifetime|guarantee|approved by (your|the) (insurance|carrier)|we('| wi)ll get/i.test(inboxText));
+  ok('the Kentucky insurance note: nothing collected at signing', inbox.some((i) => i.leadId === 'sample-lead-16' && /nothing is collected at signing/i.test(i.text)) && D['leads/sample-lead-16'].state === 'KY' && D['leads/sample-lead-16'].jobType === 'insurance');
+
+  // H4. The shell wiring (comments stripped, call ORDER asserted).
+  const dm2 = stripComments(read('docs/pro/js/demo-mode.js'));
+  const fetchFn = (/window\.fetch = function \(input, init\) \{([\s\S]*?)\n {4}\};/.exec(dm2) || ['', ''])[1];
+  ok('demo-mode.js: the fetch wrapper answers the maps\' reads offline BEFORE the block check (never made, never blocked)',
+    fetchFn.indexOf('offlineKey(url, method)') !== -1 && fetchFn.indexOf('offlineKey(url, method)') < fetchFn.indexOf('allowed(url, method)'));
+  ok('demo-mode.js: only GET/HEAD of the listed weather / geocoder / storm-report reads go offline', /var OFFLINE = \/\^\(https:\\\/\\\/\(nominatim\\\.openstreetmap\\\.org\\\/\(reverse\|search\)\\b\|api\\\.weather\\\.gov\\\/\(points\\\/\|alerts\\b\)\|www\\\.spc\\\.noaa\\\.gov\\\/products\\\/outlook\\\/\)\|\\\/api\\\/storm-report\\b\)\/;/.test(dm2) && /if \(m !== 'GET' && m !== 'HEAD'\) return null;/.test(dm2));
+  ok('demo-mode.js: traps window.L and swaps the tiles the moment Leaflet loads', /Object\.defineProperty\(window, 'L', \{[\s\S]*?set: function \(v\) \{ leaflet = v; swapTiles\(v\); \}/.test(dm2) && /NBD_DEMO_BASEMAP\.install\(L\)/.test(dm2));
+  ok('demo-mode.js: loads the sample map and the offline answers', /loadScript\('\/pro\/demo-sdk\/basemap\.js\?v=\d+', false\)/.test(dm2) && /loadScript\('\/pro\/demo-sdk\/offline\.js\?v=\d+', true\)/.test(dm2));
+  ok('demo-mode.js: the maps get the sample location, never the visitor\'s', /geo\.getCurrentPosition = function/.test(dm2) && /geo\.watchPosition = function/.test(dm2));
+  ok('demo-mode.js: sms: / mailto: / tel: links never open the visitor\'s apps', /\(sms\|mailto\|tel\):\/i\.exec[\s\S]{0,120}if \(scheme\) \{\s*e\.preventDefault\(\);/.test(dm2));
+  const sw2 = stripComments(read('docs/pro/explore/demo-sw.js'));
+  ok('demo-sw.js swaps the AI proxy client for the sample one (no claudeProxy POST, no model)', /\['\/pro\/js\/claude-proxy\.js', '\/pro\/demo-sdk\/claude-proxy\.js'\]/.test(sw2) && sw2.indexOf('SWAPS.has(path)') !== -1 && sw2.indexOf('SWAPS.has(path)') < sw2.indexOf('if (path !== url.pathname)'));
+
+  // H5. The offline answers and the canned callables, run here.
+  globalThis.window = globalThis;
+  globalThis.location = { href: 'https://example.test/pro/explore/dashboard', origin: 'https://example.test' };
+  const lsMem = new Map();
+  globalThis.localStorage = { getItem: (k) => (lsMem.has(k) ? lsMem.get(k) : null), setItem: (k, v) => lsMem.set(k, String(v)), removeItem: (k) => lsMem.delete(k) };
+  globalThis.NBD_DEMO_BASEMAP = BM;
+  const store = await imp('_store.js');
+  globalThis._leads = Object.entries(D).filter(([p]) => /^leads\/[^/]+$/.test(p)).map(([p, d]) => Object.assign({ id: p.split('/')[1] }, store.reviveSeed(d)));
+  const OFF = (await imp('offline.js')).default;
+  await OFF.ready;
+  const rj = async (u) => (await OFF.answer(u)).json();
+  const rev = await rj('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&zoom=18&lat=' + story.lat + '&lon=' + story.lng);
+  ok('offline geocoder: a tap on the story customer\'s house answers 214 Sample Ridge Rd', rev.address && rev.address.house_number === '214' && rev.address.road === 'Sample Ridge Rd' && rev.type === 'house', JSON.stringify(rev).slice(0, 300));
+  const fwd = await rj('https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&addressdetails=1&limit=5&q=' + encodeURIComponent('214 Sample Ridge Rd, Fort Thomas, KY 41075'));
+  ok('offline geocoder: the forward check finds the same house', Array.isArray(fwd) && fwd[0] && fwd[0].address.house_number === '214' && Number(fwd[0].lat) === story.lat);
+  const alerts = await rj('https://api.weather.gov/alerts/active?status=actual&message_type=alert&zone=KYC037');
+  ok('offline weather: the sample alert is live now (expires later) and marked sample', alerts.features.length === 1 && Date.parse(alerts.features[0].properties.expires) > Date.now() && /SAMPLE ALERT/.test(alerts.features[0].properties.headline));
+  const spc = await rj('https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson');
+  ok('offline weather: no made-up Storm Prediction Center outlook (empty)', Array.isArray(spc.features) && spc.features.length === 0);
+  const lsr2 = await rj('/api/storm-report?lat=39.075&lon=-84.447');
+  ok('offline storm reports: the story\'s storm and older sample reports, /api/storm-report shape (lat, lon, type, date)', lsr2.events.length >= 9 && lsr2.events.every((e) => typeof e.lat === 'number' && typeof e.lon === 'number' && /hail|wind|tornado/.test(e.type) && !isNaN(Date.parse(e.date))));
+  ok('first load puts Storm Center\'s zone and the "show me the storm" hint in this tab\'s storage', /Fort Thomas north/.test(lsMem.get('nbd_storm_zones') || '') && JSON.parse(lsMem.get('nbd_d2d_focus_bounds') || '{}').north > 39);
+  const pos = OFF.position();
+  ok('the sample location is the story customer\'s street', Math.abs(pos.coords.latitude - story.lat) < 0.001 && Math.abs(pos.coords.longitude - story.lng) < 0.001);
+  const ask = async (q) => { const r = await OFF.callClaude({ toolset: 'joe-actions-v1', system: 'x', messages: [{ role: 'user', content: q }] }); return (r.content || []).map((b) => b.text).join(''); };
+  const QS = ['What should I focus on today?', 'Which leads are most likely to close?', 'Help me write a supplement request', 'How do I handle a lowball adjuster estimate?',
+    'What does my pipeline look like right now?', 'What is due at signing on a Kentucky insurance job?', 'Do you offer the NBD Pledge or a lifetime warranty?', 'Tell me about the storm', 'Write me a poem'];
+  const answers = [];
+  for (const q of QS) answers.push(await ask(q));
+  ok('Ask Joe: every answer is labelled a sample answer, no AI model called', answers.every((a) => /No AI model was called/.test(a)));
+  ok('Ask Joe: the five starter questions each get their own answer (not the fallback)', answers.slice(0, 5).every((a) => !/answers a few set questions\. Try one/.test(a)) && new Set(answers.slice(0, 5)).size === 5);
+  ok('Ask Joe: Kentucky insurance job: nothing is due at signing', /nothing is due at signing/i.test(answers[5]));
+  ok('Ask Joe: no answer claims the NBD Pledge, NBD, "lifetime" or a claim outcome', answers.every((a) => !/pledge|no big deal|\bnbd\b|lifetime|will (be )?(approve|pay)|guarantee(d)? (approval|coverage)/i.test(a)), answers.find((a) => /pledge|no big deal|\bnbd\b|lifetime/i.test(a)));
+  let aiErr = null;
+  try { await OFF.callClaude({ messages: [{ role: 'user', content: 'Return JSON' }], feature: 'est' }); } catch (e) { aiErr = e.message; }
+  ok('any other AI caller is told AI is not in the sample account (rejects, no fake answer)', /not in the sample account/.test(aiErr || ''));
+  const call = (n, p) => FN.httpsCallable(FN.getFunctions(), n)(p).then((r) => r.data);
+  const chk = await call('agentDraftAction', { action: 'check', ids: ['sample-inbox-01', 'sample-inbox-02'] });
+  ok('agentDraftAction check: the sample drafts\' customers are reachable (send buttons on)', chk.results['sample-inbox-01'].ok && /^\+1859555\d{4}$/.test(chk.results['sample-inbox-01'].to) && chk.results['sample-inbox-02'].to === 'caleb.ross@example.com', JSON.stringify(chk));
+  const sent = await call('agentDraftAction', { action: 'sent', id: 'sample-inbox-01', body: storyDraft });
+  const itemAfter = store.rawGet('agent_inbox/sample-inbox-01');
+  const noteAfter = store.rawList('notes').map(([, d]) => d).find((n) => n.agentItemId === 'sample-inbox-01');
+  ok('agentDraftAction sent: says it was NOT sent, files the draft, notes it on the card', sent.ok && sent.sent === false && itemAfter.status === 'approved' && itemAfter.result === 'sample:not-sent' && noteAfter && /Nothing was sent/.test(noteAfter.text));
+  const hh = await call('getHailHistory', { lat: 39.0752, lng: -84.4468, radiusMi: 5 });
+  ok('getHailHistory: the sample hail reports, the swath on the first (GeoJSON [lng, lat])', hh.hits.length >= 5 && hh.hits[0].polygon.coordinates[0][0][0] < -80 && /sample/i.test(hh.source));
+  let spErr = null;
+  try { await call('attachStormProof', { leadId: 'sample-lead-01' }); } catch (e) { spErr = e.message; }
+  ok('attachStormProof says what it would do (no fake "verified" proof)', /In your real account this would look up verified hail reports/.test(spErr || ''));
+
   // ── G. sandbox placeholder ──────────────────────────────────────────────
   console.log('G. /pro/sandbox placeholder');
   const sb = read('docs/pro/sandbox.html');

@@ -310,12 +310,130 @@ async function waitFor(page, fn, arg, ms) {
     // (the viewer's sign request was on the customer page, checked in step 9)
     ok('every send on the dashboard went to a preview (one envelope, two deal links)', previews.join(',') === 'sendEstimateEnvelope,createDealAcceptToken,createDealAcceptToken', previews.join(','));
 
+    // ── wave 3: the door-knocking map, Storm Center, Agent inbox, Ask Joe ──
+    console.log('13. Door-to-Door: the offline sample map, the storm swath and the knocks');
+    await page.evaluate(() => window.goTo('d2d'));
+    await waitFor(page, () => window._D2DState && window._D2DState.d2dMap && (window._D2DState.knocks || []).length >= 60, null, 30000);
+    await waitFor(page, () => document.querySelectorAll('#d2dMap .nbd-demo-tile svg').length > 0, null, 15000);
+    const d2d = await page.evaluate(() => {
+      const m = window._D2DState.d2dMap, c = m.getCenter(), sw = window.NBD_DEMO_BASEMAP;
+      return {
+        tiles: document.querySelectorAll('#d2dMap .nbd-demo-tile svg').length,
+        realTiles: [...document.querySelectorAll('#d2dMap img')].map((i) => i.src).filter((s) => /^https?:/.test(s) && s.indexOf(location.origin) !== 0),
+        attribution: (document.querySelector('#d2dMap .leaflet-control-attribution') || {}).textContent || '',
+        knocks: window._D2DState.knocks.length, zoom: m.getZoom(), center: [c.lat, c.lng],
+        swathDrawn: [...document.querySelectorAll('#d2dMap path')].some((p) => p.getAttribute('stroke') === '#BD5728' && /6,4|6 4/.test(p.getAttribute('stroke-dasharray') || '')),
+        pins: document.querySelectorAll('#d2dMap .leaflet-marker-icon').length,
+        houses: sw ? sw.houses().length : 0
+      };
+    });
+    ok('the D2D map draws the offline sample map (SVG tiles), no tile from another site', d2d.tiles > 0 && d2d.realTiles.length === 0 && /Sample map: invented streets/.test(d2d.attribution), JSON.stringify(d2d));
+    ok('the sample knocks load (the seed\'s week of door knocking)', d2d.knocks >= 60 && d2d.pins > 0, JSON.stringify(d2d));
+    ok('it opens on the story\'s storm: the hail swath territory drawn, centred on Fort Thomas north', d2d.swathDrawn && d2d.zoom >= 13 && Math.abs(d2d.center[0] - 39.075) < 0.02 && Math.abs(d2d.center[1] + 84.447) < 0.02, JSON.stringify(d2d));
+    // House level: the sample streets, roofs and names.
+    const free = await page.evaluate(() => {
+      const st = window._D2DState, knocked = new Set(st.knocks.map((k) => String(k.address).split(',')[0]));
+      return window.NBD_DEMO_BASEMAP.houses().find((x) => x.street === 'Placeholder St' && !knocked.has(x.address) && x.number > 320);
+    });
+    // The map's own "show me the storm" fit lands a moment after it opens;
+    // keep asking for house level until it holds.
+    await waitFor(page, (h) => {
+      const m = window._D2DState.d2dMap;
+      if (m.getZoom() !== 19 || m.getCenter().distanceTo([h.lat, h.lng]) > 5) m.setView([h.lat, h.lng], 19, { animate: false });
+      return m.getZoom() === 19 && document.querySelectorAll('#d2dMap .nbd-demo-tile svg rect[transform]').length > 4;
+    }, free, 20000).catch(() => {});
+    await page.waitForTimeout(400);
+    const hl = await page.evaluate(() => ({
+      roofs: document.querySelectorAll('#d2dMap .nbd-demo-tile svg rect[transform]').length,
+      labels: [...document.querySelectorAll('#d2dMap .nbd-demo-lbl')].map((l) => l.textContent)
+    }));
+    ok('at house level the sample map draws the houses and the street names', hl.roofs > 4 && hl.labels.includes('Placeholder St'), JSON.stringify(hl).slice(0, 300));
+    // Log a knock the way a rep does: tap the house on the map.
+    const box = await page.locator('#d2dMap').boundingBox();
+    const pt = await page.evaluate((h) => { const p = window._D2DState.d2dMap.latLngToContainerPoint([h.lat, h.lng]); return { x: p.x, y: p.y }; }, free);
+    await page.mouse.click(box.x + pt.x, box.y + pt.y);
+    await page.waitForSelector('#d2d-quick-knock-overlay.open', { timeout: 15000 });
+    await waitFor(page, () => { const b = document.getElementById('d2d-addr-badge'); return b && /verified|likely/.test(b.dataset.state || ''); }, null, 15000);
+    const qk = await page.evaluate(() => ({ addr: document.getElementById('d2d-qk-address').value, badge: document.getElementById('d2d-addr-badge').dataset.state }));
+    ok('the tapped door resolves to its sample address (offline geocoder, no request)', qk.addr.indexOf(free.address) === 0, JSON.stringify({ qk, free: free.address }));
+    if (qk.badge !== 'verified') await page.locator('#d2d-addr-confirm-chk').check();
+    await page.locator('#d2d-quick-knock-overlay [data-dispo="storm_damage"]').click();
+    await page.locator('#d2d-qk-save').click();
+    await waitFor(page, (a) => (window._D2DState.knocks || []).some((k) => String(k.address).indexOf(a) === 0 && k.disposition === 'storm_damage'), free.address, 15000);
+    ok('the knock saved to the in-browser store and shows on the map', true);
+    const hail = await page.evaluate(async () => { const r = await window.D2D.showHail(); return { ok: r && r.ok, hits: (r && r.hits || []).length, swath: !!(r && r.hits && r.hits[0] && r.hits[0].polygon) }; });
+    ok('Hail: the sample hail reports (and the swath) come back with no request', hail.ok && hail.hits >= 5 && hail.swath, JSON.stringify(hail));
+    const lsr = await page.evaluate(async () => { const r = await window.fetch('/api/storm-report?lat=39.075&lon=-84.447'); return { status: r.status, demo: r.headers.get('X-NBD-Demo'), n: ((await r.json()).events || []).length }; });
+    ok('the Storms layer\'s /api/storm-report is answered from sample data, never the function', lsr.status === 200 && lsr.demo === 'sample-offline' && lsr.n >= 5, JSON.stringify(lsr));
+
+    console.log('14. Storm Center: the sample alert and the story\'s storm zone');
+    await page.evaluate(() => window.goTo('storm'));
+    await waitFor(page, () => /Severe Thunderstorm Warning/.test((document.getElementById('view-storm') || {}).innerText || '') && document.querySelectorAll('#storm-map .nbd-demo-tile svg').length > 0, null, 30000);
+    const sc = await page.evaluate(() => ({ text: document.getElementById('view-storm').innerText, zones: JSON.parse(localStorage.getItem('nbd_storm_zones') || '[]').map((z) => z.name) }));
+    ok('Storm Center shows the sample alert, marked as sample, on the offline map', /Severe Thunderstorm Warning/.test(sc.text) && /\(sample\)/.test(sc.text), sc.text.slice(0, 400));
+    ok('…and the story\'s storm zone (Fort Thomas north)', sc.zones.some((n) => /Fort Thomas north \(sample\)/.test(n)), JSON.stringify(sc.zones));
+    await page.locator('#view-storm [data-storm-action="createZone"]').first().click();
+    await waitFor(page, () => JSON.parse(localStorage.getItem('nbd_storm_zones') || '[]').length >= 2, null, 10000);
+    ok('Create Zone from the sample alert works (a second zone)', true);
+
+    console.log('15. Agent inbox: approve a bot draft with one tap, nothing sent');
+    await page.evaluate(() => { window.goTo('home'); window.NBDAgentInbox.open(); });
+    await waitFor(page, () => /6 waiting/.test((document.getElementById('aiCount') || {}).textContent || '') && !!document.getElementById('aiSend-sample-inbox-01'), null, 20000);
+    const inbox = await page.evaluate(() => document.getElementById('aiOverlay').innerText);
+    ok('the inbox shows the sample company\'s own bots (no NBD bot)', /Follow-up helper/.test(inbox) && /Office helper/.test(inbox) && !/Marcus|Quinn|Tucker|NBD Ops/.test(inbox), inbox.slice(0, 600));
+    const urlBefore = page.url();
+    await page.locator('#aiSend-sample-inbox-01').click(); // "Text from my phone": ONE tap
+    await page.waitForSelector('#nbd-send-preview[data-kind="agent-text"]', { timeout: 15000 });
+    const sp4 = await page.evaluate(() => document.getElementById('nbd-send-preview').innerText);
+    ok('one tap shows "Nothing was sent" with the text and who it was for', /Nothing was sent/.test(sp4) && /Jordan Avery/.test(sp4) && /three roof options/.test(sp4) && /Follow-up helper/.test(sp4), sp4.slice(0, 500));
+    ok('…the page did not navigate to sms: (no Messages app)', page.url() === urlBefore, page.url());
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+    const filed = await page.evaluate(async () => {
+      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const db = F.getFirestore();
+      const it = (await F.getDoc(F.doc(db, 'agent_inbox', 'sample-inbox-01'))).data();
+      const n = (await F.getDocs(F.query(F.collection(db, 'notes'), F.where('leadId', '==', 'sample-lead-01')))).docs.map((d) => d.data().text).filter((t) => /Nothing was sent/.test(t)).length;
+      return { status: it.status, result: it.result, note: n, gone: !document.getElementById('aiItem-sample-inbox-01') };
+    });
+    ok('the draft is filed (approved, not sent) with a note on Jordan\'s card saying so', filed.status === 'approved' && filed.result === 'sample:not-sent' && filed.note === 1 && filed.gone, JSON.stringify(filed));
+    await page.locator('#aiOverlay [data-ai-act="mail"]').first().click();
+    const mailNote = await page.evaluate(() => (window.__NBD_DEMO__.notices.slice(-1)[0] || {}).message || '');
+    ok('"Open in Mail" does not open the visitor\'s Mail app', /opens your Mail app/.test(mailNote) && page.url() === urlBefore, mailNote);
+    await page.locator('#aiOverlay [data-ai-act="mailsent"]').first().click();
+    await page.waitForSelector('#nbd-send-preview[data-kind="agent-email"]', { timeout: 15000 });
+    const sp5 = await page.evaluate(() => document.getElementById('nbd-send-preview').innerText);
+    ok('the email draft\'s Mark sent shows its own "Nothing was sent" sheet', /Nothing was sent/.test(sp5) && /Caleb Ross/.test(sp5) && /Your three roof options/.test(sp5), sp5.slice(0, 400));
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+    await page.locator('#aiOverlay [data-ai-act="approve"][data-ai-id="sample-inbox-03"]').click();
+    const task = await page.evaluate(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      return (await F.getDocs(F.collection(F.getFirestore(), 'leads', 'sample-lead-10', 'tasks'))).docs.map((d) => d.data()).filter((t) => t.source === 'agent_inbox').length;
+    });
+    ok('a bot reminder goes onto the customer as a task with one tap (Add to CRM)', task === 1, task);
+    await page.evaluate(() => window.NBDAgentInbox.close());
+
+    console.log('16. Ask Joe: sample answers, no AI model');
+    await page.evaluate(() => window.goTo('joe'));
+    await page.locator('[data-fn="joeQuick"][data-arg="What does my pipeline look like right now?"]').click();
+    await waitFor(page, () => /Sample pipeline right now/.test((document.getElementById('joeMessages') || {}).innerText || ''), null, 15000);
+    await page.locator('#joeInput').fill('What is due at signing on a Kentucky insurance job?');
+    await page.locator('#joeSendBtn').click();
+    await waitFor(page, () => /nothing is due at signing/i.test((document.getElementById('joeMessages') || {}).innerText || ''), null, 15000);
+    const joe = await page.evaluate(() => ({ text: document.getElementById('joeMessages').innerText, n: window.__NBD_DEMO__.joeAnswers || 0, demoProxy: !!(window.callClaude && window.callClaude.__nbdDemo) }));
+    ok('Ask Joe answers the starter question from the sample data, labelled a sample answer', /active jobs/.test(joe.text) && (joe.text.match(/No AI model was called/g) || []).length >= 2, joe.text.slice(-600));
+    ok('…and the Kentucky rule: nothing due at signing on an insurance job', /nothing is due at signing/i.test(joe.text) && !/NBD Pledge|lifetime/i.test(joe.text));
+    ok('the sample AI proxy answered (the real claude-proxy.js was never loaded)', joe.n >= 2 && joe.demoProxy && !srv.log.some((e) => /\/js\/claude-proxy\.js$/.test(e.path)) && srv.log.some((e) => e.path === '/pro/demo-sdk/claude-proxy.js'), JSON.stringify({ n: joe.n, demoProxy: joe.demoProxy }));
+    const offlineUsed = await page.evaluate(() => (window.__NBD_DEMO__.offlineAnswers || []).map((a) => a.url.replace(/\?.*$/, '')));
+    ok('the maps\' weather / geocoder / storm-report reads were answered offline (the path was exercised)', offlineUsed.some((u) => /nominatim/.test(u)) && offlineUsed.some((u) => /api\.weather\.gov/.test(u)) && offlineUsed.some((u) => /storm-report/.test(u)), JSON.stringify([...new Set(offlineUsed)]));
+
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');
     const state = await page.evaluate(() => ({ blocked: window.__NBD_DEMO__.blocked.slice(), csp: window.__cspViolations.slice() }));
     ok('the tripwire blocked nothing during the walk (no attempt was made)', state.blocked.length === 0, JSON.stringify(state.blocked));
-    const connectish = state.csp.filter((v) => /^(connect-src|frame-src|form-action|child-src|worker-src)$/.test(v.directive));
-    ok('the CSP refused no connect/frame/form attempt during the walk', connectish.length === 0, JSON.stringify(connectish));
+    // img-src too (wave 3): a map tile from another site would be refused here.
+    const connectish = state.csp.filter((v) => /^(connect-src|frame-src|form-action|child-src|worker-src|img-src)$/.test(v.directive));
+    ok('the CSP refused no connect/frame/form/image attempt during the walk', connectish.length === 0, JSON.stringify(connectish));
     ok('no request reached the network off-origin', offsite.length === 0, offsite.join('\n'));
     const sdk = seen.filter((r) => SDK_URL.test(r.url));
     ok('the Firebase SDK URLs were requested (the swap was exercised, not skipped)', sdk.length >= 5, sdk.length);

@@ -64,7 +64,7 @@ const S = readSample();
 // ── A. the sample company is its own tenant ──────────────────────────────
 console.log('A. the sample company brand');
 const brand = profile.brand || {};
-ok('seed version is 2 (returning browsers reseed: _store.js compares it)', seed.version === 2, seed.version);
+ok('seed version is 2 or later (returning browsers reseed: _store.js compares it; wave 3 = 3)', seed.version >= 2, seed.version);
 ok('companyProfile.brand.legalName is the sample company, not NBD', brand.legalName === S.company && !/No Big Deal/i.test(JSON.stringify(brand)), JSON.stringify(brand).slice(0, 200));
 ok('no credential badges (affiliates is an empty list, so NBD\'s GAF/TAMKO numbers can never print)', Array.isArray(brand.affiliates) && brand.affiliates.length === 0);
 ok('no logo of anyone\'s', brand.logoUrl === '');
@@ -174,7 +174,7 @@ for (const f of fs.readdirSync(mediaDir)) {
   const css = read('docs/pro/css/demo-mode.css');
   ok('the strip drops below the estimate builder\'s Back/Next bar and the viewer\'s action row', /body:has\(#estV2Modal\.open\) \.nbd-demo-strip/.test(css) && /body:has\(#nbd-doc-viewer-overlay\.open\) \.nbd-demo-strip/.test(css) &&
     /#estV2Modal\.v3-on \.v3-bar \{ padding-bottom: calc\(56px/.test(css) && /\.nbdv-footer \{ padding-bottom: calc\(56px/.test(css));
-  ok('demo-mode.js loads the new stylesheet version', /demo-mode\.css\?v=2'/.test(read('docs/pro/js/demo-mode.js')));
+  ok('demo-mode.js loads the new stylesheet version (2 or later)', /demo-mode\.css\?v=([2-9]|\d\d+)'/.test(read('docs/pro/js/demo-mode.js')));
 
   // ── F. proposal photo grid ────────────────────────────────────────────
   console.log('F. proposal photo grid (document-generator.js renderPhotoGrid)');
