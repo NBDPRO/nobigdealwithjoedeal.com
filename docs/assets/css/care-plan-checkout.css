@@ -1,0 +1,38 @@
+/* care-plan-checkout.css — the Roof Care Plan online signup on
+ * /services/roof-care-plan (2026-10-05, care-plan-checkout.js). Marketing
+ * tokens only (DESIGN.md "Marketing site": 8px radii and pills, no new
+ * colours). Hidden until the plan is on; [hidden] must win over display. */
+.cp-join[hidden], .cp-join [hidden] { display: none !important; }
+
+.cp-join { padding: 64px 5%; background: var(--off-white, #f6f7f8); }
+.cp-join-wrap { max-width: 720px; margin: 0 auto; }
+.cp-form { display: grid; gap: 18px; margin-top: 18px; }
+.cp-form fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cp-form legend { font-weight: 800; margin-bottom: 8px; color: var(--navy, #1a3057); }
+.cp-form .cp-plan {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 14px;
+  border: 2px solid var(--border, #dfe2e7); border-radius: 8px; background: #fff; cursor: pointer;
+}
+.cp-plan:has(input:checked) { border-color: var(--orange, #BD5728); }
+.cp-plan input { width: 20px; height: 20px; accent-color: var(--orange, #BD5728); }
+.cp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cp-row .cp-wide { grid-column: span 1; }
+.cp-form label { display: grid; gap: 4px; font-size: .9rem; font-weight: 700; color: var(--navy, #1a3057); }
+.cp-form input:not([type="radio"]):not([type="checkbox"]) {
+  font: inherit; font-weight: 400; min-height: 46px; padding: 10px 12px; box-sizing: border-box; width: 100%;
+  border: 1px solid var(--border, #dfe2e7); border-radius: 8px; background: #fff; color: var(--dark, #14181f);
+}
+.cp-form .cp-terms { display: flex; align-items: flex-start; gap: 10px; font-weight: 400; line-height: 1.5; color: var(--dark, #14181f); }
+.cp-terms input { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--orange, #BD5728); }
+.cp-submit { justify-self: start; min-height: 48px; border: 0; cursor: pointer; font: inherit; font-weight: 800; }
+.cp-submit[disabled] { opacity: .7; cursor: progress; }
+.cp-fine { font-size: .85rem; color: var(--gray, #5d6673); margin: 0; }
+.cp-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.cp-joined p { line-height: 1.6; }
+.cp-manage { min-height: 48px; cursor: pointer; font: inherit; font-weight: 800; }
+.cp-msg { margin: 16px 0 0; font-weight: 700; line-height: 1.5; }
+.cp-msg.is-error { color: var(--orange-dark, #A14A22); }
+@media (max-width: 560px) {
+  .cp-row { grid-template-columns: 1fr; }
+  .cp-submit { justify-self: stretch; }
+}
