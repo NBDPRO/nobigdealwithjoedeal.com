@@ -1,203 +1,198 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="nbd-original">
+<html lang="en">
 <head>
-<link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
-<link rel="stylesheet" href="/pro/css/theme-system.css">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>NBD Pro — Live Sandbox</title>
-<meta name="description" content="A live, hands-on sandbox of the NBD Pro roofing CRM. Drag leads through the pipeline, open cards, switch themes — sample data, no signup.">
-<link rel="canonical" href="https://nobigdealwithjoedeal.com/pro/sandbox.html">
-<meta property="og:title" content="NBD Pro — Live Sandbox">
-<meta property="og:description" content="Touch the actual pipeline. Sample data, resets on reload, no signup.">
-<meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/sandbox.html">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
-<style>
-/* The whole page runs on theme-system.css tokens (--bg --s --s2 --t --m
-   --orange --br ...) so the theme bar below repaints it with the REAL
-   production themes — this is the actual theme engine CSS, not a mock. */
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--t);font-family:'Barlow',sans-serif;line-height:1.55;overflow-x:hidden;transition:background .25s}
-a{color:inherit}
-.sb-nav{position:sticky;top:0;z-index:1000;height:52px;background:var(--s);border-bottom:1px solid var(--br);display:flex;align-items:center;padding:0 20px;gap:12px}
-.sb-logo{display:flex;align-items:center;gap:9px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;font-size:16px;letter-spacing:2px}
-.sb-logo .mark{width:32px;height:32px;background:var(--orange);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff}
-.sb-logo .pro{color:var(--orange)}
-.sb-badge{background:var(--og);border:1px solid var(--orange);color:var(--orange);font-size:9px;font-weight:700;letter-spacing:1.5px;padding:4px 10px;border-radius:4px;text-transform:uppercase}
-.sb-nav-right{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:11px}
-.sb-nav-right a{text-decoration:none;color:var(--m)}
-.sb-nav-right a.cta{background:#BD5728;color:#fff;padding:6px 14px;border-radius:4px;font-weight:700;font-size:10px;letter-spacing:1px;text-transform:uppercase}
-.sb-hero{text-align:center;padding:52px 20px 28px}
-.sb-hero h1{font-family:'Barlow Condensed',sans-serif;font-size:clamp(40px,6vw,68px);letter-spacing:2px;line-height:.95}
-.sb-hero h1 span{color:var(--orange)}
-.sb-hero p{color:var(--m);max-width:560px;margin:14px auto 0;font-size:15px}
-.sb-strip{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:11px;color:var(--m)}
-.sb-strip span::before{content:'✓ ';color:var(--orange)}
-.sb-section{max-width:1160px;margin:0 auto;padding:26px 16px}
-.sb-panel-label{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--orange);margin-bottom:10px}
-.sb-themes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.sb-theme-btn{background:var(--s2);border:1px solid var(--br);color:var(--t);font-size:11px;font-weight:600;padding:7px 13px;border-radius:5px;cursor:pointer;font-family:inherit;transition:.15s}
-.sb-theme-btn.active{border-color:var(--orange);color:var(--orange);background:var(--og)}
-.sb-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.sb-view-btn{background:var(--s2);border:1px solid var(--br);color:var(--m);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 18px;border-radius:5px;cursor:pointer;font-family:inherit}
-.sb-view-btn.active{color:var(--orange);border-color:var(--orange);background:var(--og)}
-.sb-moves{margin-left:auto;font-size:11px;color:var(--m)}
-.sb-board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(215px,1fr);gap:12px;overflow-x:auto;padding-bottom:14px;-webkit-overflow-scrolling:touch}
-.sb-col{background:var(--s);border:1px solid var(--br);border-radius:8px;min-height:300px;display:flex;flex-direction:column}
-.sb-col.drag-over{border-color:var(--orange);background:var(--og)}
-.sb-col-head{padding:10px 12px;border-bottom:1px solid var(--br)}
-.sb-col-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:1.5px;text-transform:uppercase}
-.sb-col-meta{font-size:10px;color:var(--m);margin-top:2px}
-.sb-col-cards{padding:10px;display:flex;flex-direction:column;gap:8px;flex:1}
-.sb-card{background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 11px;cursor:grab;user-select:none}
-.sb-card:active{cursor:grabbing}
-.sb-card.dragging{opacity:.45}
-.sb-card-name{font-size:13px;font-weight:600}
-.sb-card-sub{font-size:10.5px;color:var(--m);margin-top:2px}
-.sb-card-row{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
-.sb-card-val{font-size:12px;font-weight:700;color:var(--orange)}
-.sb-heat{font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;background:var(--og);color:var(--orange)}
-.sb-card-arrows{display:flex;gap:4px}
-.sb-arrow{background:var(--s3);border:1px solid var(--br);color:var(--m);width:26px;height:22px;border-radius:4px;cursor:pointer;font-size:11px;line-height:1;font-family:inherit}
-.sb-arrow:hover{color:var(--orange);border-color:var(--orange)}
-.sb-hint{font-size:11px;color:var(--m);margin-top:10px}
-.sb-est{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:6px}
-.sb-tier{background:var(--s);border:1px solid var(--br);border-radius:8px;padding:16px;cursor:pointer;text-align:center}
-.sb-tier.active{border-color:var(--orange);background:var(--og)}
-.sb-tier h4{font-family:'Barlow Condensed',sans-serif;font-size:18px;letter-spacing:2px;text-transform:uppercase}
-.sb-tier .price{font-size:22px;font-weight:700;color:var(--orange);margin:6px 0}
-.sb-tier .inc{font-size:10.5px;color:var(--m)}
-.sb-est-summary{margin-top:12px;background:var(--s);border:1px solid var(--br);border-left:3px solid var(--orange);border-radius:6px;padding:12px 14px;font-size:13px}
-.sb-drawer-wrap{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.55);z-index:2000;display:none}
-.sb-drawer-wrap.open{display:block}
-.sb-drawer{position:absolute;top:0;right:0;bottom:0;width:min(420px,92vw);background:var(--s);border-left:1px solid var(--br);padding:20px;overflow-y:auto}
-.sb-drawer h3{font-family:'Barlow Condensed',sans-serif;font-size:26px;letter-spacing:1px}
-.sb-drawer .sub{color:var(--m);font-size:12px;margin-bottom:14px}
-.sb-drawer-close{position:absolute;top:14px;right:14px;background:var(--s2);border:1px solid var(--br);color:var(--t);width:30px;height:30px;border-radius:5px;cursor:pointer;font-size:14px;font-family:inherit}
-.sb-kv{display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--rule)}
-.sb-kv .k{color:var(--m)}
-.sb-drawer h5{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--orange);margin:16px 0 8px}
-.sb-log{background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:9px 11px;font-size:11.5px;margin-bottom:7px}
-.sb-log .who{color:var(--orange);font-weight:700;font-size:9.5px;letter-spacing:1px;text-transform:uppercase}
-.sb-toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--s2);border:1px solid var(--orange);color:var(--t);padding:10px 18px;border-radius:6px;font-size:12.5px;z-index:3000;transition:transform .25s;pointer-events:none}
-.sb-toast.show{transform:translateX(-50%) translateY(0)}
-.sb-cta{text-align:center;padding:56px 20px 64px}
-.sb-cta h2{font-family:'Barlow Condensed',sans-serif;font-size:clamp(30px,4vw,46px);letter-spacing:2px}
-.sb-cta p{color:var(--m);margin:10px auto 22px;max-width:480px;font-size:14px}
-.sb-cta .btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.sb-cta a.primary{background:#BD5728;color:#fff;padding:13px 30px;border-radius:5px;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase}
-.sb-cta a.ghost{border:1px solid var(--br);color:var(--t);padding:13px 30px;border-radius:5px;text-decoration:none;font-weight:600;font-size:13px;letter-spacing:1px;text-transform:uppercase}
-.sb-foot{border-top:1px solid var(--br);padding:20px;text-align:center;font-size:11px;color:var(--m)}
-.sb-foot a{color:var(--m)}
-@media(max-width:700px){.sb-board{grid-auto-columns:78vw}.sb-nav-right .hide-m{display:none}}
-/* Phone targets (2026-09-25, phone audit homeowner#10). HTML5 drag never
-   fires on touch, so the per-card arrows are the ONLY way a prospect on a
-   phone moves a card (sandbox-demo.js says as much) — and they were 26x22
-   with an 11px muted glyph. The nav squeezed too: the NBD mark (a flex item
-   with no flex-shrink) crushed to 27px with its text spilling out, and the
-   badge and START FREE each wrapped onto two lines. What fixes it is room:
-   20px nav padding + 12px gaps left 3px short at 412, so they tighten; and
-   the badge, which says nothing the hero doesn't, goes below 400px where
-   the nav cannot hold it at all. flex-shrink:0 and nowrap are guards for a
-   wider fallback font (Barlow not loaded) — at the tested widths they are
-   not what keeps the nav on one line. */
-@media(max-width:700px){
-  .sb-card-arrows{gap:6px}
-  .sb-arrow{width:44px;height:40px;font-size:18px;color:var(--t)}
-  .sb-drawer-close{width:40px;height:40px}
-  .sb-logo .mark{flex-shrink:0}
-  .sb-badge,.sb-nav-right a.cta{white-space:nowrap}
-  .sb-nav{padding:0 12px;gap:10px}
-}
-@media(max-width:400px){.sb-badge{display:none}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>NBD Pro Demo — One Roof Job, Storm to Paid in Full</title>
+  <meta name="description" content="Walk one sample roof job through NBD Pro: storm map, door knock, photo report, estimate, Kentucky-safe e-sign, crew, invoice and paid. No signup, nothing saves.">
+  <link rel="canonical" href="https://nobigdealwithjoedeal.com/pro/sandbox">
+  <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
+  <meta name="theme-color" content="#0B1526">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="NBD Pro Demo — One Roof Job, Storm to Paid in Full">
+  <meta property="og:description" content="Nine short steps through the real NBD Pro screens with a sample company. No signup, nothing saves.">
+  <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/sandbox">
+  <meta property="og:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/barlow-condensed-800-latin.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/barlow-400-latin.woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/css/nbd-fonts-pro.css">
+  <link rel="stylesheet" href="/pro/css/landing.css?v=2">
+  <link rel="stylesheet" href="/pro/css/nbd-brand.css">
+  <link rel="stylesheet" href="/pro/css/agent-inbox.css">
+  <link rel="stylesheet" href="/pro/css/sandbox-story.css?v=1">
+  <!-- The demo runs on the real rules: ky-insurance-law.js (the Kentucky hold
+       and statutory text) and deposit-rule.js (what is due when), loaded
+       before the story. landing-page.js owns the one Book-a-demo URL and the
+       Start free wiring. No Firebase, no analytics, no network calls. -->
+  <script defer src="/pro/js/ky-insurance-law.js?v=1"></script>
+  <script defer src="/pro/js/deposit-rule.js?v=4"></script>
+  <script defer src="/pro/js/landing-page.js?v=3"></script>
+  <script defer src="/pro/js/sandbox-story.js?v=1"></script>
 </head>
-<body>
+<body class="sx">
+  <a class="pl-skip" href="#sx-stage">Skip to the demo</a>
 
-<nav class="sb-nav" aria-label="Sandbox navigation">
-  <a href="/pro/" class="sb-logo"><span class="mark">NBD</span><span>NBD <span class="pro">PRO</span></span></a>
-  <span class="sb-badge">Sandbox · Sample Data</span>
-  <div class="sb-nav-right">
-    <a href="/pro/demo.html" class="hide-m">← Tool Tour</a>
-    <a href="/pro/login.html" class="hide-m">Log In</a>
-    <a href="/pro/register.html" class="cta">Start Free</a>
-  </div>
-</nav>
+  <header class="pl-nav">
+    <nav class="pl-wrap pl-nav-in" aria-label="NBD Pro">
+      <a href="/pro/" class="pl-logo">NBD <span>PRO</span></a>
+      <div class="pl-nav-links">
+        <span class="sx-badge">Sample data</span>
+        <a class="pl-btn pl-btn-primary pl-btn-sm" href="/pro/register.html" data-pl-action="goRegister">Start free</a>
+      </div>
+    </nav>
+  </header>
 
-<header class="sb-hero">
-  <h1>GO AHEAD.<br><span>TOUCH IT.</span></h1>
-  <p>This is a live sandbox of the NBD Pro pipeline. Drag the cards, use the stage arrows, open a lead, switch the theme. It's sample data — nothing saves, and it resets on reload. No signup, no email.</p>
-  <div class="sb-strip">
-    <span>Real pipeline mechanics</span>
-    <span>Real production themes</span>
-    <span>Nothing to break</span>
-  </div>
-</header>
+  <main id="main">
+    <section class="sx-intro pl-wrap" aria-labelledby="sx-h1">
+      <p class="pl-eyebrow">Interactive demo · sample company</p>
+      <h1 id="sx-h1">Follow one roof job from the storm to paid in full.</h1>
+      <p class="sx-lede">Nine short steps through the real NBD Pro screens, filled with a made-up company and customer. Nothing you tap is saved or sent.</p>
+    </section>
 
-<section class="sb-section" aria-label="Theme switcher">
-  <div class="sb-panel-label">186 themes ship with NBD Pro — try 8 of them live</div>
-  <div class="sb-themes" id="themeBar">
-    <button type="button" class="sb-theme-btn active" data-action="theme" data-theme="nbd-original">NBD Navy</button>
-    <button type="button" class="sb-theme-btn" data-action="theme" data-theme="midnight">Midnight</button>
-    <button type="button" class="sb-theme-btn" data-action="theme" data-theme="forest">Forest</button>
-    <button type="button" class="sb-theme-btn" data-action="theme" data-theme="crimson">Crimson</button>
-    <button type="button" class="sb-theme-btn" data-action="theme" data-theme="gold">Gold</button>
-    <button type="button" class="sb-theme-btn" data-action="theme" data-theme="arctic">Arctic</button>
-    <button type="button" class="sb-theme-btn" data-action="theme" data-theme="neon">Neon</button>
-    <button type="button" class="sb-theme-btn" data-action="theme" data-theme="batman">Batman</button>
-  </div>
-</section>
-
-<section class="sb-section" aria-label="Pipeline board">
-  <div class="sb-panel-label">The pipeline — drag a card or tap the arrows</div>
-  <div class="sb-toolbar">
-    <button type="button" class="sb-view-btn active" data-action="view" data-view="insurance">Insurance</button>
-    <button type="button" class="sb-view-btn" data-action="view" data-view="cash">Cash</button>
-    <span class="sb-moves" id="moveCounter"></span>
-  </div>
-  <div class="sb-board" id="board"></div>
-  <div class="sb-hint">Tap any card to open the lead. Column totals update as you move deals — same as the real board. The full product ships 7 pipeline views and 31 stages, plus custom stages you define.</div>
-</section>
-
-<section class="sb-section" aria-label="Estimate tiers">
-  <div class="sb-panel-label">Good / Better / Best — pick a tier</div>
-  <div class="sb-est" id="estTiers">
-    <div class="sb-tier" data-action="tier" data-tier="good" role="button" tabindex="0">
-      <h4>Standard</h4><div class="price">$8,450</div><div class="inc">Architectural shingles · lifetime workmanship</div>
+    <div class="sx-progress pl-wrap" id="sx-progress">
+      <div class="sx-bar" aria-hidden="true"><span class="sx-bar-fill" id="sx-bar-fill"></span></div>
+      <p class="sx-count" id="sx-count" aria-live="polite">9 steps</p>
+      <ol class="sx-chips" aria-label="Jump to a step">
+        <li><button type="button" class="sx-chip" data-sx-go="0">1 Storm</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="1">2 Lead</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="2">3 Report</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="3">4 Estimate</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="4">5 AI follow-up</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="5">6 Sign</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="6">7 Crew</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="7">8 Invoice</button></li>
+        <li><button type="button" class="sx-chip" data-sx-go="8">9 Paid</button></li>
+      </ol>
     </div>
-    <div class="sb-tier active" data-action="tier" data-tier="better" role="button" tabindex="0">
-      <h4>Preferred</h4><div class="price">$12,300</div><div class="inc">GAF Timberline HDZ · ridge vent · lifetime</div>
+
+    <div class="sx-stage pl-wrap" id="sx-stage">
+
+      <section class="sx-step" id="storm" data-sx-step="storm" aria-labelledby="storm-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 1 · Storm</p>
+          <h2 id="storm-h" tabindex="-1">Hail hits near your customers.</h2>
+          <p class="sx-tip">Storm Center turns a weather alert into a zone and shows who is inside it. Tap the green door.</p>
+          <p class="sx-real">In the app: Storm Watch pulls live National Weather Service alerts, and every door you knock gets one of 16 outcomes, from Appointment Set to Do Not Knock.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="storm"></div>
+      </section>
+
+      <section class="sx-step" id="lead" data-sx-step="lead" aria-labelledby="lead-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 2 · Lead</p>
+          <h2 id="lead-h" tabindex="-1">The knock becomes a lead.</h2>
+          <p class="sx-tip">An Appointment Set at the door lands as a lead with the time booked. Nothing to retype.</p>
+          <p class="sx-real">In the app: the card moves itself when the work happens, from meeting booked to paid in full, and every move is logged on the customer’s card.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="lead"></div>
+      </section>
+
+      <section class="sx-step" id="report" data-sx-step="report" aria-labelledby="report-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 3 · Photos and report</p>
+          <h2 id="report-h" tabindex="-1">Inspection photos become a homeowner report.</h2>
+          <p class="sx-tip">Tag photos on the roof, then flip to what the homeowner gets.</p>
+          <p class="sx-real">In the app: photos are marked on-site when taken within 75 m of the address, AI suggests the tags, and reports come from four templates.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="report"></div>
+      </section>
+
+      <section class="sx-step" id="estimate" data-sx-step="estimate" aria-labelledby="estimate-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 4 · Estimate</p>
+          <h2 id="estimate-h" tabindex="-1">Good, better, best in one tap.</h2>
+          <p class="sx-tip">Pick a package the way the homeowner would. Prices here are samples.</p>
+          <p class="sx-real">In the app: up to five packages, Economy to Beyond, from one set of measurements. Homeowners see retail prices only, and you get an alert when they open it.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="estimate"></div>
+      </section>
+
+      <section class="sx-step" id="follow-up" data-sx-step="follow-up" aria-labelledby="follow-up-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 5 · AI bots and the Agent inbox</p>
+          <h2 id="follow-up-h" tabindex="-1">A bot drafts the follow-up. You decide.</h2>
+          <p class="sx-tip">Edit the draft if you like, then tap Text from my phone. Nothing sends on its own.</p>
+          <p class="sx-real">In the app (paid plans): bots read your CRM and file drafts, notes and reminders into your Agent inbox. None of them can text, email or charge anyone. Texting from NBD Pro itself: coming soon.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="follow-up"></div>
+      </section>
+
+      <section class="sx-step" id="sign" data-sx-step="sign" aria-labelledby="sign-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 6 · E-sign</p>
+          <h2 id="sign-h" tabindex="-1">Signed on their phone, Kentucky rules built in.</h2>
+          <p class="sx-tip" data-sx-mode="ky">A Kentucky insurance job: nothing is due at signing. Flip to Retail to compare.</p>
+          <p class="sx-tip" data-sx-mode="retail" hidden>A retail (cash) job: a normal deposit at signing. Flip back to compare.</p>
+          <p class="sx-real">In the app: every contract carries the Notice of Right to Cancel and the cancellation forms, links expire after 14 days, and each signature records consent, IP, browser and time.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="sign"></div>
+      </section>
+
+      <section class="sx-step" id="crew" data-sx-step="crew" aria-labelledby="crew-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 7 · Production</p>
+          <h2 id="crew-h" tabindex="-1">Crew on the calendar.</h2>
+          <p class="sx-tip">Send the sub a job sheet, or push a rain day.</p>
+          <p class="sx-real">In the app: a production strip for every signed job, a sub roster that warns about expired insurance certificates, and job sheets with no prices or homeowner phone.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="crew"></div>
+      </section>
+
+      <section class="sx-step" id="invoice" data-sx-step="invoice" aria-labelledby="invoice-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 8 · Invoice</p>
+          <h2 id="invoice-h" tabindex="-1">Invoice from the estimate in one tap.</h2>
+          <p class="sx-tip" data-sx-mode="ky">The pay link stays locked until the insurer’s written decision plus 5 business days.</p>
+          <p class="sx-tip" data-sx-mode="retail" hidden>The deposit was paid at signing; the balance is due on completion.</p>
+          <p class="sx-real">In the app: online card payments are 3.4% + 30¢ each, paid to your own bank through Stripe. Recording checks and cash is always free.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="invoice"></div>
+      </section>
+
+      <section class="sx-step" id="paid" data-sx-step="paid" aria-labelledby="paid-h">
+        <div class="sx-copy">
+          <p class="sx-kicker">Step 9 · Paid</p>
+          <h2 id="paid-h" tabindex="-1">Paid in full.</h2>
+          <p class="sx-tip">Record the last check with a photo of it. The job closes itself.</p>
+          <p class="sx-real">In the app: part payments keep the balance right to the cent, and the review and refer-a-friend asks wait until the job is paid in full.</p>
+        </div>
+        <div class="sx-screen" data-sx-screen="paid"></div>
+      </section>
+
+      <section class="sx-step sx-end" id="start" data-sx-step="end" aria-labelledby="end-h">
+        <div class="sx-end-in">
+          <p class="pl-eyebrow">That was one job</p>
+          <h2 id="end-h" tabindex="-1">Run every job this way.</h2>
+          <p class="sx-lede">Your own company, your own prices, your real customers.</p>
+          <div class="sx-end-ctas">
+            <a class="pl-btn pl-btn-primary pl-btn-lg sx-cta-main" href="/pro/register.html" data-pl-action="goRegister">Start free — no card</a>
+            <a class="pl-btn pl-btn-ghost pl-btn-lg" href="https://cal.com/nobigdeal" data-demo-link target="_blank" rel="noopener">Book a demo</a>
+          </div>
+          <p class="sx-plan-note" id="sx-free-note">The Free plan: 10 new leads a month, 1 user. No card, no timer.</p>
+          <div class="sx-next-phase" role="note" aria-disabled="true">
+            <span class="sx-next-title">Explore the whole sample account</span>
+            <span class="sx-next-sub">Coming next: click around every screen of a sample company, right in your browser.</span>
+          </div>
+          <p class="sx-end-links"><button type="button" class="sx-linkbtn" data-sx-nav="restart">Watch the story again</button> · <a href="/pro/pricing.html">See every plan</a></p>
+        </div>
+      </section>
     </div>
-    <div class="sb-tier" data-action="tier" data-tier="best" role="button" tabindex="0">
-      <h4>Elite</h4><div class="price">$15,900</div><div class="inc">GAF UHDZ · full ice &amp; water · lifetime</div>
+
+    <nav class="sx-pager" id="sx-pager" aria-label="Demo steps">
+      <div class="sx-pager-in">
+        <button type="button" class="pl-btn pl-btn-ghost sx-back" data-sx-nav="back">Back</button>
+        <button type="button" class="pl-btn pl-btn-primary sx-next" data-sx-nav="next">Next</button>
+      </div>
+    </nav>
+
+    <noscript><p class="sx-noscript pl-wrap">The demo needs JavaScript. You can still <a href="/pro/register.html">start free</a> or <a href="https://cal.com/nobigdeal">book a demo</a>.</p></noscript>
+  </main>
+
+  <footer class="sx-foot">
+    <div class="pl-wrap">
+      <p>Sample company, customer, photos and prices for the demo only: nothing you do here is stored or sent. · <a href="/pro/">NBD Pro</a> · <a href="/pro/pricing.html">Pricing</a> · <a href="/pro/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a></p>
     </div>
-  </div>
-  <div class="sb-est-summary" id="estSummary"></div>
-</section>
-
-<section class="sb-cta">
-  <h2>THAT'S A TASTE OF ~30 ENGINES.</h2>
-  <p>Estimates, invoicing, e-sign, D2D maps, storm intel, photo reports, AI texting drafts — the real thing runs your whole business. Free tier, no card.</p>
-  <div class="btns">
-    <a href="/pro/register.html" class="primary">Start Free — 10 Leads/mo</a>
-    <a href="/pro/demo.html" class="ghost">See Every Tool</a>
-  </div>
-</section>
-
-<footer class="sb-foot">
-  Sample data only — nothing you do here is stored. · <a href="/pro/">NBD Pro</a> · <a href="/pro/pricing.html">Pricing</a> · <a href="/pro/terms.html">Terms</a>
-</footer>
-
-<div class="sb-drawer-wrap" id="drawerWrap" data-action="drawer-dismiss">
-  <aside class="sb-drawer" role="dialog" aria-modal="true" aria-label="Lead details" id="drawer"></aside>
-</div>
-<div class="sb-toast" id="toast"></div>
-
-<!-- deposit-rule.js (2026-09-25): the demo quotes the real deposit rule. -->
-<script defer src="/pro/js/deposit-rule.js?v=4"></script>
-<script defer src="/pro/js/sandbox-demo.js?v=2"></script>
+  </footer>
 </body>
 </html>
