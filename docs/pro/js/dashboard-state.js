@@ -78,6 +78,8 @@ const routeConfig = {
   'refrewards':   { label: 'Referrals',         parent: null },
   'signs':        { label: 'Yard Signs',        parent: null },
   'winback':      { label: 'Past Customers',    parent: null },
+  // Roof Care Plan members (2026-10-05, js/care-plan-members.js).
+  'careplan':     { label: 'Care Plan',         parent: null },
   // Sunday business review (2026-10-04, js/week-review.js).
   'weekreview':   { label: 'Sunday Review',     parent: null }
 };
