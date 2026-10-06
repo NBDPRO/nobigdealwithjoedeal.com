@@ -215,6 +215,10 @@ const CLOSED = /^(closed|lost|cold|dead|archived|cancel)/;
 // the case-sensitive CLOSED test into the open pipeline. Custom stages keep
 // their key; a won-role stage is closed.
 const _SRK = require('./stage-roles');
+// The ONE money reader (customer-estimate-rows.js moneyValue): legacy text
+// jobValue like '$45,000' reads 45000, the same as the CRM (review R2, 2026-10-06).
+const { moneyValue } = require('./customer-estimate-rows');
+const { jobRecords } = require('./jobs-logic');
 function stageKeyOf(l) { return _SRK.canonicalStageKey(l && l.stage) || String((l && l.stage) || 'new'); }
 function isClosedLead(l) { const r = _SRK.roleFor(Object.assign({}, l, { _stageKey: stageKeyOf(l) })); return r === 'won' || r === 'lost' || CLOSED.test(stageKeyOf(l)); }
 function ms(v) {
@@ -238,7 +242,7 @@ function minimalLead(l) {
     address: String(l.address || ''),
     stage: String(l.stage || ''),
     damage_type: String(l.damageType || ''),
-    job_value: Number(l.jobValue) || 0,
+    job_value: moneyValue(l.jobValue),
     follow_up: isYmd(l.followUp) ? l.followUp : null,
     last_update: ms(l.updatedAt) ? new Date(ms(l.updatedAt)).toISOString().slice(0, 10) : null,
   };
@@ -249,15 +253,20 @@ function activeLeads(leads) {
   return (leads || []).filter((l) => l && l.id && l.deleted !== true && !l.e2eTestData);
 }
 
-function summary(leads, todayYmd) {
+// jobsByLead (optional): { leadId: [jobs] } — the open pipeline then counts
+// every open JOB, like the Home KPI tiles (review R2-2-7, 2026-10-06); the
+// customer and follow-up counts stay on the leads.
+function summary(leads, todayYmd, jobsByLead) {
   const act = activeLeads(leads);
   const byStage = {};
   let pipeline = 0, dueToday = 0, overdue = 0;
+  jobRecords(act, jobsByLead).forEach((r) => {
+    if (!isClosedLead(r)) pipeline += moneyValue(r.jobValue);
+  });
   act.forEach((l) => {
     const st = stageKeyOf(l);
     byStage[st] = (byStage[st] || 0) + 1;
     const closed = isClosedLead(l);
-    if (!closed) pipeline += Number(l.jobValue) || 0;
     if (isYmd(l.followUp) && !closed) {
       if (l.followUp === todayYmd) dueToday++;
       else if (l.followUp < todayYmd) overdue++;
@@ -835,6 +844,8 @@ function textGate(lead, optOut) {
   // phone does not need the written-consent record an automated text does —
   // the inbox shows whether one is on file.
   if (l.tcpaConsent === false) return { error: 'This customer declined texting on their form. No text draft — file a note instead.' };
+  // source 'dnc' = the company's own Do Not Text list (sms-optout.js), not a STOP reply.
+  if (optOut && optOut.optedOut && optOut.source === 'dnc') return { error: 'This customer is on your company\'s Do-Not-Text list. No text draft — file a note instead.' };
   if (!optOut || optOut.optedOut !== false) return { error: optOut && optOut.optedOut ? 'This customer is on the Do-Not-Text list (they replied STOP). No text draft — file a note instead.' : 'The Do-Not-Text list could not be checked. Try again later.' };
   return { ok: true, consentOnFile: l.tcpaConsent === true };
 }
