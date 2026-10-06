@@ -2601,6 +2601,45 @@ async function run() {
     throw new Error('52 plan lead cap: ' + s52Fail.length + ' check(s) went the wrong way:\n    ' + s52Fail.join('\n    '));
   }
 
+  // ─── 53. deal_rooms.leadId names only the writer's own / company's lead (2026-10-05) ───
+  // An accepted deal writes to its lead (cancelBy, install date, tier, job
+  // stage), so a deal must never point at another tenant's lead. CREATE and
+  // UPDATE (re-pointing leadId) both checked.
+  const s53Fail = []; let s53Pass = 0;
+  async function x53(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s53Pass++;
+    } catch (e) { s53Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const a53 = env.authenticatedContext('a53', { role: 'sales_rep', companyId: 'co-a53' }).firestore();
+  const t53 = env.authenticatedContext('t53', { role: 'sales_rep', companyId: 'co-a53' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'leads/lead53-own'), { userId: 'a53', companyId: 'co-a53', name: 'own' });
+    await setDoc(doc(d, 'leads/lead53-mate'), { userId: 't53', companyId: 'co-a53', name: 'teammate' });
+    await setDoc(doc(d, 'leads/lead53-victim'), { userId: 'v53', companyId: 'co-v53', name: 'victim' });
+    await setDoc(doc(d, 'leads/lead53-legacy'), { userId: 'v53', name: 'victim, no companyId' });
+    await setDoc(doc(d, 'deal_rooms/d53-open'), { userId: 'a53', leadId: 'lead53-own', status: 'sent', notes: '' });
+  });
+  await x53('create: deal on own lead', 'allow', setDoc(doc(a53, 'deal_rooms/d53-1'), { userId: 'a53', leadId: 'lead53-own', status: 'draft' }));
+  await x53('create: deal on a teammate\'s lead (same company)', 'allow', setDoc(doc(a53, 'deal_rooms/d53-2'), { userId: 'a53', leadId: 'lead53-mate', status: 'draft' }));
+  await x53('create: deal with no lead', 'allow', setDoc(doc(a53, 'deal_rooms/d53-3'), { userId: 'a53', leadId: null, status: 'draft' }));
+  await x53('create: deal naming a lead id with no doc', 'allow', setDoc(doc(a53, 'deal_rooms/d53-4'), { userId: 'a53', leadId: 'lead53-none', status: 'draft' }));
+  await x53('create: deal on another tenant\'s lead', 'deny', setDoc(doc(a53, 'deal_rooms/d53-5'), { userId: 'a53', leadId: 'lead53-victim', status: 'draft' }));
+  await x53('create: deal on another tenant\'s legacy lead (no companyId)', 'deny', setDoc(doc(a53, 'deal_rooms/d53-6'), { userId: 'a53', leadId: 'lead53-legacy', status: 'draft' }));
+  await x53('create: spoofed deal companyId does not help', 'deny', setDoc(doc(a53, 'deal_rooms/d53-7'), { userId: 'a53', companyId: 'co-v53', leadId: 'lead53-victim', status: 'draft' }));
+  await x53('create: a leadId with a slash', 'deny', setDoc(doc(a53, 'deal_rooms/d53-8'), { userId: 'a53', leadId: 'a/b', status: 'draft' }));
+  await x53('update: edit an open deal, lead unchanged', 'allow', updateDoc(doc(a53, 'deal_rooms/d53-open'), { notes: 'x' }));
+  await x53('update: full re-sync, same lead', 'allow', setDoc(doc(a53, 'deal_rooms/d53-open'), { userId: 'a53', leadId: 'lead53-own', status: 'viewed', notes: 'y' }));
+  await x53('update: re-point leadId at another tenant\'s lead', 'deny', updateDoc(doc(a53, 'deal_rooms/d53-open'), { leadId: 'lead53-victim' }));
+  await x53('update: re-point leadId at a teammate\'s lead', 'allow', updateDoc(doc(a53, 'deal_rooms/d53-open'), { leadId: 'lead53-mate' }));
+  await x53('teammate reads nothing new (owner-only read stands)', 'deny', getDoc(doc(t53, 'deal_rooms/d53-open')));
+  console.log('  53: ' + s53Pass + ' deal leadId checks passed, ' + s53Fail.length + ' failed');
+  if (s53Fail.length) {
+    throw new Error('53 deal leadId: ' + s53Fail.length + ' check(s) went the wrong way:\n    ' + s53Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }
