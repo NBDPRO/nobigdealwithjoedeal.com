@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "appcheck-config-per-page-2026-10-06.test.js",
     "google-signin-popup.test.js",
     "ci-concurrency.test.js",
     "crm-logo-legibility-2026-09-16.test.js",
@@ -421,7 +422,9 @@
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
     "invoice-due-7-days-2026-10-05.test.js",
-    "deposit-credit-ledger-mirror-2026-10-05.test.js"
+    "deposit-credit-ledger-mirror-2026-10-05.test.js",
+    "r2-money-lines-jobvalue-2026-10-06.test.js",
+    "r2-money-parse-multijob-2026-10-06.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

@@ -96,7 +96,8 @@ console.log('\nfunctions/weekly-digest.js');
   ok('the weekly won/lost counts use the fallback-aware helpers (not the raw Sets directly)',
     /touchedThisWeek\.filter\(_isWonLead\)/.test(src) && /touchedThisWeek\.filter\(_isLostLead\)/.test(src));
   ok('the active-pipeline-value scan uses the fallback-aware terminal check',
-    /if \(_isTerminalLead\(l\)\) continue;/.test(src));
+    // (r = a job record since review R2-2-7, 2026-10-06 — every open job counts)
+    /if \(_isTerminalLead\(r\)\) continue;/.test(src) && /for \(const r of jobRecords\(pipeLeads, jobsByLead\)\)/.test(src));
   ok('…and its query field mask actually SELECTS stageRole (an orderBy/select field absence is invisibility)',
     /\.select\(['"]stage['"],\s*['"]stageRole['"],/.test(src),
     'without stageRole in the projection, l.stageRole is always undefined and the fallback silently never fires — the exact bug class logged in this vault before');
