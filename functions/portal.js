@@ -510,11 +510,25 @@ function _homeownerUrlIsStale(p, nowMs) {
   return !exp || exp - nowMs < HOMEOWNER_URL_RENEW_MS;
 }
 
-async function _refreshHomeownerPhotoUrls(docs, nowMs) {
+// `path` and `source` are on a CLIENT-writable doc, and the signature is the
+// admin SDK's, so it reads any object in the bucket. Review R3-3 (2026-10-06):
+// a rep planted source:'homeowner' + a victim's path on their own photo and
+// got a 7-day read URL written back to them. Only the object the portal
+// upload itself writes — homeowner-uploads/{ownerUid}/{leadId}/ — is signed.
+function _isHomeownerUploadPath(path, ownerUid, leadId) {
+  if (typeof path !== 'string' || !path) return false;
+  if (typeof ownerUid !== 'string' || !ownerUid || ownerUid.includes('/')) return false;
+  if (typeof leadId !== 'string' || !leadId || leadId.includes('/')) return false;
+  if (path.includes('..') || path.includes('//') || path.includes('\\')) return false;
+  return path.startsWith(`homeowner-uploads/${ownerUid}/${leadId}/`);
+}
+
+async function _refreshHomeownerPhotoUrls(docs, nowMs, ownerUid, leadId) {
   const fresh = new Map();
   const stale = docs.filter((d) => {
     const p = d.data();
     return p.source === 'homeowner' && typeof p.path === 'string' && p.path
+      && _isHomeownerUploadPath(p.path, ownerUid, leadId)
       && _homeownerUrlIsStale(p, nowMs);
   });
   if (!stale.length) return fresh;
@@ -861,7 +875,7 @@ exports.getHomeownerPortalView = onRequest(
     // Refresh any homeowner-upload URL that is dead or nearly dead before
     // it reaches the gallery. Rep-uploaded photos carry permanent variant
     // URLs in `urls` and are untouched.
-    const _freshUrls = await _refreshHomeownerPhotoUrls(photoSnap.docs, Date.now());
+    const _freshUrls = await _refreshHomeownerPhotoUrls(photoSnap.docs, Date.now(), tok.ownerUid, tok.leadId);
 
     // Documents shelf (2026-09-16). Two visibility rules on leads/{id}/documents:
     //   - generated === true (document-generator.js output: contract, estimate,

@@ -82,6 +82,28 @@ function isReapablePhotoPath(p, ownerUids) {
   return false;
 }
 
+/**
+ * May cleanupE2ETestData (functions/handlers/auth.js) delete this object for
+ * the caller `uid`? Only under the caller's OWN photo / docgen prefixes.
+ *
+ * The paths it is handed (photos.storagePath / thumbStoragePath, a lead
+ * documents row's htmlPath) are CLIENT-WRITTEN, and the delete runs with the
+ * admin SDK, which ignores storage.rules. Before 2026-10-06 (review R3-2) any
+ * user could name a victim's object there and have it deleted. Fails closed.
+ *
+ * @param {string} p   object path taken from a swept doc
+ * @param {string} uid the authenticated caller
+ * @returns {boolean}
+ */
+function isOwnE2ECleanupPath(p, uid) {
+  if (typeof p !== 'string' || !p) return false;
+  if (typeof uid !== 'string' || !uid || uid.includes('/')) return false;
+  // Object names are literal in GCS, but refuse anything path-like that a
+  // reader could mistake for a different owner.
+  if (p.includes('..') || p.includes('//') || p.includes('\\')) return false;
+  return p.startsWith(`photos/${uid}/`) || p.startsWith(`documents/${uid}/`);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 2026-09-25 — helpers for the whole-subtree sweep (lead-subtree-sweep.js).
 //
@@ -419,6 +441,7 @@ module.exports = {
   VARIANT_SUFFIXES,
   variantPathsFor,
   isReapablePhotoPath,
+  isOwnE2ECleanupPath,
   LEAD_ARTIFACT_PREFIXES,
   RESERVED_LEAD_ID_NAMES,
   isReservedLeadId,
