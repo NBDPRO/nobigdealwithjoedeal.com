@@ -145,4 +145,84 @@ test.describe('@shard2 Brief me on a phone (390x844)', () => {
 
     await ctx.close();
   });
+
+  // 2026-10-05: the paid-in-full gate (#2132) must still say NO when an invoice
+  // is owed. Without collected-revenue.js on customer.html the gate failed closed
+  // for EVERY customer (the test above caught that); this one keeps the fix from
+  // "passing" by dropping the gate — an unpaid customer gets no email, no stamp.
+  test('unpaid invoice → no review email, no reviewRequested stamp', async ({ browser }, testInfo) => {
+    let creds;
+    try { creds = requireTestUser(); } catch (e) { test.skip(true, e.message); return; }
+    const ctx = await browser.newContext({
+      baseURL: testInfo.project.use.baseURL,
+      bypassCSP: !!testInfo.project.use.bypassCSP,
+      viewport: { width: W, height: H }, isMobile: true, hasTouch: true, serviceWorkers: 'block', userAgent: UA,
+    });
+    const page = await ctx.newPage();
+    await page.route('**/nominatim.openstreetmap.org/**', (r) => r.fulfill({ contentType: 'application/json', body: '[]' }));
+    const emailCalls = [];
+    await page.route(/\/sendEmail(\?|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors(req) });
+      emailCalls.push(JSON.parse(req.postData() || '{}'));
+      return route.fulfill({ status: 200, headers: cors(req), contentType: 'application/json', body: JSON.stringify({ success: true, id: 'resend-e2e' }) });
+    });
+
+    await loginAs(page, creds);
+    await page.goto('/pro/dashboard.html');
+    await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && window._user && window._user.uid, { timeout: 25_000 });
+    const leadId = await safeEvaluate(page, async () => {
+      const stamp = Date.now();
+      try {
+        await window._saveLead({ firstName: '[E2E] Unpaid', lastName: String(stamp), address: String(stamp).slice(-4) + ' Elm St, Milford, OH 45150',
+          phone: '513' + String(stamp).slice(-7), email: 'e2e-unpaid-' + stamp + '@nbd.test', stage: 'closed', e2eTestData: true });
+      } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const db = window.db || window._db;
+      const uid = (window._auth || window.auth).currentUser.uid;
+      const companyId = (window._userClaims && window._userClaims.companyId) || uid;
+      let id = null;
+      for (let i = 0; i < 20 && !id; i++) {
+        if (i) await new Promise((r) => setTimeout(r, 500));
+        const snap = await fs.getDocs(fs.query(fs.collection(db, 'leads'), fs.where('userId', '==', uid), fs.where('lastName', '==', String(stamp)), fs.where('e2eTestData', '==', true)));
+        snap.forEach((d) => { id = id || d.id; });
+      }
+      if (!id) throw new Error('seeded lead not found');
+      // Won stage, but $1,500 still owed on a sent invoice.
+      await fs.addDoc(fs.collection(db, 'invoices'), {
+        leadId: id, createdBy: uid, companyId, status: 'sent', total: 1500, balanceDue: 1500, amountPaid: 0,
+        depositAmount: 0, items: [], createdAt: fs.serverTimestamp(), dueDate: new Date(Date.now() + 864e5), e2eTestData: true,
+      });
+      return id;
+    });
+
+    await page.goto('/pro/customer.html?id=' + leadId);
+    await safeWaitForFunction(page, () => document.documentElement.style.opacity === '1' && typeof window.NBDLeadAI === 'object' && !!window.NBDRevenue && !!document.getElementById('askReviewBtn'), { timeout: 25_000 });
+    const skip = page.getByText('Skip tour', { exact: true });
+    if (await skip.isVisible().catch(() => false)) await skip.click().catch(() => {});
+    await page.evaluate(() => window.scrollTo(0, 0));
+
+    const more = page.locator('#qaMoreBtn');
+    if (await more.isVisible().catch(() => false) && !(await page.locator('#askReviewBtn').isVisible())) await more.tap();
+    await expect(page.locator('#askReviewBtn')).toBeVisible();
+    await page.locator('#askReviewBtn').tap();
+    await expect(page.getByText(/Not paid in full yet/).first(), 'says why it did not send').toBeVisible({ timeout: 10_000 });
+    // The gate loaded the invoices (so the NO came from the $1,500, not a missing cache).
+    const judged = await page.evaluate((id) => {
+      const inv = (window.NBDRevenue.cached() || []).filter((i) => i.leadId === id);
+      return inv.length;
+    }, leadId);
+    expect(judged, 'the owed invoice was loaded and judged').toBe(1);
+    await page.waitForTimeout(1500);
+    expect(emailCalls.length, 'no review email for an unpaid customer').toBe(0);
+    const stamped = await safeEvaluate(page, async (id) => {
+      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const snap = await fs.getDoc(fs.doc(window.db || window._db, 'leads', id));
+      const d = snap.data() || {};
+      return !!(d.reviewRequested || d.reviewRequestedAt);
+    }, leadId);
+    expect(stamped, 'no reviewRequested stamp').toBe(false);
+
+    await ctx.close();
+  });
 });
